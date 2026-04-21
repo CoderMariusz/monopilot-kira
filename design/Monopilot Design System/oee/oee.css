@@ -1,0 +1,139 @@
+/* OEE module — inherits production.css chrome (.prod-nav, .kpi, pareto-bar, tabs-bar, modal-*),
+   npd.css sidebar/topbar, shared.css primitives. Only OEE-specific rules below. */
+
+/* ============ Sub-nav P2 items dimmer ============ */
+.prod-nav-item.p2 { opacity: 0.75; }
+.prod-nav-item.p2:hover { opacity: 1; }
+
+/* ============ Filter bar ============ */
+.oee-filter-bar { display: flex; align-items: center; gap: 8px; padding: 4px 10px; background: var(--gray-050); border-radius: var(--radius); }
+.oee-filter-bar .pill.on { background: var(--blue); color: #fff; border-color: var(--blue); }
+
+/* ============ Freshness indicator (§1.6) ============ */
+.oee-fresh { display: flex; align-items: center; gap: 10px; font-size: 11px; padding: 6px 12px; background: #fff; border: 1px solid var(--border); border-radius: var(--radius); margin: 0 0 10px; }
+.oee-fresh.stale { background: #fffbeb; border-color: #fde68a; }
+.oee-fresh .oee-autorefresh { margin-left: auto; display: inline-flex; align-items: center; gap: 6px; color: var(--muted); }
+.oee-fresh .oee-autorefresh .refresh-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--green); animation: pulse 2s infinite; }
+
+/* ============ KPI row (5/4 cols) ============ */
+.oee-kpi-row { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; margin-bottom: 14px; }
+.oee-kpi-row.grid-4 { grid-template-columns: repeat(4, 1fr); }
+
+/* ============ Arc gauge (§1.4) ============ */
+.arc-gauge { display: flex; flex-direction: column; align-items: center; padding: 6px; transition: transform 0.15s; }
+.arc-gauge.hl { transform: scale(1.02); }
+.arc-gauge .arc-label { font-size: 11px; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; margin-top: 2px; }
+.arc-gauge .arc-delta { font-size: 10px; color: var(--muted); margin-top: 4px; font-family: var(--font-mono); }
+.arc-gauge .arc-delta.up { color: var(--green); }
+.arc-gauge .arc-delta.down { color: var(--red); }
+
+/* ============ Four gauge row on OEE-001 ============ */
+.oee-gauge-row { display: grid; grid-template-columns: repeat(4, 1fr) 220px; gap: 10px; margin-bottom: 10px; }
+.gauge-card-oee { display: flex; flex-direction: column; align-items: center; padding: 14px 10px; border-top: 3px solid var(--border); }
+.gauge-card-oee.primary { border-top-color: var(--blue); background: linear-gradient(180deg, rgba(25,118,210,0.04), #fff); }
+.gauge-card-oee .gauge-sub { font-size: 10px; color: var(--muted); margin-top: 6px; text-align: center; }
+
+.shift-summary { padding: 12px; }
+.shift-row { display: grid; grid-template-columns: 40px 70px 1fr; gap: 8px; align-items: center; padding: 7px 0; border-bottom: 1px solid var(--border); font-size: 11px; }
+.shift-row:last-child { border-bottom: 0; }
+
+/* ============ Trend chart ============ */
+.trend-chart-wrap { position: relative; padding: 8px; }
+.trend-chart { display: block; width: 100%; background: #fff; }
+.trend-tooltip { position: absolute; background: #fff; border: 1px solid var(--border); border-radius: 4px; padding: 6px 10px; font-size: 11px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); pointer-events: none; min-width: 130px; }
+.trend-tooltip .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; vertical-align: middle; }
+.trend-tooltip > div { padding: 2px 0; }
+
+.trend-legend { display: flex; gap: 14px; padding: 8px 14px; font-size: 11px; align-items: center; border-top: 1px solid var(--border); margin-top: 4px; }
+.trend-legend .lg { display: inline-flex; align-items: center; gap: 5px; }
+.trend-legend .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; }
+
+/* ============ Heatmap ============ */
+.heatmap-wrap { padding: 10px; overflow-x: auto; }
+.heatmap-row { display: grid; grid-template-columns: 130px repeat(7, 1fr); gap: 2px; margin-bottom: 2px; min-width: 900px; }
+.heatmap-row.heatmap-head { font-weight: 600; font-size: 11px; }
+.heatmap-corner { display: flex; align-items: flex-end; color: var(--muted); text-transform: uppercase; font-size: 10px; padding-left: 4px; }
+.heatmap-day-group { display: flex; flex-direction: column; }
+.heatmap-day-label { text-align: center; font-size: 11px; font-weight: 700; color: var(--text); padding: 4px 0 2px; border-bottom: 1px solid var(--border); }
+.heatmap-shift-labels { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 2px; margin-top: 2px; }
+.heatmap-shift-label { text-align: center; font-size: 9px; color: var(--muted); padding: 2px 0; }
+.heatmap-row-head { padding: 6px 4px; display: flex; flex-direction: column; justify-content: center; cursor: pointer; border-right: 1px solid var(--border); }
+.heatmap-row-head:hover { background: var(--gray-050); }
+.heatmap-cell { border-radius: 3px; padding: 6px 4px; cursor: pointer; color: #fff; text-align: center; position: relative; min-height: 44px; display: flex; flex-direction: column; justify-content: center; font-family: var(--font-mono); font-weight: 600; font-size: 13px; transition: transform 0.1s, outline 0.1s; }
+.heatmap-cell:hover { transform: scale(1.05); outline: 2px solid var(--text); z-index: 2; }
+.heatmap-cell.selected { outline: 3px solid #1e293b; z-index: 3; }
+.heatmap-cell.empty { color: var(--muted); }
+.heatmap-cell .hm-val { font-size: 13px; }
+.heatmap-cell .hm-micro { display: flex; gap: 1px; margin-top: 4px; height: 4px; }
+.heatmap-cell .hm-micro span { display: block; height: 100%; border-radius: 1px; }
+.heatmap-row:not(.heatmap-head) .heatmap-day-group { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 2px; }
+
+/* ============ Selected cell detail ============ */
+.cell-detail { display: grid; grid-template-columns: auto 1fr auto; gap: 20px; padding: 14px; align-items: center; }
+.cell-gauges { display: flex; gap: 8px; }
+.cell-meta { display: flex; flex-direction: column; gap: 6px; font-size: 12px; }
+.cell-meta .muted { color: var(--muted); margin-right: 6px; }
+.cell-actions { display: flex; flex-direction: column; gap: 6px; }
+
+/* ============ Summary table cell background colour ============ */
+.oee-cell { display: inline-block; padding: 4px 10px; border-radius: 3px; color: #fff; font-weight: 600; min-width: 70px; text-align: center; }
+
+/* ============ Losses tab grid ============ */
+.oee-losses-grid { grid-template-columns: 1.3fr 1fr; }
+.oee-calc-block { margin: 10px 14px; font-family: var(--font-mono); font-size: 11px; white-space: pre-wrap; padding: 14px; background: var(--gray-050); border: 1px solid var(--border); border-radius: 4px; line-height: 1.6; }
+
+/* ============ Legend squares ============ */
+.legend-sq { display: inline-block; width: 12px; height: 12px; border-radius: 2px; margin-right: 5px; }
+.legend-sq.red    { background: var(--red); }
+.legend-sq.amber  { background: var(--amber); }
+.legend-sq.blue   { background: var(--blue); }
+
+/* ============ Action bar ============ */
+.oee-action-bar { display: flex; gap: 8px; align-items: center; padding: 10px 0; margin-top: 10px; border-top: 1px solid var(--border); }
+
+/* ============ Extra badges not in core ============ */
+.badge.badge-purple { background: #f3e8ff; color: #6b21a8; }
+
+/* ============ Page head grid alignment ============ */
+.page-head { display: grid; grid-template-columns: 1fr auto; gap: 14px; align-items: flex-start; margin-bottom: 10px; }
+.page-head .row-flex { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.breadcrumb { font-size: 12px; color: var(--muted); margin-bottom: 4px; }
+.breadcrumb a { color: var(--blue); cursor: pointer; }
+
+/* ============ Radio / checkbox groups ============ */
+.radio-group, .check-group { display: flex; flex-direction: column; gap: 6px; padding: 4px 0; }
+.radio-group label, .check-group label { display: flex; gap: 8px; align-items: center; padding: 6px 10px; border: 1px solid var(--border); border-radius: 4px; cursor: pointer; font-size: 12px; }
+.radio-group label.on { border-color: var(--blue); background: var(--blue-050, #eff6ff); color: var(--blue); }
+.check-group label:hover { background: var(--gray-050); }
+
+/* ============ Gallery grid ============ */
+.gallery-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; }
+.gallery-card { background: #fff; border: 1px solid var(--border); border-radius: var(--radius); padding: 14px; cursor: pointer; transition: box-shadow 0.15s; }
+.gallery-card:hover { box-shadow: 0 2px 8px rgba(0,0,0,0.08); border-color: var(--blue-200, #93c5fd); }
+.gallery-pattern { font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); font-weight: 600; margin-bottom: 6px; }
+.gallery-name { font-size: 13px; font-weight: 600; color: var(--text); margin-bottom: 4px; }
+
+/* ============ Responsive ============ */
+@media (max-width: 1279px) {
+  .oee-gauge-row { grid-template-columns: repeat(2, 1fr); }
+  .oee-gauge-row .shift-summary { grid-column: 1 / -1; }
+  .oee-kpi-row { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 767px) {
+  #prod-main::before {
+    content: "For mobile OEE monitoring, use 08-PRODUCTION dashboard on your device.";
+    display: block;
+    padding: 40px 20px;
+    color: var(--muted);
+    text-align: center;
+  }
+}
+
+/* ============ Grid helpers ============ */
+.grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
+.grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+
+/* ============ Num alignment ============ */
+td.num { text-align: right; }
+td.mono, th { font-variant-numeric: tabular-nums; }

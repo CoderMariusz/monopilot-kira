@@ -1,0 +1,317 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Components — MonoPilot</title>
+<link rel="stylesheet" href="colors_and_type.css">
+<style>
+  body { padding: 32px 40px 80px; }
+  .gallery-title { font-size: 28px; font-weight: 700; margin-bottom: 4px; }
+  .gallery-sub { color: var(--muted); margin-bottom: 32px; }
+  .section { margin-bottom: 44px; }
+  .section > h2 { font-size: 11px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); margin-bottom: 14px; padding-bottom: 8px; border-bottom: 1px solid var(--border); }
+  .swatch-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 10px; }
+  .swatch { border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; background: #fff; }
+  .swatch-chip { height: 72px; }
+  .swatch-meta { padding: 8px 10px; font-size: 11px; }
+  .swatch-meta .name { font-weight: 600; font-size: 12px; }
+  .swatch-meta .hex { font-family: var(--font-mono); color: var(--muted); }
+
+  .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+  .tile { background: #fff; border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; }
+  .tile + .tile { margin-top: 12px; }
+  .tile-label { font-size: 11px; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 12px; }
+
+  /* ---------- buttons / badges / inputs copied from source ---------- */
+  .btn { padding: 6px 14px; border-radius: 4px; font-size: 12px; font-weight: 500; cursor: pointer; border: 1px solid transparent; font-family: inherit; }
+  .btn-primary { background: var(--blue); color: #fff; }
+  .btn-primary:hover { background: var(--blue-600); }
+  .btn-secondary { background: #fff; color: var(--text); border-color: var(--border); }
+  .btn-secondary:hover { background: var(--gray-050); }
+  .btn-danger { background: var(--red); color: #fff; }
+  .btn-success { background: var(--green); color: #fff; }
+  .btn-lg { padding: 9px 18px; font-size: 13px; }
+  .btn-icon { padding: 6px 10px; }
+
+  .badge { display: inline-block; padding: 2px 8px; border-radius: var(--radius-pill); font-size: var(--fs-badge); font-weight: 500; }
+  .badge-green { background: var(--green-050); color: var(--green-700); }
+  .badge-amber { background: var(--amber-050); color: var(--amber-700); }
+  .badge-red { background: var(--red-050); color: var(--red-700); }
+  .badge-blue { background: var(--blue-050); color: var(--blue-700); }
+  .badge-gray { background: var(--gray-050); color: var(--gray-600); }
+
+  .form-label { display: block; font-size: 12px; font-weight: 500; margin-bottom: 3px; color: var(--label); }
+  .form-label .req { color: var(--red); }
+  .form-input { width: 100%; padding: 7px 10px; border: 1px solid var(--border); border-radius: 4px; font-size: 13px; font-family: inherit; }
+  .form-input:focus { outline: none; border-color: var(--blue); box-shadow: var(--shadow-focus); }
+
+  /* KPIs */
+  .kpi-row { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; }
+  .kpi { background: #fff; border: 1px solid var(--border); border-radius: var(--radius); padding: 12px 14px; border-bottom: 3px solid var(--blue); }
+  .kpi.green { border-bottom-color: var(--green); }
+  .kpi.amber { border-bottom-color: var(--amber); }
+  .kpi.red { border-bottom-color: var(--red); }
+  .kpi-label { font-size: 11px; color: var(--muted); font-weight: 500; }
+  .kpi-value { font-size: 26px; font-weight: 700; line-height: 1.2; }
+  .kpi-change { font-size: 11px; margin-top: 2px; }
+
+  /* Tables */
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th { text-align: left; padding: 8px 10px; background: var(--gray-100); border-bottom: 2px solid var(--border); font-weight: 600; font-size: 12px; color: var(--muted); white-space: nowrap; }
+  td { padding: 7px 10px; border-bottom: 1px solid var(--border); }
+  tr:hover td { background: var(--gray-100); }
+  td.mono { font-family: var(--font-mono); font-size: 12px; }
+
+  /* Alerts */
+  .alert { padding: 10px 14px; border-radius: var(--radius); font-size: 12px; border-left: 4px solid; margin-bottom: 8px; }
+  .alert-red { background: var(--red-050a); border-color: var(--red); }
+  .alert-amber { background: var(--amber-050a); border-color: var(--amber); }
+  .alert-blue { background: var(--info-050a); border-color: var(--info); }
+  .alert-green { background: var(--green-050a); border-color: var(--green); }
+  .alert-title { font-weight: 600; margin-bottom: 2px; }
+
+  /* Pills / tabs */
+  .tabs { display: flex; border-bottom: 2px solid var(--border); }
+  .tab { padding: 8px 16px; font-size: 13px; cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -2px; color: var(--muted); }
+  .tab.active { color: var(--blue); border-bottom-color: var(--blue); font-weight: 600; }
+
+  .pills { display: flex; gap: 6px; flex-wrap: wrap; }
+  .pill { padding: 4px 11px; border-radius: 20px; font-size: 11px; font-weight: 500; cursor: pointer; background: var(--gray-050); color: var(--muted); border: 1px solid transparent; }
+  .pill.on { background: var(--blue-050); color: var(--blue-700); border-color: var(--blue); }
+
+  /* Type specimen */
+  .type-grid { display: grid; grid-template-columns: 180px 1fr; gap: 8px 24px; align-items: baseline; }
+  .type-grid .meta { font-family: var(--font-mono); font-size: 11px; color: var(--muted); }
+</style>
+</head>
+<body>
+
+<div class="gallery-title">Components</div>
+<div class="gallery-sub">Desktop (light). All tokens live in <code class="mono">colors_and_type.css</code>.</div>
+
+<!-- ===================== Color ===================== -->
+<div class="section">
+  <h2>Color</h2>
+  <div class="swatch-grid">
+    <div class="swatch"><div class="swatch-chip" style="background:var(--blue)"></div><div class="swatch-meta"><div class="name">Blue — primary</div><div class="hex">#1976D2</div></div></div>
+    <div class="swatch"><div class="swatch-chip" style="background:var(--green)"></div><div class="swatch-meta"><div class="name">Green — success</div><div class="hex">#22c55e</div></div></div>
+    <div class="swatch"><div class="swatch-chip" style="background:var(--amber)"></div><div class="swatch-meta"><div class="name">Amber — warning</div><div class="hex">#f59e0b</div></div></div>
+    <div class="swatch"><div class="swatch-chip" style="background:var(--red)"></div><div class="swatch-meta"><div class="name">Red — error</div><div class="hex">#ef4444</div></div></div>
+    <div class="swatch"><div class="swatch-chip" style="background:var(--info)"></div><div class="swatch-meta"><div class="name">Info</div><div class="hex">#3b82f6</div></div></div>
+    <div class="swatch"><div class="swatch-chip" style="background:var(--sidebar)"></div><div class="swatch-meta"><div class="name">Sidebar / chrome</div><div class="hex">#1e293b</div></div></div>
+    <div class="swatch"><div class="swatch-chip" style="background:var(--bg);border-bottom:1px solid var(--border)"></div><div class="swatch-meta"><div class="name">Page bg</div><div class="hex">#f8fafc</div></div></div>
+    <div class="swatch"><div class="swatch-chip" style="background:var(--card);border-bottom:1px solid var(--border)"></div><div class="swatch-meta"><div class="name">Card</div><div class="hex">#ffffff</div></div></div>
+    <div class="swatch"><div class="swatch-chip" style="background:var(--text)"></div><div class="swatch-meta"><div class="name">Text</div><div class="hex">#1e293b</div></div></div>
+    <div class="swatch"><div class="swatch-chip" style="background:var(--muted)"></div><div class="swatch-meta"><div class="name">Muted</div><div class="hex">#64748b</div></div></div>
+    <div class="swatch"><div class="swatch-chip" style="background:var(--border)"></div><div class="swatch-meta"><div class="name">Border</div><div class="hex">#e2e8f0</div></div></div>
+    <div class="swatch"><div class="swatch-chip" style="background:var(--gray-050)"></div><div class="swatch-meta"><div class="name">Gray-050</div><div class="hex">#f1f5f9</div></div></div>
+  </div>
+
+  <div class="tile" style="margin-top:16px">
+    <div class="tile-label">MES cell-state colors (NPD PRD §7.2)</div>
+    <div class="swatch-grid">
+      <div class="swatch"><div class="swatch-chip" style="background:var(--cell-locked)"></div><div class="swatch-meta"><div class="name">Locked</div><div class="hex">#D0D0D0</div></div></div>
+      <div class="swatch"><div class="swatch-chip" style="background:var(--cell-auto-derived)"></div><div class="swatch-meta"><div class="name">Auto-derived</div><div class="hex">#E0FFE0</div></div></div>
+      <div class="swatch"><div class="swatch-chip" style="background:var(--cell-d365-found)"></div><div class="swatch-meta"><div class="name">D365 found</div><div class="hex">#C0FFC0</div></div></div>
+      <div class="swatch"><div class="swatch-chip" style="background:var(--cell-d365-nocost)"></div><div class="swatch-meta"><div class="name">D365 no-cost</div><div class="hex">#C0FFFF</div></div></div>
+      <div class="swatch"><div class="swatch-chip" style="background:var(--cell-d365-missing)"></div><div class="swatch-meta"><div class="name">D365 missing</div><div class="hex">#C0C0FF</div></div></div>
+      <div class="swatch"><div class="swatch-chip" style="background:var(--cell-row-alert)"></div><div class="swatch-meta"><div class="name">Row alert</div><div class="hex">#C0C0FF</div></div></div>
+    </div>
+  </div>
+</div>
+
+<!-- ===================== Type ===================== -->
+<div class="section">
+  <h2>Typography — Inter + JetBrains Mono</h2>
+  <div class="tile">
+    <div class="type-grid">
+      <div class="meta">20 / 700 · page-title</div><div class="page-title">Work Orders</div>
+      <div class="meta">24 / 700 · page-title-lg</div><div class="page-title-lg">Settings</div>
+      <div class="meta">14 / 600 · card-title</div><div class="card-title">Active Work Orders</div>
+      <div class="meta">12 / 700 · section-head</div><div class="section-head">Operations</div>
+      <div class="meta">14 / 400 · body</div><div>500 kg of Chicken Nuggets scheduled on Line 1 for Dec 16.</div>
+      <div class="meta">13 / 400 · table cell</div><div>LP-8801 · Chicken Breast · 50 kg · Batch B-1210</div>
+      <div class="meta">12 / 500 · label</div><div class="label">Supplier <span style="color:var(--red)">*</span></div>
+      <div class="meta">12 / 400 · helper</div><div class="helper">Auto-filled from LP — required</div>
+      <div class="meta">11 / 500 · badge</div><div><span class="badge badge-green">● Active</span></div>
+      <div class="meta">12 / mono</div><div class="mono">WO-2025-0142  ·  LP-00234  ·  PO-1089</div>
+      <div class="meta">26 / 700 · kpi value</div><div style="font-size:26px;font-weight:700;line-height:1.2">91.2%</div>
+    </div>
+  </div>
+</div>
+
+<!-- ===================== KPIs ===================== -->
+<div class="section">
+  <h2>KPI cards</h2>
+  <div class="kpi-row">
+    <div class="kpi">
+      <div class="kpi-label">Active Work Orders</div>
+      <div class="kpi-value">12</div>
+      <div class="kpi-change" style="color:var(--green)">↑ 3 today</div>
+    </div>
+    <div class="kpi amber">
+      <div class="kpi-label">Pending POs</div>
+      <div class="kpi-value">7</div>
+      <div class="kpi-change" style="color:var(--amber)">2 overdue</div>
+    </div>
+    <div class="kpi red">
+      <div class="kpi-label">Low Stock Alerts</div>
+      <div class="kpi-value">4</div>
+      <div class="kpi-change" style="color:var(--red)">Critical: 1</div>
+    </div>
+    <div class="kpi green">
+      <div class="kpi-label">Avg Yield</div>
+      <div class="kpi-value">91.2%</div>
+      <div class="kpi-change" style="color:var(--green)">↑ 0.8%</div>
+    </div>
+    <div class="kpi green">
+      <div class="kpi-label">Today's Shipments</div>
+      <div class="kpi-value">8</div>
+      <div class="kpi-change" style="color:var(--green)">On time 100%</div>
+    </div>
+  </div>
+</div>
+
+<!-- ===================== Buttons ===================== -->
+<div class="section">
+  <h2>Buttons</h2>
+  <div class="tile">
+    <div class="tile-label">Standard</div>
+    <div class="row">
+      <button class="btn btn-primary">+ Create Work Order</button>
+      <button class="btn btn-secondary">Export CSV</button>
+      <button class="btn btn-success">Release</button>
+      <button class="btn btn-danger">Cancel Order</button>
+      <button class="btn btn-secondary btn-icon">⋮</button>
+    </div>
+  </div>
+  <div class="tile">
+    <div class="tile-label">Large (primary actions on detail pages)</div>
+    <div class="row">
+      <button class="btn btn-primary btn-lg">Approve PO</button>
+      <button class="btn btn-success btn-lg">Complete Work Order</button>
+      <button class="btn btn-secondary btn-lg">Clone</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===================== Badges ===================== -->
+<div class="section">
+  <h2>Status badges</h2>
+  <div class="tile">
+    <div class="tile-label">By semantic</div>
+    <div class="row">
+      <span class="badge badge-green">● Active</span>
+      <span class="badge badge-blue">● Confirmed</span>
+      <span class="badge badge-amber">⚠ Partial</span>
+      <span class="badge badge-red">⚠ Overdue</span>
+      <span class="badge badge-gray">○ Archived</span>
+    </div>
+  </div>
+  <div class="tile">
+    <div class="tile-label">Work Order lifecycle</div>
+    <div class="row">
+      <span class="badge badge-gray">○ Planned</span>
+      <span class="badge badge-blue">● Released</span>
+      <span class="badge badge-amber">● In Progress</span>
+      <span class="badge badge-gray">⏸ On Hold</span>
+      <span class="badge badge-green">✓ Completed</span>
+    </div>
+  </div>
+  <div class="tile">
+    <div class="tile-label">LP inventory</div>
+    <div class="row">
+      <span class="badge badge-green">● Available</span>
+      <span class="badge badge-blue">◉ Reserved</span>
+      <span class="badge badge-amber">⚠ Expiring</span>
+      <span class="badge badge-red">● Blocked</span>
+      <span class="badge badge-gray">○ Expired</span>
+    </div>
+  </div>
+</div>
+
+<!-- ===================== Inputs ===================== -->
+<div class="section">
+  <h2>Form inputs</h2>
+  <div class="tile">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+      <div>
+        <label class="form-label">Company Name <span class="req">*</span></label>
+        <input class="form-input" value="Forz Sp. z o.o.">
+      </div>
+      <div>
+        <label class="form-label">Timezone <span class="req">*</span></label>
+        <select class="form-input"><option>Europe/Warsaw</option><option>Europe/London</option></select>
+      </div>
+      <div>
+        <label class="form-label">Quantity <span class="req">*</span></label>
+        <input class="form-input" type="number" value="500">
+      </div>
+      <div>
+        <label class="form-label">Delivery Date</label>
+        <input class="form-input" type="date" value="2025-12-18">
+      </div>
+      <div style="grid-column:1/-1">
+        <label class="form-label">Notes</label>
+        <textarea class="form-input" rows="3" placeholder="Internal notes, not printed on PO…"></textarea>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===================== Table ===================== -->
+<div class="section">
+  <h2>Data table</h2>
+  <div class="tile" style="padding:0">
+    <table>
+      <thead>
+        <tr><th>WO # ↕</th><th>Product ↕</th><th>BOM</th><th>Qty</th><th>Line</th><th>Date</th><th>Status</th><th>Priority</th><th>Actions</th></tr>
+      </thead>
+      <tbody>
+        <tr><td class="mono">WO-0143</td><td>Chicken Nuggets</td><td>v3</td><td>500 kg</td><td>Line 1</td><td>Dec 16</td><td><span class="badge badge-amber">● In Progress</span></td><td><span class="badge badge-red">High</span></td><td style="color:var(--muted)">✏️ ⋮</td></tr>
+        <tr><td class="mono">WO-0144</td><td>Fish Fingers</td><td>v1</td><td>300 kg</td><td>Line 2</td><td>Dec 16</td><td><span class="badge badge-gray">○ Planned</span></td><td><span class="badge badge-gray">Medium</span></td><td style="color:var(--muted)">✏️ ⋮</td></tr>
+        <tr><td class="mono">WO-0142</td><td>Pork Sausages</td><td>v2</td><td>200 kg</td><td>Line 2</td><td>Dec 15</td><td><span class="badge badge-green">✓ Completed</span></td><td><span class="badge badge-gray">Normal</span></td><td style="color:var(--muted)">👁</td></tr>
+        <tr><td class="mono">WO-0141</td><td>Serek waniliowy 250g</td><td>v2</td><td>800 kg</td><td>Line A</td><td>Dec 15</td><td><span class="badge badge-blue">● Released</span></td><td><span class="badge badge-gray">Normal</span></td><td style="color:var(--muted)">✏️ ⋮</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ===================== Alerts ===================== -->
+<div class="section">
+  <h2>Alerts</h2>
+  <div class="alert alert-red"><div class="alert-title">Stock critical</div>Chicken Breast — 12 kg remaining (safety stock: 50 kg).</div>
+  <div class="alert alert-amber"><div class="alert-title">PO overdue</div>PO-1088 · PackRight · expected Dec 16, now Dec 17.</div>
+  <div class="alert alert-blue"><div class="alert-title">MRP suggestion</div>18 suggested POs based on WO demand + safety stock.</div>
+  <div class="alert alert-green"><div class="alert-title">Batch released</div>B-1215-A · Chicken Nuggets · all 8/8 QC tests passed.</div>
+</div>
+
+<!-- ===================== Tabs & pills ===================== -->
+<div class="section">
+  <h2>Tabs & filter pills</h2>
+  <div class="tile">
+    <div class="tile-label">Tabs (entity detail pages)</div>
+    <div class="tabs">
+      <div class="tab active">General</div>
+      <div class="tab">Nutrition</div>
+      <div class="tab">Allergens</div>
+      <div class="tab">BOMs</div>
+      <div class="tab">Costing</div>
+      <div class="tab">Shelf Life</div>
+      <div class="tab">History</div>
+    </div>
+  </div>
+  <div class="tile">
+    <div class="tile-label">Filter pills</div>
+    <div class="pills">
+      <span class="pill on">All</span>
+      <span class="pill">Active</span>
+      <span class="pill">My Line</span>
+      <span class="pill">Overdue</span>
+      <span class="pill">This Week</span>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>

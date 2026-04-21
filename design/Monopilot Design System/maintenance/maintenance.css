@@ -1,0 +1,285 @@
+/* Maintenance module — inherits production.css chrome, shared.css primitives, warehouse patterns.
+   Only maintenance-specific rules below: mWO states, LOTO lockout pattern, PM calendar grid,
+   asset hierarchy tree, calibration result badges, spare stock markers. */
+
+/* ============ mWO status badges ============ */
+.mwo-status { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 10px; font-weight: 500; font-family: var(--font-mono); letter-spacing: 0.03em; }
+.mwo-status.requested   { background: #dbeafe; color: #1e40af; }
+.mwo-status.approved    { background: #dbeafe; color: #1e40af; }
+.mwo-status.open        { background: #dbeafe; color: #1e40af; }
+.mwo-status.in_progress { background: #e0e7ff; color: #3730a3; }
+.mwo-status.completed   { background: #f1f5f9; color: #475569; }
+.mwo-status.cancelled   { background: #f1f5f9; color: #475569; opacity: 0.7; }
+
+/* ============ Priority badge ============ */
+.pri { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 10px; font-weight: 600; font-family: var(--font-mono); }
+.pri.critical { background: #fee2e2; color: #991b1b; }
+.pri.high     { background: #fef3c7; color: #92400e; }
+.pri.medium   { background: #dbeafe; color: #1e40af; }
+.pri.low      { background: #f1f5f9; color: #475569; }
+
+/* ============ Asset status ============ */
+.ast-status { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 10px; font-weight: 500; font-family: var(--font-mono); }
+.ast-status.operational { background: #dcfce7; color: #166534; }
+.ast-status.scheduled   { background: #dbeafe; color: #1e40af; }
+.ast-status.due         { background: #fef3c7; color: #92400e; }
+.ast-status.overdue     { background: #fee2e2; color: #991b1b; }
+.ast-status.in_work     { background: #e0e7ff; color: #3730a3; }
+.ast-status.inactive    { background: #f1f5f9; color: #475569; opacity: 0.7; }
+
+/* ============ LOTO lockout stripe pattern ============ */
+.loto-badge {
+  display: inline-flex; align-items: center; gap: 4px; padding: 2px 10px; border-radius: 10px;
+  font-size: 10px; font-weight: 700; font-family: var(--font-mono);
+  background: repeating-linear-gradient(45deg, #fef08a, #fef08a 4px, #fbbf24 4px, #fbbf24 8px);
+  color: #78350f; letter-spacing: 0.05em;
+}
+.loto-row { background: #fefce8 !important; }
+.loto-icon { font-size: 13px; vertical-align: -1px; }
+.loto-icon.active { filter: drop-shadow(0 0 3px rgba(251, 191, 36, 0.6)); }
+
+/* ============ Calibration result badges ============ */
+.cal-result { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 10px; font-weight: 600; font-family: var(--font-mono); }
+.cal-result.PASS        { background: #dcfce7; color: #166534; }
+.cal-result.FAIL        { background: #fee2e2; color: #991b1b; }
+.cal-result.OUT_OF_SPEC { background: #fef3c7; color: #92400e; }
+
+/* CCP block indicator */
+.ccp-block-row { border-left: 3px solid var(--red); }
+.ccp-block-ic { color: var(--red); font-size: 13px; }
+
+/* ============ mWO type colour pills ============ */
+.mwo-type { display: inline-block; padding: 1px 7px; border-radius: 10px; font-size: 10px; font-family: var(--font-mono); }
+.mwo-type.reactive    { background: #fee2e2; color: #991b1b; }
+.mwo-type.preventive  { background: #dbeafe; color: #1e40af; }
+.mwo-type.calibration { background: #dcfce7; color: #166534; }
+.mwo-type.sanitation  { background: #fef3c7; color: #92400e; }
+.mwo-type.inspection  { background: #f1f5f9; color: #475569; }
+
+/* ============ mWO source badges ============ */
+.mwo-src { display: inline-block; padding: 1px 7px; border-radius: 10px; font-size: 9px; font-family: var(--font-mono); }
+.mwo-src.manual       { background: var(--gray-100); color: var(--muted); }
+.mwo-src.pm_schedule  { background: #dbeafe; color: #1e40af; }
+.mwo-src.auto_downtime { background: #fef3c7; color: #92400e; }
+.mwo-src.oee_trigger  { background: #e0e7ff; color: #3730a3; }
+.mwo-src.calibration_alert { background: #dcfce7; color: #166534; }
+
+/* ============ State machine visual strip (mWO detail header) ============ */
+.state-strip { display: flex; align-items: center; gap: 0; padding: 10px 14px; background: var(--gray-050); border: 1px solid var(--border); border-radius: var(--radius); margin-bottom: 12px; font-size: 11px; }
+.state-strip .ss-step { display: flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 14px; color: var(--muted); font-weight: 500; }
+.state-strip .ss-step.done { color: var(--green-700); }
+.state-strip .ss-step.current { background: var(--blue); color: #fff; }
+.state-strip .ss-step.cancelled { background: var(--red-050a); color: var(--red-700); }
+.state-strip .ss-arr { color: var(--gray-300); font-size: 10px; margin: 0 6px; }
+
+/* ============ Asset hierarchy tree ============ */
+.asset-hier { background: #fff; border: 1px solid var(--border); border-radius: var(--radius); padding: 10px; font-size: 12px; position: sticky; top: 100px; max-height: calc(100vh - 120px); overflow-y: auto; }
+.hier-node { padding: 6px 8px; border-radius: 4px; cursor: pointer; display: flex; align-items: center; gap: 6px; }
+.hier-node:hover { background: var(--gray-050); }
+.hier-node.on { background: var(--blue-050); color: var(--blue); font-weight: 500; }
+.hier-node.l0 { font-weight: 700; color: var(--text); }
+.hier-node.l1 { margin-left: 16px; font-weight: 500; }
+.hier-node.l2 { margin-left: 32px; font-weight: 400; }
+.hier-node .hn-count { margin-left: auto; font-size: 10px; font-family: var(--font-mono); background: var(--gray-100); padding: 0 6px; border-radius: 8px; color: var(--muted); }
+.hier-node .hn-ic { font-size: 13px; width: 16px; text-align: center; }
+.hier-node .hn-alerts { font-size: 10px; color: var(--red); font-weight: 700; margin-left: 4px; }
+
+/* ============ PM calendar (weekly / monthly grid) ============ */
+.pm-cal { background: #fff; border: 1px solid var(--border); border-radius: var(--radius); padding: 14px; }
+.pm-cal-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+.pm-cal-title { font-size: 14px; font-weight: 600; color: var(--text); }
+.pm-cal-toggle { display: flex; gap: 4px; background: var(--gray-100); padding: 3px; border-radius: 6px; }
+.pm-cal-toggle button { padding: 4px 10px; border: 0; background: transparent; font-size: 11px; cursor: pointer; border-radius: 4px; color: var(--muted); }
+.pm-cal-toggle button.on { background: #fff; color: var(--blue); font-weight: 600; box-shadow: 0 1px 2px rgba(0,0,0,0.06); }
+
+.cal-grid-month { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
+.cal-cell { background: var(--gray-050); border: 1px solid var(--border); border-radius: 4px; min-height: 84px; padding: 6px; font-size: 10px; position: relative; cursor: pointer; }
+.cal-cell.other-month { opacity: 0.45; }
+.cal-cell.today { border-color: var(--blue); border-width: 2px; background: var(--blue-050); }
+.cal-cell .cc-day { font-family: var(--font-mono); font-weight: 700; font-size: 11px; color: var(--text); }
+.cal-cell .cc-dow { font-size: 9px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 4px; }
+.cal-cell .cc-event { display: block; font-size: 9px; padding: 2px 4px; border-radius: 3px; margin-bottom: 2px; font-family: var(--font-mono); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cal-event.preventive  { background: #dbeafe; color: #1e40af; }
+.cal-event.calibration { background: #dcfce7; color: #166534; }
+.cal-event.sanitation  { background: #fef3c7; color: #92400e; }
+.cal-event.inspection  { background: #f1f5f9; color: #475569; }
+.cal-event.overdue     { background: #fee2e2; color: #991b1b; border-left: 3px solid var(--red); }
+
+.cal-dow-head { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; margin-bottom: 4px; font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); font-weight: 600; }
+.cal-dow-head div { text-align: center; padding: 4px 0; }
+
+.cal-week { display: grid; grid-template-columns: 80px repeat(7, 1fr); gap: 4px; }
+.cal-week-asset { background: var(--gray-100); border-radius: 4px; padding: 6px; font-size: 10px; font-family: var(--font-mono); font-weight: 600; display: flex; align-items: center; }
+.cal-week-cell { background: var(--gray-050); border: 1px solid var(--border); border-radius: 4px; padding: 6px; min-height: 48px; font-size: 10px; }
+.cal-week-cell.today { border-color: var(--blue); background: var(--blue-050); }
+
+/* ============ Kanban columns (WR list) ============ */
+.kanban { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; min-height: 420px; }
+.kanban-col { background: var(--gray-050); border: 1px solid var(--border); border-radius: var(--radius); padding: 10px; display: flex; flex-direction: column; gap: 6px; }
+.kanban-col-title { font-size: 11px; font-weight: 700; color: var(--text); text-transform: uppercase; letter-spacing: 0.05em; padding-bottom: 6px; border-bottom: 1px solid var(--border); margin-bottom: 4px; display: flex; justify-content: space-between; align-items: center; }
+.kanban-col-title .kct-count { background: var(--gray-200); color: var(--muted); padding: 1px 8px; border-radius: 10px; font-size: 10px; font-family: var(--font-mono); }
+.kanban-col-title.submitted .kct-count { background: var(--amber); color: #fff; }
+.kanban-card { background: #fff; border: 1px solid var(--border); border-radius: 4px; padding: 8px 10px; font-size: 11px; cursor: grab; }
+.kanban-card:hover { border-color: var(--blue); }
+.kanban-card .kc-code { font-family: var(--font-mono); font-weight: 700; font-size: 11px; color: var(--blue); }
+.kanban-card .kc-asset { font-size: 12px; margin-top: 3px; }
+.kanban-card .kc-meta { font-size: 10px; color: var(--muted); margin-top: 4px; display: flex; justify-content: space-between; }
+
+/* ============ Checklist items (mWO tasks) ============ */
+.chk-item { display: grid; grid-template-columns: 30px 1fr 140px 100px; gap: 10px; padding: 10px 12px; border: 1px solid var(--border); border-radius: 4px; margin-bottom: 6px; background: #fff; align-items: center; }
+.chk-item.done { background: var(--green-050a); border-color: var(--green); }
+.chk-item .ci-num { font-family: var(--font-mono); font-weight: 700; color: var(--muted); font-size: 11px; width: 24px; height: 24px; border-radius: 50%; background: var(--gray-100); display: inline-flex; align-items: center; justify-content: center; }
+.chk-item.done .ci-num { background: var(--green); color: #fff; }
+.chk-item .ci-desc { font-size: 12px; }
+.chk-item .ci-sub { font-size: 10px; color: var(--muted); margin-top: 2px; }
+.chk-item .ci-type { font-size: 9px; text-transform: uppercase; padding: 2px 6px; border-radius: 3px; background: var(--gray-100); color: var(--muted); font-family: var(--font-mono); font-weight: 600; letter-spacing: 0.05em; display: inline-block; }
+
+/* ============ Signoff rows ============ */
+.signoff-row { display: grid; grid-template-columns: 32px 1fr auto; gap: 10px; padding: 10px 12px; border: 1px solid var(--border); border-radius: 4px; margin-bottom: 6px; background: #fff; align-items: center; }
+.signoff-row .so-avatar { width: 32px; height: 32px; border-radius: 50%; background: var(--blue); color: #fff; display: inline-flex; align-items: center; justify-content: center; font-weight: 700; font-size: 12px; }
+.signoff-row.done .so-avatar { background: var(--green); }
+.signoff-row .so-name { font-size: 12px; font-weight: 600; }
+.signoff-row .so-role { font-size: 10px; color: var(--muted); margin-top: 1px; }
+.signoff-row .so-time { font-size: 11px; color: var(--muted); font-family: var(--font-mono); }
+
+/* ============ Asset nameplate card ============ */
+.ast-plate { background: #fff; border: 1px solid var(--border); border-radius: var(--radius); padding: 14px; }
+.ast-plate-head { display: flex; align-items: flex-start; gap: 14px; padding-bottom: 12px; border-bottom: 1px solid var(--border); margin-bottom: 12px; }
+.ast-plate-ic { font-size: 28px; width: 48px; height: 48px; border-radius: var(--radius); background: var(--blue-050); display: inline-flex; align-items: center; justify-content: center; }
+.ast-plate-title { font-size: 18px; font-weight: 700; }
+.ast-plate-code { font-size: 11px; font-family: var(--font-mono); color: var(--muted); margin-top: 2px; }
+.ast-plate-badges { display: flex; gap: 6px; margin-top: 6px; flex-wrap: wrap; }
+
+/* ============ Stock strip (spare part) ============ */
+.stock-card { background: #fff; border: 1px solid var(--border); border-radius: var(--radius); padding: 14px; }
+.stock-card.low { border-color: var(--red); background: var(--red-050a); }
+.stock-card .sc-qty { font-size: 24px; font-weight: 700; font-family: var(--font-mono); }
+.stock-card.low .sc-qty { color: var(--red); }
+.stock-card .sc-label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); font-weight: 600; margin-top: 4px; }
+.stock-card .sc-bar { height: 8px; background: var(--gray-100); border-radius: 4px; margin-top: 8px; overflow: hidden; }
+.stock-card .sc-bar span { display: block; height: 100%; background: var(--green); }
+.stock-card.low .sc-bar span { background: var(--red); }
+
+/* ============ Technician skills matrix ============ */
+.skills-matrix { background: #fff; border: 1px solid var(--border); border-radius: var(--radius); overflow: auto; }
+.skills-matrix table { width: 100%; }
+.skills-matrix th { font-size: 10px; padding: 8px 6px; text-align: center; white-space: nowrap; writing-mode: vertical-rl; transform: rotate(180deg); min-height: 90px; }
+.skills-matrix td.sk-cell { text-align: center; font-size: 14px; padding: 6px; }
+.skills-matrix td.sk-cell.has { color: var(--green-700); }
+.skills-matrix td.sk-cell.specialist { color: var(--amber-700); }
+.skills-matrix td.sk-cell.none { color: var(--gray-300); }
+
+/* ============ Two-person verification step ============ */
+.two-person-step { display: flex; gap: 10px; padding: 10px 12px; border: 1px solid var(--border); border-radius: 4px; margin-bottom: 6px; background: #fff; align-items: center; }
+.two-person-step.done { background: var(--green-050a); border-color: var(--green); }
+.two-person-step .tp-num { width: 24px; height: 24px; border-radius: 50%; background: var(--blue); color: #fff; font-weight: 700; font-size: 11px; display: inline-flex; align-items: center; justify-content: center; font-family: var(--font-mono); }
+.two-person-step .tp-desc { flex: 1; font-size: 12px; }
+.two-person-step .tp-verifier { font-size: 10px; color: var(--muted); font-family: var(--font-mono); margin-top: 2px; }
+
+/* ============ Calibration test point row ============ */
+.tp-row { display: grid; grid-template-columns: 1fr 1fr 100px 40px 30px; gap: 8px; padding: 6px 10px; border-bottom: 1px solid var(--border); align-items: center; font-size: 12px; }
+.tp-row input { padding: 4px 6px; font-size: 11px; width: 100%; }
+.tp-row.in-spec { background: var(--green-050a); }
+.tp-row.out-spec { background: var(--red-050a); color: var(--red-700); }
+.tp-check { font-size: 14px; text-align: center; }
+.tp-check.ok { color: var(--green-700); }
+.tp-check.fail { color: var(--red-700); }
+
+/* ============ Downtime impact indicator ============ */
+.dt-impact { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; color: var(--red-700); font-weight: 600; }
+.dt-impact-none { color: var(--muted); font-size: 11px; }
+
+/* ============ Onboarding card ============ */
+.onboarding-card { background: linear-gradient(135deg, var(--blue-050), #fff); border: 1px solid var(--blue); border-radius: var(--radius); padding: 16px 18px; margin-bottom: 14px; }
+.onboarding-card h3 { font-size: 14px; font-weight: 700; margin: 0 0 6px; }
+.onboarding-steps { margin: 10px 0; }
+.onb-step { display: flex; align-items: center; gap: 10px; padding: 6px 0; border-bottom: 1px dashed var(--border); font-size: 12px; }
+.onb-step:last-child { border-bottom: 0; }
+.onb-step .osn { width: 22px; height: 22px; border-radius: 50%; background: var(--gray-100); color: var(--muted); display: inline-flex; align-items: center; justify-content: center; font-weight: 700; font-size: 11px; }
+.onb-step.done .osn { background: var(--green); color: #fff; }
+.onb-step.done .osn::before { content: "✓"; }
+.onb-step.done .osn { }
+.onb-step-text { flex: 1; }
+.onb-step.done .onb-step-text { text-decoration: line-through; color: var(--muted); }
+.onb-progress { height: 6px; background: var(--gray-100); border-radius: 3px; overflow: hidden; margin-top: 8px; }
+.onb-progress span { display: block; height: 100%; background: var(--blue); }
+
+/* ============ Spare part stock row highlighting ============ */
+.stock-low-row { background: #fef2f2 !important; }
+.stock-low-row td.qty-cell { color: var(--red); font-weight: 700; }
+.crit-part { color: #f59e0b; font-size: 13px; }
+
+/* ============ Energy source isolation list ============ */
+.nrg-step { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border: 1px solid var(--border); border-radius: 4px; margin-bottom: 6px; background: #fff; }
+.nrg-step .ns-num { width: 28px; height: 28px; border-radius: 50%; background: var(--blue); color: #fff; font-weight: 700; font-size: 12px; display: inline-flex; align-items: center; justify-content: center; font-family: var(--font-mono); }
+.nrg-step.done { background: var(--green-050a); border-color: var(--green); }
+.nrg-step.done .ns-num { background: var(--green); }
+.nrg-step .ns-desc { flex: 1; font-size: 12px; }
+.nrg-step .ns-iso { font-size: 10px; color: var(--muted); margin-top: 2px; font-family: var(--font-mono); }
+.nrg-step .ns-verif { font-size: 10px; color: var(--muted); font-family: var(--font-mono); white-space: nowrap; }
+
+/* ============ Alerts strip (dashboard) ============ */
+.alerts-critical { background: var(--red-050a); border: 1px solid var(--red); border-left: 4px solid var(--red); border-radius: var(--radius); padding: 10px 14px; margin-bottom: 10px; display: flex; align-items: center; gap: 10px; font-size: 12px; }
+.alerts-critical .ac-ic { font-size: 16px; color: var(--red); }
+.alerts-critical .ac-text { flex: 1; }
+.alerts-critical .ac-text strong { font-weight: 700; color: var(--red-700); }
+
+/* ============ Pareto bar chart (analytics) ============ */
+.pareto { display: grid; grid-template-columns: 160px 1fr 80px 60px; gap: 8px; padding: 6px 8px; font-size: 11px; align-items: center; }
+.pareto-bar { height: 14px; background: var(--gray-100); border-radius: 3px; overflow: hidden; position: relative; }
+.pareto-bar span { display: block; height: 100%; background: var(--blue); }
+.pareto-cumulative { position: absolute; top: 0; bottom: 0; border-right: 2px dashed var(--red); }
+
+/* ============ Gauge / progress bars ============ */
+.gauge-row { display: flex; align-items: center; gap: 10px; padding: 4px 0; font-size: 11px; }
+.gauge-bar { flex: 1; height: 8px; background: var(--gray-100); border-radius: 4px; overflow: hidden; }
+.gauge-bar span { display: block; height: 100%; background: var(--green); }
+.gauge-bar span.amber { background: var(--amber); }
+.gauge-bar span.red   { background: var(--red); }
+
+/* ============ Filter bar ============ */
+.filter-bar { display: flex; gap: 8px; padding: 10px 12px; background: var(--gray-050); border: 1px solid var(--border); border-radius: var(--radius); margin-bottom: 10px; flex-wrap: wrap; align-items: center; }
+.filter-bar label { font-size: 11px; color: var(--muted); font-weight: 600; }
+.filter-bar select, .filter-bar input[type="text"] { padding: 4px 8px; font-size: 11px; border: 1px solid var(--border); border-radius: 4px; }
+
+/* ============ Tabs bar (copied from warehouse pattern) ============ */
+.tabs-bar { display: flex; border-bottom: 1px solid var(--border); margin-bottom: 10px; gap: 2px; }
+.tab-btn { padding: 8px 14px; border: 0; background: transparent; color: var(--muted); border-bottom: 2px solid transparent; cursor: pointer; font-family: inherit; font-size: 12px; }
+.tab-btn:hover { color: var(--text); }
+.tab-btn.on { color: var(--blue); border-bottom-color: var(--blue); font-weight: 500; }
+.tab-btn .count { display: inline-block; margin-left: 6px; padding: 0 6px; font-size: 10px; background: var(--gray-100); border-radius: 8px; color: var(--muted); font-weight: 500; }
+
+/* ============ Row state modifiers ============ */
+.row-overdue { border-left: 3px solid var(--red); }
+.row-due     { border-left: 3px solid var(--amber); }
+
+/* ============ KPI row accent (mWO-type aware) ============ */
+.kpi-grid-6 { display: grid; grid-template-columns: repeat(6, 1fr); gap: 10px; margin-bottom: 12px; }
+.kpi-grid-8 { display: grid; grid-template-columns: repeat(8, 1fr); gap: 8px; margin-bottom: 12px; }
+
+/* ============ Certificate card ============ */
+.cert-card { background: #fff; border: 1px solid var(--border); border-radius: var(--radius); padding: 14px; display: flex; gap: 12px; align-items: center; }
+.cert-ic { width: 48px; height: 48px; background: var(--red-050a); color: var(--red); border-radius: var(--radius); display: inline-flex; align-items: center; justify-content: center; font-size: 22px; }
+.cert-meta { flex: 1; font-size: 11px; }
+.cert-meta .cm-name { font-weight: 600; color: var(--text); font-size: 12px; }
+.cert-meta .cm-hash { font-family: var(--font-mono); font-size: 10px; color: var(--muted); margin-top: 2px; }
+
+/* ============ Work request card (shop-floor optimized) ============ */
+.wr-sev-btn { display: block; padding: 12px 14px; border: 2px solid var(--border); border-radius: var(--radius); text-align: center; cursor: pointer; font-weight: 600; font-size: 12px; margin-bottom: 6px; background: #fff; }
+.wr-sev-btn:hover { border-color: var(--blue); }
+.wr-sev-btn.on { color: #fff; }
+.wr-sev-btn.critical.on { background: var(--red); border-color: var(--red); }
+.wr-sev-btn.high.on { background: var(--amber); border-color: var(--amber); }
+.wr-sev-btn.medium.on { background: var(--blue); border-color: var(--blue); }
+.wr-sev-btn.low.on { background: var(--gray-600); border-color: var(--gray-600); }
+
+/* ============ PM checklist template preview ============ */
+.tmpl-step { display: flex; gap: 8px; padding: 5px 8px; font-size: 11px; border-bottom: 1px dashed var(--border); }
+.tmpl-step:last-child { border-bottom: 0; }
+.tmpl-step .ts-num { color: var(--muted); font-family: var(--font-mono); }
+
+/* ============ Cross-module link chip ============ */
+.cm-chip { display: inline-flex; align-items: center; gap: 4px; padding: 1px 8px; border-radius: 10px; font-size: 10px; font-family: var(--font-mono); background: var(--gray-100); color: var(--muted); }
+.cm-chip.prod { background: #dbeafe; color: #1e40af; }
+.cm-chip.wh   { background: #dcfce7; color: #166534; }
+.cm-chip.qa   { background: #fef3c7; color: #92400e; }

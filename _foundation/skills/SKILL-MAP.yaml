@@ -1,0 +1,63 @@
+# SKILL-MAP — map fazy i moduły -> skille
+# Używany przez Claude i agenty do automatycznego loadu na starcie sesji
+
+metadata:
+  version: 1.0.0
+  last_updated: 2026-04-17
+  source_registry: REGISTRY.yaml
+  purpose: "Map which skills to invoke for each phase/module/task-type in Monopilot Migration"
+
+# ---------- PHASE -> SKILLS ----------
+phases:
+  phase-0-meta-spec:
+    required: [architecture-adr, documentation-patterns, schema-driven-design, rule-engine-dsl, multi-tenant-variation, reality-sync-workflow]
+    optional: [prd-structure]
+    rationale: "Writing META-MODEL + 4 ADRs + REALITY-SYNC + 4 new skills + consolidation"
+
+  phase-A-pld-v7-reality:
+    required: [documentation-patterns, discovery-interview-patterns, reality-sync-workflow]
+    optional: [food-industry-mes]
+    rationale: "Documenting external reality (PLD v7 Excel) into _meta/reality-sources/. Food-industry-mes full draft written here."
+
+  phase-D-architecture-closure:
+    required: [architecture-adr, documentation-patterns, schema-driven-design, multi-tenant-variation]
+    optional: []
+    rationale: "Reconcile 16 modules with NPD-first order, close architecture decisions"
+
+  phase-B-npd-update:
+    required: [monopilot-patterns, invest-stories, prd-structure, documentation-patterns, schema-driven-design]
+    optional: [multi-tenant-variation, rule-engine-dsl, food-industry-mes]
+    rationale: "Update NPD module 1:1 with PLD v7 reality"
+
+  phase-C-module-swarm:
+    agent-required: [documentation-patterns, prd-structure, monopilot-patterns, schema-driven-design]
+    agent-optional: [rule-engine-dsl, multi-tenant-variation, food-industry-mes]
+    rationale: "Agent propagates NPD pattern to 15 remaining modules"
+
+# ---------- MODULE -> SKILLS (placeholder — fill in Phase D) ----------
+modules:
+  "00-foundation": [architecture-adr, documentation-patterns]
+  "01-settings": [architecture-adr, documentation-patterns, multi-tenant-variation, schema-driven-design, supabase-rls]
+  "09-npd": [monopilot-patterns, supabase-rls, invest-stories, food-industry-mes, schema-driven-design, rule-engine-dsl, reality-sync-workflow]
+  # Note: modules 02-08, 10-15 to be filled after Phase D reordering
+
+# ---------- TASK TYPE -> SKILLS ----------
+task_types:
+  writing_story: [invest-stories, prd-structure, documentation-patterns]
+  writing_adr: [architecture-adr, documentation-patterns]
+  writing_prd: [prd-structure, invest-stories, documentation-patterns]
+  reality_sync: [reality-sync-workflow, documentation-patterns]
+  impl_api: [monopilot-patterns, nextjs-api-routes, api-design, api-security]
+  impl_component: [react-19-patterns, nextjs-v16-patterns, tailwind-patterns]
+  impl_test: [testing-patterns, typescript-zod]
+  impl_e2e: [testing-playwright, accessibility-checklist]
+  impl_supabase_schema: [supabase-rls, supabase-queries, multi-tenant-variation]
+  design_schema_driven: [schema-driven-design, multi-tenant-variation, architecture-adr]
+  design_rule: [rule-engine-dsl, schema-driven-design]
+
+# ---------- MARKER -> SKILL (auto-tagging przy pisaniu docs) ----------
+markers:
+  UNIVERSAL: [documentation-patterns]
+  FORZA-CONFIG: [documentation-patterns, multi-tenant-variation]
+  EVOLVING: [documentation-patterns, reality-sync-workflow]
+  LEGACY-D365: [documentation-patterns, reality-sync-workflow]

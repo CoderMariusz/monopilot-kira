@@ -1,0 +1,219 @@
+/* Finance module — inherits production.css chrome (.prod-nav, #prod-main, .kpi, .tabs-bar, .modal-*), planning.css filter-bar, shared.css primitives, npd.css waterfall-bar.
+   Only finance-specific rules below: variance badges, status chips, cost breakdown bars, FIFO layer cards, D365 status, waterfall extensions. */
+
+/* ============ Variance badges (Finance §1.3 spec) ============ */
+.var-badge { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 10px; font-family: var(--font-mono); font-size: 11px; font-weight: 500; line-height: 1.4; }
+.var-badge.fav       { background: #dcfce7; color: #166534; }
+.var-badge.unfav     { background: #fee2e2; color: #991b1b; }
+.var-badge.warn      { background: #fef3c7; color: #92400e; }
+.var-badge.crit      { background: #fee2e2; color: #991b1b; font-weight: 700; }
+.var-badge.neutral   { background: #f1f5f9; color: #475569; }
+.var-badge .va-arrow { font-size: 9px; }
+
+.var-sm { font-size: 10px; padding: 1px 6px; }
+.var-lg { font-size: 13px; padding: 4px 12px; }
+
+/* ============ Variance amount cells in tables ============ */
+.var-amt { font-family: var(--font-mono); font-weight: 600; }
+.var-amt.pos { color: #991b1b; }
+.var-amt.neg { color: #166534; }
+.var-amt.zero { color: var(--muted); }
+
+/* ============ Cost status pill (WO Cost card — ON TRACK / WARNING / OVER BUDGET / PENDING / FAVORABLE) ============ */
+.cost-status { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 12px; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; font-family: var(--font-mono); }
+.cost-status.ontrack   { background: #f0fdf4; color: #166534; }
+.cost-status.favorable { background: #f0fdf4; color: #166534; }
+.cost-status.warning   { background: #fffbeb; color: #92400e; }
+.cost-status.over      { background: #fef2f2; color: #991b1b; }
+.cost-status.pending   { background: #f1f5f9; color: #475569; }
+
+/* ============ KPI card — variance value large tile ============ */
+.kpi-fin-big { font-size: 22px; font-weight: 700; font-family: var(--font-mono); font-variant-numeric: tabular-nums; letter-spacing: -0.01em; }
+.kpi-fin-trend { font-size: 11px; display: inline-flex; align-items: center; gap: 3px; margin-top: 2px; font-family: var(--font-mono); }
+.kpi-fin-trend.up { color: var(--green-700); }
+.kpi-fin-trend.down { color: var(--red-700); }
+.kpi-fin-trend.up.bad { color: var(--red-700); }
+.kpi-fin-trend.down.good { color: var(--green-700); }
+
+/* ============ Cost breakdown — horizontal stacked / multi-bar ============ */
+.cost-breakdown { padding: 4px 0; }
+.cost-row { display: grid; grid-template-columns: 110px 1fr 120px 80px; align-items: center; gap: 10px; padding: 5px 0; font-size: 12px; }
+.cost-row .cr-label { color: var(--text); font-weight: 500; }
+.cost-row .cr-track { height: 14px; background: var(--gray-100); border-radius: 3px; position: relative; overflow: hidden; }
+.cost-row .cr-fill { position: absolute; top: 0; bottom: 0; left: 0; border-radius: 3px; }
+.cost-row .cr-fill.mat { background: var(--blue); }
+.cost-row .cr-fill.lab { background: var(--amber); }
+.cost-row .cr-fill.oh  { background: var(--muted); }
+.cost-row .cr-fill.waste { background: var(--red); }
+.cost-row .cr-val { text-align: right; font-family: var(--font-mono); font-size: 12px; }
+.cost-row .cr-pct { text-align: right; font-family: var(--font-mono); color: var(--muted); font-size: 11px; }
+
+.stack-bar { display: flex; height: 14px; border-radius: 3px; overflow: hidden; background: var(--gray-100); }
+.stack-bar .sb-seg { height: 100%; }
+.stack-bar .sb-seg.mat { background: var(--blue); }
+.stack-bar .sb-seg.lab { background: var(--amber); }
+.stack-bar .sb-seg.oh  { background: var(--muted); }
+.stack-bar .sb-seg.waste { background: var(--red); }
+
+.stack-legend { display: flex; gap: 14px; margin-top: 6px; flex-wrap: wrap; font-size: 11px; }
+.stack-legend .sl-item { display: inline-flex; align-items: center; gap: 5px; color: var(--muted); }
+.stack-legend .sl-dot { width: 10px; height: 10px; border-radius: 2px; display: inline-block; }
+.stack-legend .sl-dot.mat { background: var(--blue); }
+.stack-legend .sl-dot.lab { background: var(--amber); }
+.stack-legend .sl-dot.oh  { background: var(--muted); }
+.stack-legend .sl-dot.waste { background: var(--red); }
+
+/* ============ Variance waterfall extension (reuses npd .waterfall-bar) ============ */
+.waterfall-bar.fav .wf-fill { background: var(--green); }
+.waterfall-bar.unfav .wf-fill { background: var(--red); }
+.waterfall-bar.neutral .wf-fill { background: var(--muted); }
+.waterfall-bar .wf-val.pos { color: var(--red-700); }
+.waterfall-bar .wf-val.neg { color: var(--green-700); }
+
+/* ============ D365 connection status dot ============ */
+.conn-status { display: inline-flex; align-items: center; gap: 8px; padding: 6px 12px; border-radius: 6px; font-size: 13px; font-weight: 500; }
+.conn-dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+.conn-dot.on  { background: var(--green); box-shadow: 0 0 0 3px var(--green-050a); animation: pulse-green 2s infinite; }
+.conn-dot.off { background: var(--red);   box-shadow: 0 0 0 3px var(--red-050a); }
+.conn-dot.warn { background: var(--amber); }
+@keyframes pulse-green { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+
+/* ============ Period / Drill-down breadcrumb trail ============ */
+.drill-trail { display: flex; align-items: center; gap: 6px; padding: 10px 14px; background: #fff; border: 1px solid var(--border); border-radius: var(--radius); font-size: 12px; margin-bottom: 12px; flex-wrap: wrap; }
+.drill-trail .dt-step { padding: 3px 10px; border-radius: 4px; background: var(--gray-050); color: var(--muted); cursor: pointer; font-family: var(--font-mono); }
+.drill-trail .dt-step:hover { background: var(--gray-100); color: var(--text); }
+.drill-trail .dt-step.on { background: var(--blue-050); color: var(--blue); font-weight: 600; }
+.drill-trail .dt-sep { color: var(--gray-300); }
+
+/* ============ FIFO Layer rows ============ */
+.fifo-row { display: grid; grid-template-columns: 32px 1fr 100px 80px 100px 100px 80px; gap: 10px; align-items: center; padding: 8px 12px; border-bottom: 1px solid var(--border); font-size: 12px; }
+.fifo-row.head { background: var(--gray-050); font-weight: 600; text-transform: uppercase; font-size: 10px; color: var(--muted); letter-spacing: 0.05em; }
+.fifo-row.exhausted { opacity: 0.55; }
+.fifo-row.exhausted .fr-rem { text-decoration: line-through; }
+.fifo-layer-num { width: 22px; height: 22px; border-radius: 50%; background: var(--blue); color: #fff; display: inline-flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 700; font-family: var(--font-mono); }
+.fifo-layer-num.ex { background: var(--gray-300); color: var(--muted); }
+
+/* ============ Dashboard alert row (variance alerts) ============ */
+.var-alert-row { display: grid; grid-template-columns: 80px 120px 120px 1fr 100px 80px; gap: 10px; align-items: center; padding: 10px 14px; border-bottom: 1px solid var(--border); font-size: 12px; }
+.var-alert-row:last-child { border-bottom: 0; }
+.var-alert-row:hover { background: var(--gray-050); }
+.var-alert-row .va-wo { font-family: var(--font-mono); color: var(--blue); cursor: pointer; font-weight: 600; }
+
+/* ============ Saved Report cards ============ */
+.rep-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+@media (max-width: 1280px) { .rep-grid { grid-template-columns: repeat(2, 1fr); } }
+.rep-card { background: #fff; border: 1px solid var(--border); border-radius: var(--radius); padding: 14px; display: flex; flex-direction: column; gap: 8px; }
+.rep-card .rc-title { font-size: 14px; font-weight: 600; }
+.rep-card .rc-desc  { font-size: 12px; color: var(--muted); flex: 1; line-height: 1.45; }
+.rep-card .rc-meta  { font-size: 10px; color: var(--muted); font-family: var(--font-mono); padding-top: 6px; border-top: 1px solid var(--border); display: flex; justify-content: space-between; }
+
+/* ============ Period / method selector toggle ============ */
+.method-toggle { display: inline-flex; border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; background: #fff; }
+.method-toggle button { padding: 10px 18px; border: 0; background: #fff; color: var(--text); cursor: pointer; font-family: inherit; font-size: 13px; border-right: 1px solid var(--border); }
+.method-toggle button:last-child { border-right: 0; }
+.method-toggle button.on { background: var(--blue); color: #fff; font-weight: 600; }
+.method-toggle button:hover:not(.on) { background: var(--gray-050); }
+
+/* ============ Mini trend (sparkline placeholder) ============ */
+.mini-trend { height: 28px; position: relative; background: var(--gray-050); border-radius: 3px; overflow: hidden; }
+.mini-trend .mt-line { position: absolute; bottom: 4px; left: 0; right: 0; height: 1.5px; background: var(--blue); }
+
+/* ============ Chart placeholder (cost trend 6 months, FX rate) ============ */
+.chart-box { background: #fff; border: 1px solid var(--border); border-radius: 4px; padding: 14px; position: relative; }
+.chart-area { position: relative; height: 220px; padding: 10px 30px 30px 40px; background:
+  linear-gradient(var(--gray-100) 1px, transparent 1px) 0 0 / 100% 44px,
+  linear-gradient(to right, transparent 0, transparent 1px) 0 0 / 100% 100%;
+}
+.chart-axis-y { position: absolute; left: 0; top: 0; bottom: 30px; width: 38px; display: flex; flex-direction: column; justify-content: space-between; font-size: 10px; color: var(--muted); font-family: var(--font-mono); text-align: right; padding: 6px 6px 0 0; }
+.chart-axis-x { position: absolute; left: 40px; right: 30px; bottom: 4px; display: flex; justify-content: space-between; font-size: 10px; color: var(--muted); font-family: var(--font-mono); }
+.chart-svg { position: absolute; left: 40px; top: 10px; right: 30px; bottom: 30px; }
+
+.chart-legend { display: flex; gap: 14px; margin-top: 8px; font-size: 11px; }
+.chart-legend .cl-item { display: inline-flex; gap: 5px; align-items: center; }
+.chart-legend .cl-dot  { width: 10px; height: 10px; border-radius: 2px; display: inline-block; }
+
+/* ============ Cascade / Co-product table tint ============ */
+.cascade-row.parent { background: var(--blue-050); }
+.cascade-row.child  { background: var(--gray-050); }
+
+/* ============ Value pill (monetary monospace right-aligned) ============ */
+.money { font-family: var(--font-mono); font-variant-numeric: tabular-nums; text-align: right; }
+.money.big { font-size: 24px; font-weight: 700; }
+.money.neg { color: var(--red-700); }
+.money.pos { color: var(--green-700); }
+
+/* ============ Section headers inside cards ============ */
+.fin-section { padding: 10px 0; border-bottom: 1px dashed var(--border); margin-bottom: 10px; }
+.fin-section:last-child { border-bottom: 0; }
+.fin-section-title { font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); font-weight: 700; margin-bottom: 8px; }
+
+/* ============ Expandable chevron rows (variance breakdown) ============ */
+.expand-row { padding: 10px 14px; border-bottom: 1px solid var(--border); cursor: pointer; display: flex; align-items: center; gap: 10px; font-size: 13px; }
+.expand-row:hover { background: var(--gray-050); }
+.expand-row .er-chev { color: var(--muted); font-size: 10px; width: 14px; }
+.expand-row .er-label { flex: 1; font-weight: 500; }
+.expand-body { padding: 10px 14px 12px 38px; background: var(--gray-050); font-size: 12px; border-bottom: 1px solid var(--border); }
+.expand-body .eb-sub { padding: 3px 0; color: var(--muted); }
+
+/* ============ D365 DLQ row tint ============ */
+.dlq-row-permanent { background: #fff5f5; }
+
+/* ============ Inventory distribution bars ============ */
+.inv-dist-row { display: grid; grid-template-columns: 130px 1fr 80px 120px; gap: 10px; align-items: center; font-size: 12px; padding: 4px 0; }
+.inv-dist-row .idr-bar { height: 8px; background: var(--gray-100); border-radius: 3px; overflow: hidden; }
+.inv-dist-row .idr-fill { height: 100%; border-radius: 3px; }
+.inv-dist-row .idr-fill.rm { background: var(--blue); }
+.inv-dist-row .idr-fill.pkg { background: var(--amber); }
+.inv-dist-row .idr-fill.wip { background: var(--muted); }
+.inv-dist-row .idr-fill.fa { background: var(--green); }
+.inv-dist-row .idr-pct { text-align: right; font-family: var(--font-mono); font-size: 11px; color: var(--muted); }
+.inv-dist-row .idr-val { text-align: right; font-family: var(--font-mono); font-weight: 500; }
+
+/* ============ Ranking bar (Top Variance Contributors) ============ */
+.rank-bar { height: 6px; background: var(--gray-100); border-radius: 3px; position: relative; overflow: hidden; flex: 1; }
+.rank-bar .rb-fill { height: 100%; background: var(--red); }
+.rank-bar .rb-fill.fav { background: var(--green); }
+
+/* ============ FX rate-age chip ============ */
+.rate-age { font-family: var(--font-mono); font-size: 11px; padding: 1px 6px; border-radius: 4px; }
+.rate-age.fresh { color: var(--muted); background: var(--gray-050); }
+.rate-age.stale { color: var(--amber-700); background: var(--amber-050a); }
+.rate-age.expired { color: var(--red-700); background: var(--red-050a); font-weight: 600; }
+
+/* ============ Report tabs (saved / custom / queue) ============ */
+.rep-tabs { display: flex; border-bottom: 1px solid var(--border); margin-bottom: 14px; gap: 0; }
+.rep-tabs button { padding: 10px 16px; border: 0; background: transparent; color: var(--muted); border-bottom: 2px solid transparent; cursor: pointer; font-family: inherit; font-size: 13px; }
+.rep-tabs button.on { color: var(--blue); border-bottom-color: var(--blue); font-weight: 600; }
+
+/* ============ PIN input styled dots ============ */
+.pin-input { letter-spacing: 8px; font-family: var(--font-mono); text-align: center; font-size: 20px; font-weight: 600; }
+
+/* ============ History/Audit row ============ */
+.audit-row { display: grid; grid-template-columns: 28px 1fr auto; gap: 10px; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--border); font-size: 12px; }
+.audit-row:last-child { border-bottom: 0; }
+.audit-avatar { width: 26px; height: 26px; border-radius: 50%; background: var(--blue); color: #fff; display: inline-flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 700; font-family: var(--font-mono); }
+.audit-hash { font-family: var(--font-mono); font-size: 10px; color: var(--muted); background: var(--gray-050); padding: 1px 6px; border-radius: 3px; }
+
+/* ============ Onboarding checklist ============ */
+.onb-step { display: flex; gap: 10px; align-items: center; padding: 10px 14px; border: 1px solid var(--border); border-radius: 4px; margin-bottom: 6px; background: #fff; font-size: 12px; }
+.onb-step .onb-tick { width: 22px; height: 22px; border-radius: 50%; background: var(--gray-100); color: var(--muted); display: inline-flex; align-items: center; justify-content: center; font-size: 11px; }
+.onb-step.done .onb-tick { background: var(--green); color: #fff; }
+.onb-step.done .onb-label { text-decoration: line-through; color: var(--muted); }
+.onb-step .onb-label { flex: 1; }
+
+/* ============ Per-line effective row tint on Standard Costs ============ */
+.std-row-draft { border-left: 2px solid var(--amber); }
+.std-row-pending { border-left: 2px solid var(--blue); }
+
+/* ============ Tabs row count pills used in rep-tabs (reuse .count) ============ */
+.count { display: inline-block; margin-left: 6px; padding: 0 6px; font-size: 10px; background: var(--gray-100); border-radius: 8px; color: var(--muted); font-weight: 500; }
+
+/* ============ Save-bar (unsaved changes banner) ============ */
+.sticky-save { position: sticky; top: 48px; background: #fef3c7; color: #92400e; padding: 10px 14px; border-radius: 4px; margin-bottom: 10px; display: flex; align-items: center; gap: 10px; font-size: 12px; z-index: 20; }
+
+/* ============ Empty-state icon panel ============ */
+.empty-panel { text-align: center; padding: 60px 20px; color: var(--muted); }
+.empty-panel .ep-ic { font-size: 46px; opacity: 0.3; }
+.empty-panel .ep-head { font-size: 16px; color: var(--text); font-weight: 600; margin: 10px 0 6px; }
+.empty-panel .ep-body { font-size: 12px; line-height: 1.5; max-width: 440px; margin: 0 auto 16px; }
+.empty-panel .ep-ctas { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }

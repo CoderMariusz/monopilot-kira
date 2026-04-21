@@ -1,0 +1,209 @@
+/* Warehouse module — inherits production.css chrome (.prod-nav, #prod-main, .kpi, .modal-*), planning.css availability dots, shared.css primitives.
+   Only warehouse-specific rules below: LP status colours, expiry gradients, bin grid, genealogy tree, FEFO markers. */
+
+/* ============ LP status badges (extends standard badges) ============ */
+.lp-status { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 10px; font-weight: 500; font-family: var(--font-mono); letter-spacing: 0.03em; }
+.lp-status.available    { background: #dcfce7; color: #166534; }
+.lp-status.reserved     { background: #dbeafe; color: #1e40af; }
+.lp-status.blocked      { background: #fee2e2; color: #991b1b; }
+.lp-status.consumed     { background: #f1f5f9; color: #475569; }
+.lp-status.shipped      { background: #f1f5f9; color: #475569; }
+.lp-status.merged       { background: #f1f5f9; color: #475569; opacity: 0.8; }
+
+.qa-status { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 10px; font-weight: 500; font-family: var(--font-mono); }
+.qa-status.PENDING       { background: #fef3c7; color: #92400e; }
+.qa-status.PASSED        { background: #dcfce7; color: #166534; }
+.qa-status.RELEASED      { background: #dcfce7; color: #166534; }
+.qa-status.HOLD          { background: #fef3c7; color: #92400e; }
+.qa-status.FAILED        { background: #fee2e2; color: #991b1b; }
+.qa-status.QUARANTINED   { background: #fee2e2; color: #991b1b; }
+.qa-status.COND_APPROVED { background: #dbeafe; color: #1e40af; }
+
+/* ============ Expiry colour coding (used in cells) ============ */
+.exp-red      { color: var(--red-700); font-weight: 600; }
+.exp-amber    { color: var(--amber-700); font-weight: 500; }
+.exp-expired  { color: var(--red-700); text-decoration: line-through; font-weight: 600; }
+.exp-best     { color: #c2410c; font-style: italic; }
+.exp-ok       { color: var(--text); }
+
+/* ============ Ltree breadcrumb (Warehouse → Zone → Bin) ============ */
+.ltree { font-family: var(--font-mono); font-size: 11px; white-space: nowrap; }
+.ltree .l-anc { color: var(--muted); }
+.ltree .l-sep { color: var(--gray-300); margin: 0 3px; }
+.ltree .l-leaf { color: var(--text); font-weight: 600; }
+
+/* ============ Warehouse sub-nav — reuse prod-nav pattern; colour the Live dot ============ */
+
+/* ============ Dashboard — KPI lock icon on restricted cards ============ */
+.kpi-locked { opacity: 0.6; }
+.kpi-locked .kpi-value { color: var(--muted); }
+.kpi-locked .kpi-label::after { content: " 🔒"; font-size: 10px; }
+
+/* ============ GRN wizard — per-line accordion cards ============ */
+.grn-line-card { background: #fff; border: 1px solid var(--border); border-radius: var(--radius); margin-bottom: 10px; overflow: hidden; }
+.grn-line-head { padding: 10px 14px; background: var(--gray-050); border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 12px; font-size: 12px; cursor: pointer; }
+.grn-line-head:hover { background: var(--gray-100); }
+.grn-line-head .glh-num { font-family: var(--font-mono); font-weight: 700; color: var(--muted); font-size: 11px; }
+.grn-line-head .glh-prod { font-weight: 500; }
+.grn-line-head .glh-code { font-family: var(--font-mono); font-size: 11px; color: var(--muted); }
+.grn-line-head .glh-actions { margin-left: auto; display: flex; gap: 8px; }
+.grn-line-body { padding: 10px 14px; }
+.grn-line-body table { font-size: 11px; }
+.grn-line-body table input, .grn-line-body table select { padding: 4px 6px; font-size: 11px; }
+.grn-line-total { padding: 8px 14px; background: var(--gray-100); border-top: 1px solid var(--border); font-size: 11px; display: flex; align-items: center; gap: 10px; }
+.grn-line-total.ok { background: var(--green-050a); color: var(--green-700); }
+.grn-line-total.warn { background: var(--amber-050a); color: var(--amber-700); }
+.grn-line-total.err { background: var(--red-050a); color: var(--red-700); }
+.grn-line-total progress { flex: 1; max-width: 220px; height: 6px; }
+
+.grn-badge { display: inline-block; padding: 1px 7px; border-radius: 10px; font-size: 10px; font-family: var(--font-mono); }
+.grn-badge.ord { background: var(--gray-100); color: var(--gray-600); }
+.grn-badge.rec { background: var(--green-050a); color: var(--green-700); }
+.grn-badge.rem { background: var(--amber-050a); color: var(--amber-700); }
+.grn-badge.full { background: var(--green); color: #fff; }
+
+/* parsed-from-GS1 indicator on a field */
+.gs1-tag { display: inline-block; margin-left: 6px; font-size: 9px; padding: 1px 5px; background: var(--amber-050); color: var(--amber-700); border-radius: 8px; font-family: var(--font-mono); }
+
+/* ============ LP Detail — left identity card + tabs ============ */
+.lp-layout { display: grid; grid-template-columns: 300px 1fr; gap: 14px; align-items: flex-start; }
+.lp-id-card { position: sticky; top: 100px; background: #fff; border: 1px solid var(--border); border-radius: var(--radius); padding: 14px; font-size: 12px; }
+.lp-id-head { border-bottom: 1px solid var(--border); padding-bottom: 10px; margin-bottom: 10px; }
+.lp-id-head .lih-code { font-family: var(--font-mono); font-weight: 700; font-size: 16px; color: var(--text); }
+.lp-id-head .lih-badges { margin-top: 6px; display: flex; gap: 4px; flex-wrap: wrap; }
+.lp-id-field { padding: 6px 0; border-bottom: 1px solid var(--border); }
+.lp-id-field:last-child { border-bottom: 0; }
+.lp-id-field .lif-label { font-size: 9.5px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); font-weight: 600; margin-bottom: 3px; }
+.lp-id-field .lif-value { font-size: 12px; color: var(--text); word-break: break-word; }
+.lp-id-field .lif-value.mono { font-family: var(--font-mono); }
+.lp-id-actions { margin-top: 12px; padding-top: 12px; border-top: 1px dashed var(--border); display: flex; flex-direction: column; gap: 6px; }
+.lp-id-actions .btn { text-align: left; justify-content: flex-start; }
+.lp-id-rule-note { margin-top: 10px; font-size: 10px; color: var(--muted); line-height: 1.4; padding: 6px 8px; background: var(--gray-050); border-radius: 4px; }
+
+.lp-tabs { display: flex; border-bottom: 1px solid var(--border); margin-bottom: 14px; gap: 0; background: #fff; border-radius: var(--radius) var(--radius) 0 0; overflow-x: auto; }
+.lp-tabs button { padding: 10px 14px; border: 0; background: transparent; color: var(--muted); border-bottom: 2px solid transparent; cursor: pointer; font-family: inherit; font-size: 12px; white-space: nowrap; }
+.lp-tabs button:hover { color: var(--text); }
+.lp-tabs button.on { color: var(--blue); border-bottom-color: var(--blue); font-weight: 500; }
+.lp-tabs .tab-count { display: inline-block; margin-left: 6px; padding: 0 6px; font-size: 10px; background: var(--gray-100); border-radius: 8px; color: var(--muted); font-weight: 500; }
+
+/* lp-identity-card banner above tabs */
+.lp-expiry-banner { padding: 10px 14px; border-radius: var(--radius); margin-bottom: 12px; border-left: 4px solid; font-size: 12px; display: flex; gap: 10px; align-items: flex-start; }
+.lp-expiry-banner.red { background: var(--red-050a); border-color: var(--red); color: var(--red-700); }
+.lp-expiry-banner.amber { background: var(--amber-050a); border-color: var(--amber); color: var(--amber-700); }
+
+/* ============ Genealogy tree — visual cards in tree-item hierarchy ============ */
+.gen-canvas { background: #fafbfc; border: 1px dashed var(--border); border-radius: var(--radius); padding: 20px; min-height: 360px; }
+.gen-section-label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); font-weight: 700; margin: 14px 0 8px; }
+.gen-node { background: #fff; border: 1px solid var(--border); border-radius: 6px; padding: 10px 14px; margin-bottom: 6px; font-size: 12px; display: grid; grid-template-columns: 24px 1fr auto; gap: 10px; align-items: center; }
+.gen-node.root { border: 2px solid var(--blue); background: var(--blue-050); }
+.gen-node.l1 { margin-left: 28px; }
+.gen-node.l2 { margin-left: 56px; }
+.gen-node.l3 { margin-left: 84px; }
+.gen-op-icon { width: 24px; height: 24px; display: inline-flex; align-items: center; justify-content: center; border-radius: 50%; background: var(--gray-100); font-size: 12px; color: var(--muted); }
+.gen-op-icon.split { background: #fef3c7; color: #92400e; }
+.gen-op-icon.merge { background: #dbeafe; color: #1e40af; }
+.gen-op-icon.consume { background: #fee2e2; color: #991b1b; }
+.gen-op-icon.output { background: #dcfce7; color: #166534; }
+.gen-op-icon.receipt { background: var(--gray-100); color: var(--gray-600); }
+.gen-node .gn-code { font-family: var(--font-mono); font-weight: 600; font-size: 12px; color: var(--blue); cursor: pointer; }
+.gen-node .gn-prod { font-size: 11px; color: var(--text); margin-top: 1px; }
+.gen-node .gn-meta { font-size: 10px; color: var(--muted); font-family: var(--font-mono); margin-top: 2px; }
+.gen-node .gn-fefo { font-size: 9px; padding: 1px 6px; border-radius: 8px; font-family: var(--font-mono); white-space: nowrap; }
+.gen-node .gn-fefo.ok { background: var(--green-050a); color: var(--green-700); }
+.gen-node .gn-fefo.over { background: var(--amber-050a); color: var(--amber-700); }
+
+/* ============ Location tree ============ */
+.loc-layout { display: grid; grid-template-columns: 320px 1fr; gap: 14px; align-items: flex-start; }
+.loc-tree { background: #fff; border: 1px solid var(--border); border-radius: var(--radius); padding: 10px; font-size: 12px; position: sticky; top: 100px; max-height: calc(100vh - 120px); overflow-y: auto; }
+.loc-node { padding: 5px 8px; border-radius: 4px; cursor: pointer; display: flex; align-items: center; gap: 6px; }
+.loc-node:hover { background: var(--gray-050); }
+.loc-node.on { background: var(--blue-050); color: var(--blue); font-weight: 500; }
+.loc-node.l0 { font-weight: 600; }
+.loc-node.l1 { margin-left: 18px; }
+.loc-node.l2 { margin-left: 36px; }
+.loc-node .ln-tog { width: 14px; display: inline-flex; justify-content: center; color: var(--muted); font-size: 10px; }
+.loc-node .ln-count { margin-left: auto; font-size: 10px; font-family: var(--font-mono); background: var(--gray-100); padding: 0 6px; border-radius: 8px; color: var(--muted); }
+.loc-node.on .ln-count { background: var(--blue); color: #fff; }
+.loc-node .ln-type-ic { color: var(--muted); font-size: 12px; width: 16px; text-align: center; }
+
+/* ============ Bin occupancy grid (location detail visualization) ============ */
+.bin-grid { display: grid; grid-template-columns: repeat(8, 1fr); gap: 6px; padding: 14px; background: var(--gray-050); border-radius: var(--radius); }
+.bin-cell { aspect-ratio: 1.2; border: 1px solid var(--border); border-radius: 4px; background: #fff; padding: 6px; font-size: 10px; display: flex; flex-direction: column; justify-content: space-between; cursor: pointer; }
+.bin-cell:hover { border-color: var(--blue); }
+.bin-cell .bc-code { font-family: var(--font-mono); font-weight: 600; font-size: 10px; }
+.bin-cell .bc-util { font-size: 9px; color: var(--muted); }
+.bin-cell.low { background: linear-gradient(to top, #dcfce7 20%, #fff 20%); }
+.bin-cell.med { background: linear-gradient(to top, #fef3c7 60%, #fff 60%); }
+.bin-cell.full { background: linear-gradient(to top, #fee2e2 95%, #fff 95%); }
+.bin-cell.empty { background: #fff; color: var(--muted); }
+
+/* ============ Reservation / Hard-lock row ============ */
+.res-lock-row { display: flex; gap: 10px; align-items: center; padding: 10px 14px; background: var(--info-050a); border-left: 4px solid var(--info); border-radius: 4px; margin-bottom: 6px; font-size: 12px; }
+.res-lock-row .lock-ic { font-size: 14px; color: var(--info); }
+
+/* ============ Expiry dashboard — two-card alert strip ============ */
+.exp-strip { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 14px; }
+.exp-card { background: #fff; border: 1px solid var(--border); border-radius: var(--radius); padding: 14px 18px; border-left: 4px solid; }
+.exp-card.red { border-left-color: var(--red); background: var(--red-050a); }
+.exp-card.amber { border-left-color: var(--amber); background: var(--amber-050a); }
+.exp-card .ex-big { font-size: 28px; font-weight: 700; font-family: var(--font-mono); line-height: 1; }
+.exp-card .ex-lab { font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); font-weight: 600; margin-top: 4px; }
+.exp-card .ex-sub { font-size: 12px; color: var(--text); margin-top: 6px; }
+
+/* ============ Inventory Browser — aggregated product rows ============ */
+.inv-expand-ic { color: var(--muted); font-size: 10px; cursor: pointer; }
+
+/* ============ FEFO rank star on picker ============ */
+.fefo-star { color: var(--amber); font-size: 14px; }
+.fefo-rank { width: 28px; height: 28px; border-radius: 50%; background: var(--gray-100); font-family: var(--font-mono); font-weight: 700; font-size: 11px; display: inline-flex; align-items: center; justify-content: center; color: var(--muted); }
+.fefo-rank.top { background: var(--amber); color: #fff; }
+
+/* LP comparison cards in FEFO deviation modal */
+.fefo-compare { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 12px 0; }
+.fefo-compare .fc-card { border: 2px solid; border-radius: 6px; padding: 12px; background: #fff; }
+.fefo-compare .fc-card.suggested { border-color: var(--green); background: var(--green-050a); }
+.fefo-compare .fc-card.selected  { border-color: var(--amber); background: var(--amber-050a); }
+.fefo-compare .fc-head { font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em; font-weight: 700; color: var(--muted); margin-bottom: 6px; }
+.fefo-compare .fc-lp   { font-family: var(--font-mono); font-weight: 700; font-size: 14px; margin-bottom: 6px; }
+.fefo-compare .fc-row  { font-size: 11px; margin-bottom: 3px; }
+.fefo-compare .fc-row b { color: var(--text); }
+
+/* ============ Label preview panel (WH-013) ============ */
+.label-preview { background: #fff; border: 2px dashed var(--border); border-radius: 4px; padding: 16px; position: relative; font-family: var(--font-mono); font-size: 11px; }
+.label-preview .lp-barcode { background: repeating-linear-gradient(to right, #000 0 2px, #fff 2px 4px, #000 4px 7px, #fff 7px 9px); height: 38px; margin: 6px 0; }
+.label-preview .lp-qr { width: 60px; height: 60px; background:
+  repeating-linear-gradient(to right, #000 0 6px, #fff 6px 12px),
+  repeating-linear-gradient(to bottom, #000 0 6px, #fff 6px 12px);
+  background-blend-mode: screen; position: absolute; top: 10px; right: 10px; border: 4px solid #fff; }
+.label-preview .lp-field { display: grid; grid-template-columns: 90px 1fr; gap: 4px 8px; font-size: 10px; margin-top: 2px; }
+.label-preview .lp-field b { font-weight: 600; }
+.label-preview .lp-stamp { position: absolute; top: 40%; left: 50%; transform: translate(-50%, -50%) rotate(-12deg); background: var(--red); color: #fff; padding: 6px 18px; border-radius: 4px; font-weight: 700; font-size: 14px; letter-spacing: 0.05em; border: 3px solid #fff; }
+
+/* ============ Cycle-count / adjustment delta indicator ============ */
+.cc-delta { display: inline-block; padding: 3px 10px; border-radius: 4px; font-family: var(--font-mono); font-weight: 700; font-size: 13px; }
+.cc-delta.pos { background: var(--green-050a); color: var(--green-700); }
+.cc-delta.neg { background: var(--red-050a); color: var(--red-700); }
+.cc-delta.zero { background: var(--gray-100); color: var(--muted); }
+
+/* ============ Stock-movement side-panel ============ */
+.mv-side { position: fixed; right: 0; top: 48px; bottom: 0; width: 420px; background: #fff; border-left: 1px solid var(--border); box-shadow: -4px 0 10px rgba(0,0,0,0.05); z-index: 90; display: flex; flex-direction: column; animation: slideIn 0.15s ease-out; }
+.mv-side-head { padding: 14px 18px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; }
+.mv-side-body { padding: 16px 18px; overflow-y: auto; flex: 1; font-size: 12px; }
+
+/* move-type colour chips */
+.mv-type { font-family: var(--font-mono); font-size: 10px; padding: 2px 8px; border-radius: 10px; }
+.mv-type.receipt    { background: #dcfce7; color: #166534; }
+.mv-type.consume_to_wo { background: #fee2e2; color: #991b1b; }
+.mv-type.consume    { background: #fee2e2; color: #991b1b; }
+.mv-type.transfer   { background: #dbeafe; color: #1e40af; }
+.mv-type.putaway    { background: #dbeafe; color: #1e40af; }
+.mv-type.adjustment { background: #fef3c7; color: #92400e; }
+.mv-type.quarantine { background: #fee2e2; color: #991b1b; }
+.mv-type.issue      { background: #fee2e2; color: #991b1b; }
+.mv-type.return     { background: #f1f5f9; color: #475569; }
+
+/* Running-total progress for GRN */
+.grn-prog { height: 6px; background: var(--gray-100); border-radius: 3px; overflow: hidden; flex: 1; max-width: 220px; }
+.grn-prog > span { display: block; height: 100%; background: var(--green); }
+.grn-prog > span.warn { background: var(--amber); }
+.grn-prog > span.err { background: var(--red); }

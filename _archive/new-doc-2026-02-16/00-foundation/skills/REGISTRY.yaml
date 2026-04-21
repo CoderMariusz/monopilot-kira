@@ -1,0 +1,496 @@
+# Skills Registry - Central Manifest
+# Auto-maintained by SKILL-CREATOR and SKILL-VALIDATOR agents
+# Phase 0 Monopilot Migration — consolidation 2026-04-17
+
+metadata:
+  version: 2.0.0
+  total_skills: 39
+  last_full_audit: 2026-04-17
+  last_consolidation: 2026-04-17
+  next_scheduled_review: 2026-07-17
+  max_skills_per_task: 5  # raised from 3 per SKILL-AUDIT §6.2 recommendation
+
+# Skill status values:
+#   active              - Production ready, validated
+#   needs_review        - Source changes detected, requires validation
+#   draft               - New skill, not yet validated
+#   draft-placeholder   - Placeholder, full draft scheduled for later phase
+#   deprecated          - Scheduled for removal
+
+# Confidence levels:
+#   high   - Multiple authoritative sources, tested patterns
+#   medium - Single source or community patterns
+#   low    - Experimental or unverified
+
+# =============================================================================
+# GENERIC SKILLS (Technology-agnostic, reusable across projects)
+# =============================================================================
+generic:
+  # ---------------------------------------------------------------------------
+  # SUPABASE (6 skills)
+  # ---------------------------------------------------------------------------
+  supabase-rls:
+    version: 1.0.0
+    file: supabase-rls/SKILL.md
+    tokens: 650
+    confidence: high
+    status: active
+    tags: [supabase, security, database]
+    last_validated: 2025-12-10
+    validator_verdict: VALID
+
+  supabase-queries:
+    version: 1.0.0
+    file: supabase-queries/SKILL.md
+    tokens: 700
+    confidence: high
+    status: active
+    tags: [supabase, database, queries]
+    last_validated: 2025-12-10
+    validator_verdict: VALID
+
+  supabase-realtime:
+    version: 1.0.0
+    file: supabase-realtime/SKILL.md
+    tokens: 600
+    confidence: high
+    status: active
+    tags: [supabase, realtime, websocket]
+
+  supabase-auth:
+    version: 1.0.0
+    file: supabase-auth/SKILL.md
+    tokens: 700
+    confidence: high
+    status: active
+    tags: [supabase, auth, security]
+
+  supabase-storage:
+    version: 1.0.0
+    file: supabase-storage/SKILL.md
+    tokens: 550
+    confidence: high
+    status: active
+    tags: [supabase, storage, files]
+
+  supabase-edge-functions:
+    version: 1.0.0
+    file: supabase-edge-functions/SKILL.md
+    tokens: 600
+    confidence: high
+    status: active
+    tags: [supabase, serverless, deno]
+
+  # ---------------------------------------------------------------------------
+  # REACT & FRONTEND (5 skills — consolidated from 11)
+  # ---------------------------------------------------------------------------
+  react-19-patterns:
+    version: 1.0.0
+    file: react-19-patterns/SKILL.md
+    tokens: 1800
+    confidence: high
+    status: active
+    tags: [react, hooks, performance, forms, state, frontend]
+    last_validated: 2026-04-17
+    validator_verdict: CONSOLIDATED
+    validation_notes: "Consolidated 2026-04-17 from react-hooks, react-performance, react-forms, react-state-management"
+
+  nextjs-v16-patterns:
+    version: 1.0.0
+    file: nextjs-v16-patterns/SKILL.md
+    tokens: 1700
+    confidence: high
+    status: active
+    tags: [nextjs, react, frontend, server-components, server-actions, middleware]
+    last_validated: 2026-04-17
+    validator_verdict: CONSOLIDATED
+    validation_notes: "Consolidated 2026-04-17 from nextjs-app-router, nextjs-server-components, nextjs-server-actions, nextjs-middleware"
+
+  nextjs-data-fetching:
+    version: 1.0.0
+    file: nextjs-data-fetching/SKILL.md
+    tokens: 700
+    confidence: high
+    status: active
+    tags: [nextjs, data-fetching, caching]
+
+  nextjs-api-routes:
+    version: 1.0.0
+    file: nextjs-api-routes/SKILL.md
+    tokens: 650
+    confidence: high
+    status: active
+    tags: [nextjs, api, backend]
+
+  tailwind-patterns:
+    version: 1.0.0
+    file: tailwind-patterns/SKILL.md
+    tokens: 650
+    confidence: high
+    status: active
+    tags: [tailwind, css, styling]
+
+  # ---------------------------------------------------------------------------
+  # TYPESCRIPT (2 skills — consolidated from 4)
+  # ---------------------------------------------------------------------------
+  typescript-patterns-v2:
+    version: 1.0.0
+    file: typescript-patterns-v2/SKILL.md
+    tokens: 1400
+    confidence: high
+    status: active
+    tags: [typescript, types, generics]
+    last_validated: 2026-04-17
+    validator_verdict: CONSOLIDATED
+    validation_notes: "Consolidated 2026-04-17 from typescript-patterns, typescript-generics, typescript-api-types"
+
+  typescript-zod:
+    version: 1.0.0
+    file: typescript-zod/SKILL.md
+    tokens: 650
+    confidence: high
+    status: active
+    tags: [typescript, validation, zod]
+
+  # ---------------------------------------------------------------------------
+  # TESTING (2 skills — consolidated from 5+1)
+  # ---------------------------------------------------------------------------
+  testing-patterns:
+    version: 1.0.0
+    file: testing-patterns/SKILL.md
+    tokens: 2200
+    confidence: high
+    status: active
+    tags: [testing, vitest, tdd, react-testing-library, msw]
+    last_validated: 2026-04-17
+    validator_verdict: CONSOLIDATED
+    validation_notes: "Consolidated 2026-04-17 from testing-tdd-workflow, testing-react-testing-lib, testing-msw, testing-monopilot. Vitest (user decision), NOT Jest."
+
+  testing-playwright:
+    version: 1.0.0
+    file: testing-playwright/SKILL.md
+    tokens: 650
+    confidence: high
+    status: active
+    tags: [testing, e2e, playwright, automation]
+    last_validated: 2025-12-10
+    validator_verdict: VALID
+    validation_notes: "Playwright 1.57.0 - core patterns unchanged"
+
+  # ---------------------------------------------------------------------------
+  # API & BACKEND (2 skills — consolidated from 4)
+  # ---------------------------------------------------------------------------
+  api-design:
+    version: 1.0.0
+    file: api-design/SKILL.md
+    tokens: 1600
+    confidence: high
+    status: active
+    tags: [api, rest, backend, error-handling, validation]
+    last_validated: 2026-04-17
+    validator_verdict: CONSOLIDATED
+    validation_notes: "Consolidated 2026-04-17 from api-rest-design, api-error-handling, api-validation (RFC 9110, RFC 9457, Zod v4)"
+
+  api-security:
+    version: 1.0.0
+    file: api-security/SKILL.md
+    tokens: 1300
+    confidence: high
+    status: active
+    tags: [api, security, authentication, jwt, authorization]
+    last_validated: 2026-04-17
+    validator_verdict: CONSOLIDATED
+    validation_notes: "Consolidated 2026-04-17 from api-authentication + OWASP API Top 10 summary. security-backend-checklist remains separate."
+
+  # ---------------------------------------------------------------------------
+  # CODE QUALITY (5 skills)
+  # ---------------------------------------------------------------------------
+  code-review-checklist:
+    version: 1.0.0
+    file: code-review-checklist/SKILL.md
+    tokens: 500
+    confidence: high
+    status: active
+    tags: [quality, review, checklist]
+
+  git-workflow:
+    version: 1.0.0
+    file: git-workflow/SKILL.md
+    tokens: 550
+    confidence: high
+    status: active
+    tags: [git, workflow, branching]
+
+  git-conventional-commits:
+    version: 1.0.0
+    file: git-conventional-commits/SKILL.md
+    tokens: 400
+    confidence: high
+    status: active
+    tags: [git, commits, conventions]
+
+  documentation-patterns:
+    version: 1.1.0
+    file: documentation-patterns/SKILL.md
+    tokens: 750
+    confidence: high
+    status: active
+    tags: [documentation, jsdoc, readme, markers]
+    last_validated: 2026-04-17
+    validation_notes: "Updated 2026-04-17 — added UNIVERSAL/FORZA-CONFIG/EVOLVING/LEGACY-D365 markers section (Task 7)"
+
+  refactoring-patterns:
+    version: 1.0.0
+    file: refactoring-patterns/SKILL.md
+    tokens: 650
+    confidence: high
+    status: active
+    tags: [refactoring, code-quality, patterns]
+
+  # ---------------------------------------------------------------------------
+  # DEVOPS & TOOLING (2 skills)
+  # ---------------------------------------------------------------------------
+  ci-github-actions:
+    version: 1.1.0
+    file: ci-github-actions/SKILL.md
+    tokens: 700
+    confidence: high
+    status: active
+    tags: [ci, github-actions, automation]
+    validation_notes: "Updated to actions/checkout@v5, actions/setup-node@v6, Node.js 22 LTS"
+
+  env-configuration:
+    version: 1.0.0
+    file: env-configuration/SKILL.md
+    tokens: 550
+    confidence: high
+    status: active
+    tags: [configuration, environment, security]
+
+  # ---------------------------------------------------------------------------
+  # UX & SECURITY (3 skills)
+  # ---------------------------------------------------------------------------
+  accessibility-checklist:
+    version: 1.1.0
+    file: accessibility-checklist/SKILL.md
+    tokens: 450
+    confidence: high
+    status: active
+    tags: [accessibility, a11y, frontend, ux]
+    validation_notes: "WCAG 2.2 (Oct 2023)"
+
+  security-backend-checklist:
+    version: 1.1.0
+    file: security-backend-checklist/SKILL.md
+    tokens: 550
+    confidence: high
+    status: active
+    tags: [security, backend, api, owasp]
+    validation_notes: "OWASP 2021 + 2025 RC context"
+
+  ui-ux-patterns:
+    version: 1.0.0
+    file: ui-ux-patterns/SKILL.md
+    tokens: 550
+    confidence: high
+    status: active
+    tags: [ui, ux, design, frontend]
+
+  # ---------------------------------------------------------------------------
+  # PLANNING & PROCESS (5 skills)
+  # ---------------------------------------------------------------------------
+  invest-stories:
+    version: 1.0.0
+    file: invest-stories/SKILL.md
+    tokens: 400
+    confidence: high
+    status: active
+    tags: [agile, stories, planning, product]
+
+  discovery-interview-patterns:
+    version: 1.0.0
+    file: discovery-interview-patterns/SKILL.md
+    tokens: 450
+    confidence: high
+    status: active
+    tags: [discovery, requirements, interview, planning]
+
+  prd-structure:
+    version: 1.0.0
+    file: prd-structure/SKILL.md
+    tokens: 400
+    confidence: high
+    status: active
+    tags: [product, prd, requirements, planning]
+
+  architecture-adr:
+    version: 1.0.0
+    file: architecture-adr/SKILL.md
+    tokens: 400
+    confidence: high
+    status: active
+    tags: [architecture, adr, decisions, documentation]
+
+  qa-bug-reporting:
+    version: 1.0.0
+    file: qa-bug-reporting/SKILL.md
+    tokens: 400
+    confidence: high
+    status: active
+    tags: [qa, bugs, testing, reporting]
+
+  # ---------------------------------------------------------------------------
+  # SKILLS META (1 skill)
+  # ---------------------------------------------------------------------------
+  version-changelog-patterns:
+    version: 1.0.0
+    file: version-changelog-patterns/SKILL.md
+    tokens: 350
+    confidence: high
+    status: active
+    tags: [versioning, changelog, updates, skills]
+    validation_notes: "SemVer 2.0.0 + Keep a Changelog 1.1.0"
+
+  # ---------------------------------------------------------------------------
+  # MONOPILOT META-MODEL (4 skills — created Phase 0, Tasks 8-11)
+  # ---------------------------------------------------------------------------
+  schema-driven-design:
+    version: 1.0.0
+    file: schema-driven-design/SKILL.md
+    tokens: 1200
+    confidence: high
+    status: active
+    tags: [monopilot, meta-model, schema, database, configuration]
+    last_validated: 2026-04-17
+    validation_notes: "Created 2026-04-17 — column definitions as DB rows (ADR-028), Zod from metadata"
+
+  rule-engine-dsl:
+    version: 1.0.0
+    file: rule-engine-dsl/SKILL.md
+    tokens: 1200
+    confidence: high
+    status: active
+    tags: [monopilot, meta-model, rules, dsl, workflow, stage-gate]
+    last_validated: 2026-04-17
+    validation_notes: "Created 2026-04-17 — workflow as data (ADR-029), rule evaluator pattern"
+
+  reality-sync-workflow:
+    version: 1.0.0
+    file: reality-sync-workflow/SKILL.md
+    tokens: 1100
+    confidence: high
+    status: active
+    tags: [monopilot, meta-model, reality-sync, documentation, markers]
+    last_validated: 2026-04-17
+    validation_notes: "Created 2026-04-17 — sync external reality into _meta/reality-sources/"
+
+  multi-tenant-variation:
+    version: 1.0.0
+    file: multi-tenant-variation/SKILL.md
+    tokens: 1300
+    confidence: high
+    status: active
+    tags: [monopilot, meta-model, multi-tenant, rls, configuration, markers]
+    last_validated: 2026-04-17
+    validation_notes: "Created 2026-04-17 — [UNIVERSAL] vs [FORZA-CONFIG] split, RLS + config tables"
+
+  # ---------------------------------------------------------------------------
+  # MONOPILOT PROJECT (1 skill — rebranded 2026-04-17)
+  # ---------------------------------------------------------------------------
+  monopilot-patterns:
+    version: 1.1.0
+    file: monopilot-patterns/SKILL.md
+    tokens: 1400
+    confidence: high
+    status: active
+    tags: [monopilot, project-patterns, implementation, supabase, nextjs]
+    last_validated: 2026-04-17
+    validation_notes: "Rebrand MonoPilot -> Monopilot 2026-04-17, added cross-ref to 4 meta-model skills"
+
+# =============================================================================
+# DOMAIN SKILLS (Industry/domain specific patterns)
+# =============================================================================
+domain:
+  food-industry-mes:
+    version: 0.1.0
+    file: domain/food-industry-mes/SKILL.md
+    tokens: 400
+    confidence: medium
+    status: draft-placeholder
+    tags: [monopilot, domain, food-industry, mes, bom, traceability]
+    last_validated: 2026-04-17
+    validation_notes: "Placeholder 2026-04-17 — full draft scheduled for Phase A after PLD v7 reality docs"
+
+# =============================================================================
+# REVIEW QUEUE (Skills pending validation)
+# =============================================================================
+review_queue: []
+
+# =============================================================================
+# SKILL INDEX (Quick reference for agents — ~200 tokens)
+# =============================================================================
+skill_index:
+  # Supabase (6)
+  supabase-rls: "Row Level Security patterns for Supabase"
+  supabase-queries: "Supabase query patterns and best practices"
+  supabase-realtime: "Real-time subscriptions and presence"
+  supabase-auth: "Authentication flows and session management"
+  supabase-storage: "File upload and storage patterns"
+  supabase-edge-functions: "Serverless edge functions in Deno"
+
+  # React & Frontend (5)
+  react-19-patterns: "React 19 hooks + performance + forms + state (consolidated)"
+  nextjs-v16-patterns: "Next.js 16 App Router + RSC + Server Actions + Middleware (consolidated)"
+  nextjs-data-fetching: "Server-side data fetching and caching"
+  nextjs-api-routes: "API route handlers in Next.js"
+  tailwind-patterns: "Tailwind CSS utility patterns"
+
+  # TypeScript (2)
+  typescript-patterns-v2: "TypeScript idioms + generics + API types (consolidated)"
+  typescript-zod: "Zod schema validation patterns (v4)"
+
+  # Testing (2)
+  testing-patterns: "TDD + Vitest + RTL + MSW (consolidated, Vitest NOT Jest)"
+  testing-playwright: "E2E testing with Playwright"
+
+  # API & Backend (2)
+  api-design: "REST design (RFC 9110) + error handling (RFC 9457) + Zod validation (consolidated)"
+  api-security: "JWT (RFC 8725) + RBAC + OWASP API Top 10 summary"
+
+  # Code Quality (5)
+  code-review-checklist: "Code review best practices"
+  git-workflow: "Git branching and PR workflow"
+  git-conventional-commits: "Conventional commits format"
+  documentation-patterns: "JSDoc + README + UNIVERSAL/FORZA-CONFIG/EVOLVING/LEGACY-D365 markers"
+  refactoring-patterns: "Common refactoring techniques"
+
+  # DevOps (2)
+  ci-github-actions: "GitHub Actions CI/CD (v5/v6 actions, Node 22)"
+  env-configuration: "Environment variable management"
+
+  # UX & Security (3)
+  accessibility-checklist: "WCAG 2.2 checklist"
+  security-backend-checklist: "OWASP backend security patterns"
+  ui-ux-patterns: "UI patterns for layouts, forms, feedback"
+
+  # Planning & Process (5)
+  invest-stories: "INVEST criteria for user stories"
+  discovery-interview-patterns: "Requirements gathering interview patterns"
+  prd-structure: "PRD structure with MoSCoW"
+  architecture-adr: "Architecture Decision Record format"
+  qa-bug-reporting: "Bug report structure and severity levels"
+
+  # Skills Meta (1)
+  version-changelog-patterns: "SemVer + changelog patterns"
+
+  # Monopilot meta-model (4)
+  schema-driven-design: "Column definitions as DB rows (ADR-028)"
+  rule-engine-dsl: "Workflow & rules as data, Stage-Gate DSL (ADR-029)"
+  reality-sync-workflow: "Sync external reality into _meta/reality-sources/"
+  multi-tenant-variation: "[UNIVERSAL] vs [FORZA-CONFIG] + RLS + config tables"
+
+  # Monopilot project (1)
+  monopilot-patterns: "Monopilot implementation patterns (API routes, services, auth, errors)"
+
+  # Domain (1)
+  food-industry-mes: "Food MES domain — BOM, traceability, allergens, shelf-life, Stage-Gate NPD, GMP (PLACEHOLDER — Phase A)"

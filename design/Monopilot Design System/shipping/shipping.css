@@ -1,0 +1,134 @@
+/* Shipping module — inherits production.css chrome, shared.css primitives, warehouse/npd patterns.
+   Only shipping-specific rules below: SO/Shipment/Pick/Pack/BOL status colours, kanban wave, label previews. */
+
+/* ============ SO / Shipment / Pick status badges ============ */
+.so-status { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 10px; font-weight: 500; font-family: var(--font-mono); letter-spacing: 0.03em; }
+.so-status.draft       { background: #f1f5f9; color: #475569; }
+.so-status.confirmed   { background: #dbeafe; color: #1e40af; }
+.so-status.allocated   { background: #dcfce7; color: #166534; }
+.so-status.short       { background: #fef3c7; color: #92400e; }
+.so-status.picking     { background: #fef3c7; color: #b45309; }
+.so-status.packing     { background: #fff7ed; color: #9a3412; }
+.so-status.packed      { background: #dbeafe; color: #1976D2; }
+.so-status.shipped     { background: #e0e7ff; color: #3730a3; }
+.so-status.delivered   { background: #e2e8f0; color: #1e293b; }
+.so-status.partial     { background: #fef3c7; color: #92400e; }
+.so-status.cancelled   { background: #fee2e2; color: #991b1b; }
+.so-status.held        { background: #fee2e2; color: #991b1b; }
+
+.hold-chip { display: inline-flex; align-items: center; gap: 3px; padding: 1px 6px; border-radius: 8px; font-size: 9px; font-family: var(--font-mono); font-weight: 600; margin-right: 4px; }
+.hold-chip.credit   { background: #fef3c7; color: #92400e; }
+.hold-chip.qa       { background: #fee2e2; color: #991b1b; }
+.hold-chip.allergen { background: #fff7ed; color: #9a3412; }
+.hold-chip.manual   { background: #f1f5f9; color: #475569; }
+
+/* ============ Allocation progress bar ============ */
+.alloc-prog { height: 6px; background: var(--gray-100); border-radius: 3px; overflow: hidden; display: inline-block; width: 80px; vertical-align: middle; margin-right: 6px; }
+.alloc-prog > span { display: block; height: 100%; background: var(--green); }
+.alloc-prog > span.warn { background: var(--amber); }
+.alloc-prog > span.err  { background: var(--red); }
+
+/* ============ Pick list progress ============ */
+.pick-prog { height: 6px; background: var(--gray-100); border-radius: 3px; overflow: hidden; width: 100px; }
+.pick-prog > span { display: block; height: 100%; background: var(--blue); }
+.pick-prog > span.full { background: var(--green); }
+
+/* ============ Wave kanban ============ */
+.wave-kanban { display: flex; gap: 12px; overflow-x: auto; padding: 6px 2px; min-height: 420px; }
+.wave-col { min-width: 260px; flex: 1; background: var(--gray-050); border-radius: 6px; padding: 8px; display: flex; flex-direction: column; gap: 6px; }
+.wave-col-head { padding: 6px 10px; border-radius: 4px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; display: flex; align-items: center; gap: 6px; }
+.wave-col-head.gray  { background: var(--gray-100); color: var(--muted); }
+.wave-col-head.blue  { background: #dbeafe; color: #1e40af; }
+.wave-col-head.amber { background: #fef3c7; color: #92400e; }
+.wave-col-head.green { background: #dcfce7; color: #166534; }
+.wave-col-head .wch-count { margin-left: auto; background: #fff; padding: 0 6px; border-radius: 8px; font-family: var(--font-mono); font-size: 10px; }
+.wave-card { background: #fff; border: 1px solid var(--border); border-radius: 4px; padding: 10px; font-size: 12px; cursor: pointer; }
+.wave-card:hover { border-color: var(--blue); }
+.wave-card .wc-code { font-family: var(--font-mono); font-weight: 700; color: var(--blue); font-size: 12px; }
+.wave-card .wc-meta { font-size: 10px; color: var(--muted); margin-top: 4px; }
+.wave-card .wc-stats { display: flex; gap: 8px; margin-top: 6px; font-family: var(--font-mono); font-size: 10px; }
+.wave-card .wc-stats span { background: var(--gray-100); padding: 1px 6px; border-radius: 8px; }
+
+/* ============ Packing station — 3 column layout ============ */
+.pack-layout { display: grid; grid-template-columns: 240px 1fr 300px; gap: 12px; align-items: flex-start; }
+.pack-queue { background: #fff; border: 1px solid var(--border); border-radius: var(--radius); padding: 10px; font-size: 11px; max-height: calc(100vh - 180px); overflow-y: auto; }
+.pack-queue-row { padding: 8px; border-radius: 4px; cursor: pointer; border: 1px solid transparent; margin-bottom: 4px; }
+.pack-queue-row:hover { background: var(--gray-050); border-color: var(--border); }
+.pack-queue-row.active { background: var(--blue-050); border-color: var(--blue); }
+.pack-queue-row .pqr-lp { font-family: var(--font-mono); font-weight: 600; color: var(--blue); font-size: 11px; }
+.pack-queue-row .pqr-meta { font-size: 10px; color: var(--muted); margin-top: 2px; }
+
+.pack-box { background: #fff; border: 2px solid var(--blue); border-radius: var(--radius); padding: 14px; }
+.pack-box-head { display: flex; align-items: center; justify-content: space-between; padding-bottom: 10px; border-bottom: 1px solid var(--border); margin-bottom: 12px; }
+.pack-box-head .pbh-code { font-family: var(--font-mono); font-weight: 700; font-size: 14px; color: var(--blue); }
+.pack-box-head .pbh-weight { font-family: var(--font-mono); font-size: 16px; font-weight: 700; }
+.pack-scan-input { width: 100%; padding: 10px 14px; font-family: var(--font-mono); font-size: 13px; border: 2px solid var(--blue); border-radius: 4px; margin-bottom: 10px; background: var(--blue-050); }
+
+.pack-summary { background: #fff; border: 1px solid var(--border); border-radius: var(--radius); padding: 14px; position: sticky; top: 100px; }
+.pack-summary-row { display: flex; justify-content: space-between; font-size: 11px; padding: 4px 0; border-bottom: 1px dotted var(--border); }
+.pack-summary-row:last-child { border-bottom: 0; }
+.pack-checklist { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border); font-size: 11px; }
+.pack-checklist-row { display: flex; gap: 6px; align-items: center; padding: 3px 0; }
+.pack-checklist-row .pclh-ic { width: 14px; text-align: center; font-size: 10px; }
+.pack-checklist-row.pass { color: var(--green-700); }
+.pack-checklist-row.fail { color: var(--red-700); }
+
+/* ============ SSCC label preview ============ */
+.sscc-label { background: #fff; border: 2px dashed var(--border); border-radius: 4px; padding: 16px; font-family: var(--font-mono); font-size: 11px; position: relative; min-width: 340px; }
+.sscc-label .ssl-gs1 { background: repeating-linear-gradient(to right, #000 0 2px, #fff 2px 4px, #000 4px 7px, #fff 7px 9px, #000 9px 11px, #fff 11px 14px); height: 42px; margin: 6px 0; }
+.sscc-label .ssl-code { font-size: 14px; font-weight: 700; text-align: center; letter-spacing: 0.05em; }
+.sscc-label .ssl-sub  { font-size: 9px; color: var(--muted); text-align: center; }
+.sscc-label .ssl-row  { display: grid; grid-template-columns: 90px 1fr; gap: 4px; font-size: 10px; margin: 2px 0; }
+.sscc-label .ssl-row b { font-weight: 600; }
+.sscc-label .ssl-allergens { margin-top: 8px; padding-top: 8px; border-top: 1px dashed var(--border); font-size: 10px; }
+.sscc-label .ssl-allergens strong { font-weight: 700; text-decoration: underline; }
+
+/* ============ BOL / Packing slip preview panel ============ */
+.doc-layout { display: grid; grid-template-columns: 320px 1fr; gap: 14px; align-items: flex-start; }
+.doc-controls { background: #fff; border: 1px solid var(--border); border-radius: var(--radius); padding: 14px; font-size: 12px; position: sticky; top: 100px; }
+.doc-preview { background: #f5f5f5; border: 1px solid var(--border); border-radius: var(--radius); min-height: 720px; padding: 30px; }
+.doc-page { background: #fff; border: 1px solid var(--gray-200); box-shadow: 0 2px 8px rgba(0,0,0,0.08); padding: 38px 42px; font-size: 11px; max-width: 720px; margin: 0 auto; }
+.doc-page h2 { font-size: 20px; margin: 0 0 6px; }
+.doc-page h3 { font-size: 14px; margin: 14px 0 6px; border-bottom: 1px solid var(--gray-300); padding-bottom: 4px; }
+.doc-page .doc-addr { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin: 12px 0; font-size: 11px; }
+.doc-page .doc-addr strong { display: block; margin-bottom: 3px; font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; }
+.doc-page table { width: 100%; border-collapse: collapse; font-size: 10px; margin: 8px 0; }
+.doc-page table th { background: var(--gray-050); padding: 5px 7px; text-align: left; border-bottom: 1px solid var(--gray-300); font-size: 9px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); }
+.doc-page table td { padding: 4px 7px; border-bottom: 1px solid var(--gray-100); }
+.doc-page .doc-allergen { background: #fef3c7; padding: 8px 12px; border-left: 3px solid var(--amber); font-size: 10px; margin: 10px 0; }
+.doc-page .doc-allergen strong { font-weight: 700; text-decoration: underline; }
+.doc-page .doc-sig { margin-top: 24px; display: grid; grid-template-columns: 1fr 1fr; gap: 24px; font-size: 10px; }
+.doc-page .doc-sig .sig-block { border-top: 1px solid var(--gray-400); padding-top: 6px; min-height: 70px; }
+
+.doc-hash-badge { display: inline-flex; align-items: center; gap: 4px; padding: 4px 8px; background: var(--green-050a); border: 1px solid var(--green); color: var(--green-700); font-family: var(--font-mono); font-size: 10px; border-radius: 4px; margin: 4px 0; }
+.doc-hash-badge.signed { background: #e0e7ff; color: #3730a3; border-color: #3730a3; }
+
+/* ============ Allocation layout (3 column) ============ */
+.alloc-layout { display: grid; grid-template-columns: 260px 1fr 300px; gap: 12px; align-items: flex-start; }
+.alloc-col { background: #fff; border: 1px solid var(--border); border-radius: var(--radius); padding: 12px; }
+.alloc-col .ac-head { font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); font-weight: 700; margin-bottom: 8px; }
+.alloc-row-disabled { opacity: 0.5; }
+.alloc-row-expired { background: var(--red-050a); }
+.alloc-row-hold    { background: var(--amber-050a); }
+
+/* ============ Scanner launch cards (pick/pack/return deep links) ============ */
+.scanner-card { background: #fff; border: 2px solid var(--blue); border-radius: var(--radius); padding: 14px 18px; display: flex; gap: 14px; align-items: center; cursor: pointer; }
+.scanner-card:hover { background: var(--blue-050); }
+.scanner-card .scic { width: 44px; height: 44px; border-radius: 8px; background: var(--blue); color: #fff; display: flex; align-items: center; justify-content: center; font-size: 22px; }
+.scanner-card .scmeta h4 { margin: 0; font-size: 13px; color: var(--blue); }
+.scanner-card .scmeta p  { margin: 2px 0 0; font-size: 11px; color: var(--muted); }
+
+/* ============ Timeline delivery tracker ============ */
+.ship-timeline { display: flex; align-items: center; padding: 14px 6px; gap: 6px; }
+.ship-tl-step { flex: 1; text-align: center; position: relative; font-size: 10px; }
+.ship-tl-step .stsc { width: 28px; height: 28px; border-radius: 50%; background: var(--gray-100); color: var(--muted); margin: 0 auto 4px; display: flex; align-items: center; justify-content: center; font-weight: 700; }
+.ship-tl-step.done .stsc    { background: var(--green); color: #fff; }
+.ship-tl-step.current .stsc { background: var(--blue); color: #fff; }
+.ship-tl-line { flex: 0 0 40px; height: 2px; background: var(--gray-200); margin-top: -18px; }
+.ship-tl-line.done { background: var(--green); }
+
+/* ============ Gallery card ============ */
+/* Uses .gallery-grid / .gallery-card / .gallery-pattern / .gallery-name from warehouse patterns (inherit via shared) */
+
+/* ============ KPI strip extras ============ */
+.kpi-row-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 10px; }

@@ -1,0 +1,281 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Scanner Kit — MonoPilot</title>
+<link rel="stylesheet" href="colors_and_type.css">
+<style>
+  body { background: #060a12; color: #f1f5f9; padding: 32px 20px 80px; }
+  .hd { max-width: 1200px; margin: 0 auto 24px; }
+  .gallery-title { font-size: 28px; font-weight: 700; color: #f1f5f9; margin-bottom: 4px; }
+  .gallery-sub { color: #64748b; }
+  .row { max-width: 1200px; margin: 0 auto; display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
+  .col { display: flex; flex-direction: column; gap: 20px; }
+  .phone { width: 100%; max-width: 360px; margin: 0 auto; background: #0f172a; border-radius: 32px; overflow: hidden; box-shadow: 0 0 0 8px #1e293b, 0 20px 60px rgba(0,0,0,.7); }
+  .statusbar { height: 34px; background: #0f172a; display: flex; align-items: center; justify-content: space-between; padding: 0 22px; font-size: 11px; color: #475569; }
+  .topbar { height: 48px; background: #1e293b; display: flex; align-items: center; padding: 0 10px; gap: 6px; border-bottom: 1px solid #334155; }
+  .tbtn { width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; border-radius: 8px; color: #94a3b8; font-size: 18px; }
+  .ttitle { flex: 1; font-size: 14px; font-weight: 600; color: #f1f5f9; }
+  .tbadge { font-size: 10px; color: #94a3b8; background: #0f172a; padding: 3px 7px; border-radius: 20px; }
+  .screen { height: 560px; overflow: hidden; position: relative; }
+  .caption { text-align: center; margin-top: 10px; font-size: 12px; color: #64748b; font-weight: 500; }
+
+  /* components */
+  .status { display: inline-flex; align-items: center; gap: 5px; padding: 3px 9px; border-radius: 20px; font-size: 11px; font-weight: 600; }
+  .status::before { content: ''; width: 5px; height: 5px; border-radius: 50%; background: currentColor; }
+  .st-planned { background: #172554; color: #60a5fa; }
+  .st-released { background: #052e16; color: #4ade80; }
+  .st-inprog { background: #431407; color: #fb923c; }
+
+  .msection { padding: 10px 14px 2px; font-size: 9px; color: #475569; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; }
+  .mitem { display: flex; align-items: center; gap: 12px; padding: 0 14px; height: 60px; position: relative; }
+  .mitem::after { content: ''; position: absolute; bottom: 0; left: 62px; right: 0; height: 1px; background: #1e293b; }
+  .micon { width: 40px; height: 40px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 20px; flex-shrink: 0; }
+  .micon-blue { background: #172554; } .micon-green { background: #052e16; } .micon-amber { background: #431407; } .micon-purple { background: #2e1065; } .micon-cyan { background: #083344; } .micon-red { background: #450a0a; }
+  .mtitle { font-size: 13px; font-weight: 600; color: #f1f5f9; }
+  .mdesc { font-size: 10px; color: #64748b; margin-top: 1px; }
+  .mchev { font-size: 18px; color: #334155; margin-left: auto; }
+  .mbadge { background: #3b82f6; color: #fff; font-size: 10px; font-weight: 700; padding: 1px 6px; border-radius: 10px; margin-left: auto; }
+
+  /* WO card */
+  .wo-card { background: #1e293b; border-radius: 12px; padding: 14px; margin: 10px 14px; }
+  .wo-num { font-size: 16px; font-weight: 700; color: #f1f5f9; }
+  .wo-prod { font-size: 11px; color: #64748b; margin-top: 2px; }
+  .wo-meta { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 10px; }
+  .wm { background: #0f172a; border-radius: 8px; padding: 7px 9px; }
+  .wm-label { font-size: 9px; color: #475569; margin-bottom: 2px; }
+  .wm-val { font-size: 12px; font-weight: 600; }
+  .pbar-wrap { padding: 6px 14px; }
+  .pbar-header { display: flex; justify-content: space-between; font-size: 10px; color: #64748b; margin-bottom: 4px; }
+  .pbar { height: 4px; background: #1e293b; border-radius: 2px; }
+  .pbar-fill { height: 100%; border-radius: 2px; }
+
+  /* Component rows */
+  .crow { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-bottom: 1px solid #1a2332; }
+  .ccheck { width: 26px; height: 26px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; flex-shrink: 0; }
+  .cck-ok { background: #052e16; color: #4ade80; }
+  .cck-warn { background: #431407; color: #fb923c; }
+  .cck-empty { background: #1e293b; color: #334155; border: 2px dashed #334155; }
+  .cname { font-size: 12px; font-weight: 500; }
+  .cdet { font-size: 10px; color: #64748b; margin-top: 1px; }
+  .cqty-val { font-size: 12px; font-weight: 700; }
+  .cqty-of { font-size: 9px; color: #475569; text-align: right; }
+
+  /* scan input */
+  .sinput-area { padding: 12px 14px; background: #1e293b; border-bottom: 1px solid #334155; }
+  .sinput { width: 100%; background: #0f172a; border: 2px solid #3b82f6; border-radius: 10px; padding: 11px 14px; font-size: 14px; color: #f1f5f9; font-family: inherit; text-align: center; }
+  .sinput::placeholder { color: #334155; font-size: 12px; }
+  .shint { text-align: center; font-size: 10px; color: #334155; margin-top: 5px; }
+
+  /* LP created card */
+  .lp-card { background: #052e16; border: 1px solid #16a34a; border-radius: 12px; padding: 16px; margin: 12px 14px; text-align: center; }
+  .lp-num { font-size: 22px; font-weight: 700; color: #4ade80; font-family: 'JetBrains Mono', monospace; letter-spacing: 2px; }
+  .lp-sub { font-size: 10px; color: #86efac; margin-top: 4px; }
+
+  /* banners */
+  .warn-banner { margin: 10px 14px; background: #431407; border: 1px solid #9a3412; border-radius: 10px; padding: 10px 12px; display: flex; gap: 10px; font-size: 11px; color: #fed7aa; line-height: 1.5; }
+  .info-banner { margin: 10px 14px; background: #172554; border: 1px solid #1e40af; border-radius: 10px; padding: 10px 12px; display: flex; gap: 10px; font-size: 11px; color: #bfdbfe; line-height: 1.5; }
+  .banner-title { font-weight: 700; margin-bottom: 2px; }
+  .warn-banner .banner-title { color: #fdba74; }
+  .info-banner .banner-title { color: #93c5fd; }
+
+  /* form groups */
+  .fgroup { padding: 10px 14px; border-bottom: 1px solid #1a2332; }
+  .flabel { font-size: 10px; color: #64748b; font-weight: 600; text-transform: uppercase; letter-spacing: .05em; margin-bottom: 5px; }
+  .fvalue { font-size: 13px; font-weight: 500; }
+  .finput { width: 100%; background: #0f172a; border: 1px solid #334155; border-radius: 8px; padding: 9px 12px; font-size: 13px; color: #f1f5f9; font-family: inherit; box-sizing: border-box; }
+  .finput.big { font-size: 22px; text-align: center; font-weight: 700; padding: 12px; }
+
+  /* buttons */
+  .brow { display: grid; gap: 6px; padding: 10px 14px; }
+  .btn { height: 46px; border-radius: 10px; font-size: 13px; font-weight: 600; border: none; font-family: inherit; display: flex; align-items: center; justify-content: center; gap: 6px; cursor: pointer; }
+  .btn-p { background: #3b82f6; color: #fff; }
+  .btn-s { background: #16a34a; color: #fff; }
+  .btn-sec { background: #1e293b; color: #cbd5e1; border: 1px solid #334155; }
+
+  /* success */
+  .success-wrap { padding: 28px 14px 12px; text-align: center; }
+  .success-icon { font-size: 52px; margin-bottom: 10px; }
+  .success-title { font-size: 18px; font-weight: 700; color: #4ade80; margin-bottom: 4px; }
+  .success-sub { font-size: 12px; color: #64748b; }
+
+  /* Section label between phones */
+  .sec { grid-column: 1 / -1; font-size: 10px; color: #475569; letter-spacing: 0.12em; text-transform: uppercase; font-weight: 700; padding: 12px 0 4px; border-top: 1px solid #1e293b; margin-top: 8px; }
+</style>
+</head>
+<body>
+
+<div class="hd">
+  <div class="gallery-title">Scanner kit</div>
+  <div class="gallery-sub">Mobile / dark variant — operator app, 390px device frame. Polish UI copy.</div>
+</div>
+
+<div class="row">
+
+  <!-- Phone 1: Home menu -->
+  <div class="col">
+    <div class="phone">
+      <div class="statusbar"><span>9:41</span><span style="color:#334155">MonoPilot MES</span><span>📶 🔋</span></div>
+      <div class="topbar">
+        <div class="tbtn">☰</div>
+        <div class="ttitle">Scanner</div>
+        <div class="tbadge">JK</div>
+        <div class="tbtn">⋮</div>
+      </div>
+      <div class="screen" style="background:#0f172a;overflow-y:auto">
+        <div style="padding:10px 14px 6px"><div style="background:#1e293b;border-radius:10px;padding:8px 12px;display:flex;align-items:center;gap:10px">
+          <div style="width:32px;height:32px;border-radius:50%;background:#172554;display:flex;align-items:center;justify-content:center;font-size:16px">👷</div>
+          <div style="flex:1"><div style="font-size:12px;font-weight:600">Jan Kowalski</div><div style="font-size:10px;color:#64748b">Linia A · Ranna · 09:41</div></div>
+          <div style="background:#052e16;border-radius:6px;padding:2px 6px"><span style="font-size:9px;color:#4ade80;font-weight:700">ONLINE</span></div>
+        </div></div>
+        <div class="msection">Produkcja</div>
+        <div class="mitem"><div class="micon micon-blue">🏭</div><div><div class="mtitle">Work Order</div><div class="mdesc">Konsumpcja + rejestracja wyrobu</div></div><span class="mbadge">3</span></div>
+        <div class="mitem"><div class="micon micon-purple">🧺</div><div><div class="mtitle">Pick dla WO</div><div class="mdesc">Zbierz materiały z magazynu</div></div><span class="mchev">›</span></div>
+        <div class="msection">Magazyn</div>
+        <div class="mitem"><div class="micon micon-green">📦</div><div><div class="mtitle">Przyjęcie PO</div><div class="mdesc">Odbierz zamówienie zakupu</div></div><span class="mchev">›</span></div>
+        <div class="mitem"><div class="micon micon-cyan">🔄</div><div><div class="mtitle">Przyjęcie TO</div><div class="mdesc">Transfer Orders do odbioru</div></div><span class="mchev">›</span></div>
+        <div class="mitem"><div class="micon micon-green">📍</div><div><div class="mtitle">Putaway</div><div class="mdesc">Odłóż LP — sugestia FIFO/FEFO</div></div><span class="mchev">›</span></div>
+        <div class="msection">Jakość</div>
+        <div class="mitem"><div class="micon micon-red">🔍</div><div><div class="mtitle">Inspekcja QC</div><div class="mdesc">Zatwierdź, odrzuć, wstrzymaj</div></div><span class="mbadge">5</span></div>
+      </div>
+    </div>
+    <div class="caption">Home menu · task-grouped actions</div>
+  </div>
+
+  <!-- Phone 2: WO detail -->
+  <div class="col">
+    <div class="phone">
+      <div class="statusbar"><span>9:41</span><span style="color:#334155">MonoPilot MES</span><span>📶 🔋</span></div>
+      <div class="topbar"><div class="tbtn">←</div><div class="ttitle">WO-2025-0142</div><div class="tbadge">JK</div><div class="tbtn">⋮</div></div>
+      <div class="screen" style="background:#0f172a;overflow-y:auto">
+        <div class="wo-card">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start">
+            <div>
+              <div class="wo-num">WO-2025-0142</div>
+              <div class="wo-prod">Serek waniliowy 250g · <span style="color:#60a5fa">Linia A</span></div>
+              <div style="margin-top:6px"><span class="status st-inprog">W toku</span></div>
+            </div>
+            <div style="text-align:right;font-size:10px;color:#475569">Ranna<br><span style="color:#fb923c;font-weight:600">Wysoki</span></div>
+          </div>
+          <div class="wo-meta">
+            <div class="wm"><div class="wm-label">Cel</div><div class="wm-val" style="color:#60a5fa">500 kg</div></div>
+            <div class="wm"><div class="wm-label">Wyprod.</div><div class="wm-val" style="color:#4ade80">180 kg</div></div>
+            <div class="wm"><div class="wm-label">Czas</div><div class="wm-val">1h 41m</div></div>
+            <div class="wm"><div class="wm-label">Operator</div><div class="wm-val">Jan K.</div></div>
+          </div>
+        </div>
+        <div class="pbar-wrap">
+          <div class="pbar-header"><span>Postęp</span><span style="color:#4ade80;font-weight:700">36%</span></div>
+          <div class="pbar"><div class="pbar-fill" style="width:36%;background:#22c55e"></div></div>
+        </div>
+        <div style="padding:4px 14px 4px"><div style="font-size:10px;color:#64748b;font-weight:600;text-transform:uppercase;letter-spacing:.05em">Komponenty (BOM)</div></div>
+        <div class="crow"><div class="ccheck cck-ok">✓</div><div style="flex:1"><div class="cname">Twaróg naturalny</div><div class="cdet">LP-00234 · Partia 2025-01-05</div></div><div style="text-align:right"><div class="cqty-val" style="color:#4ade80">50</div><div class="cqty-of">/ 50 kg</div></div></div>
+        <div class="crow"><div class="ccheck cck-warn">!</div><div style="flex:1"><div class="cname">Śmietana 36%</div><div class="cdet">brakuje 4 kg</div></div><div style="text-align:right"><div class="cqty-val" style="color:#fb923c">8</div><div class="cqty-of">/ 12 kg</div></div></div>
+        <div class="crow"><div class="ccheck cck-empty">○</div><div style="flex:1"><div class="cname">Cukier waniliowy</div><div class="cdet">— nie zeskanowano —</div></div><div style="text-align:right"><div class="cqty-val" style="color:#334155">0</div><div class="cqty-of">/ 2 kg</div></div></div>
+      </div>
+    </div>
+    <div class="caption">Work Order detail · live progress</div>
+  </div>
+
+  <!-- Phone 3: Scan input -->
+  <div class="col">
+    <div class="phone">
+      <div class="statusbar"><span>9:41</span><span style="color:#334155">MonoPilot MES</span><span>📶 🔋</span></div>
+      <div class="topbar"><div class="tbtn">←</div><div class="ttitle">Skanuj komponent</div><div class="tbadge">JK</div><div class="tbtn">⋮</div></div>
+      <div class="screen" style="background:#0f172a;overflow-y:auto">
+        <div class="info-banner">
+          <div style="font-size:16px">💡</div>
+          <div><div class="banner-title">Proponowany składnik</div>Śmietana 36% — potrzeba jeszcze <strong>4 kg</strong></div>
+        </div>
+        <div class="sinput-area">
+          <div class="flabel">Zeskanuj kod LP lub GS1-128</div>
+          <input class="sinput" placeholder="▍  LP-XXXXX lub skanuj…">
+          <div class="shint">📷 Skieruj czytnik na kod kreskowy</div>
+        </div>
+        <div class="fgroup"><div class="flabel">Produkt</div><div class="fvalue">Śmietana 36%</div></div>
+        <div class="fgroup">
+          <div class="flabel">Ilość do pobrania (kg) <span style="color:#ef4444">*</span></div>
+          <input class="finput big" value="4">
+          <div style="font-size:10px;color:#475569;margin-top:4px">Potrzeba: 4 kg · Dostępne: 18.5 kg</div>
+        </div>
+        <div class="brow"><button class="btn btn-s">✓ Potwierdź pobranie 4 kg</button></div>
+      </div>
+    </div>
+    <div class="caption">Scan flow · LP verification</div>
+  </div>
+
+  <!-- Phone 4: Output success -->
+  <div class="col">
+    <div class="phone">
+      <div class="statusbar"><span>9:41</span><span style="color:#334155">MonoPilot MES</span><span>📶 🔋</span></div>
+      <div class="topbar"><div class="tbtn">←</div><div class="ttitle">Zarejestrowano!</div><div class="tbadge">JK</div><div class="tbtn">⋮</div></div>
+      <div class="screen" style="background:#0f172a;overflow-y:auto">
+        <div class="success-wrap">
+          <div class="success-icon">✅</div>
+          <div class="success-title">Wyrób zarejestrowany!</div>
+          <div class="success-sub">Serek waniliowy 250g · 50 kg</div>
+        </div>
+        <div class="lp-card">
+          <div class="lp-sub">Nowy License Plate</div>
+          <div class="lp-num">LP-00249</div>
+          <div class="lp-sub">50 kg · MAG-A · Regał-3 · ważny do 2025-02-09</div>
+        </div>
+        <div class="brow">
+          <button class="btn btn-p">↩ Kontynuuj WO-2025-0142</button>
+          <button class="btn btn-sec">🏠 Strona główna</button>
+        </div>
+      </div>
+    </div>
+    <div class="caption">Success state · new LP minted</div>
+  </div>
+
+  <!-- Phone 5: Form (PO receipt) -->
+  <div class="col">
+    <div class="phone">
+      <div class="statusbar"><span>9:41</span><span style="color:#334155">MonoPilot MES</span><span>📶 🔋</span></div>
+      <div class="topbar"><div class="tbtn">←</div><div class="ttitle">Odbierz pozycję</div><div class="tbadge">JK</div><div class="tbtn">⋮</div></div>
+      <div class="screen" style="background:#0f172a;overflow-y:auto">
+        <div style="display:flex;gap:5px;padding:10px 14px 0"><div style="flex:1;height:3px;border-radius:2px;background:#3b82f6"></div><div style="flex:1;height:3px;border-radius:2px;background:#1e293b"></div><div style="flex:1;height:3px;border-radius:2px;background:#1e293b"></div></div>
+        <div class="fgroup" style="background:#1e293b">
+          <div class="flabel">Pozycja PO #1</div>
+          <div class="fvalue">Twaróg naturalny 40%</div>
+          <div style="font-size:10px;color:#64748b;margin-top:2px">Zam: 500 kg · Odebrano: 0 kg</div>
+        </div>
+        <div class="sinput-area">
+          <div class="flabel">Skanuj LP dostawcy lub GS1</div>
+          <input class="sinput" placeholder="Skanuj lub wpisz LP / SSCC…">
+        </div>
+        <div class="fgroup"><div class="flabel">Nr partii <span style="color:#ef4444">*</span></div><input class="finput" placeholder="Numer partii / LOT…"></div>
+        <div class="fgroup"><div class="flabel">Data ważności <span style="color:#ef4444">*</span></div><input class="finput" type="date"></div>
+        <div class="fgroup"><div class="flabel">Ilość (kg) <span style="color:#ef4444">*</span></div><input class="finput big" placeholder="0.00"></div>
+        <div class="brow"><button class="btn btn-s">✓ Przyjmij i utwórz LP</button></div>
+      </div>
+    </div>
+    <div class="caption">PO receipt · form fields</div>
+  </div>
+
+  <!-- Phone 6: Warning banner -->
+  <div class="col">
+    <div class="phone">
+      <div class="statusbar"><span>9:41</span><span style="color:#334155">MonoPilot MES</span><span>📶 🔋</span></div>
+      <div class="topbar"><div class="tbtn">←</div><div class="ttitle">Zarejestruj wyrób</div><div class="tbadge">JK</div><div class="tbtn">⋮</div></div>
+      <div class="screen" style="background:#0f172a;overflow-y:auto">
+        <div style="display:flex;gap:5px;padding:10px 14px 0"><div style="flex:1;height:3px;border-radius:2px;background:#16a34a"></div><div style="flex:1;height:3px;border-radius:2px;background:#3b82f6"></div><div style="flex:1;height:3px;border-radius:2px;background:#1e293b"></div></div>
+        <div class="warn-banner" style="margin-top:10px">
+          <div style="font-size:16px">⚠️</div>
+          <div><div class="banner-title">Niekompletna konsumpcja</div>Śmietana 36%: brakuje 4 kg. Możesz kontynuować — odchylenie zostanie zapisane w logu audytowym.</div>
+        </div>
+        <div class="fgroup" style="background:#1e293b"><div class="flabel">Wyrób gotowy</div><div class="fvalue">Serek waniliowy 250g</div><div style="font-size:10px;color:#64748b;margin-top:2px">WO-2025-0142</div></div>
+        <div class="fgroup"><div class="flabel">Ilość (kg) <span style="color:#ef4444">*</span></div><input class="finput big" value="50"></div>
+        <div class="fgroup"><div class="flabel">Partia <span style="color:#ef4444">*</span></div><input class="finput" value="2025-01-09-A"></div>
+        <div class="fgroup"><div class="flabel">Data ważności <span style="color:#ef4444">*</span></div><input class="finput" type="date" value="2025-02-09"></div>
+        <div class="brow"><button class="btn btn-s">✓ Utwórz LP i zarejestruj</button></div>
+      </div>
+    </div>
+    <div class="caption">Warning banner · audit trail note</div>
+  </div>
+
+</div>
+
+</body>
+</html>

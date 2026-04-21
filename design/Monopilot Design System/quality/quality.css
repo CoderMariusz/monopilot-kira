@@ -1,0 +1,207 @@
+/* Quality module — inherits production.css chrome (.prod-nav, #prod-main, .kpi).
+   Only QA-specific rules below: QA badge palette (§1.3 spec), severity badges,
+   result cells, CCP chart, signed indicator, dual-sign blocks. */
+
+/* ============ QA-specific badge palette (spec §1.3) ============ */
+.qa-badge { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 10px; font-weight: 500; font-family: var(--font-mono); letter-spacing: 0.02em; white-space: nowrap; }
+.badge-pass         { background: #dcfce7; color: #166534; }
+.badge-fail         { background: #fee2e2; color: #991b1b; }
+.badge-hold         { background: #fef3c7; color: #92400e; }
+.badge-released     { background: #d1fae5; color: #065f46; }
+.badge-pending      { background: #dbeafe; color: #1e40af; }
+.badge-cond         { background: #f3e8ff; color: #6b21a8; }
+.badge-quarantined  { background: #fce7f3; color: #9d174d; }
+.badge-critical     { background: #fee2e2; color: #991b1b; }
+.badge-major        { background: #fef3c7; color: #92400e; }
+.badge-minor        { background: #f0fdf4; color: #166534; }
+.badge-signed       { background: #e0e7ff; color: #3730a3; }
+.badge-draft        { background: #f1f5f9; color: #475569; }
+.badge-open         { background: #dbeafe; color: #1e40af; }
+.badge-closed       { background: #f1f5f9; color: #475569; }
+.badge-invest       { background: #fef3c7; color: #92400e; }
+
+/* ============ Hazard type badges (HACCP) ============ */
+.hazard-biological { background: #fee2e2; color: #991b1b; }
+.hazard-chemical   { background: #fef3c7; color: #92400e; }
+.hazard-physical   { background: #f1f5f9; color: #475569; }
+.hazard-allergen   { background: #f3e8ff; color: #6b21a8; }
+
+/* ============ Severity row stripe ============ */
+.row-critical { border-left: 3px solid var(--red); }
+.row-major    { border-left: 3px solid var(--amber); }
+.row-minor    { border-left: 3px solid var(--green); }
+.row-overdue  { border-left: 3px solid var(--red); background: #fffaf5; }
+.row-escalated { border-left: 3px solid var(--red); }
+
+/* ============ Domain code (NCR-..., HLD-..., SPEC-...) ============ */
+.dcode { font-family: var(--font-mono); font-weight: 600; font-size: 12px; color: var(--blue); cursor: pointer; }
+.dcode:hover { text-decoration: underline; }
+
+/* ============ Immutable / signed banner ============ */
+.signed-banner { padding: 10px 14px; border-radius: var(--radius); background: #f0f7ff; border-left: 4px solid #3730a3; font-size: 12px; display: flex; gap: 10px; align-items: center; margin-bottom: 12px; }
+.signed-banner .sb-ic { font-size: 16px; color: #3730a3; }
+
+/* ============ Audit trail page accent ============ */
+.audit-head { background: #f0f7ff; padding: 16px 20px; border-radius: var(--radius); border-left: 4px solid var(--blue); margin-bottom: 14px; }
+
+/* ============ Inspection result row cell ============ */
+.result-cell { display: inline-flex; gap: 6px; align-items: center; font-size: 11px; }
+.result-cell .auto-label { color: var(--muted); font-size: 10px; }
+
+/* ============ NCR Kanban pipeline ============ */
+.kanban-strip { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; margin-bottom: 14px; }
+.kanban-col { background: #fff; border: 1px solid var(--border); border-radius: var(--radius); padding: 10px 14px; cursor: pointer; transition: box-shadow 0.12s; text-align: center; }
+.kanban-col:hover { box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
+.kanban-col .kc-label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; font-weight: 600; }
+.kanban-col .kc-count { font-size: 24px; font-weight: 700; font-variant-numeric: tabular-nums; margin: 2px 0 1px; font-family: var(--font-mono); }
+.kanban-col.draft  { border-bottom: 3px solid var(--gray-300); }
+.kanban-col.open   { border-bottom: 3px solid var(--blue); }
+.kanban-col.invest { border-bottom: 3px solid var(--amber); }
+.kanban-col.capa   { border-bottom: 3px solid #a855f7; opacity: 0.7; }
+.kanban-col.closed { border-bottom: 3px solid var(--green); }
+
+/* ============ HACCP plan tree ============ */
+.haccp-layout { display: grid; grid-template-columns: 280px 1fr; gap: 14px; align-items: flex-start; }
+.haccp-tree { background: #fff; border: 1px solid var(--border); border-radius: var(--radius); padding: 10px; font-size: 12px; position: sticky; top: 100px; max-height: calc(100vh - 120px); overflow-y: auto; }
+.haccp-node { padding: 6px 10px; border-radius: 4px; cursor: pointer; display: flex; align-items: center; gap: 6px; font-size: 12px; }
+.haccp-node:hover { background: var(--gray-050); }
+.haccp-node.on { background: var(--blue-050); color: var(--blue); font-weight: 500; }
+.haccp-node.l0 { font-weight: 600; }
+.haccp-node.l1 { margin-left: 14px; font-size: 11px; color: var(--muted); }
+.haccp-node.l1.on { color: var(--blue); }
+.haccp-node .dot { width: 6px; height: 6px; border-radius: 50%; display: inline-block; }
+.haccp-node .dot.active { background: var(--green); }
+.haccp-node .dot.draft  { background: var(--amber); }
+
+/* CCP card */
+.ccp-card { background: #fff; border: 1px solid var(--border); border-radius: var(--radius); margin-bottom: 10px; overflow: hidden; }
+.ccp-card-head { padding: 10px 14px; background: var(--gray-050); border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 10px; }
+.ccp-card-body { padding: 12px 14px; }
+.ccp-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 16px; font-size: 12px; }
+.ccp-grid .label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); font-weight: 600; }
+
+/* CCP sparkline dots */
+.ccp-spark { display: flex; gap: 3px; align-items: center; margin-top: 6px; }
+.ccp-spark .dot { width: 10px; height: 10px; border-radius: 50%; cursor: pointer; }
+.ccp-spark .dot.pass { background: var(--green); }
+.ccp-spark .dot.fail { background: var(--red); }
+.ccp-spark .dot.empty { background: var(--gray-100); }
+.ccp-spark .label { font-size: 10px; color: var(--muted); margin-left: 8px; }
+
+/* ============ Inspection params table cells ============ */
+.insp-param-row .measured-cell { display: flex; gap: 6px; align-items: center; }
+.insp-param-row .measured-cell input { width: 80px; font-family: var(--font-mono); font-size: 11px; padding: 3px 6px; }
+.insp-param-row.critical { border-left: 3px solid var(--red); }
+.insp-param-row .unit { font-size: 10px; color: var(--muted); font-family: var(--font-mono); }
+
+/* Overall result banner */
+.overall-result { padding: 14px 18px; border-radius: var(--radius); margin: 14px 0; font-size: 13px; display: flex; gap: 12px; align-items: center; }
+.overall-result.pass { background: #dcfce7; color: #166534; border-left: 4px solid var(--green); }
+.overall-result.fail { background: #fee2e2; color: #991b1b; border-left: 4px solid var(--red); }
+.overall-result.cond { background: #f3e8ff; color: #6b21a8; border-left: 4px solid #a855f7; }
+.overall-result.hold { background: #fef3c7; color: #92400e; border-left: 4px solid var(--amber); }
+.overall-result .res-big { font-size: 20px; font-weight: 700; letter-spacing: 0.03em; }
+
+/* ============ Spec parameter table ============ */
+.spec-param-row.critical { border-left: 3px solid var(--red); }
+.spec-param-row .param-critical { color: var(--red); font-weight: 700; }
+
+/* ============ Allergen grid (14 EU slots) ============ */
+.allergen-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; padding: 8px 0; }
+.allergen-cell { padding: 6px 8px; border: 1px solid var(--border); border-radius: 4px; font-size: 10px; display: flex; flex-direction: column; gap: 3px; }
+.allergen-cell .a-name { font-weight: 500; font-size: 10px; }
+.allergen-cell .a-badge { font-size: 9px; padding: 1px 5px; border-radius: 6px; align-self: flex-start; font-family: var(--font-mono); }
+.allergen-cell .a-badge.present { background: #dcfce7; color: #166534; }
+.allergen-cell .a-badge.absent { background: var(--gray-100); color: var(--muted); }
+
+/* ============ Regulation tags row ============ */
+.reg-tags { display: flex; gap: 4px; flex-wrap: wrap; }
+.reg-tag { font-size: 9px; padding: 2px 6px; border-radius: 8px; background: #f1f5f9; color: #475569; font-family: var(--font-mono); border: 1px solid var(--border); }
+
+/* ============ E-sign block ============ */
+.esign-block { border: 1px solid var(--border); background: var(--gray-050); border-radius: var(--radius); padding: 12px 14px; margin-top: 10px; }
+.esign-head { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; font-weight: 600; margin-bottom: 8px; }
+.esign-meta { font-size: 11px; color: var(--text); margin-bottom: 8px; }
+.esign-meta b { font-family: var(--font-mono); }
+.esign-pin { display: flex; gap: 8px; align-items: center; }
+.esign-pin input { width: 120px; font-family: var(--font-mono); letter-spacing: 0.4em; text-align: center; padding: 6px 8px; }
+
+/* ============ Activity timeline (Hold/NCR detail) ============ */
+.q-timeline { padding-left: 8px; border-left: 2px solid var(--border); margin-left: 4px; }
+.q-tl-item { position: relative; padding: 6px 0 10px 18px; font-size: 12px; }
+.q-tl-item .q-tl-dot { position: absolute; left: -7px; top: 10px; width: 10px; height: 10px; border-radius: 50%; border: 2px solid #fff; }
+.q-tl-dot.create { background: var(--blue); }
+.q-tl-dot.update { background: var(--amber); }
+.q-tl-dot.release { background: var(--green); }
+.q-tl-dot.escalate { background: var(--red); }
+.q-tl-dot.sign { background: #3730a3; }
+.q-tl-item .q-tl-meta { font-size: 10px; color: var(--muted); font-family: var(--font-mono); }
+.q-tl-item .q-tl-json { font-size: 10px; color: var(--muted); font-family: var(--font-mono); background: var(--gray-050); border: 1px solid var(--border); border-radius: 4px; padding: 6px 8px; margin-top: 4px; }
+
+/* ============ CCP timeline chart (dot plot) ============ */
+.ccp-chart { background: #fff; border: 1px solid var(--border); border-radius: var(--radius); padding: 14px; margin-bottom: 14px; position: relative; overflow-x: auto; }
+.ccp-chart-area { position: relative; min-height: 140px; border-bottom: 1px solid var(--border); border-left: 1px solid var(--border); padding: 10px 10px 20px; }
+.ccp-chart-band { position: absolute; left: 0; right: 0; background: rgba(59,130,246,0.08); border-top: 1px dashed rgba(59,130,246,0.3); border-bottom: 1px dashed rgba(59,130,246,0.3); }
+.ccp-chart-dot { width: 10px; height: 10px; border-radius: 50%; position: absolute; cursor: pointer; }
+.ccp-chart-dot.pass { background: var(--green); }
+.ccp-chart-dot.fail { background: var(--red); }
+.ccp-chart-dot:hover { transform: scale(1.4); }
+.ccp-chart-label { font-size: 10px; color: var(--muted); margin-bottom: 6px; display: flex; gap: 12px; }
+
+/* ============ JSON diff panel (audit) ============ */
+.audit-diff { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; padding: 10px; background: var(--gray-050); border: 1px solid var(--border); border-radius: 4px; margin-top: 6px; }
+.audit-diff pre { font-family: var(--font-mono); font-size: 10px; white-space: pre-wrap; max-height: 220px; overflow-y: auto; margin: 0; }
+.audit-diff-head { font-size: 10px; text-transform: uppercase; font-weight: 700; color: var(--muted); margin-bottom: 4px; letter-spacing: 0.04em; }
+.audit-diff .diff-field { background: #fef9c3; padding: 1px 3px; border-radius: 2px; }
+
+/* ============ KPI tint variants (Quality-specific) ============ */
+.kpi.cyan { border-bottom-color: #0891b2; }
+.kpi.violet { border-bottom-color: #a855f7; }
+
+/* ============ P2 placeholder greyed mockup ============ */
+.p2-mock { filter: blur(2px) grayscale(0.4); opacity: 0.45; pointer-events: none; position: relative; }
+.p2-overlay { position: relative; text-align: center; padding: 30px; background: var(--gray-050); border: 1px dashed var(--border); border-radius: var(--radius); margin-bottom: 14px; }
+.p2-overlay .p2-big { font-size: 14px; font-weight: 600; color: var(--text); margin-bottom: 6px; }
+.p2-overlay .p2-sub { font-size: 12px; color: var(--muted); line-height: 1.5; max-width: 520px; margin: 0 auto; }
+
+/* ============ Checklist (close-NCR pre-checks, approve-spec checks) ============ */
+.q-checklist { list-style: none; padding: 0; margin: 10px 0; }
+.q-checklist li { display: flex; gap: 8px; align-items: center; padding: 6px 0; font-size: 12px; border-bottom: 1px solid var(--border); }
+.q-checklist li:last-child { border-bottom: 0; }
+.q-checklist .q-tick { width: 18px; height: 18px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-size: 11px; }
+.q-tick.ok { background: var(--green); color: #fff; }
+.q-tick.fail { background: var(--red); color: #fff; }
+
+/* ============ Two-column detail layout ============ */
+.qa-detail-layout { display: grid; grid-template-columns: 1fr 360px; gap: 14px; align-items: flex-start; }
+.qa-detail-sidebar { position: sticky; top: 100px; }
+.qa-detail-card { background: #fff; border: 1px solid var(--border); border-radius: var(--radius); padding: 12px 14px; margin-bottom: 10px; font-size: 12px; }
+.qa-detail-card h4 { margin: 0 0 8px; font-size: 12px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); font-weight: 700; }
+.qa-detail-field { padding: 4px 0; display: flex; gap: 8px; font-size: 12px; }
+.qa-detail-field .label { color: var(--muted); min-width: 110px; font-size: 11px; }
+.qa-detail-field .value { flex: 1; }
+.qa-detail-field .value.mono { font-family: var(--font-mono); }
+
+/* ============ Sticky action bar (bottom) ============ */
+.qa-action-bar { position: sticky; bottom: 0; background: #fff; border-top: 1px solid var(--border); padding: 10px 14px; display: flex; gap: 8px; justify-content: flex-end; margin-top: 14px; z-index: 20; }
+
+/* ============ Urgency pill ============ */
+.urgency-overdue { background: #fee2e2; color: #991b1b; font-weight: 600; }
+.urgency-today   { background: #fef3c7; color: #92400e; }
+.urgency-sched   { background: #dbeafe; color: #1e40af; }
+
+/* Card for CCP sparkline in plan detail */
+.spark-card { margin-top: 6px; padding: 6px 8px; background: var(--gray-050); border-radius: 4px; }
+
+/* Critical alert panel on dashboard */
+.critical-panel { background: #fef2f2; border-left: 4px solid var(--red); padding: 14px 18px; border-radius: var(--radius); margin-bottom: 14px; }
+.critical-panel-head { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+.critical-panel-head h3 { margin: 0; font-size: 14px; font-weight: 600; color: var(--red-700); }
+.critical-alert-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.critical-alert-card { background: #fff; border: 1px solid var(--border); border-radius: 4px; padding: 10px 12px; font-size: 12px; }
+.critical-alert-card .cac-type { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; font-weight: 600; margin-bottom: 4px; }
+
+/* Drawer side panel (Allergen gates) */
+.drawer-side { position: fixed; right: 0; top: 48px; bottom: 0; width: 520px; background: #fff; border-left: 1px solid var(--border); box-shadow: -4px 0 10px rgba(0,0,0,0.05); z-index: 90; display: flex; flex-direction: column; animation: slideIn 0.15s ease-out; }
+.drawer-head { padding: 14px 18px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; }
+.drawer-body { padding: 16px 18px; overflow-y: auto; flex: 1; font-size: 12px; }

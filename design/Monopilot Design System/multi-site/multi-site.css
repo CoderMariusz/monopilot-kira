@@ -1,0 +1,258 @@
+/* Multi-Site module — inherits production.css chrome + shared.css primitives.
+   Module-specific patterns below: site switcher dropdown, network tree, IST state bar,
+   replication conflict diff, permissions matrix, lane health chips, activation wizard. */
+
+/* ============ Site Switcher (lives in topbar — the signature pattern) ============ */
+.site-switcher { position: relative; display: inline-flex; align-items: center; gap: 6px; }
+.site-switcher-trigger {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 5px 10px; background: #fff; border: 1px solid var(--border);
+  border-radius: 4px; font-size: 12px; font-family: inherit; cursor: pointer;
+  color: var(--text); min-width: 200px; transition: border-color 0.12s;
+}
+.site-switcher-trigger:hover { background: var(--gray-050); }
+.site-switcher-trigger.open { border-color: var(--blue); box-shadow: 0 0 0 3px var(--blue-050); }
+.site-switcher-trigger .ss-globe { font-size: 14px; color: var(--blue); }
+.site-switcher-trigger .ss-code { font-family: var(--font-mono); font-size: 10.5px; color: var(--muted); }
+.site-switcher-trigger .ss-name { font-weight: 600; font-size: 12.5px; flex: 1; text-align: left; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.site-switcher-trigger .ss-chev { color: var(--muted); font-size: 10px; }
+.site-switcher-trigger.all .ss-name { color: var(--blue); }
+
+.site-switcher-panel {
+  position: absolute; top: calc(100% + 6px); left: 0;
+  min-width: 280px; max-width: 340px;
+  background: #fff; border: 1px solid var(--border); border-radius: 6px;
+  box-shadow: 0 6px 20px rgba(0,0,0,0.12); z-index: 200; padding: 6px; font-size: 12px;
+}
+.ss-section-head { font-size: 9.5px; text-transform: uppercase; color: var(--muted); font-weight: 700; letter-spacing: 0.06em; padding: 8px 10px 4px; }
+.ss-row {
+  display: grid; grid-template-columns: 80px 1fr auto auto; gap: 8px; align-items: center;
+  padding: 8px 10px; cursor: pointer; border-radius: 4px;
+}
+.ss-row:hover { background: var(--gray-050); }
+.ss-row.on { background: var(--blue-050); }
+.ss-row.on .ss-row-name { color: var(--blue); font-weight: 600; }
+.ss-row-code { font-family: var(--font-mono); font-size: 10.5px; color: var(--muted); }
+.ss-row-name { font-size: 12px; font-weight: 500; }
+.ss-row-check { color: var(--blue); font-size: 12px; font-weight: 700; }
+.ss-row.all-sites { border-bottom: 1px dashed var(--border); margin-bottom: 4px; padding-bottom: 10px; }
+.ss-row.all-sites .ss-row-code { color: var(--blue); }
+.ss-row.all-sites .ss-row-name { font-weight: 600; }
+.ss-foot { padding: 8px 10px; border-top: 1px solid var(--border); margin-top: 4px; display: flex; justify-content: space-between; }
+.ss-foot a { color: var(--blue); cursor: pointer; font-size: 11px; }
+
+/* All-sites indicator badge on screen */
+.all-sites-banner { padding: 7px 14px; background: var(--blue-050); border-left: 3px solid var(--blue); font-size: 12px; color: var(--blue); margin-bottom: 10px; border-radius: 4px; display: flex; align-items: center; gap: 8px; }
+.all-sites-banner .mono { color: var(--blue); font-weight: 600; }
+
+/* ============ Multi-site nav — reuse prod-nav; add "Setup" pill ============ */
+.prod-nav-item .ms-setup-pill { margin-left: auto; font-size: 9px; padding: 1px 6px; background: var(--amber); color: #fff; border-radius: 8px; }
+
+/* ============ Network tree (MS-NET tree view) ============ */
+.ms-tree { background: #fff; padding: 10px 4px; border-radius: var(--radius); font-size: 12px; }
+.ms-tree-item {
+  display: grid; grid-template-columns: 24px 1fr auto; gap: 10px; align-items: center;
+  padding: 8px 10px; border-radius: 4px; cursor: pointer; position: relative;
+}
+.ms-tree-item:hover { background: var(--gray-050); }
+.ms-tree-item.l0 { font-weight: 700; font-size: 13px; }
+.ms-tree-item.l1 { margin-left: 20px; border-left: 1px solid var(--border); padding-left: 14px; }
+.ms-tree-item.l2 { margin-left: 40px; border-left: 1px solid var(--border); padding-left: 14px; font-size: 11.5px; }
+.ms-tree-item.l3 { margin-left: 60px; border-left: 1px solid var(--border); padding-left: 14px; font-size: 11px; color: var(--muted); }
+.ms-tree-item.on { background: var(--blue-050); }
+.ms-tree-icon { font-size: 14px; color: var(--muted); text-align: center; width: 24px; }
+.ms-tree-main .ms-tree-code { font-family: var(--font-mono); font-size: 11px; color: var(--muted); }
+.ms-tree-main .ms-tree-name { font-weight: 600; color: var(--text); }
+.ms-tree-main .ms-tree-kpi { display: block; font-size: 10.5px; color: var(--muted); font-family: var(--font-mono); margin-top: 3px; }
+.ms-tree-right { display: flex; gap: 6px; align-items: center; }
+.ms-status-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+.ms-status-dot.online { background: var(--green); box-shadow: 0 0 0 3px var(--green-050a); }
+.ms-status-dot.offline { background: var(--red); }
+.ms-status-dot.degraded { background: var(--amber); }
+
+/* ============ IST state machine progress bar ============ */
+.ist-state-bar {
+  display: flex; align-items: center; background: #fff; padding: 14px 20px;
+  border: 1px solid var(--border); border-radius: var(--radius); margin-bottom: 14px;
+}
+.ist-state-step { display: flex; flex-direction: column; align-items: center; flex: 1; text-align: center; position: relative; }
+.ist-state-circle {
+  width: 32px; height: 32px; border-radius: 50%; background: var(--gray-100); color: var(--muted);
+  display: inline-flex; align-items: center; justify-content: center; font-weight: 700; font-size: 12px;
+  border: 2px solid var(--border); font-family: var(--font-mono);
+}
+.ist-state-step.done .ist-state-circle { background: var(--green); color: #fff; border-color: var(--green); }
+.ist-state-step.current .ist-state-circle { background: var(--blue); color: #fff; border-color: var(--blue); box-shadow: 0 0 0 5px var(--blue-050); }
+.ist-state-step.cancelled .ist-state-circle { background: var(--red); color: #fff; border-color: var(--red); }
+.ist-state-label { font-size: 10.5px; margin-top: 6px; text-transform: uppercase; letter-spacing: 0.04em; font-weight: 600; color: var(--muted); }
+.ist-state-step.current .ist-state-label { color: var(--blue); }
+.ist-state-step.done .ist-state-label { color: var(--green-700); }
+.ist-state-line { flex: 0 0 auto; width: 40px; height: 2px; background: var(--border); margin-top: -14px; }
+.ist-state-line.done { background: var(--green); }
+
+/* IST animated in-transit badge */
+@keyframes pulse-amber { 0%, 100% { box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.35); } 50% { box-shadow: 0 0 0 6px rgba(245, 158, 11, 0); } }
+.badge-pulsing { animation: pulse-amber 1.6s ease-in-out infinite; }
+.ist-row-in-transit { border-left: 2px solid var(--amber); animation: pulse-amber 1.6s ease-in-out infinite; }
+
+/* ============ Conflict resolution diff panel (MODAL-CONFLICT-RESOLVE) ============ */
+.conflict-diff { border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; margin: 10px 0 14px; }
+.conflict-diff table { width: 100%; font-size: 12px; }
+.conflict-diff thead th { background: var(--gray-050); padding: 8px 10px; font-size: 11px; text-align: left; border-bottom: 1px solid var(--border); }
+.conflict-diff thead th.col-source { background: var(--blue-050); }
+.conflict-diff thead th.col-site   { background: var(--amber-050); }
+.conflict-diff tbody td { padding: 8px 10px; border-bottom: 1px solid var(--border); vertical-align: top; }
+.conflict-diff tbody tr:last-child td { border-bottom: 0; }
+.conflict-diff .cd-field { font-family: var(--font-mono); font-size: 11px; color: var(--muted); font-weight: 600; }
+.conflict-diff .cd-val { font-size: 12px; }
+.conflict-diff .cd-val.source { background: var(--blue-050a); padding: 4px 8px; border-radius: 3px; }
+.conflict-diff .cd-val.site   { background: var(--amber-050a); padding: 4px 8px; border-radius: 3px; }
+.conflict-diff .cd-radio { display: flex; gap: 10px; font-size: 11px; }
+.conflict-diff .cd-radio label { display: inline-flex; gap: 4px; align-items: center; cursor: pointer; }
+
+/* ============ Permissions matrix (MS-PRM) ============ */
+.perm-matrix-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: var(--radius); background: #fff; }
+.perm-matrix { border-collapse: collapse; font-size: 11.5px; min-width: 100%; }
+.perm-matrix th, .perm-matrix td { border: 1px solid var(--border); padding: 7px 9px; text-align: center; }
+.perm-matrix thead th { background: var(--gray-050); font-weight: 600; font-family: var(--font-mono); font-size: 10.5px; color: var(--muted); position: sticky; top: 0; z-index: 3; }
+.perm-matrix thead th.user-col { text-align: left; background: var(--gray-050); position: sticky; left: 0; z-index: 4; min-width: 200px; }
+.perm-matrix tbody td.user-cell { text-align: left; font-weight: 500; background: #fff; position: sticky; left: 0; z-index: 2; border-right: 2px solid var(--border); }
+.perm-matrix tbody td.user-cell .pm-email { display: block; font-size: 10.5px; color: var(--muted); font-weight: 400; margin-top: 1px; }
+.perm-matrix tbody td.pm-empty { background: var(--gray-050); color: var(--muted); cursor: pointer; }
+.perm-matrix tbody td.pm-empty:hover { background: var(--blue-050); }
+.perm-matrix tbody td.pm-empty::after { content: "+"; color: var(--muted); font-size: 14px; }
+.perm-matrix tbody td.pm-empty:hover::after { color: var(--blue); }
+.perm-matrix .pm-star { color: var(--amber); font-size: 13px; margin-left: 2px; }
+.perm-matrix .pm-allsites { color: var(--blue); font-weight: 700; font-family: var(--font-mono); font-size: 10.5px; }
+
+/* ============ Rebalance suggestions (MS-ANA) ============ */
+.ms-rebalance { background: var(--blue-050a); border: 1px solid var(--blue); border-left: 3px solid var(--blue); border-radius: var(--radius); padding: 12px 14px; margin-bottom: 10px; }
+.ms-rebalance .ms-reb-head { font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; font-weight: 700; color: var(--blue); margin-bottom: 6px; }
+.ms-rebalance .ms-reb-item { display: grid; grid-template-columns: 1fr auto; gap: 10px; padding: 8px 0; border-top: 1px dashed var(--border); font-size: 12px; }
+.ms-rebalance .ms-reb-item:first-child { border-top: 0; padding-top: 4px; }
+.ms-rebalance .ms-reb-item .mono { color: var(--blue); font-weight: 600; }
+
+/* ============ Horizontal bar chart for inventory balance ============ */
+.ms-bar-chart { padding: 14px 4px; }
+.ms-bar-row { display: grid; grid-template-columns: 140px 1fr 90px; gap: 10px; align-items: center; padding: 6px 0; font-size: 12px; }
+.ms-bar-row .ms-bar-label { font-weight: 500; }
+.ms-bar-row .ms-bar-label .mono { font-size: 10.5px; color: var(--muted); display: block; }
+.ms-bar-row .ms-bar-track { height: 18px; background: var(--gray-100); border-radius: 3px; overflow: hidden; position: relative; }
+.ms-bar-row .ms-bar-fill { height: 100%; background: var(--blue); border-radius: 3px; display: flex; align-items: center; justify-content: flex-end; padding-right: 6px; color: #fff; font-size: 10px; font-family: var(--font-mono); font-weight: 600; }
+.ms-bar-row .ms-bar-fill.low { background: var(--amber); }
+.ms-bar-row .ms-bar-fill.high { background: var(--green); }
+.ms-bar-row .ms-bar-val { text-align: right; font-family: var(--font-mono); font-size: 11px; }
+
+/* ============ Mini line chart placeholder (CSS-only) ============ */
+.ms-line-chart { padding: 12px; background: var(--gray-050); border-radius: var(--radius); display: grid; grid-template-columns: repeat(12, 1fr); gap: 4px; align-items: flex-end; height: 140px; }
+.ms-line-chart .ms-bar { background: var(--blue); border-radius: 2px 2px 0 0; opacity: 0.85; min-height: 6px; position: relative; }
+.ms-line-chart .ms-bar::after { content: attr(data-label); position: absolute; bottom: -18px; left: 0; right: 0; text-align: center; font-size: 9px; color: var(--muted); font-family: var(--font-mono); }
+
+/* ============ Lane health chips ============ */
+.lane-health { display: inline-flex; gap: 4px; align-items: center; font-size: 10.5px; padding: 2px 8px; border-radius: 10px; font-family: var(--font-mono); }
+.lane-health.active  { background: var(--green-050a); color: var(--green-700); }
+.lane-health.stale   { background: var(--amber-050a); color: var(--amber-700); }
+.lane-health.failed  { background: var(--red-050a); color: var(--red-700); }
+.lane-health::before { content: "●"; font-size: 10px; }
+
+/* ============ Site type badges ============ */
+.site-type { display: inline-block; font-size: 10px; padding: 1px 7px; border-radius: 10px; font-weight: 500; letter-spacing: 0.02em; }
+.site-type.plant     { background: #dbeafe; color: #1e40af; }
+.site-type.warehouse { background: #dcfce7; color: #166534; }
+.site-type.office    { background: #f1f5f9; color: #475569; }
+.site-type.copack    { background: #fef3c7; color: #92400e; }
+
+/* ============ IST status badges (stateful palette §1.3) ============ */
+.ist-status { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 10px; font-weight: 500; font-family: var(--font-mono); letter-spacing: 0.03em; }
+.ist-status.draft       { background: #f1f5f9; color: #475569; }
+.ist-status.planned     { background: #dbeafe; color: #1e40af; }
+.ist-status.shipped     { background: #fef3c7; color: #b45309; }
+.ist-status.in_transit  { background: #fef3c7; color: #b45309; }
+.ist-status.received    { background: #dbeafe; color: #1e40af; }
+.ist-status.closed      { background: #dcfce7; color: #166534; }
+.ist-status.cancelled   { background: #fee2e2; color: #991b1b; }
+
+/* ============ Replication status badges ============ */
+.rep-status { display: inline-block; font-size: 10px; padding: 1px 7px; border-radius: 10px; font-weight: 500; font-family: var(--font-mono); }
+.rep-status.synced   { background: #dcfce7; color: #166534; }
+.rep-status.pending  { background: #dbeafe; color: #1e40af; }
+.rep-status.conflict { background: #fee2e2; color: #991b1b; }
+.rep-status.running  { background: #dbeafe; color: #1e40af; }
+.rep-status.failed   { background: #fee2e2; color: #991b1b; }
+.rep-status.retrying { background: #fef3c7; color: #92400e; }
+.rep-status.completed{ background: #dcfce7; color: #166534; }
+
+/* Activation badge */
+.act-state { display: inline-block; padding: 4px 10px; border-radius: 14px; font-size: 11px; font-weight: 600; font-family: var(--font-mono); }
+.act-state.inactive { background: #f1f5f9; color: #475569; }
+.act-state.wizard   { background: #fef3c7; color: #92400e; }
+.act-state.dual_run { background: #dbeafe; color: #1e40af; }
+.act-state.activated{ background: #dcfce7; color: #166534; }
+
+/* ============ Site detail tabs bar ============ */
+.ms-tabs { display: flex; border-bottom: 1px solid var(--border); margin-bottom: 14px; background: #fff; border-radius: var(--radius) var(--radius) 0 0; overflow-x: auto; }
+.ms-tabs button { padding: 10px 16px; border: 0; background: transparent; color: var(--muted); border-bottom: 2px solid transparent; cursor: pointer; font-family: inherit; font-size: 12px; font-weight: 500; white-space: nowrap; }
+.ms-tabs button:hover { color: var(--text); }
+.ms-tabs button.on { color: var(--blue); border-bottom-color: var(--blue); font-weight: 600; }
+.ms-tabs .tab-count { display: inline-block; margin-left: 6px; padding: 0 6px; font-size: 10px; background: var(--gray-100); border-radius: 8px; color: var(--muted); font-weight: 500; }
+
+/* ============ Info-card grid for site identity ============ */
+.ms-info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 14px; }
+.ms-info-card { background: #fff; border: 1px solid var(--border); border-radius: var(--radius); padding: 14px 16px; }
+.ms-info-card h3 { font-size: 13px; font-weight: 600; margin: 0 0 10px; padding-bottom: 8px; border-bottom: 1px solid var(--border); }
+.ms-info-field { display: grid; grid-template-columns: 140px 1fr; gap: 10px; padding: 6px 0; font-size: 12px; border-bottom: 1px dashed var(--border); }
+.ms-info-field:last-child { border-bottom: 0; }
+.ms-info-field .mif-label { font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); font-weight: 600; }
+.ms-info-field .mif-value { font-size: 12px; word-break: break-word; }
+.ms-info-field .mif-value.mono { font-family: var(--font-mono); }
+
+/* Mini-KPI grid inside Status card */
+.ms-mini-kpi { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 10px; }
+.ms-mini-kpi > div { background: var(--gray-050); padding: 8px 10px; border-radius: 4px; }
+.ms-mini-kpi .mmk-lab { font-size: 9.5px; text-transform: uppercase; color: var(--muted); letter-spacing: 0.04em; font-weight: 600; }
+.ms-mini-kpi .mmk-val { font-size: 18px; font-weight: 700; font-family: var(--font-mono); margin-top: 2px; }
+
+/* ============ Activation wizard full-screen card ============ */
+.act-wizard-shell { padding: 40px 20px; }
+.act-wizard-card { max-width: 760px; margin: 0 auto; background: #fff; border: 1px solid var(--border); border-radius: var(--radius); padding: 28px; box-shadow: 0 4px 14px rgba(0,0,0,0.04); }
+.act-wizard-card h2 { font-size: 22px; font-weight: 700; margin: 0 0 6px; }
+.act-wizard-card .act-wizard-sub { color: var(--muted); font-size: 13px; margin-bottom: 20px; }
+
+/* ============ Backfill preview table ============ */
+.backfill-tbl th { background: var(--amber-050a); color: var(--amber-700); }
+
+/* ============ Outbox / audit event list (tl-item reuse) ============ */
+.ms-audit-list { padding: 4px 10px; font-size: 12px; }
+
+/* ============ KPI row — multi-site uses 5 cards ============ */
+.ms-kpi-row { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; margin-bottom: 14px; }
+
+@media (max-width: 1200px) { .ms-kpi-row { grid-template-columns: repeat(3, 1fr); } }
+@media (max-width: 900px)  { .ms-kpi-row { grid-template-columns: repeat(2, 1fr); } }
+
+/* ============ Sync progress spinner-bar ============ */
+.sync-prog { display: inline-flex; align-items: center; gap: 6px; font-family: var(--font-mono); font-size: 11px; color: var(--muted); }
+.sync-prog .spin { display: inline-block; width: 10px; height: 10px; border: 2px solid var(--blue-050); border-top-color: var(--blue); border-radius: 50%; animation: spin 0.8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ============ Toast stub shown on site switch ============ */
+.ms-toast { position: fixed; bottom: 20px; right: 20px; background: var(--text); color: #fff; padding: 10px 16px; border-radius: 4px; font-size: 12px; z-index: 400; box-shadow: 0 4px 14px rgba(0,0,0,0.2); animation: toast-in 0.16s ease-out; }
+@keyframes toast-in { from { transform: translateY(10px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+
+/* ============ Promote L1 → L2 → L3 ladder ============ */
+.env-ladder { display: flex; gap: 10px; align-items: stretch; margin: 14px 0; }
+.env-rung { flex: 1; background: #fff; border: 1px solid var(--border); border-radius: var(--radius); padding: 12px 14px; position: relative; }
+.env-rung.active { border-color: var(--blue); box-shadow: 0 0 0 3px var(--blue-050); }
+.env-rung .er-level { font-size: 10px; text-transform: uppercase; color: var(--muted); font-weight: 700; letter-spacing: 0.05em; }
+.env-rung .er-name { font-size: 14px; font-weight: 700; margin-top: 3px; }
+.env-rung .er-stats { font-size: 11px; color: var(--muted); font-family: var(--font-mono); margin-top: 4px; }
+.env-arrow { align-self: center; font-size: 18px; color: var(--muted); }
+
+/* ============ Breadcrumb emphasis (site prefix) ============ */
+.site-crumb { display: inline-flex; align-items: center; gap: 6px; padding: 2px 8px; background: var(--blue-050); border: 1px solid var(--blue); border-radius: 3px; font-size: 10.5px; font-family: var(--font-mono); color: var(--blue); margin-right: 6px; font-weight: 600; }
+.site-crumb.all { background: var(--gray-100); border-color: var(--border); color: var(--text); }
+
+/* ============ Diff stacked for mobile (<800px) ============ */
+@media (max-width: 800px) {
+  .conflict-diff table { font-size: 11px; }
+}
