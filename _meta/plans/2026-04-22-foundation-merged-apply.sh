@@ -1,0 +1,869 @@
+#!/usr/bin/env bash
+# ============================================================================
+# Phase E-0 Foundation — merged backlog applicator
+# Date: 2026-04-22
+# Total tasks added: 95
+# Destructive: clears existing 47 tasks in master tag then repopulates with
+#              95 merged tasks (architect locks + 61 alt atomic tasks + 12
+#              governance + 15 T-43 ADR splits + 6 gap-fills + 1 OOS pointer).
+# Source of truth: _meta/plans/2026-04-22-foundation-merged-plan.md
+# Review the plan before running. This script does NOT auto-execute in the
+# parent session — operator must invoke manually.
+# ============================================================================
+
+set -euo pipefail
+
+TASKS_FILE="/Users/mariuszkrawczyk/Projects/monopilot-kira/.taskmaster/tasks/tasks.json"
+
+echo ">>> Phase 1: removing existing 47 tasks (reverse order to avoid index churn) ..."
+for id in 47 46 45 44 43 42 41 40 39 38 37 36 35 34 33 32 31 30 29 28 27 26 25 24 23 22 21 20 19 18 17 16 15 14 13 12 11 10 9 8 7 6 5 4 3 2 1; do
+  task-master remove-task --id="${id}" -y --file="${TASKS_FILE}" || echo "warn: task ${id} not found (continuing)"
+done
+
+echo ">>> Phase 2: adding 95 merged tasks in topological order ..."
+
+# ----- ID 1: T-00a-001 -----
+task-master add-task \
+  --title="T-00a-001 — Initialise pnpm workspace + Turborepo config" \
+  --description="[infra/monorepo] [T1] pnpm workspace with Turborepo pipeline" \
+  --details="Type: T1-schema (scaffold infra). Context: ~30k tokens. Track: α. GIVEN an empty repo WHEN pnpm install runs from root THEN pnpm-workspace.yaml resolves apps/* + packages/*, turbo.json defines build|lint|test|dev pipelines, and pnpm turbo run build --filter=^ is a no-op green. Steps: (1) pnpm init -w + author pnpm-workspace.yaml; (2) Install Turborepo devDep + turbo.json; (3) Add .gitignore, .nvmrc, engines in root package.json; (4) Verify pnpm turbo run build --filter=^ exits 0; (5) Commit. Files CREATE: package.json, pnpm-workspace.yaml, turbo.json, .gitignore, .nvmrc. Test gate: CI 'pnpm turbo run build --filter=^' exits 0. Rollback: revert commit." \
+  --priority=medium \
+  --dependencies="" \
+  --file="${TASKS_FILE}"
+
+# ----- ID 2: T-00a-002 -----
+task-master add-task \
+  --title="T-00a-002 — Bootstrap apps/web (Next.js 14 App Router, TS strict)" \
+  --description="[ui/layout] [T3] Next.js 14 App Router scaffold with TS strict" \
+  --details="Type: T3-ui. Context: ~40k. Track: γ. GIVEN workspace initialised WHEN pnpm --filter web dev runs THEN Next.js 14 App Router boots at localhost:3000, serves a placeholder / RSC page, TS strict + noUncheckedIndexedAccess enforced. Steps: (1) pnpm create next-app@14 apps/web --ts --app --no-eslint; (2) Harden tsconfig.json; (3) Replace /page.tsx with RSC placeholder; (4) Add pnpm dev wired through Turbo; (5) Smoke curl localhost:3000. Files CREATE: apps/web/*. MODIFY: turbo.json. Test gate: CI 'pnpm --filter web build' green. Rollback: rm -rf apps/web." \
+  --priority=medium \
+  --dependencies="1" \
+  --file="${TASKS_FILE}"
+
+# ----- ID 3: T-00a-005 -----
+task-master add-task \
+  --title="T-00a-005 — Root README + CONTRIBUTING skeleton" \
+  --description="[docs/readme] [docs] Root documentation skeleton (stack, layout, test discipline, PR rules)" \
+  --details="Type: docs. Context: ~15k. Track: γ. Done check: final outputs README.md + CONTRIBUTING.md; outline covers Stack overview (D1-D12 refs), How to run locally, Monorepo layout, Test discipline (00-i), PR rules (40k token cap per §11.3), Link to Phase E-0 plan. Verifiable by a fresh dev reaching pnpm dev green at localhost:3000 in ≤10 min. No implementation/test/rollback beyond doc edit." \
+  --priority=medium \
+  --dependencies="1" \
+  --file="${TASKS_FILE}"
+
+# ----- ID 4: T-00a-003 -----
+task-master add-task \
+  --title="T-00a-003 — Tailwind + shadcn/ui init in apps/web" \
+  --description="[ui/layout] [T3] Tailwind + shadcn/ui primitives (no per-tenant theming; deferred to E-1)" \
+  --details="Type: T3-ui. Context: ~35k. Track: γ. GIVEN Next.js app boots WHEN shadcn Button is imported on / THEN Tailwind classes resolve, Radix primitives render, dark mode class strategy works. Steps: (1) Install tailwindcss + init tailwind.config.ts; (2) npx shadcn@latest init; (3) Add button card dialog input label form; (4) Render Button on /; (5) Verify build + runtime class presence. Files CREATE: apps/web/tailwind.config.ts, apps/web/components.json, apps/web/components/ui/*. MODIFY: apps/web/app/page.tsx, apps/web/app/globals.css. Test gate: CI 'pnpm --filter web build' green + RTL button render test. Rollback: revert commit." \
+  --priority=medium \
+  --dependencies="2" \
+  --file="${TASKS_FILE}"
+
+# ----- ID 5: T-00a-004 -----
+task-master add-task \
+  --title="T-00a-004 — ESLint + Prettier + TypeScript project references" \
+  --description="[infra/config] [T4] Unified lint/format/typecheck across workspaces" \
+  --details="Type: T4-wiring+test. Context: ~30k. Track: δ. GIVEN Next.js scaffold exists WHEN pnpm lint and pnpm typecheck run at root THEN both pass across all workspaces. Steps: (1) Root eslint.config.mjs + prettier.config.mjs; (2) Install eslint-config-next, eslint-plugin-tailwindcss, prettier-plugin-tailwindcss; (3) Root tsconfig.base.json; (4) Turbo pipelines lint + typecheck; (5) Run + fix + commit. Files CREATE: eslint.config.mjs, prettier.config.mjs, tsconfig.base.json. MODIFY: turbo.json, apps/web/tsconfig.json. Test gate: 'pnpm lint && pnpm typecheck' exits 0. Rollback: revert commit." \
+  --priority=medium \
+  --dependencies="2" \
+  --file="${TASKS_FILE}"
+
+# ----- ID 6: T-00a-007 -----
+task-master add-task \
+  --title="T-00a-007 — Env var loader (@t3-oss/env-nextjs) + .env.example" \
+  --description="[infra/config] [T2] Zod-validated env loader with fail-fast on missing keys" \
+  --details="Type: T2-api. Context: ~25k. Track: β. GIVEN Next.js scaffold exists WHEN any server component reads env.SUPABASE_URL THEN missing/invalid env caught at build via Zod, typed, clear error; .env.example lists required keys. Steps: (1) Install @t3-oss/env-nextjs; (2) apps/web/lib/env.ts server+client+Zod; (3) Keys DATABASE_URL, SUPABASE_URL, SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY, NEXT_PUBLIC_POSTHOG_KEY, SENTRY_DSN; (4) Commit .env.example; (5) Unit test missing key throws. Files CREATE: apps/web/lib/env.ts, .env.example. Test gate: unit vitest env.test.ts. Rollback: revert commit." \
+  --priority=medium \
+  --dependencies="2" \
+  --file="${TASKS_FILE}"
+
+# ----- ID 7: T-00a-006 -----
+task-master add-task \
+  --title="T-00a-006 — Husky pre-commit hook (lint + typecheck on staged)" \
+  --description="[infra/ci] [T4] Pre-commit hook runs lint-staged on staged files" \
+  --details="Type: T4-wiring+test. Context: ~25k. Track: δ. GIVEN ESLint+Prettier configured WHEN a developer commits THEN Husky runs lint-staged on staged files and blocks on failure. Steps: (1) Install husky + lint-staged; (2) .husky/pre-commit invoking pnpm exec lint-staged; (3) Configure lint-staged in root package.json; (4) Smoke break-a-file, observe block; (5) Commit fix. Files CREATE: .husky/pre-commit. MODIFY: package.json. Test gate: manual smoke. Rollback: remove husky install scripts." \
+  --priority=medium \
+  --dependencies="5" \
+  --file="${TASKS_FILE}"
+
+# ----- ID 8: T-00b-E01 -----
+task-master add-task \
+  --title="T-00b-E01 — permissions.enum.ts lock (architect)" \
+  --description="[schema/rbac] [T1] RBAC permission strings single-source-of-truth (HARD BLOCKER)" \
+  --details="Type: T1-schema. Context: ~25k. Track: α. HARD BLOCKER gating all parallel RBAC work. GIVEN monorepo scaffold exists WHEN RBAC enum file merged THEN single SoT for permission strings org.admin, fa.create, fa.edit, brief.convert_to_fa, closed_flag.unset, ref.edit, audit.read, outbox.admin, impersonate.tenant with JSDoc per permission. Steps: (1) lib/rbac/permissions.enum.ts const object + Permission union; (2) JSDoc per permission with ADR ref; (3) Export ALL_PERMISSIONS for codegen/tests; (4) Unit test no dupes + lowercase-dot regex; (5) Commit + CODEOWNERS readonly architect-only. Files CREATE: lib/rbac/permissions.enum.ts, lib/rbac/permissions.test.ts. MODIFY: CODEOWNERS. Test gate: unit no dupes + regex. Rollback: delete file." \
+  --priority=high \
+  --dependencies="3" \
+  --file="${TASKS_FILE}"
+
+# ----- ID 9: T-00b-E02 -----
+task-master add-task \
+  --title="T-00b-E02 — events.enum.ts lock (architect)" \
+  --description="[schema/outbox] [T1] Outbox event_type ISA-95 enum (HARD BLOCKER)" \
+  --details="Type: T1-schema. Context: ~25k. Track: α. HARD BLOCKER. GIVEN monorepo scaffold exists WHEN events enum merged THEN SoT for outbox event_type strings ISA-95 dot format (org.created, user.invited, role.assigned, brief.created, fa.created, lp.received, wo.ready, audit.recorded). Steps: (1) lib/outbox/events.enum.ts const object + EventType union; (2) Document ISA-95 prefix convention; (3) Export ALL_EVENTS array; (4) Unit test no dupes + format regex; (5) Commit + CODEOWNERS readonly. Files CREATE: lib/outbox/events.enum.ts, lib/outbox/events.test.ts. MODIFY: CODEOWNERS. Test gate: unit vitest events.test.ts. Rollback: delete file." \
+  --priority=high \
+  --dependencies="3" \
+  --file="${TASKS_FILE}"
+
+# ----- ID 10: T-00b-E03 -----
+task-master add-task \
+  --title="T-00b-E03 — ref-tables.enum.ts lock (architect)" \
+  --description="[schema/reference] [T1] Reference table names SoT (HARD BLOCKER)" \
+  --details="Type: T1-schema. Context: ~25k. Track: α. HARD BLOCKER. GIVEN scaffold exists WHEN ref-tables enum merged THEN 7 E-0 reference table names locked (dept_columns, pack_sizes, lines_by_pack_size, dieset_by_line_pack, templates, processes, close_confirm) + comment listing 10 deferred E-1/E-2 tables pointing to ADR-032 §1.3. Steps: (1) lib/reference/ref-tables.enum.ts RefTable union; (2) Comment block listing deferred tables; (3) Unit test no dupes; (4) Commit + CODEOWNERS readonly; (5) Cross-link 02-SETTINGS PRD §8.1. Files CREATE: lib/reference/ref-tables.enum.ts, lib/reference/ref-tables.test.ts. MODIFY: CODEOWNERS. Test gate: unit. Rollback: delete file." \
+  --priority=high \
+  --dependencies="3" \
+  --file="${TASKS_FILE}"
+
+# ----- ID 11: T-00b-001 -----
+task-master add-task \
+  --title="T-00b-001 — Supabase local (Docker) bootstrap + project link" \
+  --description="[infra/docker] [T1] Supabase local stack (Postgres + GoTrue + Storage)" \
+  --details="Type: T1-schema. Context: ~30k. Track: α. GIVEN Docker installed WHEN supabase start runs from root THEN local Postgres+GoTrue+Storage stack up at known ports, .env.local populated with anon + service role keys. Steps: (1) pnpm dlx supabase init; (2) Commit supabase/config.toml; (3) supabase start + capture keys; (4) Add db:start/stop/reset scripts; (5) Verify psql connection. Files CREATE: supabase/config.toml, scripts in package.json. Test gate: CI supabase-local job connects. Rollback: supabase stop + rm -rf supabase/." \
+  --priority=medium \
+  --dependencies="6" \
+  --file="${TASKS_FILE}"
+
+# ----- ID 12: T-00b-002 -----
+task-master add-task \
+  --title="T-00b-002 — Drizzle config + client singleton" \
+  --description="[schema/drizzle] [T1] Drizzle ORM client singleton" \
+  --details="Type: T1-schema. Context: ~35k. Track: α. GIVEN Supabase local up WHEN import db from packages/db runs server-side THEN Drizzle client connects via DATABASE_URL, honours transactions, exposes typed schema namespace. Steps: (1) Create packages/db workspace; (2) Install drizzle-orm, postgres, drizzle-kit; (3) packages/db/index.ts exports db + client + schema; (4) drizzle.config.ts pointing at packages/db/schema/*; (5) Smoke db.execute(sql\`select 1\`). Files CREATE: packages/db/package.json, packages/db/index.ts, drizzle.config.ts. Test gate: integration smoke.test.ts 'select 1' returns row. Rollback: delete package." \
+  --priority=medium \
+  --dependencies="11" \
+  --file="${TASKS_FILE}"
+
+# ----- ID 13: T-00b-000 -----
+task-master add-task \
+  --title="T-00b-000 — Baseline migration 001-baseline.sql (architect lock)" \
+  --description="[data/migration] [T1] Baseline migration with 7 core tables + R13 identity cols (HARD BLOCKER)" \
+  --details="Type: T1-schema. Context: ~50k. Track: α. HARD BLOCKER. GIVEN Supabase local + Drizzle initialised WHEN baseline migration applied THEN tables tenants, users, user_tenants, roles, user_roles, modules, organization_modules exist with tenant_id UUID NOT NULL and R13 columns (id UUID, external_id, created_at, created_by_user, created_by_device, app_version, model_prediction_id, epcis_event_id) on every business table, schema_version INT NOT NULL DEFAULT 1. Steps: (1) drizzle/schema/baseline.ts with 7 tables + typed cols; (2) schema_version default 1 on each; (3) pnpm drizzle-kit generate; (4) Dry-run on ephemeral Postgres verify DDL with \\d+; (5) Commit drizzle/migrations/001-baseline.sql. Files CREATE: drizzle/schema/baseline.ts, drizzle/migrations/001-baseline.sql. MODIFY: drizzle.config.ts. Test gate: integration 001-baseline.integration.test.ts asserts 7 tables + R13 + schema_version default. Rollback: pnpm drizzle-kit drop." \
+  --priority=high \
+  --dependencies="3,11" \
+  --file="${TASKS_FILE}"
+
+# ----- ID 14: T-00b-004 -----
+task-master add-task \
+  --title="T-00b-004 — Seed runner + named snapshots registry" \
+  --description="[data/seed] [T5] Deterministic seed snapshots (forza-baseline, empty-tenant, multi-tenant-3)" \
+  --details="Type: T5-seed. Context: ~35k. Track: α. GIVEN baseline migration applied WHEN pnpm seed forza-baseline runs THEN named snapshot populates deterministic Forza seed (1 tenant, 3 users, 3 roles) idempotently. Steps: (1) packages/db/seed/index.ts applySnapshot(name) dispatcher; (2) snapshots/forza-baseline.ts (tenant+users+roles); (3) snapshots/empty-tenant.ts; (4) snapshots/multi-tenant-3.ts; (5) npm script seed + test. Files CREATE: packages/db/seed/*. MODIFY: package.json. Test gate: integration seed.test.ts applies twice, row counts stable. Rollback: DELETE FROM tenants on test DB." \
+  --priority=medium \
+  --dependencies="13" \
+  --file="${TASKS_FILE}"
+
+# ----- ID 15: T-00b-006 -----
+task-master add-task \
+  --title="T-00b-006 — Supabase client singleton + setCurrentOrgId RLS context setter" \
+  --description="[api/db] [T2] RLS session context setter using SET LOCAL" \
+  --details="Type: T2-api. Context: ~40k. Track: β. GIVEN Drizzle client exists WHEN await setCurrentOrgId(db, orgId) THEN Postgres session has SET LOCAL app.current_org_id='…'; subsequent RLS policies see it. Steps: (1) packages/db/rls-context.ts setCurrentOrgId using SET LOCAL; (2) Error if not in transaction; (3) Typed helper withOrgContext(orgId, fn); (4) Unit + integration tests; (5) Commit. Files CREATE: packages/db/rls-context.ts, packages/db/rls-context.test.ts. Test gate: integration rls-context.integration.test.ts. Rollback: delete file." \
+  --priority=medium \
+  --dependencies="12" \
+  --file="${TASKS_FILE}"
+
+# ----- ID 16: T-00h-001 -----
+task-master add-task \
+  --title="T-00h-001 — Migration 013-reference-dept-columns.sql + schema_migrations" \
+  --description="[data/migration] [T1] Reference.DeptColumns + schema_migrations + main_table ext/private JSONB + GIN" \
+  --details="Type: T1-schema. Context: ~45k. Track: α. GIVEN baseline applied WHEN migration runs THEN Reference.DeptColumns (id, tenant_id, dept_code, column_name, field_type, required, regex, enum_values, formula, presentation_json, schema_version) + schema_migrations audit + main_table placeholder with ext_jsonb + private_jsonb + GIN index on ext_jsonb. Steps: (1) Author migration; (2) CHECK constraint on field_type enum; (3) GIN index on ext_jsonb; (4) Drizzle types; (5) Integration test. Files CREATE: drizzle/migrations/013-reference-dept-columns.sql. Test gate: integration schema shape + GIN index. Rollback: drop tables." \
+  --priority=medium \
+  --dependencies="13,10" \
+  --file="${TASKS_FILE}"
+
+# ----- ID 17: T-00b-003 -----
+task-master add-task \
+  --title="T-00b-003 — Migration runner scripts (up/down) + pnpm migrate" \
+  --description="[infra/config] [T2] drizzle-kit migrate wrappers + status reporter" \
+  --details="Type: T2-api. Context: ~35k. Track: β. GIVEN Drizzle + baseline exist WHEN pnpm migrate (or migrate:down) THEN drizzle-kit applies/reverts idempotently, drizzle_migrations tracks applied set. Steps: (1) packages/db/scripts/migrate.ts; (2) migrate-down.ts with guard; (3) npm scripts migrate/migrate:down/migrate:status; (4) Integration test up→down→up; (5) README doc. Files CREATE: packages/db/scripts/migrate.ts, migrate-down.ts. MODIFY: package.json. Test gate: integration migrate.test.ts + CI 'pnpm migrate && pnpm migrate:status' green. Rollback: revert + drop drizzle_migrations." \
+  --priority=medium \
+  --dependencies="13,12" \
+  --file="${TASKS_FILE}"
+
+# ----- ID 18: T-00b-005 -----
+task-master add-task \
+  --title="T-00b-005 — Schema drift detector (daily job + CI gate)" \
+  --description="[infra/monitoring] [T2] Compare information_schema vs Drizzle schema; emit drift_events + Sentry breadcrumb" \
+  --details="Type: T2-api. Context: ~40k. Track: β. GIVEN Drizzle + Reference.DeptColumns metadata WHEN drift job runs THEN differences reported (drift_events row + Sentry breadcrumb), CI exit 1 on drift. Steps: (1) packages/db/scripts/drift-check.ts; (2) Compare pg_catalog vs introspection; (3) Emit drift_events + stdout; (4) CI step on ephemeral DB; (5) Integration test with deliberate drift. Files CREATE: packages/db/scripts/drift-check.ts, drizzle/migrations/002-drift-events.sql. MODIFY: turbo.json. Test gate: integration drift-check.test.ts. Rollback: disable CI step + DROP TABLE drift_events." \
+  --priority=medium \
+  --dependencies="17,16" \
+  --file="${TASKS_FILE}"
+
+# ----- ID 19: T-00c-001 -----
+task-master add-task \
+  --title="T-00c-001 — Supabase Auth (GoTrue) schema migration + users FK" \
+  --description="[data/migration] [T1] Mirror auth.users into public.users with FK + trigger" \
+  --details="Type: T1-schema. Context: ~35k. Track: α. GIVEN Supabase local has auth.users WHEN 003-auth-users.sql runs THEN public.users has FK to auth.users.id ON DELETE CASCADE + email column mirrored at insert via trigger. Steps: (1) Migration 003-auth-users.sql; (2) Trigger on_auth_user_created; (3) Integration test insert via supabase client asserts public row; (4) Update Drizzle schema types; (5) Commit. Files CREATE: drizzle/migrations/003-auth-users.sql. MODIFY: packages/db/schema/baseline.ts. Test gate: integration auth-users.integration.test.ts. Rollback: drop trigger + fk." \
+  --priority=high \
+  --dependencies="13" \
+  --file="${TASKS_FILE}"
+
+# ----- ID 20: T-00c-002 -----
+task-master add-task \
+  --title="T-00c-002 — Email+password signup/login Server Actions" \
+  --description="[api/auth] [T2] signupAction/loginAction with cookie + outbox emit" \
+  --details="Type: T2-api. Context: ~45k. Track: β. GIVEN auth schema exists WHEN signupAction({email,password}) or loginAction THEN GoTrue call succeeds, session cookie set, outbox user.invited or user.logged_in emitted, bad inputs return typed Zod errors. Steps: (1) apps/web/actions/auth/signup.ts + login.ts 'use server'; (2) Input Zod schema + parse; (3) supabase.auth.signUp/signInWithPassword; (4) Set cookie + emit outbox; (5) Unit tests happy + bad. Files CREATE: apps/web/actions/auth/signup.ts, login.ts + tests. Test gate: unit mocks GoTrue + integration real Supabase. Rollback: delete actions." \
+  --priority=high \
+  --dependencies="19,8" \
+  --file="${TASKS_FILE}"
+
+# ----- ID 21: T-00c-003 -----
+task-master add-task \
+  --title="T-00c-003 — Next.js middleware: extract session + app.current_org_id" \
+  --description="[api/middleware] [T2] Tenant resolver middleware wired to RLS context" \
+  --details="Type: T2-api. Context: ~50k. Track: β. GIVEN request arrives with Supabase session cookie WHEN middleware.ts resolves THEN user + active org_id (cookie or user_tenants) attached to request context; downstream db calls run inside withOrgContext. Steps: (1) apps/web/middleware.ts using @supabase/ssr; (2) Resolve active org_id; (3) Stash x-org-id header; (4) Unit test unauth→/login, authed-no-org→/onboarding 404 stub; (5) Commit. Files CREATE: apps/web/middleware.ts + test. Test gate: unit middleware.test.ts mock NextRequest. Rollback: delete middleware." \
+  --priority=high \
+  --dependencies="19,15" \
+  --file="${TASKS_FILE}"
+
+# ----- ID 22: T-00c-005 -----
+task-master add-task \
+  --title="T-00c-005 — Logout Server Action + session invalidation" \
+  --description="[api/auth] [T2] logoutAction clears cookie + emits outbox user.logged_out" \
+  --details="Type: T2-api. Context: ~30k. Track: β. GIVEN authenticated session cookie WHEN logoutAction() THEN cookie cleared, GoTrue session revoked, outbox user.logged_out recorded. Steps: (1) apps/web/actions/auth/logout.ts; (2) supabase.auth.signOut() + clear cookie; (3) Emit outbox; (4) Unit test; (5) Commit. Files CREATE: apps/web/actions/auth/logout.ts + test. Test gate: unit logout.test.ts. Rollback: delete action." \
+  --priority=medium \
+  --dependencies="20" \
+  --file="${TASKS_FILE}"
+
+# ----- ID 23: T-00d-001 -----
+task-master add-task \
+  --title="T-00d-001 — RLS policy generator helper (policyFor(table))" \
+  --description="[api/db] [T2] Emits ENABLE RLS + USING + WITH CHECK migration fragments" \
+  --details="Type: T2-api. Context: ~40k. Track: α. GIVEN baseline tables with tenant_id UUID NOT NULL WHEN policyFor('fa') called during migration authoring THEN emits ENABLE RLS + USING(tenant_id=current_setting('app.current_org_id')::uuid) + WITH CHECK SQL fragments. Steps: (1) packages/db/rls/policy-for.ts; (2) 4 policy statements (select/insert/update/delete); (3) Unit test SQL shape; (4) Wire into migration helper; (5) Commit. Files CREATE: packages/db/rls/policy-for.ts + test. Test gate: unit policy-for.test.ts. Rollback: delete file." \
+  --priority=high \
+  --dependencies="13" \
+  --file="${TASKS_FILE}"
+
+# ----- ID 24: T-00d-002 -----
+task-master add-task \
+  --title="T-00d-002 — Migration 004-rls-baseline.sql (enable RLS on 7 baseline tables)" \
+  --description="[data/migration] [T1] RLS enabled on all 7 baseline tables + app_role" \
+  --details="Type: T1-schema. Context: ~45k. Track: α. GIVEN baseline + app.current_org_id setter exist WHEN migration runs THEN every baseline table has ENABLE RLS + policies; superuser never used in test connections (R3). Steps: (1) Generate policies via policyFor; (2) Commit migration SQL; (3) Add app_role Postgres role; (4) Update DATABASE_URL docs; (5) Integration test app_role can't bypass RLS. Files CREATE: drizzle/migrations/004-rls-baseline.sql. MODIFY: supabase/config.toml. Test gate: integration rls-baseline.integration.test.ts. Rollback: drop policy per table." \
+  --priority=high \
+  --dependencies="23,21" \
+  --file="${TASKS_FILE}"
+
+# ----- ID 25: T-00d-003 -----
+task-master add-task \
+  --title="T-00d-003 — LEAKPROOF SECURITY DEFINER wrappers (SQL functions)" \
+  --description="[data/migration] [T1] LEAKPROOF wrappers like fn_current_org() so policies push down across views" \
+  --details="Type: T1-schema. Context: ~40k. Track: α. GIVEN policies use current_setting WHEN migration adds SECURITY DEFINER LEAKPROOF helpers (fn_current_org) THEN policies use wrappers; functions LEAKPROOF so planner pushes down across views safely (R3). Steps: (1) 005-rls-wrappers.sql; (2) Define fn_current_org() RETURNS uuid SECURITY DEFINER LEAKPROOF; (3) Reroute policies; (4) Integration test view over fa with SECURITY INVOKER enforces isolation; (5) Commit. Files CREATE: drizzle/migrations/005-rls-wrappers.sql. Test gate: integration rls-wrappers.integration.test.ts. Rollback: drop functions." \
+  --priority=high \
+  --dependencies="23" \
+  --file="${TASKS_FILE}"
+
+# ----- ID 26: T-00e-001 -----
+task-master add-task \
+  --title="T-00e-001 — Migration 006-audit-log.sql (partitioned append-only)" \
+  --description="[data/migration] [T1] Partitioned audit_log + REVOKE UPDATE/DELETE" \
+  --details="Type: T1-schema. Context: ~45k. Track: α. GIVEN baseline applied WHEN 006-audit-log.sql runs THEN audit_log partitioned by month on created_at, append-only (REVOKE UPDATE/DELETE), with tenant_id, actor, impersonating_as, entity_type, entity_id, before_jsonb, after_jsonb, app_version. Steps: (1) Partitioned parent + initial 3 partitions; (2) REVOKE UPDATE/DELETE from app_role; (3) GRANT SELECT + INSERT via trigger; (4) Index on (tenant_id, entity_type, created_at); (5) Integration test partition routing + REVOKE. Files CREATE: drizzle/migrations/006-audit-log.sql. MODIFY: packages/db/schema/audit.ts. Test gate: integration audit-log.integration.test.ts. Rollback: DROP TABLE audit_log CASCADE." \
+  --priority=high \
+  --dependencies="13" \
+  --file="${TASKS_FILE}"
+
+# ----- ID 27: T-00e-002 -----
+task-master add-task \
+  --title="T-00e-002 — Generic audit trigger factory (install_audit_trigger(table))" \
+  --description="[data/migration] [T1] PL/pgSQL fn_audit_trigger + install helper" \
+  --details="Type: T1-schema. Context: ~45k. Track: α. GIVEN audit table exists WHEN install_audit_trigger('fa') runs THEN INSERT/UPDATE/DELETE on fa emits audit_log row with diff JSONB, actor from current_setting('app.current_actor_id'). Steps: (1) PL/pgSQL fn_audit_trigger(); (2) SQL helper install_audit_trigger(regclass); (3) Install on baseline business tables; (4) Integration test diff captured; (5) Commit. Files CREATE: drizzle/migrations/007-audit-triggers.sql. Test gate: integration audit-trigger.integration.test.ts. Rollback: drop triggers." \
+  --priority=high \
+  --dependencies="26" \
+  --file="${TASKS_FILE}"
+
+# ----- ID 28: T-00e-004 -----
+task-master add-task \
+  --title="T-00e-004 — Audit query API (GET /api/audit?entity=…)" \
+  --description="[api/audit] [T2] RBAC-guarded audit timeline API" \
+  --details="Type: T2-api. Context: ~45k. Track: β. GIVEN audit_log populated WHEN user with audit.read calls GET /api/audit?entity_type=fa&entity_id=<uuid> THEN returns full diff timeline JSON, scoped by RLS to their tenant, limited to 500 rows. Steps: (1) apps/web/app/api/audit/route.ts; (2) Zod parse query params; (3) RBAC guard audit.read; (4) Query audit_log with pagination; (5) Unit + integration test. Files CREATE: apps/web/app/api/audit/route.ts + test. Test gate: integration tenant isolation + RBAC guard. Rollback: delete route." \
+  --priority=medium \
+  --dependencies="27,8" \
+  --file="${TASKS_FILE}"
+
+# ----- ID 29: T-00f-001 -----
+task-master add-task \
+  --title="T-00f-001 — Migration 010-outbox-events.sql + DLQ table" \
+  --description="[data/migration] [T1] Outbox events table + DLQ + partial index" \
+  --details="Type: T1-schema. Context: ~40k. Track: α. GIVEN baseline applied WHEN 010-outbox-events.sql runs THEN outbox_events (id BIGSERIAL, tenant_id, event_type, aggregate_type, aggregate_id, payload, created_at, consumed_at, app_version) + outbox_dlq + partial index on unconsumed. Steps: (1) Migration SQL; (2) Index (tenant_id, created_at) WHERE consumed_at IS NULL; (3) CHECK constraint on event_type referencing events.enum shape; (4) Drizzle types; (5) Integration smoke. Files CREATE: drizzle/migrations/010-outbox-events.sql. Test gate: integration outbox-events.integration.test.ts. Rollback: DROP TABLE outbox_events, outbox_dlq." \
+  --priority=high \
+  --dependencies="13" \
+  --file="${TASKS_FILE}"
+
+# ----- ID 30: T-00f-002 -----
+task-master add-task \
+  --title="T-00f-002 — insertOutboxEvent helper with UUID v7 transaction_id" \
+  --description="[api/outbox] [T2] Idempotent outbox insert helper with UUID v7 transaction_id" \
+  --details="Type: T2-api. Context: ~40k. Track: β. GIVEN outbox migrations applied WHEN insertOutboxEvent(tx, {tenantId, eventType, aggregateType, aggregateId, payload, transactionId?}) THEN row inserted in same transaction; transaction_id UUID v7 (R14) generated if absent; duplicate transaction_id is no-op (idempotent). Steps: (1) packages/outbox/insert-event.ts; (2) UUID v7 helper (uuid@>=10); (3) Zod input schema; (4) Unit + integration idempotency; (5) Export. Files CREATE: packages/outbox/insert-event.ts + test. Test gate: integration idempotent on replay. Rollback: delete file." \
+  --priority=high \
+  --dependencies="29,9" \
+  --file="${TASKS_FILE}"
+
+# ----- ID 31: T-00f-004 -----
+task-master add-task \
+  --title="T-00f-004 — Outbox retry policy config table + backoff formula" \
+  --description="[data/migration] [T1] outbox_retry_policy table + per-event default seed" \
+  --details="Type: T1-schema. Context: ~30k. Track: α. GIVEN outbox+DLQ tables exist WHEN migration adds outbox_retry_policy(event_type, max_attempts, backoff_schedule[]) THEN pg-boss worker reads policy row; default policy inserted for every entry of events.enum.ts. Steps: (1) Migration 011-outbox-retry.sql; (2) Seed default policy per event type; (3) Integration test; (4) Drizzle types; (5) Commit. Files CREATE: drizzle/migrations/011-outbox-retry.sql. Test gate: integration defaults inserted + FK respected. Rollback: drop table." \
+  --priority=medium \
+  --dependencies="29" \
+  --file="${TASKS_FILE}"
+
+# ----- ID 32: T-00f-003 -----
+task-master add-task \
+  --title="T-00f-003 — pg-boss worker config + queue registration" \
+  --description="[api/worker] [T2] pg-boss outbox worker with retry + DLQ (5/30/120/720/1440 min)" \
+  --details="Type: T2-api. Context: ~50k. Track: β. GIVEN outbox table exists WHEN worker pnpm worker starts THEN pg-boss polls outbox_events WHERE consumed_at IS NULL, dispatches by event_type, marks consumed on success, applies retry 5/30/120/720/1440 min, moves to outbox_dlq after 5 failures. Steps: (1) Install pg-boss; (2) packages/outbox/worker.ts with boss.work; (3) Handler registry map eventType→handler; (4) Retry + DLQ policy; (5) Integration test 3 success + 1 poison→DLQ. Files CREATE: packages/outbox/worker.ts, apps/worker/index.ts + test. Test gate: integration outbox-worker.integration.test.ts. Rollback: stop worker + clear pg-boss schema." \
+  --priority=high \
+  --dependencies="29" \
+  --file="${TASKS_FILE}"
+
+# ----- ID 33: T-00f-005 -----
+task-master add-task \
+  --title="T-00f-005 — Outbox healthcheck endpoint + release gate" \
+  --description="[api/health] [T2] /api/health/outbox 200 iff backlog < threshold AND last consumed <60s" \
+  --details="Type: T2-api. Context: ~30k. Track: β. GIVEN pg-boss worker running WHEN /api/health/outbox called THEN returns 200 iff queue backlog < threshold AND last consumed within 60s; deploy pipeline uses as gate. Steps: (1) apps/web/app/api/health/outbox/route.ts; (2) Query backlog + last consumed; (3) Threshold config via env; (4) Unit test; (5) Deploy doc. Files CREATE: apps/web/app/api/health/outbox/route.ts + test. Test gate: unit returns 503 no-worker, 200 healthy. Rollback: delete route." \
+  --priority=high \
+  --dependencies="32" \
+  --file="${TASKS_FILE}"
+
+# ----- ID 34: T-00e-003 -----
+task-master add-task \
+  --title="T-00e-003 — audit.recorded outbox emission hook" \
+  --description="[api/audit] [T2] Audit trigger emits audit.recorded outbox event in same txn" \
+  --details="Type: T2-api. Context: ~40k. Track: β. GIVEN audit triggers + outbox helper exist WHEN audit row inserted THEN trigger calls insertOutboxEvent('audit.recorded', …) in same transaction. Steps: (1) Extend fn_audit_trigger() to call outbox insert; (2) Verify transactional atomicity; (3) Integration test; (4) Document; (5) Commit. Files MODIFY: drizzle/migrations/008-audit-outbox.sql. Test gate: integration insert on fa→audit+outbox in same txn. Rollback: drop helper call." \
+  --priority=medium \
+  --dependencies="27,30,9" \
+  --file="${TASKS_FILE}"
+
+# ----- ID 35: T-00e-005 -----
+task-master add-task \
+  --title="T-00e-005 — Retention policy config + partition maintenance cron" \
+  --description="[api/audit] [T2] Monthly partition maintenance; detach (not drop) after 7y default" \
+  --details="Type: T2-api. Context: ~40k. Track: β. GIVEN audit table partitioned by month WHEN monthly maintenance cron runs THEN future partition pre-created, partitions older than config (default 7y) detached (not dropped — compliance). Steps: (1) packages/db/scripts/partition-maintenance.ts; (2) audit_retention_config(entity_type, retain_months); (3) Schedule via pg-boss cron; (4) Integration test with time-travel; (5) Commit. Files CREATE: packages/db/scripts/partition-maintenance.ts, drizzle/migrations/009-audit-retention.sql. Test gate: integration partition-maintenance.test.ts. Rollback: disable cron." \
+  --priority=medium \
+  --dependencies="26,32" \
+  --file="${TASKS_FILE}"
+
+# ----- ID 36: T-00d-005 -----
+task-master add-task \
+  --title="T-00d-005 — impersonating_as flag plumbing (session + audit)" \
+  --description="[api/auth] [T2] Impersonation flag threaded through withOrgContext + audit_log" \
+  --details="Type: T2-api. Context: ~45k. Track: β. GIVEN superadmin session WHEN POST /api/impersonate with target_org_id THEN session impersonating_as set, DB calls log actor + impersonating_as into audit_log; RLS never silently bypassed. Steps: (1) Session field impersonating_as (signed cookie); (2) Server Action startImpersonation with RBAC guard impersonate.tenant; (3) Audit emit; (4) Extend withOrgContext; (5) Unit test. Files CREATE: apps/web/actions/impersonate.ts + test. MODIFY: packages/db/rls-context.ts. Test gate: unit + integration audit records actor + impersonating_as. Rollback: revert action + remove cookie field." \
+  --priority=medium \
+  --dependencies="21,27" \
+  --file="${TASKS_FILE}"
+
+# ----- ID 37: T-00g-001 -----
+task-master add-task \
+  --title="T-00g-001 — Migration 012-reference-rules.sql (rules catalog)" \
+  --description="[data/migration] [T1] reference_rules table + 4-type CHECK + JSONB GIN" \
+  --details="Type: T1-schema. Context: ~40k. Track: α. GIVEN baseline applied WHEN 012-reference-rules.sql runs THEN reference_rules (tenant_id, rule_id, rule_type IN('cascading','conditional_required','gate','workflow'), definition_json JSONB, version, active_from, active_to) + unique index. Steps: (1) Migration; (2) CHECK on rule_type; (3) JSONB GIN on definition_json; (4) Drizzle types; (5) Integration smoke. Files CREATE: drizzle/migrations/012-reference-rules.sql. Test gate: integration schema + constraints. Rollback: DROP TABLE reference_rules." \
+  --priority=medium \
+  --dependencies="13" \
+  --file="${TASKS_FILE}"
+
+# ----- ID 38: T-00g-002 -----
+task-master add-task \
+  --title="T-00g-002 — DSL interpreter: cascading rule type" \
+  --description="[api/rule-engine] [T2] Pure cascading interpreter (no DB writes)" \
+  --details="Type: T2-api. Context: ~60k. Track: β. GIVEN reference_rules row of type cascading WHEN evaluate(rule, input) THEN returns downstream field values deterministically, pure function. Steps: (1) packages/rule-engine/types.ts DSL schema; (2) interpreters/cascading.ts; (3) Pure function + Zod; (4) ≥5 unit cases; (5) Export via index.ts. Files CREATE: packages/rule-engine/*. Test gate: unit ≥5 canonical cascade cases. Rollback: delete interpreter." \
+  --priority=medium \
+  --dependencies="37" \
+  --file="${TASKS_FILE}"
+
+# ----- ID 39: T-00g-003 -----
+task-master add-task \
+  --title="T-00g-003 — DSL interpreter: conditional-required rule type" \
+  --description="[api/rule-engine] [T2] Conditional-required interpreter with predicate primitives" \
+  --details="Type: T2-api. Context: ~50k. Track: β. GIVEN conditional_required rule WHEN evaluate(rule, input) THEN returns required field names based on predicate match. Steps: (1) interpreters/conditional-required.ts; (2) Predicates EQUALS, CONTAINS_ANY, GT, LT, IN; (3) Unit tests ≥5; (4) README doc; (5) Commit. Files CREATE: packages/rule-engine/interpreters/conditional-required.ts. Test gate: unit ≥5 cases. Rollback: delete file." \
+  --priority=medium \
+  --dependencies="37" \
+  --file="${TASKS_FILE}"
+
+# ----- ID 40: T-00g-004 -----
+task-master add-task \
+  --title="T-00g-004 — DSL interpreter: gate rule type" \
+  --description="[api/rule-engine] [T2] Gate interpreter returns {ok, missing_actions, notify}" \
+  --details="Type: T2-api. Context: ~55k. Track: β. GIVEN gate rule (e.g., allergen changeover gate per PRD §7) WHEN evaluate(rule, context) THEN returns {ok, missing_actions, notify}; pure function. Steps: (1) interpreters/gate.ts; (2) triggers/conditions/actions/on_fail per JSON; (3) Unit tests using allergen changeover verbatim; (4) Error surface for unknown predicate; (5) Commit. Files CREATE: packages/rule-engine/interpreters/gate.ts. Test gate: unit PRD §7 example passes. Rollback: delete file." \
+  --priority=medium \
+  --dependencies="37" \
+  --file="${TASKS_FILE}"
+
+# ----- ID 41: T-00g-005 -----
+task-master add-task \
+  --title="T-00g-005 — Rule registry loader + LRU cache per schema_version" \
+  --description="[api/rule-engine] [T2] loadRules(tenantId) cached by (tenant_id, schema_version)" \
+  --details="Type: T2-api. Context: ~50k. Track: β. GIVEN reference_rules populated WHEN loadRules(tenantId) called THEN returns interpreter-ready rule set, LRU cached by (tenant_id, schema_version). Steps: (1) packages/rule-engine/loader.ts; (2) lru-cache; (3) Invalidate on schema_version bump; (4) Unit + integration tests; (5) Commit. Files CREATE: packages/rule-engine/loader.ts. Test gate: integration cache hit/miss. Rollback: delete file." \
+  --priority=medium \
+  --dependencies="38,39,40" \
+  --file="${TASKS_FILE}"
+
+# ----- ID 42: T-00g-006 -----
+task-master add-task \
+  --title="T-00g-006 — Dry-run harness (POST /api/rules/dry-run)" \
+  --description="[api/rule-engine] [T2] Dry-run evaluator with trace, RBAC ref.edit, no DB writes" \
+  --details="Type: T2-api. Context: ~50k. Track: β. GIVEN loader + interpreters live WHEN POST /api/rules/dry-run with {rule_id, sample_input}, RBAC ref.edit THEN returns evaluation result JSON with trace (inputs, predicates, actions) — no DB writes. Steps: (1) Route handler; (2) Zod parse; (3) Call loader + interpreter; (4) Return trace; (5) Unit test. Files CREATE: apps/web/app/api/rules/dry-run/route.ts + test. Test gate: unit + integration trace shape stable. Rollback: delete route." \
+  --priority=medium \
+  --dependencies="41,8" \
+  --file="${TASKS_FILE}"
+
+# ----- ID 43: T-00g-007 -----
+task-master add-task \
+  --title="T-00g-007 — reference_rules seed helper + snapshot updater" \
+  --description="[data/seed] [T5] 3 canonical rules: fefo_pick_v1, catch_weight_required_v1, allergen_changeover_gate_v1" \
+  --details="Type: T5-seed. Context: ~35k. Track: α. GIVEN rule table exists WHEN forza-baseline snapshot applies rule snapshot THEN 3 canonical rules present: fefo_pick_v1 (cascading), catch_weight_required_v1 (conditional), allergen_changeover_gate_v1 (gate). Steps: (1) packages/db/seed/rules.ts; (2) JSON defs inline (PRD §7); (3) Wire into forza-baseline; (4) Integration test; (5) Commit. Files CREATE: packages/db/seed/rules.ts. MODIFY: packages/db/seed/snapshots/forza-baseline.ts. Test gate: integration seed + rules load. Rollback: DELETE FROM reference_rules." \
+  --priority=medium \
+  --dependencies="37,14" \
+  --file="${TASKS_FILE}"
+
+# ----- ID 44: T-00h-002 -----
+task-master add-task \
+  --title="T-00h-002 — JSON-Schema → Zod runtime compiler" \
+  --description="[api/schema-driven] [T2] compileZod(tenantId, deptCode) derived from DeptColumns, LRU cached" \
+  --details="Type: T2-api. Context: ~55k. Track: β. GIVEN Reference.DeptColumns rows exist WHEN compileZod(tenantId, deptCode) called THEN returns Zod schema from metadata, LRU cached per schema_version, ready for RHF resolver. Steps: (1) packages/schema-driven/compile-zod.ts; (2) json-schema-to-zod + custom mappers for formula/relation; (3) LRU cache; (4) Unit tests each field type; (5) Export. Files CREATE: packages/schema-driven/*. Test gate: unit per field_type + integration DB+cache. Rollback: delete package." \
+  --priority=medium \
+  --dependencies="16" \
+  --file="${TASKS_FILE}"
+
+# ----- ID 45: T-00h-003 -----
+task-master add-task \
+  --title="T-00h-003 — ext_jsonb read/write helpers + expression indexes" \
+  --description="[api/schema-driven] [T2] Typed ext_jsonb helpers + expression index on L3 cols" \
+  --details="Type: T2-api. Context: ~45k. Track: β. GIVEN main_table has ext_jsonb WHEN readExt/writeExt run THEN typed helpers enforce shape via compiled Zod; expression index created for frequently-queried L3 cols (e.g., (ext_jsonb->>'custom_allergen_class')). Steps: (1) packages/schema-driven/ext-jsonb.ts; (2) Migration 014-ext-jsonb-indexes.sql (sample expression index); (3) Unit tests; (4) Document pattern; (5) Commit. Files CREATE: packages/schema-driven/ext-jsonb.ts, drizzle/migrations/014-ext-jsonb-indexes.sql. Test gate: unit + integration type-safe access, index hit. Rollback: drop expression index." \
+  --priority=medium \
+  --dependencies="16" \
+  --file="${TASKS_FILE}"
+
+# ----- ID 46: T-00h-004 -----
+task-master add-task \
+  --title="T-00h-004 — schema_version bump + idempotent add-column helper" \
+  --description="[api/schema-driven] [T2] addColumn(defn) bumps version + invalidates compileZod cache" \
+  --details="Type: T2-api. Context: ~45k. Track: β. GIVEN new DeptColumns row WHEN addColumn(defn) runs THEN migration record appended, schema_version bumped (tenant-scoped), idempotent (never drops), cache invalidated. Steps: (1) packages/schema-driven/add-column.ts; (2) Transactional: insert defn + bump version + log migration; (3) Hook cache invalidation; (4) Integration test add→re-compile→row validates; (5) Commit. Files CREATE: packages/schema-driven/add-column.ts. Test gate: integration end-to-end add→compile→validate. Rollback: revert migration row manually." \
+  --priority=medium \
+  --dependencies="16" \
+  --file="${TASKS_FILE}"
+
+# ----- ID 47: T-00h-005 -----
+task-master add-task \
+  --title="T-00h-005 — Integration test: metadata change → Zod runtime picks up" \
+  --description="[test/harness] [T4] Add DeptColumns row, re-compile, validate before/after" \
+  --details="Type: T4-wiring+test. Context: ~70k. Track: δ. GIVEN main_table + DeptColumns seeded WHEN test adds new L3 column 'custom_flag' then validates payloads pre/post THEN pre-add rejects unknown field, post-add accepts; schema_version distinct. Steps: (1) tests/schema-driven/metadata-live.integration.test.ts; (2) Use addColumn + compileZod; (3) Assert pre/post behaviour; (4) CI gate step; (5) Commit. Files CREATE: tests/schema-driven/metadata-live.integration.test.ts. Test gate: integration green. Rollback: remove test." \
+  --priority=medium \
+  --dependencies="45,46" \
+  --file="${TASKS_FILE}"
+
+# ----- ID 48: T-00i-001 -----
+task-master add-task \
+  --title="T-00i-001 — Vitest workspace harness + coverage config" \
+  --description="[infra/testing] [T4] Vitest + coverage v8 + RTL" \
+  --details="Type: T4-wiring+test. Context: ~35k. Track: δ. GIVEN monorepo scaffold WHEN pnpm test:unit runs THEN Vitest resolves workspace globs, coverage reporter v8 emits coverage/ at ≥85% target, RTL works. Steps: (1) Root vitest.workspace.ts; (2) Install vitest, @vitest/coverage-v8, RTL; (3) Turbo pipeline test:unit; (4) Tiny sample test; (5) Commit. Files CREATE: vitest.workspace.ts, vitest.config.ts per workspace. Test gate: CI 'pnpm test:unit' green + coverage report. Rollback: remove config." \
+  --priority=high \
+  --dependencies="5" \
+  --file="${TASKS_FILE}"
+
+# ----- ID 49: T-00i-005 -----
+task-master add-task \
+  --title="T-00i-005 — Playwright harness + auth fixture" \
+  --description="[infra/testing] [T4] Playwright config + storageState auth fixture" \
+  --details="Type: T4-wiring+test. Context: ~50k. Track: δ. GIVEN Next.js app boots WHEN pnpm test:e2e runs THEN Playwright resolves chromium default, uses shared auth fixture (storageState), produces HTML report. Steps: (1) pnpm create playwright scoped to e2e/; (2) Auth fixture e2e/fixtures/auth.ts; (3) playwright.config.ts with reporter + baseURL + webServer; (4) Tiny smoke spec; (5) Commit. Files CREATE: playwright.config.ts, e2e/fixtures/auth.ts, e2e/smoke.spec.ts. Test gate: E2E smoke passes. Rollback: remove Playwright install." \
+  --priority=high \
+  --dependencies="2,48" \
+  --file="${TASKS_FILE}"
+
+# ----- ID 50: T-00i-003 -----
+task-master add-task \
+  --title="T-00i-003 — Integration test harness (Supabase local + db:reset per test)" \
+  --description="[infra/testing] [T4] Vitest setupFiles reset DB + app_role connection per test" \
+  --details="Type: T4-wiring+test. Context: ~45k. Track: δ. GIVEN Supabase local + migrations exist WHEN integration test file runs THEN global setup resets DB via supabase db reset, applies seed snapshot, exposes app_role connection; no superuser leakage. Steps: (1) tests/setup/integration-setup.ts; (2) Wire via setupFiles; (3) Utility withTenant(orgId, fn); (4) Smoke under app_role; (5) Commit. Files CREATE: tests/setup/integration-setup.ts. Test gate: integration smoke passes. Rollback: remove setup." \
+  --priority=high \
+  --dependencies="11,17,48" \
+  --file="${TASKS_FILE}"
+
+# ----- ID 51: T-00i-004 -----
+task-master add-task \
+  --title="T-00i-004 — Seed fixture library (Forza baseline + synthetic multi-tenant)" \
+  --description="[data/seed] [T5] 3 tenants with deterministic UUIDs for tests" \
+  --details="Type: T5-seed. Context: ~40k. Track: α. GIVEN seed runner + snapshots WHEN applySnapshot('multi-tenant-3') THEN 3 tenants with disjoint users/roles, 2 shared role kinds, deterministic UUIDs (v7 seeded by test clock). Steps: (1) Extend multi-tenant-3.ts with deterministic UUIDs; (2) Factories makeUser/makeRole; (3) Test util seedAndConnect; (4) Unit determinism; (5) Commit. Files MODIFY: packages/db/seed/snapshots/multi-tenant-3.ts, tests/utils/seed.ts. Test gate: unit deterministic output. Rollback: remove factories." \
+  --priority=medium \
+  --dependencies="14" \
+  --file="${TASKS_FILE}"
+
+# ----- ID 52: T-00c-004 -----
+task-master add-task \
+  --title="T-00c-004 — Login page UI (shadcn Form + RHF + Zod)" \
+  --description="[ui/auth] [T3] /login route with shadcn form + server action + states" \
+  --details="Type: T3-ui. Context: ~55k. Track: γ. GIVEN shadcn installed + signup/login actions exist WHEN user navigates to /login THEN form with email+password renders, Zod client-side validates, submit invokes Server Action, error/loading states render. Steps: (1) apps/web/app/(auth)/login/page.tsx; (2) <LoginForm/> with shadcn Form; (3) useFormState wiring; (4) Loading+error (toast); (5) RTL render test. Files CREATE: apps/web/app/(auth)/login/page.tsx, apps/web/components/auth/login-form.tsx + test. Test gate: unit RTL + bad input error. Rollback: delete route + component." \
+  --priority=medium \
+  --dependencies="20,4" \
+  --file="${TASKS_FILE}"
+
+# ----- ID 53: T-00c-006 -----
+task-master add-task \
+  --title="T-00c-006 — E2E: login → middleware sets org_id → logout" \
+  --description="[test/harness] [T4] Playwright auth flow + /api/whoami debug route" \
+  --details="Type: T4-wiring+test. Context: ~70k. Track: δ. GIVEN seeded forza-baseline DB WHEN Playwright navigates /login, submits known creds, calls /api/whoami, logs out THEN whoami returns user+org_id via current_setting('app.current_org_id'), post-logout /login redirect. Steps: (1) Playwright e2e/auth.spec.ts; (2) GET /api/whoami route SELECT current_setting; (3) CI matrix; (4) Assert 3 steps; (5) Commit. Files CREATE: e2e/auth.spec.ts, apps/web/app/api/whoami/route.ts. Test gate: E2E auth.spec.ts green. Rollback: remove spec + route." \
+  --priority=high \
+  --dependencies="21,52,22,49" \
+  --file="${TASKS_FILE}"
+
+# ----- ID 54: T-00d-004 -----
+task-master add-task \
+  --title="T-00d-004 — Integration test: cross-tenant leak regression suite" \
+  --description="[test/harness] [T4] Iterate all baseline tables; assert 0 cross-tenant rows" \
+  --details="Type: T4-wiring+test. Context: ~65k. Track: δ. GIVEN 2 seeded tenants (multi-tenant-3) WHEN suite runs SELECT/INSERT/UPDATE/DELETE on every baseline table with org A context THEN zero rows belonging to org B ever returned or mutated; fails loudly on any leak. Steps: (1) tests/rls/cross-tenant-leak.integration.test.ts; (2) Per table, 4 ops under org A, assert B untouched; (3) Include would-leak scenario that must fail; (4) CI gate pnpm test:rls; (5) Commit. Files CREATE: tests/rls/cross-tenant-leak.integration.test.ts. Test gate: integration + CI 'pnpm test:rls' green. Rollback: none (permanent gate)." \
+  --priority=high \
+  --dependencies="24,25,14" \
+  --file="${TASKS_FILE}"
+
+# ----- ID 55: T-00f-006 -----
+task-master add-task \
+  --title="T-00f-006 — Integration test: emit → worker → consumed + DLQ path" \
+  --description="[test/harness] [T4] Pipeline integration test: 8 handled + 2 poisoned" \
+  --details="Type: T4-wiring+test. Context: ~70k. Track: δ. GIVEN seeded DB + worker running in-test WHEN 10 events emitted (8 handled, 2 poisoned) THEN 8 marked consumed; 2 in outbox_dlq after 5 retries; idempotent replay no-op. Steps: (1) tests/outbox/pipeline.integration.test.ts; (2) pg-boss test harness; (3) Assert counts+timing; (4) Replay test; (5) Commit. Files CREATE: tests/outbox/pipeline.integration.test.ts. Test gate: integration green. Rollback: remove test." \
+  --priority=high \
+  --dependencies="30,32,31" \
+  --file="${TASKS_FILE}"
+
+# ----- ID 56: T-00i-002 -----
+task-master add-task \
+  --title="T-00i-002 — GitHub Actions workflow (matrix: lint/typecheck/unit/integration/e2e)" \
+  --description="[infra/ci] [T4] CI workflow with Supabase Docker service + artifact upload" \
+  --details="Type: T4-wiring+test. Context: ~50k. Track: δ. GIVEN all test harnesses exist WHEN PR pushed THEN .github/workflows/ci.yml runs 5 jobs in matrix; failure blocks merge; artifacts uploaded for E2E. Steps: (1) Author ci.yml; (2) 5 jobs (lint, typecheck, unit, integration, e2e); (3) Supabase via Docker service; (4) Artifact upload on E2E fail; (5) Branch protection doc. Files CREATE: .github/workflows/ci.yml. Test gate: observed green on dummy PR. Rollback: disable workflow." \
+  --priority=high \
+  --dependencies="48,50,49" \
+  --file="${TASKS_FILE}"
+
+# ----- ID 57: T-00i-006 -----
+task-master add-task \
+  --title="T-00i-006 — Sentry init (web + worker) + source maps upload" \
+  --description="[infra/monitoring] [T4] Sentry @sentry/nextjs + @sentry/node + source maps in CI" \
+  --details="Type: T4-wiring+test. Context: ~40k. Track: δ. GIVEN Sentry DSN in env WHEN app starts THEN @sentry/nextjs captures errors with release tag + source maps; worker uses @sentry/node. Steps: (1) Install @sentry/nextjs + @sentry/node; (2) Init instrumentation files; (3) Source-map upload in CI on main; (4) Test via deliberate throw in dev; (5) Commit. Files CREATE: apps/web/instrumentation.ts, apps/web/sentry.client.config.ts, apps/worker/sentry.ts. Test gate: manual smoke (error visible in Sentry UI). Rollback: remove Sentry init files." \
+  --priority=medium \
+  --dependencies="6" \
+  --file="${TASKS_FILE}"
+
+# ----- ID 58: T-00i-007 -----
+task-master add-task \
+  --title="T-00i-007 — PostHog self-host skeleton + feature-flag client singleton" \
+  --description="[infra/flags] [T2] posthog-node + posthog-js, flag(key) with tenant scope + fallback" \
+  --details="Type: T2-api. Context: ~40k. Track: β. GIVEN PostHog self-host URL+key in env WHEN flag('npd.brief_v2') called THEN returns boolean, scoped to tenant_id + user_id; fallback to false on outage. Steps: (1) Install posthog-node + posthog-js; (2) Server singleton packages/flags/server.ts; (3) Client hook use-flag.ts; (4) Unit test with mock network; (5) Document sample seed. Files CREATE: packages/flags/*. Test gate: unit fallback on outage. Rollback: remove package." \
+  --priority=medium \
+  --dependencies="6" \
+  --file="${TASKS_FILE}"
+
+# ----- ID 59: T-00i-008 -----
+task-master add-task \
+  --title="T-00i-008 — Vercel preview deploys + deploy gates" \
+  --description="[infra/ci] [T4] Vercel preview link + health gate + weekly cleanup" \
+  --details="Type: T4-wiring+test. Context: ~35k. Track: δ. GIVEN Vercel project linked WHEN PR opens THEN preview deploy + post-deploy job hits /api/health/outbox; fail→PR red. Steps: (1) Connect Vercel CLI; (2) vercel.json; (3) GitHub Action polls preview URL health; (4) Preview cleanup cron weekly; (5) Document. Files CREATE: vercel.json, .github/workflows/preview-cleanup.yml. Test gate: observed green preview on dummy PR. Rollback: disable Vercel integration." \
+  --priority=medium \
+  --dependencies="56,33,57" \
+  --file="${TASKS_FILE}"
+
+# ----- ID 60: T-00i-009 -----
+task-master add-task \
+  --title="T-00i-009 — Accessibility baseline via @axe-core/playwright" \
+  --description="[infra/testing] [T4] axe-core sweeps /login; fail CI on critical violations" \
+  --details="Type: T4-wiring+test. Context: ~35k. Track: δ. GIVEN Playwright harness + login page WHEN pnpm test:a11y runs THEN axe-core sweeps /login (only UI shipped in E-0), 0 critical violations; CI gate fails on critical. Steps: (1) Install @axe-core/playwright; (2) e2e/a11y/login.spec.ts; (3) test:a11y script; (4) CI job; (5) Commit. Files CREATE: e2e/a11y/login.spec.ts. Test gate: E2E no critical violations. Rollback: remove spec." \
+  --priority=medium \
+  --dependencies="49" \
+  --file="${TASKS_FILE}"
+
+# ----- ID 61: T-00i-010 -----
+task-master add-task \
+  --title="T-00i-010 — /api/health composite healthcheck + readiness probe" \
+  --description="[api/health] [T2] {db, outbox, sentry, app_version, git_sha} in <200ms" \
+  --details="Type: T2-api. Context: ~30k. Track: β. GIVEN DB+outbox+Sentry wired WHEN GET /api/health THEN returns {db:'ok', outbox:'ok'|'degraded', sentry:'ok', app_version, git_sha} in <200ms. Steps: (1) Author route; (2) Parallelize 3 sub-probes; (3) Return worst-of tri-state; (4) Unit test with mocks; (5) Commit. Files CREATE: apps/web/app/api/health/route.ts. Test gate: unit expected shape. Rollback: delete route." \
+  --priority=medium \
+  --dependencies="33,12" \
+  --file="${TASKS_FILE}"
+
+# ----- ID 62: T-GOV-001 -----
+task-master add-task \
+  --title="T-GOV-001 — Publish ADR-028 Schema-driven column definition" \
+  --description="[docs/adr] [docs] ADR-028: Reference.DeptColumns/FieldTypes/Formulas drive forms/validators/views" \
+  --details="Type: docs. Context: ~20k. Track: γ. Done check: output docs/adr/ADR-028-schema-driven-column-definition.md; outline Context, Decision, Reference.DeptColumns/FieldTypes/Formulas metadata, forms/validators/views generation, open item hard-lock flag. Verifiable: another engineer can implement the runtime engine from this ADR alone." \
+  --priority=high \
+  --dependencies="" \
+  --file="${TASKS_FILE}"
+
+# ----- ID 63: T-GOV-002 -----
+task-master add-task \
+  --title="T-GOV-002 — Publish ADR-029 Rule engine DSL + workflow-as-data" \
+  --description="[docs/adr] [docs] ADR-029: 4 rule types, JSON runtime, wizard plans" \
+  --details="Type: docs. Context: ~20k. Track: γ. Done check: output docs/adr/ADR-029-rule-engine-dsl-workflow-as-data.md; outline 4 rule types (cascading/conditional/gate/workflow), JSON runtime, Mermaid docs, wizard plans. Verifiable: another engineer can implement interpreters from this ADR." \
+  --priority=high \
+  --dependencies="" \
+  --file="${TASKS_FILE}"
+
+# ----- ID 64: T-GOV-003 -----
+task-master add-task \
+  --title="T-GOV-003 — Publish ADR-030 Configurable department taxonomy" \
+  --description="[docs/adr] [docs] ADR-030: Forza 7-dept baseline + tenant.dept_overrides JSONB" \
+  --details="Type: docs. Context: ~20k. Track: γ. Done check: output docs/adr/ADR-030-configurable-department-taxonomy.md; outline Forza 7-dept baseline, split/merge/custom via tenant.dept_overrides JSONB, runtime resolution. Verifiable: seed+override round-trip described unambiguously." \
+  --priority=high \
+  --dependencies="" \
+  --file="${TASKS_FILE}"
+
+# ----- ID 65: T-GOV-004 -----
+task-master add-task \
+  --title="T-GOV-004 — Publish ADR-031 Schema variation per org L1-L4" \
+  --description="[docs/adr] [docs] ADR-031: L1 core / L2 org config / L3 ext_jsonb / L4 private_jsonb + canary upgrade" \
+  --details="Type: docs. Context: ~20k. Track: γ. Done check: output docs/adr/ADR-031-schema-variation-per-org-L1-L4.md; outline L1 core / L2 org config / L3 ext_jsonb / L4 private_jsonb, canary upgrade orchestration. Verifiable: another engineer can classify any new column into L1-L4." \
+  --priority=high \
+  --dependencies="" \
+  --file="${TASKS_FILE}"
+
+# ----- ID 66: T-GOV-005 -----
+task-master add-task \
+  --title="T-GOV-005 — Marker discipline reference doc" \
+  --description="[docs/readme] [docs] MARKER-DISCIPLINE.md with 4 marker types + canonical examples" \
+  --details="Type: docs. Context: ~15k. Track: γ. Done check: output docs/MARKER-DISCIPLINE.md; outline [UNIVERSAL]/[FORZA-CONFIG]/[EVOLVING]/[LEGACY-D365] with canonical examples from PRD §2. Verifiable: pick any PRD/ADR section, classify correctly in <60s." \
+  --priority=medium \
+  --dependencies="62,63,64,65" \
+  --file="${TASKS_FILE}"
+
+# ----- ID 67: T-GOV-006 -----
+task-master add-task \
+  --title="T-GOV-006 — Marker discipline lint check" \
+  --description="[infra/lint] [T4] Pre-commit + CI script rejects unmarked business-behaviour sections" \
+  --details="Type: T4-wiring+test. Context: ~25k. Track: δ. Category: infra/lint. GIVEN MARKER-DISCIPLINE.md exists WHEN pre-commit or CI evaluates modified PRD/ADR/skill files THEN sections describing business behaviour without one of the 4 markers rejected with pointer to MARKER-DISCIPLINE.md. Steps: (1) scripts/lint-markers.ts; (2) Regex scan for business-behaviour section shapes; (3) Wire into .husky/pre-commit + CI; (4) Test fixtures (valid + invalid); (5) Commit. Files CREATE: scripts/lint-markers.ts + test. MODIFY: .husky/pre-commit, .github/workflows/ci.yml. Test gate: unit fixtures + CI marker lint job green. Rollback: disable step." \
+  --priority=medium \
+  --dependencies="66,7" \
+  --file="${TASKS_FILE}"
+
+# ----- ID 68: T-GOV-007 -----
+task-master add-task \
+  --title="T-GOV-007 — Personas and module map reference docs" \
+  --description="[docs/readme] [docs] PERSONAS.md + MODULE-MAP.md reproducing PRD §3+§4" \
+  --details="Type: docs. Context: ~18k. Track: γ. Done check: outputs docs/PERSONAS.md + docs/MODULE-MAP.md; outline reproduces PRD §3 + §4 (writing phases, build order, 15-module table, INTEGRATIONS stages). Verifiable: every module referenced in code has a row." \
+  --priority=medium \
+  --dependencies="" \
+  --file="${TASKS_FILE}"
+
+# ----- ID 69: T-GOV-008 -----
+task-master add-task \
+  --title="T-GOV-008 — Regulatory roadmap artifact (FSMA/EUDR/Peppol/ViDA/BRCGS/FIC/KSeF)" \
+  --description="[docs/regulatory] [docs] One file per regulation with deadlines + owner + cadence" \
+  --details="Type: docs. Context: ~25k. Track: γ. Done check: outputs docs/regulatory/*.md (one per regulation); outline deadlines, impacted modules, quarterly review cadence, owner. Verifiable: each row maps to a tracked open item." \
+  --priority=medium \
+  --dependencies="68" \
+  --file="${TASKS_FILE}"
+
+# ----- ID 70: T-GOV-009 -----
+task-master add-task \
+  --title="T-GOV-009 — Out-of-scope policy doc" \
+  --description="[docs/user-guide] [docs] OUT-OF-SCOPE.md: 7 items + use-instead pointers per PRD §11 [R8]" \
+  --details="Type: docs. Context: ~15k. Track: γ. Done check: output docs/OUT-OF-SCOPE.md; outline GL/AP/AR, HR, CRM, on-prem, blockchain, autonomous LLM (7 items) + use-instead pointers per PRD §11 [R8]. Verifiable: each item has an alternative tool or workflow named." \
+  --priority=medium \
+  --dependencies="68" \
+  --file="${TASKS_FILE}"
+
+# ----- ID 71: T-00a-006b -----
+task-master add-task \
+  --title="T-00a-006b — Pre-commit token-cap gate (40000 tokens; extends T-00a-006)" \
+  --description="[infra/ci] [T2] Hook rejects diffs >40000 tokens; comment links to 00-FOUNDATION-PRD.md §11.3" \
+  --details="Type: T2-api (hook extension). Context: ~25k. Track: δ. Gap-fill per Decision #5. Cap = 40000 (NOT 18000). Hook comment MUST link to 00-FOUNDATION-PRD.md §11.3 context budget. GIVEN Husky pre-commit installed WHEN developer attempts to commit a diff exceeding 40000 tokens THEN hook rejects with pointer to §11.3 and suggestion to split. Steps: (1) scripts/token-cap.ts using @dqbd/tiktoken; (2) Count staged diff tokens (git diff --cached | tokenize); (3) Compare vs cap=40000, exit 1 if exceeded; (4) Comment header in .husky/pre-commit pointing to §11.3 of 00-FOUNDATION-PRD.md; (5) Test fixture (small passes, inflated fails). Files CREATE: scripts/token-cap.ts + test. MODIFY: .husky/pre-commit. Test gate: unit boundary + CI 'pnpm token-cap' on PR diff. Rollback: remove hook invocation." \
+  --priority=high \
+  --dependencies="7" \
+  --file="${TASKS_FILE}"
+
+# ----- ID 72: T-GOV-010 -----
+task-master add-task \
+  --title="T-GOV-010 — Build posture + DR policy doc" \
+  --description="[docs/user-guide] [docs] BUILD-POSTURE.md: no-DDL, app-role, drift, 40k PR cap, DR runbook" \
+  --details="Type: docs. Context: ~18k. Track: γ. Done check: output docs/BUILD-POSTURE.md; outline no-DDL-in-request-path, app-role tests, index audit, drift detection, 40k PR cap, quarterly DR runbook per PRD §11/§13. Verifiable: every invariant has a CI/gate reference." \
+  --priority=medium \
+  --dependencies="67,71,56,18" \
+  --file="${TASKS_FILE}"
+
+# ----- ID 73: T-GOV-011 -----
+task-master add-task \
+  --title="T-GOV-011 — Pre-Phase-D ADR review tracker (ADR-001..019)" \
+  --description="[docs/adr] [docs] pre-phase-d-audit.md flagging ADR-002/003/006/008/013 collisions" \
+  --details="Type: docs. Context: ~18k. Track: γ. Done check: output docs/adr/_review/pre-phase-d-audit.md; outline table flagging ADR-002/003/006/008/013 collisions, verdict TBD with owner + phase. Verifiable: every ADR-001..019 has a row." \
+  --priority=medium \
+  --dependencies="62,63,64,65" \
+  --file="${TASKS_FILE}"
+
+# ----- IDs 74-88: T-ADR-R01..R15 -----
+task-master add-task \
+  --title="T-ADR-R01 — Candidate ADR stub R1 (EPCIS 2.0 / GS1 Digital Link)" \
+  --description="[docs/adr] [docs] Stub for PRD §12 #R1" \
+  --details="Type: docs. Context: ~10k. Track: γ. Done check: output docs/adr/candidates/ADR-R01-epcis-gs1-digital-link.md; outline Title, Marker, Source PRD §12 #R1, Open questions, Deferral note ('will be promoted to ADR-NNN when module lands'). Verifiable: matches stub template." \
+  --priority=low \
+  --dependencies="65" \
+  --file="${TASKS_FILE}"
+
+task-master add-task \
+  --title="T-ADR-R02 — Candidate ADR stub R2 (Main Table 69 typed columns)" \
+  --description="[docs/adr] [docs] Stub for PRD §12 #R2" \
+  --details="Type: docs. Context: ~10k. Track: γ. Done check: output docs/adr/candidates/ADR-R02-main-table-69-cols.md; outline Title, Marker, Source PRD §12 #R2, Open questions, Deferral note. Verifiable: matches stub template." \
+  --priority=low \
+  --dependencies="65" \
+  --file="${TASKS_FILE}"
+
+task-master add-task \
+  --title="T-ADR-R03 — Candidate ADR stub R3 (RLS LEAKPROOF SECURITY DEFINER)" \
+  --description="[docs/adr] [docs] Stub for PRD §12 #R3" \
+  --details="Type: docs. Context: ~10k. Track: γ. Done check: output docs/adr/candidates/ADR-R03-rls-leakproof-definer.md; outline Title, Marker, Source PRD §12 #R3, Open questions, Deferral note. Verifiable: matches stub template." \
+  --priority=low \
+  --dependencies="65" \
+  --file="${TASKS_FILE}"
+
+task-master add-task \
+  --title="T-ADR-R04 — Candidate ADR stub R4 (Zod runtime from DeptColumns)" \
+  --description="[docs/adr] [docs] Stub for PRD §12 #R4" \
+  --details="Type: docs. Context: ~10k. Track: γ. Done check: output docs/adr/candidates/ADR-R04-zod-runtime-deptcolumns.md; outline Title, Marker, Source PRD §12 #R4, Open questions, Deferral note. Verifiable: matches stub template." \
+  --priority=low \
+  --dependencies="65" \
+  --file="${TASKS_FILE}"
+
+task-master add-task \
+  --title="T-ADR-R05 — Candidate ADR stub R5 (PWA + IndexedDB sync queue)" \
+  --description="[docs/adr] [docs] Stub for PRD §12 #R5" \
+  --details="Type: docs. Context: ~10k. Track: γ. Done check: output docs/adr/candidates/ADR-R05-pwa-indexeddb-sync.md; outline Title, Marker, Source PRD §12 #R5, Open questions, Deferral note. Verifiable: matches stub template." \
+  --priority=low \
+  --dependencies="65" \
+  --file="${TASKS_FILE}"
+
+task-master add-task \
+  --title="T-ADR-R06 — Candidate ADR stub R6 (PostHog self-host feature flags)" \
+  --description="[docs/adr] [docs] Stub for PRD §12 #R6" \
+  --details="Type: docs. Context: ~10k. Track: γ. Done check: output docs/adr/candidates/ADR-R06-posthog-flags.md; outline Title, Marker, Source PRD §12 #R6, Open questions, Deferral note. Verifiable: matches stub template." \
+  --priority=low \
+  --dependencies="65" \
+  --file="${TASKS_FILE}"
+
+task-master add-task \
+  --title="T-ADR-R07 — Candidate ADR stub R7 (Data residency EU cluster)" \
+  --description="[docs/adr] [docs] Stub for PRD §12 #R7" \
+  --details="Type: docs. Context: ~10k. Track: γ. Done check: output docs/adr/candidates/ADR-R07-data-residency-eu.md; outline Title, Marker, Source PRD §12 #R7, Open questions, Deferral note. Verifiable: matches stub template." \
+  --priority=low \
+  --dependencies="65" \
+  --file="${TASKS_FILE}"
+
+task-master add-task \
+  --title="T-ADR-R08 — Candidate ADR stub R8 (D365 adapter pull/push contracts)" \
+  --description="[docs/adr] [docs] Stub for PRD §12 #R8" \
+  --details="Type: docs. Context: ~10k. Track: γ. Done check: output docs/adr/candidates/ADR-R08-d365-adapter-contracts.md; outline Title, Marker, Source PRD §12 #R8, Open questions, Deferral note. Verifiable: matches stub template." \
+  --priority=low \
+  --dependencies="65" \
+  --file="${TASKS_FILE}"
+
+task-master add-task \
+  --title="T-ADR-R09 — Candidate ADR stub R9 (Outbox + DLQ orchestration)" \
+  --description="[docs/adr] [docs] Stub for PRD §12 #R9" \
+  --details="Type: docs. Context: ~10k. Track: γ. Done check: output docs/adr/candidates/ADR-R09-outbox-dlq.md; outline Title, Marker, Source PRD §12 #R9, Open questions, Deferral note. Verifiable: matches stub template." \
+  --priority=low \
+  --dependencies="65" \
+  --file="${TASKS_FILE}"
+
+task-master add-task \
+  --title="T-ADR-R10 — Candidate ADR stub R10 (Audit append-only + retention)" \
+  --description="[docs/adr] [docs] Stub for PRD §12 #R10" \
+  --details="Type: docs. Context: ~10k. Track: γ. Done check: output docs/adr/candidates/ADR-R10-audit-append-only.md; outline Title, Marker, Source PRD §12 #R10, Open questions, Deferral note. Verifiable: matches stub template." \
+  --priority=low \
+  --dependencies="65" \
+  --file="${TASKS_FILE}"
+
+task-master add-task \
+  --title="T-ADR-R11 — Candidate ADR stub R11 (i18n ICU pl/en/uk/ro)" \
+  --description="[docs/adr] [docs] Stub for PRD §12 #R11" \
+  --details="Type: docs. Context: ~10k. Track: γ. Done check: output docs/adr/candidates/ADR-R11-i18n-icu.md; outline Title, Marker, Source PRD §12 #R11, Open questions, Deferral note. Verifiable: matches stub template." \
+  --priority=low \
+  --dependencies="65" \
+  --file="${TASKS_FILE}"
+
+task-master add-task \
+  --title="T-ADR-R12 — Candidate ADR stub R12 (Canary rollout orchestration)" \
+  --description="[docs/adr] [docs] Stub for PRD §12 #R12" \
+  --details="Type: docs. Context: ~10k. Track: γ. Done check: output docs/adr/candidates/ADR-R12-canary-rollout.md; outline Title, Marker, Source PRD §12 #R12, Open questions, Deferral note. Verifiable: matches stub template." \
+  --priority=low \
+  --dependencies="65" \
+  --file="${TASKS_FILE}"
+
+task-master add-task \
+  --title="T-ADR-R13 — Candidate ADR stub R13 (Identity columns for AI/trace)" \
+  --description="[docs/adr] [docs] Stub for PRD §12 #R13" \
+  --details="Type: docs. Context: ~10k. Track: γ. Done check: output docs/adr/candidates/ADR-R13-identity-cols-ai-trace.md; outline Title, Marker, Source PRD §12 #R13, Open questions, Deferral note. Verifiable: matches stub template." \
+  --priority=low \
+  --dependencies="65" \
+  --file="${TASKS_FILE}"
+
+task-master add-task \
+  --title="T-ADR-R14 — Candidate ADR stub R14 (UUID v7 transaction_id)" \
+  --description="[docs/adr] [docs] Stub for PRD §12 #R14" \
+  --details="Type: docs. Context: ~10k. Track: γ. Done check: output docs/adr/candidates/ADR-R14-uuid-v7-transaction-id.md; outline Title, Marker, Source PRD §12 #R14, Open questions, Deferral note. Verifiable: matches stub template." \
+  --priority=low \
+  --dependencies="65" \
+  --file="${TASKS_FILE}"
+
+task-master add-task \
+  --title="T-ADR-R15 — Candidate ADR stub R15 (GS1-128 parser + AI identifiers)" \
+  --description="[docs/adr] [docs] Stub for PRD §12 #R15" \
+  --details="Type: docs. Context: ~10k. Track: γ. Done check: output docs/adr/candidates/ADR-R15-gs1-128-parser.md; outline Title, Marker, Source PRD §12 #R15, Open questions, Deferral note. Verifiable: matches stub template." \
+  --priority=low \
+  --dependencies="65" \
+  --file="${TASKS_FILE}"
+
+# ----- ID 89: T-OOS-001 (must come before T-GOV-012 which depends on it) -----
+task-master add-task \
+  --title="T-OOS-001 — E-0 out-of-scope pointer doc (D365/Peppol/GS1/theming/OTel/i18n)" \
+  --description="[docs/readme] [docs] Single consolidated out-of-scope pointer per Decisions #2 + #4 + alt defers" \
+  --details="Type: docs. Context: ~12k. Track: γ. Priority: low. Done check: output docs/OUT-OF-SCOPE-E0.md; outline: D365 adapter → defer to E-2 per module (was T-37); Peppol AP → defer to E-2 (was T-38); GS1-128 parser → defer to E-2, lands in scanner/shipping (was T-39); Per-tenant theming hook → defer to E-1 settings carveout (was T-9); OpenTelemetry beyond Sentry → defer post-E-0 (was T-17 partial); i18n scaffold pl/en/uk/ro → defer to E-1 per ADR-032 (was T-19). Verifiable: each row has phase owner + rationale + cross-link to ADR or task ID." \
+  --priority=low \
+  --dependencies="70" \
+  --file="${TASKS_FILE}"
+
+# ----- ID 90: T-GOV-012 -----
+task-master add-task \
+  --title="T-GOV-012 — Open items register (Phase D carry-forward + research + new)" \
+  --description="[docs/user-guide] [docs] OPEN-ITEMS.md enumerating all 16 PRD §14 items" \
+  --details="Type: docs. Context: ~18k. Track: γ. Done check: output docs/conventions/OPEN-ITEMS.md; outline enumerates all 16 PRD §14 items with phase owners, status, review cadence. Verifiable: every open item cross-linked to a task or ADR." \
+  --priority=low \
+  --dependencies="73,74,75,76,77,78,79,80,81,82,83,84,85,86,87,88,89" \
+  --file="${TASKS_FILE}"
+
+# ----- ID 91: T-00b-M01 -----
+task-master add-task \
+  --title="T-00b-M01 — Main Table migration (69 typed Forza cols + ext/private JSONB + schema_version)" \
+  --description="[data/migration] [T1] Main Table 69 cols per MAIN-TABLE-SCHEMA.md; expect churn (Decision #1)" \
+  --details="Type: T1-schema. Context: ~55k. Track: α. Priority: high. Gap-fill per Decision #1 (Main Table 69 cols KEEP in E-0). Ports existing T-21 Forza baseline per 00-FOUNDATION-PRD.md and MAIN-TABLE-SCHEMA.md; expect churn. GIVEN baseline + DeptColumns migrations applied WHEN migration 015-main-table-69-cols.sql runs THEN main_table has 69 typed Forza cols per MAIN-TABLE-SCHEMA.md, plus ext_jsonb JSONB, private_jsonb JSONB, schema_version INT NOT NULL DEFAULT 1, composite index (tenant_id, created_at), GIN index on ext_jsonb (R2). Steps: (1) Translate MAIN-TABLE-SCHEMA.md columns into Drizzle schema; (2) Author migration 015-main-table-69-cols.sql; (3) Composite + GIN indexes; (4) Integration test: \\d+ main_table has 69 typed cols + 2 JSONB + schema_version; (5) Commit. Files CREATE: drizzle/migrations/015-main-table-69-cols.sql, packages/db/schema/main-table.ts. Test gate: integration main-table-69.integration.test.ts + CI 'pnpm test:migrations' green. Rollback: DROP TABLE main_table CASCADE and replace with placeholder." \
+  --priority=high \
+  --dependencies="13,16" \
+  --file="${TASKS_FILE}"
+
+# ----- ID 92: T-00b-A01 -----
+task-master add-task \
+  --title="T-00b-A01 — Postgres app-role connection split (migrations role vs app role)" \
+  --description="[data/migration+infra/config] [T1+T2] dbAdmin for migrations; dbApp for request path; ESLint guard" \
+  --details="Type: T1-schema + T2-wiring. Context: ~40k. Track: α. Priority: high. Ports existing T-12 security hardening. R3: dbAdmin (migrations) vs dbApp (request path), lint guard blocking dbAdmin in apps/. GIVEN Drizzle client + RLS baseline have run WHEN import {dbApp, dbAdmin} from '@monopilot/db' used in app code THEN dbApp connects as app_role (RLS-enforced, no DDL); dbAdmin connects as migrations role and is forbidden in apps/** by ESLint guard + CI check. Steps: (1) Migration 016-app-role.sql: CREATE ROLE app_role with SELECT/INSERT/UPDATE/DELETE on business tables (no DDL); (2) Update packages/db/index.ts to export both clients from distinct env vars; (3) ESLint no-restricted-imports rule for apps/**/* banning dbAdmin; (4) Integration test: dbApp cannot CREATE TABLE; RLS still enforced; (5) Commit. Files CREATE: drizzle/migrations/016-app-role.sql. MODIFY: packages/db/index.ts, eslint.config.mjs. Test gate: integration app-role.integration.test.ts + CI ESLint green + RLS leak suite still green. Rollback: DROP ROLE app_role; revert client split." \
+  --priority=high \
+  --dependencies="12,24" \
+  --file="${TASKS_FILE}"
+
+# ----- ID 93: T-00a-008 -----
+task-master add-task \
+  --title="T-00a-008 — PWA scaffold (manifest + service worker)" \
+  --description="[ui/pwa] [T3] Manifest + SW registration (Decision #3, port from T-11 split)" \
+  --details="Type: T3-ui. Context: ~40k. Track: γ. Gap-fill per Decision #3 (PWA + IndexedDB KEEP in E-0). Ports existing T-11 scaffold half. GIVEN Next.js app boots WHEN browser visits / over HTTPS THEN manifest.webmanifest served, service worker registers, Lighthouse PWA audit passes baseline install criteria. Steps: (1) Install next-pwa or equivalent; (2) apps/web/public/manifest.webmanifest; (3) Service worker stub (no caching yet — queue-flusher is T-00a-009); (4) Icons + theme color; (5) Lighthouse smoke test. Files CREATE: apps/web/public/manifest.webmanifest, apps/web/public/sw.js or Next.js equivalent, icons. MODIFY: apps/web/app/layout.tsx (link manifest). Test gate: E2E Playwright asserts navigator.serviceWorker.ready + CI 'pnpm --filter web build' green. Rollback: remove manifest + SW registration." \
+  --priority=medium \
+  --dependencies="2,4" \
+  --file="${TASKS_FILE}"
+
+# ----- ID 94: T-00a-009 -----
+task-master add-task \
+  --title="T-00a-009 — IndexedDB sync queue + offline queue flusher" \
+  --description="[infra/pwa] [T2] FIFO IndexedDB queue replays UUID v7 transactions on reconnect (Decision #3)" \
+  --details="Type: T2-api. Context: ~55k. Track: β. Gap-fill per Decision #3. FIFO sync queue supporting UUID v7 transaction_id replay per R5/R14. GIVEN service worker registered + outbox helper exists WHEN client offline and performs N mutations, then reconnects THEN IndexedDB FIFO queue replays mutations in order with original UUID v7 transaction_id; server-side idempotency guarantees no duplicate effects. Steps: (1) packages/pwa/indexeddb-queue.ts using idb npm; (2) Enqueue on fetch failure, flush on 'online' event; (3) Hook into Server Action fetch wrapper; (4) Integration test with network-offline simulation (Playwright); (5) Commit. Files CREATE: packages/pwa/indexeddb-queue.ts, apps/web/lib/pwa/fetch-with-queue.ts, tests. Test gate: unit queue FIFO+dedup by transaction_id + E2E Playwright offline→online replay. Rollback: remove queue wrapper; fetches fail loud when offline." \
+  --priority=medium \
+  --dependencies="93,30" \
+  --file="${TASKS_FILE}"
+
+# ----- ID 95: T-00i-011 -----
+task-master add-task \
+  --title="T-00i-011 — E-0 dogfood acceptance harness (merges old T-47 into DoD task)" \
+  --description="[test/harness] [T4] E-0 Definition of Done: validates 9 integration-milestone bullets" \
+  --details="Type: T4-wiring+test. Context: ~65k. Track: δ. Priority: high. Gap-fill merging existing T-47 into single E-0 DoD task. Release gate. GIVEN all E-0 sub-modules landed WHEN pnpm test:acceptance:e0 runs THEN every bullet of E-0 integration milestone passes: fresh pnpm dev boots; CI green on trivial PR; RLS cross-tenant leak green; audit→outbox→worker→consumed end-to-end; rule dry-run deterministic; Zod runtime validates DeptColumns payload; 69-col Main Table present; PWA service worker registers; IndexedDB sync queue roundtrip. Steps: (1) tests/acceptance/phase-e0-dod.ts orchestrator calling existing CI gates + extra smoke assertions; (2) Emit artifacts/phase-e0-dod-report.md on pass; (3) CI job pnpm test:acceptance:e0 with continue-on-error: false; (4) Link from docs/BUILD-POSTURE.md; (5) Commit. Files CREATE: tests/acceptance/phase-e0-dod.ts, .github/workflows/acceptance-e0.yml. Test gate: E2E + integration all 9 bullets green + CI release branch blocked unless acceptance-e0 green. Rollback: disable job (gate permanent)." \
+  --priority=high \
+  --dependencies="53,54,28,55,42,47,56,61,93,94,91,67" \
+  --file="${TASKS_FILE}"
+
+echo ">>> Phase 2 complete. Listing final backlog ..."
+task-master list --file="${TASKS_FILE}"
+
+echo ">>> DONE. 95 tasks added to master tag."
