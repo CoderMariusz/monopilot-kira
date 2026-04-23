@@ -25,6 +25,7 @@ const GRNFromPOModal = ({ open, onClose }) => {
   const [step, setStep] = React.useState("select");
   const [completed, setCompleted] = React.useState(new Set());
   const [po, setPo] = React.useState(null);
+  const [dryRunOpen, setDryRunOpen] = React.useState(false);
   const [lines, setLines] = React.useState({
     1: [{ qty: 40, batch: "B-2026-04-20", supplierBatch: "SUP-AGRO-4820", expiry: "2026-05-20", mfg: "2026-04-20", cw: 40.0, loc: "WH-Factory-A › Receiving › Dock-01", qa: "PENDING" },
         { qty: 60, batch: "B-2026-04-21", supplierBatch: "SUP-AGRO-4821", expiry: "2026-05-21", mfg: "2026-04-21", cw: 60.3, loc: "WH-Factory-A › Receiving › Dock-01", qa: "PENDING" }],
@@ -92,6 +93,12 @@ const GRNFromPOModal = ({ open, onClose }) => {
       </> : <>
         <button className="btn btn-ghost btn-sm" onClick={goBack}>← Back</button>
         <span className="spacer"></span>
+        <DryRunButton
+          label="Preview GRN lines"
+          title="Post → Preview GRN lines (dry-run)"
+          onClick={()=>setDryRunOpen(!dryRunOpen)}
+          disabled={submitting || totalLPs === 0}
+        />
         <button className="btn btn-secondary btn-sm" onClick={onClose}>Cancel</button>
         <button className="btn btn-primary btn-sm" disabled={submitting} onClick={submit}>{submitting ? "Creating GRN…" : "Complete receipt"}</button>
       </>}>
@@ -118,7 +125,7 @@ const GRNFromPOModal = ({ open, onClose }) => {
                     <div className={"mono " + (p.overdue ? "exp-expired" : "")} style={{fontSize:11}}>{p.due}</div>
                     <div className="muted" style={{fontSize:10}}>{p.rel}</div>
                   </td>
-                  <td className="num mono">{p.lines}</td>
+                  <td className="num mono" style={{fontVariantNumeric:"tabular-nums"}}>{p.lines}</td>
                   <td style={{width:150}}>
                     <div className="grn-prog"><span style={{width: p.progress + "%"}}></span></div>
                     <span className="mono" style={{fontSize:10, color:"var(--muted)"}}>{p.progress}% received</span>
@@ -231,6 +238,17 @@ const GRNFromPOModal = ({ open, onClose }) => {
       {/* STEP 3 */}
       {step === "review" && (
         <div style={{marginTop:14}}>
+          {dryRunOpen && (
+            <div className="alert-blue alert-box" style={{marginBottom:10, fontSize:12}}>
+              <span>◐</span>
+              <div>
+                <b>Dry-run preview.</b> Posting this GRN will create <b>{totalLPs}</b> LP{totalLPs !== 1 ? "s" : ""} across
+                {" "}{Object.keys(lines).length} PO line{Object.keys(lines).length !== 1 ? "s" : ""},
+                trigger <b>{totalLPs}</b> label print job{totalLPs !== 1 ? "s" : ""} (ZPL-WH-01), and write one GRN header + {totalLPs} lp_movements rows.
+                Source PO <span className="mono">{po}</span> progress will advance from current to updated value. No changes have been posted yet.
+              </div>
+            </div>
+          )}
           <Summary rows={[
             { label: "GRN number", value: "GRN-2026-00043" },
             { label: "Source PO", value: po, mono: true },
@@ -311,7 +329,7 @@ const GRNFromTOModal = ({ open, onClose }) => {
               <td><input type="checkbox" checked={received.has(lp.lp)} onChange={()=>toggle(lp.lp)}/></td>
               <td className="mono" style={{fontWeight:600, color:"var(--blue)"}}>{lp.lp}</td>
               <td style={{fontSize:11}}>{lp.product}</td>
-              <td className="num mono">{lp.qty} {lp.uom}</td>
+              <td className="num mono" style={{fontVariantNumeric:"tabular-nums"}}>{lp.qty} {lp.uom}</td>
               <td className="mono" style={{fontSize:11}}>{lp.batch}</td>
               <td><ExpiryCell date={lp.expiry} days={14}/></td>
               <td className="mono" style={{fontSize:11}}>{lp.loc}</td>
@@ -474,7 +492,7 @@ const LPSplitModal = ({ open, onClose, data }) => {
           {rows.map((r, i) => (
             <tr key={i}>
               <td className="mono" style={{color:"var(--muted)"}}>{i+1}</td>
-              <td><input type="number" value={r.qty} onChange={e=>setRows(rows.map((x,j)=>j===i?{...x, qty: +e.target.value}:x))} className="num" style={{width:90}}/></td>
+              <td><input type="number" value={r.qty} onChange={e=>setRows(rows.map((x,j)=>j===i?{...x, qty: +e.target.value}:x))} className="num" style={{width:90, fontVariantNumeric:"tabular-nums"}}/></td>
               <td className="mono">{lp.uom}</td>
               <td><select value={r.dest} onChange={e=>setRows(rows.map((x,j)=>j===i?{...x, dest: e.target.value}:x))}><option>WH-Factory-A › Cold › B3</option><option>WH-Factory-A › Cold › B2</option><option>WH-Factory-A › Production › Line-1-Buffer</option></select></td>
               <td><label style={{fontSize:11}}><input type="checkbox" checked={r.label} onChange={e=>setRows(rows.map((x,j)=>j===i?{...x, label: e.target.checked}:x))}/> Print</label></td>
@@ -513,9 +531,13 @@ const LPMergeModal = ({ open, onClose }) => {
     { lp: "LP00000045", valid: true,  qty: 40 },
     { lp: "LP00000046", valid: true,  qty: 60 },
   ]);
+  const [reasonCode, setReasonCode] = React.useState("");
+  const [reasonText, setReasonText] = React.useState("");
   const primaryQty = 80;
   const totalAfter = primaryQty + secondaries.filter(s => s.valid).reduce((a,s)=>a+s.qty,0);
   const validSecondaries = secondaries.filter(s => s.valid).length;
+  const reasonValid = reasonCode && reasonText.length >= 10;
+  const canConfirm = validSecondaries > 0 && reasonValid;
 
   return (
     <Modal open={open} onClose={onClose} title="Merge License Plates" size="wide"
@@ -526,7 +548,7 @@ const LPMergeModal = ({ open, onClose }) => {
         <button className="btn btn-ghost btn-sm" onClick={()=>setStep("primary")}>← Back</button>
         <span className="spacer"></span>
         <button className="btn btn-secondary btn-sm" onClick={onClose}>Cancel</button>
-        <button className="btn btn-primary btn-sm" disabled={validSecondaries === 0} onClick={onClose}>Confirm merge ({validSecondaries} LPs)</button>
+        <button className="btn btn-primary btn-sm" disabled={!canConfirm} onClick={onClose}>Confirm merge ({validSecondaries} LPs)</button>
       </>}>
       <Stepper steps={[{key:"primary", label:"Select primary"}, {key:"secondary", label:"Add LPs to merge"}]} current={step} completed={new Set(step === "secondary" ? ["primary"] : [])}/>
 
@@ -556,7 +578,7 @@ const LPMergeModal = ({ open, onClose }) => {
               {secondaries.map((s, i) => (
                 <tr key={s.lp} style={{background: s.valid ? "var(--green-050a)" : "var(--red-050a)"}}>
                   <td className="mono" style={{fontWeight:600, color:"var(--blue)"}}>{s.lp}</td>
-                  <td className="num mono">{s.qty} BOX</td>
+                  <td className="num mono" style={{fontVariantNumeric:"tabular-nums"}}>{s.qty} BOX</td>
                   <td className="mono" style={{fontSize:11}}>B-2026-04-10</td>
                   <td>{s.valid ? <span className="badge badge-green" style={{fontSize:9}}>✓ Valid</span> : <span className="badge badge-red" style={{fontSize:9}}>✕ Rejected</span>}</td>
                   <td><button className="btn btn-ghost btn-sm" onClick={()=>setSecondaries(secondaries.filter((_,j)=>j!==i))}>🗑</button></td>
@@ -579,6 +601,27 @@ const LPMergeModal = ({ open, onClose }) => {
           <div style={{fontSize:11, color:"var(--muted)", marginTop:10, lineHeight:1.5}}>
             Secondary LPs will be set to status <span className="mono">merged</span>. A genealogy record (<span className="mono">operation: merge</span>) will be created for each secondary LP linking to the primary.
           </div>
+
+          <div className="alert-amber alert-box" style={{marginTop:12, fontSize:12}}>
+            <span>⚠</span>
+            <div>
+              <b>Irreversible action — audit-logged.</b> Secondary LPs cannot be un-merged. MODAL-SCHEMA §9 requires a reason.
+            </div>
+          </div>
+
+          <Field label="Reason code" required help="V-WH-LP-006 — merge reason is audit-logged">
+            <select value={reasonCode} onChange={e=>setReasonCode(e.target.value)}>
+              <option value="">— Select —</option>
+              <option>consolidate_for_shipping</option>
+              <option>minimize_partial_lps</option>
+              <option>batch_reconsolidation</option>
+              <option>physical_consolidation_on_pallet</option>
+              <option>other</option>
+            </select>
+          </Field>
+          <Field label="Reason text" required help="min 10 characters — describes why these LPs are being merged">
+            <ReasonInput value={reasonText} onChange={setReasonText} minLength={10} placeholder="Explain why the secondary LPs should be merged into the primary..."/>
+          </Field>
         </div>
       )}
     </Modal>
