@@ -76,6 +76,12 @@ const RptNav = ({ current, onNav, role }) => {
 // Reporting KPIs share shape: { k, label, value, change, changeCls, accent, sub }.
 // Tune-6b §2.12: "RunStrip on every KPI card, 8-period trend, per-cell title for tooltip."
 // data.jsx is frozen (TUNING-PLAN §4.5) — derive deterministically from fields that exist.
+//
+// invertedPolarity (B-RPT-02 fix): KPIs where lower value is favourable (GA%, late shipments,
+// QC holds, DLQ depth, latency) carry `invertedPolarity: true` in data.jsx. When set, the
+// tone mapping is flipped: a "bad" accent means the current value is high (= bad) → red cells,
+// and we treat any historical improvement (lower) as green. Without this flag the default
+// "higher is better" logic would miscolour these KPIs.
 const kpiAccentToTone = (accent) => {
   if (accent === "green") return "ok";
   if (accent === "amber") return "warn";
@@ -90,15 +96,30 @@ const buildKpiRunCells = (k, opts = {}) => {
   for (let i = 0; i < key.length; i++) h = (h * 31 + key.charCodeAt(i)) >>> 0;
   const latest = kpiAccentToTone(k.accent);
   const down = k.changeCls === "down";
+  // invertedPolarity: for lower-is-better KPIs, flip tone so historical "lower" = ok, "higher" = bad.
+  // This prevents GA%, late shipments, holds etc. from showing red when they improve.
+  const inverted = !!(k.invertedPolarity);
   const cells = [];
   for (let i = 0; i < 8; i++) {
     const bit = (h >> i) & 7;
     let tone;
-    if (i === 7) tone = latest;
-    else if (latest === "bad") tone = bit === 0 ? "ok" : bit === 1 ? "warn" : "bad";
-    else if (latest === "warn") tone = bit < 2 ? "warn" : "ok";
-    else if (latest === "info") tone = bit === 0 ? "warn" : "info";
-    else tone = (down && bit === 0) ? "warn" : "ok";
+    if (i === 7) {
+      // Latest cell always reflects current accent — but for inverted KPIs a "bad" accent
+      // (e.g. late ships = red) correctly shows red, so no flip needed on the current cell.
+      tone = latest;
+    } else if (inverted) {
+      // Inverted polarity: historical cells show green if value was improving (lower),
+      // amber/red if value was higher than today.
+      if (latest === "bad") tone = bit === 0 ? "ok" : bit === 1 ? "ok" : "bad";
+      else if (latest === "warn") tone = bit < 3 ? "ok" : "warn";
+      else if (latest === "red")  tone = bit < 2 ? "ok" : "bad";
+      else tone = bit === 0 ? "warn" : "ok";
+    } else {
+      if (latest === "bad") tone = bit === 0 ? "ok" : bit === 1 ? "warn" : "bad";
+      else if (latest === "warn") tone = bit < 2 ? "warn" : "ok";
+      else if (latest === "info") tone = bit === 0 ? "warn" : "info";
+      else tone = (down && bit === 0) ? "warn" : "ok";
+    }
     const wk = 16 - (7 - i);
     const title = `W${String(wk).padStart(2,"0")} · ${k.value || ""}`.trim();
     cells.push({ tone, title });

@@ -170,7 +170,9 @@ const RptQcHolds = ({ role, onNav, openModal }) => {
 };
 
 // ---------- RPT-005 OEE Summary ----------
-const RptOeeSummary = ({ role, onNav, openModal }) => {
+// D-RPT-06 / PRD D-RPT-9: graceful degradation when oee_daily_summary MV is unavailable.
+// Toggle oeeAvailable=false to show the unavailable state (EmptyState + CTA to 15-OEE).
+const RptOeeSummary = ({ role, onNav, openModal, oeeAvailable = true }) => {
   const [date, setDate] = React.useState("2026-04-21");
   const [line, setLine] = React.useState("All");
 
@@ -202,6 +204,22 @@ const RptOeeSummary = ({ role, onNav, openModal }) => {
         </div>
         <button className="btn btn-sm btn-secondary">Open 15-OEE →</button>
       </div>
+
+      {/* D-RPT-06 / PRD D-RPT-9: OEE unavailable graceful-degradation state.
+          When oee_daily_summary MV is absent (15-OEE module not enabled), replace
+          the main content area with an EmptyState — do not render partial/broken data. */}
+      {!oeeAvailable && (
+        <div className="card">
+          <EmptyState
+            icon="◉"
+            title="OEE data unavailable"
+            body="The OEE Summary dashboard requires the 15-OEE module to be enabled and its materialized view (oee_daily_summary) to be populated. Contact your system administrator to enable the 15-OEE module."
+            action={<button className="btn btn-primary btn-sm" onClick={() => alert("Navigate to 15-OEE module settings")}>Open 15-OEE module →</button>}
+          />
+        </div>
+      )}
+
+      {oeeAvailable && (<>
 
       <div className="kpi-row-5">
         {RPT_OEE_KPIS.map(k => (
@@ -310,6 +328,7 @@ const RptOeeSummary = ({ role, onNav, openModal }) => {
           </div>
         </div>
       </div>
+      </>)}
     </>
   );
 };

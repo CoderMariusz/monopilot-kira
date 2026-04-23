@@ -71,10 +71,15 @@ const MsSiteSwitcher = ({ site, onChange }) => {
 // ============ Sidebar ============
 // Tune-6b §2.14.3 — degraded-sites count badge on the active Multi-Site sidebar item.
 // Counts sites whose online state is "degraded" or fully offline (i.e. attention-worthy).
+// D-MS-04 fix (UX §2.1): activation-state badge ("Setup" amber) coexists with degraded-count
+// badge. When activationState is 'inactive' or 'wizard', show badge-amber "Setup" label.
+// Both badges address different concerns and should always be shown together when applicable.
 const MsSidebar = () => {
   const degraded = (typeof MS_SITES !== "undefined" ? MS_SITES : [])
     .filter(s => s.active && (s.onlineState === "degraded" || s.online === false))
     .length;
+  const activationState = (typeof MS_SETTINGS !== "undefined" ? MS_SETTINGS.activationState : "activated");
+  const showSetupBadge = activationState === "inactive" || activationState === "wizard";
   return (
     <div id="sidebar">
       <div className="sidebar-logo">Monopilot <span>MES</span></div>
@@ -97,11 +102,22 @@ const MsSidebar = () => {
       <div className="sidebar-item active">
         <span className="ic">🌐</span>
         <span>Multi-Site</span>
+        {/* Degraded-sites count badge (red) — Tune-6b §2.14.3 */}
         {degraded > 0 && (
           <span
             className="sidebar-count-badge"
             title={`${degraded} site${degraded === 1 ? "" : "s"} degraded`}
           >{degraded}</span>
+        )}
+        {/* Activation-state badge (amber "Setup") — UX §2.1 / D-MS-04 fix.
+            Shown when module is inactive or wizard-in-progress.
+            Coexists with degraded-count badge — both are rendered if applicable. */}
+        {showSetupBadge && (
+          <span
+            className="badge badge-amber"
+            style={{fontSize:9, marginLeft: degraded > 0 ? 2 : "auto", padding:"1px 5px"}}
+            title={`Multi-site activation: ${activationState === "wizard" ? "wizard in progress" : "not activated"}`}
+          >Setup</span>
         )}
       </div>
     </div>
