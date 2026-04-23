@@ -66,7 +66,7 @@
  * scrolls. See TUNING-PATTERN.md §3.4. */
 .sticky-form-header {
   position: sticky;
-  top: 0;
+  top: var(--topbar-h, 0);
   background: var(--surface-1);
   z-index: 10;
   border-bottom: 1px solid var(--border);

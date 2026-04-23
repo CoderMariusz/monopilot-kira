@@ -144,6 +144,12 @@ at scroll. Applies to:
 - **Quality** NCR Detail, Spec Detail
 - **Maintenance** mWO Detail, Asset Detail
 
+**Use the shared `.sticky-form-header` utility class** (in `_shared/shared.css`). It uses
+`top: var(--topbar-h, 0)` so sticky headers sit flush under the fixed topbar. The global
+`--topbar-h: 48px` is defined in `colors_and_type.css`. If a specific module has a taller
+topbar, override `--topbar-h` locally in that module's CSS `:root` rather than adding a
+per-consumer `top:` value.
+
 ### 3.5 Compact events / activity feed `<CompactActivity/>`
 
 Cloudflare invocation-grouped feed: events folded per correlation id (LP, WO, mWO), internal
@@ -163,6 +169,15 @@ commit. Applies to:
 - **Planning** Cascade generate (Generate → Dry-run preview)
 - **Multi-site** Push rule to sites (Publish → Dry-run / affected-sites preview)
 - **Finance** Close period (Close → Preview variances)
+
+**Dry-run vs confirm-modal.** Dry-run specifically means a *preview-affected-objects* step
+BEFORE the commit action — the user sees "Generating this cascade will create 14 WOs affecting
+3 lines" and then confirms. A plain confirm-modal ("Are you sure?") is NOT a dry-run — it is
+already-sufficient gating for one-shot destructive actions like pauseLine, cancel WO, delete
+asset. Only add `<DryRunButton/>` where the action **fans out to multiple objects** or has
+**side effects the user cannot predict from the button label alone**. If your module's
+destructive surface is already single-target confirm-gated, mark checklist item 15 as
+`N/A (existing confirm modals cover single-target destructive actions)`.
 
 ### 3.7 Sidebar counter badges
 

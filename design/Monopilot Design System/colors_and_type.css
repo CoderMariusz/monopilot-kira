@@ -119,6 +119,9 @@
   --surface-3:   #e2e8f0;          /* deepest, rarely used (e.g. spark track) */
   --border-soft: #eef1f5;          /* softer than --border, for nested dividers */
 
+  /* Layout — topbar height (used by sticky-form-header top offset) */
+  --topbar-h:    48px;
+
   /* §2.2 Semantic threshold tokens — single source for ok/warn/bad */
   --sem-ok:        var(--green);
   --sem-warn:      var(--amber);

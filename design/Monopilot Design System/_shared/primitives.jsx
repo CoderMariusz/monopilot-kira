@@ -82,16 +82,22 @@ const deriveRunHistory = (entity) => {
 // --------------------------------------------------------------
 // <RunStrip outcomes={["ok","warn",...]} max={8} label?="" />
 //   Inline 8-cell sparkline. Cells coloured per outcome token.
+//   `outcomes` accepts either string tokens ("ok"|"warn"|"bad"|"info"|"empty")
+//   OR objects {tone, title} for per-cell hover text (Tune-6b reporting KPI,
+//   Tune-2 planning run history). Backward-compatible — existing callers
+//   passing ["ok","warn",...] continue to work.
 //   shadcn port: keep outer <span/> + per-cell span, wrap in
 //   <TooltipProvider/> for per-cell tooltips in real code.
 // --------------------------------------------------------------
 const RunStrip = ({ outcomes = [], max = 8, label, title }) => {
-  const padded = outcomes.slice(-max);
-  while (padded.length < max) padded.unshift("empty");
+  const cells = outcomes.slice(-max).map((o) =>
+    typeof o === "string" ? { tone: o, title: undefined } : { tone: o.tone || "empty", title: o.title }
+  );
+  while (cells.length < max) cells.unshift({ tone: "empty", title: undefined });
   return (
     <span className="run-strip" role="img" aria-label={title || "Run history"}>
-      {padded.map((o, i) => (
-        <span key={i} className={"run-strip-cell " + (o || "empty")} title={title || undefined}></span>
+      {cells.map((c, i) => (
+        <span key={i} className={"run-strip-cell " + (c.tone || "empty")} title={c.title || title || undefined}></span>
       ))}
       {label && <span className="run-strip-label">{label}</span>}
     </span>
