@@ -30,6 +30,12 @@ const GRNFromPOModal = ({ open, onClose }) => {
         { qty: 60, batch: "B-2026-04-21", supplierBatch: "SUP-AGRO-4821", expiry: "2026-05-21", mfg: "2026-04-21", cw: 60.3, loc: "WH-Factory-A › Receiving › Dock-01", qa: "PENDING" }],
   });
   const [submitting, setSubmitting] = React.useState(false);
+  // Force-close state — one entry per partially-received PO line that operator may close (FR-WH-008 / V-WH-GRN-008)
+  const [forceClose, setForceClose] = React.useState({
+    2: { checked: false, reasonCode: "", reasonText: "" },
+    3: { checked: false, reasonCode: "", reasonText: "" },
+  });
+  const updateFc = (seq, field, val) => setForceClose(fc => ({ ...fc, [seq]: { ...fc[seq], [field]: val } }));
 
   const steps = [
     { key: "select",  label: "Select PO" },
@@ -267,6 +273,57 @@ const GRNFromPOModal = ({ open, onClose }) => {
           <div className="alert-blue alert-box" style={{marginTop:10, fontSize:12}}>
             <span>ⓘ</span>
             <div>Lines 2, 3 have no receipt rows and will remain pending.</div>
+          </div>
+
+          {/* Force-close section — UX WH-004-PO Step 3 / FR-WH-008 / V-WH-GRN-008 */}
+          <div className="card" style={{padding:0, marginTop:10, borderColor:"var(--amber)"}}>
+            <div className="card-head" style={{padding:"8px 14px", background:"var(--amber-050a)"}}>
+              <h3 className="card-title" style={{color:"var(--amber-800)"}}>Lines to force-close</h3>
+              <span className="muted" style={{fontSize:11}}>Partially-received lines only. V-WH-GRN-008</span>
+            </div>
+            <div style={{padding:"10px 14px"}}>
+              <div style={{fontSize:12, color:"var(--muted)", marginBottom:10}}>
+                Check any partially-received PO line you want to permanently close. A force-closed line is set to <span className="mono">partial → force_closed</span> — no further receipts will be accepted against it.
+              </div>
+              {[
+                { seq: 2, product: "Pieprz czarny mielony", ordered: 20, received: 0, uom: "kg" },
+                { seq: 3, product: "Cebula drobna",         ordered: 220, received: 0, uom: "kg" },
+              ].map(({ seq, product, ordered, received: rcv, uom }) => {
+                const fc = forceClose[seq];
+                return (
+                  <div key={seq} style={{borderBottom:"1px solid var(--border)", paddingBottom:10, marginBottom:10}}>
+                    <div className="row-flex" style={{marginBottom:6}}>
+                      <label style={{fontSize:12, display:"flex", alignItems:"center", gap:6}}>
+                        <input type="checkbox" checked={fc.checked} onChange={e=>updateFc(seq, "checked", e.target.checked)}/>
+                        <b>Line {seq}</b> — {product} · {rcv}/{ordered} {uom} received
+                        <span className="badge badge-amber" style={{fontSize:9}}>partial</span>
+                      </label>
+                    </div>
+                    {fc.checked && (
+                      <div style={{paddingLeft:22}}>
+                        <div className="ff-inline" style={{marginBottom:0}}>
+                          <Field label="Reason code" required help="V-WH-GRN-008 — reason is audit-logged">
+                            <select value={fc.reasonCode} onChange={e=>updateFc(seq, "reasonCode", e.target.value)}>
+                              <option value="">— Select —</option>
+                              <option value="under_delivery">under_delivery</option>
+                              <option value="supplier_discontinued">supplier_discontinued</option>
+                              <option value="quality_reject">quality_reject</option>
+                              <option value="other">other</option>
+                            </select>
+                          </Field>
+                          <Field label="Reason text" help={fc.reasonCode === "other" ? "Required for 'other'" : "Optional"}>
+                            <textarea rows={2} value={fc.reasonText} onChange={e=>updateFc(seq, "reasonText", e.target.value)} placeholder="Describe why this PO line is being force-closed…" style={{width:"100%", fontSize:12, resize:"vertical"}}/>
+                          </Field>
+                        </div>
+                        {fc.checked && !fc.reasonCode && (
+                          <div style={{fontSize:11, color:"var(--red-700)", marginTop:4}}>Reason code required to force-close this line.</div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
           </div>
 
           <Field label="Print options">
