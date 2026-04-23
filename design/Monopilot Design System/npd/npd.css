@@ -47,9 +47,7 @@ body { margin: 0; background: var(--bg); color: var(--text); font-family: var(--
 .btn-secondary:hover { background: var(--gray-050); }
 .btn-ghost { background: transparent; color: var(--muted); }
 .btn-ghost:hover { background: var(--gray-050); color: var(--text); }
-.btn-danger { background: var(--red); color: #fff; border-color: var(--red); }
-.btn-danger:hover { background: #b91c1c; }
-.btn-danger:disabled { background: #fecaca; color: #fff; border-color: #fecaca; cursor: not-allowed; }
+/* .btn-danger moved to _shared/shared.css (2026-04-23 tuning wave C) — BL-PROD-05 */
 .btn-success { background: var(--green); color: #fff; border-color: var(--green); }
 .btn-success:hover { background: #15803d; }
 .btn-success:disabled { background: #bbf7d0; color: #fff; border-color: #bbf7d0; cursor: not-allowed; }

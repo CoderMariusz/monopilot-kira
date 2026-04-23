@@ -106,6 +106,37 @@
   --fw-bold:    700;
 
   --lh-base: 1.4;
+
+  /* ------------------------------------------------------------
+   * Tuning overlay (2026-04-23) — see TUNING-PATTERN.md §2
+   * These tokens are ADDITIVE. Existing tokens unchanged.
+   * ------------------------------------------------------------ */
+
+  /* §2.1 Surface layering — prefer surface contrast over border */
+  --surface-0:   var(--bg);        /* page background */
+  --surface-1:   #ffffff;          /* cards, panels */
+  --surface-2:   #f1f5f9;          /* nested rows, sub-panels, inner wells */
+  --surface-3:   #e2e8f0;          /* deepest, rarely used (e.g. spark track) */
+  --border-soft: #eef1f5;          /* softer than --border, for nested dividers */
+
+  /* §2.2 Semantic threshold tokens — single source for ok/warn/bad */
+  --sem-ok:        var(--green);
+  --sem-warn:      var(--amber);
+  --sem-bad:       var(--red);
+  --sem-info:      var(--blue);
+  --sem-neutral:   var(--gray-600);
+
+  --sem-ok-bg:      var(--green-050);
+  --sem-warn-bg:    var(--amber-050);
+  --sem-bad-bg:     var(--red-050);
+  --sem-info-bg:    var(--blue-050);
+  --sem-neutral-bg: var(--gray-050);
+
+  /* §2.3 Sparkline track + outcome colours */
+  --spark-track: var(--surface-3);
+  --spark-ok:    var(--sem-ok);
+  --spark-warn:  var(--sem-warn);
+  --spark-bad:   var(--sem-bad);
 }
 
 /* ============================================================
@@ -118,6 +149,9 @@ html, body {
   color: var(--text);
   background: var(--bg);
   -webkit-font-smoothing: antialiased;
+  /* Tuning §2.4 — tabular-nums applies to all numerics globally.
+   * Scanner retains its own stack and applies tabular-nums locally. */
+  font-variant-numeric: tabular-nums;
 }
 
 /* ============================================================

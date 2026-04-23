@@ -45,3 +45,133 @@
 .gallery-card:hover { border-color: var(--blue); box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
 .gallery-pattern { font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); font-weight: 700; margin-bottom: 6px; font-family: var(--font-mono); }
 .gallery-name { font-size: 13px; font-weight: 600; line-height: 1.3; }
+
+/* ============================================================
+ * Tuning wave C (2026-04-23) — shared primitive styles.
+ * See design/Monopilot Design System/TUNING-PATTERN.md §3.
+ * ============================================================ */
+
+/* ============ .btn-danger (MOVED from npd/npd.css) ============
+ * Previously defined only in npd.css; other modules inherited
+ * implicitly. Moved here so every module owns it. Rules byte-equal
+ * to original npd.css:50-52. See BL-PROD-05. */
+.btn-danger { background: var(--red); color: #fff; border-color: var(--red); }
+.btn-danger:hover { background: #b91c1c; }
+.btn-danger:disabled { background: #fecaca; color: #fff; border-color: #fecaca; cursor: not-allowed; }
+
+/* ============ Sticky form / step header utility ============
+ * Apply to the outermost header bar of long detail forms (Brief,
+ * FA, BOM Detail, WO Detail, mWO Detail, NCR Detail, Asset Detail).
+ * Keeps title + step indicator + primary CTA on screen as the form
+ * scrolls. See TUNING-PATTERN.md §3.4. */
+.sticky-form-header {
+  position: sticky;
+  top: 0;
+  background: var(--surface-1);
+  z-index: 10;
+  border-bottom: 1px solid var(--border);
+}
+
+/* ============ <RunStrip/> — inline 8-outcome strip ============
+ * 8 cells, 3px wide, 12px tall, 1px gap. Colour per outcome token.
+ * See TUNING-PATTERN.md §3.1. */
+.run-strip { display: inline-flex; gap: 1px; align-items: center; vertical-align: middle; line-height: 1; }
+.run-strip-cell { width: 3px; height: 12px; border-radius: 1px; background: var(--spark-track); }
+.run-strip-cell.ok   { background: var(--spark-ok); }
+.run-strip-cell.warn { background: var(--spark-warn); }
+.run-strip-cell.bad  { background: var(--spark-bad); }
+.run-strip-cell.empty { background: var(--spark-track); }
+.run-strip-label { font-size: 11px; color: var(--muted); margin-left: 8px; font-variant-numeric: tabular-nums; }
+
+/* ============ <EmptyState/> — list/table empty primitive ============
+ * Icon + title + body + optional CTA. Renders inside a card area.
+ * See TUNING-PATTERN.md §3.8. */
+.empty-state { padding: 40px 24px; text-align: center; color: var(--muted); }
+.empty-state-icon { font-size: 40px; opacity: 0.28; line-height: 1; margin-bottom: 10px; }
+.empty-state-title { font-size: 14px; color: var(--text); font-weight: 600; margin-bottom: 4px; }
+.empty-state-body { font-size: 12px; color: var(--muted); max-width: 420px; margin: 0 auto 12px; line-height: 1.5; }
+.empty-state-action { margin-top: 6px; }
+/* Scanner uses a dark-surface variant — apply .empty-state.dark inside scanner. */
+.empty-state.dark { color: var(--sc-text-muted, #94a3b8); }
+.empty-state.dark .empty-state-title { color: var(--sc-text, #e5e7eb); }
+.empty-state.dark .empty-state-icon { opacity: 0.35; }
+
+/* ============ <TabsCounted/> — tabs w/ pill count ============
+ * See TUNING-PATTERN.md §3.2. */
+.tabs-counted { display: inline-flex; gap: 4px; border-bottom: 1px solid var(--border); padding: 0; align-items: stretch; }
+.tabs-counted-tab {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 8px 12px;
+  border: 0; background: transparent;
+  color: var(--muted); font-size: 13px; font-weight: 500;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  font-family: inherit;
+}
+.tabs-counted-tab:hover { color: var(--text); }
+.tabs-counted-tab.active { color: var(--blue); border-bottom-color: var(--blue); font-weight: 600; }
+.tabs-counted-pill {
+  font-size: 11px; font-weight: 600;
+  padding: 1px 7px; border-radius: var(--radius-pill);
+  background: var(--sem-neutral-bg); color: var(--sem-neutral);
+  font-variant-numeric: tabular-nums;
+  min-width: 18px; text-align: center;
+}
+.tabs-counted-pill.tone-ok      { background: var(--sem-ok-bg);      color: var(--green-700); }
+.tabs-counted-pill.tone-warn    { background: var(--sem-warn-bg);    color: var(--amber-700); }
+.tabs-counted-pill.tone-bad     { background: var(--sem-bad-bg);     color: var(--red-700); }
+.tabs-counted-pill.tone-info    { background: var(--sem-info-bg);    color: var(--blue-700); }
+.tabs-counted-pill.tone-neutral { background: var(--sem-neutral-bg); color: var(--sem-neutral); }
+.tabs-counted-pill.zero { opacity: 0.55; }
+
+/* ============ <CompactActivity/> — folded activity feed ============
+ * Cloudflare-style invocation-grouped feed. Events fold per
+ * correlation id; internal events hidden by default.
+ * See TUNING-PATTERN.md §3.5. */
+.compact-activity { display: flex; flex-direction: column; gap: 4px; }
+.compact-activity-group { background: var(--surface-1); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
+.compact-activity-head {
+  display: flex; align-items: center; gap: 8px;
+  padding: 8px 12px;
+  background: var(--surface-2);
+  border-bottom: 1px solid transparent;
+  cursor: pointer;
+  font-size: 12px;
+}
+.compact-activity-group.open .compact-activity-head { border-bottom-color: var(--border-soft); }
+.compact-activity-caret { font-size: 10px; color: var(--muted); width: 10px; display: inline-block; transition: transform 0.12s ease; }
+.compact-activity-group.open .compact-activity-caret { transform: rotate(90deg); }
+.compact-activity-corr { font-family: var(--font-mono); font-size: 11px; color: var(--text); font-weight: 600; }
+.compact-activity-count { font-size: 11px; color: var(--muted); margin-left: auto; font-variant-numeric: tabular-nums; }
+.compact-activity-events { display: flex; flex-direction: column; }
+.compact-activity-event { display: flex; gap: 10px; padding: 6px 12px 6px 30px; font-size: 12px; border-top: 1px solid var(--border-soft); }
+.compact-activity-event:first-child { border-top: 0; }
+.compact-activity-event .ts { font-family: var(--font-mono); font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.compact-activity-event .msg { color: var(--text); flex: 1; }
+.compact-activity-event.internal { opacity: 0.6; }
+.compact-activity-toggle-internal {
+  display: inline-flex; align-items: center; gap: 4px;
+  background: transparent; border: 0;
+  color: var(--muted); font-size: 11px; cursor: pointer;
+  padding: 4px 12px 6px 30px;
+  font-family: inherit;
+}
+.compact-activity-toggle-internal:hover { color: var(--blue); }
+
+/* ============ <DryRunButton/> — secondary preview CTA ============
+ * Sits adjacent to a primary destructive/commit button. Opens a
+ * preview modal (caller wires onClick). See TUNING-PATTERN.md §3.6. */
+.btn-dryrun {
+  padding: 6px 14px; border-radius: 4px;
+  font-size: 12px; font-weight: 500;
+  cursor: pointer;
+  border: 1px dashed var(--border);
+  background: var(--surface-2);
+  color: var(--text);
+  font-family: inherit;
+  display: inline-flex; align-items: center; gap: 6px;
+}
+.btn-dryrun:hover { border-color: var(--blue); color: var(--blue); }
+.btn-dryrun:disabled { opacity: 0.55; cursor: not-allowed; }
+.btn-dryrun .dryrun-icon { font-size: 11px; opacity: 0.7; }
