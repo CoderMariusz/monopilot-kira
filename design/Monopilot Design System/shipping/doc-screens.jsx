@@ -404,6 +404,26 @@ const ShShipments = ({ onNav, openModal }) => {
                           </div>
                         )}
 
+                        {/* TUNING-PATTERN §3.5 CompactActivity — group shipment events by SO correlation id */}
+                        <div style={{marginTop:12}}>
+                          <div style={{fontSize:11, color:"var(--muted)", marginBottom:6, textTransform:"uppercase", letterSpacing:"0.04em", fontWeight:600}}>Event timeline — grouped by {s.so}</div>
+                          <CompactActivity groups={[{
+                            id: s.shipment,
+                            label: s.so + " · " + s.shipment,
+                            defaultOpen: ["packing","shipped"].includes(s.status),
+                            events: [
+                              { ts: s.shippedAt ? s.shippedAt.split(" ")[0] : "—", msg: "SO allocated to shipment · " + s.boxes + " boxes planned", internal: true },
+                              { ts: s.shippedAt ? s.shippedAt.split(" ")[0] : "—", msg: "SSCC labels generated (" + s.ssccGenerated + " of " + s.boxes.split("/")[1] + ")" },
+                              { ts: s.shippedAt ? s.shippedAt.split(" ")[0] : "—", msg: "Boxes closed · total weight " + (s.weight || "—") },
+                              ...(s.bolStatus === "signed" ? [{ ts: s.shippedAt || "—", msg: "BOL signed by carrier · " + s.carrier }] : []),
+                              ...(s.bolStatus === "pending" ? [{ ts: s.shippedAt || "—", msg: "BOL printed · awaiting carrier signature" }] : []),
+                              ...(s.shippedAt ? [{ ts: s.shippedAt, msg: "🚚 Shipped · PRO# " + s.pro }] : []),
+                              ...(s.deliveredAt ? [{ ts: s.deliveredAt, msg: "✓ Delivered · POD received" }] : []),
+                              { ts: "system", msg: "Webhook poll · status unchanged", internal: true },
+                            ],
+                          }]}/>
+                        </div>
+
                         <div className="alert-blue alert-box" style={{fontSize:11, marginTop:8}}>
                           <span>ⓘ</span>
                           <div>P2: Carrier webhook integration (EPIC 11-F) will auto-update tracking status. P1: manual update only.</div>

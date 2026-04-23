@@ -4,6 +4,10 @@ const ShSOList = ({ onOpenSO, onNav, openModal }) => {
   const [tab, setTab] = React.useState("all");
   const [search, setSearch] = React.useState("");
   const [selected, setSelected] = React.useState(new Set());
+  // TUNING-PATTERN §3.3 GHA auto-expand: held + short-picks default-expanded.
+  // "Other" group starts collapsed; user can expand manually.
+  const [attnOpen, setAttnOpen] = React.useState(true);
+  const [otherOpen, setOtherOpen] = React.useState(false);
 
   const tabs = [
     { k: "all",       l: "All",       c: SH_SOS.length },
@@ -79,49 +83,91 @@ const ShSOList = ({ onOpenSO, onNav, openModal }) => {
         </div>
       )}
 
-      <div className="card" style={{padding:0}}>
-        <table>
-          <thead>
-            <tr>
-              <th style={{width:30}}><input type="checkbox" checked={selected.size > 0 && selected.size === visible.length} onChange={toggleAll}/></th>
-              <th>SO#</th>
-              <th>Customer</th>
-              <th>Customer PO</th>
-              <th>Status</th>
-              <th>Target ship</th>
-              <th>Alloc</th>
-              <th>Picked</th>
-              <th>Holds</th>
-              <th style={{textAlign:"right"}}>Total</th>
-              <th>Carrier</th>
-              <th style={{width:100}}></th>
-            </tr>
-          </thead>
-          <tbody>
-            {visible.map(s => (
-              <tr key={s.so} className={s.holds.length > 0 ? "row-warning" : s.status === "partial" ? "row-warning" : ""} style={{cursor:"pointer"}} onClick={()=>onOpenSO(s.so)}>
-                <td onClick={e=>e.stopPropagation()}><input type="checkbox" checked={selected.has(s.so)} onChange={()=>toggle(s.so)}/></td>
-                <td className="mono" style={{fontWeight:600, color:"var(--blue)"}}>{s.so}</td>
-                <td style={{fontSize:12}}>{s.customer}</td>
-                <td className="mono" style={{fontSize:11, color:"var(--muted)"}}>{s.customerPO}</td>
-                <td><SOStatus s={s.status}/></td>
-                <td className="mono" style={{fontSize:11}}>{s.shipDate}</td>
-                <td><AllocBar pct={s.allocPct}/></td>
-                <td className="mono" style={{fontSize:11}}>{s.picked}</td>
-                <td>
-                  {s.holds.length === 0 ? <span className="muted" style={{fontSize:10}}>—</span> : s.holds.map(h => <HoldChip key={h} type={h}/>)}
-                </td>
-                <td className="num mono">{s.total}</td>
-                <td style={{fontSize:11}}>{s.carrier || <span className="muted">—</span>}</td>
-                <td onClick={e=>e.stopPropagation()}>
-                  <button className="btn btn-ghost btn-sm" title="View">▸</button>
-                  <button className="btn btn-ghost btn-sm" title="More">⋯</button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      {/* TUNING-PATTERN §3.3 — GHA auto-expand: held SOs + short-picks default-expanded.
+          Remaining SOs grouped under collapsed "Other sales orders" header. */}
+      {(() => {
+        const needsAttn = s => (s.holds && s.holds.length > 0) || s.status === "held" || s.status === "short" || s.status === "partial";
+        const attnRows  = visible.filter(needsAttn);
+        const otherRows = visible.filter(s => !needsAttn(s));
+        const renderRow = s => (
+          <tr key={s.so} className={s.holds.length > 0 ? "row-warning" : s.status === "partial" ? "row-warning" : ""} style={{cursor:"pointer"}} onClick={()=>onOpenSO(s.so)}>
+            <td onClick={e=>e.stopPropagation()}><input type="checkbox" checked={selected.has(s.so)} onChange={()=>toggle(s.so)}/></td>
+            <td className="mono" style={{fontWeight:600, color:"var(--blue)"}}>{s.so}</td>
+            <td style={{fontSize:12}}>{s.customer}</td>
+            <td className="mono" style={{fontSize:11, color:"var(--muted)"}}>{s.customerPO}</td>
+            <td><SOStatus s={s.status}/></td>
+            <td className="mono" style={{fontSize:11}}>{s.shipDate}</td>
+            <td><AllocBar pct={s.allocPct}/></td>
+            <td className="mono" style={{fontSize:11}}>{s.picked}</td>
+            <td>
+              {s.holds.length === 0 ? <span className="muted" style={{fontSize:10}}>—</span> : s.holds.map(h => <HoldChip key={h} type={h}/>)}
+            </td>
+            <td className="num mono">{s.total}</td>
+            <td style={{fontSize:11}}>{s.carrier || <span className="muted">—</span>}</td>
+            <td onClick={e=>e.stopPropagation()}>
+              <button className="btn btn-ghost btn-sm" title="View">▸</button>
+              <button className="btn btn-ghost btn-sm" title="More">⋯</button>
+            </td>
+          </tr>
+        );
+        return (
+          <div className="card" style={{padding:0}}>
+            <table>
+              <thead>
+                <tr>
+                  <th style={{width:30}}><input type="checkbox" checked={selected.size > 0 && selected.size === visible.length} onChange={toggleAll}/></th>
+                  <th>SO#</th>
+                  <th>Customer</th>
+                  <th>Customer PO</th>
+                  <th>Status</th>
+                  <th>Target ship</th>
+                  <th>Alloc</th>
+                  <th>Picked</th>
+                  <th>Holds</th>
+                  <th style={{textAlign:"right"}}>Total</th>
+                  <th>Carrier</th>
+                  <th style={{width:100}}></th>
+                </tr>
+              </thead>
+              {attnRows.length > 0 && (
+                <tbody>
+                  <tr className="gha-group-head" onClick={()=>setAttnOpen(o=>!o)} style={{cursor:"pointer", background:"var(--sem-bad-bg)"}}>
+                    <td colSpan={12} style={{padding:"8px 14px", fontSize:12, fontWeight:600, color:"var(--red-700)"}}>
+                      <span style={{display:"inline-block", width:14}}>{attnOpen ? "▾" : "▸"}</span>
+                      Needs attention — {attnRows.length} SO{attnRows.length === 1 ? "" : "s"} (held / short / partial)
+                      <span className="muted" style={{fontWeight:400, marginLeft:8, fontSize:11}}>auto-expanded · GHA pattern</span>
+                    </td>
+                  </tr>
+                  {attnOpen && attnRows.map(renderRow)}
+                </tbody>
+              )}
+              {otherRows.length > 0 && (
+                <tbody>
+                  <tr className="gha-group-head" onClick={()=>setOtherOpen(o=>!o)} style={{cursor:"pointer", background:"var(--surface-2)"}}>
+                    <td colSpan={12} style={{padding:"8px 14px", fontSize:12, fontWeight:600, color:"var(--muted)"}}>
+                      <span style={{display:"inline-block", width:14}}>{otherOpen ? "▾" : "▸"}</span>
+                      Other sales orders — {otherRows.length}
+                      <span className="muted" style={{fontWeight:400, marginLeft:8, fontSize:11}}>collapsed by default</span>
+                    </td>
+                  </tr>
+                  {otherOpen && otherRows.map(renderRow)}
+                </tbody>
+              )}
+              {attnRows.length === 0 && otherRows.length === 0 && (
+                <tbody>
+                  <tr>
+                    <td colSpan={12}>
+                      <EmptyState icon="📦" title="No sales orders match the current filter"
+                        body="Try clearing filters or adjusting the tab selection. New SOs can be created from D365 or manually."
+                        action={{label:"＋ Create SO", onClick:()=>openModal("soCreate")}} />
+                    </td>
+                  </tr>
+                </tbody>
+              )}
+            </table>
+          </div>
+        );
+      })()}
 
       <div className="row-flex" style={{marginTop:10, fontSize:12, color:"var(--muted)"}}>
         <span>Showing 1–{visible.length} of {SH_SOS.length} · {backorders} partial backorder{backorders === 1 ? "" : "s"} pending — review allocation shortfalls</span>

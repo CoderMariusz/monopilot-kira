@@ -203,7 +203,8 @@ const WaveCol = ({ title, color, waves, editable, onRelease }) => (
         </div>
         {editable && <div className="row-flex" style={{marginTop:8, gap:4}}>
           <button className="btn btn-primary btn-sm" onClick={onRelease}>Release</button>
-          <button className="btn btn-ghost btn-sm">Edit</button>
+          {/* BL-SHIP-03 — wave edit modal not implemented in prototype. Disabled with tooltip. */}
+          <button className="btn btn-ghost btn-sm" disabled title="Wave edit — P2 (EPIC 11-E). Cancel + recreate in the meantime.">Edit</button>
           <button className="btn btn-ghost btn-sm">🗑</button>
         </div>}
         {!editable && title === "In Pick" && <div style={{marginTop:6}}><Progress current={w.progress || 0} total={100} wide/></div>}

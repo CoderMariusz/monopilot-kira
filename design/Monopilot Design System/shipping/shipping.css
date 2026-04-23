@@ -1,26 +1,58 @@
 /* Shipping module — inherits production.css chrome, shared.css primitives, warehouse/npd patterns.
    Only shipping-specific rules below: SO/Shipment/Pick/Pack/BOL status colours, kanban wave, label previews. */
 
-/* ============ SO / Shipment / Pick status badges ============ */
+/* ============ Shipping info-family sub-tones (§2.11 / TUNING-PATTERN §3.12) ============
+ * Shipping lifecycle has 3 info-tone sub-states (picking → packing → packed) that MUST
+ * remain visually distinct per TUNING-PLAN.md §6 risk-flag. We define two sub-tokens
+ * within the info family (info-1 = darker/amber-leaning, info-2 = lighter/blue-leaning).
+ * Anchored on --sem-info-bg so a future palette tweak in shared tokens cascades here.
+ *
+ * Divergence fix: picking previously used amber-dark #b45309 while packing used
+ * orange-dark #9a3412 — both collapse to --ship-info-1 text (single info-family tone). */
+:root {
+  --ship-info-1-bg: var(--amber-050, #fef3c7);   /* picking / packing — warm info */
+  --ship-info-1-fg: var(--amber-700, #b45309);   /* unified amber-dark (was divergent) */
+  --ship-info-2-bg: var(--blue-050, #dbeafe);    /* packed — cool info */
+  --ship-info-2-fg: var(--blue-700, #1e40af);
+}
+
+/* ============ SO / Shipment / Pick status badges ============
+ * 12 original status colours collapsed to the 5 semantic tones per TUNING-PATTERN.md
+ * §3.12. ALL original class names preserved as aliases — no search-and-replace in JSX.
+ *
+ * Semantic mapping:
+ *   draft            → neutral
+ *   confirmed        → info    (active — SO accepted)
+ *   allocated        → ok      (ready-state, FEFO locked)
+ *   short            → warn    (partial fulfillment)
+ *   picking          → info-1  (active sub-tone, warm)
+ *   packing          → info-1  (active sub-tone, warm)   ← aligned with picking (was #9a3412)
+ *   packed           → info-2  (active sub-tone, cool)   ← distinct from picking/packing
+ *   shipped          → ok      (done)
+ *   delivered        → ok      (done — completed)
+ *   partial          → warn
+ *   cancelled        → bad
+ *   held             → bad
+ */
 .so-status { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 10px; font-weight: 500; font-family: var(--font-mono); letter-spacing: 0.03em; }
-.so-status.draft       { background: #f1f5f9; color: #475569; }
-.so-status.confirmed   { background: #dbeafe; color: #1e40af; }
-.so-status.allocated   { background: #dcfce7; color: #166534; }
-.so-status.short       { background: #fef3c7; color: #92400e; }
-.so-status.picking     { background: #fef3c7; color: #b45309; }
-.so-status.packing     { background: #fff7ed; color: #9a3412; }
-.so-status.packed      { background: #dbeafe; color: #1976D2; }
-.so-status.shipped     { background: #e0e7ff; color: #3730a3; }
-.so-status.delivered   { background: #e2e8f0; color: #1e293b; }
-.so-status.partial     { background: #fef3c7; color: #92400e; }
-.so-status.cancelled   { background: #fee2e2; color: #991b1b; }
-.so-status.held        { background: #fee2e2; color: #991b1b; }
+.so-status.draft       { background: var(--sem-neutral-bg); color: var(--sem-neutral); }
+.so-status.confirmed   { background: var(--sem-info-bg);    color: var(--blue-700); }
+.so-status.allocated   { background: var(--sem-ok-bg);      color: var(--green-700); }
+.so-status.short       { background: var(--sem-warn-bg);    color: var(--amber-700); }
+.so-status.picking     { background: var(--ship-info-1-bg); color: var(--ship-info-1-fg); }
+.so-status.packing     { background: var(--ship-info-1-bg); color: var(--ship-info-1-fg); }
+.so-status.packed      { background: var(--ship-info-2-bg); color: var(--ship-info-2-fg); }
+.so-status.shipped     { background: var(--sem-ok-bg);      color: var(--green-700); }
+.so-status.delivered   { background: var(--sem-ok-bg);      color: var(--green-700); }
+.so-status.partial     { background: var(--sem-warn-bg);    color: var(--amber-700); }
+.so-status.cancelled   { background: var(--sem-bad-bg);     color: var(--red-700); }
+.so-status.held        { background: var(--sem-bad-bg);     color: var(--red-700); }
 
 .hold-chip { display: inline-flex; align-items: center; gap: 3px; padding: 1px 6px; border-radius: 8px; font-size: 9px; font-family: var(--font-mono); font-weight: 600; margin-right: 4px; }
-.hold-chip.credit   { background: #fef3c7; color: #92400e; }
-.hold-chip.qa       { background: #fee2e2; color: #991b1b; }
-.hold-chip.allergen { background: #fff7ed; color: #9a3412; }
-.hold-chip.manual   { background: #f1f5f9; color: #475569; }
+.hold-chip.credit   { background: var(--sem-warn-bg); color: var(--amber-700); }
+.hold-chip.qa       { background: var(--sem-bad-bg);  color: var(--red-700); }
+.hold-chip.allergen { background: var(--ship-info-1-bg); color: var(--ship-info-1-fg); }
+.hold-chip.manual   { background: var(--sem-neutral-bg); color: var(--sem-neutral); }
 
 /* ============ Allocation progress bar ============ */
 .alloc-prog { height: 6px; background: var(--gray-100); border-radius: 3px; overflow: hidden; display: inline-block; width: 80px; vertical-align: middle; margin-right: 6px; }
@@ -37,10 +69,10 @@
 .wave-kanban { display: flex; gap: 12px; overflow-x: auto; padding: 6px 2px; min-height: 420px; }
 .wave-col { min-width: 260px; flex: 1; background: var(--gray-050); border-radius: 6px; padding: 8px; display: flex; flex-direction: column; gap: 6px; }
 .wave-col-head { padding: 6px 10px; border-radius: 4px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; display: flex; align-items: center; gap: 6px; }
-.wave-col-head.gray  { background: var(--gray-100); color: var(--muted); }
-.wave-col-head.blue  { background: #dbeafe; color: #1e40af; }
-.wave-col-head.amber { background: #fef3c7; color: #92400e; }
-.wave-col-head.green { background: #dcfce7; color: #166534; }
+.wave-col-head.gray  { background: var(--sem-neutral-bg); color: var(--muted); }
+.wave-col-head.blue  { background: var(--sem-info-bg);    color: var(--blue-700); }
+.wave-col-head.amber { background: var(--sem-warn-bg);    color: var(--amber-700); }
+.wave-col-head.green { background: var(--sem-ok-bg);      color: var(--green-700); }
 .wave-col-head .wch-count { margin-left: auto; background: #fff; padding: 0 6px; border-radius: 8px; font-family: var(--font-mono); font-size: 10px; }
 .wave-card { background: #fff; border: 1px solid var(--border); border-radius: 4px; padding: 10px; font-size: 12px; cursor: pointer; }
 .wave-card:hover { border-color: var(--blue); }
