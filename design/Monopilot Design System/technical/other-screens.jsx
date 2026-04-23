@@ -948,6 +948,20 @@ const ProductsListScreen = ({ onOpen, openModal }) => {
     return true;
   });
 
+  // Audit Fix-5b: TabsCounted above filter bar (TEC-001 segmentation: All / FA / Intermediate / RM).
+  const tabCounts = {
+    all: PRODUCTS_LIST.length,
+    FA: PRODUCTS_LIST.filter(p => p.type === "FA").length,
+    Intermediate: PRODUCTS_LIST.filter(p => p.type === "Intermediate").length,
+    RM: PRODUCTS_LIST.filter(p => p.type === "RM").length,
+  };
+  const countedTabs = [
+    { key: "all", label: "All", count: tabCounts.all },
+    { key: "FA", label: "Finished articles", count: tabCounts.FA, tone: "info" },
+    { key: "Intermediate", label: "Intermediate", count: tabCounts.Intermediate, tone: "info" },
+    { key: "RM", label: "Raw materials", count: tabCounts.RM, tone: "neutral" },
+  ];
+
   const allergenOptions = Array.from(new Set(PRODUCTS_LIST.flatMap(p => p.allergens))).sort();
 
   const clearAll = () => { setSearch(""); setTypeFilter("all"); setStatusFilter("all"); setAllergenFilter("all"); setD365Filter("all"); };
@@ -962,6 +976,9 @@ const ProductsListScreen = ({ onOpen, openModal }) => {
           <button className="btn btn-secondary">Export CSV</button>
           <button className="btn btn-primary" onClick={() => openModal && openModal("productCreate")}>+ Create product</button>
         </>} />
+
+      {/* Segmented tabs (type) — per TEC-001 spec */}
+      <TabsCounted current={typeFilter} tabs={countedTabs} onChange={setTypeFilter} ariaLabel="Product type" />
 
       {/* Filter bar — 5 filters per PRD TEC-010 */}
       <div style={{ background: "#fff", border: "1px solid var(--border)", borderRadius: "var(--radius)", padding: 12, marginBottom: 12, display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
