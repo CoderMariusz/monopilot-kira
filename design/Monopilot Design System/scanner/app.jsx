@@ -49,6 +49,12 @@ const ScannerApp = () => {
       content = <LoginScreen onNav={nav}/>; break;
     case "login_pin":
       content = <PinScreen onNav={nav}/>; break;
+    case "pin_setup":
+      content = <PinSetupScreen onNav={nav}/>; break;
+    case "pin_change":
+      content = <PinChangeScreen onNav={nav}/>; break;
+    case "camera_scan":
+      content = <CameraScanner onNav={nav} returnTo={p[0] || "home"} onResult={(code) => nav(p[0] || "home", code)}/>; break;
     case "site_select":
       content = <SiteSelectScreen onNav={nav}/>; break;
 

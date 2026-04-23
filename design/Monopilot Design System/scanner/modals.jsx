@@ -309,8 +309,188 @@ const LpLockedSheet = ({ open, onClose, lp, lockedBy = "Marta W.", seconds = 140
   );
 };
 
+// ============================================================
+// FR-SC-FE-007 — CameraScanner (viewfinder overlay)
+//
+// Full-screen camera scan overlay for 3-method input parity
+// (hardware / camera / manual). Real impl uses `@zxing/browser`
+// `BrowserMultiFormatReader` against a <video> element. The prototype
+// renders a dark viewfinder + reticle + torch/flip controls and
+// simulates decode via `setTimeout` + fake GS1/LP result, so the
+// demo flow can be walked end-to-end without a real camera or TLS.
+//
+// Usage: CameraScanner({ onNav, returnTo, onResult }) — mounted as
+// a top-level screen via app.jsx case "camera_scan". Scanner dark
+// palette preserved: all colors use --sc-* tokens.
+// ============================================================
+const CameraScanner = ({ onNav, returnTo = "home", onResult }) => {
+  const videoRef = React.useRef(null);
+  const [facing, setFacing] = React.useState("environment"); // environment | user
+  const [torch, setTorch] = React.useState(false);
+  const [status, setStatus] = React.useState("scanning"); // scanning | found | error
+  const [result, setResult] = React.useState(null);
+  const [err, setErr] = React.useState(null);
+  const streamRef = React.useRef(null);
+
+  // Attach real camera if available (HTTPS + getUserMedia). Fallback: show
+  // simulated viewfinder backdrop. In the canonical implementation this is
+  // replaced with a `BrowserMultiFormatReader` attached to videoRef.
+  React.useEffect(() => {
+    let cancelled = false;
+    const startCam = async () => {
+      try {
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+          setErr("Kamera niedostępna — użyj trybu ręcznego lub hardware scannera.");
+          return;
+        }
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: facing },
+          audio: false,
+        });
+        if (cancelled) { stream.getTracks().forEach(t => t.stop()); return; }
+        streamRef.current = stream;
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+          videoRef.current.play().catch(() => {});
+        }
+      } catch (e) {
+        setErr("Brak uprawnień do kamery. Nadaj uprawnienia w ustawieniach urządzenia.");
+      }
+    };
+    startCam();
+    return () => {
+      cancelled = true;
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach(t => t.stop());
+        streamRef.current = null;
+      }
+    };
+  }, [facing]);
+
+  // Demo: simulate a zxing decode after 2.5s (or on demand via button).
+  const simulateDecode = (fakeCode) => {
+    const code = fakeCode || "LP-00287";
+    setResult(code);
+    setStatus("found");
+    // small delay to show success state, then route back with result.
+    setTimeout(() => {
+      if (onResult) onResult(code);
+      else onNav(returnTo, code);
+    }, 600);
+  };
+
+  React.useEffect(() => {
+    if (err) return;
+    const t = setTimeout(() => {
+      if (status === "scanning") simulateDecode("LP-00287");
+    }, 2500);
+    return () => clearTimeout(t);
+  }, [status, err]);
+
+  return (
+    <>
+      <Topbar title="Skanuj kamerą" onBack={() => onNav(returnTo)} syncState="online"/>
+      <Content style={{padding:0, background:"#000"}}>
+        <div style={{position:"relative", width:"100%", height:"100%", minHeight:460, overflow:"hidden", background:"#000"}}>
+          {/* Video feed (real camera if available) */}
+          <video
+            ref={videoRef}
+            playsInline
+            muted
+            autoPlay
+            style={{position:"absolute", inset:0, width:"100%", height:"100%", objectFit:"cover", background:"#111"}}
+          />
+          {/* Dim overlay frame */}
+          <div style={{position:"absolute", inset:0, background:"radial-gradient(ellipse at center, transparent 40%, rgba(0,0,0,0.75) 70%)"}}/>
+          {/* Reticle */}
+          <div style={{
+            position:"absolute", top:"50%", left:"50%",
+            transform:"translate(-50%, -50%)",
+            width:240, height:160,
+            border:"2px solid var(--sc-green)",
+            borderRadius:12,
+            boxShadow:"0 0 0 2000px rgba(0,0,0,0.35) inset",
+          }}>
+            {/* corner ticks */}
+            {["tl","tr","bl","br"].map(c => (
+              <span key={c} style={{
+                position:"absolute",
+                width:18, height:18,
+                borderColor:"var(--sc-green)",
+                borderStyle:"solid",
+                ...(c==="tl" && {top:-2, left:-2, borderWidth:"3px 0 0 3px"}),
+                ...(c==="tr" && {top:-2, right:-2, borderWidth:"3px 3px 0 0"}),
+                ...(c==="bl" && {bottom:-2, left:-2, borderWidth:"0 0 3px 3px"}),
+                ...(c==="br" && {bottom:-2, right:-2, borderWidth:"0 3px 3px 0"}),
+              }}/>
+            ))}
+            {/* scanning line */}
+            {status === "scanning" && (
+              <div style={{
+                position:"absolute",
+                left:0, right:0, height:2,
+                background:"linear-gradient(90deg, transparent, var(--sc-green), transparent)",
+                top:"50%",
+                animation:"sc-scan-line 1.2s linear infinite",
+              }}/>
+            )}
+          </div>
+
+          {/* Status label */}
+          <div style={{position:"absolute", top:16, left:0, right:0, textAlign:"center", pointerEvents:"none"}}>
+            <span className={"sc-tbadge " + (status === "found" ? "sync-online" : "sync-queued")} style={{fontSize:11}}>
+              {status === "found" ? `✓ ${result}` : err ? "Brak kamery" : "Skanowanie…"}
+            </span>
+          </div>
+
+          {/* Error message */}
+          {err && (
+            <div style={{
+              position:"absolute", left:20, right:20, top:"40%",
+              padding:"12px 14px",
+              background:"var(--sc-bg)",
+              border:"1px solid var(--sc-red)",
+              borderRadius:10,
+              color:"var(--sc-txt)",
+              fontSize:12,
+              textAlign:"center",
+            }}>
+              {err}
+            </div>
+          )}
+
+          {/* Controls overlay (bottom) */}
+          <div style={{
+            position:"absolute",
+            left:0, right:0, bottom:90,
+            display:"flex",
+            justifyContent:"center",
+            gap:12,
+            pointerEvents:"auto",
+          }}>
+            <button
+              onClick={() => setTorch(t => !t)}
+              aria-label="Latarka"
+              style={{width:56, height:56, borderRadius:"50%", border:"1px solid var(--sc-elev)", background: torch ? "var(--sc-amber)" : "rgba(0,0,0,0.5)", color: torch ? "#000" : "var(--sc-txt)", fontSize:22, cursor:"pointer"}}
+            >💡</button>
+            <button
+              onClick={() => setFacing(f => f === "environment" ? "user" : "environment")}
+              aria-label="Zmień kamerę"
+              style={{width:56, height:56, borderRadius:"50%", border:"1px solid var(--sc-elev)", background:"rgba(0,0,0,0.5)", color:"var(--sc-txt)", fontSize:22, cursor:"pointer"}}
+            >🔄</button>
+          </div>
+        </div>
+      </Content>
+      <BottomActions>
+        <Btn variant="p" onClick={() => simulateDecode("LP-00287")}>📷 Demo decode: LP-00287</Btn>
+        <Btn variant="sec" onClick={() => onNav(returnTo)}>Anuluj</Btn>
+      </BottomActions>
+    </>
+  );
+};
+
 Object.assign(window, {
   ReasonPickerSheet, FefoDeviationSheet, BestBeforeSheet, PartialConsumeSheet,
   PrinterPickerSheet, LanguageSheet, LogoutSheet, ScanErrorSheet, QtyKeypadSheet,
-  BlockFullscreen, LpLockedSheet,
+  BlockFullscreen, LpLockedSheet, CameraScanner,
 });

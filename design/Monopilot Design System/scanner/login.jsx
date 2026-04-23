@@ -63,6 +63,7 @@ const LoginScreen = ({ onNav, onContextSet }) => {
       <BottomActions>
         <Btn variant="p" onClick={tryLogin}>Zaloguj się →</Btn>
         <GhostBtn onClick={() => onNav("login_pin")}>🔢 Zaloguj przez PIN</GhostBtn>
+        <GhostBtn onClick={() => onNav("pin_setup")} style={{fontSize:11}}>Pierwszy raz? Ustaw PIN (SCN-011b)</GhostBtn>
       </BottomActions>
     </>
   );
@@ -192,4 +193,234 @@ const SiteSelectScreen = ({ onNav }) => {
   );
 };
 
-Object.assign(window, { LoginScreen, PinScreen, SiteSelectScreen });
+// ============================================================
+// SCN-011b — PIN First-Time Setup (forced at first login)
+// Per PRD D8 / UX §3.3: 2-step set + confirm, policy validation
+// (4-6 digit numeric, no trivial sequence like 000000 / 123456).
+// ============================================================
+const PinSetupScreen = ({ onNav, onDone }) => {
+  const [stage, setStage] = React.useState("set"); // set | confirm
+  const [pin, setPin] = React.useState("");
+  const [firstPin, setFirstPin] = React.useState("");
+  const [err, setErr] = React.useState(null);
+
+  const minLen = 4, maxLen = 6;
+  const weakPins = new Set(["0000", "1111", "1234", "12345", "123456", "000000", "111111"]);
+
+  const validatePolicy = (p) => {
+    if (p.length < minLen) return `PIN musi mieć min. ${minLen} cyfr`;
+    if (weakPins.has(p)) return "PIN za prosty — wybierz inny";
+    if (/^(\d)\1+$/.test(p)) return "PIN nie może być same powtórzone cyfry";
+    return null;
+  };
+
+  const press = (d) => {
+    if (err) setErr(null);
+    if (pin.length >= maxLen) return;
+    setPin(p => p + d);
+  };
+  const back = () => setPin(p => p.slice(0, -1));
+
+  const submitStage = () => {
+    const policyErr = validatePolicy(pin);
+    if (policyErr) { setErr(policyErr); return; }
+    if (stage === "set") {
+      setFirstPin(pin);
+      setPin("");
+      setStage("confirm");
+      return;
+    }
+    if (pin !== firstPin) {
+      setErr("PIN-y nie są identyczne — wpisz ponownie");
+      setPin("");
+      return;
+    }
+    // Success → proceed to site selection (or callback)
+    if (onDone) onDone(pin);
+    else onNav("site_select");
+  };
+
+  const title = stage === "set" ? "Ustaw PIN (pierwsze logowanie)" : "Potwierdź PIN";
+  const hint  = stage === "set"
+    ? "Wybierz 4–6 cyfrowy PIN. Unikaj trywialnych sekwencji."
+    : "Wpisz ponownie ten sam PIN, aby potwierdzić.";
+
+  const canSubmit = pin.length >= minLen;
+
+  return (
+    <>
+      <Topbar title={title} onBack={() => onNav("login")} syncState="online"/>
+      <Content>
+        <div style={{padding:"20px 16px 10px", textAlign:"center"}}>
+          <div style={{fontSize:13, color:"var(--sc-mute)", marginBottom:8}}>{hint}</div>
+          <div className="sc-pin-dots">
+            {Array.from({length: maxLen}).map((_,i) => (
+              <div key={i} className={"sc-pin-dot " + (i < pin.length ? "filled " : "") + (err ? "err" : "")}/>
+            ))}
+          </div>
+          <div style={{fontSize:11, color:"var(--sc-hint)", marginTop:6}}>
+            {pin.length}/{maxLen} cyfr · min {minLen}
+          </div>
+          {err && (
+            <div style={{color:"var(--sc-red)", fontSize:12, marginTop:8}}>{err}</div>
+          )}
+          {stage === "set" && (
+            <div style={{fontSize:10, color:"var(--sc-hint)", marginTop:10, letterSpacing:"0.05em"}}>
+              KROK 1 Z 2
+            </div>
+          )}
+          {stage === "confirm" && (
+            <div style={{fontSize:10, color:"var(--sc-hint)", marginTop:10, letterSpacing:"0.05em"}}>
+              KROK 2 Z 2
+            </div>
+          )}
+        </div>
+        <div className="sc-numpad">
+          {["1","2","3","4","5","6","7","8","9"].map(k => (
+            <button key={k} className="sc-key" onClick={() => press(k)}>{k}</button>
+          ))}
+          <button className="sc-key empty" disabled/>
+          <button className="sc-key" onClick={() => press("0")}>0</button>
+          <button className="sc-key back" onClick={back}>⌫</button>
+        </div>
+      </Content>
+      <BottomActions>
+        <Btn variant="p" disabled={!canSubmit} onClick={submitStage}>
+          {stage === "set" ? "Dalej → Potwierdź PIN" : "Zapisz PIN"}
+        </Btn>
+      </BottomActions>
+    </>
+  );
+};
+
+// ============================================================
+// SCN-011c — PIN Change (Self-service)
+// Per UX §3.4: 3-step flow — old PIN → new PIN → confirm new.
+// Settings → "Zmień PIN" row navigates here.
+// ============================================================
+const PinChangeScreen = ({ onNav }) => {
+  const [stage, setStage] = React.useState("old"); // old | new | confirm
+  const [pin, setPin] = React.useState("");
+  const [newPin, setNewPin] = React.useState("");
+  const [err, setErr] = React.useState(null);
+  const [done, setDone] = React.useState(false);
+
+  const minLen = 4, maxLen = 6;
+  const weakPins = new Set(["0000", "1111", "1234", "12345", "123456", "000000", "111111"]);
+  // Demo: current PIN is 142536 (same as PinScreen happy path).
+  const CURRENT_PIN = "142536";
+
+  const press = (d) => {
+    if (err) setErr(null);
+    if (pin.length >= maxLen) return;
+    setPin(p => p + d);
+  };
+  const back = () => setPin(p => p.slice(0, -1));
+
+  const validatePolicy = (p) => {
+    if (p.length < minLen) return `PIN musi mieć min. ${minLen} cyfr`;
+    if (weakPins.has(p)) return "PIN za prosty — wybierz inny";
+    if (/^(\d)\1+$/.test(p)) return "PIN nie może być same powtórzone cyfry";
+    return null;
+  };
+
+  const submit = () => {
+    if (stage === "old") {
+      if (pin !== CURRENT_PIN && !(pin.length === 6)) {
+        // demo: strict check against 142536, accept any 6-digit for sandbox
+        setErr("Niepoprawny aktualny PIN");
+        setPin("");
+        return;
+      }
+      setPin("");
+      setStage("new");
+      return;
+    }
+    if (stage === "new") {
+      const policyErr = validatePolicy(pin);
+      if (policyErr) { setErr(policyErr); return; }
+      if (pin === CURRENT_PIN) {
+        setErr("Nowy PIN nie może być taki sam jak poprzedni");
+        setPin("");
+        return;
+      }
+      setNewPin(pin);
+      setPin("");
+      setStage("confirm");
+      return;
+    }
+    // confirm stage
+    if (pin !== newPin) {
+      setErr("PIN-y nie są identyczne");
+      setPin("");
+      return;
+    }
+    setDone(true);
+  };
+
+  if (done) {
+    return (
+      <>
+        <Topbar title="PIN zmieniony" onBack={() => onNav("settings")}/>
+        <Content>
+          <div className="sc-success-wrap">
+            <div className="sc-success-icon" style={{color:"var(--sc-green)"}}>✅</div>
+            <div className="sc-success-title">PIN zaktualizowany</div>
+            <div className="sc-success-sub">Używaj nowego PIN-u przy następnym logowaniu</div>
+          </div>
+          <Banner kind="info" title="Zalogowano zdarzenie">Zmiana PIN zalogowana w audit log (SCN-AUDIT-PIN-CHANGE).</Banner>
+        </Content>
+        <BottomActions>
+          <Btn variant="p" onClick={() => onNav("settings")}>Wróć do ustawień</Btn>
+        </BottomActions>
+      </>
+    );
+  }
+
+  const titles = {
+    old:     "Wpisz aktualny PIN",
+    new:     "Ustaw nowy PIN",
+    confirm: "Potwierdź nowy PIN",
+  };
+  const hints = {
+    old:     "Podaj swój obecny PIN, aby potwierdzić tożsamość.",
+    new:     "Wybierz 4–6 cyfrowy PIN. Unikaj trywialnych sekwencji.",
+    confirm: "Wpisz ponownie nowy PIN, aby potwierdzić.",
+  };
+  const stepLabels = { old: "KROK 1 Z 3", new: "KROK 2 Z 3", confirm: "KROK 3 Z 3" };
+  const canSubmit = pin.length >= minLen;
+
+  return (
+    <>
+      <Topbar title={titles[stage]} onBack={() => onNav("settings")}/>
+      <Content>
+        <div style={{padding:"20px 16px 10px", textAlign:"center"}}>
+          <div style={{fontSize:13, color:"var(--sc-mute)", marginBottom:8}}>{hints[stage]}</div>
+          <div className="sc-pin-dots">
+            {Array.from({length: maxLen}).map((_,i) => (
+              <div key={i} className={"sc-pin-dot " + (i < pin.length ? "filled " : "") + (err ? "err" : "")}/>
+            ))}
+          </div>
+          <div style={{fontSize:11, color:"var(--sc-hint)", marginTop:6}}>{pin.length}/{maxLen} cyfr · min {minLen}</div>
+          {err && <div style={{color:"var(--sc-red)", fontSize:12, marginTop:8}}>{err}</div>}
+          <div style={{fontSize:10, color:"var(--sc-hint)", marginTop:10, letterSpacing:"0.05em"}}>{stepLabels[stage]}</div>
+        </div>
+        <div className="sc-numpad">
+          {["1","2","3","4","5","6","7","8","9"].map(k => (
+            <button key={k} className="sc-key" onClick={() => press(k)}>{k}</button>
+          ))}
+          <button className="sc-key empty" disabled/>
+          <button className="sc-key" onClick={() => press("0")}>0</button>
+          <button className="sc-key back" onClick={back}>⌫</button>
+        </div>
+      </Content>
+      <BottomActions>
+        <Btn variant="p" disabled={!canSubmit} onClick={submit}>
+          {stage === "old" ? "Weryfikuj →" : stage === "new" ? "Dalej → Potwierdź" : "Zapisz nowy PIN"}
+        </Btn>
+      </BottomActions>
+    </>
+  );
+};
+
+Object.assign(window, { LoginScreen, PinScreen, SiteSelectScreen, PinSetupScreen, PinChangeScreen });

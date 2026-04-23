@@ -106,7 +106,13 @@ const SettingsScreen = ({ onNav, onLogout }) => {
         <Row title="Aktywna sesja" desc={`${SCN_USER.lineName} · ${SCN_USER.shiftName} · ${SCN_USER.loginAt}`}/>
 
         <div className="sc-msec">Bezpieczeństwo</div>
-        <Row title="Zmień PIN" desc={`Ostatnia zmiana: ${SCN_USER.lastPinChange} (89 dni temu)`} right={<span className="sc-mchev">›</span>}/>
+        <button className="sc-setting" onClick={() => onNav("pin_change")} style={{background:"transparent", border:0, width:"100%", textAlign:"left", fontFamily:"inherit", color:"var(--sc-txt)"}}>
+          <div>
+            <div className="sn">Zmień PIN</div>
+            <div className="sd">Ostatnia zmiana: {SCN_USER.lastPinChange} (89 dni temu)</div>
+          </div>
+          <span className="sc-mchev">›</span>
+        </button>
 
         <div className="sc-msec">Język</div>
         <button className="sc-setting" onClick={() => setShowLang(true)} style={{background:"transparent", border:0, width:"100%", textAlign:"left", fontFamily:"inherit", color:"var(--sc-txt)"}}>
