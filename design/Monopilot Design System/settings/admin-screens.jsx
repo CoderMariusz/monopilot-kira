@@ -435,7 +435,7 @@ const SchemaBrowserScreen = ({ openModal }) => {
         actions={<><button className="btn btn-secondary">Export schema CSV</button></>} />
 
       <div className="alert alert-blue" style={{marginBottom:12, fontSize:12}}>
-        Columns scoped L1 are read-only here — raise an L1 promotion request on the <a onClick={()=>{}} style={{color:"var(--blue)", cursor:"pointer"}}>Promotions screen</a>. L2/L3 columns can be edited.
+        Columns scoped L1 are read-only here — raise an L1 tier-promotion request via the <a onClick={()=>{}} style={{color:"var(--blue)", cursor:"pointer"}}>schema promotion wizard (SM-05)</a>. L2/L3 columns can be edited.
       </div>
 
       <div style={{display:"flex", gap:8, marginBottom:10, flexWrap:"wrap"}}>

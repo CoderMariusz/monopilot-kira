@@ -130,7 +130,7 @@ const SchemaViewModal = ({ open, onClose, data }) => {
       ]}/>
       <div className="alert alert-blue" style={{marginTop:10, fontSize:11}}>
         {col.tier === "L1"
-          ? "L1 columns are universal. Use the Promotions screen to raise a change request."
+          ? "L1 columns are universal. Use the schema promotion wizard (SM-05) to raise a tier-change request."
           : "L2/L3 columns can be modified via the schema edit wizard."}
       </div>
     </Modal>
