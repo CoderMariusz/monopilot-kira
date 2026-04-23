@@ -141,17 +141,20 @@ const MntMWOList = ({ onNav, openModal, role }) => {
 
   const isManager = role === "Manager" || role === "Admin";
 
+  // §3.2 TabsCounted — semantic tones: overdue = bad, in_progress = info, requested = warn, completed = ok
   const tabs = [
-    { k: "all",         l: "All",         c: MNT_MWOS.length },
-    { k: "mine",        l: "My mWOs",     c: MNT_MWOS.filter(m=>m.tech === "M. Nowak").length },
-    { k: "open",        l: "Open",        c: MNT_MWOS.filter(m=>["open","approved","requested"].includes(m.status)).length },
-    { k: "in_progress", l: "In Progress", c: MNT_MWOS.filter(m=>m.status === "in_progress").length },
-    { k: "overdue",     l: "Overdue",     c: MNT_MWOS.filter(m=>m.status === "in_progress" && m.start < "2026-04-21 07:00").length },
-    { k: "completed",   l: "Completed",   c: MNT_MWOS.filter(m=>m.status === "completed").length },
+    { key: "all",         label: "All",          count: MNT_MWOS.length,                                                                                                  tone: "neutral" },
+    { key: "requested",   label: "Requested",    count: MNT_MWOS.filter(m=>m.status === "requested").length,                                                                tone: "warn" },
+    { key: "open",        label: "Open",         count: MNT_MWOS.filter(m=>["open","approved","requested"].includes(m.status)).length,                                     tone: "info" },
+    { key: "in_progress", label: "In Progress",  count: MNT_MWOS.filter(m=>m.status === "in_progress").length,                                                              tone: "info" },
+    { key: "overdue",     label: "Overdue",      count: MNT_MWOS.filter(m=>m.status === "in_progress" && m.start < "2026-04-21 07:00").length,                             tone: "bad" },
+    { key: "mine",        label: "My mWOs",      count: MNT_MWOS.filter(m=>m.tech === "M. Nowak").length,                                                                   tone: "neutral" },
+    { key: "completed",   label: "Completed",    count: MNT_MWOS.filter(m=>m.status === "completed").length,                                                                tone: "ok" },
   ];
 
   const visible = MNT_MWOS.filter(m => {
     if (tab === "mine" && m.tech !== "M. Nowak") return false;
+    if (tab === "requested" && m.status !== "requested") return false;
     if (tab === "open" && !["open","approved","requested"].includes(m.status)) return false;
     if (tab === "in_progress" && m.status !== "in_progress") return false;
     if (tab === "overdue" && !(m.status === "in_progress" && m.start < "2026-04-21 07:00")) return false;
@@ -164,6 +167,28 @@ const MntMWOList = ({ onNav, openModal, role }) => {
                     (m.tech||"").toLowerCase().includes(search.toLowerCase()))) return false;
     return true;
   });
+
+  // §3.3 GHA-style group-by-status with auto-expand for overdue + in_progress.
+  // Groups appear in priority order; overdue & in_progress open by default, others collapsed.
+  const isOverdue = (m) => m.status === "in_progress" && m.start < "2026-04-21 07:00";
+  const groupDefs = [
+    { k: "overdue",     l: "Overdue",      tone: "bad",     defaultOpen: true,  filter: isOverdue },
+    { k: "in_progress", l: "In Progress",  tone: "info",    defaultOpen: true,  filter: (m)=>m.status === "in_progress" && !isOverdue(m) },
+    { k: "requested",   l: "Requested",    tone: "warn",    defaultOpen: false, filter: (m)=>m.status === "requested" },
+    { k: "approved",    l: "Approved",     tone: "info",    defaultOpen: false, filter: (m)=>m.status === "approved" },
+    { k: "open",        l: "Open",         tone: "info",    defaultOpen: false, filter: (m)=>m.status === "open" },
+    { k: "completed",   l: "Completed",    tone: "ok",      defaultOpen: false, filter: (m)=>m.status === "completed" },
+    { k: "cancelled",   l: "Cancelled",    tone: "neutral", defaultOpen: false, filter: (m)=>m.status === "cancelled" },
+  ];
+  const [groupOpen, setGroupOpen] = React.useState(() => {
+    const init = {};
+    groupDefs.forEach(g => { init[g.k] = g.defaultOpen; });
+    return init;
+  });
+  const toggleGroup = (k) => setGroupOpen(prev => ({ ...prev, [k]: !prev[k] }));
+  const groups = groupDefs
+    .map(g => ({ ...g, items: visible.filter(g.filter) }))
+    .filter(g => g.items.length > 0);
 
   return (
     <>
@@ -182,13 +207,9 @@ const MntMWOList = ({ onNav, openModal, role }) => {
         </div>
       </div>
 
-      {/* Tabs */}
-      <div className="tabs-bar">
-        {tabs.map(t => (
-          <button key={t.k} className={"tab-btn " + (tab === t.k ? "on" : "")} onClick={()=>setTab(t.k)}>
-            {t.l} <span className="count">{t.c}</span>
-          </button>
-        ))}
+      {/* Tabs — §3.2 TabsCounted primitive */}
+      <div style={{marginBottom:10}}>
+        <TabsCounted current={tab} tabs={tabs} onChange={setTab} ariaLabel="mWO status tabs"/>
       </div>
 
       {/* Filter bar */}
@@ -221,39 +242,68 @@ const MntMWOList = ({ onNav, openModal, role }) => {
         </select>
       </div>
 
-      <div className="card" style={{padding:0}}>
-        <table>
-          <thead>
-            <tr>
-              <th>mWO #</th><th>Asset</th><th>Type</th><th>Priority</th><th>Status</th>
-              <th>Technician</th><th>Start</th><th>ETA</th><th>DT impact</th><th>Source</th>
-              <th style={{width:120}}>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {visible.map(m => (
-              <tr key={m.mwo} style={{cursor:"pointer"}} onClick={()=>onNav("mwo_detail")}>
-                <td className="mono" style={{fontWeight:600, color:"var(--blue)"}}>{m.mwo}</td>
-                <td style={{fontSize:12}}>{m.asset}</td>
-                <td><MwoType t={m.type}/></td>
-                <td><PriorityBadge p={m.pri}/></td>
-                <td><MwoStatus s={m.status}/></td>
-                <td style={{fontSize:11}}>{m.tech || <span className="mono" style={{color:"var(--amber)", fontStyle:"italic"}}>Unassigned</span>}</td>
-                <td className="mono" style={{fontSize:11}}>{m.start}</td>
-                <td className="mono" style={{fontSize:11}}>{m.eta}</td>
-                <td>{m.dtImpact === "Yes" ? <span className="dt-impact">🔴 Yes</span> : <span className="dt-impact-none">—</span>}</td>
-                <td><MwoSource s={m.src}/></td>
-                <td onClick={e=>e.stopPropagation()}>
-                  {m.status === "requested" && isManager && <button className="btn btn-primary btn-sm" onClick={()=>openModal("wrTriage", { mwo: m.mwo })}>Triage</button>}
-                  {m.status === "approved" && isManager && <button className="btn btn-primary btn-sm" onClick={()=>openModal("mwoAssign", { mwo: m.mwo })}>Assign</button>}
-                  {m.status === "open" && <button className="btn btn-primary btn-sm" onClick={()=>openModal("stateTransition", { entity: m.mwo, to: "in_progress" })}>Start</button>}
-                  {m.status === "in_progress" && <button className="btn btn-primary btn-sm" onClick={()=>openModal("mwoComplete", { mwo: m.mwo })}>Complete</button>}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      {/* §3.3 GHA-style grouped rows — overdue + in_progress auto-expanded */}
+      {groups.length === 0 && (
+        <div className="card">
+          <EmptyState icon="🔧" title="No mWOs match your filters"
+            body="Try clearing filters or broadening the tab selection."
+            action={{label:"Clear filters", onClick: ()=>{setTab("all"); setTypeFilter("all"); setPriFilter("all"); setSrcFilter("all"); setSearch("");}}}/>
+        </div>
+      )}
+      {groups.map(g => {
+        const open = groupOpen[g.k];
+        return (
+          <div key={g.k} className="card" style={{padding:0, marginBottom:10}}>
+            <div
+              role="button"
+              aria-expanded={open}
+              onClick={()=>toggleGroup(g.k)}
+              style={{display:"flex", alignItems:"center", gap:8, padding:"10px 14px", cursor:"pointer",
+                      background: "var(--surface-2, #f1f5f9)", borderBottom: open ? "1px solid var(--border)" : "none",
+                      fontSize:12, fontWeight:600}}
+            >
+              <span style={{display:"inline-block", width:12, color:"var(--muted)", transition:"transform .1s", transform: open ? "rotate(90deg)" : "rotate(0)"}}>▶</span>
+              <span>{g.l}</span>
+              <span className={"tabs-counted-pill tone-" + g.tone} style={{marginLeft:4}}>{g.items.length}</span>
+              <span className="spacer" style={{flex:1}}></span>
+              {g.defaultOpen && <span className="muted" style={{fontSize:10, fontWeight:400}}>auto-expanded</span>}
+            </div>
+            {open && (
+              <table>
+                <thead>
+                  <tr>
+                    <th>mWO #</th><th>Asset</th><th>Type</th><th>Priority</th><th>Status</th>
+                    <th>Technician</th><th>Start</th><th>ETA</th><th>DT impact</th><th>Source</th>
+                    <th style={{width:120}}>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {g.items.map(m => (
+                    <tr key={m.mwo} style={{cursor:"pointer"}} onClick={()=>onNav("mwo_detail")}>
+                      <td className="mono" style={{fontWeight:600, color:"var(--blue)"}}>{m.mwo}</td>
+                      <td style={{fontSize:12}}>{m.asset}</td>
+                      <td><MwoType t={m.type}/></td>
+                      <td><PriorityBadge p={m.pri}/></td>
+                      <td><MwoStatus s={m.status}/></td>
+                      <td style={{fontSize:11}}>{m.tech || <span className="mono" style={{color:"var(--amber)", fontStyle:"italic"}}>Unassigned</span>}</td>
+                      <td className="mono" style={{fontSize:11}}>{m.start}</td>
+                      <td className="mono" style={{fontSize:11}}>{m.eta}</td>
+                      <td>{m.dtImpact === "Yes" ? <span className="dt-impact">🔴 Yes</span> : <span className="dt-impact-none">—</span>}</td>
+                      <td><MwoSource s={m.src}/></td>
+                      <td onClick={e=>e.stopPropagation()}>
+                        {m.status === "requested" && isManager && <button className="btn btn-primary btn-sm" onClick={()=>openModal("wrTriage", { mwo: m.mwo })}>Triage</button>}
+                        {m.status === "approved" && isManager && <button className="btn btn-primary btn-sm" onClick={()=>openModal("mwoAssign", { mwo: m.mwo })}>Assign</button>}
+                        {m.status === "open" && <button className="btn btn-primary btn-sm" onClick={()=>openModal("stateTransition", { entity: m.mwo, to: "in_progress" })}>Start</button>}
+                        {m.status === "in_progress" && <button className="btn btn-primary btn-sm" onClick={()=>openModal("mwoComplete", { mwo: m.mwo })}>Complete</button>}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+        );
+      })}
     </>
   );
 };
@@ -286,7 +336,8 @@ const MntMWODetail = ({ onBack, onNav, openModal, role }) => {
 
   return (
     <>
-      <div className="page-head">
+      {/* §3.4 sticky-form-header — tabs + tasks can be very tall */}
+      <div className="page-head sticky-form-header" style={{padding:"10px 0"}}>
         <div>
           <div className="breadcrumb"><a onClick={onBack}>mWOs</a> · <span className="mono">{m.mwo}</span></div>
           <h1 className="page-title"><span className="mono">{m.mwo}</span> — {m.asset.name}</h1>

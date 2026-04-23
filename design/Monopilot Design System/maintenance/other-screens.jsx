@@ -365,7 +365,12 @@ const MntTechList = ({ onOpenTech, onNav, openModal, role }) => {
             </tbody>
           </table>
           <div style={{padding:10, fontSize:11}} className="muted">
-            Legend: ✓ has skill · ⚡ specialist · — not applicable. <a style={{color:"var(--blue)", cursor:"pointer"}}>Download PDF for audit →</a>
+            Legend: ✓ has skill · ⚡ specialist · — not applicable. {/* BL-MAINT-05 — PDF export is P2, stub now shows a scoped notice instead of a dead link. */}
+            <a style={{color:"var(--blue)", cursor:"pointer"}}
+               onClick={() => alert("Skills matrix PDF export ships in Phase 2 (BL-MAINT-05). For current audits export via the top-right Export CSV on the Technicians list.")}
+               title="PDF export — Phase 2 (BL-MAINT-05)">
+              Download PDF for audit →
+            </a>
           </div>
         </div>
       )}

@@ -593,30 +593,53 @@ const CertUploadModal = ({ open, onClose }) => (
 );
 
 // -------- M-11 Spare Part Reorder --------
-const SpareReorderModal = ({ open, onClose, data }) => (
-  <Modal open={open} onClose={onClose} size="default" title={`Reorder spare part — ${(data && data.code) || "SP-LUB-0042"}`}
-    foot={<><button className="btn btn-secondary btn-sm" onClick={onClose}>Cancel</button>
-          <button className="btn btn-primary btn-sm">Create purchase request</button></>}>
-    <div className="summary-block">
-      <div className="summary-row"><span className="muted">Part code</span><span className="spacer"></span><span className="mono" style={{fontWeight:700}}>SP-LUB-0042</span></div>
-      <div className="summary-row"><span className="muted">Description</span><span className="spacer"></span><span>Gearbox Lubricant 5L (Castrol EP2)</span></div>
-      <div className="summary-row"><span className="muted">Current qty on hand</span><span className="spacer"></span><span className="mono" style={{color:"var(--red)", fontWeight:700}}>2 L (below reorder)</span></div>
-    </div>
-    <div className="ff-inline">
-      <Field label="Reorder qty" required><input type="number" defaultValue={20}/></Field>
-      <Field label="Unit of measure"><input type="text" defaultValue="L" readOnly/></Field>
-    </div>
-    <div className="ff-inline">
-      <Field label="Supplier" help="Pre-filled from part master"><input type="text" defaultValue="Castrol PL"/></Field>
-      <Field label="Estimated lead time"><input type="text" defaultValue="3 days" readOnly/></Field>
-    </div>
-    <Field label="Notes"><textarea rows="2" placeholder="Any specifics for this order..."></textarea></Field>
-    <div className="alert-blue alert-box" style={{fontSize:11, marginTop:10}}>
-      <span>ⓘ</span>
-      <div><b>P2 note:</b> In Phase 2, approved purchase requests will automatically push to your ERP purchasing module. In P1, creates internal pending notification.</div>
-    </div>
-  </Modal>
-);
+const SpareReorderModal = ({ open, onClose, data }) => {
+  const [preview, setPreview] = React.useState(false);
+  const [qty, setQty] = React.useState(20);
+  const leadDays = 3;
+  const unitCost = 12.50;
+  const onHand = 2;
+  const est = (qty * unitCost).toFixed(2);
+  return (
+    <Modal open={open} onClose={onClose} size="default" title={`Reorder spare part — ${(data && data.code) || "SP-LUB-0042"}`}
+      foot={<>
+        <button className="btn btn-secondary btn-sm" onClick={onClose}>Cancel</button>
+        {/* §3.6 DryRunButton — preview PR fan-out before commit */}
+        <DryRunButton onClick={()=>setPreview(v => !v)} label={preview ? "Hide preview" : "Dry run"} title="Preview the purchase request that will be created"/>
+        <button className="btn btn-primary btn-sm" disabled={!preview}>Create purchase request</button>
+      </>}>
+      <div className="summary-block">
+        <div className="summary-row"><span className="muted">Part code</span><span className="spacer"></span><span className="mono" style={{fontWeight:700}}>SP-LUB-0042</span></div>
+        <div className="summary-row"><span className="muted">Description</span><span className="spacer"></span><span>Gearbox Lubricant 5L (Castrol EP2)</span></div>
+        <div className="summary-row"><span className="muted">Current qty on hand</span><span className="spacer"></span><span className="mono" style={{color:"var(--red)", fontWeight:700}}>{onHand} L (below reorder)</span></div>
+      </div>
+      <div className="ff-inline">
+        <Field label="Reorder qty" required><input type="number" value={qty} onChange={e=>{ setQty(Number(e.target.value)||0); setPreview(false); }}/></Field>
+        <Field label="Unit of measure"><input type="text" defaultValue="L" readOnly/></Field>
+      </div>
+      <div className="ff-inline">
+        <Field label="Supplier" help="Pre-filled from part master"><input type="text" defaultValue="Castrol PL"/></Field>
+        <Field label="Estimated lead time"><input type="text" defaultValue={`${leadDays} days`} readOnly/></Field>
+      </div>
+      <Field label="Notes"><textarea rows="2" placeholder="Any specifics for this order..."></textarea></Field>
+      {preview && (
+        <div className="alert-blue alert-box" style={{fontSize:11, marginTop:10}}>
+          <span>◐</span>
+          <div>
+            <b>Dry-run preview:</b> Creating this PR will post <b className="mono">PR-DRAFT</b> to the procurement queue — <b className="mono">{qty} L</b> of SP-LUB-0042 from Castrol PL, est. <b className="mono">€{est}</b>, expected delivery in <b className="mono">{leadDays}</b> days.
+            After delivery, on-hand becomes <b className="mono">{onHand + qty} L</b> (above reorder point of 5 L).
+          </div>
+        </div>
+      )}
+      {!preview && (
+        <div className="alert-blue alert-box" style={{fontSize:11, marginTop:10}}>
+          <span>ⓘ</span>
+          <div><b>P2 note:</b> In Phase 2, approved purchase requests will automatically push to your ERP purchasing module. In P1, creates internal pending notification. Click <b>Dry run</b> to preview before committing.</div>
+        </div>
+      )}
+    </Modal>
+  );
+};
 
 // -------- M-12 Technician Skill Edit --------
 const TechSkillModal = ({ open, onClose, data }) => (

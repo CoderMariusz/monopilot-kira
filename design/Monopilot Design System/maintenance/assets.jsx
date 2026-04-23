@@ -184,10 +184,30 @@ const MntAssetList = ({ onOpenAsset, onNav, openModal, role }) => {
 
 // ============ MAINT-003 Asset Detail ============
 
+// §3.1 deriveRunHistory (pure, reads nothing from data.jsx — maps service history records
+// into 8 PM outcomes with per-cell tooltips). Preventive = ok, reactive = bad,
+// calibration/inspection = warn, else neutral. Oldest-first on the left.
+const deriveAssetRunHistory = (asset) => {
+  const list = Array.isArray(asset && asset.history) ? asset.history : [];
+  const pms = list.slice(0, 8).reverse(); // oldest first
+  const cells = pms.map((h) => {
+    const tone = h.type === "preventive" ? "ok"
+              : h.type === "reactive"    ? "bad"
+              : h.type === "calibration" || h.type === "inspection" ? "warn"
+              : "ok";
+    const d = (h.t || "").slice(0, 10);
+    const label = (h.type || "service").charAt(0).toUpperCase() + (h.type || "service").slice(1);
+    return { tone, title: `${label} · ${d} · ${h.mwo || "—"}` };
+  });
+  while (cells.length < 8) cells.unshift({ tone: "empty", title: "No PM" });
+  return cells;
+};
+
 const MntAssetDetail = ({ onBack, onNav, openModal, role }) => {
   const [tab, setTab] = React.useState("overview");
   const a = MNT_ASSET_DETAIL;
   const isManager = role === "Manager" || role === "Admin";
+  const runHistory = deriveAssetRunHistory(a);
 
   const tabs = [
     { k: "overview",  l: "Overview" },
@@ -202,7 +222,8 @@ const MntAssetDetail = ({ onBack, onNav, openModal, role }) => {
 
   return (
     <>
-      <div className="page-head">
+      {/* §3.4 sticky-form-header — long form (multiple tabs, tall nameplate) */}
+      <div className="page-head sticky-form-header" style={{padding:"10px 0"}}>
         <div>
           <div className="breadcrumb">
             <a onClick={onBack}>Assets</a> · <span className="mono">{a.id}</span>
@@ -250,6 +271,14 @@ const MntAssetDetail = ({ onBack, onNav, openModal, role }) => {
             <button className="btn btn-sm btn-secondary" onClick={()=>onNav("loto")}>View LOTO →</button>
           </div>
         )}
+
+        {/* §3.1 RunStrip — last 8 PM outcomes for this asset */}
+        <div style={{display:"flex", alignItems:"center", gap:10, marginBottom:10, padding:"8px 10px",
+                     background:"var(--surface-2, #f1f5f9)", borderRadius:4, border:"1px solid var(--border-soft, #eef1f5)"}}>
+          <span className="muted" style={{fontSize:10, textTransform:"uppercase", letterSpacing:"0.05em", fontWeight:600}}>Last 8 PMs</span>
+          <RunStrip outcomes={runHistory} max={8} title="Last 8 PM outcomes — hover for date & mWO"/>
+          <span className="muted" style={{fontSize:11}}>oldest → newest · hover a cell for PM date</span>
+        </div>
 
         {/* Quick stats grid */}
         <div style={{display:"grid", gridTemplateColumns:"repeat(5, 1fr)", gap:10, fontSize:11}}>
