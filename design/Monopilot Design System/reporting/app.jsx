@@ -10,9 +10,13 @@ const RptApp = () => {
   const openModal = (name, data) => setModal({ name, data });
   const closeModal = () => setModal(null);
 
+  // Tune-6b §2.12.2 / BL-RPT-01: P2 placeholder routes carry the catalog id as
+  // "p2_placeholder:RPT-P2-xxx" so the placeholder screen can show the specific name.
+  const screenKey = screen.startsWith("p2_placeholder") ? "p2_placeholder" : screen;
   let content;
-  switch (screen) {
+  switch (screenKey) {
     case "home":                 content = <RptHome role={role} onNav={setScreen} openModal={openModal}/>; break;
+    case "p2_placeholder":       content = <RptP2Placeholder role={role} onNav={setScreen} openModal={openModal} screen={screen}/>; break;
     case "factory_overview":     content = <RptFactoryOverview role={role} onNav={setScreen} openModal={openModal}/>; break;
     case "yield_by_line":        content = <RptYieldByLine role={role} onNav={setScreen} openModal={openModal}/>; break;
     case "yield_by_sku":         content = <RptYieldBySku role={role} onNav={setScreen} openModal={openModal}/>; break;

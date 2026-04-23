@@ -72,6 +72,40 @@ const RptNav = ({ current, onNav, role }) => {
   );
 };
 
+// ============ KPI RunStrip helper — derives 8-period {tone, title} cells from KPI ============
+// Reporting KPIs share shape: { k, label, value, change, changeCls, accent, sub }.
+// Tune-6b §2.12: "RunStrip on every KPI card, 8-period trend, per-cell title for tooltip."
+// data.jsx is frozen (TUNING-PLAN §4.5) — derive deterministically from fields that exist.
+const kpiAccentToTone = (accent) => {
+  if (accent === "green") return "ok";
+  if (accent === "amber") return "warn";
+  if (accent === "red")   return "bad";
+  if (accent === "blue")  return "info";
+  return "ok";
+};
+const buildKpiRunCells = (k, opts = {}) => {
+  // Deterministic scatter per KPI key — so repeated cards differ visually.
+  const key = String(k.k || k.label || "x");
+  let h = 0;
+  for (let i = 0; i < key.length; i++) h = (h * 31 + key.charCodeAt(i)) >>> 0;
+  const latest = kpiAccentToTone(k.accent);
+  const down = k.changeCls === "down";
+  const cells = [];
+  for (let i = 0; i < 8; i++) {
+    const bit = (h >> i) & 7;
+    let tone;
+    if (i === 7) tone = latest;
+    else if (latest === "bad") tone = bit === 0 ? "ok" : bit === 1 ? "warn" : "bad";
+    else if (latest === "warn") tone = bit < 2 ? "warn" : "ok";
+    else if (latest === "info") tone = bit === 0 ? "warn" : "info";
+    else tone = (down && bit === 0) ? "warn" : "ok";
+    const wk = 16 - (7 - i);
+    const title = `W${String(wk).padStart(2,"0")} · ${k.value || ""}`.trim();
+    cells.push({ tone, title });
+  }
+  return cells;
+};
+
 // ============ Sparkline (borrowed from production/shell.jsx pattern) ============
 const Spark = ({ data, color = "var(--blue)", w = 80, h = 22 }) => {
   if (!data || !data.length) return null;
@@ -305,4 +339,5 @@ Object.assign(window, {
   ScopePill, DrillCrumb, FreshnessStrip, WeekSelector, ExportDropdown, FilterChips,
   YieldCell, VarianceBadge, VariancePctBadge, GradeBadge, WWChange,
   HoldSeverity, HoldStatus, ShiftBadge, WOStatusBadge, StageStatus, RuleStatus, FmtBadge,
+  buildKpiRunCells, kpiAccentToTone,
 });

@@ -55,6 +55,35 @@
 /* stale amber border on KPI */
 .kpi.stale { border-left: 3px solid var(--amber); }
 
+/* Tune-6b §2.12.3 — force tabular-nums on every KPI value variant (override-safe). */
+.kpi-value,
+.kpi-fin-big,
+.oee-embed .oee-kpi .val,
+.ms-mini-kpi .mmk-val {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1;
+}
+
+/* Tune-6b §2.12.1 — RunStrip footer on KPI cards (8-period trend, per-cell title).
+   Sits below the last kpi-sub / kpi-change line inside the .kpi card. */
+.kpi-run-foot {
+  margin-top: 8px;
+  padding-top: 6px;
+  border-top: 1px dashed var(--border-soft, var(--border));
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-variant-numeric: tabular-nums;
+}
+.kpi-run-foot .run-strip { vertical-align: middle; }
+.kpi-run-foot .run-strip-label {
+  font-size: 10px;
+  color: var(--muted);
+  font-family: var(--font-mono);
+  letter-spacing: 0.04em;
+  margin-left: 2px;
+}
+
 /* ============ OEE summary embedded card ============ */
 .oee-embed { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr 220px; gap: 14px; padding: 14px; align-items: center; }
 .oee-embed .oee-kpi { text-align: left; }

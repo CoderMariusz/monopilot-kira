@@ -35,6 +35,7 @@ const RptExports = ({ role, onNav, openModal }) => {
           <div key={k.k} className={"kpi " + k.accent}>
             <div className="kpi-label">{k.label}</div>
             <div className="kpi-value">{k.value}</div>
+            <div className="kpi-run-foot"><RunStrip outcomes={buildKpiRunCells(k)} label="8w"/></div>
           </div>
         ))}
       </div>
@@ -116,11 +117,13 @@ const RptSavedFilters = ({ role, onNav, openModal }) => {
       </div>
 
       {RPT_SAVED.length === 0 ? (
-        <div className="card" style={{padding:40, textAlign:"center", color:"var(--muted)"}}>
-          <div style={{fontSize:36, opacity:0.3}}>★</div>
-          <div style={{fontSize:13, marginTop:10}}>No saved filter presets yet.</div>
-          <div style={{fontSize:12, marginTop:4}}>Create a preset from any dashboard's filter bar — look for the "Save as preset" option.</div>
-          <button className="btn btn-secondary btn-sm" style={{marginTop:12}} onClick={() => onNav("factory_overview")}>Go to Factory Overview →</button>
+        <div className="card">
+          <EmptyState
+            icon="★"
+            title="No saved filter presets yet"
+            body='Create a preset from any dashboard filter bar — look for the "Save as preset" option.'
+            action={{ label: "Go to Factory Overview →", onClick: () => onNav("factory_overview") }}
+          />
         </div>
       ) : (
         <div className="card">
@@ -192,6 +195,7 @@ const RptScheduled = ({ role, onNav, openModal }) => {
           <div key={k.k} className={"kpi " + k.accent}>
             <div className="kpi-label">{k.label}</div>
             <div className="kpi-value">{k.value}</div>
+            <div className="kpi-run-foot"><RunStrip outcomes={buildKpiRunCells(k)} label="8w"/></div>
           </div>
         ))}
       </div>

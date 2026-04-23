@@ -61,6 +61,7 @@ const RptIntegrationHealth = ({ role, onNav, openModal }) => {
             <div className="kpi-label">{k.label}</div>
             <div className="kpi-value">{k.value}</div>
             <div className="kpi-sub">{k.sub || "\u00A0"}</div>
+            <div className="kpi-run-foot"><RunStrip outcomes={buildKpiRunCells(k)} label="8w"/></div>
           </div>
         ))}
       </div>
@@ -196,6 +197,7 @@ const RptRulesUsage = ({ role, onNav, openModal }) => {
             <div className="kpi-label">{k.label}</div>
             <div className="kpi-value">{k.value}</div>
             <div className="kpi-sub">{k.sub || "\u00A0"}</div>
+            <div className="kpi-run-foot"><RunStrip outcomes={buildKpiRunCells(k)} label="8w"/></div>
           </div>
         ))}
       </div>

@@ -285,6 +285,7 @@ const RptFactoryOverview = ({ role, onNav, openModal }) => {
             <div className="kpi-label">{k.label}</div>
             <div className="kpi-value">{k.value}</div>
             <div className={"kpi-change " + (k.changeCls || "")}>{k.change} <span className="kpi-sub">{k.sub}</span></div>
+            <div className="kpi-run-foot"><RunStrip outcomes={buildKpiRunCells(k)} label="8w"/></div>
           </div>
         ))}
       </div>
@@ -432,6 +433,7 @@ const RptYieldByLine = ({ role, onNav, openModal }) => {
             <div className="kpi-label">{k.label}</div>
             <div className="kpi-value">{k.value}</div>
             <div className="kpi-sub">{k.sub || "\u00A0"}</div>
+            <div className="kpi-run-foot"><RunStrip outcomes={buildKpiRunCells(k)} label="8w"/></div>
           </div>
         ))}
       </div>
@@ -534,6 +536,7 @@ const RptYieldBySku = ({ role, onNav, openModal }) => {
             <div className="kpi-label">{k.label}</div>
             <div className="kpi-value">{k.value}</div>
             <div className="kpi-sub">{k.sub || "\u00A0"}</div>
+            <div className="kpi-run-foot"><RunStrip outcomes={buildKpiRunCells(k)} label="8w"/></div>
           </div>
         ))}
       </div>

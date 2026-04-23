@@ -61,6 +61,7 @@ const RptQcHolds = ({ role, onNav, openModal }) => {
             <div className="kpi-label">{k.label}</div>
             <div className="kpi-value">{k.value}</div>
             <div className="kpi-sub">{k.sub || "\u00A0"}</div>
+            <div className="kpi-run-foot"><RunStrip outcomes={buildKpiRunCells(k)} label="8w"/></div>
           </div>
         ))}
       </div>
@@ -74,9 +75,12 @@ const RptQcHolds = ({ role, onNav, openModal }) => {
       )}
 
       {visible.length === 0 ? (
-        <div className="card" style={{padding:40, textAlign:"center"}}>
-          <div style={{fontSize:40, color:"var(--green)"}}>✓</div>
-          <div style={{fontSize:16, marginTop:10}}>No quality holds today — great work!</div>
+        <div className="card">
+          <EmptyState
+            icon="✓"
+            title="No quality holds today"
+            body="Great work — the selected shift and line have zero active holds. Select another date or filter to review historical records."
+          />
         </div>
       ) : (
         <>
@@ -205,6 +209,7 @@ const RptOeeSummary = ({ role, onNav, openModal }) => {
             <div className="kpi-label">{k.label}</div>
             <div className="kpi-value">{k.value}</div>
             <div className="kpi-sub">{k.sub || "\u00A0"}</div>
+            <div className="kpi-run-foot"><RunStrip outcomes={buildKpiRunCells(k)} label="8w"/></div>
           </div>
         ))}
       </div>
@@ -344,6 +349,7 @@ const RptInventoryAging = ({ role, onNav, openModal }) => {
             <div className="kpi-label">{k.label}</div>
             <div className="kpi-value">{k.value}</div>
             <div className="kpi-sub">{k.sub || "\u00A0"}</div>
+            <div className="kpi-run-foot"><RunStrip outcomes={buildKpiRunCells(k)} label="8w"/></div>
           </div>
         ))}
       </div>
@@ -517,6 +523,7 @@ const RptWoStatus = ({ role, onNav, openModal }) => {
             <div className="kpi-label">{k.label}</div>
             <div className="kpi-value">{k.value}</div>
             <div className="kpi-sub">{k.sub || "\u00A0"}</div>
+            <div className="kpi-run-foot"><RunStrip outcomes={buildKpiRunCells(k)} label="8w"/></div>
           </div>
         ))}
       </div>
@@ -615,6 +622,7 @@ const RptShipmentOtd = ({ role, onNav, openModal }) => {
             <div className="kpi-value">{k.value}</div>
             <div className={"kpi-change " + (k.changeCls || "")}>{k.change || ""}</div>
             <div className="kpi-sub">{k.sub || "\u00A0"}</div>
+            <div className="kpi-run-foot"><RunStrip outcomes={buildKpiRunCells(k)} label="8w"/></div>
           </div>
         ))}
       </div>
