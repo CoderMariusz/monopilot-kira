@@ -25,7 +25,6 @@ const GRNFromPOModal = ({ open, onClose }) => {
   const [step, setStep] = React.useState("select");
   const [completed, setCompleted] = React.useState(new Set());
   const [po, setPo] = React.useState(null);
-  const [dryRunOpen, setDryRunOpen] = React.useState(false);
   const [lines, setLines] = React.useState({
     1: [{ qty: 40, batch: "B-2026-04-20", supplierBatch: "SUP-AGRO-4820", expiry: "2026-05-20", mfg: "2026-04-20", cw: 40.0, loc: "WH-Factory-A › Receiving › Dock-01", qa: "PENDING" },
         { qty: 60, batch: "B-2026-04-21", supplierBatch: "SUP-AGRO-4821", expiry: "2026-05-21", mfg: "2026-04-21", cw: 60.3, loc: "WH-Factory-A › Receiving › Dock-01", qa: "PENDING" }],
@@ -93,12 +92,6 @@ const GRNFromPOModal = ({ open, onClose }) => {
       </> : <>
         <button className="btn btn-ghost btn-sm" onClick={goBack}>← Back</button>
         <span className="spacer"></span>
-        <DryRunButton
-          label="Preview GRN lines"
-          title="Post → Preview GRN lines (dry-run)"
-          onClick={()=>setDryRunOpen(!dryRunOpen)}
-          disabled={submitting || totalLPs === 0}
-        />
         <button className="btn btn-secondary btn-sm" onClick={onClose}>Cancel</button>
         <button className="btn btn-primary btn-sm" disabled={submitting} onClick={submit}>{submitting ? "Creating GRN…" : "Complete receipt"}</button>
       </>}>
@@ -238,17 +231,6 @@ const GRNFromPOModal = ({ open, onClose }) => {
       {/* STEP 3 */}
       {step === "review" && (
         <div style={{marginTop:14}}>
-          {dryRunOpen && (
-            <div className="alert-blue alert-box" style={{marginBottom:10, fontSize:12}}>
-              <span>◐</span>
-              <div>
-                <b>Dry-run preview.</b> Posting this GRN will create <b>{totalLPs}</b> LP{totalLPs !== 1 ? "s" : ""} across
-                {" "}{Object.keys(lines).length} PO line{Object.keys(lines).length !== 1 ? "s" : ""},
-                trigger <b>{totalLPs}</b> label print job{totalLPs !== 1 ? "s" : ""} (ZPL-WH-01), and write one GRN header + {totalLPs} lp_movements rows.
-                Source PO <span className="mono">{po}</span> progress will advance from current to updated value. No changes have been posted yet.
-              </div>
-            </div>
-          )}
           <Summary rows={[
             { label: "GRN number", value: "GRN-2026-00043" },
             { label: "Source PO", value: po, mono: true },
@@ -531,13 +513,10 @@ const LPMergeModal = ({ open, onClose }) => {
     { lp: "LP00000045", valid: true,  qty: 40 },
     { lp: "LP00000046", valid: true,  qty: 60 },
   ]);
-  const [reasonCode, setReasonCode] = React.useState("");
-  const [reasonText, setReasonText] = React.useState("");
   const primaryQty = 80;
   const totalAfter = primaryQty + secondaries.filter(s => s.valid).reduce((a,s)=>a+s.qty,0);
   const validSecondaries = secondaries.filter(s => s.valid).length;
-  const reasonValid = reasonCode && reasonText.length >= 10;
-  const canConfirm = validSecondaries > 0 && reasonValid;
+  const canConfirm = validSecondaries > 0;
 
   return (
     <Modal open={open} onClose={onClose} title="Merge License Plates" size="wide"
@@ -605,23 +584,9 @@ const LPMergeModal = ({ open, onClose }) => {
           <div className="alert-amber alert-box" style={{marginTop:12, fontSize:12}}>
             <span>⚠</span>
             <div>
-              <b>Irreversible action — audit-logged.</b> Secondary LPs cannot be un-merged. MODAL-SCHEMA §9 requires a reason.
+              <b>Irreversible action — audit-logged.</b> Secondary LPs cannot be un-merged after confirmation.
             </div>
           </div>
-
-          <Field label="Reason code" required help="V-WH-LP-006 — merge reason is audit-logged">
-            <select value={reasonCode} onChange={e=>setReasonCode(e.target.value)}>
-              <option value="">— Select —</option>
-              <option>consolidate_for_shipping</option>
-              <option>minimize_partial_lps</option>
-              <option>batch_reconsolidation</option>
-              <option>physical_consolidation_on_pallet</option>
-              <option>other</option>
-            </select>
-          </Field>
-          <Field label="Reason text" required help="min 10 characters — describes why these LPs are being merged">
-            <ReasonInput value={reasonText} onChange={setReasonText} minLength={10} placeholder="Explain why the secondary LPs should be merged into the primary..."/>
-          </Field>
         </div>
       )}
     </Modal>
