@@ -23,6 +23,7 @@ const WhApp = () => {
     case "movements":    content = <WhMovementList onNav={setScreen} onOpenLp={onOpenLp} openModal={openModal}/>; break;
     case "reservations": content = <WhReservations onNav={setScreen} onOpenLp={onOpenLp} openModal={openModal}/>; break;
     case "inventory":    content = <WhInventory role={role} onNav={setScreen} onOpenLp={onOpenLp}/>; break;
+    case "int_buffer":   content = <WhIntermediateBuffer onNav={setScreen} onOpenLp={onOpenLp}/>; break;
     case "locations":    content = <WhLocations role={role} onNav={setScreen} onOpenLp={onOpenLp} openModal={openModal}/>; break;
     case "genealogy":    content = <WhGenealogy onNav={setScreen} onOpenLp={onOpenLp}/>; break;
     case "expiry":       content = <WhExpiry role={role} onNav={setScreen} onOpenLp={onOpenLp} openModal={openModal}/>; break;

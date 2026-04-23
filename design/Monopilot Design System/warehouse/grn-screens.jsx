@@ -5,10 +5,10 @@ const WhGRNList = ({ onOpenGrn, onNav, openModal }) => {
   const [search, setSearch] = React.useState("");
 
   const tabs = [
-    { k: "all",       l: "All",       c: WH_GRNS.length },
-    { k: "draft",     l: "Draft",     c: WH_GRNS.filter(g => g.status === "draft").length },
-    { k: "completed", l: "Completed", c: WH_GRNS.filter(g => g.status === "completed").length },
-    { k: "cancelled", l: "Cancelled", c: WH_GRNS.filter(g => g.status === "cancelled").length },
+    { k: "all",       l: "All",       c: WH_GRNS.length,                                          tone: "neutral" },
+    { k: "draft",     l: "Draft",     c: WH_GRNS.filter(g => g.status === "draft").length,       tone: "warn" },
+    { k: "completed", l: "Completed", c: WH_GRNS.filter(g => g.status === "completed").length,   tone: "ok" },
+    { k: "cancelled", l: "Cancelled", c: WH_GRNS.filter(g => g.status === "cancelled").length,   tone: "neutral" },
   ];
 
   const visible = WH_GRNS.filter(g =>
@@ -33,11 +33,12 @@ const WhGRNList = ({ onOpenGrn, onNav, openModal }) => {
         </div>
       </div>
 
-      <div className="tabs-bar">
-        {tabs.map(t => (
-          <button key={t.k} className={"tab-btn " + (tab === t.k ? "on" : "")} onClick={()=>setTab(t.k)}>{t.l} <span className="count">{t.c}</span></button>
-        ))}
-      </div>
+      <TabsCounted
+        current={tab}
+        onChange={setTab}
+        ariaLabel="GRN status filter"
+        tabs={tabs.map(t => ({ key: t.k, label: t.l, count: t.c, tone: t.tone }))}
+      />
 
       <div className="filter-bar">
         <input type="text" placeholder="Search GRN#, PO#, supplier…" value={search} onChange={e=>setSearch(e.target.value)} style={{width:240}}/>
@@ -51,6 +52,17 @@ const WhGRNList = ({ onOpenGrn, onNav, openModal }) => {
         <button className="btn btn-secondary btn-sm">⇪ Export CSV</button>
       </div>
 
+      {visible.length === 0 && (
+        <div className="card" style={{padding:0}}>
+          <EmptyState
+            icon="📥"
+            title="No goods receipts"
+            body={search ? "Try clearing the search or pick a different tab." : "Receive goods from a PO or TO to create your first GRN."}
+            action={{ label: "＋ Receive from PO", onClick: ()=>openModal("grnPO") }}
+          />
+        </div>
+      )}
+      {visible.length > 0 && (
       <div className="card" style={{padding:0}}>
         <table>
           <thead><tr><th>GRN</th><th>Source</th><th>Source doc</th><th>Supplier / From</th><th>Receipt date</th><th>Warehouse</th><th>Status</th><th style={{textAlign:"right"}}>Lines</th><th style={{textAlign:"right"}}>Total qty</th><th>Received by</th></tr></thead>
@@ -72,6 +84,7 @@ const WhGRNList = ({ onOpenGrn, onNav, openModal }) => {
           </tbody>
         </table>
       </div>
+      )}
     </>
   );
 };

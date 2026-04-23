@@ -32,7 +32,7 @@ const WH_KPIS = [
   { k: "expiring_30d",     label: "Expiring ≤30d",        value: "47",    accent: "amber", sub: "Amber threshold",         target: "expiry" },
   { k: "qc_hold",          label: "QC hold",              value: "8",     accent: "amber", sub: "PENDING + HOLD",          target: "lps" },
   { k: "blocked",          label: "Blocked LPs",          value: "3",     accent: "red",   sub: "2 expired use_by",        target: "lps" },
-  { k: "intermediate_buf", label: "Intermediate buffer", value: "21",    accent: "blue",  sub: "Awaiting consumption",    target: "inventory" },
+  { k: "intermediate_buf", label: "Intermediate buffer", value: "21",    accent: "blue",  sub: "Awaiting consumption",    target: "int_buffer" },
 ];
 
 // ----- Dashboard alerts (WH-001) -----

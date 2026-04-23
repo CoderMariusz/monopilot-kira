@@ -130,7 +130,7 @@ const WhDashboard = ({ role, onNav, onOpenLp, openModal }) => {
           <div className="card" style={{marginTop:12}}>
             <div className="card-head">
               <h3 className="card-title">▤ Intermediate buffer (awaiting consumption)</h3>
-              <button className="btn btn-ghost btn-sm" onClick={()=>onNav("inventory")}>Open inventory →</button>
+              <button className="btn btn-ghost btn-sm" onClick={()=>onNav("int_buffer")}>View all →</button>
             </div>
             <table>
               <thead><tr><th>LP</th><th>Product</th><th style={{textAlign:"right"}}>Qty</th><th>Location</th><th>Origin WO</th><th>Expires</th></tr></thead>

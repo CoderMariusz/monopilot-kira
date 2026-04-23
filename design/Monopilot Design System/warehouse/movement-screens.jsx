@@ -4,14 +4,15 @@ const WhMovementList = ({ onNav, onOpenLp, openModal }) => {
   const [tab, setTab] = React.useState("all");
   const [search, setSearch] = React.useState("");
   const [selectedMv, setSelectedMv] = React.useState(null);
+  const [grouped, setGrouped] = React.useState(false);
 
   const tabs = [
-    { k: "all",           l: "All",           c: WH_MOVEMENTS.length },
-    { k: "receipts",      l: "Receipts",      c: WH_MOVEMENTS.filter(m => m.type === "receipt").length },
-    { k: "consume",       l: "Consume to WO", c: WH_MOVEMENTS.filter(m => m.type === "consume_to_wo").length },
-    { k: "transfers",     l: "Transfers",     c: WH_MOVEMENTS.filter(m => m.type === "transfer" || m.type === "putaway").length },
-    { k: "adjustments",   l: "Adjustments",   c: WH_MOVEMENTS.filter(m => m.type === "adjustment").length },
-    { k: "approvals",     l: "Manager approvals", c: 1 },
+    { k: "all",           l: "All",           c: WH_MOVEMENTS.length,                                                          tone: "neutral" },
+    { k: "receipts",      l: "Receipts",      c: WH_MOVEMENTS.filter(m => m.type === "receipt").length,                         tone: "ok" },
+    { k: "consume",       l: "Consume to WO", c: WH_MOVEMENTS.filter(m => m.type === "consume_to_wo").length,                   tone: "info" },
+    { k: "transfers",     l: "Transfers",     c: WH_MOVEMENTS.filter(m => m.type === "transfer" || m.type === "putaway").length, tone: "info" },
+    { k: "adjustments",   l: "Adjustments",   c: WH_MOVEMENTS.filter(m => m.type === "adjustment").length,                      tone: "warn" },
+    { k: "approvals",     l: "Manager approvals", c: 1,                                                                         tone: "warn" },
   ];
 
   const visible = WH_MOVEMENTS.filter(m =>
@@ -33,18 +34,20 @@ const WhMovementList = ({ onNav, onOpenLp, openModal }) => {
           <div className="muted" style={{fontSize:12}}>{WH_MOVEMENTS.length} movements in last 24h · 3 consume-to-WO · 2 adjustments · 1 awaiting manager approval</div>
         </div>
         <div className="row-flex">
+          <button className={"btn btn-sm " + (grouped ? "btn-primary" : "btn-secondary")} onClick={()=>setGrouped(!grouped)} title="Group movements by LP / WO correlation">
+            {grouped ? "▦ Grouped" : "▤ Flat"}
+          </button>
           <button className="btn btn-secondary btn-sm">⇪ Export CSV</button>
           <button className="btn btn-primary btn-sm" onClick={()=>openModal("stockMove")}>＋ New movement</button>
         </div>
       </div>
 
-      <div className="tabs-bar">
-        {tabs.map(t => (
-          <button key={t.k} className={"tab-btn " + (tab === t.k ? "on" : "")} onClick={()=>setTab(t.k)}>
-            {t.l} <span className="count">{t.c}</span>
-          </button>
-        ))}
-      </div>
+      <TabsCounted
+        current={tab}
+        onChange={setTab}
+        ariaLabel="Movement type filter"
+        tabs={tabs.map(t => ({ key: t.k, label: t.l, count: t.c, tone: t.tone }))}
+      />
 
       <div className="filter-bar">
         <input type="text" placeholder="Search SM#, LP#, product, WO…" value={search} onChange={e=>setSearch(e.target.value)} style={{width:240}}/>
@@ -72,6 +75,64 @@ const WhMovementList = ({ onNav, onOpenLp, openModal }) => {
         </div>
       )}
 
+      {visible.length === 0 && (
+        <div className="card" style={{padding:0}}>
+          <EmptyState
+            icon="↔"
+            title="No stock movements"
+            body={search ? "Try clearing the search or pick a different tab." : "Movements appear here when LPs are received, moved, consumed, or adjusted."}
+            action={{ label: "＋ New movement", onClick: ()=>openModal("stockMove") }}
+          />
+        </div>
+      )}
+
+      {visible.length > 0 && grouped && (() => {
+        // Group by WO ref when present, otherwise by LP
+        const groupsMap = {};
+        visible.forEach(m => {
+          const corrKey = (m.ref && (m.ref.startsWith("WO-") || m.ref.startsWith("GRN-"))) ? m.ref : m.lp;
+          if (!groupsMap[corrKey]) groupsMap[corrKey] = [];
+          groupsMap[corrKey].push(m);
+        });
+        const groups = Object.entries(groupsMap).map(([id, evs]) => {
+          const isWO = id.startsWith("WO-");
+          const isGRN = id.startsWith("GRN-");
+          const lpSet = new Set(evs.map(e => e.lp).filter(Boolean));
+          const totalQty = evs.reduce((a, e) => a + (+e.qty || 0), 0);
+          const hasAdj = evs.some(e => e.type === "adjustment");
+          return {
+            id,
+            label: (
+              <span>
+                <span className="mono" style={{fontWeight:600, color: isWO || isGRN ? "var(--blue)" : "var(--text)"}}>{id}</span>
+                <span style={{fontSize:11, color:"var(--muted)", marginLeft:8}}>
+                  {isWO ? "WO correlation" : isGRN ? "GRN correlation" : "LP correlation"} · {lpSet.size} LP{lpSet.size !== 1 ? "s" : ""} · Δ{totalQty > 0 ? "+" : ""}{totalQty}
+                </span>
+              </span>
+            ),
+            count: evs.length,
+            defaultOpen: hasAdj, // auto-expand groups with adjustments (surfacing anomalies)
+            events: evs.map(e => ({
+              ts: e.t,
+              msg: (
+                <span>
+                  <MoveType t={e.type}/>{" "}
+                  <span className="mono" style={{color:"var(--blue)", cursor:"pointer"}} onClick={ev=>{ev.stopPropagation(); onOpenLp(e.lp);}}>{e.lp}</span>
+                  {" "}
+                  <span className="mono" style={{color: e.qty < 0 ? "var(--red-700)" : e.qty > 0 ? "var(--green-700)" : "var(--muted)", fontWeight:600}}>{e.qty > 0 ? "+" : ""}{e.qty} {e.uom}</span>
+                  {e.fromLoc && <> · <Ltree path={e.fromLoc}/></>}
+                  {e.toLoc && <> → <Ltree path={e.toLoc}/></>}
+                  {" by "}<span style={{fontSize:11}}>{e.user}</span>
+                </span>
+              ),
+              internal: e.type === "putaway", // putaway is an internal housekeeping step
+            })),
+          };
+        });
+        return <CompactActivity groups={groups}/>;
+      })()}
+
+      {visible.length > 0 && !grouped && (
       <div className="card" style={{padding:0}}>
         <table>
           <thead><tr><th>Timestamp</th><th>Move #</th><th>Type</th><th>LP</th><th>Product</th><th style={{textAlign:"right"}}>Qty</th><th>From</th><th>To</th><th>Reason</th><th>Reference</th><th>By</th></tr></thead>
@@ -83,7 +144,7 @@ const WhMovementList = ({ onNav, onOpenLp, openModal }) => {
                 <td><MoveType t={m.type}/></td>
                 <td className="mono" style={{fontSize:11, color:"var(--blue)", cursor:"pointer"}} onClick={e=>{e.stopPropagation(); onOpenLp(m.lp);}}>{m.lp}</td>
                 <td className="mono" style={{fontSize:11}}>{m.product}</td>
-                <td className="num mono" style={{color: m.qty < 0 ? "var(--red-700)" : m.qty > 0 ? "var(--green-700)" : "var(--muted)", fontWeight:600}}>{m.qty > 0 ? "+" : ""}{m.qty} {m.uom}</td>
+                <td className="num mono" style={{fontVariantNumeric:"tabular-nums", color: m.qty < 0 ? "var(--red-700)" : m.qty > 0 ? "var(--green-700)" : "var(--muted)", fontWeight:600}}>{m.qty > 0 ? "+" : ""}{m.qty} {m.uom}</td>
                 <td><Ltree path={m.fromLoc}/></td>
                 <td><Ltree path={m.toLoc}/></td>
                 <td>{m.reason ? <span className="badge badge-gray" style={{fontSize:9}}>{m.reason}</span> : <span className="muted" style={{fontSize:10}}>—</span>}</td>
@@ -94,6 +155,7 @@ const WhMovementList = ({ onNav, onOpenLp, openModal }) => {
           </tbody>
         </table>
       </div>
+      )}
 
       {selectedMv && (
         <div className="mv-side">
@@ -185,6 +247,17 @@ const WhReservations = ({ onNav, onOpenLp, openModal }) => {
         ))}
       </div>
 
+      {visible.length === 0 && (
+        <div className="card" style={{padding:0}}>
+          <EmptyState
+            icon="🔒"
+            title="No reservations"
+            body={tab === "active" ? "No active hard-locks on LPs. Reservations are auto-created when a WO is released in Planning." : "No reservations in this state."}
+            action={tab === "active" ? { label: "＋ Create reservation", onClick: ()=>openModal("reserve") } : undefined}
+          />
+        </div>
+      )}
+      {visible.length > 0 && (
       <div className="card" style={{padding:0}}>
         <table>
           <thead><tr>
@@ -214,6 +287,7 @@ const WhReservations = ({ onNav, onOpenLp, openModal }) => {
           </tbody>
         </table>
       </div>
+      )}
     </>
   );
 };

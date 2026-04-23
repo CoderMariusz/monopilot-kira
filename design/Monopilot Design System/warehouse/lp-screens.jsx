@@ -7,12 +7,12 @@ const WhLPList = ({ onOpenLp, onNav, openModal }) => {
   const [showMore, setShowMore] = React.useState(false);
 
   const tabs = [
-    { k: "all",       l: "All",       c: WH_LPS.length },
-    { k: "available", l: "Available", c: WH_LPS.filter(l => l.status === "available").length },
-    { k: "reserved",  l: "Reserved",  c: WH_LPS.filter(l => l.status === "reserved").length },
-    { k: "blocked",   l: "Blocked",   c: WH_LPS.filter(l => l.status === "blocked").length },
-    { k: "hold",      l: "QC Hold",   c: WH_LPS.filter(l => l.qa === "HOLD" || l.qa === "PENDING").length },
-    { k: "intermediate", l: "Intermediate", c: WH_LPS.filter(l => l.itemType === "intermediate").length },
+    { k: "all",       l: "All",       c: WH_LPS.length,                                                                   tone: "neutral" },
+    { k: "available", l: "Available", c: WH_LPS.filter(l => l.status === "available").length,                             tone: "ok" },
+    { k: "reserved",  l: "Reserved",  c: WH_LPS.filter(l => l.status === "reserved").length,                              tone: "info" },
+    { k: "blocked",   l: "Blocked",   c: WH_LPS.filter(l => l.status === "blocked").length,                               tone: "bad" },
+    { k: "hold",      l: "QC Hold",   c: WH_LPS.filter(l => l.qa === "HOLD" || l.qa === "PENDING").length,                tone: "warn" },
+    { k: "intermediate", l: "Intermediate", c: WH_LPS.filter(l => l.itemType === "intermediate").length,                  tone: "neutral" },
   ];
 
   const visible = WH_LPS.filter(l =>
@@ -68,13 +68,12 @@ const WhLPList = ({ onOpenLp, onNav, openModal }) => {
       </div>
 
       {/* Tabs */}
-      <div className="tabs-bar">
-        {tabs.map(t => (
-          <button key={t.k} className={"tab-btn " + (tab === t.k ? "on" : "")} onClick={()=>setTab(t.k)}>
-            {t.l} <span className="count">{t.c}</span>
-          </button>
-        ))}
-      </div>
+      <TabsCounted
+        current={tab}
+        onChange={setTab}
+        ariaLabel="LP status filter"
+        tabs={tabs.map(t => ({ key: t.k, label: t.l, count: t.c, tone: t.tone }))}
+      />
 
       {/* Filter bar */}
       <div className="filter-bar">
@@ -114,6 +113,17 @@ const WhLPList = ({ onOpenLp, onNav, openModal }) => {
         </div>
       )}
 
+      {visible.length === 0 && (
+        <div className="card" style={{padding:0}}>
+          <EmptyState
+            icon="📦"
+            title="No license plates match this filter"
+            body={search ? "Try clearing the search or pick a different tab." : "Register a new LP from the Scanner or receive goods to create your first LP."}
+            action={{ label: "＋ Receive goods", onClick: ()=>openModal("grnPO") }}
+          />
+        </div>
+      )}
+      {visible.length > 0 && (
       <div className="card" style={{padding:0}}>
         <table>
           <thead>
@@ -182,6 +192,7 @@ const WhLPList = ({ onOpenLp, onNav, openModal }) => {
           </tbody>
         </table>
       </div>
+      )}
 
       <div className="row-flex" style={{marginTop:10, fontSize:12, color:"var(--muted)"}}>
         <span>Showing 1–{visible.length} of {WH_LPS.length}</span>

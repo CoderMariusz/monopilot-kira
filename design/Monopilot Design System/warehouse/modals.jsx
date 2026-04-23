@@ -30,6 +30,12 @@ const GRNFromPOModal = ({ open, onClose }) => {
         { qty: 60, batch: "B-2026-04-21", supplierBatch: "SUP-AGRO-4821", expiry: "2026-05-21", mfg: "2026-04-21", cw: 60.3, loc: "WH-Factory-A › Receiving › Dock-01", qa: "PENDING" }],
   });
   const [submitting, setSubmitting] = React.useState(false);
+  // Force-close state — one entry per partially-received PO line that operator may close (FR-WH-008 / V-WH-GRN-008)
+  const [forceClose, setForceClose] = React.useState({
+    2: { checked: false, reasonCode: "", reasonText: "" },
+    3: { checked: false, reasonCode: "", reasonText: "" },
+  });
+  const updateFc = (seq, field, val) => setForceClose(fc => ({ ...fc, [seq]: { ...fc[seq], [field]: val } }));
 
   const steps = [
     { key: "select",  label: "Select PO" },
@@ -78,6 +84,8 @@ const GRNFromPOModal = ({ open, onClose }) => {
     onClose();
   };
 
+  // M-01 size: UX spec WH-004-PO specifies 700px (not fullpage 900px per MODAL-SCHEMA §5).
+  // Cannot add custom token without editing _shared/modals.jsx, so scoped override via :has().
   return (
     <Modal open={open} onClose={onClose} title="Receive goods from Purchase Order" subtitle="Each row creates one License Plate" size="fullpage"
       foot={step === "select" ? <>
@@ -96,6 +104,9 @@ const GRNFromPOModal = ({ open, onClose }) => {
         <button className="btn btn-primary btn-sm" disabled={submitting} onClick={submit}>{submitting ? "Creating GRN…" : "Complete receipt"}</button>
       </>}>
 
+      {/* Size override: UX spec says 700px; MODAL-SCHEMA fullpage = 900px. Scoped to this modal only. */}
+      <style>{`.modal-overlay:has(#grn-po-modal) .modal-box { width: 700px !important; max-width: 700px !important; }`}</style>
+      <div id="grn-po-modal">
       <Stepper steps={steps} current={step} completed={completed}/>
 
       {/* STEP 1 */}
@@ -118,7 +129,7 @@ const GRNFromPOModal = ({ open, onClose }) => {
                     <div className={"mono " + (p.overdue ? "exp-expired" : "")} style={{fontSize:11}}>{p.due}</div>
                     <div className="muted" style={{fontSize:10}}>{p.rel}</div>
                   </td>
-                  <td className="num mono">{p.lines}</td>
+                  <td className="num mono" style={{fontVariantNumeric:"tabular-nums"}}>{p.lines}</td>
                   <td style={{width:150}}>
                     <div className="grn-prog"><span style={{width: p.progress + "%"}}></span></div>
                     <span className="mono" style={{fontSize:10, color:"var(--muted)"}}>{p.progress}% received</span>
@@ -269,12 +280,64 @@ const GRNFromPOModal = ({ open, onClose }) => {
             <div>Lines 2, 3 have no receipt rows and will remain pending.</div>
           </div>
 
+          {/* Force-close section — UX WH-004-PO Step 3 / FR-WH-008 / V-WH-GRN-008 */}
+          <div className="card" style={{padding:0, marginTop:10, borderColor:"var(--amber)"}}>
+            <div className="card-head" style={{padding:"8px 14px", background:"var(--amber-050a)"}}>
+              <h3 className="card-title" style={{color:"var(--amber-800)"}}>Lines to force-close</h3>
+              <span className="muted" style={{fontSize:11}}>Partially-received lines only. V-WH-GRN-008</span>
+            </div>
+            <div style={{padding:"10px 14px"}}>
+              <div style={{fontSize:12, color:"var(--muted)", marginBottom:10}}>
+                Check any partially-received PO line you want to permanently close. A force-closed line is set to <span className="mono">partial → force_closed</span> — no further receipts will be accepted against it.
+              </div>
+              {[
+                { seq: 2, product: "Pieprz czarny mielony", ordered: 20, received: 0, uom: "kg" },
+                { seq: 3, product: "Cebula drobna",         ordered: 220, received: 0, uom: "kg" },
+              ].map(({ seq, product, ordered, received: rcv, uom }) => {
+                const fc = forceClose[seq];
+                return (
+                  <div key={seq} style={{borderBottom:"1px solid var(--border)", paddingBottom:10, marginBottom:10}}>
+                    <div className="row-flex" style={{marginBottom:6}}>
+                      <label style={{fontSize:12, display:"flex", alignItems:"center", gap:6}}>
+                        <input type="checkbox" checked={fc.checked} onChange={e=>updateFc(seq, "checked", e.target.checked)}/>
+                        <b>Line {seq}</b> — {product} · {rcv}/{ordered} {uom} received
+                        <span className="badge badge-amber" style={{fontSize:9}}>partial</span>
+                      </label>
+                    </div>
+                    {fc.checked && (
+                      <div style={{paddingLeft:22}}>
+                        <div className="ff-inline" style={{marginBottom:0}}>
+                          <Field label="Reason code" required help="V-WH-GRN-008 — reason is audit-logged">
+                            <select value={fc.reasonCode} onChange={e=>updateFc(seq, "reasonCode", e.target.value)}>
+                              <option value="">— Select —</option>
+                              <option value="under_delivery">under_delivery</option>
+                              <option value="supplier_discontinued">supplier_discontinued</option>
+                              <option value="quality_reject">quality_reject</option>
+                              <option value="other">other</option>
+                            </select>
+                          </Field>
+                          <Field label="Reason text" help={fc.reasonCode === "other" ? "Required for 'other'" : "Optional"}>
+                            <textarea rows={2} value={fc.reasonText} onChange={e=>updateFc(seq, "reasonText", e.target.value)} placeholder="Describe why this PO line is being force-closed…" style={{width:"100%", fontSize:12, resize:"vertical"}}/>
+                          </Field>
+                        </div>
+                        {fc.checked && !fc.reasonCode && (
+                          <div style={{fontSize:11, color:"var(--red-700)", marginTop:4}}>Reason code required to force-close this line.</div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
           <Field label="Print options">
             <label style={{fontSize:12}}><input type="checkbox" defaultChecked/> Print labels after receipt ({totalLPs} labels → ZPL-WH-01)</label>
             <label style={{fontSize:12, display:"block", marginTop:4}}><input type="checkbox" defaultChecked/> Email notification to warehouse manager</label>
           </Field>
         </div>
       )}
+      </div>{/* /grn-po-modal */}
     </Modal>
   );
 };
@@ -311,7 +374,7 @@ const GRNFromTOModal = ({ open, onClose }) => {
               <td><input type="checkbox" checked={received.has(lp.lp)} onChange={()=>toggle(lp.lp)}/></td>
               <td className="mono" style={{fontWeight:600, color:"var(--blue)"}}>{lp.lp}</td>
               <td style={{fontSize:11}}>{lp.product}</td>
-              <td className="num mono">{lp.qty} {lp.uom}</td>
+              <td className="num mono" style={{fontVariantNumeric:"tabular-nums"}}>{lp.qty} {lp.uom}</td>
               <td className="mono" style={{fontSize:11}}>{lp.batch}</td>
               <td><ExpiryCell date={lp.expiry} days={14}/></td>
               <td className="mono" style={{fontSize:11}}>{lp.loc}</td>
@@ -474,7 +537,7 @@ const LPSplitModal = ({ open, onClose, data }) => {
           {rows.map((r, i) => (
             <tr key={i}>
               <td className="mono" style={{color:"var(--muted)"}}>{i+1}</td>
-              <td><input type="number" value={r.qty} onChange={e=>setRows(rows.map((x,j)=>j===i?{...x, qty: +e.target.value}:x))} className="num" style={{width:90}}/></td>
+              <td><input type="number" value={r.qty} onChange={e=>setRows(rows.map((x,j)=>j===i?{...x, qty: +e.target.value}:x))} className="num" style={{width:90, fontVariantNumeric:"tabular-nums"}}/></td>
               <td className="mono">{lp.uom}</td>
               <td><select value={r.dest} onChange={e=>setRows(rows.map((x,j)=>j===i?{...x, dest: e.target.value}:x))}><option>WH-Factory-A › Cold › B3</option><option>WH-Factory-A › Cold › B2</option><option>WH-Factory-A › Production › Line-1-Buffer</option></select></td>
               <td><label style={{fontSize:11}}><input type="checkbox" checked={r.label} onChange={e=>setRows(rows.map((x,j)=>j===i?{...x, label: e.target.checked}:x))}/> Print</label></td>
@@ -516,6 +579,7 @@ const LPMergeModal = ({ open, onClose }) => {
   const primaryQty = 80;
   const totalAfter = primaryQty + secondaries.filter(s => s.valid).reduce((a,s)=>a+s.qty,0);
   const validSecondaries = secondaries.filter(s => s.valid).length;
+  const canConfirm = validSecondaries > 0;
 
   return (
     <Modal open={open} onClose={onClose} title="Merge License Plates" size="wide"
@@ -526,7 +590,7 @@ const LPMergeModal = ({ open, onClose }) => {
         <button className="btn btn-ghost btn-sm" onClick={()=>setStep("primary")}>← Back</button>
         <span className="spacer"></span>
         <button className="btn btn-secondary btn-sm" onClick={onClose}>Cancel</button>
-        <button className="btn btn-primary btn-sm" disabled={validSecondaries === 0} onClick={onClose}>Confirm merge ({validSecondaries} LPs)</button>
+        <button className="btn btn-primary btn-sm" disabled={!canConfirm} onClick={onClose}>Confirm merge ({validSecondaries} LPs)</button>
       </>}>
       <Stepper steps={[{key:"primary", label:"Select primary"}, {key:"secondary", label:"Add LPs to merge"}]} current={step} completed={new Set(step === "secondary" ? ["primary"] : [])}/>
 
@@ -556,7 +620,7 @@ const LPMergeModal = ({ open, onClose }) => {
               {secondaries.map((s, i) => (
                 <tr key={s.lp} style={{background: s.valid ? "var(--green-050a)" : "var(--red-050a)"}}>
                   <td className="mono" style={{fontWeight:600, color:"var(--blue)"}}>{s.lp}</td>
-                  <td className="num mono">{s.qty} BOX</td>
+                  <td className="num mono" style={{fontVariantNumeric:"tabular-nums"}}>{s.qty} BOX</td>
                   <td className="mono" style={{fontSize:11}}>B-2026-04-10</td>
                   <td>{s.valid ? <span className="badge badge-green" style={{fontSize:9}}>✓ Valid</span> : <span className="badge badge-red" style={{fontSize:9}}>✕ Rejected</span>}</td>
                   <td><button className="btn btn-ghost btn-sm" onClick={()=>setSecondaries(secondaries.filter((_,j)=>j!==i))}>🗑</button></td>
@@ -578,6 +642,13 @@ const LPMergeModal = ({ open, onClose }) => {
 
           <div style={{fontSize:11, color:"var(--muted)", marginTop:10, lineHeight:1.5}}>
             Secondary LPs will be set to status <span className="mono">merged</span>. A genealogy record (<span className="mono">operation: merge</span>) will be created for each secondary LP linking to the primary.
+          </div>
+
+          <div className="alert-amber alert-box" style={{marginTop:12, fontSize:12}}>
+            <span>⚠</span>
+            <div>
+              <b>Irreversible action — audit-logged.</b> Secondary LPs cannot be un-merged after confirmation.
+            </div>
           </div>
         </div>
       )}
