@@ -5,7 +5,8 @@ const TECH_NAV = [
     { key: "dashboard", label: "Dashboard", ic: "◇" },
   ]},
   { group: "Products", items: [
-    { key: "boms", label: "BOMs & recipes", ic: "▦", hero: true },
+    { key: "products", label: "Products (TEC-001)", ic: "◈", hero: true },
+    { key: "boms", label: "BOMs & recipes", ic: "▦" },
     { key: "materials", label: "Materials", ic: "⬢" },
     { key: "specs", label: "Product specifications", ic: "☰" },
     { key: "nutrition", label: "Nutrition panel", ic: "♥" },
@@ -19,22 +20,22 @@ const TECH_NAV = [
   ]},
   { group: "Process", items: [
     { key: "routings", label: "Routings", ic: "→" },
-    { key: "params", label: "Process parameters", ic: "◉" },
-    { key: "workcenters", label: "Work centers", ic: "▣" },
+  ]},
+  { group: "Compliance", items: [
+    { key: "allergen-cascade", label: "Allergen cascade (TEC-041)", ic: "⇣" },
+    { key: "allergen-process", label: "Process additions (TEC-042)", ic: "⊕" },
+    { key: "contamination-risk", label: "Contamination risk (TEC-043)", ic: "▦" },
   ]},
   { group: "Change & revision", items: [
     { key: "eco", label: "Change control (ECO)", ic: "⇄" },
     { key: "history", label: "Revision history", ic: "⧖" },
   ]},
-  { group: "Equipment", items: [
-    { key: "maintenance", label: "Maintenance plans", ic: "⚒" },
-    { key: "tooling", label: "Tooling & consumables", ic: "◆" },
-  ]},
   { group: "D365 integration", items: [
-    { key: "d365status", label: "Sync status", ic: "◎" },
-    { key: "d365fields", label: "Field mapping", ic: "⇌" },
-    { key: "d365drift", label: "Drift resolution", ic: "△" },
-    { key: "d365log", label: "Sync log", ic: "☷" },
+    { key: "d365status", label: "Sync dashboard (TEC-070)", ic: "◎" },
+    { key: "d365sync", label: "Manual sync (TEC-071)", ic: "↻" },
+    { key: "d365log", label: "Sync audit log (TEC-072)", ic: "☷" },
+    { key: "d365drift", label: "DLQ manager (TEC-073)", ic: "△" },
+    { key: "d365fields", label: "Field mapping (TEC-074)", ic: "⇌" },
   ]},
   { group: "Admin", items: [
     { key: "gallery", label: "Modal gallery", ic: "▢" },
@@ -369,6 +370,76 @@ const D365_LOG = [
   { t: "2026-04-20 02:00", kind: "full",  duration: "00:07:48", items: 411, ok: 411, err: 0, by: "scheduler" },
 ];
 
+// --- Products master list (TEC-001) · all item types ---
+const PRODUCTS_LIST = [
+  { code: "FA5100", name: "Kiełbasa śląska pieczona 450g", type: "FA",           uom: "kg",  weight: "Fixed",  cost: 11.82, status: "active",   allergens: ["Mustard"],                d365: "synced",   updated: "2026-04-14" },
+  { code: "FA5200", name: "Pasztet drobiowy z żurawiną 180g", type: "FA",         uom: "kg",  weight: "Fixed",  cost:  4.16, status: "active",   allergens: ["Mustard","Milk","Celery"], d365: "drift",    updated: "2026-04-02" },
+  { code: "FA5301", name: "Gulasz wołowy 350g słoik",      type: "FA",           uom: "kg",  weight: "Fixed",  cost:  8.94, status: "active",   allergens: ["Gluten","Celery","Sulphites"], d365: "synced", updated: "2026-03-28" },
+  { code: "FA5021", name: "Filet kurczaka sous-vide 180g",  type: "FA",           uom: "kg",  weight: "Catch",  cost:  5.42, status: "active",   allergens: [],                        d365: "synced",   updated: "2026-03-11" },
+  { code: "FA5400", name: "Pierogi z mięsem 400g",         type: "FA",           uom: "kg",  weight: "Fixed",  cost:  6.71, status: "active",   allergens: ["Gluten","Eggs","Milk"],   d365: "synced",   updated: "2026-04-08" },
+  { code: "FA5410", name: "Szynka wędzona plastry 150g",   type: "FA",           uom: "kg",  weight: "Fixed",  cost:  6.08, status: "draft",    allergens: ["Mustard","Sulphites"],    d365: "unsynced", updated: "2026-04-18" },
+  { code: "FA5420", name: "Klopsiki w sosie pomidorowym 320g", type: "FA",       uom: "kg",  weight: "Fixed",  cost:  5.92, status: "active",   allergens: ["Gluten","Eggs","Celery","Sulphites"], d365: "synced", updated: "2026-02-20" },
+  { code: "PR5101R",name: "Farsz wieprzowy bazowy",        type: "Intermediate", uom: "kg",  weight: "Fixed",  cost:  5.42, status: "active",   allergens: [],                        d365: "synced",   updated: "2026-04-14" },
+  { code: "PR5102A",name: "Mieszanka przypraw A-17",       type: "Intermediate", uom: "kg",  weight: "Fixed",  cost: 39.10, status: "active",   allergens: [],                        d365: "synced",   updated: "2026-04-14" },
+  { code: "PR5103F",name: "Marynata żurawinowa",           type: "Intermediate", uom: "kg",  weight: "Fixed",  cost:  8.20, status: "active",   allergens: ["Mustard"],                d365: "synced",   updated: "2026-03-30" },
+  { code: "CP5100", name: "Okrawki wieprzowe (co-product)", type: "Co-product",   uom: "kg",  weight: "Fixed",  cost:  2.10, status: "active",   allergens: [],                        d365: "synced",   updated: "2026-04-14" },
+  { code: "BP5100", name: "Tłuszcz technologiczny (by-product)", type: "Byproduct", uom: "kg", weight: "Fixed", cost:  0.00, status: "active",   allergens: [],                        d365: "synced",   updated: "2026-04-14" },
+  { code: "R-1001", name: "Wieprzowina kl. II (łopatka)",  type: "RM",           uom: "kg",  weight: "Fixed",  cost:  9.00, status: "active",   allergens: [],                        d365: "synced",   updated: "2026-04-14" },
+  { code: "R-1101", name: "Pierś z kurczaka",              type: "RM",           uom: "kg",  weight: "Fixed",  cost: 14.20, status: "active",   allergens: [],                        d365: "synced",   updated: "2026-04-11" },
+  { code: "R-1201", name: "Sól peklująca (PP)",            type: "RM",           uom: "kg",  weight: "Fixed",  cost:  6.80, status: "active",   allergens: [],                        d365: "synced",   updated: "2026-02-28" },
+  { code: "R-2104", name: "Majeranek suszony",             type: "RM",           uom: "kg",  weight: "Fixed",  cost: 38.00, status: "active",   allergens: ["Mustard"],                d365: "synced",   updated: "2026-04-15" },
+];
+
+// --- Allergen cascade tree (TEC-041) for FA5200 Pasztet drobiowy ---
+const ALLERGEN_CASCADE = {
+  product: "FA5200 Pasztet drobiowy z żurawiną 180g",
+  bomVersion: "v3 · snapshot 2026-04-02",
+  finalAllergens: [
+    { code: "M01", name: "Milk",    intensity: "contains",    source: "cascaded" },
+    { code: "A12", name: "Mustard", intensity: "may_contain", source: "cascaded" },
+    { code: "C09", name: "Celery",  intensity: "contains",    source: "cascaded" },
+  ],
+  chain: [
+    { level: "RM", code: "R-1101", name: "Pierś z kurczaka", contributes: [], bomPath: "Direct component" },
+    { level: "RM", code: "R-1002", name: "Słonina wieprzowa", contributes: [], bomPath: "Direct component" },
+    { level: "RM", code: "R-2104", name: "Majeranek suszony", contributes: [{code: "A12", name: "Mustard"}], bomPath: "→ SUB-002 spice mix" },
+    { level: "RM", code: "R-8001", name: "Mleko w proszku 1%", contributes: [{code: "M01", name: "Milk"}], bomPath: "Direct component" },
+    { level: "Intermediate", code: "PR5103F", name: "Marynata żurawinowa", contributes: [{code: "A12", name: "Mustard"}], bomPath: "Cascaded from R-2104 via SUB-003" },
+    { level: "Process", code: "PR_marinade", name: "Marinade step (process addition)", contributes: [{code: "C09", name: "Celery"}], bomPath: "process_allergen_additions: PR_marinade → Celery" },
+    { level: "FA", code: "FA5200", name: "Pasztet drobiowy (final)", contributes: [{code: "M01", name: "Milk"},{code: "A12", name: "Mustard"},{code: "C09", name: "Celery"}], bomPath: "UNION of all upstream" },
+  ],
+};
+
+// --- Process allergen additions (TEC-042) — process_code → allergen map ---
+const PROCESS_ALLERGEN_ADDITIONS = [
+  { process_code: "PR_marinade",       process_name: "Marinade immersion",       allergen_code: "C09", allergen_name: "Celery",   intensity: "contains",    reason: "Celery root in marinade base",             added_by: "J. Kovač",     last_update: "2026-03-14" },
+  { process_code: "PR_marinade",       process_name: "Marinade immersion",       allergen_code: "A12", allergen_name: "Mustard",  intensity: "may_contain", reason: "Shared tank with mustard marinade line",   added_by: "J. Kovač",     last_update: "2026-03-14" },
+  { process_code: "PR_breading",       process_name: "Breadcrumb coating",       allergen_code: "G01", allergen_name: "Gluten",   intensity: "contains",    reason: "Wheat-based breadcrumb",                    added_by: "A. Majewska",  last_update: "2026-02-10" },
+  { process_code: "PR_breading",       process_name: "Breadcrumb coating",       allergen_code: "E01", allergen_name: "Eggs",     intensity: "contains",    reason: "Egg-wash pre-bread",                        added_by: "A. Majewska",  last_update: "2026-02-10" },
+  { process_code: "PR_smoke_liquid",   process_name: "Liquid smoke application", allergen_code: "S09", allergen_name: "Sulphites",intensity: "may_contain", reason: "Smoke flavouring preservative",             added_by: "QA team",      last_update: "2026-03-28" },
+  { process_code: "PR_glaze",          process_name: "Glaze dip",                allergen_code: "SY01",allergen_name: "Soy",      intensity: "contains",    reason: "Soy-sauce base in glaze",                   added_by: "K. Nowacki",   last_update: "2026-04-05" },
+  { process_code: "PR_curing_nitrate", process_name: "Nitrate curing",           allergen_code: "S09", allergen_name: "Sulphites",intensity: "may_contain", reason: "Nitrate/sulphite carryover (cured meats)",  added_by: "QA team",      last_update: "2026-03-28" },
+];
+
+// --- Contamination risk matrix (TEC-043) — line × EU-14 allergen grid ---
+// risk: "segregated" | "high" | "medium" | "low" | "n/a"
+const CONTAMINATION_LINES = [
+  { line_id: "LINE-01", line_name: "Cured meats A" },
+  { line_id: "LINE-02", line_name: "Ready meals" },
+  { line_id: "LINE-03", line_name: "Deli / pâté" },
+  { line_id: "LINE-04", line_name: "Sous-vide" },
+  { line_id: "LINE-05", line_name: "Pierogi / dough" },
+];
+const CONTAMINATION_ALLERGENS = ["Gluten","Eggs","Milk","Soy","Nuts","Celery","Mustard","Sesame","Fish","Sulphites","Crustaceans","Molluscs","Lupin","Peanuts"];
+// Row-keyed by line_id; value index matches CONTAMINATION_ALLERGENS
+const CONTAMINATION_MATRIX = {
+  "LINE-01": ["low",      "low",    "low",    "low",    "segregated","medium", "medium", "low",    "low",     "high",       "low",    "low",    "low",    "low"],
+  "LINE-02": ["high",     "medium", "medium", "medium", "low",       "high",   "medium", "low",    "low",     "high",       "low",    "low",    "low",    "low"],
+  "LINE-03": ["medium",   "high",   "high",   "low",    "low",       "high",   "high",   "low",    "low",     "medium",     "low",    "low",    "low",    "low"],
+  "LINE-04": ["low",      "low",    "low",    "low",    "low",       "low",    "low",    "low",    "low",     "low",        "low",    "low",    "low",    "low"],
+  "LINE-05": ["segregated","high",  "medium", "medium", "low",       "low",    "low",    "low",    "low",     "low",        "low",    "low",    "low",    "low"],
+};
+
 // --- Supplier list for material detail (TEC-004) ---
 const MATERIAL_SUPPLIERS = [
   { mat: "R-1001", supplier: "PM Sokołów",    price: 9.00,  lead: "3 d", moq:  "200 kg", primary: true },
@@ -393,8 +464,10 @@ const MATERIAL_COST_HISTORY = {
 
 Object.assign(window, {
   TECH_NAV, BOM_LIST, BOM_TREE, ROUTING, PROCESS_PARAMS, VERSIONS, VERSION_DIFF,
-  ROUTINGS_LIST, WORK_CENTERS, ECO_LIST, SPECS, MAINT_PLANS, TOOLING,
+  ROUTINGS_LIST, ECO_LIST, SPECS,
   MATERIALS, NUTRITION, COSTING, SHELF_LIFE, COST_HISTORY, TRACE_SAMPLE,
   TEC_DASH_KPIS, D365_STATUS, D365_FIELDS, D365_DRIFT, D365_LOG,
   MATERIAL_SUPPLIERS, MATERIAL_SUBSTITUTES, MATERIAL_COST_HISTORY,
+  PRODUCTS_LIST, ALLERGEN_CASCADE, PROCESS_ALLERGEN_ADDITIONS,
+  CONTAMINATION_LINES, CONTAMINATION_ALLERGENS, CONTAMINATION_MATRIX,
 });

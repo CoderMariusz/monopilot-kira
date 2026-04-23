@@ -4,11 +4,11 @@ const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
   "detailLayout": "tabs",
   "costLayout": "side",
   "bomView": "table",
-  "defaultScreen": "boms-detail"
+  "defaultScreen": "products"
 }/*EDITMODE-END*/;
 
 function App() {
-  const [screen, setScreen] = React.useState(TWEAK_DEFAULTS.defaultScreen || "boms-detail");
+  const [screen, setScreen] = React.useState(TWEAK_DEFAULTS.defaultScreen || "products");
   const [tweaks, setTweaks] = React.useState(TWEAK_DEFAULTS);
   const [tweakOpen, setTweakOpen] = React.useState(false);
   const [modal, setModal] = React.useState(null); // {name, data}
@@ -37,11 +37,13 @@ function App() {
   const currentNav =
     screen === "boms-list" || screen === "boms-detail" ? "boms" :
     screen === "materials-list" || screen === "materials-detail" ? "materials" :
+    screen === "products" || screen === "product-detail" ? "products" :
     screen;
 
   const onNav = (k) => {
     if (k === "boms") setScreen("boms-list");
     else if (k === "materials") setScreen("materials-list");
+    else if (k === "products") setScreen("products");
     else setScreen(k);
   };
 
@@ -52,6 +54,8 @@ function App() {
       <TechNav current={currentNav} onNav={onNav} />
       <div id="tech-main">
         {screen === "dashboard" && <TechDashboardScreen openModal={openModal} />}
+        {screen === "products" && <ProductsListScreen onOpen={() => setScreen("product-detail")} openModal={openModal} />}
+        {screen === "product-detail" && <ProductDetailScreen onBack={() => setScreen("products")} openModal={openModal} />}
         {screen === "boms-list" && <BOMList onOpen={(id) => setScreen("boms-detail")} />}
         {screen === "boms-detail" && <BOMDetail onBack={() => setScreen("boms-list")} tweaks={tweaks} />}
         {screen === "materials-list" && <MaterialsListScreen onOpen={() => setScreen("materials-detail")} />}
@@ -62,18 +66,18 @@ function App() {
         {screen === "costhist" && <CostHistoryScreen />}
         {screen === "trace" && <TraceabilityScreen />}
         {screen === "routings" && <RoutingsScreen />}
-        {screen === "workcenters" && <WorkCentersScreen />}
         {screen === "specs" && <SpecsScreen />}
         {screen === "allergens" && <AllergenScreen />}
-        {screen === "params" && <ParamsScreen />}
+        {screen === "allergen-cascade" && <AllergenCascadeScreen />}
+        {screen === "allergen-process" && <ProcessAllergenScreen />}
+        {screen === "contamination-risk" && <ContaminationRiskScreen />}
         {screen === "eco" && <EcoScreen />}
         {screen === "history" && <HistoryScreen />}
-        {screen === "maintenance" && <MaintenanceScreen />}
-        {screen === "tooling" && <ToolingScreen />}
         {screen === "d365status" && <D365StatusScreen openModal={openModal} />}
-        {screen === "d365fields" && <D365MappingScreen />}
-        {screen === "d365drift" && <D365DriftScreen openModal={openModal} />}
+        {screen === "d365sync" && <D365ManualSyncScreen openModal={openModal} />}
         {screen === "d365log" && <D365LogScreen />}
+        {screen === "d365drift" && <D365DriftScreen openModal={openModal} />}
+        {screen === "d365fields" && <D365MappingScreen />}
         {screen === "gallery" && <TechModalGallery onNav={setScreen} />}
       </div>
 
@@ -112,6 +116,8 @@ const TweaksPanel = ({ tweaks, setTweak, screen, setScreen }) => (
             <option value="dashboard">Dashboard (TEC-017)</option>
           </optgroup>
           <optgroup label="Products">
+            <option value="products">Products list (TEC-001)</option>
+            <option value="product-detail">Product detail (TEC-002, 11 tabs)</option>
             <option value="boms-list">BOM list</option>
             <option value="boms-detail">BOM detail (hero)</option>
             <option value="materials-list">Materials (TEC-003)</option>
@@ -121,6 +127,11 @@ const TweaksPanel = ({ tweaks, setTweak, screen, setScreen }) => (
             <option value="allergens">Allergen matrix</option>
             <option value="shelflife">Shelf life (TEC-014)</option>
           </optgroup>
+          <optgroup label="Compliance">
+            <option value="allergen-cascade">Allergen cascade (TEC-041)</option>
+            <option value="allergen-process">Process additions (TEC-042)</option>
+            <option value="contamination-risk">Contamination risk (TEC-043)</option>
+          </optgroup>
           <optgroup label="Cost & trace">
             <option value="costing">Recipe costing (TEC-013)</option>
             <option value="costhist">Cost history (TEC-015)</option>
@@ -128,22 +139,17 @@ const TweaksPanel = ({ tweaks, setTweak, screen, setScreen }) => (
           </optgroup>
           <optgroup label="Process">
             <option value="routings">Routings</option>
-            <option value="workcenters">Work centers</option>
-            <option value="params">Process parameters</option>
           </optgroup>
           <optgroup label="Change & revision">
             <option value="eco">Change control (ECO)</option>
             <option value="history">Revision history</option>
           </optgroup>
-          <optgroup label="Equipment">
-            <option value="maintenance">Maintenance plans</option>
-            <option value="tooling">Tooling & consumables</option>
-          </optgroup>
           <optgroup label="D365 integration">
-            <option value="d365status">D365 status (TEC-070)</option>
-            <option value="d365fields">D365 field mapping (TEC-071)</option>
-            <option value="d365drift">D365 drift (TEC-072)</option>
-            <option value="d365log">D365 sync log (TEC-073)</option>
+            <option value="d365status">D365 sync dashboard (TEC-070)</option>
+            <option value="d365sync">Manual sync trigger (TEC-071)</option>
+            <option value="d365log">Sync audit log (TEC-072)</option>
+            <option value="d365drift">DLQ manager (TEC-073)</option>
+            <option value="d365fields">Field mapping (TEC-074)</option>
           </optgroup>
           <optgroup label="Admin">
             <option value="gallery">Modal gallery</option>
