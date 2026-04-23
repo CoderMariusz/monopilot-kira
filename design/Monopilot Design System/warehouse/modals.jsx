@@ -84,6 +84,8 @@ const GRNFromPOModal = ({ open, onClose }) => {
     onClose();
   };
 
+  // M-01 size: UX spec WH-004-PO specifies 700px (not fullpage 900px per MODAL-SCHEMA §5).
+  // Cannot add custom token without editing _shared/modals.jsx, so scoped override via :has().
   return (
     <Modal open={open} onClose={onClose} title="Receive goods from Purchase Order" subtitle="Each row creates one License Plate" size="fullpage"
       foot={step === "select" ? <>
@@ -102,6 +104,9 @@ const GRNFromPOModal = ({ open, onClose }) => {
         <button className="btn btn-primary btn-sm" disabled={submitting} onClick={submit}>{submitting ? "Creating GRN…" : "Complete receipt"}</button>
       </>}>
 
+      {/* Size override: UX spec says 700px; MODAL-SCHEMA fullpage = 900px. Scoped to this modal only. */}
+      <style>{`.modal-overlay:has(#grn-po-modal) .modal-box { width: 700px !important; max-width: 700px !important; }`}</style>
+      <div id="grn-po-modal">
       <Stepper steps={steps} current={step} completed={completed}/>
 
       {/* STEP 1 */}
@@ -332,6 +337,7 @@ const GRNFromPOModal = ({ open, onClose }) => {
           </Field>
         </div>
       )}
+      </div>{/* /grn-po-modal */}
     </Modal>
   );
 };

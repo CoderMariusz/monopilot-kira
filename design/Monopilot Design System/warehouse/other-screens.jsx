@@ -655,4 +655,101 @@ const WhSettings = ({ role, onNav }) => {
   );
 };
 
-Object.assign(window, { WhInventory, WhLocations, WhGenealogy, WhExpiry, WhSettings });
+// ============ WH-E06 Intermediate LP Buffer — drill-down screen ============
+// Coverage gap identified in audit: dashboard "Intermediate buffer" KPI card (k="intermediate_buf")
+// links to "inventory" which shows all item types. This dedicated screen filters to
+// item_type="intermediate", status="available" and groups by production zone.
+
+const WhIntermediateBuffer = ({ onNav, onOpenLp }) => {
+  const intLPs = WH_LPS.filter(l => l.itemType === "intermediate" && l.status === "available");
+  // Group by production zone (first 2 levels of loc array)
+  const zones = [...new Set(intLPs.map(l => l.loc.slice(0, 2).join(" › ")))];
+
+  return (
+    <>
+      <div className="page-head">
+        <div>
+          <div className="breadcrumb"><a onClick={()=>onNav("dashboard")}>Warehouse</a> · <a onClick={()=>onNav("inventory")}>Inventory</a> · Intermediate buffer</div>
+          <h1 className="page-title">Intermediate LP Buffer</h1>
+          <div className="muted" style={{fontSize:12}}>
+            Filtered: <span className="mono">item_type = intermediate</span> · <span className="mono">status = available</span> · {intLPs.length} LP(s) awaiting consumption
+          </div>
+        </div>
+        <div className="row-flex">
+          <button className="btn btn-secondary btn-sm" onClick={()=>onNav("inventory")}>Full inventory →</button>
+        </div>
+      </div>
+
+      <div className="alert-blue alert-box" style={{marginBottom:12, fontSize:12}}>
+        <span>ⓘ</span>
+        <div>
+          <b>Intermediate LPs always go to stock (P1 rule).</b> All intermediate outputs from WOs are put-away to <span className="mono">available</span> status.
+          Downstream WOs consume via scanner scan-to-WO event with FEFO suggestion. No hard-lock reservations are created for intermediate LPs.
+          <br/>See PRD §10 (Intermediate LP Handling) and UX spec WH-E06.
+        </div>
+      </div>
+
+      {intLPs.length === 0 ? (
+        <EmptyState icon="▤" title="No intermediate LPs on buffer" body="All intermediate LPs have been consumed or no work orders have produced intermediate outputs recently."/>
+      ) : (
+        zones.map(zone => {
+          const zoneLPs = intLPs.filter(l => l.loc.slice(0, 2).join(" › ") === zone);
+          return (
+            <div key={zone} className="card" style={{padding:0, marginBottom:12}}>
+              <div className="card-head" style={{padding:"8px 14px"}}>
+                <h3 className="card-title">
+                  <Ltree path={zone.split(" › ")}/>
+                  <span className="badge badge-blue" style={{fontSize:10, marginLeft:8}}>{zoneLPs.length} LP{zoneLPs.length !== 1 ? "s" : ""}</span>
+                </h3>
+              </div>
+              <table>
+                <thead>
+                  <tr>
+                    <th>LP</th>
+                    <th>Product</th>
+                    <th style={{textAlign:"right"}}>Qty</th>
+                    <th>UoM</th>
+                    <th>Batch / WO</th>
+                    <th>Location</th>
+                    <th>Origin WO</th>
+                    <th>Expiry</th>
+                    <th>QA</th>
+                    <th>Last move</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {zoneLPs.map(l => (
+                    <tr key={l.lp} style={{cursor:"pointer"}} onClick={()=>onOpenLp(l.lp)}>
+                      <td className="mono" style={{fontWeight:600, color:"var(--blue)"}}>{l.lp}</td>
+                      <td style={{fontSize:11}}>
+                        <span className="mono" style={{fontSize:10, color:"var(--muted)"}}>{l.product}</span>
+                        <br/>{l.productName}
+                      </td>
+                      <td className="num mono" style={{fontVariantNumeric:"tabular-nums", textAlign:"right"}}>{l.qty}</td>
+                      <td style={{fontSize:11}}>{l.uom}</td>
+                      <td className="mono" style={{fontSize:11}}>{l.batch}</td>
+                      <td><Ltree path={l.loc}/></td>
+                      <td className="mono" style={{fontSize:11, color:"var(--blue)"}}>{l.woRef || "—"}</td>
+                      <td><ExpiryCell date={l.expiry} days={2}/></td>
+                      <td><QAStatus s={l.qa}/></td>
+                      <td style={{fontSize:11, color:"var(--muted)"}}>{l.lastMove}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          );
+        })
+      )}
+
+      <div className="card" style={{padding:"12px 16px", marginTop:4, background:"var(--gray-050)"}}>
+        <div style={{fontSize:12, color:"var(--muted)"}}>
+          <b>Scanner consumption:</b> Downstream WOs pick intermediate LPs via scanner SCN-050 (scan-to-WO). FEFO suggestion active.
+          If operator deviates from FEFO suggestion, a reason code is required (V-WH-FEFO-002). All scan events are audit-logged.
+        </div>
+      </div>
+    </>
+  );
+};
+
+Object.assign(window, { WhInventory, WhLocations, WhGenealogy, WhExpiry, WhSettings, WhIntermediateBuffer });
