@@ -87,9 +87,12 @@ const MsSitesList = ({ role, site, onNav, onOpenSite, openModal }) => {
           </tbody>
         </table>
         {filtered.length === 0 && (
-          <div style={{padding:40, textAlign:"center"}}>
-            <div className="muted">No sites match your filters. <a style={{color:"var(--blue)", cursor:"pointer"}} onClick={()=>{setTypeFilter("all");setStatusFilter("active");setSearch("");}}>Clear filters</a></div>
-          </div>
+          <EmptyState
+            icon="⌂"
+            title="No sites match your filters"
+            body="Adjust the search, type, or status filter to see sites, or clear the filters to return to the default view."
+            action={{ label: "Clear filters", onClick: () => { setTypeFilter("all"); setStatusFilter("active"); setSearch(""); } }}
+          />
         )}
         <div style={{padding:"10px 14px", borderTop:"1px solid var(--border)", fontSize:11, color:"var(--muted)"}}>
           Showing {filtered.length} of {MS_SITES.length} sites

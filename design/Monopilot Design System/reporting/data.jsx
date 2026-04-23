@@ -54,9 +54,11 @@ const RPT_CATALOG = [
 ];
 
 // -------- RPT-001 Factory Overview KPIs --------
+// invertedPolarity: true — lower value is favourable (e.g. Giveaway %, late shipments, holds)
+// Used by buildKpiRunCells() to flip green/red tone mapping for these KPIs.
 const RPT_FO_KPIS = [
   { k: "yield",      label: "Weighted Yield %",  value: "91.3%",    change: "↑ 0.5%", changeCls: "up",    sub: "vs last week",   accent: "green" },
-  { k: "giveaway",   label: "Giveaway %",        value: "1.8%",     change: "↓ 0.2%", changeCls: "up",    sub: "vs last week",   accent: "green" },
+  { k: "giveaway",   label: "Giveaway %",        value: "1.8%",     change: "↓ 0.2%", changeCls: "up",    sub: "vs last week",   accent: "green", invertedPolarity: true },
   { k: "efficiency", label: "Efficiency %",      value: "84.2%",    change: "↓ 0.9%", changeCls: "down",  sub: "vs target 85%",  accent: "amber" },
   { k: "cases",      label: "Total Cases",       value: "12,450",   change: "↑ 340",  changeCls: "up",    sub: "vs last week",   accent: "blue" },
   { k: "variance",   label: "Variance GBP",      value: "−£2,340",  change: "↑ £440", changeCls: "up",    sub: "favourable",     accent: "green" },
@@ -130,10 +132,10 @@ const RPT_YBS_SKUS = [
 // -------- RPT-004 QC Holds --------
 // Cross-module link: QH-20260420-003 → 09-QUALITY
 const RPT_QC_KPIS = [
-  { k: "held",     label: "Boxes Held Today",     value: "128", accent: "amber" },
-  { k: "reject",   label: "Boxes Rejected",       value: "24",  accent: "red"   },
+  { k: "held",     label: "Boxes Held Today",     value: "128", accent: "amber", invertedPolarity: true },
+  { k: "reject",   label: "Boxes Rejected",       value: "24",  accent: "red",   invertedPolarity: true },
   { k: "labour",   label: "Labour Hours",         value: "6.4", accent: "blue"  },
-  { k: "critical", label: "Critical Holds",       value: "2",   accent: "red"   },
+  { k: "critical", label: "Critical Holds",       value: "2",   accent: "red",   invertedPolarity: true },
 ];
 const RPT_QC_HOLDS = [
   { holdId: "QH-20260420-003", line: "Line 2", product: "Chicken Nuggets",  reason: "Foreign Body",         severity: "critical", boxesHeld: 48, rejected: 12, staff: 3, timeMin: 42, labourHr: 2.1, shift: "AM", status: "open" },
@@ -243,7 +245,7 @@ const RPT_OTD_KPIS = [
   { k: "otd",    label: "OTD %",          value: "96.2%", change: "↑ 0.8%", changeCls: "up", accent: "green" },
   { k: "fulfill",label: "Fulfillment",     value: "98.5%", accent: "green" },
   { k: "ontime", label: "On-Time Ships",   value: "142",   accent: "green" },
-  { k: "late",   label: "Late Ships",      value: "6",     accent: "red"   },
+  { k: "late",   label: "Late Ships",      value: "6",     accent: "red",   invertedPolarity: true },
   { k: "pack",   label: "Avg Pack Time",   value: "42 min", accent: "blue" },
 ];
 const RPT_OTD_TREND = [
@@ -273,9 +275,9 @@ const RPT_OTD_LATE = [
 // -------- RPT-009 Integration Health --------
 const RPT_IH_KPIS = [
   { k: "pending", label: "Total Pending Events", value: "14",  accent: "blue"  },
-  { k: "failed",  label: "Total Failed (24h)",    value: "3",   accent: "red"   },
-  { k: "dlq",     label: "DLQ Total Depth",       value: "3",   accent: "red"   },
-  { k: "latency", label: "Avg Latency (5m)",      value: "218ms", accent: "amber" },
+  { k: "failed",  label: "Total Failed (24h)",    value: "3",   accent: "red",   invertedPolarity: true },
+  { k: "dlq",     label: "DLQ Total Depth",       value: "3",   accent: "red",   invertedPolarity: true },
+  { k: "latency", label: "Avg Latency (5m)",      value: "218ms", accent: "amber", invertedPolarity: true },
 ];
 const RPT_IH_STAGES = [
   { stage: "Stage 1 — Items Pull",       target: "D365 Items Pull",    pending:  0, dispatching: 0, failed: 0, dlq: 0, latency: 142, status: "healthy",  phase: "P1" },

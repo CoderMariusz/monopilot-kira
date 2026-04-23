@@ -138,9 +138,10 @@ const MsPermissions = ({ role, site, onNav, openModal }) => {
 };
 
 // -------- MS-ANA Analytics --------
+// B-MS-02 fix: MS-ANA has no PRD/UX content spec. Prior prototype had invented content
+// (transfer volume chart + 30d conflict KPIs). Replaced with EmptyState to prevent
+// invented analytics becoming the de-facto handoff spec. Tracked in PRD update backlog.
 const MsAnalytics = ({ role, site, onNav, openModal }) => {
-  const [tab, setTab] = React.useState("inventory");
-
   return (
     <>
       <div className="page-head">
@@ -150,184 +151,17 @@ const MsAnalytics = ({ role, site, onNav, openModal }) => {
             <a onClick={()=>onNav("dashboard")}>Multi-Site</a> · Analytics
           </div>
           <h1 className="page-title">Multi-Site Analytics</h1>
-          <div className="muted" style={{fontSize:12}}>Cross-site inventory balance · shipping costs · lane utilization · conflict rate · per-site benchmark</div>
-        </div>
-        <div className="row-flex">
-          <select style={{width:150}}><option>Last 30 days</option><option>7 days</option><option>90 days</option></select>
-          <button className="btn btn-secondary btn-sm">⇪ Export</button>
         </div>
       </div>
 
-      {site !== "ALL" && (
-        <div className="alert-blue alert-box" style={{fontSize:12, marginBottom:10}}>
-          <span>ⓘ</span><div>Multi-site analytics is best used in <b>All Sites</b> scope. Some widgets require cross-site data.</div>
-          <button className="btn btn-sm btn-primary">Switch to All Sites</button>
-        </div>
-      )}
-
-      <div className="ms-tabs">
-        <button className={tab === "inventory" ? "on" : ""} onClick={()=>setTab("inventory")}>Inventory Balance</button>
-        <button className={tab === "shipping" ? "on" : ""} onClick={()=>setTab("shipping")}>Shipping Costs</button>
-        <button className={tab === "utilization" ? "on" : ""} onClick={()=>setTab("utilization")}>Lane Utilization</button>
-        <button className={tab === "conflict" ? "on" : ""} onClick={()=>setTab("conflict")}>Conflict Rate</button>
-        <button className={tab === "benchmark" ? "on" : ""} onClick={()=>setTab("benchmark")}>Per-Site Benchmark</button>
+      <div className="card">
+        <EmptyState
+          icon="◈"
+          title="Analytics spec pending — tracked in PRD update"
+          body="The MS-ANA screen (Multi-Site Analytics) is present in the route map but has no PRD or UX content specification. Content will be defined in a forthcoming PRD update before implementation."
+          action={<span className="badge badge-amber" style={{fontSize:11}}>Backlog — awaiting PRD §10 MS-ANA spec</span>}
+        />
       </div>
-
-      {tab === "inventory" && (
-        <>
-          <div className="ms-info-grid" style={{gridTemplateColumns:"repeat(3, 1fr)"}}>
-            <div className="kpi blue"><div className="kpi-label">Network Inventory Value</div><div className="kpi-value">£2.44M</div><div className="kpi-sub">across 3 active sites</div></div>
-            <div className="kpi green"><div className="kpi-label">Highest Site Inventory</div><div className="kpi-value" style={{fontSize:20}}>FRZ-UK</div><div className="kpi-sub">£1.24M (53%)</div></div>
-            <div className="kpi amber"><div className="kpi-label">Lowest Site Inventory</div><div className="kpi-value" style={{fontSize:20}}>WH-COLD</div><div className="kpi-sub">£420k (14%)</div></div>
-          </div>
-
-          <div className="card">
-            <div className="card-head"><h3 className="card-title">Inventory Balance · % of network total</h3></div>
-            <div className="ms-bar-chart">
-              {MS_INV_BALANCE.map(r => (
-                <div key={r.site} className="ms-bar-row">
-                  <div className="ms-bar-label">{MS_SITES.find(s=>s.id===r.site)?.code}<span className="mono">{MS_SITES.find(s=>s.id===r.site)?.name.split(" — ")[0]}</span></div>
-                  <div className="ms-bar-track"><div className={"ms-bar-fill " + (r.pct < 20 ? "low" : r.pct > 45 ? "high" : "")} style={{width: r.pct + "%"}}>{r.pct}%</div></div>
-                  <div className="ms-bar-val">{r.valueTxt}</div>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <div className="ms-rebalance" style={{marginTop:12}}>
-            <div className="ms-reb-head">Rebalance Suggestions</div>
-            {MS_REBALANCE_SUGGESTIONS.map((r,i) => (
-              <div key={i} className="ms-reb-item">
-                <div>
-                  <SiteRef id={r.from} compact/> → <SiteRef id={r.to} compact/> · <b>{r.item}</b> · {r.qty} · est. freight <span className="mono">{r.estCost}</span>
-                </div>
-                <button className="btn btn-primary btn-sm" onClick={()=>openModal("istCreate", {prefill: r})}>Create Suggested Transfer</button>
-              </div>
-            ))}
-          </div>
-        </>
-      )}
-
-      {tab === "shipping" && (
-        <>
-          <div className="card">
-            <div className="card-head"><h3 className="card-title">Monthly freight cost (last 6 months)</h3></div>
-            <div className="ms-line-chart">
-              {MS_SHIPPING_COST_MONTHLY.concat([{mo:"",cost:0},{mo:"",cost:0},{mo:"",cost:0},{mo:"",cost:0},{mo:"",cost:0},{mo:"",cost:0}]).slice(0,12).map((c,i) => (
-                <div key={i} className="ms-bar" style={{height: (c.cost / 20) + "px", opacity: c.cost > 0 ? 0.85 : 0.15}} data-label={c.mo}></div>
-              ))}
-            </div>
-          </div>
-
-          <div className="card" style={{marginTop:12, padding:0}}>
-            <div className="card-head" style={{padding:"10px 14px"}}><h3 className="card-title">Cost by lane</h3></div>
-            <table>
-              <thead><tr><th>Lane</th><th>From</th><th>To</th><th style={{textAlign:"right"}}>Shipments</th><th style={{textAlign:"right"}}>Total Freight</th><th style={{textAlign:"right"}}>Avg / Shipment</th><th style={{textAlign:"right"}}>% of Network</th></tr></thead>
-              <tbody>
-                {MS_LANE_COST.map(l => (
-                  <tr key={l.lane}>
-                    <td className="mono" style={{color:"var(--blue)"}}>{l.lane}</td>
-                    <td className="mono" style={{fontSize:11}}>{l.from}</td>
-                    <td className="mono" style={{fontSize:11}}>{l.to}</td>
-                    <td className="num mono">{l.shipments}</td>
-                    <td className="num mono">{l.totalFreight}</td>
-                    <td className="num mono">{l.avg}</td>
-                    <td className="num mono">{l.pct}%</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </>
-      )}
-
-      {tab === "utilization" && (
-        <div className="card" style={{padding:0}}>
-          <div className="card-head" style={{padding:"10px 14px"}}><h3 className="card-title">Lane utilization (last 30 days)</h3></div>
-          <table>
-            <thead><tr><th>Lane</th><th style={{textAlign:"right"}}>ISTs</th><th style={{textAlign:"right"}}>Avg Lead</th><th style={{textAlign:"right"}}>On-Time</th><th>Status</th></tr></thead>
-            <tbody>
-              {MS_LANE_UTIL.map(l => (
-                <tr key={l.lane}>
-                  <td className="mono" style={{color:"var(--blue)"}}>{l.lane}</td>
-                  <td className="num mono">{l.ists30d}</td>
-                  <td className="num mono">{l.avgLead}</td>
-                  <td className="num mono" style={{color: parseFloat(l.onTime) >= 90 ? "var(--green-700)" : "var(--amber-700)"}}>{l.onTime}</td>
-                  <td><LaneHealth s={l.status}/></td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-
-      {tab === "conflict" && (
-        <>
-          <div className="ms-info-grid" style={{gridTemplateColumns:"repeat(3, 1fr)"}}>
-            <div className="kpi blue"><div className="kpi-label">Conflicts (30d)</div><div className="kpi-value">7</div><div className="kpi-sub">detected across sites</div></div>
-            <div className="kpi green"><div className="kpi-label">Resolved</div><div className="kpi-value">6</div><div className="kpi-sub">avg 4.2h to resolve</div></div>
-            <div className="kpi red"><div className="kpi-label">Open</div><div className="kpi-value">1</div><div className="kpi-sub">PRD-0042 at FRZ-DE</div></div>
-          </div>
-          <div className="card">
-            <div className="card-head"><h3 className="card-title">Conflict rate (weekly)</h3></div>
-            <div className="ms-line-chart">
-              {MS_CONFLICT_TREND.map((w,i) => (
-                <div key={i} className="ms-bar" style={{height: (w.count * 30 + 20) + "px", background: w.count > 2 ? "var(--red)" : "var(--blue)"}} data-label={w.week}></div>
-              ))}
-            </div>
-          </div>
-          <div className="card" style={{marginTop:12, padding:0}}>
-            <div className="card-head" style={{padding:"10px 14px"}}><h3 className="card-title">Breakdown by entity type</h3></div>
-            <table>
-              <thead><tr><th>Entity Type</th><th style={{textAlign:"right"}}>Count</th><th style={{textAlign:"right"}}>Avg resolve (h)</th></tr></thead>
-              <tbody>
-                {MS_CONFLICT_BY_ENTITY.map(c => (
-                  <tr key={c.entity}>
-                    <td><span className="badge badge-blue" style={{fontSize:9}}>{c.entity}</span></td>
-                    <td className="num mono">{c.count}</td>
-                    <td className="num mono">{c.avgResolveHrs}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </>
-      )}
-
-      {tab === "benchmark" && (
-        <div className="card" style={{padding:0}}>
-          <div className="card-head" style={{padding:"10px 14px"}}><h3 className="card-title">Per-site benchmark</h3></div>
-          <table>
-            <thead><tr>
-              <th>Site</th>
-              <th style={{textAlign:"right"}}>OEE %</th>
-              <th style={{textAlign:"right"}}>On-Time Ship %</th>
-              <th style={{textAlign:"right"}}>QA Pass %</th>
-              <th style={{textAlign:"right"}}>Active WOs</th>
-              <th style={{textAlign:"right"}}>Inventory Value</th>
-              <th style={{textAlign:"right"}}>ISTs Sent</th>
-              <th style={{textAlign:"right"}}>ISTs Received</th>
-            </tr></thead>
-            <tbody>
-              {MS_BENCHMARK.map(b => (
-                <tr key={b.site}>
-                  <td className="mono" style={{fontWeight:600}}>{b.site}</td>
-                  <td className="num mono" style={{color: b.cls.oee === "ok" ? "var(--green-700)" : b.cls.oee === "low" ? "var(--red-700)" : "var(--amber-700)"}}>{b.oee}</td>
-                  <td className="num mono" style={{color: b.cls.onTime === "ok" ? "var(--green-700)" : b.cls.onTime === "low" ? "var(--red-700)" : "var(--amber-700)"}}>{b.onTime}</td>
-                  <td className="num mono" style={{color: b.cls.qaPass === "ok" ? "var(--green-700)" : b.cls.qaPass === "low" ? "var(--red-700)" : "var(--amber-700)"}}>{b.qaPass}</td>
-                  <td className="num mono">{b.activeWOs}</td>
-                  <td className="num mono">{b.invValue}</td>
-                  <td className="num mono">{b.istsSent}</td>
-                  <td className="num mono">{b.istsRecv}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          <div className="muted" style={{fontSize:11, padding:"10px 14px", borderTop:"1px solid var(--border)"}}>
-            OEE data requires the 15-OEE module enabled per site. Missing data shown as "—". Metrics calculated over the selected date range.
-          </div>
-        </div>
-      )}
     </>
   );
 };

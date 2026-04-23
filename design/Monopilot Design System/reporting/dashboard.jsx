@@ -70,16 +70,19 @@ const RptHome = ({ role, onNav, openModal }) => {
 
       {/* Catalog grid */}
       {filtered.length === 0 ? (
-        <div className="card" style={{padding:40, textAlign:"center", color:"var(--muted)"}}>
-          <div style={{fontSize:40, opacity:0.3}}>◐</div>
-          <div style={{fontSize:13, marginTop:10}}>No dashboards match your search — clear filters to see all 10 dashboards.</div>
-          <button className="btn btn-secondary btn-sm" style={{marginTop:12}} onClick={() => { setQ(""); setDomain("All"); setPhase("All"); }}>Clear filters</button>
+        <div className="card">
+          <EmptyState
+            icon="◐"
+            title="No dashboards match your search"
+            body="Clear the filters to see all 10 dashboards, or adjust the domain/phase filters."
+            action={{ label: "Clear filters", onClick: () => { setQ(""); setDomain("All"); setPhase("All"); } }}
+          />
         </div>
       ) : (
         <div className="rpt-cat-grid">
           {filtered.map(c => (
             <div key={c.id} className={"rpt-cat-card " + (c.phase === "P2" ? "p2" : "")}
-                 onClick={() => c.phase === "P2" ? openModal("p2Toast", { name: c.name }) : onNav(c.key)}>
+                 onClick={() => c.phase === "P2" ? onNav("p2_placeholder:" + c.id) : onNav(c.key)}>
               <div className="rpt-cat-head">
                 <span className="rpt-cat-icon">{c.ic}</span>
                 <span className={"badge " + (c.domainClass || "badge-gray")} style={{fontSize:10}}>{c.domain}</span>
@@ -109,4 +112,43 @@ const RptHome = ({ role, onNav, openModal }) => {
   );
 };
 
-Object.assign(window, { RptHome });
+// ============ Tune-6b §2.12.2 / BL-RPT-01 — P2 placeholder screen (EmptyState) ============
+// Previously the P2 catalog card opened a toast. Per BL-RPT-01 we render a proper
+// EmptyState screen with "Coming in Phase 2" + CTA back to catalog. Route shape is
+// "p2_placeholder:<catalog-id>" so we can show the specific dashboard name.
+const RptP2Placeholder = ({ role, onNav, openModal, screen }) => {
+  const id = (screen || "").split(":")[1] || "";
+  const card = RPT_CATALOG.find(c => c.id === id);
+  return (
+    <>
+      <div className="page-head">
+        <div>
+          <DrillCrumb
+            trail={[{label:"Reporting", key:"home"}, {label: card ? card.name : "Phase 2 dashboard"}]}
+            onNav={onNav}/>
+          <div className="row-flex" style={{alignItems:"center", gap:10}}>
+            <h1 className="page-title">{card ? card.name : "Phase 2 dashboard"}</h1>
+            <span className="badge badge-gray" style={{fontSize:10}}>Coming in Phase 2</span>
+          </div>
+          {card && (
+            <div className="muted" style={{fontSize:12, marginTop:4}}>
+              {card.id} · {card.domain} · {card.desc}
+            </div>
+          )}
+        </div>
+      </div>
+      <div className="card">
+        <EmptyState
+          icon={card ? card.ic : "🕒"}
+          title={`${card ? card.name : "This dashboard"} is coming in Phase 2`}
+          body={card
+            ? `${card.desc} Scheduled for a future Phase 2 release — explore the live P1 dashboards in the meantime.`
+            : "This dashboard is scheduled for Phase 2. Explore the P1 dashboards available today from the Reporting catalog."}
+          action={{ label: "Back to catalog", onClick: () => onNav("home") }}
+        />
+      </div>
+    </>
+  );
+};
+
+Object.assign(window, { RptHome, RptP2Placeholder });
