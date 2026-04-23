@@ -97,10 +97,13 @@ const CostStatus = ({ variance, variancePct, hasProduction = true }) => {
 };
 
 // ============ Standard cost status badge ============
+// Standard cost lifecycle per PRD §6: draft → pending → approved →
+// superseded / retired. The "active" legacy alias is retained only for
+// safety when rendering older mock rows; canonical state is "approved".
 const StdStatus = ({ s }) => {
   const map = {
-    active:     ["badge-green", "Active"],
-    approved:   ["badge-blue",  "Approved"],
+    approved:   ["badge-green", "Approved"],
+    active:     ["badge-green", "Approved"], // legacy alias — render as Approved
     draft:      ["badge-gray",  "Draft"],
     pending:    ["badge-amber", "Pending"],
     superseded: ["badge-gray",  "Superseded"],

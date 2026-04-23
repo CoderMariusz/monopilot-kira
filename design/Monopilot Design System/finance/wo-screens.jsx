@@ -310,6 +310,65 @@ const FinWoDetail = ({ woId, role, onBack, onNav, openModal }) => {
             )}
           </div>
 
+          {/* Co-product Allocation — FIN-003b per PRD §9.3.
+              Only rendered when WO BOM includes co-products. Formula:
+              allocated_cost_i = total_cost × (basis_i ÷ Σ basis).
+              Audit-4 finding A1 (HIGH) — required sub-table. */}
+          {d.coProducts && (
+            <div className="card">
+              <div className="card-head">
+                <h3 className="card-title">Co-product Cost Allocation</h3>
+                <span className="badge badge-blue" style={{fontSize:10}}>FIN-003b · PRD §9.3</span>
+              </div>
+              <div style={{fontSize:12, padding:"0 0 10px", color:"var(--muted)"}}>
+                Joint actual cost <b className="money">{fmtMoney(d.coProducts.totalAllocated, true)}</b> split across {d.coProducts.outputs.length} outputs using
+                <span className="badge badge-gray" style={{fontSize:9, marginLeft:6, marginRight:6}}>{d.coProducts.method.replace(/_/g," ")}</span>
+                allocation method.
+              </div>
+              <table>
+                <thead>
+                  <tr>
+                    <th>Co-product / Output</th>
+                    <th style={{textAlign:"right"}}>Quantity</th>
+                    <th style={{textAlign:"right"}}>Cost Basis</th>
+                    <th>Allocation Method</th>
+                    <th style={{textAlign:"right"}}>Allocation %</th>
+                    <th style={{textAlign:"right"}}>Allocated Cost</th>
+                    <th style={{textAlign:"right"}}>Per-unit Cost</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {d.coProducts.outputs.map((o, i) => (
+                    <tr key={o.code}>
+                      <td>
+                        <div style={{fontSize:12}}>{o.name}</div>
+                        <div className="mono muted" style={{fontSize:10}}>{o.code} · <span className={"badge " + (o.type === "Co-product" ? "badge-purple" : "badge-gray")} style={{fontSize:9}}>{o.type}</span></div>
+                      </td>
+                      <td className="money">{fmtQty(o.qty)} {o.uom}</td>
+                      <td className="money">{fmtMoney(o.basis)}</td>
+                      <td><span className="badge badge-gray" style={{fontSize:9}}>{d.coProducts.method.replace(/_/g," ")}</span></td>
+                      <td className="money">{o.allocPct.toFixed(1)}%</td>
+                      <td className="money" style={{fontWeight:600}}>{fmtMoney(o.allocCost)}</td>
+                      <td className="mono" style={{fontSize:11}}>£ {o.unitCost.toFixed(2)}/{o.uom.toLowerCase()}</td>
+                    </tr>
+                  ))}
+                </tbody>
+                <tfoot>
+                  <tr style={{borderTop:"2px solid var(--border)", fontWeight:600}}>
+                    <td>Total allocated</td>
+                    <td></td>
+                    <td className="money">{fmtMoney(d.coProducts.outputs.reduce((s,o)=>s+o.basis,0))}</td>
+                    <td></td>
+                    <td className="money">100.0%</td>
+                    <td className="money">{fmtMoney(d.coProducts.totalAllocated, true)}</td>
+                    <td></td>
+                  </tr>
+                </tfoot>
+              </table>
+              <div className="muted" style={{fontSize:11, marginTop:6}}>{d.coProducts.note}</div>
+            </div>
+          )}
+
           {/* Cascade — only if child WOs */}
           {d.cascade && (
             <div className="card">

@@ -8,12 +8,17 @@ const FinStandardCosts = ({ role, onNav, openModal }) => {
 
   const isManager = role === "Finance Manager" || role === "Admin";
 
+  // FIN-002 status tabs per PRD §6 lifecycle (draft / pending / approved /
+  // superseded / retired). Prior version used "active" which conflates
+  // approved + effective and is not a valid lifecycle state in the
+  // standard_costs DDL. Audit-4 finding C2 / A2.
   const tabs = [
     { k: "all",        l: "All",        c: FIN_STD_COSTS.length },
-    { k: "active",     l: "Active",     c: FIN_STD_COSTS.filter(r => r.status === "active").length },
-    { k: "pending",    l: "Pending",    c: FIN_STD_COSTS.filter(r => r.status === "pending").length },
     { k: "draft",      l: "Draft",      c: FIN_STD_COSTS.filter(r => r.status === "draft").length },
+    { k: "pending",    l: "Pending",    c: FIN_STD_COSTS.filter(r => r.status === "pending").length },
+    { k: "approved",   l: "Approved",   c: FIN_STD_COSTS.filter(r => r.status === "approved").length },
     { k: "superseded", l: "Superseded", c: FIN_STD_COSTS.filter(r => r.status === "superseded").length },
+    { k: "retired",    l: "Retired",    c: FIN_STD_COSTS.filter(r => r.status === "retired").length },
   ];
 
   const visible = FIN_STD_COSTS.filter(r =>
@@ -38,7 +43,7 @@ const FinStandardCosts = ({ role, onNav, openModal }) => {
     else setSelected(new Set(visible.map(r => r.id)));
   };
 
-  const coverageFa = FIN_STD_COSTS.filter(r => r.itemType === "FA" && r.status === "active").length;
+  const coverageFa = FIN_STD_COSTS.filter(r => r.itemType === "FA" && r.status === "approved").length;
 
   return (
     <>
@@ -47,7 +52,7 @@ const FinStandardCosts = ({ role, onNav, openModal }) => {
           <div className="breadcrumb"><a onClick={()=>onNav("dashboard")}>Finance</a> · Standard Costs</div>
           <h1 className="page-title">Standard Costs</h1>
           <div className="muted" style={{fontSize:12}}>
-            {FIN_STD_COSTS.length} records · {tabs.find(t=>t.k==="active").c} Active · {tabs.find(t=>t.k==="pending").c} Pending · {tabs.find(t=>t.k==="draft").c} Draft · Coverage {coverageFa}/24 FA items
+            {FIN_STD_COSTS.length} records · {tabs.find(t=>t.k==="approved").c} Approved · {tabs.find(t=>t.k==="pending").c} Pending · {tabs.find(t=>t.k==="draft").c} Draft · Coverage {coverageFa}/24 FA items
           </div>
         </div>
         <div className="row-flex">
@@ -146,7 +151,7 @@ const FinStandardCosts = ({ role, onNav, openModal }) => {
                           deriveRunHistory; per-cell title shows week + mock value
                           so the strip reads "Week N · £ X". */}
                       <RunStrip
-                        outcomes={deriveRunHistory({ id: r.id, status: r.status === "active" ? "ok" : r.status === "draft" ? "warning" : r.status === "pending" ? "warning" : "ok" })
+                        outcomes={deriveRunHistory({ id: r.id, status: r.status === "approved" ? "ok" : r.status === "draft" ? "warning" : r.status === "pending" ? "warning" : r.status === "retired" ? "err" : "ok" })
                           .map((tone, i, arr) => {
                             const wk = arr.length - i;
                             return { tone, title: `Week -${wk} · ${fmtMoney(r.total)}` };
@@ -163,7 +168,8 @@ const FinStandardCosts = ({ role, onNav, openModal }) => {
                         {r.status === "pending" && isManager && <button className="btn btn-primary btn-sm" onClick={()=>openModal("approveStdCost", r)}>Approve</button>}
                         {r.status === "draft" && isManager && <button className="btn btn-secondary btn-sm" onClick={()=>openModal("stdCostCreate", r)}>Edit</button>}
                         <button className="btn btn-ghost btn-sm" onClick={()=>openModal("costHistory", r)}>History</button>
-                        {r.status === "active" && isManager && <button className="btn btn-ghost btn-sm" onClick={()=>openModal("supersede", r)}>Supersede</button>}
+                        {r.status === "approved" && isManager && <button className="btn btn-ghost btn-sm" onClick={()=>openModal("supersede", r)}>Supersede</button>}
+                        {r.status === "approved" && isManager && <button className="btn btn-ghost btn-sm" onClick={()=>openModal("supersede", { ...r, retire: true })}>Retire</button>}
                       </div>
                     </td>
                   </tr>

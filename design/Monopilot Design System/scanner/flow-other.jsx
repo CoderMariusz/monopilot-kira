@@ -7,6 +7,22 @@
 // ============================================================
 
 // ---------- MOVE LP ----------
+// FR-SC-BE-030/031 + D9 "block" severity: LP-modifying ops (move/split/consume)
+// must acquire `lock-lp` lease before mutation. This screen now gates the
+// Confirm action on `lockResult`: when lockResult.status === "locked_by_other"
+// the Confirm button is disabled and an error + LpLockedSheet surfaces.
+// Demo trigger: LP-00287 is mock-locked-by-another (Marta W.); any other LP
+// acquires a 5-min lease for this operator and passes the gate.
+const acquireLpLock = (lpData, operator = "Jan K.") => {
+  if (!lpData) return null;
+  // Mock: LP-00567 is held by another operator for demo of the blocking gate.
+  // Real impl calls FR-SC-BE-030 `lock-lp` API and reads { status, lockedBy, expiresIn }.
+  if (lpData.lp === "LP-00567") {
+    return { status: "locked_by_other", lockedBy: "Marta W.", expiresIn: 140 };
+  }
+  return { status: "acquired", owner: operator, expiresIn: 300 };
+};
+
 const MoveScreen = ({ onNav, onDone }) => {
   const [scanVal, setScanVal] = React.useState("");
   const [lp, setLp] = React.useState(null);
@@ -14,6 +30,7 @@ const MoveScreen = ({ onNav, onDone }) => {
   const [dest, setDest] = React.useState(null);
   const [err, setErr] = React.useState(null);
   const [showLocked, setShowLocked] = React.useState(false);
+  const [lockResult, setLockResult] = React.useState(null); // { status, lockedBy?, expiresIn }
 
   const onLpScan = (val) => {
     const code = (val || scanVal).trim().toUpperCase();
@@ -21,9 +38,19 @@ const MoveScreen = ({ onNav, onDone }) => {
     if (!data) { setErr(`LP ${code} nie znaleziony`); return; }
     if (data.qaStatus === "hold") { setErr("LP na QA Hold — nie można przenieść"); return; }
     if (data.status === "consumed") { setErr("LP już skonsumowany"); return; }
+    // Acquire blocking lock — LP-modifying op requires lease.
+    const result = acquireLpLock(data);
+    setLockResult(result);
+    if (result && result.status === "locked_by_other") {
+      setLp(data);
+      setErr(`LP zablokowany przez ${result.lockedBy} — operacja niemożliwa`);
+      setShowLocked(true);
+      return;
+    }
     setLp(data);
     setErr(null);
   };
+  const isBlocked = lockResult && lockResult.status === "locked_by_other";
   const onDestScan = (val) => {
     const code = (val || destScan).trim().toUpperCase();
     if (!code.startsWith("LOC")) { setErr("Kod lokalizacji musi zaczynać się od LOC-"); return; }
@@ -52,7 +79,13 @@ const MoveScreen = ({ onNav, onDone }) => {
               [{ label:"Partia", value: lp.batch, cls:"mono" }, { label:"Expiry", value: lp.expiry }],
               [{ label:"Obecna lok.", value: lp.location, cls:"mono" }, { label:"Status", value: lp.status }],
             ]}/>
-            <Banner kind="info" title="🔒 Lock na 5 min" children="LP zablokowany na czas operacji. Drugi operator nie może konkurować."/>
+            {isBlocked ? (
+              <Banner kind="err" title={`🔒 LP zablokowany przez ${lockResult.lockedBy}`}>
+                Inny operator trzyma lease. Operacja jest zablokowana — odczekaj {lockResult.expiresIn}s lub skontaktuj się z supervisorem.
+              </Banner>
+            ) : (
+              <Banner kind="info" title="🔒 Lock acquired (5 min)">LP zablokowany dla Ciebie. Drugi operator nie może konkurować do końca operacji.</Banner>
+            )}
 
             <div className="sc-sinput-area" style={{marginTop:6}}>
               <div className="sc-sinput-label">Lokalizacja docelowa</div>
@@ -78,9 +111,11 @@ const MoveScreen = ({ onNav, onDone }) => {
         {err && <div className="sc-inline-err">{err}</div>}
       </Content>
       <BottomActions>
-        <Btn variant="p" disabled={!lp || !dest} onClick={() => onDone({ lp, from: lp.location, to: dest || destScan })}>Przenieś</Btn>
+        <Btn variant="p" disabled={!lp || !dest || isBlocked} onClick={() => onDone({ lp, from: lp.location, to: dest || destScan })}>
+          {isBlocked ? "🔒 Zablokowane" : "Przenieś"}
+        </Btn>
       </BottomActions>
-      <LpLockedSheet open={showLocked} onClose={() => setShowLocked(false)} lp={lp ? lp.lp : ""}/>
+      <LpLockedSheet open={showLocked} onClose={() => setShowLocked(false)} lp={lp ? lp.lp : ""} lockedBy={lockResult ? lockResult.lockedBy : "Marta W."} seconds={lockResult ? lockResult.expiresIn : 140}/>
     </>
   );
 };
@@ -108,18 +143,31 @@ const MoveDoneScreen = ({ detail, onNav }) => (
 );
 
 // ---------- SPLIT LP ----------
+// Split is an LP-modifying op → lease required (same as Move/Consume).
+// lockResult gates the "Dalej" CTA when locked by another operator.
 const SplitScanScreen = ({ onNav, onNext }) => {
   const [scanVal, setScanVal] = React.useState("");
   const [lp, setLp] = React.useState(null);
   const [err, setErr] = React.useState(null);
+  const [showLocked, setShowLocked] = React.useState(false);
+  const [lockResult, setLockResult] = React.useState(null);
   const onScan = (val) => {
     const code = (val || scanVal).trim().toUpperCase();
     const data = SCN_LPS[code];
     if (!data) { setErr(`LP ${code} nie znaleziony`); return; }
     if (data.status !== "available") { setErr(`LP status: ${data.status} — split niedostępny`); return; }
     if (data.qty <= 0) { setErr("LP ma zerową ilość"); return; }
+    const result = acquireLpLock(data);
+    setLockResult(result);
+    if (result && result.status === "locked_by_other") {
+      setLp(data);
+      setErr(`LP zablokowany przez ${result.lockedBy} — split niemożliwy`);
+      setShowLocked(true);
+      return;
+    }
     setLp(data); setErr(null);
   };
+  const isBlocked = lockResult && lockResult.status === "locked_by_other";
   return (
     <>
       <Topbar title="Split LP" onBack={() => onNav("home")}/>
@@ -140,11 +188,20 @@ const SplitScanScreen = ({ onNav, onNext }) => {
           ]}/>
         )}
         {err && <div className="sc-inline-err">{err}</div>}
-        <Banner kind="info" title="Split zachowuje partię">Oryginalny LP zachowuje partię i datę. Nowy LP dziedziczy oba pola.</Banner>
+        {lp && isBlocked ? (
+          <Banner kind="err" title={`🔒 LP zablokowany przez ${lockResult.lockedBy}`}>
+            Split wymaga wyłącznego lease. Odczekaj {lockResult.expiresIn}s lub użyj innego LP.
+          </Banner>
+        ) : (
+          <Banner kind="info" title="Split zachowuje partię">Oryginalny LP zachowuje partię i datę. Nowy LP dziedziczy oba pola.</Banner>
+        )}
       </Content>
       <BottomActions>
-        <Btn variant="p" disabled={!lp} onClick={() => onNext(lp)}>Dalej: ilość</Btn>
+        <Btn variant="p" disabled={!lp || isBlocked} onClick={() => onNext(lp)}>
+          {isBlocked ? "🔒 Zablokowane" : "Dalej: ilość"}
+        </Btn>
       </BottomActions>
+      <LpLockedSheet open={showLocked} onClose={() => setShowLocked(false)} lp={lp ? lp.lp : ""} lockedBy={lockResult ? lockResult.lockedBy : "Marta W."} seconds={lockResult ? lockResult.expiresIn : 140}/>
     </>
   );
 };
@@ -442,4 +499,5 @@ Object.assign(window, {
   SplitScanScreen, SplitQtyScreen, SplitDoneScreen,
   QaListScreen, QaInspectScreen, QaFailReasonScreen, QaDoneScreen,
   InquiryScreen,
+  acquireLpLock,
 });

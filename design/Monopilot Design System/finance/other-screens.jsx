@@ -321,30 +321,40 @@ const FinD365 = ({ role, onNav, openModal }) => {
         </>
       )}
 
-      {/* GL Mapping */}
+      {/* GL Mapping — preview + link to standalone FIN-007 page per PRD §8.1 */}
       {tab === "gl" && (
-        <div className="card" style={{padding:0}}>
-          <div className="card-head" style={{padding:"12px 14px", marginBottom:0, borderBottom:"1px solid var(--border)"}}>
-            <h3 className="card-title">GL Account Mappings</h3>
-            {isManager && <button className="btn btn-primary btn-sm" onClick={()=>openModal("costCenter")}>＋ Add Mapping</button>}
+        <>
+          <div className="alert-blue alert-box" style={{marginBottom:10, fontSize:12, padding:"8px 12px"}}>
+            <span>ⓘ</span>
+            <div style={{flex:1}}>
+              GL Account Mappings have their own admin page per PRD FIN-007 (standalone route <span className="mono">/finance/gl-mappings</span>). This tab shows a read-only preview.
+            </div>
+            <div className="alert-cta">
+              <button className="btn btn-sm btn-primary" onClick={()=>onNav("gl_mappings")}>Open GL Mappings →</button>
+            </div>
           </div>
-          <table>
-            <thead><tr><th>Cost Category</th><th>D365 Account Code</th><th>Offset Account</th><th>Journal Name</th><th>Last Updated</th><th>Updated By</th><th style={{width:80}}></th></tr></thead>
-            <tbody>
-              {FIN_D365_GL_MAPPING.map(m => (
-                <tr key={m.cat}>
-                  <td style={{fontSize:12, fontWeight:500}}>{m.cat}</td>
-                  <td className="mono" style={{fontSize:11}}>{m.dAccount}</td>
-                  <td className="mono" style={{fontSize:11}}>{m.offset}</td>
-                  <td><span className="badge badge-gray" style={{fontSize:9}}>{m.journal}</span></td>
-                  <td className="mono" style={{fontSize:11}}>{m.updatedAt}</td>
-                  <td style={{fontSize:11}}>{m.updatedBy}</td>
-                  <td>{isManager && <button className="btn btn-ghost btn-sm" onClick={()=>openModal("costCenter", m)}>Edit</button>}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+          <div className="card" style={{padding:0}}>
+            <div className="card-head" style={{padding:"12px 14px", marginBottom:0, borderBottom:"1px solid var(--border)"}}>
+              <h3 className="card-title">GL Account Mappings (read-only preview)</h3>
+              <a style={{fontSize:12, color:"var(--blue)", cursor:"pointer"}} onClick={()=>onNav("gl_mappings")}>Manage mappings →</a>
+            </div>
+            <table>
+              <thead><tr><th>Cost Category</th><th>D365 Account Code</th><th>Offset Account</th><th>Journal Name</th><th>Last Updated</th><th>Updated By</th></tr></thead>
+              <tbody>
+                {FIN_D365_GL_MAPPING.map(m => (
+                  <tr key={m.cat}>
+                    <td style={{fontSize:12, fontWeight:500}}>{m.cat}</td>
+                    <td className="mono" style={{fontSize:11}}>{m.dAccount}</td>
+                    <td className="mono" style={{fontSize:11}}>{m.offset}</td>
+                    <td><span className="badge badge-gray" style={{fontSize:9}}>{m.journal}</span></td>
+                    <td className="mono" style={{fontSize:11}}>{m.updatedAt}</td>
+                    <td style={{fontSize:11}}>{m.updatedBy}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
       )}
 
       {tab === "settings" && (
@@ -355,6 +365,112 @@ const FinD365 = ({ role, onNav, openModal }) => {
           <div className="muted" style={{fontSize:11, marginTop:10}}>Reconciliation schedule: Daily at 03:00 UTC (cutoff + 4h) to verify D365 line counts against outbox.</div>
         </div>
       )}
+    </>
+  );
+};
+
+// ---------- FIN-007 GL Account Mappings (standalone) ----------
+// Audit-4 finding A10 / B5 — PRD §8.1 + UX route map require FIN-007 to
+// be a standalone admin page at `/finance/gl-mappings`. Prior prototype
+// embedded this as a tab inside FinD365 (IA drift). This component is
+// the standalone page; D365 tab now shows a read-only preview + link.
+const FinGlMappings = ({ role, onNav, openModal }) => {
+  const [search, setSearch] = React.useState("");
+  const [journalFilter, setJournalFilter] = React.useState("all");
+  const isManager = role === "Finance Manager" || role === "Admin";
+
+  const journals = Array.from(new Set(FIN_D365_GL_MAPPING.map(m => m.journal))).sort();
+  const visible = FIN_D365_GL_MAPPING.filter(m =>
+    (journalFilter === "all" || m.journal === journalFilter) &&
+    (!search ||
+      m.cat.toLowerCase().includes(search.toLowerCase()) ||
+      m.dAccount.toLowerCase().includes(search.toLowerCase()) ||
+      m.offset.toLowerCase().includes(search.toLowerCase()))
+  );
+
+  return (
+    <>
+      <div className="page-head">
+        <div>
+          <div className="breadcrumb">
+            <a onClick={()=>onNav("dashboard")}>Finance</a> · GL Account Mappings
+          </div>
+          <h1 className="page-title">GL Account Mappings</h1>
+          <div className="muted" style={{fontSize:12}}>
+            FIN-007 · Cost category → D365 F&amp;O GL account mapping · {FIN_D365_GL_MAPPING.length} mappings · {journals.length} journals
+          </div>
+        </div>
+        <div className="row-flex">
+          <button className="btn btn-secondary btn-sm" onClick={()=>onNav("d365")}>← Back to D365</button>
+          {isManager && <button className="btn btn-primary btn-sm" onClick={()=>openModal("costCenter")}>＋ New Mapping</button>}
+        </div>
+      </div>
+
+      <div className="alert-blue alert-box" style={{marginBottom:10, fontSize:12, padding:"8px 12px"}}>
+        <span>ⓘ</span>
+        <div style={{flex:1}}>
+          Mappings control how WO cost categories (Material / Labor / Overhead / Waste) post to D365 General Ledger accounts. Changes take effect from the next daily consolidation batch (23:00 UTC cutoff).
+        </div>
+      </div>
+
+      <div className="filter-bar">
+        <input type="text" placeholder="Search category, account, offset…" value={search} onChange={e=>setSearch(e.target.value)} style={{width:280}}/>
+        <select value={journalFilter} onChange={e=>setJournalFilter(e.target.value)} style={{width:200}}>
+          <option value="all">All journals</option>
+          {journals.map(j => <option key={j} value={j}>{j}</option>)}
+        </select>
+        <span className="spacer"></span>
+        <button className="clear-all" onClick={()=>{ setSearch(""); setJournalFilter("all"); }}>Clear</button>
+      </div>
+
+      <div className="card" style={{padding:0}}>
+        <div className="card-head" style={{padding:"12px 14px", marginBottom:0, borderBottom:"1px solid var(--border)"}}>
+          <h3 className="card-title">Mappings ({visible.length})</h3>
+          <div className="muted" style={{fontSize:11}}>dataAreaId: FNOR · warehouse: ForzDG</div>
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th>Cost Category</th>
+              <th>D365 Account Code</th>
+              <th>Offset Account</th>
+              <th>Journal Name</th>
+              <th>Last Updated</th>
+              <th>Updated By</th>
+              <th style={{width:140}}>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {visible.map(m => (
+              <tr key={m.cat}>
+                <td style={{fontSize:12, fontWeight:500}}>{m.cat}</td>
+                <td className="mono" style={{fontSize:11, color:"var(--blue)"}}>{m.dAccount}</td>
+                <td className="mono" style={{fontSize:11}}>{m.offset}</td>
+                <td><span className="badge badge-gray" style={{fontSize:9}}>{m.journal}</span></td>
+                <td className="mono" style={{fontSize:11}}>{m.updatedAt}</td>
+                <td style={{fontSize:11}}>{m.updatedBy}</td>
+                <td>
+                  {isManager && <button className="btn btn-ghost btn-sm" onClick={()=>openModal("costCenter", m)}>Edit</button>}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        {visible.length === 0 && (
+          <div className="empty-panel">
+            <div className="ep-ic">▤</div>
+            <div className="ep-head">No mappings match the current filters.</div>
+            <div className="ep-body">Try widening the filters or clear them to see all mappings.</div>
+            <div className="ep-ctas">
+              <button className="btn btn-secondary btn-sm" onClick={()=>{ setSearch(""); setJournalFilter("all"); }}>Clear Filters</button>
+            </div>
+          </div>
+        )}
+      </div>
+
+      <div className="muted" style={{fontSize:11, marginTop:10}}>
+        Per 21 CFR Part 11, GL mapping changes are logged in the audit trail. Mapping edits do not retroactively re-post already-delivered D365 journals.
+      </div>
     </>
   );
 };
@@ -476,4 +592,4 @@ const FinMargin       = ({ onNav }) => <ScaffoldedScreen breadcrumb={<span><a on
 
 const FinBudgets      = ({ onNav }) => <ScaffoldedScreen breadcrumb={<span><a onClick={()=>onNav("dashboard")}>Finance</a> · Budgets</span>} title="Budget Management" spec="FIN-015" phase="Phase 2 — EPIC 10-F" notes="Create annual budget, allocate to periods, approval workflow. Per-cost-center budget vs actual tracking."/>;
 
-Object.assign(window, { FinReports, FinD365, FinSettings, FinBomCosting, FinSimulation, FinVarRealtime, FinMargin, FinBudgets });
+Object.assign(window, { FinReports, FinD365, FinGlMappings, FinSettings, FinBomCosting, FinSimulation, FinVarRealtime, FinMargin, FinBudgets });

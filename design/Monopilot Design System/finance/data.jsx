@@ -28,6 +28,7 @@ const FIN_NAV = [
     { key: "fx",                label: "FX Rates",              ic: "€" },
     { key: "reports",           label: "Reports",               ic: "☷" },
     { key: "d365",              label: "D365 Integration",      ic: "⇄", count: "47" },
+    { key: "gl_mappings",       label: "GL Account Mappings",   ic: "▤" },
     { key: "settings",          label: "Finance Settings",      ic: "⚙" },
     { key: "gallery",           label: "Modal gallery",         ic: "▣" },
   ]},
@@ -99,17 +100,17 @@ const FIN_YIELD_LOSS = [
 // ----- Standard Costs (FIN-002) -----
 const FIN_STD_COSTS = [
   // Approved / Active FA
-  { id: "SC-2026-101", itemCode: "FG-NUGGET-1K",  itemName: "Chicken Nuggets 1 kg",   itemType: "FA",  mat: 2.5000, lab: 0.4000, oh: 0.6000, total: 3.5000, uom: "KG", effFrom: "2025-01-01", effTo: null, status: "active",     approvedBy: "Sarah McKenzie", approvedAt: "2025-01-01 10:32 UTC", hash: "sha256:a1b2c3d4e5f6…", basis: "quoted",      notes: "Q1 2025 initial cost" },
-  { id: "SC-2026-102", itemCode: "FG-FISH-500",   itemName: "Fish Fingers 500g",      itemType: "FA",  mat: 3.2000, lab: 0.4500, oh: 0.5500, total: 4.2000, uom: "KG", effFrom: "2025-01-01", effTo: null, status: "active",     approvedBy: "Sarah McKenzie", approvedAt: "2025-01-01 10:33 UTC", hash: "sha256:b2c3d4e5f6a7…", basis: "quoted",      notes: "Q1 2025 initial cost" },
-  { id: "SC-2026-103", itemCode: "FG-PORK-500",   itemName: "Pork Sausages 500g",     itemType: "FA",  mat: 2.0500, lab: 0.3500, oh: 0.5000, total: 2.9000, uom: "KG", effFrom: "2025-01-01", effTo: null, status: "active",     approvedBy: "Sarah McKenzie", approvedAt: "2025-01-01 10:35 UTC", hash: "sha256:c3d4e5f6a7b8…", basis: "quoted",      notes: "Q1 2025 initial cost" },
-  { id: "SC-2026-110", itemCode: "FA5100",        itemName: "Kiełbasa śląska pieczona 450g", itemType: "FA", mat: 4.1200, lab: 0.5800, oh: 0.6800, total: 5.3800, uom: "KG", effFrom: "2025-03-01", effTo: null, status: "active", approvedBy: "Sarah McKenzie", approvedAt: "2025-02-20 14:08 UTC", hash: "sha256:d4e5f6a7b8c9…", basis: "calculated",  notes: "Rolled from BOM v2.1" },
-  { id: "SC-2026-111", itemCode: "FA5200",        itemName: "Pasztet drobiowy z żurawiną 180g", itemType: "FA", mat: 3.9000, lab: 0.4600, oh: 0.6200, total: 4.9800, uom: "KG", effFrom: "2025-02-01", effTo: null, status: "active", approvedBy: "Sarah McKenzie", approvedAt: "2025-01-24 11:15 UTC", hash: "sha256:e5f6a7b8c9d0…", basis: "calculated",  notes: "BOM rolled" },
+  { id: "SC-2026-101", itemCode: "FG-NUGGET-1K",  itemName: "Chicken Nuggets 1 kg",   itemType: "FA",  mat: 2.5000, lab: 0.4000, oh: 0.6000, total: 3.5000, uom: "KG", effFrom: "2025-01-01", effTo: null, status: "approved",   approvedBy: "Sarah McKenzie", approvedAt: "2025-01-01 10:32 UTC", hash: "sha256:a1b2c3d4e5f6…", basis: "quoted",      notes: "Q1 2025 initial cost" },
+  { id: "SC-2026-102", itemCode: "FG-FISH-500",   itemName: "Fish Fingers 500g",      itemType: "FA",  mat: 3.2000, lab: 0.4500, oh: 0.5500, total: 4.2000, uom: "KG", effFrom: "2025-01-01", effTo: null, status: "approved",   approvedBy: "Sarah McKenzie", approvedAt: "2025-01-01 10:33 UTC", hash: "sha256:b2c3d4e5f6a7…", basis: "quoted",      notes: "Q1 2025 initial cost" },
+  { id: "SC-2026-103", itemCode: "FG-PORK-500",   itemName: "Pork Sausages 500g",     itemType: "FA",  mat: 2.0500, lab: 0.3500, oh: 0.5000, total: 2.9000, uom: "KG", effFrom: "2025-01-01", effTo: null, status: "approved",   approvedBy: "Sarah McKenzie", approvedAt: "2025-01-01 10:35 UTC", hash: "sha256:c3d4e5f6a7b8…", basis: "quoted",      notes: "Q1 2025 initial cost" },
+  { id: "SC-2026-110", itemCode: "FA5100",        itemName: "Kiełbasa śląska pieczona 450g", itemType: "FA", mat: 4.1200, lab: 0.5800, oh: 0.6800, total: 5.3800, uom: "KG", effFrom: "2025-03-01", effTo: null, status: "approved", approvedBy: "Sarah McKenzie", approvedAt: "2025-02-20 14:08 UTC", hash: "sha256:d4e5f6a7b8c9…", basis: "calculated",  notes: "Rolled from BOM v2.1" },
+  { id: "SC-2026-111", itemCode: "FA5200",        itemName: "Pasztet drobiowy z żurawiną 180g", itemType: "FA", mat: 3.9000, lab: 0.4600, oh: 0.6200, total: 4.9800, uom: "KG", effFrom: "2025-02-01", effTo: null, status: "approved", approvedBy: "Sarah McKenzie", approvedAt: "2025-01-24 11:15 UTC", hash: "sha256:e5f6a7b8c9d0…", basis: "calculated",  notes: "BOM rolled" },
   // Raw materials
-  { id: "SC-2026-201", itemCode: "RM-BREAST-001", itemName: "Chicken Breast",         itemType: "RM",  mat: 5.2000, lab: 0,      oh: 0,      total: 5.2000, uom: "KG", effFrom: "2025-01-01", effTo: null, status: "active",     approvedBy: "Sarah McKenzie", approvedAt: "2025-01-01 09:45 UTC", hash: "sha256:f6a7b8c9d0e1…", basis: "quoted",      notes: "Supplier price list Q1" },
-  { id: "SC-2026-202", itemCode: "RM-FLOUR-001",  itemName: "Wheat Flour",            itemType: "RM",  mat: 0.9500, lab: 0,      oh: 0,      total: 0.9500, uom: "KG", effFrom: "2025-01-01", effTo: null, status: "active",     approvedBy: "Sarah McKenzie", approvedAt: "2025-01-01 09:48 UTC", hash: "sha256:a7b8c9d0e1f2…", basis: "quoted",      notes: null },
-  { id: "SC-2026-203", itemCode: "RM-SEASON-001", itemName: "Seasoning Mix",          itemType: "RM",  mat: 12.4000, lab: 0,     oh: 0,      total: 12.4000, uom: "KG", effFrom: "2025-01-01", effTo: null, status: "active",    approvedBy: "Sarah McKenzie", approvedAt: "2025-01-01 09:51 UTC", hash: "sha256:b8c9d0e1f2a3…", basis: "quoted",      notes: null },
-  { id: "SC-2026-204", itemCode: "R-1001",        itemName: "Wieprzowina kl. II",     itemType: "RM",  mat: 5.0000, lab: 0,      oh: 0,      total: 5.0000, uom: "KG", effFrom: "2025-02-01", effTo: null, status: "active",     approvedBy: "Sarah McKenzie", approvedAt: "2025-01-28 13:22 UTC", hash: "sha256:c9d0e1f2a3b4…", basis: "quoted",      notes: "Baltic Pork Co. Q1 contract" },
-  { id: "SC-2026-205", itemCode: "R-3001",        itemName: "Osłonka Ø26 (Viscofan)", itemType: "RM",  mat: 7.6000, lab: 0,      oh: 0,      total: 7.6000, uom: "KG", effFrom: "2025-01-15", effTo: null, status: "active",     approvedBy: "Sarah McKenzie", approvedAt: "2025-01-10 09:00 UTC", hash: "sha256:d0e1f2a3b4c5…", basis: "quoted",      notes: "PO-2026-00044 reference price" },
+  { id: "SC-2026-201", itemCode: "RM-BREAST-001", itemName: "Chicken Breast",         itemType: "RM",  mat: 5.2000, lab: 0,      oh: 0,      total: 5.2000, uom: "KG", effFrom: "2025-01-01", effTo: null, status: "approved",   approvedBy: "Sarah McKenzie", approvedAt: "2025-01-01 09:45 UTC", hash: "sha256:f6a7b8c9d0e1…", basis: "quoted",      notes: "Supplier price list Q1" },
+  { id: "SC-2026-202", itemCode: "RM-FLOUR-001",  itemName: "Wheat Flour",            itemType: "RM",  mat: 0.9500, lab: 0,      oh: 0,      total: 0.9500, uom: "KG", effFrom: "2025-01-01", effTo: null, status: "approved",   approvedBy: "Sarah McKenzie", approvedAt: "2025-01-01 09:48 UTC", hash: "sha256:a7b8c9d0e1f2…", basis: "quoted",      notes: null },
+  { id: "SC-2026-203", itemCode: "RM-SEASON-001", itemName: "Seasoning Mix",          itemType: "RM",  mat: 12.4000, lab: 0,     oh: 0,      total: 12.4000, uom: "KG", effFrom: "2025-01-01", effTo: null, status: "approved",  approvedBy: "Sarah McKenzie", approvedAt: "2025-01-01 09:51 UTC", hash: "sha256:b8c9d0e1f2a3…", basis: "quoted",      notes: null },
+  { id: "SC-2026-204", itemCode: "R-1001",        itemName: "Wieprzowina kl. II",     itemType: "RM",  mat: 5.0000, lab: 0,      oh: 0,      total: 5.0000, uom: "KG", effFrom: "2025-02-01", effTo: null, status: "approved",   approvedBy: "Sarah McKenzie", approvedAt: "2025-01-28 13:22 UTC", hash: "sha256:c9d0e1f2a3b4…", basis: "quoted",      notes: "Baltic Pork Co. Q1 contract" },
+  { id: "SC-2026-205", itemCode: "R-3001",        itemName: "Osłonka Ø26 (Viscofan)", itemType: "RM",  mat: 7.6000, lab: 0,      oh: 0,      total: 7.6000, uom: "KG", effFrom: "2025-01-15", effTo: null, status: "approved",   approvedBy: "Sarah McKenzie", approvedAt: "2025-01-10 09:00 UTC", hash: "sha256:d0e1f2a3b4c5…", basis: "quoted",      notes: "PO-2026-00044 reference price" },
   // Pending (awaiting approval)
   { id: "SC-2026-301", itemCode: "FG-NUGGET-1K",  itemName: "Chicken Nuggets 1 kg",   itemType: "FA",  mat: 2.7500, lab: 0.4200, oh: 0.6300, total: 3.8000, uom: "KG", effFrom: "2026-05-01", effTo: null, status: "pending",    approvedBy: null,              approvedAt: null,                   hash: null,                  basis: "quoted",      notes: "Supplier Q2 price increase – review" },
   { id: "SC-2026-302", itemCode: "R-1501",        itemName: "Mąka pszenna typ 500",   itemType: "RM",  mat: 1.0500, lab: 0,      oh: 0,      total: 1.0500, uom: "KG", effFrom: "2026-05-01", effTo: null, status: "pending",    approvedBy: null,              approvedAt: null,                   hash: null,                  basis: "quoted",      notes: "Imported D365 master" },
@@ -118,6 +119,8 @@ const FIN_STD_COSTS = [
   { id: "SC-2026-402", itemCode: "FA5300",        itemName: "Pierogi ruskie",         itemType: "FA",  mat: 2.1000, lab: 0.3200, oh: 0.4800, total: 2.9000, uom: "KG", effFrom: "2026-06-01", effTo: null, status: "draft",      approvedBy: null,              approvedAt: null,                   hash: null,                  basis: "historical",  notes: null },
   // Superseded (old version)
   { id: "SC-2026-099", itemCode: "FG-NUGGET-1K",  itemName: "Chicken Nuggets 1 kg",   itemType: "FA",  mat: 2.4000, lab: 0.3800, oh: 0.5800, total: 3.3600, uom: "KG", effFrom: "2024-07-01", effTo: "2024-12-31", status: "superseded", approvedBy: "Sarah McKenzie", approvedAt: "2024-06-25 09:10 UTC", hash: "sha256:090a1b2c3d4e…", basis: "quoted",      notes: "H2 2024 cost — superseded Jan 2025" },
+  // Retired (item discontinued) — PRD §6 lifecycle terminal state
+  { id: "SC-2025-050", itemCode: "FA4800",        itemName: "Krokiety z kapustą 200g (discontinued)", itemType: "FA", mat: 2.3000, lab: 0.4000, oh: 0.5000, total: 3.2000, uom: "KG", effFrom: "2024-01-01", effTo: "2025-06-30", status: "retired",    approvedBy: "Sarah McKenzie", approvedAt: "2023-12-18 10:00 UTC", hash: "sha256:retired050abc…", basis: "historical",  notes: "SKU discontinued 2025-06-30 — retired per PRD §6 lifecycle." },
 ];
 
 // ----- WO Cost list (FIN-003a) -----
@@ -215,7 +218,20 @@ const FIN_WO_DETAIL_KIELBASA = {
     { wo: "WO-2026-0114", role: "Child",  own:   878.40, cascade:  878.40 },
   ],
   cascadeTotal: 7840.90,
-  coProducts: null,
+  // FIN-003b — Co-product cost allocation (PRD §9.3).
+  // When a WO's BOM produces more than one output (primary FA + co-product),
+  // the joint actual cost is allocated across outputs per allocationMethod.
+  // Sausage smoking run yields the named kiełbasa plus a small by-stream
+  // of trimmings/skin that gets graded for pet-food-grade co-product.
+  coProducts: {
+    method: "market_value",            // market_value | physical | split_by_weight
+    totalAllocated: 6420.70,
+    outputs: [
+      { name: "Kiełbasa śląska pieczona 450g", code: "FA5100", type: "FA",         qty: 1011.0, uom: "KG", basis: 6350.00, allocPct: 97.5, allocCost: 6260.18, unitCost: 6.19 },
+      { name: "Trimmings pet-grade",            code: "CO-PET-01", type: "Co-product", qty:  22.5, uom: "KG", basis:  165.00, allocPct:  2.5, allocCost:  160.52, unitCost: 7.13 },
+    ],
+    note: "Market-value allocation: allocated_cost_i = total_cost × (market_value_i ÷ Σ market_value). Formula per PRD §9.3.",
+  },
   notes: [
     { date: "2026-04-21 15:02 UTC", author: "Sarah McKenzie", cat: "Supplier Issue", text: "Supplier price increase — new PO price £5.45/kg vs standard £5.20. Raise standard cost for RM-BREAST-001." },
   ],

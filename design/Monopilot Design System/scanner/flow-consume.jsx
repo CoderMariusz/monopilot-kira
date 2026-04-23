@@ -256,6 +256,19 @@ const ConsumeScanScreen = ({ woCode, bomLine, onNav, onDone }) => {
       setShowError({ code:"SC_LP_QA_HOLD", title:"LP na wstrzymaniu QA", message:"Ten LP jest wstrzymany do inspekcji QA. Nie można wykonać operacji." });
       return;
     }
+    // FR-SC-BE-030/031: consume is LP-modifying → acquire lease before mutation.
+    // acquireLpLock is defined in flow-other.jsx (exposed via window).
+    const lockFn = (window.acquireLpLock || (() => ({ status: "acquired" })));
+    const lockResult = lockFn(lpData);
+    if (lockResult && lockResult.status === "locked_by_other") {
+      setShowLocked(true);
+      setShowError({
+        code: "SC_LP_LOCKED",
+        title: "LP zablokowany",
+        message: `LP jest aktualnie używany przez ${lockResult.lockedBy}. Lease wygasa za ${lockResult.expiresIn}s.`,
+      });
+      return;
+    }
     // use_by gate
     const today = new Date("2026-04-21");
     const exp = new Date(lpData.expiry);

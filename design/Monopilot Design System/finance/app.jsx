@@ -27,6 +27,7 @@ const FinApp = () => {
     case "var_realtime":    content = <FinVarRealtime onNav={setScreen}/>; break;
     case "reports":         content = <FinReports onNav={setScreen} openModal={openModal}/>; break;
     case "d365":            content = <FinD365 role={role} onNav={setScreen} openModal={openModal}/>; break;
+    case "gl_mappings":     content = <FinGlMappings role={role} onNav={setScreen} openModal={openModal}/>; break;
     case "settings":        content = <FinSettings onNav={setScreen} openModal={openModal}/>; break;
     case "bom_costing":     content = <FinBomCosting onNav={setScreen}/>; break;
     case "simulation":      content = <FinSimulation onNav={setScreen}/>; break;

@@ -1484,3 +1484,12 @@ textarea.sc-finput { min-height: 72px; resize: vertical; }
 }
 .sc-toggle.on { background: var(--sc-blue); }
 .sc-toggle.on::after { left: 22px; }
+
+/* CameraScanner viewfinder scan-line animation (FR-SC-FE-007).
+   Uses --sc-green token to stay within scanner dark palette. */
+@keyframes sc-scan-line {
+  0%   { top: 0%;   opacity: 0; }
+  20%  { opacity: 1; }
+  80%  { opacity: 1; }
+  100% { top: 100%; opacity: 0; }
+}
