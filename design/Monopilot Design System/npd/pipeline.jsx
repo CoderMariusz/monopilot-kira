@@ -200,9 +200,23 @@ const Pipeline = ({ onOpen, onNew, pipelineView, setPipelineView, role }) => {
         </div>
       </div>
 
-      {pipelineView === "kanban" && <KanbanView projects={projects} onOpen={onOpen} />}
-      {pipelineView === "table" && <TableView projects={projects} onOpen={onOpen} />}
-      {pipelineView === "split" && <SplitView projects={projects} onOpen={onOpen} />}
+      {/* §3.8 EmptyState — no projects in current filter */}
+      {projects.length === 0 ? (
+        <div className="card">
+          <EmptyState
+            icon="🧪"
+            title="No projects in this view"
+            body="R&D pipeline is empty for the current filter. Try broadening or start a new project."
+            action={{ label: "+ New project", onClick: onNew }}
+          />
+        </div>
+      ) : (
+        <>
+          {pipelineView === "kanban" && <KanbanView projects={projects} onOpen={onOpen} />}
+          {pipelineView === "table" && <TableView projects={projects} onOpen={onOpen} />}
+          {pipelineView === "split" && <SplitView projects={projects} onOpen={onOpen} />}
+        </>
+      )}
     </div>
   );
 };
