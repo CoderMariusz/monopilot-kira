@@ -65,11 +65,12 @@ window.NPD_STAGES = [
   { key: "handoff",  label: "Handoff" }
 ];
 
+// Fix-1 NPD: removed `nutrition` (Nutri-Score hallucination → 09-QUALITY/03-TECHNICAL)
+// and `costing` (cost waterfall hallucination → 10-FINANCE Phase C4) per PRD §1.2
+// out-of-scope for 01-NPD Phase B.2.
 window.NPD_STAGE_DETAIL = [
   { key: "brief",      label: "Brief",             short: "Intake" },
   { key: "recipe",     label: "Recipe",            short: "Formulation" },
-  { key: "nutrition",  label: "Nutrition",         short: "Nutrition & allergens" },
-  { key: "costing",    label: "Costing",           short: "Cost & margin" },
   { key: "packaging",  label: "Packaging",         short: "Pack spec" },
   { key: "trial",      label: "Trial",             short: "Lab trials" },
   { key: "sensory",    label: "Sensory",           short: "Panel scores" },
@@ -92,16 +93,8 @@ window.NPD_INGREDIENTS_DEFAULT = [
   { id: 10,code: "RM-3712", name: "Spice Mix (Ham blend)",  pct: 0.9,  costPerKg: 12.40, allergen: null }
 ];
 
-// Nutrition per 100g, derived approximations for the Ham recipe
-window.NPD_NUTRITION_TARGET = {
-  energy: { val: 142, unit: "kcal", target: 150, max: 180, label: "Energy" },
-  fat:    { val: 6.2,  unit: "g",   target: 8,   max: 12,  label: "Fat" },
-  satfat: { val: 2.1,  unit: "g",   target: 3,   max: 4,   label: "Saturates" },
-  carbs:  { val: 1.1,  unit: "g",   target: 2,   max: 3,   label: "Carbs" },
-  sugars: { val: 0.5,  unit: "g",   target: 1,   max: 2,   label: "Sugars" },
-  protein:{ val: 19.6, unit: "g",   target: 18,  max: 25,  label: "Protein" },
-  salt:   { val: 2.0,  unit: "g",   target: 2,   max: 2.5, label: "Salt" }
-};
+// Fix-1 NPD: removed `NPD_NUTRITION_TARGET` mock — Nutri-Score/Nutrition panel
+// was a PRD hallucination (belongs to 09-QUALITY / 03-TECHNICAL, not 01-NPD).
 
 window.NPD_ALLERGENS = [
   "Gluten", "Soy", "Milk", "Egg", "Celery", "Mustard", "Sulphites", "Fish", "Crustaceans", "Nuts", "Sesame"

@@ -91,8 +91,8 @@ const App = () => {
             <StageRail project={project} current={route.stage} onNav={(stage) => setRoute(r => ({ ...r, stage }))} />
             {route.stage === "brief"      && <BriefScreen project={project} />}
             {route.stage === "recipe"     && <RecipeScreen project={project} />}
-            {route.stage === "nutrition"  && <NutritionScreen />}
-            {route.stage === "costing"    && <CostingScreen />}
+            {/* Fix-1 NPD: removed `nutrition` (Nutri-Score → 09-QUALITY/03-TECHNICAL)
+                and `costing` (cost roll → 10-FINANCE Phase C4) — PRD §1.2 out-of-scope. */}
             {route.stage === "packaging"  && <PackagingScreen />}
             {route.stage === "trial"      && <TrialScreen />}
             {route.stage === "sensory"    && <SensoryScreen />}
