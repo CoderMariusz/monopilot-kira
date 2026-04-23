@@ -5,8 +5,8 @@
 // ../_shared/modals.jsx and are globally available — do not redefine.
 //
 // Layout:
-//  1. PO modals      — POFastFlow, AddPOLine, POApproval
-//  2. TO modals      — LPPicker, TOCreate, ShipTO
+//  1. PO modals      — POFastFlow, AddPOLine, POApproval, POBulkImport
+//  2. TO modals      — LPPicker, TOCreate, ShipTO, ReceiveTO
 //  3. WO modals      — WOCreate (+ CascadePreview sub-modal)
 //  4. D365 modals    — D365TriggerConfirm, DraftWOReview
 //  5. Cross-cutting  — ReservationOverride, CycleCheckWarning,
@@ -1099,15 +1099,391 @@ const SequencingApplyConfirmModal = ({ open, onClose, onConfirm }) => {
   );
 };
 
+// ============ PO Bulk Import — MODAL-04 ============
+// spec: 04-PLANNING-BASIC-PRD §6.2 FR-PLAN-006 (Should Have) · UX-inspired wizard.
+// 2-step: paste/upload CSV → preview & validate → confirm "Import N POs".
+// Groups rows by supplier + expected_delivery_date → one PO per group.
+// Uses Modal + Stepper + Summary primitives from _shared/modals.jsx.
+
+const PO_BULK_SAMPLE = `supplier_code,product_code,qty,unit_price,expected_delivery
+SUP-0012,R-1001,500,9.80,2026-04-28
+SUP-0012,R-1002,200,4.60,2026-04-28
+SUP-0018,R-1105,400,11.10,2026-04-29
+SUP-0022,R-2101,30,38.50,2026-04-28
+SUP-0022,R-2102,20,24.20,2026-04-28
+SUP-9999,R-1001,100,9.00,2026-04-28
+SUP-0052,R-1801,,1.20,2026-04-30`;
+
+const POBulkImportModal = ({ open, onClose, onConfirm }) => {
+  const [step, setStep] = React.useState("paste");
+  const [completed, setCompleted] = React.useState(new Set());
+  const [csv, setCsv] = React.useState(PO_BULK_SAMPLE);
+
+  React.useEffect(() => {
+    if (!open) return;
+    setStep("paste");
+    setCompleted(new Set());
+    setCsv(PO_BULK_SAMPLE);
+  }, [open]);
+
+  const steps = [
+    { key: "paste",   label: "Upload / paste CSV" },
+    { key: "preview", label: "Validate & preview" },
+    { key: "done",    label: "Import" },
+  ];
+
+  // Parse + validate. V-PLAN-PO-001 supplier exists, V-PLAN-PO-002 product exists (mocked),
+  // V-PLAN-PO-003 qty > 0, V-PLAN-PO-004 unit_price ≥ 0, all required fields present.
+  const rows = React.useMemo(() => {
+    const lines = csv.split(/\r?\n/).filter(l => l.trim());
+    if (!lines.length) return [];
+    const [header, ...body] = lines;
+    const cols = header.split(",").map(c => c.trim());
+    return body.map((line, idx) => {
+      const vals = line.split(",").map(v => v.trim());
+      const r = {};
+      cols.forEach((c, i) => r[c] = vals[i]);
+      r._row = idx + 2;
+      const errors = [];
+      const supplier = (PLAN_SUPPLIERS || []).find(s => s.code === r.supplier_code);
+      if (!r.supplier_code) errors.push("supplier_code required");
+      else if (!supplier) errors.push("supplier not found (V-PLAN-PO-001)");
+      else if (!supplier.active) errors.push("supplier inactive");
+      if (!r.product_code) errors.push("product_code required");
+      const qty = parseFloat(r.qty);
+      if (!r.qty || isNaN(qty) || qty <= 0) errors.push("qty > 0 required (V-PLAN-PO-003)");
+      const price = parseFloat(r.unit_price);
+      if (r.unit_price === "" || isNaN(price) || price < 0) errors.push("unit_price ≥ 0 required");
+      if (!r.expected_delivery) errors.push("expected_delivery required");
+      r._errors = errors;
+      r._valid = errors.length === 0;
+      r._supplierName = supplier ? supplier.name : r.supplier_code;
+      return r;
+    });
+  }, [csv]);
+
+  const validRows  = rows.filter(r => r._valid);
+  const errorRows  = rows.filter(r => !r._valid);
+
+  // Group by supplier_code + expected_delivery to compute PO count.
+  const groups = React.useMemo(() => {
+    const m = new Map();
+    validRows.forEach(r => {
+      const k = `${r.supplier_code}|${r.expected_delivery}`;
+      if (!m.has(k)) m.set(k, { key: k, supplier_code: r.supplier_code, name: r._supplierName, exp: r.expected_delivery, lines: 0, total: 0 });
+      const g = m.get(k);
+      g.lines += 1;
+      g.total += parseFloat(r.qty) * parseFloat(r.unit_price);
+    });
+    return [...m.values()];
+  }, [validRows]);
+
+  const goNext = () => {
+    if (step === "paste") { setCompleted(new Set([...completed, "paste"])); setStep("preview"); }
+    else if (step === "preview") {
+      setCompleted(new Set([...completed, "paste", "preview"]));
+      setStep("done");
+      onConfirm && onConfirm({ groups, validRows, errorRows });
+    }
+  };
+  const goBack = () => setStep(step === "done" ? "preview" : "paste");
+
+  const handleFile = (f) => {
+    if (!f) return;
+    const reader = new FileReader();
+    reader.onload = () => setCsv(String(reader.result || ""));
+    reader.readAsText(f);
+  };
+
+  return (
+    <Modal open={open} onClose={onClose} size="wide"
+      title="Bulk import purchase orders"
+      subtitle="CSV → grouped by supplier + expected delivery → one PO per group (FR-PLAN-006)"
+      foot={
+        step === "paste" ? <>
+          <button className="btn btn-secondary btn-sm" onClick={onClose}>Cancel</button>
+          <button className="btn btn-primary btn-sm" disabled={rows.length === 0} onClick={goNext}>Next: validate →</button>
+        </> : step === "preview" ? <>
+          <button className="btn btn-ghost btn-sm" onClick={goBack}>← Edit CSV</button>
+          <span className="spacer"></span>
+          <button className="btn btn-secondary btn-sm" onClick={onClose}>Cancel</button>
+          <button className="btn btn-primary btn-sm" disabled={validRows.length === 0} onClick={goNext}>
+            Import {groups.length} PO{groups.length === 1 ? "" : "s"}
+          </button>
+        </> : <>
+          <span className="spacer"></span>
+          <button className="btn btn-primary btn-sm" onClick={onClose}>Done</button>
+        </>
+      }>
+      <Stepper steps={steps} current={step} completed={completed}/>
+
+      {step === "paste" && (
+        <div style={{marginTop:14}}>
+          <Field label="Upload CSV file" help="Headers: supplier_code, product_code, qty, unit_price, expected_delivery">
+            <input type="file" accept=".csv,text/csv" onChange={e => handleFile(e.target.files?.[0])}/>
+          </Field>
+          <Field label="…or paste CSV content" required>
+            <textarea rows={10} value={csv} onChange={e => setCsv(e.target.value)}
+              style={{fontFamily:"var(--font-mono)", fontSize:12, width:"100%"}}/>
+          </Field>
+          <div className="alert-blue alert-box" style={{fontSize:12, marginTop:8}}>
+            <span>ⓘ</span>
+            <div>
+              <b>How grouping works:</b> rows with the same <span className="mono">supplier_code</span> + <span className="mono">expected_delivery</span> become one PO.
+              Each PO inherits currency + payment terms from the supplier master.
+              Rows with validation errors are skipped on import.
+            </div>
+          </div>
+        </div>
+      )}
+
+      {step === "preview" && (
+        <div style={{marginTop:14}}>
+          <div className="row-flex" style={{marginBottom:10}}>
+            <span className="badge badge-green" style={{fontSize:10}}>✓ {validRows.length} valid rows</span>
+            {errorRows.length > 0 && <span className="badge badge-red" style={{fontSize:10}}>✕ {errorRows.length} errors</span>}
+            <span className="spacer"></span>
+            <span className="muted" style={{fontSize:12}}>{groups.length} PO{groups.length === 1 ? "" : "s"} will be created</span>
+          </div>
+
+          {errorRows.length > 0 && (
+            <div className="alert-amber alert-box" style={{fontSize:12, marginBottom:10}}>
+              <span>⚠</span>
+              <div>
+                <b>{errorRows.length} row{errorRows.length === 1 ? "" : "s"} will be skipped</b> — fix in source CSV and re-import to include.
+              </div>
+            </div>
+          )}
+
+          <div className="card" style={{padding:0, marginBottom:10}}>
+            <div className="card-head" style={{padding:"8px 12px", borderBottom:"1px solid var(--border)", marginBottom:0}}>
+              <h3 className="card-title" style={{fontSize:12}}>Row-level validation ({rows.length} rows)</h3>
+            </div>
+            <div style={{maxHeight:180, overflow:"auto"}}>
+              <table>
+                <thead><tr>
+                  <th style={{width:34}}>Row</th><th>Supplier</th><th>Product</th>
+                  <th style={{textAlign:"right"}}>Qty</th><th style={{textAlign:"right"}}>Price</th>
+                  <th>Delivery</th><th>Validation</th>
+                </tr></thead>
+                <tbody>
+                  {rows.map(r => (
+                    <tr key={r._row} style={{background: r._valid ? "" : "var(--red-050, #fef2f2)"}}>
+                      <td className="mono">{r._row}</td>
+                      <td className="mono" style={{fontSize:11}}>{r.supplier_code}</td>
+                      <td className="mono" style={{fontSize:11}}>{r.product_code}</td>
+                      <td className="num mono">{r.qty}</td>
+                      <td className="num mono">{r.unit_price}</td>
+                      <td className="mono" style={{fontSize:11}}>{r.expected_delivery}</td>
+                      <td style={{fontSize:11}}>
+                        {r._valid
+                          ? <span className="badge badge-green" style={{fontSize:9}}>OK</span>
+                          : <span style={{color:"var(--red-700)"}}>{r._errors.join(" · ")}</span>}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div className="card" style={{padding:0}}>
+            <div className="card-head" style={{padding:"8px 12px", borderBottom:"1px solid var(--border)", marginBottom:0}}>
+              <h3 className="card-title" style={{fontSize:12}}>Grouping preview — {groups.length} PO{groups.length === 1 ? "" : "s"}</h3>
+            </div>
+            {groups.length === 0
+              ? <div className="muted" style={{padding:14, fontSize:12}}>No valid rows to group.</div>
+              : <table>
+                <thead><tr>
+                  <th>Supplier</th><th>Expected delivery</th>
+                  <th style={{textAlign:"right"}}>Lines</th>
+                  <th style={{textAlign:"right"}}>Subtotal (pre-tax)</th>
+                </tr></thead>
+                <tbody>
+                  {groups.map(g => (
+                    <tr key={g.key}>
+                      <td>
+                        <div style={{fontSize:12, fontWeight:500}}>{g.name}</div>
+                        <div className="mono muted" style={{fontSize:10}}>{g.supplier_code}</div>
+                      </td>
+                      <td className="mono" style={{fontSize:11}}>{g.exp}</td>
+                      <td className="num mono">{g.lines}</td>
+                      <td className="num mono">£{g.total.toFixed(2)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>}
+          </div>
+        </div>
+      )}
+
+      {step === "done" && (
+        <div style={{marginTop:14}}>
+          <div className="alert-green alert-box" style={{fontSize:13}}>
+            <span>✓</span>
+            <div>
+              <b>Imported {groups.length} PO{groups.length === 1 ? "" : "s"}</b> from {validRows.length} valid rows.
+              {errorRows.length > 0 && ` ${errorRows.length} row${errorRows.length === 1 ? " was" : "s were"} skipped due to validation errors.`}
+            </div>
+          </div>
+          <Summary rows={[
+            { label: "POs created",   value: groups.length + " · status = draft", emphasis: true },
+            { label: "Valid rows",    value: validRows.length, mono: true },
+            { label: "Skipped rows",  value: errorRows.length, mono: true },
+            { label: "Next step",     value: "Review + submit for approval in PO list" },
+          ]}/>
+        </div>
+      )}
+    </Modal>
+  );
+};
+
+// ============ Receive TO — MODAL (FR-PLAN §7.7 ReceiveTOModal) ============
+// Mirror of ShipTOModal but for the receive step of a TO.
+// Pattern follows GRN Step 3 (Warehouse) — per-line receive-now + force-close flag.
+// V-PLAN-TO-005: received_qty per line ≤ shipped qty.
+
+const ReceiveTOModal = ({ open, onClose, onConfirm, to }) => {
+  const toRef = to || PLAN_TO_DETAIL;
+  const [qtys, setQtys] = React.useState({});
+  const [forceClose, setForceClose] = React.useState({});
+  const [notes, setNotes] = React.useState("");
+
+  React.useEffect(() => {
+    if (!open) return;
+    const seedQ = {};
+    const seedF = {};
+    toRef.lines.forEach(l => {
+      const shipped = l.shipped || 0;
+      const received = l.received || 0;
+      seedQ[l.seq] = Math.max(0, shipped - received);
+      seedF[l.seq] = false;
+    });
+    setQtys(seedQ);
+    setForceClose(seedF);
+    setNotes("");
+  }, [open, toRef]);
+
+  const lineErrors = toRef.lines.map(l => {
+    const shipped  = l.shipped || 0;
+    const received = l.received || 0;
+    const outstanding = Math.max(0, shipped - received);
+    const v = qtys[l.seq] ?? 0;
+    if (v < 0) return "Qty must be ≥ 0";
+    if (v > outstanding) return `V-PLAN-TO-005 · max ${outstanding} ${l.uom}`;
+    return null;
+  });
+
+  const anyError = lineErrors.some(Boolean);
+  const totalBatch     = Object.values(qtys).reduce((a, v) => a + (+v || 0), 0);
+  const totalOutstanding = toRef.lines.reduce((a, l) => a + Math.max(0, (l.shipped || 0) - (l.received || 0)), 0);
+  const anyForceClose    = Object.values(forceClose).some(Boolean);
+  const fullyReceived    = Math.abs(totalBatch - totalOutstanding) < 0.0001 && totalBatch > 0;
+
+  const nextStatus = totalBatch > 0
+    ? (fullyReceived || anyForceClose ? "received" : "partially_received")
+    : toRef.status;
+
+  return (
+    <Modal open={open} onClose={onClose} size="wide"
+      title={`Receive ${toRef.id}`}
+      subtitle={`From ${toRef.from} · ${toRef.lines.length} line${toRef.lines.length === 1 ? "" : "s"} · planned receive ${toRef.plannedRecv || "—"}`}
+      foot={<>
+        <button className="btn btn-secondary btn-sm" onClick={onClose}>Cancel</button>
+        <button className="btn btn-primary btn-sm"
+          disabled={anyError || (totalBatch <= 0 && !anyForceClose)}
+          onClick={() => { onConfirm?.({ qtys, forceClose, notes, nextStatus }); onClose(); }}>
+          Confirm receipt
+        </button>
+      </>}>
+      <div className="muted" style={{fontSize:12, marginBottom:10}}>
+        Enter qty received per line. Pre-filled with outstanding (shipped − already received).
+        Use <b>Force close</b> to finalise a line short — requires a note below.
+      </div>
+
+      <table>
+        <thead><tr>
+          <th style={{width:30}}>#</th><th>Product</th>
+          <th style={{textAlign:"right"}}>Shipped</th>
+          <th style={{textAlign:"right"}}>Already received</th>
+          <th style={{textAlign:"right", width:110}}>Receive now</th>
+          <th style={{width:100}}>Force close</th>
+        </tr></thead>
+        <tbody>
+          {toRef.lines.map((l, i) => {
+            const shipped = l.shipped || 0;
+            const received = l.received || 0;
+            const outstanding = Math.max(0, shipped - received);
+            const v = qtys[l.seq] ?? 0;
+            const isShort = forceClose[l.seq] && v < outstanding;
+            return (
+              <tr key={l.seq} style={isShort ? {background:"var(--amber-050, #fffbeb)"} : {}}>
+                <td className="mono">{l.seq}</td>
+                <td>
+                  <div style={{fontSize:13}}>{l.product}</div>
+                  <div className="mono muted" style={{fontSize:11}}>{l.code}</div>
+                </td>
+                <td className="num mono">{shipped} {l.uom}</td>
+                <td className="num mono">{received}</td>
+                <td>
+                  <input type="number" className="num"
+                    value={qtys[l.seq] ?? 0}
+                    min={0} max={outstanding}
+                    onChange={e => setQtys({ ...qtys, [l.seq]: +e.target.value })}
+                    style={{width:90, borderColor: lineErrors[i] ? "var(--red)" : ""}}/>
+                  {lineErrors[i] && <div style={{fontSize:10, color:"var(--red-700)", marginTop:2}}>{lineErrors[i]}</div>}
+                </td>
+                <td>
+                  <label style={{fontSize:11, display:"flex", alignItems:"center", gap:4}}>
+                    <input type="checkbox"
+                      checked={!!forceClose[l.seq]}
+                      onChange={e => setForceClose({ ...forceClose, [l.seq]: e.target.checked })}/>
+                    close short
+                  </label>
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+
+      {anyForceClose && (
+        <Field label="Force-close reason" required help="Required when any line is closed short (audit trail)">
+          <textarea rows={2} value={notes} onChange={e => setNotes(e.target.value)}
+            placeholder="e.g. 2kg damaged in transit, supplier credit issued…"/>
+        </Field>
+      )}
+
+      <Summary rows={[
+        { label: "Total outstanding",        value: totalOutstanding + " units", mono: true },
+        { label: "Receiving this batch",     value: totalBatch + " units", mono: true, emphasis: true },
+        { label: "Lines force-closed short", value: Object.values(forceClose).filter(Boolean).length, mono: true },
+        { label: "After receipt",            value: fullyReceived ? "Fully received" : (anyForceClose ? "Received (with short-close)" : totalBatch > 0 ? "Partially received" : "No change") },
+      ]}/>
+
+      <div className="alert-blue alert-box" style={{marginTop:10, fontSize:12}}>
+        <span>→</span>
+        <div>
+          <b>Status transition:</b>{" "}
+          <TOStatus s={toRef.status}/> <span className="muted">→</span> <TOStatus s={nextStatus}/>
+          {" · "}Warehouse put-away happens automatically on confirm (FR-WH-018).
+        </div>
+      </div>
+    </Modal>
+  );
+};
+
 // ============ 7. MODAL GALLERY (manual QA) ============
 
 const MODAL_CATALOG = [
   { key: "poFastFlow",      name: "MODAL-01 · PO Fast-Flow wizard",     pattern: "Wizard (3 steps)",            comp: POFastFlowModal },
   { key: "addPoLine",       name: "MODAL-02 · Add PO line",             pattern: "Simple form",                 comp: AddPOLineModal },
   { key: "poApproval",      name: "MODAL-03 · PO Approval",             pattern: "Dual-path (approve/reject)",  comp: POApprovalModal },
+  { key: "poBulkImport",    name: "MODAL-04 · PO Bulk Import",          pattern: "Wizard (2 steps + result)",   comp: POBulkImportModal },
   { key: "toCreate",        name: "MODAL-05 · TO Create/Edit",          pattern: "Simple form (size wide)",     comp: TOCreateModal },
   { key: "lpPicker",        name: "MODAL-06 · LP Picker",               pattern: "Searchable picker",           comp: LPPickerModal },
   { key: "shipTo",          name: "MODAL-07 · Ship TO",                 pattern: "Simple form w/ per-line inputs", comp: ShipTOModal },
+  { key: "receiveTo",       name: "MODAL · Receive TO",                 pattern: "Per-line receive + force-close", comp: ReceiveTOModal },
   { key: "woCreate",        name: "MODAL-08 · WO Create + cascade",     pattern: "Wizard + sub-modal",          comp: WOCreateModal },
   { key: "cascadePreview",  name: "MODAL-09 · Cascade preview",         pattern: "Preview / read-only",         comp: CascadePreviewModal },
   { key: "resOverride",     name: "MODAL-10 · Reservation override",    pattern: "Override with reason",        comp: ReservationOverrideModal },
@@ -1160,8 +1536,8 @@ const ModalGallery = ({ onNav }) => {
 };
 
 Object.assign(window, {
-  POFastFlowModal, AddPOLineModal, POApprovalModal,
-  LPPickerModal, TOCreateModal, ShipTOModal,
+  POFastFlowModal, AddPOLineModal, POApprovalModal, POBulkImportModal,
+  LPPickerModal, TOCreateModal, ShipTOModal, ReceiveTOModal,
   WOCreateModal, CascadePreviewModal,
   ReservationOverrideModal, CycleCheckWarningModal, D365TriggerConfirmModal,
   DraftWOReviewModal,
