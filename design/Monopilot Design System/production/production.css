@@ -68,6 +68,14 @@
 .line-operator { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--muted); padding: 6px 0; border-top: 1px solid var(--border); }
 .operator-av { width: 20px; height: 20px; border-radius: 50%; background: var(--blue-050); color: var(--blue-700); display: inline-flex; align-items: center; justify-content: center; font-size: 9px; font-weight: 600; }
 
+/* Tuning §3.1 — 8-shift RunStrip on line card footer. */
+.line-run-strip { display: flex; align-items: center; gap: 10px; padding: 6px 0 2px; border-top: 1px solid var(--border-soft); margin-top: 2px; }
+.line-run-strip-label { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; font-weight: 600; }
+
+/* Tuning §3.5 — CompactActivity inside a card-head card needs flush
+ * children so the primitive's own borders align with the card edge. */
+.card-body-flush { padding: 0 2px 2px; }
+
 .line-card-foot { padding: 8px 12px; background: var(--gray-100); display: flex; gap: 6px; border-top: 1px solid var(--border); }
 .line-card-foot .btn { flex: 1; justify-content: center; }
 

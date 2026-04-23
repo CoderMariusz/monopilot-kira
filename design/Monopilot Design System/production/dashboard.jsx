@@ -1,5 +1,40 @@
 // ============ Production dashboard ============
 
+// --------------------------------------------------------------
+// buildProdActivityGroups(feed) — shape EVENTS_FEED for
+// <CompactActivity/>. Correlation id = first WO-XXXX-XXXX token
+// in desc; fall-back bucket "PLANT" for shift / DLQ / unscoped
+// events. Groups with a red/amber event default-open so the
+// operator sees them immediately.
+// Pure derivation — data.jsx remains frozen (TUNING-PLAN §4.5).
+// --------------------------------------------------------------
+const buildProdActivityGroups = (feed) => {
+  const WO_RX = /\bWO-\d{4}-\d{4}\b/;
+  const byCorr = {};
+  feed.forEach((e) => {
+    const m = e.desc && e.desc.match(WO_RX);
+    const corr = m ? m[0] : "PLANT";
+    if (!byCorr[corr]) byCorr[corr] = { id: corr, label: corr, events: [], worstColor: "" };
+    const internal = e.color === "blue"; // demote non-alert blue to "internal"
+    byCorr[corr].events.push({
+      ts: e.t,
+      msg: e.desc + (e.sub ? " — " + e.sub : ""),
+      internal,
+    });
+    if (e.color === "red" || e.color === "amber") {
+      byCorr[corr].worstColor = byCorr[corr].worstColor === "red" ? "red" : e.color;
+    }
+  });
+  return Object.values(byCorr).map((g) => ({
+    id: g.id,
+    label: g.label,
+    events: g.events,
+    count: g.events.length,
+    defaultOpen: g.worstColor === "red" || g.worstColor === "amber",
+  }));
+};
+
+
 const Dashboard = ({ onOpenWo, onOpenLine, onNav, openModal }) => {
   const running = LINES.filter(l => l.status === "running").length;
   const down = LINES.filter(l => l.status === "down").length;
@@ -95,17 +130,12 @@ const Dashboard = ({ onOpenWo, onOpenLine, onNav, openModal }) => {
               <button className="btn btn-ghost btn-sm">Filter</button>
             </div>
           </div>
-          <div>
-            {EVENTS_FEED.map((e,i) => (
-              <div key={i} className="tl-item">
-                <span className={"tl-dot "+e.color}></span>
-                <div>
-                  <div>{e.desc}</div>
-                  <div className="tl-sub">{e.sub}</div>
-                </div>
-                <div className="tl-time">{e.t}</div>
-              </div>
-            ))}
+          <div className="card-body-flush">
+            {/* Tuning §3.5 — <CompactActivity/> groups events by WO
+                correlation id. Events without a WO reference fall under
+                a "Plant / shift" bucket. Critical WO groups default-open
+                (GHA-style §3.3) so red/amber never hide behind a caret. */}
+            <CompactActivity groups={buildProdActivityGroups(EVENTS_FEED)} />
           </div>
         </div>
 
@@ -192,6 +222,14 @@ const LineCard = ({ line, onOpen, onWo, openModal }) => {
           <span>{l.operator}</span>
           <span className="spacer"></span>
           {l.nextWo !== "—" ? <span>Next: <span className="mono">{l.nextWo}</span> · in {l.nextIn}</span> : <span>—</span>}
+        </div>
+
+        {/* Tuning §3.1 — 8-shift OEE outcome strip per line. Derived
+            from existing line entity fields (status, waste, yield)
+            via deriveRunHistory; data.jsx stays frozen. */}
+        <div className="line-run-strip">
+          <span className="line-run-strip-label">Last 8 shifts</span>
+          <RunStrip outcomes={deriveRunHistory(l)} title={l.id + " — 8-shift OEE outcomes"} />
         </div>
       </div>
 
