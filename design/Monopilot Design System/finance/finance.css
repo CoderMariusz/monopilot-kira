@@ -13,6 +13,10 @@
 .var-sm { font-size: 10px; padding: 1px 6px; }
 .var-lg { font-size: 13px; padding: 4px 12px; }
 
+/* Co-product badge (FIN-003b allocation table) — scanner uses purple for
+   co-products per 06-SCANNER-UX §1.4; mirror that semantic in finance. */
+.badge.badge-purple { background: #f3e8ff; color: #6b21a8; }
+
 /* ============ Variance amount cells in tables ============ */
 .var-amt { font-family: var(--font-mono); font-weight: 600; }
 .var-amt.pos { color: #991b1b; }

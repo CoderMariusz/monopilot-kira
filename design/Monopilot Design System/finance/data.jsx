@@ -218,7 +218,20 @@ const FIN_WO_DETAIL_KIELBASA = {
     { wo: "WO-2026-0114", role: "Child",  own:   878.40, cascade:  878.40 },
   ],
   cascadeTotal: 7840.90,
-  coProducts: null,
+  // FIN-003b — Co-product cost allocation (PRD §9.3).
+  // When a WO's BOM produces more than one output (primary FA + co-product),
+  // the joint actual cost is allocated across outputs per allocationMethod.
+  // Sausage smoking run yields the named kiełbasa plus a small by-stream
+  // of trimmings/skin that gets graded for pet-food-grade co-product.
+  coProducts: {
+    method: "market_value",            // market_value | physical | split_by_weight
+    totalAllocated: 6420.70,
+    outputs: [
+      { name: "Kiełbasa śląska pieczona 450g", code: "FA5100", type: "FA",         qty: 1011.0, uom: "KG", basis: 6350.00, allocPct: 97.5, allocCost: 6260.18, unitCost: 6.19 },
+      { name: "Trimmings pet-grade",            code: "CO-PET-01", type: "Co-product", qty:  22.5, uom: "KG", basis:  165.00, allocPct:  2.5, allocCost:  160.52, unitCost: 7.13 },
+    ],
+    note: "Market-value allocation: allocated_cost_i = total_cost × (market_value_i ÷ Σ market_value). Formula per PRD §9.3.",
+  },
   notes: [
     { date: "2026-04-21 15:02 UTC", author: "Sarah McKenzie", cat: "Supplier Issue", text: "Supplier price increase — new PO price £5.45/kg vs standard £5.20. Raise standard cost for RM-BREAST-001." },
   ],
