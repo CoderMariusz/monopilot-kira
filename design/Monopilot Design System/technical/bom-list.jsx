@@ -42,15 +42,22 @@ const BOMList = ({ onOpen }) => {
         <KPI label="Open ECOs" value="6" sub="2 high priority" tone="blue" />
       </div>
 
-      {/* Filter + search */}
-      <div style={{ display: "flex", gap: 10, alignItems: "center", marginBottom: 10 }}>
-        <div className="pills">
-          {[["all","All"],["active","Active"],["draft","Draft"],["review","In review"],["archived","Archived"]].map(([k, label]) => (
-            <button key={k} className={"pill " + (filter === k ? "on" : "")} onClick={() => setFilter(k)}>
-              {label} <span style={{ opacity: 0.5, marginLeft: 4 }}>{counts[k]}</span>
-            </button>
-          ))}
-        </div>
+      {/* Filter tabs (TabsCounted — tuning §3.2) */}
+      <TabsCounted
+        current={filter}
+        ariaLabel="BOM status filter"
+        tabs={[
+          { key: "all",      label: "All",        count: counts.all,      tone: "neutral" },
+          { key: "draft",    label: "Draft",      count: counts.draft,    tone: "neutral" },
+          { key: "active",   label: "Active",     count: counts.active,   tone: "ok" },
+          { key: "review",   label: "In review",  count: counts.review,   tone: "info" },
+          { key: "archived", label: "Archived",   count: counts.archived, tone: "bad" },
+        ]}
+        onChange={setFilter}
+      />
+
+      {/* Search + columns */}
+      <div style={{ display: "flex", gap: 10, alignItems: "center", margin: "10px 0" }}>
         <div style={{ flex: 1 }}></div>
         <input type="text" placeholder="Filter by name or code…" value={q} onChange={e => setQ(e.target.value)}
           style={{ width: 260 }} />
@@ -88,6 +95,17 @@ const BOMList = ({ onOpen }) => {
               <div style={{ color: "var(--muted)", textAlign: "center" }}>›</div>
             </div>
           ))}
+          {rows.length === 0 && (
+            <EmptyState
+              icon="📋"
+              title="No BOMs match this filter"
+              body={q
+                ? `No BOMs matching "${q}" in the ${filter === "all" ? "full catalogue" : "“" + filter + "”"} view. Clear the search or try a different status tab.`
+                : "No BOMs with this status yet. Create a new BOM or import one from NPD to get started."
+              }
+              action={{ label: "+ New BOM", onClick: () => {} }}
+            />
+          )}
         </div>
       </div>
     </div>

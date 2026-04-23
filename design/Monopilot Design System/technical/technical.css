@@ -30,6 +30,10 @@
   text-transform: uppercase; letter-spacing: 0.04em; font-weight: 600; border-bottom: 1px solid var(--border); }
 .tree-row { display: grid; grid-template-columns: 30px 1fr 80px 80px 80px 80px 80px 60px;
   gap: 8px; padding: 8px 12px; border-bottom: 1px solid var(--border); align-items: center; font-size: 13px; }
+/* Tuning §3.10 — .mono overrides font-family, which breaks inherited tabular-nums.
+ * Re-declare on tree-row numeric cells so qty / scrap / cost / share align. */
+.tree-row .mono,
+.tree-row .num { font-variant-numeric: tabular-nums; }
 .tree-row:hover { background: var(--gray-050); }
 .tree-row.parent { background: var(--blue-050); font-weight: 500; }
 .tree-row.parent:hover { background: #c7dfff; }
@@ -64,6 +68,11 @@
 .diff-row.rem { background: var(--red-050a); }
 .diff-row.change { background: var(--amber-050a); }
 .diff-arrow { text-align: center; color: var(--muted); font-size: 12px; }
+
+/* Sticky BOM Detail header — sits below the 48px topbar. Tuning §3.4. */
+.bom-detail-sticky { top: 48px; padding-top: 4px; margin: -62px -20px 0; padding-left: 20px; padding-right: 20px; }
+.bom-detail-sticky .page-head { margin-bottom: 8px; padding-top: 12px; }
+.bom-detail-sticky .tabs-bar { margin-bottom: 0 !important; border-bottom: 1px solid var(--border); }
 
 /* tabs */
 .tabs-bar { display: flex; gap: 0; border-bottom: 1px solid var(--border); margin-bottom: 14px; }

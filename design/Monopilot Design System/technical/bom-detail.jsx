@@ -16,38 +16,43 @@ const BOMDetail = ({ onBack, tweaks }) => {
 
   return (
     <div>
-      <div className="page-head">
-        <div>
-          <div className="breadcrumb">
-            <a onClick={onBack}>BOMs & recipes</a> › <span className="mono">{bom.code}</span>
+      {/* Sticky form header — keeps title + primary Save/Publish CTA on screen
+          while long trees / tabs scroll (tuning §3.4). */}
+      <div className="sticky-form-header bom-detail-sticky">
+        <div className="page-head">
+          <div>
+            <div className="breadcrumb">
+              <a onClick={onBack}>BOMs & recipes</a> › <span className="mono">{bom.code}</span>
+            </div>
+            <div className="page-title" style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              {bom.name}
+              <Status s="active" />
+              <span className="badge badge-blue">v7</span>
+            </div>
+            <div className="muted" style={{ fontSize: 13 }}>
+              Standard batch <strong style={{ color: "var(--text)" }}>100 kg input → ~222 szt × 450 g</strong>
+              {" · "}Yield 91% · Cost <span className="mono">11.82 zł/szt</span> · Owner A. Majewska · Last updated 2026-04-14
+            </div>
           </div>
-          <div className="page-title" style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            {bom.name}
-            <Status s="active" />
-            <span className="badge badge-blue">v7</span>
-          </div>
-          <div className="muted" style={{ fontSize: 13 }}>
-            Standard batch <strong style={{ color: "var(--text)" }}>100 kg input → ~222 szt × 450 g</strong>
-            {" · "}Yield 91% · Cost <span className="mono">11.82 zł/szt</span> · Owner A. Majewska · Last updated 2026-04-14
+          <div style={{ display: "flex", gap: 8 }}>
+            <button className="btn btn-ghost btn-sm">⧖ History</button>
+            <button className="btn btn-secondary">⧉ Duplicate</button>
+            <button className="btn btn-secondary">⇄ Propose change (ECO)</button>
+            <button className="btn btn-primary">✎ Edit</button>
           </div>
         </div>
-        <div style={{ display: "flex", gap: 8 }}>
-          <button className="btn btn-ghost btn-sm">⧖ History</button>
-          <button className="btn btn-secondary">⧉ Duplicate</button>
-          <button className="btn btn-secondary">⇄ Propose change (ECO)</button>
-          <button className="btn btn-primary">✎ Edit</button>
+
+        {/* Tabs (inside sticky so tab selection stays with the header) */}
+        <div className="tabs-bar" style={{ marginBottom: 0 }}>
+          {tabs.map(t => (
+            <button key={t.key} className={"tab-btn " + (tab === t.key ? "on" : "")} onClick={() => setTab(t.key)}>
+              {t.label}{t.count != null && <span className="count">{t.count}</span>}
+            </button>
+          ))}
         </div>
       </div>
 
-      {/* Tabs */}
-      <div className="tabs-bar">
-        {tabs.map(t => (
-          <button key={t.key} className={"tab-btn " + (tab === t.key ? "on" : "")} onClick={() => setTab(t.key)}>
-            {t.label}{t.count != null && <span className="count">{t.count}</span>}
-          </button>
-        ))}
-      </div>
-
+      <div style={{ marginTop: 14 }}></div>
       {tab === "tree" && <TreeTab tweaks={tweaks} />}
       {tab === "routing" && <RoutingTab />}
       {tab === "params" && <ParamsTab />}
