@@ -256,8 +256,14 @@ const FAList = ({ onOpenFA, openModal, initialView = "table" }) => {
                 </tr>
               ))}
               {filtered.length === 0 && (
-                <tr><td colSpan={15} style={{ textAlign: "center", padding: 30, color: "var(--muted)" }}>
-                  No FAs match your filters. <a style={{ cursor: "pointer", color: "var(--blue)" }} onClick={() => { setSearch(""); setDept("All"); setSF("All"); }}>Clear filters</a>
+                <tr><td colSpan={15} style={{ padding: 0 }}>
+                  {/* §3.8 EmptyState — list-level empty affordance */}
+                  <EmptyState
+                    icon="⭐"
+                    title="No Factory Articles match your filters"
+                    body="Factory Articles are the master NPD record created from a converted Brief. Create one or clear filters."
+                    action={{ label: "Clear filters", onClick: () => { setSearch(""); setDept("All"); setSF("All"); } }}
+                  />
                 </td></tr>
               )}
             </tbody>
@@ -320,27 +326,30 @@ const FADetail = ({ faCode, onBack, openModal }) => {
 
   return (
     <>
-      <div className="breadcrumb"><a onClick={onBack}>NPD</a> / <a onClick={onBack}>Factory Articles</a> / {fa.fa_code}</div>
-      <div className="page-head">
-        <div>
-          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <div className="mono" style={{ fontSize: 18, fontWeight: 700, color: "var(--blue)" }}>{fa.fa_code}</div>
-            <div style={{ fontSize: 18, fontWeight: 600 }}>{fa.product_name}</div>
-            {alertBadge(fa.status_overall)}
-            {fa.built && <span className="badge badge-blue">⚡ Built</span>}
+      {/* §3.4 sticky-form-header — FA Detail is very long (7 dept tabs + BOM + risks + docs + history) */}
+      <div className="sticky-form-header" style={{ padding: "10px 0", marginBottom: 10 }}>
+        <div className="breadcrumb"><a onClick={onBack}>NPD</a> / <a onClick={onBack}>Factory Articles</a> / {fa.fa_code}</div>
+        <div className="page-head" style={{ marginBottom: 0 }}>
+          <div>
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <div className="mono" style={{ fontSize: 18, fontWeight: 700, color: "var(--blue)" }}>{fa.fa_code}</div>
+              <div style={{ fontSize: 18, fontWeight: 600 }}>{fa.product_name}</div>
+              {alertBadge(fa.status_overall)}
+              {fa.built && <span className="badge badge-blue">⚡ Built</span>}
+            </div>
+            <div className="muted" style={{ fontSize: 12, marginTop: 4 }}>
+              Launch {fa.launch_date || "—"} · {daysCell(fa.days_left)} · Owner {fa.owner} · Brief {fa.brief_id}
+            </div>
           </div>
-          <div className="muted" style={{ fontSize: 12, marginTop: 4 }}>
-            Launch {fa.launch_date || "—"} · {daysCell(fa.days_left)} · Owner {fa.owner} · Brief {fa.brief_id}
+          <div style={{ display: "flex", gap: 8 }}>
+            <button className="btn btn-danger" onClick={() => openModal("faDelete", { fa })}>Delete FA</button>
+            <button className="btn btn-primary"
+                    disabled={fa.status_overall !== "Complete"}
+                    onClick={() => openModal("d365Build", { fa })}
+                    title={fa.status_overall !== "Complete" ? "FA must be Complete first (all 7 depts closed)" : "Build D365 output"}>
+              Build D365 →
+            </button>
           </div>
-        </div>
-        <div style={{ display: "flex", gap: 8 }}>
-          <button className="btn btn-danger" onClick={() => openModal("faDelete", { fa })}>Delete FA</button>
-          <button className="btn btn-primary"
-                  disabled={fa.status_overall !== "Complete"}
-                  onClick={() => openModal("d365Build", { fa })}
-                  title={fa.status_overall !== "Complete" ? "FA must be Complete first (all 7 depts closed)" : "Build D365 output"}>
-            Build D365 →
-          </button>
         </div>
       </div>
 

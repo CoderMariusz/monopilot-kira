@@ -24,6 +24,7 @@ const MntApp = () => {
     case "work_requests":   content = <MntWRList onNav={setScreen} openModal={openModal} role={role}/>; break;
     case "mwos":            content = <MntMWOList onNav={setScreen} openModal={openModal} role={role}/>; break;
     case "mwo_detail":      content = <MntMWODetail onBack={()=>setScreen("mwos")} onNav={setScreen} openModal={openModal} role={role}/>; break;
+    case "sanitation":      content = <MntSanitationList onNav={setScreen} openModal={openModal} role={role}/>; break;
     case "pm_schedules":    content = <MntPMList onNav={setScreen} openModal={openModal} role={role}/>; break;
     case "calibration":     content = <MntCalList onNav={setScreen} openModal={openModal} role={role}/>; break;
     case "cal_detail":      content = <MntCalDetail onBack={()=>setScreen("calibration")} onNav={setScreen} openModal={openModal} role={role}/>; break;

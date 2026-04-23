@@ -1,137 +1,50 @@
-// ============ MAINT-004 Work Request List + MAINT-007 mWO List + MAINT-008 mWO Detail ============
+// ============ MAINT-007 Unified Work Orders List + MAINT-008 mWO Detail ============
+// Fix-1 Maintenance IA (audit A1 / B2 / PRD D-MNT-9):
+// WR + mWO unified into a single list. WR is the `requested` state of the
+// mWO lifecycle, not a separate entity. The former MntWRList screen has been
+// removed; standalone WRs (MNT_WRS with mwo=null) are synthesized as
+// `requested` rows inside MntMWOList alongside MNT_MWOS. The "Requested" tab
+// filters to exactly those entries. "Rejected" is NOT a PRD state — removed
+// from kanban + filters; cancelled records carry a `cancelReason`.
 
-// -------- MAINT-004 Work Request List (table + kanban toggle) --------
-const MntWRList = ({ onNav, openModal, role }) => {
-  const [view, setView] = React.useState(role === "Manager" ? "kanban" : "table");
-  const [statusFilter, setStatusFilter] = React.useState("all");
-  const [priFilter, setPriFilter] = React.useState("all");
-  const [search, setSearch] = React.useState("");
+// Synthesize standalone WRs (MNT_WRS where mwo=null) as requested-state mWO
+// rows in the unified table. WRs already promoted to an mWO are dropped here
+// — they appear in MNT_MWOS under their MWO-xxxx code instead.
+const _standaloneWrsAsMwos = () => (window.MNT_WRS || [])
+  .filter(w => !w.mwo && w.status === "requested")
+  .map(w => ({
+    mwo:        w.wr,                   // WR code shown until triage assigns MWO-xxxx
+    asset:      w.asset,
+    assetId:    null,
+    type:       "reactive",
+    pri:        w.pri,
+    status:     "requested",
+    tech:       null,
+    start:      w.reportedAt,
+    eta:        "—",
+    dtImpact:   "—",
+    src:        "manual",
+    delayedWos: [],
+    originalWr: w.wr,
+    reporter:   w.reporter,
+    desc:       w.desc,
+  }));
 
-  const isManager = role === "Manager" || role === "Admin";
-
-  const visible = MNT_WRS.filter(w => {
-    if (statusFilter !== "all" && w.status !== statusFilter) return false;
-    if (priFilter !== "all" && w.pri !== priFilter) return false;
-    if (search && !(w.wr.toLowerCase().includes(search.toLowerCase()) ||
-                    w.asset.toLowerCase().includes(search.toLowerCase()) ||
-                    w.reporter.toLowerCase().includes(search.toLowerCase()))) return false;
-    return true;
-  });
-
-  const kanbanCols = [
-    { k: "requested",   l: "Submitted",  items: visible.filter(w => w.status === "requested") },
-    { k: "approved",    l: "Triaged",    items: visible.filter(w => ["approved","open","in_progress"].includes(w.status)) },
-    { k: "completed",   l: "Scheduled / Done", items: visible.filter(w => w.status === "completed") },
-    { k: "rejected",    l: "Rejected",   items: visible.filter(w => w.status === "rejected") },
-  ];
-
+// -------- MAINT-004 deprecated — thin redirect for any lingering router entries --------
+// Kept as a no-op component so older route bookmarks degrade gracefully.
+const MntWRList = ({ onNav }) => {
+  React.useEffect(() => { onNav && onNav("mwos"); }, []);
   return (
-    <>
-      <div className="page-head">
-        <div>
-          <div className="breadcrumb"><a onClick={()=>onNav("dashboard")}>Maintenance</a> · Work requests</div>
-          <h1 className="page-title">Work requests</h1>
-          <div className="muted" style={{fontSize:12}}>
-            {MNT_WRS.length} requests · {MNT_WRS.filter(w=>w.status==="requested").length} awaiting triage · {MNT_WRS.filter(w=>w.status==="in_progress").length} in work
-          </div>
-        </div>
-        <div className="row-flex">
-          <input type="text" placeholder="Search WR#, asset, reporter…" value={search} onChange={e=>setSearch(e.target.value)} style={{width:220}}/>
-          <div className="pm-cal-toggle">
-            <button className={view==="table"?"on":""} onClick={()=>setView("table")}>Table</button>
-            <button className={view==="kanban"?"on":""} onClick={()=>setView("kanban")}>Kanban</button>
-          </div>
-          <button className="btn btn-primary btn-sm" onClick={()=>openModal("wrCreate")}>＋ Submit Work Request</button>
-        </div>
+    <div className="card" style={{padding:20}}>
+      <div className="muted" style={{fontSize:12}}>
+        Work Requests have been unified with Work Orders (PRD D-MNT-9).
+        Redirecting to <a onClick={()=>onNav && onNav("mwos")} style={{color:"var(--blue)", cursor:"pointer"}}>Work Orders → Requested</a>…
       </div>
-
-      {/* Filter bar */}
-      <div className="filter-bar">
-        <label>Status</label>
-        <select value={statusFilter} onChange={e=>setStatusFilter(e.target.value)}>
-          <option value="all">All</option>
-          <option value="requested">Submitted</option>
-          <option value="approved">Triaged</option>
-          <option value="in_progress">In progress</option>
-          <option value="completed">Completed</option>
-          <option value="rejected">Rejected</option>
-        </select>
-        <label>Priority</label>
-        <select value={priFilter} onChange={e=>setPriFilter(e.target.value)}>
-          <option value="all">All</option>
-          <option value="critical">Critical</option>
-          <option value="high">High</option>
-          <option value="medium">Medium</option>
-          <option value="low">Low</option>
-        </select>
-      </div>
-
-      {view === "table" && (
-        <div className="card" style={{padding:0}}>
-          <table>
-            <thead>
-              <tr>
-                <th>WR #</th><th>Asset</th><th>Reporter</th><th>Reported</th>
-                <th>Priority</th><th>Status</th><th>Description</th>
-                <th>Linked mWO</th><th style={{width:100}}>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {visible.map(w => (
-                <tr key={w.wr} style={{cursor:"pointer"}}>
-                  <td className="mono" style={{fontWeight:600, color:"var(--blue)"}}>{w.wr}</td>
-                  <td style={{fontSize:12}}>{w.asset}</td>
-                  <td style={{fontSize:11}}>{w.reporter}</td>
-                  <td className="mono" style={{fontSize:11}}>{w.reportedAt}</td>
-                  <td><PriorityBadge p={w.pri}/></td>
-                  <td><MwoStatus s={w.status}/></td>
-                  <td style={{fontSize:11, maxWidth:280, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap"}} title={w.desc}>{w.desc}</td>
-                  <td>{w.mwo ? <span className="mono" style={{fontWeight:600, color:"var(--blue)"}} onClick={()=>onNav("mwo_detail")}>{w.mwo}</span> : <span className="badge badge-amber" style={{fontSize:9}}>Pending</span>}</td>
-                  <td onClick={e=>e.stopPropagation()}>
-                    {isManager && w.status === "requested" && <button className="btn btn-primary btn-sm" onClick={()=>openModal("wrTriage", { wr: w.wr })}>Triage</button>}
-                    {w.status !== "requested" && <button className="btn btn-ghost btn-sm" onClick={()=>onNav("mwo_detail")}>View</button>}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-
-      {view === "kanban" && (
-        <div className="kanban">
-          {kanbanCols.map(col => (
-            <div key={col.k} className="kanban-col">
-              <div className={"kanban-col-title " + (col.k === "requested" ? "submitted" : "")}>
-                {col.l}
-                <span className="kct-count">{col.items.length}</span>
-              </div>
-              {col.items.map(w => (
-                <div key={w.wr} className="kanban-card" onClick={()=>{ if(col.k === "requested") openModal("wrTriage", { wr: w.wr }); else onNav("mwo_detail"); }}>
-                  <div className="row-flex" style={{marginBottom:4}}>
-                    <span className="kc-code">{w.wr}</span>
-                    <span className="spacer"></span>
-                    <PriorityBadge p={w.pri}/>
-                  </div>
-                  <div className="kc-asset">{w.asset}</div>
-                  <div className="kc-meta">
-                    <span>{w.reporter}</span>
-                    <span className="mono">{w.reportedAt.slice(11)}</span>
-                  </div>
-                </div>
-              ))}
-              {col.items.length === 0 && (
-                <div className="muted" style={{fontSize:11, textAlign:"center", padding:20}}>No items</div>
-              )}
-            </div>
-          ))}
-        </div>
-      )}
-    </>
+    </div>
   );
 };
 
-// -------- MAINT-007 mWO List --------
+// -------- MAINT-007 mWO List (unified WR + mWO) --------
 const MntMWOList = ({ onNav, openModal, role }) => {
   const [tab, setTab] = React.useState("all");
   const [typeFilter, setTypeFilter] = React.useState("all");
@@ -141,21 +54,36 @@ const MntMWOList = ({ onNav, openModal, role }) => {
 
   const isManager = role === "Manager" || role === "Admin";
 
+  // Fix-1 IA: unified feed = MNT_MWOS + standalone WRs synthesized as requested-state rows.
+  const unified = React.useMemo(
+    () => [..._standaloneWrsAsMwos(), ...MNT_MWOS],
+    []
+  );
+
+  // §3.2 TabsCounted — tabs align to PRD mwo_state_machine_v1 states
+  //   (requested / approved / open / in_progress / completed / cancelled).
+  // "rejected" is NOT a PRD state and has been removed.
   const tabs = [
-    { k: "all",         l: "All",         c: MNT_MWOS.length },
-    { k: "mine",        l: "My mWOs",     c: MNT_MWOS.filter(m=>m.tech === "M. Nowak").length },
-    { k: "open",        l: "Open",        c: MNT_MWOS.filter(m=>["open","approved","requested"].includes(m.status)).length },
-    { k: "in_progress", l: "In Progress", c: MNT_MWOS.filter(m=>m.status === "in_progress").length },
-    { k: "overdue",     l: "Overdue",     c: MNT_MWOS.filter(m=>m.status === "in_progress" && m.start < "2026-04-21 07:00").length },
-    { k: "completed",   l: "Completed",   c: MNT_MWOS.filter(m=>m.status === "completed").length },
+    { key: "all",         label: "All",          count: unified.length,                                                                                         tone: "neutral" },
+    { key: "requested",   label: "Requested",    count: unified.filter(m=>m.status === "requested").length,                                                    tone: "warn" },
+    { key: "approved",    label: "Approved",     count: unified.filter(m=>m.status === "approved").length,                                                     tone: "info" },
+    { key: "open",        label: "Open",         count: unified.filter(m=>m.status === "open").length,                                                         tone: "info" },
+    { key: "in_progress", label: "In Progress",  count: unified.filter(m=>m.status === "in_progress").length,                                                  tone: "info" },
+    { key: "overdue",     label: "Overdue",      count: unified.filter(m=>m.status === "in_progress" && m.start < "2026-04-21 07:00").length,                  tone: "bad" },
+    { key: "mine",        label: "My work",      count: unified.filter(m=>m.tech === "M. Nowak").length,                                                        tone: "neutral" },
+    { key: "completed",   label: "Completed",    count: unified.filter(m=>m.status === "completed").length,                                                    tone: "ok" },
+    { key: "cancelled",   label: "Cancelled",    count: unified.filter(m=>m.status === "cancelled").length,                                                    tone: "neutral" },
   ];
 
-  const visible = MNT_MWOS.filter(m => {
+  const visible = unified.filter(m => {
     if (tab === "mine" && m.tech !== "M. Nowak") return false;
-    if (tab === "open" && !["open","approved","requested"].includes(m.status)) return false;
+    if (tab === "requested" && m.status !== "requested") return false;
+    if (tab === "approved" && m.status !== "approved") return false;
+    if (tab === "open" && m.status !== "open") return false;
     if (tab === "in_progress" && m.status !== "in_progress") return false;
     if (tab === "overdue" && !(m.status === "in_progress" && m.start < "2026-04-21 07:00")) return false;
     if (tab === "completed" && m.status !== "completed") return false;
+    if (tab === "cancelled" && m.status !== "cancelled") return false;
     if (typeFilter !== "all" && m.type !== typeFilter) return false;
     if (priFilter !== "all" && m.pri !== priFilter) return false;
     if (srcFilter !== "all" && m.src !== srcFilter) return false;
@@ -165,30 +93,52 @@ const MntMWOList = ({ onNav, openModal, role }) => {
     return true;
   });
 
+  // §3.3 GHA-style group-by-status with auto-expand for overdue + in_progress.
+  // Groups appear in priority order; overdue & in_progress open by default, others collapsed.
+  const isOverdue = (m) => m.status === "in_progress" && m.start < "2026-04-21 07:00";
+  const groupDefs = [
+    { k: "overdue",     l: "Overdue",      tone: "bad",     defaultOpen: true,  filter: isOverdue },
+    { k: "in_progress", l: "In Progress",  tone: "info",    defaultOpen: true,  filter: (m)=>m.status === "in_progress" && !isOverdue(m) },
+    { k: "requested",   l: "Requested",    tone: "warn",    defaultOpen: false, filter: (m)=>m.status === "requested" },
+    { k: "approved",    l: "Approved",     tone: "info",    defaultOpen: false, filter: (m)=>m.status === "approved" },
+    { k: "open",        l: "Open",         tone: "info",    defaultOpen: false, filter: (m)=>m.status === "open" },
+    { k: "completed",   l: "Completed",    tone: "ok",      defaultOpen: false, filter: (m)=>m.status === "completed" },
+    { k: "cancelled",   l: "Cancelled",    tone: "neutral", defaultOpen: false, filter: (m)=>m.status === "cancelled" },
+  ];
+  const [groupOpen, setGroupOpen] = React.useState(() => {
+    const init = {};
+    groupDefs.forEach(g => { init[g.k] = g.defaultOpen; });
+    return init;
+  });
+  const toggleGroup = (k) => setGroupOpen(prev => ({ ...prev, [k]: !prev[k] }));
+  const groups = groupDefs
+    .map(g => ({ ...g, items: visible.filter(g.filter) }))
+    .filter(g => g.items.length > 0);
+
+  const requestedCount = unified.filter(m=>m.status==="requested").length;
+  const dtImpactCount  = unified.filter(m=>m.dtImpact==="Yes").length;
+
   return (
     <>
       <div className="page-head">
         <div>
-          <div className="breadcrumb"><a onClick={()=>onNav("dashboard")}>Maintenance</a> · mWOs</div>
-          <h1 className="page-title">Maintenance Work Orders (mWOs)</h1>
+          <div className="breadcrumb"><a onClick={()=>onNav("dashboard")}>Maintenance</a> · Work orders</div>
+          <h1 className="page-title">Work orders <span className="muted" style={{fontSize:12, fontWeight:400}}>(unified WR + mWO — D-MNT-9)</span></h1>
           <div className="muted" style={{fontSize:12}}>
-            {MNT_MWOS.length} mWOs · {MNT_MWOS.filter(m=>m.status==="in_progress").length} in work · {MNT_MWOS.filter(m=>m.dtImpact==="Yes").length} impacting production
+            {unified.length} total · {requestedCount} awaiting triage · {unified.filter(m=>m.status==="in_progress").length} in work · {dtImpactCount} impacting production
           </div>
         </div>
         <div className="row-flex">
-          <input type="text" placeholder="Search mWO#, asset, tech…" value={search} onChange={e=>setSearch(e.target.value)} style={{width:240}}/>
+          <input type="text" placeholder="Search WR/mWO#, asset, tech…" value={search} onChange={e=>setSearch(e.target.value)} style={{width:240}}/>
           <button className="btn btn-secondary btn-sm">⇪ Export</button>
+          <button className="btn btn-secondary btn-sm" onClick={()=>openModal("wrCreate")}>＋ Submit WR</button>
           {isManager && <button className="btn btn-primary btn-sm" onClick={()=>openModal("mwoCreate")}>＋ New mWO</button>}
         </div>
       </div>
 
-      {/* Tabs */}
-      <div className="tabs-bar">
-        {tabs.map(t => (
-          <button key={t.k} className={"tab-btn " + (tab === t.k ? "on" : "")} onClick={()=>setTab(t.k)}>
-            {t.l} <span className="count">{t.c}</span>
-          </button>
-        ))}
+      {/* Tabs — §3.2 TabsCounted primitive */}
+      <div style={{marginBottom:10}}>
+        <TabsCounted current={tab} tabs={tabs} onChange={setTab} ariaLabel="mWO status tabs"/>
       </div>
 
       {/* Filter bar */}
@@ -221,39 +171,68 @@ const MntMWOList = ({ onNav, openModal, role }) => {
         </select>
       </div>
 
-      <div className="card" style={{padding:0}}>
-        <table>
-          <thead>
-            <tr>
-              <th>mWO #</th><th>Asset</th><th>Type</th><th>Priority</th><th>Status</th>
-              <th>Technician</th><th>Start</th><th>ETA</th><th>DT impact</th><th>Source</th>
-              <th style={{width:120}}>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {visible.map(m => (
-              <tr key={m.mwo} style={{cursor:"pointer"}} onClick={()=>onNav("mwo_detail")}>
-                <td className="mono" style={{fontWeight:600, color:"var(--blue)"}}>{m.mwo}</td>
-                <td style={{fontSize:12}}>{m.asset}</td>
-                <td><MwoType t={m.type}/></td>
-                <td><PriorityBadge p={m.pri}/></td>
-                <td><MwoStatus s={m.status}/></td>
-                <td style={{fontSize:11}}>{m.tech || <span className="mono" style={{color:"var(--amber)", fontStyle:"italic"}}>Unassigned</span>}</td>
-                <td className="mono" style={{fontSize:11}}>{m.start}</td>
-                <td className="mono" style={{fontSize:11}}>{m.eta}</td>
-                <td>{m.dtImpact === "Yes" ? <span className="dt-impact">🔴 Yes</span> : <span className="dt-impact-none">—</span>}</td>
-                <td><MwoSource s={m.src}/></td>
-                <td onClick={e=>e.stopPropagation()}>
-                  {m.status === "requested" && isManager && <button className="btn btn-primary btn-sm" onClick={()=>openModal("wrTriage", { mwo: m.mwo })}>Triage</button>}
-                  {m.status === "approved" && isManager && <button className="btn btn-primary btn-sm" onClick={()=>openModal("mwoAssign", { mwo: m.mwo })}>Assign</button>}
-                  {m.status === "open" && <button className="btn btn-primary btn-sm" onClick={()=>openModal("stateTransition", { entity: m.mwo, to: "in_progress" })}>Start</button>}
-                  {m.status === "in_progress" && <button className="btn btn-primary btn-sm" onClick={()=>openModal("mwoComplete", { mwo: m.mwo })}>Complete</button>}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      {/* §3.3 GHA-style grouped rows — overdue + in_progress auto-expanded */}
+      {groups.length === 0 && (
+        <div className="card">
+          <EmptyState icon="🔧" title="No mWOs match your filters"
+            body="Try clearing filters or broadening the tab selection."
+            action={{label:"Clear filters", onClick: ()=>{setTab("all"); setTypeFilter("all"); setPriFilter("all"); setSrcFilter("all"); setSearch("");}}}/>
+        </div>
+      )}
+      {groups.map(g => {
+        const open = groupOpen[g.k];
+        return (
+          <div key={g.k} className="card" style={{padding:0, marginBottom:10}}>
+            <div
+              role="button"
+              aria-expanded={open}
+              onClick={()=>toggleGroup(g.k)}
+              style={{display:"flex", alignItems:"center", gap:8, padding:"10px 14px", cursor:"pointer",
+                      background: "var(--surface-2, #f1f5f9)", borderBottom: open ? "1px solid var(--border)" : "none",
+                      fontSize:12, fontWeight:600}}
+            >
+              <span style={{display:"inline-block", width:12, color:"var(--muted)", transition:"transform .1s", transform: open ? "rotate(90deg)" : "rotate(0)"}}>▶</span>
+              <span>{g.l}</span>
+              <span className={"tabs-counted-pill tone-" + g.tone} style={{marginLeft:4}}>{g.items.length}</span>
+              <span className="spacer" style={{flex:1}}></span>
+              {g.defaultOpen && <span className="muted" style={{fontSize:10, fontWeight:400}}>auto-expanded</span>}
+            </div>
+            {open && (
+              <table>
+                <thead>
+                  <tr>
+                    <th>mWO #</th><th>Asset</th><th>Type</th><th>Priority</th><th>Status</th>
+                    <th>Technician</th><th>Start</th><th>ETA</th><th>DT impact</th><th>Source</th>
+                    <th style={{width:120}}>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {g.items.map(m => (
+                    <tr key={m.mwo} style={{cursor:"pointer"}} onClick={()=>onNav("mwo_detail")}>
+                      <td className="mono" style={{fontWeight:600, color:"var(--blue)"}}>{m.mwo}</td>
+                      <td style={{fontSize:12}}>{m.asset}</td>
+                      <td><MwoType t={m.type}/></td>
+                      <td><PriorityBadge p={m.pri}/></td>
+                      <td><MwoStatus s={m.status}/></td>
+                      <td style={{fontSize:11}}>{m.tech || <span className="mono" style={{color:"var(--amber)", fontStyle:"italic"}}>Unassigned</span>}</td>
+                      <td className="mono" style={{fontSize:11}}>{m.start}</td>
+                      <td className="mono" style={{fontSize:11}}>{m.eta}</td>
+                      <td>{m.dtImpact === "Yes" ? <span className="dt-impact">🔴 Yes</span> : <span className="dt-impact-none">—</span>}</td>
+                      <td><MwoSource s={m.src}/></td>
+                      <td onClick={e=>e.stopPropagation()}>
+                        {m.status === "requested" && isManager && <button className="btn btn-primary btn-sm" onClick={()=>openModal("wrTriage", { mwo: m.mwo })}>Triage</button>}
+                        {m.status === "approved" && isManager && <button className="btn btn-primary btn-sm" onClick={()=>openModal("mwoAssign", { mwo: m.mwo })}>Assign</button>}
+                        {m.status === "open" && <button className="btn btn-primary btn-sm" onClick={()=>openModal("stateTransition", { entity: m.mwo, to: "in_progress" })}>Start</button>}
+                        {m.status === "in_progress" && <button className="btn btn-primary btn-sm" onClick={()=>openModal("mwoComplete", { mwo: m.mwo })}>Complete</button>}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+        );
+      })}
     </>
   );
 };
@@ -286,7 +265,8 @@ const MntMWODetail = ({ onBack, onNav, openModal, role }) => {
 
   return (
     <>
-      <div className="page-head">
+      {/* §3.4 sticky-form-header — tabs + tasks can be very tall */}
+      <div className="page-head sticky-form-header" style={{padding:"10px 0"}}>
         <div>
           <div className="breadcrumb"><a onClick={onBack}>mWOs</a> · <span className="mono">{m.mwo}</span></div>
           <h1 className="page-title"><span className="mono">{m.mwo}</span> — {m.asset.name}</h1>

@@ -1,9 +1,41 @@
 // ============ Chrome: sidebar, topbar, subnav ============
 
+// §3.7 Sidebar count badge helper — red if any overdue, amber if any pending.
+// Derives counts from NPD_BRIEFS + NPD_FAS (no data.jsx edits).
+const deriveNpdSidebarCount = () => {
+  const briefs = window.NPD_BRIEFS || [];
+  const fas = window.NPD_FAS || [];
+  // "Awaiting signoff" = briefs in status "complete" (waiting to be converted)
+  // plus FAs where status_overall === "Alert" (red-lined).
+  const pending = briefs.filter(b => b.status === "complete").length;
+  const overdue = fas.filter(f => f.status_overall === "Alert" || (f.days_left !== null && f.days_left !== undefined && f.days_left <= 10 && !f.built)).length;
+  const total = pending + overdue;
+  const tone = overdue > 0 ? "bad" : (pending > 0 ? "warn" : "neutral");
+  return { total, overdue, pending, tone };
+};
+
+const SidebarBadge = ({ count, tone }) => {
+  if (!count) return null;
+  const bg = tone === "bad" ? "var(--sem-bad-bg, #fef2f2)" : tone === "warn" ? "var(--sem-warn-bg, #fffbeb)" : "var(--sem-neutral-bg, #f1f5f9)";
+  const color = tone === "bad" ? "var(--red-700, #b91c1c)" : tone === "warn" ? "var(--amber-700, #b45309)" : "var(--gray-600, #4b5563)";
+  return (
+    <span style={{
+      marginLeft: "auto", background: bg, color, borderRadius: 10,
+      padding: "1px 7px", fontSize: 10, fontWeight: 700,
+      fontVariantNumeric: "tabular-nums", lineHeight: 1.4
+    }} title={tone === "bad" ? `${count} items overdue` : `${count} awaiting signoff`}>
+      {count}
+    </span>
+  );
+};
+
 const Sidebar = ({ current, onNav }) => {
-  const link = (id, label, icon) => (
-    <div className={`sidebar-item ${current === id ? "active" : ""}`} onClick={() => onNav(id)}>
-      <span className="ic">{icon}</span>{label}
+  const npdCount = deriveNpdSidebarCount();
+  const link = (id, label, icon, badge) => (
+    <div className={`sidebar-item ${current === id ? "active" : ""}`} onClick={() => onNav(id)} style={{ display: "flex", alignItems: "center" }}>
+      <span className="ic">{icon}</span>
+      <span>{label}</span>
+      {badge}
     </div>
   );
   return (
@@ -20,7 +52,7 @@ const Sidebar = ({ current, onNav }) => {
       <div className="sidebar-item"><span className="ic">✓</span>Quality</div>
       <div className="sidebar-item"><span className="ic">→</span>Shipping</div>
       <div className="sidebar-group">Premium</div>
-      {link("pipeline", "NPD", "★")}
+      {link("pipeline", "NPD", "★", <SidebarBadge count={npdCount.total} tone={npdCount.tone}/>)}
       <div className="sidebar-item"><span className="ic">$</span>Finance</div>
       <div className="sidebar-item"><span className="ic">◉</span>OEE</div>
       <div className="sidebar-item"><span className="ic">↔</span>Integrations</div>
@@ -71,4 +103,4 @@ const SubNav = ({ current, onNav, role }) => {
   );
 };
 
-Object.assign(window, { Sidebar, Topbar, SubNav });
+Object.assign(window, { Sidebar, Topbar, SubNav, deriveNpdSidebarCount });

@@ -14,27 +14,37 @@ const ComplianceDocsScreen = ({ fa, openModal }) => {
         </div>
         <button className="btn btn-secondary btn-sm" onClick={() => openModal("docUpload", { fa })}>+ Upload document</button>
       </div>
-      <table>
-        <thead><tr>
-          <th>Type</th><th>File name</th><th>Version</th><th>Uploaded by</th><th>Date</th><th>Size</th><th>Actions</th>
-        </tr></thead>
-        <tbody>
-          {docs.map((d, i) => (
-            <tr key={i}>
-              <td><span className="badge badge-gray">{d.type}</span></td>
-              <td style={{ fontWeight: 500 }}><a style={{ color: "var(--blue)", cursor: "pointer" }}>📄 {d.filename}</a></td>
-              <td className="mono">{d.version}</td>
-              <td>{d.uploaded_by}</td>
-              <td className="mono">{d.date}</td>
-              <td className="mono num">{d.size}</td>
-              <td style={{ display: "flex", gap: 4 }}>
-                <button className="btn btn-ghost btn-sm">Download</button>
-                <button className="btn btn-ghost btn-sm" style={{ color: "var(--red)" }}>Delete</button>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+      {docs.length === 0 ? (
+        /* §3.8 EmptyState — no compliance docs uploaded yet */
+        <EmptyState
+          icon="📄"
+          title="No compliance documents yet"
+          body="Upload the compliance artefacts tied to this FA (specs, audit packs, certificates). PDF, XLSX, DOCX up to 20 MB."
+          action={{ label: "Upload document", onClick: () => openModal("docUpload", { fa }) }}
+        />
+      ) : (
+        <table>
+          <thead><tr>
+            <th>Type</th><th>File name</th><th>Version</th><th>Uploaded by</th><th>Date</th><th>Size</th><th>Actions</th>
+          </tr></thead>
+          <tbody>
+            {docs.map((d, i) => (
+              <tr key={i}>
+                <td><span className="badge badge-gray">{d.type}</span></td>
+                <td style={{ fontWeight: 500 }}><a style={{ color: "var(--blue)", cursor: "pointer" }}>📄 {d.filename}</a></td>
+                <td className="mono">{d.version}</td>
+                <td>{d.uploaded_by}</td>
+                <td className="mono">{d.date}</td>
+                <td className="mono num">{d.size}</td>
+                <td style={{ display: "flex", gap: 4 }}>
+                  <button className="btn btn-ghost btn-sm">Download</button>
+                  <button className="btn btn-ghost btn-sm" style={{ color: "var(--red)" }}>Delete</button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
       <div className="alert alert-blue">
         File types: PDF, XLSX, DOCX. Max 20MB per upload. Full compliance doc workflow (approvals, versions) is deferred to Quality module Phase C4 — see <span className="mono">quality/</span>.
       </div>
@@ -61,7 +71,15 @@ const RiskRegisterScreen = ({ fa, openModal }) => {
         </div>
         <button className="btn btn-secondary btn-sm" onClick={() => openModal("riskAdd", { fa })}>+ Add risk</button>
       </div>
-      <table>
+      {risks.length === 0 && (
+        <EmptyState
+          icon="⚠"
+          title="No risks logged yet"
+          body="Track risks to launch: likelihood × impact. Add a risk to capture mitigation owner and status."
+          action={{ label: "Add risk", onClick: () => openModal("riskAdd", { fa }) }}
+        />
+      )}
+      {risks.length > 0 && <table>
         <thead><tr>
           <th>Score</th><th>Description</th><th>Likelihood</th><th>Impact</th><th>Status</th><th>Owner</th><th>Mitigation</th><th>Actions</th>
         </tr></thead>
@@ -82,7 +100,7 @@ const RiskRegisterScreen = ({ fa, openModal }) => {
             </tr>
           ))}
         </tbody>
-      </table>
+      </table>}
     </div>
   );
 };

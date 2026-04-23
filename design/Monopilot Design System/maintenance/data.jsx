@@ -7,12 +7,16 @@
 //   15-OEE: MTBF/MTTR fetched read-only from oee_shift_metrics.
 // Today's date for downtime / overdue calcs: 2026-04-21.
 
+// Fix-1 Maintenance IA: per PRD D-MNT-9 Work Requests and mWOs share a single
+// unified `maintenance_work_requests` table. WR is the `requested` state of
+// an mWO, not a separate entity. Removed the standalone "Work requests" nav
+// node — requested items are now the "Requested" tab inside mWOs.
 const MNT_NAV = [
   { group: "Operations", items: [
     { key: "dashboard",    label: "Dashboard",        ic: "◆", hero: true },
     { key: "assets",       label: "Assets",           ic: "⚙", count: "42" },
-    { key: "work_requests",label: "Work requests",    ic: "✎", count: "6" },
-    { key: "mwos",         label: "mWOs",             ic: "🔧", count: "14" },
+    { key: "mwos",         label: "Work orders",      ic: "🔧", count: "20" },
+    { key: "sanitation",   label: "Sanitation",       ic: "🧼", count: "4" },
   ]},
   { group: "Planning", items: [
     { key: "pm_schedules", label: "PM schedules",     ic: "📅", count: "23" },
@@ -34,7 +38,7 @@ const MNT_NAV = [
 const MNT_KPIS = [
   { k: "pm_compliance", label: "PM compliance (30d)",  value: "87.4%", accent: "green", sub: "Target ≥ 85%",        target: "pm_schedules" },
   { k: "overdue_pm",    label: "Overdue PMs",           value: "3",    accent: "red",   sub: "Require attention",    target: "pm_schedules" },
-  { k: "open_wr",       label: "Open work requests",    value: "6",    accent: "amber", sub: "Awaiting triage",      target: "work_requests" },
+  { k: "open_wr",       label: "Open work requests",    value: "6",    accent: "amber", sub: "Awaiting triage",      target: "mwos" },
   { k: "mwos_today",    label: "mWOs in progress today",value: "4",    accent: "blue",  sub: "Live now",             target: "mwos" },
   { k: "mtbf",          label: "MTBF (30d avg)",        value: "142h", accent: "green", sub: "Above target (120h)",  target: "analytics" },
   { k: "mttr",          label: "MTTR (30d avg)",        value: "48m",  accent: "green", sub: "Target < 60m",         target: "analytics" },
@@ -191,7 +195,10 @@ const MNT_WRS = [
   { wr: "WR-2026-0896", asset: "CIP Unit CIP-01",  reporter: "J. Wolak",     reportedAt: "2026-04-21 08:44", pri: "medium",   status: "requested",   desc: "Nozzle 4 shows reduced flow during rinse cycle.", mwo: null },
   { wr: "WR-2026-0897", asset: "Dough Mixer DM-02",reporter: "M. Rogala",    reportedAt: "2026-04-21 09:00", pri: "low",      status: "requested",   desc: "Oil drip under gearbox — minor.", mwo: null },
   { wr: "WR-2026-0890", asset: "Mixer M-002",      reporter: "K. Nowacki",   reportedAt: "2026-04-20 12:10", pri: "medium",   status: "completed",   desc: "Vibration above normal on startup.", mwo: "MWO-2026-0038" },
-  { wr: "WR-2026-0889", asset: "Packer PK-08",     reporter: "P. Kowalski",  reportedAt: "2026-04-20 09:14", pri: "low",      status: "rejected",    desc: "Packer beeps occasionally.", mwo: null, rejectReason: "Not a maintenance issue — operator training on beep codes scheduled." },
+  // Fix-1 Maintenance: `rejected` is not in PRD state machine (valid states:
+  // requested/approved/open/in_progress/completed/cancelled). Mapped to `cancelled`
+  // with a cancellation reason. Audit B1 / Section C state-machine alignment.
+  { wr: "WR-2026-0889", asset: "Packer PK-08",     reporter: "P. Kowalski",  reportedAt: "2026-04-20 09:14", pri: "low",      status: "cancelled",   desc: "Packer beeps occasionally.", mwo: null, cancelReason: "Not a maintenance issue — operator training on beep codes scheduled." },
 ];
 
 // ============================================================
@@ -559,6 +566,80 @@ const MNT_TEMPLATES = [
   { name: "Quarterly compressor PM",            steps: 14, types: ["check","measure","signoff"] },
 ];
 
+// ============================================================
+// SANITATION CHECKLISTS (MAINT-SAN) — D-MNT-14 + V-MNT-15..17
+// Bound to PRD `sanitation_checklists` table (§9.14). Captures allergen
+// dual sign-off, ATP result, product-type context, and prior allergen
+// (allergens_removed JSONB). BRCGS 7-year retention.
+// ============================================================
+const MNT_SANITATION_CHECKLISTS = [
+  {
+    id: "SAN-2026-0104", mwo: "MWO-2026-0046", asset: "CIP Unit CIP-01", line: "LINE-05",
+    status: "in_progress", startedAt: "2026-04-21 05:00", completedAt: null,
+    productType: "allergen_changeover",
+    allergenChangeFlag: true,
+    allergensRemoved: ["Milk","Soy"],          // from previous batch on line
+    priorProduct: "FA4210 · Serek premium (Milk, Soy)",
+    nextProduct:  "FA5100 · Kiełbasa śląska (none)",
+    // CIP measurements
+    tempC: 82.4, concPct: 1.6, durationMin: 34, flowRateLpm: 185,
+    // allergen validation
+    atpRlu: null,                               // pending ATP swab
+    firstSignedBy: "J. Wolak",  firstSignedAt: "2026-04-21 05:10",
+    secondSignedBy: null,       secondSignedAt: null,     // QA dual sign-off pending
+    retentionUntil: "2033-04-21",
+  },
+  {
+    id: "SAN-2026-0103", mwo: "MWO-2026-0045", asset: "Packer PK-08", line: "LINE-03",
+    status: "completed", startedAt: "2026-04-20 22:00", completedAt: "2026-04-20 22:48",
+    productType: "routine_cip", allergenChangeFlag: false,
+    allergensRemoved: [],
+    priorProduct: "FA5100 · Kiełbasa śląska (none)",
+    nextProduct:  "FA5100 · Kiełbasa śląska (none)",
+    tempC: 78.9, concPct: 1.5, durationMin: 30, flowRateLpm: 180,
+    atpRlu: 12,                                 // below 30 RLU threshold
+    firstSignedBy: "A. Majewska", firstSignedAt: "2026-04-20 22:40",
+    secondSignedBy: null, secondSignedAt: null, // non-allergen → no dual sign-off required
+    retentionUntil: "2033-04-20",
+  },
+  {
+    id: "SAN-2026-0102", mwo: "MWO-2026-0044", asset: "Tumbler T-22", line: "LINE-02",
+    status: "completed", startedAt: "2026-04-20 18:00", completedAt: "2026-04-20 19:06",
+    productType: "allergen_changeover", allergenChangeFlag: true,
+    allergensRemoved: ["Mustard"],
+    priorProduct: "FA5201 · Szynka musztardowa (Mustard)",
+    nextProduct:  "FA5100 · Kiełbasa śląska (none)",
+    tempC: 84.1, concPct: 1.8, durationMin: 42, flowRateLpm: 195,
+    atpRlu: 8,
+    firstSignedBy: "J. Wolak",      firstSignedAt: "2026-04-20 19:00",
+    secondSignedBy: "QA.Wiśniewski",secondSignedAt: "2026-04-20 19:06",
+    retentionUntil: "2033-04-20",
+  },
+  {
+    id: "SAN-2026-0101", mwo: "MWO-2026-0042", asset: "Mixer M-002", line: "LINE-01",
+    status: "failed", startedAt: "2026-04-20 03:00", completedAt: "2026-04-20 04:15",
+    productType: "allergen_changeover", allergenChangeFlag: true,
+    allergensRemoved: ["Soy"],
+    priorProduct: "FA4210 · Serek premium (Soy)",
+    nextProduct:  "FA5100 · Kiełbasa śląska (none)",
+    tempC: 79.2, concPct: 1.4, durationMin: 28, flowRateLpm: 170,
+    atpRlu: 48,                                 // FAIL: > 30 RLU → V-MNT-16 failure
+    firstSignedBy: "K. Dudek",        firstSignedAt: "2026-04-20 04:10",
+    secondSignedBy: "QA.Wiśniewski",  secondSignedAt: "2026-04-20 04:15",
+    retentionUntil: "2033-04-20",
+    failReason: "ATP 48 RLU above 30 RLU threshold — re-clean required before line release.",
+  },
+];
+
+// Product-type options (V-MNT-16 validation domain) — stored as code list.
+const MNT_SANITATION_PRODUCT_TYPES = [
+  { key: "routine_cip",           label: "Routine CIP (same product)" },
+  { key: "allergen_changeover",   label: "Allergen changeover" },
+  { key: "product_changeover",    label: "Product changeover (non-allergen)" },
+  { key: "end_of_shift",          label: "End-of-shift sanitation" },
+  { key: "deep_clean",            label: "Deep clean / scheduled" },
+];
+
 Object.assign(window, {
   MNT_NAV, MNT_KPIS, MNT_ALERTS, MNT_TODAY_MWOS, MNT_ACTIVE_LOTO,
   MNT_ASSETS, MNT_ASSET_HIER, MNT_ASSET_DETAIL,
@@ -572,4 +653,5 @@ Object.assign(window, {
   MNT_ANALYTICS,
   MNT_SETTINGS,
   MNT_TEMPLATES,
+  MNT_SANITATION_CHECKLISTS, MNT_SANITATION_PRODUCT_TYPES,
 });

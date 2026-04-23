@@ -70,8 +70,14 @@ const BriefList = ({ onOpenBrief, openModal }) => {
               </tr>
             ))}
             {rows.length === 0 && (
-              <tr><td colSpan={8} style={{ textAlign: "center", padding: 30, color: "var(--muted)" }}>
-                No briefs match filters. <a style={{ cursor: "pointer", color: "var(--blue)" }} onClick={() => { setStatus("All"); setTmpl("All"); setSearch(""); }}>Clear</a>
+              <tr><td colSpan={8} style={{ padding: 0 }}>
+                {/* §3.8 EmptyState — list-level empty affordance */}
+                <EmptyState
+                  icon="📝"
+                  title="No briefs match your filters"
+                  body="Briefs are pre-FA intake records. Start a new one or clear your filters to see existing briefs."
+                  action={{ label: "Clear filters", onClick: () => { setStatus("All"); setTmpl("All"); setSearch(""); } }}
+                />
               </td></tr>
             )}
           </tbody>
@@ -97,22 +103,25 @@ const BriefDetail = ({ briefId, onBack, openModal }) => {
 
   return (
     <>
-      <div className="breadcrumb"><a onClick={onBack}>NPD</a> / <a onClick={onBack}>Briefs</a> / {brief.dev_code}</div>
-      <div className="page-head">
-        <div>
-          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <div className="mono" style={{ fontSize: 16, color: "var(--blue)", fontWeight: 600 }}>{brief.dev_code}</div>
-            <div style={{ fontSize: 18, fontWeight: 600 }}>{brief.product_name}</div>
-            <span className={`badge badge-${brief.template === "Multi" ? "blue" : "gray"}`}>{brief.template}</span>
-            {brief.status === "converted" && <span className="badge badge-green">✓ Converted → {brief.fa_code}</span>}
-            {brief.status === "draft"     && <span className="badge badge-gray">Draft</span>}
-            {brief.status === "complete"  && <span className="badge badge-amber">Complete</span>}
+      {/* §3.4 sticky-form-header — Brief Detail is a long multi-section form */}
+      <div className="sticky-form-header" style={{ padding: "10px 0", marginBottom: 10 }}>
+        <div className="breadcrumb"><a onClick={onBack}>NPD</a> / <a onClick={onBack}>Briefs</a> / {brief.dev_code}</div>
+        <div className="page-head" style={{ marginBottom: 0 }}>
+          <div>
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <div className="mono" style={{ fontSize: 16, color: "var(--blue)", fontWeight: 600 }}>{brief.dev_code}</div>
+              <div style={{ fontSize: 18, fontWeight: 600 }}>{brief.product_name}</div>
+              <span className={`badge badge-${brief.template === "Multi" ? "blue" : "gray"}`}>{brief.template}</span>
+              {brief.status === "converted" && <span className="badge badge-green">✓ Converted → {brief.fa_code}</span>}
+              {brief.status === "draft"     && <span className="badge badge-gray">Draft</span>}
+              {brief.status === "complete"  && <span className="badge badge-amber">Complete</span>}
+            </div>
           </div>
-        </div>
-        <div style={{ display: "flex", gap: 8 }}>
-          <button className="btn btn-secondary" disabled={converted}>Save draft</button>
-          {brief.status === "draft" && <button className="btn btn-primary" disabled={weightMismatch && isMulti}>Mark complete</button>}
-          {brief.status === "complete" && <button className="btn btn-success" onClick={() => openModal("briefConvert", { brief })}>Convert to FA →</button>}
+          <div style={{ display: "flex", gap: 8 }}>
+            <button className="btn btn-secondary" disabled={converted}>Save draft</button>
+            {brief.status === "draft" && <button className="btn btn-primary" disabled={weightMismatch && isMulti}>Mark complete</button>}
+            {brief.status === "complete" && <button className="btn btn-success" onClick={() => openModal("briefConvert", { brief })}>Convert to FA →</button>}
+          </div>
         </div>
       </div>
 
