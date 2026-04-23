@@ -3,12 +3,14 @@
 const PlanApp = () => {
   const [screen, setScreen] = React.useState(() => localStorage.getItem("plan_screen") || "dashboard");
   const [role, setRole] = React.useState("Planner");
+  const [supplierId, setSupplierId] = React.useState(null);
 
   React.useEffect(() => { localStorage.setItem("plan_screen", screen); }, [screen]);
 
   const onOpenWo = () => setScreen("wo_detail");
   const onOpenPo = () => setScreen("po_detail");
   const onOpenTo = () => setScreen("to_detail");
+  const onOpenSupplier = (id) => { setSupplierId(id); setScreen("supplier_detail"); };
 
   let content;
   switch (screen) {
@@ -19,6 +21,8 @@ const PlanApp = () => {
     case "po_detail":    content = <PlanPODetail onBack={()=>setScreen("pos")} onNav={setScreen}/>; break;
     case "tos":          content = <PlanTOList onOpenTo={onOpenTo} onNav={setScreen}/>; break;
     case "to_detail":    content = <PlanTODetail onBack={()=>setScreen("tos")} onNav={setScreen}/>; break;
+    case "suppliers":       content = <PlanSupplierList onOpenSupplier={onOpenSupplier} onNav={setScreen}/>; break;
+    case "supplier_detail": content = <PlanSupplierDetail supplierId={supplierId} onBack={()=>setScreen("suppliers")} onNav={setScreen} onOpenPo={onOpenPo}/>; break;
     case "gantt":        content = <PlanGantt onNav={setScreen} onOpenWo={onOpenWo}/>; break;
     case "cascade":      content = <PlanCascadeDAG onNav={setScreen} onOpenWo={onOpenWo}/>; break;
     case "reservations": content = <PlanReservations onNav={setScreen} onOpenWo={onOpenWo}/>; break;

@@ -287,40 +287,74 @@ const OeeHeatmap = ({ onNav, openModal, onPickLine }) => {
             ))}
           </div>
 
-          {visibleLines.map(l => (
-            <div key={l.id} className="heatmap-row">
-              <div className="heatmap-row-head" onClick={() => onPickLine(l.id)}>
-                <div className="mono" style={{fontWeight:700, fontSize:12}}>{l.id}</div>
-                <div className="muted" style={{fontSize:10}}>{l.name}</div>
-              </div>
-              {HEATMAP_DAYS.map(d => (
-                <div key={d.k} className="heatmap-day-group">
-                  {HEATMAP_SHIFTS.map(s => {
-                    const val = HEATMAP[l.id]?.[d.k]?.[s];
-                    const sel = selected.line === l.id && selected.day === d.k && selected.shift === s;
-                    return (
-                      <div key={s}
-                           className={"heatmap-cell " + (sel ? "selected " : "") + (val == null ? "empty" : "")}
-                           style={{background: heatColor(val)}}
-                           title={`${l.id} · ${d.label} · ${s} · OEE ${val == null ? "no data" : val + "%"}`}
-                           onClick={() => setSelected({ line: l.id, day: d.k, shift: s })}
-                           role="gridcell" tabIndex="0"
-                           aria-label={`${l.id} ${d.label} ${s}: OEE ${val ?? "no data"}`}>
-                        <div className="hm-val">{val == null ? "—" : val.toFixed(0)}</div>
-                        {val != null && (
-                          <div className="hm-micro">
-                            <span style={{width:"34%", background:"#3b82f6"}}></span>
-                            <span style={{width:"34%", background:"#22c55e"}}></span>
-                            <span style={{width:"32%", background:"#f59e0b"}}></span>
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
+          {visibleLines.length === 0 && (
+            <EmptyState
+              icon="📊"
+              title="No lines match the current filter"
+              body="Reset the line filter to see all production lines, or pick a specific line."
+              action={{ label: "Reset filter", onClick: () => setLineFilter("all") }}
+            />
+          )}
+          {visibleLines.map(l => {
+            // Build last-7-shift outcome strip for this line (most-recent-last).
+            // Per-cell title "Shift AM · Sun 20 · 86%" — TUNING-PATTERN §3.1.
+            // NOTE: intentionally does NOT touch heatmap cell colour cells
+            // (OEE §6 risk — heatColor palette preserved).
+            const lineMap = HEATMAP[l.id] || {};
+            const flat = [];
+            HEATMAP_DAYS.forEach(d => {
+              HEATMAP_SHIFTS.forEach(s => {
+                flat.push({ day: d, shift: s, val: lineMap[d.k]?.[s] });
+              });
+            });
+            const last7 = flat.slice(-7);
+            const stripCells = last7.map(({ day, shift, val }) => {
+              let tone;
+              if (val == null) tone = "empty";
+              else if (val < 65) tone = "bad";
+              else if (val < 85) tone = "warn";
+              else tone = "ok";
+              const valStr = val == null ? "no data" : `${val.toFixed(0)}%`;
+              return { tone, title: `Shift ${shift} · ${day.label} · ${valStr}` };
+            });
+            return (
+              <div key={l.id} className="heatmap-row">
+                <div className="heatmap-row-head" onClick={() => onPickLine(l.id)}>
+                  <div className="mono" style={{fontWeight:700, fontSize:12}}>{l.id}</div>
+                  <div className="muted" style={{fontSize:10}}>{l.name}</div>
+                  <div style={{marginTop:4}}>
+                    <RunStrip outcomes={stripCells} max={7} title={`Last 7 shifts — ${l.id}`} />
+                  </div>
                 </div>
-              ))}
-            </div>
-          ))}
+                {HEATMAP_DAYS.map(d => (
+                  <div key={d.k} className="heatmap-day-group">
+                    {HEATMAP_SHIFTS.map(s => {
+                      const val = HEATMAP[l.id]?.[d.k]?.[s];
+                      const sel = selected.line === l.id && selected.day === d.k && selected.shift === s;
+                      return (
+                        <div key={s}
+                             className={"heatmap-cell " + (sel ? "selected " : "") + (val == null ? "empty" : "")}
+                             style={{background: heatColor(val)}}
+                             title={`${l.id} · ${d.label} · ${s} · OEE ${val == null ? "no data" : val + "%"}`}
+                             onClick={() => setSelected({ line: l.id, day: d.k, shift: s })}
+                             role="gridcell" tabIndex="0"
+                             aria-label={`${l.id} ${d.label} ${s}: OEE ${val ?? "no data"}`}>
+                          <div className="hm-val">{val == null ? "—" : val.toFixed(0)}</div>
+                          {val != null && (
+                            <div className="hm-micro">
+                              <span style={{width:"34%", background:"#3b82f6"}}></span>
+                              <span style={{width:"34%", background:"#22c55e"}}></span>
+                              <span style={{width:"32%", background:"#f59e0b"}}></span>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                ))}
+              </div>
+            );
+          })}
         </div>
 
         <div className="row-flex" style={{fontSize:11, padding:"10px 14px", borderTop:"1px solid var(--border)"}}>
@@ -340,9 +374,12 @@ const OeeHeatmap = ({ onNav, openModal, onPickLine }) => {
           <span className="muted" style={{fontSize:11}}>Click another cell to update</span>
         </div>
         {cell == null ? (
-          <div className="alert-blue alert-box" style={{margin:10}}>
-            <span>ⓘ</span><div>No shift data available for {selected.line} / {selected.shift} / {dayLabel}.</div>
-          </div>
+          <EmptyState
+            icon="📭"
+            title="No data for this shift"
+            body={`${selected.line} · ${selected.shift} · ${dayLabel} — the aggregation window has no recorded snapshots.`}
+            action={{ label: "Open Line Trend", onClick: () => onPickLine(selected.line) }}
+          />
         ) : (
           <div className="cell-detail">
             <div className="cell-gauges">
@@ -698,7 +735,21 @@ const OeeLosses = ({ onNav, openModal }) => {
 // ============ OEE-ADM-001 — Alert Thresholds ============
 const OeeSettings = ({ role, onNav, openModal }) => {
   const [edit, setEdit] = React.useState(false);
-  const [thresh, setThresh] = React.useState(OEE_THRESHOLDS.tenant);
+  // BL-OEE-08: hydrate tenant threshold from localStorage on first render so
+  // sidebar badge (PSidebar) reads the same persisted target value.
+  const initialTenant = React.useMemo(() => {
+    try {
+      const raw = window.localStorage.getItem("oee.thresholds");
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (parsed && typeof parsed === "object") {
+          return { ...OEE_THRESHOLDS.tenant, ...parsed };
+        }
+      }
+    } catch (e) { /* ignore */ }
+    return OEE_THRESHOLDS.tenant;
+  }, []);
+  const [thresh, setThresh] = React.useState(initialTenant);
   const isAdmin = role === "Admin";
 
   if (!isAdmin) {
@@ -736,7 +787,17 @@ const OeeSettings = ({ role, onNav, openModal }) => {
             ? <button className="btn btn-secondary btn-sm" onClick={() => setEdit(true)}>Edit</button>
             : <div className="row-flex">
                 <button className="btn btn-ghost btn-sm" onClick={() => {setThresh(OEE_THRESHOLDS.tenant); setEdit(false);}}>Cancel</button>
-                <button className="btn btn-primary btn-sm" onClick={() => {OEE_THRESHOLDS.tenant = thresh; setEdit(false);}}>Save</button>
+                <button className="btn btn-primary btn-sm" onClick={() => {
+                  OEE_THRESHOLDS.tenant = thresh;
+                  // BL-OEE-08 — persist across reloads (tiny tuning).
+                  try {
+                    window.localStorage.setItem("oee.thresholds", JSON.stringify(thresh));
+                    if (typeof thresh.oeeTarget === "number") {
+                      window.localStorage.setItem("oee.target", String(thresh.oeeTarget));
+                    }
+                  } catch (e) { /* quota / disabled — non-fatal */ }
+                  setEdit(false);
+                }}>Save</button>
               </div>
           }
         </div>

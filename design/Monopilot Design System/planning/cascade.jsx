@@ -4,6 +4,7 @@ const PlanCascadeDAG = ({ onNav, onOpenWo }) => {
   const [activeChain, setActiveChain] = React.useState("all");
   const [selectedNode, setSelectedNode] = React.useState(null);
   const [panelTab, setPanelTab] = React.useState("materials");
+  const [dryRunOpen, setDryRunOpen] = React.useState(false);
 
   // Group by chain
   const chainsById = {};
@@ -31,6 +32,12 @@ const PlanCascadeDAG = ({ onNav, onOpenWo }) => {
           </div>
         </div>
         <div className="row-flex">
+          <DryRunButton
+            label="Dry-run cascade"
+            title="Preview affected WOs and lines before generating"
+            onClick={() => setDryRunOpen(true)}
+          />
+          <button className="btn btn-primary btn-sm" title="Generate cascade WOs — preview first via Dry-run">＋ Generate cascade</button>
           <button className="btn btn-secondary btn-sm">⇪ Export PNG</button>
           <button className="btn btn-secondary btn-sm">⤢ Fit to screen</button>
           <button className="btn btn-secondary btn-sm">↻ Reset layout</button>
@@ -232,6 +239,73 @@ const PlanCascadeDAG = ({ onNav, onOpenWo }) => {
           </div>
         </div>
       )}
+
+      {/* Dry-run preview — TUNING-PATTERN §3.6 (multi-object fan-out preview) */}
+      {dryRunOpen && (() => {
+        // Compute fan-out from the current chain selection (or all chains).
+        const scopeChains = activeChain === "all" ? chains : chains.filter(c => c.id === activeChain);
+        const scopeNodes = scopeChains.flatMap(c => c.nodes);
+        const newWOCount = scopeNodes.filter(n => n.status === "draft" || n.status === "planned").length;
+        const linesAffected = new Set(scopeNodes.map(n => n.line).filter(Boolean));
+        const linesCount = linesAffected.size || scopeChains.length; // demo fallback
+        const totalWOs = scopeNodes.length;
+        return (
+          <Modal
+            open={true}
+            onClose={() => setDryRunOpen(false)}
+            title="Cascade generate — dry-run preview"
+            subtitle="Review affected objects before committing"
+            size="wide"
+            foot={<>
+              <button className="btn btn-secondary btn-sm" onClick={() => setDryRunOpen(false)}>Cancel</button>
+              <button className="btn btn-primary btn-sm" onClick={() => setDryRunOpen(false)}>Confirm — generate cascade</button>
+            </>}>
+            <div className="alert-blue alert-box" style={{marginBottom:12, fontSize:12}}>
+              <span>ⓘ</span>
+              <div>
+                <b>Will create {newWOCount} WOs affecting {linesCount} line{linesCount === 1 ? "" : "s"}.</b>
+                <div style={{fontSize:11, color:"var(--blue-700)"}}>
+                  Scope: {activeChain === "all" ? `${chains.length} active chains` : `chain ${activeChain}`} · {totalWOs} total WOs in chain(s) · cycle-check ✓ pass
+                </div>
+              </div>
+            </div>
+
+            <div style={{display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:10, marginBottom:12}}>
+              <div className="cs-stat"><div className="cs-label">New WOs</div><div className="cs-value mono">{newWOCount}</div></div>
+              <div className="cs-stat"><div className="cs-label">Lines affected</div><div className="cs-value mono">{linesCount}</div></div>
+              <div className="cs-stat"><div className="cs-label">Chain layers</div><div className="cs-value mono">{Math.max(1, ...scopeChains.map(c => Math.max(...c.nodes.map(n => n.layer)) + 1))}</div></div>
+            </div>
+
+            <div className="card" style={{padding:0}}>
+              <div className="card-head" style={{padding:"10px 14px", borderBottom:"1px solid var(--border)", marginBottom:0}}>
+                <h3 className="card-title">Affected WOs</h3>
+                <span className="muted" style={{fontSize:11}}>Read-only — nothing created yet</span>
+              </div>
+              <table>
+                <thead><tr>
+                  <th>Layer</th><th>WO</th><th>Product</th>
+                  <th style={{textAlign:"right"}}>Qty</th><th>Status</th><th>Line</th>
+                </tr></thead>
+                <tbody>
+                  {scopeNodes.map(n => (
+                    <tr key={n.code}>
+                      <td className="mono">L{n.layer + 1}</td>
+                      <td className="mono" style={{fontWeight:600}}>{n.code}</td>
+                      <td>{n.name}</td>
+                      <td className="num mono">{n.qty} {n.uom}</td>
+                      <td><WOPlanStatus s={n.status}/></td>
+                      <td className="mono">{n.line || <span className="muted">—</span>}</td>
+                    </tr>
+                  ))}
+                  {scopeNodes.length === 0 && (
+                    <tr><td colSpan={6}><div className="muted" style={{padding:14, textAlign:"center"}}>Nothing in scope — select a chain.</div></td></tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </Modal>
+        );
+      })()}
     </>
   );
 };

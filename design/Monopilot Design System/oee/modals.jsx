@@ -297,7 +297,13 @@ const ChangeoverDetailModal = ({ open, onClose, data }) => {
   );
 };
 
-// ============ M-06: Cell drill-down ============
+// ============ M-06: Cell drill-down (optional secondary CTA) ============
+// Fix-2 audit §B drift: PRD §10.2 specifies click-cell → NAVIGATE to per-line 24h trend.
+// The heatmap prototype now implements that (click cell → setSelected + inline card with
+// "Drill to Line Trend →" button calling onPickLine). This modal is kept as an optional
+// deep-drill surface (quick A/P/Q gauge glance without a full page nav). It is NOT wired
+// from the heatmap grid; it remains available from the Modal Gallery and can be opened
+// programmatically by screens that want a non-disruptive preview.
 const CellDrillModal = ({ open, onClose, data, onPickLine }) => {
   if (!open) return null;
   const apq = HEATMAP_APQ[data?.line]?.[data?.day]?.[data?.shift] || {a: 62, p: 93, q: 99, output: 210, downtime: 88};
@@ -407,18 +413,32 @@ Source: oee_daily_summary MV · last refresh 14:32:05`;
   );
 };
 
-// ============ M-10: Compare weeks (picker) ============
+// ============ M-10: Compare weeks (picker) — P2 per audit ============
+// Fix-2 audit §B drift: advanced shift comparison is P2 (PRD §4.2 #11).
+// The modal ships in P1 as a gallery/preview only; production UI must gate the
+// entry-point button behind the `oee.compareWeeks.enabled` feature flag.
 const CompareWeeksModal = ({ open, onClose }) => {
   const [weekA, setWeekA] = React.useState("2026-W15");
   const [weekB, setWeekB] = React.useState("2026-W16");
   if (!open) return null;
   return (
-    <Modal open={open} onClose={onClose} title="Compare two weeks" subtitle="Pick A and B to see delta across lines × shifts" size="default"
+    <Modal open={open} onClose={onClose}
+      title={<>Compare two weeks <span className="badge badge-gray" style={{fontSize:9, marginLeft:8}}>P2</span></>}
+      subtitle="Advanced shift comparison · P2 feature (PRD §4.2 #11) · gated by feature flag in production"
+      size="default"
       foot={<>
         <button className="btn btn-secondary btn-sm" onClick={onClose}>Cancel</button>
         <button className="btn btn-primary btn-sm" onClick={onClose}>Compare →</button>
       </>}
     >
+      <div className="alert-amber alert-box" style={{marginBottom:12, fontSize:12}}>
+        <span>⚑</span>
+        <div>
+          <b>P2 scope.</b> This modal is scaffolded in P1 for UX review only. Production
+          entry-points must gate on the <span className="mono">oee.compareWeeks.enabled</span> flag;
+          P1 heatmap surfaces it via the modal gallery only.
+        </div>
+      </div>
       <div className="grid-2">
         <Field label="Week A" required>
           <select value={weekA} onChange={e => setWeekA(e.target.value)}>
@@ -439,7 +459,7 @@ const CompareWeeksModal = ({ open, onClose }) => {
         { label: "Biggest regressor",  value: "LINE-02 · −6.2pp" },
       ]}/>
       <div className="muted" style={{fontSize:11, marginTop:10}}>
-        Preview only · clicking Compare opens the heatmap diff view (P1.5 backlog).
+        Preview only · clicking Compare opens the heatmap diff view (P2 backlog).
       </div>
     </Modal>
   );
@@ -519,7 +539,7 @@ const MODAL_CATALOG = [
   { key: "requestEdit",       name: "M-07 · Request edit escalation",    pattern: "Destructive confirm w/ reason (min 10 chars)",    comp: RequestEditModal,         sample: OEE_DOWNTIME_EVENTS[5] },
   { key: "deleteOverride",    name: "M-08 · Delete line override",       pattern: "Destructive confirm (type-to-confirm)",            comp: DeleteOverrideModal,      sample: OEE_THRESHOLDS.perLine[0] },
   { key: "copyClipboard",     name: "M-09 · Copy-to-clipboard preview",  pattern: "Read-only preview + clipboard action",             comp: CopyClipboardModal,       sample: { date: "2026-04-20" } },
-  { key: "compareWeeks",      name: "M-10 · Compare two weeks",          pattern: "Picker + diff preview",                            comp: CompareWeeksModal,        sample: null },
+  { key: "compareWeeks",      name: "M-10 · Compare two weeks (P2)",     pattern: "Picker + diff preview · feature-flag-gated",       comp: CompareWeeksModal,        sample: null },
   { key: "ackAnomaly",        name: "M-11 · Acknowledge anomaly (P2)",   pattern: "Dual-path confirm",                                comp: AcknowledgeAnomalyModal,  sample: ANOMALIES[0] },
   { key: "autoRefresh",       name: "M-12 · Pause auto-refresh",         pattern: "Simple confirm",                                    comp: AutoRefreshModal,         sample: null },
 ];

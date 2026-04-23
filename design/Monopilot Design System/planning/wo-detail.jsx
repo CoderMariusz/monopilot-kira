@@ -59,6 +59,32 @@ const PlanWODetail = ({ onBack, onNav }) => {
         <div className="wsb-item"><span className="wsb-label">Line</span><span className="wsb-value">{w.lineCode}</span></div>
         <div className="wsb-item"><span className="wsb-label">Priority</span><span className="wsb-value">{w.priority}</span></div>
         <div className="wsb-item"><span className="wsb-label">BOM version</span><span className="wsb-value">{w.bomVersion}</span></div>
+        <div className="wsb-item">
+          <span className="wsb-label">Last 8 shifts</span>
+          <span className="wsb-value">
+            {(() => {
+              // Deterministic 8-shift outcome strip per WO with per-cell shift label
+              // ("Shift A · 2026-04-15 · 82%") — RunStrip supports {tone,title}[].
+              const baseOutcomes = deriveRunHistory(w);
+              // Seed dates from the week before plannedStart.
+              const start = (w.plannedStart || "2026-04-20").slice(0, 10);
+              const [Y, M, D] = start.split("-").map(n => parseInt(n));
+              const startDate = new Date(Date.UTC(Y, (M || 1) - 1, D || 1));
+              const shiftLetters = ["A", "B", "C"];
+              const cells = baseOutcomes.map((tone, idx) => {
+                // slot 7 = most recent (before plannedStart); slot 0 = 8 shifts ago
+                const backShifts = 7 - idx;
+                const dayOffset = Math.floor(backShifts / 3);
+                const dt = new Date(startDate.getTime() - dayOffset * 86400000);
+                const dateStr = dt.toISOString().slice(0, 10);
+                const shift = shiftLetters[(backShifts % 3 + 3) % 3];
+                const pct = tone === "bad" ? 52 + (idx % 7) : tone === "warn" ? 68 + (idx % 10) : 82 + (idx % 12);
+                return { tone, title: `Shift ${shift} · ${dateStr} · ${pct}%` };
+              });
+              return <RunStrip outcomes={cells} max={8} title={`Last 8 shifts for ${w.code}`} />;
+            })()}
+          </span>
+        </div>
       </div>
 
       {/* Cascade dependency banner */}

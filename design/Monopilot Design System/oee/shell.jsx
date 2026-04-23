@@ -1,26 +1,46 @@
 // ============ OEE module shell — sidebar (OEE active), topbar, sub-nav, widgets ============
 
-const PSidebar = () => (
-  <div id="sidebar">
-    <div className="sidebar-logo">Monopilot <span>MES</span></div>
-    <div className="sidebar-group">Core</div>
-    <div className="sidebar-item"><span className="ic">◆</span>Dashboard</div>
-    <div className="sidebar-item"><span className="ic">⚙</span>Settings</div>
-    <div className="sidebar-group">Operations</div>
-    <div className="sidebar-item"><span className="ic">▤</span>Planning</div>
-    <div className="sidebar-item"><span className="ic">⚒</span>Production</div>
-    <div className="sidebar-item active"><span className="ic">◉</span>OEE</div>
-    <div className="sidebar-item"><span className="ic">▥</span>Warehouse</div>
-    <div className="sidebar-group">QA &amp; Shipping</div>
-    <div className="sidebar-item"><span className="ic">✓</span>Quality</div>
-    <div className="sidebar-item"><span className="ic">→</span>Shipping</div>
-    <div className="sidebar-group">Premium</div>
-    <div className="sidebar-item"><span className="ic">▦</span>Technical</div>
-    <div className="sidebar-item"><span className="ic">★</span>NPD</div>
-    <div className="sidebar-item"><span className="ic">$</span>Finance</div>
-    <div className="sidebar-item"><span className="ic">▬</span>Reporting</div>
-  </div>
-);
+const PSidebar = () => {
+  // Sidebar count badge — lines below the OEE target (TUNING-PATTERN §3.7).
+  // Persists to localStorage (BL-OEE-08 tiny tuning) so the label matches whatever
+  // numeric target the user last saved, defaulting to SUMMARY_KPIS_TODAY.target.
+  const storedTarget = (() => {
+    try { return parseFloat(window.localStorage.getItem("oee.target")) || null; }
+    catch (e) { return null; }
+  })();
+  const target = storedTarget || (typeof SUMMARY_KPIS_TODAY !== "undefined" ? SUMMARY_KPIS_TODAY.target : 70);
+  const belowTarget = (typeof OEE_TODAY !== "undefined")
+    ? Object.values(OEE_TODAY).filter(l => l.oee != null && l.oee < target).length
+    : 0;
+  return (
+    <div id="sidebar">
+      <div className="sidebar-logo">Monopilot <span>MES</span></div>
+      <div className="sidebar-group">Core</div>
+      <div className="sidebar-item"><span className="ic">◆</span>Dashboard</div>
+      <div className="sidebar-item"><span className="ic">⚙</span>Settings</div>
+      <div className="sidebar-group">Operations</div>
+      <div className="sidebar-item"><span className="ic">▤</span>Planning</div>
+      <div className="sidebar-item"><span className="ic">⚒</span>Production</div>
+      <div className="sidebar-item active" title={`${belowTarget} line${belowTarget === 1 ? "" : "s"} below ${target}% target`}>
+        <span className="ic">◉</span>OEE
+        {belowTarget > 0 && (
+          <span className="nav-count" style={{background:"var(--sem-bad-bg, var(--red-050))", color:"var(--sem-bad, var(--red-700))", marginLeft:"auto", fontWeight:600}}>
+            {belowTarget}
+          </span>
+        )}
+      </div>
+      <div className="sidebar-item"><span className="ic">▥</span>Warehouse</div>
+      <div className="sidebar-group">QA &amp; Shipping</div>
+      <div className="sidebar-item"><span className="ic">✓</span>Quality</div>
+      <div className="sidebar-item"><span className="ic">→</span>Shipping</div>
+      <div className="sidebar-group">Premium</div>
+      <div className="sidebar-item"><span className="ic">▦</span>Technical</div>
+      <div className="sidebar-item"><span className="ic">★</span>NPD</div>
+      <div className="sidebar-item"><span className="ic">$</span>Finance</div>
+      <div className="sidebar-item"><span className="ic">▬</span>Reporting</div>
+    </div>
+  );
+};
 
 const PTopbar = ({ role, onRole }) => (
   <div className="topbar">
