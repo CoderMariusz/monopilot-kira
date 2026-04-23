@@ -120,3 +120,13 @@ Foundation sub-module 00-i delivers:
 - `00-FOUNDATION-PRD.md` v3.0 §4.2 (current build order, to be amended).
 - `02-SETTINGS-PRD.md` v3.3 §16.2 (current sub-module breakdown, addendum needed).
 - `01-NPD-PRD.md` v3.0 §6.1 cascades (5 cascade chains drive Reference table carveout).
+
+## Amendment 2026-04-23 — PWA + IndexedDB in Phase E-0 scope
+
+User Decision #3 (post-ADR-032, captured in `_meta/plans/2026-04-22-foundation-merged-plan.md` frontmatter): **PWA + IndexedDB promoted into Phase E-0 Foundation scope** as atomic tasks `T-00a-008` (Workbox service worker registration) and `T-00a-009` (IndexedDB sync queue).
+
+This extends but does NOT supersede the Foundation vs Settings split declared in this ADR:
+- PWA service worker + IndexedDB = **runtime infrastructure** → lives in Foundation E-0 (correct per ADR-032 principle)
+- Per-tenant PWA theming (splash screens, icons, install prompts styled per org) = **configuration surface** → deferred to Settings E-1 or later (pointer only; no task yet)
+
+No contract change to Phase E-0 → E-1 → E-2 sequencing. PWA tasks land cleanly within 00-a sub-module (monorepo + Next.js scaffold). See `2026-04-22-foundation-merged-plan.md` for task definitions.
