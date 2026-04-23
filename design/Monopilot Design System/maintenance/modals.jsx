@@ -163,8 +163,8 @@ const WRTriageModal = ({ open, onClose, data }) => {
       )}
 
       {decision === "reject" && (
-        <Field label="Rejection reason" required help="Min 10 chars — visible to reporter">
-          <ReasonInput value={reason} onChange={setReason} minLength={10} placeholder="Explain why this request is being rejected..."/>
+        <Field label="Cancellation reason" required help="Min 10 chars — visible to reporter. WR will be stored as cancelled (PRD state machine) with this reason.">
+          <ReasonInput value={reason} onChange={setReason} minLength={10} placeholder="Explain why this request is being cancelled (reason visible to reporter)..."/>
         </Field>
       )}
 
