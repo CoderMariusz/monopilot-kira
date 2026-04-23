@@ -3,10 +3,22 @@
 // IST-0038 references Planning WO-2026-0108.
 
 // -------- MS-IST list --------
+// Tune-6b §2.14.2 — GHA auto-expand: in_transit and cancelled groups default-open,
+// other status groups default-collapsed. Mirrors GitHub Actions job-list behaviour.
+const IST_STATUS_DEFAULT_OPEN = { in_transit: true, cancelled: true, shipped: true };
+const IST_STATUS_ORDER = ["in_transit", "cancelled", "shipped", "planned", "draft", "received", "closed"];
+const IST_STATUS_LABEL = {
+  in_transit: "In Transit", cancelled: "Cancelled", shipped: "Shipped",
+  planned: "Planned", draft: "Draft", received: "Received", closed: "Closed",
+};
+
 const MsISTList = ({ role, site, onNav, onOpenIST, openModal }) => {
   const [statusFilter, setStatusFilter] = React.useState("all");
   const [routeFilter, setRouteFilter] = React.useState("all");
   const [search, setSearch] = React.useState("");
+  // Tune-6b: track which status groups the user has toggled vs defaults.
+  const [groupOpen, setGroupOpen] = React.useState(() => ({ ...IST_STATUS_DEFAULT_OPEN }));
+  const toggleGroup = (st) => setGroupOpen(m => ({ ...m, [st]: !m[st] }));
 
   const isOperator = role === "Warehouse Operator" || role === "Operator";
 
@@ -81,38 +93,65 @@ const MsISTList = ({ role, site, onNav, onOpenIST, openModal }) => {
             <th></th>
           </tr></thead>
           <tbody>
-            {filtered.map(t => (
-              <tr key={t.id} className={t.status === "in_transit" ? "ist-row-in-transit" : ""} style={{cursor:"pointer"}} onClick={()=>onOpenIST(t.id)}>
-                <td className="mono" style={{fontWeight:700, color:"var(--blue)"}}>{t.id}</td>
-                <td><SiteRef id={t.from}/></td>
-                <td><SiteRef id={t.to}/></td>
-                <td><ISTStatus s={t.status}/></td>
-                <td className="muted mono" style={{fontSize:11}}>{t.shippedDate || "—"}</td>
-                <td><span className={"mono"} style={{fontSize:11, color: t.etaCls === "red" ? "var(--red-700)" : t.etaCls === "amber" ? "var(--amber-700)" : "var(--text)"}}>{t.eta}{t.etaCls === "red" && <span className="badge badge-red" style={{fontSize:9, marginLeft:4}}>Overdue</span>}</span></td>
-                <td className="mono" style={{fontSize:11}}>{t.lane}</td>
-                <td className="num mono">{t.items} items</td>
-                {!isOperator && <td className="num mono">{t.freight}</td>}
-                <td>
-                  {t.relatedTO && <span className="mono" style={{fontSize:10, color:"var(--blue)"}}>TO {t.relatedTO.slice(-5)}</span>}
-                  {t.relatedWO && <span className="mono" style={{fontSize:10, color:"var(--blue)"}}>WO {t.relatedWO.slice(-5)}</span>}
-                  {!t.relatedTO && !t.relatedWO && <span className="muted" style={{fontSize:10}}>—</span>}
-                </td>
-                <td onClick={e=>e.stopPropagation()}>
-                  <button className="btn btn-ghost btn-sm" onClick={()=>onOpenIST(t.id)}>👁️</button>
-                  {(t.status === "draft" || t.status === "planned") && <button className="btn btn-ghost btn-sm" onClick={()=>openModal("istAmend", t)}>✎</button>}
-                  {t.status !== "closed" && t.status !== "cancelled" && <button className="btn btn-ghost btn-sm" onClick={()=>openModal("istCancel", t)}>✕</button>}
-                </td>
-              </tr>
-            ))}
+            {IST_STATUS_ORDER.map(st => {
+              const groupRows = filtered.filter(t => t.status === st);
+              if (groupRows.length === 0) return null;
+              const isOpen = groupOpen[st];
+              const tone = st === "in_transit" ? "warn" : st === "cancelled" ? "bad" : st === "closed" || st === "received" ? "ok" : "info";
+              const colSpan = !isOperator ? 11 : 10;
+              return (
+                <React.Fragment key={st}>
+                  <tr
+                    className="ist-group-head"
+                    onClick={(e) => { e.stopPropagation(); toggleGroup(st); }}
+                    style={{cursor:"pointer", background:"var(--gray-050)"}}
+                  >
+                    <td colSpan={colSpan} style={{padding:"6px 10px", fontSize:11, fontWeight:600, color:"var(--muted)"}}>
+                      <span style={{display:"inline-block", width:12, color:"var(--muted)"}}>{isOpen ? "▾" : "▸"}</span>
+                      <span className={"badge tone-" + tone} style={{fontSize:10, marginRight:6, padding:"1px 7px", borderRadius:10, background: tone === "bad" ? "var(--sem-bad-bg, #fee2e2)" : tone === "warn" ? "var(--sem-warn-bg, #fef3c7)" : tone === "ok" ? "var(--sem-ok-bg, #dcfce7)" : "var(--sem-info-bg, #dbeafe)"}}>
+                        {IST_STATUS_LABEL[st] || st}
+                      </span>
+                      <span className="mono" style={{fontWeight:500}}>{groupRows.length} transfer{groupRows.length === 1 ? "" : "s"}</span>
+                      {(st === "in_transit" || st === "cancelled") && !isOpen && (
+                        <span className="muted" style={{marginLeft:8, fontSize:10, fontStyle:"italic"}}>auto-expand off</span>
+                      )}
+                    </td>
+                  </tr>
+                  {isOpen && groupRows.map(t => (
+                    <tr key={t.id} className={t.status === "in_transit" ? "ist-row-in-transit" : ""} style={{cursor:"pointer"}} onClick={()=>onOpenIST(t.id)}>
+                      <td className="mono" style={{fontWeight:700, color:"var(--blue)"}}>{t.id}</td>
+                      <td><SiteRef id={t.from}/></td>
+                      <td><SiteRef id={t.to}/></td>
+                      <td><ISTStatus s={t.status}/></td>
+                      <td className="muted mono" style={{fontSize:11}}>{t.shippedDate || "—"}</td>
+                      <td><span className={"mono"} style={{fontSize:11, color: t.etaCls === "red" ? "var(--red-700)" : t.etaCls === "amber" ? "var(--amber-700)" : "var(--text)"}}>{t.eta}{t.etaCls === "red" && <span className="badge badge-red" style={{fontSize:9, marginLeft:4}}>Overdue</span>}</span></td>
+                      <td className="mono" style={{fontSize:11}}>{t.lane}</td>
+                      <td className="num mono">{t.items} items</td>
+                      {!isOperator && <td className="num mono">{t.freight}</td>}
+                      <td>
+                        {t.relatedTO && <span className="mono" style={{fontSize:10, color:"var(--blue)"}}>TO {t.relatedTO.slice(-5)}</span>}
+                        {t.relatedWO && <span className="mono" style={{fontSize:10, color:"var(--blue)"}}>WO {t.relatedWO.slice(-5)}</span>}
+                        {!t.relatedTO && !t.relatedWO && <span className="muted" style={{fontSize:10}}>—</span>}
+                      </td>
+                      <td onClick={e=>e.stopPropagation()}>
+                        <button className="btn btn-ghost btn-sm" onClick={()=>onOpenIST(t.id)}>👁️</button>
+                        {(t.status === "draft" || t.status === "planned") && <button className="btn btn-ghost btn-sm" onClick={()=>openModal("istAmend", t)}>✎</button>}
+                        {t.status !== "closed" && t.status !== "cancelled" && <button className="btn btn-ghost btn-sm" onClick={()=>openModal("istCancel", t)}>✕</button>}
+                      </td>
+                    </tr>
+                  ))}
+                </React.Fragment>
+              );
+            })}
           </tbody>
         </table>
         {filtered.length === 0 && (
-          <div style={{padding:40, textAlign:"center"}}>
-            <div style={{fontSize:36, marginBottom:10}}>🏭 → 🏭</div>
-            <div style={{fontSize:14, fontWeight:600}}>No transfers match your filters</div>
-            <div className="muted" style={{fontSize:12, marginTop:6}}>Create your first inter-site transfer to move goods between sites.</div>
-            <button className="btn btn-primary btn-sm" style={{marginTop:10}} onClick={()=>openModal("istCreate")}>＋ New Transfer</button>
-          </div>
+          <EmptyState
+            icon="🏭"
+            title="No transfers match your filters"
+            body="Create your first inter-site transfer to move goods between sites, or clear the filters to see all records."
+            action={{ label: "＋ New Transfer", onClick: () => openModal("istCreate") }}
+          />
         )}
       </div>
     </>
@@ -523,7 +562,7 @@ const MsLanesList = ({ role, site, onNav, onOpenLane, openModal }) => {
           <thead><tr>
             <th>Lane #</th><th>From</th><th>To</th><th>Carriers</th>
             <th style={{textAlign:"right"}}>Lead Time</th><th style={{textAlign:"right"}}>Cost/km</th>
-            <th>Health</th><th></th>
+            <th>Health</th><th style={{width:120}}>Last 8 ISTs</th><th></th>
           </tr></thead>
           <tbody>
             {MS_LANES.map(l => (
@@ -535,6 +574,7 @@ const MsLanesList = ({ role, site, onNav, onOpenLane, openModal }) => {
                 <td className="num mono">{l.leadDays}d</td>
                 <td className="num mono">{l.costKm}</td>
                 <td><LaneHealth s={l.health}/></td>
+                <td><RunStrip outcomes={buildLaneRunCells(l)}/></td>
                 <td onClick={e=>e.stopPropagation()}>
                   {isAdmin && <button className="btn btn-ghost btn-sm" onClick={()=>openModal("laneCreate", {edit: true, lane: l})}>✏️</button>}
                   <button className="btn btn-ghost btn-sm" onClick={()=>openModal("rateCard", l)}>⇪ Rate</button>
@@ -632,10 +672,12 @@ const MsLaneDetail = ({ role, site, onBack, onNav, openModal, laneId }) => {
         <>
           <div className="card">
             <div className="card-head"><h3 className="card-title">Shipments per month (last 12)</h3></div>
-            <div className="ms-line-chart">
-              {[4,6,3,5,8,7,9,10,6,8,14,12].map((c,i) => (
-                <div key={i} className="ms-bar" style={{height: (c * 10) + "px"}} data-label={["M","J","J","A","S","O","N","D","J","F","M","A"][i]}></div>
-              ))}
+            <div style={{padding:"10px 14px 4px"}}>
+              <MsSparkline
+                data={[4,6,3,5,8,7,9,10,6,8,14,12]}
+                labels={["M","J","J","A","S","O","N","D","J","F","M","A"]}
+                color="var(--blue)"
+              />
             </div>
           </div>
           <div className="card" style={{marginTop:12}}>

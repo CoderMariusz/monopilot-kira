@@ -212,10 +212,12 @@ const MsAnalytics = ({ role, site, onNav, openModal }) => {
         <>
           <div className="card">
             <div className="card-head"><h3 className="card-title">Monthly freight cost (last 6 months)</h3></div>
-            <div className="ms-line-chart">
-              {MS_SHIPPING_COST_MONTHLY.concat([{mo:"",cost:0},{mo:"",cost:0},{mo:"",cost:0},{mo:"",cost:0},{mo:"",cost:0},{mo:"",cost:0}]).slice(0,12).map((c,i) => (
-                <div key={i} className="ms-bar" style={{height: (c.cost / 20) + "px", opacity: c.cost > 0 ? 0.85 : 0.15}} data-label={c.mo}></div>
-              ))}
+            <div style={{padding:"10px 14px 4px"}}>
+              <MsSparkline
+                data={MS_SHIPPING_COST_MONTHLY.map(c => c.cost)}
+                labels={MS_SHIPPING_COST_MONTHLY.map(c => c.mo)}
+                color="var(--blue)"
+              />
             </div>
           </div>
 
@@ -270,10 +272,13 @@ const MsAnalytics = ({ role, site, onNav, openModal }) => {
           </div>
           <div className="card">
             <div className="card-head"><h3 className="card-title">Conflict rate (weekly)</h3></div>
-            <div className="ms-line-chart">
-              {MS_CONFLICT_TREND.map((w,i) => (
-                <div key={i} className="ms-bar" style={{height: (w.count * 30 + 20) + "px", background: w.count > 2 ? "var(--red)" : "var(--blue)"}} data-label={w.week}></div>
-              ))}
+            <div style={{padding:"10px 14px 4px"}}>
+              <MsSparkline
+                data={MS_CONFLICT_TREND.map(w => w.count)}
+                labels={MS_CONFLICT_TREND.map(w => w.week)}
+                color={MS_CONFLICT_TREND.some(w => w.count > 2) ? "var(--red)" : "var(--blue)"}
+                fill={MS_CONFLICT_TREND.some(w => w.count > 2) ? "var(--red-050, rgba(239,68,68,0.12))" : "var(--blue-050, rgba(59,130,246,0.12))"}
+              />
             </div>
           </div>
           <div className="card" style={{marginTop:12, padding:0}}>
