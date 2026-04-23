@@ -7,12 +7,22 @@ const QaNcrList = ({ onOpenNcr, onNav, openModal }) => {
   const [type, setType] = React.useState("all");
   const [selected, setSelected] = React.useState(new Set());
 
+  // §3.3 GHA auto-expand — overdue + escalated NCRs (critical open + escalated)
+  // are shown first in the table and given a highlighted "attention" stripe.
+  // Non-overdue rows still render but under a subtle divider.
+  const [expandCalmRows, setExpandCalmRows] = React.useState(false);
+
   const visible = QA_NCRS.filter(n =>
     (status === "all" || n.status === status) &&
     (severity === "all" || n.severity === severity) &&
     (type === "all" || n.type === type) &&
     (!search || n.id.toLowerCase().includes(search.toLowerCase()) || n.title.toLowerCase().includes(search.toLowerCase()))
   );
+
+  // Partition visible into attention-rows (auto-expanded) and calm-rows (collapsed by default).
+  const isAttention = (n) => n.overdue || (n.severity === "critical" && n.status !== "closed" && n.status !== "cancelled") || n.escalated;
+  const attentionRows = visible.filter(isAttention);
+  const calmRows = visible.filter(n => !isAttention(n));
 
   const counts = {
     draft: QA_NCRS.filter(n => n.status === "draft").length,
@@ -87,6 +97,14 @@ const QaNcrList = ({ onOpenNcr, onNav, openModal }) => {
       )}
 
       <div className="card" style={{padding: 0}}>
+        {visible.length === 0 ? (
+          <EmptyState
+            icon="✓"
+            title="No NCRs match your filters"
+            body="Adjust status / severity / type above or clear filters to see all records."
+            action={{label: "Clear filters", onClick: () => { setSearch(""); setStatus("all"); setSeverity("all"); setType("all"); }}}
+          />
+        ) : (
         <table>
           <thead>
             <tr>
@@ -96,9 +114,21 @@ const QaNcrList = ({ onOpenNcr, onNav, openModal }) => {
             </tr>
           </thead>
           <tbody>
-            {visible.map(n => {
+            {/* §3.3 GHA — attention rows (overdue + critical-open + escalated) auto-expanded */}
+            {attentionRows.length > 0 && (
+              <tr className="gha-group-head attention">
+                <td colSpan={11}>
+                  <span className="gha-caret">▾</span>
+                  <b>Needs attention</b>
+                  <span className="muted" style={{marginLeft:8, fontSize:11}}>
+                    {attentionRows.length} overdue / critical / escalated · auto-expanded
+                  </span>
+                </td>
+              </tr>
+            )}
+            {attentionRows.map(n => {
               const toggle = e => { e.stopPropagation(); const nx = new Set(selected); if (nx.has(n.id)) nx.delete(n.id); else nx.add(n.id); setSelected(nx); };
-              const rowCls = n.overdue ? "row-overdue" : n.severity === "critical" ? "row-critical" : "";
+              const rowCls = n.overdue ? "row-overdue" : n.severity === "critical" ? "row-critical" : n.escalated ? "row-escalated" : "";
               return (
                 <tr key={n.id} className={rowCls} style={{cursor: "pointer"}} onClick={() => onOpenNcr(n.id)}>
                   <td onClick={toggle}><input type="checkbox" checked={selected.has(n.id)} onChange={() => {}}/></td>
@@ -115,8 +145,39 @@ const QaNcrList = ({ onOpenNcr, onNav, openModal }) => {
                 </tr>
               );
             })}
+            {/* Calm group (default-collapsed — GHA style) */}
+            {calmRows.length > 0 && (
+              <tr className="gha-group-head calm" onClick={()=>setExpandCalmRows(v=>!v)} style={{cursor:"pointer"}}>
+                <td colSpan={11}>
+                  <span className="gha-caret">{expandCalmRows ? "▾" : "▸"}</span>
+                  <b>Other NCRs</b>
+                  <span className="muted" style={{marginLeft:8, fontSize:11}}>
+                    {calmRows.length} open / investigating / closed · {expandCalmRows ? "expanded" : "click to expand"}
+                  </span>
+                </td>
+              </tr>
+            )}
+            {expandCalmRows && calmRows.map(n => {
+              const toggle = e => { e.stopPropagation(); const nx = new Set(selected); if (nx.has(n.id)) nx.delete(n.id); else nx.add(n.id); setSelected(nx); };
+              return (
+                <tr key={n.id} style={{cursor: "pointer"}} onClick={() => onOpenNcr(n.id)}>
+                  <td onClick={toggle}><input type="checkbox" checked={selected.has(n.id)} onChange={() => {}}/></td>
+                  <td><span className="dcode">{n.id}</span></td>
+                  <td style={{fontSize: 11, maxWidth: 240}} title={n.title}>{n.title.substring(0, 60)}{n.title.length > 60 ? "…" : ""}</td>
+                  <td><SeverityBadge s={n.severity}/></td>
+                  <td><span className="qa-badge badge-draft">{n.type.replace("_", " ")}</span></td>
+                  <td><StatusBadge s={n.status}/></td>
+                  <td style={{fontSize: 11}}><div>{n.source.type}</div><div className="mono" style={{fontSize: 10, color: "var(--blue)"}}>{n.source.ref}</div></td>
+                  <td className="mono" style={{fontSize: 11}}>{n.detectedAt.substring(0, 10)}<div className="muted" style={{fontSize: 10}}>{n.daysAgo}d ago</div></td>
+                  <td className="mono" style={{fontSize: 11}}>{n.responseDue.substring(0, 16)}</td>
+                  <td style={{fontSize: 11}}>{n.assignedTo || <span className="muted">Unassigned</span>}</td>
+                  <td onClick={e => e.stopPropagation()}><button className="btn btn-ghost btn-sm" onClick={() => onOpenNcr(n.id)}>View</button></td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
+        )}
       </div>
     </>
   );
@@ -132,7 +193,9 @@ const QaNcrDetail = ({ ncrId, role, onBack, onNav, openModal }) => {
 
   return (
     <>
-      <div className="page-head">
+      {/* §3.4 sticky-form-header — long NCR Detail (investigation + CAPA)
+          keeps the title + primary status controls visible while scrolling. */}
+      <div className="page-head sticky-form-header">
         <div>
           <div className="breadcrumb"><a onClick={() => onNav("dashboard")}>Quality</a> · <a onClick={onBack}>NCR</a> · {n.id}</div>
           <h1 className="page-title" style={{display: "flex", alignItems: "center", gap: 10}}>
@@ -141,6 +204,12 @@ const QaNcrDetail = ({ ncrId, role, onBack, onNav, openModal }) => {
             <SeverityBadge s={n.severity}/>
             <StatusBadge s={n.status}/>
           </h1>
+        </div>
+        <div className="row-flex">
+          {!isClosed && n.status === "investigating" && (
+            <button className="btn btn-sm" style={{background: "var(--green)", color: "#fff", border: 0}} onClick={() => openModal("ncrClose", d)}>🔒 Close NCR</button>
+          )}
+          {isClosed && <button className="btn btn-secondary btn-sm">⎙ Download report</button>}
         </div>
       </div>
 
