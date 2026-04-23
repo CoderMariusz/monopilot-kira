@@ -41,7 +41,7 @@ const PEXT_LAST_RUN = {
   startedAt: "2026-04-21 06:12:04",
   completedAt: "2026-04-21 06:12:46",
   duration: 42,
-  status: "converged",
+  status: "completed",
   initiatedBy: "Monika Nowak",
   initiatedByEmail: "monika.nowak@forza.co.uk",
   horizon: "7d",
@@ -230,22 +230,22 @@ const PEXT_FCST_HEALTH = {
 };
 
 // ============ RUN HISTORY ============
-// scheduler_runs — OPT-XXXX IDs, status converged|failed|partial|preview|discarded
+// scheduler_runs — OPT-XXXX IDs, status: queued|running|completed|failed|cancelled per PRD §9.2
 const PEXT_RUNS = [
-  { id: "OPT-0042", uuid: "018e5a42-7c4e-7b1a-9a3e-e4a1b2c3d4e5", started: "2026-04-21 06:12", user: "Monika Nowak", horizon: "7d", lines: "5/5", dur: 42,  wos: 23, overrides: 2, coMinutes: 285, util: 92.3, status: "converged", type: "schedule", fallback: false },
-  { id: "OPT-0041", uuid: "018e5a3e-6b2c-7c3d-8b1a-ff2a33445566", started: "2026-04-21 04:30", user: "Monika Nowak", horizon: "7d", lines: "5/5", dur: 38,  wos: 22, overrides: 1, coMinutes: 305, util: 91.8, status: "converged", type: "schedule", fallback: false, superseded: true },
-  { id: "OPT-0040", uuid: "018e5a3d-3a2b-7d4e-9c2b-112233445566", started: "2026-04-20 18:05", user: "m.krawczyk",   horizon: "7d", lines: "4/5", dur: 148, wos: 19, overrides: 0, coMinutes: 362, util: 78.4, status: "partial",   type: "schedule", fallback: false, error: "Solver timeout at 120s; 19 of 22 WOs assigned" },
-  { id: "OPT-0039", uuid: "018e5a3c-8e1f-70a5-bb3c-aabbccddeeff", started: "2026-04-20 09:12", user: "Monika Nowak", horizon: "7d", lines: "5/5", dur: 52,  wos: 24, overrides: 3, coMinutes: 298, util: 90.1, status: "converged", type: "schedule", fallback: false },
-  { id: "OPT-0038", uuid: "018e5a3b-0c1d-72b6-ac4d-ddeeff001122", started: "2026-04-20 06:10", user: "Monika Nowak", horizon: "7d", lines: "5/5", dur: 39,  wos: 21, overrides: 0, coMinutes: 320, util: 89.8, status: "converged", type: "schedule", fallback: true, fallbackRule: "allergen_sequencing_heuristic_v1" },
+  { id: "OPT-0042", uuid: "018e5a42-7c4e-7b1a-9a3e-e4a1b2c3d4e5", started: "2026-04-21 06:12", user: "Monika Nowak", horizon: "7d", lines: "5/5", dur: 42,  wos: 23, overrides: 2, coMinutes: 285, util: 92.3, status: "completed", type: "schedule", fallback: false },
+  { id: "OPT-0041", uuid: "018e5a3e-6b2c-7c3d-8b1a-ff2a33445566", started: "2026-04-21 04:30", user: "Monika Nowak", horizon: "7d", lines: "5/5", dur: 38,  wos: 22, overrides: 1, coMinutes: 305, util: 91.8, status: "completed", type: "schedule", fallback: false, superseded: true },
+  { id: "OPT-0040", uuid: "018e5a3d-3a2b-7d4e-9c2b-112233445566", started: "2026-04-20 18:05", user: "m.krawczyk",   horizon: "7d", lines: "4/5", dur: 148, wos: 19, overrides: 0, coMinutes: 362, util: 78.4, status: "completed", type: "schedule", fallback: false, error: "Solver timeout at 120s; 19 of 22 WOs assigned", error_message: "partial convergence" },
+  { id: "OPT-0039", uuid: "018e5a3c-8e1f-70a5-bb3c-aabbccddeeff", started: "2026-04-20 09:12", user: "Monika Nowak", horizon: "7d", lines: "5/5", dur: 52,  wos: 24, overrides: 3, coMinutes: 298, util: 90.1, status: "completed", type: "schedule", fallback: false },
+  { id: "OPT-0038", uuid: "018e5a3b-0c1d-72b6-ac4d-ddeeff001122", started: "2026-04-20 06:10", user: "Monika Nowak", horizon: "7d", lines: "5/5", dur: 39,  wos: 21, overrides: 0, coMinutes: 320, util: 89.8, status: "completed", type: "schedule", fallback: true, fallbackRule: "allergen_sequencing_heuristic_v1" },
   { id: "OPT-0037", uuid: "018e5a3a-4f2e-7ac7-bd5e-332211009988", started: "2026-04-19 22:48", user: "Monika Nowak", horizon: "7d", lines: "5/5", dur: 0,   wos: 0,  overrides: 0, coMinutes: 0,   util: 0,    status: "failed",    type: "schedule", fallback: false, error: "Solver service unreachable after 3 retries. Circuit breaker activated." },
-  { id: "OPT-0036", uuid: "018e5a39-1d2c-7be8-ce6f-445566778899", started: "2026-04-19 10:05", user: "m.krawczyk",   horizon: "7d", lines: "3/5", dur: 85,  wos: 14, overrides: 0, coMinutes: 180, util: 85.5, status: "converged", type: "schedule", fallback: false },
-  { id: "OPT-0035", uuid: "018e5a38-9a1b-7cf9-df70-556677889900", started: "2026-04-18 14:12", user: "Monika Nowak", horizon: "7d", lines: "5/5", dur: 44,  wos: 26, overrides: 4, coMinutes: 340, util: 93.2, status: "converged", type: "schedule", fallback: false },
-  { id: "OPT-0034", uuid: "018e5a37-7b2c-7d0a-e071-667788990011", started: "2026-04-18 06:10", user: "Monika Nowak", horizon: "7d", lines: "5/5", dur: 41,  wos: 22, overrides: 1, coMinutes: 310, util: 90.4, status: "converged", type: "schedule", fallback: false },
+  { id: "OPT-0036", uuid: "018e5a39-1d2c-7be8-ce6f-445566778899", started: "2026-04-19 10:05", user: "m.krawczyk",   horizon: "7d", lines: "3/5", dur: 85,  wos: 14, overrides: 0, coMinutes: 180, util: 85.5, status: "completed", type: "schedule", fallback: false },
+  { id: "OPT-0035", uuid: "018e5a38-9a1b-7cf9-df70-556677889900", started: "2026-04-18 14:12", user: "Monika Nowak", horizon: "7d", lines: "5/5", dur: 44,  wos: 26, overrides: 4, coMinutes: 340, util: 93.2, status: "completed", type: "schedule", fallback: false },
+  { id: "OPT-0034", uuid: "018e5a37-7b2c-7d0a-e071-667788990011", started: "2026-04-18 06:10", user: "Monika Nowak", horizon: "7d", lines: "5/5", dur: 41,  wos: 22, overrides: 1, coMinutes: 310, util: 90.4, status: "completed", type: "schedule", fallback: false },
   // Dry-run preview per §10.2 OQ-EXT-09
   { id: "OPT-0033", uuid: "018e5a36-5e3d-7e1b-f182-778899001122", started: "2026-04-18 03:20", user: "Monika Nowak", horizon: "7d", lines: "5/5", dur: 38,  wos: 21, overrides: 0, coMinutes: 295, util: 89.0, status: "preview",   type: "dry_run",  fallback: false, expiresAt: "2026-04-19 03:20", note: "Dry-run (v2 preview — baseline comparison)" },
-  { id: "OPT-0032", uuid: "018e5a35-2a4e-7f2c-0293-889900112233", started: "2026-04-17 19:55", user: "Monika Nowak", horizon: "7d", lines: "5/5", dur: 46,  wos: 25, overrides: 2, coMinutes: 350, util: 88.9, status: "converged", type: "schedule", fallback: false },
-  { id: "OPT-0031", uuid: "018e5a34-6f5a-7036-13a4-99aabbccdde0", started: "2026-04-17 11:02", user: "m.krawczyk",   horizon: "14d", lines: "5/5", dur: 72, wos: 38, overrides: 5, coMinutes: 620, util: 87.3, status: "converged", type: "schedule", fallback: false },
-  { id: "OPT-0030", uuid: "018e5a33-3c6b-7147-24b5-aabbccdde0f1", started: "2026-04-17 06:13", user: "Monika Nowak", horizon: "7d", lines: "5/5", dur: 40,  wos: 22, overrides: 0, coMinutes: 305, util: 91.4, status: "converged", type: "schedule", fallback: false },
+  { id: "OPT-0032", uuid: "018e5a35-2a4e-7f2c-0293-889900112233", started: "2026-04-17 19:55", user: "Monika Nowak", horizon: "7d", lines: "5/5", dur: 46,  wos: 25, overrides: 2, coMinutes: 350, util: 88.9, status: "completed", type: "schedule", fallback: false },
+  { id: "OPT-0031", uuid: "018e5a34-6f5a-7036-13a4-99aabbccdde0", started: "2026-04-17 11:02", user: "m.krawczyk",   horizon: "14d", lines: "5/5", dur: 72, wos: 38, overrides: 5, coMinutes: 620, util: 87.3, status: "completed", type: "schedule", fallback: false },
+  { id: "OPT-0030", uuid: "018e5a33-3c6b-7147-24b5-aabbccdde0f1", started: "2026-04-17 06:13", user: "Monika Nowak", horizon: "7d", lines: "5/5", dur: 40,  wos: 22, overrides: 0, coMinutes: 305, util: 91.4, status: "completed", type: "schedule", fallback: false },
 ];
 
 // Run history KPIs (top strip on Run History)
@@ -260,7 +260,7 @@ const PEXT_RUN_KPIS = [
 const PEXT_RUN_DETAIL = {
   id: "OPT-0042",
   uuid: "018e5a42-7c4e-7b1a-9a3e-e4a1b2c3d4e5",
-  status: "converged",
+  status: "completed",
   queuedAt:    "2026-04-21 06:11:58",
   startedAt:   "2026-04-21 06:12:04",
   completedAt: "2026-04-21 06:12:46",
