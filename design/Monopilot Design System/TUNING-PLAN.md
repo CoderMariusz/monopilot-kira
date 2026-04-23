@@ -1,6 +1,11 @@
-# Monopilot Tuning — Dispatch Plan for 3 Parallel Opus Agents
+# Monopilot Tuning — Dispatch Plan for 8 Parallel Opus Agents
 
 Paired with `TUNING-PATTERN.md`. This doc says WHAT per module. The pattern doc says HOW.
+
+**2026-04-23 rebalance.** Original plan was 3 waves (A/B/C). User rebalanced to 6 agents, then
+split Tune-5 and Tune-6 → final **8 tuning agents** (plus Agent C primitives blocker). Rationale:
+parallelism reduces wall-clock from ~10-13h to ~4-6h and isolates HIGH modules (maintenance,
+planning, shipping, warehouse) from MED/LOW pairings. See §3 for final matrix.
 
 ---
 
@@ -316,76 +321,72 @@ persistence — tuning-scope (tiny).
 
 ---
 
-## §3 Wave assignments
+## §3 Agent assignments (8-agent final, post 2026-04-23 rebalance)
 
-Balanced by total lines-of-code per agent (~19,000–20,500 LOC each) AND by effort complexity.
-Each wave pairs one HIGH-effort module with 2–3 LOW/MEDIUM so the agent's workload is balanced.
+Balanced by LOC + effort + domain coherence. Each agent owns 1-2 modules (vs original 5-module
+waves). HIGH-effort modules (maintenance, planning, shipping, warehouse) each get dedicated or
+near-dedicated agents.
 
-### Wave A — Agent A (~19,900 LOC)
+### Agent C primitives (sequential blocker, ~3-4h)
 
-| Module | LOC | Effort |
-|---|---|---|
-| npd | 4,546 | MEDIUM |
-| settings | 3,663 | MEDIUM |
-| technical | 3,181 | LOW |
-| planning | 4,918 | HIGH |
-| oee | 2,861 | LOW |
-| **Total** | **19,169** | |
+Blocks all 8 tuning agents. Must land first and be merged to `main` before tuning agents dispatch.
 
-**Rationale.** NPD + Technical + Planning are a natural cluster (data-flow chain: NPD designs →
-Technical publishes BOM → Planning schedules). Settings is standalone; OEE (low-effort) balances
-Planning (high).
-
-### Wave B — Agent B (~19,900 LOC)
-
-| Module | LOC | Effort |
-|---|---|---|
-| warehouse | 3,820 | HIGH |
-| scanner | 4,760 | LOW (dark-first already) |
-| planning-ext | 3,595 | MEDIUM |
-| production | 3,363 | LOW |
-| quality | 4,046 | MEDIUM |
-| **Total** | **19,584** | |
-
-**Rationale.** Warehouse + Scanner + Production are the shop-floor chain. Planning-ext bridges
-Planning (Wave A) — but the tuning patterns are isolated enough to split. Quality touches
-Production's output. Scanner is dark-first → agent must understand not to light-ify it.
-
-### Wave C — Agent C (~20,800 LOC) + owns `_shared/` primitive creation
-
-| Module | LOC | Effort |
-|---|---|---|
-| shipping | 4,185 | HIGH |
-| reporting | 3,906 | MEDIUM |
-| maintenance | 4,959 | HIGH |
-| multi-site | 4,122 | MEDIUM |
-| finance | 3,594 | MEDIUM |
-| **Total** | **20,766** | |
-
-**Plus Agent C is on the critical path.** Before any wave starts, Agent C lands:
+**Builds:**
 - `_shared/primitives.jsx` with `<RunStrip/>`, `<EmptyState/>`, `<TabsCounted/>`,
   `<CompactActivity/>`, `<DryRunButton/>`
 - `_shared/shared.css` additions: surface tokens, semantic tokens, `.btn-danger` (BL-PROD-05),
   sticky-header utility class
 - `colors_and_type.css` global `font-variant-numeric: tabular-nums`
+- `deriveRunHistory(entity)` helper exported from shell (bo `data.jsx` freeze)
 
-Wave A and Wave B wait for this foundation (est. 1 session). Then all 3 waves run in parallel.
+**Branch:** `tune/wave-c-primitives` → merge to `main` → all Tune-N agents rebase on new main.
 
-**Rationale.** Wave C modules are the "outer rim" (shipping to customers, reporting to
-executives, maintenance to engineers, multi-site to corp, finance to accounting) — they each
-have the strongest need for RunStrip + CompactActivity which Agent C is building anyway.
-Maintenance is the single biggest module — Agent C absorbs it balanced by Finance (low-MEDIUM).
+### Tuning matrix — 8 parallel agents
+
+| Agent | Modules | LOC | Effort mix | Domain theme |
+|---|---|---|---|---|
+| Tune-1 | maintenance + npd | 6,559 | HIGH + MED | Largest module + NPD design |
+| Tune-2 | planning + oee | 7,779 | HIGH + LOW | Scheduling + OEE (related) |
+| Tune-3 | shipping + settings | 6,098 | HIGH + MED | Customer-facing + config |
+| Tune-4 | scanner + finance | 7,760 | LOW(dark) + MED | **Scanner dark-constraint agent** |
+| Tune-5a | warehouse | 3,820 | HIGH solo | Heavy modals.jsx (3,611 LOC) — solo |
+| Tune-5b | technical + production | 6,544 | LOW + LOW | Shop-floor already-polished pair |
+| Tune-6a | planning-ext + quality | 7,641 | MED + MED | Production-phase pair |
+| Tune-6b | reporting + multi-site | 8,028 | MED + MED | Outer-rim pair |
+
+**Totals:** 8 agents, 15 modules, 54,229 LOC tuning workload (Agent C primitives separate).
+
+### Rationale per agent
+
+- **Tune-1 (maintenance + npd).** Maintenance is the largest module (4,959 LOC + 4,674 LOC modals).
+  Paired with NPD (MED) for balance. Both touch long-form detail screens with sticky-header needs.
+- **Tune-2 (planning + oee).** Planning is HIGH (dry-run + GHA expand + RunStrip). OEE is smallest
+  module (2,861 LOC, LOW) — the two are operationally coupled (OEE reads planning outcomes).
+- **Tune-3 (shipping + settings).** Shipping 12-color palette consolidation + settings dry-run on
+  rules activation. Both have "destructive action needs preview" patterns.
+- **Tune-4 (scanner + finance).** **Scanner has intentional dark palette — do NOT light-ify.**
+  Agent receives explicit instruction on this. Finance (MED) fills the rest of the agent's budget.
+- **Tune-5a (warehouse solo).** Warehouse modals.jsx is 3,611 LOC (heaviest modal file). HIGH
+  effort with dry-run on GRN, LP-merge reason, CompactActivity on movements. Solo agent.
+- **Tune-5b (technical + production).** Both LOW — already polished. Technical needs TabsCounted
+  + sticky on BOM detail. Production needs RunStrip + CompactActivity (btn-danger move handled
+  by Agent C primitives).
+- **Tune-6a (planning-ext + quality).** Both MED, both production-phase. Planning-ext needs
+  dry-run on Optimizer, quality needs 15→5 badge consolidation with aliases.
+- **Tune-6b (reporting + multi-site).** Both MED, both "outer rim" dashboards. RunStrip-heavy
+  (KPI cards on reporting, lane health on multi-site).
 
 ---
 
 ## §4 Coordination rules — avoid merge conflicts
 
-1. **`_shared/` is owned by Agent C.** Agents A and B do NOT edit `_shared/modals.jsx`,
-   `_shared/shared.css`, `_shared/primitives.jsx`, or `colors_and_type.css`. If they need a
-   new primitive, they open an issue → Agent C adds it → they rebase.
+1. **`_shared/` is owned by Agent C primitives.** Tune-1..Tune-6b do NOT edit
+   `_shared/modals.jsx`, `_shared/shared.css`, `_shared/primitives.jsx`, or `colors_and_type.css`.
+   If they need a new primitive mid-flight, they flag it in the PR — Agent C primitives runs a
+   second pass post-tuning (not expected for Foundation wave).
 
-2. **Module boundaries are hard.** Agent A touches only `npd/`, `settings/`, `technical/`,
-   `planning/`, `oee/`. Agent B only its 5. Agent C only its 5.
+2. **Module boundaries are hard.** Each Tune-N agent touches only its 1-2 modules from §3 matrix.
+   No cross-module edits. No shared-layer edits.
 
 3. **CSS load order.** Module CSS imports `colors_and_type.css` → `_shared/shared.css` →
    module CSS. Module CSS must not redefine surface tokens or semantic tokens — use the
@@ -406,9 +407,19 @@ Maintenance is the single biggest module — Agent C absorbs it balanced by Fina
    (`<Modal/>`, `<Stepper/>`, `<Field/>`, `<ReasonInput/>`, `<Summary/>`) unchanged.
    MODAL-SCHEMA.md is the contract.
 
-7. **Git branches.** `tune/wave-a`, `tune/wave-b`, `tune/wave-c-primitives`, `tune/wave-c-modules`.
-   Wave C primitives merges first. Then A/B/C-modules merge in any order — no file overlap means
-   no conflicts.
+7. **Git branches.**
+   - `tune/wave-c-primitives` (merges first, blocker)
+   - `tune/tune-1-maintenance-npd`
+   - `tune/tune-2-planning-oee`
+   - `tune/tune-3-shipping-settings`
+   - `tune/tune-4-scanner-finance`
+   - `tune/tune-5a-warehouse`
+   - `tune/tune-5b-technical-production`
+   - `tune/tune-6a-planning-ext-quality`
+   - `tune/tune-6b-reporting-multisite`
+
+   After primitives merge, all Tune-N branches rebase on new `main` and merge in any order — no
+   file overlap means no conflicts.
 
 8. **PR size budget.** Target ~1,500–2,500 LOC diff per module. Larger → split into multiple PRs
    per module (e.g., `tune/wave-a-planning-1-tabs` + `tune/wave-a-planning-2-gantt`).
@@ -459,34 +470,39 @@ Wave is DONE when:
 
 Assuming each Opus agent session = ~4 hours of focused coding:
 
-| Wave | Modules | Est wall-clock | Notes |
+| Phase | Agents | Est wall-clock | Notes |
 |---|---|---|---|
-| C-primitives (blocking) | `_shared/` | 3–4 h | 1 agent, must finish first |
-| A | 5 | 6–8 h | parallel to B and C-modules |
-| B | 5 | 6–8 h | parallel to A and C-modules |
-| C-modules | 5 | 7–9 h | slightly longer due to maintenance + shipping |
+| Agent C primitives (blocking) | 1 | 3–4 h | sequential, must finish + merge first |
+| Tune-1..6b parallel | 8 | 3–4 h | all run in parallel; longest = Tune-1 (maint+npd 6.5k) |
 
-Total wall-clock with 3 parallel agents: **~10–13 hours** (vs ~30+ hours sequential).
+Total wall-clock with 8 parallel agents: **~6–8 hours** (vs ~30+ hours sequential, vs ~10-13h
+original 3-wave plan).
+
+**Per-agent LOC ranges from 3,820 (Tune-5a warehouse) to 8,028 (Tune-6b reporting+multisite)** —
+all well under single-session budget.
 
 ---
 
 ## §8 Ready flag
 
-**TUNING AGENTS CAN START after Agent C finishes `_shared/primitives.jsx` + shared CSS extension.**
+**Status 2026-04-23: APPROVED for dispatch.**
 
-User should review:
-1. Wave assignments in §3 (approve or rebalance)
-2. `_shared/` ownership by Agent C (approve or reassign)
-3. BACKLOG.md item selection per module (which BL-* are "tuning scope")
-4. Risk flags in §6 (any show-stoppers)
+User approved on 2026-04-23:
+- §3 8-agent matrix (with Tune-5/Tune-6 splits)
+- Agent C primitives as sequential blocker
+- 6 risk flags in §6 (scanner dark intentional, OEE heatmap keep, quality 15→5 with aliases,
+  shipping picking/packing/packed distinct, data.jsx freeze, Agent C critical path)
+- BACKLOG.md tuning-scope selections per §2 (wholesale approve)
 
-Once approved, dispatch:
-- Session 1 (solo): Agent C → primitives + shared CSS
-- Session 2 (parallel × 3): Agents A, B, C-modules
+Dispatch sequence:
+- **Session 1 (solo, sequential):** Agent C primitives → `_shared/primitives.jsx` + shared CSS
+  extension + `.btn-danger` move + `deriveRunHistory` helper. Merge to `main`.
+- **Session 2 (parallel × 8):** Tune-1..Tune-6b dispatched simultaneously after primitives merge.
 
-Each agent receives:
+Each tuning agent receives:
 - This `TUNING-PLAN.md`
 - `TUNING-PATTERN.md`
-- Their 5-module list from §3
-- Instruction: "Follow TUNING-PATTERN.md §4 checklist per module. Touch only your 5 modules.
-  Do not edit `_shared/` unless you are Agent C. Open one PR per module."
+- Their 1-2 module list from §3
+- `_shared/primitives.jsx` usage examples (from Agent C output)
+- Instruction: "Follow TUNING-PATTERN.md §4 checklist per module. Touch only your modules.
+  Do not edit `_shared/` or any other module. Open one PR per module (or split if >2,500 LOC diff)."
