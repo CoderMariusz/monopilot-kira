@@ -25,7 +25,8 @@ const WOList = ({ onOpenWo, openModal }) => {
         </div>
         <div className="row-flex">
           <button className="btn btn-secondary btn-sm">⇪ Export</button>
-          <button className="btn btn-primary btn-sm" onClick={()=>openModal("release")}>＋ Release WO</button>
+          {/* "+ Release WO" button removed — belongs in 04-PLANNING (DRAFT → READY). */}
+          <span className="muted" style={{fontSize:11}}>Release WOs in <a style={{color:"var(--blue)", cursor:"pointer"}}>04-PLANNING</a> →</span>
         </div>
       </div>
 
@@ -88,7 +89,7 @@ const WOList = ({ onOpenWo, openModal }) => {
                     {w.status === "in_progress" && <button className="btn btn-secondary btn-sm" onClick={()=>openModal("pauseLine", w)}>Pause</button>}
                     {w.status === "paused" && <button className="btn btn-primary btn-sm" onClick={()=>openModal("resumeLine", w)}>Resume</button>}
                     {w.status === "ready" && <button className="btn btn-primary btn-sm" onClick={()=>openModal("startWo", w)}>Start</button>}
-                    {w.status === "draft" && <button className="btn btn-secondary btn-sm" onClick={()=>openModal("release", w)}>Release</button>}
+                    {w.status === "draft" && <span className="badge badge-gray" style={{fontSize:10}} title="DRAFT → READY happens in 04-PLANNING">Release in planning</span>}
                     {w.status === "completed" && <button className="btn btn-ghost btn-sm">View</button>}
                   </td>
                 </tr>

@@ -1,49 +1,11 @@
 // ============ Production modals ============
 
-const ReleaseWoModal = ({ onClose }) => (
-  <Modal open onClose={onClose} title="Release Work Order to line" wide
-    foot={<>
-      <button className="btn btn-ghost btn-sm" onClick={onClose}>Cancel</button>
-      <button className="btn btn-secondary btn-sm">Release (hold at READY)</button>
-      <button className="btn btn-primary btn-sm">Release &amp; auto-start when line free</button>
-    </>}>
-    <div className="alert-blue alert-box" style={{marginBottom:12}}>
-      <span>ℹ</span>
-      <div>Releasing a WO pulls its BOM snapshot from Technical (immutable from this moment) and routes material reservations to the target line.</div>
-    </div>
-    <div className="ff-inline">
-      <div className="ff">
-        <label>Work order <span className="req">*</span></label>
-        <select defaultValue="WO-2026-0043"><option>WO-2026-0043 · FA5102 Szynka wędzona 150g</option><option>WO-2026-0051 · FA5023 Klopsiki</option></select>
-        <div className="ff-help">Shows only WOs in DRAFT with released BOM</div>
-      </div>
-      <div className="ff">
-        <label>Line <span className="req">*</span></label>
-        <select defaultValue="LINE-01"><option>LINE-01 — Cured meats</option><option>LINE-02 — Ready meals</option><option>LINE-05 — Sous-vide</option></select>
-      </div>
-    </div>
-    <div className="ff-inline">
-      <div className="ff"><label>Planned start</label><input defaultValue="2026-04-20 11:00"/></div>
-      <div className="ff"><label>Planned end</label><input defaultValue="2026-04-20 13:00"/></div>
-    </div>
-    <div className="ff"><label>Operator assignment</label>
-      <select defaultValue="M. Szymczak"><option>M. Szymczak</option><option>K. Nowacki</option><option>Auto-assign from shift roster</option></select>
-    </div>
-    <div className="card" style={{padding:10, background:"var(--gray-050)", margin:0}}>
-      <div style={{fontSize:11, fontWeight:600, color:"var(--muted)", textTransform:"uppercase"}}>BOM snapshot preview</div>
-      <div className="mono" style={{fontSize:12, marginTop:4}}>BOM v3 (Technical) → snapshot ready for freeze at release</div>
-      <div className="row-flex" style={{marginTop:6, fontSize:12}}>
-        <span>📦 8 components</span>
-        <span className="divider-v"></span>
-        <span>Meat-pct <b className="mono">79.2%</b></span>
-        <span className="divider-v"></span>
-        <span>Allergens: <b>Gluten</b></span>
-        <span className="spacer"></span>
-        <span className="badge badge-amber" style={{fontSize:10}}>⚠ Allergen change from current</span>
-      </div>
-    </div>
-  </Modal>
-);
+// Audit Fix-5b (B)-class hallucination removed:
+// ReleaseWoModal belonged to 04-PLANNING-BASIC scope. Per PRD 08 §4.1 point 1,
+// Production owns execution from READY state onward — it does not release WOs
+// from DRAFT. Releasing (DRAFT → READY + line assignment) is a planning action
+// and lives in 04-PLANNING. Operator UX: "Release next WO" buttons now open
+// the Planning queue (cross-module deep-link) rather than a modal in Production.
 
 const StartWoModal = ({ onClose, data }) => (
   <Modal open onClose={onClose} title={"Start " + (data?.id || "WO-2026-0043")}
@@ -636,7 +598,6 @@ const OEETargetEditModal = ({ onClose, data }) => {
 
 // ============ MODAL GALLERY ============
 const PROD_MODAL_CATALOG = [
-  { key: "release",          name: "Release WO to line",                   pattern: "Simple form + BOM snapshot preview",    comp: ReleaseWoModal },
   { key: "startWo",          name: "Start WO (PIN sign-off)",              pattern: "Simple form + PIN gate",                 comp: StartWoModal },
   { key: "pauseLine",        name: "Pause line / log downtime",            pattern: "Simple form + 4P category",              comp: PauseLineModal },
   { key: "completeWo",       name: "Complete WO — gate checks",            pattern: "Gate-check grid + PIN",                  comp: CompleteWoModal },
@@ -694,7 +655,7 @@ const ModalGallery = ({ onNav }) => {
 };
 
 Object.assign(window, {
-  ReleaseWoModal, StartWoModal, PauseLineModal, CompleteWoModal, OverConsumeModal,
+  StartWoModal, PauseLineModal, CompleteWoModal, OverConsumeModal,
   WasteModal, CatchWeightModal, ScannerModal, DlqInspectModal, ResumeLineModal,
   ChangeoverGateModal, AssignCrewModal, TweaksPanel,
   ShiftStartModal, ShiftEndModal, OEETargetEditModal,
