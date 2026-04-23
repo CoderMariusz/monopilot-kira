@@ -103,7 +103,7 @@ const StdCostCreateModal = ({ open, onClose, data }) => {
 // -------- MODAL-02: Approve Standard Cost (e-signature) --------
 const ApproveStdCostModal = ({ open, onClose, data }) => {
   const rec = data || FIN_STD_COSTS.find(r => r.status === "pending");
-  const oldRec = FIN_STD_COSTS.find(r => r.itemCode === rec?.itemCode && r.status === "active");
+  const oldRec = FIN_STD_COSTS.find(r => r.itemCode === rec?.itemCode && r.status === "approved");
   const [reason, setReason] = React.useState("");
   const [pin, setPin] = React.useState("");
   const [ack, setAck] = React.useState(false);
@@ -585,7 +585,7 @@ const ExportReportModal = ({ open, onClose, data }) => {
 
 // -------- MODAL-11: Supersede Standard Cost --------
 const SupersedeModal = ({ open, onClose, data }) => {
-  const r = data || FIN_STD_COSTS.find(s => s.status === "active");
+  const r = data || FIN_STD_COSTS.find(s => s.status === "approved");
   const [supDate, setSupDate] = React.useState("2026-04-30");
 
   return (
@@ -602,7 +602,7 @@ const SupersedeModal = ({ open, onClose, data }) => {
         { label: "Item",        value: `${r?.itemCode} · ${r?.itemName}` },
         { label: "Current Cost", value: fmtMoney(r?.total, true) },
         { label: "Effective From", value: r?.effFrom },
-        { label: "Status",      value: <StdStatus s={r?.status || "active"}/> },
+        { label: "Status",      value: <StdStatus s={r?.status || "approved"}/> },
       ]}/>
       <Field label="Supersede Effective Date" required help="The effective_to date for the current record. Defaults to today."><input type="date" value={supDate} onChange={e=>setSupDate(e.target.value)}/></Field>
       <div style={{fontSize:11, color:"var(--muted)", padding:"10px 12px", background:"var(--gray-050)", borderRadius:4, marginTop:8}}>
