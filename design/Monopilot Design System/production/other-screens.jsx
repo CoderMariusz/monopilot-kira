@@ -339,7 +339,7 @@ const ChangeoverScreen = ({ openModal }) => (
           {d:"Rinse with potable water", photo:false, ev:"✓ 08:15", done:true},
           {d:"Sanitize with approved sanitizer (60s contact)", photo:false, ev:"✓ 08:17", done:true},
           {d:"Visual inspection — no visible residue", photo:true, ev:"Needs photo of mixer M-004", done:false},
-          {d:"ATP swab test — result ≤ 30 RLU", photo:false, ev:"Pending swab upload", done:false},
+          {d:"ATP swab test — result ≤ 10 RLU (PRD default; configurable per line in 02-SETTINGS)", photo:false, ev:"Pending swab upload · locations: mixer M-004, conveyor C-04, filler F-04", done:false},
         ].map((it,i) => (
           <div key={i} className={"checklist-item "+(it.done?"done":"")}>
             <span className="check-num">{it.done ? "✓" : i+1}</span>
