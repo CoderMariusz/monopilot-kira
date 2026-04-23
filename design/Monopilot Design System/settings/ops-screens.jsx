@@ -163,38 +163,84 @@ const NotificationsScreen = () => {
 };
 
 // ---------- Feature flags ----------
-const FeaturesScreen = () => (
-  <>
-    <PageHead title="Feature flags" sub="Turn modules and features on for your workspace." />
+const FeaturesScreen = () => {
+  const [dryRun, setDryRun] = React.useState(null);
+  const features = (window.SETTINGS_FEATURES || []);
+  const onCount = features.filter(f => f.on).length;
 
-    <div className="alert alert-blue" style={{ marginBottom: 14 }}>
-      You're on the <strong>Premium plan</strong>. All premium features are included. Beta features are released incrementally.
-    </div>
+  const showDryRun = () => {
+    // TUNING-PATTERN §3.6 — multi-object dry-run. Flag toggles fan out to
+    // every user session + module surface, so preview is mandatory.
+    setDryRun({
+      total: features.length,
+      on: onCount,
+      affectedModules: ["NPD", "Planning", "Quality", "Shipping", "Warehouse", "OEE"].slice(0, Math.max(3, Math.min(6, onCount))),
+      sessionCount: 28, // active MES users
+    });
+  };
 
-    <Section title="Modules">
-      {window.SETTINGS_FEATURES.map((f, i) => (
-        <div key={f.key} className="sg-row" style={{ gridTemplateColumns: "1fr auto" }}>
-          <div>
-            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <div className="sg-label">{f.label}</div>
-              {f.premium && <span className="badge badge-violet">Premium</span>}
-              {f.beta && <span className="badge badge-amber">Beta</span>}
+  return (
+    <>
+      <PageHead title="Feature flags" sub="Turn modules and features on for your workspace."
+        actions={<DryRunButton label="Dry-run activation" onClick={showDryRun}
+          title="Preview affected modules + active sessions before saving flag changes" />} />
+
+      <div className="alert alert-blue" style={{ marginBottom: 14 }}>
+        You're on the <strong>Premium plan</strong>. All premium features are included. Beta features are released incrementally.
+      </div>
+
+      <Section title="Modules">
+        {features.map((f, i) => (
+          <div key={f.key} className="sg-row" style={{ gridTemplateColumns: "1fr auto" }}>
+            <div>
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <div className="sg-label">{f.label}</div>
+                {f.premium && <span className="badge badge-violet">Premium</span>}
+                {f.beta && <span className="badge badge-amber">Beta</span>}
+              </div>
+              <div className="sg-hint">{f.desc}</div>
             </div>
-            <div className="sg-hint">{f.desc}</div>
+            <div style={{ display: "flex", alignItems: "center" }}>
+              <Toggle on={f.on} />
+            </div>
           </div>
-          <div style={{ display: "flex", alignItems: "center" }}>
-            <Toggle on={f.on} />
+        ))}
+      </Section>
+
+      <Section title="Early access">
+        <div className="muted" style={{ fontSize: 13 }}>
+          Want to try a feature early? <a style={{ color: "var(--blue)", cursor: "pointer" }}>Join the preview program →</a>
+        </div>
+      </Section>
+
+      {dryRun && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(15,23,42,0.4)", zIndex: 300, display: "flex", alignItems: "center", justifyContent: "center" }} onClick={() => setDryRun(null)}>
+          <div style={{ background: "#fff", borderRadius: 8, width: 520, boxShadow: "0 20px 60px rgba(0,0,0,0.25)" }} onClick={e => e.stopPropagation()}>
+            <div style={{ padding: "14px 18px", borderBottom: "1px solid var(--border)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <div style={{ fontSize: 15, fontWeight: 600 }}>Dry-run — feature flag activation</div>
+              <button className="btn btn-ghost btn-sm" onClick={() => setDryRun(null)}>✕</button>
+            </div>
+            <div style={{ padding: "18px 20px", fontSize: 13 }}>
+              <div style={{ marginBottom: 12 }}>
+                Activating this flag set affects <strong>{dryRun.affectedModules.length} modules</strong> across <strong>{dryRun.sessionCount} active sessions</strong>.
+              </div>
+              <div className="alert alert-amber" style={{ fontSize: 12, marginBottom: 12 }}>
+                <strong>{dryRun.on} of {dryRun.total}</strong> flags currently on. Changes apply on next page load for each user.
+              </div>
+              <div style={{ fontSize: 12, color: "var(--muted)", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.04em" }}>Affected modules</div>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                {dryRun.affectedModules.map(m => <span key={m} className="badge badge-blue">{m}</span>)}
+              </div>
+            </div>
+            <div style={{ padding: 14, borderTop: "1px solid var(--border)", background: "var(--gray-050)", display: "flex", justifyContent: "flex-end", gap: 8, borderRadius: "0 0 8px 8px" }}>
+              <button className="btn btn-secondary" onClick={() => setDryRun(null)}>Close</button>
+              <button className="btn btn-primary" onClick={() => setDryRun(null)}>Save changes</button>
+            </div>
           </div>
         </div>
-      ))}
-    </Section>
-
-    <Section title="Early access">
-      <div className="muted" style={{ fontSize: 13 }}>
-        Want to try a feature early? <a style={{ color: "var(--blue)", cursor: "pointer" }}>Join the preview program →</a>
-      </div>
-    </Section>
-  </>
-);
+      )}
+    </>
+  );
+};
 
 Object.assign(window, { DevicesScreen, NotificationsScreen, FeaturesScreen });

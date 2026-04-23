@@ -6,25 +6,10 @@ const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
   "density": "comfortable"
 }/*EDITMODE-END*/;
 
-// ---------- BOMs, Labels (list entry), generic placeholder ----------
-const BomsScreen = () => (
-  <>
-    <PageHead title="BOMs & recipes" sub="Bills of materials used across Production."
-      actions={<><button className="btn btn-secondary">Import</button><button className="btn btn-primary">+ New BOM</button></>} />
-    <Section title="Active BOMs">
-      <table>
-        <thead><tr><th>Code</th><th>Product</th><th>Version</th><th>Ingredients</th><th>Yield</th><th>Updated</th><th></th></tr></thead>
-        <tbody>
-          <tr><td className="mono">BOM-214</td><td style={{ fontWeight: 500 }}>Sliced Ham Standard 200g</td><td className="mono">v4.2</td><td className="mono num">10</td><td className="mono num">78%</td><td className="mono muted">2025-09-12</td><td className="muted">⋮</td></tr>
-          <tr><td className="mono">BOM-215</td><td style={{ fontWeight: 500 }}>Sliced Roasted Chicken 160g</td><td className="mono">v2.1</td><td className="mono num">8</td><td className="mono num">71%</td><td className="mono muted">2025-10-04</td><td className="muted">⋮</td></tr>
-          <tr><td className="mono">BOM-216</td><td style={{ fontWeight: 500 }}>Turkey Breast Pastrami 150g</td><td className="mono">v1.0</td><td className="mono num">9</td><td className="mono num">68%</td><td className="mono muted">2025-11-28</td><td className="muted">⋮</td></tr>
-          <tr><td className="mono">BOM-217</td><td style={{ fontWeight: 500 }}>Pork Neck Smoked 250g</td><td className="mono">v3.4</td><td className="mono num">11</td><td className="mono num">66%</td><td className="mono muted">2025-12-02</td><td className="muted">⋮</td></tr>
-        </tbody>
-      </table>
-    </Section>
-    <div className="alert alert-blue">BOMs created in NPD are automatically registered here when promoted to Production.</div>
-  </>
-);
+// ---------- Labels (list entry), generic placeholder ----------
+// NOTE: BL-SET-12 fix — the canonical `BomsScreen` lives in data-screens.jsx
+// (loaded before app.jsx). The duplicate definition previously here shadowed it
+// and caused inconsistent behaviour. Removed in the 2026-04-23 tuning pass.
 
 const Placeholder = ({ title }) => (
   <div className="sg-section" style={{ padding: 40, textAlign: "center" }}>

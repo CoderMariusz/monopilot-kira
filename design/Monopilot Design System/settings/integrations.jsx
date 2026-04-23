@@ -17,7 +17,12 @@ const IntegrationsScreen = ({ style }) => {
             <div className="sg-section-title">{all.filter(i => i.status === "connected").length} connected · {all.length} available</div>
             <div style={{ width: 220 }}><input type="text" placeholder="Search integrations…" /></div>
           </div>
-          <div className="sg-section-body" style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10 }}>
+          <div className="sg-section-body" style={{ display: "grid", gridTemplateColumns: all.length === 0 ? "1fr" : "repeat(3, 1fr)", gap: 10 }}>
+            {all.length === 0 && (
+              <EmptyState icon="🔌" title="No integrations configured"
+                body="Browse the catalog to connect Monopilot to your ERP, accounting, BI, and shipping tools."
+                action={{label:"Browse catalog", onClick:()=>{}}}/>
+            )}
             {all.map(it => (
               <div key={it.name} style={{ border: "1px solid var(--border)", borderRadius: 6, padding: 14, cursor: "pointer", background: "#fff" }}>
                 <div style={{ display: "flex", gap: 10, marginBottom: 8 }}>
@@ -67,6 +72,12 @@ const IntegrationsScreen = ({ style }) => {
                 <span className="muted" style={{ fontSize: 14 }}>{isExpanded ? "▾" : "▸"}</span>
               </div>
             </div>
+            {isExpanded && c.items.length === 0 && (
+              <div style={{padding:"12px 18px"}}>
+                <EmptyState icon="🔌" title={`No ${c.cat.toLowerCase()} integrations yet`}
+                  body="Request a connector from the Monopilot team or browse the catalog for alternatives." />
+              </div>
+            )}
             {isExpanded && c.items.map(it => (
               <div key={it.name} className="int-row">
                 <IntLogo item={it} />

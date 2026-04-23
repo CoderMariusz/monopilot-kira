@@ -159,7 +159,14 @@ const RulesRegistryScreen = ({ onOpenRule, openModal }) => {
   return (
     <>
       <PageHead title="Rules registry" sub="Read-only browser of deployed business rules (DSL-driven)."
-        actions={<><button className="btn btn-secondary">Export all (JSON)</button></>} />
+        actions={<>
+          {/* TUNING-PATTERN §3.6 — dry-run fan-out preview before activating a rule batch
+              across the whole registry. Opens the shared ruleDryRun modal scoped to "all rules". */}
+          <DryRunButton label="Dry-run all rules"
+            title="Preview affected objects across all rules before activation"
+            onClick={()=>openModal("ruleDryRun")} />
+          <button className="btn btn-secondary">Export all (JSON)</button>
+        </>} />
 
       <div className="alert alert-blue" style={{marginBottom:12, fontSize:12}}>
         Rules are authored by developers and deployed via CI/CD. This view is read-only — contact your Monopilot implementation team to request rule changes.
@@ -554,23 +561,29 @@ const EmailTemplatesScreen = ({ openModal }) => {
       </Section>
 
       <Section title={`Templates (${tpl.length})`}>
-        <table>
-          <thead><tr><th>Trigger code</th><th>Name</th><th>Consumer</th><th>Subject preview</th><th>Active</th><th></th></tr></thead>
-          <tbody>
-            {tpl.map(t => (
-              <tr key={t.code}>
-                <td className="mono" style={{fontWeight:600}}>{t.code}</td>
-                <td>{t.name}</td>
-                <td className="muted" style={{fontSize:11}}>{t.consumer}</td>
-                <td className="muted" style={{fontSize:12, fontStyle:"italic", maxWidth:260}}>{t.subject}</td>
-                <td>{t.active ? <span className="badge badge-green" style={{fontSize:9}}>active</span> : <span className="badge badge-gray" style={{fontSize:9}}>off</span>}</td>
-                <td>
-                  <button className="btn btn-secondary btn-sm" onClick={()=>openModal("emailTemplateEdit", {tpl:t})}>Edit →</button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        {tpl.length === 0 ? (
+          <EmptyState icon="✉️" title="No email templates yet"
+            body="Create a template to customize the emails Monopilot sends for POs, approvals, overdue reminders, and more."
+            action={{label:"＋ New template", onClick:()=>openModal("emailTemplateEdit")}} />
+        ) : (
+          <table>
+            <thead><tr><th>Trigger code</th><th>Name</th><th>Consumer</th><th>Subject preview</th><th>Active</th><th></th></tr></thead>
+            <tbody>
+              {tpl.map(t => (
+                <tr key={t.code}>
+                  <td className="mono" style={{fontWeight:600}}>{t.code}</td>
+                  <td>{t.name}</td>
+                  <td className="muted" style={{fontSize:11}}>{t.consumer}</td>
+                  <td className="muted" style={{fontSize:12, fontStyle:"italic", maxWidth:260}}>{t.subject}</td>
+                  <td>{t.active ? <span className="badge badge-green" style={{fontSize:9}}>active</span> : <span className="badge badge-gray" style={{fontSize:9}}>off</span>}</td>
+                  <td>
+                    <button className="btn btn-secondary btn-sm" onClick={()=>openModal("emailTemplateEdit", {tpl:t})}>Edit →</button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
       </Section>
 
       <div className="alert alert-blue" style={{marginTop:10, fontSize:12}}>

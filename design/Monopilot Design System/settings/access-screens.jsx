@@ -35,7 +35,13 @@ const UsersScreen = ({ view }) => {
           <div style={{ width: 240 }}><input type="text" placeholder="Search by name or email…" /></div>
         </div>
 
-        {view === "cards" ? (
+        {users.length === 0 ? (
+          <div className="sg-section-body">
+            <EmptyState icon="👥" title={`No users in the "${selRole}" role`}
+              body="Try selecting a different role or invite someone new to this workspace."
+              action={{label:"＋ Invite user", onClick:()=>setShowInvite(true)}}/>
+          </div>
+        ) : view === "cards" ? (
           <div className="sg-section-body" style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10 }}>
             {users.map(u => (
               <div key={u.id} className="user-card">
