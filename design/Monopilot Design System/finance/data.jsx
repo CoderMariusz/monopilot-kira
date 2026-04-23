@@ -28,6 +28,7 @@ const FIN_NAV = [
     { key: "fx",                label: "FX Rates",              ic: "€" },
     { key: "reports",           label: "Reports",               ic: "☷" },
     { key: "d365",              label: "D365 Integration",      ic: "⇄", count: "47" },
+    { key: "gl_mappings",       label: "GL Account Mappings",   ic: "▤" },
     { key: "settings",          label: "Finance Settings",      ic: "⚙" },
     { key: "gallery",           label: "Modal gallery",         ic: "▣" },
   ]},
