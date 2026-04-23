@@ -45,6 +45,32 @@ body.scanner-page {
   justify-content: center;
 }
 
+/* Scanner uses its own font stack (-apple-system), so tabular-nums must be
+   applied explicitly to numeric cells — it is not inherited from the global
+   rule in colors_and_type.css. TUNING-PATTERN.md §2.4 flag. */
+.sc-mini-val,
+.sc-mini-val.mono,
+.sc-lp-num,
+.sc-wo-num,
+.sc-wm-val,
+.sc-cqty-val,
+.sc-cqty-of,
+.sc-sqty,
+.sc-split-lp,
+.sc-split-qty,
+.sc-quick .qc,
+.sc-cmp-lp,
+.sc-cmp-exp,
+.sc-ft-code,
+.sc-ncr-num,
+.sc-progress-strip .ps-val,
+.sc-qa-counter,
+.sc-statusbar > span:first-child,
+.sc-finput.big {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum";
+}
+
 #root {
   width: 100%;
   display: flex;

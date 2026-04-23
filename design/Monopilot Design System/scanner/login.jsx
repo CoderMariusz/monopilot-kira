@@ -12,6 +12,14 @@ const LoginScreen = ({ onNav, onContextSet }) => {
     if (badge.length < 3 && !email) { setErr("Wpisz login lub zeskanuj kartę"); return; }
     onNav("login_pin");
   };
+  // Derive last-8 session outcomes for the stored user (data.jsx frozen — derive
+  // deterministically from SCN_USER.id via shared helper). Per-cell tooltip shows
+  // a relative-day label so the 8-cell strip is self-explanatory.
+  const recentOutcomes = deriveRunHistory(SCN_USER).map((tone, i, arr) => {
+    const daysAgo = arr.length - 1 - i;
+    const label = daysAgo === 0 ? "Dziś" : daysAgo === 1 ? "Wczoraj" : `${daysAgo} dni temu`;
+    return { tone, title: `${label} · sesja ${tone === "ok" ? "zakończona" : tone === "warn" ? "z ostrzeżeniem" : "z błędem"}` };
+  });
   return (
     <>
       <Topbar title="Zaloguj się" showBack={false} syncState="online"/>
@@ -20,6 +28,11 @@ const LoginScreen = ({ onNav, onContextSet }) => {
           <div className="sc-login-logo">🏭</div>
           <div className="sc-login-title">MonoPilot</div>
           <div className="sc-login-sub">Scanner · MES System</div>
+        </div>
+        {/* Recent-activity strip: last 8 sesji for this device/user. */}
+        <div style={{padding:"0 20px 12px", textAlign:"center"}}>
+          <div style={{fontSize:10, color:"var(--sc-hint)", textTransform:"uppercase", letterSpacing:"0.08em", fontWeight:700, marginBottom:6}}>Ostatnie 8 sesji</div>
+          <RunStrip outcomes={recentOutcomes} max={8} title="Ostatnie 8 sesji"/>
         </div>
         <div className="sc-sinput-area" style={{background:"transparent", borderBottom:0}}>
           <div className="sc-sinput-label">Zeskanuj kartę pracownika</div>

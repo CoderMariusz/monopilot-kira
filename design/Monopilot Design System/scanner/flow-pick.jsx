@@ -21,6 +21,10 @@ const PickWoListScreen = ({ onNav, onOpenPick }) => {
           <button className={"sc-pill " + (filter === "my_line" ? "on" : "")} onClick={() => setFilter("my_line")}>Moja linia</button>
           <button className={"sc-pill " + (filter === "incomplete" ? "on" : "")} onClick={() => setFilter("incomplete")}>Wymagają kompletacji</button>
         </div>
+        {list.length === 0 && (
+          <EmptyState dark icon="🧺" title="Brak pozycji do zebrania"
+            body="Nie ma WO wymagających kompletacji dla wybranego filtra."/>
+        )}
         {list.map(p => (
           <button key={p.wo} className="sc-litem" onClick={() => onOpenPick(p.wo)}>
             <div className="sc-licon">🧺</div>

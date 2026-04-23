@@ -6,6 +6,7 @@
 // ----- PO list -----
 const PoListScreen = ({ onNav, onOpenPo }) => {
   const [q, setQ] = React.useState("");
+  const filtered = SCN_POS.filter(p => (p.code + " " + p.supplier).toLowerCase().includes(q.toLowerCase()));
   return (
     <>
       <Topbar title="Przyjęcie PO" onBack={() => onNav("home")}/>
@@ -17,7 +18,11 @@ const PoListScreen = ({ onNav, onOpenPo }) => {
           value={q}
           onChange={setQ}
         />
-        {SCN_POS.filter(p => (p.code + " " + p.supplier).toLowerCase().includes(q.toLowerCase())).map(p => (
+        {filtered.length === 0 && (
+          <EmptyState dark icon="📦" title="Brak PO do przyjęcia"
+            body={q ? "Żadne PO nie pasuje do wyszukiwania." : "Nie ma oczekujących zamówień dla Twojej lokalizacji."}/>
+        )}
+        {filtered.map(p => (
           <button key={p.code} className="sc-litem" onClick={() => onOpenPo(p.code)}>
             <div className="sc-licon">
               📦
@@ -277,6 +282,10 @@ const ToListScreen = ({ onNav, onOpenTo }) => {
           value={q}
           onChange={setQ}
         />
+        {SCN_TOS.length === 0 && (
+          <EmptyState dark icon="🔄" title="Brak oczekujących TO"
+            body="Nie ma Transfer Orders do odbioru."/>
+        )}
         {SCN_TOS.map(t => (
           <button key={t.code} className="sc-litem" onClick={() => onOpenTo(t.code)}>
             <div className="sc-licon">🔄</div>

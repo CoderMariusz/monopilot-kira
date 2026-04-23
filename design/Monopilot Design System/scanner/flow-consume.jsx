@@ -25,9 +25,8 @@ const WoListScreen = ({ onNav, onOpenWo }) => {
           <button className={"sc-pill " + (filter === "active" ? "on" : "")} onClick={() => setFilter("active")}>Aktywne</button>
         </div>
         {wos.length === 0 && (
-          <Banner kind="info" title="Brak aktywnych WO">
-            Czekaj na zwolnienie WO przez planistę.
-          </Banner>
+          <EmptyState dark icon="📭" title="Brak aktywnych WO"
+            body="Czekaj na zwolnienie WO przez planistę."/>
         )}
         {wos.map(w => (
           <button key={w.code} className="sc-litem" onClick={() => onOpenWo(w.code)}>
