@@ -6,25 +6,10 @@ const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
   "density": "comfortable"
 }/*EDITMODE-END*/;
 
-// ---------- BOMs, Labels (list entry), generic placeholder ----------
-const BomsScreen = () => (
-  <>
-    <PageHead title="BOMs & recipes" sub="Bills of materials used across Production."
-      actions={<><button className="btn btn-secondary">Import</button><button className="btn btn-primary">+ New BOM</button></>} />
-    <Section title="Active BOMs">
-      <table>
-        <thead><tr><th>Code</th><th>Product</th><th>Version</th><th>Ingredients</th><th>Yield</th><th>Updated</th><th></th></tr></thead>
-        <tbody>
-          <tr><td className="mono">BOM-214</td><td style={{ fontWeight: 500 }}>Sliced Ham Standard 200g</td><td className="mono">v4.2</td><td className="mono num">10</td><td className="mono num">78%</td><td className="mono muted">2025-09-12</td><td className="muted">⋮</td></tr>
-          <tr><td className="mono">BOM-215</td><td style={{ fontWeight: 500 }}>Sliced Roasted Chicken 160g</td><td className="mono">v2.1</td><td className="mono num">8</td><td className="mono num">71%</td><td className="mono muted">2025-10-04</td><td className="muted">⋮</td></tr>
-          <tr><td className="mono">BOM-216</td><td style={{ fontWeight: 500 }}>Turkey Breast Pastrami 150g</td><td className="mono">v1.0</td><td className="mono num">9</td><td className="mono num">68%</td><td className="mono muted">2025-11-28</td><td className="muted">⋮</td></tr>
-          <tr><td className="mono">BOM-217</td><td style={{ fontWeight: 500 }}>Pork Neck Smoked 250g</td><td className="mono">v3.4</td><td className="mono num">11</td><td className="mono num">66%</td><td className="mono muted">2025-12-02</td><td className="muted">⋮</td></tr>
-        </tbody>
-      </table>
-    </Section>
-    <div className="alert alert-blue">BOMs created in NPD are automatically registered here when promoted to Production.</div>
-  </>
-);
+// ---------- Labels (list entry), generic placeholder ----------
+// NOTE: BL-SET-12 fix — the canonical `BomsScreen` lives in data-screens.jsx
+// (loaded before app.jsx). The duplicate definition previously here shadowed it
+// and caused inconsistent behaviour. Removed in the 2026-04-23 tuning pass.
 
 const Placeholder = ({ title }) => (
   <div className="sg-section" style={{ padding: 40, textAlign: "center" }}>
@@ -45,7 +30,7 @@ const AuditLogScreen = () => (
           <tr><td className="mono">14:22</td><td>K. Nowak</td><td>Updated recipe</td><td>NPD-024 · v0.3</td><td className="mono muted">192.168.1.42</td></tr>
           <tr><td className="mono">13:58</td><td>A. Zając</td><td>Approved user invite</td><td>t.kowalski@forz.pl</td><td className="mono muted">192.168.1.88</td></tr>
           <tr><td className="mono">11:45</td><td>M. Wiśniewska</td><td>Paired device</td><td>DEV-005 · Line 3</td><td className="mono muted">192.168.1.66</td></tr>
-          <tr><td className="mono">09:12</td><td>System</td><td>Sync failed</td><td>SAP S/4HANA</td><td className="mono muted">—</td></tr>
+          <tr><td className="mono">09:12</td><td>System</td><td>Sync failed</td><td>D365 · ItemEntity</td><td className="mono muted">—</td></tr>
           <tr><td className="mono">08:30</td><td>A. Zając</td><td>Enabled feature flag</td><td>OEE Analytics</td><td className="mono muted">192.168.1.88</td></tr>
         </tbody>
       </table>
@@ -90,9 +75,11 @@ const App = () => {
     const adminOnly = ["profile", "sites", "warehouses", "shifts", "products", "boms", "partners", "units",
                        "users", "security", "devices", "notifications", "features", "integrations",
                        "labels", "label-editor", "audit",
+                       // Onboarding (admin-only new-org setup)
+                       "onboarding",
                        // Admin group
-                       "d365-conn", "d365-mapping", "rules", "rule-detail", "flags", "schema",
-                       "reference", "email-config", "email-vars", "promotions", "gallery"];
+                       "d365-conn", "d365-mapping", "d365-dlq", "rules", "rule-detail", "flags", "schema",
+                       "reference", "email-config", "email-vars", "ship-override-reasons", "gallery"];
     if (role === "user" && adminOnly.includes(s) && s !== "my-profile" && s !== "my-notifications") {
       return (
         <>
@@ -130,7 +117,9 @@ const App = () => {
       case "reference":      return <ReferenceDataScreen openModal={openModal} />;
       case "email-config":   return <EmailTemplatesScreen openModal={openModal} />;
       case "email-vars":     return <EmailVariablesScreen />;
-      case "promotions":     return <PromotionsScreen openModal={openModal} />;
+      case "ship-override-reasons": return <ShippingOverrideReasonsScreen openModal={openModal} />;
+      case "d365-dlq":       return <D365DlqShippingScreen openModal={openModal} />;
+      case "onboarding":     return <OnboardingWizardScreen onNav={nav} />;
       case "gallery":        return <ModalGallery onNav={nav} />;
       case "my-profile":     return <MyProfileScreen />;
       case "my-notifications": return <MyNotificationsScreen />;

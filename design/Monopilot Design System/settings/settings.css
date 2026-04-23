@@ -19,12 +19,28 @@
 .sg-sub { font-size: 13px; color: var(--muted); }
 
 /* Form row pattern (Stripe style) */
-.sg-section { background: #fff; border: 1px solid var(--border); border-radius: var(--radius); margin-bottom: 12px; }
+.sg-section { background: var(--surface-1, #fff); border: 1px solid var(--border); border-radius: var(--radius); margin-bottom: 12px; }
 .sg-section-head { padding: 14px 18px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; }
 .sg-section-title { font-size: 14px; font-weight: 600; }
 .sg-section-sub { font-size: 12px; color: var(--muted); margin-top: 2px; }
 .sg-section-body { padding: 16px 18px; }
 .sg-section-foot { padding: 10px 18px; border-top: 1px solid var(--border); background: var(--gray-050); display: flex; justify-content: flex-end; gap: 8px; border-radius: 0 0 var(--radius) var(--radius); }
+
+/* TUNING-PATTERN §3.9 — nested sg-section collapses its own border and uses
+ * surface-2 background so the outer border carries the frame. Keeps the
+ * form hierarchy visible without double-bordering. */
+.sg-section .sg-section {
+  background: var(--surface-2, #f1f5f9);
+  border: 0;
+  border-radius: var(--radius);
+}
+.sg-section .sg-section .sg-section-head {
+  border-bottom-color: var(--border-soft, #eef1f5);
+}
+.sg-section .sg-section .sg-section-foot {
+  background: transparent;
+  border-top-color: var(--border-soft, #eef1f5);
+}
 
 .sg-row { display: grid; grid-template-columns: 200px 1fr; gap: 20px; padding: 12px 0; border-bottom: 1px solid var(--border); align-items: flex-start; }
 .sg-row:last-child { border-bottom: 0; padding-bottom: 0; }

@@ -28,16 +28,20 @@ window.SETTINGS_NAV = [
   { group: "Document templates", admin: true, items: [
     { key: "labels",    label: "Label templates", ic: "▭", highlight: true }
   ]},
+  { group: "Onboarding", admin: true, items: [
+    { key: "onboarding",     label: "Onboarding wizard",  ic: "✦", highlight: true }
+  ]},
   { group: "Admin", admin: true, items: [
     { key: "d365-conn",      label: "D365 connection",    ic: "⇆" },
     { key: "d365-mapping",   label: "D365 field mapping", ic: "↔" },
+    { key: "d365-dlq",       label: "D365 DLQ (shipping)", ic: "!" },
     { key: "rules",          label: "Rules registry",     ic: "✦" },
     { key: "flags",          label: "Feature flags (L)",  ic: "◨" },
     { key: "schema",         label: "Schema browser",     ic: "▦" },
     { key: "reference",      label: "Reference data",     ic: "⚙" },
     { key: "email-config",   label: "Email templates",    ic: "✉" },
     { key: "email-vars",     label: "Email variables",    ic: "§" },
-    { key: "promotions",     label: "L1→L2→L3 promote",   ic: "↗" },
+    { key: "ship-override-reasons", label: "Shipping override reasons", ic: "≡" },
     { key: "gallery",        label: "Modal gallery",      ic: "◇" }
   ]},
   { group: "My account", admin: false, items: [
@@ -75,33 +79,23 @@ window.SETTINGS_LINES = [
   { id: "L6", site: "S2", name: "Line B — Yogurt filling",     type: "Dairy",           workers: 7,  status: "active" }
 ];
 
-// Integrations by category
+// Integrations — per 02-SETTINGS PRD §11 (D365) and §4 (API keys)
+// Prunes prior catalog (SAP/Xero/Shopify/etc.) that had no PRD backing.
 window.SETTINGS_INTEGRATIONS = [
   { cat: "ERP", items: [
-    { name: "SAP S/4HANA", desc: "Two-way sync of materials, POs, stock.", status: "connected", logo: "SAP", color: "#0070c0" },
-    { name: "Microsoft Dynamics 365", desc: "Sync inventory & production orders.", status: "available", logo: "D365", color: "#7719aa" },
-    { name: "Comarch ERP XL", desc: "Popular in Polish manufacturing. Stock + financial sync.", status: "available", logo: "CMR", color: "#e31b23" },
-    { name: "Odoo", desc: "Open-source ERP, modules mapped.", status: "connected", logo: "Odo", color: "#714b67" }
+    { name: "Microsoft Dynamics 365",
+      desc: "Items + BOM pull (nightly), production confirmations + shipment + finance push (outbox). Constants: FNOR / ForzDG / FinGoods / FOR100048 / FProd01.",
+      status: "connected", logo: "D365", color: "#7719aa" }
   ]},
-  { cat: "Accounting", items: [
-    { name: "Xero",       desc: "Invoice export, cost center sync.",   status: "connected", logo: "Xe",  color: "#13b5ea" },
-    { name: "QuickBooks", desc: "Daily export of COGS entries.",        status: "available", logo: "QB",  color: "#2ca01c" },
-    { name: "Sage 50",    desc: "EU-focused accounting export.",        status: "available", logo: "Sge", color: "#00d639" }
+  { cat: "Invoicing", items: [
+    { name: "Peppol / EU e-invoicing",
+      desc: "Outbound e-invoice endpoint (10-FIN Phase 2). Provisioned via D365 customer master.",
+      status: "available", logo: "Pep", color: "#b11e78" }
   ]},
-  { cat: "E-commerce", items: [
-    { name: "Shopify",    desc: "Sync SKUs, stock, fulfilment.",        status: "available", logo: "Sh",  color: "#96bf48" },
-    { name: "WooCommerce", desc: "Stock + order webhook.",              status: "connected", logo: "Woo", color: "#96588a" },
-    { name: "Allegro",    desc: "Polish marketplace integration.",      status: "available", logo: "Alg", color: "#ff5a00" }
-  ]},
-  { cat: "BI & Analytics", items: [
-    { name: "Power BI",   desc: "Direct query into MES data.",          status: "connected", logo: "PBI", color: "#f2c811" },
-    { name: "Tableau",    desc: "Data connector for dashboards.",       status: "available", logo: "Tbl", color: "#1f77b4" },
-    { name: "Looker Studio", desc: "Google Looker data source.",        status: "available", logo: "Lkr", color: "#4285f4" }
-  ]},
-  { cat: "Logistics & Shipping", items: [
-    { name: "DHL",        desc: "Label printing + tracking.",           status: "available", logo: "DHL", color: "#d40511" },
-    { name: "DPD",        desc: "Pickup scheduling + labels.",          status: "available", logo: "DPD", color: "#dc0032" },
-    { name: "InPost",     desc: "Parcel locker delivery (PL).",         status: "connected", logo: "InP", color: "#ffcd00" }
+  { cat: "Developer", items: [
+    { name: "API keys",
+      desc: "HMAC-signed tokens + scoped webhooks (SET-023). Rotation + delivery log.",
+      status: "connected", logo: "API", color: "#374151" }
   ]}
 ];
 
