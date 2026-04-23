@@ -2,7 +2,18 @@
 // Premium finite-capacity Gantt with optimizer integration, capacity conflict highlighting,
 // pending review panel, and solver progress states.
 
-const DAY_W = 220;
+// BL-PEXT-05 fix — zoom toggle was cosmetic only (label flipped but DAY_W was
+// a module constant). Make Gantt layout react to zoom state by deriving DAY_W
+// from a zoom factor. "day" = 220px/day (default), "hour" = 3× zoom to expose
+// the 06·09·12·15·18·21 tick pattern at a readable width.
+const DAY_W_DAY  = 220;
+const DAY_W_HOUR = 660; // 3× — each 3h slot ~82px, readable at hour-level density
+const ganttWidths = (zoom) => {
+  const dw = zoom === "hour" ? DAY_W_HOUR : DAY_W_DAY;
+  return { DAY_W: dw, HOUR_W: dw / 24, TOTAL_W: dw * 7 };
+};
+// Keep module constants for callers that still read them (back-compat).
+const DAY_W = DAY_W_DAY;
 const HOUR_W = DAY_W / 24;
 const TOTAL_W = DAY_W * 7;
 
@@ -17,6 +28,8 @@ const PextDashboard = ({ role, onNav, openModal }) => {
   const [pendingActions, setPendingActions] = React.useState({});  // id -> "approved"|"rejected"|"overridden"
   const [dismissed, setDismissed] = React.useState(new Set());
   const [zoom, setZoom] = React.useState("day");
+  // Zoom-reactive widths (BL-PEXT-05 fix — visual-layer only)
+  const { DAY_W, HOUR_W, TOTAL_W } = ganttWidths(zoom);
 
   const visibleAlerts = PEXT_ALERTS.filter(a => !dismissed.has(a.code));
 
@@ -80,6 +93,14 @@ const PextDashboard = ({ role, onNav, openModal }) => {
             <button className={"disabled"} title="14-day horizon requires feature flag scheduler.horizon_14d.enabled">14 days (P2)</button>
           </div>
           <button className="btn btn-secondary btn-sm" disabled={runState === "running"}>⇪ Export CSV</button>
+          {/* §3.6 Dry-run preview (before commit) — fans out to 20+ assignments */}
+          <DryRunButton
+            label="Dry-run"
+            disabled={!canSeeRunBtn || runState === "running"}
+            title={!canSeeRunBtn ? "You do not have permission to run the scheduler"
+              : "Preview proposed assignments, CO total, and utilisation before committing"}
+            onClick={()=>openModal("runScheduler", { dryRun: true, onConfirm: runScheduler })}
+          />
           <button
             className="btn btn-primary btn-sm"
             disabled={!canSeeRunBtn || runState === "running"}
@@ -418,8 +439,12 @@ const AssignmentSidePanel = ({ asn, status, onClose, onApprove, onReject, onOver
         {status === "approved" && (
           <div className="asn-section">
             <div className="asn-section-label">Approval</div>
-            <div className="alert-green alert-box" style={{fontSize:11}}>
-              ✓ Approved by <b>Monika Nowak</b> at 2026-04-21 09:15 · <a style={{color:"var(--blue)", cursor:"pointer"}}>Undo approval</a> (59s)
+            <div className="alert-green alert-box" style={{fontSize:11, alignItems:"center"}}>
+              <div style={{flex:1}}>
+                ✓ Approved by <b>Monika Nowak</b> at 2026-04-21 09:15 · <a style={{color:"var(--blue)", cursor:"pointer"}}>Undo approval</a>
+              </div>
+              {/* BL-PEXT-08 — 60s undo countdown ring (visual-only; decorative). */}
+              <UndoCountdownRing seconds={59} total={60}/>
             </div>
           </div>
         )}
@@ -450,4 +475,31 @@ const AssignmentSidePanel = ({ asn, status, onClose, onApprove, onReject, onOver
   );
 };
 
-Object.assign(window, { PextDashboard, AssignmentSidePanel });
+// --------------------------------------------------------------
+// UndoCountdownRing — 60s SVG ring for BL-PEXT-08.
+// Visual-only decorative countdown. Animates a stroke-dashoffset
+// across `total` seconds using CSS @keyframes defined in
+// planning-ext.css. Initial remaining seconds shown numerically.
+// --------------------------------------------------------------
+const UndoCountdownRing = ({ seconds = 60, total = 60 }) => {
+  const R = 11;
+  const C = 2 * Math.PI * R;
+  return (
+    <span className="undo-ring" title={"Undo window: " + seconds + "s remaining"}>
+      <svg width="28" height="28" viewBox="0 0 28 28" aria-hidden="true">
+        <circle cx="14" cy="14" r={R} className="undo-ring-track"/>
+        <circle
+          cx="14" cy="14" r={R}
+          className="undo-ring-fill"
+          style={{
+            strokeDasharray: C.toFixed(2),
+            animationDuration: total + "s",
+          }}
+        />
+      </svg>
+      <span className="undo-ring-label mono">{seconds}s</span>
+    </span>
+  );
+};
+
+Object.assign(window, { PextDashboard, AssignmentSidePanel, UndoCountdownRing });
