@@ -1,7 +1,11 @@
 // ============ WO Detail — the main operational screen ============
 
 const WODetail = ({ onBack, openModal }) => {
-  const [tab, setTab] = React.useState("consumption");
+  // Audit Fix-5b: WO Detail tab set extended from 6 → 8 tabs to match UX
+  // SCR-08-02 spec (Overview + QA Results were missing). Default tab is now
+  // Overview so the operator lands on the WO summary, not the ingredient
+  // consumption grid.
+  const [tab, setTab] = React.useState("overview");
   const w = WO_DETAIL;
   const consPct = (w.consumed / w.plannedQty * 100);
   const outPct = w.outputTarget ? (w.output / w.outputTarget * 100) : 0;
@@ -66,23 +70,184 @@ const WODetail = ({ onBack, openModal }) => {
         </div>
       </div>
 
-      {/* Tabs */}
+      {/* Tabs — 8 tabs per UX SCR-08-02 */}
       <div className="tabs-bar" style={{marginTop:0}}>
+        <button className={"tab-btn " + (tab==="overview"?"on":"")} onClick={()=>setTab("overview")}>Overview</button>
         <button className={"tab-btn " + (tab==="consumption"?"on":"")} onClick={()=>setTab("consumption")}>Consumption <span className="count">{w.bomComponents.length}</span></button>
         <button className={"tab-btn " + (tab==="output"?"on":"")} onClick={()=>setTab("output")}>Output & co-products</button>
         <button className={"tab-btn " + (tab==="waste"?"on":"")} onClick={()=>setTab("waste")}>Waste <span className="count">{w.wasteLog.length}</span></button>
         <button className={"tab-btn " + (tab==="downtime"?"on":"")} onClick={()=>setTab("downtime")}>Downtime</button>
+        <button className={"tab-btn " + (tab==="qa"?"on":"")} onClick={()=>setTab("qa")}>QA results <span className="count">{WO_QA_SUMMARY.total}</span></button>
         <button className={"tab-btn " + (tab==="genealogy"?"on":"")} onClick={()=>setTab("genealogy")}>Genealogy</button>
         <button className={"tab-btn " + (tab==="history"?"on":"")} onClick={()=>setTab("history")}>Event log <span className="count">{w.history.length}</span></button>
       </div>
 
+      {tab === "overview" && <OverviewTab w={w} consPct={consPct} outPct={outPct} />}
       {tab === "consumption" && <ConsumptionTab w={w} openModal={openModal} />}
       {tab === "output" && <OutputTab w={w} openModal={openModal} />}
       {tab === "waste" && <WasteTab w={w} openModal={openModal} />}
       {tab === "downtime" && <DowntimeTab w={w} openModal={openModal} />}
+      {tab === "qa" && <QAResultsTab w={w} openModal={openModal} />}
       {tab === "genealogy" && <GenealogyTab w={w} />}
       {tab === "history" && <HistoryTab w={w} />}
     </>
+  );
+};
+
+// ------ Overview (Tab 1 · new per audit fix-5b) ------
+// Matches UX SCR-08-02 §Overview: WO summary card + right-column KPI mini-cards
+// (consumption / output / waste) + D365 push status. Read-only; actions live
+// in the WO header action bar (Pause / Waste / Catch-weight / Complete).
+const OverviewTab = ({ w, consPct, outPct }) => {
+  const wastedKg = (w.wasteLog || []).reduce((a, e) => a + (e.qty || 0), 0);
+  const wastePct = w.consumed ? (wastedKg / w.consumed * 100) : 0;
+  const downtimeMin = (w.downtimeOnWo || []).reduce((a, e) => a + (e.duration || 0), 0);
+  return (
+    <div style={{display:"grid", gridTemplateColumns:"1fr 320px", gap:12, alignItems:"flex-start"}}>
+      <div className="card">
+        <div className="card-head"><h3 className="card-title">Work order summary</h3><span className="badge badge-gray" style={{fontSize:10}}>{w.bomSnapshot}</span></div>
+        <div style={{display:"grid", gridTemplateColumns:"1fr 1fr", gap:8, fontSize:12, lineHeight:1.8}}>
+          <div><span className="muted">WO code</span> <b className="mono" style={{marginLeft:6}}>{w.code}</b></div>
+          <div><span className="muted">Item</span> <b className="mono" style={{marginLeft:6}}>{w.item}</b></div>
+          <div><span className="muted">Product</span> <b style={{marginLeft:6}}>{w.name}</b></div>
+          <div><span className="muted">Line</span> <b style={{marginLeft:6}}>{w.line}</b></div>
+          <div><span className="muted">Shift</span> <b style={{marginLeft:6}}>{w.shift}</b></div>
+          <div><span className="muted">Operator</span> <b style={{marginLeft:6}}>{w.operator}</b></div>
+          <div><span className="muted">Planned qty</span> <b className="mono" style={{marginLeft:6}}>{w.plannedQty} {w.unit}</b></div>
+          <div><span className="muted">Output target</span> <b className="mono" style={{marginLeft:6}}>{w.outputTarget} {w.unit}</b></div>
+          <div><span className="muted">Planned window</span> <b className="mono" style={{marginLeft:6}}>{w.plannedStart} → {w.plannedEnd}</b></div>
+          <div><span className="muted">Actual start</span> <b className="mono" style={{marginLeft:6}}>{w.actualStart}</b></div>
+          <div><span className="muted">Elapsed</span> <b className="mono" style={{marginLeft:6}}>{w.elapsed}</b> <span className="muted" style={{fontSize:11}}>(paused {w.totalPause})</span></div>
+          <div><span className="muted">Weight mode</span> <b style={{marginLeft:6}}>{w.weightMode === "catch" ? "Catch-weight (3103/3922)" : "Fixed"}</b></div>
+          <div style={{gridColumn:"1 / span 2"}}><span className="muted">Allergens</span> <b style={{marginLeft:6}}>{w.allergens}</b></div>
+        </div>
+        <div style={{marginTop:14}}>
+          <div className="prog-label"><span>Consumption</span><b className="mono">{w.consumed} / {w.plannedQty} kg ({consPct.toFixed(1)}%)</b></div>
+          <div className="progress green"><span style={{width:consPct+"%"}}></span></div>
+        </div>
+        <div style={{marginTop:8}}>
+          <div className="prog-label"><span>Output</span><b className="mono">{w.output} / {w.outputTarget} kg ({outPct.toFixed(1)}%)</b></div>
+          <div className="progress"><span style={{width:outPct+"%"}}></span></div>
+        </div>
+      </div>
+
+      <div>
+        <div className="card">
+          <div className="card-head"><h3 className="card-title">KPIs</h3></div>
+          <div style={{display:"grid", gap:8, fontSize:12}}>
+            <div style={{padding:"8px 0", borderBottom:"1px solid var(--border)"}}>
+              <div className="muted" style={{fontSize:11, textTransform:"uppercase"}}>Consumption</div>
+              <div style={{fontSize:18, fontWeight:600}} className="mono">{consPct.toFixed(1)}%</div>
+              <div className="muted mono" style={{fontSize:11}}>{w.consumed} / {w.plannedQty} kg</div>
+            </div>
+            <div style={{padding:"8px 0", borderBottom:"1px solid var(--border)"}}>
+              <div className="muted" style={{fontSize:11, textTransform:"uppercase"}}>Output</div>
+              <div style={{fontSize:18, fontWeight:600}} className="mono">{outPct.toFixed(1)}%</div>
+              <div className="muted mono" style={{fontSize:11}}>{w.output} / {w.outputTarget} kg</div>
+            </div>
+            <div style={{padding:"8px 0", borderBottom:"1px solid var(--border)"}}>
+              <div className="muted" style={{fontSize:11, textTransform:"uppercase"}}>Waste</div>
+              <div style={{fontSize:18, fontWeight:600, color: wastePct > 1.5 ? "var(--amber-700)" : "var(--text)"}} className="mono">{wastePct.toFixed(2)}%</div>
+              <div className="muted mono" style={{fontSize:11}}>{wastedKg.toFixed(1)} kg · {w.wasteLog.length} events</div>
+            </div>
+            <div style={{padding:"8px 0"}}>
+              <div className="muted" style={{fontSize:11, textTransform:"uppercase"}}>Downtime on WO</div>
+              <div style={{fontSize:18, fontWeight:600}} className="mono">{downtimeMin}m</div>
+              <div className="muted mono" style={{fontSize:11}}>{(w.downtimeOnWo||[]).length} event(s)</div>
+            </div>
+          </div>
+        </div>
+
+        <div className="card">
+          <div className="card-head"><h3 className="card-title">D365 push status</h3></div>
+          <div style={{fontSize:12, lineHeight:1.8}}>
+            <div className="row-flex"><span className="muted">Current state</span><span className="spacer"></span><span className="badge badge-gray" style={{fontSize:10}}>Not pushed · WO in progress</span></div>
+            <div className="row-flex"><span className="muted">Queue</span><span className="spacer"></span><span className="mono">outbox_events</span></div>
+            <div className="row-flex"><span className="muted">On complete</span><span className="spacer"></span><span className="mono">wo.completed event</span></div>
+            <div className="row-flex"><span className="muted">D365 journal</span><span className="spacer"></span><span className="mono">InventJournalTrans</span></div>
+            <div className="muted" style={{fontSize:11, marginTop:4}}>D365 push is enqueued on Complete. Failures land in DLQ (Production → D365 DLQ).</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// ------ QA Results (Tab 6 · new per audit fix-5b) ------
+// Matches UX SCR-08-02 §QA Results: linked qa_inspections for this WO,
+// hold status aggregate, and a link to 09-QUALITY for inspection detail.
+// Source: WO_QA_RESULTS + WO_QA_SUMMARY (data.jsx mocks).
+const QAResultsTab = ({ w, openModal }) => {
+  const tone = { pass: "badge-green", hold: "badge-amber", fail: "badge-red" };
+  const s = WO_QA_SUMMARY;
+  return (
+    <div>
+      <div style={{display:"grid", gridTemplateColumns:"repeat(4, 1fr)", gap:10, marginBottom:12}}>
+        <div className="kpi"><div className="kpi-label">Total inspections</div><div className="kpi-value">{s.total}</div><div className="kpi-sub">linked to {w.code}</div></div>
+        <div className="kpi green"><div className="kpi-label">Pass</div><div className="kpi-value">{s.pass}</div><div className="kpi-sub">auto + lab</div></div>
+        <div className={"kpi " + (s.hold > 0 ? "amber" : "")}><div className="kpi-label">Hold</div><div className="kpi-value">{s.hold}</div><div className="kpi-sub">blocks release</div></div>
+        <div className={"kpi " + (s.fail > 0 ? "red" : "")}><div className="kpi-label">Fail</div><div className="kpi-value">{s.fail}</div><div className="kpi-sub">CAPA required</div></div>
+      </div>
+
+      {s.hold > 0 && (
+        <div className="alert-amber alert-box" style={{marginBottom:10}}>
+          <span>⚠</span>
+          <div>
+            <b>{s.hold} QA hold active</b> — output release blocked until resolved in 09-QUALITY. WO can continue consumption; complete gate will fail closed_production_strict.
+          </div>
+          <div className="alert-cta">
+            <button className="btn btn-sm btn-secondary">Open 09-QUALITY</button>
+            <button className="btn btn-sm btn-primary">Add corrective action</button>
+          </div>
+        </div>
+      )}
+
+      <div className="card">
+        <div className="card-head">
+          <h3 className="card-title">Inspections on this WO</h3>
+          <div className="row-flex">
+            <span className="badge badge-gray" style={{fontSize:10}}>D365: {s.d365Push}</span>
+            <button className="btn btn-secondary btn-sm">+ Add inspection</button>
+          </div>
+        </div>
+        <table>
+          <thead><tr>
+            <th style={{width:110}}>QA id</th>
+            <th style={{width:70}}>Time</th>
+            <th>Test type</th>
+            <th>Target / spec</th>
+            <th>Result</th>
+            <th style={{width:80}}>Status</th>
+            <th>Inspector · method</th>
+          </tr></thead>
+          <tbody>
+            {WO_QA_RESULTS.map(r => (
+              <tr key={r.id}>
+                <td className="mono" style={{fontWeight:600}}>{r.id}</td>
+                <td className="mono">{r.t}</td>
+                <td>
+                  <div style={{fontWeight:500}}>{r.test_type.replace(/_/g, " ")}</div>
+                  <div className="mono muted" style={{fontSize:11}}>sample {r.sample}</div>
+                </td>
+                <td style={{fontSize:12}}>{r.target}</td>
+                <td className="mono" style={{fontSize:12, fontWeight:600}}>{r.result}</td>
+                <td><span className={"badge " + tone[r.status]} style={{fontSize:10}}>{r.status}</span></td>
+                <td style={{fontSize:12}}>
+                  {r.inspector}
+                  <div className="muted" style={{fontSize:11}}>{r.method}</div>
+                  {r.note && <div style={{fontSize:11, color:"var(--amber-700)"}}>⚠ {r.note}</div>}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      <div className="alert-blue alert-box" style={{marginTop:10, fontSize:11}}>
+        <span>ⓘ</span>
+        <div>CCP tests (allergen ATP, metal detection, temperature, weight) stream automatically from inline equipment. Protein / visual checks are lab-logged. Full inspection detail in 09-QUALITY.</div>
+      </div>
+    </div>
   );
 };
 
@@ -357,4 +522,4 @@ const HistoryTab = ({ w }) => (
   </div>
 );
 
-Object.assign(window, { WODetail });
+Object.assign(window, { WODetail, OverviewTab, QAResultsTab });

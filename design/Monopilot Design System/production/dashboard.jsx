@@ -36,13 +36,11 @@ const buildProdActivityGroups = (feed) => {
 
 
 const Dashboard = ({ onOpenWo, onOpenLine, onNav, openModal }) => {
-  const running = LINES.filter(l => l.status === "running").length;
-  const down = LINES.filter(l => l.status === "down").length;
-  const co = LINES.filter(l => l.status === "changeover").length;
-  const totalConsumed = LINES.reduce((a,l) => a + (l.consumed||0), 0);
-  const totalPlanned = LINES.reduce((a,l) => a + (l.planned||0), 0);
-  const progressPct = totalPlanned ? (totalConsumed / totalPlanned * 100) : 0;
-  const avgYield = LINES.filter(l=>l.yield>0).reduce((a,l)=>a+l.yield,0) / Math.max(1, LINES.filter(l=>l.yield>0).length);
+  // Audit Fix-5b: KPI set now matches UX PROD-001 spec (6 KPIs):
+  //   WOs In Progress · Output vs Target today · OEE current shift ·
+  //   Downtime last 24h · QA Holds active · Next changeover.
+  // Prior KPIs derived from LINES counts were replaced (drift-C item #1).
+  const KPIS = DASHBOARD_KPIS;
 
   return (
     <>
@@ -55,7 +53,7 @@ const Dashboard = ({ onOpenWo, onOpenLine, onNav, openModal }) => {
         <div className="row-flex">
           <button className="btn btn-secondary btn-sm" onClick={()=>onNav("shifts")}>Shift crew</button>
           <button className="btn btn-secondary btn-sm" onClick={()=>onNav("wos")}>All work orders</button>
-          <button className="btn btn-primary btn-sm" onClick={()=>openModal("release")}>＋ Release WO</button>
+          {/* "+ Release WO" button removed — belongs in 04-PLANNING (DRAFT → READY). Execution starts at READY. */}
         </div>
       </div>
 
@@ -69,37 +67,41 @@ const Dashboard = ({ onOpenWo, onOpenLine, onNav, openModal }) => {
         </div>
       </div>
 
-      {/* KPIs */}
+      {/* KPIs — 6 cards per UX PROD-001 spec */}
       <div className="kpi-row">
-        <div className="kpi green">
-          <div className="kpi-label">Lines running</div>
-          <div className="kpi-value">{running}<span style={{fontSize:14, color:"var(--muted)", fontWeight:400}}>/5</span></div>
-          <div className="kpi-sub">{down} down · {co} changeover · 1 idle</div>
+        <div className="kpi" onClick={()=>onNav("wos")}>
+          <div className="kpi-label">WOs in progress</div>
+          <div className="kpi-value">{KPIS.woInProgress.value}<span style={{fontSize:14, color:"var(--muted)", fontWeight:400}}> / {KPIS.woInProgress.of}</span></div>
+          <div className="kpi-sub">{KPIS.woInProgress.sub}</div>
+        </div>
+        <div className={"kpi " + (KPIS.outputVsTarget.tone || "")}>
+          <div className="kpi-label">Output vs target · today</div>
+          <div className="kpi-value">{KPIS.outputVsTarget.value}<span style={{fontSize:14, color:"var(--muted)"}}>%</span></div>
+          <div className="kpi-sub mono">{KPIS.outputVsTarget.sub}</div>
         </div>
         <div className="kpi" onClick={()=>onNav("oee")}>
-          <div className="kpi-label">Plant OEE · today</div>
-          <div className="kpi-value">76.2<span style={{fontSize:14, color:"var(--muted)"}}>%</span></div>
-          <div className="kpi-micro"><span>A <b>85%</b></span><span>P <b>88%</b></span><span>Q <b>99%</b></span></div>
+          <div className="kpi-label">OEE · current shift</div>
+          <div className="kpi-value">{KPIS.oeeShift.value}<span style={{fontSize:14, color:"var(--muted)"}}>%</span></div>
+          <div className="kpi-micro">
+            <span>A <b>{KPIS.oeeShift.a}%</b></span>
+            <span>P <b>{KPIS.oeeShift.p}%</b></span>
+            <span>Q <b>{KPIS.oeeShift.q}%</b></span>
+          </div>
         </div>
-        <div className="kpi">
-          <div className="kpi-label">Shift progress</div>
-          <div className="kpi-value">{progressPct.toFixed(1)}<span style={{fontSize:14, color:"var(--muted)"}}>%</span></div>
-          <div className="kpi-sub mono">{totalConsumed} / {totalPlanned} kg</div>
+        <div className={"kpi " + (KPIS.downtime24h.tone || "")}>
+          <div className="kpi-label">Downtime · last 24h</div>
+          <div className="kpi-value">{KPIS.downtime24h.value}</div>
+          <div className="kpi-sub">{KPIS.downtime24h.sub}</div>
         </div>
-        <div className="kpi green">
-          <div className="kpi-label">Yield · rolling 4h</div>
-          <div className="kpi-value">{avgYield.toFixed(1)}<span style={{fontSize:14, color:"var(--muted)"}}>%</span></div>
-          <div className="kpi-change up">▲ 0.8 pp vs target</div>
+        <div className={"kpi " + (KPIS.qaHolds.tone || "")} onClick={()=>onNav("analytics")}>
+          <div className="kpi-label">QA holds · active</div>
+          <div className="kpi-value">{KPIS.qaHolds.value}</div>
+          <div className="kpi-sub">{KPIS.qaHolds.sub}</div>
         </div>
-        <div className="kpi amber">
-          <div className="kpi-label">Downtime · shift</div>
-          <div className="kpi-value">1h 52m</div>
-          <div className="kpi-sub">6 events · plant 54%</div>
-        </div>
-        <div className="kpi red" onClick={()=>onNav("dlq")}>
-          <div className="kpi-label">D365 DLQ</div>
-          <div className="kpi-value">2</div>
-          <div className="kpi-sub">Oldest: 5h 12m</div>
+        <div className="kpi" onClick={()=>onNav("changeover")}>
+          <div className="kpi-label">Next changeover</div>
+          <div className="kpi-value" style={{fontSize:22}}>{KPIS.nextChangeover.value}</div>
+          <div className="kpi-sub">{KPIS.nextChangeover.sub}</div>
         </div>
       </div>
 
@@ -143,7 +145,8 @@ const Dashboard = ({ onOpenWo, onOpenLine, onNav, openModal }) => {
           <div className="card">
             <div className="card-head"><h3 className="card-title">Quick actions</h3></div>
             <div style={{display:"grid", gap:6}}>
-              <button className="btn btn-secondary" onClick={()=>openModal("release")}>＋ Release next WO to line</button>
+              {/* Release-WO action removed — lives in 04-PLANNING. "Start WO" acts on WOs already in READY. */}
+              <button className="btn btn-secondary" onClick={()=>openModal("startWo")}>▶ Start next READY WO</button>
               <button className="btn btn-secondary" onClick={()=>openModal("pauseLine")}>❚❚ Pause a line (report downtime)</button>
               <button className="btn btn-secondary" onClick={()=>openModal("catchweight")}>⚖ Catch-weight capture</button>
               <button className="btn btn-secondary" onClick={()=>openModal("waste")}>⌫ Log waste event</button>
@@ -260,7 +263,7 @@ const LineCard = ({ line, onOpen, onWo, openModal }) => {
         {l.status === "running" && <button className="btn btn-secondary btn-sm" onClick={()=>openModal("completeWo", l)}>✓ Complete</button>}
         {l.status === "down" && <button className="btn btn-primary btn-sm" onClick={()=>openModal("resumeLine", l)}>▶ Resume</button>}
         {l.status === "changeover" && <button className="btn btn-primary btn-sm" onClick={()=>openModal("changeoverGate", l)}>Open wizard</button>}
-        {l.status === "idle" && <button className="btn btn-primary btn-sm" onClick={()=>openModal("release", l)}>＋ Release WO</button>}
+        {l.status === "idle" && <button className="btn btn-primary btn-sm" onClick={()=>openModal("startWo", l)} title="Starts the next WO already in READY; release happens in 04-PLANNING">▶ Start READY WO</button>}
       </div>
     </div>
   );

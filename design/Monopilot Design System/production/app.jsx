@@ -78,7 +78,7 @@ const App = () => {
       <ProdNav current={screen} onNav={setScreen}/>
       <div id="prod-main">{content}</div>
 
-      {M === "release" && <ReleaseWoModal onClose={closeModal}/>}
+      {/* M === "release" removed — see modals.jsx; belongs in 04-PLANNING */}
       {M === "startWo" && <StartWoModal onClose={closeModal} data={modal.data}/>}
       {M === "pauseLine" && <PauseLineModal onClose={closeModal} data={modal.data}/>}
       {M === "completeWo" && <CompleteWoModal onClose={closeModal} data={modal.data}/>}

@@ -119,7 +119,9 @@ const WO_DETAIL = {
   byProducts: [
     { code: "FA5100-BP1", name: "Tłuszcz odcedzony", alloc: 3, expected: 30.3, registered: 0 },
   ],
-  downtimeOnWo: [],
+  downtimeOnWo: [
+    { t: "06:44", category: "Process — Material wait", duration: 6, reason: "casings delayed from warehouse", operator: "MS" },
+  ],
   wasteLog: [
     { t: "07:18", category: "Trim", qty: 3.2, operator: "MS", reason: "Casings cut loss" },
     { t: "06:48", category: "Spillage", qty: 0.4, operator: "MS", reason: "Slip on conveyor" },
@@ -276,7 +278,35 @@ const LINE_DETAIL = {
   ],
 };
 
+// ----- Dashboard KPIs (PROD-001 spec) -----
+// Audit Fix-5b: 6 KPIs replace the prior derived-from-LINES KPI set.
+// Match UX spec PROD-001 §1: WOs in progress · Output vs target today ·
+// OEE current shift · Downtime last 24h · QA Holds active · Next changeover.
+const DASHBOARD_KPIS = {
+  woInProgress: { value: 3, of: 5, sub: "1 paused · 1 changeover · idle on LINE-05" },
+  outputVsTarget: { value: 91, sub: "3 842 / 4 211 kg", tone: "green" },
+  oeeShift: { value: 76.2, a: 85, p: 88, q: 99 },
+  downtime24h: { value: "4h 18m", sub: "14 events · plant 58% · oldest 6h", tone: "amber" },
+  qaHolds: { value: 2, sub: "1 on WO-2026-0040 · 1 on WO-2026-0038", tone: "red" },
+  nextChangeover: { value: "LINE-04", sub: "in 22m · FA5302 → FA5304 · allergen gate" },
+};
+
+// ----- QA Results (per WO, for WO Detail QA Results tab) -----
+// Audit Fix-5b: new data model for SCR-08-02 Tab 6 (QA Results).
+// References 09-QUALITY qa_inspections. 08-PRODUCTION shows the linked
+// CCP results + hold status for the active WO.
+const WO_QA_RESULTS = [
+  { id: "QA-00142", t: "07:32", sample: "LP-9001", test_type: "weight_compliance", target: "450 g ±5%", result: "451.2 g", status: "pass", inspector: "A. Majewska", method: "auto checkweigher" },
+  { id: "QA-00140", t: "07:14", sample: "LP-9001", test_type: "metal_detection", target: "Fe ≤ 2.0mm · NFe ≤ 2.5mm · SS ≤ 3.0mm", result: "no detect", status: "pass", inspector: "scanner", method: "inline MD" },
+  { id: "QA-00139", t: "07:02", sample: "LP-9001", test_type: "protein_pct", target: "≥ 14.0% (LOC-0142 spec)", result: "14.6%", status: "pass", inspector: "J. Dudek", method: "Kjeldahl (lab)" },
+  { id: "QA-00138", t: "06:58", sample: "LP-9001", test_type: "temperature_core", target: "≥ 72°C @ center", result: "74.3°C", status: "pass", inspector: "scanner", method: "probe P-04" },
+  { id: "QA-00137", t: "06:50", sample: "LP-9001", test_type: "allergen_atp_swab", target: "≤ 10 RLU", result: "7 RLU", status: "pass", inspector: "J. Dudek", method: "ATP (Hygiena)" },
+  { id: "QA-00136", t: "06:32", sample: "LP-9001", test_type: "visual_fill", target: "no blister · even seal", result: "1 seal flag", status: "hold", inspector: "A. Majewska", method: "visual", note: "LP-9001 held — seal anomaly; 3 packs out" },
+];
+const WO_QA_SUMMARY = { total: 6, pass: 5, hold: 1, fail: 0, d365Push: "1 pending (QA-00136 resolution required)" };
+
 Object.assign(window, {
   PROD_NAV, LINES, WOS, WO_DETAIL, EVENTS_FEED, OEE_LINES, DOWNTIME, PARETO, SHIFT_CREW, DLQ, SPARK_OEE,
   WASTE_PARETO, WASTE_TREND, WASTE_EVENTS, WASTE_BY_LINE, LINE_DETAIL,
+  DASHBOARD_KPIS, WO_QA_RESULTS, WO_QA_SUMMARY,
 });
