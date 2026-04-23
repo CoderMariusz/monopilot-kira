@@ -45,16 +45,18 @@ const IntegrationsScreen = ({ style }) => {
   }
 
   // Category list (default)
+  const _all = window.SETTINGS_INTEGRATIONS.flatMap(c => c.items);
+  const _connected = _all.filter(i => i.status === "connected").length;
   return (
     <>
-      <PageHead title="Integrations" sub="Connect Monopilot to your ERP, accounting, BI, and shipping tools."
-        actions={<button className="btn btn-secondary">Browse all (16)</button>} />
+      <PageHead title="Integrations" sub="D365 (Dynamics 365), Peppol e-invoicing and Developer API keys. Scope per 02-SETTINGS PRD §4 + §11."
+        actions={<button className="btn btn-secondary">Browse all ({_all.length})</button>} />
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 10, marginBottom: 14 }}>
-        <div className="card" style={{ margin: 0 }}><div className="muted" style={{ fontSize: 11 }}>Connected</div><div style={{ fontSize: 24, fontWeight: 700 }}>6</div></div>
-        <div className="card" style={{ margin: 0 }}><div className="muted" style={{ fontSize: 11 }}>Categories</div><div style={{ fontSize: 24, fontWeight: 700 }}>5</div></div>
+        <div className="card" style={{ margin: 0 }}><div className="muted" style={{ fontSize: 11 }}>Connected</div><div style={{ fontSize: 24, fontWeight: 700 }}>{_connected}</div></div>
+        <div className="card" style={{ margin: 0 }}><div className="muted" style={{ fontSize: 11 }}>Categories</div><div style={{ fontSize: 24, fontWeight: 700 }}>{window.SETTINGS_INTEGRATIONS.length}</div></div>
         <div className="card" style={{ margin: 0 }}><div className="muted" style={{ fontSize: 11 }}>Sync last 24h</div><div style={{ fontSize: 24, fontWeight: 700 }}>1,248</div></div>
-        <div className="card" style={{ margin: 0, borderBottom: "3px solid var(--red)" }}><div className="muted" style={{ fontSize: 11 }}>Failed syncs</div><div style={{ fontSize: 24, fontWeight: 700 }}>2</div></div>
+        <div className="card" style={{ margin: 0, borderBottom: "3px solid var(--red)" }}><div className="muted" style={{ fontSize: 11 }}>D365 DLQ (shipping)</div><div style={{ fontSize: 24, fontWeight: 700 }}>1</div></div>
       </div>
 
       {window.SETTINGS_INTEGRATIONS.map(c => {
@@ -98,16 +100,16 @@ const IntegrationsScreen = ({ style }) => {
         );
       })}
 
-      <Section title="Recent sync activity">
+      <Section title="Recent sync activity" sub="D365 outbox events (shipment.confirmed, wo.confirmation_pushed, cost.posted) + pull (items.imported, bom.imported).">
         <table>
           <thead><tr><th>When</th><th>Integration</th><th>Direction</th><th>Records</th><th>Status</th></tr></thead>
           <tbody>
-            <tr><td className="mono">14:02</td><td>SAP S/4HANA</td><td>Inbound · Materials</td><td className="mono num">142</td><td><span className="badge badge-green">✓ Success</span></td></tr>
-            <tr><td className="mono">13:58</td><td>Xero</td><td>Outbound · Invoices</td><td className="mono num">8</td><td><span className="badge badge-green">✓ Success</span></td></tr>
-            <tr><td className="mono">13:45</td><td>WooCommerce</td><td>Inbound · Orders</td><td className="mono num">23</td><td><span className="badge badge-green">✓ Success</span></td></tr>
-            <tr><td className="mono">12:30</td><td>InPost</td><td>Outbound · Shipments</td><td className="mono num">18</td><td><span className="badge badge-green">✓ Success</span></td></tr>
-            <tr><td className="mono">11:15</td><td>SAP S/4HANA</td><td>Outbound · PO receipts</td><td className="mono num">5</td><td><span className="badge badge-red">✗ Failed · Auth</span></td></tr>
-            <tr><td className="mono">09:00</td><td>Power BI</td><td>Pull · Daily snapshot</td><td className="mono num">—</td><td><span className="badge badge-green">✓ Success</span></td></tr>
+            <tr><td className="mono">14:02</td><td>D365 · ItemEntity</td><td>Inbound · Items (nightly refresh)</td><td className="mono num">142</td><td><span className="badge badge-green">✓ Success</span></td></tr>
+            <tr><td className="mono">13:58</td><td>D365 · BOMVersionEntity</td><td>Inbound · BOMs</td><td className="mono num">28</td><td><span className="badge badge-green">✓ Success</span></td></tr>
+            <tr><td className="mono">13:45</td><td>D365 · ProdJournalName</td><td>Outbound · WO confirmations</td><td className="mono num">12</td><td><span className="badge badge-green">✓ Success</span></td></tr>
+            <tr><td className="mono">12:30</td><td>D365 · SalesOrderEntity</td><td>Outbound · Shipment confirmed</td><td className="mono num">9</td><td><span className="badge badge-green">✓ Success</span></td></tr>
+            <tr><td className="mono">11:15</td><td>D365 · SalesOrderEntity</td><td>Outbound · Shipment confirmed</td><td className="mono num">1</td><td><span className="badge badge-red">✗ Failed · Retry backoff (DLQ)</span></td></tr>
+            <tr><td className="mono">09:00</td><td>D365 · GeneralJournalLineEntity</td><td>Outbound · Cost posting (daily)</td><td className="mono num">18</td><td><span className="badge badge-green">✓ Success</span></td></tr>
           </tbody>
         </table>
       </Section>

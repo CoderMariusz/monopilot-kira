@@ -637,62 +637,149 @@ const EmailVariablesScreen = () => {
 };
 
 // ============================================================
-// SCREEN 10 — SET-100 L1 → L2 → L3 promotion workflow
-// spec: § MODAL-L1-PROMOTION + Flow 2
+// SCREEN — ADMIN-SHP-01 Shipping Override Reasons config
+// spec: 11-SHIPPING PRD §12.7 + 02-SETTINGS §8 (v3.1 bundled delta)
 // ============================================================
-const PromotionsScreen = ({ openModal }) => {
-  const prom = window.SETTINGS_PROMOTIONS;
-  const stages = window.SETTINGS_PROMOTION_STAGES;
-  const [tab, setTab] = React.useState("active");
-
-  const active = prom.filter(p => p.status === "pending" || p.status === "approved" || p.status === "running");
-  const done   = prom.filter(p => p.status === "completed" || p.status === "failed");
-  const list   = tab === "active" ? active : done;
+const ShippingOverrideReasonsScreen = ({ openModal }) => {
+  const rows = window.SETTINGS_SHIP_OVERRIDE_REASONS || [];
+  const rmaCodes = window.SETTINGS_RMA_REASON_CODES || [];
+  const [type, setType] = React.useState("fefo_deviation");
+  const types = [
+    { k: "fefo_deviation",   label: "FEFO deviation" },
+    { k: "expired_lp",       label: "Expired LP" },
+    { k: "quality_override", label: "Quality override" },
+    { k: "short_pick",       label: "Short pick" },
+    { k: "hold_place",       label: "Hold · place" },
+    { k: "hold_release",     label: "Hold · release" },
+    { k: "cancel",           label: "SO cancel" },
+    { k: "reprint",          label: "Label reprint" }
+  ];
+  const list = rows.filter(r => r.type === type);
 
   return (
     <>
-      <PageHead title="L1 → L2 → L3 promotion" sub="Multi-environment promotion of rules, flags, schemas and email templates."
-        actions={<><button className="btn btn-secondary">Promotion docs ↗</button><button className="btn btn-primary" onClick={()=>openModal("promoteL2")}>+ Start promotion</button></>} />
+      <PageHead title="Shipping override reasons" sub="Reason codes per override type. Consumed by Allocation wizard, Pack Close, SO cancel, Reprint flows in 11-SHIPPING. v3.1 delta · reference table."
+        actions={<><button className="btn btn-secondary">Export CSV</button><button className="btn btn-primary" onClick={()=>openModal("refRowEdit", {table:"shipping_override_reasons"})}>+ Add reason</button></>} />
 
-      <div className="alert alert-blue" style={{marginBottom:14, fontSize:12}}>
-        Promotion flows: artefacts move <b>L3 (tenant) → L2 (shared) → L1 (core)</b>. Each hop requires review + diff preview. Referenced by SET-060 flag edit, SET-041 rule edit, SET-090 email template edit.
+      <div className="alert alert-blue" style={{marginBottom:12, fontSize:12}}>
+        ADMIN-SHP-01. Backing table: <code className="mono">shipping_override_reasons</code> (Reference data §8). Each override type resolves to a fixed enum of reason codes. "Other" supports free-text audit note.
       </div>
 
-      <div className="sg-card-grid" style={{marginBottom:14}}>
-        {stages.map(s => (
-          <div key={s.key} className="sg-card" style={{cursor:"default"}}>
-            <div style={{display:"flex", alignItems:"center", gap:8, marginBottom:4}}>
-              <TierBadge tier={s.key}/>
-              <div className="sg-card-title" style={{margin:0}}>{s.label}</div>
+      <div className="sg-card-grid" style={{marginBottom:12}}>
+        {types.map(t => (
+          <div key={t.k}
+               className={"sg-card " + (type === t.k ? "active" : "")}
+               onClick={()=>setType(t.k)}
+               style={{borderColor: type === t.k ? "var(--blue)" : undefined, cursor:"pointer"}}>
+            <div className="sg-card-title">{t.label}</div>
+            <div className="sg-card-desc" style={{marginTop:4}}>
+              {rows.filter(r => r.type === t.k).length} codes
             </div>
-            <div className="sg-card-desc">{s.desc}</div>
           </div>
         ))}
       </div>
 
-      <div style={{display:"flex", gap:8, marginBottom:10}}>
-        <button className={"btn btn-sm " + (tab==="active" ? "btn-primary":"btn-secondary")} onClick={()=>setTab("active")}>Active ({active.length})</button>
-        <button className={"btn btn-sm " + (tab==="done"   ? "btn-primary":"btn-secondary")} onClick={()=>setTab("done")}>History ({done.length})</button>
-      </div>
-
-      <Section title={tab === "active" ? "In-flight promotions" : "Completed / failed promotions"}>
+      <Section title={types.find(t => t.k === type).label + " — reason codes"} sub="Drag to reorder · Edit to rename · Deactivate to hide from new overrides (old audit rows retained).">
         <table>
-          <thead><tr><th>ID</th><th>Artefact</th><th>Direction</th><th>Requested</th><th>By</th><th>Affects</th><th>Status</th><th></th></tr></thead>
+          <thead><tr><th>Code</th><th>Label</th><th>Status</th><th style={{width:160}}></th></tr></thead>
           <tbody>
-            {list.map(p => (
-              <tr key={p.id}>
-                <td className="mono" style={{fontWeight:600}}>{p.id}</td>
-                <td className="mono" style={{fontSize:11}}>{p.artefact}</td>
+            {list.map(r => (
+              <tr key={r.type + "/" + r.code}>
+                <td className="mono" style={{fontWeight:600}}>{r.code}</td>
+                <td>{r.label}</td>
+                <td><span className="badge badge-green" style={{fontSize:9}}>active</span></td>
                 <td>
-                  <TierBadge tier={p.from}/> <span className="muted">→</span> <TierBadge tier={p.to}/>
+                  <button className="btn btn-secondary btn-sm" onClick={()=>openModal("refRowEdit",{table:"shipping_override_reasons", row:r})}>Edit</button>
+                  {" "}
+                  <button className="btn btn-secondary btn-sm" onClick={()=>openModal("deleteRef",{table:"shipping_override_reasons", row:r})}>Deactivate</button>
                 </td>
-                <td className="mono muted" style={{fontSize:11}}>{p.requested}</td>
-                <td className="muted">{p.by}</td>
-                <td style={{fontSize:11, maxWidth:220}} className="muted">{p.affects}</td>
-                <td><StatusPill status={p.status}/></td>
-                <td><button className="btn btn-secondary btn-sm" onClick={()=>openModal("promoteL2", {promotion:p})}>View diff →</button></td>
               </tr>
             ))}
+          </tbody>
+        </table>
+      </Section>
+
+      <Section title="RMA reason codes" sub="Backing table: rma_reason_codes · consumed by 11-SHIPPING RMA Create + QA disposition flows (v3.1 delta).">
+        <table>
+          <thead><tr><th>Code</th><th>Label (EN)</th><th>Label (PL)</th><th>Status</th><th style={{width:120}}></th></tr></thead>
+          <tbody>
+            {rmaCodes.map(r => (
+              <tr key={r.code}>
+                <td className="mono" style={{fontWeight:600}}>{r.code}</td>
+                <td>{r.label_en}</td>
+                <td className="muted">{r.label_pl}</td>
+                <td>{r.active ? <span className="badge badge-green" style={{fontSize:9}}>active</span> : <span className="badge badge-gray" style={{fontSize:9}}>inactive</span>}</td>
+                <td>
+                  <button className="btn btn-secondary btn-sm" onClick={()=>openModal("refRowEdit",{table:"rma_reason_codes", row:r})}>Edit</button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </Section>
+    </>
+  );
+};
+
+// ============================================================
+// SCREEN — ADMIN-SHP-02 D365 DLQ · Shipping view
+// spec: 11-SHIPPING PRD §12.6 (reuse of 08-PROD DLQ filtered by source='shipping')
+// route: /admin/integrations/d365/dlq?source=shipping
+// ============================================================
+const D365DlqShippingScreen = ({ openModal }) => {
+  const sampleDlq = [
+    { id: "outbox-2026-0421-0003", event: "shipment.confirmed", so: "SO-2026-2441", attempts: 5, firstFailed: "2026-04-21 11:18", lastFailed: "2026-04-21 13:14", err: "HTTP 401 · OAuth token expired mid-retry" }
+  ];
+  return (
+    <>
+      <PageHead title="D365 DLQ · Shipping"
+        sub="Dead-letter queue for shipping-scoped outbox events. Reuse of 08-PROD DLQ ops screen filtered by source='shipping'. Route: /admin/integrations/d365/dlq?source=shipping."
+        actions={<><button className="btn btn-secondary">← Back to Integrations</button><button className="btn btn-primary">Retry selected</button></>} />
+
+      <div className="alert alert-amber" style={{marginBottom:12, fontSize:12}}>
+        ADMIN-SHP-02. {sampleDlq.length} event(s) in DLQ (retry exhausted). Manual retry / discard with audit note required. Matches <code className="mono">shipping_outbox_events</code> D-SHP-14.
+      </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 10, marginBottom: 14 }}>
+        <div className="card" style={{ margin: 0 }}><div className="muted" style={{ fontSize: 11 }}>In DLQ</div><div style={{ fontSize: 24, fontWeight: 700 }}>{sampleDlq.length}</div></div>
+        <div className="card" style={{ margin: 0 }}><div className="muted" style={{ fontSize: 11 }}>Last 24h failed</div><div style={{ fontSize: 24, fontWeight: 700 }}>3</div></div>
+        <div className="card" style={{ margin: 0 }}><div className="muted" style={{ fontSize: 11 }}>Last 24h delivered</div><div style={{ fontSize: 24, fontWeight: 700 }}>46</div></div>
+        <div className="card" style={{ margin: 0 }}><div className="muted" style={{ fontSize: 11 }}>Source filter</div><div style={{ fontSize: 14, fontWeight: 700 }}>source = shipping</div></div>
+      </div>
+
+      <Section title="Dead-letter events (shipping scope)" sub="Retry attempts exhausted. Manual intervention required — Admin or ops_admin role only.">
+        <table>
+          <thead><tr><th><input type="checkbox"/></th><th>Event</th><th>Event type</th><th>SO / Shipment</th><th>Attempts</th><th>First failed</th><th>Last failed</th><th>Error</th><th style={{width:160}}></th></tr></thead>
+          <tbody>
+            {sampleDlq.map(d => (
+              <tr key={d.id}>
+                <td><input type="checkbox"/></td>
+                <td className="mono" style={{fontSize:11}}>{d.id}</td>
+                <td className="mono" style={{fontSize:11}}>{d.event}</td>
+                <td className="mono" style={{fontSize:11, color:"var(--blue)"}}>{d.so}</td>
+                <td className="num mono">{d.attempts}/5</td>
+                <td className="mono" style={{fontSize:11}}>{d.firstFailed}</td>
+                <td className="mono" style={{fontSize:11}}>{d.lastFailed}</td>
+                <td style={{fontSize:11}} className="muted">{d.err}</td>
+                <td>
+                  <button className="btn btn-primary btn-sm">Retry</button>
+                  {" "}
+                  <button className="btn btn-secondary btn-sm">Inspect payload</button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </Section>
+
+      <Section title="Retry log (last 12 hours)">
+        <table>
+          <thead><tr><th>When</th><th>Event</th><th>Attempt</th><th>Outcome</th></tr></thead>
+          <tbody>
+            <tr><td className="mono">13:14</td><td className="mono" style={{fontSize:11}}>shipment.confirmed · SO-2026-2441</td><td className="num mono">5</td><td><span className="badge badge-red">✗ 401 Unauthorized · → DLQ</span></td></tr>
+            <tr><td className="mono">12:48</td><td className="mono" style={{fontSize:11}}>shipment.confirmed · SO-2026-2447</td><td className="num mono">1</td><td><span className="badge badge-green">✓ Delivered</span></td></tr>
+            <tr><td className="mono">12:30</td><td className="mono" style={{fontSize:11}}>shipment.confirmed · SO-2026-2446</td><td className="num mono">1</td><td><span className="badge badge-green">✓ Delivered</span></td></tr>
+            <tr><td className="mono">11:18</td><td className="mono" style={{fontSize:11}}>shipment.confirmed · SO-2026-2441</td><td className="num mono">1</td><td><span className="badge badge-amber">↻ 429 Throttled · retrying</span></td></tr>
           </tbody>
         </table>
       </Section>
@@ -706,5 +793,5 @@ Object.assign(window, {
   RulesRegistryScreen, RuleDetailScreen,
   FlagsAdminScreen, SchemaBrowserScreen,
   ReferenceDataScreen, EmailTemplatesScreen, EmailVariablesScreen,
-  PromotionsScreen
+  ShippingOverrideReasonsScreen, D365DlqShippingScreen
 });

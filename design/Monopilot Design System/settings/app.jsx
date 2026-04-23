@@ -30,7 +30,7 @@ const AuditLogScreen = () => (
           <tr><td className="mono">14:22</td><td>K. Nowak</td><td>Updated recipe</td><td>NPD-024 · v0.3</td><td className="mono muted">192.168.1.42</td></tr>
           <tr><td className="mono">13:58</td><td>A. Zając</td><td>Approved user invite</td><td>t.kowalski@forz.pl</td><td className="mono muted">192.168.1.88</td></tr>
           <tr><td className="mono">11:45</td><td>M. Wiśniewska</td><td>Paired device</td><td>DEV-005 · Line 3</td><td className="mono muted">192.168.1.66</td></tr>
-          <tr><td className="mono">09:12</td><td>System</td><td>Sync failed</td><td>SAP S/4HANA</td><td className="mono muted">—</td></tr>
+          <tr><td className="mono">09:12</td><td>System</td><td>Sync failed</td><td>D365 · ItemEntity</td><td className="mono muted">—</td></tr>
           <tr><td className="mono">08:30</td><td>A. Zając</td><td>Enabled feature flag</td><td>OEE Analytics</td><td className="mono muted">192.168.1.88</td></tr>
         </tbody>
       </table>
@@ -75,9 +75,11 @@ const App = () => {
     const adminOnly = ["profile", "sites", "warehouses", "shifts", "products", "boms", "partners", "units",
                        "users", "security", "devices", "notifications", "features", "integrations",
                        "labels", "label-editor", "audit",
+                       // Onboarding (admin-only new-org setup)
+                       "onboarding",
                        // Admin group
-                       "d365-conn", "d365-mapping", "rules", "rule-detail", "flags", "schema",
-                       "reference", "email-config", "email-vars", "promotions", "gallery"];
+                       "d365-conn", "d365-mapping", "d365-dlq", "rules", "rule-detail", "flags", "schema",
+                       "reference", "email-config", "email-vars", "ship-override-reasons", "gallery"];
     if (role === "user" && adminOnly.includes(s) && s !== "my-profile" && s !== "my-notifications") {
       return (
         <>
@@ -115,7 +117,9 @@ const App = () => {
       case "reference":      return <ReferenceDataScreen openModal={openModal} />;
       case "email-config":   return <EmailTemplatesScreen openModal={openModal} />;
       case "email-vars":     return <EmailVariablesScreen />;
-      case "promotions":     return <PromotionsScreen openModal={openModal} />;
+      case "ship-override-reasons": return <ShippingOverrideReasonsScreen openModal={openModal} />;
+      case "d365-dlq":       return <D365DlqShippingScreen openModal={openModal} />;
+      case "onboarding":     return <OnboardingWizardScreen onNav={nav} />;
       case "gallery":        return <ModalGallery onNav={nav} />;
       case "my-profile":     return <MyProfileScreen />;
       case "my-notifications": return <MyNotificationsScreen />;

@@ -162,7 +162,51 @@ window.SETTINGS_REF_TABLES = [
   { code: "countries",            name: "Country ISO codes",         marker: "UNIVERSAL",   rows: 28,  updated: "2025-06-12", desc: "ISO 3166-1 alpha-2. Consumed by Partners + Shipping." },
   { code: "pack_sizes",           name: "Pack sizes",                marker: "FORZA-CONFIG", rows: 18, updated: "2026-03-02", desc: "Forza-specific package sizes (regex ^\\d+x\\d+cm$)." },
   { code: "processes",            name: "Processes",                 marker: "FORZA-CONFIG", rows: 7,  updated: "2025-12-09", desc: "Single-letter process codes A–Z." },
-  { code: "email_config",         name: "Email config",              marker: "UNIVERSAL",   rows: 6,   updated: "2026-04-10", desc: "Trigger → recipients + template. Used by SET-090." }
+  { code: "email_config",         name: "Email config",              marker: "UNIVERSAL",   rows: 6,   updated: "2026-04-10", desc: "Trigger → recipients + template. Used by SET-090." },
+  { code: "shipping_override_reasons", name: "Shipping override reasons", marker: "FORZA-CONFIG", rows: 28, updated: "2026-04-21", desc: "Reason codes per override type (FEFO deviation, expired LP, quality override, short pick, partial, hold, cancel, reprint). v3.1 delta consumed by 11-SHIPPING." },
+  { code: "rma_reason_codes",     name: "RMA reason codes",          marker: "FORZA-CONFIG", rows: 9,   updated: "2026-04-19", desc: "Return merchandise reasons (damaged, wrong item, quality issue, overshipment, etc.). v3.1 delta consumed by 11-SHIPPING RMA." }
+];
+
+// Shipping override reasons rows (v3.1 bundled delta — 02-SETTINGS §8 + 11-SHIPPING §7)
+window.SETTINGS_SHIP_OVERRIDE_REASONS = [
+  { type: "fefo_deviation",   code: "physical_accessibility",   label: "Physical accessibility" },
+  { type: "fefo_deviation",   code: "batch_exhaustion",          label: "Batch exhaustion" },
+  { type: "fefo_deviation",   code: "qa_release",                label: "QA release requirement" },
+  { type: "fefo_deviation",   code: "customer_requested",        label: "Customer requested" },
+  { type: "fefo_deviation",   code: "other",                     label: "Other (free text)" },
+  { type: "expired_lp",       code: "supervisor_direction",      label: "Supervisor direction" },
+  { type: "expired_lp",       code: "customer_requested",        label: "Customer requested (expired LP)" },
+  { type: "expired_lp",       code: "sample_use",                label: "Sample use only" },
+  { type: "quality_override", code: "quality_override_approved", label: "Quality override approved" },
+  { type: "quality_override", code: "supervisor_direction",      label: "Supervisor direction" },
+  { type: "short_pick",       code: "insufficient_stock_at_pick",label: "Insufficient stock at pick" },
+  { type: "short_pick",       code: "lp_damaged",                label: "LP damaged" },
+  { type: "short_pick",       code: "lp_missing",                label: "LP missing" },
+  { type: "hold_place",       code: "credit_limit_exceeded",     label: "Credit limit exceeded" },
+  { type: "hold_place",       code: "pending_allergen_review",   label: "Pending allergen review" },
+  { type: "hold_place",       code: "qa_open_non_conformance",   label: "QA open non-conformance" },
+  { type: "hold_release",     code: "credit_cleared",            label: "Credit cleared" },
+  { type: "hold_release",     code: "allergen_cleared",          label: "Allergen cleared" },
+  { type: "hold_release",     code: "qa_cleared",                label: "QA cleared" },
+  { type: "cancel",           code: "customer_request",          label: "Customer request" },
+  { type: "cancel",           code: "duplicate_order",           label: "Duplicate order" },
+  { type: "cancel",           code: "out_of_stock",              label: "Out of stock" },
+  { type: "reprint",          code: "damage",                    label: "Damage" },
+  { type: "reprint",          code: "lost",                      label: "Lost" },
+  { type: "reprint",          code: "reissue",                   label: "Reissue" }
+];
+
+// RMA reason codes (v3.1 bundled delta)
+window.SETTINGS_RMA_REASON_CODES = [
+  { code: "damaged_in_transit",   label_en: "Damaged in transit",    label_pl: "Uszkodzone w transporcie", active: true },
+  { code: "wrong_item",           label_en: "Wrong item",             label_pl: "Niewłaściwy produkt",      active: true },
+  { code: "quality_issue",        label_en: "Quality issue",          label_pl: "Problem jakościowy",       active: true },
+  { code: "overshipment",         label_en: "Overshipment",           label_pl: "Nadmierna wysyłka",        active: true },
+  { code: "short_shipment",       label_en: "Short shipment",         label_pl: "Niedoszłe dostawy",        active: true },
+  { code: "expired_at_receipt",   label_en: "Expired on receipt",     label_pl: "Przeterminowane przy odbiorze", active: true },
+  { code: "labelling_error",      label_en: "Labelling error",        label_pl: "Błąd etykietowania",       active: true },
+  { code: "customer_refused",     label_en: "Customer refused",       label_pl: "Klient odmówił",           active: true },
+  { code: "other",                label_en: "Other (free text)",      label_pl: "Inne (tekst dowolny)",     active: true }
 ];
 
 window.SETTINGS_ALLERGENS = [
