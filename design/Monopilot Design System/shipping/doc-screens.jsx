@@ -492,7 +492,7 @@ const ShRmas = ({ onNav, openModal }) => (
       <div>
         <div className="breadcrumb"><a onClick={()=>onNav("dashboard")}>Shipping</a> · Returns (RMA)</div>
         <h1 className="page-title">Return merchandise authorisations</h1>
-        <div className="muted" style={{fontSize:12}}>{SH_RMAS.length} RMAs · P1: create + list · P2: full QA disposition, re-stock to LP, credit note (EPIC 11-E)</div>
+        <div className="muted" style={{fontSize:12}}>{SH_RMAS.length} RMAs · P1: create + list + QA disposition (restock/scrap/quality_hold) + credit note · Scanner-assisted receive via 06-SCANNER-P1</div>
       </div>
       <div className="row-flex">
         <button className="btn btn-primary btn-sm">＋ Create RMA</button>
@@ -501,7 +501,7 @@ const ShRmas = ({ onNav, openModal }) => (
 
     <div className="alert-blue alert-box" style={{marginBottom:12, fontSize:12}}>
       <span>ⓘ</span>
-      <div>RMA disposition (Pass / Reject / Quarantine), credit note generation, and re-stocking to LP (05-WAREHOUSE) are Phase 2 features.</div>
+      <div><b>P1 Must (PRD §4.1 #7):</b> RMA QA disposition (<code className="mono">restock</code> / <code className="mono">scrap</code> / <code className="mono">quality_hold</code>), credit note generation, and re-stock to LP (05-WAREHOUSE) are all P1. Full RMA lifecycle: <code className="mono">pending → approved → receiving → received → processed → closed</code>.</div>
     </div>
 
     <div className="scanner-card" style={{marginBottom:12}}>
@@ -514,11 +514,13 @@ const ShRmas = ({ onNav, openModal }) => (
       <button className="btn btn-primary btn-sm">Open scanner →</button>
     </div>
 
-    <div className="tabs-bar">
+    <div className="tabs-bar" title="rma_requests.status enum — PRD §9.1">
       <button className="tab-btn on">All <span className="count">{SH_RMAS.length}</span></button>
-      <button className="tab-btn">Open <span className="count">{SH_RMAS.filter(r=>r.status==="Open").length}</span></button>
-      <button className="tab-btn">In Transit <span className="count">{SH_RMAS.filter(r=>r.status==="In Transit").length}</span></button>
+      <button className="tab-btn">Pending <span className="count">{SH_RMAS.filter(r=>r.status==="Pending"||r.status==="Open").length}</span></button>
+      <button className="tab-btn">Approved <span className="count">{SH_RMAS.filter(r=>r.status==="Approved").length}</span></button>
+      <button className="tab-btn">Receiving <span className="count">{SH_RMAS.filter(r=>r.status==="Receiving"||r.status==="In Transit").length}</span></button>
       <button className="tab-btn">Received <span className="count">{SH_RMAS.filter(r=>r.status==="Received").length}</span></button>
+      <button className="tab-btn">Processed <span className="count">{SH_RMAS.filter(r=>r.status==="Processed").length}</span></button>
       <button className="tab-btn">Closed <span className="count">{SH_RMAS.filter(r=>r.status==="Closed").length}</span></button>
     </div>
 
@@ -534,10 +536,12 @@ const ShRmas = ({ onNav, openModal }) => (
               <td><span className="badge badge-gray" style={{fontSize:9}}>{r.reason}</span></td>
               <td className="num mono">{r.lines}</td>
               <td>
-                {r.status === "Open"       && <span className="badge badge-amber" style={{fontSize:9}}>Open</span>}
-                {r.status === "In Transit" && <span className="badge badge-blue" style={{fontSize:9}}>In Transit</span>}
-                {r.status === "Received"   && <span className="badge badge-green" style={{fontSize:9}}>Received</span>}
-                {r.status === "Closed"     && <span className="badge badge-gray" style={{fontSize:9}}>Closed</span>}
+                {(r.status === "Open" || r.status === "Pending")       && <span className="badge badge-amber" style={{fontSize:9}}>Pending</span>}
+                {r.status === "Approved"                                && <span className="badge badge-blue"  style={{fontSize:9}}>Approved</span>}
+                {(r.status === "In Transit" || r.status === "Receiving") && <span className="badge badge-blue"  style={{fontSize:9}}>Receiving</span>}
+                {r.status === "Received"                                && <span className="badge badge-green" style={{fontSize:9}}>Received</span>}
+                {r.status === "Processed"                               && <span className="badge badge-green" style={{fontSize:9}}>Processed</span>}
+                {r.status === "Closed"                                  && <span className="badge badge-gray"  style={{fontSize:9}}>Closed</span>}
               </td>
               <td className="mono" style={{fontSize:11}}>{r.created}</td>
               <td>
