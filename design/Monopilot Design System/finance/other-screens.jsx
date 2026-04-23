@@ -451,7 +451,15 @@ const FinSettings = ({ onNav, openModal }) => {
       <div className="card">
         <div className="card-head"><h3 className="card-title">7. Fiscal Period Lock <span className="badge badge-gray" style={{fontSize:9, marginLeft:6}}>Phase 2</span></h3></div>
         <div className="muted" style={{fontSize:12}}>Locking a fiscal period prevents new cost records from being created or modified for that period.</div>
-        <button className="btn btn-danger btn-sm" style={{marginTop:10}} onClick={()=>openModal("periodLock")}>Lock Period (preview)</button>
+        {/* TUNING-PATTERN.md §3.6 — Close period fans out to multiple variances
+            across lines (multi-object). DryRun button shows per-line impact
+            preview before the destructive commit in PeriodLockModal. */}
+        <div className="row-flex" style={{marginTop:10, gap:8}}>
+          <DryRunButton onClick={()=>openModal("periodLock", { dryRun: true })}
+            label="Preview variance impact"
+            title="Show the list of open WOs, pending postings and variances affected by closing this period before committing."/>
+          <button className="btn btn-danger btn-sm" onClick={()=>openModal("periodLock")}>Lock Period</button>
+        </div>
       </div>
     </>
   );

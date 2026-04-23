@@ -117,6 +117,7 @@ const FinStandardCosts = ({ role, onNav, openModal }) => {
               <th style={{textAlign:"right"}}>Overhead</th>
               <th style={{textAlign:"right"}}>Total</th>
               <th>UOM</th>
+              <th>Trend (8 wk)</th>
               <th>Eff. From</th>
               <th>Eff. To</th>
               <th>Status</th>
@@ -139,6 +140,21 @@ const FinStandardCosts = ({ role, onNav, openModal }) => {
                     <td className="money">{fmtMoney(r.oh)}</td>
                     <td className="money" style={{fontWeight:600}}>{fmtMoney(r.total)}</td>
                     <td className="mono" style={{fontSize:11}}>{r.uom}</td>
+                    <td>
+                      {/* TUNING-PATTERN.md §3.1 — 8-week trend per standard cost.
+                          Derived from status/record id (data.jsx frozen) via
+                          deriveRunHistory; per-cell title shows week + mock value
+                          so the strip reads "Week N · £ X". */}
+                      <RunStrip
+                        outcomes={deriveRunHistory({ id: r.id, status: r.status === "active" ? "ok" : r.status === "draft" ? "warning" : r.status === "pending" ? "warning" : "ok" })
+                          .map((tone, i, arr) => {
+                            const wk = arr.length - i;
+                            return { tone, title: `Week -${wk} · ${fmtMoney(r.total)}` };
+                          })}
+                        max={8}
+                        title={`${r.itemCode} · last 8 weeks`}
+                      />
+                    </td>
                     <td className="mono" style={{fontSize:11}}>{r.effFrom}</td>
                     <td className="mono" style={{fontSize:11, color: r.effTo ? "var(--text)" : "var(--green-700)"}}>{r.effTo || "Open"}</td>
                     <td><StdStatus s={r.status}/></td>
@@ -153,7 +169,7 @@ const FinStandardCosts = ({ role, onNav, openModal }) => {
                   </tr>
                   {isOpen && (
                     <tr>
-                      <td colSpan={13} className="sub-table" style={{background:"var(--gray-050)", padding:"12px 18px"}}>
+                      <td colSpan={14} className="sub-table" style={{background:"var(--gray-050)", padding:"12px 18px"}}>
                         <div style={{display:"grid", gridTemplateColumns:"1fr 1fr", gap:14}}>
                           <div>
                             <div className="fin-section-title">Approval record</div>

@@ -252,11 +252,25 @@ const FinFxRates = ({ role, onNav, openModal }) => {
 
 // ---------- FIN-007 Material Variance ----------
 const FinVarMaterial = ({ onNav, onOpenWo, openModal }) => {
+  const [varTab, setVarTab] = React.useState("all");
   const totals = {
     total: FIN_VAR_MATERIAL.reduce((a, r) => a + r.totalVar, 0),
     price: FIN_VAR_MATERIAL.reduce((a, r) => a + r.priceDelta * r.actualQty, 0),
     usage: FIN_VAR_MATERIAL.reduce((a, r) => a + r.usageDelta * r.stdUnit, 0),
   };
+
+  // TUNING-PATTERN.md §3.2 — TabsCounted for Variance screen
+  // All / Favorable / Unfavorable / Critical (|pct| >= 10%).
+  const favCount  = FIN_VAR_MATERIAL.filter(r => r.totalVar < 0).length;
+  const unfCount  = FIN_VAR_MATERIAL.filter(r => r.totalVar > 0 && Math.abs(r.variancePct) < 10).length;
+  const critCount = FIN_VAR_MATERIAL.filter(r => r.totalVar > 0 && Math.abs(r.variancePct) >= 10).length;
+  const filterByTab = (r) => {
+    if (varTab === "favorable")   return r.totalVar < 0;
+    if (varTab === "unfavorable") return r.totalVar > 0 && Math.abs(r.variancePct) < 10;
+    if (varTab === "critical")    return r.totalVar > 0 && Math.abs(r.variancePct) >= 10;
+    return true;
+  };
+  const visible = FIN_VAR_MATERIAL.filter(filterByTab);
 
   return (
     <>
@@ -269,6 +283,20 @@ const FinVarMaterial = ({ onNav, onOpenWo, openModal }) => {
         <div className="row-flex">
           <button className="btn btn-secondary btn-sm" onClick={()=>openModal("exportReport", { name: "Material Variance" })}>⇪ Export CSV</button>
         </div>
+      </div>
+
+      <div style={{marginBottom:10}}>
+        <TabsCounted
+          current={varTab}
+          onChange={setVarTab}
+          ariaLabel="Filter variance rows"
+          tabs={[
+            { key: "all",         label: "All",          count: FIN_VAR_MATERIAL.length, tone: "neutral" },
+            { key: "favorable",   label: "Favorable",    count: favCount,  tone: "ok" },
+            { key: "unfavorable", label: "Unfavorable",  count: unfCount,  tone: "warn" },
+            { key: "critical",    label: "Critical",     count: critCount, tone: "bad" },
+          ]}
+        />
       </div>
 
       <div className="filter-bar">
@@ -323,7 +351,13 @@ const FinVarMaterial = ({ onNav, onOpenWo, openModal }) => {
             </tr>
           </thead>
           <tbody>
-            {FIN_VAR_MATERIAL.map(r => (
+            {visible.length === 0 && (
+              <tr><td colSpan={13} style={{padding:0}}>
+                <EmptyState icon="📊" title="No variances in this category"
+                  body="Try a different tab or widen filters."/>
+              </td></tr>
+            )}
+            {visible.map(r => (
               <tr key={r.itemCode}>
                 <td className="mono" style={{fontWeight:600}}>{r.itemCode}</td>
                 <td style={{fontSize:12}}>{r.itemName}</td>
