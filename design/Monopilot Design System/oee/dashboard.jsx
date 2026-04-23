@@ -2,10 +2,12 @@
 // Route: /oee/summary
 // Default date: yesterday (OQ-OEE-10). Tabs: OEE Summary / Six Big Losses / Changeover Analysis.
 
-const OeeSummary = ({ role, onNav, openModal, onPickLine }) => {
+const OeeSummary = ({ role, onNav, openModal, onPickLine, initialTab }) => {
   const [date, setDate] = React.useState("2026-04-20"); // default yesterday
   const [lineFilter, setLineFilter] = React.useState("all");
-  const [tab, setTab] = React.useState("summary"); // summary | losses | changeover
+  // Fix-2 audit §B drift: `initialTab` lets the old `losses` route deep-link into the
+  // Six Big Losses tab within the canonical summary screen (PRD §4.1 #9).
+  const [tab, setTab] = React.useState(initialTab || "summary"); // summary | losses | changeover
   const [sort, setSort] = React.useState({ col: "oee", dir: "desc" });
 
   const kpis = SUMMARY_KPIS_TODAY;

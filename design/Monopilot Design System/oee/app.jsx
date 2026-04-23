@@ -19,7 +19,10 @@ const OeeApp = () => {
     case "heatmap":      content = <OeeHeatmap       onNav={setScreen} openModal={openModal} onPickLine={onPickLine}/>; break;
     case "line":         content = <OeeLineTrend     role={role} onNav={setScreen} openModal={openModal} lineId={lineId} setLineId={setLineId}/>; break;
     case "pareto":       content = <OeePareto        onNav={setScreen} openModal={openModal}/>; break;
-    case "losses":       content = <OeeLosses        onNav={setScreen} openModal={openModal}/>; break;
+    // Fix-2 audit §B drift: Six Big Losses is a TAB within OeeSummary (PRD §4.1 #9), not a
+    // standalone route. The `losses` key now redirects to summary with the losses tab
+    // pre-selected, so deep links keep working without duplicating navigation.
+    case "losses":       content = <OeeSummary       role={role} onNav={setScreen} openModal={openModal} onPickLine={onPickLine} initialTab="losses"/>; break;
     case "changeover":   content = <OeeChangeover    onNav={setScreen} openModal={openModal}/>; break;
     case "availability": content = <OeeAvailability  onNav={setScreen} openModal={openModal} onPickLine={onPickLine}/>; break;
     case "performance":  content = <OeePerformance   onNav={setScreen} onPickLine={onPickLine}/>; break;

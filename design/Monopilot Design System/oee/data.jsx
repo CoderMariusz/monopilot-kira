@@ -10,7 +10,9 @@ const OEE_NAV = [
   ]},
   { group: "Loss analysis", items: [
     { key: "pareto",    label: "Downtime Pareto",  ic: "▬" },
-    { key: "losses",    label: "Six Big Losses",   ic: "▤" },
+    // Fix-2 audit §B drift: Six Big Losses lives as a TAB inside Daily Summary (PRD §4.1 #9).
+    // The standalone entry was removed to avoid two navigation paths to the same content.
+    // Deep links to `?screen=losses` still resolve (see app.jsx case "losses").
     { key: "changeover",label: "Changeover",       ic: "⇄", count: "7" },
   ]},
   { group: "Component deep-dive", items: [
