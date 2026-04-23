@@ -1,5 +1,26 @@
 // ============ SCR-07-04 — Scheduler Run History ============
 
+// Map scheduler run status → sparkline tone (per-cell RunStrip tone).
+const runStatusTone = (s) => (
+  s === "failed" ? "bad" :
+  s === "partial" ? "warn" :
+  s === "preview" ? "info" :
+  s === "converged" ? "ok" : "empty"
+);
+
+// Derive 8-cell per-scenario outcomes from a scenario's run history.
+// PEXT_RUNS is ordered newest-first → reverse tail so the right-most cell
+// is the most recent run. Each cell carries `{tone, title}` for hover tip.
+const scenarioRunStrip = (scenarioKey) => {
+  const runs = PEXT_RUNS
+    .filter(r => (scenarioKey === "__all__" ? true : r.id === scenarioKey))
+    .slice(-8);
+  return runs.map(r => ({
+    tone: runStatusTone(r.status),
+    title: `${r.id} · ${r.started} · ${r.status}${r.util ? " " + r.util.toFixed(1) + "%" : ""}`,
+  }));
+};
+
 const PextRunHistory = ({ role, onNav, openModal }) => {
   const [typeFilter, setTypeFilter] = React.useState("all");
   const [statusFilter, setStatusFilter] = React.useState("all");
@@ -9,6 +30,17 @@ const PextRunHistory = ({ role, onNav, openModal }) => {
     (typeFilter === "all" || r.type === typeFilter) &&
     (statusFilter === "all" || r.status === statusFilter)
   );
+
+  // GHA auto-expand: failed + partial + running rows default-expanded; others
+  // start collapsed (compact one-liner). Click chevron to toggle.
+  const initialExpand = {};
+  rows.forEach(r => {
+    if (r.status === "failed" || r.status === "partial" || r.status === "running") {
+      initialExpand[r.id] = true;
+    }
+  });
+  const [expanded, setExpanded] = React.useState(initialExpand);
+  const toggleRow = (id) => setExpanded(m => ({ ...m, [id]: !m[id] }));
 
   if (selectedRun) {
     return <PextRunDetail run={selectedRun} onBack={()=>setSelectedRun(null)} onNav={onNav}/>;
@@ -61,10 +93,19 @@ const PextRunHistory = ({ role, onNav, openModal }) => {
         <button className="clear-all">Clear</button>
       </div>
 
+      {/* §3.1 RunStrip summary — aggregate trend across all filtered runs */}
+      <div className="card" style={{padding:"10px 14px", marginBottom:10, display:"flex", alignItems:"center", gap:12}}>
+        <span className="muted" style={{fontSize:11, textTransform:"uppercase", letterSpacing:"0.04em"}}>Recent runs trend</span>
+        <RunStrip outcomes={scenarioRunStrip("__all__")} max={8} title="Last 8 scheduler runs"/>
+        <span className="spacer" style={{flex:1}}></span>
+        <span className="muted" style={{fontSize:11}}>Failed / partial / running rows auto-expanded (GHA)</span>
+      </div>
+
       <div className="card" style={{padding:0}}>
         <table>
           <thead>
             <tr>
+              <th style={{width:22}}></th>
               <th>Run ID</th>
               <th>Initiated</th>
               <th>Horizon</th>
@@ -74,6 +115,7 @@ const PextRunHistory = ({ role, onNav, openModal }) => {
               <th>Overrides</th>
               <th>CO total</th>
               <th>Util avg</th>
+              <th>Trend</th>
               <th>Status</th>
               <th>Actions</th>
             </tr>
@@ -82,30 +124,74 @@ const PextRunHistory = ({ role, onNav, openModal }) => {
             {rows.map(r => {
               const rowCls = "runhist-row " + (r.status === "failed" ? "failed" : r.status === "partial" ? "partial" : r.status === "preview" ? "preview" : "converged");
               const durCls = r.dur === 0 ? "muted" : r.dur < 60 ? "" : r.dur < 120 ? "exp-amber" : "exp-red";
+              const isOpen = !!expanded[r.id];
+              // Per-run synthetic trend: pad the scenario's tone out to 8 cells so every
+              // row gets a consistent <RunStrip/> (TUNING-PATTERN.md §3.1 per-cell title).
+              const rowCells = (() => {
+                const base = Array.from({length: 7}, (_, i) => ({
+                  tone: "ok",
+                  title: `Prev run #${i+1} · converged`,
+                }));
+                base.push({
+                  tone: runStatusTone(r.status),
+                  title: `${r.id} · ${r.started} · ${r.status} · ${r.wos || 0} WOs`,
+                });
+                return base;
+              })();
               return (
-                <tr key={r.id} className={rowCls} onClick={()=>setSelectedRun(r)}>
-                  <td className="mono" style={{fontWeight:600, color:"var(--blue)"}}>{r.id}</td>
-                  <td>
-                    <div className="mono" style={{fontSize:11}}>{r.started}</div>
-                    <div style={{fontSize:10, color:"var(--muted)"}}>by {r.user}</div>
-                  </td>
-                  <td className="mono">{r.horizon}</td>
-                  <td className="mono">{r.lines}</td>
-                  <td className={"mono " + durCls}>{r.dur === 0 ? "—" : r.dur + "s"}</td>
-                  <td className="num mono">{r.wos || "—"}</td>
-                  <td className="num mono">{r.overrides}</td>
-                  <td className="mono">{r.coMinutes || "—"} min</td>
-                  <td className="mono">{r.util ? r.util.toFixed(1) + "%" : "—"}</td>
-                  <td>
-                    <RunStatus s={r.status}/>
-                    {r.fallback && <div><span className="badge badge-amber" style={{fontSize:9, marginTop:3}}>v1 fallback</span></div>}
-                    {r.superseded && <div><span className="badge badge-gray" style={{fontSize:9, marginTop:3}}>Superseded</span></div>}
-                  </td>
-                  <td>
-                    <button className="btn btn-sm btn-secondary" onClick={(e)=>{e.stopPropagation(); setSelectedRun(r);}}>View</button>{" "}
-                    <button className="btn btn-sm btn-ghost" disabled={r.status === "failed" || role !== "Planner"} onClick={(e)=>{e.stopPropagation(); openModal("rerunConfirm", { run: r });}}>Re-run</button>
-                  </td>
-                </tr>
+                <React.Fragment key={r.id}>
+                  <tr className={rowCls + (isOpen ? " open" : "")} onClick={()=>setSelectedRun(r)}>
+                    <td onClick={e=>{e.stopPropagation(); toggleRow(r.id);}} style={{cursor:"pointer", textAlign:"center", color:"var(--muted)"}}
+                        title={isOpen ? "Collapse" : "Expand details"}>
+                      <span className="runhist-caret">{isOpen ? "▾" : "▸"}</span>
+                    </td>
+                    <td className="mono" style={{fontWeight:600, color:"var(--blue)"}}>{r.id}</td>
+                    <td>
+                      <div className="mono" style={{fontSize:11}}>{r.started}</div>
+                      <div style={{fontSize:10, color:"var(--muted)"}}>by {r.user}</div>
+                    </td>
+                    <td className="mono">{r.horizon}</td>
+                    <td className="mono">{r.lines}</td>
+                    <td className={"mono " + durCls}>{r.dur === 0 ? "—" : r.dur + "s"}</td>
+                    <td className="num mono">{r.wos || "—"}</td>
+                    <td className="num mono">{r.overrides}</td>
+                    <td className="mono">{r.coMinutes || "—"} min</td>
+                    <td className="mono">{r.util ? r.util.toFixed(1) + "%" : "—"}</td>
+                    <td><RunStrip outcomes={rowCells} max={8} title={`Scenario ${r.id} · trailing 8 runs`}/></td>
+                    <td>
+                      <RunStatus s={r.status}/>
+                      {r.fallback && <div><span className="badge badge-amber" style={{fontSize:9, marginTop:3}}>v1 fallback</span></div>}
+                      {r.superseded && <div><span className="badge badge-gray" style={{fontSize:9, marginTop:3}}>Superseded</span></div>}
+                    </td>
+                    <td>
+                      <button className="btn btn-sm btn-secondary" onClick={(e)=>{e.stopPropagation(); setSelectedRun(r);}}>View</button>{" "}
+                      <button className="btn btn-sm btn-ghost" disabled={r.status === "failed" || role !== "Planner"} onClick={(e)=>{e.stopPropagation(); openModal("rerunConfirm", { run: r });}}>Re-run</button>
+                    </td>
+                  </tr>
+                  {isOpen && (
+                    <tr className={"runhist-row-expand " + rowCls} onClick={e=>e.stopPropagation()}>
+                      <td></td>
+                      <td colSpan={12} style={{background:"var(--surface-2, #f1f5f9)", fontSize:11, padding:"8px 12px"}}>
+                        <div style={{display:"flex", gap:16, flexWrap:"wrap"}}>
+                          <div><b>UUID:</b> <span className="mono" style={{fontSize:10}}>{r.uuid}</span></div>
+                          <div><b>Type:</b> <span className="mono">{r.type}</span></div>
+                          {r.expiresAt && <div><b>Expires:</b> <span className="mono">{r.expiresAt}</span></div>}
+                          {r.note && <div style={{flex:1, minWidth:200}}><b>Note:</b> {r.note}</div>}
+                        </div>
+                        {r.status === "failed" && (
+                          <div className="alert-red alert-box" style={{marginTop:6, fontSize:11}}>
+                            <span>✕</span><div><b>Failed.</b> Click row to open Run Detail and inspect solver error trace.</div>
+                          </div>
+                        )}
+                        {r.status === "partial" && (
+                          <div className="alert-amber alert-box" style={{marginTop:6, fontSize:11}}>
+                            <span>⚠</span><div><b>Partial schedule.</b> Some WOs unscheduled — see detail.</div>
+                          </div>
+                        )}
+                      </td>
+                    </tr>
+                  )}
+                </React.Fragment>
               );
             })}
           </tbody>
