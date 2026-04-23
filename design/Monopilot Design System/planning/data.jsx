@@ -3,6 +3,7 @@
 const PLAN_NAV = [
   { group: "Operations", items: [
     { key: "dashboard", label: "Dashboard", ic: "◆", hero: true },
+    { key: "suppliers", label: "Suppliers", ic: "◫", count: "6" },
     { key: "pos", label: "Purchase Orders", ic: "⇪", count: "42" },
     { key: "tos", label: "Transfer Orders", ic: "⇌", count: "11" },
   ]},
@@ -21,6 +22,51 @@ const PLAN_NAV = [
     { key: "gallery",  label: "Modal gallery", ic: "▣" },
   ]},
 ];
+
+// ----- Supplier master (Fix-2: PRD §6.1 / §6.6 Must Have, FR-PLAN-001/002/003) -----
+// Mirrors supplierCode values already used inline in PO screens so cross-links resolve.
+const PLAN_SUPPLIERS = [
+  { id: "SUP-0012", code: "SUP-0012", name: "Agro-Fresh Ltd.",      country: "GB", currency: "GBP", paymentTerms: "Net 30", email: "orders@agrofresh.co.uk",     phone: "+44 20 7946 0891", leadTime: 4, rating: 4.5, active: true,  d365Sync: "synced",   d365Id: "V-D365-SUP-0012", lastSync: "2026-04-21 02:00", openPOs: 3, ytdSpend: 48120, defaultProducts: 7,  certifications: ["BRC","IFS"],       notes: "Primary RM pork supplier — preferred on emergency restocks." },
+  { id: "SUP-0018", code: "SUP-0018", name: "Baltic Pork Co.",      country: "PL", currency: "GBP", paymentTerms: "Net 45", email: "eksport@balticpork.pl",      phone: "+48 58 7410 222",  leadTime: 6, rating: 4.2, active: true,  d365Sync: "synced",   d365Id: "V-D365-SUP-0018", lastSync: "2026-04-21 02:00", openPOs: 2, ytdSpend: 61840, defaultProducts: 4,  certifications: ["BRC"],             notes: "Large-volume beef/pork carcass supplier, PL → FORZ-A." },
+  { id: "SUP-0022", code: "SUP-0022", name: "Spice Masters",        country: "GB", currency: "GBP", paymentTerms: "Net 30", email: "sales@spicemasters.co.uk",   phone: "+44 121 555 0144", leadTime: 5, rating: 4.8, active: true,  d365Sync: "synced",   d365Id: "V-D365-SUP-0022", lastSync: "2026-04-21 02:00", openPOs: 2, ytdSpend: 8440,  defaultProducts: 18, certifications: ["BRC","FSSC"],      notes: "Sole supplier for pieprz czarny + allergen-free premix range." },
+  { id: "SUP-0031", code: "SUP-0031", name: "Viscofan S.A.",        country: "ES", currency: "GBP", paymentTerms: "Net 30", email: "sales.uk@viscofan.com",      phone: "+34 948 198 444",  leadTime: 10,rating: 4.6, active: true,  d365Sync: "synced",   d365Id: "V-D365-SUP-0031", lastSync: "2026-04-21 02:00", openPOs: 2, ytdSpend: 38480, defaultProducts: 3,  certifications: ["BRC","IFS","Halal"],notes: "Casings (Ø26, Ø32) — 10-day lead for non-stocked diameters." },
+  { id: "SUP-0044", code: "SUP-0044", name: "Hellmann Logistics",   country: "DE", currency: "GBP", paymentTerms: "Net 14", email: "uk@hellmann.com",            phone: "+44 1753 893400",  leadTime: 2, rating: 3.9, active: true,  d365Sync: "drift",    d365Id: "V-D365-SUP-0044", lastSync: "2026-04-18 02:00", openPOs: 2, ytdSpend: 14260, defaultProducts: 0,  certifications: [],                  notes: "Logistics / packaging consumables. D365 drift on payment_terms — admin resolve pending." },
+  { id: "SUP-0052", code: "SUP-0052", name: "Premium Dairy Ltd.",   country: "GB", currency: "GBP", paymentTerms: "Net 30", email: "accounts@premiumdairy.uk",   phone: "+44 1772 555 210", leadTime: 3, rating: 4.3, active: true,  d365Sync: "synced",   d365Id: "V-D365-SUP-0052", lastSync: "2026-04-21 02:00", openPOs: 2, ytdSpend: 10390, defaultProducts: 5,  certifications: ["BRC","Red Tractor"],notes: "Dairy RM — mleko, śmietana, masło. EUDR scope cross-check needed." },
+  { id: "SUP-0067", code: "SUP-0067", name: "NordicPack AB",        country: "SE", currency: "GBP", paymentTerms: "Net 60", email: "uk@nordicpack.se",           phone: "+46 31 7202 100",  leadTime: 14,rating: 4.0, active: false, d365Sync: "local",    d365Id: null,              lastSync: null,              openPOs: 0, ytdSpend: 0,     defaultProducts: 0,  certifications: ["FSC"],             notes: "Inactive since 2026-02 — pricing uncompetitive vs Hellmann. Kept for audit trail per FR-PLAN-001 soft delete." },
+];
+
+// Supplier-product assignments (FR-PLAN-002: max 1 is_default per product)
+const SUPPLIER_PRODUCTS = {
+  "SUP-0012": [
+    { product: "R-1001", name: "Wieprzowina kl. II",       unitPrice: 9.80,  discount: 0, leadTime: 4, isDefault: true  },
+    { product: "R-1002", name: "Słonina wieprzowa",        unitPrice: 4.60,  discount: 0, leadTime: 4, isDefault: true  },
+    { product: "R-1101", name: "Wołowina gulaszowa",       unitPrice: 12.40, discount: 0, leadTime: 5, isDefault: true  },
+  ],
+  "SUP-0018": [
+    { product: "R-1001", name: "Wieprzowina kl. II",       unitPrice: 9.20,  discount: 2, leadTime: 6, isDefault: false },
+    { product: "R-1105", name: "Karkówka wieprzowa",       unitPrice: 11.10, discount: 0, leadTime: 6, isDefault: true  },
+  ],
+  "SUP-0022": [
+    { product: "R-2101", name: "Pieprz czarny",            unitPrice: 38.50, discount: 5, leadTime: 5, isDefault: true  },
+    { product: "R-2102", name: "Papryka wędzona",          unitPrice: 24.20, discount: 0, leadTime: 5, isDefault: true  },
+    { product: "R-2110", name: "Premix allergen-free v3",  unitPrice: 12.80, discount: 0, leadTime: 7, isDefault: true  },
+  ],
+  "SUP-0031": [
+    { product: "R-3001", name: "Osłonka Ø26 (Viscofan)",   unitPrice: 7.60,  discount: 0, leadTime: 10,isDefault: true  },
+    { product: "R-3002", name: "Osłonka Ø32 (Viscofan)",   unitPrice: 8.90,  discount: 0, leadTime: 10,isDefault: true  },
+  ],
+  "SUP-0044": [
+    { product: "R-4001", name: "Folia termokurczliwa",     unitPrice: 2.40,  discount: 0, leadTime: 2, isDefault: true  },
+  ],
+  "SUP-0052": [
+    { product: "R-1801", name: "Mleko 3.2%",               unitPrice: 1.20,  discount: 0, leadTime: 3, isDefault: true  },
+    { product: "R-1802", name: "Śmietana 30%",             unitPrice: 3.40,  discount: 0, leadTime: 3, isDefault: true  },
+  ],
+  "SUP-0067": [],
+};
+
+// Supplier PO history (lazy-computed from PLAN_POS in SupplierDetail)
+
 
 // ----- Dashboard KPIs -----
 const PLAN_KPIS = [
@@ -558,6 +604,7 @@ Object.assign(window, {
   PLAN_WOS, PLAN_WO_DETAIL,
   PLAN_POS, PLAN_PO_DETAIL,
   PLAN_TOS, PLAN_TO_DETAIL,
+  PLAN_SUPPLIERS, SUPPLIER_PRODUCTS,
   GANTT_LINES, GANTT_BARS, GANTT_DEPS,
   CASCADE_DAG, CASCADE_EDGES,
   PLAN_RESERVATIONS, RES_AVAILABILITY,
