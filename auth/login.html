@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MonoPilot — Sign in</title>
+<link rel="stylesheet" href="../colors_and_type.css">
+<link rel="stylesheet" href="../_shared/shared.css">
+<style>
+  /* ============================================================
+     Login screen — modern centered card on soft gradient surface
+     Spec: 02-SETTINGS PRD §14, MONOPILOT-SITEMAP /public
+     Three modes (state machine): signin · forgot · reset-sent
+     ============================================================ */
+  body {
+    margin: 0;
+    min-height: 100vh;
+    background:
+      radial-gradient(1200px 600px at 15% -10%, #dbeafe 0%, transparent 60%),
+      radial-gradient(900px 500px at 110% 110%, #e0f2fe 0%, transparent 55%),
+      linear-gradient(180deg, #f8fafc 0%, #eef2f7 100%);
+    font-family: 'Inter', -apple-system, system-ui, sans-serif;
+    color: var(--text);
+    display: flex;
+    flex-direction: column;
+  }
+  .auth-shell {
+    flex: 1;
+    display: grid;
+    grid-template-columns: 1fr 480px 1fr;
+    align-items: center;
+    padding: 40px 24px;
+  }
+  .auth-card {
+    grid-column: 2;
+    background: var(--card);
+    border-radius: 12px;
+    border: 1px solid var(--border);
+    box-shadow:
+      0 1px 2px rgba(15, 23, 42, 0.04),
+      0 12px 36px rgba(15, 23, 42, 0.08);
+    padding: 36px 36px 28px;
+  }
+  .brand {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 28px;
+    justify-content: center;
+  }
+  .brand-mark {
+    width: 36px;
+    height: 36px;
+    border-radius: 8px;
+    background: linear-gradient(135deg, var(--blue) 0%, #1e40af 100%);
+    display: grid;
+    place-items: center;
+    color: #fff;
+    font-weight: 700;
+    font-size: 16px;
+    letter-spacing: -0.02em;
+  }
+  .brand-name {
+    font-weight: 700;
+    font-size: 18px;
+    letter-spacing: -0.01em;
+    color: var(--text);
+  }
+  .brand-name span {
+    color: var(--gray-500);
+    font-weight: 500;
+  }
+  .auth-title {
+    font-size: 22px;
+    font-weight: 700;
+    letter-spacing: -0.015em;
+    margin: 0 0 6px;
+  }
+  .auth-sub {
+    font-size: 13px;
+    color: var(--gray-500);
+    margin: 0 0 24px;
+  }
+  .auth-form {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+  .field {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .field label {
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--gray-600);
+  }
+  .field input {
+    height: 40px;
+    padding: 0 12px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    font-family: inherit;
+    font-size: 14px;
+    background: #fff;
+    transition: border-color 0.12s, box-shadow 0.12s;
+  }
+  .field input:focus {
+    outline: none;
+    border-color: var(--blue);
+    box-shadow: 0 0 0 3px rgba(25, 118, 210, 0.12);
+  }
+  .field-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 12px;
+  }
+  .field-row label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    color: var(--gray-600);
+    cursor: pointer;
+  }
+  .field-row a {
+    color: var(--blue);
+    text-decoration: none;
+    font-weight: 500;
+    cursor: pointer;
+  }
+  .field-row a:hover { text-decoration: underline; }
+  .btn-primary-lg {
+    height: 42px;
+    background: var(--blue);
+    color: #fff;
+    border: none;
+    border-radius: 6px;
+    font-family: inherit;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.12s;
+  }
+  .btn-primary-lg:hover { background: var(--blue-600); }
+  .btn-primary-lg:disabled { background: var(--gray-300); cursor: not-allowed; }
+
+  .divider {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin: 18px 0 14px;
+    color: var(--gray-500);
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+  .divider::before, .divider::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--border);
+  }
+  .btn-ghost-lg {
+    height: 40px;
+    background: #fff;
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    font-family: inherit;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    width: 100%;
+    transition: background 0.12s, border-color 0.12s;
+  }
+  .btn-ghost-lg:hover { background: var(--gray-100); border-color: var(--gray-300); }
+  .auth-foot {
+    margin-top: 22px;
+    text-align: center;
+    font-size: 13px;
+    color: var(--gray-600);
+  }
+  .auth-foot a {
+    color: var(--blue);
+    text-decoration: none;
+    font-weight: 500;
+    cursor: pointer;
+  }
+  .auth-foot a:hover { text-decoration: underline; }
+
+  .err-banner {
+    background: var(--red-050a);
+    border: 1px solid var(--red-050);
+    border-left: 3px solid var(--red);
+    color: var(--red-700);
+    padding: 10px 12px;
+    border-radius: 6px;
+    font-size: 12px;
+    margin-bottom: 4px;
+  }
+  .ok-banner {
+    background: var(--green-050a);
+    border: 1px solid var(--green-050);
+    border-left: 3px solid var(--green);
+    color: var(--green-700);
+    padding: 10px 12px;
+    border-radius: 6px;
+    font-size: 12px;
+  }
+  .info-banner {
+    background: var(--info-050a);
+    border: 1px solid var(--blue-050);
+    border-left: 3px solid var(--info);
+    color: var(--blue-700);
+    padding: 10px 12px;
+    border-radius: 6px;
+    font-size: 12px;
+    margin-bottom: 16px;
+  }
+
+  .page-foot {
+    text-align: center;
+    padding: 20px;
+    font-size: 11px;
+    color: var(--gray-500);
+  }
+  .page-foot .sep { margin: 0 8px; color: var(--gray-300); }
+  .page-foot a { color: var(--gray-600); text-decoration: none; }
+  .page-foot a:hover { text-decoration: underline; }
+
+  /* state-machine view switching */
+  [data-view] { display: none; }
+  [data-view].active { display: block; }
+
+  .back-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    color: var(--gray-600);
+    font-size: 12px;
+    text-decoration: none;
+    margin-bottom: 14px;
+    cursor: pointer;
+  }
+  .back-link:hover { color: var(--blue); }
+
+  /* envelope visual for sent state */
+  .sent-art {
+    width: 64px;
+    height: 64px;
+    margin: 0 auto 14px;
+    background: var(--blue-050);
+    border-radius: 50%;
+    display: grid;
+    place-items: center;
+    color: var(--blue);
+    font-size: 28px;
+  }
+</style>
+</head>
+<body>
+
+<div class="auth-shell">
+  <div class="auth-card">
+
+    <div class="brand">
+      <div class="brand-mark">M</div>
+      <div class="brand-name">Mono<span>Pilot</span></div>
+    </div>
+
+    <!-- ============================================================
+         VIEW 1 · Sign in (default)
+         ============================================================ -->
+    <div data-view="signin" class="active" id="view-signin">
+      <h1 class="auth-title">Welcome back</h1>
+      <p class="auth-sub">Sign in to your MES workspace</p>
+
+      <form class="auth-form" onsubmit="event.preventDefault(); doSignIn();">
+        <div id="err-signin"></div>
+
+        <div class="field">
+          <label for="email">Work email</label>
+          <input id="email" type="email" autocomplete="username" placeholder="you@company.com" required>
+        </div>
+
+        <div class="field">
+          <label for="password">Password</label>
+          <input id="password" type="password" autocomplete="current-password" placeholder="••••••••" required>
+        </div>
+
+        <div class="field-row">
+          <label><input type="checkbox" id="remember" checked> Remember me for 30 days</label>
+          <a onclick="showView('forgot')">Forgot password?</a>
+        </div>
+
+        <button type="submit" class="btn-primary-lg" id="btn-signin">Sign in</button>
+      </form>
+
+      <div class="auth-foot">
+        Don't have an account? <a onclick="alert('Sign-up flow lives in source/MONOPILOT-SITEMAP.html /public/signup')">Contact your admin</a>
+      </div>
+    </div>
+
+    <!-- ============================================================
+         VIEW 2 · Forgot password
+         ============================================================ -->
+    <div data-view="forgot" id="view-forgot">
+      <a class="back-link" onclick="showView('signin')">← Back to sign in</a>
+      <h1 class="auth-title">Reset your password</h1>
+      <p class="auth-sub">Enter your email and we'll send you a reset link.</p>
+
+      <form class="auth-form" onsubmit="event.preventDefault(); doForgot();">
+        <div class="info-banner">
+          The link expires in <b>30 minutes</b>. Check your spam folder if it doesn't arrive within 2 minutes.
+        </div>
+
+        <div class="field">
+          <label for="forgot-email">Work email</label>
+          <input id="forgot-email" type="email" autocomplete="username" placeholder="you@company.com" required>
+        </div>
+
+        <button type="submit" class="btn-primary-lg">Send reset link</button>
+      </form>
+    </div>
+
+    <!-- ============================================================
+         VIEW 3 · Reset link sent
+         ============================================================ -->
+    <div data-view="sent" id="view-sent">
+      <div class="sent-art">✉</div>
+      <h1 class="auth-title" style="text-align:center">Check your inbox</h1>
+      <p class="auth-sub" style="text-align:center">
+        We sent a reset link to <b id="sent-email">you@company.com</b>.<br>
+        Follow the link to set a new password.
+      </p>
+
+      <button class="btn-ghost-lg" onclick="showView('signin')" style="margin-top:18px">Back to sign in</button>
+
+      <div class="auth-foot">
+        Didn't get it? <a onclick="showView('forgot')">Try a different email</a>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<div class="page-foot">
+  © 2026 MonoPilot MES
+  <span class="sep">·</span>
+  <a href="#">Privacy</a>
+  <span class="sep">·</span>
+  <a href="#">Terms</a>
+  <span class="sep">·</span>
+  <a href="#">Status</a>
+  <span class="sep">·</span>
+  <span>v3.1.0</span>
+</div>
+
+<script>
+  // ========================================================
+  // View state machine — signin · forgot · sent
+  // ========================================================
+  function showView(name) {
+    document.querySelectorAll('[data-view]').forEach(el => el.classList.toggle('active', el.dataset.view === name));
+    // focus primary input on mount
+    const focusables = { signin: 'email', forgot: 'forgot-email' };
+    setTimeout(() => { const el = document.getElementById(focusables[name]); if (el) el.focus(); }, 50);
+  }
+
+  // ========================================================
+  // Demo handlers — replicates spec error states
+  // ========================================================
+  function doSignIn() {
+    const email = document.getElementById('email').value.trim();
+    const pwd = document.getElementById('password').value;
+    const errBox = document.getElementById('err-signin');
+    errBox.innerHTML = '';
+
+    // Demo: only `demo@monopilot.app` / `demo1234` succeeds
+    // any other email → fake error, demonstrating the error state
+    if (email === 'demo@monopilot.app' && pwd === 'demo1234') {
+      // success → land on dashboard
+      window.location.href = '../dashboard/index.html';
+      return;
+    }
+    if (email && pwd) {
+      errBox.innerHTML = '<div class="err-banner"><b>Invalid credentials.</b> Use <code style="font-family:JetBrains Mono,monospace;background:#fff;padding:1px 4px;border-radius:3px;">demo@monopilot.app</code> / <code style="font-family:JetBrains Mono,monospace;background:#fff;padding:1px 4px;border-radius:3px;">demo1234</code> for the demo.</div>';
+    }
+  }
+
+  function doForgot() {
+    const email = document.getElementById('forgot-email').value.trim();
+    if (!email) return;
+    document.getElementById('sent-email').textContent = email;
+    showView('sent');
+  }
+
+  // pre-fill demo creds for fast dev
+  document.getElementById('email').value = 'demo@monopilot.app';
+  document.getElementById('password').value = 'demo1234';
+</script>
+
+</body>
+</html>

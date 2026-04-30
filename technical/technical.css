@@ -1,0 +1,99 @@
+/* Technical module styles */
+#tech-main { margin-left: calc(var(--sidebar-w) + 220px); padding: 62px 20px 40px; min-height: 100vh; }
+
+/* ============ sub-nav ============ */
+.tech-nav { position: fixed; left: var(--sidebar-w); top: 48px; bottom: 0; width: 220px; background: #fff; border-right: 1px solid var(--border); overflow-y: auto; z-index: 40; padding: 10px 0; }
+.tech-nav-group { padding: 10px 16px 4px; font-size: 10px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; }
+.tech-nav-item { padding: 6px 16px; font-size: 13px; cursor: pointer; display: flex; align-items: center; gap: 8px; color: var(--text); border-left: 3px solid transparent; }
+.tech-nav-item:hover { background: var(--gray-050); }
+.tech-nav-item.on { background: var(--blue-050); color: var(--blue); border-left-color: var(--blue); font-weight: 500; }
+.tech-nav-item .ic { font-size: 14px; width: 16px; }
+
+/* ============ BOM LIST ============ */
+.bom-grid { display: grid; grid-template-columns: 1fr; gap: 0; }
+.bom-row { display: grid; grid-template-columns: 110px 1fr 120px 70px 90px 80px 90px 100px 30px;
+  gap: 12px; align-items: center; padding: 12px 14px; border-bottom: 1px solid var(--border); cursor: pointer; background: #fff; }
+.bom-row:hover { background: var(--gray-050); }
+.bom-row.head { background: var(--gray-100); font-size: 11px; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; cursor: default; padding: 9px 14px; }
+.bom-row.head:hover { background: var(--gray-100); }
+.bom-code { font-family: var(--font-mono); font-size: 12px; font-weight: 600; }
+.bom-name { font-weight: 600; font-size: 14px; }
+.bom-meta { font-size: 11px; color: var(--muted); margin-top: 2px; }
+
+/* ============ BOM DETAIL TREE ============ */
+.bom-split { display: grid; grid-template-columns: 1fr 340px; gap: 12px; align-items: flex-start; }
+.bom-split.sidebar { grid-template-columns: 260px 1fr; }
+.bom-split.no-drawer { grid-template-columns: 1fr; }
+
+.tree-head { display: grid; grid-template-columns: 30px 1fr 80px 80px 80px 80px 80px 60px;
+  gap: 8px; padding: 8px 12px; background: var(--gray-100); font-size: 11px; color: var(--muted);
+  text-transform: uppercase; letter-spacing: 0.04em; font-weight: 600; border-bottom: 1px solid var(--border); }
+.tree-row { display: grid; grid-template-columns: 30px 1fr 80px 80px 80px 80px 80px 60px;
+  gap: 8px; padding: 8px 12px; border-bottom: 1px solid var(--border); align-items: center; font-size: 13px; }
+/* Tuning §3.10 — .mono overrides font-family, which breaks inherited tabular-nums.
+ * Re-declare on tree-row numeric cells so qty / scrap / cost / share align. */
+.tree-row .mono,
+.tree-row .num { font-variant-numeric: tabular-nums; }
+.tree-row:hover { background: var(--gray-050); }
+.tree-row.parent { background: var(--blue-050); font-weight: 500; }
+.tree-row.parent:hover { background: #c7dfff; }
+.tree-caret { cursor: pointer; color: var(--muted); font-size: 11px; text-align: center; user-select: none; }
+.tree-caret.open { color: var(--text); }
+.tree-name { display: flex; align-items: center; gap: 6px; }
+.tree-badge-mini { font-size: 10px; padding: 1px 6px; background: var(--amber-050); color: var(--amber-700); border-radius: 2px; font-weight: 500; }
+
+/* ============ COST PANEL ============ */
+.tech-cost-box { padding: 12px; background: var(--gray-050); border-radius: var(--radius); margin-bottom: 10px; }
+.tech-cost-line { display: flex; justify-content: space-between; padding: 4px 0; font-size: 12px; }
+.tech-cost-line.total { font-weight: 700; font-size: 14px; border-top: 1px solid var(--border); margin-top: 6px; padding-top: 8px; }
+
+/* ============ ROUTING ============ */
+.route-step { display: grid; grid-template-columns: 36px 180px 1fr 120px 100px 120px 40px;
+  gap: 12px; align-items: center; padding: 10px 12px; border-bottom: 1px solid var(--border); }
+.route-step.head { background: var(--gray-100); font-size: 11px; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; }
+.route-num { width: 28px; height: 28px; border-radius: 50%; background: var(--blue); color: #fff; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 600; }
+.route-step:nth-child(odd) .route-num { background: var(--blue-700); }
+
+/* ============ VISUAL BOM FLOW (novel) ============ */
+.bom-flow { padding: 20px; background: var(--gray-050); border-radius: var(--radius); overflow: auto; }
+.flow-col { display: flex; flex-direction: column; gap: 8px; min-width: 180px; }
+.flow-node { background: #fff; border: 1px solid var(--border); border-radius: 6px; padding: 8px 10px; font-size: 12px; }
+.flow-node.parent { border-left: 3px solid var(--blue); background: var(--blue-050); font-weight: 500; }
+.flow-node.process { border-left: 3px solid var(--amber); background: var(--amber-050a); font-weight: 500; }
+.flow-node.output { border-left: 3px solid var(--green); background: var(--green-050a); font-weight: 600; }
+
+/* ============ VERSION DIFF ============ */
+.diff-row { display: grid; grid-template-columns: 1fr 80px 1fr; gap: 0; align-items: center; padding: 6px 10px; border-bottom: 1px solid var(--border); font-size: 13px; }
+.diff-row.add { background: var(--green-050a); }
+.diff-row.rem { background: var(--red-050a); }
+.diff-row.change { background: var(--amber-050a); }
+.diff-arrow { text-align: center; color: var(--muted); font-size: 12px; }
+
+/* Sticky BOM Detail header — sits below the 48px topbar. Tuning §3.4. */
+.bom-detail-sticky { top: 48px; padding-top: 4px; margin: -62px -20px 0; padding-left: 20px; padding-right: 20px; }
+.bom-detail-sticky .page-head { margin-bottom: 8px; padding-top: 12px; }
+.bom-detail-sticky .tabs-bar { margin-bottom: 0 !important; border-bottom: 1px solid var(--border); }
+
+/* tabs */
+.tabs-bar { display: flex; gap: 0; border-bottom: 1px solid var(--border); margin-bottom: 14px; }
+.tab-btn { padding: 9px 16px; font-size: 13px; color: var(--muted); cursor: pointer; border: 0; background: transparent;
+  border-bottom: 2px solid transparent; font-family: inherit; }
+.tab-btn:hover { color: var(--text); }
+.tab-btn.on { color: var(--blue); border-bottom-color: var(--blue); font-weight: 500; }
+.tab-btn .count { display: inline-block; margin-left: 6px; padding: 0 6px; font-size: 10px; background: var(--gray-100); border-radius: 8px; color: var(--muted); font-weight: 500; }
+.tab-btn.on .count { background: var(--blue-050); color: var(--blue); }
+
+/* sidebar (tweak variation) */
+.bom-sidebar { background: #fff; border: 1px solid var(--border); border-radius: var(--radius); padding: 10px 0; position: sticky; top: 72px; }
+.bom-sidebar-item { padding: 7px 14px; font-size: 13px; cursor: pointer; border-left: 3px solid transparent; color: var(--text); }
+.bom-sidebar-item:hover { background: var(--gray-050); }
+.bom-sidebar-item.on { background: var(--blue-050); color: var(--blue); border-left-color: var(--blue); font-weight: 500; }
+
+/* recipe sheet print-friendly */
+.recipe-sheet { background: #fff; max-width: 720px; margin: 0 auto; padding: 30px 36px; border: 1px solid var(--border); border-radius: 2px; box-shadow: 0 2px 12px rgba(0,0,0,0.05); }
+.recipe-sheet h1 { margin: 0 0 4px; font-size: 20px; }
+.recipe-sheet .subhead { color: var(--muted); font-size: 12px; margin-bottom: 18px; border-bottom: 1px solid var(--border); padding-bottom: 12px; }
+.recipe-sheet h3 { font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); margin: 18px 0 8px; border-bottom: 1px solid var(--border); padding-bottom: 4px; }
+
+/* placeholder screens */
+.ph-card { padding: 36px; text-align: center; background: #fff; border: 1px solid var(--border); border-radius: var(--radius); }

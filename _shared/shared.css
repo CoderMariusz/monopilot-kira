@@ -1,0 +1,191 @@
+/* Shared styles — modal primitives (Modal, Stepper, Summary, Field) +
+ * ScaffoldedScreen. Load BEFORE any module-specific CSS so tokens
+ * cascade correctly. Depends on colors_and_type.css + npd/npd.css. */
+
+/* ============ Modal primitive ============ */
+.modal-overlay { position: fixed; inset: 0; background: rgba(15, 23, 42, 0.45); z-index: 300; display: flex; align-items: center; justify-content: center; padding: 20px; }
+.modal-box { background: #fff; border-radius: var(--radius-lg); width: 560px; max-width: 100%; max-height: 86vh; display: flex; flex-direction: column; box-shadow: var(--shadow-modal); }
+.modal-box.wide { width: 760px; }
+.modal-head { padding: 14px 18px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; }
+.modal-title { font-size: 15px; font-weight: 600; }
+.modal-close { cursor: pointer; background: transparent; border: 0; font-size: 18px; color: var(--muted); }
+.modal-body { padding: 16px 18px; overflow-y: auto; flex: 1; }
+.modal-foot { padding: 12px 18px; border-top: 1px solid var(--border); display: flex; justify-content: flex-end; gap: 8px; background: var(--gray-050); border-radius: 0 0 var(--radius-lg) var(--radius-lg); }
+
+/* ============ Form-field ============ */
+.ff { margin-bottom: 12px; }
+.ff label { display: block; font-size: 11px; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 5px; }
+.ff .req { color: var(--red); font-weight: 700; margin-left: 2px; }
+.ff input, .ff select, .ff textarea { width: 100%; padding: 7px 10px; border: 1px solid var(--border); border-radius: 4px; font-size: 13px; font-family: inherit; }
+.ff textarea { min-height: 68px; resize: vertical; }
+.ff-help { font-size: 11px; color: var(--muted); margin-top: 3px; }
+.ff-error { font-size: 11px; color: var(--red); margin-top: 3px; }
+.ff-inline { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+
+/* ============ Wizard stepper ============ */
+.wiz-stepper { display: flex; align-items: center; padding: 4px 0 14px; border-bottom: 1px solid var(--border); margin-bottom: 2px; }
+.wiz-step { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--muted); }
+.wiz-step-num { width: 24px; height: 24px; border-radius: 50%; background: var(--gray-100); color: var(--muted); display: inline-flex; align-items: center; justify-content: center; font-weight: 600; font-size: 11px; border: 2px solid var(--border); }
+.wiz-step.current { color: var(--blue); font-weight: 600; }
+.wiz-step.current .wiz-step-num { background: var(--blue); color: #fff; border-color: var(--blue); box-shadow: 0 0 0 4px var(--blue-050); }
+.wiz-step.done { color: var(--green-700); }
+.wiz-step.done .wiz-step-num { background: var(--green); color: #fff; border-color: var(--green); }
+.wiz-step-line { flex: 1; height: 2px; background: var(--border); margin: 0 14px; border-radius: 1px; }
+.wiz-step-line.done { background: var(--green); }
+
+/* ============ Summary block ============ */
+.summary-block { background: var(--gray-100); border: 1px solid var(--border); border-radius: 6px; padding: 10px 14px; margin-bottom: 12px; }
+.summary-row { display: flex; align-items: center; padding: 6px 0; font-size: 12px; border-bottom: 1px solid var(--border); }
+.summary-row:last-child { border-bottom: 0; }
+.summary-row.emph { font-size: 14px; font-weight: 700; padding-top: 10px; margin-top: 4px; border-top: 2px solid var(--border); border-bottom: 0; }
+
+/* ============ Button system (BL-PROD-05: centralised so all modules get .btn-danger) ============ */
+.btn { padding: 6px 14px; border-radius: 4px; font-size: 12px; font-weight: 500; cursor: pointer; border: 1px solid transparent; font-family: inherit; display: inline-flex; align-items: center; gap: 6px; }
+.btn-primary { background: var(--blue); color: #fff; border-color: var(--blue); }
+.btn-primary:hover { background: var(--blue-600); }
+.btn-secondary { background: #fff; color: var(--text); border-color: var(--border); }
+.btn-secondary:hover { background: var(--gray-050); }
+.btn-ghost { background: transparent; color: var(--muted); }
+.btn-ghost:hover { background: var(--gray-050); color: var(--text); }
+.btn-danger { background: var(--red); color: #fff; border-color: var(--red); }
+.btn-danger:hover { background: #b91c1c; }
+.btn-danger:disabled { background: #fecaca; color: #fff; border-color: #fecaca; cursor: not-allowed; }
+.btn-success { background: var(--green); color: #fff; border-color: var(--green); }
+.btn-success:hover { background: #15803d; }
+
+/* ============ Modal gallery grid ============ */
+.gallery-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 10px; }
+.gallery-card { background: #fff; border: 1px solid var(--border); border-radius: 6px; padding: 14px; cursor: pointer; transition: border-color 0.1s, box-shadow 0.1s; }
+.gallery-card:hover { border-color: var(--blue); box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
+.gallery-pattern { font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); font-weight: 700; margin-bottom: 6px; font-family: var(--font-mono); }
+.gallery-name { font-size: 13px; font-weight: 600; line-height: 1.3; }
+
+/* ============================================================
+ * Tuning wave C (2026-04-23) — shared primitive styles.
+ * See design/Monopilot Design System/TUNING-PATTERN.md §3.
+ * ============================================================ */
+
+/* ============ .btn-danger (MOVED from npd/npd.css) ============
+ * Previously defined only in npd.css; other modules inherited
+ * implicitly. Moved here so every module owns it. Rules byte-equal
+ * to original npd.css:50-52. See BL-PROD-05. */
+.btn-danger { background: var(--red); color: #fff; border-color: var(--red); }
+.btn-danger:hover { background: #b91c1c; }
+.btn-danger:disabled { background: #fecaca; color: #fff; border-color: #fecaca; cursor: not-allowed; }
+
+/* ============ Sticky form / step header utility ============
+ * Apply to the outermost header bar of long detail forms (Brief,
+ * FA, BOM Detail, WO Detail, mWO Detail, NCR Detail, Asset Detail).
+ * Keeps title + step indicator + primary CTA on screen as the form
+ * scrolls. See TUNING-PATTERN.md §3.4. */
+.sticky-form-header {
+  position: sticky;
+  top: var(--topbar-h, 0);
+  background: var(--surface-1);
+  z-index: 10;
+  border-bottom: 1px solid var(--border);
+}
+
+/* ============ <RunStrip/> — inline 8-outcome strip ============
+ * 8 cells, 3px wide, 12px tall, 1px gap. Colour per outcome token.
+ * See TUNING-PATTERN.md §3.1. */
+.run-strip { display: inline-flex; gap: 1px; align-items: center; vertical-align: middle; line-height: 1; }
+.run-strip-cell { width: 3px; height: 12px; border-radius: 1px; background: var(--spark-track); }
+.run-strip-cell.ok   { background: var(--spark-ok); }
+.run-strip-cell.warn { background: var(--spark-warn); }
+.run-strip-cell.bad  { background: var(--spark-bad); }
+.run-strip-cell.empty { background: var(--spark-track); }
+.run-strip-label { font-size: 11px; color: var(--muted); margin-left: 8px; font-variant-numeric: tabular-nums; }
+
+/* ============ <EmptyState/> — list/table empty primitive ============
+ * Icon + title + body + optional CTA. Renders inside a card area.
+ * See TUNING-PATTERN.md §3.8. */
+.empty-state { padding: 40px 24px; text-align: center; color: var(--muted); }
+.empty-state-icon { font-size: 40px; opacity: 0.28; line-height: 1; margin-bottom: 10px; }
+.empty-state-title { font-size: 14px; color: var(--text); font-weight: 600; margin-bottom: 4px; }
+.empty-state-body { font-size: 12px; color: var(--muted); max-width: 420px; margin: 0 auto 12px; line-height: 1.5; }
+.empty-state-action { margin-top: 6px; }
+/* Scanner uses a dark-surface variant — apply .empty-state.dark inside scanner. */
+.empty-state.dark { color: var(--sc-text-muted, #94a3b8); }
+.empty-state.dark .empty-state-title { color: var(--sc-text, #e5e7eb); }
+.empty-state.dark .empty-state-icon { opacity: 0.35; }
+
+/* ============ <TabsCounted/> — tabs w/ pill count ============
+ * See TUNING-PATTERN.md §3.2. */
+.tabs-counted { display: inline-flex; gap: 4px; border-bottom: 1px solid var(--border); padding: 0; align-items: stretch; }
+.tabs-counted-tab {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 8px 12px;
+  border: 0; background: transparent;
+  color: var(--muted); font-size: 13px; font-weight: 500;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  font-family: inherit;
+}
+.tabs-counted-tab:hover { color: var(--text); }
+.tabs-counted-tab.active { color: var(--blue); border-bottom-color: var(--blue); font-weight: 600; }
+.tabs-counted-pill {
+  font-size: 11px; font-weight: 600;
+  padding: 1px 7px; border-radius: var(--radius-pill);
+  background: var(--sem-neutral-bg); color: var(--sem-neutral);
+  font-variant-numeric: tabular-nums;
+  min-width: 18px; text-align: center;
+}
+.tabs-counted-pill.tone-ok      { background: var(--sem-ok-bg);      color: var(--green-700); }
+.tabs-counted-pill.tone-warn    { background: var(--sem-warn-bg);    color: var(--amber-700); }
+.tabs-counted-pill.tone-bad     { background: var(--sem-bad-bg);     color: var(--red-700); }
+.tabs-counted-pill.tone-info    { background: var(--sem-info-bg);    color: var(--blue-700); }
+.tabs-counted-pill.tone-neutral { background: var(--sem-neutral-bg); color: var(--sem-neutral); }
+.tabs-counted-pill.zero { opacity: 0.55; }
+
+/* ============ <CompactActivity/> — folded activity feed ============
+ * Cloudflare-style invocation-grouped feed. Events fold per
+ * correlation id; internal events hidden by default.
+ * See TUNING-PATTERN.md §3.5. */
+.compact-activity { display: flex; flex-direction: column; gap: 4px; }
+.compact-activity-group { background: var(--surface-1); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
+.compact-activity-head {
+  display: flex; align-items: center; gap: 8px;
+  padding: 8px 12px;
+  background: var(--surface-2);
+  border-bottom: 1px solid transparent;
+  cursor: pointer;
+  font-size: 12px;
+}
+.compact-activity-group.open .compact-activity-head { border-bottom-color: var(--border-soft); }
+.compact-activity-caret { font-size: 10px; color: var(--muted); width: 10px; display: inline-block; transition: transform 0.12s ease; }
+.compact-activity-group.open .compact-activity-caret { transform: rotate(90deg); }
+.compact-activity-corr { font-family: var(--font-mono); font-size: 11px; color: var(--text); font-weight: 600; }
+.compact-activity-count { font-size: 11px; color: var(--muted); margin-left: auto; font-variant-numeric: tabular-nums; }
+.compact-activity-events { display: flex; flex-direction: column; }
+.compact-activity-event { display: flex; gap: 10px; padding: 6px 12px 6px 30px; font-size: 12px; border-top: 1px solid var(--border-soft); }
+.compact-activity-event:first-child { border-top: 0; }
+.compact-activity-event .ts { font-family: var(--font-mono); font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.compact-activity-event .msg { color: var(--text); flex: 1; }
+.compact-activity-event.internal { opacity: 0.6; }
+.compact-activity-toggle-internal {
+  display: inline-flex; align-items: center; gap: 4px;
+  background: transparent; border: 0;
+  color: var(--muted); font-size: 11px; cursor: pointer;
+  padding: 4px 12px 6px 30px;
+  font-family: inherit;
+}
+.compact-activity-toggle-internal:hover { color: var(--blue); }
+
+/* ============ <DryRunButton/> — secondary preview CTA ============
+ * Sits adjacent to a primary destructive/commit button. Opens a
+ * preview modal (caller wires onClick). See TUNING-PATTERN.md §3.6. */
+.btn-dryrun {
+  padding: 6px 14px; border-radius: 4px;
+  font-size: 12px; font-weight: 500;
+  cursor: pointer;
+  border: 1px dashed var(--border);
+  background: var(--surface-2);
+  color: var(--text);
+  font-family: inherit;
+  display: inline-flex; align-items: center; gap: 6px;
+}
+.btn-dryrun:hover { border-color: var(--blue); color: var(--blue); }
+.btn-dryrun:disabled { opacity: 0.55; cursor: not-allowed; }
+.btn-dryrun .dryrun-icon { font-size: 11px; opacity: 0.7; }
