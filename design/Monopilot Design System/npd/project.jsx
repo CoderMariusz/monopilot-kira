@@ -1,3 +1,4 @@
+// @deprecated BL-NPD-02 — Legacy R&D pipeline. NOT in production scope. Use fa-screens.jsx / brief-screens.jsx instead.
 // ============ Project detail + Brief form + Create new project wizard ============
 
 const StageRail = ({ project, current, onNav }) => {
@@ -18,7 +19,7 @@ const StageRail = ({ project, current, onNav }) => {
   );
 };
 
-const ProjectHeader = ({ project, onBack }) => (
+const ProjectHeader = ({ project, onBack, openModal }) => (
   <>
     <div className="breadcrumb"><a onClick={onBack}>NPD</a> / <a onClick={onBack}>Pipeline</a> / {project.code}</div>
     <div className="page-head">
@@ -35,7 +36,7 @@ const ProjectHeader = ({ project, onBack }) => (
       <div style={{ display: "flex", gap: 8 }}>
         <button className="btn btn-secondary">⚑ Watch</button>
         <button className="btn btn-secondary">Duplicate</button>
-        <button className="btn btn-primary">Advance stage →</button>
+        <button className="btn btn-primary" onClick={() => openModal && openModal(window.GATE_INFO?.[window.STAGE_TO_GATE?.[project.stage]]?.requiresApproval ? "gateApproval" : "advanceGate", { project })}>Advance stage →</button>
       </div>
     </div>
   </>

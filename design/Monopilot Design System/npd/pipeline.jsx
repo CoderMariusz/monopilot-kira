@@ -1,3 +1,4 @@
+// @deprecated BL-NPD-02 — Legacy R&D pipeline. NOT in production scope. Use fa-screens.jsx / brief-screens.jsx instead.
 // ============ Pipeline screen (Kanban / Table / Split) ============
 
 const stageColor = {

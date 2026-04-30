@@ -1,4 +1,4 @@
-// ============ Other stage screens ============
+// ============ Other stage screens (R&D Pipeline) ============
 
 // ---------- Nutrition / allergens read-only ----------
 const NutritionScreen = () => {
@@ -165,6 +165,13 @@ const CostingScreen = () => {
 // ---------- Packaging spec ----------
 const PackagingScreen = () => (
   <>
+    <div style={{ background: "#fef3c7", border: "1px solid #d97706", borderRadius: 6, padding: "10px 14px", marginBottom: 14, display: "flex", alignItems: "center", gap: 10 }}>
+      <span style={{ fontSize: 16 }}>⚠️</span>
+      <div>
+        <strong style={{ fontSize: 12 }}>LEGACY — Phase 2 deprecation</strong>
+        <div style={{ fontSize: 11, color: "#92400e", marginTop: 2 }}>This screen is part of the legacy R&D pipeline and will NOT be implemented in production. Use the FA / Brief screens instead. See BL-NPD-02.</div>
+      </div>
+    </div>
     <div className="card">
       <div className="card-head">
         <div className="card-title">Primary packaging</div>
@@ -214,6 +221,13 @@ const PackagingScreen = () => (
 // ---------- Trial runs ----------
 const TrialScreen = () => (
   <>
+    <div style={{ background: "#fef3c7", border: "1px solid #d97706", borderRadius: 6, padding: "10px 14px", marginBottom: 14, display: "flex", alignItems: "center", gap: 10 }}>
+      <span style={{ fontSize: 16 }}>⚠️</span>
+      <div>
+        <strong style={{ fontSize: 12 }}>LEGACY — Phase 2 deprecation</strong>
+        <div style={{ fontSize: 11, color: "#92400e", marginTop: 2 }}>This screen is part of the legacy R&D pipeline and will NOT be implemented in production. Use the FA / Brief screens instead. See BL-NPD-02.</div>
+      </div>
+    </div>
     <div className="card">
       <div className="card-head">
         <div>
@@ -326,7 +340,7 @@ const SensoryScreen = () => {
         <div className="card-title" style={{ marginBottom: 8 }}>Panelist comments</div>
         <div className="muted" style={{ fontSize: 12, lineHeight: 1.6 }}>
           <strong>P-03:</strong> "Clean ham flavor, slightly salty but well-balanced."<br/>
-          <strong>P-05:</strong> "Texture is firmer than the current Sokołów benchmark — positive."<br/>
+          <strong>P-05:</strong> "Texture is firmer than the current market benchmark — positive."<br/>
           <strong>P-07:</strong> "Aftertaste lingers pleasantly. Would buy."<br/>
           <strong>P-02:</strong> "Slight metallic note — check nitrite level."
         </div>
@@ -338,7 +352,14 @@ const SensoryScreen = () => {
 // ---------- Pilot production ----------
 const PilotScreen = () => (
   <>
-    <div className="alert alert-blue"><strong>Scheduled pilot:</strong> Dec 20, 2025 · Line 2 · 500 kg batch · Supervisor: M. Wiśniewska</div>
+    <div style={{ background: "#fef3c7", border: "1px solid #d97706", borderRadius: 6, padding: "10px 14px", marginBottom: 14, display: "flex", alignItems: "center", gap: 10 }}>
+      <span style={{ fontSize: 16 }}>⚠️</span>
+      <div>
+        <strong style={{ fontSize: 12 }}>LEGACY — Phase 2 deprecation</strong>
+        <div style={{ fontSize: 11, color: "#92400e", marginTop: 2 }}>This screen is part of the legacy R&D pipeline and will NOT be implemented in production. Use the FA / Brief screens instead. See BL-NPD-02.</div>
+      </div>
+    </div>
+    <div className="alert alert-blue"><strong>Scheduled pilot:</strong> Dec 20, 2025 · Line 2 · 500 kg batch · Supervisor: M. Johnson</div>
 
     <div className="card">
       <div className="card-title" style={{ marginBottom: 10 }}>Pilot run plan</div>
@@ -400,12 +421,12 @@ const ApprovalScreen = ({ approvalMode }) => {
   ];
 
   const steps = approvalMode === "multi" ? [
-    { who: "R&D Lead", name: "K. Nowak", status: "done", when: "2025-12-10" },
-    { who: "QA Manager", name: "M. Wiśniewska", status: "current", when: "pending" },
-    { who: "Commercial", name: "J. Lewandowski", status: "pending", when: "—" },
-    { who: "NPD Director", name: "A. Zając", status: "pending", when: "—" }
+    { who: "R&D Lead", name: "K. Walker", status: "done", when: "2025-12-10" },
+    { who: "QA Manager", name: "M. Johnson", status: "current", when: "pending" },
+    { who: "Commercial", name: "J. Lewis", status: "pending", when: "—" },
+    { who: "NPD Director", name: "A. Davis", status: "pending", when: "—" }
   ] : [
-    { who: "NPD Manager", name: "A. Zając", status: "current", when: "pending" }
+    { who: "NPD Manager", name: "A. Davis", status: "current", when: "pending" }
   ];
 
   return (
@@ -454,6 +475,13 @@ const ApprovalScreen = ({ approvalMode }) => {
 // ---------- Handoff to production BOM ----------
 const HandoffScreen = () => (
   <>
+    <div style={{ background: "#fef3c7", border: "1px solid #d97706", borderRadius: 6, padding: "10px 14px", marginBottom: 14, display: "flex", alignItems: "center", gap: 10 }}>
+      <span style={{ fontSize: 16 }}>⚠️</span>
+      <div>
+        <strong style={{ fontSize: 12 }}>LEGACY — Phase 2 deprecation</strong>
+        <div style={{ fontSize: 11, color: "#92400e", marginTop: 2 }}>This screen is part of the legacy R&D pipeline and will NOT be implemented in production. Use the FA / Brief screens instead. See BL-NPD-02.</div>
+      </div>
+    </div>
     <div className="alert alert-green"><strong>Ready to promote.</strong> All gates pass. Clicking "Promote" will create BOM-<span className="mono">238</span> in Production and deactivate the NPD recipe.</div>
 
     <div className="card">

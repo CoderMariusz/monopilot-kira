@@ -33,7 +33,7 @@ const BriefList = ({ onOpenBrief, openModal }) => {
           <div className="page-title">NPD Briefs</div>
           <div className="muted" style={{ fontSize: 12 }}>{rows.length} of {briefs.length} visible · Briefs are pre-FA intake</div>
         </div>
-        <button className="btn btn-primary" onClick={() => openModal("briefCreate")}>+ New Brief</button>
+        {window.npd_can('brief.create') && <button className="btn btn-primary" onClick={() => openModal("briefCreate")}>+ New Brief</button>}
       </div>
 
       <div className="card" style={{ padding: "10px 14px", marginBottom: 10 }}>
@@ -65,7 +65,7 @@ const BriefList = ({ onOpenBrief, openModal }) => {
                 <td>{b.owner}</td>
                 <td onClick={e => e.stopPropagation()} style={{ display: "flex", gap: 4 }}>
                   <button className="btn btn-ghost btn-sm" onClick={() => onOpenBrief(b.brief_id)}>Open</button>
-                  {b.status === "complete" && <button className="btn btn-secondary btn-sm" onClick={() => openModal("briefConvert", { brief: b })}>Convert</button>}
+                  {b.status === "complete" && window.npd_can('brief.convert_to_fa') && <button className="btn btn-secondary btn-sm" onClick={() => openModal("briefConvert", { brief: b })}>Convert</button>}
                 </td>
               </tr>
             ))}
@@ -112,7 +112,7 @@ const BriefDetail = ({ briefId, onBack, openModal }) => {
         <div style={{ display: "flex", gap: 8 }}>
           <button className="btn btn-secondary" disabled={converted}>Save draft</button>
           {brief.status === "draft" && <button className="btn btn-primary" disabled={weightMismatch && isMulti}>Mark complete</button>}
-          {brief.status === "complete" && <button className="btn btn-success" onClick={() => openModal("briefConvert", { brief })}>Convert to FA →</button>}
+          {brief.status === "complete" && window.npd_can('brief.convert_to_fa') && <button className="btn btn-success" onClick={() => openModal("briefConvert", { brief })}>Convert to FA →</button>}
         </div>
       </div>
 

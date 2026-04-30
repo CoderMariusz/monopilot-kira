@@ -4699,6 +4699,149 @@
     "module": "npd"
   },
   {
+    "label": "gate_checklist_panel",
+    "file": "design/Monopilot Design System/npd/gate-screens.jsx",
+    "lines": "106-258",
+    "component_type": "page-layout",
+    "ui_pattern": "dashboard",
+    "data_domain": "Project",
+    "interaction": "approve",
+    "complexity": "page-level",
+    "depends_on_prototypes": [],
+    "translation_notes": [
+      "GATE_CHECKLISTS constant → query gate_checklist_items WHERE project_id=? from DB; categories + items derived from DB rows (category_code, item_text, required, completed_at, completed_by_user)",
+      "resolveItems + getBlockers helpers (local override state) → Server Component derives done state from DB; re-fetch on mutation",
+      "Local overrides state (checkbox toggle) → Server Action toggleGateChecklistItem(itemId, done); invalidate router cache after",
+      "Overall progress bar (all gates) → computed aggregate: COUNT(*) done / COUNT(*) total over all gates for this project",
+      "Expand/collapse per gate → shadcn Collapsible (import from @radix-ui/react-collapsible) with persistent open state in URL param or localStorage",
+      "Category header (TECHNICAL, BUSINESS, COMPLIANCE) → rendered from category.code with i18n key npd.gate.category.<code>",
+      "Blocker list at bottom → derived from Server Component query; red Alert with AlertDescription listing blocker item texts",
+      "Advance / Request approval footer button → onClick fires openModal('advanceGate') or openModal('gateApproval') depending on gate.requires_approval flag from DB",
+      "Hardcoded gate labels (Idea, Feasibility…) → npd.gate.label.<gateCode> next-intl keys"
+    ],
+    "shadcn_equivalent": [
+      "Card",
+      "Collapsible",
+      "CollapsibleTrigger",
+      "CollapsibleContent",
+      "Checkbox",
+      "Badge",
+      "Alert",
+      "AlertDescription",
+      "Button",
+      "Progress"
+    ],
+    "known_bugs": [],
+    "estimated_translation_time_min": 90,
+    "module": "npd"
+  },
+  {
+    "label": "advance_gate_modal",
+    "file": "design/Monopilot Design System/npd/gate-screens.jsx",
+    "lines": "261-377",
+    "component_type": "modal",
+    "ui_pattern": "crud-form-with-validation",
+    "data_domain": "Project",
+    "interaction": "approve",
+    "complexity": "composite",
+    "depends_on_prototypes": [
+      "gate_checklist_panel"
+    ],
+    "translation_notes": [
+      "AdvanceGateModal receives { project } in data prop → Server Component pre-loads: current gate info, required items count, blockers list",
+      "requiredDone / requiredItems counts → computed server-side from gate_checklist_items query; pass as props",
+      "Blockers list (red items) → Server Action getGateBlockers(projectId, gate) returns required items with completed_at IS NULL",
+      "Gate transition visual (dashed arrow when blocked) → SVG or CSS dashed-border arrow; blocked state gated by blockers.length > 0",
+      "Notes textarea (disabled when blockers) → disabled prop driven by props.blockers.length > 0",
+      "Confirm advance Server Action → advanceProjectGate(projectId): validates no blockers in DB, updates project.current_gate, creates gate_events record, emits npd.gate.advanced outbox event; reject with 422 if blockers exist",
+      "Hardcoded gate labels → next-intl npd.gate.label.<key>"
+    ],
+    "shadcn_equivalent": [
+      "Dialog",
+      "DialogContent",
+      "DialogHeader",
+      "DialogFooter",
+      "Textarea",
+      "Alert",
+      "AlertDescription",
+      "Button",
+      "Badge"
+    ],
+    "known_bugs": [],
+    "estimated_translation_time_min": 60,
+    "module": "npd"
+  },
+  {
+    "label": "gate_approval_modal",
+    "file": "design/Monopilot Design System/npd/gate-screens.jsx",
+    "lines": "378-522",
+    "component_type": "modal",
+    "ui_pattern": "crud-form-with-validation",
+    "data_domain": "Project",
+    "interaction": "approve",
+    "complexity": "composite",
+    "depends_on_prototypes": [
+      "gate_checklist_panel"
+    ],
+    "translation_notes": [
+      "Approve/Reject radio decision → RadioGroup + RadioGroupItem (shadcn); decision drives conditional UI",
+      "E-signature overlay (password + confirmation checkbox) → separate shadcn Dialog within Dialog or a step state machine ('decision' | 'esign' | 'submitted'); password field bound to useForm zod schema with z.string().min(6)",
+      "E-signature Server Action → verifyAndApproveGate(projectId, gate, decision, password): verify password via bcrypt against user.password_hash, create gate_approvals record with esigned_at timestamp, advance gate on approve, emit npd.gate.approved / npd.gate.rejected outbox event",
+      "Project header (product name, code, stage badge) → Server Component joins projects table; pass as prop",
+      "Rejection reason textarea → required when decision='reject' (zod .refine: if decision=reject then reason.length > 0)",
+      "Hardcoded role label (NPD Lead) → session.user.role from next-auth/Clerk; displayed as next-intl npd.role.<role>"
+    ],
+    "shadcn_equivalent": [
+      "Dialog",
+      "DialogContent",
+      "DialogHeader",
+      "DialogFooter",
+      "RadioGroup",
+      "RadioGroupItem",
+      "Form",
+      "FormField",
+      "Input",
+      "Textarea",
+      "Checkbox",
+      "Button",
+      "Badge"
+    ],
+    "known_bugs": [],
+    "estimated_translation_time_min": 90,
+    "module": "npd"
+  },
+  {
+    "label": "approval_history_timeline",
+    "file": "design/Monopilot Design System/npd/gate-screens.jsx",
+    "lines": "525-616",
+    "component_type": "page-layout",
+    "ui_pattern": "detail-view",
+    "data_domain": "Project",
+    "interaction": "view",
+    "complexity": "composite",
+    "depends_on_prototypes": [],
+    "translation_notes": [
+      "APPROVAL_HISTORY_SAMPLE constant → Server Component queries gate_approvals JOIN gate_events WHERE project_id=? ORDER BY created_at DESC",
+      "Vertical timeline (green/red circles, connector line) → CSS: relative container + absolute left border line; each entry is relative positioned; approved=green circle, rejected=red",
+      "View signature details expandable panel → shadcn Collapsible per timeline entry; shows approver, timestamp, SHA-256 hash from gate_approvals.esign_hash",
+      "eSigned badge → gate_approvals.esigned_at IS NOT NULL; show Badge variant='outline' with Lock icon",
+      "Gate label badges (G0 Idea, G1 Feasibility…) → Badge with gate code + next-intl npd.gate.label.<key>",
+      "Empty state (no approvals yet) → Alert with AlertDescription 'No approvals recorded yet for this project'"
+    ],
+    "shadcn_equivalent": [
+      "Card",
+      "Collapsible",
+      "CollapsibleTrigger",
+      "CollapsibleContent",
+      "Badge",
+      "Alert",
+      "AlertDescription"
+    ],
+    "known_bugs": [],
+    "estimated_translation_time_min": 60,
+    "module": "npd"
+  },
+  {
     "label": "annotate_downtime_modal",
     "file": "design/Monopilot Design System/oee/modals.jsx",
     "lines": "19-93",

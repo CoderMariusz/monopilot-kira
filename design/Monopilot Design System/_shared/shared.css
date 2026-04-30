@@ -39,6 +39,20 @@
 .summary-row:last-child { border-bottom: 0; }
 .summary-row.emph { font-size: 14px; font-weight: 700; padding-top: 10px; margin-top: 4px; border-top: 2px solid var(--border); border-bottom: 0; }
 
+/* ============ Button system (BL-PROD-05: centralised so all modules get .btn-danger) ============ */
+.btn { padding: 6px 14px; border-radius: 4px; font-size: 12px; font-weight: 500; cursor: pointer; border: 1px solid transparent; font-family: inherit; display: inline-flex; align-items: center; gap: 6px; }
+.btn-primary { background: var(--blue); color: #fff; border-color: var(--blue); }
+.btn-primary:hover { background: var(--blue-600); }
+.btn-secondary { background: #fff; color: var(--text); border-color: var(--border); }
+.btn-secondary:hover { background: var(--gray-050); }
+.btn-ghost { background: transparent; color: var(--muted); }
+.btn-ghost:hover { background: var(--gray-050); color: var(--text); }
+.btn-danger { background: var(--red); color: #fff; border-color: var(--red); }
+.btn-danger:hover { background: #b91c1c; }
+.btn-danger:disabled { background: #fecaca; color: #fff; border-color: #fecaca; cursor: not-allowed; }
+.btn-success { background: var(--green); color: #fff; border-color: var(--green); }
+.btn-success:hover { background: #15803d; }
+
 /* ============ Modal gallery grid ============ */
 .gallery-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 10px; }
 .gallery-card { background: #fff; border: 1px solid var(--border); border-radius: 6px; padding: 14px; cursor: pointer; transition: border-color 0.1s, box-shadow 0.1s; }
