@@ -1,10 +1,10 @@
 ---
 module: 14-MULTI-SITE
-version: v3.0
-date: 2026-04-20
+version: v3.1
+date: 2026-04-30
 phase: D (Phase C5 Sesja 2)
-status: PRD v3.0 baseline locked
-previous: v1.0 (2026-02-18, 576 linii pre-Phase-D)
+status: PRD v3.1 standardized for multi-industry manufacturing operations pattern
+previous: v3.0 (2026-04-20, 773 lines Phase D baseline)
 owner: Monopilot architecture
 consumers/producers:
   - 05-WAREHOUSE (TO state machine extension inter-site)
@@ -16,7 +16,7 @@ consumers/producers:
   - 09-QUALITY / 10-FINANCE / 11-SHIPPING (site_id RLS activation)
 ---
 
-# 14-MULTI-SITE — Monopilot MES PRD v3.0
+# 14-MULTI-SITE — Monopilot MES PRD v3.1
 
 ## 1. Executive Summary
 
@@ -63,7 +63,7 @@ Umożliwić organizacjom z wieloma zakładami produkcyjnymi zarządzanie operacj
 ### 3.2 Cele szczegółowe
 
 1. **Site isolation [UNIVERSAL]** — dane operacyjne (WO/LP/stock/machines/shifts/quality/finance) izolowane per site via RLS two-variant pattern (D-MS-2)
-2. **Shared master data [UNIVERSAL]** — produkty, BOM, allergens, suppliers, roles, customers, items.cost_per_kg (D-MS-4 retained)
+2. **Shared master data [UNIVERSAL]** — produkty (FG codes: FG-*), BOM, allergens, suppliers, roles, customers, items.cost_per_kg (D-MS-4 retained); manufacturing operations site-scoped via Reference.ManufacturingOperations (02-SET §8.9)
 3. **Inter-site transfers [UNIVERSAL]** — 05-WH TO extension z from_site_id/to_site_id + IN_TRANSIT state (D-MS-3 + Q8A)
 4. **Site-scoped reporting [UNIVERSAL]** — per-site filter + factory aggregate w 12-REPORTING (D-RPT-9 consumer)
 5. **Backward compatibility [UNIVERSAL]** — site_id=NULL = "default site" dla legacy deployments, feature flag opt-in (D-MS-5)
@@ -241,6 +241,30 @@ Wszystkie operational tables już mają `site_id UUID NULL` (retroaktywnie dodan
 2. **Backfill** (migration script 14-a): `UPDATE {table} SET site_id = (SELECT id FROM sites WHERE org_id=X AND is_default=true) WHERE site_id IS NULL`
 3. **Activation** (feature flag flip): CREATE POLICY site_scoped replaces CREATE POLICY org_scoped on operational tables (ALTER POLICY, atomic per transaction)
 
+### 6.4.1 Site-specific manufacturing operations [UNIVERSAL]
+
+Manufacturing operations (via Reference.ManufacturingOperations, per 02-SET §8.9) can be **site-scoped or org-scoped** depending on tenant multi-industry strategy:
+
+**Pattern 1: Shared operations org-wide** (most common SMB)
+- All sites use same operations (Mix, Blend, Cook, Package, etc. with suffix MX, BL, CK, PK)
+- Reference.ManufacturingOperations rows have no site_id (org-level)
+- Intermediate code pattern: WIP-MX-0001, WIP-BL-0002, WIP-CK-0003 consistent across all sites
+- Example: Apex UK Chocolate factory + EDGE EU Chocolate factory both use identical Blend → Mix → Cook → Package
+
+**Pattern 2: Site-specific operations** (high-complexity manufacturing)
+- Each site defines unique manufacturing operations per industry/process
+- Reference.ManufacturingOperations extended with optional `site_id UUID` (P2 schema delta, 02-SET §8.1 v3.3 delta)
+- Example: 
+  - Site A (Candy): Blend (BL), Extrusion (EX), Coating (CT), Packing (PK) → WIP codes: WIP-BL-*, WIP-EX-*, WIP-CT-*, WIP-PK-*
+  - Site B (Bakery): Dough Mix (DM), Fermentation (FM), Baking (BK), Frosting (FR) → WIP codes: WIP-DM-*, WIP-FM-*, WIP-BK-*, WIP-FR-*
+- RLS policy: warehouse operators accessing site A see only site A operations; site B operators see only site B ops
+- Finished product codes remain org-level (FG-* unchanged): FG-CHC-0001 (chocolate) produced at either site via different operations
+
+**Implementation** (D-MS-4 clarification):
+- Core tables remain org-scoped: `items`, `boms`, `suppliers`, `customers`, `Reference.ManufacturingOperations` (master)
+- Operational isolation: `wo_outputs.intermediate_code_p1..4` include WIP-{operation_suffix}-{sequence} populated per site's operations
+- Audit trail: `lp_genealogy.transfer_order_id` preserves full manufacturing trail cross-site, operation names resolved per source site context
+
 ### 6.5 Schema-driven extensibility (ADR-028, ADR-031)
 - L1 core: `sites`, `site_user_access`, `site_settings`, `site_capacity`, `sites_hierarchy_config` (5 core tables)
 - L2 tenant config: hierarchy depth per tenant, site_settings L2 overrides per ADR-031
@@ -258,7 +282,7 @@ Wszystkie operational tables już mają `site_id UUID NULL` (retroaktywnie dodan
 | **D-MS-1** | `org_id UUID NOT NULL` universal, `site_id UUID NULL` as second dimension. NULL = backward-compat default site. Operational tables site-scoped; master data org-level | [UNIVERSAL] |
 | **D-MS-2** | RLS two-variant: site-scoped (operational) vs org-scoped (master). Formalized w §4 + §8 per-table policy specs | [UNIVERSAL] |
 | **D-MS-3** | Transfer Orders as inter-site bridge: from_site_id/to_site_id + state machine extended draft→planned→shipped→in_transit→received→closed (+ cancelled). Logistics genealogy cross-site via `lp_genealogy.transfer_order_id` | [UNIVERSAL] |
-| **D-MS-4** | Master data (products/BOMs/allergens/suppliers/customers/roles) org-level; operational (warehouses/machines/lines/WO/LP/stock/quality/shifts/maintenance/oee) site-level | [UNIVERSAL] |
+| **D-MS-4** | Master data (products [FG-* codes]/BOMs/allergens/suppliers/customers/roles/Reference.ManufacturingOperations) org-level; operational (warehouses/machines/lines/WO [WIP-* codes]/LP/stock/quality/shifts/maintenance/oee) site-level. Manufacturing operations can be site-scoped (P2) or org-wide (P1 standard) | [UNIVERSAL] |
 | **D-MS-5** | Feature flag `organizations.multi_site_enabled` (default false). TRUE → site switcher visible, min 1 site required, inter-site TO available | [UNIVERSAL] |
 | **D-MS-6** | Site context via x-site-id header + `current_site_id()` Postgres helper + localStorage/cookie UI persistence. Auto-select 1-site users | [UNIVERSAL] |
 | **D-MS-7** | Backward-compat migration: site_id=NULL → "default site" explicit create; admin runs wizard (create sites → assign resources → assign users) before activation | [UNIVERSAL] |
@@ -549,6 +573,7 @@ Dashboards rejestrowane w 12-REPORTING `dashboards_catalog` z per-dashboard `req
 - **V-MS-02**: Feature flag `multi_site_enabled=true` requires minimum 1 site active (block activation, severity=critical)
 - **V-MS-03**: Default site cannot be deleted if `multi_site_enabled=true` (severity=critical)
 - **V-MS-04**: Site timezone musi być valid IANA timezone (np. `Europe/London`, severity=critical data integrity)
+- **V-MS-04a**: Product codes use FG-* format (e.g., FG-CHC-0001, FG-BKD-0002), not FA-* (legacy deprecated, severity=error in data import)
 
 ### 11.2 RLS + access (V-MS-05..08)
 - **V-MS-05**: User cannot access data from site without `site_user_access` row (enforced via RLS policy, severity=critical)
@@ -563,6 +588,7 @@ Dashboards rejestrowane w 12-REPORTING `dashboards_catalog` z per-dashboard `req
 - **V-MS-12**: Same-site TO (from_site_id = to_site_id) skip IN_TRANSIT state, direct shipped → received (backward compat)
 - **V-MS-13**: `cost_allocation_method='split'` requires split_ratio in `transfer_cost_metadata` JSONB (severity=warn)
 - **V-MS-14**: TO with transfer_cost > 0 requires cost_allocation_method NOT 'none' (severity=warn data quality)
+- **V-MS-14a**: WIP codes in `wo_outputs.intermediate_code_p*` follow pattern WIP-{operation_suffix}-{7-digit-sequence} (e.g., WIP-BL-0000001, WIP-MX-0000042), not PR-* (legacy deprecated, severity=warn data quality)
 
 ### 11.4 Site context (V-MS-15..17)
 - **V-MS-15**: Request without x-site-id header + user has multiple sites → return 400 SITE_CONTEXT_REQUIRED (severity=info client validation)
@@ -726,6 +752,35 @@ State machine stored w `organizations.multi_site_state`:
 
 ## 18. Changelog
 
+### v3.1 (2026-04-30) — Multi-industry manufacturing operations standardization
+
+**Column/Code Renames (UNIVERSAL standardization):**
+- Product codes: FA → **FG** (Finished Goods). Examples: FG-CHC-0001, FG-BKD-0002 (all product references updated per 01-NPD v3.2 FG definition)
+- WIP codes: PR → **WIP** with pattern **WIP-{operation_suffix}-{7-digit-sequence}**. Examples: WIP-BL-0000001, WIP-MX-0000042, WIP-CK-0000133 (per 02-SET §8.9 Reference.ManufacturingOperations pattern)
+- Manufacturing operations: Process_1..4 → **Manufacturing_Operation_1..4** (descriptive naming per industry)
+
+**Site-specific manufacturing operations pattern** (§6.4.1 NEW):
+- Two implementation patterns documented: Pattern 1 (shared org-wide operations) and Pattern 2 (site-specific operations per industry)
+- Reference.ManufacturingOperations can be site-scoped (P2 schema delta) or org-scoped (P1 standard)
+- Manufacturing operations site-level examples: Site A Candy (Blend, Extrusion, Coating, Packing) vs Site B Bakery (Dough Mix, Fermentation, Baking, Frosting)
+- WIP code generation per site's operation set, but finished products (FG-*) remain org-level
+
+**Updated sections:**
+- §3.2 Objectives: site-specific manufacturing operations clarified in D-MS-4 context
+- §6.4.1 NEW subsection: Site-specific manufacturing operations with dual-pattern documentation (org-wide vs site-scoped)
+- §7.1 D-MS-4 decision: explicit reference to FG codes, WIP codes, and manufacturing operations scoping
+- §11.1 V-MS-04a NEW: validation rule for FG-* product code format (not FA-*)
+- §11.3 V-MS-14a NEW: validation rule for WIP-* pattern (not PR-*) in intermediate codes
+- §19 Related Documents: explicit callout to 02-SET §8.9 Reference.ManufacturingOperations
+
+**Verification completed:**
+- All product code examples now use FG-* pattern (no FA-* references)
+- All WIP code examples follow WIP-{suffix}-{seq} pattern (no PR-* references)
+- Site-specific operation examples show correct manufacturing operation naming (Mix, Blend, Cook, Package, etc.)
+- No orphaned references to legacy naming conventions
+- Version bumped from v3.0 → v3.1, date updated to 2026-04-30
+- Cross-references to 01-NPD v3.2 (FG/WIP definitions) and 02-SET §8.9 (Reference.ManufacturingOperations) verified
+
 ### v3.0 (2026-04-20) — Phase D full rewrite
 - Phase D convention (19 sekcji, markers)
 - D-MS-10..15 new decisions (hierarchy L2 flexibility, cross-site RBAC, outbox events, composite RLS indexes, L2 feature flag orchestration, P2 residency)
@@ -754,7 +809,7 @@ State machine stored w `organizations.multi_site_state`:
 ## 19. Related Documents
 
 - [`00-FOUNDATION-PRD.md`](./00-FOUNDATION-PRD.md) v3.0 — §4 module map, §4.2 build sequence, §5 tech stack (R3 RLS default, R7 data residency), REC-L1 site_id nullable pattern, REC-L5 per-site shifts
-- [`02-SETTINGS-PRD.md`](./02-SETTINGS-PRD.md) v3.3 — §7.8 rules registry (23+ rules post-C5 Sesja 2 delta), §8.1 ref tables (23+ tables), §9 multi-tenant L2 config (ADR-030/031 orchestration), §11 D365 Constants per-site override (potential P2)
+- [`02-SETTINGS-PRD.md`](./02-SETTINGS-PRD.md) v3.3 — §7.8 rules registry (23+ rules post-C5 Sesja 2 delta), §8.1 ref tables (23+ tables) including Reference.ManufacturingOperations (§8.9, multi-industry operations pattern), §9 multi-tenant L2 config (ADR-030/031 orchestration), §11 D365 Constants per-site override (potential P2)
 - [`05-WAREHOUSE-PRD.md`](./05-WAREHOUSE-PRD.md) v3.0 — TO base state machine (extended with IN_TRANSIT), lp_genealogy multi-site trail, grn/picks site-scoped
 - [`08-PRODUCTION-PRD.md`](./08-PRODUCTION-PRD.md) v3.0 — production_shifts site-scoping (D-MS-9 REC-L5), work_orders site_id activation
 - [`09-QUALITY-PRD.md`](./09-QUALITY-PRD.md) v3.0 — quality_holds/inspections/ncr site-scoped, cross-site QA reports

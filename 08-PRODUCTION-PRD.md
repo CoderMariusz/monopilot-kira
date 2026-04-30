@@ -1,8 +1,8 @@
 # 08-PRODUCTION-PRD.md
 
 **Module:** 08-PRODUCTION — WO Execution Engine, Shop Floor Control, Allergen Changeover Gate, INTEGRATIONS stage 2 (D365 WO push)
-**Version:** 3.0 (Phase C3 Sesja 1, 2026-04-20)
-**Status:** Written (full rewrite vs v3.1 baseline)
+**Version:** 3.1 (Phase C3 Sesja 1, 2026-04-30)
+**Status:** Written (multi-industry manufacturing operations pattern standardization)
 **Owner:** Production Operations domain
 **Dependencies:** 04-PLANNING-BASIC v3.1, 05-WAREHOUSE v3.0, 06-SCANNER-P1 v3.0, 03-TECHNICAL v3.0, 02-SETTINGS v3.0, 00-FOUNDATION v3.0, 07-PLANNING-EXT v3.0
 **Consumers:** 09-QUALITY (CCP triggers), 10-FINANCE (WIP+yield costing), 12-REPORTING (production KPIs), 15-OEE (OEE calculation primary source)
@@ -11,8 +11,9 @@
 
 ## Changelog
 
+- **v3.1 (2026-04-30)** — Multi-industry manufacturing operations pattern standardization. Standardizes all process references to use dynamic Manufacturing_Operation lookup from Reference.ManufacturingOperations with 2-letter process_suffix (e.g., Mix=MX, Bake=BK). Changes: FA→FG (finished goods), PR→WIP (work-in-progress), WIP code pattern WIP-<suffix>-<7digit> (e.g., WIP-MX-0000001). Updates changeover gate examples to use operation names + suffixes (not A/B/C/D). All validation rules, column references, SQL examples, and Mermaid diagrams updated. Changeover gate logic unchanged; examples only updated for clarity. Version control: cross-references validated with 01-NPD v3.2 §6, 02-SETTINGS v3.4 §8.9, 00-FOUNDATION v4.0 §9.1.
 - **v3.0 (2026-04-20)** — Full rewrite vs v3.1 baseline (774 linii pre-Phase-D). Phase D renumbering M06→08. Adds: allergen changeover gate rule engine DSL, INTEGRATIONS stage 2 inline (D365 WO confirmations push, outbox, DLQ, R14 idempotency), per-minute OEE aggregation (Q4), PLC integration deferred P2 (Q5), schema-driven changeover L3 (Q6), async outbox D365 push (Q7), admin-configurable downtime categories (Q8), catch weight confirmation, ZPL label printing P2, operator KPIs (consumption speed, FEFO compliance). 16 sections, 15 decisions (D1-D15 — D1-D11 baseline retained + D12-D15 Phase C3 new), 7 sub-modules build sequence (08-a..g) + 5 Phase 2 (08-h..l).
-- **v3.1 baseline (2026-02-18)** — pre-Phase-D, 774 lines, M06 naming, 6 epics P1 + 4 P2, D1-D11 baseline decisions. Covers LP-based consumption, output+by-products, genealogy P1, waste categorization, downtime tracking. Missing: allergen gate, INTEGRATIONS stage 2, OEE, catch weight, ZPL, PLC — all added in v3.0.
+- **v3.0 baseline (2026-02-18)** — pre-Phase-D, 774 lines, M06 naming, 6 epics P1 + 4 P2, D1-D11 baseline decisions. Covers LP-based consumption, output+by-products, genealogy P1, waste categorization, downtime tracking. Missing: allergen gate, INTEGRATIONS stage 2, OEE, catch weight, ZPL, PLC — all added in v3.0.
 
 ---
 
@@ -164,7 +165,7 @@ Module boundaries clarified:
 - Read on `wo_outputs.qa_status`
 
 **NPD Manager (Jane)** [APEX-CONFIG]
-- Read-only on 08-PROD for new FA ramp-up validation
+- Read-only on 08-PROD for new FG ramp-up validation
 - Flags products with allergen-specific process notes (process_allergen_additions in 03-TECH §10.4)
 
 **System (Production Daemon)** [UNIVERSAL]
@@ -207,7 +208,7 @@ Apex default: operator, shift_lead, production_manager, quality_lead, npd_manage
 6. **Closed_Production strict all-must-complete** (Phase D #17) — rule `closed_production_strict_v1` enforces: all components consumed AND all outputs registered before WO.status → COMPLETED
 7. **Waste logging** — per-category qty, reason_code (category taxonomy from 02-SETTINGS, admin-configurable), analytics dimensions (line, shift, operator, product)
 8. **Downtime events** — operator-logged (PAUSE → reason_code from taxonomy), manual duration entry, impact classification (planned/unplanned)
-9. **Changeover events** — start on SCN-081 "start changeover" action, end on SCN-081 "complete changeover" after cleaning checklist + ATP (if required) + dual sign-off
+9. **Changeover events** — start on SCN-081 "start changeover" action, end on SCN-081 "complete changeover" after cleaning checklist + ATP (if required) + dual sign-off. Example: changeover from Mix (MX) operation to Bake (BK) operation uses Reference.ManufacturingOperations lookup for 2-letter suffixes; WIP codes use pattern WIP-MX-0000001, WIP-BK-0000002, etc.
 10. **Allergen changeover gate** (NEW v3.0) — `allergen_changeover_gate_v1` DSL rule triggers on WO transition when allergen_delta detected, blocks WO START until validation complete
 11. **Dual sign-off UI** — shift_lead + quality_lead digital signatures stored in `allergen_changeover_validations` (BRCGS Issue 10 immutable audit)
 12. **Shifts attribution** — every mutation stamped with shift_id from `production_shifts` (source 02-SETTINGS), operator_id
@@ -309,7 +310,7 @@ Apex default: operator, shift_lead, production_manager, quality_lead, npd_manage
 1. **BRCGS Issue 10 (2026)** — digital signatures on critical events (allergen gate sign-off, closed_production_strict override), immutable audit trail (append-only logs)
 2. **FSMA 204 (2028-07-20)** — lot genealogy forward+backward <2s (delivered via 05-WH §11 recursive CTE + outbox EPCIS consumer P2)
 3. **EU FIC 1169/2011 + 2021/382** — allergen-free claims require documented changeover evidence (allergen_changeover_validations retained 7y)
-4. **FDA 21 CFR Part 11** (for export FAs) — electronic signature format: user_id + timestamp + action + checksum
+4. **FDA 21 CFR Part 11** (for export FGs) — electronic signature format: user_id + timestamp + action + checksum
 5. **HACCP + CCP events** — 08-PROD raises CCP events (temperature deviation, metal detect fail) to 09-QUALITY (P2 integration)
 6. **GDPR** — operator_id linked to personal data (name, employment); 08-PROD retains operator_id + shift_id for audit, personal data in `users` (02-SETTINGS) under RLS
 7. **Digital signature retention** — BRCGS 7 years minimum
@@ -406,7 +407,7 @@ Tenant can extend (L2 config per ADR-030). Per-line default mapping optional.
   "journalName": "PROD-YYYY-MM-DD",
   "companyId": "FNOR",
   "lines": [
-    {"itemId": "FA5101", "qty": 1000, "warehouse": "ApexDG", "batchId": "WO-2026-0001-OUT", "datePhysical": "2026-04-20", "..."},
+    {"itemId": "FG5101", "qty": 1000, "warehouse": "ApexDG", "batchId": "WO-2026-0001-OUT", "datePhysical": "2026-04-20", "..."},
     // co-products, by-products as separate lines
   ],
   "metadata": {"wo_id": "...", "transaction_id": "uuid-v7", "monopilot_version": "3.0"}
@@ -1290,6 +1291,19 @@ outcome:
   - fail: return 423 Locked with changeover_event_id, redirect to /production/changeover/:id
 ```
 
+**Manufacturing Operations Context:**
+The `changeover_matrix` referenced in step 3 is keyed by (prev_manufacturing_operation, current_manufacturing_operation, line_id). Manufacturing operations are tenant-configurable via Reference.ManufacturingOperations (02-SETTINGS §8.9) with 2-letter process_suffix. 
+
+Example for bakery tenant (Apex):
+- Mix (MX) → Bake (BK): cleaning_required=true, risk_level='high', atp_required=true
+- Bake (BK) → Cool (CL): cleaning_required=false, risk_level='low', segregation_required=false
+- Cool (CL) → Coat (CT): cleaning_required=false, risk_level='low'
+
+WIP (Work-In-Progress) intermediate item codes use pattern: **WIP-<manufacturing_operation_suffix>-<7digit_sequence>**
+- Example: WIP-MX-0000001 (Mix operation, sequence 1), WIP-BK-0000042 (Bake operation, sequence 42)
+
+This is evaluated against prev_wo's final manufacturing_operation to determine allergen_delta and trigger cleaning/ATP requirements.
+
 ### 10.3 `closed_production_strict_v1` [UNIVERSAL]
 
 **Type:** gate
@@ -1539,7 +1553,7 @@ def retry_delay(attempt):
     {
       "output_type": "primary",
       "item_id": "...",
-      "item_code": "FA5101",
+      "item_code": "FG5101",
       "qty_kg": 1050.0,
       "catch_weight_details": {"_": "_"},
       "batch_number": "WO-2026-0001-OUT-001",
@@ -1559,7 +1573,7 @@ def retry_delay(attempt):
   "dataAreaId": "FNOR",
   "lines": [
     {
-      "ItemId": "FA5101",
+      "ItemId": "FG5101",
       "Qty": 1050.0,
       "InventDimId": {
         "InventBatchId": "WO-2026-0001-OUT-001",
@@ -1988,20 +2002,20 @@ Consistency rules:
 
 | Version | Date | Author | Summary |
 |---|---|---|---|
+| 3.1 | 2026-04-30 | C3 Sesja 1 | Multi-industry manufacturing operations pattern standardization. FA→FG, PR→WIP, Process_*→Manufacturing_Operation_*. Changeover gate examples updated to use operation names + 2-letter suffixes (Mix=MX, Bake=BK, etc). WIP code pattern: WIP-<suffix>-<7digit>. All validation rules, SQL examples, Mermaid diagrams updated. Changeover logic unchanged. Cross-references: 01-NPD v3.2 §6, 02-SETTINGS v3.4 §8.9, 00-FOUNDATION v4.0 §9.1. |
 | 3.0 | 2026-04-20 | C3 Sesja 1 | Full rewrite vs v3.1 baseline. Phase D renumbering. 16 sections, 15 decisions, 7 sub-modules P1 + 5 P2, INTEGRATIONS stage 2 inline §12, allergen changeover gate, per-minute OEE, R14 idempotency, R15 anti-corruption layer. Cross-PRD consumer contract with 05-WH + 06-SCN + 07-EXT enforced. |
-| 3.1 (baseline pre-Phase-D) | 2026-02-18 | (archive) | 774 linii, M06 naming, 6 epics P1 + 4 P2. Superseded by v3.0. |
 
 ---
 
 ## Appendix A — End-to-end WO happy path example
 
-**Scenario:** WO-2026-0042 "Produce FA5101 (chicken breast fillet plain, no mustard) on LINE-01, Shift A, planned qty 1000 kg".
+**Scenario:** WO-2026-0042 "Produce FG5101 (chicken breast fillet plain, no mustard) on LINE-01, Shift A, planned qty 1000 kg".
 
 1. **05:45** Scheduler assignment approved (07-EXT output) → WO.status = READY
 2. **06:05** Operator Marcin scans login on SCN-010, selects LINE-01 + SHIFT-A
 3. **06:10** Marcin scans WO-2026-0042 barcode → SCN-081 WO execute screen
 4. **06:11** Marcin clicks "Start WO" → POST /api/production/work-orders/.../start
-   - Allergen gate evaluation: prev WO was FA5100 (also no allergens on LINE-01 today) → gate skip, no changeover_event
+   - Allergen gate evaluation: prev WO was FG5100 (also no allergens on LINE-01 today) → gate skip, no changeover_event
    - wo_state_machine_v1: READY → IN_PROGRESS
    - wo_executions row created, started_at=06:11, current_operator_id=Marcin
 5. **06:12-06:20** Marcin scans 3 RM LPs (chicken breast fresh):
@@ -2012,7 +2026,7 @@ Consistency rules:
    - FEFO compliance: all 3 were FEFO-suggested → fefo_adherence_flag=true
 6. **06:20** Marcin starts production (line running). No operator actions until output.
 7. **07:30** Marcin scans output LP from line exit (catch-weight crate ~50kg)
-   - POST /outputs: output_type=primary, item_id=FA5101, qty_kg=50.3
+   - POST /outputs: output_type=primary, item_id=FG5101, qty_kg=50.3
    - 05-WH creates LP with batch WO-2026-0042-OUT-001
    - Label PDF printed automatically to nearest printer
 8. **07:30-09:15** Repeat 19 more output scans, total output = 1003 kg

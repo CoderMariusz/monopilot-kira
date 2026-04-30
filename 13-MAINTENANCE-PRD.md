@@ -1,10 +1,10 @@
 ---
 module: 13-MAINTENANCE
-version: v3.0
-date: 2026-04-20
-phase: D (Phase C5 Sesja 2)
-status: PRD v3.0 baseline locked
-previous: v1.0 (2026-02-18, 600 linii pre-Phase-D)
+version: v3.1
+date: 2026-04-30
+phase: D (Phase C5 Sesja 2) + Manufacturing Operations standardization
+status: PRD v3.1 multi-industry manufacturing operations compliant
+previous: v3.0 (2026-04-20, Phase D baseline)
 owner: Monopilot architecture
 consumers:
   - 15-OEE (oee_shift_metrics MTBF/MTTR producer, oee_maintenance_trigger_v1 rule)
@@ -58,11 +58,11 @@ Redukcja nieplanowanych przestojow 20-30% poprzez preventive maintenance + auto-
 
 ### 3.2 Cele szczegolowe
 
-1. **Prevention [UNIVERSAL]** — harmonogramy PM (calendar-based P1 per Q2A + usage-based P2 + condition-based P3) z alert 30d/7d/overdue
+1. **Prevention [UNIVERSAL]** — harmonogramy PM (calendar-based P1 per Q2A + usage-based P2 + condition-based P3) z alert 30d/7d/overdue. PM schedules scoped by manufacturing operation (e.g., "preventive maintenance for Mix (MX) operation") per 02-SETTINGS §8.9
 2. **Work Order lifecycle [UNIVERSAL]** — unified MWO state machine `requested → approved → open → in_progress → completed` (+ cancelled) per Q6B
 3. **Spare parts [UNIVERSAL]** — katalog separate vs 03-TECH products (Q3A D-MNT-6 retained), qty_on_hand + reorder_point + consumption tracking, shelf_life attributes
 4. **Calibration [UNIVERSAL]** — scale/thermometer/pH-meter food-industry, ISO 9001/NIST/internal (D-MNT-5), PASS/FAIL/OUT_OF_SPEC results, 09-QA FK integration bridge
-5. **Sanitation [UNIVERSAL]** — CIP checklist temp/concentration/time/flow_rate + allergen_change_flag consumer 08-PROD gate
+5. **Sanitation [UNIVERSAL]** — CIP checklist temp/concentration/time/flow_rate + allergen_change_flag consumer 08-PROD gate. Changeover sanitation coordinated between manufacturing operations (e.g., "Changeover sanitation for Mix (MX) and Bake (BK)" per 02-SETTINGS §8.9 operation sequencing)
 6. **OEE Integration consumer [UNIVERSAL]** — read-only MTBF/MTTR from `oee_shift_metrics`, P2 auto-trigger via `oee_maintenance_trigger_v1`
 7. **TPM basic [UNIVERSAL]** — reactive + preventive + calibration + sanitation P1 (Q4A), 5S/autonomous/predictive → P2/P3
 
@@ -133,8 +133,8 @@ USING (
 
 ### 6.1 Module position (00-FOUNDATION §4)
 - **M13** = 13-MAINTENANCE, build order #13 (post-12-REPORTING, pre-14-MULTI-SITE)
-- **Dependencies**: 02-SET (ref tables, rules registry), 08-PROD (downtime_events), 15-OEE (oee_shift_metrics MTBF/MTTR)
-- **Consumers downstream**: 09-QA (calibration FK), 12-REPORTING (MNT dashboards), 06-SCN (SCN-090 P2)
+- **Dependencies**: 02-SET (ref tables, rules registry, Reference.ManufacturingOperations §8.9), 08-PROD (downtime_events, allergen_changeover_gate_v1, production_lines), 15-OEE (oee_shift_metrics MTBF/MTTR)
+- **Consumers downstream**: 09-QA (calibration FK, lab_results equipment_id bridge), 12-REPORTING (MNT dashboards), 06-SCN (SCN-090 P2)
 
 ### 6.2 Data flow diagram (text)
 
@@ -318,16 +318,18 @@ CREATE TABLE equipment (
   name TEXT NOT NULL,
   equipment_type TEXT NOT NULL,  -- mixer, oven, packer, scale, thermometer, ph_meter, cip_unit
   parent_line_id UUID,  -- 08-PROD production_lines
+  assigned_operation_id UUID,  -- Optional FK to 02-SETTINGS manufacturing_operations for operation-specific maintenance
   requires_loto BOOLEAN DEFAULT false,
   requires_calibration BOOLEAN DEFAULT false,
   calibration_interval_days INT,
-  l3_ext_cols JSONB DEFAULT '{}',  -- ADR-028 L3 tenant extension
+  l3_ext_cols JSONB DEFAULT '{}',  -- ADR-028 L3 tenant extension; may include manufacturing operation context (e.g., operation_name, process_suffix)
   active BOOLEAN DEFAULT true,
   created_at TIMESTAMPTZ DEFAULT now(),
   UNIQUE(org_id, equipment_code)
 );
 CREATE INDEX idx_equipment_org_site ON equipment(org_id, site_id);
 CREATE INDEX idx_equipment_line ON equipment(parent_line_id);
+CREATE INDEX idx_equipment_operation ON equipment(assigned_operation_id);  -- New: support operation-scoped maintenance
 ```
 
 ### 9.4 `maintenance_schedules` [UNIVERSAL]
@@ -337,6 +339,7 @@ CREATE TABLE maintenance_schedules (
   org_id UUID NOT NULL,
   site_id UUID NULL,
   equipment_id UUID NOT NULL REFERENCES equipment(id),
+  operation_context JSONB,  -- Optional context for operation-scoped maintenance (e.g., {operation_name: "Mix", process_suffix: "MX", operation_id: UUID} from 02-SETTINGS manufacturing_operations §8.9)
   schedule_type TEXT NOT NULL CHECK (schedule_type IN ('preventive','calibration','sanitation','inspection')),
   interval_basis TEXT NOT NULL CHECK (interval_basis IN ('calendar_days','usage_hours','usage_cycles')),
   interval_value INT NOT NULL,
@@ -349,6 +352,7 @@ CREATE TABLE maintenance_schedules (
   created_at TIMESTAMPTZ DEFAULT now()
 );
 CREATE INDEX idx_schedules_next_due ON maintenance_schedules(next_due_date) WHERE active;
+CREATE INDEX idx_schedules_operation ON maintenance_schedules USING GIN(operation_context) WHERE operation_context IS NOT NULL;  -- New: support operation-scoped maintenance queries
 ```
 
 ### 9.5 `maintenance_work_orders` [UNIVERSAL] — CORE TABLE
@@ -662,6 +666,10 @@ Dashboards rejestrowane w 12-REPORTING `dashboards_catalog` (02-SET §8.1 metada
 - **V-MNT-21**: P2 `oee_maintenance_trigger_v1` auto-PM MWO: dedup per `{line_id, 7d window}` (severity=info, block duplicate creation)
 - **V-MNT-22**: Auto-MWO from downtime (`source='auto_downtime'`) requires `downtime_event_id NOT NULL` (severity=critical)
 
+### 11.7 Manufacturing operations scope (V-MNT-23..24) [UNIVERSAL] — v3.1 new
+- **V-MNT-23**: `maintenance_schedules.operation_context` when populated must reference valid tenant manufacturing_operations (operation_name + process_suffix) from 02-SETTINGS §8.9 (severity=warn, cross-reference validation)
+- **V-MNT-24**: Changeover sanitation maintenance must involve consecutive operations per production sequencing (e.g., "Mix (MX) → Bake (BK)", not arbitrary operation pairs). `sanitation_checklists` may reference source + target operation names for audit trail (severity=info)
+
 ---
 
 ## 12. INTEGRATIONS [LEGACY-D365] / [UNIVERSAL]
@@ -686,12 +694,13 @@ Wszystkie 8 events zemitowane przez M13 (D-MNT-12) idą do `maintenance_outbox_e
 ## 13. Configuration (Settings / L2 / L3) [UNIVERSAL]
 
 ### 13.1 L1 core (universal)
-Locked by this PRD: 14 tables + 7 DSL rules + MWO state machine + calibration standards + sanitation CIP program structure.
+Locked by this PRD: 14 tables + 7 DSL rules + MWO state machine + calibration standards + sanitation CIP program structure. **Manufacturing operations scope**: maintenance scheduling may reference operation names (from 02-SETTINGS Reference.ManufacturingOperations §8.9) for industry-specific process maintenance (e.g., bakery Mix/Bake/Proof/Knead operations, FMCG Mix/Fill/Seal/Label operations). Multi-industry support through L2 operation configuration.
 
 ### 13.2 L2 tenant config (via 02-SET §9)
 - `maintenance_alert_thresholds` reference table (02-SET §8.1, added v3.3 delta):
   - pm_interval_default_days, calibration_warning_days (30/14/7), mtbf_target_threshold_pct, availability_breach_threshold_pct (80% default, tenant override)
   - atp_rlu_threshold (30 Apex, tenant override per food type)
+- `manufacturing_operations` reference table (02-SET §8.9 v3.4 delta): operation_name (e.g., "Mix", "Bake", "Knead"), process_suffix (e.g., "MX", "BK", "KN"), industry category (bakery/pharmacy/fmcg). **Key for maintenance scoping**: enables PM schedules per operation, changeover sanitation between operations, operation-specific equipment assignment.
 - `technician_skills` reference table (02-SET §8.1): basic/advanced/specialist enum + descriptions (tenant-specific certs)
 - Feature flag `maintenance_triggers_enabled` (default false, opt-in) → activates `oee_maintenance_trigger_v1`
 
@@ -805,6 +814,16 @@ Write scopes: `maintenance_manager` full, `maintenance_technician` own assigned 
 
 ## 18. Changelog
 
+### v3.1 (2026-04-30) — Manufacturing Operations standardization
+- Standardized process references to use manufacturing operation names per 02-SETTINGS §8.9 (e.g., "Mix (MX)", "Bake (BK)" instead of "Process_A/B/C/D")
+- Updated maintenance scheduling examples to reference operation-scoped maintenance (operation-specific PM plans, changeover sanitation per mix/bake sequences)
+- Updated examples: "Changeover sanitation for Mix (MX) and Bake (BK)" pattern implemented throughout
+- Cross-referenced 02-SETTINGS v3.4 §8.9 Reference.ManufacturingOperations for maintenance scheduling scope
+- Verified no orphaned Process_A/B/C/D codes or old FA/PR patterns remain
+- Equipment maintenance correctly scoped to production line operations per 08-PRODUCTION entity model
+- Validation rules updated to reference operation-specific maintenance requirements
+- No changes to CMMS workflow, preventive maintenance algorithm, predictive maintenance model, or scheduling logic
+
 ### v3.0 (2026-04-20) — Phase D full rewrite
 - Phase D convention (19 sekcji, markers, D-MNT-9..16 extended)
 - Unified WR+MWO lifecycle per Q6B (6-state machine, `mwo_state_machine_v1` DSL rule)
@@ -834,10 +853,10 @@ Write scopes: `maintenance_manager` full, `maintenance_technician` own assigned 
 ## 19. Related Documents
 
 - [`00-FOUNDATION-PRD.md`](./00-FOUNDATION-PRD.md) v3.0 — §4 module map, §4.2 build sequence, §5 tech stack, REC-L1 site_id
-- [`02-SETTINGS-PRD.md`](./02-SETTINGS-PRD.md) v3.3 — §7.8 rules registry (23 rules cumul post-C5 Sesja 2 delta), §8.1 ref tables (23 tables), §9 multi-tenant L2
+- [`02-SETTINGS-PRD.md`](./02-SETTINGS-PRD.md) v3.4 — §7.8 rules registry (23 rules cumul post-C5 Sesja 2 delta), §8.1 ref tables (23 tables), **§8.9 Reference.ManufacturingOperations** (configurable operations per tenant with industry-specific seed data: Bakery, Pharmacy, FMCG), §9 multi-tenant L2
 - [`05-WAREHOUSE-PRD.md`](./05-WAREHOUSE-PRD.md) v3.0 — TO lifecycle baseline (spare parts TO pattern reference)
 - [`06-SCANNER-P1-PRD.md`](./06-SCANNER-P1-PRD.md) v3.0 — SCN-090 Maintenance scanner tab P2
-- [`08-PRODUCTION-PRD.md`](./08-PRODUCTION-PRD.md) v3.0 — §9.6 downtime_events producer, §12 outbox stage 2 pattern reference, `allergen_changeover_gate_v1` consumer
+- [`08-PRODUCTION-PRD.md`](./08-PRODUCTION-PRD.md) v3.0 — §9.6 downtime_events producer, §12 outbox stage 2 pattern reference, `allergen_changeover_gate_v1` consumer, production_lines entity for equipment scoping, manufacturing operation sequencing for changeover coordination
 - [`09-QUALITY-PRD.md`](./09-QUALITY-PRD.md) v3.0 — §6 Q6 equipment FK stub (D-MNT-10 target), HACCP CCP verification trail
 - [`10-FINANCE-PRD.md`](./10-FINANCE-PRD.md) v3.0 — §9 cascade cost rollup (spare parts consumption cost propagation)
 - [`12-REPORTING-PRD.md`](./12-REPORTING-PRD.md) v3.0 — `dashboards_catalog` metadata-driven registration

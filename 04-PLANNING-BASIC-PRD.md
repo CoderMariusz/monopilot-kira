@@ -1,22 +1,22 @@
 # PRD 04-PLANNING-BASIC — Monopilot MES
 
-**Wersja**: 3.1 | **Data**: 2026-04-20 | **Status**: Phase C2 Sesja 2 revision (Q6 C2 Sesja 2 disposition scope narrowed)
+**Wersja**: 3.2 | **Data**: 2026-04-30 | **Status**: Phase C2 Sesja 2 revision (Multi-industry standardization — FA→FG, PR→WIP, Process_N→Manufacturing_Operation_N)
 **Moduł**: #4 w Module Map (per 00-FOUNDATION §4), deps: 01-NPD + 02-SETTINGS + 03-TECHNICAL
 **Primary reality sources**: PLD v7 Main Table (post-NPD downstream flow), Builder_FA5101.xlsx (D365 WO targets), MES-TRENDS-2026 §3/§7/§9
 
-> **v3.1 revision note (2026-04-20 C2 Sesja 2):** Intermediate cascade disposition scope narrowed — `to_stock` **only** w P1 (direct_continue + planner_decides **wycofane z P1**, deferred → P2 za real demand). Reservation hard-lock scope narrowed to **RM root only** (material_source='stock'). Intermediate cascade LPs flow: parent_wo output → put-away → available on stock → Scanner scan-to-consume by child_wo. Cross-PRD consistency z 05-WAREHOUSE v3.0 §10 (Q6 revised). Affected sections: §5.10, §8.5, §8.6, §9.2, §9.4. Full changelog §16.6.
+> **v3.2 revision note (2026-04-30 Multi-industry standardization):** Universal naming conventions applied across all manufacturing patterns. FA → FG (finished good), PR → WIP (work-in-process), Process_1..4 → Manufacturing_Operation_1..4. WIP code pattern standardized to WIP-<2-letter-suffix>-<7-digit-sequence> (e.g., WIP-BK-0000001). All examples, SQL queries, Mermaid diagrams, and validation rules updated accordingly. Builds on v3.1 Q6 revision (intermediate cascade disposition, hard-lock reservations RM-root-only). Full changelog §16.6.
 
 ---
 
 ## §1 — Executive Summary
 
-Moduł **04-PLANNING-BASIC** (M04) to kręgosłup operacyjny MES — zarządza lifecycle'em **PO** (Purchase Orders, zakupy), **TO** (Transfer Orders, transfery wewnętrzne) oraz **WO** (Work Orders, zlecenia produkcyjne). Łączy **popyt** (D365 SO, ręczne zamówienia, Phase 2 forecasting) z **podażą** (inventory, capacity), generując harmonogram produkcji i plan zaopatrzenia bez złożoności enterprise ERP.
+Moduł **04-PLANNING-BASIC** (M04) to kręgosłup operacyjny MES — zarządza lifecycle'em **PO** (Purchase Orders, zakupy), **TO** (Transfer Orders, transfery wewnętrzne) oraz **WO** (Work Orders, zlecenia produkcyjne). Łączy **popyt** (D365 SO, ręczne zamówienia, Phase 2 forecasting) z **podażą** (inventory, capacity), generując harmonogram produkcji i plan zaopatrzenia bez złożoności enterprise ERP. Wspiera multi-industry manufacturing patterns z ustandaryzowaną nomenklaturą: FG (Finished Goods, wcześniej FA), WIP (Work-In-Process, wcześniej PR), Manufacturing_Operation_N (wcześniej Process_N).
 
 ### Core scope v3.0
 
 - **PO** — 3-step flow, smart defaults z supplier master, bulk create, approval workflow, D365 supplier pull consumer [INTEGRATIONS stage 1]
 - **TO** — intra-site state machine (ADR-019), partial shipments, LP pre-selection
-- **WO** — BOM snapshot (ADR-002), routing copy, material availability, hard-lock reservations, **intermediate cascade DAG** (Phase D #19 N+1 — Apex core, nie flag-gated), **co-products/byproducts** output, release-to-warehouse → Scanner M06 handoff
+- **WO** — BOM snapshot (ADR-002), routing copy, material availability, hard-lock reservations, **intermediate cascade DAG** (Phase D #19 N+1 — universal core, nie flag-gated), **co-products/byproducts** output, release-to-warehouse → Scanner M06 handoff
 - **Allergen-aware sequencing** [R3] — basic heuristic P1 (group by family), full optimizer → 07-PLANNING-EXT
 - **D365 SO trigger** — pull sales orders → draft WO gen (feature flag `integration.d365.so_trigger.enabled`)
 - **Workflow-as-data** — state machines ADR-007/ADR-019 jako DSL rules w 02-SETTINGS §7 registry (dev-authored, admin read-only per Q2 C1 decision)
@@ -24,7 +24,7 @@ Moduł **04-PLANNING-BASIC** (M04) to kręgosłup operacyjny MES — zarządza l
 
 ### Kluczowa decyzja Phase D #19 (intermediate cascade core)
 
-Apex **tropi intermediate steps jako storable LP** — każdy process step produkuje output, który może być put-away do magazynu lub continue do następnego WO. **Catalog-driven, nie flag-gated:**
+Multi-industry pattern **tropi intermediate steps jako storable LP** — każdy manufacturing operation produkuje output, który może być put-away do magazynu lub continue do następnego WO. **Catalog-driven, nie flag-gated:**
 
 ```
 Catalog ma intermediate items → BOM N-warstwowy → Planning generuje N+1 WO (DAG)
@@ -38,9 +38,9 @@ Multi-tenant friendly bez config switches — wynikowa liczba WO = liczba warstw
 - **02-SETTINGS §6** — schema-driven ext cols dla PO/TO/WO (per ADR-028, L3 `ext_jsonb`)
 - **02-SETTINGS §7** — rule registry dla WO/TO/PO state machines + allergen sequencing rules
 - **02-SETTINGS §9** — multi-tenant L2 dept variations (per ADR-030 config depts) wpływają na WO resource matrix
-- **02-SETTINGS §11** — D365 Constants (Apex 5 consts: FNOR/APX100048/ApexDG/FinGoods/APXProd01) w PO/WO metadata
+- **02-SETTINGS §11** — D365 Constants (multi-industry: organization-specific consts) w PO/WO metadata
 - **02-SETTINGS §12** — warehouses, production lines, machines z infrastructure registry
-- **03-TECHNICAL §5-§6** — items (5 types: rm/intermediate/fa/co_product/byproduct), product master, PR<digits><letter> intermediate codes
+- **03-TECHNICAL §5-§6** — items (5 types: rm/intermediate/fg/co_product/byproduct), product master, WIP-<suffix>-<sequence> intermediate codes
 - **03-TECHNICAL §7** — BOM versioning, co-products allocation_pct, BOM Generator N+1 output
 - **03-TECHNICAL §8** — catch weight (GS1 AI 3103/3922) dla PO/WO qty tracking
 - **03-TECHNICAL §10** — allergens cascade + §10.5 cross-contamination risk matrix → allergen-aware sequencing input
@@ -61,7 +61,7 @@ Dostarczyć wydajne, intuicyjne narzędzie planistyczne, które eliminuje arkusz
 ### Cele szczegółowe
 
 1. **PO Fast Flow** — 3-step creation (supplier → products+qty → submit), smart defaults (currency/tax/payment_terms/price/lead_time) auto-fill z supplier master
-2. **WO generation z DAG cascade** — BOM explode produkuje N+1 WO dla FA z intermediate warstwami, kolejność topological, inter-WO dependencies enforced
+2. **WO generation z DAG cascade** — BOM explode produkuje N+1 WO dla FG z intermediate warstwami, kolejność topological, inter-WO dependencies enforced
 3. **Material hard-lock reservation** — LP zarezerwowany na WO = niemożliwy na inne WO równolegle, auto-release on cancel/consumption
 4. **Allergen-aware scheduling** — minimize changeover cost przez grupowanie WO po allergen family (basic heuristic P1)
 5. **D365 SO pull trigger** — sales orders z D365 → auto draft WO (nightly + on-demand)
@@ -348,7 +348,7 @@ planning_settings
 |---------|-----|------|
 | id, tenant_id, site_id | | |
 | wo_number | VARCHAR(30) UNIQUE per tenant | Auto WO-YYYYMMDD-NNNN |
-| product_id | UUID FK | → 03-TECHNICAL items (rm/intermediate/fa/co_product/byproduct) |
+| product_id | UUID FK | → 03-TECHNICAL items (rm/intermediate/fg/co_product/byproduct) |
 | item_type_at_creation | ENUM | Snapshot z product type (per Phase D #19 audit) |
 | bom_id | UUID FK NULL | NULL dla is_rework=true |
 | routing_id | UUID FK NULL | Inherited via boms.routing_id |
@@ -401,7 +401,7 @@ planning_settings
 |---------|-----|------|
 | id, tenant_id, wo_id | | |
 | sequence | INT | |
-| operation_name | VARCHAR(255) | Snapshot z routing |
+| operation_name | VARCHAR(255) | Snapshot z routing (formerly referred to as manufacturing_operation_N) |
 | machine_id, line_id | UUID FK | |
 | expected_duration_minutes, expected_yield_percent | | |
 | actual_duration, actual_yield | | From 08-PRODUCTION |
@@ -415,7 +415,7 @@ planning_settings
 |---------|-----|------|
 | id | UUID PK | |
 | tenant_id, wo_id | | |
-| product_id | UUID FK | 03-TECHNICAL item (primary FA, co-product LUB byproduct) |
+| product_id | UUID FK | 03-TECHNICAL item (primary FG, co-product LUB byproduct) |
 | output_role | ENUM | 'primary' / 'co_product' / 'byproduct' |
 | planned_qty, uom | | Scaled from BOM allocation_pct × wo.planned_qty |
 | actual_qty | DECIMAL | From 08-PRODUCTION consumption |
@@ -748,7 +748,7 @@ function generateWODAG(root_demand):
         rollback()
         raise DAGCycleError
 
-    // Return root WO (primary FA); callers can navigate dependencies
+    // Return root WO (primary FG); callers can navigate dependencies
     return created_wos
 ```
 
@@ -763,7 +763,7 @@ function generateWODAG(root_demand):
 
 **FR-PLAN-023 (revised C2 Sesja 2 Q6):**
 
-**P1 scope:** `wo_outputs.disposition` **zawsze = `to_stock`**. Intermediate LPs, FA LPs, co-product LPs, byproduct LPs — wszystkie przechodzą przez standard put-away flow (05-WAREHOUSE §10).
+**P1 scope:** `wo_outputs.disposition` **zawsze = `to_stock`**. Intermediate LPs, FG LPs, co-product LPs, byproduct LPs — wszystkie przechodzą przez standard put-away flow (05-WAREHOUSE §10).
 
 | Disposition | Behavior | Status |
 |---|---|---|
@@ -772,7 +772,7 @@ function generateWODAG(root_demand):
 | `planner_decides` | ~~Planner wybiera w dashboard przed release~~ | **DEFERRED → P2** jeśli real demand |
 
 **Rationale P1 narrowing:**
-1. **Apex reality** — intermediate fizycznie trafia na buffer/chłodnię między operacjami (nie ma tight-flow direct handoff)
+1. **Multi-industry reality** — intermediate fizycznie trafia na buffer/chłodnię między operacjami (nie ma tight-flow direct handoff)
 2. **Zero inter-WO locking complexity** — WO interrupt/cancel = zero cleanup (LP stays `available`)
 3. **Out-of-order consumption naturalne** — operator na linii decyduje kolejność, scan-based
 4. **Audit clarity** — genealogy via chronological scan events, nie pre-allocated reservations
@@ -832,15 +832,15 @@ DRAFT ──→ RELEASED ──→ IN_PROGRESS ⇄ ON_HOLD ──→ COMPLETED �
 - State machine identyczny, guard `hasBOM` skipped dla rework
 - Audit: always logged, approval required (settings-driven `wo_rework_require_approval`)
 
-### 8.9 Meat_Pct multi-comp aggregation [APEX-CONFIG]
+### 8.9 Multi-component composition aggregation [UNIVERSAL-CONFIG]
 
-**FR-PLAN-026 (Phase D #14):**
+**FR-PLAN-026 (Phase D #14, multi-industry pattern):**
 
-Dla WOs z multi-component BOM (np. mixed-meat product), `Meat_Pct` computed by:
-- Aggregate RM meat items (`items.category='meat'`) from BOM expand
-- Weighted by `bom_item.qty × bom_item.product.meat_content_pct`
-- Result stored `wo.meat_pct_computed` (JSONB dla per-type breakdown + total)
-- Display: comma-sep z v7 pattern (e.g., "Chicken 85%, Pork 10%, Beef 5%")
+Dla WOs z multi-component BOM, composition metrics computed by:
+- Aggregate RM component items (e.g., meat, proteins, fillers) from BOM expand
+- Weighted by `bom_item.qty × bom_item.product.component_content_pct`
+- Result stored `wo.composition_computed` (JSONB dla per-component breakdown + total)
+- Display: comma-sep format (e.g., "Chicken 85%, Pork 10%, Beef 5%")
 
 ### 8.10 Frontend/UX
 
@@ -872,6 +872,7 @@ Dla WOs z multi-component BOM (np. mixed-meat product), `Meat_Pct` computed by:
 | V-PLAN-WO-007 | wo_material.material_source='upstream_wo_output' → source_wo_id populated | Block |
 | V-PLAN-WO-008 | Hard-lock reservation: LP reserved max 1 active WO | Block (concurrent WO creation) |
 | V-PLAN-WO-009 | Disposition='direct_continue' → downstream_wo_id required | Block release |
+| V-PLAN-WO-010 | WO numbering follows WIP-<suffix>-<sequence> for all intermediate WOs | Block |
 
 ---
 
@@ -881,7 +882,7 @@ Dla WOs z multi-component BOM (np. mixed-meat product), `Meat_Pct` computed by:
 
 **FR-PLAN-027:**
 - Reservation = **hard lock**: LP zarezerwowany na WO = **exclusive**, nie może być rezerwowany równolegle
-- Attempt to double-reserve → API error 409 Conflict z info: `{reserved_by_wo: "WO-XYZ", reserved_at: "...", can_override: false}`
+- Attempt to double-reserve → API error 409 Conflict z info: `{reserved_by_wo: "WIP-BK-0000001", reserved_at: "...", can_override: false}`
 - LP released after:
   - `consumed` — 08-PRODUCTION reports consumption (actual_qty cascade w wo_materials.consumed_qty)
   - `cancelled` — WO cancel or reservation explicit release (admin override)
@@ -938,9 +939,9 @@ Dla WOs z multi-component BOM (np. mixed-meat product), `Meat_Pct` computed by:
 
 ### 10.1 Scope
 
-**Primary source:** 03-TECHNICAL §10.5 cross-contamination risk matrix — mapuje allergen pairs → risk score (LOW/MEDIUM/HIGH/BLOCK).
+**Primary source:** 03-TECHNICAL §10.5 cross-contamination risk matrix — mapuje allergen/contaminant pairs → risk score (LOW/MEDIUM/HIGH/BLOCK).
 
-**Goal:** Ordering WOs on shared production line to **minimize allergen changeover cost** (cleaning time, ATP swabs, dual sign-off per 08-PRODUCTION §9 changeover gate).
+**Goal:** Ordering WOs on shared manufacturing line to **minimize changeover cost** (cleaning time, validation swabs, dual sign-off per 08-PRODUCTION §9 changeover gate).
 
 ### 10.2 Basic heuristic P1
 
@@ -1199,7 +1200,7 @@ Operacyjne:
 | to_require_lp_selection | BOOLEAN | false | |
 | wo_auto_number | BOOLEAN | true | |
 | wo_number_prefix | VARCHAR(10) | 'WO-' | |
-| wo_number_format | VARCHAR(50) | 'WO-{YYYYMMDD}-{NNNN}' | |
+| wo_number_format | VARCHAR(50) | 'WIP-{SUFFIX}-{NNNNNNN}' | Multi-industry standard: WIP-<2-letter-suffix>-<7-digit-sequence> |
 | wo_auto_select_bom | BOOLEAN | true | |
 | wo_copy_routing | BOOLEAN | true | |
 | wo_material_check | BOOLEAN | true | |
@@ -1210,7 +1211,7 @@ Operacyjne:
 | wo_rework_require_approval | BOOLEAN | true | |
 | wo_default_priority | VARCHAR(20) | 'normal' | |
 | wo_status_expiry_days | INT | 90 | Auto-archive closed WOs |
-| default_intermediate_disposition | ENUM | 'planner_decides' | Per-tenant cascade default |
+| default_intermediate_disposition | ENUM | 'to_stock' | Per-tenant cascade default (P1 always to_stock) |
 | intermediate_cascade_max_depth | INT | 10 | Safety cap |
 | sequencing_enabled_default | BOOLEAN | true | |
 | sequencing_rule_version | VARCHAR(20) | 'v1' | Points to rule registry |
@@ -1326,7 +1327,8 @@ cron or on-demand trigger:
         - source_of_demand = 'd365_so'
         - source_reference = so.so_id
         - status = 'DRAFT' (planner manually releases)
-     c. Trigger cascade generation (§8.4) jeśli BOM ma intermediate layers
+        - wo_number assigned per WIP-<suffix>-<sequence> pattern
+     c. Trigger cascade generation (§8.4) jeśli BOM ma intermediate layers (all child WOs follow WIP pattern)
      d. Emit outbox event wo.created_from_d365_so
   3. Log pull batch summary (rows pulled, WOs created, errors, drift) → 02-SETTINGS §11 admin dashboard
 ```
@@ -1435,9 +1437,9 @@ Per 00-FOUNDATION §4.2 build rozbicie:
 **Total:** 18-23 sesji implementation (writing done w Phase C2 Sesja 1).
 
 **Prerequisites (must be DONE before 04-PLANNING-a start):**
-- 01-NPD impl complete (Phase B build)
-- 02-SETTINGS impl complete (C1 build post-writing) — especially §7 rule registry + §11 D365 Constants + §12 infrastructure
-- 03-TECHNICAL impl complete — especially §5 items + §7 BOM + §13 D365 adapter
+- 01-NPD impl complete (Phase B build) — FG instance generation
+- 02-SETTINGS impl complete (C1 build post-writing) — especially §7 rule registry + §11 D365 Constants + §12 infrastructure (Manufacturing Operations configuration)
+- 03-TECHNICAL impl complete — especially §5 items + §7 BOM + §13 D365 adapter. Multi-industry naming: FG (finished goods), WIP codes (work-in-process)
 
 **Sequential build:** 04-a → 04-b → 04-c → 04-d (no parallel). Each sub-module: stories → QA → regression → close przed next.
 

@@ -1,7 +1,7 @@
-# 09-QUALITY — PRD v3.0
+# 09-QUALITY — PRD v3.1
 
 **Module:** 09-QUALITY
-**Version:** 3.0
+**Version:** 3.1
 **Date:** 2026-04-20
 **Status:** Final (Phase C4 Sesja 1 deliverable)
 **Phase reference:** Phase D renumbering (M08 → 09), Phase B/C foundation complete (00..08), Phase C4 in progress.
@@ -32,6 +32,15 @@ Moduł **09-QUALITY** jest centralnym rejestrem jakości i bezpieczeństwa żywn
 | LIMS | P2 skip → **Bridge-ready stub `lab_results.external_lims_id` P1, vendor TBD P2** |
 | Retention | Per-type (5/7/10y) → **Unified 7y BRCGS Issue 10** + override per regulatory type |
 | INTEGRATIONS | N/A | P1 consumer-only (event-driven), P2 LIMS REST + ATP device API stub |
+
+**Zmiany vs v3.0 baseline (2026-04-30, standardization patch):**
+
+| Obszar | v3.0 → v3.1 |
+|---|---|
+| Allergen cascade naming | `allergen_cascade_rm_to_fa` → **`allergen_cascade_rm_to_fg`** (alignment with 01-NPD v3.2 + 03-TECHNICAL v3.2 multi-industry manufacturing operations) |
+| Manufacturing operations | All examples/descriptions updated to reference **Manufacturing_Operation_1..4** (FG nomenclature) instead of Process_A/B/C/D patterns |
+| WIP intermediate codes | All references standardized to **WIP-<2-letter-suffix>-<7-digit-sequence>** per 01-NPD §10 (no legacy PR-* patterns) |
+| Allergen cascade pattern | Documentation updated: **RM → WIP_step → FG** (formerly RM → PR_step → FA) clarifying intermediate goods in cascade |
 
 **Phase D positioning:** 09-QUALITY jest 9. modułem Monopilot (M05→09 renumbering). Obsługuje całe 15-modułowe spektrum jako **quality guardian layer** — każdy module z LP/WO/CCP/batch lifecycle musi przejść przez 09-QUALITY gates przed shipment (11-SHIPPING) lub close (08-PROD).
 
@@ -104,7 +113,7 @@ Wszystkie tabele Quality mają `org_id UUID NOT NULL` + RLS policies per ADR-003
 | Feature | Owner | 09-QA relation |
 |---|---|---|
 | LP state machine | **05-WH §6.1** | 09-QA writes `qa_status` transitions only |
-| Allergen cascade rule RM→FA | **03-TECH §10.2** (`allergen_cascade_rm_to_fa`) | 09-QA consumer (read allergen profile for inspection config) |
+| Allergen cascade rule RM→FG | **03-TECH §10.2** (`allergen_cascade_rm_to_fg`) | 09-QA consumer (read allergen profile for inspection config) |
 | Allergen changeover gate evaluation | **08-PROD §7 E7** (`allergen_changeover_gate_v1`) | 09-QA consumer (stores ATP result + dual sign) |
 | WO state machine | **08-PROD §7 E1** (`wo_state_machine_v1`) | 09-QA blocks WO START on allergen gate fail (rule output) |
 | Scanner offline queue | **06-SCN §5** | 09-QA backend handles replay idempotency (R14) |
@@ -1319,7 +1328,7 @@ CREATE UNIQUE INDEX idx_mv_quality_kpis ON mv_quality_kpis_daily(org_id, kpi_dat
 | Rule (owner) | Consumption pattern |
 |---|---|
 | `allergen_changeover_gate_v1` (08-PROD E7) | Reads `allergen_changeover_validations` to display in QA-070; writes `first_signed_by`/`second_signed_by`/`second_signature_hash` via dual-sign flow |
-| `allergen_cascade_rm_to_fa` (03-TECH §10.2) | Reads product allergen profile for spec_parameters & inspection scope determination |
+| `allergen_cascade_rm_to_fg` (03-TECH §10.2) | Reads product allergen profile for spec_parameters & inspection scope determination |
 | `wo_state_machine_v1` (08-PROD E1) | `batch_release_gate_v1` (P2) hooks into `before_transition(to=closed)` |
 | `closed_production_strict_v1` (08-PROD) | Complementary — 08-PROD enforces WO close prerequisites; 09-QA enforces QA-specific prerequisites layered on top |
 
@@ -1718,7 +1727,7 @@ Onboarding completion tracked in `user_onboarding_progress` (02-SETTINGS).
 | P1 sub-modules build | 5 (09-a..e) |
 | P1 impl est. sesji | 45-54 |
 | DSL rules registered | 3 new (qa_status_state_machine_v1, ccp_deviation_escalation_v1, batch_release_gate_v1) |
-| DSL rules consumed | 4 (allergen_changeover_gate_v1, allergen_cascade_rm_to_fa, wo_state_machine_v1, closed_production_strict_v1) |
+| DSL rules consumed | 4 (allergen_changeover_gate_v1, allergen_cascade_rm_to_fg, wo_state_machine_v1, closed_production_strict_v1) |
 | Validation rules V-QA-* | 30+ |
 | UX screens P1 | 17 desktop + 5 scanner handoff |
 | KPIs | 8 P1 + 8 P2 + 5 compliance continuous |

@@ -1,8 +1,8 @@
-# 06-SCANNER-P1 — PRD v3.0
+# 06-SCANNER-P1 — PRD v3.1
 
-**Wersja:** 3.0
-**Data:** 2026-04-20
-**Status:** Phase C2 Sesja 3 deliverable (Monopilot Migration)
+**Wersja:** 3.1
+**Data:** 2026-04-30
+**Status:** Phase C2 Sesja 3 deliverable (Monopilot Migration) — Multi-industry code standardization
 **Phase D module #:** 06 (renumbering per 00-FOUNDATION §4.2)
 **Supersedes:** v1.2 (2026-02-18) pre-Phase-D baseline
 **Consumer of:** 05-WAREHOUSE v3.0 §13 Scanner Integration contract
@@ -50,6 +50,8 @@ Scanner (moduł 06) to **dedykowany mobilny interfejs** Monopilot MES, zaprojekt
 | Screen numbering | flat ad-hoc | **SCN-010..090 major + hierarchical sub-screens** (Q8) |
 
 **Model budowy:** Inkrementalny, 5 sub-modules **06-a..e** (22-28 sesji impl est.). Każdy sub-module odblokowuje grupę workflow'ów po dostarczeniu odpowiednich zależności.
+
+**Code Format Alignment v3.1:** Per 01-NPD v3.2 multi-industry manufacturing operations pattern — FA codes renamed to **FG** (Finished Goods), PR codes standardized to **WIP-<2-letter-process-suffix>-<7-digit-sequence>** format (e.g., WIP-BK-0000001, WIP-MX-0000042). All scanner examples and validation rules updated to reflect new code nomenclature. Barcode parsing and validation logic unchanged; examples only.
 
 **Cel użytkownika:** wykonanie operacji magazynowo-produkcyjnej w **<30s per scan**, bez klawiatury, w warunkach hali (hałas, rękawice, słabe oświetlenie, niestabilna sieć).
 
@@ -324,6 +326,18 @@ Konfigurowalne per user w SCN-settings (on/off per event type). Persist: localSt
 - Variable-length AI: Group Separator (ASCII 29, `\x1d`) jako delimiter
 - Unknown AI → log warning + pass raw value (graceful degradation)
 - Unit tests: ≥20 fixtures per AI code, edge cases (missing GS, invalid checksum, UTF-8)
+
+**v3.1 — Manufacturing Code Format Examples:**
+
+Per 01-NPD v3.2 multi-industry standard:
+- **FG codes (Finished Goods):** `FG-BRD-0001`, `FG-BRD-0002` — baked products (BRD suffix for bread/buns)
+- **WIP codes (Work-In-Progress):** `WIP-MX-0000001`, `WIP-MX-0000042`, `WIP-BK-0000004` — intermediate stages
+  - Suffix = 2-letter process code (MX=mixing, BK=baking, KN=kneading, PR=proofing, etc.)
+  - Sequence = 7-digit zero-padded number (0000001..9999999)
+- **Pattern validation:** FG-[A-Z]{3}-\d{4,} | WIP-[A-Z]{2}-\d{7}
+- Barcode encoding: Code-128 or GS1-128 with AI 01 (GTIN) + AI 10 (batch) + AI 17 (expiry YYMMDD)
+
+Example scanner validation: Scan `FG-BRD-0001` → lookup products.code → found. Scan `WIP-BK-0000001` → lookup lp.code → found (intermediate LP).
 
 ### D5. 3-Method Input Parity (Q4) — NEW v3.0
 
@@ -1412,6 +1426,15 @@ Widok per site/line/zmiana:
 
 ### 16.6 Changelog
 
+**v3.1 (2026-04-30) — Multi-industry code standardization**
+- **Code nomenclature update:** FA codes → **FG** (Finished Goods), PR codes → **WIP-<2-letter-process-suffix>-<7-digit-sequence>** per 01-NPD v3.2 multi-industry manufacturing operations pattern
+- Examples updated: "FA-BRD-0001" → "FG-BRD-0001", "PR-A-001" → "WIP-BK-0000001", "PR-H-002" → "WIP-MX-0000042"
+- Transaction payloads and validation examples aligned to new code formats
+- **Barcode parsing & validation logic: unchanged** — only examples and documentation updated
+- All acceptance criteria and UX patterns remain valid with new code nomenclature
+- Cross-reference: 01-NPD v3.2 (manufacturing operations §12), 05-WAREHOUSE v3.1 (LP codes §6), 03-TECHNICAL v3.0 (product codes §3)
+- No functional changes to scanner workflows, validation rules, or architecture
+
 **v3.0 (2026-04-20) — Phase D aligned, C2 Sesja 3**
 - Module renumbered M05 → 06 per Phase D §4.2
 - 16-sekcja structure aligned z 04-PLANNING / 05-WH v3.0
@@ -1477,12 +1500,13 @@ Mapping major SCN codes → HTML screens (per `SCANNER-SCREEN-INDEX`):
 
 ## Appendix B — Related PRDs & Foundations
 
-**Phase D aligned dependencies:**
+**Phase D aligned dependencies (v3.1 — Multi-industry code standardization):**
+- `01-NPD-PRD.md` v3.2 — **§12 Validation Rules, manufacturing operations code format (FG-*, WIP-<suffix>-<seq>)**, multi-industry recipe support
 - `00-FOUNDATION-PRD.md` v3.0 — tech stack §5, markers §3, multi-tenant foundations §8, ADR-028/029/030/031
 - `02-SETTINGS-PRD.md` v3.0 — §6 schema admin, §7 rules registry (read-only), §14 security+i18n+PIN config, §10 feature flags, §13 EmailConfig
-- `03-TECHNICAL-PRD.md` v3.0 — §6 item master + rm/intermediate/fa, §7 BOM snapshot + co-products, §8 catch weight GS1 AI
+- `03-TECHNICAL-PRD.md` v3.0 — §6 item master + rm/intermediate/fg (formerly fa), §7 BOM snapshot + co-products, §8 catch weight GS1 AI
 - `04-PLANNING-BASIC-PRD.md` v3.1 — §5.10 reservations RM root only (post-revision), §8 WO cascade DAG + disposition to_stock P1, §12 release-to-warehouse trigger (scanner visibility)
-- `05-WAREHOUSE-PRD.md` v3.0 — §6 LP state machine + lock protocol, §7 GRN multi-LP Q1, §8 putaway + ltree locations, §9 FEFO rule, **§10 Intermediate LP Handling (scan-to-consume core)**, §11 lot genealogy, §13 Scanner Integration contract (full consumer interface)
+- `05-WAREHOUSE-PRD.md` v3.1 — §6 LP state machine + lock protocol + FG/WIP code alignment, §7 GRN multi-LP Q1, §8 putaway + ltree locations, §9 FEFO rule, **§10 Intermediate LP Handling (scan-to-consume core)**, §11 lot genealogy, §13 Scanner Integration contract (full consumer interface)
 - `08-PRODUCTION-PRD.md` (pending C3) — WO execution engine, output registration, co-product allocation
 - `09-QUALITY-PRD.md` (pending C4) — QA holds, NCR basic, failure reasons registry
 - `_foundation/research/MES-TRENDS-2026.md` §9 "06-SCANNER-P1" — mobile MES trends, PWA vs RN comparison, hardware fleet patterns, food-mfg UX
@@ -1500,5 +1524,5 @@ Mapping major SCN codes → HTML screens (per `SCANNER-SCREEN-INDEX`):
 
 ---
 
-_PRD 06-SCANNER-P1 v3.0 — 9 major SCN codes + ~34 sub-screens, ~70 FR P1 (BE+FE combined), 16 sekcji, 9 D-decisions, 21 validation rules, 3-method input parity (hardware+camera+manual), intermediate cascade scan-to-consume core (SCN-080), 5 sub-modules build 06-a..e (22-28 sesji impl est.). Phase D aligned (Phase 0+A+D+Research+B+C1+C2 Sesji 1+2 foundation). Consumer 05-WH v3.0 §13 Scanner Integration contract. Kluczowe inowacje v3.0 vs v1.2: SCN-080 consume-to-WO, username+PIN auth, LP lock protocol 5min, 3-method input parity Q4, kiosk/personal device mode Q5, per-severity error policy Q6, split LP P1 promotion Q9. Build unlock chain: 02-SETTINGS → 06-a → 05-WH+03-TECH → 06-b+06-c → 04-PLAN+05-WH §10+08-PROD stub → 06-d → 08-PROD output+09-QA → 06-e._
-_Data: 2026-04-20 (C2 Sesja 3 writing deliverable)._
+_PRD 06-SCANNER-P1 v3.1 — 9 major SCN codes + ~34 sub-screens, ~70 FR P1 (BE+FE combined), 16 sekcji, 9 D-decisions, 21 validation rules, 3-method input parity (hardware+camera+manual), intermediate cascade scan-to-consume core (SCN-080), 5 sub-modules build 06-a..e (22-28 sesji impl est.). Phase D aligned (Phase 0+A+D+Research+B+C1+C2 Sesji 1+2 foundation). Consumer 05-WH v3.1 §13 Scanner Integration contract. v3.1 Multi-industry code standardization: FA→FG (Finished Goods), PR→WIP-<2-letter-suffix>-<7-digit-seq> per 01-NPD v3.2. Kluczowe inowacje v3.0 vs v1.2: SCN-080 consume-to-WO, username+PIN auth, LP lock protocol 5min, 3-method input parity Q4, kiosk/personal device mode Q5, per-severity error policy Q6, split LP P1 promotion Q9. Build unlock chain: 02-SETTINGS → 06-a → 05-WH+03-TECH → 06-b+06-c → 04-PLAN+05-WH §10+08-PROD stub → 06-d → 08-PROD output+09-QA → 06-e._
+_Data: 2026-04-30 (C2 Sesja 3 standardization update)._
