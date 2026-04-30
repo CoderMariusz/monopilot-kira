@@ -534,7 +534,7 @@ Per 01-NPD §6 cascading rules + Phase D open item EVOLVING §11:
 |---|---|---|
 | TEC-020 | BOM List | Per item BOMs + versions timeline |
 | TEC-021 | BOM Detail | Header + lines + co-products + yield/scrap calc preview |
-| TEC-022 | BOM Edit | Line editor (drag-sort + process_stage picker) |
+| TEC-022 | BOM Edit | Line editor (drag-sort + manufacturing_operation_name picker) |
 | TEC-023 | BOM Version Diff | Side-by-side JSON diff |
 | TEC-024 | BOM Generator Modal | §7.3 UX flow |
 | TEC-025 | BOM Snapshots Viewer | Historical snapshots per WO (immutable) |
@@ -663,10 +663,10 @@ Phase 1 scope: data structure + API supporting queries. Full UI z traceability r
 
 ### 9.6 Validation V-TEC-SHELF
 
-- **V-TEC-30**: `shelf_life_days` required dla item_type='fa' (blocks activation bez)
+- **V-TEC-30**: `shelf_life_days` required dla item_type='fg' (blocks activation bez)
 - **V-TEC-31**: `shelf_life_mode` must be ∈ {use_by, best_before}
 - **V-TEC-32**: `date_code_format` matches regex pattern (YYWW|YYYY-MM-DD|JJWW|YYJJJ|custom)
-- **V-TEC-33**: Regulatory flag completeness — warning dashboard jeśli FA ma shelf_life ale brak allergen declaration
+- **V-TEC-33**: Regulatory flag completeness — warning dashboard jeśli FG ma shelf_life ale brak allergen declaration
 
 ---
 
@@ -834,7 +834,7 @@ Per operation:
 - `setup_time_min` — fixed changeover time
 - `run_time_per_unit_sec` — variable time per unit produced
 - `cost_per_hour` — routing-level cost (ADR-009)
-- `process_stage` — matches BOM line process_stage (linking operation to which components consumed)
+- `manufacturing_operation_name` — matches BOM line manufacturing_operation_name (linking operation to which components consumed)
 
 ### 12.3 Resource mapping
 
@@ -1003,15 +1003,16 @@ Gdy Monopilot zastępuje D365:
 ### 14.3 Success Criteria (MVP)
 
 **Funkcjonalne:**
-- Item master CRUD operational for RM / intermediate / FA z schema-driven L3 extensions
+- Item master CRUD operational for RM / intermediate / FG z schema-driven L3 extensions
 - BOM versioning + co-products + BOM Generator button working
 - Catch weight mode activation w UI + scale integration endpoint ready
 - Shelf life use_by/best_before switch + date code format preview
 - Allergen cascade rule deployed + active + lab result flow
 - Cost history tracking + `source` attribution
-- Routing operations CRUD + resource mapping
+- Routing operations CRUD + resource mapping with manufacturing_operation_name
 - D365 stage 1 pull + push operational, `integration.d365.enabled` toggle working
 - BOM snapshot pattern at WO creation (08-PRODUCTION contract)
+- WIP code pattern validation (WIP-<suffix>-<sequence>)
 
 **Niefunkcjonalne:**
 - RLS enforced all tables
@@ -1020,7 +1021,7 @@ Gdy Monopilot zastępuje D365:
 - Audit log 100% mutations tracked
 
 **Regulatory:**
-- EU 1169/2011 allergen declaration complete dla wszystkich active FAs
+- EU 1169/2011 allergen declaration complete dla wszystkich active FGs
 - FSMA 204 traceability data structure ready (item lot genealogy queryable)
 - GS1 AI (3103/3922) support dla catch weight items
 
@@ -1061,7 +1062,7 @@ Scope:
 
 Stories est.: 14-16. Sesji est.: 6-7.
 
-Gate: 01-NPD build can reference item master for FA records; 04-PLANNING-BASIC może start.
+Gate: 01-NPD build can reference item master for FG records; 04-PLANNING-BASIC może start.
 
 #### 03-TECHNICAL-b — Allergens full + regulatory + shelf life
 
@@ -1085,8 +1086,9 @@ Scope:
 - Scale integration spec (endpoint stub, actual HW integration w 06-SCANNER-P1)
 - `item_cost_history` CRUD + source tracking
 - Cost import from D365 (prerequisite dla 03-TECHNICAL-d)
-- Routings + operations CRUD
+- Routings + operations CRUD with manufacturing_operation_name
 - Resource mapping UI
+- manufacturing_operation_name validation from Reference.ManufacturingOperations
 
 Stories est.: 8-10. Sesji est.: 3-4.
 
@@ -1114,7 +1116,7 @@ Gate: integration.d365.enabled can be turned on for Apex beta.
 ### 15.3 Open Items
 
 1. **BOM Generator output format** `[EVOLVING]` — per-FA file vs batch file vs hybrid. User Session 3 said both options; decision deferred do 03-TECHNICAL-d kick-off po rozmowie z Jane.
-2. **ProdDetail multi-component semantyka** (EVOLVING §8) — Phase D open. Whether ProdDetail represents single PR with process history vs multi-component FA. Decision in 01-NPD build (cross-cuts 03-TECHNICAL bom_lines.process_stage mapping).
+2. **ProdDetail multi-component semantyka** (EVOLVING §8) — Phase D open. Whether ProdDetail represents single intermediate with process history vs multi-component FG. Decision in 01-NPD build (cross-cuts 03-TECHNICAL bom_lines.manufacturing_operation_name mapping).
 3. **Catch weight scale integration protocol choice** — USB HID primary, Bluetooth SPP secondary, OPC-UA deferred Phase 2. Confirm w 03-TECHNICAL-c kick-off.
 4. **D365 pull vs drift resolution** — jeśli local edit + D365 edit conflict, whose wins? Current proposal: log drift, skip overwrite, admin manual resolve. Lock decision w 03-TECHNICAL-d.
 5. **BOM phantom + ECO Phase 2** — scope + UX TBD Phase 2.
@@ -1181,5 +1183,6 @@ Gate: integration.d365.enabled can be turned on for Apex beta.
 
 ## Changelog
 
+- **v3.1** (2026-04-30) — Column/code renames for multi-industry manufacturing operations pattern. Changes: FA → FG (Finished Goods), PR → WIP (intermediate codes with pattern WIP-<suffix>-<sequence>), process_code/process_stage → manufacturing_operation_name. Updated: all examples (PR123R → WIP-RO-0000001, FA5101 → FG5101), SQL schemas (bom_lines.manufacturing_operation_name, process_allergen_additions → manufacturing_operation_allergen_additions), validation rules (V-TEC-03, V-TEC-63), cascade rule logic, UI screens (TEC-041, TEC-042), and success criteria. Verified: 0 orphaned old names remain, all cross-references updated, version bumped, changelog added.
 - **v3.0** (2026-04-20) — Phase C1 Sesja 2 writing. Pełny rewrite baseline v1.x (828l, 8 epics E02.1-E02.8 pre-Phase-D). Nowe core: §6 Product master z item_types (N+1 intermediate per Phase D #19), §7 BOM versioning + co-products + BOM Generator button (EVOLVING §11), §8 Catch weight + GS1 AI, §10 Allergens full (cascade via ADR-029 rule registry + ATP/ELISA lab + contamination risk matrix), §13 D365 Integration stage 1 technical (pull items/BOM + push confirmations, DLQ, idempotency). Refined: §9 shelf-life regulatory (BRCGS v9, FSMA 204, EU 1169/2011), §11 cost_per_kg per-item, §12 routing + resources. Build sequence 4 sub-modules (a..d), 18-22 sesji impl est.
 - v1.x (pre-Phase-D) — baseline 828l, 8 epics E02.1-E02.8, BOM snapshot (ADR-002) + routing-level costs (ADR-009). Deprecated przez v3.0.
