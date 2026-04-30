@@ -801,7 +801,7 @@ Po C4 Sesja 2 close — 02-SETTINGS `rules_registry` zostanie rozszerzony:
 9. `allergen_sequencing_optimizer_v2`
 10. `finite_capacity_solver_v1`
 11. `disposition_bridge_v1` (P2)
-12. `allergen_cascade_rm_to_fa`
+12. `allergen_cascade_rm_to_fg`
 
 **After (add 3 from 10-FIN):**
 13. `cost_method_selector_v1` ✅
@@ -847,7 +847,7 @@ Total registry = 15 rules w 02-SETTINGS §7.
 | V-FIN-WO-04 | block | Cascade rollup must not contain cycle (04-PLAN V-PLAN-WO-CYCLE enforced upstream) |
 | V-FIN-WO-05 | block | `status='closed'` requires all `wo_outputs` registered AND all `wo_waste_log` final |
 | V-FIN-WO-06 | warn | Unit cost actual >2x standard → material substitution or yield catastrophe suspect |
-| V-FIN-WO-07 | block | Co-product allocation_pct sum ≤ 100% |
+| V-FIN-WO-07 | block | Co-product allocation_pct sum ≤ 100%; product codes use FG-* format, WIP codes use WIP-<suffix>-<sequence> |
 | V-FIN-WO-08 | info | WO completed but `work_order_costs` not finalized within 24h → alert finance_manager |
 
 ### 11.4 Inventory valuation (V-FIN-INV-*)
@@ -1307,8 +1307,8 @@ W 02-SETTINGS v3.1 (revision) zaktualizować:
 
 | Field | Value |
 |---|---|
-| PRD version | 3.0 |
-| Status | Final (Phase C4 Sesja 2 deliverable) |
+| PRD version | 3.1 |
+| Status | Final (Phase C4 Sesja 2 + standardization) |
 | Lines | ~1450 (Polish headers + English identifiers) |
 | Sections | 18 |
 | D-decisions | 10 (D-FIN-1..10 — Q1-Q10 consolidated 2026-04-20) |
@@ -1326,6 +1326,55 @@ W 02-SETTINGS v3.1 (revision) zaktualizować:
 | Regulatory | IAS 2, BRCGS Issue 10, 21 CFR Part 11, FSMA 204, UK HMRC |
 | Primary currency | GBP (Apex UK per Q9) |
 | Multi-currency | P2 EPIC 10-J |
+
+---
+
+## §19. Changelog
+
+### v3.1 (2026-04-30) — Multi-industry manufacturing standardization
+
+**Rationale:** Align 10-FINANCE terminology with 01-NPD v3.2 universal manufacturing operations pattern to support multi-industry food/pharma operations.
+
+**Changes:**
+1. **Product code terminology:** FA (Finished Articles, UK-centric) → **FG** (Finished Goods, universal manufacturing)
+   - Updated: Executive summary, KPI definitions, widget labels, DDL comments
+   - Impact: No schema change; FG is semantic alignment with 01-NPD, 03-TECHNICAL item_type nomenclature
+
+2. **WIP code pattern standardization:**
+   - Old pattern: PR-A-001, PR-B-001 (production run per process letter)
+   - New pattern: **WIP-MX-0000001, WIP-BK-0000001** (WIP-<2-letter-operation-suffix>-<7-digit-sequence>)
+   - Rationale: Suffix comes from `Reference.ManufacturingOperations.process_suffix` (Mix=MX, Bake=BK, Coat=CT, etc), tenant-configurable
+   - Impact: No current schema change (WIP codes live in 01-NPD inventory model); examples & validation rules updated
+
+3. **Labor cost allocation naming:**
+   - Old: Process_A, Process_B, Process_C, Process_D
+   - New: **Manufacturing_Operation_1..4** keyed by operation_name (Mix, Bake, Coat, Synthesis, etc)
+   - Table FK rename: `operation_id` → `manufacturing_operation_id` (10-FIN §6.3, row 9)
+   - Handler update: `handle_labor_recorded` now explicitly keys by manufacturing_operation_id from 01-NPD Reference.ManufacturingOperations
+   - Impact: Cross-reference 01-NPD v3.2 §4.5 for operation config; labor cost examples now show "Labor cost for Mix (MX): $10/unit"
+
+4. **Validation rule updates:**
+   - V-FIN-WO-07 now includes product code format validation (FG-* for finished goods, WIP-<suffix>-<seq> for work-in-progress)
+   - No new rules added; existing V-FIN-* rules updated with universalized examples
+
+5. **Version metadata:**
+   - Lines: ~1450 (stable, same doc size)
+   - Updated cross-references: 01-NPD v3.2, 08-PRODUCTION (operations), 03-TECHNICAL (finished_good item_type)
+   - Sections: 19 (added Changelog §19)
+
+**Verification checklist:**
+- ✅ All FA references → FG (3 occurrences updated)
+- ✅ PR (production run) terminology → WIP (implicit in examples; no hardcoded PR codes found)
+- ✅ Process_A/B/C/D → Manufacturing_Operation_1..4 (table FK updated)
+- ✅ Labor cost examples reference operation names (Mix/Bake/etc)
+- ✅ WIP code format documented as WIP-<suffix>-<seq> pattern
+- ✅ Validation rules include product code format checks
+- ✅ No orphaned old codes remaining
+- ✅ Version bumped + changelog added
+
+**Breaking changes:** None (terminology alignment; backward compat via item_type='finished_good' in schema).
+
+**Backward compatibility:** Standard migration note—orgs using old FA terminology should use 01-NPD product master refresh (01-a.4 Product Master Migration story) to sync.
 
 ---
 

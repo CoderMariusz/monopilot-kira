@@ -1,7 +1,7 @@
 # 15-OEE PRD — Monopilot MES
 
-**Wersja:** 3.1 | **Data:** 2026-04-21 | **Status:** Stakeholder decisions locked (2026-04-21 session — 9/10 OQ resolved)
-**Poprzednia wersja:** 3.0 (2026-04-20, Phase C5 Sesja 1, new PRD from scratch)
+**Wersja:** 3.2 | **Data:** 2026-04-21 | **Status:** Standardized for multi-industry manufacturing operations pattern (2026-04-30)
+**Poprzednia wersja:** 3.1 (2026-04-21, Stakeholder decisions locked)
 
 ---
 
@@ -89,7 +89,7 @@ Dostarczyc operatorom, line supervisors i maintenance technicians natychmiastowy
 | 5 | **MV infrastructure: `oee_shift_metrics`** | Per-shift rollup per (tenant, site, line, date, shift_id) — MTBF/MTTR ready (P2 13-MAINT consumer) | Must |
 | 6 | **DSL rule `shift_aggregator_v1`** | Configurable shift boundaries, L2 tenant variation, Apex baseline 3-shift 00/08/16 UTC | Must |
 | 7 | **Downtime drill-down integration** | Click OEE dip → reveal `downtime_events` rows z category + duration + reason_notes (cross-module navigation to 08-PROD) | Must |
-| 8 | **Changeover analysis P1 basic** | Changeover duration per line (consumer `changeover_events` 08-PROD §9.7), per allergen risk level. Target duration sourced from 02-SETTINGS `changeover_target_duration_min` per line (with optional per-FA override). Default null — no breach detection if unset. | Should |
+| 8 | **Changeover analysis P1 basic** | Changeover duration per line (consumer `changeover_events` 08-PROD §9.7), per allergen risk level. Target duration sourced from 02-SETTINGS `changeover_target_duration_min` per line (with optional per-FG override). Default null — no breach detection if unset. | Should |
 | 9 | **Six Big Losses basic view** | Aggregat per classification admin-configurable per tenant (mapping editor in OEE-ADM-001: `downtime_reason_code` → Big Loss category; default seeded from industry standard). | Should |
 | 10 | **Refresh indicator** | "Last aggregation: HH:MM:SS" widget + staleness warning if > 120s | Must |
 | 11 | **Export CSV/PDF P1** | Per dashboard, reuse 12-REPORTING export engine (API `/api/reporting/export`) | Must |
@@ -1040,7 +1040,7 @@ Note: P1 Apex target is **70%** (shown as target reference line on charts). P1 c
 | OQ-OEE-02 | Target OEE — 85% vs Apex ramp-up baseline? | CLOSED | P1 target = **70%**. `oee_alert_thresholds.oee_target_pct = 70`. Amber 55–70%, red <55% (proportional). Color scale fixed 65/85 (per OQ-OEE-07). | 2026-04-21 |
 | OQ-OEE-03 | TV dashboard kiosk OS? | **OPEN** | Brak decyzji. Raspberry Pi / Windows kiosk / ChromeOS — wymaga Apex IT. Nie blokuje P1. | — |
 | OQ-OEE-04 | Operator annotation edit window? | CLOSED | **1 godzina post-event**. Po 1h — read-only + `[Request Edit]` escalation do supervisora. | 2026-04-21 |
-| OQ-OEE-05 | Changeover target duration — skad konfiguracja? | CLOSED | **02-SETTINGS `changeover_target_duration_min`** per line (optional per-FA override). Default null — brak breach detection jesli nie skonfigurowane. | 2026-04-21 |
+| OQ-OEE-05 | Changeover target duration — skad konfiguracja? | CLOSED | **02-SETTINGS `changeover_target_duration_min`** per line (optional per-FG override). Default null — brak breach detection jesli nie skonfigurowane. | 2026-04-21 |
 | OQ-OEE-06 | Six Big Losses mapping — admin-configurable? | CLOSED | **Admin-configurable per tenant**. Mapping editor w OEE-ADM-001. Default seeded z industry standard. | 2026-04-21 |
 | OQ-OEE-07 | Heatmap color scale — fixed 65/85 vs tenant-configurable? | CLOSED | **P1 fixed 65/85 industry thresholds**. P2 tenant-configurable via `oee_alert_thresholds`. | 2026-04-21 |
 | OQ-OEE-08 | Push notifications — scope? | CLOSED | **P2 simplified**: in-app toast (12-REPORTING alert system) + daily email digest (OEE <60% sustained). Brak browser push, service worker, PWA, SMS. Opt-in per user. Triggers: OEE <60% sustained 15min, line DOWN >15min, changeover breach. | 2026-04-21 |

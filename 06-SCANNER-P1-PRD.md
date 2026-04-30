@@ -1401,7 +1401,7 @@ Widok per site/line/zmiana:
 | 3-method input parity UX complexity | Średnie | Niski | Auto-detect preferred method, button order zgodny z detected capability |
 | Hardware fleet fragmentation (Zebra/Honeywell/BT ring) | Niskie | Średni | Keyboard wedge universal fallback, device-specific profiles w docs |
 | Brak test data blokuje dev/QA | Wysokie | Wysoki | `npm run seed:scanner` mandatory, fixtures per workflow |
-| Intermediate cascade consume UX confusing (Q6 revised) | Średnie | Wysoki | Pilot test SCN-080 z 3 operatorami linii 2 (multi-stage RM→intermediate→FA WOs), iterate before full rollout |
+| Intermediate cascade consume UX confusing (Q6 revised) | Średnie | Wysoki | Pilot test SCN-080 z 3 operatorami linii 2 (multi-stage RM→intermediate→FG WOs), iterate before full rollout |
 
 **Phase 2:**
 

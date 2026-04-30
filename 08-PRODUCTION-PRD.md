@@ -1981,9 +1981,10 @@ Consistency rules:
 - **05-WAREHOUSE-PRD.md** v3.0 §10, §13, §11 — intermediate LPs, scanner contract, genealogy
 - **06-SCANNER-P1-PRD.md** v3.0 §8.4, §8.5, §14 — SCN-080 + SCN-082/083/084 + API catalog
 - **03-TECHNICAL-PRD.md** v3.0 §7, §8, §10 — BOM, routing, allergen cascade
-- **02-SETTINGS-PRD.md** v3.0 §7, §8, §11, §14 — rule registry, reference tables, D365 constants, feature flags
-- **07-PLANNING-EXT-PRD.md** v3.0 §9.4, §10.2 — changeover_matrix, allergen_sequencing_optimizer
-- **00-FOUNDATION-PRD.md** v3.0 §4, R1, R13, R14, R15 — module map, event-first, AI-ready, idempotency, GS1
+- **02-SETTINGS-PRD.md** v3.4 §8.9 — Reference.ManufacturingOperations (2-letter process_suffix lookup), rule registry, reference tables, D365 constants, feature flags
+- **07-PLANNING-EXT-PRD.md** v3.0 §9.4, §10.2 — changeover_matrix, allergen_sequencing_optimizer (keyed by manufacturing_operation suffix)
+- **00-FOUNDATION-PRD.md** v4.0 §9.1 — Manufacturing Operations configuration, module map, event-first, AI-ready, idempotency, GS1
+- **01-NPD-PRD.md** v3.2 §6 — Cascading Rules Chain 2/4 (manufacturing_operation cascade to intermediate codes)
 - **_foundation/research/MES-TRENDS-2026.md** §2, §3, §9 — food-mfg research, scheduling research, per-module rollups
 - **_foundation/decisions/MONOPILOT-V2-ARCHITECTURE.md** Phase D decision #17 (closed_production_strict)
 - **_foundation/META-MODEL.md** — schema-driven primitives
@@ -2099,4 +2100,4 @@ All stages share:
 
 ---
 
-**End of 08-PRODUCTION-PRD.md v3.0**
+**End of 08-PRODUCTION-PRD.md v3.1**

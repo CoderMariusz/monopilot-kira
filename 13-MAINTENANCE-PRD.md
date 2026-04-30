@@ -15,7 +15,7 @@ consumers:
   - 02-SETTINGS (rules registry §7.8, ref tables §8.1)
 ---
 
-# 13-MAINTENANCE — Monopilot MES PRD v3.0
+# 13-MAINTENANCE — Monopilot MES PRD v3.1
 
 ## 1. Executive Summary
 
@@ -630,7 +630,7 @@ Dashboards rejestrowane w 12-REPORTING `dashboards_catalog` (02-SET §8.1 metada
 
 ---
 
-## 11. Validation Rules V-MNT-01..V-MNT-22
+## 11. Validation Rules V-MNT-01..V-MNT-24
 
 ### 11.1 State machine + lifecycle (V-MNT-01..06)
 - **V-MNT-01**: `mwo.state` transition musi respektowac `mwo_state_machine_v1` allowed_from (block INVALID_TRANSITION, severity=critical)
@@ -867,4 +867,4 @@ Write scopes: `maintenance_manager` full, `maintenance_technician` own assigned 
 
 ---
 
-**Phase C5 Sesja 2 deliverable 1/2 — 13-MAINTENANCE-PRD.md v3.0 COMPLETE.**
+**Phase C5 Sesja 2 deliverable 1/2 — 13-MAINTENANCE-PRD.md v3.1 COMPLETE. (v3.1 Manufacturing Operations standardization, 2026-04-30)**

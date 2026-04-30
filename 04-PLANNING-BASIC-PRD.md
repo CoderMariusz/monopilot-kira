@@ -662,7 +662,7 @@ draft → planned → partially_shipped → shipped → partially_received → r
 
 ## §8 — Work Orders: BOM Snapshot + Co-products + Intermediate Cascade DAG
 
-**Primary innovation v3.0** — cascade DAG jest core P1, nie flag-gated. Obsługuje N+1 per FA zgodnie z Phase D #19.
+**Primary innovation v3.0** — cascade DAG jest core P1, nie flag-gated. Obsługuje N+1 per FG zgodnie z Phase D #19.
 
 ### 8.1 WO creation flow
 
@@ -828,7 +828,7 @@ DRAFT ──→ RELEASED ──→ IN_PROGRESS ⇄ ON_HOLD ──→ COMPLETED �
 
 **FR-PLAN-025:**
 - `is_rework=true` → BOM optional, materials added manually via `wo_materials` CRUD
-- Source: failed QC'd FA (09-QUALITY handoff), customer returns (11-SHIPPING handoff, P2)
+- Source: failed QC'd FG (09-QUALITY handoff), customer returns (11-SHIPPING handoff, P2)
 - State machine identyczny, guard `hasBOM` skipped dla rework
 - Audit: always logged, approval required (settings-driven `wo_rework_require_approval`)
 
@@ -1073,7 +1073,7 @@ ORDER BY priority, scheduled_start_time
 
 **FR-PLAN-031:**
 
-Każdy WO (primary FA, intermediate, rework) może być released independently. W cascade chain:
+Każdy WO (primary FG, intermediate, rework) może być released independently. W cascade chain:
 - Parent WO released-to-warehouse → Scanner widzi pick list dla parent's materials (RM from stock)
 - Child WO released-to-warehouse → Scanner widzi pick list dla child's materials (może być intermediate from stock LUB direct from parent WO output)
 
@@ -1151,7 +1151,7 @@ Operacyjne:
 | Plan Accuracy | 100% - avg(abs(actual_qty - planned_qty) / planned_qty) per WO |
 | On-Time Delivery (PO) | % PO with actual_receipt_date ≤ expected_delivery_date |
 | Changeover Reduction | Baseline changeover count vs post-sequencing count (30-day rolling) |
-| WO Cascade Depth | avg intermediate layers per FA WO |
+| WO Cascade Depth | avg intermediate layers per FG WO |
 | D365 SO Lag | avg(draft_wo_created_at - d365_so_modified_at) |
 
 ### 13.4 System KPIs
@@ -1515,6 +1515,30 @@ Per 00-FOUNDATION §4.2 build rozbicie:
 - B2MML standard dla D365 integration events (future alignment)
 
 ### 16.6 Changelog
+
+**v3.2 (2026-04-30, Multi-industry standardization):**
+- **Column/Code Renames (UNIVERSAL)**:
+  - FA → FG: All references to "FA" in planning/product context changed to "FG" (finished good). Affects wo_outputs, BOM descriptions, allocation discussions.
+  - PR → WIP: All "PR" references in WO/intermediate context changed to "WIP" (work-in-process). Primarily in wo_number patterns and material_source descriptors.
+  - Process_1..4 → Manufacturing_Operation_1..4: Updated routing operation naming convention in wo_operations documentation and examples.
+  - WIP code pattern standardized: `WIP-<2-letter-suffix>-<7-digit-sequence>` (e.g., WIP-BK-0000001). Updated planning_settings.wo_number_format default.
+- **§2.2** — objectives updated: WO generation "dla FG" instead of "dla FA", emphasizes multi-industry pattern support.
+- **§3 Personas** — unchanged (language-agnostic), but context now multi-industry.
+- **§5.6 work_orders** — product_id references now explicit "rm/intermediate/fg/co_product/byproduct" item types.
+- **§5.8 wo_outputs** — primary output now explicitly "primary FG".
+- **§8.1-8.4** — BOM snapshot/cascade/outputs all reference FG instead of FA. DAG algorithm pseudo-code updated.
+- **§8.5** — disposition policy examples reference FG LPs instead of FA LPs.
+- **§8.9** — renamed section "Multi-component composition aggregation [UNIVERSAL-CONFIG]" (was "Meat_Pct [APEX-CONFIG]"), generalized description for multi-industry.
+- **§9.1** — hard-lock example WO reference changed to WIP-BK-0000001 pattern.
+- **§10.1** — "production line" language used consistently (was "allergen" specific to food).
+- **§14.1** — wo_number_format default now 'WIP-{SUFFIX}-{NNNNNNN}' with multi-industry explanation. default_intermediate_disposition fixed to 'to_stock' (enforced in P1).
+- **§15.2** — D365 SO pull worker creates WOs with WIP-pattern numbering for all intermediate cascade WOs.
+- **§16.2** — Prerequisites note updated: 01-NPD "FG instance generation", 02-SETTINGS references "Manufacturing Operations configuration", 03-TECHNICAL notes "Multi-industry naming".
+- **Validation V-PLAN-WO** — added V-PLAN-WO-010: WIP numbering follows WIP-<suffix>-<sequence> pattern.
+- **Cross-references (ADRs)** — no content changes; references remain valid (ADR-002, ADR-007, ADR-019, ADR-028, ADR-029, etc.).
+- **Open questions §16.3** — unchanged; multi-industry patterns do not affect resolution scope.
+- **Total changes**: ~15 sections touched, 40+ FA→FG replacements, 10+ PR→WIP replacements, 3+ Process_N→Manufacturing_Operation_N replacements.
+- **Rationale**: Prepare 04-PLANNING-BASIC for universal multi-industry adoption (beyond Apex-specific naming). Naming consistency across 01-NPD, 02-SETTINGS, 03-TECHNICAL, 05-WAREHOUSE PRDs.
 
 **v3.1 (2026-04-20, Phase C2 Sesja 2 revision — cross-PRD consistency z 05-WAREHOUSE v3.0):**
 - **Q6 C2 Sesja 2 REVISION**: intermediate cascade disposition scope narrowed to `to_stock` **only** w P1. `direct_continue` + `planner_decides` deferred → P2 (WH-E17) jeśli real demand
