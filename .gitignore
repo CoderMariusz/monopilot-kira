@@ -35,4 +35,16 @@ dev-debug.log
 
 # Task files
 # tasks.json
-# tasks/ 
+# tasks/
+
+# Taskmaster runtime state (local-only)
+.taskmaster/state.json
+.taskmaster/config.json
+.taskmaster/tasks/*.backup-*
+
+# Claude harness local state
+.claude/worktrees/
+
+# Kira-HQ generated artifacts
+kanban_board.md
+pipeline.log.md
