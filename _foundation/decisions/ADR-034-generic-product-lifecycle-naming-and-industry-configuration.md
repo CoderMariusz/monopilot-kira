@@ -4,65 +4,65 @@
 **Date:** 2026-04-30  
 **Authors:** Claude Code (architecture review)  
 **Affected Modules:** 01-NPD (primary), 02-SETTINGS, 00-FOUNDATION  
-**Decision:** Generalize 01-NPD from Apex Foods meat-processing domain to multi-industry framework
+**Decision:** Generalize 01-NPD from domain-specific naming to multi-industry framework
 
 ---
 
 ## Problem
 
-Current 01-NPD PRD v3.0 is deeply rooted in Apex Foods meat processing semantics:
+Current 01-NPD PRD v3.0 is deeply rooted in domain-specific semantics suitable for one industry. To support multiple industries (Bakery, Pharmacy, FMCG, etc.), naming and configuration must be generalized:
 
-| Apex-specific | Meat context | Generalization needed |
+| Domain-specific | Context example | Generalization needed |
 |---|---|---|
-| **FA** (Factory Article) | Finished meat product (e.g., FA5101 = Pork Slices 300g) | Product/Finished Good (FG) — applies to meat, bakery, pharma, etc. |
-| **PR** (Process Request / intermediate code) | Process step intermediate (e.g., PR1939B = Strip intermediate) | WIP (Work-In-Progress) or Intermediate Product — universal manufacturing term |
-| **Finish_Meat** | Recipe/formula listing (e.g., "PR123H, PR345A") | **Components/Recipe** — generic for any multi-component product |
-| **RM_Code** | Raw Material codes (e.g., "RM1939, RM2341") | **Ingredient/Input codes** — materials suppliers, raw inputs |
-| **Meat_Pct** | Percentage meat content (planning requirement) | **Main Component %** or **Primary Ingredient %** — varies by industry |
-| **Processes** (Strip, Slice, Coat, etc.) | Meat processing steps | **Manufacturing operations** — baking, pharma synthesis, etc. |
-| **Dieset** | Meat dieset (slicing configuration) | **Equipment setup** or **Line config** — generic tooling/resource setup |
-| **Shelf_Life** | Meat shelf life (Technical section) | Product **shelf life / expiry** — applies to all food/pharma |
+| **FA** (Factory Article) | Finished product code | Product/Finished Good (FG) — applies to bakery, pharma, FMCG, etc. |
+| **PR** (Process Request / intermediate code) | Process step intermediate | WIP (Work-In-Progress) or Intermediate Product — universal manufacturing term |
+| **Finish_Meat** | Recipe/formula listing | **Components/Recipe** — generic for any multi-component product |
+| **RM_Code** | Raw Material codes | **Ingredient/Input codes** — materials suppliers, raw inputs |
+| **Meat_Pct** | Primary ingredient percentage | **Main Component %** or **Primary Ingredient %** — varies by industry |
+| **Processes** | Manufacturing steps | **Manufacturing operations** — baking, pharma synthesis, consumer goods packaging, etc. |
+| **Dieset** | Equipment configuration | **Equipment setup** or **Line config** — generic tooling/resource setup |
+| **Shelf_Life** | Product expiration | Product **shelf life / expiry** — applies to all food/pharma/consumer goods |
 
-**Current state:** Seed data, Reference tables, validation rules, and naming conventions are hardcoded for Apex Foods.
+**Current state:** Seed data, Reference tables, validation rules, and naming conventions are hardcoded for a single domain.
 
 **Goal:** 
-1. Extract Apex-specific items as `[ORG-CONFIG]` / `[INDUSTRY-CONFIG]`
+1. Extract domain-specific items as `[ORG-CONFIG]` / `[INDUSTRY-CONFIG]`
 2. Define `[UNIVERSAL]` generic patterns
 3. Enable tenant/industry-level prefix configuration (FA vs FG vs PROD, PR vs WIP vs BATCH, etc.)
 4. Make seed data (Processes, Lines, PackSizes, AlertThresholds, etc.) tenant-configurable
-5. Preserve existing Apex workflow while enabling other industries (Bakery, Pharma, FMCG, etc.)
+5. Support multiple industries: Bakery, Pharmacy, FMCG, and others
 
 ---
 
-## Current Apex Naming Scheme (v3.0)
+## Current Naming Scheme Conventions
 
-### Entity & Code Prefixes
+### Entity & Code Prefixes (configurable per industry)
 
 ```
-Product entity:       FA (Factory Article)
-  Example:            FA5101 = "Test Pork Slices 300g"
-  Format:             FA* (regex: ^FA[A-Z0-9]+$)
+Product entity:       FA, FG, PROD (configurable prefix)
+  Example (Bakery):   FG-2026-BRD-001 = "Sourdough Loaf 500g"
+  Format:             Configurable via Reference.CodePrefixes
   
-Intermediate/Process: PR (Process Request)
-  Example:            PR1939A (Strip), PR1939B (Slice)
-  Format:             PR<RM_digits><Process_Suffix>
+Intermediate/Process: PR, WIP, BATCH (configurable prefix)
+  Example (Pharma):   BATCH-SYN-001 = Synthesis batch
+  Format:             Configurable per tenant/industry
   
-Raw Material:         RM (Raw Material)
-  Example:            RM1939, RM2341
-  Format:             RM<digits>
+Raw Material:         RM, ING, API (configurable prefix)
+  Example (FMCG):     ING-WATER, API-ASPIRIN
+  Format:             Configurable via Reference.CodePrefixes
 ```
 
-### Column Naming (meat-specific)
+### Column Naming (generic, with industry-specific labels)
 
-| Column | Apex context | Generic equivalent |
-|---|---|---|
-| `Finish_Meat` | Recipe (comma-sep PR codes: "PR123H, PR345A") | `recipe_components` / `component_codes` |
-| `RM_Code` | Raw materials (auto-derived: "RM1939, RM2341") | `ingredient_codes` / `input_codes` |
-| `Meat_Pct` | % of meat in product | `primary_ingredient_pct` |
-| `Process_1..4` | Meat operations (Strip, Slice, Coat, etc.) | `manufacturing_operation_1..4` |
-| `Yield_P1..4` | Process yields (%) | `operation_yield_1..4` |
-| `Dieset` | Slicing config per line/pack | `equipment_setup` / `line_config` |
-| `Staffing` | Meat line staffing | `resource_requirement` |
+| Column | Generic name | Display label (Bakery) | Display label (Pharma) |
+|---|---|---|---|
+| `recipe_components` | Recipe components | Recipe Ingredients | Batch Components |
+| `ingredient_codes` | Ingredient codes | Ingredient Codes | Active/Inactive Ingredients |
+| `primary_ingredient_pct` | Primary ingredient % | Flour % | API Content % |
+| `manufacturing_operation_1..4` | Mfg operations | Mix, Knead, Proof, Bake | Synthesis, Separation, Crystallization, Drying |
+| `operation_yield_1..4` | Operation yields (%) | Yield % | Recovery % |
+| `equipment_setup` | Equipment config | Oven setup | Reactor setup |
+| `resource_requirement` | Resource needs | Staffing | Laboratory requirements |
 
 ---
 
@@ -88,21 +88,30 @@ CREATE TABLE "Reference.CodePrefixes" (
 );
 ```
 
-**Seed for Apex:**
-```json
-[
-  { "code_type": "product", "prefix": "FA", "format_pattern": "^FA[A-Z0-9]{4,}$", "marker": "ORG-CONFIG" },
-  { "code_type": "intermediate", "prefix": "PR", "format_pattern": "^PR[A-Z0-9]+$", "marker": "ORG-CONFIG" },
-  { "code_type": "ingredient", "prefix": "RM", "format_pattern": "^RM[0-9]+$", "marker": "ORG-CONFIG" }
-]
-```
-
-**Seed for Bakery (example):**
+**Seed for Bakery:**
 ```json
 [
   { "code_type": "product", "prefix": "FG", "format_pattern": "^FG[A-Z0-9]{4,}$", "marker": "ORG-CONFIG" },
   { "code_type": "intermediate", "prefix": "WIP", "format_pattern": "^WIP[A-Z0-9]+$", "marker": "ORG-CONFIG" },
   { "code_type": "ingredient", "prefix": "ING", "format_pattern": "^ING[0-9]+$", "marker": "ORG-CONFIG" }
+]
+```
+
+**Seed for Pharmacy:**
+```json
+[
+  { "code_type": "product", "prefix": "PROD", "format_pattern": "^PROD-[A-Z0-9]{4,}$", "marker": "ORG-CONFIG" },
+  { "code_type": "intermediate", "prefix": "BATCH", "format_pattern": "^BATCH-[A-Z0-9]+$", "marker": "ORG-CONFIG" },
+  { "code_type": "ingredient", "prefix": "API", "format_pattern": "^API-[A-Z0-9]+$", "marker": "ORG-CONFIG" }
+]
+```
+
+**Seed for FMCG (Consumer Goods):**
+```json
+[
+  { "code_type": "product", "prefix": "SKU", "format_pattern": "^SKU-[A-Z0-9]{4,}$", "marker": "ORG-CONFIG" },
+  { "code_type": "intermediate", "prefix": "LOT", "format_pattern": "^LOT-[A-Z0-9]+$", "marker": "ORG-CONFIG" },
+  { "code_type": "ingredient", "prefix": "MAT", "format_pattern": "^MAT-[A-Z0-9]+$", "marker": "ORG-CONFIG" }
 ]
 ```
 
@@ -156,18 +165,7 @@ CREATE TABLE "Reference.ColumnLabels" (
 );
 ```
 
-**Seed for Apex (meat):**
-```json
-[
-  { "column_name": "product_code", "display_label": "FA Code", "industry_code": "meat" },
-  { "column_name": "recipe_components", "display_label": "Finish Meat", "industry_code": "meat" },
-  { "column_name": "ingredient_codes", "display_label": "RM Code", "industry_code": "meat" },
-  { "column_name": "primary_ingredient_pct", "display_label": "Meat %", "industry_code": "meat" },
-  { "column_name": "manufacturing_operation_1", "display_label": "Process 1", "industry_code": "meat" }
-]
-```
-
-**Seed for Bakery (example):**
+**Seed for Bakery:**
 ```json
 [
   { "column_name": "product_code", "display_label": "Product ID", "industry_code": "bakery" },
@@ -178,17 +176,39 @@ CREATE TABLE "Reference.ColumnLabels" (
 ]
 ```
 
+**Seed for Pharmacy:**
+```json
+[
+  { "column_name": "product_code", "display_label": "Product Code", "industry_code": "pharmacy" },
+  { "column_name": "recipe_components", "display_label": "Batch Components", "industry_code": "pharmacy" },
+  { "column_name": "ingredient_codes", "display_label": "Active/Inactive Ingredients", "industry_code": "pharmacy" },
+  { "column_name": "primary_ingredient_pct", "display_label": "API Content %", "industry_code": "pharmacy" },
+  { "column_name": "manufacturing_operation_1", "display_label": "Synthesis Step", "industry_code": "pharmacy" }
+]
+```
+
+**Seed for FMCG (Consumer Goods):**
+```json
+[
+  { "column_name": "product_code", "display_label": "SKU", "industry_code": "fmcg" },
+  { "column_name": "recipe_components", "display_label": "Formula Components", "industry_code": "fmcg" },
+  { "column_name": "ingredient_codes", "display_label": "Material Codes", "industry_code": "fmcg" },
+  { "column_name": "primary_ingredient_pct", "display_label": "Base Material %", "industry_code": "fmcg" },
+  { "column_name": "manufacturing_operation_1", "display_label": "Mixing Step", "industry_code": "fmcg" }
+]
+```
+
 ### 3. Industry-Configurable Seed Data
 
-**Current Apex References (to be parameterized):**
+**Industry-Specific Reference Tables:**
 
-| Reference table | Current Apex seed | Bakery example | Pharma example |
+| Reference table | Bakery seed | Pharmacy seed | FMCG seed |
 |---|---|---|---|
-| `Reference.Processes` | Strip, Slice, Coat, Cook, Wrap | Mix, Knead, Proof, Bake, Cool, Decorate | Synthesis, Separation, Crystallization, Drying, Encapsulation |
-| `Reference.Lines` | Line A, Line B (meat processing) | Oven 1, Oven 2, Cooling Tunnel, Packaging | Reactor 1, Reactor 2, Centrifuge, Dryer |
-| `Reference.PackSizes` | 300g, 500g, 1kg, 2kg | 250g, 500g, 1kg, 1.5kg | 10ml, 30ml, 100ml, 1L (pharma units) |
-| `Reference.Templates` | Strip-Slice-Wrap, Slice-Cook-Wrap | Mix-Knead-Proof-Bake, Simple Mix-Bake | Synthesis-Separation-Dry, Custom Recipe |
-| `Reference.AlertThresholds` | 24 weeks pre-launch, RED ≤10 days, YELLOW ≤21 | 12 weeks (bakery shorter), RED ≤5 days, YELLOW ≤14 | 26 weeks (pharma longer), RED ≤15 days, YELLOW ≤30 |
+| `Reference.Processes` | Mix, Knead, Proof, Bake, Cool, Decorate | Synthesis, Separation, Crystallization, Drying, Encapsulation | Mixing, Emulsification, Filling, Capping, Labeling |
+| `Reference.Lines` | Oven 1, Oven 2, Cooling Tunnel, Packaging | Reactor 1, Reactor 2, Centrifuge, Dryer | Mixer, Homogenizer, Filling Line, Capper |
+| `Reference.PackSizes` | 250g, 500g, 1kg, 1.5kg | 10ml, 30ml, 100ml, 1L (pharma units) | 100ml, 250ml, 500ml, 1L (cosmetics/beverages) |
+| `Reference.Templates` | Mix-Knead-Proof-Bake, Simple Mix-Bake | Synthesis-Separation-Dry, Purification-Encapsulation | Mixing-Filling, Mixing-Emulsification-Filling |
+| `Reference.AlertThresholds` | 12 weeks pre-launch, RED ≤5 days, YELLOW ≤14 days | 26 weeks pre-launch, RED ≤15 days, YELLOW ≤30 days | 8 weeks pre-launch, RED ≤7 days, YELLOW ≤14 days |
 
 **Implementation:** 
 - Each Reference table gets `industry_code` column
