@@ -52,7 +52,7 @@ const NpdDashboard = ({ openModal, onOpenFA }) => {
         </div>
         <div style={{ display: "flex", gap: 8 }}>
           <button className="btn btn-secondary" onClick={() => openModal("refreshD365")}>↻ Refresh D365 cache</button>
-          <button className="btn btn-primary" onClick={() => openModal("faCreate")}>+ Create FA</button>
+          {window.npd_can('fa.create') && <button className="btn btn-primary" onClick={() => openModal("faCreate")}>+ Create FA</button>}
         </div>
       </div>
 
@@ -202,7 +202,7 @@ const FAList = ({ onOpenFA, openModal, initialView = "table" }) => {
             <button className={`pill ${view === "table" ? "on" : ""}`} onClick={() => setView("table")}>≡ Table</button>
             <button className={`pill ${view === "kanban" ? "on" : ""}`} onClick={() => setView("kanban")}>▦ Kanban</button>
           </div>
-          <button className="btn btn-primary" onClick={() => openModal("faCreate")}>+ Create FA</button>
+          {window.npd_can('fa.create') && <button className="btn btn-primary" onClick={() => openModal("faCreate")}>+ Create FA</button>}
         </div>
       </div>
 
@@ -350,6 +350,15 @@ const FADetail = ({ faCode, onBack, openModal }) => {
               Build D365 →
             </button>
           </div>
+        </div>
+        <div style={{ display: "flex", gap: 8 }}>
+          {window.npd_can('fa.delete') && <button className="btn btn-danger" onClick={() => openModal("faDelete", { fa })}>Delete FA</button>}
+          <button className="btn btn-primary"
+                  disabled={fa.status_overall !== "Complete"}
+                  onClick={() => openModal("d365Build", { fa })}
+                  title={fa.status_overall !== "Complete" ? "FA must be Complete first (all 7 depts closed)" : "Build D365 output"}>
+            Build D365 →
+          </button>
         </div>
       </div>
 

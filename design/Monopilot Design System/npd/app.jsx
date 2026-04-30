@@ -7,14 +7,49 @@ const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
   "density": "comfortable"
 }/*EDITMODE-END*/;
 
+// ---- BL-NPD-03: permission matrix + role-aware helper ----
+window.npd_can = (permission) => {
+  const role = window.NPD_CURRENT_ROLE || 'npd_manager';
+  const matrix = {
+    'fa.create':            ['npd_manager', 'core_user', 'admin'],
+    'fa.delete':            ['npd_manager', 'admin'],
+    'brief.create':         ['npd_manager', 'core_user', 'admin'],
+    'brief.convert_to_fa':  ['npd_manager', 'admin'],
+    'core.write':           ['npd_manager', 'core_user', 'admin'],
+    'dept.write':           ['npd_manager', 'dept_manager', 'dept_user', 'admin'],
+    'dashboard.view':       ['npd_manager', 'core_user', 'dept_manager', 'dept_user', 'admin', 'viewer'],
+    'd365_builder.execute': ['npd_manager'],
+  };
+  return (matrix[permission] || []).includes(role);
+};
+
+const NPD_ROLES = ['npd_manager', 'core_user', 'dept_manager', 'dept_user', 'admin', 'viewer'];
+
 const App = () => {
   const [route, setRoute] = React.useState(() => {
-    try { return JSON.parse(localStorage.getItem("npd-route")) || { screen: "dashboard" }; }
-    catch { return { screen: "dashboard" }; }
+    try {
+      if (localStorage.getItem("npd-layout-v") !== "2") {
+        localStorage.setItem("npd-layout-v", "2");
+        localStorage.removeItem("npd-route");
+        return { screen: "pipeline" };
+      }
+      return JSON.parse(localStorage.getItem("npd-route")) || { screen: "pipeline" };
+    } catch { return { screen: "pipeline" }; }
   });
   const [role, setRole] = React.useState(() => localStorage.getItem("npd-role") || "rd");
+  const [npdRole, setNpdRole] = React.useState(() => {
+    const stored = localStorage.getItem("npd-current-role") || "npd_manager";
+    window.NPD_CURRENT_ROLE = stored;
+    return stored;
+  });
   const [tweaks, setTweaks] = React.useState(TWEAK_DEFAULTS);
   const [tweaksOpen, setTweaksOpen] = React.useState(false);
+
+  const handleNpdRoleChange = (r) => {
+    window.NPD_CURRENT_ROLE = r;
+    localStorage.setItem("npd-current-role", r);
+    setNpdRole(r);
+  };
 
   // Pattern A — centralized modal switch
   const [modal, setModal] = React.useState(null); // { name, data }
@@ -24,6 +59,8 @@ const App = () => {
   React.useEffect(() => { localStorage.setItem("npd-route", JSON.stringify(route)); }, [route]);
   React.useEffect(() => { localStorage.setItem("npd-role", role); }, [role]);
   React.useEffect(() => { document.body.className = tweaks.density === "compact" ? "density-compact" : ""; }, [tweaks.density]);
+  // Keep window.NPD_CURRENT_ROLE in sync whenever npdRole state changes
+  React.useEffect(() => { window.NPD_CURRENT_ROLE = npdRole; }, [npdRole]);
 
   // tweaks activation protocol
   React.useEffect(() => {
@@ -87,7 +124,7 @@ const App = () => {
       if (project) {
         content = (
           <>
-            <ProjectHeader project={project} onBack={() => setRoute({ screen: "pipeline" })} />
+            <ProjectHeader project={project} onBack={() => setRoute({ screen: "pipeline" })} openModal={openModal} />
             <StageRail project={project} current={route.stage} onNav={(stage) => setRoute(r => ({ ...r, stage }))} />
             {route.stage === "brief"      && <BriefScreen project={project} />}
             {route.stage === "recipe"     && <RecipeScreen project={project} />}
@@ -99,6 +136,8 @@ const App = () => {
             {route.stage === "pilot"      && <PilotScreen />}
             {route.stage === "approval"   && <ApprovalScreen approvalMode={tweaks.approvalMode} />}
             {route.stage === "handoff"    && <HandoffScreen />}
+            {route.stage === "checklist"  && <GateChecklistPanel project={project} openModal={openModal} />}
+            {route.stage === "history"    && <ApprovalHistoryTimeline project={project} />}
           </>
         );
       }
@@ -117,6 +156,23 @@ const App = () => {
 
   return (
     <>
+      {/* BL-NPD-03 — dev-only role switcher banner */}
+      <div style={{
+        position: "fixed", top: 0, left: 0, right: 0, zIndex: 9999,
+        background: "#fef3c7", borderBottom: "2px solid #f59e0b",
+        padding: "4px 16px", display: "flex", alignItems: "center", gap: 10,
+        fontSize: 12, fontWeight: 600, color: "#92400e"
+      }}>
+        <span>🔐 Prototype role:</span>
+        <select
+          value={npdRole}
+          onChange={e => handleNpdRoleChange(e.target.value)}
+          style={{ fontSize: 12, fontWeight: 600, background: "#fef3c7", border: "1px solid #f59e0b", borderRadius: 4, padding: "1px 6px", color: "#92400e" }}>
+          {NPD_ROLES.map(r => <option key={r} value={r}>{r}</option>)}
+        </select>
+        <span style={{ fontWeight: 400, color: "#b45309" }}>— permissions update instantly · not visible in production</span>
+      </div>
+      <div style={{ paddingTop: 30 }}>
       <Sidebar current={"npd"} onNav={sidebarNav} />
       <Topbar role={role} setRole={setRole} />
       <SubNav current={route.screen} onNav={subnavNav} role={role} />
@@ -139,8 +195,11 @@ const App = () => {
       {activeModal === "allergenRefresh"  && <AllergenRefreshModal  open onClose={closeModal} data={modal.data} />}
       {activeModal === "docUpload"        && <DocUploadModal        open onClose={closeModal} data={modal.data} />}
       {activeModal === "refreshD365"      && <RefreshD365Modal      open onClose={closeModal} data={modal.data} />}
+      {activeModal === "advanceGate"     && <AdvanceGateModal     open onClose={closeModal} data={modal.data} />}
+      {activeModal === "gateApproval"    && <GateApprovalModal    open onClose={closeModal} data={modal.data} />}
 
       <TweaksPanel open={tweaksOpen} onClose={() => setTweaksOpen(false)} tweaks={tweaks} setTweaks={setTweaks} />
+      </div>
     </>
   );
 };

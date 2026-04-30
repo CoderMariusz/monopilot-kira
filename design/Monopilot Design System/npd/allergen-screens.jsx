@@ -8,6 +8,30 @@ const AllergenCascade = ({ onOpenFA, openModal, initialFa }) => {
   const cascade = window.NPD_ALLERGEN_CASCADE[fa];
   const faObj = window.NPD_FAS.find(f => f.fa_code === fa) || window.NPD_FAS[0];
 
+  // BL-NPD-05 — SVG refresh animation
+  const [refreshKey, setRefreshKey] = React.useState(0);
+
+  // BL-NPD-04 — Simulated WebSocket polling indicator
+  const [lastUpdated, setLastUpdated] = React.useState(new Date());
+  const [pollCount, setPollCount] = React.useState(0);
+  const [secondsAgo, setSecondsAgo] = React.useState(0);
+
+  React.useEffect(() => {
+    const pollTimer = setInterval(() => {
+      setLastUpdated(new Date());
+      setPollCount(c => c + 1);
+      setRefreshKey(k => k + 1);
+    }, 30000);
+    return () => clearInterval(pollTimer);
+  }, []);
+
+  React.useEffect(() => {
+    const tickTimer = setInterval(() => {
+      setSecondsAgo(Math.round((Date.now() - lastUpdated.getTime()) / 1000));
+    }, 5000);
+    return () => clearInterval(tickTimer);
+  }, [lastUpdated]);
+
   if (!cascade) return <div className="card">No cascade data for {fa}.</div>;
 
   return (
@@ -16,13 +40,16 @@ const AllergenCascade = ({ onOpenFA, openModal, initialFa }) => {
       <div className="page-head">
         <div>
           <div className="page-title">Allergen cascade preview</div>
-          <div className="muted" style={{ fontSize: 12 }}>Visual trace RM → Process → FA · Regulation: EU FIC 1169/2011 · 14 mandatory allergens</div>
+          <div className="muted" style={{ fontSize: 12 }}>
+            Visual trace RM → Process → FA · Regulation: EU FIC 1169/2011 · 14 mandatory allergens
+            &nbsp;&nbsp;<span className="live-dot"></span><span className="muted" style={{ fontSize: 11 }}>Live · updated {secondsAgo}s ago</span>
+          </div>
         </div>
         <div style={{ display: "flex", gap: 8 }}>
-          <select value={fa} onChange={e => setFa(e.target.value)} style={{ width: "auto" }}>
+          <select value={fa} onChange={e => { setFa(e.target.value); setRefreshKey(k => k + 1); }} style={{ width: "auto" }}>
             {faCodes.map(c => <option key={c}>{c}</option>)}
           </select>
-          <button className="btn btn-secondary" onClick={() => openModal("allergenRefresh", { fa: faObj })}>↻ Refresh</button>
+          <button className="btn btn-secondary" onClick={() => { openModal("allergenRefresh", { fa: faObj }); setRefreshKey(k => k + 1); }}>↻ Refresh</button>
           <button className="btn btn-primary" onClick={() => onOpenFA(fa)}>Open FA →</button>
         </div>
       </div>
@@ -87,6 +114,7 @@ const AllergenCascade = ({ onOpenFA, openModal, initialFa }) => {
 
       <div className="card">
         <div className="card-title" style={{ marginBottom: 10 }}>Cascade diagram</div>
+        <div key={refreshKey} className="cascade-flash">
         <svg viewBox="0 0 900 220" style={{ width: "100%", height: 220, background: "var(--gray-050)", borderRadius: 6 }}>
           {/* boxes */}
           <g fontFamily="var(--font-mono)" fontSize="11">
@@ -110,6 +138,7 @@ const AllergenCascade = ({ onOpenFA, openModal, initialFa }) => {
             <text x={715} y={125} fill="#1e293b">Contains: {cascade.final.contains.map(a => a.allergen).join(",") || "—"}</text>
           </g>
         </svg>
+        </div>
       </div>
     </>
   );

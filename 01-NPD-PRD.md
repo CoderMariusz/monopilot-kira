@@ -1363,8 +1363,9 @@ Per 00-FOUNDATION §4.2, 01-NPD implementation sequential z 5 sub-parts:
 | **01-NPD-c** | Allergens multi-level cascade | Reference.Allergens + Allergens_by_RM + Allergens_added_by_Process tables, cascade rule impl, Technical UI widget, manual override + audit, labelling preview partial | NPD-c.1 Seed EU14 · NPD-c.2 RM→FA cascade · NPD-c.3 PR step adds · NPD-c.4 May-contain · NPD-c.5 Override UI · ... |
 | **01-NPD-d** | D365 Builder output | Reference.D365_Constants table + seed, Builder_FA<code>.xlsx generator (8 tabs, exceljs), N+1 products pattern, V04 D365 material validation, fa_builder_outputs storage, download UI | NPD-d.1 Formula_Version · NPD-d.2 Formula_Lines · NPD-d.3 Route tabs · NPD-d.4 N+1 products · NPD-d.5 V04 cache sync · ... |
 | **01-NPD-e** | Dashboard subset | dashboard_summary view, per-dept breakdown, launch alerts (RED/YELLOW/GREEN), Missing_Data text generation, counters, Reference.AlertThresholds | NPD-e.1 Summary counters · NPD-e.2 Dept breakdown · NPD-e.3 Alerts · NPD-e.4 Missing data · NPD-e.5 FA detail navigation · ... |
+| **01-NPD-f** | Stage-Gate pipeline | npd_projects + gate_checklist_items + gate_approvals tables, Pipeline kanban/list views, CreateProjectWizard, GateChecklistPanel, AdvanceGateModal, GateApprovalModal, ApprovalHistoryTimeline, RBAC npd.gate.advance/approve, Reference.GateChecklistTemplates seed | NPD-f.1 Project CRUD · NPD-f.2 Gate checklist schema · NPD-f.3 Gate advancement action · NPD-f.4 Gate approval + e-signature · NPD-f.5 Pipeline views · NPD-f.6 CreateProjectWizard · ... |
 
-Każdy sub-module end-to-end (stories → QA → regression → done) przed następnym. Oczekiwane sesje per sub-module: 01-NPD-a (5-8 sesji), 01-NPD-b (3-4), 01-NPD-c (3-4), 01-NPD-d (4-5), 01-NPD-e (2-3). Łącznie ~17-24 sesji implementacji.
+Każdy sub-module end-to-end (stories → QA → regression → done) przed następnym. Oczekiwane sesje per sub-module: 01-NPD-a (5-8 sesji), 01-NPD-b (3-4), 01-NPD-c (3-4), 01-NPD-d (4-5), 01-NPD-e (2-3), 01-NPD-f (3-4). Łącznie ~20-28 sesji implementacji.
 
 ---
 
@@ -1509,7 +1510,143 @@ Każdy sub-module end-to-end (stories → QA → regression → done) przed nast
 
 ---
 
+## §17 — Stage-Gate Pipeline (NPD project lifecycle)
+
+Design prototype: `gate-screens.jsx`, `pipeline.jsx`, `project.jsx`
+Implementation sub-module: **01-NPD-f**
+
+### 17.1 Overview
+
+The Stage-Gate pipeline tracks an NPD project from initial idea through to production launch via 5 gates (G0–G4). Each gate has a structured checklist; G3 and G4 require formal approval with e-signature. This workflow is parallel to the FA/dept workflow: an NPD project maps 1:1 to one FA once the project reaches G3 (Development).
+
+### 17.2 Gate definitions
+
+| Gate | Label         | Enters from | Exits to | Requires approval |
+|------|---------------|-------------|----------|-------------------|
+| G0   | Idea          | project create | G1    | ❌ (self-advance) |
+| G1   | Feasibility   | G0          | G2       | ❌ (self-advance) |
+| G2   | Business Case | G1          | G3       | ❌ (self-advance) |
+| G3   | Development   | G2          | G4       | ✅ (e-signature)  |
+| G4   | Testing       | G3          | Launched | ✅ (e-signature)  |
+
+`STAGE_TO_GATE` mapping (prototype): `{ brief: "G0", recipe: "G1", trial: "G2", approval: "G3", handoff: "G4" }`
+
+### 17.3 Project entity
+
+```sql
+CREATE TABLE npd_projects (
+    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id       UUID NOT NULL REFERENCES tenants(id),
+    code            TEXT NOT NULL UNIQUE,        -- NPD-001 format
+    name            TEXT NOT NULL,
+    type            TEXT NOT NULL,               -- 'Meat · Cold cut' | 'Meat · Smoked' | ...
+    current_gate    TEXT NOT NULL DEFAULT 'G0',  -- G0..G4 | 'Launched'
+    current_stage   TEXT NOT NULL DEFAULT 'brief', -- brief|recipe|trial|approval|handoff
+    prio            TEXT NOT NULL DEFAULT 'normal', -- 'high' | 'normal' | 'low'
+    owner           TEXT,
+    target_launch   DATE,
+    notes           TEXT,
+    fa_code         TEXT REFERENCES fa(fa_code), -- linked once G3 reached
+    start_from      TEXT,                         -- 'blank' | 'clone' | 'template'
+    clone_source    TEXT,                         -- BOM code if start_from='clone'
+    -- R13 columns
+    created_at      TIMESTAMPTZ DEFAULT now(),
+    created_by_user UUID,
+    created_by_device UUID,
+    app_version     TEXT,
+    model_prediction_id UUID,
+    epcis_event_id  UUID,
+    external_id     TEXT,
+    schema_version  INT NOT NULL DEFAULT 1
+);
+```
+
+### 17.4 Gate checklist schema
+
+```sql
+CREATE TABLE gate_checklist_items (
+    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id       UUID NOT NULL REFERENCES tenants(id),
+    project_id      UUID NOT NULL REFERENCES npd_projects(id) ON DELETE CASCADE,
+    gate_code       TEXT NOT NULL,              -- G0..G4
+    category_code   TEXT NOT NULL,              -- 'technical' | 'business' | 'compliance'
+    item_text       TEXT NOT NULL,
+    required        BOOLEAN NOT NULL DEFAULT FALSE,
+    completed_at    TIMESTAMPTZ,
+    completed_by_user UUID,
+    evidence_file   TEXT,
+    created_at      TIMESTAMPTZ DEFAULT now(),
+    schema_version  INT NOT NULL DEFAULT 1
+);
+CREATE INDEX ON gate_checklist_items (tenant_id, project_id, gate_code);
+```
+
+### 17.5 Gate approvals schema
+
+```sql
+CREATE TABLE gate_approvals (
+    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id       UUID NOT NULL REFERENCES tenants(id),
+    project_id      UUID NOT NULL REFERENCES npd_projects(id),
+    gate_code       TEXT NOT NULL,
+    decision        TEXT NOT NULL,              -- 'approved' | 'rejected'
+    approver_user_id UUID NOT NULL,
+    notes           TEXT,
+    rejection_reason TEXT,
+    esigned_at      TIMESTAMPTZ,
+    esign_hash      TEXT,                       -- SHA-256(user_id + project_id + gate + timestamp)
+    created_at      TIMESTAMPTZ DEFAULT now(),
+    schema_version  INT NOT NULL DEFAULT 1
+);
+```
+
+### 17.6 Gate advancement flow
+
+**For G0–G2 (no approval required):**
+1. User reviews checklist on `GateChecklistPanel` (route.stage = "checklist")
+2. User clicks "Advance to {next gate}" → `AdvanceGateModal` opens
+3. Modal shows: required items count, blocker list (required + not done), notes textarea (disabled if blockers)
+4. Server Action `advanceProjectGate`: validates no blockers in DB, updates `npd_projects.current_gate`, inserts `gate_events` record, emits `npd.gate.advanced` outbox event
+
+**For G3–G4 (approval required):**
+1. User clicks "Request Approval" → `GateApprovalModal` opens
+2. Modal shows: project header, approve/reject radio, notes
+3. On approve: e-signature overlay appears (password + confirmation checkbox)
+4. Server Action `approveProjectGate`: verifies password via bcrypt, creates `gate_approvals` record with `esigned_at` + `esign_hash`, advances gate, emits `npd.gate.approved` outbox event
+
+**Blocker rule:** `getBlockers(gate) = gate_checklist_items WHERE project_id=? AND gate_code=? AND required=TRUE AND completed_at IS NULL`
+
+### 17.7 Approval history
+
+`ApprovalHistoryTimeline` renders `gate_approvals` records in reverse chronological order. Shows: gate label, approver name + role, decision (approved=green/rejected=red), date, e-signature hash (expandable). BRCGS audit-ready: immutable records.
+
+### 17.8 Pipeline views
+
+`Pipeline` screen provides two views of all active NPD projects:
+- **Kanban:** one column per gate (G0–G4 + Launched), project cards draggable between columns for quick stage advance
+- **List:** tabular view with columns Code, Name, Type, Current Gate, Priority, Owner, Target Launch, Progress
+
+`CreateProjectWizard` is a 4-step wizard: Basics → Brief → Starting point (blank/clone/template) → Review & create. On create: inserts `npd_projects` + seeds default `gate_checklist_items` from `Reference.GateChecklistTemplates`.
+
+### 17.9 RBAC (Stage-Gate additions)
+
+| Permission | Roles |
+|---|---|
+| `npd.project.create` | npd_manager, admin |
+| `npd.project.view` | all (dashboard.view) |
+| `npd.checklist.write` | npd_manager, core_user, admin |
+| `npd.gate.advance` | npd_manager, admin |
+| `npd.gate.approve` | npd_manager, admin |
+
+### 17.10 Reference.GateChecklistTemplates
+
+Configurable per tenant (admin UI Phase C1). Default seed provides standard checklist items per gate per category, mapped from `GATE_CHECKLISTS` constant in gate-screens.jsx prototype. Seeded per project on `CreateProject`.
+
+---
+
 ## Changelog
+
+- **v3.1 (2026-04-25)** — Added §17 Stage-Gate Pipeline (G0–G4 gates, GateChecklistPanel, AdvanceGateModal, GateApprovalModal, ApprovalHistoryTimeline, Pipeline kanban/list view, CreateProjectWizard). Sub-module 01-NPD-f added to build sequence. PRD gap analysis vs prototype `gate-screens.jsx`.
 
 - **v3.0 (2026-04-19)** — Phase B.2 full rewrite. Renumbered from 09-NPD → 01-NPD (primary module). Phase D aligned: 6 principles + markers + 23 decisions (incl. #1 multi-comp, #2 Done independent, #3 Status_Overall 5-enum, #7 Price blocking tightened, #8 Built auto-reset fix, #10 PR_Code_Final format, #16 allergens multi-level, #18 alert thresholds, #19-22 D365 Builder N+1+per-FA+constants). R1-R15 research adopted (event-first, JSONB hybrid, RLS, Zod runtime, GS1-first, i18n, schema AI/trace-ready). Brief module added (2 templates, 37 cols, Convert-to-PLD). Allergens multi-level cascade RM→PR_step→FA implementowane. D365 Builder N+1 products per FA + Reference.D365_Constants + 8 tabs per-FA file. Dashboard NPD-scoped + RED/YELLOW/GREEN alerts. V07-V08 new validations. Build sequence 01-NPD-a/b/c/d/e (per 00-FOUNDATION §4.2 sequential per sub-module).
 

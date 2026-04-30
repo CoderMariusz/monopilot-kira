@@ -186,3 +186,51 @@ td.num { text-align: right; font-variant-numeric: tabular-nums; }
 body.density-compact td, body.density-compact th { padding: 4px 8px; }
 body.density-compact .ing-row { padding: 3px 10px; }
 body.density-compact .card { padding: 10px; }
+
+/* === BL-NPD-05 — Cascade SVG flash animation === */
+@keyframes cascadeFlash {
+  0%   { opacity: 0.3; }
+  100% { opacity: 1; }
+}
+.cascade-flash {
+  animation: cascadeFlash 0.4s ease-out;
+}
+
+/* === BL-NPD-04 — Live polling indicator === */
+@keyframes livePulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.4; }
+}
+.live-dot {
+  display: inline-block;
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  background: var(--green);
+  animation: livePulse 2s ease-in-out infinite;
+  vertical-align: middle;
+  margin-right: 5px;
+}
+
+/* === Responsive breakpoints (BL-NPD-06) === */
+@media (max-width: 900px) {
+  .fa-tabs { overflow-x: auto; white-space: nowrap; }
+  .fa-grid { grid-template-columns: 1fr !important; }
+  .dept-grid { grid-template-columns: 1fr 1fr !important; }
+  .brief-grid { grid-template-columns: 1fr !important; }
+  .pipeline-cols { grid-template-columns: 1fr 1fr !important; }
+  .modal-box { width: 95vw !important; }
+  .modal-box.wide { width: 95vw !important; }
+}
+
+@media (max-width: 480px) {
+  .fa-tabs { font-size: 11px; }
+  .page-head { flex-direction: column; align-items: flex-start; gap: 8px; }
+  .page-head > div:last-child { width: 100%; }
+  .page-head > div:last-child button { flex: 1; }
+  .dept-grid { grid-template-columns: 1fr !important; }
+  .ff-inline { grid-template-columns: 1fr !important; }
+  .wiz-stepper { flex-wrap: wrap; gap: 6px; }
+  .wiz-step-line { display: none; }
+  .modal-box { border-radius: 0; max-height: 100vh; }
+  .modal-overlay { padding: 0; align-items: flex-end; }
+}

@@ -6,10 +6,7 @@ const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
   "density": "comfortable"
 }/*EDITMODE-END*/;
 
-// ---------- Labels (list entry), generic placeholder ----------
-// NOTE: BL-SET-12 fix — the canonical `BomsScreen` lives in data-screens.jsx
-// (loaded before app.jsx). The duplicate definition previously here shadowed it
-// and caused inconsistent behaviour. Removed in the 2026-04-23 tuning pass.
+// BomsScreen defined in data-screens.jsx (BL-SET-12 fix: removed duplicate stub)
 
 const Placeholder = ({ title }) => (
   <div className="sg-section" style={{ padding: 40, textAlign: "center" }}>

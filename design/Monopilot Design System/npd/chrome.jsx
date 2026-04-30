@@ -74,31 +74,49 @@ const Topbar = ({ role, setRole }) => (
 );
 
 const SubNav = ({ current, onNav, role }) => {
-  // Structured sub-nav — spec-aligned primary entries + legacy R&D pipeline + admin
-  const tabs = [
-    { id: "dashboard",    label: "Dashboard",      group: "Jane" },
-    { id: "fa_list",      label: "Factory Articles", group: "Jane" },
-    { id: "briefs",       label: "Briefs",         group: "Jane" },
-    { id: "formulations", label: "Formulations",   group: "RD" },
-    { id: "allergens",    label: "Allergen cascade", group: "RD" },
-    { id: "pipeline",     label: "R&D pipeline",   group: "RD" },
-    { id: "gallery",      label: "Modal gallery",  group: "Admin" }
-  ];
+  const forzaScreens = ["dashboard", "fa_list", "fa_detail", "fa_kanban", "d365_builder", "formulation_editor", "briefs", "brief_detail"];
+  const isForzaActive = forzaScreens.includes(current);
+  const [forzaOpen, setForzaOpen] = React.useState(isForzaActive);
 
-  // Highlight logic: fa_detail belongs under fa_list; brief_detail under briefs; project under pipeline
   const isActive = (id) => {
     if (current === id) return true;
+    if (id === "pipeline" && (current === "project" || current === "new")) return true;
     if (id === "fa_list"  && (current === "fa_detail" || current === "fa_kanban" || current === "d365_builder" || current === "formulation_editor")) return true;
     if (id === "briefs"   && current === "brief_detail") return true;
-    if (id === "pipeline" && (current === "project" || current === "new")) return true;
     return false;
   };
 
+  const subItem = (id, label) => (
+    <a key={id}
+      className={isActive(id) ? "on" : ""}
+      onClick={() => onNav(id)}
+      style={{ paddingLeft: 22, fontSize: 12, opacity: 0.9 }}>
+      {label}
+    </a>
+  );
+
   return (
     <div className="subnav">
-      {tabs.map(t => (
-        <a key={t.id} className={isActive(t.id) ? "on" : ""} onClick={() => onNav(t.id)}>{t.label}</a>
-      ))}
+      <a className={isActive("pipeline")     ? "on" : ""} onClick={() => onNav("pipeline")}>Projects</a>
+      <a className={isActive("formulations") ? "on" : ""} onClick={() => onNav("formulations")}>Formulations</a>
+      <a className={isActive("allergens")    ? "on" : ""} onClick={() => onNav("allergens")}>Allergen cascade</a>
+
+      {/* Forza collapsible section */}
+      <a className={isForzaActive ? "on" : ""}
+        onClick={() => setForzaOpen(o => !o)}
+        style={{ display: "flex", alignItems: "center", gap: 6 }}>
+        Forza
+        <span style={{ fontSize: 9, opacity: 0.6, marginLeft: "auto" }}>{forzaOpen ? "▲" : "▼"}</span>
+      </a>
+      {forzaOpen && (
+        <>
+          {subItem("dashboard", "FA Dashboard")}
+          {subItem("fa_list",   "Factory Articles")}
+          {subItem("briefs",    "Briefs")}
+        </>
+      )}
+
+      <a className={isActive("gallery") ? "on" : ""} onClick={() => onNav("gallery")} style={{ marginLeft: "auto" }}>Modal gallery</a>
     </div>
   );
 };

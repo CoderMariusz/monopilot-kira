@@ -1,13 +1,177 @@
-// ============ Other stage screens ============
-// Fix-1 NPD removal: `NutritionScreen` (Nutri-Score) + `CostingScreen` (cost
-// waterfall, margin scenarios, what-if sliders) removed as PRD hallucinations.
-// PRD §1.2 out-of-scope: cost roll belongs to 10-FINANCE Phase C4; Nutri-Score
-// belongs to 09-QUALITY / 03-TECHNICAL. Routes `nutrition` / `costing` are no
-// longer mounted in `app.jsx`.
+// ============ Other stage screens (R&D Pipeline) ============
+
+// ---------- Nutrition / allergens read-only ----------
+const NutritionScreen = () => {
+  const rows = [
+    { label: "Energy",    val: "142 kcal", target: "≤ 180", status: "ok" },
+    { label: "Fat",       val: "6.2 g",    target: "≤ 8",   status: "ok" },
+    { label: "Saturates", val: "2.1 g",    target: "≤ 3",   status: "ok" },
+    { label: "Carbs",     val: "1.1 g",    target: "≤ 3",   status: "ok" },
+    { label: "Sugars",    val: "0.5 g",    target: "≤ 2",   status: "ok" },
+    { label: "Protein",   val: "19.6 g",   target: "≥ 18",  status: "ok" },
+    { label: "Salt",      val: "2.0 g",    target: "≤ 2",   status: "warn" }
+  ];
+
+  return (
+    <>
+      <div className="card">
+        <div className="card-head">
+          <div className="card-title">Nutrition declaration (per 100g)</div>
+          <div style={{ display: "flex", gap: 6 }}>
+            <button className="btn btn-ghost btn-sm">Export CSV</button>
+            <button className="btn btn-secondary btn-sm">Generate label PDF</button>
+          </div>
+        </div>
+        <table>
+          <thead><tr><th>Nutrient</th><th>Per 100g</th><th>Per portion (50g)</th><th>Target</th><th>Status</th></tr></thead>
+          <tbody>
+            {rows.map(r => (
+              <tr key={r.label}>
+                <td style={{ fontWeight: 500 }}>{r.label}</td>
+                <td className="mono">{r.val}</td>
+                <td className="mono muted">{r.val.replace(/[\d.]+/, n => (Number(n) / 2).toFixed(1))}</td>
+                <td className="mono">{r.target}</td>
+                <td>{r.status === "ok"
+                  ? <span className="badge badge-green">✓ OK</span>
+                  : <span className="badge badge-amber">⚠ At limit</span>}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+        <div className="card">
+          <div className="card-title" style={{ marginBottom: 8 }}>Allergen declaration</div>
+          <div className="alert alert-amber"><strong>1 allergen detected:</strong> Soy (from Soy Protein Isolate, 1.2%). Must be declared in bold on the ingredient list.</div>
+          <table>
+            <thead><tr><th>Allergen</th><th>Source ingredient</th><th>%</th><th>Cross-contact?</th></tr></thead>
+            <tbody>
+              <tr><td style={{ fontWeight: 600 }}>Soy</td><td>Soy Protein Isolate (RM-3501)</td><td className="mono num">1.2%</td><td className="muted">No</td></tr>
+              <tr><td className="muted">Milk</td><td className="muted">— none —</td><td></td><td className="muted">Possible (shared line)</td></tr>
+              <tr><td className="muted">Mustard</td><td className="muted">— none —</td><td></td><td className="muted">No</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div className="card">
+          <div className="card-title" style={{ marginBottom: 8 }}>Nutri-Score preview</div>
+          <div style={{ display: "flex", alignItems: "center", gap: 20, padding: "10px 0" }}>
+            <div style={{ display: "flex", gap: 2 }}>
+              {["A", "B", "C", "D", "E"].map(l => (
+                <div key={l} style={{
+                  width: 38, height: 48, display: "flex", alignItems: "center", justifyContent: "center",
+                  fontWeight: 700, fontSize: 18, color: "#fff",
+                  background: l === "C" ? "#f59e0b" : l === "A" ? "#16a34a88" : l === "B" ? "#84cc1688" : l === "D" ? "#f9731688" : "#dc262688",
+                  borderRadius: 4, transform: l === "C" ? "scale(1.2)" : "none"
+                }}>{l}</div>
+              ))}
+            </div>
+            <div>
+              <div style={{ fontSize: 32, fontWeight: 700, color: "#f59e0b" }}>C</div>
+              <div className="muted" style={{ fontSize: 12 }}>Driven by salt content (2.0g).<br />Reducing to 1.6g would yield B.</div>
+            </div>
+          </div>
+          <button className="btn btn-ghost btn-sm">Run what-if →</button>
+        </div>
+      </div>
+    </>
+  );
+};
+
+// ---------- Costing waterfall (novel touch) ----------
+const CostingScreen = () => {
+  const max = 18.40; // max scale
+  const steps = [
+    { label: "Pork Ham (82%)",        val: 15.17, type: "add", cumul: 15.17 },
+    { label: "Soy Protein (1.2%)",    val: 0.11,  type: "add", cumul: 15.28 },
+    { label: "Carrageenan (0.35%)",   val: 0.05,  type: "add", cumul: 15.33 },
+    { label: "Spice blend (0.9%)",    val: 0.11,  type: "add", cumul: 15.44 },
+    { label: "Other additives",       val: 0.14,  type: "add", cumul: 15.58 },
+    { label: "Yield loss (22%)",      val: 3.42,  type: "add", cumul: 19.00 },
+    { label: "Processing (8%)",       val: 1.52,  type: "add", cumul: 20.52 },
+    { label: "Packaging",             val: 0.65,  type: "add", cumul: 21.17 },
+    { label: "TOTAL COST / KG",       val: 18.40, type: "total", cumul: 18.40 }
+  ];
+  const absMax = 22;
+
+  return (
+    <>
+      <div className="card">
+        <div className="card-head">
+          <div>
+            <div className="card-title">Cost breakdown — Sliced Ham 200g</div>
+            <div className="muted" style={{ fontSize: 12 }}>Waterfall from raw materials to final cost per kg</div>
+          </div>
+          <div className="pills">
+            <button className="pill on">Per kg</button>
+            <button className="pill">Per pack (200g)</button>
+            <button className="pill">Per batch (500kg)</button>
+          </div>
+        </div>
+
+        <div className="waterfall">
+          {steps.map((s, i) => (
+            <div key={i} className={`waterfall-bar ${s.type}`}>
+              <div className="wf-label" style={{ fontWeight: s.type === "total" ? 700 : 400 }}>{s.label}</div>
+              <div className="wf-track">
+                <div className="wf-fill" style={{ left: 0, width: `${(s.cumul / absMax) * 100}%`, opacity: s.type === "total" ? 1 : 0.3 }}></div>
+                <div className="wf-fill" style={{ left: `${((s.cumul - s.val) / absMax) * 100}%`, width: `${(s.val / absMax) * 100}%` }}></div>
+              </div>
+              <div className="wf-val" style={{ fontWeight: s.type === "total" ? 700 : 400 }}>€{s.val.toFixed(2)}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 12 }}>
+        <div className="card">
+          <div className="card-title" style={{ marginBottom: 10 }}>Margin vs target price</div>
+          <table>
+            <thead><tr><th>Scenario</th><th>Target price (200g)</th><th>Revenue €/kg</th><th>Cost €/kg</th><th>Margin</th><th>Margin %</th></tr></thead>
+            <tbody>
+              <tr><td>Pessimistic (promo)</td><td className="mono">€3.49</td><td className="mono">€17.45</td><td className="mono">€18.40</td><td className="mono" style={{ color: "var(--red)" }}>-€0.95</td><td className="mono" style={{ color: "var(--red)" }}>-5.4%</td></tr>
+              <tr style={{ background: "var(--blue-050)" }}><td style={{ fontWeight: 600 }}>Target</td><td className="mono">€3.98</td><td className="mono">€19.90</td><td className="mono">€18.40</td><td className="mono" style={{ color: "var(--green)" }}>+€1.50</td><td className="mono" style={{ color: "var(--green)" }}>+7.5%</td></tr>
+              <tr><td>Optimistic</td><td className="mono">€4.29</td><td className="mono">€21.45</td><td className="mono">€18.40</td><td className="mono" style={{ color: "var(--green)" }}>+€3.05</td><td className="mono" style={{ color: "var(--green)" }}>+14.2%</td></tr>
+            </tbody>
+          </table>
+          <div className="alert alert-amber" style={{ marginTop: 10, marginBottom: 0 }}>
+            At target price, margin is <strong>7.5%</strong> — below the NPD minimum of 15%. Consider: reduce pork content to 78%, or raise target price to €4.49.
+          </div>
+        </div>
+
+        <div className="card">
+          <div className="card-title" style={{ marginBottom: 8 }}>What-if sliders</div>
+          <div className="field">
+            <label>Pork content ({"82%"})</label>
+            <input type="range" min="70" max="95" defaultValue="82" style={{ width: "100%" }} />
+            <div className="muted" style={{ fontSize: 11 }}>↓ to 78% = cost €17.20 (+margin 3.5pp)</div>
+          </div>
+          <div className="field" style={{ marginTop: 10 }}>
+            <label>Yield ({"78%"})</label>
+            <input type="range" min="65" max="85" defaultValue="78" style={{ width: "100%" }} />
+            <div className="muted" style={{ fontSize: 11 }}>↑ to 82% = cost €17.80 (+margin 2.1pp)</div>
+          </div>
+          <div className="field" style={{ marginTop: 10 }}>
+            <label>Target price (€3.98)</label>
+            <input type="range" min="3" max="5" step="0.1" defaultValue="3.98" style={{ width: "100%" }} />
+          </div>
+        </div>
+      </div>
+    </>
+  );
+};
 
 // ---------- Packaging spec ----------
 const PackagingScreen = () => (
   <>
+    <div style={{ background: "#fef3c7", border: "1px solid #d97706", borderRadius: 6, padding: "10px 14px", marginBottom: 14, display: "flex", alignItems: "center", gap: 10 }}>
+      <span style={{ fontSize: 16 }}>⚠️</span>
+      <div>
+        <strong style={{ fontSize: 12 }}>LEGACY — Phase 2 deprecation</strong>
+        <div style={{ fontSize: 11, color: "#92400e", marginTop: 2 }}>This screen is part of the legacy R&D pipeline and will NOT be implemented in production. Use the FA / Brief screens instead. See BL-NPD-02.</div>
+      </div>
+    </div>
     <div className="card">
       <div className="card-head">
         <div className="card-title">Primary packaging</div>
@@ -57,6 +221,13 @@ const PackagingScreen = () => (
 // ---------- Trial runs ----------
 const TrialScreen = () => (
   <>
+    <div style={{ background: "#fef3c7", border: "1px solid #d97706", borderRadius: 6, padding: "10px 14px", marginBottom: 14, display: "flex", alignItems: "center", gap: 10 }}>
+      <span style={{ fontSize: 16 }}>⚠️</span>
+      <div>
+        <strong style={{ fontSize: 12 }}>LEGACY — Phase 2 deprecation</strong>
+        <div style={{ fontSize: 11, color: "#92400e", marginTop: 2 }}>This screen is part of the legacy R&D pipeline and will NOT be implemented in production. Use the FA / Brief screens instead. See BL-NPD-02.</div>
+      </div>
+    </div>
     <div className="card">
       <div className="card-head">
         <div>
@@ -169,7 +340,7 @@ const SensoryScreen = () => {
         <div className="card-title" style={{ marginBottom: 8 }}>Panelist comments</div>
         <div className="muted" style={{ fontSize: 12, lineHeight: 1.6 }}>
           <strong>P-03:</strong> "Clean ham flavor, slightly salty but well-balanced."<br/>
-          <strong>P-05:</strong> "Texture is firmer than the current Sokołów benchmark — positive."<br/>
+          <strong>P-05:</strong> "Texture is firmer than the current market benchmark — positive."<br/>
           <strong>P-07:</strong> "Aftertaste lingers pleasantly. Would buy."<br/>
           <strong>P-02:</strong> "Slight metallic note — check nitrite level."
         </div>
@@ -181,7 +352,14 @@ const SensoryScreen = () => {
 // ---------- Pilot production ----------
 const PilotScreen = () => (
   <>
-    <div className="alert alert-blue"><strong>Scheduled pilot:</strong> Dec 20, 2025 · Line 2 · 500 kg batch · Supervisor: M. Wiśniewska</div>
+    <div style={{ background: "#fef3c7", border: "1px solid #d97706", borderRadius: 6, padding: "10px 14px", marginBottom: 14, display: "flex", alignItems: "center", gap: 10 }}>
+      <span style={{ fontSize: 16 }}>⚠️</span>
+      <div>
+        <strong style={{ fontSize: 12 }}>LEGACY — Phase 2 deprecation</strong>
+        <div style={{ fontSize: 11, color: "#92400e", marginTop: 2 }}>This screen is part of the legacy R&D pipeline and will NOT be implemented in production. Use the FA / Brief screens instead. See BL-NPD-02.</div>
+      </div>
+    </div>
+    <div className="alert alert-blue"><strong>Scheduled pilot:</strong> Dec 20, 2025 · Line 2 · 500 kg batch · Supervisor: M. Johnson</div>
 
     <div className="card">
       <div className="card-title" style={{ marginBottom: 10 }}>Pilot run plan</div>
@@ -243,12 +421,12 @@ const ApprovalScreen = ({ approvalMode }) => {
   ];
 
   const steps = approvalMode === "multi" ? [
-    { who: "R&D Lead", name: "K. Nowak", status: "done", when: "2025-12-10" },
-    { who: "QA Manager", name: "M. Wiśniewska", status: "current", when: "pending" },
-    { who: "Commercial", name: "J. Lewandowski", status: "pending", when: "—" },
-    { who: "NPD Director", name: "A. Zając", status: "pending", when: "—" }
+    { who: "R&D Lead", name: "K. Walker", status: "done", when: "2025-12-10" },
+    { who: "QA Manager", name: "M. Johnson", status: "current", when: "pending" },
+    { who: "Commercial", name: "J. Lewis", status: "pending", when: "—" },
+    { who: "NPD Director", name: "A. Davis", status: "pending", when: "—" }
   ] : [
-    { who: "NPD Manager", name: "A. Zając", status: "current", when: "pending" }
+    { who: "NPD Manager", name: "A. Davis", status: "current", when: "pending" }
   ];
 
   return (
@@ -297,6 +475,13 @@ const ApprovalScreen = ({ approvalMode }) => {
 // ---------- Handoff to production BOM ----------
 const HandoffScreen = () => (
   <>
+    <div style={{ background: "#fef3c7", border: "1px solid #d97706", borderRadius: 6, padding: "10px 14px", marginBottom: 14, display: "flex", alignItems: "center", gap: 10 }}>
+      <span style={{ fontSize: 16 }}>⚠️</span>
+      <div>
+        <strong style={{ fontSize: 12 }}>LEGACY — Phase 2 deprecation</strong>
+        <div style={{ fontSize: 11, color: "#92400e", marginTop: 2 }}>This screen is part of the legacy R&D pipeline and will NOT be implemented in production. Use the FA / Brief screens instead. See BL-NPD-02.</div>
+      </div>
+    </div>
     <div className="alert alert-green"><strong>Ready to promote.</strong> All gates pass. Clicking "Promote" will create BOM-<span className="mono">238</span> in Production and deactivate the NPD recipe.</div>
 
     <div className="card">

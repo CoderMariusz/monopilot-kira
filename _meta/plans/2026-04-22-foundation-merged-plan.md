@@ -277,6 +277,7 @@ Revert commit.
 ### T-00a-003 — Tailwind + shadcn/ui init in `apps/web`
 
 **Type:** T3-ui
+**Prototype ref:** none — no prototype exists for this component
 **Context budget:** ~35k tokens
 **Est time:** 40 min
 **Parent feature:** 00-a scaffold
@@ -455,6 +456,7 @@ Remove husky install scripts.
 
 #### Test gate
 - **Unit:** `vitest apps/web/lib/env.test.ts` — missing var throws
+- **CI gate:** `pnpm test:smoke` green
 
 #### Rollback
 Revert commit.
@@ -535,6 +537,7 @@ Revert commit.
 
 #### Test gate
 - **Integration:** `vitest packages/db/smoke.test.ts` — `select 1` returns `[{?column?: 1}]`
+- **CI gate:** `pnpm test:smoke` green
 
 #### Rollback
 Delete package.
@@ -616,6 +619,7 @@ Revert; drop `drizzle_migrations`.
 
 #### Test gate
 - **Integration:** `vitest packages/db/seed/seed.test.ts`
+- **CI gate:** `pnpm test:smoke` green
 
 #### Rollback
 `DELETE FROM tenants` on test DB.
@@ -657,6 +661,7 @@ Revert; drop `drizzle_migrations`.
 
 #### Test gate
 - **Integration:** `vitest packages/db/drift-check.test.ts`
+- **CI gate:** `pnpm test:smoke` green
 
 #### Rollback
 Disable CI step; `DROP TABLE drift_events`.
@@ -695,6 +700,7 @@ Disable CI step; `DROP TABLE drift_events`.
 
 #### Test gate
 - **Integration:** `vitest packages/db/rls-context.integration.test.ts`
+- **CI gate:** `pnpm test:smoke` green
 
 #### Rollback
 Delete file.
@@ -736,6 +742,7 @@ Delete file.
 
 #### Test gate
 - **Integration:** `vitest auth-users.integration.test.ts`
+- **CI gate:** `pnpm test:smoke` green
 
 #### Rollback
 `drop trigger; drop fk;`.
@@ -775,6 +782,7 @@ Delete file.
 #### Test gate
 - **Unit:** mocks GoTrue, asserts cookie + event
 - **Integration:** real Supabase local, asserts session
+- **CI gate:** `pnpm test:smoke` green
 
 #### Rollback
 Delete actions.
@@ -813,6 +821,7 @@ Delete actions.
 
 #### Test gate
 - **Unit:** `vitest middleware.test.ts`
+- **CI gate:** `pnpm test:smoke` green
 
 #### Rollback
 Delete middleware file.
@@ -822,6 +831,7 @@ Delete middleware file.
 ### T-00c-004 — Login page UI (shadcn Form + RHF + Zod)
 
 **Type:** T3-ui
+**Prototype ref:** none — no prototype exists for this component
 **Context budget:** ~55k tokens
 **Est time:** 75 min
 **Parent feature:** 00-c auth
@@ -851,6 +861,7 @@ Delete middleware file.
 
 #### Test gate
 - **Unit:** RTL renders form + shows error on bad input
+- **CI gate:** `pnpm test:smoke` green
 
 #### Rollback
 Delete route + component.
@@ -889,6 +900,7 @@ Delete route + component.
 
 #### Test gate
 - **Unit:** `vitest logout.test.ts`
+- **CI gate:** `pnpm test:smoke` green
 
 #### Rollback
 Delete action.
@@ -927,6 +939,7 @@ Delete action.
 
 #### Test gate
 - **E2E:** `playwright e2e/auth.spec.ts` green
+- **CI gate:** `pnpm test:smoke` green
 
 #### Rollback
 Remove spec + route.
@@ -967,6 +980,7 @@ Remove spec + route.
 
 #### Test gate
 - **Unit:** `vitest policy-for.test.ts`
+- **CI gate:** `pnpm test:smoke` green
 
 #### Rollback
 Delete file.
@@ -1006,6 +1020,7 @@ Delete file.
 
 #### Test gate
 - **Integration:** `vitest rls-baseline.integration.test.ts`
+- **CI gate:** `pnpm test:smoke` green
 
 #### Rollback
 `drop policy` per table.
@@ -1044,6 +1059,7 @@ Delete file.
 
 #### Test gate
 - **Integration:** `vitest rls-wrappers.integration.test.ts`
+- **CI gate:** `pnpm test:smoke` green
 
 #### Rollback
 Drop functions.
@@ -1122,6 +1138,7 @@ Remove test (permanent gate).
 
 #### Test gate
 - **Unit + Integration:** assert audit records actor + impersonating_as
+- **CI gate:** `pnpm test:smoke` green
 
 #### Rollback
 Revert action; remove cookie field.
@@ -1163,6 +1180,7 @@ Revert action; remove cookie field.
 
 #### Test gate
 - **Integration:** `vitest audit-log.integration.test.ts`
+- **CI gate:** `pnpm test:smoke` green
 
 #### Rollback
 `DROP TABLE audit_log CASCADE`.
@@ -1201,6 +1219,7 @@ Revert action; remove cookie field.
 
 #### Test gate
 - **Integration:** `vitest audit-trigger.integration.test.ts`
+- **CI gate:** `pnpm test:smoke` green
 
 #### Rollback
 Drop triggers.
@@ -1239,6 +1258,7 @@ Drop triggers.
 
 #### Test gate
 - **Integration:** insert on `fa` → audit row + outbox row both present in same txn
+- **CI gate:** `pnpm test:smoke` green
 
 #### Rollback
 Drop helper call.
@@ -1277,6 +1297,7 @@ Drop helper call.
 
 #### Test gate
 - **Integration:** tenant isolation + RBAC guard
+- **CI gate:** `pnpm test:smoke` green
 
 #### Rollback
 Delete route.
@@ -1317,6 +1338,7 @@ Delete route.
 
 #### Test gate
 - **Integration:** `vitest partition-maintenance.test.ts`
+- **CI gate:** `pnpm test:smoke` green
 
 #### Rollback
 Disable cron.
@@ -1357,6 +1379,7 @@ Disable cron.
 
 #### Test gate
 - **Integration:** `vitest outbox-events.integration.test.ts`
+- **CI gate:** `pnpm test:smoke` green
 
 #### Rollback
 `DROP TABLE outbox_events, outbox_dlq`.
@@ -1395,6 +1418,7 @@ Disable cron.
 
 #### Test gate
 - **Integration:** idempotent on replay
+- **CI gate:** `pnpm test:smoke` green
 
 #### Rollback
 Delete file.
@@ -1435,6 +1459,7 @@ Delete file.
 
 #### Test gate
 - **Integration:** `vitest outbox-worker.integration.test.ts`
+- **CI gate:** `pnpm test:smoke` green
 
 #### Rollback
 Stop worker; clear pg-boss schema.
@@ -1473,6 +1498,7 @@ Stop worker; clear pg-boss schema.
 
 #### Test gate
 - **Integration:** defaults inserted; FK respected
+- **CI gate:** `pnpm test:smoke` green
 
 #### Rollback
 Drop table.
@@ -1511,6 +1537,7 @@ Drop table.
 
 #### Test gate
 - **Unit:** returns 503 when no worker; 200 when healthy
+- **CI gate:** `pnpm test:smoke` green
 
 #### Rollback
 Delete route.
@@ -1549,6 +1576,7 @@ Delete route.
 
 #### Test gate
 - **Integration:** green
+- **CI gate:** `pnpm test:smoke` green
 
 #### Rollback
 Remove test.
@@ -1591,6 +1619,7 @@ Remove test.
 
 #### Test gate
 - **Integration:** schema + constraints
+- **CI gate:** `pnpm test:smoke` green
 
 #### Rollback
 `DROP TABLE reference_rules`.
@@ -1629,6 +1658,7 @@ Remove test.
 
 #### Test gate
 - **Unit:** ≥5 canonical cascade cases
+- **CI gate:** `pnpm test:smoke` green
 
 #### Rollback
 Delete interpreter file.
@@ -1667,6 +1697,7 @@ Delete interpreter file.
 
 #### Test gate
 - **Unit:** ≥5 cases
+- **CI gate:** `pnpm test:smoke` green
 
 #### Rollback
 Delete file.
@@ -1705,6 +1736,7 @@ Delete file.
 
 #### Test gate
 - **Unit:** the PRD §7 example passes
+- **CI gate:** `pnpm test:smoke` green
 
 #### Rollback
 Delete file.
@@ -1743,6 +1775,7 @@ Delete file.
 
 #### Test gate
 - **Integration:** cache hit/miss behaviour
+- **CI gate:** `pnpm test:smoke` green
 
 #### Rollback
 Delete file.
@@ -1781,6 +1814,7 @@ Delete file.
 
 #### Test gate
 - **Unit + Integration:** trace shape stable
+- **CI gate:** `pnpm test:smoke` green
 
 #### Rollback
 Delete route.
@@ -1820,9 +1854,50 @@ Delete route.
 
 #### Test gate
 - **Integration:** seed applies + rules load
+- **CI gate:** `pnpm test:smoke` green
 
 #### Rollback
 `DELETE FROM reference_rules WHERE …`.
+
+---
+
+## T-00g-008 — DSL interpreter: workflow-as-data rule type
+
+**Type:** T2-api
+**Context budget:** ~50k tokens
+**Est time:** 60 min
+**Parent feature:** 00-g-04-workflow-as-data
+**Agent:** backend-specialist
+**Status:** pending
+
+### Dependencies
+- **Upstream (must be done first):** [T-00g-001] (rule engine schema + registry)
+- **Downstream (will consume this):** [T-02SETa tasks using rule engine]
+- **Parallel (can run concurrently):** []
+
+### GIVEN / WHEN / THEN
+**GIVEN** Rule engine registry is live (T-00g-001 done), 3 of 4 rule type interpreters implemented (schema, validation, cascade); `workflow_rules` table exists with `rule_type = 'workflow'` entries
+**WHEN** Rule engine evaluates a rule with `rule_type = 'workflow'` (e.g., state machine transition guard)
+**THEN** `evaluateRule(ruleId, context)` returns correct `{allowed: boolean, next_state: string | null}` result; dry-run mode logs evaluation trace without side effects; unknown workflow step returns structured error, not throw
+
+### Implementation (max 5 sub-steps)
+1. Add `WorkflowRuleInterpreter` class to `lib/rule-engine/interpreters/workflow.ts` implementing `RuleInterpreter` interface — input: `{current_state, event, context}`; output: `{allowed, next_state, trace}`
+2. Register interpreter in `lib/rule-engine/registry.ts` under key `'workflow'` alongside existing 3 types
+3. Add dry-run mode: if `options.dryRun === true`, skip side-effect emits, append trace entry `{step, result, timestamp}` to returned trace array
+4. Write unit tests in `lib/rule-engine/interpreters/workflow.test.ts` covering: valid transition, blocked transition, unknown state, dry-run trace output
+5. Add integration test: seed 1 workflow rule in `workflow_rules` table → call `evaluateRule` → assert correct `next_state` returned
+
+### Files
+- **Create:** `lib/rule-engine/interpreters/workflow.ts`, `lib/rule-engine/interpreters/workflow.test.ts`
+- **Modify:** `lib/rule-engine/registry.ts` (register WorkflowRuleInterpreter), `lib/rule-engine/types.ts` (add WorkflowRuleResult type if not present)
+
+### Test gate
+- **Unit:** `vitest lib/rule-engine/interpreters/workflow.test.ts` — covers: valid/blocked transition, unknown state, dry-run trace
+- **Integration:** `vitest lib/rule-engine/interpreters/workflow.integration.test.ts` — covers: seeded rule evaluated against real DB row
+- **CI gate:** `pnpm test:smoke` green
+
+### Rollback
+`git revert` the commit adding workflow.ts + registry registration; existing 3 interpreters unaffected
 
 ---
 
@@ -1862,6 +1937,7 @@ Delete route.
 
 #### Test gate
 - **Integration:** schema shape + GIN index
+- **CI gate:** `pnpm test:smoke` green
 
 #### Rollback
 Drop tables.
@@ -1901,6 +1977,7 @@ Drop tables.
 #### Test gate
 - **Unit:** covers each field_type
 - **Integration:** hits DB + cache
+- **CI gate:** `pnpm test:smoke` green
 
 #### Rollback
 Delete package.
@@ -1939,6 +2016,7 @@ Delete package.
 
 #### Test gate
 - **Unit + Integration:** type-safe access, query hits index
+- **CI gate:** `pnpm test:smoke` green
 
 #### Rollback
 Drop expression index.
@@ -1977,6 +2055,7 @@ Drop expression index.
 
 #### Test gate
 - **Integration:** end-to-end add → compile → validate
+- **CI gate:** `pnpm test:smoke` green
 
 #### Rollback
 Revert migration row manually.
@@ -2015,6 +2094,7 @@ Revert migration row manually.
 
 #### Test gate
 - **Integration:** green
+- **CI gate:** `pnpm test:smoke` green
 
 #### Rollback
 Remove test.
@@ -2093,6 +2173,7 @@ Remove config.
 
 #### Test gate
 - Observed green on dummy PR
+- **CI gate:** `pnpm test:smoke` green
 
 #### Rollback
 Disable workflow.
@@ -2131,6 +2212,7 @@ Disable workflow.
 
 #### Test gate
 - **Integration:** smoke test passes
+- **CI gate:** `pnpm test:smoke` green
 
 #### Rollback
 Remove setup.
@@ -2169,6 +2251,7 @@ Remove setup.
 
 #### Test gate
 - **Unit:** deterministic output
+- **CI gate:** `pnpm test:smoke` green
 
 #### Rollback
 Remove factories.
@@ -2207,6 +2290,7 @@ Remove factories.
 
 #### Test gate
 - **E2E:** smoke passes
+- **CI gate:** `pnpm test:smoke` green
 
 #### Rollback
 Remove Playwright install.
@@ -2247,6 +2331,7 @@ Remove Playwright install.
 
 #### Test gate
 - Manual smoke (error visible in Sentry UI)
+- **CI gate:** `pnpm test:smoke` green
 
 #### Rollback
 Remove Sentry init files.
@@ -2285,6 +2370,7 @@ Remove Sentry init files.
 
 #### Test gate
 - **Unit:** fallback on outage
+- **CI gate:** `pnpm test:smoke` green
 
 #### Rollback
 Remove package.
@@ -2323,6 +2409,7 @@ Remove package.
 
 #### Test gate
 - Observed green preview on dummy PR
+- **CI gate:** `pnpm test:smoke` green
 
 #### Rollback
 Disable Vercel integration.
@@ -2361,6 +2448,7 @@ Disable Vercel integration.
 
 #### Test gate
 - **E2E:** no critical violations
+- **CI gate:** `pnpm test:smoke` green
 
 #### Rollback
 Remove spec.
@@ -2399,6 +2487,7 @@ Remove spec.
 
 #### Test gate
 - **Unit:** returns expected shape
+- **CI gate:** `pnpm test:smoke` green
 
 #### Rollback
 Delete route.
@@ -3083,6 +3172,7 @@ Each stub lives at `docs/adr/candidates/ADR-R<N>-<slug>.md` with: Title, Marker,
 ### T-00a-008 — PWA scaffold (manifest + service worker)
 
 **Type:** T3-ui
+**Prototype ref:** none — no prototype exists for this component
 **Context budget:** ~40k tokens
 **Est time:** 60 min
 **Parent feature:** 00-a scaffold (gap-fill per Decision #3)

@@ -250,7 +250,7 @@ Added during the 2026-04-21 gap-fill pass.
 | BL-PROD-02 | Waste analytics hard-codes rolling%/totals — needs rolling-14d window query from event store | Medium |
 | BL-PROD-03 | Shift Start modal assumes single plant (Factory-A) — multi-plant operators need plant picker | Low |
 | BL-PROD-04 | OEE target edit stores in memory — needs `prod_oee_targets` table with effective-date window for historic comparison | Medium |
-| BL-PROD-05 | `.btn-danger` referenced in MODAL-SCHEMA but missing from production.css — destructive confirms fall back to primary styling | **HIGH** (fix at `_shared/shared.css` for system-wide coverage) |
+| BL-PROD-05 | `.btn-danger` referenced in MODAL-SCHEMA but missing from production.css — destructive confirms fall back to primary styling | ✓ RESOLVED 2026-04-23 — moved full button system to `_shared/shared.css` |
 
 ---
 
@@ -263,11 +263,11 @@ Added during the 2026-04-21 gap-fill pass.
 | ID | Item | Priority |
 |---|---|---|
 | BL-NPD-01 | Brief schema fields C21–C37 are placeholder-labeled — full rescan pending Phase B.2 | Medium |
-| BL-NPD-02 | Legacy R&amp;D pipeline screens (`Pipeline`, `CreateProjectWizard`, stage-based RecipeScreen/NutritionScreen etc.) coexist with new FA-spec screens — merge or deprecate in Phase 2 | Medium |
-| BL-NPD-03 | Permissions matrix from spec §2.4 (role-based field visibility) hinted but not rigorously applied — every user sees every tab | Medium |
-| BL-NPD-04 | SCR-01 WebSocket polling (30s refresh · Phase C5) not prototyped | P2 |
-| BL-NPD-05 | `AllergenCascade` SVG diagram is static — should animate on refresh | Low |
-| BL-NPD-06 | Mobile/tablet responsive breakpoints (§8) not addressed | Low |
+| BL-NPD-02 | Legacy R&amp;D pipeline screens (`Pipeline`, `CreateProjectWizard`, stage-based RecipeScreen/NutritionScreen etc.) coexist with new FA-spec screens — merge or deprecate in Phase 2 | ✓ RESOLVED 2026-04-23 — `@deprecated` comment + amber banner added to all 10 screen-level components in pipeline/project/other-stages |
+| BL-NPD-03 | Permissions matrix from spec §2.4 (role-based field visibility) hinted but not rigorously applied — every user sees every tab | ✓ RESOLVED 2026-04-23 — `window.npd_can()` helper + fixed amber role-switcher banner + 6 RBAC guards (fa.create ×2, fa.delete, brief.create, brief.convert_to_fa ×2) |
+| BL-NPD-04 | SCR-01 WebSocket polling (30s refresh · Phase C5) not prototyped | ✓ RESOLVED 2026-04-23 — simulated via setInterval(30s) + live-dot pulse indicator + secondsAgo counter in AllergenCascade header |
+| BL-NPD-05 | `AllergenCascade` SVG diagram is static — should animate on refresh | ✓ RESOLVED 2026-04-23 — cascadeFlash CSS animation via refreshKey remount; triggers on FA select change, Refresh button, and 30s poll |
+| BL-NPD-06 | Mobile/tablet responsive breakpoints (§8) not addressed | ✓ RESOLVED 2026-04-23 — @media (max-width: 900px) + (max-width: 480px) added to npd.css |
 
 ---
 
@@ -305,7 +305,7 @@ Added during the 2026-04-21 gap-fill pass.
 | BL-SET-09 | MFA enrollment flow — MODAL-MFA-ENROLL with QR + backup codes (stubbed) | Medium |
 | BL-SET-10 | Reference table grids beyond allergens — pack_sizes, processes, UoM, currencies currently link only to allergen grid | Low |
 | BL-SET-11 | PostHog read-through panel on Feature flags — currently only core/local/tenant tabs | P2 |
-| BL-SET-12 | **Pre-existing bug** — duplicate `const BomsScreen` in both `app.jsx` and `data-screens.jsx` (not introduced, but flagged) | **HIGH** |
+| BL-SET-12 | **Pre-existing bug** — duplicate `const BomsScreen` in both `app.jsx` and `data-screens.jsx` (not introduced, but flagged) | ✓ RESOLVED 2026-04-23 — removed stub from `app.jsx`, canonical version stays in `data-screens.jsx` |
 
 ---
 
