@@ -1,0 +1,244 @@
+/* Reporting module — inherits production.css / shared.css / warehouse patterns.
+   Only reporting-specific rules below: dashboard catalog cards, drill-down breadcrumb,
+   freshness strip, SVG charts (line/bar/heatmap), filter chips, scoped-to pill. */
+
+/* ============ Catalog grid (RPT-HOME) ============ */
+.rpt-cat-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+.rpt-cat-card { background: #fff; border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; cursor: pointer; transition: box-shadow 0.12s, transform 0.12s; position: relative; display: flex; flex-direction: column; gap: 6px; }
+.rpt-cat-card:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.07); transform: translateY(-1px); }
+.rpt-cat-card.p2 { opacity: 0.62; }
+.rpt-cat-card.p2::after { content: ""; position: absolute; inset: 0; background: repeating-linear-gradient(45deg, transparent 0 10px, rgba(100,116,139,0.04) 10px 20px); pointer-events: none; border-radius: var(--radius); }
+.rpt-cat-head { display: flex; justify-content: space-between; align-items: center; }
+.rpt-cat-icon { font-size: 20px; }
+.rpt-cat-name { font-size: 14px; font-weight: 600; color: var(--text); }
+.rpt-cat-desc { font-size: 12px; color: var(--muted); line-height: 1.4; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; min-height: 34px; }
+.rpt-cat-divider { border-top: 1px solid var(--border); margin: 6px 0; }
+.rpt-cat-foot { display: flex; justify-content: space-between; align-items: center; font-size: 11px; }
+.rpt-cat-foot .refresh-meta { color: var(--muted); }
+.rpt-cat-foot a { color: var(--blue); font-weight: 500; cursor: pointer; }
+
+/* ============ Freshness strip ============ */
+.rpt-fresh-strip { display: flex; align-items: center; gap: 10px; padding: 4px 0 10px; font-size: 11px; color: var(--muted); }
+.rpt-fresh-strip .fresh-left { display: flex; gap: 8px; align-items: center; }
+.rpt-fresh-strip .fresh-right { margin-left: auto; }
+.rpt-fresh-strip .refresh-ic { font-size: 13px; color: var(--blue); cursor: pointer; padding: 2px 4px; }
+.rpt-fresh-strip .refresh-ic:hover { color: var(--blue-700); }
+
+/* ============ Scoped-to pill ============ */
+.rpt-scope-pill { display: inline-flex; align-items: center; gap: 4px; padding: 3px 9px; border-radius: 12px; background: #dbeafe; color: #1e40af; font-size: 11px; font-weight: 500; }
+.rpt-scope-pill .sp-ic { font-size: 10px; }
+
+/* ============ Filter chips ============ */
+.rpt-filter-bar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; padding: 8px 0 10px; }
+.rpt-filter-bar select { font-size: 12px; padding: 4px 8px; }
+.rpt-chip { display: inline-flex; align-items: center; gap: 4px; padding: 3px 8px 3px 10px; border-radius: 12px; background: var(--gray-100); color: var(--text); font-size: 11px; }
+.rpt-chip .x { cursor: pointer; color: var(--muted); font-weight: 700; font-size: 13px; margin-left: 2px; }
+.rpt-chip .x:hover { color: var(--red); }
+.rpt-chip-clear { color: var(--blue); font-size: 11px; cursor: pointer; }
+.rpt-chip-save { color: var(--blue); font-size: 11px; cursor: pointer; margin-left: auto; }
+
+/* ============ Drill-down breadcrumb — arrow chevrons ============ */
+.rpt-drill-crumb { font-size: 12px; color: var(--muted); display: flex; align-items: center; gap: 4px; margin-bottom: 4px; }
+.rpt-drill-crumb a { color: var(--blue); cursor: pointer; }
+.rpt-drill-crumb .sep { color: var(--gray-300); }
+.rpt-drill-crumb .current { color: var(--text); font-weight: 500; }
+
+/* ============ KPI dashboard — 5-col row variant ============ */
+.kpi-row-5 { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; margin-bottom: 14px; }
+.kpi-row-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 14px; }
+.kpi-row-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 14px; }
+
+.kpi-change.amber { color: var(--amber); }
+.kpi-change.gray  { color: var(--muted); }
+.kpi-change.blue  { color: var(--blue); }
+
+/* stale amber border on KPI */
+.kpi.stale { border-left: 3px solid var(--amber); }
+
+/* Tune-6b §2.12.3 — force tabular-nums on every KPI value variant (override-safe). */
+.kpi-value,
+.kpi-fin-big,
+.oee-embed .oee-kpi .val,
+.ms-mini-kpi .mmk-val {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1;
+}
+
+/* Tune-6b §2.12.1 — RunStrip footer on KPI cards (8-period trend, per-cell title).
+   Sits below the last kpi-sub / kpi-change line inside the .kpi card. */
+.kpi-run-foot {
+  margin-top: 8px;
+  padding-top: 6px;
+  border-top: 1px dashed var(--border-soft, var(--border));
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-variant-numeric: tabular-nums;
+}
+.kpi-run-foot .run-strip { vertical-align: middle; }
+.kpi-run-foot .run-strip-label {
+  font-size: 10px;
+  color: var(--muted);
+  font-family: var(--font-mono);
+  letter-spacing: 0.04em;
+  margin-left: 2px;
+}
+
+/* ============ OEE summary embedded card ============ */
+.oee-embed { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr 220px; gap: 14px; padding: 14px; align-items: center; }
+.oee-embed .oee-kpi { text-align: left; }
+.oee-embed .oee-kpi .lbl { font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); font-weight: 600; }
+.oee-embed .oee-kpi .val { font-size: 22px; font-weight: 700; font-family: var(--font-mono); }
+.oee-embed .oee-kpi .val.big { font-size: 30px; color: var(--green); }
+.oee-embed .oee-kpi .val.amber { color: var(--amber); }
+.oee-embed .oee-kpi .val.red { color: var(--red); }
+.oee-embed .oee-link { text-align: right; }
+
+/* ============ SVG line/bar chart area ============ */
+.rpt-chart { width: 100%; height: 280px; position: relative; }
+.rpt-chart-220 { width: 100%; height: 220px; position: relative; }
+.rpt-chart-200 { width: 100%; height: 200px; position: relative; }
+.rpt-chart-160 { width: 100%; height: 160px; position: relative; }
+
+.rpt-chart svg, .rpt-chart-220 svg, .rpt-chart-200 svg, .rpt-chart-160 svg { width: 100%; height: 100%; }
+.rpt-chart .chart-axis { stroke: var(--gray-300); stroke-width: 1; }
+.rpt-chart .chart-grid { stroke: var(--gray-100); stroke-dasharray: 2 3; }
+.rpt-chart .chart-label { font-size: 10px; fill: var(--muted); font-family: var(--font-mono); }
+.rpt-chart .chart-target { stroke: var(--info); stroke-width: 1.5; stroke-dasharray: 5 3; fill: none; }
+
+/* ============ Top 3 gains / losses ============ */
+.rpt-top3 { display: flex; flex-direction: column; gap: 8px; padding: 4px 0; }
+.rpt-top3-row { display: grid; grid-template-columns: 1fr auto; padding: 8px 10px; background: var(--gray-050); border-radius: 4px; align-items: center; gap: 8px; }
+.rpt-top3-row .t3-line { font-size: 12px; font-weight: 600; }
+.rpt-top3-row .t3-prod { font-size: 11px; color: var(--muted); }
+.rpt-top3-row .t3-bar { grid-column: 1 / -1; margin-top: 4px; height: 4px; background: var(--gray-100); border-radius: 2px; overflow: hidden; }
+.rpt-top3-row .t3-bar .fill { display: block; height: 100%; }
+.rpt-top3-row .t3-bar .fill.g { background: var(--green); }
+.rpt-top3-row .t3-bar .fill.r { background: var(--red); }
+
+/* ============ Grade badges A/B/C/D ============ */
+.rpt-grade { display: inline-block; width: 22px; height: 22px; line-height: 22px; text-align: center; border-radius: 50%; font-weight: 700; font-size: 11px; color: #fff; font-family: var(--font-mono); }
+.rpt-grade.A { background: var(--green); }
+.rpt-grade.B { background: var(--blue); }
+.rpt-grade.C { background: var(--amber); }
+.rpt-grade.D { background: var(--red); }
+
+/* ============ Inline yield % cell color coding ============ */
+.yld-ok { color: var(--green); font-weight: 600; }
+.yld-warn { color: var(--amber); font-weight: 600; }
+.yld-bad { color: var(--red); font-weight: 600; }
+.yld-ok-bg { background: #dcfce7; }
+.yld-warn-bg { background: #fef3c7; }
+.yld-bad-bg { background: #fee2e2; }
+
+/* ============ Age-bucket horizontal stacked bar ============ */
+.age-bar { display: flex; width: 100%; height: 20px; border-radius: 3px; overflow: hidden; background: var(--gray-100); }
+.age-bar .seg { height: 100%; }
+.age-bar .seg.fresh { background: var(--green); }
+.age-bar .seg.att { background: var(--blue); }
+.age-bar .seg.warn { background: var(--amber); }
+.age-bar .seg.crit { background: var(--red); }
+
+.age-legend { display: flex; gap: 12px; font-size: 11px; margin-top: 6px; }
+.age-legend .sw { display: inline-block; width: 10px; height: 10px; border-radius: 2px; vertical-align: middle; margin-right: 4px; }
+
+/* ============ Integration Health stage row status ============ */
+.stage-healthy { color: var(--green); font-weight: 600; }
+.stage-warning { color: var(--amber); font-weight: 600; }
+.stage-critical { color: var(--red); font-weight: 600; }
+.stage-p2-inactive { color: var(--muted); font-style: italic; }
+
+/* ============ WO status funnel ============ */
+.wo-funnel { display: flex; width: 100%; height: 34px; border-radius: 4px; overflow: hidden; border: 1px solid var(--border); background: #fff; cursor: pointer; font-size: 11px; }
+.wo-funnel .seg { display: flex; align-items: center; justify-content: center; color: #fff; font-weight: 500; gap: 6px; padding: 0 8px; transition: opacity 0.12s; }
+.wo-funnel .seg:hover { opacity: 0.85; }
+.wo-funnel .seg.draft { background: #94a3b8; }
+.wo-funnel .seg.released { background: var(--blue); }
+.wo-funnel .seg.running { background: var(--green); }
+.wo-funnel .seg.paused { background: var(--amber); }
+.wo-funnel .seg.completed { background: #15803d; }
+.wo-funnel .seg .seg-lbl { font-size: 10px; opacity: 0.9; }
+.wo-funnel .seg .seg-n { font-weight: 700; }
+
+/* ============ Sparkline table cell ============ */
+.spark-cell { display: inline-block; vertical-align: middle; }
+.spark-svg polyline { fill: none; stroke-linecap: round; }
+
+/* ============ Week selector popover ============ */
+.rpt-week-btn { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; background: #fff; border: 1px solid var(--border); border-radius: 4px; font-size: 12px; cursor: pointer; font-family: var(--font-mono); min-width: 180px; justify-content: space-between; }
+.rpt-week-btn:hover { border-color: var(--blue); }
+.rpt-week-pop { position: absolute; right: 0; top: 40px; background: #fff; border: 1px solid var(--border); border-radius: var(--radius); box-shadow: 0 4px 12px rgba(0,0,0,0.08); padding: 10px; width: 260px; z-index: 50; }
+.rpt-week-pop .wp-nav { display: flex; align-items: center; justify-content: space-between; padding-bottom: 6px; border-bottom: 1px solid var(--border); }
+.rpt-week-pop .wp-nav button { background: transparent; border: 0; cursor: pointer; padding: 4px 8px; color: var(--muted); }
+.rpt-week-pop .wp-nav .lbl { font-size: 12px; font-weight: 500; }
+.rpt-week-pop .wp-wk { padding: 6px 8px; font-size: 12px; font-family: var(--font-mono); cursor: pointer; border-radius: 4px; }
+.rpt-week-pop .wp-wk:hover { background: var(--gray-050); }
+.rpt-week-pop .wp-wk.on { background: var(--blue); color: #fff; }
+
+/* ============ Export dropdown ============ */
+.rpt-export-split { position: relative; display: inline-flex; }
+.rpt-export-split > button { margin: 0; }
+.rpt-export-split > button.split-l { border-radius: 4px 0 0 4px; }
+.rpt-export-split > button.split-r { border-radius: 0 4px 4px 0; border-left: 1px solid rgba(255,255,255,0.25); padding: 4px 6px; }
+.rpt-export-dd { position: absolute; top: 32px; right: 0; background: #fff; border: 1px solid var(--border); border-radius: var(--radius); box-shadow: 0 4px 12px rgba(0,0,0,0.08); padding: 4px; min-width: 200px; z-index: 40; font-size: 12px; }
+.rpt-export-dd div { padding: 7px 10px; cursor: pointer; border-radius: 3px; display: flex; gap: 8px; align-items: center; }
+.rpt-export-dd div:hover { background: var(--gray-050); }
+.rpt-export-dd div.disabled { cursor: not-allowed; color: var(--muted); opacity: 0.7; }
+.rpt-export-dd div.disabled:hover { background: transparent; }
+.rpt-export-dd .sep { height: 1px; background: var(--border); padding: 0; margin: 4px 0; }
+
+/* ============ Domain coloured badges on catalog ============ */
+.rpt-domain-prod { background: #dbeafe; color: #1e40af; }
+.rpt-domain-qual { background: #fee2e2; color: #991b1b; }
+.rpt-domain-wh   { background: #fef3c7; color: #92400e; }
+.rpt-domain-ops  { background: #e0e7ff; color: #3730a3; }
+.rpt-domain-adm  { background: #f1f5f9; color: #475569; }
+.rpt-domain-fin  { background: #dcfce7; color: #166534; }
+
+/* ============ Settings layout - vertical tabs ============ */
+.rpt-settings-layout { display: grid; grid-template-columns: 220px 1fr; gap: 14px; align-items: flex-start; }
+.rpt-settings-tabs { background: #fff; border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; position: sticky; top: 100px; }
+.rpt-settings-tabs .tab { padding: 9px 14px; font-size: 12px; cursor: pointer; border-left: 3px solid transparent; color: var(--muted); }
+.rpt-settings-tabs .tab:hover { background: var(--gray-050); color: var(--text); }
+.rpt-settings-tabs .tab.on { border-left-color: var(--blue); background: var(--blue-050); color: var(--blue); font-weight: 500; }
+.rpt-settings-tabs .tab.p2 { opacity: 0.55; }
+
+/* ============ Scheduled reports row — fail state ============ */
+.sched-row-failed { background: #fef2f2; }
+
+/* ============ Heatmap cell (P2 placeholder) ============ */
+.heat-cell { width: 24px; height: 18px; border-radius: 2px; display: inline-block; }
+.heat-cell.l1 { background: #fef2f2; }
+.heat-cell.l2 { background: #fee2e2; }
+.heat-cell.l3 { background: #fecaca; }
+.heat-cell.l4 { background: #fca5a5; }
+
+/* ============ Mini bar (contribution %) ============ */
+.contrib-bar { display: inline-block; width: 60px; height: 6px; background: var(--gray-100); border-radius: 3px; overflow: hidden; vertical-align: middle; }
+.contrib-bar .fill { display: block; height: 100%; background: var(--blue); }
+
+/* ============ Grade column text ============ */
+td.col-yld, td.col-var, td.col-wc { font-family: var(--font-mono); font-variant-numeric: tabular-nums; text-align: right; }
+
+/* ============ Activity feed arrow icon for drill ============ */
+.drill-arrow { color: var(--blue); font-size: 11px; cursor: pointer; font-weight: 500; }
+.drill-arrow:hover { text-decoration: underline; }
+
+/* ============ PDF signature mock (regulatory placeholder) ============ */
+.sign-block { border: 1px dashed var(--border); padding: 10px 14px; border-radius: 4px; font-size: 11px; font-family: var(--font-mono); background: var(--gray-050); margin-top: 10px; }
+.sign-block b { color: var(--text); font-weight: 600; }
+
+/* ============ Progress thin ============ */
+.prog-thin { height: 4px; background: var(--gray-100); border-radius: 2px; overflow: hidden; width: 100%; }
+.prog-thin > span { display: block; height: 100%; background: var(--blue); }
+.prog-thin > span.g { background: var(--green); }
+.prog-thin > span.a { background: var(--amber); }
+.prog-thin > span.r { background: var(--red); }
+
+/* ============ Freshness / stale colour helpers ============ */
+.fresh-ok { color: var(--green); font-weight: 500; }
+.fresh-stale { color: var(--amber); font-weight: 500; }
+.fresh-fail { color: var(--red); font-weight: 600; }
+
+/* hide numbers in muted */
+.num-muted { color: var(--muted); font-variant-numeric: tabular-nums; font-family: var(--font-mono); }
