@@ -23,7 +23,7 @@ Module 11-SHIPPING covers the complete order-to-delivery cycle for finished good
 - 09-QUALITY: Allergen restrictions cascade (03-TECH allergen_cascade_v1), batch_release_gate_v1 (P2), quality_hold events
 - 06-SCANNER-P1: Pick workflow (SCN-040), Pack workflow (SCN-050), Return receive (SCN-072) — scanner screens NOT duplicated here
 - 10-FINANCE: Revenue recognition event on ship (P2 COGS consumer)
-- 02-SETTINGS: SO state machine rule (so_state_machine_v1), FEFO rule (fefo_strategy_v1), D365 constants (FNOR/ApexDG/FinGoods/FOR100048), reference tables (shipping_override_reasons, rma_reason_codes)
+- 02-SETTINGS: SO state machine rule (so_state_machine_v1), FEFO rule (fefo_strategy_v1), D365 constants (FNOR/ApexDG/FinGoods/APX100048), reference tables (shipping_override_reasons, rma_reason_codes)
 - 03-TECHNICAL: product.allergens JSONB (allergen_cascade_v1), default_sell_price, GS1 prefixes, catch weight
 - D365 External: shipment.confirmed push via outbox (stage 3, R14/R15, async retry)
 
@@ -914,7 +914,7 @@ Tabbed settings page with five tabs: Allocation, Wave & Picking, Labels & Docume
 - BOL Template: select (Default / Custom).
 
 **D365 Integration tab (LEGACY-D365):**
-Read-only display of D365_Constants from 02-SETTINGS §11: FNOR (dataAreaId), ApexDG (warehouse code), FinGoods (GL account), FOR100048 (approver). "Edit in 02-SETTINGS" link. P2 extension fields shown grayed: shipping_warehouse, customer_account_id_map, courier_default_carrier, courier_api_vault_key. DLQ monitoring link: "View D365 outbox DLQ → `/admin/integrations/d365/dlq` (filter source=shipping)".
+Read-only display of D365_Constants from 02-SETTINGS §11: FNOR (dataAreaId), ApexDG (warehouse code), FinGoods (GL account), APX100048 (approver). "Edit in 02-SETTINGS" link. P2 extension fields shown grayed: shipping_warehouse, customer_account_id_map, courier_default_carrier, courier_api_vault_key. DLQ monitoring link: "View D365 outbox DLQ → `/admin/integrations/d365/dlq` (filter source=shipping)".
 
 **Advanced tab:**
 - Credit Limit Warning Threshold %: number, default 80 (P2 field, shown grayed with "Phase 2" badge).
@@ -1563,7 +1563,7 @@ The following validation rules from PRD §5 (V-SHIP-*) are referenced across scr
 | SHIP-009 allergen hold | 02-SETTINGS rules | `allergen_cascade_v1` registered in 02-SETTINGS §7. Changes take effect immediately | SHIP-004, SHIP-009 |
 | SHIP-008 FEFO | 02-SETTINGS rules | `fefo_strategy_v1` registered in 02-SETTINGS §7. Expiry ASC NULLS LAST → received_date ASC | SHIP-008, SHIP-015, SHIP-017 |
 | SHIP-009 QA hold | 09-QUALITY events | `quality.hold.created` event triggers LP hold in shipping. `batch_release_gate_v1` P2 | SHIP-009, SHIP-015 |
-| SHIP-023 settings | 02-SETTINGS constants | D365 constants FNOR/ApexDG/FinGoods/FOR100048 read-only in SHIP-023, edited in 02-SETTINGS §11 | SHIP-023 D365 tab |
+| SHIP-023 settings | 02-SETTINGS constants | D365 constants FNOR/ApexDG/FinGoods/APX100048 read-only in SHIP-023, edited in 02-SETTINGS §11 | SHIP-023 D365 tab |
 | SHIP-024 ship confirm | 10-FINANCE (P2) | `shipment.confirmed` event consumed by 10-FINANCE for revenue recognition (P2 COGS consumer) | SHIP-024 |
 | SHIP-006 pricing | 03-TECHNICAL products | `products.default_sell_price` auto-fills unit price on SO line | SHIP-006 Step 2, SHIP-007 Lines |
 | SHIP-020/021 allergen labels | 03-TECHNICAL / 09-QUALITY | `allergen_cascade_v1` from 03-TECH §10 populates allergen section on packing slip and BOL per EU 1169/2011 | SHIP-020, SHIP-021 |

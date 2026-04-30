@@ -347,7 +347,7 @@ window.NPD_VALIDATION_RULES = [
 // D365 Constants (read-only reference shown in modals)
 window.NPD_D365_CONSTANTS = [
   { k: "PRODUCTIONSITEID",          v: "FNOR" },
-  { k: "APPROVERPERSONNELNUMBER",   v: "FOR100048" },
+  { k: "APPROVERPERSONNELNUMBER",   v: "APX100048" },
   { k: "DEFAULTQTY",                v: "1" },
   { k: "OPERATIONNUMBER",           v: "10" },
   { k: "COSTGROUP",                 v: "MEAT" },

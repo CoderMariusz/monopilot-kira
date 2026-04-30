@@ -314,7 +314,7 @@ Read w `@monopilot/d365-shipping-adapter` (R15):
 - `FNOR` → `SalesOrderHeader.dataAreaId`
 - `ApexDG` → `SalesOrderLine.InventSiteId` (warehouse)
 - `FinGoods` → `SalesOrderLine.LedgerDimension` (GL account for revenue, P2 invoicing)
-- `FOR100048` (Apex approver) → `SalesOrderHeader.CreatedBy` dla audit trail w D365
+- `APX100048` (Apex approver) → `SalesOrderHeader.CreatedBy` dla audit trail w D365
 
 **P2 extensions w 02-SETTINGS §11 (bundled v3.1 delta candidate — dla 11-SHIP, apply w C4 Sesja 3 close):**
 - `shipping_warehouse` (jesli rozna od production warehouse po 14-MULTI-SITE)
@@ -368,7 +368,7 @@ Deadline EU 2026-12-30 — P2 EPIC 11-H implementation.
 - `batch_release_gate_v1` z 09-QA P2 → hard gate dla severity=critical holds (D-SHP-13)
 - `cost_method_selector_v1` z 10-FIN P2 → COGS per shipment computation
 
-**Consumer of 02-SETTINGS §11 D365_Constants** (baseline FNOR/ApexDG/FinGoods/FOR100048, P2 extensions courier/customer_account_id_map).
+**Consumer of 02-SETTINGS §11 D365_Constants** (baseline FNOR/ApexDG/FinGoods/APX100048, P2 extensions courier/customer_account_id_map).
 
 **Consumer of 02-SETTINGS §8 reference tables:**
 - `qa_failure_reasons` (z 09-QA §8) — dla RMA disposition codes
@@ -808,7 +808,7 @@ every 30s:
 | FNOR | `SalesOrderHeader.dataAreaId` | "FNOR" |
 | ApexDG | `SalesOrderLine.InventSiteId` | "ApexDG" |
 | FinGoods | `SalesOrderLine.LedgerDimension` (P2 revenue GL) | "1234-1000" |
-| FOR100048 | `SalesOrderHeader.CreatedBy` (audit trail D365 side) | "FOR100048" |
+| APX100048 | `SalesOrderHeader.CreatedBy` (audit trail D365 side) | "APX100048" |
 
 P2 extensions (bundled v3.1 delta):
 - `shipping_warehouse` (for multi-site 14-MULTI-SITE)

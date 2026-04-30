@@ -1664,10 +1664,10 @@ export async function seedReferenceTables(db: typeof drizzleDb, orgId: string) {
   // d365_constants (5 Apex baseline)
   const d365 = [
     { key: 'PRODUCTIONSITEID', value: 'FNOR' },
-    { key: 'APPROVERPERSONNELNUMBER', value: 'FOR100048' },
+    { key: 'APPROVERPERSONNELNUMBER', value: 'APX100048' },
     { key: 'CONSUMPTIONWAREHOUSEID', value: 'ApexDG' },
     { key: 'PRODUCTGROUPID', value: 'FinGoods' },
-    { key: 'COSTINGOPERATIONRESOURCEID', value: 'FProd01' },
+    { key: 'COSTINGOPERATIONRESOURCEID', value: 'APXProd01' },
   ]
   await db.insert(referenceTables).values(d365.map(c => ({
     orgId, tableCode: 'd365_constants', rowKey: c.key,
@@ -2032,7 +2032,7 @@ Server Actions for machines, production lines, D365 config, and onboarding wizar
 2. Utwórz `apps/web/lib/settings/d365.actions.ts` (`'use server'`):
    - `getD365Constants(orgId): Promise<D365Constant[]>` — getReferenceRows(orgId, 'd365_constants') RBAC `Permission.SETTINGS_D365_VIEW`
    - `updateD365Constant(orgId, key, value)` — RBAC `Permission.SETTINGS_D365_EDIT`, calls upsertReferenceRow
-   - `toggleD365Integration(orgId, enabled: boolean)` — RBAC `Permission.SETTINGS_D365_TOGGLE`; if enabled=true: validate all 5 constants present (FNOR, FOR100048, ApexDG, FinGoods, FProd01 all non-empty) (V-SET-50); update feature_flags_core (flag_code='integration.d365.enabled'); insertAuditLog
+   - `toggleD365Integration(orgId, enabled: boolean)` — RBAC `Permission.SETTINGS_D365_TOGGLE`; if enabled=true: validate all 5 constants present (FNOR, APX100048, ApexDG, FinGoods, APXProd01 all non-empty) (V-SET-50); update feature_flags_core (flag_code='integration.d365.enabled'); insertAuditLog
 
 3. Utwórz `apps/web/lib/settings/onboarding.actions.ts` (`'use server'`):
    - `updateOnboardingState(orgId, step: number, completed: boolean)` — RBAC `Permission.SETTINGS_ONBOARDING_COMPLETE`; update organizations.onboarding_state JSONB: push step to completed_steps, update current_step, set last_activity_at=now()
@@ -2328,7 +2328,7 @@ D365 integration admin UI (SET-080..083), Security policies UI (SET-100, SET-101
 ## Implementacja
 1. Utwórz `apps/web/app/(settings)/settings/integrations/d365/page.tsx`:
    - D365 Connection Config (SET-080): base URL, service account inputs + "Test Connection" button
-   - D365 Constants Editor (SET-081): table of 5 constants (FNOR, FOR100048, ApexDG, FinGoods, FProd01), each editable inline Input; "Save Constants" calls updateD365Constant per row
+   - D365 Constants Editor (SET-081): table of 5 constants (FNOR, APX100048, ApexDG, FinGoods, APXProd01), each editable inline Input; "Save Constants" calls updateD365Constant per row
    - Integration toggle (SET-082 area): Switch (`integration.d365.enabled`) — disabled if any constant empty; calls toggleD365Integration; shows warning "All 5 constants must be set" if incomplete
    - Sync Audit (SET-083): read-only list of last N audit_log entries for action='d365.sync'
 

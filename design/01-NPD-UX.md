@@ -1055,7 +1055,7 @@ Changed fields highlighted amber.
 
 **Step 4 — Allergen Check**: allergen declaration summary. Contains badges + May Contain badges. "Regulatory: EU FIC 1169/2011" note.
 
-**Step 5 — D365 Constants**: table of `Reference.D365_Constants` values that will be embedded. Read-only for Jane (edit requires admin, 02-SETTINGS Phase C1). Key values: PRODUCTIONSITEID=FNOR, APPROVERPERSONNELNUMBER=FOR100048, etc.
+**Step 5 — D365 Constants**: table of `Reference.D365_Constants` values that will be embedded. Read-only for Jane (edit requires admin, 02-SETTINGS Phase C1). Key values: PRODUCTIONSITEID=FNOR, APPROVERPERSONNELNUMBER=APX100048, etc.
 
 **Step 6 — N+1 Preview**: shows the N+1 products that will be generated. Table: Product Code | Type | Processes | OP. OP=10 always.
 

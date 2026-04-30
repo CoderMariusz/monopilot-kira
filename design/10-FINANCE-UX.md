@@ -312,7 +312,7 @@ Data table columns:
 | WO Number | link | WO-2026-0042 |
 | Product | text | Chicken Nuggets 1 kg |
 | Production Line | text | Line 1 |
-| Cost Center | text | FProd01 |
+| Cost Center | text | APXProd01 |
 | Standard Cost | currency | £ 350.00 GBP |
 | Actual Cost | currency | £ 425.50 GBP |
 | Total Variance | currency + badge | £ +75.50 `badge-unfavorable` |
@@ -1428,7 +1428,7 @@ Use UK-context sample data consistent with Apex Foods UK operation:
 - Costs: All GBP. Standard costs: Chicken Nuggets £ 3.5000/kg, Fish Fingers £ 4.2000/kg, Pork Sausages £ 2.9000/kg
 - Exchange rates: GBP (base 1.000000), EUR (0.850000 manual, updated 2026-04-19), USD (0.790000 manual, updated 2026-04-19)
 - D365 instance: FNOR, dataAreaId = FNOR, warehouse = ApexDG, finished goods account = FinGoods
-- Cost Centers: FProd01 (Line 1 Production), FProd02 (Line 2 Production), FOverhead (Shared Overhead), FPkg (Packaging)
+- Cost Centers: APXProd01 (Line 1 Production), FProd02 (Line 2 Production), FOverhead (Shared Overhead), FPkg (Packaging)
 - Finance Manager persona: Sarah McKenzie (sarah.mckenzie@apexfoods.co.uk)
 
 ### 13.3 Navigation prototype rules

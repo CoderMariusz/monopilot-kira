@@ -1103,10 +1103,10 @@ Inline editable table (not a modal — editing happens inline for speed):
 | Constant | Key | Current Value | Description | Edit |
 |---|---|---|---|---|
 | Production Site ID | FNOR | [value] | Apex North site code | inline text input |
-| Approver Personnel # | FOR100048 | [value] | Approver employee ID | inline text input |
+| Approver Personnel # | APX100048 | [value] | Approver employee ID | inline text input |
 | Consumption Warehouse | ApexDG | [value] | Apex warehouse code | inline text input |
 | Product Group ID | FinGoods | [value] | Finished Goods group | inline text input |
-| Costing Resource ID | FProd01 | [value] | Apex Production resource | inline text input |
+| Costing Resource ID | APXProd01 | [value] | Apex Production resource | inline text input |
 
 Each row has Save icon (✓) and Cancel icon (×) appearing on edit. Row saving triggers audit log entry.
 

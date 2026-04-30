@@ -91,7 +91,7 @@ references:
 | SO + ASN + EPCIS shipping events + Peppol invoicing | 11-SHIPPING (Phase C4) |
 | Full dashboards (OEE, shift perf, period reports) | 12-REPORTING (Phase C5) |
 | CMMS + predictive maintenance | 13-MAINTENANCE (Phase C5) |
-| Multi-site (APEX + KOBE activation) | 14-MULTI-SITE (Phase C5) |
+| Multi-site (APEX + EDGE activation) | 14-MULTI-SITE (Phase C5) |
 | OEE real-time + digital twin | 15-OEE (Phase C5) |
 | Comarch / EDI EDIFACT / Supplier portals / Customer portals | INTEGRATIONS stages 2/3/4/5 (Phase C4/C5) |
 
@@ -1111,11 +1111,11 @@ CREATE TABLE "Reference.D365_Constants" (
 | Key | Value | Use |
 |---|---|---|
 | `PRODUCTIONSITEID` | `FNOR` | Apex Production Site |
-| `APPROVERPERSONNELNUMBER` | `FOR100048` | Approver ID (Jane lub default) |
+| `APPROVERPERSONNELNUMBER` | `APX100048` | Approver ID (Jane lub default) |
 | `CONSUMPTIONWAREHOUSEID` | `ApexDG` | Warehouse code |
 | `PRODUCTGROUPID_FG` | `FinGoods` | Finished Goods group |
 | `PRODUCTGROUPID_PR` | (TBD) | PR intermediates group |
-| `COSTINGOPERATIONRESOURCEID_DEFAULT` | `FProd01` | Default resource (override per Line w Phase C) |
+| `COSTINGOPERATIONRESOURCEID_DEFAULT` | `APXProd01` | Default resource (override per Line w Phase C) |
 | `FLUSHINGPRINCIPLE` | `Finish` | Materials consumed at Finish |
 | `LINETYPE` | `Item` | Default line type |
 | `CONSUMPTIONTYPE` | `Variable` | |

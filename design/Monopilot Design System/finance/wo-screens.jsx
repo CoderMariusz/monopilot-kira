@@ -58,7 +58,7 @@ const FinWoList = ({ role, onNav, onOpenWo, openModal }) => {
           <option value="5">&gt; 5%</option>
           <option value="10">&gt; 10%</option>
         </select>
-        <select style={{width:130}}><option>All cost centers</option><option>FProd01</option><option>FProd02</option><option>FProd03</option><option>FProd04</option></select>
+        <select style={{width:130}}><option>All cost centers</option><option>APXProd01</option><option>FProd02</option><option>FProd03</option><option>FProd04</option></select>
         <select style={{width:130}}><option>All lines</option><option>Line 1</option><option>Line 2</option><option>Line 3</option><option>Line 4</option></select>
         <span className="spacer"></span>
         <button className="clear-all">Clear</button>

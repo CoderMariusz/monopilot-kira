@@ -8,7 +8,7 @@
 
 ## 0. Module Overview
 
-Module **14-MULTI-SITE** introduces full multi-site (multi-plant) operations into MonoPilot MES. A single organization may have two or more physical sites (plants, warehouses, offices, co-packing facilities) that share master data at the org level while keeping operational data isolated per site via Row-Level Security (RLS). The flagship use case is Apex UK + KOBE EU operating as two sites under one MonoPilot org — shared products, BOMs, allergens, suppliers — with isolated work orders, license plates, stock, quality records, shifts, finance layers, and maintenance records.
+Module **14-MULTI-SITE** introduces full multi-site (multi-plant) operations into MonoPilot MES. A single organization may have two or more physical sites (plants, warehouses, offices, co-packing facilities) that share master data at the org level while keeping operational data isolated per site via Row-Level Security (RLS). The flagship use case is Apex UK + EDGE EU operating as two sites under one MonoPilot org — shared products, BOMs, allergens, suppliers — with isolated work orders, license plates, stock, quality records, shifts, finance layers, and maintenance records.
 
 **Key concepts the designer must understand:**
 
@@ -503,7 +503,7 @@ Two side-by-side site picker fields, each showing a searchable dropdown:
 | Field | Type | Required | Validation | Example |
 |---|---|---|---|---|
 | From Site | searchable select | Yes | must be an active site user has access to; must differ from To Site | `FRZ-UK — Apex Warsaw Plant` |
-| To Site | searchable select | Yes | must be a different active site | `FRZ-DE — KOBE Germany Warehouse` |
+| To Site | searchable select | Yes | must be a different active site | `FRZ-DE — EDGE Germany Warehouse` |
 
 Selecting From Site auto-populates the Transport Lane field below (suggests the default lane between the two sites). An inline informational line appears: "Route: FRZ-UK → FRZ-DE | Default Lane: LN-001 | Avg Lead Time: 2 days."
 
@@ -1478,7 +1478,7 @@ Confirmation text field: "Type 'ROLLBACK' to confirm." `btn-danger "Confirm Roll
 
 1. Admin navigates to Multi-Site module (must be in `activated` state).
 2. Clicks "+ Add Site" on MS-SIT list → MODAL-SITE-CREATE opens.
-3. Step 1 — Identity: fills site code `FRZ-DE`, name `KOBE Germany`, type `Warehouse`, country `Germany`, timezone `Europe/Berlin`. Clicks "Next."
+3. Step 1 — Identity: fills site code `FRZ-DE`, name `EDGE Germany`, type `Warehouse`, country `Germany`, timezone `Europe/Berlin`. Clicks "Next."
 4. Step 2 — Modules: verifies module selection. Deselects OEE (not yet needed at this site). Clicks "Next."
 5. Step 3 — Timezone & Currency: confirms `Europe/Berlin`, language `de`, currency `EUR`. Clicks "Next."
 6. Step 4 — Bootstrap Users: assigns 3 users to the site with roles. Clicks "Create Site."

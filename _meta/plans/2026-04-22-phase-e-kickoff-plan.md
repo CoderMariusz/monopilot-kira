@@ -49,7 +49,7 @@ related:
 |---|---|---|---|
 | S1 | `Reference.Allergens` EU-14 seed | 02-SET §8.1 + 03-TECH §10 | Brief form collects raw strings P1; real cascade validation dopiero w 01-NPD-c. Seed deferred do 02-SET-d. |
 | S2 | `Reference.AlertThresholds` (10/21 day launch alerts) | 02-SET §8.1 | Hardcoded w P1; UI picker w 02-SET-d/e. |
-| S3 | `Reference.D365_Constants` (Apex FNOR/FOR100048/etc.) | 02-SET §11 + 01-NPD §10.4 | Hardcoded w 01-NPD-d stub; full admin w 02-SET-e. |
+| S3 | `Reference.D365_Constants` (Apex FNOR/APX100048/etc.) | 02-SET §11 + 01-NPD §10.4 | Hardcoded w 01-NPD-d stub; full admin w 02-SET-e. |
 | S4 | Feature flags (PostHog) | 02-SET §10 | Core flags hardcoded default false; full PostHog integration 02-SET-e. |
 | S5 | Onboarding wizard + MFA enroll | 02-SET §14.3 | Not needed for internal Apex pilot; 02-SET-e. |
 

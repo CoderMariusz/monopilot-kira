@@ -81,7 +81,7 @@ Cztery markery obowiązkowe w każdym PRD / ADR / skill / code comment dotycząc
 **Przykłady:**
 - 7 fixed dept names (Core/Technical/Packaging/MRP/Planning/Production/Price) — ADR-030 pozwala innym orgom split/merge
 - Jane = NPD Manager orchestrator — rola UNIVERSAL, osoba APEX-CONFIG
-- Builder_FA5101 D365 constants (FNOR/FOR100048/ApexDG/FinGoods/FProd01) — proponowana nowa tabela `Reference.D365_Constants`
+- Builder_FA5101 D365 constants (FNOR/APX100048/ApexDG/FinGoods/APXProd01) — proponowana nowa tabela `Reference.D365_Constants`
 - PR_Code_Final format `PR<digits><process_letter>` — regex schema-driven per-org
 
 ### `[EVOLVING]`
@@ -642,7 +642,7 @@ Dodane do §13 open items.
 13. **Pre-Phase-D ADRs deep review (001-019)** — osobna sesja (Phase C start preferably). Każdy ADR do oceny: Active / Superseded / Renumber / Deprecate
 14. **Regulatory roadmap artifact** — utworzenie `_foundation/regulatory/` z deadlinami + review process (Phase C1)
 15. **Dry-run scope rule engine** — complete replay vs sample — Phase C1 (02-SETTINGS)
-16. **Site vs Tenant relationship** — Apex UK + KOBE = 1 tenant 2 sites vs 2 tenants? ADR-030 + ADR-031 intersection — Phase B.2 decision needed dla NPD dept taxonomy
+16. **Site vs Tenant relationship** — Apex UK + EDGE = 1 tenant 2 sites vs 2 tenants? ADR-030 + ADR-031 intersection — Phase B.2 decision needed dla NPD dept taxonomy
 
 ---
 

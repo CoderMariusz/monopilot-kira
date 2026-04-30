@@ -4,7 +4,7 @@
 //
 // 4 sites modeled:
 //   SITE-A   → FRZ-UK  Factory-A (main plant, production)      [default]
-//   SITE-B   → FRZ-DE  Factory-B (KOBE Germany, co-pack)
+//   SITE-B   → FRZ-DE  Factory-B (EDGE Germany, co-pack)
 //   SITE-WH-01 → WH-COLD Cold-storage warehouse (UK)
 //   SITE-OFF   → FRZ-OFFICE-LND Office (London HQ)             [decommission candidate]
 
@@ -67,7 +67,7 @@ const MS_SITES = [
   {
     id: "SITE-B",
     code: "FRZ-DE",
-    name: "KOBE Germany — Factory B",
+    name: "EDGE Germany — Factory B",
     type: "copack",
     country: "Germany",
     flag: "🇩🇪",
@@ -93,7 +93,7 @@ const MS_SITES = [
     invValueTxt: "€780,000",
     availability: "92%",
     notes: "Co-pack facility. FEFO strict override active (local override L2).",
-    legalEntity: "KOBE GmbH",
+    legalEntity: "EDGE GmbH",
     address: "Am Industriepark 7, 60439 Frankfurt",
   },
   {
@@ -312,7 +312,7 @@ const MS_MDS_ROWS = [
   { entity: "Supplier", code: "SUP-0012", name: "Agro-Fresh Ltd",       site: "SITE-B", status: "synced",   conflicts: 0, lastSync: "3h ago",       nextSync: "Apr 21 18:00" },
   { entity: "Supplier", code: "SUP-0034", name: "Premium Dairy Ltd",    site: "SITE-B", status: "conflict", conflicts: 1, lastSync: "—",            nextSync: "Apr 22 03:00" },
   { entity: "Reference",code: "REF-CUR",  name: "Currency Codes",        site: "SITE-B", status: "synced",   conflicts: 0, lastSync: "18 min ago",   nextSync: "Apr 21 15:00" },
-  { entity: "Customer", code: "CUS-0091", name: "KOBE Foods Retail",     site: "SITE-B", status: "synced",   conflicts: 0, lastSync: "3h ago",       nextSync: "Apr 21 18:00" },
+  { entity: "Customer", code: "CUS-0091", name: "EDGE Foods Retail",     site: "SITE-B", status: "synced",   conflicts: 0, lastSync: "3h ago",       nextSync: "Apr 21 18:00" },
 ];
 
 const MS_MDS_KPIS = { synced: 71, pending: 1, conflict: 3 };
@@ -444,7 +444,7 @@ const MS_SETTINGS = {
 
 // ----- Activation wizard defaults (for re-runnable demo) -----
 const MS_ACT_SITES_DRAFT = [
-  { code: "FRZ-DE", name: "KOBE Germany", type: "copack",    country: "Germany",        tz: "Europe/Berlin", isDefault: false },
+  { code: "FRZ-DE", name: "EDGE Germany", type: "copack",    country: "Germany",        tz: "Europe/Berlin", isDefault: false },
   { code: "WH-COLD",name: "Cold Storage — Harlow", type: "warehouse", country: "United Kingdom", tz: "Europe/London", isDefault: false },
 ];
 

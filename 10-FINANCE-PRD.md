@@ -1026,10 +1026,10 @@ Reuse `d365_constants` table from 02-SETTINGS §11:
 
 ```yaml
 dataAreaId: FNOR                    # [APEX-CONFIG]
-approver_user_id: FOR100048         # D365 approver (reference only, no enforcement)
+approver_user_id: APX100048         # D365 approver (reference only, no enforcement)
 warehouse_code: ApexDG              # For dimension mapping
 finished_goods_account: FinGoods    # GL account for FG inventory
-production_resource: FProd01        # Routing resource (read by 08-PROD stage 2)
+production_resource: APXProd01        # Routing resource (read by 08-PROD stage 2)
 ```
 
 Feature flag: `integration.d365.finance_posting.enabled` (PostHog + `finance_settings.d365_integration_enabled`). Default `false`; enable post-Go-live validation.

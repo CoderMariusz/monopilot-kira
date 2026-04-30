@@ -20,7 +20,7 @@ consumers/producers:
 
 ## 1. Executive Summary
 
-Modul 14-MULTI-SITE wprowadza pełną obsługę wielu zakładów produkcyjnych (sites) w ramach jednej organizacji Monopilot, z shared master data (org-level) + isolated operations (site-level). **Kluczowy przypadek**: Apex UK + przyszły KOBE EU jako 2 sites w 1 organizacji, ze wspólnymi produktami/BOM/suppliers + izolowanymi WO/LP/stock/quality/shifts.
+Modul 14-MULTI-SITE wprowadza pełną obsługę wielu zakładów produkcyjnych (sites) w ramach jednej organizacji Monopilot, z shared master data (org-level) + isolated operations (site-level). **Kluczowy przypadek**: Apex UK + przyszły EDGE EU jako 2 sites w 1 organizacji, ze wspólnymi produktami/BOM/suppliers + izolowanymi WO/LP/stock/quality/shifts.
 
 **Problem**: Monopilot dziś jest single-site per org (tylko `org_id` dimension). Multi-site customers potrzebują inter-site transfers, per-site reporting, data isolation — bez duplikacji master data.
 
@@ -70,7 +70,7 @@ Umożliwić organizacjom z wieloma zakładami produkcyjnymi zarządzanie operacj
 6. **Shift per-site [UNIVERSAL]** — production_shifts site-scoped z per-site timezone + hours (D-MS-9 REC-L5)
 7. **Cross-site RBAC [UNIVERSAL]** — user ↔ sites[] via `site_user_access`, primary_site default context, super_admin cross-site (Q10)
 8. **Hierarchy site→plant→line [UNIVERSAL]** — 3-level default, configurable 2-5 per tenant L2 (Q7, ADR-030 pattern)
-9. **Data residency P2 [UNIVERSAL]** — per-site residency override (R7 consolidation, post-Apex UK+KOBE scenario)
+9. **Data residency P2 [UNIVERSAL]** — per-site residency override (R7 consolidation, post-Apex UK+EDGE scenario)
 
 ### 3.3 Metryki sukcesu
 
@@ -135,7 +135,7 @@ CREATE POLICY org_scoped ON {master_table}
 
 ### 5.1 Data residency (R7 from 00-FOUNDATION)
 - **P1**: Single-region all sites dla 1 org (EU cluster default, Apex UK = EU-West-2)
-- **P2**: Per-site residency override (Apex UK EU-West-2 + KOBE EU-Central-1 independent regions). Wymaga cross-region replication strategy + DDL per-region cluster.
+- **P2**: Per-site residency override (Apex UK EU-West-2 + EDGE EU-Central-1 independent regions). Wymaga cross-region replication strategy + DDL per-region cluster.
 - **GDPR**: EU sites dane EU-only, US sites (future) US-only — Schrems II compliance
 - **Schema extension**: `sites.data_residency_region` TEXT (default from org settings, override per site)
 
@@ -274,7 +274,7 @@ Wszystkie operational tables już mają `site_id UUID NULL` (retroaktywnie dodan
 | **D-MS-12** | **Outbox events dla inter-site TO** — 3 events: `transfer_order.shipped`, `transfer_order.in_transit`, `transfer_order.received`. Payload: `{org_id, from_site_id, to_site_id, transfer_cost, items[]}`. Consumer downstream: 05-WH LP ownership, 12-REP cross-site metrics, 10-FIN cost allocation | [UNIVERSAL] |
 | **D-MS-13** | **Composite RLS indexes mandatory pre-activation** — `CREATE INDEX CONCURRENTLY idx_{table}_org_site ON {table}(org_id, site_id)` na wszystkich ~20 operational tables. Performance benchmark pre/post activation (pgbench), target overhead < 5% vs single-site | [UNIVERSAL] |
 | **D-MS-14** | **L2 feature flag orchestration via 02-SET §9 ADR-031** — `multi_site_enabled` nie jest prostym booleanem, tylko L2 upgrade state machine (inactive → wizard_in_progress → dual_run → activated). Wizard 3-step: create_sites → assign_users → backfill_default. Admin can rollback z `dual_run` (revert to single-site) | [UNIVERSAL] |
-| **D-MS-15** | **Per-site data residency P2** (Q9) — `sites.data_residency_region TEXT`. P1: single-region inherited from org_settings.default_region. P2: per-site override (Apex UK EU-West-2 + KOBE EU-Central-1 independent). Wymaga cross-region replication strategy EPIC 14-L | [EVOLVING] |
+| **D-MS-15** | **Per-site data residency P2** (Q9) — `sites.data_residency_region TEXT`. P1: single-region inherited from org_settings.default_region. P2: per-site override (Apex UK EU-West-2 + EDGE EU-Central-1 independent). Wymaga cross-region replication strategy EPIC 14-L | [EVOLVING] |
 
 ---
 
@@ -458,7 +458,7 @@ CREATE INDEX idx_shifts_site ON production_shifts(site_id);
 **Reference table** `shift_configs` (02-SET §8.1 v3.3 delta):
 - Columns: tenant_id, site_id, shift_name (AM/PM/Night), start_time, end_time, timezone
 - Apex seed: (Apex, UK site, AM 00:00-08:00 UTC, PM 08:00-16:00 UTC, Night 16:00-00:00 UTC)
-- Per-site override: KOBE site może mieć inne hours, different timezone
+- Per-site override: EDGE site może mieć inne hours, different timezone
 - Consumer: 15-OEE `shift_aggregator_v1` rule uses `shift_configs.site_id` filter
 
 ### 9.8 Other tables with site_id activated (ALTER by 14-a migration script)
@@ -647,7 +647,7 @@ State machine stored w `organizations.multi_site_state`:
 - FSMA 204 CTE query extended with site filter (05-WH §11 consumer)
 
 ### 14.5 i18n per-site
-- `site_settings.setting_value->>'language'` override per site (Apex UK = en, KOBE DE = de)
+- `site_settings.setting_value->>'language'` override per site (Apex UK = en, EDGE DE = de)
 - Per-site UI language for reports, notifications
 
 ---

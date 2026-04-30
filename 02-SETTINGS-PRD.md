@@ -26,7 +26,7 @@ Rozszerzamy baseline o 5 nowych core obszarów wymagane przez Phase D architectu
 2. **Rule Definitions Registry (§7)** `[ADR-029]` — **read-only rejestr reguł DSL** (cascading / conditional / gate / workflow-as-data). Reguły authored przez dev (PR → deploy as migration), admin ma visibility + audit + version diff — **nie edytuje**. Decyzja 2026-04-19.
 3. **Reference Tables CRUD (§8)** — 8 tabel z v7 + 3 nowe (AlertThresholds, Allergens, D365_Constants). Generic metadata-driven UI zamiast hardcoded view per tabela.
 4. **Multi-tenant L2 Config (§9)** `[ADR-031]` — dept taxonomy variation (ADR-030), tenant_variations, upgrade orchestration L1→L2→L3→L4.
-5. **D365 Constants Admin (§11)** `[LEGACY-D365]` — INTEGRATIONS stage 1 inline: FNOR / FOR100048 / ApexDG / FinGoods / FProd01 admin CRUD + item/BOM one-way sync config.
+5. **D365 Constants Admin (§11)** `[LEGACY-D365]` — INTEGRATIONS stage 1 inline: FNOR / APX100048 / ApexDG / FinGoods / APXProd01 admin CRUD + item/BOM one-way sync config.
 
 **Pozostałe sekcje** (§10 Feature flags, §12 Infrastructure, §13 EmailConfig, §14 Security+i18n+Onboarding) = refinement baseline z markerami Phase D i L2-ready storage.
 
@@ -669,7 +669,7 @@ Decyzja defer do 02-SETTINGS build sub-module d (kiedy rule registry UI faktyczn
 | 28 | **`loto_pre_execution_gate_v1`** (v3.3) | gate | P1 | 13-MAINT §8 | 13-MAINT safety service | Equipment.requires_loto=true → MWO `in_progress` blocked without `mwo_loto_checklists.verified_at` NOT NULL |
 | 29 | **`site_access_policy_v1`** (v3.3) | gate | P1 | 14-MULTI §8 | 14-MULTI RLS policy builder + migration lint | Per-table decision operational (site-scoped) vs master (org-scoped); admin read-only registry |
 | 30 | **`cross_site_to_approval_v1`** (v3.3) | gate | P1 | 14-MULTI §8 | 14-MULTI inter-site TO workflow | Inter-site TO (from_site != to_site) → requires from_site manager approval before shipped + to_site manager approval before received (dual-gate) |
-| 31 | **`per_site_residency_gate_v1`** (v3.3) | gate | **P2 stub** | 14-MULTI §8 | 14-MULTI P2 data residency enforcement | Enforce data landing on correct region per site (EU-West-2 Apex UK vs EU-Central-1 KOBE DE) |
+| 31 | **`per_site_residency_gate_v1`** (v3.3) | gate | **P2 stub** | 14-MULTI §8 | 14-MULTI P2 data residency enforcement | Enforce data landing on correct region per site (EU-West-2 Apex UK vs EU-Central-1 EDGE DE) |
 
 **P1 active rules (v3.3):** 24 (rules 1-4, 6-11, 13-14, 16, 18, 20, **23-30**) — all deployed z corresponding modules
 **P2 stub rules (v3.3):** 7 (rules 5, 12, 15, 17, 19, 21, 22, **31**) — schema registered, implementation deferred
@@ -1015,10 +1015,10 @@ Z v7 D365-INTEGRATION §13 reality:
 | Constant | Key | Meaning | Example value |
 |---|---|---|---|
 | PRODUCTIONSITEID | `FNOR` | Apex North site code | `FNOR` |
-| APPROVERPERSONNELNUMBER | `FOR100048` | Approver employee # | `FOR100048` |
+| APPROVERPERSONNELNUMBER | `APX100048` | Approver employee # | `APX100048` |
 | CONSUMPTIONWAREHOUSEID | `ApexDG` | Apex warehouse code | `ApexDG` |
 | PRODUCTGROUPID | `FinGoods` | Finished Goods group | `FinGoods` |
-| COSTINGOPERATIONRESOURCEID | `FProd01` | Apex Production resource | `FProd01` |
+| COSTINGOPERATIONRESOURCEID | `APXProd01` | Apex Production resource | `APXProd01` |
 
 Stored w Reference table `d365_constants` (§8.1 #11).
 

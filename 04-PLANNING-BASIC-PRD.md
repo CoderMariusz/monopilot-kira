@@ -38,7 +38,7 @@ Multi-tenant friendly bez config switches — wynikowa liczba WO = liczba warstw
 - **02-SETTINGS §6** — schema-driven ext cols dla PO/TO/WO (per ADR-028, L3 `ext_jsonb`)
 - **02-SETTINGS §7** — rule registry dla WO/TO/PO state machines + allergen sequencing rules
 - **02-SETTINGS §9** — multi-tenant L2 dept variations (per ADR-030 config depts) wpływają na WO resource matrix
-- **02-SETTINGS §11** — D365 Constants (Apex 5 consts: FNOR/FOR100048/ApexDG/FinGoods/FProd01) w PO/WO metadata
+- **02-SETTINGS §11** — D365 Constants (Apex 5 consts: FNOR/APX100048/ApexDG/FinGoods/APXProd01) w PO/WO metadata
 - **02-SETTINGS §12** — warehouses, production lines, machines z infrastructure registry
 - **03-TECHNICAL §5-§6** — items (5 types: rm/intermediate/fa/co_product/byproduct), product master, PR<digits><letter> intermediate codes
 - **03-TECHNICAL §7** — BOM versioning, co-products allocation_pct, BOM Generator N+1 output
@@ -198,7 +198,7 @@ Dostarczyć wydajne, intuicyjne narzędzie planistyczne, które eliminuje arkusz
 | Marker | W obrębie 04-PLANNING-BASIC |
 |--------|------------------------------|
 | [UNIVERSAL] | 85% content — PO/TO/WO state machines, BOM snapshot, DAG cascade, hard-lock, dashboard |
-| [APEX-CONFIG] | ~5% — Meat_Pct multi-comp semantics, D365 Apex consts integration (FNOR/ApexDG/FProd01) |
+| [APEX-CONFIG] | ~5% — Meat_Pct multi-comp semantics, D365 Apex consts integration (FNOR/ApexDG/APXProd01) |
 | [EVOLVING] | ~5% — allergen sequencing heuristic (→ full optimizer 07), finite-capacity stub (→ engine 07) |
 | [LEGACY-D365] | ~5% — D365 SO trigger, supplier pull consumer, WO confirmations push handoff do 03-TECHNICAL §13 |
 
@@ -594,7 +594,7 @@ Consumers: D365 adapter push (P2 for PO confirmations to D365), analytics, dashb
 ### 7.1 Scope
 
 TO = transfer między warehouses w ramach jednego site (Phase D boundary).
-Multi-site transfers (APEX ↔ KOBE) = **M14 Multi-Site** osobny entity z `from_site_id/to_site_id` polami.
+Multi-site transfers (APEX ↔ EDGE) = **M14 Multi-Site** osobny entity z `from_site_id/to_site_id` polami.
 
 ### 7.2 TO state machine (ADR-019)
 

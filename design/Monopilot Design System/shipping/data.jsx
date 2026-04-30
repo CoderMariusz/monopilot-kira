@@ -403,7 +403,7 @@ const SH_SETTINGS = {
     dataAreaId: "FNOR",
     warehouse: "ApexDG",
     glAccount: "FinGoods",
-    approver: "FOR100048",
+    approver: "APX100048",
     shippingFlag: true,
     dlqCount: 1,
   },

@@ -1877,7 +1877,7 @@ Build order per 08-PROD sub-module breakdown. Dependency: 04-PLAN baseline + 05-
 | 03-TECH §10 | Allergen cascade data | E7 gate trigger |
 | 02-SETTINGS §7 | Rule registry (DSL rules for state machine + gates) | All gates |
 | 02-SETTINGS §8 | Reference tables (downtime_categories, waste_categories, production_lines, shift_patterns) | E4, E3 |
-| 02-SETTINGS §11 | D365 constants (FNOR, FOR100048, ApexDG, FinGoods, FProd01) + item/warehouse code_map | E5 INTEGRATIONS stage 2 |
+| 02-SETTINGS §11 | D365 constants (FNOR, APX100048, ApexDG, FinGoods, APXProd01) + item/warehouse code_map | E5 INTEGRATIONS stage 2 |
 | 02-SETTINGS §14 | Feature flags, i18n, PIN config | All modules |
 
 ### 16.2 Downstream consumers (08-PROD outputs)

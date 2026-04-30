@@ -84,7 +84,7 @@ window.SETTINGS_LINES = [
 window.SETTINGS_INTEGRATIONS = [
   { cat: "ERP", items: [
     { name: "Microsoft Dynamics 365",
-      desc: "Items + BOM pull (nightly), production confirmations + shipment + finance push (outbox). Constants: FNOR / ApexDG / FinGoods / FOR100048 / FProd01.",
+      desc: "Items + BOM pull (nightly), production confirmations + shipment + finance push (outbox). Constants: FNOR / ApexDG / FinGoods / APX100048 / APXProd01.",
       status: "connected", logo: "D365", color: "#7719aa" }
   ]},
   { cat: "Invoicing", items: [

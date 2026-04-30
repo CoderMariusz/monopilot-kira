@@ -649,7 +649,7 @@ const PeriodLockModal = ({ open, onClose }) => {
 // -------- MODAL-13: Cost Center / GL Mapping Create / Edit --------
 const CostCenterModal = ({ open, onClose, data }) => {
   const editing = !!data;
-  const [code, setCode] = React.useState(data?.cat || "FProd01");
+  const [code, setCode] = React.useState(data?.cat || "APXProd01");
   const [dAccount, setDAccount] = React.useState(data?.dAccount || "5000-ApexDG-MAT");
   const [offset, setOffset] = React.useState(data?.offset || "1400-ApexDG-INV");
   const valid = code && dAccount && offset;
@@ -675,7 +675,7 @@ const CostCenterModal = ({ open, onClose, data }) => {
         <Field label="D365 Journal Name"><select defaultValue="PROD"><option>PROD</option><option>COGS</option><option>ADJ</option></select></Field>
         <Field label="Active"><label><input type="checkbox" defaultChecked/> Mapping active</label></Field>
       </div>
-      <Field label="D365 Dimension Code (optional)"><input className="mono" placeholder="e.g. FProd01"/></Field>
+      <Field label="D365 Dimension Code (optional)"><input className="mono" placeholder="e.g. APXProd01"/></Field>
     </Modal>
   );
 };

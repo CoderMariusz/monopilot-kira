@@ -24,7 +24,7 @@ Read file_path="...SCANNER-PROTOTYPE.html" offset=LINE limit=100
 |-----------|-----------|----------------|------|
 | `login` | `renderLogin` | 270–320 | Scan karty pracownika + email/hasło + przycisk PIN |
 | `login-pin` | `renderLoginPin` | 321–360 | 6-cyfrowy PIN, numpad 3×4, auto-advance po wpisaniu |
-| `site-select` | `renderSiteSelect` | 361–430 | Wybór zakładu (APEX/KOBE), linii produkcyjnej, zmiany (ranna/popołudniowa/nocna) |
+| `site-select` | `renderSiteSelect` | 361–430 | Wybór zakładu (APEX/EDGE), linii produkcyjnej, zmiany (ranna/popołudniowa/nocna) |
 
 **Elementy**: logo 72px, scan input, email/password fields, PIN dots + numpad, site cards, line grid, shift buttons, "Rozpocznij zmianę"
 

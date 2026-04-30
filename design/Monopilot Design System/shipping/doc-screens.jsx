@@ -643,7 +643,7 @@ const ShSettings = ({ role, onNav }) => {
             <Field label="dataAreaId (FNOR)"><input value={SH_SETTINGS.d365.dataAreaId} readOnly className="mono" style={{background:"var(--gray-100)"}}/></Field>
             <Field label="Warehouse code (ApexDG)"><input value={SH_SETTINGS.d365.warehouse} readOnly className="mono" style={{background:"var(--gray-100)"}}/></Field>
             <Field label="GL account (FinGoods)"><input value={SH_SETTINGS.d365.glAccount} readOnly className="mono" style={{background:"var(--gray-100)"}}/></Field>
-            <Field label="Approver (FOR100048)"><input value={SH_SETTINGS.d365.approver} readOnly className="mono" style={{background:"var(--gray-100)"}}/></Field>
+            <Field label="Approver (APX100048)"><input value={SH_SETTINGS.d365.approver} readOnly className="mono" style={{background:"var(--gray-100)"}}/></Field>
             <Field label="Shipping push flag" help="d365_shipping_push_enabled — gates shipment.confirmed outbox event"><label><input type="checkbox" defaultChecked={SH_SETTINGS.d365.shippingFlag} disabled={!isAdmin}/> Enabled (push on confirm)</label></Field>
             <Field label="DLQ count (shipping)"><input value={SH_SETTINGS.d365.dlqCount} readOnly className="mono" style={{background:"var(--red-050a)", color:"var(--red-700)"}}/></Field>
             <div className="field-long">
