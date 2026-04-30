@@ -1,9 +1,9 @@
 ---
 title: PRD 01-NPD — Monopilot MES
-version: 3.2
+version: 3.3
 date: 2026-04-30
-phase: Phase B.2 (primary Phase B module — full v7 PLD equivalent + Brief upstream + D365 Builder)
-status: Draft v3.2 — Phase B.2 finalization (cascade engine ready for implementation)
+phase: Phase B.2 (primary Phase B module — full v7 PLD equivalent + Brief upstream + D365 Builder) → Phase E-0 prep
+status: Draft v3.3 — Phase E-0 prep (table-naming aligned with 00-FOUNDATION §4.3-AMENDMENT)
 supersedes: v1.1 (2026-02-18, was numbered 09-NPD Premium Add-on)
 build_sequence: 01-NPD-a → 01-NPD-b → 01-NPD-c → 01-NPD-d → 01-NPD-e (see §13 + 00-FOUNDATION §4.2)
 references:
@@ -250,7 +250,10 @@ Runtime engine (01-NPD server) czyta DeptColumns → generuje:
 
 Storage FA rows (hybrid core + JSONB per 00-FOUNDATION §5 R2):
 
+> **Table-naming note (per 00-FOUNDATION §4.3-AMENDMENT, ADR-034 finalisation):** the physical table name in 01-NPD-a DDL is **`product`** (Option B, generic multi-industry name). The legacy alias `fa` is retained as a read-only SQL view (`CREATE VIEW fa AS SELECT * FROM product;`) for D365 Builder + integrations through Phase C1. PRD code blocks below still show `fa` to keep cross-references with v3.x stable; treat as `product` in implementation. Event aggregate prefix `fa.*` is unaffected (decoupled from storage — see 00-FOUNDATION §10 + `_meta/specs/event-naming-convention.md`).
+
 ```sql
+-- Phase E-0 / 01-NPD-a actual DDL: rename "fa" → "product" + compat view (see note above)
 CREATE TABLE fa (
     product_code        TEXT PRIMARY KEY,
     tenant_id      UUID NOT NULL,
@@ -1395,7 +1398,7 @@ Per 00-FOUNDATION §4.2, 01-NPD implementation sequential z 5 sub-parts:
 
 | # | Sub-module | Scope | Stories sample |
 |---|---|---|---|
-| **01-NPD-a** | Core dept cols + cascade + workflow | Main Table 69 cols (7 dept sections + System), ProdDetail table, cascade engine (4 chains), workflow rules (blocking + Closed/Done + autofilter + Status_Overall + Built flag + auto-reset), FA create/edit CRUD, 7 dept proxy views (schema-driven), validation V01-V06 | NPD-a.1 Create FA · NPD-a.2 Cascade Pack_Size→Line→Equipment_Setup · NPD-a.3 Multi-comp ProdDetail sync · NPD-a.4 Closed/Done flags · NPD-a.5 Autofilter · ... |
+| **01-NPD-a** | Core dept cols + cascade + workflow | Main Table 69 cols (7 dept sections + System) physical name **`product`** (per 00-FOUNDATION §4.3-AMENDMENT) with `fa` as read-only compat view, ProdDetail table, cascade engine (4 chains), workflow rules (blocking + Closed/Done + autofilter + Status_Overall + Built flag + auto-reset), FA create/edit CRUD, 7 dept proxy views (schema-driven), validation V01-V06 | NPD-a.1 Create FA · NPD-a.2 Cascade Pack_Size→Line→Equipment_Setup · NPD-a.3 Multi-comp ProdDetail sync · NPD-a.4 Closed/Done flags · NPD-a.5 Autofilter · NPD-a.6 `product` table + `fa` compat view DDL · ... |
 | **01-NPD-b** | Brief import tool | brief + brief_lines tables, 2 templates UI, brief form Section A + B, Convert-to-PLD button, brief ↔ FA traceability, brief field mapping | NPD-b.1 Brief create · NPD-b.2 Multi-comp brief rows · NPD-b.3 Convert pre-populate · NPD-b.4 Allergen seed from components · ... |
 | **01-NPD-c** | Allergens multi-level cascade | Reference.Allergens + Allergens_by_RM + Allergens_added_by_Process tables, cascade rule impl, Technical UI widget, manual override + audit, labelling preview partial | NPD-c.1 Seed EU14 · NPD-c.2 RM→FA cascade · NPD-c.3 PR step adds · NPD-c.4 May-contain · NPD-c.5 Override UI · ... |
 | **01-NPD-d** | D365 Builder output | Reference.D365_Constants table + seed, Builder_FA<code>.xlsx generator (8 tabs, exceljs), N+1 products pattern, V04 D365 material validation, fa_builder_outputs storage, download UI | NPD-d.1 Formula_Version · NPD-d.2 Formula_Lines · NPD-d.3 Route tabs · NPD-d.4 N+1 products · NPD-d.5 V04 cache sync · ... |
@@ -1467,7 +1470,7 @@ Każdy sub-module end-to-end (stories → QA → regression → done) przed nast
 - [ ] Dashboard alert refresh ≤ 30s po change
 - [ ] D365 Builder generation < 5s per FA
 - [ ] Traceability query (brief ↔ FA) < 100ms
-- [ ] RLS coverage 100% na fa / prod_detail / brief / brief_lines / fa_builder_outputs tables
+- [ ] RLS coverage 100% na **`product`** (physical table per 00-FOUNDATION §4.3-AMENDMENT — formerly `fa`; `fa` retained as read-only compat view through Phase C1) / prod_detail / brief / brief_lines / fa_builder_outputs tables
 - [ ] Outbox events < 50ms write latency, idempotent consumer
 
 ### Compliance
@@ -1788,6 +1791,8 @@ Then: BATCH-CZ-0000003 → DRYING → BATCH-DR-0000004 (Final: PROD-PHM-024)
 
 ## Changelog
 
+- **v3.3 (2026-04-30, Phase E-0 prep)** — Aligned with 00-FOUNDATION v4.1 §4.3-AMENDMENT (table-naming decision, Option B per ADR-034): physical table for the FA aggregate is now **`product`** with `fa` as a read-only backward-compat SQL view through Phase C1. Added table-naming note above §4.2 DDL block. Updated §13.2 build sequence: 01-NPD-a now explicitly emits `CREATE TABLE product (...)` + `CREATE VIEW fa AS SELECT * FROM product;` (story NPD-a.6). Updated §15 acceptance criteria: RLS coverage references `product` table (with `fa` listed as compat view). Event aggregate prefix `fa.*` is unchanged (decoupled per `_meta/specs/event-naming-convention.md`). No semantic schema change — column list, cascade rules, validations, and lifecycle events are identical.
+
 - **v3.2 (2026-04-30)** — Phase B.2 finalization. Fixed validation code collision in 02-SETTINGS (V-SET-40..45 → V-SET-MFG-01..06, avoiding conflict with Module Toggles). Added Phase B.2 migration spec to 00-FOUNDATION §9.1: backward-compatible handling of existing tenants with hardcoded Process_1..4 (seed as generic operations, optional regeneration via Phase C1 wizard). Aligned with 00-FOUNDATION v4.0 §9.1 (Manufacturing Operations configuration pattern) and 02-SETTINGS v3.4 §8.9 (admin UI specification). Cascade engine ready for implementation: Chain 2 (manufacturing_operation_N → process_suffix lookup → intermediate_code_pN generation) fully specified. Dynamic suffix pattern WIP-<suffix>-<seq> works across Bakery/Pharmacy/FMCG industries. All cross-references updated (01-NPD §5.6, §6, §9.5, §12 validation rules, §13 acceptance criteria).
 
 - **v3.1 (2026-04-30)** — Multi-industry generalization + dynamic process configuration. Renamed meat-specific columns to generic equivalents (Finish_Meat → Recipe_Components, RM_Code → Ingredient_Codes, Meat_Pct → Primary_Ingredient_Pct, Process_1..4 → Manufacturing_Operation_1..4, PR_Code_* → Intermediate_Code_*, Dieset → Equipment_Setup, Staffing → Resource_Requirement, FA_Code → Product_Code, Factory Article → Product). Added Reference.ManufacturingOperations table: manufacturing operations now configurable per tenant with dynamic suffix assignment (instead of hardcoded A/B/C/D). Intermediate code generation uses Reference.ManufacturingOperations.process_suffix per operation. Seed data provided for Bakery (Mix/Knead/Proof/Bake), Pharmacy (Synthesis/Separation/Crystallization/Drying), FMCG. Updated Chain 2 + Chain 4 cascading rules + V06 validation to reference dynamic operations. Added Appendix A with industry configuration examples and recipe example flows. Generic framework supports multiple industries via Reference.CodePrefixes, Reference.ColumnLabels, and Reference.ManufacturingOperations configuration (per ADR-034 v3.1).
@@ -1798,4 +1803,4 @@ Then: BATCH-CZ-0000003 → DRYING → BATCH-DR-0000004 (Final: PROD-PHM-024)
 
 ---
 
-*PRD 01-NPD v3.2 — Phase B.2 finalization with cascade engine ready for implementation. Next: Phase C1 (02-SETTINGS + 03-TECHNICAL + INTEGRATIONS stage 1) PRD writing and Phase B.2 implementation kicks off.*
+*PRD 01-NPD v3.3 — Phase E-0 prep alignment (table renamed `fa` → `product`, `fa` retained as compat view; event prefix `fa.*` unchanged). Next: Phase E-0 implementation (`00-FOUNDATION-impl-a..i` foundation tasks, then 01-NPD-a..f).*

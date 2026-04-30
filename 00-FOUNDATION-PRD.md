@@ -3,7 +3,7 @@ title: PRD 00-FOUNDATION — Monopilot MES
 version: 4.0
 date: 2026-04-30
 phase: Phase B.1 continued (Phase D renumbered + Research R1-R15 + Manufacturing Operations pattern)
-status: Draft v4.0 — Manufacturing Operations pattern documented
+status: Draft v4.1 — Phase E-0 prep clarifications (build order, event naming, table naming)
 supersedes: v3.0 (2026-04-18, Phase B.1 initial)
 references:
   - _foundation/decisions/MONOPILOT-V2-ARCHITECTURE.md
@@ -205,6 +205,8 @@ Build = **per module albo jego części, po kolei, z rozbiciem na stories/tasks*
 | 13 | MAINTENANCE | C5 | 13 | `13-MAINTENANCE-PRD.md` | 02, 08, 15 |
 | 14 | MULTI-SITE | C5 | 14 | `14-MULTI-SITE-PRD.md` | 02, 05 |
 | 15 | OEE | C5 | 15 | (new, C5) | 08 |
+
+> **§4.3-AMENDMENT — Table Naming Decision (2026-04-30, per ADR-034 finalisation):** the physical table for the NPD finished-article aggregate is **`product`** (singular, generic). This is **Option B** (chosen over Option A "keep `fa` as physical name" and Option C "dual-table `fa` + `product`"). Rationale: (1) generic naming aligns with multi-industry generalisation in ADR-034 (Bakery / Pharma / FMCG / meat all use the same physical schema), (2) avoids confusion with the `fa.*` event aggregate which is a domain-language label, not a table reference, (3) gives a clean target name for D365 item-master sync long-term. **Backward-compat for D365 Builder + legacy SQL:** create a SQL view `CREATE VIEW fa AS SELECT * FROM product;` (read-only, Phase E-0 → C1 deprecation window) so existing `Builder_FA<code>.xlsx` queries and any external integration referring to `fa` continue to resolve. The view is dropped at end of Phase C1 once D365 adapter migration completes. **Event aggregate prefix stays `fa.*`** (decoupled from storage — see §10 + `_meta/specs/event-naming-convention.md`). Acceptance-criteria impact: 01-NPD-a DDL emits `CREATE TABLE product (...)` + `CREATE VIEW fa AS SELECT * FROM product;`; 01-NPD §15 success criteria updated to reference `product` table for RLS coverage with `fa` listed as compat view.
 
 ### INTEGRATIONS — distributed, not a single module
 
@@ -1059,6 +1061,8 @@ Dodane do §13 open items.
 
 ## Changelog
 
+- **v4.1 (2026-04-30, Phase E-0 prep)** — Three Phase B.2 PRD-suite clarifications before Phase E-0 kickoff: (1) Added **§4.2-AMENDMENT** (per ADR-032) explicitly listing Phase E-0 atomic foundation tasks `00-FOUNDATION-impl-a..i` as the prerequisite for 01-NPD-a (replacing vague "Foundation infra w minimum scope"), and clarifying parallel Track A / Track B build sequence with `_meta/plans/2026-04-22-phase-e-kickoff-plan.md` as authoritative source; (2) Disambiguated event naming in §10 — `fa.*` is canonical for the NPD finished-article aggregate, `product.*` is reserved for future product-master/reference-data events; published full aggregate registry in `_meta/specs/event-naming-convention.md`; (3) Added **§4.3-AMENDMENT** finalising the table-naming decision: physical table renamed `fa` → `product` (Option B per ADR-034), `fa` retained as a backward-compat read-only SQL view through Phase C1 D365 adapter cutover. No structural changes to existing sections.
+
 - **v4.0 (2026-04-30)** — Added §9.1 Manufacturing Operations (Process) Configuration Pattern. Documents configurable suffix-based naming scheme (Reference.ManufacturingOperations) for manufacturing_operation_1..4 fields. Includes pattern overview, table schema [UNIVERSAL] + [ORG-CONFIG] marker discipline, cascade rule integration (ADR-029 Chain 2), template application, industry seed data (bakery/pharma/fmcg), phase implementation roadmap (B.2/C1/C+), and cross-references to sibling PRDs (01-NPD, 02-SETTINGS, 08-PRODUCTION). Aligns with P1 (easy extension contract) and ADR-028 (schema-driven pattern).
 
 - **v3.0 (2026-04-18)** — Phase B.1 full rewrite. Phase D renumbering (01-NPD primary, 02-SETTINGS, etc.), 6 principles embedded, marker discipline, R1-R15 research decisions, reference to MES-TRENDS-2026.md + MONOPILOT-V2-ARCHITECTURE.md + META-MODEL + ADR-028-031. Wycięte: stare metryki biznesowe, pre-Phase-D numbering, per-module requirements, Supabase lock-in language. Pre-Phase-D ADRs (001-019) deep review deferred do osobnej sesji (§14 open item #13). Old PRD v2.3 archived w git history.
@@ -1067,4 +1071,4 @@ Dodane do §13 open items.
 
 ---
 
-*PRD 00-FOUNDATION v4.0 — Phase B.1 continued + Manufacturing Operations pattern documented. Next: Phase B.2 (01-NPD primary).*
+*PRD 00-FOUNDATION v4.1 — Phase E-0 prep clarifications (build order amendment, event naming canonicalisation, table-naming decision finalised). Next: Phase E-0 kickoff (`00-FOUNDATION-impl-a..i`).*
