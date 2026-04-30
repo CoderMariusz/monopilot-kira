@@ -290,21 +290,9 @@ Generic: UCase(Right(recipe_component, 1)) == UCase(last_operation_suffix)
 
 ---
 
-## Examples: Three Industries
+## Examples: Three Industries (Bakery, Pharmacy, FMCG)
 
-### Example 1: Apex Foods (Meat)
-
-```
-Product:      FA5101 (Factory Article)
-Components:   "PR123H, PR345A" (Finish_Meat from brief)
-Ingredients:  "RM1939, RM2341" (RM_Code auto)
-Content:      65% Meat (Meat_Pct in Planning)
-Operations:   Strip → Slice → Wrap (Processes 1-3)
-Equipment:    Line A, Dieset X (production-specific)
-Shelf Life:   30 days (Technical section)
-```
-
-### Example 2: Local Bakery
+### Example 1: Bakery
 
 ```
 Product:      FG-2026-BRD-001 (Product ID, auto-generated)
@@ -314,19 +302,36 @@ Content:      85% Flour (Flour % in Planning)
 Operations:   Mix → Knead → Proof → Bake → Cool (Operations 1-5, templated)
 Equipment:    Oven 1, Cooling Tunnel (line/config specific)
 Shelf Life:   7 days (room temp) or 14 days (refrigerated)
+Quality:      Moisture content, crumb structure, crust color standards
 ```
 
-### Example 3: Pharmaceutical (Capsule)
+### Example 2: Pharmacy
 
 ```
 Product:      PROD-PHM-024 (Product Code)
 Components:   "BATCH-SYN-001, BATCH-FILT-002" (API synthesis + fillers)
 Ingredients:  "API-ASPIRIN, FILLER-TALC" (Active Pharmaceutical Ingredients)
-Potency:      500mg API per capsule (instead of Meat %)
-Operations:   Synthesis → Separation → Drying → Encapsulation (4 steps)
+Potency:      500mg API per capsule
+Operations:   Synthesis → Separation → Crystallization → Drying → Encapsulation (5 steps)
 Equipment:    Reactor 1, Centrifuge, Rotary Dryer, Encapsulator
-Shelf Life:   36 months (at 25°C/60% RH per ICH)
-Regulatory:   GMP certificates, stability studies (different from BRCGS)
+Shelf Life:   36 months (at 25°C/60% RH per ICH Q1A guidelines)
+Regulatory:   GMP compliance (21 CFR 211), ICH stability studies, batch records, CoA documentation
+Quality:      API assay (HPLC), purity, dissolution, hardness, moisture, microbial limits
+```
+
+### Example 3: FMCG (Consumer Goods)
+
+```
+Product:      SKU-2026-COS-042 (Product SKU)
+Components:   "LOT-BASE-001, LOT-FRAG-002" (Formula Components)
+Ingredients:  "MAT-WATER, MAT-GLYCERIN, MAT-FRAGRANCE" (Material Codes)
+Content:      65% Base formulation (Base Material % in Planning)
+Operations:   Mixing → Emulsification → Testing → Filling → Labeling (5 steps)
+Equipment:    Mixer 2, Homogenizer, Filling Line, Labeler
+Shelf Life:   18-24 months (room temp, 20-25°C)
+Regulatory:   Product labeling compliance, allergen declarations, ingredient transparency
+Quality:      Viscosity, pH, color consistency, microbiological safety, sensory evaluation
+Examples:     Cosmetics (shampoo, lotion), beverages (juice, coffee), household (cleaner, detergent)
 ```
 
 ---
@@ -375,8 +380,8 @@ Regulatory:   GMP certificates, stability studies (different from BRCGS)
 
 **Outcome:**
 - Generic 01-NPD ready for multiple industries by Phase C1
-- Apex Foods as first production customer (meat seed data mature)
-- Bakery/Pharma add-on customers viable post-Phase C1
+- Bakery as first production customer (comprehensive seed data mature)
+- Pharmacy/FMCG add-on customers viable post-Phase C1
 
 ---
 
