@@ -216,7 +216,7 @@ sequenceDiagram
 | **ProdDetail** | N per FA (1 per component for multi-comp) | `prod_detail` table, ~20 cols | Foreign key `Product_Code`; per-component Manufacturing_Operation_1..4 + Yield + Line + Equipment_Setup + PR codes |
 | **Brief** | 1 row (single-comp) OR N rows (multi-comp) | `brief` table, 37 cols + `brief_version` metadata | 2 templates; pre-PLD upstream stage |
 | **Dept proxy views** | 7 views (read-through schema-driven) | Not stored — computed from Main Table + Reference.DeptColumns | Per-dept filtered columns + blocking states |
-| **Reference tables** | 8-10 tabs (config) | `Reference.*` tables | DeptColumns (metadata), PackSizes, Templates, Lines_By_PackSize, Equipment_Setup_By_Line_Pack, Processes, CloseConfirm, Allergens (new), D365_Constants (new), AlertThresholds (new) |
+| **Reference tables** | 8-10 tabs (config) | `Reference.*` tables | DeptColumns (metadata), PackSizes, Templates, Lines_By_PackSize, Equipment_Setup_By_Line_Pack, ManufacturingOperations (configurable per tenant), CloseConfirm, Allergens (new), D365_Constants (new), AlertThresholds (new) |
 | **outbox_events** | Monotonic ordered (append-only) | `outbox_events` table (per 00-FOUNDATION §10) | Domain events for downstream consumers |
 | **audit_events** | Append-only | `audit_events` table | Every FA mutation logged (SOC 2/GDPR/FDA 21 CFR 11) |
 
@@ -303,14 +303,14 @@ CREATE TABLE prod_detail (
     tenant_id      UUID NOT NULL,
     intermediate_code TEXT NOT NULL,            -- e.g., 'PR123H', 'WIP456B', 'BATCH001' (format per Reference.CodePrefixes)
     component_index INT NOT NULL,                -- 1-based order w Recipe_Components
-    manufacturing_operation_1      TEXT,
-    manufacturing_operation_2      TEXT,
-    manufacturing_operation_3      TEXT,
-    manufacturing_operation_4      TEXT,
-    yield_p1       NUMERIC,
-    yield_p2       NUMERIC,
-    yield_p3       NUMERIC,
-    yield_p4       NUMERIC,
+    manufacturing_operation_1      TEXT,        -- FK to Reference.ManufacturingOperations.operation_name
+    manufacturing_operation_2      TEXT,        -- FK to Reference.ManufacturingOperations.operation_name
+    manufacturing_operation_3      TEXT,        -- FK to Reference.ManufacturingOperations.operation_name
+    manufacturing_operation_4      TEXT,        -- FK to Reference.ManufacturingOperations.operation_name
+    operation_yield_1       NUMERIC,
+    operation_yield_2       NUMERIC,
+    operation_yield_3       NUMERIC,
+    operation_yield_4       NUMERIC,
     line           TEXT,
     equipment_setup         TEXT,
     yield_line     NUMERIC,
@@ -381,6 +381,46 @@ CREATE TABLE brief_lines (
     sleeve_carton_price NUMERIC,
     packaging_ext  JSONB                        -- C21-C37 truncated — full rescan w §14 open item
 );
+```
+
+### 4.5 Manufacturing Operations (Configuration)
+
+Reference table for configurable manufacturing operations per tenant (replaces hardcoded Process_1..4 with dynamic naming and suffix assignment):
+
+```sql
+CREATE TABLE "Reference.ManufacturingOperations" (
+    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id       UUID NOT NULL,
+    operation_name  TEXT NOT NULL,         -- e.g., "Mix", "Knead", "Bake", "Coat", "Synthesis", "Drying"
+    process_suffix  TEXT NOT NULL UNIQUE,  -- e.g., "MX", "KN", "BK", "CT", "SY", "DR" (2-4 chars per tenant)
+    description     TEXT,
+    operation_seq   INT,                   -- order in recipe (1, 2, 3, 4...)
+    industry_code   TEXT,                  -- 'bakery', 'pharma', 'fmcg' for seeding
+    is_active       BOOLEAN DEFAULT TRUE,
+    marker          TEXT NOT NULL,         -- 'ORG-CONFIG' (tenant-configurable in Phase C1)
+    created_at      TIMESTAMPTZ DEFAULT now(),
+    UNIQUE(tenant_id, operation_name)
+);
+```
+
+**Seed for Bakery:**
+```json
+[
+  { "operation_name": "Mix", "process_suffix": "MX", "operation_seq": 1, "industry_code": "bakery" },
+  { "operation_name": "Knead", "process_suffix": "KN", "operation_seq": 2, "industry_code": "bakery" },
+  { "operation_name": "Proof", "process_suffix": "PR", "operation_seq": 3, "industry_code": "bakery" },
+  { "operation_name": "Bake", "process_suffix": "BK", "operation_seq": 4, "industry_code": "bakery" }
+]
+```
+
+**Seed for Pharmacy:**
+```json
+[
+  { "operation_name": "Synthesis", "process_suffix": "SY", "operation_seq": 1, "industry_code": "pharma" },
+  { "operation_name": "Separation", "process_suffix": "SE", "operation_seq": 2, "industry_code": "pharma" },
+  { "operation_name": "Crystallization", "process_suffix": "CZ", "operation_seq": 3, "industry_code": "pharma" },
+  { "operation_name": "Drying", "process_suffix": "DR", "operation_seq": 4, "industry_code": "pharma" }
+]
 ```
 
 ---
@@ -456,29 +496,29 @@ Total Core po Phase B.2 = **15 cols** (8 core + 7 brief extensions).
 
 ### 5.6 Production (19 cols + N ProdDetail per component)
 
-| # | Column | Type | Blocking | Req | Cascade |
-|---|---|---|---|---|---|
-| 21 | `Manufacturing_Operation_1` | TEXT (dropdown Processes) | `Pack_Size filled` | No | → Intermediate_Code_P1 (suffix) |
-| 22 | `Yield_P1` | NUMERIC | `Pack_Size filled` | No | |
-| 23 | `Manufacturing_Operation_2` | TEXT | `Pack_Size filled` | No | → Intermediate_Code_P2 |
-| 24 | `Yield_P2` | NUMERIC | `Pack_Size filled` | No | |
-| 25 | `Manufacturing_Operation_3` | TEXT | `Pack_Size filled` | No | → Intermediate_Code_P3 |
-| 26 | `Yield_P3` | NUMERIC | `Pack_Size filled` | No | |
-| 27 | `Manufacturing_Operation_4` | TEXT | `Pack_Size filled` | No | → Intermediate_Code_P4 |
-| 28 | `Yield_P4` | NUMERIC | `Pack_Size filled` | No | |
-| 29 | `Line` | TEXT (filtered dropdown Lines_By_PackSize) | `Pack_Size filled` | ✅ | → Equipment_Setup (auto) |
-| 30 | `Equipment_Setup` | AUTO | `Line filled` | ✅ | Lookup z Equipment_Setup_By_Line_Pack |
-| 31 | `Yield_Line` | NUMERIC | `Line filled` | ✅ | |
-| 32 | `Resource_Requirement` | TEXT | `Line filled` | No | |
-| 33 | `Rate` | NUMERIC | `Line filled` | ✅ | |
-| 34 | `Intermediate_Code_P1` | AUTO | `""` | No | |
-| 35 | `Intermediate_Code_P2` | AUTO | `""` | No | |
-| 36 | `Intermediate_Code_P3` | AUTO | `""` | No | |
-| 37 | `Intermediate_Code_P4` | AUTO | `""` | No | |
-| 38 | `Intermediate_Code_Final` | AUTO | `""` | No | Format `PR<RM_digits><last_process_suffix>` (Phase D #10), multi-comp = comma-sep |
-| 39 | `Closed_Production` | TEXT | `Pack_Size filled` | No | |
+| # | Column | Type | Blocking | Req | Cascade | Notes |
+|---|---|---|---|---|---|---|
+| 21 | `Manufacturing_Operation_1` | TEXT (dropdown from Reference.ManufacturingOperations) | `Pack_Size filled` | No | → Intermediate_Code_P1 (suffix from config) | Operation name configurable per tenant (e.g., Mix, Knead, Bake, Coat) |
+| 22 | `Operation_Yield_1` | NUMERIC | `Pack_Size filled` | No | | |
+| 23 | `Manufacturing_Operation_2` | TEXT | `Pack_Size filled` | No | → Intermediate_Code_P2 | |
+| 24 | `Operation_Yield_2` | NUMERIC | `Pack_Size filled` | No | | |
+| 25 | `Manufacturing_Operation_3` | TEXT | `Pack_Size filled` | No | → Intermediate_Code_P3 | |
+| 26 | `Operation_Yield_3` | NUMERIC | `Pack_Size filled` | No | | |
+| 27 | `Manufacturing_Operation_4` | TEXT | `Pack_Size filled` | No | → Intermediate_Code_P4 | |
+| 28 | `Operation_Yield_4` | NUMERIC | `Pack_Size filled` | No | | |
+| 29 | `Line` | TEXT (filtered dropdown Lines_By_PackSize) | `Pack_Size filled` | ✅ | → Equipment_Setup (auto) | |
+| 30 | `Equipment_Setup` | AUTO | `Line filled` | ✅ | Lookup z Equipment_Setup_By_Line_Pack | |
+| 31 | `Yield_Line` | NUMERIC | `Line filled` | ✅ | | |
+| 32 | `Resource_Requirement` | TEXT | `Line filled` | No | | |
+| 33 | `Rate` | NUMERIC | `Line filled` | ✅ | | |
+| 34 | `Intermediate_Code_P1` | AUTO | `""` | No | | Suffix from Reference.ManufacturingOperations.process_suffix |
+| 35 | `Intermediate_Code_P2` | AUTO | `""` | No | | |
+| 36 | `Intermediate_Code_P3` | AUTO | `""` | No | | |
+| 37 | `Intermediate_Code_P4` | AUTO | `""` | No | | |
+| 38 | `Intermediate_Code_Final` | AUTO | `""` | No | Format `WIP<process_suffix_sequence><final_suffix>` (Phase D #10), multi-comp = comma-sep | Tenant-configurable per Reference.CodePrefixes |
+| 39 | `Closed_Production` | TEXT | `Pack_Size filled` | No | | |
 
-Production jest N:1 z FA przez ProdDetail (multi-component scenariusze). Main Table Manufacturing_Operation_1..4 + Line + Equipment_Setup + Intermediate_Code_Final = aggregate; ProdDetail = per-component source of truth.
+Production jest N:1 z FA przez ProdDetail (multi-component scenariusze). Main Table Manufacturing_Operation_1..4 + Line + Equipment_Setup + Intermediate_Code_Final = aggregate; ProdDetail = per-component source of truth. Manufacturing operations configurable per tenant via Reference.ManufacturingOperations (suffix from config, not hardcoded A/B/C/D).
 
 ### 5.7 Technical (2 cols baseline + N allergen fields [EVOLVING] → [UNIVERSAL])
 
@@ -577,14 +617,18 @@ Line dropdown = filtered by `Reference.Lines_By_PackSize.Supported_Pack_Sizes` C
 
 ```json
 {
-  "rule_id": "cascade_process_to_pr",
+  "rule_id": "cascade_process_to_intermediate_code",
   "rule_type": "cascading",
   "trigger": "prod_detail.manufacturing_operation_{n}.change",
+  "conditions": [
+    {"prod_detail.manufacturing_operation_{n}": "NOT_EMPTY"}
+  ],
   "actions": [
     { "auto_fill": "prod_detail.intermediate_code_p{n}",
-      "source": "Reference.Processes",
-      "lookup_by": {"Operation_Name": "prod_detail.manufacturing_operation_{n}"},
-      "return": "Suffix"
+      "source": "Reference.ManufacturingOperations",
+      "lookup_by": {"operation_name": "prod_detail.manufacturing_operation_{n}"},
+      "return": "process_suffix",
+      "formula": "WIP-<process_suffix>-<sequence_number>"
     }
   ],
   "then": { "invoke": "recalc_intermediate_code_final" }
@@ -595,14 +639,14 @@ Line dropdown = filtered by `Reference.Lines_By_PackSize.Supported_Pack_Sizes` C
   "rule_type": "cascading",
   "actions": [
     { "compute": "prod_detail.intermediate_code_final",
-      "formula": "PR<RM_digits><last_non_empty_suffix>",
+      "formula": "WIP<process_suffix_sequence><final_suffix>",
       "inputs": ["fa.ingredient_codes", "prod_detail.intermediate_code_p1..p4"]
     }
   ],
   "validate": {
     "rule": "suffix_match",
     "compare": "UCase(Right(recipe_components_component, 1)) == UCase(last_suffix)",
-    "on_fail": {"warn": "MISMATCH: Recipe_Components ends 'X' but last process is 'Y'", "severity": "V06"}
+    "on_fail": {"warn": "MISMATCH: Recipe_Component operation is 'X' but Intermediate_Code suffix is 'Y'", "severity": "V06"}
   }
 }
 ```
@@ -631,33 +675,25 @@ Line dropdown = filtered by `Reference.Lines_By_PackSize.Supported_Pack_Sizes` C
 
 ```json
 {
-  "rule_id": "cascade_template",
-  "rule_type": "cascading",
-  "trigger": "fa.template.change",
-  "actions": [
-    { "for_each": "prod_detail_row where product_code = fa.product_code",
-      "invoke": "apply_template",
-      "args": {"template": "fa.template"}
-    }
-  ]
-}
-
-{
-  "rule_id": "apply_template",
+  "rule_id": "apply_template_operations",
   "rule_type": "workflow",
   "actions": [
-    { "lookup": "Reference.Templates", "by": {"Template_Name": "args.template"} },
-    { "copy_to": "prod_detail",
-      "fields": {"Manufacturing_Operation_1": "template.Manufacturing_Operation_1", "Manufacturing_Operation_2": "template.Manufacturing_Operation_2",
-                 "Manufacturing_Operation_3": "template.Manufacturing_Operation_3", "Manufacturing_Operation_4": "template.Manufacturing_Operation_4"}
-    },
-    { "clear": "prod_detail.Yield_P<n>",
-      "where": "template.Process_<n> == ''"
+    { "lookup": "Reference.Templates", "by": {"template_name": "args.template"} },
+    { "for_each": "template.operations",
+      "copy_to": "prod_detail",
+      "fields": {
+        "manufacturing_operation_1": "template.operation_1_name",
+        "manufacturing_operation_2": "template.operation_2_name",
+        "manufacturing_operation_3": "template.operation_3_name",
+        "manufacturing_operation_4": "template.operation_4_name"
+      }
     },
     { "invoke": "recalc_intermediate_code_final" }
   ]
 }
 ```
+
+**Note:** Template now applies operation names (not hardcoded Process_1..4), respecting tenant configuration in Reference.ManufacturingOperations.
 
 ### 6.2 Cascade downstream refresh
 
@@ -1024,7 +1060,7 @@ Consolidated mapping (zgodny z BRIEF-FLOW.md §4):
 | Product (C1) | fa.product_name | 1:1 | [UNIVERSAL] |
 | Volume (C2) | fa.volume (NEW) | 1:1 | [EVOLVING] → [APEX-CONFIG] |
 | Dev Code (C3) | fa.dev_code (NEW) | 1:1 | [UNIVERSAL] |
-| Components (C4) | prod_detail.component + fa.recipe_components generation | Per-component row + concat PR codes | [APEX-CONFIG] |
+| Components (C4) | prod_detail.manufacturing_operation_1..4 (per component) + recipe_components generation | Per-component per Reference.Templates + tenant's Reference.ManufacturingOperations | [ORG-CONFIG] |
 | Slice Count (C5) | prod_detail.slice_count (NEW) | Per-component | [EVOLVING] |
 | Supplier (C6) | fa.supplier (per-FA) or prod_detail.supplier (per-component) | TBD Phase B.2 start | [EVOLVING] |
 | Code (C7) | fa.ingredient_codes generation | `RM` + digits from brief.code | [APEX-CONFIG] |
@@ -1319,7 +1355,7 @@ Current V01-V06 z v7 + 2 new Phase B.2 rules. Stored w `Reference.Rules` z `rule
 | **V03** | Pack_Size in `Reference.PackSizes` | FAIL | fa.pack_size | Core save |
 | **V04** | Material codes Found/NoCost in D365 Import (Box, Top_Label, Bottom_Label, Web, Recipe_Components, Ingredient_Codes + new: MRP_* cols per §14 open item) | WARN (NoCost) / FAIL (Missing) | Multiple material cols | All saves; bulk D365 Builder pre-check |
 | **V05-\<Dept\>** | Dept complete: IsAllRequiredFilled AND Closed_<Dept>=Yes | INFO (status badge) | Per dept | All saves |
-| **V06** | Recipe_Components suffix matches last process suffix (UCase(Right(Recipe_Components_component, 1)) == UCase(last_process_suffix)) | FAIL w/ MISMATCH comment | Per ProdDetail row | Production edit |
+| **V06** | Manufacturing_Operation suffix matches Intermediate_Code suffix — lookup operation_name → process_suffix from Reference.ManufacturingOperations; compare extracted suffix from intermediate_code_final == process_suffix | FAIL w/ MISMATCH comment | Per ProdDetail row | Production edit |
 | **V07** (new) | Allergens complete: auto-cascade has no nulls + any manual override has reason | WARN | fa.allergens | Technical save |
 | **V08** (new) | Brief mapping complete: if fa.brief_id, all required brief→FA fields populated | INFO | fa created from brief | Convert-to-PLD, fa edit |
 
@@ -1351,6 +1387,7 @@ Validations są rule_type='validation' w `Reference.Rules`. Admin może (Phase C
 | GS1 lib (shared) | 00-FOUNDATION §5 (R15) | B.1 docs; B.2 impl w Bar_Codes | GTIN parsing |
 | D365 adapter (`@monopilot/d365-adapter`) | 00-FOUNDATION §5 (R8) | B.2 minimal impl (D365 Import cache sync); C1 full | Material validation V04 |
 | PostHog flags | 00-FOUNDATION §5 (R6) | B.1 ✅ | Feature flags (e.g., `allergens_cascade.enabled`) |
+| Manufacturing Operations configuration | 02-SETTINGS (Phase C1 Admin UI) | C1 impl | Process definition UI (admin editable per tenant) |
 
 ### 13.2 Build sequence (implementation post-writing)
 
@@ -1667,7 +1704,20 @@ This section demonstrates how Reference.CodePrefixes and Reference.ColumnLabels 
 - `manufacturing_operation_4` → "Bake Step"
 - `equipment_setup` → "Oven Config"
 
-**Manufacturing Operations:** Mix → Knead → Proof → Bake → Cool → Decorate
+**Manufacturing Operations (Reference.ManufacturingOperations seed):**
+- Mix (MX)
+- Knead (KN)
+- Proof (PR)
+- Bake (BK)
+
+**Recipe Example Flow:**
+```
+RM0001 (Flour) + RM0002 (Water) → MIX → WIP-MX-0000001
+Then: WIP-MX-0000001 + ING001 (Salt) → KNEAD → WIP-KN-0000002
+Then: WIP-KN-0000002 → PROOF → WIP-PR-0000003
+Then: WIP-PR-0000003 → BAKE → WIP-BK-0000004 (Final: FA-BRD-0001)
+```
+
 **Equipment Examples:** Oven 1, Oven 2, Cooling Tunnel, Packaging Line
 **PackSizes (Bakery-specific):** 250g, 500g, 1kg, 1.5kg
 **Shelf Life:** 7 days (ambient) or 14 days (refrigerated)
@@ -1690,7 +1740,20 @@ This section demonstrates how Reference.CodePrefixes and Reference.ColumnLabels 
 - `manufacturing_operation_4` → "Drying"
 - `equipment_setup` → "Reactor Setup"
 
-**Manufacturing Operations:** Synthesis → Separation → Crystallization → Drying → Encapsulation
+**Manufacturing Operations (Reference.ManufacturingOperations seed):**
+- Synthesis (SY)
+- Separation (SE)
+- Crystallization (CZ)
+- Drying (DR)
+
+**Recipe Example Flow:**
+```
+RM-ASPIRIN-PRECURSOR → SYNTHESIS → BATCH-SY-0000001
+Then: BATCH-SY-0000001 → SEPARATION → BATCH-SE-0000002
+Then: BATCH-SE-0000002 → CRYSTALLIZATION → BATCH-CZ-0000003
+Then: BATCH-CZ-0000003 → DRYING → BATCH-DR-0000004 (Final: PROD-PHM-024)
+```
+
 **Equipment Examples:** Reactor 1, Reactor 2, Centrifuge, Rotary Dryer, Encapsulator
 **PackSizes (Pharma-specific):** 10ml, 30ml, 100ml, 1L (medicinal units)
 **Shelf Life:** 24-36 months (at 25°C/60% RH per ICH Q1A)
@@ -1713,10 +1776,10 @@ This section demonstrates how Reference.CodePrefixes and Reference.ColumnLabels 
 - `manufacturing_operation_4` → "Label"
 - `equipment_setup` → "Filler Config"
 
-**Manufacturing Operations (varies by product type):**
-- Cosmetics: Mix → Fill → Seal → Label → QC → Packaging
-- Beverages: Blend → Carbonation → Bottle → Label → Chill → Pack
-- Household: Mix → Fill → Cap → Label → Wrap → Carton
+**Manufacturing Operations (Reference.ManufacturingOperations - varies by product type):**
+- **Cosmetics:** Mix (MX) → Fill (FL) → Seal (SL) → Label (LB) → QC (QC) → Packaging (PK)
+- **Beverages:** Blend (BL) → Carbonation (CB) → Bottle (BT) → Label (LB) → Chill (CH) → Pack (PK)
+- **Household:** Mix (MX) → Fill (FL) → Cap (CP) → Label (LB) → Wrap (WR) → Carton (CT)
 
 **Equipment Examples:** Mixer, Liquid Filler, Sealer, Labeler, Case Packer
 **PackSizes (FMCG-specific):** 100ml, 250ml, 500ml, 1L (beverages); 50g, 100g, 200g (cosmetics)
@@ -1725,7 +1788,7 @@ This section demonstrates how Reference.CodePrefixes and Reference.ColumnLabels 
 
 ## Changelog
 
-- **v3.1 (2026-04-30)** — Multi-industry generalization. Renamed meat-specific columns to generic equivalents (Finish_Meat → Recipe_Components, RM_Code → Ingredient_Codes, Meat_Pct → Primary_Ingredient_Pct, Process_1..4 → Manufacturing_Operation_1..4, PR_Code_* → Intermediate_Code_*, Dieset → Equipment_Setup, Staffing → Resource_Requirement, FA_Code → Product_Code, Factory Article → Product). Added Appendix A with industry configuration examples (Bakery, Pharmacy, FMCG). Updated all references and schema definitions. Generic framework supports multiple industries via Reference.CodePrefixes and Reference.ColumnLabels configuration (per ADR-034 v3.1).
+- **v3.1 (2026-04-30)** — Multi-industry generalization + dynamic process configuration. Renamed meat-specific columns to generic equivalents (Finish_Meat → Recipe_Components, RM_Code → Ingredient_Codes, Meat_Pct → Primary_Ingredient_Pct, Process_1..4 → Manufacturing_Operation_1..4, PR_Code_* → Intermediate_Code_*, Dieset → Equipment_Setup, Staffing → Resource_Requirement, FA_Code → Product_Code, Factory Article → Product). Added Reference.ManufacturingOperations table: manufacturing operations now configurable per tenant with dynamic suffix assignment (instead of hardcoded A/B/C/D). Intermediate code generation uses Reference.ManufacturingOperations.process_suffix per operation. Seed data provided for Bakery (Mix/Knead/Proof/Bake), Pharmacy (Synthesis/Separation/Crystallization/Drying), FMCG. Updated Chain 2 + Chain 4 cascading rules + V06 validation to reference dynamic operations. Added Appendix A with industry configuration examples and recipe example flows. Generic framework supports multiple industries via Reference.CodePrefixes, Reference.ColumnLabels, and Reference.ManufacturingOperations configuration (per ADR-034 v3.1).
 
 - **v3.0 (2026-04-19)** — Phase B.2 full rewrite. Renumbered from 09-NPD → 01-NPD (primary module). Phase D aligned: 6 principles + markers + 23 decisions (incl. #1 multi-comp, #2 Done independent, #3 Status_Overall 5-enum, #7 Price blocking tightened, #8 Built auto-reset fix, #10 Intermediate_Code_Final format, #16 allergens multi-level, #18 alert thresholds, #19-22 D365 Builder N+1+per-FA+constants). R1-R15 research adopted (event-first, JSONB hybrid, RLS, Zod runtime, GS1-first, i18n, schema AI/trace-ready). Brief module added (2 templates, 37 cols, Convert-to-PLD). Allergens multi-level cascade RM→PR_step→FA implementowane. D365 Builder N+1 products per FA + Reference.D365_Constants + 8 tabs per-FA file. Dashboard NPD-scoped + RED/YELLOW/GREEN alerts. V07-V08 new validations. Build sequence 01-NPD-a/b/c/d/e (per 00-FOUNDATION §4.2 sequential per sub-module).
 
