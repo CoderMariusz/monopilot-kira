@@ -57,7 +57,7 @@ Wszystkie 3 aspekty znikają gdy Monopilot zastąpi D365 (ADR-031 + META-MODEL �
 
 ### 1.4 Reality constraint
 
-D365 API dla Forza nie jest dostępne (lub nie skonfigurowane). Paste jest **manual**. Cadence: prawdopodobnie po każdej istotnej zmianie w D365 (nowe materiały added), minimum raz w tygodniu.
+D365 API dla Apex nie jest dostępne (lub nie skonfigurowane). Paste jest **manual**. Cadence: prawdopodobnie po każdej istotnej zmianie w D365 (nowe materiały added), minimum raz w tygodniu.
 
 **Zaletą ustawienia:** PLD zawsze referuje do snapshotu D365 z konkretnej daty. Disadvantage: out-of-sync gdy D365 zmieni się w międzyczasie.
 
@@ -86,7 +86,7 @@ return "Missing"
 - D365 Import tab schema (6 cols: Item_Code/Item_Name/Price/Supplier/Lead_Time/M_Code) = `[LEGACY-D365]`
 - Paste workflow = `[LEGACY-D365]`
 - Validation Found/NoCost/Missing pattern generically = `[UNIVERSAL]` (validate-against-external-system pattern)
-- Color scheme = `[FORZA-CONFIG]`
+- Color scheme = `[APEX-CONFIG]`
 
 **Monopilot trajectory:** D365 Import znika gdy Monopilot zastąpi D365 (same items now in Monopilot Items table). Validation becomes internal lookup. `integration.d365.enabled` feature flag hide'uje tab gdy `false`.
 
@@ -167,7 +167,7 @@ Dziś M06 i M08 są ortogonalne — obie generują na podstawie Main Table cells
 
 ## §3 — Docelowy Builder output (referencja: Builder_FA5101.xlsx)
 
-Historycznie Forza miała Builder który produkował **osobny plik Excel per FA** (`Builder_FA<code>.xlsx`). Jest to **wzorzec docelowy** dla M08 implementacji.
+Historycznie Apex miała Builder który produkował **osobny plik Excel per FA** (`Builder_FA<code>.xlsx`). Jest to **wzorzec docelowy** dla M08 implementacji.
 
 ### 3.1 Struktura Builder_FA5101.xlsx
 
@@ -193,11 +193,11 @@ Historycznie Forza miała Builder który produkował **osobny plik Excel per FA*
 |---|---|---|---|
 | 1 | FORMULAID | `FA5101-L01` | Unique formula ID — format `<FA_Code>-L01` |
 | 2 | MANUFACTUREDITEMNUMBER | `FA5101` | = FA_Code |
-| 3 | PRODUCTIONSITEID | `FNOR` | Site code — **Forza North** (FORZA-CONFIG) |
+| 3 | PRODUCTIONSITEID | `FNOR` | Site code — **Apex North** (APEX-CONFIG) |
 | 4 | FROMQUANTITY | `1` | Minimum formula quantity |
 | 5 | VALIDFROMDATE | `1` | Date (D365 format — raw number) |
 | 6 | ISACTIVE | `Yes` | Formula active flag |
-| 7 | APPROVERPERSONNELNUMBER | `FOR100048` | Approver employee # — Forza personnel ID |
+| 7 | APPROVERPERSONNELNUMBER | `FOR100048` | Approver employee # — Apex personnel ID |
 | 8 | CHANGEDDATE | *(empty)* | Last change date |
 | 9 | FORMULABATCHSIZE | `1` | Batch size |
 | 10 | FORMULABATCHSIZEMULTIPLES | `0` | Multiples allowed (0=no) |
@@ -209,7 +209,7 @@ Historycznie Forza miała Builder który produkował **osobny plik Excel per FA*
 | 16 | WILLCOSTCALCULATIONINCLUDE... | `Yes` | Cost calc include (truncated col name) |
 | 17 | YIELDPERCENTAGE | `95` | Overall yield % (map na Main Table Yield_Line albo combined P1..P4 yields) |
 
-**Marker:** Format cols = `[LEGACY-D365]` (D365-specific). Values → mapping z Main Table `[FORZA-CONFIG]`.
+**Marker:** Format cols = `[LEGACY-D365]` (D365-specific). Values → mapping z Main Table `[APEX-CONFIG]`.
 
 ### 3.3 Formula_Lines — 29 cols (ingredient lines)
 
@@ -225,7 +225,7 @@ Common cols across all lines:
 - CONSUMPTIONCALCULATIONMETHOD = `Formula0`
 - CONSUMPTIONSITEID = `FNOR`
 - CONSUMPTIONTYPE = `Variable`
-- CONSUMPTIONWAREHOUSEID = `ForzDG`
+- CONSUMPTIONWAREHOUSEID = `ApexDG`
 - FLUSHINGPRINCIPLE = `Finish`
 
 **Role:** Każdy RM (Raw Material) lub PM (Packaging Material) używany w FA = osobna linia. QUANTITY jest per batch (per batch=1).
@@ -255,7 +255,7 @@ Quantities:
 
 **Role:** "Header" dla produkcyjnego route — identyfikator + approver + group.
 
-**Marker:** `[LEGACY-D365]` format. `FinGoods` = Forza D365 product group code.
+**Marker:** `[LEGACY-D365]` format. `FinGoods` = Apex D365 product group code.
 
 ### 3.5 Route_Versions — 10 cols
 
@@ -321,7 +321,7 @@ Quantities:
 | ... | (total 25 cols) | |
 
 **Mapping z Main Table:**
-- COSTINGOPERATIONRESOURCEID = `FProd01` (Forza Production 01?) — prawdopodobnie z Line
+- COSTINGOPERATIONRESOURCEID = `FProd01` (Apex Production 01?) — prawdopodobnie z Line
 - PROCESSTIME może być z Rate
 - LOADPERCENTAGE = 100 (hardcoded lub z Staffing?)
 
@@ -339,17 +339,17 @@ Quantities:
 
 **Role:** Link operation do specific production resource (machine/line).
 
-### 3.9 Forza-specific constants zidentyfikowane w Builder_FA5101
+### 3.9 Apex-specific constants zidentyfikowane w Builder_FA5101
 
-Wartości które wyglądają na Forza-specific D365 config:
+Wartości które wyglądają na Apex-specific D365 config:
 
 | Wartość | Kontekst | Znaczenie |
 |---|---|---|
-| `FNOR` | PRODUCTIONSITEID | Forza Production Site (prawdopodobnie "Forza North" albo kraj code) |
-| `FOR100048` | APPROVERPERSONNELNUMBER | Personnel ID approver Forza |
-| `ForzDG` | CONSUMPTIONWAREHOUSEID | Forza Warehouse code |
+| `FNOR` | PRODUCTIONSITEID | Apex Production Site (prawdopodobnie "Apex North" albo kraj code) |
+| `FOR100048` | APPROVERPERSONNELNUMBER | Personnel ID approver Apex |
+| `ApexDG` | CONSUMPTIONWAREHOUSEID | Apex Warehouse code |
 | `FinGoods` | PRODUCTGROUPID | Finished Goods group |
-| `FProd01` | COSTINGOPERATIONRESOURCEID | Forza Production resource 01 |
+| `FProd01` | COSTINGOPERATIONRESOURCEID | Apex Production resource 01 |
 | `Formula0` | CONSUMPTIONCALCULATIONMETHOD, CONSUMPTIONCALCULATIONFORMULA | Formula type code |
 | `Production` | PROCESSCOSTCATEGORYID, QUANTITYCOSTCATEGORYID | Cost category |
 | `Variable` | CONSUMPTIONTYPE | Variable vs fixed consumption |
@@ -358,7 +358,7 @@ Wartości które wyglądają na Forza-specific D365 config:
 | `Primary` | OPERATIONPRIORITY | Primary vs Secondary operation |
 | `None` | NEXTOPERATIONLINKTYPE | Link do next operation (None = terminal) |
 
-**Marker:** Wszystkie te wartości = `[LEGACY-D365]` (specific D365 configuration) + `[FORZA-CONFIG]` (per-org values). Muszą być **konfiguracyjne w Monopilot D365 Builder settings** (nie hardcoded), bo inne firmy używają D365 z innymi site codes / group codes / personnel IDs.
+**Marker:** Wszystkie te wartości = `[LEGACY-D365]` (specific D365 configuration) + `[APEX-CONFIG]` (per-org values). Muszą być **konfiguracyjne w Monopilot D365 Builder settings** (nie hardcoded), bo inne firmy używają D365 z innymi site codes / group codes / personnel IDs.
 
 ### 3.10 Mapping Main Table → Builder output (high-level)
 
@@ -374,10 +374,10 @@ Line                        → → COSTINGOPERATIONRESOURCEID (map to D365 reso
 Rate                        → PROCESSTIME / PROCESSQUANTITY
 Staffing                    → LOADPERCENTAGE / RESOURCEQUANTITY (niecertain)
 
-Hardcoded / Forza-config:
+Hardcoded / Apex-config:
   PRODUCTIONSITEID = "FNOR"
   APPROVERPERSONNELNUMBER = "FOR100048" (Jane? lub każdy approver? TBD)
-  CONSUMPTIONWAREHOUSEID = "ForzDG"
+  CONSUMPTIONWAREHOUSEID = "ApexDG"
   PRODUCTGROUPID = "FinGoods"
   (i pozostałe z §3.9)
 ```
@@ -442,9 +442,9 @@ V04 validation uruchamia się z:
 ### 4.5 Marker
 
 - V04 validation = `[LEGACY-D365]` (validate-against-D365)
-- Color scheme = `[FORZA-CONFIG]` (Forza colors)
+- Color scheme = `[APEX-CONFIG]` (Apex colors)
 - Worst-wins comma-sep pattern = `[UNIVERSAL]`
-- Material cols list (6 cols) = `[FORZA-CONFIG]` (inne orgi mogą mieć inne material cols)
+- Material cols list (6 cols) = `[APEX-CONFIG]` (inne orgi mogą mieć inne material cols)
 
 ---
 
@@ -454,7 +454,7 @@ V04 validation uruchamia się z:
 
 Jane otrzymuje 8 wypełnionych tabów w PLD workbook (obecnie 3 z 8 filled, docelowo wszystkie 8). Następne kroki:
 
-1. **Open D365 client** — Forza uses D365 web UI (Microsoft 365 cloud).
+1. **Open D365 client** — Apex uses D365 web UI (Microsoft 365 cloud).
 2. **Navigate to Item** — Jane szuka new item with FA_Code (e.g., FA5101) w D365 Items list. Item może już istnieć (jeśli PLD import z D365 pokazał) lub musi być stworzony.
 3. **Paste Formula_Version** — D365 Formula Version page → paste 17 cols values.
 4. **Paste Formula_Lines** — D365 Formula Lines → paste N rows z Formula_Lines tab.
@@ -480,7 +480,7 @@ User preference Session 3 = (b) or (c) (osobne pliki = clean per-FA export). Doc
 
 ### 5.3 Marker
 
-Paste-back workflow = `[LEGACY-D365]` (zniknie gdy Monopilot zastąpi D365 lub D365 API będzie dostępne). Manual paste = `[FORZA-CONFIG]` (dzisiejsze ograniczenie — D365 API nie używane).
+Paste-back workflow = `[LEGACY-D365]` (zniknie gdy Monopilot zastąpi D365 lub D365 API będzie dostępne). Manual paste = `[APEX-CONFIG]` (dzisiejsze ograniczenie — D365 API nie używane).
 
 ---
 
@@ -494,7 +494,7 @@ Paste-back workflow = `[LEGACY-D365]` (zniknie gdy Monopilot zastąpi D365 lub D
 | Formula_Lines generation z Finish_Meat + Box/Top_Label/etc. | Empty | HIGH |
 | Route_Operations generation z Process_1..4 | Empty | HIGH |
 | Route_Versions, Route_OpProperties, Resource_Req | Empty | MEDIUM |
-| Forza-specific constants (FNOR, FOR100048, ForzDG, FinGoods, FProd01) | Not referenced in v7 code | HIGH (bez tych D365 paste fails) |
+| Apex-specific constants (FNOR, FOR100048, ApexDG, FinGoods, FProd01) | Not referenced in v7 code | HIGH (bez tych D365 paste fails) |
 | YIELDPERCENTAGE calc z Yield_P1..4 + Yield_Line | Hardcoded placeholder | MEDIUM |
 | Per-line QUANTITY calc (KG for RM, pc for PM) | Empty | HIGH (critical for BOM accuracy) |
 | Generate osobny plik per FA (starszy workflow Builder_FA<code>.xlsx) | Not implemented | MEDIUM (user pref) |
@@ -516,7 +516,7 @@ All WIP features = `[EVOLVING]` + `[LEGACY-D365]`. Gdy Monopilot zastąpi → ws
 ### 7.1 BOM tab schema (v7 current)
 
 **Sheet:** `BOM` (7 cols)
-**Row 1 title:** "FORZA FOODS - BOM"
+**Row 1 title:** "APEX FOODS - BOM"
 **Row 2 headers:** FA_Code | Component_Type | Component_Code | Quantity | Process_Stage | Source | D365_Status
 
 ### 7.2 M06.GenerateBOM logic
@@ -544,7 +544,7 @@ Oba opisują BOM ale w **innych formatach**:
 | Aspekt | BOM tab v7 | D365_Formula_Lines (target Builder_FA5101) |
 |---|---|---|
 | Format | Flat (1 row per component) | D365 schema (29 cols per row) |
-| Schema | Forza-internal | D365-specific |
+| Schema | Apex-internal | D365-specific |
 | Quantities | Hardcoded = 1 | Real values (e.g., RM001=330 KG) |
 | D365_Status | Included (Found/NoCost/Missing) | N/A (D365 validates post-paste) |
 | Process rows | Included (Process_N as component) | Separate (Route_Operations, nie Formula_Lines) |
@@ -553,13 +553,13 @@ Oba opisują BOM ale w **innych formatach**:
 
 ### 7.4 M06 trigger (confirmed open question)
 
-User Session 3: **"bom generator powinien miec swoj button"** — Forza wants **explicit button** (nie auto-trigger). M06.GenerateBOM dziś nie ma callsite w innych modułach VBA — po prostu czeka na button assignment w UI.
+User Session 3: **"bom generator powinien miec swoj button"** — Apex wants **explicit button** (nie auto-trigger). M06.GenerateBOM dziś nie ma callsite w innych modułach VBA — po prostu czeka na button assignment w UI.
 
 **Phase B action:** Add button "Generate BOM" na BOM tab (albo Dashboard). Map to `M06.GenerateBOM(selected_mtRow)` lub bulk version `GenerateAllBOMs()`.
 
 ### 7.5 Marker
 
-BOM tab pattern = `[UNIVERSAL]` (każda firma food-mfg ma BOM view). Current v7 BOM schema = `[FORZA-CONFIG]`. Quantity hardcoded=1 = `[EVOLVING]` (docelowo real quantities z recipe).
+BOM tab pattern = `[UNIVERSAL]` (każda firma food-mfg ma BOM view). Current v7 BOM schema = `[APEX-CONFIG]`. Quantity hardcoded=1 = `[EVOLVING]` (docelowo real quantities z recipe).
 
 ---
 
@@ -570,7 +570,7 @@ BOM tab pattern = `[UNIVERSAL]` (każda firma food-mfg ma BOM view). Current v7 
 - `04-integrations/d365/` (Phase C adresat #1 dla D365 content) — full cross-walk:
   - D365 Import schema + paste workflow
   - D365 Builder 8 tabs schema (from Builder_FA5101 reference)
-  - Forza-specific constants config (FNOR/FOR100048/ForzDG/FinGoods/FProd01) jako per-org settings
+  - Apex-specific constants config (FNOR/FOR100048/ApexDG/FinGoods/FProd01) jako per-org settings
   - Feature flag `integration.d365.enabled`
   - `[LEGACY-D365]` markery na całym module
   - Paste-back manual → future API integration (gdy D365 API dostępne)
@@ -583,7 +583,7 @@ BOM tab pattern = `[UNIVERSAL]` (każda firma food-mfg ma BOM view). Current v7 
 ## §9 — Open questions Phase B
 
 1. **M08 WIP roadmap priorytet** — który tab next w M08 implementation? (Formula_Lines high priority bo bez niego D365 nie ma BOM)
-2. **Forza constants source** — dziś hardcoded where? Settings tab? ADR-015 constants pattern? Nie zidentyfikowano w czytanych M01-M11. Prawdopodobnie do dodania jako Reference.D365_Constants config table (`[LEGACY-D365]` + `[FORZA-CONFIG]`)
+2. **Apex constants source** — dziś hardcoded where? Settings tab? ADR-015 constants pattern? Nie zidentyfikowano w czytanych M01-M11. Prawdopodobnie do dodania jako Reference.D365_Constants config table (`[LEGACY-D365]` + `[APEX-CONFIG]`)
 3. **BOM button location** — Dashboard? BOM tab? Per-FA w Main Table? UI decision Phase B
 4. **BOM vs Builder** — oba generują, jeden plik vs wspólny workbook, decyzja user preference (§5.2)
 5. **V04 scope expansion** — MRP_* cols validation, inne codes? (§4.1)

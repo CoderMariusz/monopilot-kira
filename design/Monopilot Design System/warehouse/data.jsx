@@ -256,7 +256,7 @@ const WH_RESERVATIONS = [
 
 // ----- Locations tree (WH-018) -----
 const WH_LOCATIONS = [
-  { level: 0, code: "WH-Factory-A",  name: "Forza Foods — Factory A",   type: "storage",        lpCount: 142, key: "WH-Factory-A" },
+  { level: 0, code: "WH-Factory-A",  name: "Apex Foods — Factory A",   type: "storage",        lpCount: 142, key: "WH-Factory-A" },
   { level: 1, code: "Cold",          name: "Cold Storage (0–4°C)",      type: "storage",        lpCount: 58,  key: "WH-Factory-A.Cold", parent: "WH-Factory-A" },
   { level: 2, code: "B1",            name: "Cold Bin B1",               type: "storage",        lpCount: 12,  key: "WH-Factory-A.Cold.B1", parent: "WH-Factory-A.Cold", util: 0.82 },
   { level: 2, code: "B2",            name: "Cold Bin B2",               type: "storage",        lpCount: 8,   key: "WH-Factory-A.Cold.B2", parent: "WH-Factory-A.Cold", util: 0.45 },
@@ -346,7 +346,7 @@ const WH_FEFO_OVERRIDES = [
 
 // ----- Warehouse settings (WH-020) -----
 const WH_SETTINGS = {
-  general: { name: "Forza Foods — Factory A", code: "WH-Factory-A", setAsDefault: true, archivalMonths: 12, dashboardCacheTtl: 60 },
+  general: { name: "Apex Foods — Factory A", code: "WH-Factory-A", setAsDefault: true, archivalMonths: 12, dashboardCacheTtl: 60 },
   lpNumbering: { autoGenerate: true, prefix: "LP", seqLength: 8, allowManual: false, preview: "LP00000001" },
   grn: { requireBatch: true, requireExpiry: true, requireSupplierBatch: false, defaultQa: "PENDING", allowOverReceipt: false, overReceiptTolerance: 0 },
   picking: { enableFefo: true, enableFifoFallback: true, allowFefoOverride: true, requireOverrideReason: true },

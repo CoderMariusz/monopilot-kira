@@ -1823,9 +1823,9 @@ Delete E2E and test files
 - **Parallel (can run concurrently):** []
 
 ### GIVEN / WHEN / THEN
-**GIVEN** All three tracks complete (S-α Identity, S-β Reference, S-γ Toggles+i18n); Forza seed applied; full E-1 migration stack applied
+**GIVEN** All three tracks complete (S-α Identity, S-β Reference, S-γ Toggles+i18n); Apex seed applied; full E-1 migration stack applied
 **WHEN** Playwright runs `apps/web/e2e/settings/settings-acceptance.spec.ts`
-**THEN** full acceptance flow succeeds: owner creates org → invites user with NPD Manager role → role assigned → NPD Manager logs in → RLS enforces org scope (cross-org query returns 0 rows) → `pack_sizes` dropdown has ≥5 Forza rows → `templates` has ≥4 rows → `processes` has 8 rows → `dieset_by_line_pack` has ≥10 rows → `organization_modules.is_enabled=true` for `npd` → `permissions.enum.ts` exports all required settings permission strings → `audit_log` has entries for org.created, user.invited, role.assigned → `outbox_events` has `org.created`, `user.invited`, `role.assigned` entries → CI gate green — **Phase E-2 NPD-a unlock**
+**THEN** full acceptance flow succeeds: owner creates org → invites user with NPD Manager role → role assigned → NPD Manager logs in → RLS enforces org scope (cross-org query returns 0 rows) → `pack_sizes` dropdown has ≥5 Apex rows → `templates` has ≥4 rows → `processes` has 8 rows → `dieset_by_line_pack` has ≥10 rows → `organization_modules.is_enabled=true` for `npd` → `permissions.enum.ts` exports all required settings permission strings → `audit_log` has entries for org.created, user.invited, role.assigned → `outbox_events` has `org.created`, `user.invited`, `role.assigned` entries → CI gate green — **Phase E-2 NPD-a unlock**
 
 ### ACP Prompt
 ```
@@ -1853,7 +1853,7 @@ SETTINGS_FLAGS_VIEW = 'settings:flags:view'
 SETTINGS_FLAGS_UPDATE = 'settings:flags:update'
 ```
 
-**Forza seed row counts (minimum required):**
+**Apex seed row counts (minimum required):**
 - `pack_sizes`: ≥5 rows
 - `templates`: ≥4 rows
 - `processes`: exactly 8 rows (Strip/A, Coat/B, Honey/C, Smoke/E, Slice/F, Tumble/G, Dice/H, Roast/R)
@@ -1876,24 +1876,24 @@ test.describe('Settings-a ADR-032 carveout acceptance', () => {
   test.describe.configure({ mode: 'serial' })
 
   test.beforeAll(async () => {
-    // Ensure Forza seed applied
+    // Ensure Apex seed applied
   })
 
   test('1. Owner creates organization', async ({ page }) => {
     await page.goto('/settings/organizations')
     await page.getByRole('button', { name: 'Create Organization' }).click()
-    await page.getByLabel('Organization Name').fill('Forza Acceptance Test Org')
+    await page.getByLabel('Organization Name').fill('Apex Acceptance Test Org')
     await page.getByRole('button', { name: 'Create' }).click()
-    await expect(page.getByText('Forza Acceptance Test Org')).toBeVisible()
+    await expect(page.getByText('Apex Acceptance Test Org')).toBeVisible()
   })
 
   test('2. Owner invites user with NPD Manager role', async ({ page }) => {
     await page.goto('/settings/users')
     await page.getByRole('button', { name: 'Invite User' }).click()
-    await page.getByLabel('Email').fill('npd-manager-test@forza.test')
+    await page.getByLabel('Email').fill('npd-manager-test@apex.test')
     await page.getByLabel('Role').selectOption('NPD Manager')
     await page.getByRole('button', { name: 'Send Invite' }).click()
-    await expect(page.getByText('npd-manager-test@forza.test')).toBeVisible()
+    await expect(page.getByText('npd-manager-test@apex.test')).toBeVisible()
   })
 
   test('3. NPD Manager logs in → RLS enforces org scope', async ({ browser }) => {
@@ -1908,7 +1908,7 @@ test.describe('Settings-a ADR-032 carveout acceptance', () => {
     await context.close()
   })
 
-  test('4. Reference data: Forza seed counts verified', async ({ request }) => {
+  test('4. Reference data: Apex seed counts verified', async ({ request }) => {
     const checks = [
       { table: 'pack_sizes', min: 5 },
       { table: 'templates', min: 4 },
@@ -1960,7 +1960,7 @@ import { Permission } from '@/lib/rbac/permissions.enum'
 
 describe('Settings-a carveout acceptance — DB state assertions', () => {
   beforeAll(async () => {
-    // Apply all E-1 migrations + Forza seed
+    // Apply all E-1 migrations + Apex seed
   })
 
   it('permissions.enum.ts exports all required settings permissions', () => {
@@ -1984,7 +1984,7 @@ describe('Settings-a carveout acceptance — DB state assertions', () => {
     expect(result.data).toHaveLength(15)
   })
 
-  it('pack_sizes has ≥5 Forza rows', async () => {
+  it('pack_sizes has ≥5 Apex rows', async () => {
     const result = await supabaseLocalDb.from('reference_data')
       .select('id').eq('table_code', 'pack_sizes')
     expect(result.data!.length).toBeGreaterThanOrEqual(5)

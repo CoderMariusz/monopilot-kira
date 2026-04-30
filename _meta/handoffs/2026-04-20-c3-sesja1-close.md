@@ -19,7 +19,7 @@
 
 | Q | Decyzja | Rationale |
 |---|---|---|
-| **Q1 ✅** | Solver engine = **B heuristic greedy + local search** (Python microservice `planner-solver`) zamiast OR-Tools CP-SAT | Simpler deployment, no solver license, fast for Forza scale. OR-Tools upgrade trigger ADR if heuristic <20% changeover reduction after 6mo empirical. |
+| **Q1 ✅** | Solver engine = **B heuristic greedy + local search** (Python microservice `planner-solver`) zamiast OR-Tools CP-SAT | Simpler deployment, no solver license, fast for Apex scale. OR-Tools upgrade trigger ADR if heuristic <20% changeover reduction after 6mo empirical. |
 | **Q2 ✅** | Allergen optimizer = **B pluggable DSL rule** `allergen_sequencing_optimizer_v2` w 02-SETTINGS §7 registry | Consistency z 14 DSL rules pattern. A/B testing v1/v2. Future v3 genetic algorithm same way. |
 | **Q3 ✅** | ML forecasting = **A internal Prophet microservice** (P2) | Data sovereignty food industry, $0 external spend, Prophet battle-tested CPG. |
 | **Q4 ✅** | Horizon granularity = hour-level internal, day-level UX default | Shift-based 8h blocks natural, hour-zoom for tactical. |
@@ -30,7 +30,7 @@
 | Q | Decyzja | Rationale |
 |---|---|---|
 | **Q4 ✅** | OEE = **A per-minute aggregation** Postgres batch job zamiast streaming | Zero ops overhead, 1min granularity sufficient food-mfg. Streaming → P2 08-k. |
-| **Q5 ✅** | PLC = **B deferred P2** | P1 manual downtime entry. OPC UA infra dopiero jak Forza ma servery online. |
+| **Q5 ✅** | PLC = **B deferred P2** | P1 manual downtime entry. OPC UA infra dopiero jak Apex ma servery online. |
 | **Q6 ✅** | Changeover tracking = **A schema-driven L3** (ADR-028 `ext_jsonb`) | Phase D "easy extension" principle. |
 | **Q7 ✅** | D365 push = **B async outbox** zamiast synchronous | MES-TRENDS R1 event-first resilient; D365 downtime nie blokuje produkcji. |
 | **Q8 ✅** | Downtime taxonomy = **B admin-configurable** (02-SETTINGS §8) | L2 per-tenant variation (ADR-030 pattern). |
@@ -173,10 +173,10 @@
 **07-EXT open questions:**
 - **OQ-EXT-01** Allergen risk penalty weights calibration (empirical post-P1 30d run)
 - **OQ-EXT-03** Multi-tenant shared Prophet model vs per-tenant (P2 design)
-- **OQ-EXT-04** Disposition bridge `shelf_life_hours ≤ 24` threshold — 24h/12h/48h decision z Forza Quality
+- **OQ-EXT-04** Disposition bridge `shelf_life_hours ≤ 24` threshold — 24h/12h/48h decision z Apex Quality
 
 **08-PROD open questions:**
-- **OQ-PROD-01** Catch weight hard tolerance enforcement (Forza Quality decision — PRE-P1 UAT)
+- **OQ-PROD-01** Catch weight hard tolerance enforcement (Apex Quality decision — PRE-P1 UAT)
 - **OQ-PROD-03** D365 push batching: per-WO vs daily consolidated journal (pre-stage 2 impl)
 - **OQ-PROD-04** ATP device P1 vs manual only — **ROZSTRZYGANE W C4 09-QUALITY Sesja 1 Q2**
 - **OQ-PROD-07** Allergen gate override authority (Quality Lead only vs Quality+Prod Manager) — BRCGS audit review

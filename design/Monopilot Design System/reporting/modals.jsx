@@ -21,7 +21,7 @@ const ExportReportModal = ({ open, onClose, data }) => {
   const d = data || { dashboard: "Factory Overview", fmt: "pdf" };
   const [fmt, setFmt] = React.useState(d.fmt || "pdf");
   const [delivery, setDelivery] = React.useState("download");
-  const [email, setEmail] = React.useState("m.krawczyk@forzafoods.com");
+  const [email, setEmail] = React.useState("m.krawczyk@apexfoods.com");
   const [submitting, setSubmitting] = React.useState(false);
   const [error, setError] = React.useState(null);
   const rowEstimate = fmt === "csv" ? 4820 : 180;
@@ -153,7 +153,7 @@ const ScheduleReportModal = ({ open, onClose, data }) => {
   const [step, setStep] = React.useState("cadence");
   const [completed, setCompleted] = React.useState(new Set());
   const [cadence, setCadence] = React.useState("weekly");
-  const [recipients, setRecipients] = React.useState(["ops@forzafoods.com"]);
+  const [recipients, setRecipients] = React.useState(["ops@apexfoods.com"]);
   const steps = [
     { key: "cadence",   label: "Cadence & Filters" },
     { key: "delivery",  label: "Recipients & Format" },
@@ -257,7 +257,7 @@ const ScheduleReportModal = ({ open, onClose, data }) => {
 // -------- M-RPT-04: Share Report Link --------
 const ShareReportModal = ({ open, onClose, data }) => {
   const d = data || { dashboard: "Factory Overview" };
-  const url = "https://mes.forzafoods.com/reporting/factory-overview?week=2026-W16";
+  const url = "https://mes.apexfoods.com/reporting/factory-overview?week=2026-W16";
   const [copied, setCopied] = React.useState(false);
   const copy = () => { navigator.clipboard && navigator.clipboard.writeText(url); setCopied(true); setTimeout(() => setCopied(false), 1500); };
   return (
@@ -365,7 +365,7 @@ const RegulatorySignoffModal = ({ open, onClose, data }) => {
         { label: "Regulation",    value: d.regulation, mono: false },
       ]}/>
       <div className="label" style={{marginTop:10}}>Signatory</div>
-      <div style={{fontSize:12, padding:"4px 0"}}>M. Krawczyk · QA Manager · <span className="mono">m.krawczyk@forzafoods.com</span></div>
+      <div style={{fontSize:12, padding:"4px 0"}}>M. Krawczyk · QA Manager · <span className="mono">m.krawczyk@apexfoods.com</span></div>
       <Field label="Enter your PIN to sign" required help="Uses same PIN as 09-QUALITY sign-offs" error={err}>
         <input type="password" maxLength={6} value={pin} onChange={e => { setPin(e.target.value); setErr(null); }} style={{letterSpacing:"0.2em", fontFamily:"var(--font-mono)"}} disabled={locked}/>
       </Field>
@@ -402,9 +402,9 @@ const RefreshConfirmModal = ({ open, onClose, data }) => {
 // -------- M-RPT-09: Manage Recipient Group --------
 const RecipientGroupModal = ({ open, onClose }) => {
   const [members, setMembers] = React.useState([
-    { name: "M. Krawczyk",    email: "m.krawczyk@forzafoods.com",    role: "Manager" },
-    { name: "P. Director",     email: "p.director@forzafoods.com",    role: "Admin" },
-    { name: "QA.Wiśniewski",   email: "qa.wisniewski@forzafoods.com", role: "QA Lead" },
+    { name: "M. Krawczyk",    email: "m.krawczyk@apexfoods.com",    role: "Manager" },
+    { name: "P. Director",     email: "p.director@apexfoods.com",    role: "Admin" },
+    { name: "QA.Wiśniewski",   email: "qa.wisniewski@apexfoods.com", role: "QA Lead" },
   ]);
   return (
     <Modal open={open} onClose={onClose} size="default" title="Manage Recipient Group"

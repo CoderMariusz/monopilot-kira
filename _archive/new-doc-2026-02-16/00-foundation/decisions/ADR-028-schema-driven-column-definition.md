@@ -10,14 +10,14 @@
 
 ## Context
 
-Rzeczywistość PLD v7 (Phase A reality source): Main Table `[UNIVERSAL]` struktura, ale zawartość ~60–80 kolumn, z czego znacząca część jest zmieniana przez Forzę miesięcznie (Commercial dodaje pole handlowe, MRP wyspecjalizowuje kolumnę, Quality wycofuje nieaktualne pole). Hardcodowanie tego zbioru jako enum / migration-only schema blokuje:
+Rzeczywistość PLD v7 (Phase A reality source): Main Table `[UNIVERSAL]` struktura, ale zawartość ~60–80 kolumn, z czego znacząca część jest zmieniana przez Apexa miesięcznie (Commercial dodaje pole handlowe, MRP wyspecjalizowuje kolumnę, Quality wycofuje nieaktualne pole). Hardcodowanie tego zbioru jako enum / migration-only schema blokuje:
 
 - konfigurację per-org (różni klienci mają różne zestawy kolumn — zob. [ADR-031](ADR-031-schema-variation-per-org.md)),
-- szybkość iteracji Forzy (obecnie zmiana kolumny = VBA edit),
+- szybkość iteracji Apexa (obecnie zmiana kolumny = VBA edit),
 - automatyczną integrację z raportami i workflow engine (META-MODEL §7, §8),
 - audytowalność zmian konfiguracji (każda zmiana powinna być audit event — [ADR-008](ADR-008-audit-trail-strategy.md)).
 
-Kluczowy rozdział w Monopilot: *kolumny jako dane* (user-editable w Settings przez administratora Forzy) vs *kolumny jako kod* (core infra, tabele transakcyjne, struktury stabilne i regulowane standardami).
+Kluczowy rozdział w Monopilot: *kolumny jako dane* (user-editable w Settings przez administratora Apexa) vs *kolumny jako kod* (core infra, tabele transakcyjne, struktury stabilne i regulowane standardami).
 
 ---
 
@@ -39,7 +39,7 @@ Definicja kolumny tabeli głównej (per moduł: NPD Main Table, Planning Main Ta
 | hard-lock | czy administrator org-a może zmienić / usunąć (`false` dla universal) | true / false |
 | visible-for-role | które role widzą kolumnę (role-permission matrix — [ADR-012](ADR-012-role-permission-storage.md)) | — |
 | sort order | kolejność w UI | — |
-| marker | `[UNIVERSAL]` / `[FORZA-CONFIG]` / `[EVOLVING]` / `[LEGACY-D365]` | meta-marker dziedziczenia |
+| marker | `[UNIVERSAL]` / `[APEX-CONFIG]` / `[EVOLVING]` / `[LEGACY-D365]` | meta-marker dziedziczenia |
 
 Zmiana dowolnej metadanej kolumny jest audit event (ADR-008).
 
@@ -47,19 +47,19 @@ Zmiana dowolnej metadanej kolumny jest audit event (ADR-008).
 
 | Scope | Schema-driven? | Examples |
 |---|---|---|
-| Main Tables per moduł (NPD, Planning, Production, QA, …) | TAK | NPD `Pack_Size` `[FORZA-CONFIG]`, Planning `MRP_Category` `[FORZA-CONFIG]` |
-| Reference tables | TAK | Forza PackSizes `[FORZA-CONFIG]`, Lines `[FORZA-CONFIG]`, allergen EU-14 lista `[UNIVERSAL]` |
+| Main Tables per moduł (NPD, Planning, Production, QA, …) | TAK | NPD `Pack_Size` `[APEX-CONFIG]`, Planning `MRP_Category` `[APEX-CONFIG]` |
+| Reference tables | TAK | Apex PackSizes `[APEX-CONFIG]`, Lines `[APEX-CONFIG]`, allergen EU-14 lista `[UNIVERSAL]` |
 | Form-field metadata (required, optional, validation regex) | TAK | Regex GS1-128 `[UNIVERSAL]`, required na NPD name `[UNIVERSAL]` |
 | Core infra tables (`users`, `organizations`, `roles`, `audit_log`) | NIE | Struktury stałe, migration-only, `[UNIVERSAL]` |
 | Transactional tables (`license_plates`, `lot_genealogy`, `bom_snapshot`) | NIE | Struktury stałe bo regulatoryjne (GS1, traceability) — `[UNIVERSAL]` |
 
-Atrybuty meta-kolumny (label/type/required/owner-dept/itp.) są `[UNIVERSAL]` — to *struktura* metadanych jest jedna dla wszystkich org-ów. Konkretne **wartości** (które kolumny istnieją, z jakim labelem i regułą) są `[FORZA-CONFIG]` per org.
+Atrybuty meta-kolumny (label/type/required/owner-dept/itp.) są `[UNIVERSAL]` — to *struktura* metadanych jest jedna dla wszystkich org-ów. Konkretne **wartości** (które kolumny istnieją, z jakim labelem i regułą) są `[APEX-CONFIG]` per org.
 
 ---
 
 ## Rationale
 
-1. **Szybkość iteracji Forzy.** Administrator dodaje kolumnę w Settings, zapisuje — od tej chwili jest w formularzu, tabeli, raportach, workflow. Nie potrzebuje dewelopera ani release-u.
+1. **Szybkość iteracji Apexa.** Administrator dodaje kolumnę w Settings, zapisuje — od tej chwili jest w formularzu, tabeli, raportach, workflow. Nie potrzebuje dewelopera ani release-u.
 2. **Multi-tenant from day 1 ([ADR-031](ADR-031-schema-variation-per-org.md)).** Inny org ma inną strukturę Main Table (inne kolumny, inne reguły, inne owners) bez zmiany kodu — konfiguracja per `org_id`, RLS izoluje.
 3. **Aktualizacja per org bez migracji DB.** Nowa kolumna = nowy wiersz w config-tabeli, nie `ALTER TABLE`. Operacyjnie prostsze, bezpieczniejsze, odwracalne.
 4. **Automatyczna integracja z engine-ami.** Raport Table/Aggregation (META-MODEL §7) i workflow rule engine (META-MODEL §8, [ADR-029](ADR-029-rule-engine-dsl-and-workflow-as-data.md)) czytają te same metadane — dodanie kolumny automatycznie udostępnia ją raportom i regułom bez osobnej pracy.
@@ -78,7 +78,7 @@ Atrybuty meta-kolumny (label/type/required/owner-dept/itp.) są `[UNIVERSAL]` �
 
 - **A) Hardcoded schema per klient (osobny kod / branch).** Odrzucone — nie skaluje poza 1–2 klientów, każdy klient = rewrite, regresy krzyżowe.
 - **B) Full no-code builder w stylu Airtable / Notion Databases.** Odrzucone — over-scope (META-MODEL §3 YAGNI). Wymaga query builder-a, pivotów, relacji ad-hoc — ryzyko "half-baked database inside database" (spec §7.2 R1).
-- **C) Tylko reference tables schema-driven, Main Tables code-driven.** Odrzucone — Forza Main Table rośnie miesięcznie, to jest właśnie obszar, który *musi* być edytowalny bez dewelopera.
+- **C) Tylko reference tables schema-driven, Main Tables code-driven.** Odrzucone — Apex Main Table rośnie miesięcznie, to jest właśnie obszar, który *musi* być edytowalny bez dewelopera.
 
 ---
 
@@ -97,13 +97,13 @@ Atrybuty meta-kolumny (label/type/required/owner-dept/itp.) są `[UNIVERSAL]` �
 
 **Neutral:**
 - Migration template musi obsługiwać "dodanie schema-driven kolumny" jako event (insert do config-tabeli + audit row), a nie jako DDL event.
-- Wymaga review dokumentacyjnego gdy kolumna kandyduje do promocji `[FORZA-CONFIG]` → `[UNIVERSAL]` (META-MODEL §6.3).
+- Wymaga review dokumentacyjnego gdy kolumna kandyduje do promocji `[APEX-CONFIG]` → `[UNIVERSAL]` (META-MODEL §6.3).
 
 ---
 
 ## Open questions (→ Phase D / Phase B)
 
-- **Które konkretnie kolumny Main Table NPD są `[UNIVERSAL]` vs `[FORZA-CONFIG]`** — decyzja w Phase B po Phase A reality sync (~60–80 kolumn PLD v7 wymaga klasyfikacji per kolumna).
+- **Które konkretnie kolumny Main Table NPD są `[UNIVERSAL]` vs `[APEX-CONFIG]`** — decyzja w Phase B po Phase A reality sync (~60–80 kolumn PLD v7 wymaga klasyfikacji per kolumna).
 - **Storage strategy: JSONB w tabeli głównej vs EAV w osobnej tabeli.** Decyzja implementation Phase D — profilowanie zapytań raportowych i workflow przed wyborem. Obie opcje kompatybilne z metadata model z tego ADR.
 - **Hard-lock semantyka** — czy `hard-lock=true` oznacza "tylko developer może zmienić" czy "tylko superadmin w Settings"? Do decyzji w Phase B.
 

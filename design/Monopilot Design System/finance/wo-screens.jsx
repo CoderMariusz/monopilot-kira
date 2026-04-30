@@ -414,7 +414,7 @@ const FinWoDetail = ({ woId, role, onBack, onNav, openModal }) => {
               <span className="spacer"/>
               <span className={"badge " + d365Badge.cls} style={{fontSize:11}}>{d365Badge.text}</span>
             </div>
-            <div className="muted" style={{fontSize:11, marginTop:4}}>Costs are posted to D365 F&amp;O via a daily consolidated journal batch at 23:00 UTC (dataAreaId: FNOR, warehouse: ForzDG).</div>
+            <div className="muted" style={{fontSize:11, marginTop:4}}>Costs are posted to D365 F&amp;O via a daily consolidated journal batch at 23:00 UTC (dataAreaId: FNOR, warehouse: ApexDG).</div>
           </div>
         </div>
       </div>

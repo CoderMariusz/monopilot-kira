@@ -398,9 +398,9 @@ const RptSettings = ({ role, onNav, openModal }) => {
                   <span>ⓘ</span>
                   <div>Email delivery requires the <span className="mono">reporting.scheduled_delivery</span> feature flag. Flag is currently <b className="fresh-ok">ON</b>.</div>
                 </div>
-                <Field label="Email Sender Identity" help="Managed in 02-SETTINGS §13 Resend"><input readOnly value="Forza MES &lt;mes@forzafoods.com&gt;" style={{background:"var(--gray-100)"}}/></Field>
+                <Field label="Email Sender Identity" help="Managed in 02-SETTINGS §13 Resend"><input readOnly value="Apex MES &lt;mes@apexfoods.com&gt;" style={{background:"var(--gray-100)"}}/></Field>
                 <Field label="Default Subject Template"><input defaultValue="{{report_name}} — {{period}}"/></Field>
-                <Field label="Reply-To Address"><input type="email" defaultValue="ops@forzafoods.com"/></Field>
+                <Field label="Reply-To Address"><input type="email" defaultValue="ops@apexfoods.com"/></Field>
                 <Field label="Include Unsubscribe Link"><label style={{fontSize:12}}><input type="checkbox" defaultChecked/> Enabled</label></Field>
                 <div className="row-flex" style={{marginTop:12}}>
                   <span className="spacer"></span>

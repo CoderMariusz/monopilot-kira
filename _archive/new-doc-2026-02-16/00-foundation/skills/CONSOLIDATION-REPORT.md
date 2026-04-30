@@ -169,7 +169,7 @@ Checked: no "MonoPilot" string remained in the new REGISTRY.yaml.
 - `phases:` — 5 phases (0, A, B, C, D) with required/optional skills + rationale
 - `modules:` — placeholder with 3 filled (00, 01, 09-npd); 13 remaining filled in Phase D
 - `task_types:` — 11 task types (writing_story, writing_adr, impl_api, impl_component, impl_test, impl_e2e, impl_supabase_schema, design_schema_driven, design_rule, writing_prd, reality_sync)
-- `markers:` — auto-tagging map for UNIVERSAL / FORZA-CONFIG / EVOLVING / LEGACY-D365
+- `markers:` — auto-tagging map for UNIVERSAL / APEX-CONFIG / EVOLVING / LEGACY-D365
 
 ---
 
@@ -178,7 +178,7 @@ Checked: no "MonoPilot" string remained in the new REGISTRY.yaml.
 **File:** `domain/food-industry-mes/SKILL.md`
 
 **Why placeholder (not full draft):**
-- To avoid guessing `[UNIVERSAL]` vs `[FORZA-CONFIG]` without PLD v7 reality docs
+- To avoid guessing `[UNIVERSAL]` vs `[APEX-CONFIG]` without PLD v7 reality docs
 - Full draft scheduled for **Phase A close** (after `_meta/reality-sources/pld-v7-excel/*` is written)
 
 **Planned scope (6 areas):** BOM modeling, lot/traceability, allergen management, shelf-life calc, Stage-Gate NPD, GMP baseline

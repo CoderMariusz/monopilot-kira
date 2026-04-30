@@ -5,7 +5,7 @@
 const LoginScreen = ({ onNav, onContextSet }) => {
   const [mode, setMode] = React.useState("badge"); // badge | pass | pin
   const [badge, setBadge] = React.useState("");
-  const [email, setEmail] = React.useState("j.kowalski@forza.pl");
+  const [email, setEmail] = React.useState("j.kowalski@apex.pl");
   const [pass, setPass] = React.useState("");
   const [err, setErr] = React.useState("");
   const tryLogin = () => {
@@ -51,7 +51,7 @@ const LoginScreen = ({ onNav, onContextSet }) => {
         <div className="sc-divider">lub zaloguj ręcznie</div>
         <div className="sc-fgroup">
           <div className="sc-flabel">Email / Login</div>
-          <input className="sc-finput" value={email} onChange={e => setEmail(e.target.value)} placeholder="nazwa@forza.pl" inputMode="email"/>
+          <input className="sc-finput" value={email} onChange={e => setEmail(e.target.value)} placeholder="nazwa@apex.pl" inputMode="email"/>
         </div>
         <div className="sc-fgroup">
           <div className="sc-flabel">Hasło</div>
@@ -126,7 +126,7 @@ const PinScreen = ({ onNav }) => {
 };
 
 const SiteSelectScreen = ({ onNav }) => {
-  const [site, setSite] = React.useState("FORZ");
+  const [site, setSite] = React.useState("APEX");
   const [line, setLine] = React.useState("LINE-01");
   const [shift, setShift] = React.useState("morning");
 

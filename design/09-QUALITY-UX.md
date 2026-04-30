@@ -563,7 +563,7 @@ The "Sign off" flow: after submitting, if the inspection type requires a signatu
 
 Page title "Sampling Plans". Breadcrumb "Quality > Sampling Plans". Action: "+ New Plan" (primary, opens MODAL-SAMPLING-CREATE).
 
-Filter bar: Plan type chips (All | ISO 2859 | ANSI Z14 | Custom | Forza 10th), Status filter (Active | Archived), Applies to filter.
+Filter bar: Plan type chips (All | ISO 2859 | ANSI Z14 | Custom | Apex 10th), Status filter (Active | Archived), Applies to filter.
 
 Main table columns:
 

@@ -11,7 +11,7 @@
 **Reality capture — 2 docs (capture-only, no propagation):**
 
 - `_meta/reality-sources/pld-v7-excel/PROCESS-OVERVIEW.md` — 313 linii (post-fixes). End-to-end flow Brief → PLD → D365, z Mermaid sequence, 11 sekcji (Purpose / Context / Upstream-Brief / End-to-end / Stages 0-6 / Owner map / Timeline / Evolving / Monopilot trajectory / Docs inconsistencies / HANDOFF / Related)
-- `_meta/reality-sources/pld-v7-excel/DEPARTMENTS.md` — 265 linii (post-fixes). 7 działów Forza + role + kolumny owned + handoffs Mermaid + marker recap + role mapping fix (Development=Core, Quality=Technical, no MRP split)
+- `_meta/reality-sources/pld-v7-excel/DEPARTMENTS.md` — 265 linii (post-fixes). 7 działów Apex + role + kolumny owned + handoffs Mermaid + marker recap + role mapping fix (Development=Core, Quality=Technical, no MRP split)
 
 **Reality discovery (pierwsze konkretne ustalenia z v7 reality + user interview):**
 
@@ -105,13 +105,13 @@ Każda propagacja = **Session B** zgodnie z REALITY-SYNC §3 (two-session patter
 
 Z Session 1 interview — wymaga dopytania użytkownika / decyzji Phase B:
 
-1. **Technical vs Quality naming** w Monopilot modułach — zostajemy przy `Technical` (Forza naming, FORZA-CONFIG) czy migrujemy do `Quality` (bardziej uniwersalne food-mfg)?
+1. **Technical vs Quality naming** w Monopilot modułach — zostajemy przy `Technical` (Apex naming, APEX-CONFIG) czy migrujemy do `Quality` (bardziej uniwersalne food-mfg)?
 2. **Commercial upstream od briefu?** — czy brief trigger pochodzi od klienta → Commercial → NPD? Czy bezpośrednio NPD research? Wpływa na Monopilot NPD-upstream module design.
 3. **Meat_Pct migracja do Core** — dziś w Planning, ale pochodzi bezpośrednio z briefu. Decyzja w Phase B (MAIN-TABLE-SCHEMA).
 4. **Materiał consumption tabela** — m/each folii per dieset. Nie istnieje w v7, do dodania. Gdzie — w Reference.Dieset_By_Line_Pack jako extra cols, czy osobna `Reference.Dieset_Material_Consumption`?
 5. **Reference.Allergens schemat** — EU14 seed czy więcej? Cascade logic RM→FA szczegóły (mnogie alergeny, overrides) — Phase B.
 6. **Dev_Code vs Article_Number** — `DEV26-037` w briefie vs `Article_Number` w Commercial. Relacja? Dev_Code do Core, Article_Number do Commercial po launch — do potwierdzenia.
-7. **Osoby managerów działów** — PROCESS-OVERVIEW §5 ma tylko Jane. Czy identyfikować konkretnie osoby per dept (`[FORZA-CONFIG]`) czy pozostawić role-level?
+7. **Osoby managerów działów** — PROCESS-OVERVIEW §5 ma tylko Jane. Czy identyfikować konkretnie osoby per dept (`[APEX-CONFIG]`) czy pozostawić role-level?
 
 ---
 

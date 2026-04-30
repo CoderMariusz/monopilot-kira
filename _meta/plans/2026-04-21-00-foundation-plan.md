@@ -80,7 +80,7 @@ FOUNDATION has no "features" in the end-user sense. It is architectural contract
 **PRD coverage:** §1 P1, §9 (whole), §3 persona naming rule
 
 **Outline:**
-- Baseline — 7 Forza depts `core|technical|packaging|mrp|planning|production|price` (PRD §9 table)
+- Baseline — 7 Apex depts `core|technical|packaging|mrp|planning|production|price` (PRD §9 table)
 - Role naming — Core = NPD team (not "Development"), Technical = Quality, MRP NOT split
 - Variation patterns — split/merge/custom (ADR-030)
 - Storage — L2 `tenant.dept_overrides` JSONB
@@ -88,7 +88,7 @@ FOUNDATION has no "features" in the end-user sense. It is architectural contract
 
 **Definition of Done:**
 - File committed; linked from ADR index
-- Forza 7-dept table reproduced with `[FORZA-CONFIG]` markers on each
+- Apex 7-dept table reproduced with `[APEX-CONFIG]` markers on each
 - `tenant.dept_overrides` JSONB shape specified
 
 ---
@@ -127,7 +127,7 @@ FOUNDATION has no "features" in the end-user sense. It is architectural contract
 **Outline:**
 - Rule — every PRD/ADR/skill/business-logic comment carries exactly one marker
 - `[UNIVERSAL]` — examples from §2 (outbox, GS1 AI parse, RLS, EPCIS 2.0, 14 allergens EU FIC)
-- `[FORZA-CONFIG]` — examples (7 dept names, Jane=NPD manager person, Builder_FA5101 D365 constants, PR_Code_Final regex)
+- `[APEX-CONFIG]` — examples (7 dept names, Jane=NPD manager person, Builder_FA5101 D365 constants, PR_Code_Final regex)
 - `[EVOLVING]` — examples (brief allergens loc, ADR-028 hard-lock, rule engine versioning)
 - `[LEGACY-D365]` — examples (D365 Item dims, Release Workflow states, DMF, N+1 OP=10)
 - Decision rule — "if unsure → `[EVOLVING]` + add to open items"
@@ -161,9 +161,9 @@ FOUNDATION has no "features" in the end-user sense. It is architectural contract
       assert b"missing marker" in r.stderr.lower()
   ```
 - [ ] Step 2: Run test (expected FAIL — script does not exist)
-- [ ] Step 3: Implement — walk MD under `docs/` and `*-PRD.md`, for each `##/###` section that mentions business keywords (allergen, tenant, rule, dept, lot, wo, shipment, etc.), require one of `[UNIVERSAL] [FORZA-CONFIG] [EVOLVING] [LEGACY-D365]` within same section.
+- [ ] Step 3: Implement — walk MD under `docs/` and `*-PRD.md`, for each `##/###` section that mentions business keywords (allergen, tenant, rule, dept, lot, wo, shipment, etc.), require one of `[UNIVERSAL] [APEX-CONFIG] [EVOLVING] [LEGACY-D365]` within same section.
   ```python
-  MARKERS = {"[UNIVERSAL]", "[FORZA-CONFIG]", "[EVOLVING]", "[LEGACY-D365]"}
+  MARKERS = {"[UNIVERSAL]", "[APEX-CONFIG]", "[EVOLVING]", "[LEGACY-D365]"}
   ```
 - [ ] Step 4: Run test (expected PASS)
 - [ ] Step 5: Wire pre-commit + CI
@@ -251,7 +251,7 @@ FOUNDATION has no "features" in the end-user sense. It is architectural contract
 **PRD coverage:** §5 Tech Stack → Tailwind + per-tenant theming via L2 config
 
 **Steps:**
-- [ ] Step 1: Failing test — `theme.test.tsx` renders `<ThemeProvider tenant="forza">` and asserts `--brand-primary` CSS var set.
+- [ ] Step 1: Failing test — `theme.test.tsx` renders `<ThemeProvider tenant="apex">` and asserts `--brand-primary` CSS var set.
 - [ ] Step 2: Run (FAIL)
 - [ ] Step 3: Implement `ThemeProvider` that looks up `tenant → { brand_primary }` from a stub map (real lookup in 02-SETTINGS).
   ```tsx
@@ -456,7 +456,7 @@ FOUNDATION has no "features" in the end-user sense. It is architectural contract
 **PRD coverage:** §5 Cross-cutting infra → Feature flags PostHog self-host [R6]; §8 Upgrade orchestration → "Feature flags per-tenant targeting (PostHog)"
 
 **Steps:**
-- [ ] Step 1: Failing test — `useFlag("new-wizard", { tenant: "forza" })` returns boolean.
+- [ ] Step 1: Failing test — `useFlag("new-wizard", { tenant: "apex" })` returns boolean.
 - [ ] Step 2: Run (FAIL)
 - [ ] Step 3: Init PostHog client with `distinctId = tenant_id` so per-tenant targeting works.
 - [ ] Step 4: Run (PASS)
@@ -499,7 +499,7 @@ FOUNDATION has no "features" in the end-user sense. It is architectural contract
 **PRD coverage:** §5 Backend → RLS default; §8 Multi-tenant shared DB + tenant_id; §10 AI/Trace-ready schema identity fields
 
 **Steps:**
-- [ ] Step 1: Failing test — insert into `tenants` with `('forza','EU')`, select back, assert 1 row.
+- [ ] Step 1: Failing test — insert into `tenants` with `('apex','EU')`, select back, assert 1 row.
 - [ ] Step 2: Run (FAIL — table missing)
 - [ ] Step 3: Migration:
   ```sql
@@ -696,7 +696,7 @@ FOUNDATION has no "features" in the end-user sense. It is architectural contract
 **PRD coverage:** §5 Runtime → `/app/[tenant]/...` + middleware; §8 RLS enforcement
 
 **Steps:**
-- [ ] Step 1: Failing test — request to `/forza/dashboard`, middleware sets `x-tenant-id` header + cookie.
+- [ ] Step 1: Failing test — request to `/apex/dashboard`, middleware sets `x-tenant-id` header + cookie.
 - [ ] Step 2: Run (FAIL)
 - [ ] Step 3: Middleware looks up `params.tenant` slug → tenant_id UUID (cached), sets headers, rejects unknown slug with 404.
 - [ ] Step 4: Run (PASS)
@@ -740,7 +740,7 @@ FOUNDATION has no "features" in the end-user sense. It is architectural contract
 **PRD coverage:** §8 Admin tooling → impersonation with explicit `impersonating_as` + SIEM audit log
 
 **Steps:**
-- [ ] Step 1: Failing test — superadmin impersonates tenant forza, SELECT from `main_table` returns forza rows; audit row inserted with `impersonating_as='forza'`.
+- [ ] Step 1: Failing test — superadmin impersonates tenant apex, SELECT from `main_table` returns apex rows; audit row inserted with `impersonating_as='apex'`.
 - [ ] Step 2: Run (FAIL)
 - [ ] Step 3: Create `auth.impersonation_events` table; `impersonate(targetTenant)` sets session var + inserts audit row; enforce MFA claim check in middleware.
 - [ ] Step 4: Run (PASS)
@@ -856,24 +856,24 @@ FOUNDATION has no "features" in the end-user sense. It is architectural contract
 
 ---
 
-## Task 34: [data/migration] Dept taxonomy baseline — Forza 7 depts + tenant.dept_overrides
+## Task 34: [data/migration] Dept taxonomy baseline — Apex 7 depts + tenant.dept_overrides
 
 **Files:**
 - Create: `supabase/migrations/20260421000009_dept_taxonomy.sql`
 - Create: `tests/db/depts.test.ts`
 
-**PRD coverage:** §9 Configurable Department Taxonomy (7 Forza depts table, L2 `tenant.dept_overrides`); §9 Phase D decision #15 (Core=NPD, Technical=Quality, MRP NOT split)
+**PRD coverage:** §9 Configurable Department Taxonomy (7 Apex depts table, L2 `tenant.dept_overrides`); §9 Phase D decision #15 (Core=NPD, Technical=Quality, MRP NOT split)
 
 **Steps:**
-- [ ] Step 1: Failing test — seed tenant `forza`, assert 7 depts with codes `core|technical|packaging|mrp|planning|production|price`; override `technical → food_safety + quality_lab`, assert re-mapping returns 8 rows.
+- [ ] Step 1: Failing test — seed tenant `apex`, assert 7 depts with codes `core|technical|packaging|mrp|planning|production|price`; override `technical → food_safety + quality_lab`, assert re-mapping returns 8 rows.
 - [ ] Step 2: Run (FAIL)
-- [ ] Step 3: Migration creates `reference.depts(tenant_id, code, name, display_order, marker)`; seed Forza 7 with `[FORZA-CONFIG]` marker; use `tenants.dept_overrides` JSONB for L2 split/merge.
+- [ ] Step 3: Migration creates `reference.depts(tenant_id, code, name, display_order, marker)`; seed Apex 7 with `[APEX-CONFIG]` marker; use `tenants.dept_overrides` JSONB for L2 split/merge.
 - [ ] Step 4: Run (PASS)
 - [ ] Step 5: Commit
 
 **Definition of Done:**
 - Override runtime exposed via `getEffectiveDepts(tenantId)`
-- Forza seed uses the exact names from §9 table
+- Apex seed uses the exact names from §9 table
 - MRP stays 1 dept (decision #15 encoded in test)
 
 ---

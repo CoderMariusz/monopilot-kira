@@ -245,7 +245,7 @@ Create Server Actions and utility for tenant L2 variation management.
 2. Utwórz `apps/web/lib/settings/dept-resolver.ts`:
    - `deptResolver(tenantId: string, deptCode: string): Promise<string>` — reads tenant_variations.dept_overrides JSONB, applies split/merge/add transformations, returns effective dept code
    - `getAllEffectiveDepts(tenantId: string): Promise<DeptConfig[]>` — returns full dept list with L2 overrides applied
-   - Baseline 7 Forza depts: `['core', 'technical', 'packaging', 'mrp', 'planning', 'production', 'price']`
+   - Baseline 7 Apex depts: `['core', 'technical', 'packaging', 'mrp', 'planning', 'production', 'price']`
 
 3. Utwórz `apps/web/lib/settings/rule-variant-resolver.ts`:
    - `ruleVariantResolver(tenantId: string, ruleCode: string): Promise<string>` — reads rule_variant_overrides, returns 'v1'|'v2' (default 'v1')
@@ -1596,7 +1596,7 @@ Playwright E2E covering Reference Tables full CRUD and CSV import flow.
 
 ---
 
-## T-02SETd-008 — T5: seed — 25 Reference tables Forza baseline data
+## T-02SETd-008 — T5: seed — 25 Reference tables Apex baseline data
 
 **Type:** T5-seed
 **Context budget:** ~30k tokens
@@ -1617,19 +1617,19 @@ Playwright E2E covering Reference Tables full CRUD and CSV import flow.
 
 ### GIVEN / WHEN / THEN
 **GIVEN** reference_tables generic storage exists
-**WHEN** seed script runs for Forza baseline org
-**THEN** 25 Reference tables seeded with Forza-specific rows per §8.1 spec (pack_sizes×5, processes×8, templates×4, dept_columns×58 subset, close_confirm×2, allergens EU-14, d365_constants×5 Forza baseline)
+**WHEN** seed script runs for Apex baseline org
+**THEN** 25 Reference tables seeded with Apex-specific rows per §8.1 spec (pack_sizes×5, processes×8, templates×4, dept_columns×58 subset, close_confirm×2, allergens EU-14, d365_constants×5 Apex baseline)
 
 ### ACP Prompt
 ```
-# Task T-02SETd-008 — seed: 25 Reference tables Forza baseline
+# Task T-02SETd-008 — seed: 25 Reference tables Apex baseline
 
 ## Context
-- `/Users/mariuszkrawczyk/Projects/monopilot-kira/02-SETTINGS-PRD.md` → sekcja `## §8.1` — 25 tables with Forza row counts
+- `/Users/mariuszkrawczyk/Projects/monopilot-kira/02-SETTINGS-PRD.md` → sekcja `## §8.1` — 25 tables with Apex row counts
 - `apps/web/drizzle/schema/settings-rules-reference.ts` → referenceTables schema
 
 ## Twoje zadanie
-Seed Drizzle typed factory for Forza baseline Reference table data.
+Seed Drizzle typed factory for Apex baseline Reference table data.
 
 ## Implementacja
 1. Utwórz `apps/web/seed/reference-tables-seed.ts`:
@@ -1644,7 +1644,7 @@ export async function seedReferenceTables(db: typeof drizzleDb, orgId: string) {
     { orgId, tableCode: 'pack_sizes', rowKey: '15x20cm', rowData: { pack_size: '15x20cm', display_order: 5, is_active: 'true' } },
   ]).onConflictDoNothing()
 
-  // processes (8 Forza processes)
+  // processes (8 Apex processes)
   const processes = [
     { code: 'A', name: 'Strip' }, { code: 'B', name: 'Coat' }, { code: 'C', name: 'Honey' },
     { code: 'E', name: 'Smoke' }, { code: 'F', name: 'Slice' }, { code: 'G', name: 'Tumble' },
@@ -1661,11 +1661,11 @@ export async function seedReferenceTables(db: typeof drizzleDb, orgId: string) {
     { orgId, tableCode: 'close_confirm', rowKey: 'no', rowData: { label: 'Cancel', is_active: 'true' } },
   ]).onConflictDoNothing()
 
-  // d365_constants (5 Forza baseline)
+  // d365_constants (5 Apex baseline)
   const d365 = [
     { key: 'PRODUCTIONSITEID', value: 'FNOR' },
     { key: 'APPROVERPERSONNELNUMBER', value: 'FOR100048' },
-    { key: 'CONSUMPTIONWAREHOUSEID', value: 'ForzDG' },
+    { key: 'CONSUMPTIONWAREHOUSEID', value: 'ApexDG' },
     { key: 'PRODUCTGROUPID', value: 'FinGoods' },
     { key: 'COSTINGOPERATIONRESOURCEID', value: 'FProd01' },
   ]
@@ -2032,7 +2032,7 @@ Server Actions for machines, production lines, D365 config, and onboarding wizar
 2. Utwórz `apps/web/lib/settings/d365.actions.ts` (`'use server'`):
    - `getD365Constants(orgId): Promise<D365Constant[]>` — getReferenceRows(orgId, 'd365_constants') RBAC `Permission.SETTINGS_D365_VIEW`
    - `updateD365Constant(orgId, key, value)` — RBAC `Permission.SETTINGS_D365_EDIT`, calls upsertReferenceRow
-   - `toggleD365Integration(orgId, enabled: boolean)` — RBAC `Permission.SETTINGS_D365_TOGGLE`; if enabled=true: validate all 5 constants present (FNOR, FOR100048, ForzDG, FinGoods, FProd01 all non-empty) (V-SET-50); update feature_flags_core (flag_code='integration.d365.enabled'); insertAuditLog
+   - `toggleD365Integration(orgId, enabled: boolean)` — RBAC `Permission.SETTINGS_D365_TOGGLE`; if enabled=true: validate all 5 constants present (FNOR, FOR100048, ApexDG, FinGoods, FProd01 all non-empty) (V-SET-50); update feature_flags_core (flag_code='integration.d365.enabled'); insertAuditLog
 
 3. Utwórz `apps/web/lib/settings/onboarding.actions.ts` (`'use server'`):
    - `updateOnboardingState(orgId, step: number, completed: boolean)` — RBAC `Permission.SETTINGS_ONBOARDING_COMPLETE`; update organizations.onboarding_state JSONB: push step to completed_steps, update current_step, set last_activity_at=now()
@@ -2328,7 +2328,7 @@ D365 integration admin UI (SET-080..083), Security policies UI (SET-100, SET-101
 ## Implementacja
 1. Utwórz `apps/web/app/(settings)/settings/integrations/d365/page.tsx`:
    - D365 Connection Config (SET-080): base URL, service account inputs + "Test Connection" button
-   - D365 Constants Editor (SET-081): table of 5 constants (FNOR, FOR100048, ForzDG, FinGoods, FProd01), each editable inline Input; "Save Constants" calls updateD365Constant per row
+   - D365 Constants Editor (SET-081): table of 5 constants (FNOR, FOR100048, ApexDG, FinGoods, FProd01), each editable inline Input; "Save Constants" calls updateD365Constant per row
    - Integration toggle (SET-082 area): Switch (`integration.d365.enabled`) — disabled if any constant empty; calls toggleD365Integration; shows warning "All 5 constants must be set" if incomplete
    - Sync Audit (SET-083): read-only list of last N audit_log entries for action='d365.sync'
 

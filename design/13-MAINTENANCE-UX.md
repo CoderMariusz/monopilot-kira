@@ -894,7 +894,7 @@ Table of criticality levels (Critical / High / Medium / Low) with editable descr
 - Anti-Duplicate Window (hours): number input, default 1. Prevents duplicate mWOs for same asset within this window.
 
 **Calibration Settings:**
-- ATP RLU Threshold for Sanitation: number input, default 30. Note: "BRCGS/FORZA baseline. Override per food product type via Ref table in Settings."
+- ATP RLU Threshold for Sanitation: number input, default 30. Note: "BRCGS/APEX baseline. Override per food product type via Ref table in Settings."
 - Allergen Dual Sign-off Required: toggle, default On (non-editable for BRCGS compliance).
 
 **LOTO Policy:**
@@ -1362,7 +1362,7 @@ Progress bar shows N/5 complete. Card is dismissed when all 5 are complete, or b
 
 2. **Sensor / IoT panel UX (P2):** The Asset Detail Sensors tab is currently a placeholder. When P2 is activated, the designer will need to define: time-series chart component (temperature trend, vibration FFT), threshold alarm lines, sensor connectivity status badge, and historical anomaly markers. Leave a P2 comment hook in the HTML prototype.
 
-3. **LOTO photo evidence:** This spec marks photo upload on LOTO clear as "optional but recommended" for critical assets, with a configurable setting (Required / Recommended / Optional). Confirm whether food manufacturing safety standards at Forza require it as mandatory. If mandatory, change the MODAL-14 field to required and add client-side block.
+3. **LOTO photo evidence:** This spec marks photo upload on LOTO clear as "optional but recommended" for critical assets, with a configurable setting (Required / Recommended / Optional). Confirm whether food manufacturing safety standards at Apex require it as mandatory. If mandatory, change the MODAL-14 field to required and add client-side block.
 
 4. **Offline mode for technician tablet:** If the technician moves into a network-dead zone on the factory floor, should task check-offs be queued locally and synced on reconnect? This requires a Service Worker / IndexedDB implementation. If needed, the mWO detail screen should show a connectivity indicator (green dot = online, amber = limited, red = offline — queuing mode). Open question for architecture team.
 

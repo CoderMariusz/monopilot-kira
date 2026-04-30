@@ -31,7 +31,7 @@ related:
 | 2 | `Reference.PackSizes` seed | §8.1 | Cascade chain 1 (§6.1 NPD): user picks pack_size → filter Line → auto-fill Dieset. Pierwszy dropdown w Core. |
 | 3 | `Reference.Lines_By_PackSize` | §8.1 | Cascade chain 1 dynamic filter. Production.Line dropdown filtered by Pack_Size. |
 | 4 | `Reference.Dieset_By_Line_Pack` | §8.1 | Cascade chain 1 final auto-fill. |
-| 5 | `Reference.Templates` | §8.1 | Cascade chain 4: FA.Template → ApplyTemplate fills Process_1..4 ProdDetail. ~30% Forza user time per v7. |
+| 5 | `Reference.Templates` | §8.1 | Cascade chain 4: FA.Template → ApplyTemplate fills Process_1..4 ProdDetail. ~30% Apex user time per v7. |
 | 6 | `Reference.Processes` | §8.1 | Cascade chain 2: Process_N → PR_Code suffix lookup. Required dla Phase D #10 PR_Code_Final. |
 | 7 | `Reference.dept_columns` config | §8.1 | Per-dept blocking rule + `Closed_<Dept>` fields definition. |
 | 8 | RBAC permissions (fa.create, fa.edit, brief.convert_to_fa, closed_flag.unset) | §3, §5.1 | CRUD guard. Bez tego wszyscy dept managers mogą edytować wszystko (security + integrity failure). |
@@ -49,9 +49,9 @@ related:
 |---|---|---|---|
 | S1 | `Reference.Allergens` EU-14 seed | 02-SET §8.1 + 03-TECH §10 | Brief form collects raw strings P1; real cascade validation dopiero w 01-NPD-c. Seed deferred do 02-SET-d. |
 | S2 | `Reference.AlertThresholds` (10/21 day launch alerts) | 02-SET §8.1 | Hardcoded w P1; UI picker w 02-SET-d/e. |
-| S3 | `Reference.D365_Constants` (Forza FNOR/FOR100048/etc.) | 02-SET §11 + 01-NPD §10.4 | Hardcoded w 01-NPD-d stub; full admin w 02-SET-e. |
+| S3 | `Reference.D365_Constants` (Apex FNOR/FOR100048/etc.) | 02-SET §11 + 01-NPD §10.4 | Hardcoded w 01-NPD-d stub; full admin w 02-SET-e. |
 | S4 | Feature flags (PostHog) | 02-SET §10 | Core flags hardcoded default false; full PostHog integration 02-SET-e. |
-| S5 | Onboarding wizard + MFA enroll | 02-SET §14.3 | Not needed for internal Forza pilot; 02-SET-e. |
+| S5 | Onboarding wizard + MFA enroll | 02-SET §14.3 | Not needed for internal Apex pilot; 02-SET-e. |
 
 ### §1.3 Ref table split — 7 in carveout, 10 deferred
 
@@ -152,7 +152,7 @@ Przed pierwszym `npm install` potrzeba locked decisions. Rekomendacje z prior re
 |---|---|---|---|
 | D1 | Monorepo tool | **pnpm workspaces + Turborepo** | Lekkie, świetny cache, szeroko używane w Next.js ecosystem |
 | D2 | ORM | **Drizzle** | Type-safe, migrations jako code, zero runtime overhead, lepsze niż Prisma dla schema-driven L3 JSONB |
-| D3 | Supabase hosting | **Cloud dev + self-host prod** | Forza compliance + data residency EU R7; cloud sprawdzi w dev |
+| D3 | Supabase hosting | **Cloud dev + self-host prod** | Apex compliance + data residency EU R7; cloud sprawdzi w dev |
 | D4 | Forms + validation | **React Hook Form + Zod** | Już w MODAL-SCHEMA.md locked |
 | D5 | UI primitives | **Radix + shadcn/ui** | Mapuje się 1:1 na prototypy design system (~48k linii JSX) |
 | D6 | Rule DSL syntax | **TypeScript functions + JSON config** | Dev-authored PR per Q2 02-SET (no admin DSL editor) |
@@ -165,8 +165,8 @@ Przed pierwszym `npm install` potrzeba locked decisions. Rekomendacje z prior re
 |---|---|---|---|
 | D9 | Outbox worker | **pg-boss** (Postgres-backed job queue) | Native PG, zero new infra, transactional guarantees |
 | D10 | Testing strategy | **Vitest unit + Playwright E2E + Supabase local test DB per test run** | Real DB for RLS/trigger validation; no mocks for integration tests |
-| D11 | Seed data strategy | **Typed seed via Drizzle + factory functions + named snapshots** (forza-baseline, empty-tenant, multi-tenant-3) | Repeatable, fast, CI-friendly |
-| D12 | Deployment target | **Vercel Edge + Supabase managed for MVP** → self-host migration plan Phase 2 | Forza pilot fits cloud; self-host când dev obciążenie wymaga |
+| D11 | Seed data strategy | **Typed seed via Drizzle + factory functions + named snapshots** (apex-baseline, empty-tenant, multi-tenant-3) | Repeatable, fast, CI-friendly |
+| D12 | Deployment target | **Vercel Edge + Supabase managed for MVP** → self-host migration plan Phase 2 | Apex pilot fits cloud; self-host când dev obciążenie wymaga |
 
 ---
 
@@ -488,7 +488,7 @@ Atomic grain daje lepszą **testability + rollback**: jeśli T-00b-003 fails, ro
 
 For user to communicate internally what Phase E-2 completion means:
 
-> **Milestone "Jane dogfood":** Jane (NPD Manager @ Forza) loguje się do Monopilot staging. Otwiera Brief form (01-NPD-a first flow). Wypełnia single-component brief wg brief 1.xlsx template. Klika Save. Brief zostaje zapisany do Supabase (org_id scoped, RLS enforced). Audit log entry visible w admin panel. Outbox event `brief.created` flows przez pg-boss. Jane widzi brief na liście Pipeline Dashboard. Może kliknąć Convert to FA — tworzy FA z FA5XXX PR_Code generated zgodnie z Phase D #10 cascade. FA pokazuje 7 dept sections (Core filled, pozostałe 6 empty, Closed_<Dept> wszystkie false).
+> **Milestone "Jane dogfood":** Jane (NPD Manager @ Apex) loguje się do Monopilot staging. Otwiera Brief form (01-NPD-a first flow). Wypełnia single-component brief wg brief 1.xlsx template. Klika Save. Brief zostaje zapisany do Supabase (org_id scoped, RLS enforced). Audit log entry visible w admin panel. Outbox event `brief.created` flows przez pg-boss. Jane widzi brief na liście Pipeline Dashboard. Może kliknąć Convert to FA — tworzy FA z FA5XXX PR_Code generated zgodnie z Phase D #10 cascade. FA pokazuje 7 dept sections (Core filled, pozostałe 6 empty, Closed_<Dept> wszystkie false).
 >
 > **Co działa:** auth, RLS, audit, outbox, rule engine (cascade), schema-driven form render, Reference table dropdowns (pack_size, line, dieset, template, process), RBAC (Jane = NPD Manager może create), module toggles (01-NPD + 02-SETTINGS enabled).
 >

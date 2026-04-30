@@ -26,11 +26,11 @@ Rozszerzamy baseline o 5 nowych core obszarów wymagane przez Phase D architectu
 2. **Rule Definitions Registry (§7)** `[ADR-029]` — **read-only rejestr reguł DSL** (cascading / conditional / gate / workflow-as-data). Reguły authored przez dev (PR → deploy as migration), admin ma visibility + audit + version diff — **nie edytuje**. Decyzja 2026-04-19.
 3. **Reference Tables CRUD (§8)** — 8 tabel z v7 + 3 nowe (AlertThresholds, Allergens, D365_Constants). Generic metadata-driven UI zamiast hardcoded view per tabela.
 4. **Multi-tenant L2 Config (§9)** `[ADR-031]` — dept taxonomy variation (ADR-030), tenant_variations, upgrade orchestration L1→L2→L3→L4.
-5. **D365 Constants Admin (§11)** `[LEGACY-D365]` — INTEGRATIONS stage 1 inline: FNOR / FOR100048 / ForzDG / FinGoods / FProd01 admin CRUD + item/BOM one-way sync config.
+5. **D365 Constants Admin (§11)** `[LEGACY-D365]` — INTEGRATIONS stage 1 inline: FNOR / FOR100048 / ApexDG / FinGoods / FProd01 admin CRUD + item/BOM one-way sync config.
 
 **Pozostałe sekcje** (§10 Feature flags, §12 Infrastructure, §13 EmailConfig, §14 Security+i18n+Onboarding) = refinement baseline z markerami Phase D i L2-ready storage.
 
-Status: `[UNIVERSAL]` dla core admin, `[FORZA-CONFIG]` dla D365 consts + 7-dept baseline, `[EVOLVING]` dla hard-lock semantyki i rule registry authoring UX.
+Status: `[UNIVERSAL]` dla core admin, `[APEX-CONFIG]` dla D365 consts + 7-dept baseline, `[EVOLVING]` dla hard-lock semantyki i rule registry authoring UX.
 
 ---
 
@@ -47,7 +47,7 @@ Status: `[UNIVERSAL]` dla core admin, `[FORZA-CONFIG]` dla D365 consts + 7-dept 
 3. **Rule registry read-only** — admin widzi 4 rule types, version history, dry-run results, who-changed-what audit. Authoring = dev przez PR (per Q2).
 4. **Reference CRUD** — 11 tabel przez jeden generic UI, CSV import/export, version+audit, conflict resolution na concurrent edit.
 5. **Multi-tenant L2** — dept split/merge per ADR-030 bez code change, upgrade orchestration "migrate to v2" z preview diff i dual-run N miesięcy.
-6. **D365 constants** — Jane (NPD Manager) albo Admin edytuje 5 Forza consts + toggle `integration.d365.enabled` — stage 1 INTEGRATIONS inline.
+6. **D365 constants** — Jane (NPD Manager) albo Admin edytuje 5 Apex consts + toggle `integration.d365.enabled` — stage 1 INTEGRATIONS inline.
 7. **Audit everything** — każda mutation SETTINGS w audit_log (ADR-008), partycjonowana monthly, retain 7 lat.
 
 ### Metryki sukcesu
@@ -65,11 +65,11 @@ Status: `[UNIVERSAL]` dla core admin, `[FORZA-CONFIG]` dla D365 consts + 7-dept 
 
 ## §3 — Personas & RBAC Overview
 
-### Primary (Forza, z reality sources)
+### Primary (Apex, z reality sources)
 
 | Persona | Role | Główne zadania | Marker |
 |---|---|---|---|
-| **Jane** (NPD Manager) | `npd_manager` | Orkiestruje PLD, konfiguruje Reference (PackSizes, Templates), edytuje D365 constants, manual override allergens | [FORZA-CONFIG z [UNIVERSAL] rolą] |
+| **Jane** (NPD Manager) | `npd_manager` | Orkiestruje PLD, konfiguruje Reference (PackSizes, Templates), edytuje D365 constants, manual override allergens | [APEX-CONFIG z [UNIVERSAL] rolą] |
 | **Admin (Owner)** | `owner` | Zakłada organizację, zarządza użytkownikami, toggle modules, konfiguruje L2 variations, zarządza API keys / webhooks | [UNIVERSAL] |
 | **Module Admin** | `module_admin` | Zarządza konfiguracją w zakresie jednego modułu (np. waste categories dla Production) | [UNIVERSAL] |
 | **Auditor** | `auditor` | Read-only dostęp do audit_log + rule registry + schema history | [UNIVERSAL] |
@@ -104,7 +104,7 @@ Permission = `module_code + action + scope`:
 - **Rule registry read-only (§7)** — list + version history + diff + dry-run results viewer
 - **Reference CRUD (§8)** — generic metadata-driven UI dla 11 tabel
 - **Module toggles (§10)** — 15 modułów, dependency warnings, PostHog self-host + built-in fallback
-- **D365 Constants admin (§11)** — 5 Forza consts editable, `integration.d365.enabled` toggle
+- **D365 Constants admin (§11)** — 5 Apex consts editable, `integration.d365.enabled` toggle
 
 ### 4.2 In Scope — Phase 2 (post-MVP, pre-C5)
 
@@ -572,7 +572,7 @@ Generation odbywa się server-side (Zod + `json-schema-to-zod`) i cache'owany pe
 ### 7.1 Dlaczego read-only (rationale)
 
 - **Safety** — reguły business-critical (allergen changeover gate, cascading) wymagają code review, type-check, test coverage. UI editor ryzykuje untested prod deploy.
-- **Forza context** — Jane (NPD Manager) jest power-user ale nie programista; Monopilot staff (Kira) authoruje rules dla Forza jako service.
+- **Apex context** — Jane (NPD Manager) jest power-user ale nie programista; Monopilot staff (Kira) authoruje rules dla Apex jako service.
 - **Versioning discipline** — rule = code = PR + git SHA + deploy pipeline = audit-trail natural. UI editor fragmentuje authoring historia.
 - **Type-safety** — DSL body walidowane przez TS types w compile, nie tylko runtime. UI editor wymuszałby full runtime validation.
 - **Testing** — rules muszą mieć unit tests (Vitest) + dry-run golden set. PR flow to zapewnia; UI nie.
@@ -598,7 +598,7 @@ Admin w SETTINGS UI:
 
 ### 7.4 4 Rule types (registry view per type)
 
-| Type | Description | Example (Forza) | Source |
+| Type | Description | Example (Apex) | Source |
 |---|---|---|---|
 | **cascading** | Auto-fill downstream field z upstream | `pack_size → line (filtered dropdown) → dieset (auto)` | 01-NPD §6 |
 | **conditional** | Required-if / visible-if logic | `Catch-weight product → require tare + gross weight` | 03-TECHNICAL (future) |
@@ -669,7 +669,7 @@ Decyzja defer do 02-SETTINGS build sub-module d (kiedy rule registry UI faktyczn
 | 28 | **`loto_pre_execution_gate_v1`** (v3.3) | gate | P1 | 13-MAINT §8 | 13-MAINT safety service | Equipment.requires_loto=true → MWO `in_progress` blocked without `mwo_loto_checklists.verified_at` NOT NULL |
 | 29 | **`site_access_policy_v1`** (v3.3) | gate | P1 | 14-MULTI §8 | 14-MULTI RLS policy builder + migration lint | Per-table decision operational (site-scoped) vs master (org-scoped); admin read-only registry |
 | 30 | **`cross_site_to_approval_v1`** (v3.3) | gate | P1 | 14-MULTI §8 | 14-MULTI inter-site TO workflow | Inter-site TO (from_site != to_site) → requires from_site manager approval before shipped + to_site manager approval before received (dual-gate) |
-| 31 | **`per_site_residency_gate_v1`** (v3.3) | gate | **P2 stub** | 14-MULTI §8 | 14-MULTI P2 data residency enforcement | Enforce data landing on correct region per site (EU-West-2 Forza UK vs EU-Central-1 KOBE DE) |
+| 31 | **`per_site_residency_gate_v1`** (v3.3) | gate | **P2 stub** | 14-MULTI §8 | 14-MULTI P2 data residency enforcement | Enforce data landing on correct region per site (EU-West-2 Apex UK vs EU-Central-1 KOBE DE) |
 
 **P1 active rules (v3.3):** 24 (rules 1-4, 6-11, 13-14, 16, 18, 20, **23-30**) — all deployed z corresponding modules
 **P2 stub rules (v3.3):** 7 (rules 5, 12, 15, 17, 19, 21, 22, **31**) — schema registered, implementation deferred
@@ -690,19 +690,19 @@ Generic metadata-driven UI dla **24 tabel konfiguracyjnych** (8 z v7 + 3 w v3.0 
 
 ### 8.1 Tabele
 
-| # | Code | Source | Rows (Forza) | Marker |
+| # | Code | Source | Rows (Apex) | Marker |
 |---|---|---|---|---|
-| 1 | `dept_columns` | v7 Reference §2 | 58 | [UNIVERSAL] storage, [FORZA-CONFIG] content |
-| 2 | `pack_sizes` | v7 Reference §3 | 5 | [UNIVERSAL] concept, [FORZA-CONFIG] values |
-| 3 | `lines_by_pack_size` | v7 Reference §4 | 5 | [FORZA-CONFIG] |
-| 4 | `dieset_by_line_pack` | v7 Reference §5 | 10 | [FORZA-CONFIG] |
-| 5 | `templates` | v7 Reference §6 | 4 | [UNIVERSAL] concept, [FORZA-CONFIG] templates |
+| 1 | `dept_columns` | v7 Reference §2 | 58 | [UNIVERSAL] storage, [APEX-CONFIG] content |
+| 2 | `pack_sizes` | v7 Reference §3 | 5 | [UNIVERSAL] concept, [APEX-CONFIG] values |
+| 3 | `lines_by_pack_size` | v7 Reference §4 | 5 | [APEX-CONFIG] |
+| 4 | `dieset_by_line_pack` | v7 Reference §5 | 10 | [APEX-CONFIG] |
+| 5 | `templates` | v7 Reference §6 | 4 | [UNIVERSAL] concept, [APEX-CONFIG] templates |
 | 6 | `email_config` | v7 Reference §7 | 0 (empty baseline) | [UNIVERSAL] + [EVOLVING] recipients |
-| 7 | `processes` | v7 Reference §8 | 8 (Strip/A, Coat/B, Honey/C, Smoke/E, Slice/F, Tumble/G, Dice/H, Roast/R) | [FORZA-CONFIG] + [EVOLVING] |
+| 7 | `processes` | v7 Reference §8 | 8 (Strip/A, Coat/B, Honey/C, Smoke/E, Slice/F, Tumble/G, Dice/H, Roast/R) | [APEX-CONFIG] + [EVOLVING] |
 | 8 | `close_confirm` | v7 Reference §9 | 2 | [UNIVERSAL] |
-| 9 | **`alert_thresholds`** (v3.0) | 01-NPD §11 + EVOLVING §14 | 2 (RED=10d, YELLOW=21d) | [FORZA-CONFIG], config-driven od v3 |
-| 10 | **`allergens_reference`** (v3.0) | 01-NPD §8 | EU-14 + 3-5 custom | [UNIVERSAL] + [FORZA-CONFIG] |
-| 11 | **`d365_constants`** (v3.0) | v7 D365-INTEGRATION §13 + EVOLVING §10.3 | 5 baseline + 4 P2 ext (v3.1 per §11.7) | [FORZA-CONFIG] + [LEGACY-D365] |
+| 9 | **`alert_thresholds`** (v3.0) | 01-NPD §11 + EVOLVING §14 | 2 (RED=10d, YELLOW=21d) | [APEX-CONFIG], config-driven od v3 |
+| 10 | **`allergens_reference`** (v3.0) | 01-NPD §8 | EU-14 + 3-5 custom | [UNIVERSAL] + [APEX-CONFIG] |
+| 11 | **`d365_constants`** (v3.0) | v7 D365-INTEGRATION §13 + EVOLVING §10.3 | 5 baseline + 4 P2 ext (v3.1 per §11.7) | [APEX-CONFIG] + [LEGACY-D365] |
 | 12 | **`quality_hold_reasons`** (v3.1, z 09-QA Q3) | 09-QA §6.3 + §8 | ~8-12 rows (allergen_cross/pathogen/temp_excursion/packaging/labeling/expiry/customer_complaint/other) + priority + default_hold_duration_days | [UNIVERSAL] |
 | 13 | **`qa_failure_reasons`** (v3.1, z 09-QA) | 09-QA §6 + §8 | ~10-15 rows (incoming inspection failure codes, NCR reason codes) | [UNIVERSAL] |
 | 14 | **`waste_categories`** (v3.1, z 08-PROD) | 08-PROD §8 + 10-FIN §10 `waste_cost_allocator_v1` consumer | ~6-10 rows (trim/yield_loss/contamination/expired/packaging/test_sample/other) + full_loss vs recovery flag | [UNIVERSAL] |
@@ -710,13 +710,13 @@ Generic metadata-driven UI dla **24 tabel konfiguracyjnych** (8 z v7 + 3 w v3.0 
 | 16 | **`shipping_override_reasons`** (v3.1 NEW z 11-SHIP) | 11-SHIP §7 D-SHP-13 | ~6-10 rows (fefo_deviation/quality_hold_non_critical/expired_lp_override/allergen_customer_override/supervisor_direction/customer_requested/other) | [UNIVERSAL] |
 | 17 | **`rma_reason_codes`** (v3.1 NEW z 11-SHIP) | 11-SHIP §7 E07.5 | ~8-12 rows (defective/damaged_in_transit/wrong_product/quality_issue/expired/customer_error/not_as_described/quantity_discrepancy/other) + disposition_default (restock/scrap/quality_hold) | [UNIVERSAL] |
 | 18 | **`dashboards_catalog`** (v3.2 NEW z 12-REPORTING) | 12-REPORTING §9 | 10 P1 + 20 P2 rows (dashboard_id, name, required_role, feature_flag, metadata_schema JSONB, enabled_for_tenants[]) — metadata-driven access via `report_access_gate_v1` | [UNIVERSAL] |
-| 19 | **`shift_configs`** (v3.2 NEW z 15-OEE) | 15-OEE §9 + §10 | Forza baseline 3 rows (AM 00:00-08:00 / PM 08:00-16:00 / Night 16:00-00:00 UTC), L2 variation ADR-030 (2-shift/4-shift/24h custom) — consumer `shift_aggregator_v1` | [UNIVERSAL] + [FORZA-CONFIG] |
-| 20 | **`oee_alert_thresholds`** (v3.2 NEW z 15-OEE; v3.4 `oee_target_pct` default updated 70) | 15-OEE §9 | 1+ rows per tenant (tenant default + per-line override), cols: oee_target_pct (default **70** Forza P1 baseline)/availability_min_pct/anomaly_alpha/anomaly_sigma/maintenance_trigger_threshold_pct — L2 per-line config ADR-031 | [UNIVERSAL] |
+| 19 | **`shift_configs`** (v3.2 NEW z 15-OEE) | 15-OEE §9 + §10 | Apex baseline 3 rows (AM 00:00-08:00 / PM 08:00-16:00 / Night 16:00-00:00 UTC), L2 variation ADR-030 (2-shift/4-shift/24h custom) — consumer `shift_aggregator_v1` | [UNIVERSAL] + [APEX-CONFIG] |
+| 20 | **`oee_alert_thresholds`** (v3.2 NEW z 15-OEE; v3.4 `oee_target_pct` default updated 70) | 15-OEE §9 | 1+ rows per tenant (tenant default + per-line override), cols: oee_target_pct (default **70** Apex P1 baseline)/availability_min_pct/anomaly_alpha/anomaly_sigma/maintenance_trigger_threshold_pct — L2 per-line config ADR-031 | [UNIVERSAL] |
 | 25 | **`changeover_target_duration_min`** (v3.4 NEW z 15-OEE OQ-OEE-05 decision 2026-04-21) | 15-OEE (changeover analysis), 08-PRODUCTION (optional inline display) | Per-line integer (minutes), optional per-FA override. Default null (no target; dashboards show "—", no breach detection). Editable by: Admin, Production Manager. Audit tracked. | [UNIVERSAL] |
-| 21 | **`maintenance_alert_thresholds`** (v3.3 NEW z 13-MAINT) | 13-MAINT §13.2 | 1+ rows per tenant (default + per-equipment override), cols: pm_interval_default_days/calibration_warning_days (30/14/7)/mtbf_target_threshold_pct/availability_breach_threshold_pct (80 default)/atp_rlu_threshold (30 Forza) — L2 per-tenant config ADR-031 | [UNIVERSAL] + [FORZA-CONFIG] |
+| 21 | **`maintenance_alert_thresholds`** (v3.3 NEW z 13-MAINT) | 13-MAINT §13.2 | 1+ rows per tenant (default + per-equipment override), cols: pm_interval_default_days/calibration_warning_days (30/14/7)/mtbf_target_threshold_pct/availability_breach_threshold_pct (80 default)/atp_rlu_threshold (30 Apex) — L2 per-tenant config ADR-031 | [UNIVERSAL] + [APEX-CONFIG] |
 | 22 | **`technician_skills`** (v3.3 NEW z 13-MAINT) | 13-MAINT §9.2 | enum reference (basic/advanced/specialist + descriptions + required_certifications[]) — tenant-specific certs allowed L2 variation | [UNIVERSAL] |
 | 23 | **`spare_parts_categories`** (v3.3 NEW z 13-MAINT) | 13-MAINT §9.8 | 8-15 rows (mechanical/electrical/consumables/lubricants/seals_gaskets/filters/safety/other) + tenant L3 ext | [UNIVERSAL] |
-| 24 | **`sites_hierarchy_config`** (v3.3 NEW z 14-MULTI) | 14-MULTI §9.5 | 1 row per tenant (depth 2-5 + level_names[]); Forza baseline depth=3, level_names=['site','plant','line'] — L2 ADR-030 depth override | [UNIVERSAL] + [FORZA-CONFIG] |
+| 24 | **`sites_hierarchy_config`** (v3.3 NEW z 14-MULTI) | 14-MULTI §9.5 | 1 row per tenant (depth 2-5 + level_names[]); Apex baseline depth=3, level_names=['site','plant','line'] — L2 ADR-030 depth override | [UNIVERSAL] + [APEX-CONFIG] |
 
 Note: `shift_configs` (v3.2 #19) rozszerzone przez 14-MULTI o `site_id` scoping (per-site shifts D-MS-9 REC-L5) — nie re-added jako osobny wpis.
 
@@ -807,7 +807,7 @@ Dropdown caches (hot path dla v7-equivalent renderer) = Postgres materialized vi
 |---|---|
 | Field name | `oee_alert_thresholds.oee_target_pct` |
 | Type | Numeric (0–100, 1dp) |
-| Default | **70** — Forza P1 ramp-up baseline (changed from 85 per OQ-OEE-02) |
+| Default | **70** — Apex P1 ramp-up baseline (changed from 85 per OQ-OEE-02) |
 | Range | 0–100 |
 | Editable by | `oee_admin` role |
 | Audit | Tracked in settings history |
@@ -836,10 +836,10 @@ Admin może konfigurować (w ramach L2 scope):
 
 ### 9.2 Dept taxonomy variation (§9 00-FOUNDATION + ADR-030)
 
-Baseline 7 depts Forza `[FORZA-CONFIG]`:
+Baseline 7 depts Apex `[APEX-CONFIG]`:
 `core` | `technical` | `packaging` | `mrp` | `planning` | `production` | `price`
 
-(Uwaga: w 00-FOUNDATION §9 baseline Forza ma `packaging` + `price` zamiast v7 `Commercial`/`Procurement`. Reality v7 vs target Monopilot differs — renaming decision per Phase D #15. W v7 reality: Core / Planning / Commercial / Production / Technical / MRP / Procurement. Per Monopilot Phase D: renaming → Core / Technical / Packaging / MRP / Planning / Production / Price. L2 config obsługuje obie konfiguracje jako L2 variants.)
+(Uwaga: w 00-FOUNDATION §9 baseline Apex ma `packaging` + `price` zamiast v7 `Commercial`/`Procurement`. Reality v7 vs target Monopilot differs — renaming decision per Phase D #15. W v7 reality: Core / Planning / Commercial / Production / Technical / MRP / Procurement. Per Monopilot Phase D: renaming → Core / Technical / Packaging / MRP / Planning / Production / Price. L2 config obsługuje obie konfiguracje jako L2 variants.)
 
 L2 operations:
 - **Split**: np. `Technical` → `Food-Safety` + `Quality-Lab`
@@ -893,7 +893,7 @@ Registry (§7) stores multiple versions (rule_definitions.version 1..N). Runtime
 ### 9.5 Data residency [R7]
 
 - `organizations.region` enum: `eu` | `us` | `apac`
-- EU cluster default dla Forza + EU customers
+- EU cluster default dla Apex + EU customers
 - US cluster gdy USA customer pojawia się
 - Global control plane (Monopilot HQ) + regional data planes (Postgres cluster + Next.js API runtime per region)
 - Cross-region restricted: admin nie zmienia `region` po onboarding (migration wymaga osobnego support ticket)
@@ -1006,19 +1006,19 @@ Non-core flags (PostHog):
 
 ## §11 — D365 Constants Admin [INTEGRATIONS stage 1 inline]
 
-**Marker:** `[FORZA-CONFIG]` + `[LEGACY-D365]`. Retirement path gdy Monopilot zastępuje D365.
+**Marker:** `[APEX-CONFIG]` + `[LEGACY-D365]`. Retirement path gdy Monopilot zastępuje D365.
 
-### 11.1 5 Forza D365 Constants
+### 11.1 5 Apex D365 Constants
 
 Z v7 D365-INTEGRATION §13 reality:
 
 | Constant | Key | Meaning | Example value |
 |---|---|---|---|
-| PRODUCTIONSITEID | `FNOR` | Forza North site code | `FNOR` |
+| PRODUCTIONSITEID | `FNOR` | Apex North site code | `FNOR` |
 | APPROVERPERSONNELNUMBER | `FOR100048` | Approver employee # | `FOR100048` |
-| CONSUMPTIONWAREHOUSEID | `ForzDG` | Forza warehouse code | `ForzDG` |
+| CONSUMPTIONWAREHOUSEID | `ApexDG` | Apex warehouse code | `ApexDG` |
 | PRODUCTGROUPID | `FinGoods` | Finished Goods group | `FinGoods` |
-| COSTINGOPERATIONRESOURCEID | `FProd01` | Forza Production resource | `FProd01` |
+| COSTINGOPERATIONRESOURCEID | `FProd01` | Apex Production resource | `FProd01` |
 
 Stored w Reference table `d365_constants` (§8.1 #11).
 
@@ -1083,7 +1083,7 @@ Rozszerzenie podstawowego zestawu 5 constants (§11.1) o P2 extensions konsumowa
 
 | Constant (v3.1 P2) | Key (sample) | Meaning | Consumer module | Phase |
 |---|---|---|---|---|
-| SHIPPINGSITEID | `ForzDG_SHIP` (may equal ForzDG lub różne dla multi-site) | Shipping warehouse code for D365 SalesOrder fulfillment | 11-SHIP §12.8 D365 SalesOrder push | P2 + 14-MULTI-SITE |
+| SHIPPINGSITEID | `ApexDG_SHIP` (may equal ApexDG lub różne dla multi-site) | Shipping warehouse code for D365 SalesOrder fulfillment | 11-SHIP §12.8 D365 SalesOrder push | P2 + 14-MULTI-SITE |
 | CUSTOMERACCOUNTIDMAP | JSONB `{customer_id_uuid: d365_cust_account, ...}` | Monopilot customer_id ↔ D365 CustAccount mapping (per-org) | 11-SHIP D365 push + 10-FIN P2 invoicing | P2 |
 | COURIERDEFAULTCARRIER | `DHL` / `UPS` / `DPD` / `MANUAL` | Default carrier for new shipments (P1 MANUAL baseline) | 11-SHIP Phase 2 EPIC 11-F | P2 |
 | COURIERAPIVAULTKEY | Opaque vault ref (Supabase Vault encrypted) | API key vault reference for carrier integration | 11-SHIP Phase 2 EPIC 11-F | P2 |
@@ -1233,8 +1233,8 @@ MFA method: TOTP (Google Authenticator / Authy) via Supabase Auth MFA or custom 
 
 - **Library**: next-intl z namespace per moduł (`02-settings.json`, `01-npd.json`, etc.)
 - **Languages**:
-  - Phase 1 MVP: **PL + EN** (Forza customer + Monopilot staff)
-  - Phase 2: UK, RO (per R11 Research — Ukraine + Romania workforce in Forza)
+  - Phase 1 MVP: **PL + EN** (Apex customer + Monopilot staff)
+  - Phase 2: UK, RO (per R11 Research — Ukraine + Romania workforce in Apex)
   - Phase 3: DE, FR (expansion markets)
 - **Fallback**: EN zawsze dostępny
 - **User preference override**: `users.language` nadpisuje `organizations.locale`
@@ -1444,7 +1444,7 @@ Gate: onboarding < 15min ready for customer beta.
 9. **Custom roles RBAC** — per-org role definition UI. Phase 3 scope.
 10. **L4 storage model** — per-tenant schema vs DB cluster. Defer Phase 3, documented w 14-MULTI-SITE.
 11. **Reference materialized view refresh strategy** — trigger-on-mutation vs scheduled. Perf test w 02-SETTINGS-d.
-12. **Dept taxonomy migration** (Forza v7 Commercial+Procurement → Packaging+Price per Phase D #15) — migration script lub gradual rename. Addressed w 02-SETTINGS-b + 01-NPD implementation kick-off.
+12. **Dept taxonomy migration** (Apex v7 Commercial+Procurement → Packaging+Price per Phase D #15) — migration script lub gradual rename. Addressed w 02-SETTINGS-b + 01-NPD implementation kick-off.
 
 ### 16.4 References
 
@@ -1455,7 +1455,7 @@ Gate: onboarding < 15min ready for customer beta.
 
 **Reality sources:**
 - [`_meta/reality-sources/pld-v7-excel/REFERENCE-TABLES.md`](./_meta/reality-sources/pld-v7-excel/REFERENCE-TABLES.md) — 8 tabel baseline
-- [`_meta/reality-sources/pld-v7-excel/D365-INTEGRATION.md`](./_meta/reality-sources/pld-v7-excel/D365-INTEGRATION.md) — 5 Forza constants
+- [`_meta/reality-sources/pld-v7-excel/D365-INTEGRATION.md`](./_meta/reality-sources/pld-v7-excel/D365-INTEGRATION.md) — 5 Apex constants
 - [`_meta/reality-sources/pld-v7-excel/EVOLVING.md`](./_meta/reality-sources/pld-v7-excel/EVOLVING.md) §17 Priority matrix
 
 **Architecture:**
@@ -1486,7 +1486,7 @@ Gate: onboarding < 15min ready for customer beta.
 
 - **v3.4** (2026-04-21) — Stakeholder decisions delta (15-OEE OQ resolution session). No breaking changes, extensions only:
   - **§8.1 Reference Tables** — rozszerzono z 24 do **25 tabel**. Nowa tabela #25: `changeover_target_duration_min` (15-OEE OQ-OEE-05 decision — per-line integer target in minutes, optional per-FA override, default null, consumed by 15-OEE + 08-PRODUCTION).
-  - **§8.1 `oee_alert_thresholds` (table #20)** — `oee_target_pct` default updated from 85 → **70** (Forza P1 ramp-up baseline, OQ-OEE-02 decision 2026-04-21).
+  - **§8.1 `oee_alert_thresholds` (table #20)** — `oee_target_pct` default updated from 85 → **70** (Apex P1 ramp-up baseline, OQ-OEE-02 decision 2026-04-21).
   - **§8.8 New config fields** (new subsection) — formal spec for `changeover_target_duration_min` and `oee_alert_thresholds.oee_target_pct` including scope, default, range, editability, audit, consumers, and amber/red derivation rules.
   - Cross-PRD: 15-OEE-PRD updated to v3.1, 15-OEE-UX updated to v1.1. All 9 P1-blocking OQ resolved. OQ-OEE-03 (TV OS) remains open.
 

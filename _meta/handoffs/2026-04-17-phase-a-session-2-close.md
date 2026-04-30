@@ -33,7 +33,7 @@ Memory mówiło "~60-80 cols". **Reality: dokładnie 69 kolumn** (row 3 headers)
 
 ### Schema header row konwencja
 
-`MT_HEADER_ROW = 3` (row 1 = workbook title merged, row 2 = section labels na specific columns, row 3 = actual column names, row 4+ = data). **Powszechny błąd**: skanowanie row 1 pokazuje tylko "FORZA FOODS - Main Table (master data)" jako header — musisz czytać row 3.
+`MT_HEADER_ROW = 3` (row 1 = workbook title merged, row 2 = section labels na specific columns, row 3 = actual column names, row 4+ = data). **Powszechny błąd**: skanowanie row 1 pokazuje tylko "APEX FOODS - Main Table (master data)" jako header — musisz czytać row 3.
 
 ### Blocking rules — 4 hardcoded
 
@@ -107,7 +107,7 @@ Hidden tab ale VBA aktywnie używa:
 
 ### Dashboard alerts thresholds
 
-Hardcoded w M07: RED (≤10 dni OR no launch date), YELLOW (≤21 dni + missing data), GREEN (rest). Thresholds = `[FORZA-CONFIG]`, w Monopilot jako config table.
+Hardcoded w M07: RED (≤10 dni OR no launch date), YELLOW (≤21 dni + missing data), GREEN (rest). Thresholds = `[APEX-CONFIG]`, w Monopilot jako config table.
 
 ### Worksheet_Change (CLS_SheetEvents) — single cell only
 
@@ -205,7 +205,7 @@ Jeszcze nie. Obie Session 1 docs (PROCESS-OVERVIEW, DEPARTMENTS) pozostają niet
 2. Read Session 1 + 2 docs (5 plików): PROCESS-OVERVIEW, DEPARTMENTS, MAIN-TABLE-SCHEMA, CASCADING-RULES, WORKFLOW-RULES
 3. Read VBA pozostałe: `M08_Builder.bas`, `M11_AddProduct.bas`, `M06_BOMAutoGen.bas`, `M09_Email.bas`, `ThisWorkbook.cls`
 4. Scan D365 Builder output tabs content (pewnie placeholder dziś, ale struktura może istnieć)
-5. Scan D365 Import sample data po potencjalnym paste (jeśli Forza ma release product list do zaimportowania)
+5. Scan D365 Import sample data po potencjalnym paste (jeśli Apex ma release product list do zaimportowania)
 6. Zeskan briefy 1/2/3 pełniej — każdy wiersz pattern (brief 2 multi-component)
 7. Session 3 deliverables: 3 docs pld-v7-excel + init brief-excels/
 

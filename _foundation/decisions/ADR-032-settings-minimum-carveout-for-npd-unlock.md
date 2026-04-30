@@ -91,7 +91,7 @@ Once 02-SET-a complete, 01-NPD-a starts. Concurrent agent tracks:
 Foundation sub-module 00-i delivers:
 - Vitest unit harness + coverage
 - Playwright E2E harness + auth fixture
-- Seed data runner (Forza baseline + synthetic multi-tenant)
+- Seed data runner (Apex baseline + synthetic multi-tenant)
 - CI green gate (PR blocked on fail)
 - Preview deploy per PR
 

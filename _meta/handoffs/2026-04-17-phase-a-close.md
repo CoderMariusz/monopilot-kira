@@ -14,7 +14,7 @@ Phase A zakończony po 3 sesjach. Wszystkie deliverables z spec §3.2 dostarczon
 
 | Session | Docs | Focus |
 |---|---|---|
-| Session 1 | PROCESS-OVERVIEW + DEPARTMENTS | End-to-end flow + 7 działów Forza |
+| Session 1 | PROCESS-OVERVIEW + DEPARTMENTS | End-to-end flow + 7 działów Apex |
 | Session 2 | MAIN-TABLE-SCHEMA + CASCADING-RULES + WORKFLOW-RULES | 69 cols + cascades + workflow VBA details |
 | Session 3 | REFERENCE-TABLES + D365-INTEGRATION + EVOLVING + (NEW) BRIEF-FLOW | 8 config tables + D365 Builder + evolving areas + brief reality source |
 
@@ -50,7 +50,7 @@ Phase A zakończony po 3 sesjach. Wszystkie deliverables z spec §3.2 dostarczon
 Z spec `_meta/specs/2026-04-17-monopilot-migration-design.md` §3.2:
 
 - [x] 8 docs ukończone w `pld-v7-excel/` ✅
-- [x] Markery na wszystkim ✅ ([UNIVERSAL] / [FORZA-CONFIG] / [EVOLVING] / [LEGACY-D365])
+- [x] Markery na wszystkim ✅ ([UNIVERSAL] / [APEX-CONFIG] / [EVOLVING] / [LEGACY-D365])
 - [x] Nowy reality source `brief-excels/` zainicjowany ✅
 - [ ] User potwierdza że opisane procesy = rzeczywistość ⏳ **PENDING user sign-off**
 - [ ] Wszystkie docs `sync_status: current` ⏳ (dziś `needs_review`, bump do `current` po user review)
@@ -71,7 +71,7 @@ Z spec `_meta/specs/2026-04-17-monopilot-migration-design.md` §3.2:
 ### Schema precision
 
 6. **69 kolumn Main Table** (memory "60-80") z header **row 3**
-7. **7 działów Forza:** Core / Planning / Commercial / Production / Technical / MRP / Procurement
+7. **7 działów Apex:** Core / Planning / Commercial / Production / Technical / MRP / Procurement
 8. **Jane = NPD Manager orchestrator** (D365 Builder exclusive, Dashboard daily)
 9. **Closed vs Done system** — Closed_<Dept> manual, Done_<Dept> system col logic TBD
 10. **PR_Code_Final format:** `"PR" + <RM_digits> + <last_filled_PR_suffix>` (iteracja P4→P1)
@@ -86,7 +86,7 @@ Z spec `_meta/specs/2026-04-17-monopilot-migration-design.md` §3.2:
 
 ### D365 integration (LEGACY-D365)
 
-16. **Builder_FA5101.xlsx reference** = docelowy output 7 tabów (FNOR, FOR100048, ForzDG, FinGoods, FProd01 Forza-specific constants)
+16. **Builder_FA5101.xlsx reference** = docelowy output 7 tabów (FNOR, FOR100048, ApexDG, FinGoods, FProd01 Apex-specific constants)
 17. **M08 WIP**: buduje 3 z 8 tabów dziś (D365_Data / Formula_Version / Route_Headers), 5 do dokończenia
 18. **V04 material validation**: Found/NoCost/Missing per cell (green/yellow/red)
 19. **BOM generator osobny** od Builder (user preference: osobny plik per FA)
@@ -134,7 +134,7 @@ Jedyny edge case: Session 3 EVOLVING uwzględnia niektóre niejasności z Sessio
 |---|---|---|
 | 1 (adresat #1 Phase B) | `09-npd/` | Full NPD rewrite — 7 działów workflow + Main Table schema + cascade UX + Dashboard + brief upstream + markery wszędzie |
 | 2 | `02-products/` | Core 7 cols → products schema (+ Dev_Code EVOLVING) |
-| 2 | `04-integrations/d365/` | D365 Import + Builder 8 tabs (target Builder_FA5101) + V04 validation + [LEGACY-D365] flag + constants Forza |
+| 2 | `04-integrations/d365/` | D365 Import + Builder 8 tabs (target Builder_FA5101) + V04 validation + [LEGACY-D365] flag + constants Apex |
 | 3 (Phase C batch) | `11-planning/` | Planning 4 cols + Core-done blocker |
 | 3 | `10-commercial/` | Commercial 8 cols + Launch_Date alerts |
 | 3 | `12-production/` | Production 19 cols + ProdDetail multi-component + PR codes + Reference.Processes |

@@ -29,13 +29,13 @@
 3. **ML demand forecasting bridge** — internal Prophet microservice feeding forecast-driven PO generation (P2+)
 4. **Disposition bridge** — P2 re-introduction of `direct_continue` and `planner_decides` flows deferred from 04-PLAN §8.5 (Q6 revised to_stock-only P1)
 
-Positioning: Forza is multi-line, allergen-complex (8 RM dept silos, 14 EU allergens + Mustard addition via process cascade) — group-by-family heuristic in 04-PLAN §10 is good enough for single-line linear flow but **fails on cross-line optimization**. 07-EXT provides the optimizer that Forza planners will manually approve (human-in-loop P1, semi-autonomous P2+).
+Positioning: Apex is multi-line, allergen-complex (8 RM dept silos, 14 EU allergens + Mustard addition via process cascade) — group-by-family heuristic in 04-PLAN §10 is good enough for single-line linear flow but **fails on cross-line optimization**. 07-EXT provides the optimizer that Apex planners will manually approve (human-in-loop P1, semi-autonomous P2+).
 
 ### 1.2 Why Phase C3 (not bundled into 04-PLAN)
 
 Writing split rationale: 04-PLANNING-BASIC v3.1 is 1528 lines — bundling finite-capacity + full optimizer + forecasting + disposition bridge would push past 3000 lines, making the PRD unscannable and bundling implementation phases that have fundamentally different risk profiles:
 
-- **04-PLAN P1 innovations** (intermediate cascade DAG, workflow-as-data, basic heuristic) = **must-have MVP** for Forza to run production at all
+- **04-PLAN P1 innovations** (intermediate cascade DAG, workflow-as-data, basic heuristic) = **must-have MVP** for Apex to run production at all
 - **07-EXT innovations** (optimizer, forecaster, disposition bridge) = **optimization layer** that improves P1 baseline but is **not blocking** first production go-live
 
 By splitting, 04-PLAN-BASIC can go to implementation immediately while 07-EXT remains in writing/refinement. Both PRDs share the same rule engine DSL in 02-SETTINGS §7, ensuring consistency.
@@ -65,7 +65,7 @@ By splitting, 04-PLAN-BASIC can go to implementation immediately while 07-EXT re
 ### 1.5 Markers legend
 
 - `[UNIVERSAL]` — applies to all tenants (L1 core)
-- `[FORZA-CONFIG]` — Forza-specific configuration, pattern universal
+- `[APEX-CONFIG]` — Apex-specific configuration, pattern universal
 - `[EVOLVING]` — under active change, open question pending
 - `[LEGACY-D365]` — D365 shape/logic for bridge-period
 
@@ -91,7 +91,7 @@ By splitting, 04-PLAN-BASIC can go to implementation immediately while 07-EXT re
 
 1. **Full plant-wide ERP replacement** — 07-EXT is scheduling-only; procurement optimization, MRP calculations live in 04-PLAN + 03-TECHNICAL
 2. **Real-time dispatching** (seconds-level granularity) — 07-EXT operates on minute-level, shop floor execution = 08-PRODUCTION
-3. **Mass customization / MTO small batch optimizer** — Forza is MTS/MTO hybrid batch mfg, not job shop; 07-EXT optimizes batches, not individual units
+3. **Mass customization / MTO small batch optimizer** — Apex is MTS/MTO hybrid batch mfg, not job shop; 07-EXT optimizes batches, not individual units
 4. **Multi-site cross-optimization** — P2 single-site, multi-site → 14-MULTI-SITE (Phase C5)
 
 ### 2.4 Success metrics summary
@@ -111,7 +111,7 @@ By splitting, 04-PLAN-BASIC can go to implementation immediately while 07-EXT re
 
 ### 3.1 Personas
 
-**Planner Advanced** [FORZA-CONFIG: 1 person, Monika Nowak]
+**Planner Advanced** [APEX-CONFIG: 1 person, Monika Nowak]
 - Primary user of 07-EXT
 - Runs scheduler daily (morning + afternoon)
 - Reviews optimizer recommendations, approves/overrides
@@ -132,7 +132,7 @@ By splitting, 04-PLAN-BASIC can go to implementation immediately while 07-EXT re
 - KPI monitoring (changeover reduction, schedule adherence)
 - Read-only on 07-EXT, write on 15-OEE dashboards
 
-**NPD Manager (Jane)** [FORZA-CONFIG, cameo]
+**NPD Manager (Jane)** [APEX-CONFIG, cameo]
 - Primary user of 01-NPD
 - Minor 07-EXT interaction: views forecast for new FAs launching (P2)
 - Read on `demand_forecasts` where product_id IN NPD scope
@@ -186,7 +186,7 @@ By splitting, 04-PLAN-BASIC can go to implementation immediately while 07-EXT re
 3. **Changeover matrix editor** [UNIVERSAL]
    - UI in 07-EXT (linked from 02-SETTINGS reference tables)
    - N×N matrix: allergen_from × allergen_to → (changeover_minutes, cleaning_required, atp_required)
-   - Forza initial seed: 14 EU allergens + Mustard + "none" row/col
+   - Apex initial seed: 14 EU allergens + Mustard + "none" row/col
    - L3 extensible via schema-driven admin wizard (ADR-028)
 
 4. **Manual forecast entry** (pre-Prophet integration) [EVOLVING→P2]
@@ -287,13 +287,13 @@ By splitting, 04-PLAN-BASIC can go to implementation immediately while 07-EXT re
 4. **RLS enforced** — `scheduler_runs`, `scheduler_assignments`, `changeover_matrix` all have tenant_id + RLS policy (ADR-003).
 5. **No external ML APIs in P1** — Prophet is Phase 2; P1 forecasting is manual CSV upload. Rationale: data sovereignty, $$ avoidance.
 6. **Optimizer as DSL rule** (Q2: B chosen) — `allergen_sequencing_optimizer_v2` registered in 02-SETTINGS §7 registry, admin read-only (dev-authored via PR → deploy). Consistent with all other core rules.
-7. **Heuristic solver** (Q1: B chosen) — greedy + local search, NOT MILP/CP-SAT. Simpler deployment, no solver license/dependency, fast for Forza scale (5 lines, 50-100 WOs). OR-Tools upgrade deferred unless empirical data shows heuristic insufficient post-P1.
+7. **Heuristic solver** (Q1: B chosen) — greedy + local search, NOT MILP/CP-SAT. Simpler deployment, no solver license/dependency, fast for Apex scale (5 lines, 50-100 WOs). OR-Tools upgrade deferred unless empirical data shows heuristic insufficient post-P1.
 
 ### 5.2 Business constraints
 
-**[FORZA-CONFIG, becoming UNIVERSAL]**
+**[APEX-CONFIG, becoming UNIVERSAL]**
 
-1. **5 production lines** (Forza default) — LINE-01 (Fresh), LINE-02 (Cooked), LINE-03 (Breaded), LINE-04 (Marinated), LINE-05 (Packaging only). Allergen constraints pre-seeded per line (e.g., LINE-04 has marinade = adds Mustard).
+1. **5 production lines** (Apex default) — LINE-01 (Fresh), LINE-02 (Cooked), LINE-03 (Breaded), LINE-04 (Marinated), LINE-05 (Packaging only). Allergen constraints pre-seeded per line (e.g., LINE-04 has marinade = adds Mustard).
 2. **2 shifts/day** — 06:00-14:00 Shift A, 14:00-22:00 Shift B. Night shift optional (22:00-06:00 Shift C), used only P2+ or during surge.
 3. **7-day scheduling horizon** P1 — extends to 14 days P2+.
 4. **Mon-Fri production**, weekend = maintenance windows (no WO scheduling; cleaning blocks only).
@@ -352,7 +352,7 @@ By splitting, 04-PLAN-BASIC can go to implementation immediately while 07-EXT re
 - **Gurobi (option C)** — rejected due to commercial license cost + vendor lock-in.
 
 **Consequences:**
-- Pro: No external solver dependency, deployable anywhere, fast for Forza scale (<60s confirmed on 50 WOs × 5 lines simulation)
+- Pro: No external solver dependency, deployable anywhere, fast for Apex scale (<60s confirmed on 50 WOs × 5 lines simulation)
 - Con: No optimality guarantees. Local optima risk. Complex multi-constraint trade-offs may need hand-tuning of penalty weights.
 - Mitigation: Empirical KPI tracking; if changeover reduction <30% target after 3 months, trigger OR-Tools evaluation.
 
@@ -372,7 +372,7 @@ By splitting, 04-PLAN-BASIC can go to implementation immediately while 07-EXT re
 **Decision:** Phase 2 introduces Prophet (Meta open-source, Python) as internal microservice. NOT AWS Forecast / GCP Vertex AI.
 
 **Alternatives rejected:**
-- **External managed service (option B)** — rejected for data sovereignty (food industry sensitivity, supplier confidentiality), $$ (~$100-500/month/tenant at Forza scale, scales with data), network dependency.
+- **External managed service (option B)** — rejected for data sovereignty (food industry sensitivity, supplier confidentiality), $$ (~$100-500/month/tenant at Apex scale, scales with data), network dependency.
 
 **Consequences:**
 - Pro: Data stays on-prem / in-region. Zero external spend. Prophet is well-documented, battle-tested in CPG.
@@ -441,7 +441,7 @@ By splitting, 04-PLAN-BASIC can go to implementation immediately while 07-EXT re
 - Integration with E1 solver (optimizer called as objective function component)
 
 **FRs:**
-- FR-07-E2-001: changeover_matrix seeded with 14 EU allergens + Mustard (Forza) + "none" baseline on first tenant onboarding
+- FR-07-E2-001: changeover_matrix seeded with 14 EU allergens + Mustard (Apex) + "none" baseline on first tenant onboarding
 - FR-07-E2-002: Editor supports bulk CSV import/export, diff-highlight for non-default cells
 - FR-07-E2-003: DSL rule v2 replaces 04-PLAN §10 v1 heuristic when enabled via feature flag `planning.allergen_optimizer.v2.enabled`
 - FR-07-E2-004: Fallback to v1 on DSL rule error; alert to Planner
@@ -539,7 +539,7 @@ E4 ← 04-PLAN §8.5/9 (disposition policy, reservation semantics)
 - **Drag-drop: DESCOPED P1** — Gantt is read-only visualization (decision 2026-04-21; see §8.1 rationale below)
 - Export: PDF report (Phase 2), CSV assignments
 
-**§8.1 Gantt drag-drop descope rationale (OQ-EXT-05, 2026-04-21):** FAs are typically bound to one production line (dominant 1-FA-to-1-line relationship in Forza configuration). Drag between lines would require eligibility lookup via `fa_line_compatibility` from 03-TECHNICAL for every drag event, creating significant implementation complexity for limited business value. The assignment override modal (MODAL-07-03) provides full rescheduling capability with proper validation. This decision is CLOSED.
+**§8.1 Gantt drag-drop descope rationale (OQ-EXT-05, 2026-04-21):** FAs are typically bound to one production line (dominant 1-FA-to-1-line relationship in Apex configuration). Drag between lines would require eligibility lookup via `fa_line_compatibility` from 03-TECHNICAL for every drag event, creating significant implementation complexity for limited business value. The assignment override modal (MODAL-07-03) provides full rescheduling capability with proper validation. This decision is CLOSED.
 
 #### SCR-07-02: Changeover Matrix Editor
 
@@ -1104,7 +1104,7 @@ Current active rules for 07-EXT:
 - [ ] Greedy + local search solver implemented in Python FastAPI, containerized, deployed
 - [ ] Solver P95 <60s for 50 WOs × 5 lines × 7d (load-tested)
 - [ ] `allergen_sequencing_optimizer_v2` DSL rule registered in 02-SETTINGS §7, dry-run verified
-- [ ] Changeover matrix seeded with 14 EU + Mustard + NONE for Forza tenant, editor functional
+- [ ] Changeover matrix seeded with 14 EU + Mustard + NONE for Apex tenant, editor functional
 - [ ] Manual forecast CSV upload working, stored in `demand_forecasts`
 - [ ] GanttView renders correctly as read-only visualization (no drag-drop; rescheduling via Override modal and Re-run Scheduler)
 - [ ] Approve/reject/override flows end-to-end, `work_orders` updated on approve
@@ -1129,7 +1129,7 @@ Current active rules for 07-EXT:
 - Code review by 04-PLANNING module owner + 02-SETTINGS rule registry owner
 - Security review: RLS, solver service auth, PII in input_snapshot
 - Performance load test: 50 WOs × 5 lines × 7d scenario
-- Planner Advanced UAT (Forza Monika) 2-week parallel run (v1 heuristic vs v2 optimizer side-by-side)
+- Planner Advanced UAT (Apex Monika) 2-week parallel run (v1 heuristic vs v2 optimizer side-by-side)
 - Data migration plan: existing 04-PLAN WOs with planned_start_time preserved, new runs override only unscheduled
 
 ---
@@ -1160,7 +1160,7 @@ Build order: 07-a → 07-b → (07-c P2) → (07-d P2). 07-a and 07-b in P1 crit
 
 **Stories:**
 - SC-07-b-01: `changeover_matrix` + `changeover_matrix_versions` tables
-- SC-07-b-02: Seed script for 14 EU + Mustard + NONE matrix for Forza default
+- SC-07-b-02: Seed script for 14 EU + Mustard + NONE matrix for Apex default
 - SC-07-b-03: ChangeoverMatrixEditor screen (SCR-07-02) with heatmap + cell editor
 - SC-07-b-04: Per-line override UI (tab 2)
 - SC-07-b-05: CSV import/export
@@ -1313,7 +1313,7 @@ Prior to Phase D, planning content was consolidated in single PRD `04-PLANNING-P
 ### 16.5 Marker usage summary
 
 - **[UNIVERSAL]** — 85% of features (solver, optimizer, matrix structure, forecasting model, disposition modes)
-- **[FORZA-CONFIG]** — Forza-specific initial config: 5 lines, 14 EU + Mustard allergens seed, 2 shifts, Planner = Monika
+- **[APEX-CONFIG]** — Apex-specific initial config: 5 lines, 14 EU + Mustard allergens seed, 2 shifts, Planner = Monika
 - **[EVOLVING]** — Q2+ items (Prophet, disposition bridge, what-if sim, auto-approval)
 - **[LEGACY-D365]** — Sales history pull for Prophet (P2), 13-INTEGRATIONS stage 3 scope
 

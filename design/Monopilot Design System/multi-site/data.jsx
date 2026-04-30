@@ -35,7 +35,7 @@ const MS_SITES = [
   {
     id: "SITE-A",
     code: "FRZ-UK",
-    name: "Forza Warsaw — Factory A",
+    name: "Apex Warsaw — Factory A",
     type: "plant",
     country: "United Kingdom",
     flag: "🇬🇧",
@@ -61,7 +61,7 @@ const MS_SITES = [
     invValueTxt: "£1,240,000",
     availability: "96%",
     notes: "Main plant. Hosts Production, Warehouse, NPD, Technical, Finance.",
-    legalEntity: "Forza Foods Ltd",
+    legalEntity: "Apex Foods Ltd",
     address: "Manchester Industrial Park, M11 4TR",
   },
   {
@@ -125,7 +125,7 @@ const MS_SITES = [
     invValueTxt: "£420,000",
     availability: "99%",
     notes: "Pure warehouse. No production.",
-    legalEntity: "Forza Foods Ltd",
+    legalEntity: "Apex Foods Ltd",
     address: "Harlow Logistics Park, CM19 5AB",
   },
   {
@@ -158,7 +158,7 @@ const MS_SITES = [
     invValueTxt: "—",
     availability: "100%",
     notes: "Administrative only. Candidate for decommission.",
-    legalEntity: "Forza Foods Ltd",
+    legalEntity: "Apex Foods Ltd",
     address: "40 Bank St, London, E14 5NR",
   },
 ];
@@ -358,13 +358,13 @@ const MS_REP_SCHEDULE = [
 
 // ----- Permissions (user × site) -----
 const MS_USERS = [
-  { id: "u-001", name: "J. Smith",      email: "j.smith@forza.com",     avatar: "JS" },
+  { id: "u-001", name: "J. Smith",      email: "j.smith@apex.com",     avatar: "JS" },
   { id: "u-002", name: "H. Müller",     email: "h.muller@kobe.de",      avatar: "HM" },
-  { id: "u-003", name: "A. Patel",      email: "a.patel@forza.com",     avatar: "AP" },
-  { id: "u-004", name: "M. Krawczyk",   email: "m.krawczyk@forza.com",  avatar: "MK" },
-  { id: "u-005", name: "J. Nowak",      email: "j.nowak@forza.com",     avatar: "JN" },
-  { id: "u-006", name: "K. Kowal",      email: "k.kowal@forza.com",     avatar: "KK" },
-  { id: "u-007", name: "QA. Wiśniewski",email: "qa.wisniewski@forza.com",avatar:"QW" },
+  { id: "u-003", name: "A. Patel",      email: "a.patel@apex.com",     avatar: "AP" },
+  { id: "u-004", name: "M. Krawczyk",   email: "m.krawczyk@apex.com",  avatar: "MK" },
+  { id: "u-005", name: "J. Nowak",      email: "j.nowak@apex.com",     avatar: "JN" },
+  { id: "u-006", name: "K. Kowal",      email: "k.kowal@apex.com",     avatar: "KK" },
+  { id: "u-007", name: "QA. Wiśniewski",email: "qa.wisniewski@apex.com",avatar:"QW" },
   { id: "u-008", name: "Admin User",    email: "admin@monopilot.com",   avatar: "AU", superAdmin: true },
 ];
 

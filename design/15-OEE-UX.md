@@ -22,7 +22,7 @@ Availability  = (planned_min − downtime_min) / planned_min
 Performance   = (output_qty × ideal_cycle_time_sec) / (run_time_min × 60)
 Quality       = good_qty / total_output_qty
 
-Baseline: P1 target 70% (Forza ramp-up baseline, configurable via 02-SETTINGS `oee_alert_thresholds.oee_target_pct`)
+Baseline: P1 target 70% (Apex ramp-up baseline, configurable via 02-SETTINGS `oee_alert_thresholds.oee_target_pct`)
            Industry world-class: 85% (food manufacturing)
            65–85% = typical food-manufacturing range
            < 65% = poor, requires immediate investigation
@@ -125,7 +125,7 @@ These additions are specific to 15-OEE and extend (do not override) the base pal
 | < 65% | Poor — action required | `--red` | `#ef4444` | `.badge-red` |
 | = 100% | Unrealistic — investigate | purple `#a855f7` | `#a855f7` | `.badge-purple` (custom) |
 
-Note: P1 uses fixed industry thresholds (65/85) for OEE color coding — these are hard-coded in the D3 color scale for P1 (per OQ-OEE-07 decision 2026-04-21). The per-line OEE target (default 70% for Forza, configurable via `oee_alert_thresholds.oee_target_pct`) is shown as the target reference line on charts but does not shift the green/amber/red color boundaries in P1. P2: color scale thresholds become tenant-configurable via 02-SETTINGS `oee_alert_thresholds`, replacing the fixed 65/85 values.
+Note: P1 uses fixed industry thresholds (65/85) for OEE color coding — these are hard-coded in the D3 color scale for P1 (per OQ-OEE-07 decision 2026-04-21). The per-line OEE target (default 70% for Apex, configurable via `oee_alert_thresholds.oee_target_pct`) is shown as the target reference line on charts but does not shift the green/amber/red color boundaries in P1. P2: color scale thresholds become tenant-configurable via 02-SETTINGS `oee_alert_thresholds`, replacing the fixed 65/85 values.
 
 **A / P / Q component colors (chart lines and gauge arcs):**
 
@@ -162,7 +162,7 @@ Note: P1 uses fixed industry thresholds (65/85) for OEE color coding — these a
 - Weight (kg): thousands separator, no decimal — `1,234 kg`
 - Duration: `2h 14m` above 60 min; `45 min` below 60 min
 - Date: UK default `DD/MM/YYYY`; ISO for filenames `YYYY-MM-DD`
-- Shift label: `AM` / `PM` / `Night` (Forza baseline)
+- Shift label: `AM` / `PM` / `Night` (Apex baseline)
 - Timestamp: `HH:MM:SS` for refresh indicators; `HH:MM` elsewhere
 
 ### 1.6 Freshness indicator (all dashboards)
@@ -734,9 +734,9 @@ Breadcrumb: "OEE / Settings". Page title: "OEE Alert Thresholds". `.badge-blue` 
 
 `.card` with `.card-title` "Tenant Default Thresholds". A form (read mode by default, [Edit] button top-right):
 
-| Field | Label | Type | Forza Default | Notes |
+| Field | Label | Type | Apex Default | Notes |
 |---|---|---|---|---|
-| `oee_target_pct` | OEE Target % | Number, 1dp | `70.0` | P1 Forza ramp-up baseline (OQ-OEE-02 decision 2026-04-21). Range 0–100. Note: in P1 this value controls the target reference line on charts; it does NOT shift the heatmap color scale (fixed 65/85 per OQ-OEE-07). In P2 this value will also control the color scale thresholds. |
+| `oee_target_pct` | OEE Target % | Number, 1dp | `70.0` | P1 Apex ramp-up baseline (OQ-OEE-02 decision 2026-04-21). Range 0–100. Note: in P1 this value controls the target reference line on charts; it does NOT shift the heatmap color scale (fixed 65/85 per OQ-OEE-07). In P2 this value will also control the color scale thresholds. |
 | `availability_min_pct` | Availability Minimum % | Number, 1dp | `70.0` | Below = red. |
 | `performance_min_pct` | Performance Minimum % | Number, 1dp | `80.0` | Below = red. |
 | `quality_min_pct` | Quality Minimum % | Number, 1dp | `95.0` | Below = red. |
@@ -818,7 +818,7 @@ Breadcrumb: "OEE / Shift Configs". Page title: "Shift Configuration". `.badge-bl
 
 Columns: Shift ID | Label | Start Time (UTC) | End Time (UTC) | Timezone | Active Days | Sort Order | Active.
 
-Current Forza baseline rows:
+Current Apex baseline rows:
 - `AM` — Morning Shift — 00:00 — 08:00 — UTC — Mon–Sun — 1 — `.badge-green "Active"`
 - `PM` — Afternoon Shift — 08:00 — 16:00 — UTC — Mon–Sun — 2 — `.badge-green "Active"`
 - `Night` — Night Shift — 16:00 — 00:00 — UTC — Mon–Sun — 3 — `.badge-green "Active"`
@@ -971,7 +971,7 @@ P2 spec notes (for future implementation):
 - Font scaling: body 20px, KPI values 48px bold.
 - Color-blind safe: ColorBrewer "RdYlGn" divergent palette for gauges and heatmap cells.
 - Auto-recovery: if browser crashes, OS-level kiosk restarts the URL.
-- **Kiosk OS: OPEN (OQ-OEE-03 — no decision yet).** Options under consideration: Raspberry Pi, Windows kiosk mode, ChromeOS kiosk. Requires Forza IT hardware consultation. This is the only remaining open question.
+- **Kiosk OS: OPEN (OQ-OEE-03 — no decision yet).** Options under consideration: Raspberry Pi, Windows kiosk mode, ChromeOS kiosk. Requires Apex IT hardware consultation. This is the only remaining open question.
 - Feature flag: `oee.tv_dashboard_enabled` in 02-SETTINGS §10.
 
 ### P2 Notifications Specification (OQ-OEE-08 decision 2026-04-21)
@@ -1058,10 +1058,10 @@ P2 spec notes (for future implementation):
 
 | Reference table / config | Used by | Notes |
 |---|---|---|
-| `shift_configs` | `shift_aggregator_v1`, OEE-002, OEE-ADM-002 | Forza P1: AM/PM/Night fixed |
+| `shift_configs` | `shift_aggregator_v1`, OEE-002, OEE-ADM-002 | Apex P1: AM/PM/Night fixed |
 | `oee_alert_thresholds` | Color coding on all screens | Per-line or tenant default |
 | `downtime_categories` | OEE-001 downtime causes, OEE-003 Six Big Losses | Admin-configured taxonomy |
-| `target_kpis.oee_target_pct` | Fallback if `oee_alert_thresholds` not set | 85% Forza default |
+| `target_kpis.oee_target_pct` | Fallback if `oee_alert_thresholds` not set | 85% Apex default |
 | Rule `shift_aggregator_v1` (§7.8) | Post-shift `oee_shift_metrics` population | P1 active |
 | Rule `oee_anomaly_detector_v1` (§7.8) | P2 stub | P2 only |
 | Rule `oee_maintenance_trigger_v1` (§7.8) | P2 stub, 13-MAINT consumer | P2 only |
@@ -1163,7 +1163,7 @@ Note: The PRD §10.3 specifies "mobile hidden (redirect to per-line dashboard #1
 
 ## 10. Labels and Microcopy
 
-**Shift labels (Forza baseline):**
+**Shift labels (Apex baseline):**
 - `AM` — Morning Shift — 00:00–08:00 UTC
 - `PM` — Afternoon Shift — 08:00–16:00 UTC
 - `Night` — Night Shift — 16:00–00:00 UTC
@@ -1289,8 +1289,8 @@ All P2 routes (`/oee/anomalies`, `/oee/equipment-health`, `/oee/pareto`, `/oee/t
 | ID | Question | Resolution | Date | Notes |
 |---|---|---|---|---|
 | OQ-OEE-01 | Per-product OEE drill-down (via `active_wo_id` join)? | CLOSED — deferred P2, remains sub-module 15-H | 2026-04-21 | No P1 impact. |
-| OQ-OEE-02 | OEE target 85% vs lower Forza ramp-up baseline? | CLOSED — P1 target = **70%**. `oee_alert_thresholds.oee_target_pct = 70` (Forza baseline). Amber 55–70%, red <55% (derived proportionally). | 2026-04-21 | Conflict: P1 target 70% vs fixed color scale 65/85 (per OQ-OEE-07). Resolved: target line shows at 70% on charts; color scale stays fixed at 65/85 per OQ-OEE-07. Both documented. |
-| OQ-OEE-03 | TV dashboard kiosk OS? | **OPEN** — no decision yet. Options: Raspberry Pi, Windows kiosk, ChromeOS. Requires Forza IT consultation. Does not block P1. | — | Only remaining open question. |
+| OQ-OEE-02 | OEE target 85% vs lower Apex ramp-up baseline? | CLOSED — P1 target = **70%**. `oee_alert_thresholds.oee_target_pct = 70` (Apex baseline). Amber 55–70%, red <55% (derived proportionally). | 2026-04-21 | Conflict: P1 target 70% vs fixed color scale 65/85 (per OQ-OEE-07). Resolved: target line shows at 70% on charts; color scale stays fixed at 65/85 per OQ-OEE-07. Both documented. |
+| OQ-OEE-03 | TV dashboard kiosk OS? | **OPEN** — no decision yet. Options: Raspberry Pi, Windows kiosk, ChromeOS. Requires Apex IT consultation. Does not block P1. | — | Only remaining open question. |
 | OQ-OEE-04 | Operator annotation edit window — 1 hour or end of shift? | CLOSED — **1 hour post-event**. After 1h, read-only + `[Request Edit]` escalation to supervisor. | 2026-04-21 | See OEE-M-001 spec. |
 | OQ-OEE-05 | Changeover target duration — configured where? | CLOSED — sourced from **02-SETTINGS** `changeover_target_duration_min` (per line, optional per-FA override). 15-OEE reads via settings API. | 2026-04-21 | New field added to 02-SETTINGS-PRD. |
 | OQ-OEE-06 | Six Big Losses mapping — admin-configurable or fixed? | CLOSED — **admin-configurable per tenant**. Mapping editor added to OEE-ADM-001. Default seeded from industry standard. | 2026-04-21 | See OEE-ADM-001 Six Big Losses Mapping Editor section. |

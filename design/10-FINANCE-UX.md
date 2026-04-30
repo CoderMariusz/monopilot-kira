@@ -4,7 +4,7 @@
 **Date:** 2026-04-20  
 **Status:** Final (Phase C4 Sesja 2 deliverable — feeds Claude Design prototype generation)  
 **Source PRD:** 10-FINANCE-PRD v3.0 (authoritative — overrides archive wireframes where they conflict)  
-**Primary currency:** GBP (Forza UK operation, parent IPL LIMITED group)
+**Primary currency:** GBP (Apex UK operation, parent IPL LIMITED group)
 
 ---
 
@@ -79,7 +79,7 @@ Finance KPI cards use the base `.kpi` class from the design system with these bo
 
 ### 1.5 Number formatting
 
-All monetary amounts: **en-GB locale** (Forza UK). Thousands separator: comma `1,234,567.89`. Currency: ISO 4217 code displayed inline, e.g. `£ 12,345.00 GBP`. Percentages: one decimal place `+5.1%`. Large numbers on KPI cards: abbreviated with suffix `£ 245.7K` or `£ 1.23M` when space is constrained; full value shown in tooltip on hover.
+All monetary amounts: **en-GB locale** (Apex UK). Thousands separator: comma `1,234,567.89`. Currency: ISO 4217 code displayed inline, e.g. `£ 12,345.00 GBP`. Percentages: one decimal place `+5.1%`. Large numbers on KPI cards: abbreviated with suffix `£ 245.7K` or `£ 1.23M` when space is constrained; full value shown in tooltip on hover.
 
 ---
 
@@ -719,7 +719,7 @@ Report preview: After "Run Preview", the tab body shows up to 25 rows of results
 
 Page header: "D365 F&O Integration" breadcrumb. Right: "Sync Now" (`.btn-primary`, triggers manual daily consolidation for current day), "Last sync: 2 minutes ago" in `--muted` 12px.
 
-**Connection Status card** (`.card`): two-column layout. Left: status indicator large dot (green `--green` if connected, red `--red` if failed) + text "Connected" or "Disconnected". Environment badge: "Production". Fields below: D365 Instance (FNOR), dataAreaId (FNOR), Warehouse (ForzDG), Consolidation Cutoff (23:00 UTC). Right: uptime stat "99.8% last 30 days", last successful post timestamp. Buttons: "Test Connection" (`.btn-secondary`), "Configure" (`.btn-secondary`).
+**Connection Status card** (`.card`): two-column layout. Left: status indicator large dot (green `--green` if connected, red `--red` if failed) + text "Connected" or "Disconnected". Environment badge: "Production". Fields below: D365 Instance (FNOR), dataAreaId (FNOR), Warehouse (ApexDG), Consolidation Cutoff (23:00 UTC). Right: uptime stat "99.8% last 30 days", last successful post timestamp. Buttons: "Test Connection" (`.btn-secondary`), "Configure" (`.btn-secondary`).
 
 **Sync Summary row** — four KPI mini-cards (`.card`, no border-bottom color):
 
@@ -736,7 +736,7 @@ Page header: "D365 F&O Integration" breadcrumb. Right: "Sync Now" (`.btn-primary
 
 **DLQ tab**: Table — DLQ ID, Source Event ID (link to Outbox), Event Type, Error Category badge (transient / permanent / schema / d365_validation), Error Message (truncated, expandable), Attempt Count, Moved to DLQ At, Resolved At, Resolved By, Resolution Notes. Buttons per row: "Replay" (`.btn-primary`), "Resolve" (`.btn-secondary`). Both open modals (see Section 4). Retry schedule reference: "6-attempt schedule: immediate → +5m → +30m → +2h → +12h → +24h → DLQ."
 
-**GL Mapping tab**: Table of GL account mappings — Cost Category (material / labor / overhead / waste), D365 Account Code (e.g. 5000-ForzDG-MAT), Offset Account Code, D365 Journal Name (PROD), Last Updated, Updated By. Edit button per row opens GL Mapping Edit modal.
+**GL Mapping tab**: Table of GL account mappings — Cost Category (material / labor / overhead / waste), D365 Account Code (e.g. 5000-ApexDG-MAT), Offset Account Code, D365 Journal Name (PROD), Last Updated, Updated By. Edit button per row opens GL Mapping Edit modal.
 
 **Settings tab**: Toggle — "D365 Integration Enabled" (boolean switch). Consolidation Cutoff Time (time input, default 23:00). Feature flag note: "Integration is gated by PostHog flag `integration.d365.finance_posting.enabled`. Contact admin to enable post-go-live validation." Reconciliation Schedule note: "Daily recon job runs at 03:00 UTC (cutoff + 4h) to verify D365 line counts against outbox."
 
@@ -1237,7 +1237,7 @@ FIN-016 D365 tabs on mobile: tabs become a dropdown selector. DLQ table collapse
 |---|---|---|
 | OQ-UX-01 | Should the 6-column KPI row on FIN-001 use abbreviated values (e.g. "£ 245.7K") by default with full value on hover, or always show full precision? | Cards are narrow at 6-col. |
 | OQ-UX-02 | Variance sign indicator preference: "+" and "−" prefix vs "▲ Unfavorable" / "▼ Favorable" text labels alongside the badge? | Both are used in archive wireframes — need consistency. |
-| OQ-UX-03 | For the WO Cost card (FIN-003), should the cascade section be collapsed by default (most users won't have multi-level WOs in Phase 1) or always visible? | PRD says cascade-aware but Forza Phase 1 is single-site. |
+| OQ-UX-03 | For the WO Cost card (FIN-003), should the cascade section be collapsed by default (most users won't have multi-level WOs in Phase 1) or always visible? | PRD says cascade-aware but Apex Phase 1 is single-site. |
 | OQ-UX-04 | D365 screen naming: "D365 Integration" vs "D365 F&O" vs "Integrations" in sidebar? (Comarch was withdrawn.) | Route is `/finance/d365`. |
 | OQ-UX-05 | Approval PIN input: should it be a standard password-type input field or a specialized 6-digit PIN widget (circles for digits)? | 21 CFR Part 11 context — needs to feel formal and secure. |
 | OQ-UX-06 | Cost trend chart on FIN-001: area chart (stacked) or multi-line chart? Area chart visually communicates total cost but may obscure individual category trends. | Archive wireframe shows multi-line; PRD mentions sparklines for KPI cards. |
@@ -1421,15 +1421,15 @@ Each screen defined in Section 3 should be a separate scrollable page-state with
 
 ### 13.2 Sample data guidance
 
-Use UK-context sample data consistent with Forza Foods UK operation:
+Use UK-context sample data consistent with Apex Foods UK operation:
 
 - Items: Chicken Nuggets 1 kg (FG-NUGGET-1K), Fish Fingers 500g (FG-FISH-500), Pork Sausages 500g (FG-PORK-500), Chicken Breast (RM-BREAST-001), Wheat Flour (RM-FLOUR-001), Seasoning Mix (RM-SEASON-001)
 - Work Orders: WO-2026-0042 (Chicken Nuggets, Line 1, Closed, variance +£ 75.50 GBP), WO-2026-0043 (Fish Fingers, Line 2, Open), WO-2026-0044 (Pork Sausages, Line 1, Posted, D365 journal MONO-PROD-20260419)
 - Costs: All GBP. Standard costs: Chicken Nuggets £ 3.5000/kg, Fish Fingers £ 4.2000/kg, Pork Sausages £ 2.9000/kg
 - Exchange rates: GBP (base 1.000000), EUR (0.850000 manual, updated 2026-04-19), USD (0.790000 manual, updated 2026-04-19)
-- D365 instance: FNOR, dataAreaId = FNOR, warehouse = ForzDG, finished goods account = FinGoods
+- D365 instance: FNOR, dataAreaId = FNOR, warehouse = ApexDG, finished goods account = FinGoods
 - Cost Centers: FProd01 (Line 1 Production), FProd02 (Line 2 Production), FOverhead (Shared Overhead), FPkg (Packaging)
-- Finance Manager persona: Sarah McKenzie (sarah.mckenzie@forzafoods.co.uk)
+- Finance Manager persona: Sarah McKenzie (sarah.mckenzie@apexfoods.co.uk)
 
 ### 13.3 Navigation prototype rules
 

@@ -58,6 +58,6 @@ task_types:
 # ---------- MARKER -> SKILL (auto-tagging przy pisaniu docs) ----------
 markers:
   UNIVERSAL: [documentation-patterns]
-  FORZA-CONFIG: [documentation-patterns, multi-tenant-variation]
+  APEX-CONFIG: [documentation-patterns, multi-tenant-variation]
   EVOLVING: [documentation-patterns, reality-sync-workflow]
   LEGACY-D365: [documentation-patterns, reality-sync-workflow]

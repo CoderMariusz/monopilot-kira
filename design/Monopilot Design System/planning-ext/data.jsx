@@ -43,7 +43,7 @@ const PEXT_LAST_RUN = {
   duration: 42,
   status: "completed",
   initiatedBy: "Monika Nowak",
-  initiatedByEmail: "monika.nowak@forza.co.uk",
+  initiatedByEmail: "monika.nowak@apex.co.uk",
   horizon: "7d",
   linesCount: 5,
   woCount: 23,
@@ -61,7 +61,7 @@ const PEXT_ALERTS = [
 ];
 
 // ============ GANTT — production lines and assignments ============
-// Lines per §15.2 [FORZA-CONFIG]
+// Lines per §15.2 [APEX-CONFIG]
 const PEXT_LINES = [
   { id: "LINE-01", name: "Fresh Chicken",  cap_kg_h: 800,  allergen_constraints: ["PEANUT:segregated"], shiftA: true,  shiftB: true,  shiftC: false },
   { id: "LINE-02", name: "Cooked Products", cap_kg_h: 600, allergen_constraints: [], shiftA: true,  shiftB: true,  shiftC: false },

@@ -18,7 +18,7 @@ Modul **12-REPORTING** dostarcza warstwe **universal dashboards + metadata-drive
 - **INTEGRATIONS stage summary dashboard:** new "Integration Health" dashboard (10. pozycja P1 catalog) czyta cumulative stats z `production_outbox_events`, `shipping_outbox_events`, `finance_outbox_events` (stages 2/3/5 P1 active), `warehouse_outbox_events` (stage 4 P2), `items_outbox_events` (stage 1 D365 pull status). Dashboard columns: stage, target_system, pending_count, failed_count, dlq_depth, avg_latency_5min. Consumer 02-SETTINGS §11.8 stages summary.
 - **Export audit + 21 CFR Part 11 ready:** `report_exports.sha256_hash` NOT NULL GENERATED (export content fingerprint), `exported_by` + `exported_at` + `retention_until` 7-year (BRCGS Issue 10 consumer-facing reports archive). E-signature NOT required P1 (reports = read-only) — P2 dla regulatory exports (FDA 483 response, BRCGS audit package).
 
-**Markers:** [UNIVERSAL] = core MES contract | [FORZA-CONFIG] = konkretny fit Forza UK | [EVOLVING] = areas in iteration | [LEGACY-D365] = bridge until D365 retirement.
+**Markers:** [UNIVERSAL] = core MES contract | [APEX-CONFIG] = konkretny fit Apex UK | [EVOLVING] = areas in iteration | [LEGACY-D365] = bridge until D365 retirement.
 
 ---
 
@@ -26,7 +26,7 @@ Modul **12-REPORTING** dostarcza warstwe **universal dashboards + metadata-drive
 
 ### Cel glowny
 
-Dostarczyc menedzerom, liderom produkcji, dyrekcji i QA natychmiastowy wglad w KPI fabryki (yield, giveaway, efficiency, downtime, quality, OEE, OTD) poprzez materialized-view-backed dashboards z refreshem < 3 min. Eliminacja Excel-based reporting (Forza reality: 40+ plikow xlsx) z zachowaniem accuracy ±0% vs manual calculation.
+Dostarczyc menedzerom, liderom produkcji, dyrekcji i QA natychmiastowy wglad w KPI fabryki (yield, giveaway, efficiency, downtime, quality, OEE, OTD) poprzez materialized-view-backed dashboards z refreshem < 3 min. Eliminacja Excel-based reporting (Apex reality: 40+ plikow xlsx) z zachowaniem accuracy ±0% vs manual calculation.
 
 ### Metryki sukcesu Phase 1 (MVP)
 
@@ -39,7 +39,7 @@ Dostarczyc menedzerom, liderom produkcji, dyrekcji i QA natychmiastowy wglad w K
 | Chart render time | < 500 ms | Client-side `performance.mark()` | browser |
 | Weekly Active Users (Reporting) | > 60% org users | PostHog page views | analytics |
 | Report accuracy vs Excel | 100% (zero discrepancies) | Manual quarterly audit | QA sign-off |
-| Time-to-insight vs Excel | -80% (from ~15min → <3min) | User survey (Forza pilot) | survey |
+| Time-to-insight vs Excel | -80% (from ~15min → <3min) | User survey (Apex pilot) | survey |
 | RLS isolation | 0 cross-tenant leaks | Test suite + pg_audit | `cross_tenant_leak_test` |
 | Export success rate | > 99.9% | `report_exports.status='completed'` / total | `report_exports` |
 
@@ -256,7 +256,7 @@ Dostarczyc menedzerom, liderom produkcji, dyrekcji i QA natychmiastowy wglad w K
 | `reporting.scheduled_delivery` | `false` | P2 cron email reports (Resend consumer) |
 | `reporting.external_bi_embed` | `false` | P2 Metabase/Grafana iframe escape hatch |
 | `reporting.custom_dsl_builder` | `false` | P2 SQL-like query builder admin UI |
-| `reporting.leaderboard_anonymize` | `true` (Forza: `false`) | GDPR: display initials vs full name |
+| `reporting.leaderboard_anonymize` | `true` (Apex: `false`) | GDPR: display initials vs full name |
 | `reporting.ml_anomaly_detection` | `false` | P3+ AI/ML predictions (R12) |
 
 **Rationale:** Gradual rollout per tenant, A/B testing capability, safe rollback. Admin UI w 02-SET §10 module toggles.
@@ -854,7 +854,7 @@ Reports NIE sa pushowane do D365. Jest to zgodne z Strategic Decision: D365 reti
 
 ### 14.5 GDPR
 
-- **Operator leaderboards (P2):** per-tenant L2 config `reporting.leaderboard_anonymize` (default true, Forza: false — internal ops)
+- **Operator leaderboards (P2):** per-tenant L2 config `reporting.leaderboard_anonymize` (default true, Apex: false — internal ops)
 - **PII in exports:** user_id hashed in `report_exports.exported_by_hash`, full name only via `users` join (RLS enforced)
 - **Data retention:** HR data (leaderboards) max 2 years unless explicit consent
 
@@ -1010,7 +1010,7 @@ Wszystkie OQ — P2/P3 / post-launch / nie blokuja P1.
 **Breaking changes vs v1.0:**
 - Rozszerzenie z 6 epics do 10 core P1 dashboards + 20 P2 dashboards/features
 - Rename sekcji do Phase D convention (19 sekcji)
-- Markers [UNIVERSAL]/[FORZA-CONFIG]/[EVOLVING]/[LEGACY-D365] przez caly dokument
+- Markers [UNIVERSAL]/[APEX-CONFIG]/[EVOLVING]/[LEGACY-D365] przez caly dokument
 - Dodano §5 Regulatory (BRCGS 7y, FSMA 204, EU 1169/2011, 21 CFR Part 11 P2)
 - Dodano §7 Rule Registry (2 rules: `report_access_gate_v1` P1, `scheduled_report_distribution_v1` P2)
 - Dodano §11 Validation rules V-RPT-* (25 rules access/query/export/refresh/schedule/site/metadata)

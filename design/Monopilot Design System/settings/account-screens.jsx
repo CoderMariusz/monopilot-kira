@@ -15,7 +15,7 @@ const MyProfileScreen = () => (
       </SRow>
       <SRow label="Full name"><input type="text" defaultValue="Krzysztof Nowak" /></SRow>
       <SRow label="Display name" hint="Shown in the UI."><input type="text" defaultValue="K. Nowak" /></SRow>
-      <SRow label="Email"><input type="email" defaultValue="k.nowak@forz.pl" disabled /></SRow>
+      <SRow label="Email"><input type="email" defaultValue="k.nowak@apex.pl" disabled /></SRow>
       <SRow label="Phone"><input type="text" defaultValue="+48 600 123 456" /></SRow>
       <SRow label="Language">
         <select defaultValue="en">

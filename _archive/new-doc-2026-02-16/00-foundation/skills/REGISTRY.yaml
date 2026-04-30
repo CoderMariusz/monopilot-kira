@@ -237,7 +237,7 @@ generic:
     status: active
     tags: [documentation, jsdoc, readme, markers]
     last_validated: 2026-04-17
-    validation_notes: "Updated 2026-04-17 — added UNIVERSAL/FORZA-CONFIG/EVOLVING/LEGACY-D365 markers section (Task 7)"
+    validation_notes: "Updated 2026-04-17 — added UNIVERSAL/APEX-CONFIG/EVOLVING/LEGACY-D365 markers section (Task 7)"
 
   refactoring-patterns:
     version: 1.0.0
@@ -392,7 +392,7 @@ generic:
     status: active
     tags: [monopilot, meta-model, multi-tenant, rls, configuration, markers]
     last_validated: 2026-04-17
-    validation_notes: "Created 2026-04-17 — [UNIVERSAL] vs [FORZA-CONFIG] split, RLS + config tables"
+    validation_notes: "Created 2026-04-17 — [UNIVERSAL] vs [APEX-CONFIG] split, RLS + config tables"
 
   # ---------------------------------------------------------------------------
   # MONOPILOT PROJECT (1 skill — rebranded 2026-04-17)
@@ -461,7 +461,7 @@ skill_index:
   code-review-checklist: "Code review best practices"
   git-workflow: "Git branching and PR workflow"
   git-conventional-commits: "Conventional commits format"
-  documentation-patterns: "JSDoc + README + UNIVERSAL/FORZA-CONFIG/EVOLVING/LEGACY-D365 markers"
+  documentation-patterns: "JSDoc + README + UNIVERSAL/APEX-CONFIG/EVOLVING/LEGACY-D365 markers"
   refactoring-patterns: "Common refactoring techniques"
 
   # DevOps (2)
@@ -487,7 +487,7 @@ skill_index:
   schema-driven-design: "Column definitions as DB rows (ADR-028)"
   rule-engine-dsl: "Workflow & rules as data, Stage-Gate DSL (ADR-029)"
   reality-sync-workflow: "Sync external reality into _meta/reality-sources/"
-  multi-tenant-variation: "[UNIVERSAL] vs [FORZA-CONFIG] + RLS + config tables"
+  multi-tenant-variation: "[UNIVERSAL] vs [APEX-CONFIG] + RLS + config tables"
 
   # Monopilot project (1)
   monopilot-patterns: "Monopilot implementation patterns (API routes, services, auth, errors)"

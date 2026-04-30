@@ -1,6 +1,6 @@
 # MonoPilot Design System
 
-A complete design system for **MonoPilot MES** — a multi-tenant Manufacturing Execution System for food-production companies (Forz Dairy, Kobe Dairy, etc.). Extracted from the UX specs in `design/` and the two prototype HTML files in `source/`.
+A complete design system for **MonoPilot MES** — a multi-tenant Manufacturing Execution System for food-production companies (Apex Dairy, Kobe Dairy, etc.). Extracted from the UX specs in `design/` and the two prototype HTML files in `source/`.
 
 ---
 
@@ -12,7 +12,7 @@ A complete design system for **MonoPilot MES** — a multi-tenant Manufacturing 
 - **Desktop** — plant managers, planners, QA, technical, buyers. Sidebar nav + dense tables + KPI dashboards. Light theme.
 - **Mobile scanner** — operators on the shop floor, warehouse pickers. Large tap targets, barcode scanning, Polish UI copy, single-task flows. **Dark theme** (glare reduction, matches rugged handheld devices).
 
-**Tenants.** The first live tenant is **Forz** (dairy); **Kobe Dairy** is referenced in multi-tenant screens. The system is white-label — no tenant branding in chrome, just a wordmark.
+**Tenants.** The first live tenant is **Apex** (dairy); **Kobe Dairy** is referenced in multi-tenant screens. The system is white-label — no tenant branding in chrome, just a wordmark.
 
 **Voice.** Operational, not marketing. Terms like *License Plate (LP)*, *Work Order (WO)*, *Purchase Order (PO)*, *Transfer Order (TO)*, *Goods Receipt Note (GRN)*, *Bill of Materials (BOM)*, *Batch*, *Yield*, *OEE*, *HACCP*, *CCP*, *NCR*, *SSCC*, *GS1-128* are used without explanation — the audience is factory staff who know them. Copy is short, imperative, data-dense.
 

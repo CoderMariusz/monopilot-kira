@@ -333,7 +333,7 @@ Pokrycie: **10/10 (100%)**
 | Pozycja | Opis | Pokryta? | Gdzie w M11 PRD |
 |---------|------|----------|-----------------|
 | 11.1 | TO jako most miedzyzakladowy | TAK | E11.2, D-MS-3 |
-| 11.2 | Multi-company support (FORZ+KOBE) | TAK | E11.1, D-MS-1 |
+| 11.2 | Multi-company support (APEX+KOBE) | TAK | E11.1, D-MS-1 |
 | 11.3 | Site-level filtering na raportach | TAK | E11.4, site filter |
 
 Pokrycie: **3/3 (100%)**

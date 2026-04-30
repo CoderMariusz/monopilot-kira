@@ -324,4 +324,4 @@ See [`META-MODEL.md`](META-MODEL.md) for the broader meta-model context.
 
 **What remains:** Role × permission matrix storage pattern pozostaje wzorcem — role jako config-table entries, permissions jako matrix w DB (nie hardcoded w kodzie). Seed pattern dla nowych orgs pozostaje aktualny.
 
-**What changes:** ADR-031 wprowadza *schema variation per org* — każdy org może mieć własny zestaw ról (nie tylko własne przypisania do uniwersalnych ról). Role definitions stają się L2/L3 data w 4-layer model (per-org w config tables), z zachowaniem RLS isolation. Forza dostanie seed ról z reality source PLD v7; inni klienci mogą mieć inne zestawy.
+**What changes:** ADR-031 wprowadza *schema variation per org* — każdy org może mieć własny zestaw ról (nie tylko własne przypisania do uniwersalnych ról). Role definitions stają się L2/L3 data w 4-layer model (per-org w config tables), z zachowaniem RLS isolation. Apex dostanie seed ról z reality source PLD v7; inni klienci mogą mieć inne zestawy.

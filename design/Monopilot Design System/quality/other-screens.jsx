@@ -329,7 +329,7 @@ const QaSettings = ({ role, onNav }) => {
             <thead><tr><th>Record type</th><th>Current (years)</th><th>Override</th><th>Note</th></tr></thead>
             <tbody>
               <tr><td className="mono">quality_inspections</td><td>7</td><td><input type="number" defaultValue={7} className="num mono" style={{width: 60}}/></td><td style={{fontSize: 11, color: "var(--muted)"}}>Cannot reduce below 7 (regulatory min.)</td></tr>
-              <tr><td className="mono">ncr_reports</td><td>7</td><td><input type="number" defaultValue={7} className="num mono" style={{width: 60}}/></td><td style={{fontSize: 11, color: "var(--muted)"}}>BRCGS min 3 yrs, Forza internal 7</td></tr>
+              <tr><td className="mono">ncr_reports</td><td>7</td><td><input type="number" defaultValue={7} className="num mono" style={{width: 60}}/></td><td style={{fontSize: 11, color: "var(--muted)"}}>BRCGS min 3 yrs, Apex internal 7</td></tr>
               <tr><td className="mono">haccp_monitoring_records</td><td>7</td><td><input type="number" defaultValue={7} className="num mono" style={{width: 60}}/></td><td style={{fontSize: 11, color: "var(--muted)"}}>ISO 22000 min 3 yrs</td></tr>
             </tbody>
           </table>

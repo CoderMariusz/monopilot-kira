@@ -94,7 +94,7 @@ const SiteCreateModal = ({ open, onClose, data }) => {
               </select>
             </Field>
             <Field label="Legal Entity">
-              <input placeholder="e.g. Forza Foods Ltd"/>
+              <input placeholder="e.g. Apex Foods Ltd"/>
             </Field>
             <Field label="Address">
               <textarea placeholder="Street, city, postcode" maxLength={300} style={{minHeight:50}}/>

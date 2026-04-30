@@ -137,7 +137,7 @@ const UsersScreen = ({ view }) => {
               <button className="btn btn-ghost btn-sm" onClick={() => setShowInvite(false)}>✕</button>
             </div>
             <div style={{ padding: 18 }}>
-              <div className="field"><label>Email address</label><input type="email" placeholder="name@forz.pl" autoFocus /></div>
+              <div className="field"><label>Email address</label><input type="email" placeholder="name@apex.pl" autoFocus /></div>
               <div className="form-grid-2">
                 <div className="field"><label>Role</label><select><option>Admin</option><option defaultValue>Manager</option><option>Operator</option><option>Viewer</option></select></div>
                 <div className="field"><label>Site</label><select><option>Kraków HQ</option><option>Wrocław</option><option>All sites</option></select></div>
@@ -187,7 +187,7 @@ const SecurityScreen = () => (
       <SRow label="Provider" hint="SAML 2.0 via Microsoft Entra ID.">
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <div style={{ width: 28, height: 28, background: "#0078d4", color: "#fff", borderRadius: 4, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700, fontSize: 11 }}>MS</div>
-          <div><div style={{ fontWeight: 500 }}>Microsoft Entra ID</div><div className="muted mono" style={{ fontSize: 11 }}>forz.onmicrosoft.com</div></div>
+          <div><div style={{ fontWeight: 500 }}>Microsoft Entra ID</div><div className="muted mono" style={{ fontSize: 11 }}>apex.onmicrosoft.com</div></div>
         </div>
       </SRow>
       <SRow label="Enforce SSO" hint="Password login disabled for non-admin users when on.">
@@ -237,7 +237,7 @@ const SecurityScreen = () => (
           <tr><td className="mono">2025-12-15 11:38</td><td>A. Zając</td><td>Approved BOM-221</td><td className="mono muted">192.168.1.15</td></tr>
           <tr><td className="mono">2025-12-15 09:12</td><td>M. Wiśniewska</td><td>Disabled user K. Nowacka</td><td className="mono muted">10.0.0.55</td></tr>
           <tr><td className="mono">2025-12-14 16:45</td><td>System</td><td>Daily backup completed</td><td className="mono muted">—</td></tr>
-          <tr><td className="mono">2025-12-14 14:21</td><td>K. Nowak</td><td>Invited user m.dabrowski@forz.pl</td><td className="mono muted">192.168.1.42</td></tr>
+          <tr><td className="mono">2025-12-14 14:21</td><td>K. Nowak</td><td>Invited user m.dabrowski@apex.pl</td><td className="mono muted">192.168.1.42</td></tr>
         </tbody>
       </table>
     </Section>

@@ -34,7 +34,7 @@
 ### Kluczowe decyzje Sesja 1 (Q1-Q4)
 
 - **Q1:** L1 promotion flow = admin approval queue + background migration job + notification ✅
-- **Q2:** Rule registry = **read-only admin UI**. Rules authored by dev (PR → migration deploy). Rationale: safety, type-safety, testing discipline, Forza context (Jane power-user ale nie programmer). §7.1 rationale detail. ✅
+- **Q2:** Rule registry = **read-only admin UI**. Rules authored by dev (PR → migration deploy). Rationale: safety, type-safety, testing discipline, Apex context (Jane power-user ale nie programmer). §7.1 rationale detail. ✅
 - **Q3:** PostHog self-host + built-in fallback (`feature_flags_core` table) dla core toggles: `maintenance_mode`, `integration.d365.enabled`, `scanner.pwa.enabled`, `npd.d365_builder.execute` ✅
 - **Q4:** D365 Constants w osobnym tabie `SETTINGS > Integrations > D365` — 4 screens (SET-080..083) ✅
 
@@ -151,7 +151,7 @@ Total **22-27 sesji impl est.**
 
 ## Closing note
 
-Sesja 1 (02-SETTINGS v3.0, 1343 linii) zamknięta efektywnie. Kluczowa decyzja sesji = **Q2 Rule registry read-only** — upraszcza admin UI, wzmacnia safety/testing discipline, zgodna z Forza context (Jane = power-user NPD, nie programmer).
+Sesja 1 (02-SETTINGS v3.0, 1343 linii) zamknięta efektywnie. Kluczowa decyzja sesji = **Q2 Rule registry read-only** — upraszcza admin UI, wzmacnia safety/testing discipline, zgodna z Apex context (Jane = power-user NPD, nie programmer).
 
 **Pozostało Phase C1:** 1 sesja (03-TECHNICAL + INTEGRATIONS stage 1 technical side).
 

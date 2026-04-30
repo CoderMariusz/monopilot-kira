@@ -50,12 +50,12 @@ Module **07-PLANNING-EXT** is the advanced scheduling layer of MonoPilot MES. It
 - **07-c Forecast Bridge** (P2) — demand_forecasts, Prophet microservice, ForecastUpload, forecast-driven PO trigger
 - **07-d Disposition Bridge** (P2) — direct_continue + planner_decides modes, reservation handoff
 
-**Primary persona:** Planner Advanced (Monika Nowak at Forza — runs scheduler daily, approves/overrides recommendations, maintains changeover matrix, uploads forecasts P2). Secondary personas: Scheduling Officer (read + limited override), Production Manager (KPI monitoring, read-only), NPD Manager (read own forecast P2).
+**Primary persona:** Planner Advanced (Monika Nowak at Apex — runs scheduler daily, approves/overrides recommendations, maintains changeover matrix, uploads forecasts P2). Secondary personas: Scheduling Officer (read + limited override), Production Manager (KPI monitoring, read-only), NPD Manager (read own forecast P2).
 
 **Phase markers used in this document:**
 - `[P1]` — MVP scope, build now
 - `[P2]` — advanced scope, placeholder screens included
-- `[FORZA-CONFIG]` — Forza-specific seed data; pattern is universal
+- `[APEX-CONFIG]` — Apex-specific seed data; pattern is universal
 
 ---
 
@@ -1284,7 +1284,7 @@ Build components in this order for the P1 prototype:
 
 ### 15.2 Static Data Seeds for Prototype
 
-**Production lines** [FORZA-CONFIG]:
+**Production lines** [APEX-CONFIG]:
 - `LINE-01` · Fresh Chicken Products · capacity: 800 kg/h
 - `LINE-02` · Cooked Products · capacity: 600 kg/h
 - `LINE-03` · Breaded Products · capacity: 500 kg/h

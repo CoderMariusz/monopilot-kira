@@ -225,7 +225,7 @@ Poniżej sample jak Foundation 00-b (Supabase + Drizzle setup) rozkłada się na
 | T-00b-001 | T1 | Supabase project init + env config | T-00a-005 (monorepo done) | 30k | 30 min |
 | T-00b-002 | T1 | Drizzle config + first migration (baseline tables: tenants, users, roles) | T-00b-001 | 50k | 60 min |
 | T-00b-003 | T2 | Migration runner scripts (up/down) + package.json commands | T-00b-002 | 40k | 45 min |
-| T-00b-004 | T5 | Seed factories (Forza baseline: 1 tenant + 3 users + 3 roles) | T-00b-002 | 40k | 45 min |
+| T-00b-004 | T5 | Seed factories (Apex baseline: 1 tenant + 3 users + 3 roles) | T-00b-002 | 40k | 45 min |
 | T-00b-005 | T4 | Integration test: migrate → seed → query | T-00b-003, T-00b-004 | 60k | 45 min |
 | T-00b-006 | T2 | Supabase client singleton + RLS context setter (`setCurrentOrgId`) | T-00b-001 | 40k | 30 min |
 | T-00b-007 | T4 | E2E: app boots, connects Supabase, queries empty users table | T-00b-006 | 50k | 30 min |

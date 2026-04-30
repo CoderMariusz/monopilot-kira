@@ -618,14 +618,14 @@ Jeden Server Action `logoutAction()` który:
 **max_attempts:** 3
 
 ### Dependencies
-- **Upstream (must be done first):** [T-00c-003 — Next.js middleware, T-00c-004 — Login page UI, T-00c-005 — Logout Server Action, T-00i-005 — forza-baseline seed (or equivalent seed task)]
+- **Upstream (must be done first):** [T-00c-003 — Next.js middleware, T-00c-004 — Login page UI, T-00c-005 — Logout Server Action, T-00i-005 — apex-baseline seed (or equivalent seed task)]
 - **Downstream (will consume this):** []
 - **Parallel (can run concurrently):** []
 
 ### GIVEN / WHEN / THEN
-**GIVEN** a seeded `forza-baseline` DB with user `jan@forza.pl` / `Test1234!` belonging to tenant `forza-tenant-id`
+**GIVEN** a seeded `apex-baseline` DB with user `jan@apex.pl` / `Test1234!` belonging to tenant `apex-tenant-id`
 **WHEN** Playwright navigates to `/login`, submits the known credentials, then calls `GET /api/whoami`, then clicks logout
-**THEN** step 1: redirect to `/(app)/dashboard` (200, no redirect loop); step 2: `/api/whoami` returns JSON `{ userId: '<uuid>', orgId: 'forza-tenant-id' }` read from `current_setting('app.current_org_id')`; step 3: post-logout navigation to `/(app)/` redirects back to `/login`
+**THEN** step 1: redirect to `/(app)/dashboard` (200, no redirect loop); step 2: `/api/whoami` returns JSON `{ userId: '<uuid>', orgId: 'apex-tenant-id' }` read from `current_setting('app.current_org_id')`; step 3: post-logout navigation to `/(app)/` redirects back to `/login`
 
 ### ACP Prompt
 ````
@@ -642,7 +642,7 @@ Dodaj route `GET /api/whoami` i Playwright spec `e2e/auth.spec.ts` który:
 2. Sprawdza że middleware prawidłowo propaguje `app.current_org_id`
 3. Weryfikuje logout flow
 
-Seeded user: `email: 'jan@forza.pl'`, `password: 'Test1234!'`, `tenant_id: 'forza-tenant-id'` (z `forza-baseline` snapshot).
+Seeded user: `email: 'jan@apex.pl'`, `password: 'Test1234!'`, `tenant_id: 'apex-tenant-id'` (z `apex-baseline` snapshot).
 
 ## Implementacja
 1. Utwórz `apps/web/app/api/whoami/route.ts`:
@@ -673,7 +673,7 @@ Seeded user: `email: 'jan@forza.pl'`, `password: 'Test1234!'`, `tenant_id: 'forz
    test("login → whoami has org_id → logout redirects", async ({ page }) => {
      // Step 1: Login
      await page.goto("/login");
-     await page.getByLabel("E-mail").fill("jan@forza.pl");
+     await page.getByLabel("E-mail").fill("jan@apex.pl");
      await page.getByLabel("Hasło").fill("Test1234!");
      await page.getByRole("button", { name: "Zaloguj" }).click();
      await expect(page).toHaveURL(/\/app\/dashboard/);
@@ -682,7 +682,7 @@ Seeded user: `email: 'jan@forza.pl'`, `password: 'Test1234!'`, `tenant_id: 'forz
      const resp = await page.request.get("/api/whoami");
      expect(resp.status()).toBe(200);
      const body = await resp.json();
-     expect(body.orgId).toBe("forza-tenant-id");
+     expect(body.orgId).toBe("apex-tenant-id");
      expect(body.userId).toMatch(/^[0-9a-f-]{36}$/);
 
      // Step 3: Logout redirects to /login

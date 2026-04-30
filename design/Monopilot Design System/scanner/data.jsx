@@ -7,13 +7,13 @@
 const SCN_USER = {
   id: "op-jk",
   name: "Jan Kowalski",
-  email: "j.kowalski@forza.pl",
+  email: "j.kowalski@apex.pl",
   initials: "JK",
   avatar: "👷",
   role: "production.operator",
   roles: ["scanner.access", "production.operator", "warehouse.operator", "quality.inspector"],
-  site: "FORZ",
-  siteName: "Forza Foods · Grójec",
+  site: "APEX",
+  siteName: "Apex Foods · Grójec",
   line: "LINE-01",
   lineName: "Linia A",
   shift: "morning",
@@ -170,8 +170,8 @@ const SCN_COPRODUCTS = {
 
 // Sites/lines/shifts for context picker
 const SCN_SITES = [
-  { code: "FORZ", name: "Forza Foods · Grójec", desc: "PL · Zakład główny" },
-  { code: "FNOR", name: "Forza Norwich", desc: "GB · UK operations" },
+  { code: "APEX", name: "Apex Foods · Grójec", desc: "PL · Zakład główny" },
+  { code: "FNOR", name: "Apex Norwich", desc: "GB · UK operations" },
 ];
 const SCN_LINES = [
   { code: "LINE-01", name: "Linia A", desc: "Kiełbasy", status: "active" },

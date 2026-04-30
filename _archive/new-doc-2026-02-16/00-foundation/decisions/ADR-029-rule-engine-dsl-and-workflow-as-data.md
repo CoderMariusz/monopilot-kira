@@ -12,7 +12,7 @@
 
 PLD v7 (Phase A reality source) implementuje cascading dependencies `Pack_Size → Line → Dieset → Material` oraz conditional required (`MRP_Category` required gdy MRP dept aktywny) oraz Stage-Gate checklist (G2 → G3 wymaga `BOM_complete=true AND Costing_approved=true`). Każda z tych reguł jest dziś hardcoded w VBA.
 
-Monopilot musi obsługiwać ten typ logiki dla **wielu orgs bez per-client code**. Dodatkowo: workflow state machine Forzy = NPD Stage-Gate G0→G4, ale inny klient może mieć G0→G3, albo inny zestaw bramek, albo inny kompletnie workflow. Jeden engine musi obsługiwać wszystkie.
+Monopilot musi obsługiwać ten typ logiki dla **wielu orgs bez per-client code**. Dodatkowo: workflow state machine Apexa = NPD Stage-Gate G0→G4, ale inny klient może mieć G0→G3, albo inny zestaw bramek, albo inny kompletnie workflow. Jeden engine musi obsługiwać wszystkie.
 
 Rozwiązanie: **mini DSL** (interpretowany z danych, twardy scope 4 obszarów) + **jeden universal runtime engine** dla wszystkich 16 modułów Monopilot.
 
@@ -26,10 +26,10 @@ Rozszerzanie DSL poza te 4 obszary **zabronione bez nowego ADR**. To mitigacja r
 
 | Obszar | Opis | Marker runtime / definicja |
 |---|---|---|
-| (a) Cascading dropdowns | "Pole Y dopuszczalne wartości zależą od wartości pola X" (1-level lub multi-level chain) | `[UNIVERSAL]` silnik / `[FORZA-CONFIG]` konkretne łańcuchy |
-| (b) Conditional required | "Pole Z required gdy predykat P prawdziwy" (predykat = kombinacja wartości pól + toggles dept) | `[UNIVERSAL]` silnik / `[FORZA-CONFIG]` konkretne warunki |
-| (c) Gate entry criteria | "Stage S można opuścić gdy checklist C complete" (checklist = dane, nie kod) | `[UNIVERSAL]` silnik / `[FORZA-CONFIG]` konkretne bramki |
-| (d) Workflow definitions | State machine (nodes = stages, edges = transitions) zdefiniowana jako struktura danych | `[UNIVERSAL]` silnik / `[FORZA-CONFIG]` konkretne definicje |
+| (a) Cascading dropdowns | "Pole Y dopuszczalne wartości zależą od wartości pola X" (1-level lub multi-level chain) | `[UNIVERSAL]` silnik / `[APEX-CONFIG]` konkretne łańcuchy |
+| (b) Conditional required | "Pole Z required gdy predykat P prawdziwy" (predykat = kombinacja wartości pól + toggles dept) | `[UNIVERSAL]` silnik / `[APEX-CONFIG]` konkretne warunki |
+| (c) Gate entry criteria | "Stage S można opuścić gdy checklist C complete" (checklist = dane, nie kod) | `[UNIVERSAL]` silnik / `[APEX-CONFIG]` konkretne bramki |
+| (d) Workflow definitions | State machine (nodes = stages, edges = transitions) zdefiniowana jako struktura danych | `[UNIVERSAL]` silnik / `[APEX-CONFIG]` konkretne definicje |
 
 **Jeden** universal runtime engine interpretuje wszystkie 4 obszary dla wszystkich 16 modułów — nie piszemy silnika per moduł.
 
@@ -74,7 +74,7 @@ flowchart LR
 
 - Silnik workflow = universal code (patrz "(d) Workflow definitions" w tabeli wyżej).
 - Definicja workflow per org = dane (JSON w config-tabeli). Stages, kryteria bramek, transitions, owners stage-ów.
-- Forza dostaje predefiniowaną definicję NPD Stage-Gate G0→G4 `[FORZA-CONFIG]`.
+- Apex dostaje predefiniowaną definicję NPD Stage-Gate G0→G4 `[APEX-CONFIG]`.
 - Inny klient: G0→G3 albo kompletnie inny workflow — zmiana w Settings / JSON edit, nie w kodzie.
 - Workflow-as-data rozszerza [ADR-007](ADR-007-work-order-state-machine.md) — silnik state-machine staje się uniwersalny, definicje są danymi per org.
 
@@ -84,7 +84,7 @@ flowchart LR
 
 1. **Uniwersalność.** Jeden silnik dla 16 modułów (NPD, Planning, Production, QA, Procurement, ...). Bez DSL — każdy moduł miałby własny hardcoded rule set, koszt utrzymania rośnie liniowo z liczbą modułów × liczbą orgs.
 2. **Multi-tenant ([ADR-031](ADR-031-schema-variation-per-org.md)).** Definicje per org (Layer L3 w ADR-031), RLS izoluje. Zmiana reguły jednego org-a nie dotyka innego.
-3. **Ewolucyjność.** Forza zmienia regułę (nowa bramka, nowy wymagany dział) bez dewelopera — insert / update w config-tabeli, audytowane.
+3. **Ewolucyjność.** Apex zmienia regułę (nowa bramka, nowy wymagany dział) bez dewelopera — insert / update w config-tabeli, audytowane.
 4. **Bezpieczeństwo.** DSL ograniczony scope (4 obszary, skończony zestaw predykatów i actions) — **nie Turing-complete**. Nie da się napisać nieskończonej pętli, SQL injection, dostępu do systemu plików. Sandboxing z definicji.
 
 ---
@@ -120,13 +120,13 @@ Mitiguje ryzyko **R1** (schema-driven overreach → "half-baked database inside 
 ## Markery
 
 - **Silnik rule engine / workflow engine** = `[UNIVERSAL]` z definicji (jeden kod dla wszystkich klientów).
-- **Każda konkretna reguła** (cascading chain, conditional required, gate checklist, workflow definition) = `[FORZA-CONFIG]` lub `[EVOLVING]`.
+- **Każda konkretna reguła** (cascading chain, conditional required, gate checklist, workflow definition) = `[APEX-CONFIG]` lub `[EVOLVING]`.
 
-Przykłady Forzy:
-- Cascading `Pack_Size → Line → Dieset → Material` `[FORZA-CONFIG]`
-- Conditional required `MRP_Category required gdy dept MRP active` `[FORZA-CONFIG]` `[EVOLVING]` (MRP dept potencjalnie split — spec §7.2)
-- Gate G2→G3 checklist (`BOM_complete`, `Costing_approved`) `[FORZA-CONFIG]`
-- NPD Stage-Gate workflow G0→G4 `[FORZA-CONFIG]`
+Przykłady Apexa:
+- Cascading `Pack_Size → Line → Dieset → Material` `[APEX-CONFIG]`
+- Conditional required `MRP_Category required gdy dept MRP active` `[APEX-CONFIG]` `[EVOLVING]` (MRP dept potencjalnie split — spec §7.2)
+- Gate G2→G3 checklist (`BOM_complete`, `Costing_approved`) `[APEX-CONFIG]`
+- NPD Stage-Gate workflow G0→G4 `[APEX-CONFIG]`
 
 ---
 
@@ -135,7 +135,7 @@ Przykłady Forzy:
 - **Konkretna biblioteka parsera** dla textual DSL — wybór lib (Chevrotain? Nearley? custom?) w implementation phase, nie blokuje Phase 0.
 - **Wersjonowanie reguł** — reguła v1 active w produkcji vs v2 draft w Settings, mechanizm promocji i rollback — decyzja Phase D.
 - **Rule tracer UX** — jak administrator ma zobaczyć "dlaczego to pole jest required" / "dlaczego ten value niedozwolony" — projekt UI w Phase B.
-- **Promocja obszaru `[EVOLVING]` → `[FORZA-CONFIG]` lub `[UNIVERSAL]`** (META-MODEL §6.3) — procedura review.
+- **Promocja obszaru `[EVOLVING]` → `[APEX-CONFIG]` lub `[UNIVERSAL]`** (META-MODEL §6.3) — procedura review.
 
 ---
 

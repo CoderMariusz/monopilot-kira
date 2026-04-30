@@ -119,7 +119,7 @@ Strong core coverage (SO lifecycle, pick/pack/ship confirm, SSCC, allergen wizar
 | SET-025 Audit Logs | COVERED — `AuditLogScreen` present ✓ (minimal) |
 | SET-026 Security Settings | COVERED — `SecurityScreen` ✓ |
 | SET-027 Notifications | COVERED — `NotificationsScreen` ✓ |
-| D365 Constants: FNOR/ForzDG/FinGoods/FOR100048 (§11) | COVERED — `D365ConnectionScreen` + D365 mapping screen show constants ✓ |
+| D365 Constants: FNOR/ApexDG/FinGoods/FOR100048 (§11) | COVERED — `D365ConnectionScreen` + D365 mapping screen show constants ✓ |
 | Reference tables: `shipping_override_reasons`, `rma_reason_codes` (v3.1 bundled delta) | **MISSING** — `ReferenceDataScreen` present but no Shipping-specific tables visible in data |
 | Scanner devices (SET-016 extension) | COVERED — `DevicesScreen` in `ops-screens.jsx` ✓ |
 | BOMs screen | COVERED — `BomsScreen` in `data-screens.jsx` ✓ |
@@ -133,7 +133,7 @@ Strong core coverage (SO lifecycle, pick/pack/ship confirm, SSCC, allergen wizar
 
 | # | Finding | Classification | Detail |
 |---|---|---|---|
-| B-SET-01 | `AuditLogScreen` shows "Sync failed · SAP S/4HANA" in audit data — PRD/UX reference D365 (Dynamics 365), not SAP S/4HANA. Forza is a D365 shop. | **(A) Functional hallucination** | `app.jsx` line ~32: `"Sync failed" / "SAP S/4HANA"` — wrong ERP system entirely |
+| B-SET-01 | `AuditLogScreen` shows "Sync failed · SAP S/4HANA" in audit data — PRD/UX reference D365 (Dynamics 365), not SAP S/4HANA. Apex is a D365 shop. | **(A) Functional hallucination** | `app.jsx` line ~32: `"Sync failed" / "SAP S/4HANA"` — wrong ERP system entirely |
 | B-SET-02 | `IntegrationsScreen` (`integrations.jsx`) lists 5 integration categories and 16 integrations including items like "Shopify", "Slack", "Xero" — PRD §11 and §4 scope D365 + Peppol + API keys only for P1; Shopify/Slack/Xero are not mentioned anywhere in the PRD | **(A) Functional hallucination** | Integrations catalog goes far beyond PRD scope; risks misleading stakeholders about Monopilot's integration strategy |
 | B-SET-03 | `LabelEditor` (interactive WYSIWYG drag-and-drop label editor in `editor-tweaks.jsx`) — PRD §13 EmailConfig references email templates; label templates as a drag-and-drop label design tool is not described in 02-SETTINGS PRD or UX spec. ZPL label generation belongs to 11-SHIPPING (D-SHP-4, §13.2) | **(B) Module placement drift** | Label editor in Settings prototype is out-of-module scope. It belongs in 11-SHIPPING or 03-TECHNICAL |
 | B-SET-04 | `PromotionsScreen` (screen key `"promotions"`) — not listed in any Settings PRD section or UX screen inventory (SET-000 to SET-093). No PRD section describes "Promotions" in 02-SETTINGS | **(A) Functional hallucination** | Module "Promotions" appears to be generated content with no PRD backing |
@@ -150,7 +150,7 @@ Strong core coverage (SO lifecycle, pick/pack/ship confirm, SSCC, allergen wizar
 | C-SET-03 | `SettingsNav` inner sidebar — UX §2 specifies a 256px second nav rail alongside the 220px global sidebar. Prototype uses `SettingsNav` component; no visual inspection possible from JSX alone, but component is referenced ✓ | Cannot verify |
 | C-SET-04 | SET-008 User List: UX specifies 10 system roles in role filter dropdown; `UsersScreen` only shows 4 roles ("Admin", "Manager", "Operator", "Viewer") in `window.SETTINGS_ROLES` — only 4 vs PRD's 10 system roles | MEDIUM — role data incomplete vs PRD §3 |
 | C-SET-05 | Reference Tables CRUD (SET-051): `ReferenceDataScreen` present but no Shipping-specific tables (`shipping_override_reasons`, `rma_reason_codes`) added per bundled 02-SETTINGS v3.1 delta (11-SHIPPING PRD §7). Also no `AlertThresholds` or `Allergens` reference tables visible | MEDIUM — v3.1 bundled delta not applied to reference data |
-| C-SET-06 | D365 Constants screen: PRD §11 defines exactly 5 constants (FNOR, FOR100048, ForzDG, FinGoods, FProd01) + P2 extensions (shipping_warehouse, customer_account_id_map, courier_default_carrier, courier_api_vault_key). `D365ConnectionScreen` shows connection config (URL, tenant ID, client ID) but D365 Constants Editor (SET-081: the actual FNOR/ForzDG/FinGoods value table) is conflated with the D365 mapping/field-level screen | MEDIUM — SET-080 (connection) and SET-081 (constants values table) merged; UX specifies them as separate screens |
+| C-SET-06 | D365 Constants screen: PRD §11 defines exactly 5 constants (FNOR, FOR100048, ApexDG, FinGoods, FProd01) + P2 extensions (shipping_warehouse, customer_account_id_map, courier_default_carrier, courier_api_vault_key). `D365ConnectionScreen` shows connection config (URL, tenant ID, client ID) but D365 Constants Editor (SET-081: the actual FNOR/ApexDG/FinGoods value table) is conflated with the D365 mapping/field-level screen | MEDIUM — SET-080 (connection) and SET-081 (constants values table) merged; UX specifies them as separate screens |
 | C-SET-07 | Schema Browser (SET-030): `SchemaBrowserScreen` present. UX §SET-030 specifies column browser with tier filters, dry-run trigger, shadow preview mode. Prototype has filtering and schema view modal ✓ | Minor gaps possible but core covered |
 
 ---
@@ -164,7 +164,7 @@ Strong core coverage (SO lifecycle, pick/pack/ship confirm, SSCC, allergen wizar
 | Issue | Risk | Severity |
 |---|---|---|
 | C-SET-01 Onboarding wizard absent | New org has no guided setup path — P1 Must gap | HIGH |
-| B-SET-01 SAP S/4HANA in audit log | Wrong ERP — factual error visible to Forza stakeholders | HIGH |
+| B-SET-01 SAP S/4HANA in audit log | Wrong ERP — factual error visible to Apex stakeholders | HIGH |
 | B-SET-02 Integrations catalog hallucination | 16 fake integrations mislead scope conversations | HIGH |
 | B-SET-04 Promotions screen has no PRD backing | Phantom feature may cause confusion | MEDIUM |
 | C-SET-04 Only 4 of 10 system roles in user list | Incomplete RBAC data | MEDIUM |
@@ -192,7 +192,7 @@ Strong coverage of infrastructure, rule registry, D365 config, and feature flags
 ## Cross-module notes
 
 1. **11-SHIPPING consumes 02-SETTINGS §7/§8/§11** — shipping_override_reasons and rma_reason_codes registered in 02-SETTINGS §8 (v3.1 bundled delta) are absent from the Settings Reference Tables prototype. Both modules must align on this.
-2. **D365 constants reuse (D-SHP-18)**: Settings prototype conflates D365 connection config with constants editor. Shipping expects to read FNOR/ForzDG/FinGoods from a dedicated constants table (SET-081). This architectural gap spans both prototypes.
+2. **D365 constants reuse (D-SHP-18)**: Settings prototype conflates D365 connection config with constants editor. Shipping expects to read FNOR/ApexDG/FinGoods from a dedicated constants table (SET-081). This architectural gap spans both prototypes.
 3. **ADMIN-SHP-02 DLQ screen**: Shipping PRD §12.6 specifies `/admin/integrations/d365/dlq` as a reuse of 08-PROD DLQ ops screen filtered by `source='shipping'`. Settings integrations screen has no DLQ view at all — this cross-module dependency is unrepresented in both prototypes.
 
 ---

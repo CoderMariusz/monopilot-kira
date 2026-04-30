@@ -52,16 +52,16 @@ window.SETTINGS_NAV = [
 
 // Users for the Users screen
 window.SETTINGS_USERS = [
-  { id: 1, name: "Krzysztof Nowak",     email: "k.nowak@forz.pl",        role: "Admin",    status: "active", site: "Kraków HQ", last: "2h ago",  init: "KN", color: "av-blue" },
-  { id: 2, name: "Magdalena Wiśniewska", email: "m.wisniewska@forz.pl",  role: "Manager",  status: "active", site: "Kraków HQ", last: "1h ago",  init: "MW", color: "av-violet" },
-  { id: 3, name: "Tomasz Kowalski",      email: "t.kowalski@forz.pl",    role: "Manager",  status: "active", site: "Wrocław",   last: "Today",   init: "TK", color: "av-green" },
-  { id: 4, name: "Anna Zając",           email: "a.zajac@forz.pl",       role: "Manager",  status: "active", site: "Kraków HQ", last: "Yesterday", init: "AZ", color: "av-amber" },
-  { id: 5, name: "Jan Lewandowski",      email: "j.lewandowski@forz.pl", role: "Operator", status: "active", site: "Kraków HQ", last: "30m ago", init: "JL", color: "av-teal" },
-  { id: 6, name: "Ewa Piotrowska",       email: "e.piotrowska@forz.pl",  role: "Operator", status: "active", site: "Wrocław",   last: "4h ago",  init: "EP", color: "av-pink" },
-  { id: 7, name: "Paweł Szymański",      email: "p.szymanski@forz.pl",   role: "Operator", status: "active", site: "Wrocław",   last: "Today",   init: "PS", color: "av-blue" },
-  { id: 8, name: "Barbara Woźniak",      email: "b.wozniak@forz.pl",     role: "Viewer",   status: "active", site: "Kraków HQ", last: "3d ago",  init: "BW", color: "av-violet" },
-  { id: 9, name: "Marek Dąbrowski",      email: "m.dabrowski@forz.pl",   role: "Operator", status: "invited", site: "Kraków HQ", last: "—",      init: "MD", color: "av-green" },
-  { id: 10, name: "Katarzyna Nowacka",   email: "k.nowacka@forz.pl",     role: "Viewer",   status: "disabled", site: "Wrocław", last: "62d ago", init: "KN", color: "av-amber" }
+  { id: 1, name: "Krzysztof Nowak",     email: "k.nowak@apex.pl",        role: "Admin",    status: "active", site: "Kraków HQ", last: "2h ago",  init: "KN", color: "av-blue" },
+  { id: 2, name: "Magdalena Wiśniewska", email: "m.wisniewska@apex.pl",  role: "Manager",  status: "active", site: "Kraków HQ", last: "1h ago",  init: "MW", color: "av-violet" },
+  { id: 3, name: "Tomasz Kowalski",      email: "t.kowalski@apex.pl",    role: "Manager",  status: "active", site: "Wrocław",   last: "Today",   init: "TK", color: "av-green" },
+  { id: 4, name: "Anna Zając",           email: "a.zajac@apex.pl",       role: "Manager",  status: "active", site: "Kraków HQ", last: "Yesterday", init: "AZ", color: "av-amber" },
+  { id: 5, name: "Jan Lewandowski",      email: "j.lewandowski@apex.pl", role: "Operator", status: "active", site: "Kraków HQ", last: "30m ago", init: "JL", color: "av-teal" },
+  { id: 6, name: "Ewa Piotrowska",       email: "e.piotrowska@apex.pl",  role: "Operator", status: "active", site: "Wrocław",   last: "4h ago",  init: "EP", color: "av-pink" },
+  { id: 7, name: "Paweł Szymański",      email: "p.szymanski@apex.pl",   role: "Operator", status: "active", site: "Wrocław",   last: "Today",   init: "PS", color: "av-blue" },
+  { id: 8, name: "Barbara Woźniak",      email: "b.wozniak@apex.pl",     role: "Viewer",   status: "active", site: "Kraków HQ", last: "3d ago",  init: "BW", color: "av-violet" },
+  { id: 9, name: "Marek Dąbrowski",      email: "m.dabrowski@apex.pl",   role: "Operator", status: "invited", site: "Kraków HQ", last: "—",      init: "MD", color: "av-green" },
+  { id: 10, name: "Katarzyna Nowacka",   email: "k.nowacka@apex.pl",     role: "Viewer",   status: "disabled", site: "Wrocław", last: "62d ago", init: "KN", color: "av-amber" }
 ];
 
 // Sites
@@ -84,7 +84,7 @@ window.SETTINGS_LINES = [
 window.SETTINGS_INTEGRATIONS = [
   { cat: "ERP", items: [
     { name: "Microsoft Dynamics 365",
-      desc: "Items + BOM pull (nightly), production confirmations + shipment + finance push (outbox). Constants: FNOR / ForzDG / FinGoods / FOR100048 / FProd01.",
+      desc: "Items + BOM pull (nightly), production confirmations + shipment + finance push (outbox). Constants: FNOR / ApexDG / FinGoods / FOR100048 / FProd01.",
       status: "connected", logo: "D365", color: "#7719aa" }
   ]},
   { cat: "Invoicing", items: [

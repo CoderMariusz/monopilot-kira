@@ -17,11 +17,11 @@ Modul **11-SHIPPING** obsluguje pelny cykl **order-to-delivery** dla wyrobow got
 - **Allergen labelling EU 1169/2011 (D-SHP-15):** auto-bold allergen list na packing slip + BOL + SSCC ASN (Advance Shipping Notification). Consumer `products.allergens` JSONB z 03-TECH + `customers.allergen_restrictions` dla segregation warning.
 - **GS1 Digital Link QR P2 (D-SHP-16):** P1 SSCC-18 GS1-128 barcode (baseline D-SHP-4 retained). P2 Digital Link QR syntax (GTIN + batch + expiry) dla retailer-ready ASN (MES-TRENDS R10).
 - **Catch weight carve-out (D-SHP-17):** `sales_order_lines.cw_quantity` P2 (baseline [7.1]), weight variance tracking per shipment_box manual entry P1 (jesli product.weight_mode='catch' per 03-TECH §8).
-- **D365 Constants reuse (D-SHP-18):** FNOR (dataAreaId), ForzDG (warehouse code), FinGoods (GL account for revenue) — read z 02-SETTINGS §11 w adapter. Phase 2 extensions: `shipping_warehouse`, `courier_default_carrier`, `customer_account_id_map`.
+- **D365 Constants reuse (D-SHP-18):** FNOR (dataAreaId), ApexDG (warehouse code), FinGoods (GL account for revenue) — read z 02-SETTINGS §11 w adapter. Phase 2 extensions: `shipping_warehouse`, `courier_default_carrier`, `customer_account_id_map`.
 - **Manual dispatch P1 + carrier API P2 (D-SHP-19):** P1 BOL + packing slip manual PDF/ZPL print, DHL/UPS/DPD API integration P2 (rate shopping, tracking webhooks, POD).
 - **EUDR supplier_dds_reference gate P2 (D-SHP-20):** jesli FA zawiera soy/palm/cocoa ingredient → gate block shipment if `supplier.dds_reference` IS NULL (EU Deforestation Regulation 2026-12-30 deadline).
 
-**Markers:** [UNIVERSAL] = core MES contract | [FORZA-CONFIG] = konkretny fit Forza UK | [EVOLVING] = areas in iteration | [LEGACY-D365] = bridge until D365 retirement.
+**Markers:** [UNIVERSAL] = core MES contract | [APEX-CONFIG] = konkretny fit Apex UK | [EVOLVING] = areas in iteration | [LEGACY-D365] = bridge until D365 retirement.
 
 ---
 
@@ -29,7 +29,7 @@ Modul **11-SHIPPING** obsluguje pelny cykl **order-to-delivery** dla wyrobow got
 
 ### Cel glowny
 
-Umozliwienie pelnego cyklu **order-to-delivery** dla Forza UK (pilot) i innych food-mfg SMB (multi-tenant) z zachowaniem: FSMA 204 traceability (<30s), EU 1169/2011 allergen compliance, GS1 SSCC-18 retailer-ready labeling, BRCGS Issue 10 audit trail (7y retention), zero cross-tenant leaks (RLS enforced).
+Umozliwienie pelnego cyklu **order-to-delivery** dla Apex UK (pilot) i innych food-mfg SMB (multi-tenant) z zachowaniem: FSMA 204 traceability (<30s), EU 1169/2011 allergen compliance, GS1 SSCC-18 retailer-ready labeling, BRCGS Issue 10 audit trail (7y retention), zero cross-tenant leaks (RLS enforced).
 
 ### Metryki sukcesu Phase 1 (MVP)
 
@@ -53,7 +53,7 @@ Umozliwienie pelnego cyklu **order-to-delivery** dla Forza UK (pilot) i innych f
 | Carrier cost savings | >10% vs manual | Rate shopping engine |
 | Return Processing Time | <48h (RMA→restocked) | End-to-end RMA cycle |
 | EPCIS event publish success | ≥99% (retailer ASN) | 05-WH §13.7 consumer P2 |
-| Peppol e-invoice P2 (if scope) | ≥99% delivery | If Forza expands to Belgium customers |
+| Peppol e-invoice P2 (if scope) | ≥99% delivery | If Apex expands to Belgium customers |
 
 ---
 
@@ -114,7 +114,7 @@ Umozliwienie pelnego cyklu **order-to-delivery** dla Forza UK (pilot) i innych f
 | 11 | **EPCIS consumer** | `shipping_outbox_events` produces EPCIS 2.0 JSON-LD events (05-WH §13.7 P2) |
 | 12 | **GS1 Digital Link QR** | Retailer-ready QR syntax encoding GTIN + batch + expiry (MES-TRENDS R10) |
 | 13 | **EUDR supplier gate** | `supplier_dds_reference` gate block shipment if soy/palm/cocoa FA content + null DDS (Q10, 2026-12-30 deadline) |
-| 14 | **Peppol B2B e-invoice** | NOT IN SCOPE dla Forza UK. Only if expansion to Belgium (2026-01-01 deadline) |
+| 14 | **Peppol B2B e-invoice** | NOT IN SCOPE dla Apex UK. Only if expansion to Belgium (2026-01-01 deadline) |
 | 15 | **Advanced reports** | Pick performance, OTD decomposition, carrier performance, returns analysis |
 | 16 | **Batch release hard gate** | `batch_release_gate_v1` full rule activation (09-QA P2 rule) |
 | 17 | **Multi-warehouse shipping** | Current P1 = single warehouse; multi-warehouse P2 + 14-MULTI-SITE integration |
@@ -124,12 +124,12 @@ Umozliwienie pelnego cyklu **order-to-delivery** dla Forza UK (pilot) i innych f
 - Pelna ksiegowosc / invoicing → 10-FINANCE (receivables P2 EPIC 10-M)
 - Customer self-service portal → future module (post-P2, candidate dla 15-OEE batch lub dedicated customer-portal module)
 - Drop-shipping (direct from supplier) — 04-PLANNING PO → supplier direct, wycofano
-- Peppol B2B e-invoice (Belgium-specific) — nie dotyczy Forza UK
-- Fleet management (own trucks, drivers) — 13-MAINTENANCE scope jesli Forza rozszerzy
+- Peppol B2B e-invoice (Belgium-specific) — nie dotyczy Apex UK
+- Fleet management (own trucks, drivers) — 13-MAINTENANCE scope jesli Apex rozszerzy
 
 ### 4.4 EUDR P2 scope check (per Q10 user confirmed)
 
-EU Deforestation Regulation 2026-12-30 dotyczy **produktow zawierajacych**: soy, palm oil, cocoa, coffee, cattle/beef, wood, rubber. **Forza UK reality** (per Phase A pld-v7-excel docs): produkty zawieraja meat (mogly byc fed soy/palm feed upstream) + potential palm oil w niektorych formulacjach FA. **Decyzja D-SHP-20:** P2 gate block shipment if:
+EU Deforestation Regulation 2026-12-30 dotyczy **produktow zawierajacych**: soy, palm oil, cocoa, coffee, cattle/beef, wood, rubber. **Apex UK reality** (per Phase A pld-v7-excel docs): produkty zawieraja meat (mogly byc fed soy/palm feed upstream) + potential palm oil w niektorych formulacjach FA. **Decyzja D-SHP-20:** P2 gate block shipment if:
 1. Product BOM contains item with `items.eudr_category` IN ('soy','palm','cocoa','beef','wood','rubber') AND
 2. Supplier `supplier.dds_reference` IS NULL AND
 3. Feature flag `integration.eudr.enabled` = TRUE (per-org)
@@ -150,9 +150,9 @@ Implementacja P2 → 03-TECHNICAL extension `items.eudr_category` + `suppliers.d
 
 ### 5.2 Business
 
-- **Base currency:** GBP (Forza UK, per 10-FIN Q9 decision). Multi-currency P2 EPIC 10-J consumer
+- **Base currency:** GBP (Apex UK, per 10-FIN Q9 decision). Multi-currency P2 EPIC 10-J consumer
 - **GS1 Company Prefix:** wymagany na poziomie organizacji (`organizations.gs1_company_prefix`) — blocker dla SSCC generation
-- **Forza pilot first:** single warehouse MVP; multi-warehouse P2 + 14-MULTI-SITE
+- **Apex pilot first:** single warehouse MVP; multi-warehouse P2 + 14-MULTI-SITE
 - **Carrier API keys:** developer accounts wymagane (DHL/UPS/DPD business) — P2 scope
 - **Partial shipments:** YES (D-SHP-12 retained); one SO → multiple shipments supported P1
 
@@ -167,7 +167,7 @@ Implementacja P2 → 03-TECHNICAL extension `items.eudr_category` + `suppliers.d
 | **EUDR (Deforestation)** | 2026-12-30 | P2 supplier DDS gate (D-SHP-20, Q10) | §14 |
 | **EPCIS 2.0** | Best practice | P2 consumer shipping events JSON-LD via 05-WH §13.7 outbox | §14 |
 | **21 CFR Part 11** | Active | P2 e-sig on RMA approval + quality hold override (SHA-256 + PIN re-verify, reuse 09-QA pattern) | §14 |
-| **Peppol B2B** | 2026-01-01 BE | NOT IN SCOPE Forza UK; P2 only if Belgium expansion | §4.3 exclusions |
+| **Peppol B2B** | 2026-01-01 BE | NOT IN SCOPE Apex UK; P2 only if Belgium expansion | §4.3 exclusions |
 
 ---
 
@@ -229,7 +229,7 @@ PG triggers + app context (`SET LOCAL app.user_id`, `app.ip_address`, `app.reaso
 - Logging: `old_data JSONB`, `new_data JSONB`, `user_id`, `ip_address`, `action_reason`, `changed_at TIMESTAMPTZ`
 - Retention: **7 lat post-ship** (BRCGS Issue 10 per §14)
 
-#### D-SHP-12. Business Baseline Decisions [UNIVERSAL + FORZA-CONFIG]
+#### D-SHP-12. Business Baseline Decisions [UNIVERSAL + APEX-CONFIG]
 - Partial shipments: **YES** (one SO → multi shipments) [Q8: B confirmed]
 - Multi-warehouse: **NO** w P1 (single warehouse MVP); P2 + 14-MULTI-SITE integration
 - Auto-allocation on confirm: **configurable** per-org (default TRUE)
@@ -302,19 +302,19 @@ https://id.gs1.org/01/{GTIN}/10/{BATCH}/15/{EXPIRY_YYMMDD}?sscc={SSCC}
 ```
 Renders as QR code (ZXing library P2). Retailer-ready for ASN + consumer-facing "scan to learn origin" (traceability marketing). MES-TRENDS R10 alignment. P2 epic 11-G Digital Link.
 
-#### D-SHP-17. Catch Weight Carve-out P2 [FORZA-CONFIG + UNIVERSAL]
+#### D-SHP-17. Catch Weight Carve-out P2 [APEX-CONFIG + UNIVERSAL]
 Baseline v3.1 [7.1] [7.2] scope retained for P2:
 - `sales_order_lines.cw_quantity DECIMAL(15,4)` + `cw_unit TEXT` — customer orders "give me ~50kg of product X", actual ship weight varies
 - `sales_order_lines.pack_quantity DECIMAL(15,4)` — number of packs (consumer goods)
 - `shipment_box_contents.actual_weight DECIMAL(10,3)` manual entry P1 jesli `products.weight_mode='catch'` (03-TECH §8) — weight variance tracking inline (not separate cw_quantity table)
 - Variance check: `actual_weight / nominal_weight` within `variance_tolerance_pct` (03-TECH) — warn if outside
 
-#### D-SHP-18. D365 Constants Reuse [FORZA-CONFIG + LEGACY-D365]
+#### D-SHP-18. D365 Constants Reuse [APEX-CONFIG + LEGACY-D365]
 Read w `@monopilot/d365-shipping-adapter` (R15):
 - `FNOR` → `SalesOrderHeader.dataAreaId`
-- `ForzDG` → `SalesOrderLine.InventSiteId` (warehouse)
+- `ApexDG` → `SalesOrderLine.InventSiteId` (warehouse)
 - `FinGoods` → `SalesOrderLine.LedgerDimension` (GL account for revenue, P2 invoicing)
-- `FOR100048` (Forza approver) → `SalesOrderHeader.CreatedBy` dla audit trail w D365
+- `FOR100048` (Apex approver) → `SalesOrderHeader.CreatedBy` dla audit trail w D365
 
 **P2 extensions w 02-SETTINGS §11 (bundled v3.1 delta candidate — dla 11-SHIP, apply w C4 Sesja 3 close):**
 - `shipping_warehouse` (jesli rozna od production warehouse po 14-MULTI-SITE)
@@ -338,7 +338,7 @@ Read w `@monopilot/d365-shipping-adapter` (R15):
 - Tracking webhook receiver `/api/webhooks/carrier/:carrier/events`
 - POD upload automation (carrier returns signed POD after delivery)
 
-#### D-SHP-20. EUDR Supplier DDS Gate P2 [UNIVERSAL + FORZA-CONFIG]
+#### D-SHP-20. EUDR Supplier DDS Gate P2 [UNIVERSAL + APEX-CONFIG]
 **Q10 decision: Tak, dotyczy.** P2 gate block shipment:
 ```
 IF shipment contains product WHERE BOM.items.eudr_category IN ('soy','palm','cocoa','beef','wood','rubber')
@@ -368,7 +368,7 @@ Deadline EU 2026-12-30 — P2 EPIC 11-H implementation.
 - `batch_release_gate_v1` z 09-QA P2 → hard gate dla severity=critical holds (D-SHP-13)
 - `cost_method_selector_v1` z 10-FIN P2 → COGS per shipment computation
 
-**Consumer of 02-SETTINGS §11 D365_Constants** (baseline FNOR/ForzDG/FinGoods/FOR100048, P2 extensions courier/customer_account_id_map).
+**Consumer of 02-SETTINGS §11 D365_Constants** (baseline FNOR/ApexDG/FinGoods/FOR100048, P2 extensions courier/customer_account_id_map).
 
 **Consumer of 02-SETTINGS §8 reference tables:**
 - `qa_failure_reasons` (z 09-QA §8) — dla RMA disposition codes
@@ -705,7 +705,7 @@ CREATE INDEX idx_ship_dlq_open ON shipping_push_dlq(tenant_id) WHERE resolved_at
     "SalesOrderNumber": "SO-2026-00987",
     "CustAccount": "CUST12345",
     "ShippedDate": "2026-04-20",
-    "InventSiteId": "ForzDG",            // z 02-SETTINGS §11
+    "InventSiteId": "ApexDG",            // z 02-SETTINGS §11
     "ShippingStatus": "Shipped"
   },
   "SalesOrderLines": [
@@ -768,7 +768,7 @@ every 30s:
 - D365 format translates via lookup `integration.d365.code_map` (02-SETTINGS §11 JSONB)
   - `product_gtin` ↔ `D365.ItemId` (per-org mapping)
   - `customer_id` ↔ `D365.CustAccount`
-  - Internal `shipping_warehouse` ↔ `D365.InventSiteId` (default ForzDG for Forza)
+  - Internal `shipping_warehouse` ↔ `D365.InventSiteId` (default ApexDG for Apex)
 - Zmiana D365 schema isolated w adapter; internal model unchanged (anti-corruption)
 
 ### 12.5 Failure policy
@@ -803,10 +803,10 @@ every 30s:
 
 ### 12.8 D365_Constants consumer (z 02-SETTINGS §11)
 
-| Constant | D365 field | Default Forza |
+| Constant | D365 field | Default Apex |
 |---|---|---|
 | FNOR | `SalesOrderHeader.dataAreaId` | "FNOR" |
-| ForzDG | `SalesOrderLine.InventSiteId` | "ForzDG" |
+| ApexDG | `SalesOrderLine.InventSiteId` | "ApexDG" |
 | FinGoods | `SalesOrderLine.LedgerDimension` (P2 revenue GL) | "1234-1000" |
 | FOR100048 | `SalesOrderHeader.CreatedBy` (audit trail D365 side) | "FOR100048" |
 
@@ -920,7 +920,7 @@ Consumer-facing: link resolves to retailer page showing traceability, allergens,
 
 ### 14.3 GS1 SSCC-18 + GS1-128 — Industry standard
 
-**Requirement:** Retailer ASN (856 EDI) and 3PL logistics require SSCC per pallet + GS1-128 barcodes. Tesco, Sainsbury's, Lidl UK mandatory for Forza suppliers.
+**Requirement:** Retailer ASN (856 EDI) and 3PL logistics require SSCC per pallet + GS1-128 barcodes. Tesco, Sainsbury's, Lidl UK mandatory for Apex suppliers.
 
 **Monopilot implementation:** D-SHP-4 (§13.1-13.2).
 
@@ -1071,7 +1071,7 @@ Consumer-facing: link resolves to retailer page showing traceability, allergens,
 | **OQ-SHIP-02** | Customer portal P2 (11-O): standalone module vs extension 11-SHIPPING? | P2 | Open — 2027+ |
 | **OQ-SHIP-03** | EPCIS consumer owner: 05-WH §13.7 vs 11-SHIPPING 11-L? | P2 | Open — joint decision |
 | **OQ-SHIP-04** | Multi-language labels (EU 1169/2011) per customer.preferred_language — P1 scope or P2? | P1 vs P2 | Preferred P2 (V-SHIP-LBL-05) |
-| **OQ-SHIP-05** | Hazmat support FR-7.44 (dangerous goods classification) — Forza needs? | P2 | Open — likely NO for food, YES for cleaning chemicals |
+| **OQ-SHIP-05** | Hazmat support FR-7.44 (dangerous goods classification) — Apex needs? | P2 | Open — likely NO for food, YES for cleaning chemicals |
 | **OQ-SHIP-06** | Tesco/Sainsbury's/Lidl UK specific ASN format (EDI 856 extensions) — P1 standard or per-retailer? | P2 | Open — customer discovery needed |
 | **OQ-SHIP-07** | Cold chain temperature logging (BRCGS): IoT integration (13-MAINTENANCE) or manual P2? | P2 | Defer 13-MAINT |
 | **OQ-SHIP-08** | Backorder auto-creation default per-org vs per-customer — config granularity? | P1 | Default per-org (D-SHP-10), per-customer P2 |
@@ -1128,7 +1128,7 @@ Wszystkie OQ są P2 / post-launch / future sessions. Nie blokują C4 Sesja 3 clo
 
 ### Reality sources
 
-- Builder_FA5101.xlsx — docelowy D365 Builder output (7 tabs, baseline FNOR/ForzDG/FinGoods)
+- Builder_FA5101.xlsx — docelowy D365 Builder output (7 tabs, baseline FNOR/ApexDG/FinGoods)
 - Smart_PLD_v7.xlsm — pre-Monopilot PLD v7 (NPD → shipping manual handoff today)
 
 ### HANDOFFs

@@ -7,7 +7,7 @@ status: draft-placeholder
 
 ## Status: PLACEHOLDER — to be drafted in Phase A
 
-**Reason:** Ten skill agreguje wiedzę domenową food-manufacturing MES. Żeby nie zgadywać, co jest `[UNIVERSAL]` vs `[FORZA-CONFIG]`, **pełny draft powstaje w Phase A** — po napisaniu reality docs PLD v7 w `_meta/reality-sources/pld-v7-excel/`. Dopiero wtedy wiemy, co z procesów Forzy jest fundamentem branży, a co specyfiką.
+**Reason:** Ten skill agreguje wiedzę domenową food-manufacturing MES. Żeby nie zgadywać, co jest `[UNIVERSAL]` vs `[APEX-CONFIG]`, **pełny draft powstaje w Phase A** — po napisaniu reality docs PLD v7 w `_meta/reality-sources/pld-v7-excel/`. Dopiero wtedy wiemy, co z procesów Apexa jest fundamentem branży, a co specyfiką.
 
 ## Planned scope (Phase A deliverable)
 
@@ -15,7 +15,7 @@ Skill docelowo pokryje 6 obszarów domenowych:
 
 1. **BOM modeling** — recipe/formulation structure, ingredient dependencies, BOM snapshot pattern (ADR-002)
 2. **Lot/traceability** — forward/backward trace <30s (ADR-001 LP genealogy), batch management, expiry + manufacturing dates
-3. **Allergen management** — EU-14 allergens as [UNIVERSAL] baseline, custom per-org allergens as [FORZA-CONFIG]
+3. **Allergen management** — EU-14 allergens as [UNIVERSAL] baseline, custom per-org allergens as [APEX-CONFIG]
 4. **Shelf-life calculation** — FIFO/FEFO strategies (ADR-005), shelf-life formulas per product class
 5. **Stage-Gate NPD** — G0→G4 workflow as data (ADR-029 + META-MODEL §8), gate criteria per stage
 6. **GMP baseline** — HACCP/CCP integration points, audit trail requirements (ADR-008), 21CFR11 groundwork

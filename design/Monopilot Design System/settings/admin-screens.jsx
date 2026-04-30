@@ -52,7 +52,7 @@ const D365ConnectionScreen = ({ openModal }) => {
       </div>
 
       <Section title="Endpoint">
-        <SRow label="Base URL" hint="e.g. https://forza.operations.dynamics.com">
+        <SRow label="Base URL" hint="e.g. https://apex.operations.dynamics.com">
           <input type="url" value={url} onChange={e=>setUrl(e.target.value)} style={{width:"100%", maxWidth:420}} />
           {!vUrl && url && <div style={{fontSize:11, color:"var(--red)", marginTop:4}}>Must be an https:// …dynamics.com URL.</div>}
         </SRow>
@@ -556,8 +556,8 @@ const EmailTemplatesScreen = ({ openModal }) => {
           <select defaultValue="Resend"><option>Resend</option><option>Postmark</option><option>SES</option></select>
         </SRow>
         <SRow label="API key"><input type="password" defaultValue="●●●●●●●●●●●●" readOnly style={{width:200}}/><button className="btn btn-secondary btn-sm" style={{marginLeft:8}}>Rotate</button></SRow>
-        <SRow label="From email"><input type="email" defaultValue="no-reply@monopilot.forz.pl" style={{width:300}}/></SRow>
-        <SRow label="From name"><input defaultValue="Forza Foods · Monopilot" style={{width:300}}/></SRow>
+        <SRow label="From email"><input type="email" defaultValue="no-reply@monopilot.apex.pl" style={{width:300}}/></SRow>
+        <SRow label="From name"><input defaultValue="Apex Foods · Monopilot" style={{width:300}}/></SRow>
       </Section>
 
       <Section title={`Templates (${tpl.length})`}>

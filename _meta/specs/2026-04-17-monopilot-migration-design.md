@@ -12,16 +12,16 @@
 
 ### 1.1 Tło
 
-Forza rozwija równolegle dwa projekty które zaczynają się pokrywać:
+Apex rozwija równolegle dwa projekty które zaczynają się pokrywać:
 
 1. **Smart PLD v7** — Excel/VBA system aktywnie używany w firmie (product lifecycle + 7 działów + main table ~60-80 kolumn + D365 integration via paste/export). Jeszcze projektowany — schema kolumn, walidacje, struktura działów nie są zamknięte.
 2. **Monopilot** — web-app MES dla SMB food-manufacturing (16 modułów docelowo, `new-doc/` zawiera 114+ plików dla samego NPD, setki dla reszty). Moduł `09-npd/` pokrywa się z tym co PLD v7 robi dziś.
 
 ### 1.2 Cel strategiczny (12-miesięczny horyzont)
 
-- **Dual maintenance:** PLD v7 żyje i rośnie (Forza operuje na Excelu). Monopilot budowany równolegle, tak by docelowo **migracja = przełączenie systemu, nie rewrite procesu**.
+- **Dual maintenance:** PLD v7 żyje i rośnie (Apex operuje na Excelu). Monopilot budowany równolegle, tak by docelowo **migracja = przełączenie systemu, nie rewrite procesu**.
 - **NPD-first implementation order:** Monopilot nie zaczyna od MES — zaczyna od produktów → BOM → kalkulacji → pilot WO → docelowo MES + reszta.
-- **Multi-tenant ready from day 1:** Monopilot ma obsługiwać inne firmy bez zmian core. Forza = pierwsza konfiguracja, nie jedyna.
+- **Multi-tenant ready from day 1:** Monopilot ma obsługiwać inne firmy bez zmian core. Apex = pierwsza konfiguracja, nie jedyna.
 - **D365 replacement:** długoterminowo Monopilot zastępuje także D365, konkurując modularnością i niższymi kosztami utrzymania.
 
 ### 1.3 Cel tego spec-a
@@ -38,7 +38,7 @@ Zaprojektować **plan migracji dokumentacji** który:
 
 **Goals:**
 - Kompletny, spójny `new-doc/` w którym każdy moduł jest schema-driven i multi-tenant ready
-- Jawny separator między tym co **uniwersalne** dla food-manufacturing MES a co **specyficzne dla Forzy**
+- Jawny separator między tym co **uniwersalne** dla food-manufacturing MES a co **specyficzne dla Apexa**
 - Skalowalna warstwa skilli (agenty wiedzą które skille wywołać w jakim module/fazie bez manualnej pamięci użytkownika)
 - Utrzymalny sync PLD v7 ↔ `new-doc/` przez 12 miesięcy dual-maintenance
 - Przygotowanie gruntu pod docelową migrację D365 → Monopilot
@@ -90,14 +90,14 @@ Oparte o ADR-003 (RLS). Każda firma ma *własną konfigurację* na tych samych 
 **Punkt 5 — Migracja z D365 (mapa pojęć):**
 Mapping D365 encji/tabel na schema-driven Monopilot. Długoterminowy punkt zaczepienia dla wychłonięcia D365. Żyje w `_meta/reality-sources/d365-integration/` (zobacz §4).
 
-**Punkt 6 — Zasada universal vs Forza-specific:**
-Każdy dokument modułu **musi** jawnie oznaczać które wymagania są uniwersalne a które to Forza config (zobacz markery w §4.2).
+**Punkt 6 — Zasada universal vs Apex-specific:**
+Każdy dokument modułu **musi** jawnie oznaczać które wymagania są uniwersalne a które to Apex config (zobacz markery w §4.2).
 
 **Punkt 7 — Custom reports (refinement bezpieczniejszy):**
-Raporty *nie* są pisane per-client w kodzie. Zamiast tego: **report templates** to universal code components (Table Report, Aggregation Report, Trend Report). Content (które kolumny, filtry, grupowania) czytany z konfiguracji org-a. Dodanie kolumny przez Forzę = raport automatycznie może jej użyć, bez dewelopera. Tańsze niż full no-code report builder, skalowalne.
+Raporty *nie* są pisane per-client w kodzie. Zamiast tego: **report templates** to universal code components (Table Report, Aggregation Report, Trend Report). Content (które kolumny, filtry, grupowania) czytany z konfiguracji org-a. Dodanie kolumny przez Apexa = raport automatycznie może jej użyć, bez dewelopera. Tańsze niż full no-code report builder, skalowalne.
 
 **Punkt 8 — Custom workflows (refinement bezpieczniejszy):**
-Workflow jako **dane** (JSON/DB), nie kod. *Silnik workflow* = universal code napisany raz. *Definicja workflow* (jakie stages, jakie kryteria, jakie transitions) = dane per org. Forza dostaje predefiniowaną definicję (NPD Stage-Gate G0→G4). Inny klient ma inną (np. G0→G3) — zmiana w Settings/JSON, nie w kodzie. Część rule engine (punkt 2).
+Workflow jako **dane** (JSON/DB), nie kod. *Silnik workflow* = universal code napisany raz. *Definicja workflow* (jakie stages, jakie kryteria, jakie transitions) = dane per org. Apex dostaje predefiniowaną definicję (NPD Stage-Gate G0→G4). Inny klient ma inną (np. G0→G3) — zmiana w Settings/JSON, nie w kodzie. Część rule engine (punkt 2).
 
 ### 2.2 Deliverable meta-modelu
 
@@ -122,7 +122,7 @@ Istniejące ADRs które są sprzeczne z meta-modelem oznaczamy `[SUPERSEDED by A
   - `rule-engine-dsl`
   - `reality-sync-workflow`
   - `multi-tenant-variation`
-- Update `documentation-patterns` skill o markery UNIVERSAL/FORZA-CONFIG/EVOLVING/LEGACY-D365
+- Update `documentation-patterns` skill o markery UNIVERSAL/APEX-CONFIG/EVOLVING/LEGACY-D365
 
 **Parallel agent track (skill audit):**
 - Agent audytuje 47 istniejących skilli w `00-foundation/skills/`
@@ -143,11 +143,11 @@ Istniejące ADRs które są sprzeczne z meta-modelem oznaczamy `[SUPERSEDED by A
 - `MAIN-TABLE-SCHEMA.md` — ~60-80 kolumn pogrupowane (Core/Planning/Commercial/Production/Technical/MRP/Procurement/System) z label, type, owner dept, validation, required, hard-lock, dependencies
 - `CASCADING-RULES.md` — Pack_Size → Line → Dieset → Material reguły
 - `WORKFLOW-RULES.md` — status colors, autofilter Done, gate-like progression
-- `REFERENCE-TABLES.md` — 6 config tables z realnymi danymi Forzy
+- `REFERENCE-TABLES.md` — 6 config tables z realnymi danymi Apexa
 - `D365-INTEGRATION.md` — import/export, kody walidacji, Builder logic
 - `EVOLVING.md` — lista obszarów gdzie design jeszcze się zmienia (np. MRP → 2 działy)
 
-Każdy dokument ma markery `[UNIVERSAL]` / `[FORZA-CONFIG]` / `[EVOLVING]` / `[LEGACY-D365]`.
+Każdy dokument ma markery `[UNIVERSAL]` / `[APEX-CONFIG]` / `[EVOLVING]` / `[LEGACY-D365]`.
 
 **Sesja 1:** PROCESS-OVERVIEW + DEPARTMENTS + handoff notes.
 **Sesja 2:** MAIN-TABLE-SCHEMA + CASCADING-RULES + WORKFLOW-RULES.
@@ -198,7 +198,7 @@ Kontekst: Monopilot documentation migration, Phase C.
 Moduł: {NN-module}
 Twoje wejście:
   - META-MODEL.md (meta-model i markery)
-  - _meta/reality-sources/pld-v7-excel/* (ground truth procesów Forza)
+  - _meta/reality-sources/pld-v7-excel/* (ground truth procesów Apex)
   - 09-npd/* (golden example)
   - SKILL-MAP.yaml (które skille invokować dla tego modułu)
   - CHECKLIST.md (co zrobić)
@@ -239,8 +239,8 @@ NN-module/
 ### 4.2 Markery (obowiązkowe na każdym wymaganiu / kolumnie / regule)
 
 - `[UNIVERSAL]` — fundamentalne dla food-manufacturing MES, każdy klient to ma
-- `[FORZA-CONFIG]` — Forza ustawiła tak, inny klient może mieć inaczej (konfigurowalne w Settings)
-- `[EVOLVING]` — projekt jeszcze się zmienia, nie twarde (trzymamy w DB nawet jeśli dziś tylko Forza)
+- `[APEX-CONFIG]` — Apex ustawiła tak, inny klient może mieć inaczej (konfigurowalne w Settings)
+- `[EVOLVING]` — projekt jeszcze się zmienia, nie twarde (trzymamy w DB nawet jeśli dziś tylko Apex)
 - `[LEGACY-D365]` — istnieje tylko z powodu D365, zniknie po migracji (feature flag `integration.d365.enabled`)
 
 ### 4.3 Pure documentation — no code snippets
@@ -271,7 +271,7 @@ Nowy pattern: `00-foundation/patterns/REALITY-SYNC.md`.
 
 **Zasady synchronizacji:**
 1. PLD v7 zmiana → update `_meta/reality-sources/pld-v7-excel/*` w tej samej sesji (mini-skill: dodać do vba-pipeline handoff)
-2. Update propagowany do modułów Monopilot w **osobnej** sesji z brainstormem "czy to [UNIVERSAL]/[FORZA-CONFIG]/[EVOLVING]/[LEGACY-D365]?"
+2. Update propagowany do modułów Monopilot w **osobnej** sesji z brainstormem "czy to [UNIVERSAL]/[APEX-CONFIG]/[EVOLVING]/[LEGACY-D365]?"
 3. Nigdy nie aktualizujemy modułu Monopilot bezpośrednio pomijając reality-layer
 4. Analogicznie dla pozostałych reality sources w miarę jak są wchłaniane
 
@@ -362,7 +362,7 @@ Batching 5×3: 5 batchów po 3 moduły, cross-review po każdym batchu.
 - `reality-sync-workflow` — dyscyplina sync z reality sources
 - `multi-tenant-variation` — patterns per-org config
 
-**Update 1 istniejącego:** `documentation-patterns` — markery UNIVERSAL/FORZA-CONFIG/EVOLVING/LEGACY-D365.
+**Update 1 istniejącego:** `documentation-patterns` — markery UNIVERSAL/APEX-CONFIG/EVOLVING/LEGACY-D365.
 
 **Dalszy audit** — agent rewiduje wszystkie 47 skilli, proponuje deprecate/merge/tune/add pod tech stack.
 
@@ -398,7 +398,7 @@ Batching 5×3: 5 batchów po 3 moduły, cross-review po każdym batchu.
 
 **R2 — Dual maintenance drift:** przez 12 miesięcy PLD v7 i `new-doc/` mogą się rozjeżdżać. **Mitigation:** REALITY-SYNC pattern jako obowiązkowa dyscyplina, sync w tej samej sesji co zmiana v7.
 
-**R3 — Agent output quality (Phase C):** agenty mogą produkować generyczne doc-y zamiast odzwierciedlać Forza reality. **Mitigation:** 5×3 batching z cross-review Claude po każdym batchu, golden example z Phase B, jawny SKILL-MAP per moduł.
+**R3 — Agent output quality (Phase C):** agenty mogą produkować generyczne doc-y zamiast odzwierciedlać Apex reality. **Mitigation:** 5×3 batching z cross-review Claude po każdym batchu, golden example z Phase B, jawny SKILL-MAP per moduł.
 
 **R4 — Context overflow:** kolejne sesje mogą wpadać w pułapkę czytania całego `new-doc/`. **Mitigation:** HANDOFF.md jako twarda brama — tylko wymienione pliki czytamy.
 
@@ -408,12 +408,12 @@ Batching 5×3: 5 batchów po 3 moduły, cross-review po każdym batchu.
 
 ## 8. Glossary
 
-- **PLD** — Product Lifecycle Development (Smart PLD v7 = Excel/VBA system obecnie używany przez Forzę)
+- **PLD** — Product Lifecycle Development (Smart PLD v7 = Excel/VBA system obecnie używany przez Apexa)
 - **Monopilot** — docelowy web-app MES (16 modułów, schema-driven, multi-tenant)
 - **Reality source** — zewnętrzny system/narzędzie obecnie używane w firmie, którego procesy dokumentujemy jako ground truth przed wchłonięciem przez Monopilot (PLD v7, Power Automate, D365, Access DBs, other Excels)
 - **Meta-model** — centralny zestaw zasad określających co w Monopilot jest schema-driven vs code-driven
 - **Schema-driven** — definicja przez dane/metadane edytowalne w Settings (Level "a") lub przez rule engine (Level "b")
-- **Marker** — tag obowiązkowy na każdym wymaganiu: `[UNIVERSAL]` / `[FORZA-CONFIG]` / `[EVOLVING]` / `[LEGACY-D365]`
+- **Marker** — tag obowiązkowy na każdym wymaganiu: `[UNIVERSAL]` / `[APEX-CONFIG]` / `[EVOLVING]` / `[LEGACY-D365]`
 - **HANDOFF.md** — dokument transferu między sesjami (co zrobione, co dalej, co czytać)
 - **SKILL-MAP** — mapa "faza/moduł → skille do wywołania" dla automatycznego wywoływania przez Claude/agenty
 

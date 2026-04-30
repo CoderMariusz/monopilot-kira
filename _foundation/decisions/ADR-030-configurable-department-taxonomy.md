@@ -9,15 +9,15 @@
 
 ## Context
 
-PLD v7 (Phase A reality source) ma 7 działów Forzy: Commercial, Development, Production, Quality, Planning, Procurement, MRP. Każdy dział posiada: nazwę, kod, kolor statusu (UI), kolejność w UI, lidera, zakres odpowiedzialności (które kolumny Main Table właściwe do tego działu).
+PLD v7 (Phase A reality source) ma 7 działów Apexa: Commercial, Development, Production, Quality, Planning, Procurement, MRP. Każdy dział posiada: nazwę, kod, kolor statusu (UI), kolejność w UI, lidera, zakres odpowiedzialności (które kolumny Main Table właściwe do tego działu).
 
 Inne firmy z segmentu food-manufacturing mają **inne taksonomie działów**:
-- Logistics osobno (Forza łączy z Planning),
+- Logistics osobno (Apex łączy z Planning),
 - R&D niezintegrowany z Development,
 - QA rozdzielone na Microbiological QA i Process QA,
 - brak dedykowanego MRP (łączone z Procurement).
 
-Hardcoding 7 działów Forzy jako enum w kodzie = blokada multi-tenancy ([ADR-031](ADR-031-schema-variation-per-org.md)). Ponieważ każda kolumna Main Table ma `owner_department` ([ADR-028](ADR-028-schema-driven-column-definition.md)), taksonomia działów **musi** być schema-driven równolegle.
+Hardcoding 7 działów Apexa jako enum w kodzie = blokada multi-tenancy ([ADR-031](ADR-031-schema-variation-per-org.md)). Ponieważ każda kolumna Main Table ma `owner_department` ([ADR-028](ADR-028-schema-driven-column-definition.md)), taksonomia działów **musi** być schema-driven równolegle.
 
 ---
 
@@ -35,9 +35,9 @@ Departamenty przechowywane są jako wiersze w tabeli `departments` — per org p
 | `sort_order` | Kolejność prezentacji w listach i filtrach | `[UNIVERSAL]` struktura atrybutu |
 | `leader_user_id` | FK do `users` — lider działu | `[UNIVERSAL]` struktura atrybutu |
 | `active` | Soft-delete flag (dział wycofany, ale historia zachowana) | `[UNIVERSAL]` struktura atrybutu |
-| `marker` | `[UNIVERSAL]` / `[FORZA-CONFIG]` / `[EVOLVING]` / `[LEGACY-D365]` per wiersz — meta-marker dziedziczenia | `[UNIVERSAL]` struktura atrybutu |
+| `marker` | `[UNIVERSAL]` / `[APEX-CONFIG]` / `[EVOLVING]` / `[LEGACY-D365]` per wiersz — meta-marker dziedziczenia | `[UNIVERSAL]` struktura atrybutu |
 
-Atrybuty (nazwy kolumn `departments`) są `[UNIVERSAL]` — struktura taka sama dla wszystkich org-ów. **Wartości** (konkretne działy) są `[FORZA-CONFIG]` per org.
+Atrybuty (nazwy kolumn `departments`) są `[UNIVERSAL]` — struktura taka sama dla wszystkich org-ów. **Wartości** (konkretne działy) są `[APEX-CONFIG]` per org.
 
 ### Scope
 
@@ -49,9 +49,9 @@ Ta konfiguracja dotyczy **business departments** — owners kolumn Main Table, a
 
 ## Rationale
 
-1. **Multi-tenant from day 1 ([ADR-031](ADR-031-schema-variation-per-org.md)).** Forza = pierwsza konfiguracja, nie jedyna. Inny klient przychodzi z inną taksonomią — bez kodu.
+1. **Multi-tenant from day 1 ([ADR-031](ADR-031-schema-variation-per-org.md)).** Apex = pierwsza konfiguracja, nie jedyna. Inny klient przychodzi z inną taksonomią — bez kodu.
 2. **Spójność z [ADR-028](ADR-028-schema-driven-column-definition.md).** Kolumny Main Table mają `owner_department` jako FK. Jeśli kolumny są schema-driven, to departamenty **muszą** być config-table (inaczej FK do hardcoded enum = regres do code-driven).
-3. **Ewolucyjność.** Forza może dodać dział (np. split MRP `[EVOLVING]` → MRP-Planning i MRP-Procurement), zmienić label, soft-delete wycofany dział — bez dewelopera, bez release-u.
+3. **Ewolucyjność.** Apex może dodać dział (np. split MRP `[EVOLVING]` → MRP-Planning i MRP-Procurement), zmienić label, soft-delete wycofany dział — bez dewelopera, bez release-u.
 
 ---
 
@@ -65,8 +65,8 @@ Ta konfiguracja dotyczy **business departments** — owners kolumn Main Table, a
 
 ## Alternatives considered (rejected)
 
-- **A) Hardcoded enum 7 działów Forzy w kodzie.** Odrzucone — blokuje multi-tenancy, każdy nowy klient = rewrite enum-a + migration.
-- **B) Fixed set per industry template (np. "food-manufacturing departments template").** Odrzucone — nie skaluje nawet wewnątrz segmentu food-manufacturing (jak widać z przykładów: Forza vs typowy producent bez MRP). Template może być **seed-em** (zob. [ADR-031](ADR-031-schema-variation-per-org.md) §Seed strategy), ale nie twardym zbiorem.
+- **A) Hardcoded enum 7 działów Apexa w kodzie.** Odrzucone — blokuje multi-tenancy, każdy nowy klient = rewrite enum-a + migration.
+- **B) Fixed set per industry template (np. "food-manufacturing departments template").** Odrzucone — nie skaluje nawet wewnątrz segmentu food-manufacturing (jak widać z przykładów: Apex vs typowy producent bez MRP). Template może być **seed-em** (zob. [ADR-031](ADR-031-schema-variation-per-org.md) §Seed strategy), ale nie twardym zbiorem.
 
 ---
 
@@ -74,7 +74,7 @@ Ta konfiguracja dotyczy **business departments** — owners kolumn Main Table, a
 
 **Positive:**
 - Multi-tenant ready, zgodność z [ADR-028](ADR-028-schema-driven-column-definition.md) i [ADR-031](ADR-031-schema-variation-per-org.md).
-- Forza zmienia taksonomię bez dewelopera.
+- Apex zmienia taksonomię bez dewelopera.
 - Audyt zmian w `audit_log` ([ADR-008](ADR-008-audit-trail-strategy.md)).
 
 **Negative:**
@@ -88,25 +88,25 @@ Ta konfiguracja dotyczy **business departments** — owners kolumn Main Table, a
 
 ## Migration concern — PLD v7 → Monopilot
 
-Departamenty Forza = **pierwsza seed data** dla `org_id=Forza`. Żaden inny org nie widzi tych działów (RLS izoluje przez `org_id`). 7 działów Forzy — initial seed markery:
+Departamenty Apex = **pierwsza seed data** dla `org_id=Apex`. Żaden inny org nie widzi tych działów (RLS izoluje przez `org_id`). 7 działów Apexa — initial seed markery:
 
 | Dział | Code | Marker |
 |---|---|---|
-| Commercial | `CMRC` | `[FORZA-CONFIG]` |
-| Development | `DEV` | `[FORZA-CONFIG]` |
-| Production | `PROD` | `[FORZA-CONFIG]` |
-| Quality | `QA` | `[FORZA-CONFIG]` |
-| Planning | `PLN` | `[FORZA-CONFIG]` |
-| Procurement | `PROC` | `[FORZA-CONFIG]` |
-| MRP | `MRP` | `[FORZA-CONFIG]` `[EVOLVING]` (spec §7.2: MRP potencjalnie split na 2 działy — Planning-MRP i Procurement-MRP) |
+| Commercial | `CMRC` | `[APEX-CONFIG]` |
+| Development | `DEV` | `[APEX-CONFIG]` |
+| Production | `PROD` | `[APEX-CONFIG]` |
+| Quality | `QA` | `[APEX-CONFIG]` |
+| Planning | `PLN` | `[APEX-CONFIG]` |
+| Procurement | `PROC` | `[APEX-CONFIG]` |
+| MRP | `MRP` | `[APEX-CONFIG]` `[EVOLVING]` (spec §7.2: MRP potencjalnie split na 2 działy — Planning-MRP i Procurement-MRP) |
 
-Kandydaci do promocji `[FORZA-CONFIG]` → `[UNIVERSAL seed]` (po reality sync z innymi klientami): Quality, Production — zazwyczaj obecne w każdym food-manufacturing MES. Procedura promocji: META-MODEL §6.3.
+Kandydaci do promocji `[APEX-CONFIG]` → `[UNIVERSAL seed]` (po reality sync z innymi klientami): Quality, Production — zazwyczaj obecne w każdym food-manufacturing MES. Procedura promocji: META-MODEL §6.3.
 
 ---
 
 ## Open questions (→ Phase B)
 
-- **Czy `owner_department` na kolumnie Main Table jest required czy optional.** Forza: każda kolumna ma owner. Inne orgs może dopuścić kolumny "shared" bez ownera — decyzja per org lub uniwersalna? Do Phase B.
+- **Czy `owner_department` na kolumnie Main Table jest required czy optional.** Apex: każda kolumna ma owner. Inne orgs może dopuścić kolumny "shared" bez ownera — decyzja per org lub uniwersalna? Do Phase B.
 - **Seed "food-manufacturing-SMB default" template** — czy powinien mieć pre-defined 5–6 działów (Production, Quality, Planning, Procurement, Commercial) zanim org customize w Settings. Jeśli tak, który minimalny zestaw — do Phase B.
 
 ---

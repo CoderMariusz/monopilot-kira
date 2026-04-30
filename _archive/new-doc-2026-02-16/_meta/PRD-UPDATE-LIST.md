@@ -124,7 +124,7 @@
 | # | What to Update | Source | Priority |
 |---|---------------|--------|----------|
 | 11.1 | Transfer orders as inter-site bridge | D365 transfer orders | HIGH |
-| 11.2 | Multi-company support (FORZ + KOBE in D365) | D365 all screens | HIGH |
+| 11.2 | Multi-company support (APEX + KOBE in D365) | D365 all screens | HIGH |
 | 11.3 | Site-level filtering on all reports | D365 warehouse | HIGH |
 
 ---

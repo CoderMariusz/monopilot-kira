@@ -148,7 +148,7 @@ Rezerwacja LP na WO = **hard lock**. Ten sam LP NIE może być zarezerwowany na 
 Regularne WO **musi** mieć BOM — na tej podstawie liczone są ilości materiałów i koszty. Guard `hasBOM` blokuje release. **Wyjątek**: rework WO (flaga `is_rework=true`) może być utworzone bez BOM, z ręcznym dodawaniem materiałów do `wo_materials`.
 
 ### D8. TO = transfer między magazynami w jednym site
-TO w M04 obsługuje transfery między magazynami **w ramach jednego site'u** (jeden site może mieć wiele magazynów). Transfer międzyzakładowy (FORZ ↔ KOBE, site-to-site) to **osobna funkcjonalność w M11 Multi-Site** — może korzystać z rozszerzonego TO z polami `from_site_id`/`to_site_id`, ale to inna encja/flow.
+TO w M04 obsługuje transfery między magazynami **w ramach jednego site'u** (jeden site może mieć wiele magazynów). Transfer międzyzakładowy (APEX ↔ KOBE, site-to-site) to **osobna funkcjonalność w M11 Multi-Site** — może korzystać z rozszerzonego TO z polami `from_site_id`/`to_site_id`, ale to inna encja/flow.
 
 ### D9. Release to Warehouse = visibility dla Scanner
 Release to warehouse na WO to moment, w którym praca staje się **widoczna dla operatora skanera** (M05). Analogicznie jak WO release udostępnia WO dla produkcji w Scanner. Nie tworzy osobnej tabeli `pick_lists` — Scanner M05 odpytuje WO w statusie `released` z flagą `released_to_warehouse=true` i wyświetla materiały do pobrania.

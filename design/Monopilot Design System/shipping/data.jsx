@@ -401,7 +401,7 @@ const SH_SETTINGS = {
   },
   d365: {
     dataAreaId: "FNOR",
-    warehouse: "ForzDG",
+    warehouse: "ApexDG",
     glAccount: "FinGoods",
     approver: "FOR100048",
     shippingFlag: true,

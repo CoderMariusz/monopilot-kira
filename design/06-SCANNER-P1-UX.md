@@ -274,7 +274,7 @@ Line selection: section header "LINIA PRODUKCYJNA", then a 2-column grid of line
 
 Shift selection: section header "ZMIANA", then a 3-column grid of shift buttons. Each shift: name (12 px bold), hours (10 px slate-500). Shifts: Ranna 06:00–14:00, Popołudniowa 14:00–22:00, Nocna 22:00–06:00.
 
-Bottom action bar: a summary line "FORZ · Linia A · Zmiana ranna · 06:00–14:00" (11 px slate-500), then full-width "▶ Rozpocznij zmianę" button (52 px).
+Bottom action bar: a summary line "APEX · Linia A · Zmiana ranna · 06:00–14:00" (11 px slate-500), then full-width "▶ Rozpocznij zmianę" button (52 px).
 
 **States:**
 

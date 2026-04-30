@@ -426,7 +426,7 @@ const FinGlMappings = ({ role, onNav, openModal }) => {
       <div className="card" style={{padding:0}}>
         <div className="card-head" style={{padding:"12px 14px", marginBottom:0, borderBottom:"1px solid var(--border)"}}>
           <h3 className="card-title">Mappings ({visible.length})</h3>
-          <div className="muted" style={{fontSize:11}}>dataAreaId: FNOR · warehouse: ForzDG</div>
+          <div className="muted" style={{fontSize:11}}>dataAreaId: FNOR · warehouse: ApexDG</div>
         </div>
         <table>
           <thead>

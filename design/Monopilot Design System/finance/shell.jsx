@@ -36,7 +36,7 @@ const PTopbar = ({ role, onRole }) => (
     </div>
     <div className="divider-v"></div>
     <button className="btn btn-secondary btn-sm">↻ Refresh now</button>
-    <div className="avatar" title="Sarah McKenzie — Finance Manager · Forza Foods UK">SM</div>
+    <div className="avatar" title="Sarah McKenzie — Finance Manager · Apex Foods UK">SM</div>
   </div>
 );
 
@@ -60,7 +60,7 @@ const FinNav = ({ current, onNav }) => (
     ))}
     <div className="prod-nav-footer">
       Finance · v1.0.0<br/>
-      <strong style={{color:"var(--text)"}}>Forza Foods UK</strong> · Base GBP · FY2026<br/>
+      <strong style={{color:"var(--text)"}}>Apex Foods UK</strong> · Base GBP · FY2026<br/>
       <span style={{color:"var(--green)"}}>●</span> D365 F&amp;O posting: healthy<br/>
       <span style={{color:"var(--amber)"}}>●</span> Daily batch: next 23:00 UTC
     </div>

@@ -7,20 +7,20 @@
 
 ## 1. Executive Summary
 
-Modul **15-OEE** jest warstwa **analytics & visualization dla Overall Equipment Effectiveness** — standardowej metryki efektywnosci produkcyjnej (A × P × Q, industry world-class 85%, Forza P1 target 70% — ramp-up baseline, configurable via 02-SETTINGS `oee_alert_thresholds.oee_target_pct`). Zakres P1: read per-minute `oee_snapshots` produkowane przez 08-PROD §13 (D7 per-minute aggregation Q4 A decision) + 3 core sub-dashboards (per-line 24h trend, per-shift heatmap, per-day summary rollup), 2 nowe materialized views (`oee_daily_summary` + `oee_shift_metrics`), 2 DSL rules registered w 02-SETTINGS §7.8. Zakres P2: anomaly detection (EWMA), real-time TV dashboard (plant-floor screens), per-site multi-tenant rollup (14-MULTI-SITE), maintenance trigger rule (13-MAINT consumer).
+Modul **15-OEE** jest warstwa **analytics & visualization dla Overall Equipment Effectiveness** — standardowej metryki efektywnosci produkcyjnej (A × P × Q, industry world-class 85%, Apex P1 target 70% — ramp-up baseline, configurable via 02-SETTINGS `oee_alert_thresholds.oee_target_pct`). Zakres P1: read per-minute `oee_snapshots` produkowane przez 08-PROD §13 (D7 per-minute aggregation Q4 A decision) + 3 core sub-dashboards (per-line 24h trend, per-shift heatmap, per-day summary rollup), 2 nowe materialized views (`oee_daily_summary` + `oee_shift_metrics`), 2 DSL rules registered w 02-SETTINGS §7.8. Zakres P2: anomaly detection (EWMA), real-time TV dashboard (plant-floor screens), per-site multi-tenant rollup (14-MULTI-SITE), maintenance trigger rule (13-MAINT consumer).
 
 **Pozycja w Module Map (per 00-FOUNDATION §4.2):** 15-OEE jest **primary consumer** 08-PRODUCTION (`oee_snapshots` per-minute table + `downtime_events` + `changeover_events`). **Producer** dla 12-REPORTING (`oee_daily_summary` MV czytana przez Factory Overview + Shift Performance dashboards, zgodne z D-RPT-9 consumer integration), 13-MAINTENANCE (P2 `oee_shift_metrics` MTBF/MTTR consumer + `oee_maintenance_trigger_v1` rule generuje PM work orders jesli availability trends down), 14-MULTI-SITE (P2 per-site OEE rollup — `oee_snapshots.site_id` UUID nullable). **No reverse dependency** z 12-REPORTING (OEE pisze do MV, Reporting czyta).
 
 **Kluczowe wyrozniki v3.0 (baseline, first release):**
 - **D-OEE-1 Per-minute aggregation consumer (from 08-PROD D7):** 15-OEE NIE implementuje swojej wlasnej aggregation logic — czyta `oee_snapshots` (BIGSERIAL, per-minute row per line × shift). Zero duplicate aggregation. Single source of truth: 08-PROD cron job (`oee_aggregator` runs co 60s).
-- **D-OEE-2 Shift aggregation DSL rule `shift_aggregator_v1` (P1 active):** konfigurowalne shift boundaries (Forza baseline 3 shifts: 00:00-08:00 / 08:00-16:00 / 16:00-00:00 UTC, per tenant L2 variation ADR-030). Rule wraps `oee_snapshots` → `oee_shift_metrics` MV. Registered w 02-SETTINGS §7.8.
+- **D-OEE-2 Shift aggregation DSL rule `shift_aggregator_v1` (P1 active):** konfigurowalne shift boundaries (Apex baseline 3 shifts: 00:00-08:00 / 08:00-16:00 / 16:00-00:00 UTC, per tenant L2 variation ADR-030). Rule wraps `oee_snapshots` → `oee_shift_metrics` MV. Registered w 02-SETTINGS §7.8.
 - **D-OEE-3 Anomaly detection EWMA P2 (from 08-PROD D15):** `oee_anomaly_detector_v1` DSL rule (P2 stub) — Exponentially Weighted Moving Average na rolling 30-min window, alert gdy current snapshot > baseline_ewma + 2σ. Alpha=0.3 (standard food-mfg tuning). Registered w 02-SETTINGS §7.8 jako P2 stub.
 - **D-OEE-4 Real-time TV dashboard P2:** plant-floor screens (1920×1080 TVs), auto-refresh 30s, full-screen mode. P1 MVP ma tylko desktop dashboards (operator laptops). P2 adds TV-specific route z hidden controls, large font, color-blind safe.
 - **D-OEE-5 Downtime categorization consumer 02-SET:** 15-OEE czyta `downtime_categories` ref table z 02-SETTINGS §8.1 (admin-configurable, zgodne z 08-PROD D6). **NIE** ML classification P1 (wycofane — wymaga >6 miesiecy training data). P3+ backlog.
-- **D-OEE-6 Shift comparison P1 fixed 3 shifts:** Forza baseline (AM/PM/Night). L2 variation per tenant P2 — custom shift configs (2-shift, 4-shift, 24h continuous, etc.) via `shift_configs` reference table w 02-SET §8.1.
+- **D-OEE-6 Shift comparison P1 fixed 3 shifts:** Apex baseline (AM/PM/Night). L2 variation per tenant P2 — custom shift configs (2-shift, 4-shift, 24h continuous, etc.) via `shift_configs` reference table w 02-SET §8.1.
 - **D-OEE-7 Maintenance trigger rule P2 (13-MAINT consumer):** `oee_maintenance_trigger_v1` — IF availability_pct < threshold dla 3 consecutive days → auto-create PM work order (13-MAINTENANCE consumer). Registered P2 stub w 02-SET §7.8.
 
-**Markers:** [UNIVERSAL] = core MES contract | [FORZA-CONFIG] = konkretny fit Forza UK | [EVOLVING] = areas in iteration | [LEGACY-D365] = bridge until D365 retirement.
+**Markers:** [UNIVERSAL] = core MES contract | [APEX-CONFIG] = konkretny fit Apex UK | [EVOLVING] = areas in iteration | [LEGACY-D365] = bridge until D365 retirement.
 
 ---
 
@@ -28,7 +28,7 @@ Modul **15-OEE** jest warstwa **analytics & visualization dla Overall Equipment 
 
 ### Cel glowny
 
-Dostarczyc operatorom, line supervisors i maintenance technicians natychmiastowy wglad w OEE na linia produkcyjnej (update co 60s), z drill-down w Availability / Performance / Quality components i downtime categorization. Eliminacja Excel-based OEE tracking (Forza reality: daily spreadsheet filled post-shift manual) z real-time feedback enabling operators to react in-shift.
+Dostarczyc operatorom, line supervisors i maintenance technicians natychmiastowy wglad w OEE na linia produkcyjnej (update co 60s), z drill-down w Availability / Performance / Quality components i downtime categorization. Eliminacja Excel-based OEE tracking (Apex reality: daily spreadsheet filled post-shift manual) z real-time feedback enabling operators to react in-shift.
 
 ### Metryki sukcesu Phase 1 (MVP)
 
@@ -82,12 +82,12 @@ Dostarczyc operatorom, line supervisors i maintenance technicians natychmiastowy
 
 | # | Obszar | Zakres | Priorytet |
 |---|---|---|---|
-| 1 | **Per-line 24h OEE Trend Dashboard** | D3.js line chart z A/P/Q components + combined OEE, toggle 1h/6h/24h window, target line overlay (tenant-configurable via `oee_alert_thresholds.oee_target_pct`, Forza P1 baseline: **70%**) | Must |
+| 1 | **Per-line 24h OEE Trend Dashboard** | D3.js line chart z A/P/Q components + combined OEE, toggle 1h/6h/24h window, target line overlay (tenant-configurable via `oee_alert_thresholds.oee_target_pct`, Apex P1 baseline: **70%**) | Must |
 | 2 | **Per-shift Heatmap Dashboard** | Matrix view: lines (rows) × shifts × days (cols), color scale OEE red-yellow-green, click cell → drill-down | Must |
 | 3 | **Per-day OEE Summary Dashboard** | Per-line daily rollup table: OEE%, A%, P%, Q%, best/worst shift, top downtime reason; 7-day trend sparklines | Must |
 | 4 | **MV infrastructure: `oee_daily_summary`** | Daily rollup per (tenant, site, line, date) — aggregates `oee_snapshots` | Must |
 | 5 | **MV infrastructure: `oee_shift_metrics`** | Per-shift rollup per (tenant, site, line, date, shift_id) — MTBF/MTTR ready (P2 13-MAINT consumer) | Must |
-| 6 | **DSL rule `shift_aggregator_v1`** | Configurable shift boundaries, L2 tenant variation, Forza baseline 3-shift 00/08/16 UTC | Must |
+| 6 | **DSL rule `shift_aggregator_v1`** | Configurable shift boundaries, L2 tenant variation, Apex baseline 3-shift 00/08/16 UTC | Must |
 | 7 | **Downtime drill-down integration** | Click OEE dip → reveal `downtime_events` rows z category + duration + reason_notes (cross-module navigation to 08-PROD) | Must |
 | 8 | **Changeover analysis P1 basic** | Changeover duration per line (consumer `changeover_events` 08-PROD §9.7), per allergen risk level. Target duration sourced from 02-SETTINGS `changeover_target_duration_min` per line (with optional per-FA override). Default null — no breach detection if unset. | Should |
 | 9 | **Six Big Losses basic view** | Aggregat per classification admin-configurable per tenant (mapping editor in OEE-ADM-001: `downtime_reason_code` → Big Loss category; default seeded from industry standard). | Should |
@@ -139,9 +139,9 @@ Dostarczyc operatorom, line supervisors i maintenance technicians natychmiastowy
 ### Biznesowe
 
 - 08-PRODUCTION sub-module f (dashboard + OEE aggregation) MUST complete przed 15-OEE impl (`oee_snapshots` table exists + cron job running)
-- `downtime_categories` reference table (02-SET §8.1) populated z min 10 Forza categories (People/Process/Plant → 10 sub-cats per 08-PROD D6)
+- `downtime_categories` reference table (02-SET §8.1) populated z min 10 Apex categories (People/Process/Plant → 10 sub-cats per 08-PROD D6)
 - `shift_configs` reference table w 02-SET §8.1 musi miec minimum 1 shift dla tenant (inaczej `shift_aggregator_v1` fails)
-- `target_kpis` reference table (02-SET §8.1) zawiera per-line `oee_target_pct` (Forza P1 default: **70%** ramp-up baseline, world-class threshold: 85%; configurable via `oee_alert_thresholds.oee_target_pct`)
+- `target_kpis` reference table (02-SET §8.1) zawiera per-line `oee_target_pct` (Apex P1 default: **70%** ramp-up baseline, world-class threshold: 85%; configurable via `oee_alert_thresholds.oee_target_pct`)
 - 12-REPORTING integration (D-RPT-9 consumer): 15-OEE produces `oee_daily_summary` MV PRZED 12-REPORTING sub-module b (OEE Summary dashboard)
 
 ### Regulacyjne
@@ -170,18 +170,18 @@ Dostarczyc operatorom, line supervisors i maintenance technicians natychmiastowy
 ### D-OEE-2. Shift aggregation DSL rule `shift_aggregator_v1` (P1 active) [UNIVERSAL]
 
 **Decyzja:** DSL rule `shift_aggregator_v1` registered w 02-SETTINGS §7.8 (P1 active). Rule:
-1. Reads `shift_configs` reference table per tenant (Forza baseline: 3 shifts 00:00-08:00 / 08:00-16:00 / 16:00-00:00 UTC)
+1. Reads `shift_configs` reference table per tenant (Apex baseline: 3 shifts 00:00-08:00 / 08:00-16:00 / 16:00-00:00 UTC)
 2. Triggered post-shift-end (5min buffer po `shift_end_time` via pg_cron)
 3. Aggregates `oee_snapshots` WHERE snapshot_minute BETWEEN shift_start AND shift_end
 4. Writes row do `oee_shift_metrics` MV (refreshed, not inserted)
 5. Emits outbox event `oee.shift.aggregated` → 12-REPORTING cache invalidation + 13-MAINT consumer (P2)
 
-**Rationale:** Workflow-as-data pattern (consistent z 02-SET §7 principle). Admin UI dla shift_configs = L2 variation (02-SET ADR-030). Forza P1 fixed 3-shift; other tenants P2 2-shift / 4-shift / 24h continuous.
+**Rationale:** Workflow-as-data pattern (consistent z 02-SET §7 principle). Admin UI dla shift_configs = L2 variation (02-SET ADR-030). Apex P1 fixed 3-shift; other tenants P2 2-shift / 4-shift / 24h continuous.
 
 **Config example (shift_configs row):**
 ```json
 {
-  "tenant_id": "forza-uk",
+  "tenant_id": "apex-uk",
   "shift_id": "AM",
   "shift_label": "Morning Shift",
   "start_time": "00:00",
@@ -203,7 +203,7 @@ Dostarczyc operatorom, line supervisors i maintenance technicians natychmiastowy
 
 **Rationale:** EWMA = simple, MVP-friendly anomaly detection. Avoids ML complexity (R12 defer P3+). Tunable per-tenant (α, σ threshold) via 02-SET L2 config.
 
-### D-OEE-4. Real-time TV dashboard P2 [UNIVERSAL] + [FORZA-CONFIG]
+### D-OEE-4. Real-time TV dashboard P2 [UNIVERSAL] + [APEX-CONFIG]
 
 **Decyzja:** P2 scope — plant-floor TVs (1920×1080, mounted above lines):
 - Dedicated route `/oee/tv/[line_id]` (full-screen, hidden header/nav)
@@ -213,7 +213,7 @@ Dostarczyc operatorom, line supervisors i maintenance technicians natychmiastowy
 - No interactions (read-only)
 - Auto-recovery: if browser crash, OS launches URL via kiosk mode
 
-**P1 MVP:** NOT available — operators use desktop/tablet dashboards only. P2 requires hardware provisioning (Forza ma 5 lines → 5 TVs budget).
+**P1 MVP:** NOT available — operators use desktop/tablet dashboards only. P2 requires hardware provisioning (Apex ma 5 lines → 5 TVs budget).
 
 **Rationale:** TV dashboards = best-practice food-mfg (world-class manufacturing principle), but require hardware investment + kiosk OS setup. Defer P2 post-P1 pilot validation.
 
@@ -229,7 +229,7 @@ Dostarczyc operatorom, line supervisors i maintenance technicians natychmiastowy
 
 ### D-OEE-6. Shift comparison P1 fixed 3 shifts, P2 custom L2 [UNIVERSAL]
 
-**Decyzja:** P1 = Forza baseline 3-shift pattern hard-coded w `shift_configs` reference (00:00-08:00 AM / 08:00-16:00 PM / 16:00-00:00 Night UTC+0).
+**Decyzja:** P1 = Apex baseline 3-shift pattern hard-coded w `shift_configs` reference (00:00-08:00 AM / 08:00-16:00 PM / 16:00-00:00 Night UTC+0).
 
 **P2 L2 variation:** Per tenant custom shift configs via 02-SET §8.1 `shift_configs` CRUD. Supported patterns:
 - 2-shift (12h each)
@@ -237,7 +237,7 @@ Dostarczyc operatorom, line supervisors i maintenance technicians natychmiastowy
 - Continuous 24h (single shift, no rollup)
 - Custom (operator-defined breaks)
 
-**Rationale:** Forza P1 simplicity. P2 multi-tenant reality requires flexibility (ADR-030 configurable depts pattern extended do shifts).
+**Rationale:** Apex P1 simplicity. P2 multi-tenant reality requires flexibility (ADR-030 configurable depts pattern extended do shifts).
 
 ### D-OEE-7. Maintenance trigger rule P2 (13-MAINT consumer) [UNIVERSAL]
 
@@ -673,7 +673,7 @@ CREATE TABLE oee_alert_thresholds (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   tenant_id UUID NOT NULL,
   line_id TEXT, -- nullable, NULL = tenant default
-  oee_target_pct NUMERIC(5,2) NOT NULL DEFAULT 70.00,  -- Forza P1 ramp-up baseline (OQ-OEE-02 decision 2026-04-21; industry world-class = 85%)
+  oee_target_pct NUMERIC(5,2) NOT NULL DEFAULT 70.00,  -- Apex P1 ramp-up baseline (OQ-OEE-02 decision 2026-04-21; industry world-class = 85%)
   availability_min_pct NUMERIC(5,2) NOT NULL DEFAULT 70.00,
   performance_min_pct NUMERIC(5,2) NOT NULL DEFAULT 80.00,
   quality_min_pct NUMERIC(5,2) NOT NULL DEFAULT 95.00,
@@ -889,7 +889,7 @@ CREATE INDEX idx_oee_outbox_dispatch ON oee_outbox_events(status, next_retry_at)
 | < 65% | Poor (requires action) | red-500 | #EF4444 |
 | 100% | Unrealistic (data error — investigate) | purple-500 | #A855F7 |
 
-Note: P1 Forza target is **70%** (shown as target reference line on charts). P1 color scale uses fixed industry thresholds 65/85 (OQ-OEE-07 decision 2026-04-21). P2 color scale becomes tenant-configurable via `oee_alert_thresholds.oee_target_pct`.
+Note: P1 Apex target is **70%** (shown as target reference line on charts). P1 color scale uses fixed industry thresholds 65/85 (OQ-OEE-07 decision 2026-04-21). P2 color scale becomes tenant-configurable via `oee_alert_thresholds.oee_target_pct`.
 
 ### 13.2 A/P/Q component colors
 
@@ -904,7 +904,7 @@ Note: P1 Forza target is **70%** (shown as target reference line on charts). P1 
 - **Process** (material wait, upstream delay, downstream blocked, quality hold): amber-500
 - **Plant** (machine fault, cleaning, changeover): red-500
 
-### 13.4 Shift labels (Forza baseline)
+### 13.4 Shift labels (Apex baseline)
 
 - **AM** — 00:00-08:00 UTC
 - **PM** — 08:00-16:00 UTC
@@ -1037,8 +1037,8 @@ Note: P1 Forza target is **70%** (shown as target reference line on charts). P1 
 | ID | Pytanie | Status | Decyzja / Follow-up | Data |
 |---|---|---|---|---|
 | OQ-OEE-01 | Per-product OEE drill-down? | CLOSED — deferred P2 | Pozostaje P2, sub-module 15-H | 2026-04-21 |
-| OQ-OEE-02 | Target OEE — 85% vs Forza ramp-up baseline? | CLOSED | P1 target = **70%**. `oee_alert_thresholds.oee_target_pct = 70`. Amber 55–70%, red <55% (proportional). Color scale fixed 65/85 (per OQ-OEE-07). | 2026-04-21 |
-| OQ-OEE-03 | TV dashboard kiosk OS? | **OPEN** | Brak decyzji. Raspberry Pi / Windows kiosk / ChromeOS — wymaga Forza IT. Nie blokuje P1. | — |
+| OQ-OEE-02 | Target OEE — 85% vs Apex ramp-up baseline? | CLOSED | P1 target = **70%**. `oee_alert_thresholds.oee_target_pct = 70`. Amber 55–70%, red <55% (proportional). Color scale fixed 65/85 (per OQ-OEE-07). | 2026-04-21 |
+| OQ-OEE-03 | TV dashboard kiosk OS? | **OPEN** | Brak decyzji. Raspberry Pi / Windows kiosk / ChromeOS — wymaga Apex IT. Nie blokuje P1. | — |
 | OQ-OEE-04 | Operator annotation edit window? | CLOSED | **1 godzina post-event**. Po 1h — read-only + `[Request Edit]` escalation do supervisora. | 2026-04-21 |
 | OQ-OEE-05 | Changeover target duration — skad konfiguracja? | CLOSED | **02-SETTINGS `changeover_target_duration_min`** per line (optional per-FA override). Default null — brak breach detection jesli nie skonfigurowane. | 2026-04-21 |
 | OQ-OEE-06 | Six Big Losses mapping — admin-configurable? | CLOSED | **Admin-configurable per tenant**. Mapping editor w OEE-ADM-001. Default seeded z industry standard. | 2026-04-21 |
@@ -1057,7 +1057,7 @@ Note: P1 Forza target is **70%** (shown as target reference line on charts). P1 
 
 **Decisions applied (no breaking changes — refinements only):**
 - **OQ-OEE-01 CLOSED:** Per-product OEE deferred P2 (sub-module 15-H). No spec change.
-- **OQ-OEE-02 CLOSED:** P1 OEE target = **70%** (Forza ramp-up baseline). `oee_alert_thresholds.oee_target_pct` default updated from 85 → 70. §9.4 SQL default updated. §4.1 scope table updated. §13.1 color table note added. Conflict noted: target 70% vs fixed color scale 65/85 (intentional per OQ-OEE-07).
+- **OQ-OEE-02 CLOSED:** P1 OEE target = **70%** (Apex ramp-up baseline). `oee_alert_thresholds.oee_target_pct` default updated from 85 → 70. §9.4 SQL default updated. §4.1 scope table updated. §13.1 color table note added. Conflict noted: target 70% vs fixed color scale 65/85 (intentional per OQ-OEE-07).
 - **OQ-OEE-03 OPEN:** TV OS — no decision. No change.
 - **OQ-OEE-04 CLOSED:** Annotation edit window = **1 hour post-event**. Read-only after 1h + `[Request Edit]` escalation.
 - **OQ-OEE-05 CLOSED:** Changeover target = **02-SETTINGS `changeover_target_duration_min`** per line. §4.1 scope entry #8 updated. 02-SETTINGS-PRD new field added.

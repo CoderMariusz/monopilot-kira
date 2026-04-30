@@ -1226,8 +1226,8 @@ Utwórz migration runner scripts. Stack: drizzle-kit (NOT alembic — to jest Ne
 
 ### GIVEN / WHEN / THEN
 **GIVEN** baseline migration has been applied
-**WHEN** `pnpm seed forza-baseline` runs
-**THEN** named snapshot populates: 1 tenant (`Forza Foods Ltd`, `tenant_id: 'forza-uuid-xxxx'`), 3 users (admin@forza.com, dev@forza.com, viewer@forza.com), 3 roles (admin, developer, viewer) — idempotently (re-running is a no-op via `onConflictDoNothing`)
+**WHEN** `pnpm seed apex-baseline` runs
+**THEN** named snapshot populates: 1 tenant (`Apex Foods Ltd`, `tenant_id: 'apex-uuid-xxxx'`), 3 users (admin@apex.com, dev@apex.com, viewer@apex.com), 3 roles (admin, developer, viewer) — idempotently (re-running is a no-op via `onConflictDoNothing`)
 
 ### ACP Prompt
 ````
@@ -1235,13 +1235,13 @@ Utwórz migration runner scripts. Stack: drizzle-kit (NOT alembic — to jest Ne
 
 ## Context — przeczytaj przed implementacją
 - `/Users/mariuszkrawczyk/Projects/monopilot-kira/00-FOUNDATION-PRD.md` → znajdź sekcję `## §10 — Event-first + AI/Trace-ready Schema` — R13 columns wymagane na każdej business table (tenant_id, id UUID, etc.)
-- `/Users/mariuszkrawczyk/Projects/monopilot-kira/_meta/plans/atomic-task-decomposition-guide.md` → znajdź sekcję `## §5` — T5-seed constraints: `seed/<feature>-seed.ts` z Drizzle typed insert, factory pattern, snapshot names `forza-baseline`, `empty-tenant`, `multi-tenant-3`
+- `/Users/mariuszkrawczyk/Projects/monopilot-kira/_meta/plans/atomic-task-decomposition-guide.md` → znajdź sekcję `## §5` — T5-seed constraints: `seed/<feature>-seed.ts` z Drizzle typed insert, factory pattern, snapshot names `apex-baseline`, `empty-tenant`, `multi-tenant-3`
 
 ## Twoje zadanie
-Utwórz seed runner z 3 named snapshots. Factory pattern per entity. Seed jest idempotentny (onConflictDoNothing). Snapshot `forza-baseline` = referencyjna dane testowe dla wszystkich integracyjnych testów.
+Utwórz seed runner z 3 named snapshots. Factory pattern per entity. Seed jest idempotentny (onConflictDoNothing). Snapshot `apex-baseline` = referencyjna dane testowe dla wszystkich integracyjnych testów.
 
 ## Implementacja
-1. Utwórz `packages/db/seed/index.ts` z `applySnapshot(name: 'forza-baseline' | 'empty-tenant' | 'multi-tenant-3')` dispatcher
+1. Utwórz `packages/db/seed/index.ts` z `applySnapshot(name: 'apex-baseline' | 'empty-tenant' | 'multi-tenant-3')` dispatcher
 2. Utwórz `packages/db/seed/factories/tenant.factory.ts`:
    ```typescript
    export const createTenant = (overrides?) => db.insert(schema.tenants).values({
@@ -1249,17 +1249,17 @@ Utwórz seed runner z 3 named snapshots. Factory pattern per entity. Seed jest i
    }).onConflictDoNothing()
    ```
    Podobne factories dla `user.factory.ts`, `role.factory.ts`
-3. Utwórz `packages/db/seed/snapshots/forza-baseline.ts`: 1 tenant (Forza Foods Ltd) + 3 users (admin@forza.com, dev@forza.com, viewer@forza.com) + 3 roles (admin/developer/viewer)
+3. Utwórz `packages/db/seed/snapshots/apex-baseline.ts`: 1 tenant (Apex Foods Ltd) + 3 users (admin@apex.com, dev@apex.com, viewer@apex.com) + 3 roles (admin/developer/viewer)
 4. Utwórz `packages/db/seed/snapshots/empty-tenant.ts` (1 tenant, 0 users) + `packages/db/seed/snapshots/multi-tenant-3.ts` (3 tenants)
-5. Dodaj npm script: `"seed": "tsx packages/db/seed/index.ts"` — wywołanie: `pnpm seed forza-baseline`
+5. Dodaj npm script: `"seed": "tsx packages/db/seed/index.ts"` — wywołanie: `pnpm seed apex-baseline`
 
 ## Files
-**Create:** `packages/db/seed/index.ts`, `packages/db/seed/factories/tenant.factory.ts`, `packages/db/seed/factories/user.factory.ts`, `packages/db/seed/factories/role.factory.ts`, `packages/db/seed/snapshots/forza-baseline.ts`, `packages/db/seed/snapshots/empty-tenant.ts`, `packages/db/seed/snapshots/multi-tenant-3.ts`
+**Create:** `packages/db/seed/index.ts`, `packages/db/seed/factories/tenant.factory.ts`, `packages/db/seed/factories/user.factory.ts`, `packages/db/seed/factories/role.factory.ts`, `packages/db/seed/snapshots/apex-baseline.ts`, `packages/db/seed/snapshots/empty-tenant.ts`, `packages/db/seed/snapshots/multi-tenant-3.ts`
 **Modify:** `package.json` — dodaj: seed script
 
 ## Done when
-- `vitest packages/db/seed/seed.test.ts` PASS — sprawdza: forza-baseline idempotent (run twice = same row count)
-- `pnpm seed forza-baseline` exits 0
+- `vitest packages/db/seed/seed.test.ts` PASS — sprawdza: apex-baseline idempotent (run twice = same row count)
+- `pnpm seed apex-baseline` exits 0
 - `pnpm test:smoke` green
 
 ## Rollback
@@ -1412,7 +1412,7 @@ Utwórz RLS context setter `setCurrentOrgId` który ustawia Postgres session var
 
 ### Rollback
 `git rm packages/db/rls-context.ts`
-## T-00b-M01 — Main Table migration (69 typed Forza cols + ext/private JSONB + schema_version)
+## T-00b-M01 — Main Table migration (69 typed Apex cols + ext/private JSONB + schema_version)
 
 **Type:** T1-schema
 **Context budget:** ~55k tokens
@@ -1434,11 +1434,11 @@ Utwórz RLS context setter `setCurrentOrgId` który ustawia Postgres session var
 ### GIVEN / WHEN / THEN
 **GIVEN** baseline and DeptColumns migrations have been applied
 **WHEN** migration `015-main-table-69-cols.sql` runs
-**THEN** `main_table` exists with: 69 typed Forza columns per MAIN-TABLE-SCHEMA.md, `ext_jsonb JSONB`, `private_jsonb JSONB`, `schema_version INT NOT NULL DEFAULT 1`, composite index `(tenant_id, created_at)`, GIN index on `ext_jsonb`; column count integration test passes
+**THEN** `main_table` exists with: 69 typed Apex columns per MAIN-TABLE-SCHEMA.md, `ext_jsonb JSONB`, `private_jsonb JSONB`, `schema_version INT NOT NULL DEFAULT 1`, composite index `(tenant_id, created_at)`, GIN index on `ext_jsonb`; column count integration test passes
 
 ### ACP Prompt
 ````
-# Task T-00b-M01 — Main Table migration (69 typed Forza cols + ext/private JSONB + schema_version)
+# Task T-00b-M01 — Main Table migration (69 typed Apex cols + ext/private JSONB + schema_version)
 
 ## Context — przeczytaj przed implementacją
 - `/Users/mariuszkrawczyk/Projects/monopilot-kira/00-FOUNDATION-PRD.md` → znajdź sekcję `## §6 — Schema-driven Foundation` — Main Table 69 cols, storage tiers (L1-L4), ext_jsonb + private_jsonb, R2 hybrid storage pattern
@@ -1446,11 +1446,11 @@ Utwórz RLS context setter `setCurrentOrgId` który ustawia Postgres session var
 - Dodatkowe: jeśli istnieje `/Users/mariuszkrawczyk/Projects/monopilot-kira/_meta/specs/MAIN-TABLE-SCHEMA.md` — przeczytaj wszystkie 69 kolumn
 
 ## Twoje zadanie
-Utwórz Drizzle schema dla `main_table` z 69 typed Forza columns + storage tiers. R13 columns wymagane (id UUID, tenant_id UUID NOT NULL REFERENCES tenants(id), created_at TIMESTAMPTZ DEFAULT now(), created_by_user UUID, created_by_device UUID, app_version TEXT, model_prediction_id UUID, epcis_event_id UUID, external_id TEXT, schema_version INT NOT NULL DEFAULT 1). Dodatkowo L3/L4 storage: `ext_jsonb JSONB`, `private_jsonb JSONB`. R2 indexes: composite `(tenant_id, created_at)` + GIN on `ext_jsonb`.
+Utwórz Drizzle schema dla `main_table` z 69 typed Apex columns + storage tiers. R13 columns wymagane (id UUID, tenant_id UUID NOT NULL REFERENCES tenants(id), created_at TIMESTAMPTZ DEFAULT now(), created_by_user UUID, created_by_device UUID, app_version TEXT, model_prediction_id UUID, epcis_event_id UUID, external_id TEXT, schema_version INT NOT NULL DEFAULT 1). Dodatkowo L3/L4 storage: `ext_jsonb JSONB`, `private_jsonb JSONB`. R2 indexes: composite `(tenant_id, created_at)` + GIN on `ext_jsonb`.
 
 ## Implementacja
 1. Przeczytaj `_meta/specs/MAIN-TABLE-SCHEMA.md` (lub Foundation PRD §6) — wylistuj wszystkie 69 kolumn z typami
-2. Utwórz `packages/db/schema/main-table.ts` z Drizzle pgTable definition: R13 cols + 69 Forza cols + ext_jsonb + private_jsonb + schema_version
+2. Utwórz `packages/db/schema/main-table.ts` z Drizzle pgTable definition: R13 cols + 69 Apex cols + ext_jsonb + private_jsonb + schema_version
 3. Dodaj indexes w `packages/db/schema/main-table.ts`: `.index('main_table_tenant_created_idx', (t) => [t.tenant_id, t.created_at])` + `.index('main_table_ext_jsonb_gin_idx', (t) => t.ext_jsonb, { using: 'gin' })`
 4. Uruchom `pnpm drizzle-kit generate` dla `packages/db/schema/main-table.ts` → generuje `drizzle/migrations/015-main-table-69-cols.sql`
 5. Napisz i uruchom integration test w `drizzle/migrations/main-table-69.integration.test.ts`: `\\d+ main_table` ma ≥69 typed cols + 2 JSONB + schema_version + 2 indexes

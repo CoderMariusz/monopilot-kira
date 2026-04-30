@@ -15,7 +15,7 @@
   - Config level: (a) schema-light + furtka na (b) rule engine w 3–5 obszarach
   - Target PLD v7: Bridge → replace (12-m dual maintenance, potem Monopilot zastępuje)
   - Monopilot docelowo zastępuje D365 (kolejny reality source po PLD v7)
-  - Multi-tenant from day 1 (Forza = pierwsza konfiguracja, nie jedyna)
+  - Multi-tenant from day 1 (Apex = pierwsza konfiguracja, nie jedyna)
   - Custom reports = universal templates + metadata-driven content (nie per-client code)
   - Custom workflows = dane (JSON/DB), nie kod — silnik universal, definicje per org
 
@@ -33,7 +33,7 @@
    - `rule-engine-dsl`
    - `reality-sync-workflow`
    - `multi-tenant-variation`
-4. Update istniejącego skilla `documentation-patterns` o markery [UNIVERSAL]/[FORZA-CONFIG]/[EVOLVING]/[LEGACY-D365]
+4. Update istniejącego skilla `documentation-patterns` o markery [UNIVERSAL]/[APEX-CONFIG]/[EVOLVING]/[LEGACY-D365]
 5. Napisać `00-foundation/patterns/REALITY-SYNC.md`
 
 **Parallel agent track (spawn na początku):**
@@ -71,7 +71,7 @@ Kolejność czytania od najważniejszego:
 ## Zasady które obowiązują (przypomnienie)
 
 - **Pure documentation, NO CODE SNIPPETS** — opisy semantyczne, tabele, Mermaid. Wyjątek: context/*.yaml jako contract files.
-- **Markery obowiązkowe:** [UNIVERSAL] / [FORZA-CONFIG] / [EVOLVING] / [LEGACY-D365]
+- **Markery obowiązkowe:** [UNIVERSAL] / [APEX-CONFIG] / [EVOLVING] / [LEGACY-D365]
 - **Cross-referencing:** każdy link do innych docs używa pełnych ścieżek
 - **Brainstorm przed pisaniem:** invoke `superpowers:brainstorming` jeśli cokolwiek niejasne przed touching docs
 - **Writing-plans jako terminal step brainstormu:** po brainstormie, pisz plan, potem dopiero dokumentacja

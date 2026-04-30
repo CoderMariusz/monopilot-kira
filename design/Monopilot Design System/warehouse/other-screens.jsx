@@ -165,7 +165,7 @@ const WhLocations = ({ role, onNav, onOpenLp, openModal }) => {
         <div>
           <div className="breadcrumb"><a onClick={()=>onNav("dashboard")}>Warehouse</a> · Locations</div>
           <h1 className="page-title">Locations hierarchy</h1>
-          <div className="muted" style={{fontSize:12}}>Backed by <span className="mono">ltree</span> column · depth {WH_SETTINGS.general && 3} max · Forza default: warehouse → zone → bin</div>
+          <div className="muted" style={{fontSize:12}}>Backed by <span className="mono">ltree</span> column · depth {WH_SETTINGS.general && 3} max · Apex default: warehouse → zone → bin</div>
         </div>
         <div className="row-flex">
           {isAdmin && <button className="btn btn-primary btn-sm" onClick={()=>openModal("locationEdit")}>＋ Add location</button>}
@@ -561,7 +561,7 @@ const WhSettings = ({ role, onNav }) => {
             <div className="card-head"><h3 className="card-title">LP numbering</h3><button className="btn btn-primary btn-sm" disabled={!isAdmin}>Save changes</button></div>
             <div className="set-form-grid">
               <Field label="Auto-generate LP number"><label><input type="checkbox" defaultChecked={WH_SETTINGS.lpNumbering.autoGenerate} disabled={!isAdmin}/> Enabled</label></Field>
-              <Field label="Prefix" help="Forza default: LP"><input defaultValue={WH_SETTINGS.lpNumbering.prefix} disabled={!isAdmin} className="mono"/></Field>
+              <Field label="Prefix" help="Apex default: LP"><input defaultValue={WH_SETTINGS.lpNumbering.prefix} disabled={!isAdmin} className="mono"/></Field>
               <Field label="Sequence length (digits, 4–12)"><input type="number" min="4" max="12" defaultValue={WH_SETTINGS.lpNumbering.seqLength} disabled={!isAdmin}/></Field>
               <Field label="Preview"><input value={WH_SETTINGS.lpNumbering.preview} readOnly style={{background:"var(--gray-100)", fontFamily:"var(--font-mono)"}}/></Field>
               <Field label="Allow manual LP number" help="When ON, operators can enter custom LP numbers (e.g. from supplier GS1 labels). Uniqueness enforced."><label><input type="checkbox" defaultChecked={WH_SETTINGS.lpNumbering.allowManual} disabled={!isAdmin}/> Enabled</label></Field>

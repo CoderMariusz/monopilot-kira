@@ -18,7 +18,7 @@ propagated_to: []
 
 Dokument kodyfikuje 8 tabel konfiguracyjnych w sheet `Reference`. Te tabele realizują **schema-driven domain Level "a"** (META-MODEL §1) — są **danymi**, nie kodem, edytowalne przez użytkownika bez dewelopera. Razem z `Reference.DeptColumns` stanowią **pełny zestaw config-tables** napędzający runtime UI + cascade + workflow v7.
 
-W Monopilot każda z tych tabel staje się **config-table per org** (ADR-028) z UI Settings. Seed dla Forza = wartości z tego dokumentu; inne orgi mogą override.
+W Monopilot każda z tych tabel staje się **config-table per org** (ADR-028) z UI Settings. Seed dla Apex = wartości z tego dokumentu; inne orgi mogą override.
 
 ---
 
@@ -53,7 +53,7 @@ End Function
 Data rows zaczynają się zawsze **startRow + 2** (skip separator + header). Loop działa dopóki `Cells(r, 1).Value <> ""`.
 
 **Marker:**
-- Wzorzec "multiple tables w jednym sheet z separatorami `TABLE: <name>`" = `[FORZA-CONFIG]` (Excel-specific layout)
+- Wzorzec "multiple tables w jednym sheet z separatorami `TABLE: <name>`" = `[APEX-CONFIG]` (Excel-specific layout)
 - Config-table pattern generically = `[UNIVERSAL]` (ADR-028)
 - W Monopilot każda tabela = osobna DB table albo JSON config per org
 
@@ -99,12 +99,12 @@ Data rows zaczynają się zawsze **startRow + 2** (skip separator + header). Loo
 
 **Cascade:** Zmiana Pack_Size → clear Line + Dieset (zobacz CASCADING-RULES §1.1).
 
-**Format:** `<width>x<height>cm` (cm suffix). Values naming Forza-specific — inne firmy mogą mieć inne rozmiary (np. USA w inches, circular trays, custom formats).
+**Format:** `<width>x<height>cm` (cm suffix). Values naming Apex-specific — inne firmy mogą mieć inne rozmiary (np. USA w inches, circular trays, custom formats).
 
 **Marker:**
 - Pack_Size jako concept = `[UNIVERSAL]` (każda food-mfg firma ma rozmiary opakowań)
-- 5 konkretnych Forza values = `[FORZA-CONFIG]`
-- Format `20x30cm` = `[FORZA-CONFIG]` (localization: cm vs in, separator vs x, itp.)
+- 5 konkretnych Apex values = `[APEX-CONFIG]`
+- Format `20x30cm` = `[APEX-CONFIG]` (localization: cm vs in, separator vs x, itp.)
 
 **Evolving:** Ruchomy zestaw (user może dodać nowe Pack_Size). Dziś dodanie = manual edit Reference sheet + sprawdzenie czy Lines_By_PackSize i Dieset_By_Line_Pack zawierają kombinacje. Brak automatycznego "jeśli dodam Pack_Size, pokaż mi które Lines muszę skonfigurować" prompt-a.
 
@@ -123,7 +123,7 @@ Data rows zaczynają się zawsze **startRow + 2** (skip separator + header). Loo
 | Line3 | 15x20, 18x24 |
 | Line9 | 25x35, 30x40 |
 
-**Format `Supported_Pack_Sizes`:** comma-separated bez "cm" (Forza konwencja). Każda linia wspiera 2 Pack_Sizes.
+**Format `Supported_Pack_Sizes`:** comma-separated bez "cm" (Apex konwencja). Każda linia wspiera 2 Pack_Sizes.
 
 **Użycie:**
 - Filtered dropdown dla `Production.Line` (M02.BuildFilteredLineList) — per Pack_Size zwraca tylko te Lines które wspierają dany size
@@ -149,12 +149,12 @@ Przykład: Pack_Size="20x30cm" → cleanPS="20x30" → match Line5, Line6, Line1
 | 30x40cm | Line17, Line9 | 2 |
 | 15x20cm | Line3 | 1 |
 
-**Single point of failure:** `Line3` jest jedyną linią wspierającą `15x20cm`. Jeśli Line3 offline → nie ma produkcji 15x20. To jest reality constraint Forza.
+**Single point of failure:** `Line3` jest jedyną linią wspierającą `15x20cm`. Jeśli Line3 offline → nie ma produkcji 15x20. To jest reality constraint Apex.
 
 **Marker:**
 - Line-to-PackSize mapping pattern = `[UNIVERSAL]` (każda firma mfg ma capacity matrix)
-- 5 konkretnych linii + ich support = `[FORZA-CONFIG]`
-- Format comma-sep supported sizes = `[FORZA-CONFIG]`
+- 5 konkretnych linii + ich support = `[APEX-CONFIG]`
+- Format comma-sep supported sizes = `[APEX-CONFIG]`
 
 ---
 
@@ -188,7 +188,7 @@ Przykład: Pack_Size="20x30cm" → cleanPS="20x30" → match Line5, Line6, Line1
 
 Decyzja Phase B. W `EVOLVING.md` §3.
 
-**Marker:** Tabela = `[FORZA-CONFIG]`. Format Dieset = `[FORZA-CONFIG]`. Pattern "composite key lookup" (Line × Pack_Size → Dieset) = `[UNIVERSAL]`.
+**Marker:** Tabela = `[APEX-CONFIG]`. Format Dieset = `[APEX-CONFIG]`. Pattern "composite key lookup" (Line × Pack_Size → Dieset) = `[UNIVERSAL]`.
 
 ---
 
@@ -210,7 +210,7 @@ Decyzja Phase B. W `EVOLVING.md` §3.
 
 **Notes column:** Human-readable description + hint ile procesów. Nie używane przez VBA, tylko UX hint dla user.
 
-**Forza coverage:**
+**Apex coverage:**
 - **Standard Meat FA** — single-process (typowy plaster mięsa): Strip only
 - **Simple Pack FA** — no-process (packing existing components, no transformation)
 - **Roasting Chicken** — 3-step chicken processing: Strip → Roast → Slice
@@ -220,8 +220,8 @@ Decyzja Phase B. W `EVOLVING.md` §3.
 
 **Marker:**
 - Template pattern (preset workflows) = `[UNIVERSAL]` (ADR-029 §8 workflow-as-data)
-- 4 konkretne templates Forza = `[FORZA-CONFIG]`
-- Max 4 processes limit = `[FORZA-CONFIG]` (inne orgi mogą potrzebować więcej)
+- 4 konkretne templates Apex = `[APEX-CONFIG]`
+- Max 4 processes limit = `[APEX-CONFIG]` (inne orgi mogą potrzebować więcej)
 
 ---
 
@@ -256,7 +256,7 @@ Please review and complete the attached <dept> data.
 This file contains all pending products for your department.
 
 Regards,
-PLD System - Forza Foods
+PLD System - Apex Foods
 ```
 
 **Evolving `[EVOLVING]`:**
@@ -267,10 +267,10 @@ PLD System - Forza Foods
 
 **Marker:**
 - EmailConfig schema (Dept|Recipients|Subject_Template) = `[UNIVERSAL]` (pattern notifications config)
-- Subject_Template format `PLD Update - {FA_Code}` = `[FORZA-CONFIG]`
-- 7 dept rows per 7 Forza działów = `[FORZA-CONFIG]` (inne orgi mają inną taxonomy)
-- Recipients (email addresses) = `[FORZA-CONFIG]`
-- `Multiple Products` fallback text = `[FORZA-CONFIG]` (localizable)
+- Subject_Template format `PLD Update - {FA_Code}` = `[APEX-CONFIG]`
+- 7 dept rows per 7 Apex działów = `[APEX-CONFIG]` (inne orgi mają inną taxonomy)
+- Recipients (email addresses) = `[APEX-CONFIG]`
+- `Multiple Products` fallback text = `[APEX-CONFIG]` (localizable)
 
 ---
 
@@ -302,14 +302,14 @@ PLD System - Forza Foods
 - E-H: dalsze etapy (Smoke, Slice, Tumble, Dice)
 - R: special (Roast)
 
-**Dla Forza to standardowy zestaw food processes mięsnych.** Dla innych branż food-mfg (np. sweets, beverages) suffixy będą inne.
+**Dla Apex to standardowy zestaw food processes mięsnych.** Dla innych branż food-mfg (np. sweets, beverages) suffixy będą inne.
 
 **Evolving `[EVOLVING]`:** Ruchomy zestaw — będzie rozszerzany o nowe procesy w miarę wprowadzania nowych linii / produktów. Musi być user-editable w Settings (ADR-028 schema-driven configuration) — dziś edit manual w Reference.
 
 **Marker:**
 - Processes as config-table pattern = `[UNIVERSAL]` (food-mfg have process taxonomies)
-- 8 konkretnych Forza processes = `[FORZA-CONFIG]`
-- Suffix convention (1-litera) = `[FORZA-CONFIG]`
+- 8 konkretnych Apex processes = `[APEX-CONFIG]`
+- Suffix convention (1-litera) = `[APEX-CONFIG]`
 - Single-letter suffix limit = `[EVOLVING]` (może się okazać za mało gdy rozszerzeń — 26 liter łącznie - 0 = 25 unique processes max)
 
 ---
@@ -325,7 +325,7 @@ PLD System - Forza Foods
 
 **Role:** Dropdown source dla 7 `Closed_<Dept>` cols w Main Table. User może wybrać tylko "Yes" — unset robi się przez usunięcie wartości cell (blank).
 
-**Dlaczego tylko "Yes" i nie "Yes/No"?** Forza upraszcza UI:
+**Dlaczego tylko "Yes" i nie "Yes/No"?** Apex upraszcza UI:
 - Cell pusta → dept jeszcze nie zamknął
 - Cell = "Yes" → dept zamknął
 - Nie ma potrzeby explicit "No" (to by było redundant)
@@ -338,8 +338,8 @@ If Trim(CStr(wsMT.Cells(mtRow, closedCol).Value)) = "Yes" Then GoTo NextStdRow
 Sprawdzanie jest `= "Yes"` (case-sensitive, hardcoded). Inne wartości (nawet "yes", "y", "TRUE") nie triggerują autofilter.
 
 **Marker:**
-- CloseConfirm binary pattern = `[FORZA-CONFIG]` (niektórzy orgi mogą wymagać explicit approval chain: "Pending"/"Approved"/"Rejected")
-- "Yes" jako single value = `[FORZA-CONFIG]`
+- CloseConfirm binary pattern = `[APEX-CONFIG]` (niektórzy orgi mogą wymagać explicit approval chain: "Pending"/"Approved"/"Rejected")
+- "Yes" jako single value = `[APEX-CONFIG]`
 
 **Evolving:** Możliwe rozszerzenie do state machine:
 - Draft → ReadyForReview → Approved → Closed
@@ -354,14 +354,14 @@ W v7 brak audit trail dla Closed changes. W Monopilot standard (ADR-008 audit tr
 
 | Table | Rows | Cols | Role | Markers majority |
 |---|---|---|---|---|
-| DeptColumns | 58 | 6 | Schema metadata per Main Table col | `[UNIVERSAL]` pattern + `[FORZA-CONFIG]` data |
-| PackSizes | 5 | 1 | Dropdown source + lookup key | `[FORZA-CONFIG]` |
-| Lines_By_PackSize | 5 | 2 | Capacity matrix | `[FORZA-CONFIG]` |
-| Dieset_By_Line_Pack | 10 | 3 | Composite key lookup (Dieset code generator) | `[FORZA-CONFIG]` |
-| Templates | 4 | 6 | Process preset workflows | `[FORZA-CONFIG]` + `[UNIVERSAL]` pattern |
-| EmailConfig | 7 | 3 | Notifications config | `[FORZA-CONFIG]` (dziś inactive) |
-| Processes | 8 | 2 | Process taxonomy + PR code suffix | `[FORZA-CONFIG]` + `[EVOLVING]` expansion |
-| CloseConfirm | 1 | 1 | Autofilter value | `[FORZA-CONFIG]` simple pattern |
+| DeptColumns | 58 | 6 | Schema metadata per Main Table col | `[UNIVERSAL]` pattern + `[APEX-CONFIG]` data |
+| PackSizes | 5 | 1 | Dropdown source + lookup key | `[APEX-CONFIG]` |
+| Lines_By_PackSize | 5 | 2 | Capacity matrix | `[APEX-CONFIG]` |
+| Dieset_By_Line_Pack | 10 | 3 | Composite key lookup (Dieset code generator) | `[APEX-CONFIG]` |
+| Templates | 4 | 6 | Process preset workflows | `[APEX-CONFIG]` + `[UNIVERSAL]` pattern |
+| EmailConfig | 7 | 3 | Notifications config | `[APEX-CONFIG]` (dziś inactive) |
+| Processes | 8 | 2 | Process taxonomy + PR code suffix | `[APEX-CONFIG]` + `[EVOLVING]` expansion |
+| CloseConfirm | 1 | 1 | Autofilter value | `[APEX-CONFIG]` simple pattern |
 
 **Total:** 98 config rows across 8 tables.
 
@@ -419,7 +419,7 @@ Scenariusz: User chce dodać nową tabelę, np. `Reference.Allergens` dla cascad
 
 **Moduły Monopilot do update:**
 
-- `01-settings/` lub równoważny (Phase C) — **Admin UI Settings**: add/edit/reorder each of 8 config tables. Schema-driven extension pattern (§11). Seed values z tego dokumentu per Forza org.
+- `01-settings/` lub równoważny (Phase C) — **Admin UI Settings**: add/edit/reorder each of 8 config tables. Schema-driven extension pattern (§11). Seed values z tego dokumentu per Apex org.
 - `09-npd/` (Phase B adresat #1) — NPD stories cross-reference reference tables (np. story "Pick Pack_Size" cross-refs §3, story "Select Line" cross-refs §4).
 - `02-products/` + `10-commercial/` + `12-production/` itp. (Phase C) — per module słupek który config tables są kluczowe (np. Production → PackSizes + Lines + Dieset + Templates + Processes).
 - `04-integrations/email/` lub `20-notifications/` (Phase C) — EmailConfig pattern + triggers dla auto-email.

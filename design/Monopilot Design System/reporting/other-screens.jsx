@@ -251,8 +251,8 @@ const RptScheduledEdit = ({ role, onNav, openModal }) => {
   const [preset, setPreset] = React.useState("weekly");
   const [days, setDays] = React.useState(new Set(["mon"]));
   const [recipients, setRecipients] = React.useState([
-    { name: "M. Krawczyk", email: "m.krawczyk@forzafoods.com" },
-    { name: "P. Director",  email: "p.director@forzafoods.com" },
+    { name: "M. Krawczyk", email: "m.krawczyk@apexfoods.com" },
+    { name: "P. Director",  email: "p.director@apexfoods.com" },
   ]);
   const [dashboard, setDashboard] = React.useState("Factory Overview");
   const [cronStr, setCronStr] = React.useState("0 7 * * 1");
@@ -384,7 +384,7 @@ const RptScheduledEdit = ({ role, onNav, openModal }) => {
                 <input defaultValue="{{report_name}} — {{period}}"/>
               </Field>
               <div style={{fontSize:11, color:"var(--muted)", padding:"4px 0"}}>Preview: <b className="mono">Weekly Factory Overview — W/E 19/04/2026</b></div>
-              <Field label="Reply-To (optional)"><input type="email" placeholder="ops@forzafoods.com"/></Field>
+              <Field label="Reply-To (optional)"><input type="email" placeholder="ops@apexfoods.com"/></Field>
               <Field label="Conditional Send (Phase 2)">
                 <label style={{display:"flex", gap:6, alignItems:"center", fontSize:12, color:"var(--muted)"}}><input type="checkbox" disabled/> Send only if data changed since last run</label>
               </Field>

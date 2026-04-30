@@ -1,7 +1,7 @@
 # Brief Excels — Reality Source
 
 **Status:** Active reality (inicjowany Phase A Session 3)
-**Scope:** Pre-PLD NPD stage — brief Excel files które Forza używa przed przekazaniem do PLD v7
+**Scope:** Pre-PLD NPD stage — brief Excel files które Apex używa przed przekazaniem do PLD v7
 
 Pliki w tym katalogu:
 - `BRIEF-FLOW.md` — end-to-end brief capture + 2 known templates (brief 1, brief 2) + mapping → PLD v7

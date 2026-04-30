@@ -21,7 +21,7 @@ consumers:
 
 Modul 13-MAINTENANCE dostarcza Computerized Maintenance Management System (CMMS) zintegrowany z MES, OEE i Quality dla SMB food manufacturing. **Differentiator**: jedyna platforma SMB lacząca MES + CMMS + OEE + Quality w jednym schema-driven, multi-tenant systemie (vs Fiix/Hippo/Maintenance Pro — pure-play CMMS $50-500/user/mo).
 
-**Problem**: Forza dzis prowadzi maintenance w Excel + papier — reaktywne, brak preventive, brak calibration audit trail (BRCGS Issue 10 risk), brak linkage downtime → MWO, brak MTBF/MTTR metrics.
+**Problem**: Apex dzis prowadzi maintenance w Excel + papier — reaktywne, brak preventive, brak calibration audit trail (BRCGS Issue 10 risk), brak linkage downtime → MWO, brak MTBF/MTTR metrics.
 
 **Rozwiazanie**: Pelny CMMS lifecycle (calibration + PM + MWO + spare parts + sanitation + TPM) jako consumer 15-OEE metryk (MTBF/MTTR), producer 09-QA calibration evidence, auto-trigger z 08-PROD downtime, scan-enabled via 06-SCN. Schema-driven per ADR-028 (L3 ext cols), rules via DSL (ADR-029), multi-tenant L2 variations (ADR-030/031).
 
@@ -42,7 +42,7 @@ Modul 13-MAINTENANCE dostarcza Computerized Maintenance Management System (CMMS)
 ## 2. Markers Legend [UNIVERSAL]
 
 - **[UNIVERSAL]** — applies all tenants (ADR-028 L1 core)
-- **[FORZA-CONFIG]** — Forza-specific baseline value (overridable L2 per ADR-031)
+- **[APEX-CONFIG]** — Apex-specific baseline value (overridable L2 per ADR-031)
 - **[EVOLVING]** — implementation maturity growing (P2/P3 roadmap)
 - **[LEGACY-D365]** — bridge feature, retires when Monopilot replaces D365
 
@@ -204,7 +204,7 @@ Wszystkie 14 tabel M13 maja `site_id UUID NULL` od day 1 creation (nie retrofit)
 | **D-MNT-13** | **Multi-tenant L2 config** via `maintenance_alert_thresholds` reference table (02-SET §8.1). Columns: tenant_id, pm_interval_default_days, calibration_warning_days (30/14/7), mtbf_target_threshold_pct, availability_breach_threshold_pct (80% default). Admin UI CRUD | [UNIVERSAL] |
 | **D-MNT-14** | **Allergen-aware sanitation** — `sanitation_checklists.allergen_change_flag=true` → emit outbox `sanitation.allergen_change.completed` event consumed by 08-PROD `allergen_changeover_gate_v1` rule (BRCGS dual sign-off ATP test + QA verification) | [UNIVERSAL] |
 | **D-MNT-15** | **LOTO basic P1** — `mwo_loto_checklists` table (energy sources isolated, tags applied, verified). P1 paper-based electronic checklist, P2 full permit system. Pre-condition dla MWO state `in_progress` na equipment flagged `requires_loto=true` | [UNIVERSAL] |
-| **D-MNT-16** | **IoT sensor integration deferred P2** (Q5). P1 manual data entry only. P2 Modbus TCP / OPC UA adapters (Forza hardware consultation required). P3 full vision/vibration/thermal via edge ML. Stub: `equipment_sensors` table schema reserved | [EVOLVING] |
+| **D-MNT-16** | **IoT sensor integration deferred P2** (Q5). P1 manual data entry only. P2 Modbus TCP / OPC UA adapters (Apex hardware consultation required). P3 full vision/vibration/thermal via edge ML. Stub: `equipment_sensors` table schema reserved | [EVOLVING] |
 
 ---
 
@@ -650,7 +650,7 @@ Dashboards rejestrowane w 12-REPORTING `dashboards_catalog` (02-SET §8.1 metada
 
 ### 11.4 Sanitation + allergen (V-MNT-15..17)
 - **V-MNT-15**: Sanitation MWO `in_progress` with `allergen_change_flag=true` → require `first_signed_by AND second_signed_by AND atp_test_result_rlu NOT NULL` (severity=critical, BRCGS)
-- **V-MNT-16**: ATP RLU threshold < 30 RLU for food-contact surfaces (Forza baseline, L2 override per tenant; severity=critical if >30, reason_code='atp_fail')
+- **V-MNT-16**: ATP RLU threshold < 30 RLU for food-contact surfaces (Apex baseline, L2 override per tenant; severity=critical if >30, reason_code='atp_fail')
 - **V-MNT-17**: `first_signed_by != second_signed_by` (severity=critical, dual sign-off integrity)
 
 ### 11.5 Spare parts (V-MNT-18..20)
@@ -667,7 +667,7 @@ Dashboards rejestrowane w 12-REPORTING `dashboards_catalog` (02-SET §8.1 metada
 ## 12. INTEGRATIONS [LEGACY-D365] / [UNIVERSAL]
 
 ### 12.1 P1 — No D365 integration
-M13 P1 nie wprowadza nowego stage INTEGRATIONS. 02-SET §11.8 stages summary unchanged. Rationale: CMMS dziś Forza w Excel, brak source-of-truth w D365 dla maintenance.
+M13 P1 nie wprowadza nowego stage INTEGRATIONS. 02-SET §11.8 stages summary unchanged. Rationale: CMMS dziś Apex w Excel, brak source-of-truth w D365 dla maintenance.
 
 ### 12.2 P2 — Future stages (post-Phase-C)
 - **P2 stage X**: Spare parts purchase request → D365 PurchaseOrder (outbox pattern clone stage 2)
@@ -691,7 +691,7 @@ Locked by this PRD: 14 tables + 7 DSL rules + MWO state machine + calibration st
 ### 13.2 L2 tenant config (via 02-SET §9)
 - `maintenance_alert_thresholds` reference table (02-SET §8.1, added v3.3 delta):
   - pm_interval_default_days, calibration_warning_days (30/14/7), mtbf_target_threshold_pct, availability_breach_threshold_pct (80% default, tenant override)
-  - atp_rlu_threshold (30 Forza, tenant override per food type)
+  - atp_rlu_threshold (30 Apex, tenant override per food type)
 - `technician_skills` reference table (02-SET §8.1): basic/advanced/specialist enum + descriptions (tenant-specific certs)
 - Feature flag `maintenance_triggers_enabled` (default false, opt-in) → activates `oee_maintenance_trigger_v1`
 
@@ -731,7 +731,7 @@ Write scopes: `maintenance_manager` full, `maintenance_technician` own assigned 
 - Retention override: worker rights (GDPR Art 17) vs regulatory 7y — prefer pseudonymize over delete
 
 ### 14.5 i18n
-- MWO workflow notes: pl/en (Forza), roadmap uk/ro (tenant onboarding R8)
+- MWO workflow notes: pl/en (Apex), roadmap uk/ro (tenant onboarding R8)
 - Error messages for validation rules: translated via i18next per 02-SET §14
 
 ---
@@ -797,7 +797,7 @@ Write scopes: `maintenance_manager` full, `maintenance_technician` own assigned 
 | OQ-MNT-05 | Predictive maintenance ML: Prophet vs custom TFLite? | P3 | 13-G phase, R12 consumer |
 | OQ-MNT-06 | Calibration certificate storage: S3 vs Supabase Storage vs external DMS? | P2 | 02-SET §12 infra |
 | OQ-MNT-07 | MWO priority SLA (critical=2h, high=8h, medium=24h, low=72h) — enforce w notification escalation? | P2 | 13-c phase |
-| OQ-MNT-08 | IoT sensor cold chain (BRCGS requirement) integration P2 kontra P1 if Forza pushes? | P2 | Forza hardware consult |
+| OQ-MNT-08 | IoT sensor cold chain (BRCGS requirement) integration P2 kontra P1 if Apex pushes? | P2 | Apex hardware consult |
 | OQ-MNT-09 | Cross-site maintenance benchmark metrics: which KPIs matter most (MTBF, MTTR, cost/unit)? | P2 | 14-MULTI Phase 2B |
 | OQ-MNT-10 | D365 push for spare parts purchase requests (stage X) — now czy P3? | P2 | 10-FIN + 02-SET §11 |
 

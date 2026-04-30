@@ -251,7 +251,7 @@ Active filters shown as removable badge chips below the filter bar. A "Clear all
 | Expiry | Date | `15 Oct 2026` | 100px | Red text if ≤7d; amber if ≤30d; red strikethrough if expired use_by; orange italic if expired best_before |
 | Status | Badge | `available` badge-green | 90px | Colours per state machine: available=green, reserved=blue, blocked=red, consumed=gray, shipped=gray, merged=gray |
 | QA Status | Badge | `PASSED` badge-green | 90px | PASSED/RELEASED=green; PENDING/HOLD=amber; FAILED/QUARANTINED=red; COND_APPROVED=blue |
-| Location | ltree breadcrumb | `ForzDG → Zone-Cold → B3` | 180px | Rendered as "Warehouse → Zone → Bin" chain with `›` separators. Muted colour for ancestors, bold for leaf |
+| Location | ltree breadcrumb | `ApexDG → Zone-Cold → B3` | 180px | Rendered as "Warehouse → Zone → Bin" chain with `›` separators. Muted colour for ancestors, bold for leaf |
 | Strategy | Badge-gray or text | `fefo` | 70px | Per product picking_strategy |
 | Reserved | Indicator | `WO-2026-042` | 120px | If LP is reserved: shows WO number as blue text link to WO detail. If partial: "70/100 BOX" in muted text. If not reserved: empty |
 | Last Move | Relative time | `2h ago` | 80px | Tooltip shows full timestamp and move type |
@@ -317,8 +317,8 @@ A white card with the following fields in a vertical list. Labels 12px muted, va
 - **Manufacture Date**: `01 Apr 2026`.
 - **Date Code**: `2614` (rendered per product.date_code_format).
 - **GTIN**: `05012345678901`.
-- **Location**: ltree breadcrumb (same format as list, bold leaf). Example: `ForzDG → Zone-Cold → Bin-B3`.
-- **Warehouse**: `ForzDG`.
+- **Location**: ltree breadcrumb (same format as list, bold leaf). Example: `ApexDG → Zone-Cold → Bin-B3`.
+- **Warehouse**: `ApexDG`.
 - **Source**: badge-gray. `grn` / `wo_output` / `split` / `merge` / `adjustment`.
 - **GRN Reference**: Link to GRN detail if source = grn. Example: `GRN-2026-00042 →`.
 - **WO Reference**: Link if source = wo_output. Example: `WO-2026-108 →`.
@@ -988,7 +988,7 @@ Empty state: "No active reservations. Reservations are created automatically whe
 ### WH-018 — Locations Hierarchy View
 
 **Route**: `/warehouse/locations`
-**Purpose**: View and manage the location hierarchy (2–5 levels per tenant, Forza default: 3 levels: warehouse → zone → bin). Backed by ltree column in the `locations` table from 02-SETTINGS.
+**Purpose**: View and manage the location hierarchy (2–5 levels per tenant, Apex default: 3 levels: warehouse → zone → bin). Backed by ltree column in the `locations` table from 02-SETTINGS.
 
 #### Layout
 
@@ -997,7 +997,7 @@ Horizontal split: left panel (320px) = collapsible tree; right panel = selected 
 **Left panel — Location Tree**:
 
 Using `.tree-item` hierarchy classes. Each level has an expand/collapse toggle (triangle icon). Node label: location code + name + LP count badge.
-- Level 0 (`.tree-item.l0`): Warehouse. Example: `ForzDG — Forza Foods Main (142 LPs)`.
+- Level 0 (`.tree-item.l0`): Warehouse. Example: `ApexDG — Apex Foods Main (142 LPs)`.
 - Level 1 (`.tree-item.l1`): Zone. Example: `Zone-Cold — Cold Storage (58 LPs)`, `Zone-Dry — Dry Storage (62 LPs)`, `Zone-Transit — Transit (22 LPs)`.
 - Level 2 (`.tree-item.l2`): Bin. Example: `Bin-B3 — Cold Bin B3 (12 LPs)`.
 
@@ -1014,7 +1014,7 @@ When a node is selected:
 
 Below the header: a compact LP table filtered to this location (and descendants). Same columns as WH-002 LP list but pagination 25.
 
-**Add/Edit Location modal** (Admin only): fields — Code, Name, Parent Location (dropdown, shows current ltree path), Type (storage / transit / receiving / production_line), Is Active toggle. Max depth validation: if tenant `location_depth_max=3` (Forza default), system blocks adding a 4th-level location with message "Maximum location depth for this tenant is 3 levels (warehouse → zone → bin). Contact your administrator to increase the limit in Settings → Warehouse Settings."
+**Add/Edit Location modal** (Admin only): fields — Code, Name, Parent Location (dropdown, shows current ltree path), Type (storage / transit / receiving / production_line), Is Active toggle. Max depth validation: if tenant `location_depth_max=3` (Apex default), system blocks adding a 4th-level location with message "Maximum location depth for this tenant is 3 levels (warehouse → zone → bin). Contact your administrator to increase the limit in Settings → Warehouse Settings."
 
 ---
 
@@ -1100,7 +1100,7 @@ Each category renders settings as a form with labels, inputs, and save button pe
 #### LP Numbering
 
 - **Auto-generate LP Number** toggle. Default: ON.
-- **LP Number Prefix** text: `LP`. Help text: "Forza default: LP. Example output: LP00000001."
+- **LP Number Prefix** text: `LP`. Help text: "Apex default: LP. Example output: LP00000001."
 - **Sequence Length** (digits, 4–12): default 8. Preview: "LP00000001".
 - **Allow Manual LP Number** toggle: OFF. Help: "When ON, operators can enter custom LP numbers (e.g., from supplier-printed GS1 labels). Uniqueness is still enforced."
 

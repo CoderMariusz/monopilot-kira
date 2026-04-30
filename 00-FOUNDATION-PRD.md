@@ -27,7 +27,7 @@ references:
 
 ## Executive Summary
 
-**Monopilot** to cloud-native, schema-driven, multi-tenant MES zastępujący Smart PLD v7 (Excel) + D365 manufacturing functionality. Forza Foods = pierwsza konfiguracja; architektura multi-tenant from day 1.
+**Monopilot** to cloud-native, schema-driven, multi-tenant MES zastępujący Smart PLD v7 (Excel) + D365 manufacturing functionality. Apex Foods = pierwsza konfiguracja; architektura multi-tenant from day 1.
 
 **Positioning (z MES-TRENDS-2026.md §3):** pomiędzy Excelem (SMB food-mfg pen-and-paper replacement) a enterprise ERP (SAP/D365). Strip-down pattern: GL/AP/AR/HR/CRM zostają w D365/Xero/dedicated, Monopilot przejmuje Manufacturing Execution + Quality + Warehouse + Shipping + NPD + Reporting + Maintenance + OEE. **NIE budujemy pełnego ERP.**
 
@@ -42,7 +42,7 @@ references:
 Six principles stanowią architectural contract Monopilot. Każdy PRD modułu MUSI być zgodny; każdy ADR MUSI explicite odnosić się do relevantych principles.
 
 ### P1 — Easy extension contract
-Nowe kolumny / dept / workflows / rules dodawane przez **schema-driven Admin UI wizard** (ADR-028), nie przez code changes ani migration per-org. Marker [FORZA-CONFIG] ≠ hard-coded exception; to konfiguracja w UI lub metadata. Source: Phase D decision #17 ("easy extension = architectural contract").
+Nowe kolumny / dept / workflows / rules dodawane przez **schema-driven Admin UI wizard** (ADR-028), nie przez code changes ani migration per-org. Marker [APEX-CONFIG] ≠ hard-coded exception; to konfiguracja w UI lub metadata. Source: Phase D decision #17 ("easy extension = architectural contract").
 
 ### P2 — Two-systems principle
 V7 Excel i Monopilot są **dwoma UX layers tego samego logicznego systemu** przez 12 miesięcy transition. Reality fidelity PRD = 1:1 v7, speculation deferred. REALITY-SYNC pattern (obowiązkowy): zmiana v7 → update `_meta/reality-sources/pld-v7-excel/*` w tej samej sesji (Session A), propagacja do PRDów osobna sesja (Session B). Source: Phase D §4 + MES-TRENDS-2026.md §3 (strangler fig).
@@ -75,13 +75,13 @@ Cztery markery obowiązkowe w każdym PRD / ADR / skill / code comment dotycząc
 - EPCIS 2.0 event shape
 - 14 alergenów EU FIC 1169/2011 (regulatory baseline)
 
-### `[FORZA-CONFIG]`
-**Definicja:** Konfiguracja per-tenant aktualnie ustawiona dla Forza, ale **pattern universal**. Inni klienci skonfigurują inaczej przez Admin UI. NIE code-level exception.
+### `[APEX-CONFIG]`
+**Definicja:** Konfiguracja per-tenant aktualnie ustawiona dla Apex, ale **pattern universal**. Inni klienci skonfigurują inaczej przez Admin UI. NIE code-level exception.
 
 **Przykłady:**
 - 7 fixed dept names (Core/Technical/Packaging/MRP/Planning/Production/Price) — ADR-030 pozwala innym orgom split/merge
-- Jane = NPD Manager orchestrator — rola UNIVERSAL, osoba FORZA-CONFIG
-- Builder_FA5101 D365 constants (FNOR/FOR100048/ForzDG/FinGoods/FProd01) — proponowana nowa tabela `Reference.D365_Constants`
+- Jane = NPD Manager orchestrator — rola UNIVERSAL, osoba APEX-CONFIG
+- Builder_FA5101 D365 constants (FNOR/FOR100048/ApexDG/FinGoods/FProd01) — proponowana nowa tabela `Reference.D365_Constants`
 - PR_Code_Final format `PR<digits><process_letter>` — regex schema-driven per-org
 
 ### `[EVOLVING]`
@@ -106,13 +106,13 @@ Cztery markery obowiązkowe w każdym PRD / ADR / skill / code comment dotycząc
 
 ---
 
-## §3 — Personas [UNIVERSAL z [FORZA-CONFIG] nazwiskami]
+## §3 — Personas [UNIVERSAL z [APEX-CONFIG] nazwiskami]
 
 ### Primary (z reality sources)
 
 | Persona | Opis | Modules primary | Markery |
 |---|---|---|---|
-| **NPD Manager** (Jane @ Forza) | Orchestrator 01-NPD pipeline; Brief import → Core → depts cascade → D365 Builder | 01-NPD, 02-SETTINGS (read) | role [UNIVERSAL], osoba [FORZA-CONFIG] |
+| **NPD Manager** (Jane @ Apex) | Orchestrator 01-NPD pipeline; Brief import → Core → depts cascade → D365 Builder | 01-NPD, 02-SETTINGS (read) | role [UNIVERSAL], osoba [APEX-CONFIG] |
 | **Technical / Quality** | Dept owner 03-TECHNICAL + 09-QUALITY (HACCP/CCP/holds) | 03-TECHNICAL, 09-QUALITY | [UNIVERSAL] |
 | **Planning** | PO/TO/WO creation, MRP basic | 04-PLANNING-BASIC | [UNIVERSAL] |
 | **Production Manager** | Dept owner 08-PRODUCTION (WO execution, operator sign-off) | 08-PRODUCTION | [UNIVERSAL] |
@@ -309,7 +309,7 @@ UI flow do add/edit column:
 
 ### 4 obszary rule engine
 
-| Obszar | Description | Przykłady Forza |
+| Obszar | Description | Przykłady Apex |
 |---|---|---|
 | **Cascading** | Auto-fill downstream fields z upstream dept | Core fills cascading (allergen/nutrition) do Technical/Packaging/MRP/Planning/Production/Price |
 | **Conditional required** | Field requirements zależne od innych pól | Catch-weight product → require tare/gross; allergen-free product → require ATP swab result |
@@ -362,13 +362,13 @@ UI flow do add/edit column:
 
 ### Isolation default [R3, R7]
 
-- **Shared DB + shared schema + tenant_id + RLS** (MES-TRENDS-2026 §5.1) — Forza Day 1
+- **Shared DB + shared schema + tenant_id + RLS** (MES-TRENDS-2026 §5.1) — Apex Day 1
 - **Silo opt-in dla enterprise** — per-tenant DB cluster później (data residency / white-label / compliance)
 - **NIE** "shared DB + separate schemas" default — łączy wady (per Bytebase 2025)
 
-### Data residency [R7] (FORZA-CONFIG→UNIVERSAL)
+### Data residency [R7] (APEX-CONFIG→UNIVERSAL)
 
-- EU cluster default dla Forza + wszystkich EU klientów
+- EU cluster default dla Apex + wszystkich EU klientów
 - US cluster gdy pojawi się USA customer
 - Global control plane + regional data planes
 
@@ -396,17 +396,17 @@ UI flow do add/edit column:
 
 ### Koncepcja
 
-Dept structure = L2 config per tenant. Forza = baseline 7 depts fixed names:
+Dept structure = L2 config per tenant. Apex = baseline 7 depts fixed names:
 
 | Dept | Code | Role | Marker |
 |---|---|---|---|
-| Core | `core` | NPD orchestrator (Brief import → cascade) | [FORZA-CONFIG] |
-| Technical | `technical` | Quality / spec definition | [FORZA-CONFIG] |
-| Packaging | `packaging` | Label, shelf-life, GS1 | [FORZA-CONFIG] |
-| MRP | `mrp` | Material planning, supplier sourcing | [FORZA-CONFIG] |
-| Planning | `planning` | PO/TO/WO schedule | [FORZA-CONFIG] |
-| Production | `production` | WO execution spec (≠ 08-PRODUCTION module execution) | [FORZA-CONFIG] |
-| Price | `price` | Final pricing + margin validation | [FORZA-CONFIG] |
+| Core | `core` | NPD orchestrator (Brief import → cascade) | [APEX-CONFIG] |
+| Technical | `technical` | Quality / spec definition | [APEX-CONFIG] |
+| Packaging | `packaging` | Label, shelf-life, GS1 | [APEX-CONFIG] |
+| MRP | `mrp` | Material planning, supplier sourcing | [APEX-CONFIG] |
+| Planning | `planning` | PO/TO/WO schedule | [APEX-CONFIG] |
+| Production | `production` | WO execution spec (≠ 08-PRODUCTION module execution) | [APEX-CONFIG] |
+| Price | `price` | Final pricing + margin validation | [APEX-CONFIG] |
 
 ### Other-org variation (ADR-030 [UNIVERSAL])
 
@@ -434,7 +434,7 @@ Wszystkie state changes emitują event do `outbox_events`:
 CREATE TABLE outbox_events (
   id BIGSERIAL PRIMARY KEY,
   tenant_id UUID NOT NULL,
-  event_type TEXT NOT NULL,         -- forza/uk-site/mixing-line/wo-4521/ccp-chilling
+  event_type TEXT NOT NULL,         -- apex/uk-site/mixing-line/wo-4521/ccp-chilling
   aggregate_type TEXT NOT NULL,     -- wo / lot / quality_event / shipment
   aggregate_id UUID NOT NULL,
   payload JSONB NOT NULL,
@@ -452,9 +452,9 @@ Worker publikuje do queue (Azure Service Bus / SQS / RabbitMQ). Hook za darmo dl
 Format: `<tenant>/<site>/<area>/<line>/<event_type>`
 
 Przykłady:
-- `forza/uk-site/mixing-line/wo-4521/ccp-chilling-out-of-spec`
-- `forza/uk-site/warehouse/lp-8823/moved`
-- `forza/uk-site/shipping/shipment-1234/epcis-commissioning`
+- `apex/uk-site/mixing-line/wo-4521/ccp-chilling-out-of-spec`
+- `apex/uk-site/warehouse/lp-8823/moved`
+- `apex/uk-site/shipping/shipment-1234/epcis-commissioning`
 
 ### Schema "AI-ready + traceability-ready" od dnia 1 [R13]
 
@@ -493,7 +493,7 @@ Wszystkie scanner-originated mutations (06-SCANNER) MUSZĄ akceptować client-ge
 ## §11 — Cross-cutting Requirements
 
 ### i18n [R11] — UNIVERSAL od dnia 1
-Minimum **pl, en, uk, ro** baseline (Forza realnie ma UA+RO workers). ICU MessageFormat. Locale-aware date/number parsing. RTL-ready structure. Nie string concat.
+Minimum **pl, en, uk, ro** baseline (Apex realnie ma UA+RO workers). ICU MessageFormat. Locale-aware date/number parsing. RTL-ready structure. Nie string concat.
 
 ### Audit log
 Append-only `audit_events` tabela; triggers na business tables + event-sourced integration z rule engine (ADR-029). Retention per tabela. Zgodność: SOC 2, GDPR, FDA 21 CFR Part 11 (gdy US klient), FSMA 204 (traceability records).
@@ -554,7 +554,7 @@ Review kwartalny (FDA/KE zmieniają terminy).
 | R4 | Zod + json-schema-to-zod runtime | [UNIVERSAL] | MES-TRENDS §4 |
 | R5 | PWA P1 + Capacitor P2 dla 06-SCANNER | [UNIVERSAL] | MES-TRENDS §7 |
 | R6 | PostHog self-host feature flags | [UNIVERSAL] | MES-TRENDS §5 |
-| R7 | EU data residency cluster default | [FORZA-CONFIG]→[UNIVERSAL] | MES-TRENDS §5 |
+| R7 | EU data residency cluster default | [APEX-CONFIG]→[UNIVERSAL] | MES-TRENDS §5 |
 | R8 | D365 sync: one-way pull + one-way push | [LEGACY-D365] | MES-TRENDS §3 |
 | R9 | Strangler Fig v7 Excel migration (P2 principle) | [EVOLVING] | MES-TRENDS §3 |
 | R10 | GS1 Digital Link + EPCIS 2.0 JSON-LD (nie blockchain) | [UNIVERSAL] | MES-TRENDS §2, §8 |
@@ -642,7 +642,7 @@ Dodane do §13 open items.
 13. **Pre-Phase-D ADRs deep review (001-019)** — osobna sesja (Phase C start preferably). Każdy ADR do oceny: Active / Superseded / Renumber / Deprecate
 14. **Regulatory roadmap artifact** — utworzenie `_foundation/regulatory/` z deadlinami + review process (Phase C1)
 15. **Dry-run scope rule engine** — complete replay vs sample — Phase C1 (02-SETTINGS)
-16. **Site vs Tenant relationship** — Forza UK + KOBE = 1 tenant 2 sites vs 2 tenants? ADR-030 + ADR-031 intersection — Phase B.2 decision needed dla NPD dept taxonomy
+16. **Site vs Tenant relationship** — Apex UK + KOBE = 1 tenant 2 sites vs 2 tenants? ADR-030 + ADR-031 intersection — Phase B.2 decision needed dla NPD dept taxonomy
 
 ---
 

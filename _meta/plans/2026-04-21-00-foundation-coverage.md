@@ -9,14 +9,14 @@
 
 - Exec Summary (positioning, strip-down, two-systems, SaaS model)
 - §1 Six Architectural Principles (P1-P6)
-- §2 Marker Discipline ([UNIVERSAL], [FORZA-CONFIG], [EVOLVING], [LEGACY-D365])
+- §2 Marker Discipline ([UNIVERSAL], [APEX-CONFIG], [EVOLVING], [LEGACY-D365])
 - §3 Personas (Primary 6, Secondary 5, role naming fix)
 - §4 Module Map — §4.1 Writing phases B.1/B.2/C1-C5; §4.2 Build sequence; §4.3 15-module table; INTEGRATIONS distribution; Scanner P1 incremental
 - §5 Tech Stack — Runtime/Frontend (Next.js, TS, React 19, RHF+Zod, Tailwind, PWA); Backend (Postgres 16+, JSONB hybrid [R2], RLS [R3], Zod runtime [R4], Outbox [R1]); Cross-cutting infra (PostHog [R6], Sentry/OTel, Event bus, LLM platform, Vitest+Playwright, i18n [R11]); Integration stack (D365 [R8], Peppol, GS1 [R15])
 - §6 Schema-driven Foundation [ADR-028] — Koncepcja, Admin UI wizard, Storage tiers L1-L4, Schema versioning, Reject patterns
 - §7 Rule Engine DSL [ADR-029] — 4 obszary (cascading/conditional/gate/workflow), Format (JSON+Mermaid+Wizard), Example allergen gate, Open items
 - §8 Multi-tenant L1-L4 [ADR-031] — 4 layers, Isolation default [R3,R7], Data residency [R7], Upgrade orchestration (canary, tenant_migrations, PostHog), Admin tooling (impersonation, switcher, analytics), Open items
-- §9 Configurable Department Taxonomy [ADR-030] — 7 Forza depts, variations, Phase D decision #15
+- §9 Configurable Department Taxonomy [ADR-030] — 7 Apex depts, variations, Phase D decision #15
 - §10 Event-first + AI/Trace-ready Schema [R1, R13] — Outbox SQL, ISA-95 naming, Identity cols, GS1-first [R15], Idempotent mutations [R14]
 - §11 Cross-cutting Requirements — i18n, Audit log, Regulatory roadmap, Out-of-scope, Build posture
 - §12 ADRs — Active (028/029/030/031), Candidates R1-R15, Pre-Phase-D ADRs 001-019
@@ -170,7 +170,7 @@ Count: 10 (migration: 7, model: 1, rule: 1, migration: 1 — corrected: 10 total
 | §8 Upgrade orchestration | T-36, T-18 | covered |
 | §8 Admin tooling (impersonation) | T-29 | covered |
 | §8 Open items (partition, opt-in) | T-45 | tracked |
-| §9 Forza 7-dept baseline | T-3, T-34 | covered |
+| §9 Apex 7-dept baseline | T-3, T-34 | covered |
 | §9 Variation (split/merge/custom) | T-3, T-34 | covered |
 | §9 Decision #15 naming | T-3, T-34 | covered |
 | §10 Outbox pattern + SQL | T-31 | covered |

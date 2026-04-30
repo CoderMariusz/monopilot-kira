@@ -5,7 +5,7 @@
 
 const MS_SITE_OPTIONS = [
   { id: "ALL",        code: "ALL",            name: "All sites (aggregated)" },
-  { id: "SITE-A",     code: "FRZ-UK",         name: "Factory-A · Forza Warsaw" },
+  { id: "SITE-A",     code: "FRZ-UK",         name: "Factory-A · Apex Warsaw" },
   { id: "SITE-B",     code: "FRZ-DE",         name: "Factory-B · KOBE Germany" },
   { id: "SITE-WH-01", code: "WH-COLD",        name: "WH-Cold-01 · Harlow" },
 ];

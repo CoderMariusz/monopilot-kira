@@ -46,7 +46,7 @@ Wszystkie decyzje są ground truth dla Phase B propagation (09-NPD → 01-NPD re
 
 ### 1.3 Schema-driven + rule engine DSL (P3)
 
-**Zasada:** META-MODEL §1 (Level "a") + §2 (Level "b") są kontraktem. Wszystko co Forza zmienia "często" = dane w config-tabelach. 4 obszary rule engine (ADR-029) = twardy limit.
+**Zasada:** META-MODEL §1 (Level "a") + §2 (Level "b") są kontraktem. Wszystko co Apex zmienia "często" = dane w config-tabelach. 4 obszary rule engine (ADR-029) = twardy limit.
 
 **Realizacja:** Reference tables = config-tabele per org. Rule engine Level "b" interpretuje JSON z DB. Admin UI kompiluje wizard → JSON.
 
@@ -58,11 +58,11 @@ Wszystkie decyzje są ground truth dla Phase B propagation (09-NPD → 01-NPD re
 
 ### 1.5 Multi-tenant from day 1 (P5)
 
-**Zasada:** ADR-031 4-warstwowa izolacja (L1 universal core / L2-L4 per-org). Forza = pierwsza konfiguracja, nie jedyna. Nigdy hardcoding Forza-specific w kodzie aplikacji.
+**Zasada:** ADR-031 4-warstwowa izolacja (L1 universal core / L2-L4 per-org). Apex = pierwsza konfiguracja, nie jedyna. Nigdy hardcoding Apex-specific w kodzie aplikacji.
 
 ### 1.6 Marker discipline (P6)
 
-**Zasada:** META-MODEL §6 — każde wymaganie, kolumna, reguła MUSI mieć marker `[UNIVERSAL]` / `[FORZA-CONFIG]` / `[EVOLVING]` / `[LEGACY-D365]`. Brak = review block.
+**Zasada:** META-MODEL §6 — każde wymaganie, kolumna, reguła MUSI mieć marker `[UNIVERSAL]` / `[APEX-CONFIG]` / `[EVOLVING]` / `[LEGACY-D365]`. Brak = review block.
 
 ---
 
@@ -82,7 +82,7 @@ Wszystkie decyzje są ground truth dla Phase B propagation (09-NPD → 01-NPD re
 **Excel (v7):** M04.SyncProdDetailRows + nowa M04.AggregateMainTableCols przy każdej zmianie.
 **Monopilot:** computed view z `formulation_items` albo stored + trigger-updated.
 
-**Marker:** `[UNIVERSAL]` pattern (multi-component handling), `[FORZA-CONFIG]` aggregation rules per column.
+**Marker:** `[UNIVERSAL]` pattern (multi-component handling), `[APEX-CONFIG]` aggregation rules per column.
 
 ### 2.2 Done_<Dept> semantyka (pkt 2)
 
@@ -110,7 +110,7 @@ Wszystkie decyzje są ground truth dla Phase B propagation (09-NPD → 01-NPD re
 
 **Builder gate** (per user pkt 8): `Status_Overall="Complete"` AND `Built=FALSE` → build eligible. Post-build: `Status_Overall="Built"` → skip przy następnym scan.
 
-**Marker:** `[UNIVERSAL]` pattern + `[FORZA-CONFIG]` enum values.
+**Marker:** `[UNIVERSAL]` pattern + `[APEX-CONFIG]` enum values.
 
 ### 2.4 Days_To_Launch (pkt 4)
 
@@ -124,9 +124,9 @@ Wszystkie decyzje są ground truth dla Phase B propagation (09-NPD → 01-NPD re
 
 **Decision:** Hybryda — system proponuje `FA<NNNN>` (last+1), user **zatwierdza/edytuje przed save**. Auto nigdy nie trafia do DB bez human approval.
 
-**Format pattern:** schema-driven per org (ADR-028). Forza default: `FA<NNNN>`. Inne orgi: konfigurowalne template.
+**Format pattern:** schema-driven per org (ADR-028). Apex default: `FA<NNNN>`. Inne orgi: konfigurowalne template.
 
-**Marker:** `[FORZA-CONFIG]` format, `[UNIVERSAL]` pattern hybrid generator.
+**Marker:** `[APEX-CONFIG]` format, `[UNIVERSAL]` pattern hybrid generator.
 
 ### 2.6 Dev_Code vs FA_Code (pkt 6)
 
@@ -136,7 +136,7 @@ Wszystkie decyzje są ground truth dla Phase B propagation (09-NPD → 01-NPD re
 
 **Brak relacji formatowej** — nie ma algorytmu `DEV26-037 → FA5101`. Link = "ten sam PLD row". Bidirectional traceability brief ↔ PLD.
 
-**Marker:** `[FORZA-CONFIG]` both formats.
+**Marker:** `[APEX-CONFIG]` both formats.
 
 ### 2.7 Price blocking rule (pkt 7)
 
@@ -154,7 +154,7 @@ Wszystkie decyzje są ground truth dla Phase B propagation (09-NPD → 01-NPD re
 
 VBA M01.IsBlockingMet już obsługuje `Core + Production done` (MRP używa). Zmiana = edit 1 cell w Reference.
 
-**Marker:** `[FORZA-CONFIG]`.
+**Marker:** `[APEX-CONFIG]`.
 
 ### 2.8 Built auto-reset (pkt 8)
 
@@ -187,7 +187,7 @@ Non-technical user = dept manager. Technical admin = może edytować JSON jeśli
 
 ### 3.2 PR_Code_Final format (pkt 10)
 
-**10a Decision:** Format `PR<digits><letter>` = `[FORZA-CONFIG]` schema-driven per org. Monopilot trzyma template w config: `"{prefix}{rm_digits}{last_process_suffix}"`.
+**10a Decision:** Format `PR<digits><letter>` = `[APEX-CONFIG]` schema-driven per org. Monopilot trzyma template w config: `"{prefix}{rm_digits}{last_process_suffix}"`.
 
 **10b Decision (multi-component):** Main Table `PR_Code_Final` = **comma-sep concat** PR_Code_Final z wszystkich ProdDetail rows. Per-component finals żyją w ProdDetail/formulation_items.
 
@@ -197,7 +197,7 @@ Non-technical user = dept manager. Technical admin = może edytować JSON jeśli
 
 **Decision:** Monopilot wspiera rule engine obszar (b) conditional required (ADR-029) — blocking rules są **danymi** w config-tabeli, parsowane przez universal engine. Admin może dodać nową regułę przez Settings bez dewelopera.
 
-**4 obecne v7 rules** (`""` / `Core done` / `Pack_Size filled` / `Line filled` / `Core + Production done`) = Forza seed data.
+**4 obecne v7 rules** (`""` / `Core done` / `Pack_Size filled` / `Line filled` / `Core + Production done`) = Apex seed data.
 
 **Limit:** ADR-029 predykaty (field-comparison / AND-OR-NOT / reference-lookup / org-config) — nie Turing-complete.
 
@@ -209,7 +209,7 @@ Non-technical user = dept manager. Technical admin = może edytować JSON jeśli
 
 ### 4.1 Technical naming (pkt 12)
 
-**Decision:** Dept name `Technical` (1:1 reality v7). Monopilot stabilny code `TECH`, label `[FORZA-CONFIG]` per org (inne orgi mogą nazywać `Quality` / `QA` / `Food Safety`).
+**Decision:** Dept name `Technical` (1:1 reality v7). Monopilot stabilny code `TECH`, label `[APEX-CONFIG]` per org (inne orgi mogą nazywać `Quality` / `QA` / `Food Safety`).
 
 ### 4.2 Brief = pierwszy ekran NPD module (pkt 13)
 
@@ -219,7 +219,7 @@ Non-technical user = dept manager. Technical admin = może edytować JSON jeśli
 - **Faza C (start):** Tool "Import brief from Excel" — czyta brief xlsx → tworzy PLD row z Core pre-populated
 - **Faza C (later):** Native brief UI w 01-NPD module (37 pól Brief Sheet V1) — osobny ekran, pierwszy krok NPD pipeline
 
-**Marker:** `[UNIVERSAL]` pattern (NPD upstream → downstream), `[FORZA-CONFIG]` Brief Sheet V1 schema.
+**Marker:** `[UNIVERSAL]` pattern (NPD upstream → downstream), `[APEX-CONFIG]` Brief Sheet V1 schema.
 
 ### 4.3 Meat_Pct location (pkt 14)
 
@@ -239,7 +239,7 @@ DIE_20x30_L5 | Label        | 1        | each
 
 **Trigger:** cascade z Line → Dieset → lookup Material_Consumption → populate BOM/Formula_Lines z real quantities (nie hardcoded 1).
 
-**Marker:** `[FORZA-CONFIG]` data, `[UNIVERSAL]` composite-key lookup pattern.
+**Marker:** `[APEX-CONFIG]` data, `[UNIVERSAL]` composite-key lookup pattern.
 
 ### 4.5 Allergens multi-level cascade (pkt 16) **CRITICAL**
 
@@ -273,7 +273,7 @@ RM_xxx (allergen_A)
 
 **Brief allergens location:** TBD (Phase B brief rescan).
 
-**Marker:** `[UNIVERSAL]` pattern (food-mfg EU regulation 1169/2011), `[UNIVERSAL seed]` EU14, `[FORZA-CONFIG]` custom allergens.
+**Marker:** `[UNIVERSAL]` pattern (food-mfg EU regulation 1169/2011), `[UNIVERSAL seed]` EU14, `[APEX-CONFIG]` custom allergens.
 
 ### 4.6 Multi-component CloseProduction (pkt 17)
 
@@ -291,7 +291,7 @@ RED    | 10             | Days_To_Launch ≤ 10 OR no Launch_Date
 YELLOW | 21             | Days_To_Launch ≤ 21 AND missing_data != ""
 ```
 
-Forza seed 10/21. Inne orgi configurable.
+Apex seed 10/21. Inne orgi configurable.
 
 **V7:** hardcoded w M07 zostaje (nie rozszerzamy legacy).
 
@@ -299,7 +299,7 @@ Forza seed 10/21. Inne orgi configurable.
 
 ## §5 — Integration decisions (Group 4, 5/5 settled)
 
-### 5.1 M08 Builder — Forza logic (pkt 19) **CRITICAL**
+### 5.1 M08 Builder — Apex logic (pkt 19) **CRITICAL**
 
 **Decision:** Każdy process step = **osobny D365 product**. `OPERATIONNUMBER = 10` zawsze (nie sequence).
 
@@ -363,9 +363,9 @@ Build button flow:
 **Schema:**
 ```
 Constant_Name               | Value       | Description
-PRODUCTIONSITEID            | FNOR        | Forza North production site
+PRODUCTIONSITEID            | FNOR        | Apex North production site
 APPROVERPERSONNELNUMBER     | FOR100048   | Default approver
-CONSUMPTIONWAREHOUSEID      | ForzDG      | Default warehouse
+CONSUMPTIONWAREHOUSEID      | ApexDG      | Default warehouse
 PRODUCTGROUPID              | FinGoods    | Finished goods group
 COSTINGOPERATIONRESOURCEID  | FProd01     | Default resource
 CONSUMPTIONCALCULATIONFORMULA | Formula0  | Calc method
@@ -381,13 +381,13 @@ Feature flag `integration.d365.enabled` kontroluje widoczność.
 **V7:** dodać nową tabelę w Reference sheet, M08 odczytuje przy build.
 **Monopilot:** config table w 02-SETTINGS Admin UI.
 
-**Marker:** `[LEGACY-D365]` + `[FORZA-CONFIG]`.
+**Marker:** `[LEGACY-D365]` + `[APEX-CONFIG]`.
 
 ### 5.5 CloseConfirm approval chain (pkt 23)
 
 **Decision:** Binary default (1:1 v7). Architecture ready for future state machine via ADR-029 workflow-as-data (obszar d).
 
-Forza może przejść na approval chain gdy Monopilot wejdzie w cały NPD (decision deferred).
+Apex może przejść na approval chain gdy Monopilot wejdzie w cały NPD (decision deferred).
 
 **Data model:**
 - `Reference.CloseConfirm` seed: 1 value "Yes" (binary)

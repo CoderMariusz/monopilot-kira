@@ -376,7 +376,7 @@ const FIN_D365 = {
   env: "Production",
   instance: "FNOR",
   dataAreaId: "FNOR",
-  warehouse: "ForzDG",
+  warehouse: "ApexDG",
   cutoff: "23:00 UTC",
   uptime: "99.8%",
   lastPost: "2026-04-20 23:04 UTC",
@@ -408,14 +408,14 @@ const FIN_D365_OUTBOX = [
 
 const FIN_D365_DLQ = [
   { id: "DLQ-2026-031", sourceEv: "EV-88701-c2", type: "finance.wo_cost.closed",    category: "d365_validation", error: "Closed posting period 2026-03-31.",                         attempts: "6/6", movedAt: "2026-04-01 04:12 UTC", resolvedAt: null, resolvedBy: null },
-  { id: "DLQ-2026-030", sourceEv: "EV-88650-ab", type: "finance.daily_journal.ready", category: "permanent",       error: "HTTP 400 — GL account 5000-ForzDG-MAT is inactive in D365.", attempts: "6/6", movedAt: "2026-03-28 04:08 UTC", resolvedAt: null, resolvedBy: null },
+  { id: "DLQ-2026-030", sourceEv: "EV-88650-ab", type: "finance.daily_journal.ready", category: "permanent",       error: "HTTP 400 — GL account 5000-ApexDG-MAT is inactive in D365.", attempts: "6/6", movedAt: "2026-03-28 04:08 UTC", resolvedAt: null, resolvedBy: null },
 ];
 
 const FIN_D365_GL_MAPPING = [
-  { cat: "Material", dAccount: "5000-ForzDG-MAT",  offset: "1400-ForzDG-INV",  journal: "PROD", updatedAt: "2026-01-15", updatedBy: "Sarah McKenzie" },
-  { cat: "Labor",    dAccount: "5100-ForzDG-LAB",  offset: "1400-ForzDG-INV",  journal: "PROD", updatedAt: "2026-01-15", updatedBy: "Sarah McKenzie" },
-  { cat: "Overhead", dAccount: "5200-ForzDG-OH",   offset: "1400-ForzDG-INV",  journal: "PROD", updatedAt: "2026-01-15", updatedBy: "Sarah McKenzie" },
-  { cat: "Waste",    dAccount: "5300-ForzDG-WSTE", offset: "1400-ForzDG-INV",  journal: "PROD", updatedAt: "2026-01-15", updatedBy: "Sarah McKenzie" },
+  { cat: "Material", dAccount: "5000-ApexDG-MAT",  offset: "1400-ApexDG-INV",  journal: "PROD", updatedAt: "2026-01-15", updatedBy: "Sarah McKenzie" },
+  { cat: "Labor",    dAccount: "5100-ApexDG-LAB",  offset: "1400-ApexDG-INV",  journal: "PROD", updatedAt: "2026-01-15", updatedBy: "Sarah McKenzie" },
+  { cat: "Overhead", dAccount: "5200-ApexDG-OH",   offset: "1400-ApexDG-INV",  journal: "PROD", updatedAt: "2026-01-15", updatedBy: "Sarah McKenzie" },
+  { cat: "Waste",    dAccount: "5300-ApexDG-WSTE", offset: "1400-ApexDG-INV",  journal: "PROD", updatedAt: "2026-01-15", updatedBy: "Sarah McKenzie" },
 ];
 
 // ----- Onboarding checklist (FIN-001 empty/first-run) -----

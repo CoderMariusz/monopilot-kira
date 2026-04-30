@@ -59,7 +59,7 @@ Moduł **09-QUALITY** jest centralnym rejestrem jakości i bezpieczeństwa żywn
 | **Auditor (external)** | `auditor_readonly` | Read-only access do wszystkich QA records + audit log + 7y history dump |
 | **Admin** | `admin` | CRUD reference tables (QA), manage `quality_hold_reasons`, rule registry view-only |
 
-**[FORZA-CONFIG]**: Forza 2026-04 single-site. Quality Lead = Sarah (allocated from NPD team post-launch per project_monopilot_migration §15). QA Inspector = 3 osoby (2 dayshift, 1 nightshift). Hygiene Lead = dedicated role, BRCGS mandate.
+**[APEX-CONFIG]**: Apex 2026-04 single-site. Quality Lead = Sarah (allocated from NPD team post-launch per project_monopilot_migration §15). QA Inspector = 3 osoby (2 dayshift, 1 nightshift). Hygiene Lead = dedicated role, BRCGS mandate.
 
 ### 2.3 RLS & role binding
 
@@ -640,7 +640,7 @@ CREATE TABLE sampling_plans (
   id UUID DEFAULT uuidv7() PRIMARY KEY,
   org_id UUID NOT NULL,
   plan_code TEXT NOT NULL,
-  plan_type TEXT NOT NULL CHECK (plan_type IN ('iso2859','ansi_z14','custom','forza_10th')),
+  plan_type TEXT NOT NULL CHECK (plan_type IN ('iso2859','ansi_z14','custom','apex_10th')),
   aql_level NUMERIC, -- e.g. 1.0, 2.5, 4.0
   inspection_level TEXT, -- 'GI','GII','GIII','S-1'..'S-4'
   lot_size_min INT,
@@ -1468,7 +1468,7 @@ Per 02-SETTINGS §7.4 Registry read-only pattern:
 
 ### 12.3 P2 ATP device integration (Q2 → Phase 2 upgrade path)
 
-**P1 = manual entry** (Q2 decision A — Forza paper cards baseline).
+**P1 = manual entry** (Q2 decision A — Apex paper cards baseline).
 
 **P2 adapter pattern (when upgrade triggered):**
 - Vendor-specific: Hygiena EnSURE 3, Kikkoman Lumitester Smart
@@ -1547,7 +1547,7 @@ Every access to QA records logged with:
 
 ### 14.1 Locale coverage
 
-**P1 scope:** pl (primary Forza), en (secondary corporate). P2 add uk (Ukrainian workforce) + ro (Romanian workforce).
+**P1 scope:** pl (primary Apex), en (secondary corporate). P2 add uk (Ukrainian workforce) + ro (Romanian workforce).
 
 **Translation keys (P1):**
 
@@ -1614,7 +1614,7 @@ Onboarding completion tracked in `user_onboarding_progress` (02-SETTINGS).
 | OQ-QA-03 | NCR severity rules — automated calibration vs manual (current rule uses hazard type mapping; consider ML-based after 6mo data) | quality_director | P2 design |
 | OQ-QA-04 | Complaint→NCR auto-link threshold (keyword match in description? severity? customer tier?) | quality_lead | P2 design |
 | OQ-QA-05 | LIMS vendor selection — LabWare vs StarLIMS vs generic CSV | quality_director + CTO | P2 kick-off |
-| OQ-QA-06 | HACCP plan template library — ISO/Codex default templates vs Forza custom only | quality_lead | P1 launch |
+| OQ-QA-06 | HACCP plan template library — ISO/Codex default templates vs Apex custom only | quality_lead | P1 launch |
 | OQ-QA-07 | Audit export format — which regulators accept digital vs require paper (BRCGS/FDA/IFS)? | quality_director | Pre-first audit |
 | OQ-QA-08 | Customer complaint portal integration — Phase 2 scope (email parser? retailer EDI? manual only?) | quality_director | P2 design |
 | OQ-QA-09 | Override authority matrix — which role can override allergen gate, CCP deviation, NCR close dual-sign | quality_lead + prod_manager | Pre-BRCGS audit |

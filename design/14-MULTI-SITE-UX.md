@@ -8,7 +8,7 @@
 
 ## 0. Module Overview
 
-Module **14-MULTI-SITE** introduces full multi-site (multi-plant) operations into MonoPilot MES. A single organization may have two or more physical sites (plants, warehouses, offices, co-packing facilities) that share master data at the org level while keeping operational data isolated per site via Row-Level Security (RLS). The flagship use case is Forza UK + KOBE EU operating as two sites under one MonoPilot org — shared products, BOMs, allergens, suppliers — with isolated work orders, license plates, stock, quality records, shifts, finance layers, and maintenance records.
+Module **14-MULTI-SITE** introduces full multi-site (multi-plant) operations into MonoPilot MES. A single organization may have two or more physical sites (plants, warehouses, offices, co-packing facilities) that share master data at the org level while keeping operational data isolated per site via Row-Level Security (RLS). The flagship use case is Apex UK + KOBE EU operating as two sites under one MonoPilot org — shared products, BOMs, allergens, suppliers — with isolated work orders, license plates, stock, quality records, shifts, finance layers, and maintenance records.
 
 **Key concepts the designer must understand:**
 
@@ -133,7 +133,7 @@ The site selector is a persistent control in the application top bar, positioned
 
 **Behavior in "All Sites" scope:** Data-filtered screens (LP list, WO list, GRN, etc.) show an additional "Site" column. KPI cards show aggregated totals across all sites, with a secondary line showing "across X sites." Screens that are site-exclusive (e.g., site-specific config) are hidden or disabled with tooltip "Select a single site to access this screen."
 
-**Single-site users:** The selector is hidden entirely. The top bar shows the site name as static text (not a dropdown), e.g., "Site: Forza Warsaw" in muted text.
+**Single-site users:** The selector is hidden entirely. The top bar shows the site name as static text (not a dropdown), e.g., "Site: Apex Warsaw" in muted text.
 
 **No site context (multi-site, user just logged in):** If `primary_site` is set in `site_user_access`, it is auto-selected silently. If no primary is set (edge case), a full-page modal appears: "Select Your Site to Continue" — list of accessible sites, `btn-primary` "Select Site," checkbox "Remember as primary site."
 
@@ -290,7 +290,7 @@ Standard full-width main area. Page title "Sites" with breadcrumb "Multi-Site / 
 | Column | Type | Width | Example | Notes |
 |---|---|---|---|---|
 | Site Code | monospace text | 90px | `FRZ-UK` | Unique per org, uppercase |
-| Name | text bold | 180px | `Forza Warsaw` | Link → `/multi-site/sites/:id` |
+| Name | text bold | 180px | `Apex Warsaw` | Link → `/multi-site/sites/:id` |
 | Type | badge | 110px | `Plant` | badge-blue, badge-green, badge-gray, badge-amber per type |
 | Country / TZ | text | 150px | `UK / Europe/London` | Country flag emoji + IANA timezone abbreviation |
 | Status | badge | 90px | `Active` | badge-green Active, badge-gray Inactive |
@@ -343,7 +343,7 @@ Full-width main area. Page title shows the site name (20px bold) with the site c
 Two-column layout. Left column: a "Site Identity" card with fields displayed as read-only label-value pairs:
 
 - Site Code: `FRZ-UK` (monospace)
-- Legal Entity: `Forza Foods Ltd` (or "—")
+- Legal Entity: `Apex Foods Ltd` (or "—")
 - Country: `United Kingdom`
 - Timezone: `Europe/London (UTC+0 / BST UTC+1)`
 - Default Currency: `GBP`
@@ -502,7 +502,7 @@ Two side-by-side site picker fields, each showing a searchable dropdown:
 
 | Field | Type | Required | Validation | Example |
 |---|---|---|---|---|
-| From Site | searchable select | Yes | must be an active site user has access to; must differ from To Site | `FRZ-UK — Forza Warsaw Plant` |
+| From Site | searchable select | Yes | must be an active site user has access to; must differ from To Site | `FRZ-UK — Apex Warsaw Plant` |
 | To Site | searchable select | Yes | must be a different active site | `FRZ-DE — KOBE Germany Warehouse` |
 
 Selecting From Site auto-populates the Transport Lane field below (suggests the default lane between the two sites). An inline informational line appears: "Route: FRZ-UK → FRZ-DE | Default Lane: LN-001 | Avg Lead Time: 2 days."
@@ -1280,9 +1280,9 @@ A 4-step wizard for creation; single-page form for edit.
 | Field | Type | Required | Validation | Example |
 |---|---|---|---|---|
 | Site Code | text | Yes | Uppercase, alphanumeric+hyphen, unique per org, max 10 | `FRZ-UK` |
-| Site Name | text | Yes | Min 2, max 100 | `Forza Warsaw` |
+| Site Name | text | Yes | Min 2, max 100 | `Apex Warsaw` |
 | Site Type | select | Yes | Plant / Warehouse / Office / Co-pack | `Plant` |
-| Legal Entity | text | No | max 200 | `Forza Foods Ltd` |
+| Legal Entity | text | No | max 200 | `Apex Foods Ltd` |
 | Country | select | Yes | ISO country list | `United Kingdom` |
 | Address | textarea | No | max 300 | `123 Industrial Park, Manchester` |
 | Notes | textarea | No | max 500 | Internal notes |
@@ -1658,13 +1658,13 @@ The Multi-Site module is primarily a desktop product. Target viewport is 1280px+
 
 1. **Map library choice:** The Network Map View (P2) requires a geographic map rendering library. Candidate options: Leaflet.js (open-source, lightweight), Mapbox GL (commercial, best aesthetics), React-Simple-Maps (SVG-based, no tile dependency). Choice affects bundle size and offline capability. Decision deferred to the design/engineering sync.
 
-2. **Conflict resolution e-signature requirement:** The PRD marks the e-signature gate for cross-site data overrides as configurable (off by default). The designer should prototype both the "with e-signature" and "without e-signature" flows. The gate requires a password re-entry input field inside the modal. Confirm with the product owner whether e-signature is needed for the Forza baseline.
+2. **Conflict resolution e-signature requirement:** The PRD marks the e-signature gate for cross-site data overrides as configurable (off by default). The designer should prototype both the "with e-signature" and "without e-signature" flows. The gate requires a password re-entry input field inside the modal. Confirm with the product owner whether e-signature is needed for the Apex baseline.
 
 3. **Timezone display convention:** Should timestamps across the Multi-Site module display in the user's local browser timezone (user-centric) or in the site's configured timezone (site-centric)? The PRD recommends user timezone as the default (per MS-CFG Section 4 toggle). The designer should prototype both states of the toggle. For site-specific timestamps (e.g., shift start times on the Site Detail Overview tab), the site's timezone should always be shown with the site offset in parentheses, e.g., "08:00 (Europe/London UTC+1 BST)."
 
 4. **Site decommission retention period display:** The UI currently references "7 years" as the data retention period (inherited from 02-SETTINGS §14). Verify with legal/compliance whether this period should be displayed to the user, or whether the decommission modal should simply state "Data is retained per your organization's retention policy" to avoid hardcoding a regulatory commitment.
 
-5. **IST approval workflow — notification vs. in-app action:** For dual-gate IST approval (from-site + to-site manager), should the manager be able to approve directly from an email notification (deep-link with one-click approve token), or is in-app-only approval sufficient for P1? The Forza baseline lean is in-app only; email notification links to the IST detail page. Confirm before implementing.
+5. **IST approval workflow — notification vs. in-app action:** For dual-gate IST approval (from-site + to-site manager), should the manager be able to approve directly from an email notification (deep-link with one-click approve token), or is in-app-only approval sufficient for P1? The Apex baseline lean is in-app only; email notification links to the IST detail page. Confirm before implementing.
 
 6. **Hierarchy config edit — migration impact:** When an admin changes the `sites_hierarchy_config.depth` from 3 to 4 (adding a "Building" level between Site and Plant), existing site records have no parent assigned at the new level. The designer should consider whether a post-edit wizard step is needed: "Assign buildings to existing sites." The PRD defers migration tooling, so the P1 behavior is to simply add the new level name without backfilling.
 

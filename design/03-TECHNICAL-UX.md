@@ -13,7 +13,7 @@
 
 **Key concepts**:
 - **item_types**: `rm` (raw material), `intermediate` (in-process semi-finished, PR-code), `fa` (finished article), `co_product` (positive-value co-output), `byproduct` (no-value waste output).
-- **PR-code pattern**: `PR<digits><process_letter>` — e.g., `PR5101R` means item 5101 finished the Roast process stage. Process letters for Forza: A (Coat), B, C, E, F (Slice), G, H, R (Roast). Each process step of an FA produces a first-class intermediate item in the item master (Phase D decision #19, N+1 pattern).
+- **PR-code pattern**: `PR<digits><process_letter>` — e.g., `PR5101R` means item 5101 finished the Roast process stage. Process letters for Apex: A (Coat), B, C, E, F (Slice), G, H, R (Roast). Each process step of an FA produces a first-class intermediate item in the item master (Phase D decision #19, N+1 pattern).
 - **BOM versioning**: effective-dated, draft → approved → active → superseded. BOM snapshot (ADR-002) taken at Work Order creation — immutable for that WO.
 - **Co-products**: `bom_co_products.allocation_pct` must sum to 100 across parent FA + all co-products (byproducts = 0).
 - **BOM Generator**: async batch job producing per-FA XLSX files or a single batch XLSX, triggered by button.
@@ -270,7 +270,7 @@ The item type radio is the primary conditional control. When a user selects a ty
 **PR-code builder** (visible only when item_type = `intermediate`):
 A composite field displayed as two adjacent inputs separated by a dash preview:
 - "Digits" text input (placeholder: "5101", max 6 digits, numbers only).
-- "Process letter" select (options: A / B / C / E / F / G / H / R for Forza; custom text input fallback).
+- "Process letter" select (options: A / B / C / E / F / G / H / R for Apex; custom text input fallback).
 - Live preview label below: "Code will be: PR5101R".
 - Validation error inline if code already exists: amber banner "Code PR5101R already exists for this organisation."
 
@@ -501,7 +501,7 @@ Title: "Add Component" or "Edit Component — Line 3".
 - Quantity (number input, required, min 0.000001, example "0.450").
 - UoM (select driven by selected component's `uom_base`, auto-populated on item selection).
 - Scrap % (number input, default 0.00, min 0, max 99.99, label "Expected scrap/waste (%)").
-- Process Stage (select: A / B / C / E / F / G / H / R / Custom, optional, label "Process stage (Forza letter)").
+- Process Stage (select: A / B / C / E / F / G / H / R / Custom, optional, label "Process stage (Apex letter)").
 - Sequence (number input, default auto-incremented, label "Consumption sequence order").
 - Notes (textarea, optional, max 500 chars).
 
@@ -629,12 +629,12 @@ Fields:
 - Cleanup Time (number, min, default 0, label "Cleanup time (minutes)").
 - Expected Yield (number, %, default 100.0, range 0–100, label "Expected yield at this operation (%)").
 - Labor Cost per Hour (decimal, currency, label "Labor cost per hour (£/hour)").
-- Process Stage (select: A/B/C/E/F/G/H/R/Custom, optional, label "Forza process stage letter (matches BOM line)").
+- Process Stage (select: A/B/C/E/F/G/H/R/Custom, optional, label "Apex process stage letter (matches BOM line)").
 - Instructions (textarea, optional, max 2000 chars, label "Operator instructions for this step").
 
 Footer: "Save Operation" (btn-primary), "Cancel" (btn-secondary).
 
-**Validation**: V-TEC-61 — at least line_id or machine_id must be set (warning, not hard block in UI, soft advisory banner). V-TEC-62 — run_time > 0 required. V-TEC-63 — process_stage must be from reference list if Forza org.
+**Validation**: V-TEC-61 — at least line_id or machine_id must be set (warning, not hard block in UI, soft advisory banner). V-TEC-62 — run_time > 0 required. V-TEC-63 — process_stage must be from reference list if Apex org.
 
 **States**:
 - Loading: Skeleton in summary card + skeleton rows in operations table.
@@ -961,7 +961,7 @@ Maximum tree depth: 10 levels. If depth exceeded, "Show more levels" link.
 **Connection Status Card**:
 Large status indicator at top — green "Connected" circle icon or red "Disconnected". Below: D365 Base URL (muted, truncated), API Version, Last Test: "2026-04-20 08:00:12 (2h ago)". "Test Connection" button (btn-secondary) — triggers live ping, shows spinner then "Connected ✓" or "Failed ✗ — [error message]".
 
-**Integration Feature Flag**: Toggle switch with label "D365 Integration Enabled (`integration.d365.enabled`)". Toggling off shows confirmation modal: "Disabling D365 integration will stop all nightly syncs and push confirmations. Are you sure?" Toggle is disabled (locked) if the 5 required Forza D365 constants are not all populated (validation V-SET-42 from 02-SETTINGS) — shows tooltip "Complete all 5 D365 constants in Settings > Integrations before enabling."
+**Integration Feature Flag**: Toggle switch with label "D365 Integration Enabled (`integration.d365.enabled`)". Toggling off shows confirmation modal: "Disabling D365 integration will stop all nightly syncs and push confirmations. Are you sure?" Toggle is disabled (locked) if the 5 required Apex D365 constants are not all populated (validation V-SET-42 from 02-SETTINGS) — shows tooltip "Complete all 5 D365 constants in Settings > Integrations before enabling."
 
 **Sync Schedule Card**:
 - Nightly Pull Schedule: "Daily at 02:00 (Europe/Warsaw)". "Edit schedule" link.

@@ -30,7 +30,7 @@ Rozszerzamy baseline o 6 obszarów mandated przez Phase D architecture + discove
 
 **Pozostałe sekcje** (§9 shelf-life regulatory, §11 cost_per_kg, §12 routing + resources) = refinement baseline z markerami Phase D i regulacyjnym roadmap z MES-TRENDS §9.
 
-Status: `[UNIVERSAL]` dla core (item master, BOM, allergens EU-14), `[FORZA-CONFIG]` dla Forza-specific (processes ruchome A/B/C/E/F/G/H/R, 5 D365 constants overlap z 02-SETTINGS §11), `[LEGACY-D365]` dla sync integration, `[EVOLVING]` dla BOM Generator button + allergen aggregation + ProdDetail multi-component semantyka.
+Status: `[UNIVERSAL]` dla core (item master, BOM, allergens EU-14), `[APEX-CONFIG]` dla Apex-specific (processes ruchome A/B/C/E/F/G/H/R, 5 D365 constants overlap z 02-SETTINGS §11), `[LEGACY-D365]` dla sync integration, `[EVOLVING]` dla BOM Generator button + allergen aggregation + ProdDetail multi-component semantyka.
 
 ---
 
@@ -71,7 +71,7 @@ Status: `[UNIVERSAL]` dla core (item master, BOM, allergens EU-14), `[FORZA-CONF
 | Persona | Role | Główne zadania | Marker |
 |---|---|---|---|
 | **Quality Lead / Technical Manager** | `quality_lead` | Product master CRUD, BOM approve, allergen profiles, shelf-life compliance, lab result review | [UNIVERSAL] |
-| **Jane (NPD Manager)** | `npd_manager` | Tworzy items z NPD flow (RM import from brief, intermediate via PR cascade, FA via Builder), initiates BOM Generator | [FORZA-CONFIG z [UNIVERSAL] rolą] |
+| **Jane (NPD Manager)** | `npd_manager` | Tworzy items z NPD flow (RM import from brief, intermediate via PR cascade, FA via Builder), initiates BOM Generator | [APEX-CONFIG z [UNIVERSAL] rolą] |
 | **NPD Team** | `npd_team` | RM creation (basic attrs), contribution do BOM draft, supplier link | [UNIVERSAL] |
 | **Admin** | `owner` / `admin` | D365 sync config, `integration.d365.enabled` toggle, item schema extensions (via 02-SETTINGS §6) | [UNIVERSAL] |
 | **Auditor** | `auditor` | Read-only item history, BOM version diffs, allergen audit trail, regulatory reports | [UNIVERSAL] |
@@ -143,7 +143,7 @@ CREATE TABLE items (
   status TEXT NOT NULL DEFAULT 'active',                 -- 'draft'|'active'|'deprecated'|'blocked'
 
   -- Classification
-  product_group TEXT,                                    -- FinGoods (Forza) + custom per org
+  product_group TEXT,                                    -- FinGoods (Apex) + custom per org
   uom_base TEXT NOT NULL,                                -- 'kg'|'g'|'l'|'ml'|'pcs'
   uom_secondary TEXT,                                    -- for catch-weight: nominal unit
   gs1_gtin TEXT,                                         -- global trade item number
@@ -213,7 +213,7 @@ CREATE TABLE bom_lines (
   quantity NUMERIC(14,6) NOT NULL,
   uom TEXT NOT NULL,
   scrap_pct NUMERIC(5,2) DEFAULT 0.00,                   -- component-level scrap
-  process_stage TEXT,                                    -- process letter: A/B/C/E/F/G/H/R (Forza) or custom
+  process_stage TEXT,                                    -- process letter: A/B/C/E/F/G/H/R (Apex) or custom
   sequence INT,                                          -- consumption order
   is_phantom BOOLEAN DEFAULT false,                      -- Phase 2
   notes TEXT,
@@ -279,7 +279,7 @@ CREATE TABLE item_allergen_profiles (
 
 CREATE TABLE process_allergen_additions (
   org_id UUID NOT NULL REFERENCES organizations(id),
-  process_code CHAR(1) NOT NULL,                         -- A/B/C/E/F/G/H/R (Forza)
+  process_code CHAR(1) NOT NULL,                         -- A/B/C/E/F/G/H/R (Apex)
   allergen_code TEXT NOT NULL,
   reason TEXT,                                           -- 'marinade contains X' etc.
   PRIMARY KEY (org_id, process_code, allergen_code)
@@ -417,7 +417,7 @@ CREATE TABLE d365_sync_dlq (
 | `co_product` | Output of process w pozytywną wartością (BOM co-product) | custom | `COP-OFFAL-01` |
 | `byproduct` | Output bez wartości lub z kosztem utylizacji | custom | `BYP-FAT-WASTE` |
 
-**Phase D #19 decision (N+1 per FA):** każdy intermediate PR code w Forza Builder output wymaga osobnego item w item master. Np. FA5101 z 3 process steps generuje:
+**Phase D #19 decision (N+1 per FA):** każdy intermediate PR code w Apex Builder output wymaga osobnego item w item master. Np. FA5101 z 3 process steps generuje:
 - `RM1234` (surowiec) — istnieje
 - `PR5101A` (po Coat) — item_type=intermediate
 - `PR5101F` (po Slice) — item_type=intermediate
@@ -621,7 +621,7 @@ Per-item:
 ### 9.2 Date code format
 
 `items.date_code_format` pattern, examples:
-- `YYWW` — year + week number (Forza v7 Date_Code)
+- `YYWW` — year + week number (Apex v7 Date_Code)
 - `YYYY-MM-DD` — ISO date
 - `JJWW` — julian day + week
 - `YYJJJ` — year + julian day
@@ -749,7 +749,7 @@ Feed into **allergen changeover gate** (00-FOUNDATION §7 example rule, executed
 
 ### 10.6 Lab results feed
 
-`lab_results` (§5.5) with `test_type='allergen_elisa'` or `atp_swab` stored per item or per WO. ATP swab threshold `≤10 RLU` (baseline Forza, configurable w 02-SETTINGS `reference_tables.alert_thresholds`).
+`lab_results` (§5.5) with `test_type='allergen_elisa'` or `atp_swab` stored per item or per WO. ATP swab threshold `≤10 RLU` (baseline Apex, configurable w 02-SETTINGS `reference_tables.alert_thresholds`).
 
 Lab result `fail` → blocks WO close gate (08-PRODUCTION), automatic notification to quality_lead.
 
@@ -858,7 +858,7 @@ Used by 04-PLANNING-BASIC finite-capacity scheduling.
 - **V-TEC-60**: Routing ops sequence (op_no) contiguous, no gaps
 - **V-TEC-61**: Each op has line_id OR machine_id (at least one) assigned
 - **V-TEC-62**: `run_time_per_unit_sec` > 0 for production ops
-- **V-TEC-63**: `process_stage` ∈ `reference_tables.processes.row_key` (Forza: A/B/C/E/F/G/H/R)
+- **V-TEC-63**: `process_stage` ∈ `reference_tables.processes.row_key` (Apex: A/B/C/E/F/G/H/R)
 
 ---
 
@@ -921,7 +921,7 @@ Trigger: 08-PRODUCTION WO status → `closed` event hits outbox.
 ### 13.6 Feature flag
 
 `integration.d365.enabled` (02-SETTINGS §10.2 core fallback). Flag flip requires:
-- 5 Forza D365 constants populated (V-SET-42 validation passes)
+- 5 Apex D365 constants populated (V-SET-42 validation passes)
 - Test connection passes
 - User role `owner` lub `npd_manager`
 
@@ -1106,7 +1106,7 @@ Scope:
 
 Stories est.: 12-14. Sesji est.: 5-6.
 
-Gate: integration.d365.enabled can be turned on for Forza beta.
+Gate: integration.d365.enabled can be turned on for Apex beta.
 
 **Total 03-TECHNICAL impl:** 44-52 stories, **18-22 sesji**.
 
@@ -1137,7 +1137,7 @@ Gate: integration.d365.enabled can be turned on for Forza beta.
 
 ### Reality sources
 
-- [`_meta/reality-sources/pld-v7-excel/D365-INTEGRATION.md`](./_meta/reality-sources/pld-v7-excel/D365-INTEGRATION.md) — M06 BOM AutoGen + M08 Builder + 5 Forza constants
+- [`_meta/reality-sources/pld-v7-excel/D365-INTEGRATION.md`](./_meta/reality-sources/pld-v7-excel/D365-INTEGRATION.md) — M06 BOM AutoGen + M08 Builder + 5 Apex constants
 - [`_meta/reality-sources/pld-v7-excel/EVOLVING.md`](./_meta/reality-sources/pld-v7-excel/EVOLVING.md) §4 allergens cascade, §7 Dieset material, §8 ProdDetail multi-comp, §10 Builder retirement, §11 BOM Generator button
 - [`_meta/reality-sources/pld-v7-excel/MAIN-TABLE-SCHEMA.md`](./_meta/reality-sources/pld-v7-excel/MAIN-TABLE-SCHEMA.md) — Technical dept cols + allergens placement
 - [`_meta/reality-sources/pld-v7-excel/CASCADING-RULES.md`](./_meta/reality-sources/pld-v7-excel/CASCADING-RULES.md) — M04.CascadeFromChange logic

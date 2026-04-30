@@ -9,7 +9,7 @@
 ## Co zrobione (Phase 0 — complete)
 
 **Meta-model fundament:**
-- `_foundation/META-MODEL.md` — 279 linii, 8 sekcji (Level "a" schema-driven / Level "b" rule engine / Code-driven YAGNI / Multi-tenant variation / D365 mapping / Universal vs Forza-specific / Custom reports / Custom workflows) + Purpose + Deliverable checklist + Open questions.
+- `_foundation/META-MODEL.md` — 279 linii, 8 sekcji (Level "a" schema-driven / Level "b" rule engine / Code-driven YAGNI / Multi-tenant variation / D365 mapping / Universal vs Apex-specific / Custom reports / Custom workflows) + Purpose + Deliverable checklist + Open questions.
 
 **4 nowe ADRs (pure-doc, zero code snippets):**
 - `ADR-028-schema-driven-column-definition.md` — 123 linii (Level "a" operationalization)
@@ -27,7 +27,7 @@
 - `_foundation/patterns/REALITY-SYNC.md` — 170 linii, two-session pattern + Mermaid sequence + 6 anti-patterns + drift detection + VBA pipeline integration
 
 **documentation-patterns skill updated:**
-- Dodana sekcja "Monopilot Documentation Markers" z 4 markerami (UNIVERSAL / FORZA-CONFIG / EVOLVING / LEGACY-D365), application rules, conflict resolution, conservative universality.
+- Dodana sekcja "Monopilot Documentation Markers" z 4 markerami (UNIVERSAL / APEX-CONFIG / EVOLVING / LEGACY-D365), application rules, conflict resolution, conservative universality.
 
 **4 nowe skille meta-model:**
 - `schema-driven-design/SKILL.md` — 141 linii (3-question decision rule)
@@ -54,9 +54,9 @@
 
 **Deliverables (2 pliki):**
 - `_meta/reality-sources/pld-v7-excel/PROCESS-OVERVIEW.md` — end-to-end flow PLD v7 (kto, co, kiedy, po co)
-- `_meta/reality-sources/pld-v7-excel/DEPARTMENTS.md` — 7 działów Forzy + odpowiedzialności + handoffs między działami
+- `_meta/reality-sources/pld-v7-excel/DEPARTMENTS.md` — 7 działów Apexa + odpowiedzialności + handoffs między działami
 
-**Scope:** reality capture — opisujemy co RZECZYWIŚCIE dzieje się w Forza z PLD v7 Excel. Nie projektujemy Monopilot, dokumentujemy *ground truth*. Markery na wszystkim (głównie `[FORZA-CONFIG]` + `[EVOLVING]` gdzie MRP itd.).
+**Scope:** reality capture — opisujemy co RZECZYWIŚCIE dzieje się w Apex z PLD v7 Excel. Nie projektujemy Monopilot, dokumentujemy *ground truth*. Markery na wszystkim (głównie `[APEX-CONFIG]` + `[EVOLVING]` gdzie MRP itd.).
 
 **Two-session dyscyplina (obowiązkowa, zobacz REALITY-SYNC.md):**
 - Session 1 = capture → update reality source files + note HANDOFF
@@ -95,7 +95,7 @@ Kolejność od najważniejszego:
 **Optional:**
 - `food-industry-mes` (placeholder — pełny draft dopiero na końcu Phase A, użyć do sprawdzenia scope)
 - `excel-windows-automation` (dla read Smart_PLD_v7.xlsm)
-- `forza-vba-builder` (kontekst VBA modułów v7)
+- `apex-vba-builder` (kontekst VBA modułów v7)
 
 ---
 
@@ -104,7 +104,7 @@ Kolejność od najważniejszego:
 Z Phase 0 deliverables + otwarte decisions:
 
 1. **Konkretna składnia DSL** (rule-engine-dsl) — finalne decisions post-C implementation. W Phase A nie dotykamy.
-2. **NPD Main Table: które kolumny UNIVERSAL vs FORZA-CONFIG** — rozstrzygane w Phase B po Phase A reality (~60-80 kolumn do review).
+2. **NPD Main Table: które kolumny UNIVERSAL vs APEX-CONFIG** — rozstrzygane w Phase B po Phase A reality (~60-80 kolumn do review).
 3. **Upgrade strategy** Monopilot universal features (auto vs opt-in per org) — ADR-031 open question, decyzja w implementation phase.
 4. **EVOLVING promotion process** (kto decyduje, kiedy pattern się ustabilizował) — Phase B praktyka + formal process.
 5. **Module map w SKILL-MAP** — 3/16 wypełnione, pozostałe 13 dostaną skille po Phase D module reordering.

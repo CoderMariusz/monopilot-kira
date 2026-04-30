@@ -24,7 +24,7 @@
 **Ograniczenia (obowiązkowe — spec §4.3):**
 - **NO CODE SNIPPETS** w nowych ADRs i nowych patternach: żadnego SQL, TypeScript, VBA, konkretnych YAML-i schemy. Tylko: opisy semantyczne, tabele data-contract (col name, type, owner, rule), Mermaid, tabele decyzji.
 - **Wyjątek:** skille mogą zawierać krótkie przykłady użycia (to praktyka wszystkich obecnych skilli), ale nowe skille dot. meta-modelu same w sobie są bardziej zasadami niż kodem.
-- **Markery obowiązkowe** na każdym wymaganiu/regule w nowych dokumentach: `[UNIVERSAL]` / `[FORZA-CONFIG]` / `[EVOLVING]` / `[LEGACY-D365]`.
+- **Markery obowiązkowe** na każdym wymaganiu/regule w nowych dokumentach: `[UNIVERSAL]` / `[APEX-CONFIG]` / `[EVOLVING]` / `[LEGACY-D365]`.
 - Polski język (spójność z projektem), chyba że istniejący kontekst wymaga angielskiego (np. ADRs — patrz ADR-003, ADR-013 → wszystkie po angielsku; zachowaj konwencję).
 
 ---
@@ -88,7 +88,7 @@ Standardowe kroki per task (tam gdzie applicable):
 1. **Outline** — sekcje h2/h3 + jedna linia content-cue per sekcja (szybki szkic)
 2. **Write** — rozwinięcie outline-u do pełnej treści z zawartością wymienioną w tym planie
 3. **Validation pass** — checklist:
-   - [ ] Markery `[UNIVERSAL]` / `[FORZA-CONFIG]` / `[EVOLVING]` / `[LEGACY-D365]` obecne tam gdzie należy
+   - [ ] Markery `[UNIVERSAL]` / `[APEX-CONFIG]` / `[EVOLVING]` / `[LEGACY-D365]` obecne tam gdzie należy
    - [ ] Zero code snippets (SQL/TS/VBA/konkretny YAML) — tylko proza + tabele + Mermaid
    - [ ] Cross-references używają pełnych ścieżek (`new-doc/00-foundation/...`)
    - [ ] Link do źródła prawdy: spec `docs/superpowers/specs/2026-04-17-monopilot-migration-design.md`
@@ -128,18 +128,18 @@ Frontmatter + tytuł. Struktura:
 - **Status:** ACCEPTED. Date: 2026-04-17. Supersedes: partial overlap with ADR-003 (multi-tenancy), ADR-011 (module toggle), ADR-012 (role-permission) — wskazujemy extension relation, nie superseding per se. Related: ADR-028, 029, 030, 031.
 - **Purpose** — 3 linie: po co meta-model; że wszystkie 16 modułów są projektowane przez tę soczewkę; że to kontrakt który decyduje co agent może zmienić config-em vs kodem.
 - **§1 — Schema-driven domain (Level "a")** — tabela obiektów CRUD-owalnych w Settings (8 grup z spec §2.1.1): Kolumny tabel / Departamenty / Reguły walidacji / Reference tables / Role × permissions / Module toggles / Status colors + workflow stage names / Notification templates. Każdy wpis: label, co zawiera, marker, powiązany ADR (np. kolumny → ADR-028; role → ADR-012+ADR-031; departamenty → ADR-030).
-- **§2 — Rule engine furtka (Level "b")** — DSL dla 3–5 obszarów z twardym limitem: (a) cascading dropdowns — przykład Pack_Size → Line → Dieset → Material oznaczony `[FORZA-CONFIG]`, (b) conditional required — "pole X required gdy Dept Y aktywny", (c) gate entry criteria — checklisty bramek, (d) workflow definitions as data — state machine jako JSON/DB. Jeden runtime engine dla wszystkich modułów. Marker: `[UNIVERSAL]` silnik, `[FORZA-CONFIG]` definicje. Powiązanie z ADR-029.
+- **§2 — Rule engine furtka (Level "b")** — DSL dla 3–5 obszarów z twardym limitem: (a) cascading dropdowns — przykład Pack_Size → Line → Dieset → Material oznaczony `[APEX-CONFIG]`, (b) conditional required — "pole X required gdy Dept Y aktywny", (c) gate entry criteria — checklisty bramek, (d) workflow definitions as data — state machine jako JSON/DB. Jeden runtime engine dla wszystkich modułów. Marker: `[UNIVERSAL]` silnik, `[APEX-CONFIG]` definicje. Powiązanie z ADR-029.
 - **§3 — Code-driven domain (YAGNI)** — lista obszarów pozostających w kodzie: workflow state machine engine (silnik, nie definicje; ADR-007 extension), integracje zewnętrzne (D365 → `[LEGACY-D365]`, email, scanner SDK), obliczenia kosztów BOM, UI layouts, silnik rule engine. Uzasadnienie: nie konfigurowalne per użytkownik, matematyka lub integracja.
 - **§4 — Multi-tenant variation points** — odwołanie do ADR-003 (RLS) + nowy ADR-031. Model: każdy org ma własną konfigurację na tych samych tabelach; org_id izoluje schema. Tabela: co się zmienia per-org (kolumny / departamenty / reguły / role / reference) vs. co jest stałe (core schema tabel, engines, integracje).
 - **§5 — Migracja z D365 (mapa pojęć)** — high-level tabela D365-entity → Monopilot-schema-driven-equivalent. Pełna mapa żyje w `_meta/reality-sources/d365-integration/` (Phase A lub późniejsza). Marker `[LEGACY-D365]` dla wszystkiego co istnieje tylko z powodu D365.
-- **§6 — Universal vs Forza-specific** — zasada dokumentacyjna: każdy moduł musi jawnie oznaczać markerem każde wymaganie. Tabela decyzyjna: kiedy UNIVERSAL (fundamentalne dla food-manufacturing MES), kiedy FORZA-CONFIG (konfigurowalne w Settings), kiedy EVOLVING (jeszcze zmienia się, trzymamy w DB), kiedy LEGACY-D365 (zniknie po migracji, feature flag `integration.d365.enabled`).
-- **§7 — Custom reports (refinement)** — report templates jako universal code (Table / Aggregation / Trend Report). Content (kolumny, filtry, grupowania) czytane z org config. Dodanie kolumny przez Forzę = raport automatycznie może jej użyć. Tańsze niż full no-code report builder, ale skalowalne.
-- **§8 — Custom workflows (refinement)** — workflow jako dane: silnik universal, definicje (stages, criteria, transitions) jako dane per org. Forza dostaje predefiniowaną definicję NPD Stage-Gate G0→G4. Inny klient ma G0→G3 — zmiana w Settings/JSON. Część rule engine (§2).
+- **§6 — Universal vs Apex-specific** — zasada dokumentacyjna: każdy moduł musi jawnie oznaczać markerem każde wymaganie. Tabela decyzyjna: kiedy UNIVERSAL (fundamentalne dla food-manufacturing MES), kiedy APEX-CONFIG (konfigurowalne w Settings), kiedy EVOLVING (jeszcze zmienia się, trzymamy w DB), kiedy LEGACY-D365 (zniknie po migracji, feature flag `integration.d365.enabled`).
+- **§7 — Custom reports (refinement)** — report templates jako universal code (Table / Aggregation / Trend Report). Content (kolumny, filtry, grupowania) czytane z org config. Dodanie kolumny przez Apexa = raport automatycznie może jej użyć. Tańsze niż full no-code report builder, ale skalowalne.
+- **§8 — Custom workflows (refinement)** — workflow jako dane: silnik universal, definicje (stages, criteria, transitions) jako dane per org. Apex dostaje predefiniowaną definicję NPD Stage-Gate G0→G4. Inny klient ma G0→G3 — zmiana w Settings/JSON. Część rule engine (§2).
 - **Deliverable checklist** (z spec §2.2): this file + ADR-028 + ADR-029 + ADR-030 + ADR-031. Supersede markers na sprzecznych ADRs.
 
 - [ ] **Step 2: Write full content per outline**
 
-Każda sekcja: 100–200 linii. Dla tabel: kolumny `Obszar | Level | Marker | Powiązany ADR | Przykład Forza | Przykład inny org`. Mermaid diagram w §4 pokazujący: `Org-A config → Shared Core Tables ← Org-B config`. W §7 i §8 tabela "Co universal" vs "Co per-org". NO CODE (SQL/TS/YAML konkretny — tylko pseudo-tabele i prozą).
+Każda sekcja: 100–200 linii. Dla tabel: kolumny `Obszar | Level | Marker | Powiązany ADR | Przykład Apex | Przykład inny org`. Mermaid diagram w §4 pokazujący: `Org-A config → Shared Core Tables ← Org-B config`. W §7 i §8 tabela "Co universal" vs "Co per-org". NO CODE (SQL/TS/YAML konkretny — tylko pseudo-tabele i prozą).
 
 - [ ] **Step 3: Validation pass**
 
@@ -147,7 +147,7 @@ Każda sekcja: 100–200 linii. Dla tabel: kolumny `Obszar | Level | Marker | Po
 - [ ] Markery pokazane jako tabela reference + użyte w przykładach w sekcjach
 - [ ] Zero SQL/TS/VBA; Mermaid dozwolony; pseudo-tabele dozwolone
 - [ ] Link do spec (§2 pierwszy link w header, inne przy punktach gdzie mapują się 1:1)
-- [ ] Terminologia: "schema-driven", "Level a/b", "universal/Forza-config/evolving/legacy-D365" użyte konsekwentnie
+- [ ] Terminologia: "schema-driven", "Level a/b", "universal/Apex-config/evolving/legacy-D365" użyte konsekwentnie
 
 - [ ] **Step 4: Save**
 
@@ -166,20 +166,20 @@ Zapis pod ścieżką wskazaną w files. Weryfikacja że plik jest czytelny (otw�
 
 Sekcje:
 - **Status:** ACCEPTED. Date: 2026-04-17. Context: Monopilot Migration Phase 0. Supersedes: nothing (extends ADR-015 centralized-constants w zakresie kolumn tabel głównych).
-- **Context** — dlaczego decyzja: PLD v7 reality ma ~60–80 kolumn w Main Table które Forza zmienia miesięcznie (nowe pola MRP, nowe walidacje). Hardcodowanie enum/schema w kodzie blokuje konfigurację per-org (ADR-031). Trzeba rozdzielić: *kolumny jako dane* (user-editable w Settings) vs *kolumny jako kod* (core/infra).
-- **Decision** — definicja kolumny tabeli głównej (per moduł, np. NPD Main Table, Production WO Table, itp.) przechowywana jako *metadata row* w dedicated config table. Atrybuty metadanych: label, kod, typ danych, owner department, required, validation type, default value, hard-lock (tak/nie), visible-for-role, sort order, marker (UNIVERSAL / FORZA-CONFIG / EVOLVING / LEGACY-D365).
+- **Context** — dlaczego decyzja: PLD v7 reality ma ~60–80 kolumn w Main Table które Apex zmienia miesięcznie (nowe pola MRP, nowe walidacje). Hardcodowanie enum/schema w kodzie blokuje konfigurację per-org (ADR-031). Trzeba rozdzielić: *kolumny jako dane* (user-editable w Settings) vs *kolumny jako kod* (core/infra).
+- **Decision** — definicja kolumny tabeli głównej (per moduł, np. NPD Main Table, Production WO Table, itp.) przechowywana jako *metadata row* w dedicated config table. Atrybuty metadanych: label, kod, typ danych, owner department, required, validation type, default value, hard-lock (tak/nie), visible-for-role, sort order, marker (UNIVERSAL / APEX-CONFIG / EVOLVING / LEGACY-D365).
 - **Scope of applicability** — które tabele są schema-driven (tabela): Main Tables per moduł (NPD, Planning, Production, itp.), Reference Tables (Pack Sizes, Lines, itp.), form-field meta. Które NIE: tabele core infra (users, organizations, roles, audit_log), tabele transakcyjne (license_plates, lot_genealogy — schema stała bo regulatoryjna).
-- **Rationale** — 4 punkty: (1) Forza dodaje kolumnę bez developera, (2) inny org ma inną strukturę bez zmiany kodu, (3) aktualizacja per org nie wymaga migracji DB (nowy wiersz w config, nie nowa kolumna), (4) reports i workflow automatycznie widzą nowe kolumny (§7, §8 META-MODEL).
+- **Rationale** — 4 punkty: (1) Apex dodaje kolumnę bez developera, (2) inny org ma inną strukturę bez zmiany kodu, (3) aktualizacja per org nie wymaga migracji DB (nowy wiersz w config, nie nowa kolumna), (4) reports i workflow automatycznie widzą nowe kolumny (§7, §8 META-MODEL).
 - **Trade-offs accepted** — (1) UI musi być generic table renderer (większa inwestycja frontend), (2) query performance — schema-driven cols żyją w JSONB albo "entity-attribute-value" style, wymaga indexing strategy (opisane w ADR-013 i ADR-031 level); tutaj tylko zarysowane; (3) dyscyplina — każda zmiana konfiguracji audytowana i wersjonowana (ADR-008).
-- **Alternatives considered (rejected):** (A) Hardcoded schema per client — odrzucone bo nie skaluje, (B) Full no-code builder (jak Airtable) — odrzucone bo over-scope, (C) Only reference tables are schema-driven, main tables stay code-driven — odrzucone bo Forza main table rośnie miesięcznie.
+- **Alternatives considered (rejected):** (A) Hardcoded schema per client — odrzucone bo nie skaluje, (B) Full no-code builder (jak Airtable) — odrzucone bo over-scope, (C) Only reference tables are schema-driven, main tables stay code-driven — odrzucone bo Apex main table rośnie miesięcznie.
 - **Consequences** — Positive: elastyczność, multi-tenant ready, report/workflow auto-awareness. Negative: generic UI overhead, performance concerns, migration complexity dla kolumn z hard-constraints. Neutral: migration template musi obsługiwać "add schema-driven col" jako event (nowy wiersz, nie ALTER TABLE).
-- **Markery przy wszystkich examples** — FORZA-CONFIG dla konkretnych przykładów Forzy, UNIVERSAL dla atrybutów meta-kolumny (label/type/required).
-- **Open questions (to Phase D)** — które konkretnie kolumny w NPD są UNIVERSAL vs FORZA-CONFIG (decision w Phase B po reality sync Phase A).
+- **Markery przy wszystkich examples** — APEX-CONFIG dla konkretnych przykładów Apexa, UNIVERSAL dla atrybutów meta-kolumny (label/type/required).
+- **Open questions (to Phase D)** — które konkretnie kolumny w NPD są UNIVERSAL vs APEX-CONFIG (decision w Phase B po reality sync Phase A).
 - **Related** — META-MODEL.md (§1), ADR-003 (RLS), ADR-015 (constants), ADR-031 (schema variation per org). Affected stories: po Phase B NPD update.
 
 - [ ] **Step 2: Write full content**
 
-80–150 linii. Tabele zamiast SQL. Np. "Metadata attributes" jako tabela: `Atrybut | Typ | Required | Example (Forza) | Marker`.
+80–150 linii. Tabele zamiast SQL. Np. "Metadata attributes" jako tabela: `Atrybut | Typ | Required | Example (Apex) | Marker`.
 
 - [ ] **Step 3: Validation pass**
 
@@ -200,7 +200,7 @@ Standard: markery, no-code-snippets (!), cross-refs do META-MODEL + ADR-003/015/
 
 Sekcje:
 - **Status / Date / Context / Supersedes** — Supersedes: none; extends ADR-007 (work-order-state-machine) w zakresie "engine vs definition separation".
-- **Context** — PLD v7 ma cascading Pack_Size → Line → Dieset → Material. Monopilot musi obsługiwać takie reguły dla wielu org-ów bez kodowania per klient. Również workflow state machine: Forza = NPD G0→G4, inny org = G0→G3 lub completely different set. Rozwiązanie: mini DSL + jeden engine.
+- **Context** — PLD v7 ma cascading Pack_Size → Line → Dieset → Material. Monopilot musi obsługiwać takie reguły dla wielu org-ów bez kodowania per klient. Również workflow state machine: Apex = NPD G0→G4, inny org = G0→G3 lub completely different set. Rozwiązanie: mini DSL + jeden engine.
 - **Decision — DSL scope (twardy limit 4 obszary):**
   - (a) Cascading dropdowns: "Pole Y dopuszczalne wartości zależą od wartości pola X" (1-level lub multi-level chain).
   - (b) Conditional required: "Pole Z required gdy predykat P jest prawdziwy" (predykat = kombinacja wartości pól + toggles dept).
@@ -212,11 +212,11 @@ Sekcje:
   - Opcja 2: JSON Schema z reserved keys — runtime-friendly, harder do ludzkiego edytowania.
   - Opcja 3: Textual DSL (pseudo-angielski) — łatwe do czytania, wymaga parser implementation.
   - **Rekomendacja w ADR:** hybryda — JSON schema jako runtime form + Mermaid pseudo-code w dokumentacji + textual opis w Settings UI. Uzasadnienie: nie zmuszamy jednej formy.
-- **Rationale (4 punkty):** uniwersalność (jeden silnik dla wszystkich 16 modułów), multi-tenant (definicje per org), ewolucyjność (Forza zmienia regułę bez dewelopera), bezpieczeństwo (DSL ma ograniczony scope — nie Turing-complete).
+- **Rationale (4 punkty):** uniwersalność (jeden silnik dla wszystkich 16 modułów), multi-tenant (definicje per org), ewolucyjność (Apex zmienia regułę bez dewelopera), bezpieczeństwo (DSL ma ograniczony scope — nie Turing-complete).
 - **Trade-offs:** (1) edge cases reguł które nie mieszczą się w DSL muszą iść do code-driven (twarde escape hatch dokumentowany per moduł), (2) debugging reguł wymaga dedicated UI tools, (3) performance runtime evaluator — caching strategy.
 - **Alternatives rejected:** (A) Hardcoded if/else per moduł — nie skaluje, (B) Full Rules Engine like Drools — over-scope, (C) Frontend-only validation — nie działa w multi-tenant API.
 - **Scope enforcement — "twardy limit"** — ADR explicite zabrania rozszerzania DSL poza 4 obszary bez nowego ADR. Mitiguje R1 (schema-driven overreach) z spec §7.2.
-- **Markery:** silnik = `[UNIVERSAL]`, definicje reguł (konkretne cascading chains, konkretne gate checklists, konkretne workflow definitions) = `[FORZA-CONFIG]` lub `[EVOLVING]` gdy Forza jeszcze się decyduje.
+- **Markery:** silnik = `[UNIVERSAL]`, definicje reguł (konkretne cascading chains, konkretne gate checklists, konkretne workflow definitions) = `[APEX-CONFIG]` lub `[EVOLVING]` gdy Apex jeszcze się decyduje.
 - **Open questions (to Phase B):** konkretna składnia DSL w implementation (wybór biblioteki parsera lub własny), mechanizm wersjonowania reguł (reguła v1 aktywna vs v2 draft).
 - **Related** — META-MODEL §2 i §8, ADR-007 (state machine engine basis), ADR-028 (cols which rules reference), ADR-031 (per-org schemas).
 
@@ -237,25 +237,25 @@ Jak standard + dodatkowo: (1) twardy limit 4 obszary explicite wspomniany, (2) m
 **Files:**
 - Create: `new-doc/00-foundation/decisions/ADR-030-configurable-department-taxonomy.md`
 
-**Source of truth:** spec §2.1 punkt 1 (departamenty w schema-driven grupie) + PLD v7 reality (7 działów Forzy).
+**Source of truth:** spec §2.1 punkt 1 (departamenty w schema-driven grupie) + PLD v7 reality (7 działów Apexa).
 
 - [ ] **Step 1: Outline**
 
 Sekcje:
 - **Status / Date / Context** — Supersedes: nothing; wprowadza jawną zasadę dla obiektu "department".
-- **Context** — PLD v7 ma 7 działów Forzy (Commercial, Development, Production, Quality, Planning, Procurement, MRP). Każdy dział: nazwa, kod, kolor statusu, kolejność w UI, leader. Inne firmy będą miały inne działy (inny food-manufacturing org może mieć Logistics osobno, R&D nie zintegrowany z Development, itp.). Hardcoding = blokada multi-tenancy.
-- **Decision** — departamenty przechowywane jako wiersze w `departments` table (per org przez RLS — ADR-003). Atrybuty: code (stabilny identyfikator), label, color, sort_order, leader_user_id, active, marker (UNIVERSAL/FORZA-CONFIG), created_at, updated_at. Zmiany audytowane (ADR-008).
+- **Context** — PLD v7 ma 7 działów Apexa (Commercial, Development, Production, Quality, Planning, Procurement, MRP). Każdy dział: nazwa, kod, kolor statusu, kolejność w UI, leader. Inne firmy będą miały inne działy (inny food-manufacturing org może mieć Logistics osobno, R&D nie zintegrowany z Development, itp.). Hardcoding = blokada multi-tenancy.
+- **Decision** — departamenty przechowywane jako wiersze w `departments` table (per org przez RLS — ADR-003). Atrybuty: code (stabilny identyfikator), label, color, sort_order, leader_user_id, active, marker (UNIVERSAL/APEX-CONFIG), created_at, updated_at. Zmiany audytowane (ADR-008).
 - **Scope** — ten schema dotyczy *business departments* (owners kolumn Main Table, assignment workflow steps). Nie dotyczy *roles* (ADR-012 — cross-cutting identity) ani *warehouses* (ADR-010 — physical locations).
-- **Rationale** — multi-tenant from day 1 (ADR-031), Forza = pierwsza konfiguracja, nie jedyna. Departamenty są *owners* wielu kolumn (ADR-028: `owner department`), więc *muszą* być config-table gdy kolumny są config.
+- **Rationale** — multi-tenant from day 1 (ADR-031), Apex = pierwsza konfiguracja, nie jedyna. Departamenty są *owners* wielu kolumn (ADR-028: `owner department`), więc *muszą* być config-table gdy kolumny są config.
 - **Trade-offs:** UI musi wspierać generic department picker, raporty muszą być parametryzowane. Walidacje typu "musi być wypełnione przez Quality Dept" stają się config-driven.
 - **Alternatives rejected:** (A) Hardcoded enum in code — blokuje multi-tenant, (B) Fixed set per industry template — nie skaluje nawet wewnątrz food-manufacturing.
-- **Migration concern** — jak PLD v7 data trafia do Monopilot: departamenty Forza = pierwsza seed data dla org=Forza. Żaden inny org nie widzi tych działów (RLS). Marker wszystkich 7 działów Forzy: `[FORZA-CONFIG]`.
-- **Open questions (do Phase B):** czy "owner department" na kolumnie Main Table jest required czy optional (Forza 7 działów ownership — każda kolumna ma owner).
+- **Migration concern** — jak PLD v7 data trafia do Monopilot: departamenty Apex = pierwsza seed data dla org=Apex. Żaden inny org nie widzi tych działów (RLS). Marker wszystkich 7 działów Apexa: `[APEX-CONFIG]`.
+- **Open questions (do Phase B):** czy "owner department" na kolumnie Main Table jest required czy optional (Apex 7 działów ownership — każda kolumna ma owner).
 - **Related** — META-MODEL §1, §4; ADR-003; ADR-012 (roles — different concept); ADR-028 (cols reference departments); ADR-031.
 
 - [ ] **Step 2: Write full content**
 
-60–100 linii. Tabela attribute-schema. Tabela 7 departamentów Forzy jako *example seed* z markerem FORZA-CONFIG per każdy.
+60–100 linii. Tabela attribute-schema. Tabela 7 departamentów Apexa jako *example seed* z markerem APEX-CONFIG per każdy.
 
 - [ ] **Step 3: Validation pass**
 
@@ -276,18 +276,18 @@ Standard + separacja department vs role vs warehouse jasno wytłumaczona.
 
 Sekcje:
 - **Status / Date / Context** — Supersedes: partial ADR-003 (ADR-003 zakłada że schema stała, tylko data per-org; ADR-031 rozszerza do schema-per-org).
-- **Context** — Dotychczas: ADR-003 RLS izoluje data per org na *identycznej* schemie. Monopilot target: również konfiguracja *schemy* per org (które kolumny istnieją, jakie reguły, jakie działy). Forza = pierwsza konfiguracja, nie jedyna. Musimy zdefiniować co się zmienia vs. co jest wspólne.
+- **Context** — Dotychczas: ADR-003 RLS izoluje data per org na *identycznej* schemie. Monopilot target: również konfiguracja *schemy* per org (które kolumny istnieją, jakie reguły, jakie działy). Apex = pierwsza konfiguracja, nie jedyna. Musimy zdefiniować co się zmienia vs. co jest wspólne.
 - **Decision — 4 warstwy:**
   - (L1) **Core infrastructure schema** — stała dla wszystkich orgs: users, organizations, roles, audit_log, license_plates, lot_genealogy (regulatoryjne), reference universal (np. EU-14 allergens). Zmienia się tylko przez migration + nowy ADR.
   - (L2) **Schema-driven column definitions** — per-org w config tables (ADR-028). Np. Main Table "kolumny" są wierszami w `column_definitions` table, filtrowane przez RLS.
   - (L3) **Rule engine definitions** — per-org (ADR-029). Cascading chains, gate criteria, workflow definitions są danymi filtrowanymi RLS.
   - (L4) **Reference tables data** — per-org (ADR-010 extended). Pack sizes, lines, dieset — zawartość per-org, struktura wspólna (L1).
 - **RLS pattern extended** — standardowy ADR-013 (users lookup) działa dla L2/L3/L4 tak samo jak dla L1. Nowe policies dla config tables: identyczny szablon, `org_id = (SELECT org_id FROM users WHERE id = auth.uid())`.
-- **Seed strategy** — nowy org dostaje seed templates: "food-manufacturing-SMB default" (zestaw kolumn / reguł / działów dla typowego producenta), potem customize w Settings. Forza = seed + 12 miesięcy customizacji. Template = data, nie kod.
-- **Rationale:** (1) multi-tenant from day 1 (business requirement), (2) PLD v7 migration nie będzie rewrite — Forza dostaje seed z PLD v7 reality Phase A, (3) D365 replacement długoterminowo (inni klienci nie mają D365 = legacy-D365 kolumny wyłączone feature flag).
+- **Seed strategy** — nowy org dostaje seed templates: "food-manufacturing-SMB default" (zestaw kolumn / reguł / działów dla typowego producenta), potem customize w Settings. Apex = seed + 12 miesięcy customizacji. Template = data, nie kod.
+- **Rationale:** (1) multi-tenant from day 1 (business requirement), (2) PLD v7 migration nie będzie rewrite — Apex dostaje seed z PLD v7 reality Phase A, (3) D365 replacement długoterminowo (inni klienci nie mają D365 = legacy-D365 kolumny wyłączone feature flag).
 - **Trade-offs:** (1) seed template maintenance overhead, (2) generic UI component dyscyplina, (3) cross-org reporting (service role z explicit org filter — ADR-013 trade-off), (4) upgrade strategy — zmiana L1 schema propaguje do wszystkich orgs automatycznie, zmiana L2+ per org wymaga opt-in.
 - **Alternatives rejected:** (A) One schema for all clients — spec's fundamental rejection, (B) Separate DB per tenant — operational overhead, regressy w ADR-003 reasoning, (C) Schema per industry — nie skaluje w ramach food-manufacturing.
-- **Markery:** L1 = `[UNIVERSAL]` per definition, L2–L4 = `[FORZA-CONFIG]` dla konkretów, `[UNIVERSAL]` dla meta-schemy.
+- **Markery:** L1 = `[UNIVERSAL]` per definition, L2–L4 = `[APEX-CONFIG]` dla konkretów, `[UNIVERSAL]` dla meta-schemy.
 - **Open questions:** (a) migrowalność między orgami template-ów ("copy config from org X"), (b) upgrade workflow gdy Monopilot uwalnia nową kolumnę UNIVERSAL — czy automatycznie, czy opt-in.
 - **Related** — META-MODEL §4, ADR-003, ADR-013, ADR-028, ADR-029, ADR-030.
 
@@ -355,7 +355,7 @@ Dla ADR-015: zamiast `EXTENDED` użyj `PARTIALLY SUPERSEDED by ADR-028` z jasnym
 **Files:**
 - Modify: `new-doc/00-foundation/skills/documentation-patterns/SKILL.md`
 
-**Source of truth:** spec §4.2 + §5.6 ("Update 1 istniejącego: `documentation-patterns` — markery UNIVERSAL/FORZA-CONFIG/EVOLVING/LEGACY-D365").
+**Source of truth:** spec §4.2 + §5.6 ("Update 1 istniejącego: `documentation-patterns` — markery UNIVERSAL/APEX-CONFIG/EVOLVING/LEGACY-D365").
 
 - [ ] **Step 1: Read current skill**
 
@@ -370,8 +370,8 @@ Nowa sekcja między istniejącymi. Zawartość:
 | Marker | Znaczenie | Kiedy użyć | Przykład |
 |---|---|---|---|
 | `[UNIVERSAL]` | Fundamentalne dla food-manufacturing MES, każdy klient to ma | Traceability lot, BOM structure, WO state machine | "System MUSI zapewniać forward/backward traceability <30s [UNIVERSAL]" |
-| `[FORZA-CONFIG]` | Forza ustawiła tak, inny klient może mieć inaczej (konfigurowalne w Settings) | Departamenty, kolumny Main Table, cascading reguły | "7 działów: Commercial, Development, Production, Quality, Planning, Procurement, MRP [FORZA-CONFIG]" |
-| `[EVOLVING]` | Projekt jeszcze się zmienia, trzymamy w DB nawet jeśli dziś tylko Forza | MRP struktura (2 działy?), niektóre walidacje | "MRP potencjalnie split na 2 działy [EVOLVING]" |
+| `[APEX-CONFIG]` | Apex ustawiła tak, inny klient może mieć inaczej (konfigurowalne w Settings) | Departamenty, kolumny Main Table, cascading reguły | "7 działów: Commercial, Development, Production, Quality, Planning, Procurement, MRP [APEX-CONFIG]" |
+| `[EVOLVING]` | Projekt jeszcze się zmienia, trzymamy w DB nawet jeśli dziś tylko Apex | MRP struktura (2 działy?), niektóre walidacje | "MRP potencjalnie split na 2 działy [EVOLVING]" |
 | `[LEGACY-D365]` | Istnieje tylko z powodu D365, zniknie po migracji (feature flag `integration.d365.enabled`) | D365 Builder logic, D365 error codes, D365 kolumny | "Kolumna D365_ItemNumber [LEGACY-D365]" |
 
 - **Application rules:**
@@ -380,7 +380,7 @@ Nowa sekcja między istniejącymi. Zawartość:
   - Niedozwolony brak markera w nowych dokumentach Phase A+ (review gate).
   - Istniejące dokumenty (pre-Phase 0) — progressive migration, nie big-bang.
 
-- **Conflict resolution:** gdy wymaganie jest *zarówno* UNIVERSAL jak i ma Forza-specific value: użyj UNIVERSAL dla *zasady*, FORZA-CONFIG dla *wartości*. Przykład: "System MUSI obsługiwać allergeny [UNIVERSAL]. Forza używa 14 EU allergens [FORZA-CONFIG]."
+- **Conflict resolution:** gdy wymaganie jest *zarówno* UNIVERSAL jak i ma Apex-specific value: użyj UNIVERSAL dla *zasady*, APEX-CONFIG dla *wartości*. Przykład: "System MUSI obsługiwać allergeny [UNIVERSAL]. Apex używa 14 EU allergens [APEX-CONFIG]."
 
 - **Related:** META-MODEL.md, REALITY-SYNC.md (markery używane przy sync reality sources), spec §4.2.
 
@@ -413,7 +413,7 @@ Struktura:
 - **When to use:** projekt modułu / tabeli / zestawu walidacji; decyzja architektoniczna "czy to ma być w kodzie czy w Settings"; review proponowanej zmiany.
 - **Rule of thumb — 3 pytania decyzyjne:**
   1. Czy *inna firma* mogłaby tego potrzebować inaczej? TAK → schema-driven.
-  2. Czy *Forza* zmienia to częściej niż raz na 6 miesięcy? TAK → schema-driven.
+  2. Czy *Apex* zmienia to częściej niż raz na 6 miesięcy? TAK → schema-driven.
   3. Czy to regulatoryjne lub matematyczne (formuły, identyfikatory GS1, itp.)? TAK → code-driven.
 - **Pattern: atrybuty metadanej kolumny** (stabilny set atrybutów per obiekt) — bez konkretów technicznych, lista atrybutów jako tabela.
 - **Anti-patterns:**
@@ -421,9 +421,9 @@ Struktura:
   - Hardcoded enums dla departamentów / kolumn / reguł (blokuje multi-tenant).
   - Schema-driven dla rzeczy stałych prawnie (allergeny EU-14, GTIN format).
 - **Examples (z markerami):**
-  - Kolumna `Pack_Size` w NPD Main Table → schema-driven [FORZA-CONFIG], bo Forza dodaje rozmiary miesięcznie.
+  - Kolumna `Pack_Size` w NPD Main Table → schema-driven [APEX-CONFIG], bo Apex dodaje rozmiary miesięcznie.
   - Walidacja GS1-128 format → code-driven [UNIVERSAL], bo regulatoryjne.
-  - Departament `Quality` → schema-driven [FORZA-CONFIG] (ADR-030).
+  - Departament `Quality` → schema-driven [APEX-CONFIG] (ADR-030).
 - **Handoff do innych skilli:** `rule-engine-dsl` (gdy schema-driven potrzebuje reguł dynamicznych), `multi-tenant-variation` (gdy variation per org), `architecture-adr` (gdy decyzja warta ADR).
 - **Related:** ADR-028, META-MODEL §1 i §3, spec §2.
 
@@ -459,7 +459,7 @@ Struktura:
 - **When NOT to use:** reguły matematyczne (formuły BOM costing), integracje, logika transakcyjna, regulatoryjne (GS1, HACCP) — to code-driven, nie DSL.
 - **Semantic primitives (bez konkretnej składni):** predicates (field-comparison, boolean combinators), actions (allow-values, set-required, block-transition, require-checklist), references (literals, other-field, reference-table, org-config).
 - **Documentation format in ADRs / module docs:** gdy opisujesz regułę, użyj tabeli decyzyjnej albo Mermaid state diagram; NIE pisz konkretnego JSON / SQL / TS.
-- **Markery application:** silnik DSL runtime = `[UNIVERSAL]`, każda konkretna reguła = `[FORZA-CONFIG]` lub `[EVOLVING]`.
+- **Markery application:** silnik DSL runtime = `[UNIVERSAL]`, każda konkretna reguła = `[APEX-CONFIG]` lub `[EVOLVING]`.
 - **Handoff:** `schema-driven-design` (gdy reguła referencjuje schema-driven pole), `multi-tenant-variation` (gdy reguła różni się per org).
 - **Related:** ADR-029, META-MODEL §2 i §8, ADR-007.
 
@@ -527,7 +527,7 @@ Struktura:
 - **When to use:** projektowanie tabeli / reguły / zasobu w którym musi być variation per org; review czy proponowana zmiana respektuje 4-warstwowy model (L1 core / L2 column defs / L3 rules / L4 reference data).
 - **Core model — 4 warstwy (z ADR-031):** szybka tabela z examples per layer.
 - **RLS pattern reminder:** users-lookup (ADR-013) stosujemy jednolicie dla L1/L2/L3/L4 config tables.
-- **Seed strategy:** food-manufacturing-SMB default template → customize per org. Forza = template + 12 miesięcy customizacji.
+- **Seed strategy:** food-manufacturing-SMB default template → customize per org. Apex = template + 12 miesięcy customizacji.
 - **Anti-patterns:**
   - Hardcoded per-client values (blokuje onboarding nowego org).
   - Separate DB per tenant (ADR-003 rejected this).
@@ -571,7 +571,7 @@ Sekcje (wzorowane na DOCUMENTATION-SYNC):
 - **Two-session pattern (obowiązkowy):**
   - **Session A — capture:** zmiana reality → update `_meta/reality-sources/<source>/<file>.md` + wpis w HANDOFF "needs propagation to modules X, Y, Z".
   - **Session B — propagate:** read HANDOFF → per zmiana brainstorm marker → update moduły → link back do reality source z pełną ścieżką.
-- **Markery at sync time:** każda propagowana zmiana musi dostać marker (UNIVERSAL / FORZA-CONFIG / EVOLVING / LEGACY-D365). Brainstorm "jakie to jest" to kluczowa aktywność Session B.
+- **Markery at sync time:** każda propagowana zmiana musi dostać marker (UNIVERSAL / APEX-CONFIG / EVOLVING / LEGACY-D365). Brainstorm "jakie to jest" to kluczowa aktywność Session B.
 - **Drift detection:**
   - Green (<10%): reality source current, propagation complete.
   - Yellow (10–25%): reality source out-of-date lub propagation w backlog.
@@ -852,7 +852,7 @@ Deliverables:
 - _meta/reality-sources/pld-v7-excel/PROCESS-OVERVIEW.md
 - _meta/reality-sources/pld-v7-excel/DEPARTMENTS.md
 
-Scope: End-to-end PLD v7 flow (kto, co, kiedy, po co) + 7 działów Forzy with handoffs between them.
+Scope: End-to-end PLD v7 flow (kto, co, kiedy, po co) + 7 działów Apexa with handoffs between them.
 
 ## Kontekst do odświeżenia (MUSI przeczytać na starcie)
 1. META-MODEL.md (świeży)
@@ -914,7 +914,7 @@ Zwięzłe podsumowanie (5–10 linii):
 
 **3. Type / identifier consistency:**
 - ADR numery konsystentne: 028/029/030/031 wszędzie.
-- Markery: zawsze `[UNIVERSAL]` / `[FORZA-CONFIG]` / `[EVOLVING]` / `[LEGACY-D365]` — dokładnie ta forma, żadnych wariantów (`universal`, `UNIVERSAL`, `Universal`).
+- Markery: zawsze `[UNIVERSAL]` / `[APEX-CONFIG]` / `[EVOLVING]` / `[LEGACY-D365]` — dokładnie ta forma, żadnych wariantów (`universal`, `UNIVERSAL`, `Universal`).
 - Skill names: `schema-driven-design`, `rule-engine-dsl`, `reality-sync-workflow`, `multi-tenant-variation` — kebab-case, spójne z istniejącymi (np. `architecture-adr`).
 - Path conventions: `new-doc/00-foundation/...` (pełne ścieżki w cross-references), oraz `_meta/reality-sources/pld-v7-excel/*` dla reality layer.
 - Ścieżka spec-a: `docs/superpowers/specs/2026-04-17-monopilot-migration-design.md` (single source).

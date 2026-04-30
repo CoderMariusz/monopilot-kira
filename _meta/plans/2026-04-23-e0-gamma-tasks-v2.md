@@ -1483,12 +1483,12 @@ Delete `apps/web/app/api/rules/dry-run/route.ts` + `apps/web/lib/rules/dry-run.t
 **max_attempts:** 3
 
 ### Dependencies
-- **Upstream (must be done first):** [T-00g-001 — reference_rules table exists, T-00b-004 — forza-baseline snapshot exists]
+- **Upstream (must be done first):** [T-00g-001 — reference_rules table exists, T-00b-004 — apex-baseline snapshot exists]
 - **Downstream (will consume this):** none
 - **Parallel (can run concurrently):** [T-00g-006]
 
 ### GIVEN / WHEN / THEN
-**GIVEN** `reference_rules` table exists and `forza-baseline` snapshot script exists
+**GIVEN** `reference_rules` table exists and `apex-baseline` snapshot script exists
 **WHEN** seed runs (`pnpm seed:baseline` or equivalent)
 **THEN** exactly 3 canonical rules are present: `fefo_pick_v1` (cascading), `catch_weight_required_v1` (conditional_required), `allergen_changeover_gate_v1` (gate); factory helper `createRule(overrides?)` exported for test use
 
@@ -1498,11 +1498,11 @@ Delete `apps/web/app/api/rules/dry-run/route.ts` + `apps/web/lib/rules/dry-run.t
 
 ## Context — przeczytaj przed implementacją
 - `/Users/mariuszkrawczyk/Projects/monopilot-kira/00-FOUNDATION-PRD.md` → znajdź sekcję `## §7 — Rule Engine DSL` — JSON examples dla allergen changeover gate (exact DSL do użycia w seedzie)
-- `/Users/mariuszkrawczyk/Projects/monopilot-kira/apps/web/seed/` → sprawdź istniejące pliki seed (ls) żeby poznać konwencję + plik `forza-baseline.ts` lub odpowiednik — gdzie dodać reference_rules seed
+- `/Users/mariuszkrawczyk/Projects/monopilot-kira/apps/web/seed/` → sprawdź istniejące pliki seed (ls) żeby poznać konwencję + plik `apex-baseline.ts` lub odpowiednik — gdzie dodać reference_rules seed
 - `/Users/mariuszkrawczyk/Projects/monopilot-kira/apps/web/drizzle/schema/rules.ts` — cały plik (Drizzle typed insert schema)
 
 ## Twoje zadanie
-Utwórz seed helper dla `reference_rules` z 3 kanonicznymi regułami Forza. Seed musi być idempotentny (upsert, nie insert). Factory `createRule` do użycia w testach.
+Utwórz seed helper dla `reference_rules` z 3 kanonicznymi regułami Apex. Seed musi być idempotentny (upsert, nie insert). Factory `createRule` do użycia w testach.
 
 3 kanoniczne reguły do zaseedowania:
 
@@ -1560,7 +1560,7 @@ Utwórz seed helper dla `reference_rules` z 3 kanonicznymi regułami Forza. Seed
    export async function seedRules(tenantId: string) { ... }
    ```
    Każda reguła ma `external_id` = jej nazwa (np. `'fefo_pick_v1'`) — upsert ON CONFLICT(external_id) DO UPDATE.
-3. Dodaj wywołanie `seedRules(FORZA_TENANT_ID)` do snapshot `forza-baseline` w `apps/web/seed/forza-baseline.ts` — dodaj wywołanie w odpowiednim miejscu.
+3. Dodaj wywołanie `seedRules(APEX_TENANT_ID)` do snapshot `apex-baseline` w `apps/web/seed/apex-baseline.ts` — dodaj wywołanie w odpowiednim miejscu.
 4. Napisz integration test `apps/web/seed/__tests__/rules-seed.integration.test.ts`:
    - Test 1: po `seedRules()` — count 3 reguły
    - Test 2: uruchom `seedRules()` dwa razy — nadal 3 reguły (idempotency)
@@ -1568,7 +1568,7 @@ Utwórz seed helper dla `reference_rules` z 3 kanonicznymi regułami Forza. Seed
 
 ## Files
 **Create:** `apps/web/seed/rules-seed.ts`, `apps/web/seed/__tests__/rules-seed.integration.test.ts`
-**Modify:** `apps/web/seed/forza-baseline.ts` (lub odpowiednik znaleziony w kroku 1) — dodaj: wywołanie `seedRules(FORZA_TENANT_ID)`
+**Modify:** `apps/web/seed/apex-baseline.ts` (lub odpowiednik znaleziony w kroku 1) — dodaj: wywołanie `seedRules(APEX_TENANT_ID)`
 
 ## Done when
 - `vitest apps/web/seed/__tests__/rules-seed.integration.test.ts` PASS — 3 rules seeded, idempotent, factory works
@@ -2517,7 +2517,7 @@ THEN: global setup resetuje DB przed suite; fixture używa app_role; withTenant 
 ````
 
 ---
-## T-00i-004 — Seed fixture library (Forza baseline + synthetic multi-tenant)
+## T-00i-004 — Seed fixture library (Apex baseline + synthetic multi-tenant)
 
 **Type:** T5-seed
 **Context budget:** ~40k tokens
@@ -2539,7 +2539,7 @@ THEN: global setup resetuje DB przed suite; fixture używa app_role; withTenant 
 ### GIVEN / WHEN / THEN
 **GIVEN** seed runner exists (`apps/web/seed/runner.ts`), DB schema applied with tenants/users/roles tables
 **WHEN** `applySnapshot('multi-tenant-3')` is called in a test or seed script
-**THEN** 3 tenant orgs inserted with deterministic UUIDs (seeded by fixed seed string, not random); each tenant has disjoint users (no cross-tenant user sharing); 2 shared role kinds (`admin`, `viewer`) exist across all tenants; `applySnapshot('forza-baseline')` inserts Forza SpA org with 10 users; `applySnapshot('empty-tenant')` inserts 1 minimal tenant with 0 users; all UUIDs are deterministic (same call = same UUIDs, verified by unit test)
+**THEN** 3 tenant orgs inserted with deterministic UUIDs (seeded by fixed seed string, not random); each tenant has disjoint users (no cross-tenant user sharing); 2 shared role kinds (`admin`, `viewer`) exist across all tenants; `applySnapshot('apex-baseline')` inserts Apex SpA org with 10 users; `applySnapshot('empty-tenant')` inserts 1 minimal tenant with 0 users; all UUIDs are deterministic (same call = same UUIDs, verified by unit test)
 
 ### Test gate
 - **Unit:** `vitest apps/web/seed/__tests__/seed-determinism.test.ts` — calls `applySnapshot('multi-tenant-3')` twice on in-memory data structure, verifies UUID equality
@@ -2550,7 +2550,7 @@ THEN: global setup resetuje DB przed suite; fixture używa app_role; withTenant 
 
 ### ACP Prompt
 ````
-# Task T-00i-004 — Seed fixture library (Forza baseline + synthetic multi-tenant)
+# Task T-00i-004 — Seed fixture library (Apex baseline + synthetic multi-tenant)
 
 ## Context — przeczytaj przed implementacją
 - `/Users/mariuszkrawczyk/Projects/monopilot-kira/apps/web/drizzle/schema/` → sprawdź istniejące schematy tabel: tenants, users, roles (po T-00b-004)
@@ -2559,7 +2559,7 @@ THEN: global setup resetuje DB przed suite; fixture używa app_role; withTenant 
 ## Twoje zadanie
 GIVEN: seed runner istnieje; DB schema zastosowana.
 WHEN: applySnapshot('multi-tenant-3') wywołane.
-THEN: 3 tenants, disjoint users, deterministic UUIDs; forza-baseline = 10 users; empty-tenant = 0 users; unit test potwierdza determinizm.
+THEN: 3 tenants, disjoint users, deterministic UUIDs; apex-baseline = 10 users; empty-tenant = 0 users; unit test potwierdza determinizm.
 
 ## Implementacja
 1. Utwórz `apps/web/seed/utils/deterministic-uuid.ts`:
@@ -2570,11 +2570,11 @@ THEN: 3 tenants, disjoint users, deterministic UUIDs; forza-baseline = 10 users;
      return uuidv5(seed, SEED_NAMESPACE)
    }
    ```
-2. Utwórz `apps/web/seed/forza-baseline.ts`:
-   - `export const FORZA_TENANT_ID = deterministicUuid('forza-spa-tenant')`
-   - Factory: `export const createForzaOrg = (overrides?) => db.insert(tenants).values({ id: FORZA_TENANT_ID, name: 'Forza SpA', slug: 'forza-spa', ...overrides })`
-   - 10 users: array of `createUser({ tenantId: FORZA_TENANT_ID, email: `user${i}@forza-spa.test`, ... })` gdzie i=1..10
-   - Export `export async function applyForzaBaseline(db: DrizzleDb): Promise<void>`
+2. Utwórz `apps/web/seed/apex-baseline.ts`:
+   - `export const APEX_TENANT_ID = deterministicUuid('apex-spa-tenant')`
+   - Factory: `export const createApexOrg = (overrides?) => db.insert(tenants).values({ id: APEX_TENANT_ID, name: 'Apex SpA', slug: 'apex-spa', ...overrides })`
+   - 10 users: array of `createUser({ tenantId: APEX_TENANT_ID, email: `user${i}@apex-spa.test`, ... })` gdzie i=1..10
+   - Export `export async function applyApexBaseline(db: DrizzleDb): Promise<void>`
 3. Utwórz `apps/web/seed/empty-tenant.ts`:
    - `export const EMPTY_TENANT_ID = deterministicUuid('empty-tenant')`
    - `export async function applyEmptyTenant(db: DrizzleDb): Promise<void>` — insert 1 tenant, 0 users
@@ -2585,9 +2585,9 @@ THEN: 3 tenants, disjoint users, deterministic UUIDs; forza-baseline = 10 users;
    - `export async function applyMultiTenant3(db: DrizzleDb): Promise<void>`
 5. Utwórz dispatcher `apps/web/seed/runner.ts` (lub rozszerz istniejący):
    ```typescript
-   export type SnapshotName = 'forza-baseline' | 'empty-tenant' | 'multi-tenant-3'
+   export type SnapshotName = 'apex-baseline' | 'empty-tenant' | 'multi-tenant-3'
    export async function applySnapshot(name: SnapshotName, db: DrizzleDb): Promise<void> {
-     if (name === 'forza-baseline') return applyForzaBaseline(db)
+     if (name === 'apex-baseline') return applyApexBaseline(db)
      if (name === 'empty-tenant') return applyEmptyTenant(db)
      if (name === 'multi-tenant-3') return applyMultiTenant3(db)
    }
@@ -2595,7 +2595,7 @@ THEN: 3 tenants, disjoint users, deterministic UUIDs; forza-baseline = 10 users;
    - Napisz `apps/web/seed/__tests__/seed-determinism.test.ts`:
    - Dodaj `uuid` i `@types/uuid` do `apps/web/package.json` — uruchom `pnpm add uuid` oraz `pnpm add -D @types/uuid` w katalogu `apps/web` jeśli tych wpisów jeszcze nie ma
 ## Files
-**Create:** `apps/web/seed/utils/deterministic-uuid.ts`, `apps/web/seed/forza-baseline.ts`, `apps/web/seed/empty-tenant.ts`, `apps/web/seed/multi-tenant-3.ts`, `apps/web/seed/__tests__/seed-determinism.test.ts`
+**Create:** `apps/web/seed/utils/deterministic-uuid.ts`, `apps/web/seed/apex-baseline.ts`, `apps/web/seed/empty-tenant.ts`, `apps/web/seed/multi-tenant-3.ts`, `apps/web/seed/__tests__/seed-determinism.test.ts`
 **Modify:** `apps/web/seed/runner.ts` — dodaj applySnapshot dispatcher (lub utwórz)
 
 ## Done when
@@ -3157,7 +3157,7 @@ Wave 3 (after Wave 2b + Wave 0b Sentry): T-00i-008 (needs T-00i-002 + T-00i-006)
 ✅ §D10 Vitest testing — T-00i-001 (workspace harness + coverage v8 ≥85%)
 ✅ §D10 CI pipeline — T-00i-002 (GitHub Actions 5-job matrix)
 ✅ §D10 Integration test harness — T-00i-003 (Supabase local + db:reset + withTenant)
-✅ §D10 Seed fixtures — T-00i-004 (Forza baseline + empty-tenant + multi-tenant-3)
+✅ §D10 Seed fixtures — T-00i-004 (Apex baseline + empty-tenant + multi-tenant-3)
 ✅ §D10 Playwright E2E — T-00i-005 (harness + auth fixture + smoke spec)
 ✅ §Observability Sentry — T-00i-006 (web @sentry/nextjs + worker @sentry/node + source maps)
 ✅ §R6 PostHog feature flags — T-00i-007 (self-host skeleton + flag() server + useFlag() client)

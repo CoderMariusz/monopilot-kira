@@ -6,7 +6,7 @@ sync_status: needs_review
 propagated_to: []
 ---
 
-# DEPARTMENTS — 7 działów Forza w PLD v7
+# DEPARTMENTS — 7 działów Apex w PLD v7
 
 **Reality source:** `C:\Users\MaKrawczyk\PLD\v7\Smart_PLD_v7.xlsm` → 7 dept proxy tabs + `Reference.DeptColumns` config table
 **Phase:** A Session 1 (capture)
@@ -16,15 +16,15 @@ propagated_to: []
 
 ## Purpose
 
-Dokument kodyfikuje **7 działów Forza Foods** zaangażowanych w proces PLD v7, ich odpowiedzialności w kontekście wypełniania Main Table, handoffs pomiędzy nimi oraz rolę orchestratora (Jane, NPD Manager). Razem z [`PROCESS-OVERVIEW.md`](./PROCESS-OVERVIEW.md) stanowi pierwszy parę reality capture Phase A.
+Dokument kodyfikuje **7 działów Apex Foods** zaangażowanych w proces PLD v7, ich odpowiedzialności w kontekście wypełniania Main Table, handoffs pomiędzy nimi oraz rolę orchestratora (Jane, NPD Manager). Razem z [`PROCESS-OVERVIEW.md`](./PROCESS-OVERVIEW.md) stanowi pierwszy parę reality capture Phase A.
 
-**Marker konwencja:** Nazwa taxonomy działów jest `[FORZA-CONFIG]` (inny klient ma inne działy — zobacz ADR-030). Poszczególne role są mieszanką `[FORZA-CONFIG]` (lokalne) i `[UNIVERSAL]` (np. Procurement = zamawianie, Technical = shelf life + allergens są uniwersalne dla food-mfg MES).
+**Marker konwencja:** Nazwa taxonomy działów jest `[APEX-CONFIG]` (inny klient ma inne działy — zobacz ADR-030). Poszczególne role są mieszanką `[APEX-CONFIG]` (lokalne) i `[UNIVERSAL]` (np. Procurement = zamawianie, Technical = shelf life + allergens są uniwersalne dla food-mfg MES).
 
 ---
 
-## §1 — Overview `[FORZA-CONFIG]`
+## §1 — Overview `[APEX-CONFIG]`
 
-Siedem działów Forza (lista 1:1 z sheet names w `Smart_PLD_v7.xlsm`; konfiguracja docelowo schema-driven per ADR-030):
+Siedem działów Apex (lista 1:1 z sheet names w `Smart_PLD_v7.xlsm`; konfiguracja docelowo schema-driven per ADR-030):
 
 1. **Core** (NPD team / Development)
 2. **Planning**
@@ -71,13 +71,13 @@ Każdy dept tab ma autofilter na `Done_[Dept]` (TRUE → wiersz znika). Każdy d
 
 Jane jednocześnie **jest częścią NPD team** (3 osoby — Core section), więc operuje i w Core stage i jako orchestrator. Nie ma formalnego wyodrębnienia "NPD Manager" dept w workbooku — Jane jest "power user" z dodatkowymi uprawnieniami (D365 Builder button, Dashboard review).
 
-**Marker:** Rola NPD Manager jako osobny byt architektoniczny = `[UNIVERSAL]` (każda firma food-mfg ma kogoś kto orchestrator'uje NPD). Konkretna osoba = `[FORZA-CONFIG]`.
+**Marker:** Rola NPD Manager jako osobny byt architektoniczny = `[UNIVERSAL]` (każda firma food-mfg ma kogoś kto orchestrator'uje NPD). Konkretna osoba = `[APEX-CONFIG]`.
 
 ---
 
 ## §3 — Per-department detail
 
-Kolumny w każdej sekcji pochodzą z `Reference.DeptColumns` (row ranges podano w `PROCESS-OVERVIEW.md` §1 context). Wszystkie kolumny dept-owned = `[FORZA-CONFIG]`, chyba że oznaczono inaczej.
+Kolumny w każdej sekcji pochodzą z `Reference.DeptColumns` (row ranges podano w `PROCESS-OVERVIEW.md` §1 context). Wszystkie kolumny dept-owned = `[APEX-CONFIG]`, chyba że oznaczono inaczej.
 
 ---
 
@@ -114,15 +114,15 @@ Pozostałe brief packaging fields (Primary/Secondary Packaging text, Top Web Typ
 **Trigger handoff:** `Closed_Core=TRUE` → 5 działów (Planning, Commercial, Production, Technical, MRP) może zacząć pracę równolegle. Procurement **nie zaczyna** — czeka na Production + MRP components (§3.7).
 
 **Marker scope:**
-- Kolumny Main Table per dział = `[FORZA-CONFIG]` (inny org może mieć inny zestaw)
+- Kolumny Main Table per dział = `[APEX-CONFIG]` (inny org może mieć inny zestaw)
 - Istnienie "Core / NPD setup stage" = `[UNIVERSAL]` (każda firma food-mfg potrzebuje master data setup na początku NPD)
-- Konkretne kolumny (Pack_Size values, RM code format, Template list) = `[FORZA-CONFIG]`
+- Konkretne kolumny (Pack_Size values, RM code format, Template list) = `[APEX-CONFIG]`
 
 ---
 
 ### 3.2 Planning
 
-**Ownership:** Planning dział Forza (osoby do doprecyzowania w kolejnej iteracji)
+**Ownership:** Planning dział Apex (osoby do doprecyzowania w kolejnej iteracji)
 
 **Rola biznesowa:** Planuje produkcję — ile meat content, ile runów na tydzień, jak się rozkłada na date codes. Zapewnia mostek między commercial volumes a production scheduling.
 
@@ -145,7 +145,7 @@ Pozostałe brief packaging fields (Primary/Secondary Packaging text, Top Web Typ
 
 ### 3.3 Commercial
 
-**Ownership:** Commercial dział Forza
+**Ownership:** Commercial dział Apex
 
 **Rola biznesowa:** Interface z klientem — launch date, article numbers (katalog klienta), barcodes, commercial volumes (cases per week podział na W1/W2/W3 = pierwsze 3 tygodnie launch).
 
@@ -172,7 +172,7 @@ Pozostałe brief packaging fields (Primary/Secondary Packaging text, Top Web Typ
 
 ### 3.4 Production
 
-**Ownership:** Production dział Forza
+**Ownership:** Production dział Apex
 
 **Rola biznesowa:** **Najszerszy dział w PLD** (19 kolumn). Definiuje procesy produkcyjne (1–4 stages), yields na każdym etapie, linię produkcyjną, dieset, staffing, rate produkcji, PR codes (process codes z suffixami).
 
@@ -199,7 +199,7 @@ Pozostałe brief packaging fields (Primary/Secondary Packaging text, Top Web Typ
 
 ### 3.5 Technical (Quality)
 
-**Ownership:** Technical dział Forza — funkcjonalnie odpowiada za Quality / QA / Food safety
+**Ownership:** Technical dział Apex — funkcjonalnie odpowiada za Quality / QA / Food safety
 
 **Rola biznesowa:** Zapewnia jakość żywnościową i zgodność regulatoryjną. Dziś wypełnia tylko `Shelf_Life`, ale rola szersza — dojdzie **Allergens** (w trakcie implementacji `[EVOLVING]`).
 
@@ -223,11 +223,11 @@ Pozostałe brief packaging fields (Primary/Secondary Packaging text, Top Web Typ
 2. Sprawdza czy są kompletne
 3. Jeśli brakuje alergenu (np. dodatkowy ingredient nie skodyfikowany w RM) — wybiera z listy (nowa tabela `Reference.Allergens` — **dziś nie istnieje**, do dodania)
 
-**Nowa reference tabela planowana:** `Reference.Allergens` (lista alergenów z kodami). Forza prawdopodobnie używa 14 EU allergens (standard EU Regulation 1169/2011) — do potwierdzenia.
+**Nowa reference tabela planowana:** `Reference.Allergens` (lista alergenów z kodami). Apex prawdopodobnie używa 14 EU allergens (standard EU Regulation 1169/2011) — do potwierdzenia.
 
 **Marker:**
 - Allergens jako obszar wymagań = `[UNIVERSAL]` (każda firma food-mfg EU musi je obsługiwać)
-- Konkretna lista `Reference.Allergens` = `[FORZA-CONFIG]` (seed = 14 EU, inne regiony mogą mieć inne)
+- Konkretna lista `Reference.Allergens` = `[APEX-CONFIG]` (seed = 14 EU, inne regiony mogą mieć inne)
 - Cascade RM→FA logic = `[UNIVERSAL]` (fundamentalny wzorzec traceability allergens)
 
 Dopóki cascade + Reference.Allergens nie są zaimplementowane, Technical jest "płytki" (2 kolumny). Po implementacji stanie się pełnym QA dept.
@@ -236,7 +236,7 @@ Dopóki cascade + Reference.Allergens nie są zaimplementowane, Technical jest "
 
 ### 3.6 MRP
 
-**Ownership:** MRP dział Forza (Material Requirements Planning)
+**Ownership:** MRP dział Apex (Material Requirements Planning)
 
 **Rola biznesowa:** Packaging specs (boxes, labels, films, sleeves, cartons, tara weight, pallet plans). Potwierdza materiały opakowaniowe / jeśli brakuje — dodaje.
 
@@ -276,7 +276,7 @@ Dopóki cascade + Reference.Allergens nie są zaimplementowane, Technical jest "
 
 ### 3.7 Procurement
 
-**Ownership:** Procurement dział Forza
+**Ownership:** Procurement dział Apex
 
 **Rola biznesowa:** Realizacja zakupu — supplier management, cena (po potwierdzeniu components), lead time, shelf life z perspektywy dostawcy.
 
@@ -363,7 +363,7 @@ Niezgodności z pre-Phase-0 docs do zafiksowania:
 
 ## §6 — Non-PLD activities (poza zakresem tego docu)
 
-Działy Forza mają szersze obowiązki biznesowe niż tylko wypełnianie PLD:
+Działy Apex mają szersze obowiązki biznesowe niż tylko wypełnianie PLD:
 
 - **Commercial** — relacje z klientami, negocjacje, sprzedaż (poza PLD)
 - **Production** — realne uruchomienie produkcji na linii (post-PLD)
@@ -386,19 +386,19 @@ Zestawienie markerów dla treści tego dokumentu (review before propagation w Se
 | Istnienie "Core / NPD setup stage" | `[UNIVERSAL]` | Każda firma food-mfg ma setup stage |
 | Istnienie "Technical / QA" stage | `[UNIVERSAL]` | Regulatoryjne (shelf life, allergens) — każda firma |
 | Istnienie "Procurement" stage | `[UNIVERSAL]` | Każda firma kupuje materiały |
-| Konkretna taxonomy 7 działów Forza | `[FORZA-CONFIG]` | Inna firma ma inne działy (ADR-030) |
-| Konkretne nazwy działów (Core/Planning/Commercial/...) | `[FORZA-CONFIG]` | Naming per org |
-| Liczba działów (7) | `[FORZA-CONFIG]` | Per org |
-| Konkretne kolumny dept-owned | `[FORZA-CONFIG]` | Per org (ADR-028) |
-| Cascade Pack_Size → Line → Dieset | `[FORZA-CONFIG]` (mechanizm cascading rule engine = `[UNIVERSAL]` META-MODEL §2) | Mechanizm uniwersalny, konkretne reguły Forza |
-| Allergens cascade RM → FA | `[UNIVERSAL]` (pattern) + `[FORZA-CONFIG]` (Reference.Allergens list) | Food-mfg universal; lista seed EU14 FORZA-CONFIG |
-| Procurement `Price` waits for Production+MRP components | `[FORZA-CONFIG]` | Inny org może mieć inną kolejność |
-| Dashboard read access dla wszystkich dept managers | `[UNIVERSAL]` (pattern) + `[FORZA-CONFIG]` (per-role scoping) | Wszyscy managerowie widzą postęp (wzorzec uniwersalny), konkretne role mapping FORZA-CONFIG |
-| Dashboard review daily by NPD Manager | `[FORZA-CONFIG]` | Cadence per org |
-| D365 Builder execute tylko NPD Manager (Jane) | `[FORZA-CONFIG]` (scope) + `[LEGACY-D365]` (feature istnienie) | Per-role access (scope) zniknie gdy D365 zniknie |
-| 24-week minimum brief-to-launch | `[FORZA-CONFIG]` | Per org biznes constraint |
+| Konkretna taxonomy 7 działów Apex | `[APEX-CONFIG]` | Inna firma ma inne działy (ADR-030) |
+| Konkretne nazwy działów (Core/Planning/Commercial/...) | `[APEX-CONFIG]` | Naming per org |
+| Liczba działów (7) | `[APEX-CONFIG]` | Per org |
+| Konkretne kolumny dept-owned | `[APEX-CONFIG]` | Per org (ADR-028) |
+| Cascade Pack_Size → Line → Dieset | `[APEX-CONFIG]` (mechanizm cascading rule engine = `[UNIVERSAL]` META-MODEL §2) | Mechanizm uniwersalny, konkretne reguły Apex |
+| Allergens cascade RM → FA | `[UNIVERSAL]` (pattern) + `[APEX-CONFIG]` (Reference.Allergens list) | Food-mfg universal; lista seed EU14 APEX-CONFIG |
+| Procurement `Price` waits for Production+MRP components | `[APEX-CONFIG]` | Inny org może mieć inną kolejność |
+| Dashboard read access dla wszystkich dept managers | `[UNIVERSAL]` (pattern) + `[APEX-CONFIG]` (per-role scoping) | Wszyscy managerowie widzą postęp (wzorzec uniwersalny), konkretne role mapping APEX-CONFIG |
+| Dashboard review daily by NPD Manager | `[APEX-CONFIG]` | Cadence per org |
+| D365 Builder execute tylko NPD Manager (Jane) | `[APEX-CONFIG]` (scope) + `[LEGACY-D365]` (feature istnienie) | Per-role access (scope) zniknie gdy D365 zniknie |
+| 24-week minimum brief-to-launch | `[APEX-CONFIG]` | Per org biznes constraint |
 | D365 Builder click | `[LEGACY-D365]` | Zniknie po zastąpieniu D365 |
-| Jane (personalia) | `[FORZA-CONFIG]` | Konkretna osoba |
+| Jane (personalia) | `[APEX-CONFIG]` | Konkretna osoba |
 | NPD Manager role (abstrakcja) | `[UNIVERSAL]` | Każda firma ma orchestrator NPD |
 
 Review markerów **odbywa się podczas Session B propagation** — nie w Session 1 (capture). Ta tabela to input-draft dla Session B brainstormu.
@@ -418,7 +418,7 @@ Review markerów **odbywa się podczas Session B propagation** — nie w Session
 - `14-procurement/` (Phase C) — Procurement scope + dependency na Production+MRP
 
 **Nowe reference do dodania w Monopilot (Phase C):**
-- Schemat "departments as config-table" (ADR-030) — seed 7 działów Forza + ADMIN UI do add/rename/reorder
+- Schemat "departments as config-table" (ADR-030) — seed 7 działów Apex + ADMIN UI do add/rename/reorder
 - Schemat "allergens as config-table" (ADR-030 extension) — seed EU14 + cascade RM→FA rule
 
 ---

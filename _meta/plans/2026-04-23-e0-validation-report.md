@@ -195,7 +195,7 @@ Based on reading `00-FOUNDATION-PRD.md` sections against the 95-task plan:
 
 ⚠️ **§8 — Upgrade orchestration (canary, tenant migrations table)** → NOT COVERED in E-0 — no task creates the `tenant_migrations` table or canary rollout machinery. PRD §8 describes this but it is reasonable to defer to E-1/E-2 infrastructure.
 
-✅ **§9 — Configurable Department Taxonomy [ADR-030]** → Covered via T-00b-E03 (ref-tables enum lock) and T-00b-000 (baseline with modules/organization_modules tables). The 7 Forza dept names are seeded via T-00g-007 (rule seed).
+✅ **§9 — Configurable Department Taxonomy [ADR-030]** → Covered via T-00b-E03 (ref-tables enum lock) and T-00b-000 (baseline with modules/organization_modules tables). The 7 Apex dept names are seeded via T-00g-007 (rule seed).
 
 ✅ **§10 — Event-first + AI/Trace-ready Schema [R1, R13]** → Fully covered:
 - outbox_events table + DLQ → T-00f-001

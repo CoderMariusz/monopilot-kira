@@ -23,10 +23,10 @@ Baseline v1.0 (663 linii, 2026-02-18, 19 tabel, 26 stories) w pełni przepisany 
 | **Q3 ✅** | Yield variance = **A** per WO P1 + Finance aggregates P2 | Reuse 08-PROD `output_yield_gate_v1` consumer, minimal new infrastructure |
 | **Q4 ✅** | Waste cost allocation = **A** full cost × qty per category P1 + recovery credit P2 | Spójne z 09-QA `waste_categories` ref table registered w 02-SETTINGS §8 |
 | **Q5 ✅** | D365 cost posting = **B** daily consolidated journal P1 | Matches period-close practice, zmniejsza D365 API load 100x+ vs per-WO |
-| **Q6 ✅** | Material cost ingestion = **B** D365 pull P1 (extend 03-TECH §13 stage 1) | Forza reality: D365 = source of truth dla RM costs; stage 1 sync adds `cost_per_kg` field |
-| **Q7 ✅** | P2 deferred scope = all (budget, margin, savings, variance decomp, multi-currency, complaint cost, AR/AP, landed cost, OCR, alerts, revaluation) + **Comarch Optima WYCOFANE** | Monopilot zastępuje D365 docelowo; Comarch nie dotyczy Forza. Baseline D-FIN-6 refactored do stage 5. |
+| **Q6 ✅** | Material cost ingestion = **B** D365 pull P1 (extend 03-TECH §13 stage 1) | Apex reality: D365 = source of truth dla RM costs; stage 1 sync adds `cost_per_kg` field |
+| **Q7 ✅** | P2 deferred scope = all (budget, margin, savings, variance decomp, multi-currency, complaint cost, AR/AP, landed cost, OCR, alerts, revaluation) + **Comarch Optima WYCOFANE** | Monopilot zastępuje D365 docelowo; Comarch nie dotyczy Apex. Baseline D-FIN-6 refactored do stage 5. |
 | **Q8 ✅** | DSL rules = 2 P1 (`cost_method_selector_v1`, `waste_cost_allocator_v1`) + 1 P2 stub (`standard_cost_approval_v1`) | Spójny pattern z 07/08/09 module rule registrations |
-| **Q9 ✅** | Currency base = **GBP** (Forza mieści się w UK — user clarification) | Multi-currency P2 EPIC 10-J |
+| **Q9 ✅** | Currency base = **GBP** (Apex mieści się w UK — user clarification) | Multi-currency P2 EPIC 10-J |
 | **Q10 ✅** | Standard cost approval P1 = **A** `finance_manager` sole approver | Simple RBAC P1, dual sign-off upgrade via `standard_cost_approval_v1` v2.0 P2 |
 
 ### Core innovations 10-FINANCE v3.0
@@ -43,11 +43,11 @@ Baseline v1.0 (663 linii, 2026-02-18, 19 tabel, 26 stories) w pełni przepisany 
 | 8 | **Yield loss monthly aggregation** (09-QA `ncr_reports` yield_issue + claim_value_eur query → GBP widget FIN-001) | §13.3 | [UNIVERSAL] |
 | 9 | **21 CFR Part 11 e-signature** dla standard_cost approval (SHA-256 hash + PIN re-verification + immutability trigger `prevent_approved_standard_cost_update`) | §5.3, §6.4 | [UNIVERSAL] |
 | 10 | **7-year retention BRCGS** via `retention_until` DATE GENERATED columns + nightly archival do `archive_finance.*` schema | §5.2 | [UNIVERSAL] |
-| 11 | **GBP base currency** (Q9 Forza UK, user clarification) + multi-currency P2 EPIC 10-J | §5.5, §14 | [FORZA-CONFIG] |
+| 11 | **GBP base currency** (Q9 Apex UK, user clarification) + multi-currency P2 EPIC 10-J | §5.5, §14 | [APEX-CONFIG] |
 | 12 | **15 P1 tables + 3 supporting** (streamlined vs v1.0 19 tables: dropped variance_thresholds/alerts/exports/budgets do P2) | §6 | [UNIVERSAL] |
 | 13 | **29 V-FIN validation rules** (SETUP/STD/WO/INV/VAR/INT) | §11 | [UNIVERSAL] |
 | 14 | **Comarch Optima retired** (Q7) — D365 F&O = sole external ERP target, baseline D-FIN-6 refactored | §3.2 exclusions | — |
-| 15 | **D365 Constants consumer** (dataAreaId=FNOR, warehouse=ForzDG, account=FinGoods) read z 02-SETTINGS §11 w outbox adapter | §12.8 | [LEGACY-D365] |
+| 15 | **D365 Constants consumer** (dataAreaId=FNOR, warehouse=ApexDG, account=FinGoods) read z 02-SETTINGS §11 w outbox adapter | §12.8 | [LEGACY-D365] |
 
 ### Cross-PRD consistency check ✅
 
@@ -85,7 +85,7 @@ Baseline v1.0 (663 linii, 2026-02-18, 19 tabel, 26 stories) w pełni przepisany 
 
 **10-FIN ↔ 02-SETTINGS v3.0 (pending v3.1 delta):**
 - Registers 2 DSL rules w §7 (cost_method_selector_v1, waste_cost_allocator_v1) + 1 P2 stub ✅
-- Reads D365 Constants §11 (dataAreaId=FNOR, warehouse=ForzDG, finished_goods_account=FinGoods) ✅
+- Reads D365 Constants §11 (dataAreaId=FNOR, warehouse=ApexDG, finished_goods_account=FinGoods) ✅
 - Reuses generic reference table infrastructure §8 (no new 10-FIN ref tables added) ✅
 - **Action item:** Cross-PRD revision 02-SETTINGS v3.1 delta application — **BUNDLED z C4 Sesja 3 post 11-SHIPPING** (oszczędność 1 sesji vs separate revision)
 
@@ -114,7 +114,7 @@ Baseline v1.0 (663 linii, 2026-02-18, 19 tabel, 26 stories) w pełni przepisany 
 2. **Outbox template reuse** — 08-PROD §12 stage 2 pattern = 10-FIN stage 5 clone. Zero redesign. Shared implementation artifact (`@monopilot/d365-*-adapter` shared test harness).
 3. **D-FIN-1..10 baseline retain + extend** — v1.0 decision foundation była solidna; v3.0 extension (DSL rules + cascade + consumer hooks).
 4. **Q1-Q10 all match recommendations + user clarification Q9 GBP** — zero rewrite po user response.
-5. **Comarch retirement decision** — jasne cutoff (Monopilot zastępuje D365, Comarch nie relevant dla Forza) → clean v3.0 scope bez legacy baggage.
+5. **Comarch retirement decision** — jasne cutoff (Monopilot zastępuje D365, Comarch nie relevant dla Apex) → clean v3.0 scope bez legacy baggage.
 
 **Drugi ważny moment:** **Stage 5 INTEGRATIONS convergence confirmed** — template pattern established przez 08-PROD §12 stage 2 z C3 Sesja 1 = stage 5 tutaj = stage 3 (11-SHIPPING C4 Sesja 3) = stage 4 (05-WH EPCIS P2). Shared outbox + DLQ + R14/R15 across stages.
 
@@ -154,7 +154,7 @@ Baseline v1.0 (663 linii, 2026-02-18, 19 tabel, 26 stories) w pełni przepisany 
 | 10-FIN INTEGRATIONS stage 5 outbox pattern | 11-SHIP stage 3 **template reuse** — SO confirmation push to D365 SalesOrderHeader/Lines |
 | 10-FIN `wo_cost_rollups` posted_to_d365 | 11-SHIP shipment posting correlation (same journal batch?) |
 | 10-FIN GBP base currency | 11-SHIP shipment value in GBP + VAT codes reuse |
-| 10-FIN D365 Constants consumer (FNOR, ForzDG) | 11-SHIP same constants + potential additional (customer, shipping_warehouse) |
+| 10-FIN D365 Constants consumer (FNOR, ApexDG) | 11-SHIP same constants + potential additional (customer, shipping_warehouse) |
 | Pending 02-SETTINGS v3.1 delta (3 rules from 10-FIN) | Bundle together — avoid 2 separate revisions |
 
 ### Key questions do rozstrzygnięcia w C4 Sesja 3 (11-SHIPPING)

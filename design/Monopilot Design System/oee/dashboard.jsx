@@ -38,7 +38,7 @@ const OeeSummary = ({ role, onNav, openModal, onPickLine, initialTab }) => {
       <PageHead
         breadcrumb={<><a onClick={() => onNav("summary")}>OEE</a> · Daily Summary</>}
         title="OEE — Daily Summary"
-        subtitle={`${date} · Forza Factory-A · target ${SUMMARY_KPIS_TODAY.target}% · world-class ${SUMMARY_KPIS_TODAY.worldClass}%`}
+        subtitle={`${date} · Apex Factory-A · target ${SUMMARY_KPIS_TODAY.target}% · world-class ${SUMMARY_KPIS_TODAY.worldClass}%`}
         right={<>
           <div className="oee-filter-bar">
             <button className="btn btn-ghost btn-sm" onClick={() => setDate("2026-04-21")}>Today</button>

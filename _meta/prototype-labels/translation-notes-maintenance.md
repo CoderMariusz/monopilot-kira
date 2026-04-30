@@ -290,7 +290,7 @@ Active LOTO count in header and alert banner must reflect live DB state:
 | ID | Description | Priority | Affects |
 |---|---|---|---|
 | BL-MAINT-01 | IoT sensors tab on Asset Detail — placeholder only; needs time-series chart | P2 | asset_detail_page |
-| BL-MAINT-02 | LOTO photo evidence currently "Recommended"; awaiting Forza safety sign-off to gate as Required | Medium | loto_clear_modal |
+| BL-MAINT-02 | LOTO photo evidence currently "Recommended"; awaiting Apex safety sign-off to gate as Required | Medium | loto_clear_modal |
 | BL-MAINT-03 | Offline tablet mode — no Service Worker / IndexedDB | P2 | All page-level components |
 | BL-MAINT-04 | Two-person LOTO remote confirmation flow — prototype assumes separate sessions | Medium | loto_apply_modal, loto_list_page |
 | BL-MAINT-05 | Skills Matrix PDF export with attached cert scans — button stub only | Low | technicians_list_page |

@@ -35,7 +35,7 @@ Moduł **10-FINANCE** jest centralną warstwą kosztową Monopilot MES dla SMB f
 | D365 integration | Comarch Optima adapter (D-FIN-6) → **D365 F&O stage 5 daily consolidated journal** (Q5), Comarch WYCOFANE (Q7). Stage 1 sync (03-TECH §13) **extended** o `items.cost_per_kg` pull (Q6) |
 | Intermediate cascade cost | Not addressed → **Recursive CTE DAG rollup** (04-PLAN §8.5 consumer), cascade-aware parent WO cost = own + Σ child WO costs |
 | Co-product allocation | Not addressed → **`bom_co_products.allocation_pct` consumer**, primary vs co_product/by_product cost split per output |
-| Currency base | GBP (D-FIN-3) → **GBP retained** (Forza UK-based per user Q9 clarification), multi-currency P2 |
+| Currency base | GBP (D-FIN-3) → **GBP retained** (Apex UK-based per user Q9 clarification), multi-currency P2 |
 | Standard cost approval | Implicit | **P1: `finance_manager` sole approver** (Q10 A), P2 dual sign-off upgrade via `standard_cost_approval_v1` rule |
 | Consumer boundaries | Loose | **Tight contracts:** 08-PROD events + 09-QA NCR yield + 03-TECH cost_per_kg + 05-WH LP cost + 04-PLAN DAG |
 | INTEGRATIONS | Comarch XML | **Stage 5 D365 F&O** reuse 08-PROD §12 outbox pattern (template convergence) |
@@ -78,7 +78,7 @@ Moduł **10-FINANCE** jest centralną warstwą kosztową Monopilot MES dla SMB f
 | **External Auditor** | `auditor_readonly` | Full read-only access + cost approval audit trail + 7y history export |
 | **D365 Integration Ops** | `integration_ops` | DLQ monitoring, manual replay, D365 connectivity health, export failure resolution |
 
-**[FORZA-CONFIG]**: Forza 2026-04 Q2 go-live single-site UK. Finance Manager = 1 osoba (Sarah McKenzie handoff from parent IPL LIMITED finance). Currency base = **GBP** (UK operation, parent IPL LIMITED group). D365 F&O instance = FNOR (dataAreaId), warehouse ForzDG, GL account FinGoods dla finished goods inventory.
+**[APEX-CONFIG]**: Apex 2026-04 Q2 go-live single-site UK. Finance Manager = 1 osoba (Sarah McKenzie handoff from parent IPL LIMITED finance). Currency base = **GBP** (UK operation, parent IPL LIMITED group). D365 F&O instance = FNOR (dataAreaId), warehouse ApexDG, GL account FinGoods dla finished goods inventory.
 
 ### 2.3 RLS & role matrix (P1)
 
@@ -209,9 +209,9 @@ Standard cost approval dla regulowanych produktów (recepta food contact) wymaga
 - `material_consumption_costs.lp_id` FK do 05-WH `license_plates` (lot trace)
 - Recall cost calculation P2: query recursive genealogy → sum COGS affected LPs → emit `finance.recall.cost_impact` event
 
-### 5.5 UK HMRC / Companies Act (Forza-specific)
+### 5.5 UK HMRC / Companies Act (Apex-specific)
 
-- GBP base currency (Forza UK operations per user Q9)
+- GBP base currency (Apex UK operations per user Q9)
 - VAT codes via `tax_codes` (02-SETTINGS M01 reuse): UK-20% standard, UK-5% reduced, UK-0% zero-rated, UK-EXEMPT
 - Statutory accounts period retention 6 years (covered by 7y BRCGS retention)
 
@@ -225,7 +225,7 @@ Standard cost approval dla regulowanych produktów (recepta food contact) wymaga
 |---|---|---|---|---|
 | 1 | `finance_settings` | 10-FIN | `org_id`, `default_currency_id` | 1 row per org, holds method choice (FIFO/WAC default), D365 enable flag |
 | 2 | `cost_centers` | 10-FIN | `org_id`, `parent_id` (self), `production_line_id` | Hierarchy via ltree or self-ref |
-| 3 | `currencies` | 10-FIN | `org_id` | GBP base per Forza, ISO 4217 codes |
+| 3 | `currencies` | 10-FIN | `org_id` | GBP base per Apex, ISO 4217 codes |
 | 4 | `exchange_rates` | 10-FIN | `org_id`, `currency_id`, `effective_date` | Manual entry P1, API sync P2 |
 | 5 | `gl_account_mappings` | 10-FIN | `org_id`, `cost_category` | Maps cost category → D365 GL account code |
 | 6 | `standard_costs` | 10-FIN | `org_id`, `item_id` (03-TECH), `currency_id`, `cost_center_id`, `approved_by` | Versioned (effective_from/to), approval workflow single sign-off P1, signature_hash |
@@ -951,7 +951,7 @@ Pseudocode:
     {
       "LineNumber": 1,
       "AccountType": "Ledger",
-      "AccountCode": "5000-ForzDG-MAT",                -- gl_account_mappings lookup: cost_category='material'
+      "AccountCode": "5000-ApexDG-MAT",                -- gl_account_mappings lookup: cost_category='material'
       "DebitAmount": 12450.50,
       "CreditAmount": 0,
       "TransDate": "2026-04-20",
@@ -962,7 +962,7 @@ Pseudocode:
     },
     {
       "LineNumber": 2,
-      "AccountCode": "5100-ForzDG-LAB",
+      "AccountCode": "5100-ApexDG-LAB",
       "DebitAmount": 3420.00,
       ...
     }
@@ -1025,9 +1025,9 @@ Pseudocode:
 Reuse `d365_constants` table from 02-SETTINGS §11:
 
 ```yaml
-dataAreaId: FNOR                    # [FORZA-CONFIG]
+dataAreaId: FNOR                    # [APEX-CONFIG]
 approver_user_id: FOR100048         # D365 approver (reference only, no enforcement)
-warehouse_code: ForzDG              # For dimension mapping
+warehouse_code: ApexDG              # For dimension mapping
 finished_goods_account: FinGoods    # GL account for FG inventory
 production_resource: FProd01        # Routing resource (read by 08-PROD stage 2)
 ```
@@ -1094,13 +1094,13 @@ P2 EPIC 10-K upgrade: dedicated `yield_loss_ledger` table (materialized) z dodat
 
 ### 14.1 L2 variation (per-tenant config)
 
-Forza + future tenants różnią się w:
+Apex + future tenants różnią się w:
 
 | Aspect | Mechanism | Example |
 |---|---|---|
-| Costing method default | `finance_settings.default_valuation_method` | Forza=FIFO, future tenant X=WAC |
-| Currency base | `currencies.is_base` | Forza=GBP, EU tenants=EUR |
-| D365 instance config | `d365_constants` per org (02-SETTINGS §11) | Forza=FNOR, future=different dataAreaId |
+| Costing method default | `finance_settings.default_valuation_method` | Apex=FIFO, future tenant X=WAC |
+| Currency base | `currencies.is_base` | Apex=GBP, EU tenants=EUR |
+| D365 instance config | `d365_constants` per org (02-SETTINGS §11) | Apex=FNOR, future=different dataAreaId |
 | GL account mappings | `gl_account_mappings` per org | Tenant-specific chart of accounts |
 | Approval thresholds | `finance_settings.critical_approval_pin_required` + P2 rule `standard_cost_approval_v1` | Strict vs lenient per org |
 | Cost center hierarchy | `cost_centers` tree | Per tenant organization structure |
@@ -1148,7 +1148,7 @@ Full code customization dla finance = Phase 3+ (e.g. novel costing methods per t
 
 ### 15.3 Scalability
 
-- **WO volume:** 500 WOs/day at Forza Phase 1, up to 5000/day at multi-site Phase 2
+- **WO volume:** 500 WOs/day at Apex Phase 1, up to 5000/day at multi-site Phase 2
 - **Transactions:** ~50 consume + 20 labor + 10 waste per WO = 40k transactions/day Phase 1
 - **Inventory layers:** ~100 items × 3-5 active FIFO layers = 500 rows steady state; grows with retention
 - **Partition strategy:** `work_order_costs` + `material_consumption_costs` + `finance_outbox_events` partitioned by `created_at` monthly (7y retention)
@@ -1310,7 +1310,7 @@ W 02-SETTINGS v3.1 (revision) zaktualizować:
 | INTEGRATIONS stage | 5 (D365 F&O daily consolidated journal) |
 | Outbox pattern reuse | 08-PROD §12 (stage 2 = stage 5 template) |
 | Regulatory | IAS 2, BRCGS Issue 10, 21 CFR Part 11, FSMA 204, UK HMRC |
-| Primary currency | GBP (Forza UK per Q9) |
+| Primary currency | GBP (Apex UK per Q9) |
 | Multi-currency | P2 EPIC 10-J |
 
 ---

@@ -42,7 +42,7 @@
 | **Q7 Timing** | **P1 per-minute Postgres batch** (consumer 08-PROD D7 Q4 A, zero new infra) + P2 streaming (Kafka/Redpanda) **wycofane** z P1 | Template reuse, 60s granularity sufficient food-mfg |
 | **Q8 Visualization** | **P1 desktop dashboards** (per-line 24h trend + per-shift heatmap + per-day summary) + **P2 real-time TV** plant-floor screens (auto-refresh 30s, full-screen, kiosk mode) | MVP P1 operator-friendly, TV P2 post-hardware provisioning |
 | **Q9 Downtime** | **P1 consumer** `downtime_categories` ref table (02-SET §8.1 admin-configurable per 08-PROD D6) + **P2 ML classification wycofane** do P3+ | Zero-new-infra P1, ML wymaga >6 mo training data |
-| **Q10 Shift comparison** | **P1 Forza 3-shift fixed** (AM 00:00-08:00 / PM 08:00-16:00 / Night 16:00-00:00 UTC) + **P2 custom shift configs** per tenant L2 variation (ADR-030) | Forza reality P1, L2 variation standard pattern |
+| **Q10 Shift comparison** | **P1 Apex 3-shift fixed** (AM 00:00-08:00 / PM 08:00-16:00 / Night 16:00-00:00 UTC) + **P2 custom shift configs** per tenant L2 variation (ADR-030) | Apex reality P1, L2 variation standard pattern |
 
 ### Core innovations 12-REPORTING v3.0
 
@@ -67,8 +67,8 @@
 | 2 | **`shift_aggregator_v1` DSL rule (P1 active)** — post-shift-end aggregation, configurable boundaries via `shift_configs` ref table (L2 ADR-030), emit outbox `oee.shift.aggregated` event | §7, §9, §10 | [UNIVERSAL] |
 | 3 | **`oee_anomaly_detector_v1` DSL rule (P2 stub)** — EWMA α=0.3, 2σ threshold, rolling 30-min window (08-PROD D15 spec), alerts via Resend + Slack | §7, §10 | [UNIVERSAL] |
 | 4 | **`oee_maintenance_trigger_v1` DSL rule (P2 stub, 13-MAINT consumer)** — availability < threshold 3 consecutive days → auto-create PM WO | §7, §10 | [UNIVERSAL] |
-| 5 | **Real-time TV dashboard (D-OEE-4, P2)** — plant-floor 1920×1080 screens, kiosk mode, auto-refresh 30s, color-blind safe, no interactions | §6, §10 | [UNIVERSAL] + [FORZA-CONFIG] |
-| 6 | **Shift comparison P1 fixed 3-shift** (Forza AM/PM/Night UTC baseline) + P2 custom shift configs L2 (2-shift/4-shift/24h) | §6, §13 | [UNIVERSAL] + [FORZA-CONFIG] |
+| 5 | **Real-time TV dashboard (D-OEE-4, P2)** — plant-floor 1920×1080 screens, kiosk mode, auto-refresh 30s, color-blind safe, no interactions | §6, §10 | [UNIVERSAL] + [APEX-CONFIG] |
+| 6 | **Shift comparison P1 fixed 3-shift** (Apex AM/PM/Night UTC baseline) + P2 custom shift configs L2 (2-shift/4-shift/24h) | §6, §13 | [UNIVERSAL] + [APEX-CONFIG] |
 | 7 | **3 P1 dashboards** (Per-line 24h Trend, Per-shift Heatmap, Per-day Summary) + 10 P2 dashboards | §10, §16 | [UNIVERSAL] |
 | 8 | **2 P1 materialized views** — `oee_shift_metrics` (MTBF/MTTR ready 13-MAINT consumer) + `oee_daily_summary` (consumer 12-REPORTING D-RPT-9) | §9 | [UNIVERSAL] |
 | 9 | **3 sub-modules build 15-a..c P1 (9-12 sesji impl)** + 10 P2 sub-modules 15-D..15-M (18-24 sesji impl) | §16 | [UNIVERSAL] |
@@ -128,8 +128,8 @@
 **Notable:**
 - OQ-RPT-02: Event-triggered reports (wo.completed → auto-report) — P3
 - OQ-RPT-04: Mobile-native dashboards (React Native) — P3 (PWA wystarcza)
-- OQ-OEE-03: Target OEE 85% — Forza może mieć lower realistic baseline (np. 70%) — P1 config via `oee_alert_thresholds.oee_target_pct`
-- OQ-OEE-05: TV dashboard kiosk OS (RPi / Windows / ChromeOS) — Forza IT consultation P2
+- OQ-OEE-03: Target OEE 85% — Apex może mieć lower realistic baseline (np. 70%) — P1 config via `oee_alert_thresholds.oee_target_pct`
+- OQ-OEE-05: TV dashboard kiosk OS (RPi / Windows / ChromeOS) — Apex IT consultation P2
 
 ---
 
@@ -215,13 +215,13 @@
 - **Q2** PM scheduling engine: P1 calendar-based (interval days) / P2 usage-based (hours/cycles) / P3 condition-based (ML vibration analysis)?
 - **Q3** Parts inventory tracking: P1 basic (qty_on_hand) / P2 consumption forecasting / P3 predictive (ML)?
 - **Q4** TPM (Total Productive Maintenance) scope: P1 basic (reactive + preventive) / P2 comprehensive (5S + autonomous + planned + predictive)?
-- **Q5** IoT sensor integration: P1 deferred / P2 basic (Modbus TCP / OPC UA wymagane dla Forza) / P3 full (vision + vibration + thermal)?
+- **Q5** IoT sensor integration: P1 deferred / P2 basic (Modbus TCP / OPC UA wymagane dla Apex) / P3 full (vision + vibration + thermal)?
 - **Q6** Work request vs work order: separate tables (WR needs approval → WO) / unified (WO lifecycle z state 'requested')?
 
 **14-MULTI-SITE:**
-- **Q7** Hierarchy depth: site → plant → line (3 levels Forza baseline) / 4 levels (site → building → plant → line) / configurable per tenant?
+- **Q7** Hierarchy depth: site → plant → line (3 levels Apex baseline) / 4 levels (site → building → plant → line) / configurable per tenant?
 - **Q8** Inter-site transfers: P1 extension 05-WH TO (same pattern different site_id) / P2 dedicated cross-site workflow z customs / compliance (EU vs non-EU)?
-- **Q9** Per-site data residency: single tenant = single region all sites / per-site residency (Forza UK + Forza EU site independent)?
+- **Q9** Per-site data residency: single tenant = single region all sites / per-site residency (Apex UK + Apex EU site independent)?
 - **Q10** Cross-site RBAC: user has access to multiple sites / single primary site + cross-site read-only / per-site separate tenants (multi-org)?
 - **Q11** Consolidation reports: P1 per-site + factory aggregate / P2 cross-site comparison (benchmarking)?
 - **Q12** `site_id` activation across modules: ALTER TABLE w 14-MULTI-SITE DDL script? / gradual activation w sub-modules per PRD? / assume all tables have nullable site_id z day 1 (REC-L1 already enforced)?

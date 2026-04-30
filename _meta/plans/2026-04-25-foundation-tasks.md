@@ -1041,30 +1041,30 @@ Utwórz skrypty do zarządzania migracjami: up/down/status. Wire do Turbo pipeli
 
 ### GIVEN / WHEN / THEN
 **GIVEN** baseline migration applied
-**WHEN** `pnpm seed forza-baseline` runs
-**THEN** populates deterministic Forza seed: 1 tenant (`id: '00000000-0000-0000-0000-000000000001'`), 3 users (Jane/Tom/Admin), 3 roles (npd_manager/dept_lead/admin); re-running is a no-op
+**WHEN** `pnpm seed apex-baseline` runs
+**THEN** populates deterministic Apex seed: 1 tenant (`id: '00000000-0000-0000-0000-000000000001'`), 3 users (Jane/Tom/Admin), 3 roles (npd_manager/dept_lead/admin); re-running is a no-op
 
 ### ACP Prompt
 ```
 # Task T-00b-004 — Seed runner + named snapshots registry
 
 ## Twoje zadanie
-Utwórz seed runner z 3 named snapshots: forza-baseline, empty-tenant, multi-tenant-3.
+Utwórz seed runner z 3 named snapshots: apex-baseline, empty-tenant, multi-tenant-3.
 
 ## Implementacja
-1. Utwórz `packages/db/seed/index.ts` — `applySnapshot(name: 'forza-baseline' | 'empty-tenant' | 'multi-tenant-3')` dispatcher
-2. Utwórz `packages/db/seed/snapshots/forza-baseline.ts` — Drizzle typed insert: 1 tenant (UUID `00000000-0000-0000-0000-000000000001`), users: Jane (npd_manager), Tom (dept_lead), Admin (admin), deterministic UUIDs, idempotent `ON CONFLICT DO NOTHING`
+1. Utwórz `packages/db/seed/index.ts` — `applySnapshot(name: 'apex-baseline' | 'empty-tenant' | 'multi-tenant-3')` dispatcher
+2. Utwórz `packages/db/seed/snapshots/apex-baseline.ts` — Drizzle typed insert: 1 tenant (UUID `00000000-0000-0000-0000-000000000001`), users: Jane (npd_manager), Tom (dept_lead), Admin (admin), deterministic UUIDs, idempotent `ON CONFLICT DO NOTHING`
 3. Utwórz `packages/db/seed/snapshots/empty-tenant.ts` — 1 tenant, 0 users
 4. Utwórz `packages/db/seed/snapshots/multi-tenant-3.ts` — 3 tenants z disjoint users
 5. Dodaj npm script `"seed": "tsx packages/db/seed/index.ts"` + integration test
 
 ## Files
-**Create:** `packages/db/seed/index.ts`, `packages/db/seed/snapshots/forza-baseline.ts`, `packages/db/seed/snapshots/empty-tenant.ts`, `packages/db/seed/snapshots/multi-tenant-3.ts`
+**Create:** `packages/db/seed/index.ts`, `packages/db/seed/snapshots/apex-baseline.ts`, `packages/db/seed/snapshots/empty-tenant.ts`, `packages/db/seed/snapshots/multi-tenant-3.ts`
 **Modify:** `package.json`
 
 ## Done when
 - `vitest packages/db/seed/seed.test.ts` PASS — idempotent re-run no-op
-- `pnpm seed forza-baseline` inserts expected rows
+- `pnpm seed apex-baseline` inserts expected rows
 - `pnpm test:smoke` green
 
 ## Rollback
@@ -1213,7 +1213,7 @@ Utwórz `packages/db/rls-context.ts` z funkcjami `setCurrentOrgId` i `withOrgCon
 
 ---
 
-## T-00b-M01 — Main Table migration (69 typed Forza cols + ext/private JSONB)
+## T-00b-M01 — Main Table migration (69 typed Apex cols + ext/private JSONB)
 
 **Type:** T1-schema
 **Context budget:** ~55k tokens
@@ -1235,18 +1235,18 @@ Utwórz `packages/db/rls-context.ts` z funkcjami `setCurrentOrgId` i `withOrgCon
 ### GIVEN / WHEN / THEN
 **GIVEN** baseline + DeptColumns migrations applied
 **WHEN** migration `015-main-table-69-cols.sql` runs
-**THEN** `main_table` has 69 typed Forza columns + `ext_jsonb JSONB` + `private_jsonb JSONB` + `schema_version INT NOT NULL DEFAULT 1` + composite index `(tenant_id, created_at)` + GIN index on `ext_jsonb`
+**THEN** `main_table` has 69 typed Apex columns + `ext_jsonb JSONB` + `private_jsonb JSONB` + `schema_version INT NOT NULL DEFAULT 1` + composite index `(tenant_id, created_at)` + GIN index on `ext_jsonb`
 
 ### ACP Prompt
 ```
-# Task T-00b-M01 — Main Table migration 69 typed Forza cols
+# Task T-00b-M01 — Main Table migration 69 typed Apex cols
 
 ## Context — przeczytaj przed implementacją
 - `/Users/mariuszkrawczyk/Projects/monopilot-kira/_foundation/01-NPD-PRD.md` → znajdź sekcję `## §5` — Main Table 69 columns spec z pełnymi typami
 - Sprawdź aktualny stan migrations: `ls drizzle/migrations/` — użyj najwyższego numeru + 1
 
 ## Twoje zadanie
-Stwórz migration dla `main_table` z 69 typed Forza columns per §5 NPD PRD + ext_jsonb + private_jsonb + schema_version. Użyj Drizzle ORM (nie raw CREATE TABLE).
+Stwórz migration dla `main_table` z 69 typed Apex columns per §5 NPD PRD + ext_jsonb + private_jsonb + schema_version. Użyj Drizzle ORM (nie raw CREATE TABLE).
 
 ## Implementacja
 1. Przeczytaj §5 NPD PRD — wypisz wszystkie 69 kolumn z typami (do uzycia inline w Drizzle schema)
@@ -1600,7 +1600,7 @@ Utwórz apps/web/actions/auth/logout.ts — signOut + clear cookie + emit outbox
 - **Parallel (can run concurrently):** []
 
 ### GIVEN / WHEN / THEN
-**GIVEN** seeded forza-baseline DB (jane@forza.com / test1234)
+**GIVEN** seeded apex-baseline DB (jane@apex.com / test1234)
 **WHEN** Playwright: navigate `/login` → submit creds → call `/api/whoami` → logout
 **THEN** whoami returns userId + orgId; post-logout redirects `/login`
 
@@ -1613,8 +1613,8 @@ E2E spec e2e/auth.spec.ts + /api/whoami route. 3-krokowy flow.
 
 ## Implementacja
 1. Utwórz apps/web/app/api/whoami/route.ts — GET: reads session + x-org-id header → return { userId, orgId, email }
-2. Utwórz e2e/auth.spec.ts: navigate /login; fill email='jane@forza.com', password='test1234'; click submit; expect URL /dashboard; GET /api/whoami → orgId truthy; click [data-testid=logout]; expect URL /login
-3. forza-baseline seed musi zawierać jane@forza.com z password test1234 (Supabase auth user + public.users row)
+2. Utwórz e2e/auth.spec.ts: navigate /login; fill email='jane@apex.com', password='test1234'; click submit; expect URL /dashboard; GET /api/whoami → orgId truthy; click [data-testid=logout]; expect URL /login
+3. apex-baseline seed musi zawierać jane@apex.com z password test1234 (Supabase auth user + public.users row)
 4. pnpm test:e2e
 
 ## Files
@@ -2947,27 +2947,27 @@ Utwórz apps/web/app/api/rules/dry-run/route.ts — eval rule, return trace, no 
 
 ### GIVEN / WHEN / THEN
 **GIVEN** rule table exists
-**WHEN** seed `forza-baseline` applies rule snapshot
+**WHEN** seed `apex-baseline` applies rule snapshot
 **THEN** 3 canonical rules present: `fefo_pick_v1` (cascading), `catch_weight_required_v1` (conditional_required), `allergen_changeover_gate_v1` (gate)
 
 ### ACP Prompt
 ```
-# Task T-00g-007 — reference_rules seed helper + forza-baseline snapshot
+# Task T-00g-007 — reference_rules seed helper + apex-baseline snapshot
 
 ## Twoje zadanie
-Utwórz packages/db/seed/rules.ts z 3 canonical Forza rules. Wire do forza-baseline snapshot.
+Utwórz packages/db/seed/rules.ts z 3 canonical Apex rules. Wire do apex-baseline snapshot.
 
 ## Implementacja
 1. Utwórz packages/db/seed/rules.ts z createRule factory + 3 rules:
    - rule_id='fefo_pick_v1', rule_type='cascading', definition_json: { conditions: [{field:'pick_method',op:'EQUALS',value:'FEFO'}], then: {sort_by:'expiry_date',order:'ASC'} }
    - rule_id='catch_weight_required_v1', rule_type='conditional_required', definition_json: { conditions: [{field:'catch_weight',op:'EQUALS',value:true}], required_fields:['tare_weight','gross_weight'] }
    - rule_id='allergen_changeover_gate_v1', rule_type='gate', definition_json: { triggers:[{field:'allergen_present',op:'EQUALS',value:true}], conditions:['clean_line','test_sample'], on_fail:'block', notify:['production_manager'] }
-2. Wire do packages/db/seed/snapshots/forza-baseline.ts
+2. Wire do packages/db/seed/snapshots/apex-baseline.ts
 3. Integration test: seed → loadRules → 3 rules loaded
 
 ## Files
 **Create:** `packages/db/seed/rules.ts`
-**Modify:** `packages/db/seed/snapshots/forza-baseline.ts`
+**Modify:** `packages/db/seed/snapshots/apex-baseline.ts`
 
 ## Done when
 - `vitest packages/db/seed/rules.test.ts` PASS — 3 rules load + evaluate correctly
@@ -3317,7 +3317,7 @@ Revert migration row manually; `DELETE FROM reference_dept_columns WHERE field_n
 Utwórz tests/schema-driven/metadata-live.integration.test.ts — end-to-end live schema change test.
 
 ## Implementacja
-1. Setup: seed forza-baseline; addColumn for dept_code='core', field_name='custom_flag', field_type='boolean'
+1. Setup: seed apex-baseline; addColumn for dept_code='core', field_name='custom_flag', field_type='boolean'
 2. Test step 1: compileZod('core') → schema_v1 WITHOUT custom_flag; try to parse { custom_flag: true } → FAIL (unknown key in strict mode)
 3. addColumn({ dept_code:'core', field_name:'custom_flag', field_type:'boolean' })
 4. Test step 2: compileZod('core') → schema_v2 WITH custom_flag; parse { custom_flag: true } → PASS
@@ -3493,10 +3493,10 @@ Disable workflow
 Utwórz tests/setup/integration-setup.ts — global setup: db:reset + seed + app_role connection.
 
 ## Implementacja
-1. Utwórz tests/setup/integration-setup.ts: globalSetup = async () => { await exec('supabase db reset'); await exec('pnpm seed forza-baseline') }; export withTenant(orgId, fn): wraps fn in withOrgContext(orgId, ...)
+1. Utwórz tests/setup/integration-setup.ts: globalSetup = async () => { await exec('supabase db reset'); await exec('pnpm seed apex-baseline') }; export withTenant(orgId, fn): wraps fn in withOrgContext(orgId, ...)
 2. Utwórz tests/utils/db.ts: supabaseLocalDb fixture — createClient z app_role DATABASE_URL_APP_ROLE
 3. Wire into vitest.config.ts (integration): globalSetup: ['tests/setup/integration-setup.ts']
-4. Smoke test: withTenant(forza-baseline-orgId, async tx => { const [row] = await tx.select().from(tenants); expect(row).toBeDefined() })
+4. Smoke test: withTenant(apex-baseline-orgId, async tx => { const [row] = await tx.select().from(tenants); expect(row).toBeDefined() })
 
 ## Files
 **Create:** `tests/setup/integration-setup.ts`, `tests/utils/db.ts`
@@ -3518,7 +3518,7 @@ Utwórz tests/setup/integration-setup.ts — global setup: db:reset + seed + app
 
 ---
 
-## T-00i-004 — Seed fixture library (Forza baseline + synthetic multi-tenant)
+## T-00i-004 — Seed fixture library (Apex baseline + synthetic multi-tenant)
 
 **Type:** T5-seed
 **Context budget:** ~40k tokens
@@ -3609,7 +3609,7 @@ Konfiguruj Playwright z shared auth fixture dla reuse across tests.
 ## Implementacja
 1. pnpm create playwright@latest -- --dir e2e --no-browser
 2. Utwórz playwright.config.ts: baseURL=http://localhost:3000, webServer: { command: 'pnpm dev', url: 'http://localhost:3000', reuseExistingServer: true }, projects: [{ name: 'chromium', use: { storageState: 'e2e/.auth/user.json' } }], reporter: 'html'
-3. Utwórz e2e/fixtures/auth.ts: global setup — navigate /login, fill jane@forza.com/test1234, save storageState to e2e/.auth/user.json
+3. Utwórz e2e/fixtures/auth.ts: global setup — navigate /login, fill jane@apex.com/test1234, save storageState to e2e/.auth/user.json
 4. Utwórz e2e/smoke.spec.ts: test('homepage loads') → page.goto('/') → expect page title contains 'Monopilot'
 5. pnpm test:e2e → smoke passes
 
@@ -4241,7 +4241,7 @@ Utwórz docs/adr/ADR-029-rule-engine-dsl-workflow-as-data.md per §7 PRD.
 ### GIVEN / WHEN / THEN
 **GIVEN** PRD §9 Configurable Dept Taxonomy
 **WHEN** T-GOV-003 runs
-**THEN** `docs/adr/ADR-030-configurable-department-taxonomy.md` with: Forza 7-dept baseline, split/merge/custom via tenant.dept_overrides JSONB, runtime resolution
+**THEN** `docs/adr/ADR-030-configurable-department-taxonomy.md` with: Apex 7-dept baseline, split/merge/custom via tenant.dept_overrides JSONB, runtime resolution
 
 ### ACP Prompt
 ```
@@ -4254,7 +4254,7 @@ Utwórz docs/adr/ADR-029-rule-engine-dsl-workflow-as-data.md per §7 PRD.
 **Create:** `docs/adr/ADR-030-configurable-department-taxonomy.md`
 
 ## Done when
-- File exists; sections: Forza 7-dept baseline [FORZA-CONFIG], split/merge/custom via dept_overrides JSONB, runtime resolution algorithm, seed + override roundtrip described
+- File exists; sections: Apex 7-dept baseline [APEX-CONFIG], split/merge/custom via dept_overrides JSONB, runtime resolution algorithm, seed + override roundtrip described
 
 ## Rollback
 `git rm docs/adr/ADR-030*.md`
@@ -4339,7 +4339,7 @@ Utwórz docs/adr/ADR-029-rule-engine-dsl-workflow-as-data.md per §7 PRD.
 ### GIVEN / WHEN / THEN
 **GIVEN** 4 ADRs published
 **WHEN** T-GOV-005 runs
-**THEN** `docs/MARKER-DISCIPLINE.md` with: [UNIVERSAL]/[FORZA-CONFIG]/[EVOLVING]/[LEGACY-D365] definitions + canonical examples from PRD §2
+**THEN** `docs/MARKER-DISCIPLINE.md` with: [UNIVERSAL]/[APEX-CONFIG]/[EVOLVING]/[LEGACY-D365] definitions + canonical examples from PRD §2
 
 ### ACP Prompt
 ```
@@ -4399,7 +4399,7 @@ Utwórz docs/adr/ADR-029-rule-engine-dsl-workflow-as-data.md per §7 PRD.
 Utwórz scripts/lint-markers.ts — regex scan PRD/ADR/skill files dla unmarked business behaviour sections.
 
 ## Implementacja
-1. Utwórz scripts/lint-markers.ts: scan *.md files in _foundation/ + docs/adr/; for each section header (##) not followed by marker tag [UNIVERSAL|FORZA-CONFIG|EVOLVING|LEGACY-D365] within 3 lines → report error
+1. Utwórz scripts/lint-markers.ts: scan *.md files in _foundation/ + docs/adr/; for each section header (##) not followed by marker tag [UNIVERSAL|APEX-CONFIG|EVOLVING|LEGACY-D365] within 3 lines → report error
 2. Wire do .husky/pre-commit + CI job
 3. Unit test: fixture valid (marked) → exit 0; fixture invalid (unmarked) → exit 1
 
@@ -4783,7 +4783,7 @@ Remove from .husky/pre-commit
 ```
 # Task T-ADR-R02 — ADR Stub R2: Main Table 69 typed columns
 **Files:** docs/adr/candidates/ADR-R02-main-table-69-cols.md
-**Template:** Title: "Main Table 69 typed columns (Forza baseline)"; Marker: [FORZA-CONFIG]; Source: PRD §12 #R2; Open questions: column addition process, L3 migration strategy; Deferral: will formalize when Admin UI wizard lands
+**Template:** Title: "Main Table 69 typed columns (Apex baseline)"; Marker: [APEX-CONFIG]; Source: PRD §12 #R2; Open questions: column addition process, L3 migration strategy; Deferral: will formalize when Admin UI wizard lands
 **Done when:** File exists **Rollback:** git rm file
 ```
 

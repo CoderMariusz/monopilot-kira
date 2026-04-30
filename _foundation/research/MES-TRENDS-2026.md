@@ -14,7 +14,7 @@ scope: 8 obszarów research §8 MONOPILOT-V2-ARCHITECTURE.md
 > **Jak powstał:** 3 research agenty równolegle (MES/food/D365 · schema-driven/multi-tenant · AI-ML/mobile/supply-chain), WebSearch + WebFetch na źródła 2024-2026, model Opus 4.7. Konsolidacja: intro + TOC + sekcje verbatim + per-module rollup + decisions summary.
 >
 > **Styl:** polski narrative + angielskie tech terms (spójny z MONOPILOT-V2-ARCHITECTURE.md).
-> **Markery w rekomendacjach:** [UNIVERSAL] / [FORZA-CONFIG] / [EVOLVING] / [LEGACY-D365] per ADR discipline.
+> **Markery w rekomendacjach:** [UNIVERSAL] / [APEX-CONFIG] / [EVOLVING] / [LEGACY-D365] per ADR discipline.
 
 ---
 
@@ -28,7 +28,7 @@ Research potwierdza **strategię Monopilot bezpośrednio**: composable MES + sch
 4. **HACCP paperless + digital allergen management = table stakes.** Rule engine DSL idealnie pasuje ("IF temp > X FOR 15min AT ccp THEN escalate"). EU FIC 1169/2011 + Reg 2021/382 wymuszają allergen segregation w ERP/MES, nie tylko labelling.
 5. **D365 replacement wzorzec jest stabilny.** Strip-down: D365 trzyma GL/finance, Monopilot przejmuje manufacturing/quality/warehouse/shipping. **Strangler fig** + parallel-run (zgodny z "Two-systems principle" Phase D). One-way sync D365→MES na start.
 6. **Postgres JSONB hybrid > EAV** (3× mniej storage, ~15000× szybsze queries z GIN). Core 69 cols typed + `jsonb_ext` (L3) + `jsonb_private` (L4) + `schema_version`. Nie Notion block-monolith, nie Salesforce Value1..ValueN, nie pure EAV.
-7. **RLS default + app-level tenant_id defense-in-depth.** Composite indeksy `(tenant_id, dept_id, status, ...)`, LEAKPROOF functions w policies, nigdy superuser w testach. Data residency EU cluster dla Forza.
+7. **RLS default + app-level tenant_id defense-in-depth.** Composite indeksy `(tenant_id, dept_id, status, ...)`, LEAKPROOF functions w policies, nigdy superuser w testach. Data residency EU cluster dla Apex.
 8. **PWA jako 06-SCANNER P1.** ~90% use-case'ów pokryje Workbox Background Sync + IndexedDB queue + DataWedge keyboard-wedge. Capacitor wrapper Phase 2 dla raw camera / BLE sled. Multi-lang pl/en/uk/ro **od dnia 1** (nie retrofit).
 9. **AI/ML roadmap warstwowa.** L0 LLM dla SOP/troubleshooting = bezpieczny start. L1 forecasting (Prophet/TimeGPT) + vision QA (emerging, partner hardware). L2 autonomous agents — 12-18 mies. production data najpierw.
 10. **GS1-first identyfikatory** (GTIN/SSCC/GLN/GRAI) zamiast własnych ID gdzie możliwe. Interop z retail + traceability "za darmo". Internal ID może żyć obok.
@@ -43,7 +43,7 @@ Research potwierdza **strategię Monopilot bezpośrednio**: composable MES + sch
 1. Otwórz swój moduł w §9 (per-module rollup) — tam są konkretne actionable hints z cross-refami do §1-§8.
 2. Zacznij PRD od sekcji "Research inputs" cytującej odpowiednie §§ tego doca.
 3. Nie re-researchuj — jeśli czegoś brakuje, dodaj do §10 "open research items" (następny research pass).
-4. Decision markers: każda rekomendacja w §9 powinna dostać marker [UNIVERSAL]/[FORZA-CONFIG]/[EVOLVING]/[LEGACY-D365] w PRD.
+4. Decision markers: każda rekomendacja w §9 powinna dostać marker [UNIVERSAL]/[APEX-CONFIG]/[EVOLVING]/[LEGACY-D365] w PRD.
 
 **Per ADR update:**
 - §4 schema-driven bezpośrednio wspiera ADR-028.
@@ -89,12 +89,12 @@ Research potwierdza **strategię Monopilot bezpośrednio**: composable MES + sch
 
 ### Implications for Monopilot
 
-- **Stack walidacja.** Next.js App Router + RSC jest w mainstreamie dla 2026 admin UI — decyzja Phase D jest spójna z trendem. Multi-tenant from day 1 przez path-based `/[tenant]/...` + middleware (Forza = tenant #1).
+- **Stack walidacja.** Next.js App Router + RSC jest w mainstreamie dla 2026 admin UI — decyzja Phase D jest spójna z trendem. Multi-tenant from day 1 przez path-based `/[tenant]/...` + middleware (Apex = tenant #1).
 - **Event-driven to future-proof.** Nawet jeśli MVP używa Postgres + REST, zaprojektuj boundary "domain events" (production_started, ccp_recorded, wo_closed) tak, żeby kiedyś wpiąć je w Redpanda/Kafka bez rewrite. Wersja-lite: outbox pattern w Postgres → konsumenci w aplikacji.
-- **UNS-compatible event shape.** Nazewnictwo topiców / event types zgodne z ISA-95 hierarchy (`forza/uk-site/mixing-line/wo-4521/ccp-chilling`). To da swobodę wpięcia MQTT brokera w Phase 2 bez renegocjacji schematu.
+- **UNS-compatible event shape.** Nazewnictwo topiców / event types zgodne z ISA-95 hierarchy (`apex/uk-site/mixing-line/wo-4521/ccp-chilling`). To da swobodę wpięcia MQTT brokera w Phase 2 bez renegocjacji schematu.
 - **Composable = schema-driven + rule engine DSL.** Zasada "Easy extension" i rule engine Monopilot to lokalna wersja "composable MES". Rozważ Module Federation wyłącznie jeśli moduły będą deployowane przez różne zespoły / różnym cadencem — na start jeden monorepo + route-based code splitting wystarczy.
 - **GenAI jako warstwa "spytaj produkcji".** W Phase 2+ warto zarezerwować miejsce na "ask-your-MES" nad zdarzeniami (MCP server nad event store).
-- **Scanner tier decision.** Rekomendacja: **PWA + Service Worker + IndexedDB queue** zamiast native Android — uzasadnione przez schema-driven/multi-tenant (jeden codebase dla Forza i kolejnych klientów) + SSE/WebSocket do real-time. Hardening: duże targety dotykowe, focus na hardware scanner key events (Zebra DataWedge, Honeywell uBrowser intents → broadcast intents widoczne w PWA via Chrome custom tabs lub Kiosk mode). Szczegóły §7.
+- **Scanner tier decision.** Rekomendacja: **PWA + Service Worker + IndexedDB queue** zamiast native Android — uzasadnione przez schema-driven/multi-tenant (jeden codebase dla Apex i kolejnych klientów) + SSE/WebSocket do real-time. Hardening: duże targety dotykowe, focus na hardware scanner key events (Zebra DataWedge, Honeywell uBrowser intents → broadcast intents widoczne w PWA via Chrome custom tabs lub Kiosk mode). Szczegóły §7.
 - **Digital twin = aspiracja Phase 3.** Na MVP wystarczy real-time dashboard agregujący eventy; twin-simulacja (what-if scheduling) to roadmap 12–18 mies.
 
 ### Sources
@@ -132,7 +132,7 @@ Research potwierdza **strategię Monopilot bezpośrednio**: composable MES + sch
 - **Labelling compliance (11-SHIPPING + 01-NPD).** Front-of-pack, QUID, nutrition declaration, allergen bolding — auto-generate z NPD dataset; label preview musi być WYSIWYG bo drukarki różnych klientów różnie interpretują spec.
 - **Traceability przez GS1 Digital Link.** SSCC na paletach, GTIN+batch+expiry na unit, QR encode w GS1 Digital Link syntax. EPCIS 2.0 events jako wewnętrzny event log (commissioning, aggregation, shipping, receiving). To od razu daje "ready-to-share" format dla retailers.
 - **FEFO + batch genealogy w 05-WAREHOUSE + 06-SCANNER.** Directed picking wymusza FEFO (shortest expiry first), holds/quarantine statuses, forward+backward trace w 4 sekundy (BRCGS wymaga <4h dla recall drill — digital to sekundy).
-- **"Reality fidelity" w practice.** Forza dzisiaj trzyma część logiki w Excelu (PLD v7). Zmapuj co obecnie robią PAPER vs EXCEL vs nic — moduł 09 powinien wchłaniać CCP logs z Excela przez adapter (LEGACY-D365 marker nie pasuje; to raczej [EVOLVING]).
+- **"Reality fidelity" w practice.** Apex dzisiaj trzyma część logiki w Excelu (PLD v7). Zmapuj co obecnie robią PAPER vs EXCEL vs nic — moduł 09 powinien wchłaniać CCP logs z Excela przez adapter (LEGACY-D365 marker nie pasuje; to raczej [EVOLVING]).
 
 ### Sources
 
@@ -156,7 +156,7 @@ Research potwierdza **strategię Monopilot bezpośrednio**: composable MES + sch
 
 ### Key findings
 
-- **Landscape competitors.** Dla food mfg Tier-2/3 (Forza scale): Aptean Food & Beverage (zbudowany na D365 BC!), Infor CloudSuite F&B (purpose-built process mfg, catch-weight, multi-level formulas z yield), SAP Digital Manufacturing (Tier-1, Nestle/PepsiCo/Danone — overkill dla Forza), Plex (Rockwell, discrete/continuous), Tulip (low-code apps dla operatorów — nie full MES). [elevatiq.com, erp.compare, anchorgroup.tech, top10erp.org]
+- **Landscape competitors.** Dla food mfg Tier-2/3 (Apex scale): Aptean Food & Beverage (zbudowany na D365 BC!), Infor CloudSuite F&B (purpose-built process mfg, catch-weight, multi-level formulas z yield), SAP Digital Manufacturing (Tier-1, Nestle/PepsiCo/Danone — overkill dla Apex), Plex (Rockwell, discrete/continuous), Tulip (low-code apps dla operatorów — nie full MES). [elevatiq.com, erp.compare, anchorgroup.tech, top10erp.org]
 - **Strip-down pattern: co zostaje w D365, co przejmuje MES.** Najczęstszy wzorzec:
   - **Zostaje w D365 F&O (lub BC):** General Ledger, AP/AR, cash management, procurement, sales orders (invoicing), tax, consolidations, HR/payroll.
   - **Przejmuje MES:** Production (WO execution, dispatch, status), Quality (HACCP/CCP/holds), Warehouse (receipt/pick/pack/ship), Planning (finite capacity scheduling), Maintenance (CMMS), Scanner/shop-floor UX, Labelling, Batch genealogy.
@@ -173,7 +173,7 @@ Research potwierdza **strategię Monopilot bezpośrednio**: composable MES + sch
 
 - **Settled scope: Monopilot NIE robi GL/AP/AR.** Zostaje Dynamics (F&O lub BC) / Xero / inny finance. Monopilot = manufacturing execution + quality + warehouse + shipping + NPD. To dobrze pasuje do 15-modułowego blueprintu (brak modułu "Finance-GL"; moduł 10-FINANCE to prawdopodobnie cost-roll + landed cost + variance, nie księgowość).
 - **D365 integration boundary (v1).** One-way pull: Items, BOM/formula, Customers, Suppliers, Locations, UoM z D365 → Monopilot (nightly + on-demand). One-way push: Production confirmations, Inventory movements, Shipments, Quality holds releases → D365 (near-real-time via Azure Service Bus).
-- **Marker `[LEGACY-D365]` doprecyzowany.** Używaj dla: (a) field shape odziedziczony z D365 Item/Release entity który Monopilot utrzymuje dla compatybilności, (b) logika biznesowa dziedziczona 1:1 z v7 której źródło to był D365 config. NIE używaj dla: CCP logic (to [UNIVERSAL] w food) ani alergenów (to [UNIVERSAL]/[FORZA-CONFIG]).
+- **Marker `[LEGACY-D365]` doprecyzowany.** Używaj dla: (a) field shape odziedziczony z D365 Item/Release entity który Monopilot utrzymuje dla compatybilności, (b) logika biznesowa dziedziczona 1:1 z v7 której źródło to był D365 config. NIE używaj dla: CCP logic (to [UNIVERSAL] w food) ani alergenów (to [UNIVERSAL]/[APEX-CONFIG]).
 - **Strangler migracja z v7 Excel.** Phase 0: facade = Excel exporter/adapter; nowy Monopilot wchłania moduł po module (zacznij od 09-QUALITY bo papier+Excel są tu najboleśniejsze dla HACCP audytów). Two-systems principle = exactly parallel run.
 - **Outbox pattern w Postgres od MVP.** Tania implementacja event-driven: domain events w tabeli `outbox`, worker publishuje do queue (Azure Service Bus / SQS / RabbitMQ). Daje D365 integration + audit log + przyszły MQTT bridge za darmo.
 - **Integration layer = osobny service / Next.js route handler domain.** Nie wciśnij D365 API calls do rule engine DSL ani UI actions. Odseparuj `@monopilot/d365-adapter` (schema mapping + DMF client + retry/DLQ).
@@ -361,7 +361,7 @@ Alternatywnie z JWT claim (Supabase): `tenant_id = auth.jwt()->>'tenant_id'`.
 
 - **SOC 2** — kontrolki pokrywające: access control, encryption at rest/in-transit, audit logging (append-only), change management dla schema migrations, incident response.
 - **GDPR** — personal data catalog (wiedzieć co/gdzie); right-to-erasure = funkcja `delete_subject(subject_id)` na wszystkich tabelach zawierających PII; data residency (multi-region) gdy klient EU-only.
-- **Data residency** w shared-pool jest trudne — wymusza minimum schema-per-tenant albo region-per-tenant cluster. Dla Forza (EU) — EU-only Postgres cluster default.
+- **Data residency** w shared-pool jest trudne — wymusza minimum schema-per-tenant albo region-per-tenant cluster. Dla Apex (EU) — EU-only Postgres cluster default.
 
 ### 5.7 Billing / metering
 
@@ -380,13 +380,13 @@ Alternatywnie z JWT claim (Supabase): `tenant_id = auth.jwt()->>'tenant_id'`.
 ### 5.9 Implications for Monopilot
 
 **Rekomendacje:**
-1. **Default isolation**: shared DB + RLS + `tenant_id`. Forza = pool tenant. Enterprise later = silo option.
+1. **Default isolation**: shared DB + RLS + `tenant_id`. Apex = pool tenant. Enterprise later = silo option.
 2. **RLS policies** z composite indeksami `(tenant_id, dept_id, status, ...)`. Benchmark od day-1.
 3. **Tenant context**: `app.current_tenant` per request, set by middleware przed każdym query.
 4. **L1 upgrades** = canary + rolling (2-4 tyg), monitored. L2/L3 = opt-in, tenant migration table.
 5. **Feature flags**: PostHog self-host dla Monopilot (już fits budget/simplicity).
 6. **Audit log**: append-only `audit_events` tabela per row change (triggers OR event sourcing — ADR-029 rule engine prawdopodobnie event-sourced naturalnie).
-7. **Data residency**: EU cluster dla Forza + wszystkich EU klientów. US cluster gdy pojawi się USA customer. Global control plane + regional data planes.
+7. **Data residency**: EU cluster dla Apex + wszystkich EU klientów. US cluster gdy pojawi się USA customer. Global control plane + regional data planes.
 8. **Nigdy superuser w app-path**. Tests z app-role.
 
 ### 5.10 Sources
@@ -426,7 +426,7 @@ Obszar AI/ML w MES dojrzewa bardzo nierównomiernie — niektóre use-case'y są
 | **Yield optimization (MILP recipe blending)** | Production-grade (Gurobi/HiGHS/OR-Tools; Dassault DELMIA ma gotowe) | Średni — 01-NPD (BOM) + 08-PRODUCTION (actuals) | Phase 3: OR-Tools CBC solver w Python service; constraint: allergens, cost, nutrition targets |
 | **Vision QA (defects, foreign material)** | Production-grade — **82% dyrektorów food safety** inwestowało w autonomous visual inspection jako #1 priorytet 2025 | Niski w P1 (kamery IP na linii) — potencjał dla 09-QUALITY Phase 4 | Edge inference (NVIDIA Jetson / Intel Movidius), integracja przez MQTT/REST z reject log → EPCIS event |
 | **Predictive maintenance (vibration RUL)** | Emerging — LSTM-autoencoder + Transformer encoder hybrids publikowane w 2024-2025 (Sensors MDPI, Nature Scientific Reports) | Średni — 13-MAINTENANCE + 15-OEE | Phase 3: IoT sensors → TimescaleDB → LSTM model served via BentoML/MLflow |
-| **Allergen cross-contamination risk** | Novel — brak gotowych produktów; mix rule-based + ML feature importance | Wysoki (Forza: multi-level cascade RM→PR_step→FA) | Hybrid: deterministic cascade (rule) + anomaly detector (isolation forest) na event log "shared equipment without sanitation" |
+| **Allergen cross-contamination risk** | Novel — brak gotowych produktów; mix rule-based + ML feature importance | Wysoki (Apex: multi-level cascade RM→PR_step→FA) | Hybrid: deterministic cascade (rule) + anomaly detector (isolation forest) na event log "shared equipment without sanitation" |
 | **LLM copilot (SOP authoring, troubleshooting)** | Emerging — SOP-Bench (arXiv 2506.08119) używa Claude 3.5 Sonnet; Microsoft 365 Copilot dodał Claude (IX.2025) | Wysoki — 03-TECHNICAL SOP generation z BOM+process | Retrieval-augmented (RAG) nad BOM+spec+regulatory corpus; function-calling agent dla "ask-to-fix" scenariuszy |
 | **Metal detector FP reduction** | Research-to-production | Niski P1 | Out-of-scope; rekomendacja partner-vendor (Mettler-Toledo, KPM SiftAI) |
 
@@ -462,7 +462,7 @@ Obszar AI/ML w MES dojrzewa bardzo nierównomiernie — niektóre use-case'y są
 
 ## §7 Mobile UX for Industrial Scanners
 
-Moduł 06-SCANNER-P1 jest operational-critical dla Forza — to tam pracownicy linii/magazynu spędzają 100% zmiany. Zła UX = odrzucenie systemu. Rynek industrial handheld skonsolidował się wokół **Zebra (~50% share), Honeywell (~25%), Datalogic (~10%)** — wszyscy na Androidzie, wszyscy wspierają webview/PWA.
+Moduł 06-SCANNER-P1 jest operational-critical dla Apex — to tam pracownicy linii/magazynu spędzają 100% zmiany. Zła UX = odrzucenie systemu. Rynek industrial handheld skonsolidował się wokół **Zebra (~50% share), Honeywell (~25%), Datalogic (~10%)** — wszyscy na Androidzie, wszyscy wspierają webview/PWA.
 
 ### 7.1 Hardware capability matrix
 
@@ -512,7 +512,7 @@ Moduł 06-SCANNER-P1 jest operational-critical dla Forza — to tam pracownicy l
 
 **Accessibility / multi-language.**
 - **TTS voice confirmation** — hands-busy scenarios (operator w rękawicach trzyma produkt w obu rękach, system mówi "pick 12 units of RM-4521"). Android TTS natywny, PL/EN/UK/RO all supported.
-- **i18n**: minimum **pl, en, uk, ro** dla PL food plants (Forza realnie ma UA+RO workers). ICU MessageFormat, nie string concat.
+- **i18n**: minimum **pl, en, uk, ro** dla PL food plants (Apex realnie ma UA+RO workers). ICU MessageFormat, nie string concat.
 
 ### 7.3 Implications for 06-SCANNER-P1
 
@@ -566,7 +566,7 @@ Procurement & supply-chain w food-mfg 2024-2026 jest napędzany przez trzy równ
 
 **Control towers:**
 - Nucleus Research 2025 Value Matrix: **Blue Yonder, E2open, Infor Nexus, Kinaxis, o9** jako leaders. Wszyscy z AI agents 2025+.
-- Dla mid-market food-mfg (Forza-scale): **Infor Nexus** lub **Kinaxis** najbardziej skalowalne cenowo; alternatywnie własne dashboarding na top MES events (Monopilot MVP path).
+- Dla mid-market food-mfg (Apex-scale): **Infor Nexus** lub **Kinaxis** najbardziej skalowalne cenowo; alternatywnie własne dashboarding na top MES events (Monopilot MVP path).
 
 ### 8.2 Minimum viable procurement for food-mfg SMB
 
@@ -625,7 +625,7 @@ Zkonsolidowane rekomendacje per moduł — każdy bullet ma cross-ref do source 
 
 ### 01-NPD
 
-- **Allergen model first-class** [§2]: 14 alergenów EU FIC jako enum (ADR-028 schema-driven), plus `may_contain[]` (cross-contamination). BOM item dziedziczy alergeny z components + manual override + change history. **Multi-level cascade** RM → PR_step → FA (kluczowe dla Forza, Phase D decision #16).
+- **Allergen model first-class** [§2]: 14 alergenów EU FIC jako enum (ADR-028 schema-driven), plus `may_contain[]` (cross-contamination). BOM item dziedziczy alergeny z components + manual override + change history. **Multi-level cascade** RM → PR_step → FA (kluczowe dla Apex, Phase D decision #16).
 - **QUID + nutrition autocalc** [§2]: z recipe (suma weighted nutrients). Label preview WYSIWYG.
 - **Recipe versioning + approval workflow** [§2]: quality sign-off przed release to production.
 - **GS1 GTIN assignment** [§8]: GTIN dla każdego SKU, SSCC dla palety, GLN dla lokalizacji. Internal code może żyć obok.
@@ -713,7 +713,7 @@ Zkonsolidowane rekomendacje per moduł — każdy bullet ma cross-ref do source 
 
 - **Isolation** [§5.1, §5.9]: shared DB + RLS default (L1). Silo opt-in dla enterprise.
 - **Tenant context middleware** [§5.2]: `app.current_tenant` set per-request; enforce przed każdym query.
-- **Data residency** [§5.6]: region-per-cluster (EU/US); global control plane routing. Forza = EU cluster.
+- **Data residency** [§5.6]: region-per-cluster (EU/US); global control plane routing. Apex = EU cluster.
 - **Migration orchestrator** [§5.4]: `tenant_migrations` table, canary → progressive rollout (5%→10%→50%→100% w 2-4 tyg). L1 auto, L2/L3 opt-in z UI wizard.
 - **Config inheritance** [ADR-030, §5.3]: global L1 → tenant L2 → site L3 via rule engine DSL.
 - **Admin tooling** [§5.5]: impersonation z audit + tenant switcher (superadmin MFA). Cross-site stock transfers tracked via EPCIS aggregation events.
@@ -750,7 +750,7 @@ Zkonsolidowane rekomendacje per moduł — każdy bullet ma cross-ref do source 
 | R4 | **Zod + json-schema-to-zod runtime** dla schema-driven form/validator generation | [UNIVERSAL] | §4 |
 | R5 | **PWA P1 + Capacitor P2** dla 06-SCANNER (nie native Android first) | [UNIVERSAL] | §7 |
 | R6 | **PostHog self-host** jako feature flags + analytics stack dla early Monopilot | [UNIVERSAL] | §5 |
-| R7 | **EU data residency cluster default** dla Forza + wszystkich EU klientów | [FORZA-CONFIG]→[UNIVERSAL] | §5 |
+| R7 | **EU data residency cluster default** dla Apex + wszystkich EU klientów | [APEX-CONFIG]→[UNIVERSAL] | §5 |
 | R8 | **One-way D365→Monopilot sync na start** (item master, BOM, customers); **one-way Monopilot→D365** push production confirmations/inventory/shipments | [LEGACY-D365] | §3 |
 | R9 | **Strangler Fig migracja z v7 Excel** + parallel run (realizuje Phase D "Two-systems principle") | [EVOLVING] | §3 |
 | R10 | **GS1 Digital Link + EPCIS 2.0 JSON-LD** dla traceability; NIE blockchain | [UNIVERSAL] | §2, §8 |
@@ -781,7 +781,7 @@ Proponowane utrzymanie w `_foundation/regulatory/` z datami enforcement + mapowa
 1. **Storage partition strategy** — czy Main Table w L1 powinien być partycjonowany po `tenant_id` od MVP, czy tylko gdy hit >10k tenants? Trade-off: partition pruning performance vs ops complexity. **Rekomendacja**: start bez partitioningu, monitor EXPLAIN na hot queries.
 2. **Event bus MVP** — outbox + który consumer na start? Azure Service Bus (fit z D365 ekosystemem), AWS SQS/SNS, self-host RabbitMQ/NATS? **Rekomendacja wstępna**: Azure Service Bus (D365 adapter pattern). Weryfikacja w Phase B.
 3. **LLM platform** — Claude API direct, OpenAI direct, Azure OpenAI, Modal/Replicate, lub dedicated manager agents SDK? **Rekomendacja wstępna**: Claude API direct dla jakości + Modal dla custom models. Microsoft 365 Copilot Connector jeśli klient ma enterprise M365.
-4. **Peppol access point vendor** — Storecove (Netherlands, developer-friendly), Pagero (Sweden, mid-market, enterprise), Tradeshift (large enterprise). Decyzja zależy od Forza's actual invoicing volume + partner network. **Deferred** do Phase C (11-SHIPPING).
+4. **Peppol access point vendor** — Storecove (Netherlands, developer-friendly), Pagero (Sweden, mid-market, enterprise), Tradeshift (large enterprise). Decyzja zależy od Apex's actual invoicing volume + partner network. **Deferred** do Phase C (11-SHIPPING).
 
 ### 10.4 Carry-forward z Phase D EVOLVING §19
 

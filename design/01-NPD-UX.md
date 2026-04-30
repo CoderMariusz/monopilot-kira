@@ -384,7 +384,7 @@ Row background tinting:
 
 | Field label | Column | Type | Required | Notes |
 |---|---|---|---|---|
-| Launch Date * | launch_date | date | Yes | Drives dashboard alerts. Min date = today + 24 weeks (V constraint, [FORZA-CONFIG]) |
+| Launch Date * | launch_date | date | Yes | Drives dashboard alerts. Min date = today + 24 weeks (V constraint, [APEX-CONFIG]) |
 | Department Number * | department_number | text | Yes | Retailer-specific |
 | Article Number * | article_number | text | Yes | Customer-specific |
 | Bar Codes * | bar_codes | text | Yes | GS1 GTIN. V04-like: validated against GS1 format |

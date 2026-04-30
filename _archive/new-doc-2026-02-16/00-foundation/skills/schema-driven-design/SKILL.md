@@ -23,14 +23,14 @@ Pomijaj skill gdy: piszesz czysto obliczeniowy kod (BOM roll-up, GS1 parser), to
 | # | Pytanie | Jeśli TAK → |
 |---|---|---|
 | 1 | Czy *inna firma* (inny org Monopilot) mogłaby tego potrzebować inaczej? | schema-driven (Settings config) |
-| 2 | Czy *Forza* zmienia to częściej niż raz na 6 miesięcy? | schema-driven (Settings config) |
+| 2 | Czy *Apex* zmienia to częściej niż raz na 6 miesięcy? | schema-driven (Settings config) |
 | 3 | Czy to regulatoryjne (GS1, HACCP), matematyczne (formuły kosztowe) albo standard branżowy (EU-14 allergens)? | code-driven (hardcoded) |
 
 **Zasada rozstrzygania konfliktu:**
 
 - Gdy **tylko 1 lub 2 = TAK** → schema-driven.
 - Gdy **3 = TAK** → code-driven (wygrywa nad 1/2, nawet jeśli inny org mógłby *chcieć* inaczej — nie można łamać standardu).
-- Gdy niepewność → domyślnie schema-driven + marker `[FORZA-CONFIG]` (zasada konserwatywnej uniwersalności, zob. `documentation-patterns`).
+- Gdy niepewność → domyślnie schema-driven + marker `[APEX-CONFIG]` (zasada konserwatywnej uniwersalności, zob. `documentation-patterns`).
 
 ---
 
@@ -47,23 +47,23 @@ Kolumna jako row w config-tabeli `column_definitions` (per `org_id`). Zestaw atr
 - `visible_for_role` (role-permission matrix, ADR-012),
 - `hard_lock` (czy org admin może zmienić / usunąć),
 - `sort_order`,
-- `marker` (`[UNIVERSAL]` / `[FORZA-CONFIG]` / `[EVOLVING]` / `[LEGACY-D365]`).
+- `marker` (`[UNIVERSAL]` / `[APEX-CONFIG]` / `[EVOLVING]` / `[LEGACY-D365]`).
 
-Struktura tabeli metadanych = `[UNIVERSAL]`. Konkretne wiersze = `[FORZA-CONFIG]` (lub inne, per org).
+Struktura tabeli metadanych = `[UNIVERSAL]`. Konkretne wiersze = `[APEX-CONFIG]` (lub inne, per org).
 
 ### Pattern 2 — Reference tables (zawsze schema-driven)
 
 Pack sizes, lines, dieset values, material codes, template definitions — każdy org ma inny zestaw, struktura tabeli wspólna. Przykładowa dyscyplina:
 
 - Struktura tabeli `pack_sizes(id, org_id, code, label, sort)` → `[UNIVERSAL]`.
-- Konkretne wartości (Forza: "500g Tray", "1kg Vac Pack", …) → `[FORZA-CONFIG]`.
+- Konkretne wartości (Apex: "500g Tray", "1kg Vac Pack", …) → `[APEX-CONFIG]`.
 
 ### Pattern 3 — Hybryda (universal structure + per-org data)
 
 Gdy *struktura* jest stała branżowo, ale *zawartość* rozszerzalna per org. Przykład allergen framework:
 
 - EU-14 lista allergenów (Gluten, Crustaceans, Eggs, …) → `[UNIVERSAL]` (regulacja 1169/2011 — nie można tego edytować w Settings).
-- Custom allergen markers dodawane przez org (np. "Sesame batch risk") → `[FORZA-CONFIG]` (config row w Settings).
+- Custom allergen markers dodawane przez org (np. "Sesame batch risk") → `[APEX-CONFIG]` (config row w Settings).
 
 Hybryda = rzecz referencyjnie wspólna + overlay per org. Oba layers żyją w tej samej tabeli, odróżniane `source_marker` columnem.
 
@@ -86,21 +86,21 @@ Zmiana tych rzeczy = migration + ADR + release cycle.
 - ❌ **Hardcoded enumy dla departamentów / kolumn / reguł walidacji.** Blokuje multi-tenant (nowy org = rewrite kodu). Zamiast tego: tabela `departments` (ADR-030), tabela `column_definitions` (ADR-028).
 - ❌ **Schema-driven dla rzeczy stałych prawnie.** EU-14 allergeny, GTIN format, HACCP CCP-threshold nie mogą być edytowalne w Settings — to by naruszało zgodność regulatoryjną.
 - ❌ **Mixing** — kolumna częściowo hardcodowana w kodzie (label) + częściowo w config (validation rule). Bugi nieuniknione. Pojedyncza kolumna jest *albo* schema-driven w całości, *albo* code-driven w całości.
-- ❌ **Schema-driven + brak hard-lock dla universal values.** Administrator Forzy przez pomyłkę wyłącza wymagalność `lot_number` — breaks traceability. Dla `[UNIVERSAL]` defaults zawsze ustaw `hard_lock=true`.
-- ❌ **Promocja do `[UNIVERSAL]` bez cross-walk.** Forza robi X → to nie znaczy że to universal. Promocja wymaga review i potwierdzenia z innymi reality sources.
+- ❌ **Schema-driven + brak hard-lock dla universal values.** Administrator Apexa przez pomyłkę wyłącza wymagalność `lot_number` — breaks traceability. Dla `[UNIVERSAL]` defaults zawsze ustaw `hard_lock=true`.
+- ❌ **Promocja do `[UNIVERSAL]` bez cross-walk.** Apex robi X → to nie znaczy że to universal. Promocja wymaga review i potwierdzenia z innymi reality sources.
 
 ---
 
 ## Examples
 
-- **Kolumna `Pack_Size` w NPD Main Table** → schema-driven `[FORZA-CONFIG]`. Uzasadnienie: Forza miesięcznie dodaje nowe pack sizes (trade launches, promo SKU), inny producent będzie miał inny zestaw.
+- **Kolumna `Pack_Size` w NPD Main Table** → schema-driven `[APEX-CONFIG]`. Uzasadnienie: Apex miesięcznie dodaje nowe pack sizes (trade launches, promo SKU), inny producent będzie miał inny zestaw.
 - **Walidacja GS1-128 format (regex)** → code-driven `[UNIVERSAL]`. Uzasadnienie: standard regulatoryjny — żaden klient nie może "zmienić" formatu GS1.
-- **Departament `Quality`** → schema-driven `[FORZA-CONFIG]` (pytanie 1 = TAK, każdy org ma inne działy — zob. ADR-030). Struktura tabeli `departments` = `[UNIVERSAL]`.
+- **Departament `Quality`** → schema-driven `[APEX-CONFIG]` (pytanie 1 = TAK, każdy org ma inne działy — zob. ADR-030). Struktura tabeli `departments` = `[UNIVERSAL]`.
 - **Formuła kosztowa BOM roll-up** → code-driven `[UNIVERSAL]` (pytanie 3 = TAK, matematyka niekonfigurowalna per user; zmiana = bug w wyliczeniach).
 - **Kolumna `D365_ItemNumber`** → schema-driven z markerem `[LEGACY-D365]`. Uzasadnienie: istnieje tylko z powodu D365 integration, feature flag `integration.d365.enabled`; gdy flag = false → kolumna hidden w UI (historia zostaje).
-- **NPD Stage-Gate `G0→G4` definition** → schema-driven `[FORZA-CONFIG]` (pytanie 1 = TAK, inny org może mieć G0→G3). Engine state machine = `[UNIVERSAL]` code.
-- **Lista reference `Lines` (linie produkcyjne)** → schema-driven `[FORZA-CONFIG]` per org, struktura tabeli `[UNIVERSAL]`.
-- **Kolumna `MRP_Category` w Planning Main Table** → schema-driven `[EVOLVING]`. Uzasadnienie: Forza w trakcie reorganizacji MRP (potencjalnie split na 2 działy) — trzymamy w DB zamiast hardcodować.
+- **NPD Stage-Gate `G0→G4` definition** → schema-driven `[APEX-CONFIG]` (pytanie 1 = TAK, inny org może mieć G0→G3). Engine state machine = `[UNIVERSAL]` code.
+- **Lista reference `Lines` (linie produkcyjne)** → schema-driven `[APEX-CONFIG]` per org, struktura tabeli `[UNIVERSAL]`.
+- **Kolumna `MRP_Category` w Planning Main Table** → schema-driven `[EVOLVING]`. Uzasadnienie: Apex w trakcie reorganizacji MRP (potencjalnie split na 2 działy) — trzymamy w DB zamiast hardcodować.
 
 ---
 
@@ -109,7 +109,7 @@ Zmiana tych rzeczy = migration + ADR + release cycle.
 | Gdy | Użyj skilla | Dlaczego |
 |---|---|---|
 | Schema-driven decision podjęta i potrzebna reguła dynamiczna (cascading, conditional required, gate criterion) | `rule-engine-dsl` | Weryfikacja czy reguła mieści się w scope 4 DSL obszarów |
-| Decision dotyczy per-org variation (prawie zawsze gdy `[FORZA-CONFIG]`) | `multi-tenant-variation` | Wybór layer L1/L2/L3/L4 + RLS pattern |
+| Decision dotyczy per-org variation (prawie zawsze gdy `[APEX-CONFIG]`) | `multi-tenant-variation` | Wybór layer L1/L2/L3/L4 + RLS pattern |
 | Decision warta własnego ADR (istotna zmiana kontraktu) | `architecture-adr` | Struktura ADR + linkowanie do META-MODEL |
 | Nowa kolumna pochodzi z reality source (PLD v7, D365) | `reality-sync-workflow` | Two-session pattern + brainstorm markera |
 | Piszesz wymaganie / kolumnę w docs — trzeba marker | `documentation-patterns` | Marker rules + conflict resolution |
@@ -118,7 +118,7 @@ Zmiana tych rzeczy = migration + ADR + release cycle.
 
 ## Verification Checklist
 
-- [ ] Zadałem 3 pytania decyzyjne (inna firma / Forza częstotliwość / regulatoryjne).
+- [ ] Zadałem 3 pytania decyzyjne (inna firma / Apex częstotliwość / regulatoryjne).
 - [ ] Rozstrzygnięty konflikt gdy >1 pytanie wychodzi na TAK (pytanie 3 wygrywa).
 - [ ] Dla schema-driven: zdefiniowane wszystkie atrybuty metadane (label, code, type, required, owner_dept, validation, default, hard_lock, visible_for_role, sort, marker).
 - [ ] Dla schema-driven: `hard_lock=true` dla universal defaults (żeby admin nie zepsuł core contracts).

@@ -21,7 +21,7 @@
 7. Reference CRUD — 11 tables, generic metadata-driven UI
 8. Multi-tenant L2 config (dept split/merge, upgrade orchestration)
 9. Module toggles + feature flags (PostHog self-host + built-in fallback)
-10. D365 Constants admin [LEGACY-D365] — 5 Forza constants + feature flag
+10. D365 Constants admin [LEGACY-D365] — 5 Apex constants + feature flag
 11. Infrastructure (warehouses, locations, machines, production lines)
 12. Email config (Resend activation, templates, notification preferences)
 13. Security (password policy, sessions, MFA, i18n pl/en+uk/ro)
@@ -320,9 +320,9 @@ Card layout: icon (32px, top-left), title (16px bold), description (13px `--mute
 
 | Field | Type | Required | Validation | Example |
 |---|---|---|---|---|
-| Company Name | text | Yes | min 2, max 100 | "Forza Foods Ltd" |
-| Slug | text | Yes | lowercase, alphanumeric+hyphen, unique | "forza-foods" — auto-generated, editable |
-| Legal Name | text | No | max 200 | "Forza Foods Limited" |
+| Company Name | text | Yes | min 2, max 100 | "Apex Foods Ltd" |
+| Slug | text | Yes | lowercase, alphanumeric+hyphen, unique | "apex-foods" — auto-generated, editable |
+| Legal Name | text | No | max 200 | "Apex Foods Limited" |
 | Timezone | select | Yes | enum (IANA tz list) | "Europe/Warsaw" |
 | Locale | select | Yes | pl / en / uk / ro | "pl" |
 | Currency | select | Yes | ISO 4217 | "PLN" |
@@ -803,18 +803,18 @@ Same layout pattern as SET-032 (Schema Diff Viewer) but for rule DSL JSON. No re
 | # | Code | Display Name | Marker badge |
 |---|---|---|---|
 | 1 | `dept_columns` | Department Columns | UNIVERSAL |
-| 2 | `pack_sizes` | Pack Sizes | FORZA-CONFIG |
-| 3 | `lines_by_pack_size` | Lines by Pack Size | FORZA-CONFIG |
-| 4 | `dieset_by_line_pack` | Dieset by Line & Pack | FORZA-CONFIG |
+| 2 | `pack_sizes` | Pack Sizes | APEX-CONFIG |
+| 3 | `lines_by_pack_size` | Lines by Pack Size | APEX-CONFIG |
+| 4 | `dieset_by_line_pack` | Dieset by Line & Pack | APEX-CONFIG |
 | 5 | `templates` | Templates | UNIVERSAL |
 | 6 | `email_config` | Email Config | UNIVERSAL |
-| 7 | `processes` | Processes | FORZA-CONFIG |
+| 7 | `processes` | Processes | APEX-CONFIG |
 | 8 | `close_confirm` | Close Confirmation | UNIVERSAL |
-| 9 | `alert_thresholds` | Alert Thresholds | FORZA-CONFIG |
+| 9 | `alert_thresholds` | Alert Thresholds | APEX-CONFIG |
 | 10 | `allergens_reference` | Allergens Reference | UNIVERSAL |
-| 11 | `d365_constants` | D365 Constants | FORZA-CONFIG / LEGACY-D365 |
+| 11 | `d365_constants` | D365 Constants | APEX-CONFIG / LEGACY-D365 |
 
-Each card: table display name (16px bold), code badge-gray, marker badge (badge-blue for UNIVERSAL, badge-amber for FORZA-CONFIG, badge-red for LEGACY-D365), stats row "X active rows · Last modified: date", `btn-secondary` "Manage →" → `/settings/reference/:table_code`.
+Each card: table display name (16px bold), code badge-gray, marker badge (badge-blue for UNIVERSAL, badge-amber for APEX-CONFIG, badge-red for LEGACY-D365), stats row "X active rows · Last modified: date", `btn-secondary` "Manage →" → `/settings/reference/:table_code`.
 
 **States:** Loading: 11 skeleton cards. Error: `alert-red`. All cards always visible (tables always exist, may have 0 rows).
 
@@ -857,7 +857,7 @@ Each card: table display name (16px bold), code badge-gray, marker badge (badge-
 
 *allergens_reference:* Allergen Code (text, A01–A14 + custom), Name EN (text), Name PL (text), Name DE (text, Phase 2), Name UK (text, Phase 2), Icon URL (text), Is Active (boolean).
 
-*d365_constants:* Constant Key (text, one of 5 Forza keys), Constant Value (text), Description (text), Is Active (boolean).
+*d365_constants:* Constant Key (text, one of 5 Apex keys), Constant Value (text), Description (text), Is Active (boolean).
 
 *dept_columns:* Dept Code (text), Column Code (text), Column Label PL (text), Column Label EN (text), Display Order (number), Is Required (boolean), Data Type (enum).
 
@@ -919,7 +919,7 @@ Below KPIs: three section cards.
 
 **Layout:** SettingsLayout "Department Taxonomy." Description "Customize department structure for your organization. Changes affect column ownership and rule routing." `alert-amber` "Dept changes affect how columns and rules are grouped. Review the impact before saving."
 
-Current dept list panel (left ~40%): list of all active depts (baseline 7 Forza + custom), each with drag handle, dept code badge, name, assigned column count. `btn-primary` "+ Add Custom Dept".
+Current dept list panel (left ~40%): list of all active depts (baseline 7 Apex + custom), each with drag handle, dept code badge, name, assigned column count. `btn-primary` "+ Add Custom Dept".
 
 Operations panel (right ~60%): selected dept shows operation options:
 - **Split:** "Split [dept] into two departments." Source dept select (pre-filled), Target Dept 1 name + code, Target Dept 2 name + code, Column mapping: for each column in source dept, dropdown to assign to Target 1 or Target 2.
@@ -1069,13 +1069,13 @@ Read-through view. Table: Flag Name | Variant / Value | Rollout % | Targeting Ru
 **Route:** `/settings/d365`
 **Purpose:** Configure base URL, service account, OAuth credentials, and test the D365 connection.
 
-**Layout:** SettingsLayout "D365 Integration." `badge-amber` "LEGACY-D365" badge next to title. Description "Configure Dynamics 365 Finance & Operations connection for Forza. This integration will be retired when Monopilot replaces D365." `alert-amber` "Retirement path: when integration is no longer needed, disable the flag and archive constants."
+**Layout:** SettingsLayout "D365 Integration." `badge-amber` "LEGACY-D365" badge next to title. Description "Configure Dynamics 365 Finance & Operations connection for Apex. This integration will be retired when Monopilot replaces D365." `alert-amber` "Retirement path: when integration is no longer needed, disable the flag and archive constants."
 
 Form fields (single column):
 
 | Field | Type | Required | Notes |
 |---|---|---|---|
-| D365 Base URL | url | Yes | e.g. `https://forza.operations.dynamics.com` |
+| D365 Base URL | url | Yes | e.g. `https://apex.operations.dynamics.com` |
 | Environment | select | Yes | Production / Sandbox / Development |
 | Tenant ID (Azure AD) | text | Yes | UUID format |
 | Client ID | text | Yes | Azure App Registration client ID |
@@ -1094,7 +1094,7 @@ Form fields (single column):
 ### SET-081 — D365 Constants Editor
 
 **Route:** `/settings/d365/constants`
-**Purpose:** View and edit the 5 Forza D365 constants stored in the `d365_constants` reference table.
+**Purpose:** View and edit the 5 Apex D365 constants stored in the `d365_constants` reference table.
 
 **Layout:** SettingsLayout "D365 Constants." Description "These constants are required for D365 integration. All 5 must be populated before enabling the integration." Progress strip: "X of 5 constants configured" with progress bar color `--blue`.
 
@@ -1102,11 +1102,11 @@ Inline editable table (not a modal — editing happens inline for speed):
 
 | Constant | Key | Current Value | Description | Edit |
 |---|---|---|---|---|
-| Production Site ID | FNOR | [value] | Forza North site code | inline text input |
+| Production Site ID | FNOR | [value] | Apex North site code | inline text input |
 | Approver Personnel # | FOR100048 | [value] | Approver employee ID | inline text input |
-| Consumption Warehouse | ForzDG | [value] | Forza warehouse code | inline text input |
+| Consumption Warehouse | ApexDG | [value] | Apex warehouse code | inline text input |
 | Product Group ID | FinGoods | [value] | Finished Goods group | inline text input |
-| Costing Resource ID | FProd01 | [value] | Forza Production resource | inline text input |
+| Costing Resource ID | FProd01 | [value] | Apex Production resource | inline text input |
 
 Each row has Save icon (✓) and Cancel icon (×) appearing on edit. Row saving triggers audit log entry.
 

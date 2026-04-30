@@ -16,7 +16,7 @@ Every row has a status: PLANNED (covered by a task), DEFERRED (out of scope with
 
 | PRD item | Status | Coverage |
 |---|---|---|
-| [UNIVERSAL]/[FORZA-CONFIG]/[EVOLVING]/[LEGACY-D365] marker doctrine | PLANNED | T-GOV-005 (reference doc) + T-GOV-006 (lint check) |
+| [UNIVERSAL]/[APEX-CONFIG]/[EVOLVING]/[LEGACY-D365] marker doctrine | PLANNED | T-GOV-005 (reference doc) + T-GOV-006 (lint check) |
 
 ### A.2 PRD §3 Personas & §4 Module map
 
@@ -76,7 +76,7 @@ Every row has a status: PLANNED (covered by a task), DEFERRED (out of scope with
 | app-role connection split | PLANNED | T-00b-A01 (gap-fill per Decision) |
 | Impersonation + MFA + SIEM | SPLIT | T-00d-005 (flag plumbing only); MFA enrollment + SIEM DEFERRED to E-2+ |
 | Canary rollout + tenant_migrations | DEFERRED | Alt §10 — needed at 2nd tenant (post-E-2); not in merged backlog |
-| Dept taxonomy (Forza 7) | PLANNED | ADR-030 via T-GOV-003; runtime via T-00h-001; seed DEFERRED to E-1 per ADR-032 |
+| Dept taxonomy (Apex 7) | PLANNED | ADR-030 via T-GOV-003; runtime via T-00h-001; seed DEFERRED to E-1 per ADR-032 |
 
 ### A.7 PRD §9 Auth
 
@@ -176,7 +176,7 @@ Every row has a status: PLANNED (covered by a task), DEFERRED (out of scope with
 | T-31 outbox_events + trace cols | SPLIT | T-00f-001 outbox + T-00b-000 R13 cols + T-00b-E02 events enum |
 | T-32 Admin UI schema wizard | DEFERRED | E-2 (02-SET-b) per ADR-032 |
 | T-33 Admin UI rule wizard | DEFERRED | E-2 (02-SET-c) |
-| T-34 Dept taxonomy seed | SPLIT / partial DEFER | Runtime resolution via T-00h-001; Forza seed DEFERRED to E-1 |
+| T-34 Dept taxonomy seed | SPLIT / partial DEFER | Runtime resolution via T-00h-001; Apex seed DEFERRED to E-1 |
 | T-35 audit_events + triggers | SPLIT | T-00e-001 + T-00e-002 |
 | T-36 tenant_migrations + canary | DEFERRED | Needed at 2nd tenant; alt §10 defers; noted in coverage A.6 |
 | T-37 D365 adapter stub | DEFERRED | Pointer T-OOS-001 → E-2 per module (per Decision #2) |

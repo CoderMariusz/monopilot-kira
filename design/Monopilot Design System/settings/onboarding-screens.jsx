@@ -55,12 +55,12 @@ const OnboardingWizardScreen = ({ onNav }) => {
   const [completed, setCompleted] = React.useState([]);
   const [skipped, setSkipped] = React.useState([]);
   const [form, setForm] = React.useState({
-    org_name: "Forza Foods Sp. z o.o.",
+    org_name: "Apex Foods Sp. z o.o.",
     timezone: "Europe/Warsaw",
     locale:   "pl-PL",
     currency: "PLN",
     gs1_prefix: "5012345",
-    wh_name:  "ForzDG · Finished Goods",
+    wh_name:  "ApexDG · Finished Goods",
     wh_code:  "FG-01",
     wh_type:  "finished",
     loc_path: "FG › Zone A › Rack 1 › Bin 1",

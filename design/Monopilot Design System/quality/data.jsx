@@ -225,7 +225,7 @@ const QA_SAMPLING_PLANS = [
   { code: "ISO-AQL-2.5-GIII", type: "iso2859", aql: 2.5, level: "GIII", lotMin: 501,  lotMax: 1200,  sampleSize: 50,  accept: 3, reject: 4, appliesTo: "incoming", status: "active" },
   { code: "ISO-AQL-4.0-GII", type: "iso2859", aql: 4.0, level: "GII", lotMin: 501,   lotMax: 1200,  sampleSize: 32,  accept: 3, reject: 4, appliesTo: "incoming", status: "active" },
   { code: "ISO-AQL-1.0-SI",  type: "iso2859", aql: 1.0, level: "S-1", lotMin: 91,    lotMax: 150,   sampleSize: 8,   accept: 0, reject: 1, appliesTo: "final",    status: "active" },
-  { code: "FORZA-10TH",      type: "custom",  aql: null, level: "—", lotMin: 1,     lotMax: 99999, sampleSize: null, accept: 0, reject: 1, appliesTo: "all",       status: "active", notes: "1-in-10 pallet sample — Forza internal policy" },
+  { code: "APEX-10TH",      type: "custom",  aql: null, level: "—", lotMin: 1,     lotMax: 99999, sampleSize: null, accept: 0, reject: 1, appliesTo: "all",       status: "active", notes: "1-in-10 pallet sample — Apex internal policy" },
   { code: "ANSI-Z14-GII",    type: "ansi_z14", aql: 2.5, level: "GII", lotMin: 501,  lotMax: 1200,  sampleSize: 32,  accept: 2, reject: 3, appliesTo: "incoming", status: "archived" },
 ];
 

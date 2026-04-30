@@ -159,7 +159,7 @@
 | X1 | **Scanner→Finance event chain** (consume transaction → `material.consumed` event → `cost_method_selector_v1` → `material_consumption_costs`) is correctly scoped as a backend concern. Neither scanner prototype nor finance prototype duplicates this; the interface boundary is clean. |
 | X2 | **Waste categories** — scanner `WasteScreen` uses `SCN_WASTE_CATS` (fat/floor/giveaway/rework/other); finance `FinWoDetail` reads `waste_cost_actual`. The linkage through `wo_waste_log.category_id → waste_categories` (02-SETTINGS §8) is not tested in prototypes but the conceptual path is coherent. |
 | X3 | **QA yield loss → Finance** — `FinDashboard` "Monthly Yield Loss" table references `ncr_reports.claim_value_eur` from 09-QA, converted at daily GBP/EUR. Scanner `QaInspectScreen` creates NCR on FAIL. The FX conversion note "EUR claim values converted at daily GBP/EUR rate effective on incident date" in prototype is accurate to PRD §2.3 / §8.3. |
-| X4 | **D365 Constants** — `FinD365` correctly shows `dataAreaId: FNOR`, `warehouse: ForzDG` matching PRD §2.2 Forza config. Scanner does not interact with D365 — correct separation. |
+| X4 | **D365 Constants** — `FinD365` correctly shows `dataAreaId: FNOR`, `warehouse: ApexDG` matching PRD §2.2 Apex config. Scanner does not interact with D365 — correct separation. |
 | X5 | **RunStrip component** appears in both scanner (login screen, session outcomes) and finance (standard costs trend). This is a shared design-system primitive. Usage in finance is an extension; usage in scanner login is also an extension. Both should be documented as TUNING-PATTERN compliant additions. |
 
 ---

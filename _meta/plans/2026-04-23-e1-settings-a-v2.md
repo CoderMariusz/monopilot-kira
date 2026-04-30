@@ -1667,7 +1667,7 @@ Stwórz trzy tabele Drizzle dla systemu generic reference data. Tabele muszą:
 
 ### Rollback
 `pnpm drizzle-kit drop --migration 021-settings-reference-tables` + usuń `apps/web/drizzle/schema/settings-reference.ts` i `apps/web/lib/validators/reference.ts`
-## T-02SETa-012 — Seed: 7 reference table schema definitions + Forza data
+## T-02SETa-012 — Seed: 7 reference table schema definitions + Apex data
 
 **Type:** T5-seed
 **Context budget:** ~35k tokens
@@ -1689,7 +1689,7 @@ Stwórz trzy tabele Drizzle dla systemu generic reference data. Tabele muszą:
 ### GIVEN / WHEN / THEN
 **GIVEN** tabele `reference_tables`, `reference_schemas`, `reference_rows` istnieją po migracji 021
 **WHEN** `pnpm seed:settings-reference` uruchamia `apps/web/seed/settings-reference-seed.ts`
-**THEN** w `reference_tables` istnieje 7 wpisów: `units_of_measure`, `currencies`, `countries`, `vat_rates`, `document_types`, `warehouse_zones`, `production_shift_types`; każda tabela ma wiersze schema w `reference_schemas` odpowiadające typom kolumn; `reference_rows` zawiera Forza baseline data dla wszystkich 7 tabel; snapshot nazwany `settings-reference-forza-baseline`
+**THEN** w `reference_tables` istnieje 7 wpisów: `units_of_measure`, `currencies`, `countries`, `vat_rates`, `document_types`, `warehouse_zones`, `production_shift_types`; każda tabela ma wiersze schema w `reference_schemas` odpowiadające typom kolumn; `reference_rows` zawiera Apex baseline data dla wszystkich 7 tabel; snapshot nazwany `settings-reference-apex-baseline`
 
 ### Test gate (planning summary)
 - **Unit:** `vitest apps/web/seed/settings-reference-seed.test.ts` — covers: seed uruchamia się bez błędów, 7 table_names obecnych, row counts zgodne
@@ -1701,7 +1701,7 @@ Stwórz trzy tabele Drizzle dla systemu generic reference data. Tabele muszą:
 `DELETE FROM reference_rows WHERE table_name IN ('units_of_measure','currencies','countries','vat_rates','document_types','warehouse_zones','production_shift_types'); DELETE FROM reference_schemas WHERE table_name IN (...); DELETE FROM reference_tables WHERE table_name IN (...);`
 ### ACP Prompt
 ````
-# Task T-02SETa-012 — Seed: 7 reference table schema definitions + Forza data
+# Task T-02SETa-012 — Seed: 7 reference table schema definitions + Apex data
 
 ## Context — przeczytaj przed implementacją
 - `apps/web/drizzle/schema/settings-reference.ts` → cały plik (typy tabel: referenceTables, referenceSchemas, referenceRows)
@@ -1709,7 +1709,7 @@ Stwórz trzy tabele Drizzle dla systemu generic reference data. Tabele muszą:
 - `apps/web/seed/index.ts` → wzorzec rejestracji seedów (jak dodać nowy seed do pipeline)
 
 ## Twoje zadanie
-Stwórz seed który wypełnia 7 tabel referencyjnych wymaganych przez ADR-032 carveout. Seed musi działać jako Drizzle typed insert (nie raw SQL). Po insercie zarejestruj snapshot `settings-reference-forza-baseline`.
+Stwórz seed który wypełnia 7 tabel referencyjnych wymaganych przez ADR-032 carveout. Seed musi działać jako Drizzle typed insert (nie raw SQL). Po insercie zarejestruj snapshot `settings-reference-apex-baseline`.
 
 ## Implementacja
 
@@ -1741,7 +1741,7 @@ Stwórz seed który wypełnia 7 tabel referencyjnych wymaganych przez ADR-032 ca
    - `warehouse_zones`: `code TEXT is_required=true`, `label TEXT is_required=true`, `zone_type TEXT`
    - `production_shift_types`: `code TEXT is_required=true`, `label TEXT is_required=true`, `start_time TEXT`, `end_time TEXT`
 
-3. Wstaw `reference_rows` Forza baseline data w `apps/web/seed/settings-reference-seed.ts`:
+3. Wstaw `reference_rows` Apex baseline data w `apps/web/seed/settings-reference-seed.ts`:
    - `units_of_measure` (5 wierszy): `{ code: 'kg', label: 'Kilogram', symbol: 'kg' }`, `{ code: 'g', label: 'Gram', symbol: 'g' }`, `{ code: 'L', label: 'Litre', symbol: 'L' }`, `{ code: 'mL', label: 'Millilitre', symbol: 'mL' }`, `{ code: 'pcs', label: 'Pieces', symbol: 'pcs' }`
    - `currencies` (4 wiersze): `{ code: 'PLN', name: 'Polish Zloty', symbol: 'zł' }`, `{ code: 'EUR', name: 'Euro', symbol: '€' }`, `{ code: 'USD', name: 'US Dollar', symbol: '$' }`, `{ code: 'GBP', name: 'British Pound', symbol: '£' }`
    - `countries` (5 wierszy): `{ code: 'PL', name: 'Poland' }`, `{ code: 'DE', name: 'Germany' }`, `{ code: 'GB', name: 'United Kingdom' }`, `{ code: 'FR', name: 'France' }`, `{ code: 'US', name: 'United States' }`
@@ -1750,7 +1750,7 @@ Stwórz seed który wypełnia 7 tabel referencyjnych wymaganych przez ADR-032 ca
    - `warehouse_zones` (3 wiersze): `{ code: 'raw_material', label: 'Raw Material', zone_type: 'input' }`, `{ code: 'work_in_progress', label: 'Work in Progress', zone_type: 'production' }`, `{ code: 'finished_goods', label: 'Finished Goods', zone_type: 'output' }`
    - `production_shift_types` (3 wiersze): `{ code: 'morning', label: 'Morning Shift', start_time: '06:00', end_time: '14:00' }`, `{ code: 'afternoon', label: 'Afternoon Shift', start_time: '14:00', end_time: '22:00' }`, `{ code: 'night', label: 'Night Shift', start_time: '22:00', end_time: '06:00' }`
 
-4. W `apps/web/seed/settings-reference-seed.ts` dodaj snapshot name jako komentarz na początku pliku: `// Snapshot: settings-reference-forza-baseline`
+4. W `apps/web/seed/settings-reference-seed.ts` dodaj snapshot name jako komentarz na początku pliku: `// Snapshot: settings-reference-apex-baseline`
    W tym samym pliku `apps/web/seed/settings-reference-seed.ts` zaktualizuj `row_count` w `reference_tables` po wstawieniu wierszy:
    ```ts
    await db.update(referenceTables).set({ row_count: actualCount }).where(eq(referenceTables.tableName, tableName))
@@ -1768,7 +1768,7 @@ Stwórz seed który wypełnia 7 tabel referencyjnych wymaganych przez ADR-032 ca
 ## Done when
 - `pnpm seed:settings-reference` exits 0 na świeżej lokalnej Supabase
 - `SELECT COUNT(*) FROM reference_tables` → 7
-- `SELECT COUNT(*) FROM reference_rows` → ≥25 (suma wszystkich Forza rows)
+- `SELECT COUNT(*) FROM reference_rows` → ≥25 (suma wszystkich Apex rows)
 - `vitest apps/web/seed/settings-reference-seed.test.ts` PASS — sprawdza: 7 table_names, row counts zgodne z spec
 - `pnpm test:smoke` green
 
@@ -2302,7 +2302,7 @@ Stwórz system MV refresh dla reference_rows: PostgreSQL materialized views per 
 - **Parallel (can run concurrently):** [T-02SETa-026, T-02SETa-028]
 
 ### GIVEN / WHEN / THEN
-**GIVEN** Reference CRUD UI + server actions + MV refresh zaimplementowane; Forza seed `settings-reference-forza-baseline` zastosowany; Playwright + Vitest harness z E-0 gotowe
+**GIVEN** Reference CRUD UI + server actions + MV refresh zaimplementowane; Apex seed `settings-reference-apex-baseline` zastosowany; Playwright + Vitest harness z E-0 gotowe
 **WHEN** full test suite uruchamia się: `playwright apps/web/e2e/settings/reference-tables.spec.ts` + `vitest apps/web/app/actions/settings/__tests__/reference-actions.integration.test.ts`
 **THEN** admin może CRUD wszystkie 7 tabel referencyjnych przez UI; MV refresh odpala po każdej mutacji; `audit_log` zawiera wpisy dla każdej operacji; `outbox_events` zawiera odpowiednie events; RLS blokuje cross-tenant dostęp do `reference_rows`; `pnpm test:smoke` green
 
@@ -2413,8 +2413,8 @@ Napisz kompletne testy weryfikujące end-to-end działanie Reference Data track:
    
    describe('Reference CRUD Integration', () => {
      beforeEach(async () => {
-       // Seed clean tenant + seed settings-reference-forza-baseline
-       await supabaseLocalDb.resetToSnapshot('settings-reference-forza-baseline')
+       // Seed clean tenant + seed settings-reference-apex-baseline
+       await supabaseLocalDb.resetToSnapshot('settings-reference-apex-baseline')
      })
      
      it('createRefRow inserts row and emits audit + outbox', async () => {
@@ -4246,9 +4246,9 @@ Delete test files: `rm apps/web/e2e/settings/modules.spec.ts apps/web/e2e/settin
 - **Parallel (can run concurrently):** []
 
 ### GIVEN / WHEN / THEN
-**GIVEN** All three tracks complete (S-α Identity, S-β Reference, S-γ Toggles+i18n); Forza seed applied; full E-1 migration stack applied
+**GIVEN** All three tracks complete (S-α Identity, S-β Reference, S-γ Toggles+i18n); Apex seed applied; full E-1 migration stack applied
 **WHEN** Playwright runs `apps/web/e2e/settings/settings-acceptance.spec.ts`
-**THEN** full acceptance flow succeeds: owner creates org → invites user with NPD Manager role → role assigned → NPD Manager logs in → RLS enforces org scope (cross-org query returns 0 rows) → `pack_sizes` dropdown has ≥5 Forza rows → `templates` has ≥4 rows → `processes` has 8 rows → `dieset_by_line_pack` has ≥10 rows → `organization_modules.is_enabled=true` for `npd` → `permissions.enum.ts` exports all required settings permission strings → `audit_log` has entries for org.created, user.invited, role.assigned → `outbox_events` has `org.created`, `user.invited`, `role.assigned` entries → CI gate green — **Phase E-2 NPD-a unlock**
+**THEN** full acceptance flow succeeds: owner creates org → invites user with NPD Manager role → role assigned → NPD Manager logs in → RLS enforces org scope (cross-org query returns 0 rows) → `pack_sizes` dropdown has ≥5 Apex rows → `templates` has ≥4 rows → `processes` has 8 rows → `dieset_by_line_pack` has ≥10 rows → `organization_modules.is_enabled=true` for `npd` → `permissions.enum.ts` exports all required settings permission strings → `audit_log` has entries for org.created, user.invited, role.assigned → `outbox_events` has `org.created`, `user.invited`, `role.assigned` entries → CI gate green — **Phase E-2 NPD-a unlock**
 
 ### ACP Prompt
 ````
@@ -4276,7 +4276,7 @@ SETTINGS_FLAGS_VIEW = 'settings:flags:view'
 SETTINGS_FLAGS_UPDATE = 'settings:flags:update'
 ```
 
-**Forza seed row counts (minimum required):**
+**Apex seed row counts (minimum required):**
 - `pack_sizes`: ≥5 rows
 - `templates`: ≥4 rows
 - `processes`: exactly 8 rows (Strip/A, Coat/B, Honey/C, Smoke/E, Slice/F, Tumble/G, Dice/H, Roast/R)
@@ -4299,24 +4299,24 @@ test.describe('Settings-a ADR-032 carveout acceptance', () => {
   test.describe.configure({ mode: 'serial' })
 
   test.beforeAll(async () => {
-    // Ensure Forza seed applied
+    // Ensure Apex seed applied
   })
 
   test('1. Owner creates organization', async ({ page }) => {
     await page.goto('/settings/organizations')
     await page.getByRole('button', { name: 'Create Organization' }).click()
-    await page.getByLabel('Organization Name').fill('Forza Acceptance Test Org')
+    await page.getByLabel('Organization Name').fill('Apex Acceptance Test Org')
     await page.getByRole('button', { name: 'Create' }).click()
-    await expect(page.getByText('Forza Acceptance Test Org')).toBeVisible()
+    await expect(page.getByText('Apex Acceptance Test Org')).toBeVisible()
   })
 
   test('2. Owner invites user with NPD Manager role', async ({ page }) => {
     await page.goto('/settings/users')
     await page.getByRole('button', { name: 'Invite User' }).click()
-    await page.getByLabel('Email').fill('npd-manager-test@forza.test')
+    await page.getByLabel('Email').fill('npd-manager-test@apex.test')
     await page.getByLabel('Role').selectOption('NPD Manager')
     await page.getByRole('button', { name: 'Send Invite' }).click()
-    await expect(page.getByText('npd-manager-test@forza.test')).toBeVisible()
+    await expect(page.getByText('npd-manager-test@apex.test')).toBeVisible()
   })
 
   test('3. NPD Manager logs in → RLS enforces org scope', async ({ browser }) => {
@@ -4331,7 +4331,7 @@ test.describe('Settings-a ADR-032 carveout acceptance', () => {
     await context.close()
   })
 
-  test('4. Reference data: Forza seed counts verified', async ({ request }) => {
+  test('4. Reference data: Apex seed counts verified', async ({ request }) => {
     const checks = [
       { table: 'pack_sizes', min: 5 },
       { table: 'templates', min: 4 },
@@ -4383,7 +4383,7 @@ import { Permission } from '@/lib/rbac/permissions.enum'
 
 describe('Settings-a carveout acceptance — DB state assertions', () => {
   beforeAll(async () => {
-    // Apply all E-1 migrations + Forza seed
+    // Apply all E-1 migrations + Apex seed
   })
 
   it('permissions.enum.ts exports all required settings permissions', () => {
@@ -4407,7 +4407,7 @@ describe('Settings-a carveout acceptance — DB state assertions', () => {
     expect(result.data).toHaveLength(15)
   })
 
-  it('pack_sizes has ≥5 Forza rows', async () => {
+  it('pack_sizes has ≥5 Apex rows', async () => {
     const result = await supabaseLocalDb.from('reference_data')
       .select('id').eq('table_code', 'pack_sizes')
     expect(result.data!.length).toBeGreaterThanOrEqual(5)

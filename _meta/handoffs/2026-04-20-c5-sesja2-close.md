@@ -28,21 +28,21 @@
 
 | Q | Decyzja | Rationale |
 |---|---|---|
-| **Q1 Calibration** | **A** manual calendar + alerts 30d/7d/overdue P1 (D-MNT-5 retained), P2 IoT sensor auto-trigger | Forza reality manual + BRCGS evidence ready, IoT post-hardware provisioning |
+| **Q1 Calibration** | **A** manual calendar + alerts 30d/7d/overdue P1 (D-MNT-5 retained), P2 IoT sensor auto-trigger | Apex reality manual + BRCGS evidence ready, IoT post-hardware provisioning |
 | **Q2 PM engine** | **A** calendar-based P1 + B usage-based P2 + C condition-based ML P3 (per R12 roadmap) | Phased, greenfield reality |
 | **Q3 Parts inventory** | **A** basic qty_on_hand + min/reorder P1 (D-MNT-6), P2 consumption forecasting | Unblock MVP, separate catalog vs 03-TECH products |
 | **Q4 TPM scope** | **A** reactive + preventive + calibration + sanitation P1 (D-MNT-7 CIP) + P2 5S/autonomous/predictive | Balanced, baseline consistent |
-| **Q5 IoT sensor** | **P1 deferred** (Modbus TCP/OPC UA → P2) + P3 full vision/vibration/thermal | Forza brak sensors dzisiaj, koszt integracji >benefit P1 |
+| **Q5 IoT sensor** | **P1 deferred** (Modbus TCP/OPC UA → P2) + P3 full vision/vibration/thermal | Apex brak sensors dzisiaj, koszt integracji >benefit P1 |
 | **Q6 WR vs WO** | **B unified** — MWO lifecycle z state `requested` → `approved` → `open` → ... single table (D-MNT-9) | Prostszy schema, mniej joinow, consistency z 05-WH TO pattern |
 
 #### 14-MULTI-SITE (Q7-Q12)
 
 | Q | Decyzja | Rationale |
 |---|---|---|
-| **Q7 Hierarchy depth** | **3 levels default** (site → plant → line) + configurable 2-5 per tenant L2 (D-MS-10 ADR-030) | Forza 1-plant today, L2 flexibility bez overengineering |
+| **Q7 Hierarchy depth** | **3 levels default** (site → plant → line) + configurable 2-5 per tenant L2 (D-MS-10 ADR-030) | Apex 1-plant today, L2 flexibility bez overengineering |
 | **Q8 Inter-site transfers P1** | **A** 05-WH TO extension (same pattern different site_id) + IN_TRANSIT state (D-MS-3) | Minimum viable, P2 customs/EU-non-EU compliance |
-| **Q9 Data residency** | **P1 single-region all sites** (org-level R7) + **P2 per-site override** (Forza UK + KOBE EU independent, future) — D-MS-15 | Forza today single UK, P2 when second site live |
-| **Q10 Cross-site RBAC** | **Multi-site users via `site_user_access`** (D-MS-11 retained) + primary_site default + super_admin cross-site | Forza managers multi-site, operators single-site |
+| **Q9 Data residency** | **P1 single-region all sites** (org-level R7) + **P2 per-site override** (Apex UK + KOBE EU independent, future) — D-MS-15 | Apex today single UK, P2 when second site live |
+| **Q10 Cross-site RBAC** | **Multi-site users via `site_user_access`** (D-MS-11 retained) + primary_site default + super_admin cross-site | Apex managers multi-site, operators single-site |
 | **Q11 Consolidation reports P1** | **A** per-site filter + factory aggregate P1 (12-REPORTING consumer via cross_site_summary MV) + P2 cross-site benchmarking | Unblock MVP, benchmark wymaga ≥2 sites z data |
 | **Q12 site_id activation** | **Pre-activation DDL w 14-a** (CREATE INDEX CONCURRENTLY + backfill default_site + assume REC-L1 done) + gradual per-module verification (14-e regression tests) | Single atomic DDL, bez per-PRD migration chaos |
 
@@ -55,7 +55,7 @@
 | 3 | **OEE auto-trigger P2 (D-MNT-11)** — `oee_maintenance_trigger_v1` consumer (15-OEE owned): availability<80% 3-consecutive-days → auto PM MWO, dedup {line_id, 7d window} | §7.2, §8.1 | [UNIVERSAL] + [EVOLVING] |
 | 4 | **Allergen-aware sanitation (D-MNT-14)** — `sanitation_checklists.allergen_change_flag=true` → dual sign-off tech+QA + ATP RLU check + 08-PROD `allergen_changeover_gate_v1` consumer | §7.2, §8.1, §9.14 | [UNIVERSAL] |
 | 5 | **LOTO basic P1 (D-MNT-15)** — `mwo_loto_checklists` energy_sources_isolated + tags_applied + zero_energy_verified + released_by, pre-condition dla equipment.requires_loto=true MWO in_progress | §7.2, §8.1, §9.7 | [UNIVERSAL] |
-| 6 | **L2 tenant config `maintenance_alert_thresholds`** — per-tenant PM intervals, calibration warning days, MTBF target, availability breach threshold, ATP RLU (Forza 30 baseline override) | §13.2, 02-SET §8.1 #21 | [UNIVERSAL] + [FORZA-CONFIG] |
+| 6 | **L2 tenant config `maintenance_alert_thresholds`** — per-tenant PM intervals, calibration warning days, MTBF target, availability breach threshold, ATP RLU (Apex 30 baseline override) | §13.2, 02-SET §8.1 #21 | [UNIVERSAL] + [APEX-CONFIG] |
 | 7 | **Outbox event pattern 8 events (D-MNT-12)** — mwo.* (5 states) + spare_parts.consumed + calibration.recorded + sanitation.allergen_change.completed | §7.2, §12.3 | [UNIVERSAL] |
 | 8 | **REC-L1 site_id on 14 tables from day 1 (nie retrofit)** | §6.3, §9.* | [UNIVERSAL] |
 | 9 | **6 P1 dashboards MNT-001..006** (Worklist, PM Calendar, Calibration Health, Spare Parts Stock, Equipment MTBF/MTTR, Manager Overview) + 8 P2 dashboards + dashboards_catalog registration via 12-REPORTING | §10 | [UNIVERSAL] |
@@ -67,13 +67,13 @@
 
 | # | Innovation | Section | Marker |
 |---|---|---|---|
-| 1 | **Hierarchy 3-level default + L2 flexibility (D-MS-10, Q7)** — `sites_hierarchy_config` depth 2-5 per tenant (ADR-030 pattern reuse), Forza baseline site→plant→line | §6.3, §9.5 | [UNIVERSAL] + [FORZA-CONFIG] |
+| 1 | **Hierarchy 3-level default + L2 flexibility (D-MS-10, Q7)** — `sites_hierarchy_config` depth 2-5 per tenant (ADR-030 pattern reuse), Apex baseline site→plant→line | §6.3, §9.5 | [UNIVERSAL] + [APEX-CONFIG] |
 | 2 | **Inter-site TO extension z IN_TRANSIT (D-MS-3 + Q8A)** — `to_state_machine_v1` 05-WH base extended; outbox events shipped/in_transit/received; cost allocation (sender/receiver/split/none) | §8.2, §9.6, §12.3 | [UNIVERSAL] |
 | 3 | **Feature flag orchestration via 02-SET §9 ADR-031 (D-MS-14)** — state machine inactive→wizard_in_progress→dual_run→activated, 3-step wizard, admin rollback możliwy | §13.5 | [UNIVERSAL] |
 | 4 | **Cross-site RBAC multi-site users (D-MS-11, Q10)** — `site_user_access` many-to-many + `is_primary` constraint + super_admin bypass + x-site-id header + `current_site_id()` SECURITY DEFINER | §4, §9.2 | [UNIVERSAL] |
 | 5 | **Composite RLS indexes mandatory (D-MS-13)** — CREATE INDEX CONCURRENTLY (org_id, site_id) na 20+ tables pre-activation; target <5% pgbench overhead vs single-site | §9.9, §15.3 | [UNIVERSAL] |
-| 6 | **Per-site production_shifts (D-MS-9 REC-L5, Q10)** — ALTER TABLE production_shifts ADD site_id + `shift_configs` ref per-site timezone/hours — consumer 15-OEE `shift_aggregator_v1` | §9.7, 02-SET §8.1 #19 ext | [UNIVERSAL] + [FORZA-CONFIG] |
-| 7 | **Per-site data residency P2 (D-MS-15, Q9)** — `sites.data_residency_region` + `per_site_residency_gate_v1` rule — Forza UK EU-West-2 + KOBE EU-Central-1 independent (future) | §5.1, §9.1, §7.1 | [EVOLVING] |
+| 6 | **Per-site production_shifts (D-MS-9 REC-L5, Q10)** — ALTER TABLE production_shifts ADD site_id + `shift_configs` ref per-site timezone/hours — consumer 15-OEE `shift_aggregator_v1` | §9.7, 02-SET §8.1 #19 ext | [UNIVERSAL] + [APEX-CONFIG] |
+| 7 | **Per-site data residency P2 (D-MS-15, Q9)** — `sites.data_residency_region` + `per_site_residency_gate_v1` rule — Apex UK EU-West-2 + KOBE EU-Central-1 independent (future) | §5.1, §9.1, §7.1 | [EVOLVING] |
 | 8 | **Outbox events 3 for inter-site TO (D-MS-12)** — `transfer_order.shipped/in_transit/received` z payload {org_id, from_site_id, to_site_id, transfer_cost, items[]} | §12.3 | [UNIVERSAL] |
 | 9 | **Master data org-level (unchanged) vs operational site-level (RLS site-scoped) — D-MS-4** | §9.8 master table list | [UNIVERSAL] |
 | 10 | **4 P1 dashboards + 20 V-MS validations** — Site Overview, Inter-site TO Tracker, Cross-site Factory Aggregate, Site Switcher UX + per-site filter + factory aggregate MV | §10, §11 | [UNIVERSAL] |
@@ -124,7 +124,7 @@
 
 **Notable:**
 - **OQ-MNT-01** — `technician_skills` levels matrix vs single skill_level (P2 impl detail)
-- **OQ-MNT-08** — Cold chain IoT integration P2 vs P1 if Forza pushes hardware consult
+- **OQ-MNT-08** — Cold chain IoT integration P2 vs P1 if Apex pushes hardware consult
 - **OQ-MS-04** — Backfill migration for org with millions of rows: online vs offline (P2 perf+ops)
 - **OQ-MS-07** — Cross-region replication P2: streaming vs logical (pglogical) — P3 14-L phase infra
 - **OQ-MS-08** — Multi-entity accounting schema strategy: same db schema vs separate Postgres schemas (P2 14-I)

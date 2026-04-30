@@ -64,7 +64,7 @@ Kluczowe sekcje:
 - **§7 Workflow rules** — 4 baseline blocking + Closed/Done semantics + Status_Overall 5-enum (Phase D #3) + Built auto-reset (Phase D #8 fix — trigger SQL)
 - **§8 Allergens multi-level cascade** [UNIVERSAL food-mfg] — Reference.Allergens + Allergens_by_RM + Allergens_added_by_Process; cascade rule DSL; manual override + audit
 - **§9 Brief module** — 2 templates, 37 cols (C21-C37 rescan pending), Convert-to-PLD flow, brief↔FA traceability, mapping table
-- **§10 D365 Builder** — 8 tabs per-FA file (D365_Data + Formula_Version/Lines + 4×Route + Resource_Req), N+1 products per FA (Phase D #19), Reference.D365_Constants (FNOR/FOR100048/ForzDG/FinGoods/FProd01), retirement path
+- **§10 D365 Builder** — 8 tabs per-FA file (D365_Data + Formula_Version/Lines + 4×Route + Resource_Req), N+1 products per FA (Phase D #19), Reference.D365_Constants (FNOR/FOR100048/ApexDG/FinGoods/FProd01), retirement path
 - **§11 Dashboard NPD-scoped** — counters, per-dept breakdown, RED/YELLOW/GREEN alerts (thresholds 10/21 days w Reference.AlertThresholds), Missing Data text
 - **§12 Validations V01-V08** (2 new — V07 allergens, V08 brief mapping)
 - **§13 Dependencies + Build sequence 5 sub-modules:**

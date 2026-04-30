@@ -13,7 +13,7 @@ Aplikuj skill gdy:
 - **Onboarding nowego org** — wybór seed template + strategia override.
 - **Review RLS policy** dla nowej config-tabeli — czy izolacja `org_id` trzyma się wzorca ADR-013.
 - Piszesz **ADR dotyczący multi-tenancy** — decision warta layer placement + upgrade strategy.
-- Forza zgłasza zmianę → rozstrzygnięcie czy to L1 (migration + ADR) czy L2-L4 (Settings CRUD).
+- Apex zgłasza zmianę → rozstrzygnięcie czy to L1 (migration + ADR) czy L2-L4 (Settings CRUD).
 
 Pomijaj gdy: piszesz kod czysto engine-owy (BOM calc, GS1 parser) bez interakcji z DB; piszesz UI components bez data binding; piszesz dokumentację wyłącznie universalnych konceptów.
 
@@ -26,9 +26,9 @@ Cała architektura multi-tenant opiera się o 4 warstwy. Każda warstwa ma inny 
 | Layer | Scope | Marker | Change process | Examples |
 |---|---|---|---|---|
 | **L1 Core Infrastructure** | Stała struktura dla wszystkich org-ów | `[UNIVERSAL]` | Migration + ADR + release | `users`, `organizations`, `audit_log`, `license_plates`, `lot_genealogy`, GS1 format, EU-14 allergens |
-| **L2 Column Definitions** | Per-org w config tables | `[UNIVERSAL]` meta-struktura + `[FORZA-CONFIG]` values | Settings CRUD (ADR-028) | NPD Main Table cols, Planning Main Table cols, Production WO cols |
-| **L3 Rule Engine Definitions** | Per-org rules | `[UNIVERSAL]` engine + `[FORZA-CONFIG]` rules | Settings rule editor (ADR-029) | Cascading chains, gate criteria, workflow definitions |
-| **L4 Reference Tables Data** | Per-org (struktura wspólna z L1) | `[UNIVERSAL]` structure + `[FORZA-CONFIG]` data | Settings CRUD | Pack sizes, lines, dieset values, allergen extensions |
+| **L2 Column Definitions** | Per-org w config tables | `[UNIVERSAL]` meta-struktura + `[APEX-CONFIG]` values | Settings CRUD (ADR-028) | NPD Main Table cols, Planning Main Table cols, Production WO cols |
+| **L3 Rule Engine Definitions** | Per-org rules | `[UNIVERSAL]` engine + `[APEX-CONFIG]` rules | Settings rule editor (ADR-029) | Cascading chains, gate criteria, workflow definitions |
+| **L4 Reference Tables Data** | Per-org (struktura wspólna z L1) | `[UNIVERSAL]` structure + `[APEX-CONFIG]` data | Settings CRUD | Pack sizes, lines, dieset values, allergen extensions |
 
 **Zasada decyzyjna layer placement:**
 
@@ -48,7 +48,7 @@ Wszystkie 4 warstwy używają **tego samego wzorca RLS** — users-lookup na `au
 - L3 rule storage: RLS filtering per `org_id`.
 - L4 reference tables: RLS filtering per `org_id`.
 
-**Żadnych warstwowych wyjątków.** Config tables (L2-L4) są RLS-protected tak samo jak data tables (L1). Pominięcie RLS na config table = leak konfiguracji Forza do innego org-a (security + competitive intelligence leak).
+**Żadnych warstwowych wyjątków.** Config tables (L2-L4) są RLS-protected tak samo jak data tables (L1). Pominięcie RLS na config table = leak konfiguracji Apex do innego org-a (security + competitive intelligence leak).
 
 ---
 
@@ -58,8 +58,8 @@ Nowy org przy onboardingu dostaje **seed template** — zestaw L2/L3/L4 defaults
 
 - **Template dla Monopilot** = "food-manufacturing-SMB default" (typowy producent żywności, 3-7 działów, podstawowy Stage-Gate, bazowe kolumny Main Table).
 - Po onboardingu org customizuje w Settings — override konkretnych kolumn / reguł / reference values.
-- **Forza = PLD v7 seed + 12 miesięcy customizacji** (historical context; Phase A reality sync ekstraktuje Forza-specific config → baseline dla "food-manufacturing-SMB" template).
-- Template to **dane** (JSON / SQL seed file), nie kod — więc seed sam też jest `[UNIVERSAL]` struktura + `[FORZA-CONFIG]` lub universal defaults values.
+- **Apex = PLD v7 seed + 12 miesięcy customizacji** (historical context; Phase A reality sync ekstraktuje Apex-specific config → baseline dla "food-manufacturing-SMB" template).
+- Template to **dane** (JSON / SQL seed file), nie kod — więc seed sam też jest `[UNIVERSAL]` struktura + `[APEX-CONFIG]` lub universal defaults values.
 
 ---
 
@@ -80,29 +80,29 @@ Monopilot release notes **musi** oznaczyć który layer się zmienia. Bez tego u
 
 ## Anti-patterns
 
-- ❌ **Hardcoded per-client values w kodzie** (if (org === 'forza') …). Blokuje onboarding nowego org-a, wymaga rewrite kodu. Zamiast tego: L2/L3/L4 config row per org.
+- ❌ **Hardcoded per-client values w kodzie** (if (org === 'apex') …). Blokuje onboarding nowego org-a, wymaga rewrite kodu. Zamiast tego: L2/L3/L4 config row per org.
 - ❌ **Separate DB per tenant.** Odrzucone w ADR-003 — operational overhead (N DB to backup, N migrations, N monitors, N schedulerów). Single DB + RLS wygrywa operacyjnie.
 - ❌ **L1 schema change bez migration + ADR.** L1 = stały kontrakt — zmiana bez ADR + migration łamie wszystkie org-y i nie jest audytowalna.
 - ❌ **Zapominanie RLS na new config table.** Security leak — jeden org widzi config drugiego org-a. Każda tabela (L1-L4) wymaga RLS z pierwszego migration.
 - ❌ **Schema-per-industry** (food, pharma, textile → osobny schema kod). Zbyt grubo-ziarniste — nawet w food-manufacturing orgs mają różne struktury Main Table, różne działy, różne workflow. Per-org wygrywa.
 - ❌ **L2-L4 change przez migration** (zamiast Settings CRUD). Defeat purpose of schema-driven — jeśli "dodanie kolumny" wymaga migration to równie dobrze może być L1.
-- ❌ **L1 zawierające org-specific data.** Core tables nie mogą mieć kolumn pochodzących od konkretnego org-a (np. `users.forza_employee_id` = anti-pattern, powinno być `[FORZA-CONFIG]` w L2 config).
+- ❌ **L1 zawierające org-specific data.** Core tables nie mogą mieć kolumn pochodzących od konkretnego org-a (np. `users.apex_employee_id` = anti-pattern, powinno być `[APEX-CONFIG]` w L2 config).
 - ❌ **L2 kolumna bez `org_id` w config-tabeli.** Brak izolacji = wyciek konfiguracji między org-ami.
 
 ---
 
 ## Examples (z markerami)
 
-- **`products` table** → L1 struktura `[UNIVERSAL]` (wszystkie orgs mają tabelę produktów), ale `products.custom_fields` (JSONB) jako schema-driven L2 `[FORZA-CONFIG]` (Forza ma inne extra cols niż inny org).
-- **Forza 7 działów** (Commercial, Development, Production, Quality, Planning, Procurement, MRP) → L4 reference data `[FORZA-CONFIG]`; struktura tabeli `departments` = L1 `[UNIVERSAL]` (ADR-030).
-- **NPD Stage-Gate G0→G4 definition** → L3 workflow definition `[FORZA-CONFIG]`; workflow engine (state machine interpreter) = L1 `[UNIVERSAL]` (rozszerzenie ADR-007).
-- **D365 feature flag** → L1 toggle structure `[UNIVERSAL]` (wszystkie orgs mają mechanism feature flags — ADR-011); per-org flag value `[FORZA-CONFIG]` (wartość Forza = TRUE `[LEGACY-D365]`).
-- **Cascading chain Pack_Size → Line → Dieset → Material** → L3 rule definition `[FORZA-CONFIG]` (Forza-specific łańcuch); engine DSL runtime = L1 `[UNIVERSAL]`.
-- **Pack sizes data** ("500g Tray", "1kg Vac Pack", …) → L4 reference data `[FORZA-CONFIG]`; struktura `pack_sizes(id, org_id, code, label, sort)` = L1 `[UNIVERSAL]`.
+- **`products` table** → L1 struktura `[UNIVERSAL]` (wszystkie orgs mają tabelę produktów), ale `products.custom_fields` (JSONB) jako schema-driven L2 `[APEX-CONFIG]` (Apex ma inne extra cols niż inny org).
+- **Apex 7 działów** (Commercial, Development, Production, Quality, Planning, Procurement, MRP) → L4 reference data `[APEX-CONFIG]`; struktura tabeli `departments` = L1 `[UNIVERSAL]` (ADR-030).
+- **NPD Stage-Gate G0→G4 definition** → L3 workflow definition `[APEX-CONFIG]`; workflow engine (state machine interpreter) = L1 `[UNIVERSAL]` (rozszerzenie ADR-007).
+- **D365 feature flag** → L1 toggle structure `[UNIVERSAL]` (wszystkie orgs mają mechanism feature flags — ADR-011); per-org flag value `[APEX-CONFIG]` (wartość Apex = TRUE `[LEGACY-D365]`).
+- **Cascading chain Pack_Size → Line → Dieset → Material** → L3 rule definition `[APEX-CONFIG]` (Apex-specific łańcuch); engine DSL runtime = L1 `[UNIVERSAL]`.
+- **Pack sizes data** ("500g Tray", "1kg Vac Pack", …) → L4 reference data `[APEX-CONFIG]`; struktura `pack_sizes(id, org_id, code, label, sort)` = L1 `[UNIVERSAL]`.
 - **GS1-128 regex validation** → L1 `[UNIVERSAL]` (kod, regulacja — żaden org nie może zmienić formatu).
-- **Kolumna `Pack_Size` w NPD Main Table** → L2 column definition `[FORZA-CONFIG]`; struktura `column_definitions` tabeli = L1 `[UNIVERSAL]` (ADR-028).
-- **Gate criterion "BOM_complete=true AND Costing_approved=true"** → L3 rule `[FORZA-CONFIG]`; gate engine = L1 `[UNIVERSAL]`.
-- **Role-permission matrix Forzy** → L2/L3 mix (ADR-012 extended) `[FORZA-CONFIG]`; RBAC engine = L1 `[UNIVERSAL]`.
+- **Kolumna `Pack_Size` w NPD Main Table** → L2 column definition `[APEX-CONFIG]`; struktura `column_definitions` tabeli = L1 `[UNIVERSAL]` (ADR-028).
+- **Gate criterion "BOM_complete=true AND Costing_approved=true"** → L3 rule `[APEX-CONFIG]`; gate engine = L1 `[UNIVERSAL]`.
+- **Role-permission matrix Apexa** → L2/L3 mix (ADR-012 extended) `[APEX-CONFIG]`; RBAC engine = L1 `[UNIVERSAL]`.
 
 ---
 
@@ -126,7 +126,7 @@ Monopilot release notes **musi** oznaczyć który layer się zmienia. Bez tego u
 - [ ] L2-L4 changes: żyją w config-tabelach, change przez Settings CRUD (NIE migration).
 - [ ] RLS policy obecne na każdej tabeli (L1-L4 — bez wyjątków).
 - [ ] `org_id` obecny w każdej config-tabeli L2-L4.
-- [ ] Marker przypięty: struktura = `[UNIVERSAL]`, wartości per-org = `[FORZA-CONFIG]` / `[EVOLVING]` / `[LEGACY-D365]`.
+- [ ] Marker przypięty: struktura = `[UNIVERSAL]`, wartości per-org = `[APEX-CONFIG]` / `[EVOLVING]` / `[LEGACY-D365]`.
 - [ ] Seed template aktualizowany gdy dodajemy L2-L4 universal default.
 - [ ] Upgrade strategy zdefiniowana (auto vs opt-in) dla changes uwalnianych publicznie.
 - [ ] Cross-reference do ADR-031 + META-MODEL §4 w dokumencie decyzji.

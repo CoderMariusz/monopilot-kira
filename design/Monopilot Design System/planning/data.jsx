@@ -27,7 +27,7 @@ const PLAN_NAV = [
 // Mirrors supplierCode values already used inline in PO screens so cross-links resolve.
 const PLAN_SUPPLIERS = [
   { id: "SUP-0012", code: "SUP-0012", name: "Agro-Fresh Ltd.",      country: "GB", currency: "GBP", paymentTerms: "Net 30", email: "orders@agrofresh.co.uk",     phone: "+44 20 7946 0891", leadTime: 4, rating: 4.5, active: true,  d365Sync: "synced",   d365Id: "V-D365-SUP-0012", lastSync: "2026-04-21 02:00", openPOs: 3, ytdSpend: 48120, defaultProducts: 7,  certifications: ["BRC","IFS"],       notes: "Primary RM pork supplier — preferred on emergency restocks." },
-  { id: "SUP-0018", code: "SUP-0018", name: "Baltic Pork Co.",      country: "PL", currency: "GBP", paymentTerms: "Net 45", email: "eksport@balticpork.pl",      phone: "+48 58 7410 222",  leadTime: 6, rating: 4.2, active: true,  d365Sync: "synced",   d365Id: "V-D365-SUP-0018", lastSync: "2026-04-21 02:00", openPOs: 2, ytdSpend: 61840, defaultProducts: 4,  certifications: ["BRC"],             notes: "Large-volume beef/pork carcass supplier, PL → FORZ-A." },
+  { id: "SUP-0018", code: "SUP-0018", name: "Baltic Pork Co.",      country: "PL", currency: "GBP", paymentTerms: "Net 45", email: "eksport@balticpork.pl",      phone: "+48 58 7410 222",  leadTime: 6, rating: 4.2, active: true,  d365Sync: "synced",   d365Id: "V-D365-SUP-0018", lastSync: "2026-04-21 02:00", openPOs: 2, ytdSpend: 61840, defaultProducts: 4,  certifications: ["BRC"],             notes: "Large-volume beef/pork carcass supplier, PL → APEX-A." },
   { id: "SUP-0022", code: "SUP-0022", name: "Spice Masters",        country: "GB", currency: "GBP", paymentTerms: "Net 30", email: "sales@spicemasters.co.uk",   phone: "+44 121 555 0144", leadTime: 5, rating: 4.8, active: true,  d365Sync: "synced",   d365Id: "V-D365-SUP-0022", lastSync: "2026-04-21 02:00", openPOs: 2, ytdSpend: 8440,  defaultProducts: 18, certifications: ["BRC","FSSC"],      notes: "Sole supplier for pieprz czarny + allergen-free premix range." },
   { id: "SUP-0031", code: "SUP-0031", name: "Viscofan S.A.",        country: "ES", currency: "GBP", paymentTerms: "Net 30", email: "sales.uk@viscofan.com",      phone: "+34 948 198 444",  leadTime: 10,rating: 4.6, active: true,  d365Sync: "synced",   d365Id: "V-D365-SUP-0031", lastSync: "2026-04-21 02:00", openPOs: 2, ytdSpend: 38480, defaultProducts: 3,  certifications: ["BRC","IFS","Halal"],notes: "Casings (Ø26, Ø32) — 10-day lead for non-stocked diameters." },
   { id: "SUP-0044", code: "SUP-0044", name: "Hellmann Logistics",   country: "DE", currency: "GBP", paymentTerms: "Net 14", email: "uk@hellmann.com",            phone: "+44 1753 893400",  leadTime: 2, rating: 3.9, active: true,  d365Sync: "drift",    d365Id: "V-D365-SUP-0044", lastSync: "2026-04-18 02:00", openPOs: 2, ytdSpend: 14260, defaultProducts: 0,  certifications: [],                  notes: "Logistics / packaging consumables. D365 drift on payment_terms — admin resolve pending." },
@@ -484,7 +484,7 @@ const PLAN_SETTINGS = {
     requireReworkApproval: true, defaultPriority: "Normal", autoArchiveClosedDays: 90,
   },
   cascade: { maxDepth: 10, intermediateDisposition: "to_stock" },
-  sequencing: { enabled: true, ruleVersion: "v1", target: "> 30% Forza baseline" },
+  sequencing: { enabled: true, ruleVersion: "v1", target: "> 30% Apex baseline" },
   d365: {
     enabled: true, pullCron: "0 2 * * *", pullWindowDays: 14, soStatusFilter: ["Open","Confirmed"],
     lastPull: "2026-04-21 02:00", lastSoCount: 12, lastDraftWoCount: 5, lastErrors: 0,

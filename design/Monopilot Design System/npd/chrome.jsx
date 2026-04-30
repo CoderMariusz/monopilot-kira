@@ -74,9 +74,9 @@ const Topbar = ({ role, setRole }) => (
 );
 
 const SubNav = ({ current, onNav, role }) => {
-  const forzaScreens = ["dashboard", "fa_list", "fa_detail", "fa_kanban", "d365_builder", "formulation_editor", "briefs", "brief_detail"];
-  const isForzaActive = forzaScreens.includes(current);
-  const [forzaOpen, setForzaOpen] = React.useState(isForzaActive);
+  const apexScreens = ["dashboard", "fa_list", "fa_detail", "fa_kanban", "d365_builder", "formulation_editor", "briefs", "brief_detail"];
+  const isApexActive = apexScreens.includes(current);
+  const [apexOpen, setApexOpen] = React.useState(isApexActive);
 
   const isActive = (id) => {
     if (current === id) return true;
@@ -101,14 +101,14 @@ const SubNav = ({ current, onNav, role }) => {
       <a className={isActive("formulations") ? "on" : ""} onClick={() => onNav("formulations")}>Formulations</a>
       <a className={isActive("allergens")    ? "on" : ""} onClick={() => onNav("allergens")}>Allergen cascade</a>
 
-      {/* Forza collapsible section */}
-      <a className={isForzaActive ? "on" : ""}
-        onClick={() => setForzaOpen(o => !o)}
+      {/* Apex collapsible section */}
+      <a className={isApexActive ? "on" : ""}
+        onClick={() => setApexOpen(o => !o)}
         style={{ display: "flex", alignItems: "center", gap: 6 }}>
-        Forza
-        <span style={{ fontSize: 9, opacity: 0.6, marginLeft: "auto" }}>{forzaOpen ? "▲" : "▼"}</span>
+        Apex
+        <span style={{ fontSize: 9, opacity: 0.6, marginLeft: "auto" }}>{apexOpen ? "▲" : "▼"}</span>
       </a>
-      {forzaOpen && (
+      {apexOpen && (
         <>
           {subItem("dashboard", "FA Dashboard")}
           {subItem("fa_list",   "Factory Articles")}

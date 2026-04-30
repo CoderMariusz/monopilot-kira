@@ -16,7 +16,7 @@ const FinDashboard = ({ role, onNav, onOpenWo, openModal }) => {
         <div>
           <div className="breadcrumb"><a onClick={()=>onNav("dashboard")}>Finance</a> · Dashboard</div>
           <h1 className="page-title">Finance Dashboard</h1>
-          <div className="muted" style={{fontSize:12}}>Forza Foods UK · Base currency GBP · FY2026 · <b>Last updated: just now</b> · Cached 5min</div>
+          <div className="muted" style={{fontSize:12}}>Apex Foods UK · Base currency GBP · FY2026 · <b>Last updated: just now</b> · Cached 5min</div>
         </div>
         <div className="row-flex">
           <select style={{width:140}}><option>MTD</option><option>Last Month</option><option>QTD</option><option>YTD</option></select>

@@ -20,7 +20,7 @@ Pomijaj gdy: piszesz czysto universal koncept bez reality backing (ADR architekt
 
 ## Core principle — Two-session pattern (obowiązkowy)
 
-Sync reality → moduły **NIGDY** nie odbywa się w jednej sesji. Podział na dwie sesje wymusza świeży kontekst dla brainstormu markera i chroni przed naiwnym copy-paste rzeczywistości Forzy do modułu opisującego "universal MES".
+Sync reality → moduły **NIGDY** nie odbywa się w jednej sesji. Podział na dwie sesje wymusza świeży kontekst dla brainstormu markera i chroni przed naiwnym copy-paste rzeczywistości Apexa do modułu opisującego "universal MES".
 
 | Sesja | Cel | Output |
 |---|---|---|
@@ -69,10 +69,10 @@ sequenceDiagram
 1. **Read HANDOFF** z poprzedniej sesji — wszystkie pending propagations.
 2. **Per zmiana — brainstorm markera** (kluczowa aktywność; bez niej propagacja nie rusza):
    - Czy to fundament branży food-manufacturing (traceability, BOM, allergeny, audit trail, regulatoryjne)? → `[UNIVERSAL]`
-   - Czy to specyfika Forzy (lokalna nomenklatura, konkretny dział, wewnętrzny proces)? → `[FORZA-CONFIG]`
-   - Czy pattern jeszcze niestabilny (Forza eksperymentuje, splits pending)? → `[EVOLVING]`
+   - Czy to specyfika Apexa (lokalna nomenklatura, konkretny dział, wewnętrzny proces)? → `[APEX-CONFIG]`
+   - Czy pattern jeszcze niestabilny (Apex eksperymentuje, splits pending)? → `[EVOLVING]`
    - Czy wynika z D365 integration (zniknie po migracji)? → `[LEGACY-D365]`
-   - Niepewność → downgrade do `[FORZA-CONFIG]` (zasada konserwatywnej uniwersalności).
+   - Niepewność → downgrade do `[APEX-CONFIG]` (zasada konserwatywnej uniwersalności).
 3. **Aktualizuj moduł(y) Monopilot** — każda propagowana zmiana linkuje z powrotem do reality source (pełna ścieżka). Moduł to *abstrakcja*, nie copy-paste reality.
 4. **Zamknij pętlę w reality source:**
    - `sync_status: current`.
@@ -85,10 +85,10 @@ sequenceDiagram
 ## Anti-patterns
 
 - ❌ **Update modułu bez update reality source.** Drift pewny w ciągu tygodni. Moduł traci zakotwiczenie w rzeczywistości, reality source przestaje być ground truth.
-- ❌ **Update reality source + modułu w jednej sesji.** Brakuje świeżego brainstormu markera — `[UNIVERSAL]` dostaną rzeczy Forza-specific, kompletnie psując multi-tenancy.
+- ❌ **Update reality source + modułu w jednej sesji.** Brakuje świeżego brainstormu markera — `[UNIVERSAL]` dostaną rzeczy Apex-specific, kompletnie psując multi-tenancy.
 - ❌ **Brak markera w propagowanej zmianie.** Nieidentyfikowalna odpowiedzialność (fundament czy specyfika klienta?) → blocker review.
 - ❌ **Pomijanie reality layer "bo mam w głowie".** Reality source = chronicle instytucjonalna; twoja pamięć nie liczy się w onboardingu kolejnego developera.
-- ❌ **Copy-paste reality source 1:1 do modułu.** Moduł = abstrakcja universal MES + per-org configurability, nie kronika Forzy. Tłumacz, nie kopiuj.
+- ❌ **Copy-paste reality source 1:1 do modułu.** Moduł = abstrakcja universal MES + per-org configurability, nie kronika Apexa. Tłumacz, nie kopiuj.
 - ❌ **Usuwanie informacji z reality source bez historii.** Historyczne przepływy zostają w sekcji historycznej. Bez historii tracimy uzasadnienie decyzji.
 - ❌ **`sync_status: current` bez faktycznego update modułów.** Pole jest kontraktem — current oznacza *zarówno* reality source up-to-date *jak i* moduły wchłonęły zmianę.
 

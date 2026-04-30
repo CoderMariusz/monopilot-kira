@@ -466,7 +466,7 @@ const D365TestConnectionModal = ({ open, onClose }) => {
         <div style={{textAlign:"center", padding:20}}>
           <div style={{fontSize:32, marginBottom:10}}>⟳</div>
           <div style={{fontSize:13}}>Connecting to D365 environment…</div>
-          <div className="muted mono" style={{fontSize:11, marginTop:4}}>https://forza.operations.dynamics.com</div>
+          <div className="muted mono" style={{fontSize:11, marginTop:4}}>https://apex.operations.dynamics.com</div>
         </div>
       )}
       {phase === "ok" && (

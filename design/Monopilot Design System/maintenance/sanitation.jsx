@@ -8,7 +8,7 @@
 //   V-MNT-15 — `in_progress` + allergen_change_flag → first_signed_by AND
 //              second_signed_by AND atp_test_result_rlu NOT NULL (critical, BRCGS).
 //   V-MNT-16 — ATP RLU threshold < 30 RLU for food-contact surfaces
-//              (Forza baseline, tenant L2 override; severity=critical if >30).
+//              (Apex baseline, tenant L2 override; severity=critical if >30).
 //   V-MNT-17 — first_signed_by != second_signed_by (dual sign-off integrity).
 //
 // Outbox: `sanitation.completed` / `sanitation.allergen_change.completed` events
@@ -140,7 +140,7 @@ const MntSanitationList = ({ onNav, openModal, role }) => {
         <div className="kpi amber"><div className="kpi-label">Awaiting QA sign-off</div><div className="kpi-value">{pendingQaSignoff}</div><div className="kpi-sub">Allergen changeovers</div></div>
         <div className="kpi red"><div className="kpi-label">ATP fails</div><div className="kpi-value">{atpFailCount}</div><div className="kpi-sub">RLU ≥ {MNT_ATP_RLU_THRESHOLD} · V-MNT-16</div></div>
         <div className="kpi green"><div className="kpi-label">Completed (30d)</div><div className="kpi-value">{completed.length}</div><div className="kpi-sub">BRCGS compliant</div></div>
-        <div className="kpi blue"><div className="kpi-label">ATP threshold</div><div className="kpi-value mono">&lt; {MNT_ATP_RLU_THRESHOLD}</div><div className="kpi-sub">RLU (Forza L1 baseline)</div></div>
+        <div className="kpi blue"><div className="kpi-label">ATP threshold</div><div className="kpi-value mono">&lt; {MNT_ATP_RLU_THRESHOLD}</div><div className="kpi-sub">RLU (Apex L1 baseline)</div></div>
         <div className="kpi"><div className="kpi-label">Allergen changeovers</div><div className="kpi-value">{allergenFlagged.length}</div><div className="kpi-sub">Dual sign-off required</div></div>
       </div>
 

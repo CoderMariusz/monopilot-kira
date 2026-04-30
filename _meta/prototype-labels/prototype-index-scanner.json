@@ -294,7 +294,7 @@
     "translation_notes": [
       "Badge scan input (sc-sinput) + email/password fallback → two separate Next-Auth credentials providers: BadgeCredentials + PasswordCredentials; autoFocus on badge field",
       "tryLogin() client validation → move to Server Action with bcrypt compare for password path, badge lookup for scan path",
-      "Hard-coded email placeholder 'j.kowalski@forza.pl' → remove from production, use empty placeholder",
+      "Hard-coded email placeholder 'j.kowalski@apex.pl' → remove from production, use empty placeholder",
       "err state inline div → shadcn Alert variant='destructive' with FormMessage pattern",
       "GhostBtn '→ PIN login' → shadcn Button variant='ghost' linking to /scanner/login/pin",
       "Hard-coded Polish strings → next-intl t('scanner.login.*') keys"

@@ -33,7 +33,7 @@
 
 ## §1 — Executive Summary
 
-Scanner (moduł 06) to **dedykowany mobilny interfejs** Monopilot MES, zaprojektowany jako osobny UX pod routingiem `/scanner/*`, zoptymalizowany dla operatorów hali produkcyjnej i magazynu Forza. Scanner **NIE jest responsywną wersją desktopu** (ADR-006): osobny layout, ciemny motyw slate-900, scan-first input, touch targets ≥48dp, liniowe workflow'y z minimalną liczbą decyzji na ekran.
+Scanner (moduł 06) to **dedykowany mobilny interfejs** Monopilot MES, zaprojektowany jako osobny UX pod routingiem `/scanner/*`, zoptymalizowany dla operatorów hali produkcyjnej i magazynu Apex. Scanner **NIE jest responsywną wersją desktopu** (ADR-006): osobny layout, ciemny motyw slate-900, scan-first input, touch targets ≥48dp, liniowe workflow'y z minimalną liczbą decyzji na ekran.
 
 **Kluczowe ramy architektury v3.0 (vs baseline v1.2 pre-Phase-D):**
 
@@ -55,7 +55,7 @@ Scanner (moduł 06) to **dedykowany mobilny interfejs** Monopilot MES, zaprojekt
 
 **Stack tech (Q1 decision):** PWA (Progressive Web App) osadzony w monorepo Monopilot, Next.js App Router `/scanner/*`, service worker (P2), manifest.json installable, IndexedDB offline queue (P2). Shared services `lib/services/*` z desktop (różni się tylko UI).
 
-**Primary reality anchor:** Forza Foods — 2 sites (FNOR Norwich + FKOB Kobe pilot), 3-5 linii produkcyjnych per site, ~30-50 operatorów aktywnych per zmiana, 3 zmiany (ranna/popołudniowa/nocna). Hardware fleet: Zebra TC52/MC3300 (dominant), Honeywell CT60/CK65, ring scanner RS6000 (Bluetooth HID), iPhone/Samsung A-series (camera fallback dla supervisor override).
+**Primary reality anchor:** Apex Foods — 2 sites (FNOR Norwich + FKOB Kobe pilot), 3-5 linii produkcyjnych per site, ~30-50 operatorów aktywnych per zmiana, 3 zmiany (ranna/popołudniowa/nocna). Hardware fleet: Zebra TC52/MC3300 (dominant), Honeywell CT60/CK65, ring scanner RS6000 (Bluetooth HID), iPhone/Samsung A-series (camera fallback dla supervisor override).
 
 ---
 
@@ -63,7 +63,7 @@ Scanner (moduł 06) to **dedykowany mobilny interfejs** Monopilot MES, zaprojekt
 
 ### 2.1 Cel główny
 
-Dostarczyć operatorom hali Forza (i przyszłym tenantom) narzędzie mobilne do realizacji 9 kluczowych operacji (login, receive PO, receive TO, move, putaway, pick, split, consume-to-WO, QA inspect) poprzez skanowanie kodów kreskowych, **z czasem operacji <30s per scan** i wsparciem offline P2.
+Dostarczyć operatorom hali Apex (i przyszłym tenantom) narzędzie mobilne do realizacji 9 kluczowych operacji (login, receive PO, receive TO, move, putaway, pick, split, consume-to-WO, QA inspect) poprzez skanowanie kodów kreskowych, **z czasem operacji <30s per scan** i wsparciem offline P2.
 
 ### 2.2 Cele drugorzędne
 
@@ -127,21 +127,21 @@ Dostarczyć operatorom hali Forza (i przyszłym tenantom) narzędzie mobilne do 
 
 ### 3.1 Persony główne (Scanner daily users)
 
-**P1. Operator magazynu (Anna, 32, Forza Norwich)**
+**P1. Operator magazynu (Anna, 32, Apex Norwich)**
 - Scope: GRN receiving (SCN-020 PO + SCN-030 TO), stock moves (SCN-030), putaway (SCN-040)
 - Device: Zebra TC52 (personal handheld) lub ring scanner RS6000 z tabletem
 - Warunki: magazyn zewnętrzny/chłodnia, rękawice, stojąca praca, temp 4-8°C
 - Sesja: ~20-30 scanów/h, zmiana 8h
 - Kryterium: operacja <30s, zero manual entry (hardware wedge), audio feedback mandatory (hałasy)
 
-**P2. Operator produkcji (Piotr, 28, Forza Norwich linia 2)**
+**P2. Operator produkcji (Piotr, 28, Apex Norwich linia 2)**
 - Scope: pick dla WO (SCN-050), consume-to-WO (SCN-080 intermediate + RM), output registration + co-product + waste (SCN-output), split LP (SCN-060)
 - Device: **Kiosk tablet shared** przy stanowisku (Samsung Tab Active3 rugged) + hardware scanner Bluetooth ring
 - Warunki: linia produkcyjna, rękawice nitrylowe, hałas 80-85dB, standing, temp 10-15°C
 - Sesja: ~50-80 scanów/h, zmiana 8h, **kiosk 60s idle timeout** (multiple operators z tą samą sesją ograniczone)
 - Kryterium: consume + output w <45s, intermediate cascade <60s (SCN-080 scan-to-WO z FEFO suggest)
 
-**P3. Inspektor QA (Marta, 41, Forza Norwich Technical dept)**
+**P3. Inspektor QA (Marta, 41, Apex Norwich Technical dept)**
 - Scope: QA inspect (SCN-071 pass/fail/hold), CCP monitoring (P2 — 09-QUALITY)
 - Device: iPhone 14 Pro (personal) lub Zebra TC57 (supervisor fleet), **camera scanning** często używany (P2 w baseline, **P1 w v3.0 per Q4**)
 - Warunki: linia + chłodnia, rękawice, tablet montowany na przenośnym stojaku, temp 4-8°C (chłodnia) lub 20°C (pakowalnia)
@@ -190,7 +190,7 @@ Admin L2 config decyduje default per site/line. User może override per session 
 |---|---|---|
 | **SC-E6: Offline Mode** (IndexedDB queue, conflict resolution, sync) | Stability P1 workflow'ów online first | Post-P1 stabilization |
 | **SC-E7: PWA installable** (service worker, manifest, install prompt) | Po P1 stabilizacji | Post-P1 |
-| **SC-E8: SSCC-18 palet scan** (AI 00 GS1-128 multi-LP lookup) | Nie wymagane P1 (Forza nie używa SSCC dzisiaj) | Customer demand |
+| **SC-E8: SSCC-18 palet scan** (AI 00 GS1-128 multi-LP lookup) | Nie wymagane P1 (Apex nie używa SSCC dzisiaj) | Customer demand |
 | **SC-E9: Advanced Camera** (Data Matrix, extended GS1 AI 13/15/310x-3103 full) | P1 ma Code128+GS1-128 basic | 07-QUALITY lab integration |
 | **SC-E10: Pack & Ship** (SO pick workflow) | Po 11-SHIPPING module | 11-SHIPPING unlock |
 | **SC-E11: CCP Monitoring** (QR scan CCP checkpoints) | Po 09-QUALITY advanced HACCP full | 09-QUALITY E10+ |

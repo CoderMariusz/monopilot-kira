@@ -3,14 +3,14 @@
 // ---------- Company profile ----------
 const CompanyProfile = () => {
   const [form, setForm] = React.useState({
-    name: "Forz Foods Sp. z o.o.",
-    legalName: "Forz Foods Spółka z ograniczoną odpowiedzialnością",
+    name: "Apex Foods Sp. z o.o.",
+    legalName: "Apex Foods Spółka z ograniczoną odpowiedzialnością",
     vat: "PL5213456789",
     regon: "123456789",
     industry: "Meat processing",
     street: "ul. Zakładowa 12",
     city: "Kraków", zip: "30-690", country: "Poland",
-    email: "office@forz.pl", phone: "+48 12 345 67 89", website: "forz.pl",
+    email: "office@apex.pl", phone: "+48 12 345 67 89", website: "apex.pl",
     currency: "EUR", timezone: "Europe/Warsaw"
   });
   const u = (k, v) => setForm(f => ({ ...f, [k]: v }));
@@ -28,7 +28,7 @@ const CompanyProfile = () => {
         </SRow>
         <SRow label="Logo" hint="Appears on labels, invoices, and the login page.">
           <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-            <div style={{ width: 72, height: 72, background: "var(--text)", borderRadius: 6, color: "#fff", fontWeight: 700, fontSize: 18, display: "flex", alignItems: "center", justifyContent: "center" }}>FORZ</div>
+            <div style={{ width: 72, height: 72, background: "var(--text)", borderRadius: 6, color: "#fff", fontWeight: 700, fontSize: 18, display: "flex", alignItems: "center", justifyContent: "center" }}>APEX</div>
             <div>
               <button className="btn btn-secondary btn-sm">Upload new</button>
               <div className="muted" style={{ fontSize: 11, marginTop: 4 }}>PNG or SVG · max 2MB · 400×400px recommended</div>

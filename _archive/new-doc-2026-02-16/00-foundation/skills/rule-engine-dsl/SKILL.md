@@ -25,10 +25,10 @@ DSL rule-engine pokrywa **dokładnie 4 obszary**. Rozszerzenie poza nie wymaga n
 
 | # | Obszar | Przykład | Marker |
 |---|---|---|---|
-| (a) | **Cascading dropdowns** | Pack_Size → Line → Dieset → Material | silnik `[UNIVERSAL]`, łańcuchy `[FORZA-CONFIG]` |
-| (b) | **Conditional required** | "Pole `MRP_Category` required gdy Dept MRP aktywny" | silnik `[UNIVERSAL]`, reguły `[FORZA-CONFIG]` |
-| (c) | **Gate entry criteria** | "Stage G2 → G3 wymaga: BOM_complete=true AND Costing_approved=true" | silnik `[UNIVERSAL]`, checklisty `[FORZA-CONFIG]` |
-| (d) | **Workflow definitions as data** | NPD Stage-Gate G0→G4 jako JSON/DB row | silnik `[UNIVERSAL]`, definicja `[FORZA-CONFIG]` |
+| (a) | **Cascading dropdowns** | Pack_Size → Line → Dieset → Material | silnik `[UNIVERSAL]`, łańcuchy `[APEX-CONFIG]` |
+| (b) | **Conditional required** | "Pole `MRP_Category` required gdy Dept MRP aktywny" | silnik `[UNIVERSAL]`, reguły `[APEX-CONFIG]` |
+| (c) | **Gate entry criteria** | "Stage G2 → G3 wymaga: BOM_complete=true AND Costing_approved=true" | silnik `[UNIVERSAL]`, checklisty `[APEX-CONFIG]` |
+| (d) | **Workflow definitions as data** | NPD Stage-Gate G0→G4 jako JSON/DB row | silnik `[UNIVERSAL]`, definicja `[APEX-CONFIG]` |
 
 **Twardy limit:** Jeśli Twoja reguła nie mieści się w żadnej z tych 4 kategorii → nie próbuj rozszerzać DSL "w locie". Zaproponuj nowe ADR + aktualizację META-MODEL §2.
 
@@ -79,7 +79,7 @@ Gdy opisujesz regułę w **ADR / module docs / PRD** — używaj:
 1. **Tabeli decyzyjnej** — kolumny warunki, kolumny akcje. Każdy wiersz = jedna reguła. Tabela jest najbardziej review-able.
 2. **Mermaid state diagram** — dla workflow-as-data (obszar d) i dla cascading flow (obszar a).
 3. **Prozy** — opis semantyki reguły (co, kiedy, dlaczego, dla kogo).
-4. **Markerów** — na każdej regule (`[UNIVERSAL]` / `[FORZA-CONFIG]` / `[EVOLVING]`).
+4. **Markerów** — na każdej regule (`[UNIVERSAL]` / `[APEX-CONFIG]` / `[EVOLVING]`).
 
 **NIE używaj** w docs konkretnego JSON / SQL / TypeScript code — to należy do:
 
@@ -133,7 +133,7 @@ stateDiagram-v2
 - ❌ **Full Rules Engine (Drools / easy-rules)** — over-scope. Te silniki są Turing-complete; celem DSL jest debuggability (musi się dać pokazać admin-owi jedną tabelkę).
 - ❌ **Frontend-only validation** — nie działa dla API security w multi-tenant. Reguły muszą być enforced backend-side (silnik server-side, frontend renderuje UI feedback).
 - ❌ **Turing-complete DSL** — celowo ograniczony scope. Jeśli reguła wymaga pętli / rekursji → to nie reguła, to algorytm (code-driven).
-- ❌ **Copy reguły między orgami ręcznie** — reguły są `[FORZA-CONFIG]` per org, ale wzorce mogą być seed-owane przez template (zob. `multi-tenant-variation`).
+- ❌ **Copy reguły między orgami ręcznie** — reguły są `[APEX-CONFIG]` per org, ale wzorce mogą być seed-owane przez template (zob. `multi-tenant-variation`).
 - ❌ **Brak markera na regule** — blocker review (zob. `documentation-patterns`).
 
 ---
@@ -145,10 +145,10 @@ Dyscyplina markerów w DSL rule-engine:
 | Artefakt | Marker | Uzasadnienie |
 |---|---|---|
 | Silnik DSL runtime (interpreter) | `[UNIVERSAL]` | Jeden kod dla wszystkich org-ów |
-| Konkretny cascading chain (np. Pack_Size → Line) | `[FORZA-CONFIG]` | Definicja per org |
-| Gate checklist items (BOM_complete, Costing_approved) | `[FORZA-CONFIG]` | Forza-specific nazwy / progi |
-| Workflow definition (G0→G4) | `[FORZA-CONFIG]` | Inny org może mieć G0→G3 |
-| Reguła w trakcie eksperymentu | `[EVOLVING]` | Forza testuje, trzymaj w DB |
+| Konkretny cascading chain (np. Pack_Size → Line) | `[APEX-CONFIG]` | Definicja per org |
+| Gate checklist items (BOM_complete, Costing_approved) | `[APEX-CONFIG]` | Apex-specific nazwy / progi |
+| Workflow definition (G0→G4) | `[APEX-CONFIG]` | Inny org może mieć G0→G3 |
+| Reguła w trakcie eksperymentu | `[EVOLVING]` | Apex testuje, trzymaj w DB |
 | Reguła wymuszana przez D365 integration | `[LEGACY-D365]` | Zniknie gdy feature flag D365 off |
 
 ---
@@ -171,7 +171,7 @@ Dyscyplina markerów w DSL rule-engine:
 - [ ] Reguła udokumentowana jako tabela decyzyjna / Mermaid / proza — NIE jako inline JSON/SQL w docs.
 - [ ] Każda reguła ma marker.
 - [ ] Gate criteria referencują schema-driven pola (weryfikowane w `schema-driven-design`).
-- [ ] Silnik DSL oznaczony `[UNIVERSAL]`, konkretne reguły `[FORZA-CONFIG]` / `[EVOLVING]`.
+- [ ] Silnik DSL oznaczony `[UNIVERSAL]`, konkretne reguły `[APEX-CONFIG]` / `[EVOLVING]`.
 - [ ] Cross-reference do ADR-029 w dokumencie definiującym regułę.
 
 ---

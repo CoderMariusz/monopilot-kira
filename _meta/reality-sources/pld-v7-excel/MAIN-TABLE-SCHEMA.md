@@ -28,7 +28,7 @@ Ten dokument jest input-em dla:
 ## §1 — Struktura fizyczna w Excel
 
 ```
-Row 1  →  "FORZA FOODS - Main Table (master data)"        (tytuł workbooku, merged cell)
+Row 1  →  "APEX FOODS - Main Table (master data)"        (tytuł workbooku, merged cell)
 Row 2  →  section labels na wybranych kolumnach:
            C1=CORE · C9=PLANNING · C13=COMMERCIAL ·
            C21=PRODUCTION · C40=TECHNICAL · C42=MRP ·
@@ -68,8 +68,8 @@ Tabela config znajdująca się w `Reference` sheet, rozpoczyna się od row 1 ("T
 
 **Marker:**
 - Struktura tabeli `DeptColumns` (6 kolumn metadata) = `[UNIVERSAL]` — to jest realizacja ADR-028 pattern, każda firma powinna mieć te same metadata dimensions
-- Konkretne wiersze (58 mapowanych kolumn Forza) = `[FORZA-CONFIG]`
-- Reguły blokujące (`Core done`, `Pack_Size filled`, `Line filled`, `Core + Production done`) — mechanizm = `[UNIVERSAL]` (rule engine Level "b", ADR-029), konkretne wartości = `[FORZA-CONFIG]`
+- Konkretne wiersze (58 mapowanych kolumn Apex) = `[APEX-CONFIG]`
+- Reguły blokujące (`Core done`, `Pack_Size filled`, `Line filled`, `Core + Production done`) — mechanizm = `[UNIVERSAL]` (rule engine Level "b", ADR-029), konkretne wartości = `[APEX-CONFIG]`
 - Data types (Text/Number/Date/Dropdown/Auto) = `[UNIVERSAL]` (5 typów to universal food-mfg MES)
 - `Required_For_Done` semantyka (flag = required dla done) = `[UNIVERSAL]`
 
@@ -105,13 +105,13 @@ Kolumna `Closed_<Dept>` (dropdown "Yes") oraz `PR_Code_*` (Auto) oraz `RM_Code` 
 | C# | Column_Name | Data_Type | Dropdown_Source | Blocking_Rule | Required_For_Done | Marker | Notes |
 |---|---|---|---|---|---|---|---|
 | 1 | `FA_Code` | Text | — | — | — (PK) | `[UNIVERSAL]` | Format: musi zaczynać się `FA*` (V01 validation). Naturalny klucz. **Brakuje w Reference.DeptColumns** — żyje poza config-table, generowany przez `M11_AddProduct` |
-| 2 | `Product_Name` | Text | — | `""` | **Yes** | `[UNIVERSAL]` (każdy produkt ma nazwę) + `[FORZA-CONFIG]` (format) | V02 validation |
-| 3 | `Pack_Size` | Dropdown | `PackSizes` | `""` | **Yes** | `[FORZA-CONFIG]` | V03 validation. **Cascade trigger** → clears Line, Dieset (M04). Values: `20x30cm / 25x35cm / 18x24cm / 30x40cm / 15x20cm` |
-| 4 | `Number_of_Cases` | Number | — | `""` | **Yes** | `[FORZA-CONFIG]` | Ilość cases na **jednej palecie** (palletizing) |
-| 5 | `Finish_Meat` | Text | — | `""` | **Yes** | `[FORZA-CONFIG]` | Comma-separated PR codes komponentów (np. `PR123H, PR345A`). **Cascade trigger** → auto-build RM_Code + SyncProdDetailRows (M04) |
-| 6 | `RM_Code` | Auto | — | `""` | No | `[FORZA-CONFIG]` | Auto z Finish_Meat (M04): konwersja `PR<digits><letter>` → `RM<digits>`, comma-sep. Np. `PR123H, PR345A` → `RM123, RM345` |
-| 7 | `Template` | Dropdown | `Templates` | `""` | No | `[FORZA-CONFIG]` | 4 values: `Standard Meat FA / Simple Pack FA / Roasting Chicken / Full Process FA`. **Cascade trigger** → ApplyTemplate wypełnia Process_1..4 **w ProdDetail** (nie Main Table) |
-| 8 | `Closed_Core` | Dropdown | `CloseConfirm` | `""` | No | `[UNIVERSAL]` (pattern) + `[FORZA-CONFIG]` (wartości) | Manual flag "Yes" gdy dept uznaje za skończone. Autofilter trigger w Core tab |
+| 2 | `Product_Name` | Text | — | `""` | **Yes** | `[UNIVERSAL]` (każdy produkt ma nazwę) + `[APEX-CONFIG]` (format) | V02 validation |
+| 3 | `Pack_Size` | Dropdown | `PackSizes` | `""` | **Yes** | `[APEX-CONFIG]` | V03 validation. **Cascade trigger** → clears Line, Dieset (M04). Values: `20x30cm / 25x35cm / 18x24cm / 30x40cm / 15x20cm` |
+| 4 | `Number_of_Cases` | Number | — | `""` | **Yes** | `[APEX-CONFIG]` | Ilość cases na **jednej palecie** (palletizing) |
+| 5 | `Finish_Meat` | Text | — | `""` | **Yes** | `[APEX-CONFIG]` | Comma-separated PR codes komponentów (np. `PR123H, PR345A`). **Cascade trigger** → auto-build RM_Code + SyncProdDetailRows (M04) |
+| 6 | `RM_Code` | Auto | — | `""` | No | `[APEX-CONFIG]` | Auto z Finish_Meat (M04): konwersja `PR<digits><letter>` → `RM<digits>`, comma-sep. Np. `PR123H, PR345A` → `RM123, RM345` |
+| 7 | `Template` | Dropdown | `Templates` | `""` | No | `[APEX-CONFIG]` | 4 values: `Standard Meat FA / Simple Pack FA / Roasting Chicken / Full Process FA`. **Cascade trigger** → ApplyTemplate wypełnia Process_1..4 **w ProdDetail** (nie Main Table) |
+| 8 | `Closed_Core` | Dropdown | `CloseConfirm` | `""` | No | `[UNIVERSAL]` (pattern) + `[APEX-CONFIG]` (wartości) | Manual flag "Yes" gdy dept uznaje za skończone. Autofilter trigger w Core tab |
 
 **Core summary:** 5 Required_For_Done (Product_Name, Pack_Size, Number_of_Cases, Finish_Meat — plus implicitly FA_Code jako PK). RM_Code + Template + Closed_Core = helpers.
 
@@ -119,10 +119,10 @@ Kolumna `Closed_<Dept>` (dropdown "Yes") oraz `PR_Code_*` (Auto) oraz `RM_Code` 
 
 | C# | Column_Name | Data_Type | Dropdown_Source | Blocking_Rule | Required_For_Done | Marker |
 |---|---|---|---|---|---|---|
-| 9 | `Meat_Pct` | Number | — | `Core done` | **Yes** | `[FORZA-CONFIG]` |
-| 10 | `Runs_Per_Week` | Number | — | `Core done` | **Yes** | `[FORZA-CONFIG]` |
-| 11 | `Date_Code_Per_Week` | Text | — | `Core done` | **Yes** | `[FORZA-CONFIG]` |
-| 12 | `Closed_Planning` | Dropdown | `CloseConfirm` | `Core done` | No | `[UNIVERSAL]` + `[FORZA-CONFIG]` |
+| 9 | `Meat_Pct` | Number | — | `Core done` | **Yes** | `[APEX-CONFIG]` |
+| 10 | `Runs_Per_Week` | Number | — | `Core done` | **Yes** | `[APEX-CONFIG]` |
+| 11 | `Date_Code_Per_Week` | Text | — | `Core done` | **Yes** | `[APEX-CONFIG]` |
+| 12 | `Closed_Planning` | Dropdown | `CloseConfirm` | `Core done` | No | `[UNIVERSAL]` + `[APEX-CONFIG]` |
 
 **Planning summary:** 3 Required. Wszystkie blocked przez `Core done`. Nie ma cascade do innych cols.
 
@@ -132,18 +132,18 @@ Kolumna `Closed_<Dept>` (dropdown "Yes") oraz `PR_Code_*` (Auto) oraz `RM_Code` 
 
 | C# | Column_Name | Data_Type | Dropdown_Source | Blocking_Rule | Required_For_Done | Marker |
 |---|---|---|---|---|---|---|
-| 13 | `Launch_Date` | Date | — | `Core done` | **Yes** | `[UNIVERSAL]` (każdy produkt ma launch) + `[FORZA-CONFIG]` (format) |
-| 14 | `Department_Number` | Text | — | `Core done` | **Yes** | `[FORZA-CONFIG]` (retailer-specific) |
-| 15 | `Article_Number` | Text | — | `Core done` | **Yes** | `[FORZA-CONFIG]` (klient-specific) |
-| 16 | `Bar_Codes` | Text | — | `Core done` | **Yes** | `[UNIVERSAL]` (GS1 standard) + `[FORZA-CONFIG]` (values) |
-| 17 | `Cases_Per_Week_W1` | Number | — | `Core done` | **Yes** | `[FORZA-CONFIG]` |
-| 18 | `Cases_Per_Week_W2` | Number | — | `Core done` | **Yes** | `[FORZA-CONFIG]` |
-| 19 | `Cases_Per_Week_W3` | Number | — | `Core done` | **Yes** | `[FORZA-CONFIG]` |
-| 20 | `Closed_Commercial` | Dropdown | `CloseConfirm` | `Core done` | No | `[UNIVERSAL]` + `[FORZA-CONFIG]` |
+| 13 | `Launch_Date` | Date | — | `Core done` | **Yes** | `[UNIVERSAL]` (każdy produkt ma launch) + `[APEX-CONFIG]` (format) |
+| 14 | `Department_Number` | Text | — | `Core done` | **Yes** | `[APEX-CONFIG]` (retailer-specific) |
+| 15 | `Article_Number` | Text | — | `Core done` | **Yes** | `[APEX-CONFIG]` (klient-specific) |
+| 16 | `Bar_Codes` | Text | — | `Core done` | **Yes** | `[UNIVERSAL]` (GS1 standard) + `[APEX-CONFIG]` (values) |
+| 17 | `Cases_Per_Week_W1` | Number | — | `Core done` | **Yes** | `[APEX-CONFIG]` |
+| 18 | `Cases_Per_Week_W2` | Number | — | `Core done` | **Yes** | `[APEX-CONFIG]` |
+| 19 | `Cases_Per_Week_W3` | Number | — | `Core done` | **Yes** | `[APEX-CONFIG]` |
+| 20 | `Closed_Commercial` | Dropdown | `CloseConfirm` | `Core done` | No | `[UNIVERSAL]` + `[APEX-CONFIG]` |
 
 **Commercial summary:** 7 Required. Blocked przez `Core done`. `Launch_Date` napędza Dashboard alerts (Days_To_Launch calc).
 
-### 3.4 PRODUCTION (C21–C39, 19 cols) `[FORZA-CONFIG]` + multi-component note
+### 3.4 PRODUCTION (C21–C39, 19 cols) `[APEX-CONFIG]` + multi-component note
 
 | C# | Column_Name | Data_Type | Dropdown_Source | Blocking_Rule | Required_For_Done | Notes |
 |---|---|---|---|---|---|---|
@@ -203,19 +203,19 @@ Marker: `[EVOLVING]` na całym multi-component mechanism — dopóki semantyka M
 
 **Uwaga:** brak suffixu `D` — prawdopodobnie zarezerwowane (do potwierdzenia).
 
-Marker: `[EVOLVING]` + `[FORZA-CONFIG]` — zestaw ruchomy, edytowalny w Settings (ADR-028 schema-driven). Nowe procesy pojawią się w miarę rozszerzenia scope Forza.
+Marker: `[EVOLVING]` + `[APEX-CONFIG]` — zestaw ruchomy, edytowalny w Settings (ADR-028 schema-driven). Nowe procesy pojawią się w miarę rozszerzenia scope Apex.
 
 ### 3.5 TECHNICAL (C40–C41, 2 cols)
 
 | C# | Column_Name | Data_Type | Dropdown_Source | Blocking_Rule | Required_For_Done | Marker |
 |---|---|---|---|---|---|---|
-| 40 | `Shelf_Life` | Text | — | `Core done` | **Yes** | `[UNIVERSAL]` (food-mfg regulatoryjne) + `[FORZA-CONFIG]` (format) |
-| 41 | `Closed_Technical` | Dropdown | `CloseConfirm` | `Core done` | No | `[UNIVERSAL]` + `[FORZA-CONFIG]` |
+| 40 | `Shelf_Life` | Text | — | `Core done` | **Yes** | `[UNIVERSAL]` (food-mfg regulatoryjne) + `[APEX-CONFIG]` (format) |
+| 41 | `Closed_Technical` | Dropdown | `CloseConfirm` | `Core done` | No | `[UNIVERSAL]` + `[APEX-CONFIG]` |
 
 **Technical summary:** 1 Required (Shelf_Life). Minimalny zakres dziś.
 
 **Evolving (do dodania, Session 3 EVOLVING.md + Phase B):**
-- `Allergens` (Text/multi-value) — lista alergenów produktu, **cascade z RM_Code** (jeśli RM zawiera alergen → dziedziczenie do FA). Pattern `[UNIVERSAL]` (food-mfg EU), Reference.Allergens seed = EU14 `[FORZA-CONFIG]`
+- `Allergens` (Text/multi-value) — lista alergenów produktu, **cascade z RM_Code** (jeśli RM zawiera alergen → dziedziczenie do FA). Pattern `[UNIVERSAL]` (food-mfg EU), Reference.Allergens seed = EU14 `[APEX-CONFIG]`
 - Inne Quality cols (HACCP, nutritional, regulatory certs) — poza scope v7, potencjalne future
 
 ### 3.6 MRP (C42–C54, 13 cols)
@@ -244,9 +244,9 @@ Marker: `[EVOLVING]` + `[FORZA-CONFIG]` — zestaw ruchomy, edytowalny w Setting
 
 | C# | Column_Name | Data_Type | Blocking_Rule | Required_For_Done | Marker |
 |---|---|---|---|---|---|
-| 55 | `Price` | Number | `Core done` | **Yes** | `[FORZA-CONFIG]` (waluta, decimal format) |
-| 56 | `Lead_Time` | Number | `Core done` | **Yes** | `[FORZA-CONFIG]` (jednostka: dni) |
-| 57 | `Supplier` | Text | `Core done` | **Yes** | `[FORZA-CONFIG]` |
+| 55 | `Price` | Number | `Core done` | **Yes** | `[APEX-CONFIG]` (waluta, decimal format) |
+| 56 | `Lead_Time` | Number | `Core done` | **Yes** | `[APEX-CONFIG]` (jednostka: dni) |
+| 57 | `Supplier` | Text | `Core done` | **Yes** | `[APEX-CONFIG]` |
 | 58 | `Proc_Shelf_Life` | Number | `Core done` | **Yes** | Różny od Technical.Shelf_Life — to per-supplier |
 | 59 | `Closed_Procurement` | Dropdown (CloseConfirm) | `Core done` | No | |
 
@@ -296,7 +296,7 @@ Kolumny systemowe, poza `Reference.DeptColumns` — zarządzane przez VBA.
 
 ADR-028 postuluje: "kolumny tabel głównych + ich metadata to Level "a" (schema-driven, edytowalne w Settings bez dewelopera)".
 
-**Forza v7 już to zrealizowała** w Excel:
+**Apex v7 już to zrealizowała** w Excel:
 
 | ADR-028 wymaganie | v7 Excel implementacja |
 |---|---|
@@ -336,7 +336,7 @@ Silnik walidacji czyta Main Table + Reference.DeptColumns i wypisuje wyniki do `
 
 **Statuses:** PASS (green #C0FFC0) / FAIL (red #C0C0FF) / PENDING (yellow #C0FFFF) / CHECK (light yellow #FFFFC0).
 
-Rule engine jest dziś hardcoded w VBA. W Monopilot (ADR-029 rule engine DSL) reguły walidacji powinny być **danymi** (Level "a" lub "b" rule engine definitions), nie kodem. Scope: V01-V06 to `[EVOLVING]` → docelowe `[UNIVERSAL]` (pattern) + `[FORZA-CONFIG]` (konkretne reguły).
+Rule engine jest dziś hardcoded w VBA. W Monopilot (ADR-029 rule engine DSL) reguły walidacji powinny być **danymi** (Level "a" lub "b" rule engine definitions), nie kodem. Scope: V01-V06 to `[EVOLVING]` → docelowe `[UNIVERSAL]` (pattern) + `[APEX-CONFIG]` (konkretne reguły).
 
 ---
 

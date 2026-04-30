@@ -84,7 +84,7 @@ Module boundaries clarified:
 ### 1.5 Markers legend
 
 - `[UNIVERSAL]` — applies to all tenants (L1 core)
-- `[FORZA-CONFIG]` — Forza-specific configuration, pattern universal
+- `[APEX-CONFIG]` — Apex-specific configuration, pattern universal
 - `[EVOLVING]` — under active change
 - `[LEGACY-D365]` — D365 shape/logic for bridge-period
 
@@ -94,7 +94,7 @@ Module boundaries clarified:
 
 ### 2.1 Primary objectives
 
-1. **Yield compliance** — WO output_qty ≥ planned_qty × 0.95 for ≥95% of WOs (Forza target)
+1. **Yield compliance** — WO output_qty ≥ planned_qty × 0.95 for ≥95% of WOs (Apex target)
 2. **On-time completion** — ≥85% WOs completed within planned_end_time +2h tolerance
 3. **Waste reduction** — total waste <3% of input material weight (rolling 30d)
 4. **FEFO compliance** — ≥98% of consumptions use FEFO-suggested LP (deviations audited)
@@ -163,7 +163,7 @@ Module boundaries clarified:
 - Second signer on allergen changeover gate (role = quality_lead)
 - Read on `wo_outputs.qa_status`
 
-**NPD Manager (Jane)** [FORZA-CONFIG]
+**NPD Manager (Jane)** [APEX-CONFIG]
 - Read-only on 08-PROD for new FA ramp-up validation
 - Flags products with allergen-specific process notes (process_allergen_additions in 03-TECH §10.4)
 
@@ -189,7 +189,7 @@ Module boundaries clarified:
 
 ### 3.3 Role mapping to 02-SETTINGS §14
 
-Forza default: operator, shift_lead, production_manager, quality_lead, npd_manager, system. L2 tenants can extend via admin wizard (e.g., add "line_maintenance" role).
+Apex default: operator, shift_lead, production_manager, quality_lead, npd_manager, system. L2 tenants can extend via admin wizard (e.g., add "line_maintenance" role).
 
 ---
 
@@ -288,14 +288,14 @@ Forza default: operator, shift_lead, production_manager, quality_lead, npd_manag
 8. **Per-minute OEE (Q4)** — Postgres batch job every 60s writes `oee_snapshots`; streaming deferred P2.
 9. **PLC deferred P2 (Q5)** — P1 = manual downtime entry only; no OPC UA client in P1 codebase.
 10. **Changeover schema-driven L3 (Q6)** — `changeover_events` has `ext_jsonb` for tenant-specific fields (ADR-028 L3); base columns universal.
-11. **Downtime admin-configurable (Q8)** — `downtime_categories` table in 02-SETTINGS, Forza default seed 10 categories (People/Process/Plant x 3-4 sub each), tenant can extend/rename/disable.
+11. **Downtime admin-configurable (Q8)** — `downtime_categories` table in 02-SETTINGS, Apex default seed 10 categories (People/Process/Plant x 3-4 sub each), tenant can extend/rename/disable.
 
 ### 5.2 Business constraints
 
-**[FORZA-CONFIG, becoming UNIVERSAL]**
+**[APEX-CONFIG, becoming UNIVERSAL]**
 
-1. **7 production departments** (Forza dept taxonomy, configurable per ADR-030): Core/NPD, Technical/QA, Planning, Warehouse, Production, Shipping, Maintenance
-2. **3 Forza production stages** mapped to lines: Fresh → Cooked → Breaded/Marinated → Packaging
+1. **7 production departments** (Apex dept taxonomy, configurable per ADR-030): Core/NPD, Technical/QA, Planning, Warehouse, Production, Shipping, Maintenance
+2. **3 Apex production stages** mapped to lines: Fresh → Cooked → Breaded/Marinated → Packaging
 3. **Single-site P1** — multi-site via 14-MULTI-SITE Phase C5
 4. **Allergen changeover 100% enforcement** — BRCGS audit requirement, zero exceptions for risk≥medium pairs
 5. **Over-consumption approval threshold** — default 5% of BOM planned; tenant-configurable (02-SETTINGS §10)
@@ -370,11 +370,11 @@ Forza default: operator, shift_lead, production_manager, quality_lead, npd_manag
 
 ### D5 — Waste category taxonomy [UNIVERSAL]
 
-**Decision:** `waste_categories` table in 02-SETTINGS §8 reference tables. Forza seed = 10 categories (spillage, trim, rework-fail, expired-rm, quality-reject, cleaning, scale-calibration, packaging-damage, customer-reject, other). Tenant admin can extend/rename via 02-SETTINGS admin wizard.
+**Decision:** `waste_categories` table in 02-SETTINGS §8 reference tables. Apex seed = 10 categories (spillage, trim, rework-fail, expired-rm, quality-reject, cleaning, scale-calibration, packaging-damage, customer-reject, other). Tenant admin can extend/rename via 02-SETTINGS admin wizard.
 
 ### D6 — Downtime taxonomy admin-configurable (Q8) [UNIVERSAL]
 
-**Decision:** `downtime_categories` table in 02-SETTINGS. Forza seed = 10 categories mapped to lean 6 Big Losses (People/Process/Plant):
+**Decision:** `downtime_categories` table in 02-SETTINGS. Apex seed = 10 categories mapped to lean 6 Big Losses (People/Process/Plant):
 - People: operator_break, operator_missing, training
 - Process: material_wait, upstream_delay, downstream_blocked, quality_hold
 - Plant: machine_fault, cleaning, changeover
@@ -406,7 +406,7 @@ Tenant can extend (L2 config per ADR-030). Per-line default mapping optional.
   "journalName": "PROD-YYYY-MM-DD",
   "companyId": "FNOR",
   "lines": [
-    {"itemId": "FA5101", "qty": 1000, "warehouse": "ForzDG", "batchId": "WO-2026-0001-OUT", "datePhysical": "2026-04-20", "..."},
+    {"itemId": "FA5101", "qty": 1000, "warehouse": "ApexDG", "batchId": "WO-2026-0001-OUT", "datePhysical": "2026-04-20", "..."},
     // co-products, by-products as separate lines
   ],
   "metadata": {"wo_id": "...", "transaction_id": "uuid-v7", "monopilot_version": "3.0"}
@@ -417,7 +417,7 @@ Tenant can extend (L2 config per ADR-030). Per-line default mapping optional.
 
 **Decision:** `changeover_events` table has typed base columns (event_id, wo_from_id, wo_to_id, line_id, started_at, completed_at, duration_min, cleaning_completed, atp_result, dual_sign_off_status) + `ext_jsonb` for tenant-specific fields (ADR-028 L3).
 
-**Rationale:** Per Phase D principle "easy extension"; Forza may extend with `swab_location`, `scm_ticket_id`, `allergen_pair_reviewed` later via 02-SETTINGS admin wizard.
+**Rationale:** Per Phase D principle "easy extension"; Apex may extend with `swab_location`, `scm_ticket_id`, `allergen_pair_reviewed` later via 02-SETTINGS admin wizard.
 
 ### D10 — Allergen changeover gate (NEW v3.0) [UNIVERSAL]
 
@@ -426,7 +426,7 @@ Tenant can extend (L2 config per ADR-030). Per-line default mapping optional.
 2. Compute allergen_delta = (prev.allergens ∩ not in current.allergens) ∪ (current allergen constraint violations)
 3. Lookup `changeover_matrix` (07-EXT §9.4) for (prev_allergens, current_allergens, line_id)
 4. If `cleaning_required=true`: block WO START until cleaning_completed=true in `changeover_events`
-5. If `atp_required=true`: block until atp_result ≤ 10 RLU (Forza default) AND PASSED status
+5. If `atp_required=true`: block until atp_result ≤ 10 RLU (Apex default) AND PASSED status
 6. If `segregation_required=true`: block indefinitely (scheduler should have prevented this — audit flag)
 7. Require dual_sign_off (shift_lead + quality_lead) for risk≥medium pairs
 
@@ -446,7 +446,7 @@ Stored as materialized view `operator_kpis_monthly`, refreshed daily. P2 publish
 
 **Decision:** P1 = manual downtime entry only. P2 subset = OPC UA client service reads machine start/stop/fault signals, writes `downtime_events` with source='plc'. Full orchestration (recipe download, auto-dispatch) → P3+.
 
-**Rationale:** PLC integration = infrastructure project (OPC UA server discovery, industrial network). Defer until Forza has OPC UA servers online (they don't at P1 timeline).
+**Rationale:** PLC integration = infrastructure project (OPC UA server discovery, industrial network). Defer until Apex has OPC UA servers online (they don't at P1 timeline).
 
 ### D13 — Catch weight P1 manual, P2 scale [UNIVERSAL]
 
@@ -597,7 +597,7 @@ Stored as materialized view `operator_kpis_monthly`, refreshed daily. P2 publish
 - FR-08-E7-001: On WO START request, rule evaluates allergen_delta vs previous WO on line
 - FR-08-E7-002: If cleaning_required=true: block START until `changeover_events.cleaning_completed=true`
 - FR-08-E7-003: Cleaning checklist UI: N-step list (per tenant config in 02-SETTINGS §7 or changeover_matrix.notes), operator check-off with timestamps
-- FR-08-E7-004: If atp_required=true: block until ATP result recorded (<10 RLU Forza default, configurable per line)
+- FR-08-E7-004: If atp_required=true: block until ATP result recorded (<10 RLU Apex default, configurable per line)
 - FR-08-E7-005: ATP result entry: either manual (paper lab card) or integration with ATP device (P2 via 09-QUALITY)
 - FR-08-E7-006: Dual sign-off UI: shift_lead signs first, then quality_lead; digital signature = user_id + timestamp + PIN confirmation
 - FR-08-E7-007: Complete validation writes `allergen_changeover_validations` row with all evidence; audit retained 7y (BRCGS Issue 10)
@@ -900,7 +900,7 @@ On dual sign-off complete, gate unlocks WO start.
 
 ### 9.1 Entity overview
 
-| Table | Purpose | Retention | Scale estimate (Forza) |
+| Table | Purpose | Retention | Scale estimate (Apex) |
 |---|---|---|---|
 | `wo_executions` | WO runtime state + events aggregator | 7 years | ~2000/year |
 | `wo_material_consumption` | Per-consumption event | 7 years | ~50k/year |
@@ -1544,7 +1544,7 @@ def retry_delay(attempt):
       "catch_weight_details": {"_": "_"},
       "batch_number": "WO-2026-0001-OUT-001",
       "warehouse_id": "...",
-      "warehouse_code": "ForzDG"
+      "warehouse_code": "ApexDG"
     }
   ],
   "consumed_materials": [],
@@ -1563,7 +1563,7 @@ def retry_delay(attempt):
       "Qty": 1050.0,
       "InventDimId": {
         "InventBatchId": "WO-2026-0001-OUT-001",
-        "InventLocationId": "ForzDG",
+        "InventLocationId": "ApexDG",
         "InventSiteId": "FNOR"
       },
       "CostAmount": null,
@@ -1612,7 +1612,7 @@ Alerts:
 
 ### 12.8 Feature flags
 
-- `integration.d365.push.enabled` (per tenant, default true for Forza)
+- `integration.d365.push.enabled` (per tenant, default true for Apex)
 - `integration.d365.push.dry_run` (logs but doesn't call D365, for debug)
 - `integration.d365.push.batch_size` (dispatcher batch size, default 100)
 
@@ -1681,7 +1681,7 @@ If D365 push causes downstream issue (e.g., duplicate JournalLines created due t
 
 **INTEGRATIONS stage 2 (E5):**
 - [ ] Outbox dispatcher service deployed (Node worker, containerized)
-- [ ] D365 JournalLines push tested in sandbox (Forza D365 UAT environment)
+- [ ] D365 JournalLines push tested in sandbox (Apex D365 UAT environment)
 - [ ] Anti-corruption mapping adapter unit-tested (≥95% coverage)
 - [ ] Idempotency verified (replay same transaction_id → same result)
 - [ ] DLQ + retry policy verified (simulated failures at each attempt stage)
@@ -1703,13 +1703,13 @@ If D365 push causes downstream issue (e.g., duplicate JournalLines created due t
 - [ ] Unit test coverage ≥85% for core modules
 - [ ] Integration tests: full WO lifecycle (scheduled → started → consumed → output → completed → D365 pushed)
 - [ ] Load test: 5 WOs concurrent starts on 5 lines, 10s scan cadence, 30min sustained
-- [ ] UAT with Forza operators: 2 weeks pre-go-live parallel run
+- [ ] UAT with Apex operators: 2 weeks pre-go-live parallel run
 
 ### 14.2 P2 MVP done checklist
 
 - [ ] PLC integration (08-h): OPC UA client deployed, auto-downtime working, feature flag per line
 - [ ] Catch weight scale integration (08-i): BT scale paired, variance hard-enforcement option
-- [ ] ZPL native printing (08-j): Forza printer fleet paired, label format identical to P1 PDF
+- [ ] ZPL native printing (08-j): Apex printer fleet paired, label format identical to P1 PDF
 - [ ] OEE streaming (08-k): Redis streams consumer, EWMA anomaly alerts functional
 - [ ] Operator leaderboards (08-l): 12-REPORTING dashboard live
 
@@ -1718,8 +1718,8 @@ If D365 push causes downstream issue (e.g., duplicate JournalLines created due t
 - Code review by 04-PLANNING owner + 05-WAREHOUSE owner + 02-SETTINGS rule registry owner + INTEGRATIONS owner
 - Security review: RLS verified, D365 credentials encrypted at rest, allergen gate un-bypassable
 - Performance load test passed (§5.4 constraints)
-- Forza UAT sign-off by Prod Manager + Monika (Planner) + Jane (NPD) + QA lead
-- Regulatory review: BRCGS Issue 10 digital signature compliance confirmed by Forza Quality
+- Apex UAT sign-off by Prod Manager + Monika (Planner) + Jane (NPD) + QA lead
+- Regulatory review: BRCGS Issue 10 digital signature compliance confirmed by Apex Quality
 
 ---
 
@@ -1776,7 +1776,7 @@ Build order per 08-PROD sub-module breakdown. Dependency: 04-PLAN baseline + 05-
 ### 15.4 08-d Downtime + Shifts (3-4 sesji)
 
 **Stories:**
-- SC-08-d-01: `downtime_events`, `downtime_categories` seed (10 Forza categories)
+- SC-08-d-01: `downtime_events`, `downtime_categories` seed (10 Apex categories)
 - SC-08-d-02: Auto-create downtime on WO PAUSE (E1 FR-002 side effect)
 - SC-08-d-03: Manual downtime entry UI (Shift Lead)
 - SC-08-d-04: Category selection from 02-SETTINGS taxonomy (admin-configurable)
@@ -1877,7 +1877,7 @@ Build order per 08-PROD sub-module breakdown. Dependency: 04-PLAN baseline + 05-
 | 03-TECH §10 | Allergen cascade data | E7 gate trigger |
 | 02-SETTINGS §7 | Rule registry (DSL rules for state machine + gates) | All gates |
 | 02-SETTINGS §8 | Reference tables (downtime_categories, waste_categories, production_lines, shift_patterns) | E4, E3 |
-| 02-SETTINGS §11 | D365 constants (FNOR, FOR100048, ForzDG, FinGoods, FProd01) + item/warehouse code_map | E5 INTEGRATIONS stage 2 |
+| 02-SETTINGS §11 | D365 constants (FNOR, FOR100048, ApexDG, FinGoods, FProd01) + item/warehouse code_map | E5 INTEGRATIONS stage 2 |
 | 02-SETTINGS §14 | Feature flags, i18n, PIN config | All modules |
 
 ### 16.2 Downstream consumers (08-PROD outputs)
@@ -1936,7 +1936,7 @@ Consistency rules:
 ### 16.5 Marker usage summary
 
 - **[UNIVERSAL]** — 88% of features (state machine, consumption, output, waste, OEE foundation, allergen gate pattern, outbox pattern)
-- **[FORZA-CONFIG]** — Forza-specific: 5 lines, 2 shifts, 10 downtime + 10 waste category seeds, D365 constants, PIN rotation 180d
+- **[APEX-CONFIG]** — Apex-specific: 5 lines, 2 shifts, 10 downtime + 10 waste category seeds, D365 constants, PIN rotation 180d
 - **[EVOLVING]** — PLC integration P2, OEE streaming P2, ZPL native P2, catch weight scale P2, operator leaderboards P2
 - **[LEGACY-D365]** — JournalLines push format, dataAreaId mapping, ItemId/InventBatchId shape, Dynamics F&O API surface
 
@@ -1944,16 +1944,16 @@ Consistency rules:
 
 | ID | Question | Resolution target | Blocker? |
 |---|---|---|---|
-| OQ-PROD-01 | Catch weight hard tolerance enforcement (reject vs warn) — Forza Quality decision | Before P1 UAT | No (soft P1) |
+| OQ-PROD-01 | Catch weight hard tolerance enforcement (reject vs warn) — Apex Quality decision | Before P1 UAT | No (soft P1) |
 | OQ-PROD-02 | Override audit access — can Prod Manager see all overrides org-wide or only own line? | 02-SETTINGS §14 RBAC final | No |
 | OQ-PROD-03 | D365 push batching: per-WO lines or daily consolidated journal? | Before stage 2 impl | No (per-WO P1 default) |
-| OQ-PROD-04 | ATP device integration in P1 vs manual entry only — Forza lab workflow review | 09-QUALITY sesja | No (manual P1) |
+| OQ-PROD-04 | ATP device integration in P1 vs manual entry only — Apex lab workflow review | 09-QUALITY sesja | No (manual P1) |
 | OQ-PROD-05 | Shift handover digital form scope — replace paper fully or hybrid? | P2 design with Shift Leads | No |
 | OQ-PROD-06 | OEE ideal_cycle_time source — static per product or per-line calibration? | 15-OEE sesja | No |
 | OQ-PROD-07 | Allergen gate override authority — only Quality Lead, or also Prod Manager? | BRCGS audit review | No (conservative: Quality only P1) |
 | OQ-PROD-08 | Over-consumption approval — Shift Lead on-device (scanner) or desktop-only? | UX review w Shift Lead | No (desktop P1) |
 | OQ-PROD-09 | Output yield variance threshold per product or universal 10%? | 3mo post-P1 empirical tuning | No |
-| OQ-PROD-10 | Waste category mandatory photo attachment — BRCGS compliance requirement? | Forza Quality input | No (optional P1) |
+| OQ-PROD-10 | Waste category mandatory photo attachment — BRCGS compliance requirement? | Apex Quality input | No (optional P1) |
 
 ### 16.7 Phase C progress
 
@@ -2054,7 +2054,7 @@ Observed KPI contribution: on-time completion +1, yield +1, FEFO compliance main
 | `production.waste.threshold_pct_alert` | 0.05 | P1 | Admin |
 | `production.oee_aggregation.enabled` | true | P1 | System |
 | `production.oee_aggregation.interval_sec` | 60 | P1 | DevOps |
-| `integration.d365.push.enabled` | true (Forza) | P1 | Admin per tenant |
+| `integration.d365.push.enabled` | true (Apex) | P1 | Admin per tenant |
 | `integration.d365.push.dry_run` | false | P1 | DevOps debug |
 | `integration.d365.push.batch_size` | 100 | P1 | DevOps |
 | `production.plc_integration.enabled` | false | P2 | Per line rollout |

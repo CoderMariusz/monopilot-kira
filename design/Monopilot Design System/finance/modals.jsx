@@ -650,8 +650,8 @@ const PeriodLockModal = ({ open, onClose }) => {
 const CostCenterModal = ({ open, onClose, data }) => {
   const editing = !!data;
   const [code, setCode] = React.useState(data?.cat || "FProd01");
-  const [dAccount, setDAccount] = React.useState(data?.dAccount || "5000-ForzDG-MAT");
-  const [offset, setOffset] = React.useState(data?.offset || "1400-ForzDG-INV");
+  const [dAccount, setDAccount] = React.useState(data?.dAccount || "5000-ApexDG-MAT");
+  const [offset, setOffset] = React.useState(data?.offset || "1400-ApexDG-INV");
   const valid = code && dAccount && offset;
 
   return (

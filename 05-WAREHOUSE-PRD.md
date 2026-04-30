@@ -24,7 +24,7 @@ Moduł pokrywa 8 obszarów P1 MVP:
 
 ### Kluczowa decyzja Phase C2 Sesja 2 (Q6 revision, 2026-04-20)
 
-**`disposition='direct_continue'` wycofane z P1** (deferred → Phase 2 po real demand). W P1 **wszystkie intermediate LPs** przechodzą przez put-away (status=`available`), konsumpcja = Scanner-driven scan-to-WO event z FEFO suggestion + soft warning + operator confirm na deviation. Rationale: (a) Forza reality — intermediate fizycznie trafia na buffer/chłodnię między operacjami; (b) brak reservation complexity dla cascade — WO interrupt/cancel = zero cleanup; (c) natural out-of-order consumption — operator na linii ma final decision; (d) czysty audit trail per scan event.
+**`disposition='direct_continue'` wycofane z P1** (deferred → Phase 2 po real demand). W P1 **wszystkie intermediate LPs** przechodzą przez put-away (status=`available`), konsumpcja = Scanner-driven scan-to-WO event z FEFO suggestion + soft warning + operator confirm na deviation. Rationale: (a) Apex reality — intermediate fizycznie trafia na buffer/chłodnię między operacjami; (b) brak reservation complexity dla cascade — WO interrupt/cancel = zero cleanup; (c) natural out-of-order consumption — operator na linii ma final decision; (d) czysty audit trail per scan event.
 
 To revizja pociąga update 04-PLANNING v3.1 (§5.10, §8.5, §8.6, §9.2 — cross-PRD consistency enforced).
 
@@ -42,7 +42,7 @@ To revizja pociąga update 04-PLANNING v3.1 (§5.10, §8.5, §8.6, §9.2 — cro
 ### Markers
 
 - **[UNIVERSAL]** — LP model, FEFO core, GS1 GTIN/GS1-128/SSCC, lot genealogy, shelf life, stock moves, scanner contract
-- **[FORZA-CONFIG]** — 3-level location hierarchy (warehouse→zone→bin), intermediate LP always to_stock, LP prefix `LP`, expiry cron daily, default_warehouse `ForzDG` (z D365_Constants 02-SETTINGS §11)
+- **[APEX-CONFIG]** — 3-level location hierarchy (warehouse→zone→bin), intermediate LP always to_stock, LP prefix `LP`, expiry cron daily, default_warehouse `ApexDG` (z D365_Constants 02-SETTINGS §11)
 - **[EVOLVING]** — put-away rules (P2), cycle counts (P2), pallet management (P2), EPCIS event format (P2 consumer), ASN pre-fill (P2)
 - **[LEGACY-D365]** — żaden bezpośredni (D365 item/BOM pull w 03-TECHNICAL §13; D365 SO pull w 04-PLANNING §15)
 
@@ -63,7 +63,7 @@ Zapewnienie **100% trasowalności inwentarza** od przyjęcia surowców do wydani
 1. **Zgodność regulacyjna** — FSMA Section 204 (US), EU Reg 178/2002, EU 1169/2011 (use_by), GS1 Global Traceability, BRCGS v9 (digital records)
 2. **Food safety** — FEFO default dla perishables, expiry auto-block (daily cron), QA status gating pick/consume/ship, allergen-aware pick suggestion (cross-ref 03-TECHNICAL §10)
 3. **Scanner-first** — operatorzy na hali pracują w 100% ze skanerem (touch ≥48px, audio feedback, <30s per op); desktop tylko dla management + exception handling
-4. **Multi-tenant from day 1** — 3-level Forza default / 2-5 levels per tenant (L2 config w 02§9), RLS na wszystkich tabelach (ADR-003/013)
+4. **Multi-tenant from day 1** — 3-level Apex default / 2-5 levels per tenant (L2 config w 02§9), RLS na wszystkich tabelach (ADR-003/013)
 5. **Intermediate cascade support** — catalog-driven N+1 LP materialization (Phase D #19 + Q6 C2 Sesja 2 revised), zero inter-WO locking, scan-to-consume audit
 
 ### Metryki sukcesu
@@ -108,7 +108,7 @@ Zapewnienie **100% trasowalności inwentarza** od przyjęcia surowców do wydani
 
 | Persona | Rola w Warehouse | Operations |
 |---|---|---|
-| **Operator magazynu** (Forza: 2-4 osób/zmiana) | GRN receipt, put-away, moves, pick dla WO/TO, split/merge, cycle count execute | Scanner primary (username+PIN), desktop rzadko |
+| **Operator magazynu** (Apex: 2-4 osób/zmiana) | GRN receipt, put-away, moves, pick dla WO/TO, split/merge, cycle count execute | Scanner primary (username+PIN), desktop rzadko |
 | **Kierownik magazynu** | Dashboard review, cycle count approval, adjustments >10%, QA holds review cross-ref 09, settings | Desktop primary |
 | **QA Manager** (cross-ref 09-QUALITY) | QA status transitions (PENDING→PASSED/FAILED/HOLD/RELEASED/COND_APPROVED/QUARANTINED), inspection triggers | Desktop + tablet |
 | **Operator produkcji** (cross-ref 08-PRODUCTION) | Consume intermediate/RM LP na linię (scan-to-WO), output LP creation post-production | Scanner only |
@@ -192,11 +192,11 @@ Per 02-SETTINGS §5.4 (ADR-031), warehouse permissions respect L2 tenant config.
 | Feature | Marker | Rationale |
 |---|---|---|
 | LP model + 7 QA statuses | [UNIVERSAL] | food-mfg standard (FSMA 204, GS1) |
-| 3-level location default | [FORZA-CONFIG] | Forza warehouse layout, system supports 2-5 |
-| Intermediate always to_stock P1 | [FORZA-CONFIG] | Forza reality (buffer między operacjami) |
+| 3-level location default | [APEX-CONFIG] | Apex warehouse layout, system supports 2-5 |
+| Intermediate always to_stock P1 | [APEX-CONFIG] | Apex reality (buffer między operacjami) |
 | FEFO default + per-pick override | [UNIVERSAL] | EU 1169/2011 + food-mfg norm |
-| Daily expiry cron | [FORZA-CONFIG → UNIVERSAL] | configurable frequency per tenant |
-| Put-away rules | [EVOLVING] P2 | Forza P1 manual, rules dodane gdy scale |
+| Daily expiry cron | [APEX-CONFIG → UNIVERSAL] | configurable frequency per tenant |
+| Put-away rules | [EVOLVING] P2 | Apex P1 manual, rules dodane gdy scale |
 | EPCIS event format | [EVOLVING] P2 | consumer service z outbox |
 | GS1-128 AI parsing | [UNIVERSAL] | standard barcodes |
 
@@ -265,7 +265,7 @@ Per 02-SETTINGS §5.4 (ADR-031), warehouse permissions respect L2 tenant config.
 | created_at, created_by, updated_at, updated_by | | audit |
 
 **Constraints:**
-- `UNIQUE(tenant_id, warehouse_id, lp_number)` (per-warehouse numbering, Forza convention)
+- `UNIQUE(tenant_id, warehouse_id, lp_number)` (per-warehouse numbering, Apex convention)
 - `CHECK (quantity >= 0)` + `CHECK (reserved_qty <= quantity)`
 - Partial unique: `UNIQUE (id) WHERE status IN ('available', 'reserved')` + cross w lp_reservations dla hard-lock enforcement
 - FK `reserved_for_wo_id` nullable, enforced only when `status='reserved'`
@@ -412,7 +412,7 @@ Standardowa tabela key-value scoped per tenant — toggles + numeric config. Pe�
 
 ```
 02-SET §12 locations ─┬── warehouses ──< license_plates (tenant_id RLS)
-                      └── ltree path (2-5 levels, Forza 3)
+                      └── ltree path (2-5 levels, Apex 3)
 
 03-TEC §6 products ──── license_plates
                     ──── grn_items
@@ -486,7 +486,7 @@ Cross-module sync: `quality_status_history` (entity_type='lp', entity_id=lp.id, 
 
 ### 6.3 LP numbering
 
-**FR-WH-001:** Auto-generate per warehouse, format: `{warehouse_settings.lp_number_prefix}{zero-padded sequence}`. Default Forza: `LP00000001`. Sequence DB sequence per `(tenant_id, warehouse_id)` → `UNIQUE(tenant_id, warehouse_id, lp_number)` enforced.
+**FR-WH-001:** Auto-generate per warehouse, format: `{warehouse_settings.lp_number_prefix}{zero-padded sequence}`. Default Apex: `LP00000001`. Sequence DB sequence per `(tenant_id, warehouse_id)` → `UNIQUE(tenant_id, warehouse_id, lp_number)` enforced.
 
 Manual override allowed w settings `allow_manual_lp_number=true` — operator wpisuje custom (e.g., supplier-printed GS1). Walidacja unikalności per warehouse.
 
@@ -543,7 +543,7 @@ Catch weight required if `product.is_catch_weight=true` (03§6 + §8). Walidacja
 
 LP tabela ma `ext_jsonb` (L3 per-org custom cols) + `private_jsonb` (L4 tenant-hidden). Admin dodaje cols via 02§6 wizard → runtime available na LP UI + API + Scanner form.
 
-Przykłady Forza L3:
+Przykłady Apex L3:
 - `storage_temperature_zone` (chłodnia/mroźnia/suchy)
 - `halal_batch_indicator` (boolean)
 - `custom_supplier_cert_ref` (VARCHAR)
@@ -745,8 +745,8 @@ LP qty=0 → LP status='consumed' (not deleted — audit preserved).
 ### 8.6 Ltree location queries
 
 Per 02§12.1 (`locations.path` materialized ltree):
-- Ancestor query: `WHERE path @> 'org.forza.wh_a.zone_1'::ltree` → all LP w zone
-- Descendant: `WHERE path <@ 'org.forza.wh_a'::ltree` → all LP w warehouse
+- Ancestor query: `WHERE path @> 'org.apex.wh_a.zone_1'::ltree` → all LP w zone
+- Descendant: `WHERE path <@ 'org.apex.wh_a'::ltree` → all LP w warehouse
 - Fast — GiST index on path column
 
 Dashboard roll-ups (inventory per warehouse/zone) używają tego pattern.
@@ -894,7 +894,7 @@ Wszystkie FEFO/FIFO deviations → `pick_overrides` row. KPI: `override_rate = C
 
 ### 10.1 Scope
 
-Intermediate LP = LP dla items z `item_type='intermediate'` (03§6.1). Przykład Forza: `PR5101R` po Roast step, stored as buffer LP przed slicing/packaging.
+Intermediate LP = LP dla items z `item_type='intermediate'` (03§6.1). Przykład Apex: `PR5101R` po Roast step, stored as buffer LP przed slicing/packaging.
 
 **Per Q6 C2 Sesja 2 revised:** W P1 **wszystkie intermediate LPs** przechodzą przez standard lifecycle: output z producing WO → put-away → `available` na stock → Scanner scan-to-consume by next WO on production line.
 
@@ -1119,7 +1119,7 @@ UI indicator:
 4. Emit `outbox_events.lp.expired` per affected LP
 5. Notification email (via 02-SETTINGS §13 EmailConfig) do warehouse manager roles
 
-P1 Forza cron = daily. Configurable per tenant (e.g., every 6h for high-turnover ops).
+P1 Apex cron = daily. Configurable per tenant (e.g., every 6h for high-turnover ops).
 
 ### 12.4 Warning tiers + alerts
 
@@ -1180,7 +1180,7 @@ Response:
   "items": [
     {"lp_id": "...", "lp_number": "LP001", "product_code": "PR5101R", "product_name": "...",
      "quantity": 120.0, "uom": "BOX", "catch_weight_kg": 184.0,
-     "location_path": "forza.wh_a.zone_cold.bin_B3", "expiry_date": "2026-05-01",
+     "location_path": "apex.wh_a.zone_cold.bin_B3", "expiry_date": "2026-05-01",
      "qa_status": "PASSED", "batch_number": "B-2026-04-10", "reserved_for_wo_id": null}
   ],
   "total": 250, "offset": 0, "limit": 50
@@ -1421,26 +1421,26 @@ Dual UoM label (baseline D21): "120 BOX / 184 KG" — operator enters primary, s
 | Setting | Default | Opis | Marker |
 |---|---|---|---|
 | auto_generate_lp_number | true | Auto-numbering LP | [UNIVERSAL] |
-| lp_number_prefix | 'LP' | Prefix | [FORZA-CONFIG] |
+| lp_number_prefix | 'LP' | Prefix | [APEX-CONFIG] |
 | lp_number_sequence_length | 8 | Padded digits | [UNIVERSAL] |
 | allow_manual_lp_number | false | Custom LP numbers | [UNIVERSAL] |
 | require_qa_on_receipt | true | QA PENDING initial | [UNIVERSAL] |
 | default_qa_status | 'PENDING' | Init QA na GRN | [UNIVERSAL] |
 | allow_over_receipt | false | Over-receipt control | [UNIVERSAL] |
 | over_receipt_tolerance_pct | 0 | Tolerance % | [UNIVERSAL] |
-| require_batch_on_receipt | true | Batch mandatory per row | [FORZA-CONFIG→UNIVERSAL] |
-| require_expiry_on_receipt | true | Expiry mandatory per row | [FORZA-CONFIG→UNIVERSAL] |
+| require_batch_on_receipt | true | Batch mandatory per row | [APEX-CONFIG→UNIVERSAL] |
+| require_expiry_on_receipt | true | Expiry mandatory per row | [APEX-CONFIG→UNIVERSAL] |
 | require_supplier_batch | false | Supplier batch mandatory | [UNIVERSAL] |
 | expiry_warning_days_red | 7 | Red alert threshold | [UNIVERSAL] |
 | expiry_warning_days_yellow | 30 | Yellow alert | [UNIVERSAL] |
-| expiry_cron_schedule | '0 2 * * *' | Daily 02:00 UTC | [FORZA-CONFIG→UNIVERSAL] |
+| expiry_cron_schedule | '0 2 * * *' | Daily 02:00 UTC | [APEX-CONFIG→UNIVERSAL] |
 | enable_fefo | true | FEFO default | [UNIVERSAL] |
 | enable_fifo_fallback | true | FIFO for no-expiry | [UNIVERSAL] |
 | allow_fefo_override | true | Operator override | [UNIVERSAL] |
 | require_override_reason | true | reason_code na pick_overrides | [UNIVERSAL] |
 | enable_gs1_scanning | true | GS1-128 parse | [UNIVERSAL] |
-| enable_catch_weight | true | Catch weight | [FORZA-CONFIG→UNIVERSAL] |
-| enable_dual_uom | true | Primary + secondary weight | [FORZA-CONFIG→UNIVERSAL] |
+| enable_catch_weight | true | Catch weight | [APEX-CONFIG→UNIVERSAL] |
+| enable_dual_uom | true | Primary + secondary weight | [APEX-CONFIG→UNIVERSAL] |
 | enable_location_capacity | false | Capacity check (P2) | [EVOLVING] |
 | enable_location_zones | true | Zone-level ltree queries | [UNIVERSAL] |
 | enable_transit_location | true | Transit phys location | [UNIVERSAL] |
@@ -1455,7 +1455,7 @@ Dual UoM label (baseline D21): "120 BOX / 184 KG" — operator enters primary, s
 | scanner_lock_timeout_sec | 300 | LP lock auto-release | [UNIVERSAL] |
 | scanner_sound_feedback | true | Audio feedback | [UNIVERSAL] |
 | scanner_vibration | true | Mobile vibration | [UNIVERSAL] |
-| print_label_on_receipt | true | Auto-print | [FORZA-CONFIG→UNIVERSAL] |
+| print_label_on_receipt | true | Auto-print | [APEX-CONFIG→UNIVERSAL] |
 | label_copies_default | 1 | Copies | [UNIVERSAL] |
 | default_printer_id | NULL | Per warehouse | [UNIVERSAL] |
 | archival_retention_months | 12 | LP archival | [UNIVERSAL] |
@@ -1510,7 +1510,7 @@ Per 00-FOUNDATION §4.2 batch-writing + sequential-implementation approach.
 
 **Cross-module dependencies:**
 - **00-FOUNDATION** — §6 principles (schema-driven, rule engine, multi-tenant), §11 regulatory roadmap (FSMA 204, EU 1169/2011, BRCGS), §12 outbox pattern, R1-R15 decisions
-- **02-SETTINGS** v3.0 — §7 rule registry (lp_state_machine_v1, fefo_strategy_v1), §8 reference tables, §9 L2 variation, §10 feature flags, §11 D365 Constants (ForzDG default warehouse), §12 infrastructure (warehouses, locations ltree, printers), §13 EmailConfig
+- **02-SETTINGS** v3.0 — §7 rule registry (lp_state_machine_v1, fefo_strategy_v1), §8 reference tables, §9 L2 variation, §10 feature flags, §11 D365 Constants (ApexDG default warehouse), §12 infrastructure (warehouses, locations ltree, printers), §13 EmailConfig
 - **03-TECHNICAL** v3.0 — §6 item types (intermediate handling, PR code format), §7 BOM co-products + outputs, §8 catch weight + GS1 AIs, §9 shelf life + date_code_format + use_by/best_before, §10 allergen snapshot for pick, §13 D365 item/BOM sync
 - **04-PLANNING-BASIC** v3.1 (REVISED after C2 Sesja 2 Q6) — §5.10 reservations scope RM root only, §6.4 PO→GRN handoff, §7.5 TO→GRN handoff, §8.4 cascade DAG (intermediate always to_stock), §8.5 disposition (to_stock only P1), §8.6 material availability projection, §9 reservation hard-lock RM root only, §12.3 FEFO suggestion source
 - **06-SCANNER-P1** (next Sesja 3) — consumer 05 APIs: LP inventory, barcode lookup, lock protocol, FEFO suggestion, consume-to-WO endpoint, auth username+PIN
@@ -1554,7 +1554,7 @@ Per 00-FOUNDATION §4.2 batch-writing + sequential-implementation approach.
 - 16 sekcji (Phase B/C template aligned)
 - Kluczowa decyzja Q6 C2 Sesja 2: **intermediate LP always to_stock P1** (direct_continue deferred → P2 WH-E17)
 - Q1 clarified multi-LP per GRN line: operator-entered per-row batch/expiry/pallet (baseline D16 explicit)
-- Q2 confirmed 3-level Forza location default (warehouse→zone→bin), system supports 2-5 via ltree
+- Q2 confirmed 3-level Apex location default (warehouse→zone→bin), system supports 2-5 via ltree
 - Q3: per-product picking_strategy + per-pick runtime override (both patterns)
 - Q4: Postgres recursive CTE P1, graph DB → P3 (WH-E18)
 - Q5: cycle counts basic adjustment P1, full → P2 (WH-E14)

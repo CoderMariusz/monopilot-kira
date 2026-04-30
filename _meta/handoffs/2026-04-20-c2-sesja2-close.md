@@ -17,7 +17,7 @@
 
 **Q1-Q7 (user approved 2026-04-20):**
 - **Q1 ✅ Multi-LP per GRN line** — operator adds N rows per PO line, każdy row = 1 LP z własnym batch/expiry/pallet/location. Example case: PO 100 box → 40 batch B + 60 batch B' na 2 palletach → 2 `grn_items` rows → 2 LP. System NIE auto-splituje, per-row qty = operator-entered.
-- **Q2 ✅ Forza 3-level location** (warehouse → zone → bin), system supports 2-5 levels via ltree per tenant L2 config.
+- **Q2 ✅ Apex 3-level location** (warehouse → zone → bin), system supports 2-5 levels via ltree per tenant L2 config.
 - **Q3 ✅ Per-product picking_strategy + per-pick runtime override** (both). Items.picking_strategy ENUM (fefo/fifo/manual), Scanner runtime może override z reason_code audit.
 - **Q4 ✅ Postgres recursive CTE P1** (native, 100K LP + depth≤10 <30s). Graph DB deferred → Phase 3 (WH-E18).
 - **Q5 ✅ Basic stock adjustment P1** (stock_moves move_type='adjustment' + reason_code + manager approval >10%). Full cycle counts → P2 (WH-E14).
@@ -37,11 +37,11 @@
 | 5 | **Multi-LP per GRN line** (per-row batch/expiry/pallet) — Q1 clarified | §7.1 | [UNIVERSAL] |
 | 6 | **Lot genealogy recursive CTE** — FSMA 204 <30s | §11.2 | [UNIVERSAL] |
 | 7 | **Use_by vs best_before gating** (EU 1169/2011) | §12.2 | [UNIVERSAL] |
-| 8 | **Daily expiry cron + auto-block** | §12.3 | [FORZA-CONFIG→UNIVERSAL] |
+| 8 | **Daily expiry cron + auto-block** | §12.3 | [APEX-CONFIG→UNIVERSAL] |
 | 9 | **Schema-driven ext cols** (ADR-028 L3) na LP/GRN/stock_moves | §6.8 | [UNIVERSAL] |
 | 10 | **Scanner LP inventory query API** — consumer contract dla 06-SCANNER-P1 | §13 | [UNIVERSAL] |
 | 11 | **Outbox events P1** — EPCIS consumer P2 | §11.4 | [UNIVERSAL] |
-| 12 | **3-level Forza location + ltree 2-5** | §8.6 | [FORZA-CONFIG] |
+| 12 | **3-level Apex location + ltree 2-5** | §8.6 | [APEX-CONFIG] |
 
 ### Build sequence output
 
@@ -148,7 +148,7 @@ Z OQ1-OQ8 w 05-WAREHOUSE v3.0 §16.3:
 
 ## Closing note
 
-Phase C2 Sesja 2 efektywnie zamknęła 05-WAREHOUSE + cross-PRD rewizję 04-PLANNING w **1 sesji**. Kluczowa decyzja sesji = **Q6 revision** — intermediate cascade w P1 zawsze `to_stock` (not disposition-gated). User rationale: (a) Forza reality (intermediate buffer), (b) WO interrupt resilience, (c) natural out-of-order consumption, (d) simpler audit chain. Revision zastosowany cross-PRD (04-PLANNING v3.0 → v3.1) dla pełnej spójności.
+Phase C2 Sesja 2 efektywnie zamknęła 05-WAREHOUSE + cross-PRD rewizję 04-PLANNING w **1 sesji**. Kluczowa decyzja sesji = **Q6 revision** — intermediate cascade w P1 zawsze `to_stock` (not disposition-gated). User rationale: (a) Apex reality (intermediate buffer), (b) WO interrupt resilience, (c) natural out-of-order consumption, (d) simpler audit chain. Revision zastosowany cross-PRD (04-PLANNING v3.0 → v3.1) dla pełnej spójności.
 
 Faktycznie **upraszcza** cascade story — zero inter-WO LP locking, Scanner scan-to-consume jako jedyny consumption mechanism, pełny chronologiczny audit via lp_genealogy operation_type='consume' + wo_id.
 

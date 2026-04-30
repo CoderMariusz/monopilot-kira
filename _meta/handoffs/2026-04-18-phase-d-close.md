@@ -37,7 +37,7 @@ Phase D zamknięty w 1 sesji (plan zakładał ~2h). Wszystkie deliverables z Pha
 | P3 | Schema-driven + rule engine DSL (META-MODEL Levels a/b) |
 | P4 | Reality fidelity — Phase B = 1:1 v7, speculation deferred |
 | P5 | Multi-tenant from day 1 (ADR-031) |
-| P6 | Marker discipline (`[UNIVERSAL]`/`[FORZA-CONFIG]`/`[EVOLVING]`/`[LEGACY-D365]`) |
+| P6 | Marker discipline (`[UNIVERSAL]`/`[APEX-CONFIG]`/`[EVOLVING]`/`[LEGACY-D365]`) |
 
 ### 23 decisions settled
 

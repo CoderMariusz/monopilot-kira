@@ -149,7 +149,7 @@ const ShDocSlip = ({ onBack, onNav, openModal }) => {
             <div style={{display:"flex", justifyContent:"space-between", alignItems:"flex-start"}}>
               <div>
                 <h2>PACKING SLIP</h2>
-                <div style={{fontSize:10, color:"var(--muted)"}}>Forza Foods Sp. z o.o.</div>
+                <div style={{fontSize:10, color:"var(--muted)"}}>Apex Foods Sp. z o.o.</div>
               </div>
               <div style={{textAlign:"right", fontSize:11}}>
                 <div className="mono">SH-2026-00046</div>
@@ -158,7 +158,7 @@ const ShDocSlip = ({ onBack, onNav, openModal }) => {
             </div>
 
             <div className="doc-addr">
-              <div><strong>Ship from</strong>Forza Foods Sp. z o.o.<br/>ul. Przemysłowa 12<br/>62-081 Przeźmierowo, PL<br/>VAT: PL7820030500</div>
+              <div><strong>Ship from</strong>Apex Foods Sp. z o.o.<br/>ul. Przemysłowa 12<br/>62-081 Przeźmierowo, PL<br/>VAT: PL7820030500</div>
               <div><strong>Ship to</strong>Biedronka DC Poznań<br/>ul. Logistyczna 8<br/>61-696 Poznań, PL<br/>Dock hours: 06:00–14:00</div>
             </div>
 
@@ -271,7 +271,7 @@ const ShDocBol = ({ onBack, onNav, openModal }) => {
             </div>
 
             <div className="doc-addr">
-              <div><strong>Ship from</strong>Forza Foods Sp. z o.o.<br/>ul. Przemysłowa 12<br/>62-081 Przeźmierowo, PL</div>
+              <div><strong>Ship from</strong>Apex Foods Sp. z o.o.<br/>ul. Przemysłowa 12<br/>62-081 Przeźmierowo, PL</div>
               <div><strong>Ship to</strong>Lidl DC Wrocław<br/>ul. Logistyczna 12<br/>54-512 Wrocław, PL</div>
             </div>
 
@@ -641,7 +641,7 @@ const ShSettings = ({ role, onNav }) => {
           </div>
           <div className="set-form-grid">
             <Field label="dataAreaId (FNOR)"><input value={SH_SETTINGS.d365.dataAreaId} readOnly className="mono" style={{background:"var(--gray-100)"}}/></Field>
-            <Field label="Warehouse code (ForzDG)"><input value={SH_SETTINGS.d365.warehouse} readOnly className="mono" style={{background:"var(--gray-100)"}}/></Field>
+            <Field label="Warehouse code (ApexDG)"><input value={SH_SETTINGS.d365.warehouse} readOnly className="mono" style={{background:"var(--gray-100)"}}/></Field>
             <Field label="GL account (FinGoods)"><input value={SH_SETTINGS.d365.glAccount} readOnly className="mono" style={{background:"var(--gray-100)"}}/></Field>
             <Field label="Approver (FOR100048)"><input value={SH_SETTINGS.d365.approver} readOnly className="mono" style={{background:"var(--gray-100)"}}/></Field>
             <Field label="Shipping push flag" help="d365_shipping_push_enabled — gates shipment.confirmed outbox event"><label><input type="checkbox" defaultChecked={SH_SETTINGS.d365.shippingFlag} disabled={!isAdmin}/> Enabled (push on confirm)</label></Field>

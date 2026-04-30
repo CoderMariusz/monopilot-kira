@@ -134,7 +134,7 @@ flowchart LR
 
 ### 2.6 Marker
 
-Brief integration = `[EVOLVING]` do Phase B decision. Pattern "convert upstream document to downstream" = `[UNIVERSAL]` (standard NPD pipelines). Brief Sheet V1 format = `[FORZA-CONFIG]`.
+Brief integration = `[EVOLVING]` do Phase B decision. Pattern "convert upstream document to downstream" = `[UNIVERSAL]` (standard NPD pipelines). Brief Sheet V1 format = `[APEX-CONFIG]`.
 
 ---
 
@@ -151,13 +151,13 @@ W kolejności user-preference:
 
 | Planowana kolumna | Source | Data_Type | Blocking | Required | Marker |
 |---|---|---|---|---|---|
-| `Volume` | Brief.Volume | Number | `""` | Yes | `[EVOLVING]` → `[FORZA-CONFIG]` |
-| `Dev_Code` | Brief.Dev_Code (e.g. DEV26-037) | Text | `""` | No | `[FORZA-CONFIG]` (per-org naming) |
-| `Price_Brief` | Brief.Price (może być "see recipe") | Text (hybrid) | `""` | No | `[FORZA-CONFIG]` |
-| `Packs_Per_Case` | Brief.Packs Per Case | Number | `""` | Yes | `[FORZA-CONFIG]` |
-| `Weights` | Brief.Weights (sum for multi-comp) | Number | `""` | Yes | `[FORZA-CONFIG]` |
-| `Benchmark` | Brief.Benchmark Identified | Text | `""` | No | `[FORZA-CONFIG]` |
-| `Comments` | Brief.Comments | Text (multi-line) | `""` | No | `[FORZA-CONFIG]` |
+| `Volume` | Brief.Volume | Number | `""` | Yes | `[EVOLVING]` → `[APEX-CONFIG]` |
+| `Dev_Code` | Brief.Dev_Code (e.g. DEV26-037) | Text | `""` | No | `[APEX-CONFIG]` (per-org naming) |
+| `Price_Brief` | Brief.Price (może być "see recipe") | Text (hybrid) | `""` | No | `[APEX-CONFIG]` |
+| `Packs_Per_Case` | Brief.Packs Per Case | Number | `""` | Yes | `[APEX-CONFIG]` |
+| `Weights` | Brief.Weights (sum for multi-comp) | Number | `""` | Yes | `[APEX-CONFIG]` |
+| `Benchmark` | Brief.Benchmark Identified | Text | `""` | No | `[APEX-CONFIG]` |
+| `Comments` | Brief.Comments | Text (multi-line) | `""` | No | `[APEX-CONFIG]` |
 
 **Konsekwencja Main Table:** 7 → **14 Core cols**. Main Table grows from 69 → 76 cols. DeptColumns Reference table rośnie od 58 → 65 rows.
 
@@ -232,8 +232,8 @@ User Session 3:
 
 | Table | Cols | Rows seed | Marker |
 |---|---|---|---|
-| `allergens` | id, code (A01), name_en, name_pl, icon_url, is_eu_mandatory | 14 EU (Gluten, Crustaceans, Eggs, Fish, Peanuts, Soy, Milk, Nuts, Celery, Mustard, Sesame, Sulphites, Lupin, Mollusks) + custom | `[UNIVERSAL]` pattern + `[FORZA-CONFIG]` custom |
-| `product_allergens` (junction) | product_id, allergen_id | per Forza RM | `[FORZA-CONFIG]` (data per org) |
+| `allergens` | id, code (A01), name_en, name_pl, icon_url, is_eu_mandatory | 14 EU (Gluten, Crustaceans, Eggs, Fish, Peanuts, Soy, Milk, Nuts, Celery, Mustard, Sesame, Sulphites, Lupin, Mollusks) + custom | `[UNIVERSAL]` pattern + `[APEX-CONFIG]` custom |
+| `product_allergens` (junction) | product_id, allergen_id | per Apex RM | `[APEX-CONFIG]` (data per org) |
 
 **Derivation query:**
 ```
@@ -280,9 +280,9 @@ Reference (archive) confirms Monopilot already designed this. Phase B implementa
 ### 4.8 Marker ewolucja
 
 - **Dzisiaj:** `[EVOLVING]` (brak w v7, designed w archive)
-- **Po Phase B:** `[UNIVERSAL]` (allergens = food-mfg EU regulation 1169/2011, każda firma to ma) + `[FORZA-CONFIG]` dla custom non-EU allergens
+- **Po Phase B:** `[UNIVERSAL]` (allergens = food-mfg EU regulation 1169/2011, każda firma to ma) + `[APEX-CONFIG]` dla custom non-EU allergens
 - Seed EU14 = `[UNIVERSAL seed]`
-- Forza custom allergens = `[FORZA-CONFIG]`
+- Apex custom allergens = `[APEX-CONFIG]`
 
 ---
 
@@ -296,7 +296,7 @@ Reference (archive) confirms Monopilot already designed this. Phase B implementa
 
 **User preference Session 1:** "ruchomy zestaw, będzie rozszerzany, musi być możliwość edycji".
 
-Zestaw rośnie w miarę Forza rozszerzania scope (nowe linie, nowe typy produktów). Przykłady możliwe:
+Zestaw rośnie w miarę Apex rozszerzania scope (nowe linie, nowe typy produktów). Przykłady możliwe:
 - Debone (suffix D — dziś reserved, gap w A-H)
 - Marinate (?)
 - Cool/Chill (?)
@@ -315,7 +315,7 @@ W v7:
 
 Obecna konwencja: **1 litera suffix**. Maksymalnie 26 (A-Z, skip D) = 25 unique procesów possible.
 
-**Ograniczenie `[EVOLVING]`:** Gdy Forza przekroczy 25 procesów, konwencja musi się zmienić:
+**Ograniczenie `[EVOLVING]`:** Gdy Apex przekroczy 25 procesów, konwencja musi się zmienić:
 - Option A: Multi-letter suffix (AA, AB, ...)
 - Option B: Numeric suffix (01, 02, ...)
 - Option C: Different PR_Code_Final format
@@ -324,7 +324,7 @@ Dziś nie krytyczne (8 / 25 = 32% wypełnione).
 
 ### 5.5 Marker
 
-Tabela Processes = `[FORZA-CONFIG]` + `[EVOLVING]`. Single-letter suffix = `[EVOLVING]` (scale constraint). Pattern config-table = `[UNIVERSAL]`.
+Tabela Processes = `[APEX-CONFIG]` + `[EVOLVING]`. Single-letter suffix = `[EVOLVING]` (scale constraint). Pattern config-table = `[UNIVERSAL]`.
 
 ---
 
@@ -337,7 +337,7 @@ Tabela Processes = `[FORZA-CONFIG]` + `[EVOLVING]`. Single-letter suffix = `[EVO
 ### 6.2 Planned activation
 
 Pierwszy simple extension:
-1. Jane (lub admin) uzupełnia Recipients per dept (np. `core@forza.com; jane@forza.com`)
+1. Jane (lub admin) uzupełnia Recipients per dept (np. `core@apex.com; jane@apex.com`)
 2. M09.SendToDept zaczyna działać (click → Outlook draft z attachment dept tab)
 
 ### 6.3 Deeper extension
@@ -357,7 +357,7 @@ Pierwszy simple extension:
 
 ### 6.5 Marker
 
-EmailConfig extension = `[EVOLVING]`. Pattern notifications-as-data = `[UNIVERSAL]`. Outlook COM fallback = `[FORZA-CONFIG]` dziś (Monopilot docelowo SMTP/SendGrid/inne).
+EmailConfig extension = `[EVOLVING]`. Pattern notifications-as-data = `[UNIVERSAL]`. Outlook COM fallback = `[APEX-CONFIG]` dziś (Monopilot docelowo SMTP/SendGrid/inne).
 
 ---
 
@@ -405,7 +405,7 @@ Gdy user wypełni Main Table.Dieset (cascade z Line), system może:
 
 ### 7.4 Marker
 
-`[EVOLVING]` → docelowe `[FORZA-CONFIG]` (konkretne quantities per dieset per org). Pattern "materials per production unit" = `[UNIVERSAL]`.
+`[EVOLVING]` → docelowe `[APEX-CONFIG]` (konkretne quantities per dieset per org). Pattern "materials per production unit" = `[UNIVERSAL]`.
 
 ---
 
@@ -509,12 +509,12 @@ Reference Builder_FA5101.xlsx (patrz D365-INTEGRATION §3) pokazuje exact schema
 4. **Route_Operations&Properties** (MEDIUM) — 25 cols operacyjne details (PROCESSTIME from Rate, LOADPERCENTAGE, COSTINGOPERATIONRESOURCEID from Line mapping, itp.).
 5. **Resource&Requirements** (LOW) — 7 cols, mostly constants.
 
-### 10.3 Forza-specific constants
+### 10.3 Apex-specific constants
 
 Hardcoded w Builder_FA5101 reference (§3.9 D365-INTEGRATION):
 - `FNOR` (site)
 - `FOR100048` (approver)
-- `ForzDG` (warehouse)
+- `ApexDG` (warehouse)
 - `FinGoods` (product group)
 - `FProd01` (resource)
 - `Formula0` (calc method)
@@ -526,14 +526,14 @@ Recommended: (a) — consistent z schema-driven pattern. Nowa tabela w Reference
 
 | Constant_Name | Value | Description |
 |---|---|---|
-| PRODUCTIONSITEID | FNOR | Forza North production site |
+| PRODUCTIONSITEID | FNOR | Apex North production site |
 | APPROVERPERSONNELNUMBER | FOR100048 | Default approver |
-| CONSUMPTIONWAREHOUSEID | ForzDG | Default warehouse |
+| CONSUMPTIONWAREHOUSEID | ApexDG | Default warehouse |
 | PRODUCTGROUPID | FinGoods | Finished goods group |
 | COSTINGOPERATIONRESOURCEID | FProd01 | Default resource |
 | ... | | |
 
-**Marker:** `[LEGACY-D365]` + `[FORZA-CONFIG]` (per-org D365 config values).
+**Marker:** `[LEGACY-D365]` + `[APEX-CONFIG]` (per-org D365 config values).
 
 ### 10.4 Alternatywna ścieżka: osobny plik Builder_FA<code>.xlsx
 
@@ -544,7 +544,7 @@ User Session 3: **"odrebny plik excel"** per FA. To jest starszy workflow (jak B
 - (b) Per-FA osobny plik (starszy workflow, user pref?)
 - (c) Obie opcje (user wybiera: "Build single FA → one file" vs "Build all ready → shared file")
 
-Recommended: **(c)** — max flexibility, user choice. Domyślnie (b) per-FA bo Forza tak robiło historycznie.
+Recommended: **(c)** — max flexibility, user choice. Domyślnie (b) per-FA bo Apex tak robiło historycznie.
 
 ### 10.5 Marker
 
@@ -580,7 +580,7 @@ Oba mogą być wzajemnie uzupełniające:
 
 ### 11.4 Marker
 
-BOM auto-generation button = `[EVOLVING]` (new feature). Pattern "batch generate" = `[UNIVERSAL]`. Format osobny plik per FA = `[FORZA-CONFIG]` preference.
+BOM auto-generation button = `[EVOLVING]` (new feature). Pattern "batch generate" = `[UNIVERSAL]`. Format osobny plik per FA = `[APEX-CONFIG]` preference.
 
 ---
 
@@ -645,7 +645,7 @@ Brief ma `Dev_Code` (np. `DEV26-037`). PLD ma `FA_Code`. Relationship TBD:
 
 ### 13.4 Marker
 
-`[EVOLVING]` do Phase B decision. FA_Code format `FA*` = `[FORZA-CONFIG]`.
+`[EVOLVING]` do Phase B decision. FA_Code format `FA*` = `[APEX-CONFIG]`.
 
 ---
 
@@ -667,11 +667,11 @@ User-configurable thresholds per org. Config table `Reference.Alert_Thresholds`:
 | RED | 10 | Days_To_Launch ≤ 10 OR no Launch_Date |
 | YELLOW | 21 | Days_To_Launch ≤ 21 AND missing data |
 
-Forza domyślnie 10/21. Inne firmy mogą chcieć np. 7/14 lub 14/30.
+Apex domyślnie 10/21. Inne firmy mogą chcieć np. 7/14 lub 14/30.
 
 ### 14.3 Marker
 
-Thresholds = `[FORZA-CONFIG]` data. Pattern configurable thresholds = `[UNIVERSAL]`. W v7 dziś hardcoded w VBA = `[EVOLVING]` dopóki nie przeniesione do Settings.
+Thresholds = `[APEX-CONFIG]` data. Pattern configurable thresholds = `[UNIVERSAL]`. W v7 dziś hardcoded w VBA = `[EVOLVING]` dopóki nie przeniesione do Settings.
 
 ---
 
@@ -703,7 +703,7 @@ Update Reference.DeptColumns row 56 (Price): Blocking_Rule = `Core + Production 
 
 ### 15.3 Marker
 
-`[EVOLVING]` + `[FORZA-CONFIG]` (decision Phase B). Pattern per-col blocking = `[UNIVERSAL]` (already in v7).
+`[EVOLVING]` + `[APEX-CONFIG]` (decision Phase B). Pattern per-col blocking = `[UNIVERSAL]` (already in v7).
 
 ---
 
@@ -726,7 +726,7 @@ Audit trail (ADR-008) — kto kiedy zmieni state.
 
 ### 16.3 Marker
 
-Close state = `[EVOLVING]`. Simple binary (current) = `[FORZA-CONFIG]`. State machine expansion = potencjalnie `[UNIVERSAL]` (food-mfg MES pattern).
+Close state = `[EVOLVING]`. Simple binary (current) = `[APEX-CONFIG]`. State machine expansion = potencjalnie `[UNIVERSAL]` (food-mfg MES pattern).
 
 ### 16.4 Phase B/C decision
 

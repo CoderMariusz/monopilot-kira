@@ -4,11 +4,11 @@
 **Expected content (Phase A deliverables):** 8 docs documenting Smart_PLD_v7.xlsm reality before Monopilot propagation.
 
 - PROCESS-OVERVIEW.md — end-to-end flow (who, what, when, why)
-- DEPARTMENTS.md — 7 Forza departments + handoffs
+- DEPARTMENTS.md — 7 Apex departments + handoffs
 - MAIN-TABLE-SCHEMA.md — ~60-80 columns grouped (Core/Planning/Commercial/Production/Technical/MRP/Procurement/System)
 - CASCADING-RULES.md — Pack_Size → Line → Dieset → Material rules
 - WORKFLOW-RULES.md — status colors, autofilter Done, gate-like progression
-- REFERENCE-TABLES.md — 6 config tables with real Forza data
+- REFERENCE-TABLES.md — 6 config tables with real Apex data
 - D365-INTEGRATION.md — import/export, validation codes, Builder logic
 - EVOLVING.md — areas where design is still changing (e.g. MRP → 2 depts)
 

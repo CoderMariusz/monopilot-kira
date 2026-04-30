@@ -19,7 +19,7 @@ propagated_to: []
 
 ## Purpose
 
-Dokument kodyfikuje **brief Excel format** używany przez NPD team w Forza jako **pre-PLD** etap NPD. Brief jest upstream reality source — dane w brief są ręcznie przepisywane do PLD v7 Core section przez Jane / Core user. Ten dokument jest **pierwszym reality-source file** w nowym katalogu `_meta/reality-sources/brief-excels/`.
+Dokument kodyfikuje **brief Excel format** używany przez NPD team w Apex jako **pre-PLD** etap NPD. Brief jest upstream reality source — dane w brief są ręcznie przepisywane do PLD v7 Core section przez Jane / Core user. Ten dokument jest **pierwszym reality-source file** w nowym katalogu `_meta/reality-sources/brief-excels/`.
 
 Brief jest:
 - **Upstream PLD v7** — kiedy NPD team wpisuje brief, PLD jeszcze nie istnieje dla tego produktu
@@ -64,8 +64,8 @@ Single-product-per-row. Components column empty (brief 1 type nie rozbija na com
 Multi-row pattern: pierwszy row ma Product + Dev Code, kolejne rows mają same Components (inherit implied Product). Ostatni wiersz (weight only) = total weight sum.
 
 Marker:
-- Single vs multi-component pattern = `[FORZA-CONFIG]` (inne firmy mogą nie mieć multi-comp variant albo mają inny format)
-- 2 templates istnienie = `[FORZA-CONFIG]`
+- Single vs multi-component pattern = `[APEX-CONFIG]` (inne firmy mogą nie mieć multi-comp variant albo mają inny format)
+- 2 templates istnienie = `[APEX-CONFIG]`
 
 ---
 
@@ -180,7 +180,7 @@ Brief 2 sample has `Volume=empty` (tylko row 3 would have, but sample shows empt
 
 ### 3.5 Marker
 
-Multi-component pattern in brief = `[FORZA-CONFIG]`. Pattern "hierarchical multi-row" = `[FORZA-CONFIG]` (inne firmy używają inny format, e.g., separate sheet per component, or flat structure z duplicate Product name per row).
+Multi-component pattern in brief = `[APEX-CONFIG]`. Pattern "hierarchical multi-row" = `[APEX-CONFIG]` (inne firmy używają inny format, e.g., separate sheet per component, or flat structure z duplicate Product name per row).
 
 ---
 
@@ -190,25 +190,25 @@ Konsolidacja z PROCESS-OVERVIEW §2.3 + extension z Session 3 insights:
 
 | Brief field (col) | v7 PLD today | Monopilot target | Marker |
 |---|---|---|---|
-| Product (C1) | Core.Product_Name | Same | `[UNIVERSAL]` (pattern) + `[FORZA-CONFIG]` format |
-| Volume (C2) | — (brak) | Core.Volume (NEW) | `[EVOLVING]` → `[FORZA-CONFIG]` |
-| Dev Code (C3) | — (brak) | Core.Dev_Code (NEW) | `[EVOLVING]` → `[FORZA-CONFIG]` |
-| Components (C4) | context dla Finish_Meat | Per-component ProdDetail seed | `[FORZA-CONFIG]` |
+| Product (C1) | Core.Product_Name | Same | `[UNIVERSAL]` (pattern) + `[APEX-CONFIG]` format |
+| Volume (C2) | — (brak) | Core.Volume (NEW) | `[EVOLVING]` → `[APEX-CONFIG]` |
+| Dev Code (C3) | — (brak) | Core.Dev_Code (NEW) | `[EVOLVING]` → `[APEX-CONFIG]` |
+| Components (C4) | context dla Finish_Meat | Per-component ProdDetail seed | `[APEX-CONFIG]` |
 | Slice Count (C5) | — (brak) | ProdDetail.Slice_Count (NEW) | `[EVOLVING]` |
-| Supplier (C6) | Procurement.Supplier (per-FA, not per-component) | Per-component Procurement.Supplier | `[FORZA-CONFIG]` |
-| Code (C7) | Core.RM_Code (auto z Finish_Meat) | RM_Code seed | `[FORZA-CONFIG]` |
+| Supplier (C6) | Procurement.Supplier (per-FA, not per-component) | Per-component Procurement.Supplier | `[APEX-CONFIG]` |
+| Code (C7) | Core.RM_Code (auto z Finish_Meat) | RM_Code seed | `[APEX-CONFIG]` |
 | Price (C8) | — ("see recipe" placeholder) | Core.Price_Brief NEW (tentative); Procurement.Price = final | `[EVOLVING]` |
 | Weights (C9) | — (brak) | Core.Weights (NEW) | `[EVOLVING]` |
 | % (C10) | Planning.Meat_Pct | Same albo migrate to Core | `[EVOLVING]` (migration decision Phase B) |
 | Packs Per Case (C11) | — (brak) | Core.Packs_Per_Case (NEW) | `[EVOLVING]` — distinct z Number_of_Cases (palletizing) |
 | Comments (C12) | — (brak) | Core.Comments (NEW) | `[EVOLVING]` |
 | Benchmark Identified (C13) | — (brak) | Core.Benchmark (NEW) | `[EVOLVING]` |
-| Primary Packaging (C14) | MRP section context | MRP spec | `[FORZA-CONFIG]` |
-| Secondary Packaging (C15) | MRP.MRP_Cartons / Pallet | Same | `[FORZA-CONFIG]` |
-| Base Web/Tray/Bag Code (C16) | MRP.Web | Same | `[FORZA-CONFIG]` |
+| Primary Packaging (C14) | MRP section context | MRP spec | `[APEX-CONFIG]` |
+| Secondary Packaging (C15) | MRP.MRP_Cartons / Pallet | Same | `[APEX-CONFIG]` |
+| Base Web/Tray/Bag Code (C16) | MRP.Web | Same | `[APEX-CONFIG]` |
 | Base Web/Tray/Bag Price (C17) | — | NEW MRP.Web_Price albo Procurement | `[EVOLVING]` |
 | Top Web Type (C18) | — | NEW MRP metadata | `[EVOLVING]` |
-| Sleeve/Carton Code (C19) | MRP.MRP_Sleeves / MRP_Cartons | Same | `[FORZA-CONFIG]` |
+| Sleeve/Carton Code (C19) | MRP.MRP_Sleeves / MRP_Cartons | Same | `[APEX-CONFIG]` |
 | Sleeve/Carton Price (C20) | — | NEW Procurement related | `[EVOLVING]` |
 | C21–C37 (truncated) | TBD | TBD | TBD |
 

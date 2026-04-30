@@ -5,9 +5,9 @@
 
 ## 1. Executive Summary
 
-Modul Multi-Site (M11) wprowadza obsluge wielu zakladow produkcyjnych w ramach jednej organizacji MonoPilot. Kluczowy przypadek uzycia: FORZ + KOBE jako 2 site'y w 1 org, ze wspoldzielonymi danymi podstawowymi (produkty, BOM, dostawcy) i izolowanymi danymi operacyjnymi (inventory, WO, LP) na poziomie site.
+Modul Multi-Site (M11) wprowadza obsluge wielu zakladow produkcyjnych w ramach jednej organizacji MonoPilot. Kluczowy przypadek uzycia: APEX + KOBE jako 2 site'y w 1 org, ze wspoldzielonymi danymi podstawowymi (produkty, BOM, dostawcy) i izolowanymi danymi operacyjnymi (inventory, WO, LP) na poziomie site.
 
-**Problem**: MonoPilot jest obecnie single-site per organizacja (org_id only). Klienci z wieloma zakladami (np. FORZ + KOBE) nie moga skutecznie zarzadzac operacjami miedzy lokalizacjami -- brak transferow miedzyzakladowych, brak raportow per site, brak izolacji danych operacyjnych.
+**Problem**: MonoPilot jest obecnie single-site per organizacja (org_id only). Klienci z wieloma zakladami (np. APEX + KOBE) nie moga skutecznie zarzadzac operacjami miedzy lokalizacjami -- brak transferow miedzyzakladowych, brak raportow per site, brak izolacji danych operacyjnych.
 
 **Rozwiazanie**: Aktywacja `site_id UUID NULL` (juz obecnego retroaktywnie na WSZYSTKICH tabelach) jako pelnego wymiaru izolacji. Model `org_id + site_id` z backward-compatible migration, feature flag activation i TO jako mostem miedzyzakladowym.
 
@@ -116,7 +116,7 @@ Umozliwic organizacjom z wieloma zakladami produkcyjnymi zarzadzanie operacjami 
 ### Regulacyjne
 - Trasowalnosc musi dzialac cross-site (LP genealogy przechodzi miedzy sites)
 - Audit trail musi logowac site context
-- NCR numbering z site prefix (np. FORZ-NCR-001)
+- NCR numbering z site prefix (np. APEX-NCR-001)
 
 ---
 
@@ -428,7 +428,7 @@ Rozszerzenie istniejacych endpointow raportowych o parametr `site_id`:
 Site-level overrides dla istniejacych org-level settings:
 - Shift patterns per site (rozne godziny AM/PM per zaklad)
 - Quality plans per site (rozne inspekcje per certyfikat)
-- NCR numbering z site prefix (np. FORZ-NCR-001, KOBE-NCR-001)
+- NCR numbering z site prefix (np. APEX-NCR-001, KOBE-NCR-001)
 - Default warehouse per site
 - Working hours per site
 
@@ -502,7 +502,7 @@ Site-level overrides dla istniejacych org-level settings:
 ## 11. Success Criteria
 
 ### Funkcjonalne
-- [ ] FORZ + KOBE jako 2 sites w 1 org -- pelna izolacja danych operacyjnych
+- [ ] APEX + KOBE jako 2 sites w 1 org -- pelna izolacja danych operacyjnych
 - [ ] Inter-site TO dziala (draft -> ship -> receive) z LP tracking
 - [ ] Raporty site-scoped -- filtr per site na wszystkich dashboardach
 - [ ] Master data (products, BOM, suppliers) shared miedzy sites
@@ -522,7 +522,7 @@ Site-level overrides dla istniejacych org-level settings:
 - [ ] Backward compatibility: 0 regresji w CI test suite
 
 ### Biznesowe
-- [ ] Min 1 klient multi-site (FORZ+KOBE) w produkcji
+- [ ] Min 1 klient multi-site (APEX+KOBE) w produkcji
 - [ ] Multi-site jako feature premium (upsell)
 - [ ] Cross-site transfer workflow < 48h average
 - [ ] Onboarding multi-site < 1h (z migration wizard)

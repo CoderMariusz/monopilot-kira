@@ -802,10 +802,10 @@ const OeeSettings = ({ role, onNav, openModal }) => {
           }
         </div>
         <table>
-          <thead><tr><th>Field</th><th>Value</th><th>Forza default</th><th>Notes</th></tr></thead>
+          <thead><tr><th>Field</th><th>Value</th><th>Apex default</th><th>Notes</th></tr></thead>
           <tbody>
             {[
-              {k: "oeeTarget",      label: "OEE Target %",           def: 70.0, note: "P1 Forza baseline · target line on charts (does not shift heatmap colour scale)"},
+              {k: "oeeTarget",      label: "OEE Target %",           def: 70.0, note: "P1 Apex baseline · target line on charts (does not shift heatmap colour scale)"},
               {k: "aMin",           label: "Availability Minimum %", def: 70.0, note: "Below = red in A column badges"},
               {k: "pMin",           label: "Performance Minimum %",  def: 80.0, note: "Below = red in P column badges"},
               {k: "qMin",           label: "Quality Minimum %",      def: 95.0, note: "Below = red in Q column badges"},
@@ -1106,7 +1106,7 @@ const OeeTV = ({ onNav }) => (
     <div className="alert-blue alert-box" style={{marginBottom:14}}>
       <span>ⓘ</span>
       <div>
-        OS kiosk decision open · options: Raspberry Pi / Windows kiosk / ChromeOS. Requires Forza IT hardware consultation.
+        OS kiosk decision open · options: Raspberry Pi / Windows kiosk / ChromeOS. Requires Apex IT hardware consultation.
       </div>
     </div>
     <div className="card" style={{padding:30, background:"#0f172a", color:"#f8fafc", aspectRatio:"16/9", display:"grid", gridTemplateColumns:"1fr 1fr", gap:20}}>

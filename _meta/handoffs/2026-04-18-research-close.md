@@ -52,7 +52,7 @@ Pre-Phase-B Industry Research zamknięty w 1 sesji. Wszystkie deliverables z Pha
 | R4 | Zod + json-schema-to-zod runtime dla schema-driven form/validator gen | [UNIVERSAL] |
 | R5 | PWA P1 + Capacitor P2 dla 06-SCANNER | [UNIVERSAL] |
 | R6 | PostHog self-host jako feature flags + analytics stack | [UNIVERSAL] |
-| R7 | EU data residency cluster default dla Forza + EU klientów | [FORZA-CONFIG]→[UNIVERSAL] |
+| R7 | EU data residency cluster default dla Apex + EU klientów | [APEX-CONFIG]→[UNIVERSAL] |
 | R8 | One-way D365→Monopilot sync + one-way Monopilot→D365 push | [LEGACY-D365] |
 | R9 | Strangler Fig migracja z v7 Excel + parallel run (Phase D "Two-systems") | [EVOLVING] |
 | R10 | GS1 Digital Link + EPCIS 2.0 JSON-LD dla traceability; NIE blockchain | [UNIVERSAL] |
@@ -96,7 +96,7 @@ Pre-Phase-B Industry Research zamknięty w 1 sesji. Wszystkie deliverables z Pha
 - Zaktualizować numerowanie M00-M15 → **Phase D renumbering** (00-FOUNDATION, 01-NPD primary, 02-SETTINGS, 03-TECHNICAL, 04-PLANNING-BASIC, 05-WAREHOUSE, 06-SCANNER-P1, 07-PLANNING-EXT, 08-PRODUCTION, 09-QUALITY, 10-FINANCE, 11-SHIPPING, 12-REPORTING, 13-MAINTENANCE, 14-MULTI-SITE, 15-OEE)
 - Wbudować 6 Phase D principles (Easy extension / Two-systems / Schema-driven + DSL / Reality fidelity / Multi-tenant / Marker discipline)
 - Wbudować R1-R15 research decisions jako ADRs/decisions list
-- Marker discipline wszędzie ([UNIVERSAL]/[FORZA-CONFIG]/[EVOLVING]/[LEGACY-D365])
+- Marker discipline wszędzie ([UNIVERSAL]/[APEX-CONFIG]/[EVOLVING]/[LEGACY-D365])
 - Cross-refs do META-MODEL.md + ADR-028/029/030/031 + MES-TRENDS-2026.md
 - Usunąć pre-Phase-D decisions (złe metryki sukcesu, złe role mapping, itd.)
 - Dodać: META-MODEL ref, rule engine DSL ref, L1-L4 multi-tenant, outbox pattern od MVP

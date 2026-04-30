@@ -20,7 +20,7 @@
 - Q3 ✅ Meat_Pct multi-comp inline §8.9 (Phase D #14)
 - Q4 ✅ Workflow-as-data: state machines jako DSL rules w 02-SETTINGS §7 registry, transitions stałe v1.0, admin tylko names/colors
 - Q5 ✅ Co-products w `wo_outputs` P1 (primary + co + by, allocation_pct z BOM)
-- **Q6 ✅ REVISED: Intermediate cascade = P1 core, nie flag-gated** — user clarification: Forza tropi intermediate steps, każdy step produkuje storable LP. Catalog-driven: intermediate items w catalog → N-layer BOM → N+1 WO DAG auto-generated. Zero config switches.
+- **Q6 ✅ REVISED: Intermediate cascade = P1 core, nie flag-gated** — user clarification: Apex tropi intermediate steps, każdy step produkuje storable LP. Catalog-driven: intermediate items w catalog → N-layer BOM → N+1 WO DAG auto-generated. Zero config switches.
 
 ### Core innovations v3.0 vs v3.2 baseline
 
@@ -33,7 +33,7 @@
 | 5 | **Allergen-aware sequencing** heuristic | §10 |
 | 6 | **D365 SO trigger** pull → draft WO gen | §15.2 |
 | 7 | **Workflow-as-data** state machines w rule registry | §16.1 |
-| 8 | **Meat_Pct multi-comp aggregation** [FORZA-CONFIG] | §8.9 |
+| 8 | **Meat_Pct multi-comp aggregation** [APEX-CONFIG] | §8.9 |
 | 9 | **Schema-driven ext cols** (ADR-028 L3) na wszystkich planning tables | §5 |
 | 10 | **Outbox events** per PO/TO/WO state transition | §6.5, §7.6, §8.7 |
 
@@ -122,6 +122,6 @@ Z §16.3 OQ1-OQ8, relevantne dla 05-WAREHOUSE:
 
 ## Closing note
 
-Phase C2 Sesja 1 efektywnie zamknęła 04-PLANNING-BASIC w **1 sesji (split B approach — per-PRD outline → approve → write)**. Kluczowa decyzja sesji = **Q6 revision** na user input: Forza tropi intermediate steps jako storable LPs, więc intermediate cascade DAG jest P1 core requirement nie flag-gated feature. To wzmacnia alignment z Phase D #19 (N+1 Builder per FA) i upraszcza multi-tenant story (catalog-driven adaptation zamiast config switches).
+Phase C2 Sesja 1 efektywnie zamknęła 04-PLANNING-BASIC w **1 sesji (split B approach — per-PRD outline → approve → write)**. Kluczowa decyzja sesji = **Q6 revision** na user input: Apex tropi intermediate steps jako storable LPs, więc intermediate cascade DAG jest P1 core requirement nie flag-gated feature. To wzmacnia alignment z Phase D #19 (N+1 Builder per FA) i upraszcza multi-tenant story (catalog-driven adaptation zamiast config switches).
 
 **Next**: Session reset recommended. Faktyczna waga 04-PLANNING (1528 linii + DAG complexity) sugeruje że Sesja 2 startuje fresh context dla 05-WAREHOUSE deep dive na LP lifecycle + FEFO + lot genealogy.

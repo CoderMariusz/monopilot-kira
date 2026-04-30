@@ -1,4 +1,4 @@
-# D365 Screenshots Analysis - Forza Foods Limited
+# D365 Screenshots Analysis - Apex Foods Limited
 **Date**: 2026-02-16
 **Source**: 31 screenshots from D365 Finance & Operations + Dynamics Reports (Power BI)
 **Purpose**: Extract data structures and concepts for MonoPilot PRD enrichment. NOT copying UX.
@@ -35,7 +35,7 @@
 | 23 | 121933 | Warehouse | Item Arrival Journal - GRN detail (Froch Foods, 36 lines) |
 | 24 | 121938 | Warehouse | Open Item Arrivals list |
 | 25 | 122029 | Warehouse | Transfer order creation form |
-| 26 | 122045 | Warehouse | Transfer orders list (inter-warehouse: MVE→ForzDG, etc.) |
+| 26 | 122045 | Warehouse | Transfer orders list (inter-warehouse: MVE→ApexDG, etc.) |
 | 27 | 122057 | Warehouse | Transfer order detail (FZTO-009355: Mini Satay Chicken Skewers) |
 | 28 | 122320 | Production | Routes detail (FA1915-L03, versions, approval) |
 | 29 | 122341 | Production | Routes list with search (all route numbers) |
@@ -391,7 +391,7 @@ To complete the analysis, these additional screenshots would be helpful:
 
 **From screenshot 120717 - VAT codes**
 
-D365 has 16 tax codes for Forza Foods:
+D365 has 16 tax codes for Apex Foods:
 ```
 ENT        - Entertainment (12.5%)
 EU-STD     - EU Standard rated
@@ -476,7 +476,7 @@ Detail fields per code: Settlement period, Ledger posting group, VAT currency, C
 #### EDI/GRN Processing (121900):
 ```
 Record ID: R0312-000055604 (auto)
-Company: FORZ
+Company: APEX
 PO number: FFPO-0570776
 Supplier order ref: OK8260 / OKB235886
 Supplier account: VN-01492 / VN-00604 etc.
@@ -550,7 +550,7 @@ Lines:
 
 #### Real Warehouse Names (from list):
 - **MVE** - external supplier warehouse?
-- **ForzDG** - Forza Dry Goods warehouse
+- **ApexDG** - Apex Dry Goods warehouse
 - **OAKK** - Oakfield warehouse
 - **IBLL** - another location
 

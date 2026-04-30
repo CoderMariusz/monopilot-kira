@@ -603,12 +603,12 @@ Revert; drop `drizzle_migrations`.
 
 #### GIVEN / WHEN / THEN
 **GIVEN** baseline migration applied
-**WHEN** `pnpm seed forza-baseline` runs
-**THEN** named snapshot populates deterministic Forza seed (1 tenant, 3 users, 3 roles) idempotently; re-running is a no-op
+**WHEN** `pnpm seed apex-baseline` runs
+**THEN** named snapshot populates deterministic Apex seed (1 tenant, 3 users, 3 roles) idempotently; re-running is a no-op
 
 #### Implementation
 1. `packages/db/seed/index.ts` with `applySnapshot(name)` dispatcher
-2. `packages/db/seed/snapshots/forza-baseline.ts`
+2. `packages/db/seed/snapshots/apex-baseline.ts`
 3. `packages/db/seed/snapshots/empty-tenant.ts`
 4. `packages/db/seed/snapshots/multi-tenant-3.ts`
 5. npm script `seed` + test
@@ -923,7 +923,7 @@ Delete action.
 - **Parallel:** none
 
 #### GIVEN / WHEN / THEN
-**GIVEN** a seeded forza-baseline DB
+**GIVEN** a seeded apex-baseline DB
 **WHEN** Playwright navigates `/login`, submits known creds, calls a `/api/whoami` route, then logs out
 **THEN** the `whoami` route returns the correct user + org_id via `current_setting('app.current_org_id')`, and post-logout `/login` redirect occurs
 
@@ -1838,19 +1838,19 @@ Delete route.
 
 #### GIVEN / WHEN / THEN
 **GIVEN** rule table exists
-**WHEN** seed `forza-baseline` applies rule snapshot
+**WHEN** seed `apex-baseline` applies rule snapshot
 **THEN** 3 canonical rules are present: `fefo_pick_v1` (cascading), `catch_weight_required_v1` (conditional), `allergen_changeover_gate_v1` (gate)
 
 #### Implementation
 1. Author `packages/db/seed/rules.ts`
 2. JSON definitions inline (PRD §7)
-3. Wire into `forza-baseline` snapshot
+3. Wire into `apex-baseline` snapshot
 4. Integration test
 5. Commit
 
 #### Files
 - **Create:** `packages/db/seed/rules.ts`
-- **Modify:** `packages/db/seed/snapshots/forza-baseline.ts`
+- **Modify:** `packages/db/seed/snapshots/apex-baseline.ts`
 
 #### Test gate
 - **Integration:** seed applies + rules load
@@ -2219,7 +2219,7 @@ Remove setup.
 
 ---
 
-### T-00i-004 — Seed fixture library (Forza baseline + synthetic multi-tenant)
+### T-00i-004 — Seed fixture library (Apex baseline + synthetic multi-tenant)
 
 **Type:** T5-seed
 **Context budget:** ~40k tokens
@@ -2560,7 +2560,7 @@ Delete route.
 
 #### Done check
 - Final output path: `docs/adr/ADR-030-configurable-department-taxonomy.md`
-- Outline: Forza 7-dept baseline, split/merge/custom via tenant.dept_overrides JSONB, runtime resolution
+- Outline: Apex 7-dept baseline, split/merge/custom via tenant.dept_overrides JSONB, runtime resolution
 - Verifiable: seed + override round-trip described unambiguously
 
 ---
@@ -2606,7 +2606,7 @@ Delete route.
 
 #### Done check
 - Final output path: `docs/MARKER-DISCIPLINE.md`
-- Outline: [UNIVERSAL] / [FORZA-CONFIG] / [EVOLVING] / [LEGACY-D365] with canonical examples from PRD §2
+- Outline: [UNIVERSAL] / [APEX-CONFIG] / [EVOLVING] / [LEGACY-D365] with canonical examples from PRD §2
 - Verifiable: pick any PRD/ADR section, classify correctly in <60s
 
 ---
@@ -3128,7 +3128,7 @@ Each stub lives at `docs/adr/candidates/ADR-R<N>-<slug>.md` with: Title, Marker,
 
 ## §12 — Gap-fills (6 new atomic tasks from user decisions)
 
-### T-00b-M01 — Main Table migration (69 typed Forza cols + ext/private JSONB + schema_version)
+### T-00b-M01 — Main Table migration (69 typed Apex cols + ext/private JSONB + schema_version)
 
 **Type:** T1-schema
 **Context budget:** ~55k tokens
@@ -3138,7 +3138,7 @@ Each stub lives at `docs/adr/candidates/ADR-R<N>-<slug>.md` with: Title, Marker,
 **Track:** α
 **Status:** pending
 
-> `[data/migration]` — ported from existing T-21; Forza baseline per 00-FOUNDATION-PRD.md and MAIN-TABLE-SCHEMA.md. Expect churn.
+> `[data/migration]` — ported from existing T-21; Apex baseline per 00-FOUNDATION-PRD.md and MAIN-TABLE-SCHEMA.md. Expect churn.
 
 #### Dependencies
 - **Upstream:** [T-00b-000, T-00h-001]
@@ -3148,7 +3148,7 @@ Each stub lives at `docs/adr/candidates/ADR-R<N>-<slug>.md` with: Title, Marker,
 #### GIVEN / WHEN / THEN
 **GIVEN** baseline + DeptColumns migrations applied
 **WHEN** migration `015-main-table-69-cols.sql` runs
-**THEN** `main_table` has 69 typed Forza columns per MAIN-TABLE-SCHEMA.md, plus `ext_jsonb JSONB`, `private_jsonb JSONB`, `schema_version INT NOT NULL DEFAULT 1`, composite index `(tenant_id, created_at)`, GIN index on `ext_jsonb` (R2)
+**THEN** `main_table` has 69 typed Apex columns per MAIN-TABLE-SCHEMA.md, plus `ext_jsonb JSONB`, `private_jsonb JSONB`, `schema_version INT NOT NULL DEFAULT 1`, composite index `(tenant_id, created_at)`, GIN index on `ext_jsonb` (R2)
 
 #### Implementation
 1. Translate MAIN-TABLE-SCHEMA.md columns into Drizzle schema

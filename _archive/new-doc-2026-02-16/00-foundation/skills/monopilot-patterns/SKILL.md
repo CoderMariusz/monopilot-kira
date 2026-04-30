@@ -14,7 +14,7 @@ New meta-model skills in `new-doc/00-foundation/skills/`:
 - `schema-driven-design` — column definitions as DB rows, not hard-coded
 - `rule-engine-dsl` — workflows and rules stored as data (Stage-Gate, validation rules)
 - `reality-sync-workflow` — keeping `_meta/reality-sources/` in sync with external reality
-- `multi-tenant-variation` — `[UNIVERSAL]` / `[FORZA-CONFIG]` split, RLS + config tables per org
+- `multi-tenant-variation` — `[UNIVERSAL]` / `[APEX-CONFIG]` split, RLS + config tables per org
 
 These skills describe the **meta-model** (what to build). This skill (`monopilot-patterns`) describes the **implementation patterns** (how it's wired in code today).
 

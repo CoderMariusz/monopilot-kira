@@ -142,8 +142,8 @@ task-master add-task \
 # ----- ID 14: T-00b-004 -----
 task-master add-task \
   --title="T-00b-004 — Seed runner + named snapshots registry" \
-  --description="[data/seed] [T5] Deterministic seed snapshots (forza-baseline, empty-tenant, multi-tenant-3)" \
-  --details="Type: T5-seed. Context: ~35k. Track: α. GIVEN baseline migration applied WHEN pnpm seed forza-baseline runs THEN named snapshot populates deterministic Forza seed (1 tenant, 3 users, 3 roles) idempotently. Steps: (1) packages/db/seed/index.ts applySnapshot(name) dispatcher; (2) snapshots/forza-baseline.ts (tenant+users+roles); (3) snapshots/empty-tenant.ts; (4) snapshots/multi-tenant-3.ts; (5) npm script seed + test. Files CREATE: packages/db/seed/*. MODIFY: package.json. Test gate: integration seed.test.ts applies twice, row counts stable. Rollback: DELETE FROM tenants on test DB." \
+  --description="[data/seed] [T5] Deterministic seed snapshots (apex-baseline, empty-tenant, multi-tenant-3)" \
+  --details="Type: T5-seed. Context: ~35k. Track: α. GIVEN baseline migration applied WHEN pnpm seed apex-baseline runs THEN named snapshot populates deterministic Apex seed (1 tenant, 3 users, 3 roles) idempotently. Steps: (1) packages/db/seed/index.ts applySnapshot(name) dispatcher; (2) snapshots/apex-baseline.ts (tenant+users+roles); (3) snapshots/empty-tenant.ts; (4) snapshots/multi-tenant-3.ts; (5) npm script seed + test. Files CREATE: packages/db/seed/*. MODIFY: package.json. Test gate: integration seed.test.ts applies twice, row counts stable. Rollback: DELETE FROM tenants on test DB." \
   --priority=medium \
   --dependencies="13" \
   --file="${TASKS_FILE}"
@@ -404,7 +404,7 @@ task-master add-task \
 task-master add-task \
   --title="T-00g-007 — reference_rules seed helper + snapshot updater" \
   --description="[data/seed] [T5] 3 canonical rules: fefo_pick_v1, catch_weight_required_v1, allergen_changeover_gate_v1" \
-  --details="Type: T5-seed. Context: ~35k. Track: α. GIVEN rule table exists WHEN forza-baseline snapshot applies rule snapshot THEN 3 canonical rules present: fefo_pick_v1 (cascading), catch_weight_required_v1 (conditional), allergen_changeover_gate_v1 (gate). Steps: (1) packages/db/seed/rules.ts; (2) JSON defs inline (PRD §7); (3) Wire into forza-baseline; (4) Integration test; (5) Commit. Files CREATE: packages/db/seed/rules.ts. MODIFY: packages/db/seed/snapshots/forza-baseline.ts. Test gate: integration seed + rules load. Rollback: DELETE FROM reference_rules." \
+  --details="Type: T5-seed. Context: ~35k. Track: α. GIVEN rule table exists WHEN apex-baseline snapshot applies rule snapshot THEN 3 canonical rules present: fefo_pick_v1 (cascading), catch_weight_required_v1 (conditional), allergen_changeover_gate_v1 (gate). Steps: (1) packages/db/seed/rules.ts; (2) JSON defs inline (PRD §7); (3) Wire into apex-baseline; (4) Integration test; (5) Commit. Files CREATE: packages/db/seed/rules.ts. MODIFY: packages/db/seed/snapshots/apex-baseline.ts. Test gate: integration seed + rules load. Rollback: DELETE FROM reference_rules." \
   --priority=medium \
   --dependencies="37,14" \
   --file="${TASKS_FILE}"
@@ -474,7 +474,7 @@ task-master add-task \
 
 # ----- ID 51: T-00i-004 -----
 task-master add-task \
-  --title="T-00i-004 — Seed fixture library (Forza baseline + synthetic multi-tenant)" \
+  --title="T-00i-004 — Seed fixture library (Apex baseline + synthetic multi-tenant)" \
   --description="[data/seed] [T5] 3 tenants with deterministic UUIDs for tests" \
   --details="Type: T5-seed. Context: ~40k. Track: α. GIVEN seed runner + snapshots WHEN applySnapshot('multi-tenant-3') THEN 3 tenants with disjoint users/roles, 2 shared role kinds, deterministic UUIDs (v7 seeded by test clock). Steps: (1) Extend multi-tenant-3.ts with deterministic UUIDs; (2) Factories makeUser/makeRole; (3) Test util seedAndConnect; (4) Unit determinism; (5) Commit. Files MODIFY: packages/db/seed/snapshots/multi-tenant-3.ts, tests/utils/seed.ts. Test gate: unit deterministic output. Rollback: remove factories." \
   --priority=medium \
@@ -494,7 +494,7 @@ task-master add-task \
 task-master add-task \
   --title="T-00c-006 — E2E: login → middleware sets org_id → logout" \
   --description="[test/harness] [T4] Playwright auth flow + /api/whoami debug route" \
-  --details="Type: T4-wiring+test. Context: ~70k. Track: δ. GIVEN seeded forza-baseline DB WHEN Playwright navigates /login, submits known creds, calls /api/whoami, logs out THEN whoami returns user+org_id via current_setting('app.current_org_id'), post-logout /login redirect. Steps: (1) Playwright e2e/auth.spec.ts; (2) GET /api/whoami route SELECT current_setting; (3) CI matrix; (4) Assert 3 steps; (5) Commit. Files CREATE: e2e/auth.spec.ts, apps/web/app/api/whoami/route.ts. Test gate: E2E auth.spec.ts green. Rollback: remove spec + route." \
+  --details="Type: T4-wiring+test. Context: ~70k. Track: δ. GIVEN seeded apex-baseline DB WHEN Playwright navigates /login, submits known creds, calls /api/whoami, logs out THEN whoami returns user+org_id via current_setting('app.current_org_id'), post-logout /login redirect. Steps: (1) Playwright e2e/auth.spec.ts; (2) GET /api/whoami route SELECT current_setting; (3) CI matrix; (4) Assert 3 steps; (5) Commit. Files CREATE: e2e/auth.spec.ts, apps/web/app/api/whoami/route.ts. Test gate: E2E auth.spec.ts green. Rollback: remove spec + route." \
   --priority=high \
   --dependencies="21,52,22,49" \
   --file="${TASKS_FILE}"
@@ -592,8 +592,8 @@ task-master add-task \
 # ----- ID 64: T-GOV-003 -----
 task-master add-task \
   --title="T-GOV-003 — Publish ADR-030 Configurable department taxonomy" \
-  --description="[docs/adr] [docs] ADR-030: Forza 7-dept baseline + tenant.dept_overrides JSONB" \
-  --details="Type: docs. Context: ~20k. Track: γ. Done check: output docs/adr/ADR-030-configurable-department-taxonomy.md; outline Forza 7-dept baseline, split/merge/custom via tenant.dept_overrides JSONB, runtime resolution. Verifiable: seed+override round-trip described unambiguously." \
+  --description="[docs/adr] [docs] ADR-030: Apex 7-dept baseline + tenant.dept_overrides JSONB" \
+  --details="Type: docs. Context: ~20k. Track: γ. Done check: output docs/adr/ADR-030-configurable-department-taxonomy.md; outline Apex 7-dept baseline, split/merge/custom via tenant.dept_overrides JSONB, runtime resolution. Verifiable: seed+override round-trip described unambiguously." \
   --priority=high \
   --dependencies="" \
   --file="${TASKS_FILE}"
@@ -611,7 +611,7 @@ task-master add-task \
 task-master add-task \
   --title="T-GOV-005 — Marker discipline reference doc" \
   --description="[docs/readme] [docs] MARKER-DISCIPLINE.md with 4 marker types + canonical examples" \
-  --details="Type: docs. Context: ~15k. Track: γ. Done check: output docs/MARKER-DISCIPLINE.md; outline [UNIVERSAL]/[FORZA-CONFIG]/[EVOLVING]/[LEGACY-D365] with canonical examples from PRD §2. Verifiable: pick any PRD/ADR section, classify correctly in <60s." \
+  --details="Type: docs. Context: ~15k. Track: γ. Done check: output docs/MARKER-DISCIPLINE.md; outline [UNIVERSAL]/[APEX-CONFIG]/[EVOLVING]/[LEGACY-D365] with canonical examples from PRD §2. Verifiable: pick any PRD/ADR section, classify correctly in <60s." \
   --priority=medium \
   --dependencies="62,63,64,65" \
   --file="${TASKS_FILE}"
@@ -820,9 +820,9 @@ task-master add-task \
 
 # ----- ID 91: T-00b-M01 -----
 task-master add-task \
-  --title="T-00b-M01 — Main Table migration (69 typed Forza cols + ext/private JSONB + schema_version)" \
+  --title="T-00b-M01 — Main Table migration (69 typed Apex cols + ext/private JSONB + schema_version)" \
   --description="[data/migration] [T1] Main Table 69 cols per MAIN-TABLE-SCHEMA.md; expect churn (Decision #1)" \
-  --details="Type: T1-schema. Context: ~55k. Track: α. Priority: high. Gap-fill per Decision #1 (Main Table 69 cols KEEP in E-0). Ports existing T-21 Forza baseline per 00-FOUNDATION-PRD.md and MAIN-TABLE-SCHEMA.md; expect churn. GIVEN baseline + DeptColumns migrations applied WHEN migration 015-main-table-69-cols.sql runs THEN main_table has 69 typed Forza cols per MAIN-TABLE-SCHEMA.md, plus ext_jsonb JSONB, private_jsonb JSONB, schema_version INT NOT NULL DEFAULT 1, composite index (tenant_id, created_at), GIN index on ext_jsonb (R2). Steps: (1) Translate MAIN-TABLE-SCHEMA.md columns into Drizzle schema; (2) Author migration 015-main-table-69-cols.sql; (3) Composite + GIN indexes; (4) Integration test: \\d+ main_table has 69 typed cols + 2 JSONB + schema_version; (5) Commit. Files CREATE: drizzle/migrations/015-main-table-69-cols.sql, packages/db/schema/main-table.ts. Test gate: integration main-table-69.integration.test.ts + CI 'pnpm test:migrations' green. Rollback: DROP TABLE main_table CASCADE and replace with placeholder." \
+  --details="Type: T1-schema. Context: ~55k. Track: α. Priority: high. Gap-fill per Decision #1 (Main Table 69 cols KEEP in E-0). Ports existing T-21 Apex baseline per 00-FOUNDATION-PRD.md and MAIN-TABLE-SCHEMA.md; expect churn. GIVEN baseline + DeptColumns migrations applied WHEN migration 015-main-table-69-cols.sql runs THEN main_table has 69 typed Apex cols per MAIN-TABLE-SCHEMA.md, plus ext_jsonb JSONB, private_jsonb JSONB, schema_version INT NOT NULL DEFAULT 1, composite index (tenant_id, created_at), GIN index on ext_jsonb (R2). Steps: (1) Translate MAIN-TABLE-SCHEMA.md columns into Drizzle schema; (2) Author migration 015-main-table-69-cols.sql; (3) Composite + GIN indexes; (4) Integration test: \\d+ main_table has 69 typed cols + 2 JSONB + schema_version; (5) Commit. Files CREATE: drizzle/migrations/015-main-table-69-cols.sql, packages/db/schema/main-table.ts. Test gate: integration main-table-69.integration.test.ts + CI 'pnpm test:migrations' green. Rollback: DROP TABLE main_table CASCADE and replace with placeholder." \
   --priority=high \
   --dependencies="13,16" \
   --file="${TASKS_FILE}"

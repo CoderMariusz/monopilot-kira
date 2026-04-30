@@ -503,7 +503,7 @@ Form fields:
 - Test method: Radio buttons — [ATP] [ELISA] (default ATP).
 - Swab locations: Multi-select tags input (e.g., "Mixer bowl, Conveyor 1, Exit chute"). At least one location required.
 - RLU value: Number input (integer). Validation: must be ≥ 0 and ≤ 999.
-- Threshold display: "Acceptance threshold: ≤ 10 RLU (Forza default, configurable per line)."
+- Threshold display: "Acceptance threshold: ≤ 10 RLU (Apex default, configurable per line)."
 - Auto status: After entering RLU value, status badge auto-updates: green "PASS" if ≤ threshold, red "FAIL" if > threshold.
 - FAIL state: `.alert-red` "ATP result FAIL — line is not clean. Repeat cleaning before proceeding." [Reset to Cleaning Checklist] button.
 
@@ -795,12 +795,12 @@ Sections (each is a `.card` with a collapsible header showing section name + [Ex
 
 **Section 4 — Downtime:**
 - [Manage Downtime Categories] link → opens 02-SETTINGS downtime taxonomy (admin).
-- [View Forza Default Seed (10 categories)] expandable: shows People / Process / Plant taxonomy with 10 categories.
+- [View Apex Default Seed (10 categories)] expandable: shows People / Process / Plant taxonomy with 10 categories.
 - `production.oee_aggregation.enabled` — Toggle "OEE Aggregation Job" (default ON).
 - `production.oee_aggregation.interval_sec` — Number input "Aggregation interval (seconds)" (default 60, range 30–300).
 
 **Section 5 — D365 Integration:**
-- `integration.d365.push.enabled` — Toggle "D365 WO Confirmations Push" (default ON for Forza, OFF for new tenants).
+- `integration.d365.push.enabled` — Toggle "D365 WO Confirmations Push" (default ON for Apex, OFF for new tenants).
 - `integration.d365.push.dry_run` — Toggle "Dry Run Mode" (logs but does not call D365). Label: "Debug only — do not leave enabled in production."
 - `integration.d365.push.batch_size` — Number input "Dispatcher batch size" (default 100).
 - Link: [Configure D365 Connection → 02-SETTINGS §11].
@@ -1341,7 +1341,7 @@ Applied to PROD-001 (line dashboard), PROD-002 (WO execution), PROD-003 (consump
 
 ## 9. Open questions for designer
 
-1. **Line card layout density**: With 5 Forza production lines, should the PROD-001 per-line grid be 2×3 (2 columns, 3 rows) or a single-row carousel? The 2×3 layout is recommended but confirm with product team.
+1. **Line card layout density**: With 5 Apex production lines, should the PROD-001 per-line grid be 2×3 (2 columns, 3 rows) or a single-row carousel? The 2×3 layout is recommended but confirm with product team.
 
 2. **OEE gauge style**: Should the OEE component cards (A, P, Q) use circular radial gauges (as in PROD-008 archive), simple percentage text with a coloured bar, or donut charts? PRD does not prescribe; archive used circles.
 

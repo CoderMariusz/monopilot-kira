@@ -178,7 +178,7 @@ Rationale: No structural hallucinations, strong PRD coverage, all regulatory pat
 
 2. **Design token inheritance:** Both modules correctly inherit from `colors_and_type.css` base tokens. Both UX docs reference `--blue: #1976D2`, `--green: #22c55e`, etc. verbatim. Planning-ext adds `--co-*` changeover heatmap tokens; Quality adds `badge-*` QA palette. Neither redefines base tokens. PASS.
 
-3. **FOUNDATION compliance:** Both modules carry `[UNIVERSAL]`, `[FORZA-CONFIG]`, `[EVOLVING]`, `[LEGACY-D365]` markers per 00-FOUNDATION §2 P6. Both reference ADR-003/013 (RLS), ADR-028 (L3 ext_jsonb on key tables), ADR-029 (DSL rules). PASS.
+3. **FOUNDATION compliance:** Both modules carry `[UNIVERSAL]`, `[APEX-CONFIG]`, `[EVOLVING]`, `[LEGACY-D365]` markers per 00-FOUNDATION §2 P6. Both reference ADR-003/013 (RLS), ADR-028 (L3 ext_jsonb on key tables), ADR-029 (DSL rules). PASS.
 
 ---
 

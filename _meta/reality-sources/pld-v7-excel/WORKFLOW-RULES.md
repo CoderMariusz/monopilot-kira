@@ -81,7 +81,7 @@ Gdy Finish_Meat ends z innym suffixem niż last process suffix (V06 fail), PR_Co
 ### 1.4 Marker
 
 - Cell colors system (blocking/auto/validation) = `[UNIVERSAL]` (wzorzec — każda firma powinna mieć feedback cell-level)
-- Konkretne hex colors (#D0D0D0 dla blocked, itp.) = `[FORZA-CONFIG]` (theming per org)
+- Konkretne hex colors (#D0D0D0 dla blocked, itp.) = `[APEX-CONFIG]` (theming per org)
 - D365 validation colors = `[LEGACY-D365]` (gdy D365 zniknie, logika validate-against-ERP może zniknąć lub zmienić się na Monopilot items)
 
 ---
@@ -125,7 +125,7 @@ dept_status enum: "waiting" | "ready" | "alert" | "ready_to_close" | "closed"
 dept_status color: gray | white | red | green | (hidden — filtered out)
 ```
 
-Marker: pattern = `[UNIVERSAL]`, konkretne priorytety thresholds (10 days, 21 days) = `[FORZA-CONFIG]` (Dashboard alerts §5).
+Marker: pattern = `[UNIVERSAL]`, konkretne priorytety thresholds (10 days, 21 days) = `[APEX-CONFIG]` (Dashboard alerts §5).
 
 ---
 
@@ -163,7 +163,7 @@ User nie może fizycznie wpisać wartości. Row status = "Waiting" (gray bg).
 
 ### 3.4 Marker
 
-- 4 hardcoded blocking rules ("Core done", "Pack_Size filled", "Line filled", "Core + Production done") = `[FORZA-CONFIG]` (konkretne Forza workflow rules)
+- 4 hardcoded blocking rules ("Core done", "Pack_Size filled", "Line filled", "Core + Production done") = `[APEX-CONFIG]` (konkretne Apex workflow rules)
 - Blocking mechanism jako concept = `[UNIVERSAL]` (META-MODEL §2.1 obszar 2 "conditional required")
 - **Ograniczenie v7:** tylko 4 reguły hardcoded. Rozszerzenie wymaga edit VBA (M01.IsBlockingMet switch). Monopilot z ADR-029 DSL pozwoli definiować dowolne nowe reguły jako dane.
 
@@ -209,7 +209,7 @@ Gdy user odznaczy `Closed_<Dept>` (usuwa "Yes"), przy następnym refresh wiersz 
 
 - Filter logic (hide closed rows) = `[UNIVERSAL]` (każdy workflow tool to ma)
 - Per-dept `Closed_<Dept>` flag pattern = `[UNIVERSAL]`
-- Dropdown z jedną opcją "Yes" = `[FORZA-CONFIG]` (Forza simplification)
+- Dropdown z jedną opcją "Yes" = `[APEX-CONFIG]` (Apex simplification)
 
 ---
 
@@ -329,7 +329,7 @@ Cols których writeback **nie dotyczy**:
 ### 6.5 Marker
 
 - Proxy tab writeback pattern = `[UNIVERSAL]` (schema-driven UI pattern)
-- `CLS_SheetEvents` injection pattern = `[FORZA-CONFIG]` (Excel-specific implementacja, Monopilot używa reactive UI bez tego)
+- `CLS_SheetEvents` injection pattern = `[APEX-CONFIG]` (Excel-specific implementacja, Monopilot używa reactive UI bez tego)
 
 ---
 
@@ -398,7 +398,7 @@ Gdy Monopilot zastąpi D365, `Built` flag przestaje mieć sens — dane są w Mo
 ### 8.2 Dashboard struktura (z scan row 1-21)
 
 ```
-R1:  FORZA FOODS - Product Launch Dashboard                  (title)
+R1:  APEX FOODS - Product Launch Dashboard                  (title)
 R3:  SUMMARY
 R4:  Total Active Products          | 0
 R5:  Fully Complete                 | 0
@@ -443,11 +443,11 @@ Per `PROCESS-OVERVIEW.md` §4 Stage 4: **Jane sprawdza Dashboard codziennie**. W
 
 ### 8.6 Marker
 
-- Alert thresholds (10 days / 21 days) = `[FORZA-CONFIG]` (per org business rule)
+- Alert thresholds (10 days / 21 days) = `[APEX-CONFIG]` (per org business rule)
 - Alert levels RED/YELLOW/GREEN pattern = `[UNIVERSAL]`
 - Counters totalActive/Complete/Pending/Built = `[UNIVERSAL]` (każdy workflow ma takie metrics)
 - Per-dept Done/Pending/Blocked breakdown = `[UNIVERSAL]`
-- Dashboard daily review by manager = `[FORZA-CONFIG]` (cadence per org)
+- Dashboard daily review by manager = `[APEX-CONFIG]` (cadence per org)
 
 ---
 
@@ -510,7 +510,7 @@ Main Table **NIE jest protected** (z inspekcji scan). User może edytować bezpo
 ### 10.3 Marker
 
 - Protection-on-render pattern = `[UNIVERSAL]` (schema-driven UI locking)
-- UserInterfaceOnly=True + empty password = `[FORZA-CONFIG]` (Forza low-security choice, Monopilot będzie row-level security ADR-003)
+- UserInterfaceOnly=True + empty password = `[APEX-CONFIG]` (Apex low-security choice, Monopilot będzie row-level security ADR-003)
 
 ---
 
@@ -536,7 +536,7 @@ Nie czytaliśmy M11 w detailu (Session 3 target). Zakładana logika (do potwierd
 5. Initial `Closed_*=""`, `Done_*=FALSE`, `Built=FALSE`
 
 **Marker:**
-- FA_Code format `FA*` = `[FORZA-CONFIG]` (Forza naming)
+- FA_Code format `FA*` = `[APEX-CONFIG]` (Apex naming)
 - Pattern "master record auto-create with PK" = `[UNIVERSAL]`
 
 ### 11.3 Open questions do Phase B
@@ -621,7 +621,7 @@ Wszystkie workflow rules z tego dokumentu są implementacjami **Level "b" workfl
 2. **Built auto-reset — Production ProdDetail changes?** (§7.2) — czy edit ProdDetail też resetuje Built, czy tylko Main Table edits
 3. **FA_Code generation** (§11.3) — sekwencja / data / manual? Read M11.
 4. **Dev_Code vs FA_Code** (§11.3) — relacja.
-5. **Alert thresholds (10/21 dni)** — confirmed `[FORZA-CONFIG]`, ale czy zmiany wymagają tylko edit VBA czy mają być user-configurable. Na wszelki wypadek w Monopilot → config table.
+5. **Alert thresholds (10/21 dni)** — confirmed `[APEX-CONFIG]`, ale czy zmiany wymagają tylko edit VBA czy mają być user-configurable. Na wszelki wypadek w Monopilot → config table.
 6. **Missing_Data format** — w Dashboard wyświetlane jako "Dept: Col. Dept: Col." (separator ". "). UX adequate?
 7. **Multi-component CloseProduction** — co gdy FA ma 3 komponenty w ProdDetail, 2 są complete (Line/Dieset/Rate/≥1 process), 1 niekompletny? Obecnie `IsProdDetailComplete` wymaga all complete. Czy to business correct?
 8. **Dept refresh order** — czy kolejność M03.RefreshAffectedDepts ma znaczenie (Refresh Production przed MRP)? Może cause subtle race.

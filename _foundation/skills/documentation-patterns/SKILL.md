@@ -1,6 +1,6 @@
 ---
 name: documentation-patterns
-description: Apply when writing code documentation (JSDoc, README, API docs, inline comments) OR writing Monopilot project documentation (PRDs, ADRs, module docs, reality-sources) — includes Monopilot migration markers (UNIVERSAL / FORZA-CONFIG / EVOLVING / LEGACY-D365).
+description: Apply when writing code documentation (JSDoc, README, API docs, inline comments) OR writing Monopilot project documentation (PRDs, ADRs, module docs, reality-sources) — includes Monopilot migration markers (UNIVERSAL / APEX-CONFIG / EVOLVING / LEGACY-D365).
 tags: [documentation, jsdoc, readme, monopilot, markers]
 ---
 
@@ -139,15 +139,15 @@ if (user.role === 'moderator') { }
 
 ### Purpose
 
-Markery oznaczają **pochodzenie / stabilność / konfigurowalność** wymagania. Bez nich nie da się rozróżnić co jest fundamentem branży, co jest specyfiką Forzy, co się jeszcze zmienia, co zniknie po migracji D365.
+Markery oznaczają **pochodzenie / stabilność / konfigurowalność** wymagania. Bez nich nie da się rozróżnić co jest fundamentem branży, co jest specyfiką Apexa, co się jeszcze zmienia, co zniknie po migracji D365.
 
 ### 4 markery
 
 | Marker | Znaczenie | Kiedy użyć | Przykład |
 |---|---|---|---|
 | `[UNIVERSAL]` | Fundamentalne dla food-manufacturing MES, każdy klient to ma | Traceability lot, BOM structure, WO state machine, EU-14 allergens, GS1 format | "System MUSI zapewniać forward/backward traceability <30s `[UNIVERSAL]`" |
-| `[FORZA-CONFIG]` | Forza ustawiła tak, inny klient może mieć inaczej (konfigurowalne w Settings) | Departamenty, kolumny Main Table, cascading reguły, seed reference tables | "7 działów: Commercial, Development, Production, Quality, Planning, Procurement, MRP `[FORZA-CONFIG]`" |
-| `[EVOLVING]` | Projekt jeszcze się zmienia, nie stabilny — trzymamy w DB nawet jeśli dziś tylko Forza | MRP potencjalny split na 2 działy, niektóre walidacje w trakcie ewolucji | "MRP potencjalnie split na 2 działy `[EVOLVING]`" |
+| `[APEX-CONFIG]` | Apex ustawiła tak, inny klient może mieć inaczej (konfigurowalne w Settings) | Departamenty, kolumny Main Table, cascading reguły, seed reference tables | "7 działów: Commercial, Development, Production, Quality, Planning, Procurement, MRP `[APEX-CONFIG]`" |
+| `[EVOLVING]` | Projekt jeszcze się zmienia, nie stabilny — trzymamy w DB nawet jeśli dziś tylko Apex | MRP potencjalny split na 2 działy, niektóre walidacje w trakcie ewolucji | "MRP potencjalnie split na 2 działy `[EVOLVING]`" |
 | `[LEGACY-D365]` | Istnieje tylko z powodu D365, zniknie po migracji (feature flag `integration.d365.enabled`) | D365 Builder logic, D365 ItemNumber format, D365 error codes | "Kolumna `D365_ItemNumber` `[LEGACY-D365]`" |
 
 ### Application rules
@@ -159,13 +159,13 @@ Markery oznaczają **pochodzenie / stabilność / konfigurowalność** wymagania
 
 ### Conflict resolution
 
-Gdy wymaganie jest *zarówno* uniwersalne jak i ma Forza-specific value: użyj `[UNIVERSAL]` dla *zasady*, `[FORZA-CONFIG]` dla *wartości*.
+Gdy wymaganie jest *zarówno* uniwersalne jak i ma Apex-specific value: użyj `[UNIVERSAL]` dla *zasady*, `[APEX-CONFIG]` dla *wartości*.
 
-Przykład: "System MUSI obsługiwać allergeny `[UNIVERSAL]`. Forza używa 14 EU allergens `[FORZA-CONFIG]`."
+Przykład: "System MUSI obsługiwać allergeny `[UNIVERSAL]`. Apex używa 14 EU allergens `[APEX-CONFIG]`."
 
 ### Domyślna asymetria (conservative universality)
 
-Gdy niepewne czy `[UNIVERSAL]` czy `[FORZA-CONFIG]` → domyślnie `[FORZA-CONFIG]`. Promocja do `[UNIVERSAL]` wymaga review i cross-walk z innymi reality sources (zobacz `REALITY-SYNC.md` §4). Fałszywe `[UNIVERSAL]` propaguje błędne założenia do wszystkich 16 modułów; fałszywe `[FORZA-CONFIG]` tylko opóźnia generalizację.
+Gdy niepewne czy `[UNIVERSAL]` czy `[APEX-CONFIG]` → domyślnie `[APEX-CONFIG]`. Promocja do `[UNIVERSAL]` wymaga review i cross-walk z innymi reality sources (zobacz `REALITY-SYNC.md` §4). Fałszywe `[UNIVERSAL]` propaguje błędne założenia do wszystkich 16 modułów; fałszywe `[APEX-CONFIG]` tylko opóźnia generalizację.
 
 ### Related
 

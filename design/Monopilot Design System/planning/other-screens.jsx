@@ -177,7 +177,7 @@ const PlanSequencing = ({ onNav, onOpenWo }) => {
           <div className="ski-value">{SEQ_KPIS.reductionPct}%</div>
         </div>
         <span className="spacer"></span>
-        <span className="muted" style={{fontSize:11}}>Target: <b>&gt; 30%</b> (Forza baseline)</span>
+        <span className="muted" style={{fontSize:11}}>Target: <b>&gt; 30%</b> (Apex baseline)</span>
       </div>
 
       <div className="seq-queue">

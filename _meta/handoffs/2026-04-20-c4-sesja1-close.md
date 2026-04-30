@@ -19,9 +19,9 @@ Baseline v2.0 (558 linii, 2026-02-17) w pełni przepisany do v3.0 convention. D1
 | Q | Decyzja | Rationale |
 |---|---|---|
 | **Q1 ✅** | CCP engine = **B** manual entry P1 + DSL rule `ccp_deviation_escalation_v1` + IoT reception stub P2 | Rule engine gotowy = łatwe IoT swapping P2 bez zmian logiki |
-| **Q2 ✅** | ATP device = **A** manual entry P1 paper→ERP | Forza dziś paper cards; OQ-PROD-04 z 08-PROD resolved. P2 adapter pattern dla Hygiena EnSURE 3 / Kikkoman Lumitester Smart |
+| **Q2 ✅** | ATP device = **A** manual entry P1 paper→ERP | Apex dziś paper cards; OQ-PROD-04 z 08-PROD resolved. P2 adapter pattern dla Hygiena EnSURE 3 / Kikkoman Lumitester Smart |
 | **Q3 ✅** | Hold/release taxonomy = **B** structured via `quality_hold_reasons` reference (02-SETTINGS §8) + priority + default_hold_duration_days | Workflow-as-data pattern consistency; admin-editable; audit-friendly |
-| **Q4 ✅** | Lab LIMS = **B** bridge-ready stub P1 (`lab_results.external_lims_id`, adapter pattern) + P2 vendor TBD | Internal P1 dla Forza; stub ready dla LabWare/StarLIMS/CSV |
+| **Q4 ✅** | Lab LIMS = **B** bridge-ready stub P1 (`lab_results.external_lims_id`, adapter pattern) + P2 vendor TBD | Internal P1 dla Apex; stub ready dla LabWare/StarLIMS/CSV |
 | **Q5 ✅** | NCR scope P1 = **A** basic table only (EPIC 8D) + P2 full workflow + CAPA (EPIC 8G) | Zgodny z v2.0 baseline, CAPA = Phase 2 |
 | **Q6 ✅** | Calibration mgmt = **A** reserved w 13-MAINTENANCE (C5) | 09-QA HACCP verification refs by FK stub `equipment_calibration_id` |
 | **Q7 ✅** | Customer complaints = **A** `quality_complaints` stub v3.0 + full Phase 2 EPIC 8M candidate | complaint→NCR→CAPA naturalny chain QA |
@@ -111,7 +111,7 @@ Baseline v2.0 (558 linii, 2026-02-17) w pełni przepisany do v3.0 convention. D1
 4. Read `03-TECHNICAL-PRD.md` v3.0 §11 `cost_per_kg` per-item z history (material cost source)
 5. Read `05-WAREHOUSE-PRD.md` v3.0 §13 (LP cost snapshot, material cost rollup at consume)
 6. Read `09-QUALITY-PRD.md` v3.0 §6 `ncr_reports.claim_value_eur` (yield claim integration), §6 `wo_waste_log` consumer
-7. Read `02-SETTINGS-PRD.md` v3.0 §11 D365 Constants (dataAreaId FNOR, ForzDG warehouse, FinGoods account — stage 5 refs)
+7. Read `02-SETTINGS-PRD.md` v3.0 §11 D365 Constants (dataAreaId FNOR, ApexDG warehouse, FinGoods account — stage 5 refs)
 8. Read `_foundation/research/MES-TRENDS-2026.md` §9 "10-FINANCE" + R-decisions cost allocation
 9. Read baseline `10-FINANCE-PRD.md` pre-Phase-D
 10. Propose outline → user Q&A → full write

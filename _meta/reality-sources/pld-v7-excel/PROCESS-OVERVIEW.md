@@ -16,7 +16,7 @@ propagated_to: []
 
 ## Purpose
 
-Dokument opisuje **jak rzeczywiście** Smart PLD v7 (Excel/VBA) jest używany w firmie Forza Foods od momentu pojawienia się pomysłu na nowy produkt do wpięcia go do D365 jako gotowego item-u. Reality capture — **nie projektujemy Monopilot**, dokumentujemy ground truth do której Monopilot ma być zakotwiczony.
+Dokument opisuje **jak rzeczywiście** Smart PLD v7 (Excel/VBA) jest używany w firmie Apex Foods od momentu pojawienia się pomysłu na nowy produkt do wpięcia go do D365 jako gotowego item-u. Reality capture — **nie projektujemy Monopilot**, dokumentujemy ground truth do której Monopilot ma być zakotwiczony.
 
 Ten doc wraz z [`DEPARTMENTS.md`](./DEPARTMENTS.md) jest pierwszym parą deliverables Phase A. Pozostałe (Main Table schema, cascading rules, workflow rules, reference tables, D365 integration, evolving areas) powstają w Session 2+3 Phase A.
 
@@ -28,9 +28,9 @@ PLD = Product Launch Document. Excel/VBA workbook, single source of truth dla je
 
 | Grupa | Zakładki | Rola |
 |---|---|---|
-| Master | `Main Table` | 1 wiersz = 1 FA (Factory Article), 69 kolumn, single source of truth `[FORZA-CONFIG]` |
-| Proxy views (działy) | `Core`, `Planning`, `Commercial`, `Production`, `Technical`, `MRP`, `Procurement` | Thin proxy views budowane przez `RefreshDeptView` — pokazują kolumny danego działu `[FORZA-CONFIG]` |
-| Auxiliary | `BOM`, `D365 Import`, `Dashboard`, `Validation Status`, `Reference` | Generowane / read-only / konfiguracja `[FORZA-CONFIG]` |
+| Master | `Main Table` | 1 wiersz = 1 FA (Factory Article), 69 kolumn, single source of truth `[APEX-CONFIG]` |
+| Proxy views (działy) | `Core`, `Planning`, `Commercial`, `Production`, `Technical`, `MRP`, `Procurement` | Thin proxy views budowane przez `RefreshDeptView` — pokazują kolumny danego działu `[APEX-CONFIG]` |
+| Auxiliary | `BOM`, `D365 Import`, `Dashboard`, `Validation Status`, `Reference` | Generowane / read-only / konfiguracja `[APEX-CONFIG]` |
 | D365 Builder output | 8 tabów `D365_Data`, `D365_Formula_Version`, `D365_Formula_Lines`, `D365_Route_Headers`, `D365_Route_Versions`, `D365_Route_Operations`, `D365_Route_OpProperties`, `D365_Resource_Req` | Eksport do paste-back w D365 `[LEGACY-D365]` |
 | Hidden | `ProdDetail` | Legacy, nieużywane dzisiaj `[LEGACY-D365]` |
 
@@ -173,7 +173,7 @@ sequenceDiagram
 **Stan w v7:** dziś osobny plik Excel, NIE jest importowany do PLD. Core przepisuje dane ręcznie.
 **Ewolucja:** `[EVOLVING]` — docelowo brief = moduł NPD-upstream w Monopilot z przyciskiem "Convert to PLD" który tworzy wiersz w Main Table i mapuje fields.
 
-### Stage 1 — Core setup `[FORZA-CONFIG]`
+### Stage 1 — Core setup `[APEX-CONFIG]`
 
 **Kto:** Core (NPD, 3 osoby) — owner Jane
 **Co:**
@@ -188,7 +188,7 @@ sequenceDiagram
 
 **Evolving:** W Core dojdą kolumny (z briefu): `Volume`, `Dev_Code`, prawdopodobnie `Price (from brief)`, prawdopodobnie `%`, potwierdzenie `PR` codes migracji do Core. Każda nowa kolumna = update schema + marker `[EVOLVING]`.
 
-### Stage 2 — Parallel dept fill `[FORZA-CONFIG]`
+### Stage 2 — Parallel dept fill `[APEX-CONFIG]`
 
 **Kto:** 5 działów pracujących równolegle (Planning, Commercial, Production, Technical, MRP)
 **Start:** Gdy `Closed_Core=TRUE`
@@ -198,7 +198,7 @@ sequenceDiagram
 
 **Completion:** każdy dział ustawia `Closed_[Dept]=TRUE` gdy skończy. Osiem flag łącznie (Core + 7 depts, bo Procurement ma własny Closed).
 
-### Stage 3 — Procurement (start równolegle, `Price` wait) `[FORZA-CONFIG]`
+### Stage 3 — Procurement (start równolegle, `Price` wait) `[APEX-CONFIG]`
 
 **Kto:** Procurement dział
 **Start:** gdy `Closed_Core=TRUE` — **Procurement pracuje równolegle** z innymi 5 działami (Planning/Commercial/Production/Technical/MRP). **Korekta wcześniejszego opisu:** Procurement NIE jest sekwencyjny jako całość.
@@ -214,7 +214,7 @@ sequenceDiagram
 
 **Relacja Procurement ↔ MRP:** narazie **nie dzielimy** odpowiedzialności (wcześniejsze założenie split MRP na 2 działy było tylko przykładem, nie jest aktualne). MRP = "co zamówić / ile" (planowanie materiałów, potwierdzenie dostępności, dodawanie brakujących). Procurement = "od kogo / za ile / kiedy" (realizacja zakupu, cena, lead time, supplier management).
 
-### Stage 4 — Closure + validation `[FORZA-CONFIG]`
+### Stage 4 — Closure + validation `[APEX-CONFIG]`
 
 **Kto:** Jane (NPD Manager)
 **Co:**
@@ -232,12 +232,12 @@ sequenceDiagram
 **Co:**
 - Naciska przycisk "Build D365" — VBA moduł `M08_Builder`
 - Buduje 8 output tabs: `D365_Data` (item master) + `D365_Formula_Version` + `D365_Formula_Lines` (BOM) + `D365_Route_Headers/Versions/Operations/OpProperties` (routes) + `D365_Resource_Req`
-- Kopiuje zawartość tabów i paste'uje **ręcznie z powrotem do D365** (interfejs D365 nie ma API dla Forzy, paste manual)
+- Kopiuje zawartość tabów i paste'uje **ręcznie z powrotem do D365** (interfejs D365 nie ma API dla Apexa, paste manual)
 - Flaga `Built` w Main Table = TRUE, auto-reset gdy edycja
 
 **Marker:** `[LEGACY-D365]` — istnieje tylko dopóki D365 jest live. Po docelowym zastąpieniu D365 przez Monopilot te 8 tabs znikają (dane bezpośrednio w Monopilot, bez eksportu).
 
-### Stage 6 — Downstream: Production launch (poza PLD) `[FORZA-CONFIG]`
+### Stage 6 — Downstream: Production launch (poza PLD) `[APEX-CONFIG]`
 
 **Poza scope PLD v7 Excel** — po wpięciu itemu do D365 produkcja uruchamia FA (Factory Article) jako realną pozycję. PLD ma flag `Built` i `Launch_Date`, ale samo uruchomienie produkcji następuje w D365 / na linii.
 
@@ -306,7 +306,7 @@ Lista obszarów gdzie PLD v7 projekt jeszcze się zmienia. Szczegółowy capture
 | Brief ↔ PLD integration | Dziś manual rewrite brief→PLD. Docelowo: brief = moduł NPD-upstream w Monopilot, handoff button "Convert to PLD" | `[EVOLVING]` |
 | Core columns expansion | Dojdą: `Volume`, `Dev_Code`, potencjalnie `Price from brief`, `%` (z brief), `PR` migration to Core | `[EVOLVING]` |
 | Technical — Allergens | Dziś Technical ma tylko Shelf_Life. Dodawana obsługa allergens z RM inheritance (RM→FA cascade). Wymaga: nowa kolumna `Allergens` w Main Table, nowa `Reference.Allergens` tabela, cascade logic `[UNIVERSAL for food-manufacturing]`. Dziś **nie istnieje** w v7 | `[EVOLVING]` → docelowo `[UNIVERSAL]` (allergens obowiązkowe food-mfg EU) |
-| Reference.Processes | 8 procesów dziś (Strip/Coat/Honey/Smoke/Slice/Tumble/Dice/Roast, suffixes A..H,R). Zestaw ruchomy — będzie rozszerzany + edytowalny | `[EVOLVING]` + `[FORZA-CONFIG]` |
+| Reference.Processes | 8 procesów dziś (Strip/Coat/Honey/Smoke/Slice/Tumble/Dice/Roast, suffixes A..H,R). Zestaw ruchomy — będzie rozszerzany + edytowalny | `[EVOLVING]` + `[APEX-CONFIG]` |
 | Email config (Reference.EmailConfig) | Obecnie recipients puste dla wszystkich 7 działów | `[EVOLVING]` |
 | MRP → 2 działy (split) | **Nieaktualne** — wcześniejsze założenie zostało wycofane. MRP zostaje jako 1 dział do odwołania | (usunięte z EVOLVING) |
 | 3-ci brief template | Dodany ~2026-04-17. Może wymagać nowego mapping → Core | `[EVOLVING]` |

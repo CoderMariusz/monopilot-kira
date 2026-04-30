@@ -32,7 +32,7 @@ Wszystkie cascade trigger'y odpalane są z `M04_Cascade.CascadeFromChange(colNam
 
 Najważniejsza kaskada v7. Decyduje o material consumption (przez Dieset) i o capacity (przez Line).
 
-### 1.1 Pack_Size zmieniony `[FORZA-CONFIG]`
+### 1.1 Pack_Size zmieniony `[APEX-CONFIG]`
 
 **Trigger:** User edytuje Pack_Size w Core proxy tab (dropdown z `Reference.PackSizes`).
 **Source:** `Reference.PackSizes` (5 values: `20x30cm / 25x35cm / 18x24cm / 30x40cm / 15x20cm`)
@@ -47,7 +47,7 @@ CLEAR Main Table.Dieset  = ""
 
 **Downstream refresh (M03 `RefreshAffectedDepts`):** → refresh Production tab (cell locks się przeliczają — teraz Line jest unlocked, Dieset gray blocked dopóki Line nie wybrane).
 
-### 1.2 Line zmieniony `[FORZA-CONFIG]`
+### 1.2 Line zmieniony `[APEX-CONFIG]`
 
 **Trigger:** User edytuje Line w Production proxy tab.
 **Source:** `Reference.Lines_By_PackSize` z **filtrowanym dropdown** — user widzi tylko linie wspierające aktualny Pack_Size.
@@ -75,7 +75,7 @@ IF Line != "" AND Pack_Size != "":
 
 `LookupDieset` szuka w `Reference.Dieset_By_Line_Pack` wiersza pasującego do (Line, Pack_Size) i zwraca Dieset code.
 
-### 1.3 Reference.Dieset_By_Line_Pack `[FORZA-CONFIG]`
+### 1.3 Reference.Dieset_By_Line_Pack `[APEX-CONFIG]`
 
 10 kombinacji (Line × Pack_Size → unique Dieset code):
 
@@ -111,8 +111,8 @@ flowchart LR
 ### 1.5 Marker
 
 - Cascade mechanizm (rule engine Level "b" obszar 1) = `[UNIVERSAL]`
-- Konkretne reguły (PackSizes values, Lines, Dieset codes) = `[FORZA-CONFIG]`
-- Format `DIE_X_LN` dla Dieset codes = `[FORZA-CONFIG]`
+- Konkretne reguły (PackSizes values, Lines, Dieset codes) = `[APEX-CONFIG]`
+- Format `DIE_X_LN` dla Dieset codes = `[APEX-CONFIG]`
 
 ### 1.6 Evolving: material consumption per Dieset
 
@@ -132,7 +132,7 @@ Decyzja Phase B lub Session 3. Marker `[EVOLVING]`.
 
 ## §2 — Process_N → PR_Code_P<N> → PR_Code_Final (PR generation)
 
-### 2.1 Process_N zmieniony `[FORZA-CONFIG]`
+### 2.1 Process_N zmieniony `[APEX-CONFIG]`
 
 **Trigger:** User edytuje Process_1, Process_2, Process_3 albo Process_4 (dropdown z `Reference.Processes`).
 **Source:** `Reference.Processes` (8 values z suffixami):
@@ -219,9 +219,9 @@ flowchart TD
 
 ### 2.6 Marker
 
-- PR code format `PR<digits><letter>` = `[FORZA-CONFIG]` (Forza naming convention)
-- Generation rule (concat RM_digits + last_process_suffix) = `[FORZA-CONFIG]`
-- Finish_Meat vs last process suffix validation = `[FORZA-CONFIG]` (business rule Forza)
+- PR code format `PR<digits><letter>` = `[APEX-CONFIG]` (Apex naming convention)
+- Generation rule (concat RM_digits + last_process_suffix) = `[APEX-CONFIG]`
+- Finish_Meat vs last process suffix validation = `[APEX-CONFIG]` (business rule Apex)
 - Cascade mechanism ogólnie = `[UNIVERSAL]` (generation codes from lookups, pattern universal)
 
 **Dla Monopilot ADR-028/029:**
@@ -232,7 +232,7 @@ flowchart TD
 
 ## §3 — Finish_Meat → RM_Code (auto-build) + SyncProdDetailRows
 
-### 3.1 RM_Code auto-build `[FORZA-CONFIG]`
+### 3.1 RM_Code auto-build `[APEX-CONFIG]`
 
 **Trigger:** User edytuje Finish_Meat w Core proxy tab (free text, comma-separated).
 **Logika (M04 lines 57-94):**
@@ -293,7 +293,7 @@ Ale dziś ProdDetail jest fizycznie pusty (1r x 20c) bo Main Table ma 100 empty 
 
 ### 3.4 Marker
 
-- RM_Code auto-build z Finish_Meat = `[FORZA-CONFIG]` (konkretna transformacja)
+- RM_Code auto-build z Finish_Meat = `[APEX-CONFIG]` (konkretna transformacja)
 - Pattern "derived column from user input" = `[UNIVERSAL]` (schema-driven Level "b" Auto type)
 - ProdDetail multi-component sync = `[EVOLVING]` dopóki semantyka nie jest domknięta
 
@@ -301,7 +301,7 @@ Ale dziś ProdDetail jest fizycznie pusty (1r x 20c) bo Main Table ma 100 empty 
 
 ## §4 — Template → ApplyTemplate (fills ProdDetail)
 
-### 4.1 Template change trigger `[FORZA-CONFIG]`
+### 4.1 Template change trigger `[APEX-CONFIG]`
 
 **Trigger:** User edytuje Template w Core proxy tab (dropdown z `Reference.Templates`).
 **Source:** `Reference.Templates` (4 templates):
@@ -344,8 +344,8 @@ Template change → refresh **wszystkich** 5 proxy tabs (Production, Planning, C
 
 ### 4.5 Marker
 
-- Template jako dropdown z Reference = `[FORZA-CONFIG]`
-- 4 konkretne templates Forza = `[FORZA-CONFIG]`
+- Template jako dropdown z Reference = `[APEX-CONFIG]`
+- 4 konkretne templates Apex = `[APEX-CONFIG]`
 - Pattern "template auto-fill processes" = `[UNIVERSAL]` (Monopilot ADR-029 "workflow as data" §8 — templates = stany początkowe workflow)
 
 ---
@@ -388,7 +388,7 @@ Wszystkie cascade mechanismy lookupują z 5 tabel w Reference:
 | `Templates` | 6 (Template_Name, Process_1..4, Notes) | Dropdown dla Core.Template + ApplyTemplate source. 4 templates |
 | `CloseConfirm` | 1 (Option) | Dropdown dla wszystkich `Closed_<Dept>` cols. 1 value ("Yes") |
 
-**Marker:** Struktura `Reference.<TableName>` pattern = `[UNIVERSAL]` (ADR-028 config tables). Wszystkie konkretne values = `[FORZA-CONFIG]` (per org seed).
+**Marker:** Struktura `Reference.<TableName>` pattern = `[UNIVERSAL]` (ADR-028 config tables). Wszystkie konkretne values = `[APEX-CONFIG]` (per org seed).
 
 ---
 
@@ -447,7 +447,7 @@ Wszystkie cascade rules z tego dokumentu są implementacjami **rule engine Level
 
 1. **DSL składnia konkretnie** — jak Monopilot DSL zapisze "PackSize → Line → Dieset cascade" (JSON? textual? Mermaid-like?). ADR-029 open question, szczegóły w implementation phase.
 2. **PR_Code_Final format per org** — czy inne orgi też potrzebują `PR<digits><letter>`? Albo różne formaty (np. bez prefix)? W Monopilot format jako konfiguracja.
-3. **Finish_Meat parse logic** — comma-sep z `PR<digits><letter>` syntax = specyficzne Forza. Inne orgi mogą mieć inny format components. Marker `[FORZA-CONFIG]` wysoka pewność.
+3. **Finish_Meat parse logic** — comma-sep z `PR<digits><letter>` syntax = specyficzne Apex. Inne orgi mogą mieć inny format components. Marker `[APEX-CONFIG]` wysoka pewność.
 4. **Template vs multi-component w ProdDetail** — dziś Template wypełnia ProdDetail per component. Czy user może per component zmienić przepis (inny Process_1 w row 1 niż row 2)? Pewnie tak.
 5. **Material consumption per Dieset** — nowe cols w Reference.Dieset_By_Line_Pack czy nowa tabela.
 

@@ -896,7 +896,7 @@ const MntSettings = ({ onNav, role }) => {
             <div>
               <h3 className="card-title" style={{marginBottom:10}}>Sanitation / allergen</h3>
               <div className="ff-inline">
-                <Field label="ATP RLU threshold" help="BRCGS / Forza baseline. Override per food product type via Ref table in Settings."><input type="number" defaultValue={s.sanitation.atpRlu}/></Field>
+                <Field label="ATP RLU threshold" help="BRCGS / Apex baseline. Override per food product type via Ref table in Settings."><input type="number" defaultValue={s.sanitation.atpRlu}/></Field>
                 <Field label="Allergen dual sign-off required"><select defaultValue="on" disabled><option value="on">On (BRCGS mandated — non-editable)</option></select></Field>
               </div>
             </div>

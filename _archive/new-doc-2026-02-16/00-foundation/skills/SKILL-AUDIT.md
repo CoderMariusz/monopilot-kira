@@ -3,7 +3,7 @@
 **Data audytu:** 2026-04-17
 **Auditor:** agent (Claude Opus 4.7, 1M)
 **Zakres:** `new-doc/00-foundation/skills/` (48 katalogów skilli + REGISTRY.yaml)
-**Cel:** ocena dopasowania do docelowego stacka Monopilot (Next.js 16 / React 19 / Supabase / TypeScript / Zod v4 / Tailwind / Playwright / Jest / MSW / Docker) oraz do meta-modelu (schema-driven, rule engine DSL, multi-tenant, reality-sync, markery UNIVERSAL/FORZA-CONFIG/EVOLVING/LEGACY-D365).
+**Cel:** ocena dopasowania do docelowego stacka Monopilot (Next.js 16 / React 19 / Supabase / TypeScript / Zod v4 / Tailwind / Playwright / Jest / MSW / Docker) oraz do meta-modelu (schema-driven, rule engine DSL, multi-tenant, reality-sync, markery UNIVERSAL/APEX-CONFIG/EVOLVING/LEGACY-D365).
 **Input do:** `skill-creator:skill-creator` w Phase 0 (deprecate / merge / tune / add).
 
 ---
@@ -26,7 +26,7 @@
 **Zdrowie ogólne: 85 %.** Główne problemy:
 1. Rozjazd REGISTRY ↔ filesystem (brakuje 6 skilli zadeklarowanych; istnieją 3 poza rejestrem).
 2. Dwa skille projektowe (`monopilot-patterns`, `testing-monopilot`) używają **starego brandu "MonoPilot"** i **Vitest zamiast Jest** — sprzeczność z nowym stackiem spec-a.
-3. Zero markerów UNIVERSAL/FORZA-CONFIG w skillach (`documentation-patterns` wymaga update).
+3. Zero markerów UNIVERSAL/APEX-CONFIG w skillach (`documentation-patterns` wymaga update).
 4. Brak skilli dla: accessibility-testing, supabase-migrations, observability/logging, domain food-industry.
 
 ---
@@ -98,7 +98,7 @@
 | code-review-checklist | OK | — |
 | git-workflow | OK | GitHub Flow |
 | git-conventional-commits | OK | — |
-| documentation-patterns | **TUNE** | JSDoc/README patterns OK, **ale brak markerów UNIVERSAL/FORZA-CONFIG/EVOLVING/LEGACY-D365** (spec §5.6 explicit wymaga update) |
+| documentation-patterns | **TUNE** | JSDoc/README patterns OK, **ale brak markerów UNIVERSAL/APEX-CONFIG/EVOLVING/LEGACY-D365** (spec §5.6 explicit wymaga update) |
 | refactoring-patterns | OK | — |
 
 ### 2.7 DevOps & Tooling (3 skille) — stan: NIEKOMPLETNY
@@ -162,12 +162,12 @@
 ### 3.3 TUNE (12 skilli)
 | Skill | Co zmienić |
 |---|---|
-| `documentation-patterns` | **OBOWIĄZKOWO** — dodać sekcję "Markers" (UNIVERSAL / FORZA-CONFIG / EVOLVING / LEGACY-D365) z przykładami, semantyką, gdzie wolno kłaść. Spec §5.6 explicit. |
+| `documentation-patterns` | **OBOWIĄZKOWO** — dodać sekcję "Markers" (UNIVERSAL / APEX-CONFIG / EVOLVING / LEGACY-D365) z przykładami, semantyką, gdzie wolno kłaść. Spec §5.6 explicit. |
 | `supabase-rls` | Dopisać link-reference do ADR-031 (schema variation per org) gdy powstanie |
 | `supabase-queries` | Dopisać pattern "dynamic column projection" (dla schema-driven kolumn) — integruje się z `schema-driven-design` |
 | `api-validation` | Dopisać pattern "runtime schema from DB" (Zod zbudowane z metadanych kolumn) |
 | `typescript-zod` | Dopisać pattern "z.discriminatedUnion dla tenant-variation" |
-| `invest-stories` | Dopisać pattern "marker-tagged stories" (AC oznaczone [UNIVERSAL]/[FORZA-CONFIG]) |
+| `invest-stories` | Dopisać pattern "marker-tagged stories" (AC oznaczone [UNIVERSAL]/[APEX-CONFIG]) |
 | `prd-structure` | Dopisać sekcję "Universal vs Tenant-specific requirements" |
 | `architecture-adr` | Dopisać wzorzec "Superseded by ADR-XXX" (spec §2.2) oraz linkage do meta-model |
 | `nextjs-api-routes` | Deduplikować z `monopilot-patterns` Pattern 1 (albo wskazać "see monopilot-patterns dla project wiring") |
@@ -306,7 +306,7 @@ task_types:
 # ---------- MARKER → SKILL (dla auto-tagging przy pisaniu docs) ----------
 markers:
   UNIVERSAL:    [documentation-patterns]
-  FORZA-CONFIG: [documentation-patterns, multi-tenant-variation]
+  APEX-CONFIG: [documentation-patterns, multi-tenant-variation]
   EVOLVING:     [documentation-patterns, reality-sync-workflow]
   LEGACY-D365:  [documentation-patterns, reality-sync-workflow]
 ```

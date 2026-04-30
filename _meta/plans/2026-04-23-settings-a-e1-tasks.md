@@ -640,7 +640,7 @@ Delete test files; no schema/code changes.
 
 ---
 
-## T-02SETa-012 — Seed: 7 reference table schema definitions + Forza data
+## T-02SETa-012 — Seed: 7 reference table schema definitions + Apex data
 
 **Type:** T5-seed
 **Context budget:** ~35k tokens
@@ -657,14 +657,14 @@ Delete test files; no schema/code changes.
 ### GIVEN / WHEN / THEN
 **GIVEN** `reference_tables` and `reference_schemas` tables exist
 **WHEN** `pnpm seed:settings-reference` runs
-**THEN** `reference_schemas` rows exist for all 7 table codes (`dept_columns`, `pack_sizes`, `lines_by_pack_size`, `dieset_by_line_pack`, `templates`, `processes`, `close_confirm`); Forza baseline data seeded in `reference_tables`: pack_sizes (5 rows), lines_by_pack_size (5 rows), dieset_by_line_pack (10 rows), templates (4 rows), processes (8 rows: Strip/A, Coat/B, Honey/C, Smoke/E, Slice/F, Tumble/G, Dice/H, Roast/R), close_confirm (2 rows: Yes/No), dept_columns (58 rows); materialized view refreshed after seed
+**THEN** `reference_schemas` rows exist for all 7 table codes (`dept_columns`, `pack_sizes`, `lines_by_pack_size`, `dieset_by_line_pack`, `templates`, `processes`, `close_confirm`); Apex baseline data seeded in `reference_tables`: pack_sizes (5 rows), lines_by_pack_size (5 rows), dieset_by_line_pack (10 rows), templates (4 rows), processes (8 rows: Strip/A, Coat/B, Honey/C, Smoke/E, Slice/F, Tumble/G, Dice/H, Roast/R), close_confirm (2 rows: Yes/No), dept_columns (58 rows); materialized view refreshed after seed
 
 ### Implementation (max 5 sub-steps)
 1. Create `seed/settings-reference-seed.ts` with typed Drizzle inserts for `reference_schemas` rows per each of 7 table codes (column definitions per §8.2 schema format)
-2. Insert Forza reference data from v7 source: pack_sizes (20x30cm, 25x35cm, 18x24cm, 30x40cm, 15x20cm), processes 8 rows, close_confirm Yes/No, templates 4 rows with process_1..4 mappings
+2. Insert Apex reference data from v7 source: pack_sizes (20x30cm, 25x35cm, 18x24cm, 30x40cm, 15x20cm), processes 8 rows, close_confirm Yes/No, templates 4 rows with process_1..4 mappings
 3. Insert `dept_columns` 58 rows (schema metadata from ADR-028 format) with dept_code, data_type, blocking_rule per column
 4. Call `REFRESH MATERIALIZED VIEW CONCURRENTLY mv_reference_lookup` after inserts
-5. Register seed + add npm script; named snapshot `settings-reference-forza-baseline`
+5. Register seed + add npm script; named snapshot `settings-reference-apex-baseline`
 
 ### Files
 - **Create:** `seed/settings-reference-seed.ts`, `seed/data/reference/pack-sizes.ts`, `seed/data/reference/processes.ts`, `seed/data/reference/dept-columns.ts`
@@ -819,7 +819,7 @@ Drop trigger function from DB; delete route file.
 - **Parallel (can run concurrently):** [T-02SETa-026, T-02SETa-028]
 
 ### GIVEN / WHEN / THEN
-**GIVEN** Reference CRUD UI + server actions + MV refresh implemented; Forza seed applied
+**GIVEN** Reference CRUD UI + server actions + MV refresh implemented; Apex seed applied
 **WHEN** Playwright E2E + integration suite runs
 **THEN** admin can CRUD all 7 reference tables; MV refresh fires after each mutation; audit_log rows created; outbox events emitted; optimistic lock conflict returns clear error in UI; RLS prevents cross-org reference row access
 
@@ -1230,13 +1230,13 @@ Delete test files.
 - **Parallel (can run concurrently):** []
 
 ### GIVEN / WHEN / THEN
-**GIVEN** All three tracks (S-α, S-β, S-γ) complete; Forza seed applied; full E-1 migration stack applied
+**GIVEN** All three tracks (S-α, S-β, S-γ) complete; Apex seed applied; full E-1 migration stack applied
 **WHEN** Playwright runs `e2e/settings/acceptance.spec.ts`
-**THEN** owner creates org → creates user (NPD Manager role) → assigns role → NPD Manager logs in → RLS enforces org scope (cross-org query returns 0 rows) → `pack_sizes` dropdown has 5 Forza rows → `templates` has 4 rows → `processes` has 8 rows → `dieset_by_line_pack` has 10 rows → `dept_columns` schema metadata queryable (58 rows) → modules 01-npd enabled → `organization_modules.enabled=true` for `01-npd` → `permissions.enum.ts` has all 10 settings permission strings → audit_log has entries for all mutations → outbox_events has `org.created`, `user.invited`, `role.assigned` → CI gate green
+**THEN** owner creates org → creates user (NPD Manager role) → assigns role → NPD Manager logs in → RLS enforces org scope (cross-org query returns 0 rows) → `pack_sizes` dropdown has 5 Apex rows → `templates` has 4 rows → `processes` has 8 rows → `dieset_by_line_pack` has 10 rows → `dept_columns` schema metadata queryable (58 rows) → modules 01-npd enabled → `organization_modules.enabled=true` for `01-npd` → `permissions.enum.ts` has all 10 settings permission strings → audit_log has entries for all mutations → outbox_events has `org.created`, `user.invited`, `role.assigned` → CI gate green
 
 ### Implementation (max 5 sub-steps)
 1. Write `e2e/settings/acceptance.spec.ts` covering full ADR-032 carveout requirements (owner flow + user flow + RLS + reference data presence)
-2. Assert all 7 reference table row counts match Forza seed expectations
+2. Assert all 7 reference table row counts match Apex seed expectations
 3. Assert permissions.enum.ts exports (static import check in test)
 4. Assert audit_log entries per action type
 5. Mark as E-2 gate in CI: `pnpm test:smoke --suite=settings-acceptance` must be green before NPD-a dispatch

@@ -101,7 +101,7 @@ const MNT_ASSETS = [
 
 // Asset hierarchy tree for MAINT-002 (plant → line → machine)
 const MNT_ASSET_HIER = [
-  { level: 0, key: "WH-Factory-A", name: "Forza Foods — Factory A", count: 15, ic: "🏭", alerts: 3 },
+  { level: 0, key: "WH-Factory-A", name: "Apex Foods — Factory A", count: 15, ic: "🏭", alerts: 3 },
   { level: 1, key: "WH-Factory-A.LINE-01", name: "LINE-01 (Kiełbasa)", parent: "WH-Factory-A", count: 4, ic: "⚙", alerts: 1 },
   { level: 2, key: "AST-1001", name: "Mixer M-002",    parent: "WH-Factory-A.LINE-01", status: "in_work",    ic: "⚙", crit: "critical" },
   { level: 2, key: "AST-1002", name: "Grinder GR-07",  parent: "WH-Factory-A.LINE-01", status: "operational", ic: "⚙", crit: "critical" },
@@ -410,12 +410,12 @@ const MNT_SPARE_DETAIL = {
 // TECHNICIANS (MAINT-015)
 // ============================================================
 const MNT_TECHNICIANS = [
-  { id: "TEC-01", name: "M. Nowak",     email: "m.nowak@forza",     skill: "specialist", certs: ["IEC 60079","LOTO Cert.","Refrigeration L2","Food Safety L3"], certExp: "2027-02-20", onShift: true,  assignedMwos: 3, rate: 32.00, initials: "MN" },
-  { id: "TEC-02", name: "A. Majewska",  email: "a.majewska@forza",  skill: "advanced",   certs: ["ISO 17025 Cal.","LOTO Cert."],                                 certExp: "2026-11-30", onShift: true,  assignedMwos: 2, rate: 28.00, initials: "AM" },
-  { id: "TEC-03", name: "K. Dudek",     email: "k.dudek@forza",     skill: "advanced",   certs: ["LOTO Cert.","Welding Cert."],                                 certExp: "2026-06-15", onShift: true,  assignedMwos: 2, rate: 26.00, initials: "KD" },
-  { id: "TEC-04", name: "J. Wolak",     email: "j.wolak@forza",     skill: "basic",      certs: ["Sanitation Cert.","LOTO Cert."],                              certExp: "2026-05-01", onShift: true,  assignedMwos: 2, rate: 22.00, initials: "JW" },
-  { id: "TEC-05", name: "M. Rogala",    email: "m.rogala@forza",    skill: "basic",      certs: ["LOTO Cert."],                                                 certExp: "2026-08-12", onShift: false, assignedMwos: 0, rate: 22.00, initials: "MR" },
-  { id: "TEC-06", name: "P. Szczurek",  email: "p.szczurek@forza",  skill: "specialist", certs: ["ATEX Cert.","LOTO Cert.","High-Voltage Cert.","ISO 17025"],    certExp: "2026-04-30", onShift: false, assignedMwos: 1, rate: 34.00, initials: "PS" },
+  { id: "TEC-01", name: "M. Nowak",     email: "m.nowak@apex",     skill: "specialist", certs: ["IEC 60079","LOTO Cert.","Refrigeration L2","Food Safety L3"], certExp: "2027-02-20", onShift: true,  assignedMwos: 3, rate: 32.00, initials: "MN" },
+  { id: "TEC-02", name: "A. Majewska",  email: "a.majewska@apex",  skill: "advanced",   certs: ["ISO 17025 Cal.","LOTO Cert."],                                 certExp: "2026-11-30", onShift: true,  assignedMwos: 2, rate: 28.00, initials: "AM" },
+  { id: "TEC-03", name: "K. Dudek",     email: "k.dudek@apex",     skill: "advanced",   certs: ["LOTO Cert.","Welding Cert."],                                 certExp: "2026-06-15", onShift: true,  assignedMwos: 2, rate: 26.00, initials: "KD" },
+  { id: "TEC-04", name: "J. Wolak",     email: "j.wolak@apex",     skill: "basic",      certs: ["Sanitation Cert.","LOTO Cert."],                              certExp: "2026-05-01", onShift: true,  assignedMwos: 2, rate: 22.00, initials: "JW" },
+  { id: "TEC-05", name: "M. Rogala",    email: "m.rogala@apex",    skill: "basic",      certs: ["LOTO Cert."],                                                 certExp: "2026-08-12", onShift: false, assignedMwos: 0, rate: 22.00, initials: "MR" },
+  { id: "TEC-06", name: "P. Szczurek",  email: "p.szczurek@apex",  skill: "specialist", certs: ["ATEX Cert.","LOTO Cert.","High-Voltage Cert.","ISO 17025"],    certExp: "2026-04-30", onShift: false, assignedMwos: 1, rate: 34.00, initials: "PS" },
 ];
 
 const MNT_SKILLS = ["Mechanical", "Electrical", "Pneumatic", "Calibration", "LOTO", "Sanitation", "Welding", "Refrigeration", "Gearbox", "Hydraulic"];

@@ -37,7 +37,7 @@
 | 3 | **Username + 4-6 PIN auth** (baseline miał session reuse z desktop) | §12.1 | [UNIVERSAL] |
 | 4 | **LP lock protocol 5min** (05-WH §13.4 consumer) | §8.3 | [UNIVERSAL] |
 | 5 | **3-method input parity** (hardware+camera+manual wszystkie P1) | §6 D5 + §11 | [UNIVERSAL] |
-| 6 | **Kiosk vs personal device mode** (60s vs 300s idle) | §6 D7 + §3.3 | [FORZA→UNIVERSAL] |
+| 6 | **Kiosk vs personal device mode** (60s vs 300s idle) | §6 D7 + §3.3 | [APEX→UNIVERSAL] |
 | 7 | **Per-severity error policy** (block/warn/info z reason_code dla warn) | §6 D9 | [UNIVERSAL] |
 | 8 | **PIN rotation admin-configurable** (default 180d) | §6 D8 + §12.2 | [UNIVERSAL] |
 | 9 | **SCN-060 Split LP** promoted P1 | §8.3 | [UNIVERSAL] |
@@ -182,7 +182,7 @@ Z §16.5 w 06-SCANNER-P1 v3.0:
 
 Phase C2 Sesja 3 efektywnie zamknęła 06-SCANNER-P1 w **1 sesji** (est. ~1, w budżecie). Kluczowa decyzja sesji = **Q4 upgrade** — 3-method input parity (hardware+camera+manual wszystkie P1), nie tylko manual+hardware baseline. User rationale: "camera should be our standard". Koszt: +2-3 sesje impl w 06-a (camera component z `@zxing/browser` + viewfinder overlay + permission handling). Zwrot: zero friction dla iPhone/Android operatorów (QA mobile, supervisor override) bez potrzeby hardware scanner fleet expansion.
 
-Drugi ważny moment = **intermediate cascade alignment** — 06-SCANNER SCN-080 jest **jedynym mechanizmem konsumpcji intermediate LPs** w całym systemie per 05-WH Q6 revised. To lockuje scanner jako kluczowy building block dla Forza multi-stage production reality (RM → intermediate → FA WOs z storable LP buffer).
+Drugi ważny moment = **intermediate cascade alignment** — 06-SCANNER SCN-080 jest **jedynym mechanizmem konsumpcji intermediate LPs** w całym systemie per 05-WH Q6 revised. To lockuje scanner jako kluczowy building block dla Apex multi-stage production reality (RM → intermediate → FA WOs z storable LP buffer).
 
 Phase C2 **COMPLETE** — 3 fundamentowe PRDy (planning + warehouse + scanner) spięte cross-PRD consistently (04 v3.1 revision, 05 §13 consumer contract, 06 consumer of both). Ready dla C3 (07-PLANNING-EXT + 08-PRODUCTION) z pełnym consumer-producer chain defined.
 

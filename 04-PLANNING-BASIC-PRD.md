@@ -16,7 +16,7 @@ Moduł **04-PLANNING-BASIC** (M04) to kręgosłup operacyjny MES — zarządza l
 
 - **PO** — 3-step flow, smart defaults z supplier master, bulk create, approval workflow, D365 supplier pull consumer [INTEGRATIONS stage 1]
 - **TO** — intra-site state machine (ADR-019), partial shipments, LP pre-selection
-- **WO** — BOM snapshot (ADR-002), routing copy, material availability, hard-lock reservations, **intermediate cascade DAG** (Phase D #19 N+1 — Forza core, nie flag-gated), **co-products/byproducts** output, release-to-warehouse → Scanner M06 handoff
+- **WO** — BOM snapshot (ADR-002), routing copy, material availability, hard-lock reservations, **intermediate cascade DAG** (Phase D #19 N+1 — Apex core, nie flag-gated), **co-products/byproducts** output, release-to-warehouse → Scanner M06 handoff
 - **Allergen-aware sequencing** [R3] — basic heuristic P1 (group by family), full optimizer → 07-PLANNING-EXT
 - **D365 SO trigger** — pull sales orders → draft WO gen (feature flag `integration.d365.so_trigger.enabled`)
 - **Workflow-as-data** — state machines ADR-007/ADR-019 jako DSL rules w 02-SETTINGS §7 registry (dev-authored, admin read-only per Q2 C1 decision)
@@ -24,7 +24,7 @@ Moduł **04-PLANNING-BASIC** (M04) to kręgosłup operacyjny MES — zarządza l
 
 ### Kluczowa decyzja Phase D #19 (intermediate cascade core)
 
-Forza **tropi intermediate steps jako storable LP** — każdy process step produkuje output, który może być put-away do magazynu lub continue do następnego WO. **Catalog-driven, nie flag-gated:**
+Apex **tropi intermediate steps jako storable LP** — każdy process step produkuje output, który może być put-away do magazynu lub continue do następnego WO. **Catalog-driven, nie flag-gated:**
 
 ```
 Catalog ma intermediate items → BOM N-warstwowy → Planning generuje N+1 WO (DAG)
@@ -38,7 +38,7 @@ Multi-tenant friendly bez config switches — wynikowa liczba WO = liczba warstw
 - **02-SETTINGS §6** — schema-driven ext cols dla PO/TO/WO (per ADR-028, L3 `ext_jsonb`)
 - **02-SETTINGS §7** — rule registry dla WO/TO/PO state machines + allergen sequencing rules
 - **02-SETTINGS §9** — multi-tenant L2 dept variations (per ADR-030 config depts) wpływają na WO resource matrix
-- **02-SETTINGS §11** — D365 Constants (Forza 5 consts: FNOR/FOR100048/ForzDG/FinGoods/FProd01) w PO/WO metadata
+- **02-SETTINGS §11** — D365 Constants (Apex 5 consts: FNOR/FOR100048/ApexDG/FinGoods/FProd01) w PO/WO metadata
 - **02-SETTINGS §12** — warehouses, production lines, machines z infrastructure registry
 - **03-TECHNICAL §5-§6** — items (5 types: rm/intermediate/fa/co_product/byproduct), product master, PR<digits><letter> intermediate codes
 - **03-TECHNICAL §7** — BOM versioning, co-products allocation_pct, BOM Generator N+1 output
@@ -107,7 +107,7 @@ Dostarczyć wydajne, intuicyjne narzędzie planistyczne, które eliminuje arkusz
 | **Planner** (Planista) | WO + TO + Scheduling | Create WO z BOM, approve material plan, set priorities, TO routing między magazynami |
 | **Production Manager** | WO release + Dashboard | Release WO do production + to warehouse, review dashboard, override pause reasons, approve overproduction |
 | **Warehouse Operator** | TO/PO operational (delegated) | GRN w 05-WAREHOUSE (receive PO lines), TO ship/receive z LP |
-| **NPD Manager (Jane — FORZA)** | WO post-NPD handoff | Visible jako source_of_demand dla WO tworzonych z 01-NPD finalized articles |
+| **NPD Manager (Jane — APEX)** | WO post-NPD handoff | Visible jako source_of_demand dla WO tworzonych z 01-NPD finalized articles |
 | **Finance Lead** | WO close | Post-completion WO → Finance 10 close (Phase 2, stub P1) |
 | **Admin** | Settings | Planning Settings CRUD (numeration, approval thresholds, status display) |
 
@@ -147,14 +147,14 @@ Dostarczyć wydajne, intuicyjne narzędzie planistyczne, które eliminuje arkusz
 | TO partial shipments, LP pre-selection | Should Have | [UNIVERSAL] |
 | WO CRUD z BOM snapshot ADR-002, routing copy, material scaling | Must Have | [UNIVERSAL] |
 | WO state machine ADR-007 (DRAFT→RELEASED→IN_PROGRESS→ON_HOLD↔IN_PROGRESS→COMPLETED→CLOSED+CANCELLED) | Must Have | [UNIVERSAL] |
-| **WO intermediate cascade DAG** — catalog-driven N+1 generation, wo_dependencies topological sort | Must Have | [UNIVERSAL] (Forza core) |
+| **WO intermediate cascade DAG** — catalog-driven N+1 generation, wo_dependencies topological sort | Must Have | [UNIVERSAL] (Apex core) |
 | **WO co-products/byproducts outputs** — wo_outputs tabela z allocation_pct z BOM | Must Have | [UNIVERSAL] |
 | WO material availability check (G/Y/R), hard-lock reservation on LP | Must Have | [UNIVERSAL] |
 | WO rework exception (is_rework=true) — bez BOM, manual materials | Must Have | [UNIVERSAL] |
 | WO release-to-warehouse → Scanner M06 visibility | Must Have | [UNIVERSAL] |
 | **Allergen-aware WO sequencing** — basic heuristic P1 (group by family) | Should Have | [UNIVERSAL] |
 | **D365 SO trigger** — pull nightly + on-demand → draft WO generation | Must Have | [LEGACY-D365] |
-| **Meat_Pct multi-comp aggregation** — Phase D #14, comma-sep from BOM expand | Must Have | [FORZA-CONFIG → UNIVERSAL] |
+| **Meat_Pct multi-comp aggregation** — Phase D #14, comma-sep from BOM expand | Must Have | [APEX-CONFIG → UNIVERSAL] |
 | Planning Dashboard — KPI cards, alerts, upcoming orders, cache 1min | Should Have | [UNIVERSAL] |
 | Planning Settings — PO/TO/WO config, numeracja, approval rules, status display | Must Have | [UNIVERSAL] |
 | **Workflow-as-data integration** — state machines jako DSL rules w 02-SETTINGS §7 registry | Must Have | [UNIVERSAL] |
@@ -198,7 +198,7 @@ Dostarczyć wydajne, intuicyjne narzędzie planistyczne, które eliminuje arkusz
 | Marker | W obrębie 04-PLANNING-BASIC |
 |--------|------------------------------|
 | [UNIVERSAL] | 85% content — PO/TO/WO state machines, BOM snapshot, DAG cascade, hard-lock, dashboard |
-| [FORZA-CONFIG] | ~5% — Meat_Pct multi-comp semantics, D365 Forza consts integration (FNOR/ForzDG/FProd01) |
+| [APEX-CONFIG] | ~5% — Meat_Pct multi-comp semantics, D365 Apex consts integration (FNOR/ApexDG/FProd01) |
 | [EVOLVING] | ~5% — allergen sequencing heuristic (→ full optimizer 07), finite-capacity stub (→ engine 07) |
 | [LEGACY-D365] | ~5% — D365 SO trigger, supplier pull consumer, WO confirmations push handoff do 03-TECHNICAL §13 |
 
@@ -240,7 +240,7 @@ planning_settings
 | postal_code | VARCHAR(20) | |
 | country | CHAR(2) | ISO 3166-1 |
 | contact_name/email/phone | VARCHAR | Primary contact |
-| currency | CHAR(3) | Default GBP (Forza) |
+| currency | CHAR(3) | Default GBP (Apex) |
 | tax_code_id | UUID FK | 02-SETTINGS §8 reference |
 | payment_terms | VARCHAR(50) | "NET30", "NET60", "COD" |
 | d365_supplier_id | VARCHAR(50) NULL | Back-reference dla pull sync |
@@ -495,7 +495,7 @@ work_orders ─< wo_status_history
 - Soft delete (`is_active=false`) nie hard-delete — zachowuje history
 - Audit trail wszystkie fields via `created_at/by` + `updated_at/by`
 - API: `GET/POST/PUT/DELETE /api/planning/suppliers`
-- Ext cols via ADR-028 L3 (e.g., Forza może add `certifications` JSON)
+- Ext cols via ADR-028 L3 (e.g., Apex może add `certifications` JSON)
 
 **FR-PLAN-002:** Supplier-product assignments z is_default enforcement (max 1 per product).
 
@@ -594,7 +594,7 @@ Consumers: D365 adapter push (P2 for PO confirmations to D365), analytics, dashb
 ### 7.1 Scope
 
 TO = transfer między warehouses w ramach jednego site (Phase D boundary).
-Multi-site transfers (FORZ ↔ KOBE) = **M14 Multi-Site** osobny entity z `from_site_id/to_site_id` polami.
+Multi-site transfers (APEX ↔ KOBE) = **M14 Multi-Site** osobny entity z `from_site_id/to_site_id` polami.
 
 ### 7.2 TO state machine (ADR-019)
 
@@ -772,7 +772,7 @@ function generateWODAG(root_demand):
 | `planner_decides` | ~~Planner wybiera w dashboard przed release~~ | **DEFERRED → P2** jeśli real demand |
 
 **Rationale P1 narrowing:**
-1. **Forza reality** — intermediate fizycznie trafia na buffer/chłodnię między operacjami (nie ma tight-flow direct handoff)
+1. **Apex reality** — intermediate fizycznie trafia na buffer/chłodnię między operacjami (nie ma tight-flow direct handoff)
 2. **Zero inter-WO locking complexity** — WO interrupt/cancel = zero cleanup (LP stays `available`)
 3. **Out-of-order consumption naturalne** — operator na linii decyduje kolejność, scan-based
 4. **Audit clarity** — genealogy via chronological scan events, nie pre-allocated reservations
@@ -832,7 +832,7 @@ DRAFT ──→ RELEASED ──→ IN_PROGRESS ⇄ ON_HOLD ──→ COMPLETED �
 - State machine identyczny, guard `hasBOM` skipped dla rework
 - Audit: always logged, approval required (settings-driven `wo_rework_require_approval`)
 
-### 8.9 Meat_Pct multi-comp aggregation [FORZA-CONFIG]
+### 8.9 Meat_Pct multi-comp aggregation [APEX-CONFIG]
 
 **FR-PLAN-026 (Phase D #14):**
 
@@ -934,7 +934,7 @@ Dla WOs z multi-component BOM (np. mixed-meat product), `Meat_Pct` computed by:
 
 ---
 
-## §10 — Allergen-Aware WO Sequencing [FORZA-CONFIG → UNIVERSAL, [EVOLVING]]
+## §10 — Allergen-Aware WO Sequencing [APEX-CONFIG → UNIVERSAL, [EVOLVING]]
 
 ### 10.1 Scope
 
@@ -987,7 +987,7 @@ Sequencing logic deployed jako DSL rule w 02-SETTINGS §7 registry (rule_id: `al
 
 - Baseline: measure changeover count przed sequencing enabled
 - Post-enable: measure reduction
-- Target: > 30% reduction dla Forza 6-month rolling window
+- Target: > 30% reduction dla Apex 6-month rolling window
 - Dashboard tile: "Changeovers this week vs baseline"
 
 ### 10.7 Frontend/UX
@@ -1417,7 +1417,7 @@ State machines ADR-007 (WO) i ADR-019 (TO) oraz PO lifecycle przeniesione z hard
 - Changes require new rule_version (v2 side-by-side with v1 for A/B / canary rollout)
 
 **Rollout model:**
-- v1 = P1 baseline, stable Forza + any new tenant
+- v1 = P1 baseline, stable Apex + any new tenant
 - v2 = enhancements (e.g., full allergen optimizer → delta vs heuristic), per-tenant opt-in
 - Both versions run in parallel for monitoring period
 
@@ -1447,7 +1447,7 @@ Per 00-FOUNDATION §4.2 build rozbicie:
 |---|----------|-------|---------------|
 | OQ1 | Cascade generation re-run behavior po BOM change | Czy re-cascade auto-updates child WOs, czy tylko warning? | Resolve w 04-PLANNING-c impl |
 | OQ2 | Allergen sequencing granularity dla P1 heuristic | Line-level only, czy multi-line cross-optimization? | P1 = line-only, multi w 07 |
-| OQ3 | D365 SO pull window_days default | 14? 30? Per-tenant config? | Config z default 14, Forza może override |
+| OQ3 | D365 SO pull window_days default | 14? 30? Per-tenant config? | Config z default 14, Apex może override |
 | OQ4 | Hard-lock reservation vs soft reservation w scheduling window | Hard immediately, czy soft first → hard on release? | P1 = hard on release only, soft w P2 |
 | OQ5 | WO cancellation cascade behavior | Cancel parent WO → auto-cancel children, czy only warn? | Warn + require explicit child cancel |
 | OQ6 | Changeover time modeling | Hardcoded 30min default lub lookup per allergen pair z 03-TECHNICAL §10.5? | Hardcoded P1, lookup 07 |
@@ -1503,7 +1503,7 @@ Per 00-FOUNDATION §4.2 build rozbicie:
 **External references (reality sources):**
 - `_meta/reality-sources/pld-v7-excel/EVOLVING.md` — intermediate cascade planned (Builder_FA5101 N+1 pattern)
 - `_meta/reality-sources/pld-v7-excel/D365-INTEGRATION.md` — D365 integration context
-- `_meta/reality-sources/pld-v7-excel/WORKFLOW-RULES.md` — Forza planning workflow reality
+- `_meta/reality-sources/pld-v7-excel/WORKFLOW-RULES.md` — Apex planning workflow reality
 
 **Research:**
 - MES-TRENDS-2026.md §3 (finite-capacity, allergen-aware sequencing, demand forecasting), §7 (scheduling mobile handoff), §9 (04-PLANNING specifics)
@@ -1521,20 +1521,20 @@ Per 00-FOUNDATION §4.2 build rozbicie:
 - **§8.6** material availability: projection-based dla 'upstream_wo_output' (actual @ COMPLETED, projected @ IN_PROGRESS/RELEASED), zero reservation.
 - **§9.2** reservation creation: `DRAFT→RELEASED` trigger creates reservations **tylko** dla material_source='stock'. Intermediate = Scanner scan-to-wo runtime (05-WAREHOUSE §10.5).
 - **§9.4** cancellation handling: intermediate WO cancel = zero cleanup (LP resilience).
-- **Rationale**: Forza reality (intermediate buffer between ops), WO interrupt resilience, natural out-of-order consumption, simpler audit chain.
+- **Rationale**: Apex reality (intermediate buffer between ops), WO interrupt resilience, natural out-of-order consumption, simpler audit chain.
 - **Cross-PRD consistency**: 05-WAREHOUSE v3.0 §10 Intermediate LP Handling = canonical spec; 04-PLANNING v3.1 reflects downstream handoff.
 
 **v3.0 (2026-04-20, Phase C2 Sesja 1):**
 - **Complete rewrite** vs v3.2 baseline (595 → ~1400+ linii)
 - Renumbering per Phase D: M04 → 04-PLANNING-BASIC; M03 (Warehouse) → 05-WAREHOUSE; M05 (Scanner) → 06-SCANNER-P1; M06 (Production) → 08-PRODUCTION; M10 (Finance) → 10-FINANCE
-- Added **intermediate cascade DAG** §8.4 — catalog-driven, nie flag-gated, per Forza reality (Q6 revised 2026-04-20)
+- Added **intermediate cascade DAG** §8.4 — catalog-driven, nie flag-gated, per Apex reality (Q6 revised 2026-04-20)
 - Added **wo_outputs table** §5.8 — co-products + byproducts + primary output w ramach jednego WO
 - Added **wo_dependencies table** §5.9 — DAG edges z cycle detection
-- Added **Allergen-Aware WO Sequencing §10** [FORZA→UNIVERSAL, [EVOLVING]] — basic heuristic P1, full optimizer 07
+- Added **Allergen-Aware WO Sequencing §10** [APEX→UNIVERSAL, [EVOLVING]] — basic heuristic P1, full optimizer 07
 - Added **Finite-Capacity Scheduling Stub §11** [EVOLVING → 07-PLANNING-EXT]
 - Added **D365 SO Trigger §15** [LEGACY-D365] — full integration stage 1 consumer side
 - Added **Workflow-as-data integration §16.1** — state machines jako rule registry DSL (per Q2 C1)
-- Added **Meat_Pct multi-comp** §8.9 [FORZA-CONFIG] — Phase D #14
+- Added **Meat_Pct multi-comp** §8.9 [APEX-CONFIG] — Phase D #14
 - Added **Configurable status display** §14.2 — names/colors only, workflow stały (per Q2 C1)
 - Added **Schema-driven ext cols** — all entities z `ext_jsonb` + `schema_version` (ADR-028 L3)
 - Added **Outbox events** — all state transitions emit events

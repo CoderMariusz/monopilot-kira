@@ -678,7 +678,7 @@ idempotencyKey: 018fa2b3-...-uuid-v7
 dataAreaId: FNOR
 shipmentId: SH-2026-00045
 customerAccount: LIDL-PL-0012
-warehouse: ForzDG
+warehouse: ApexDG
 lines: [
   { lineNum:1, itemId:"FA5100", qty:120, unitId:"ea" },
   { lineNum:2, itemId:"FA5200", qty:80,  unitId:"ea" },

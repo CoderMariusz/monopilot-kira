@@ -87,7 +87,7 @@ const MsDashboard = ({ role, site, onNav, onOpenSite, onOpenIST, openModal }) =>
               <div className="ms-tree-item l0">
                 <span className="ms-tree-icon">🏢</span>
                 <div className="ms-tree-main">
-                  <div><span className="ms-tree-name">Forza Foods / KOBE Organization</span></div>
+                  <div><span className="ms-tree-name">Apex Foods / KOBE Organization</span></div>
                   <span className="ms-tree-kpi">4 sites · 3 countries · 52 users · £2.44M aggregated inventory</span>
                 </div>
                 <div className="ms-tree-right">

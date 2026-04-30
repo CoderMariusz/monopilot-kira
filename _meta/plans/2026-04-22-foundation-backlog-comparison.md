@@ -69,8 +69,8 @@ These 47 items look like real Foundation scope that alt did not re-derive from t
 | T-14 | Pre-commit lint/prettier/typecheck + **18k token cap** | Alt has Husky (T-00a-006) but no token-cap gate | ⚠️ kira-hq-specific discipline — port as extension of T-00a-006 |
 | T-17 | Sentry + OpenTelemetry baseline | Alt ships Sentry only (T-00i-006); OTel **explicitly deferred** per alt §10 out-of-scope | ✅ acceptable scope call — alt defers OTel to later; note in merged backlog |
 | T-19 | i18n scaffold pl/en/uk/ro (ICU MessageFormat) | Alt explicitly defers to E-1 per ADR-032 | ✅ acceptable per ADR-032 — track as E-1 item |
-| T-21 | Main Table migration — 69 typed cols + ext/private JSONB + schema_version | Alt has `main_table` as a placeholder in T-00h-001 but **does not ship 69 real cols** | ⚠️ conflict — 47 treats this as E-0, alt defers until first module lands; **decision needed** whether the 69-col Forza Main Table is E-0 or E-2 |
-| T-34 | Dept taxonomy: Forza 7 depts seed + dept_overrides runtime | Alt defers seed/overrides to 02-SETTINGS-d (E-2) | ✅ acceptable per ADR-032 — runtime stays E-0 (covered by T-00h-*), seed is E-2 |
+| T-21 | Main Table migration — 69 typed cols + ext/private JSONB + schema_version | Alt has `main_table` as a placeholder in T-00h-001 but **does not ship 69 real cols** | ⚠️ conflict — 47 treats this as E-0, alt defers until first module lands; **decision needed** whether the 69-col Apex Main Table is E-0 or E-2 |
+| T-34 | Dept taxonomy: Apex 7 depts seed + dept_overrides runtime | Alt defers seed/overrides to 02-SETTINGS-d (E-2) | ✅ acceptable per ADR-032 — runtime stays E-0 (covered by T-00h-*), seed is E-2 |
 | T-36 | tenant_migrations table + canary rollout scaffolding | Alt missing entirely | ⚠️ gap — **port as T-00b-005b** or explicit out-of-scope pointer (canary is first needed when second tenant ships, probably E-2) |
 | T-37 | D365 adapter interface stub | Alt missing | ⚠️ scope call — PRD lists D365 as stub in Foundation; **port as T-00?-stub** or defer with pointer |
 | T-38 | Peppol AP adapter stub | Alt missing | ⚠️ scope call — same as T-37 |
@@ -163,7 +163,7 @@ These 4 must be added to the merged backlog as **hard upstream blockers** for al
 ### B.9 Missing testing/CI/observability slices
 
 - T-00i-003 Integration test harness (Supabase local + `db:reset` per test)
-- T-00i-004 Seed fixture library (Forza baseline + synthetic multi-tenant)
+- T-00i-004 Seed fixture library (Apex baseline + synthetic multi-tenant)
 - T-00i-006 Sentry init explicit (web + worker + source maps)
 - T-00i-008 Vercel preview deploys + deploy gates
 - T-00i-009 Accessibility baseline via `@axe-core/playwright`
@@ -188,9 +188,9 @@ These 4 must be added to the merged backlog as **hard upstream blockers** for al
 ## D. Conflicts (different intent, both may be right)
 
 1. **T-21 Main Table 69 cols (47 E-0) vs. alt `main_table` placeholder (E-0) + real schemas in E-2 modules.**  
-   Decision: follow ADR-032 — baseline tables (tenants, users, roles, main_table placeholder) in E-0; Forza-specific Main Table with 69 cols materializes when first module (likely Warehouse or Scanner) lands in E-2. **Accept alt's interpretation.**
+   Decision: follow ADR-032 — baseline tables (tenants, users, roles, main_table placeholder) in E-0; Apex-specific Main Table with 69 cols materializes when first module (likely Warehouse or Scanner) lands in E-2. **Accept alt's interpretation.**
 
-2. **T-34 Dept taxonomy Forza 7 depts seed (47 E-0) vs. alt defers seed to 02-SETTINGS-d (E-2).**  
+2. **T-34 Dept taxonomy Apex 7 depts seed (47 E-0) vs. alt defers seed to 02-SETTINGS-d (E-2).**  
    Decision: per ADR-032 Settings-a carveout model, seed goes to E-1. **Accept alt's interpretation.**
 
 3. **T-36 tenant_migrations + canary rollout (47 E-0) vs. alt missing.**  

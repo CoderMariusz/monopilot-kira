@@ -119,23 +119,23 @@ window.SETTINGS_SCHEMA = [
   { table: "main_table",         col: "product_code",        type: "text",    tier: "L1", req: true,  dept: "Core",       storage: "native",        status: "active", version: 1, label: "Product code" },
   { table: "main_table",         col: "pack_size",           type: "relation", tier: "L1", req: true,  dept: "Packaging",  storage: "native",        status: "active", version: 3, label: "Pack size" },
   { table: "main_table",         col: "shelf_life_days",     type: "number", tier: "L1", req: true,  dept: "Technical",  storage: "native",        status: "active", version: 2, label: "Shelf life (days)" },
-  { table: "main_table",         col: "forza_dieset_code",   type: "text",   tier: "L3", req: false, dept: "Production", storage: "ext_jsonb",     status: "active", version: 1, label: "Dieset (Forza-only)" },
+  { table: "main_table",         col: "apex_dieset_code",   type: "text",   tier: "L3", req: false, dept: "Production", storage: "ext_jsonb",     status: "active", version: 1, label: "Dieset (Apex-only)" },
   { table: "main_table",         col: "nutri_score",         type: "enum",   tier: "L2", req: false, dept: "Technical",  storage: "ext_jsonb",     status: "active", version: 1, label: "Nutri-score" },
   { table: "bom",                col: "allergen_flags",      type: "text",   tier: "L1", req: true,  dept: "Technical",  storage: "native",        status: "active", version: 5, label: "Allergen flags" },
   { table: "license_plates",     col: "use_by_date",         type: "date",   tier: "L1", req: true,  dept: "Warehouse",  storage: "native",        status: "active", version: 1, label: "Use-by date" },
   { table: "license_plates",     col: "catch_weight_kg",     type: "number", tier: "L1", req: false, dept: "Warehouse",  storage: "native",        status: "active", version: 1, label: "Catch weight" },
   { table: "reference.pack_sizes", col: "display_order",     type: "number", tier: "L1", req: true,  dept: "Packaging",  storage: "native",        status: "active", version: 1, label: "Display order" },
   { table: "work_orders",        col: "sequencing_score",    type: "formula",tier: "L1", req: false, dept: "Planning",   storage: "native",        status: "active", version: 2, label: "Sequencing score" },
-  { table: "work_orders",        col: "forza_cost_center",   type: "text",   tier: "L3", req: false, dept: "Finance",    storage: "private_jsonb", status: "draft",  version: 1, label: "Cost center (Forza)" }
+  { table: "work_orders",        col: "apex_cost_center",   type: "text",   tier: "L3", req: false, dept: "Finance",    storage: "private_jsonb", status: "draft",  version: 1, label: "Cost center (Apex)" }
 ];
 
 // ---------- D365 connection config (SET-040) ----------
 window.SETTINGS_D365 = {
-  baseUrl:   "https://forza.operations.dynamics.com",
+  baseUrl:   "https://apex.operations.dynamics.com",
   env:       "Production",
   tenantId:  "3b1f5e2a-ac22-4b7f-9e01-88ba5c06efc9",
   clientId:  "e8a2-9a44-2c11-6f92",
-  svcEmail:  "monopilot-svc@forz.pl",
+  svcEmail:  "monopilot-svc@apex.pl",
   pollCron:  "0 2 * * *",
   enabled:   true,
   lastTest:  { at: "2026-04-20 14:03", ok: true, latency: 238, env: "Production" }
@@ -160,11 +160,11 @@ window.SETTINGS_REF_TABLES = [
   { code: "uom",                  name: "Units of measure",          marker: "UNIVERSAL",   rows: 9,   updated: "2025-10-01", desc: "Base + derived units. Conversion factor to base." },
   { code: "currencies",           name: "Currency codes (ISO 4217)", marker: "UNIVERSAL",   rows: 12,  updated: "2025-08-04", desc: "Active currencies this tenant transacts in." },
   { code: "countries",            name: "Country ISO codes",         marker: "UNIVERSAL",   rows: 28,  updated: "2025-06-12", desc: "ISO 3166-1 alpha-2. Consumed by Partners + Shipping." },
-  { code: "pack_sizes",           name: "Pack sizes",                marker: "FORZA-CONFIG", rows: 18, updated: "2026-03-02", desc: "Forza-specific package sizes (regex ^\\d+x\\d+cm$)." },
-  { code: "processes",            name: "Processes",                 marker: "FORZA-CONFIG", rows: 7,  updated: "2025-12-09", desc: "Single-letter process codes A–Z." },
+  { code: "pack_sizes",           name: "Pack sizes",                marker: "APEX-CONFIG", rows: 18, updated: "2026-03-02", desc: "Apex-specific package sizes (regex ^\\d+x\\d+cm$)." },
+  { code: "processes",            name: "Processes",                 marker: "APEX-CONFIG", rows: 7,  updated: "2025-12-09", desc: "Single-letter process codes A–Z." },
   { code: "email_config",         name: "Email config",              marker: "UNIVERSAL",   rows: 6,   updated: "2026-04-10", desc: "Trigger → recipients + template. Used by SET-090." },
-  { code: "shipping_override_reasons", name: "Shipping override reasons", marker: "FORZA-CONFIG", rows: 28, updated: "2026-04-21", desc: "Reason codes per override type (FEFO deviation, expired LP, quality override, short pick, partial, hold, cancel, reprint). v3.1 delta consumed by 11-SHIPPING." },
-  { code: "rma_reason_codes",     name: "RMA reason codes",          marker: "FORZA-CONFIG", rows: 9,   updated: "2026-04-19", desc: "Return merchandise reasons (damaged, wrong item, quality issue, overshipment, etc.). v3.1 delta consumed by 11-SHIPPING RMA." }
+  { code: "shipping_override_reasons", name: "Shipping override reasons", marker: "APEX-CONFIG", rows: 28, updated: "2026-04-21", desc: "Reason codes per override type (FEFO deviation, expired LP, quality override, short pick, partial, hold, cancel, reprint). v3.1 delta consumed by 11-SHIPPING." },
+  { code: "rma_reason_codes",     name: "RMA reason codes",          marker: "APEX-CONFIG", rows: 9,   updated: "2026-04-19", desc: "Return merchandise reasons (damaged, wrong item, quality issue, overshipment, etc.). v3.1 delta consumed by 11-SHIPPING RMA." }
 ];
 
 // Shipping override reasons rows (v3.1 bundled delta — 02-SETTINGS §8 + 11-SHIPPING §7)
@@ -247,11 +247,11 @@ window.SETTINGS_EMAIL_TEMPLATES = [
   { code: "qa_fail_alert",     name: "QA failure alert",
     subject: "QA failed for {{lp.id}} ({{lp.product_name}})",
     body: "QA test {{test.code}} failed for LP {{lp.id}}.\n\nSKU: {{lp.sku}}\nBatch: {{lp.batch}}\nReason: {{test.fail_reason}}",
-    activeTo: ["qa@forz.pl"], consumer: "Quality › QA status change flow", active: true },
+    activeTo: ["qa@apex.pl"], consumer: "Quality › QA status change flow", active: true },
   { code: "wo_behind_schedule", name: "WO behind schedule",
     subject: "WO {{wo.id}} is behind schedule",
     body: "{{manager.name}},\n\nWO {{wo.id}} ({{wo.product}}) is tracking {{wo.hours_late}}h behind plan.\n\nStart: {{wo.started_at}}\nPlanned end: {{wo.planned_end}}",
-    activeTo: ["planning@forz.pl"], consumer: "Planning › WO monitor cronjob", active: false }
+    activeTo: ["planning@apex.pl"], consumer: "Planning › WO monitor cronjob", active: false }
 ];
 
 window.SETTINGS_EMAIL_VARIABLES = [
@@ -278,9 +278,9 @@ window.SETTINGS_EMAIL_VARIABLES = [
     { name: "{{lp.batch}}",       desc: "Batch code",            example: "B-2026-04-20" }
   ]},
   { group: "Org / Approver", vars: [
-    { name: "{{org.name}}",       desc: "Organisation name",     example: "Forza Foods" },
+    { name: "{{org.name}}",       desc: "Organisation name",     example: "Apex Foods" },
     { name: "{{approver.name}}",  desc: "Approver display name", example: "Anna Zając" },
-    { name: "{{approver.email}}", desc: "Approver email",         example: "a.zajac@forz.pl" },
+    { name: "{{approver.email}}", desc: "Approver email",         example: "a.zajac@apex.pl" },
     { name: "{{approve_url}}",    desc: "Deep-link to approval", example: "https://monopilot.app/po/…" }
   ]}
 ];
@@ -288,9 +288,9 @@ window.SETTINGS_EMAIL_VARIABLES = [
 // ---------- L1→L2→L3 promotion (SET-100) ----------
 window.SETTINGS_PROMOTIONS = [
   { id: "PR-2026-007", artefact: "rules.cycle_count_variance_v1",  from: "L2-local",  to: "L1-core", status: "pending",   requested: "2026-04-18", by: "a.zajac",
-    affects: "12 tenants using default 5% variance", diff: "Upgrade variance threshold from 5% → 10% (align Forza standard across tenants)." },
+    affects: "12 tenants using default 5% variance", diff: "Upgrade variance threshold from 5% → 10% (align Apex standard across tenants)." },
   { id: "PR-2026-006", artefact: "schema.main_table.nutri_score",  from: "L3-tenant", to: "L2-local", status: "approved",  requested: "2026-04-12", by: "k.nowak",
-    affects: "Tenant forza-foods only", diff: "Promote `nutri_score` column from tenant-private jsonb to shared L2 reference." },
+    affects: "Tenant apex-foods only", diff: "Promote `nutri_score` column from tenant-private jsonb to shared L2 reference." },
   { id: "PR-2026-005", artefact: "flags.reporting.custom_dsl_builder", from: "L2-local", to: "L1-core", status: "running",  requested: "2026-04-08", by: "m.wisniewska",
     affects: "All tenants (rollout 25%)", diff: "Enable custom DSL builder flag across L1 after 90-day pilot." },
   { id: "PR-2026-004", artefact: "templates.email.qa_fail_alert",  from: "L3-tenant", to: "L2-local", status: "completed", requested: "2026-03-30", by: "a.zajac",

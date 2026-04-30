@@ -155,7 +155,7 @@ Kluczowe decyzje obowiązujące w całym systemie. Każda udokumentowana jako AD
 - NIE budujemy pełnego ERP — integracja z zewnętrznym systemem finansowym
 - Fazy: Phase 1 (MVP), Phase 2, Phase 3 (Enterprise — billing, import/export, GDPR, custom roles)
 - PO creation = 3 kroki (dostawca → produkty+qty → submit)
-- Multi-site potwierdzone (FORZ + KOBE = **jedna org, dwa site'y**, shared master data, site-level filtering) — M11
+- Multi-site potwierdzone (APEX + KOBE = **jedna org, dwa site'y**, shared master data, site-level filtering) — M11
 - Reporting = osobny moduł (M15), rośnie inkrementalnie po M06 Production
 - Scanner = osobny moduł (M05), własny PRD, rośnie inkrementalnie: Move → Receive (po M03 Warehouse), Pick (po M04 Planning), Produce (po M06 Production), QA (po M08 Quality)
 - Catch weight = cross-cutting, MVP
@@ -305,7 +305,7 @@ Stage-gate workflow (Concept → Feasibility → Development → Validation → 
 [8.1] HIGH Variance £ tracking | [8.3] HIGH cost_per_kg analysis | [8.2] MEDIUM Savings calculator. Production costing. Margin analysis. Export do Comarch/Sage.
 
 ### M11 — Multi-Site (11-multi-site, Phase 2)
-[11.1] HIGH TO jako most międzyzakładowy | [11.2] HIGH Multi-site (FORZ + KOBE = 1 org, 2 sites) | [11.3] HIGH Site-level filtering na raportach. Aktywacja `site_id` (już NULL na wszystkich tabelach). Shared master data (produkty, BOM) z site-specific inventory.
+[11.1] HIGH TO jako most międzyzakładowy | [11.2] HIGH Multi-site (APEX + KOBE = 1 org, 2 sites) | [11.3] HIGH Site-level filtering na raportach. Aktywacja `site_id` (już NULL na wszystkich tabelach). Shared master data (produkty, BOM) z site-specific inventory.
 
 ### M12 — OEE (12-oee, Phase 2)
 [9.1] HIGH Downtime categories z produkcji | [9.2] HIGH Efficiency % per linia/godzina | [9.3] MEDIUM slow_running_pct, stops_pct | [9.4] MEDIUM engineering downtime %. Real-time OEE (A × P × Q). Machine dashboard. Energy monitoring.

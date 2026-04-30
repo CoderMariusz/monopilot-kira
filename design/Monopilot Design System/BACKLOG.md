@@ -211,7 +211,7 @@ Discovered during the warehouse prototype build. Internal TODOs, not blockers fo
 | ID | Item | Priority |
 |---|---|---|
 | BL-MAINT-01 | IoT sensors tab on Asset Detail — placeholder only (P2 OQ-MNT-02); needs time-series chart | P2 |
-| BL-MAINT-02 | LOTO photo evidence — "Recommended" currently; await Forza safety sign-off to gate as Required (§9 Q3) | Medium |
+| BL-MAINT-02 | LOTO photo evidence — "Recommended" currently; await Apex safety sign-off to gate as Required (§9 Q3) | Medium |
 | BL-MAINT-03 | Offline tablet mode — no Service Worker / IndexedDB (§9 Q4) | P2 |
 | BL-MAINT-04 | Two-person LOTO remote confirmation flow — prototype assumes separate sessions (§9 Q5) | Medium |
 | BL-MAINT-05 | Skills Matrix PDF export w/ attached cert scans — button stub only (§9 Q8) | Low |
@@ -299,7 +299,7 @@ Added during the 2026-04-21 gap-fill pass.
 | BL-SET-03 | SET-042 Rule version diff — JSON deep-diff (button currently disabled for non-current versions) | Medium |
 | BL-SET-04 | SET-053 CSV import wizard — 3-step upload/preview/commit for reference data | Medium |
 | BL-SET-05 | SET-061 Dept taxonomy editor — split/merge/add depts | Low |
-| BL-SET-06 | SET-081 D365 constants inline editor — 5 Forza keys inline-editable | Medium |
+| BL-SET-06 | SET-081 D365 constants inline editor — 5 Apex keys inline-editable | Medium |
 | BL-SET-07 | SET-082 D365 sync config — pull/push cron + retry policy | Medium |
 | BL-SET-08 | SET-093 Email delivery log — sent/failed/DLQ view | Low |
 | BL-SET-09 | MFA enrollment flow — MODAL-MFA-ENROLL with QR + backup codes (stubbed) | Medium |

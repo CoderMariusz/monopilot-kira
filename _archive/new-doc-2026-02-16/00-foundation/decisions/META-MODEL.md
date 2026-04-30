@@ -25,20 +25,20 @@ Level "a" to obiekty CRUD-owalne w Settings bez dewelopera. Administrator / powe
 
 ### 1.1 Zakres Level "a"
 
-| Obszar | Co zawiera (metadata) | Powiązany ADR | Przykład Forza (marker) |
+| Obszar | Co zawiera (metadata) | Powiązany ADR | Przykład Apex (marker) |
 |---|---|---|---|
-| Kolumny tabel głównych | label, type, required, owner dept, visible-for-role, validation, default | ADR-028 | Kolumna `Pack_Size` [FORZA-CONFIG] |
-| Departamenty | name, code, color, sort, leader | ADR-030 | 7 działów Forzy [FORZA-CONFIG] |
+| Kolumny tabel głównych | label, type, required, owner dept, visible-for-role, validation, default | ADR-028 | Kolumna `Pack_Size` [APEX-CONFIG] |
+| Departamenty | name, code, color, sort, leader | ADR-030 | 7 działów Apexa [APEX-CONFIG] |
 | Reguły walidacji per kolumna | required / regex / range / enum | ADR-028 | Regex GS1-128 [UNIVERSAL] |
-| Reference tables | PackSizes, Lines, Dieset, Templates, EmailConfig + nowe lookup-y | ADR-010 extended | Forza PackSizes [FORZA-CONFIG] |
-| Role × permissions matrix | kto co może (CRUD × moduł × pole) | ADR-012 + ADR-031 | Matrix Forzy [FORZA-CONFIG] |
+| Reference tables | PackSizes, Lines, Dieset, Templates, EmailConfig + nowe lookup-y | ADR-010 extended | Apex PackSizes [APEX-CONFIG] |
+| Role × permissions matrix | kto co może (CRUD × moduł × pole) | ADR-012 + ADR-031 | Matrix Apexa [APEX-CONFIG] |
 | Module toggles | feature flags per org (moduł włączony / wyłączony) | ADR-011 | `integration.d365.enabled` [LEGACY-D365] |
-| Status colors / workflow stages / gate checklist items | UI i rule metadata | ADR-029 | NPD Stage-Gate G0→G4 [FORZA-CONFIG] |
-| Notification templates | email body, triggery, mapowanie zdarzenie→odbiorca | — | Forza email templates [FORZA-CONFIG] |
+| Status colors / workflow stages / gate checklist items | UI i rule metadata | ADR-029 | NPD Stage-Gate G0→G4 [APEX-CONFIG] |
+| Notification templates | email body, triggery, mapowanie zdarzenie→odbiorca | — | Apex email templates [APEX-CONFIG] |
 
 ### 1.2 Zasada
 
-Każda pozycja z tej listy **musi** mieć UI w Settings (roles, departments, columns, rules, toggles, templates). Dodanie nowej kolumny przez administratora Forzy = insert w tabeli konfiguracji, bez rebuilda. Silnik renderu UI czyta metadane i generuje formularze / tabele / walidacje dynamicznie.
+Każda pozycja z tej listy **musi** mieć UI w Settings (roles, departments, columns, rules, toggles, templates). Dodanie nowej kolumny przez administratora Apexa = insert w tabeli konfiguracji, bez rebuilda. Silnik renderu UI czyta metadane i generuje formularze / tabele / walidacje dynamicznie.
 
 ### 1.3 Co NIE jest Level "a"
 
@@ -57,17 +57,17 @@ Level "b" to mały DSL (interpretowany z danych, nie kodu) dla obszarów, które
 Rozszerzanie poza te 4 obszary wymaga nowego ADR. To mitigacja ryzyka R1 ze spec-a §7.2: "half-baked database inside database".
 
 1. **Cascading dropdowns** — zależności wyboru jednego pola od innego.
-   Przykład: Pack_Size → Line → Dieset → Material `[FORZA-CONFIG]`. Administrator definiuje łańcuch w Settings, silnik filtruje opcje drugiego pola na podstawie wartości pierwszego.
+   Przykład: Pack_Size → Line → Dieset → Material `[APEX-CONFIG]`. Administrator definiuje łańcuch w Settings, silnik filtruje opcje drugiego pola na podstawie wartości pierwszego.
 2. **Conditional required** — pole staje się wymagane gdy zachodzi warunek.
-   Przykład: "pole MRP_Category required gdy Dept MRP aktywny" `[FORZA-CONFIG]`.
+   Przykład: "pole MRP_Category required gdy Dept MRP aktywny" `[APEX-CONFIG]`.
 3. **Gate entry criteria** — dynamiczne checklisty bramek (Stage-Gate).
-   Przykład: "G2 → G3 wymaga: BOM_complete=true AND Costing_approved=true" `[FORZA-CONFIG]`.
+   Przykład: "G2 → G3 wymaga: BOM_complete=true AND Costing_approved=true" `[APEX-CONFIG]`.
 4. **Workflow definitions as data** — state machine jako JSON/DB, interpretowana przez universal engine. Zobacz §8.
 
 ### 2.2 Marker discipline
 
 - Silnik rule engine = `[UNIVERSAL]` (kod, jeden dla wszystkich klientów).
-- Każda konkretna reguła zapisana w DB = `[FORZA-CONFIG]` lub `[EVOLVING]`.
+- Każda konkretna reguła zapisana w DB = `[APEX-CONFIG]` lub `[EVOLVING]`.
 
 ### 2.3 Dyscyplina rozszerzania
 
@@ -117,7 +117,7 @@ Monopilot jest multi-tenant from day 1. Model wariacji opiera się o [ADR-003](A
 | Core schema tabel (users, organizations, audit_log, license_plates, lot_genealogy) | Stałe dla wszystkich orgs | [UNIVERSAL] |
 | Engines (workflow engine, rule engine, BOM calc, GS1 parsers) | Stałe | [UNIVERSAL] |
 | Integracje | Stałe kod + feature flag per org | [UNIVERSAL] dla core, [LEGACY-D365] dla D365 |
-| Config tables (kolumny, reguły, role, departamenty, reference) | Per-org, filtrowane RLS | [FORZA-CONFIG] lub [UNIVERSAL seed] + [FORZA-CONFIG override] |
+| Config tables (kolumny, reguły, role, departamenty, reference) | Per-org, filtrowane RLS | [APEX-CONFIG] lub [UNIVERSAL seed] + [APEX-CONFIG override] |
 | Transactional data (produkty, WO, LPN, audyt) | Per-org, RLS | (nie dotyczy — dane operacyjne) |
 
 ### 4.2 Diagram multi-tenant variation
@@ -125,20 +125,20 @@ Monopilot jest multi-tenant from day 1. Model wariacji opiera się o [ADR-003](A
 ```mermaid
 flowchart LR
     CoreTables[Core Schema L1<br/>UNIVERSAL] --> Engines[Engines<br/>UNIVERSAL]
-    OrgA_Config[Org A Config<br/>FORZA-CONFIG] -->|RLS filter| SharedCore[Shared Core Tables]
+    OrgA_Config[Org A Config<br/>APEX-CONFIG] -->|RLS filter| SharedCore[Shared Core Tables]
     OrgB_Config[Org B Config<br/>per-org] -->|RLS filter| SharedCore
     Engines --> SharedCore
 ```
 
 ### 4.3 Seed + override
 
-Nowy org przy onboardingu dostaje **seed konfiguracji** (universal food-manufacturing defaults). Następnie org override-uje to, co ma mieć inaczej. Forza = pierwsza konfiguracja, nie jedyna — seed i Forza-config są rozdzielone.
+Nowy org przy onboardingu dostaje **seed konfiguracji** (universal food-manufacturing defaults). Następnie org override-uje to, co ma mieć inaczej. Apex = pierwsza konfiguracja, nie jedyna — seed i Apex-config są rozdzielone.
 
 ### 4.4 Upgrade strategy
 
 Gdy Monopilot uwalnia nowe UNIVERSAL features (np. nowa universal kolumna), każdy org dostaje:
 - Auto dla universal core changes (nowa tabela, nowy engine).
-- Opt-in (review w Settings) dla nowych universal defaults które mogłyby nadpisać istniejący FORZA-CONFIG.
+- Opt-in (review w Settings) dla nowych universal defaults które mogłyby nadpisać istniejący APEX-CONFIG.
 
 Konkretny mechanizm (auto vs opt-in per obszar) — decyzja w ADR-031 + implementation phase post-C.
 
@@ -150,11 +150,11 @@ Monopilot docelowo zastępuje D365. Mapa pojęć D365 ↔ Monopilot high-level:
 
 | D365 encja | Monopilot schema-driven equivalent | Marker |
 |---|---|---|
-| D365 Item | `products` + schema-driven extra cols | [UNIVERSAL] + [FORZA-CONFIG] dla extra cols |
+| D365 Item | `products` + schema-driven extra cols | [UNIVERSAL] + [APEX-CONFIG] dla extra cols |
 | D365 ItemNumber format | Regex validation w schema | [LEGACY-D365] dopóki D365 integration active |
 | D365 Builder output | Integration export template | [LEGACY-D365] |
 | D365 BOM | `bom_snapshot` ([ADR-002](ADR-002-bom-snapshot-pattern.md)) | [UNIVERSAL] |
-| D365 Costing extra fields | Schema-driven extra cols | [FORZA-CONFIG] |
+| D365 Costing extra fields | Schema-driven extra cols | [APEX-CONFIG] |
 
 Szczegółowa mapa żyje w `_meta/reality-sources/d365-integration/` (powstaje w późniejszej fazie po Phase A).
 
@@ -171,34 +171,34 @@ Gdy `integration.d365.enabled=false` — te pola / walidacje / templates są ukr
 
 ---
 
-## §6 — Universal vs Forza-specific (zasada dokumentacyjna)
+## §6 — Universal vs Apex-specific (zasada dokumentacyjna)
 
 Każdy dokument modułu **musi** jawnie oznaczać markerem każde wymaganie, kolumnę i regułę. Tabela decyzyjna:
 
 | Kryterium | Marker |
 |---|---|
 | Fundamentalne dla food-manufacturing MES (każdy klient to ma) | `[UNIVERSAL]` |
-| Konfigurowalne w Settings (Forza ustawiła tak, inny org może mieć inaczej) | `[FORZA-CONFIG]` |
-| Projekt jeszcze się zmienia (trzymamy w DB nawet jeśli dziś tylko Forza) | `[EVOLVING]` |
+| Konfigurowalne w Settings (Apex ustawiła tak, inny org może mieć inaczej) | `[APEX-CONFIG]` |
+| Projekt jeszcze się zmienia (trzymamy w DB nawet jeśli dziś tylko Apex) | `[EVOLVING]` |
 | Istnieje tylko z powodu D365 (zniknie po migracji) | `[LEGACY-D365]` |
 
 ### 6.1 Conflict resolution
 
-Gdy wymaganie jest zarówno uniwersalne jak i ma konkretną wartość Forza: użyj `[UNIVERSAL]` dla **zasady**, `[FORZA-CONFIG]` dla **wartości**.
+Gdy wymaganie jest zarówno uniwersalne jak i ma konkretną wartość Apex: użyj `[UNIVERSAL]` dla **zasady**, `[APEX-CONFIG]` dla **wartości**.
 
-Przykład: "System MUSI obsługiwać allergeny `[UNIVERSAL]`. Forza używa 14 EU allergens `[FORZA-CONFIG]`."
+Przykład: "System MUSI obsługiwać allergeny `[UNIVERSAL]`. Apex używa 14 EU allergens `[APEX-CONFIG]`."
 
 ### 6.2 Marker discipline — obowiązkowa
 
 - Brak markera na wymaganiu = błąd review, blokuje akceptację dokumentu.
-- Marker niekompletny (np. tylko `[FORZA-CONFIG]` tam gdzie jest zasada universal) = błąd review.
+- Marker niekompletny (np. tylko `[APEX-CONFIG]` tam gdzie jest zasada universal) = błąd review.
 - Zmiana markera wymaga decision log w dokumencie (kiedy i dlaczego zmieniono).
 
 ### 6.3 EVOLVING — specjalny przypadek
 
-Marker `[EVOLVING]` sygnalizuje że obszar jeszcze się zmienia (np. Forza MRP dziś 1 dział, docelowo 2). Decyzja projektowa: **trzymamy w DB** (schema-driven) nawet jeśli dziś tylko Forza ma daną konfigurację, bo wiemy że to będzie się zmieniać i kod nie powinien hardcoded-ować rzeczywistości in-flight.
+Marker `[EVOLVING]` sygnalizuje że obszar jeszcze się zmienia (np. Apex MRP dziś 1 dział, docelowo 2). Decyzja projektowa: **trzymamy w DB** (schema-driven) nawet jeśli dziś tylko Apex ma daną konfigurację, bo wiemy że to będzie się zmieniać i kod nie powinien hardcoded-ować rzeczywistości in-flight.
 
-Promocja `[EVOLVING]` → `[FORZA-CONFIG]` lub `[UNIVERSAL]` następuje gdy obszar się stabilizuje (decyzja w review).
+Promocja `[EVOLVING]` → `[APEX-CONFIG]` lub `[UNIVERSAL]` następuje gdy obszar się stabilizuje (decyzja w review).
 
 ---
 
@@ -206,14 +206,14 @@ Promocja `[EVOLVING]` → `[FORZA-CONFIG]` lub `[UNIVERSAL]` następuje gdy obsz
 
 Raporty **nie** są pisane per-client w kodzie. Zamiast tego: report templates to universal code components (Table Report, Aggregation Report, Trend Report). Content (które kolumny, filtry, grupowania) czytany z konfiguracji org-a.
 
-Dodanie kolumny przez Forzę = raport automatycznie może jej użyć, bez dewelopera. Tańsze niż full no-code report builder, skalowalne.
+Dodanie kolumny przez Apexa = raport automatycznie może jej użyć, bez dewelopera. Tańsze niż full no-code report builder, skalowalne.
 
 ### 7.1 Warstwy raportu
 
 | Warstwa raportu | Stan | Marker |
 |---|---|---|
 | Silnik renderu (Table / Aggregation / Trend) | Universal code components | [UNIVERSAL] |
-| Metadane raportu (kolumny, filtry, grupowania, sort) | Per org, schema-driven w Settings | [FORZA-CONFIG] |
+| Metadane raportu (kolumny, filtry, grupowania, sort) | Per org, schema-driven w Settings | [APEX-CONFIG] |
 | Dane źródłowe | Per org (RLS) | (dane operacyjne) |
 
 ### 7.2 YAGNI — co NIE jest custom report
@@ -230,9 +230,9 @@ Workflow to **dane** (JSON/DB), nie kod. Silnik workflow = universal code napisa
 
 ### 8.1 Przykłady
 
-- Forza: predefiniowana definicja NPD Stage-Gate G0→G4 `[FORZA-CONFIG]`.
-- Inny klient: np. G0→G3 — zmiana w Settings / JSON, nie w kodzie `[FORZA-CONFIG]` (inny org).
-- Workflow WO state machine: universal engine rozszerza [ADR-007](ADR-007-work-order-state-machine.md), definicja stanów per org `[FORZA-CONFIG]`.
+- Apex: predefiniowana definicja NPD Stage-Gate G0→G4 `[APEX-CONFIG]`.
+- Inny klient: np. G0→G3 — zmiana w Settings / JSON, nie w kodzie `[APEX-CONFIG]` (inny org).
+- Workflow WO state machine: universal engine rozszerza [ADR-007](ADR-007-work-order-state-machine.md), definicja stanów per org `[APEX-CONFIG]`.
 
 Workflow-as-data jest częścią rule engine (§2 punkt d). Silnik nie wie o "Stage-Gate" — wie o state machines interpretowanych z danych.
 
@@ -241,7 +241,7 @@ Workflow-as-data jest częścią rule engine (§2 punkt d). Silnik nie wie o "St
 | Warstwa workflow | Stan | Marker |
 |---|---|---|
 | State machine engine | Universal code | [UNIVERSAL] |
-| Workflow definition (stages, transitions, gate criteria) | Per org, schema-driven | [FORZA-CONFIG] |
+| Workflow definition (stages, transitions, gate criteria) | Per org, schema-driven | [APEX-CONFIG] |
 | Current workflow state per entity | Dane transakcyjne (per org, RLS) | (dane operacyjne) |
 | Historia przejść | Audit trail ([ADR-008](ADR-008-audit-trail-strategy.md)) | [UNIVERSAL] |
 
@@ -273,7 +273,7 @@ Lista Phase 0 deliverables:
 ## Open questions (do Phase D / Phase B)
 
 - **Konkretna składnia DSL** (JSON schema? textual DSL? pseudo-code?) — otwarte, finalne decisions w ADR-029 Phase 0, szczegóły w implementation phase post-C.
-- **Który konkretnie subset kolumn NPD jest UNIVERSAL vs FORZA-CONFIG** — otwarte, rozstrzygane w Phase B po reality sync Phase A (PLD v7 Main Table ~60-80 kolumn wymaga review).
+- **Który konkretnie subset kolumn NPD jest UNIVERSAL vs APEX-CONFIG** — otwarte, rozstrzygane w Phase B po reality sync Phase A (PLD v7 Main Table ~60-80 kolumn wymaga review).
 - **Upgrade strategy gdy Monopilot uwalnia nowe UNIVERSAL features** (auto vs opt-in per org, per-obszar) — szkic w §4.4, pełna decyzja w ADR-031 + implementation phase.
 - **Promocja `[EVOLVING]` → stały marker** — proces review (kto decyduje, kiedy). Szkic w §6.3, pełna procedura do ustalenia w Phase B.
 - **Relacja META-MODEL ↔ reality-sources** — jak reality source (PLD v7, D365, Access) feeduje `[EVOLVING]` decisions. Do uszczegółowienia w REALITY-SYNC pattern (Phase A).

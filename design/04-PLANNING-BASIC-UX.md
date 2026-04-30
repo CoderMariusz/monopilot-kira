@@ -1003,7 +1003,7 @@ Workflow Rule reference: Link `View cascade_generation_v1 rule in Rule Registry 
 
 Below: Read-only display of rule `allergen_sequencing_heuristic_v1` summary (just name, version, author, created date). `View Full Rule →` link to 02-SETTINGS §7.
 
-KPI target reference: `Target changeover reduction: > 30% (Forza baseline)`. This is informational, not editable.
+KPI target reference: `Target changeover reduction: > 30% (Apex baseline)`. This is informational, not editable.
 
 ---
 
@@ -1530,7 +1530,7 @@ Buttons: `Cancel`, `Cancel WO & Release Locks` (red danger).
 1. Planner creates WO for `Mixed Meat Kebab FA`. BOM has 3 meat inputs: Chicken (600g per kg output, `meat_content_pct = 100%`), Pork (200g, `meat_content_pct = 100%`), Beef (100g, `meat_content_pct = 100%`).
 2. `wo.meat_pct_computed` is calculated: Chicken 67%, Pork 22%, Beef 11%. (Proportional to BOM quantities.)
 3. WO Detail → Overview tab → below materials table: `Meat content: Chicken 67%, Pork 22%, Beef 11%`.
-4. Tooltip: `Computed from BOM expand per FR-PLAN-026. Displayed per Forza v7 comma-separated format.`
+4. Tooltip: `Computed from BOM expand per FR-PLAN-026. Displayed per Apex v7 comma-separated format.`
 
 ### Flow 6: Workflow-as-Data — Admin Reads State Machine Rule
 
@@ -1686,7 +1686,7 @@ The following items from PRD §16.3 (Open Questions) have UX implications and ma
 
 6. **D365 Queue visibility**: Should the `/planning/d365-queue` route be completely absent from the sidebar navigation when the D365 flag is off, or should it be visible but gated with a lock icon and the gate page? Recommend: show in sidebar with a lock icon and a `Feature requires D365 integration` tooltip. The route is accessible but shows the gate page. This keeps the feature discoverable.
 
-7. **Meat_Pct display format**: The PRD specifies comma-separated format (Forza v7 pattern). Should this also appear in WO list row as a small text or tooltip, or only on WO Detail? Recommend: WO Detail only (Overview tab, below materials table). Too dense for list rows.
+7. **Meat_Pct display format**: The PRD specifies comma-separated format (Apex v7 pattern). Should this also appear in WO list row as a small text or tooltip, or only on WO Detail? Recommend: WO Detail only (Overview tab, below materials table). Too dense for list rows.
 
 8. **LP Picker scan input**: The LP Picker modal (PLAN-MODAL-06) has a prominent scan input. On desktop (no physical scanner), should this be a standard text input with a camera icon, or should it have a QR/barcode web-camera scan fallback? Recommend: text input with optional camera icon (clicking triggers `BarcodeDetector` Web API if available, or prompts `Use Scanner app on mobile`).
 

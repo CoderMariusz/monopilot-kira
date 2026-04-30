@@ -32,7 +32,7 @@ references:
 >
 > **Reality fidelity (Phase D P4):** Phase B.2 replikuje v7 1:1 (7 depts z fixed names, 69 Main Table cols, cascading + workflow rules). Speculation (inne orgi, advanced AI, autonomous agents) deferred do Phase C/D.
 >
-> **Markery [UNIVERSAL] / [FORZA-CONFIG] / [EVOLVING] / [LEGACY-D365]** stosowane wszędzie per 00-FOUNDATION §2.
+> **Markery [UNIVERSAL] / [APEX-CONFIG] / [EVOLVING] / [LEGACY-D365]** stosowane wszędzie per 00-FOUNDATION §2.
 
 ---
 
@@ -91,7 +91,7 @@ references:
 | SO + ASN + EPCIS shipping events + Peppol invoicing | 11-SHIPPING (Phase C4) |
 | Full dashboards (OEE, shift perf, period reports) | 12-REPORTING (Phase C5) |
 | CMMS + predictive maintenance | 13-MAINTENANCE (Phase C5) |
-| Multi-site (FORZ + KOBE activation) | 14-MULTI-SITE (Phase C5) |
+| Multi-site (APEX + KOBE activation) | 14-MULTI-SITE (Phase C5) |
 | OEE real-time + digital twin | 15-OEE (Phase C5) |
 | Comarch / EDI EDIFACT / Supplier portals / Customer portals | INTEGRATIONS stages 2/3/4/5 (Phase C4/C5) |
 
@@ -111,7 +111,7 @@ references:
 
 | Persona | Reality v7 | Monopilot scope | Markers |
 |---|---|---|---|
-| **NPD Manager** (Jane @ Forza) | Owner całego procesu PLD; Add Product macro trigger; D365 Builder click; Dashboard daily review | 01-NPD orchestrator role; jedyny user z `d365_builder.execute` + `fa.create` permissions | role [UNIVERSAL], osoba [FORZA-CONFIG] |
+| **NPD Manager** (Jane @ Apex) | Owner całego procesu PLD; Add Product macro trigger; D365 Builder click; Dashboard daily review | 01-NPD orchestrator role; jedyny user z `d365_builder.execute` + `fa.create` permissions | role [UNIVERSAL], osoba [APEX-CONFIG] |
 | **NPD team (Core)** | 3 osoby (w tym Jane); wypełnia Core section (7 cols); Brief fill | 01-NPD Core section fill; Brief form fill; Convert-to-PLD button | [UNIVERSAL] |
 | **Planning manager** | Meat_Pct, Runs_Per_Week, Date_Code | Planning section fill + Dashboard read | [UNIVERSAL] |
 | **Commercial manager** | Launch_Date, Article_Number, Bar_Codes, Cases_Per_Week_W1-3 | Commercial section fill + Dashboard read | [UNIVERSAL] |
@@ -138,7 +138,7 @@ Permissions modeled w `Reference.RolePermissions` (schema-driven per ADR-028). B
 | `schema.edit` (add/remove Main Table col) | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ |
 | `rule.edit` (modify DSL rules) | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ |
 
-Marker: struktura permissions = [UNIVERSAL]. Konkretne permissions names + mapping to Forza roles = [FORZA-CONFIG] (inni klienci mogą rename / rearrange per ADR-030 + ADR-031).
+Marker: struktura permissions = [UNIVERSAL]. Konkretne permissions names + mapping to Apex roles = [APEX-CONFIG] (inni klienci mogą rename / rearrange per ADR-030 + ADR-031).
 
 ### 2.3 MFA + audit
 
@@ -202,7 +202,7 @@ sequenceDiagram
 | **Stage 5 — D365 Builder** | Jane click Build | Jane (via button) | Builder_FA<code>.xlsx + Built=TRUE | seconds (auto) |
 | **Stage 6 — Paste-back** | Builder output ready | Jane | FA live in D365 | minutes |
 
-**Timing constraint [FORZA-CONFIG]:** Brief handoff → launch minimum **24 tygodnie** (hardcoded business rule, configurable per org in Phase C1 via `Reference.AlertThresholds`).
+**Timing constraint [APEX-CONFIG]:** Brief handoff → launch minimum **24 tygodnie** (hardcoded business rule, configurable per org in Phase C1 via `Reference.AlertThresholds`).
 
 ---
 
@@ -212,7 +212,7 @@ sequenceDiagram
 
 | Entity | Cardinality | Storage | Notes |
 |---|---|---|---|
-| **FA** (Factory Article) | 1 row per product launch | Main Table, 69 cols typed | PK = `FA_Code` (format `FA*`, [FORZA-CONFIG]); source of truth |
+| **FA** (Factory Article) | 1 row per product launch | Main Table, 69 cols typed | PK = `FA_Code` (format `FA*`, [APEX-CONFIG]); source of truth |
 | **ProdDetail** | N per FA (1 per component for multi-comp) | `prod_detail` table, ~20 cols | Foreign key `FA_Code`; per-component Process_1..4 + Yield + Line + Dieset + PR codes |
 | **Brief** | 1 row (single-comp) OR N rows (multi-comp) | `brief` table, 37 cols + `brief_version` metadata | 2 templates; pre-PLD upstream stage |
 | **Dept proxy views** | 7 views (read-through schema-driven) | Not stored — computed from Main Table + Reference.DeptColumns | Per-dept filtered columns + blocking states |
@@ -234,7 +234,7 @@ CREATE TABLE "Reference.DeptColumns" (
     blocking_rule  TEXT,                 -- '' | 'Core done' | 'Pack_Size filled' | 'Line filled' | 'Core + Production done' | (custom DSL)
     required_for_done BOOLEAN NOT NULL,
     display_order  INT NOT NULL,
-    marker         TEXT NOT NULL,        -- 'UNIVERSAL' | 'FORZA-CONFIG' | 'EVOLVING' | 'LEGACY-D365'
+    marker         TEXT NOT NULL,        -- 'UNIVERSAL' | 'APEX-CONFIG' | 'EVOLVING' | 'LEGACY-D365'
     schema_version INT NOT NULL,
     created_at     TIMESTAMPTZ DEFAULT now()
 );
@@ -387,19 +387,19 @@ CREATE TABLE brief_lines (
 
 ## §5 — Main Table Schema (69 cols)
 
-Per `Reference.DeptColumns` [UNIVERSAL pattern] + [FORZA-CONFIG values] zgodnie z v7 reality.
+Per `Reference.DeptColumns` [UNIVERSAL pattern] + [APEX-CONFIG values] zgodnie z v7 reality.
 
 ### 5.1 Summary per dept
 
 | Dept | Cols | Required_for_done | Blocking_rule | Markers dominant |
 |---|---|---|---|---|
-| Core (+FA_Code) | 8 | 4 | `""` | [UNIVERSAL] structure, [FORZA-CONFIG] values |
-| Planning | 4 | 3 | `Core done` | [FORZA-CONFIG] |
-| Commercial | 8 | 7 | `Core done` | [UNIVERSAL] (GS1 barcodes) + [FORZA-CONFIG] |
-| Production | 19 | 5 | `Pack_Size filled` / `Line filled` | [FORZA-CONFIG] |
+| Core (+FA_Code) | 8 | 4 | `""` | [UNIVERSAL] structure, [APEX-CONFIG] values |
+| Planning | 4 | 3 | `Core done` | [APEX-CONFIG] |
+| Commercial | 8 | 7 | `Core done` | [UNIVERSAL] (GS1 barcodes) + [APEX-CONFIG] |
+| Production | 19 | 5 | `Pack_Size filled` / `Line filled` | [APEX-CONFIG] |
 | Technical | 2 (+N allergens [EVOLVING]) | 1 (+ allergens) | `Core done` | [UNIVERSAL] food-mfg |
-| MRP | 13 | 8 | `Core + Production done` | [FORZA-CONFIG] |
-| Procurement | 5 | 4 | `Core done` (Price → `Core + Production done`) | [FORZA-CONFIG] |
+| MRP | 13 | 8 | `Core + Production done` | [APEX-CONFIG] |
+| Procurement | 5 | 4 | `Core done` (Price → `Core + Production done`) | [APEX-CONFIG] |
 | System | 10 | 0 | auto-calc | [UNIVERSAL] + [LEGACY-D365] (Built) |
 | **Total** | **69** | **~33** | mixed | — |
 
@@ -409,11 +409,11 @@ Per `Reference.DeptColumns` [UNIVERSAL pattern] + [FORZA-CONFIG values] zgodnie 
 |---|---|---|---|---|---|---|---|
 | 1 | `FA_Code` | TEXT | — | — | PK | [UNIVERSAL] | V01 format `FA*` |
 | 2 | `Product_Name` | TEXT | — | `""` | ✅ | [UNIVERSAL] | V02 non-empty |
-| 3 | `Pack_Size` | TEXT | `PackSizes` | `""` | ✅ | [FORZA-CONFIG] | Cascade: clears Line, Dieset |
-| 4 | `Number_of_Cases` | NUMERIC | — | `""` | ✅ | [FORZA-CONFIG] | = ilość cases na palecie |
-| 5 | `Finish_Meat` | TEXT | — | `""` | ✅ | [FORZA-CONFIG] | Cascade: auto-builds RM_Code + SyncProdDetailRows |
-| 6 | `RM_Code` | AUTO | — | `""` | No (derived) | [FORZA-CONFIG] | Auto z Finish_Meat (comma-sep transform) |
-| 7 | `Template` | TEXT | `Templates` | `""` | No | [FORZA-CONFIG] | Cascade: ApplyTemplate (fills ProdDetail Process_1..4) |
+| 3 | `Pack_Size` | TEXT | `PackSizes` | `""` | ✅ | [APEX-CONFIG] | Cascade: clears Line, Dieset |
+| 4 | `Number_of_Cases` | NUMERIC | — | `""` | ✅ | [APEX-CONFIG] | = ilość cases na palecie |
+| 5 | `Finish_Meat` | TEXT | — | `""` | ✅ | [APEX-CONFIG] | Cascade: auto-builds RM_Code + SyncProdDetailRows |
+| 6 | `RM_Code` | AUTO | — | `""` | No (derived) | [APEX-CONFIG] | Auto z Finish_Meat (comma-sep transform) |
+| 7 | `Template` | TEXT | `Templates` | `""` | No | [APEX-CONFIG] | Cascade: ApplyTemplate (fills ProdDetail Process_1..4) |
 | 8 | `Closed_Core` | TEXT | `CloseConfirm` | `""` | No | [UNIVERSAL] | Flag completion |
 
 ### 5.3 Core extensions from Brief (Phase B.2 adds)
@@ -422,7 +422,7 @@ Dodawane w Phase B.2 (z brief mapping — patrz §9):
 
 | Col | Type | Source brief | Marker |
 |---|---|---|---|
-| `Volume` | NUMERIC | brief.Volume | [EVOLVING] → [FORZA-CONFIG] |
+| `Volume` | NUMERIC | brief.Volume | [EVOLVING] → [APEX-CONFIG] |
 | `Dev_Code` | TEXT | brief.Dev_Code | [EVOLVING] → [UNIVERSAL] (NPD identifier pattern) |
 | `Weights` | NUMERIC | brief.Weights | [EVOLVING] |
 | `Packs_Per_Case` | INT | brief.Packs_Per_Case | [EVOLVING] (różne od Number_of_Cases — patrz §9) |
@@ -446,8 +446,8 @@ Total Core po Phase B.2 = **15 cols** (8 core + 7 brief extensions).
 | # | Column | Type | Blocking | Required | Marker |
 |---|---|---|---|---|---|
 | 13 | `Launch_Date` | DATE | `Core done` | ✅ | [UNIVERSAL] — napędza Dashboard alerts |
-| 14 | `Department_Number` | TEXT | `Core done` | ✅ | [FORZA-CONFIG] retailer-specific |
-| 15 | `Article_Number` | TEXT | `Core done` | ✅ | [FORZA-CONFIG] klient-specific |
+| 14 | `Department_Number` | TEXT | `Core done` | ✅ | [APEX-CONFIG] retailer-specific |
+| 15 | `Article_Number` | TEXT | `Core done` | ✅ | [APEX-CONFIG] klient-specific |
 | 16 | `Bar_Codes` | TEXT | `Core done` | ✅ | [UNIVERSAL] GS1 (R15 — prefer GTIN natively) |
 | 17 | `Cases_Per_Week_W1` | NUMERIC | `Core done` | ✅ | |
 | 18 | `Cases_Per_Week_W2` | NUMERIC | `Core done` | ✅ | |
@@ -685,7 +685,7 @@ Workflow-as-data (ADR-029 §4). Stored w `Reference.Rules` with `rule_type` = `g
 
 ### 7.1 Blocking rules (4 kanoniczne + extensible)
 
-Per 00-FOUNDATION §7, Forza baseline:
+Per 00-FOUNDATION §7, Apex baseline:
 
 | Rule ID | Semantyka | Evaluator |
 |---|---|---|
@@ -716,8 +716,8 @@ Derived rules, runtime-computed:
 
 | Level | Threshold | Color | Source |
 |---|---|---|---|
-| RED | `days_to_launch <= 10` | #C0C0FF | [FORZA-CONFIG] (configurable) |
-| YELLOW | `days_to_launch <= 21 AND missing_data IS NOT EMPTY` | #C0FFFF | [FORZA-CONFIG] |
+| RED | `days_to_launch <= 10` | #C0C0FF | [APEX-CONFIG] (configurable) |
+| YELLOW | `days_to_launch <= 21 AND missing_data IS NOT EMPTY` | #C0FFFF | [APEX-CONFIG] |
 | GREEN | otherwise | #C0FFC0 | — |
 
 ### 7.3 Closed / Done flag semantics
@@ -782,7 +782,7 @@ Phase B.2 decision (reality open question — patrz §14 open item):
 
 **Option A (chosen):** `FA_Code` manual input z walidacją V01 format `FA*` (np. `FA0042`, `FA5101`). User-entered przy create.
 
-**Option B (rejected):** Auto-generated sequential (nie, bo Forza kultura opiera się na meaningful codes — np. FA5101 = product category).
+**Option B (rejected):** Auto-generated sequential (nie, bo Apex kultura opiera się na meaningful codes — np. FA5101 = product category).
 
 **Option C (future, Phase C):** Hybrid — auto-propose next FA code (sequential or pattern-based), user może override.
 
@@ -826,12 +826,12 @@ CREATE TABLE "Reference.Allergens" (
     marker         TEXT NOT NULL,
     created_at     TIMESTAMPTZ DEFAULT now()
 );
--- Seed dla Forza: 14 EU allergens per Reg 1169/2011 Annex II
+-- Seed dla Apex: 14 EU allergens per Reg 1169/2011 Annex II
 ```
 
 **Seed 14 EU (EU FIC 1169/2011):** Cereals containing gluten / Crustaceans / Eggs / Fish / Peanuts / Soybeans / Milk / Nuts (tree nuts — 8 types) / Celery / Mustard / Sesame seeds / Sulphur dioxide & sulphites (>10mg/kg) / Lupin / Molluscs.
 
-[UNIVERSAL] pattern (regulatory), [FORZA-CONFIG] seed per tenant (org może dodać custom np. Gorczycę jako lokalna Polska wariacja).
+[UNIVERSAL] pattern (regulatory), [APEX-CONFIG] seed per tenant (org może dodać custom np. Gorczycę jako lokalna Polska wariacja).
 
 ### 8.3 Reference.Allergens_by_RM
 
@@ -1022,24 +1022,24 @@ Consolidated mapping (zgodny z BRIEF-FLOW.md §4):
 | Brief col (C#) | PLD target | Transform | Marker |
 |---|---|---|---|
 | Product (C1) | fa.product_name | 1:1 | [UNIVERSAL] |
-| Volume (C2) | fa.volume (NEW) | 1:1 | [EVOLVING] → [FORZA-CONFIG] |
+| Volume (C2) | fa.volume (NEW) | 1:1 | [EVOLVING] → [APEX-CONFIG] |
 | Dev Code (C3) | fa.dev_code (NEW) | 1:1 | [UNIVERSAL] |
-| Components (C4) | prod_detail.component + fa.finish_meat generation | Per-component row + concat PR codes | [FORZA-CONFIG] |
+| Components (C4) | prod_detail.component + fa.finish_meat generation | Per-component row + concat PR codes | [APEX-CONFIG] |
 | Slice Count (C5) | prod_detail.slice_count (NEW) | Per-component | [EVOLVING] |
 | Supplier (C6) | fa.supplier (per-FA) or prod_detail.supplier (per-component) | TBD Phase B.2 start | [EVOLVING] |
-| Code (C7) | fa.rm_code generation | `RM` + digits from brief.code | [FORZA-CONFIG] |
+| Code (C7) | fa.rm_code generation | `RM` + digits from brief.code | [APEX-CONFIG] |
 | Price (C8) | fa.price_brief (NEW) | TEXT or NUMERIC | [EVOLVING] |
 | Weights (C9) | fa.weights (NEW, per-FA) + prod_detail.component_weight (per-component) | 1:1 | [EVOLVING] |
-| % (C10) | fa.meat_pct (Planning, stays per Phase D #14) | 1:1 | [FORZA-CONFIG] |
+| % (C10) | fa.meat_pct (Planning, stays per Phase D #14) | 1:1 | [APEX-CONFIG] |
 | Packs Per Case (C11) | fa.packs_per_case (NEW) | 1:1 | [EVOLVING] |
 | Comments (C12) | fa.comments (NEW) | 1:1 | [EVOLVING] |
 | Benchmark Identified (C13) | fa.benchmark (NEW) | 1:1 | [EVOLVING] |
-| Primary Packaging (C14) | fa.box / fa.mrp_box context | Partial mapping | [FORZA-CONFIG] |
-| Secondary Packaging (C15) | fa.mrp_cartons / pallet | Partial | [FORZA-CONFIG] |
-| Base Web/Tray/Bag Code (C16) | fa.web | 1:1 | [FORZA-CONFIG] |
+| Primary Packaging (C14) | fa.box / fa.mrp_box context | Partial mapping | [APEX-CONFIG] |
+| Secondary Packaging (C15) | fa.mrp_cartons / pallet | Partial | [APEX-CONFIG] |
+| Base Web/Tray/Bag Code (C16) | fa.web | 1:1 | [APEX-CONFIG] |
 | Base Web/Tray/Bag Price (C17) | (new MRP or Procurement field) | NEW | [EVOLVING] |
 | Top Web Type (C18) | MRP metadata | NEW | [EVOLVING] |
-| Sleeve/Carton Code (C19) | fa.mrp_sleeves / fa.mrp_cartons | 1:1 | [FORZA-CONFIG] |
+| Sleeve/Carton Code (C19) | fa.mrp_sleeves / fa.mrp_cartons | 1:1 | [APEX-CONFIG] |
 | Sleeve/Carton Price (C20) | Procurement-related (NEW) | NEW | [EVOLVING] |
 | **C21-C37** | **TBD — rescan w Phase B.2 start** | — | [EVOLVING] |
 
@@ -1093,7 +1093,7 @@ Builder generuje 3 Formula_Version entries (1 per product) w tym samym workbook.
 
 ### 10.4 Reference.D365_Constants
 
-Nowa tabela Phase B.2 — centralizuje Forza-specific D365 values (Phase D decision #22):
+Nowa tabela Phase B.2 — centralizuje Apex-specific D365 values (Phase D decision #22):
 
 ```sql
 CREATE TABLE "Reference.D365_Constants" (
@@ -1101,18 +1101,18 @@ CREATE TABLE "Reference.D365_Constants" (
     tenant_id      UUID NOT NULL,
     constant_value TEXT NOT NULL,
     description    TEXT,
-    marker         TEXT NOT NULL,       -- 'LEGACY-D365' + 'FORZA-CONFIG'
+    marker         TEXT NOT NULL,       -- 'LEGACY-D365' + 'APEX-CONFIG'
     last_updated   TIMESTAMPTZ
 );
 ```
 
-**Seed dla Forza:**
+**Seed dla Apex:**
 
 | Key | Value | Use |
 |---|---|---|
-| `PRODUCTIONSITEID` | `FNOR` | Forza Production Site |
+| `PRODUCTIONSITEID` | `FNOR` | Apex Production Site |
 | `APPROVERPERSONNELNUMBER` | `FOR100048` | Approver ID (Jane lub default) |
-| `CONSUMPTIONWAREHOUSEID` | `ForzDG` | Warehouse code |
+| `CONSUMPTIONWAREHOUSEID` | `ApexDG` | Warehouse code |
 | `PRODUCTGROUPID_FG` | `FinGoods` | Finished Goods group |
 | `PRODUCTGROUPID_PR` | (TBD) | PR intermediates group |
 | `COSTINGOPERATIONRESOURCEID_DEFAULT` | `FProd01` | Default resource (override per Line w Phase C) |
@@ -1181,7 +1181,7 @@ V7 miał BOM tab jako **user-facing intermediate** (`FA_Code | Component_Type | 
 
 **Monopilot implementation Phase B.2:**
 - BOM view (UI) = computed on-the-fly z FA + ProdDetail + MRP (read-only)
-- BOM export (optional) = osobny button, CSV/Excel format Forza-internal
+- BOM export (optional) = osobny button, CSV/Excel format Apex-internal
 - D365 Builder (§10.6) = osobny button, generates Builder_FA<code>.xlsx
 
 Wspólny trigger: oba zależą od `status_overall = 'Complete'`. Oba mogą być wywołane niezależnie przez Jane.
@@ -1225,7 +1225,7 @@ Phase B.2 implementuje NPD-specific dashboard. Pełny 12-REPORTING Phase C5 rozs
 ### 11.1 Dashboard layout
 
 ```
-┌─ FORZA FOODS — Product Launch Dashboard ───────────────────────────┐
+┌─ APEX FOODS — Product Launch Dashboard ───────────────────────────┐
 │                                                                    │
 │ ┌─ Summary ────────────┐  ┌─ Department Progress ────────────────┐ │
 │ │ Total Active: 23     │  │ Dept       | Done | Pending | Blocked│ │
@@ -1333,7 +1333,7 @@ Current V01-V06 z v7 + 2 new Phase B.2 rules. Stored w `Reference.Rules` z `rule
 
 ### 12.2 Rule engine integration
 
-Validations są rule_type='validation' w `Reference.Rules`. Admin może (Phase C1) dodać custom validations w DSL. Base 8 validations seed per Forza + editable thresholds (e.g., V04 can be configured "Missing blocks" vs "Missing warns").
+Validations są rule_type='validation' w `Reference.Rules`. Admin może (Phase C1) dodać custom validations w DSL. Base 8 validations seed per Apex + editable thresholds (e.g., V04 can be configured "Missing blocks" vs "Missing warns").
 
 ---
 
@@ -1347,7 +1347,7 @@ Validations są rule_type='validation' w `Reference.Rules`. Admin może (Phase C
 | Schema-driven runtime (Zod + json-schema-to-zod) | 00-FOUNDATION §5-6 (R4) | B.1 ✅ | Form + validator generation |
 | RLS + tenant_id patterns | 00-FOUNDATION §8 (R3) | B.1 ✅ | Multi-tenant isolation |
 | Rule engine DSL runtime | 00-FOUNDATION §7 (ADR-029) | B.1 docs; B.2 impl | Cascading + gates + validations |
-| i18n infrastructure | 00-FOUNDATION §11 (R11) | B.1 ✅ (infra); B.2 (Forza translations) | pl/en/uk/ro labels |
+| i18n infrastructure | 00-FOUNDATION §11 (R11) | B.1 ✅ (infra); B.2 (Apex translations) | pl/en/uk/ro labels |
 | GS1 lib (shared) | 00-FOUNDATION §5 (R15) | B.1 docs; B.2 impl w Bar_Codes | GTIN parsing |
 | D365 adapter (`@monopilot/d365-adapter`) | 00-FOUNDATION §5 (R8) | B.2 minimal impl (D365 Import cache sync); C1 full | Material validation V04 |
 | PostHog flags | 00-FOUNDATION §5 (R6) | B.1 ✅ | Feature flags (e.g., `allergens_cascade.enabled`) |
@@ -1469,7 +1469,7 @@ Każdy sub-module end-to-end (stories → QA → regression → done) przed nast
 - [`_meta/reality-sources/pld-v7-excel/CASCADING-RULES.md`](_meta/reality-sources/pld-v7-excel/CASCADING-RULES.md) — 4 cascade chains, Reference lookup tables, cascade refresh map
 - [`_meta/reality-sources/pld-v7-excel/WORKFLOW-RULES.md`](_meta/reality-sources/pld-v7-excel/WORKFLOW-RULES.md) — status colors, blocking mechanism, autofilter, Built flag, Dashboard alerts, Worksheet_Change flow
 - [`_meta/reality-sources/pld-v7-excel/REFERENCE-TABLES.md`](_meta/reality-sources/pld-v7-excel/REFERENCE-TABLES.md) — 8 config tables (PackSizes/Templates/Lines_By_PackSize/Dieset_By_Line_Pack/Processes/CloseConfirm/EmailConfig/DeptColumns)
-- [`_meta/reality-sources/pld-v7-excel/D365-INTEGRATION.md`](_meta/reality-sources/pld-v7-excel/D365-INTEGRATION.md) — D365 Import, D365 Builder 8 tabs, V04 validation, Builder_FA5101.xlsx reference, Forza constants
+- [`_meta/reality-sources/pld-v7-excel/D365-INTEGRATION.md`](_meta/reality-sources/pld-v7-excel/D365-INTEGRATION.md) — D365 Import, D365 Builder 8 tabs, V04 validation, Builder_FA5101.xlsx reference, Apex constants
 - [`_meta/reality-sources/pld-v7-excel/EVOLVING.md`](_meta/reality-sources/pld-v7-excel/EVOLVING.md) — 15 areas in change + priority matrix MUST/SHOULD/COULD/WON'T
 - [`_meta/reality-sources/brief-excels/README.md`](_meta/reality-sources/brief-excels/README.md)
 - [`_meta/reality-sources/brief-excels/BRIEF-FLOW.md`](_meta/reality-sources/brief-excels/BRIEF-FLOW.md) — 2 templates, 37 cols, brief ↔ PLD mapping table

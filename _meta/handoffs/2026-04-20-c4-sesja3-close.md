@@ -28,15 +28,15 @@ Baseline v3.1 (552 linii, 2026-02-18, pre-Phase-D) w pełni przepisany do v3.0 c
 | Q | Decyzja | Rationale |
 |---|---|---|
 | **Q1 ✅ A** | Shipment trigger = D365 SO pull via 04-PLAN §7 existing + Monopilot ships | Minimal new infrastructure, leverages stage 1 integration |
-| **Q2 ✅ C** | Pick/pack workflow = Both scanner (pallet-level) + desktop (mixed) | Forza reality — pallet shipments use scanner, mixed orders desktop |
+| **Q2 ✅ C** | Pick/pack workflow = Both scanner (pallet-level) + desktop (mixed) | Apex reality — pallet shipments use scanner, mixed orders desktop |
 | **Q3 ✅ A** | SSCC labelling P1 = GS1-128 P1 + GS1 Digital Link QR P2 | MES-TRENDS R10 alignment, retailer-ready roadmap |
-| **Q4 ✅ A** | Carrier integration = Manual dispatch P1 + API P2 (DHL/UPS/DPD) | Forza SMB reality P1, API complexity defer P2 |
+| **Q4 ✅ A** | Carrier integration = Manual dispatch P1 + API P2 (DHL/UPS/DPD) | Apex SMB reality P1, API complexity defer P2 |
 | **Q5 ✅ A** | D365 SalesOrder confirm push = Per-shipment async via outbox | Clone 08-PROD §12 stage 2 pattern, proven template |
 | **Q6 ✅ B** (REVISED) | Batch release gate = Soft warn + operator override + reason_code + audit (nie hard block baseline rec) | **Spójne z 05-WH Q6B FEFO deviation pattern i 06-SCN per-severity error policy** (block/warn/info). Hard gate tylko dla severity='critical' via `batch_release_gate_v1` P2. |
 | **Q7 ✅ A** | COGS timing = P2 at shipment confirm (consume FIFO layers via 10-FIN) | Real-time alignment z 10-FIN Q2 real-time consume |
-| **Q8 ✅ B** | Multi-leg shipments = Partial shipments P1 (one SO → multi shipments) | Baseline D-SHP-10/12 retained, Forza reality |
-| **Q9 ✅ OK** | Peppol B2B e-invoice retired P1 (Forza = UK nie Belgium) | Clean cutoff — Belgium 2026-01-01 deadline nie dotyczy |
-| **Q10 ✅ Tak** | EUDR (Deforestation 2026-12-30) dotyczy → P2 supplier_dds_reference gate | Forza FA zawierają soy/palm upstream → EU TRACES compliance |
+| **Q8 ✅ B** | Multi-leg shipments = Partial shipments P1 (one SO → multi shipments) | Baseline D-SHP-10/12 retained, Apex reality |
+| **Q9 ✅ OK** | Peppol B2B e-invoice retired P1 (Apex = UK nie Belgium) | Clean cutoff — Belgium 2026-01-01 deadline nie dotyczy |
+| **Q10 ✅ Tak** | EUDR (Deforestation 2026-12-30) dotyczy → P2 supplier_dds_reference gate | Apex FA zawierają soy/palm upstream → EU TRACES compliance |
 
 ### Core innovations 11-SHIPPING v3.0
 
@@ -49,14 +49,14 @@ Baseline v3.1 (552 linii, 2026-02-18, pre-Phase-D) w pełni przepisany do v3.0 c
 | 5 | **SO state machine workflow-as-data (D-SHP-8, so_state_machine_v1)** — draft→confirmed→allocated→picking→packing→shipped→delivered registered w 02-SETTINGS §7 | §6, 02-SET §7.8 | [UNIVERSAL] |
 | 6 | **3-method input parity** (hardware scanner + camera `@zxing/browser` + manual) consumer 06-SCN Q4 upgrade | §6 D-SHP-6 | [UNIVERSAL] |
 | 7 | **Cascade-aware RMA disposition** — restock→new LP (05-WH), scrap→waste_records (08-PROD `waste_categories`), quality_hold→09-QA `quality_holds` | §8.5, §9 | [UNIVERSAL] |
-| 8 | **EUDR supplier DDS gate (D-SHP-20)** — P2 `eudr_compliance_gate_v1` DSL rule, 03-TECH P2 extensions `items.eudr_category` + `suppliers.dds_reference` | §4.4, §6, §14.5 | [UNIVERSAL] + [FORZA-CONFIG] |
+| 8 | **EUDR supplier DDS gate (D-SHP-20)** — P2 `eudr_compliance_gate_v1` DSL rule, 03-TECH P2 extensions `items.eudr_category` + `suppliers.dds_reference` | §4.4, §6, §14.5 | [UNIVERSAL] + [APEX-CONFIG] |
 | 9 | **FSMA 204 traceability reuse** — `/api/shipping/batch-recall` endpoint via 05-WH §11 recursive CTE (<30s baseline, USA 2028 deadline) | §14.1 | [UNIVERSAL] |
 | 10 | **BRCGS Issue 10 7y retention** — `shipping_audit_log.retention_until` GENERATED + archive nightly (reuse 10-FIN §5.2 pattern) | §14.4, §9.2 | [UNIVERSAL] |
 | 11 | **21 CFR Part 11 e-sig P2** — RMA approval + allergen override (SHA-256 + PIN reverify reuse 09-QA pattern) | §14.7, §9.2 | [UNIVERSAL] |
 | 12 | **16 P1 tables + 2 integration tables** (13 core + 3 audit/override + shipping_outbox_events + shipping_push_dlq) | §9 | [UNIVERSAL] |
-| 13 | **GBP base currency retained** (Forza UK, 10-FIN Q9 consumer) + multi-currency P2 EPIC 11 reused | §5.2 | [FORZA-CONFIG] |
-| 14 | **D365 Constants baseline + P2 extensions** — FNOR/ForzDG/FinGoods/FOR100048 reuse; P2 shipping_warehouse/customer_map/courier/vault (bundled 02-SET v3.1 §11.7) | §6 D-SHP-18, §12.8 | [LEGACY-D365] |
-| 15 | **Dual mode picking Q2=C** — scanner pallet-level + desktop mixed order (Forza reality, flexibility per SO complexity) | §6 D-SHP-6 | [UNIVERSAL] + [FORZA-CONFIG] |
+| 13 | **GBP base currency retained** (Apex UK, 10-FIN Q9 consumer) + multi-currency P2 EPIC 11 reused | §5.2 | [APEX-CONFIG] |
+| 14 | **D365 Constants baseline + P2 extensions** — FNOR/ApexDG/FinGoods/FOR100048 reuse; P2 shipping_warehouse/customer_map/courier/vault (bundled 02-SET v3.1 §11.7) | §6 D-SHP-18, §12.8 | [LEGACY-D365] |
+| 15 | **Dual mode picking Q2=C** — scanner pallet-level + desktop mixed order (Apex reality, flexibility per SO complexity) | §6 D-SHP-6 | [UNIVERSAL] + [APEX-CONFIG] |
 
 ### Cross-PRD consistency check ✅
 

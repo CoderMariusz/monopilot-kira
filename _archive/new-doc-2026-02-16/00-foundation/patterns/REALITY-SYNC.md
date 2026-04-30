@@ -9,7 +9,7 @@ sync_status: current
 
 ## Purpose
 
-Zapobieganie rozjechaniu się (drift) dokumentacji Monopilot z zewnętrznymi **reality sources** — realnymi systemami używanymi obecnie w firmie Forza (Smart PLD v7 Excel/VBA, Power Automate, D365, Access DBs, inne Excels). Przez najbliższe 12 miesięcy trwa **dual maintenance**: PLD v7 żyje i jest aktywnie rozwijany, równolegle powstaje dokumentacja Monopilot. Bez twardej dyscypliny sync reality sources rozjadą się z `new-doc/` w ciągu tygodni.
+Zapobieganie rozjechaniu się (drift) dokumentacji Monopilot z zewnętrznymi **reality sources** — realnymi systemami używanymi obecnie w firmie Apex (Smart PLD v7 Excel/VBA, Power Automate, D365, Access DBs, inne Excels). Przez najbliższe 12 miesięcy trwa **dual maintenance**: PLD v7 żyje i jest aktywnie rozwijany, równolegle powstaje dokumentacja Monopilot. Bez twardej dyscypliny sync reality sources rozjadą się z `new-doc/` w ciągu tygodni.
 
 REALITY-SYNC uzupełnia [`DOCUMENTATION-SYNC.md`](./DOCUMENTATION-SYNC.md) — tamten pokrywa sync `code ↔ docs` wewnątrz repo, ten pokrywa sync `external-reality ↔ docs`. Oba wzorce dzielą infrastrukturę audytu (DOC-AUDITOR agent, drift score, quality gates).
 
@@ -48,7 +48,7 @@ Trigger 1 jest **krytyczny** — to on zapobiega głównemu ryzyku R2 (dual main
 
 ## §3 — Two-session pattern (obowiązkowy)
 
-Sync reality → moduły **nigdy** nie odbywa się w jednej sesji. Podział na dwie sesje wymusza refleksję nad markerem (§4) i chroni przed naiwnym kopiowaniem realiów Forza do modułu, który ma opisywać "universal MES".
+Sync reality → moduły **nigdy** nie odbywa się w jednej sesji. Podział na dwie sesje wymusza refleksję nad markerem (§4) i chroni przed naiwnym kopiowaniem realiów Apex do modułu, który ma opisywać "universal MES".
 
 ```mermaid
 sequenceDiagram
@@ -63,7 +63,7 @@ sequenceDiagram
     SessionA->>Reality: Update reality source doc (+ bump source_version)
     SessionA->>Handoff: Note: "propagation pending to modules X, Y, Z"
     User->>SessionB: Start next session (czyta HANDOFF)
-    SessionB->>SessionB: Brainstorm marker per zmiana ([UNIVERSAL] / [FORZA-CONFIG] / [EVOLVING] / [LEGACY-D365])
+    SessionB->>SessionB: Brainstorm marker per zmiana ([UNIVERSAL] / [APEX-CONFIG] / [EVOLVING] / [LEGACY-D365])
     SessionB->>Module: Update module docs + cross-ref do reality source
     SessionB->>Reality: Update `propagated_to` w frontmatterze reality source
 ```
@@ -78,13 +78,13 @@ sequenceDiagram
 ### Session B — Propagate
 
 - Czytaj HANDOFF z poprzedniej sesji.
-- Per zmiana wykonaj **brainstorm markera**: czy to cecha uniwersalna MES, czy specyfika Forza, czy rzecz w trakcie ewolucji, czy artefakt integracji D365.
+- Per zmiana wykonaj **brainstorm markera**: czy to cecha uniwersalna MES, czy specyfika Apex, czy rzecz w trakcie ewolucji, czy artefakt integracji D365.
 - Zaktualizuj właściwe moduły Monopilot — każda propagowana zmiana linkuje z powrotem do reality source (pełna ścieżka).
 - Zamknij pętlę: w reality source ustaw `sync_status: current`, uzupełnij listę `propagated_to`.
 
 ### Zasada żelazna
 
-NIGDY nie propagujemy w tej samej sesji co capture. Brainstorm markera wymaga świeżego kontekstu i odstępu — szybki copy-paste w jednej sesji gwarantuje błędne oznaczenia i Forza-specific info w `[UNIVERSAL]` częściach.
+NIGDY nie propagujemy w tej samej sesji co capture. Brainstorm markera wymaga świeżego kontekstu i odstępu — szybki copy-paste w jednej sesji gwarantuje błędne oznaczenia i Apex-specific info w `[UNIVERSAL]` częściach.
 
 ---
 
@@ -95,11 +95,11 @@ Każda propagowana zmiana dostaje marker **przed** update modułu. Brainstorm ma
 | Marker | Znaczenie | Kiedy używać |
 |---|---|---|
 | `[UNIVERSAL]` | Fundamentalne dla food-manufacturing MES | Gdy zmiana dotyczy fundamentu branży (traceability batcha, BOM, allergens, audit trail) |
-| `[FORZA-CONFIG]` | Forza-specific, konfigurowalne per organizację | Gdy zmiana jest konkretnie Forza (nowa kolumna "Dział 14", lokalny rollup, ich nomenklatura) |
-| `[EVOLVING]` | Jeszcze się zmienia, nie jest stabilne | Gdy Forza eksperymentuje, pattern nie ustabilizowany |
+| `[APEX-CONFIG]` | Apex-specific, konfigurowalne per organizację | Gdy zmiana jest konkretnie Apex (nowa kolumna "Dział 14", lokalny rollup, ich nomenklatura) |
+| `[EVOLVING]` | Jeszcze się zmienia, nie jest stabilne | Gdy Apex eksperymentuje, pattern nie ustabilizowany |
 | `[LEGACY-D365]` | Istnieje tylko z powodu D365 | Gdy zmiana wynika z ograniczeń integracji D365, zniknie po wchłonięciu |
 
-Brak markera = propagacja zablokowana. Pattern `[UNIVERSAL]` bez review → domyślnie downgrade do `[FORZA-CONFIG]` (zasada "konserwatywna uniwersalność").
+Brak markera = propagacja zablokowana. Pattern `[UNIVERSAL]` bez review → domyślnie downgrade do `[APEX-CONFIG]` (zasada "konserwatywna uniwersalność").
 
 ---
 
@@ -174,10 +174,10 @@ Analogiczne hooki powstają dla kolejnych reality sources w miarę ich wchłania
 ## §9 — Anti-patterns
 
 - ❌ **Update modułu Monopilot bez update reality source.** Drift pewny. Moduł traci zakotwiczenie w rzeczywistości biznesowej, a reality source przestaje być ground truth.
-- ❌ **Update reality source i modułu w jednej sesji.** Brakuje brainstormu markera — `[UNIVERSAL]` dostaną rzeczy Forza-specific, kompletnie psując przyszłą multi-tenancy.
+- ❌ **Update reality source i modułu w jednej sesji.** Brakuje brainstormu markera — `[UNIVERSAL]` dostaną rzeczy Apex-specific, kompletnie psując przyszłą multi-tenancy.
 - ❌ **Brak markera w propagowanej zmianie.** Niemarkowana zmiana to nieidentyfikowalna odpowiedzialność: czy to fundament, czy specyfika klienta?
 - ❌ **Usuwanie informacji z reality source bez historii.** Reality source to **chronicle**, nie live-spec — stare przepływy zostają w sekcji historycznej nawet jeśli dziś nieaktualne. Bez historii tracimy uzasadnienie decyzji, które kiedyś były świadome.
-- ❌ **Pominięcie reality layer przy update modułu** (próba skrótu "po co chronicle, mam w głowie"). Moduł zawsze linkuje do reality source tam, gdzie opisuje proces zakotwiczony w realnym systemie Forza.
+- ❌ **Pominięcie reality layer przy update modułu** (próba skrótu "po co chronicle, mam w głowie"). Moduł zawsze linkuje do reality source tam, gdzie opisuje proces zakotwiczony w realnym systemie Apex.
 - ❌ **Tłumaczenie dokładnej kopii reality source do modułu.** Moduł ma być abstrakcją — reality source jest źródłem, nie tekstem do copy-paste.
 
 ---
