@@ -301,7 +301,7 @@ CREATE TABLE prod_detail (
     id             UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     product_code        TEXT NOT NULL REFERENCES fa(product_code) ON DELETE CASCADE,
     tenant_id      UUID NOT NULL,
-    pr_code        TEXT NOT NULL,                -- np. 'PR123H', 'PR345A'
+    intermediate_code TEXT NOT NULL,            -- e.g., 'PR123H', 'WIP456B', 'BATCH001' (format per Reference.CodePrefixes)
     component_index INT NOT NULL,                -- 1-based order w Recipe_Components
     manufacturing_operation_1      TEXT,
     manufacturing_operation_2      TEXT,
@@ -316,7 +316,7 @@ CREATE TABLE prod_detail (
     yield_line     NUMERIC,
     resource_requirement       TEXT,
     rate           NUMERIC,
-    intermediate_code_p1     TEXT,                         -- auto (Process_N suffix)
+    intermediate_code_p1     TEXT,                         -- auto (Manufacturing_Operation_N suffix)
     intermediate_code_p2     TEXT,
     intermediate_code_p3     TEXT,
     intermediate_code_p4     TEXT,
@@ -573,17 +573,17 @@ Implementowane jako **rule engine DSL** (ADR-029) — JSON stored w `Reference.R
 
 Line dropdown = filtered by `Reference.Lines_By_PackSize.Supported_Pack_Sizes` CONTAINS `fa.pack_size`.
 
-#### Chain 2: Process_N → PR_Code_P<N> → Intermediate_Code_Final
+#### Chain 2: Manufacturing_Operation_N → Intermediate_Code_P<N> → Intermediate_Code_Final
 
 ```json
 {
   "rule_id": "cascade_process_to_pr",
   "rule_type": "cascading",
-  "trigger": "prod_detail.process_{n}.change",
+  "trigger": "prod_detail.manufacturing_operation_{n}.change",
   "actions": [
-    { "auto_fill": "prod_detail.pr_code_p{n}",
+    { "auto_fill": "prod_detail.intermediate_code_p{n}",
       "source": "Reference.Processes",
-      "lookup_by": {"Process_Name": "prod_detail.process_{n}"},
+      "lookup_by": {"Operation_Name": "prod_detail.manufacturing_operation_{n}"},
       "return": "Suffix"
     }
   ],
@@ -615,11 +615,11 @@ Line dropdown = filtered by `Reference.Lines_By_PackSize.Supported_Pack_Sizes` C
   "rule_type": "cascading",
   "trigger": "fa.recipe_components.change",
   "actions": [
-    { "auto_fill": "fa.ingredient_codes",
-      "formula": "parse_pr_codes(fa.recipe_components).map(pr => 'RM' + extract_digits(pr)).join(', ')"
+    { "auto_fill": "product.ingredient_codes",
+      "formula": "parse_recipe_components(product.recipe_components).map(code => Reference.CodePrefixes['ingredient'].prefix + extract_digits(code)).join(', ')"
     },
     { "invoke": "sync_prod_detail_rows",
-      "args": {"product_code": "fa.product_code", "recipe_components": "fa.recipe_components"}
+      "args": {"product_code": "product.product_code", "recipe_components": "product.recipe_components"}
     }
   ]
 }
@@ -1074,7 +1074,7 @@ Phase D decision #19-22. 8 tabs per-FA file `Builder_FA<code>.xlsx` zgodnie z re
 | 3 | `Formula_Lines` | 29 | Formula ingredients (1 per RM + 1 per PM) | N (materials count) |
 | 4 | `Route_Headers` | 6 | Route header (ROUTEID / APPROVERPERSONNELNUMBER / PRODUCTGROUPID) | 1 |
 | 5 | `Route_Versions` | 10 | Route version info | 1 |
-| 6 | `Route_Operations` | 8 | Production operations (1 per Process_N, OP=10/20/30/40) | M (non-empty processes) |
+| 6 | `Route_Operations` | 8 | Production operations (1 per Manufacturing_Operation_N, OP=10/20/30/40) | M (non-empty operations) |
 | 7 | `Route_OpProperties` | 25 | Operations details (resource, time, cost category) | M |
 | 8 | `Resource_Req` | 7 | Resource requirements (link op → line/machine) | M |
 
@@ -1409,7 +1409,7 @@ Każdy sub-module end-to-end (stories → QA → regression → done) przed nast
 ### Funkcjonalne (Phase B.2 acceptance)
 
 - [ ] 7 dept proxy views działają (schema-driven z Reference.DeptColumns)
-- [ ] 4 cascade chains enforce correctly (Pack_Size→Line→Equipment_Setup, Process_N→PR_Code, Recipe_Components→Ingredient_Codes+SyncProdDetail, Template→ApplyTemplate)
+- [ ] 4 cascade chains enforce correctly (Pack_Size→Equipment_Setup cascade, Manufacturing_Operation_N→Intermediate_Code, Recipe_Components→Ingredient_Codes+SyncComponentRows, Template→Manufacturing_Operation application)
 - [ ] Blocking rules (4 baseline) work (Core done / Pack_Size filled / Line filled / Core + Production done)
 - [ ] Closed/Done flags + autofilter działa
 - [ ] Status_Overall enum (5-state) computed correctly
