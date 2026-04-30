@@ -910,15 +910,15 @@ Form fields (RHF + Zod):
 
 #### 8.9.5 Validation Rules V-SET-MFG
 
-- **V-SET-40**: Process Suffix must be 2–4 chars, uppercase alphanumeric only, unique per (tenant_id, process_suffix)
-- **V-SET-41**: Operation Name must be ≤50 chars, alphanumeric + spaces, unique per (tenant_id, operation_name)
-- **V-SET-42**: Sequence Order must be 1–99; at least one operation must have seq 1
-- **V-SET-43**: Cannot delete/deactivate operation if referenced in:
+- **V-SET-MFG-01**: Process Suffix must be 2–4 chars, uppercase alphanumeric only, unique per (tenant_id, process_suffix)
+- **V-SET-MFG-02**: Operation Name must be ≤50 chars, alphanumeric + spaces, unique per (tenant_id, operation_name)
+- **V-SET-MFG-03**: Sequence Order must be 1–99; at least one operation must have seq 1
+- **V-SET-MFG-04**: Cannot delete/deactivate operation if referenced in:
   - Active FA rows: `manufacturing_operation_1..4` match operation_name
   - Active Template rows: `template_operation_1..4` match operation_name
   - Confirmation dialog: "Are you sure you want to remove [Operation Name]? This operation is used in [N] templates and [M] active FAs. Deactivating will prevent new FAs from using it."
-- **V-SET-44**: Industry Code must be one of: {bakery, pharma, fmcg, generic, custom}
-- **V-SET-45**: On deactivate, warn user: "This operation will no longer be available for new FA assignments. Existing FAs using this operation will continue to function."
+- **V-SET-MFG-05**: Industry Code must be one of: {bakery, pharma, fmcg, generic, custom}
+- **V-SET-MFG-06**: On deactivate, warn user: "This operation will no longer be available for new FA assignments. Existing FAs using this operation will continue to function."
 
 #### 8.9.6 Confirmation Dialogs
 
@@ -1072,13 +1072,13 @@ Audit Trail UI (SET-057, ref §16 audit log viewer extension):
 #### 8.9.13 Phase C1 Acceptance Criteria
 
 - [ ] Manufacturing Operations editor UI implemented (Add/Edit/Delete/Reorder) — SET-055, SET-056
-- [ ] Suffix uniqueness enforced (per-tenant, V-SET-40)
-- [ ] Operation name uniqueness enforced (per-tenant, V-SET-41)
+- [ ] Suffix uniqueness enforced (per-tenant, V-SET-MFG-01)
+- [ ] Operation name uniqueness enforced (per-tenant, V-SET-MFG-02)
 - [ ] Seed data loaded per industry selection (Bakery/Pharmacy/FMCG/Generic) on tenant creation
 - [ ] Cascade engine correctly looks up process_suffix on operation change (§8.9.8)
 - [ ] Cascade engine generates intermediate codes using process_suffix + sequence pattern
 - [ ] Template application uses operation_names (not hardcoded Process_A/B/C/D) (§8.9.9)
-- [ ] Delete/deactivate validation prevents removal if referenced in active FAs/Templates (V-SET-43)
+- [ ] Delete/deactivate validation prevents removal if referenced in active FAs/Templates (V-SET-MFG-04)
 - [ ] Reorder drag-to-reorder updates operation_seq correctly
 - [ ] Audit trail captures all create/update/delete operations (SET-057)
 - [ ] RBAC permissions enforced (manufacturing_operations.view/edit/create/delete/reorder)

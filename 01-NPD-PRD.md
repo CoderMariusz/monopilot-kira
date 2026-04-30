@@ -1,9 +1,9 @@
 ---
 title: PRD 01-NPD — Monopilot MES
-version: 3.1
+version: 3.2
 date: 2026-04-30
 phase: Phase B.2 (primary Phase B module — full v7 PLD equivalent + Brief upstream + D365 Builder)
-status: Draft v3.1 — pending user review
+status: Draft v3.2 — Phase B.2 finalization (cascade engine ready for implementation)
 supersedes: v1.1 (2026-02-18, was numbered 09-NPD Premium Add-on)
 build_sequence: 01-NPD-a → 01-NPD-b → 01-NPD-c → 01-NPD-d → 01-NPD-e (see §13 + 00-FOUNDATION §4.2)
 references:
@@ -1788,6 +1788,8 @@ Then: BATCH-CZ-0000003 → DRYING → BATCH-DR-0000004 (Final: PROD-PHM-024)
 
 ## Changelog
 
+- **v3.2 (2026-04-30)** — Phase B.2 finalization. Fixed validation code collision in 02-SETTINGS (V-SET-40..45 → V-SET-MFG-01..06, avoiding conflict with Module Toggles). Added Phase B.2 migration spec to 00-FOUNDATION §9.1: backward-compatible handling of existing tenants with hardcoded Process_1..4 (seed as generic operations, optional regeneration via Phase C1 wizard). Aligned with 00-FOUNDATION v4.0 §9.1 (Manufacturing Operations configuration pattern) and 02-SETTINGS v3.4 §8.9 (admin UI specification). Cascade engine ready for implementation: Chain 2 (manufacturing_operation_N → process_suffix lookup → intermediate_code_pN generation) fully specified. Dynamic suffix pattern WIP-<suffix>-<seq> works across Bakery/Pharmacy/FMCG industries. All cross-references updated (01-NPD §5.6, §6, §9.5, §12 validation rules, §13 acceptance criteria).
+
 - **v3.1 (2026-04-30)** — Multi-industry generalization + dynamic process configuration. Renamed meat-specific columns to generic equivalents (Finish_Meat → Recipe_Components, RM_Code → Ingredient_Codes, Meat_Pct → Primary_Ingredient_Pct, Process_1..4 → Manufacturing_Operation_1..4, PR_Code_* → Intermediate_Code_*, Dieset → Equipment_Setup, Staffing → Resource_Requirement, FA_Code → Product_Code, Factory Article → Product). Added Reference.ManufacturingOperations table: manufacturing operations now configurable per tenant with dynamic suffix assignment (instead of hardcoded A/B/C/D). Intermediate code generation uses Reference.ManufacturingOperations.process_suffix per operation. Seed data provided for Bakery (Mix/Knead/Proof/Bake), Pharmacy (Synthesis/Separation/Crystallization/Drying), FMCG. Updated Chain 2 + Chain 4 cascading rules + V06 validation to reference dynamic operations. Added Appendix A with industry configuration examples and recipe example flows. Generic framework supports multiple industries via Reference.CodePrefixes, Reference.ColumnLabels, and Reference.ManufacturingOperations configuration (per ADR-034 v3.1).
 
 - **v3.0 (2026-04-19)** — Phase B.2 full rewrite. Renumbered from 09-NPD → 01-NPD (primary module). Phase D aligned: 6 principles + markers + 23 decisions (incl. #1 multi-comp, #2 Done independent, #3 Status_Overall 5-enum, #7 Price blocking tightened, #8 Built auto-reset fix, #10 Intermediate_Code_Final format, #16 allergens multi-level, #18 alert thresholds, #19-22 D365 Builder N+1+per-FA+constants). R1-R15 research adopted (event-first, JSONB hybrid, RLS, Zod runtime, GS1-first, i18n, schema AI/trace-ready). Brief module added (2 templates, 37 cols, Convert-to-PLD). Allergens multi-level cascade RM→PR_step→FA implementowane. D365 Builder N+1 products per FA + Reference.D365_Constants + 8 tabs per-FA file. Dashboard NPD-scoped + RED/YELLOW/GREEN alerts. V07-V08 new validations. Build sequence 01-NPD-a/b/c/d/e (per 00-FOUNDATION §4.2 sequential per sub-module).
@@ -1796,4 +1798,4 @@ Then: BATCH-CZ-0000003 → DRYING → BATCH-DR-0000004 (Final: PROD-PHM-024)
 
 ---
 
-*PRD 01-NPD v3.1 — Phase B.2 primary module rewrite with multi-industry generalization. Next: Phase C1 (02-SETTINGS + 03-TECHNICAL + INTEGRATIONS stage 1) PRD writing.*
+*PRD 01-NPD v3.2 — Phase B.2 finalization with cascade engine ready for implementation. Next: Phase C1 (02-SETTINGS + 03-TECHNICAL + INTEGRATIONS stage 1) PRD writing and Phase B.2 implementation kicks off.*

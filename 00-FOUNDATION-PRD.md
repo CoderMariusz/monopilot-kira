@@ -688,6 +688,36 @@ Seed data is applied **per new tenant** (Phase B.2 or Phase C.1 tenant onboardin
 - Industry-specific variations (e.g., Bakery subtype "Artisanal" vs "Industrial" with different operations)
 - Template library per operation set (Phase B.2 / C.1)
 
+### Phase B.2 Migration (Existing Tenants)
+
+**For tenants with existing hardcoded Process_1..4 (from v7 or earlier phases):**
+
+1. **Identify existing data:** Query `product` table for non-null `manufacturing_operation_1..4` values that currently hold "Process_A", "Process_B", "Process_C", "Process_D" (letter-based placeholders).
+
+2. **Seed generic operations:** Insert Reference.ManufacturingOperations rows with industry_code='generic':
+   ```sql
+   INSERT INTO "Reference.ManufacturingOperations" 
+     (tenant_id, operation_name, process_suffix, operation_seq, industry_code, is_active, marker)
+   VALUES 
+     (tenant_id, 'Process_A', 'PA', 1, 'generic', true, 'ORG-CONFIG'),
+     (tenant_id, 'Process_B', 'PB', 2, 'generic', true, 'ORG-CONFIG'),
+     (tenant_id, 'Process_C', 'PC', 3, 'generic', true, 'ORG-CONFIG'),
+     (tenant_id, 'Process_D', 'PD', 4, 'generic', true, 'ORG-CONFIG');
+   ```
+
+3. **Backfill existing FAs:** For each FA with non-null manufacturing_operation_N:
+   - Copy as-is (Process_A, Process_B, etc. remain valid operation_names)
+   - Cascade engine will look up process_suffix ("PA", "PB", "PC", "PD") at runtime
+   - Existing intermediate_code_pN values are NOT regenerated (backward compat)
+
+4. **Regenerate intermediate codes (optional, Phase C1+):** Tenant admin can trigger "Regenerate intermediate codes" wizard:
+   - Preview mode: show sample FAs with old vs new codes (e.g., PR-A-001 → WIP-PA-000001)
+   - User confirms scope (all FAs, date range, specific subset)
+   - Background job updates intermediate_code_pN columns for selected FAs
+   - Audit log tracks regeneration (user, timestamp, count of updated FAs)
+
+5. **Post-migration:** Tenant can optionally upgrade to industry-specific operations (Bakery/Pharmacy/FMCG) or custom operations via Phase C1 admin UI (export/import migrations available for bulk rename).
+
 ### Related Architecture Decisions
 
 - **ADR-028**: Generic column definition in Reference.DeptColumns; extends to Reference.ManufacturingOperations
