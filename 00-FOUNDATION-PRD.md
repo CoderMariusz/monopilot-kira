@@ -183,6 +183,8 @@ Build = **per module albo jego części, po kolei, z rozbiciem na stories/tasks*
 
 **Regression rule:** po każdym module impl → regression test suite (Vitest + Playwright) przed kolejnym. Skills: `vba-regression` pattern (for VBA) / analogous web-app regression pipeline (to be defined C1).
 
+> **§4.2-AMENDMENT (2026-04-22, per ADR-032):** build order row 2 dependency "Foundation infra w minimum scope" zastępujemy explicit Phase E-0 = `00-FOUNDATION-impl-a..i` (atomic task spec w `_meta/specs/00-FOUNDATION-impl-spec.md`; tasks listed in `_meta/plans/2026-04-25-foundation-tasks.md`). Row 3 prerequisite "01-NPD done" zmieniamy na **"02-SETTINGS-a minimum carveout done"** (orgs/users + RBAC + 7 ref tables + module toggles + i18n scaffold + org security baseline) z parallel Track A (01-NPD-a..e) / Track B (02-SETTINGS-b..e). Pełna revised tabela: patrz `_meta/plans/2026-04-22-phase-e-kickoff-plan.md` §3.2. Foundation modules `00-FOUNDATION-impl-d/e/f/g/h` (DB+RLS, outbox, RBAC primitives, audit, i18n) MUST complete before 01-NPD-a can start.
+
 ### §4.3 Tabela 15 modułów
 
 | # | Moduł | PRD Writing | Build order | File | Dependencies |
@@ -769,12 +771,14 @@ Worker publikuje do queue (Azure Service Bus / SQS / RabbitMQ). Hook za darmo dl
 
 ### Event naming ISA-95-compatible
 
-Format: `<tenant>/<site>/<area>/<line>/<event_type>`
+Format (queue routing key): `<tenant>/<site>/<area>/<line>/<event_type>`
 
 Przykłady:
 - `apex/uk-site/mixing-line/wo-4521/ccp-chilling-out-of-spec`
 - `apex/uk-site/warehouse/lp-8823/moved`
 - `apex/uk-site/shipping/shipment-1234/epcis-commissioning`
+
+**`event_type` aggregate prefixes (canonical):** `fa.*` (NPD 01 finished-article lifecycle — `fa.created`, `fa.core_closed`, `fa.dept_closed`, `fa.built`, `fa.built_reset`, `fa.allergens_changed`), `brief.*` (NPD brief), `org.*` / `user.*` / `role.*` / `audit.*` (foundation/settings), `lp.*` (warehouse), `wo.*` (production), `quality.*`, `shipment.*`. **`fa.*` is canonical for the NPD finished-article aggregate even after the ADR-034 physical rename of the underlying `fa` table to `product`** — event names are a domain contract, decoupled from storage. `product.*` is reserved for future product-master/reference-data events (D365 item master, BOM revisions) and is NOT a synonym for `fa.*`. Full aggregate registry + add-prefix process: `_meta/specs/event-naming-convention.md`. Source-of-truth enum: `lib/outbox/events.enum.ts`.
 
 ### Schema "AI-ready + traceability-ready" od dnia 1 [R13]
 
