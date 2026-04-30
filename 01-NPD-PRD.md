@@ -1,9 +1,9 @@
 ---
 title: PRD 01-NPD — Monopilot MES
-version: 3.0
-date: 2026-04-19
-phase: Phase B.2 (primary Phase B module — full v7 PLD equivalent + Brief upstream + D365 Builder)
-status: Draft v3.0 — pending user review
+version: 3.3
+date: 2026-04-30
+phase: Phase B.2 (primary Phase B module — full v7 PLD equivalent + Brief upstream + D365 Builder) → Phase E-0 prep
+status: Draft v3.3 — Phase E-0 prep (table-naming aligned with 00-FOUNDATION §4.3-AMENDMENT)
 supersedes: v1.1 (2026-02-18, was numbered 09-NPD Premium Add-on)
 build_sequence: 01-NPD-a → 01-NPD-b → 01-NPD-c → 01-NPD-d → 01-NPD-e (see §13 + 00-FOUNDATION §4.2)
 references:
@@ -38,7 +38,7 @@ references:
 
 ## Executive Summary
 
-**Co robi moduł 01-NPD:** zarządza pełnym lifecyclem Factory Article (FA) od momentu NPD brief → przez 7-dept parallel fill (Core, Planning, Commercial, Production, Technical, MRP, Procurement) → do D365 Builder paste-ready output. Replaces 22-tab Smart_PLD_v7.xlsm z pełnym zakresem functionality.
+**Co robi moduł 01-NPD:** zarządza pełnym lifecyclem Product (FA) od momentu NPD brief → przez 7-dept parallel fill (Core, Planning, Commercial, Production, Technical, MRP, Procurement) → do D365 Builder paste-ready output. Replaces 22-tab Smart_PLD_v7.xlsm z pełnym zakresem functionality.
 
 **Pozycja w build plan:**
 - PRD writing: **Phase B.2** (1-3 sesji).
@@ -113,9 +113,9 @@ references:
 |---|---|---|---|
 | **NPD Manager** (Jane @ Apex) | Owner całego procesu PLD; Add Product macro trigger; D365 Builder click; Dashboard daily review | 01-NPD orchestrator role; jedyny user z `d365_builder.execute` + `fa.create` permissions | role [UNIVERSAL], osoba [APEX-CONFIG] |
 | **NPD team (Core)** | 3 osoby (w tym Jane); wypełnia Core section (7 cols); Brief fill | 01-NPD Core section fill; Brief form fill; Convert-to-PLD button | [UNIVERSAL] |
-| **Planning manager** | Meat_Pct, Runs_Per_Week, Date_Code | Planning section fill + Dashboard read | [UNIVERSAL] |
+| **Planning manager** | Primary_Ingredient_Pct, Runs_Per_Week, Date_Code | Planning section fill + Dashboard read | [UNIVERSAL] |
 | **Commercial manager** | Launch_Date, Article_Number, Bar_Codes, Cases_Per_Week_W1-3 | Commercial section fill + Dashboard read | [UNIVERSAL] |
-| **Production manager** | Processes 1-4, Yields, Line, Dieset, Staffing, Rate, PR Codes | Production section + ProdDetail rows (per component) | [UNIVERSAL] |
+| **Production manager** | Processes 1-4, Yields, Line, Equipment_Setup, Resource_Requirement, Rate, PR Codes | Production section + ProdDetail rows (per component) | [UNIVERSAL] |
 | **Technical / Quality manager** | Dziś: Shelf_Life. Future: Allergens multi-level | Technical section + Allergens validation | [UNIVERSAL] (HACCP regulatory) |
 | **MRP manager** | Packaging specs (Box, Labels, Web, Sleeves, Cartons, Tara, Pallet) | MRP section fill | [UNIVERSAL] |
 | **Procurement manager** | Supplier, Lead_Time, Proc_Shelf_Life (starts early); Price waits for components | Procurement section fill | [UNIVERSAL] |
@@ -169,7 +169,7 @@ sequenceDiagram
     NPD->>Brief: Fill Brief (37 cols, 2 templates)
     Brief-->>Jane: Brief complete → review
     Jane->>Brief: Click "Convert to PLD"
-    Brief->>FA: Create FA row with Core pre-populated<br/>(Product_Name, Volume, Dev_Code,<br/>Finish_Meat, RM_Code, Weights, Packs_Per_Case,<br/>Comments, Benchmark, + Brief's Allergens seed)
+    Brief->>FA: Create FA row with Core pre-populated<br/>(Product_Name, Volume, Dev_Code,<br/>Recipe_Components, Ingredient_Codes, Weights, Packs_Per_Case,<br/>Comments, Benchmark, + Brief's Allergens seed)
     FA->>Outbox: fa.created event
     Core->>FA: Complete remaining Core cols<br/>(Pack_Size, Number_of_Cases, Template)<br/>→ Closed_Core=TRUE
     FA->>Outbox: fa.core_closed event
@@ -212,11 +212,11 @@ sequenceDiagram
 
 | Entity | Cardinality | Storage | Notes |
 |---|---|---|---|
-| **FA** (Factory Article) | 1 row per product launch | Main Table, 69 cols typed | PK = `FA_Code` (format `FA*`, [APEX-CONFIG]); source of truth |
-| **ProdDetail** | N per FA (1 per component for multi-comp) | `prod_detail` table, ~20 cols | Foreign key `FA_Code`; per-component Process_1..4 + Yield + Line + Dieset + PR codes |
+| **FA** (Product) | 1 row per product launch | Main Table, 69 cols typed | PK = `Product_Code` (format `FA*`, [APEX-CONFIG]); source of truth |
+| **ProdDetail** | N per FA (1 per component for multi-comp) | `prod_detail` table, ~20 cols | Foreign key `Product_Code`; per-component Manufacturing_Operation_1..4 + Yield + Line + Equipment_Setup + PR codes |
 | **Brief** | 1 row (single-comp) OR N rows (multi-comp) | `brief` table, 37 cols + `brief_version` metadata | 2 templates; pre-PLD upstream stage |
 | **Dept proxy views** | 7 views (read-through schema-driven) | Not stored — computed from Main Table + Reference.DeptColumns | Per-dept filtered columns + blocking states |
-| **Reference tables** | 8-10 tabs (config) | `Reference.*` tables | DeptColumns (metadata), PackSizes, Templates, Lines_By_PackSize, Dieset_By_Line_Pack, Processes, CloseConfirm, Allergens (new), D365_Constants (new), AlertThresholds (new) |
+| **Reference tables** | 8-10 tabs (config) | `Reference.*` tables | DeptColumns (metadata), PackSizes, Templates, Lines_By_PackSize, Equipment_Setup_By_Line_Pack, ManufacturingOperations (configurable per tenant), CloseConfirm, Allergens (new), D365_Constants (new), AlertThresholds (new) |
 | **outbox_events** | Monotonic ordered (append-only) | `outbox_events` table (per 00-FOUNDATION §10) | Domain events for downstream consumers |
 | **audit_events** | Append-only | `audit_events` table | Every FA mutation logged (SOC 2/GDPR/FDA 21 CFR 11) |
 
@@ -250,20 +250,23 @@ Runtime engine (01-NPD server) czyta DeptColumns → generuje:
 
 Storage FA rows (hybrid core + JSONB per 00-FOUNDATION §5 R2):
 
+> **Table-naming note (per 00-FOUNDATION §4.3-AMENDMENT, ADR-034 finalisation):** the physical table name in 01-NPD-a DDL is **`product`** (Option B, generic multi-industry name). The legacy alias `fa` is retained as a read-only SQL view (`CREATE VIEW fa AS SELECT * FROM product;`) for D365 Builder + integrations through Phase C1. PRD code blocks below still show `fa` to keep cross-references with v3.x stable; treat as `product` in implementation. Event aggregate prefix `fa.*` is unaffected (decoupled from storage — see 00-FOUNDATION §10 + `_meta/specs/event-naming-convention.md`).
+
 ```sql
+-- Phase E-0 / 01-NPD-a actual DDL: rename "fa" → "product" + compat view (see note above)
 CREATE TABLE fa (
-    fa_code        TEXT PRIMARY KEY,
+    product_code        TEXT PRIMARY KEY,
     tenant_id      UUID NOT NULL,
     -- Core cols (8)
     product_name   TEXT,
     pack_size      TEXT,
     number_of_cases NUMERIC,
-    finish_meat    TEXT,
-    rm_code        TEXT,           -- auto-derived
+    recipe_components    TEXT,
+    ingredient_codes        TEXT,           -- auto-derived
     template       TEXT,
     closed_core    TEXT,
     -- Planning (4)
-    meat_pct       NUMERIC,
+    primary_ingredient_pct       NUMERIC,
     runs_per_week  NUMERIC,
     date_code_per_week TEXT,
     closed_planning TEXT,
@@ -299,38 +302,38 @@ CREATE INDEX ON fa (tenant_id, launch_date) WHERE built = FALSE;
 ```sql
 CREATE TABLE prod_detail (
     id             UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    fa_code        TEXT NOT NULL REFERENCES fa(fa_code) ON DELETE CASCADE,
+    product_code        TEXT NOT NULL REFERENCES fa(product_code) ON DELETE CASCADE,
     tenant_id      UUID NOT NULL,
-    pr_code        TEXT NOT NULL,                -- np. 'PR123H', 'PR345A'
-    component_index INT NOT NULL,                -- 1-based order w Finish_Meat
-    process_1      TEXT,
-    process_2      TEXT,
-    process_3      TEXT,
-    process_4      TEXT,
-    yield_p1       NUMERIC,
-    yield_p2       NUMERIC,
-    yield_p3       NUMERIC,
-    yield_p4       NUMERIC,
+    intermediate_code TEXT NOT NULL,            -- e.g., 'PR123H', 'WIP456B', 'BATCH001' (format per Reference.CodePrefixes)
+    component_index INT NOT NULL,                -- 1-based order w Recipe_Components
+    manufacturing_operation_1      TEXT,        -- FK to Reference.ManufacturingOperations.operation_name
+    manufacturing_operation_2      TEXT,        -- FK to Reference.ManufacturingOperations.operation_name
+    manufacturing_operation_3      TEXT,        -- FK to Reference.ManufacturingOperations.operation_name
+    manufacturing_operation_4      TEXT,        -- FK to Reference.ManufacturingOperations.operation_name
+    operation_yield_1       NUMERIC,
+    operation_yield_2       NUMERIC,
+    operation_yield_3       NUMERIC,
+    operation_yield_4       NUMERIC,
     line           TEXT,
-    dieset         TEXT,
+    equipment_setup         TEXT,
     yield_line     NUMERIC,
-    staffing       TEXT,
+    resource_requirement       TEXT,
     rate           NUMERIC,
-    pr_code_p1     TEXT,                         -- auto (Process_N suffix)
-    pr_code_p2     TEXT,
-    pr_code_p3     TEXT,
-    pr_code_p4     TEXT,
-    pr_code_final  TEXT,                         -- auto (format per Phase D #10)
+    intermediate_code_p1     TEXT,                         -- auto (Manufacturing_Operation_N suffix)
+    intermediate_code_p2     TEXT,
+    intermediate_code_p3     TEXT,
+    intermediate_code_p4     TEXT,
+    intermediate_code_final  TEXT,                         -- auto (format per Phase D #10)
     slice_count    INT,                          -- from brief
     component_weight NUMERIC,                    -- from brief
     created_at     TIMESTAMPTZ DEFAULT now()
 );
-CREATE INDEX ON prod_detail (fa_code);
-CREATE INDEX ON prod_detail (tenant_id, fa_code);
+CREATE INDEX ON prod_detail (product_code);
+CREATE INDEX ON prod_detail (tenant_id, product_code);
 ```
 
 **Phase D decision #1 (multi-component semantyka):**
-- Main Table Process_1..4 + Line + Dieset + PR_Code_Final = **aggregate** (comma-sep concat), gdy FA ma N komponentów
+- Main Table Manufacturing_Operation_1..4 + Line + Equipment_Setup + Intermediate_Code_Final = **aggregate** (comma-sep concat), gdy FA ma N komponentów
 - ProdDetail = **source of truth per-component** (każdy może mieć inne processes)
 - Main Table aggregate auto-derived z ProdDetail gdy N > 1; gdy N == 1, ProdDetail ma 1 row = mirror Main Table
 
@@ -345,7 +348,7 @@ CREATE TABLE brief (
     status         TEXT NOT NULL,                -- 'draft' | 'complete' | 'converted' | 'abandoned'
     product_name   TEXT,
     volume         NUMERIC,
-    fa_code        TEXT REFERENCES fa(fa_code),  -- filled po Convert-to-PLD
+    product_code        TEXT REFERENCES fa(product_code),  -- filled po Convert-to-PLD
     converted_at   TIMESTAMPTZ,
     converted_by_user UUID,
     created_at     TIMESTAMPTZ DEFAULT now()
@@ -383,6 +386,46 @@ CREATE TABLE brief_lines (
 );
 ```
 
+### 4.5 Manufacturing Operations (Configuration)
+
+Reference table for configurable manufacturing operations per tenant (replaces hardcoded Process_1..4 with dynamic naming and suffix assignment):
+
+```sql
+CREATE TABLE "Reference.ManufacturingOperations" (
+    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id       UUID NOT NULL,
+    operation_name  TEXT NOT NULL,         -- e.g., "Mix", "Knead", "Bake", "Coat", "Synthesis", "Drying"
+    process_suffix  TEXT NOT NULL UNIQUE,  -- e.g., "MX", "KN", "BK", "CT", "SY", "DR" (2-4 chars per tenant)
+    description     TEXT,
+    operation_seq   INT,                   -- order in recipe (1, 2, 3, 4...)
+    industry_code   TEXT,                  -- 'bakery', 'pharma', 'fmcg' for seeding
+    is_active       BOOLEAN DEFAULT TRUE,
+    marker          TEXT NOT NULL,         -- 'ORG-CONFIG' (tenant-configurable in Phase C1)
+    created_at      TIMESTAMPTZ DEFAULT now(),
+    UNIQUE(tenant_id, operation_name)
+);
+```
+
+**Seed for Bakery:**
+```json
+[
+  { "operation_name": "Mix", "process_suffix": "MX", "operation_seq": 1, "industry_code": "bakery" },
+  { "operation_name": "Knead", "process_suffix": "KN", "operation_seq": 2, "industry_code": "bakery" },
+  { "operation_name": "Proof", "process_suffix": "PR", "operation_seq": 3, "industry_code": "bakery" },
+  { "operation_name": "Bake", "process_suffix": "BK", "operation_seq": 4, "industry_code": "bakery" }
+]
+```
+
+**Seed for Pharmacy:**
+```json
+[
+  { "operation_name": "Synthesis", "process_suffix": "SY", "operation_seq": 1, "industry_code": "pharma" },
+  { "operation_name": "Separation", "process_suffix": "SE", "operation_seq": 2, "industry_code": "pharma" },
+  { "operation_name": "Crystallization", "process_suffix": "CZ", "operation_seq": 3, "industry_code": "pharma" },
+  { "operation_name": "Drying", "process_suffix": "DR", "operation_seq": 4, "industry_code": "pharma" }
+]
+```
+
 ---
 
 ## §5 — Main Table Schema (69 cols)
@@ -393,7 +436,7 @@ Per `Reference.DeptColumns` [UNIVERSAL pattern] + [APEX-CONFIG values] zgodnie z
 
 | Dept | Cols | Required_for_done | Blocking_rule | Markers dominant |
 |---|---|---|---|---|
-| Core (+FA_Code) | 8 | 4 | `""` | [UNIVERSAL] structure, [APEX-CONFIG] values |
+| Core (+Product_Code) | 8 | 4 | `""` | [UNIVERSAL] structure, [APEX-CONFIG] values |
 | Planning | 4 | 3 | `Core done` | [APEX-CONFIG] |
 | Commercial | 8 | 7 | `Core done` | [UNIVERSAL] (GS1 barcodes) + [APEX-CONFIG] |
 | Production | 19 | 5 | `Pack_Size filled` / `Line filled` | [APEX-CONFIG] |
@@ -403,17 +446,17 @@ Per `Reference.DeptColumns` [UNIVERSAL pattern] + [APEX-CONFIG values] zgodnie z
 | System | 10 | 0 | auto-calc | [UNIVERSAL] + [LEGACY-D365] (Built) |
 | **Total** | **69** | **~33** | mixed | — |
 
-### 5.2 Core (8 cols + FA_Code PK)
+### 5.2 Core (8 cols + Product_Code PK)
 
 | # | Column | Type | Dropdown | Blocking | Required | Marker | Cascade notes |
 |---|---|---|---|---|---|---|---|
-| 1 | `FA_Code` | TEXT | — | — | PK | [UNIVERSAL] | V01 format `FA*` |
+| 1 | `Product_Code` | TEXT | — | — | PK | [UNIVERSAL] | V01 format `FA*` |
 | 2 | `Product_Name` | TEXT | — | `""` | ✅ | [UNIVERSAL] | V02 non-empty |
-| 3 | `Pack_Size` | TEXT | `PackSizes` | `""` | ✅ | [APEX-CONFIG] | Cascade: clears Line, Dieset |
+| 3 | `Pack_Size` | TEXT | `PackSizes` | `""` | ✅ | [APEX-CONFIG] | Cascade: clears Line, Equipment_Setup |
 | 4 | `Number_of_Cases` | NUMERIC | — | `""` | ✅ | [APEX-CONFIG] | = ilość cases na palecie |
-| 5 | `Finish_Meat` | TEXT | — | `""` | ✅ | [APEX-CONFIG] | Cascade: auto-builds RM_Code + SyncProdDetailRows |
-| 6 | `RM_Code` | AUTO | — | `""` | No (derived) | [APEX-CONFIG] | Auto z Finish_Meat (comma-sep transform) |
-| 7 | `Template` | TEXT | `Templates` | `""` | No | [APEX-CONFIG] | Cascade: ApplyTemplate (fills ProdDetail Process_1..4) |
+| 5 | `Recipe_Components` | TEXT | — | `""` | ✅ | [APEX-CONFIG] | Cascade: auto-builds Ingredient_Codes + SyncProdDetailRows |
+| 6 | `Ingredient_Codes` | AUTO | — | `""` | No (derived) | [APEX-CONFIG] | Auto z Recipe_Components (comma-sep transform) |
+| 7 | `Template` | TEXT | `Templates` | `""` | No | [APEX-CONFIG] | Cascade: ApplyTemplate (fills ProdDetail Manufacturing_Operation_1..4) |
 | 8 | `Closed_Core` | TEXT | `CloseConfirm` | `""` | No | [UNIVERSAL] | Flag completion |
 
 ### 5.3 Core extensions from Brief (Phase B.2 adds)
@@ -436,7 +479,7 @@ Total Core po Phase B.2 = **15 cols** (8 core + 7 brief extensions).
 
 | # | Column | Type | Blocking | Required | Notes |
 |---|---|---|---|---|---|
-| 9 | `Meat_Pct` | NUMERIC | `Core done` | ✅ | Z briefu `%`; candidate to migrate do Core (Phase D decision #14 — stays w Planning) |
+| 9 | `Primary_Ingredient_Pct` | NUMERIC | `Core done` | ✅ | Z briefu `%`; candidate to migrate do Core (Phase D decision #14 — stays w Planning) |
 | 10 | `Runs_Per_Week` | NUMERIC | `Core done` | ✅ | |
 | 11 | `Date_Code_Per_Week` | TEXT | `Core done` | ✅ | |
 | 12 | `Closed_Planning` | TEXT | `Core done` | No | |
@@ -456,29 +499,29 @@ Total Core po Phase B.2 = **15 cols** (8 core + 7 brief extensions).
 
 ### 5.6 Production (19 cols + N ProdDetail per component)
 
-| # | Column | Type | Blocking | Req | Cascade |
-|---|---|---|---|---|---|
-| 21 | `Process_1` | TEXT (dropdown Processes) | `Pack_Size filled` | No | → PR_Code_P1 (suffix) |
-| 22 | `Yield_P1` | NUMERIC | `Pack_Size filled` | No | |
-| 23 | `Process_2` | TEXT | `Pack_Size filled` | No | → PR_Code_P2 |
-| 24 | `Yield_P2` | NUMERIC | `Pack_Size filled` | No | |
-| 25 | `Process_3` | TEXT | `Pack_Size filled` | No | → PR_Code_P3 |
-| 26 | `Yield_P3` | NUMERIC | `Pack_Size filled` | No | |
-| 27 | `Process_4` | TEXT | `Pack_Size filled` | No | → PR_Code_P4 |
-| 28 | `Yield_P4` | NUMERIC | `Pack_Size filled` | No | |
-| 29 | `Line` | TEXT (filtered dropdown Lines_By_PackSize) | `Pack_Size filled` | ✅ | → Dieset (auto) |
-| 30 | `Dieset` | AUTO | `Line filled` | ✅ | Lookup z Dieset_By_Line_Pack |
-| 31 | `Yield_Line` | NUMERIC | `Line filled` | ✅ | |
-| 32 | `Staffing` | TEXT | `Line filled` | No | |
-| 33 | `Rate` | NUMERIC | `Line filled` | ✅ | |
-| 34 | `PR_Code_P1` | AUTO | `""` | No | |
-| 35 | `PR_Code_P2` | AUTO | `""` | No | |
-| 36 | `PR_Code_P3` | AUTO | `""` | No | |
-| 37 | `PR_Code_P4` | AUTO | `""` | No | |
-| 38 | `PR_Code_Final` | AUTO | `""` | No | Format `PR<RM_digits><last_process_suffix>` (Phase D #10), multi-comp = comma-sep |
-| 39 | `Closed_Production` | TEXT | `Pack_Size filled` | No | |
+| # | Column | Type | Blocking | Req | Cascade | Notes |
+|---|---|---|---|---|---|---|
+| 21 | `Manufacturing_Operation_1` | TEXT (dropdown from Reference.ManufacturingOperations) | `Pack_Size filled` | No | → Intermediate_Code_P1 (suffix from config) | Operation name configurable per tenant (e.g., Mix, Knead, Bake, Coat) |
+| 22 | `Operation_Yield_1` | NUMERIC | `Pack_Size filled` | No | | |
+| 23 | `Manufacturing_Operation_2` | TEXT | `Pack_Size filled` | No | → Intermediate_Code_P2 | |
+| 24 | `Operation_Yield_2` | NUMERIC | `Pack_Size filled` | No | | |
+| 25 | `Manufacturing_Operation_3` | TEXT | `Pack_Size filled` | No | → Intermediate_Code_P3 | |
+| 26 | `Operation_Yield_3` | NUMERIC | `Pack_Size filled` | No | | |
+| 27 | `Manufacturing_Operation_4` | TEXT | `Pack_Size filled` | No | → Intermediate_Code_P4 | |
+| 28 | `Operation_Yield_4` | NUMERIC | `Pack_Size filled` | No | | |
+| 29 | `Line` | TEXT (filtered dropdown Lines_By_PackSize) | `Pack_Size filled` | ✅ | → Equipment_Setup (auto) | |
+| 30 | `Equipment_Setup` | AUTO | `Line filled` | ✅ | Lookup z Equipment_Setup_By_Line_Pack | |
+| 31 | `Yield_Line` | NUMERIC | `Line filled` | ✅ | | |
+| 32 | `Resource_Requirement` | TEXT | `Line filled` | No | | |
+| 33 | `Rate` | NUMERIC | `Line filled` | ✅ | | |
+| 34 | `Intermediate_Code_P1` | AUTO | `""` | No | | Suffix from Reference.ManufacturingOperations.process_suffix |
+| 35 | `Intermediate_Code_P2` | AUTO | `""` | No | | |
+| 36 | `Intermediate_Code_P3` | AUTO | `""` | No | | |
+| 37 | `Intermediate_Code_P4` | AUTO | `""` | No | | |
+| 38 | `Intermediate_Code_Final` | AUTO | `""` | No | Format `WIP<process_suffix_sequence><final_suffix>` (Phase D #10), multi-comp = comma-sep | Tenant-configurable per Reference.CodePrefixes |
+| 39 | `Closed_Production` | TEXT | `Pack_Size filled` | No | | |
 
-Production jest N:1 z FA przez ProdDetail (multi-component scenariusze). Main Table Process_1..4 + Line + Dieset + PR_Code_Final = aggregate; ProdDetail = per-component source of truth.
+Production jest N:1 z FA przez ProdDetail (multi-component scenariusze). Main Table Manufacturing_Operation_1..4 + Line + Equipment_Setup + Intermediate_Code_Final = aggregate; ProdDetail = per-component source of truth. Manufacturing operations configurable per tenant via Reference.ManufacturingOperations (suffix from config, not hardcoded A/B/C/D).
 
 ### 5.7 Technical (2 cols baseline + N allergen fields [EVOLVING] → [UNIVERSAL])
 
@@ -513,7 +556,7 @@ Production jest N:1 z FA przez ProdDetail (multi-component scenariusze). Main Ta
 | 53 | `Box_Dimensions` | TEXT | `Core + Production done` | ✅ |
 | 54 | `Closed_MRP` | TEXT | `Core + Production done` | No |
 
-**V04 validation** (D365 material check): Box / Top_Label / Bottom_Label / Web + Core.Finish_Meat + Core.RM_Code walidowane przeciwko D365 Import snapshot — Found/NoCost/Missing status per cell.
+**V04 validation** (D365 material check): Box / Top_Label / Bottom_Label / Web + Core.Recipe_Components + Core.Ingredient_Codes walidowane przeciwko D365 Import snapshot — Found/NoCost/Missing status per cell.
 
 ### 5.9 Procurement (5 cols)
 
@@ -542,7 +585,7 @@ Implementowane jako **rule engine DSL** (ADR-029) — JSON stored w `Reference.R
 
 ### 6.1 Cascade chains (4 główne)
 
-#### Chain 1: Pack_Size → Line → Dieset
+#### Chain 1: Pack_Size → Line → Equipment_Setup
 
 ```json
 {
@@ -550,12 +593,12 @@ Implementowane jako **rule engine DSL** (ADR-029) — JSON stored w `Reference.R
   "rule_type": "cascading",
   "trigger": "fa.pack_size.change",
   "actions": [
-    { "clear": ["fa.line", "fa.dieset"] }
+    { "clear": ["fa.line", "fa.equipment_setup"] }
   ]
 }
 
 {
-  "rule_id": "cascade_line_to_dieset",
+  "rule_id": "cascade_line_to_equipment_setup",
   "rule_type": "cascading",
   "trigger": "fa.line.change",
   "conditions": [
@@ -563,8 +606,8 @@ Implementowane jako **rule engine DSL** (ADR-029) — JSON stored w `Reference.R
     {"fa.line": "NOT_EMPTY"}
   ],
   "actions": [
-    { "auto_fill": "fa.dieset",
-      "source": "Reference.Dieset_By_Line_Pack",
+    { "auto_fill": "fa.equipment_setup",
+      "source": "Reference.Equipment_Setup_By_Line_Pack",
       "lookup_by": {"Line": "fa.line", "Pack_Size": "fa.pack_size"}
     }
   ]
@@ -573,91 +616,87 @@ Implementowane jako **rule engine DSL** (ADR-029) — JSON stored w `Reference.R
 
 Line dropdown = filtered by `Reference.Lines_By_PackSize.Supported_Pack_Sizes` CONTAINS `fa.pack_size`.
 
-#### Chain 2: Process_N → PR_Code_P<N> → PR_Code_Final
+#### Chain 2: Manufacturing_Operation_N → Intermediate_Code_P<N> → Intermediate_Code_Final
 
 ```json
 {
-  "rule_id": "cascade_process_to_pr",
+  "rule_id": "cascade_process_to_intermediate_code",
   "rule_type": "cascading",
-  "trigger": "prod_detail.process_{n}.change",
+  "trigger": "prod_detail.manufacturing_operation_{n}.change",
+  "conditions": [
+    {"prod_detail.manufacturing_operation_{n}": "NOT_EMPTY"}
+  ],
   "actions": [
-    { "auto_fill": "prod_detail.pr_code_p{n}",
-      "source": "Reference.Processes",
-      "lookup_by": {"Process_Name": "prod_detail.process_{n}"},
-      "return": "Suffix"
+    { "auto_fill": "prod_detail.intermediate_code_p{n}",
+      "source": "Reference.ManufacturingOperations",
+      "lookup_by": {"operation_name": "prod_detail.manufacturing_operation_{n}"},
+      "return": "process_suffix",
+      "formula": "WIP-<process_suffix>-<sequence_number>"
     }
   ],
-  "then": { "invoke": "recalc_pr_code_final" }
+  "then": { "invoke": "recalc_intermediate_code_final" }
 }
 
 {
-  "rule_id": "recalc_pr_code_final",
+  "rule_id": "recalc_intermediate_code_final",
   "rule_type": "cascading",
   "actions": [
-    { "compute": "prod_detail.pr_code_final",
-      "formula": "PR<RM_digits><last_non_empty_suffix>",
-      "inputs": ["fa.rm_code", "prod_detail.pr_code_p1..p4"]
+    { "compute": "prod_detail.intermediate_code_final",
+      "formula": "WIP<process_suffix_sequence><final_suffix>",
+      "inputs": ["fa.ingredient_codes", "prod_detail.intermediate_code_p1..p4"]
     }
   ],
   "validate": {
     "rule": "suffix_match",
-    "compare": "UCase(Right(finish_meat_component, 1)) == UCase(last_suffix)",
-    "on_fail": {"warn": "MISMATCH: Finish_Meat ends 'X' but last process is 'Y'", "severity": "V06"}
+    "compare": "UCase(Right(recipe_components_component, 1)) == UCase(last_suffix)",
+    "on_fail": {"warn": "MISMATCH: Recipe_Component operation is 'X' but Intermediate_Code suffix is 'Y'", "severity": "V06"}
   }
 }
 ```
 
-#### Chain 3: Finish_Meat → RM_Code + SyncProdDetailRows
+#### Chain 3: Recipe_Components → Ingredient_Codes + SyncProdDetailRows
 
 ```json
 {
-  "rule_id": "cascade_finish_meat",
+  "rule_id": "cascade_recipe_components",
   "rule_type": "cascading",
-  "trigger": "fa.finish_meat.change",
+  "trigger": "fa.recipe_components.change",
   "actions": [
-    { "auto_fill": "fa.rm_code",
-      "formula": "parse_pr_codes(fa.finish_meat).map(pr => 'RM' + extract_digits(pr)).join(', ')"
+    { "auto_fill": "product.ingredient_codes",
+      "formula": "parse_recipe_components(product.recipe_components).map(code => Reference.CodePrefixes['ingredient'].prefix + extract_digits(code)).join(', ')"
     },
     { "invoke": "sync_prod_detail_rows",
-      "args": {"fa_code": "fa.fa_code", "finish_meat": "fa.finish_meat"}
+      "args": {"product_code": "product.product_code", "recipe_components": "product.recipe_components"}
     }
   ]
 }
 ```
 
-`sync_prod_detail_rows` = idempotent: parse Finish_Meat comma-sep → delete ProdDetail rows with PR codes nie w list → create missing rows → keep existing matches. Emit events per row added/removed.
+`sync_prod_detail_rows` = idempotent: parse Recipe_Components comma-sep → delete ProdDetail rows with PR codes nie w list → create missing rows → keep existing matches. Emit events per row added/removed.
 
 #### Chain 4: Template → ApplyTemplate (ProdDetail)
 
 ```json
 {
-  "rule_id": "cascade_template",
-  "rule_type": "cascading",
-  "trigger": "fa.template.change",
-  "actions": [
-    { "for_each": "prod_detail_row where fa_code = fa.fa_code",
-      "invoke": "apply_template",
-      "args": {"template": "fa.template"}
-    }
-  ]
-}
-
-{
-  "rule_id": "apply_template",
+  "rule_id": "apply_template_operations",
   "rule_type": "workflow",
   "actions": [
-    { "lookup": "Reference.Templates", "by": {"Template_Name": "args.template"} },
-    { "copy_to": "prod_detail",
-      "fields": {"Process_1": "template.Process_1", "Process_2": "template.Process_2",
-                 "Process_3": "template.Process_3", "Process_4": "template.Process_4"}
+    { "lookup": "Reference.Templates", "by": {"template_name": "args.template"} },
+    { "for_each": "template.operations",
+      "copy_to": "prod_detail",
+      "fields": {
+        "manufacturing_operation_1": "template.operation_1_name",
+        "manufacturing_operation_2": "template.operation_2_name",
+        "manufacturing_operation_3": "template.operation_3_name",
+        "manufacturing_operation_4": "template.operation_4_name"
+      }
     },
-    { "clear": "prod_detail.Yield_P<n>",
-      "where": "template.Process_<n> == ''"
-    },
-    { "invoke": "recalc_pr_code_final" }
+    { "invoke": "recalc_intermediate_code_final" }
   ]
 }
 ```
+
+**Note:** Template now applies operation names (not hardcoded Process_1..4), respecting tenant configuration in Reference.ManufacturingOperations.
 
 ### 6.2 Cascade downstream refresh
 
@@ -666,7 +705,7 @@ Line dropdown = filtered by `Reference.Lines_By_PackSize.Supported_Pack_Sizes` C
 | Core.Pack_Size | Production view (cell unlocks) |
 | Production.Line | Production + MRP views |
 | Core.Template | All 5 non-Core views (Production, Planning, Commercial, Technical, Procurement) |
-| Core other cols | Planning + Commercial + Technical + Procurement (+ Production dla Finish_Meat) |
+| Core other cols | Planning + Commercial + Technical + Procurement (+ Production dla Recipe_Components) |
 | Production other cols | MRP view |
 | **Any edit** | `Built = FALSE` (auto-reset), emit `fa.edit` event → outbox |
 | **Any edit** | Dashboard counters recalc (invalidate cache) |
@@ -693,7 +732,7 @@ Per 00-FOUNDATION §7, Apex baseline:
 | `Core done` | All Core required cols filled AND Closed_Core=Yes | `IsAllRequiredFilled('Core', fa) AND fa.closed_core = 'Yes'` |
 | `Pack_Size filled` | fa.pack_size NOT NULL/empty | `fa.pack_size IS NOT NULL AND fa.pack_size <> ''` |
 | `Line filled` | fa.line NOT NULL/empty | `fa.line IS NOT NULL AND fa.line <> ''` |
-| `Core + Production done` | Core done AND ProdDetail complete (all rows have Line+Dieset+Rate+≥1 process) | `Core rule AND IsProdDetailComplete(fa)` |
+| `Core + Production done` | Core done AND ProdDetail complete (all rows have Line+Equipment_Setup+Rate+≥1 process) | `Core rule AND IsProdDetailComplete(fa)` |
 
 **Extensible:** Admin UI (Phase C1, 02-SETTINGS) pozwala na dodawanie custom blocking rules w DSL. Phase B.2 implementuje te 4 baseline.
 
@@ -757,7 +796,7 @@ BEGIN
   IF OLD.built = TRUE THEN
     NEW.built := FALSE;
     INSERT INTO outbox_events(tenant_id, event_type, aggregate_type, aggregate_id, payload, app_version)
-    VALUES (NEW.tenant_id, 'fa.built_reset', 'fa', NEW.fa_code,
+    VALUES (NEW.tenant_id, 'fa.built_reset', 'fa', NEW.product_code,
             jsonb_build_object('reason', 'edit', 'edited_by', current_user), 'phase_b2');
   END IF;
   RETURN NEW;
@@ -776,11 +815,11 @@ Dept view w UI:
 - User toggle: "Show closed" — removes filter
 - Performance: indexed `(tenant_id, closed_<dept>)` composite
 
-### 7.6 FA create (AddProduct equivalent) + FA_Code generation
+### 7.6 FA create (AddProduct equivalent) + Product_Code generation
 
 Phase B.2 decision (reality open question — patrz §14 open item):
 
-**Option A (chosen):** `FA_Code` manual input z walidacją V01 format `FA*` (np. `FA0042`, `FA5101`). User-entered przy create.
+**Option A (chosen):** `Product_Code` manual input z walidacją V01 format `FA*` (np. `FA0042`, `FA5101`). User-entered przy create.
 
 **Option B (rejected):** Auto-generated sequential (nie, bo Apex kultura opiera się na meaningful codes — np. FA5101 = product category).
 
@@ -788,7 +827,7 @@ Phase B.2 decision (reality open question — patrz §14 open item):
 
 **FA create flow:**
 1. Jane clicks "Create FA" (w UI) OR "Convert to PLD" w Brief UI
-2. Input FA_Code (manual, V01 validate)
+2. Input Product_Code (manual, V01 validate)
 3. If from Brief: pre-populate Core cols + brief extensions (Volume, Dev_Code, etc.)
 4. Emit `fa.created` event → outbox
 5. Redirect to FA detail view (Core section active)
@@ -838,7 +877,7 @@ CREATE TABLE "Reference.Allergens" (
 ```sql
 CREATE TABLE "Reference.Allergens_by_RM" (
     id             UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    rm_code        TEXT NOT NULL,
+    ingredient_codes        TEXT NOT NULL,
     tenant_id      UUID NOT NULL,
     allergen_code  TEXT NOT NULL REFERENCES "Reference.Allergens"(allergen_code),
     confidence     TEXT NOT NULL,         -- 'confirmed' | 'may_contain' | 'trace'
@@ -846,7 +885,7 @@ CREATE TABLE "Reference.Allergens_by_RM" (
     last_verified  DATE,
     created_at     TIMESTAMPTZ DEFAULT now()
 );
-CREATE UNIQUE INDEX ON "Reference.Allergens_by_RM" (tenant_id, rm_code, allergen_code);
+CREATE UNIQUE INDEX ON "Reference.Allergens_by_RM" (tenant_id, ingredient_codes, allergen_code);
 ```
 
 ### 8.4 Reference.Allergens_added_by_Process
@@ -870,20 +909,20 @@ CREATE TABLE "Reference.Allergens_added_by_Process" (
 {
   "rule_id": "cascade_allergens",
   "rule_type": "cascading",
-  "trigger": ["fa.finish_meat.change", "fa.rm_code.change", "prod_detail.process_*.change"],
+  "trigger": ["fa.recipe_components.change", "fa.ingredient_codes.change", "prod_detail.process_*.change"],
   "actions": [
     { "compute": "fa.allergens",
       "formula": "union(rm_allergens, process_allergens)",
       "inputs": [
         { "alias": "rm_allergens",
           "source": "Reference.Allergens_by_RM",
-          "join": "rm_code IN parse_rm_codes(fa.rm_code)",
+          "join": "ingredient_codes IN parse_ingredient_codess(fa.ingredient_codes)",
           "filter": "confidence = 'confirmed'",
           "select": "allergen_code"
         },
         { "alias": "process_allergens",
           "source": "Reference.Allergens_added_by_Process",
-          "join": "process_name IN (prod_detail.process_1..process_4 where fa_code = fa.fa_code)",
+          "join": "process_name IN (prod_detail.manufacturing_operation_1..manufacturing_operation_4 where product_code = fa.product_code)",
           "filter": "confidence = 'confirmed' OR recipe_condition_satisfied",
           "select": "allergen_code"
         }
@@ -978,7 +1017,7 @@ Pre-PLD stage. 2 templates, 37 cols, Convert-to-PLD button. Dziś dane są manua
 - Brief status = `complete`
 - Jane role (`brief.convert_to_fa` permission)
 - All required brief fields filled
-- Target FA_Code provided (or auto-proposed)
+- Target Product_Code provided (or auto-proposed)
 
 **Actions:**
 1. Create FA row (Main Table) — pre-populated Core:
@@ -990,8 +1029,8 @@ Pre-PLD stage. 2 templates, 37 cols, Convert-to-PLD button. Dziś dane są manua
    - `fa.comments` ← `brief.comments`
    - `fa.benchmark` ← `brief.benchmark_identified`
    - `fa.price_brief` ← `brief.price` (distinct od Procurement.Price final)
-   - `fa.rm_code` ← generated from brief.components (transform brief.code → RM format)
-   - `fa.finish_meat` ← generated from brief.components (concat PR codes)
+   - `fa.ingredient_codes` ← generated from brief.components (transform brief.code → RM format)
+   - `fa.recipe_components` ← generated from brief.components (concat PR codes)
 2. Create ProdDetail rows — 1 per component z line_type='component' (multi-comp) lub 1 default row (single-comp)
 3. Pre-populate Technical.Allergens z brief.components → cascade RM allergens (per §8)
 4. Pre-populate MRP packaging fields z brief packaging section:
@@ -1000,7 +1039,7 @@ Pre-PLD stage. 2 templates, 37 cols, Convert-to-PLD button. Dziś dane są manua
    - (partial — brief → MRP full mapping w §9.5)
 5. Create Procurement pre-fill:
    - `fa.supplier` ← `brief.supplier` (per first component w multi-comp; [EVOLVING] decision)
-6. Set `brief.status = 'converted'`, `brief.fa_code`, `brief.converted_at`, `brief.converted_by_user`
+6. Set `brief.status = 'converted'`, `brief.product_code`, `brief.converted_at`, `brief.converted_by_user`
 7. Emit `brief.converted` + `fa.created` events → outbox
 
 **User experience:**
@@ -1010,7 +1049,7 @@ Pre-PLD stage. 2 templates, 37 cols, Convert-to-PLD button. Dziś dane są manua
 
 ### 9.4 Brief ↔ FA traceability
 
-- `brief.fa_code` (FK to fa) — 1:1 link
+- `brief.product_code` (FK to fa) — 1:1 link
 - `fa.brief_id` (FK to brief) — reverse lookup
 - Read-only link w both UIs (brief view shows linked FA; FA view shows source brief)
 - Brief **freeze** po convert (status='converted', read-only) — edits require reopen + new convert flow
@@ -1024,13 +1063,13 @@ Consolidated mapping (zgodny z BRIEF-FLOW.md §4):
 | Product (C1) | fa.product_name | 1:1 | [UNIVERSAL] |
 | Volume (C2) | fa.volume (NEW) | 1:1 | [EVOLVING] → [APEX-CONFIG] |
 | Dev Code (C3) | fa.dev_code (NEW) | 1:1 | [UNIVERSAL] |
-| Components (C4) | prod_detail.component + fa.finish_meat generation | Per-component row + concat PR codes | [APEX-CONFIG] |
+| Components (C4) | prod_detail.manufacturing_operation_1..4 (per component) + recipe_components generation | Per-component per Reference.Templates + tenant's Reference.ManufacturingOperations | [ORG-CONFIG] |
 | Slice Count (C5) | prod_detail.slice_count (NEW) | Per-component | [EVOLVING] |
 | Supplier (C6) | fa.supplier (per-FA) or prod_detail.supplier (per-component) | TBD Phase B.2 start | [EVOLVING] |
-| Code (C7) | fa.rm_code generation | `RM` + digits from brief.code | [APEX-CONFIG] |
+| Code (C7) | fa.ingredient_codes generation | `RM` + digits from brief.code | [APEX-CONFIG] |
 | Price (C8) | fa.price_brief (NEW) | TEXT or NUMERIC | [EVOLVING] |
 | Weights (C9) | fa.weights (NEW, per-FA) + prod_detail.component_weight (per-component) | 1:1 | [EVOLVING] |
-| % (C10) | fa.meat_pct (Planning, stays per Phase D #14) | 1:1 | [APEX-CONFIG] |
+| % (C10) | fa.primary_ingredient_pct (Planning, stays per Phase D #14) | 1:1 | [APEX-CONFIG] |
 | Packs Per Case (C11) | fa.packs_per_case (NEW) | 1:1 | [EVOLVING] |
 | Comments (C12) | fa.comments (NEW) | 1:1 | [EVOLVING] |
 | Benchmark Identified (C13) | fa.benchmark (NEW) | 1:1 | [EVOLVING] |
@@ -1069,12 +1108,12 @@ Phase D decision #19-22. 8 tabs per-FA file `Builder_FA<code>.xlsx` zgodnie z re
 
 | # | Tab | Cols | Role | Rows per FA |
 |---|---|---|---|---|
-| 1 | `D365_Data` | 4-6 | Item master header (FA_Code / Product_Name / type='BOM' / 'Standard') | 1 |
+| 1 | `D365_Data` | 4-6 | Item master header (Product_Code / Product_Name / type='BOM' / 'Standard') | 1 |
 | 2 | `Formula_Version` | 17 | Formula header (FORMULAID / MANUFACTUREDITEMNUMBER / PRODUCTIONSITEID / ...) | 1 |
 | 3 | `Formula_Lines` | 29 | Formula ingredients (1 per RM + 1 per PM) | N (materials count) |
 | 4 | `Route_Headers` | 6 | Route header (ROUTEID / APPROVERPERSONNELNUMBER / PRODUCTGROUPID) | 1 |
 | 5 | `Route_Versions` | 10 | Route version info | 1 |
-| 6 | `Route_Operations` | 8 | Production operations (1 per Process_N, OP=10/20/30/40) | M (non-empty processes) |
+| 6 | `Route_Operations` | 8 | Production operations (1 per Manufacturing_Operation_N, OP=10/20/30/40) | M (non-empty operations) |
 | 7 | `Route_OpProperties` | 25 | Operations details (resource, time, cost category) | M |
 | 8 | `Resource_Req` | 7 | Resource requirements (link op → line/machine) | M |
 
@@ -1082,7 +1121,7 @@ Phase D decision #19-22. 8 tabs per-FA file `Builder_FA<code>.xlsx` zgodnie z re
 
 **Rule:** Każdy process step = osobny D365 product (N procesów → N+1 products łącznie, bo final FA + N intermediate PR products).
 
-Przykład — FA `FA5101` z Process_1=Strip, Process_2=Slice:
+Przykład — FA `FA5101` z Manufacturing_Operation_1=Strip, Manufacturing_Operation_2=Slice:
 - Product #1: `PR5101A` (Strip intermediate)
 - Product #2: `PR5101F` (Slice intermediate, suffix F z Reference.Processes)
 - Product #3: `FA5101` (final FA product)
@@ -1128,19 +1167,19 @@ Admin może edit wartości w Phase C1 (02-SETTINGS Admin UI).
 ### 10.5 Mapping Main Table → Builder
 
 ```
-FA_Code                              → ITEMNUMBER, MANUFACTUREDITEMNUMBER, DISPLAYPRODUCTNUMBER
-FA_Code + "-L01"                     → FORMULAID, ROUTEID, ROUTENAME, VERSIONNAME
+Product_Code                              → ITEMNUMBER, MANUFACTUREDITEMNUMBER, DISPLAYPRODUCTNUMBER
+Product_Code + "-L01"                     → FORMULAID, ROUTEID, ROUTENAME, VERSIONNAME
 Product_Name                         → FORMULANAME
-Finish_Meat (parsed)                 → N × Formula_Lines row (ITEMNUMBER = RM<digits>)
+Recipe_Components (parsed)                 → N × Formula_Lines row (ITEMNUMBER = RM<digits>)
   - QUANTITY: obliczany z recipe (v7 dziś hardcoded=1; Phase B.2 requires input lub calc logic)
 Box, Top_Label, Bottom_Label,
   Web, MRP_Box..Cartons               → N × Formula_Lines row (ITEMNUMBER = material code, QUANTITY=1 default)
 Yield_Line OR combined Yields P1..4  → YIELDPERCENTAGE
-Process_1..4 (non-empty)             → N × Route_Operations row (OPERATIONNUMBER = (10, 20, 30, 40) per step
+Manufacturing_Operation_1..4 (non-empty)             → N × Route_Operations row (OPERATIONNUMBER = (10, 20, 30, 40) per step
   - NEXTROUTEOPERATIONNUMBER links consecutive: P1→P2→P3→P4, last → 0 (terminal)
 Line                                 → COSTINGOPERATIONRESOURCEID (lookup Line → D365 resource code)
 Rate                                 → PROCESSTIME / PROCESSQUANTITY (derivation TBD)
-Staffing                             → LOADPERCENTAGE / RESOURCEQUANTITY (TBD)
+Resource_Requirement                             → LOADPERCENTAGE / RESOURCEQUANTITY (TBD)
 
 Hardcoded / from Reference.D365_Constants:
   PRODUCTIONSITEID, APPROVERPERSONNELNUMBER, CONSUMPTIONWAREHOUSEID,
@@ -1163,7 +1202,7 @@ Hardcoded / from Reference.D365_Constants:
    ```sql
    CREATE TABLE fa_builder_outputs (
        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-       fa_code TEXT NOT NULL, tenant_id UUID NOT NULL,
+       product_code TEXT NOT NULL, tenant_id UUID NOT NULL,
        file_path TEXT NOT NULL,    -- S3/blob storage path
        generated_at TIMESTAMPTZ, generated_by_user UUID,
        app_version TEXT,
@@ -1177,7 +1216,7 @@ Hardcoded / from Reference.D365_Constants:
 
 ### 10.7 BOM tab relationship
 
-V7 miał BOM tab jako **user-facing intermediate** (`FA_Code | Component_Type | Component_Code | Quantity | Process_Stage | Source | D365_Status`). Phase D decision #20: BOM + D365 Builder = **osobne features z wspólnym trigger** (pre-flight check).
+V7 miał BOM tab jako **user-facing intermediate** (`Product_Code | Component_Type | Component_Code | Quantity | Process_Stage | Source | D365_Status`). Phase D decision #20: BOM + D365 Builder = **osobne features z wspólnym trigger** (pre-flight check).
 
 **Monopilot implementation Phase B.2:**
 - BOM view (UI) = computed on-the-fly z FA + ProdDetail + MRP (read-only)
@@ -1197,7 +1236,7 @@ ValidateCodeAgainstD365(code) returns {status, comment}:
   Source: d365_import_cache table (synced from D365 via integration adapter,
           periodically; user can re-sync via button "Refresh D365 Cache")
   
-  Comma-separated handling (e.g., Finish_Meat "PR123H, PR345A"):
+  Comma-separated handling (e.g., Recipe_Components "PR123H, PR345A"):
     Split by comma, validate each, return WORST status (Missing > NoCost > Found)
 
 UI coloring:
@@ -1239,7 +1278,7 @@ Phase B.2 implementuje NPD-specific dashboard. Pełny 12-REPORTING Phase C5 rozs
 │                           └──────────────────────────────────────┘ │
 │                                                                    │
 │ ┌─ Open Products — Launch Alerts ──────────────────────────────┐   │
-│ │ FA_Code | Launch_Date | Days Left | Alert | Missing Data    │   │
+│ │ Product_Code | Launch_Date | Days Left | Alert | Missing Data    │   │
 │ │ FA0042  | 2026-05-01  |    12     |  🟡   | Tech: Shelf... │   │
 │ │ FA0043  | 2026-04-28  |     9     |  🔴   | MRP: Tara...  │   │
 │ │ FA0044  | 2026-04-22  |     3     |  🔴   | (2 missing)    │   │
@@ -1257,7 +1296,7 @@ Phase B.2 implementuje NPD-specific dashboard. Pełny 12-REPORTING Phase C5 rozs
 CREATE OR REPLACE VIEW dashboard_summary AS
 SELECT
   tenant_id,
-  COUNT(*) FILTER (WHERE fa_code IS NOT NULL) AS total_active,
+  COUNT(*) FILTER (WHERE product_code IS NOT NULL) AS total_active,
   COUNT(*) FILTER (WHERE status_overall = 'Complete') AS fully_complete,
   COUNT(*) FILTER (WHERE status_overall IN ('InProgress', 'Pending', 'Alert')) AS pending,
   COUNT(*) FILTER (WHERE built = TRUE) AS total_built
@@ -1272,14 +1311,14 @@ Per-dept breakdown (8 depts × 3 counters) — done/pending/blocked.
 ```sql
 CREATE OR REPLACE VIEW launch_alerts AS
 SELECT
-  fa_code, launch_date,
+  product_code, launch_date,
   (launch_date - CURRENT_DATE) AS days_left,
   CASE
     WHEN launch_date IS NULL OR (launch_date - CURRENT_DATE) <= 10 THEN 'RED'
-    WHEN (launch_date - CURRENT_DATE) <= 21 AND (SELECT missing_data FROM missing_data_view WHERE fa_code = f.fa_code) <> '' THEN 'YELLOW'
+    WHEN (launch_date - CURRENT_DATE) <= 21 AND (SELECT missing_data FROM missing_data_view WHERE product_code = f.product_code) <> '' THEN 'YELLOW'
     ELSE 'GREEN'
   END AS alert_level,
-  (SELECT string_agg(dept || ': ' || col_name, '. ') FROM missing_required_cols WHERE fa_code = f.fa_code) AS missing_data
+  (SELECT string_agg(dept || ': ' || col_name, '. ') FROM missing_required_cols WHERE product_code = f.product_code) AS missing_data
 FROM fa f
 WHERE built = FALSE AND status_overall <> 'Complete'
 ORDER BY days_left ASC;
@@ -1291,7 +1330,7 @@ Thresholds (10 / 21 days) stored w `Reference.AlertThresholds` — configurable 
 
 Per FA, list wszystkich Required_for_done cols gdzie Main Table cell jest empty. Format:
 ```
-"Core: Finish_Meat. Planning: Meat_Pct. MRP: Box. Tech: Shelf_Life."
+"Core: Recipe_Components. Planning: Primary_Ingredient_Pct. MRP: Box. Tech: Shelf_Life."
 ```
 
 ### 11.5 Dashboard refresh
@@ -1314,12 +1353,12 @@ Current V01-V06 z v7 + 2 new Phase B.2 rules. Stored w `Reference.Rules` z `rule
 
 | Rule | Description | Severity | Scope | Trigger |
 |---|---|---|---|---|
-| **V01** | FA_Code must start with `FA*` (regex `^FA[A-Z0-9]+$`) | FAIL | fa.fa_code | fa create/edit |
+| **V01** | Product_Code must start with `FA*` (regex `^FA[A-Z0-9]+$`) | FAIL | fa.product_code | fa create/edit |
 | **V02** | Product_Name non-empty | FAIL | fa.product_name | Core save |
 | **V03** | Pack_Size in `Reference.PackSizes` | FAIL | fa.pack_size | Core save |
-| **V04** | Material codes Found/NoCost in D365 Import (Box, Top_Label, Bottom_Label, Web, Finish_Meat, RM_Code + new: MRP_* cols per §14 open item) | WARN (NoCost) / FAIL (Missing) | Multiple material cols | All saves; bulk D365 Builder pre-check |
+| **V04** | Material codes Found/NoCost in D365 Import (Box, Top_Label, Bottom_Label, Web, Recipe_Components, Ingredient_Codes + new: MRP_* cols per §14 open item) | WARN (NoCost) / FAIL (Missing) | Multiple material cols | All saves; bulk D365 Builder pre-check |
 | **V05-\<Dept\>** | Dept complete: IsAllRequiredFilled AND Closed_<Dept>=Yes | INFO (status badge) | Per dept | All saves |
-| **V06** | Finish_Meat suffix matches last process suffix (UCase(Right(Finish_Meat_component, 1)) == UCase(last_process_suffix)) | FAIL w/ MISMATCH comment | Per ProdDetail row | Production edit |
+| **V06** | Manufacturing_Operation suffix matches Intermediate_Code suffix — lookup operation_name → process_suffix from Reference.ManufacturingOperations; compare extracted suffix from intermediate_code_final == process_suffix | FAIL w/ MISMATCH comment | Per ProdDetail row | Production edit |
 | **V07** (new) | Allergens complete: auto-cascade has no nulls + any manual override has reason | WARN | fa.allergens | Technical save |
 | **V08** (new) | Brief mapping complete: if fa.brief_id, all required brief→FA fields populated | INFO | fa created from brief | Convert-to-PLD, fa edit |
 
@@ -1351,6 +1390,7 @@ Validations są rule_type='validation' w `Reference.Rules`. Admin może (Phase C
 | GS1 lib (shared) | 00-FOUNDATION §5 (R15) | B.1 docs; B.2 impl w Bar_Codes | GTIN parsing |
 | D365 adapter (`@monopilot/d365-adapter`) | 00-FOUNDATION §5 (R8) | B.2 minimal impl (D365 Import cache sync); C1 full | Material validation V04 |
 | PostHog flags | 00-FOUNDATION §5 (R6) | B.1 ✅ | Feature flags (e.g., `allergens_cascade.enabled`) |
+| Manufacturing Operations configuration | 02-SETTINGS (Phase C1 Admin UI) | C1 impl | Process definition UI (admin editable per tenant) |
 
 ### 13.2 Build sequence (implementation post-writing)
 
@@ -1358,7 +1398,7 @@ Per 00-FOUNDATION §4.2, 01-NPD implementation sequential z 5 sub-parts:
 
 | # | Sub-module | Scope | Stories sample |
 |---|---|---|---|
-| **01-NPD-a** | Core dept cols + cascade + workflow | Main Table 69 cols (7 dept sections + System), ProdDetail table, cascade engine (4 chains), workflow rules (blocking + Closed/Done + autofilter + Status_Overall + Built flag + auto-reset), FA create/edit CRUD, 7 dept proxy views (schema-driven), validation V01-V06 | NPD-a.1 Create FA · NPD-a.2 Cascade Pack_Size→Line→Dieset · NPD-a.3 Multi-comp ProdDetail sync · NPD-a.4 Closed/Done flags · NPD-a.5 Autofilter · ... |
+| **01-NPD-a** | Core dept cols + cascade + workflow | Main Table 69 cols (7 dept sections + System) physical name **`product`** (per 00-FOUNDATION §4.3-AMENDMENT) with `fa` as read-only compat view, ProdDetail table, cascade engine (4 chains), workflow rules (blocking + Closed/Done + autofilter + Status_Overall + Built flag + auto-reset), FA create/edit CRUD, 7 dept proxy views (schema-driven), validation V01-V06 | NPD-a.1 Create FA · NPD-a.2 Cascade Pack_Size→Line→Equipment_Setup · NPD-a.3 Multi-comp ProdDetail sync · NPD-a.4 Closed/Done flags · NPD-a.5 Autofilter · NPD-a.6 `product` table + `fa` compat view DDL · ... |
 | **01-NPD-b** | Brief import tool | brief + brief_lines tables, 2 templates UI, brief form Section A + B, Convert-to-PLD button, brief ↔ FA traceability, brief field mapping | NPD-b.1 Brief create · NPD-b.2 Multi-comp brief rows · NPD-b.3 Convert pre-populate · NPD-b.4 Allergen seed from components · ... |
 | **01-NPD-c** | Allergens multi-level cascade | Reference.Allergens + Allergens_by_RM + Allergens_added_by_Process tables, cascade rule impl, Technical UI widget, manual override + audit, labelling preview partial | NPD-c.1 Seed EU14 · NPD-c.2 RM→FA cascade · NPD-c.3 PR step adds · NPD-c.4 May-contain · NPD-c.5 Override UI · ... |
 | **01-NPD-d** | D365 Builder output | Reference.D365_Constants table + seed, Builder_FA<code>.xlsx generator (8 tabs, exceljs), N+1 products pattern, V04 D365 material validation, fa_builder_outputs storage, download UI | NPD-d.1 Formula_Version · NPD-d.2 Formula_Lines · NPD-d.3 Route tabs · NPD-d.4 N+1 products · NPD-d.5 V04 cache sync · ... |
@@ -1393,7 +1433,7 @@ Każdy sub-module end-to-end (stories → QA → regression → done) przed nast
 
 ### Reality discovery + Phase B.2 new items
 
-13. **FA_Code generation semantyka** — manual input w v7, ale format convention (FA + year + seq? FA + product group? meaningful) — confirmed "manual" Phase B.2, future auto-propose Phase C
+13. **Product_Code generation semantyka** — manual input w v7, ale format convention (FA + year + seq? FA + product group? meaningful) — confirmed "manual" Phase B.2, future auto-propose Phase C
 14. **Done_<Dept> logic** (Phase D decision #2) — confirmed `IsAllRequiredFilled AND Closed_Dept=Yes` (independent readiness); NIE formula Excel-style mirror
 15. **Built auto-reset scope** (Phase D decision #8) — fix applied: ProdDetail edits też resetują (v7 bug). Impl w §7.4 trigger
 16. **Multi-component ProdDetail vs Main Table semantyka** (Phase D decision #1) — Main Table aggregate comma-sep, ProdDetail source of truth
@@ -1409,7 +1449,7 @@ Każdy sub-module end-to-end (stories → QA → regression → done) przed nast
 ### Funkcjonalne (Phase B.2 acceptance)
 
 - [ ] 7 dept proxy views działają (schema-driven z Reference.DeptColumns)
-- [ ] 4 cascade chains enforce correctly (Pack_Size→Line→Dieset, Process_N→PR_Code, Finish_Meat→RM_Code+SyncProdDetail, Template→ApplyTemplate)
+- [ ] 4 cascade chains enforce correctly (Pack_Size→Equipment_Setup cascade, Manufacturing_Operation_N→Intermediate_Code, Recipe_Components→Ingredient_Codes+SyncComponentRows, Template→Manufacturing_Operation application)
 - [ ] Blocking rules (4 baseline) work (Core done / Pack_Size filled / Line filled / Core + Production done)
 - [ ] Closed/Done flags + autofilter działa
 - [ ] Status_Overall enum (5-state) computed correctly
@@ -1430,7 +1470,7 @@ Każdy sub-module end-to-end (stories → QA → regression → done) przed nast
 - [ ] Dashboard alert refresh ≤ 30s po change
 - [ ] D365 Builder generation < 5s per FA
 - [ ] Traceability query (brief ↔ FA) < 100ms
-- [ ] RLS coverage 100% na fa / prod_detail / brief / brief_lines / fa_builder_outputs tables
+- [ ] RLS coverage 100% na **`product`** (physical table per 00-FOUNDATION §4.3-AMENDMENT — formerly `fa`; `fa` retained as read-only compat view through Phase C1) / prod_detail / brief / brief_lines / fa_builder_outputs tables
 - [ ] Outbox events < 50ms write latency, idempotent consumer
 
 ### Compliance
@@ -1468,7 +1508,7 @@ Każdy sub-module end-to-end (stories → QA → regression → done) przed nast
 - [`_meta/reality-sources/pld-v7-excel/MAIN-TABLE-SCHEMA.md`](_meta/reality-sources/pld-v7-excel/MAIN-TABLE-SCHEMA.md) — 69 cols full schema, Reference.DeptColumns metadata, Required_for_done per dept
 - [`_meta/reality-sources/pld-v7-excel/CASCADING-RULES.md`](_meta/reality-sources/pld-v7-excel/CASCADING-RULES.md) — 4 cascade chains, Reference lookup tables, cascade refresh map
 - [`_meta/reality-sources/pld-v7-excel/WORKFLOW-RULES.md`](_meta/reality-sources/pld-v7-excel/WORKFLOW-RULES.md) — status colors, blocking mechanism, autofilter, Built flag, Dashboard alerts, Worksheet_Change flow
-- [`_meta/reality-sources/pld-v7-excel/REFERENCE-TABLES.md`](_meta/reality-sources/pld-v7-excel/REFERENCE-TABLES.md) — 8 config tables (PackSizes/Templates/Lines_By_PackSize/Dieset_By_Line_Pack/Processes/CloseConfirm/EmailConfig/DeptColumns)
+- [`_meta/reality-sources/pld-v7-excel/REFERENCE-TABLES.md`](_meta/reality-sources/pld-v7-excel/REFERENCE-TABLES.md) — 8 config tables (PackSizes/Templates/Lines_By_PackSize/Equipment_Setup_By_Line_Pack/Processes/CloseConfirm/EmailConfig/DeptColumns)
 - [`_meta/reality-sources/pld-v7-excel/D365-INTEGRATION.md`](_meta/reality-sources/pld-v7-excel/D365-INTEGRATION.md) — D365 Import, D365 Builder 8 tabs, V04 validation, Builder_FA5101.xlsx reference, Apex constants
 - [`_meta/reality-sources/pld-v7-excel/EVOLVING.md`](_meta/reality-sources/pld-v7-excel/EVOLVING.md) — 15 areas in change + priority matrix MUST/SHOULD/COULD/WON'T
 - [`_meta/reality-sources/brief-excels/README.md`](_meta/reality-sources/brief-excels/README.md)
@@ -1546,7 +1586,7 @@ CREATE TABLE npd_projects (
     owner           TEXT,
     target_launch   DATE,
     notes           TEXT,
-    fa_code         TEXT REFERENCES fa(fa_code), -- linked once G3 reached
+    product_code         TEXT REFERENCES fa(product_code), -- linked once G3 reached
     start_from      TEXT,                         -- 'blank' | 'clone' | 'template'
     clone_source    TEXT,                         -- BOM code if start_from='clone'
     -- R13 columns
@@ -1644,14 +1684,123 @@ Configurable per tenant (admin UI Phase C1). Default seed provides standard chec
 
 ---
 
+---
+
+## APPENDIX A — Industry Configuration Guide
+
+This section demonstrates how Reference.CodePrefixes and Reference.ColumnLabels enable multi-industry support.
+
+### Example 1: Bakery
+
+**Product Code:** FG-2026-BRD-001 (FG prefix for Finished Good)
+**Recipe Components:** WIP001, WIP002 (WIP prefix for Work-In-Progress)
+**Ingredient Codes:** ING-FLOUR, ING-WATER, ING-SALT
+
+**Column Label Mappings (Bakery vs. generic):**
+- `product_code` → "Product ID" (not FA Code)
+- `recipe_components` → "Recipe Ingredients"
+- `ingredient_codes` → "Ingredient Codes"
+- `primary_ingredient_pct` → "Flour %" (main ingredient)
+- `manufacturing_operation_1` → "Mix Step"
+- `manufacturing_operation_2` → "Knead Step"
+- `manufacturing_operation_3` → "Proof Step"
+- `manufacturing_operation_4` → "Bake Step"
+- `equipment_setup` → "Oven Config"
+
+**Manufacturing Operations (Reference.ManufacturingOperations seed):**
+- Mix (MX)
+- Knead (KN)
+- Proof (PR)
+- Bake (BK)
+
+**Recipe Example Flow:**
+```
+RM0001 (Flour) + RM0002 (Water) → MIX → WIP-MX-0000001
+Then: WIP-MX-0000001 + ING001 (Salt) → KNEAD → WIP-KN-0000002
+Then: WIP-KN-0000002 → PROOF → WIP-PR-0000003
+Then: WIP-PR-0000003 → BAKE → WIP-BK-0000004 (Final: FA-BRD-0001)
+```
+
+**Equipment Examples:** Oven 1, Oven 2, Cooling Tunnel, Packaging Line
+**PackSizes (Bakery-specific):** 250g, 500g, 1kg, 1.5kg
+**Shelf Life:** 7 days (ambient) or 14 days (refrigerated)
+**Regulatory:** BRCGS v9 Food Safety (same as all food industries)
+
+### Example 2: Pharmacy
+
+**Product Code:** PROD-PHM-024 (PROD prefix)
+**Recipe Components:** BATCH-SYN-001, BATCH-FILT-002 (BATCH prefix for synthesis/processing)
+**Ingredient Codes:** API-ASPIRIN, FILLER-TALC (API prefix for Active Pharmaceutical Ingredients)
+
+**Column Label Mappings (Pharmacy-specific):**
+- `product_code` → "Product Code"
+- `recipe_components` → "Batch Components"
+- `ingredient_codes` → "Active/Inactive Ingredients"
+- `primary_ingredient_pct` → "API Content %" (Active Pharmaceutical Ingredient)
+- `manufacturing_operation_1` → "Synthesis"
+- `manufacturing_operation_2` → "Separation"
+- `manufacturing_operation_3` → "Crystallization"
+- `manufacturing_operation_4` → "Drying"
+- `equipment_setup` → "Reactor Setup"
+
+**Manufacturing Operations (Reference.ManufacturingOperations seed):**
+- Synthesis (SY)
+- Separation (SE)
+- Crystallization (CZ)
+- Drying (DR)
+
+**Recipe Example Flow:**
+```
+RM-ASPIRIN-PRECURSOR → SYNTHESIS → BATCH-SY-0000001
+Then: BATCH-SY-0000001 → SEPARATION → BATCH-SE-0000002
+Then: BATCH-SE-0000002 → CRYSTALLIZATION → BATCH-CZ-0000003
+Then: BATCH-CZ-0000003 → DRYING → BATCH-DR-0000004 (Final: PROD-PHM-024)
+```
+
+**Equipment Examples:** Reactor 1, Reactor 2, Centrifuge, Rotary Dryer, Encapsulator
+**PackSizes (Pharma-specific):** 10ml, 30ml, 100ml, 1L (medicinal units)
+**Shelf Life:** 24-36 months (at 25°C/60% RH per ICH Q1A)
+**Regulatory:** GMP (21 CFR 211 - US) or equivalent regional GMP; ICH Q1A stability guidelines; CoA (Certificate of Analysis) required; NOT BRCGS (food-specific)
+
+### Example 3: FMCG (Consumer Goods)
+
+**Product Code:** PROD-FMCG-2026-001 (PROD prefix)
+**Recipe Components:** WIP-MIX-001, WIP-FILL-002 (WIP for work-in-progress)
+**Ingredient Codes:** ING-WATER, ING-FRAGRANCE, ING-PRESERVATIVE (ING for ingredients)
+
+**Column Label Mappings (FMCG-specific - Cosmetics/Beverages/Household):**
+- `product_code` → "SKU" or "Product Code"
+- `recipe_components` → "Formula Components"
+- `ingredient_codes` → "Ingredient List"
+- `primary_ingredient_pct` → "Water %" or "Active Content %"
+- `manufacturing_operation_1` → "Mix"
+- `manufacturing_operation_2` → "Fill"
+- `manufacturing_operation_3` → "Seal"
+- `manufacturing_operation_4` → "Label"
+- `equipment_setup` → "Filler Config"
+
+**Manufacturing Operations (Reference.ManufacturingOperations - varies by product type):**
+- **Cosmetics:** Mix (MX) → Fill (FL) → Seal (SL) → Label (LB) → QC (QC) → Packaging (PK)
+- **Beverages:** Blend (BL) → Carbonation (CB) → Bottle (BT) → Label (LB) → Chill (CH) → Pack (PK)
+- **Household:** Mix (MX) → Fill (FL) → Cap (CP) → Label (LB) → Wrap (WR) → Carton (CT)
+
+**Equipment Examples:** Mixer, Liquid Filler, Sealer, Labeler, Case Packer
+**PackSizes (FMCG-specific):** 100ml, 250ml, 500ml, 1L (beverages); 50g, 100g, 200g (cosmetics)
+**Shelf Life:** 12-24 months (varies widely - cosmetics 24mo, beverages 12mo, household 18mo)
+**Regulatory:** Per product type - cosmetics (ISO 22716 GMP), beverages (FDA food safety), household (local chemical safety); NOT GMP or BRCGS (different regulatory scope)
+
 ## Changelog
 
-- **v3.1 (2026-04-25)** — Added §17 Stage-Gate Pipeline (G0–G4 gates, GateChecklistPanel, AdvanceGateModal, GateApprovalModal, ApprovalHistoryTimeline, Pipeline kanban/list view, CreateProjectWizard). Sub-module 01-NPD-f added to build sequence. PRD gap analysis vs prototype `gate-screens.jsx`.
+- **v3.3 (2026-04-30, Phase E-0 prep)** — Aligned with 00-FOUNDATION v4.1 §4.3-AMENDMENT (table-naming decision, Option B per ADR-034): physical table for the FA aggregate is now **`product`** with `fa` as a read-only backward-compat SQL view through Phase C1. Added table-naming note above §4.2 DDL block. Updated §13.2 build sequence: 01-NPD-a now explicitly emits `CREATE TABLE product (...)` + `CREATE VIEW fa AS SELECT * FROM product;` (story NPD-a.6). Updated §15 acceptance criteria: RLS coverage references `product` table (with `fa` listed as compat view). Event aggregate prefix `fa.*` is unchanged (decoupled per `_meta/specs/event-naming-convention.md`). No semantic schema change — column list, cascade rules, validations, and lifecycle events are identical.
 
-- **v3.0 (2026-04-19)** — Phase B.2 full rewrite. Renumbered from 09-NPD → 01-NPD (primary module). Phase D aligned: 6 principles + markers + 23 decisions (incl. #1 multi-comp, #2 Done independent, #3 Status_Overall 5-enum, #7 Price blocking tightened, #8 Built auto-reset fix, #10 PR_Code_Final format, #16 allergens multi-level, #18 alert thresholds, #19-22 D365 Builder N+1+per-FA+constants). R1-R15 research adopted (event-first, JSONB hybrid, RLS, Zod runtime, GS1-first, i18n, schema AI/trace-ready). Brief module added (2 templates, 37 cols, Convert-to-PLD). Allergens multi-level cascade RM→PR_step→FA implementowane. D365 Builder N+1 products per FA + Reference.D365_Constants + 8 tabs per-FA file. Dashboard NPD-scoped + RED/YELLOW/GREEN alerts. V07-V08 new validations. Build sequence 01-NPD-a/b/c/d/e (per 00-FOUNDATION §4.2 sequential per sub-module).
+- **v3.2 (2026-04-30)** — Phase B.2 finalization. Fixed validation code collision in 02-SETTINGS (V-SET-40..45 → V-SET-MFG-01..06, avoiding conflict with Module Toggles). Added Phase B.2 migration spec to 00-FOUNDATION §9.1: backward-compatible handling of existing tenants with hardcoded Process_1..4 (seed as generic operations, optional regeneration via Phase C1 wizard). Aligned with 00-FOUNDATION v4.0 §9.1 (Manufacturing Operations configuration pattern) and 02-SETTINGS v3.4 §8.9 (admin UI specification). Cascade engine ready for implementation: Chain 2 (manufacturing_operation_N → process_suffix lookup → intermediate_code_pN generation) fully specified. Dynamic suffix pattern WIP-<suffix>-<seq> works across Bakery/Pharmacy/FMCG industries. All cross-references updated (01-NPD §5.6, §6, §9.5, §12 validation rules, §13 acceptance criteria).
+
+- **v3.1 (2026-04-30)** — Multi-industry generalization + dynamic process configuration. Renamed meat-specific columns to generic equivalents (Finish_Meat → Recipe_Components, RM_Code → Ingredient_Codes, Meat_Pct → Primary_Ingredient_Pct, Process_1..4 → Manufacturing_Operation_1..4, PR_Code_* → Intermediate_Code_*, Dieset → Equipment_Setup, Staffing → Resource_Requirement, FA_Code → Product_Code, Factory Article → Product). Added Reference.ManufacturingOperations table: manufacturing operations now configurable per tenant with dynamic suffix assignment (instead of hardcoded A/B/C/D). Intermediate code generation uses Reference.ManufacturingOperations.process_suffix per operation. Seed data provided for Bakery (Mix/Knead/Proof/Bake), Pharmacy (Synthesis/Separation/Crystallization/Drying), FMCG. Updated Chain 2 + Chain 4 cascading rules + V06 validation to reference dynamic operations. Added Appendix A with industry configuration examples and recipe example flows. Generic framework supports multiple industries via Reference.CodePrefixes, Reference.ColumnLabels, and Reference.ManufacturingOperations configuration (per ADR-034 v3.1).
+
+- **v3.0 (2026-04-19)** — Phase B.2 full rewrite. Renumbered from 09-NPD → 01-NPD (primary module). Phase D aligned: 6 principles + markers + 23 decisions (incl. #1 multi-comp, #2 Done independent, #3 Status_Overall 5-enum, #7 Price blocking tightened, #8 Built auto-reset fix, #10 Intermediate_Code_Final format, #16 allergens multi-level, #18 alert thresholds, #19-22 D365 Builder N+1+per-FA+constants). R1-R15 research adopted (event-first, JSONB hybrid, RLS, Zod runtime, GS1-first, i18n, schema AI/trace-ready). Brief module added (2 templates, 37 cols, Convert-to-PLD). Allergens multi-level cascade RM→PR_step→FA implementowane. D365 Builder N+1 products per FA + Reference.D365_Constants + 8 tabs per-FA file. Dashboard NPD-scoped + RED/YELLOW/GREEN alerts. V07-V08 new validations. Build sequence 01-NPD-a/b/c/d/e (per 00-FOUNDATION §4.2 sequential per sub-module).
 
 - **v1.1 (2026-02-18)** — old 09-NPD PRD, 937 lines, pre-Phase-D. Premium Add-on positioning, stage-gate concept, trial BOMs, sample mgmt. Superseded fully przez v3.0.
 
 ---
 
-*PRD 01-NPD v3.0 — Phase B.2 primary module rewrite. Next: Phase C1 (02-SETTINGS + 03-TECHNICAL + INTEGRATIONS stage 1) PRD writing.*
+*PRD 01-NPD v3.3 — Phase E-0 prep alignment (table renamed `fa` → `product`, `fa` retained as compat view; event prefix `fa.*` unchanged). Next: Phase E-0 implementation (`00-FOUNDATION-impl-a..i` foundation tasks, then 01-NPD-a..f).*

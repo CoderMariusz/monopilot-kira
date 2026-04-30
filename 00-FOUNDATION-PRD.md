@@ -1,10 +1,10 @@
 ---
 title: PRD 00-FOUNDATION — Monopilot MES
-version: 3.0
-date: 2026-04-18
-phase: Phase B.1 (Phase D renumbered + Research R1-R15 embedded)
-status: Draft v3.0 — pending user review
-supersedes: v2.3 (2026-02-18, pre-Phase-D)
+version: 4.0
+date: 2026-04-30
+phase: Phase B.1 continued (Phase D renumbered + Research R1-R15 + Manufacturing Operations pattern)
+status: Draft v4.1 — Phase E-0 prep clarifications (build order, event naming, table naming)
+supersedes: v3.0 (2026-04-18, Phase B.1 initial)
 references:
   - _foundation/decisions/MONOPILOT-V2-ARCHITECTURE.md
   - _foundation/research/MES-TRENDS-2026.md
@@ -183,6 +183,8 @@ Build = **per module albo jego części, po kolei, z rozbiciem na stories/tasks*
 
 **Regression rule:** po każdym module impl → regression test suite (Vitest + Playwright) przed kolejnym. Skills: `vba-regression` pattern (for VBA) / analogous web-app regression pipeline (to be defined C1).
 
+> **§4.2-AMENDMENT (2026-04-22, per ADR-032):** build order row 2 dependency "Foundation infra w minimum scope" zastępujemy explicit Phase E-0 = `00-FOUNDATION-impl-a..i` (atomic task spec w `_meta/specs/00-FOUNDATION-impl-spec.md`; tasks listed in `_meta/plans/2026-04-25-foundation-tasks.md`). Row 3 prerequisite "01-NPD done" zmieniamy na **"02-SETTINGS-a minimum carveout done"** (orgs/users + RBAC + 7 ref tables + module toggles + i18n scaffold + org security baseline) z parallel Track A (01-NPD-a..e) / Track B (02-SETTINGS-b..e). Pełna revised tabela: patrz `_meta/plans/2026-04-22-phase-e-kickoff-plan.md` §3.2. Foundation modules `00-FOUNDATION-impl-d/e/f/g/h` (DB+RLS, outbox, RBAC primitives, audit, i18n) MUST complete before 01-NPD-a can start.
+
 ### §4.3 Tabela 15 modułów
 
 | # | Moduł | PRD Writing | Build order | File | Dependencies |
@@ -203,6 +205,8 @@ Build = **per module albo jego części, po kolei, z rozbiciem na stories/tasks*
 | 13 | MAINTENANCE | C5 | 13 | `13-MAINTENANCE-PRD.md` | 02, 08, 15 |
 | 14 | MULTI-SITE | C5 | 14 | `14-MULTI-SITE-PRD.md` | 02, 05 |
 | 15 | OEE | C5 | 15 | (new, C5) | 08 |
+
+> **§4.3-AMENDMENT — Table Naming Decision (2026-04-30, per ADR-034 finalisation):** the physical table for the NPD finished-article aggregate is **`product`** (singular, generic). This is **Option B** (chosen over Option A "keep `fa` as physical name" and Option C "dual-table `fa` + `product`"). Rationale: (1) generic naming aligns with multi-industry generalisation in ADR-034 (Bakery / Pharma / FMCG / meat all use the same physical schema), (2) avoids confusion with the `fa.*` event aggregate which is a domain-language label, not a table reference, (3) gives a clean target name for D365 item-master sync long-term. **Backward-compat for D365 Builder + legacy SQL:** create a SQL view `CREATE VIEW fa AS SELECT * FROM product;` (read-only, Phase E-0 → C1 deprecation window) so existing `Builder_FA<code>.xlsx` queries and any external integration referring to `fa` continue to resolve. The view is dropped at end of Phase C1 once D365 adapter migration completes. **Event aggregate prefix stays `fa.*`** (decoupled from storage — see §10 + `_meta/specs/event-naming-convention.md`). Acceptance-criteria impact: 01-NPD-a DDL emits `CREATE TABLE product (...)` + `CREATE VIEW fa AS SELECT * FROM product;`; 01-NPD §15 success criteria updated to reference `product` table for RLS coverage with `fa` listed as compat view.
 
 ### INTEGRATIONS — distributed, not a single module
 
@@ -424,6 +428,326 @@ Implementacja: L2 config `tenant.dept_overrides` JSONB, run-time re-mapping casc
 
 ---
 
+## §9.1 — Manufacturing Operations (Process) Configuration Pattern [ADR-028 extension]
+
+### Pattern Overview
+
+Manufacturing operations (processes) use a configurable suffix-based naming scheme instead of hardcoded Process_A/B/C/D naming. This aligns with **P1 (Easy extension contract)** and **ADR-028 (schema-driven column definition)** by allowing per-tenant, per-industry process configuration through metadata lookup rather than code-level constants.
+
+**Generic physical columns:** `manufacturing_operation_1`, `manufacturing_operation_2`, `manufacturing_operation_3`, `manufacturing_operation_4`
+
+**Configuration source:** `Reference.ManufacturingOperations` table (operation_name → process_suffix mapping, per tenant)
+
+**Dynamic suffix assignment:** Tenant-scoped and industry-scoped via seed data
+
+**Examples:**
+
+Bakery scenario:
+- `manufacturing_operation_1 = "Mix"` → lookup Reference.ManufacturingOperations → retrieve `process_suffix = "MX"`
+- `intermediate_code_p1` generated as: `"WIP-MX-0000001"`
+
+Pharmacy scenario:
+- `manufacturing_operation_1 = "Synthesis"` → lookup → retrieve `process_suffix = "SY"`
+- `intermediate_code_p1` generated as: `"BATCH-SY-0000001"`
+
+### Reference.ManufacturingOperations Table [UNIVERSAL pattern, ORG-CONFIG values]
+
+**Table structure [UNIVERSAL]:**
+
+```sql
+CREATE TABLE "Reference.ManufacturingOperations" (
+    id              UUID PRIMARY KEY,
+    tenant_id       UUID NOT NULL,
+    operation_name  TEXT NOT NULL,         -- "Mix", "Knead", "Bake", "Synthesis", "Drying", etc.
+    process_suffix  TEXT NOT NULL,         -- "MX", "KN", "BK", "SY", "DR" (unique per tenant)
+    description     TEXT,
+    operation_seq   INT,                   -- Display/default order (1, 2, 3, 4, ...)
+    industry_code   TEXT,                  -- 'bakery' | 'pharma' | 'fmcg' (seed categorization)
+    is_active       BOOLEAN DEFAULT true,
+    marker          TEXT NOT NULL,         -- 'ORG-CONFIG' (values differ per tenant/industry)
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE UNIQUE INDEX idx_manufacturing_operations_tenant_suffix 
+  ON "Reference.ManufacturingOperations" (tenant_id, process_suffix);
+```
+
+**Marker distinction:**
+- `[UNIVERSAL]`: Table structure, configuration concept, cascade logic, constraint enforcement
+- `[ORG-CONFIG]`: `operation_name`, `process_suffix` values (differ per tenant and industry)
+
+### Intermediate Code Generation Formula
+
+**Generic pattern:**
+```
+intermediate_code_final = <prefix>-<process_suffix>-<sequence_number>
+```
+
+**Examples:**
+
+Bakery (Reference.CodePrefixes[intermediate].prefix = "WIP"):
+- `WIP-MX-0000001` (Mix operation, seq 1)
+- `WIP-BK-0000002` (Bake operation, seq 2)
+
+Pharmacy (Reference.CodePrefixes[intermediate].prefix = "BATCH"):
+- `BATCH-SY-0000001` (Synthesis operation, seq 1)
+- `BATCH-DR-0000004` (Drying operation, seq 4)
+
+FMCG (Reference.CodePrefixes[intermediate].prefix = "SKU"):
+- `SKU-MX-0000001` (Mix operation, seq 1)
+- `SKU-FL-0000002` (Fill operation, seq 2)
+
+The prefix is retrieved from `Reference.CodePrefixes` (existing table, [UNIVERSAL] structure with [ORG-CONFIG] values); the suffix is retrieved from `Reference.ManufacturingOperations` per-tenant lookup; the sequence number is auto-incremented per manufacturing operation per lots/work orders.
+
+### Cascading Rule Integration — Chain 2 (Manufacturing_Operation_N → Intermediate_Code_P*)
+
+**Rule type:** Cascading (ADR-029, [UNIVERSAL] logic with [ORG-CONFIG] suffix values)
+
+**Trigger:** When `manufacturing_operation_1`, `manufacturing_operation_2`, `manufacturing_operation_3`, or `manufacturing_operation_4` changes (in 01-NPD module or upon 08-PRODUCTION work order initialization)
+
+**Flow:**
+1. Look up `operation_name` (e.g., "Mix") in `Reference.ManufacturingOperations` for the current tenant
+2. Retrieve `process_suffix` (e.g., "MX")
+3. Generate `intermediate_code_pN` = `<intermediate_prefix>-<process_suffix>-<next_sequence>`
+4. Emit `fa.intermediate_code_changed` event (outbox pattern, [R1])
+
+**Example DSL snippet (ADR-029 format):**
+
+```json
+{
+  "rule_id": "manufacturing_operation_to_intermediate_code_cascade",
+  "rule_type": "cascading",
+  "triggers": [
+    "fa.manufacturing_operation_1.changed",
+    "fa.manufacturing_operation_2.changed",
+    "fa.manufacturing_operation_3.changed",
+    "fa.manufacturing_operation_4.changed"
+  ],
+  "actions": [
+    {
+      "lookup": "Reference.ManufacturingOperations",
+      "on_field": "operation_name",
+      "retrieve_field": "process_suffix",
+      "assign_to": "intermediate_code_pN",
+      "format": "{prefix}-{process_suffix}-{sequence}"
+    },
+    {
+      "emit_event": "fa.intermediate_code_changed",
+      "payload_fields": ["manufacturing_operation_N", "intermediate_code_pN", "process_suffix"]
+    }
+  ]
+}
+```
+
+This rule is **[UNIVERSAL]** in logic (lookup + cascade structure) but **[ORG-CONFIG]** in suffix values (each tenant defines their own operation_name→process_suffix mappings).
+
+### Template Application
+
+Templates reference `operation_name` values (not hardcoded positions):
+
+**Example template: "Mix-Knead-Proof-Bake" (Bakery [APEX-CONFIG] scenario)**
+
+```
+Template definition:
+  operation_1: "Mix"
+  operation_2: "Knead"
+  operation_3: "Proof"
+  operation_4: "Bake"
+```
+
+**On apply to FA (Final Assembly):**
+1. `manufacturing_operation_1` ← "Mix" → lookup "Mix" in Reference.ManufacturingOperations → `process_suffix` = "MX" → `intermediate_code_p1` = "WIP-MX-..."
+2. `manufacturing_operation_2` ← "Knead" → lookup → `process_suffix` = "KN" → `intermediate_code_p2` = "WIP-KN-..."
+3. `manufacturing_operation_3` ← "Proof" → lookup → `process_suffix` = "PR" → `intermediate_code_p3` = "WIP-PR-..."
+4. `manufacturing_operation_4` ← "Bake" → lookup → `process_suffix` = "BK" → `intermediate_code_p4` = "WIP-BK-..."
+
+Cascade rule fires for each operation_N assignment, emitting intermediate_code_pN updates + events.
+
+### Industry Seed Data [ORG-CONFIG]
+
+**Bakery (Reference.ManufacturingOperations seed for industry_code='bakery')**
+
+```json
+[
+  {
+    "operation_name": "Mix",
+    "process_suffix": "MX",
+    "operation_seq": 1,
+    "industry_code": "bakery",
+    "description": "Dry ingredient mixing"
+  },
+  {
+    "operation_name": "Knead",
+    "process_suffix": "KN",
+    "operation_seq": 2,
+    "industry_code": "bakery",
+    "description": "Dough kneading"
+  },
+  {
+    "operation_name": "Proof",
+    "process_suffix": "PR",
+    "operation_seq": 3,
+    "industry_code": "bakery",
+    "description": "Fermentation/proofing"
+  },
+  {
+    "operation_name": "Bake",
+    "process_suffix": "BK",
+    "operation_seq": 4,
+    "industry_code": "bakery",
+    "description": "Oven baking"
+  }
+]
+```
+
+**Pharmacy (Reference.ManufacturingOperations seed for industry_code='pharma')**
+
+```json
+[
+  {
+    "operation_name": "Synthesis",
+    "process_suffix": "SY",
+    "operation_seq": 1,
+    "industry_code": "pharma",
+    "description": "Chemical synthesis"
+  },
+  {
+    "operation_name": "Separation",
+    "process_suffix": "SE",
+    "operation_seq": 2,
+    "industry_code": "pharma",
+    "description": "Chromatography/separation"
+  },
+  {
+    "operation_name": "Crystallization",
+    "process_suffix": "CZ",
+    "operation_seq": 3,
+    "industry_code": "pharma",
+    "description": "Crystal formation"
+  },
+  {
+    "operation_name": "Drying",
+    "process_suffix": "DR",
+    "operation_seq": 4,
+    "industry_code": "pharma",
+    "description": "Moisture removal"
+  }
+]
+```
+
+**FMCG (Reference.ManufacturingOperations seed for industry_code='fmcg')**
+
+```json
+[
+  {
+    "operation_name": "Mix",
+    "process_suffix": "MX",
+    "operation_seq": 1,
+    "industry_code": "fmcg",
+    "description": "Bulk ingredient mixing"
+  },
+  {
+    "operation_name": "Fill",
+    "process_suffix": "FL",
+    "operation_seq": 2,
+    "industry_code": "fmcg",
+    "description": "Container filling"
+  },
+  {
+    "operation_name": "Seal",
+    "process_suffix": "SL",
+    "operation_seq": 3,
+    "industry_code": "fmcg",
+    "description": "Lid/seal application"
+  },
+  {
+    "operation_name": "Label",
+    "process_suffix": "LB",
+    "operation_seq": 4,
+    "industry_code": "fmcg",
+    "description": "Label placement"
+  }
+]
+```
+
+Seed data is applied **per new tenant** (Phase B.2 or Phase C.1 tenant onboarding flow), based on tenant's selected `industry_code`. Post-seed, tenant admins can edit operations via 02-SETTINGS Admin UI (Phase C.1).
+
+### Phase Implementation
+
+**Phase B.2 (01-NPD cascade engine):**
+- Implement lookup from manufacturing_operation_N → Reference.ManufacturingOperations.process_suffix (seed hardcoded per industry initially)
+- Integrate with Chain 2 cascading rule engine (ADR-029)
+- Generate intermediate_code_pN with dynamic suffix
+- Emit outbox events (R1, ADR-029)
+
+**Phase C1 (02-SETTINGS Admin UI):**
+- Add Manufacturing Operations editor in 02-SETTINGS schema-driven UI
+- CRUD operations: add/edit/delete/reorder operations per tenant
+- Validation: process_suffix uniqueness per tenant, alphanumeric 2-4 chars
+- Soft-delete (is_active flag) for backward compatibility
+- Dry-run capability (ADR-029 wizard): test suffix changes on sample FAs
+
+**Phase C+:**
+- Allow per-tenant customization (rename operation_name, adjust suffix, add new operations)
+- Industry-specific variations (e.g., Bakery subtype "Artisanal" vs "Industrial" with different operations)
+- Template library per operation set (Phase B.2 / C.1)
+
+### Phase B.2 Migration (Existing Tenants)
+
+**For tenants with existing hardcoded Process_1..4 (from v7 or earlier phases):**
+
+1. **Identify existing data:** Query `product` table for non-null `manufacturing_operation_1..4` values that currently hold "Process_A", "Process_B", "Process_C", "Process_D" (letter-based placeholders).
+
+2. **Seed generic operations:** Insert Reference.ManufacturingOperations rows with industry_code='generic':
+   ```sql
+   INSERT INTO "Reference.ManufacturingOperations" 
+     (tenant_id, operation_name, process_suffix, operation_seq, industry_code, is_active, marker)
+   VALUES 
+     (tenant_id, 'Process_A', 'PA', 1, 'generic', true, 'ORG-CONFIG'),
+     (tenant_id, 'Process_B', 'PB', 2, 'generic', true, 'ORG-CONFIG'),
+     (tenant_id, 'Process_C', 'PC', 3, 'generic', true, 'ORG-CONFIG'),
+     (tenant_id, 'Process_D', 'PD', 4, 'generic', true, 'ORG-CONFIG');
+   ```
+
+3. **Backfill existing FAs:** For each FA with non-null manufacturing_operation_N:
+   - Copy as-is (Process_A, Process_B, etc. remain valid operation_names)
+   - Cascade engine will look up process_suffix ("PA", "PB", "PC", "PD") at runtime
+   - Existing intermediate_code_pN values are NOT regenerated (backward compat)
+
+4. **Regenerate intermediate codes (optional, Phase C1+):** Tenant admin can trigger "Regenerate intermediate codes" wizard:
+   - Preview mode: show sample FAs with old vs new codes (e.g., PR-A-001 → WIP-PA-000001)
+   - User confirms scope (all FAs, date range, specific subset)
+   - Background job updates intermediate_code_pN columns for selected FAs
+   - Audit log tracks regeneration (user, timestamp, count of updated FAs)
+
+5. **Post-migration:** Tenant can optionally upgrade to industry-specific operations (Bakery/Pharmacy/FMCG) or custom operations via Phase C1 admin UI (export/import migrations available for bulk rename).
+
+### Related Architecture Decisions
+
+- **ADR-028**: Generic column definition in Reference.DeptColumns; extends to Reference.ManufacturingOperations
+- **ADR-029**: Rule engine DSL; Chain 2 cascade uses configurable suffix lookup
+- **ADR-030**: Configurable department taxonomy; manufacturing operations are cross-dept (01-NPD + 08-PRODUCTION consumers)
+- **P1**: Easy extension contract — operations configurable via UI, not hardcoded
+
+### Validation & Constraints
+
+- `process_suffix` must be **unique per tenant** (UNIQUE index enforced, ADR-028 constraint pattern)
+- `process_suffix` must be **2-4 alphanumeric characters** (regex validation in Admin UI + DB check constraint)
+- `operation_name` must be **non-empty** and unique within a tenant (optional: uniqueness enforced via UNIQUE index)
+- **Deletion safeguard**: Cannot delete an operation if referenced by:
+  - Active Template definitions (reference count check)
+  - Active FAs (manufacturing_operation_N values)
+  - Constraint enforced at application level (02-SETTINGS form cannot delete if count > 0)
+- `is_active` boolean allows soft-delete without breaking historical FAs
+
+### Cross-references (to be added in sibling PRDs)
+
+- **01-NPD-PRD §6 (Cascading Rules):** Reference this section for Chain 2 implementation (manufacturing_operation_N → intermediate_code_pN)
+- **02-SETTINGS-PRD § (Manufacturing Operations Editor):** Reference this section for UI requirements, validation, seed data structure
+- **08-PRODUCTION-PRD §X (Work Order Initialization):** Reference this section for operation_name lookup during WO creation from template
+
+---
+
 ## §10 — Event-first + AI/Trace-ready Schema [R1, R13]
 
 ### Outbox pattern od MVP
@@ -449,12 +773,14 @@ Worker publikuje do queue (Azure Service Bus / SQS / RabbitMQ). Hook za darmo dl
 
 ### Event naming ISA-95-compatible
 
-Format: `<tenant>/<site>/<area>/<line>/<event_type>`
+Format (queue routing key): `<tenant>/<site>/<area>/<line>/<event_type>`
 
 Przykłady:
 - `apex/uk-site/mixing-line/wo-4521/ccp-chilling-out-of-spec`
 - `apex/uk-site/warehouse/lp-8823/moved`
 - `apex/uk-site/shipping/shipment-1234/epcis-commissioning`
+
+**`event_type` aggregate prefixes (canonical):** `fa.*` (NPD 01 finished-article lifecycle — `fa.created`, `fa.core_closed`, `fa.dept_closed`, `fa.built`, `fa.built_reset`, `fa.allergens_changed`), `brief.*` (NPD brief), `org.*` / `user.*` / `role.*` / `audit.*` (foundation/settings), `lp.*` (warehouse), `wo.*` (production), `quality.*`, `shipment.*`. **`fa.*` is canonical for the NPD finished-article aggregate even after the ADR-034 physical rename of the underlying `fa` table to `product`** — event names are a domain contract, decoupled from storage. `product.*` is reserved for future product-master/reference-data events (D365 item master, BOM revisions) and is NOT a synonym for `fa.*`. Full aggregate registry + add-prefix process: `_meta/specs/event-naming-convention.md`. Source-of-truth enum: `lib/outbox/events.enum.ts`.
 
 ### Schema "AI-ready + traceability-ready" od dnia 1 [R13]
 
@@ -735,10 +1061,14 @@ Dodane do §13 open items.
 
 ## Changelog
 
+- **v4.1 (2026-04-30, Phase E-0 prep)** — Three Phase B.2 PRD-suite clarifications before Phase E-0 kickoff: (1) Added **§4.2-AMENDMENT** (per ADR-032) explicitly listing Phase E-0 atomic foundation tasks `00-FOUNDATION-impl-a..i` as the prerequisite for 01-NPD-a (replacing vague "Foundation infra w minimum scope"), and clarifying parallel Track A / Track B build sequence with `_meta/plans/2026-04-22-phase-e-kickoff-plan.md` as authoritative source; (2) Disambiguated event naming in §10 — `fa.*` is canonical for the NPD finished-article aggregate, `product.*` is reserved for future product-master/reference-data events; published full aggregate registry in `_meta/specs/event-naming-convention.md`; (3) Added **§4.3-AMENDMENT** finalising the table-naming decision: physical table renamed `fa` → `product` (Option B per ADR-034), `fa` retained as a backward-compat read-only SQL view through Phase C1 D365 adapter cutover. No structural changes to existing sections.
+
+- **v4.0 (2026-04-30)** — Added §9.1 Manufacturing Operations (Process) Configuration Pattern. Documents configurable suffix-based naming scheme (Reference.ManufacturingOperations) for manufacturing_operation_1..4 fields. Includes pattern overview, table schema [UNIVERSAL] + [ORG-CONFIG] marker discipline, cascade rule integration (ADR-029 Chain 2), template application, industry seed data (bakery/pharma/fmcg), phase implementation roadmap (B.2/C1/C+), and cross-references to sibling PRDs (01-NPD, 02-SETTINGS, 08-PRODUCTION). Aligns with P1 (easy extension contract) and ADR-028 (schema-driven pattern).
+
 - **v3.0 (2026-04-18)** — Phase B.1 full rewrite. Phase D renumbering (01-NPD primary, 02-SETTINGS, etc.), 6 principles embedded, marker discipline, R1-R15 research decisions, reference to MES-TRENDS-2026.md + MONOPILOT-V2-ARCHITECTURE.md + META-MODEL + ADR-028-031. Wycięte: stare metryki biznesowe, pre-Phase-D numbering, per-module requirements, Supabase lock-in language. Pre-Phase-D ADRs (001-019) deep review deferred do osobnej sesji (§14 open item #13). Old PRD v2.3 archived w git history.
 
 - **v2.3 (2026-02-18)** — pre-Phase-D last version. 16 modułów M00-M15, 77 requirements, 18 ADRs (001-019). Stare numerowanie (M01=Settings, M09=NPD).
 
 ---
 
-*PRD 00-FOUNDATION v3.0 — Phase B.1 rewrite. Next: Phase B.2 (01-NPD primary).*
+*PRD 00-FOUNDATION v4.1 — Phase E-0 prep clarifications (build order amendment, event naming canonicalisation, table-naming decision finalised). Next: Phase E-0 kickoff (`00-FOUNDATION-impl-a..i`).*

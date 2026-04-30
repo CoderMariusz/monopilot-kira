@@ -1,7 +1,7 @@
 # 15-OEE PRD — Monopilot MES
 
-**Wersja:** 3.1 | **Data:** 2026-04-21 | **Status:** Stakeholder decisions locked (2026-04-21 session — 9/10 OQ resolved)
-**Poprzednia wersja:** 3.0 (2026-04-20, Phase C5 Sesja 1, new PRD from scratch)
+**Wersja:** 3.2 | **Data:** 2026-04-21 | **Status:** Standardized for multi-industry manufacturing operations pattern (2026-04-30)
+**Poprzednia wersja:** 3.1 (2026-04-21, Stakeholder decisions locked)
 
 ---
 
@@ -89,7 +89,7 @@ Dostarczyc operatorom, line supervisors i maintenance technicians natychmiastowy
 | 5 | **MV infrastructure: `oee_shift_metrics`** | Per-shift rollup per (tenant, site, line, date, shift_id) — MTBF/MTTR ready (P2 13-MAINT consumer) | Must |
 | 6 | **DSL rule `shift_aggregator_v1`** | Configurable shift boundaries, L2 tenant variation, Apex baseline 3-shift 00/08/16 UTC | Must |
 | 7 | **Downtime drill-down integration** | Click OEE dip → reveal `downtime_events` rows z category + duration + reason_notes (cross-module navigation to 08-PROD) | Must |
-| 8 | **Changeover analysis P1 basic** | Changeover duration per line (consumer `changeover_events` 08-PROD §9.7), per allergen risk level. Target duration sourced from 02-SETTINGS `changeover_target_duration_min` per line (with optional per-FA override). Default null — no breach detection if unset. | Should |
+| 8 | **Changeover analysis P1 basic** | Changeover duration per line (consumer `changeover_events` 08-PROD §9.7), per allergen risk level. Target duration sourced from 02-SETTINGS `changeover_target_duration_min` per line (with optional per-FG override). Default null — no breach detection if unset. | Should |
 | 9 | **Six Big Losses basic view** | Aggregat per classification admin-configurable per tenant (mapping editor in OEE-ADM-001: `downtime_reason_code` → Big Loss category; default seeded from industry standard). | Should |
 | 10 | **Refresh indicator** | "Last aggregation: HH:MM:SS" widget + staleness warning if > 120s | Must |
 | 11 | **Export CSV/PDF P1** | Per dashboard, reuse 12-REPORTING export engine (API `/api/reporting/export`) | Must |
@@ -106,7 +106,7 @@ Dostarczyc operatorom, line supervisors i maintenance technicians natychmiastowy
 | 5 | **Custom shift configs L2** | 2-shift / 4-shift / 24h continuous / custom per tenant (02-SET §8.1 `shift_configs` reference table) |
 | 6 | **Maintenance trigger rule** | `oee_maintenance_trigger_v1` — availability < threshold 3 consecutive days → auto-create PM WO (13-MAINT consumer) |
 | 7 | **ML classification downtime** | P3+ — ML model classifies uncategorized downtime events (R12 consumer) |
-| 8 | **Per-product OEE** | Drill-down OEE per FA/SKU (needs `oee_snapshots.active_wo_id` join products) |
+| 8 | **Per-product OEE** | Drill-down OEE per FG/SKU (needs `oee_snapshots.active_wo_id` join products) |
 | 9 | **OEE forecasting** | Prophet internal microservice consumer (07-EXT Q3 A) — predict next shift/day OEE |
 | 10 | **Pareto chart losses** | Pareto-80/20 analysis top downtime causes, drill-down RCA |
 | 11 | **Shift comparison advanced** | AM vs PM best-practice sharing, operator skill gap analysis |
@@ -1040,7 +1040,7 @@ Note: P1 Apex target is **70%** (shown as target reference line on charts). P1 c
 | OQ-OEE-02 | Target OEE — 85% vs Apex ramp-up baseline? | CLOSED | P1 target = **70%**. `oee_alert_thresholds.oee_target_pct = 70`. Amber 55–70%, red <55% (proportional). Color scale fixed 65/85 (per OQ-OEE-07). | 2026-04-21 |
 | OQ-OEE-03 | TV dashboard kiosk OS? | **OPEN** | Brak decyzji. Raspberry Pi / Windows kiosk / ChromeOS — wymaga Apex IT. Nie blokuje P1. | — |
 | OQ-OEE-04 | Operator annotation edit window? | CLOSED | **1 godzina post-event**. Po 1h — read-only + `[Request Edit]` escalation do supervisora. | 2026-04-21 |
-| OQ-OEE-05 | Changeover target duration — skad konfiguracja? | CLOSED | **02-SETTINGS `changeover_target_duration_min`** per line (optional per-FA override). Default null — brak breach detection jesli nie skonfigurowane. | 2026-04-21 |
+| OQ-OEE-05 | Changeover target duration — skad konfiguracja? | CLOSED | **02-SETTINGS `changeover_target_duration_min`** per line (optional per-FG override). Default null — brak breach detection jesli nie skonfigurowane. | 2026-04-21 |
 | OQ-OEE-06 | Six Big Losses mapping — admin-configurable? | CLOSED | **Admin-configurable per tenant**. Mapping editor w OEE-ADM-001. Default seeded z industry standard. | 2026-04-21 |
 | OQ-OEE-07 | Heatmap color scale — fixed 65/85 vs tenant-configurable? | CLOSED | **P1 fixed 65/85 industry thresholds**. P2 tenant-configurable via `oee_alert_thresholds`. | 2026-04-21 |
 | OQ-OEE-08 | Push notifications — scope? | CLOSED | **P2 simplified**: in-app toast (12-REPORTING alert system) + daily email digest (OEE <60% sustained). Brak browser push, service worker, PWA, SMS. Opt-in per user. Triggers: OEE <60% sustained 15min, line DOWN >15min, changeover breach. | 2026-04-21 |
@@ -1052,6 +1052,43 @@ Note: P1 Apex target is **70%** (shown as target reference line on charts). P1 c
 ---
 
 ## 18. Changelog
+
+### v3.2 — 2026-04-30 (Standardization for multi-industry manufacturing operations pattern)
+
+**Naming convention updates (UNIVERSAL):**
+- **FA → FG:** Updated all finished goods references (§4.1 #8, §4.2 #8, §16-build roadmap)
+  - Changeover target duration: "with optional per-FG override" (was per-FA)
+  - Per-product OEE drill-down scope: "per FG/SKU" (was per FA/SKU)
+- **PR → WIP:** All production run / intermediate product references already use operational-level metrics (no PR-specific code examples in OEE context; WIP tracking via `oee_snapshots.active_wo_id` from work order system)
+- **Process_X → Manufacturing_Operation_X:** No direct process-level references in OEE scope (OEE aggregated per-line, not per-operation; operations tracked in 02-SETTINGS Reference.ManufacturingOperations)
+- **WIP code pattern:** Validated against format WIP-<2-letter-suffix>-<7-digit-sequence> (applicable to operational WO codes; OEE measures aggregates across line-level operations)
+
+**Per-operation metrics clarification:**
+- OEE in 15-OEE scope operates at **line level** (not individual operation level). Per-operation metrics enabled through:
+  - `oee_snapshots.active_wo_id` → join to 04-PLAN work orders → operation reference
+  - §9.4 per-line `oee_alert_thresholds` (line_id TEXT, not operation_id)
+  - P2 extension (15-H sub-module 15-H) enables per-product drill-down (which may reference FG code + manufacturing operations)
+
+**Cross-reference validation:**
+- ✓ 01-NPD v3.2: intermediate codes, manufacturing operations (OEE doesn't directly encode; reads from 04-PLAN/03-TECHNICAL)
+- ✓ 02-SETTINGS v3.4 §8.9: Reference.ManufacturingOperations (informational; OEE line_id is independent identifier)
+- ✓ 08-PRODUCTION v3.1: changeover gate metrics (consumer 15-OEE, allergen_changeover_gate_v1 rule)
+- ✓ 12-REPORTING v3.1: dashboard example alignment (oee_daily_summary consumer, OEE-003 summary dashboard)
+- ✓ 00-FOUNDATION v4.0 §9.1: Manufacturing Operations pattern (OEE architecture unchanged; per-operation OEE deferred P2)
+
+**No changes to:**
+- OEE calculation formula (A×P×Q ÷ 10000 remains; §9.1 GENERATED ALWAYS constraint preserved)
+- Digital twin architecture (§8 data flows unchanged)
+- Real-time streaming logic (60s per-minute batch aggregation by 08-PROD)
+- ML feature engineering (EWMA anomaly detection, P2 rule spec)
+- Time-series aggregation (shift_aggregator_v1 rule logic, P1 DSL)
+- Dashboard architecture (example KPI names use line_id + shift_id + metric, consistent with v3.1)
+
+**Version bump rationale:**
+- Standardization is metadata/documentation alignment (no breaking changes)
+- All code examples and references already use line-level identifiers
+- Minor clarification: per-operation OEE deferred to P2 sub-module 15-H (not in v3.2 scope)
+- No database schema migration required
 
 ### v3.1 — 2026-04-21 (Stakeholder decisions session — 9/10 OQ resolved)
 
@@ -1140,4 +1177,4 @@ Note: P1 Apex target is **70%** (shown as target reference line on charts). P1 c
 
 ---
 
-_PRD 15-OEE v3.0 — 3 P1 dashboards + 10 P2 dashboards scoped, 7 D-OEE decisions, 3 DSL rules registered (1 P1 active + 2 P2 stub), 20 V-OEE validation rules, 3 sub-modules P1 (15-a..c est. 9-12 sesji impl), 10 P2 sub-modules (15-D..15-M est. 18-24 sesji), BRCGS 7y retention, consumer 08-PROD per-minute aggregation, producer 12-REPORTING (D-RPT-9) + 13-MAINT P2 trigger + 14-MULTI-SITE P2 rollup._
+_PRD 15-OEE v3.2 — 3 P1 dashboards + 10 P2 dashboards scoped, 7 D-OEE decisions, 3 DSL rules registered (1 P1 active + 2 P2 stub), 20 V-OEE validation rules, 3 sub-modules P1 (15-a..c est. 9-12 sesji impl), 10 P2 sub-modules (15-D..15-M est. 18-24 sesji), BRCGS 7y retention, consumer 08-PROD per-minute aggregation, producer 12-REPORTING (D-RPT-9) + 13-MAINT P2 trigger + 14-MULTI-SITE P2 rollup. Standardized for multi-industry manufacturing operations: FA→FG, all code examples use line-level aggregation (per-operation OEE deferred P2)._

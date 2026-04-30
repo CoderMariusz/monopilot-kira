@@ -1,8 +1,8 @@
 # 07-PLANNING-EXT-PRD.md
 
 **Module:** 07-PLANNING-EXT — Advanced Scheduling, Allergen Optimizer, ML Forecasting, Disposition Bridge
-**Version:** 3.1 (2026-04-21 — 10 open questions resolved; Gantt drag-drop descoped)
-**Updated:** 2026-04-21
+**Version:** 3.2 (2026-04-30 — standardized product code nomenclature FA→FG per multi-industry pattern)
+**Updated:** 2026-04-30
 **Status:** Written
 **Owner:** Scheduling & Planning domain
 **Dependencies:** 04-PLANNING-BASIC v3.1, 03-TECHNICAL v3.0, 02-SETTINGS v3.0, 05-WAREHOUSE v3.0, 00-FOUNDATION v3.0
@@ -12,6 +12,7 @@
 
 ## Changelog
 
+- **v3.2 (2026-04-30)** — Standardized product code nomenclature for multi-industry manufacturing pattern. **Universal changes:** FA → FG throughout (Finished Article → Finished Good). Renamed `fa_line_compatibility` → `fg_line_compatibility` for consistency with 03-TECHNICAL v3.1 + 01-NPD v3.2. All product code examples updated (e.g., "Forecast for FG-BRD-0001: 500 units/month"). No changes to forecasting algorithm, supply planning logic, or safety stock calculations. Version bumped per ADR-002 minor versioning; feature flag rollout unchanged.
 - **v3.1 (2026-04-21)** — Stakeholder decision session. 10 open questions (OQ-EXT-01..10) resolved. MAJOR: GanttView drag-drop descoped — Gantt is now read-only visualization; rescheduling via Assignment Override modal and global Re-run Scheduler. Penalty weights accepted (OQ-EXT-01). Operator shift preference deferred P2 (OQ-EXT-02). What-if sim deferred P2 (OQ-EXT-03). Blocked cells get `[Request Review]` button (OQ-EXT-04). `[Approve All]` covers all completed runs (OQ-EXT-06). Disposition timeout extensible per LP via `[Extend 1h]`/`[Extend 4h]` (OQ-EXT-07). Single Planner Advanced publish for matrix (OQ-EXT-08). Dry-run persists as `scheduler_run` row with `run_type='dry_run'` (OQ-EXT-09). Total Changeover KPI = approved schedule sum (OQ-EXT-10).
 - **v3.0 (2026-04-20)** — Greenfield v3.0 per Phase D renumbering. Absorbs deferred items from 04-PLANNING-BASIC v3.1 §8.5 (disposition bridge), §10 (full allergen sequencing optimizer), §11 (finite-capacity engine). Adds ML forecasting bridge (internal Prophet microservice, R12). Integrates 02-SETTINGS §7 rule registry DSL via pluggable optimizer rules. 16 sections, 5 Phase C3 decisions (D1-D5 Q1-Q5), ~2200 lines, 4 sub-modules build sequence (07-a..d).
 - **Prior baseline:** None as standalone PRD. Content source: 04-PLANNING-BASIC v3.1 §11 stub (marked [EVOLVING] for 07-EXT) + §10 heuristic carry-forward + MES-TRENDS-2026 §3/§9 R-decisions (R1 event-first, R12 AI/ML, R13 schema AI-ready).
@@ -134,7 +135,7 @@ By splitting, 04-PLAN-BASIC can go to implementation immediately while 07-EXT re
 
 **NPD Manager (Jane)** [APEX-CONFIG, cameo]
 - Primary user of 01-NPD
-- Minor 07-EXT interaction: views forecast for new FAs launching (P2)
+- Minor 07-EXT interaction: views forecast for new FGs launching (P2)
 - Read on `demand_forecasts` where product_id IN NPD scope
 
 **System (Scheduler Daemon)** [UNIVERSAL]
@@ -171,7 +172,7 @@ By splitting, 04-PLAN-BASIC can go to implementation immediately while 07-EXT re
 
 1. **Finite-capacity scheduling engine** (basic heuristic) [D1]
    - Greedy assignment: WOs → (line, shift, time_window)
-   - Respects `production_lines.capacity_kg_per_hour`, `shift_patterns`, `production_lines.allergen_constraints`
+   - Respects `production_lines.capacity_kg_per_hour`, `shift_patterns`, `production_lines.allergen_constraints` per FG line compatibility
    - Local search refinement (swap pairs, move between lines)
    - No MILP/CP-SAT solver (no OR-Tools dependency)
    - Python microservice (FastAPI), <60s P95 runtime target
@@ -186,7 +187,7 @@ By splitting, 04-PLAN-BASIC can go to implementation immediately while 07-EXT re
 3. **Changeover matrix editor** [UNIVERSAL]
    - UI in 07-EXT (linked from 02-SETTINGS reference tables)
    - N×N matrix: allergen_from × allergen_to → (changeover_minutes, cleaning_required, atp_required)
-   - Apex initial seed: 14 EU allergens + Mustard + "none" row/col
+   - Apex initial seed: 14 EU allergens + Mustard + "none" row/col (per 03-TECHNICAL FG allergen profiles)
    - L3 extensible via schema-driven admin wizard (ADR-028)
 
 4. **Manual forecast entry** (pre-Prophet integration) [EVOLVING→P2]
@@ -199,7 +200,7 @@ By splitting, 04-PLAN-BASIC can go to implementation immediately while 07-EXT re
    - Color by allergen group
    - Highlight changeover blocks
    - Click WO → details side panel (materials, operations, intermediate dependencies from 04-PLAN §8.4)
-   - **Read-only visualization** — no drag-drop reassignment [DESCOPED P1, decision 2026-04-21]. Rescheduling via `[Re-run Scheduler]` (global) or MODAL-07-03 Assignment Override (per-WO). Rationale: FAs are typically bound to one line (see 03-TECHNICAL `fa_line_compatibility`); drag between lines would require eligibility lookup with limited business value.
+   - **Read-only visualization** — no drag-drop reassignment [DESCOPED P1, decision 2026-04-21]. Rescheduling via `[Re-run Scheduler]` (global) or MODAL-07-03 Assignment Override (per-WO). Rationale: FGs are typically bound to one line (see 03-TECHNICAL `fg_line_compatibility`); drag between lines would require eligibility lookup with limited business value.
 
 6. **Scheduler run lifecycle** [UNIVERSAL]
    - Planner clicks "Run Scheduler" → POST /api/scheduler/run {horizon_days, line_ids[], include_forecast: bool}
@@ -534,12 +535,12 @@ E4 ← 04-PLAN §8.5/9 (disposition policy, reservation semantics)
 
 **Actions:**
 - Click WO block → side panel with approve/reject/override/reschedule-WO
-- `[Reschedule WO]` in side panel → opens Assignment Override modal (MODAL-07-03) prefilled; validates `fa_line_compatibility` from 03-TECHNICAL
+- `[Reschedule WO]` in side panel → opens Assignment Override modal (MODAL-07-03) prefilled; validates `fg_line_compatibility` from 03-TECHNICAL
 - `[Re-run Scheduler]` → POST /api/scheduler/run → status poll → refresh Gantt (global re-solve)
 - **Drag-drop: DESCOPED P1** — Gantt is read-only visualization (decision 2026-04-21; see §8.1 rationale below)
 - Export: PDF report (Phase 2), CSV assignments
 
-**§8.1 Gantt drag-drop descope rationale (OQ-EXT-05, 2026-04-21):** FAs are typically bound to one production line (dominant 1-FA-to-1-line relationship in Apex configuration). Drag between lines would require eligibility lookup via `fa_line_compatibility` from 03-TECHNICAL for every drag event, creating significant implementation complexity for limited business value. The assignment override modal (MODAL-07-03) provides full rescheduling capability with proper validation. This decision is CLOSED.
+**§8.1 Gantt drag-drop descope rationale (OQ-EXT-05, 2026-04-21):** FGs are typically bound to one production line (dominant 1-FG-to-1-line relationship in Apex configuration). Drag between lines would require eligibility lookup via `fg_line_compatibility` from 03-TECHNICAL for every drag event, creating significant implementation complexity for limited business value. The assignment override modal (MODAL-07-03) provides full rescheduling capability with proper validation. This decision is CLOSED.
 
 #### SCR-07-02: Changeover Matrix Editor
 
@@ -1291,7 +1292,7 @@ All P1 open questions resolved 2026-04-21. No blockers remain.
 | OQ-EXT-02 | Operator shift preference (P2) — no overlay in P1 GanttView | Remains P2. No overlay in P1 GanttView. | 2026-04-21 | CLOSED (deferred P2) |
 | OQ-EXT-03 | What-if simulation baseline scope — in-flight WOs included? | Remains P2; no decision needed now. | 2026-04-21 | CLOSED (deferred P2) |
 | OQ-EXT-04 | Blocked cells in changeover matrix — allow note + admin review request? | Planner CAN add note/justification and request admin review via `[Request Review]` button on blocked cells. Creates `matrix_review_request` record (PRD to define table). | 2026-04-21 | CLOSED |
-| OQ-EXT-05 | GanttView drag-drop — descoped or retained? | **DESCOPED.** Gantt is read-only visualization. Rescheduling via `[Re-run Scheduler]` (global) or MODAL-07-03 Assignment Override (per-WO, with `[Reschedule WO]` entry in side panel). Rationale: 1-FA-to-1-line dominance; `fa_line_compatibility` eligibility lookup has low UX value as drag target. | 2026-04-21 | CLOSED |
+| OQ-EXT-05 | GanttView drag-drop — descoped or retained? | **DESCOPED.** Gantt is read-only visualization. Rescheduling via `[Re-run Scheduler]` (global) or MODAL-07-03 Assignment Override (per-WO, with `[Reschedule WO]` entry in side panel). Rationale: 1-FG-to-1-line dominance; `fg_line_compatibility` eligibility lookup has low UX value as drag target. | 2026-04-21 | CLOSED |
 | OQ-EXT-06 | `[Approve All]` scope — most recent run or all completed runs? | Approves assignments from ALL completed runs. UI shows run grouping. | 2026-04-21 | CLOSED |
 | OQ-EXT-07 | Disposition bridge timeout (MODAL-07-04) — can Planner extend per LP? | Planner CAN extend per LP via inline `[Extend 1h]` / `[Extend 4h]` buttons with mandatory reason. Default 2h stays. | 2026-04-21 | CLOSED |
 | OQ-EXT-08 | Changeover matrix edit approval workflow — dual sign-off? | Single Planner Advanced publish (no dual sign-off). | 2026-04-21 | CLOSED |
@@ -1374,4 +1375,4 @@ Prior to Phase D, planning content was consolidated in single PRD `04-PLANNING-P
 
 ---
 
-**End of 07-PLANNING-EXT-PRD.md v3.1**
+**End of 07-PLANNING-EXT-PRD.md v3.2**

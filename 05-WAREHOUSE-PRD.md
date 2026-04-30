@@ -1,6 +1,6 @@
 # PRD 05-WAREHOUSE — Monopilot MES
 
-**Wersja**: 3.0 | **Data**: 2026-04-20 | **Status**: Phase C2 Sesja 2 — writing complete
+**Wersja**: 3.1 | **Data**: 2026-04-30 | **Status**: Phase C2 Sesja 2 — standardized for multi-industry FG naming
 **Phase D alignment**: Module #05 (renumbered) | **Primary consumer**: 04-PLANNING + 06-SCANNER-P1 + 08-PRODUCTION + 09-QUALITY
 **Baseline**: v2.1 (2026-02-18, pre-Phase-D)
 
@@ -235,7 +235,7 @@ Per 02-SETTINGS §5.4 (ADR-031), warehouse permissions respect L2 tenant config.
 | warehouse_id | UUID FK | 02§12 |
 | location_id | UUID FK | current physical location |
 | product_id | UUID FK | 03§6 (items.id) |
-| item_type_snapshot | ENUM | 'rm'/'intermediate'/'fa'/'co_product'/'byproduct' (snapshot z item creation moment — ADR-002) |
+| item_type_snapshot | ENUM | 'rm'/'intermediate'/'fg'/'co_product'/'byproduct' (snapshot z item creation moment — ADR-002) |
 | quantity | DECIMAL(14,4) | primary UoM |
 | uom | VARCHAR(8) | BOX/KG/EA/etc |
 | catch_weight_kg | DECIMAL(10,3) | required if product.is_catch_weight |
@@ -902,7 +902,7 @@ Intermediate LP = LP dla items z `item_type='intermediate'` (03§6.1). Przykład
 
 ### 10.2 Intermediate LP lifecycle
 
-Identyczny z RM/FA — zero dodatkowych stanów, zero disposition attribute. Przebieg:
+Identyczny z RM/FG — zero dodatkowych stanów, zero disposition attribute. Przebieg:
 
 1. **Produced by WO-A (08-PROD output event):**
    - Create LP: `item_type_snapshot='intermediate'`, `wo_id=WO-A.id`, `status='available'`, `location_id=production_line.default_putaway_location` (or operator-specified)
@@ -983,8 +983,8 @@ quantity = consumed qty
 context_jsonb = {"scanner_session": "...", "location_at_consume": "...", "fefo_compliant": true/false}
 ```
 
-Forward trace: given RM LP → find all WOs that consumed it → their output LPs → downstream WOs → FA LPs → shipments.
-Backward trace: given FA LP → producing WO → wo_materials consumed LPs → upstream WOs → RMs.
+Forward trace: given RM LP → find all WOs that consumed it → their output LPs → downstream WOs → FG LPs → shipments.
+Backward trace: given FG LP → producing WO → wo_materials consumed LPs → upstream WOs → RMs.
 
 Depth ≤10 covered by recursive CTE <30s (§11).
 
@@ -1001,7 +1001,7 @@ Depth ≤10 covered by recursive CTE <30s (§11).
 
 | ID | Rule | Severity |
 |---|---|---|
-| V-WH-INT-001 | Intermediate LP lifecycle identyczny z RM/FA (no special state) | Enforced by schema |
+| V-WH-INT-001 | Intermediate LP lifecycle identyczny z RM/FG (no special state) | Enforced by schema |
 | V-WH-INT-002 | Zero auto-reservation dla material_source='upstream_wo_output' | Block reservation creation |
 | V-WH-INT-003 | Scan-to-consume: LP.product_id matches WO.wo_materials.product_id | Block |
 | V-WH-INT-004 | FEFO deviation → pick_overrides row + reason_code | Block w/o reason |
@@ -1052,7 +1052,7 @@ Index support: `lp_genealogy(parent_lp_id, child_lp_id)` composite + single-col.
 - `license_plates.batch_number` — internal batch (z grn_items lub wo output)
 - `license_plates.supplier_batch_number` — supplier-assigned (per GRN line)
 - Query: "find all LPs with supplier_batch_number='S-2026-04-15-XYZ'" → instant index lookup
-- Downstream search: FA LP → BOM expand → RM lots used → supplier batches affected
+- Downstream search: FG LP → BOM expand → RM lots used → supplier batches affected
 
 ### 11.4 EPCIS event generation (P2 consumer)
 
@@ -1549,6 +1549,13 @@ Per 00-FOUNDATION §4.2 batch-writing + sequential-implementation approach.
 
 ### 16.6 Changelog
 
+**v3.1 (2026-04-30 — multi-industry standardization)**
+- Standardized product naming: item_type_snapshot enum 'fa' → 'fg' (Finished Goods UNIVERSAL convention)
+- Updated all RM/FA references → RM/FG across genealogy, validation rules, and output documentation
+- Cross-module alignment with 01-NPD v3.2 (FG primary key naming) and 02-SETTINGS v3.4
+- Verified no breaking changes to LP state machine, FEFO/LIFO logic, or GRN workflow
+- Version bump +0.1 for multi-industry pattern standardization
+
 **v3.0 (2026-04-20 — Phase C2 Sesja 2 writing)**
 - Full rewrite from v2.1 baseline (850 → ~1600 lines)
 - 16 sekcji (Phase B/C template aligned)
@@ -1558,7 +1565,7 @@ Per 00-FOUNDATION §4.2 batch-writing + sequential-implementation approach.
 - Q3: per-product picking_strategy + per-pick runtime override (both patterns)
 - Q4: Postgres recursive CTE P1, graph DB → P3 (WH-E18)
 - Q5: cycle counts basic adjustment P1, full → P2 (WH-E14)
-- Q6: intermediate LP = same lifecycle as RM/FA, zero inter-WO locking, scan-to-consume Q6B pattern (operator confirm warning on FEFO deviation)
+- Q6: intermediate LP = same lifecycle as RM/FG, zero inter-WO locking, scan-to-consume Q6B pattern (operator confirm warning on FEFO deviation)
 - Q7: outbox events P1, EPCIS format P2 consumer (WH-E16)
 - New §10 Intermediate LP Handling (scan-to-consume, genealogy, FEFO override warning)
 - New §11 Lot Genealogy & Traceability (FSMA 204 foundation, recursive CTE)
@@ -1573,6 +1580,6 @@ Per 00-FOUNDATION §4.2 batch-writing + sequential-implementation approach.
 
 ---
 
-_PRD 05-WAREHOUSE v3.0 — 8 epików P1 + 9 P2 + 3 P3, 37 FR, 11 tabel DB core, 37 validation rules. Phase D aligned (6 principles + 15-module renumbering). Cross-PRD consistency enforced (04-PLANNING v3.1 cascade revision). Intermediate LP handling = core v3.0 innovation (scan-to-consume, zero inter-WO locking). FSMA 204 + EU 178/2002 + GS1 foundation. Build sequence 4 sub-modules 05-a..d (16-20 sesji impl est.)._
+_PRD 05-WAREHOUSE v3.1 — 8 epików P1 + 9 P2 + 3 P3, 37 FR, 11 tabel DB core, 37 validation rules. Phase D aligned (6 principles + 15-module renumbering). Cross-PRD consistency enforced (04-PLANNING v3.1 cascade revision). Multi-industry standardization: item_type_snapshot 'fa' → 'fg' (UNIVERSAL FG naming). Intermediate LP handling = core innovation (scan-to-consume, zero inter-WO locking). FSMA 204 + EU 178/2002 + GS1 foundation. Build sequence 4 sub-modules 05-a..d (16-20 sesji impl est.)._
 
 _Data: 2026-04-20 | Autor: Monopilot Phase C2 Sesja 2_

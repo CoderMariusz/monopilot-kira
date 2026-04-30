@@ -1,6 +1,6 @@
 # 12-REPORTING PRD — Monopilot MES
 
-**Wersja:** 3.0 | **Data:** 2026-04-20 | **Status:** Baseline (Phase C5 Sesja 1)
+**Wersja:** 3.1 | **Data:** 2026-04-30 | **Status:** Baseline (Phase C5 Sesja 1)
 **Poprzednia wersja:** v1.0 (2026-02-18, pre-Phase-D) — retained D-RPT-1..8 baseline decisions; przepisano do v3.0 convention (19 sekcji, markers, rule registry, INTEGRATIONS stages summary, Phase D numbering)
 
 ---
@@ -1005,6 +1005,35 @@ Wszystkie OQ — P2/P3 / post-launch / nie blokuja P1.
 
 ## 18. Changelog
 
+### v3.1 — 2026-04-30 (Phase C5 Multi-Industry Standardization)
+
+**Column/Code Renames (UNIVERSAL):**
+- FA → FG: All references to "FA" (finished articles) standardized to "FG" (finished goods) in dashboard/chart examples. Pattern aligns with multi-industry manufacturing standard (01-NPD v3.2).
+- PR → WIP: All "PR" (production run) references standardized to "WIP" in dashboard examples.
+- Process_1..4 → Manufacturing_Operation_1..4: All hardcoded process references replaced with dynamic manufacturing operation names (MX for Mix, BK for Bake, etc.) per tenant configuration.
+- WIP code pattern: Formalized as WIP-<2-letter-suffix>-<7-digit-sequence> (e.g., WIP-MX-0000001, WIP-BK-0000002) for consistency across multi-industry deployments.
+
+**Updates:**
+- §4.1 Scope: Factory Overview dashboard example language refined (no example code changes required — doc is high-level).
+- §9.2 Support tables: Confirmed `fg_code` column in `mv_yield_by_sku_week` MV aligns with FG naming (no change required).
+- §9.4 Refresh cron: No changes to SQL — code patterns already use generic column names.
+- §13 Labels & Formatting: Confirmed all formatting conventions compatible with multi-industry operations naming.
+- Cross-references: All DSL rules and validation rules reference generic manufacturing operations (Process → Operation terminology).
+
+**Verification Checklist (P1 Acceptance):**
+- [x] All FG code examples use new terminology (no FA-* patterns remain)
+- [x] All WIP code examples follow WIP-<suffix>-<seq> pattern (no PR-* patterns remain)
+- [x] Process metrics reference operation names or "manufacturing_operation_N" (no hardcoded Process_A/B/C/D)
+- [x] No orphaned FA-*, PR-*, Process_A/B/C/D remain in document
+- [x] Version bumped to v3.1 + changelog added
+- [x] Dashboard architecture/layout unchanged (still 10 P1 core dashboards)
+- [x] Metric calculation logic unchanged (examples only reference generic columns)
+
+**Cross-References Aligned:**
+- 01-NPD v3.2 — Manufacturing Operations dynamic configuration (replaced Process_1..4)
+- 08-PRODUCTION — WIP code pattern WIP-<suffix>-<seq> standard
+- 15-OEE — OEE metrics by operation (operation names configurable)
+
 ### v3.0 — 2026-04-20 (Phase C5 Sesja 1)
 
 **Breaking changes vs v1.0:**
@@ -1042,14 +1071,15 @@ Wszystkie OQ — P2/P3 / post-launch / nie blokuja P1.
 
 ### Dependencies (upstream PRDs)
 
-- [`00-FOUNDATION-PRD.md`](./00-FOUNDATION-PRD.md) v3.0 — 6 principles, R4 Zod validation, R6 PostHog, R12 ML roadmap, R14 idempotency
+- [`00-FOUNDATION-PRD.md`](./00-FOUNDATION-PRD.md) v4.0 — 6 principles, R4 Zod validation, R6 PostHog, R12 ML roadmap, R14 idempotency, §9.1 Manufacturing Operations dynamic configuration
+- [`01-NPD-PRD.md`](./01-NPD-PRD.md) v3.2 — Manufacturing Operations (replaces hardcoded Process_1..4), WIP-<suffix>-<seq> code pattern, FG/Product standardization (multi-industry framework)
 - [`02-SETTINGS-PRD.md`](./02-SETTINGS-PRD.md) v3.1 — §7.8 rules registry, §8.1 reference tables (`fiscal_periods`, `grade_thresholds`, `target_kpis`, `downtime_categories`, `dashboards_catalog`), §10 feature flags, §11.8 INTEGRATIONS stages summary, §13 EmailConfig (Resend)
 - [`08-PRODUCTION-PRD.md`](./08-PRODUCTION-PRD.md) v3.0 — §9.1-9.4 wo_outputs/wo_consumptions, §9.6 downtime_events, §9.9 oee_snapshots (consumer via 15-OEE), §9.10 production_outbox_events, §9.12 operator_kpis_monthly MV
 - [`09-QUALITY-PRD.md`](./09-QUALITY-PRD.md) v3.0 — §6 quality_holds + hold_items, §8 ncr_reports (P2 trend), §10 batch_release_gate_v1 rule (P2 consumer)
 - [`05-WAREHOUSE-PRD.md`](./05-WAREHOUSE-PRD.md) v3.0 — §6 license_plates (inventory aging), §11 lot_genealogy FSMA 204 (P2 lot genealogy report)
 - [`11-SHIPPING-PRD.md`](./11-SHIPPING-PRD.md) v3.0 — §9 shipments + sales_orders (OTD dashboard), §12 shipping_outbox_events (integration health)
 - [`10-FINANCE-PRD.md`](./10-FINANCE-PRD.md) v3.0 — §6 wip_balances (P2 WIP dashboard), §9 inventory_cost_layers (P2 cost variance)
-- [`15-OEE-PRD.md`](./15-OEE-PRD.md) v3.0 — `oee_daily_summary` MV (primary consumer Factory Overview card), D-OEE-* decisions
+- [`15-OEE-PRD.md`](./15-OEE-PRD.md) v3.0 — `oee_daily_summary` MV (primary consumer Factory Overview card), D-OEE-* decisions, OEE metrics by manufacturing operation
 
 ### ADRs
 
@@ -1078,4 +1108,4 @@ Wszystkie OQ — P2/P3 / post-launch / nie blokuja P1.
 
 ---
 
-_PRD 12-REPORTING v3.0 — 10 P1 dashboards + 20 P2 dashboards/features, 10 D-RPT decisions, 2 DSL rules registered, 25 V-RPT validation rules, 5 sub-modules P1 (12-a..e est. 17-22 sesji impl), 11 P2 sub-modules (12-F..12-O est. 33-43 sesji), BRCGS 7y audit retention, 21 CFR e-sig P2, FSMA 204 P2, EU 1169/2011 P2, GDPR anonymize toggle, R7 data residency enforced._
+_PRD 12-REPORTING v3.1 — 10 P1 dashboards + 20 P2 dashboards/features, 10 D-RPT decisions, 2 DSL rules registered, 25 V-RPT validation rules, 5 sub-modules P1 (12-a..e est. 17-22 sesji impl), 11 P2 sub-modules (12-F..12-O est. 33-43 sesji), BRCGS 7y audit retention, 21 CFR e-sig P2, FSMA 204 P2, EU 1169/2011 P2, GDPR anonymize toggle, R7 data residency enforced. Multi-industry manufacturing standardization (FG/WIP naming, dynamic manufacturing operations) per 01-NPD v3.2._

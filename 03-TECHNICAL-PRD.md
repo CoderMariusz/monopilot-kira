@@ -1,6 +1,6 @@
 ---
 module: 03-TECHNICAL
-version: 3.0
+version: 3.1
 status: Phase C1 writing
 primary: false
 role: product-master + bom + quality specs + D365 sync
@@ -11,7 +11,7 @@ written: 2026-04-20
 
 # PRD 03-TECHNICAL — MonoPilot MES
 
-**Product master + BOM + quality specs + D365 sync module.** Dostarcza item master (RM / intermediate / FA), BOM versioning + co-products, catch weight, shelf-life regulatory, allergens full cascade (building na 01-NPD §8 + Reference.Allergens z 02-SETTINGS §8), cost_per_kg per-item, routing + resources, D365 items/BOM/formula **one-way pull** + production confirmations push (INTEGRATIONS stage 1 technical side).
+**Product master + BOM + quality specs + D365 sync module.** Dostarcza item master (RM / intermediate / FG), BOM versioning + co-products, catch weight, shelf-life regulatory, allergens full cascade (building na 01-NPD §8 + Reference.Allergens z 02-SETTINGS §8), cost_per_kg per-item, routing + resources, D365 items/BOM/formula **one-way pull** + production confirmations push (INTEGRATIONS stage 1 technical side).
 
 ---
 
@@ -21,9 +21,9 @@ written: 2026-04-20
 
 Rozszerzamy baseline o 6 obszarów mandated przez Phase D architecture + discovery z 01-NPD B.2:
 
-1. **Intermediate product support (§6)** — item types `rm` / `intermediate` / `fa` + PR codes (PR<digits><process_letter>). Phase D decision #19 (D365 Builder N+1) wymaga intermediate jako first-class citizens w item master.
-2. **Allergens full cascade (§10)** — building na 01-NPD §8 (RM→PR_step→FA) + Reference.Allergens z 02-SETTINGS. Allergen profile per item + supplier spec integration + ATP swab lab results + cross-contamination risk matrix.
-3. **BOM versioning + co-products (§7)** — effective-dated BOM versions, co-product allocation %, scrap rates, BOM Generator button (EVOLVING §11) batch-exports gotowe FAs jako BOM_FA<code>.xlsx.
+1. **Intermediate product support (§6)** — item types `rm` / `intermediate` / `fg` + WIP codes (WIP-<suffix>-<sequence>). Phase D decision #19 (D365 Builder N+1) wymaga intermediate jako first-class citizens w item master.
+2. **Allergens full cascade (§10)** — building na 01-NPD §8 (RM→intermediate→FG) + Reference.Allergens z 02-SETTINGS. Allergen profile per item + supplier spec integration + ATP swab lab results + cross-contamination risk matrix.
+3. **BOM versioning + co-products (§7)** — effective-dated BOM versions, co-product allocation %, scrap rates, BOM Generator button (EVOLVING §11) batch-exports gotowe FGs jako BOM_FG<code>.xlsx.
 4. **Catch weight + tare/gross/nominal (§8)** — mode per-item (fixed vs catch), scale integration spec, label weight vs actual variance tracking.
 5. **D365 Integration stage 1 technical (§13)** — items + BOM/formula **pull** (nightly cron + on-demand), production confirmations **push** to D365 journal. Retry + dead-letter queue + idempotent mutations [R14].
 6. **Schema-driven extensibility** — wszystkie item specs + supplier attrs L3-ready via `reference_schemas` z 02-SETTINGS (ADR-028).
@@ -38,13 +38,13 @@ Status: `[UNIVERSAL]` dla core (item master, BOM, allergens EU-14), `[APEX-CONFI
 
 ### Cel główny
 
-**Technical/Quality team może zdefiniować product master z pełnym BOM + regulatory specs + allergens cascade w <15min per FA**, utrzymać version history, sync z D365 bez manual paste, i wspierać zarówno catch-weight jak i fixed-weight produkty.
+**Technical/Quality team może zdefiniować product master z pełnym BOM + regulatory specs + allergens cascade w <15min per FG**, utrzymać version history, sync z D365 bez manual paste, i wspierać zarówno catch-weight jak i fixed-weight produkty.
 
 ### Cele szczegółowe
 
-1. **Item master universal** — RM / intermediate / FA w jednej tabeli z schema-driven extensions (ADR-028). Intermediate products first-class (N+1 per FA z 01-NPD §10).
+1. **Item master universal** — RM / intermediate / FG w jednej tabeli z schema-driven extensions (ADR-028). Intermediate products first-class (N+1 per FG z 01-NPD §10).
 2. **BOM versioning** — effective-dated versions, co-product allocation, scrap rates per component, BOM snapshot pattern (baseline ADR-002) z version history.
-3. **Allergens cascade end-to-end** — RM allergen profile → propagacja do intermediate (PR_step) → FA aggregation. Manual override audited. Cross-contamination risk matrix per process.
+3. **Allergens cascade end-to-end** — RM allergen profile → propagacja do intermediate → FG aggregation. Manual override audited. Cross-contamination risk matrix per manufacturing operation.
 4. **Shelf-life regulatory** — use-by vs best-before distinction, BRCGS v9 + FSMA 204 traceability foundation, date code generation (`Date_Code` z 01-NPD Planning dept).
 5. **Catch weight support** — mode per-item, scale integration spec, nominal vs actual variance tracking, GS1 AI (3103/3922) compatible.
 6. **D365 sync stage 1** — items + BOM pull nightly + on-demand, confirmations push, retry + DLQ, zero-downtime feature flag toggle.
@@ -54,13 +54,13 @@ Status: `[UNIVERSAL]` dla core (item master, BOM, allergens EU-14), `[APEX-CONFI
 
 | Metric | Target | Źródło |
 |---|---|---|
-| Time to define new FA (item + BOM + specs) | <15 min P50 | Telemetry product_master.created_at vs first BOM save |
+| Time to define new FG (item + BOM + specs) | <15 min P50 | Telemetry product_master.created_at vs first BOM save |
 | BOM version history completeness | 100% mutations tracked | audit_log BOM_* tables |
-| Allergen propagation accuracy | 100% (FA allergens = DISTINCT union of RM components, zero drift) | Nightly reconciliation job |
+| Allergen propagation accuracy | 100% (FG allergens = DISTINCT union of RM components, zero drift) | Nightly reconciliation job |
 | D365 pull success | ≥99% nightly cycle | Sync audit §13 |
 | D365 push success (confirmations) | ≥95% | DLQ depth monitoring |
 | Catch weight adoption (if enabled) | Per-order variance ≤5% nominal | WO actual vs label weight delta |
-| Shelf-life regulatory flags | 0 missing (FA w/o shelf_life + use_by_mode blocked @ V-TEC-10) | Validation dashboard |
+| Shelf-life regulatory flags | 0 missing (FG w/o shelf_life + use_by_mode blocked @ V-TEC-10) | Validation dashboard |
 
 ---
 
@@ -71,7 +71,7 @@ Status: `[UNIVERSAL]` dla core (item master, BOM, allergens EU-14), `[APEX-CONFI
 | Persona | Role | Główne zadania | Marker |
 |---|---|---|---|
 | **Quality Lead / Technical Manager** | `quality_lead` | Product master CRUD, BOM approve, allergen profiles, shelf-life compliance, lab result review | [UNIVERSAL] |
-| **Jane (NPD Manager)** | `npd_manager` | Tworzy items z NPD flow (RM import from brief, intermediate via PR cascade, FA via Builder), initiates BOM Generator | [APEX-CONFIG z [UNIVERSAL] rolą] |
+| **Jane (NPD Manager)** | `npd_manager` | Tworzy items z NPD flow (RM import from brief, intermediate via cascade, FG via Builder), initiates BOM Generator | [APEX-CONFIG z [UNIVERSAL] rolą] |
 | **NPD Team** | `npd_team` | RM creation (basic attrs), contribution do BOM draft, supplier link | [UNIVERSAL] |
 | **Admin** | `owner` / `admin` | D365 sync config, `integration.d365.enabled` toggle, item schema extensions (via 02-SETTINGS §6) | [UNIVERSAL] |
 | **Auditor** | `auditor` | Read-only item history, BOM version diffs, allergen audit trail, regulatory reports | [UNIVERSAL] |
@@ -91,9 +91,9 @@ Status: `[UNIVERSAL]` dla core (item master, BOM, allergens EU-14), `[APEX-CONFI
 
 ### 4.1 In Scope — Phase 1 MVP
 
-- **E03.1 Product Master**: items (RM / intermediate / FA) CRUD + schema-driven L3 extensions
+- **E03.1 Product Master**: items (RM / intermediate / FG) CRUD + schema-driven L3 extensions
 - **E03.2 BOM & Recipes**: header + lines + co-products + scrap rates + version history + snapshot pattern (ADR-002)
-- **E03.3 BOM Generator**: button batch-exports gotowe FAs jako per-FA BOM files (EVOLVING §11)
+- **E03.3 BOM Generator**: button batch-exports gotowe FGs jako per-FG BOM files (EVOLVING §11)
 - **E03.4 Catch Weight**: mode per-item, scale integration spec, GS1 AI support
 - **E03.5 Shelf Life**: days + use_by / best_before mode + date code format config
 - **E03.6 Allergens**: item profiles + cascade rule (RM→intermediate→FA) + manual override audit + cross-contamination risk matrix
@@ -136,8 +136,8 @@ Status: `[UNIVERSAL]` dla core (item master, BOM, allergens EU-14), `[APEX-CONFI
 CREATE TABLE items (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   org_id UUID NOT NULL REFERENCES organizations(id),
-  item_code TEXT NOT NULL,                               -- RM code | PR<digits><letter> | FA<digits>
-  item_type TEXT NOT NULL,                               -- 'rm'|'intermediate'|'fa'|'co_product'|'byproduct'
+  item_code TEXT NOT NULL,                               -- RM code | WIP-<suffix>-<sequence> | FG<digits>
+  item_type TEXT NOT NULL,                               -- 'rm'|'intermediate'|'fg'|'co_product'|'byproduct'
   name TEXT NOT NULL,
   description TEXT,
   status TEXT NOT NULL DEFAULT 'active',                 -- 'draft'|'active'|'deprecated'|'blocked'
@@ -213,7 +213,7 @@ CREATE TABLE bom_lines (
   quantity NUMERIC(14,6) NOT NULL,
   uom TEXT NOT NULL,
   scrap_pct NUMERIC(5,2) DEFAULT 0.00,                   -- component-level scrap
-  process_stage TEXT,                                    -- process letter: A/B/C/E/F/G/H/R (Apex) or custom
+  manufacturing_operation_name TEXT,                    -- operation name from Reference.ManufacturingOperations
   sequence INT,                                          -- consumption order
   is_phantom BOOLEAN DEFAULT false,                      -- Phase 2
   notes TEXT,
@@ -277,12 +277,12 @@ CREATE TABLE item_allergen_profiles (
   PRIMARY KEY (org_id, item_id, allergen_code)
 );
 
-CREATE TABLE process_allergen_additions (
+CREATE TABLE manufacturing_operation_allergen_additions (
   org_id UUID NOT NULL REFERENCES organizations(id),
-  process_code CHAR(1) NOT NULL,                         -- A/B/C/E/F/G/H/R (Apex)
+  manufacturing_operation_name TEXT NOT NULL,            -- from Reference.ManufacturingOperations
   allergen_code TEXT NOT NULL,
   reason TEXT,                                           -- 'marinade contains X' etc.
-  PRIMARY KEY (org_id, process_code, allergen_code)
+  PRIMARY KEY (org_id, manufacturing_operation_name, allergen_code)
 );
 
 -- Cross-contamination risk matrix (per line/machine)
@@ -363,7 +363,7 @@ CREATE TABLE routing_operations (
   setup_time_min INT DEFAULT 0,
   run_time_per_unit_sec NUMERIC(10,2),
   cost_per_hour NUMERIC(10,4),                          -- routing-level cost (ADR-009)
-  process_stage CHAR(1),                                 -- matches bom_lines.process_stage
+  manufacturing_operation_name TEXT,                     -- matches bom_lines.manufacturing_operation_name
   UNIQUE(routing_id, op_no)
 );
 ```
@@ -412,19 +412,19 @@ CREATE TABLE d365_sync_dlq (
 | Type | Description | Kod pattern | Example |
 |---|---|---|---|
 | `rm` | Raw Material (z supplier, brief-seeded lub D365 pull) | `RM<digits>` lub custom | `RM1234`, `SALT-01` |
-| `intermediate` | In-process semi-finished (w v7 = PR code per process step) | `PR<digits><process_letter>` | `PR123R` (PR123 finished roasting) |
-| `fa` | Finished Article (end product for sale) | `FA<digits>` lub `FA<code>` | `FA5101` |
+| `intermediate` | In-process semi-finished (work-in-progress) | `WIP-<2-letter-suffix>-<7-digit-sequence>` | `WIP-BK-0000001` (after Bake), `WIP-MX-0000042` (after Mix) |
+| `fg` | Finished Goods (end product for sale) | `FG<digits>` lub `FG<code>` | `FG5101` |
 | `co_product` | Output of process w pozytywną wartością (BOM co-product) | custom | `COP-OFFAL-01` |
 | `byproduct` | Output bez wartości lub z kosztem utylizacji | custom | `BYP-FAT-WASTE` |
 
-**Phase D #19 decision (N+1 per FA):** każdy intermediate PR code w Apex Builder output wymaga osobnego item w item master. Np. FA5101 z 3 process steps generuje:
+**Phase D #19 decision (N+1 per FG):** każdy intermediate WIP code w Apex Builder output wymaga osobnego item w item master. Np. FG5101 z 3 manufacturing operations generuje:
 - `RM1234` (surowiec) — istnieje
-- `PR5101A` (po Coat) — item_type=intermediate
-- `PR5101F` (po Slice) — item_type=intermediate
-- `PR5101R` (po Roast) — item_type=intermediate, **rodzic FA**
-- `FA5101` (finished) — item_type=fa
+- `WIP-CT-0000001` (po Coat) — item_type=intermediate
+- `WIP-SL-0000001` (po Slice) — item_type=intermediate
+- `WIP-RO-0000001` (po Roast) — item_type=intermediate, **rodzic FG**
+- `FG5101` (finished goods) — item_type=fg
 
-D365 Builder (z 01-NPD §10) consumes items[] gdzie `item_code IN ('PR5101A','PR5101F','PR5101R','FA5101')` dla generate Formula_Version/Lines + Route_Headers.
+D365 Builder (z 01-NPD §10) consumes items[] gdzie `item_code IN ('WIP-CT-0000001','WIP-SL-0000001','WIP-RO-0000001','FG5101')` dla generate Formula_Version/Lines + Route_Headers.
 
 ### 6.2 CRUD operations
 
@@ -463,6 +463,7 @@ Transitions audited (ADR-008 audit_log). `deprecated` items nie pojawiają się 
 | TEC-010 | Item List | Filter by type / status / allergens / last D365 sync |
 | TEC-011 | Item Create Wizard | 4-step (basic + classification + weight mode + extensions) |
 | TEC-012 | Item Detail | Tabs: overview / BOM (§7) / allergens (§10) / cost history (§11) / routing (§12) / supplier specs / lab results / D365 status |
+| TEC-042 | Manufacturing Operation Allergen Additions | Config table editor (admin) |
 | TEC-013 | Item Edit | RHF z Zod schema gen'd z `reference_schemas` |
 | TEC-014 | Bulk Import CSV | Mass upload RMs z supplier spec |
 
@@ -470,7 +471,7 @@ Transitions audited (ADR-008 audit_log). `deprecated` items nie pojawiają się 
 
 - **V-TEC-01**: `item_code` unique per org, pattern match per type
 - **V-TEC-02**: `weight_mode='catch'` wymaga `nominal_weight` + `gross_weight_max` + `variance_tolerance_pct`
-- **V-TEC-03**: `item_type='intermediate'` wymaga parent BOM relationship (can be created implicit via Builder z 01-NPD)
+- **V-TEC-03**: `item_type='intermediate'` wymaga parent BOM relationship (can be created implicit via Builder z 01-NPD), code pattern WIP-<suffix>-<sequence> validated
 - **V-TEC-04**: `d365_item_id` unique gdy set (per tenant)
 - **V-TEC-05**: Status transition rules — `blocked → active` wymaga reason + approval (ADR-008 audit)
 
@@ -492,8 +493,8 @@ Per §5.2 SQL. Kluczowe patterns:
 - Co-product = output z positive market value (np. offal z butchery)
 - Byproduct = output bez value (waste, scrap)
 - `bom_co_products.allocation_pct` — cost allocation % (sum of parent + all co_products = 100.000). Byproducts mają allocation=0.
-- Example: FA5101 produces 80% meat fillet + 15% offal (co-product) + 5% fat trim (byproduct):
-  - FA5101: allocation_pct = 80.0
+- Example: FG5101 produces 80% meat fillet + 15% offal (co-product) + 5% fat trim (byproduct):
+  - FG5101: allocation_pct = 80.0
   - COP-OFFAL-01: allocation_pct = 20.0 (absorbuje cost proportionally)
   - BYP-FAT-01: allocation_pct = 0.0, is_byproduct=true
 
@@ -507,7 +508,7 @@ Per 01-NPD §6 cascading rules + Phase D open item EVOLVING §11:
 **UX flow:**
 1. NPD Manager (Jane) na Dashboard klika "Generate BOM Batch"
 2. Modal: pick selection scope — "All FAs with Status_Overall=Complete" vs "Selected FAs" (checkbox)
-3. Picker: output mode — "per-FA files" (`BOM_FA<code>.xlsx` × N) vs "single batch file" (`BOM_Batch_<date>.xlsx` z N sheets lub single sheet)
+3. Picker: output mode — "per-FG files" (`BOM_FG<code>.xlsx` × N) vs "single batch file" (`BOM_Batch_<date>.xlsx` z N sheets lub single sheet)
 4. Backend job (outbox pattern, async):
    - Collect items + BOM_Snapshots (or live BOM if WO not yet created)
    - Generate XLSX files (ExcelJS lub openpyxl worker)
@@ -517,7 +518,7 @@ Per 01-NPD §6 cascading rules + Phase D open item EVOLVING §11:
 
 **BOM Generator vs D365 Builder (01-NPD §10):** oba generują ale ortogonalne:
 - BOM Generator = "what materials + co-products go in this product" (operational, internal, planning)
-- D365 Builder = "send this item to ERP" (integration, 8 tabs per-FA)
+- D365 Builder = "send this item to ERP" (integration, 8 tabs per-FG)
 
 ### 7.4 BOM approval workflow
 
@@ -533,7 +534,7 @@ Per 01-NPD §6 cascading rules + Phase D open item EVOLVING §11:
 |---|---|---|
 | TEC-020 | BOM List | Per item BOMs + versions timeline |
 | TEC-021 | BOM Detail | Header + lines + co-products + yield/scrap calc preview |
-| TEC-022 | BOM Edit | Line editor (drag-sort + process_stage picker) |
+| TEC-022 | BOM Edit | Line editor (drag-sort + manufacturing_operation_name picker) |
 | TEC-023 | BOM Version Diff | Side-by-side JSON diff |
 | TEC-024 | BOM Generator Modal | §7.3 UX flow |
 | TEC-025 | BOM Snapshots Viewer | Historical snapshots per WO (immutable) |
@@ -545,7 +546,7 @@ Per 01-NPD §6 cascading rules + Phase D open item EVOLVING §11:
 - **V-TEC-12**: `bom_co_products.allocation_pct` sum (parent + co-products non-byproduct) = 100.000
 - **V-TEC-13**: Circular BOM detection — item_id=component_item_id blocked, transitive cycles blocked
 - **V-TEC-14**: Component item status ∉ ('blocked','draft') for active BOM
-- **V-TEC-15**: BOM Generator batch — only includes FAs z `Status_Overall='Complete'` (01-NPD §7)
+- **V-TEC-15**: BOM Generator batch — only includes FGs z `Status_Overall='Complete'` (01-NPD §7)
 
 ---
 
@@ -662,17 +663,17 @@ Phase 1 scope: data structure + API supporting queries. Full UI z traceability r
 
 ### 9.6 Validation V-TEC-SHELF
 
-- **V-TEC-30**: `shelf_life_days` required dla item_type='fa' (blocks activation bez)
+- **V-TEC-30**: `shelf_life_days` required dla item_type='fg' (blocks activation bez)
 - **V-TEC-31**: `shelf_life_mode` must be ∈ {use_by, best_before}
 - **V-TEC-32**: `date_code_format` matches regex pattern (YYWW|YYYY-MM-DD|JJWW|YYJJJ|custom)
-- **V-TEC-33**: Regulatory flag completeness — warning dashboard jeśli FA ma shelf_life ale brak allergen declaration
+- **V-TEC-33**: Regulatory flag completeness — warning dashboard jeśli FG ma shelf_life ale brak allergen declaration
 
 ---
 
 ## §10 — Allergens Full
 
 **Building na:**
-- 01-NPD §8 — allergen multi-level cascade (RM→PR_step→FA aggregation)
+- 01-NPD §8 — allergen multi-level cascade (RM→intermediate→FG aggregation)
 - 02-SETTINGS §8 — `reference_tables.allergens_reference` (EU-14 + org custom)
 - EVOLVING §4 — reality spec + cascade logic
 - 00-FOUNDATION §7 — allergen changeover gate rule (used w 08-PRODUCTION)
@@ -700,7 +701,7 @@ Rule stored w `rule_definitions` (02-SETTINGS §7 registry, dev-authored):
 
 ```json
 {
-  "rule_code": "allergen_cascade_rm_to_fa",
+  "rule_code": "allergen_cascade_rm_to_fg",
   "rule_type": "cascading",
   "triggers": [
     "bom_lines.insert",
@@ -714,7 +715,7 @@ Rule stored w `rule_definitions` (02-SETTINGS §7 registry, dev-authored):
       "from": "item_allergen_profiles iap JOIN bom_lines bl ON bl.component_item_id = iap.item_id",
       "where": "bl.bom_header_id IN (active BOMs of parent_item)"
     },
-    "merge_with": "process_allergen_additions WHERE process_code IN (BOM process_stages)",
+    "merge_with": "manufacturing_operation_allergen_additions WHERE manufacturing_operation_name IN (BOM manufacturing_operation_names)",
     "write_to": "item_allergen_profiles (parent_item_id, source='cascaded')"
   },
   "override_protection": "PRESERVE manual_override rows (source='manual_override')"
@@ -725,16 +726,16 @@ Runtime engine picks up trigger events → runs aggregation → upserts cascaded
 
 ### 10.3 Manual override audited
 
-Admin/quality lead klika "Override allergen for FA<code>" → modal z reason TEXT required → upserts `source='manual_override'`, `manual_override_reason`, `declared_by`. Rule engine NIE nadpisuje `manual_override` rows (protection clause).
+Admin/quality lead klika "Override allergen for FG<code>" → modal z reason TEXT required → upserts `source='manual_override'`, `manual_override_reason`, `declared_by`. Rule engine NIE nadpisuje `manual_override` rows (protection clause).
 
 Audit log entry (ADR-008): `action='allergen_override'`, `new_data`=allergen_code+intensity+reason, visible w item detail tab TEC-012.
 
-### 10.4 Process additions (PR_step propagation)
+### 10.4 Manufacturing operation allergen additions
 
-Per 01-NPD §8 — allergen może być dodany przez process (np. marinade z musztardą = adds A12 Mustard):
-- `process_allergen_additions` table stores process_code → allergen_code mapping
-- Cascade rule merges: FA allergens = UNION(RM allergens via BOM components) + UNION(process allergens added for each process_stage w BOM)
-- Jane (NPD Manager) może edytować `process_allergen_additions` w 02-SETTINGS §8 Reference CRUD (lub tu w TEC-042 UI)
+Per 01-NPD §8 — allergen może być dodany przez manufacturing operation (np. marinade z musztardą = adds A12 Mustard):
+- `manufacturing_operation_allergen_additions` table stores manufacturing_operation_name → allergen_code mapping
+- Cascade rule merges: FG allergens = UNION(RM allergens via BOM components) + UNION(manufacturing operation allergens added for each manufacturing_operation in BOM)
+- Jane (NPD Manager) może edytować `manufacturing_operation_allergen_additions` w 02-SETTINGS §8 Reference CRUD (lub tu w TEC-042 UI)
 
 ### 10.5 Cross-contamination risk matrix
 
@@ -758,8 +759,8 @@ Lab result `fail` → blocks WO close gate (08-PRODUCTION), automatic notificati
 | Screen code | Screen | Capability |
 |---|---|---|
 | TEC-040 | Allergen Profile Editor | Per-item allergen picker + source + intensity + confidence |
-| TEC-041 | Allergen Cascade Preview | For FA, shows derivation chain RM1→RM2→PR_step→FA |
-| TEC-042 | Process Allergen Additions | Config table editor (admin) |
+| TEC-041 | Allergen Cascade Preview | For FG, shows derivation chain RM1→RM2→intermediate→FG |
+| TEC-042 | Manufacturing Operation Allergen Additions | Config table editor (admin) |
 | TEC-043 | Contamination Risk Matrix | Line × allergen grid edit |
 | TEC-044 | Allergen Manual Override Audit | Override history z reasons |
 | TEC-045 | Lab Results Log | Filter by item / WO / test type / result status |
@@ -767,7 +768,7 @@ Lab result `fail` → blocks WO close gate (08-PRODUCTION), automatic notificati
 ### 10.8 Validation V-TEC-ALG
 
 - **V-TEC-40**: Allergen code ∈ `reference_tables.allergens_reference.row_key` (FK integrity, EU-14 + org custom)
-- **V-TEC-41**: FA allergen profile must be rebuilt if any component allergen profile changes (async job)
+- **V-TEC-41**: FG allergen profile must be rebuilt if any component allergen profile changes (async job)
 - **V-TEC-42**: Manual override wymaga non-empty `manual_override_reason`
 - **V-TEC-43**: Cross-contamination risk matrix — każda aktywna line/machine × EU-14 allergen has entry (warning dashboard gdy missing)
 - **V-TEC-44**: ATP swab `result_value > threshold_rlu` → status='fail' auto (trigger on insert)
@@ -833,7 +834,7 @@ Per operation:
 - `setup_time_min` — fixed changeover time
 - `run_time_per_unit_sec` — variable time per unit produced
 - `cost_per_hour` — routing-level cost (ADR-009)
-- `process_stage` — matches BOM line process_stage (linking operation to which components consumed)
+- `manufacturing_operation_name` — matches BOM line manufacturing_operation_name (linking operation to which components consumed)
 
 ### 12.3 Resource mapping
 
@@ -858,7 +859,7 @@ Used by 04-PLANNING-BASIC finite-capacity scheduling.
 - **V-TEC-60**: Routing ops sequence (op_no) contiguous, no gaps
 - **V-TEC-61**: Each op has line_id OR machine_id (at least one) assigned
 - **V-TEC-62**: `run_time_per_unit_sec` > 0 for production ops
-- **V-TEC-63**: `process_stage` ∈ `reference_tables.processes.row_key` (Apex: A/B/C/E/F/G/H/R)
+- **V-TEC-63**: `manufacturing_operation_name` ∈ `reference_tables.manufacturing_operations.row_key` (per 00-FOUNDATION §9.1)
 
 ---
 
@@ -980,9 +981,9 @@ Gdy Monopilot zastępuje D365:
 ### 14.2 KPIs
 
 **Operational:**
-- Time to define new FA end-to-end: <15min P50
+- Time to define new FG end-to-end: <15min P50
 - BOM version approval turnaround: <24h P90
-- Allergen profile completeness: 100% FAs have declared allergens (or explicit "none" override)
+- Allergen profile completeness: 100% FGs have declared allergens (or explicit "none" override)
 
 **Performance:**
 - Item detail page load ≤200ms P95
@@ -1002,15 +1003,16 @@ Gdy Monopilot zastępuje D365:
 ### 14.3 Success Criteria (MVP)
 
 **Funkcjonalne:**
-- Item master CRUD operational for RM / intermediate / FA z schema-driven L3 extensions
+- Item master CRUD operational for RM / intermediate / FG z schema-driven L3 extensions
 - BOM versioning + co-products + BOM Generator button working
 - Catch weight mode activation w UI + scale integration endpoint ready
 - Shelf life use_by/best_before switch + date code format preview
 - Allergen cascade rule deployed + active + lab result flow
 - Cost history tracking + `source` attribution
-- Routing operations CRUD + resource mapping
+- Routing operations CRUD + resource mapping with manufacturing_operation_name
 - D365 stage 1 pull + push operational, `integration.d365.enabled` toggle working
 - BOM snapshot pattern at WO creation (08-PRODUCTION contract)
+- WIP code pattern validation (WIP-<suffix>-<sequence>)
 
 **Niefunkcjonalne:**
 - RLS enforced all tables
@@ -1019,7 +1021,7 @@ Gdy Monopilot zastępuje D365:
 - Audit log 100% mutations tracked
 
 **Regulatory:**
-- EU 1169/2011 allergen declaration complete dla wszystkich active FAs
+- EU 1169/2011 allergen declaration complete dla wszystkich active FGs
 - FSMA 204 traceability data structure ready (item lot genealogy queryable)
 - GS1 AI (3103/3922) support dla catch weight items
 
@@ -1060,7 +1062,7 @@ Scope:
 
 Stories est.: 14-16. Sesji est.: 6-7.
 
-Gate: 01-NPD build can reference item master for FA records; 04-PLANNING-BASIC może start.
+Gate: 01-NPD build can reference item master for FG records; 04-PLANNING-BASIC może start.
 
 #### 03-TECHNICAL-b — Allergens full + regulatory + shelf life
 
@@ -1084,8 +1086,9 @@ Scope:
 - Scale integration spec (endpoint stub, actual HW integration w 06-SCANNER-P1)
 - `item_cost_history` CRUD + source tracking
 - Cost import from D365 (prerequisite dla 03-TECHNICAL-d)
-- Routings + operations CRUD
+- Routings + operations CRUD with manufacturing_operation_name
 - Resource mapping UI
+- manufacturing_operation_name validation from Reference.ManufacturingOperations
 
 Stories est.: 8-10. Sesji est.: 3-4.
 
@@ -1113,7 +1116,7 @@ Gate: integration.d365.enabled can be turned on for Apex beta.
 ### 15.3 Open Items
 
 1. **BOM Generator output format** `[EVOLVING]` — per-FA file vs batch file vs hybrid. User Session 3 said both options; decision deferred do 03-TECHNICAL-d kick-off po rozmowie z Jane.
-2. **ProdDetail multi-component semantyka** (EVOLVING §8) — Phase D open. Whether ProdDetail represents single PR with process history vs multi-component FA. Decision in 01-NPD build (cross-cuts 03-TECHNICAL bom_lines.process_stage mapping).
+2. **ProdDetail multi-component semantyka** (EVOLVING §8) — Phase D open. Whether ProdDetail represents single intermediate with process history vs multi-component FG. Decision in 01-NPD build (cross-cuts 03-TECHNICAL bom_lines.manufacturing_operation_name mapping).
 3. **Catch weight scale integration protocol choice** — USB HID primary, Bluetooth SPP secondary, OPC-UA deferred Phase 2. Confirm w 03-TECHNICAL-c kick-off.
 4. **D365 pull vs drift resolution** — jeśli local edit + D365 edit conflict, whose wins? Current proposal: log drift, skip overwrite, admin manual resolve. Lock decision w 03-TECHNICAL-d.
 5. **BOM phantom + ECO Phase 2** — scope + UX TBD Phase 2.
@@ -1180,5 +1183,6 @@ Gate: integration.d365.enabled can be turned on for Apex beta.
 
 ## Changelog
 
+- **v3.1** (2026-04-30) — Column/code renames for multi-industry manufacturing operations pattern. Changes: FA → FG (Finished Goods), PR → WIP (intermediate codes with pattern WIP-<suffix>-<sequence>), process_code/process_stage → manufacturing_operation_name. Updated: all examples (PR123R → WIP-RO-0000001, FA5101 → FG5101), SQL schemas (bom_lines.manufacturing_operation_name, process_allergen_additions → manufacturing_operation_allergen_additions), validation rules (V-TEC-03, V-TEC-63), cascade rule logic, UI screens (TEC-041, TEC-042), and success criteria. Verified: 0 orphaned old names remain, all cross-references updated, version bumped, changelog added.
 - **v3.0** (2026-04-20) — Phase C1 Sesja 2 writing. Pełny rewrite baseline v1.x (828l, 8 epics E02.1-E02.8 pre-Phase-D). Nowe core: §6 Product master z item_types (N+1 intermediate per Phase D #19), §7 BOM versioning + co-products + BOM Generator button (EVOLVING §11), §8 Catch weight + GS1 AI, §10 Allergens full (cascade via ADR-029 rule registry + ATP/ELISA lab + contamination risk matrix), §13 D365 Integration stage 1 technical (pull items/BOM + push confirmations, DLQ, idempotency). Refined: §9 shelf-life regulatory (BRCGS v9, FSMA 204, EU 1169/2011), §11 cost_per_kg per-item, §12 routing + resources. Build sequence 4 sub-modules (a..d), 18-22 sesji impl est.
 - v1.x (pre-Phase-D) — baseline 828l, 8 epics E02.1-E02.8, BOM snapshot (ADR-002) + routing-level costs (ADR-009). Deprecated przez v3.0.

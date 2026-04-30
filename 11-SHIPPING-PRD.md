@@ -1,13 +1,13 @@
 # 11-SHIPPING PRD — Monopilot MES
 
-**Wersja:** 3.0 | **Data:** 2026-04-20 | **Status:** Baseline (Phase C4 Sesja 3)
+**Wersja:** 3.1 | **Data:** 2026-04-30 | **Status:** Standardized Multi-industry (Phase C4 Sesja 3)
 **Poprzednia wersja:** v3.1 (2026-02-18, pre-Phase-D) — zachowana w historii, w pełni przepisana do v3.0 convention
 
 ---
 
 ## 1. Executive Summary
 
-Modul **11-SHIPPING** obsluguje pelny cykl **order-to-delivery** dla wyrobow gotowych (FA) w multi-tenant food-mfg MES. Zakres P1 obejmuje: zarzadzanie klientami, sales order (SO) lifecycle (draft → shipped), LP-based allocation z FEFO/FIFO, pick/pack/ship scanner-first + desktop mixed, SSCC-18 labeling GS1-compliant, BOL + packing slip generation, RMA receiving/disposition, dashboard KPI + INTEGRATIONS stage 3 D365 SalesOrder confirm push (outbox pattern clone z 08-PROD §12 stage 2).
+Modul **11-SHIPPING** obsluguje pelny cykl **order-to-delivery** dla wyrobow gotowych (FG) w multi-tenant food-mfg MES. Zakres P1 obejmuje: zarzadzanie klientami, sales order (SO) lifecycle (draft → shipped), LP-based allocation z FEFO/FIFO, pick/pack/ship scanner-first + desktop mixed, SSCC-18 labeling GS1-compliant, BOL + packing slip generation, RMA receiving/disposition, dashboard KPI + INTEGRATIONS stage 3 D365 SalesOrder confirm push (outbox pattern clone z 08-PROD §12 stage 2).
 
 **Pozycja w Module Map (per 00-FOUNDATION §4.2):** 11-SHIPPING jest **consumer** 05-WAREHOUSE (LP state + FEFO query), 04-PLANNING-BASIC (customer_orders + D365 SO trigger), 09-QUALITY (quality_holds + soft gate), 03-TECHNICAL (product master + GTIN + allergens + shelf_life), 02-SETTINGS (D365_Constants, rule registry, reference tables). **Producer** do 10-FINANCE (COGS per shipment P2), 12-REPORTING (OTD + fulfillment rate), 13-MAINTENANCE (vehicle inspections P2 if fleet owned), oraz **D365 external** (SalesOrder confirm push async via outbox).
 
@@ -19,7 +19,7 @@ Modul **11-SHIPPING** obsluguje pelny cykl **order-to-delivery** dla wyrobow got
 - **Catch weight carve-out (D-SHP-17):** `sales_order_lines.cw_quantity` P2 (baseline [7.1]), weight variance tracking per shipment_box manual entry P1 (jesli product.weight_mode='catch' per 03-TECH §8).
 - **D365 Constants reuse (D-SHP-18):** FNOR (dataAreaId), ApexDG (warehouse code), FinGoods (GL account for revenue) — read z 02-SETTINGS §11 w adapter. Phase 2 extensions: `shipping_warehouse`, `courier_default_carrier`, `customer_account_id_map`.
 - **Manual dispatch P1 + carrier API P2 (D-SHP-19):** P1 BOL + packing slip manual PDF/ZPL print, DHL/UPS/DPD API integration P2 (rate shopping, tracking webhooks, POD).
-- **EUDR supplier_dds_reference gate P2 (D-SHP-20):** jesli FA zawiera soy/palm/cocoa ingredient → gate block shipment if `supplier.dds_reference` IS NULL (EU Deforestation Regulation 2026-12-30 deadline).
+- **EUDR supplier_dds_reference gate P2 (D-SHP-20):** jesli FG zawiera soy/palm/cocoa ingredient → gate block shipment if `supplier.dds_reference` IS NULL (EU Deforestation Regulation 2026-12-30 deadline).
 
 **Markers:** [UNIVERSAL] = core MES contract | [APEX-CONFIG] = konkretny fit Apex UK | [EVOLVING] = areas in iteration | [LEGACY-D365] = bridge until D365 retirement.
 
@@ -113,7 +113,7 @@ Umozliwienie pelnego cyklu **order-to-delivery** dla Apex UK (pilot) i innych fo
 | 10 | **COGS per shipment** | Consumer 10-FIN `inventory_cost_layers` at shipment confirm event |
 | 11 | **EPCIS consumer** | `shipping_outbox_events` produces EPCIS 2.0 JSON-LD events (05-WH §13.7 P2) |
 | 12 | **GS1 Digital Link QR** | Retailer-ready QR syntax encoding GTIN + batch + expiry (MES-TRENDS R10) |
-| 13 | **EUDR supplier gate** | `supplier_dds_reference` gate block shipment if soy/palm/cocoa FA content + null DDS (Q10, 2026-12-30 deadline) |
+| 13 | **EUDR supplier gate** | `supplier_dds_reference` gate block shipment if soy/palm/cocoa FG content + null DDS (Q10, 2026-12-30 deadline) |
 | 14 | **Peppol B2B e-invoice** | NOT IN SCOPE dla Apex UK. Only if expansion to Belgium (2026-01-01 deadline) |
 | 15 | **Advanced reports** | Pick performance, OTD decomposition, carrier performance, returns analysis |
 | 16 | **Batch release hard gate** | `batch_release_gate_v1` full rule activation (09-QA P2 rule) |
@@ -129,7 +129,7 @@ Umozliwienie pelnego cyklu **order-to-delivery** dla Apex UK (pilot) i innych fo
 
 ### 4.4 EUDR P2 scope check (per Q10 user confirmed)
 
-EU Deforestation Regulation 2026-12-30 dotyczy **produktow zawierajacych**: soy, palm oil, cocoa, coffee, cattle/beef, wood, rubber. **Apex UK reality** (per Phase A pld-v7-excel docs): produkty zawieraja meat (mogly byc fed soy/palm feed upstream) + potential palm oil w niektorych formulacjach FA. **Decyzja D-SHP-20:** P2 gate block shipment if:
+EU Deforestation Regulation 2026-12-30 dotyczy **produktow zawierajacych**: soy, palm oil, cocoa, coffee, cattle/beef, wood, rubber. **Apex UK reality** (per Phase A pld-v7-excel docs): produkty zawieraja meat (mogly byc fed soy/palm feed upstream) + potential palm oil w niektorych formulacjach FG. **Decyzja D-SHP-20:** P2 gate block shipment if:
 1. Product BOM contains item with `items.eudr_category` IN ('soy','palm','cocoa','beef','wood','rubber') AND
 2. Supplier `supplier.dds_reference` IS NULL AND
 3. Feature flag `integration.eudr.enabled` = TRUE (per-org)
@@ -1084,6 +1084,13 @@ Wszystkie OQ są P2 / post-launch / future sessions. Nie blokują C4 Sesja 3 clo
 
 ## 18. Changelog
 
+**v3.1 (2026-04-30, Standardized Multi-industry):**
+- FA → FG standardization: all "finished goods" references renamed to FG (lines 10, 22, 116, 132)
+- Ensures alignment w 01-NPD v3.2 FG naming convention (universal multi-industry pattern per §6 CRITICAL CHANGES REQUIRED)
+- No schema changes; GS1 identifier handling unchanged (GTIN/SSCC/GLN/GRAI per 00-FOUNDATION §10)
+- Verification: zero FA-* code references remaining; EPCIS examples + validation rules unaffected
+- Version: v3.0 → v3.1 (+0.1 bump for standardization pass)
+
 **v3.0 (2026-04-20, Phase C4 Sesja 3):**
 - Full rewrite z v3.1 baseline (552 linii → ~1400 linii, zachowano D-SHP-1..12)
 - Nowe D-SHP-13..20 (quality hold soft gate, INTEGRATIONS stage 3, allergen labelling, GS1 Digital Link, catch weight carve-out, D365 Constants, manual dispatch, EUDR)
@@ -1092,11 +1099,11 @@ Wszystkie OQ są P2 / post-launch / future sessions. Nie blokują C4 Sesja 3 clo
 - 5 sub-modules build sequence 11-a..e (P1 19-24 sesji) + 10 P2 EPICs (24-34 sesji)
 - Q1-Q10 decyzje user confirmed 2026-04-20
 
-**v3.1 (2026-02-18, pre-Phase-D):**
+**v3.1-baseline (2026-02-18, pre-Phase-D):**
 - Wave picking doprecyzowany (max 50 orders per wave, manual)
 - Cross-reference products.default_sell_price do M02 Technical
 
-**v3.0 (pre-Phase-D baseline):**
+**v3.0-baseline (pre-Phase-D baseline):**
 - Restrukturyzacja wg wzorca M01
 - D-SHP-1..12 explicit
 - 16 tabel DB, 72 FR, 6 PRD-UPDATE-LIST tasks

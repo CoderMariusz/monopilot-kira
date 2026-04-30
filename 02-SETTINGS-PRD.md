@@ -1,18 +1,18 @@
 ---
 module: 02-SETTINGS
-version: 3.3
-status: Phase C5 Sesja 2 delta (bundled)
+version: 3.4
+status: Phase C1 + v3.4 delta (Manufacturing Operations §8.9)
 primary: false
 role: admin-foundation
 depends_on: [00-FOUNDATION]
 depended_on_by: [01-NPD, 03-TECHNICAL, 04-PLANNING-BASIC, 05-WAREHOUSE, 06-SCANNER-P1, 08-PRODUCTION, 09-QUALITY, 10-FINANCE, 11-SHIPPING, 12-REPORTING, 13-MAINTENANCE, 14-MULTI-SITE, 15-OEE]
 written: 2026-04-19
-revised: 2026-04-20 (v3.1 bundled C4 Sesja 3 close), 2026-04-20 (v3.2 bundled C5 Sesja 1 close), 2026-04-20 (v3.3 bundled C5 Sesja 2 close)
+revised: 2026-04-20 (v3.1 bundled C4 Sesja 3 close), 2026-04-20 (v3.2 bundled C5 Sesja 1 close), 2026-04-20 (v3.3 bundled C5 Sesja 2 close), 2026-04-30 (v3.4 Manufacturing Operations §8.9)
 ---
 
 # PRD 02-SETTINGS — MonoPilot MES
 
-**Admin foundation module.** Dostarcza organizacji, użytkowników, RBAC, module toggles, schema admin wizard (ADR-028), read-only rule registry (ADR-029), 8+3 Reference tables CRUD, multi-tenant L2 config (ADR-031), feature flags, audit log viewer, D365 constants admin (INTEGRATIONS stage 1 inline), infrastructure (warehouses/locations/machines/lines), security + i18n + onboarding wizard.
+**Admin foundation module.** Dostarcza organizacji, użytkowników, RBAC, module toggles, schema admin wizard (ADR-028), read-only rule registry (ADR-029), 24 Reference tables CRUD (including Manufacturing Operations §8.9), multi-tenant L2 config (ADR-031), feature flags, audit log viewer, D365 constants admin (INTEGRATIONS stage 1 inline), infrastructure (warehouses/locations/machines/lines), security + i18n + onboarding wizard.
 
 ---
 
@@ -24,7 +24,7 @@ Rozszerzamy baseline o 5 nowych core obszarów wymagane przez Phase D architectu
 
 1. **Schema Admin Wizard (§6)** `[ADR-028]` — UI do add/edit kolumny biznesowe bez dev. Główny blocker dla P1 "easy extension contract" z 00-FOUNDATION §1.
 2. **Rule Definitions Registry (§7)** `[ADR-029]` — **read-only rejestr reguł DSL** (cascading / conditional / gate / workflow-as-data). Reguły authored przez dev (PR → deploy as migration), admin ma visibility + audit + version diff — **nie edytuje**. Decyzja 2026-04-19.
-3. **Reference Tables CRUD (§8)** — 8 tabel z v7 + 3 nowe (AlertThresholds, Allergens, D365_Constants). Generic metadata-driven UI zamiast hardcoded view per tabela.
+3. **Reference Tables CRUD (§8)** — 24 tabel (8 z v7 + 16 Phase C1-C5 nowych). Generic metadata-driven UI zamiast hardcoded view per tabela. Manufacturing Operations (§8.9) — configurable processes per tenant with industry-specific seed data (Bakery, Pharmacy, FMCG).
 4. **Multi-tenant L2 Config (§9)** `[ADR-031]` — dept taxonomy variation (ADR-030), tenant_variations, upgrade orchestration L1→L2→L3→L4.
 5. **D365 Constants Admin (§11)** `[LEGACY-D365]` — INTEGRATIONS stage 1 inline: FNOR / APX100048 / ApexDG / FinGoods / APXProd01 admin CRUD + item/BOM one-way sync config.
 
@@ -820,6 +820,278 @@ Dropdown caches (hot path dla v7-equivalent renderer) = Postgres materialized vi
 - Red: OEE < `oee_target_pct × 0.786` (e.g., <55%)
 
 Note: The exact amber/red cutoffs for P1 badge coloring on individual KPI cards are derived proportionally from the target. Heatmap color scale remains fixed 65/85 (not derived from target in P1).
+
+### 8.9 Manufacturing Operations Configuration
+
+#### 8.9.1 Overview
+
+Manufacturing operations (processes) are now configurable per tenant, allowing different industries to define custom process names and suffixes. This enables flexibility across diverse manufacturing verticals:
+
+- **Bakery example:** Mix (MX), Knead (KN), Proof (PR), Bake (BK)
+- **Pharmacy example:** Synthesis (SY), Separation (SE), Crystallization (CZ), Drying (DR)
+- **FMCG example:** Mix (MX), Fill (FL), Seal (SL), Label (LB)
+
+Each tenant configures their own operation_name/process_suffix pairs, which cascade into intermediate code generation and template application workflows (01-NPD §13).
+
+#### 8.9.2 Reference.ManufacturingOperations Table Structure
+
+```sql
+CREATE TABLE "Reference.ManufacturingOperations" (
+    id              UUID PRIMARY KEY,
+    tenant_id       UUID NOT NULL REFERENCES organizations(id),
+    operation_name  TEXT NOT NULL,         -- "Mix", "Bake", "Synthesis", etc.
+    process_suffix  TEXT NOT NULL,         -- "MX", "BK", "SY", etc. (2-4 chars)
+    description     TEXT,
+    operation_seq   INT,                   -- Order in typical recipe (1, 2, 3, 4...)
+    industry_code   TEXT,                  -- 'bakery', 'pharma', 'fmcg', 'generic', 'custom'
+    is_active       BOOLEAN DEFAULT true,
+    marker          TEXT NOT NULL DEFAULT 'ORG-CONFIG',  -- References ADR-034 generic naming
+    created_at      TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    
+    UNIQUE(tenant_id, process_suffix),     -- Suffix unique per tenant
+    UNIQUE(tenant_id, operation_name)      -- Name also unique per tenant (prevent duplicates)
+);
+
+CREATE INDEX idx_manufacturing_ops_tenant_active ON "Reference.ManufacturingOperations"(tenant_id, is_active);
+CREATE INDEX idx_manufacturing_ops_suffix ON "Reference.ManufacturingOperations"(process_suffix);
+```
+
+**Marker field:** Part of ADR-034 (Generic Product Lifecycle Naming). All manufacturing operations use marker='ORG-CONFIG' to identify tenant-configurable lifecycle components.
+
+#### 8.9.3 CRUD Endpoints
+
+Reference Tables CRUD framework (§8.3) extended:
+
+- `GET /api/settings/reference/manufacturing-operations` — list operations (tenant-scoped, filter by industry_code/is_active)
+- `GET /api/settings/reference/manufacturing-operations/:id` — detail
+- `POST /api/settings/reference/manufacturing-operations` — create operation (uniqueness enforced on process_suffix)
+- `PUT /api/settings/reference/manufacturing-operations/:id` — update operation (suffix immutable, name immutable)
+- `DELETE /api/settings/reference/manufacturing-operations/:id` — soft delete (set is_active=false)
+- `POST /api/settings/reference/manufacturing-operations/reorder` — bulk reorder by operation_seq (array of {id, operation_seq})
+
+#### 8.9.4 Admin UI: Manufacturing Operations Editor
+
+**Location:** Settings → Reference Tables → Manufacturing Operations (or Process Configuration)
+
+**Feature 1: List View** (data grid, SET-055):
+- Columns: Operation Name, Process Suffix, Sequence, Industry Code, Status (Active/Inactive)
+- Toolbar buttons:
+  - "Add New Operation" — opens ADD modal
+  - Bulk actions: Delete inactive rows, Reset to seed data (confirmation required)
+- Row actions:
+  - Edit icon → opens EDIT modal
+  - Delete icon → soft delete (if not referenced; see §8.9.7)
+- Reorder: Drag-to-reorder rows (updates operation_seq); auto-save per drag
+- Filter: By industry_code dropdown + show/hide inactive toggle
+
+**Feature 2: Add/Edit Form** (modal, SET-056):
+
+Form fields (RHF + Zod):
+
+| Field | Type | Required | Constraints | Examples |
+|---|---|---|---|---|
+| Operation Name | Text | ✅ | Max 50 chars, alphanumeric + spaces; unique per tenant | "Mix", "Knead", "Proof", "Bake", "Synthesis" |
+| Process Suffix | Text | ✅ | 2–4 chars, uppercase letters/numbers, unique per tenant; immutable on edit | "MX", "KN", "PR", "BK", "SY", "DR", "FL", "SL" |
+| Description | Text | ❌ | Max 200 chars | "Mixing dry ingredients for dough" |
+| Industry Code | Dropdown | ✅ | Options: bakery, pharma, fmcg, generic, custom; for reference/filtering only | "bakery" |
+| Sequence Order | Number | ✅ | Range 1–99; controls operation_seq | 1, 2, 3, 4 |
+| Active | Toggle | ✅ | Default true | true/false |
+
+**Add mode:**
+- All fields editable
+- Operation Name, Process Suffix, Sequence, Industry Code, Active required
+- On save: Validate uniqueness; create row; log audit event
+
+**Edit mode:**
+- Operation Name immutable (shown as read-only text)
+- Process Suffix immutable (shown as read-only text)
+- Other fields editable
+- On save: Validate no conflicts; update row; log audit event with field diff
+
+#### 8.9.5 Validation Rules V-SET-MFG
+
+- **V-SET-MFG-01**: Process Suffix must be 2–4 chars, uppercase alphanumeric only, unique per (tenant_id, process_suffix)
+- **V-SET-MFG-02**: Operation Name must be ≤50 chars, alphanumeric + spaces, unique per (tenant_id, operation_name)
+- **V-SET-MFG-03**: Sequence Order must be 1–99; at least one operation must have seq 1
+- **V-SET-MFG-04**: Cannot delete/deactivate operation if referenced in:
+  - Active FA rows: `manufacturing_operation_1..4` match operation_name
+  - Active Template rows: `template_operation_1..4` match operation_name
+  - Confirmation dialog: "Are you sure you want to remove [Operation Name]? This operation is used in [N] templates and [M] active FAs. Deactivating will prevent new FAs from using it."
+- **V-SET-MFG-05**: Industry Code must be one of: {bakery, pharma, fmcg, generic, custom}
+- **V-SET-MFG-06**: On deactivate, warn user: "This operation will no longer be available for new FA assignments. Existing FAs using this operation will continue to function."
+
+#### 8.9.6 Confirmation Dialogs
+
+**Delete Operation (soft delete):**
+```
+Title: "Remove [Operation Name]?"
+Body: "This operation is used in [N] active FAs and [M] templates. 
+       Deactivating will prevent new FAs from using it, but existing FAs will continue.
+       Are you sure?"
+Buttons: "Cancel" | "Deactivate"
+```
+
+**Deactivate Only (without delete):**
+```
+Title: "Deactivate [Operation Name]?"
+Body: "This will prevent new FAs from being assigned to this operation. 
+       [N] existing FAs will continue to use it."
+Buttons: "Cancel" | "Deactivate"
+```
+
+**Reset to Seed Data:**
+```
+Title: "Reset to Industry Seed Data?"
+Body: "This will replace all current operations with the [Industry] baseline:
+       [Bakery | Pharmacy | FMCG] seed list. Existing FAs will be unaffected.
+       Are you sure?"
+Buttons: "Cancel" | "Reset"
+```
+
+#### 8.9.7 Pre-populated Seed Data (on Tenant Creation)
+
+Seed data inserted during onboarding flow (00-FOUNDATION §9 "Tenant Onboarding"), keyed by industry_code:
+
+**Bakery seed:**
+```
+(1, "Mix", "MX", "Mixing", "bakery"),
+(2, "Knead", "KN", "Kneading dough", "bakery"),
+(3, "Proof", "PR", "Proofing/bulk fermentation", "bakery"),
+(4, "Bake", "BK", "Baking in oven", "bakery")
+```
+
+**Pharmacy seed:**
+```
+(1, "Synthesis", "SY", "Chemical synthesis", "pharma"),
+(2, "Separation", "SE", "Separation/chromatography", "pharma"),
+(3, "Crystallization", "CZ", "Crystallization", "pharma"),
+(4, "Drying", "DR", "Drying/lyophilization", "pharma")
+```
+
+**FMCG seed:**
+```
+(1, "Mix", "MX", "Mixing ingredients", "fmcg"),
+(2, "Fill", "FL", "Filling containers", "fmcg"),
+(3, "Seal", "SL", "Sealing/capping", "fmcg"),
+(4, "Label", "LB", "Labeling packaging", "fmcg")
+```
+
+**Generic seed (fallback):**
+```
+(1, "Process_A", "PA", "Generic process 1", "generic"),
+(2, "Process_B", "PB", "Generic process 2", "generic"),
+(3, "Process_C", "PC", "Generic process 3", "generic"),
+(4, "Process_D", "PD", "Generic process 4", "generic")
+```
+
+Migration script populates seed data on first tenant creation; admin can reset to seed via bulk action button.
+
+#### 8.9.8 Integration with Cascading Rules
+
+When a FA's manufacturing_operation_1..4 columns change (01-NPD §13 "Cascading Rules Chain 2/4"):
+
+1. Cascade engine receives FA update event: `manufacturing_operation_1 = "Mix"`
+2. Lookup in Reference.ManufacturingOperations: `SELECT process_suffix WHERE tenant_id=X AND operation_name='Mix'` → "MX"
+3. Retrieve sequence: operation_seq (e.g., 1)
+4. Generate Intermediate_Code_P1 using pattern: `WIP-<process_suffix>-<zero_padded_seq>`
+
+**Example cascade:**
+```
+FA: FA-BRD-0001 (tenant: Apex Bakery)
+manufacturing_operation_1 = "Mix" 
+  → lookup: process_suffix="MX", operation_seq=1
+  → intermediate_code_p1 = "WIP-MX-00001"
+
+manufacturing_operation_2 = "Bake"
+  → lookup: process_suffix="BK", operation_seq=4
+  → intermediate_code_p2 = "WIP-BK-00004"
+```
+
+Cascade engine consumes Reference.ManufacturingOperations via:
+- **Runtime lookup:** `{tenant_id, operation_name} → process_suffix` (cached in memory, TTL=1h)
+- **Fallback:** If operation_name not found, cascade engine logs warning and uses placeholder suffix (configurable per deployment)
+
+#### 8.9.9 Integration with Templates
+
+When a template is applied to a new FA (01-NPD §6 "Templates"):
+
+1. Template specifies: `template_operation_1="Mix", template_operation_2="Bake", template_operation_3="Proof", template_operation_4=null`
+2. On FA creation from template:
+   - Copy template_operation_1..4 → FA's manufacturing_operation_1..4 (by name, not suffix)
+   - Cascade engine auto-fills intermediate_code_p1..4 using Reference.ManufacturingOperations suffix lookup (§8.9.8)
+3. If template references operation_name that no longer exists (deactivated), UI shows warning: "Template uses operation [Name] which is no longer active. Please reassign or create a new operation."
+
+#### 8.9.10 RBAC Permissions
+
+Add to permission matrix (§3 extended):
+
+| Permission | `admin` | `npd_manager` | `core_user` | `viewer` |
+|---|---|---|---|---|
+| `manufacturing_operations.view` | ✅ | ⚠️ (read-only) | ✅ (read-only) | ❌ |
+| `manufacturing_operations.edit` | ✅ | ❌ | ❌ | ❌ |
+| `manufacturing_operations.create` | ✅ | ❌ | ❌ | ❌ |
+| `manufacturing_operations.delete` | ✅ | ❌ | ❌ | ❌ |
+| `manufacturing_operations.reorder` | ✅ | ❌ | ❌ | ❌ |
+
+**Access control:**
+- Only users with `manufacturing_operations.edit` can open ADD/EDIT modals
+- `npd_manager` + `core_user` can see reference operations in dropdowns (read-only list view)
+- `viewer` cannot access Manufacturing Operations settings at all
+
+#### 8.9.11 Audit Trail
+
+All changes to Reference.ManufacturingOperations logged in `audit_log` table:
+
+```sql
+-- audit_log entries for manufacturing operations
+INSERT INTO audit_log (
+  user_id, tenant_id, entity_type, entity_id, action, old_value, new_value, timestamp
+)
+VALUES
+  (user_123, tenant_456, 'manufacturing_operation', op_id_789, 'create', 
+   NULL, '{"operation_name":"Mix","process_suffix":"MX",...}', NOW()),
+  (user_456, tenant_456, 'manufacturing_operation', op_id_789, 'update',
+   '{"is_active":true}', '{"is_active":false}', NOW()),
+  (user_789, tenant_456, 'manufacturing_operation', op_id_789, 'delete',
+   '{"operation_name":"Mix",...}', NULL, NOW());
+```
+
+Audit Trail UI (SET-057, ref §16 audit log viewer extension):
+- Per-operation edit history (linked from list view "View History" icon)
+- Shows: User, Action (create/update/delete), Timestamp, Field diff (old→new)
+- Searchable by operation_name, user, date range
+
+#### 8.9.12 UI Surfaces (additional)
+
+| Screen code | Screen | Capability |
+|---|---|---|
+| SET-055 | Manufacturing Operations List | List/filter/reorder operations; bulk actions |
+| SET-056 | Manufacturing Operation Edit Modal | Add/edit form with validation |
+| SET-057 | Manufacturing Operation Audit Trail | Per-operation history viewer |
+
+#### 8.9.13 Phase C1 Acceptance Criteria
+
+- [ ] Manufacturing Operations editor UI implemented (Add/Edit/Delete/Reorder) — SET-055, SET-056
+- [ ] Suffix uniqueness enforced (per-tenant, V-SET-MFG-01)
+- [ ] Operation name uniqueness enforced (per-tenant, V-SET-MFG-02)
+- [ ] Seed data loaded per industry selection (Bakery/Pharmacy/FMCG/Generic) on tenant creation
+- [ ] Cascade engine correctly looks up process_suffix on operation change (§8.9.8)
+- [ ] Cascade engine generates intermediate codes using process_suffix + sequence pattern
+- [ ] Template application uses operation_names (not hardcoded Process_A/B/C/D) (§8.9.9)
+- [ ] Delete/deactivate validation prevents removal if referenced in active FAs/Templates (V-SET-MFG-04)
+- [ ] Reorder drag-to-reorder updates operation_seq correctly
+- [ ] Audit trail captures all create/update/delete operations (SET-057)
+- [ ] RBAC permissions enforced (manufacturing_operations.view/edit/create/delete/reorder)
+- [ ] Seed data reset button works (bulk action)
+
+#### 8.9.14 Related Decisions & Cross-references
+
+- **ADR-034**: Generic Product Lifecycle Naming (Reference.CodePrefixes, Reference.ColumnLabels, Reference.ManufacturingOperations, marker='ORG-CONFIG')
+- **01-NPD-PRD §6**: Templates — template_operation_1..4 field definitions and cascade on FA creation
+- **01-NPD-PRD §13**: Dependencies — Cascading Rules Chain 2/4 (Manufacturing_Operation cascade to Intermediate_Code_P1..4)
+- **00-FOUNDATION §9**: Tenant Onboarding — seed data insertion on tenant creation flow
+- **§3**: RBAC Permission Matrix (extended with manufacturing_operations permissions)
+- **§16**: Dependencies, Build Sequence (Manufacturing Operations as Phase C1 dependency for 01-NPD)
 
 ---
 
