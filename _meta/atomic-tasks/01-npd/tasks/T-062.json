@@ -1,0 +1,58 @@
+{
+  "title": "T-062 — E2E: project create → advance G0..G2 → approve G3 with e-signature (NPD-f)",
+  "prompt": "# T-062 — Stage-Gate end-to-end\n\nPRD: 01-NPD-PRD.md §17.6, §17.7\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nPlaywright E2E covering full project lifecycle: NPD Manager creates project → kanban view → tick required items → advance G0→G1→G2 → request G3 approval → e-sign with password → assert gate_approvals row + esign_hash + outbox events emitted in order.\n\n## Implementation contract\n1. apps/web/e2e/npd/stage-gate.spec.ts: login as NPD Manager → /(npd)/pipeline → click + new → fill wizard → submit → assert kanban shows new project at G0 → tick checklist items → drag to G1 → drag to G2 → click 'Request Approval' → e-sign with password → assert success.\n2. Integration test apps/web/__tests__/integration/gate-events.test.ts: verifies outbox events emitted in order npd.project.created → npd.gate.advanced (×2) → npd.gate.approved.\n3. Fixtures seed deterministic project state (no checklists pre-seeded).\n\n## Files\n- apps/web/e2e/npd/stage-gate.spec.ts [create]\n- apps/web/__tests__/integration/gate-events.test.ts [create]\n- apps/web/e2e/npd/fixtures/stage-gate-seed.ts [create]\n\n## Acceptance criteria\n1. Given an NPD Manager session, when the user creates a project then advances it from G0 to G3 via the UI then approves with password, then a gate_approvals row exists with decision='approved' + non-null esign_hash + esigned_at per §17.6 e-sig flow\n2. Given the project lifecycle completes, when the outbox table is queried, then events appear in order: npd.project.created → npd.gate.advanced (G0→G1) → npd.gate.advanced (G1→G2) → npd.gate.advanced (G2→G3) → npd.gate.approved per §17.6\n3. Given an attempt to drag from G2 to G4 (non-adjacent), when drop fires, then the card snaps back and a toast 'Adjacency violation' appears per §17.12 adjacency guard\n\n## Test strategy\n- RED: write the 3 specs above before final wiring; run against isolated test container\n- Run 'pnpm --filter web test:e2e stage-gate && pnpm --filter web test gate-events'\n\n## Risk red lines\n- Do not skip outbox event ordering assertion\n- Do not run against shared/staging DB\n- Do not embed real secrets in test password (use fixture)",
+  "labels": ["prd", "test", "stage-gate", "T4-wiring-test"],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-062",
+    "source_prd": "01-NPD-PRD.md",
+    "prd_refs": ["§17.6", "§17.7", "§17.12"],
+    "category": "test",
+    "subcategory": "stage-gate-e2e",
+    "task_type": "T4-wiring-test",
+    "parent_feature": "01-NPD-f Stage-Gate Pipeline",
+    "context_budget": "55k",
+    "estimated_effort": "2-3h",
+    "description": "Playwright E2E + integration test for project create → advance G0..G3 → e-sign + outbox event ordering + adjacency guard.",
+    "details": "E2E lifecycle test exercises kanban DnD; integration test asserts outbox event ordering; fixtures seed clean state.",
+    "scope_files": [
+      "apps/web/e2e/npd/stage-gate.spec.ts [create]",
+      "apps/web/__tests__/integration/gate-events.test.ts [create]",
+      "apps/web/e2e/npd/fixtures/stage-gate-seed.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not exercise revertGate here",
+      "Do not run V18 risk-blocker scenario (T-087)"
+    ],
+    "dependencies": ["T-057", "T-058", "T-059", "T-061"],
+    "parallel_safe_with": ["T-053", "T-091"],
+    "acceptance_criteria": [
+      "Given an NPD Manager session, when the user creates a project then advances it from G0 to G3 via the UI then approves with password, then a gate_approvals row exists with decision='approved' + non-null esign_hash + esigned_at per §17.6 e-sig flow",
+      "Given the project lifecycle completes, when the outbox table is queried, then events appear in order: npd.project.created → npd.gate.advanced (G0→G1) → npd.gate.advanced (G1→G2) → npd.gate.advanced (G2→G3) → npd.gate.approved per §17.6",
+      "Given an attempt to drag from G2 to G4 (non-adjacent), when drop fires, then the card snaps back and a toast 'Adjacency violation' appears per §17.12"
+    ],
+    "test_strategy": [
+      "RED: 3 specs before final wiring; run against isolated test container",
+      "Run 'pnpm --filter web test:e2e stage-gate && pnpm --filter web test gate-events'"
+    ],
+    "risk_red_lines": [
+      "Do not skip outbox event ordering assertion",
+      "Do not run against shared/staging DB",
+      "Do not embed real secrets in test password"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

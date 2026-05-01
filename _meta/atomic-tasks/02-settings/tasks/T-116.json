@@ -1,0 +1,86 @@
+{
+  "title": "T-116 — Seed: i18n namespace 02-settings.json (PL + EN, §14.2)",
+  "prompt": "# T-116 — Seed: i18n namespace 02-settings.json (PL + EN, §14.2)\n\nPRD: 02-SETTINGS-PRD.md §14.2 (i18n)\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nCreate the next-intl translation namespace files `02-settings.json` for both PL and EN locales (Phase 1 MVP languages per §14.2). File contains the static UI strings consumed by SETTINGS module screens (T-041..T-115 page titles, table headers, action labels, validation messages, modal titles). Per-row dynamic labels remain in `reference_schemas.presentation_json.label_<lang>` (out of scope here).\n\n## Implementation contract\n1. Create `apps/web/messages/pl/02-settings.json` and `apps/web/messages/en/02-settings.json` mirroring identical key structure.\n2. Top-level keys grouped by sub-area: `nav`, `users`, `roles`, `infra`, `schema`, `rules`, `reference`, `tenant`, `modules`, `flags`, `d365`, `email`, `notifications`, `security`, `onboarding`, `audit`, `validations` (matches sub-modules a..e).\n3. EN is the canonical source per §14.2 fallback rule; PL is a complete translation (no missing keys).\n4. Add a vitest that loads both files and asserts (a) identical key structure across PL and EN, (b) no empty string values, (c) no key references stale module names from out-of-scope sub-modules.\n5. No code edits to existing screens (those tasks already reference next-intl keys; this task only seeds the bundles).\n\n## Files\n- apps/web/messages/en/02-settings.json [create]\n- apps/web/messages/pl/02-settings.json [create]\n- apps/web/messages/__tests__/02-settings.namespace.test.ts [create]\n\n## Acceptance criteria\nSee `acceptance_criteria` array.\n\n## Test strategy\n1. RED: write the namespace test asserting key parity + non-empty + presence of expected top-level groups.\n   `pnpm --filter @monopilot/web vitest run apps/web/messages/__tests__/02-settings.namespace.test.ts`\n2. RED must fail before bundle files exist.\n3. GREEN: emit both bundles with full key set.\n4. Re-run RED + `pnpm typecheck` + `pnpm lint`.\n\n## Risk red lines\n- Do not seed UK/RO/DE/FR (Phase 2/3 per §14.2 — explicitly out of scope per coverage.md gap row).\n- Do not embed dynamic data in keys (use ICU placeholders only).\n- Do not duplicate per-table dynamic labels here (those live in reference_schemas).\n\nStack: TS + Next.js App Router + Drizzle + pnpm + vitest + Playwright + next-intl. PRD: 02-SETTINGS-PRD.md v3.5.\n",
+  "labels": [
+    "prd",
+    "data",
+    "seed-i18n-strings",
+    "T5-seed"
+  ],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-116",
+    "source_prd": "02-SETTINGS-PRD.md",
+    "prd_refs": [
+      "§14.2"
+    ],
+    "category": "data",
+    "subcategory": "seed-i18n-strings",
+    "task_type": "T5-seed",
+    "parent_feature": "02-settings-e",
+    "context_budget": "40k",
+    "estimated_effort": "1-3h",
+    "description": "Seed next-intl namespace `02-settings.json` for PL + EN with full key parity for all SETTINGS screens.",
+    "details": "PRD §14.2 mandates next-intl with namespace per moduł, Phase 1 MVP = PL+EN, EN fallback always available. The bundle aggregates all static UI strings referenced by T-041..T-115. Per-row dynamic field labels stay in `reference_schemas.presentation_json.label_<lang>` (NOT here). Phase 2/3 languages (UK/RO/DE/FR) explicitly out of scope per coverage.md gap row §14.2 Phase 2/3 i18n.",
+    "scope_files": [
+      "apps/web/messages/en/02-settings.json [create]",
+      "apps/web/messages/pl/02-settings.json [create]",
+      "apps/web/messages/__tests__/02-settings.namespace.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "UK / RO / DE / FR translations (Phase 2/3 per §14.2)",
+      "Per-row dynamic field labels (live in reference_schemas)"
+    ],
+    "dependencies": [],
+    "parallel_safe_with": [
+      "T-091",
+      "T-092",
+      "T-093"
+    ],
+    "acceptance_criteria": [
+      "Given the namespace test runs, when both bundles are loaded, then `flatten(en)` and `flatten(pl)` produce identical sorted key lists (zero diff).",
+      "Given the EN bundle loads, when iterated, then no value is the empty string and every key matches `^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)*$`.",
+      "Given the bundle is loaded, when top-level groups are listed, then it includes all of: nav, users, roles, infra, schema, rules, reference, tenant, modules, flags, d365, email, notifications, security, onboarding, audit, validations.",
+      "Given the PL bundle loads, when key 'validations.v_set_60' is read, then the message references `{parentLevel}` as an ICU placeholder (parameterized, not interpolated)."
+    ],
+    "test_strategy": [
+      "RED: write namespace test asserting parity + regex + groups + ICU placeholder.",
+      "GREEN: emit both JSON bundles with full key set.",
+      "Run `pnpm --filter @monopilot/web vitest run apps/web/messages/__tests__/02-settings.namespace.test.ts` and `pnpm typecheck`."
+    ],
+    "risk_red_lines": [
+      "Do not seed UK/RO/DE/FR (Phase 2/3 per §14.2).",
+      "Do not embed dynamic data in keys (use ICU placeholders only).",
+      "Do not duplicate per-table dynamic labels here (those live in reference_schemas)."
+    ],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": false
+  }
+}

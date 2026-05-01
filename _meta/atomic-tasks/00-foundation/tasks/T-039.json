@@ -1,0 +1,89 @@
+{
+  "title": "T-039 — Canary upgrade orchestration Server Action (advanceCohort + recordMigrationRun)",
+  "prompt": "# T-039 — Canary upgrade orchestration Server Action (advanceCohort + recordMigrationRun)\n\nPRD: `00-FOUNDATION-PRD.md` — sections: §8 (Upgrade orchestration)\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`\n\n## Goal\nServer Actions that drive canary-first upgrade rollouts: recordMigrationRun(component, tenantId, target, status, failure?) writes to tenant_migrations + emits an audit/outbox event, and advanceCohort(component, fromCohort, toCohort) promotes tenants from canary → early → general after the §8 monitor window (15-30 min).\n\n## Implementation contract\n(1) Add apps/web/app/api/internal/upgrade/_actions/recordMigrationRun.ts that upserts a tenant_migrations row, sets last_run_at=now(), and emits an outbox event `tenant.migration.run` (retention_class='operational') via the helper from T-008. (2) Add apps/web/app/api/internal/upgrade/_actions/advanceCohort.ts that selects all tenants where cohort=fromCohort AND status='succeeded' AND last_run_at < now() - INTERVAL '15 minutes' and bulk-updates them to cohort=toCohort in a single transaction; emits one `tenant.cohort.advanced` event per tenant. (3) Both actions guarded by the system-role 'org.platform.admin' (RBAC from T-014). (4) Vitest covers happy path + failure rollback + the 15-min monitor-window cutoff.\n\n## Files (scope)\n- apps/web/app/api/internal/upgrade/_actions/recordMigrationRun.ts [create]\n- apps/web/app/api/internal/upgrade/_actions/advanceCohort.ts [create]\n- apps/web/app/api/internal/upgrade/_actions/__tests__/upgrade.test.ts [create]\n\n## Acceptance criteria\n1. Given a tenant on cohort='canary' with status='idle', when recordMigrationRun(component='rule-engine', tenantId, target='v2', status='succeeded') runs, then the tenant_migrations row is updated to current_version='v2', status='succeeded', last_run_at=now() and an outbox event tenant.migration.run is emitted with retention_class='operational'\n2. Given recordMigrationRun is called with status='failed' + failure_reason='migration X timeout', when it returns, then current_version is NOT bumped, status='failed' is persisted, and an outbox event with action='tenant.migration.run.failed' carries the failure_reason\n3. Given 12 tenants on cohort='canary' with status='succeeded' and last_run_at older than 16 minutes, when advanceCohort(component='rule-engine', fromCohort='canary', toCohort='early') runs, then all 12 rows flip cohort='early' in one transaction and 12 outbox tenant.cohort.advanced events are emitted\n4. Given the caller is not in role org.platform.admin, when either action is invoked, then it returns 403 and writes audit_events with retention_class='security'\n\n## Test strategy\n- RED: write apps/web/app/api/internal/upgrade/_actions/__tests__/upgrade.test.ts covering all four ACs before the action files exist\n- Run 'pnpm --filter web test:integration'\n\n## Risk red lines\n- Do not advance any tenant whose status != 'succeeded' — partial-success rollouts violate §8 canary discipline\n- Do not collapse the 15-minute monitor window — it is the §8 rollback safety net\n- Do not write to tenant_migrations outside these actions; direct SQL writes break audit invariants\n\n## Dependencies (must be complete first)\n- T-008\n- T-009\n- T-014\n- T-038\n\n## Closeout evidence\nProvide: changed_files, test_commands_and_results, acceptance_criteria_status (per AC), deviations_from_prd, git_status. Use the test-driven-development skill (RED test before implementation) and requesting-code-review at GREEN.",
+  "labels": [
+    "prd",
+    "api",
+    "multi-tenant",
+    "T2-api"
+  ],
+  "priority": 80,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-039",
+    "source_prd": "00-FOUNDATION-PRD.md",
+    "prd_refs": [
+      "§8"
+    ],
+    "category": "api",
+    "subcategory": "multi-tenant",
+    "task_type": "T2-api",
+    "parent_feature": "00-FOUNDATION canary upgrade orchestration",
+    "context_budget": "60k",
+    "estimated_effort": "2-3h",
+    "description": "Server Actions recordMigrationRun + advanceCohort implementing §8 canary → early → general progression with 15-min monitor window.",
+    "details": "Two actions co-located under apps/web/app/api/internal/upgrade. recordMigrationRun handles per-tenant per-component upgrade outcomes; advanceCohort is the orchestrator promoting cohorts after the monitor window. Both emit outbox events for downstream alerting + dashboards.",
+    "scope_files": [
+      "apps/web/app/api/internal/upgrade/_actions/recordMigrationRun.ts [create]",
+      "apps/web/app/api/internal/upgrade/_actions/advanceCohort.ts [create]",
+      "apps/web/app/api/internal/upgrade/_actions/__tests__/upgrade.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not modify files outside the scope_files list",
+      "Do not introduce business logic from later module PRDs (01-NPD, 02-SETTINGS, etc.)",
+      "No PostHog cohort targeting (T-033 owns flag wiring)",
+      "No admin UI for orchestration (deferred — Phase D platform-admin console)"
+    ],
+    "dependencies": [
+      "T-008",
+      "T-009",
+      "T-014",
+      "T-038"
+    ],
+    "parallel_safe_with": [
+      "T-040"
+    ],
+    "acceptance_criteria": [
+      "Given a tenant on cohort='canary' with status='idle', when recordMigrationRun(component='rule-engine', tenantId, target='v2', status='succeeded') runs, then the tenant_migrations row is updated to current_version='v2', status='succeeded', last_run_at=now() and an outbox event tenant.migration.run is emitted with retention_class='operational'",
+      "Given recordMigrationRun is called with status='failed' + failure_reason='migration X timeout', when it returns, then current_version is NOT bumped, status='failed' is persisted, and an outbox event with action='tenant.migration.run.failed' carries the failure_reason",
+      "Given 12 tenants on cohort='canary' with status='succeeded' and last_run_at older than 16 minutes, when advanceCohort(component='rule-engine', fromCohort='canary', toCohort='early') runs, then all 12 rows flip cohort='early' in one transaction and 12 outbox tenant.cohort.advanced events are emitted",
+      "Given the caller is not in role org.platform.admin, when either action is invoked, then it returns 403 and writes audit_events with retention_class='security'"
+    ],
+    "test_strategy": [
+      "RED: write apps/web/app/api/internal/upgrade/_actions/__tests__/upgrade.test.ts covering all four ACs before the action files exist",
+      "Run 'pnpm --filter web test:integration'"
+    ],
+    "risk_red_lines": [
+      "Do not advance any tenant whose status != 'succeeded' — partial-success rollouts violate §8 canary discipline",
+      "Do not collapse the 15-minute monitor window — it is the §8 rollback safety net",
+      "Do not write to tenant_migrations outside these actions; direct SQL writes break audit invariants"
+    ],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

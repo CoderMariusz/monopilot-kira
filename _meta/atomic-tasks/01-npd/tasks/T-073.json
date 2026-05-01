@@ -1,0 +1,60 @@
+{
+  "title": "T-073 — Costing 9-step waterfall + scenario Server Action (NPD-h)",
+  "prompt": "# T-073 — Costing waterfall action\n\nPRD: 01-NPD-PRD.md §17.11.3\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nServer Action computeCosting(productCode, scenario) → 9-step waterfall persisted to costing_breakdowns + costing_waterfall_steps. Implements V07 margin warn (<15%) and HARD FAIL (<0%) per §17.11.3.\n\n## Implementation contract\n1. packages/domain/src/costing/compute-waterfall.ts: pure function computeWaterfall(rawCost, yieldPct, params, scenario) → array of 9 steps with delta_pct.\n2. apps/web/app/(npd)/pipeline/[projectId]/costing/_actions/compute.ts: Server Action invoking helper + UPSERT into costing_breakdowns + replaces costing_waterfall_steps within transaction; reads margin warn threshold from Reference.AlertThresholds.\n3. apps/web/app/(npd)/pipeline/[projectId]/costing/_actions/save-scenario.ts: Server Action persisting a what-if scenario by name + parameters.\n4. Vitest covers 9-step ordering, delta correctness, V07 warn vs fail boundaries, scenario UPSERT idempotency.\n\n## Files\n- packages/domain/src/costing/compute-waterfall.ts [create]\n- packages/domain/src/costing/__tests__/compute-waterfall.test.ts [create]\n- apps/web/app/(npd)/pipeline/[projectId]/costing/_actions/compute.ts [create]\n- apps/web/app/(npd)/pipeline/[projectId]/costing/_actions/save-scenario.ts [create]\n- apps/web/app/(npd)/pipeline/[projectId]/costing/_actions/__tests__/compute.test.ts [create]\n\n## Acceptance criteria\n1. Given a fixed input (rawCost=10, yieldPct=90, target margin=20), when computeWaterfall runs, then it returns 9 steps in correct order (Raw materials → Yield loss → Process labour → Packaging → Overhead → Logistics → Margin → Distributor → Retail) with delta_pct values per §17.11.3\n2. Given a scenario produces margin_pct=10, when computeCosting commits, then the row is flagged warn (margin < 15% threshold) per §17.11.3 V07 warn rule (Reference.AlertThresholds value)\n3. Given a scenario produces margin_pct=-5, when computeCosting runs, then it returns FAIL status (margin < 0%) and refuses to commit per §17.11.3 hard-fail rule\n\n## Test strategy\n- RED: __tests__/compute-waterfall.test.ts + __tests__/compute.test.ts asserting 9-step order + warn/fail thresholds before functions exist\n- Run 'pnpm --filter domain test compute-waterfall && pnpm --filter web test compute'\n\n## Risk red lines\n- Do not commit waterfall when margin < 0%\n- Do not hardcode threshold (must read Reference.AlertThresholds)\n- Do not allow steps out of canonical 9-step order",
+  "labels": ["prd", "api", "costing-compute", "T2-api"],
+  "priority": 80,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-073",
+    "source_prd": "01-NPD-PRD.md",
+    "prd_refs": ["§17.11.3"],
+    "category": "api",
+    "subcategory": "costing-compute",
+    "task_type": "T2-api",
+    "parent_feature": "01-NPD-h Nutrition+Costing+Sensory",
+    "context_budget": "50k",
+    "estimated_effort": "3-4h",
+    "description": "Pure-function 9-step waterfall + scenario Server Action with V07 warn (<15%) + hard fail (<0%).",
+    "details": "computeWaterfall pure (no I/O). compute action UPSERTs breakdown + replaces steps in tx. save-scenario persists named what-if. Threshold from Reference.AlertThresholds.",
+    "scope_files": [
+      "packages/domain/src/costing/compute-waterfall.ts [create]",
+      "packages/domain/src/costing/__tests__/compute-waterfall.test.ts [create]",
+      "apps/web/app/(npd)/pipeline/[projectId]/costing/_actions/compute.ts [create]",
+      "apps/web/app/(npd)/pipeline/[projectId]/costing/_actions/save-scenario.ts [create]",
+      "apps/web/app/(npd)/pipeline/[projectId]/costing/_actions/__tests__/compute.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not build UI here (T-075)",
+      "Do not exercise BOM-derived costs (BOM is sibling module)"
+    ],
+    "dependencies": ["T-070", "T-049", "T-050"],
+    "parallel_safe_with": ["T-072"],
+    "acceptance_criteria": [
+      "Given a fixed input (rawCost=10, yieldPct=90, target margin=20), when computeWaterfall runs, then it returns 9 steps in correct order with delta_pct values per §17.11.3",
+      "Given a scenario produces margin_pct=10, when computeCosting commits, then the row is flagged warn (margin < 15% threshold) per §17.11.3 V07 warn rule",
+      "Given a scenario produces margin_pct=-5, when computeCosting runs, then it returns FAIL status and refuses to commit per §17.11.3 hard-fail rule"
+    ],
+    "test_strategy": [
+      "RED: __tests__/compute-waterfall.test.ts + __tests__/compute.test.ts before functions exist",
+      "Run 'pnpm --filter domain test compute-waterfall && pnpm --filter web test compute'"
+    ],
+    "risk_red_lines": [
+      "Do not commit waterfall when margin < 0%",
+      "Do not hardcode threshold",
+      "Do not allow steps out of canonical 9-step order"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

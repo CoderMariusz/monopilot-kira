@@ -1,0 +1,60 @@
+{
+  "title": "T-048 — dashboard_summary + launch_alerts + missing_required_cols views (NPD-e)",
+  "prompt": "# T-048 — Dashboard SQL views\n\nPRD: 01-NPD-PRD.md §11.2, §11.3, §11.4\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nIntroduce three RLS-scoped read-only SQL views (dashboard_summary, launch_alerts, missing_required_cols) so the NPD dashboard can render counters, RED/YELLOW/GREEN alert levels, and per-FA missing-data text without recomputing in app code.\n\n## Implementation contract\n1. Migration packages/db/migrations/0048_npd_dashboard_views.sql creates: missing_required_cols (per-FA list of empty Required_for_done cells joined with dept names), dashboard_summary (per-tenant counters: total_active, fully_complete, pending, total_built), launch_alerts (per-FA days_left + alert_level RED/YELLOW/GREEN computed from launch_date thresholds + missing_data agg).\n2. All three views use security_invoker=true so tenant RLS on product cascades through.\n3. Drizzle types in packages/db/src/schema/dashboard-views.ts (read-only Select types only — no Insert).\n4. RED test asserts each view returns rows under tenant RLS and zero rows for foreign tenant.\n\n## Files\n- packages/db/migrations/0048_npd_dashboard_views.sql [create]\n- packages/db/src/schema/dashboard-views.ts [create]\n- packages/db/src/schema/index.ts [modify]\n- packages/db/__tests__/dashboard-views.test.ts [create]\n\n## Acceptance criteria\n1. Given migration 0048 runs on a fresh DB with seed FAs, when SELECT * FROM dashboard_summary runs as tenant A then tenant B, then each session sees only its own row aggregates per §11.2 view DDL\n2. Given launch_alerts view exists, when an FA has launch_date NULL or days_left <= 10, then alert_level is RED; when days_left between 11 and 21 with missing data, then YELLOW; else GREEN per §11.3 thresholds\n3. Given missing_required_cols view exists, when an FA has Required_for_done cells empty in Core+MRP+Tech, then the view returns 'Core: ... MRP: ... Tech: ...' formatted string per §11.4\n\n## Test strategy\n- RED: write packages/db/__tests__/dashboard-views.test.ts asserting RLS isolation + alert thresholds + missing-data formatting before migration exists\n- Run 'pnpm --filter db migrate && pnpm --filter db test dashboard-views'\n\n## Risk red lines\n- Do not omit security_invoker=true on any view\n- Do not hardcode threshold values (must read from Reference.AlertThresholds — joined or via scalar subquery)\n- Do not allow INSERT/UPDATE/DELETE through any view (read-only enforced by view definition)",
+  "labels": ["prd", "data", "schema", "T1-schema"],
+  "priority": 50,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-048",
+    "source_prd": "01-NPD-PRD.md",
+    "prd_refs": ["§11.2", "§11.3", "§11.4"],
+    "category": "data",
+    "subcategory": "dashboard-views",
+    "task_type": "T1-schema",
+    "parent_feature": "01-NPD-e Dashboard",
+    "context_budget": "45k",
+    "estimated_effort": "2-3h",
+    "description": "Create dashboard_summary + launch_alerts + missing_required_cols SQL views with RLS via security_invoker for NPD dashboard rendering.",
+    "details": "Migration 0048 emits three views. dashboard_summary aggregates COUNT FILTER for total_active/fully_complete/pending/total_built per tenant. launch_alerts joins fa with launch_date computing days_left + RED/YELLOW/GREEN level reading thresholds from Reference.AlertThresholds. missing_required_cols formats per-dept list of empty Required_for_done cells. Drizzle exports Select-only types (no Insert/Update on views).",
+    "scope_files": [
+      "packages/db/migrations/0048_npd_dashboard_views.sql [create]",
+      "packages/db/src/schema/dashboard-views.ts [create]",
+      "packages/db/src/schema/index.ts [modify]",
+      "packages/db/__tests__/dashboard-views.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not seed Reference.AlertThresholds here (T-050)",
+      "Do not implement Server Actions for the dashboard (T-051)",
+      "Do not build the dashboard UI (T-052)"
+    ],
+    "dependencies": ["T-001", "T-049"],
+    "parallel_safe_with": ["T-054"],
+    "acceptance_criteria": [
+      "Given migration 0048 runs on a fresh DB with seed FAs, when SELECT * FROM dashboard_summary runs as tenant A then tenant B, then each session sees only its own row aggregates per §11.2 view DDL",
+      "Given launch_alerts view exists, when an FA has launch_date NULL or days_left <= 10 then alert_level is RED; when days_left between 11 and 21 with missing data then YELLOW; else GREEN per §11.3 thresholds",
+      "Given missing_required_cols view exists, when an FA has Required_for_done cells empty in Core+MRP+Tech, then the view returns formatted 'Core: ... MRP: ... Tech: ...' string per §11.4"
+    ],
+    "test_strategy": [
+      "RED: write packages/db/__tests__/dashboard-views.test.ts asserting RLS isolation + alert thresholds + missing-data formatting before migration exists",
+      "Run 'pnpm --filter db migrate && pnpm --filter db test dashboard-views'"
+    ],
+    "risk_red_lines": [
+      "Do not omit security_invoker=true on any view",
+      "Do not hardcode threshold values (must read from Reference.AlertThresholds)",
+      "Do not allow INSERT/UPDATE/DELETE through any view"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

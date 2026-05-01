@@ -1,0 +1,59 @@
+{
+  "title": "T-069 — nutrition_profiles + nutrition_allergens + nutri_score_results tables (NPD-h)",
+  "prompt": "# T-069 — Nutrition schema\n\nPRD: 01-NPD-PRD.md §17.11.2\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nCreate nutrition tables backing the Nutrition stage screen: nutrition_profiles (per-FA per-100g + per-portion values for 7 nutrients), nutrition_allergens (audited allergen set per FA), nutri_score_results (computed grade A-E + score history) + Reference.Nutrients seed (7 nutrient codes).\n\n## Implementation contract\n1. Migration packages/db/migrations/0069_nutrition.sql creates 3 tables + Reference.Nutrients seed (energy_kj, fat_g, saturates_g, carbs_g, sugars_g, protein_g, salt_g) per EU FIC 1169/2011.\n2. nutrition_profiles (id PK, tenant_id, product_code FK fa, nutrient_code FK Reference.Nutrients, per_100g_value, per_portion_value, computed_at).\n3. nutri_score_results (id PK, product_code, formulation_version_id, grade CHECK in A/B/C/D/E, computed_score, computed_at).\n4. RLS + indexes (tenant_id, product_code) on each table; Drizzle schemas + barrel.\n\n## Files\n- packages/db/migrations/0069_nutrition.sql [create]\n- packages/db/src/schema/nutrition.ts [create]\n- packages/db/src/schema/index.ts [modify]\n- packages/db/__tests__/nutrition.test.ts [create]\n\n## Acceptance criteria\n1. Given migration 0069 runs, when SELECT nutrient_code FROM \"Reference.Nutrients\" runs, then it returns exactly 7 codes (energy_kj, fat_g, saturates_g, carbs_g, sugars_g, protein_g, salt_g) per §17.11.2 + EU FIC 1169/2011\n2. Given an INSERT into nutri_score_results with grade='F' is attempted, when it runs, then it fails CHECK constraint per §17.11.2 grade enum (A-E only)\n3. Given two tenants seeded, when tenant A SELECT * FROM nutrition_profiles runs, then it returns only tenant A rows (RLS verified)\n\n## Test strategy\n- RED: write packages/db/__tests__/nutrition.test.ts asserting Reference.Nutrients seed count + grade CHECK + RLS before migration exists\n- Run 'pnpm --filter db migrate && pnpm --filter db test nutrition'\n\n## Risk red lines\n- Do not omit any of the 7 EU FIC nutrients in seed\n- Do not allow grade values outside A-E\n- Do not skip RLS on any table",
+  "labels": ["prd", "data", "schema", "T1-schema"],
+  "priority": 50,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-069",
+    "source_prd": "01-NPD-PRD.md",
+    "prd_refs": ["§17.11.2"],
+    "category": "data",
+    "subcategory": "nutrition-schema",
+    "task_type": "T1-schema",
+    "parent_feature": "01-NPD-h Nutrition+Costing+Sensory",
+    "context_budget": "40k",
+    "estimated_effort": "2h",
+    "description": "Create nutrition_profiles + nutrition_allergens + nutri_score_results tables + Reference.Nutrients seed.",
+    "details": "Migration 0069 emits 3 tables + EU FIC 7 nutrient seed. Grade enum CHECK A-E. RLS + tenant indexes.",
+    "scope_files": [
+      "packages/db/migrations/0069_nutrition.sql [create]",
+      "packages/db/src/schema/nutrition.ts [create]",
+      "packages/db/src/schema/index.ts [modify]",
+      "packages/db/__tests__/nutrition.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not implement compute action (T-072)",
+      "Do not build UI (T-074)"
+    ],
+    "dependencies": ["T-001"],
+    "parallel_safe_with": ["T-070", "T-071"],
+    "acceptance_criteria": [
+      "Given migration 0069 runs, when SELECT nutrient_code FROM \"Reference.Nutrients\" runs, then it returns exactly 7 codes (energy_kj, fat_g, saturates_g, carbs_g, sugars_g, protein_g, salt_g) per §17.11.2",
+      "Given an INSERT into nutri_score_results with grade='F' is attempted, when it runs, then it fails CHECK constraint per §17.11.2 grade enum",
+      "Given two tenants seeded, when tenant A SELECT * FROM nutrition_profiles runs, then it returns only tenant A rows"
+    ],
+    "test_strategy": [
+      "RED: write packages/db/__tests__/nutrition.test.ts asserting seed count + grade CHECK + RLS before migration exists",
+      "Run 'pnpm --filter db migrate && pnpm --filter db test nutrition'"
+    ],
+    "risk_red_lines": [
+      "Do not omit any of the 7 EU FIC nutrients in seed",
+      "Do not allow grade values outside A-E",
+      "Do not skip RLS"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

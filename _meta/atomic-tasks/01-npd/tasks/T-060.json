@@ -1,0 +1,62 @@
+{
+  "title": "T-060 — UI: Pipeline Table + Split views (TableView + SplitView prototypes) (NPD-f)",
+  "prompt": "# T-060 — Pipeline Table + Split views UI\n\nPRD: 01-NPD-PRD.md §17.8, §17.12 + UX 01-NPD-UX.md pipeline_table + pipeline_split\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\nPrototype: design/Monopilot Design System/npd/pipeline.jsx:54-132 (TableView + SplitView)\n\n## Goal\nTwo additional pipeline view modes: TableView (sortable cols Code/Name/Type/CurrentGate/Priority/Owner/TargetLaunch/Progress with URL persistence ?sort&dir) and SplitView (left compact table + right ProjectDetail panel + URL ?selected=) — switched via ?view=table|split.\n\n## Implementation contract\n1. apps/web/app/(npd)/pipeline/_components/table-view.tsx ('use client') uses shadcn Table + Badge + sortable headers; URL query persistence via Next.js router.\n2. apps/web/app/(npd)/pipeline/_components/split-view.tsx ('use client') two-pane layout (left list, right ProjectDetail panel sticky); selection via ?selected=projectId; min-width 1280 px breakpoint falls back to table.\n3. apps/web/app/(npd)/pipeline/page.tsx switches between Kanban/Table/Split based on ?view= search param (default kanban).\n4. RTL tests for both views: column rendering + sort + URL persistence + selection.\n\n## Files\n- apps/web/app/(npd)/pipeline/_components/table-view.tsx [create]\n- apps/web/app/(npd)/pipeline/_components/split-view.tsx [create]\n- apps/web/app/(npd)/pipeline/_components/project-detail-panel.tsx [create]\n- apps/web/app/(npd)/pipeline/_components/__tests__/table-view.test.tsx [create]\n- apps/web/app/(npd)/pipeline/_components/__tests__/split-view.test.tsx [create]\n- apps/web/app/(npd)/pipeline/page.tsx [modify]\n- design/Monopilot Design System/npd/pipeline.jsx [ref]\n\n## Acceptance criteria\n1. Given the production TableView renders, when compared to design/Monopilot Design System/npd/pipeline.jsx:54-88 (TableView), then it has the same 8 columns (Code, Name, Type, Current Gate, Priority, Owner, Target Launch, Progress) using shadcn Table + Badge primitives — verified by RTL snapshot + parity checklist\n2. Given the production SplitView renders, when compared to design/Monopilot Design System/npd/pipeline.jsx:90-132 (SplitView), then it shows a left compact list + right ProjectDetail sticky panel with selection persisted via URL ?selected= per §17.12 split mode contract\n3. Given URL ?view=split&selected=PRJ-123, when the page loads, then SplitView mounts with PRJ-123 pre-selected and the right panel shows its detail per §17.12 URL persistence\n\n## Test strategy\n- RED: RTL tests for both views asserting parity + sort + selection persistence before components exist\n- Run 'pnpm --filter web test table-view split-view'\n\n## Risk red lines\n- Do not use HTML <table> sort attributes — use shadcn Table primitives\n- Do not paste prototype JSX verbatim\n- Do not break the responsive 1280 px breakpoint contract",
+  "labels": ["prd", "ui", "pipeline-table-split", "T3-ui"],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-060",
+    "source_prd": "01-NPD-PRD.md",
+    "prd_refs": ["§17.8", "§17.12"],
+    "category": "ui",
+    "subcategory": "pipeline-table-split-views",
+    "task_type": "T3-ui",
+    "parent_feature": "01-NPD-f Stage-Gate Pipeline",
+    "context_budget": "55k",
+    "estimated_effort": "3-4h",
+    "description": "Pipeline TableView + SplitView with sortable cols + URL selection persistence + 1280 px responsive fallback.",
+    "details": "Parity checklist: (1) 8 sortable columns, (2) shadcn Table + Badge, (3) ?sort/dir URL persistence, (4) SplitView left list + right ProjectDetail sticky, (5) ?selected= URL persistence, (6) ≥1280 px breakpoint else fallback to table.",
+    "scope_files": [
+      "apps/web/app/(npd)/pipeline/_components/table-view.tsx [create]",
+      "apps/web/app/(npd)/pipeline/_components/split-view.tsx [create]",
+      "apps/web/app/(npd)/pipeline/_components/project-detail-panel.tsx [create]",
+      "apps/web/app/(npd)/pipeline/_components/__tests__/table-view.test.tsx [create]",
+      "apps/web/app/(npd)/pipeline/_components/__tests__/split-view.test.tsx [create]",
+      "apps/web/app/(npd)/pipeline/page.tsx [modify]",
+      "design/Monopilot Design System/npd/pipeline.jsx [ref]"
+    ],
+    "out_of_scope": [
+      "Do not build kanban view here (T-059)",
+      "Do not build gate modals (T-061)"
+    ],
+    "dependencies": ["T-057", "T-059"],
+    "parallel_safe_with": ["T-061"],
+    "acceptance_criteria": [
+      "Given the production TableView renders, when compared to design/Monopilot Design System/npd/pipeline.jsx:54-88 (TableView), then it has the same 8 columns (Code, Name, Type, Current Gate, Priority, Owner, Target Launch, Progress) using shadcn Table + Badge — verified by RTL snapshot + parity checklist",
+      "Given the production SplitView renders, when compared to design/Monopilot Design System/npd/pipeline.jsx:90-132 (SplitView), then it shows a left compact list + right ProjectDetail sticky panel with selection persisted via URL ?selected= per §17.12",
+      "Given URL ?view=split&selected=PRJ-123, when the page loads, then SplitView mounts with PRJ-123 pre-selected and the right panel shows its detail per §17.12"
+    ],
+    "test_strategy": [
+      "RED: RTL tests for both views asserting parity + sort + selection persistence before components exist",
+      "Run 'pnpm --filter web test table-view split-view'"
+    ],
+    "risk_red_lines": [
+      "Do not use HTML <table> sort attributes",
+      "Do not paste prototype JSX verbatim",
+      "Do not break the responsive 1280 px breakpoint"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

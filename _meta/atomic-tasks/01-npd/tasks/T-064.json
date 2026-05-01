@@ -1,0 +1,60 @@
+{
+  "title": "T-064 — Formulation lifecycle Server Actions: getFormulation + saveDraft + submitForTrial + lockVersion (NPD-g)",
+  "prompt": "# T-064 — Formulation lifecycle actions\n\nPRD: 01-NPD-PRD.md §17.11.1 (Server Actions paragraph + RBAC)\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nFour Server Actions covering the formulation lifecycle: getFormulation (read + ingredients + last calc), saveDraft (debounced 800 ms persist), submitForTrial (gate on totalPct + cost + nutrition), lockVersion (immutable lock).\n\n## Implementation contract\n1. apps/web/app/(npd)/pipeline/[projectId]/formulation/_actions/get-formulation.ts: returns formulation + current version + ingredients + cached calc.\n2. apps/web/app/(npd)/pipeline/[projectId]/formulation/_actions/save-draft.ts: RBAC formulation.create_draft; upserts ingredients (transactional); writes formulation_audit_log; rejects if state≠draft.\n3. apps/web/app/(npd)/pipeline/[projectId]/formulation/_actions/submit-for-trial.ts: RBAC recipe.submit_for_trial; validates totalPct ∈ [99.99, 100.01] AND every RM has cost_per_kg_eur AND no missing nutrition target; transitions state→submitted_for_trial; emits 'formulation.submitted_for_trial'.\n4. apps/web/app/(npd)/pipeline/[projectId]/formulation/_actions/lock-version.ts: RBAC formulation.lock; sets locked_at + locked_by_user on formulation; transitions state→locked; emits 'formulation.locked'; cascade to fa.recipe_components per §6 Chain 3.\n\n## Files\n- apps/web/app/(npd)/pipeline/[projectId]/formulation/_actions/get-formulation.ts [create]\n- apps/web/app/(npd)/pipeline/[projectId]/formulation/_actions/save-draft.ts [create]\n- apps/web/app/(npd)/pipeline/[projectId]/formulation/_actions/submit-for-trial.ts [create]\n- apps/web/app/(npd)/pipeline/[projectId]/formulation/_actions/lock-version.ts [create]\n- apps/web/app/(npd)/pipeline/[projectId]/formulation/_actions/__tests__/lifecycle.test.ts [create]\n\n## Acceptance criteria\n1. Given a draft version with totalPct=99.5, when submitForTrial is called, then it rejects with TOTAL_PCT_OUT_OF_RANGE per §17.11.1 gate condition\n2. Given a locked version, when saveDraft is called, then it rejects with VERSION_LOCKED and no audit_log entry is written per §17.11.1 lock semantics\n3. Given lockVersion succeeds, when the cascade runs, then fa.recipe_components is rewritten and the outbox event 'formulation.locked' is emitted exactly once per §6 Chain 3 + §17.11.1\n\n## Test strategy\n- RED: __tests__/lifecycle.test.ts with 4 cases (totalPct gate, lock guard, cascade write, outbox emit) before actions exist\n- Run 'pnpm --filter web test lifecycle'\n\n## Risk red lines\n- Do not allow saveDraft on non-draft state\n- Do not skip cascade to fa.recipe_components\n- Do not bypass RBAC checks",
+  "labels": ["prd", "api", "formulation", "T2-api"],
+  "priority": 80,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-064",
+    "source_prd": "01-NPD-PRD.md",
+    "prd_refs": ["§17.11.1", "§6"],
+    "category": "api",
+    "subcategory": "formulation-lifecycle-actions",
+    "task_type": "T2-api",
+    "parent_feature": "01-NPD-g Recipe Formulation Editor",
+    "context_budget": "55k",
+    "estimated_effort": "3-4h",
+    "description": "getFormulation + saveDraft + submitForTrial + lockVersion actions with state-machine + RBAC + cascade + outbox.",
+    "details": "saveDraft is transactional + writes audit_log; submitForTrial enforces totalPct + cost + nutrition gates; lockVersion sets immutable lock and triggers Chain 3 cascade.",
+    "scope_files": [
+      "apps/web/app/(npd)/pipeline/[projectId]/formulation/_actions/get-formulation.ts [create]",
+      "apps/web/app/(npd)/pipeline/[projectId]/formulation/_actions/save-draft.ts [create]",
+      "apps/web/app/(npd)/pipeline/[projectId]/formulation/_actions/submit-for-trial.ts [create]",
+      "apps/web/app/(npd)/pipeline/[projectId]/formulation/_actions/lock-version.ts [create]",
+      "apps/web/app/(npd)/pipeline/[projectId]/formulation/_actions/__tests__/lifecycle.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not implement compute/compare actions (T-065)",
+      "Do not build editor UI (T-066, T-067)"
+    ],
+    "dependencies": ["T-063"],
+    "parallel_safe_with": ["T-065"],
+    "acceptance_criteria": [
+      "Given a draft version with totalPct=99.5, when submitForTrial is called, then it rejects with TOTAL_PCT_OUT_OF_RANGE per §17.11.1 gate condition",
+      "Given a locked version, when saveDraft is called, then it rejects with VERSION_LOCKED and no audit_log entry is written per §17.11.1 lock semantics",
+      "Given lockVersion succeeds, when the cascade runs, then fa.recipe_components is rewritten and the outbox event 'formulation.locked' is emitted exactly once per §6 Chain 3 + §17.11.1"
+    ],
+    "test_strategy": [
+      "RED: __tests__/lifecycle.test.ts with 4 cases before actions exist",
+      "Run 'pnpm --filter web test lifecycle'"
+    ],
+    "risk_red_lines": [
+      "Do not allow saveDraft on non-draft state",
+      "Do not skip cascade to fa.recipe_components",
+      "Do not bypass RBAC checks"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

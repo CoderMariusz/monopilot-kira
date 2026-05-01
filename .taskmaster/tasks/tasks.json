@@ -1,4 +1,7 @@
 {
+  "_legacy": true,
+  "_legacy_note": "Taskmaster tasks superseded by _meta/atomic-tasks/ (prd-decompose-hybrid, 2026-04-30). Source of truth is now per-module JSON in _meta/atomic-tasks/{module}/tasks/T-NNN.json. Do not add new tasks here.",
+  "_legacy_date": "2026-05-01",
   "master": {
     "tasks": [
       {

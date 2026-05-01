@@ -1,0 +1,89 @@
+{
+  "title": "T-037 — Schema-driven column wizard UI (5-step wizard for Reference.DeptColumns add/edit)",
+  "prompt": "# T-037 — Schema-driven column wizard UI (5-step wizard for Reference.DeptColumns add/edit)\n\nPRD: `00-FOUNDATION-PRD.md` — sections: §6 (Admin UI wizard), §5.y (Stepper/Modal/Field primitives)\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`\n\n## Goal\nDeliver the 5-step Admin UI wizard described in §6 (field type → validation → presentation → preview → save) using the @monopilot/ui Stepper + Modal + Field primitives. The UI is the front end for the draft/publish Server Actions from T-036.\n\n## Implementation contract\n(1) Create apps/web/app/(admin)/schema/_components/SchemaColumnWizard.tsx using <Stepper/> with 5 steps; persist step state in URL query (?step=1..5). (2) Step 1 — radio picker over the 6 enum field_types from §6 (string/number/date/enum/formula/relation). (3) Step 2 — RHF + Zod resolver collects validation rules (required/unique/regex/range) — DSL inputs. (4) Step 3 — presentation flags (form layout group, list column visibility, export flag). (5) Step 4 — read-only <Summary/> preview rendered against a dummy sample row from a fixture. (6) Step 5 — Save calls upsertDeptColumnDraft then publishDeptColumnDraft (T-036) via server action import; show toast + redirect on success.\n\n## Files (scope)\n- apps/web/app/(admin)/schema/_components/SchemaColumnWizard.tsx [create]\n- apps/web/app/(admin)/schema/_components/__tests__/SchemaColumnWizard.test.tsx [create]\n- apps/web/app/(admin)/schema/wizard/page.tsx [create]\n\n## Acceptance criteria\n1. Given a Schema Admin opens /admin/schema/wizard, when the page renders, then the <Stepper/> is on step 1 and the field-type radio shows exactly 6 enum options matching §6 (string/number/date/enum/formula/relation)\n2. Given the user picks 'string' on step 1 and clicks Next, when step 2 renders, then RHF + Zod resolver renders required / unique / regex / range inputs and Next is disabled until at least one validation rule is set\n3. Given the user reaches step 4, when the preview renders, then a <Summary/> displays the configured field_type + validation_json against a fixture sample row and Save is enabled\n4. Given the user clicks Save on step 5, when the action chain completes, then upsertDeptColumnDraft + publishDeptColumnDraft are both invoked exactly once and the user is redirected to /admin/schema with a success toast\n\n## Test strategy\n- RED: write apps/web/app/(admin)/schema/_components/__tests__/SchemaColumnWizard.test.tsx covering all four ACs with mocked server actions, before SchemaColumnWizard.tsx exists\n- Run 'pnpm --filter web test'\n\n## Risk red lines\n- Do not import @radix-ui/react-dialog directly — must use @monopilot/ui <Modal/> + <Stepper/> per §5.y ESLint rule\n- Do not bypass the publish action and write directly to Reference.DeptColumns from the client\n- Do not free-form the field_type input — enum-based per §6\n\n## Dependencies (must be complete first)\n- T-026\n- T-031\n- T-036\n\n## Closeout evidence\nProvide: changed_files, test_commands_and_results, acceptance_criteria_status (per AC), deviations_from_prd, git_status. Use the test-driven-development skill (RED test before implementation) and requesting-code-review at GREEN.",
+  "labels": [
+    "prd",
+    "ui",
+    "schema-driven",
+    "T3-ui"
+  ],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-037",
+    "source_prd": "00-FOUNDATION-PRD.md",
+    "prd_refs": [
+      "§6",
+      "§5.y"
+    ],
+    "category": "ui",
+    "subcategory": "schema-driven",
+    "task_type": "T3-ui",
+    "parent_feature": "00-FOUNDATION schema-driven wizard frontend",
+    "context_budget": "70k",
+    "estimated_effort": "2-3h",
+    "description": "5-step admin wizard UI for Reference.DeptColumns add/edit using @monopilot/ui Stepper + Modal + Field primitives; calls T-036 actions on Save.",
+    "details": "Wizard steps follow §6 verbatim: (1) field type picker, (2) validation rules, (3) presentation flags, (4) sample-data preview, (5) save. Step state persists in URL ?step=N for shareability + back-button. Save chains upsertDeptColumnDraft → publishDeptColumnDraft from T-036.",
+    "scope_files": [
+      "apps/web/app/(admin)/schema/_components/SchemaColumnWizard.tsx [create]",
+      "apps/web/app/(admin)/schema/_components/__tests__/SchemaColumnWizard.test.tsx [create]",
+      "apps/web/app/(admin)/schema/wizard/page.tsx [create]"
+    ],
+    "out_of_scope": [
+      "Do not modify files outside the scope_files list",
+      "Do not introduce business logic from later module PRDs (01-NPD, 02-SETTINGS, etc.)",
+      "No drift-resolution UI (covered by T-034)",
+      "No Mermaid workflow diagram render (separate task in 02-SETTINGS)"
+    ],
+    "dependencies": [
+      "T-026",
+      "T-031",
+      "T-036"
+    ],
+    "parallel_safe_with": [
+      "T-035"
+    ],
+    "acceptance_criteria": [
+      "Given a Schema Admin opens /admin/schema/wizard, when the page renders, then the <Stepper/> is on step 1 and the field-type radio shows exactly 6 enum options matching §6 (string/number/date/enum/formula/relation)",
+      "Given the user picks 'string' on step 1 and clicks Next, when step 2 renders, then RHF + Zod resolver renders required / unique / regex / range inputs and Next is disabled until at least one validation rule is set",
+      "Given the user reaches step 4, when the preview renders, then a <Summary/> displays the configured field_type + validation_json against a fixture sample row and Save is enabled",
+      "Given the user clicks Save on step 5, when the action chain completes, then upsertDeptColumnDraft + publishDeptColumnDraft are both invoked exactly once and the user is redirected to /admin/schema with a success toast"
+    ],
+    "test_strategy": [
+      "RED: write apps/web/app/(admin)/schema/_components/__tests__/SchemaColumnWizard.test.tsx covering all four ACs with mocked server actions, before SchemaColumnWizard.tsx exists",
+      "Run 'pnpm --filter web test'"
+    ],
+    "risk_red_lines": [
+      "Do not import @radix-ui/react-dialog directly — must use @monopilot/ui <Modal/> + <Stepper/> per §5.y ESLint rule",
+      "Do not bypass the publish action and write directly to Reference.DeptColumns from the client",
+      "Do not free-form the field_type input — enum-based per §6"
+    ],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

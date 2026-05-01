@@ -1,0 +1,91 @@
+{
+  "title": "T-041 — PWA scaffold (Workbox manifest + service worker registration in apps/web)",
+  "prompt": "# T-041 — PWA scaffold (Workbox manifest + service worker registration in apps/web)\n\nPRD: `00-FOUNDATION-PRD.md` — sections: §5 frontend (PWA Workbox dla 06-SCANNER-P1)\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`\n\n## Goal\nDeliver the PWA scaffold for apps/web: Workbox-based service worker, web app manifest, and Next.js wiring so that 06-SCANNER-P1 (downstream) can rely on installable PWA + offline shell. PRD §5 says explicitly: 'PWA (Workbox) dla 06-SCANNER-P1: Service Worker + IndexedDB sync queue + DataWedge keyboard-wedge'.\n\n## Implementation contract\n(1) Add @serwist/next (maintained Workbox-on-Next.js wrapper) to apps/web dependencies. (2) Create apps/web/app/manifest.ts exporting the Web App Manifest (name='Monopilot', short_name='Monopilot', start_url='/', display='standalone', icons 192/512). (3) Create apps/web/app/sw.ts as the Workbox service-worker entry: precache the app shell + runtime CacheFirst for static + NetworkFirst for /api with 5s timeout. (4) Wire next.config.mjs to compile the SW via withSerwist. (5) Add a register-sw client component apps/web/app/_components/RegisterSW.tsx mounted in root layout that calls navigator.serviceWorker.register on production builds only.\n\n## Files (scope)\n- apps/web/app/manifest.ts [create]\n- apps/web/app/sw.ts [create]\n- apps/web/app/_components/RegisterSW.tsx [create]\n- apps/web/app/layout.tsx [modify]\n- apps/web/next.config.mjs [modify]\n- apps/web/package.json [modify]\n\n## Acceptance criteria\n1. Given a production build runs, when 'pnpm --filter web build' completes, then a /sw.js bundle is emitted alongside /manifest.webmanifest and the manifest serves name='Monopilot' + start_url='/' + display='standalone'\n2. Given the production app is running, when a browser loads /, then RegisterSW calls navigator.serviceWorker.register('/sw.js') exactly once and the SW reaches activated state\n3. Given a NetworkFirst route /api/health, when the network is offline (mocked in test), then the SW falls back to cached response within the 5-second timeout instead of throwing\n4. Given a development build runs, when 'pnpm --filter web dev' starts, then RegisterSW does NOT register the SW (dev safety — no stale precache)\n\n## Test strategy\n- RED: write apps/web/app/_components/__tests__/RegisterSW.test.tsx asserting prod registers / dev does not + a Vitest unit on the manifest export covering AC1 + AC4 before the components exist\n- Run 'pnpm --filter web test'\n\n## Risk red lines\n- Do not enable PWA in dev — stale precache breaks Next.js HMR\n- Do not implement IndexedDB sync queue here (covered by T-043/T-044)\n- Do not register Capacitor wrapper — that is the §5 P2 fallback, not Foundation scope\n\n## Dependencies (must be complete first)\n- T-001\n\n## Closeout evidence\nProvide: changed_files, test_commands_and_results, acceptance_criteria_status (per AC), deviations_from_prd, git_status. Use the test-driven-development skill (RED test before implementation) and requesting-code-review at GREEN.",
+  "labels": [
+    "prd",
+    "infra",
+    "pwa",
+    "T1-schema"
+  ],
+  "priority": 50,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-041",
+    "source_prd": "00-FOUNDATION-PRD.md",
+    "prd_refs": [
+      "§5"
+    ],
+    "category": "infra",
+    "subcategory": "pwa",
+    "task_type": "T1-schema",
+    "parent_feature": "00-FOUNDATION PWA scaffold",
+    "context_budget": "50k",
+    "estimated_effort": "2h",
+    "description": "Workbox-based service worker, web app manifest, and dev-safe SW registration for apps/web — substrate for 06-SCANNER-P1 PWA.",
+    "details": "Foundation owns the PWA primitive; downstream modules (06-SCANNER) consume it. We use @serwist/next (Workbox successor on Next.js App Router) because it ships first-class App Router support and avoids the abandoned next-pwa.",
+    "scope_files": [
+      "apps/web/app/manifest.ts [create]",
+      "apps/web/app/sw.ts [create]",
+      "apps/web/app/_components/RegisterSW.tsx [create]",
+      "apps/web/app/layout.tsx [modify]",
+      "apps/web/next.config.mjs [modify]",
+      "apps/web/package.json [modify]"
+    ],
+    "out_of_scope": [
+      "Do not modify files outside the scope_files list",
+      "Do not introduce business logic from later module PRDs (01-NPD, 02-SETTINGS, etc.)",
+      "No IndexedDB sync queue (T-043 / T-044)",
+      "No DataWedge keyboard-wedge wiring (06-SCANNER PRD)",
+      "No Capacitor wrapper (§5 P2)"
+    ],
+    "dependencies": [
+      "T-001"
+    ],
+    "parallel_safe_with": [
+      "T-038",
+      "T-040"
+    ],
+    "acceptance_criteria": [
+      "Given a production build runs, when 'pnpm --filter web build' completes, then a /sw.js bundle is emitted alongside /manifest.webmanifest and the manifest serves name='Monopilot' + start_url='/' + display='standalone'",
+      "Given the production app is running, when a browser loads /, then RegisterSW calls navigator.serviceWorker.register('/sw.js') exactly once and the SW reaches activated state",
+      "Given a NetworkFirst route /api/health, when the network is offline (mocked in test), then the SW falls back to cached response within the 5-second timeout instead of throwing",
+      "Given a development build runs, when 'pnpm --filter web dev' starts, then RegisterSW does NOT register the SW (dev safety — no stale precache)"
+    ],
+    "test_strategy": [
+      "RED: write apps/web/app/_components/__tests__/RegisterSW.test.tsx asserting prod registers / dev does not + a Vitest unit on the manifest export covering AC1 + AC4 before the components exist",
+      "Run 'pnpm --filter web test'"
+    ],
+    "risk_red_lines": [
+      "Do not enable PWA in dev — stale precache breaks Next.js HMR",
+      "Do not implement IndexedDB sync queue here (covered by T-043/T-044)",
+      "Do not register Capacitor wrapper — that is the §5 P2 fallback, not Foundation scope"
+    ],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

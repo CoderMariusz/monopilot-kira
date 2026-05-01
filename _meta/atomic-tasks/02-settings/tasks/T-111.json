@@ -1,0 +1,88 @@
+{
+  "title": "T-111 — D365 Sync Config screen (SET-082 §11.3)",
+  "prompt": "# T-111 — D365 Sync Config screen (SET-082 §11.3)\n\nPRD: 02-SETTINGS-PRD.md §11.3 (D365 Admin UI)\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nBuild SET-082 D365 Sync Config — manages pull schedule (cron), push queue settings, retry policy, and DLQ view link. Persists via T-030 d365 config Server Actions. RBAC `owner` only per §11.4.\n\n## Implementation contract\n1. Page at apps/web/app/(admin)/settings/integrations/d365/sync/page.tsx (Server Component) reads sync config row (singleton per org from `d365_sync_config` table per T-030 schema).\n2. Form sections: Pull schedule (cron input + next-run preview), Push queue (max_inflight, batch_size), Retry policy (max_attempts, backoff_ms), DLQ (link to admin DLQ tooling — out of UI scope here).\n3. RHF + Zod resolver; Submit calls T-030 updateD365SyncConfig action.\n4. Show last applied at + applied_by_user metadata at top.\n5. RBAC: requires `owner` role; 403 otherwise.\n\n## Files\n- apps/web/app/(admin)/settings/integrations/d365/sync/page.tsx [create]\n- apps/web/app/(admin)/settings/integrations/d365/sync/page.test.tsx [create]\n\n## Acceptance criteria\nSee `acceptance_criteria` array.\n\n## Test strategy\n1. RED: RTL test mounts form with mocked config; asserts Zod validation on bad cron + submit calls T-030 action.\n   `pnpm --filter @monopilot/web vitest run apps/web/app/(admin)/settings/integrations/d365/sync/page.test.tsx`\n2. RED must fail.\n3. GREEN: implement Server Component + RHF form + submit wiring.\n4. Re-run RED + `pnpm typecheck` + `pnpm lint`.\n\n## Risk red lines\n- Do not import @radix-ui/* outside packages/ui (§0).\n- Do not store credentials in this form (§11.6 V-SET-51 — handled by SET-080 connection screen).\n- Do not bypass owner-only RBAC.\n\nStack: TS + Next.js App Router + Drizzle + pnpm + vitest + Playwright + Server Actions. PRD: 02-SETTINGS-PRD.md v3.5.\n",
+  "labels": [
+    "prd",
+    "ui",
+    "set-082",
+    "T3-ui"
+  ],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-111",
+    "source_prd": "02-SETTINGS-PRD.md",
+    "prd_refs": [
+      "§11.3",
+      "§11.4",
+      "V-SET-53"
+    ],
+    "category": "ui",
+    "subcategory": "set-082",
+    "task_type": "T3-ui",
+    "parent_feature": "02-settings-e-ui",
+    "context_budget": "40k",
+    "estimated_effort": "1-3h",
+    "description": "D365 Sync Config (SET-082): cron pull schedule + push queue + retry policy form, owner-only RBAC.",
+    "details": "PRD §11.3 SET-082: `Pull schedule (cron), push queue, retry policy, dead-letter queue view`. DLQ deep view itself is out of scope — only a link is rendered (admin DLQ tooling lives in worker package). Cron string validated client-side with cron-parser style Zod refinement; next-run preview rendered using a small in-repo cron evaluator.",
+    "scope_files": [
+      "apps/web/app/(admin)/settings/integrations/d365/sync/page.tsx [create]",
+      "apps/web/app/(admin)/settings/integrations/d365/sync/page.test.tsx [create]"
+    ],
+    "out_of_scope": [
+      "DLQ inspect/replay tooling (worker package)",
+      "Connection credentials (SET-080 / T-061)"
+    ],
+    "dependencies": [
+      "T-030",
+      "T-061"
+    ],
+    "parallel_safe_with": [
+      "T-112"
+    ],
+    "acceptance_criteria": [
+      "Given the form renders for an owner, when an invalid cron string '*/x * * * *' is entered, then Zod validation surfaces an inline error and Submit is disabled.",
+      "Given a valid cron '0 * * * *' is entered with batch_size=100 and max_attempts=3, when Submit is clicked, then T-030 updateD365SyncConfig is called with those values and a success toast renders.",
+      "Given the caller is not `owner`, when the page is requested, then a 403 page renders.",
+      "Given a sync config exists with last_applied_at set, when the page renders, then header strip shows that timestamp and the applied_by_user."
+    ],
+    "test_strategy": [
+      "RED: RTL test asserts cron validation, submit wiring, RBAC 403, header metadata.",
+      "GREEN: implement Server Component + RHF + Zod cron refinement + submit handler.",
+      "Run `pnpm --filter @monopilot/web vitest run apps/web/app/(admin)/settings/integrations/d365/sync/page.test.tsx` and `pnpm typecheck`."
+    ],
+    "risk_red_lines": [
+      "Do not import @radix-ui/* outside packages/ui (§0).",
+      "Do not store credentials in this form (§11.6 V-SET-51 — handled by SET-080 connection screen).",
+      "Do not bypass owner-only RBAC."
+    ],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": false
+  }
+}

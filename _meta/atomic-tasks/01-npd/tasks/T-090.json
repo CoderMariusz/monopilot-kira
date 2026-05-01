@@ -1,0 +1,59 @@
+{
+  "title": "T-090 — d365_import_cache_meta view + scheduled sync worker (NPD misc)",
+  "prompt": "# T-090 — d365_import_cache scheduled sync\n\nPRD: 01-NPD-PRD.md §10.8, §11.7\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nIntroduce d365_import_cache_meta SQL view (max(last_synced_at) per tenant) backing the dashboard last-sync timestamp, plus a scheduled pg-boss worker that re-syncs d365_import_cache periodically (every 6 h) in addition to the manual Refresh-D365 button.\n\n## Implementation contract\n1. Migration packages/db/migrations/0090_d365_cache_meta_view.sql creates d365_import_cache_meta view (security_invoker=true) returning (tenant_id, last_synced_at = max(last_synced_at), row_count).\n2. apps/worker/src/jobs/d365-cache-sync.ts pg-boss job (cron 0 */6 * * *) calls D365 adapter + UPSERTs into d365_import_cache + emits 'd365.cache.refreshed'.\n3. Worker registered in apps/worker/src/index.ts boot.\n4. Vitest covers view aggregation + idempotent UPSERT + outbox emit (mocked D365 adapter).\n\n## Files\n- packages/db/migrations/0090_d365_cache_meta_view.sql [create]\n- apps/worker/src/jobs/d365-cache-sync.ts [create]\n- apps/worker/src/index.ts [modify]\n- apps/worker/__tests__/d365-cache-sync.test.ts [create]\n\n## Acceptance criteria\n1. Given migration 0090 runs and 5 d365_import_cache rows exist with various last_synced_at, when SELECT * FROM d365_import_cache_meta runs as a tenant, then it returns 1 row with last_synced_at = max value + row_count = 5 per §11.7 last-sync contract\n2. Given the d365-cache-sync worker fires, when it completes, then d365_import_cache rows are UPSERTed (not duplicated) and outbox event 'd365.cache.refreshed' is emitted exactly once per §10.8\n3. Given two tenants seeded, when SELECT * FROM d365_import_cache_meta runs as tenant A, then only tenant A row is returned (RLS via security_invoker)\n\n## Test strategy\n- RED: __tests__/d365-cache-sync.test.ts asserting view aggregation + UPSERT + outbox + RLS before job exists; mock D365 adapter\n- Run 'pnpm --filter db migrate && pnpm --filter worker test d365-cache-sync'\n\n## Risk red lines\n- Do not omit security_invoker on the view\n- Do not duplicate rows (must UPSERT keyed by tenant_id+code)\n- Do not skip outbox event emission",
+  "labels": ["prd", "api", "d365-cache-sync", "T2-api"],
+  "priority": 80,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-090",
+    "source_prd": "01-NPD-PRD.md",
+    "prd_refs": ["§10.8", "§11.7"],
+    "category": "api",
+    "subcategory": "d365-cache-sync",
+    "task_type": "T2-api",
+    "parent_feature": "01-NPD misc D365 sync",
+    "context_budget": "45k",
+    "estimated_effort": "2-3h",
+    "description": "d365_import_cache_meta view + scheduled pg-boss worker (every 6 h) for D365 cache sync.",
+    "details": "View aggregates last_synced_at per tenant. Worker UPSERTs cache + emits outbox event.",
+    "scope_files": [
+      "packages/db/migrations/0090_d365_cache_meta_view.sql [create]",
+      "apps/worker/src/jobs/d365-cache-sync.ts [create]",
+      "apps/worker/src/index.ts [modify]",
+      "apps/worker/__tests__/d365-cache-sync.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not build manual Refresh-D365 action here (T-051)",
+      "Do not implement V04 validator here (already in earlier tasks)"
+    ],
+    "dependencies": ["T-049"],
+    "parallel_safe_with": ["T-051", "T-091"],
+    "acceptance_criteria": [
+      "Given migration 0090 runs and 5 d365_import_cache rows exist with various last_synced_at, when SELECT * FROM d365_import_cache_meta runs as a tenant, then it returns 1 row with last_synced_at = max value + row_count = 5 per §11.7 last-sync contract",
+      "Given the d365-cache-sync worker fires, when it completes, then d365_import_cache rows are UPSERTed (not duplicated) and outbox event 'd365.cache.refreshed' is emitted exactly once per §10.8",
+      "Given two tenants seeded, when SELECT * FROM d365_import_cache_meta runs as tenant A, then only tenant A row is returned (RLS via security_invoker)"
+    ],
+    "test_strategy": [
+      "RED: __tests__/d365-cache-sync.test.ts asserting view aggregation + UPSERT + outbox + RLS before job exists; mock D365 adapter",
+      "Run 'pnpm --filter db migrate && pnpm --filter worker test d365-cache-sync'"
+    ],
+    "risk_red_lines": [
+      "Do not omit security_invoker on the view",
+      "Do not duplicate rows (must UPSERT)",
+      "Do not skip outbox event emission"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

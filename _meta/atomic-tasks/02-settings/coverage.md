@@ -53,6 +53,20 @@
 | §10.3 | SET-071 UI (flags_admin_screen) | tasks/T-065.json | covered |
 | §10.3 | SET-070 UI (features_screen) | tasks/T-072.json | covered |
 | §10.3 | SET-070-grid UI (features_screen (parity)) | tasks/T-103.json | covered |
+| §10.3 | SET-072 PostHog Feature Flags Proxy (route handler) | tasks/T-110.json | covered |
+| §11.3 | SET-082 D365 Sync Config screen | tasks/T-111.json | covered |
+| §11.3 | SET-083 D365 Sync Audit screen | tasks/T-112.json | covered |
+| §12.2 | SET-012-warehouse Warehouse List screen | tasks/T-104.json | covered |
+| §12.2 | SET-014 Location Tree screen | tasks/T-105.json | covered |
+| §12.2 | SET-016 Machine List screen | tasks/T-106.json | covered |
+| §12.2 | SET-018 Line List screen | tasks/T-107.json | covered |
+| §13.4 | SET-093 Email Delivery Log screen | tasks/T-113.json | covered |
+| §7.6 | SET-042 Rule Version Diff screen | tasks/T-108.json | covered |
+| §8.6 | SET-054 Reference Audit Trail screen | tasks/T-114.json | covered |
+| §8.9.11 | SET-057 Manufacturing Operation Audit Trail screen | tasks/T-115.json | covered |
+| §8.9.12 | SET-057 Manufacturing Operation Audit Trail screen | tasks/T-115.json | covered |
+| §9.7 | SET-064 Migration History screen | tasks/T-109.json | covered |
+| §14.2 | i18n namespace 02-settings.json (PL+EN) seed | tasks/T-116.json | covered |
 | §11 | Permission enum for schema/rules/ref/infra/d365/email/onboarding/security | tasks/T-002.json | covered |
 | §11 | D365 constants + test connection actions | tasks/T-030.json | covered |
 | §11.3 | SM-08 UI (d365_test_connection_modal) | tasks/T-054.json | covered |
@@ -194,7 +208,7 @@
 
 ## Coverage by category
 
-### api (18 tasks)
+### api (19 tasks)
 
 | Task | Subcategory | Type |
 |---|---|---|
@@ -216,6 +230,7 @@
 | T-037 | onboarding-state | T2-api |
 | T-038 | manufacturing-ops | T2-api |
 | T-040 | cascade-engine | T2-api |
+| T-110 | posthog-proxy | T2-api |
 
 ### auth (10 tasks)
 
@@ -232,7 +247,7 @@
 | T-035 | edge-middleware | T2-api |
 | T-036 | ip-allowlist | T2-api |
 
-### data (14 tasks)
+### data (15 tasks)
 
 | Task | Subcategory | Type |
 |---|---|---|
@@ -250,6 +265,7 @@
 | T-091 | seed-role-categories | T5-seed |
 | T-092 | seed-modules | T5-seed |
 | T-093 | seed-reference-schemas | T5-seed |
+| T-116 | seed-i18n-strings | T5-seed |
 
 ### docs (2 tasks)
 
@@ -280,7 +296,7 @@
 | T-089 | integration-audit | T4-wiring-test |
 | T-090 | integration-l2 | T4-wiring-test |
 
-### ui (47 tasks)
+### ui (58 tasks)
 
 | Task | Subcategory | Type |
 |---|---|---|
@@ -331,6 +347,17 @@
 | T-101 | set-061 | T3-ui |
 | T-102 | set-062 | T3-ui |
 | T-103 | set-070-grid | T3-ui |
+| T-104 | set-012-warehouse | T3-ui |
+| T-105 | set-014 | T3-ui |
+| T-106 | set-016 | T3-ui |
+| T-107 | set-018 | T3-ui |
+| T-108 | set-042 | T3-ui |
+| T-109 | set-064 | T3-ui |
+| T-111 | set-082 | T3-ui |
+| T-112 | set-083 | T3-ui |
+| T-113 | set-093 | T3-ui |
+| T-114 | set-054 | T3-ui |
+| T-115 | set-057 | T3-ui |
 
 ## Gaps
 
@@ -341,5 +368,7 @@
 ## Notes
 
 - 25 reference tables (§8.1) are covered by a single generic-CRUD set (T-021/022 + UI T-067) plus dedicated Manufacturing Operations (T-038/039/040 + T-077/078) and dedicated seed (T-093). Per-table seed tasks are intentionally NOT atomized further — `reference_schemas` (T-093) drives schema-driven CRUD for all 25 codes.
+- Reference table #25 `changeover_target_duration_min` (§8.1/§8.8 v3.4 delta) is covered implicitly by T-093 (asserts "25 distinct table codes" in §8.1) — no dedicated migration task required because storage uses generic `reference_tables` row keyed `{line_id}:{fa_code}`.
+- `oee_alert_thresholds.oee_target_pct=70` default (§8.8 v3.4 delta) is covered by T-093 AC#3 ("oee_target_pct default reflects 70 (v3.4)") — no separate seed task required.
 - 6 mistagged prototypes from prototype-index-settings.json (sites/shifts/devices/products/boms/partners) are documented as moved to other modules per D8 in T-095 decisions log; those are NOT covered here.
 - Schema column edit wizard (SET-031), schema diff viewer (SET-032), and CSV import wizard (SET-053) carry parity AC against UX spec because no prototype exists (per Step 7 fallback).

@@ -1,0 +1,60 @@
+{
+  "title": "T-079 — UI: ApprovalScreen (ApprovalScreen prototype) — 7-criteria summary + chain status + Submit-for-approval (NPD-i)",
+  "prompt": "# T-079 — Approval screen UI\n\nPRD: 01-NPD-PRD.md §17.11.5 + UX 01-NPD-UX.md approval_screen\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\nPrototype: design/Monopilot Design System/npd/other-stages.jsx:412-475 (ApprovalScreen)\n\n## Goal\nClient component ApprovalScreen at /(npd)/pipeline/[projectId]?stage=approval rendering 2 cards (gates summary + chain status), 7-criteria summary card with Done/Awaiting/Pending badges, Submit-for-approval CTA gated on all 7 pass.\n\n## Implementation contract\n1. apps/web/app/(npd)/pipeline/[projectId]/approval/page.tsx (RSC) reads project + evaluateApprovalCriteria result + approval chain template.\n2. ApprovalScreen renders: gates summary Card (G3/G4 status), chain status Card (single vs multi), 7-criteria badge grid (C1-C7), Submit-for-approval Button disabled unless all C1-C7='pass'.\n3. Submit calls existing approveProjectGate with e-signature flow (T-061 modal reuse).\n4. RTL parity test against prototype + Submit gating.\n\n## Files\n- apps/web/app/(npd)/pipeline/[projectId]/approval/page.tsx [create]\n- apps/web/app/(npd)/pipeline/[projectId]/approval/_components/approval-screen.tsx [create]\n- apps/web/app/(npd)/pipeline/[projectId]/approval/_components/criteria-card.tsx [create]\n- apps/web/app/(npd)/pipeline/[projectId]/approval/_components/__tests__/approval-screen.test.tsx [create]\n- design/Monopilot Design System/npd/other-stages.jsx [ref]\n\n## Acceptance criteria\n1. Given the production ApprovalScreen renders, when compared to design/Monopilot Design System/npd/other-stages.jsx:412-475 (ApprovalScreen), then it has the same 2 cards (gates summary + chain status) + 7-criteria summary card using shadcn Card + Badge primitives — verified by RTL snapshot + parity checklist\n2. Given evaluateApprovalCriteria returns one criterion as 'pending', when the screen renders, then the Submit-for-approval Button is disabled per §17.11.5 gate condition\n3. Given all 7 criteria return 'pass' and user clicks Submit, when the GateApprovalModal opens, then approveProjectGate is invoked on e-sign per §17.11.5 + §17.6 e-sig flow\n\n## Test strategy\n- RED: __tests__/approval-screen.test.tsx asserting parity + Submit gating + e-sig invocation before component exists\n- Run 'pnpm --filter web test approval-screen'\n\n## Risk red lines\n- Do not allow Submit when any criterion ≠ 'pass'\n- Do not paste prototype JSX verbatim\n- Do not bypass GateApprovalModal e-sig flow",
+  "labels": ["prd", "ui", "approval-screen", "T3-ui"],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-079",
+    "source_prd": "01-NPD-PRD.md",
+    "prd_refs": ["§17.11.5", "§17.6"],
+    "category": "ui",
+    "subcategory": "approval-screen",
+    "task_type": "T3-ui",
+    "parent_feature": "01-NPD-i Approval+Risk+Compliance",
+    "context_budget": "50k",
+    "estimated_effort": "2-3h",
+    "description": "Approval stage screen with 7-criteria summary + chain status + Submit-for-approval CTA gated on all pass.",
+    "details": "Parity checklist: gates summary + chain status cards, 7-criteria badge grid, Submit gating, e-sig modal reuse.",
+    "scope_files": [
+      "apps/web/app/(npd)/pipeline/[projectId]/approval/page.tsx [create]",
+      "apps/web/app/(npd)/pipeline/[projectId]/approval/_components/approval-screen.tsx [create]",
+      "apps/web/app/(npd)/pipeline/[projectId]/approval/_components/criteria-card.tsx [create]",
+      "apps/web/app/(npd)/pipeline/[projectId]/approval/_components/__tests__/approval-screen.test.tsx [create]",
+      "design/Monopilot Design System/npd/other-stages.jsx [ref]"
+    ],
+    "out_of_scope": [
+      "Do not implement criteria evaluator (T-078)",
+      "Do not build risk register UI (T-082)"
+    ],
+    "dependencies": ["T-061", "T-078"],
+    "parallel_safe_with": ["T-082", "T-086"],
+    "acceptance_criteria": [
+      "Given the production ApprovalScreen renders, when compared to design/Monopilot Design System/npd/other-stages.jsx:412-475 (ApprovalScreen), then it has the same 2 cards (gates summary + chain status) + 7-criteria summary card using shadcn primitives — verified by RTL snapshot + parity checklist",
+      "Given evaluateApprovalCriteria returns one criterion as 'pending', when the screen renders, then the Submit-for-approval Button is disabled per §17.11.5",
+      "Given all 7 criteria return 'pass' and user clicks Submit, when the GateApprovalModal opens, then approveProjectGate is invoked on e-sign per §17.11.5 + §17.6"
+    ],
+    "test_strategy": [
+      "RED: __tests__/approval-screen.test.tsx asserting parity + Submit gating + e-sig invocation before component exists",
+      "Run 'pnpm --filter web test approval-screen'"
+    ],
+    "risk_red_lines": [
+      "Do not allow Submit when any criterion ≠ 'pass'",
+      "Do not paste prototype JSX verbatim",
+      "Do not bypass GateApprovalModal e-sig flow"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

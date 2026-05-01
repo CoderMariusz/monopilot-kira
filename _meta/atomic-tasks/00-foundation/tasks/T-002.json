@@ -46,7 +46,9 @@
     "parallel_safe_with": [],
     "acceptance_criteria": [
       "Given a Postgres 16 container is running, when the integration test connects via the Drizzle client, then SELECT 1 returns 1 and the client closes cleanly",
-      "Given drizzle-kit is configured, when 'pnpm --filter @monopilot/db migrate' runs against an empty database, then it reports zero pending migrations and exits 0"
+      "Given drizzle-kit is configured, when 'pnpm --filter @monopilot/db migrate' runs against an empty database, then it reports zero pending migrations and exits 0",
+      "Given packages/db/lib/client.ts is imported, when DATABASE_URL is not set, then the module throws a clear configuration error before attempting a connection",
+      "Given packages/db/drizzle.config.ts is present, when drizzle-kit introspects the schema directory, then it resolves packages/db/schema/index.ts without errors"
     ],
     "test_strategy": [
       "RED: write packages/db/__tests__/connection.integration.test.ts asserting SELECT 1 = 1 before lib/client.ts exists",

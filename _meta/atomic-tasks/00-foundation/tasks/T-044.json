@@ -1,0 +1,86 @@
+{
+  "title": "T-044 — Sync queue flusher (online-event-driven replay with idempotent server dedup)",
+  "prompt": "# T-044 — Sync queue flusher (online-event-driven replay with idempotent server dedup)\n\nPRD: `00-FOUNDATION-PRD.md` — sections: §5 (IndexedDB sync queue), §10 (Idempotent mutations [R14])\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`\n\n## Goal\nFlusher that listens for window 'online' event, drains the IndexedDB queue from T-043 in FIFO order, and POSTs each mutation to its endpoint with the X-Transaction-Id header. The receiving routes use the idempotency helper from T-024 to dedup replays.\n\n## Implementation contract\n(1) Add packages/sync-queue/src/flusher.ts exporting startFlusher() that subscribes to window.addEventListener('online', flushOnce) + a 30-second interval fallback. (2) flushOnce() reads listPending() from T-043, sends each in order via fetch(endpoint, { method, body, headers: { 'X-Transaction-Id': transaction_id, 'Content-Type': 'application/json' } }). (3) On 2xx or 409 (duplicate per T-024 idempotency) → remove(transaction_id). (4) On 5xx or network error → leave in queue + exponential backoff (5min/30min/2h capped at 12h). (5) Export stopFlusher() for unmount. (6) Vitest covers happy path, 409 dedup-success path, 5xx retry path with mocked fetch.\n\n## Files (scope)\n- packages/sync-queue/src/flusher.ts [create]\n- packages/sync-queue/src/__tests__/flusher.test.ts [create]\n- packages/sync-queue/src/index.ts [modify]\n\n## Acceptance criteria\n1. Given 3 mutations queued and the network goes online, when window dispatches 'online', then flushOnce sends 3 fetches in FIFO order each carrying X-Transaction-Id matching the queued transaction_id\n2. Given a fetch returns HTTP 409 (server already saw this transaction_id per T-024), when flushOnce processes it, then the entry is removed from the queue (treat dedup-success as success)\n3. Given a fetch returns HTTP 503, when flushOnce processes it, then the entry stays in the queue and the backoff timer is set to the next attempt (≥5 minutes)\n4. Given startFlusher() is called twice, when the second call returns, then only one online listener is registered (idempotent start — no double flushing)\n\n## Test strategy\n- RED: write packages/sync-queue/src/__tests__/flusher.test.ts with mocked fetch + a fake online event before flusher.ts exists\n- Run 'pnpm --filter @monopilot/sync-queue test'\n\n## Risk red lines\n- Do not flush in parallel — FIFO order is the §10 R14 contract\n- Do not delete an entry on 4xx other than 409 (caller error needs human intervention)\n- Do not exceed the 12-hour backoff cap — beyond that, surface to a UI alert (deferred — separate task)\n\n## Dependencies (must be complete first)\n- T-024\n- T-043\n\n## Closeout evidence\nProvide: changed_files, test_commands_and_results, acceptance_criteria_status (per AC), deviations_from_prd, git_status. Use the test-driven-development skill (RED test before implementation) and requesting-code-review at GREEN.",
+  "labels": [
+    "prd",
+    "api",
+    "offline-queue",
+    "T2-api"
+  ],
+  "priority": 80,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-044",
+    "source_prd": "00-FOUNDATION-PRD.md",
+    "prd_refs": [
+      "§5",
+      "§10"
+    ],
+    "category": "api",
+    "subcategory": "offline-queue",
+    "task_type": "T2-api",
+    "parent_feature": "00-FOUNDATION IndexedDB sync queue",
+    "context_budget": "55k",
+    "estimated_effort": "2h",
+    "description": "Online-event-driven flusher that drains the IndexedDB queue in FIFO order, POSTs each mutation with X-Transaction-Id, and dedups on 409 from the T-024 idempotency layer.",
+    "details": "Pairs with T-043 (queue primitive) and T-024 (server-side idempotency helper). The 5min/30min/2h/12h backoff schedule mirrors the outbox worker (T-008) for operator familiarity.",
+    "scope_files": [
+      "packages/sync-queue/src/flusher.ts [create]",
+      "packages/sync-queue/src/__tests__/flusher.test.ts [create]",
+      "packages/sync-queue/src/index.ts [modify]"
+    ],
+    "out_of_scope": [
+      "Do not modify files outside the scope_files list",
+      "Do not introduce business logic from later module PRDs (01-NPD, 02-SETTINGS, etc.)",
+      "No background-sync API (deferred — Phase D scanner hardening)",
+      "No UI surface for stuck mutations (deferred to 06-SCANNER PRD)"
+    ],
+    "dependencies": [
+      "T-024",
+      "T-043"
+    ],
+    "parallel_safe_with": [],
+    "acceptance_criteria": [
+      "Given 3 mutations queued and the network goes online, when window dispatches 'online', then flushOnce sends 3 fetches in FIFO order each carrying X-Transaction-Id matching the queued transaction_id",
+      "Given a fetch returns HTTP 409 (server already saw this transaction_id per T-024), when flushOnce processes it, then the entry is removed from the queue (treat dedup-success as success)",
+      "Given a fetch returns HTTP 503, when flushOnce processes it, then the entry stays in the queue and the backoff timer is set to the next attempt (≥5 minutes)",
+      "Given startFlusher() is called twice, when the second call returns, then only one online listener is registered (idempotent start — no double flushing)"
+    ],
+    "test_strategy": [
+      "RED: write packages/sync-queue/src/__tests__/flusher.test.ts with mocked fetch + a fake online event before flusher.ts exists",
+      "Run 'pnpm --filter @monopilot/sync-queue test'"
+    ],
+    "risk_red_lines": [
+      "Do not flush in parallel — FIFO order is the §10 R14 contract",
+      "Do not delete an entry on 4xx other than 409 (caller error needs human intervention)",
+      "Do not exceed the 12-hour backoff cap — beyond that, surface to a UI alert (deferred — separate task)"
+    ],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

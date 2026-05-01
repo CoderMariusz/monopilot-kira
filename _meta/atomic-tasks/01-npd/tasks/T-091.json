@@ -1,0 +1,57 @@
+{
+  "title": "T-091 — E2E: dashboard interactive controls (show-built + dept chips + search) (NPD-e wrap-up)",
+  "prompt": "# T-091 — Dashboard controls E2E\n\nPRD: 01-NPD-PRD.md §11.7\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nPlaywright E2E covering dashboard interactive controls: Show-built toggle (URL ?showBuilt), per-dept filter chips (URL ?dept), free-text search (debounced 300 ms), Refresh-D365 button (60 s disable + last_synced_at update).\n\n## Implementation contract\n1. apps/web/e2e/npd/dashboard-controls.spec.ts: load dashboard → toggle Show-built → assert URL ?showBuilt=true + built FAs visible → click MRP chip → assert URL ?dept=mrp + filtered list → type 'FA0042' in search → wait 300 ms → assert filtered to one row → click Refresh-D365 → assert button disabled with countdown + last_synced_at refreshed.\n2. Integration test apps/web/__tests__/integration/dashboard-throttle.test.ts: verifies refreshD365Cache rejects 2nd call within 60 s.\n\n## Files\n- apps/web/e2e/npd/dashboard-controls.spec.ts [create]\n- apps/web/__tests__/integration/dashboard-throttle.test.ts [create]\n\n## Acceptance criteria\n1. Given the user toggles Show-built, when the toggle settles, then URL contains ?showBuilt=true and built FAs appear in the launch alerts table per §11.7 toggle contract\n2. Given the user clicks the MRP chip, when the URL updates, then it contains ?dept=mrp and the alerts table filters to FAs missing data in MRP per §11.7 dept filter\n3. Given the user clicks Refresh-D365, when the action settles, then the button is disabled for 60 s with countdown and a 2nd click within that window rejects with THROTTLED per §11.7 throttle\n\n## Test strategy\n- RED: 3 specs above before final wiring; isolated test container; mock D365 adapter\n- Run 'pnpm --filter web test:e2e dashboard-controls && pnpm --filter web test dashboard-throttle'\n\n## Risk red lines\n- Do not skip URL persistence assertion\n- Do not run against shared/staging DB\n- Do not bypass 60 s throttle in test (must hit real Server Action)",
+  "labels": ["prd", "test", "dashboard-controls", "T4-wiring-test"],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-091",
+    "source_prd": "01-NPD-PRD.md",
+    "prd_refs": ["§11.7"],
+    "category": "test",
+    "subcategory": "dashboard-controls-e2e",
+    "task_type": "T4-wiring-test",
+    "parent_feature": "01-NPD-e Dashboard",
+    "context_budget": "50k",
+    "estimated_effort": "2h",
+    "description": "Playwright E2E covering Show-built toggle + dept chips + search + Refresh-D365 throttle.",
+    "details": "Lifecycle E2E exercises every interactive control with URL persistence + throttle assertions.",
+    "scope_files": [
+      "apps/web/e2e/npd/dashboard-controls.spec.ts [create]",
+      "apps/web/__tests__/integration/dashboard-throttle.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not test polling latency (T-053)",
+      "Do not implement the controls (T-052)"
+    ],
+    "dependencies": ["T-052", "T-051"],
+    "parallel_safe_with": ["T-053", "T-090"],
+    "acceptance_criteria": [
+      "Given the user toggles Show-built, when the toggle settles, then URL contains ?showBuilt=true and built FAs appear in the launch alerts table per §11.7 toggle contract",
+      "Given the user clicks the MRP chip, when the URL updates, then it contains ?dept=mrp and the alerts table filters to FAs missing data in MRP per §11.7 dept filter",
+      "Given the user clicks Refresh-D365, when the action settles, then the button is disabled for 60 s with countdown and a 2nd click within that window rejects with THROTTLED per §11.7 throttle"
+    ],
+    "test_strategy": [
+      "RED: 3 specs above before final wiring; isolated test container; mock D365 adapter",
+      "Run 'pnpm --filter web test:e2e dashboard-controls && pnpm --filter web test dashboard-throttle'"
+    ],
+    "risk_red_lines": [
+      "Do not skip URL persistence assertion",
+      "Do not run against shared/staging DB",
+      "Do not bypass 60 s throttle in test"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

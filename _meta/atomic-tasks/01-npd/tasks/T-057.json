@@ -1,0 +1,59 @@
+{
+  "title": "T-057 — createProject + listProjects + getProject Server Actions (NPD-f)",
+  "prompt": "# T-057 — Project lifecycle Server Actions (read+create)\n\nPRD: 01-NPD-PRD.md §17.3, §17.6, §17.8, §17.9\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nThree Server Actions to create and read NPD projects: createProject (inserts npd_projects + seeds gate_checklist_items from Reference.GateChecklistTemplates), listProjects (with filters), getProject (single project + checklist + approvals timeline).\n\n## Implementation contract\n1. apps/web/app/(npd)/pipeline/_actions/create-project.ts: RBAC npd.project.create; generates code (NPD-NNN sequence per tenant); inserts npd_projects + copies template items into gate_checklist_items; emits outbox event 'npd.project.created'; transactional.\n2. apps/web/app/(npd)/pipeline/_actions/list-projects.ts: RBAC npd.project.view; filters {gate?, owner?, prio?, search?}; returns projects + computed progress percent.\n3. apps/web/app/(npd)/pipeline/_actions/get-project.ts: returns project + gate_checklist_items grouped by gate + gate_approvals timeline.\n4. Vitest covers code-sequence uniqueness, template seeding, RBAC, and filter behaviour.\n\n## Files\n- apps/web/app/(npd)/pipeline/_actions/create-project.ts [create]\n- apps/web/app/(npd)/pipeline/_actions/list-projects.ts [create]\n- apps/web/app/(npd)/pipeline/_actions/get-project.ts [create]\n- apps/web/app/(npd)/pipeline/_actions/__tests__/project-actions.test.ts [create]\n\n## Acceptance criteria\n1. Given an NPD Manager calls createProject with valid input, when the action commits, then a new npd_projects row exists with code matching ^NPD-\\d{3}$ and gate_checklist_items rows are seeded from Reference.GateChecklistTemplates per §17.10\n2. Given a non-NPD-Manager (viewer) calls createProject, when the action runs, then it rejects with FORBIDDEN per §17.9 RBAC matrix\n3. Given two parallel createProject calls for the same tenant, when both commit, then their codes differ (no duplicate code) — verified by integration test with concurrency\n\n## Test strategy\n- RED: __tests__/project-actions.test.ts with 3 cases (happy create + checklist seed, RBAC reject, concurrent code uniqueness) before actions exist\n- Run 'pnpm --filter web test project-actions'\n\n## Risk red lines\n- Do not allow code collision under concurrent insert (use sequence/advisory lock)\n- Do not bypass RBAC\n- Do not skip transaction wrapping the project + checklist insert",
+  "labels": ["prd", "api", "stage-gate", "T2-api"],
+  "priority": 80,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-057",
+    "source_prd": "01-NPD-PRD.md",
+    "prd_refs": ["§17.3", "§17.6", "§17.8", "§17.9"],
+    "category": "api",
+    "subcategory": "project-lifecycle-actions",
+    "task_type": "T2-api",
+    "parent_feature": "01-NPD-f Stage-Gate Pipeline",
+    "context_budget": "55k",
+    "estimated_effort": "3-4h",
+    "description": "createProject + listProjects + getProject Server Actions with RBAC + checklist seeding + outbox emit.",
+    "details": "createProject uses sequence for unique NPD-NNN codes + transactionally seeds gate_checklist_items from Reference.GateChecklistTemplates. listProjects supports filter combos. getProject denormalises checklist + approvals timeline.",
+    "scope_files": [
+      "apps/web/app/(npd)/pipeline/_actions/create-project.ts [create]",
+      "apps/web/app/(npd)/pipeline/_actions/list-projects.ts [create]",
+      "apps/web/app/(npd)/pipeline/_actions/get-project.ts [create]",
+      "apps/web/app/(npd)/pipeline/_actions/__tests__/project-actions.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not implement gate advancement here (T-058)",
+      "Do not build pipeline UI (T-059, T-060)"
+    ],
+    "dependencies": ["T-054", "T-055", "T-056"],
+    "parallel_safe_with": ["T-058"],
+    "acceptance_criteria": [
+      "Given an NPD Manager calls createProject with valid input, when the action commits, then a new npd_projects row exists with code matching ^NPD-\\d{3}$ and gate_checklist_items rows are seeded from Reference.GateChecklistTemplates per §17.10",
+      "Given a non-NPD-Manager (viewer) calls createProject, when the action runs, then it rejects with FORBIDDEN per §17.9 RBAC matrix",
+      "Given two parallel createProject calls for the same tenant, when both commit, then their codes differ — verified by concurrency integration test"
+    ],
+    "test_strategy": [
+      "RED: 3 cases (create+seed, RBAC reject, concurrent code uniqueness) before actions exist",
+      "Run 'pnpm --filter web test project-actions'"
+    ],
+    "risk_red_lines": [
+      "Do not allow code collision under concurrent insert",
+      "Do not bypass RBAC",
+      "Do not skip transaction wrapping project + checklist insert"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

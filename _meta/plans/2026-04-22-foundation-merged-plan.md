@@ -191,7 +191,7 @@ Delete file.
 
 ---
 
-## §1 — Sub-module 00-a — Monorepo + Next.js 14 scaffold (7 tasks)
+## §1 — Sub-module 00-a — Monorepo + Next.js 16 scaffold (7 tasks)
 
 ### T-00a-001 — Initialise pnpm workspace + Turborepo config
 
@@ -233,7 +233,7 @@ Revert commit.
 
 ---
 
-### T-00a-002 — Bootstrap `apps/web` (Next.js 14 App Router, TS strict)
+### T-00a-002 — Bootstrap `apps/web` (Next.js 16 App Router, TS strict)
 
 **Type:** T3-ui (app shell)
 **Context budget:** ~40k tokens
@@ -253,10 +253,10 @@ Revert commit.
 #### GIVEN / WHEN / THEN
 **GIVEN** workspace is initialised
 **WHEN** `pnpm --filter web dev` runs
-**THEN** Next.js 14 App Router boots at `localhost:3000`, serves a placeholder `/` RSC page, TypeScript `strict: true` + `noUncheckedIndexedAccess: true` enforced
+**THEN** Next.js 16 App Router boots at `localhost:3000`, serves a placeholder `/` RSC page, TypeScript `strict: true` + `noUncheckedIndexedAccess: true` enforced
 
 #### Implementation
-1. `pnpm create next-app@14 apps/web --ts --app --no-eslint` (bare)
+1. `pnpm create next-app@16 apps/web --ts --app --no-eslint` (bare)
 2. Harden `tsconfig.json` (strict + noUncheckedIndexedAccess)
 3. Replace `/page.tsx` with an RSC placeholder returning `<main>Monopilot</main>`
 4. Add `pnpm dev` script wired through Turbo

@@ -1,0 +1,58 @@
+{
+  "title": "T-068 — E2E: formulation edit → submit-for-trial → lock + version compare (NPD-g)",
+  "prompt": "# T-068 — Formulation lifecycle E2E\n\nPRD: 01-NPD-PRD.md §17.11.1\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nPlaywright E2E covering full formulation lifecycle: open editor → add 5 ingredients summing to 100% → save-draft (auto) → submit-for-trial → lock → open compare-versions modal against v1 → verify diff + audit log + cascade to fa.recipe_components.\n\n## Implementation contract\n1. apps/web/e2e/npd/formulation.spec.ts: login as core_user → open formulation page → CRUD ingredients → wait debounce → submit → lock → compare → assert diff.\n2. Integration test apps/web/__tests__/integration/formulation-cascade.test.ts: verifies fa.recipe_components row written after lockVersion + outbox event 'formulation.locked' fires once.\n3. Fixtures seed an FA + project at G2 with empty formulation.\n\n## Files\n- apps/web/e2e/npd/formulation.spec.ts [create]\n- apps/web/__tests__/integration/formulation-cascade.test.ts [create]\n- apps/web/e2e/npd/fixtures/formulation-seed.ts [create]\n\n## Acceptance criteria\n1. Given a fresh project at G2 + empty formulation, when the user adds 5 ingredients summing to 100% then submits for trial, then formulation_versions.state transitions to 'submitted_for_trial' and the audit_log has a corresponding entry per §17.11.1\n2. Given the user clicks Lock then Compare, when the compare modal opens, then it shows v1 vs v2 side-by-side diff for up to 50 rows per §17.11.1 compare contract\n3. Given lockVersion completes, when the outbox is queried, then 'formulation.locked' is emitted exactly once and fa.recipe_components row matches the locked ingredients per §6 Chain 3\n\n## Test strategy\n- RED: write the 3 specs before final wiring; run against isolated test container\n- Run 'pnpm --filter web test:e2e formulation && pnpm --filter web test formulation-cascade'\n\n## Risk red lines\n- Do not skip outbox event assertion\n- Do not run against shared/staging DB\n- Do not allow >50 ingredient diff rows in compare (paginate if longer)",
+  "labels": ["prd", "test", "formulation", "T4-wiring-test"],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-068",
+    "source_prd": "01-NPD-PRD.md",
+    "prd_refs": ["§17.11.1", "§6"],
+    "category": "test",
+    "subcategory": "formulation-e2e",
+    "task_type": "T4-wiring-test",
+    "parent_feature": "01-NPD-g Recipe Formulation Editor",
+    "context_budget": "55k",
+    "estimated_effort": "2-3h",
+    "description": "Playwright E2E + integration test for formulation edit → submit → lock → compare + cascade.",
+    "details": "Lifecycle E2E exercises debounce, submit gate, lock + cascade outbox + Compare modal. Integration test isolates outbox assertion.",
+    "scope_files": [
+      "apps/web/e2e/npd/formulation.spec.ts [create]",
+      "apps/web/__tests__/integration/formulation-cascade.test.ts [create]",
+      "apps/web/e2e/npd/fixtures/formulation-seed.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not exercise approval (T-079, T-088)",
+      "Do not test risk-blocker (T-087)"
+    ],
+    "dependencies": ["T-064", "T-065", "T-066", "T-067"],
+    "parallel_safe_with": ["T-053", "T-062"],
+    "acceptance_criteria": [
+      "Given a fresh project at G2 + empty formulation, when the user adds 5 ingredients summing to 100% then submits for trial, then formulation_versions.state transitions to 'submitted_for_trial' and the audit_log has a corresponding entry per §17.11.1",
+      "Given the user clicks Lock then Compare, when the compare modal opens, then it shows v1 vs v2 side-by-side diff for up to 50 rows per §17.11.1 compare contract",
+      "Given lockVersion completes, when the outbox is queried, then 'formulation.locked' is emitted exactly once and fa.recipe_components row matches the locked ingredients per §6 Chain 3"
+    ],
+    "test_strategy": [
+      "RED: 3 specs before final wiring; run against isolated test container",
+      "Run 'pnpm --filter web test:e2e formulation && pnpm --filter web test formulation-cascade'"
+    ],
+    "risk_red_lines": [
+      "Do not skip outbox event assertion",
+      "Do not run against shared/staging DB",
+      "Do not allow >50 ingredient diff rows in compare"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

@@ -226,7 +226,7 @@ Per 00-FOUNDATION §4.2 build sequence + sitemap, Phase C close triggers Phase D
 ### Phase E first session scope (recommended)
 
 1. Audit all 15 PRDs + 02-SET v3.3 dla unresolved Phase D issues (likely zero, given 100% PRD coverage)
-2. Confirm tech stack lock (Next.js 14 + Supabase + Vitest + Playwright per 00-FOUNDATION §5)
+2. Confirm tech stack lock (Next.js 16 + Supabase + Vitest + Playwright per 00-FOUNDATION §5)
 3. Decide monorepo vs polyrepo (likely monorepo w `apps/monopilot-web` + `packages/shared`)
 4. Setup Phase E sub-skills if needed:
    - `phase-e-impl-guide` — per-sub-module scaffold pattern (following sub-modules a..e naming)

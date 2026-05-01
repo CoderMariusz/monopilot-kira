@@ -179,7 +179,7 @@ Key insight: **większość Phase E-0 i -1 ma dobre boundaries dla parallel agen
 **Konfiguracja:** 3 agenty w parallel, synchronizacja po każdym sub-module end. Każdy track ma własny worktree (isolation).
 
 **Track F-α (Scaffold + Data):**
-- 00-a Monorepo + Next.js 14 scaffold
+- 00-a Monorepo + Next.js 16 scaffold
 - 00-b Supabase + Drizzle + migrations pipeline
 - 00-d RLS baseline
 - **Output:** pnpm workspace, 1st migration, RLS policies deployable

@@ -1,0 +1,59 @@
+{
+  "title": "T-051 — Dashboard Server Actions: getDashboardSummary + getLaunchAlerts + refreshD365Cache (NPD-e)",
+  "prompt": "# T-051 — Dashboard Server Actions\n\nPRD: 01-NPD-PRD.md §11.5, §11.6, §11.7\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nThree Server Actions backing the NPD dashboard: getDashboardSummary (counters + per-dept breakdown), getLaunchAlerts (RED/YELLOW/GREEN list), refreshD365Cache (re-syncs d365_import_cache + emits outbox event with 60 s per-tenant throttle).\n\n## Implementation contract\n1. apps/web/app/(npd)/dashboard/_actions/get-dashboard-summary.ts queries dashboard_summary view + computed per-dept breakdown; respects RBAC dashboard.view; dept managers see filtered breakdown for own dept only.\n2. apps/web/app/(npd)/dashboard/_actions/get-launch-alerts.ts queries launch_alerts view; supports optional filters {dept?, showBuilt?, search?}; defaults exclude built FAs.\n3. apps/web/app/(npd)/dashboard/_actions/refresh-d365-cache.ts gated by RBAC d365_builder.execute; throttles to 1/60s per tenant via Redis or DB lock; calls D365 adapter; emits outbox event 'd365.cache.refreshed'; returns last_synced_at.\n4. Vitest suite covers RBAC, throttle, filter behaviour with mocked D365 adapter.\n\n## Files\n- apps/web/app/(npd)/dashboard/_actions/get-dashboard-summary.ts [create]\n- apps/web/app/(npd)/dashboard/_actions/get-launch-alerts.ts [create]\n- apps/web/app/(npd)/dashboard/_actions/refresh-d365-cache.ts [create]\n- apps/web/app/(npd)/dashboard/_actions/__tests__/dashboard-actions.test.ts [create]\n\n## Acceptance criteria\n1. Given a dept manager (mrp) calls getDashboardSummary, when the action returns, then per_dept breakdown contains only mrp row + summary counters per §11.6 RBAC filtering\n2. Given refreshD365Cache is invoked twice within 60 s by the same tenant, when the second call runs, then it rejects with THROTTLED error and outbox event is emitted exactly once per §11.7 throttle contract\n3. Given getLaunchAlerts is called with showBuilt=false (default), when the result is returned, then no FA with built=TRUE is included per §11.7 toggle default\n\n## Test strategy\n- RED: __tests__/dashboard-actions.test.ts with 3 cases (RBAC filtering, throttle, default showBuilt) using mocked D365 adapter + Drizzle test container\n- Run 'pnpm --filter web test dashboard-actions'\n\n## Risk red lines\n- Do not bypass RBAC guard\n- Do not exceed 1 D365 cache refresh per 60 s per tenant\n- Do not emit outbox event before successful sync commit",
+  "labels": ["prd", "api", "dashboard", "T2-api"],
+  "priority": 80,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-051",
+    "source_prd": "01-NPD-PRD.md",
+    "prd_refs": ["§11.5", "§11.6", "§11.7"],
+    "category": "api",
+    "subcategory": "dashboard-actions",
+    "task_type": "T2-api",
+    "parent_feature": "01-NPD-e Dashboard",
+    "context_budget": "55k",
+    "estimated_effort": "3-4h",
+    "description": "Three Server Actions for dashboard counters, launch alerts, D365 cache refresh with RBAC + throttle.",
+    "details": "Each action wraps Drizzle queries against views from T-048; refreshD365Cache uses tenant-scoped lock (60 s) + emits outbox; dept managers get filtered breakdown; tests use mocked D365 adapter.",
+    "scope_files": [
+      "apps/web/app/(npd)/dashboard/_actions/get-dashboard-summary.ts [create]",
+      "apps/web/app/(npd)/dashboard/_actions/get-launch-alerts.ts [create]",
+      "apps/web/app/(npd)/dashboard/_actions/refresh-d365-cache.ts [create]",
+      "apps/web/app/(npd)/dashboard/_actions/__tests__/dashboard-actions.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not build UI in this task (T-052)",
+      "Do not implement the underlying SQL views (T-048)"
+    ],
+    "dependencies": ["T-048", "T-049", "T-050"],
+    "parallel_safe_with": ["T-052"],
+    "acceptance_criteria": [
+      "Given a dept manager (mrp) calls getDashboardSummary, when the action returns, then per_dept breakdown contains only mrp row + summary counters per §11.6 RBAC filtering",
+      "Given refreshD365Cache is invoked twice within 60 s by the same tenant, when the second call runs, then it rejects with THROTTLED and outbox event is emitted exactly once per §11.7 throttle",
+      "Given getLaunchAlerts is called with showBuilt=false (default), when the result is returned, then no FA with built=TRUE is included per §11.7 toggle default"
+    ],
+    "test_strategy": [
+      "RED: __tests__/dashboard-actions.test.ts with 3 cases (RBAC filter, throttle, default showBuilt) using mocked D365 adapter",
+      "Run 'pnpm --filter web test dashboard-actions'"
+    ],
+    "risk_red_lines": [
+      "Do not bypass RBAC guard",
+      "Do not exceed 1 D365 cache refresh per 60 s per tenant",
+      "Do not emit outbox event before successful sync commit"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

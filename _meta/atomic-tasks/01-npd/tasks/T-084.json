@@ -1,0 +1,60 @@
+{
+  "title": "T-084 — Compliance docs upload + signed URL + soft-delete Server Actions (NPD-i)",
+  "prompt": "# T-084 — Compliance docs lifecycle actions\n\nPRD: 01-NPD-PRD.md §19\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nServer Actions backing compliance_docs CRUD: uploadDoc (multipart → tenant-isolated bucket + insert row), getSignedUrl (TTL ≤15 min, audited), softDeleteDoc, listDocs.\n\n## Implementation contract\n1. apps/web/app/(npd)/fa/[productCode]/docs/_actions/upload-doc.ts: RBAC compliance_doc.write; client+server validates MIME + size; uploads to tenant-bucket via Supabase storage adapter; INSERT compliance_docs row with version_number = max+1; emits 'compliance_doc.uploaded'.\n2. apps/web/app/(npd)/fa/[productCode]/docs/_actions/get-signed-url.ts: returns signed URL TTL=15 min; writes audit_events row 'compliance_doc.url_granted'.\n3. apps/web/app/(npd)/fa/[productCode]/docs/_actions/soft-delete-doc.ts: RBAC compliance_doc.write; sets deleted_at; emits 'compliance_doc.deleted'.\n4. apps/web/app/(npd)/fa/[productCode]/docs/_actions/list-docs.ts: returns active docs (deleted_at IS NULL).\n\n## Files\n- apps/web/app/(npd)/fa/[productCode]/docs/_actions/upload-doc.ts [create]\n- apps/web/app/(npd)/fa/[productCode]/docs/_actions/get-signed-url.ts [create]\n- apps/web/app/(npd)/fa/[productCode]/docs/_actions/soft-delete-doc.ts [create]\n- apps/web/app/(npd)/fa/[productCode]/docs/_actions/list-docs.ts [create]\n- apps/web/app/(npd)/fa/[productCode]/docs/_actions/__tests__/docs-actions.test.ts [create]\n\n## Acceptance criteria\n1. Given a user uploads a 25 MB PDF, when uploadDoc runs, then it rejects with FILE_TOO_LARGE before storage call and no compliance_docs row is inserted per §19 size limit\n2. Given a user requests a signed URL, when getSignedUrl returns, then the URL TTL is ≤900 seconds and an audit_events row 'compliance_doc.url_granted' is written per §19 audit contract\n3. Given two uploads for the same (product, doc_type) succeed, when listDocs is queried, then version_number=1 and version_number=2 both exist (overwrite forbidden) per §19 versioning contract\n\n## Test strategy\n- RED: __tests__/docs-actions.test.ts (size reject, signed URL TTL+audit, version increment) before actions exist (mock Supabase storage)\n- Run 'pnpm --filter web test docs-actions'\n\n## Risk red lines\n- Do not allow files outside MIME allowlist (server-side validation in addition to DB CHECK)\n- Do not allow signed URL TTL >15 min\n- Do not overwrite an existing version (must bump)",
+  "labels": ["prd", "api", "compliance-docs", "T2-api"],
+  "priority": 80,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-084",
+    "source_prd": "01-NPD-PRD.md",
+    "prd_refs": ["§19"],
+    "category": "api",
+    "subcategory": "compliance-docs-actions",
+    "task_type": "T2-api",
+    "parent_feature": "01-NPD-i Approval+Risk+Compliance",
+    "context_budget": "55k",
+    "estimated_effort": "3-4h",
+    "description": "uploadDoc + getSignedUrl + softDeleteDoc + listDocs Server Actions with MIME/size validation + 15 min TTL + audit emit.",
+    "details": "All actions RBAC-gated. Upload uses Supabase storage adapter with tenant-isolated bucket. Versioning auto-increments.",
+    "scope_files": [
+      "apps/web/app/(npd)/fa/[productCode]/docs/_actions/upload-doc.ts [create]",
+      "apps/web/app/(npd)/fa/[productCode]/docs/_actions/get-signed-url.ts [create]",
+      "apps/web/app/(npd)/fa/[productCode]/docs/_actions/soft-delete-doc.ts [create]",
+      "apps/web/app/(npd)/fa/[productCode]/docs/_actions/list-docs.ts [create]",
+      "apps/web/app/(npd)/fa/[productCode]/docs/_actions/__tests__/docs-actions.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not implement expiry cron (T-085)",
+      "Do not build UI (T-086)"
+    ],
+    "dependencies": ["T-083"],
+    "parallel_safe_with": ["T-085", "T-086"],
+    "acceptance_criteria": [
+      "Given a user uploads a 25 MB PDF, when uploadDoc runs, then it rejects with FILE_TOO_LARGE before storage call and no compliance_docs row is inserted per §19 size limit",
+      "Given a user requests a signed URL, when getSignedUrl returns, then the URL TTL is ≤900 seconds and an audit_events row 'compliance_doc.url_granted' is written per §19 audit contract",
+      "Given two uploads for the same (product, doc_type) succeed, when listDocs is queried, then version_number=1 and version_number=2 both exist (overwrite forbidden) per §19 versioning contract"
+    ],
+    "test_strategy": [
+      "RED: __tests__/docs-actions.test.ts (size reject, TTL+audit, version increment) before actions exist (mock Supabase storage)",
+      "Run 'pnpm --filter web test docs-actions'"
+    ],
+    "risk_red_lines": [
+      "Do not allow files outside MIME allowlist",
+      "Do not allow signed URL TTL >15 min",
+      "Do not overwrite an existing version"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

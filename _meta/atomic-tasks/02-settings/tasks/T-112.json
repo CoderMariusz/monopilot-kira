@@ -1,0 +1,87 @@
+{
+  "title": "T-112 — D365 Sync Audit screen (SET-083 §11.3)",
+  "prompt": "# T-112 — D365 Sync Audit screen (SET-083 §11.3)\n\nPRD: 02-SETTINGS-PRD.md §11.3 (D365 Admin UI)\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nBuild SET-083 D365 Sync Audit — last N (default 100) sync results + per-row error details + manual trigger button. Read from `d365_sync_runs` table (per T-030 schema). Manual trigger calls T-030 triggerD365Sync action.\n\n## Implementation contract\n1. Page at apps/web/app/(admin)/settings/integrations/d365/audit/page.tsx (Server Component) reads last 100 d365_sync_runs rows for caller's org_id ordered by started_at DESC.\n2. List columns: started_at, finished_at, direction (pull|push), entity_type, status (ok|partial|failed), rows_in / rows_ok / rows_failed, error_summary.\n3. Toolbar: status filter, direction filter, date range filter, 'Run sync now' button (calls T-030 triggerD365Sync).\n4. Per-row 'View errors' link opens read-only modal with full error JSON (errors[] array).\n5. RBAC: requires `settings.integrations.read`; manual trigger requires `owner` per §11.4.\n\n## Files\n- apps/web/app/(admin)/settings/integrations/d365/audit/page.tsx [create]\n- apps/web/app/(admin)/settings/integrations/d365/audit/page.test.tsx [create]\n\n## Acceptance criteria\nSee `acceptance_criteria` array.\n\n## Test strategy\n1. RED: RTL test seeds 5 sync runs with mixed status; asserts filter, error modal, manual trigger button RBAC gating.\n   `pnpm --filter @monopilot/web vitest run apps/web/app/(admin)/settings/integrations/d365/audit/page.test.tsx`\n2. RED must fail.\n3. GREEN: implement Server Component + filters + modal + trigger wiring.\n4. Re-run RED + `pnpm typecheck` + `pnpm lint`.\n\n## Risk red lines\n- Do not bypass withOrgContext (RLS).\n- Do not auto-retry from UI (worker handles retries; this is read-only viewer + manual trigger).\n- Do not import @radix-ui/* outside packages/ui (§0).\n\nStack: TS + Next.js App Router + Drizzle + pnpm + vitest + Playwright + Server Actions. PRD: 02-SETTINGS-PRD.md v3.5.\n",
+  "labels": [
+    "prd",
+    "ui",
+    "set-083",
+    "T3-ui"
+  ],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-112",
+    "source_prd": "02-SETTINGS-PRD.md",
+    "prd_refs": [
+      "§11.3",
+      "§11.4"
+    ],
+    "category": "ui",
+    "subcategory": "set-083",
+    "task_type": "T3-ui",
+    "parent_feature": "02-settings-e-ui",
+    "context_budget": "40k",
+    "estimated_effort": "1-3h",
+    "description": "D365 Sync Audit (SET-083): last N sync runs viewer + filters + per-row error modal + owner-gated manual trigger.",
+    "details": "PRD §11.3 SET-083: `Last N sync results + errors + manual trigger`. The 'Run sync now' button must be disabled for non-owner roles per §11.4 (flag flip + ops both require owner). Error JSON modal renders raw payload — no parsing/categorization in scope.",
+    "scope_files": [
+      "apps/web/app/(admin)/settings/integrations/d365/audit/page.tsx [create]",
+      "apps/web/app/(admin)/settings/integrations/d365/audit/page.test.tsx [create]"
+    ],
+    "out_of_scope": [
+      "Re-queue / retry from UI (worker handles)",
+      "Error categorization / aggregation analytics"
+    ],
+    "dependencies": [
+      "T-030",
+      "T-015"
+    ],
+    "parallel_safe_with": [
+      "T-111"
+    ],
+    "acceptance_criteria": [
+      "Given 5 d365_sync_runs rows exist with mixed status (ok/partial/failed), when the page renders, then 5 rows are listed in started_at DESC order with status badges.",
+      "Given the user filters status='failed' and direction='push', when the list re-renders, then only failed push runs are visible.",
+      "Given the user clicks 'View errors' on a failed row, when the modal opens, then the raw errors[] JSON renders read-only.",
+      "Given the caller lacks `owner` role, when they view the page, then the 'Run sync now' button is disabled with an aria-label explaining insufficient permissions."
+    ],
+    "test_strategy": [
+      "RED: RTL test seeds runs + asserts filter, error modal, manual-trigger RBAC disable.",
+      "GREEN: implement Server Component + filters + modal + trigger wiring.",
+      "Run `pnpm --filter @monopilot/web vitest run apps/web/app/(admin)/settings/integrations/d365/audit/page.test.tsx` and `pnpm typecheck`."
+    ],
+    "risk_red_lines": [
+      "Do not bypass withOrgContext (RLS).",
+      "Do not auto-retry from UI (worker handles retries; this is read-only viewer + manual trigger).",
+      "Do not import @radix-ui/* outside packages/ui (§0)."
+    ],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": false
+  }
+}

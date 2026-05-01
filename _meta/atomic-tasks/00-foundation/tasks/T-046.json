@@ -1,0 +1,94 @@
+{
+  "title": "T-046 — ref-tables.enum.ts source-of-truth lock (Reference table names registry)",
+  "prompt": "# T-046 — ref-tables.enum.ts source-of-truth lock (Reference table names registry)\n\nPRD: `00-FOUNDATION-PRD.md` — sections: §6 (Reference.DeptColumns / FieldTypes / Formulas), §7 (Reference.Rules), §9 (Reference.Departments / dept_overrides), §9.1 (Reference.ManufacturingOperations)\nGuide: `_meta/plans/atomic-task-decomposition-guide.md` §5 (architect owner lock — ref-tables.enum.ts blocks downstream)\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`\n\n## Goal\nLock the canonical Reference table-name registry as a TS const enum so every downstream module imports the same string keys (no typo drift). Decomposition guide §5 lists ref-tables.enum.ts as one of 4 architect-owner-locks that gate parallel dispatch.\n\n## Implementation contract\n(1) Create lib/reference/ref-tables.enum.ts exporting `export const RefTables = { DeptColumns: 'Reference.DeptColumns', FieldTypes: 'Reference.FieldTypes', Formulas: 'Reference.Formulas', Rules: 'Reference.Rules', Departments: 'Reference.Departments', DeptOverrides: 'Reference.DeptOverrides', ManufacturingOperations: 'Reference.ManufacturingOperations', CodePrefixes: 'Reference.CodePrefixes' } as const;` plus `export type RefTableName = (typeof RefTables)[keyof typeof RefTables];`. (2) Add a barrel re-export in lib/reference/index.ts. (3) Vitest asserting (a) every value is unique, (b) every value matches the regex /^Reference\\\\.[A-Z][A-Za-z]+$/, (c) the 8 PRD-named tables all appear (DeptColumns, FieldTypes, Formulas, Rules, Departments, DeptOverrides, ManufacturingOperations, CodePrefixes). (4) Add an ESLint rule no-restricted-syntax forbidding string literals matching /^['\\\"]Reference\\\\./ outside lib/reference/** to prevent drift.\n\n## Files (scope)\n- lib/reference/ref-tables.enum.ts [create]\n- lib/reference/index.ts [create]\n- lib/reference/__tests__/ref-tables.test.ts [create]\n- .eslintrc.cjs [modify]\n\n## Acceptance criteria\n1. Given lib/reference/ref-tables.enum.ts is imported, when typeof RefTables.DeptColumns is checked, then it equals the literal 'Reference.DeptColumns' and the union RefTableName has exactly 8 members\n2. Given the registry is loaded, when the test iterates values, then every entry matches /^Reference\\.[A-Z][A-Za-z]+$/ and there are no duplicates\n3. Given a developer hardcodes the literal 'Reference.Foo' anywhere outside lib/reference/**, when 'pnpm lint' runs, then ESLint reports no-restricted-syntax and exits non-zero (drift gate)\n4. Given the 8 PRD references (§6 DeptColumns/FieldTypes/Formulas, §7 Rules, §9 Departments/DeptOverrides, §9.1 ManufacturingOperations, §7.x CodePrefixes), when the test enumerates RefTables keys, then all 8 are present\n\n## Test strategy\n- RED: write lib/reference/__tests__/ref-tables.test.ts covering all four ACs before ref-tables.enum.ts exists\n- Run 'pnpm test && pnpm lint'\n\n## Risk red lines\n- Do not add table names that are not PRD-grounded — every entry must trace to a §6/§7/§9/§9.1 reference\n- Do not use a TS enum (string-enum runtime overhead + no const-folding) — must be 'as const' object per repo convention used in events.enum.ts (T-003)\n- Do not skip the ESLint rule — drift is the failure mode the lock is designed to prevent (see decomposition guide §5)\n\n## Dependencies (must be complete first)\n- T-001\n\n## Closeout evidence\nProvide: changed_files, test_commands_and_results, acceptance_criteria_status (per AC), deviations_from_prd, git_status. Use the test-driven-development skill (RED test before implementation) and requesting-code-review at GREEN.",
+  "labels": [
+    "prd",
+    "infra",
+    "enum-lock",
+    "T1-schema"
+  ],
+  "priority": 50,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-046",
+    "source_prd": "00-FOUNDATION-PRD.md",
+    "prd_refs": [
+      "§6",
+      "§7",
+      "§9",
+      "§9.1"
+    ],
+    "category": "infra",
+    "subcategory": "enum-lock",
+    "task_type": "T1-schema",
+    "parent_feature": "cross-cutting enum locks",
+    "context_budget": "35k",
+    "estimated_effort": "1h",
+    "description": "Source-of-truth registry for Reference.* table names + ESLint guard preventing string-literal drift outside lib/reference/**.",
+    "details": "Decomposition guide §5 names ref-tables.enum.ts as one of 4 architect-owner-locks (alongside permissions.enum.ts T-004, events.enum.ts T-003, baseline migration T-006). All four must merge before parallel downstream dispatch. This task closes the last open lock.",
+    "scope_files": [
+      "lib/reference/ref-tables.enum.ts [create]",
+      "lib/reference/index.ts [create]",
+      "lib/reference/__tests__/ref-tables.test.ts [create]",
+      ".eslintrc.cjs [modify]"
+    ],
+    "out_of_scope": [
+      "Do not modify files outside the scope_files list",
+      "Do not introduce business logic from later module PRDs (01-NPD, 02-SETTINGS, etc.)",
+      "No DDL — table CREATE statements live in the per-feature schema files",
+      "No seed data — each Reference table seeds in its own task"
+    ],
+    "dependencies": [
+      "T-001"
+    ],
+    "parallel_safe_with": [
+      "T-003",
+      "T-004",
+      "T-038",
+      "T-040",
+      "T-045"
+    ],
+    "acceptance_criteria": [
+      "Given lib/reference/ref-tables.enum.ts is imported, when typeof RefTables.DeptColumns is checked, then it equals the literal 'Reference.DeptColumns' and the union RefTableName has exactly 8 members",
+      "Given the registry is loaded, when the test iterates values, then every entry matches /^Reference\\.[A-Z][A-Za-z]+$/ and there are no duplicates",
+      "Given a developer hardcodes the literal 'Reference.Foo' anywhere outside lib/reference/**, when 'pnpm lint' runs, then ESLint reports no-restricted-syntax and exits non-zero (drift gate)",
+      "Given the 8 PRD references (§6 DeptColumns/FieldTypes/Formulas, §7 Rules, §9 Departments/DeptOverrides, §9.1 ManufacturingOperations, §7.x CodePrefixes), when the test enumerates RefTables keys, then all 8 are present"
+    ],
+    "test_strategy": [
+      "RED: write lib/reference/__tests__/ref-tables.test.ts covering all four ACs before ref-tables.enum.ts exists",
+      "Run 'pnpm test && pnpm lint'"
+    ],
+    "risk_red_lines": [
+      "Do not add table names that are not PRD-grounded — every entry must trace to a §6/§7/§9/§9.1 reference",
+      "Do not use a TS enum (string-enum runtime overhead + no const-folding) — must be 'as const' object per repo convention used in events.enum.ts (T-003)",
+      "Do not skip the ESLint rule — drift is the failure mode the lock is designed to prevent (see decomposition guide §5)"
+    ],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

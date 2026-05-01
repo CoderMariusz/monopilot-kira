@@ -34,7 +34,7 @@ Runtime infra consumed by every module. NO user-facing UI.
 
 | Sub-module | Scope | Est. sesji |
 |---|---|---|
-| 00-a | Monorepo (pnpm + Turborepo) + Next.js 14 app router + TS strict + Tailwind + shadcn init | 1-2 |
+| 00-a | Monorepo (pnpm + Turborepo) + Next.js 16 app router + TS strict + Tailwind + shadcn init | 1-2 |
 | 00-b | Supabase setup + Drizzle ORM + migrations pipeline + seed runner | 1-2 |
 | 00-c | Auth + session + `app.current_org_id` middleware + basic login | 2 |
 | 00-d | RLS baseline (policies on all business tables + org_id scoping) | 1 |

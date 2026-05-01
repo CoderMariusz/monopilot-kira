@@ -1,0 +1,89 @@
+{
+  "title": "T-040 — R13 identity columns migration on lot/work_order/quality_event/shipment/bom_item placeholder tables",
+  "prompt": "# T-040 — R13 identity columns migration on lot/work_order/quality_event/shipment/bom_item placeholder tables\n\nPRD: `00-FOUNDATION-PRD.md` — sections: §10 (Schema 'AI-ready + traceability-ready' od dnia 1 [R13])\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`\n\n## Goal\nCreate empty placeholder business tables (lot, work_order, quality_event, shipment, bom_item) carrying the full R13 identity column set — so that downstream module PRDs (05-WAREHOUSE / 08-PRODUCTION / 11-SHIPPING / 09-QUALITY / 03-TECHNICAL) inherit the columns without retrofit migrations. PRD §10 names these 5 entities verbatim and lists 9 R13 columns.\n\n## Implementation contract\n(1) Add packages/db/src/schema/r13-business-tables.ts with five Drizzle tables: lot, workOrder, qualityEvent, shipment, bomItem — each containing only the 9 R13 columns: id UUID PK (v7), external_id TEXT, tenant_id UUID NOT NULL REFERENCES organizations(id), created_at TIMESTAMPTZ NOT NULL DEFAULT now(), created_by_user UUID, created_by_device TEXT, app_version TEXT, model_prediction_id UUID NULL, epcis_event_id UUID NULL. (2) Generate migration packages/db/migrations/0009_r13_placeholder_tables.sql with the 5 tables + per-table index on (tenant_id, created_at DESC). (3) Enable RLS on all 5 tables with the same USING/WITH CHECK policy pattern as T-007 (current_setting('app.current_org_id')). (4) Vitest asserts that for each of the 5 tables, all 9 columns are present and tenant_id is NOT NULL.\n\n## Files (scope)\n- packages/db/src/schema/r13-business-tables.ts [create]\n- packages/db/src/schema/index.ts [modify]\n- packages/db/migrations/0009_r13_placeholder_tables.sql [create]\n- packages/db/src/__tests__/r13-business-tables.test.ts [create]\n\n## Acceptance criteria\n1. Given the migration runs, when 'pnpm --filter @monopilot/db migrate' completes, then each of lot, work_order, quality_event, shipment, bom_item exists with all 9 R13 columns from §10 (id, external_id, tenant_id, created_at, created_by_user, created_by_device, app_version, model_prediction_id, epcis_event_id) and a (tenant_id, created_at DESC) index\n2. Given an INSERT into lot with tenant_id=NULL, when SQL runs, then Postgres rejects with NOT NULL violation on tenant_id (R13 RLS enforcement contract)\n3. Given an app-role connection scoped to tenant A and a row INSERT'd into work_order under tenant A, when the same connection later sets app.current_org_id to tenant B and SELECTs from work_order, then 0 rows are returned (RLS isolation via the same policy pattern as T-007)\n4. Given 'pnpm --filter @monopilot/db typecheck' runs, when the schema barrel re-exports the 5 tables, then their inferred types include model_prediction_id and epcis_event_id as nullable strings (UUID-typed)\n\n## Test strategy\n- RED: write packages/db/src/__tests__/r13-business-tables.test.ts covering all four ACs before r13-business-tables.ts exists\n- Run 'pnpm --filter @monopilot/db test:integration'\n\n## Risk red lines\n- Do not add any business columns beyond the R13 9 — domain columns belong to the consuming module PRDs (01-NPD / 05-WAREHOUSE / etc.)\n- Do not skip RLS on these tables — every business table is RLS-default per §5\n- Do not change the R13 column list — it is locked by §10 R13 and adding fields later is the migration hell §10 explicitly warns against\n\n## Dependencies (must be complete first)\n- T-006\n- T-007\n\n## Closeout evidence\nProvide: changed_files, test_commands_and_results, acceptance_criteria_status (per AC), deviations_from_prd, git_status. Use the test-driven-development skill (RED test before implementation) and requesting-code-review at GREEN.",
+  "labels": [
+    "prd",
+    "data",
+    "migration",
+    "T1-schema"
+  ],
+  "priority": 50,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-040",
+    "source_prd": "00-FOUNDATION-PRD.md",
+    "prd_refs": [
+      "§10"
+    ],
+    "category": "data",
+    "subcategory": "migration",
+    "task_type": "T1-schema",
+    "parent_feature": "00-FOUNDATION R13 identity columns",
+    "context_budget": "45k",
+    "estimated_effort": "1-2h",
+    "description": "Placeholder tables lot / work_order / quality_event / shipment / bom_item carrying the 9 R13 identity columns + RLS, ready for downstream module PRDs to extend.",
+    "details": "PRD §10 R13 says explicitly 'lot, work_order, quality_event, maintenance_event, shipment, bom_item MUSI mieć pola: id/external_id/tenant_id/created_at/created_by_user/created_by_device/app_version/model_prediction_id/epcis_event_id'. We seed 5 of the 6 here (maintenance_event lives in 13-MAINTENANCE PRD); each table starts as the R13 skeleton + RLS to avoid retrofit migrations downstream.",
+    "scope_files": [
+      "packages/db/src/schema/r13-business-tables.ts [create]",
+      "packages/db/src/schema/index.ts [modify]",
+      "packages/db/migrations/0009_r13_placeholder_tables.sql [create]",
+      "packages/db/src/__tests__/r13-business-tables.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not modify files outside the scope_files list",
+      "Do not introduce business logic from later module PRDs (01-NPD, 02-SETTINGS, etc.)",
+      "No domain columns (status, qty, allergens, etc.) — those belong to consuming module PRDs",
+      "No maintenance_event placeholder (lives in 13-MAINTENANCE PRD)"
+    ],
+    "dependencies": [
+      "T-006",
+      "T-007"
+    ],
+    "parallel_safe_with": [
+      "T-038",
+      "T-046"
+    ],
+    "acceptance_criteria": [
+      "Given the migration runs, when 'pnpm --filter @monopilot/db migrate' completes, then each of lot, work_order, quality_event, shipment, bom_item exists with all 9 R13 columns from §10 (id, external_id, tenant_id, created_at, created_by_user, created_by_device, app_version, model_prediction_id, epcis_event_id) and a (tenant_id, created_at DESC) index",
+      "Given an INSERT into lot with tenant_id=NULL, when SQL runs, then Postgres rejects with NOT NULL violation on tenant_id (R13 RLS enforcement contract)",
+      "Given an app-role connection scoped to tenant A and a row INSERT'd into work_order under tenant A, when the same connection later sets app.current_org_id to tenant B and SELECTs from work_order, then 0 rows are returned (RLS isolation via the same policy pattern as T-007)",
+      "Given 'pnpm --filter @monopilot/db typecheck' runs, when the schema barrel re-exports the 5 tables, then their inferred types include model_prediction_id and epcis_event_id as nullable strings (UUID-typed)"
+    ],
+    "test_strategy": [
+      "RED: write packages/db/src/__tests__/r13-business-tables.test.ts covering all four ACs before r13-business-tables.ts exists",
+      "Run 'pnpm --filter @monopilot/db test:integration'"
+    ],
+    "risk_red_lines": [
+      "Do not add any business columns beyond the R13 9 — domain columns belong to the consuming module PRDs (01-NPD / 05-WAREHOUSE / etc.)",
+      "Do not skip RLS on these tables — every business table is RLS-default per §5",
+      "Do not change the R13 column list — it is locked by §10 R13 and adding fields later is the migration hell §10 explicitly warns against"
+    ],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

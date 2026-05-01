@@ -1,0 +1,88 @@
+{
+  "title": "T-036 — Schema-driven column draft/publish Server Action with schema_version bump + migration record",
+  "prompt": "# T-036 — Schema-driven column draft/publish Server Action with schema_version bump + migration record\n\nPRD: `00-FOUNDATION-PRD.md` — sections: §6\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`\n\n## Goal\nServer Action `upsertDeptColumnDraft(input)` + `publishDeptColumnDraft(draftId)` that backs the §6 Admin UI wizard. Foundation primitive only — UI consumes it in T-037/T-038. Create writes to a `dept_column_drafts` table; publish promotes the draft to `Reference.DeptColumns`, bumps `schema_version`, and inserts a `schema_migrations` record.\n\n## Implementation contract\n(1) Migration 011-dept-column-drafts.sql: dept_column_drafts(id UUID, tenant_id UUID, dept_id UUID, column_key TEXT, field_type TEXT CHECK IN ('string','number','date','enum','formula','relation'), validation_json JSONB, presentation_json JSONB, status TEXT CHECK IN ('draft','published'), created_by UUID, created_at TIMESTAMPTZ); schema_migrations(id BIGSERIAL, tenant_id, dept_column_id UUID, prev_version INT, new_version INT, applied_at TIMESTAMPTZ). (2) packages/schema-driven/src/actions/draft.ts: upsertDeptColumnDraft + publishDeptColumnDraft Server Actions in apps/web/app/(settings)/schema/_actions/draft.ts. (3) Publish wraps everything in a single Drizzle transaction: insert into Reference.DeptColumns, bump schema_version, write schema_migrations row, emit outbox 'audit.recorded' with retention_class='operational' (T-009/T-018 contract). (4) Vitest unit test covers happy path + AC-3 idempotency.\n\n## Files (scope)\n- packages/db/migrations/011-dept-column-drafts.sql [create]\n- packages/schema-driven/src/actions/draft.ts [create]\n- apps/web/app/(settings)/schema/_actions/draft.ts [create]\n- packages/schema-driven/src/__tests__/draft.test.ts [create]\n\n## Acceptance criteria\n1. Given a tenant Schema Admin calls upsertDeptColumnDraft with field_type='enum' + validation rules, when the action returns, then a dept_column_drafts row exists with status='draft' and validation_json matches the input\n2. Given a draft row with status='draft', when publishDeptColumnDraft runs, then a Reference.DeptColumns row is created/updated, schema_version is bumped by exactly 1, a schema_migrations row is appended, and the draft status flips to 'published' — all in one transaction\n3. Given publishDeptColumnDraft is called twice for the same draftId, when the second call runs, then it returns idempotently (no second schema_version bump, no duplicate schema_migrations row)\n4. Given the caller is not in role org.schema.admin, when either action is invoked, then it returns 403 and writes audit_events with retention_class='security'\n\n## Test strategy\n- RED: write packages/schema-driven/src/__tests__/draft.test.ts asserting all 4 ACs before draft.ts exists\n- Run 'pnpm --filter @monopilot/schema-driven test'\n\n## Risk red lines\n- Do not bump schema_version outside the publish transaction — drift detection (T-034) depends on atomicity\n- Do not skip the RBAC guard — Schema Admin SoD split is locked in T-014\n- Do not write directly to Reference.DeptColumns from upsertDeptColumnDraft (drafts only)\n\n## Dependencies (must be complete first)\n- T-014\n- T-017\n\n## Closeout evidence\nProvide: changed_files, test_commands_and_results, acceptance_criteria_status (per AC), deviations_from_prd, git_status. Use the test-driven-development skill (RED test before implementation) and requesting-code-review at GREEN.",
+  "labels": [
+    "prd",
+    "api",
+    "schema-driven",
+    "T2-api"
+  ],
+  "priority": 80,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-036",
+    "source_prd": "00-FOUNDATION-PRD.md",
+    "prd_refs": [
+      "§6"
+    ],
+    "category": "api",
+    "subcategory": "schema-driven",
+    "task_type": "T2-api",
+    "parent_feature": "00-FOUNDATION schema-driven wizard backend",
+    "context_budget": "60k",
+    "estimated_effort": "2-3h",
+    "description": "Backend primitives for the §6 Admin UI wizard (draft/publish Server Actions + schema_version bump + migration record).",
+    "details": "Foundation backs the wizard primitive; the actual multi-step UI lives in T-037 and is wired E2E in T-038. Today there is no draft staging table — every change to Reference.DeptColumns must be transactional with a migration record per §6 'schema versioning'.",
+    "scope_files": [
+      "packages/db/migrations/011-dept-column-drafts.sql [create]",
+      "packages/schema-driven/src/actions/draft.ts [create]",
+      "apps/web/app/(settings)/schema/_actions/draft.ts [create]",
+      "packages/schema-driven/src/__tests__/draft.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not modify files outside the scope_files list",
+      "Do not introduce business logic from later module PRDs (01-NPD, 02-SETTINGS, etc.)",
+      "No UI components — covered by T-037",
+      "No automatic DDL execution — column is L3 metadata, ext_jsonb is the storage path"
+    ],
+    "dependencies": [
+      "T-014",
+      "T-017"
+    ],
+    "parallel_safe_with": [
+      "T-035"
+    ],
+    "acceptance_criteria": [
+      "Given a tenant Schema Admin calls upsertDeptColumnDraft with field_type='enum' + validation rules, when the action returns, then a dept_column_drafts row exists with status='draft' and validation_json matches the input",
+      "Given a draft row with status='draft', when publishDeptColumnDraft runs, then a Reference.DeptColumns row is created/updated, schema_version is bumped by exactly 1, a schema_migrations row is appended, and the draft status flips to 'published' — all in one transaction",
+      "Given publishDeptColumnDraft is called twice for the same draftId, when the second call runs, then it returns idempotently (no second schema_version bump, no duplicate schema_migrations row)",
+      "Given the caller is not in role org.schema.admin, when either action is invoked, then it returns 403 and writes audit_events with retention_class='security'"
+    ],
+    "test_strategy": [
+      "RED: write packages/schema-driven/src/__tests__/draft.test.ts asserting all 4 ACs before draft.ts exists",
+      "Run 'pnpm --filter @monopilot/schema-driven test'"
+    ],
+    "risk_red_lines": [
+      "Do not bump schema_version outside the publish transaction — drift detection (T-034) depends on atomicity",
+      "Do not skip the RBAC guard — Schema Admin SoD split is locked in T-014",
+      "Do not write directly to Reference.DeptColumns from upsertDeptColumnDraft (drafts only)"
+    ],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

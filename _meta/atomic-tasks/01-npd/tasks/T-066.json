@@ -1,0 +1,60 @@
+{
+  "title": "T-066 — UI: FormulationEditor (RecipeScreen prototype) — ingredients table + batch/yield/price inputs (NPD-g)",
+  "prompt": "# T-066 — Formulation editor ingredients UI\n\nPRD: 01-NPD-PRD.md §17.11.1 + UX 01-NPD-UX.md recipe_screen\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\nPrototype: design/Monopilot Design System/npd/recipe.jsx:124-264 (IngredientRow + RecipeScreen) + design/Monopilot Design System/npd/formulation-screens.jsx:79-153 (FormulationEditor)\n\n## Goal\nClient component FormulationEditor mounted at /(npd)/pipeline/[projectId]?stage=recipe with ingredients table (CRUD rows: rm_code, qty_kg, pct, costPerKg, allergen), batch/yield/target-price inputs, save-draft debounced 800 ms via saveDraft action.\n\n## Implementation contract\n1. apps/web/app/(npd)/pipeline/[projectId]/formulation/_components/formulation-editor.tsx ('use client') uses RHF + zodResolver + shadcn Table + Input + Select for ingredient rows.\n2. Add/Delete row controls; row-level validation (pct ∈ [0,100]).\n3. Debounced 800 ms saveDraft on field change; loading + error toast.\n4. RTL test asserts CRUD + debounce + parity vs prototype.\n\n## Files\n- apps/web/app/(npd)/pipeline/[projectId]/formulation/page.tsx [create]\n- apps/web/app/(npd)/pipeline/[projectId]/formulation/_components/formulation-editor.tsx [create]\n- apps/web/app/(npd)/pipeline/[projectId]/formulation/_components/ingredient-row.tsx [create]\n- apps/web/app/(npd)/pipeline/[projectId]/formulation/_components/__tests__/formulation-editor.test.tsx [create]\n- design/Monopilot Design System/npd/recipe.jsx [ref]\n\n## Acceptance criteria\n1. Given the production FormulationEditor renders, when compared to design/Monopilot Design System/npd/recipe.jsx:124-264 (IngredientRow + RecipeScreen) + design/Monopilot Design System/npd/formulation-screens.jsx:79-153 (FormulationEditor), then it has the same ingredient row layout (rm_code, qty_kg, pct, costPerKg, allergen) + batch/yield/target-price inputs using shadcn Table + Input + Select primitives — verified by RTL snapshot + parity checklist\n2. Given the user types in the qty_kg input, when 800 ms elapse without further keystrokes, then saveDraft is invoked exactly once per §17.11.1 debounce contract\n3. Given a row with pct=110 is entered, when blur fires, then a Zod validation error is shown inline and saveDraft is NOT called per zodResolver field validation\n\n## Test strategy\n- RED: __tests__/formulation-editor.test.tsx asserting parity + debounce timing + Zod inline error before component exists\n- Run 'pnpm --filter web test formulation-editor'\n\n## Risk red lines\n- Do not call saveDraft on every keystroke (must debounce 800 ms)\n- Do not paste prototype JSX verbatim\n- Do not use HTML <select> in place of shadcn Select",
+  "labels": ["prd", "ui", "formulation-editor", "T3-ui"],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-066",
+    "source_prd": "01-NPD-PRD.md",
+    "prd_refs": ["§17.11.1"],
+    "category": "ui",
+    "subcategory": "formulation-editor",
+    "task_type": "T3-ui",
+    "parent_feature": "01-NPD-g Recipe Formulation Editor",
+    "context_budget": "55k",
+    "estimated_effort": "3-4h",
+    "description": "FormulationEditor ingredients table + batch/yield/price inputs + 800 ms debounced saveDraft + RHF/Zod validation.",
+    "details": "Parity checklist: (1) ingredient row cols rm_code, qty_kg, pct, costPerKg, allergen; (2) Add/Delete controls; (3) batch/yield/target-price inputs; (4) shadcn Table + Input + Select; (5) debounce 800 ms; (6) inline Zod errors.",
+    "scope_files": [
+      "apps/web/app/(npd)/pipeline/[projectId]/formulation/page.tsx [create]",
+      "apps/web/app/(npd)/pipeline/[projectId]/formulation/_components/formulation-editor.tsx [create]",
+      "apps/web/app/(npd)/pipeline/[projectId]/formulation/_components/ingredient-row.tsx [create]",
+      "apps/web/app/(npd)/pipeline/[projectId]/formulation/_components/__tests__/formulation-editor.test.tsx [create]",
+      "design/Monopilot Design System/npd/recipe.jsx [ref]"
+    ],
+    "out_of_scope": [
+      "Do not implement live cost/nutrition/allergen panels (T-067)",
+      "Do not build E2E (T-068)"
+    ],
+    "dependencies": ["T-064"],
+    "parallel_safe_with": ["T-067"],
+    "acceptance_criteria": [
+      "Given the production FormulationEditor renders, when compared to design/Monopilot Design System/npd/recipe.jsx:124-264 (IngredientRow + RecipeScreen) + design/Monopilot Design System/npd/formulation-screens.jsx:79-153, then it has the same ingredient row layout (rm_code, qty_kg, pct, costPerKg, allergen) + batch/yield/target-price inputs using shadcn primitives — verified by RTL snapshot + parity checklist",
+      "Given the user types in the qty_kg input, when 800 ms elapse without further keystrokes, then saveDraft is invoked exactly once per §17.11.1 debounce contract",
+      "Given a row with pct=110 is entered, when blur fires, then a Zod validation error is shown inline and saveDraft is NOT called"
+    ],
+    "test_strategy": [
+      "RED: __tests__/formulation-editor.test.tsx asserting parity + debounce + Zod error before component exists",
+      "Run 'pnpm --filter web test formulation-editor'"
+    ],
+    "risk_red_lines": [
+      "Do not call saveDraft on every keystroke",
+      "Do not paste prototype JSX verbatim",
+      "Do not use HTML <select> in place of shadcn Select"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}
