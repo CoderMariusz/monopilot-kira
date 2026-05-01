@@ -1,0 +1,61 @@
+{
+  "title": "T-086 — UI: ComplianceDocsScreen + DocUploadModal (ComplianceDocsScreen prototype) (NPD-i)",
+  "prompt": "# T-086 — Compliance docs UI\n\nPRD: 01-NPD-PRD.md §19 + UX 01-NPD-UX.md compliance_docs + doc_upload_modal\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\nPrototype: design/Monopilot Design System/npd/docs-screens.jsx:6-53 (ComplianceDocsScreen) + design/Monopilot Design System/npd/modals.jsx:667-689 (DocUploadModal)\n\n## Goal\nClient component ComplianceDocsScreen at /(npd)/fa/[productCode]/docs listing docs grouped by doc_type with expiry badges + DocUploadModal for upload (drag-and-drop + click-to-pick + MIME/size client validation + version_number bump).\n\n## Implementation contract\n1. apps/web/app/(npd)/fa/[productCode]/docs/page.tsx (RSC) reads listDocs.\n2. ComplianceDocsScreen renders shadcn Table grouped by doc_type with cols Title/Version/Uploaded/Expires/Status badge/Actions; status badges: 'Valid' (green), 'Expiring' (amber if ≤30d), 'Expired' (red); signed-URL Download button calls getSignedUrl.\n3. DocUploadModal — shadcn Dialog + RHF + zodResolver — fields doc_type Select, title Input, file Input (accept=.pdf,.xlsx,.docx, MAX 20 MB client check), expires_at DatePicker, mitigation; calls uploadDoc.\n4. RTL parity test against prototype + client validation.\n\n## Files\n- apps/web/app/(npd)/fa/[productCode]/docs/page.tsx [create]\n- apps/web/app/(npd)/fa/[productCode]/docs/_components/compliance-docs-screen.tsx [create]\n- apps/web/app/(npd)/fa/[productCode]/docs/_components/doc-upload-modal.tsx [create]\n- apps/web/app/(npd)/fa/[productCode]/docs/_components/__tests__/compliance-docs.test.tsx [create]\n- design/Monopilot Design System/npd/docs-screens.jsx [ref]\n- design/Monopilot Design System/npd/modals.jsx [ref]\n\n## Acceptance criteria\n1. Given the production ComplianceDocsScreen renders, when compared to design/Monopilot Design System/npd/docs-screens.jsx:6-53 (ComplianceDocsScreen), then it has the same per-doc_type grouping + Title/Version/Uploaded/Expires/Status columns + status badges (Valid/Expiring/Expired) using shadcn Table + Badge primitives — verified by RTL snapshot + parity checklist\n2. Given DocUploadModal renders (design/Monopilot Design System/npd/modals.jsx:667-689 DocUploadModal), then it has shadcn Dialog + Form + Select (doc_type) + Input (title, file accept=PDF/XLSX/DOCX) + DatePicker (expires_at) using RHF + zodResolver — verified by RTL snapshot + parity checklist\n3. Given the user picks a 25 MB file, when blur or submit fires, then a Zod inline error appears and uploadDoc is NOT called per §19 client size validation\n\n## Test strategy\n- RED: __tests__/compliance-docs.test.tsx asserting parity + client size validation before component exists\n- Run 'pnpm --filter web test compliance-docs'\n\n## Risk red lines\n- Do not paste prototype JSX verbatim\n- Do not skip client-side MIME and size validation\n- Do not bypass shadcn Table primitives",
+  "labels": ["prd", "ui", "compliance-docs", "T3-ui"],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-086",
+    "source_prd": "01-NPD-PRD.md",
+    "prd_refs": ["§19"],
+    "category": "ui",
+    "subcategory": "compliance-docs-ui",
+    "task_type": "T3-ui",
+    "parent_feature": "01-NPD-i Approval+Risk+Compliance",
+    "context_budget": "55k",
+    "estimated_effort": "3h",
+    "description": "ComplianceDocsScreen + DocUploadModal with grouped table + status badges + drag-and-drop + client MIME/size validation.",
+    "details": "Parity checklist: per-doc_type grouping, Valid/Expiring/Expired badges, Download via signed URL, RHF DocUploadModal with client validation.",
+    "scope_files": [
+      "apps/web/app/(npd)/fa/[productCode]/docs/page.tsx [create]",
+      "apps/web/app/(npd)/fa/[productCode]/docs/_components/compliance-docs-screen.tsx [create]",
+      "apps/web/app/(npd)/fa/[productCode]/docs/_components/doc-upload-modal.tsx [create]",
+      "apps/web/app/(npd)/fa/[productCode]/docs/_components/__tests__/compliance-docs.test.tsx [create]",
+      "design/Monopilot Design System/npd/docs-screens.jsx [ref]",
+      "design/Monopilot Design System/npd/modals.jsx [ref]"
+    ],
+    "out_of_scope": [
+      "Do not implement actions (T-084) or cron (T-085)",
+      "Do not build risk register UI (T-082)"
+    ],
+    "dependencies": ["T-084"],
+    "parallel_safe_with": ["T-082", "T-085"],
+    "acceptance_criteria": [
+      "Given the production ComplianceDocsScreen renders, when compared to design/Monopilot Design System/npd/docs-screens.jsx:6-53 (ComplianceDocsScreen), then it has the same per-doc_type grouping + Title/Version/Uploaded/Expires/Status columns + badges using shadcn primitives — verified by RTL snapshot + parity checklist",
+      "Given DocUploadModal renders (design/Monopilot Design System/npd/modals.jsx:667-689 DocUploadModal), then it has shadcn Dialog + Form + Select + Input (file accept=PDF/XLSX/DOCX) + DatePicker using RHF + zodResolver — verified by RTL snapshot + parity checklist",
+      "Given the user picks a 25 MB file, when blur or submit fires, then a Zod inline error appears and uploadDoc is NOT called per §19 client size validation"
+    ],
+    "test_strategy": [
+      "RED: __tests__/compliance-docs.test.tsx asserting parity + client size validation before component exists",
+      "Run 'pnpm --filter web test compliance-docs'"
+    ],
+    "risk_red_lines": [
+      "Do not paste prototype JSX verbatim",
+      "Do not skip client-side MIME and size validation",
+      "Do not bypass shadcn Table primitives"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

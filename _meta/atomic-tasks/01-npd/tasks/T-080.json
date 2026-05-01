@@ -1,0 +1,59 @@
+{
+  "title": "T-080 — risks table + V18 built-blocker trigger (NPD-i)",
+  "prompt": "# T-080 — Risk register schema + V18 trigger\n\nPRD: 01-NPD-PRD.md §18\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nCreate risks table per §18 DDL with score generated col + bucket generated col + indexes + RLS, plus a Postgres trigger enforcing V18: cannot transition fa.built FALSE→TRUE while any risks row with bucket='High' AND state='Open' exists.\n\n## Implementation contract\n1. Migration packages/db/migrations/0080_risks_v18.sql per §18 DDL: risks (id PK, tenant_id, product_code FK fa ON DELETE CASCADE, title CHECK 3-300 chars, description CHECK 10-500 chars, likelihood INT 1-3, impact INT 1-3, score GENERATED ALWAYS AS (likelihood*impact) STORED, bucket GENERATED ALWAYS AS CASE STORED, state default Open, mitigation, owner_user_id, closed_at, R13 audit cols).\n2. Indexes: (tenant_id, product_code, state) + (tenant_id, bucket) WHERE state='Open'.\n3. Trigger fa_built_v18_check on product BEFORE UPDATE — RAISE EXCEPTION when NEW.built=TRUE and OLD.built=FALSE and EXISTS risks WHERE product_code=NEW.product_code AND bucket='High' AND state='Open'.\n4. RLS + Drizzle schema + barrel.\n\n## Files\n- packages/db/migrations/0080_risks_v18.sql [create]\n- packages/db/src/schema/risks.ts [create]\n- packages/db/src/schema/index.ts [modify]\n- packages/db/__tests__/risks-v18.test.ts [create]\n\n## Acceptance criteria\n1. Given migration 0080 runs and a risks row with likelihood=3, impact=3 exists, when SELECT score, bucket FROM risks runs, then score=9 and bucket='High' (generated cols correct) per §18 score formula\n2. Given a product row with built=FALSE and one Open High-bucket risk, when an UPDATE product SET built=TRUE runs, then it fails with V18_HIGH_RISK_OPEN error per §18 V18 contract\n3. Given an INSERT risks with description='short' (len<10) is attempted, then it fails CHECK constraint per §18 DDL\n\n## Test strategy\n- RED: write packages/db/__tests__/risks-v18.test.ts asserting generated cols + V18 trigger + CHECK + RLS before migration exists\n- Run 'pnpm --filter db migrate && pnpm --filter db test risks-v18'\n\n## Risk red lines\n- Do not implement V18 in app code (must be DB trigger to honour all entry paths)\n- Do not skip generated cols (must be GENERATED ALWAYS STORED)\n- Do not allow downgrading built TRUE→FALSE silently — separate audit",
+  "labels": ["prd", "data", "schema", "T1-schema"],
+  "priority": 50,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-080",
+    "source_prd": "01-NPD-PRD.md",
+    "prd_refs": ["§18"],
+    "category": "data",
+    "subcategory": "risks-v18-schema",
+    "task_type": "T1-schema",
+    "parent_feature": "01-NPD-i Approval+Risk+Compliance",
+    "context_budget": "50k",
+    "estimated_effort": "2-3h",
+    "description": "Create risks table with generated score+bucket cols + V18 fa.built trigger + RLS + CHECK constraints per §18.",
+    "details": "Migration emits the table verbatim per §18 DDL plus the BEFORE UPDATE trigger on product enforcing V18 across all write paths.",
+    "scope_files": [
+      "packages/db/migrations/0080_risks_v18.sql [create]",
+      "packages/db/src/schema/risks.ts [create]",
+      "packages/db/src/schema/index.ts [modify]",
+      "packages/db/__tests__/risks-v18.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not implement risks CRUD action (T-081)",
+      "Do not build risk register UI (T-082)"
+    ],
+    "dependencies": ["T-001"],
+    "parallel_safe_with": ["T-077", "T-083"],
+    "acceptance_criteria": [
+      "Given migration 0080 runs and a risks row with likelihood=3, impact=3 exists, when SELECT score, bucket FROM risks runs, then score=9 and bucket='High' (generated cols correct) per §18 score formula",
+      "Given a product row with built=FALSE and one Open High-bucket risk, when an UPDATE product SET built=TRUE runs, then it fails with V18_HIGH_RISK_OPEN error per §18 V18 contract",
+      "Given an INSERT risks with description='short' (len<10) is attempted, then it fails CHECK constraint per §18 DDL"
+    ],
+    "test_strategy": [
+      "RED: write packages/db/__tests__/risks-v18.test.ts asserting generated cols + V18 trigger + CHECK + RLS before migration exists",
+      "Run 'pnpm --filter db migrate && pnpm --filter db test risks-v18'"
+    ],
+    "risk_red_lines": [
+      "Do not implement V18 in app code only (must be DB trigger)",
+      "Do not skip generated cols",
+      "Do not allow downgrading built TRUE→FALSE silently"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

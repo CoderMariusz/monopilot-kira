@@ -1,0 +1,59 @@
+{
+  "title": "T-071 — sensory_panels + sensory_attribute_scores + sensory_panelist_comments tables (NPD-h)",
+  "prompt": "# T-071 — Sensory schema\n\nPRD: 01-NPD-PRD.md §17.11.4\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nCreate sensory tables for the Sensory stage screen: sensory_panels (per-FA panel session), sensory_attribute_scores (per-attribute mean across panelists, configurable attributes), sensory_panelist_comments (free-text). V08 mean overall ≥ 7.0 enforced in compute layer (T-073-style action), schema only.\n\n## Implementation contract\n1. Migration packages/db/migrations/0071_sensory.sql creates sensory_panels (id PK, tenant_id, product_code FK fa, formulation_version_id FK, panel_date, mean_overall NUMERIC), sensory_attribute_scores (id PK, panel_id ON DELETE CASCADE, attribute_code TEXT (texture/aroma/flavor/appearance/mouthfeel default), mean_score NUMERIC CHECK between 1 and 10), sensory_panelist_comments (id PK, panel_id ON DELETE CASCADE, panelist_user_id, comment_text).\n2. RLS + indexes (tenant_id, product_code).\n3. Drizzle schemas + barrel.\n4. NOTE: §17.11.4 status is TBD (D4 decision) — schema implements full BUILD path; reduction to single FA cell is a separate downstream decision.\n\n## Files\n- packages/db/migrations/0071_sensory.sql [create]\n- packages/db/src/schema/sensory.ts [create]\n- packages/db/src/schema/index.ts [modify]\n- packages/db/__tests__/sensory.test.ts [create]\n\n## Acceptance criteria\n1. Given migration 0071 runs, when \\d sensory_attribute_scores runs, then it lists mean_score CHECK BETWEEN 1 AND 10 per §17.11.4 1–10 scale\n2. Given a sensory_panels row is deleted, when DELETE runs, then matching sensory_attribute_scores + sensory_panelist_comments rows are CASCADE-deleted\n3. Given two tenants seeded, when tenant A SELECT * FROM sensory_panels runs, then it returns only tenant A rows (RLS verified)\n\n## Test strategy\n- RED: write packages/db/__tests__/sensory.test.ts asserting CHECK + cascade + RLS before migration exists\n- Run 'pnpm --filter db migrate && pnpm --filter db test sensory'\n\n## Risk red lines\n- Do not allow mean_score outside 1-10\n- Do not omit ON DELETE CASCADE on child tables\n- Do not skip RLS",
+  "labels": ["prd", "data", "schema", "T1-schema"],
+  "priority": 50,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-071",
+    "source_prd": "01-NPD-PRD.md",
+    "prd_refs": ["§17.11.4"],
+    "category": "data",
+    "subcategory": "sensory-schema",
+    "task_type": "T1-schema",
+    "parent_feature": "01-NPD-h Nutrition+Costing+Sensory",
+    "context_budget": "40k",
+    "estimated_effort": "2h",
+    "description": "Create sensory_panels + sensory_attribute_scores + sensory_panelist_comments tables with CHECK 1-10 + cascade + RLS.",
+    "details": "Migration emits 3 tables. Default attribute set (texture/aroma/flavor/appearance/mouthfeel) configurable. mean_score CHECK 1-10. RLS + cascade.",
+    "scope_files": [
+      "packages/db/migrations/0071_sensory.sql [create]",
+      "packages/db/src/schema/sensory.ts [create]",
+      "packages/db/src/schema/index.ts [modify]",
+      "packages/db/__tests__/sensory.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not build sensory UI here (T-076)",
+      "Do not implement V08 enforcement action (downstream)"
+    ],
+    "dependencies": ["T-001"],
+    "parallel_safe_with": ["T-069", "T-070"],
+    "acceptance_criteria": [
+      "Given migration 0071 runs, when \\d sensory_attribute_scores runs, then it lists mean_score CHECK BETWEEN 1 AND 10 per §17.11.4 1–10 scale",
+      "Given a sensory_panels row is deleted, when DELETE runs, then matching sensory_attribute_scores + sensory_panelist_comments rows are CASCADE-deleted",
+      "Given two tenants seeded, when tenant A SELECT * FROM sensory_panels runs, then it returns only tenant A rows (RLS verified)"
+    ],
+    "test_strategy": [
+      "RED: write packages/db/__tests__/sensory.test.ts asserting CHECK + cascade + RLS before migration exists",
+      "Run 'pnpm --filter db migrate && pnpm --filter db test sensory'"
+    ],
+    "risk_red_lines": [
+      "Do not allow mean_score outside 1-10",
+      "Do not omit ON DELETE CASCADE on child tables",
+      "Do not skip RLS"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

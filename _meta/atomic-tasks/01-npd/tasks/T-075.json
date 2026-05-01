@@ -1,0 +1,60 @@
+{
+  "title": "T-075 — UI: CostingScreen (CostingScreen prototype) — 9-step waterfall SVG + scenarios + sliders (NPD-h)",
+  "prompt": "# T-075 — Costing screen UI\n\nPRD: 01-NPD-PRD.md §17.11.3 + UX 01-NPD-UX.md costing_screen\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\nPrototype: design/Monopilot Design System/npd/other-stages.jsx:83-164 (CostingScreen)\n\n## Goal\nClient component CostingScreen at /(npd)/pipeline/[projectId]?stage=costing rendering 9-step waterfall SVG/CSS bars (Raw → Retail), 3 scenario cards (target/pessimistic/optimistic), what-if Sliders that recompute and persist as named scenarios.\n\n## Implementation contract\n1. apps/web/app/(npd)/pipeline/[projectId]/costing/page.tsx (RSC) reads costing_breakdowns + waterfall_steps; passes to client.\n2. apps/web/app/(npd)/pipeline/[projectId]/costing/_components/costing-screen.tsx ('use client') renders Waterfall SVG + Scenarios card + what-if Sliders (shadcn Slider).\n3. Margin warn badge when scenario margin <15%; HARD FAIL banner if <0%.\n4. RTL parity test against prototype.\n\n## Files\n- apps/web/app/(npd)/pipeline/[projectId]/costing/page.tsx [create]\n- apps/web/app/(npd)/pipeline/[projectId]/costing/_components/costing-screen.tsx [create]\n- apps/web/app/(npd)/pipeline/[projectId]/costing/_components/waterfall-bar.tsx [create]\n- apps/web/app/(npd)/pipeline/[projectId]/costing/_components/__tests__/costing-screen.test.tsx [create]\n- design/Monopilot Design System/npd/other-stages.jsx [ref]\n\n## Acceptance criteria\n1. Given the production CostingScreen renders, when compared to design/Monopilot Design System/npd/other-stages.jsx:83-164 (CostingScreen), then it has the same 9-step waterfall + 3 scenario cards (target/pessimistic/optimistic) + what-if Sliders using shadcn Slider + Card + Badge primitives — verified by RTL snapshot + parity checklist\n2. Given a scenario margin computes to 10%, when the screen renders, then a yellow 'Margin warn' Badge appears per §17.11.3 V07 rule\n3. Given the user adjusts a what-if Slider then clicks Save Scenario, when the action settles, then a new costing_breakdowns row is created with the named scenario per §17.11.3 named-scenario contract\n\n## Test strategy\n- RED: __tests__/costing-screen.test.tsx asserting parity + warn badge + slider+save before component exists\n- Run 'pnpm --filter web test costing-screen'\n\n## Risk red lines\n- Do not paste prototype JSX verbatim\n- Do not allow Save when margin < 0% (HARD FAIL banner blocks)\n- Do not use HTML <input range> in place of shadcn Slider",
+  "labels": ["prd", "ui", "costing-screen", "T3-ui"],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-075",
+    "source_prd": "01-NPD-PRD.md",
+    "prd_refs": ["§17.11.3"],
+    "category": "ui",
+    "subcategory": "costing-screen",
+    "task_type": "T3-ui",
+    "parent_feature": "01-NPD-h Nutrition+Costing+Sensory",
+    "context_budget": "50k",
+    "estimated_effort": "3-4h",
+    "description": "Costing stage screen with 9-step waterfall + 3 scenario cards + what-if Sliders + V07 warn/HARD FAIL.",
+    "details": "Parity checklist: 9 waterfall steps in canonical order, 3 scenario cards, what-if Sliders, warn/fail badges, save-scenario CTA.",
+    "scope_files": [
+      "apps/web/app/(npd)/pipeline/[projectId]/costing/page.tsx [create]",
+      "apps/web/app/(npd)/pipeline/[projectId]/costing/_components/costing-screen.tsx [create]",
+      "apps/web/app/(npd)/pipeline/[projectId]/costing/_components/waterfall-bar.tsx [create]",
+      "apps/web/app/(npd)/pipeline/[projectId]/costing/_components/__tests__/costing-screen.test.tsx [create]",
+      "design/Monopilot Design System/npd/other-stages.jsx [ref]"
+    ],
+    "out_of_scope": [
+      "Do not implement compute (T-073)",
+      "Do not build sensory UI (T-076)"
+    ],
+    "dependencies": ["T-073"],
+    "parallel_safe_with": ["T-074", "T-076"],
+    "acceptance_criteria": [
+      "Given the production CostingScreen renders, when compared to design/Monopilot Design System/npd/other-stages.jsx:83-164 (CostingScreen), then it has the same 9-step waterfall + 3 scenario cards + what-if Sliders using shadcn primitives — verified by RTL snapshot + parity checklist",
+      "Given a scenario margin computes to 10%, when the screen renders, then a yellow 'Margin warn' Badge appears per §17.11.3 V07 rule",
+      "Given the user adjusts a what-if Slider then clicks Save Scenario, when the action settles, then a new costing_breakdowns row is created with the named scenario per §17.11.3"
+    ],
+    "test_strategy": [
+      "RED: __tests__/costing-screen.test.tsx asserting parity + warn badge + slider+save before component exists",
+      "Run 'pnpm --filter web test costing-screen'"
+    ],
+    "risk_red_lines": [
+      "Do not paste prototype JSX verbatim",
+      "Do not allow Save when margin < 0%",
+      "Do not use HTML <input range> in place of shadcn Slider"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

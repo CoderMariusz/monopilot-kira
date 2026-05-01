@@ -1,0 +1,58 @@
+{
+  "title": "T-088 — E2E: compliance doc upload → expiry job → dashboard tile + email (NPD-i)",
+  "prompt": "# T-088 — Compliance doc expiry workflow E2E\n\nPRD: 01-NPD-PRD.md §19\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nPlaywright E2E + integration covering full compliance doc lifecycle: upload PDF with expires_at = today + 25 days → run expiry scan → assert dashboard 'Expiring docs' tile shows badge + outbox event 'compliance_doc.expiring' was emitted + email adapter received message.\n\n## Implementation contract\n1. apps/web/e2e/npd/compliance-docs-expiry.spec.ts: NPD Manager logs in → /(npd)/fa/[code]/docs → opens DocUploadModal → uploads small fixture PDF with expires_at=today+25d → triggers worker run via test-only RPC → navigates to dashboard → asserts 'Expiring docs' tile badge.\n2. Integration test apps/web/__tests__/integration/compliance-expiry.test.ts: seeds doc with expires_at=today+25d, invokes compliance_docs_expiry_scan, asserts outbox + email adapter mock called once.\n3. Fixtures provide a test PDF + email mock.\n\n## Files\n- apps/web/e2e/npd/compliance-docs-expiry.spec.ts [create]\n- apps/web/__tests__/integration/compliance-expiry.test.ts [create]\n- apps/web/e2e/npd/fixtures/compliance-fixture.pdf [create]\n\n## Acceptance criteria\n1. Given an uploaded doc with expires_at=today+25d, when compliance_docs_expiry_scan runs, then exactly one 'compliance_doc.expiring' outbox event exists per §19 ≤30 day rule\n2. Given the scan completes, when the user navigates to /(npd)/dashboard, then an 'Expiring docs' tile badge with count 1 is visible per §19 dashboard tile contract\n3. Given the scan runs twice within the same UTC day, when the email adapter mock is inspected, then it was invoked exactly once (idempotent) per §19 cron stability\n\n## Test strategy\n- RED: 3 specs above before final wiring; mock email adapter; run worker via test-only RPC\n- Run 'pnpm --filter web test:e2e compliance-docs-expiry && pnpm --filter web test compliance-expiry'\n\n## Risk red lines\n- Do not send real emails in test (mock adapter)\n- Do not run against shared/staging DB\n- Do not skip idempotency assertion",
+  "labels": ["prd", "test", "compliance-expiry", "T4-wiring-test"],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-088",
+    "source_prd": "01-NPD-PRD.md",
+    "prd_refs": ["§19"],
+    "category": "test",
+    "subcategory": "compliance-expiry-e2e",
+    "task_type": "T4-wiring-test",
+    "parent_feature": "01-NPD-i Approval+Risk+Compliance",
+    "context_budget": "55k",
+    "estimated_effort": "2-3h",
+    "description": "Playwright E2E + integration test for compliance doc upload → expiry scan → outbox + email + dashboard badge.",
+    "details": "Lifecycle E2E exercises upload, expiry job invocation, outbox event, dashboard tile, and email adapter mock idempotency.",
+    "scope_files": [
+      "apps/web/e2e/npd/compliance-docs-expiry.spec.ts [create]",
+      "apps/web/__tests__/integration/compliance-expiry.test.ts [create]",
+      "apps/web/e2e/npd/fixtures/compliance-fixture.pdf [create]"
+    ],
+    "out_of_scope": [
+      "Do not test V18 risk-blocker (T-087)",
+      "Do not implement actions/cron (T-084, T-085)"
+    ],
+    "dependencies": ["T-084", "T-085", "T-086"],
+    "parallel_safe_with": ["T-087"],
+    "acceptance_criteria": [
+      "Given an uploaded doc with expires_at=today+25d, when compliance_docs_expiry_scan runs, then exactly one 'compliance_doc.expiring' outbox event exists per §19 ≤30 day rule",
+      "Given the scan completes, when the user navigates to /(npd)/dashboard, then an 'Expiring docs' tile badge with count 1 is visible per §19 dashboard tile contract",
+      "Given the scan runs twice within the same UTC day, when the email adapter mock is inspected, then it was invoked exactly once (idempotent) per §19 cron stability"
+    ],
+    "test_strategy": [
+      "RED: 3 specs above before final wiring; mock email adapter; run worker via test-only RPC",
+      "Run 'pnpm --filter web test:e2e compliance-docs-expiry && pnpm --filter web test compliance-expiry'"
+    ],
+    "risk_red_lines": [
+      "Do not send real emails in test",
+      "Do not run against shared/staging DB",
+      "Do not skip idempotency assertion"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

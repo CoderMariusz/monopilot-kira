@@ -1,0 +1,61 @@
+{
+  "title": "T-082 — UI: RiskRegisterScreen + RiskAddModal (RiskRegisterScreen prototype) (NPD-i)",
+  "prompt": "# T-082 — Risk register UI\n\nPRD: 01-NPD-PRD.md §18 + UX 01-NPD-UX.md risk_register + risk_add_modal\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\nPrototype: design/Monopilot Design System/npd/docs-screens.jsx:56-106 (RiskRegisterScreen) + design/Monopilot Design System/npd/modals.jsx:297-346 (RiskAddModal)\n\n## Goal\nClient component RiskRegisterScreen at /(npd)/fa/[productCode]/risks listing risks with bucket badges + state badges + RiskAddModal (MODAL-07) for create + edit + state transitions.\n\n## Implementation contract\n1. apps/web/app/(npd)/fa/[productCode]/risks/page.tsx (RSC) reads risks list + counts.\n2. RiskRegisterScreen renders shadcn Table with columns Title/Likelihood/Impact/Score/Bucket badge/State badge/Owner/Actions; filter by state + bucket; bucket colors: High=red, Med=amber, Low=green.\n3. RiskAddModal (shadcn Dialog) — RHF + zodResolver — fields title, description, likelihood (1-3), impact (1-3), mitigation; create/edit modes; lifecycle action triggers (Mitigate / Close / Reopen) with reason textarea ≥10 chars.\n4. RTL parity test against prototype.\n\n## Files\n- apps/web/app/(npd)/fa/[productCode]/risks/page.tsx [create]\n- apps/web/app/(npd)/fa/[productCode]/risks/_components/risk-register-screen.tsx [create]\n- apps/web/app/(npd)/fa/[productCode]/risks/_components/risk-add-modal.tsx [create]\n- apps/web/app/(npd)/fa/[productCode]/risks/_components/__tests__/risk-register.test.tsx [create]\n- design/Monopilot Design System/npd/docs-screens.jsx [ref]\n- design/Monopilot Design System/npd/modals.jsx [ref]\n\n## Acceptance criteria\n1. Given the production RiskRegisterScreen renders, when compared to design/Monopilot Design System/npd/docs-screens.jsx:56-106 (RiskRegisterScreen), then it has the same column layout (Title/Likelihood/Impact/Score/Bucket/State/Owner/Actions) + bucket badges (High=red/Med=amber/Low=green) using shadcn Table + Badge primitives — verified by RTL snapshot + parity checklist\n2. Given RiskAddModal renders (design/Monopilot Design System/npd/modals.jsx:297-346 RiskAddModal), then it has RHF fields (title, description, likelihood radio 1-3, impact radio 1-3, mitigation) using shadcn Dialog + Form + Input + RadioGroup primitives — verified by RTL snapshot + parity checklist\n3. Given the user opens lifecycle action 'Mitigate' and types reason='short' (len<10), when Save is clicked, then a Zod inline error appears and updateRisk is NOT called per §18 reason contract\n\n## Test strategy\n- RED: __tests__/risk-register.test.tsx asserting parity + reason gating before component exists\n- Run 'pnpm --filter web test risk-register'\n\n## Risk red lines\n- Do not paste prototype JSX verbatim\n- Do not allow Save when reason <10 chars on lifecycle transitions\n- Do not use HTML <select> for likelihood/impact (use shadcn RadioGroup or Select)",
+  "labels": ["prd", "ui", "risk-register", "T3-ui"],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-082",
+    "source_prd": "01-NPD-PRD.md",
+    "prd_refs": ["§18"],
+    "category": "ui",
+    "subcategory": "risk-register-ui",
+    "task_type": "T3-ui",
+    "parent_feature": "01-NPD-i Approval+Risk+Compliance",
+    "context_budget": "55k",
+    "estimated_effort": "3h",
+    "description": "RiskRegisterScreen + RiskAddModal with shadcn Table + Dialog + RHF + Zod validation + reason gating.",
+    "details": "Parity checklist: column order, bucket color mapping, modal RHF fields, reason ≥10 chars on transitions.",
+    "scope_files": [
+      "apps/web/app/(npd)/fa/[productCode]/risks/page.tsx [create]",
+      "apps/web/app/(npd)/fa/[productCode]/risks/_components/risk-register-screen.tsx [create]",
+      "apps/web/app/(npd)/fa/[productCode]/risks/_components/risk-add-modal.tsx [create]",
+      "apps/web/app/(npd)/fa/[productCode]/risks/_components/__tests__/risk-register.test.tsx [create]",
+      "design/Monopilot Design System/npd/docs-screens.jsx [ref]",
+      "design/Monopilot Design System/npd/modals.jsx [ref]"
+    ],
+    "out_of_scope": [
+      "Do not implement actions (T-081)",
+      "Do not test V18 built-blocker E2E (T-087)"
+    ],
+    "dependencies": ["T-081"],
+    "parallel_safe_with": ["T-079", "T-086"],
+    "acceptance_criteria": [
+      "Given the production RiskRegisterScreen renders, when compared to design/Monopilot Design System/npd/docs-screens.jsx:56-106 (RiskRegisterScreen), then it has the same column layout (Title/Likelihood/Impact/Score/Bucket/State/Owner/Actions) + bucket badges using shadcn primitives — verified by RTL snapshot + parity checklist",
+      "Given RiskAddModal renders (design/Monopilot Design System/npd/modals.jsx:297-346 RiskAddModal), then it has RHF fields (title, description, likelihood, impact, mitigation) using shadcn Dialog + Form primitives — verified by RTL snapshot + parity checklist",
+      "Given the user opens lifecycle action 'Mitigate' and types reason='short' (len<10), when Save is clicked, then a Zod inline error appears and updateRisk is NOT called per §18 reason contract"
+    ],
+    "test_strategy": [
+      "RED: __tests__/risk-register.test.tsx asserting parity + reason gating before component exists",
+      "Run 'pnpm --filter web test risk-register'"
+    ],
+    "risk_red_lines": [
+      "Do not paste prototype JSX verbatim",
+      "Do not allow Save when reason <10 chars on lifecycle transitions",
+      "Do not use HTML <select>"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

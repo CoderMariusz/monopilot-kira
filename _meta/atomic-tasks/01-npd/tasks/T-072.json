@@ -1,0 +1,60 @@
+{
+  "title": "T-072 — Nutrition computation Server Action + Nutri-Score grade (NPD-h)",
+  "prompt": "# T-072 — Nutrition compute action\n\nPRD: 01-NPD-PRD.md §17.11.2\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nServer Action computeNutrition(formulationVersionId) → weighted-sum per-100g values across Reference.RawMaterials.nutrition_per_100g over formulation_ingredients, persists to nutrition_profiles, computes Nutri-Score grade A-E and writes nutri_score_results.\n\n## Implementation contract\n1. packages/domain/src/nutrition/compute-nutrition.ts: pure function computeNutrition(ingredients, rmNutrition) → 7-row per-100g + per-portion array.\n2. packages/domain/src/nutrition/nutri-score.ts: pure function nutriScore(per100g) → grade A-E + numeric score per standard 2017 algorithm (negative + positive points).\n3. apps/web/app/(npd)/pipeline/[projectId]/nutrition/_actions/compute.ts: Server Action invoking both helpers + UPSERT into nutrition_profiles + nutri_score_results.\n4. Vitest covers weighted-sum correctness, grade boundaries (A:≤-1, B:0-2, C:3-10, D:11-18, E:≥19) per Nutri-Score 2017 spec.\n\n## Files\n- packages/domain/src/nutrition/compute-nutrition.ts [create]\n- packages/domain/src/nutrition/nutri-score.ts [create]\n- packages/domain/src/nutrition/__tests__/compute-nutrition.test.ts [create]\n- packages/domain/src/nutrition/__tests__/nutri-score.test.ts [create]\n- apps/web/app/(npd)/pipeline/[projectId]/nutrition/_actions/compute.ts [create]\n\n## Acceptance criteria\n1. Given a formulation with 3 ingredients each 33.3% with known per-100g values, when computeNutrition runs, then per-100g energy = weighted sum within 0.01 tolerance per §17.11.2 weighted-sum spec\n2. Given per-100g values producing Nutri-Score numeric=12, when nutriScore is called, then it returns grade='D' per Nutri-Score 2017 boundary 11-18\n3. Given computeNutrition Server Action runs twice for the same version, when nutrition_profiles is queried, then exactly 7 rows exist (UPSERT, not duplicate INSERT)\n\n## Test strategy\n- RED: __tests__/compute-nutrition.test.ts (weighted sum) + __tests__/nutri-score.test.ts (grade boundaries) before functions exist\n- Run 'pnpm --filter domain test compute-nutrition nutri-score'\n\n## Risk red lines\n- Do not perform I/O in pure helper functions\n- Do not use locale-dependent floating arithmetic (round explicitly)\n- Do not duplicate rows (must UPSERT keyed by version_id + nutrient_code)",
+  "labels": ["prd", "api", "nutrition-compute", "T2-api"],
+  "priority": 80,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-072",
+    "source_prd": "01-NPD-PRD.md",
+    "prd_refs": ["§17.11.2"],
+    "category": "api",
+    "subcategory": "nutrition-compute",
+    "task_type": "T2-api",
+    "parent_feature": "01-NPD-h Nutrition+Costing+Sensory",
+    "context_budget": "50k",
+    "estimated_effort": "3-4h",
+    "description": "Pure-function nutrition + Nutri-Score compute helpers + Server Action UPSERT to nutrition_profiles + nutri_score_results.",
+    "details": "computeNutrition does weighted sum of RM nutrition_per_100g. nutriScore implements 2017 algorithm boundary table. Action UPSERTs.",
+    "scope_files": [
+      "packages/domain/src/nutrition/compute-nutrition.ts [create]",
+      "packages/domain/src/nutrition/nutri-score.ts [create]",
+      "packages/domain/src/nutrition/__tests__/compute-nutrition.test.ts [create]",
+      "packages/domain/src/nutrition/__tests__/nutri-score.test.ts [create]",
+      "apps/web/app/(npd)/pipeline/[projectId]/nutrition/_actions/compute.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not build UI (T-074)",
+      "Do not export label PDF (deferred to Phase C4 11-SHIPPING)"
+    ],
+    "dependencies": ["T-069"],
+    "parallel_safe_with": ["T-073"],
+    "acceptance_criteria": [
+      "Given a formulation with 3 ingredients each 33.3% with known per-100g values, when computeNutrition runs, then per-100g energy = weighted sum within 0.01 tolerance per §17.11.2 weighted-sum spec",
+      "Given per-100g values producing Nutri-Score numeric=12, when nutriScore is called, then it returns grade='D' per Nutri-Score 2017 boundary 11-18",
+      "Given computeNutrition Server Action runs twice for the same version, when nutrition_profiles is queried, then exactly 7 rows exist (UPSERT not duplicate INSERT)"
+    ],
+    "test_strategy": [
+      "RED: __tests__/compute-nutrition.test.ts (weighted sum) + __tests__/nutri-score.test.ts (grade boundaries) before functions exist",
+      "Run 'pnpm --filter domain test compute-nutrition nutri-score'"
+    ],
+    "risk_red_lines": [
+      "Do not perform I/O in pure helper functions",
+      "Do not use locale-dependent floating arithmetic",
+      "Do not duplicate rows (must UPSERT keyed by version_id + nutrient_code)"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

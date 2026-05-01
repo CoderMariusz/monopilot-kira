@@ -1,0 +1,58 @@
+{
+  "title": "T-087 — E2E: V18 built-blocker (high-risk → cannot build) (NPD-i)",
+  "prompt": "# T-087 — V18 built-blocker E2E\n\nPRD: 01-NPD-PRD.md §18 V18 built-blocker rule\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nPlaywright E2E + integration test verifying V18 enforcement: with one Open High-bucket risk, both single-click buildD365 and the builder wizard step 1 reject the build attempt; mitigating the risk unblocks the path.\n\n## Implementation contract\n1. apps/web/e2e/npd/v18-built-blocker.spec.ts: NPD Manager logs in → adds risk likelihood=3 impact=3 (bucket=High) → attempts buildD365 single-click → asserts error 'V18_HIGH_RISK_OPEN' + fa.built remains FALSE.\n2. Same test continues: opens RiskRegisterScreen → mitigates risk with reason ≥10 chars → re-attempts buildD365 → asserts success + fa.built=TRUE.\n3. Integration test apps/web/__tests__/integration/v18-trigger.test.ts: verifies DB trigger raises exception when product.built UPDATE happens with Open High risk present.\n\n## Files\n- apps/web/e2e/npd/v18-built-blocker.spec.ts [create]\n- apps/web/__tests__/integration/v18-trigger.test.ts [create]\n- apps/web/e2e/npd/fixtures/v18-seed.ts [create]\n\n## Acceptance criteria\n1. Given an FA with one Open High-bucket risk and built=FALSE, when buildD365 single-click is invoked, then it fails with 'V18_HIGH_RISK_OPEN' and fa.built remains FALSE per §18 V18 contract\n2. Given the same scenario, when the wizard step 1 V18 check runs, then it lists the risk in blockers and the Next button is disabled per §18 V18 + §10.6.1 wizard\n3. Given the risk is mitigated to state='Mitigated' (no longer Open) with reason ≥10 chars, when buildD365 is re-invoked, then it succeeds and fa.built=TRUE\n\n## Test strategy\n- RED: 3 specs above before final wiring; run against isolated test container\n- Run 'pnpm --filter web test:e2e v18-built-blocker && pnpm --filter web test v18-trigger'\n\n## Risk red lines\n- Do not stub the V18 trigger — must hit real DB\n- Do not run against shared/staging DB\n- Do not skip post-mitigation success path",
+  "labels": ["prd", "test", "v18-built-blocker", "T4-wiring-test"],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-087",
+    "source_prd": "01-NPD-PRD.md",
+    "prd_refs": ["§18", "§10.6.1"],
+    "category": "test",
+    "subcategory": "v18-built-blocker-e2e",
+    "task_type": "T4-wiring-test",
+    "parent_feature": "01-NPD-i Approval+Risk+Compliance",
+    "context_budget": "55k",
+    "estimated_effort": "2-3h",
+    "description": "Playwright E2E + integration test asserting V18 built-blocker via single-click + wizard + post-mitigation success.",
+    "details": "End-to-end exercises both build paths plus the DB trigger directly. Fixtures seed the high-risk scenario.",
+    "scope_files": [
+      "apps/web/e2e/npd/v18-built-blocker.spec.ts [create]",
+      "apps/web/__tests__/integration/v18-trigger.test.ts [create]",
+      "apps/web/e2e/npd/fixtures/v18-seed.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not implement risks UI/actions here (T-081, T-082)",
+      "Do not test compliance expiry (T-088)"
+    ],
+    "dependencies": ["T-080", "T-081", "T-082"],
+    "parallel_safe_with": ["T-088"],
+    "acceptance_criteria": [
+      "Given an FA with one Open High-bucket risk and built=FALSE, when buildD365 single-click is invoked, then it fails with 'V18_HIGH_RISK_OPEN' and fa.built remains FALSE per §18 V18 contract",
+      "Given the same scenario, when the wizard step 1 V18 check runs, then it lists the risk in blockers and the Next button is disabled per §18 V18 + §10.6.1 wizard",
+      "Given the risk is mitigated to state='Mitigated' (no longer Open) with reason ≥10 chars, when buildD365 is re-invoked, then it succeeds and fa.built=TRUE"
+    ],
+    "test_strategy": [
+      "RED: 3 specs above before final wiring; run against isolated test container",
+      "Run 'pnpm --filter web test:e2e v18-built-blocker && pnpm --filter web test v18-trigger'"
+    ],
+    "risk_red_lines": [
+      "Do not stub the V18 trigger",
+      "Do not run against shared/staging DB",
+      "Do not skip post-mitigation success path"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

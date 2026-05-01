@@ -1,0 +1,60 @@
+{
+  "title": "T-065 — Formulation pure-function compute (cost/nutrition/allergen) + compareVersions Server Action (NPD-g)",
+  "prompt": "# T-065 — Formulation compute + compare\n\nPRD: 01-NPD-PRD.md §17.11.1 (recomputeCalc paragraph)\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nPure-function recompute helpers (cost, nutrition weighted-sum, allergen union) executed on saveDraft + cached in formulation_calc_cache. compareVersions Server Action diffing 2 versions side-by-side up to 50 rows.\n\n## Implementation contract\n1. packages/domain/src/formulation/recompute-calc.ts: pure function recomputeCalc(ingredients, batchKg, targetPrice, yieldPct) → { totalPct, rawCost, costPerKg, marginPct, nutrition: per-100g, allergens: TEXT[] } — deterministic, no I/O, ≤50 ms p95 per design prototype recipe.jsx:3-23 useLiveCalc.\n2. apps/web/app/(npd)/pipeline/[projectId]/formulation/_actions/recompute.ts: Server Action invoking recomputeCalc + writing formulation_calc_cache row.\n3. apps/web/app/(npd)/pipeline/[projectId]/formulation/_actions/compare-versions.ts: returns side-by-side diff up to 50 ingredient rows × 2 versions; flags ADDED/REMOVED/CHANGED per row.\n4. Vitest covers compute determinism + p95 latency + diff rows.\n\n## Files\n- packages/domain/src/formulation/recompute-calc.ts [create]\n- packages/domain/src/formulation/__tests__/recompute-calc.test.ts [create]\n- apps/web/app/(npd)/pipeline/[projectId]/formulation/_actions/recompute.ts [create]\n- apps/web/app/(npd)/pipeline/[projectId]/formulation/_actions/compare-versions.ts [create]\n- apps/web/app/(npd)/pipeline/[projectId]/formulation/_actions/__tests__/compute.test.ts [create]\n\n## Acceptance criteria\n1. Given a fixed seed of 10 ingredients with known pcts and costs, when recomputeCalc runs 1000 times, then totalPct, rawCost, marginPct values are byte-identical (deterministic) per §17.11.1 pure-function contract\n2. Given recomputeCalc runs against 50 ingredients, when measured over 100 calls, then p95 latency is ≤ 50 ms per §17.11.1 perf budget\n3. Given compareVersions is called against version 1 (5 ingredients) and version 2 (6 ingredients), when result is returned, then it contains 5 unchanged + 1 ADDED row with correct delta per §17.11.1 compare contract\n\n## Test strategy\n- RED: __tests__/recompute-calc.test.ts (determinism + p95) + __tests__/compute.test.ts (compare diff) before functions exist\n- Run 'pnpm --filter domain test recompute-calc && pnpm --filter web test compute'\n\n## Risk red lines\n- Do not perform I/O inside recomputeCalc (must remain pure)\n- Do not exceed 50 ms p95\n- Do not allow non-deterministic floating ordering",
+  "labels": ["prd", "api", "formulation-compute", "T2-api"],
+  "priority": 80,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-065",
+    "source_prd": "01-NPD-PRD.md",
+    "prd_refs": ["§17.11.1"],
+    "category": "api",
+    "subcategory": "formulation-compute",
+    "task_type": "T2-api",
+    "parent_feature": "01-NPD-g Recipe Formulation Editor",
+    "context_budget": "50k",
+    "estimated_effort": "3-4h",
+    "description": "Pure-function recomputeCalc (cost/nutrition/allergen) + compareVersions Server Action with deterministic + p95≤50 ms guarantees.",
+    "details": "recomputeCalc lives in packages/domain (no I/O). recompute action wraps + caches. compareVersions returns up to 50 ingredient rows × 2 versions side-by-side diff with ADDED/REMOVED/CHANGED flags.",
+    "scope_files": [
+      "packages/domain/src/formulation/recompute-calc.ts [create]",
+      "packages/domain/src/formulation/__tests__/recompute-calc.test.ts [create]",
+      "apps/web/app/(npd)/pipeline/[projectId]/formulation/_actions/recompute.ts [create]",
+      "apps/web/app/(npd)/pipeline/[projectId]/formulation/_actions/compare-versions.ts [create]",
+      "apps/web/app/(npd)/pipeline/[projectId]/formulation/_actions/__tests__/compute.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not implement saveDraft here (T-064)",
+      "Do not build editor UI (T-066, T-067)"
+    ],
+    "dependencies": ["T-063"],
+    "parallel_safe_with": ["T-064"],
+    "acceptance_criteria": [
+      "Given a fixed seed of 10 ingredients with known pcts and costs, when recomputeCalc runs 1000 times, then totalPct, rawCost, marginPct values are byte-identical (deterministic) per §17.11.1 pure-function contract",
+      "Given recomputeCalc runs against 50 ingredients, when measured over 100 calls, then p95 latency is ≤ 50 ms per §17.11.1 perf budget",
+      "Given compareVersions is called against version 1 (5 ingredients) and version 2 (6 ingredients), when result is returned, then it contains 5 unchanged + 1 ADDED row with correct delta per §17.11.1 compare contract"
+    ],
+    "test_strategy": [
+      "RED: __tests__/recompute-calc.test.ts (determinism + p95) + __tests__/compute.test.ts (compare diff) before functions exist",
+      "Run 'pnpm --filter domain test recompute-calc && pnpm --filter web test compute'"
+    ],
+    "risk_red_lines": [
+      "Do not perform I/O inside recomputeCalc",
+      "Do not exceed 50 ms p95",
+      "Do not allow non-deterministic floating ordering"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

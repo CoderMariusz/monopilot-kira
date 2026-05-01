@@ -1,0 +1,59 @@
+{
+  "title": "T-078 — Approval criteria (C1-C7) evaluator Server Action (NPD-i)",
+  "prompt": "# T-078 — Approval criteria evaluator\n\nPRD: 01-NPD-PRD.md §17.11.5 (7-criteria summary card)\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nServer Action evaluateApprovalCriteria(productCode) returning {C1..C7: 'pass'|'warn'|'pending'} derived from V01-V08 + risk + compliance docs state. Backs the Approval screen's 7-criteria summary card.\n\n## Implementation contract\n1. packages/domain/src/approval/evaluate-criteria.ts pure helper given inputs (formulation, nutrition, costing, sensory, allergens, risks, docs) → 7-criteria result.\n2. apps/web/app/(npd)/pipeline/[projectId]/approval/_actions/evaluate.ts: Server Action that loads inputs from DB and invokes helper.\n3. Each criterion mapped per §17.11.5: C1 formulations.locked_at not null; C2 nutri_score grade in {A,B,C}; C3 margin >=15%; C4 sensory mean >=7.0 (or N/A if D4 reduces); C5 allergens audited V07 PASS; C6 0 Open High risks (V18); C7 compliance docs valid + non-expired.\n4. Vitest covers each criterion's pass/warn/pending paths.\n\n## Files\n- packages/domain/src/approval/evaluate-criteria.ts [create]\n- packages/domain/src/approval/__tests__/evaluate-criteria.test.ts [create]\n- apps/web/app/(npd)/pipeline/[projectId]/approval/_actions/evaluate.ts [create]\n- apps/web/app/(npd)/pipeline/[projectId]/approval/_actions/__tests__/evaluate.test.ts [create]\n\n## Acceptance criteria\n1. Given a formulation with locked_at NULL, when evaluateApprovalCriteria runs, then C1 returns 'pending' per §17.11.5 C1 condition\n2. Given an FA with one Open High-bucket risk, when evaluateApprovalCriteria runs, then C6 returns 'warn' (or 'fail' depending on V18 contract) per §17.11.5 C6 + §18 V18\n3. Given all inputs satisfied (locked, nutriScore=B, margin=20%, sensory=8.0, allergen audited, no high risk, docs valid), when evaluateApprovalCriteria runs, then all 7 criteria return 'pass' per §17.11.5\n\n## Test strategy\n- RED: __tests__/evaluate-criteria.test.ts (per-criterion isolated paths) + __tests__/evaluate.test.ts (action with seeded inputs) before functions exist\n- Run 'pnpm --filter domain test evaluate-criteria && pnpm --filter web test evaluate'\n\n## Risk red lines\n- Do not bypass V18 risk-blocker semantics in C6\n- Do not treat C7 'expired' as pass\n- Do not return 'pass' when sensory not yet measured (must be 'pending')",
+  "labels": ["prd", "api", "approval-criteria", "T2-api"],
+  "priority": 80,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-078",
+    "source_prd": "01-NPD-PRD.md",
+    "prd_refs": ["§17.11.5", "§18"],
+    "category": "api",
+    "subcategory": "approval-criteria-eval",
+    "task_type": "T2-api",
+    "parent_feature": "01-NPD-i Approval+Risk+Compliance",
+    "context_budget": "55k",
+    "estimated_effort": "3h",
+    "description": "Pure-function evaluateApprovalCriteria + Server Action returning C1-C7 pass/warn/pending per §17.11.5.",
+    "details": "Pure helper accepts denormalised inputs. Action loads inputs from DB. Per-criterion mapping documented inline.",
+    "scope_files": [
+      "packages/domain/src/approval/evaluate-criteria.ts [create]",
+      "packages/domain/src/approval/__tests__/evaluate-criteria.test.ts [create]",
+      "apps/web/app/(npd)/pipeline/[projectId]/approval/_actions/evaluate.ts [create]",
+      "apps/web/app/(npd)/pipeline/[projectId]/approval/_actions/__tests__/evaluate.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not build approval UI (T-079)",
+      "Do not implement V18 trigger (T-080)"
+    ],
+    "dependencies": ["T-064", "T-072", "T-073", "T-077"],
+    "parallel_safe_with": ["T-081", "T-084"],
+    "acceptance_criteria": [
+      "Given a formulation with locked_at NULL, when evaluateApprovalCriteria runs, then C1 returns 'pending' per §17.11.5 C1 condition",
+      "Given an FA with one Open High-bucket risk, when evaluateApprovalCriteria runs, then C6 returns 'warn' or 'fail' per §17.11.5 C6 + §18 V18",
+      "Given all inputs satisfied (locked, nutriScore=B, margin=20%, sensory=8.0, allergen audited, no high risk, docs valid), when evaluateApprovalCriteria runs, then all 7 criteria return 'pass' per §17.11.5"
+    ],
+    "test_strategy": [
+      "RED: __tests__/evaluate-criteria.test.ts + __tests__/evaluate.test.ts before functions exist",
+      "Run 'pnpm --filter domain test evaluate-criteria && pnpm --filter web test evaluate'"
+    ],
+    "risk_red_lines": [
+      "Do not bypass V18 risk-blocker semantics in C6",
+      "Do not treat C7 'expired' as pass",
+      "Do not return 'pass' when sensory not yet measured"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

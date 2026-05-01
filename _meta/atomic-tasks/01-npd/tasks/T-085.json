@@ -1,0 +1,59 @@
+{
+  "title": "T-085 — compliance_docs_expiry_scan SECURITY DEFINER cron job (NPD-i)",
+  "prompt": "# T-085 — Compliance docs expiry scan cron\n\nPRD: 01-NPD-PRD.md §19 (expiry warnings nightly job)\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nNightly cron 0 2 * * * runs SECURITY DEFINER function compliance_docs_expiry_scan() that flags docs ≤30 days remaining as 'Expiring' (dashboard tile badge) and past-expiry as 'Expired' (red badge + email NPD Manager + doc owner).\n\n## Implementation contract\n1. Migration packages/db/migrations/0085_compliance_docs_expiry_scan.sql defines compliance_docs_expiry_scan() SECURITY DEFINER + owned by service role; returns counts of expiring/expired per tenant.\n2. apps/worker/src/jobs/compliance-docs-expiry.ts pg-boss job (cron 0 2 * * *) invokes the function; on rows with state changes emits 'compliance_doc.expired' + 'compliance_doc.expiring' outbox events; sends email via existing email adapter.\n3. Vitest covers ≤30 days flag, past-expiry flag, idempotent re-run (no duplicate emails).\n4. Worker registered in apps/worker/src/index.ts boot.\n\n## Files\n- packages/db/migrations/0085_compliance_docs_expiry_scan.sql [create]\n- apps/worker/src/jobs/compliance-docs-expiry.ts [create]\n- apps/worker/src/index.ts [modify]\n- apps/worker/__tests__/compliance-docs-expiry.test.ts [create]\n\n## Acceptance criteria\n1. Given a doc with expires_at = today + 25 days, when the scan runs, then 'compliance_doc.expiring' outbox event is emitted exactly once per §19 ≤30 day rule\n2. Given a doc with expires_at = today - 1 day, when the scan runs, then 'compliance_doc.expired' is emitted and email is sent to NPD Manager + doc owner per §19 expired contract\n3. Given the scan runs twice on the same day, when the second run completes, then no duplicate emails are sent (idempotency via state column or last_notified_at) per §19 cron stability\n\n## Test strategy\n- RED: __tests__/compliance-docs-expiry.test.ts (≤30 day, past-expiry, idempotency) before job exists; mock email adapter\n- Run 'pnpm --filter worker test compliance-docs-expiry'\n\n## Risk red lines\n- Do not run the function with invoker rights (must be SECURITY DEFINER scoped to service role)\n- Do not send duplicate emails on re-run (track last_notified_at)\n- Do not skip outbox event emission",
+  "labels": ["prd", "api", "compliance-cron", "T2-api"],
+  "priority": 80,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-085",
+    "source_prd": "01-NPD-PRD.md",
+    "prd_refs": ["§19"],
+    "category": "api",
+    "subcategory": "compliance-docs-cron",
+    "task_type": "T2-api",
+    "parent_feature": "01-NPD-i Approval+Risk+Compliance",
+    "context_budget": "50k",
+    "estimated_effort": "3h",
+    "description": "Nightly compliance_docs_expiry_scan SECURITY DEFINER function + pg-boss cron + email + outbox emit + idempotency.",
+    "details": "DB function flags expiring/expired. Worker job invokes nightly + emits events + sends email via adapter. Idempotent via last_notified_at.",
+    "scope_files": [
+      "packages/db/migrations/0085_compliance_docs_expiry_scan.sql [create]",
+      "apps/worker/src/jobs/compliance-docs-expiry.ts [create]",
+      "apps/worker/src/index.ts [modify]",
+      "apps/worker/__tests__/compliance-docs-expiry.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not implement upload here (T-084)",
+      "Do not build UI (T-086)"
+    ],
+    "dependencies": ["T-083"],
+    "parallel_safe_with": ["T-084", "T-086"],
+    "acceptance_criteria": [
+      "Given a doc with expires_at = today + 25 days, when the scan runs, then 'compliance_doc.expiring' outbox event is emitted exactly once per §19 ≤30 day rule",
+      "Given a doc with expires_at = today - 1 day, when the scan runs, then 'compliance_doc.expired' is emitted and email is sent to NPD Manager + doc owner per §19 expired contract",
+      "Given the scan runs twice on the same day, when the second run completes, then no duplicate emails are sent (idempotency via last_notified_at) per §19 cron stability"
+    ],
+    "test_strategy": [
+      "RED: __tests__/compliance-docs-expiry.test.ts (≤30 day, past-expiry, idempotency) before job exists; mock email adapter",
+      "Run 'pnpm --filter worker test compliance-docs-expiry'"
+    ],
+    "risk_red_lines": [
+      "Do not run the function with invoker rights",
+      "Do not send duplicate emails on re-run",
+      "Do not skip outbox event emission"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

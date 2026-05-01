@@ -1,0 +1,59 @@
+{
+  "title": "T-081 — risks CRUD + lifecycle Server Actions (Open/Mitigated/Closed/Reopen) (NPD-i)",
+  "prompt": "# T-081 — Risk CRUD + lifecycle\n\nPRD: 01-NPD-PRD.md §18\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nServer Actions for risks CRUD + lifecycle transitions (Open → Mitigated → Closed + reopen) with audit + reason ≥10 chars on transition.\n\n## Implementation contract\n1. apps/web/app/(npd)/fa/[productCode]/risks/_actions/create-risk.ts: RBAC risk.write; inserts risks row; emits 'risk.created' outbox.\n2. apps/web/app/(npd)/fa/[productCode]/risks/_actions/update-risk.ts: RBAC risk.write; updates fields; transitions allowed Open→Mitigated, Mitigated→Closed, Closed→Open (reopen), each requires reason ≥10 chars; writes audit_events.\n3. apps/web/app/(npd)/fa/[productCode]/risks/_actions/list-risks.ts: returns risks per product_code with bucket counts.\n4. Vitest covers reason length, transition validity, RBAC, audit emission.\n\n## Files\n- apps/web/app/(npd)/fa/[productCode]/risks/_actions/create-risk.ts [create]\n- apps/web/app/(npd)/fa/[productCode]/risks/_actions/update-risk.ts [create]\n- apps/web/app/(npd)/fa/[productCode]/risks/_actions/list-risks.ts [create]\n- apps/web/app/(npd)/fa/[productCode]/risks/_actions/__tests__/risk-actions.test.ts [create]\n\n## Acceptance criteria\n1. Given a risks row in state Open, when updateRisk transitions to Mitigated with reason='ok' (len<10), then it rejects with REASON_TOO_SHORT per §18 reason contract\n2. Given a non-NPD-Manager calls createRisk, when the action runs, then it rejects with FORBIDDEN per §18 RBAC risk.write\n3. Given an updateRisk transitions Open→Closed (skipping Mitigated), when the action runs, then it rejects with INVALID_TRANSITION per §18 lifecycle Open → Mitigated → Closed\n\n## Test strategy\n- RED: __tests__/risk-actions.test.ts (reason length, RBAC, transition validity, audit emit) before actions exist\n- Run 'pnpm --filter web test risk-actions'\n\n## Risk red lines\n- Do not allow transitions other than Open↔Mitigated↔Closed (and reopen Closed→Open)\n- Do not bypass audit_events emission\n- Do not allow reason shorter than 10 chars on lifecycle transitions",
+  "labels": ["prd", "api", "risks", "T2-api"],
+  "priority": 80,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-081",
+    "source_prd": "01-NPD-PRD.md",
+    "prd_refs": ["§18"],
+    "category": "api",
+    "subcategory": "risks-actions",
+    "task_type": "T2-api",
+    "parent_feature": "01-NPD-i Approval+Risk+Compliance",
+    "context_budget": "45k",
+    "estimated_effort": "2-3h",
+    "description": "Risk CRUD + lifecycle Server Actions with reason ≥10 chars + transition guard + RBAC + audit emit.",
+    "details": "createRisk + updateRisk + listRisks. updateRisk handles state transitions and reopen. Each writes audit_events.",
+    "scope_files": [
+      "apps/web/app/(npd)/fa/[productCode]/risks/_actions/create-risk.ts [create]",
+      "apps/web/app/(npd)/fa/[productCode]/risks/_actions/update-risk.ts [create]",
+      "apps/web/app/(npd)/fa/[productCode]/risks/_actions/list-risks.ts [create]",
+      "apps/web/app/(npd)/fa/[productCode]/risks/_actions/__tests__/risk-actions.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not build UI (T-082)",
+      "Do not test E2E built-blocker (T-087)"
+    ],
+    "dependencies": ["T-080"],
+    "parallel_safe_with": ["T-082", "T-084"],
+    "acceptance_criteria": [
+      "Given a risks row in state Open, when updateRisk transitions to Mitigated with reason='ok' (len<10), then it rejects with REASON_TOO_SHORT per §18 reason contract",
+      "Given a non-NPD-Manager calls createRisk, when the action runs, then it rejects with FORBIDDEN per §18 RBAC risk.write",
+      "Given an updateRisk transitions Open→Closed (skipping Mitigated), when the action runs, then it rejects with INVALID_TRANSITION per §18 lifecycle"
+    ],
+    "test_strategy": [
+      "RED: __tests__/risk-actions.test.ts (reason length, RBAC, transition validity, audit emit) before actions exist",
+      "Run 'pnpm --filter web test risk-actions'"
+    ],
+    "risk_red_lines": [
+      "Do not allow transitions other than Open↔Mitigated↔Closed",
+      "Do not bypass audit_events emission",
+      "Do not allow reason shorter than 10 chars on transitions"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}
