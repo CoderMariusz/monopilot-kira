@@ -1,0 +1,88 @@
+{
+  "title": "T-113 — Email Delivery Log screen (SET-093 §13.4)",
+  "prompt": "# T-113 — Email Delivery Log screen (SET-093 §13.4)\n\nPRD: 02-SETTINGS-PRD.md §13.4 (EmailConfig + Notifications UI surfaces)\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nBuild SET-093 Email Delivery Log — last N (default 100) sent + failed + retry status entries from the email outbox/log table (per §13.2 outbox pattern). Filters by trigger_code, recipient, status, date range. Read-only viewer with per-row 'View payload' modal.\n\n## Implementation contract\n1. Page at apps/web/app/(admin)/settings/notifications/email-log/page.tsx (Server Component) reads last 100 email_delivery_log rows for caller's org_id ordered by created_at DESC.\n2. List columns: created_at, trigger_code, recipient_to (truncated), subject, status (queued|sent|failed|dlq), retry_count, last_error_summary.\n3. Toolbar: status filter, trigger_code filter, date range filter, search by recipient.\n4. Per-row 'View payload' link opens read-only modal showing rendered subject + body + raw mustache vars JSON.\n5. RBAC: requires `settings.email.read` (re-uses §13 admin permission set from T-002).\n\n## Files\n- apps/web/app/(admin)/settings/notifications/email-log/page.tsx [create]\n- apps/web/app/(admin)/settings/notifications/email-log/page.test.tsx [create]\n\n## Acceptance criteria\nSee `acceptance_criteria` array.\n\n## Test strategy\n1. RED: RTL test seeds 5 email_delivery_log rows mixed status; asserts filters narrow rows, payload modal renders, RBAC 403 when missing perm.\n   `pnpm --filter @monopilot/web vitest run apps/web/app/(admin)/settings/notifications/email-log/page.test.tsx`\n2. RED must fail.\n3. GREEN: implement Server Component + filters + modal.\n4. Re-run RED + `pnpm typecheck` + `pnpm lint`.\n\n## Risk red lines\n- Do not allow re-send / retry from UI (DLQ worker owns retries per §13.2).\n- Do not log full PII payload to client; mask recipient emails to first-3 + domain in list (full visible only in modal).\n- Do not import @radix-ui/* outside packages/ui (§0).\n\nStack: TS + Next.js App Router + Drizzle + pnpm + vitest + Playwright + Server Actions. PRD: 02-SETTINGS-PRD.md v3.5.\n",
+  "labels": [
+    "prd",
+    "ui",
+    "set-093",
+    "T3-ui"
+  ],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-113",
+    "source_prd": "02-SETTINGS-PRD.md",
+    "prd_refs": [
+      "§13.4",
+      "§13.2"
+    ],
+    "category": "ui",
+    "subcategory": "set-093",
+    "task_type": "T3-ui",
+    "parent_feature": "02-settings-e-ui",
+    "context_budget": "40k",
+    "estimated_effort": "1-3h",
+    "description": "Email Delivery Log (SET-093): last N email outbox runs viewer + filters + payload modal + recipient masking.",
+    "details": "PRD §13.4 SET-093: `Last N sent + failed + retry status`. Underlying email_delivery_log table is populated by the email outbox worker per §13.2; this UI is purely read-only. Recipient masking guards admin viewers from inadvertently exposing PII at-a-glance — full address visible only in payload modal.",
+    "scope_files": [
+      "apps/web/app/(admin)/settings/notifications/email-log/page.tsx [create]",
+      "apps/web/app/(admin)/settings/notifications/email-log/page.test.tsx [create]"
+    ],
+    "out_of_scope": [
+      "Re-send / retry from UI (DLQ worker owns retries)",
+      "Provider-side bounce/spam analytics (defer to provider dashboard)"
+    ],
+    "dependencies": [
+      "T-031",
+      "T-015"
+    ],
+    "parallel_safe_with": [
+      "T-111",
+      "T-112"
+    ],
+    "acceptance_criteria": [
+      "Given 5 email_delivery_log rows exist (mix of sent / failed / dlq), when the page renders, then 5 rows are listed in created_at DESC order with status badges.",
+      "Given a recipient email is 'jan.kowalski@example.com', when the row renders in the list column, then it is shown as 'jan@example.com' (first-3 + domain mask) and the full address is visible only after opening the payload modal.",
+      "Given the user filters status='failed' with trigger_code='fa_d365_ready', when the list re-renders, then only failed rows for that trigger are visible.",
+      "Given the caller lacks `settings.email.read`, when the page is requested, then a 403 page renders."
+    ],
+    "test_strategy": [
+      "RED: RTL test seeds rows + asserts mask, filters, payload modal, RBAC 403.",
+      "GREEN: implement Server Component + mask helper + filters + modal.",
+      "Run `pnpm --filter @monopilot/web vitest run apps/web/app/(admin)/settings/notifications/email-log/page.test.tsx` and `pnpm typecheck`."
+    ],
+    "risk_red_lines": [
+      "Do not allow re-send / retry from UI (DLQ worker owns retries per §13.2).",
+      "Do not log full PII payload to client; mask recipient emails in list view.",
+      "Do not import @radix-ui/* outside packages/ui (§0)."
+    ],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": false
+  }
+}

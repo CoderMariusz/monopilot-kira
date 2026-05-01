@@ -1,0 +1,60 @@
+{
+  "title": "T-059 — UI: Pipeline Kanban view (Pipeline prototype) — DnD between gate columns (NPD-f)",
+  "prompt": "# T-059 — Pipeline Kanban view UI\n\nPRD: 01-NPD-PRD.md §17.8, §17.12 + UX 01-NPD-UX.md pipeline_kanban\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\nPrototype: design/Monopilot Design System/npd/pipeline.jsx:19-52 (KanbanCard + KanbanView)\n\n## Goal\nClient component KanbanView rendering 6 columns (G0-G4 + Launched) with project cards, drag-and-drop adjacency-guarded via @dnd-kit/core, optimistic UI revert on 422 ADJACENCY_VIOLATION. Mounted at /(npd)/pipeline?view=kanban (default).\n\n## Implementation contract\n1. apps/web/app/(npd)/pipeline/_components/kanban-view.tsx ('use client') uses @dnd-kit/core; renders shadcn Card per project; column header per gate with count.\n2. onDragEnd calls advanceProjectGate(projectId, targetGate) — optimistic update + rollback on error.\n3. Card content matches prototype: code, name, prio badge, owner, target_launch.\n4. RTL test asserts 6 columns + card rendering + DnD adjacency rejection (mock action returns 422).\n\n## Files\n- apps/web/app/(npd)/pipeline/page.tsx [create]\n- apps/web/app/(npd)/pipeline/_components/kanban-view.tsx [create]\n- apps/web/app/(npd)/pipeline/_components/kanban-card.tsx [create]\n- apps/web/app/(npd)/pipeline/_components/__tests__/kanban-view.test.tsx [create]\n- design/Monopilot Design System/npd/pipeline.jsx [ref]\n\n## Acceptance criteria\n1. Given the production page renders, when compared to design/Monopilot Design System/npd/pipeline.jsx:19-52 (KanbanCard + KanbanView), then it has 6 gate columns (G0,G1,G2,G3,G4,Launched), KanbanCard with code+name+prio badge+owner+target_launch, and uses @dnd-kit/core + shadcn Card primitives — verified by RTL snapshot + parity checklist\n2. Given a card is dragged from G2 to G3 (adjacent), when drop fires, then advanceProjectGate is invoked with targetGate=G3 and UI updates optimistically per §17.12 adjacency rule\n3. Given the action returns 422 ADJACENCY_VIOLATION, when the drop completes, then the card snaps back to its source column and a toast shows the error per §17.12 optimistic-revert contract\n\n## Test strategy\n- RED: RTL test asserting 6 columns + card content + DnD adjacent + 422 revert before component exists\n- Run 'pnpm --filter web test kanban-view'\n\n## Risk red lines\n- Do not allow non-adjacent drop without server validation\n- Do not paste prototype JSX verbatim — translate to @dnd-kit + shadcn\n- Do not skip optimistic revert UX",
+  "labels": ["prd", "ui", "pipeline-kanban", "T3-ui"],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-059",
+    "source_prd": "01-NPD-PRD.md",
+    "prd_refs": ["§17.8", "§17.12"],
+    "category": "ui",
+    "subcategory": "pipeline-kanban-view",
+    "task_type": "T3-ui",
+    "parent_feature": "01-NPD-f Stage-Gate Pipeline",
+    "context_budget": "55k",
+    "estimated_effort": "3-4h",
+    "description": "Pipeline kanban view (6 columns + DnD via @dnd-kit/core + adjacency guard + optimistic revert) matching pipeline.jsx prototype.",
+    "details": "Parity checklist: (1) 6 gate columns G0-Launched, (2) KanbanCard fields (code, name, prio, owner, launch), (3) @dnd-kit/core DnD, (4) shadcn Card primitive, (5) optimistic update + revert on 422.",
+    "scope_files": [
+      "apps/web/app/(npd)/pipeline/page.tsx [create]",
+      "apps/web/app/(npd)/pipeline/_components/kanban-view.tsx [create]",
+      "apps/web/app/(npd)/pipeline/_components/kanban-card.tsx [create]",
+      "apps/web/app/(npd)/pipeline/_components/__tests__/kanban-view.test.tsx [create]",
+      "design/Monopilot Design System/npd/pipeline.jsx [ref]"
+    ],
+    "out_of_scope": [
+      "Do not build table+split views here (T-060)",
+      "Do not build gate modals (T-061)"
+    ],
+    "dependencies": ["T-057", "T-058"],
+    "parallel_safe_with": ["T-060", "T-061"],
+    "acceptance_criteria": [
+      "Given the production page renders, when compared to design/Monopilot Design System/npd/pipeline.jsx:19-52 (KanbanCard + KanbanView), then it has 6 gate columns, KanbanCard with code+name+prio badge+owner+target_launch, and uses @dnd-kit/core + shadcn Card — verified by RTL snapshot + parity checklist",
+      "Given a card is dragged from G2 to G3 (adjacent), when drop fires, then advanceProjectGate is invoked with targetGate=G3 and UI updates optimistically per §17.12",
+      "Given the action returns 422 ADJACENCY_VIOLATION, when the drop completes, then the card snaps back to its source column and a toast shows the error per §17.12"
+    ],
+    "test_strategy": [
+      "RED: RTL test asserting 6 columns + card content + adjacent DnD + 422 revert before component exists",
+      "Run 'pnpm --filter web test kanban-view'"
+    ],
+    "risk_red_lines": [
+      "Do not allow non-adjacent drop without server validation",
+      "Do not paste prototype JSX verbatim",
+      "Do not skip optimistic revert UX"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

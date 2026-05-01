@@ -1,0 +1,90 @@
+{
+  "title": "T-115 — Manufacturing Operation Audit Trail screen (SET-057 §8.9.12)",
+  "prompt": "# T-115 — Manufacturing Operation Audit Trail screen (SET-057 §8.9.12)\n\nPRD: 02-SETTINGS-PRD.md §8.9.11 + §8.9.12 (Manufacturing Operations Audit Trail)\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nBuild SET-057 Manufacturing Operation Audit Trail — per-operation history viewer linked from SET-055 list 'View History' icon. Shows User / Action / Timestamp / Field diff (old → new) per change. Searchable by operation_name, user, date range.\n\n## Implementation contract\n1. Page at apps/web/app/(admin)/settings/manufacturing-ops/[operation_id]/history/page.tsx (Server Component) reads audit_log entries WHERE entity_type='manufacturing_operation' AND entity_id=operation_id, ordered by timestamp DESC.\n2. List columns: timestamp, user (display name), action (create|update|delete), changed fields summary chip.\n3. Each row expandable to show field-by-field diff (old → new) per §8.9.11 spec; uses the same recursive diff helper as T-108 / T-114.\n4. Toolbar: search by operation_name (header lookup), date range filter, user filter dropdown.\n5. RBAC: requires `manufacturing_operations.view` (per §8.9.10) AND `settings.audit.read`.\n\n## Files\n- apps/web/app/(admin)/settings/manufacturing-ops/[operation_id]/history/page.tsx [create]\n- apps/web/app/(admin)/settings/manufacturing-ops/[operation_id]/history/page.test.tsx [create]\n\n## Acceptance criteria\nSee `acceptance_criteria` array.\n\n## Test strategy\n1. RED: RTL test seeds 3 audit_log entries for one manufacturing_operation (create + update + delete); asserts ordered render, expand-to-diff, RBAC.\n   `pnpm --filter @monopilot/web vitest run apps/web/app/(admin)/settings/manufacturing-ops/[operation_id]/history/page.test.tsx`\n2. RED must fail.\n3. GREEN: implement Server Component + filters + expand-diff.\n4. Re-run RED + `pnpm typecheck` + `pnpm lint`.\n\n## Risk red lines\n- Do not duplicate SET-013 global audit viewer (T-079); this is operation-scoped.\n- Do not bypass withOrgContext (RLS).\n- Do not import @radix-ui/* outside packages/ui (§0).\n\nStack: TS + Next.js App Router + Drizzle + pnpm + vitest + Playwright + Server Actions. PRD: 02-SETTINGS-PRD.md v3.5.\n",
+  "labels": [
+    "prd",
+    "ui",
+    "set-057",
+    "T3-ui"
+  ],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-115",
+    "source_prd": "02-SETTINGS-PRD.md",
+    "prd_refs": [
+      "§8.9.11",
+      "§8.9.12",
+      "§8.9.10"
+    ],
+    "category": "ui",
+    "subcategory": "set-057",
+    "task_type": "T3-ui",
+    "parent_feature": "02-settings-d-ui",
+    "context_budget": "40k",
+    "estimated_effort": "1-3h",
+    "description": "Manufacturing Operation Audit Trail (SET-057): per-operation history viewer with diff and search filters.",
+    "details": "PRD §8.9.11/§8.9.12 SET-057: `Per-operation history viewer`. Linked from SET-055 list 'View History' icon (T-077). Shows User / Action / Timestamp / Field diff (old→new) per §8.9.11 sample audit_log entries. Reuses the same diff helper as T-108 / T-114 if exposed as shared util.",
+    "scope_files": [
+      "apps/web/app/(admin)/settings/manufacturing-ops/[operation_id]/history/page.tsx [create]",
+      "apps/web/app/(admin)/settings/manufacturing-ops/[operation_id]/history/page.test.tsx [create]"
+    ],
+    "out_of_scope": [
+      "Global audit log (covered by SET-013 / T-079)",
+      "Restore-from-history action (defer)"
+    ],
+    "dependencies": [
+      "T-014",
+      "T-015",
+      "T-038",
+      "T-039"
+    ],
+    "parallel_safe_with": [
+      "T-114"
+    ],
+    "acceptance_criteria": [
+      "Given 3 audit_log entries exist for manufacturing_operation id 'op_789' (create + update + delete), when the page renders, then 3 history rows display in timestamp DESC with action badges.",
+      "Given the user expands the update row, when the diff renders, then changed fields (e.g. is_active true→false) appear in old→new pairs per §8.9.11 spec.",
+      "Given the user filters by date range 'last 7 days', when the list re-renders, then only entries within that window remain.",
+      "Given the caller lacks `manufacturing_operations.view` or `settings.audit.read`, when the page is requested, then a 403 page renders."
+    ],
+    "test_strategy": [
+      "RED: RTL test seeds 3 audit entries + asserts list order, expand-to-diff, date filter, RBAC 403.",
+      "GREEN: implement Server Component + filters + expand-diff renderer.",
+      "Run `pnpm --filter @monopilot/web vitest run apps/web/app/(admin)/settings/manufacturing-ops/[operation_id]/history/page.test.tsx` and `pnpm typecheck`."
+    ],
+    "risk_red_lines": [
+      "Do not duplicate SET-013 global audit viewer (T-079); this is operation-scoped.",
+      "Do not bypass withOrgContext (RLS).",
+      "Do not import @radix-ui/* outside packages/ui (§0)."
+    ],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": false
+  }
+}

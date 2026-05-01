@@ -1,0 +1,89 @@
+{
+  "title": "T-114 — Reference Audit Trail screen (SET-054 §8.6)",
+  "prompt": "# T-114 — Reference Audit Trail screen (SET-054 §8.6)\n\nPRD: 02-SETTINGS-PRD.md §8.6 (Reference Tables UI surfaces)\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nBuild SET-054 Reference Audit Trail — per-row history viewer with diff between consecutive versions for a single reference_table row. Distinct from SET-013 global audit log (T-079) which is partition-scoped across all entities; this is row-focused with inline diff.\n\n## Implementation contract\n1. Page at apps/web/app/(admin)/settings/reference/[table_code]/[row_key]/history/page.tsx (Server Component) reads audit_log entries WHERE table_name='reference_tables' AND entity_id=row_key for caller's org_id, ordered by created_at DESC.\n2. List shows: created_at, action (insert|update|delete), user_id, summary of changed columns.\n3. Each row expandable to show side-by-side old_value / new_value (re-uses the diff helper from T-108 SET-042 if available; otherwise local recursive walker).\n4. Header strip shows: table_code, row_key, current row JSON snapshot (collapsible).\n5. RBAC: requires `settings.audit.read` and `settings.reference.read`.\n\n## Files\n- apps/web/app/(admin)/settings/reference/[table_code]/[row_key]/history/page.tsx [create]\n- apps/web/app/(admin)/settings/reference/[table_code]/[row_key]/history/page.test.tsx [create]\n\n## Acceptance criteria\nSee `acceptance_criteria` array.\n\n## Test strategy\n1. RED: RTL test seeds 3 audit_log entries for one reference_tables row (insert + 2 updates); asserts ordered render, expand-to-diff, RBAC 403.\n   `pnpm --filter @monopilot/web vitest run apps/web/app/(admin)/settings/reference/[table_code]/[row_key]/history/page.test.tsx`\n2. RED must fail.\n3. GREEN: implement Server Component + diff render + expand control.\n4. Re-run RED + `pnpm typecheck` + `pnpm lint`.\n\n## Risk red lines\n- Do not duplicate SET-013 global viewer (T-079); this is row-scoped.\n- Do not bypass withOrgContext (RLS).\n- Do not import @radix-ui/* outside packages/ui (§0).\n\nStack: TS + Next.js App Router + Drizzle + pnpm + vitest + Playwright + Server Actions. PRD: 02-SETTINGS-PRD.md v3.5.\n",
+  "labels": [
+    "prd",
+    "ui",
+    "set-054",
+    "T3-ui"
+  ],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-114",
+    "source_prd": "02-SETTINGS-PRD.md",
+    "prd_refs": [
+      "§8.6",
+      "§5.6"
+    ],
+    "category": "ui",
+    "subcategory": "set-054",
+    "task_type": "T3-ui",
+    "parent_feature": "02-settings-d-ui",
+    "context_budget": "40k",
+    "estimated_effort": "1-3h",
+    "description": "Reference Audit Trail (SET-054): per-row history viewer with diff between consecutive versions.",
+    "details": "PRD §8.6 SET-054: `Per-row history z diff viewer`. Distinct from SET-013 (T-079) which is the global audit log filtered by date partition; this screen drills into a single (table_code, row_key) tuple. Diff helper may import from T-108 if exposed as shared util in `packages/ui` or `apps/web/lib`.",
+    "scope_files": [
+      "apps/web/app/(admin)/settings/reference/[table_code]/[row_key]/history/page.tsx [create]",
+      "apps/web/app/(admin)/settings/reference/[table_code]/[row_key]/history/page.test.tsx [create]"
+    ],
+    "out_of_scope": [
+      "Global audit log (covered by SET-013 / T-079)",
+      "Restore-from-history action (defer; current scope is read-only)"
+    ],
+    "dependencies": [
+      "T-008",
+      "T-014",
+      "T-015",
+      "T-021"
+    ],
+    "parallel_safe_with": [
+      "T-115"
+    ],
+    "acceptance_criteria": [
+      "Given 3 audit_log entries exist for reference_tables row (table_code='allergens', row_key='gluten') — 1 insert + 2 updates — when the page renders, then 3 history rows display in created_at DESC with action badges.",
+      "Given the user expands the most recent update row, when the diff renders, then changed columns show side-by-side old_value vs new_value with added/removed/changed highlighting.",
+      "Given the header strip renders, when the row is currently active, then the current snapshot JSON section is collapsible and reflects the latest values.",
+      "Given the caller lacks `settings.audit.read`, when the page is requested, then a 403 page renders."
+    ],
+    "test_strategy": [
+      "RED: RTL test seeds 3 audit_log entries + asserts list order, expand-to-diff, RBAC 403, header collapsible.",
+      "GREEN: implement Server Component + expand control + diff render.",
+      "Run `pnpm --filter @monopilot/web vitest run apps/web/app/(admin)/settings/reference/[table_code]/[row_key]/history/page.test.tsx` and `pnpm typecheck`."
+    ],
+    "risk_red_lines": [
+      "Do not duplicate SET-013 global viewer (T-079); this is row-scoped.",
+      "Do not bypass withOrgContext (RLS).",
+      "Do not import @radix-ui/* outside packages/ui (§0)."
+    ],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": false
+  }
+}
