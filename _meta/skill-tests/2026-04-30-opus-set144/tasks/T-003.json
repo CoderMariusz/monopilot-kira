@@ -1,0 +1,58 @@
+{
+  "title": "T-003 — skipOnboardingStep Server Action",
+  "prompt": "Implement the Server Action `skipOnboardingStep(orgId, step)` that pushes `step` onto `organizations.onboarding_state.skipped_steps[]` per PRD §14.3 (line 1532 — Skip button on optional steps).\n\nOnly steps 4 and 5 are optional per PRD §14.3 (First Product redirect, First Work Order redirect). The action MUST reject any other step number with typed error STEP_NOT_SKIPPABLE.\n\nAlso advances `current_step` to step+1 (or to 6 if step=5) and refreshes `last_activity_at`.\n\nDo NOT bundle: state read/write actions (T-002), UI (T-008/T-009 use this action).\n\nRED test command: `pnpm --filter web test -- skip-onboarding-step`.",
+  "labels": ["prd", "api", "server-action-skip", "T2-api"],
+  "priority": 80,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-003",
+    "source_prd": "02-SETTINGS-PRD.md",
+    "prd_refs": ["§14.3 step 4 + step 5 (lines 1523-1524)", "§14.3 skip button (line 1532)"],
+    "category": "api",
+    "subcategory": "server-action-skip",
+    "task_type": "T2-api",
+    "parent_feature": "02-SETTINGS-onboarding-wizard",
+    "context_budget": "20k",
+    "estimated_effort": "1h",
+    "description": "Skip handler for optional onboarding steps 4 and 5; advances current_step and records skip in skipped_steps[].",
+    "details": "Lives next to T-002 actions. Reuses same Zod schema. Validates step ∈ {4, 5} (only 'First Product' and 'First Work Order' are skippable per PRD). Idempotent: skipping the same step twice is a no-op (returns current state).",
+    "scope_files": [
+      "apps/web/app/(onboarding)/_actions/skip-onboarding-step.action.ts [create]",
+      "apps/web/app/(onboarding)/_actions/skip-onboarding-step.action.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Read/write state actions (covered by T-002)",
+      "UI calling this action (covered by T-008, T-009)"
+    ],
+    "dependencies": ["T-001", "T-002"],
+    "parallel_safe_with": ["T-002"],
+    "acceptance_criteria": [
+      "Given current_step=4, when skipOnboardingStep(orgId, 4) runs, then skipped_steps=[4] AND current_step=5.",
+      "Given current_step=5, when skipOnboardingStep(orgId, 5) runs, then skipped_steps contains 5 AND current_step=6.",
+      "Given any current_step, when skipOnboardingStep(orgId, 1|2|3|6) runs, then result is typed error STEP_NOT_SKIPPABLE and DB unchanged.",
+      "Given skipOnboardingStep(orgId, 4) called twice, when second call returns, then skipped_steps still contains 4 exactly once and no error."
+    ],
+    "test_strategy": [
+      "RED: vitest spec covering all 4 AC; expect failures pre-implementation.",
+      "GREEN: implement; all AC pass.",
+      "Command: pnpm --filter web test -- skip-onboarding-step"
+    ],
+    "risk_red_lines": [
+      "Do not allow skipping non-optional steps (1, 2, 3, 6) — PRD §14.3 only steps 4 and 5 carry 'skippable'.",
+      "Do not push duplicates into skipped_steps[]."
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

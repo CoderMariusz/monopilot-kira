@@ -1,0 +1,59 @@
+{
+  "title": "T-010 — GET /api/scanner/lookup/:type/:barcode unified resolver (06-a)",
+  "prompt": "# T-010 — unified barcode lookup endpoint\n\nPRD: 06-SCANNER-P1-PRD.md §8.1 FR-SC-BE-011, §10 GS1 parsing, §14.5 SLO\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nProvide a single typed lookup endpoint used by every scan input: type ∈ { lp, location, product, po, to, wo, auto }; auto resolves by prefix or GS1 GTIN.\n\n## Implementation contract\n1. `apps/scanner/src/app/api/scanner/lookup/[type]/[barcode]/route.ts` (GET).\n2. type='auto': run gs1-parser (T-003); if GTIN matched ⇒ products lookup; else regex prefix LP/LOC/PO/TO/WO; else return SC_INVALID_BARCODE.\n3. RLS scoped via session org_id + site_id.\n4. Response shape: `{ kind: 'lp' | 'location' | 'product' | 'po' | 'to' | 'wo', data: <kind-specific summary> }` or 404 SC_LP_NOT_FOUND etc.\n5. SLO target P95 <200ms; ensure single SQL roundtrip per kind.\n\n## Files\n- apps/scanner/src/app/api/scanner/lookup/[type]/[barcode]/route.ts [create]\n- apps/scanner/src/server/services/scanner-lookup.ts [create]\n- apps/scanner/__tests__/api/scanner-lookup.test.ts [create]\n\n## Acceptance criteria\n1. Given a barcode '0110012345678902' (GS1 GTIN), when GET /api/scanner/lookup/auto/<barcode> runs, then it resolves kind='product' for the GTIN and the response data carries product code\n2. Given a barcode 'LP-OUT-OF-ORG' belonging to org B, when org A user calls GET /lookup/lp/<barcode>, then it returns 404 SC_LP_NOT_FOUND (RLS isolation)\n3. Given an unknown prefix 'XYZ123', when GET /lookup/auto/<barcode> runs, then it returns 400 SC_INVALID_BARCODE\n\n## Test strategy\n- RED: write scanner-lookup.test.ts asserting all three ACs before implementation\n- Run 'pnpm --filter scanner test api/scanner-lookup'\n\n## Risk red lines\n- Do not return cross-org rows even on cache hit\n- Do not loop multiple SQL roundtrips per lookup\n- Do not bypass the gs1-parser for auto type",
+  "labels": ["prd", "api", "scanner-lookup", "T2-api"],
+  "priority": 80,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-010",
+    "source_prd": "06-SCANNER-P1-PRD.md",
+    "prd_refs": ["§8.1 FR-SC-BE-011", "§10", "§14.5"],
+    "category": "api",
+    "subcategory": "scanner-lookup",
+    "task_type": "T2-api",
+    "parent_feature": "06-a Shell & Core",
+    "context_budget": "30k",
+    "estimated_effort": "2h",
+    "description": "Unified GET /api/scanner/lookup endpoint resolving lp/location/product/po/to/wo plus GS1-aware auto type, RLS-scoped.",
+    "details": "Single Next.js route handler dispatches per :type. auto first delegates to gs1-parser (T-003) to extract GTIN, then falls back to prefix regex. Each kind issues a single RLS-scoped Drizzle query and returns a normalized envelope. SLO target P95 <200ms.",
+    "scope_files": [
+      "apps/scanner/src/app/api/scanner/lookup/[type]/[barcode]/route.ts [create]",
+      "apps/scanner/src/server/services/scanner-lookup.ts [create]",
+      "apps/scanner/__tests__/api/scanner-lookup.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not implement scanner-side cache here",
+      "Do not implement audit ingestion endpoint here (T-011)",
+      "Do not couple this to warehouse-specific lock APIs (T-034)"
+    ],
+    "dependencies": ["T-003", "T-007"],
+    "parallel_safe_with": ["T-009", "T-011"],
+    "acceptance_criteria": [
+      "Given a barcode encoding GS1 AI 01 GTIN, when GET /api/scanner/lookup/auto/<barcode> runs, then kind='product' and response carries the product code",
+      "Given a barcode 'LP-OUT-OF-ORG' in org B, when org A user calls GET /lookup/lp/<barcode>, then it returns 404 SC_LP_NOT_FOUND (RLS)",
+      "Given an unknown prefix 'XYZ123', when GET /lookup/auto/<barcode> runs, then 400 SC_INVALID_BARCODE"
+    ],
+    "test_strategy": [
+      "RED: write scanner-lookup.test.ts asserting all three ACs before implementation",
+      "Run 'pnpm --filter scanner test api/scanner-lookup'"
+    ],
+    "risk_red_lines": [
+      "Do not return cross-org rows even on cache hit",
+      "Do not loop multiple SQL roundtrips per lookup",
+      "Do not bypass gs1-parser for auto"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

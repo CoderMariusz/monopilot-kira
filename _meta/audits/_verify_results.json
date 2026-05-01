@@ -1,0 +1,160 @@
+{
+  "results": [
+    [
+      "PASS",
+      "master-index has 514 entries",
+      "actual=514"
+    ],
+    [
+      "PASS",
+      "all 15 per-module indexes have 5-key wrapper",
+      ""
+    ],
+    [
+      "PASS",
+      "sum of per-module entries equals master entries",
+      "per-module=514, master=514"
+    ],
+    [
+      "PASS",
+      "no bare-primitive depends_on_prototypes remain",
+      "found=0"
+    ],
+    [
+      "PASS",
+      "no 'other' (uncanonicalized) deps",
+      "other=0"
+    ],
+    [
+      "PASS",
+      "gate_checklist_panel.ui_pattern == dashboard-tile",
+      "actual=dashboard-tile"
+    ],
+    [
+      "PASS",
+      "approval_history_timeline.interaction == read-only",
+      "actual=read-only"
+    ],
+    [
+      "PASS",
+      "npd gate_checklist_panel.ui_pattern == dashboard-tile",
+      "actual=dashboard-tile"
+    ],
+    [
+      "PASS",
+      "npd approval_history_timeline.interaction == read-only",
+      "actual=read-only"
+    ],
+    [
+      "PASS",
+      "moved entries not present in settings",
+      "intersection=set()"
+    ],
+    [
+      "PASS",
+      "sites_screen present in multi-site/per-module",
+      ""
+    ],
+    [
+      "PASS",
+      "shifts_screen present in oee/per-module",
+      ""
+    ],
+    [
+      "PASS",
+      "devices_screen present in scanner/per-module",
+      ""
+    ],
+    [
+      "PASS",
+      "products_screen present in technical/per-module",
+      ""
+    ],
+    [
+      "PASS",
+      "boms_screen present in technical/per-module",
+      ""
+    ],
+    [
+      "PASS",
+      "partners_screen present in technical/per-module",
+      ""
+    ],
+    [
+      "PASS",
+      "master has technical_boms_screen",
+      ""
+    ],
+    [
+      "PASS",
+      "master has oee_shifts_screen",
+      ""
+    ],
+    [
+      "PASS",
+      "master has technical_products_screen",
+      ""
+    ],
+    [
+      "PASS",
+      "master has multi-site_sites_screen",
+      ""
+    ],
+    [
+      "PASS",
+      "master has scanner_devices_screen",
+      ""
+    ],
+    [
+      "PASS",
+      "master has technical_partners_screen",
+      ""
+    ],
+    [
+      "PASS",
+      "_archive/ subfolder exists",
+      ""
+    ],
+    [
+      "PASS",
+      "_archive/prototype-index-warehouse-haiku.json exists",
+      ""
+    ],
+    [
+      "PASS",
+      "_archive/translation-notes-warehouse-haiku.md exists",
+      ""
+    ],
+    [
+      "PASS",
+      "prototype-index-warehouse.json (canonical) exists",
+      ""
+    ],
+    [
+      "PASS",
+      "translation-notes-warehouse.md (canonical) exists",
+      ""
+    ],
+    [
+      "PASS",
+      "warehouse-sonnet.json renamed (no longer at original path)",
+      ""
+    ],
+    [
+      "PASS",
+      "warehouse-haiku.json moved out of main dir",
+      ""
+    ]
+  ],
+  "passes": 29,
+  "fails": 0,
+  "deps_total": 1656,
+  "deps_distribution": {
+    "label": 534,
+    "primitive": 600,
+    "hash": 516,
+    "unresolved": 6
+  },
+  "master_count": 514,
+  "per_module_total": 514
+}

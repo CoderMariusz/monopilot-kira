@@ -1,0 +1,59 @@
+{
+  "title": "T-003 — lp_genealogy table migration",
+  "prompt": "# T-003 — lp_genealogy table migration\n\nPRD: `05-WAREHOUSE-PRD.md` §5.3, §11.\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`.\n\n## Goal\nCreate `lp_genealogy` table to log split/merge/consume/output/quarantine_move events with parent/child LP linkage.\n\n## Implementation contract\nAdd `packages/db/src/schema/lp-genealogy.ts` with columns per §5.3: id, tenant_id, parent_lp_id, child_lp_id, operation_type ENUM ('split','merge','consume','output','quarantine_move','adjustment'), quantity, operation_date, wo_id, grn_id, user_id, reason_code, reason_text, is_reversed (default false), context_jsonb. Add cycle-prevention DB trigger or document deferral to T-011 indexes (use simple non-recursive constraint here: child_lp_id != parent_lp_id when both non-null).\n\n## Files (scope)\n- packages/db/src/schema/lp-genealogy.ts [create]\n- packages/db/migrations/0NN_lp_genealogy.sql [create]\n- packages/db/src/schema/lp-genealogy.test.ts [create]\n\n## Acceptance criteria\n1. Given the migration runs, when `\\d lp_genealogy` is inspected, then all PRD §5.3 columns are present.\n2. Given an INSERT with parent_lp_id = child_lp_id, when committed, then DB raises a CHECK violation.\n3. Given an operation_type 'invalid' is inserted, when committed, then DB raises an enum violation.\n\n## Test strategy\n- RED: lp-genealogy.test.ts asserts CHECK violation and enum rejection.\n- Run `pnpm --filter db migrate && pnpm --filter db test lp-genealogy`.\n\n## Risk red lines\n- Do not allow self-loops (parent==child).\n- Do not add recursive triggers in this task (T-011/V-WH-TRACE-002 deferred).\n- Do not store full payload here — use context_jsonb for op-specific metadata.",
+  "labels": ["prd", "data", "lp-genealogy", "T1-schema"],
+  "priority": 60,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-003",
+    "source_prd": "05-WAREHOUSE-PRD.md",
+    "prd_refs": ["§5.3", "§11"],
+    "category": "data",
+    "subcategory": "lp-genealogy",
+    "task_type": "T1-schema",
+    "parent_feature": "warehouse-foundation",
+    "context_budget": "25k",
+    "estimated_effort": "1h",
+    "description": "Create lp_genealogy table for split/merge/consume/output/quarantine_move audit log per §5.3.",
+    "details": "Drizzle schema + SQL migration with op-type enum and cycle-prevention CHECK (parent != child). Indexes (parent_lp_id, operation_date DESC) deferred to T-011.",
+    "scope_files": [
+      "packages/db/src/schema/lp-genealogy.ts [create]",
+      "packages/db/migrations/0NN_lp_genealogy.sql [create]",
+      "packages/db/src/schema/lp-genealogy.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "No DAG cycle trigger (V-WH-TRACE-002) — deferred",
+      "No recursive CTE here (T-038 owns)",
+      "No service layer"
+    ],
+    "dependencies": ["T-002"],
+    "parallel_safe_with": ["T-004", "T-005", "T-006", "T-007", "T-008", "T-009"],
+    "acceptance_criteria": [
+      "Given the migration runs, when '\\d lp_genealogy' is inspected, then all PRD §5.3 columns are present",
+      "Given INSERT with parent_lp_id = child_lp_id, when committed, then DB raises a CHECK violation",
+      "Given an operation_type 'invalid' insert, when committed, then DB raises an enum-violation error"
+    ],
+    "test_strategy": [
+      "RED: lp-genealogy.test.ts asserts CHECK + enum violations via tx",
+      "Run 'pnpm --filter db migrate && pnpm --filter db test lp-genealogy'"
+    ],
+    "risk_red_lines": [
+      "Do not allow parent==child rows",
+      "Do not introduce recursive triggers in this task",
+      "Do not denormalize LP product into this table"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

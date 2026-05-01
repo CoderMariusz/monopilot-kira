@@ -1,0 +1,87 @@
+{
+  "title": "T-029 — Server Actions: warehouses + locations + machines + lines CRUD",
+  "prompt": "# T-029 — Server Actions: infrastructure CRUD\n\n## Goal\nImplement Server Actions for warehouses/locations/machines/production_lines CRUD. V-SET-60..63 enforced. Uses ltree path math for level constraint.\n\n## Files in scope\n- apps/web/actions/infra/warehouse.ts [create]\n- apps/web/actions/infra/location.ts [create]\n- apps/web/actions/infra/machine.ts [create]\n- apps/web/actions/infra/line.ts [create]\n- apps/web/actions/infra/crud.test.ts [create]\n\n## Acceptance criteria (all must hold)\n- Given a location row insert with parent.level=1 and own level=3, when validated, then it raises LEVEL_GAP (V-SET-60: must be parent.level+1).\n- Given activateLine called on line with 0 machines, when run, then it raises NO_MACHINE (V-SET-62).\n- Given deactivateWarehouse called when an active WO references it, when run, then it returns SOFT_WARNING_ACTIVE_WO and prompts force flag (V-SET-63).\n\n## Test strategy (RED first)\n1. Add a failing test that exercises the acceptance criteria above. The RED command is:\n   `pnpm --filter @monopilot/web vitest run apps/web/actions/infra/crud.test.ts`\n2. Run RED — it must fail before any production code is written.\n3. Implement the smallest change needed for GREEN.\n4. Re-run RED command — must pass.\n5. Run `pnpm typecheck` and `pnpm lint` in the changed package; both must pass.\n\n## Risk red lines\n- Do not edit files outside the listed scope without documenting why in CLOSEOUT.\n- Do not weaken existing acceptance criteria from prior tasks.\n- Do not introduce REST endpoints; use Server Actions per stack contract.\n- Do not commit secrets or vault keys.\n\n## Closeout evidence required\n- changed_files (with line counts)\n- exact test commands and outputs (RED→GREEN, typecheck, lint)\n- acceptance_criteria_status (one row per AC: pass/fail)\n- deviations_from_prd (or \"none\")\n- git_status\n\nStack: TS + Next.js App Router + Drizzle + pnpm + vitest + Playwright + Server Actions. Primitives in `packages/ui`. PRD: `02-SETTINGS-PRD.md` v3.5.\n",
+  "labels": [
+    "prd",
+    "api",
+    "infrastructure",
+    "T2-api"
+  ],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-029",
+    "source_prd": "02-SETTINGS-PRD.md",
+    "prd_refs": [
+      "§12.1",
+      "§12.3",
+      "V-SET-60",
+      "V-SET-61",
+      "V-SET-62",
+      "V-SET-63"
+    ],
+    "category": "api",
+    "subcategory": "infra-crud",
+    "task_type": "T2-api",
+    "parent_feature": "02-settings-e",
+    "context_budget": "40k",
+    "estimated_effort": "1-3h",
+    "description": "Infrastructure CRUD Server Actions.",
+    "details": "Materialize ltree path on insert/update via trigger or service-side derivation.",
+    "scope_files": [
+      "apps/web/actions/infra/warehouse.ts",
+      "apps/web/actions/infra/location.ts",
+      "apps/web/actions/infra/machine.ts",
+      "apps/web/actions/infra/line.ts",
+      "apps/web/actions/infra/crud.test.ts"
+    ],
+    "out_of_scope": [
+      "broaden scope beyond listed files",
+      "implement future-phase features"
+    ],
+    "dependencies": [
+      "T-009",
+      "T-016"
+    ],
+    "parallel_safe_with": [],
+    "acceptance_criteria": [
+      "V-SET-60..63 enforced.",
+      "ltree path materialized.",
+      "Outbox events on mutations."
+    ],
+    "test_strategy": [
+      "RED: 3 cases.",
+      "GREEN: implement."
+    ],
+    "risk_red_lines": [
+      "Do not break referential integrity on hard-delete."
+    ],
+    "skills": [
+      "test-driven-development"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": false
+  }
+}

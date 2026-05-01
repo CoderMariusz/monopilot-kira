@@ -1,0 +1,64 @@
+{
+  "title": "T-023 — API: release-to-warehouse flag toggle",
+  "prompt": "Implement endpoint `POST /api/planning/work-orders/:id/release-to-warehouse` per PRD §12.2 (FR-PLAN-031). Guard: wo.status ∈ {RELEASED, IN_PROGRESS} AND wo_materials.count > 0 OR is_rework=true. Side-effect: set released_to_warehouse=true; emit outbox event 'wo.released_to_warehouse'. Reverse endpoint `POST /api/planning/work-orders/:id/un-release-to-warehouse` (admin-only, requires reason min 10 chars per §12.4).\n\nRED test asserts guard rejects DRAFT status, success on RELEASED, un-release requires admin role + reason.",
+  "labels": ["prd", "api", "release-to-warehouse", "T2-api"],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-023",
+    "source_prd": "04-PLANNING-BASIC-PRD.md",
+    "prd_refs": ["§12.1", "§12.2", "§12.4", "§12.5"],
+    "category": "api",
+    "subcategory": "release-to-warehouse",
+    "task_type": "T2-api",
+    "parent_feature": "planning-wo",
+    "context_budget": "20k",
+    "estimated_effort": "1-2h",
+    "description": "Toggle Scanner M06 visibility flag for a WO with admin-gated reverse path.",
+    "details": "Outbox event payload includes wo_id, tenant_id, warehouse_id, materials_count, released_at, released_by. Un-release endpoint checks user has 'planning.wo.un_release' RBAC; logs to wo_status_history.context_jsonb with reason. Guard error returns HTTP 409 + code 'WO_NOT_READY_FOR_WAREHOUSE'.",
+    "scope_files": [
+      "src/app/api/planning/work-orders/[id]/release-to-warehouse/route.ts [create]",
+      "src/app/api/planning/work-orders/[id]/un-release-to-warehouse/route.ts [create]",
+      "src/server/actions/planning/__tests__/release-to-warehouse.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Scanner pick UI (06-SCANNER-P1)",
+      "Release confirm modal UI (T-035)"
+    ],
+    "dependencies": ["T-021"],
+    "parallel_safe_with": ["T-022"],
+    "acceptance_criteria": [
+      "Given a WO at status='DRAFT', when release-to-warehouse runs, then HTTP 409 with code 'WO_NOT_READY_FOR_WAREHOUSE'.",
+      "Given a WO at status='RELEASED' with wo_materials count=3, when release-to-warehouse runs, then released_to_warehouse=true and outbox event 'wo.released_to_warehouse' is emitted.",
+      "Given un-release called by a non-admin, when validated, then HTTP 403; with admin role + reason ≥ 10 chars, then released_to_warehouse=false.",
+      "Given `pnpm vitest run src/server/actions/planning/__tests__/release-to-warehouse.test.ts`, when run, then 0 failures."
+    ],
+    "test_strategy": [
+      "RED tests for guard, side-effect, RBAC on un-release, audit log.",
+      "Run `pnpm vitest run src/server/actions/planning/__tests__/release-to-warehouse.test.ts`."
+    ],
+    "risk_red_lines": [
+      "Do not let non-admin callers un-release.",
+      "Do not skip outbox emit — Scanner queue refresh depends on it."
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

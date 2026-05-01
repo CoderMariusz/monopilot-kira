@@ -1,0 +1,61 @@
+{
+  "title": "T-012 — POST /api/scheduler/run endpoint + queue dispatch",
+  "prompt": "# T-012 — POST /api/scheduler/run endpoint + queue dispatch\n\nPRD: 07-PLANNING-EXT-PRD.md §8.2 POST /api/scheduler/run, §5.1.1 idempotency, §7.1 FR-07-E1-001\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nImplement Next.js Route Handler `POST /api/scheduler/run` that validates body, persists scheduler_runs row (status=queued), dispatches to solver service via Postgres LISTEN/NOTIFY (or BullMQ wrapper), and returns 202 Accepted.\n\n## Implementation contract\n1. New route `apps/web/src/app/api/scheduler/run/route.ts`: POST handler reads body { run_id (UUID v7 client), horizon_days (1-30), line_ids (>=1), include_forecast, optimizer_version, run_type='schedule'|'dry_run' }.\n2. Zod schema validates body; 400 on shape error; 409 if run_id exists with mismatched params (idempotency conflict per R14).\n3. RBAC guard: role IN (Planner Advanced) for schedule, role IN (Planner Advanced, Scheduling Officer) for dry_run.\n4. INSERT scheduler_runs row + NOTIFY 'scheduler_solver' channel with run_id; return 202 with estimated_completion_at.\n5. Concurrent-run limit: 429 if 3 runs already in (queued|running) for tenant.\n\n## Files\n- apps/web/src/app/api/scheduler/run/route.ts [create]\n- apps/web/src/lib/scheduler/run-validator.ts [create]\n- apps/web/src/lib/scheduler/dispatch.ts [create]\n- apps/web/src/app/api/scheduler/run/__tests__/route.test.ts [create]\n\n## Acceptance criteria\n1. Given a valid body and Planner Advanced role, when POST /api/scheduler/run runs, then 202 returned, scheduler_runs row created status='queued', NOTIFY emitted\n2. Given the same run_id with same params within 1h, when POST repeats, then 200 returned with cached result + cached_from_run_id (idempotent replay per R14)\n3. Given role 'Operator', when POST runs, then 403 returned\n4. Given 3 in-flight runs for tenant, when 4th POST runs, then 429 returned\n\n## Test strategy\n- RED: write apps/web/src/app/api/scheduler/run/__tests__/route.test.ts using vitest + supertest mock for the four ACs\n- Run 'pnpm --filter web test scheduler/run/route'\n\n## Risk red lines\n- Do not bypass RBAC guard (mandatory per §3.2)\n- Do not call solver service synchronously (FR-07-E1-005 requires queue + status poll)\n- Do not skip idempotency cache check (R14 contract)",
+  "labels": ["prd", "api", "endpoint-post", "T2-api"],
+  "priority": 80,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-012",
+    "source_prd": "07-PLANNING-EXT-PRD.md",
+    "prd_refs": ["§8.2", "§5.1.1", "§7.1"],
+    "category": "api",
+    "subcategory": "endpoint-post",
+    "task_type": "T2-api",
+    "parent_feature": "07-EXT-a finite-capacity engine",
+    "context_budget": "60k",
+    "estimated_effort": "2-3h",
+    "description": "Implement POST /api/scheduler/run with Zod validation, RBAC guard, idempotency check, NOTIFY-based dispatch, concurrent-run limit.",
+    "details": "Route handler validates body via Zod, enforces RBAC (Planner Advanced for schedule), checks idempotency (run_id within 1h returns cached), enforces 3-concurrent-runs limit (429), inserts scheduler_runs row, NOTIFYs solver channel. Returns 202 Accepted with estimated_completion_at. Runs in Server Action pattern with Drizzle DB session bound to tenant_id.",
+    "scope_files": [
+      "apps/web/src/app/api/scheduler/run/route.ts [create]",
+      "apps/web/src/lib/scheduler/run-validator.ts [create]",
+      "apps/web/src/lib/scheduler/dispatch.ts [create]",
+      "apps/web/src/app/api/scheduler/run/__tests__/route.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not implement solver algorithm here (T-022, T-023)",
+      "Do not implement Python solver service here (T-021)",
+      "Do not implement status polling here (T-013)"
+    ],
+    "dependencies": ["T-001", "T-024"],
+    "parallel_safe_with": ["T-013", "T-018"],
+    "acceptance_criteria": [
+      "Given valid body + Planner Advanced role, when POST runs, then 202 returned, scheduler_runs row status='queued' inserted, NOTIFY emitted",
+      "Given same run_id with same params within 1h, when POST repeats, then 200 returned with cached_from_run_id",
+      "Given role 'Operator', when POST runs, then 403 returned",
+      "Given 3 in-flight runs for tenant, when 4th POST runs, then 429 returned"
+    ],
+    "test_strategy": [
+      "RED: write apps/web/src/app/api/scheduler/run/__tests__/route.test.ts (vitest) covering 202, cached 200, 403, 429",
+      "Run 'pnpm --filter web test scheduler/run/route'"
+    ],
+    "risk_red_lines": [
+      "Do not bypass RBAC guard",
+      "Do not call solver synchronously",
+      "Do not skip idempotency cache check"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

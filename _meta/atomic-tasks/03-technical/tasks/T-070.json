@@ -1,0 +1,36 @@
+{
+  "title": "T-070 — Seed: manufacturing_operations + alert_thresholds + iso4217 baseline",
+  "prompt": "Add seed migration that populates the reference rows depended on by 03-TECHNICAL: reference_tables.manufacturing_operations.row_keys for Apex baseline (Mix, Cook, Cool, Coat, Slice, Roast, Bake, Pack — match Phase D Builder N+1 §6.1) AND reference_tables.alert_thresholds rows (atp_swab_rlu_max=10, catch_weight_variance_pct=5). Idempotent — uses ON CONFLICT DO NOTHING. RED tests/db/seed-baseline.test.ts verifies presence. Run: `pnpm vitest run tests/db/seed-baseline.test.ts`.",
+  "labels": ["prd", "data", "seed-baseline", "T5-seed"],
+  "priority": 80,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-070",
+    "source_prd": "03-TECHNICAL-PRD.md",
+    "prd_refs": ["§6.1", "§10.6", "§8.5"],
+    "category": "data",
+    "subcategory": "seed-baseline",
+    "task_type": "T5-seed",
+    "parent_feature": "03-TECHNICAL-a baseline",
+    "context_budget": "15k",
+    "estimated_effort": "1h",
+    "description": "Idempotent seed for manufacturing_operations + alert_thresholds reference rows.",
+    "details": "Org-scoped seeds run per org tenant. Uses 02-SETTINGS reference_tables. ATP threshold default 10 RLU, catch-weight variance 5%, plus an example list of 8 manufacturing operations.",
+    "scope_files": ["db/seeds/03-technical-baseline.sql", "tests/db/seed-baseline.test.ts"],
+    "out_of_scope": ["Org-specific custom rows"],
+    "dependencies": [],
+    "parallel_safe_with": ["T-024", "T-026"],
+    "acceptance_criteria": [
+      "Given seed runs against a fresh org, when applied, then 8 manufacturing_operations rows exist for that org.",
+      "Given seed runs twice, when applied second time, then no duplicate rows.",
+      "Given alert_thresholds row 'atp_swab_rlu_max' missing, when seed runs, then it is created with value=10."
+    ],
+    "test_strategy": ["RED test for idempotency + presence.", "Run: pnpm vitest run tests/db/seed-baseline.test.ts"],
+    "risk_red_lines": ["Do not seed across orgs blindly — must accept org_id parameter."],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {"required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"], "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]},
+    "routing_hints": {"red": "hermes_gpt55", "implementation": "hermes_gpt55", "review": "opus_if_high_risk_or_ui_or_architecture", "close": "spark_low_risk_else_opus"}
+  }
+}

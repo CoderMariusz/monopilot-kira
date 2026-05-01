@@ -1,0 +1,86 @@
+{
+  "title": "T-016 — Server Action: createOrganization + RBAC seed (10 system roles)",
+  "prompt": "# T-016 — Server Action: createOrganization + role seed\n\n## Goal\nImplement `createOrganization(input)` Server Action that creates an organization, seeds the 10 system roles (owner, admin, npd_manager, module_admin, planner, production_lead, quality_lead, warehouse_operator, auditor, viewer) with PRD-defined permissions arrays, and inserts an empty tenant_variations row.\n\n## Files in scope\n- apps/web/actions/orgs/create.ts [create]\n- apps/web/actions/orgs/create.test.ts [create]\n- apps/web/lib/rbac/role-seed.ts [create]\n\n## Acceptance criteria (all must hold)\n- Given valid input (slug, name, region='eu', tier='L2'), when action runs, then 1 organizations row + 10 roles rows + 1 tenant_variations row are inserted in a single transaction.\n- Given a duplicate slug, when action runs, then it raises 'SLUG_TAKEN' typed error and rolls back.\n- Given action commits, when outbox is queried, then `settings.org.created` event row is present.\n- Given the role 'owner' is read, when permissions are inspected, then it includes every settings.* permission from T-001/T-002 enums.\n\n## Test strategy (RED first)\n1. Add a failing test that exercises the acceptance criteria above. The RED command is:\n   `pnpm --filter @monopilot/web vitest run apps/web/actions/orgs/create.test.ts`\n2. Run RED — it must fail before any production code is written.\n3. Implement the smallest change needed for GREEN.\n4. Re-run RED command — must pass.\n5. Run `pnpm typecheck` and `pnpm lint` in the changed package; both must pass.\n\n## Risk red lines\n- Do not edit files outside the listed scope without documenting why in CLOSEOUT.\n- Do not weaken existing acceptance criteria from prior tasks.\n- Do not introduce REST endpoints; use Server Actions per stack contract.\n- Do not commit secrets or vault keys.\n\n## Closeout evidence required\n- changed_files (with line counts)\n- exact test commands and outputs (RED→GREEN, typecheck, lint)\n- acceptance_criteria_status (one row per AC: pass/fail)\n- deviations_from_prd (or \"none\")\n- git_status\n\nStack: TS + Next.js App Router + Drizzle + pnpm + vitest + Playwright + Server Actions. Primitives in `packages/ui`. PRD: `02-SETTINGS-PRD.md` v3.5.\n",
+  "labels": [
+    "prd",
+    "api",
+    "orgs-create",
+    "T2-api"
+  ],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-016",
+    "source_prd": "02-SETTINGS-PRD.md",
+    "prd_refs": [
+      "§3",
+      "§5.1",
+      "ADR-012"
+    ],
+    "category": "api",
+    "subcategory": "orgs-create",
+    "task_type": "T2-api",
+    "parent_feature": "02-settings-a",
+    "context_budget": "40k",
+    "estimated_effort": "1-3h",
+    "description": "Org creation + 10 system role seed Server Action.",
+    "details": "Use Zod input schema. Wrap in withOrgContext NOT applicable here — org doesn't exist yet, so use a dedicated bootstrap connection that bypasses RLS only for organizations + roles + tenant_variations inserts. Outbox event must be transactional with the inserts.",
+    "scope_files": [
+      "apps/web/actions/orgs/create.ts",
+      "apps/web/actions/orgs/create.test.ts",
+      "apps/web/lib/rbac/role-seed.ts"
+    ],
+    "out_of_scope": [
+      "broaden scope beyond listed files",
+      "implement future-phase features"
+    ],
+    "dependencies": [
+      "T-001",
+      "T-002",
+      "T-003",
+      "T-004",
+      "T-007"
+    ],
+    "parallel_safe_with": [],
+    "acceptance_criteria": [
+      "Single-transaction insert of org + 10 roles + tenant_variations.",
+      "Duplicate slug → SLUG_TAKEN typed error.",
+      "Outbox event written transactionally.",
+      "Owner role has full settings.* permission set."
+    ],
+    "test_strategy": [
+      "RED: assert 4 outcomes via vitest.",
+      "GREEN: implement action."
+    ],
+    "risk_red_lines": [
+      "Do not commit role permissions outside the locked enum."
+    ],
+    "skills": [
+      "test-driven-development"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": false
+  }
+}

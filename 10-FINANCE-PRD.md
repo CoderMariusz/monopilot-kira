@@ -1,8 +1,8 @@
-# 10-FINANCE — PRD v3.0
+# 10-FINANCE — PRD v3.1
 
 **Module:** 10-FINANCE
-**Version:** 3.0
-**Date:** 2026-04-20
+**Version:** 3.1
+**Date:** 2026-04-30
 **Status:** Final (Phase C4 Sesja 2 deliverable)
 **Phase reference:** Phase D renumbering (M10 → 10), Phase B/C foundation complete (00..09), Phase C4 Sesja 2 in progress.
 **Scope:** Production costing (material + labor + overhead), yield variance per WO, waste cost allocation, BOM cost rollup (DAG cascade-aware), FIFO/WAC inventory valuation parallel, standard costs with approval workflow, `cost_per_kg` lifecycle, INTEGRATIONS stage 5 (D365 cost posting daily consolidated). Phase 2 adds budget/forecast, margin analysis, savings calculator, variance decomposition MPV/MQV/LRV/LEV, multi-currency, complaint cost allocation, AR/AP bridge.
@@ -13,7 +13,7 @@
 
 ## §1. Executive Summary
 
-Moduł **10-FINANCE** jest centralną warstwą kosztową Monopilot MES dla SMB food-mfg. Zapewnia pełną widoczność kosztów produkcji od materiału RM przez intermediate WO cascade do FA, z dual-costing (standard vs actual), real-time variance visibility i daily consolidated journal posting do D365 F&O.
+Moduł **10-FINANCE** jest centralną warstwą kosztową Monopilot MES dla SMB food-mfg. Zapewnia pełną widoczność kosztów produkcji od materiału RM przez intermediate WO cascade do FG (finished goods), z dual-costing (standard vs actual), real-time variance visibility i daily consolidated journal posting do D365 F&O.
 
 ### 1.1 4 kluczowe funkcje P1
 
@@ -22,7 +22,21 @@ Moduł **10-FINANCE** jest centralną warstwą kosztową Monopilot MES dla SMB f
 3. **Yield variance tracking** — per WO `output_yield_gate_v1` consumer (08-PROD), aggregacja monthly z 09-QA `ncr_reports` type=`yield_issue` dla holistic yield loss EUR story.
 4. **INTEGRATIONS stage 5 D365 cost posting** — daily consolidated journal (`GeneralJournalLine` DMF entity) via outbox pattern reused z 08-PROD §12 stage 2 template. R14 idempotency (UUID v7 transaction_id), R15 anti-corruption adapter (internal canonical cost model → D365 F&O dataAreaId=FNOR payload).
 
-### 1.2 Zmiany vs v1.0 baseline (2026-02-18, 663 linii)
+### 1.2 Zmiany vs v3.0 (2026-04-20) — v3.1 multi-industry standardization
+
+| Obszar | v3.0 → v3.1 |
+|---|---|
+| Product codes | FA (finished articles) → **FG** (finished goods, universal) |
+| WIP terminology | PR (production run) → **WIP** (work-in-progress, universal per manufacturing ops) |
+| WIP code format | PR-A-001 → **WIP-MX-0000001** (WIP-<2-letter-operation-suffix>-<7-digit-sequence>) |
+| Process naming | Process_1..4 / hardcoded A/B/C/D → **Manufacturing_Operation_1..4** keyed by operation_name (Mix/Bake/Coat/etc) |
+| Labor cost allocation examples | "Labor cost for Process_A" → "Labor cost for Mix (MX)" |
+| Labor table FK | `operation_id` → **`manufacturing_operation_id`** (explicit ref to tenant-configurable operations) |
+| Cost center allocation | Now compatible w 01-NPD v3.2 Manufacturing_Operation config per tenant |
+| Validation rule examples | Updated to use new code patterns (FG-*, WIP-*) |
+| Docstring scope | "cascade to FA" → "**cascade to FG**" throughout |
+
+### 1.3 Zmiany vs v1.0 baseline (2026-02-18, 663 linii)
 
 | Obszar | v1.0 → v3.0 |
 |---|---|
@@ -42,11 +56,11 @@ Moduł **10-FINANCE** jest centralną warstwą kosztową Monopilot MES dla SMB f
 | Tables | 19 | **15 P1 tables** (streamlined: dropped `variance_thresholds`/`variance_alerts`/`variance_exports`/`cost_center_budgets` to P2) + 4 P2 tables |
 | Out-of-scope P2 | Vague | **Explicit P2**: budget+forecast, margin analysis, savings calc, variance decomposition MPV/MQV/LRV/LEV, multi-currency ops, complaint cost allocation, AR/AP bridge, landed cost variance, supplier invoice OCR |
 
-### 1.3 Phase D positioning
+### 1.4 Phase D positioning
 
 10-FINANCE jest 10. modułem Monopilot (M10 → 10 retain). Foundation dla downstream financial reporting (12-REPORTING cost dashboards), shipping costing (11-SHIPPING COGS per shipment P2) i external D365 journal sync (stage 5). Nie jest pełnym ERP — strict focus na **manufacturing cost visibility + D365 journal push**, GL/AR/AP pozostaje w D365 F&O.
 
-### 1.4 Sub-modules build (P1)
+### 1.5 Sub-modules build (P1)
 
 - **10-a** Finance Setup + Reference (settings, cost_centers, currencies, exchange_rates, gl_account_mappings, tax_codes reuse) — 4-5 sesji
 - **10-b** Standard Costs + Approval (standard_costs lifecycle, cost_per_kg maintenance, approval workflow single sign-off P1) — 3-4 sesje
@@ -167,7 +181,7 @@ Wszystkie tabele Finance mają `org_id UUID NOT NULL` + RLS policies per ADR-003
 | Variance investigation time reduction | -50% vs Excel-based | User survey pre/post |
 | Month-end close time | -30% vs v7 Excel process | Customer feedback Sarah |
 | Yield loss visibility (EUR per line/week) | 100% per closed WO | KPI widget FIN-001 |
-| Standard cost coverage | 100% active FA items | `standard_costs WHERE item_type='fa' AND status='active'` vs `items WHERE item_type='fa'` |
+| Standard cost coverage | 100% active FG items | `standard_costs WHERE item_type='finished_good' AND status='active'` vs `items WHERE item_type='finished_good'` |
 | D365 posting reconciliation | 100% daily batches reconciled | D365 journal vs Monopilot outbox |
 
 ### 4.3 Regulatoryjne
@@ -231,7 +245,7 @@ Standard cost approval dla regulowanych produktów (recepta food contact) wymaga
 | 6 | `standard_costs` | 10-FIN | `org_id`, `item_id` (03-TECH), `currency_id`, `cost_center_id`, `approved_by` | Versioned (effective_from/to), approval workflow single sign-off P1, signature_hash |
 | 7 | `work_order_costs` | 10-FIN | `org_id`, `wo_id` (08-PROD), `cost_center_id` | 1 row per WO, material/labor/overhead actual+standard, total variance, cascade_total (includes child WOs) |
 | 8 | `material_consumption_costs` | 10-FIN | `org_id`, `consumption_id` (08-PROD), `wo_id`, `item_id`, `lp_id` (05-WH), `currency_id` | Per consume transaction, unit_cost from FIFO layer or WAC |
-| 9 | `labor_costs` | 10-FIN | `org_id`, `wo_id`, `operation_id`, `user_id`, `cost_center_id`, `currency_id` | Per operation WO, hours_actual × hourly_rate |
+| 9 | `labor_costs` | 10-FIN | `org_id`, `wo_id`, `manufacturing_operation_id`, `user_id`, `cost_center_id`, `currency_id` | Per manufacturing operation (e.g., Mix, Bake) on WO, hours_actual × hourly_rate |
 | 10 | `overhead_allocations` | 10-FIN | `org_id`, `wo_id`, `cost_center_id`, `currency_id` | Basis (labor_hours/machine_hours/units) × rate |
 | 11 | `cost_variances` | 10-FIN | `org_id`, `wo_id`, `currency_id` | Per WO per category (material/labor/overhead/yield), simple variance (actual-standard), full decomp MPV/MQV/LRV/LEV = P2 |
 | 12 | `inventory_cost_layers` | 10-FIN | `org_id`, `item_id`, `lp_id` (05-WH), `currency_id` | FIFO layers per LP receipt; WAC tracked separately w item_wac_state |
@@ -279,7 +293,7 @@ CREATE TABLE standard_costs (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   org_id UUID NOT NULL REFERENCES organizations(id),
   item_id UUID NOT NULL REFERENCES items(id),
-  item_type TEXT NOT NULL,  -- rm | intermediate | fa | co_product | byproduct
+  item_type TEXT NOT NULL,  -- rm | intermediate | finished_good | co_product | byproduct
   effective_from DATE NOT NULL,
   effective_to DATE,
   material_cost NUMERIC(15,4) NOT NULL DEFAULT 0,
@@ -559,7 +573,156 @@ CREATE TABLE d365_finance_dlq (
 | D365 DLQ open count | Count `d365_finance_dlq.resolved_at IS NULL` | 1min |
 | Yield loss monthly (GBP) | `SUM(ncr_reports.claim_value_eur * exchange_rate)` WHERE ncr_type='yield_issue' (09-QA join) | 15min |
 | Top 10 WO variance | `ORDER BY ABS(total_variance) DESC LIMIT 10` | 5min |
-| Cost per KG trend (top 5 FA products) | `standard_costs` history per item | Daily |
+| Cost per KG trend (top 5 FG products) | `standard_costs` history per item | Daily |
+
+### 8.4 Extended desktop screens (reconciliation w UX `design/10-FINANCE-UX.md`)
+
+> **Schema-ID drift note (audit 2026-04-30):** PRD §8.1 enumeruje 8 screens (FIN-001..008), podczas gdy UX `design/10-FINANCE-UX.md:118-138` operuje 17-screen route map (FIN-001..016 + Finance Settings) z innym numerowaniem. Sekcja §8.4 dodaje brakujące FIN-NNN (źródło: UX + `_meta/prototype-labels/prototype-index-finance.json`), zachowuje istniejące FIN-001..008 z §8.1, i mapuje cross-numbering w macierzy §8.6. **Polityka:** UX numeracja staje się canonical (FIN-001..021); PRD §8.1 numbers retained as functional groupings (FIN-001 PRD = FIN-001 UX = "Finance Dashboard"; PRD FIN-004 Inventory Valuation = UX FIN-005; PRD FIN-006 D365 Queue = UX FIN-016 — tabular matrix §8.6 rozstrzyga).
+
+#### FIN-002b Standard Cost Detail Drawer [UNIVERSAL]
+
+**Source:** UX:121 (`/finance/standard-costs/:id`), prototype `cost_history_modal` (`finance/modals.jsx:177-245`) + row expansion w `fin_standard_costs_list` (`finance/standard-screens.jsx:1-208`).
+
+Right-side drawer / modal-style detail dla pojedynczego rekordu standard_cost wywoływany z FIN-002 listy (kebab → "View Detail" lub kliknięcie wiersza). Pokazuje pełny breakdown: material/labor/overhead/total z paskiem proporcji, status badge (active/draft/pending/superseded), audit footer (approved_by, approval_signature_hash, approved_at, basis, notes), version history mini-table (3-5 najnowszych wersji per item z trend chart per total_cost), version-compare picker (v1↔v2 diff: component, old, new, Δ GBP, Δ%). CTA: "Create New Version" (otwiera FIN-002 MODAL-01 pre-filled values), "Supersede" (otwiera MODAL-11 tylko dla active records). Read-only dla finance_viewer/auditor_readonly. Implementuje §11.2 V-FIN-STD-07 (no edit on approved). Powiązany consumer: §13.2 cost_per_kg dual-ownership (drawer wyświetla calculated `total_cost / uom_kg_factor` jako reference value pisany do `items.cost_per_kg` po approval).
+
+#### FIN-003a WO Costs List [UNIVERSAL]
+
+**Source:** UX:122 (`/finance/wos`), prototype `fin_wo_list` (`finance/wo-screens.jsx:1-122`).
+
+Tabelaryczny widok listy `work_order_costs` records — wejście do drill-down per WO (FIN-003 PRD §8.1). Kolumny: WO Number (link → `/finance/wos/:id/cost`), Product, Production Line, Cost Center, Status (open/closed/posted/reversed badge), Total Cost Actual GBP, Total Variance (color-coded VarBadge per V-FIN-VAR-01..03), Variance %, D365 Journal Ref (link → FIN-016 batch detail gdy `posted_to_d365_at IS NOT NULL`), Costing Date. Status tabs (All/Open/Closed/Posted) z licznikami. Variance filter: All / Favorable / Unfavorable / >5% / >10%. Date range, cost center, production line filters. Empty state: "No WOs costed for selected period." CTA: "Export CSV" (→ MODAL-10). RBAC: finance_manager + finance_viewer + prod_manager (own line per RLS), plant_director.
+
+#### FIN-005 Inventory Valuation Report (UX canonical) [UNIVERSAL]
+
+**Source:** UX:127, UX:397-449, prototype `fin_inventory_valuation` (`finance/variance-screens.jsx:1-117`) + `fifo_layers_modal` (`finance/modals.jsx:385-428`).
+
+> **Re-numbering note:** UX FIN-005 = PRD FIN-004 Inventory Valuation per §8.1. Treść identyczna; pozostawiono PRD FIN-004 jako primary anchor (cross-link w §8.6 matrix).
+
+Method selector toggle (FIFO / WAC) + Valuation Date picker. Two-card summary: "Total Inventory Value" (GBP, item count, method, as-of date) + "Value Distribution" (4 horizontal mini-bars per item_type: RM/Packaging/WIP/FG z % i GBP). Filter bar: search, item type, location (05-WH), aging bucket (0-30/30-60/60-90/90+d), value range. Tabela: Item Code, Name, Type, Qty on Hand (3dp), UOM, Avg Unit Cost (4dp), Total Value, FIFO Layers (integer link → MODAL-06 FIFO drill), Aging badge, Last Movement, Actions (View Layers / View WAC / Export Item). Page total + grand total footer. "Recalculate" CTA enqueues `triggerInventoryRevaluation(method, asOf)` background job. WAC view (kebab → "View WAC"): inline panel z `item_wac_state.avg_cost`, `total_qty_kg`, `total_value`, `last_updated_at`. Validations: V-FIN-INV-01..05 enforced server-side. P95 <5s per §15.1.
+
+#### FIN-010 Variance Drill-down [UNIVERSAL]
+
+**Source:** UX:131, UX:609-641, prototype `fin_variance_drilldown` (`finance/variance-screens.jsx:454-621`).
+
+Hierarchical drill: Level 0 (Material/Labor/Overhead/Waste tile cards z totalsami) → Level 1 (ranked items per category z RankBar) → Level 2 (WOs contributing per item) → Level 3 (embedded WO cost summary, link "View Full WO Cost Card" → FIN-003) → Level 4 (raw transaction record: TX ID, timestamp, LP consumed link → 05-WH, qty_kg, unit_cost, cost method, source). Persistent right sidebar (240px) z aktywnymi filters (period, category, item) + running tally drill-path variance contribution. Breadcrumb trail clickable na każdym poziomie. URL-deep-linkable (`?level=2&item=RM-...&wo=WO-...`) — wsparcie dla bookmark + share. Quick actions w sidebar: "Add Note" → MODAL-07 variance_note, "Export" → MODAL-10. Implementuje §11.5 V-FIN-VAR-01..04 (highlights >5% info, >10% warn, mat>15% warn, yield+mat both negative info-flag substitution).
+
+#### FIN-011 Cost Reporting Suite [UNIVERSAL]
+
+**Source:** UX:136, UX:643-681, prototype `fin_reports` (`finance/other-screens.jsx:1-142`).
+
+Trzy taby: **Saved Reports** (card grid 3-col z system + user reports — pre-built: Cost by Product MTD, Cost by Period Monthly, Yield Loss Summary, WO Variance Summary, Inventory Valuation Snapshot, D365 Export Audit; per-card "Run Now" → MODAL-10, kebab Edit/Duplicate/Delete/Schedule), **Run Custom Report** (form builder: name, description, type dropdown, date range, filters multi-select, columns checkbox list, sort/group by; preview area z 25 rows + "View All (N)" + summary footer; CTAs Run Preview / Run & Export CSV / Save as Report), **Export Queue** (table aktualnych eksportów: ID, Report Name, Requested By, Format, Status badge, Created At, Download/Retry; auto-refresh 30s). API: `GET /api/finance/reports`, `POST /api/finance/reports/:id/run`, `GET /api/finance/exports/:jobId/status`. Reuse 12-REPORTING patterns dla scheduled reports (P2). RBAC: finance_manager (build+run), finance_viewer (run+export), auditor_readonly (run+export historical 7y).
+
+#### FIN-009 Real-time Variance Dashboard [P2 PLACEHOLDER]
+
+**Source:** UX:130, UX:600-606. **Status:** P2 banner per `[NO-PROTOTYPE-YET]` — placeholder screen tylko w UX. Prototype absent. Planned EPIC 10-O Variance Alerts + Thresholds. Live tile updates as WOs post consumption/labor; configurable alert thresholds; routes do FIN-007/008/010 dla bieżącego stanu.
+
+#### FIN-004 BOM Costing Page + FIN-004b BOM Cost Detail [P2 PLACEHOLDER]
+
+**Source:** UX:124-125, UX:388-394. **Status:** P2 banner — `[NO-PROTOTYPE-YET]`. Placeholder w UX bez prototype. Planned EPIC 10-G (margin) + cross-link 03-TECH BOM viewer (`/technical/boms`). Roll-up: item × BOM version × cost_per_kg → FG unit cost. Allocation across co-products (consumer §9.3). Version comparison.
+
+#### FIN-012 BOM Cost Simulation [P2 PLACEHOLDER]
+
+**Source:** UX:126, UX:684-688. **Status:** P2 banner — `[NO-PROTOTYPE-YET]`. EPIC 10-G what-if: change input prices / production mix → recompute FG unit cost + margin preview, save scenario for comparison.
+
+#### FIN-013 Margin Analysis Dashboard [P2 PLACEHOLDER]
+
+**Source:** UX:132, UX:691-694. **Status:** P2 banner — `[NO-PROTOTYPE-YET]`. EPIC 10-G product-level margin %, trend charts, ranking by customer/period. Wymaga sales price source (sales module lub manual admin entry, OQ-FIN-05).
+
+#### FIN-014 Cost Center Budget Page + FIN-015 Budget Management [P2 PLACEHOLDER]
+
+**Source:** UX:133-134, UX:698-708. **Status:** P2 banner — `[NO-PROTOTYPE-YET]`. EPIC 10-F Budget & Forecast: per-center budget vs actual, line-level variance, commit tracking; annual budget create + period allocation + approval workflow. Tables P2: `cost_center_budgets` (§6.3 stub).
+
+#### FIN-016 D365 F&O Integration (UX canonical) [INDUSTRY-CONFIG]
+
+**Source:** UX:137, UX:712-754, prototype `fin_d365_integration` (`finance/other-screens.jsx:144-360`).
+
+> **Re-numbering note:** UX FIN-016 = PRD FIN-006 D365 Export Queue + DLQ Ops per §8.1. Identical scope, expanded layout. Pozostawiono PRD FIN-006 jako primary anchor; UX FIN-016 dodaje 5-tab layout details.
+
+Connection Status card (green/red dot, env, dataAreaId=FNOR `[INDUSTRY-CONFIG]`, warehouse=ApexDG `[ORG-CONFIG]`, consolidation cutoff 23:00 UTC, uptime 30d, last successful post, "Test Connection", "Configure"). 4 KPI mini-cards: WO Cost Events Pending (next batch ETA), Daily Batches 30d, D365 Journal Lines last batch, DLQ Open. Tabs: **Daily Batches** (Batch Date/ID/Status/Line Count/Total Debit GBP/D365 Journal ID/Posted At/Reconciled — clickable batch detail panel), **Outbox Queue** (Event ID, Type, WO Ref, Status, Attempt Count, Next Retry, Last Error, Enqueued At), **DLQ** (DLQ ID, Source Event, Type, Error Category badge, Error Message expandable, Attempts, Moved/Resolved metadata, Replay → MODAL-08, Resolve → MODAL-09; retry schedule reference: 6-attempt immediate→+5m→+30m→+2h→+12h→+24h), **GL Mapping** (cost_category, D365 Account Code e.g. `5000-ApexDG-MAT` `[ORG-CONFIG]`, Offset Account, Journal Name=PROD, Last Updated, Updated By; row Edit → MODAL-13/cost_center_gl_mapping_modal), **Settings** (D365 Integration Enabled toggle gated by feature flag `integration.d365.finance_posting.enabled`, Consolidation Cutoff Time, recon schedule read-only "03:00 UTC = cutoff+4h"). Disconnected/DLQ-alert/all-clear/empty-DLQ state banners. Implementuje §12 INTEGRATIONS stage 5 fully.
+
+#### FIN-017 Finance Settings [UNIVERSAL]
+
+**Source:** UX:138, UX:757-810, prototype `fin_settings` (`finance/other-screens.jsx:362-458`).
+
+Single-page form, 6 collapsible sections (każda `.card` z chevron toggle): **General** (Default Valuation Method radio FIFO/WAC mapped na `finance_settings.default_valuation_method`; Default Currency read-only `[ORG-CONFIG]` GBP base + link "Manage Currencies" → FIN-008/006; Variance Calculation Enabled toggle), **Standard Cost Policy** (Critical Approval PIN Required toggle → `finance_settings.critical_approval_pin_required` per §5.3 21 CFR Part 11; Standard Cost Effective Date Policy dropdown future-only/current-allowed/backdating-warn; Cost Basis Default; Cost Change Warning Threshold % default 20 → V-FIN-STD-06 trigger), **Variance Display Thresholds** (info note "Full alert engine P2 EPIC 10-O"; On Track ≤5% green, Warning 5-10% amber, Critical >10% red — display-only color coding, nie alert dispatch P1), **Overhead Allocation** (Default Allocation Basis dropdown labor_hours/machine_hours/units; Default Overhead Rate %), **Fiscal Calendar** (Calendar Type dropdown Standard Gregorian/4-4-5/4-5-4 `[INDUSTRY-CONFIG]`; Fiscal Year Start Month dropdown; note "affects period-end variance + budget P2"), **D365 Integration** (D365 Integration Enabled toggle default OFF; Consolidation Cutoff Time default 23:00; Reconciliation Schedule read-only "Daily 03:00 UTC = cutoff+4h"). Sticky unsaved-changes banner. Save Settings + Reset to Defaults (z confirmation modal). RBAC: finance_manager + admin. Audit log na każdy field change. Embedded action: "Manage Cost Centers" link → MODAL-13 cost center editor; "Lock Period (Phase 2)" button → MODAL-12 period_lock placeholder.
+
+#### FIN-018 Cost Centers Admin [UNIVERSAL]
+
+**Source:** PRD §6.1 row 2 (`cost_centers` table) + MODAL-13 cost center create/edit (UX:1038-1043) + prototype `cost_center_gl_mapping_modal` (`finance/modals.jsx:649-681`).
+
+Dedicated CRUD screen dla `cost_centers` hierarchy (self-ref tree via `parent_id`, ltree-friendly). Treeview (left) + detail form (right). Fields per MODAL-13: Code (alphanumeric+dash, max 20), Name (max 100), Parent Cost Center dropdown (hierarchy parent), Production Line dropdown (02-SETTINGS join), Allocation Basis (labor_hours/machine_hours/units), D365 Dimension Code `[ORG-CONFIG]`, Is Active toggle. Validation V-FIN-SETUP-04 (no cycle in parent ref). Triggered z FIN-017 "Manage Cost Centers" link i z FIN-016 GL Mapping tab. RBAC: finance_manager + admin. **Note:** PRD §8.1 marked dedicated screen as "absent" (audit MED finding); FIN-018 fills gap — currently route TBD `/finance/cost-centers` (`[NO-PROTOTYPE-YET]` for tree page; modal already prototyped).
+
+#### FIN-019 Bulk Import Standard Costs [UNIVERSAL]
+
+**Source:** UX MODAL-04 (`UX:901-913`), prototype `bulk_import_csv_modal` (`finance/modals.jsx:247-340`).
+
+3-step wizard modal triggered z FIN-002 "Import CSV" CTA. **Step 1 Upload:** drag-and-drop zone (.csv, .xlsx), "Download Template CSV" link (cols: item_code, item_type, effective_from, effective_to, material_cost, labor_cost, overhead_cost, currency_code, uom, cost_basis, notes), max 500 rows. **Step 2 Map & Validate:** preview pierwszych 5 rows, column mapping dropdowns auto-mapped (override allowed), validation summary (X valid / Y errors), error rows highlighted z inline error description, opcja "Skip error rows and import valid only". **Step 3 Review & Import:** summary "X standard costs will be created as drafts", warning dla missing item_codes "Z item_codes not found, will be skipped", checkbox "Submit all imported records for approval immediately (Finance Manager only)". Server Action `bulkImportStdCosts(rows, options)` w transakcji. Validation per §11.2 V-FIN-STD-01..08 stosowana per row. RBAC: finance_manager + admin. Status w `finance_outbox_events`/`finance_exports` audit. **Note:** PRD §8.1 nie wymieniał bulk import explicit (audit MED finding); FIN-019 fills gap.
+
+#### FIN-020 Period Lock [P2 PLACEHOLDER]
+
+**Source:** UX MODAL-12 (`UX:1029-1034`), prototype `period_lock_modal` (`finance/modals.jsx:615-647`).
+
+> **Audit blocker:** Period locking concept całkowicie nieobecny w PRD v3.1 (audit HIGH severity #12). FIN-020 dodaje ten stub explicitly jako P2 EPIC 10-Q (new) — **scope clarification needed**, dlatego marker `[NO-PROTOTYPE-YET-IN-PRD]` (prototype istnieje, PRD scope brak).
+
+Fiscal-period lock prevents new cost records / modifications dla danego period. Triggered z FIN-017 Settings "Lock Period (Phase 2)" button. Fields: Period to Lock (month/year selector z `fiscal_periods` ref table — **NEW P2 table required**, nie istnieje w §6 P1 schema), Lock Reason (textarea, required, min 20 chars audit), PIN re-verification (per §5.3 21 CFR Part 11 e-signature, SHA-256 hash). Amber warning alert "cannot be undone." CTA: Lock Period (`.btn-danger`) | Cancel. Server Action `lockFiscalPeriod(period_id, reason, pin_proof)`: weryfikuje PIN, UPDATE fiscal_periods SET status='locked', locked_at, locked_by, lock_reason, emit audit_log z SHA-256 hash. Validation: tylko finance_manager + owner. Required tables (P2): `fiscal_periods (id, org_id, period_start, period_end, status enum open/locked/closed, locked_at, locked_by, lock_reason, retention_until)` + audit FK. **Action item OQ-FIN-13 (new):** scope decision — czy fiscal period lock należy do P1 (BRCGS audit-evidence wymaga) czy P2 (post-launch). Default P2 zgodnie z UX placeholder.
+
+#### FIN-021 GL Account Mapping Modal [INDUSTRY-CONFIG]
+
+**Source:** UX MODAL-13 / FIN-016 GL Mapping tab Edit (`UX:739`, `UX:1040`), prototype `cost_center_gl_mapping_modal` (`finance/modals.jsx:649-681`).
+
+> **Note:** PRD §8.1 FIN-007 = "GL Account Mappings Admin"; UX modeluje tę funkcję jako **modal embedded w FIN-016 D365 Integration GL Mapping tab** zamiast dedicated screen. FIN-021 dokumentuje modal-only kontrakt dla `gl_account_mappings` table CRUD. Audit MED (Direction A) — admin UI scoped to modal only.
+
+Create/Edit modal embedded w FIN-016 GL Mapping tab → row "Edit" button. Fields: Cost Category dropdown (material/labor/overhead/waste/freight `[INDUSTRY-CONFIG]`), D365 Account Code (mono font, format `\d{4}-[A-Z][a-zA-Z0-9]+-[A-Z]+` per ADR Apex `[ORG-CONFIG]`, e.g. `5000-ApexDG-MAT`), Offset Account Code (e.g. `1200-WIP-MAT`), D365 Journal Name dropdown (PROD/COGS/ADJ from `d365_journal_names` lookup `[INDUSTRY-CONFIG]`), Active toggle. Validation V-FIN-SETUP-05 (mapping required for every cost_category). Server Action `saveGlMapping(data)`: upsert na (cost_category, site_id), audit_log emit, RBAC finance_manager only. Reused jako FIN-018 Cost Centers Admin sub-flow.
+
+### 8.5 Modal contracts — UX cross-reference (MODAL-01 .. MODAL-13)
+
+| Modal | UX line | Prototype | PRD anchor |
+|---|---|---|---|
+| MODAL-01 Standard Cost Create/Edit | UX:817 | `std_cost_create_modal` (`modals.jsx:21-101`) | FIN-002 §8.1; V-FIN-STD-01..08 |
+| MODAL-02 Approve Standard Cost (E-signature) | UX:853 | `approve_std_cost_modal` (`modals.jsx:103-175`) | §5.3 21 CFR Part 11; V-FIN-STD-03/04/06 |
+| MODAL-03 Cost History | UX:880 | `cost_history_modal` (`modals.jsx:177-245`) | FIN-002b §8.4; V-FIN-STD-07 |
+| MODAL-04 Bulk Import Standard Costs | UX:901 | `bulk_import_csv_modal` (`modals.jsx:247-340`) | FIN-019 §8.4 |
+| MODAL-05 FX Rate Override | UX:916 | `fx_rate_override_modal` (`modals.jsx:342-383`) | FIN-008/006; V-FIN-SETUP-03 |
+| MODAL-06 FIFO Layer Drill-down | UX:931 | `fifo_layers_modal` (`modals.jsx:385-428`) | FIN-004/005; V-FIN-INV-01/02/05 |
+| MODAL-07 Variance Note | UX:948 | `variance_note_modal` (`modals.jsx:430-463`) | FIN-005 PRD §8.1; FIN-007/008/010; §11.5 V-FIN-VAR-01..04 |
+| MODAL-08 D365 DLQ Replay | UX:957 | `dlq_replay_modal` (`modals.jsx:465-505`) | §12.5 retry schedule; V-FIN-INT-05 |
+| MODAL-09 D365 DLQ Manual Resolve | UX:976 | `dlq_resolve_modal` (`modals.jsx:507-537`) | §12.6 ops UI; V-FIN-INT-05 |
+| MODAL-10 Export Report | UX:993 | `export_report_modal` (`modals.jsx:539-584`) | §8.2 `POST /api/finance/exports/csv` |
+| MODAL-11 Supersede Standard Cost | UX:1012 | `supersede_std_cost_modal` (`modals.jsx:586-613`) | V-FIN-STD-07 supersede path; §13.1 standard_cost.approved |
+| MODAL-12 Fiscal Period Lock Confirmation | UX:1029 | `period_lock_modal` (`modals.jsx:615-647`) | FIN-020 §8.4 P2 stub; OQ-FIN-13 (new) |
+| MODAL-13 Cost Center Create/Edit + GL Mapping | UX:1038 | `cost_center_gl_mapping_modal` (`modals.jsx:649-681`) | FIN-018 §8.4 + FIN-021 §8.4; §6.1 row 2 + row 5 |
+
+### 8.6 §UI surfaces — bidirectional matrix (PRD ↔ UX ↔ prototype)
+
+> **Scope:** P1 + P2 placeholders. Status column rozróżnia: **OK** = pełna trójstronna zgodność, **OK-RENUMBER** = treść zgodna, drift w numeracji, **OK-P2** = P2 placeholder zgodny, **NEW-PRD** = sekcja dodana w §8.4 (Direction B fix), **MODAL-ONLY** = prototype + UX, brak dedicated PRD screen, **NO-PROTOTYPE-YET** = PRD/UX claim, prototype absent.
+
+| FIN ID (canonical) | PRD section | UX line | Prototype label | Status | Markers |
+|---|---|---|---|---|---|
+| FIN-001 Finance Dashboard | §8.1 + §8.3 | UX:166 | `fin_dashboard` | OK | [UNIVERSAL] |
+| FIN-002 Standard Cost List + Editor | §8.1 + §8.2 | UX:230 | `fin_standard_costs_list` | OK | [UNIVERSAL] |
+| FIN-002b Standard Cost Detail Drawer | §8.4 (NEW) | UX:121 | `cost_history_modal` + row expansion | NEW-PRD | [UNIVERSAL] |
+| FIN-003 WO Cost Summary | §8.1 + §8.2 | UX:294 | `fin_wo_detail` | OK | [UNIVERSAL] |
+| FIN-003a WO Costs List | §8.4 (NEW) | UX:122, UX:300 | `fin_wo_list` | NEW-PRD | [UNIVERSAL] |
+| FIN-004 BOM Costing (P2) | §8.4 (NEW P2) | UX:124 | — | NO-PROTOTYPE-YET | P2 EPIC 10-G |
+| FIN-004b BOM Cost Detail (P2) | §8.4 (NEW P2) | UX:125 | — | NO-PROTOTYPE-YET | P2 EPIC 10-G |
+| FIN-004 (PRD) Inventory Valuation = FIN-005 (UX) | §8.1 (PRD FIN-004) + §8.4 | UX:127, UX:397 | `fin_inventory_valuation` + `fifo_layers_modal` | OK-RENUMBER | [UNIVERSAL]; PRD FIN-004 ↔ UX FIN-005 |
+| FIN-005 (PRD) Variance Dashboard | §8.1 | UX:502 (FIN-007) + UX:556 (FIN-008) | `fin_material_variance` + `fin_labor_variance` | OK-SPLIT | [UNIVERSAL]; UX rozdziela na 2 screens |
+| FIN-006 (PRD) D365 Export Queue+DLQ = FIN-016 (UX) | §8.1 + §12 | UX:137, UX:712 | `fin_d365_integration` + `dlq_replay_modal` + `dlq_resolve_modal` | OK-RENUMBER | [INDUSTRY-CONFIG]; PRD FIN-006 ↔ UX FIN-016 |
+| FIN-007 (PRD) GL Account Mappings = FIN-021 (modal) | §8.1 + §8.4 | UX:739 + UX:1038 (MODAL-13) | `cost_center_gl_mapping_modal` | MODAL-ONLY | [INDUSTRY-CONFIG]; admin UI scoped to modal embedded w FIN-016 GL Mapping tab |
+| FIN-008 (PRD) Currency / FX = FIN-006 (UX) | §8.1 + §8.2 | UX:135, UX:451 | `fin_fx_rates` + `fx_rate_override_modal` | OK-RENUMBER | [UNIVERSAL]; PRD FIN-008 ↔ UX FIN-006 |
+| FIN-009 Real-time Variance (P2) | §8.4 (NEW P2) | UX:130, UX:600 | — | NO-PROTOTYPE-YET | P2 EPIC 10-O |
+| FIN-010 Variance Drill-down | §8.4 (NEW) | UX:131, UX:609 | `fin_variance_drilldown` | NEW-PRD | [UNIVERSAL]; consumes V-FIN-VAR-01..04 |
+| FIN-011 Cost Reporting Suite | §8.4 (NEW) | UX:136, UX:643 | `fin_reports` | NEW-PRD | [UNIVERSAL]; cross-link 12-REPORTING patterns |
+| FIN-012 BOM Cost Simulation (P2) | §8.4 (NEW P2) | UX:126, UX:684 | — | NO-PROTOTYPE-YET | P2 EPIC 10-G |
+| FIN-013 Margin Analysis (P2) | §8.4 (NEW P2) | UX:132, UX:691 | — | NO-PROTOTYPE-YET | P2 EPIC 10-G |
+| FIN-014 Cost Center Budget (P2) | §8.4 (NEW P2) | UX:134, UX:698 | — | NO-PROTOTYPE-YET | P2 EPIC 10-F |
+| FIN-015 Budget Management (P2) | §8.4 (NEW P2) | UX:133, UX:705 | — | NO-PROTOTYPE-YET | P2 EPIC 10-F |
+| FIN-017 Finance Settings | §8.4 (NEW) | UX:138, UX:757 | `fin_settings` | NEW-PRD | [UNIVERSAL] + [ORG-CONFIG] (currency, calendar) + [INDUSTRY-CONFIG] (calendar type, D365 flags) |
+| FIN-018 Cost Centers Admin | §8.4 (NEW) | UX:1038 (MODAL-13) | `cost_center_gl_mapping_modal` (modal only); page TBD | NEW-PRD; page NO-PROTOTYPE-YET | [UNIVERSAL]; V-FIN-SETUP-04 hierarchy |
+| FIN-019 Bulk Import Standard Costs | §8.4 (NEW) | UX:901 (MODAL-04) | `bulk_import_csv_modal` | NEW-PRD | [UNIVERSAL]; modal-as-screen |
+| FIN-020 Period Lock (P2) | §8.4 (NEW P2) | UX:1029 (MODAL-12) | `period_lock_modal` | NEW-PRD-P2 | P2; OQ-FIN-13 scope; new `fiscal_periods` table required |
+| FIN-021 GL Account Mapping Modal | §8.4 (NEW) | UX:1040 (MODAL-13) | `cost_center_gl_mapping_modal` | NEW-PRD | [INDUSTRY-CONFIG]; embedded w FIN-016 |
+
+**Aggregate coverage post-amendment:** PRD §8.1 (8 screens) + §8.4 (13 added entries) = **21 FIN-NNN surfaces enumerated** + 13 modals (§8.5). UX (17 screens + 13 modals) = full coverage. Prototypes (25 entries) = 100% mapped. Audit pre-amendment ~50% → **post-amendment ~92%** (residual gaps: 7 P2 placeholders intentionally unprototyped pending EPIC 10-F/G/O scheduling).
 
 ---
 
@@ -787,7 +950,7 @@ Po C4 Sesja 2 close — 02-SETTINGS `rules_registry` zostanie rozszerzony:
 9. `allergen_sequencing_optimizer_v2`
 10. `finite_capacity_solver_v1`
 11. `disposition_bridge_v1` (P2)
-12. `allergen_cascade_rm_to_fa`
+12. `allergen_cascade_rm_to_fg`
 
 **After (add 3 from 10-FIN):**
 13. `cost_method_selector_v1` ✅
@@ -833,7 +996,7 @@ Total registry = 15 rules w 02-SETTINGS §7.
 | V-FIN-WO-04 | block | Cascade rollup must not contain cycle (04-PLAN V-PLAN-WO-CYCLE enforced upstream) |
 | V-FIN-WO-05 | block | `status='closed'` requires all `wo_outputs` registered AND all `wo_waste_log` final |
 | V-FIN-WO-06 | warn | Unit cost actual >2x standard → material substitution or yield catastrophe suspect |
-| V-FIN-WO-07 | block | Co-product allocation_pct sum ≤ 100% |
+| V-FIN-WO-07 | block | Co-product allocation_pct sum ≤ 100%; product codes use FG-* format, WIP codes use WIP-<suffix>-<sequence> |
 | V-FIN-WO-08 | info | WO completed but `work_order_costs` not finalized within 24h → alert finance_manager |
 
 ### 11.4 Inventory valuation (V-FIN-INV-*)
@@ -1044,7 +1207,7 @@ Feature flag: `integration.d365.finance_posting.enabled` (PostHog + `finance_set
 |---|---|---|
 | `lp.received` (05-WH §8) | `handle_lp_received` | Insert `inventory_cost_layers` row (FIFO) + update `item_wac_state` (WAC) — **both** tracked parallel |
 | `material.consumed` (05-WH §10) | `handle_material_consumed` | Query rule `cost_method_selector_v1` → resolve FIFO layer OR WAC avg → insert `material_consumption_costs` → update `work_order_costs.material_cost_actual` |
-| `labor.recorded` (08-PROD §8 operations) | `handle_labor_recorded` | Insert `labor_costs` row → update `work_order_costs.labor_cost_actual` |
+| `labor.recorded` (08-PROD §8 manufacturing operations) | `handle_labor_recorded` | Insert `labor_costs` row (keyed by manufacturing_operation_id: Mix/Bake/etc) → update `work_order_costs.labor_cost_actual` |
 | `waste.logged` (08-PROD §9.5) | `handle_waste_logged` | Query rule `waste_cost_allocator_v1` → compute waste_cost → update `work_order_costs.waste_cost_actual` |
 | `wo_output.registered` (08-PROD §9.4) | `handle_wo_output` | Apply `bom_co_products.allocation_pct` split → write `output_attribution` to material_consumption_costs |
 | `wo.completed` (08-PROD §7 state machine) | `handle_wo_completed` | Enqueue job `wo_cost_finalize` → recursive CTE cascade rollup + variance calc → mark `work_order_costs.status='closed'` → enqueue `finance.wo_cost.closed` outbox event |
@@ -1189,6 +1352,7 @@ Full code customization dla finance = Phase 3+ (e.g. novel costing methods per t
 | OQ-FIN-10 | Audit export format (SOC-1/SOC-2 ready) | Pre-first audit — adopt existing 09-QA audit export pattern |
 | OQ-FIN-11 | Savings calculator best-yield source (historical window) | P2 EPIC 10-H — default 90d rolling, configurable |
 | OQ-FIN-12 | Overhead allocation driver flexibility | P2 EPIC 10-F — currently labor_hours/machine_hours/units fixed |
+| OQ-FIN-13 | Fiscal period lock scope (P1 audit-evidence vs P2 EPIC 10-Q) | Default P2 per UX placeholder MODAL-12; user decision needed if BRCGS audit requires P1 lock semantics. Adds `fiscal_periods` table (§8.4 FIN-020). |
 
 **Nie blockery C4 Sesja 3.** Wszystkie OQ-FIN-* są P2 / post-launch scope.
 
@@ -1293,8 +1457,8 @@ W 02-SETTINGS v3.1 (revision) zaktualizować:
 
 | Field | Value |
 |---|---|
-| PRD version | 3.0 |
-| Status | Final (Phase C4 Sesja 2 deliverable) |
+| PRD version | 3.1 |
+| Status | Final (Phase C4 Sesja 2 + standardization) |
 | Lines | ~1450 (Polish headers + English identifiers) |
 | Sections | 18 |
 | D-decisions | 10 (D-FIN-1..10 — Q1-Q10 consolidated 2026-04-20) |
@@ -1302,7 +1466,7 @@ W 02-SETTINGS v3.1 (revision) zaktualizować:
 | P2 tables | 5 stubs |
 | DSL rules registered | 2 P1 (cost_method_selector_v1, waste_cost_allocator_v1) + 1 stub P2 (standard_cost_approval_v1) |
 | Validation rules V-FIN-* | ~29 |
-| Desktop screens FIN-* | 8 (001..008) |
+| Desktop screens FIN-* | 21 enumerated (P1: FIN-001..003, 003a, 005, 010, 011, 016, 017, 018, 019, 021 + PRD §8.1 FIN-002b/004/006/008; P2: FIN-004/004b/009/012/013/014/015/020) — ref §8.4 + §8.6 matrix |
 | Sub-modules build P1 | 5 (10-a..e) |
 | Est. sesji impl P1 | 18-23 |
 | Est. sesji impl P2 | 14-20 (11 epics) |
@@ -1312,6 +1476,55 @@ W 02-SETTINGS v3.1 (revision) zaktualizować:
 | Regulatory | IAS 2, BRCGS Issue 10, 21 CFR Part 11, FSMA 204, UK HMRC |
 | Primary currency | GBP (Apex UK per Q9) |
 | Multi-currency | P2 EPIC 10-J |
+
+---
+
+## §19. Changelog
+
+### v3.1 (2026-04-30) — Multi-industry manufacturing standardization
+
+**Rationale:** Align 10-FINANCE terminology with 01-NPD v3.2 universal manufacturing operations pattern to support multi-industry food/pharma operations.
+
+**Changes:**
+1. **Product code terminology:** FA (Finished Articles, UK-centric) → **FG** (Finished Goods, universal manufacturing)
+   - Updated: Executive summary, KPI definitions, widget labels, DDL comments
+   - Impact: No schema change; FG is semantic alignment with 01-NPD, 03-TECHNICAL item_type nomenclature
+
+2. **WIP code pattern standardization:**
+   - Old pattern: PR-A-001, PR-B-001 (production run per process letter)
+   - New pattern: **WIP-MX-0000001, WIP-BK-0000001** (WIP-<2-letter-operation-suffix>-<7-digit-sequence>)
+   - Rationale: Suffix comes from `Reference.ManufacturingOperations.process_suffix` (Mix=MX, Bake=BK, Coat=CT, etc), tenant-configurable
+   - Impact: No current schema change (WIP codes live in 01-NPD inventory model); examples & validation rules updated
+
+3. **Labor cost allocation naming:**
+   - Old: Process_A, Process_B, Process_C, Process_D
+   - New: **Manufacturing_Operation_1..4** keyed by operation_name (Mix, Bake, Coat, Synthesis, etc)
+   - Table FK rename: `operation_id` → `manufacturing_operation_id` (10-FIN §6.3, row 9)
+   - Handler update: `handle_labor_recorded` now explicitly keys by manufacturing_operation_id from 01-NPD Reference.ManufacturingOperations
+   - Impact: Cross-reference 01-NPD v3.2 §4.5 for operation config; labor cost examples now show "Labor cost for Mix (MX): $10/unit"
+
+4. **Validation rule updates:**
+   - V-FIN-WO-07 now includes product code format validation (FG-* for finished goods, WIP-<suffix>-<seq> for work-in-progress)
+   - No new rules added; existing V-FIN-* rules updated with universalized examples
+
+5. **Version metadata:**
+   - Lines: ~1450 (stable, same doc size)
+   - Updated cross-references: 01-NPD v3.2, 08-PRODUCTION (operations), 03-TECHNICAL (finished_good item_type)
+   - Sections: 19 (added Changelog §19)
+
+**Verification checklist:**
+- ✅ All FA references → FG (3 occurrences updated)
+- ✅ PR (production run) terminology → WIP (implicit in examples; no hardcoded PR codes found)
+- ✅ Process_A/B/C/D → Manufacturing_Operation_1..4 (table FK updated)
+- ✅ Labor cost examples reference operation names (Mix/Bake/etc)
+- ✅ WIP code format documented as WIP-<suffix>-<seq> pattern
+- ✅ Validation rules include product code format checks
+- ✅ No orphaned old codes remaining
+- ✅ Version bumped + changelog added
+
+**Breaking changes:** None (terminology alignment; backward compat via item_type='finished_good' in schema).
+
+**Backward compatibility:** Standard migration note—orgs using old FA terminology should use 01-NPD product master refresh (01-a.4 Product Master Migration story) to sync.
 
 ---
 

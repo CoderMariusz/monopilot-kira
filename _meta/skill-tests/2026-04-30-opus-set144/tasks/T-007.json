@@ -1,0 +1,48 @@
+{
+  "title": "T-007 — SET-004 First Location Step UI",
+  "prompt": "Implement the SET-004 First Location Step page at `/onboarding/3` per PRD §14.3 step 3 + §14.4 SET-004. Form fields: `zone` (text 2-40), `bin` (text 2-40) — both within the warehouse created in step 2 (warehouse_id read from server-side session/state).\n\nSubmit calls stub `createLocation` then advances state to step 4. No Skip button.\n\nRED: `pnpm --filter web test -- onboarding-step3`.",
+  "labels": ["prd", "ui", "wizard-step-form", "T3-ui"],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-007",
+    "source_prd": "02-SETTINGS-PRD.md",
+    "prd_refs": ["§14.3 step 3 (line 1522)", "§14.4 SET-004 (line 1541)"],
+    "category": "ui",
+    "subcategory": "wizard-step-form",
+    "task_type": "T3-ui",
+    "parent_feature": "02-SETTINGS-onboarding-wizard",
+    "context_budget": "20k",
+    "estimated_effort": "1.5h",
+    "description": "Step 3 form: zone + bin within step-2 warehouse; advances to step 4.",
+    "details": "Same pattern as T-005/T-006. ltree path enhancement is gap-backlog scope and explicitly excluded here.",
+    "scope_files": [
+      "apps/web/app/(onboarding)/3/page.tsx [create]",
+      "apps/web/app/(onboarding)/3/step3-form.tsx [create]",
+      "apps/web/app/(onboarding)/3/step3-form.test.tsx [create]"
+    ],
+    "out_of_scope": ["createLocation action", "Other steps", "ltree path field (gap-backlog S-U3)"],
+    "dependencies": ["T-001", "T-002"],
+    "parallel_safe_with": ["T-005", "T-006", "T-008", "T-009", "T-010"],
+    "acceptance_criteria": [
+      "Given empty submit, when triggered, then 2 required-field errors shown and no state mutation.",
+      "Given valid zone+bin, when submitted, then updateOnboardingState({current_step:4, completed_steps:[...,3]}) AND router.push('/onboarding/4') fire.",
+      "Given warehouse_id missing from state, when page renders, then it redirects back to /onboarding/2 (precondition violated).",
+      "Given vitest covers above, when pnpm --filter web test runs, then 0 failures."
+    ],
+    "test_strategy": [
+      "RED: RTL spec on 4 AC.",
+      "GREEN: implement; pass.",
+      "Command: pnpm --filter web test -- onboarding-step3"
+    ],
+    "risk_red_lines": ["Do not allow step 3 access if step 2 was not completed.", "Do not render Skip button."],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {"red": "hermes_gpt55", "implementation": "hermes_gpt55", "review": "opus_if_high_risk_or_ui_or_architecture", "close": "spark_low_risk_else_opus"}
+  }
+}

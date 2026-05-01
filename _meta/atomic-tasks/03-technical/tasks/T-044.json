@@ -1,0 +1,36 @@
+{
+  "title": "T-044 — UI: TEC-084 Recipe Sheet print view",
+  "prompt": "Build the print-formatted recipe sheet per §7A and `bom_recipe_sheet_tab` design/Monopilot Design System/technical/bom-detail.jsx:551-603. Combines BOM lines + manufacturing operation sequence into a single one-pager. Provides Print button (window.print). RED tests/ui/tec-084-recipe-sheet.test.tsx. Run: `pnpm vitest run tests/ui/tec-084-recipe-sheet.test.tsx`.",
+  "labels": ["prd", "ui", "ui-recipe-sheet", "T3-ui"],
+  "priority": 120,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-044",
+    "source_prd": "03-TECHNICAL-PRD.md",
+    "prd_refs": ["§7A TEC-084"],
+    "category": "ui",
+    "subcategory": "recipe-sheet",
+    "task_type": "T3-ui",
+    "parent_feature": "03-TECHNICAL-a BOM",
+    "context_budget": "12k",
+    "estimated_effort": "1h",
+    "description": "Print-formatted recipe sheet; INDUSTRY-CONFIG layout variants.",
+    "details": "Use Tailwind print: utilities. Hide app chrome on print. Sheet variants per industry (Bakery/Meat/Pharma) selected by ext_jsonb.industry value (default Meat).",
+    "scope_files": ["app/(app)/technical/boms/[id]/_tabs/recipe-sheet-tab.tsx", "tests/ui/tec-084-recipe-sheet.test.tsx"],
+    "out_of_scope": ["PDF export"],
+    "dependencies": ["T-038"],
+    "parallel_safe_with": ["T-043", "T-045"],
+    "acceptance_criteria": [
+      "Given the recipe sheet renders, when compared to design/Monopilot Design System/technical/bom-detail.jsx:551-603, then the layout (header, ingredient table, manufacturing-op steps) matches — structural + visual + interaction parity verified by RTL with parity checklist.",
+      "Given user clicks Print, when fired, then window.print is called.",
+      "Given industry='bakery', when rendered, then Bakery-specific section labels are used."
+    ],
+    "test_strategy": ["RED tests for parity + print invocation.", "Run: pnpm vitest run tests/ui/tec-084-recipe-sheet.test.tsx"],
+    "risk_red_lines": ["Do not show sensitive private_jsonb on print sheet."],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {"required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"], "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]},
+    "routing_hints": {"red": "hermes_gpt55", "implementation": "hermes_gpt55", "review": "opus_if_high_risk_or_ui_or_architecture", "close": "spark_low_risk_else_opus"}
+  }
+}

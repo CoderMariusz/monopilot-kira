@@ -1,0 +1,65 @@
+{
+  "title": "T-028 — API: planning_settings CRUD + status display + field visibility",
+  "prompt": "Implement planning_settings endpoint per PRD §14.1, §14.2, §14.4. GET /api/planning/settings returns the per-tenant settings row. PATCH /api/planning/settings updates allowed fields (everything except id, tenant_id, audit cols). Validation per V-PLAN-SET-001..004:\n- po_approval_threshold ≥ 0\n- intermediate_cascade_max_depth ∈ [1, 20]\n- status_display covers all enum values for po/to/wo entities (V-PLAN-SET-003)\n- d365_so_pull_cron is a valid cron expression (V-PLAN-SET-004)\n\nstatus_display JSONB shape per §14.2 (label_pl, label_en, color, icon). field_visibility JSONB per §14.4 (per-role mask).\n\nRED test asserts each V-PLAN-SET-XXX rule rejects bad input.",
+  "labels": ["prd", "api", "settings-crud", "T2-api"],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-028",
+    "source_prd": "04-PLANNING-BASIC-PRD.md",
+    "prd_refs": ["§14.1", "§14.2", "§14.4", "§14.6"],
+    "category": "api",
+    "subcategory": "settings-crud",
+    "task_type": "T2-api",
+    "parent_feature": "planning-settings",
+    "context_budget": "30k",
+    "estimated_effort": "2-3h",
+    "description": "Planning settings GET/PATCH endpoint with V-PLAN-SET-001..004 validation.",
+    "details": "Cron validation via 'cron-parser' library or equivalent (npm). status_display validator iterates known status enum sets per entity type. field_visibility allowed roles enumerated against 02-SETTINGS §10 role list. RBAC: only 'planning.settings.edit' role can PATCH.",
+    "scope_files": [
+      "src/app/api/planning/settings/route.ts [create]",
+      "src/lib/validators/planning-settings.ts [create]",
+      "src/server/actions/planning/settings-update.ts [create]",
+      "src/app/api/planning/settings/__tests__/route.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Settings UI (T-038)",
+      "D365 cron worker (T-035)"
+    ],
+    "dependencies": ["T-006"],
+    "parallel_safe_with": ["T-027", "T-029"],
+    "acceptance_criteria": [
+      "Given PATCH with intermediate_cascade_max_depth=25, when validated, then HTTP 400 with code 'V-PLAN-SET-002'.",
+      "Given PATCH with d365_so_pull_cron='not-a-cron', when validated, then HTTP 400 with code 'V-PLAN-SET-004'.",
+      "Given a valid PATCH body, when GET is called subsequently, then values reflect the update and updated_at is bumped.",
+      "Given `pnpm vitest run src/app/api/planning/settings/__tests__/route.test.ts`, when run, then 0 failures."
+    ],
+    "test_strategy": [
+      "RED tests for each V-PLAN-SET rule + RBAC + happy patch.",
+      "Run `pnpm vitest run src/app/api/planning/settings/__tests__/route.test.ts`."
+    ],
+    "risk_red_lines": [
+      "Do not allow non-admin to mutate settings.",
+      "Do not skip status_display coverage check — UI rendering depends on it."
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

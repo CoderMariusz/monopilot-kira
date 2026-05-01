@@ -1,0 +1,62 @@
+{
+  "title": "T-036 — SCN-060 Split LP UI (3-step) (06-c)",
+  "prompt": "# T-036 — SCN-060 Split LP\n\nPRD: 06-SCANNER-P1-PRD.md §8.3 FR-SC-FE-032\nUX: design/06-SCANNER-P1-UX.md:482-505 §3.11\nPrototype: design/Monopilot Design System/scanner/flow-other.jsx:111-150 (split_scan_screen), :152-193 (split_qty_screen)\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nDeliver SCN-060 3-step Split LP — scan LP → qty input with live preview ('Oryginał: 30 kg / Nowy: 20 kg') → done (2-card side-by-side, gray original / green new, inherited batch).\n\n## Implementation contract\n1. /scanner/split, /scanner/split/[lpId]/qty, /scanner/split/done.\n2. Live preview computes original.qty - split_qty as user types.\n3. Submit POSTs /split-lp; on success render side-by-side split cards (gray for original, green for new) per §9.9.\n\n## Files\n- apps/scanner/src/app/scanner/split/page.tsx [create]\n- apps/scanner/src/app/scanner/split/[lpId]/qty/page.tsx [create]\n- apps/scanner/src/app/scanner/split/done/page.tsx [create]\n- apps/scanner/__tests__/scn-060-split.test.tsx [create]\n\n## Acceptance criteria\n1. Given the 3 steps render, when compared to `design/Monopilot Design System/scanner/flow-other.jsx:111-150,152-193` and §9.9 split-grid, then they show the same scan area, the same qty input with live preview, and the same gray/green side-by-side split cards on done — RTL snapshot + manual checklist\n2. Given LP qty=30 and the user types split_qty=35, when the qty step revalidates, then submit is disabled and an inline error 'Wartość większa niż dostępna ilość' is shown\n3. Given a successful POST /split-lp, when the done step renders, then both LP cards show the same inherited batch and 14px monospace LP numbers with letterspacing 2\n\n## Test strategy\n- RED: write scn-060-split.test.tsx asserting parity + qty over-limit + inherited-batch render before implementation\n- Run 'pnpm --filter scanner test scn-060-split'\n\n## Risk red lines\n- Do not allow split_qty ≥ original qty (client check + server enforce)\n- Do not omit the live preview\n- Do not navigate to done before /split-lp returns 200",
+  "labels": ["prd", "ui", "scn-060-split", "T3-ui"],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-036",
+    "source_prd": "06-SCANNER-P1-PRD.md",
+    "prd_refs": ["§8.3 FR-SC-FE-032", "§9.9"],
+    "category": "ui",
+    "subcategory": "scn-060-split",
+    "task_type": "T3-ui",
+    "parent_feature": "06-c Warehouse Movement",
+    "context_budget": "25k",
+    "estimated_effort": "1-2h",
+    "description": "SCN-060 split-LP UI (scan / qty with live preview / done with gray-green side-by-side cards).",
+    "details": "Parity checklist:\n1) Scan area on step 1.\n2) Qty input with live preview computing original.qty - split_qty.\n3) Done step uses §9.9 split-grid layout, gray original card + green new card.\n4) Inherited batch shown identically on both cards.\n5) split_qty < original qty enforced client-side.",
+    "scope_files": [
+      "apps/scanner/src/app/scanner/split/page.tsx [create]",
+      "apps/scanner/src/app/scanner/split/[lpId]/qty/page.tsx [create]",
+      "apps/scanner/src/app/scanner/split/done/page.tsx [create]",
+      "apps/scanner/__tests__/scn-060-split.test.tsx [create]",
+      "design/Monopilot Design System/scanner/flow-other.jsx:111-150 [ref]",
+      "design/Monopilot Design System/scanner/flow-other.jsx:152-193 [ref]"
+    ],
+    "out_of_scope": [
+      "Do not implement merge-LP (out of P1)",
+      "Do not implement SCN-031 here (T-035)",
+      "Do not implement label printing"
+    ],
+    "dependencies": ["T-013", "T-015", "T-034"],
+    "parallel_safe_with": ["T-035"],
+    "acceptance_criteria": [
+      "Given the 3 steps render, when compared to design/Monopilot Design System/scanner/flow-other.jsx:111-150 and :152-193 + §9.9 split-grid, then they show the same scan area, qty input with live preview, and gray/green side-by-side split cards on done — RTL snapshot + manual checklist",
+      "Given LP qty=30 and split_qty=35 typed, when the qty step revalidates, then submit is disabled and inline error 'Wartość większa niż dostępna ilość' is shown",
+      "Given a successful POST /split-lp, when the done step renders, then both LP cards show the same inherited batch and 14px monospace LP numbers with letterspacing 2"
+    ],
+    "test_strategy": [
+      "RED: write scn-060-split.test.tsx asserting parity + over-limit + inherited-batch render before implementation",
+      "Run 'pnpm --filter scanner test scn-060-split'"
+    ],
+    "risk_red_lines": [
+      "Do not allow split_qty ≥ original qty",
+      "Do not omit live preview",
+      "Do not navigate to done before 200"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

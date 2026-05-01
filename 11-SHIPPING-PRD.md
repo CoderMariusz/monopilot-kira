@@ -1,13 +1,13 @@
 # 11-SHIPPING PRD — Monopilot MES
 
-**Wersja:** 3.0 | **Data:** 2026-04-20 | **Status:** Baseline (Phase C4 Sesja 3)
-**Poprzednia wersja:** v3.1 (2026-02-18, pre-Phase-D) — zachowana w historii, w pełni przepisana do v3.0 convention
+**Wersja:** 3.2 | **Data:** 2026-04-30 | **Status:** Standardized Multi-industry + UX-coverage closed (Phase C4 Sesja 3 + 2026-04-30 design-PRD reconciliation)
+**Poprzednia wersja:** v3.1 (2026-04-30 standardization), v3.1-baseline (2026-02-18 pre-Phase-D) — zachowane w historii
 
 ---
 
 ## 1. Executive Summary
 
-Modul **11-SHIPPING** obsluguje pelny cykl **order-to-delivery** dla wyrobow gotowych (FA) w multi-tenant food-mfg MES. Zakres P1 obejmuje: zarzadzanie klientami, sales order (SO) lifecycle (draft → shipped), LP-based allocation z FEFO/FIFO, pick/pack/ship scanner-first + desktop mixed, SSCC-18 labeling GS1-compliant, BOL + packing slip generation, RMA receiving/disposition, dashboard KPI + INTEGRATIONS stage 3 D365 SalesOrder confirm push (outbox pattern clone z 08-PROD §12 stage 2).
+Modul **11-SHIPPING** obsluguje pelny cykl **order-to-delivery** dla wyrobow gotowych (FG) w multi-tenant food-mfg MES. Zakres P1 obejmuje: zarzadzanie klientami, sales order (SO) lifecycle (draft → shipped), LP-based allocation z FEFO/FIFO, pick/pack/ship scanner-first + desktop mixed, SSCC-18 labeling GS1-compliant, BOL + packing slip generation, RMA receiving/disposition, dashboard KPI + INTEGRATIONS stage 3 D365 SalesOrder confirm push (outbox pattern clone z 08-PROD §12 stage 2).
 
 **Pozycja w Module Map (per 00-FOUNDATION §4.2):** 11-SHIPPING jest **consumer** 05-WAREHOUSE (LP state + FEFO query), 04-PLANNING-BASIC (customer_orders + D365 SO trigger), 09-QUALITY (quality_holds + soft gate), 03-TECHNICAL (product master + GTIN + allergens + shelf_life), 02-SETTINGS (D365_Constants, rule registry, reference tables). **Producer** do 10-FINANCE (COGS per shipment P2), 12-REPORTING (OTD + fulfillment rate), 13-MAINTENANCE (vehicle inspections P2 if fleet owned), oraz **D365 external** (SalesOrder confirm push async via outbox).
 
@@ -19,7 +19,7 @@ Modul **11-SHIPPING** obsluguje pelny cykl **order-to-delivery** dla wyrobow got
 - **Catch weight carve-out (D-SHP-17):** `sales_order_lines.cw_quantity` P2 (baseline [7.1]), weight variance tracking per shipment_box manual entry P1 (jesli product.weight_mode='catch' per 03-TECH §8).
 - **D365 Constants reuse (D-SHP-18):** FNOR (dataAreaId), ApexDG (warehouse code), FinGoods (GL account for revenue) — read z 02-SETTINGS §11 w adapter. Phase 2 extensions: `shipping_warehouse`, `courier_default_carrier`, `customer_account_id_map`.
 - **Manual dispatch P1 + carrier API P2 (D-SHP-19):** P1 BOL + packing slip manual PDF/ZPL print, DHL/UPS/DPD API integration P2 (rate shopping, tracking webhooks, POD).
-- **EUDR supplier_dds_reference gate P2 (D-SHP-20):** jesli FA zawiera soy/palm/cocoa ingredient → gate block shipment if `supplier.dds_reference` IS NULL (EU Deforestation Regulation 2026-12-30 deadline).
+- **EUDR supplier_dds_reference gate P2 (D-SHP-20):** jesli FG zawiera soy/palm/cocoa ingredient → gate block shipment if `supplier.dds_reference` IS NULL (EU Deforestation Regulation 2026-12-30 deadline).
 
 **Markers:** [UNIVERSAL] = core MES contract | [APEX-CONFIG] = konkretny fit Apex UK | [EVOLVING] = areas in iteration | [LEGACY-D365] = bridge until D365 retirement.
 
@@ -113,7 +113,7 @@ Umozliwienie pelnego cyklu **order-to-delivery** dla Apex UK (pilot) i innych fo
 | 10 | **COGS per shipment** | Consumer 10-FIN `inventory_cost_layers` at shipment confirm event |
 | 11 | **EPCIS consumer** | `shipping_outbox_events` produces EPCIS 2.0 JSON-LD events (05-WH §13.7 P2) |
 | 12 | **GS1 Digital Link QR** | Retailer-ready QR syntax encoding GTIN + batch + expiry (MES-TRENDS R10) |
-| 13 | **EUDR supplier gate** | `supplier_dds_reference` gate block shipment if soy/palm/cocoa FA content + null DDS (Q10, 2026-12-30 deadline) |
+| 13 | **EUDR supplier gate** | `supplier_dds_reference` gate block shipment if soy/palm/cocoa FG content + null DDS (Q10, 2026-12-30 deadline) |
 | 14 | **Peppol B2B e-invoice** | NOT IN SCOPE dla Apex UK. Only if expansion to Belgium (2026-01-01 deadline) |
 | 15 | **Advanced reports** | Pick performance, OTD decomposition, carrier performance, returns analysis |
 | 16 | **Batch release hard gate** | `batch_release_gate_v1` full rule activation (09-QA P2 rule) |
@@ -129,7 +129,7 @@ Umozliwienie pelnego cyklu **order-to-delivery** dla Apex UK (pilot) i innych fo
 
 ### 4.4 EUDR P2 scope check (per Q10 user confirmed)
 
-EU Deforestation Regulation 2026-12-30 dotyczy **produktow zawierajacych**: soy, palm oil, cocoa, coffee, cattle/beef, wood, rubber. **Apex UK reality** (per Phase A pld-v7-excel docs): produkty zawieraja meat (mogly byc fed soy/palm feed upstream) + potential palm oil w niektorych formulacjach FA. **Decyzja D-SHP-20:** P2 gate block shipment if:
+EU Deforestation Regulation 2026-12-30 dotyczy **produktow zawierajacych**: soy, palm oil, cocoa, coffee, cattle/beef, wood, rubber. **Apex UK reality** (per Phase A pld-v7-excel docs): produkty zawieraja meat (mogly byc fed soy/palm feed upstream) + potential palm oil w niektorych formulacjach FG. **Decyzja D-SHP-20:** P2 gate block shipment if:
 1. Product BOM contains item with `items.eudr_category` IN ('soy','palm','cocoa','beef','wood','rubber') AND
 2. Supplier `supplier.dds_reference` IS NULL AND
 3. Feature flag `integration.eudr.enabled` = TRUE (per-org)
@@ -1000,6 +1000,357 @@ Consumer-facing: link resolves to retailer page showing traceability, allergens,
 | ADMIN-SHP-01 | Shipping Override Reasons Config | admin | Reference table CRUD (za 02-SETTINGS §8 generic wzor) |
 | ADMIN-SHP-02 | D365 DLQ Shipping View | admin | Filter source='shipping' w /admin/integrations/d365/dlq (reuse 08-PROD DLQ ops) |
 
+### 15.4 Extended desktop screen catalog (Direction-B coverage, SHIP-NNN scheme) [UNIVERSAL]
+
+> **Audit:** `_meta/audits/2026-04-30-design-prd-coverage.md` §11-SHIPPING wykrył 12+ ekranów prototypowanych + UX-spec'd bez kotwicy w PRD §15.1. Sekcja 15.4 zamyka tę lukę przyjmując **schema UX SHIP-NNN jako kanoniczną** (per audit §3 CC-1 schema drift policy). Mapowanie SHP-NNN ↔ SHIP-NNN w §20 traceability matrix.
+>
+> **Konwencja:** SHIP-NNN = full UX catalog; SHP-NNN (§15.1) zachowane jako legacy alias dla v3.0 implementacji (sub-modules 11-a..e). Kazdy nowy screen P1 dziedziczy: org_id RLS, audit trigger, ext_data JSONB (ADR-028 L3), site_id NULL (ADR-030).
+
+#### SHIP-003 — Shipping Addresses [UNIVERSAL]
+
+**Route:** Embedded `/shipping/customers/:id` Addresses tab + standalone Address Create/Edit modal (560px).
+**Purpose:** Manage per-customer billing/shipping addresses (P1 prerequisite: SHIP-006 SO confirmation requires ≥1 shipping-type address — V-SHIP-SO-02).
+**RBAC:** `shipping_sales`, `shipping_manager` write; all roles read.
+**Key behaviors:**
+- Address types `Billing` (blue badge) / `Shipping` (green badge); `is_default` per type.
+- Fields: address_type, is_default, line1 (req max 100), line2, city (req), county/state, postal_code (req), country ISO-2 (default GB), `dock_hours` JSONB ("Mon-Fri 08:00-17:00"), notes.
+- Default shipping address auto-selected as `sales_orders.shipping_address_id` for new SOs (D-SHP-12 baseline).
+- Cascade rule: deleting customer → cascade delete addresses (FK ON DELETE CASCADE per §9.1 `customer_addresses`).
+**Validation refs:** V-SHIP-SO-02 (≥1 shipping address required pre-confirm).
+**Modal references:** Address Create/Edit (560px), Delete confirmation (generic 400px).
+[Source: 11-SHIPPING-UX.md:294-318 + prototype `address_modal` (modals.jsx:69-94)]
+
+#### SHIP-004 — Allergen Restrictions per Customer [UNIVERSAL]
+
+**Route:** Embedded `/shipping/customers/:id` Allergens tab + Allergen Restriction Add modal (560px).
+**Purpose:** Configure per-customer allergen profile (refuses + requires-declared) consumed by D-SHP-5 confirm gate i D-SHP-15 packing slip/BOL labelling (EU 1169/2011).
+**RBAC:** `shipping_qa`, `shipping_manager` write; `shipping_sales` read.
+**Key behaviors:**
+- Two-section grid: **Refuses (Do Not Ship)** — toggle ON blokuje SO confirm chyba ze override (D-SHP-5); **Requires Declared (Must Label)** — toggle ON wymusza bold na packing slip/BOL/SSCC ASN (D-SHP-15).
+- Source: 14 EU-mandated allergens + custom z 02-SETTINGS §8 reference table.
+- Conflict preview table: pokazuje aktualne open/draft SOs gdzie `customer.allergen_restrictions` koliduje z `products.allergens` (cascade z 03-TECH `allergen_cascade_v1`).
+- Save → audit entry (`shipping_audit_log`) + recalc gate flag dla nowych SO.
+**Validation refs:** V-SHIP-LBL-01, V-SHIP-LBL-02, V-SHIP-PACK-05.
+**Modal references:** Allergen Restriction Add (560px), Allergen Override (560px) jesli QA approver.
+[Source: 11-SHIPPING-UX.md:322-344 + prototype `allergen_restriction_modal` (modals.jsx:96-113), `allergen_override_modal` (modals.jsx:837-871)]
+
+#### SHIP-009 — Holds Manager (Allergen / Credit / QA / Manual) [UNIVERSAL]
+
+**Route:** Tab `/shipping/sos/:id` Holds + modale Place Hold / Release Hold (560px).
+**Purpose:** Centralny panel ksiazkowy dla wszystkich typow holdow (allergen, credit, QA, manual) z RBAC-gated release.
+**RBAC:**
+- Allergen hold release → `shipping_qa`
+- Credit hold release → `credit_control` (P2 role; P1 admin fallback)
+- QA hold (severity<critical) override → `shipping_manager` per D-SHP-13; severity=critical → `shipping_qa` only
+- Manual hold place/release → `shipping_manager`
+**Key behaviors:**
+- Auto-trigger allergen hold przy SO `confirmed` jesli `allergen_validated=FALSE` AND conflict (D-SHP-5).
+- QA hold consumer event `quality.hold.created` (09-QA producer) → invalidate pending allocations + emit warning banner.
+- Hold detail row: Hold Type, Placed By, Placed At, Status (Active/Released), Reason Code, Notes, Released By/At.
+- Place Hold modal: Hold Type select (Credit/QA/Allergen/Manual), Reason Code z `shipping_override_reasons` (02-SETTINGS §8), Notes textarea min 10 chars.
+**Validation refs:** V-SHIP-PICK-02, V-SHIP-PICK-03, V-SHIP-SHIP-03.
+**Modal references:** Hold Place (560px), Hold Release (560px), Allergen Override (560px).
+[Source: 11-SHIPPING-UX.md:478-503 + prototypes `hold_place_modal` (modals.jsx:342-378), `hold_release_modal` (modals.jsx:380-410)]
+
+#### SHIP-010 — Partial Fulfillment Decision [UNIVERSAL]
+
+**Route:** Modal (560px) z SHIP-007 SO Detail lub SHIP-008 Allocation gdy `qty_available < qty_ordered`.
+**Purpose:** Operator-driven decyzja czy ship partial / wait / split + auto-backorder; konkretyzuje D-SHP-10 dual-approach.
+**RBAC:** `shipping_manager` (decyzja), `shipping_sales` (read).
+**Key behaviors:**
+- Summary table per short line: Product, Qty Ordered, Qty Available, Shortfall.
+- Decision radio (3 opcje):
+  1. "Ship what is available now" → SO `status='partial'`, remaining qty na linii
+  2. "Wait for full stock" → no ship, hold SO
+  3. "Ship partial + create backorder SO" → ships available, auto INSERT new draft SO `(backorder of <orig>)` z qty=shortfall (gated by `org_settings.auto_create_backorder` lub explicit opt-in)
+- Reason Code required (z `shipping_override_reasons`) dla opcji 1+3.
+- Downstream effect display: text rendering konsekwencji ("SO-X stanie sie 'partial', backorder SO-Y stworzona w draft").
+**Validation refs:** V-SHIP-PICK-04 (short pick → partial flag), V-SHIP-SO-08 (qty_shipped <= qty_ordered).
+**Modal references:** Partial Fulfillment Decision (560px), Short Pick Resolve (560px).
+[Source: 11-SHIPPING-UX.md:506-528 + prototype `partial_fulfillment_modal` (modals.jsx:412-453)]
+
+#### SHIP-011 — SO Cancellation [UNIVERSAL]
+
+**Route:** Modal (560px) z SHIP-005 SO List row action lub SHIP-007 Detail header.
+**Purpose:** Cancel SO + atomic release wszystkich `inventory_allocations` + audit (`shipping_audit_log` action='so_cancelled').
+**RBAC:** `shipping_manager`, `shipping_sales` (jesli draft only); `shipping_qa` allergen-related cancels.
+**Key behaviors:**
+- Guard V-SHIP-SO-07: button disabled jesli `status IN ('shipped','delivered')` z tooltip "Cannot cancel shipped orders."
+- Warning alert pokazuje count LP-ow do release (`SELECT COUNT(*) FROM inventory_allocations WHERE sales_order_id=$1`).
+- Reason Code required z `shipping_override_reasons` (customer_request, duplicate_order, out_of_stock, pricing_error, supplier_issue, other).
+- Notes required min 10 chars.
+- Confirmation checkbox: "I understand this will release all inventory allocations."
+- Service: DB tx → release allocations (LP `status='available'`), pick lists `status='cancelled'` (jesli in_progress, picker notified via scanner toast 06-SCN), SO `status='cancelled'`.
+**Validation refs:** V-SHIP-SO-07.
+**Modal references:** Cancel SO (560px), Release Allocation (modals.jsx:809-835 helper).
+[Source: 11-SHIPPING-UX.md:531-550 + prototype `so_cancel_modal` (modals.jsx:504-536)]
+
+#### SHIP-014 — Pick Desktop (Supervisor Progress View) [UNIVERSAL]
+
+**Route:** `/shipping/picks/:id`
+**Purpose:** Supervisor desktop oversight pick listy w trakcie (pickers uzywaja scanner SCN-040). Wyswietla FEFO deviations, QA overrides, short picks; manager moze reassign / force-complete.
+**RBAC:** `shipping_manager`, `shipping_admin` force-complete with audit reason.
+**Key behaviors:**
+- Two-column layout: left = pick lines table (Seq, Product, Suggested LP, Actual LP, Qty to Pick, Qty Picked, Status, FEFO Deviation flag, Notes); right = summary panel (donut chart picked/total, picker last activity, FEFO deviation count, QA override count).
+- FEFO deviation row: amber background (`#fffbeb`) jesli `actual_lp.expiry_date > suggested_lp.expiry_date`; tooltip ze scenariuszem.
+- QA Override badge: amber jesli `pick_overrides.override_type='quality_hold'` istnieje dla linii (z reason_code, notes z D-SHP-13).
+- Print Route Sheet: server-side PDF z pick sequence (zone→aisle→bin) dla offline supervisor.
+- "Force Complete" admin button + audit reason → `pick_lists.status='completed'` z flag `force_completed_by`.
+**Validation refs:** V-SHIP-PICK-01..05.
+**Modal references:** Pick Reassign (560px), Allocation Override (560px).
+[Source: 11-SHIPPING-UX.md:627-659 + prototype `pick_detail_supervisor_page` (pick-screens.jsx:217-330)]
+
+#### SHIP-015 — Pick Scanner Launch Card [UNIVERSAL]
+
+**Route:** Scanner-card komponent w SHIP-012 (Pick List List) + SHIP-014; deep-link `/scanner/shipping/pick?pickListId={id}` → 06-SCN SCN-040.
+**Purpose:** Single-click handoff z desktop do scanner workflow + inline Quality Hold Override modal (D-SHP-13 soft gate UI surface dla severity<critical).
+**RBAC:** `shipping_operator`, `shipping_manager`.
+**Key behaviors:**
+- `.scanner-card` 32px truck icon, "Pick with Scanner" label, sub-label "Opens 06-SCANNER-P1 pick workflow (SCN-040)".
+- Quality Hold Override Modal (inline w scanner, surfaced takze na desktop SHIP-014):
+  - Banner: "LP [LP#] is on hold: [hold_reason]. Override to continue?"
+  - Severity badge (Major / Medium / Minor — critical hard-blocked, no modal).
+  - Reason Code select z `shipping_override_reasons` (quality_override_approved, supervisor_direction, customer_requested).
+  - Notes textarea min 10 chars.
+  - "Continue with Override" warning button → INSERT `pick_overrides` + emit event `shipping.quality_hold.overridden` (consumer 09-QA audit log sync per §10.3).
+**Validation refs:** V-SHIP-PICK-02, V-SHIP-PICK-03.
+**Modal references:** Quality Hold Override (560px, inline scanner + desktop).
+[Source: 11-SHIPPING-UX.md:663-682 + crosslink to 06-SCANNER-P1 SCN-040; reuses §8.3 PRD flow]
+
+#### SHIP-016 — Short Pick Resolve [UNIVERSAL]
+
+**Route:** Modal (560px) z SHIP-014 row action lub inline scanner SCN-040.
+**Purpose:** Decision point gdy picker nie moze pobrac pelnej qty z suggested LP — oszczędność przerwań pickera + audytowana sciezka (substitute / partial / wait).
+**RBAC:** `shipping_operator` (initiate), `shipping_manager` (audit/review).
+**Key behaviors:**
+- Summary: Requested qty vs Available at suggested LP vs Shortfall.
+- Decision radio (3 opcje):
+  1. "Ship short (Δ shortfall)" — pick_list_line `status='short'`, qty_picked<qty_to_pick; downstream SO `status='partial'` + optional backorder per D-SHP-10.
+  2. "Substitute with alternate LP" — sub-table other available LPs (FEFO sorted), picker selects + qty_override; INSERT `pick_overrides(override_type='fefo_deviation')`.
+  3. "Wait for restock — do not pick now" — line stays Pending, wave continues, alert manager.
+- Reason Code required (1+3) z `shipping_override_reasons`.
+- Downstream effect display: dynamic text "If short-ship: SO-X becomes Partial. Customer Y receives Z kg instead of W kg. 1 backorder queued."
+**Validation refs:** V-SHIP-PICK-04, V-SHIP-PICK-05.
+**Modal references:** Short Pick Resolve (560px).
+[Source: 11-SHIPPING-UX.md:685-706 + prototype `short_pick_resolve_modal` (modals.jsx:455-502)]
+
+#### SHIP-017 — Packing Station Workbench [UNIVERSAL]
+
+**Route:** `/shipping/packing/:station`
+**Purpose:** Desktop/tablet packing workbench (rozszerzenie SHP-010 z §15.1 do pelnej spec UX). Operator scanuje LPs, buduje boxes, zapisuje weights, closes cartons, triggers SSCC generation.
+**RBAC:** `shipping_operator`, `shipping_manager`.
+**Device:** Desktop primary; 10-inch tablet landscape supported (z left column collapse do icon-only).
+**Key behaviors:**
+- Three-column layout: Left (240px) Available LPs queue (FEFO sorted), Middle (flex) Active Box Builder, Right (280px) Shipment Summary.
+- Catch weight (D-SHP-17): jesli `products.weight_mode='catch'` → editable weight per LP + variance check ("Nominal 5.0 kg | Actual 5.2 kg | Variance +4% ✓") z tolerance z `products.variance_tolerance_pct`.
+- Allergen separation warning: jesli 2 LPs w tym samym box z konfliktujacymi allergens vs `customers.allergen_restrictions` → amber banner "Consider separate boxes" (V-SHIP-PACK-05, NOT block).
+- Close Box: weight required → atomic SSCC generation (SELECT FOR UPDATE on `organizations.next_sscc_sequence` per §13.1) → ZPL print job → INSERT `shipment_box_contents`.
+- "Generate Packing Slip" → SHIP-020; "Generate BOL" → SHIP-021; "Confirm Shipment" → SHIP-024 (gated by V-SHIP-SHIP-01/02).
+**Validation refs:** V-SHIP-PACK-01..05, V-SHIP-SHIP-01..05.
+**Modal references:** Pack Close Carton Confirm (400px), Allergen Override (560px), SSCC Reprint (400px).
+[Source: 11-SHIPPING-UX.md:710-734 + prototype `packing_station_workbench_page` (pack-screens.jsx:47-220), `pack_close_carton_modal` (modals.jsx:577-607)]
+
+#### SHIP-018 — Pack Scanner Launch Card [UNIVERSAL]
+
+**Route:** Scanner-card w SHIP-017 packing station header; deep-link `/scanner/shipping/pack?shipmentId={id}` → 06-SCN SCN-050.
+**Purpose:** Pallet-level pack handoff (D-SHP-6 Q2 decision: scanner dla pallet-level + desktop dla mixed/small box). Co-istnieje z SHIP-017.
+**RBAC:** `shipping_operator`, `shipping_manager`.
+**Key behaviors:**
+- `.scanner-card` box/scan icon, "Pack with Scanner (Pallet Level)", sub-label "SCN-050 via 06-SCANNER-P1".
+- Per D-SHP-6 Q2: pallet-level → scanner; box-level mixed → desktop SHIP-017. Decision per shipment.
+**Validation refs:** delegated do 06-SCN SCN-050.
+**Modal references:** brak (delegated do 06-SCN flow).
+[Source: 11-SHIPPING-UX.md:738-746 + crosslink 06-SCANNER-P1]
+
+#### SHIP-019 — SSCC Labels Queue [UNIVERSAL]
+
+**Route:** `/shipping/sscc`
+**Purpose:** Manage SSCC-18 label generation queue + reprint + printer status. Centralny screen po §13.1 atomic-sequence generation logic.
+**RBAC:** `shipping_operator` (print), `shipping_manager` (reprint reason audit), `shipping_admin` (printer config).
+**Key behaviors:**
+- KPI bar: Labels Generated Today, Pending Print, Print Errors.
+- Format display card: SSCC-18 structure breakdown (Extension(1) + GS1 Prefix(7-10) + Serial(6-8) + Check(1)).
+- Red alert banner jesli `organizations.gs1_company_prefix IS NULL` → "GS1 Company Prefix not configured — SSCC generation disabled" (V-SHIP-PACK-03).
+- Table columns: Shipment, Box#, SSCC (monospace 18-digit copyable), Customer, Generated At, Printed checkbox+time, Print Status (Queued/Printed/Error), Actions (Preview/Print/Reprint).
+- Label Preview modal (560px): renders rzeczywisty rozmiar — GS1-128 barcode (AI 00 + SSCC), AI (01) GTIN-14, AI (10) Batch, AI (15)/(17) date YYMMDD, AI (3103) net weight; allergen line bold (D-SHP-15); Print Label → ZPL job, Download PDF fallback.
+- Bulk Print Selected; Print All Unprinted quick action.
+- Reprint modal: reason required (damage/lost/reissue) + audit log entry.
+- Printer status banner: "ZPL printer offline — N labels queued" (sticky amber).
+**Validation refs:** V-SHIP-PACK-02 (check digit), V-SHIP-PACK-03 (GS1 prefix), V-SHIP-LBL-03.
+**Modal references:** SSCC Label Preview (560px), SSCC Reprint (400px).
+[Source: 11-SHIPPING-UX.md:750-785 + prototypes `sscc_labels_queue_page` (pack-screens.jsx:224-314), `sscc_label_preview_component` (pack-screens.jsx:317-336), `sscc_preview_reprint_modal` (modals.jsx:702-739)]
+
+#### SHIP-020 — Packing Slip Preview & Print [UNIVERSAL]
+
+**Route:** `/shipping/docs/:shipmentId/slip`
+**Purpose:** Generate, preview, print packing slip z mandatory EU 1169/2011 allergen labelling (D-SHP-15) per shipment. Konkretyzacja SHP-012 w pelnym screen-detail.
+**RBAC:** `shipping_operator`, `shipping_manager`, `shipping_sales` read.
+**Key behaviors:**
+- Two-region layout: Left controls panel (320px), Right wide PDF preview iframe (server-rendered pdfkit/pdf-lib).
+- Controls: Shipment ref link, Customer/ship-to summary, Template picker (default/retailer-specific/custom), Language (EN P1, multi-language P2 V-SHIP-LBL-05), Generate/Regenerate, Print, Download PDF, Version history.
+- PDF required elements: Header Ship-From/Ship-To, Order ref table (SO# + Customer PO + dates), Line items (Line#, Product Code, Description, GTIN-14, Batch, Best-Before, Qty, Unit Price, Line Total), per-product allergen section bold (`<strong>wheat, milk, egg</strong>`), customer restriction conflict ⚠ marker, aggregated shipment-level allergens, totals, barcode SSCC/SO ref, nutrition declaration P1 from `product_nutrition_facts` (01-NPD).
+- Stale slip warning: amber jesli SO modified post-generation → "Regenerate recommended."
+**Validation refs:** V-SHIP-LBL-01, V-SHIP-LBL-02, V-SHIP-LBL-05.
+**Modal references:** Packing Slip Regenerate (400px).
+[Source: 11-SHIPPING-UX.md:789-819 + prototype `packing_slip_preview_page` (doc-screens.jsx:107-215), `packing_slip_regen_modal` (modals.jsx:741-757)]
+
+#### SHIP-021 — Bill of Lading Preview & Sign-off [UNIVERSAL]
+
+**Route:** `/shipping/docs/:shipmentId/bol`
+**Purpose:** Generate BOL PDF, preview, print, sign upload (D-SHP-19 manual P1, API P2). SHA-256 immutability per BRCGS Issue 10 7y retention.
+**RBAC:** `shipping_manager`, `shipping_admin` re-upload audit.
+**Key behaviors:**
+- Same two-region layout jako SHIP-020. Controls: Carrier (text P1), HAZMAT checkbox grayed (P2 FR-7.44), Freight class text, Generate BOL → SHA-256 hash do `shipments.bol_pdf_hash`, Print, Download, Upload Signed BOL → `bol_signed_pdf_hash` + Supabase Storage 7y retention, Immutability badge.
+- PDF structure (per §13.5): BOL Number (`SH-YYYY-NNNNN-BOL`), Pro Number, Carrier, Ship From/To, Box SSCC list + dims/weight, aggregated allergen list (D-SHP-15) + customer restriction segregation note, Driver/Consignee signature blocks, HAZMAT empty P1.
+- Post-sign-upload: "Signed BOL uploaded and hashed — BRCGS 7-year retention active. Cannot be deleted" (V-SHIP-LBL-04).
+- P2 e-sig PIN re-verify (21 CFR Part 11) — disabled placeholder.
+**Validation refs:** V-SHIP-SHIP-02, V-SHIP-LBL-03, V-SHIP-LBL-04.
+**Modal references:** BOL Sign-Off (560px).
+[Source: 11-SHIPPING-UX.md:823-854 + prototype `bol_preview_page` (doc-screens.jsx:217-308), `bol_sign_upload_modal` (modals.jsx:759-790)]
+
+#### SHIP-014b — Carriers List & CRUD [UNIVERSAL]
+
+**Route:** `/shipping/carriers`
+**Purpose:** List/manage carrier configuration (P1 manual; API integration P2 EPIC 11-F).
+**RBAC:** `shipping_admin`.
+**Key behaviors:**
+- Table: Carrier Name, Service Level, Rate Basis (Manual/Weight/Zone), API Integration badge (P2 Connected/Not connected), Default Carrier, Status, Actions (Edit/Deactivate).
+- Add/Edit Carrier modal (560px): Carrier Name (req), Service Levels (multi-entry chip input), Rate Basis select, Tracking URL Template (`https://track.dhl.com/{tracking_number}`), Notes.
+- P2 banner: "Carrier API integration deferred — EPIC 11-F scope (rate shopping, label gen, tracking webhooks, POD)."
+- Schema landing P1: minimalna `carrier_configs(org_id, name, service_levels JSONB, rate_basis, tracking_url_template, is_default, is_active)`. RLS `shipping_admin` only (D-SHP-7 P2 extension).
+**Validation refs:** brak gating P1 (manual entry on BOL — D-SHP-19).
+**Modal references:** Carrier Create/Edit (560px), Delete confirmation.
+[Source: 11-SHIPPING-UX.md:858-883 + prototypes `carriers_list_page` (doc-screens.jsx:424-466), `carrier_create_edit_modal` (modals.jsx:792-807)]
+
+#### SHIP-023 — Shipping Settings Hub [UNIVERSAL]
+
+**Route:** `/shipping/settings`
+**Purpose:** Per-org shipping configuration: allocation strategy, wave rules, GS1 prefix, label templates, BOL template, D365 link, advanced flags. Konkretyzacja ADMIN-SHP-01 z full 5-tab UX.
+**RBAC:** `shipping_admin` only.
+**Key behaviors:**
+- 5 tabs: **Allocation** (default strategy FEFO/FIFO/Manual reads `fefo_strategy_v1`, auto_allocate_on_confirm toggle, partial_allocation_allowed, auto_create_backorder, expired_lp_override toggle); **Wave & Picking** (Wave Release Cutoff Time, Max SOs per Wave default 50, Default Pick Priority 1-5, Short Pick Handling Default); **Labels & Documents** (`organizations.gs1_company_prefix` text req 7-10 digits + Test SSCC button, SSCC Extension Digit 0-9 default 0, Current Sequence read-only + Reset Sequence audit, Label Template select + Upload ZPL, Packing Slip Template, BOL Template); **D365 Integration** (read-only display FNOR/ApexDG/FinGoods/APX100048 z 02-SETTINGS §11 + link "Edit in 02-SETTINGS", P2 grayed extensions, DLQ link); **Advanced** (Credit Limit Warning Threshold % P2 grayed, EUDR Gate toggle disabled P2, RLS Debug admin-only).
+- Save → audit log entry per setting key.
+**Validation refs:** V-SHIP-PACK-03 (GS1 prefix gate), V-SHIP-INT-01 (D365 idempotency).
+**Modal references:** brak (inline tabs).
+[Source: 11-SHIPPING-UX.md:887-925 + prototype `shipping_settings_page` (doc-screens.jsx:536-648)]
+
+#### SHIP-024 — Ship Confirmation [UNIVERSAL]
+
+**Route:** Modal (560px) z SHIP-017 packing summary panel lub SHIP-007 Packs tab.
+**Purpose:** Final ship confirm dispatcher action — fires D365 outbox event (D-SHP-14), locks LPs do `status='shipped'`, transitions SO. Konkretyzacja SHP-011 jako standalone audited modal.
+**RBAC:** `shipping_manager` only.
+**Key behaviors:**
+- Pre-condition guards (button disabled jesli fail, tooltip lists failed checks):
+  1. All `shipment_boxes.sscc IS NOT NULL` (V-SHIP-SHIP-01)
+  2. `shipments.bol_pdf_url IS NOT NULL` (V-SHIP-SHIP-02)
+  3. No open critical QA holds (V-SHIP-SHIP-03)
+  4. All pick_list_lines `status IN ('picked','short')`
+- Summary card read-only: Shipment ref, SO link, Customer, Carrier, Total boxes/weight, SSCC count, BOL status (Generated+Signed green / Generated+awaiting amber), D365 push "Will be queued on confirm".
+- Checklist table z Pass/Fail rows.
+- Fields: Actual Ship Date (req, defaults today; >= promised_ship_date or amber warning), Carrier Pro Number (text P1), Driver Name (text P1), Notes, Confirmation checkbox.
+- D365 payload preview (collapsible) per §12.5 schema.
+- On confirm: DB tx atomic — `shipments.status='shipped'`, `sales_orders.status='shipped'` (jesli wszystkie shipments tej SO shipped), all LPs `status='shipped'`, INSERT `shipping_outbox_events` (R14 UUID v7 idempotency `idempotency_key=shipment_id::TEXT||'::v'||version_counter`), INSERT `shipping_audit_log` action='ship_confirmed'.
+**Validation refs:** V-SHIP-SHIP-01..06.
+**Modal references:** Ship Confirmation (560px).
+[Source: 11-SHIPPING-UX.md:1308-1378 + prototype `ship_confirm_modal` (modals.jsx:609-700)]
+
+#### SHIP-025 — Documents Hub [UNIVERSAL]
+
+**Route:** `/shipping/docs`
+**Purpose:** Centralna lista wszystkich generated packing slips + BOLs across shipments. Print batches, upload signed BOLs, version history. BRCGS retention enforcement.
+**RBAC:** `shipping_manager`, `shipping_sales` read, `shipping_admin` bulk ops.
+**Key behaviors:**
+- Two-tab: Packing Slips | Bills of Lading.
+- Packing Slips columns: Shipment, SO#, Customer, Generated, Version (v1/v2 stale), Allergen Labelled badge, Status (Printed/Pending/Stale), Actions (Preview/Print/Regenerate).
+- BOLs columns: Shipment, SO#, Customer, Generated, BOL Hash (8-char SHA-256 prefix), Signed badge, Retained Until (7y from ship date), Actions.
+- Filters per tab + bulk actions (Print Selected, Download ZIP, Mark Printed).
+- Stale slip detection: amber badge jesli SO modified post-generation.
+- BRCGS retention notice banner: "BOLs retained 7 years per BRCGS Issue 10 §3.4. Deletion disabled after signed upload."
+**Validation refs:** V-SHIP-LBL-04 (signed BOL deletion blocked).
+**Modal references:** Packing Slip Regenerate (400px), BOL Sign-Off (560px), Delete Confirmation (generic 400px).
+[Source: 11-SHIPPING-UX.md:1382-1425 + prototype `documents_hub_page` (doc-screens.jsx:4-104)]
+
+#### SHIP-026 — RMA List [UNIVERSAL]
+
+**Route:** `/shipping/rma`
+**Purpose:** Manage Return Merchandise Authorisations — list/create + filter. Konkretyzacja SHP-013 z full UX-spec table + flows.
+**RBAC:** `shipping_sales` create, `shipping_qa` disposition, `shipping_manager` all.
+**Key behaviors:**
+- Search bar + Filters + Summary chips (Open amber, In Transit blue, Received green, Closed gray).
+- Table: RMA#, Original SO link, Customer, Reason badge (z `rma_reason_codes` 02-SETTINGS §8: defective/damaged/wrong_product/expired/other), Lines count, Status, Created relative time, QA Disposition badge (Pending/Pass/Reject/Quarantine), Actions.
+- Row overflow: View, Edit (open only), Close RMA, Generate Credit Note (P2), Print RMA Paperwork.
+- P2 banner: "RMA disposition + credit note + re-stock to LP (05-WAREHOUSE) deferred Phase 2."
+- P1 minimum: create RMA, list, status flow (open→in_transit→received→closed).
+**Validation refs:** V-SHIP-RMA-01..03.
+**Modal references:** RMA Create (560px — embedded in detail), Delete confirmation.
+[Source: 11-SHIPPING-UX.md:1429-1463 + prototype `rma_list_page` (doc-screens.jsx:468-534)]
+
+#### SHIP-027 — RMA Detail [UNIVERSAL]
+
+**Route:** `/shipping/rma/:id`
+**Purpose:** Full RMA record — lines, return receiving (scanner SCN-072 link), QA disposition. Konkretyzacja flow §8.5 RMA Phase 1 z UI surface.
+**RBAC:** `shipping_sales` view/create lines, `shipping_qa` Disposition tab, `shipping_manager` all.
+**Key behaviors:**
+- Tabs: Lines | Receiving | QA Disposition | History.
+- Lines tab: `rma_lines` table (Line#, Product, Qty Authorised, Qty Received realtime, Unit Price, Reason, Notes); Add Line button (open status only).
+- Receiving tab: Scanner card linking `/scanner/shipping/return` (06-SCN SCN-072) + desktop fallback manual receive form (Qty Actually Received per line, Received LP# auto-z 05-WH GRN, Condition select Good/Damaged/Partial, Weight catch P1 manual, Received At datetime).
+- QA Disposition tab: per-line decyzja (Pending/Pass/Reject/Quarantine), QA Notes textarea, Disposition By/At; P2 full re-stock to available LP + scrap workflow + credit note trigger.
+- History tab: audit log entries z `shipping_audit_log` scoped to RMA.
+**Validation refs:** V-SHIP-RMA-01 (reason_code FK), V-SHIP-RMA-02 (restock → new LP qa_status='pending'), V-SHIP-RMA-03 (quality_hold disposition → 09-QA insert).
+**Modal references:** RMA Receive Line (560px), QA Disposition decision (560px).
+[Source: 11-SHIPPING-UX.md:1467-1488 + flows §5.5 RMA, prototype implicit w `rma_list_page` row click]
+
+#### SHIP-028 — Shipment Delivery Tracker (POD) [UNIVERSAL]
+
+**Route:** `/shipping/sos/:id` (Packs tab → shipment row expand) lub `/shipping/docs/:shipmentId` direct.
+**Purpose:** Post-ship tracking + POD capture. P1 manual status updates; P2 carrier webhook auto-update (EPIC 11-F).
+**RBAC:** `shipping_sales` view/update, `shipping_manager` update.
+**Key behaviors:**
+- Embedded jako expandable row w SHIP-007 Packs tab.
+- Header: SH#, Carrier, Pro Number, Ship Date.
+- Timeline tracker (4 milestones): Shipped → In Transit → Out for Delivery → Delivered. Active blue, completed green+timestamp, future gray.
+- P1 manual update: Current Status select (In Transit / Out for Delivery / Delivered / Exception), Estimated Delivery Date, Tracking Notes, Update Status button.
+- POD capture: Delivered At datetime, Consignee Name text, POD Notes textarea, Upload POD Document (image/PDF Supabase Storage), "Mark as Delivered" green button → `sales_orders.status='delivered'`, `shipments.delivered_at=NOW()`, `shipping_audit_log` entry.
+- P2 banner: "Carrier webhook integration → EPIC 11-F (auto-update). P1: manual only."
+**Validation refs:** brak (post-ship state).
+**Modal references:** brak (inline panel).
+[Source: 11-SHIPPING-UX.md:1492-1520 + prototype `shipments_delivery_tracker_page` (doc-screens.jsx:310-422)]
+
+#### SHIP-029 — Allocation Global View [UNIVERSAL]
+
+**Route:** `/shipping/allocations` (cross-SO global panel)
+**Purpose:** Cross-SO allocation manager view — pokazuje wszystkie pending alocations w organizacji (gdy SHIP-008 jest per-SO scope). Sluzy alert "Open Allocations" KPI z dashboard SHIP-022.
+**RBAC:** `shipping_manager`, `shipping_admin`.
+**Key behaviors:**
+- Filters: status (confirmed-but-not-fully-allocated), date range, customer, product.
+- Summary KPIs: Open SO Allocations, Short Allocations, FEFO Deviations Today.
+- Table per SO+line: SO#, Customer, Product, Qty Ordered, Qty Allocated, Qty Available globally, Action button → opens SHIP-008 Allocation Wizard scoped to that SO.
+- Bulk auto-allocate: select multiple SOs → trigger batch `POST /api/shipping/sales-orders/bulk-allocate` per `fefo_strategy_v1`.
+**Validation refs:** V-SHIP-ALLOC-01..05.
+**Modal references:** Allocation Override (560px), Release Allocation (modals.jsx:809-835).
+[Source: 11-SHIPPING-UX.md:184 KPI link "Open Allocations" → `/shipping/allocations` + prototype `allocation_global_page` (so-screens.jsx:370-519)]
+
+#### SHIP-030 — Packing Stations Selector [UNIVERSAL]
+
+**Route:** `/shipping/packing` (selector — przed wejsciem do specific station SHIP-017)
+**Purpose:** Operator station-picker landing przed wejsciem na konkretny `/shipping/packing/:station` workbench. Pokazuje status kazdej stacji (idle / busy / offline printer).
+**RBAC:** `shipping_operator`, `shipping_manager`.
+**Key behaviors:**
+- Grid layout: card per station (Station Code, Status badge, Active Shipment ref jesli busy, Printer Status, Operator current).
+- Click card → `/shipping/packing/:station` (SHIP-017).
+- Multi-station per tablet: P1 single-station per session per OQ-UX-06; P2 station-switcher.
+**Validation refs:** brak.
+**Modal references:** brak.
+[Source: 11-SHIPPING-UX.md:710 (SHIP-017 station route) + prototype `packing_stations_selector_page` (pack-screens.jsx:4-45)]
+
+### 15.5 Direction-A status (PRD bullets without prototype/UX) — TODO labelling
+
+PRD §15.1 SHP-NNN catalog (v3.0) zawiera 14 desktop screen IDs. Po Direction-B mapping (§15.4) wszystkie SHP-001..SHP-014 + ADMIN-SHP-01/02 maja near-match prototype lub explicit alias do SHIP-NNN scheme (§20 traceability matrix). **Brak Direction-A blockers** — kazdy SHP-NNN PRD bullet ma kotwice w UX-spec lub prototype.
+
+**Drobne TODO (do follow-up labelling task):**
+- **[NO-PROTOTYPE-YET] SHP-SCN-04 Pallet Loading** (§15.2) — PRD spec "scan pallet SSCC → assign to dock door → confirm load" jako new SCN-092 (11-SHIP specific). Brak dedicated prototype w `_meta/prototype-labels/prototype-index-shipping.json` (jest tylko `pallet_load_modal` jako pomocniczy w doc-screens). TODO: scanner team to label SCN-092 prototype lub reuse `shipments_delivery_tracker_page` jako placeholder. Owner: 06-SCANNER-P1 design lane.
+- **[NO-PROTOTYPE-YET] ADMIN-SHP-01 Shipping Override Reasons Config** — PRD specs reference table CRUD ale 02-SETTINGS §8 generic wzor sluzy. Konkretny prototype `shipping_override_reasons_admin` brakuje. TODO: confirm czy 02-SETTINGS reference-table generic UI pokrywa, czy 11-SHIP wymaga dedicated screen. Owner: 02-SETTINGS lane.
+
 ---
 
 ## 16. Build Roadmap & Sub-modules 11-a..e
@@ -1084,6 +1435,22 @@ Wszystkie OQ są P2 / post-launch / future sessions. Nie blokują C4 Sesja 3 clo
 
 ## 18. Changelog
 
+**v3.2 (2026-04-30, PRD ↔ UX coverage gap close):**
+- Added §15.4 "Extended desktop screen catalog (Direction-B coverage)" with 14 SHIP-NNN sub-sections (SHIP-003, 004, 009, 010, 011, 014, 014b, 015, 016, 017 expansion, 018, 019, 020, 021, 023, 024, 025, 026, 027, 028, 029, 030) sourced bidirectionally from `design/11-SHIPPING-UX.md` + `_meta/prototype-labels/prototype-index-shipping.json`.
+- Added §15.5 Direction-A status (PRD bullets without prototype) — 2 [NO-PROTOTYPE-YET] TODOs flagged: SHP-SCN-04 Pallet Loading + ADMIN-SHP-01 generic admin UI confirm.
+- Added §20 UI Surfaces Traceability Matrix — bidirectional content index (desktop + scanner + modals catalogs) closing audit gap `_meta/audits/2026-04-30-design-prd-coverage.md` §11-SHIPPING.
+- Coverage estimate: Dir B 52% → 96%; aggregate ~40% → ~95% (exceeds ≥85% target).
+- ADR-034 hygiene: confirmed PRD juz uzywa generic terms (`products.allergens`, `recipe_components`-equivalent FG); zero `Finish_Meat`/`meat_pct`/Apex-hardcoded schema references. Apex wzmianki tagged `[APEX-CONFIG]` per ADR-034 markers.
+- No schema changes; SHP-NNN legacy aliases preserved dla v3.0 sub-module impl roadmap (11-a..e).
+- Version: v3.1 → v3.2 (+0.1 bump for design-PRD reconciliation pass).
+
+**v3.1 (2026-04-30, Standardized Multi-industry):**
+- FA → FG standardization: all "finished goods" references renamed to FG (lines 10, 22, 116, 132)
+- Ensures alignment w 01-NPD v3.2 FG naming convention (universal multi-industry pattern per §6 CRITICAL CHANGES REQUIRED)
+- No schema changes; GS1 identifier handling unchanged (GTIN/SSCC/GLN/GRAI per 00-FOUNDATION §10)
+- Verification: zero FA-* code references remaining; EPCIS examples + validation rules unaffected
+- Version: v3.0 → v3.1 (+0.1 bump for standardization pass)
+
 **v3.0 (2026-04-20, Phase C4 Sesja 3):**
 - Full rewrite z v3.1 baseline (552 linii → ~1400 linii, zachowano D-SHP-1..12)
 - Nowe D-SHP-13..20 (quality hold soft gate, INTEGRATIONS stage 3, allergen labelling, GS1 Digital Link, catch weight carve-out, D365 Constants, manual dispatch, EUDR)
@@ -1092,11 +1459,11 @@ Wszystkie OQ są P2 / post-launch / future sessions. Nie blokują C4 Sesja 3 clo
 - 5 sub-modules build sequence 11-a..e (P1 19-24 sesji) + 10 P2 EPICs (24-34 sesji)
 - Q1-Q10 decyzje user confirmed 2026-04-20
 
-**v3.1 (2026-02-18, pre-Phase-D):**
+**v3.1-baseline (2026-02-18, pre-Phase-D):**
 - Wave picking doprecyzowany (max 50 orders per wave, manual)
 - Cross-reference products.default_sell_price do M02 Technical
 
-**v3.0 (pre-Phase-D baseline):**
+**v3.0-baseline (pre-Phase-D baseline):**
 - Restrukturyzacja wg wzorca M01
 - D-SHP-1..12 explicit
 - 16 tabel DB, 72 FR, 6 PRD-UPDATE-LIST tasks
@@ -1139,5 +1506,98 @@ Wszystkie OQ są P2 / post-launch / future sessions. Nie blokują C4 Sesja 3 clo
 ---
 
 **PRD 11-SHIPPING v3.0 — 16 sekcji + 3 supporting (17 Changelog, 18 refs, 19 OQ), 20 D-SHP decyzji, 33 V-SHIP validation rules, 16 P1 tabel + 2 integration, 14 desktop screens + 5 scanner, 5 sub-modules P1 (11-a..e, 19-24 sesji impl), 10 P2 epics (24-34 sesji).**
+
+---
+
+## 20. UI Surfaces Traceability Matrix [UNIVERSAL]
+
+> **Purpose:** Bidirectional content index PRD §15 ↔ UX `design/11-SHIPPING-UX.md` ↔ `_meta/prototype-labels/prototype-index-shipping.json`. Closes audit gap `_meta/audits/2026-04-30-design-prd-coverage.md` §11-SHIPPING (40% → ≥85% coverage estimate).
+>
+> **Schema-ID drift policy (per audit CC-1):** UX SHIP-NNN scheme przyjety jako **canonical**. Legacy SHP-NNN z §15.1 zachowane jako alias dla v3.0 sub-module impl roadmap (11-a..e). Numeracja SHIP-NNN sources `design/11-SHIPPING-UX.md`.
+
+### 20.1 Desktop screens
+
+| SHIP-NNN | Legacy SHP-NNN alias | Screen name | Prototype label | Prototype path:lines | UX spec line |
+|---|---|---|---|---|---|
+| SHIP-001 | SHP-001 | Customer List | `customer_list_page` | shipping/customer-screens.jsx:1-129 | 11-SHIPPING-UX.md:222-264 |
+| SHIP-002 | SHP-002 | Customer Detail | `customer_detail_page` | shipping/customer-screens.jsx:132-363 | 11-SHIPPING-UX.md:268-291 |
+| SHIP-003 | (new §15.4) | Shipping Addresses | `address_modal` | shipping/modals.jsx:69-94 | 11-SHIPPING-UX.md:294-318 |
+| SHIP-004 | (new §15.4) | Allergen Restrictions per Customer | `allergen_restriction_modal` + `allergen_override_modal` | shipping/modals.jsx:96-113 + 837-871 | 11-SHIPPING-UX.md:322-344 |
+| SHIP-005 | SHP-003 | Sales Order List | `so_list_page` | shipping/so-screens.jsx:1-139 | 11-SHIPPING-UX.md:348-389 |
+| SHIP-006 | SHP-004 | SO Create Wizard | `so_create_wizard_modal` | shipping/modals.jsx:115-271 | 11-SHIPPING-UX.md:392-421 |
+| SHIP-007 | SHP-005 | SO Detail | `so_detail_page` | shipping/so-screens.jsx:141-366 | 11-SHIPPING-UX.md:424-452 |
+| SHIP-008 | SHP-007 | Inventory Allocation View | `allocation_global_page` (per-SO scope) | shipping/so-screens.jsx:370-519 | 11-SHIPPING-UX.md:455-475 |
+| SHIP-009 | SHP-006 | Holds Manager | `hold_place_modal` + `hold_release_modal` | shipping/modals.jsx:342-378 + 380-410 | 11-SHIPPING-UX.md:478-503 |
+| SHIP-010 | (new §15.4) | Partial Fulfillment Decision | `partial_fulfillment_modal` | shipping/modals.jsx:412-453 | 11-SHIPPING-UX.md:506-528 |
+| SHIP-011 | (new §15.4) | SO Cancellation | `so_cancel_modal` + `release_allocation_modal` | shipping/modals.jsx:504-536 + 809-835 | 11-SHIPPING-UX.md:531-550 |
+| SHIP-012 | SHP-009 | Pick List List | `pick_list_page` | shipping/pick-screens.jsx:1-94 | 11-SHIPPING-UX.md:554-589 |
+| SHIP-013 | SHP-008 | Wave Picking Builder | `wave_builder_page` + `wave_release_modal` | shipping/pick-screens.jsx:98-184 + modals.jsx:538-562 | 11-SHIPPING-UX.md:593-623 |
+| SHIP-014 | (new §15.4) | Pick Desktop (Supervisor) | `pick_detail_supervisor_page` + `pick_reassign_modal` | shipping/pick-screens.jsx:217-330 + modals.jsx:564-575 | 11-SHIPPING-UX.md:627-659 |
+| SHIP-014b | (new §15.4) | Carriers List & CRUD | `carriers_list_page` + `carrier_create_edit_modal` | shipping/doc-screens.jsx:424-466 + modals.jsx:792-807 | 11-SHIPPING-UX.md:858-883 |
+| SHIP-017 | SHP-010 | Packing Station Workbench | `packing_station_workbench_page` + `pack_close_carton_modal` | shipping/pack-screens.jsx:47-220 + modals.jsx:577-607 | 11-SHIPPING-UX.md:710-734 |
+| SHIP-019 | (new §15.4) | SSCC Labels Queue | `sscc_labels_queue_page` + `sscc_label_preview_component` + `sscc_preview_reprint_modal` | shipping/pack-screens.jsx:224-336 + modals.jsx:702-739 | 11-SHIPPING-UX.md:750-785 |
+| SHIP-020 | SHP-012 (slip half) | Packing Slip Preview & Print | `packing_slip_preview_page` + `packing_slip_regen_modal` | shipping/doc-screens.jsx:107-215 + modals.jsx:741-757 | 11-SHIPPING-UX.md:789-819 |
+| SHIP-021 | SHP-012 (BOL half) | Bill of Lading Preview & Sign-off | `bol_preview_page` + `bol_sign_upload_modal` | shipping/doc-screens.jsx:217-308 + modals.jsx:759-790 | 11-SHIPPING-UX.md:823-854 |
+| SHIP-022 | SHP-014 | Shipping Dashboard | `shipping_dashboard` | shipping/dashboard.jsx:1-224 | 11-SHIPPING-UX.md:170-218 |
+| SHIP-023 | (new §15.4 — extends ADMIN-SHP-01) | Shipping Settings Hub | `shipping_settings_page` | shipping/doc-screens.jsx:536-648 | 11-SHIPPING-UX.md:887-925 |
+| SHIP-024 | SHP-011 | Ship Confirmation | `ship_confirm_modal` | shipping/modals.jsx:609-700 | 11-SHIPPING-UX.md:1308-1378 |
+| SHIP-025 | (new §15.4) | Documents Hub | `documents_hub_page` | shipping/doc-screens.jsx:4-104 | 11-SHIPPING-UX.md:1382-1425 |
+| SHIP-026 | SHP-013 (list half) | RMA List | `rma_list_page` | shipping/doc-screens.jsx:468-534 | 11-SHIPPING-UX.md:1429-1463 |
+| SHIP-027 | SHP-013 (detail half) | RMA Detail | (implicit row click `rma_list_page`) | shipping/doc-screens.jsx:468-534 row navigation | 11-SHIPPING-UX.md:1467-1488 |
+| SHIP-028 | (new §15.4) | Shipment Delivery Tracker (POD) | `shipments_delivery_tracker_page` | shipping/doc-screens.jsx:310-422 | 11-SHIPPING-UX.md:1492-1520 |
+| SHIP-029 | (new §15.4) | Allocation Global View | `allocation_global_page` (global scope) | shipping/so-screens.jsx:370-519 | 11-SHIPPING-UX.md:184 (KPI link) |
+| SHIP-030 | (new §15.4) | Packing Stations Selector | `packing_stations_selector_page` | shipping/pack-screens.jsx:4-45 | 11-SHIPPING-UX.md:710 (route landing) |
+
+### 20.2 Scanner screens (delegated 06-SCANNER-P1)
+
+| SHIP scanner code | Legacy SHP-SCN-NN | UX-spec source | 06-SCN counterpart | Prototype |
+|---|---|---|---|---|
+| SHIP-015 | SHP-SCN-01 Pick Workflow | 11-SHIPPING-UX.md:663-682 | SCN-040 Pick extension (06-SCANNER-P1-PRD §8.5) | scanner-flow-pick prototypes (06-SCN index) |
+| SHIP-018 | SHP-SCN-02 Pack Workflow | 11-SHIPPING-UX.md:738-746 | SCN-050 Pack extension | scanner-flow-pack prototypes |
+| (RMA receive) | SHP-SCN-03 Return Receiving | embedded SHIP-027 Receiving tab | SCN-072 Return receive extension | scanner-flow-return prototypes |
+| **[NO-PROTOTYPE-YET]** | SHP-SCN-04 Pallet Loading | PRD §15.2 (no UX section) | new SCN-092 (11-SHIP specific, scope) | TODO label — owner 06-SCN design lane |
+| SHIP-015 inline | SHP-SCN-05 Quality Hold Override Modal | 11-SHIPPING-UX.md:673-682 | inline within SCN-040/050 | inline w pick/pack scanner prototypes |
+
+### 20.3 Modals catalog (cross-screen reuse)
+
+| Modal | Prototype label | Used by SHIP-NNN | Path:lines |
+|---|---|---|---|
+| Customer Create/Edit | `customer_create_modal` | SHIP-001, SHIP-002 | shipping/modals.jsx:27-67 |
+| Address Create/Edit | `address_modal` | SHIP-002, SHIP-003 | shipping/modals.jsx:69-94 |
+| Allergen Restriction Add | `allergen_restriction_modal` | SHIP-002, SHIP-004 | shipping/modals.jsx:96-113 |
+| SO Create Wizard | `so_create_wizard_modal` | SHIP-006 (page-as-modal) | shipping/modals.jsx:115-271 |
+| SO Line Add/Edit | `so_line_add_modal` | SHIP-006, SHIP-007 | shipping/modals.jsx:273-290 |
+| Allocation Override | `allocation_override_modal` | SHIP-008, SHIP-014, SHIP-029 | shipping/modals.jsx:292-340 |
+| Hold Place | `hold_place_modal` | SHIP-007, SHIP-009 | shipping/modals.jsx:342-378 |
+| Hold Release | `hold_release_modal` | SHIP-007, SHIP-009 | shipping/modals.jsx:380-410 |
+| Partial Fulfillment Decision | `partial_fulfillment_modal` | SHIP-008, SHIP-010 | shipping/modals.jsx:412-453 |
+| Short Pick Resolve | `short_pick_resolve_modal` | SHIP-014, SHIP-015, SHIP-016 | shipping/modals.jsx:455-502 |
+| SO Cancel | `so_cancel_modal` | SHIP-005, SHIP-007, SHIP-011 | shipping/modals.jsx:504-536 |
+| Wave Release Confirm | `wave_release_modal` | SHIP-013 | shipping/modals.jsx:538-562 |
+| Pick Reassign | `pick_reassign_modal` | SHIP-014 | shipping/modals.jsx:564-575 |
+| Pack Close Carton Confirm | `pack_close_carton_modal` | SHIP-017 | shipping/modals.jsx:577-607 |
+| Ship Confirmation | `ship_confirm_modal` | SHIP-024 | shipping/modals.jsx:609-700 |
+| SSCC Reprint | `sscc_preview_reprint_modal` | SHIP-019 | shipping/modals.jsx:702-739 |
+| Packing Slip Regenerate | `packing_slip_regen_modal` | SHIP-020, SHIP-025 | shipping/modals.jsx:741-757 |
+| BOL Sign-Off | `bol_sign_upload_modal` | SHIP-021, SHIP-025 | shipping/modals.jsx:759-790 |
+| Carrier Create/Edit | `carrier_create_edit_modal` | SHIP-014b | shipping/modals.jsx:792-807 |
+| Release Allocation | `release_allocation_modal` | SHIP-007, SHIP-011, SHIP-029 | shipping/modals.jsx:809-835 |
+| Allergen Override | `allergen_override_modal` | SHIP-004, SHIP-006, SHIP-009 | shipping/modals.jsx:837-871 |
+
+### 20.4 Coverage summary (after amendment)
+
+| Direction | Count before | Count after | Notes |
+|---|---|---|---|
+| PRD bullets with UX/prototype anchor (Dir A) | 14/14 (100%) | 14/14 (100%) | maintained — SHP-NNN aliasing preserved |
+| UX/prototype screens with PRD anchor (Dir B) | 14/27 (~52%) | 26/27 (~96%) | 12+ orphan screens added §15.4 |
+| Modals with PRD reference | ~12/21 (~57%) | 21/21 (100%) | full catalog §20.3 |
+| Scanner screens (delegated) | 4/5 (80%) | 4/5 (80%) | SHP-SCN-04 Pallet Loading TODO |
+| **Aggregate coverage** | **~40%** | **~95%** | exceeds ≥85% target |
+
+**Outstanding TODOs (created in §15.5):**
+1. **[NO-PROTOTYPE-YET] SHP-SCN-04 Pallet Loading** — 06-SCN design lane to label SCN-092 prototype.
+2. **[NO-PROTOTYPE-YET] ADMIN-SHP-01 Shipping Override Reasons Config** — confirm 02-SETTINGS reference-table generic UI suffices.
+
+---
 
 **Gotowy do build sequence w kolejce per 00-FOUNDATION §4.2. Bundle 02-SETTINGS v3.1 delta post close (applies 10-FIN + 11-SHIP rule/ref additions w pojedynczej revision).**

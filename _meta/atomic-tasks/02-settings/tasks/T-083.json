@@ -1,0 +1,77 @@
+{
+  "title": "T-083 — Integration test: SCIM PATCH ops + bearer auth + seat-limit (S-A2)",
+  "prompt": "# T-083 — Integration test: SCIM PATCH\n\n## Goal\nvitest integration suite that exercises SCIM endpoints with bearer auth: POST/PATCH/DELETE Users + Groups; seat-limit enforcement; soft-delete on active=false; bypass for onboarding redirect.\n\n## Files in scope\n- apps/web/app/api/scim/scim-integration.test.ts [create]\n\n## Acceptance criteria (all must hold)\n- Given org seat_limit=3 and 3 active users, when SCIM POST /Users creates user 4, then 409 with SEAT_LIMIT_REACHED is returned.\n- Given PATCH /Users/:id with [{op:'replace', path:'active', value:false}], when applied, then users.is_active=false and is_audit_log row is written.\n- Given a SCIM bearer hits /scim/v2/Users on an org with onboarding_completed_at IS NULL, when middleware runs, then the request is NOT redirected (bypass).\n\n## Test strategy (RED first)\n1. Add a failing test that exercises the acceptance criteria above. The RED command is:\n   `pnpm --filter @monopilot/web vitest run apps/web/app/api/scim/scim-integration.test.ts`\n2. Run RED — it must fail before any production code is written.\n3. Implement the smallest change needed for GREEN.\n4. Re-run RED command — must pass.\n5. Run `pnpm typecheck` and `pnpm lint` in the changed package; both must pass.\n\n## Risk red lines\n- Do not edit files outside the listed scope without documenting why in CLOSEOUT.\n- Do not weaken existing acceptance criteria from prior tasks.\n- Do not introduce REST endpoints; use Server Actions per stack contract.\n- Do not commit secrets or vault keys.\n\n## Closeout evidence required\n- changed_files (with line counts)\n- exact test commands and outputs (RED→GREEN, typecheck, lint)\n- acceptance_criteria_status (one row per AC: pass/fail)\n- deviations_from_prd (or \"none\")\n- git_status\n\nStack: TS + Next.js App Router + Drizzle + pnpm + vitest + Playwright + Server Actions. Primitives in `packages/ui`. PRD: `02-SETTINGS-PRD.md` v3.5.\n",
+  "labels": [
+    "prd",
+    "test",
+    "integration-scim",
+    "T4-wiring-test"
+  ],
+  "priority": 120,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-083",
+    "source_prd": "02-SETTINGS-PRD.md",
+    "prd_refs": [
+      "§14.6",
+      "S-A2"
+    ],
+    "category": "test",
+    "subcategory": "integration-scim",
+    "task_type": "T4-wiring-test",
+    "parent_feature": "02-settings-e",
+    "context_budget": "40k",
+    "estimated_effort": "1-3h",
+    "description": "SCIM integration + bypass test.",
+    "details": "Mount route handlers via Next test runner or supertest-style harness. Reuse argon2id verify from production code path.",
+    "scope_files": [
+      "apps/web/app/api/scim/scim-integration.test.ts"
+    ],
+    "out_of_scope": [
+      "broaden scope beyond listed files",
+      "implement future-phase features"
+    ],
+    "dependencies": [
+      "T-034"
+    ],
+    "parallel_safe_with": [],
+    "acceptance_criteria": [
+      "Seat-limit enforced.",
+      "PATCH active=false soft-deletes.",
+      "Onboarding bypass works."
+    ],
+    "test_strategy": [
+      "RED: write tests. GREEN: implement."
+    ],
+    "risk_red_lines": [
+      "Do not log bearer tokens."
+    ],
+    "skills": [
+      "test-driven-development"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": false
+  }
+}

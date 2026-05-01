@@ -1,0 +1,61 @@
+{
+  "title": "T-004 — quality_holds + quality_hold_items schema + RLS (09-a-01)",
+  "prompt": "# T-004 — quality_holds + quality_hold_items schema + RLS\n\nPRD: 09-QUALITY-PRD.md §6.3 quality_holds DDL, §6.3 quality_hold_items, §9.1 RLS, §13.1 RBAC\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nCreate the quality_holds and quality_hold_items physical tables with sequences, retention generated columns, RLS policies, and Drizzle schema entries. Foundation for entire 09-a hold/release sub-module.\n\n## Implementation contract\n1. Drizzle migration `packages/db/migrations/0100_quality_holds.sql` per §6.3 verbatim DDL: quality_hold_seq SEQUENCE START 1000, quality_holds with hold_number GENERATED, retention_until GENERATED, all CHECK constraints, idx_holds_active and idx_holds_ref indexes; quality_hold_items with UNIQUE(hold_id, license_plate_id).\n2. RLS enable + tenant_isolation policy USING/WITH CHECK (org_id = current_setting('app.current_org_id')::uuid) per §9.1.\n3. Drizzle ORM schema files `packages/db/src/schema/qualityHolds.ts` + `qualityHoldItems.ts` with typed Insert/Select; export from schema index.\n\n## Files\n- packages/db/migrations/0100_quality_holds.sql [create]\n- packages/db/src/schema/qualityHolds.ts [create]\n- packages/db/src/schema/qualityHoldItems.ts [create]\n- packages/db/src/schema/index.ts [modify]\n- packages/db/__tests__/quality-holds-schema.test.ts [create]\n\n## Acceptance criteria\n1. Given migration 0100 applied, when \\d quality_holds is run, then all columns from §6.3 exist (hold_number, hold_seq, reference_type CHECK, priority CHECK, hold_status CHECK, retention_until GENERATED) and RLS is enabled\n2. Given two tenants A and B, when each inserts a quality_holds row and SELECTs as their own tenant, then each sees only its own row (tenant_isolation policy enforced)\n3. Given a quality_holds row with id X, when 2 quality_hold_items are inserted with the same (hold_id=X, license_plate_id=L), then the second insert fails with UNIQUE violation",
+  "labels": ["prd", "data", "schema-holds", "T1-schema"],
+  "priority": 80,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-004",
+    "source_prd": "09-QUALITY-PRD.md",
+    "prd_refs": ["§6.3", "§9.1", "§13.1"],
+    "category": "data",
+    "subcategory": "schema-holds",
+    "task_type": "T1-schema",
+    "parent_feature": "09-a Hold/Release",
+    "context_budget": "35k",
+    "estimated_effort": "1-2h",
+    "description": "Create quality_holds + quality_hold_items tables with sequences, generated columns, indexes, RLS, and Drizzle schemas.",
+    "details": "Migration 0100 emits CREATE SEQUENCE quality_hold_seq, CREATE TABLE quality_holds and quality_hold_items per §6.3 (including hold_number GENERATED, retention_until GENERATED, all CHECK constraints, idx_holds_active partial index, idx_holds_ref index, UNIQUE on quality_hold_items). RLS tenant_isolation policy applied per §9.1. Drizzle ORM mirrors columns with InsertSchema/SelectSchema. Tests verify schema shape, RLS isolation across two tenants, and UNIQUE constraint on quality_hold_items.",
+    "scope_files": [
+      "packages/db/migrations/0100_quality_holds.sql [create]",
+      "packages/db/src/schema/qualityHolds.ts [create]",
+      "packages/db/src/schema/qualityHoldItems.ts [create]",
+      "packages/db/src/schema/index.ts [modify]",
+      "packages/db/__tests__/quality-holds-schema.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not seed quality_status_types here (T-005)",
+      "Do not implement audit triggers here (T-009)",
+      "Do not build CRUD API (T-006) or release flow (T-007)"
+    ],
+    "dependencies": [],
+    "parallel_safe_with": ["T-005", "T-014"],
+    "acceptance_criteria": [
+      "Given migration 0100 applied, when \\d quality_holds runs, then all §6.3 columns exist (hold_number, hold_seq, reference_type CHECK, priority CHECK, hold_status CHECK, retention_until GENERATED) and RLS is enabled",
+      "Given two tenants A and B, when each inserts a row and SELECTs under their own org_id setting, then each sees only its own row",
+      "Given a quality_holds row, when two quality_hold_items insert with the same (hold_id, license_plate_id), then the second insert fails with UNIQUE constraint violation"
+    ],
+    "test_strategy": [
+      "RED: write packages/db/__tests__/quality-holds-schema.test.ts asserting all 3 ACs (schema introspection, RLS isolation, UNIQUE) before migration exists",
+      "Run 'pnpm --filter db migrate && pnpm --filter db test quality-holds-schema'"
+    ],
+    "risk_red_lines": [
+      "Do not skip RLS policy (BRCGS Issue 10 + tenancy mandate)",
+      "Do not change column names from §6.3 verbatim DDL (downstream consumers depend on names)",
+      "Do not forget retention_until GENERATED column (BRCGS 7y)"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

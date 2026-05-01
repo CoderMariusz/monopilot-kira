@@ -1,0 +1,62 @@
+{
+  "title": "T-021 — Python solver microservice scaffold (FastAPI)",
+  "prompt": "# T-021 — Python solver microservice scaffold (FastAPI)\n\nPRD: 07-PLANNING-EXT-PRD.md §1.4, §5.1.1, §5.4.1, §13.1, §13.2\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nScaffold isolated Python FastAPI microservice `services/planner-solver` with health endpoint, /solve POST stub, Postgres LISTEN consumer, Dockerfile, and circuit-breaker compatibility (returns 503 on unhealthy state).\n\n## Implementation contract\n1. New directory `services/planner-solver/`: `pyproject.toml`, `Dockerfile`, `app/main.py` (FastAPI), `app/listener.py` (Postgres LISTEN), `app/solve.py` (stub returning 200 with empty assignments).\n2. Endpoints: GET /health (returns {status, db_connected, queue_depth}), POST /solve (body=run_id, returns 202 immediately + spawns background task).\n3. Dockerfile multi-stage build, runs as non-root.\n4. Tests: `services/planner-solver/tests/test_main.py` (pytest) + `services/planner-solver/tests/test_listener.py`.\n\n## Files\n- services/planner-solver/pyproject.toml [create]\n- services/planner-solver/Dockerfile [create]\n- services/planner-solver/app/main.py [create]\n- services/planner-solver/app/listener.py [create]\n- services/planner-solver/app/solve.py [create]\n- services/planner-solver/tests/test_main.py [create]\n\n## Acceptance criteria\n1. Given FastAPI service running, when GET /health called, then 200 returned with {status, db_connected, queue_depth} JSON shape\n2. Given POST /solve with valid run_id, when called, then 202 returned immediately and background task spawned (test asserts non-blocking)\n3. Given DB unreachable, when GET /health called, then 503 returned with status='unhealthy'\n\n## Test strategy\n- RED: write services/planner-solver/tests/test_main.py asserting health shape + /solve 202 + 503 on db down\n- Run 'cd services/planner-solver && uv run pytest'\n\n## Risk red lines\n- Do not run solver as root inside container\n- Do not block the request thread inside /solve (must spawn background task and return 202 immediately)\n- Do not skip health endpoint (Kubernetes/circuit breaker depends on it)",
+  "labels": ["prd", "infra", "service-scaffold", "T2-api"],
+  "priority": 50,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-021",
+    "source_prd": "07-PLANNING-EXT-PRD.md",
+    "prd_refs": ["§1.4", "§5.1.1", "§5.4.1", "§13.1"],
+    "category": "infra",
+    "subcategory": "service-scaffold",
+    "task_type": "T2-api",
+    "parent_feature": "07-EXT-a finite-capacity engine",
+    "context_budget": "60k",
+    "estimated_effort": "2-3h",
+    "description": "FastAPI microservice scaffold with health, /solve stub, Postgres LISTEN, Dockerfile (non-root), pytest harness.",
+    "details": "Service exposes GET /health (db check + queue depth), POST /solve (returns 202, spawns BG task). Listener consumes 'scheduler_solver' Postgres NOTIFY. Dockerfile multi-stage. Pytest tests verify health shape, async /solve, 503 on db unreachable.",
+    "scope_files": [
+      "services/planner-solver/pyproject.toml [create]",
+      "services/planner-solver/Dockerfile [create]",
+      "services/planner-solver/app/main.py [create]",
+      "services/planner-solver/app/listener.py [create]",
+      "services/planner-solver/app/solve.py [create]",
+      "services/planner-solver/tests/test_main.py [create]"
+    ],
+    "out_of_scope": [
+      "Do not implement greedy algorithm here (T-022)",
+      "Do not implement local search here (T-023)",
+      "Do not implement Prophet here (T-061)"
+    ],
+    "dependencies": ["T-001"],
+    "parallel_safe_with": ["T-022", "T-023"],
+    "acceptance_criteria": [
+      "Given FastAPI service running, when GET /health called, then 200 returned with {status, db_connected, queue_depth}",
+      "Given POST /solve with valid run_id, when called, then 202 returned immediately and background task spawned",
+      "Given DB unreachable, when GET /health called, then 503 returned with status='unhealthy'"
+    ],
+    "test_strategy": [
+      "RED: write services/planner-solver/tests/test_main.py asserting health + /solve async + 503 on db down",
+      "Run 'cd services/planner-solver && uv run pytest'"
+    ],
+    "risk_red_lines": [
+      "Do not run solver as root inside container",
+      "Do not block /solve request thread",
+      "Do not skip health endpoint"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

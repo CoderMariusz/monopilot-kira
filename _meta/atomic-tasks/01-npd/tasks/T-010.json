@@ -1,0 +1,57 @@
+{
+  "title": "T-010 — Cascade Chain 1: Pack_Size → Line → Equipment_Setup (NPD-a.2)",
+  "prompt": "# T-010 — Cascade Chain 1\n\nPRD: 01-NPD-PRD.md §6.1 Chain 1, §6.3 perf\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nImplement cascade engine handler that on fa.pack_size change clears fa.line + fa.equipment_setup, and on fa.line change auto-fills fa.equipment_setup from Reference.Equipment_Setup_By_Line_Pack.\n\n## Implementation contract\nNew packages/cascade-engine/src/chain1-pack-size.ts exporting handlePackSizeChange(productCode, newPackSize) and handleLineChange(productCode, newLine). Both run in tx: read product row, mutate via updateFaCell-equivalent (skipping reset_built propagation since values cleared not edited by user), emit fa.cascade events. Lookup uses Reference.Equipment_Setup_By_Line_Pack composite PK.\n\n## Files\n- packages/cascade-engine/src/chain1-pack-size.ts [create]\n- packages/cascade-engine/__tests__/chain1.test.ts [create]\n\n## Acceptance criteria\n1. Given fa with pack_size='250g' line='L1' equipment_setup='ES1', when handlePackSizeChange(productCode,'500g') runs, then line and equipment_setup are NULL\n2. Given fa with pack_size='500g' and Reference row (line='L7', pack_size='500g', equipment_setup='ES7'), when handleLineChange(productCode,'L7') runs, then equipment_setup='ES7'\n3. Given full chain1 cascade for one FA, when measured, then end-to-end completes <200 ms p95 over 1000 trial runs (perf gate per §6.3)\n\n## Test strategy\n- RED: tests for clear-on-pack-change + auto-fill + perf benchmark\n- Run 'pnpm --filter cascade-engine test chain1'\n\n## Risk red lines\n- Do not auto-fill when pack_size or line is empty\n- Do not bypass tenant RLS\n- Do not regress chain perf gate",
+  "labels": ["prd", "api", "cascade", "T2-api"],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-010",
+    "source_prd": "01-NPD-PRD.md",
+    "prd_refs": ["§6.1 Chain 1", "§6.3"],
+    "category": "api",
+    "subcategory": "cascade-chain1",
+    "task_type": "T2-api",
+    "parent_feature": "01-NPD-a cascade engine",
+    "context_budget": "35k",
+    "estimated_effort": "2h",
+    "description": "Pack_Size cascade clears Line + Equipment_Setup; Line cascade auto-fills Equipment_Setup from Reference lookup.",
+    "details": "Two pure handlers with DB tx, reading lookup table and writing cleared/auto-filled values. Perf budget <200 ms p95.",
+    "scope_files": [
+      "packages/cascade-engine/src/chain1-pack-size.ts [create]",
+      "packages/cascade-engine/__tests__/chain1.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not implement Chain 2/3/4 here",
+      "Do not write Reference data here"
+    ],
+    "dependencies": ["T-001", "T-005"],
+    "parallel_safe_with": ["T-011", "T-012", "T-013"],
+    "acceptance_criteria": [
+      "Given fa with pack_size='250g' line='L1' equipment_setup='ES1', when handlePackSizeChange(productCode,'500g') runs, then line and equipment_setup are NULL",
+      "Given fa with pack_size='500g' and Reference row (line='L7', pack_size='500g', equipment_setup='ES7'), when handleLineChange(productCode,'L7') runs, then equipment_setup='ES7'",
+      "Given full chain1 cascade for one FA, when measured over 1000 trial runs, then end-to-end completes <200 ms p95"
+    ],
+    "test_strategy": [
+      "RED: tests for clear-on-pack-change + auto-fill + perf benchmark before handlers exist",
+      "Run 'pnpm --filter cascade-engine test chain1'"
+    ],
+    "risk_red_lines": [
+      "Do not auto-fill when pack_size or line is empty",
+      "Do not bypass tenant RLS",
+      "Do not regress chain perf gate"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

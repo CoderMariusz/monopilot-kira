@@ -1,0 +1,36 @@
+{
+  "title": "T-043 — UI: TEC-083 BOM Graph (where-used)",
+  "prompt": "Build BOM dependency graph view per §7A — visualises FG → intermediate → ingredient hierarchy and inverse where-used. Match `bom_graph_tab` at design/Monopilot Design System/technical/bom-detail.jsx:471-544. Use reactflow or visx graph behind dynamic import. RED tests/ui/tec-083-bom-graph.test.tsx. Run: `pnpm vitest run tests/ui/tec-083-bom-graph.test.tsx`.",
+  "labels": ["prd", "ui", "ui-bom-graph", "T3-ui"],
+  "priority": 120,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-043",
+    "source_prd": "03-TECHNICAL-PRD.md",
+    "prd_refs": ["§7A TEC-083"],
+    "category": "ui",
+    "subcategory": "bom-graph",
+    "task_type": "T3-ui",
+    "parent_feature": "03-TECHNICAL-a BOM",
+    "context_budget": "20k",
+    "estimated_effort": "2h",
+    "description": "Graph tab visualising BOM dependencies; supports where-used inverse mode.",
+    "details": "Render is client-side; SSR returns placeholder. Where-used mode adds inverse edges. Used by allergen impact analysis (§10.2 cascade visualisation).",
+    "scope_files": ["app/(app)/technical/boms/[id]/_tabs/graph-tab.tsx", "tests/ui/tec-083-bom-graph.test.tsx"],
+    "out_of_scope": ["Layout algorithm tuning"],
+    "dependencies": ["T-038"],
+    "parallel_safe_with": ["T-040", "T-044"],
+    "acceptance_criteria": [
+      "Given the graph tab renders, when compared to design/Monopilot Design System/technical/bom-detail.jsx:471-544, then nodes/edges + toggle (down/up direction) controls match — structural + visual + interaction parity verified by RTL DOM checks.",
+      "Given a BOM with 3 levels, when rendered, then 3 layers appear.",
+      "Given where-used toggle clicked, when applied, then inverse edges render."
+    ],
+    "test_strategy": ["RED tests for parity + toggle behaviour.", "Run: pnpm vitest run tests/ui/tec-083-bom-graph.test.tsx"],
+    "risk_red_lines": ["Do not load graph library on initial bundle (use dynamic import)."],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {"required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"], "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]},
+    "routing_hints": {"red": "hermes_gpt55", "implementation": "hermes_gpt55", "review": "opus_if_high_risk_or_ui_or_architecture", "close": "spark_low_risk_else_opus"}
+  }
+}

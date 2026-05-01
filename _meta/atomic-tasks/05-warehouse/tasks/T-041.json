@@ -1,0 +1,61 @@
+{
+  "title": "T-041 — Scanner login endpoint (username + PIN)",
+  "prompt": "# T-041 — Scanner login endpoint\n\nPRD: `05-WAREHOUSE-PRD.md` §13.3 (FR-WH-027), V-WH-SCAN-001/004.\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`.\n\n## Goal\n`POST /api/warehouse/scanner/login` accepting {username, pin} and returning {session_token, expires_at}. PIN bcrypt-hashed in `users.scanner_pin_hash`. 5-fail rate limit per username.\n\n## Implementation contract\n`apps/web/app/api/warehouse/scanner/login/route.ts`. Validate PIN against bcrypt hash; on success issue HMAC-signed token (TTL = warehouse_settings.scanner_idle_timeout_sec, default 300s); insert `scanner_sessions` row. Track failures in `scanner_login_attempts`; lockout 10min after 5 fails. Add migration for `users.scanner_pin_hash` column if not yet present, plus the two new tables.\n\n## Files (scope)\n- apps/web/app/api/warehouse/scanner/login/route.ts [create]\n- packages/db/src/schema/scanner-sessions.ts [create]\n- packages/db/src/schema/scanner-login-attempts.ts [create]\n- packages/db/migrations/0NN_scanner_auth.sql [create]\n- apps/web/app/api/warehouse/scanner/login/__tests__/route.test.ts [create]\n\n## Acceptance criteria\n1. Given valid {username, pin}, when endpoint is hit, then 200 with session_token and expires_at; row exists in scanner_sessions.\n2. Given a wrong PIN 5 times in a row, when 6th attempt occurs, then 429 returns with V-WH-SCAN-004 lockout reason.\n3. Given an issued token, when `validateScannerSession(token)` runs >TTL after issue, then it returns expired=true.\n\n## Test strategy\n- RED: route.test.ts covers happy login, lockout, TTL expiry.\n- Run `pnpm --filter web test scanner-login`.\n\n## Risk red lines\n- Do not store PIN in plaintext.\n- Do not skip lockout.\n- Do not reuse the password column.",
+  "labels": ["prd", "api", "scanner-auth", "T2-api"],
+  "priority": 95,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-041",
+    "source_prd": "05-WAREHOUSE-PRD.md",
+    "prd_refs": ["§13.3"],
+    "category": "auth",
+    "subcategory": "scanner-auth",
+    "task_type": "T2-api",
+    "parent_feature": "warehouse-scanner",
+    "context_budget": "30k",
+    "estimated_effort": "2h",
+    "description": "Scanner login (username + PIN) with HMAC token, lockout, and session table.",
+    "details": "bcrypt PIN hash; HMAC token w/ TTL; 5-fail lockout 10min; scanner_sessions + scanner_login_attempts tables.",
+    "scope_files": [
+      "apps/web/app/api/warehouse/scanner/login/route.ts [create]",
+      "packages/db/src/schema/scanner-sessions.ts [create]",
+      "packages/db/src/schema/scanner-login-attempts.ts [create]",
+      "packages/db/migrations/0NN_scanner_auth.sql [create]",
+      "apps/web/app/api/warehouse/scanner/login/__tests__/route.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Inventory/lookup endpoints (T-039/T-040)",
+      "PIN self-service profile UI (cross-module)",
+      "Offline queue (P2)"
+    ],
+    "dependencies": ["T-009"],
+    "parallel_safe_with": ["T-039", "T-040", "T-042"],
+    "acceptance_criteria": [
+      "Given valid username+pin, when endpoint is hit, then 200 with session_token and a scanner_sessions row exists",
+      "Given a wrong PIN 5 times, when 6th attempt occurs, then 429 returns with V-WH-SCAN-004 lockout",
+      "Given an issued token validated >TTL after issue, when validateScannerSession runs, then expired=true"
+    ],
+    "test_strategy": [
+      "RED: route.test.ts covers happy, lockout, expiry",
+      "Run 'pnpm --filter web test scanner-login'"
+    ],
+    "risk_red_lines": [
+      "Do not store PIN plaintext",
+      "Do not skip lockout",
+      "Do not reuse password column"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

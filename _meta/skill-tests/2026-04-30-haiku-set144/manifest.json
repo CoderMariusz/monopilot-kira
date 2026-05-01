@@ -1,0 +1,22 @@
+{
+  "source_prd": "02-SETTINGS-PRD.md",
+  "prd_slice": "lines 1516-1547 (§14.3 Onboarding Wizard, §14.4 UI surfaces)",
+  "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+  "generated_at": "2026-04-30T00:00:00Z",
+  "generator": "prd-decompose-hybrid",
+  "pipeline_name": "kira_dev",
+  "task_count": 10,
+  "tasks": [
+    "tasks/T-001.json",
+    "tasks/T-002.json",
+    "tasks/T-003.json",
+    "tasks/T-004.json",
+    "tasks/T-005.json",
+    "tasks/T-006.json",
+    "tasks/T-007.json",
+    "tasks/T-008.json",
+    "tasks/T-009.json",
+    "tasks/T-010.json"
+  ],
+  "coverage_file": "coverage.md"
+}

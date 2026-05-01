@@ -1,0 +1,88 @@
+{
+  "title": "T-011 — Drizzle migration: org_security_policies + login_attempts + password_history (S-U5)",
+  "prompt": "# T-011 — Drizzle migration: security policy tables (S-U5)\n\n## Goal\nCreate §5.7 security tables with S-U5 amendments: password_complexity, password_expiry_days, session_idle_timeout_minutes (renamed), session_max_length_minutes, mfa_allowed_methods TEXT[].\n\n## Files in scope\n- apps/web/db/schema/security.ts [create]\n- apps/web/db/migrations/ [create]\n- apps/web/db/migrations/__tests__/security-tables.test.ts [create]\n\n## Acceptance criteria (all must hold)\n- Given migration is applied, when `\\d org_security_policies` is shown, then columns include all S-U5 fields with their PRD defaults (12 / 'strong' / NULL / 5 / 60 / 480 / 5 / 'optional' / ['totp','sms']).\n- Given a policy row insert sets `password_complexity='weird'`, when committed, then CHECK constraint rejects (only basic/standard/strong/custom allowed).\n- Given migration creates `login_attempts` and `password_history`, when listed, then both have PK as defined in §5.7.\n\n## Test strategy (RED first)\n1. Add a failing test that exercises the acceptance criteria above. The RED command is:\n   `pnpm --filter @monopilot/web vitest run apps/web/db/migrations/__tests__/security-tables.test.ts`\n2. Run RED — it must fail before any production code is written.\n3. Implement the smallest change needed for GREEN.\n4. Re-run RED command — must pass.\n5. Run `pnpm typecheck` and `pnpm lint` in the changed package; both must pass.\n\n## Risk red lines\n- Do not edit files outside the listed scope without documenting why in CLOSEOUT.\n- Do not weaken existing acceptance criteria from prior tasks.\n- Do not introduce REST endpoints; use Server Actions per stack contract.\n- Do not commit secrets or vault keys.\n\n## Closeout evidence required\n- changed_files (with line counts)\n- exact test commands and outputs (RED→GREEN, typecheck, lint)\n- acceptance_criteria_status (one row per AC: pass/fail)\n- deviations_from_prd (or \"none\")\n- git_status\n\nStack: TS + Next.js App Router + Drizzle + pnpm + vitest + Playwright + Server Actions. Primitives in `packages/ui`. PRD: `02-SETTINGS-PRD.md` v3.5.\n",
+  "labels": [
+    "prd",
+    "auth",
+    "security-policies",
+    "T1-schema"
+  ],
+  "priority": 80,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-011",
+    "source_prd": "02-SETTINGS-PRD.md",
+    "prd_refs": [
+      "§5.7",
+      "§14.1",
+      "S-U5"
+    ],
+    "category": "auth",
+    "subcategory": "security-policies-schema",
+    "task_type": "T1-schema",
+    "parent_feature": "02-settings-e",
+    "context_budget": "40k",
+    "estimated_effort": "1-3h",
+    "description": "Security policy + login attempts + password history.",
+    "details": "All defaults exactly per §5.7 + §14.1 amendments. mfa_allowed_methods stored as TEXT[] with CHECK constraint that every element is in {totp, sms, webauthn}.",
+    "scope_files": [
+      "apps/web/db/schema/security.ts",
+      "apps/web/db/migrations/",
+      "apps/web/db/migrations/__tests__/security-tables.test.ts"
+    ],
+    "out_of_scope": [
+      "broaden scope beyond listed files",
+      "implement future-phase features"
+    ],
+    "dependencies": [
+      "T-004"
+    ],
+    "parallel_safe_with": [
+      "T-005",
+      "T-006",
+      "T-007",
+      "T-008",
+      "T-009",
+      "T-010"
+    ],
+    "acceptance_criteria": [
+      "All three tables created with correct columns + defaults.",
+      "CHECK constraints enforce enums.",
+      "vitest green."
+    ],
+    "test_strategy": [
+      "RED: shape + default + CHECK reject test.",
+      "GREEN: emit migration."
+    ],
+    "risk_red_lines": [
+      "Do not store plaintext passwords anywhere."
+    ],
+    "skills": [
+      "test-driven-development"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": false
+  }
+}

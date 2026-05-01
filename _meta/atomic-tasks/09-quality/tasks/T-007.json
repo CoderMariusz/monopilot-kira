@@ -1,0 +1,59 @@
+{
+  "title": "T-007 — Hold release Server Action + e-signature (09-a-02)",
+  "prompt": "# T-007 — Hold release Server Action + e-signature\n\nPRD: 09-QUALITY-PRD.md §5.3 signature flow, §11.1 V-QA-HOLD-005..007, §13.2 e-signature, §12.1 outbox quality.hold.released\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nImplement Server Action `releaseQualityHold(input)` that transitions a quality_holds.hold_status to 'released', sets released_by/released_at/release_signature_hash/release_notes, requires PIN re-verification per §13.2, enforces SoD for critical priority (V-QA-HOLD-006), and emits quality.hold.released outbox event.\n\n## Implementation contract\n1. `apps/web/src/server/quality/releaseHold.ts` exports the Server Action with Zod schema validating disposition NOT NULL (V-QA-HOLD-005), pin_proof present, release_notes min 10 chars.\n2. SoD check (V-QA-HOLD-006): if hold.priority='critical' then released_by_user_id != hold.created_by_user_id; reject with 403 SoD violation.\n3. Signature hash computation server-side per §13.2 (SHA-256 of user_id || hold.id || 'quality_holds' || signed_at_iso || record_content_hash || pin_proof). NEVER trust client hash.\n4. Update quality_holds set hold_status='released', released_*; cascade quality_hold_items.item_status='released'; emit quality.hold.released outbox event in same TX.\n\n## Files\n- apps/web/src/server/quality/releaseHold.ts [create]\n- apps/web/src/server/quality/__tests__/releaseHold.test.ts [create]\n\n## Acceptance criteria\n1. Given a hold with priority='critical' and created_by=U1, when releaseQualityHold is called by U1 with valid pin_proof, then it rejects with V-QA-HOLD-006 SoD error and writes nothing\n2. Given a hold with priority='medium' created_by=U1 and the caller is U2 with a valid pin_proof, when releaseQualityHold runs, then quality_holds.hold_status='released', release_signature_hash is non-null and matches the server-computed SHA-256, and a quality.hold.released outbox event is queued\n3. Given a payload missing disposition, when releaseQualityHold runs, then it rejects with V-QA-HOLD-005 and writes nothing\n4. Given a pin_proof older than 60s, when releaseQualityHold runs, then it rejects with PIN_PROOF_EXPIRED and writes nothing",
+  "labels": ["prd", "api", "hold-release", "T2-api"],
+  "priority": 80,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-007",
+    "source_prd": "09-QUALITY-PRD.md",
+    "prd_refs": ["§5.3", "§11.1", "§13.2", "§12.1"],
+    "category": "api",
+    "subcategory": "hold-release",
+    "task_type": "T2-api",
+    "parent_feature": "09-a Hold/Release",
+    "context_budget": "40k",
+    "estimated_effort": "2-3h",
+    "description": "Server Action releaseQualityHold with PIN re-verify, SoD guard, server-computed SHA-256 signature, cascade item status update, outbox event.",
+    "details": "Server Action validates disposition + pin_proof + release_notes via Zod. SoD check rejects same-user release on priority=critical. Signature hash computed server-side per §13.2 formula; client never sends a hash. TX updates quality_holds, cascades quality_hold_items.item_status, inserts outbox event quality.hold.released. PIN proof TTL 60s enforced.",
+    "scope_files": [
+      "apps/web/src/server/quality/releaseHold.ts [create]",
+      "apps/web/src/server/quality/__tests__/releaseHold.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not implement create-hold flow (T-006)",
+      "Do not implement audit trigger for the release (T-009)",
+      "Do not build the release modal UI (T-016)"
+    ],
+    "dependencies": ["T-004", "T-006"],
+    "parallel_safe_with": ["T-006", "T-008"],
+    "acceptance_criteria": [
+      "Given a critical hold created_by=U1, when releaseQualityHold is called by U1 with valid pin_proof, then it rejects with V-QA-HOLD-006 SoD error and writes nothing",
+      "Given a medium hold created_by=U1 and caller=U2 with valid pin_proof, when releaseQualityHold runs, then quality_holds.hold_status='released', release_signature_hash equals the server-computed SHA-256, and a quality.hold.released outbox event is queued",
+      "Given a payload missing disposition, when releaseQualityHold runs, then it rejects with V-QA-HOLD-005 and writes nothing",
+      "Given a pin_proof older than 60s, when releaseQualityHold runs, then it rejects with PIN_PROOF_EXPIRED and writes nothing"
+    ],
+    "test_strategy": [
+      "RED: write apps/web/src/server/quality/__tests__/releaseHold.test.ts asserting all 4 ACs against fakes before implementation",
+      "Run 'pnpm --filter web test releaseHold'"
+    ],
+    "risk_red_lines": [
+      "Do not compute signature_hash on the client",
+      "Do not allow same-user release on priority=critical (§2.3 SoD)",
+      "Do not skip PIN re-verification (21 CFR Part 11 non-compliance otherwise)"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

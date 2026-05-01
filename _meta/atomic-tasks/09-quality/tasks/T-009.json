@@ -1,0 +1,58 @@
+{
+  "title": "T-009 — quality_audit_log table + audit triggers on quality_holds",
+  "prompt": "# T-009 — quality_audit_log + audit triggers\n\nPRD: 09-QUALITY-PRD.md §5.2 quality_audit_log DDL, §9.1 audit_hold_change trigger, §13.3 audit log completeness\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nCreate `quality_audit_log` table with retention_until and indexes per §5.2, plus the audit_hold_change trigger function and triggers on quality_holds (INSERT + UPDATE) per §9.1.\n\n## Implementation contract\n1. Drizzle migration `packages/db/migrations/0103_quality_audit_log.sql` creates quality_audit_log per §5.2 verbatim (BIGSERIAL PK, occurred_at, table_name, record_id, operation, old_data, new_data, changed_fields, user_id, session_id, change_reason, ip_address, user_agent, request_id, retention_until GENERATED) plus idx_audit_record and idx_audit_user indexes; ENABLE RLS with tenant_isolation.\n2. CREATE OR REPLACE FUNCTION raise_immutable_error() per §9.1.\n3. CREATE OR REPLACE FUNCTION audit_hold_change() per §9.1 (with changed_fields jsonb_each diff, request_id from current_setting).\n4. CREATE TRIGGER audit_hold_insert AFTER INSERT and audit_hold_update AFTER UPDATE on quality_holds FOR EACH ROW.\n\n## Files\n- packages/db/migrations/0103_quality_audit_log.sql [create]\n- packages/db/__tests__/quality-audit-log.test.ts [create]\n\n## Acceptance criteria\n1. Given migration 0103 applied, when \\d quality_audit_log runs, then all §5.2 columns exist (operation, old_data jsonb, new_data jsonb, changed_fields text[], retention_until GENERATED) and RLS is enabled\n2. Given a quality_holds INSERT under app.current_user_id and app.current_org_id settings, when the trigger fires, then exactly 1 quality_audit_log row is appended with operation='INSERT', new_data set, old_data NULL, user_id matching the setting\n3. Given an existing quality_holds row, when UPDATE changes hold_status from 'open' to 'released', then 1 quality_audit_log row is appended with operation='UPDATE', changed_fields containing 'hold_status' and 'released_at'",
+  "labels": ["prd", "data", "audit-trigger", "T1-schema"],
+  "priority": 80,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-009",
+    "source_prd": "09-QUALITY-PRD.md",
+    "prd_refs": ["§5.2", "§9.1", "§13.3"],
+    "category": "data",
+    "subcategory": "audit-log",
+    "task_type": "T1-schema",
+    "parent_feature": "09-a Hold/Release",
+    "context_budget": "35k",
+    "estimated_effort": "1-2h",
+    "description": "Create quality_audit_log table + raise_immutable_error + audit_hold_change function + INSERT/UPDATE triggers on quality_holds.",
+    "details": "Migration 0103 emits quality_audit_log DDL per §5.2 verbatim including retention_until GENERATED 7y. Functions raise_immutable_error (RAISE EXCEPTION) and audit_hold_change (compute changed_fields via jsonb_each, INSERT into log). Triggers AFTER INSERT and AFTER UPDATE on quality_holds. RLS tenant_isolation policy on quality_audit_log itself.",
+    "scope_files": [
+      "packages/db/migrations/0103_quality_audit_log.sql [create]",
+      "packages/db/__tests__/quality-audit-log.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not add triggers on quality_inspections / specs / NCR / monitoring here (T-040 covers cross-table triggers)",
+      "Do not implement audit-export UI (T-058)",
+      "Do not implement immutability triggers on signed records (T-040)"
+    ],
+    "dependencies": ["T-004"],
+    "parallel_safe_with": ["T-006", "T-007", "T-008"],
+    "acceptance_criteria": [
+      "Given migration 0103 applied, when \\d quality_audit_log runs, then all §5.2 columns exist (operation, old_data jsonb, new_data jsonb, changed_fields text[], retention_until GENERATED) and RLS is enabled",
+      "Given a quality_holds INSERT with app.current_user_id and app.current_org_id set, when the trigger fires, then exactly 1 quality_audit_log row appears with operation='INSERT', new_data populated, old_data NULL, and user_id matching the setting",
+      "Given an existing quality_holds row, when UPDATE flips hold_status open->released, then 1 audit row is appended with operation='UPDATE' and changed_fields containing both 'hold_status' and 'released_at'"
+    ],
+    "test_strategy": [
+      "RED: write packages/db/__tests__/quality-audit-log.test.ts asserting schema, INSERT trigger, and UPDATE diff capture before migration exists",
+      "Run 'pnpm --filter db migrate && pnpm --filter db test quality-audit-log'"
+    ],
+    "risk_red_lines": [
+      "Do not allow RLS bypass on the audit log itself",
+      "Do not omit retention_until GENERATED 7y column (BRCGS Issue 10)",
+      "Do not allow triggers to swallow errors silently (RAISE on missing app.current_user_id)"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

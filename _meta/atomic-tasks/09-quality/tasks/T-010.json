@@ -1,0 +1,59 @@
+{
+  "title": "T-010 — Hold list/read API + v_active_holds view consumer",
+  "prompt": "# T-010 — Hold list/read API + v_active_holds view consumer\n\nPRD: 09-QUALITY-PRD.md §8.2 QA-010 list, §9.2 v_active_holds view\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nProvide read-side query API (Server functions) `listActiveHolds(filters)` and `getHoldDetail(id)` backed by view v_active_holds (active set) + direct table read (detail) with role-aware redaction (auditor_readonly sees release_signature_hash truncated to first 16 chars).\n\n## Implementation contract\n1. Drizzle migration `packages/db/migrations/0104_v_active_holds.sql` creates the view per §9.2 verbatim.\n2. `apps/web/src/server/quality/queryHolds.ts` exports listActiveHolds({status?, priority?, reason_code_id?, reference_type?, dateRange?}) returning paginated rows from v_active_holds + age and lp_count.\n3. getHoldDetail(id) returns hold + items + linked_ncr_id + linked_inspection_id; truncates signature_hash for non-quality_lead, non-admin callers.\n\n## Files\n- packages/db/migrations/0104_v_active_holds.sql [create]\n- apps/web/src/server/quality/queryHolds.ts [create]\n- apps/web/src/server/quality/__tests__/queryHolds.test.ts [create]\n\n## Acceptance criteria\n1. Given migration 0104 applied, when SELECT FROM v_active_holds runs, then view exists and only returns rows with hold_status IN (open, investigating, escalated)\n2. Given listActiveHolds({priority:'critical'}), when called, then it returns only critical-priority holds and includes age (interval) and lp_count (int)\n3. Given a hold with release_signature_hash X, when getHoldDetail(id) is called by auditor_readonly, then release_signature_hash is truncated to 16 chars; when called by quality_lead it returns the full 64-char hash\n4. Given a hold under tenant A, when getHoldDetail(id) is called under tenant B context, then it returns null (RLS isolation)",
+  "labels": ["prd", "api", "hold-read", "T2-api"],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-010",
+    "source_prd": "09-QUALITY-PRD.md",
+    "prd_refs": ["§8.2 QA-010", "§9.2"],
+    "category": "api",
+    "subcategory": "hold-read",
+    "task_type": "T2-api",
+    "parent_feature": "09-a Hold/Release",
+    "context_budget": "30k",
+    "estimated_effort": "1-2h",
+    "description": "v_active_holds view + listActiveHolds/getHoldDetail Server functions with role-aware signature redaction.",
+    "details": "Migration 0104 creates v_active_holds per §9.2 verbatim. Server functions listActiveHolds + getHoldDetail enforce RLS via session org_id setting and redact release_signature_hash for non-quality_lead/admin callers (truncate to 16 chars). Pagination via cursor or offset.",
+    "scope_files": [
+      "packages/db/migrations/0104_v_active_holds.sql [create]",
+      "apps/web/src/server/quality/queryHolds.ts [create]",
+      "apps/web/src/server/quality/__tests__/queryHolds.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not implement create/release here (T-006/T-007)",
+      "Do not implement UI list (T-014)",
+      "Do not implement materialized view mv_quality_kpis_daily (out of P1 scope here)"
+    ],
+    "dependencies": ["T-004"],
+    "parallel_safe_with": ["T-006", "T-007", "T-008", "T-009"],
+    "acceptance_criteria": [
+      "Given migration 0104 applied, when SELECT FROM v_active_holds runs, then the view exists and only returns rows with hold_status IN (open,investigating,escalated)",
+      "Given listActiveHolds({priority:'critical'}), when called, then it returns only critical-priority holds and each row carries age (interval) and lp_count (int)",
+      "Given a hold with release_signature_hash X, when getHoldDetail(id) is called by auditor_readonly, then release_signature_hash is truncated to 16 chars; when called by quality_lead it returns the full 64-char hash",
+      "Given a hold under tenant A, when getHoldDetail(id) is called under tenant B context, then it returns null (RLS isolation)"
+    ],
+    "test_strategy": [
+      "RED: write apps/web/src/server/quality/__tests__/queryHolds.test.ts asserting view filter, list filter, role redaction, RLS isolation",
+      "Run 'pnpm --filter db migrate && pnpm --filter web test queryHolds'"
+    ],
+    "risk_red_lines": [
+      "Do not return full signature_hash to auditor_readonly callers (forensic only)",
+      "Do not bypass RLS via service role in normal queries"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

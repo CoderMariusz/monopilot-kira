@@ -1,0 +1,36 @@
+{
+  "title": "T-025 — Wiring: BOM snapshot pattern at WO creation (ADR-002)",
+  "prompt": "Implement BOM snapshot capture per §7.1 + ADR-002. Provide an internal service `createBomSnapshot(orgId, workOrderId, itemId)` in lib/technical/bom/snapshot.ts that: resolves active BOM header for itemId, joins lines + co_products, writes flattened JSON to bom_snapshots. 08-PRODUCTION will call this on WO insert (not implemented here). Provide hook stub + integration test that simulates the call. RED tests/wiring/bom-snapshot.test.ts. Run: `pnpm vitest run tests/wiring/bom-snapshot.test.ts`.",
+  "labels": ["prd", "integration", "bom-snapshot", "T4-wiring-test"],
+  "priority": 80,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-025",
+    "source_prd": "03-TECHNICAL-PRD.md",
+    "prd_refs": ["§7.1", "§7.5"],
+    "category": "integration",
+    "subcategory": "bom-snapshot",
+    "task_type": "T4-wiring-test",
+    "parent_feature": "03-TECHNICAL-a BOM",
+    "context_budget": "20k",
+    "estimated_effort": "2h",
+    "description": "Service producing immutable BOM snapshots at WO creation; idempotent per WO+BOM key.",
+    "details": "Snapshot JSON shape mirrors API output of T-012 detail. Idempotency check: existing (work_order_id, bom_header_id) snapshot returns existing row. Org-scoped.",
+    "scope_files": ["lib/technical/bom/snapshot.ts", "tests/wiring/bom-snapshot.test.ts"],
+    "out_of_scope": ["WO state machine (08-PRODUCTION)", "Snapshot viewer UI"],
+    "dependencies": ["T-002", "T-012"],
+    "parallel_safe_with": ["T-024", "T-026", "T-027"],
+    "acceptance_criteria": [
+      "Given an active BOM with 2 lines + 1 co-product, when createBomSnapshot called, then snapshot_json contains 1 header + 2 lines + 1 co_product.",
+      "Given snapshot already exists for (WO,BOM) pair, when called again, then no new row written and same row returned.",
+      "Given itemId without active BOM, when called, then exception 'NO_ACTIVE_BOM' raised."
+    ],
+    "test_strategy": ["RED tests for shape + idempotency + error path.", "Run: pnpm vitest run tests/wiring/bom-snapshot.test.ts"],
+    "risk_red_lines": ["Do not allow mutation of an existing snapshot.", "Do not include private_jsonb in snapshot."],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {"required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"], "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]},
+    "routing_hints": {"red": "hermes_gpt55", "implementation": "hermes_gpt55", "review": "opus_if_high_risk_or_ui_or_architecture", "close": "spark_low_risk_else_opus"}
+  }
+}

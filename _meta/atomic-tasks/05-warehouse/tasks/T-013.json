@@ -1,0 +1,59 @@
+{
+  "title": "T-013 — Seed lp_state_machine_v1 DSL rule",
+  "prompt": "# T-013 — Seed lp_state_machine_v1 DSL rule\n\nPRD: `05-WAREHOUSE-PRD.md` §6.1 (workflow-as-data, ADR-029).\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`.\n\n## Goal\nSeed the rule registry (02-SETTINGS §7) with `lp_state_machine_v1` defining the LP transitions and guards from PRD §6.1.\n\n## Implementation contract\nAdd seed `packages/db/seed/rules/lp-state-machine-v1.json` containing the YAML/JSON DSL rule with:\n- transitions table (from→to, guard, side_effects) per §6.1\n- destructive flag for block/scrap transitions\n- allowed_reasons per (from,to) pair\nProvide `packages/db/seed/rules/lp-state-machine-v1.seed.ts` that upserts via the rule registry service.\n\n## Files (scope)\n- packages/db/seed/rules/lp-state-machine-v1.json [create]\n- packages/db/seed/rules/lp-state-machine-v1.seed.ts [create]\n- packages/db/seed/rules/__tests__/lp-state-machine-v1.test.ts [create]\n\n## Acceptance criteria\n1. Given the seed runs, when querying rule_registry, then `lp_state_machine_v1` v1.0 exists with transitions matching §6.1.\n2. Given a guarded transition `available→reserved` is checked, when DSL evaluator runs, then it requires `wo.released AND hard_lock.available`.\n3. Given a destructive transition (e.g. available→blocked), when DSL is queried, then `destructive=true` and reason_code is required.\n\n## Test strategy\n- RED: lp-state-machine-v1.test.ts asserts seeded rule structure and required-reason flags.\n- Run `pnpm --filter db test lp-state-machine`.\n\n## Risk red lines\n- Do not deviate from PRD §6.1 transition table.\n- Do not introduce client-side state machine (rule must be server-driven).\n- Do not set transitions admins can edit at runtime — rule version locked v1.0.",
+  "labels": ["prd", "data", "rule-registry", "T5-seed"],
+  "priority": 80,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-013",
+    "source_prd": "05-WAREHOUSE-PRD.md",
+    "prd_refs": ["§6.1", "§16.5"],
+    "category": "data",
+    "subcategory": "rule-registry",
+    "task_type": "T5-seed",
+    "parent_feature": "warehouse-foundation",
+    "context_budget": "25k",
+    "estimated_effort": "1h",
+    "description": "Seed lp_state_machine_v1 DSL rule per PRD §6.1 transitions and guards.",
+    "details": "JSON DSL + seed script. Rule version 1.0, server-driven, admin read-only. Destructive flag + allowed_reasons per (from,to) tuple.",
+    "scope_files": [
+      "packages/db/seed/rules/lp-state-machine-v1.json [create]",
+      "packages/db/seed/rules/lp-state-machine-v1.seed.ts [create]",
+      "packages/db/seed/rules/__tests__/lp-state-machine-v1.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Client-side state machine",
+      "Admin edit UI",
+      "Rule engine implementation (assumed from 02-SETTINGS §7)"
+    ],
+    "dependencies": ["T-001"],
+    "parallel_safe_with": ["T-014", "T-015"],
+    "acceptance_criteria": [
+      "Given the seed runs, when rule_registry is queried, then lp_state_machine_v1 v1.0 exists with §6.1 transitions",
+      "Given the DSL evaluator checks available→reserved, when run, then it requires wo.released AND hard_lock.available",
+      "Given destructive transitions (e.g. available→blocked), when DSL is queried, then destructive=true and reason_code is required"
+    ],
+    "test_strategy": [
+      "RED: lp-state-machine-v1.test.ts asserts structure + destructive flags + required reasons",
+      "Run 'pnpm --filter db test lp-state-machine'"
+    ],
+    "risk_red_lines": [
+      "Do not deviate from §6.1 transitions",
+      "Do not allow admin runtime edits",
+      "Do not embed client-side state machine"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

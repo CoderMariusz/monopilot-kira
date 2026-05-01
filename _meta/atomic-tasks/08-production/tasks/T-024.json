@@ -1,0 +1,60 @@
+{
+  "title": "T-024 — Over-consumption detection: 409 with requires_approval; approval endpoint",
+  "prompt": "# T-024 — Over-consumption detection + approval endpoint\n\nPRD: 08-PRODUCTION-PRD.md §7.2 FR-08-E2-006, §8.2.2, §6 D2, §16.4 V-PROD-16\n\n## Goal\nExtend consume-to-wo to detect over-consumption (cumulative consumed > planned × (1+tolerance)) and return 409 requires_approval. Add separate POST /api/production/consumption/:id/approve endpoint for Shift Lead approval.\n\n## Implementation contract\nIn consume-to-wo: before INSERT, compute SUM(consumed for component) + qty_consumed; if > BOM.planned_qty × (1 + tolerance from prod_settings.over_consumption_tolerance_pct, default 0.05) → INSERT consumption row with over_consumption_flag=true and over_consumption_approved_by=NULL; return 409 {error:'over_consumption', consumption_id, requires_approval:true, planned_qty, attempted_total, tolerance_pct}. Then add new endpoint POST /api/production/consumption/[id]/approve with body {approver_user_id, reason_code, notes} verifying approver role='shift_lead' or higher; UPDATE wo_material_consumption SET over_consumption_approved_by, over_consumption_approved_at, over_consumption_reason_code (CHECK chk_over_consumption_approval is satisfied per V-PROD-16). Return 200 {consumption_id, approved:true, approved_at}.\n\n## Files (scope)\n- packages/api-services/production/consume-to-wo.ts [modify]\n- apps/web/app/api/production/consumption/[id]/approve/route.ts [create]\n- apps/web/app/api/production/consumption/[id]/approve/__tests__/route.test.ts [create]\n- packages/api-services/production/approve-over-consumption.ts [create]\n\n## Acceptance criteria\n1. Given cumulative consumption attempt exceeds planned×1.05, when POST consume-to-wo, then 409 over_consumption + consumption_id with over_consumption_flag=true and approved_by NULL\n2. Given valid Shift Lead approver_user_id + reason_code, when POST consumption/:id/approve, then 200 approved:true and CHECK chk_over_consumption_approval satisfied\n3. Given approver role='operator' (not Shift Lead), when POST approve, then 403 insufficient_role\n\n## Test strategy\n- RED: tests asserting 409+approval+role-check before route + service changes\n- Run 'pnpm --filter web test consumption.*approve && pnpm --filter web test scanner.*consume-to-wo'\n\n## Risk red lines\n- Do not allow over-consumption to skip Shift Lead approval (R16)\n- Do not let approver be the operator who consumed (separation of duties)\n- Do not weaken tolerance source (must read from prod_settings)",
+  "labels": ["prd", "api", "consumption", "T2-api"],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-024",
+    "source_prd": "08-PRODUCTION-PRD.md",
+    "prd_refs": ["§7.2 FR-08-E2-006", "§8.2.2", "§6 D2", "§16.4 V-PROD-16"],
+    "category": "api",
+    "subcategory": "consumption",
+    "task_type": "T2-api",
+    "parent_feature": "08-PROD E2 Consumption",
+    "context_budget": "32k",
+    "estimated_effort": "2-3h",
+    "description": "Over-consumption 409 detection + Shift Lead approval endpoint enforcing V-PROD-16.",
+    "details": "Tolerance default 5% from prod_settings.over_consumption_tolerance_pct. consume-to-wo writes flagged row pending approval. Approval endpoint verifies Shift Lead role + separation of duties (approver != original operator). UPDATE sets approval columns satisfying chk_over_consumption_approval (V-PROD-16).",
+    "scope_files": [
+      "packages/api-services/production/consume-to-wo.ts [modify]",
+      "apps/web/app/api/production/consumption/[id]/approve/route.ts [create]",
+      "apps/web/app/api/production/consumption/[id]/approve/__tests__/route.test.ts [create]",
+      "packages/api-services/production/approve-over-consumption.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not implement approval modal UI (separate UI task)",
+      "Do not modify schema",
+      "Do not implement outbox emit"
+    ],
+    "dependencies": ["T-023"],
+    "parallel_safe_with": ["T-025", "T-026", "T-027"],
+    "acceptance_criteria": [
+      "Given attempted consumption > planned×1.05, when POST consume, then 409 over_consumption + consumption_id with over_consumption_flag=true",
+      "Given Shift Lead approver + reason_code, when POST approve, then 200 approved:true and CHECK satisfied",
+      "Given operator approver role, when POST approve, then 403 insufficient_role"
+    ],
+    "test_strategy": [
+      "RED: tests asserting 409 + approval + role-check before changes",
+      "Run 'pnpm --filter web test consumption.*approve && pnpm --filter web test scanner.*consume-to-wo'"
+    ],
+    "risk_red_lines": [
+      "Do not skip Shift Lead approval",
+      "Do not let approver be original operator",
+      "Do not weaken tolerance source"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

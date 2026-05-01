@@ -1,0 +1,62 @@
+{
+  "title": "T-014 — QA-010 Holds list page (prototype parity)",
+  "prompt": "# T-014 — QA-010 Holds list page\n\nPRD: 09-QUALITY-PRD.md §8.2 QA-010, §8.5 prototype holds_list, §11.1\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nBuild `/quality/holds` Server Component listing active holds with filters (status, priority, reason, reference_type, date range), columns Hold# | Type | Reference | Reason | Priority badge | Status | Days held | Estimated release | Actions, Create Hold button, empty state.\n\n## Implementation contract\n1. `apps/web/src/app/quality/holds/page.tsx` Server Component reads listActiveHolds(filters from search params).\n2. shadcn Table for the rows; Filter bar with shadcn Select + Input + DatePicker.\n3. Row click → /quality/holds/:id; quick-release shortcut visible only to quality_lead.\n4. 1:1 prototype parity vs `design/Monopilot Design System/quality/holds-screens.jsx:3-161` (holds_list).\n\n## Files\n- apps/web/src/app/quality/holds/page.tsx [create]\n- apps/web/src/components/quality/holds/HoldsListTable.tsx [create]\n- apps/web/src/components/quality/holds/HoldsFilterBar.tsx [create]\n- apps/web/src/components/quality/holds/__tests__/holdsList.test.tsx [create]\n- design/Monopilot Design System/quality/holds-screens.jsx [ref]\n\n## Acceptance criteria\n1. Given the page renders, when compared to design/Monopilot Design System/quality/holds-screens.jsx:3-161, then it has parity with the prototype on structure (top filter bar with status/priority/reason/reference_type/date Selects + Create Hold button, table with 9 columns in fixed order Hold#/Type/Reference/Reason/Priority/Status/DaysHeld/EstRelease/Actions), visuals (shadcn Table/Select/Badge/Button only, priority Badge variant maps low=secondary, medium=default, high=warning, critical=destructive), and interaction (row click navigates to /quality/holds/:id, Create Hold opens hold_create modal, quick-release action visible only to quality_lead) — verified by RTL test plus parity checklist in pipeline_inputs.details\n2. Given listActiveHolds returns 0 rows, when the page renders, then the empty-state shows 'No active holds — click Create Hold to report an issue.' and the Create Hold button is enabled\n3. Given filter status=open and priority=critical applied via search params, when the page renders, then the table shows only matching rows and the URL persists those params for shareable links",
+  "labels": ["prd", "ui", "qa-holds-list", "T3-ui"],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-014",
+    "source_prd": "09-QUALITY-PRD.md",
+    "prd_refs": ["§8.2 QA-010", "§8.5"],
+    "category": "ui",
+    "subcategory": "qa-holds-list",
+    "task_type": "T3-ui",
+    "parent_feature": "09-a Hold/Release",
+    "context_budget": "45k",
+    "estimated_effort": "2-3h",
+    "prototype_match": true,
+    "description": "QA-010 holds list page with filter bar + 9-column shadcn Table + Create Hold button + role-aware quick-release.",
+    "details": "Server Component fetches listActiveHolds(filters) from T-010 and renders shadcn Table with 9 columns matching prototype design/Monopilot Design System/quality/holds-screens.jsx:3-161. Filter bar uses shadcn Select + DatePicker (no native HTML controls). Priority Badge variants per parity checklist. Empty-state copy from §8.2. Quick-release row action hidden for non-quality_lead. URL search params persist filters. Honor translation notes from prototype-index entry holds_list.",
+    "scope_files": [
+      "apps/web/src/app/quality/holds/page.tsx [create]",
+      "apps/web/src/components/quality/holds/HoldsListTable.tsx [create]",
+      "apps/web/src/components/quality/holds/HoldsFilterBar.tsx [create]",
+      "apps/web/src/components/quality/holds/__tests__/holdsList.test.tsx [create]",
+      "design/Monopilot Design System/quality/holds-screens.jsx [ref]"
+    ],
+    "out_of_scope": [
+      "Do not implement hold detail (T-016)",
+      "Do not implement create modal (T-015)",
+      "Do not implement audit trail PDF download from row (P2)"
+    ],
+    "dependencies": ["T-010"],
+    "parallel_safe_with": ["T-013", "T-015", "T-016"],
+    "acceptance_criteria": [
+      "Given the page renders, when compared to design/Monopilot Design System/quality/holds-screens.jsx:3-161, then it matches the prototype on structural parity (filter bar with 5 Selects + Create Hold button, 9-column Table in declared order), visual parity (shadcn Table/Select/Badge/Button only, priority Badge variant maps per checklist), and interaction parity (row click → /quality/holds/:id, Create Hold opens modal, quick-release visible only to quality_lead) — verified by RTL test plus the parity checklist in pipeline_inputs.details",
+      "Given listActiveHolds returns 0 rows, when the page renders, then the empty-state copy 'No active holds — click Create Hold to report an issue.' is shown and Create Hold button stays enabled",
+      "Given URL search params status=open and priority=critical, when the page renders, then the table contains only matching rows and the params persist on reload"
+    ],
+    "test_strategy": [
+      "RED: write apps/web/src/components/quality/holds/__tests__/holdsList.test.tsx asserting column order, empty state, role-based action hide, URL filter persistence",
+      "Run 'pnpm --filter web test holdsList'"
+    ],
+    "risk_red_lines": [
+      "Do not use native HTML <select> (must use shadcn Select per translation notes)",
+      "Do not show quick-release to non-quality_lead users",
+      "Do not lose filter state on navigation"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

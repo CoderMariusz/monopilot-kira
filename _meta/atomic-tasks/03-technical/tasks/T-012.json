@@ -1,0 +1,36 @@
+{
+  "title": "T-012 — API: BOM list and detail (GET /api/technical/items/:code/boms[, /:version])",
+  "prompt": "Implement GET /api/technical/items/[item_code]/boms (list versions for an item) and GET /api/technical/items/[item_code]/boms/[version] (header + lines + co_products joined). Per §7.1, ordering: list newest version first; detail returns flattened BOM JSON identical in shape to bom_snapshots.snapshot_json. Org-scoped (RLS). RED tests/api/bom-read.test.ts. Run: `pnpm vitest run tests/api/bom-read.test.ts`.",
+  "labels": ["prd", "api", "bom-read", "T2-api"],
+  "priority": 80,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-012",
+    "source_prd": "03-TECHNICAL-PRD.md",
+    "prd_refs": ["§7.1", "§7.5"],
+    "category": "api",
+    "subcategory": "bom-read",
+    "task_type": "T2-api",
+    "parent_feature": "03-TECHNICAL-a BOM",
+    "context_budget": "30k",
+    "estimated_effort": "2h",
+    "description": "BOM list per item and BOM detail (flattened header+lines+co-products) endpoints.",
+    "details": "Use Drizzle joins. Detail response keys: header, lines, co_products. Shape matches snapshot_json contract so the same renderer can be reused for snapshots viewer (TEC-025).",
+    "scope_files": ["app/api/technical/items/[item_code]/boms/route.ts", "app/api/technical/items/[item_code]/boms/[version]/route.ts", "lib/technical/bom/queries.ts", "tests/api/bom-read.test.ts"],
+    "out_of_scope": ["BOM create/edit (T-013)", "Snapshot viewer", "Approval"],
+    "dependencies": ["T-002", "T-008"],
+    "parallel_safe_with": ["T-013", "T-014", "T-015"],
+    "acceptance_criteria": [
+      "Given item has BOM v1 and v2, when GET /boms, then v2 returns first.",
+      "Given BOM v1 has 3 lines + 1 co-product, when GET /boms/1, then JSON includes header + 3 lines + 1 co_product entry.",
+      "Given org B requests org A BOM, when GET runs, then 404 due to RLS."
+    ],
+    "test_strategy": ["RED tests cross-org RLS + JSON shape matches snapshot_json contract.", "Run: pnpm vitest run tests/api/bom-read.test.ts"],
+    "risk_red_lines": ["Do not bypass RLS via privileged client.", "Do not include audit-only fields in response."],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {"required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"], "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]},
+    "routing_hints": {"red": "hermes_gpt55", "implementation": "hermes_gpt55", "review": "opus_if_high_risk_or_ui_or_architecture", "close": "spark_low_risk_else_opus"}
+  }
+}

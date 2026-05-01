@@ -1,10 +1,10 @@
 ---
 title: PRD 00-FOUNDATION — Monopilot MES
-version: 3.0
-date: 2026-04-18
-phase: Phase B.1 (Phase D renumbered + Research R1-R15 embedded)
-status: Draft v3.0 — pending user review
-supersedes: v2.3 (2026-02-18, pre-Phase-D)
+version: 4.2
+date: 2026-04-30
+phase: Phase B.1 continued (Phase D renumbered + Research R1-R15 + Manufacturing Operations pattern + UX gap-backlog amendments)
+status: Draft v4.2 — UX→PRD gap-backlog F-U1..F-U5 + F-A1..F-A4 applied
+supersedes: v4.1 (2026-04-30, Phase E-0 prep clarifications)
 references:
   - _foundation/decisions/MONOPILOT-V2-ARCHITECTURE.md
   - _foundation/research/MES-TRENDS-2026.md
@@ -121,13 +121,16 @@ Cztery markery obowiązkowe w każdym PRD / ADR / skill / code comment dotycząc
 
 ### Secondary
 
-| Persona | Modules |
-|---|---|
-| Dyrektor zakładu | Wszystkie (read-only), 12-REPORTING |
-| Administrator | 02-SETTINGS (schema-driven config, rule engine wizard) |
-| Maintenance Tech | 13-MAINTENANCE, 02-SETTINGS (maszyny) |
-| Finance Analyst | 10-FINANCE (cost roll, variance); GL/AP/AR w D365/Xero |
-| Site Manager (multi-site) | 14-MULTI-SITE, 12-REPORTING filtered |
+| Persona | Modules | Pillar |
+|---|---|---|
+| Dyrektor zakładu | Wszystkie (read-only), 12-REPORTING | — |
+| **Org Admin** | 02-SETTINGS users/roles/security/SSO/SCIM/IP allowlist/audit | **ACCESS** |
+| **Schema Admin** | 02-SETTINGS schema-driven column wizard, rule engine wizard, reference data, feature flags | **ADMIN** |
+| Maintenance Tech | 13-MAINTENANCE, 02-SETTINGS (maszyny) | — |
+| Finance Analyst | 10-FINANCE (cost roll, variance); GL/AP/AR w D365/Xero | — |
+| Site Manager (multi-site) | 14-MULTI-SITE, 12-REPORTING filtered | — |
+
+> **Administrator split [F-U4 per gap-backlog 2026-04-30, UNIVERSAL]:** the prior single "Administrator" persona is split into **Org Admin** (ACCESS pillar — identity, authentication, authorization, session policy, audit visibility) and **Schema Admin** (ADMIN pillar — data model, business rules, reference data, feature flags) to satisfy **SOC 2 CC6.3 separation-of-duties**. The two personas are mutually exclusive at the role-grant level by default (an Org Admin cannot grant themselves Schema Admin without a second Org Admin's approval in `org_security_policies.dual_control_required=true` mode). UI surfaces partition accordingly: ACCESS-pillar screens (Users / Roles / Security / SSO / SCIM / IP Allowlist / Audit) live under `/settings/access/*` and require the `org.access.admin` system role; ADMIN-pillar screens (Schema / Rules / Reference Data / Feature Flags / Manufacturing Operations) live under `/settings/admin/*` and require the `org.schema.admin` system role.
 
 **Role naming (Phase D decision #15):** Core = **NPD team** (nie "Development"). Technical = Quality (QA). MRP **NIE** split.
 
@@ -183,6 +186,10 @@ Build = **per module albo jego części, po kolei, z rozbiciem na stories/tasks*
 
 **Regression rule:** po każdym module impl → regression test suite (Vitest + Playwright) przed kolejnym. Skills: `vba-regression` pattern (for VBA) / analogous web-app regression pipeline (to be defined C1).
 
+> **§4.2-AMENDMENT (2026-04-22, per ADR-032):** build order row 2 dependency "Foundation infra w minimum scope" zastępujemy explicit Phase E-0 = `00-FOUNDATION-impl-a..i` (atomic task spec w `_meta/specs/00-FOUNDATION-impl-spec.md`; tasks listed in `_meta/plans/2026-04-25-foundation-tasks.md`). Row 3 prerequisite "01-NPD done" zmieniamy na **"02-SETTINGS-a minimum carveout done"** (orgs/users + RBAC + 7 ref tables + module toggles + i18n scaffold + org security baseline) z parallel Track A (01-NPD-a..e) / Track B (02-SETTINGS-b..e). Pełna revised tabela: patrz `_meta/plans/2026-04-22-phase-e-kickoff-plan.md` §3.2. Foundation modules `00-FOUNDATION-impl-d/e/f/g/h` (DB+RLS, outbox, RBAC primitives, audit, i18n) MUST complete before 01-NPD-a can start.
+
+> **§4.2-AMENDMENT addendum (2026-04-30) [F-A4 per gap-backlog 2026-04-30]:** the Phase E-0 Foundation set is extended with **`00-FOUNDATION-impl-j` (UI primitives + design-token package)** covering `packages/ui` bootstrap, the 5 modal/form primitives, the 5 tuning primitives, the 10 MODAL-SCHEMA pattern templates, design tokens, Storybook 8 + axe-core CI, and the `assertModalA11y()` helper (per §5.y / F-A3). Atomic tasks: `T-00j-001..007` in `_meta/plans/2026-04-30-ux-prd-plan-gap-backlog.md` §00-FOUNDATION ADD list. **Critical-path:** `impl-j` MUST complete **in parallel with `impl-d/e/f/g/h`** and **before any 01-NPD-a or 02-SETTINGS T3-ui task starts** (12 downstream modules consume the primitives — letting any T3-ui task ship first guarantees drift from MODAL-SCHEMA.md and forces re-work). The build sequence in `_meta/plans/2026-04-22-phase-e-kickoff-plan.md` §3.2 is updated to add `impl-j` to the Foundation set; row 3 prerequisite becomes **"02-SETTINGS-a minimum carveout done AND `impl-j` complete"**.
+
 ### §4.3 Tabela 15 modułów
 
 | # | Moduł | PRD Writing | Build order | File | Dependencies |
@@ -203,6 +210,8 @@ Build = **per module albo jego części, po kolei, z rozbiciem na stories/tasks*
 | 13 | MAINTENANCE | C5 | 13 | `13-MAINTENANCE-PRD.md` | 02, 08, 15 |
 | 14 | MULTI-SITE | C5 | 14 | `14-MULTI-SITE-PRD.md` | 02, 05 |
 | 15 | OEE | C5 | 15 | (new, C5) | 08 |
+
+> **§4.3-AMENDMENT — Table Naming Decision (2026-04-30, per ADR-034 finalisation):** the physical table for the NPD finished-article aggregate is **`product`** (singular, generic). This is **Option B** (chosen over Option A "keep `fa` as physical name" and Option C "dual-table `fa` + `product`"). Rationale: (1) generic naming aligns with multi-industry generalisation in ADR-034 (Bakery / Pharma / FMCG / meat all use the same physical schema), (2) avoids confusion with the `fa.*` event aggregate which is a domain-language label, not a table reference, (3) gives a clean target name for D365 item-master sync long-term. **Backward-compat for D365 Builder + legacy SQL:** create a SQL view `CREATE VIEW fa AS SELECT * FROM product;` (read-only, Phase E-0 → C1 deprecation window) so existing `Builder_FA<code>.xlsx` queries and any external integration referring to `fa` continue to resolve. The view is dropped at end of Phase C1 once D365 adapter migration completes. **Event aggregate prefix stays `fa.*`** (decoupled from storage — see §10 + `_meta/specs/event-naming-convention.md`). Acceptance-criteria impact: 01-NPD-a DDL emits `CREATE TABLE product (...)` + `CREATE VIEW fa AS SELECT * FROM product;`; 01-NPD §15 success criteria updated to reference `product` table for RLS coverage with `fa` listed as compat view.
 
 ### INTEGRATIONS — distributed, not a single module
 
@@ -256,6 +265,41 @@ Stare dokumenty opisywały "Scanner M05" z 5 epikami. Phase D: 06-SCANNER-P1 to 
 - **D365 adapter** [R8] (`@monopilot/d365-adapter`): DMF client + retry/DLQ + schema mapping. One-way pull (items/BOM/customers/suppliers/locations/UoM nightly + on-demand); one-way push (production confirmations/inventory movements/shipments/quality holds near-real-time via Azure Service Bus).
 - **Peppol access point (open question)** (MES-TRENDS-2026 §8): Storecove / Pagero / Tradeshift SaaS P1; on-prem Phase 2.
 - **GS1 lib (shared backend + frontend)** [R15] (MES-TRENDS-2026 §7.3): GS1-128 AI parser zgodny z GS1 General Specs 24.0.
+
+### §5.x — Auth & Identity Stack [UNIVERSAL] [F-A1 per gap-backlog 2026-04-30]
+
+> **Source for new requirement:** UX evidence in `design/Monopilot Design System/settings/access-screens.jsx:162-244` (TOTP/SMS/WebAuthn checkbox row, SAML Entra ID connector, SCIM token panel, password policy strong/standard/custom, idle timeout, max session, IP allowlist, audit log preview). Prior PRD §5 mentioned Supabase only as a Postgres host; the auth subsystem was invisible. **F-U1 update + F-A1 addition** make it explicit and lock 6 OSS libraries.
+
+**Primary IdP:** **GoTrue / Supabase Auth** as the canonical first-party identity provider for all tenants on the EU and US clusters. Email+password, magic-link, OAuth social (deferred), and admin-issued invitations all flow through GoTrue. Sessions are JWT-based; the access token TTL is **15 minutes** with rotating refresh tokens; refresh enforces an **idle timeout of 60 minutes** (org-tunable per §8.x) and an **absolute session max of 8 hours** (org-tunable). Magic-link invitation tokens are signed, single-use, and carry a **7-day TTL** (codified, not Supabase-default).
+
+**Federation (SAML 2.0):** **`@boxyhq/saml-jackson`** as the SAML SP. Each tenant connects an external IdP (Microsoft Entra ID baseline; Okta / Google Workspace / generic SAML 2.0 supported) via metadata URL or x509-cert upload. JIT user provisioning is per-tenant configurable (see §8.x `tenant_idp_config`). Routes: `/api/auth/saml/{login,callback,logout,metadata}`.
+
+**Provisioning (SCIM 2.0):** SCIM `/Users` and `/Groups` endpoints with bearer-token auth scoped to a single tenant; tokens stored as **argon2id** hashes in `scim_tokens`. Soft-delete on `active=false`. Group sync maps to system roles per tenant policy.
+
+**MFA:** **TOTP** primary via **`otplib`** (RFC 6238, 30-s window, 6-digit), with recovery codes hashed argon2id and one-time use. **WebAuthn** secondary via **`@simplewebauthn/server`** (deferred behaviour to Phase 3 per D7 — UI checkbox shown disabled with tooltip "Coming Phase 3"). SMS as fallback only (rate-limited). MFA enrolment is enforceable per-role via `org_security_policies.mfa_required_for_roles[]`.
+
+**Verify-PIN / step-up auth:** secondary short-lived PINs for destructive admin actions are stored as **argon2id** hashes (memory=64 MiB, t=3, p=1) — never plaintext, never reversible. PIN entry is rate-limited identically to login (see lockout policy).
+
+**Six OSS libraries locked:** `@supabase/supabase-js` (auth client), `@supabase/auth-helpers-nextjs`, `@boxyhq/saml-jackson` (SAML SP), `otplib` (TOTP), `@simplewebauthn/server` (WebAuthn), `argon2` (PIN/recovery-code hashing). Versions pinned in `apps/web/package.json` and tracked by Renovate.
+
+### §5.y — Shared UI Primitives `@monopilot/ui` [UNIVERSAL] [F-A3 per gap-backlog 2026-04-30]
+
+> **Source for new requirement:** UX evidence across all module prototypes (10 distinct modal patterns reused; 5 tuning primitives for run-strip / empty-state / counted-tabs / compact-activity / dry-run); `_shared/MODAL-SCHEMA.md` (225 lines) is the canonical contract but is **never referenced from any PRD or plan** — every module re-invents modal wiring and drifts. F-A3 makes the contract first-class.
+
+**Workspace package:** `packages/ui` — published as `@monopilot/ui` inside the monorepo (npm workspace, not separate registry). Single source of truth for cross-module UI primitives; **direct imports from `@radix-ui/react-dialog` outside `packages/ui` are blocked** by ESLint `no-restricted-imports`.
+
+**5 modal/form primitives:**
+1. `<Modal/>` — Radix Dialog wrapper, size tokens (`sm` / `md` / `lg` / `xl`), dismissible flag, ESC-to-close, focus-trap, return-focus on close.
+2. `<Stepper/>` — multi-step wizard chrome with Back / Next / Jump-to-step / Restart, persisted step state, progress indicator.
+3. `<Field/>` — RHF Controller + Zod resolver wrapper with label / hint / error / required-mark / inline-validation states.
+4. `<ReasonInput/>` — textarea + character counter + minLength enforcement (default 10 chars, configurable per modal); used by all destructive-with-reason patterns.
+5. `<Summary/>` — read-only key/value summary with optional diff highlighting; consumed by Confirm patterns and Preview-compare pattern.
+
+**5 tuning primitives** (ported from prototypes; Phase B.2 settings tuning audit): `<RunStrip/>`, `<EmptyState/>`, `<TabsCounted/>`, `<CompactActivity/>`, `<DryRunButton/>` plus `deriveRunHistory()` helper.
+
+**Canonical modal contract:** `_shared/MODAL-SCHEMA.md` is **normative** and lists 10 patterns: Wizard (P1), SimpleForm (P2), DualPath (P3), Picker (P4), Override-with-reason (P5), Simple (P6), Async-with-states (P7), Confirm-non-destructive (P8 weak / P9 ack), Confirm-destructive-type-to-confirm (P8), Confirm-destructive-with-reason (P9), Preview-compare (P10). All settings/NPD/production modals MUST use a shared primitive and one of the 10 patterns.
+
+**Quality gates:** Storybook 8 with **≥21 stories** (11 primitives × 1 + 10 pattern templates) + **axe-core CI** running on every PR; the `assertModalA11y()` RTL helper from `packages/ui/test` is required in every modal's test file. Design tokens live in `packages/ui/tokens.css` with a Tailwind theme map and a per-tenant override hook (Phase C5 multi-tenant theming).
 
 ---
 
@@ -385,6 +429,46 @@ UI flow do add/edit column:
 - **Tenant switcher**: superadmin-only, MFA, SIEM logged.
 - **Cross-tenant analytics**: osobny warehouse schema (denormalized snapshots), nigdy prod RLS bypass.
 
+### §8.x — Per-tenant IdP Mapping [UNIVERSAL] [F-A2 per gap-backlog 2026-04-30]
+
+> **Source for new requirement:** UX `SecurityScreen` exposes an "Enforce SSO" toggle that disables password login for non-admins; SCIM provisions users from Entra ID directly into a tenant. The PRD previously treated `tenant_id` as the only multi-tenancy primitive and never specced the tenant→IdP mapping; F-U2 + F-A2 close that gap.
+
+**Table `tenant_idp_config`** (one row per tenant, primary identity-policy record):
+
+```sql
+CREATE TABLE tenant_idp_config (
+  tenant_id                   UUID PRIMARY KEY REFERENCES organizations(id),
+  provider_type               TEXT NOT NULL
+                              CHECK (provider_type IN ('saml','oidc','password','magic')),
+  provider_label              TEXT,                       -- "Entra ID — Apex UK"
+  metadata_url                TEXT,                       -- SAML/OIDC metadata document
+  entity_id                   TEXT,                       -- SAML SP/IdP entity
+  x509_cert                   TEXT,                       -- SAML signing cert (PEM)
+  jit_provisioning            BOOLEAN NOT NULL DEFAULT false,
+  scim_token_hash             TEXT,                       -- argon2id of the SCIM bearer token
+  scim_token_last_four        TEXT,                       -- display-only, never the secret
+  enforce_for_non_admins      BOOLEAN NOT NULL DEFAULT false,
+  -- per-tenant session/MFA overrides (override §5.x defaults)
+  idle_timeout_min            INT NOT NULL DEFAULT 60,
+  session_max_h               INT NOT NULL DEFAULT 8,
+  mfa_required                BOOLEAN NOT NULL DEFAULT true,
+  mfa_required_for_roles      TEXT[] DEFAULT ARRAY['org.access.admin','org.schema.admin'],
+  mfa_allowed_methods         TEXT[] DEFAULT ARRAY['totp'],   -- 'totp' | 'sms' | 'webauthn'
+  password_complexity         TEXT NOT NULL DEFAULT 'strong', -- 'strong' | 'standard' | 'custom'
+  password_expiry_days        INT,                        -- NULL = no expiry (NIST SP 800-63B default)
+  created_at                  TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at                  TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+```
+
+**Behaviour:**
+- `provider_type='saml'` + `enforce_for_non_admins=true` → password login disabled for everyone except `org.access.admin` (break-glass account).
+- `jit_provisioning=true` + first SAML assertion for an unknown email → user row created in `users` and assigned the default role per `org_default_role`.
+- SCIM bearer requests authenticate via `scim_token_hash` argon2id-verify; on success, the request bypasses the normal session middleware and runs scoped to `tenant_id` + the `org.scim.write` system role.
+- Per-tenant overrides stack on top of §5.x defaults; an org may only relax `idle_timeout_min` upward in `'standard'` complexity mode and may not exceed cluster-wide hard limits.
+
+**UI:** the editor lives in **02-SETTINGS ACCESS pillar** (Org Admin only); see 02-SETTINGS-PRD §14.5 (SSO) / §14.6 (SCIM) / §14.7 (IP Allowlist).
+
 ### Open items multi-tenant
 
 - Upgrade strategy L2/L3/L4 opt-in granularity (Phase D §10 carry-forward; research §5.4 daje framework)
@@ -424,6 +508,326 @@ Implementacja: L2 config `tenant.dept_overrides` JSONB, run-time re-mapping casc
 
 ---
 
+## §9.1 — Manufacturing Operations (Process) Configuration Pattern [ADR-028 extension]
+
+### Pattern Overview
+
+Manufacturing operations (processes) use a configurable suffix-based naming scheme instead of hardcoded Process_A/B/C/D naming. This aligns with **P1 (Easy extension contract)** and **ADR-028 (schema-driven column definition)** by allowing per-tenant, per-industry process configuration through metadata lookup rather than code-level constants.
+
+**Generic physical columns:** `manufacturing_operation_1`, `manufacturing_operation_2`, `manufacturing_operation_3`, `manufacturing_operation_4`
+
+**Configuration source:** `Reference.ManufacturingOperations` table (operation_name → process_suffix mapping, per tenant)
+
+**Dynamic suffix assignment:** Tenant-scoped and industry-scoped via seed data
+
+**Examples:**
+
+Bakery scenario:
+- `manufacturing_operation_1 = "Mix"` → lookup Reference.ManufacturingOperations → retrieve `process_suffix = "MX"`
+- `intermediate_code_p1` generated as: `"WIP-MX-0000001"`
+
+Pharmacy scenario:
+- `manufacturing_operation_1 = "Synthesis"` → lookup → retrieve `process_suffix = "SY"`
+- `intermediate_code_p1` generated as: `"BATCH-SY-0000001"`
+
+### Reference.ManufacturingOperations Table [UNIVERSAL pattern, ORG-CONFIG values]
+
+**Table structure [UNIVERSAL]:**
+
+```sql
+CREATE TABLE "Reference.ManufacturingOperations" (
+    id              UUID PRIMARY KEY,
+    tenant_id       UUID NOT NULL,
+    operation_name  TEXT NOT NULL,         -- "Mix", "Knead", "Bake", "Synthesis", "Drying", etc.
+    process_suffix  TEXT NOT NULL,         -- "MX", "KN", "BK", "SY", "DR" (unique per tenant)
+    description     TEXT,
+    operation_seq   INT,                   -- Display/default order (1, 2, 3, 4, ...)
+    industry_code   TEXT,                  -- 'bakery' | 'pharma' | 'fmcg' (seed categorization)
+    is_active       BOOLEAN DEFAULT true,
+    marker          TEXT NOT NULL,         -- 'ORG-CONFIG' (values differ per tenant/industry)
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE UNIQUE INDEX idx_manufacturing_operations_tenant_suffix 
+  ON "Reference.ManufacturingOperations" (tenant_id, process_suffix);
+```
+
+**Marker distinction:**
+- `[UNIVERSAL]`: Table structure, configuration concept, cascade logic, constraint enforcement
+- `[ORG-CONFIG]`: `operation_name`, `process_suffix` values (differ per tenant and industry)
+
+### Intermediate Code Generation Formula
+
+**Generic pattern:**
+```
+intermediate_code_final = <prefix>-<process_suffix>-<sequence_number>
+```
+
+**Examples:**
+
+Bakery (Reference.CodePrefixes[intermediate].prefix = "WIP"):
+- `WIP-MX-0000001` (Mix operation, seq 1)
+- `WIP-BK-0000002` (Bake operation, seq 2)
+
+Pharmacy (Reference.CodePrefixes[intermediate].prefix = "BATCH"):
+- `BATCH-SY-0000001` (Synthesis operation, seq 1)
+- `BATCH-DR-0000004` (Drying operation, seq 4)
+
+FMCG (Reference.CodePrefixes[intermediate].prefix = "SKU"):
+- `SKU-MX-0000001` (Mix operation, seq 1)
+- `SKU-FL-0000002` (Fill operation, seq 2)
+
+The prefix is retrieved from `Reference.CodePrefixes` (existing table, [UNIVERSAL] structure with [ORG-CONFIG] values); the suffix is retrieved from `Reference.ManufacturingOperations` per-tenant lookup; the sequence number is auto-incremented per manufacturing operation per lots/work orders.
+
+### Cascading Rule Integration — Chain 2 (Manufacturing_Operation_N → Intermediate_Code_P*)
+
+**Rule type:** Cascading (ADR-029, [UNIVERSAL] logic with [ORG-CONFIG] suffix values)
+
+**Trigger:** When `manufacturing_operation_1`, `manufacturing_operation_2`, `manufacturing_operation_3`, or `manufacturing_operation_4` changes (in 01-NPD module or upon 08-PRODUCTION work order initialization)
+
+**Flow:**
+1. Look up `operation_name` (e.g., "Mix") in `Reference.ManufacturingOperations` for the current tenant
+2. Retrieve `process_suffix` (e.g., "MX")
+3. Generate `intermediate_code_pN` = `<intermediate_prefix>-<process_suffix>-<next_sequence>`
+4. Emit `fa.intermediate_code_changed` event (outbox pattern, [R1])
+
+**Example DSL snippet (ADR-029 format):**
+
+```json
+{
+  "rule_id": "manufacturing_operation_to_intermediate_code_cascade",
+  "rule_type": "cascading",
+  "triggers": [
+    "fa.manufacturing_operation_1.changed",
+    "fa.manufacturing_operation_2.changed",
+    "fa.manufacturing_operation_3.changed",
+    "fa.manufacturing_operation_4.changed"
+  ],
+  "actions": [
+    {
+      "lookup": "Reference.ManufacturingOperations",
+      "on_field": "operation_name",
+      "retrieve_field": "process_suffix",
+      "assign_to": "intermediate_code_pN",
+      "format": "{prefix}-{process_suffix}-{sequence}"
+    },
+    {
+      "emit_event": "fa.intermediate_code_changed",
+      "payload_fields": ["manufacturing_operation_N", "intermediate_code_pN", "process_suffix"]
+    }
+  ]
+}
+```
+
+This rule is **[UNIVERSAL]** in logic (lookup + cascade structure) but **[ORG-CONFIG]** in suffix values (each tenant defines their own operation_name→process_suffix mappings).
+
+### Template Application
+
+Templates reference `operation_name` values (not hardcoded positions):
+
+**Example template: "Mix-Knead-Proof-Bake" (Bakery [APEX-CONFIG] scenario)**
+
+```
+Template definition:
+  operation_1: "Mix"
+  operation_2: "Knead"
+  operation_3: "Proof"
+  operation_4: "Bake"
+```
+
+**On apply to FA (Final Assembly):**
+1. `manufacturing_operation_1` ← "Mix" → lookup "Mix" in Reference.ManufacturingOperations → `process_suffix` = "MX" → `intermediate_code_p1` = "WIP-MX-..."
+2. `manufacturing_operation_2` ← "Knead" → lookup → `process_suffix` = "KN" → `intermediate_code_p2` = "WIP-KN-..."
+3. `manufacturing_operation_3` ← "Proof" → lookup → `process_suffix` = "PR" → `intermediate_code_p3` = "WIP-PR-..."
+4. `manufacturing_operation_4` ← "Bake" → lookup → `process_suffix` = "BK" → `intermediate_code_p4` = "WIP-BK-..."
+
+Cascade rule fires for each operation_N assignment, emitting intermediate_code_pN updates + events.
+
+### Industry Seed Data [ORG-CONFIG]
+
+**Bakery (Reference.ManufacturingOperations seed for industry_code='bakery')**
+
+```json
+[
+  {
+    "operation_name": "Mix",
+    "process_suffix": "MX",
+    "operation_seq": 1,
+    "industry_code": "bakery",
+    "description": "Dry ingredient mixing"
+  },
+  {
+    "operation_name": "Knead",
+    "process_suffix": "KN",
+    "operation_seq": 2,
+    "industry_code": "bakery",
+    "description": "Dough kneading"
+  },
+  {
+    "operation_name": "Proof",
+    "process_suffix": "PR",
+    "operation_seq": 3,
+    "industry_code": "bakery",
+    "description": "Fermentation/proofing"
+  },
+  {
+    "operation_name": "Bake",
+    "process_suffix": "BK",
+    "operation_seq": 4,
+    "industry_code": "bakery",
+    "description": "Oven baking"
+  }
+]
+```
+
+**Pharmacy (Reference.ManufacturingOperations seed for industry_code='pharma')**
+
+```json
+[
+  {
+    "operation_name": "Synthesis",
+    "process_suffix": "SY",
+    "operation_seq": 1,
+    "industry_code": "pharma",
+    "description": "Chemical synthesis"
+  },
+  {
+    "operation_name": "Separation",
+    "process_suffix": "SE",
+    "operation_seq": 2,
+    "industry_code": "pharma",
+    "description": "Chromatography/separation"
+  },
+  {
+    "operation_name": "Crystallization",
+    "process_suffix": "CZ",
+    "operation_seq": 3,
+    "industry_code": "pharma",
+    "description": "Crystal formation"
+  },
+  {
+    "operation_name": "Drying",
+    "process_suffix": "DR",
+    "operation_seq": 4,
+    "industry_code": "pharma",
+    "description": "Moisture removal"
+  }
+]
+```
+
+**FMCG (Reference.ManufacturingOperations seed for industry_code='fmcg')**
+
+```json
+[
+  {
+    "operation_name": "Mix",
+    "process_suffix": "MX",
+    "operation_seq": 1,
+    "industry_code": "fmcg",
+    "description": "Bulk ingredient mixing"
+  },
+  {
+    "operation_name": "Fill",
+    "process_suffix": "FL",
+    "operation_seq": 2,
+    "industry_code": "fmcg",
+    "description": "Container filling"
+  },
+  {
+    "operation_name": "Seal",
+    "process_suffix": "SL",
+    "operation_seq": 3,
+    "industry_code": "fmcg",
+    "description": "Lid/seal application"
+  },
+  {
+    "operation_name": "Label",
+    "process_suffix": "LB",
+    "operation_seq": 4,
+    "industry_code": "fmcg",
+    "description": "Label placement"
+  }
+]
+```
+
+Seed data is applied **per new tenant** (Phase B.2 or Phase C.1 tenant onboarding flow), based on tenant's selected `industry_code`. Post-seed, tenant admins can edit operations via 02-SETTINGS Admin UI (Phase C.1).
+
+### Phase Implementation
+
+**Phase B.2 (01-NPD cascade engine):**
+- Implement lookup from manufacturing_operation_N → Reference.ManufacturingOperations.process_suffix (seed hardcoded per industry initially)
+- Integrate with Chain 2 cascading rule engine (ADR-029)
+- Generate intermediate_code_pN with dynamic suffix
+- Emit outbox events (R1, ADR-029)
+
+**Phase C1 (02-SETTINGS Admin UI):**
+- Add Manufacturing Operations editor in 02-SETTINGS schema-driven UI
+- CRUD operations: add/edit/delete/reorder operations per tenant
+- Validation: process_suffix uniqueness per tenant, alphanumeric 2-4 chars
+- Soft-delete (is_active flag) for backward compatibility
+- Dry-run capability (ADR-029 wizard): test suffix changes on sample FAs
+
+**Phase C+:**
+- Allow per-tenant customization (rename operation_name, adjust suffix, add new operations)
+- Industry-specific variations (e.g., Bakery subtype "Artisanal" vs "Industrial" with different operations)
+- Template library per operation set (Phase B.2 / C.1)
+
+### Phase B.2 Migration (Existing Tenants)
+
+**For tenants with existing hardcoded Process_1..4 (from v7 or earlier phases):**
+
+1. **Identify existing data:** Query `product` table for non-null `manufacturing_operation_1..4` values that currently hold "Process_A", "Process_B", "Process_C", "Process_D" (letter-based placeholders).
+
+2. **Seed generic operations:** Insert Reference.ManufacturingOperations rows with industry_code='generic':
+   ```sql
+   INSERT INTO "Reference.ManufacturingOperations" 
+     (tenant_id, operation_name, process_suffix, operation_seq, industry_code, is_active, marker)
+   VALUES 
+     (tenant_id, 'Process_A', 'PA', 1, 'generic', true, 'ORG-CONFIG'),
+     (tenant_id, 'Process_B', 'PB', 2, 'generic', true, 'ORG-CONFIG'),
+     (tenant_id, 'Process_C', 'PC', 3, 'generic', true, 'ORG-CONFIG'),
+     (tenant_id, 'Process_D', 'PD', 4, 'generic', true, 'ORG-CONFIG');
+   ```
+
+3. **Backfill existing FAs:** For each FA with non-null manufacturing_operation_N:
+   - Copy as-is (Process_A, Process_B, etc. remain valid operation_names)
+   - Cascade engine will look up process_suffix ("PA", "PB", "PC", "PD") at runtime
+   - Existing intermediate_code_pN values are NOT regenerated (backward compat)
+
+4. **Regenerate intermediate codes (optional, Phase C1+):** Tenant admin can trigger "Regenerate intermediate codes" wizard:
+   - Preview mode: show sample FAs with old vs new codes (e.g., PR-A-001 → WIP-PA-000001)
+   - User confirms scope (all FAs, date range, specific subset)
+   - Background job updates intermediate_code_pN columns for selected FAs
+   - Audit log tracks regeneration (user, timestamp, count of updated FAs)
+
+5. **Post-migration:** Tenant can optionally upgrade to industry-specific operations (Bakery/Pharmacy/FMCG) or custom operations via Phase C1 admin UI (export/import migrations available for bulk rename).
+
+### Related Architecture Decisions
+
+- **ADR-028**: Generic column definition in Reference.DeptColumns; extends to Reference.ManufacturingOperations
+- **ADR-029**: Rule engine DSL; Chain 2 cascade uses configurable suffix lookup
+- **ADR-030**: Configurable department taxonomy; manufacturing operations are cross-dept (01-NPD + 08-PRODUCTION consumers)
+- **P1**: Easy extension contract — operations configurable via UI, not hardcoded
+
+### Validation & Constraints
+
+- `process_suffix` must be **unique per tenant** (UNIQUE index enforced, ADR-028 constraint pattern)
+- `process_suffix` must be **2-4 alphanumeric characters** (regex validation in Admin UI + DB check constraint)
+- `operation_name` must be **non-empty** and unique within a tenant (optional: uniqueness enforced via UNIQUE index)
+- **Deletion safeguard**: Cannot delete an operation if referenced by:
+  - Active Template definitions (reference count check)
+  - Active FAs (manufacturing_operation_N values)
+  - Constraint enforced at application level (02-SETTINGS form cannot delete if count > 0)
+- `is_active` boolean allows soft-delete without breaking historical FAs
+
+### Cross-references (to be added in sibling PRDs)
+
+- **01-NPD-PRD §6 (Cascading Rules):** Reference this section for Chain 2 implementation (manufacturing_operation_N → intermediate_code_pN)
+- **02-SETTINGS-PRD § (Manufacturing Operations Editor):** Reference this section for UI requirements, validation, seed data structure
+- **08-PRODUCTION-PRD §X (Work Order Initialization):** Reference this section for operation_name lookup during WO creation from template
+
+---
+
 ## §10 — Event-first + AI/Trace-ready Schema [R1, R13]
 
 ### Outbox pattern od MVP
@@ -449,12 +853,14 @@ Worker publikuje do queue (Azure Service Bus / SQS / RabbitMQ). Hook za darmo dl
 
 ### Event naming ISA-95-compatible
 
-Format: `<tenant>/<site>/<area>/<line>/<event_type>`
+Format (queue routing key): `<tenant>/<site>/<area>/<line>/<event_type>`
 
 Przykłady:
 - `apex/uk-site/mixing-line/wo-4521/ccp-chilling-out-of-spec`
 - `apex/uk-site/warehouse/lp-8823/moved`
 - `apex/uk-site/shipping/shipment-1234/epcis-commissioning`
+
+**`event_type` aggregate prefixes (canonical):** `fa.*` (NPD 01 finished-article lifecycle — `fa.created`, `fa.core_closed`, `fa.dept_closed`, `fa.built`, `fa.built_reset`, `fa.allergens_changed`), `brief.*` (NPD brief), `org.*` / `user.*` / `role.*` / `audit.*` (foundation/settings), `lp.*` (warehouse), `wo.*` (production), `quality.*`, `shipment.*`. **`fa.*` is canonical for the NPD finished-article aggregate even after the ADR-034 physical rename of the underlying `fa` table to `product`** — event names are a domain contract, decoupled from storage. `product.*` is reserved for future product-master/reference-data events (D365 item master, BOM revisions) and is NOT a synonym for `fa.*`. Full aggregate registry + add-prefix process: `_meta/specs/event-naming-convention.md`. Source-of-truth enum: `lib/outbox/events.enum.ts`.
 
 ### Schema "AI-ready + traceability-ready" od dnia 1 [R13]
 
@@ -495,8 +901,47 @@ Wszystkie scanner-originated mutations (06-SCANNER) MUSZĄ akceptować client-ge
 ### i18n [R11] — UNIVERSAL od dnia 1
 Minimum **pl, en, uk, ro** baseline (Apex realnie ma UA+RO workers). ICU MessageFormat. Locale-aware date/number parsing. RTL-ready structure. Nie string concat.
 
-### Audit log
-Append-only `audit_events` tabela; triggers na business tables + event-sourced integration z rule engine (ADR-029). Retention per tabela. Zgodność: SOC 2, GDPR, FDA 21 CFR Part 11 (gdy US klient), FSMA 204 (traceability records).
+### Audit log [F-U3 per gap-backlog 2026-04-30, UNIVERSAL]
+
+Append-only `audit_events` table; triggers on business tables + event-sourced integration with the rule engine (ADR-029). Append-only is enforced at the DB level (no UPDATE / DELETE policy for any non-superadmin role; superadmin DELETE is itself logged to a separate immutable WORM bucket).
+
+**13-field schema:**
+
+```sql
+CREATE TABLE audit_events (
+  id              BIGSERIAL PRIMARY KEY,
+  tenant_id       UUID NOT NULL,                           -- 1. RLS scope
+  occurred_at     TIMESTAMPTZ NOT NULL DEFAULT now(),      -- 2. monotonic
+  actor_user_id   UUID,                                    -- 3. NULL when actor is system/SCIM
+  actor_type      TEXT NOT NULL                            -- 4. 'user' | 'system' | 'scim' | 'impersonation'
+                  CHECK (actor_type IN ('user','system','scim','impersonation')),
+  impersonator_id UUID,                                    -- 5. NOT NULL when actor_type='impersonation'
+  action          TEXT NOT NULL,                           -- 6. dot-string, e.g. 'org.security.policy.update'
+  resource_type   TEXT NOT NULL,                           -- 7. 'user' | 'role' | 'fa' | 'wo' | …
+  resource_id     TEXT NOT NULL,                           -- 8. UUID or natural key
+  before_state    JSONB,                                   -- 9. nullable for create
+  after_state     JSONB,                                   -- 10. nullable for delete
+  ip_address      INET,                                    -- 11.
+  user_agent      TEXT,                                    -- 12.
+  request_id      UUID NOT NULL,                           -- 13. correlates with outbox + tracing
+  retention_class TEXT NOT NULL DEFAULT 'standard'
+                  CHECK (retention_class IN ('security','standard','operational','ephemeral'))
+);
+CREATE INDEX ON audit_events (tenant_id, occurred_at DESC);
+CREATE INDEX ON audit_events (tenant_id, resource_type, resource_id, occurred_at DESC);
+CREATE INDEX ON audit_events (tenant_id, actor_user_id, occurred_at DESC) WHERE actor_user_id IS NOT NULL;
+```
+
+**Retention tiers** (per `retention_class`):
+
+| Class | Examples | Retention | Storage |
+|---|---|---|---|
+| `security` | login / logout / MFA enrol / role grant / SSO config / impersonation start+end / SCIM token issue | **7 years** | hot 90d + cold S3 Glacier with object-lock |
+| `standard` | business mutations on FA / WO / lot / shipment / quality_event | **3 years** | hot 1y + cold S3 |
+| `operational` | reference-data edits, schema-driven column changes, feature-flag toggles | **18 months** | hot |
+| `ephemeral` | UI-only navigation traces, dry-run previews | **30 days** | hot only |
+
+**Compliance scope:** SOC 2 CC6.1/CC6.3/CC7.2; GDPR Art. 30 (processing records) + Art. 32 (security of processing); FDA 21 CFR Part 11 (electronic records — when a US tenant requires it, `retention_class='security'` extends to **10 years**); FSMA 204 traceability records (handled via `aggregate_type IN ('lot','shipment')` rows). The `before_state` / `after_state` JSONB columns make every change reversible at the audit level (Part 11 §11.10(e) "secure, computer-generated, time-stamped audit trails"). Impersonation flows MUST write a paired `impersonation.start` + `impersonation.end` row with `actor_type='impersonation'` and `impersonator_id` populated; the `org.access.admin` UI surfaces this as a yellow banner.
 
 ### Regulatory roadmap — first-class artifact
 Proponowane utrzymanie w `_foundation/regulatory/` (Phase C task). Deadliny:
@@ -606,6 +1051,11 @@ Dodane do §13 open items.
 - [ ] RLS policy coverage 100% business tables
 - [ ] DR documented + tested quarterly
 - [ ] Tests run w app-role (nigdy superuser) w CI
+- [ ] **MFA-by-default** for both `org.access.admin` and `org.schema.admin` system roles in every new tenant (`tenant_idp_config.mfa_required_for_roles` seeded with both) [F-U5 per gap-backlog 2026-04-30]
+- [ ] **Password policy = NIST SP 800-63B-aligned** by default: min 12 characters, no expiry, breach-check via HIBP k-anonymity, last-5 history; `password_complexity='strong'` is the seed value for every new `tenant_idp_config` row [F-U5]
+- [ ] **Idle-timeout default = 60 minutes** absolute; **session_max_h default = 8 hours**; both org-tunable per §8.x within cluster-wide hard caps [F-U5]
+- [ ] **SSO baseline = SAML 2.0 + Microsoft Entra ID connector** available to every tenant from day 1 (no upsell gating); SCIM 2.0 endpoints exposed when `tenant_idp_config.scim_token_hash IS NOT NULL` [F-U5]
+- [ ] **Magic-link invitation TTL = 7 days, single-use, signed**; codified, not Supabase-default; expiry shown to inviter and a self-service "resend" path is available [F-U5]
 
 ### Compliance
 
@@ -735,10 +1185,16 @@ Dodane do §13 open items.
 
 ## Changelog
 
+- **v4.2 (2026-04-30, UX→PRD gap-backlog amendments)** — Applied UX→PRD gap-backlog (`_meta/plans/2026-04-30-ux-prd-plan-gap-backlog.md`) §MODULE 00-FOUNDATION. **Updates:** F-U1 §5 Tech Stack — Auth & Identity Stack (§5.x) added with 6 OSS libraries locked (GoTrue/Supabase Auth, `@boxyhq/saml-jackson`, `otplib`, `@simplewebauthn/server`, `argon2`, Supabase auth-helpers); F-U2 §8 Multi-tenant — `tenant_idp_config` table + per-tenant IdP mapping (§8.x); F-U3 §11 Audit log — expanded from 1 paragraph to 13-field schema with 4 retention tiers (security 7y / standard 3y / operational 18mo / ephemeral 30d) + Part 11 + GDPR Art. 30/32 alignment; F-U4 §3 Personas — Administrator split into Org Admin (ACCESS pillar) + Schema Admin (ADMIN pillar) per SOC 2 CC6.3 separation-of-duties; F-U5 §13 Success Criteria — added 5 niefunkcjonalne items (MFA-by-default, NIST password policy, idle timeout default, SSO baseline, magic-link 7-day TTL). **Additions:** F-A1 §5.x Auth & Identity Stack (~330 words, [UNIVERSAL]); F-A2 §8.x Per-tenant IdP Mapping with full DDL (~210 words, [UNIVERSAL]); F-A3 §5.y Shared UI Primitives `@monopilot/ui` workspace package + 10 MODAL-SCHEMA patterns + Storybook 8/axe-core CI (~210 words, [UNIVERSAL]); F-A4 §4.2-AMENDMENT addendum adding `00-FOUNDATION-impl-j` to the Foundation set as a critical-path blocker before any T3-ui task. ADR-034 markers `[UNIVERSAL]` applied to all new sections. Coverage 60% → ≥85% per gap-backlog target.
+
+- **v4.1 (2026-04-30, Phase E-0 prep)** — Three Phase B.2 PRD-suite clarifications before Phase E-0 kickoff: (1) Added **§4.2-AMENDMENT** (per ADR-032) explicitly listing Phase E-0 atomic foundation tasks `00-FOUNDATION-impl-a..i` as the prerequisite for 01-NPD-a (replacing vague "Foundation infra w minimum scope"), and clarifying parallel Track A / Track B build sequence with `_meta/plans/2026-04-22-phase-e-kickoff-plan.md` as authoritative source; (2) Disambiguated event naming in §10 — `fa.*` is canonical for the NPD finished-article aggregate, `product.*` is reserved for future product-master/reference-data events; published full aggregate registry in `_meta/specs/event-naming-convention.md`; (3) Added **§4.3-AMENDMENT** finalising the table-naming decision: physical table renamed `fa` → `product` (Option B per ADR-034), `fa` retained as a backward-compat read-only SQL view through Phase C1 D365 adapter cutover. No structural changes to existing sections.
+
+- **v4.0 (2026-04-30)** — Added §9.1 Manufacturing Operations (Process) Configuration Pattern. Documents configurable suffix-based naming scheme (Reference.ManufacturingOperations) for manufacturing_operation_1..4 fields. Includes pattern overview, table schema [UNIVERSAL] + [ORG-CONFIG] marker discipline, cascade rule integration (ADR-029 Chain 2), template application, industry seed data (bakery/pharma/fmcg), phase implementation roadmap (B.2/C1/C+), and cross-references to sibling PRDs (01-NPD, 02-SETTINGS, 08-PRODUCTION). Aligns with P1 (easy extension contract) and ADR-028 (schema-driven pattern).
+
 - **v3.0 (2026-04-18)** — Phase B.1 full rewrite. Phase D renumbering (01-NPD primary, 02-SETTINGS, etc.), 6 principles embedded, marker discipline, R1-R15 research decisions, reference to MES-TRENDS-2026.md + MONOPILOT-V2-ARCHITECTURE.md + META-MODEL + ADR-028-031. Wycięte: stare metryki biznesowe, pre-Phase-D numbering, per-module requirements, Supabase lock-in language. Pre-Phase-D ADRs (001-019) deep review deferred do osobnej sesji (§14 open item #13). Old PRD v2.3 archived w git history.
 
 - **v2.3 (2026-02-18)** — pre-Phase-D last version. 16 modułów M00-M15, 77 requirements, 18 ADRs (001-019). Stare numerowanie (M01=Settings, M09=NPD).
 
 ---
 
-*PRD 00-FOUNDATION v3.0 — Phase B.1 rewrite. Next: Phase B.2 (01-NPD primary).*
+*PRD 00-FOUNDATION v4.2 — UX→PRD gap-backlog amendments F-U1..F-U5 + F-A1..F-A4 applied (auth subsystem, per-tenant IdP, expanded audit log, persona split, UI primitives package). Next: Phase E-0 kickoff (`00-FOUNDATION-impl-a..j`).*

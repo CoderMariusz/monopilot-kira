@@ -1,0 +1,37 @@
+{
+  "title": "T-011 — API: Item deactivate (POST /api/technical/items/:item_code/deactivate) with V-TEC-05",
+  "prompt": "Implement POST /api/technical/items/[item_code]/deactivate per §6.2 and V-TEC-05. Body: { reason: 'discontinued'|'recipe_change'|'d365_mismatch'|'other', notes?: string, target_status: 'deprecated'|'blocked' }. Status transition rules: blocked->active requires owner approval flag (return 403 unless approver field also set). Soft transition only — never DELETE rows. Audit log entry with action='item.deactivate'. Permission gate: technical.items.deactivate. RED tests/api/items-deactivate.test.ts. Run: `pnpm vitest run tests/api/items-deactivate.test.ts`.",
+  "labels": ["prd", "api", "items-deactivate", "T2-api"],
+  "priority": 80,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-011",
+    "source_prd": "03-TECHNICAL-PRD.md",
+    "prd_refs": ["§6.2", "§6.4", "§6.6"],
+    "category": "api",
+    "subcategory": "items-deactivate",
+    "task_type": "T2-api",
+    "parent_feature": "03-TECHNICAL-a Item Master",
+    "context_budget": "20k",
+    "estimated_effort": "1-2h",
+    "description": "Item deactivate endpoint enforcing reason + audit + status transition rules.",
+    "details": "Reason enum mirrors UI TEC-081 modal options. blocked->active reverse path requires explicit approver_user_id property and owner permission. Active BOMs referencing this item should not be auto-deactivated.",
+    "scope_files": ["app/api/technical/items/[item_code]/deactivate/route.ts", "lib/technical/items/lifecycle.ts", "tests/api/items-deactivate.test.ts"],
+    "out_of_scope": ["BOM side-effects", "UI"],
+    "dependencies": ["T-010"],
+    "parallel_safe_with": ["T-012", "T-013"],
+    "acceptance_criteria": [
+      "Given item active, when POST deactivate with reason='discontinued', then status='deprecated' and audit row written.",
+      "Given POST without reason field, when validated, then 422 returned.",
+      "Given item blocked, when POST to set active without approver_user_id, then 403 V-TEC-05 returned.",
+      "Given user without technical.items.deactivate, when POST runs, then 403."
+    ],
+    "test_strategy": ["RED tests for each reason path + missing approver case.", "Run: pnpm vitest run tests/api/items-deactivate.test.ts"],
+    "risk_red_lines": ["Do not delete rows.", "Do not auto-deactivate dependent BOMs."],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {"required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"], "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]},
+    "routing_hints": {"red": "hermes_gpt55", "implementation": "hermes_gpt55", "review": "opus_if_high_risk_or_ui_or_architecture", "close": "spark_low_risk_else_opus"}
+  }
+}

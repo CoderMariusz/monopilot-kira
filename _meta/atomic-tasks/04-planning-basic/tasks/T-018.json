@@ -1,0 +1,67 @@
+{
+  "title": "T-018 — API: WO create + BOM snapshot → wo_materials",
+  "prompt": "Implement Server Action `createWorkOrder(input)` per PRD §8.1 (FR-PLAN-017) + §8.2 (FR-PLAN-020). Steps:\n1. Auto-select active BOM (FR-PLAN-018) by query `bom WHERE product_id = wo.product_id AND effective_from <= scheduled_date AND (effective_to IS NULL OR effective_to > scheduled_date)` ORDER BY effective_from DESC LIMIT 1. User override allowed.\n2. Snapshot bom_items → wo_materials with required_qty = bom_item.qty * (wo.planned_quantity / bom.output_qty) * (1 + scrap_percent/100). Default material_source='stock'.\n3. Copy routing_operations → wo_operations (FR-PLAN-019).\n4. Create wo_outputs row with output_role='primary', allocation_pct=100% (cascade generation T-019 will adjust for co-products).\n5. Calls T-017 for numbering.\n6. Status='DRAFT'. Outbox event 'wo.created'.\n\nV-PLAN-WO-001 (planned_quantity > 0). V-PLAN-WO-002 enforced at release time, not create.\n\nRED test asserts BOM snapshot math, primary output insertion, immutable post-release rule.",
+  "labels": ["prd", "api", "wo-create", "T2-api"],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-018",
+    "source_prd": "04-PLANNING-BASIC-PRD.md",
+    "prd_refs": ["§8.1", "§8.2", "§8.11"],
+    "category": "api",
+    "subcategory": "wo-create",
+    "task_type": "T2-api",
+    "parent_feature": "planning-wo",
+    "context_budget": "40k",
+    "estimated_effort": "3-4h",
+    "description": "WO creation with BOM snapshot, routing copy, primary output insertion, outbox emit.",
+    "details": "Single transaction. BOM snapshot is immutable post-release (ADR-002) — service guard refuses updates to wo_materials when wo.status != 'DRAFT'. Co-products + byproducts handled by T-019 cascade generator (separate task). is_rework=true skips BOM lookup; user must provide manual materials.",
+    "scope_files": [
+      "src/server/actions/planning/wo-create.ts [create]",
+      "src/server/actions/planning/wo-bom-snapshot.ts [create]",
+      "src/app/api/planning/work-orders/route.ts [create]",
+      "src/server/actions/planning/__tests__/wo-create.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Cascade DAG generation (T-019)",
+      "WO release transition (T-021)",
+      "Reservation creation (T-021 side-effect)"
+    ],
+    "dependencies": ["T-004", "T-005", "T-007", "T-017"],
+    "parallel_safe_with": ["T-019", "T-020"],
+    "acceptance_criteria": [
+      "Given a BOM with output_qty=10 and a bom_item qty=2 + scrap_percent=5, when WO planned_quantity=20 is created, then wo_materials.required_qty = 2 * (20/10) * 1.05 = 4.20.",
+      "Given a WO post-create, when wo_outputs is queried, then exactly 1 row exists with output_role='primary' and allocation_pct=100.00.",
+      "Given a WO at status='RELEASED', when an attempt to update wo_materials.required_qty is made, then the service refuses with HTTP 409 'WO_RELEASED_MATERIALS_IMMUTABLE'.",
+      "Given `pnpm vitest run src/server/actions/planning/__tests__/wo-create.test.ts`, when run, then 0 failures."
+    ],
+    "test_strategy": [
+      "RED tests for snapshot math, primary insertion, immutability post-release, BOM auto-select latest effective_from.",
+      "Run `pnpm vitest run src/server/actions/planning/__tests__/wo-create.test.ts`."
+    ],
+    "risk_red_lines": [
+      "Do not mutate wo_materials post-release — ADR-002 immutability is load-bearing.",
+      "Do not skip BOM auto-select when bom_id is unspecified — must respect §8.1.",
+      "Do not create wo_outputs primary allocation_pct < 100 in non-cascade path."
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

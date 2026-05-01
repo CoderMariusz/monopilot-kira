@@ -1,0 +1,61 @@
+{
+  "title": "T-009 — Drizzle migration: production_outbox_events + outbox_status_enum + RLS",
+  "prompt": "# T-009 — Drizzle migration: production_outbox_events\n\nPRD: 08-PRODUCTION-PRD.md §9.10, §12.3, §16.4 V-PROD-11/12/20\n\n## Goal\nCreate outbox_status_enum + production_outbox_events table per §9.10 with event_id UNIQUE (V-PROD-11 R14 idempotency), attempt_count CHECK <=5 (V-PROD-12), tenant_id RLS (V-PROD-20).\n\n## Implementation contract\npackages/db/schema/production/production-outbox-events.ts: pgEnum outbox_status_enum ('pending','dispatching','delivered','failed','in_dlq'). Table: PK id BIGSERIAL, event_id UUID UNIQUE NOT NULL (V-PROD-11), tenant_id, event_type text, aggregate_id, payload JSONB NOT NULL, target_system text NOT NULL, target_payload JSONB, status enum default 'pending', attempt_count INTEGER NOT NULL default 0 CHECK <=5 (V-PROD-12), next_retry_at, last_error, delivered_at, idempotency_key text, enqueued_at default now. Indexes: idx_outbox_dispatch partial WHERE status IN ('pending','failed'), idx_outbox_aggregate, idx_outbox_type_time. RLS by tenant_id (V-PROD-20).\n\n## Files (scope)\n- packages/db/schema/production/production-outbox-events.ts [create]\n- packages/db/schema/production/enums.ts [modify]\n- packages/db/schema/production/index.ts [modify]\n- packages/db/migrations/NNNN_production_outbox_events.sql [create]\n- packages/db/__tests__/production-outbox-events-schema.test.ts [create]\n\n## Acceptance criteria\n1. Given two INSERTs share event_id, when both run, then second fails with unique_violation (V-PROD-11 R14)\n2. Given INSERT attempt_count=6, when run, then CHECK rejects (V-PROD-12)\n3. Given migration applied, when pg_indexes queried, then idx_outbox_dispatch partial WHERE status IN ('pending','failed') exists\n\n## Test strategy\n- RED: schema test asserting event_id UNIQUE + attempt_count CHECK before schema exists\n- Run 'pnpm --filter db drizzle:generate && pnpm --filter db test production-outbox-events-schema'\n\n## Risk red lines\n- Do not change enum values (breaks dispatcher state machine)\n- Do not relax event_id UNIQUE (R14 idempotency broken)\n- Do not skip RLS (V-PROD-20 tenant leak risk)",
+  "labels": ["prd", "data", "schema-migration", "T1-schema"],
+  "priority": 50,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-009",
+    "source_prd": "08-PRODUCTION-PRD.md",
+    "prd_refs": ["§9.10", "§12.3", "§16.4 V-PROD-11", "§16.4 V-PROD-12", "§16.4 V-PROD-20"],
+    "category": "data",
+    "subcategory": "schema-migration",
+    "task_type": "T1-schema",
+    "parent_feature": "08-PROD E5 INTEGRATIONS stage 2",
+    "context_budget": "24k",
+    "estimated_effort": "1h",
+    "description": "production_outbox_events table with outbox_status_enum, event_id UNIQUE, dispatch partial index, RLS.",
+    "details": "Per §9.10 SQL. pgEnum outbox_status_enum 5 values. event_id UUID UNIQUE for V-PROD-11. attempt_count CHECK <=5 (V-PROD-12). Three indexes incl partial idx_outbox_dispatch WHERE status IN ('pending','failed'). RLS by tenant_id (V-PROD-20).",
+    "scope_files": [
+      "packages/db/schema/production/production-outbox-events.ts [create]",
+      "packages/db/schema/production/enums.ts [modify]",
+      "packages/db/schema/production/index.ts [modify]",
+      "packages/db/migrations/NNNN_production_outbox_events.sql [create]",
+      "packages/db/__tests__/production-outbox-events-schema.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not implement dispatcher service",
+      "Do not implement D365 adapter",
+      "Do not modify other tables"
+    ],
+    "dependencies": [],
+    "parallel_safe_with": ["T-001", "T-002", "T-003", "T-004", "T-005", "T-006", "T-007", "T-008", "T-010"],
+    "acceptance_criteria": [
+      "Given duplicate event_id INSERT, when run, then unique_violation raised",
+      "Given attempt_count=6 INSERT, when run, then CHECK rejects",
+      "Given migration applied, when pg_indexes queried, then idx_outbox_dispatch partial index exists with predicate status IN ('pending','failed')"
+    ],
+    "test_strategy": [
+      "RED: schema test asserting event_id UNIQUE + attempt_count CHECK + partial index before schema exists",
+      "Run 'pnpm --filter db drizzle:generate && pnpm --filter db test production-outbox-events-schema'"
+    ],
+    "risk_red_lines": [
+      "Do not change enum values",
+      "Do not relax event_id UNIQUE",
+      "Do not skip RLS"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

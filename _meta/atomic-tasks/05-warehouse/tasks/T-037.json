@@ -1,0 +1,61 @@
+{
+  "title": "T-037 — use_by expired manager override service",
+  "prompt": "# T-037 — use_by expired manager override\n\nPRD: `05-WAREHOUSE-PRD.md` §12.2, §12.6 (FR-WH-039), V-WH-EXP-006.\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`.\n\n## Goal\n`overrideUseByExpiry(lpId, reasonCode, reasonText)` Server Action that allows Manager/Admin to unblock an expired use_by LP with mandatory audit + email notification.\n\n## Implementation contract\n`apps/web/lib/services/warehouse/use-by-override.ts`. RBAC: Manager/Admin only. reasonCode IN ('operational_requirement','quality_secondary_use','disposal_pending','other'); reason_text mandatory. Steps: insert use_by_override_log row {lp_id, manager_user_id, reason_code, reason_text, overridden_at, expiry_until=NOW()+24h}; set LP.status='available' (transition via T-019); send email per 02-SETTINGS EmailConfig; emit outbox 'lp.use_by_override' (deferred T-047).\n\n## Files (scope)\n- apps/web/lib/services/warehouse/use-by-override.ts [create]\n- packages/db/src/schema/use-by-override-log.ts [create]\n- packages/db/migrations/0NN_use_by_override_log.sql [create]\n- apps/web/lib/services/warehouse/__tests__/use-by-override.test.ts [create]\n\n## Acceptance criteria\n1. Given a Manager calls overrideUseByExpiry with valid reason_code+text, when service runs, then LP transitions to 'available' and a use_by_override_log row exists.\n2. Given an Operator caller, when service runs, then RBAC error returns.\n3. Given missing reason_text, when service runs, then V-WH-EXP-006 validation error returns.\n4. Given the override completes, when email queue is inspected, then a notification record references the LP and reason.\n\n## Test strategy\n- RED: use-by-override.test.ts covers RBAC, missing reason, happy path + email queue assertion.\n- Run `pnpm --filter web test use-by-override`.\n\n## Risk red lines\n- Do not modify LP.expiry_date.\n- Do not skip audit row + email.\n- Do not allow Operator role.",
+  "labels": ["prd", "api", "expiry", "T2-api"],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-037",
+    "source_prd": "05-WAREHOUSE-PRD.md",
+    "prd_refs": ["§12.2", "§12.6"],
+    "category": "api",
+    "subcategory": "expiry",
+    "task_type": "T2-api",
+    "parent_feature": "warehouse-expiry",
+    "context_budget": "25k",
+    "estimated_effort": "1-2h",
+    "description": "Manager/Admin use_by override service with audit log + email per V-WH-EXP-006.",
+    "details": "New use_by_override_log table; expiry_until timestamp; outbox emission deferred T-047.",
+    "scope_files": [
+      "apps/web/lib/services/warehouse/use-by-override.ts [create]",
+      "packages/db/src/schema/use-by-override-log.ts [create]",
+      "packages/db/migrations/0NN_use_by_override_log.sql [create]",
+      "apps/web/lib/services/warehouse/__tests__/use-by-override.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Modal UI (T-065)",
+      "Email integration (assumes 02-SETTINGS EmailConfig present)",
+      "Outbox wiring (T-047)"
+    ],
+    "dependencies": ["T-019", "T-009"],
+    "parallel_safe_with": ["T-035", "T-036"],
+    "acceptance_criteria": [
+      "Given Manager call with valid reason_code+text, when run, then LP transitions to 'available' and use_by_override_log row exists",
+      "Given Operator caller, when run, then RBAC error returns",
+      "Given missing reason_text, when run, then V-WH-EXP-006 validation error returns",
+      "Given override completes, when email queue is inspected, then a notification references the LP and reason"
+    ],
+    "test_strategy": [
+      "RED: use-by-override.test.ts covers RBAC, missing reason, happy + email queue",
+      "Run 'pnpm --filter web test use-by-override'"
+    ],
+    "risk_red_lines": [
+      "Do not modify LP.expiry_date",
+      "Do not skip audit row + email",
+      "Do not allow Operator role"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

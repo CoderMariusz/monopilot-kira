@@ -1,0 +1,35 @@
+{
+  "title": "T-068 — Docs: TEC-052 Cost Import from D365 prototype gap brief",
+  "prompt": "Write engineering brief for missing TEC-052 'Cost Import from D365' prototype per §11.5 [NO-PROTOTYPE-YET]. Output: design/specs/TEC-052-cost-import-d365.md covering: D365 cost pull endpoint -> diff preview table (current vs incoming, percent delta, source) -> batch confirm with audit note. Cross-link to T-028 pull worker and T-021 cost write path. Until prototype lands, T3-ui implementation is OUT OF SCOPE for Phase 1.",
+  "labels": ["prd", "docs", "spec-cost-import-d365", "docs"],
+  "priority": 150,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-068",
+    "source_prd": "03-TECHNICAL-PRD.md",
+    "prd_refs": ["§11.5 TEC-052", "§4A TEC-052"],
+    "category": "docs",
+    "subcategory": "spec-cost-import-d365",
+    "task_type": "docs",
+    "parent_feature": "03-TECHNICAL-d D365",
+    "context_budget": "10k",
+    "estimated_effort": "1h",
+    "description": "Brief unblocking TEC-052 prototype design.",
+    "details": "Document diff preview row schema (current cost, incoming cost, delta, source), the batch-confirm guardrails (V-TEC-53 high-variance approver), and audit note format.",
+    "scope_files": ["design/specs/TEC-052-cost-import-d365.md"],
+    "out_of_scope": ["Prototype JSX", "Implementation"],
+    "dependencies": ["T-028", "T-021"],
+    "parallel_safe_with": ["T-064", "T-065", "T-066", "T-067"],
+    "acceptance_criteria": [
+      "Given the brief, when reviewed, then diff preview schema, V-TEC-53 enforcement, and audit-note flow are specified.",
+      "Given the brief, when read by a designer, then a labelled prototype can be produced."
+    ],
+    "test_strategy": ["Manual review.", "No automated tests for docs."],
+    "risk_red_lines": ["Do not require live D365 access for this doc."],
+    "skills": ["requesting-code-review"],
+    "checkpoint_policy": {"required_checkpoints": ["REVIEW", "CLOSEOUT"], "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]},
+    "routing_hints": {"red": "hermes_gpt55", "implementation": "hermes_gpt55", "review": "opus_if_high_risk_or_ui_or_architecture", "close": "spark_low_risk_else_opus"}
+  }
+}

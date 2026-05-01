@@ -1,0 +1,58 @@
+{
+  "title": "T-012 — Warehouse RLS policies (tenant_id isolation, ADR-003/013)",
+  "prompt": "# T-012 — Warehouse RLS policies\n\nPRD: `05-WAREHOUSE-PRD.md` §3, §16.5 (ADR-003/013).\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`.\n\n## Goal\nEnable Row-Level Security on every warehouse-owned table with tenant_id matching `current_setting('app.tenant_id')::uuid` per ADR-003/013.\n\n## Implementation contract\nMigration `0NN_warehouse_rls.sql` ALTERs each table (license_plates, lp_genealogy, lp_reservations, grns, grn_items, stock_moves, pick_overrides, shelf_life_rules, warehouse_settings) ENABLE ROW LEVEL SECURITY + CREATE POLICY tenant_isolation FOR ALL USING (tenant_id = current_setting('app.tenant_id')::uuid).\nConfirm `app.tenant_id` is set in `packages/db/src/connection.ts` per request middleware (assumed present from 00-FOUNDATION).\n\n## Files (scope)\n- packages/db/migrations/0NN_warehouse_rls.sql [create]\n- packages/db/src/schema/__tests__/warehouse-rls.test.ts [create]\n\n## Acceptance criteria\n1. Given two LPs with different tenant_id, when SELECT runs with `app.tenant_id` set to tenant A, then only tenant A's rows are returned.\n2. Given INSERT with mismatched tenant_id (vs session setting), when committed, then DB raises an RLS violation.\n3. Given `app.tenant_id` is unset, when SELECT runs against license_plates, then DB raises (NULL cast) error or returns 0 rows depending on policy strictness — confirm the chosen behavior is documented.\n\n## Test strategy\n- RED: warehouse-rls.test.ts using two test tenants verifying isolation and forced-deny.\n- Run `pnpm --filter db migrate && pnpm --filter db test warehouse-rls`.\n\n## Risk red lines\n- Do not skip RLS on any warehouse table.\n- Do not use BYPASSRLS roles in production.\n- Do not derive tenant from JWT (per ADR-013 users.org_id only).",
+  "labels": ["prd", "data", "rls", "T1-schema"],
+  "priority": 80,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-012",
+    "source_prd": "05-WAREHOUSE-PRD.md",
+    "prd_refs": ["§3", "§16.5"],
+    "category": "data",
+    "subcategory": "rls",
+    "task_type": "T1-schema",
+    "parent_feature": "warehouse-foundation",
+    "context_budget": "20k",
+    "estimated_effort": "1h",
+    "description": "Enable RLS on all warehouse tables and add tenant_isolation policy per ADR-003/013.",
+    "details": "Migration ALTERs nine warehouse tables ENABLE ROW LEVEL SECURITY + CREATE POLICY tenant_isolation. Tests use two-tenant fixture to assert isolation and forced-deny.",
+    "scope_files": [
+      "packages/db/migrations/0NN_warehouse_rls.sql [create]",
+      "packages/db/src/schema/__tests__/warehouse-rls.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Connection-pool middleware (assumed from 00-FOUNDATION)",
+      "JWT-based tenant derivation (forbidden by ADR-013)",
+      "Per-role policies beyond tenant isolation"
+    ],
+    "dependencies": ["T-002", "T-003", "T-004", "T-005", "T-006", "T-007", "T-008", "T-009"],
+    "parallel_safe_with": ["T-011"],
+    "acceptance_criteria": [
+      "Given two LPs in different tenants, when SELECT runs with app.tenant_id=tenantA, then only tenant A rows are returned",
+      "Given INSERT with tenant_id mismatching the session setting, when committed, then DB raises an RLS violation",
+      "Given app.tenant_id is unset, when SELECT runs against license_plates, then the DB returns zero rows or a documented NULL-cast error"
+    ],
+    "test_strategy": [
+      "RED: warehouse-rls.test.ts using two-tenant fixture",
+      "Run 'pnpm --filter db migrate && pnpm --filter db test warehouse-rls'"
+    ],
+    "risk_red_lines": [
+      "Do not skip RLS on any warehouse table",
+      "Do not use BYPASSRLS roles in production",
+      "Do not derive tenant from JWT"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

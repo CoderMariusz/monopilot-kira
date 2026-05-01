@@ -1,0 +1,57 @@
+{
+  "title": "T-020 — GET /api/scheduler/forecasts (filter + pagination)",
+  "prompt": "# T-020 — GET /api/scheduler/forecasts (filter + pagination)\n\nPRD: 07-PLANNING-EXT-PRD.md §8.2 GET /api/scheduler/forecasts\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nImplement GET endpoint for forecasts list with filters ?product_id=&week_from=&week_to=&source= and pagination (default 50/page).\n\n## Implementation contract\n1. Route `apps/web/src/app/api/scheduler/forecasts/route.ts`: GET with Zod-validated query params.\n2. Returns only current rows (superseded_at IS NULL) by default; ?include_superseded=true returns full history.\n3. RBAC: Planner Advanced + NPD Manager (own products only — V-SCHED-09 P2 retention applies as filter, not 422).\n4. Single Drizzle query with composable filters; uses idx_demand_forecasts_current.\n\n## Files\n- apps/web/src/app/api/scheduler/forecasts/route.ts [create]\n- apps/web/src/app/api/scheduler/forecasts/__tests__/route.test.ts [create]\n\n## Acceptance criteria\n1. Given 30 forecasts (10 current + 20 superseded), when GET without include_superseded runs, then 10 current rows returned\n2. Given GET ?include_superseded=true, when called, then 30 rows returned\n3. Given NPD Manager role, when GET runs, then only forecasts where product_id IN NPD scope are returned (filter, not 403)\n\n## Test strategy\n- RED: write __tests__/route.test.ts covering filter + supersession + RBAC scope filter\n- Run 'pnpm --filter web test scheduler/forecasts'\n\n## Risk red lines\n- Do not return superseded forecasts by default (audit-only opt-in)\n- Do not return 403 for NPD Manager (their scope is filter-limited, not auth-blocked)\n- Do not skip pagination (10k rows would break Gantt linking)",
+  "labels": ["prd", "api", "endpoint-get", "T2-api"],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-020",
+    "source_prd": "07-PLANNING-EXT-PRD.md",
+    "prd_refs": ["§8.2"],
+    "category": "api",
+    "subcategory": "endpoint-get",
+    "task_type": "T2-api",
+    "parent_feature": "07-EXT-c forecast list",
+    "context_budget": "40k",
+    "estimated_effort": "1h",
+    "description": "List forecasts with filters, default current-only, include_superseded opt-in, NPD scope filter, pagination 50/page.",
+    "details": "Single Drizzle query with composable WHERE filters keyed off the partial index idx_demand_forecasts_current. NPD Manager scope acts as filter on product_id, not auth block.",
+    "scope_files": [
+      "apps/web/src/app/api/scheduler/forecasts/route.ts [create]",
+      "apps/web/src/app/api/scheduler/forecasts/__tests__/route.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not implement override forecast cell endpoint (P2, separate task)",
+      "Do not implement Prophet retrain trigger here (T-062)"
+    ],
+    "dependencies": ["T-004"],
+    "parallel_safe_with": ["T-019"],
+    "acceptance_criteria": [
+      "Given 30 forecasts (10 current + 20 superseded), when GET without include_superseded runs, then 10 current rows returned",
+      "Given GET ?include_superseded=true, when called, then 30 rows returned",
+      "Given NPD Manager role, when GET runs, then only forecasts where product_id IN NPD scope are returned"
+    ],
+    "test_strategy": [
+      "RED: write __tests__/route.test.ts covering supersession default + opt-in + NPD scope filter",
+      "Run 'pnpm --filter web test scheduler/forecasts'"
+    ],
+    "risk_red_lines": [
+      "Do not return superseded forecasts by default",
+      "Do not return 403 for NPD Manager (filter, not block)",
+      "Do not skip pagination"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

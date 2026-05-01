@@ -1,0 +1,62 @@
+{
+  "title": "T-034 — LP lock + move + split APIs (06-c)",
+  "prompt": "# T-034 — LP lock / release / move / split APIs\n\nPRD: 06-SCANNER-P1-PRD.md §8.3 FR-SC-BE-030/031/032/033; 05-WH §13.4 lock + §6.4 split\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nLand `POST /lock-lp` (5min lease per 05-WH §13.4), `POST /release-lock`, `POST /move-lp`, and `POST /split-lp` (per 05-WH §6.4 split semantics).\n\n## Implementation contract\n1. lock-lp: insert/update lp_lock row keyed (lp_id, operation_type) with expires_at = now()+5min; if held by other ⇒ 409 SC_LP_LOCKED with held_by + held_since.\n2. release-lock: delete lock row matched by user.\n3. move-lp: validate LP available/reserved (not consumed/hold/blocked), destination ≠ current, same warehouse; insert stock_moves move_type='move'.\n4. split-lp: insert new LP with inherited batch/expiry/product, decrement original qty by split_qty, must split_qty < original.qty; tx-wrapped.\n\n## Files\n- apps/scanner/src/app/api/warehouse/scanner/lock-lp/route.ts [create]\n- apps/scanner/src/app/api/warehouse/scanner/release-lock/route.ts [create]\n- apps/scanner/src/app/api/warehouse/scanner/move-lp/route.ts [create]\n- apps/scanner/src/app/api/warehouse/scanner/split-lp/route.ts [create]\n- apps/scanner/src/server/services/warehouse-lp.ts [create]\n- apps/scanner/__tests__/api/warehouse-lp.test.ts [create]\n\n## Acceptance criteria\n1. Given user A holds a 5min lock on LP X, when user B POSTs /lock-lp for LP X, then 409 SC_LP_LOCKED with held_by=A and held_since timestamp\n2. Given LP X status='consumed', when POST /move-lp is called for LP X, then 409 SC_LP_CONSUMED and no stock_moves row is inserted\n3. Given LP X qty=50 and POST /split-lp split_qty=20, when the response returns 200, then a new LP exists with qty=20 inherited batch/expiry/product, original LP.qty=30, and one stock_moves row with move_type='split' is recorded\n\n## Test strategy\n- RED: write warehouse-lp.test.ts asserting lock conflict + consumed-block + split correctness before implementation\n- Run 'pnpm --filter scanner test api/warehouse-lp'\n\n## Risk red lines\n- Do not allow split_qty ≥ original qty\n- Do not skip the transaction for split\n- Do not allow move-lp to destinations across warehouses (must use TO flow)",
+  "labels": ["prd", "api", "warehouse-lp", "T2-api"],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-034",
+    "source_prd": "06-SCANNER-P1-PRD.md",
+    "prd_refs": ["§8.3 FR-SC-BE-030..033"],
+    "category": "api",
+    "subcategory": "warehouse-lp-ops",
+    "task_type": "T2-api",
+    "parent_feature": "06-c Warehouse Movement",
+    "context_budget": "35k",
+    "estimated_effort": "2-3h",
+    "description": "Four LP-modifying endpoints (lock, release, move, split) with 5-min lease, RLS, and tx-wrapped split.",
+    "details": "Single service file warehouse-lp.ts hosts the implementations. lock_lps row uniquely keyed on (lp_id, operation_type). Move enforces destination ≠ current and same-warehouse. Split is fully transactional, inheriting batch/expiry/product into the new LP and emitting a stock_moves row.",
+    "scope_files": [
+      "apps/scanner/src/app/api/warehouse/scanner/lock-lp/route.ts [create]",
+      "apps/scanner/src/app/api/warehouse/scanner/release-lock/route.ts [create]",
+      "apps/scanner/src/app/api/warehouse/scanner/move-lp/route.ts [create]",
+      "apps/scanner/src/app/api/warehouse/scanner/split-lp/route.ts [create]",
+      "apps/scanner/src/server/services/warehouse-lp.ts [create]",
+      "apps/scanner/__tests__/api/warehouse-lp.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not implement supervisor force-release here (separate task)",
+      "Do not implement merge-lp here (out of P1)",
+      "Do not implement SCN-031/060 UI here (T-035, T-036)"
+    ],
+    "dependencies": ["T-007"],
+    "parallel_safe_with": ["T-037", "T-038", "T-039"],
+    "acceptance_criteria": [
+      "Given user A holds a 5min lock on LP X, when user B POSTs /lock-lp for LP X, then 409 SC_LP_LOCKED with held_by=A and held_since timestamp",
+      "Given LP X status='consumed', when POST /move-lp is called for LP X, then 409 SC_LP_CONSUMED and no stock_moves row is inserted",
+      "Given LP X qty=50 and POST /split-lp split_qty=20, when the response returns 200, then a new LP with qty=20 (inherited batch/expiry/product) exists, original.qty=30 and one stock_moves row with move_type='split' is recorded"
+    ],
+    "test_strategy": [
+      "RED: write warehouse-lp.test.ts asserting lock conflict + consumed-block + split correctness before implementation",
+      "Run 'pnpm --filter scanner test api/warehouse-lp'"
+    ],
+    "risk_red_lines": [
+      "Do not allow split_qty ≥ original qty",
+      "Do not skip transaction for split",
+      "Do not allow move-lp across warehouses"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

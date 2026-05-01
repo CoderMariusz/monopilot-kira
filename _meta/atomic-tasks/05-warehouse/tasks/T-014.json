@@ -1,0 +1,59 @@
+{
+  "title": "T-014 — Seed fefo_strategy_v1 DSL rule",
+  "prompt": "# T-014 — Seed fefo_strategy_v1 DSL rule\n\nPRD: `05-WAREHOUSE-PRD.md` §9.1, §9.2, ADR-029.\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`.\n\n## Goal\nSeed the rule registry with `fefo_strategy_v1` whose query implementation matches §9.2 SQL and respects qa_status gating.\n\n## Implementation contract\nSeed JSON `packages/db/seed/rules/fefo-strategy-v1.json` declaring inputs (product_id, warehouse_id, qty_required, target_qa_status default ['PASSED','RELEASED']) and outputs (sorted suggestions ranked by expiry asc nulls last, then created_at asc). Implementation hint references §9.2 SQL. Seed script upserts.\n\n## Files (scope)\n- packages/db/seed/rules/fefo-strategy-v1.json [create]\n- packages/db/seed/rules/fefo-strategy-v1.seed.ts [create]\n- packages/db/seed/rules/__tests__/fefo-strategy-v1.test.ts [create]\n\n## Acceptance criteria\n1. Given the seed runs, when rule_registry is queried, then `fefo_strategy_v1` v1.0 exists with PRD §9.1 input/output shape.\n2. Given a sample product fixture with three LPs (expiring 2026-05-01, 2026-05-10, NULL), when the rule executes, then suggestions rank LP-2026-05-01 first and NULL-expiry last.\n3. Given an LP with qa_status='HOLD', when the rule executes with default target_qa_status, then the LP is excluded from suggestions.\n\n## Test strategy\n- RED: fefo-strategy-v1.test.ts seeds three LP fixtures and asserts ranking and HOLD exclusion.\n- Run `pnpm --filter db test fefo-strategy-v1`.\n\n## Risk red lines\n- Do not allow blocked or expired LPs.\n- Do not change PRD ordering rules.\n- Rule must be admin read-only.",
+  "labels": ["prd", "data", "rule-registry", "T5-seed"],
+  "priority": 80,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-014",
+    "source_prd": "05-WAREHOUSE-PRD.md",
+    "prd_refs": ["§9.1", "§9.2", "ADR-029"],
+    "category": "data",
+    "subcategory": "rule-registry",
+    "task_type": "T5-seed",
+    "parent_feature": "warehouse-foundation",
+    "context_budget": "25k",
+    "estimated_effort": "1h",
+    "description": "Seed fefo_strategy_v1 DSL rule with §9.2 query and qa_status gating defaults.",
+    "details": "JSON DSL + seed script. Inputs/outputs per §9.1; implementation maps to §9.2 SQL. Tests via three-LP fixture.",
+    "scope_files": [
+      "packages/db/seed/rules/fefo-strategy-v1.json [create]",
+      "packages/db/seed/rules/fefo-strategy-v1.seed.ts [create]",
+      "packages/db/seed/rules/__tests__/fefo-strategy-v1.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Endpoint exposure (T-030, T-042)",
+      "Admin UI",
+      "P2 v2 optimizer rule"
+    ],
+    "dependencies": ["T-002"],
+    "parallel_safe_with": ["T-013", "T-015"],
+    "acceptance_criteria": [
+      "Given the seed runs, when rule_registry is queried, then fefo_strategy_v1 v1.0 exists with PRD §9.1 input/output shape",
+      "Given three-LP fixture (2026-05-01, 2026-05-10, NULL expiry), when the rule executes, then 2026-05-01 ranks first and NULL ranks last",
+      "Given an LP with qa_status='HOLD', when the rule executes with defaults, then it is excluded"
+    ],
+    "test_strategy": [
+      "RED: fefo-strategy-v1.test.ts with three-LP fixture asserting order + HOLD exclusion",
+      "Run 'pnpm --filter db test fefo-strategy-v1'"
+    ],
+    "risk_red_lines": [
+      "Do not include blocked/expired LPs",
+      "Do not deviate from §9.2 ordering",
+      "Do not allow admin runtime edits"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

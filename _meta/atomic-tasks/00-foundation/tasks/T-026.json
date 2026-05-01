@@ -1,0 +1,87 @@
+{
+  "title": "T-026 \u2014 Stepper primitive with Back/Next/Jump/Restart and persisted step state",
+  "prompt": "# T-026 \u2014 Stepper primitive with Back/Next/Jump/Restart and persisted step state\n\nPRD: `00-FOUNDATION-PRD.md` \u2014 sections: \u00a75.y\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`\n\n## Goal\nMulti-step wizard primitive (Stepper) with Back/Next/Jump-to-step/Restart actions, progress indicator, and persisted step state. Used by the 10 MODAL-SCHEMA Wizard pattern (P1).\n\n## Implementation contract\nImplement packages/ui/src/Stepper.tsx: receives steps: {id,label,canEnter?}[] and currentStep, emits onChange. Renders nav with aria-current='step', a Back button (disabled at step 0), a Next button (disabled when current step has validation errors), and a Jump menu when canEnter() returns true. Persists step state via a stepperStore (Zustand) keyed by a wizard id passed in props. Add Storybook story 'Stepper/8-step-wizard' replicating the email_template_edit_modal multi-step pattern. The Settings prototype's email_template_edit_modal (modals.jsx:141-259) is the canonical 8-step wizard reference.\n\n## Files (scope)\n- packages/ui/src/Stepper.tsx [create]\n- packages/ui/src/stepper-store.ts [create]\n- packages/ui/.storybook/Stepper.stories.tsx [create]\n- packages/ui/src/__tests__/Stepper.test.tsx [create]\n- design/Monopilot Design System/settings/modals.jsx:141-259 [ref]\n\n## Acceptance criteria\n1. Given the Stepper renders, when compared to the email_template_edit_modal in design/Monopilot Design System/settings/modals.jsx:141-259, then it matches structurally (top nav with N step labels, body slot, footer with Back + Next + a Cancel slot), visually (uses Radix Tabs underlying primitive \u2014 not raw divs \u2014 with same density tokens from tokens.css), and interactionally (Back disabled on step 0, Next disabled when current step has validation errors, ESC behaviour follows Modal contract) \u2014 verified by Stepper.test.tsx counting buttons + asserting disabled states\n2. Given the user navigates Back/Next, when stepperStore is inspected, then current_step is persisted across re-renders without prop drilling\n3. Given canEnter(step3) returns false, when the user clicks Jump-to-step-3, then the click is rejected and currentStep does not change\n\n## Test strategy\n- RED: write packages/ui/src/__tests__/Stepper.test.tsx asserting parity (button count, disabled states, ESC handling) before Stepper.tsx exists\n- Run 'pnpm --filter @monopilot/ui test'\n\n## Risk red lines\n- Do not bypass the Modal primitive when used inside a Dialog \u2014 Stepper composes inside Modal, never replaces it\n\n## Dependencies (must be complete first)\n- T-025\n\n## Closeout evidence\nProvide: changed_files, test_commands_and_results, acceptance_criteria_status (per AC), deviations_from_prd, git_status. Use the test-driven-development skill (RED test before implementation) and requesting-code-review at GREEN.",
+  "labels": [
+    "prd",
+    "ui",
+    "primitives",
+    "T3-ui"
+  ],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-026",
+    "source_prd": "00-FOUNDATION-PRD.md",
+    "prd_refs": [
+      "\u00a75.y"
+    ],
+    "category": "ui",
+    "subcategory": "primitives",
+    "task_type": "T3-ui",
+    "parent_feature": "00-FOUNDATION-impl-j UI primitives",
+    "context_budget": "50k",
+    "estimated_effort": "2-3h",
+    "description": "Multi-step wizard primitive (Stepper) with Back/Next/Jump-to-step/Restart actions, progress indicator, and persisted step state. Used by the 10 MODAL-SCHEMA Wizard pattern (P1).",
+    "details": "Implement packages/ui/src/Stepper.tsx: receives steps: {id,label,canEnter?}[] and currentStep, emits onChange. Renders nav with aria-current='step', a Back button (disabled at step 0), a Next button (disabled when current step has validation errors), and a Jump menu when canEnter() returns true. Persists step state via a stepperStore (Zustand) keyed by a wizard id passed in props. Add Storybook story 'Stepper/8-step-wizard' replicating the email_template_edit_modal multi-step pattern. The Settings prototype's email_template_edit_modal (modals.jsx:141-259) is the canonical 8-step wizard reference.",
+    "scope_files": [
+      "packages/ui/src/Stepper.tsx [create]",
+      "packages/ui/src/stepper-store.ts [create]",
+      "packages/ui/.storybook/Stepper.stories.tsx [create]",
+      "packages/ui/src/__tests__/Stepper.test.tsx [create]",
+      "design/Monopilot Design System/settings/modals.jsx:141-259 [ref]"
+    ],
+    "out_of_scope": [
+      "Do not modify files outside the scope_files list",
+      "Do not introduce business logic from later module PRDs (01-NPD, 02-SETTINGS, etc.)",
+      "No business-logic step transitions in this task"
+    ],
+    "dependencies": [
+      "T-025"
+    ],
+    "parallel_safe_with": [
+      "T-027",
+      "T-028",
+      "T-029"
+    ],
+    "acceptance_criteria": [
+      "Given the Stepper renders, when compared to the email_template_edit_modal in design/Monopilot Design System/settings/modals.jsx:141-259, then it matches structurally (top nav with N step labels, body slot, footer with Back + Next + a Cancel slot), visually (uses Radix Tabs underlying primitive \u2014 not raw divs \u2014 with same density tokens from tokens.css), and interactionally (Back disabled on step 0, Next disabled when current step has validation errors, ESC behaviour follows Modal contract) \u2014 verified by Stepper.test.tsx counting buttons + asserting disabled states",
+      "Given the user navigates Back/Next, when stepperStore is inspected, then current_step is persisted across re-renders without prop drilling",
+      "Given canEnter(step3) returns false, when the user clicks Jump-to-step-3, then the click is rejected and currentStep does not change"
+    ],
+    "test_strategy": [
+      "RED: write packages/ui/src/__tests__/Stepper.test.tsx asserting parity (button count, disabled states, ESC handling) before Stepper.tsx exists",
+      "Run 'pnpm --filter @monopilot/ui test'"
+    ],
+    "risk_red_lines": [
+      "Do not bypass the Modal primitive when used inside a Dialog \u2014 Stepper composes inside Modal, never replaces it"
+    ],
+    "skills": [
+      "test-driven-development",
+      "verification-before-completion",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

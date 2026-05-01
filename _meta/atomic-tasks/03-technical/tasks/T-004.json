@@ -1,0 +1,43 @@
+{
+  "title": "T-004 — Migration: allergen tables (item profiles, manufacturing_op additions, contamination risk)",
+  "prompt": "Create Drizzle migration for the allergen family per §5.4. Tables: `item_allergen_profiles`(org_id,item_id,allergen_code [TEXT, soft FK reference_tables.allergens_reference.row_key], source TEXT CHECK in ('brief_declared','supplier_spec','lab_result','cascaded','manual_override'), intensity TEXT DEFAULT 'contains' CHECK in ('contains','may_contain','trace'), confidence TEXT DEFAULT 'declared' CHECK in ('declared','tested','assumed'), declared_by, declared_at TIMESTAMPTZ DEFAULT now(), manual_override_reason TEXT, PRIMARY KEY (org_id,item_id,allergen_code)). `manufacturing_operation_allergen_additions`(org_id, manufacturing_operation_name TEXT, allergen_code, reason TEXT, PRIMARY KEY (org_id,manufacturing_operation_name,allergen_code)). `allergen_contamination_risk`(id PK, org_id, line_id UUID nullable, machine_id UUID nullable, allergen_code, risk_level TEXT CHECK in ('high','medium','low','segregated'), mitigation TEXT, last_assessed_at, assessed_by). RLS org_id-scoped on all three. RED in tests/db/allergens.migration.test.ts. Command: `pnpm vitest run tests/db/allergens.migration.test.ts`.",
+  "labels": ["prd", "data", "schema-allergens", "T1-schema"],
+  "priority": 50,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-004",
+    "source_prd": "03-TECHNICAL-PRD.md",
+    "prd_refs": ["§5.4", "§10.1", "§10.4", "§10.5"],
+    "category": "data",
+    "subcategory": "schema-allergens",
+    "task_type": "T1-schema",
+    "parent_feature": "03-TECHNICAL-b Allergens",
+    "context_budget": "25k",
+    "estimated_effort": "1-2h",
+    "description": "Three allergen-domain tables with RLS, source/intensity/confidence enums, contamination risk grid.",
+    "details": "allergen_code is TEXT with no hard FK — soft reference to reference_tables.allergens_reference (02-SETTINGS) so EU-14 + org custom rows are valid. manufacturing_operation_name aligned with reference_tables.manufacturing_operations.row_key (00-FOUNDATION §9.1). line_id and machine_id reference 02-SETTINGS.production_lines/machines (FK if present, else soft).",
+    "scope_files": [
+      "db/migrations/0xxx_allergens.sql",
+      "db/schema/allergens.ts",
+      "tests/db/allergens.migration.test.ts"
+    ],
+    "out_of_scope": ["Cascade rule logic (T-024)", "Override audit emit (T-025)", "Allergen UI (T-046..050)"],
+    "dependencies": ["T-001"],
+    "parallel_safe_with": ["T-002", "T-003", "T-005", "T-006", "T-007"],
+    "acceptance_criteria": [
+      "Given migration applied, when inserting an item_allergen_profiles row with invalid intensity, then CHECK rejects.",
+      "Given two orgs share the same allergen_code, when RLS is active per org, then rows from the other org are not visible.",
+      "Given allergen_contamination_risk row with risk_level not in enum, then insert fails."
+    ],
+    "test_strategy": [
+      "RED tests for CHECK constraints and RLS isolation.",
+      "Run: pnpm vitest run tests/db/allergens.migration.test.ts"
+    ],
+    "risk_red_lines": ["Do not introduce hard FK on allergen_code — keep schema-driven extensibility per ADR-028."],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {"required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"], "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]},
+    "routing_hints": {"red": "hermes_gpt55", "implementation": "hermes_gpt55", "review": "opus_if_high_risk_or_ui_or_architecture", "close": "spark_low_risk_else_opus"}
+  }
+}

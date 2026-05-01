@@ -1,0 +1,83 @@
+{
+  "title": "T-019 \u2014 Configurable department taxonomy seed (ADR-030) with 7 Apex depts and dept_overrides JSONB",
+  "prompt": "# T-019 \u2014 Configurable department taxonomy seed (ADR-030) with 7 Apex depts and dept_overrides JSONB\n\nPRD: `00-FOUNDATION-PRD.md` \u2014 sections: \u00a79\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`\n\n## Goal\nMigration 011 creating Reference.Departments + tenant.dept_overrides JSONB. Seed the 7 Apex depts (core/technical/packaging/mrp/planning/production/price) for the Apex tenant with [APEX-CONFIG] marker.\n\n## Implementation contract\nMigration 011-departments.sql: Reference.Departments(id, tenant_id, code TEXT, display_name, role_description, marker TEXT). Add organizations.dept_overrides JSONB DEFAULT '{}'::jsonb. Seed 7 rows for the Apex tenant per PRD \u00a79 table. Test asserts the 7 codes exist and the marker column equals 'APEX-CONFIG' for each. Test also asserts a second tenant can opt-out of the seed (dept_overrides={'merge': {'mrp+planning': 'supply_chain'}}).\n\n## Files (scope)\n- packages/db/migrations/011-departments.sql [create]\n- packages/db/seeds/apex-departments.sql [create]\n- packages/db/__tests__/departments.integration.test.ts [create]\n\n## Acceptance criteria\n1. Given the Apex departments seed runs, when SELECT code FROM Reference.Departments WHERE tenant_id=apex runs, then the result equals exactly {core, technical, packaging, mrp, planning, production, price}\n2. Given a second tenant inserts dept_overrides='{\"merge\":{\"mrp+planning\":\"supply_chain\"}}', when read back, then the JSONB roundtrips exactly\n3. Given the marker column, when queried for Apex rows, then every row has marker='APEX-CONFIG'\n\n## Test strategy\n- RED: write packages/db/__tests__/departments.integration.test.ts asserting all 3 AC before the migration exists\n- Run 'pnpm --filter @monopilot/db test:integration -- departments'\n\n## Risk red lines\n- Do not split MRP \u2014 PRD \u00a79 explicit decision (#15)\n\n## Dependencies (must be complete first)\n- T-006\n\n## Closeout evidence\nProvide: changed_files, test_commands_and_results, acceptance_criteria_status (per AC), deviations_from_prd, git_status. Use the test-driven-development skill (RED test before implementation) and requesting-code-review at GREEN.",
+  "labels": [
+    "prd",
+    "data",
+    "taxonomy",
+    "T5-seed"
+  ],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-019",
+    "source_prd": "00-FOUNDATION-PRD.md",
+    "prd_refs": [
+      "\u00a79"
+    ],
+    "category": "data",
+    "subcategory": "taxonomy",
+    "task_type": "T5-seed",
+    "parent_feature": "00-FOUNDATION dept taxonomy",
+    "context_budget": "40k",
+    "estimated_effort": "1-2h",
+    "description": "Migration 011 creating Reference.Departments + tenant.dept_overrides JSONB. Seed the 7 Apex depts (core/technical/packaging/mrp/planning/production/price) for the Apex tenant with [APEX-CONFIG] marker.",
+    "details": "Migration 011-departments.sql: Reference.Departments(id, tenant_id, code TEXT, display_name, role_description, marker TEXT). Add organizations.dept_overrides JSONB DEFAULT '{}'::jsonb. Seed 7 rows for the Apex tenant per PRD \u00a79 table. Test asserts the 7 codes exist and the marker column equals 'APEX-CONFIG' for each. Test also asserts a second tenant can opt-out of the seed (dept_overrides={'merge': {'mrp+planning': 'supply_chain'}}).",
+    "scope_files": [
+      "packages/db/migrations/011-departments.sql [create]",
+      "packages/db/seeds/apex-departments.sql [create]",
+      "packages/db/__tests__/departments.integration.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not modify files outside the scope_files list",
+      "Do not introduce business logic from later module PRDs (01-NPD, 02-SETTINGS, etc.)",
+      "No dept-override runtime engine (deferred per ADR-030)"
+    ],
+    "dependencies": [
+      "T-006"
+    ],
+    "parallel_safe_with": [
+      "T-017",
+      "T-018"
+    ],
+    "acceptance_criteria": [
+      "Given the Apex departments seed runs, when SELECT code FROM Reference.Departments WHERE tenant_id=apex runs, then the result equals exactly {core, technical, packaging, mrp, planning, production, price}",
+      "Given a second tenant inserts dept_overrides='{\"merge\":{\"mrp+planning\":\"supply_chain\"}}', when read back, then the JSONB roundtrips exactly",
+      "Given the marker column, when queried for Apex rows, then every row has marker='APEX-CONFIG'"
+    ],
+    "test_strategy": [
+      "RED: write packages/db/__tests__/departments.integration.test.ts asserting all 3 AC before the migration exists",
+      "Run 'pnpm --filter @monopilot/db test:integration -- departments'"
+    ],
+    "risk_red_lines": [
+      "Do not split MRP \u2014 PRD \u00a79 explicit decision (#15)"
+    ],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

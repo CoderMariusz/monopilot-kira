@@ -1,0 +1,60 @@
+{
+  "title": "T-003 — changeover_matrix + changeover_matrix_versions tables",
+  "prompt": "# T-003 — changeover_matrix + changeover_matrix_versions tables\n\nPRD: 07-PLANNING-EXT-PRD.md §9.4, §6 D5 (per-line override)\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nIntroduce `changeover_matrix` (allergen pair changeover lookup, per-line override supported per D5) + `changeover_matrix_versions` (versioned active flag) with RLS, unique constraints, and partial unique index for one active version per tenant.\n\n## Implementation contract\n1. Migration `packages/db/migrations/0072_changeover_matrix.sql`: CREATE TABLE changeover_matrix_versions (per §9.4 DDL) + CREATE TABLE changeover_matrix (per §9.4 DDL) — line_id NULL = default tenant-wide, non-NULL = override.\n2. UNIQUE (tenant_id, version_id, line_id, allergen_from, allergen_to) on changeover_matrix; partial UNIQUE INDEX idx_changeover_active_per_tenant ON changeover_matrix_versions(tenant_id) WHERE is_active=true.\n3. RLS policies on both tables; idx_changeover_matrix_active.\n4. Drizzle schema entries.\n\n## Files\n- packages/db/migrations/0072_changeover_matrix.sql [create]\n- packages/db/src/schema/changeover_matrix.ts [create]\n- packages/db/src/schema/index.ts [modify]\n- packages/db/__tests__/changeover-matrix.test.ts [create]\n\n## Acceptance criteria\n1. Given migration 0072 applied, when \\d changeover_matrix and \\d changeover_matrix_versions run, then all §9.4 columns + RLS + partial unique index on is_active=true exist\n2. Given two rows with is_active=true for same tenant, when second INSERT runs, then it fails the partial unique index\n3. Given line_id NULL (default) and line_id='LINE-03' (override) for same allergen pair + version, when both INSERTed, then both succeed (UNIQUE permits NULL+specific)\n\n## Test strategy\n- RED: write packages/db/__tests__/changeover-matrix.test.ts asserting partial unique on active version + per-line override permitted\n- Run 'pnpm --filter db migrate && pnpm --filter db test changeover-matrix'\n\n## Risk red lines\n- Do not skip the partial unique index (D5 constraint: only one active version per tenant)\n- Do not skip RLS\n- Do not implement seeding here (T-010)",
+  "labels": ["prd", "data", "schema", "T1-schema"],
+  "priority": 50,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-003",
+    "source_prd": "07-PLANNING-EXT-PRD.md",
+    "prd_refs": ["§9.4", "§6 D5"],
+    "category": "data",
+    "subcategory": "schema-matrix",
+    "task_type": "T1-schema",
+    "parent_feature": "07-EXT-b allergen optimizer",
+    "context_budget": "40k",
+    "estimated_effort": "1-2h",
+    "description": "Create changeover_matrix + changeover_matrix_versions with RLS, per-line override support (D5), partial unique active version flag.",
+    "details": "Migration 0072 emits both tables per §9.4 DDL. line_id NULL = default tenant-wide; non-NULL = override. Partial unique on is_active=true ensures only one active version per tenant. Drizzle schema mirrors columns. RED test verifies override semantics and active-version uniqueness.",
+    "scope_files": [
+      "packages/db/migrations/0072_changeover_matrix.sql [create]",
+      "packages/db/src/schema/changeover_matrix.ts [create]",
+      "packages/db/src/schema/index.ts [modify]",
+      "packages/db/__tests__/changeover-matrix.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not seed allergen rows here (T-010)",
+      "Do not implement editor UI (T-036)",
+      "Do not implement CSV import (T-039)"
+    ],
+    "dependencies": [],
+    "parallel_safe_with": ["T-001", "T-002", "T-004", "T-005", "T-006"],
+    "acceptance_criteria": [
+      "Given migration 0072 applied, when \\d changeover_matrix and \\d changeover_matrix_versions run, then all §9.4 columns + RLS + partial unique on is_active=true exist",
+      "Given two rows with is_active=true for same tenant, when second INSERT runs, then partial unique index rejects it",
+      "Given default (line_id NULL) and override (line_id='LINE-03') rows for same allergen pair + version, when both INSERTed, then both succeed"
+    ],
+    "test_strategy": [
+      "RED: write packages/db/__tests__/changeover-matrix.test.ts asserting per-line override + partial unique on active version",
+      "Run 'pnpm --filter db migrate && pnpm --filter db test changeover-matrix'"
+    ],
+    "risk_red_lines": [
+      "Do not skip the partial unique index on is_active=true",
+      "Do not skip RLS policy",
+      "Do not seed data in this migration"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

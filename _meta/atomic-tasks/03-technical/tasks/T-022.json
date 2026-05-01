@@ -1,0 +1,37 @@
+{
+  "title": "T-022 — API: Routings + routing_operations CRUD",
+  "prompt": "Implement /api/technical/items/[item_code]/routings (list, create version) and nested /operations (sequence editor) per §12.4 + V-TEC-60..63. Validate: V-TEC-60 (op_no contiguous, no gaps), V-TEC-61 (each op has line_id OR machine_id), V-TEC-62 (run_time_per_unit_sec > 0), V-TEC-63 (manufacturing_operation_name in reference_tables.manufacturing_operations.row_key). Approve workflow mirrors BOM (draft -> approved -> active with prior superseded). Audit log. RED tests/api/routings.test.ts. Run: `pnpm vitest run tests/api/routings.test.ts`.",
+  "labels": ["prd", "api", "routings", "T2-api"],
+  "priority": 80,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-022",
+    "source_prd": "03-TECHNICAL-PRD.md",
+    "prd_refs": ["§12.1", "§12.2", "§12.4", "§12.5"],
+    "category": "api",
+    "subcategory": "routings",
+    "task_type": "T2-api",
+    "parent_feature": "03-TECHNICAL-c Routing",
+    "context_budget": "30k",
+    "estimated_effort": "3h",
+    "description": "Routings CRUD with sequence + resource validation; approve/publish workflow.",
+    "details": "Use the same supersede pattern as BOMs. Cost preview computation lives separately (T-023). manufacturing_operation_name link to bom_lines field used for cross-checks but no DB FK.",
+    "scope_files": ["app/api/technical/items/[item_code]/routings/route.ts", "app/api/technical/items/[item_code]/routings/[version]/route.ts", "lib/technical/routing/service.ts", "tests/api/routings.test.ts"],
+    "out_of_scope": ["Cost preview (T-023)", "Resource utilization Gantt computation (Phase 2 detail)"],
+    "dependencies": ["T-006"],
+    "parallel_safe_with": ["T-021", "T-023", "T-024"],
+    "acceptance_criteria": [
+      "Given operations [1,2,4], when POST runs, then 422 V-TEC-60 (gap).",
+      "Given op without line_id and machine_id, when POST, then 422 V-TEC-61.",
+      "Given run_time_per_unit_sec=0 for production op, when POST, then 422 V-TEC-62.",
+      "Given manufacturing_operation_name not in reference_table, when POST, then 422 V-TEC-63."
+    ],
+    "test_strategy": ["RED tests for each V-TEC-60..63 violation.", "Run: pnpm vitest run tests/api/routings.test.ts"],
+    "risk_red_lines": ["Do not delete routing rows (soft supersede only)."],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {"required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"], "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]},
+    "routing_hints": {"red": "hermes_gpt55", "implementation": "hermes_gpt55", "review": "opus_if_high_risk_or_ui_or_architecture", "close": "spark_low_risk_else_opus"}
+  }
+}

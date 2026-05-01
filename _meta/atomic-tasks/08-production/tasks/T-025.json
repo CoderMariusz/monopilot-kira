@@ -1,0 +1,59 @@
+{
+  "title": "T-025 — Genealogy write on consumption (lp_genealogy INSERT)",
+  "prompt": "# T-025 — Genealogy write on consumption\n\nPRD: 08-PRODUCTION-PRD.md §7.2 FR-08-E2-004, §13 R1, §5.3#2 FSMA 204\n\n## Goal\nWire wo_material_consumption to write `lp_genealogy` row (consumed LP → WO) inside the same atomic transaction so genealogy is never broken (R1).\n\n## Implementation contract\nExtend consume-to-wo service: after INSERT into wo_material_consumption, INSERT into lp_genealogy (defined in 05-WH §11) with operation_type='consume', source_lp_id=lp_id, target_wo_id=wo_id, qty=qty_consumed, created_at=now. The genealogy table is owned by 05-WH; this task only adds the INSERT call. Add an integration test verifying that for every wo_material_consumption row a lp_genealogy row exists with matching transaction_id.\n\n## Files (scope)\n- packages/api-services/production/consume-to-wo.ts [modify]\n- packages/api-services/integrations/genealogy-adapter.ts [create]\n- packages/api-services/production/__tests__/consumption-genealogy.test.ts [create]\n\n## Acceptance criteria\n1. Given consume-to-wo succeeds, when querying lp_genealogy by source_lp_id, then a row exists with operation_type='consume', target_wo_id matching the WO, and qty matching qty_consumed\n2. Given a transaction error during genealogy INSERT, when consume-to-wo runs, then the entire transaction rolls back and no wo_material_consumption row remains\n3. Given 100 sequential consumptions, when querying SELECT count(*) FROM lp_genealogy WHERE target_wo_id=:wo_id, then count equals 100 (R1 zero-loss invariant)\n\n## Test strategy\n- RED: integration test asserting lp_genealogy row written + rollback on error before genealogy-adapter exists\n- Run 'pnpm --filter api-services test consumption-genealogy'\n\n## Risk red lines\n- Do not allow genealogy INSERT to fail silently (R1 critical)\n- Do not write lp_genealogy outside the consumption transaction\n- Do not modify lp_genealogy schema (05-WH owns)",
+  "labels": ["prd", "api", "consumption", "T2-api"],
+  "priority": 80,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-025",
+    "source_prd": "08-PRODUCTION-PRD.md",
+    "prd_refs": ["§7.2 FR-08-E2-004", "§13 R1", "§5.3#2"],
+    "category": "api",
+    "subcategory": "consumption",
+    "task_type": "T2-api",
+    "parent_feature": "08-PROD E2 Consumption",
+    "context_budget": "26k",
+    "estimated_effort": "1-2h",
+    "description": "Inline lp_genealogy INSERT inside consume-to-wo transaction for FSMA 204 + R1.",
+    "details": "Genealogy adapter inserts row referencing source_lp_id + target_wo_id with operation_type='consume'. Atomic with consumption insert: rollback if either fails. lp_genealogy schema lives in 05-WH; this task uses the existing adapter contract.",
+    "scope_files": [
+      "packages/api-services/production/consume-to-wo.ts [modify]",
+      "packages/api-services/integrations/genealogy-adapter.ts [create]",
+      "packages/api-services/production/__tests__/consumption-genealogy.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not modify lp_genealogy schema",
+      "Do not implement output genealogy (T-031 wires output side)",
+      "Do not implement genealogy query API"
+    ],
+    "dependencies": ["T-023"],
+    "parallel_safe_with": ["T-024", "T-026", "T-027"],
+    "acceptance_criteria": [
+      "Given consume-to-wo succeeds, when SELECT lp_genealogy WHERE source_lp_id=:lp, then row with operation_type='consume', target_wo_id matching, qty matching qty_consumed",
+      "Given transaction error in genealogy INSERT, when service runs, then full rollback (no consumption row persists)",
+      "Given 100 sequential consumptions, when count lp_genealogy WHERE target_wo_id=:wo, then count=100"
+    ],
+    "test_strategy": [
+      "RED: integration test asserting genealogy row + rollback before adapter exists",
+      "Run 'pnpm --filter api-services test consumption-genealogy'"
+    ],
+    "risk_red_lines": [
+      "Do not allow silent genealogy failure",
+      "Do not write outside consumption transaction",
+      "Do not modify lp_genealogy schema"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

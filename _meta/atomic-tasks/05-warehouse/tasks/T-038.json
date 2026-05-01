@@ -1,0 +1,59 @@
+{
+  "title": "T-038 — Lot genealogy recursive CTE service",
+  "prompt": "# T-038 — Lot genealogy recursive CTE service\n\nPRD: `05-WAREHOUSE-PRD.md` §11.2, §11.5, V-WH-TRACE-003/004/005.\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`.\n\n## Goal\n`traceLpGenealogy({seedLpId, mode, depth})` server function executing the §11.2 forward/backward recursive CTE with depth guard.\n\n## Implementation contract\n`apps/web/lib/services/warehouse/genealogy-trace.ts`. mode IN ('forward','backward','full'); depth 1-10 default 10; tenant_id RLS enforced. Returns rows + metadata {nodes_found, query_ms}. Depth>10 rejected per V-WH-TRACE-003. SLO <30s on 100k LPs depth=10.\n\n## Files (scope)\n- apps/web/lib/services/warehouse/genealogy-trace.ts [create]\n- apps/web/lib/services/warehouse/__tests__/genealogy-trace.test.ts [create]\n\n## Acceptance criteria\n1. Given a 3-level chain LP-A→LP-B→LP-C, when traceLpGenealogy(seed=A, mode='forward', depth=10) runs, then results include B and C with depth 1 and 2 respectively.\n2. Given a 3-level chain, when traceLpGenealogy(seed=C, mode='backward') runs, then results include B and A.\n3. Given depth=15, when called, then it returns V-WH-TRACE-003 error.\n4. Given a 100k-row fixture, when measured, then query_ms < 30000 P95.\n\n## Test strategy\n- RED: genealogy-trace.test.ts covers forward/backward/depth-guard/perf.\n- Run `pnpm --filter web test genealogy-trace`.\n\n## Risk red lines\n- Do not bypass tenant_id RLS.\n- Do not allow depth > 10.\n- Do not exceed 30s — surface SLO alert.",
+  "labels": ["prd", "api", "genealogy", "T2-api"],
+  "priority": 90,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-038",
+    "source_prd": "05-WAREHOUSE-PRD.md",
+    "prd_refs": ["§11.2", "§11.5"],
+    "category": "api",
+    "subcategory": "genealogy",
+    "task_type": "T2-api",
+    "parent_feature": "warehouse-traceability",
+    "context_budget": "30k",
+    "estimated_effort": "1-2h",
+    "description": "Recursive CTE genealogy trace with mode toggle and depth guard.",
+    "details": "Tenant RLS via app.tenant_id; depth ≤10; SLO <30s on 100k seed.",
+    "scope_files": [
+      "apps/web/lib/services/warehouse/genealogy-trace.ts [create]",
+      "apps/web/lib/services/warehouse/__tests__/genealogy-trace.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "UI page (T-072)",
+      "PDF export (T-072)",
+      "Graph DB (P3 WH-E18)"
+    ],
+    "dependencies": ["T-003", "T-011", "T-012"],
+    "parallel_safe_with": ["T-035", "T-036", "T-037"],
+    "acceptance_criteria": [
+      "Given a 3-level chain LP-A→LP-B→LP-C, when forward trace runs from A, then B and C are returned at depths 1 and 2",
+      "Given the same chain, when backward trace runs from C, then B and A are returned",
+      "Given depth=15, when called, then V-WH-TRACE-003 error returns",
+      "Given a 100k-row fixture, when measured, then query_ms <30000 P95"
+    ],
+    "test_strategy": [
+      "RED: genealogy-trace.test.ts covers forward/backward/depth/perf",
+      "Run 'pnpm --filter web test genealogy-trace'"
+    ],
+    "risk_red_lines": [
+      "Do not bypass RLS",
+      "Do not allow depth > 10",
+      "Do not exceed 30s SLO silently"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

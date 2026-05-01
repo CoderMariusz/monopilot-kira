@@ -1,0 +1,66 @@
+{
+  "title": "T-013 — QA-001 Quality Dashboard (6-widget grid, prototype parity)",
+  "prompt": "# T-013 — QA-001 Quality Dashboard\n\nPRD: 09-QUALITY-PRD.md §8.2 QA-001 layout (3x2 grid, 6 widgets), §8.5 prototype qa_dashboard\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nBuild the Quality Dashboard page `/quality` with a 3x2 grid of 6 widgets (Active Holds, Inspection Backlog, Open NCRs by Severity, CCP Compliance Today, First-Time Pass Rate trend, Allergen Changeover Gates) plus top toolbar (date range filter, site filter), auto-refresh every 60s.\n\n## Implementation contract\n1. Server Component `apps/web/src/app/quality/page.tsx` reads counts via parallel queries (listActiveHolds, inspection backlog count, NCR severity counts, CCP compliance %, FTPR 30-day trend, allergen gates today).\n2. Each widget is a small Client Component with click handler routing to QA-010/QA-030/QA-040/QA-050/QA-070.\n3. Auto-refresh via SWR or `revalidatePath` every 60s (button + interval).\n4. 1:1 prototype parity vs `design/Monopilot Design System/quality/dashboard.jsx:3-147` (qa_dashboard).\n\n## Files\n- apps/web/src/app/quality/page.tsx [create]\n- apps/web/src/components/quality/dashboard/ActiveHoldsWidget.tsx [create]\n- apps/web/src/components/quality/dashboard/InspectionBacklogWidget.tsx [create]\n- apps/web/src/components/quality/dashboard/OpenNcrsWidget.tsx [create]\n- apps/web/src/components/quality/dashboard/CcpComplianceWidget.tsx [create]\n- apps/web/src/components/quality/dashboard/FirstTimePassRateWidget.tsx [create]\n- apps/web/src/components/quality/dashboard/AllergenGatesWidget.tsx [create]\n- apps/web/src/components/quality/dashboard/__tests__/dashboard.test.tsx [create]\n- design/Monopilot Design System/quality/dashboard.jsx [ref]\n\n## Acceptance criteria\n1. Given the dashboard renders, when compared to design/Monopilot Design System/quality/dashboard.jsx:3-147, then it has parity with the prototype on structure (top toolbar with date range Select + site Select + manual refresh button, 3x2 widget grid in the same order: Active Holds, Inspection Backlog, Open NCRs, CCP Compliance, First-Time Pass Rate, Allergen Gates), visuals (shadcn Card per widget with same color tokens for KPI urgency: red ≤1d, amber 1-3d, blue normal), and interaction parity (each widget click routes to its target QA screen, auto-refresh interval 60s with manual refresh button) — verified by RTL render test asserting 6 cards in correct order plus parity checklist in pipeline_inputs.details\n2. Given counts are 0 across the board, when the page loads, then each widget shows its empty state copy (no NaN, no broken icons)\n3. Given the user has role auditor_readonly, when widgets render, then click navigation works (read-only routes) and Active Holds widget hides the 'Create hold' shortcut\n\n## Parity checklist\n- 3x2 grid: row1=[Active Holds, Inspection Backlog, Open NCRs]; row2=[CCP Compliance, FTPR, Allergen Gates]\n- Top toolbar: date range Select + site Select + manual refresh icon button (right-aligned)\n- Each widget = shadcn Card with title row (key icon + title + count badge)\n- Urgency colors: critical=destructive, warning=amber-500, ok=blue-500 (matching shadcn theme tokens used by prototype)\n- Auto-refresh every 60s, with last-updated timestamp inside the toolbar\n- Same Lucide icons as prototype (Lock, ClipboardCheck, AlertTriangle, ThermometerSun, TrendingUp, ShieldAlert)\n- Click on a widget navigates to its target route via next/link",
+  "labels": ["prd", "ui", "qa-dashboard", "T3-ui"],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-013",
+    "source_prd": "09-QUALITY-PRD.md",
+    "prd_refs": ["§8.2 QA-001", "§8.5"],
+    "category": "ui",
+    "subcategory": "qa-dashboard",
+    "task_type": "T3-ui",
+    "parent_feature": "09-cross-cut Dashboard",
+    "context_budget": "55k",
+    "estimated_effort": "3h",
+    "prototype_match": true,
+    "description": "Quality Dashboard server-rendered page with 6 widgets (3x2 grid), top toolbar, auto-refresh 60s, 1:1 prototype parity.",
+    "details": "Server Component composes 6 widget cards in 3x2 grid matching design/Monopilot Design System/quality/dashboard.jsx:3-147 verbatim. Each widget = shadcn Card with title icon + KPI count + click route. Auto-refresh 60s via SWR or revalidatePath with manual refresh button. Top toolbar: date range Select + site Select + refresh button. RTL render test snapshots widget order and counts; parity checklist in details defines structural/visual/interaction comparison points. Honor prototype translation notes: Lucide icons match, no drift to non-shadcn primitives, urgency color tokens preserved.",
+    "scope_files": [
+      "apps/web/src/app/quality/page.tsx [create]",
+      "apps/web/src/components/quality/dashboard/ActiveHoldsWidget.tsx [create]",
+      "apps/web/src/components/quality/dashboard/InspectionBacklogWidget.tsx [create]",
+      "apps/web/src/components/quality/dashboard/OpenNcrsWidget.tsx [create]",
+      "apps/web/src/components/quality/dashboard/CcpComplianceWidget.tsx [create]",
+      "apps/web/src/components/quality/dashboard/FirstTimePassRateWidget.tsx [create]",
+      "apps/web/src/components/quality/dashboard/AllergenGatesWidget.tsx [create]",
+      "apps/web/src/components/quality/dashboard/__tests__/dashboard.test.tsx [create]",
+      "design/Monopilot Design System/quality/dashboard.jsx [ref]"
+    ],
+    "out_of_scope": [
+      "Do not implement P2 rich charts (Recharts trend lines beyond P1 simple sparkline)",
+      "Do not implement materialized view mv_quality_kpis_daily (out of scope this task)",
+      "Do not modify the routes its widgets navigate to"
+    ],
+    "dependencies": ["T-010"],
+    "parallel_safe_with": ["T-014", "T-015", "T-016"],
+    "acceptance_criteria": [
+      "Given the dashboard renders, when compared to design/Monopilot Design System/quality/dashboard.jsx:3-147, then it matches on structural parity (toolbar + 3x2 grid in fixed widget order), visual parity (shadcn Card + Select + Button only, urgency tokens preserved), and interaction parity (each widget click navigates to its target route, auto-refresh 60s with manual refresh) — verified by RTL render asserting 6 cards in declared order plus the parity checklist in pipeline_inputs.details",
+      "Given counts are 0 across all widgets, when the page renders, then each widget shows an empty-state copy (no NaN, no broken icons)",
+      "Given role=auditor_readonly, when the dashboard renders, then click navigation still works and the 'Create hold' shortcut on Active Holds widget is hidden"
+    ],
+    "test_strategy": [
+      "RED: write apps/web/src/components/quality/dashboard/__tests__/dashboard.test.tsx with RTL render asserting 6 cards in fixed order, empty states, and role-based hide of Create-hold shortcut",
+      "Run 'pnpm --filter web test dashboard'"
+    ],
+    "risk_red_lines": [
+      "Do not use native HTML select (must be shadcn Select per translation notes)",
+      "Do not break auto-refresh on tab visibility change (pause when hidden, resume on visible)",
+      "Do not skip role-based hide of Create-hold (auditor must not see action shortcut)"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

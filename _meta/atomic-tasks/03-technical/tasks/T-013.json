@@ -1,0 +1,37 @@
+{
+  "title": "T-013 — API: BOM create draft (POST /api/technical/items/:code/boms)",
+  "prompt": "Implement POST /api/technical/items/[item_code]/boms creating a draft BOM with lines + co_products in one transaction per §7.1 + V-TEC-11..14. Validate: V-TEC-11 sum of components × quantities × (1 + scrap_pct) within ±0.5% of parent yield (warning, not block); V-TEC-12 allocation_pct sum (parent + non-byproduct co_products) = 100.000; V-TEC-13 reject circular BOM (item_id == component_item_id and transitive cycle via DFS over existing active BOMs); V-TEC-14 each component item.status not in ('blocked','draft'). New version = max(existing version)+1. Permission technical.bom.create. RED tests/api/bom-create.test.ts. Run: `pnpm vitest run tests/api/bom-create.test.ts`.",
+  "labels": ["prd", "api", "bom-create", "T2-api"],
+  "priority": 80,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-013",
+    "source_prd": "03-TECHNICAL-PRD.md",
+    "prd_refs": ["§7.1", "§7.4", "§7.6"],
+    "category": "api",
+    "subcategory": "bom-create",
+    "task_type": "T2-api",
+    "parent_feature": "03-TECHNICAL-a BOM",
+    "context_budget": "40k",
+    "estimated_effort": "3h",
+    "description": "BOM create with cycle detection, allocation sum validation, version bump, all transactional.",
+    "details": "Cycle detection: DFS from current item over active BOMs in same org; component_item_ids are nodes. For self-reference reject early. Allocation guard rounds to 3 decimals. V-TEC-11 returns warning array in response (not 422).",
+    "scope_files": ["app/api/technical/items/[item_code]/boms/route.ts", "lib/technical/bom/service.ts", "lib/technical/bom/cycle-detection.ts", "tests/api/bom-create.test.ts"],
+    "out_of_scope": ["BOM approve workflow (T-014)", "Generator"],
+    "dependencies": ["T-012"],
+    "parallel_safe_with": ["T-014", "T-015"],
+    "acceptance_criteria": [
+      "Given item A's BOM where line component is item A, when POST runs, then 422 V-TEC-13.",
+      "Given allocations 80+15+0 (byproduct excluded), when POST runs, then 200 because parent 80 + co-product 15 = 95 — must FAIL with 422 V-TEC-12 because non-byproduct sum != 100; coverage sum = 95.",
+      "Given component item.status='blocked', when POST runs, then 422 V-TEC-14.",
+      "Given valid BOM, when POST runs, then row written and version = previous_max + 1."
+    ],
+    "test_strategy": ["RED tests for each V-TEC-12/13/14 path.", "Run: pnpm vitest run tests/api/bom-create.test.ts"],
+    "risk_red_lines": ["Do not auto-publish (status stays draft).", "Do not write a snapshot here — snapshot is WO-time only (T-024)."],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {"required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"], "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]},
+    "routing_hints": {"red": "hermes_gpt55", "implementation": "hermes_gpt55", "review": "opus_if_high_risk_or_ui_or_architecture", "close": "spark_low_risk_else_opus"}
+  }
+}

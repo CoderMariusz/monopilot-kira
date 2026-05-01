@@ -1,0 +1,99 @@
+{
+  "title": "T-031 \u2014 10 MODAL-SCHEMA pattern templates (P1..P10) wired in Storybook + assertModalA11y coverage",
+  "prompt": "# T-031 \u2014 10 MODAL-SCHEMA pattern templates (P1..P10) wired in Storybook + assertModalA11y coverage\n\nPRD: `00-FOUNDATION-PRD.md` \u2014 sections: \u00a75.y\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`\n\n## Goal\nOne Storybook template per MODAL-SCHEMA pattern (P1 Wizard, P2 SimpleForm, P3 DualPath, P4 Picker, P5 Override-with-reason, P6 Simple, P7 Async-with-states, P8 Confirm-destructive-type-to-confirm, P9 Confirm-destructive-with-reason, P10 Preview-compare).\n\n## Implementation contract\nAdd packages/ui/.storybook/patterns/{P1..P10}.stories.tsx, each composing the Modal/Stepper/Field/ReasonInput/Summary primitives + tuning primitives where applicable. Reference _shared/MODAL-SCHEMA.md for the exact contract per pattern. Each story file includes an axe-core scan via @axe-core/playwright. Each pattern test in packages/ui/src/__tests__/patterns.test.tsx invokes assertModalA11y(container) (T-025 helper). P1 Wizard parity: design/Monopilot Design System/settings/modals.jsx:141-259 (email_template_edit_modal). P5/P9 reason parity: modals.jsx:72-108 (flag_edit_modal). P10 Preview-compare parity: modals.jsx:18-69 (rule_dry_run_modal).\n\n## Files (scope)\n- packages/ui/.storybook/patterns/P1-Wizard.stories.tsx [create]\n- packages/ui/.storybook/patterns/P2-SimpleForm.stories.tsx [create]\n- packages/ui/.storybook/patterns/P3-DualPath.stories.tsx [create]\n- packages/ui/.storybook/patterns/P4-Picker.stories.tsx [create]\n- packages/ui/.storybook/patterns/P5-OverrideWithReason.stories.tsx [create]\n- packages/ui/.storybook/patterns/P6-Simple.stories.tsx [create]\n- packages/ui/.storybook/patterns/P7-AsyncWithStates.stories.tsx [create]\n- packages/ui/.storybook/patterns/P8-ConfirmDestructiveType.stories.tsx [create]\n- packages/ui/.storybook/patterns/P9-ConfirmDestructiveReason.stories.tsx [create]\n- packages/ui/.storybook/patterns/P10-PreviewCompare.stories.tsx [create]\n- packages/ui/src/__tests__/patterns.test.tsx [create]\n- _shared/MODAL-SCHEMA.md [ref]\n- design/Monopilot Design System/settings/modals.jsx:18-69 [ref]\n- design/Monopilot Design System/settings/modals.jsx:72-108 [ref]\n- design/Monopilot Design System/settings/modals.jsx:141-259 [ref]\n\n## Acceptance criteria\n1. Given the P1 Wizard story renders, when compared to design/Monopilot Design System/settings/modals.jsx:141-259 (email_template_edit_modal, 8-step wizard), then it matches structurally (8 step labels, Stepper composes inside Modal), visually (Radix Dialog + tokens.css), and interactionally (Back disabled at step 0, Next disabled when step has validation errors, ESC dismisses only when dismissible=true) \u2014 verified by patterns.test.tsx\n2. Given the P10 Preview-compare story renders, when compared to design/Monopilot Design System/settings/modals.jsx:18-69 (rule_dry_run_modal), then it matches structurally (left/right panels with Summary primitive on the right, DryRunButton in footer), visually (tokens.css spacing), and interactionally (DryRunButton click triggers a mocked async with loading/result/error states) \u2014 verified by patterns.test.tsx\n3. Given assertModalA11y(container) is invoked for each of the 10 patterns, when the test suite runs, then all 10 patterns pass with zero serious or critical axe-core violations\n\n## Test strategy\n- RED: write packages/ui/src/__tests__/patterns.test.tsx covering P1, P10, and assertModalA11y for all 10 patterns before the story files exist\n- Run 'pnpm --filter @monopilot/ui test && pnpm --filter @monopilot/ui storybook:build && pnpm --filter @monopilot/ui test:a11y'\n\n## Risk red lines\n- Do not deviate from MODAL-SCHEMA.md \u2014 that file is normative per PRD \u00a75.y\n- Do not skip axe-core for any pattern\n\n## Dependencies (must be complete first)\n- T-025\n- T-026\n- T-027\n- T-028\n- T-029\n- T-030\n\n## Closeout evidence\nProvide: changed_files, test_commands_and_results, acceptance_criteria_status (per AC), deviations_from_prd, git_status. Use the test-driven-development skill (RED test before implementation) and requesting-code-review at GREEN.",
+  "labels": [
+    "prd",
+    "ui",
+    "patterns",
+    "T3-ui"
+  ],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-031",
+    "source_prd": "00-FOUNDATION-PRD.md",
+    "prd_refs": [
+      "\u00a75.y"
+    ],
+    "category": "ui",
+    "subcategory": "patterns",
+    "task_type": "T3-ui",
+    "parent_feature": "00-FOUNDATION-impl-j UI primitives",
+    "context_budget": "80k",
+    "estimated_effort": "3-5h",
+    "description": "One Storybook template per MODAL-SCHEMA pattern (P1 Wizard, P2 SimpleForm, P3 DualPath, P4 Picker, P5 Override-with-reason, P6 Simple, P7 Async-with-states, P8 Confirm-destructive-type-to-confirm, P9 Confirm-destructive-with-reason, P10 Preview-compare).",
+    "details": "Add packages/ui/.storybook/patterns/{P1..P10}.stories.tsx, each composing the Modal/Stepper/Field/ReasonInput/Summary primitives + tuning primitives where applicable. Reference _shared/MODAL-SCHEMA.md for the exact contract per pattern. Each story file includes an axe-core scan via @axe-core/playwright. Each pattern test in packages/ui/src/__tests__/patterns.test.tsx invokes assertModalA11y(container) (T-025 helper). P1 Wizard parity: design/Monopilot Design System/settings/modals.jsx:141-259 (email_template_edit_modal). P5/P9 reason parity: modals.jsx:72-108 (flag_edit_modal). P10 Preview-compare parity: modals.jsx:18-69 (rule_dry_run_modal).",
+    "scope_files": [
+      "packages/ui/.storybook/patterns/P1-Wizard.stories.tsx [create]",
+      "packages/ui/.storybook/patterns/P2-SimpleForm.stories.tsx [create]",
+      "packages/ui/.storybook/patterns/P3-DualPath.stories.tsx [create]",
+      "packages/ui/.storybook/patterns/P4-Picker.stories.tsx [create]",
+      "packages/ui/.storybook/patterns/P5-OverrideWithReason.stories.tsx [create]",
+      "packages/ui/.storybook/patterns/P6-Simple.stories.tsx [create]",
+      "packages/ui/.storybook/patterns/P7-AsyncWithStates.stories.tsx [create]",
+      "packages/ui/.storybook/patterns/P8-ConfirmDestructiveType.stories.tsx [create]",
+      "packages/ui/.storybook/patterns/P9-ConfirmDestructiveReason.stories.tsx [create]",
+      "packages/ui/.storybook/patterns/P10-PreviewCompare.stories.tsx [create]",
+      "packages/ui/src/__tests__/patterns.test.tsx [create]",
+      "_shared/MODAL-SCHEMA.md [ref]",
+      "design/Monopilot Design System/settings/modals.jsx:18-69 [ref]",
+      "design/Monopilot Design System/settings/modals.jsx:72-108 [ref]",
+      "design/Monopilot Design System/settings/modals.jsx:141-259 [ref]"
+    ],
+    "out_of_scope": [
+      "Do not modify files outside the scope_files list",
+      "Do not introduce business logic from later module PRDs (01-NPD, 02-SETTINGS, etc.)",
+      "No real data \u2014 all stories use mock data"
+    ],
+    "dependencies": [
+      "T-025",
+      "T-026",
+      "T-027",
+      "T-028",
+      "T-029",
+      "T-030"
+    ],
+    "parallel_safe_with": [],
+    "acceptance_criteria": [
+      "Given the P1 Wizard story renders, when compared to design/Monopilot Design System/settings/modals.jsx:141-259 (email_template_edit_modal, 8-step wizard), then it matches structurally (8 step labels, Stepper composes inside Modal), visually (Radix Dialog + tokens.css), and interactionally (Back disabled at step 0, Next disabled when step has validation errors, ESC dismisses only when dismissible=true) \u2014 verified by patterns.test.tsx",
+      "Given the P10 Preview-compare story renders, when compared to design/Monopilot Design System/settings/modals.jsx:18-69 (rule_dry_run_modal), then it matches structurally (left/right panels with Summary primitive on the right, DryRunButton in footer), visually (tokens.css spacing), and interactionally (DryRunButton click triggers a mocked async with loading/result/error states) \u2014 verified by patterns.test.tsx",
+      "Given assertModalA11y(container) is invoked for each of the 10 patterns, when the test suite runs, then all 10 patterns pass with zero serious or critical axe-core violations"
+    ],
+    "test_strategy": [
+      "RED: write packages/ui/src/__tests__/patterns.test.tsx covering P1, P10, and assertModalA11y for all 10 patterns before the story files exist",
+      "Run 'pnpm --filter @monopilot/ui test && pnpm --filter @monopilot/ui storybook:build && pnpm --filter @monopilot/ui test:a11y'"
+    ],
+    "risk_red_lines": [
+      "Do not deviate from MODAL-SCHEMA.md \u2014 that file is normative per PRD \u00a75.y",
+      "Do not skip axe-core for any pattern"
+    ],
+    "skills": [
+      "test-driven-development",
+      "verification-before-completion",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

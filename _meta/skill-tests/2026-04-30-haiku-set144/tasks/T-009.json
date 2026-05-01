@@ -1,0 +1,52 @@
+{
+  "title": "T-009 — Implement SET-005 First Product step (soft redirect to 03-TECHNICAL, skippable)",
+  "prompt": "Implement step 4 screen: soft redirect to 03-TECHNICAL create product, with skip button.\n\nPRD §14.3-14.4 SET-005: \n- Optional step (can skip via 'Skip Creating a Product' button)\n- Shows intro text: \"Create your first product\"\n- \"Proceed to Product Module\" button links to /technical/products (or main create product flow)\n- \"Skip\" button marks step 4 as skipped and moves to step 5\n- Supports resume: if user navigates back, same state is recovered\n\nAcceptance:\n- Step 4 screen renders with both button options\n- 'Proceed' button navigates to product creation (soft redirect)\n- 'Skip' button calls POST /api/v1/onboarding/step {step_number: 4, skip: true} and advances to step 5\n- onboarding_state.skipped_steps includes 4 after skip is clicked\n\nTest: E2E test verifies skip button marks step 4 as skipped and updates state correctly.",
+  "labels": ["prd", "ui", "screen", "T3-ui"],
+  "priority": 105,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-009",
+    "source_prd": "02-SETTINGS-PRD.md",
+    "prd_refs": ["§14.3", "§14.4"],
+    "category": "ui",
+    "subcategory": "screen",
+    "task_type": "T3-ui",
+    "parent_feature": "onboarding_wizard",
+    "context_budget": "25k",
+    "estimated_effort": "1.5-2h",
+    "description": "Step 4 soft redirect to product creation (skippable)",
+    "details": "Create FirstProductStep component (no form, just UI). Display: title 'Create Your First Product', description text, two buttons: (1) 'Proceed to Product Module' (href to /technical/products or /app/technical/products). (2) 'Skip Creating a Product' (calls POST /api/v1/onboarding/step with step_number=4, skip=true). Backend should add 4 to skipped_steps and set current_step=5. After skip, navigate to step 5 (SET-006). This is a 'soft redirect' screen — user can proceed to product creation or skip. Match wizard design language.",
+    "scope_files": ["src/components/onboarding/steps/FirstProductStep.tsx", "tests/e2e/onboarding.spec.ts"],
+    "out_of_scope": ["product creation module (03-TECHNICAL)", "product schema/business logic"],
+    "dependencies": ["T-002", "T-008"],
+    "parallel_safe_with": ["T-004", "T-005", "T-006", "T-007", "T-010"],
+    "acceptance_criteria": [
+      "Given step 4 screen is rendered, when user clicks 'Proceed to Product Module', then user navigates to /technical/products (soft redirect)",
+      "Given step 4 screen is rendered, when user clicks 'Skip', then POST /api/v1/onboarding/step with step_number=4, skip=true is called",
+      "Given skip button clicked, when response returns current_step=5, then step 4 appears in skipped_steps array"
+    ],
+    "test_strategy": [
+      "Write e2e test: test_product_step_skip() clicks skip button and verifies skipped_steps contains 4",
+      "Write e2e test: test_product_step_redirect() clicks proceed button and verifies href navigation",
+      "Run: npx cypress run -e TEST_FILE=tests/e2e/onboarding.spec.ts --spec '**/step-4*'",
+      "Verify GET /api/v1/onboarding/resume shows skipped_steps: [4] after skip"
+    ],
+    "risk_red_lines": [
+      "Do not auto-skip this step; only skip on explicit user action",
+      "Do not block wizard progression if user skips product creation"
+    ],
+    "skills": ["test-driven-development"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

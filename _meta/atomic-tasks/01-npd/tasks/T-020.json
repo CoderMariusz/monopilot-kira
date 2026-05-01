@@ -1,0 +1,61 @@
+{
+  "title": "T-020 — UI: FA detail tabs shell (Core/Planning/Commercial/Production/Technical/MRP/Procurement/History)",
+  "prompt": "# T-020 — FA detail tabs shell\n\nPRD: 01-NPD-PRD.md §3, §5 + UX 01-NPD-UX.md fa_detail\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\nPrototype: design/Monopilot Design System/npd/fa-screens.jsx:300-401 (fa_detail) + line 404-452 (fa_right_panel)\n\n## Goal\nServer Component page /(npd)/fa/[productCode] rendering tabbed shell with 8 dept tabs (Core/Planning/Commercial/Production/Technical/MRP/Procurement/History) using shadcn Tabs, plus right-side panel showing status_overall + days_to_launch + built indicator.\n\n## Implementation contract\nNew apps/web/app/(npd)/fa/[productCode]/page.tsx + layout.tsx. Tabs URL-driven via ?tab=core. Each tab is a route group module loading its dept slice. Right panel is a sticky aside RSC reading fa_status_overall view. Each tab placeholder (just header + 'TBD-empty' state); subsequent tasks (T-023..T-028) fill content.\n\n## Files\n- apps/web/app/(npd)/fa/[productCode]/page.tsx [create]\n- apps/web/app/(npd)/fa/[productCode]/layout.tsx [create]\n- apps/web/app/(npd)/fa/[productCode]/_components/fa-tabs.tsx [create]\n- apps/web/app/(npd)/fa/[productCode]/_components/fa-right-panel.tsx [create]\n- apps/web/app/(npd)/fa/[productCode]/_components/__tests__/fa-tabs.test.tsx [create]\n- design/Monopilot Design System/npd/fa-screens.jsx [ref]\n\n## Acceptance criteria\n1. Given the production page renders, when compared to design/Monopilot Design System/npd/fa-screens.jsx:300-452 (fa_detail + fa_right_panel), then it has the same 8 tab labels in same order, a sticky right panel with status pill+days+built, and uses shadcn Tabs+Card primitives (no HTML role='tablist') — verified by RTL test counting tabs + parity checklist (structural + visual + interaction parity)\n2. Given ?tab=technical in URL, when page renders, then Technical tab is active\n3. Given browser back after tab switch, when navigation occurs, then the previous active tab is restored\n\n## Test strategy\n- RED: RTL tests for tab count, URL persistence, primitive parity\n- Run 'pnpm --filter web test fa-tabs'\n\n## Risk red lines\n- Do not use HTML role='tablist' instead of shadcn Tabs\n- Do not include content in this task (only shell)\n- Do not skip URL persistence for tabs",
+  "labels": ["prd", "ui", "fa-detail", "T3-ui"],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-020",
+    "source_prd": "01-NPD-PRD.md",
+    "prd_refs": ["§3", "§5"],
+    "category": "ui",
+    "subcategory": "fa-detail-shell",
+    "task_type": "T3-ui",
+    "parent_feature": "01-NPD-a fa CRUD UI",
+    "context_budget": "40k",
+    "estimated_effort": "2h",
+    "description": "Tabbed FA detail page shell (8 dept tabs + sticky right panel) matching fa_detail prototype.",
+    "details": "Parity checklist: (1) 8 tab labels in same order Core/Planning/Commercial/Production/Technical/MRP/Procurement/History; (2) sticky right panel with status pill, days_to_launch, Built; (3) shadcn Tabs+Card primitives only; (4) URL ?tab=<slug> persistence; (5) browser back/forward restores tab. Subsequent tasks fill tab content.",
+    "scope_files": [
+      "apps/web/app/(npd)/fa/[productCode]/page.tsx [create]",
+      "apps/web/app/(npd)/fa/[productCode]/layout.tsx [create]",
+      "apps/web/app/(npd)/fa/[productCode]/_components/fa-tabs.tsx [create]",
+      "apps/web/app/(npd)/fa/[productCode]/_components/fa-right-panel.tsx [create]",
+      "apps/web/app/(npd)/fa/[productCode]/_components/__tests__/fa-tabs.test.tsx [create]",
+      "design/Monopilot Design System/npd/fa-screens.jsx [ref]"
+    ],
+    "out_of_scope": [
+      "Do not fill tab content (T-023..T-028)",
+      "Do not implement modals (T-021/T-022)"
+    ],
+    "dependencies": ["T-001", "T-015"],
+    "parallel_safe_with": ["T-019"],
+    "acceptance_criteria": [
+      "Given the production page renders, when compared to design/Monopilot Design System/npd/fa-screens.jsx:300-452, then it has the same 8 tab labels in same order, sticky right panel with status pill+days+built, and uses shadcn Tabs+Card primitives — verified by RTL test counting tabs + parity checklist (structural + visual + interaction parity)",
+      "Given ?tab=technical in URL, when page renders, then Technical tab is active",
+      "Given browser back after tab switch, when navigation occurs, then the previous active tab is restored"
+    ],
+    "test_strategy": [
+      "RED: RTL tests for tab count, URL persistence, primitive parity before component exists",
+      "Run 'pnpm --filter web test fa-tabs'"
+    ],
+    "risk_red_lines": [
+      "Do not use HTML role='tablist'",
+      "Do not include tab content in this task",
+      "Do not skip URL persistence"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

@@ -1,0 +1,59 @@
+{
+  "title": "T-010 — seed default changeover_matrix (14 EU + Mustard + NONE)",
+  "prompt": "# T-010 — seed default changeover_matrix (14 EU + Mustard + NONE)\n\nPRD: 07-PLANNING-EXT-PRD.md §4.1.3, §7.2 FR-07-E2-001, §15.3 (Apex initial seed)\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nSeed default changeover_matrix version 1 for the Apex tenant: 14 EU allergens + Mustard + NONE = 16×16 = 256 cells per FR-07-E2-001. Per-line overrides NOT seeded (handled later by editor).\n\n## Implementation contract\n1. New seed file `packages/db/seeds/0001_changeover_matrix_default.ts` (Drizzle TS).\n2. Insert one changeover_matrix_versions row (version_number=1, is_active=true, notes='Apex baseline 14 EU + Mustard + NONE').\n3. Insert 256 changeover_matrix rows: line_id NULL (default), with conservative seed values: same allergen pair (from==to) → 0 minutes; pair containing 'NONE' → 5-15 min; allergen→allergen high-risk pairs → 30-60 min + cleaning_required=true + atp_required=true (per §4.1.2 high-risk weight 2.0).\n4. CLI invocation: `pnpm --filter db seed changeover-matrix-default`.\n\n## Files\n- packages/db/seeds/0001_changeover_matrix_default.ts [create]\n- packages/db/src/seed-runner.ts [modify]\n- packages/db/__tests__/seed-changeover-matrix.test.ts [create]\n\n## Acceptance criteria\n1. Given a fresh Apex tenant, when seed runs, then exactly one active changeover_matrix_versions row + 256 changeover_matrix rows (line_id NULL) exist\n2. Given seeded data, when SELECT runs WHERE allergen_from=allergen_to, then changeover_minutes=0 for all 16 same-pair rows\n3. Given seeded data, when seed runs a second time, then it is idempotent (no duplicates, no errors)\n\n## Test strategy\n- RED: write packages/db/__tests__/seed-changeover-matrix.test.ts asserting count + idempotency before seed exists\n- Run 'pnpm --filter db migrate && pnpm --filter db seed changeover-matrix-default && pnpm --filter db test seed-changeover-matrix'\n\n## Risk red lines\n- Do not seed per-line overrides in this task (D5 leaves overrides editable, not seeded)\n- Do not deviate from 14 EU allergens + Mustard + NONE list (matches 03-TECHNICAL FG allergen profiles)\n- Do not set segregation_required=true on any seeded pair (BLOCK is admin-only per OQ-EXT-04)",
+  "labels": ["prd", "data", "seed", "T5-seed"],
+  "priority": 80,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-010",
+    "source_prd": "07-PLANNING-EXT-PRD.md",
+    "prd_refs": ["§4.1.3", "§7.2 FR-07-E2-001", "§15.3"],
+    "category": "data",
+    "subcategory": "seed-matrix",
+    "task_type": "T5-seed",
+    "parent_feature": "07-EXT-b allergen optimizer baseline",
+    "context_budget": "40k",
+    "estimated_effort": "1-2h",
+    "description": "Seed default 16x16 changeover_matrix (14 EU + Mustard + NONE) for Apex tenant; line_id NULL.",
+    "details": "Idempotent seed creates one matrix version row (active) + 256 changeover_matrix rows. Same-pair rows = 0 min; NONE pair = 5-15 min; allergen pairs = 30-60 min with cleaning + ATP. No per-line overrides seeded. Seed-runner registers script for `pnpm db seed`.",
+    "scope_files": [
+      "packages/db/seeds/0001_changeover_matrix_default.ts [create]",
+      "packages/db/src/seed-runner.ts [modify]",
+      "packages/db/__tests__/seed-changeover-matrix.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not seed per-line overrides",
+      "Do not seed segregation_required=true (admin-only)",
+      "Do not seed forecasts or scheduler_runs"
+    ],
+    "dependencies": ["T-003"],
+    "parallel_safe_with": ["T-011"],
+    "acceptance_criteria": [
+      "Given a fresh Apex tenant, when seed runs, then exactly 1 active changeover_matrix_versions row + 256 changeover_matrix rows (line_id NULL) exist",
+      "Given seeded data, when SELECT WHERE allergen_from=allergen_to runs, then all 16 same-pair rows have changeover_minutes=0",
+      "Given seed runs twice, when second run completes, then no duplicates and no errors"
+    ],
+    "test_strategy": [
+      "RED: write packages/db/__tests__/seed-changeover-matrix.test.ts asserting count + idempotency",
+      "Run 'pnpm --filter db migrate && pnpm --filter db seed changeover-matrix-default && pnpm --filter db test seed-changeover-matrix'"
+    ],
+    "risk_red_lines": [
+      "Do not seed per-line overrides",
+      "Do not deviate from the 14 EU + Mustard + NONE list",
+      "Do not seed segregation_required=true"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

@@ -1,0 +1,48 @@
+{
+  "title": "T-008 — SET-005 First Product Redirect Step (skippable)",
+  "prompt": "Implement SET-005 First Product Step page at `/onboarding/4` per PRD §14.3 step 4 + §14.4 SET-005. This is a soft-redirect step: the page presents two CTAs — `Create Product` (links to 03-TECHNICAL create-product flow with `?onboarding=true&return=/onboarding/5`) and `Skip` (calls T-003 skipOnboardingStep(orgId, 4) then router.push('/onboarding/5')).\n\nReturning from 03-TECHNICAL with `?onboardingComplete=true` triggers updateOnboardingState({current_step:5, completed_steps:[...,4]}) then advances.\n\nRED: `pnpm --filter web test -- onboarding-step4`.",
+  "labels": ["prd", "ui", "wizard-step-redirect", "T3-ui"],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-008",
+    "source_prd": "02-SETTINGS-PRD.md",
+    "prd_refs": ["§14.3 step 4 (line 1523)", "§14.4 SET-005 (line 1542)"],
+    "category": "ui",
+    "subcategory": "wizard-step-redirect",
+    "task_type": "T3-ui",
+    "parent_feature": "02-SETTINGS-onboarding-wizard",
+    "context_budget": "20k",
+    "estimated_effort": "1.5h",
+    "description": "Soft-redirect page with Create-Product CTA + Skip; returns via query param.",
+    "details": "Skip button is REQUIRED here per PRD §14.3 step 4. Return-from-3-TECHNICAL handling reads searchParams in Server Component.",
+    "scope_files": [
+      "apps/web/app/(onboarding)/4/page.tsx [create]",
+      "apps/web/app/(onboarding)/4/step4-redirect.tsx [create]",
+      "apps/web/app/(onboarding)/4/step4-redirect.test.tsx [create]"
+    ],
+    "out_of_scope": ["03-TECHNICAL create-product flow itself", "Other steps"],
+    "dependencies": ["T-002", "T-003"],
+    "parallel_safe_with": ["T-005", "T-006", "T-007", "T-009", "T-010"],
+    "acceptance_criteria": [
+      "Given page render, when user clicks Skip, then skipOnboardingStep(orgId, 4) is called and navigation goes to /onboarding/5.",
+      "Given page render, when user clicks Create Product, then navigation goes to /3-technical/create?onboarding=true&return=/onboarding/5.",
+      "Given GET /onboarding/4?onboardingComplete=true, when page renders, then updateOnboardingState({current_step:5, completed_steps:[...,4]}) fires and redirect to /onboarding/5.",
+      "Given vitest+RTL covers above, when pnpm --filter web test runs, then 0 failures."
+    ],
+    "test_strategy": [
+      "RED: spec on 4 AC.",
+      "GREEN: implement; pass.",
+      "Command: pnpm --filter web test -- onboarding-step4"
+    ],
+    "risk_red_lines": ["Do not navigate back to step 3 — only forward.", "Do not silently complete on return without query-param confirmation."],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {"red": "hermes_gpt55", "implementation": "hermes_gpt55", "review": "opus_if_high_risk_or_ui_or_architecture", "close": "spark_low_risk_else_opus"}
+  }
+}

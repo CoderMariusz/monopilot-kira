@@ -1,0 +1,59 @@
+{
+  "title": "T-025 — Session timeout modal + auto-extend (06-a)",
+  "prompt": "# T-025 — Session timeout UX\n\nPRD: 06-SCANNER-P1-PRD.md §8.1 FR-SC-FE-014, §6 D7\nUX: design/06-SCANNER-P1-UX.md:817-846 §3.23 (overlay)\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nDeliver the session-timeout modal — appears 30 seconds before personal-mode session expiry — with [Przedłuż] and [Wyloguj] buttons. Kiosk mode (60s idle) skips warning and forces immediate logout per §8.1 FR-SC-FE-014.\n\n## Implementation contract\n1. `apps/scanner/src/components/session-timeout-modal.tsx` mounted by scanner layout (T-012).\n2. Reads expires_at from /api/scanner/session response (T-007); schedules a timer to fire at exp - 30s for personal mode only.\n3. [Przedłuż] calls GET /api/scanner/session (sliding refresh); [Wyloguj] POSTs /api/scanner/logout then router.push('/scanner/login').\n4. Kiosk mode: no modal, hard redirect to /scanner/login on idle expiration response.\n\n## Files\n- apps/scanner/src/components/session-timeout-modal.tsx [create]\n- apps/scanner/src/components/session-watcher.client.tsx [create]\n- apps/scanner/__tests__/session-timeout.test.tsx [create]\n\n## Acceptance criteria\n1. Given personal-mode session with exp 30s in the future, when SessionWatcher mounts, then the timeout modal renders within 100ms\n2. Given the user clicks [Przedłuż] in the modal, when the response succeeds, then the modal closes and a fresh exp value is recorded; clicking again later still works\n3. Given kiosk-mode session and a 401 SC_SESSION_EXPIRED response from /api/scanner/session, when the watcher receives it, then no modal is shown and the page redirects to /scanner/login\n\n## Test strategy\n- RED: write session-timeout.test.tsx asserting personal modal + extend + kiosk hard logout before implementation\n- Run 'pnpm --filter scanner test session-timeout'\n\n## Risk red lines\n- Do not render the modal in kiosk mode\n- Do not stack multiple watchers when navigating between scanner pages\n- Do not let [Przedłuż] silently fail without surfacing an error",
+  "labels": ["prd", "ui", "session-timeout", "T4-wiring-test"],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-025",
+    "source_prd": "06-SCANNER-P1-PRD.md",
+    "prd_refs": ["§8.1 FR-SC-FE-014", "§6 D7"],
+    "category": "ui",
+    "subcategory": "session-timeout",
+    "task_type": "T4-wiring-test",
+    "parent_feature": "06-a Shell & Core",
+    "context_budget": "25k",
+    "estimated_effort": "1-2h",
+    "description": "Session timeout modal for personal mode (30s warning) + kiosk hard-logout path; mounted in scanner layout.",
+    "details": "session-watcher.client.tsx schedules a timer at exp-30s based on /api/scanner/session response. Personal mode shows modal with [Przedłuż]/[Wyloguj]. Kiosk mode never shows modal — receiving SC_SESSION_EXPIRED triggers redirect to /scanner/login. Single-instance watcher across scanner pages.",
+    "scope_files": [
+      "apps/scanner/src/components/session-timeout-modal.tsx [create]",
+      "apps/scanner/src/components/session-watcher.client.tsx [create]",
+      "apps/scanner/__tests__/session-timeout.test.tsx [create]"
+    ],
+    "out_of_scope": [
+      "Do not implement /api/scanner/session here (T-007)",
+      "Do not implement offline indicator here (T-026)",
+      "Do not implement supervisor session terminate here"
+    ],
+    "dependencies": ["T-007", "T-012"],
+    "parallel_safe_with": ["T-024", "T-026"],
+    "acceptance_criteria": [
+      "Given personal-mode session with exp 30s in the future, when SessionWatcher mounts, then the timeout modal renders within 100ms",
+      "Given the user clicks [Przedłuż], when the response succeeds, then the modal closes and a fresh exp is recorded; clicking again later still works",
+      "Given kiosk-mode session and 401 SC_SESSION_EXPIRED from /api/scanner/session, when the watcher receives it, then no modal is shown and the page redirects to /scanner/login"
+    ],
+    "test_strategy": [
+      "RED: write session-timeout.test.tsx asserting personal modal + extend + kiosk hard logout before implementation",
+      "Run 'pnpm --filter scanner test session-timeout'"
+    ],
+    "risk_red_lines": [
+      "Do not render the modal in kiosk mode",
+      "Do not stack multiple watchers across pages",
+      "Do not let [Przedłuż] fail silently"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

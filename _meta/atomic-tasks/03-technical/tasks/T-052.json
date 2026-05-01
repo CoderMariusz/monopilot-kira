@@ -1,0 +1,36 @@
+{
+  "title": "T-052 — UI: TEC-062 Routing Cost Preview + TEC-063 Resource Utilization Preview",
+  "prompt": "Build routing cost preview card (TEC-062) and resource utilization Gantt-lite (TEC-063) per §12.4. Match `bom_cost_panel` design/Monopilot Design System/technical/bom-detail.jsx:154-206 (cost) and `work_centers_screen` design/Monopilot Design System/technical/other-screens.jsx:37-71 (resource). Uses T-023 cost endpoint + reads production_lines/machines from 02-SETTINGS. RED tests/ui/tec-062-063-routing-preview.test.tsx. Run: `pnpm vitest run tests/ui/tec-062-063-routing-preview.test.tsx`.",
+  "labels": ["prd", "ui", "ui-routing-preview", "T3-ui"],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-052",
+    "source_prd": "03-TECHNICAL-PRD.md",
+    "prd_refs": ["§12.4 TEC-062", "§12.4 TEC-063"],
+    "category": "ui",
+    "subcategory": "routing-preview",
+    "task_type": "T3-ui",
+    "parent_feature": "03-TECHNICAL-c Routing",
+    "context_budget": "20k",
+    "estimated_effort": "2h",
+    "description": "Routing cost summary + lightweight resource utilization preview.",
+    "details": "Cost preview reads ?volume from input. Gantt-lite uses simple horizontal bar layout.",
+    "scope_files": ["app/(app)/technical/routings/[id]/_components/cost-preview.tsx", "app/(app)/technical/routings/[id]/_components/resource-preview.tsx", "tests/ui/tec-062-063-routing-preview.test.tsx"],
+    "out_of_scope": ["Finite-capacity scheduling (04-PLANNING-BASIC)"],
+    "dependencies": ["T-023", "T-051"],
+    "parallel_safe_with": ["T-053"],
+    "acceptance_criteria": [
+      "Given the preview card renders, when compared to design/Monopilot Design System/technical/bom-detail.jsx:154-206 and design/Monopilot Design System/technical/other-screens.jsx:37-71, then card layout, total-row formatting, and resource bars match — structural + visual + interaction parity verified by RTL.",
+      "Given volume input changes, when typed, then totals re-render within 200ms.",
+      "Given no operations, when rendered, then empty-state copy appears."
+    ],
+    "test_strategy": ["RED tests for parity + volume reactivity.", "Run: pnpm vitest run tests/ui/tec-062-063-routing-preview.test.tsx"],
+    "risk_red_lines": ["Do not call cost-preview API on every keystroke without debounce."],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {"required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"], "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]},
+    "routing_hints": {"red": "hermes_gpt55", "implementation": "hermes_gpt55", "review": "opus_if_high_risk_or_ui_or_architecture", "close": "spark_low_risk_else_opus"}
+  }
+}

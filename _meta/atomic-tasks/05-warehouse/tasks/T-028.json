@@ -1,0 +1,61 @@
+{
+  "title": "T-028 — Adjustment service + 10% threshold gate",
+  "prompt": "# T-028 — Adjustment service + 10% threshold gate\n\nPRD: `05-WAREHOUSE-PRD.md` §8.5 (FR-WH-014), V-WH-MOV-004/005.\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`.\n\n## Goal\n`adjustLp(lpId, newQty, reasonCode, reasonText?)` Server Action with 10% delta threshold routing to manager approval queue.\n\n## Implementation contract\n`apps/web/lib/services/warehouse/lp-adjustment.ts`. Validate reason_code present. If |delta|/LP.qty > 0.10 OR delta > 0 (qty increase), insert into `movement_approvals` with status='pending' rather than applying directly. Otherwise apply: update LP.qty, insert stock_moves(move_type='adjustment'), insert lp_genealogy(operation_type='adjustment'). On final-zero qty, status→'consumed'. New table `movement_approvals` (id, tenant_id, lp_id, requested_qty, delta, reason_code, reason_text, requested_by, requested_at, approved_by, approved_at, status enum pending/approved/rejected).\n\n## Files (scope)\n- apps/web/lib/services/warehouse/lp-adjustment.ts [create]\n- packages/db/src/schema/movement-approvals.ts [create]\n- packages/db/migrations/0NN_movement_approvals.sql [create]\n- apps/web/lib/services/warehouse/__tests__/lp-adjustment.test.ts [create]\n\n## Acceptance criteria\n1. Given LP qty=100 and adjust to 95 (5% delta) by Operator, when service runs, then qty=95 immediately and a stock_moves(adjustment) row exists.\n2. Given LP qty=100 and adjust to 80 (20% delta), when service runs, then movement_approvals row pending=true is created and LP.qty stays 100.\n3. Given LP qty=100 and adjust to 110 (qty increase), when service runs, then movement_approvals row is created regardless of percentage.\n4. Given missing reason_code, when service runs, then V-WH-MOV-005 validation error returns.\n\n## Test strategy\n- RED: lp-adjustment.test.ts covers four scenarios + new schema.\n- Run `pnpm --filter web test lp-adjustment`.\n\n## Risk red lines\n- Do not auto-approve >10% deltas.\n- Do not allow qty increase without approval.\n- Do not delete LP at qty=0 (audit-preserving).",
+  "labels": ["prd", "api", "adjustment", "T2-api"],
+  "priority": 95,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-028",
+    "source_prd": "05-WAREHOUSE-PRD.md",
+    "prd_refs": ["§8.5"],
+    "category": "api",
+    "subcategory": "adjustment",
+    "task_type": "T2-api",
+    "parent_feature": "warehouse-stock-moves",
+    "context_budget": "30k",
+    "estimated_effort": "1-2h",
+    "description": "LP adjustment with 10% delta threshold and qty-increase always-approval; new movement_approvals table.",
+    "details": "Single transaction. New table movement_approvals; reason_code required; LP qty=0 → status='consumed' (no delete).",
+    "scope_files": [
+      "apps/web/lib/services/warehouse/lp-adjustment.ts [create]",
+      "packages/db/src/schema/movement-approvals.ts [create]",
+      "packages/db/migrations/0NN_movement_approvals.sql [create]",
+      "apps/web/lib/services/warehouse/__tests__/lp-adjustment.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Cycle-count quick adj (T-029) — separate flow",
+      "Manager approve/reject UI (T-058 panel)",
+      "Outbox emission (T-047)"
+    ],
+    "dependencies": ["T-002", "T-006", "T-003"],
+    "parallel_safe_with": ["T-029"],
+    "acceptance_criteria": [
+      "Given LP.qty=100, adjust to 95 by Operator, when run, then qty=95 immediately and adjustment stock_move exists",
+      "Given LP.qty=100, adjust to 80, when run, then a pending movement_approvals row is created and LP.qty stays 100",
+      "Given LP.qty=100, adjust to 110, when run, then a pending movement_approvals row is created",
+      "Given missing reason_code, when run, then V-WH-MOV-005 error returns"
+    ],
+    "test_strategy": [
+      "RED: lp-adjustment.test.ts covers four scenarios + new table",
+      "Run 'pnpm --filter web test lp-adjustment'"
+    ],
+    "risk_red_lines": [
+      "Do not auto-approve >10% deltas",
+      "Do not allow qty increase without approval",
+      "Do not delete LP at qty=0"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

@@ -1,0 +1,58 @@
+{
+  "title": "T-044 — Server Action buildD365 (single-click flow + MFA gate + V01-V07 pre-flight)",
+  "prompt": "# T-044 — buildD365 single-click action\n\nPRD: 01-NPD-PRD.md §10.6, §2.3 (MFA), §12 V04/V07\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nbuildD365(productCode, mfaToken) Server Action: enforces d365_builder.execute permission, MFA verification, runs V01-V08 pre-flight (must pass V01-V06 + V07 PASS + V04 no Missing), generates workbook via T-042, persists via T-043, sets fa.built=TRUE, emits fa.built event.\n\n## Implementation contract\nNew apps/web/app/(npd)/fa/actions/build-d365.ts. Pipeline: 1) RBAC check; 2) verifyMfaToken (TOTP via Clerk or speakeasy); 3) run V01..V08 + V04; 4) build workbook; 5) persistDownloadable; 6) UPDATE product SET built=TRUE; 7) emit fa.built. Single tx for steps 5-7. Returns {downloadUrl, expiresAt}.\n\n## Files\n- apps/web/app/(npd)/fa/actions/build-d365.ts [create]\n- apps/web/app/(npd)/fa/actions/__tests__/build-d365.test.ts [create]\n- packages/auth/src/verify-mfa-token.ts [create]\n\n## Acceptance criteria\n1. Given Jane (npd_manager + valid TOTP) and FA passing V01-V07 + V04 no Missing, when buildD365 runs, then product.built=TRUE, fa_builder_outputs row exists, fa.built event emitted, downloadUrl returned\n2. Given V04 returns Missing for one material, when buildD365 runs, then GateError 'V04_MISSING' thrown without setting built\n3. Given user role core_user attempts buildD365, when called, then AuthError thrown\n\n## Test strategy\n- RED: 3 tests covering happy path, V04 gate, RBAC denial\n- Run 'pnpm --filter web test build-d365'\n\n## Risk red lines\n- Do not skip MFA\n- Do not commit fa.built before file is persisted\n- Do not emit fa.built without successful upload",
+  "labels": ["prd", "api", "d365-builder", "T2-api"],
+  "priority": 80,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-044",
+    "source_prd": "01-NPD-PRD.md",
+    "prd_refs": ["§10.6", "§2.3", "§12"],
+    "category": "api",
+    "subcategory": "d365-build-action",
+    "task_type": "T2-api",
+    "parent_feature": "01-NPD-d Builder",
+    "context_budget": "45k",
+    "estimated_effort": "3h",
+    "description": "Single-click buildD365 Server Action chaining RBAC + MFA + V01-V08 pre-flight + workbook + storage + state transition.",
+    "details": "Single-tx commit of file + DB state. MFA verification via TOTP. Returns downloadUrl + expiresAt.",
+    "scope_files": [
+      "apps/web/app/(npd)/fa/actions/build-d365.ts [create]",
+      "apps/web/app/(npd)/fa/actions/__tests__/build-d365.test.ts [create]",
+      "packages/auth/src/verify-mfa-token.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not implement wizard flow here (T-046)",
+      "Do not implement V04 cache refresh (T-064)"
+    ],
+    "dependencies": ["T-006", "T-007", "T-039", "T-042", "T-043"],
+    "parallel_safe_with": ["T-045", "T-046"],
+    "acceptance_criteria": [
+      "Given Jane with valid TOTP and FA passing V01-V07 + V04 no Missing, when buildD365 runs, then product.built=TRUE, fa_builder_outputs row exists, fa.built event emitted, downloadUrl returned",
+      "Given V04 returns Missing for one material, when buildD365 runs, then GateError 'V04_MISSING' thrown without setting built",
+      "Given user role core_user attempts buildD365, when called, then AuthError thrown"
+    ],
+    "test_strategy": [
+      "RED: 3 tests covering happy path, V04 gate, RBAC denial before action exists",
+      "Run 'pnpm --filter web test build-d365'"
+    ],
+    "risk_red_lines": [
+      "Do not skip MFA",
+      "Do not commit fa.built before file persisted",
+      "Do not emit fa.built without successful upload"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

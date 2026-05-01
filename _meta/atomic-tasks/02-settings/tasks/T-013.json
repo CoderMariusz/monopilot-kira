@@ -1,0 +1,90 @@
+{
+  "title": "T-013 — Drizzle migration: feature_flags_core + notification_preferences",
+  "prompt": "# T-013 — Drizzle migration: feature_flags_core + notification_preferences\n\n## Goal\nCreate §10.2 feature_flags_core (built-in fallback) + §13.3 notification_preferences.\n\n## Files in scope\n- apps/web/db/schema/flags-prefs.ts [create]\n- apps/web/db/migrations/ [create]\n- apps/web/db/seeds/feature-flags-core.sql [create]\n- apps/web/db/migrations/__tests__/flags-prefs.test.ts [create]\n\n## Acceptance criteria (all must hold)\n- Given migration is applied, when `\\d feature_flags_core` is shown, then PK is (org_id, flag_code) and rolled_out_pct is INT default 0.\n- Given migration is applied, when `\\d notification_preferences` is shown, then PK is (user_id, org_id, category, event).\n- Given seed runs, when 4 core flags loaded, then maintenance_mode/integration.d365.enabled/scanner.pwa.enabled/npd.d365_builder.execute exist for the default org with is_enabled=false.\n\n## Test strategy (RED first)\n1. Add a failing test that exercises the acceptance criteria above. The RED command is:\n   `pnpm --filter @monopilot/web vitest run apps/web/db/migrations/__tests__/flags-prefs.test.ts`\n2. Run RED — it must fail before any production code is written.\n3. Implement the smallest change needed for GREEN.\n4. Re-run RED command — must pass.\n5. Run `pnpm typecheck` and `pnpm lint` in the changed package; both must pass.\n\n## Risk red lines\n- Do not edit files outside the listed scope without documenting why in CLOSEOUT.\n- Do not weaken existing acceptance criteria from prior tasks.\n- Do not introduce REST endpoints; use Server Actions per stack contract.\n- Do not commit secrets or vault keys.\n\n## Closeout evidence required\n- changed_files (with line counts)\n- exact test commands and outputs (RED→GREEN, typecheck, lint)\n- acceptance_criteria_status (one row per AC: pass/fail)\n- deviations_from_prd (or \"none\")\n- git_status\n\nStack: TS + Next.js App Router + Drizzle + pnpm + vitest + Playwright + Server Actions. Primitives in `packages/ui`. PRD: `02-SETTINGS-PRD.md` v3.5.\n",
+  "labels": [
+    "prd",
+    "data",
+    "flags-notifs",
+    "T1-schema"
+  ],
+  "priority": 80,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-013",
+    "source_prd": "02-SETTINGS-PRD.md",
+    "prd_refs": [
+      "§10.2",
+      "§13.3"
+    ],
+    "category": "data",
+    "subcategory": "flags-notifs-schema",
+    "task_type": "T1-schema",
+    "parent_feature": "02-settings-b",
+    "context_budget": "40k",
+    "estimated_effort": "1-3h",
+    "description": "Feature flags fallback and notification preferences tables.",
+    "details": "Seed exactly the 4 core flags from §10.2 list. PostHog flags are NOT mirrored here.",
+    "scope_files": [
+      "apps/web/db/schema/flags-prefs.ts",
+      "apps/web/db/migrations/",
+      "apps/web/db/seeds/feature-flags-core.sql",
+      "apps/web/db/migrations/__tests__/flags-prefs.test.ts"
+    ],
+    "out_of_scope": [
+      "broaden scope beyond listed files",
+      "implement future-phase features"
+    ],
+    "dependencies": [
+      "T-004"
+    ],
+    "parallel_safe_with": [
+      "T-005",
+      "T-006",
+      "T-007",
+      "T-008",
+      "T-009",
+      "T-010",
+      "T-011",
+      "T-012"
+    ],
+    "acceptance_criteria": [
+      "Both tables created per spec.",
+      "Seed loads 4 core flags.",
+      "vitest green."
+    ],
+    "test_strategy": [
+      "RED: shape + seed assertion.",
+      "GREEN: emit migration + seed."
+    ],
+    "risk_red_lines": [
+      "Do not mirror PostHog non-core flags into the fallback table."
+    ],
+    "skills": [
+      "test-driven-development"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": false
+  }
+}

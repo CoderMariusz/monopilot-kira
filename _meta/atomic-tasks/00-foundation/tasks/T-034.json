@@ -1,0 +1,86 @@
+{
+  "title": "T-034 \u2014 Schema drift detection daily job comparing information_schema vs Reference.DeptColumns",
+  "prompt": "# T-034 \u2014 Schema drift detection daily job comparing information_schema vs Reference.DeptColumns\n\nPRD: `00-FOUNDATION-PRD.md` \u2014 sections: \u00a76, \u00a711\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`\n\n## Goal\nDaily job that diff-checks the live Postgres information_schema against Reference.DeptColumns and reports drift. Failure mode is a logged audit_events row + alerting webhook.\n\n## Implementation contract\nCreate packages/ops/src/drift-detect.ts that: (1) loads all DeptColumns rows, (2) loads information_schema.columns for the corresponding tables, (3) computes diff (missing in DB, extra in DB, type mismatch), (4) writes an audit_events row with action='schema.drift_detected' retention_class='operational' and the diff in after_state, (5) returns the diff. Add a /api/internal/cron/drift route invoked by a cron schedule. Vitest E2E inserts a desync (DeptColumns row with no matching DDL) and asserts the job detects + records it. Document deploying as a Vercel cron in scripts/cron.json.\n\n## Files (scope)\n- packages/ops/src/drift-detect.ts [create]\n- apps/web/app/api/internal/cron/drift/route.ts [create]\n- scripts/cron.json [create]\n- packages/ops/src/__tests__/drift-detect.e2e.test.ts [create]\n\n## Acceptance criteria\n1. Given a DeptColumns row references column_key='foo' on a table where information_schema reports no 'foo' column, when drift-detect runs, then it returns diff.missing_in_db = ['foo'] and writes an audit_events row with action='schema.drift_detected' retention_class='operational'\n2. Given DeptColumns and information_schema agree, when drift-detect runs, then diff is empty and no audit row is written\n3. Given the cron route is hit without the internal cron header, when processed, then it returns 401\n\n## Test strategy\n- RED: write packages/ops/src/__tests__/drift-detect.e2e.test.ts covering both paths before drift-detect.ts exists\n- Run 'pnpm --filter @monopilot/ops test:e2e'\n\n## Risk red lines\n- Do not write to audit_events with retention_class!='operational' from this job \u2014 taxonomy is fixed in T-009\n\n## Dependencies (must be complete first)\n- T-009\n- T-017\n\n## Closeout evidence\nProvide: changed_files, test_commands_and_results, acceptance_criteria_status (per AC), deviations_from_prd, git_status. Use the test-driven-development skill (RED test before implementation) and requesting-code-review at GREEN.",
+  "labels": [
+    "prd",
+    "infra",
+    "ops",
+    "T4-wiring-test"
+  ],
+  "priority": 120,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-034",
+    "source_prd": "00-FOUNDATION-PRD.md",
+    "prd_refs": [
+      "\u00a76",
+      "\u00a711"
+    ],
+    "category": "infra",
+    "subcategory": "ops",
+    "task_type": "T4-wiring-test",
+    "parent_feature": "00-FOUNDATION ops",
+    "context_budget": "50k",
+    "estimated_effort": "2-3h",
+    "description": "Daily job that diff-checks the live Postgres information_schema against Reference.DeptColumns and reports drift. Failure mode is a logged audit_events row + alerting webhook.",
+    "details": "Create packages/ops/src/drift-detect.ts that: (1) loads all DeptColumns rows, (2) loads information_schema.columns for the corresponding tables, (3) computes diff (missing in DB, extra in DB, type mismatch), (4) writes an audit_events row with action='schema.drift_detected' retention_class='operational' and the diff in after_state, (5) returns the diff. Add a /api/internal/cron/drift route invoked by a cron schedule. Vitest E2E inserts a desync (DeptColumns row with no matching DDL) and asserts the job detects + records it. Document deploying as a Vercel cron in scripts/cron.json.",
+    "scope_files": [
+      "packages/ops/src/drift-detect.ts [create]",
+      "apps/web/app/api/internal/cron/drift/route.ts [create]",
+      "scripts/cron.json [create]",
+      "packages/ops/src/__tests__/drift-detect.e2e.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not modify files outside the scope_files list",
+      "Do not introduce business logic from later module PRDs (01-NPD, 02-SETTINGS, etc.)",
+      "No auto-fix path in this task \u2014 detection only"
+    ],
+    "dependencies": [
+      "T-009",
+      "T-017"
+    ],
+    "parallel_safe_with": [
+      "T-033"
+    ],
+    "acceptance_criteria": [
+      "Given a DeptColumns row references column_key='foo' on a table where information_schema reports no 'foo' column, when drift-detect runs, then it returns diff.missing_in_db = ['foo'] and writes an audit_events row with action='schema.drift_detected' retention_class='operational'",
+      "Given DeptColumns and information_schema agree, when drift-detect runs, then diff is empty and no audit row is written",
+      "Given the cron route is hit without the internal cron header, when processed, then it returns 401"
+    ],
+    "test_strategy": [
+      "RED: write packages/ops/src/__tests__/drift-detect.e2e.test.ts covering both paths before drift-detect.ts exists",
+      "Run 'pnpm --filter @monopilot/ops test:e2e'"
+    ],
+    "risk_red_lines": [
+      "Do not write to audit_events with retention_class!='operational' from this job \u2014 taxonomy is fixed in T-009"
+    ],
+    "skills": [
+      "test-driven-development",
+      "verification-before-completion",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

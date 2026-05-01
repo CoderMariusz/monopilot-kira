@@ -1,0 +1,59 @@
+{
+  "title": "T-018 — Autofilter logic + reopenDeptSection Server Action (NPD-a.5)",
+  "prompt": "# T-018 — Autofilter + reopenDeptSection\n\nPRD: 01-NPD-PRD.md §7.5, §2.2 (closed_flag.unset)\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nProvide reopenDeptSection Server Action and a query helper that supports the dept-view autofilter (default WHERE closed_<dept> != 'Yes', toggle 'Show closed').\n\n## Implementation contract\nNew apps/web/app/(npd)/fa/actions/reopen-dept-section.ts: requires closed_flag.unset perm with scope=dept; sets closed_<dept>='' and emits fa.dept_reopened event. Plus packages/queries/src/list-fa-by-dept.ts: listFaByDept(dept, {showClosed?}) returning FA rows filtered by autofilter + indexed lookup. Add composite index migration 0018 on (tenant_id, closed_<dept>) per dept.\n\n## Files\n- apps/web/app/(npd)/fa/actions/reopen-dept-section.ts [create]\n- apps/web/app/(npd)/fa/actions/__tests__/reopen-dept-section.test.ts [create]\n- packages/queries/src/list-fa-by-dept.ts [create]\n- packages/db/migrations/0018_autofilter_indexes.sql [create]\n\n## Acceptance criteria\n1. Given fa with closed_core='Yes', when listFaByDept('Core',{}) runs (showClosed=false), then row excluded; when showClosed=true, then row included\n2. Given user role npd_manager calls reopenDeptSection(code,'Core'), when run, then closed_core='' and fa.dept_reopened event emitted\n3. Given migration 0018 ran, when EXPLAIN listFaByDept query, then planner uses (tenant_id, closed_core) index\n\n## Test strategy\n- RED: 3 tests for filter, reopen action, index usage via EXPLAIN\n- Run 'pnpm --filter db migrate && pnpm --filter web test reopen-dept-section && pnpm --filter queries test list-fa-by-dept'\n\n## Risk red lines\n- Do not allow reopen without closed_flag.unset permission\n- Do not omit composite indexes (perf gate)\n- Do not bypass RLS in listFaByDept",
+  "labels": ["prd", "api", "fa-workflow", "T2-api"],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-018",
+    "source_prd": "01-NPD-PRD.md",
+    "prd_refs": ["§7.5", "§2.2"],
+    "category": "api",
+    "subcategory": "fa-autofilter",
+    "task_type": "T2-api",
+    "parent_feature": "01-NPD-a workflow",
+    "context_budget": "30k",
+    "estimated_effort": "1-2h",
+    "description": "reopenDeptSection action + list-fa-by-dept query helper with composite indexes for autofilter perf.",
+    "details": "Migration 0018 adds composite indexes on (tenant_id, closed_<dept>) per dept. Action requires closed_flag.unset perm (scoped). List query supports showClosed toggle.",
+    "scope_files": [
+      "apps/web/app/(npd)/fa/actions/reopen-dept-section.ts [create]",
+      "apps/web/app/(npd)/fa/actions/__tests__/reopen-dept-section.test.ts [create]",
+      "packages/queries/src/list-fa-by-dept.ts [create]",
+      "packages/db/migrations/0018_autofilter_indexes.sql [create]"
+    ],
+    "out_of_scope": [
+      "Do not implement dept proxy view UI here (T-019)",
+      "Do not change baseline seed"
+    ],
+    "dependencies": ["T-001", "T-006", "T-017"],
+    "parallel_safe_with": ["T-017"],
+    "acceptance_criteria": [
+      "Given fa with closed_core='Yes', when listFaByDept('Core',{}) runs (showClosed=false), then row excluded; when showClosed=true, then row included",
+      "Given user role npd_manager calls reopenDeptSection(code,'Core'), when run, then closed_core='' and fa.dept_reopened event emitted",
+      "Given migration 0018 ran, when EXPLAIN listFaByDept query, then planner uses (tenant_id, closed_core) index"
+    ],
+    "test_strategy": [
+      "RED: 3 tests for filter, reopen action, EXPLAIN index usage before code exists",
+      "Run 'pnpm --filter db migrate && pnpm --filter web test reopen-dept-section && pnpm --filter queries test list-fa-by-dept'"
+    ],
+    "risk_red_lines": [
+      "Do not allow reopen without closed_flag.unset permission",
+      "Do not omit composite indexes",
+      "Do not bypass RLS in listFaByDept"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

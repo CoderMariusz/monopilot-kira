@@ -1,0 +1,35 @@
+{
+  "title": "T-066 — Docs: TEC-031 Regulatory Compliance Dashboard prototype gap brief",
+  "prompt": "Write engineering brief for missing TEC-031 'Regulatory Compliance Dashboard' prototype per §9.5 [NO-PROTOTYPE-YET]. Output: design/specs/TEC-031-regulatory-dashboard.md covering: KPI tile per regulation (EU 1169/2011, FSMA 204, BRCGS v9, ISO 22000, EU 2023/915, GS1 Digital Link, Peppol) + per-FG flag table (missing shelf-life / missing allergen declaration / missing BRCGS training link). Include the V-TEC-30..33 surfacing rules. Until prototype lands, T3-ui implementation task is OUT OF SCOPE for Phase 1.",
+  "labels": ["prd", "docs", "spec-regulatory-dashboard", "docs"],
+  "priority": 150,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-066",
+    "source_prd": "03-TECHNICAL-PRD.md",
+    "prd_refs": ["§9.3", "§9.5 TEC-031", "§4A TEC-031"],
+    "category": "docs",
+    "subcategory": "spec-regulatory-dashboard",
+    "task_type": "docs",
+    "parent_feature": "03-TECHNICAL-b Regulatory",
+    "context_budget": "12k",
+    "estimated_effort": "1h",
+    "description": "Brief unblocking TEC-031 prototype work.",
+    "details": "Document each regulation tile (data source + threshold), the per-FG flag table contract, and the ATP/cleaning evidence cross-link to 09-QUALITY.",
+    "scope_files": ["design/specs/TEC-031-regulatory-dashboard.md"],
+    "out_of_scope": ["Prototype JSX", "Implementation"],
+    "dependencies": [],
+    "parallel_safe_with": ["T-064", "T-065", "T-067", "T-068"],
+    "acceptance_criteria": [
+      "Given the brief, when reviewed, then it lists 7 regulation tiles, their data sources, and threshold rules.",
+      "Given the brief, when read by a UX designer, then it is sufficient to draft the prototype."
+    ],
+    "test_strategy": ["Manual review by Quality Lead.", "No automated tests for docs."],
+    "risk_red_lines": ["Do not bind hard data sources that are not yet shipped."],
+    "skills": ["requesting-code-review"],
+    "checkpoint_policy": {"required_checkpoints": ["REVIEW", "CLOSEOUT"], "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]},
+    "routing_hints": {"red": "hermes_gpt55", "implementation": "hermes_gpt55", "review": "opus_if_high_risk_or_ui_or_architecture", "close": "spark_low_risk_else_opus"}
+  }
+}

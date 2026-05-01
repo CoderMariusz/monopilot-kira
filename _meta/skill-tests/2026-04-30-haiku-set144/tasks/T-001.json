@@ -1,0 +1,52 @@
+{
+  "title": "T-001 — Add onboarding_state JSONB column to organizations",
+  "prompt": "Add onboarding_state column to the organizations table (JSONB) to track wizard progress.\n\nPRD §14.3 defines state shape: {\"current_step\", \"completed_steps\", \"skipped_steps\", \"started_at\", \"last_activity_at\"}\n\nAcceptance:\n- Migration adds organizations.onboarding_state JSONB NOT NULL DEFAULT '{\"current_step\": 1, \"completed_steps\": [], \"skipped_steps\": [], \"started_at\": null, \"last_activity_at\": null}'\n- Column supports indexing on current_step for resume queries\n- Existing orgs default to step 1, empty tracking lists\n- Schema matches exactly: no extra fields, no null in current_step\n- Migration is reversible\n\nTest: RED test should verify that a fresh org has current_step=1, empty lists, and both timestamps are null.",
+  "labels": ["prd", "data", "schema", "T1-schema"],
+  "priority": 80,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-001",
+    "source_prd": "02-SETTINGS-PRD.md",
+    "prd_refs": ["§14.3"],
+    "category": "data",
+    "subcategory": "schema",
+    "task_type": "T1-schema",
+    "parent_feature": "onboarding_wizard",
+    "context_budget": "20k",
+    "estimated_effort": "0.5-1h",
+    "description": "Add onboarding_state JSONB column to organizations table",
+    "details": "Create a database migration that adds organizations.onboarding_state as a JSONB column. Default value must be a JSON object with keys: current_step (integer, 1), completed_steps (empty array), skipped_steps (empty array), started_at (null), last_activity_at (null). The column must not allow NULL; use the JSON default shown above. This column will be updated as the wizard progresses through steps 1-6. Index on current_step for efficient resume queries.",
+    "scope_files": ["migrations/", "schema.sql"],
+    "out_of_scope": ["wizard UI components", "endpoint logic", "resume functionality"],
+    "dependencies": [],
+    "parallel_safe_with": ["T-002", "T-003", "T-004", "T-005"],
+    "acceptance_criteria": [
+      "Given a new organization, when created, then onboarding_state defaults to {\"current_step\": 1, \"completed_steps\": [], \"skipped_steps\": [], \"started_at\": null, \"last_activity_at\": null}",
+      "Given the schema, when queried with WHERE onboarding_state->>'current_step' = '3', then the index is used efficiently",
+      "Given an existing migration, when rolled back, then the organizations table is restored to pre-migration state"
+    ],
+    "test_strategy": [
+      "Write RED test: test_onboarding_state_default_shape() verifies JSON structure matches PRD",
+      "Run: pytest tests/db/test_organizations.py::test_onboarding_state_default_shape -xvs",
+      "After migration, verify schema with: SELECT column_name, data_type FROM information_schema.columns WHERE table_name='organizations' AND column_name='onboarding_state'"
+    ],
+    "risk_red_lines": [
+      "Do not allow null values in onboarding_state",
+      "Do not deviate from the PRD-specified JSON keys and types",
+      "Do not forget the migration rollback (DOWN clause)"
+    ],
+    "skills": ["test-driven-development"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

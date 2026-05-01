@@ -1,0 +1,58 @@
+{
+  "title": "T-026 — DSL rule allergen_sequencing_optimizer_v2 registered in 02-SETTINGS",
+  "prompt": "# T-026 — DSL rule allergen_sequencing_optimizer_v2 registered in 02-SETTINGS\n\nPRD: 07-PLANNING-EXT-PRD.md §10.2, §6 D2, Appendix B feature flag\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nRegister `allergen_sequencing_optimizer_v2` rule + its v1 fallback `allergen_sequencing_heuristic_v1` reference in rule_registry per §10.2; feature flag `planning.allergen_optimizer.v2.enabled` defaults false (rollout per tenant).\n\n## Implementation contract\n1. Migration `packages/db/migrations/0081_rule_allergen_sequencing_optimizer_v2.sql` upserting rule row with type='objective_component', weight=1.0, params (penalty_weight_high_risk=2.0, medium=1.0, low=0.5, segregated=999999, multi_line_cross_opt_enabled=true), lookup config (changeover_matrix), compatibility.fallback_to='allergen_sequencing_heuristic_v1'.\n2. Insert feature_flags row planning.allergen_optimizer.v2.enabled=false (default off).\n3. Verify v1 fallback rule exists OR insert reference stub.\n\n## Files\n- packages/db/migrations/0081_rule_allergen_sequencing_optimizer_v2.sql [create]\n- packages/db/__tests__/rule-allergen-sequencing-optimizer.test.ts [create]\n\n## Acceptance criteria\n1. Given migration 0081 applied, when SELECT FROM rule_registry WHERE rule_id='allergen_sequencing_optimizer_v2' runs, then row exists with type='objective_component' + all 5 penalty params\n2. Given migration 0081 applied, when SELECT params->>'fallback_to' from that row, then value='allergen_sequencing_heuristic_v1'\n3. Given migration 0081 applied, when SELECT FROM feature_flags WHERE key='planning.allergen_optimizer.v2.enabled', then value=false (per Appendix B)\n\n## Test strategy\n- RED: write packages/db/__tests__/rule-allergen-sequencing-optimizer.test.ts asserting rule + fallback + flag default false\n- Run 'pnpm --filter db migrate && pnpm --filter db test rule-allergen-sequencing-optimizer'\n\n## Risk red lines\n- Do not enable v2 by default (must be false per Appendix B for safe rollout)\n- Do not omit segregated penalty weight 999999 (effectively blocks)\n- Do not couple to v1 implementation here (only registry reference)",
+  "labels": ["prd", "infra", "dsl-rule", "T1-schema"],
+  "priority": 80,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-026",
+    "source_prd": "07-PLANNING-EXT-PRD.md",
+    "prd_refs": ["§10.2", "§6 D2", "Appendix B"],
+    "category": "infra",
+    "subcategory": "dsl-rule",
+    "task_type": "T1-schema",
+    "parent_feature": "07-EXT-b DSL registration",
+    "context_budget": "30k",
+    "estimated_effort": "1h",
+    "description": "Register allergen_sequencing_optimizer_v2 with penalty weights + fallback reference; feature flag default false.",
+    "details": "Idempotent UPSERT migration. params JSONB carries penalty weights, lookup config, fallback rule_id. Feature flag default false enables progressive rollout.",
+    "scope_files": [
+      "packages/db/migrations/0081_rule_allergen_sequencing_optimizer_v2.sql [create]",
+      "packages/db/__tests__/rule-allergen-sequencing-optimizer.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not implement v1 heuristic (lives in 04-PLAN)",
+      "Do not invoke rule from solver here (T-022/T-023 cost function call)",
+      "Do not enable v2 by default"
+    ],
+    "dependencies": ["T-025"],
+    "parallel_safe_with": ["T-027"],
+    "acceptance_criteria": [
+      "Given migration 0081 applied, when SELECT FROM rule_registry WHERE rule_id='allergen_sequencing_optimizer_v2' runs, then row exists with type='objective_component' + all 5 penalty params",
+      "Given migration 0081 applied, when SELECT params->>'fallback_to' from that row, then value='allergen_sequencing_heuristic_v1'",
+      "Given migration 0081 applied, when SELECT FROM feature_flags WHERE key='planning.allergen_optimizer.v2.enabled', then value=false"
+    ],
+    "test_strategy": [
+      "RED: write packages/db/__tests__/rule-allergen-sequencing-optimizer.test.ts asserting rule + fallback + flag default false",
+      "Run 'pnpm --filter db migrate && pnpm --filter db test rule-allergen-sequencing-optimizer'"
+    ],
+    "risk_red_lines": [
+      "Do not enable v2 by default",
+      "Do not omit segregated penalty weight 999999",
+      "Do not couple to v1 implementation here"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

@@ -1,0 +1,59 @@
+{
+  "title": "T-036 — Reference.Allergens + Allergens_by_RM + Allergens_added_by_Process schemas + EU14 seed",
+  "prompt": "# T-036 — Allergen reference schemas + EU14 seed\n\nPRD: 01-NPD-PRD.md §8.2, §8.3, §8.4\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nCreate the 3 allergen reference tables and seed the EU14 list per Reg 1169/2011.\n\n## Implementation contract\nMigration 0040 emits Reference.Allergens (with regulatory_framework, display_name pl/uk/ro), Reference.Allergens_by_RM (UNIQUE tenant_id+ingredient_codes+allergen_code), Reference.Allergens_added_by_Process. RLS for all 3. Seed file emits 14 EU allergens for given tenant. Drizzle schemas.\n\n## Files\n- packages/db/migrations/0040_allergen_references.sql [create]\n- packages/db/src/schema/allergens.ts [create]\n- packages/db/seeds/allergens-eu14.ts [create]\n- packages/db/__tests__/allergens.test.ts [create]\n\n## Acceptance criteria\n1. Given migration 0040 ran and EU14 seed executed for tenant T1, when SELECT count(*) FROM \"Reference.Allergens\" WHERE tenant_id=T1, then count=14\n2. Given Reference.Allergens_by_RM with row (tenant_id=T1, ingredient_codes='RM1939', allergen_code='gluten'), when inserting same triple again, then UNIQUE constraint rejects\n3. Given seed completed, when SELECT WHERE allergen_code='gluten', then regulatory_framework='EU_FIC_1169_2011' and display_name_pl='Gluten'\n\n## Test strategy\n- RED: 3 tests covering count, UNIQUE, seed values\n- Run 'pnpm --filter db migrate && pnpm --filter db seed:allergens-eu14 && pnpm --filter db test allergens'\n\n## Risk red lines\n- Do not skip RLS on any of 3 tables\n- Do not seed without tenant_id\n- Do not change EU14 list (regulatory)",
+  "labels": ["prd", "data", "schema", "T1-schema"],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-036",
+    "source_prd": "01-NPD-PRD.md",
+    "prd_refs": ["§8.2", "§8.3", "§8.4"],
+    "category": "data",
+    "subcategory": "schema-allergens",
+    "task_type": "T1-schema",
+    "parent_feature": "01-NPD-c allergens",
+    "context_budget": "30k",
+    "estimated_effort": "1-2h",
+    "description": "3 allergen reference tables + EU14 seed per Reg 1169/2011.",
+    "details": "Migration creates Reference.Allergens, Reference.Allergens_by_RM, Reference.Allergens_added_by_Process with RLS. Seed populates 14 EU allergens with i18n display names.",
+    "scope_files": [
+      "packages/db/migrations/0040_allergen_references.sql [create]",
+      "packages/db/src/schema/allergens.ts [create]",
+      "packages/db/seeds/allergens-eu14.ts [create]",
+      "packages/db/__tests__/allergens.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not implement cascade rule here (T-038)",
+      "Do not implement override schema (T-037)"
+    ],
+    "dependencies": ["T-001"],
+    "parallel_safe_with": ["T-037"],
+    "acceptance_criteria": [
+      "Given migration 0040 ran and EU14 seed executed for tenant T1, when SELECT count(*) FROM Reference.Allergens WHERE tenant_id=T1, then count=14",
+      "Given Allergens_by_RM with row (tenant_id=T1, ingredient_codes='RM1939', allergen_code='gluten'), when inserting same triple again, then UNIQUE constraint rejects",
+      "Given seed completed, when SELECT WHERE allergen_code='gluten', then regulatory_framework='EU_FIC_1169_2011' and display_name_pl='Gluten'"
+    ],
+    "test_strategy": [
+      "RED: 3 tests covering count, UNIQUE, seed values before migration exists",
+      "Run 'pnpm --filter db migrate && pnpm --filter db seed:allergens-eu14 && pnpm --filter db test allergens'"
+    ],
+    "risk_red_lines": [
+      "Do not skip RLS",
+      "Do not seed without tenant_id",
+      "Do not modify EU14 list"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

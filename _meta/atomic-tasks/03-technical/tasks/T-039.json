@@ -1,0 +1,37 @@
+{
+  "title": "T-039 — UI: TEC-022 BOM Edit modals (component add + version save)",
+  "prompt": "Build BOM line editor modal (`bom_component_add_modal` design/Monopilot Design System/technical/modals.jsx:192-243) used to add or modify a BOM line, plus `bom_version_save_modal` design/Monopilot Design System/technical/modals.jsx:168-190 for save-as-new-version flow. Drag-sort component lives in T-038 tabs but the add/edit dialog is here. RED tests/ui/tec-022-bom-edit.test.tsx. Run: `pnpm vitest run tests/ui/tec-022-bom-edit.test.tsx`.",
+  "labels": ["prd", "ui", "ui-bom-edit", "T3-ui"],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-039",
+    "source_prd": "03-TECHNICAL-PRD.md",
+    "prd_refs": ["§7.5"],
+    "category": "ui",
+    "subcategory": "bom-edit",
+    "task_type": "T3-ui",
+    "parent_feature": "03-TECHNICAL-a BOM",
+    "context_budget": "25k",
+    "estimated_effort": "2-3h",
+    "description": "BOM line add/edit modal + version save modal aligned with prototype dialogs.",
+    "details": "Use shadcn Dialog + Form. manufacturing_operation_name picker lists row_keys from reference_tables.manufacturing_operations.",
+    "scope_files": ["app/(app)/technical/boms/[id]/_components/component-add-modal.tsx", "app/(app)/technical/boms/[id]/_components/version-save-modal.tsx", "tests/ui/tec-022-bom-edit.test.tsx"],
+    "out_of_scope": ["BOM detail page (T-038)"],
+    "dependencies": ["T-013", "T-038"],
+    "parallel_safe_with": ["T-040", "T-041"],
+    "acceptance_criteria": [
+      "Given the component-add modal opens, when compared to design/Monopilot Design System/technical/modals.jsx:192-243, then the field set, action button order, and shadcn primitives match — structural + visual + interaction parity verified by RTL.",
+      "Given the version-save modal opens, when compared to design/Monopilot Design System/technical/modals.jsx:168-190, then the field set and Save/Cancel button order match — structural + visual + interaction parity verified.",
+      "Given the user submits an invalid quantity (0), when validated, then inline error appears.",
+      "Given the modal saves successfully, when API returns 200, then modal closes and parent table refreshes."
+    ],
+    "test_strategy": ["RED tests for parity + validation paths.", "Run: pnpm vitest run tests/ui/tec-022-bom-edit.test.tsx"],
+    "risk_red_lines": ["Do not allow saving without manufacturing_operation_name picked."],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {"required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"], "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]},
+    "routing_hints": {"red": "hermes_gpt55", "implementation": "hermes_gpt55", "review": "opus_if_high_risk_or_ui_or_architecture", "close": "spark_low_risk_else_opus"}
+  }
+}

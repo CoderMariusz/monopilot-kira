@@ -1,0 +1,59 @@
+{
+  "title": "T-017 — POST /api/scheduler/assignments/bulk_approve",
+  "prompt": "# T-017 — POST /api/scheduler/assignments/bulk_approve\n\nPRD: 07-PLANNING-EXT-PRD.md §16.2 OQ-EXT-06, §17.1 PLE-004 FR-07-PLE-004-02\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nImplement [Approve All] bulk endpoint approving all eligible assignments across all completed runs (per OQ-EXT-06) and emitting a single batched outbox event scheduler.assignments.bulk_approved with array payload.\n\n## Implementation contract\n1. Route `apps/web/src/app/api/scheduler/assignments/bulk_approve/route.ts`: POST body { user_id, filter? { run_id?: string, line_id?: string, shift_id?: string } }.\n2. Single transaction: SELECT all draft assignments matching filter (default: all completed-run draft assignments for tenant), UPDATE in batch to status='approved', UPDATE matching work_orders rows in same tx, INSERT one outbox_events row with array payload.\n3. RBAC: Planner Advanced (full set), Scheduling Officer (only own assigned scope per OQ-EXT-06).\n4. Returns 200 with { approved_count, batched_event_id }.\n\n## Files\n- apps/web/src/app/api/scheduler/assignments/bulk_approve/route.ts [create]\n- apps/web/src/lib/scheduler/bulk-approve-action.ts [create]\n- apps/web/src/app/api/scheduler/assignments/bulk_approve/__tests__/route.test.ts [create]\n\n## Acceptance criteria\n1. Given 5 draft assignments across 2 completed runs + Planner Advanced role, when POST runs, then all 5 marked approved, all 5 work_orders updated, exactly ONE outbox_events row inserted with array payload of 5 ids\n2. Given Scheduling Officer role, when POST runs, then only assignments where assignment.assigned_to=officer_id (or scope filter) are approved\n3. Given role 'Operator', when POST runs, then 403 returned\n\n## Test strategy\n- RED: write __tests__/route.test.ts covering single batched outbox emit + scope-limited approve + 403\n- Run 'pnpm --filter web test scheduler/assignments/bulk_approve'\n\n## Risk red lines\n- Do not emit one outbox event per assignment (must be single batched)\n- Do not bypass Scheduling Officer scope guard (OQ-EXT-06)\n- Do not skip transaction wrapping (partial failures must roll back)",
+  "labels": ["prd", "api", "endpoint-post", "T2-api"],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-017",
+    "source_prd": "07-PLANNING-EXT-PRD.md",
+    "prd_refs": ["§16.2 OQ-EXT-06", "§17.1 PLE-004"],
+    "category": "api",
+    "subcategory": "endpoint-post",
+    "task_type": "T2-api",
+    "parent_feature": "07-EXT-a bulk approve flow",
+    "context_budget": "50k",
+    "estimated_effort": "1-2h",
+    "description": "Bulk-approve assignments across all completed runs; single batched outbox event; Scheduling Officer scope-limited.",
+    "details": "Endpoint approves all matching draft assignments in one transaction and emits exactly one outbox_events row scheduler.assignments.bulk_approved with array payload. Scheduling Officer scope constraint enforced.",
+    "scope_files": [
+      "apps/web/src/app/api/scheduler/assignments/bulk_approve/route.ts [create]",
+      "apps/web/src/lib/scheduler/bulk-approve-action.ts [create]",
+      "apps/web/src/app/api/scheduler/assignments/bulk_approve/__tests__/route.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not implement bulk reject (not in PRD)",
+      "Do not implement bulk override (not in PRD)",
+      "Do not stream progress (synchronous response acceptable for typical 5-50 batch)"
+    ],
+    "dependencies": ["T-002", "T-014", "T-028"],
+    "parallel_safe_with": ["T-015", "T-016"],
+    "acceptance_criteria": [
+      "Given 5 draft assignments across 2 runs + Planner role, when POST runs, then all 5 approved, 5 work_orders updated, exactly ONE outbox_events row with array payload of 5 ids",
+      "Given Scheduling Officer role, when POST runs, then only assignments within officer's scope are approved",
+      "Given role 'Operator', when POST runs, then 403 returned"
+    ],
+    "test_strategy": [
+      "RED: write __tests__/route.test.ts covering single batched event + scope-limited approve + 403",
+      "Run 'pnpm --filter web test scheduler/assignments/bulk_approve'"
+    ],
+    "risk_red_lines": [
+      "Do not emit per-assignment outbox events (single batched required)",
+      "Do not bypass Scheduling Officer scope guard",
+      "Do not skip transaction wrapping"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

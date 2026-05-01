@@ -1,0 +1,60 @@
+{
+  "title": "T-006 — Reference.RolePermissions schema + Apex seed (NPD perms)",
+  "prompt": "# T-006 — Reference.RolePermissions schema + Apex seed\n\nPRD: 01-NPD-PRD.md §2.2 + N-U6\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nCreate Reference.RolePermissions schema-driven RBAC table and seed Apex base roles with the 19 permissions listed in §2.2 (including risk.write, compliance_doc.write, formulation.create_draft/lock, recipe.submit_for_trial, pilot.promote_to_bom, npd.gate.advance/approve).\n\n## Implementation contract\nMigration 0015 emits Reference.RolePermissions(role TEXT, permission TEXT, allowed BOOLEAN, scope_qualifier TEXT, tenant_id UUID, PK(tenant_id,role,permission,scope_qualifier)) + RLS. Seed inserts 6 roles × 19 perms = 114 rows for Apex tenant per §2.2 matrix. Drizzle schema. Helper hasPermission(role, perm, scope?) returning boolean.\n\n## Files\n- packages/db/migrations/0015_role_permissions.sql [create]\n- packages/db/src/schema/role-permissions.ts [create]\n- packages/db/seeds/role-permissions-apex.ts [create]\n- packages/rbac/src/has-permission.ts [create]\n- packages/rbac/__tests__/has-permission.test.ts [create]\n\n## Acceptance criteria\n1. Given seed ran, when querying for npd_manager + d365_builder.execute, then allowed=true; for core_user + d365_builder.execute, then allowed=false\n2. Given seed ran, when counting permissions for admin role, then all 19 perms present with allowed=true except where matrix says ❌\n3. Given hasPermission('technical_manager','compliance_doc.write','dept=technical') called, then returns true\n\n## Test strategy\n- RED: 6 unit tests covering matrix corners (npd_manager d365 yes; core_user d365 no; admin schema.edit yes; viewer fa.create no; technical_manager compliance_doc.write yes; npd_manager risk.write yes)\n- Run 'pnpm --filter db migrate && pnpm --filter db seed:role-permissions-apex && pnpm --filter rbac test'\n\n## Risk red lines\n- Do not bypass tenant scoping\n- Do not hardcode role names in production code (use seed config)\n- Do not seed without scope_qualifier where matrix says 'own dept'",
+  "labels": ["prd", "auth", "rbac", "T1-schema"],
+  "priority": 50,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-006",
+    "source_prd": "01-NPD-PRD.md",
+    "prd_refs": ["§2.2", "N-U6"],
+    "category": "auth",
+    "subcategory": "rbac-seed",
+    "task_type": "T1-schema",
+    "parent_feature": "01-NPD-a RBAC backbone",
+    "context_budget": "40k",
+    "estimated_effort": "2h",
+    "description": "Create Reference.RolePermissions table + Apex seed of 19 NPD perms × 6 roles per §2.2 matrix.",
+    "details": "Migration 0015 emits the table with composite PK + RLS. Seed file populates Apex tenant with full matrix. hasPermission helper queries by role+perm+scope. Tests cover 6 representative matrix cells.",
+    "scope_files": [
+      "packages/db/migrations/0015_role_permissions.sql [create]",
+      "packages/db/src/schema/role-permissions.ts [create]",
+      "packages/db/seeds/role-permissions-apex.ts [create]",
+      "packages/rbac/src/has-permission.ts [create]",
+      "packages/rbac/__tests__/has-permission.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not implement MFA flow here (T-022 covers MFA gate for d365_builder.execute)",
+      "Do not build admin UI for editing perms"
+    ],
+    "dependencies": ["T-001"],
+    "parallel_safe_with": ["T-002", "T-005"],
+    "acceptance_criteria": [
+      "Given seed ran, when querying for npd_manager + d365_builder.execute, then allowed=true; for core_user + d365_builder.execute, then allowed=false",
+      "Given seed ran, when counting permissions for admin role, then all 19 perms present with allowed=true except matrix-specified denials",
+      "Given hasPermission('technical_manager','compliance_doc.write','dept=technical') called, then it returns true"
+    ],
+    "test_strategy": [
+      "RED: 6 unit tests covering matrix corners before seed exists",
+      "Run 'pnpm --filter db migrate && pnpm --filter db seed:role-permissions-apex && pnpm --filter rbac test'"
+    ],
+    "risk_red_lines": [
+      "Do not bypass tenant scoping in queries",
+      "Do not hardcode role names in production code paths",
+      "Do not omit scope_qualifier on dept-scoped perms"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

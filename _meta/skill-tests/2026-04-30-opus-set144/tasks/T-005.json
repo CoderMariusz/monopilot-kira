@@ -1,0 +1,61 @@
+{
+  "title": "T-005 — SET-002 Org Profile Step UI (RHF form)",
+  "prompt": "Implement the SET-002 Org Profile Step page at `/onboarding/1` per PRD §14.3 step 1 + §14.4 SET-002.\n\nFields (RHF + Zod): `name` (required, 2-80 chars), `timezone` (required, IANA TZ select), `locale` (required, BCP-47 select), `currency` (required, ISO-4217 select), `logo` (optional file upload, ≤2MB PNG/JPG).\n\nSubmit calls `updateOnboardingState(orgId, {current_step: 2, completed_steps: [...prev, 1]})` from T-002 plus a separate `saveOrgProfile` call (out of scope for this task — stub the import). On success, navigate via `router.push('/onboarding/2')`.\n\nNo Skip button (step 1 is mandatory per PRD §14.3).\n\nDo NOT bundle: actions (T-001/T-002), other step pages (T-006..T-010), launcher (T-004), saveOrgProfile action.\n\nRED test command: `pnpm --filter web test -- onboarding-step1`.",
+  "labels": ["prd", "ui", "wizard-step-form", "T3-ui"],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-005",
+    "source_prd": "02-SETTINGS-PRD.md",
+    "prd_refs": ["§14.3 step 1 (line 1520)", "§14.4 SET-002 (line 1539)"],
+    "category": "ui",
+    "subcategory": "wizard-step-form",
+    "task_type": "T3-ui",
+    "parent_feature": "02-SETTINGS-onboarding-wizard",
+    "context_budget": "30k",
+    "estimated_effort": "2-3h",
+    "description": "Step 1 RHF form: name/timezone/locale/currency/logo; advances state to step 2.",
+    "details": "Page component apps/web/app/(onboarding)/1/page.tsx + step form client component. Uses shadcn `<Select>` for tz/locale/currency, `<Input>` for name, `<FileInput>` for logo. saveOrgProfile import is stubbed — actual save logic belongs to a separate task in 02-SETTINGS-a (out of scope).",
+    "scope_files": [
+      "apps/web/app/(onboarding)/1/page.tsx [create]",
+      "apps/web/app/(onboarding)/1/step1-form.tsx [create]",
+      "apps/web/app/(onboarding)/1/step1-form.test.tsx [create]"
+    ],
+    "out_of_scope": [
+      "saveOrgProfile action implementation (different feature)",
+      "Other step pages (T-006..T-010)",
+      "Launcher guard (T-004)",
+      "gs1_prefix field (gap-backlog S-U2; out of scope of this PRD slice)"
+    ],
+    "dependencies": ["T-001", "T-002"],
+    "parallel_safe_with": ["T-006", "T-007", "T-008", "T-009", "T-010"],
+    "acceptance_criteria": [
+      "Given form rendered, when user submits empty form, then 4 required-field errors are shown and form does NOT call updateOnboardingState.",
+      "Given form filled with valid name/timezone/locale/currency, when user submits, then updateOnboardingState is called with {current_step:2, completed_steps:[1]} merge AND router.push('/onboarding/2') fires.",
+      "Given logo file >2MB selected, when user submits, then file-size error shown and submit blocked.",
+      "Given vitest with RTL covers above, when pnpm --filter web test runs, then 0 failures."
+    ],
+    "test_strategy": [
+      "RED: RTL spec exercising 4 AC with mocked updateOnboardingState.",
+      "GREEN: implement form + page; all AC pass.",
+      "Command: pnpm --filter web test -- onboarding-step1"
+    ],
+    "risk_red_lines": [
+      "Do not call any DB action directly — must go through updateOnboardingState from T-002.",
+      "Do not render Skip button — step 1 is not skippable per PRD."
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

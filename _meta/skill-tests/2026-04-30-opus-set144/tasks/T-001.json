@@ -1,0 +1,69 @@
+{
+  "title": "T-001 — organizations.onboarding_state JSONB column + Zod state schema",
+  "prompt": "Implement the persistent state contract for the 02-SETTINGS onboarding wizard described in PRD §14.3.\n\nGoal: add a `onboarding_state` JSONB column to the `organizations` table and a typed Zod schema that the wizard server actions and UI will share.\n\nContract — JSONB shape per PRD §14.3 (line 1529):\n  {\n    \"current_step\": <int 1-6>,\n    \"completed_steps\": <int[]>,\n    \"skipped_steps\": <int[]>,\n    \"started_at\": <ISO 8601 string>,\n    \"last_activity_at\": <ISO 8601 string>\n  }\n\nDeliverable:\n1. Drizzle migration adding `onboarding_state JSONB NOT NULL DEFAULT '{\"current_step\":1,\"completed_steps\":[],\"skipped_steps\":[],\"started_at\":null,\"last_activity_at\":null}'::jsonb` (writable on insert by signup flow).\n2. `packages/db/schema/organizations.ts` Drizzle column + inferred type.\n3. `packages/shared/onboarding-state.schema.ts` Zod schema `onboardingStateSchema` exporting `OnboardingState` type.\n4. pgTAP test: column exists, default applies on insert, JSONB structure matches schema.\n\nDo NOT bundle: server actions (T-002), skip handler (T-003), or UI (T-004..T-010).\n\nRED test command: `pnpm --filter db test -- onboarding_state`.",
+  "labels": ["prd", "data", "jsonb-column", "T1-schema"],
+  "priority": 50,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-001",
+    "source_prd": "02-SETTINGS-PRD.md",
+    "prd_refs": ["§14.3 (lines 1516-1532)", "§14.3 state JSON (line 1529)"],
+    "category": "data",
+    "subcategory": "jsonb-column",
+    "task_type": "T1-schema",
+    "parent_feature": "02-SETTINGS-onboarding-wizard",
+    "context_budget": "20k",
+    "estimated_effort": "1-2h",
+    "description": "Add organizations.onboarding_state JSONB column + Zod schema for the 6-step onboarding wizard state contract.",
+    "details": "Migration up adds the column with DEFAULT JSONB literal so existing rows backfill cleanly. Zod schema lives in shared package because both server actions (T-002, T-003) and wizard UI components (T-004..T-010) parse/serialize this shape. Inferred TS type re-exported from db schema barrel.",
+    "scope_files": [
+      "packages/db/migrations/NNNN_add_onboarding_state.sql [create]",
+      "packages/db/schema/organizations.ts [modify]",
+      "packages/shared/onboarding-state.schema.ts [create]",
+      "packages/db/test/onboarding_state.pgtap.sql [create]"
+    ],
+    "out_of_scope": [
+      "Server actions (covered by T-002)",
+      "Skip handler (covered by T-003)",
+      "Any UI (covered by T-004..T-010)",
+      "Re-running existing migrations / changing other organizations columns"
+    ],
+    "dependencies": [],
+    "parallel_safe_with": [],
+    "acceptance_criteria": [
+      "Given an empty organizations row inserted, when SELECT onboarding_state runs, then JSONB matches default {current_step:1, completed_steps:[], skipped_steps:[], started_at:null, last_activity_at:null}.",
+      "Given onboardingStateSchema imported in any package, when invalid shape (e.g., current_step:0 or 7) is parsed, then Zod throws with field-level error.",
+      "Given pgTAP test runs, when migration is applied to clean DB, then test asserts column exists with correct DEFAULT and NOT NULL constraint and passes 0 failures.",
+      "Given pnpm --filter db test runs, when this migration is in the chain, then the suite is green and no other migrations are touched."
+    ],
+    "test_strategy": [
+      "RED: write pgTAP test asserting column + DEFAULT BEFORE writing migration; confirm RED (column missing).",
+      "GREEN: apply migration, re-run, all 4 AC pass.",
+      "Command: pnpm --filter db test -- onboarding_state"
+    ],
+    "risk_red_lines": [
+      "Do not change other columns of organizations table.",
+      "Do not skip the DEFAULT clause — existing rows must backfill.",
+      "Do not place the Zod schema inside apps/web (must be in packages/shared so both server actions and UI consume it)."
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

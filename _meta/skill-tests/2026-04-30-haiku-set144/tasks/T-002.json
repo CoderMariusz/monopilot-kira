@@ -1,0 +1,55 @@
+{
+  "title": "T-002 — Implement POST /api/v1/onboarding/step API endpoint",
+  "prompt": "Implement the onboarding step progression endpoint.\n\nPRD §14.3 requires a stateful wizard that:\n- Accepts step number and form data (depends on step)\n- Updates organizations.onboarding_state: current_step, completed_steps, started_at, last_activity_at\n- Validates input (enum steps 1-6, required fields per step)\n- Returns step success + next_step_hint or error\n- Supports resume: step N → can jump to step N (if already completed) or next unvisited step\n\nSteps 4 and 5 are skippable (skip button):\n- Step 4 (First Product) redirects to 03-TECHNICAL create product\n- Step 5 (First WO) redirects to 04-PLANNING-BASIC create WO\nSending skip=true marks the step as skipped (skipped_steps array) and moves to next.\n\nAcceptance:\n- POST /api/v1/onboarding/step accepts {\"step_number\": 1-6, \"data\": {...}, \"skip\": false}\n- Updates onboarding_state atomically\n- Validates step transitions (no jump from 1 to 5)\n- Skippable steps (4, 5) accept skip=true\n- Returns JSON: {\"status\": \"success\", \"current_step\": N, \"next_step\": N+1 or null}\n- On error returns 400/422 with reason\n\nTest: RED test verifies state transitions (step 1→2→3→skip 4→5→6), started_at is set once, last_activity_at updates.",
+  "labels": ["prd", "api", "endpoint", "T2-api"],
+  "priority": 80,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-002",
+    "source_prd": "02-SETTINGS-PRD.md",
+    "prd_refs": ["§14.3"],
+    "category": "api",
+    "subcategory": "endpoint",
+    "task_type": "T2-api",
+    "parent_feature": "onboarding_wizard",
+    "context_budget": "35k",
+    "estimated_effort": "2-3h",
+    "description": "API endpoint to progress through onboarding steps with state persistence",
+    "details": "Create POST /api/v1/onboarding/step endpoint (FastAPI). Input: {\"step_number\": 1-6, \"data\": object, \"skip\": bool}. Logic: validate step is valid integer 1-6; if skip=true and step in [4,5], add to skipped_steps and move to next; otherwise validate step form data (step 1: org name/timezone/locale/currency; step 2: warehouse name/type/code; step 3: location zone/bin; steps 4,5: skip only; step 6: no data); update organizations.onboarding_state atomically with current_step, completed_steps (append step if not already completed), started_at (set on first call), last_activity_at (always update); return {\"status\": \"success\", \"current_step\": N, \"next_step\": N+1 or null if completed}. Reject jumps (e.g. 1→5 unless all 2-4 completed). Enforce step 6 can only be reached after steps 1-5 (completed or skipped).",
+    "scope_files": ["src/api/routes/onboarding.py", "src/models/organization.py", "tests/api/test_onboarding_step.py"],
+    "out_of_scope": ["UI screens (see T-007..T-010)", "form validation beyond step schema", "redirect URLs for steps 4-5"],
+    "dependencies": ["T-001"],
+    "parallel_safe_with": [],
+    "acceptance_criteria": [
+      "Given new org at step 1, when POST /api/v1/onboarding/step {\"step_number\": 1, \"data\": {...}}, then current_step becomes 2 and completed_steps includes 1",
+      "Given org at step 4, when POST with skip=true, then step 4 added to skipped_steps and current_step becomes 5",
+      "Given org at step 6, when all prior steps completed or skipped, then next_step is null and status is 'complete'",
+      "Given org at step 2, when attempt to jump to step 5, then return 422 with 'skipped steps must be 4 or 5' reason"
+    ],
+    "test_strategy": [
+      "Write RED test: test_onboarding_step_progression() verifies 1→2→3→skip4→5→6 state chain",
+      "Write RED test: test_onboarding_step_invalid_jump() verifies 1→5 is rejected",
+      "Run: pytest tests/api/test_onboarding_step.py -xvs",
+      "Verify endpoint response shape matches prompt (status, current_step, next_step keys)"
+    ],
+    "risk_red_lines": [
+      "Do not allow step progression outside the 1-6 range",
+      "Do not allow backward movement (current_step > new step_number)",
+      "Do not skip non-optional steps 1, 2, 3, or 6",
+      "Do not double-add a step to completed_steps if called twice"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

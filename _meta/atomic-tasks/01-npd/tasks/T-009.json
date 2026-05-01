@@ -1,0 +1,58 @@
+{
+  "title": "T-009 — Server Action updateFaCell + reset_built trigger wiring (NPD-a.4)",
+  "prompt": "# T-009 — updateFaCell Server Action + reset_built trigger wiring\n\nPRD: 01-NPD-PRD.md §7.4, §6.2 (downstream refresh), §2.2 (<dept>.write)\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nProvide updateFaCell(productCode, columnName, value) Server Action that respects per-dept RBAC, runs DB UPDATE, fires reset_built trigger when built=TRUE → FALSE, emits fa.edit event with diff payload.\n\n## Implementation contract\nMigration 0016 emits reset_built_on_edit() function + BEFORE UPDATE trigger on product per §7.4. Server Action apps/web/app/(npd)/fa/actions/update-fa-cell.ts checks dept ownership of column via Reference.DeptColumns lookup, validates value via dynamic Zod from DeptColumns metadata, runs UPDATE in tx, emits fa.edit and (when applicable) fa.built_reset events. Returns {previousValue, newValue, builtReset:boolean}.\n\n## Files\n- packages/db/migrations/0016_reset_built_trigger.sql [create]\n- apps/web/app/(npd)/fa/actions/update-fa-cell.ts [create]\n- apps/web/app/(npd)/fa/actions/__tests__/update-fa-cell.test.ts [create]\n\n## Acceptance criteria\n1. Given fa.built=TRUE and user updates fa.product_name to new value, when updateFaCell runs, then DB row has built=FALSE and one outbox_events row event_type='fa.built_reset' is written\n2. Given user role planning_manager attempts to update fa.box (MRP col), when updateFaCell runs, then AuthError thrown (no MRP.write)\n3. Given pack_size column changes, when updateFaCell runs, then a fa.edit event is emitted with payload.diff containing {pack_size: {prev, next}}\n\n## Test strategy\n- RED: 3 tests covering reset trigger, RBAC dept gate, edit event payload\n- Run 'pnpm --filter db migrate && pnpm --filter web test update-fa-cell'\n\n## Risk red lines\n- Do not allow blanket update of any column\n- Do not skip the reset trigger when prod_detail edits land\n- Do not emit fa.built_reset if built was already FALSE",
+  "labels": ["prd", "api", "fa-actions", "T2-api"],
+  "priority": 80,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-009",
+    "source_prd": "01-NPD-PRD.md",
+    "prd_refs": ["§7.4", "§6.2", "§2.2"],
+    "category": "api",
+    "subcategory": "fa-update",
+    "task_type": "T2-api",
+    "parent_feature": "01-NPD-a fa CRUD",
+    "context_budget": "40k",
+    "estimated_effort": "2-3h",
+    "description": "updateFaCell Server Action + DB trigger that resets built=FALSE on any product or prod_detail edit per §7.4.",
+    "details": "DB migration adds BEFORE UPDATE trigger emitting outbox row when built flips TRUE→FALSE. Server Action enforces per-dept RBAC via DeptColumns lookup, runs UPDATE in transaction, emits fa.edit always and fa.built_reset when applicable.",
+    "scope_files": [
+      "packages/db/migrations/0016_reset_built_trigger.sql [create]",
+      "apps/web/app/(npd)/fa/actions/update-fa-cell.ts [create]",
+      "apps/web/app/(npd)/fa/actions/__tests__/update-fa-cell.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not implement cascade chains here (T-010..T-013)",
+      "Do not build dept proxy view UI here (T-019)"
+    ],
+    "dependencies": ["T-001", "T-003", "T-006", "T-007"],
+    "parallel_safe_with": ["T-008"],
+    "acceptance_criteria": [
+      "Given fa.built=TRUE and user updates fa.product_name, when updateFaCell runs, then DB row has built=FALSE and one outbox_events row event_type='fa.built_reset' is written",
+      "Given user role planning_manager updates fa.box, when updateFaCell runs, then AuthError thrown (no MRP.write)",
+      "Given pack_size column changes, when updateFaCell runs, then a fa.edit event is emitted with payload.diff containing the prev/next values"
+    ],
+    "test_strategy": [
+      "RED: 3 tests covering reset trigger, RBAC dept gate, edit event payload before action+trigger exist",
+      "Run 'pnpm --filter db migrate && pnpm --filter web test update-fa-cell'"
+    ],
+    "risk_red_lines": [
+      "Do not allow blanket column updates without dept ownership check",
+      "Do not skip trigger application to prod_detail edits",
+      "Do not emit fa.built_reset when built was already FALSE"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

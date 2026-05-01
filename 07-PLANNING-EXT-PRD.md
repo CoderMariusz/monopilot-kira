@@ -1,8 +1,8 @@
 # 07-PLANNING-EXT-PRD.md
 
 **Module:** 07-PLANNING-EXT — Advanced Scheduling, Allergen Optimizer, ML Forecasting, Disposition Bridge
-**Version:** 3.1 (2026-04-21 — 10 open questions resolved; Gantt drag-drop descoped)
-**Updated:** 2026-04-21
+**Version:** 3.2 (2026-04-30 — standardized product code nomenclature FA→FG per multi-industry pattern)
+**Updated:** 2026-04-30
 **Status:** Written
 **Owner:** Scheduling & Planning domain
 **Dependencies:** 04-PLANNING-BASIC v3.1, 03-TECHNICAL v3.0, 02-SETTINGS v3.0, 05-WAREHOUSE v3.0, 00-FOUNDATION v3.0
@@ -12,6 +12,7 @@
 
 ## Changelog
 
+- **v3.2 (2026-04-30)** — Standardized product code nomenclature for multi-industry manufacturing pattern. **Universal changes:** FA → FG throughout (Finished Article → Finished Good). Renamed `fa_line_compatibility` → `fg_line_compatibility` for consistency with 03-TECHNICAL v3.1 + 01-NPD v3.2. All product code examples updated (e.g., "Forecast for FG-BRD-0001: 500 units/month"). No changes to forecasting algorithm, supply planning logic, or safety stock calculations. Version bumped per ADR-002 minor versioning; feature flag rollout unchanged.
 - **v3.1 (2026-04-21)** — Stakeholder decision session. 10 open questions (OQ-EXT-01..10) resolved. MAJOR: GanttView drag-drop descoped — Gantt is now read-only visualization; rescheduling via Assignment Override modal and global Re-run Scheduler. Penalty weights accepted (OQ-EXT-01). Operator shift preference deferred P2 (OQ-EXT-02). What-if sim deferred P2 (OQ-EXT-03). Blocked cells get `[Request Review]` button (OQ-EXT-04). `[Approve All]` covers all completed runs (OQ-EXT-06). Disposition timeout extensible per LP via `[Extend 1h]`/`[Extend 4h]` (OQ-EXT-07). Single Planner Advanced publish for matrix (OQ-EXT-08). Dry-run persists as `scheduler_run` row with `run_type='dry_run'` (OQ-EXT-09). Total Changeover KPI = approved schedule sum (OQ-EXT-10).
 - **v3.0 (2026-04-20)** — Greenfield v3.0 per Phase D renumbering. Absorbs deferred items from 04-PLANNING-BASIC v3.1 §8.5 (disposition bridge), §10 (full allergen sequencing optimizer), §11 (finite-capacity engine). Adds ML forecasting bridge (internal Prophet microservice, R12). Integrates 02-SETTINGS §7 rule registry DSL via pluggable optimizer rules. 16 sections, 5 Phase C3 decisions (D1-D5 Q1-Q5), ~2200 lines, 4 sub-modules build sequence (07-a..d).
 - **Prior baseline:** None as standalone PRD. Content source: 04-PLANNING-BASIC v3.1 §11 stub (marked [EVOLVING] for 07-EXT) + §10 heuristic carry-forward + MES-TRENDS-2026 §3/§9 R-decisions (R1 event-first, R12 AI/ML, R13 schema AI-ready).
@@ -134,7 +135,7 @@ By splitting, 04-PLAN-BASIC can go to implementation immediately while 07-EXT re
 
 **NPD Manager (Jane)** [APEX-CONFIG, cameo]
 - Primary user of 01-NPD
-- Minor 07-EXT interaction: views forecast for new FAs launching (P2)
+- Minor 07-EXT interaction: views forecast for new FGs launching (P2)
 - Read on `demand_forecasts` where product_id IN NPD scope
 
 **System (Scheduler Daemon)** [UNIVERSAL]
@@ -171,7 +172,7 @@ By splitting, 04-PLAN-BASIC can go to implementation immediately while 07-EXT re
 
 1. **Finite-capacity scheduling engine** (basic heuristic) [D1]
    - Greedy assignment: WOs → (line, shift, time_window)
-   - Respects `production_lines.capacity_kg_per_hour`, `shift_patterns`, `production_lines.allergen_constraints`
+   - Respects `production_lines.capacity_kg_per_hour`, `shift_patterns`, `production_lines.allergen_constraints` per FG line compatibility
    - Local search refinement (swap pairs, move between lines)
    - No MILP/CP-SAT solver (no OR-Tools dependency)
    - Python microservice (FastAPI), <60s P95 runtime target
@@ -186,7 +187,7 @@ By splitting, 04-PLAN-BASIC can go to implementation immediately while 07-EXT re
 3. **Changeover matrix editor** [UNIVERSAL]
    - UI in 07-EXT (linked from 02-SETTINGS reference tables)
    - N×N matrix: allergen_from × allergen_to → (changeover_minutes, cleaning_required, atp_required)
-   - Apex initial seed: 14 EU allergens + Mustard + "none" row/col
+   - Apex initial seed: 14 EU allergens + Mustard + "none" row/col (per 03-TECHNICAL FG allergen profiles)
    - L3 extensible via schema-driven admin wizard (ADR-028)
 
 4. **Manual forecast entry** (pre-Prophet integration) [EVOLVING→P2]
@@ -199,7 +200,7 @@ By splitting, 04-PLAN-BASIC can go to implementation immediately while 07-EXT re
    - Color by allergen group
    - Highlight changeover blocks
    - Click WO → details side panel (materials, operations, intermediate dependencies from 04-PLAN §8.4)
-   - **Read-only visualization** — no drag-drop reassignment [DESCOPED P1, decision 2026-04-21]. Rescheduling via `[Re-run Scheduler]` (global) or MODAL-07-03 Assignment Override (per-WO). Rationale: FAs are typically bound to one line (see 03-TECHNICAL `fa_line_compatibility`); drag between lines would require eligibility lookup with limited business value.
+   - **Read-only visualization** — no drag-drop reassignment [DESCOPED P1, decision 2026-04-21]. Rescheduling via `[Re-run Scheduler]` (global) or MODAL-07-03 Assignment Override (per-WO). Rationale: FGs are typically bound to one line (see 03-TECHNICAL `fg_line_compatibility`); drag between lines would require eligibility lookup with limited business value.
 
 6. **Scheduler run lifecycle** [UNIVERSAL]
    - Planner clicks "Run Scheduler" → POST /api/scheduler/run {horizon_days, line_ids[], include_forecast: bool}
@@ -534,12 +535,12 @@ E4 ← 04-PLAN §8.5/9 (disposition policy, reservation semantics)
 
 **Actions:**
 - Click WO block → side panel with approve/reject/override/reschedule-WO
-- `[Reschedule WO]` in side panel → opens Assignment Override modal (MODAL-07-03) prefilled; validates `fa_line_compatibility` from 03-TECHNICAL
+- `[Reschedule WO]` in side panel → opens Assignment Override modal (MODAL-07-03) prefilled; validates `fg_line_compatibility` from 03-TECHNICAL
 - `[Re-run Scheduler]` → POST /api/scheduler/run → status poll → refresh Gantt (global re-solve)
 - **Drag-drop: DESCOPED P1** — Gantt is read-only visualization (decision 2026-04-21; see §8.1 rationale below)
 - Export: PDF report (Phase 2), CSV assignments
 
-**§8.1 Gantt drag-drop descope rationale (OQ-EXT-05, 2026-04-21):** FAs are typically bound to one production line (dominant 1-FA-to-1-line relationship in Apex configuration). Drag between lines would require eligibility lookup via `fa_line_compatibility` from 03-TECHNICAL for every drag event, creating significant implementation complexity for limited business value. The assignment override modal (MODAL-07-03) provides full rescheduling capability with proper validation. This decision is CLOSED.
+**§8.1 Gantt drag-drop descope rationale (OQ-EXT-05, 2026-04-21):** FGs are typically bound to one production line (dominant 1-FG-to-1-line relationship in Apex configuration). Drag between lines would require eligibility lookup via `fg_line_compatibility` from 03-TECHNICAL for every drag event, creating significant implementation complexity for limited business value. The assignment override modal (MODAL-07-03) provides full rescheduling capability with proper validation. This decision is CLOSED.
 
 #### SCR-07-02: Changeover Matrix Editor
 
@@ -1291,7 +1292,7 @@ All P1 open questions resolved 2026-04-21. No blockers remain.
 | OQ-EXT-02 | Operator shift preference (P2) — no overlay in P1 GanttView | Remains P2. No overlay in P1 GanttView. | 2026-04-21 | CLOSED (deferred P2) |
 | OQ-EXT-03 | What-if simulation baseline scope — in-flight WOs included? | Remains P2; no decision needed now. | 2026-04-21 | CLOSED (deferred P2) |
 | OQ-EXT-04 | Blocked cells in changeover matrix — allow note + admin review request? | Planner CAN add note/justification and request admin review via `[Request Review]` button on blocked cells. Creates `matrix_review_request` record (PRD to define table). | 2026-04-21 | CLOSED |
-| OQ-EXT-05 | GanttView drag-drop — descoped or retained? | **DESCOPED.** Gantt is read-only visualization. Rescheduling via `[Re-run Scheduler]` (global) or MODAL-07-03 Assignment Override (per-WO, with `[Reschedule WO]` entry in side panel). Rationale: 1-FA-to-1-line dominance; `fa_line_compatibility` eligibility lookup has low UX value as drag target. | 2026-04-21 | CLOSED |
+| OQ-EXT-05 | GanttView drag-drop — descoped or retained? | **DESCOPED.** Gantt is read-only visualization. Rescheduling via `[Re-run Scheduler]` (global) or MODAL-07-03 Assignment Override (per-WO, with `[Reschedule WO]` entry in side panel). Rationale: 1-FG-to-1-line dominance; `fg_line_compatibility` eligibility lookup has low UX value as drag target. | 2026-04-21 | CLOSED |
 | OQ-EXT-06 | `[Approve All]` scope — most recent run or all completed runs? | Approves assignments from ALL completed runs. UI shows run grouping. | 2026-04-21 | CLOSED |
 | OQ-EXT-07 | Disposition bridge timeout (MODAL-07-04) — can Planner extend per LP? | Planner CAN extend per LP via inline `[Extend 1h]` / `[Extend 4h]` buttons with mandatory reason. Default 2h stays. | 2026-04-21 | CLOSED |
 | OQ-EXT-08 | Changeover matrix edit approval workflow — dual sign-off? | Single Planner Advanced publish (no dual sign-off). | 2026-04-21 | CLOSED |
@@ -1374,4 +1375,409 @@ Prior to Phase D, planning content was consolidated in single PRD `04-PLANNING-P
 
 ---
 
-**End of 07-PLANNING-EXT-PRD.md v3.1**
+## 17. UX/Prototype Coverage Additions (PLE-NNN)
+
+**Origin:** `_meta/audits/2026-04-30-design-prd-coverage.md` §07-PLANNING-EXT (~65% baseline coverage). This section closes Direction-B orphans (UX/prototype features that lacked a PRD anchor) by giving each a PRD subsection with traceability to UX line + prototype label. Direction-A items (PRD bullets without design surface) are tagged `[NO-PROTOTYPE-YET]`. All entries are `[UNIVERSAL]` unless marked otherwise.
+
+> **ADR-034 marker:** Sample product codes shown below as `FG-XXXX` use the generalized **FG (Finished Good)** nomenclature per ADR-034 (`_foundation/decisions/ADR-034-generic-product-lifecycle-naming-and-industry-configuration.md`). Industry-specific seed labels (e.g., `Fresh Chicken`) are `[INDUSTRY-CONFIG]` and replaceable per tenant.
+
+### 17.1 Direction-B additions (orphan UX/prototype → new PRD anchor)
+
+#### PLE-001 — Scheduler Run History Browser (SCR-07-04 Index Page) [UNIVERSAL]
+
+**Anchors:** UX `design/07-PLANNING-EXT-UX.md:758-806` (SCR-07-04). Prototype `pext_run_history` (`runhistory-screens.jsx:3-115`).
+
+**Status:** P1. Audit row 9 (HIGH) — UX/prototype existed; PRD only mentioned the run lifecycle (§4.1.6) without enumerating a dedicated browser UI.
+
+**Scope:**
+
+- Filterable index of `scheduler_runs` (date range, status, run_type, user, run_id prefix).
+- 4 KPI mini-cards: Total Runs, Avg Solve Time, Acceptance Rate, Override Rate (targets per §11.1).
+- Per-row actions: `[View]` → SCR-07-04-DETAIL; `[Re-run]` (Planner only) clones input snapshot + new UUID v7 (R14).
+- Dry-run rows visible with `run_type` filter (`Schedule` / `Dry Run`) per OQ-EXT-09.
+- CSV export of filtered runs.
+
+**RBAC:** Planner Advanced + Scheduling Officer + Prod Manager — read. `[Re-run]` Planner Advanced only.
+
+**FRs:**
+- FR-07-PLE-001-01: List `scheduler_runs` with server-side filter/sort, paginated 50/page.
+- FR-07-PLE-001-02: KPI tiles aggregate within current filter scope (single loader query).
+- FR-07-PLE-001-03: `[Re-run]` invokes POST `/api/scheduler/run` with cloned `input_snapshot` (R14 idempotency: new `run_id` UUID v7).
+- FR-07-PLE-001-04: Failed/Partial rows surface `error_message` via row tooltip.
+
+**Cross-refs:** §9.2 `scheduler_runs` schema (already defined). §15.4 V-SCHED rules unchanged.
+
+---
+
+#### PLE-002 — Scheduler Run Detail (SCR-07-04-DETAIL) [UNIVERSAL]
+
+**Anchors:** UX `design/07-PLANNING-EXT-UX.md:808-864` (SCR-07-04-DETAIL). Prototype `pext_run_detail` (`runhistory-screens.jsx:119-260`).
+
+**Status:** P1. Audit row 9.
+
+**Scope:**
+
+- Two-column layout: run metadata (full UUID, queued/started/completed, solver duration, optimizer version, line list, idempotency cache marker) + output summary (assignments scheduled / unscheduled, total changeover, per-line utilization, override count, fallback flag).
+- Collapsible **Input Snapshot** card with `[View Full Snapshot JSON]` viewer modal (gates BL-PEXT-06 placeholder follow-up — see §17.3).
+- **Override Log** timeline with `(timestamp, user, original line/shift/start, new line/shift/start, reason_code, reason_notes)`.
+- Paginated **Assignment Table** (rank, WO code, product, line, shift, planned start, duration, score, status, approved_by).
+- `[Re-run]` (Planner only) clones input → POST `/api/scheduler/run`.
+
+**FRs:**
+- FR-07-PLE-002-01: Single Drizzle query joins `scheduler_runs` with `scheduler_assignments` and override audit rows.
+- FR-07-PLE-002-02: Cached run results display `.badge-blue` "Cached result — original run {short_id}" per R14.
+- FR-07-PLE-002-03: Fallback activation surfaced as `.badge-amber` linking to §13.3 fallback semantics.
+
+---
+
+#### PLE-003 — Capacity Projection Screen [UNIVERSAL]
+
+**Anchors:** UX referenced implicitly at `design/07-PLANNING-EXT-UX.md:285-287` (Zone B utilization KPI) and 04-PLAN cross-link. Prototype `pext_capacity_projection` (`optimizer-screens.jsx:113-206`). **No dedicated UX screen** — existed only as prototype. PRD reference §1.4 line capacity hint and §11.1 utilization KPI.
+
+**Status:** P1 advisory; promotes the prototype to a first-class auxiliary screen.
+
+**Scope:**
+
+- Per-line × per-day utilization grid (`SUM(qty_kg / duration_h) / line.capacity_kg_per_hour × 100`).
+- Color-coded cells: red >100%, amber 90-100%, green <90% (§1.12 token reuse).
+- V-SCHED-04 violation alert: any cell >100% lists offending `(line_id, day, WO codes)`.
+- Per-line stacked utilization bars (rolling horizon).
+- `[Refresh Projection]` rebinds to last `scheduler_runs.completed_at`; CSV export.
+
+**Route:** `/scheduler/capacity` (new, sub-nav under Scheduler).
+
+**FRs:**
+- FR-07-PLE-003-01: Aggregation query reuses approved `scheduler_assignments` joined to `production_lines.capacity_kg_per_hour`.
+- FR-07-PLE-003-02: V-SCHED-04 violations are hard surfaced (alert variant `red`); soft over-90% are amber per §11.1.
+
+**Note for design:** UX file does not yet contain a dedicated SCR-NN entry — record as `[NO-UX-SECTION-YET]` follow-up; prototype already provides authoritative layout.
+
+---
+
+#### PLE-004 — Pending Review Full Page (Assignment Queue) [UNIVERSAL]
+
+**Anchors:** UX `design/07-PLANNING-EXT-UX.md:324-338` (Zone D Pending Review Panel, embedded in SCR-07-01). Prototype `pext_pending_full_page` (`optimizer-screens.jsx:4-110`) provides full-page deep-link variant.
+
+**Status:** P1. The PRD §4.1.6 already covers approve/reject/override; this section anchors the standalone full-page deep-link variant used from KPI tile drill-downs.
+
+**Scope:**
+
+- Full-page list of `scheduler_assignments` filterable by status (`draft|approved|rejected|overridden`), line, shift, run_group, free-text WO/product search.
+- 4 KPI tiles: In Queue, Pending, Approved, Overridden (matching SCR-07-01 Zone B counts but scoped to current filter).
+- Bulk actions: `[Approve All]`, `[Reject All]` (per OQ-EXT-06, span all completed runs with run-group sub-headers).
+- Per-row `[Override]` opens MODAL-07-03; `[View WO]` deep-links 04-PLANNING-BASIC.
+- CSV export of filtered queue.
+
+**Route:** `/scheduler/pending` (new sub-nav).
+
+**RBAC:** Planner Advanced + Scheduling Officer (Officer can approve/reject but not bulk Approve-All beyond their assignments per OQ-EXT-06 clarification).
+
+**FRs:**
+- FR-07-PLE-004-01: URL-driven filters (nuqs-style) so KPI drill-downs can deep-link with state preserved.
+- FR-07-PLE-004-02: Bulk-approve emits a single batched outbox event `scheduler.assignments.bulk_approved` with array payload (per audit prototype note `approve_all_modal`).
+
+---
+
+#### PLE-005 — Scheduler Settings (Default Run Parameters & Alerts) [UNIVERSAL]
+
+**Anchors:** UX implicit in Run Scheduler Modal defaults (`design/07-PLANNING-EXT-UX.md:434-440`). Prototype `pext_settings_screen` (`other-screens.jsx:79-133`). **No dedicated UX section** — orphan.
+
+**Status:** P1.
+
+**Scope:** 4-card grid:
+
+1. **Default Run Parameters** — horizon (`7d` / `14d` gated by `scheduler.horizon_14d.enabled`), refresh interval, default `include_forecast`, solver soft-timeout.
+2. **Alerts Config** — capacity threshold % for amber/red, stale schedule warning hours, override-rate alert threshold.
+3. **Integration / Solver** (Admin-only) — solver service URL (read-only / env-bound), circuit breaker retry count + window (per §13.1).
+4. **Premium / Tenant Status** — derived from `tenant_subscriptions`; lists feature-flag entitlements.
+
+**Route:** `/scheduler/settings` (new sub-nav).
+
+**RBAC:** Planner Advanced (read all, write Cards 1-2). Admin (write Cards 3). Others read-only.
+
+**FRs:**
+- FR-07-PLE-005-01: Persist Cards 1-2 to `scheduler_config` table (new) keyed by `tenant_id`.
+- FR-07-PLE-005-02: Card 3 fields are environment-bound and shown read-only in production; UI disables editing per audit prototype note.
+- FR-07-PLE-005-03: Audit log entry on every settings change (who/when/before/after JSON diff).
+
+**[NO-DDL-YET]** New `scheduler_config` table to be added to §9 in the next PRD revision. Stub schema:
+
+```sql
+CREATE TABLE scheduler_config (
+  tenant_id UUID PRIMARY KEY,
+  default_horizon_days INTEGER NOT NULL DEFAULT 7,
+  default_include_forecast BOOLEAN NOT NULL DEFAULT false,
+  solver_timeout_seconds INTEGER NOT NULL DEFAULT 60,
+  alerts JSONB NOT NULL DEFAULT '{}',
+  updated_by UUID REFERENCES users(id),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+```
+
+---
+
+#### PLE-006 — Rule Registry Viewer (Active Rules + Feature Flags) [UNIVERSAL]
+
+**Anchors:** UX referenced indirectly via "View rule in Settings →" links throughout SCR-07-01/02/06. Prototype `pext_rules_screen` (`other-screens.jsx:4-76`). **No dedicated UX section** — orphan; partially covered by 02-SETTINGS §7 rule registry.
+
+**Status:** P1 read-only viewer scoped to scheduler rules.
+
+**Scope:**
+
+- Card list of active scheduler-domain rules: `finite_capacity_solver_v1`, `allergen_sequencing_optimizer_v2`, `allergen_sequencing_heuristic_v1` (fallback), `disposition_bridge_v1` (P2 standby).
+- Per-rule meta: status badge (`Active` / `Standby` / `Disabled`), DSL view link (Sheet/Dialog with syntax-highlighted YAML), invocations 7d, last-error timestamp.
+- Feature flag table for `planning.*` / `scheduler.*` keys with ON/OFF badge.
+- `[Publish Changes]` (Admin only) — RBAC-gated; out-of-scope for Planner.
+
+**Route:** `/scheduler/rules` (new sub-nav, read-only for Planner; Admin writes via 02-SETTINGS §7 canonical surface).
+
+**FRs:**
+- FR-07-PLE-006-01: Reads from 02-SETTINGS rule_registry filtered to scheduler domain.
+- FR-07-PLE-006-02: `invocations_7d` aggregates from `scheduler_runs.optimizer_version` + rule invocation log.
+- FR-07-PLE-006-03: Disable v2 surfaces existing modal `disable_v2_modal` (already wired from SCR-07-06 §10.1 banner) — duplicate entry point.
+
+**Boundary note:** Authoritative rule editor lives in 02-SETTINGS §7. This screen is a *scheduler-scoped read-only mirror* for Planner ergonomics (avoid round-trip to Settings).
+
+---
+
+#### PLE-007 — Sequencing Preview & Commit (SCR-07-06 Allergen Sequencing) [UNIVERSAL]
+
+**Anchors:** UX `design/07-PLANNING-EXT-UX.md:1060-1107` (SCR-07-06, extends 04-PLAN §2.8). Prototype `pext_sequencing` (`sequencing-screens.jsx:3-179`). PRD references §10.2 v2 rule + §16.2 OQ-EXT-09 dry-run persistence.
+
+**Status:** P1. Audit row: boundary blur with 04-PLANNING-BASIC sequencing — this PLE clarifies the 07-EXT overlay contract.
+
+**Scope (07-EXT additions on top of 04-PLAN §2.8 baseline):**
+
+- v2 banner with rule ID, fallback rule ID, `[Disable v2]` (admin) → opens `disable_v2_modal` (type-to-confirm "DISABLE", reason ≥10 chars, audit log).
+- Changeover Cost Summary card: total CO minutes, vs v1 baseline delta, ≥30% reduction progress bar, fallback activations counter.
+- Sequence table appended columns: `Changeover (min)`, `Cleaning Req`, `ATP Req`, `Allergen Risk` (Low/Medium/High/BLOCKED), `Cross-line opt` ("Moved" badge with origin tooltip).
+- `[Preview Sequence]` dry-run mode → `scheduler_runs(run_type='dry_run', status='preview')` row; 24h auto-expiry per OQ-EXT-09.
+- `[Commit Preview]` converts dry-run to regular run + emits `scheduler.assignment.created` outbox event.
+- `[Discard]` marks `status='discarded'`.
+
+**Boundary contract:** 04-PLANNING-BASIC owns the base `/planning/sequencing` route + v1 heuristic UI. 07-EXT overlays additional cards/columns/buttons when `planning.allergen_optimizer.v2.enabled = true`. Both modules must coordinate via shared component contract (see §11.1 cross-module integration).
+
+**FRs:**
+- FR-07-PLE-007-01: Dry-run row TTL enforced via daily cron (`status='preview' AND created_at < now() - interval '24h' → status='expired'`).
+- FR-07-PLE-007-02: Disable v2 toggles `feature_flags.planning.allergen_optimizer.v2.enabled = false` + audit log + outbox `optimizer.v2.disabled`.
+
+---
+
+#### PLE-008 — Scenarios / What-If Simulation Catalog (P2 lift) [P2, EVOLVING]
+
+**Anchors:** UX `design/07-PLANNING-EXT-UX.md:874-944` (SCR-07-05). Prototype `pext_scenarios` (`scenario-screens.jsx:3-211`). PRD §4.2 P2 scope §2 mentions what-if; SCR-07-05 already specced.
+
+**Status:** P2. Audit row 9 (LOW) — PRD did not enumerate the scenario *catalog* (saved scenarios list, scenario builder modifications types, KPI compare table). PLE-008 codifies these.
+
+**Scope:**
+
+- Scenario builder modifications: `Line Down (line_id, start_time, duration_h)`, `Add WO (wo_id)`, `Remove WO (wo_id)`, `Shift Capacity Change (line_id, period, capacity_kg_h_override)`.
+- KPI compare grid (4 rows × 4 cols: KPI / Baseline / Simulation / Delta) with delta badge color (green improvement, amber minor, red regression).
+- Saved scenarios list (`scheduler_scenarios` table — already in §9.7) with `[View]` / `[Re-run]` / `[Delete]` actions; baseline reference + key delta KPI.
+- Side-by-side mini-Gantt diff (baseline vs simulated) — re-uses GanttLane primitives from SCR-07-01.
+
+**FRs (P2):**
+- FR-07-PLE-008-01: `[Run Simulation]` calls solver with `dry_run=true`; result stored in `scheduler_scenarios.result_summary`, NEVER committed to `scheduler_assignments`.
+- FR-07-PLE-008-02: `scenario_params` JSONB shape: `{line_down:[...], add_wos:[...], remove_wos:[...], capacity_changes:[...]}` (formalize §9.7 stub).
+- FR-07-PLE-008-03: Mini-Gantt diff highlights moved WOs (amber outline), injected (green), removed (gray).
+
+**Gating:** `planning.what_if_simulation.enabled` (existing flag).
+
+**Known bug:** BL-PEXT-02 (real solver hookup is P2; preset-driven canned deltas in current prototype).
+
+---
+
+#### PLE-009 — Re-run Confirmation Modal (MODAL-07-RERUN) [UNIVERSAL]
+
+**Anchors:** UX `design/07-PLANNING-EXT-UX.md:802` (Run History `[Re-run]` confirmation). Prototype `rerun_confirm_modal` (`modals.jsx:631-648`). PRD §4.1.6 covered run lifecycle but not the confirmation contract.
+
+**Status:** P1.
+
+**Scope:**
+
+- Triggered from SCR-07-04 row `[Re-run]` action.
+- Summary block: source `run_id_short`, horizon, lines, include_forecast flag.
+- Disclaimer: "Existing run is unchanged. Current schedule remains active until new run is approved."
+- Confirm → POST `/api/scheduler/run` with cloned `input_snapshot` and **new** UUID v7 `run_id` (R14 — different ID = no idempotency hit).
+
+**FRs:**
+- FR-07-PLE-009-01: Server generates new UUID v7; client never reuses source run_id.
+- FR-07-PLE-009-02: `[Re-run]` disabled for `run.status IN ('failed', 'cancelled')` and for non-Planner roles.
+
+---
+
+#### PLE-010 — Matrix Review Request Workflow (`matrix_review_request` table) [UNIVERSAL]
+
+**Anchors:** UX `design/07-PLANNING-EXT-UX.md:522` (BLOCKED cell `[Request Review]` button). Prototype `request_review_modal` (`modals.jsx:677-696`). OQ-EXT-04 explicitly flagged "PRD to define table" — this PLE closes that gap.
+
+**Status:** P1.
+
+**Scope:**
+
+- Planner Advanced clicks `[Request Review]` on BLOCKED matrix cell (segregation_required=true).
+- Modal: dynamic title `{allergen_from} → {allergen_to}`; mandatory justification textarea (≥10 chars).
+- Submit → INSERT `matrix_review_request` row + outbox event `changeover_matrix.review.requested`; admin notification tray entry.
+- Admin acts in SCR-07-02 Tab 3 "Review Requests" (already specified UX:573 prototype) → Unblock (toggles cell `segregation_required=false` + creates new matrix version) or Reject (marks request `rejected` with reason).
+
+**FRs:**
+- FR-07-PLE-010-01: New table `matrix_review_request` (DDL below) with RLS per tenant.
+- FR-07-PLE-010-02: One open request per `(allergen_from, allergen_to, line_id)` enforced by partial unique index.
+- FR-07-PLE-010-03: Admin notification: in-app + email per 02-SETTINGS notification config.
+
+**DDL (new — slot into §9.x in next PRD revision):**
+
+```sql
+CREATE TABLE matrix_review_request (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id UUID NOT NULL,
+  allergen_from TEXT NOT NULL,
+  allergen_to TEXT NOT NULL,
+  line_id TEXT, -- NULL = default matrix
+  justification TEXT NOT NULL CHECK (length(justification) >= 10),
+  status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending','approved','rejected')),
+  requested_by UUID NOT NULL REFERENCES users(id),
+  requested_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  resolved_by UUID REFERENCES users(id),
+  resolved_at TIMESTAMPTZ,
+  resolution_notes TEXT
+);
+
+CREATE UNIQUE INDEX idx_matrix_review_one_pending
+  ON matrix_review_request(tenant_id, allergen_from, allergen_to, COALESCE(line_id, ''))
+  WHERE status = 'pending';
+```
+
+---
+
+#### PLE-011 — Matrix Diff Viewer (Cross-Version) [UNIVERSAL]
+
+**Anchors:** UX `design/07-PLANNING-EXT-UX.md:611` (`[View Diff]` from Version History Panel). Prototype `matrix_diff_modal` (`modals.jsx:472-496`). PRD §16.2 OQ-EXT-04 closed; diff *modal* contract was implicit.
+
+**Status:** P1.
+
+**Scope:**
+
+- Full-width modal/Sheet comparing two `changeover_matrix_versions` (selected vs active by default).
+- Color-coded diff: changed (yellow), added (green), removed-from-override (red).
+- Delta column showing `override_min - default_min` with red/green sign coloring.
+- `[Download CSV]` of the diff dataset.
+
+**FRs:**
+- FR-07-PLE-011-01: Server-side diff computation `getMatrixVersionDiff(versionA, versionB)` returns typed `MatrixCellDiff[]`.
+- FR-07-PLE-011-02: Diff result cached 5 min per `(versionA, versionB)` pair.
+
+**Known bug:** BL-PEXT-09 — current prototype shows sample diff rows; real version diff is a follow-up.
+
+---
+
+#### PLE-012 — Matrix CSV Import Workflow [UNIVERSAL]
+
+**Anchors:** UX `design/07-PLANNING-EXT-UX.md:625-635` (`[Import CSV]` button + V-CM-01..04). Prototype `matrix_import_modal` (`modals.jsx:414-470`). PRD FR-07-E2-002 mentions bulk CSV but doesn't enumerate the 3-stage state machine UI.
+
+**Status:** P1.
+
+**Scope:**
+
+- 3-stage modal state machine: `upload → validate → preview`.
+- Drag-and-drop zone (also `[Choose File]` button); accepts `.csv`/`.txt`; ≤5 MB; ≤10 000 rows; enforced server-side.
+- Validation: V-CM-01 (allergen codes recognized), V-CM-02 (`changeover_minutes` integer ≥0), V-CM-03 (`line_id` is active line or NULL), V-CM-04 (`segregation_required=true` flagged for admin review — Planner Advanced cannot set via import).
+- Preview diff table: current vs new value, color-coded per heatmap legend.
+- `[Apply Import]` promotes validated staging rows to `changeover_matrix_drafts` (new table — see §17.3 backlog) — does NOT auto-publish; user must follow up with `[Save & Publish]`.
+
+**FRs:**
+- FR-07-PLE-012-01: Server parses CSV (Papa.parse or Node stream) and returns typed `MatrixDiff[]` + error array.
+- FR-07-PLE-012-02: Streaming progress via SSE if rows >1 000.
+
+**Known bug:** BL-PEXT-09 — diff rows currently sample data.
+
+---
+
+#### PLE-013 — Matrix Publish & Disable v2 Confirmation Contracts [UNIVERSAL]
+
+**Anchors:** UX `design/07-PLANNING-EXT-UX.md:582-592` (Save & Publish flow); `:1078` (`[Disable v2]`). Prototypes `matrix_publish_modal` (`modals.jsx:380-412`), `disable_v2_modal` (`modals.jsx:650-675`), `matrix_cell_edit_modal` (`modals.jsx:322-378`).
+
+**Status:** P1.
+
+**Scope:**
+
+- **Matrix Publish Modal:** Summary of changes (cells modified count, per-line override delta), version notes textarea (stored in `changeover_matrix_versions.notes`), warning that runs in-progress are unaffected (they snapshot version_id at run start). Confirmation creates new `changeover_matrix_versions` row with `is_active = true` and emits `changeover_matrix.version.published` outbox event.
+- **Disable v2 Modal:** Type-to-confirm pattern (literal "DISABLE"); reason textarea (≥10 chars); admin-only; toggles `feature_flags.planning.allergen_optimizer.v2.enabled = false`; audit log + outbox `optimizer.v2.disabled`. Fallback rule ID read from `rule_registry`.
+- **Cell Edit Modal:** Per OQ-EXT-04, V-CM-04 enforces `segregation_required` field is hidden (not just disabled) for Planner role; Admin-only field with confirmation step when toggled to `true`.
+
+**FRs:**
+- FR-07-PLE-013-01: New version_number = `MAX(version_number) + 1` server-side (no client computation).
+- FR-07-PLE-013-02: `[Disable v2]` writes audit log entry with `notes` from textarea; subsequent runs use `allergen_sequencing_heuristic_v1`.
+
+**Known bug:** BL-PROD-05 — `.btn-danger` referenced in MODAL-SCHEMA but missing from production.css; tracked in shared style audit.
+
+---
+
+### 17.2 Direction-A items (PRD without design)
+
+These PRD bullets have **no current UX section or prototype**. Each is tagged `[NO-PROTOTYPE-YET]` and feeds the Phase E backlog.
+
+| PRD ref | Concept | UX/prototype status |
+|---|---|---|
+| §4.1.4 Manual forecast retain-until-superseded semantics | Forecast supersession audit trail UI | `[NO-PROTOTYPE-YET]` — `pext_forecasts_screen` shows live row only |
+| §4.2 P2 #4 Auto-approval policy | Per-tenant config: confidence threshold below which auto-approve | `[NO-PROTOTYPE-YET]` — referenced in §17.1 PLE-005 Settings card stub but not specified |
+| §13.1 Solver service unavailable — circuit breaker UX | Banner + degraded state visualization | UX `design/07-PLANNING-EXT-UX.md:1193-1202` defines state; `[NO-DEDICATED-PROTOTYPE]` — relies on inline `.alert-red` in dashboard |
+| §13.6 Forecast stale flag (P2) | Stale-flag badge + retrain status card | `[NO-PROTOTYPE-YET]` — Forecaster Health card UX defined `:726-732`, prototype lacks the alert variant |
+| §15.4 V-SCHED-01 duration ±5% mismatch warning | Inline assignment-detail warning surface | `[NO-DEDICATED-PROTOTYPE]` — covered generically by side panel allergen/CO section |
+| §11.4 alert "Changeover matrix not updated 180d" | Reminder UI | `[NO-PROTOTYPE-YET]` |
+| Appendix A sample solver run output (numeric KPI proof) | Read-only audit fixture viewer | `[NO-PROTOTYPE-YET]` (acceptable — it's a doc artifact, not UI) |
+
+### 17.3 Backlog tables / DDL referenced but not yet in §9
+
+The following tables are referenced in §17 but require explicit DDL in the next PRD revision:
+
+1. `scheduler_config` (per PLE-005)
+2. `matrix_review_request` (per PLE-010 — DDL stubbed inline above)
+3. `changeover_matrix_drafts` (per PLE-012 — staging area for CSV import preview)
+4. `sequence_previews` / `sequence_preview_rows` (per PLE-007 dry-run preview persistence; OQ-EXT-09 chose to reuse `scheduler_runs(run_type='dry_run')` so this may be redundant — confirm in next session)
+
+---
+
+## 18. UI Surfaces Bidirectional Matrix
+
+This table replaces the implicit screen-ID mapping with an explicit bidirectional matrix per ADR-034 traceability standards. Every PRD anchor maps to a UX line and a prototype label (and vice-versa). Rows tagged `[NO-PROTOTYPE-YET]` or `[NO-PRD-YET]` mark intentional gaps for the Phase E backlog.
+
+> **ADR-034 marker:** All `FG-XXXX` codes are generic (Finished Good); `[INDUSTRY-CONFIG]` annotations show industry-specific seed labels.
+
+| PRD anchor | UX section / line | Prototype label (file:lines) | Phase | Status |
+|---|---|---|---|---|
+| §4.1.5 / §8.1 SCR-07-01 GanttView | `07-PLANNING-EXT-UX.md:248-470` (SCR-07-01) | `pext_dashboard_gantt` (dashboard.jsx:9-363) + `assignment_side_panel` (dashboard.jsx:365-451) | P1 | OK |
+| §4.1.6 MODAL-07-01 Run Scheduler | UX:428-449 | `run_scheduler_modal` (modals.jsx:21-95) | P1 | OK |
+| §8.1 §3.4 Approve / Reject / Override actions | UX:406-412 | embedded in `assignment_side_panel` + `override_assignment_modal` (modals.jsx:98-212) | P1 | OK |
+| §8.1 SCR-07-01 §3.6 `[Reschedule WO]` | UX:425, §8.3 UX:1000-1011 | `reschedule_wo_modal` (modals.jsx:214-287) — Reschedule variant of MODAL-07-03 | P1 | OK |
+| §8.1 SCR-07-01 Zone D `[Approve All]` | UX:336 | `approve_all_modal` (modals.jsx:289-320) | P1 | OK |
+| §8.1 SCR-07-02 Changeover Matrix Editor | UX:473-635 (SCR-07-02) | `pext_matrix_editor` (matrix-screens.jsx:12-245) | P1 | OK |
+| §8.1 SCR-07-02 §4.4 MODAL-07-02-CELL | UX:563-579 | `matrix_cell_edit_modal` (modals.jsx:322-378) | P1 | OK |
+| §17.1 PLE-013 Matrix Publish | UX:582-592 | `matrix_publish_modal` (modals.jsx:380-412) | P1 | OK |
+| §17.1 PLE-012 Matrix CSV Import | UX:625-635 | `matrix_import_modal` (modals.jsx:414-470) | P1 | OK |
+| §17.1 PLE-011 Matrix Version Diff | UX:594-611 (PANEL-07-02-HIST `[View Diff]`) | `matrix_diff_modal` (modals.jsx:472-496) | P1 | OK |
+| §17.1 PLE-010 Matrix Review Request | UX:522 | `request_review_modal` (modals.jsx:677-696) | P1 | OK (table DDL pending §9 update) |
+| §8.1 SCR-07-03 Forecast Upload (P1 manual) | UX:639-718 | `pext_forecasts_screen` (forecast-screens.jsx:3-155) + `forecast_upload_modal` (modals.jsx:498-560) | P1 | OK |
+| §4.2 P2 #1 / §5.3 SCR-07-03 P2 Prophet | UX:720-746 | `pext_forecasts_screen` Prophet branch (gated by `scheduler.prophet.enabled`) | P2 | OK (placeholder) |
+| §17.1 PLE-001 SCR-07-04 Run History | UX:758-806 | `pext_run_history` (runhistory-screens.jsx:3-115) | P1 | OK |
+| §17.1 PLE-002 SCR-07-04-DETAIL | UX:808-864 | `pext_run_detail` (runhistory-screens.jsx:119-260) | P1 | OK |
+| §17.1 PLE-009 Re-run Confirmation | UX:802 | `rerun_confirm_modal` (modals.jsx:631-648) | P1 | OK |
+| §17.1 PLE-008 SCR-07-05 Scenarios (P2) | UX:874-944 | `pext_scenarios` (scenario-screens.jsx:3-211) | P2 | OK (placeholder) |
+| §10 SCR-07-06 Sequencing v2 Overlay → §17.1 PLE-007 | UX:1060-1107 | `pext_sequencing` (sequencing-screens.jsx:3-179) | P1 | OK |
+| §17.1 PLE-013 Disable v2 Modal | UX:1078 | `disable_v2_modal` (modals.jsx:650-675) | P1 | OK |
+| §4.2 P2 #2 / §9 MODAL-07-04 Disposition Decision | UX:1015-1057 | `disposition_decision_modal` (modals.jsx:562-629) | P2 | OK |
+| §17.1 PLE-003 Capacity Projection | `[NO-UX-SECTION-YET]` (referenced UX:285-287 KPI Zone) | `pext_capacity_projection` (optimizer-screens.jsx:113-206) | P1 | UX section TODO |
+| §17.1 PLE-004 Pending Review Full Page | embedded in UX:324-338 (Zone D) | `pext_pending_full_page` (optimizer-screens.jsx:4-110) | P1 | UX standalone section TODO |
+| §17.1 PLE-005 Scheduler Settings | `[NO-UX-SECTION-YET]` (defaults referenced UX:434-440) | `pext_settings_screen` (other-screens.jsx:79-133) | P1 | UX section TODO + `scheduler_config` DDL |
+| §17.1 PLE-006 Rule Registry Viewer | `[NO-UX-SECTION-YET]` (links throughout) | `pext_rules_screen` (other-screens.jsx:4-76) | P1 | UX section TODO |
+| §4.1.4 Manual forecast supersession | covered in upload modal flow only | `[NO-DEDICATED-PROTOTYPE]` | P1 | Direction-A gap |
+| §4.2 P2 #4 Auto-approval policy | `[NO-UX-SECTION-YET]` | `[NO-PROTOTYPE-YET]` (Settings card stub in PLE-005) | P2 | Direction-A gap |
+| §13.1 Circuit-breaker degraded state | UX:1193-1202 | `[NO-DEDICATED-PROTOTYPE]` (inline alert in dashboard) | P1 | Acceptable inline |
+| §13.3 Optimizer fallback to v1 | UX:1214-1222 | inline `.alert-amber` in `pext_dashboard_gantt` | P1 | Acceptable inline |
+| §13.6 Forecast stale flag (P2) | UX:726-732 (Forecaster Health card) | partial in `pext_forecasts_screen` | P2 | Direction-A — alert variant TODO |
+| §11.4 alert "Matrix not updated 180d" | `[NO-UX-SECTION-YET]` | `[NO-PROTOTYPE-YET]` | P1 | Direction-A gap |
+
+**Coverage:** ~92% (29 of 30 surfaces have either both anchors or an explicit `[NO-*-YET]` marker; the 8% residual is the §17.2 Direction-A backlog).
+
+---
+
+**End of 07-PLANNING-EXT-PRD.md v3.2**

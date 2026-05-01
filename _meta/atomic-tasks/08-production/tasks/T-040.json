@@ -1,0 +1,59 @@
+{
+  "title": "T-040 — Shift end sign-off Server Action with V-PROD-SHIFT-002 unresolved-gates check",
+  "prompt": "# T-040 — Shift end sign-off Server Action\n\nPRD: 08-PRODUCTION-PRD.md §8.1 SCR-08-08, V-PROD-SHIFT-002\n\n## Goal\nImplement signOffShift Server Action verifying all unresolved gates before allowing shift transition to COMPLETED, computing final shift KPIs and emitting shift.ended outbox event.\n\n## Implementation contract\nServer Action signOffShift({shift_id, signer_user_id, pin}) in apps/web/app/(production)/shifts/actions.ts. Verifies signer role='shift_lead' and pin via 02-SETTINGS PIN infra. Runs gate checklist: (a) all WOs on this shift completed or pending COMPLETE override, (b) all outputs registered, (c) no open QA holds, (d) no open downtime_events on this shift, (e) handover note saved. If any gate red → 422 unresolved_gates {failed_gates:[...]}. On pass → INSERT shift_end_event row, compute KPI snapshot (yield, waste%, downtime min), enqueue outbox 'shift.ended' (placeholder log; actual outbox emit in T-041 wave). Return 200 {shift_id, signed_off_at, kpi_snapshot}.\n\n## Files (scope)\n- apps/web/app/(production)/shifts/actions.ts [modify]\n- packages/api-services/production/sign-off-shift.ts [create]\n- apps/web/app/(production)/shifts/__tests__/sign-off-shift.test.ts [create]\n\n## Acceptance criteria\n1. Given all gates green and valid PIN, when signOffShift, then 200 + signed_off_at + kpi_snapshot computed\n2. Given open downtime_events on shift, when signOffShift, then 422 unresolved_gates with failed_gates listing 'open_downtime'\n3. Given invalid PIN, when signOffShift, then 401 invalid_pin\n\n## Test strategy\n- RED: action test asserting happy + gate failure + pin failure before action exists\n- Run 'pnpm --filter web test shifts.*sign-off'\n\n## Risk red lines\n- Do not let shift sign off with unresolved gates (V-PROD-SHIFT-002)\n- Do not skip PIN verification (BRCGS digital signature §5.3)\n- Do not allow non-Shift-Lead role to sign off",
+  "labels": ["prd", "api", "shifts", "T2-api"],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-040",
+    "source_prd": "08-PRODUCTION-PRD.md",
+    "prd_refs": ["§8.1 SCR-08-08", "§5.3"],
+    "category": "api",
+    "subcategory": "shifts",
+    "task_type": "T2-api",
+    "parent_feature": "08-PROD SCR-08-08 Shift Management",
+    "context_budget": "30k",
+    "estimated_effort": "2-3h",
+    "description": "signOffShift Server Action with V-PROD-SHIFT-002 gate checklist + PIN + KPI snapshot.",
+    "details": "Atomic gate checklist queries (5 checks). PIN verification via 02-SETTINGS infra. KPI snapshot stored on shift_end_event row. Shift Lead role required.",
+    "scope_files": [
+      "apps/web/app/(production)/shifts/actions.ts [modify]",
+      "packages/api-services/production/sign-off-shift.ts [create]",
+      "apps/web/app/(production)/shifts/__tests__/sign-off-shift.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not implement shift handover form (T-070)",
+      "Do not implement KPI dashboard (T-052)",
+      "Do not modify users PIN schema"
+    ],
+    "dependencies": ["T-039"],
+    "parallel_safe_with": [],
+    "acceptance_criteria": [
+      "Given gates green + valid PIN, when signOffShift, then 200 + signed_off_at + kpi_snapshot",
+      "Given open downtime_events on shift, when signOffShift, then 422 unresolved_gates listing 'open_downtime'",
+      "Given invalid PIN, when signOffShift, then 401 invalid_pin"
+    ],
+    "test_strategy": [
+      "RED: action test asserting happy + gate failure + pin failure before action exists",
+      "Run 'pnpm --filter web test shifts.*sign-off'"
+    ],
+    "risk_red_lines": [
+      "Do not allow sign-off with unresolved gates",
+      "Do not skip PIN verification",
+      "Do not allow non-Shift-Lead role"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

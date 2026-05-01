@@ -1,0 +1,57 @@
+{
+  "title": "T-046 — Location deactivate guard service",
+  "prompt": "# T-046 — Location deactivate guard\n\nPRD: `05-WAREHOUSE-PRD.md` §14.6 (FR-WH-041), V-WH-DASH-002.\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`.\n\n## Goal\n`deactivateLocation(locationId)` Server Action that blocks deactivation when ≥1 active LP (status IN available/reserved) is present.\n\n## Implementation contract\n`apps/web/lib/services/warehouse/location-deactivate.ts`. Count active LPs at the location. If >0 return V-WH-DASH-002 error 'cannot_deactivate_location_with_active_lps' (count, location_path) — UI surfaces explicit message. Otherwise set locations.active=false, append audit row, emit outbox 'location.deactivated' (deferred T-047).\n\n## Files (scope)\n- apps/web/lib/services/warehouse/location-deactivate.ts [create]\n- apps/web/lib/services/warehouse/__tests__/location-deactivate.test.ts [create]\n\n## Acceptance criteria\n1. Given a location with 3 active LPs, when deactivateLocation runs, then it returns V-WH-DASH-002 with count=3 and the row stays active=true.\n2. Given a location with 0 active LPs, when run, then locations.active=false and audit row exists.\n3. Given Operator caller, when run, then RBAC error returns (Admin only per §14.6).\n\n## Test strategy\n- RED: location-deactivate.test.ts covers blocked, allowed, RBAC.\n- Run `pnpm --filter web test location-deactivate`.\n\n## Risk red lines\n- Do not count consumed/shipped/blocked LPs as active.\n- Do not bypass Admin RBAC.\n- Do not skip audit row.",
+  "labels": ["prd", "api", "locations", "T2-api"],
+  "priority": 110,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-046",
+    "source_prd": "05-WAREHOUSE-PRD.md",
+    "prd_refs": ["§14.6"],
+    "category": "api",
+    "subcategory": "locations",
+    "task_type": "T2-api",
+    "parent_feature": "warehouse-locations",
+    "context_budget": "20k",
+    "estimated_effort": "1h",
+    "description": "Block location deactivation when active LPs exist; Admin-only.",
+    "details": "Active = status IN ('available','reserved'). Audit row + outbox emission deferred T-047.",
+    "scope_files": [
+      "apps/web/lib/services/warehouse/location-deactivate.ts [create]",
+      "apps/web/lib/services/warehouse/__tests__/location-deactivate.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Hierarchy UI (T-071)",
+      "Locations CRUD (02-SETTINGS)"
+    ],
+    "dependencies": ["T-002"],
+    "parallel_safe_with": ["T-044", "T-045"],
+    "acceptance_criteria": [
+      "Given a location with 3 active LPs, when run, then V-WH-DASH-002 returns with count=3 and active stays true",
+      "Given a location with 0 active LPs, when run, then active=false and audit row exists",
+      "Given Operator caller, when run, then RBAC error returns"
+    ],
+    "test_strategy": [
+      "RED: location-deactivate.test.ts covers blocked, allowed, RBAC",
+      "Run 'pnpm --filter web test location-deactivate'"
+    ],
+    "risk_red_lines": [
+      "Do not count non-active LPs",
+      "Do not bypass Admin RBAC",
+      "Do not skip audit"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

@@ -1,10 +1,10 @@
 ---
 module: 14-MULTI-SITE
-version: v3.0
-date: 2026-04-20
+version: v3.2
+date: 2026-04-30
 phase: D (Phase C5 Sesja 2)
-status: PRD v3.0 baseline locked
-previous: v1.0 (2026-02-18, 576 linii pre-Phase-D)
+status: PRD v3.2 — Transport Lanes + Rate Cards + Direction-B reconciliation (closes audit BLOCKER #2)
+previous: v3.1 (2026-04-30, multi-industry manufacturing operations standardization)
 owner: Monopilot architecture
 consumers/producers:
   - 05-WAREHOUSE (TO state machine extension inter-site)
@@ -16,7 +16,7 @@ consumers/producers:
   - 09-QUALITY / 10-FINANCE / 11-SHIPPING (site_id RLS activation)
 ---
 
-# 14-MULTI-SITE — Monopilot MES PRD v3.0
+# 14-MULTI-SITE — Monopilot MES PRD v3.1
 
 ## 1. Executive Summary
 
@@ -63,7 +63,7 @@ Umożliwić organizacjom z wieloma zakładami produkcyjnymi zarządzanie operacj
 ### 3.2 Cele szczegółowe
 
 1. **Site isolation [UNIVERSAL]** — dane operacyjne (WO/LP/stock/machines/shifts/quality/finance) izolowane per site via RLS two-variant pattern (D-MS-2)
-2. **Shared master data [UNIVERSAL]** — produkty, BOM, allergens, suppliers, roles, customers, items.cost_per_kg (D-MS-4 retained)
+2. **Shared master data [UNIVERSAL]** — produkty (FG codes: FG-*), BOM, allergens, suppliers, roles, customers, items.cost_per_kg (D-MS-4 retained); manufacturing operations site-scoped via Reference.ManufacturingOperations (02-SET §8.9)
 3. **Inter-site transfers [UNIVERSAL]** — 05-WH TO extension z from_site_id/to_site_id + IN_TRANSIT state (D-MS-3 + Q8A)
 4. **Site-scoped reporting [UNIVERSAL]** — per-site filter + factory aggregate w 12-REPORTING (D-RPT-9 consumer)
 5. **Backward compatibility [UNIVERSAL]** — site_id=NULL = "default site" dla legacy deployments, feature flag opt-in (D-MS-5)
@@ -241,6 +241,30 @@ Wszystkie operational tables już mają `site_id UUID NULL` (retroaktywnie dodan
 2. **Backfill** (migration script 14-a): `UPDATE {table} SET site_id = (SELECT id FROM sites WHERE org_id=X AND is_default=true) WHERE site_id IS NULL`
 3. **Activation** (feature flag flip): CREATE POLICY site_scoped replaces CREATE POLICY org_scoped on operational tables (ALTER POLICY, atomic per transaction)
 
+### 6.4.1 Site-specific manufacturing operations [UNIVERSAL]
+
+Manufacturing operations (via Reference.ManufacturingOperations, per 02-SET §8.9) can be **site-scoped or org-scoped** depending on tenant multi-industry strategy:
+
+**Pattern 1: Shared operations org-wide** (most common SMB)
+- All sites use same operations (Mix, Blend, Cook, Package, etc. with suffix MX, BL, CK, PK)
+- Reference.ManufacturingOperations rows have no site_id (org-level)
+- Intermediate code pattern: WIP-MX-0001, WIP-BL-0002, WIP-CK-0003 consistent across all sites
+- Example: Apex UK Chocolate factory + EDGE EU Chocolate factory both use identical Blend → Mix → Cook → Package
+
+**Pattern 2: Site-specific operations** (high-complexity manufacturing)
+- Each site defines unique manufacturing operations per industry/process
+- Reference.ManufacturingOperations extended with optional `site_id UUID` (P2 schema delta, 02-SET §8.1 v3.3 delta)
+- Example: 
+  - Site A (Candy): Blend (BL), Extrusion (EX), Coating (CT), Packing (PK) → WIP codes: WIP-BL-*, WIP-EX-*, WIP-CT-*, WIP-PK-*
+  - Site B (Bakery): Dough Mix (DM), Fermentation (FM), Baking (BK), Frosting (FR) → WIP codes: WIP-DM-*, WIP-FM-*, WIP-BK-*, WIP-FR-*
+- RLS policy: warehouse operators accessing site A see only site A operations; site B operators see only site B ops
+- Finished product codes remain org-level (FG-* unchanged): FG-CHC-0001 (chocolate) produced at either site via different operations
+
+**Implementation** (D-MS-4 clarification):
+- Core tables remain org-scoped: `items`, `boms`, `suppliers`, `customers`, `Reference.ManufacturingOperations` (master)
+- Operational isolation: `wo_outputs.intermediate_code_p1..4` include WIP-{operation_suffix}-{sequence} populated per site's operations
+- Audit trail: `lp_genealogy.transfer_order_id` preserves full manufacturing trail cross-site, operation names resolved per source site context
+
 ### 6.5 Schema-driven extensibility (ADR-028, ADR-031)
 - L1 core: `sites`, `site_user_access`, `site_settings`, `site_capacity`, `sites_hierarchy_config` (5 core tables)
 - L2 tenant config: hierarchy depth per tenant, site_settings L2 overrides per ADR-031
@@ -258,7 +282,7 @@ Wszystkie operational tables już mają `site_id UUID NULL` (retroaktywnie dodan
 | **D-MS-1** | `org_id UUID NOT NULL` universal, `site_id UUID NULL` as second dimension. NULL = backward-compat default site. Operational tables site-scoped; master data org-level | [UNIVERSAL] |
 | **D-MS-2** | RLS two-variant: site-scoped (operational) vs org-scoped (master). Formalized w §4 + §8 per-table policy specs | [UNIVERSAL] |
 | **D-MS-3** | Transfer Orders as inter-site bridge: from_site_id/to_site_id + state machine extended draft→planned→shipped→in_transit→received→closed (+ cancelled). Logistics genealogy cross-site via `lp_genealogy.transfer_order_id` | [UNIVERSAL] |
-| **D-MS-4** | Master data (products/BOMs/allergens/suppliers/customers/roles) org-level; operational (warehouses/machines/lines/WO/LP/stock/quality/shifts/maintenance/oee) site-level | [UNIVERSAL] |
+| **D-MS-4** | Master data (products [FG-* codes]/BOMs/allergens/suppliers/customers/roles/Reference.ManufacturingOperations) org-level; operational (warehouses/machines/lines/WO [WIP-* codes]/LP/stock/quality/shifts/maintenance/oee) site-level. Manufacturing operations can be site-scoped (P2) or org-wide (P1 standard) | [UNIVERSAL] |
 | **D-MS-5** | Feature flag `organizations.multi_site_enabled` (default false). TRUE → site switcher visible, min 1 site required, inter-site TO available | [UNIVERSAL] |
 | **D-MS-6** | Site context via x-site-id header + `current_site_id()` Postgres helper + localStorage/cookie UI persistence. Auto-select 1-site users | [UNIVERSAL] |
 | **D-MS-7** | Backward-compat migration: site_id=NULL → "default site" explicit create; admin runs wizard (create sites → assign resources → assign users) before activation | [UNIVERSAL] |
@@ -275,6 +299,14 @@ Wszystkie operational tables już mają `site_id UUID NULL` (retroaktywnie dodan
 | **D-MS-13** | **Composite RLS indexes mandatory pre-activation** — `CREATE INDEX CONCURRENTLY idx_{table}_org_site ON {table}(org_id, site_id)` na wszystkich ~20 operational tables. Performance benchmark pre/post activation (pgbench), target overhead < 5% vs single-site | [UNIVERSAL] |
 | **D-MS-14** | **L2 feature flag orchestration via 02-SET §9 ADR-031** — `multi_site_enabled` nie jest prostym booleanem, tylko L2 upgrade state machine (inactive → wizard_in_progress → dual_run → activated). Wizard 3-step: create_sites → assign_users → backfill_default. Admin can rollback z `dual_run` (revert to single-site) | [UNIVERSAL] |
 | **D-MS-15** | **Per-site data residency P2** (Q9) — `sites.data_residency_region TEXT`. P1: single-region inherited from org_settings.default_region. P2: per-site override (Apex UK EU-West-2 + EDGE EU-Central-1 independent). Wymaga cross-region replication strategy EPIC 14-L | [EVOLVING] |
+| **D-MS-16** | **Transport Lanes as org-master + versioned Rate Cards** (added 2026-04-30, §10A) — Lanes are org-scoped master data (not site-scoped) sitting beneath D-MS-3 IST flow. Rate cards versioned via `superseded_by` chain (no UPDATE), with optional approval workflow (`site_settings['lane_rate_approval_required']`). Two new outbox events: `transport_lane.created`, `transport_lane_rate_card.activated`. Pending rates excluded from cost calculations until approved | [UNIVERSAL] + [APEX-CONFIG] for approval gate |
+
+### 7.3 Direction-B amendments (2026-04-30)
+
+| ID | Decyzja | Marker |
+|---|---|---|
+| **D-MS-17** | **Config-promotion as auditable action** (§10B MS-105) — Promoting config keys L1→L2 or L2→L3 is an audit-tracked admin action with mandatory reason ≥ 10 chars and old/new value diff per key. P2 extension covers L3 line-level once line-config schema lands | [UNIVERSAL] + [EVOLVING] for L3 |
+| **D-MS-18** | **Site decommission = archive, never purge** (§10B MS-104) — Decommission sets `sites.active=false` + deactivates all `site_user_access`. Operational data retained (7-year BRCGS retention). Hard purge requires separate workflow tied to GDPR right-to-erasure (out of scope P1) | [UNIVERSAL] |
 
 ---
 
@@ -542,6 +574,316 @@ Dashboards rejestrowane w 12-REPORTING `dashboards_catalog` z per-dashboard `req
 
 ---
 
+## 10A. Transport Lanes + Rate Cards [UNIVERSAL]
+
+> Status: P1. Added 2026-04-30 to close PRD↔UX coverage gap (audit BLOCKER #2). Anchors UX `MS-LANE` (`design/14-MULTI-SITE-UX.md:808-846`), `MS-LANE-D` (`UX:849-906`), `MODAL-LANE-CREATE / MODAL-LANE-EDIT` (`UX:1351-1373`), `MODAL-RATE-CARD-UPLOAD` (`UX:1377-1383`), and prototypes `ms_lanes_list` (`prototype-index-multi-site.json:680-712`), `ms_lane_detail` (`:714-748`), `lane_create_modal` (`:180-213`), `rate_card_upload_modal` (`:215-247`).
+
+### 10A.1 Purpose & rationale
+
+Transport Lanes are the **master-data layer that sits beneath the Inter-Site Transfer state machine** (D-MS-3). Whereas an IST is a single physical movement of goods, a *lane* is a reusable, named route between two sites that captures the operational characteristics of moving goods along that route: distance, transport mode, scheduled transit time, allowed carriers, hazard/compliance flags, and (via attached rate cards) freight cost structure.
+
+Without an explicit lane catalog, every IST creation requires an operator to re-derive carrier/cost/lead-time data manually — error-prone for SMBs running tens of ISTs/week and impossible for any meaningful freight-cost analytics in 10-FINANCE or 14-MS analytics (`MS-005` benchmark, MS-ANA inventory rebalance flow per `UX:1554-1561`).
+
+Lanes also provide the **anchor point for rate cards** — uploaded carrier price schedules whose rates feed both (a) automatic freight-cost suggestion when a planner creates an IST, and (b) cost-allocation calculations when an IST closes (D-MS-8 cost allocation methods).
+
+### 10A.2 Data model
+
+#### 10A.2.1 `transport_lanes` [UNIVERSAL]
+
+```sql
+CREATE TABLE transport_lanes (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  org_id UUID NOT NULL,
+  lane_code TEXT NOT NULL,                          -- LN-001, LN-002, … auto-incremented per org, editable
+  from_site_id UUID NOT NULL REFERENCES sites(id),
+  to_site_id UUID NOT NULL REFERENCES sites(id),
+  mode_of_transport TEXT NOT NULL CHECK (mode_of_transport IN ('road','rail','air','sea','multimodal')),
+  distance_km NUMERIC(8,2),                          -- optional, ≥ 0
+  scheduled_transit_days NUMERIC(5,2),               -- scheduled lead time, used to auto-calc ETA in IST create (UX:516)
+  carriers TEXT[],                                   -- ['DHL','DB Schenker'] free-text per UX:825
+  hazmat_allowed BOOLEAN DEFAULT false,
+  cold_chain_required BOOLEAN DEFAULT false,
+  customs_required BOOLEAN DEFAULT false,
+  customs_notes TEXT,
+  max_shipment_weight_kg NUMERIC(10,2),
+  special_instructions TEXT,
+  notes TEXT,                                        -- max 300 chars per UX:1370
+  active BOOLEAN DEFAULT true,
+  created_by UUID,
+  created_at TIMESTAMPTZ DEFAULT now(),
+  updated_at TIMESTAMPTZ DEFAULT now(),
+  CHECK (from_site_id <> to_site_id),                -- enforced by UX validation (UX:1361)
+  UNIQUE (org_id, lane_code)
+);
+CREATE INDEX idx_lanes_route ON transport_lanes(org_id, from_site_id, to_site_id) WHERE active;
+CREATE INDEX idx_lanes_active ON transport_lanes(org_id) WHERE active;
+```
+
+Lane is **org-scoped master data** (consistent with D-MS-4 master/operational split — sites are master, lanes between them inherit master classification). Site-scoped RLS does not apply; lanes are visible to any user with org context.
+
+#### 10A.2.2 `transport_lane_rate_cards` [UNIVERSAL]
+
+```sql
+CREATE TABLE transport_lane_rate_cards (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  org_id UUID NOT NULL,
+  lane_id UUID NOT NULL REFERENCES transport_lanes(id) ON DELETE CASCADE,
+  carrier TEXT NOT NULL,
+  rate_type TEXT NOT NULL CHECK (rate_type IN ('per_km','per_shipment','per_kg')),
+  rate_value NUMERIC(12,4) NOT NULL CHECK (rate_value >= 0),
+  currency CHAR(3) NOT NULL,                         -- ISO 4217
+  effective_from DATE NOT NULL,
+  effective_to DATE,                                 -- NULL = open-ended
+  approval_status TEXT NOT NULL DEFAULT 'active'
+    CHECK (approval_status IN ('pending','active','expired','rejected')),
+  approved_by UUID,
+  approved_at TIMESTAMPTZ,
+  uploaded_by UUID NOT NULL,
+  uploaded_at TIMESTAMPTZ DEFAULT now(),
+  source_file_id UUID,                               -- ref to upload artifact (rate card CSV/XLSX) for audit
+  superseded_by UUID REFERENCES transport_lane_rate_cards(id),  -- versioning chain
+  CHECK (effective_to IS NULL OR effective_to >= effective_from)
+);
+CREATE INDEX idx_rate_cards_lane_active ON transport_lane_rate_cards(lane_id)
+  WHERE approval_status = 'active' AND (effective_to IS NULL OR effective_to >= CURRENT_DATE);
+```
+
+A rate card is **versioned** — superseding an existing rate produces a new row with `superseded_by` chain on the previous version, never an UPDATE. This satisfies BRCGS+FSMA 204 audit-trail requirements for cost data (cf. §5.2).
+
+#### 10A.2.3 `transport_lane_rate_audit` [UNIVERSAL]
+
+```sql
+CREATE TABLE transport_lane_rate_audit (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  org_id UUID NOT NULL,
+  rate_card_id UUID NOT NULL REFERENCES transport_lane_rate_cards(id),
+  action TEXT NOT NULL CHECK (action IN ('upload','approve','reject','expire','supersede','delete')),
+  acted_by UUID NOT NULL,
+  acted_at TIMESTAMPTZ DEFAULT now(),
+  before_values JSONB,
+  after_values JSONB,
+  reason TEXT
+);
+```
+
+Captures the full lifecycle of every rate-card row independent of the versioning chain — needed for periodic finance audits and dispute resolution with carriers.
+
+### 10A.3 CRUD & lifecycle
+
+#### 10A.3.1 Lane CRUD
+
+| Action | Surface | Roles | Side effects |
+|---|---|---|---|
+| Create lane | `MS-LANE` `+ Add Lane` → `MODAL-LANE-CREATE` (UX:1351) | admin, ops_director | New `transport_lanes` row; emit outbox `transport_lane.created` for downstream config replication |
+| Edit lane | `MS-LANE` ⋮ → `MODAL-LANE-EDIT`, or `MS-LANE-D` `Edit Lane` button | admin, ops_director | UPDATE row; audit log entry; if `from_site_id`/`to_site_id` change, validate no in-flight IST referencing old route |
+| Deactivate lane | `MS-LANE-D` `Deactivate` button | admin | `active=false`; lane disappears from new-IST suggestions; existing ISTs retain their `lane_id` reference |
+| View lane | `MS-LANE` row click, `MS-LANE-D` direct route | all roles with `View transport lanes` permission (cf. UX:199) | None |
+
+The IST create form (`MS-IST-N`, UX:489-573) auto-suggests an active lane when both From/To Site fields are populated. The suggestion logic queries `transport_lanes WHERE from_site_id=$1 AND to_site_id=$2 AND active=true ORDER BY (most-recent-success-rate) LIMIT 1`. Planner may override the suggested lane.
+
+#### 10A.3.2 Rate Card upload pipeline
+
+The full upload flow is realized by `MODAL-RATE-CARD-UPLOAD` (UX:1377; prototype `rate_card_upload_modal` 4-step wizard):
+
+1. **Upload step** — operator uploads a CSV or XLSX file (≤ 5 MB). A template (`rate-card-template.csv`) is downloadable from the modal. Server validates extension and size before parsing.
+2. **Column-mapping step** — uploader maps source columns to canonical fields: `Carrier`, `Rate Type`, `Rate Value`, `Currency`, `Effective From`, `Effective To`. Mapping presets persisted per carrier so subsequent uploads from the same source skip this step.
+3. **Preview step** — first 5 parsed rows shown with per-cell validation (currency ISO-3, dates parsable, rate non-negative). Errors block confirmation; warnings (e.g., overlapping `effective_from..effective_to` window with an existing active rate) flagged but allow proceed.
+4. **Confirm step** — summary card listing rate count, carriers covered, effective range. On confirm: insert rows with `approval_status='active'` (unless `site_settings['lane_rate_approval_required'] = true`, in which case `approval_status='pending'`). All inserts wrapped in a single transaction; partial failures roll back the whole batch.
+
+#### 10A.3.3 Rate Card approval workflow [APEX-CONFIG]
+
+When `site_settings['lane_rate_approval_required']` is true (default false; tenant-overridable per ADR-031), newly uploaded rates land in `approval_status='pending'`. They are **not** used by IST cost calculations. An `Approve Rate` button appears on `MS-LANE-D` Tab 2 (UX:883) for users with role `admin` or `finance_manager`. Approval transitions `approval_status` to `active` and writes a `transport_lane_rate_audit` row with `action='approve'`. Reject path: `approval_status='rejected'` + mandatory reason; rejected rows are excluded from active queries but retained for audit.
+
+#### 10A.3.4 Versioning & supersede
+
+Re-uploading rates for the same `(lane_id, carrier, rate_type, currency)` tuple with overlapping effective window automatically supersedes the prior active row: prior row gets `effective_to = CURRENT_DATE - 1` and `superseded_by = <new row id>`, new row inserted with chosen effective window. Operator sees a "supersede X existing rates" warning in the Preview step.
+
+### 10A.4 Outbox events
+
+Two events extend the outbox catalog (D-MS-12 base):
+
+| Event | Payload | Consumer |
+|---|---|---|
+| `transport_lane.created` | `{org_id, lane_id, lane_code, from_site_id, to_site_id, mode_of_transport, active}` | 12-REPORTING dashboards_catalog refresh; 10-FINANCE freight-cost analytics MV |
+| `transport_lane_rate_card.activated` | `{org_id, lane_id, rate_card_id, carrier, rate_type, rate_value, currency, effective_from, effective_to}` | 10-FINANCE inventory_cost_layers freight component recompute; per-IST cost suggestion cache invalidation |
+
+### 10A.5 RBAC
+
+| Action | admin | ops_director | site_manager | planner | warehouse_operator | quality_manager | finance_manager |
+|---|---|---|---|---|---|---|---|
+| Create / edit / deactivate lane | ✓ | ✓ | — | — | — | — | — |
+| View lanes (list + detail) | ✓ | ✓ | ✓ | ✓ | ✓ | — | ✓ |
+| Upload rate card | ✓ | ✓ | — | — | — | — | ✓ |
+| Approve rate card (when required) | ✓ | — | — | — | — | — | ✓ |
+| Delete rate card | ✓ | — | — | — | — | — | — |
+| Edit lane constraints (HAZMAT, weight, customs) | ✓ | ✓ | — | — | — | — | — |
+
+Cross-site users (D-MS-11) see all lanes their org has defined regardless of `site_user_access` rows — lanes are org master data. The IST-create lane suggestion respects `site_user_access` only insofar as the planner must be able to pick `from_site` / `to_site` they have access to; the lane catalog itself is unfiltered.
+
+### 10A.6 Validation rules (extends V-MS-21..V-MS-26 in §11.6)
+
+See §11.6 for the formal validation rule registrations covering lane code uniqueness, from≠to constraint, rate-card window non-overlap (warn), currency ISO-3, supersede chain integrity, and pending-rate exclusion from cost calculations.
+
+### 10A.7 Telemetry & success metrics
+
+Added to §3.3 metrics tracking via lane analytics MV (deferred P2):
+
+- **Lane-coverage ratio**: `count(distinct (from_site_id,to_site_id)) where lane exists / count(distinct (from_site_id,to_site_id)) with ≥1 IST in last 90d` — target > 90%.
+- **Rate-card freshness**: % of active lanes with a non-expired rate card — target > 80%.
+- **Auto-suggestion acceptance rate**: % of ISTs created where the planner accepted the system-suggested lane — target > 70% (signal that lane catalog is accurate).
+
+---
+
+## 10B. Other UX-only screens (Direction B reconciliation) [UNIVERSAL]
+
+> Status: P1 unless marked. Added 2026-04-30 to close PRD↔UX coverage gap. Each subsection anchors a previously orphan UX screen / modal to PRD-side intent, RBAC, and validation requirements. Scoped narrowly — full screen specs remain in `design/14-MULTI-SITE-UX.md`.
+
+### MS-101 Site Permissions Matrix
+
+**UX:** `MS-PRM` (`UX:178`, full spec at the permissions matrix screen). **Prototype:** `ms_permissions` (`prototype-index-multi-site.json:822-855`), `permission_bulk_assign_modal` (`:283-316`), `MODAL-PERMISSION-BULK-ASSIGN` (`UX:1407-1423`).
+
+**Intent:** A consolidated, three-view (matrix / per-user / per-site) administrative surface over `site_user_access` (§9.2). Matrix view exposes user-row × site-column grid with click-to-assign on empty cells; per-user view flat-lists assignments with edit/remove; per-site view groups users under each site card. Bulk CSV upload (User Email, Site Code, Role) handled via the same wizard pattern as rate-card upload, validated server-side before applying.
+
+**RBAC:** admin (full), ops_director (read-only). All other roles: hidden from sidebar. Super-admin assignments (cross-site) flagged with an "ALL" badge; cells suppressed for super-admin rows.
+
+**PRD anchor:** D-MS-11 (multi-site users) gets explicit UI surface here. Validation: V-MS-05/06 enforced at write time (one primary per user per org).
+
+### MS-102 Site Config Overrides (per-site L2)
+
+**UX:** `MS-SIT-CFG` (`UX:796-805` standalone + Site Detail Tab 2). **Prototype:** `site_config_override_modal` (`prototype-index-multi-site.json:249-282`), `MODAL-SITE-CONFIG-OVERRIDE` (`UX:1387-1403`).
+
+**Intent:** Surface for managing `site_settings` rows (§9.3) per site — L2 overrides over L1 organization defaults per ADR-031. Admin / site-manager picks a setting key from a curated list (e.g., `shift_pattern`, `fefo_strategy`, `default_currency`, `language`, `quality_check_frequency`), reviews the L1 base value displayed inline, sets an Override Value (input type adapts to key type: text / number / select / toggle), optional Effective From and Notes. Save writes a `site_settings` row with `source='l2_override'`. "Clear Override" reverts to L1 base immediately with audit log entry.
+
+**RBAC:** admin (any site), site_manager (own primary site only). Read-only for all other roles (visible on Site Detail Config tab).
+
+**PRD anchor:** Closes the gap left by §13.2 (which only enumerates that L2 overrides exist via 02-SET §9 ADR-031). Settings flow §5.4 (UX:1528-1538) walks the canonical FEFO override use-case.
+
+### MS-103 Master-Data Conflict Resolution
+
+**UX:** `MS-CONF` (`UX:744-783`, modal-only screen). **Prototype:** `conflict_resolve_modal` (`prototype-index-multi-site.json:142-179`).
+
+**Intent:** Operator-facing tool to resolve replication conflicts between an org-level master record and a site-level value. Renders a per-field diff table (Source Value vs Site Value) with radio-per-row choice + bulk "Choose All Source / Choose All Site" buttons; mandatory reason select; e-signature password gate (audit + BRCGS evidence). Apply Resolution writes the chosen values to the site, marks conflict resolved, and emits a `master_data_conflict.resolved` audit-log row.
+
+**RBAC:** admin only. Conflict surface is visible to ops_director and site_manager (read-only) for awareness, but only admin can resolve.
+
+**PRD anchor:** Companion to D-MS-12 outbox events / §6.2 master-data sync flow. **Known prototype bug `BL-MS-02`** — e-signature gate is rendered but not wired; must be implemented before production rollout. Tracked under §17 OQ-MS-11 (new — see §17 amendments).
+
+### MS-104 Site Decommission
+
+**UX:** Decommission flow per `UX:1427-1445` modal + UX:1541-1550 narrative. **Prototype:** `site_decommission_modal` (`prototype-index-multi-site.json:317-349`).
+
+**Intent:** Destructive site-archival flow. Pre-condition checklist (no open WOs, no in-transit ISTs, no quality holds, no unassigned users); each unmet condition shown red with deep-link to the resolving screen. Type-to-confirm site-code gate when all pre-conditions clear. On confirm: `sites.active=false`, all `site_user_access.active=false`, audit entry with 7-year retention tag, archive operational data (no purge — historical traceability preserved).
+
+**RBAC:** admin only; button hidden when `sites.is_default=true` (cf. V-MS-03).
+
+**PRD anchor:** Extends D-MS-3 (sites cannot be deleted while data exists) with the explicit *archive* mechanism. Validation rule V-MS-21 (new, §11.6) formalizes pre-condition gates.
+
+### MS-105 Promote Configuration Across Levels
+
+**UX:** Implicit in `MS-CFG` "Config promotion section" + env-ladder visualization. **Prototype:** `promote_env_modal` (`prototype-index-multi-site.json:415-449`).
+
+**Intent:** Admin-only tool to promote configuration keys up or down the L1 → L2 → L3 hierarchy (org → site → line). Multi-select keys to promote, target scope select (sites for L2, lines for L3), mandatory reason (≥10 chars). On submit: `config_promoted` audit event with old/new value diff per key.
+
+**RBAC:** admin only. **`[EVOLVING]`** P2 — full L3 (line-level) promotion deferred until line-config schema lands.
+
+**PRD anchor:** Surfaces ADR-031 promotion mechanics that were previously implicit. New decision **D-MS-16** registered (§7.3 amendments) to formalize the promote-pipeline as a workflow-as-data rule.
+
+### MS-106 Replication Retry / Run Sync
+
+**UX:** `MODAL-REPLICATION-RETRY` (`UX:1341-1347`). **Prototype:** `replication_retry_modal` (`prototype-index-multi-site.json:111-141`).
+
+**Intent:** Lightweight bulk-action modal triggered from `MS-MDS` "Run Sync Now" or `MS-REP` "Retry All Failed". Selects job priority (Normal / High → queue head). On submit, enqueues a background replication job; row pulses amber in queue table.
+
+**RBAC:** admin only.
+
+**PRD anchor:** Operationalizes D-MS-12 outbox-pattern recovery path. Validation V-MS-22 (new, §11.6) — sync retry requires at least one entity selected.
+
+### MS-107 IST Amend / Cancel
+
+**UX:** Site Detail and IST detail provide entry points. **Prototype:** `ist_amend_modal` (`prototype-index-multi-site.json:77-108`), `ist_cancel_modal` (`:45-75`).
+
+**Intent:** State-gated edit/cancel actions over an existing IST. Amend allowed only in `draft` / `planned` states; changing `ship_date` re-triggers from-site approval. Cancel (any pre-`closed` state) requires reason from a controlled list and releases hard-locked LPs back to available status (outbox `transfer_order.cancelled` per D-MS-12 already specced).
+
+**RBAC:** Amend — planner / admin / from-site_manager. Cancel — planner / admin / from-site_manager. Validation V-MS-23 (new) — amend write blocked on terminal states (closed / cancelled).
+
+### MS-108 Activation / Rollback Confirm
+
+**UX:** `MODAL-ACTIVATION-CONFIRM` (`UX:1449-1459`), `MODAL-ROLLBACK-CONFIRM` (`UX:1463-1471`). **Prototype:** `activation_confirm_modal` (`prototype-index-multi-site.json:350-382`), `rollback_confirm_modal` (`:383-413`).
+
+**Intent:** Already covered by D-MS-14 narrative; this subsection makes the modal contracts explicit. Activation modal: lists 20 affected tables, simulated step-by-step progress, runs RLS-policy application as background job (30-60s); irreversibility warning. Rollback modal: type `ROLLBACK` confirmation, allowed only from `dual_run`; from `activated` requires support contact (static text, no UI path).
+
+**RBAC:** admin only.
+
+**PRD anchor:** Already specced via D-MS-14 — added here for traceability. No new D-decision needed.
+
+### MS-109 Module Settings Hub
+
+**UX:** `MS-CFG` (`UX:181`). **Prototype:** `ms_settings` (`prototype-index-multi-site.json:895-936`).
+
+**Intent:** 7-section module settings page (activation state with rollback button; replication cadence per entity; conflict-resolution policy; timezone/language toggles; FX-pair status table; hierarchy-config summary; config-promotion section). Each section saves independently. Anchors several known prototype bugs (`BL-MS-03` timezone toggle wiring, `BL-MS-07` hierarchy-edit wizard stub) — both flagged in §17 OQ amendments.
+
+**RBAC:** admin (write), ops_director (read).
+
+**PRD anchor:** Operational landing page that ties together D-MS-9 / D-MS-10 / D-MS-12 / D-MS-14 — previously implicit.
+
+### MS-110 Multi-Site Analytics
+
+**UX:** `MS-ANA` (`UX:179`). **Prototype:** `ms_analytics` (`prototype-index-multi-site.json:856-893`).
+
+**Intent:** 5-tab analytics (inventory balance / shipping cost / utilization / conflict trend / per-site benchmark) — primarily a thin consumer of 12-REPORTING aggregates with cross-site rebalance suggestions. Drives the `Create Suggested Transfer` workflow (UX:1554-1561 §5.6).
+
+**RBAC:** admin, ops_director. **`[EVOLVING]`** Marked P2 — overlaps with `MS-005` cross-site benchmark dashboard. Audit row 3 (CC-3 over-build) — Phase E decision required: keep `ms_analytics` as a curated rebalance-action page, or fold into 12-REPORTING dashboards? Tracked OQ-MS-12 (§17).
+
+### Direction A — PRD-only (no design yet)
+
+| PRD concept | Surface needed | Status |
+|---|---|---|
+| Cross-region replication health (D-MS-15 P2) | Operational dashboard `MS-007` (UX P2 placeholder, no prototype) | `[NO-PROTOTYPE-YET]` — defer to Phase E P2 wave |
+| Multi-entity finance rollup (P2 EPIC 14-J) | `MS-008` dashboard (UX placeholder) | `[NO-PROTOTYPE-YET]` |
+| Customs & VAT cross-site TO audit (P2 EPIC 14-K) | `MS-009` dashboard (UX placeholder) | `[NO-PROTOTYPE-YET]` |
+| Cross-region replication topology view | Admin tool to visualize replication routes per site | `[NO-PROTOTYPE-YET]` — TODO Phase E if D-MS-15 promoted to P1 |
+
+---
+
+## 10C. UI surfaces table (PRD ↔ UX ↔ Prototype) [UNIVERSAL]
+
+| MS-NNN | Description | UX screen / modal | Prototype label | Status |
+|---|---|---|---|---|
+| MS-001 | Site Overview dashboard | `MS-NET` (UX:217) | `ms_dashboard` (`:451-491`) | OK (P1) |
+| MS-002 | Inter-site TO Tracker | `MS-IST` (UX:432) | `ms_ist_list` (`:570-603`) | OK (P1) |
+| MS-003 | Cross-site Factory Aggregate | n/a (12-REP consumer) | n/a | OK boundary → 12-REP |
+| MS-004 | Site Switcher UX | global header component | `primitive:SiteCrumb` | OK (P1) |
+| MS-005 | Cross-site Benchmark | `MS-ANA` benchmark tab | `ms_analytics` (`:856-893`) | OK (P2) — see MS-110 |
+| MS-006 | Capacity Planning Cross-site | (no UX) | (none) | `[NO-PROTOTYPE-YET]` (P2) |
+| MS-007 | Data Residency Health | (no UX) | (none) | `[NO-PROTOTYPE-YET]` (P2) |
+| MS-008 | Multi-entity Finance Rollup | (no UX) | (none) | `[NO-PROTOTYPE-YET]` (P2) |
+| MS-009 | Customs & VAT Cross-site TO Audit | (no UX) | (none) | `[NO-PROTOTYPE-YET]` (P2) |
+| MS-010 | Site Activation Dashboard | `MS-ACT` (UX:181) | `ms_activation_wizard` (`:937-974`) | OK (P1) |
+| **MS-100** | **Transport Lanes List + Detail** | `MS-LANE` (UX:808), `MS-LANE-D` (UX:849) | `ms_lanes_list` (`:680-712`), `ms_lane_detail` (`:714-748`) | **NEW (P1)** — §10A |
+| **MS-100a** | **Lane create / edit modal** | `MODAL-LANE-CREATE` / `MODAL-LANE-EDIT` (UX:1351) | `lane_create_modal` (`:180-213`) | **NEW (P1)** — §10A.3.1 |
+| **MS-100b** | **Rate Card upload wizard** | `MODAL-RATE-CARD-UPLOAD` (UX:1377) | `rate_card_upload_modal` (`:215-247`) | **NEW (P1)** — §10A.3.2 |
+| MS-101 | Site Permissions Matrix | `MS-PRM` (UX:178) | `ms_permissions` (`:822-855`), `permission_bulk_assign_modal` (`:283-316`) | NEW (P1) — §10B |
+| MS-102 | Site Config Overrides | `MS-SIT-CFG` (UX:796) | `site_config_override_modal` (`:249-282`) | NEW (P1) — §10B |
+| MS-103 | Master-Data Conflict Resolve | `MS-CONF` modal (UX:744) | `conflict_resolve_modal` (`:142-179`) | NEW (P1) — §10B |
+| MS-104 | Site Decommission | `MODAL-SITE-DECOMMISSION` (UX:1427) | `site_decommission_modal` (`:317-349`) | NEW (P1) — §10B |
+| MS-105 | Promote Config Across Levels | env-ladder + `MODAL-PROMOTE-ENV` | `promote_env_modal` (`:415-449`) | NEW (P2 partial) — §10B |
+| MS-106 | Replication Retry / Run Sync | `MODAL-REPLICATION-RETRY` (UX:1341) | `replication_retry_modal` (`:111-141`) | NEW (P1) — §10B |
+| MS-107 | IST Amend / Cancel | inline IST detail actions | `ist_amend_modal` (`:77-108`), `ist_cancel_modal` (`:45-75`) | NEW (P1) — §10B |
+| MS-108 | Activation / Rollback Confirm | `MODAL-ACTIVATION-CONFIRM` (UX:1449), `MODAL-ROLLBACK-CONFIRM` (UX:1463) | `activation_confirm_modal` (`:350-382`), `rollback_confirm_modal` (`:383-413`) | NEW (P1) — §10B (anchor only) |
+| MS-109 | Module Settings Hub | `MS-CFG` (UX:181) | `ms_settings` (`:895-936`) | NEW (P1) — §10B |
+| MS-110 | Multi-Site Analytics | `MS-ANA` (UX:179) | `ms_analytics` (`:856-893`) | NEW (P2) — §10B |
+| MS-111 | Master-Data Sync Status | `MS-MDS` (UX:684) | `ms_master_data_sync` (`:751-783`) | OK (P1) — already in D-MS-12 |
+| MS-112 | Replication Queue | `MS-REP` (UX:910) | `ms_replication_queue` (`:786-819`) | OK (P1) — already in D-MS-12 |
+| MS-113 | Site Create Wizard | `MODAL-SITE-CREATE` | `site_create_modal` (`:7-44`) | OK (P1) — already in §13.5 wizard |
+| MS-114 | Sites List | `MS-SIT` (UX:278) | `ms_sites_list` (`:493-526`) | OK (P1) |
+| MS-115 | Site Detail | `MS-SIT-D` (UX:329) | `ms_site_detail` (`:528-567`) | OK (P1) |
+| MS-116 | IST Detail | `MS-IST-D` (UX:575) | `ms_ist_detail` (`:605-639`) | OK (P1) |
+| MS-117 | IST Create | `MS-IST-N` (UX:489) | `ms_ist_create` (`:641-678`) | OK (P1) |
+
+ADR-034 / generic-naming hygiene note: the `prototype-index-multi-site.json` entry `sites_screen` (`:976-1004`) is index-mis-tagged and originates from `design/Monopilot Design System/settings/org-screens.jsx` (02-SETTINGS surface). Anchored by 02-SET; not double-counted here. **Tracking:** §17 OQ-MS-13.
+
+---
+
 ## 11. Validation Rules V-MS-01..V-MS-20
 
 ### 11.1 Site setup (V-MS-01..04)
@@ -549,6 +891,7 @@ Dashboards rejestrowane w 12-REPORTING `dashboards_catalog` z per-dashboard `req
 - **V-MS-02**: Feature flag `multi_site_enabled=true` requires minimum 1 site active (block activation, severity=critical)
 - **V-MS-03**: Default site cannot be deleted if `multi_site_enabled=true` (severity=critical)
 - **V-MS-04**: Site timezone musi być valid IANA timezone (np. `Europe/London`, severity=critical data integrity)
+- **V-MS-04a**: Product codes use FG-* format (e.g., FG-CHC-0001, FG-BKD-0002), not FA-* (legacy deprecated, severity=error in data import)
 
 ### 11.2 RLS + access (V-MS-05..08)
 - **V-MS-05**: User cannot access data from site without `site_user_access` row (enforced via RLS policy, severity=critical)
@@ -563,6 +906,7 @@ Dashboards rejestrowane w 12-REPORTING `dashboards_catalog` z per-dashboard `req
 - **V-MS-12**: Same-site TO (from_site_id = to_site_id) skip IN_TRANSIT state, direct shipped → received (backward compat)
 - **V-MS-13**: `cost_allocation_method='split'` requires split_ratio in `transfer_cost_metadata` JSONB (severity=warn)
 - **V-MS-14**: TO with transfer_cost > 0 requires cost_allocation_method NOT 'none' (severity=warn data quality)
+- **V-MS-14a**: WIP codes in `wo_outputs.intermediate_code_p*` follow pattern WIP-{operation_suffix}-{7-digit-sequence} (e.g., WIP-BL-0000001, WIP-MX-0000042), not PR-* (legacy deprecated, severity=warn data quality)
 
 ### 11.4 Site context (V-MS-15..17)
 - **V-MS-15**: Request without x-site-id header + user has multiple sites → return 400 SITE_CONTEXT_REQUIRED (severity=info client validation)
@@ -573,6 +917,19 @@ Dashboards rejestrowane w 12-REPORTING `dashboards_catalog` z per-dashboard `req
 - **V-MS-18**: Feature flag activation wizard requires 3 steps completed (create_sites + assign_users + backfill_default) before enable (D-MS-14, severity=critical)
 - **V-MS-19**: Backfill migration SET site_id=default_site covers 100% of rows in operational tables (post-migration validation query, severity=critical)
 - **V-MS-20**: Rollback from `dual_run` state requires admin confirmation + audit log entry (severity=warn)
+
+### 11.6 Lanes + Rate Cards + Direction-B amendments (V-MS-21..V-MS-30) — added 2026-04-30
+
+- **V-MS-21**: Site decommission blocked while site has open WOs, in-transit ISTs, open quality holds, or `site_user_access` rows where this is the user's only assignment (D-MS-3 + §10B MS-104, severity=critical)
+- **V-MS-22**: Replication retry / run-sync requires at least one entity selected and admin role (severity=critical authz)
+- **V-MS-23**: IST amend write blocked when state ∈ {received, closed, cancelled}; cancel write blocked when state ∈ {closed, cancelled} (severity=critical state-machine integrity)
+- **V-MS-24**: `transport_lanes.from_site_id ≠ to_site_id` enforced via CHECK constraint; lane_code unique per org via UNIQUE constraint (severity=critical)
+- **V-MS-25**: `transport_lane_rate_cards.effective_to ≥ effective_from` when not NULL; overlap with active rates for the same `(lane_id, carrier, rate_type, currency)` triggers warn-level supersede prompt during upload (severity=warn upload-time, severity=critical post-insert if bypass detected)
+- **V-MS-26**: Rate card with `approval_status='pending'` MUST NOT be referenced by IST cost-suggestion logic; only `active`-status rates participate in cost calculations (severity=critical cost-data integrity)
+- **V-MS-27**: Currency on rate card MUST be ISO 4217 3-letter code (severity=critical data integrity)
+- **V-MS-28**: Rate card supersede chain (`superseded_by`) MUST be acyclic; loop detection in audit job (severity=critical)
+- **V-MS-29**: Lane deactivate blocked while at least one IST in non-terminal state references the lane (severity=critical, blocks `transport_lanes.active=false` UPDATE)
+- **V-MS-30**: Conflict-resolve modal e-signature gate (BL-MS-02) — required password re-auth before write commits to audit log (severity=critical compliance gate; **currently not wired in prototype** — Phase E impl required)
 
 ---
 
@@ -721,10 +1078,65 @@ State machine stored w `organizations.multi_site_state`:
 | OQ-MS-08 | Multi-entity accounting: same database schema per entity vs separate schemas (Postgres schemas)? | P2 | 14-I phase 10-FIN |
 | OQ-MS-09 | Customs cross-site TO (EU→non-EU): integrate with customs broker API (TBD) or manual docs? | P2 | 14-J phase |
 | OQ-MS-10 | Cross-site WO allocation rule engine (planner chooses site based on capacity + skills + cost)? | P2 | 07-EXT consumer (finite-capacity solver extension) |
+| OQ-MS-11 | Conflict-resolve e-signature gate (BL-MS-02) — wire to existing 02-SET re-auth modal vs new bespoke component? Tied to V-MS-30 implementation. | P1 | Security + 09-QA evidence-capture |
+| OQ-MS-12 | `MS-110 Multi-Site Analytics` (`ms_analytics`) overlap with 12-REPORTING `MS-005` benchmark dashboard — keep as curated rebalance-action page or fold into 12-REP? Decision affects Phase E scope. | P1 | 12-REP boundary |
+| OQ-MS-13 | `prototype-index-multi-site.json` entry `sites_screen` (`:976-1004`) is mis-tagged from 02-SETTINGS `org-screens.jsx` — relocate to `prototype-index-settings.json` and remove from 14-MS index. | P1 (hygiene) | _meta/prototype-labels owner |
+| OQ-MS-14 | ADR-034 generic-naming hygiene: existing v3.1 examples still bake in industry-specific tenancy ("Apex UK" / "EDGE EU" / "Chocolate factory"). Should §6.4.1 + §9.1 examples be re-cast as generic Site A / Site B + neutral industries (Site A / Site B with Operation suffix tables) per ADR-034 rename-pass? | P2 (writing pass) | Architecture (ADR-034 follow-up) |
 
 ---
 
 ## 18. Changelog
+
+### v3.2 (2026-04-30) — PRD↔UX coverage closure (Transport Lanes + Direction-B reconciliation)
+
+**Closes audit BLOCKER #2** from `_meta/audits/2026-04-30-design-prd-coverage.md` (14-MULTI-SITE row, ~50% → ≥85% coverage target).
+
+**Added top-level sections:**
+- **§10A Transport Lanes + Rate Cards** — full data model (3 tables: `transport_lanes`, `transport_lane_rate_cards`, `transport_lane_rate_audit`), CRUD, versioned upload pipeline with optional approval, RBAC, outbox events, telemetry
+- **§10B Other UX-only screens** — 10 new MS-NNN subsections (MS-101..MS-110) covering permissions matrix, site config overrides, conflict resolve, decommission, env promote, replication retry, IST amend/cancel, activation/rollback, settings hub, analytics
+- **§10C UI surfaces table** — single PRD↔UX↔Prototype mapping for all MS-NNN entries (P1+P2)
+
+**New decisions:**
+- D-MS-16 — Transport Lanes as org-master + versioned Rate Cards
+- D-MS-17 — Config-promotion as auditable action
+- D-MS-18 — Site decommission = archive, never purge
+
+**New validation rules:** V-MS-21..V-MS-30 (10 new rules; V-MS-30 flags BL-MS-02 e-signature wiring gap)
+
+**New open questions:** OQ-MS-11 (e-signature wiring), OQ-MS-12 (MS-110 vs 12-REP overlap), OQ-MS-13 (`sites_screen` mis-tag), OQ-MS-14 (ADR-034 generic-naming follow-up for v3.1 industry-specific examples)
+
+**ADR-034 hygiene:** existing v3.1 industry-specific examples (Apex UK + EDGE EU, "Chocolate factory" / "Candy" / "Bakery") preserved in this version but flagged via OQ-MS-14 for follow-up rename pass to generic Site A / Site B with neutral industry-suffix examples per ADR-034.
+
+**No deletions.** All v3.1 content preserved.
+
+### v3.1 (2026-04-30) — Multi-industry manufacturing operations standardization
+
+**Column/Code Renames (UNIVERSAL standardization):**
+- Product codes: FA → **FG** (Finished Goods). Examples: FG-CHC-0001, FG-BKD-0002 (all product references updated per 01-NPD v3.2 FG definition)
+- WIP codes: PR → **WIP** with pattern **WIP-{operation_suffix}-{7-digit-sequence}**. Examples: WIP-BL-0000001, WIP-MX-0000042, WIP-CK-0000133 (per 02-SET §8.9 Reference.ManufacturingOperations pattern)
+- Manufacturing operations: Process_1..4 → **Manufacturing_Operation_1..4** (descriptive naming per industry)
+
+**Site-specific manufacturing operations pattern** (§6.4.1 NEW):
+- Two implementation patterns documented: Pattern 1 (shared org-wide operations) and Pattern 2 (site-specific operations per industry)
+- Reference.ManufacturingOperations can be site-scoped (P2 schema delta) or org-scoped (P1 standard)
+- Manufacturing operations site-level examples: Site A Candy (Blend, Extrusion, Coating, Packing) vs Site B Bakery (Dough Mix, Fermentation, Baking, Frosting)
+- WIP code generation per site's operation set, but finished products (FG-*) remain org-level
+
+**Updated sections:**
+- §3.2 Objectives: site-specific manufacturing operations clarified in D-MS-4 context
+- §6.4.1 NEW subsection: Site-specific manufacturing operations with dual-pattern documentation (org-wide vs site-scoped)
+- §7.1 D-MS-4 decision: explicit reference to FG codes, WIP codes, and manufacturing operations scoping
+- §11.1 V-MS-04a NEW: validation rule for FG-* product code format (not FA-*)
+- §11.3 V-MS-14a NEW: validation rule for WIP-* pattern (not PR-*) in intermediate codes
+- §19 Related Documents: explicit callout to 02-SET §8.9 Reference.ManufacturingOperations
+
+**Verification completed:**
+- All product code examples now use FG-* pattern (no FA-* references)
+- All WIP code examples follow WIP-{suffix}-{seq} pattern (no PR-* references)
+- Site-specific operation examples show correct manufacturing operation naming (Mix, Blend, Cook, Package, etc.)
+- No orphaned references to legacy naming conventions
+- Version bumped from v3.0 → v3.1, date updated to 2026-04-30
+- Cross-references to 01-NPD v3.2 (FG/WIP definitions) and 02-SET §8.9 (Reference.ManufacturingOperations) verified
 
 ### v3.0 (2026-04-20) — Phase D full rewrite
 - Phase D convention (19 sekcji, markers)
@@ -754,7 +1166,7 @@ State machine stored w `organizations.multi_site_state`:
 ## 19. Related Documents
 
 - [`00-FOUNDATION-PRD.md`](./00-FOUNDATION-PRD.md) v3.0 — §4 module map, §4.2 build sequence, §5 tech stack (R3 RLS default, R7 data residency), REC-L1 site_id nullable pattern, REC-L5 per-site shifts
-- [`02-SETTINGS-PRD.md`](./02-SETTINGS-PRD.md) v3.3 — §7.8 rules registry (23+ rules post-C5 Sesja 2 delta), §8.1 ref tables (23+ tables), §9 multi-tenant L2 config (ADR-030/031 orchestration), §11 D365 Constants per-site override (potential P2)
+- [`02-SETTINGS-PRD.md`](./02-SETTINGS-PRD.md) v3.3 — §7.8 rules registry (23+ rules post-C5 Sesja 2 delta), §8.1 ref tables (23+ tables) including Reference.ManufacturingOperations (§8.9, multi-industry operations pattern), §9 multi-tenant L2 config (ADR-030/031 orchestration), §11 D365 Constants per-site override (potential P2)
 - [`05-WAREHOUSE-PRD.md`](./05-WAREHOUSE-PRD.md) v3.0 — TO base state machine (extended with IN_TRANSIT), lp_genealogy multi-site trail, grn/picks site-scoped
 - [`08-PRODUCTION-PRD.md`](./08-PRODUCTION-PRD.md) v3.0 — production_shifts site-scoping (D-MS-9 REC-L5), work_orders site_id activation
 - [`09-QUALITY-PRD.md`](./09-QUALITY-PRD.md) v3.0 — quality_holds/inspections/ncr site-scoped, cross-site QA reports
@@ -769,4 +1181,4 @@ State machine stored w `organizations.multi_site_state`:
 
 ---
 
-**Phase C5 Sesja 2 deliverable 2/2 — 14-MULTI-SITE-PRD.md v3.0 COMPLETE.**
+**Phase C5 Sesja 2 deliverable 2/2 — 14-MULTI-SITE-PRD.md v3.1 COMPLETE (multi-industry manufacturing operations pattern standardized).**

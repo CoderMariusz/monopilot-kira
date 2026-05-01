@@ -1,0 +1,85 @@
+{
+  "title": "T-007 — Drizzle migration: tenant_variations + tenant_migrations (ADR-031)",
+  "prompt": "# T-007 — Drizzle migration: multi-tenant L2 tables\n\n## Goal\nCreate Drizzle + SQL migration for §5.4 multi-tenant L2 storage: tenant_variations and tenant_migrations. Status enum CHECK on tenant_migrations.\n\n## Files in scope\n- apps/web/db/schema/tenant-l2.ts [create]\n- apps/web/db/migrations/ [create]\n- apps/web/db/migrations/__tests__/tenant-l2.test.ts [create]\n\n## Acceptance criteria (all must hold)\n- Given migration is applied, when `\\d tenant_variations` is shown, then PRIMARY KEY (org_id) is set.\n- Given migration is applied, when `\\d tenant_migrations` is shown, then status CHECK accepts only scheduled/canary/progressive/completed/rolled_back/force_scheduled.\n- Given org row is deleted, when cascade runs, then matching tenant_variations row is removed.\n\n## Test strategy (RED first)\n1. Add a failing test that exercises the acceptance criteria above. The RED command is:\n   `pnpm --filter @monopilot/web vitest run apps/web/db/migrations/__tests__/tenant-l2.test.ts`\n2. Run RED — it must fail before any production code is written.\n3. Implement the smallest change needed for GREEN.\n4. Re-run RED command — must pass.\n5. Run `pnpm typecheck` and `pnpm lint` in the changed package; both must pass.\n\n## Risk red lines\n- Do not edit files outside the listed scope without documenting why in CLOSEOUT.\n- Do not weaken existing acceptance criteria from prior tasks.\n- Do not introduce REST endpoints; use Server Actions per stack contract.\n- Do not commit secrets or vault keys.\n\n## Closeout evidence required\n- changed_files (with line counts)\n- exact test commands and outputs (RED→GREEN, typecheck, lint)\n- acceptance_criteria_status (one row per AC: pass/fail)\n- deviations_from_prd (or \"none\")\n- git_status\n\nStack: TS + Next.js App Router + Drizzle + pnpm + vitest + Playwright + Server Actions. Primitives in `packages/ui`. PRD: `02-SETTINGS-PRD.md` v3.5.\n",
+  "labels": [
+    "prd",
+    "data",
+    "tenant-l2",
+    "T1-schema"
+  ],
+  "priority": 80,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-007",
+    "source_prd": "02-SETTINGS-PRD.md",
+    "prd_refs": [
+      "§5.4",
+      "§9",
+      "ADR-031"
+    ],
+    "category": "data",
+    "subcategory": "tenant-l2-schema",
+    "task_type": "T1-schema",
+    "parent_feature": "02-settings-b",
+    "context_budget": "40k",
+    "estimated_effort": "1-3h",
+    "description": "Tenant L2 variations + migration orchestration tables.",
+    "details": "tenant_variations is 1:1 with organizations (PK org_id, FK CASCADE). tenant_migrations is history with canary_pct numeric + status CHECK + scheduled_by FK users.",
+    "scope_files": [
+      "apps/web/db/schema/tenant-l2.ts",
+      "apps/web/db/migrations/",
+      "apps/web/db/migrations/__tests__/tenant-l2.test.ts"
+    ],
+    "out_of_scope": [
+      "broaden scope beyond listed files",
+      "implement future-phase features"
+    ],
+    "dependencies": [
+      "T-004"
+    ],
+    "parallel_safe_with": [
+      "T-005",
+      "T-006"
+    ],
+    "acceptance_criteria": [
+      "Both tables created per §5.4.",
+      "Status CHECK constraint enforces enum.",
+      "FK CASCADE behavior verified by test.",
+      "vitest green."
+    ],
+    "test_strategy": [
+      "RED: shape + cascade + CHECK reject test.",
+      "GREEN: emit migration."
+    ],
+    "risk_red_lines": [
+      "Do not couple tenant_variations to per-tenant DB schema (L4 deferred)."
+    ],
+    "skills": [
+      "test-driven-development"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": false
+  }
+}

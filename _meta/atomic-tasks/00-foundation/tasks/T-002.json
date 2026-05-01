@@ -1,0 +1,85 @@
+{
+  "title": "T-002 \u2014 Drizzle ORM + Postgres 16 dev wiring (packages/db scaffold)",
+  "prompt": "# T-002 \u2014 Drizzle ORM + Postgres 16 dev wiring (packages/db scaffold)\n\nPRD: `00-FOUNDATION-PRD.md` \u2014 sections: \u00a75, \u00a75.Backend\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`\n\n## Goal\nCreate packages/db workspace with Drizzle ORM, drizzle-kit migration runner, and Postgres 16 connection helpers. No business tables yet \u2014 only the migration toolchain.\n\n## Implementation contract\nCreate packages/db/package.json with drizzle-orm and drizzle-kit. Add packages/db/drizzle.config.ts pointing to packages/db/migrations and packages/db/schema. Add lib/db/client.ts exporting a typed Drizzle client constructed from process.env.DATABASE_URL. Add packages/db/scripts/migrate.ts running drizzle-kit push. Add a vitest integration test that connects to a Postgres docker container, runs zero migrations, and asserts SELECT 1 returns 1.\n\n## Files (scope)\n- packages/db/package.json [create]\n- packages/db/drizzle.config.ts [create]\n- packages/db/schema/index.ts [create]\n- packages/db/migrations/.gitkeep [create]\n- packages/db/lib/client.ts [create]\n- packages/db/scripts/migrate.ts [create]\n- packages/db/__tests__/connection.integration.test.ts [create]\n\n## Acceptance criteria\n1. Given a Postgres 16 container is running, when the integration test connects via the Drizzle client, then SELECT 1 returns 1 and the client closes cleanly\n2. Given drizzle-kit is configured, when 'pnpm --filter @monopilot/db migrate' runs against an empty database, then it reports zero pending migrations and exits 0\n\n## Test strategy\n- RED: write packages/db/__tests__/connection.integration.test.ts asserting SELECT 1 = 1 before lib/client.ts exists\n- Run 'pnpm --filter @monopilot/db test' against a docker compose Postgres 16\n\n## Risk red lines\n- Do not commit DATABASE_URL with real credentials\n- Do not use a non-Postgres dialect\n\n## Dependencies (must be complete first)\n- T-001\n\n## Closeout evidence\nProvide: changed_files, test_commands_and_results, acceptance_criteria_status (per AC), deviations_from_prd, git_status. Use the test-driven-development skill (RED test before implementation) and requesting-code-review at GREEN.",
+  "labels": [
+    "prd",
+    "data",
+    "scaffold",
+    "T1-schema"
+  ],
+  "priority": 50,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-002",
+    "source_prd": "00-FOUNDATION-PRD.md",
+    "prd_refs": [
+      "\u00a75",
+      "\u00a75.Backend"
+    ],
+    "category": "data",
+    "subcategory": "scaffold",
+    "task_type": "T1-schema",
+    "parent_feature": "00-FOUNDATION-impl-d DB scaffold",
+    "context_budget": "35k",
+    "estimated_effort": "1-2h",
+    "description": "Create packages/db workspace with Drizzle ORM, drizzle-kit migration runner, and Postgres 16 connection helpers. No business tables yet \u2014 only the migration toolchain.",
+    "details": "Create packages/db/package.json with drizzle-orm and drizzle-kit. Add packages/db/drizzle.config.ts pointing to packages/db/migrations and packages/db/schema. Add lib/db/client.ts exporting a typed Drizzle client constructed from process.env.DATABASE_URL. Add packages/db/scripts/migrate.ts running drizzle-kit push. Add a vitest integration test that connects to a Postgres docker container, runs zero migrations, and asserts SELECT 1 returns 1.",
+    "scope_files": [
+      "packages/db/package.json [create]",
+      "packages/db/drizzle.config.ts [create]",
+      "packages/db/schema/index.ts [create]",
+      "packages/db/migrations/.gitkeep [create]",
+      "packages/db/lib/client.ts [create]",
+      "packages/db/scripts/migrate.ts [create]",
+      "packages/db/__tests__/connection.integration.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not modify files outside the scope_files list",
+      "Do not introduce business logic from later module PRDs (01-NPD, 02-SETTINGS, etc.)",
+      "No business tables in this task \u2014 those are T-003 onward"
+    ],
+    "dependencies": [
+      "T-001"
+    ],
+    "parallel_safe_with": [],
+    "acceptance_criteria": [
+      "Given a Postgres 16 container is running, when the integration test connects via the Drizzle client, then SELECT 1 returns 1 and the client closes cleanly",
+      "Given drizzle-kit is configured, when 'pnpm --filter @monopilot/db migrate' runs against an empty database, then it reports zero pending migrations and exits 0"
+    ],
+    "test_strategy": [
+      "RED: write packages/db/__tests__/connection.integration.test.ts asserting SELECT 1 = 1 before lib/client.ts exists",
+      "Run 'pnpm --filter @monopilot/db test' against a docker compose Postgres 16"
+    ],
+    "risk_red_lines": [
+      "Do not commit DATABASE_URL with real credentials",
+      "Do not use a non-Postgres dialect"
+    ],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

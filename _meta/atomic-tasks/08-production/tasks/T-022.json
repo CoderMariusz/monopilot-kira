@@ -1,0 +1,60 @@
+{
+  "title": "T-022 — Optimistic locking on wo_executions to prevent dual-completion (R2)",
+  "prompt": "# T-022 — Optimistic locking on wo_executions\n\nPRD: 08-PRODUCTION-PRD.md §13 R2\n\n## Goal\nAdd optimistic locking via wo_executions.updated_at semantics so that two concurrent COMPLETE attempts cannot both succeed (R2: concurrent WO completion conflicts).\n\n## Implementation contract\nUpdate complete-wo, pause-wo, resume-wo to UPDATE wo_executions SET ... WHERE wo_id=:id AND updated_at = :expected_updated_at. If 0 rows affected → return 409 {error:'concurrent_modification', code:'CONFLICT_OPTIMISTIC_LOCK'}. Each route handler reads expected_updated_at on entry to the transaction and passes to the service. Add automated test simulating two concurrent /complete calls — exactly one must return 200 and one must return 409.\n\n## Files (scope)\n- packages/api-services/production/complete-wo.ts [modify]\n- packages/api-services/production/pause-wo.ts [modify]\n- packages/api-services/production/resume-wo.ts [modify]\n- packages/api-services/production/__tests__/optimistic-lock-concurrent.test.ts [create]\n\n## Acceptance criteria\n1. Given two concurrent /complete calls on same WO, when both run, then exactly one returns 200 and the other returns 409 code=CONFLICT_OPTIMISTIC_LOCK\n2. Given single sequential /complete call, when run, then 200 success without lock conflict\n3. Given the second call retries with refreshed updated_at, when called after the first commits, then it observes 409 invalid_state_transition (already COMPLETED) — proving lock semantics correctly chained with state machine\n\n## Test strategy\n- RED: write packages/api-services/production/__tests__/optimistic-lock-concurrent.test.ts using Promise.all on two service calls before optimistic-lock change is added\n- Run 'pnpm --filter api-services test optimistic-lock-concurrent'\n\n## Risk red lines\n- Do not switch to pessimistic FOR UPDATE (would serialize unnecessarily)\n- Do not omit updated_at trigger maintaining now() on UPDATE\n- Do not allow silent overwrite (must surface 409)",
+  "labels": ["prd", "api", "concurrency", "T2-api"],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-022",
+    "source_prd": "08-PRODUCTION-PRD.md",
+    "prd_refs": ["§13 R2"],
+    "category": "api",
+    "subcategory": "concurrency",
+    "task_type": "T2-api",
+    "parent_feature": "08-PROD E1 Execution Core",
+    "context_budget": "26k",
+    "estimated_effort": "2h",
+    "description": "Optimistic locking on wo_executions.updated_at to mitigate R2 concurrent WO completion conflicts.",
+    "details": "Each transitional service (complete/pause/resume) reads updated_at, runs UPDATE ... WHERE updated_at=:expected. Trigger maintains updated_at=now() on UPDATE. Concurrent test forces both to request the same expected_updated_at; only one succeeds.",
+    "scope_files": [
+      "packages/api-services/production/complete-wo.ts [modify]",
+      "packages/api-services/production/pause-wo.ts [modify]",
+      "packages/api-services/production/resume-wo.ts [modify]",
+      "packages/api-services/production/__tests__/optimistic-lock-concurrent.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not introduce pessimistic locking",
+      "Do not change wo_executions schema beyond updated_at trigger",
+      "Do not refactor unrelated service code"
+    ],
+    "dependencies": ["T-017", "T-018", "T-019"],
+    "parallel_safe_with": [],
+    "acceptance_criteria": [
+      "Given two concurrent /complete on same WO, when both run, then exactly one returns 200 and the other returns 409 code=CONFLICT_OPTIMISTIC_LOCK",
+      "Given single sequential /complete, when run, then 200 success",
+      "Given retry after first commits, when called, then observes 409 invalid_state_transition (state machine takes over)"
+    ],
+    "test_strategy": [
+      "RED: concurrent test using Promise.all asserting 200+409 split before lock change",
+      "Run 'pnpm --filter api-services test optimistic-lock-concurrent'"
+    ],
+    "risk_red_lines": [
+      "Do not switch to FOR UPDATE",
+      "Do not omit updated_at maintenance trigger",
+      "Do not allow silent overwrite"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

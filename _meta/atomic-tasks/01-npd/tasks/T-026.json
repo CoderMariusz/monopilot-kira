@@ -1,0 +1,58 @@
+{
+  "title": "T-026 — UI: FA Technical tab shell (allergen widget hooks added in NPD-c)",
+  "prompt": "# T-026 — FA Technical tab shell\n\nPRD: 01-NPD-PRD.md §5.7, §8.7 + UX fa_technical_tab\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\nPrototype: design/Monopilot Design System/npd/fa-screens.jsx:656-743 (fa_technical_tab)\n\n## Goal\nTechnical tab shell rendering shelf_life + closed_technical fields (NPD-a baseline) plus a placeholder slot for the allergen widget that NPD-c will populate.\n\n## Implementation contract\nNew apps/web/app/(npd)/fa/[productCode]/_tabs/technical-tab.tsx using SchemaDrivenForm for shelf_life + closed_technical, plus a TechnicalAllergenSlot component that renders an empty Card with 'Allergens loading...' until NPD-c lands. Save uses updateFaCell.\n\n## Files\n- apps/web/app/(npd)/fa/[productCode]/_tabs/technical-tab.tsx [create]\n- apps/web/app/(npd)/fa/[productCode]/_tabs/__tests__/technical-tab.test.tsx [create]\n- design/Monopilot Design System/npd/fa-screens.jsx [ref]\n\n## Acceptance criteria\n1. Given the tab renders, when compared to design/Monopilot Design System/npd/fa-screens.jsx:656-743 (fa_technical_tab), then it shows the same field order (shelf_life, allergens slot, may-contain slot, override controls, closed_technical) and uses shadcn Form+Card+Input+Select primitives — verified by RTL parity checklist (structural+visual+interaction)\n2. Given user edits shelf_life and saves, when updateFaCell completes, then DB row is updated\n3. Given the allergen slot has no data yet, when rendered, then a Card with 'Allergens loading...' appears (no error)\n\n## Test strategy\n- RED: 3 RTL tests for parity, save action, slot placeholder\n- Run 'pnpm --filter web test technical-tab'\n\n## Risk red lines\n- Do not implement allergen cascade here (NPD-c)\n- Do not skip slot reservation for allergens\n- Do not bypass updateFaCell",
+  "labels": ["prd", "ui", "fa-technical-tab", "T3-ui"],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-026",
+    "source_prd": "01-NPD-PRD.md",
+    "prd_refs": ["§5.7", "§8.7"],
+    "category": "ui",
+    "subcategory": "fa-technical-tab",
+    "task_type": "T3-ui",
+    "parent_feature": "01-NPD-a fa detail tabs",
+    "context_budget": "30k",
+    "estimated_effort": "1-2h",
+    "description": "Technical tab shell with shelf_life + closed_technical + reserved allergen widget slot.",
+    "details": "Parity: shelf_life, allergens slot, may-contain slot, override controls placeholder, closed_technical, in fa_technical_tab order. shadcn primitives.",
+    "scope_files": [
+      "apps/web/app/(npd)/fa/[productCode]/_tabs/technical-tab.tsx [create]",
+      "apps/web/app/(npd)/fa/[productCode]/_tabs/__tests__/technical-tab.test.tsx [create]",
+      "design/Monopilot Design System/npd/fa-screens.jsx [ref]"
+    ],
+    "out_of_scope": [
+      "Do not implement allergen cascade UI",
+      "Do not handle override modal here"
+    ],
+    "dependencies": ["T-014", "T-020", "T-025"],
+    "parallel_safe_with": ["T-023", "T-024", "T-027"],
+    "acceptance_criteria": [
+      "Given the tab renders, when compared to design/Monopilot Design System/npd/fa-screens.jsx:656-743, then it shows same field order (shelf_life, allergens slot, may-contain slot, override controls, closed_technical) and uses shadcn Form+Card+Input+Select primitives — verified by RTL parity checklist (structural + visual + interaction parity)",
+      "Given user edits shelf_life and saves, when updateFaCell completes, then DB row is updated",
+      "Given the allergen slot has no data yet, when rendered, then a Card with 'Allergens loading...' appears (no error)"
+    ],
+    "test_strategy": [
+      "RED: 3 RTL tests for parity, save action, slot placeholder before component exists",
+      "Run 'pnpm --filter web test technical-tab'"
+    ],
+    "risk_red_lines": [
+      "Do not implement allergen cascade here",
+      "Do not skip slot reservation",
+      "Do not bypass updateFaCell"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

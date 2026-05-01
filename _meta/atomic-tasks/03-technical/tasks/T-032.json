@@ -1,0 +1,37 @@
+{
+  "title": "T-032 — UI: TEC-010 Item List page",
+  "prompt": "Build /technical/items page (TEC-010, §6.5) — Item List with filters by type, status, allergens, last D365 sync. Use Server Component fetching from GET /api/technical/items (T-008). Filter chips, search input, paginated table (shadcn Table). Row click navigates to TEC-012 detail. Match prototype `materials_list_screen` lines 432-480 in design/Monopilot Design System/technical/other-screens.jsx and `products_screen` lines 4-52 in design/Monopilot Design System/settings/data-screens.jsx. RED tests/ui/tec-010-item-list.test.tsx using Playwright + RTL parity assertions. Run: `pnpm vitest run tests/ui/tec-010-item-list.test.tsx`.",
+  "labels": ["prd", "ui", "ui-items-list", "T3-ui"],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-032",
+    "source_prd": "03-TECHNICAL-PRD.md",
+    "prd_refs": ["§6.5", "§4A TEC-010"],
+    "category": "ui",
+    "subcategory": "items-list",
+    "task_type": "T3-ui",
+    "parent_feature": "03-TECHNICAL-a Item Master",
+    "context_budget": "30k",
+    "estimated_effort": "3h",
+    "description": "Item list page with filters, search, pagination — parity with materials_list_screen prototype.",
+    "details": "Parity checklist: 1) Top filter row order: Type | Status | Allergens | D365 Sync | Search; 2) Table columns: Code | Name | Type | Status | Allergens (chips) | Cost/kg | D365 status | Updated; 3) Empty state copy + Add button match prototype; 4) Use shadcn Table, Input, Select primitives — no <select>; 5) Action button 'Create item' top-right opens TEC-011 modal.",
+    "scope_files": ["app/(app)/technical/items/page.tsx", "app/(app)/technical/items/_components/item-table.tsx", "app/(app)/technical/items/_components/item-filters.tsx", "tests/ui/tec-010-item-list.test.tsx", "design/Monopilot Design System/technical/other-screens.jsx [ref]", "design/Monopilot Design System/settings/data-screens.jsx [ref]"],
+    "out_of_scope": ["Item create modal (T-033)", "Item detail (T-034)", "CSV import (T-068 docs)"],
+    "dependencies": ["T-008"],
+    "parallel_safe_with": ["T-033", "T-034", "T-035", "T-036"],
+    "acceptance_criteria": [
+      "Given the page renders, when compared to design/Monopilot Design System/technical/other-screens.jsx:432-480 and design/Monopilot Design System/settings/data-screens.jsx:4-52, then it shows structural parity (same filter row order, same table columns, same Create button placement), visual parity (shadcn Input/Select/Table primitives, same density tokens), and interaction parity (filter chips toggle, row click opens detail, empty-state matches) — verified by RTL snapshot + manual checklist in details.",
+      "Given filters Type=fg + Status=active are selected, when applied, then the API receives ?type=fg&status=active and table reloads.",
+      "Given empty result, when rendered, then the prototype empty-state copy and 'Create item' CTA appear.",
+      "Given user lacks technical.items.create, when page renders, then the Create button is hidden."
+    ],
+    "test_strategy": ["RED tests asserting prototype parity (snapshot diff + DOM checks against checklist).", "Run: pnpm vitest run tests/ui/tec-010-item-list.test.tsx"],
+    "risk_red_lines": ["Do not use raw <select> instead of shadcn Select.", "Do not invent extra columns beyond prototype."],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {"required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"], "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]},
+    "routing_hints": {"red": "hermes_gpt55", "implementation": "hermes_gpt55", "review": "opus_if_high_risk_or_ui_or_architecture", "close": "spark_low_risk_else_opus"}
+  }
+}

@@ -1,0 +1,86 @@
+{
+  "title": "T-008 \u2014 outbox_events table migration + worker stub publishing to in-memory queue",
+  "prompt": "# T-008 \u2014 outbox_events table migration + worker stub publishing to in-memory queue\n\nPRD: `00-FOUNDATION-PRD.md` \u2014 sections: \u00a710\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`\n\n## Goal\nMigration 003 creating outbox_events table per \u00a710 plus a TypeScript worker that polls unconsumed rows and publishes to a pluggable queue (in-memory adapter for tests).\n\n## Implementation contract\nMigration 003-outbox.sql creating outbox_events(id BIGSERIAL PK, tenant_id UUID NOT NULL, event_type TEXT NOT NULL, aggregate_type TEXT NOT NULL, aggregate_id UUID NOT NULL, payload JSONB NOT NULL, created_at TIMESTAMPTZ NOT NULL DEFAULT now(), consumed_at TIMESTAMPTZ, app_version TEXT NOT NULL) plus the partial index on (tenant_id, created_at) WHERE consumed_at IS NULL. Implement packages/outbox/src/worker.ts with a runOnce() function that selects unconsumed rows, publishes via a Queue interface (in-memory adapter), and stamps consumed_at. event_type values must be members of EventType from T-003. Vitest E2E test inserts an outbox row, runs the worker, and asserts the in-memory queue received it and consumed_at is set.\n\n## Files (scope)\n- packages/db/migrations/003-outbox.sql [create]\n- packages/outbox/src/worker.ts [create]\n- packages/outbox/src/queue.ts [create]\n- packages/outbox/src/__tests__/worker.e2e.test.ts [create]\n\n## Acceptance criteria\n1. Given outbox_events exists and a row is inserted with event_type='audit.recorded', when worker.runOnce() executes, then the in-memory queue contains exactly one message and the row's consumed_at is set\n2. Given event_type is constrained to EventType members, when an insertion uses 'invalid.event' (not in EventType), then the worker rejects publishing and the test fails fast\n3. Given the partial index on (tenant_id, created_at) WHERE consumed_at IS NULL exists, when EXPLAIN runs the unconsumed query, then it uses the index\n\n## Test strategy\n- RED: write packages/outbox/src/__tests__/worker.e2e.test.ts asserting publish + consumed_at flip before worker.ts exists\n- Run 'pnpm --filter @monopilot/outbox test'\n\n## Risk red lines\n- Do not lose events \u2014 publish must be at-least-once with idempotent stamping\n- Do not publish events whose event_type is not in EventType\n\n## Dependencies (must be complete first)\n- T-003\n- T-006\n\n## Closeout evidence\nProvide: changed_files, test_commands_and_results, acceptance_criteria_status (per AC), deviations_from_prd, git_status. Use the test-driven-development skill (RED test before implementation) and requesting-code-review at GREEN.",
+  "labels": [
+    "prd",
+    "data",
+    "event-bus",
+    "T1-schema"
+  ],
+  "priority": 80,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-008",
+    "source_prd": "00-FOUNDATION-PRD.md",
+    "prd_refs": [
+      "\u00a710"
+    ],
+    "category": "data",
+    "subcategory": "event-bus",
+    "task_type": "T1-schema",
+    "parent_feature": "00-FOUNDATION-impl-e outbox",
+    "context_budget": "50k",
+    "estimated_effort": "1-3h",
+    "description": "Migration 003 creating outbox_events table per \u00a710 plus a TypeScript worker that polls unconsumed rows and publishes to a pluggable queue (in-memory adapter for tests).",
+    "details": "Migration 003-outbox.sql creating outbox_events(id BIGSERIAL PK, tenant_id UUID NOT NULL, event_type TEXT NOT NULL, aggregate_type TEXT NOT NULL, aggregate_id UUID NOT NULL, payload JSONB NOT NULL, created_at TIMESTAMPTZ NOT NULL DEFAULT now(), consumed_at TIMESTAMPTZ, app_version TEXT NOT NULL) plus the partial index on (tenant_id, created_at) WHERE consumed_at IS NULL. Implement packages/outbox/src/worker.ts with a runOnce() function that selects unconsumed rows, publishes via a Queue interface (in-memory adapter), and stamps consumed_at. event_type values must be members of EventType from T-003. Vitest E2E test inserts an outbox row, runs the worker, and asserts the in-memory queue received it and consumed_at is set.",
+    "scope_files": [
+      "packages/db/migrations/003-outbox.sql [create]",
+      "packages/outbox/src/worker.ts [create]",
+      "packages/outbox/src/queue.ts [create]",
+      "packages/outbox/src/__tests__/worker.e2e.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not modify files outside the scope_files list",
+      "Do not introduce business logic from later module PRDs (01-NPD, 02-SETTINGS, etc.)",
+      "Do not implement Azure Service Bus adapter (deferred per PRD \u00a714 open item)"
+    ],
+    "dependencies": [
+      "T-003",
+      "T-006"
+    ],
+    "parallel_safe_with": [
+      "T-007"
+    ],
+    "acceptance_criteria": [
+      "Given outbox_events exists and a row is inserted with event_type='audit.recorded', when worker.runOnce() executes, then the in-memory queue contains exactly one message and the row's consumed_at is set",
+      "Given event_type is constrained to EventType members, when an insertion uses 'invalid.event' (not in EventType), then the worker rejects publishing and the test fails fast",
+      "Given the partial index on (tenant_id, created_at) WHERE consumed_at IS NULL exists, when EXPLAIN runs the unconsumed query, then it uses the index"
+    ],
+    "test_strategy": [
+      "RED: write packages/outbox/src/__tests__/worker.e2e.test.ts asserting publish + consumed_at flip before worker.ts exists",
+      "Run 'pnpm --filter @monopilot/outbox test'"
+    ],
+    "risk_red_lines": [
+      "Do not lose events \u2014 publish must be at-least-once with idempotent stamping",
+      "Do not publish events whose event_type is not in EventType"
+    ],
+    "skills": [
+      "test-driven-development",
+      "verification-before-completion",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

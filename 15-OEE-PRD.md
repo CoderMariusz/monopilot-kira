@@ -1,7 +1,7 @@
 # 15-OEE PRD — Monopilot MES
 
-**Wersja:** 3.1 | **Data:** 2026-04-21 | **Status:** Stakeholder decisions locked (2026-04-21 session — 9/10 OQ resolved)
-**Poprzednia wersja:** 3.0 (2026-04-20, Phase C5 Sesja 1, new PRD from scratch)
+**Wersja:** 3.2.1 | **Data:** 2026-04-30 | **Status:** Standardized for multi-industry manufacturing operations pattern + PRD↔UX reconciliation pass (2026-04-30)
+**Poprzednia wersja:** 3.2 (2026-04-30, multi-industry standardization), 3.1 (2026-04-21, Stakeholder decisions locked)
 
 ---
 
@@ -89,7 +89,7 @@ Dostarczyc operatorom, line supervisors i maintenance technicians natychmiastowy
 | 5 | **MV infrastructure: `oee_shift_metrics`** | Per-shift rollup per (tenant, site, line, date, shift_id) — MTBF/MTTR ready (P2 13-MAINT consumer) | Must |
 | 6 | **DSL rule `shift_aggregator_v1`** | Configurable shift boundaries, L2 tenant variation, Apex baseline 3-shift 00/08/16 UTC | Must |
 | 7 | **Downtime drill-down integration** | Click OEE dip → reveal `downtime_events` rows z category + duration + reason_notes (cross-module navigation to 08-PROD) | Must |
-| 8 | **Changeover analysis P1 basic** | Changeover duration per line (consumer `changeover_events` 08-PROD §9.7), per allergen risk level. Target duration sourced from 02-SETTINGS `changeover_target_duration_min` per line (with optional per-FA override). Default null — no breach detection if unset. | Should |
+| 8 | **Changeover analysis P1 basic** | Changeover duration per line (consumer `changeover_events` 08-PROD §9.7), per allergen risk level. Target duration sourced from 02-SETTINGS `changeover_target_duration_min` per line (with optional per-FG override). Default null — no breach detection if unset. | Should |
 | 9 | **Six Big Losses basic view** | Aggregat per classification admin-configurable per tenant (mapping editor in OEE-ADM-001: `downtime_reason_code` → Big Loss category; default seeded from industry standard). | Should |
 | 10 | **Refresh indicator** | "Last aggregation: HH:MM:SS" widget + staleness warning if > 120s | Must |
 | 11 | **Export CSV/PDF P1** | Per dashboard, reuse 12-REPORTING export engine (API `/api/reporting/export`) | Must |
@@ -106,7 +106,7 @@ Dostarczyc operatorom, line supervisors i maintenance technicians natychmiastowy
 | 5 | **Custom shift configs L2** | 2-shift / 4-shift / 24h continuous / custom per tenant (02-SET §8.1 `shift_configs` reference table) |
 | 6 | **Maintenance trigger rule** | `oee_maintenance_trigger_v1` — availability < threshold 3 consecutive days → auto-create PM WO (13-MAINT consumer) |
 | 7 | **ML classification downtime** | P3+ — ML model classifies uncategorized downtime events (R12 consumer) |
-| 8 | **Per-product OEE** | Drill-down OEE per FA/SKU (needs `oee_snapshots.active_wo_id` join products) |
+| 8 | **Per-product OEE** | Drill-down OEE per FG/SKU (needs `oee_snapshots.active_wo_id` join products) |
 | 9 | **OEE forecasting** | Prophet internal microservice consumer (07-EXT Q3 A) — predict next shift/day OEE |
 | 10 | **Pareto chart losses** | Pareto-80/20 analysis top downtime causes, drill-down RCA |
 | 11 | **Shift comparison advanced** | AM vs PM best-practice sharing, operator skill gap analysis |
@@ -943,7 +943,7 @@ Note: P1 Apex target is **70%** (shown as target reference line on charts). P1 c
 
 ## 15. Screens (Desktop + TV P2)
 
-### 15.1 P1 Screens (3 dashboards)
+### 15.1 P1 Screens (3 dashboards) [UNIVERSAL]
 
 | # | Screen ID | Route | Dashboard | Sub-module |
 |---|---|---|---|---|
@@ -951,19 +951,156 @@ Note: P1 Apex target is **70%** (shown as target reference line on charts). P1 c
 | 2 | OEE-002 | `/oee/heatmap` | Per-shift Heatmap | 15-a |
 | 3 | OEE-003 | `/oee/summary` | Per-day OEE Summary | 15-b |
 
-**Support routes:**
-- `/oee/settings` — admin UI dla `oee_alert_thresholds` (per-line config) — requires `oee_admin` role
-- `/oee/shift-configs` — admin UI dla `shift_configs` — cross-link do 02-SET §8.1
+**Support routes (admin):**
+- `/oee/settings` — OEE-ADM-001 admin UI dla `oee_alert_thresholds` (per-line config) — requires `oee_admin` role
+- `/oee/shift-configs` — OEE-ADM-002 admin UI dla `shift_configs` — cross-link do 02-SET §8.1
 
-### 15.2 P2 Screens
+### 15.2 P2 Screens [UNIVERSAL]
 
-- `/oee/tv/[line_id]` — plant-floor TV (D-OEE-4)
-- `/oee/anomalies` — anomaly history + acknowledgment
-- `/oee/equipment-health` — cross-13-MAINT dashboard
-- `/oee/pareto` — Pareto chart losses
-- `/oee/benchmark` — industry comparison
-- `/oee/forecast` — Prophet predictions (P3+)
-- `/oee/rules-config` — tenant-admin UI dla anomaly/maintenance thresholds
+| Screen ID | Route | Dashboard |
+|---|---|---|
+| OEE-P2-A | `/oee/anomalies` | Anomaly History + acknowledgment (D-OEE-3) |
+| OEE-P2-B | `/oee/equipment-health` | Equipment Health (D-OEE-7, cross-13-MAINT) |
+| OEE-P2-C | `/oee/pareto` | Pareto Loss Analysis |
+| OEE-P2-D | `/oee/tv/[line_id]` | Plant-floor TV (D-OEE-4) |
+| (no UX) | `/oee/benchmark` | Industry comparison `[NO-PROTOTYPE-YET]` |
+| (no UX) | `/oee/forecast` | Prophet predictions (P3+) `[NO-PROTOTYPE-YET]` |
+| (no UX) | `/oee/rules-config` | Tenant-admin UI dla anomaly/maintenance thresholds `[NO-PROTOTYPE-YET]` |
+
+### 15.3 P1 Admin / Settings Screens (post-reconciliation, 2026-04-30) [UNIVERSAL] [ORG-CONFIG]
+
+The audit `_meta/audits/2026-04-30-design-prd-coverage.md` §Module 15-OEE flagged 4 prototype-orphan screens. The labeling fix (2026-04-30) moved `settings_shifts_screen` from `prototype-index-settings.json` into `prototype-index-oee.json` (it is the OEE shifts management screen, not a tenant settings screen). The following screen IDs anchor those prototypes into the PRD without changing UX content.
+
+#### SCREEN OEE-ADM-003 — Shift Patterns + Non-Production Calendar (operational shift management) [UNIVERSAL] [ORG-CONFIG]
+
+**Screen ID:** OEE-ADM-003
+**Route:** `/oee/shifts` (alias `/settings/shifts` redirect for legacy bookmarks)
+**UX source:** `design/15-OEE-UX.md:805-834` (cross-link from OEE-ADM-002 Shift Config Viewer; the shifts management surface itself was previously laid out in 02-SETTINGS UX and is being absorbed by 15-OEE per the 2026-04-30 prototype labeling fix).
+**Prototype:** `settings_shifts_screen` (`design/Monopilot Design System/settings/org-screens.jsx:255-306`) — **moved from `prototype-index-settings.json` to `prototype-index-oee.json` 2026-04-30** during the prototype labeling correction pass (the screen edits operational `shift_patterns` rows and the org-level non-production calendar consumed by `shift_aggregator_v1`, not generic tenant settings).
+**Role:** `oee_admin` (extends existing `oee_admin` matrix in §3); read-only `oee_supervisor`.
+**Purpose:** CRUD UI for `shift_patterns` (per-line / per-tenant shift definitions) and inline calendar editor for `org_non_production_days` (factory-wide closures, public holidays, planned shutdowns). Both feed the `shift_aggregator_v1` rule (§7.1) so a missing shift pattern or an un-marked closure produces incorrect `oee_shift_metrics` rows. **This screen is the single place where ops-admins curate the shift universe consumed by every OEE rollup.**
+**Data model dependencies:**
+- `shift_patterns` (existing, 02-SETTINGS §8.1 reference table) — read+write here.
+- `org_non_production_days` (TODO OEE-PRD-AMEND-01: confirm canonical owner — most likely 02-SETTINGS §8.1 alongside `shift_configs`, but write-path lives in this screen).
+- Cross-read of `shift_configs` (already covered by OEE-ADM-002 read-only viewer).
+**Layout (per prototype `org-screens.jsx:255-306`):**
+- Left pane: `<table>` of shift patterns (id, label, start, end, days_active, line scope). Inline `[Edit]` / `[Delete]` per row + top-right `[+ Add shift pattern]`.
+- Right pane: 7-column CSS-grid month calendar; clicking a date toggles non-production-day status with optional `reason` tag (Holiday / Maintenance / Plant Closure / Custom). Holidays seeded from country-level pack (`[INDUSTRY-CONFIG]` per ADR-034 — UK pack ships 2026 Apex defaults, EU/US tenants get separate seed packs).
+**Validations (V-OEE additions):**
+- Shift overlap detection per line (cross-pattern + cross-day) → reuses existing OEE-ADM-002 V-OEE-12 wording.
+- 24h coverage warning if patterns + non-production calendar leave > 4h gap on a planned production day.
+- `[Save]` writes `shift_patterns` + `org_non_production_days` in one transaction; emits outbox event `oee.shift_pattern.changed` (consumer 12-REPORTING cache-bust + future 13-MAINT scheduling).
+**Cross-links:**
+- `[View Shift Config Viewer →]` → OEE-ADM-002 (read-only DSL/rule status).
+- `[Open in 02-SETTINGS Reference Tables →]` → `/settings/reference-tables/shift-configs` (RBAC permitting).
+**Boundary clarification with 02-SETTINGS:** `shift_configs` (the abstract DSL-rule input) lives in 02-SETTINGS §8.1; this screen edits the operational `shift_patterns` and `org_non_production_days` rows that the rule consumes. Per ADR-034 markers, the 02-SET viewer remains `[UNIVERSAL]` (reference tables) while OEE-ADM-003 is `[ORG-CONFIG]` (per-tenant operational rota).
+**TODO OEE-PRD-AMEND-01:** Decide canonical write-owner of `org_non_production_days` (15-OEE here vs. 02-SETTINGS §8.1). Default for P1: this screen owns writes, 02-SETTINGS exposes read-only viewer.
+
+#### SCREEN OEE-001a — Availability Drill-down (A factor) [UNIVERSAL]
+
+**Screen ID:** OEE-001a (sub-route under OEE-001 family)
+**Route:** `/oee/availability?date=YYYY-MM-DD` (drill-down — entered from any OEE-001/002/003 KPI tile labelled "A").
+**UX source:** the OEE-001 §15.3 spec describes A/P/Q drill-down in §15.4 PRD bullets but does not enumerate the dedicated page; UX file `design/15-OEE-UX.md` references the drilldown via OEE-001 cross-links (lines 1025, 1054).
+**Prototype:** `oee_availability_drilldown_page` (`design/Monopilot Design System/oee/screens.jsx:471-543`).
+**Purpose:** Decompose factory-level availability% into per-line breakdown + 7-day trend + availability-only loss categories + cross-link to 13-MAINT equipment health (P2). Renders as a focused detail view rather than a multi-tab dashboard.
+**Layout:** Factory A% header card → per-line table with sparklines (data: `oee_snapshots` rolling 7-day) → loss categories table filtered to `impact_dimension = 'A'` → 7-day multi-line trend chart.
+**Permissions:** `oee_viewer+` read; same RLS as OEE-001.
+
+#### SCREEN OEE-001b — Performance Drill-down (P factor) [UNIVERSAL]
+
+**Screen ID:** OEE-001b
+**Route:** `/oee/performance?date=YYYY-MM-DD`
+**UX source:** mirrored to OEE-001a; UX file does not yet enumerate as standalone screen.
+**Prototype:** `oee_performance_drilldown_page` (`design/Monopilot Design System/oee/screens.jsx:546-598`).
+**Purpose:** Per-line micro-stops, ideal cycle time deviation, P-only loss categories, P-dimension 7-day sparklines.
+**Layout & Permissions:** mirrors OEE-001a, parameterised by `factor='P'`. The prototype translation note explicitly calls out a shared `<OeeFactorDrillPage>` layout component (parameter A|P|Q).
+
+#### SCREEN OEE-001c — Quality Drill-down (Q factor) [UNIVERSAL]
+
+**Screen ID:** OEE-001c
+**Route:** `/oee/quality?date=YYYY-MM-DD`
+**UX source:** mirrored; cross-link from OEE-003 Q column.
+**Prototype:** `oee_quality_drilldown_page` (`design/Monopilot Design System/oee/screens.jsx:600-655`).
+**Purpose:** Per-line rejects (`reject_kg`/`reject_units` from `production_output_events`), Q-only loss categories, optional 09-QUALITY holds cross-link.
+**Layout & Permissions:** identical to OEE-001a/b with `factor='Q'`.
+
+**Build placement:** OEE-001a/b/c are P1 sub-screens of OEE-001 family — already built in prototype, slotted into Sub-module 15-a (per Build Roadmap §16) without affecting the 9-12 sesji P1 estimate (shared `<OeeFactorDrillPage>` component).
+
+### 15.4 Modal Contracts (P1 + P2) [UNIVERSAL]
+
+The PRD §15.1 previously enumerated only OEE-M-001 / OEE-M-002 (UX file does the same). The audit flagged 7 additional prototype modals without PRD anchor. These are added here as numbered modal IDs; payloads remain governed by the shared `_shared/MODAL-SCHEMA.md` contract used across modules.
+
+| Modal ID | Title | Trigger | UX line | Prototype | Phase |
+|---|---|---|---|---|---|
+| OEE-M-001 | Downtime Note Annotation | OEE-003 Six Big Losses tab `[Add note]` | `15-OEE-UX.md:836-865` | `annotate_downtime_modal` (`oee/modals.jsx:19-93`) | P1 |
+| OEE-M-002 | Export OEE Snapshot | Any `[Export ▼]` on OEE-001/002/003 | `15-OEE-UX.md:887-927` | `export_oee_modal` (`oee/modals.jsx:95-161`) | P1 |
+| OEE-M-003 | Per-line Threshold Override (create/edit) | OEE-ADM-001 inline `[Edit override]` | `15-OEE-UX.md:719-761` (admin overrides table area) | `line_override_modal` (`oee/modals.jsx:163-204`) | P1 |
+| OEE-M-004 | Delete Per-line Override (type-to-confirm) | OEE-ADM-001 row `[Delete]` | (admin overrides table area) | `delete_override_modal` (`oee/modals.jsx:350-370`) | P1 |
+| OEE-M-005 | Big Loss Mapping Editor (full-page) | OEE-ADM-001 `[Edit Six Big Losses Mapping]` | `15-OEE-UX.md:762-803` | `big_loss_mapping_modal` (`oee/modals.jsx:206-259`) | P1 |
+| OEE-M-006 | Changeover Detail | OEE-003 Changeover tab row `[View]` | `15-OEE-UX.md:1004-1006` (cross-link "View changeover record") | `changeover_detail_modal` (`oee/modals.jsx:261-298`) | P1 |
+| OEE-M-007 | Heatmap Cell Drill-down | OEE-002 cell hover/click pre-navigation | `15-OEE-UX.md:476-486` (drill behaviour) | `cell_drill_modal` (`oee/modals.jsx:300-326`) | P1 |
+| OEE-M-008 | Request Edit Escalation | OEE-M-001 after 1h edit window expires | `15-OEE-UX.md:865` (OQ-OEE-04 decision) | `request_edit_modal` (`oee/modals.jsx:328-348`) | P1 |
+| OEE-M-009 | Copy KPIs to Clipboard | OEE-001/003 `[Copy ▼]` micro-share | (referenced as P1 ergonomics, no dedicated UX line) `[NO-UX-YET]` | `copy_clipboard_modal` (`oee/modals.jsx:372-408`) | P1 |
+| OEE-M-010 | Compare Weeks (heatmap) | OEE-002 `[Compare weeks]` | `15-OEE-UX.md:1292` (P1.5 backlog reference) | `compare_weeks_modal` (`oee/modals.jsx:410-446`) | P1.5 (BL-OEE-05) |
+| OEE-M-011 | Acknowledge Anomaly | OEE-P2-A row `[Ack]` | (P2 placeholder area) | `acknowledge_anomaly_modal` (`oee/modals.jsx:448-484`) | P2 |
+| OEE-M-012 | Auto-refresh Pause | OEE-001/002/003 header `[Pause refresh]` | (P1 ergonomics — UX silent) `[NO-UX-YET]` | `auto_refresh_pause_modal` (`oee/modals.jsx:486-509`) | P1 |
+
+**TODO OEE-PRD-AMEND-02:** Add UX surface lines for OEE-M-009 (Copy clipboard) and OEE-M-012 (Auto-refresh pause) — they currently exist only as prototypes; PRD acknowledges them as P1 ergonomics, but UX file does not enumerate. Non-blocking for P1 because both are pure-client ergonomics with no server contract.
+**TODO OEE-PRD-AMEND-03:** OEE-M-010 (Compare Weeks) is currently P1.5 backlog (BL-OEE-05) — confirm whether the diff view ships with 15-a or slips to 15-c. Default: 15-c stub modal that links to OEE-002 with `?compareWeekA=` URL params.
+
+### 15.5 Tabs / sub-views inside OEE-003 [UNIVERSAL]
+
+OEE-003 (Per-day Summary) hosts three tabs that the prototype implements as separate components but PRD §4.1 #9 / §15.1 references only as "tabs". Anchoring them so prototypes are not orphaned:
+
+| Tab ID | Tab Name | UX line | Prototype | Notes |
+|---|---|---|---|---|
+| OEE-003.T1 | Summary (default) | `15-OEE-UX.md:528-674` | `oee_daily_summary_page` (`oee/dashboard.jsx:1-198`) | Sortable table + factory avg footer row |
+| OEE-003.T2 | Six Big Losses | `15-OEE-UX.md:1037` | `six_big_losses_tab` (`oee/dashboard.jsx:200-306`) | Pareto bar chart; classification driven by OEE-M-005 mapping |
+| OEE-003.T3 | Changeover Analysis | `15-OEE-UX.md:1041` | `changeover_tab` (`oee/dashboard.jsx:308-390`) | Consumer 08-PROD `changeover_events`; opens OEE-M-006 |
+
+OEE-003.T2 (Six Big Losses) is also the **P1 interim home for the Pareto loss view** while OEE-P2-C (`/oee/pareto`) remains a P2 placeholder shell — see Severity #20 in the audit. The decomposition is intentional and locked.
+
+### 15.6 P2 Placeholder Shell pattern [UNIVERSAL]
+
+OEE-P2-A..D placeholders share a generic `<P2Placeholder>` shell (prototype `p2_placeholder_shell`, `oee/screens.jsx:902-948`). PRD-level expectation: every P2 route renders the shell with feature-flag check (`oee.anomaly_detection_enabled`, `oee.equipment_health_enabled`, `oee.tv_dashboard_enabled`) and an explicit cross-link to the P1 interim equivalent (e.g., OEE-P2-C → `[Go to Six Big Losses tab →]` per UX:960). This pattern is **not a separate screen ID** — it is a shared layout primitive used by OEE-P2-A/B/C/D and by `[NO-PROTOTYPE-YET]` rows above.
+
+### 15.7 UI surfaces traceability matrix (bidirectional PRD ↔ UX ↔ prototype) [UNIVERSAL]
+
+| PRD ID | UX line | Prototype label | Phase | Status |
+|---|---|---|---|---|
+| OEE-001 | `15-OEE-UX.md:254-393` | `oee_line_trend_page` (`oee/screens.jsx:3-209`) | P1 | OK |
+| OEE-001a | (cross-link from OEE-001 §15.4 PRD bullet, no standalone UX yet) `[NO-UX-YET]` | `oee_availability_drilldown_page` (`oee/screens.jsx:471-543`) | P1 | Anchored 2026-04-30 (TODO: add to UX §3) |
+| OEE-001b | `[NO-UX-YET]` | `oee_performance_drilldown_page` (`oee/screens.jsx:546-598`) | P1 | Anchored 2026-04-30 (TODO: add to UX §3) |
+| OEE-001c | `[NO-UX-YET]` | `oee_quality_drilldown_page` (`oee/screens.jsx:600-655`) | P1 | Anchored 2026-04-30 (TODO: add to UX §3) |
+| OEE-002 | `15-OEE-UX.md:395-525` | `oee_shift_heatmap_page` (`oee/screens.jsx:211-377`) | P1 | OK |
+| OEE-003 | `15-OEE-UX.md:526-717` | `oee_daily_summary_page` (`oee/dashboard.jsx:1-198`) | P1 | OK |
+| OEE-003.T1 | `15-OEE-UX.md:528-674` | `oee_daily_summary_page` | P1 | OK |
+| OEE-003.T2 | `15-OEE-UX.md:1037` | `six_big_losses_tab` (`oee/dashboard.jsx:200-306`) | P1 | OK |
+| OEE-003.T3 | `15-OEE-UX.md:1041` | `changeover_tab` (`oee/dashboard.jsx:308-390`) | P1 | OK |
+| OEE-ADM-001 | `15-OEE-UX.md:719-803` | `oee_settings_page` (`oee/screens.jsx:698-833`) | P1 | OK |
+| OEE-ADM-002 | `15-OEE-UX.md:805-834` | `oee_shift_configs_page` (`oee/screens.jsx:836-900`) | P1 | OK (read-only viewer) |
+| OEE-ADM-003 | `15-OEE-UX.md:805-834` (cross-link, dedicated UX section pending) `[NO-UX-YET]` | `shifts_screen` (`settings/org-screens.jsx:255-306`, **moved to `prototype-index-oee.json` 2026-04-30**) | P1 | Anchored 2026-04-30 (TODO OEE-PRD-AMEND-01) |
+| OEE-M-001 | `15-OEE-UX.md:836-885` | `annotate_downtime_modal` (`oee/modals.jsx:19-93`) | P1 | OK |
+| OEE-M-002 | `15-OEE-UX.md:887-927` | `export_oee_modal` (`oee/modals.jsx:95-161`) | P1 | OK |
+| OEE-M-003 | `15-OEE-UX.md:719-761` | `line_override_modal` (`oee/modals.jsx:163-204`) | P1 | Anchored 2026-04-30 |
+| OEE-M-004 | `15-OEE-UX.md:719-761` | `delete_override_modal` (`oee/modals.jsx:350-370`) | P1 | Anchored 2026-04-30 |
+| OEE-M-005 | `15-OEE-UX.md:762-803` | `big_loss_mapping_modal` (`oee/modals.jsx:206-259`) | P1 | Anchored 2026-04-30 |
+| OEE-M-006 | `15-OEE-UX.md:1004-1006` | `changeover_detail_modal` (`oee/modals.jsx:261-298`) | P1 | Anchored 2026-04-30 |
+| OEE-M-007 | `15-OEE-UX.md:476-486` | `cell_drill_modal` (`oee/modals.jsx:300-326`) | P1 | Anchored 2026-04-30 |
+| OEE-M-008 | `15-OEE-UX.md:865` | `request_edit_modal` (`oee/modals.jsx:328-348`) | P1 | Anchored 2026-04-30 |
+| OEE-M-009 | `[NO-UX-YET]` | `copy_clipboard_modal` (`oee/modals.jsx:372-408`) | P1 | Anchored 2026-04-30 (TODO OEE-PRD-AMEND-02) |
+| OEE-M-010 | `15-OEE-UX.md:1292` | `compare_weeks_modal` (`oee/modals.jsx:410-446`) | P1.5 | Backlog (BL-OEE-05) |
+| OEE-M-011 | (P2 placeholder area) | `acknowledge_anomaly_modal` (`oee/modals.jsx:448-484`) | P2 | Anchored 2026-04-30 |
+| OEE-M-012 | `[NO-UX-YET]` | `auto_refresh_pause_modal` (`oee/modals.jsx:486-509`) | P1 | Anchored 2026-04-30 (TODO OEE-PRD-AMEND-02) |
+| OEE-P2-A | `15-OEE-UX.md:932-947` | `oee_anomaly_detection_page` (`oee/screens.jsx:950-995`) + `p2_placeholder_shell` shell | P2 | OK |
+| OEE-P2-B | `15-OEE-UX.md:948-953` | `oee_equipment_health_page` (`oee/screens.jsx:997-1036`) + shell | P2 | OK |
+| OEE-P2-C | `15-OEE-UX.md:954-961` | `oee_downtime_pareto_page` (`oee/screens.jsx:379-469`) + shell | P2 (P1 interim via OEE-003.T2) | OK |
+| OEE-P2-D | `15-OEE-UX.md:962-975` | `oee_tv_dashboard_page` (`oee/screens.jsx:1038-1080`) + shell | P2 | OK (BL-OEE-06 OS open) |
+| `/oee/benchmark` | `[NO-UX-YET]` | `[NO-PROTOTYPE-YET]` | P2 | TODO OEE-PRD-AMEND-04 (industry benchmark spec) |
+| `/oee/forecast` | `[NO-UX-YET]` | `[NO-PROTOTYPE-YET]` | P3+ | OK (R12 ML roadmap dependency) |
+| `/oee/rules-config` | `[NO-UX-YET]` | `[NO-PROTOTYPE-YET]` | P2 | TODO OEE-PRD-AMEND-05 (tenant-admin anomaly/maintenance threshold UI) |
+
+**Markers:** `[UNIVERSAL]` / `[ORG-CONFIG]` / `[INDUSTRY-CONFIG]` per ADR-034 (generic product lifecycle naming and industry configuration). `[APEX-CONFIG]` retained on legacy bullets for traceability — read as `[ORG-CONFIG]` exemplar bound to launch tenant Apex UK. No content removed during this 2026-04-30 reconciliation pass.
 
 ---
 
@@ -1040,7 +1177,7 @@ Note: P1 Apex target is **70%** (shown as target reference line on charts). P1 c
 | OQ-OEE-02 | Target OEE — 85% vs Apex ramp-up baseline? | CLOSED | P1 target = **70%**. `oee_alert_thresholds.oee_target_pct = 70`. Amber 55–70%, red <55% (proportional). Color scale fixed 65/85 (per OQ-OEE-07). | 2026-04-21 |
 | OQ-OEE-03 | TV dashboard kiosk OS? | **OPEN** | Brak decyzji. Raspberry Pi / Windows kiosk / ChromeOS — wymaga Apex IT. Nie blokuje P1. | — |
 | OQ-OEE-04 | Operator annotation edit window? | CLOSED | **1 godzina post-event**. Po 1h — read-only + `[Request Edit]` escalation do supervisora. | 2026-04-21 |
-| OQ-OEE-05 | Changeover target duration — skad konfiguracja? | CLOSED | **02-SETTINGS `changeover_target_duration_min`** per line (optional per-FA override). Default null — brak breach detection jesli nie skonfigurowane. | 2026-04-21 |
+| OQ-OEE-05 | Changeover target duration — skad konfiguracja? | CLOSED | **02-SETTINGS `changeover_target_duration_min`** per line (optional per-FG override). Default null — brak breach detection jesli nie skonfigurowane. | 2026-04-21 |
 | OQ-OEE-06 | Six Big Losses mapping — admin-configurable? | CLOSED | **Admin-configurable per tenant**. Mapping editor w OEE-ADM-001. Default seeded z industry standard. | 2026-04-21 |
 | OQ-OEE-07 | Heatmap color scale — fixed 65/85 vs tenant-configurable? | CLOSED | **P1 fixed 65/85 industry thresholds**. P2 tenant-configurable via `oee_alert_thresholds`. | 2026-04-21 |
 | OQ-OEE-08 | Push notifications — scope? | CLOSED | **P2 simplified**: in-app toast (12-REPORTING alert system) + daily email digest (OEE <60% sustained). Brak browser push, service worker, PWA, SMS. Opt-in per user. Triggers: OEE <60% sustained 15min, line DOWN >15min, changeover breach. | 2026-04-21 |
@@ -1052,6 +1189,77 @@ Note: P1 Apex target is **70%** (shown as target reference line on charts). P1 c
 ---
 
 ## 18. Changelog
+
+### v3.2.1 — 2026-04-30 (PRD↔UX reconciliation pass)
+
+**Source:** `_meta/audits/2026-04-30-design-prd-coverage.md` §Module 15-OEE (~75% coverage flagged) + `_meta/audits/2026-04-30-prd-amendments-15-oee.md`.
+
+**Additions to §15 Screens (no deletions, only ADD / RE-ORDER):**
+- §15.3 — added OEE-ADM-003 (Shift Patterns + Non-Production Calendar; absorbs `settings_shifts_screen` moved 2026-04-30 from `prototype-index-settings.json` to `prototype-index-oee.json`).
+- §15.3 — added OEE-001a / OEE-001b / OEE-001c (A/P/Q drill-down sub-screens) anchoring `oee_availability_drilldown_page`, `oee_performance_drilldown_page`, `oee_quality_drilldown_page`.
+- §15.4 — enumerated OEE-M-003..OEE-M-012 modal contracts (previously only OEE-M-001/002 named) anchoring 10 prototype modals: `line_override_modal`, `delete_override_modal`, `big_loss_mapping_modal`, `changeover_detail_modal`, `cell_drill_modal`, `request_edit_modal`, `copy_clipboard_modal`, `compare_weeks_modal`, `acknowledge_anomaly_modal`, `auto_refresh_pause_modal`.
+- §15.5 — anchored OEE-003 tabs (T1/T2/T3) for `oee_daily_summary_page` / `six_big_losses_tab` / `changeover_tab`.
+- §15.6 — documented `p2_placeholder_shell` as a shared layout primitive (not a new screen ID).
+- §15.7 — added bidirectional UI surfaces traceability matrix (PRD ↔ UX line ↔ prototype label ↔ phase ↔ status) covering all 27 entries in `prototype-index-oee.json`.
+
+**TODOs created (5):**
+- TODO OEE-PRD-AMEND-01: confirm canonical owner of `org_non_production_days` (15-OEE OEE-ADM-003 vs 02-SETTINGS §8.1).
+- TODO OEE-PRD-AMEND-02: add UX surface lines for OEE-M-009 (Copy clipboard) + OEE-M-012 (Auto-refresh pause).
+- TODO OEE-PRD-AMEND-03: confirm OEE-M-010 (Compare Weeks) ships with 15-a or slips to 15-c stub.
+- TODO OEE-PRD-AMEND-04: spec `/oee/benchmark` (currently `[NO-PROTOTYPE-YET]` P2).
+- TODO OEE-PRD-AMEND-05: spec `/oee/rules-config` (currently `[NO-PROTOTYPE-YET]` P2).
+
+**ADR-034 hygiene:**
+- New §15 sections tagged with `[UNIVERSAL]` / `[ORG-CONFIG]` / `[INDUSTRY-CONFIG]` per ADR-034 generic-product-lifecycle-naming convention.
+- Holiday seed packs (UK / EU / US) tagged `[INDUSTRY-CONFIG]`; per-tenant rota tagged `[ORG-CONFIG]`; reference tables tagged `[UNIVERSAL]`.
+- Existing `[APEX-CONFIG]` markers retained for traceability with read-as-`[ORG-CONFIG]` equivalence note (matches 08-PRODUCTION v3.1.1 pattern).
+
+**Coverage delta (per audit + amendment doc):**
+- Before: ~75% PRD-coded coverage; 4 prototype orphans flagged (`shifts_screen` mis-tag, `oee_availability_drilldown_page`, `oee_performance_drilldown_page`, `oee_quality_drilldown_page`) plus 8 unanchored modals.
+- After: ≥ 90% — all 27 entries in `prototype-index-oee.json` referenced by a PRD screen/modal/tab ID; only `[NO-PROTOTYPE-YET]` rows remain (`/oee/benchmark`, `/oee/forecast`, `/oee/rules-config`) with explicit TODOs.
+
+**No changes to:**
+- §1–§14 (executive summary, decisions, rules, flows, data model, APIs, KPIs, integrations, regulatory).
+- §16 Build Roadmap (sesji estimate unchanged — new screens slot into existing sub-modules 15-a/b without changing 9-12 sesji P1 budget).
+- §17 Open Questions (still 1 open: OQ-OEE-03 TV OS).
+- DSL rule list (still 3: shift_aggregator_v1 P1, oee_anomaly_detector_v1 P2 stub, oee_maintenance_trigger_v1 P2 stub).
+
+### v3.2 — 2026-04-30 (Standardization for multi-industry manufacturing operations pattern)
+
+**Naming convention updates (UNIVERSAL):**
+- **FA → FG:** Updated all finished goods references (§4.1 #8, §4.2 #8, §16-build roadmap)
+  - Changeover target duration: "with optional per-FG override" (was per-FA)
+  - Per-product OEE drill-down scope: "per FG/SKU" (was per FA/SKU)
+- **PR → WIP:** All production run / intermediate product references already use operational-level metrics (no PR-specific code examples in OEE context; WIP tracking via `oee_snapshots.active_wo_id` from work order system)
+- **Process_X → Manufacturing_Operation_X:** No direct process-level references in OEE scope (OEE aggregated per-line, not per-operation; operations tracked in 02-SETTINGS Reference.ManufacturingOperations)
+- **WIP code pattern:** Validated against format WIP-<2-letter-suffix>-<7-digit-sequence> (applicable to operational WO codes; OEE measures aggregates across line-level operations)
+
+**Per-operation metrics clarification:**
+- OEE in 15-OEE scope operates at **line level** (not individual operation level). Per-operation metrics enabled through:
+  - `oee_snapshots.active_wo_id` → join to 04-PLAN work orders → operation reference
+  - §9.4 per-line `oee_alert_thresholds` (line_id TEXT, not operation_id)
+  - P2 extension (15-H sub-module 15-H) enables per-product drill-down (which may reference FG code + manufacturing operations)
+
+**Cross-reference validation:**
+- ✓ 01-NPD v3.2: intermediate codes, manufacturing operations (OEE doesn't directly encode; reads from 04-PLAN/03-TECHNICAL)
+- ✓ 02-SETTINGS v3.4 §8.9: Reference.ManufacturingOperations (informational; OEE line_id is independent identifier)
+- ✓ 08-PRODUCTION v3.1: changeover gate metrics (consumer 15-OEE, allergen_changeover_gate_v1 rule)
+- ✓ 12-REPORTING v3.1: dashboard example alignment (oee_daily_summary consumer, OEE-003 summary dashboard)
+- ✓ 00-FOUNDATION v4.0 §9.1: Manufacturing Operations pattern (OEE architecture unchanged; per-operation OEE deferred P2)
+
+**No changes to:**
+- OEE calculation formula (A×P×Q ÷ 10000 remains; §9.1 GENERATED ALWAYS constraint preserved)
+- Digital twin architecture (§8 data flows unchanged)
+- Real-time streaming logic (60s per-minute batch aggregation by 08-PROD)
+- ML feature engineering (EWMA anomaly detection, P2 rule spec)
+- Time-series aggregation (shift_aggregator_v1 rule logic, P1 DSL)
+- Dashboard architecture (example KPI names use line_id + shift_id + metric, consistent with v3.1)
+
+**Version bump rationale:**
+- Standardization is metadata/documentation alignment (no breaking changes)
+- All code examples and references already use line-level identifiers
+- Minor clarification: per-operation OEE deferred to P2 sub-module 15-H (not in v3.2 scope)
+- No database schema migration required
 
 ### v3.1 — 2026-04-21 (Stakeholder decisions session — 9/10 OQ resolved)
 
@@ -1140,4 +1348,4 @@ Note: P1 Apex target is **70%** (shown as target reference line on charts). P1 c
 
 ---
 
-_PRD 15-OEE v3.0 — 3 P1 dashboards + 10 P2 dashboards scoped, 7 D-OEE decisions, 3 DSL rules registered (1 P1 active + 2 P2 stub), 20 V-OEE validation rules, 3 sub-modules P1 (15-a..c est. 9-12 sesji impl), 10 P2 sub-modules (15-D..15-M est. 18-24 sesji), BRCGS 7y retention, consumer 08-PROD per-minute aggregation, producer 12-REPORTING (D-RPT-9) + 13-MAINT P2 trigger + 14-MULTI-SITE P2 rollup._
+_PRD 15-OEE v3.2 — 3 P1 dashboards + 10 P2 dashboards scoped, 7 D-OEE decisions, 3 DSL rules registered (1 P1 active + 2 P2 stub), 20 V-OEE validation rules, 3 sub-modules P1 (15-a..c est. 9-12 sesji impl), 10 P2 sub-modules (15-D..15-M est. 18-24 sesji), BRCGS 7y retention, consumer 08-PROD per-minute aggregation, producer 12-REPORTING (D-RPT-9) + 13-MAINT P2 trigger + 14-MULTI-SITE P2 rollup. Standardized for multi-industry manufacturing operations: FA→FG, all code examples use line-level aggregation (per-operation OEE deferred P2)._

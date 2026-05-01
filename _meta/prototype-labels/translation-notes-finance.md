@@ -462,3 +462,16 @@ Before translating individual screens, build these shared components first to av
 | `<RankBar pct dir>` | FIN-001, 010 | Horizontal bar with fav/unfav color |
 | `<UnsavedChangesBar onSave>` | FinSettings (and other settings screens) | Sticky top save bar |
 | `<EmptyState icon heading body ctas>` | FIN-002, 003a | Centered empty state panel |
+
+
+---
+
+## Audit-generated stubs (2026-04-30)
+
+The following entries were missing per-component sections at audit time.
+
+## cost_center_gl_mapping_modal — `design/Monopilot Design System/finance/modals.jsx:649-681`
+
+- **shadcn equivalent:** Dialog, DialogContent, DialogFooter, Form, FormField, Select, SelectItem, Input, Checkbox, Button
+- **known bugs:** _none recorded_
+- **gotchas:** _to be filled when this prototype is translated; this is an audit-generated stub (2026-04-30)._

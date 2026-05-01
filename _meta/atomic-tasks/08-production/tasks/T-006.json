@@ -1,0 +1,60 @@
+{
+  "title": "T-006 — Drizzle migration: changeover_events table + RLS",
+  "prompt": "# T-006 — Drizzle migration: changeover_events table\n\nPRD: 08-PRODUCTION-PRD.md §9.7, §16.4 V-PROD-23\n\n## Goal\nAdd Drizzle migration creating changeover_events per §9.7 with risk_level CHECK constraint, ext_jsonb for L3 schema-driven extensions (D9), RLS.\n\n## Implementation contract\npackages/db/schema/production/changeover-events.ts: PK id UUID, tenant_id, line_id text NOT NULL, wo_from_id/wo_to_id REFERENCES work_orders, allergen_from text[], allergen_to text[], risk_level CHECK IN ('low','medium','high','segregated'), started_at NOT NULL, completed_at, planned_duration_min, actual_duration_min, cleaning_completed default false, cleaning_checklist JSONB, atp_required default false, atp_result JSONB, dual_sign_off_status default 'pending', first_signer/_at, second_signer/_at, ext_jsonb (D9 L3 extension). Add CHECK chk_changeover_time (started_at < completed_at OR completed_at IS NULL) for V-PROD-23. Indexes idx_changeover_line_time, idx_changeover_wo_from, idx_changeover_wo_to. RLS by tenant_id.\n\n## Files (scope)\n- packages/db/schema/production/changeover-events.ts [create]\n- packages/db/schema/production/index.ts [modify]\n- packages/db/migrations/NNNN_changeover_events.sql [create]\n- packages/db/__tests__/changeover-events-schema.test.ts [create]\n\n## Acceptance criteria\n1. Given INSERT with risk_level='unknown', when run, then CHECK constraint rejects with values list ('low','medium','high','segregated')\n2. Given INSERT with completed_at < started_at, when run, then chk_changeover_time CHECK rejects (V-PROD-23)\n3. Given migration applied, when changeover_events queried, then ext_jsonb column exists for D9 L3 schema-driven tenant fields\n\n## Test strategy\n- RED: schema test asserting risk_level CHECK + chk_changeover_time before schema exists\n- Run 'pnpm --filter db drizzle:generate && pnpm --filter db test changeover-events-schema'\n\n## Risk red lines\n- Do not extend risk_level enum without ADR\n- Do not omit ext_jsonb (breaks D9 L3 extension promise)\n- Do not skip RLS",
+  "labels": ["prd", "data", "schema-migration", "T1-schema"],
+  "priority": 50,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-006",
+    "source_prd": "08-PRODUCTION-PRD.md",
+    "prd_refs": ["§9.7", "§6 D9", "§16.4 V-PROD-23"],
+    "category": "data",
+    "subcategory": "schema-migration",
+    "task_type": "T1-schema",
+    "parent_feature": "08-PROD E7 Allergen Gate",
+    "context_budget": "26k",
+    "estimated_effort": "1-2h",
+    "description": "changeover_events table with risk_level CHECK, chk_changeover_time, ext_jsonb (D9 L3), RLS.",
+    "details": "Mirror §9.7 SQL. risk_level CHECK IN ('low','medium','high','segregated'). cleaning_checklist + atp_result + ext_jsonb all JSONB. dual_sign_off_status default 'pending'. Add CHECK constraint chk_changeover_time (V-PROD-23: started_at < completed_at when completed_at NOT NULL). Three indexes. RLS by tenant_id.",
+    "scope_files": [
+      "packages/db/schema/production/changeover-events.ts [create]",
+      "packages/db/schema/production/index.ts [modify]",
+      "packages/db/migrations/NNNN_changeover_events.sql [create]",
+      "packages/db/__tests__/changeover-events-schema.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not implement allergen gate logic",
+      "Do not implement cleaning checklist UI",
+      "Do not modify other tables"
+    ],
+    "dependencies": [],
+    "parallel_safe_with": ["T-001", "T-002", "T-003", "T-004", "T-005", "T-007", "T-008"],
+    "acceptance_criteria": [
+      "Given INSERT risk_level='unknown', when run, then CHECK rejects",
+      "Given INSERT completed_at < started_at, when run, then chk_changeover_time rejects (V-PROD-23)",
+      "Given migration applied, when describing table, then ext_jsonb JSONB column present (D9 L3)"
+    ],
+    "test_strategy": [
+      "RED: schema test asserting risk_level CHECK and chk_changeover_time present before schema exists",
+      "Run 'pnpm --filter db drizzle:generate && pnpm --filter db test changeover-events-schema'"
+    ],
+    "risk_red_lines": [
+      "Do not change risk_level allowed values",
+      "Do not omit ext_jsonb",
+      "Do not skip RLS"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

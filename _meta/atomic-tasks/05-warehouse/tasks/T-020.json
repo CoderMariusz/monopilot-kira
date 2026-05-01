@@ -1,0 +1,58 @@
+{
+  "title": "T-020 — Scanner LP locking service (5-min auto-release)",
+  "prompt": "# T-020 — Scanner LP locking service\n\nPRD: `05-WAREHOUSE-PRD.md` §6.6 (FR-WH-004), V-WH-LP-008.\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`.\n\n## Goal\n`acquireLpLock(lpId, userId)` and `releaseLpLock(lpId, userId)` services backed by `license_plates.locked_by/locked_at` with 5-min auto-release.\n\n## Implementation contract\n`apps/web/lib/services/warehouse/lp-locking.ts`. Use the conditional UPDATE `WHERE id=$lp AND (locked_by IS NULL OR locked_at < NOW() - INTERVAL '5 min')`. Return granted=true and full LP info; on conflict return granted=false plus locked_by username and location. Timeout configurable from `warehouse_settings.scanner_lock_timeout_sec`. Release sets locked_by=NULL, locked_at=NULL.\n\n## Files (scope)\n- apps/web/lib/services/warehouse/lp-locking.ts [create]\n- apps/web/lib/services/warehouse/__tests__/lp-locking.test.ts [create]\n\n## Acceptance criteria\n1. Given LP unlocked, when acquireLpLock runs, then it returns granted=true with locked_by=user.\n2. Given another user holds the lock <5min ago, when acquireLpLock runs, then it returns granted=false with conflict info.\n3. Given a lock is older than configured timeout, when acquireLpLock runs, then it grants the lock to the new user and rewrites locked_at.\n\n## Test strategy\n- RED: lp-locking.test.ts using time-stub to simulate stale lock.\n- Run `pnpm --filter web test lp-locking`.\n\n## Risk red lines\n- Do not implement client-side timing for release.\n- Do not lock LPs in status='consumed'/'shipped'.\n- Do not bypass conditional UPDATE (race risk).",
+  "labels": ["prd", "api", "lp-core", "T2-api"],
+  "priority": 90,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-020",
+    "source_prd": "05-WAREHOUSE-PRD.md",
+    "prd_refs": ["§6.6"],
+    "category": "api",
+    "subcategory": "lp-core",
+    "task_type": "T2-api",
+    "parent_feature": "warehouse-lp-core",
+    "context_budget": "20k",
+    "estimated_effort": "1h",
+    "description": "Scanner LP locking with 5-min auto-release via conditional UPDATE.",
+    "details": "Conditional UPDATE pattern; configurable timeout. Force-unlock is a separate flow (T-044).",
+    "scope_files": [
+      "apps/web/lib/services/warehouse/lp-locking.ts [create]",
+      "apps/web/lib/services/warehouse/__tests__/lp-locking.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Force-unlock admin flow (T-044)",
+      "UI surfaces (T-069)",
+      "Scanner endpoints (T-040)"
+    ],
+    "dependencies": ["T-002", "T-009"],
+    "parallel_safe_with": ["T-019"],
+    "acceptance_criteria": [
+      "Given LP unlocked, when acquireLpLock runs, then granted=true and locked_by is set to the caller",
+      "Given another user holds the lock <5min ago, when acquireLpLock runs, then granted=false with conflict info",
+      "Given the lock is older than configured timeout, when acquireLpLock runs, then it grants the lock to the new user and rewrites locked_at"
+    ],
+    "test_strategy": [
+      "RED: lp-locking.test.ts uses time-stub for stale lock",
+      "Run 'pnpm --filter web test lp-locking'"
+    ],
+    "risk_red_lines": [
+      "Do not handle release client-side",
+      "Do not lock consumed/shipped LPs",
+      "Do not bypass the conditional UPDATE pattern"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

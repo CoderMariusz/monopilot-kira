@@ -1,0 +1,65 @@
+{
+  "title": "T-019 — API: cascade DAG generation rule (cascade_generation_v1)",
+  "prompt": "Implement intermediate cascade generation per PRD §8.4 as DSL rule `cascade_generation_v1` in 02-SETTINGS rule registry. Algorithm: starting from primary FG WO, traverse BOM children whose product type='intermediate', recursively create child WOs (status='DRAFT', source_of_demand='intermediate_cascade', source_reference=parent.wo_id). Insert wo_dependencies rows linking parent.wo_outputs to child.wo_materials with material_source='upstream_wo_output'. wo.numbering uses T-017 with appropriate suffix per product. Co-products + byproducts inserted into parent wo_outputs (FR-PLAN-021).\n\nIdempotent (V-PLAN-WO-006): if cascade already generated for source_reference, skip. Safety cap intermediate_cascade_max_depth from planning_settings (V-PLAN-SET-002). Cycle check before insert via DFS (T-020).\n\nRED test: 3-layer BOM yields 3 WOs + 2 dependency edges, re-run idempotent (no dupes), depth>cap returns 400.",
+  "labels": ["prd", "api", "cascade-generation", "T2-api"],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-019",
+    "source_prd": "04-PLANNING-BASIC-PRD.md",
+    "prd_refs": ["§8.3", "§8.4", "§8.11"],
+    "category": "api",
+    "subcategory": "cascade-generation",
+    "task_type": "T2-api",
+    "parent_feature": "planning-wo-cascade",
+    "context_budget": "60k",
+    "estimated_effort": "5-6h",
+    "description": "Multi-layer cascade WO generation with idempotency + depth cap + dependency edge insertion.",
+    "details": "Rule definition under `src/rules/planning/v1/cascade_generation_v1.json`. Engine evaluates at WO creation hook (T-018 emits trigger). Service implementation in `src/server/services/cascade-generator.ts` performs the DAG traversal in a DFS with visited-set to detect cycles; on cycle, throws CycleError with cycle path. Generates wo_outputs rows for co-products + byproducts (FR-PLAN-021) using bom_outputs.allocation_pct snapshot. Atomic: all child WOs created in a single transaction; if any fails, all rollback.",
+    "scope_files": [
+      "src/rules/planning/v1/cascade_generation_v1.json [create]",
+      "src/server/services/cascade-generator.ts [create]",
+      "src/server/services/__tests__/cascade-generator.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Cycle-check warning UI (T-029)",
+      "Cascade preview modal (T-027)"
+    ],
+    "dependencies": ["T-005", "T-006", "T-007", "T-018"],
+    "parallel_safe_with": ["T-020"],
+    "acceptance_criteria": [
+      "Given a BOM with 3 intermediate layers (FG → I1 → I2 → RM), when createWorkOrder for FG runs, then 3 WOs are created and 2 wo_dependencies edges are inserted (FG←I1, I1←I2).",
+      "Given the cascade run twice for same source_reference, when second run completes, then no duplicate WOs are created (V-PLAN-WO-006 idempotent).",
+      "Given a BOM with chain length 11 and intermediate_cascade_max_depth=10, when cascade runs, then HTTP 400 with code 'V-PLAN-SET-002'.",
+      "Given `pnpm vitest run src/server/services/__tests__/cascade-generator.test.ts`, when run, then 0 failures."
+    ],
+    "test_strategy": [
+      "RED tests for 3-layer generation, idempotency on re-run, depth-cap rejection, dependency edge correctness.",
+      "Run `pnpm vitest run src/server/services/__tests__/cascade-generator.test.ts`."
+    ],
+    "risk_red_lines": [
+      "Do not allow cycles to be inserted — V-PLAN-WO-005 hard block; service must abort with CycleError before any insert.",
+      "Do not mutate BOM during traversal — read-only.",
+      "Do not split cascade across multiple transactions — partial cascade is a data-integrity hazard."
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

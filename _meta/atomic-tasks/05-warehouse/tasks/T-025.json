@@ -1,0 +1,59 @@
+{
+  "title": "T-025 — Stock move service (transfer/issue/return/quarantine)",
+  "prompt": "# T-025 — Stock move service\n\nPRD: `05-WAREHOUSE-PRD.md` §8.1 (FR-WH-010), V-WH-MOV-001..005.\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`.\n\n## Goal\n`createStockMove(input)` Server Action that records a stock_moves row, updates LP.location_id, validates move semantics per §8.1.\n\n## Implementation contract\n`apps/web/lib/services/warehouse/stock-move.ts`. Validate LP status IN ('available','reserved'); destination location active; reason_code present for adjustment/quarantine/return. If move_type='consume_to_wo', delegate to scanner consume endpoint (T-034). If move_qty < LP.qty, delegate to T-026 split-cascade. Single transaction. Generate move_number (SM-YYYY-NNNNN).\n\n## Files (scope)\n- apps/web/lib/services/warehouse/stock-move.ts [create]\n- apps/web/lib/services/warehouse/__tests__/stock-move.test.ts [create]\n\n## Acceptance criteria\n1. Given a full-qty transfer between two locations, when createStockMove runs, then LP.location_id updates and a stock_moves row is created.\n2. Given LP.status='consumed', when createStockMove runs, then it returns V-WH-MOV-001 validation error.\n3. Given destination location.active=false, when createStockMove runs, then it returns V-WH-MOV-003 validation error.\n4. Given a partial move (qty < LP.qty), when createStockMove runs, then it dispatches to T-026 split-cascade and returns the created child LP id.\n\n## Test strategy\n- RED: stock-move.test.ts covers full transfer, status guard, inactive location, partial cascade dispatch.\n- Run `pnpm --filter web test stock-move`.\n\n## Risk red lines\n- Do not allow moves on consumed/shipped/blocked LPs.\n- Do not auto-resolve inactive locations.\n- Do not embed put-away rules (P2).",
+  "labels": ["prd", "api", "stock-move", "T2-api"],
+  "priority": 90,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-025",
+    "source_prd": "05-WAREHOUSE-PRD.md",
+    "prd_refs": ["§8.1"],
+    "category": "api",
+    "subcategory": "stock-move",
+    "task_type": "T2-api",
+    "parent_feature": "warehouse-stock-moves",
+    "context_budget": "30k",
+    "estimated_effort": "1-2h",
+    "description": "Generic stock move Server Action with status/destination validation.",
+    "details": "Validate LP status, destination active, reason_code for adjustment/quarantine/return. Partial moves dispatch to split-cascade.",
+    "scope_files": [
+      "apps/web/lib/services/warehouse/stock-move.ts [create]",
+      "apps/web/lib/services/warehouse/__tests__/stock-move.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Split cascade (T-026)",
+      "Adjustment threshold (T-028)",
+      "Consume-to-WO (T-034)"
+    ],
+    "dependencies": ["T-006", "T-002"],
+    "parallel_safe_with": ["T-026", "T-027", "T-028"],
+    "acceptance_criteria": [
+      "Given a full-qty transfer, when service runs, then LP.location_id updates and stock_moves row is created",
+      "Given LP.status='consumed', when service runs, then V-WH-MOV-001 error returns",
+      "Given destination.active=false, when service runs, then V-WH-MOV-003 error returns",
+      "Given partial move (qty < LP.qty), when service runs, then it dispatches to T-026 and returns the child LP id"
+    ],
+    "test_strategy": [
+      "RED: stock-move.test.ts covers four scenarios",
+      "Run 'pnpm --filter web test stock-move'"
+    ],
+    "risk_red_lines": [
+      "Do not move consumed/shipped/blocked LPs",
+      "Do not bypass active-location check",
+      "Do not embed put-away rules"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

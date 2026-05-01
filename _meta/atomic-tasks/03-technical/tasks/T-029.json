@@ -1,0 +1,37 @@
+{
+  "title": "T-029 — Wiring: D365 push worker (WO confirmations) + DLQ retry",
+  "prompt": "Per §13.4 + §13.7. Implement outbox consumer for `wo.confirmation` events: build D365 Production Journal payload, POST to `/api/services/ProductionJournalService/SubmitJournal` with x-idempotency-key. 3× exponential backoff (1s/5s/25s). On failure write d365_sync_dlq row with error_message NOT NULL. Provide POST /api/technical/d365/dlq/[id]/retry endpoint for admin to retry/mark resolved. Permission technical.d365.sync.trigger. RED tests/wiring/d365-push.test.ts. Run: `pnpm vitest run tests/wiring/d365-push.test.ts`.",
+  "labels": ["prd", "integration", "d365-push", "T4-wiring-test"],
+  "priority": 80,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-029",
+    "source_prd": "03-TECHNICAL-PRD.md",
+    "prd_refs": ["§13.4", "§13.5", "§13.7", "§13.10"],
+    "category": "integration",
+    "subcategory": "d365-push",
+    "task_type": "T4-wiring-test",
+    "parent_feature": "03-TECHNICAL-d D365",
+    "context_budget": "35k",
+    "estimated_effort": "3-4h",
+    "description": "D365 push worker for WO confirmations with retry + DLQ + idempotency.",
+    "details": "Outbox event 'wo.confirmation' is produced by 08-PRODUCTION (not part of this task). Here build the consumer + retry mechanism. Idempotency same scheme as pull (T-028). Successful push flips d365_sync_jobs.status='completed'. KPI: ≥95% success rate target.",
+    "scope_files": ["lib/integrations/d365/push.ts", "app/api/technical/d365/dlq/[id]/retry/route.ts", "tests/wiring/d365-push.test.ts"],
+    "out_of_scope": ["Pull (T-028)", "DLQ UI (T-058)"],
+    "dependencies": ["T-007", "T-028"],
+    "parallel_safe_with": ["T-030"],
+    "acceptance_criteria": [
+      "Given mocked D365 returns 500 three times, when worker runs with retry policy, then row inserted into d365_sync_dlq with error_message NOT NULL.",
+      "Given DLQ row, when retry endpoint called and mock returns 200, then DLQ.resolved_at set.",
+      "Given duplicate idempotency_key, when D365 returns 409, then job marked completed (already accepted).",
+      "Given user without technical.d365.sync.trigger, when retry endpoint called, then 403."
+    ],
+    "test_strategy": ["RED tests covering retry/backoff and DLQ semantics.", "Run: pnpm vitest run tests/wiring/d365-push.test.ts"],
+    "risk_red_lines": ["Do not retry forever — cap at 3 then DLQ.", "Do not push when integration.d365.enabled=false."],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {"required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"], "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]},
+    "routing_hints": {"red": "hermes_gpt55", "implementation": "hermes_gpt55", "review": "opus_if_high_risk_or_ui_or_architecture", "close": "spark_low_risk_else_opus"}
+  }
+}

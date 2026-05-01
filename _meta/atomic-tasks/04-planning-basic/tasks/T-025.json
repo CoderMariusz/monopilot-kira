@@ -1,0 +1,65 @@
+{
+  "title": "T-025 — API: allergen sequencing heuristic rule (allergen_sequencing_heuristic_v1)",
+  "prompt": "Implement basic allergen sequencing per PRD §10.2 (FR-PLAN-029) as DSL rule `allergen_sequencing_heuristic_v1` registered via T-007. Algorithm:\n1. Query WOs WHERE status='RELEASED' AND production_line_id=X AND scheduled_start_time IN [window].\n2. Annotate each WO with allergen_profile_snapshot.\n3. Group: allergen-free → single-allergen (alphabetical per family) → multi-allergen.\n4. Within group: FIFO by scheduled_start_time.\n5. Update wo.scheduled_start_time respecting line capacity + operation durations.\n6. Emit outbox event 'wo.sequencing_applied'.\n\nManual override (§10.5): WOs with sequencing_override=true are kept in place. priority='critical' WOs exempt by default (V-PLAN-SEQ-001).\n\nRED test asserts grouping order, critical exemption, override skip, KPI emit.",
+  "labels": ["prd", "api", "allergen-sequencing", "T2-api"],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-025",
+    "source_prd": "04-PLANNING-BASIC-PRD.md",
+    "prd_refs": ["§10.2", "§10.4", "§10.5", "§10.8"],
+    "category": "api",
+    "subcategory": "allergen-sequencing",
+    "task_type": "T2-api",
+    "parent_feature": "planning-sequencing",
+    "context_budget": "40k",
+    "estimated_effort": "3-4h",
+    "description": "Basic allergen-aware WO ordering heuristic registered as DSL rule v1.",
+    "details": "Rule definition under `src/rules/planning/v1/allergen_sequencing_heuristic_v1.json`. Service in `src/server/services/sequencing-heuristic.ts`. Allergen family extraction reads allergen_profile_snapshot keys (per 03-TECHNICAL §10). FIFO tie-break by scheduled_start_time ascending then wo_number ascending.",
+    "scope_files": [
+      "src/rules/planning/v1/allergen_sequencing_heuristic_v1.json [create]",
+      "src/server/services/sequencing-heuristic.ts [create]",
+      "src/app/api/planning/sequencing/run/route.ts [create]",
+      "src/server/services/__tests__/sequencing-heuristic.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Full optimizer (07-PLANNING-EXT)",
+      "Sequencing UI (T-031)"
+    ],
+    "dependencies": ["T-007", "T-021"],
+    "parallel_safe_with": ["T-026"],
+    "acceptance_criteria": [
+      "Given 3 WOs (allergen-free, gluten-only, multi-allergen) on same line, when sequencing runs, then resulting scheduled_start_time order is allergen-free → gluten-only → multi-allergen.",
+      "Given a WO with priority='critical', when sequencing runs, then its scheduled_start_time is unchanged (V-PLAN-SEQ-001).",
+      "Given a WO with sequencing_override=true, when sequencing runs, then its position is preserved.",
+      "Given `pnpm vitest run src/server/services/__tests__/sequencing-heuristic.test.ts`, when run, then 0 failures."
+    ],
+    "test_strategy": [
+      "RED tests for ordering, critical exemption, override preservation, outbox emit.",
+      "Run `pnpm vitest run src/server/services/__tests__/sequencing-heuristic.test.ts`."
+    ],
+    "risk_red_lines": [
+      "Do not violate priority='critical' ordering — V-PLAN-SEQ-001.",
+      "Do not implement multi-line cross-optimization — that is 07-PLANNING-EXT scope."
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

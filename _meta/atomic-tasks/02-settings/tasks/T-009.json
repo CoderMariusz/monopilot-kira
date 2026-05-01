@@ -1,0 +1,87 @@
+{
+  "title": "T-009 — Drizzle migration: infrastructure (warehouses/locations/machines/lines)",
+  "prompt": "# T-009 — Drizzle migration: infrastructure tables\n\n## Goal\nCreate §5.6 infrastructure tables: warehouses, locations (with materialized ltree path), machines, production_lines, line_machines. Plus master tables allergens + org_allergens + tax_codes.\n\n## Files in scope\n- apps/web/db/schema/infra-master.ts [create]\n- apps/web/db/migrations/ [create]\n- apps/web/db/seeds/eu-14-allergens.sql [create]\n- apps/web/db/migrations/__tests__/infra-master.test.ts [create]\n\n## Acceptance criteria (all must hold)\n- Given migration is applied, when `\\d locations` is shown, then `path` is TEXT (materialized ltree) and indexed with `gist (path gist_trgm_ops)` (or btree if ltree extension absent — explicit fallback in migration).\n- Given migration is applied, when `\\d allergens` is shown, then PK is `code` and seed migration loads EU-14 codes A01..A14.\n- Given migration is applied, when `\\d tax_codes` is shown, then UNIQUE(org_id, code, effective_from) holds.\n\n## Test strategy (RED first)\n1. Add a failing test that exercises the acceptance criteria above. The RED command is:\n   `pnpm --filter @monopilot/web vitest run apps/web/db/migrations/__tests__/infra-master.test.ts`\n2. Run RED — it must fail before any production code is written.\n3. Implement the smallest change needed for GREEN.\n4. Re-run RED command — must pass.\n5. Run `pnpm typecheck` and `pnpm lint` in the changed package; both must pass.\n\n## Risk red lines\n- Do not edit files outside the listed scope without documenting why in CLOSEOUT.\n- Do not weaken existing acceptance criteria from prior tasks.\n- Do not introduce REST endpoints; use Server Actions per stack contract.\n- Do not commit secrets or vault keys.\n\n## Closeout evidence required\n- changed_files (with line counts)\n- exact test commands and outputs (RED→GREEN, typecheck, lint)\n- acceptance_criteria_status (one row per AC: pass/fail)\n- deviations_from_prd (or \"none\")\n- git_status\n\nStack: TS + Next.js App Router + Drizzle + pnpm + vitest + Playwright + Server Actions. Primitives in `packages/ui`. PRD: `02-SETTINGS-PRD.md` v3.5.\n",
+  "labels": [
+    "prd",
+    "data",
+    "infrastructure",
+    "T1-schema"
+  ],
+  "priority": 80,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-009",
+    "source_prd": "02-SETTINGS-PRD.md",
+    "prd_refs": [
+      "§5.6",
+      "§12.1"
+    ],
+    "category": "data",
+    "subcategory": "infra-master-schema",
+    "task_type": "T1-schema",
+    "parent_feature": "02-settings-e",
+    "context_budget": "40k",
+    "estimated_effort": "1-3h",
+    "description": "Warehouses, locations (ltree), machines, lines, master allergens/tax_codes.",
+    "details": "ltree extension may or may not be available in target Postgres; if not, store path as text + ascii separator '/'. Document the choice in migration comment. Seed EU-14 allergens A01..A14 with PL/EN names.",
+    "scope_files": [
+      "apps/web/db/schema/infra-master.ts",
+      "apps/web/db/migrations/",
+      "apps/web/db/seeds/eu-14-allergens.sql",
+      "apps/web/db/migrations/__tests__/infra-master.test.ts"
+    ],
+    "out_of_scope": [
+      "broaden scope beyond listed files",
+      "implement future-phase features"
+    ],
+    "dependencies": [
+      "T-004"
+    ],
+    "parallel_safe_with": [
+      "T-005",
+      "T-006",
+      "T-007",
+      "T-008"
+    ],
+    "acceptance_criteria": [
+      "All 7 tables created per §5.6.",
+      "ltree (or fallback) path indexing operational.",
+      "EU-14 allergens seeded.",
+      "vitest green."
+    ],
+    "test_strategy": [
+      "RED: assert shape + seed presence.",
+      "GREEN: emit migration + seed."
+    ],
+    "risk_red_lines": [
+      "Do not hard-fail if ltree extension unavailable — provide fallback."
+    ],
+    "skills": [
+      "test-driven-development"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": false
+  }
+}

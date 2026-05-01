@@ -1,0 +1,61 @@
+{
+  "title": "T-014 — Register DSL rules output_yield_gate_v1 + allergen_changeover_gate_v1",
+  "prompt": "# T-014 — Register output_yield_gate_v1 + allergen_changeover_gate_v1\n\nPRD: 08-PRODUCTION-PRD.md §10.2, §10.4, §6 D4 D10\n\n## Goal\nRegister two more DSL rules in 02-SETTINGS rule_registry: output_yield_gate_v1 (soft gate, ±10% variance) and allergen_changeover_gate_v1 (hard gate with matrix lookup, dual sign-off).\n\n## Implementation contract\nCreate two YAML files mirroring §10.4 (output_yield_gate_v1: trigger wo.outputs_registered_complete, formula sum(wo_outputs.qty_kg)/sum(wo_material_consumption.qty_consumed), threshold abs(1-variance_ratio) > 0.10) and §10.2 (allergen_changeover_gate_v1: triggers wo.transition.ready_to_in_progress, 5 evaluation steps, outcome pass→allow start, fail→423 redirect). Update load-production-rules.ts to register both. Each rule needs a unit test.\n\n## Files (scope)\n- packages/dsl-rules/rules/production/output-yield-gate-v1.yaml [create]\n- packages/dsl-rules/rules/production/allergen-changeover-gate-v1.yaml [create]\n- packages/dsl-rules/src/registry/load-production-rules.ts [modify]\n- packages/dsl-rules/src/__tests__/output-yield-gate-v1.test.ts [create]\n- packages/dsl-rules/src/__tests__/allergen-changeover-gate-v1.test.ts [create]\n\n## Acceptance criteria\n1. Given loader runs, when rule_registry queried for output_yield_gate_v1, then row exists with type=gate_soft and threshold 0.10 (D4 default)\n2. Given allergen_changeover_gate_v1 loaded, when steps parsed, then 5 steps in order: find_previous_wo_on_line, compute_allergen_delta, lookup_changeover_matrix, apply_matrix_requirements, emit_validation_event\n3. Given allergen_changeover_gate_v1 loaded, when outcome.fail parsed, then it returns 423 Locked with redirect_url '/production/changeover/:event_id'\n\n## Test strategy\n- RED: write both rule unit tests asserting structure before YAML files exist\n- Run 'pnpm --filter dsl-rules test output-yield-gate-v1 && pnpm --filter dsl-rules test allergen-changeover-gate-v1'\n\n## Risk red lines\n- Do not change yield variance threshold from 0.10 without ADR (D4)\n- Do not omit segregation_required step (D10)\n- Do not change 423 status code or redirect URL contract",
+  "labels": ["prd", "data", "dsl-rule", "T1-schema"],
+  "priority": 80,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-014",
+    "source_prd": "08-PRODUCTION-PRD.md",
+    "prd_refs": ["§10.2", "§10.4", "§6 D4", "§6 D10"],
+    "category": "data",
+    "subcategory": "dsl-rule",
+    "task_type": "T1-schema",
+    "parent_feature": "08-PROD E3 + E7",
+    "context_budget": "30k",
+    "estimated_effort": "2h",
+    "description": "Register output_yield_gate_v1 (D4) and allergen_changeover_gate_v1 (D10) DSL rules in rule_registry.",
+    "details": "Mirror §10.2 and §10.4 verbatim into two YAML files. Allergen gate has 5 evaluation steps; outcome.fail must return 423 with redirect to /production/changeover/:event_id. Yield gate is gate_soft (flag-for-review only). Loader upserts both via rules registry.",
+    "scope_files": [
+      "packages/dsl-rules/rules/production/output-yield-gate-v1.yaml [create]",
+      "packages/dsl-rules/rules/production/allergen-changeover-gate-v1.yaml [create]",
+      "packages/dsl-rules/src/registry/load-production-rules.ts [modify]",
+      "packages/dsl-rules/src/__tests__/output-yield-gate-v1.test.ts [create]",
+      "packages/dsl-rules/src/__tests__/allergen-changeover-gate-v1.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not implement evaluation engine",
+      "Do not modify rule_registry schema",
+      "Do not implement allergen gate API"
+    ],
+    "dependencies": [],
+    "parallel_safe_with": ["T-012", "T-013"],
+    "acceptance_criteria": [
+      "Given loader runs, when rule_registry queried for output_yield_gate_v1, then row exists type=gate_soft threshold=0.10",
+      "Given allergen_changeover_gate_v1 loaded, when steps parsed, then 5 steps in order match §10.2",
+      "Given allergen_changeover_gate_v1 loaded, when outcome.fail parsed, then HTTP 423 + redirect_url '/production/changeover/:event_id'"
+    ],
+    "test_strategy": [
+      "RED: rule unit tests asserting structure + thresholds before YAML files exist",
+      "Run 'pnpm --filter dsl-rules test output-yield-gate-v1 && pnpm --filter dsl-rules test allergen-changeover-gate-v1'"
+    ],
+    "risk_red_lines": [
+      "Do not change yield variance from 0.10",
+      "Do not omit segregation step",
+      "Do not change 423 contract"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

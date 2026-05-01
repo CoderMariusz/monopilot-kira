@@ -1,0 +1,61 @@
+{
+  "title": "T-002 — getOnboardingState + updateOnboardingState Server Actions",
+  "prompt": "Implement two Next.js Server Actions that read and write `organizations.onboarding_state` per PRD §14.3 resume + state-tracking contract.\n\n`getOnboardingState(orgId)`: returns the parsed `OnboardingState` (uses Zod schema from T-001). Used by wizard launcher (T-004) to decide which step to show; supports resume capability per PRD §14.3 (line 1532).\n\n`updateOnboardingState(orgId, patch)`: merges patch into current state, refreshes `last_activity_at = now()`, persists; rejects if patch tries to set `current_step` outside 1..6 or push duplicate step into `completed_steps`. On step 1 first-write, sets `started_at = now()` if null.\n\nDo NOT bundle: skip handler (T-003), UI (T-004..T-010), schema (T-001).\n\nRED test command: `pnpm --filter web test -- onboarding-state.actions`.",
+  "labels": ["prd", "api", "server-action-rw", "T2-api"],
+  "priority": 80,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-002",
+    "source_prd": "02-SETTINGS-PRD.md",
+    "prd_refs": ["§14.3 state JSON (line 1529)", "§14.3 resume (line 1532)"],
+    "category": "api",
+    "subcategory": "server-action-rw",
+    "task_type": "T2-api",
+    "parent_feature": "02-SETTINGS-onboarding-wizard",
+    "context_budget": "30k",
+    "estimated_effort": "2-3h",
+    "description": "Server Actions for read/write of onboarding_state JSONB; parses with Zod from T-001; sets started_at on first step-1 write.",
+    "details": "Both actions live in apps/web/app/(onboarding)/_actions/onboarding-state.actions.ts. They use the shared onboardingStateSchema from packages/shared (T-001) and the db client. Update is a JSONB merge (not replace) so concurrent step writes don't clobber sibling fields. Returns typed errors INVALID_STEP and DUPLICATE_COMPLETION instead of throwing.",
+    "scope_files": [
+      "apps/web/app/(onboarding)/_actions/onboarding-state.actions.ts [create]",
+      "apps/web/app/(onboarding)/_actions/onboarding-state.actions.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "skipOnboardingStep (covered by T-003)",
+      "Schema migration (covered by T-001)",
+      "Any UI rendering (covered by T-004..T-010)",
+      "Restart/Back navigation (covered by gap-backlog S-PU1; out of scope for this PRD slice)"
+    ],
+    "dependencies": ["T-001"],
+    "parallel_safe_with": ["T-003"],
+    "acceptance_criteria": [
+      "Given orgId with default onboarding_state, when getOnboardingState(orgId) runs, then returned object parses cleanly through onboardingStateSchema and current_step=1.",
+      "Given updateOnboardingState(orgId, {current_step:2, completed_steps:[1]}), when called on default state, then DB row reflects merge AND started_at and last_activity_at are non-null ISO timestamps.",
+      "Given updateOnboardingState(orgId, {current_step:7}), when called, then result is typed error INVALID_STEP and DB row is unchanged.",
+      "Given updateOnboardingState(orgId, {completed_steps:[1,1]}), when called, then result is typed error DUPLICATE_COMPLETION and DB row is unchanged."
+    ],
+    "test_strategy": [
+      "RED: vitest spec exercising all 4 AC against in-memory test DB; expect failures before action implementation.",
+      "GREEN: implement actions; all AC pass.",
+      "Command: pnpm --filter web test -- onboarding-state.actions"
+    ],
+    "risk_red_lines": [
+      "Do not perform full row REPLACE; must JSONB-merge to avoid race-condition data loss between sibling fields.",
+      "Do not throw on invalid input — return typed error so UI can render localized copy.",
+      "Do not call from outside apps/web/app/(onboarding) tree (Server Action import boundary)."
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

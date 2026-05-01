@@ -1,0 +1,58 @@
+{
+  "title": "T-018 — LP merge service",
+  "prompt": "# T-018 — LP merge service\n\nPRD: `05-WAREHOUSE-PRD.md` §6.5 (FR-WH-003), V-WH-LP-004/005.\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`.\n\n## Goal\nImplement `mergeLps(primaryLpId, secondaryLpIds[])` Server Action accumulating qty into primary and marking secondaries 'merged'.\n\n## Implementation contract\n`apps/web/lib/services/warehouse/lp-merge.ts`. Validation: same product_id/uom/warehouse_id/(location_id unless merge_cross_location), batch_number (or both NULL), expiry within merge_expiry_tolerance_days, qa_status, status='available'. Algorithm per §6.5: primary.qty += sum(secondary.qty); primary.catch_weight_kg = sum of all (per baseline D14); secondary.status='merged'; insert lp_genealogy rows. Single transaction.\n\n## Files (scope)\n- apps/web/lib/services/warehouse/lp-merge.ts [create]\n- apps/web/lib/services/warehouse/__tests__/lp-merge.test.ts [create]\n\n## Acceptance criteria\n1. Given primary qty=50 plus two secondaries qty=30 + 20, when service runs, then primary.qty=100 and both secondaries become status='merged'.\n2. Given a secondary has status='reserved', when service runs, then it returns a validation error per V-WH-LP-005.\n3. Given service completes, when lp_genealogy is queried, then two rows link each secondary as parent of primary with operation_type='merge'.\n\n## Test strategy\n- RED: lp-merge.test.ts covers happy/invalid/genealogy paths.\n- Run `pnpm --filter web test lp-merge`.\n\n## Risk red lines\n- Do not allow reserved LPs to merge.\n- Do not mix products / batches.\n- Do not skip catch_weight summation.",
+  "labels": ["prd", "api", "lp-core", "T2-api"],
+  "priority": 90,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-018",
+    "source_prd": "05-WAREHOUSE-PRD.md",
+    "prd_refs": ["§6.5"],
+    "category": "api",
+    "subcategory": "lp-core",
+    "task_type": "T2-api",
+    "parent_feature": "warehouse-lp-core",
+    "context_budget": "30k",
+    "estimated_effort": "1-2h",
+    "description": "LP merge service accumulating qty into primary, marking secondaries 'merged', writing genealogy.",
+    "details": "Validation per V-WH-LP-004/005. Catch-weight sum (baseline D14). Single transaction.",
+    "scope_files": [
+      "apps/web/lib/services/warehouse/lp-merge.ts [create]",
+      "apps/web/lib/services/warehouse/__tests__/lp-merge.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "UI modal (T-052)",
+      "Outbox emission (T-047)",
+      "Split (T-017)"
+    ],
+    "dependencies": ["T-016", "T-003"],
+    "parallel_safe_with": ["T-017"],
+    "acceptance_criteria": [
+      "Given primary qty=50, secondaries qty=30+20, when service runs, then primary.qty=100 and secondaries become 'merged'",
+      "Given a secondary status='reserved', when service runs, then it returns V-WH-LP-005 validation error",
+      "Given service completes, when lp_genealogy is queried, then two rows link secondaries→primary with operation_type='merge'"
+    ],
+    "test_strategy": [
+      "RED: lp-merge.test.ts covers happy + reserved-blocked + genealogy paths",
+      "Run 'pnpm --filter web test lp-merge'"
+    ],
+    "risk_red_lines": [
+      "Do not merge reserved LPs",
+      "Do not merge mismatched product/batch/expiry",
+      "Do not skip catch-weight sum"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

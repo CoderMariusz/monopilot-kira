@@ -1,0 +1,63 @@
+{
+  "title": "T-029 — Scanner inspect API POST /api/quality/scanner/inspect (06-SCN §8.5)",
+  "prompt": "# T-029 — Scanner inspect API\n\nPRD: 09-QUALITY-PRD.md §7.1 EPIC 8C, §8.1 SCN-070..073 contract, 06-SCN §8.5 (cross-module)\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nImplement the 4 scanner-bound HTTP routes that fulfil the SCN-070..073 contract: GET /api/quality/scanner/pending (queue), POST /api/quality/scanner/inspect (3-button result), POST /api/quality/scanner/fail-reason (7 reasons + notes → NCR auto-draft), GET /api/quality/scanner/done/:id (result screen).\n\n## Implementation contract\n1. `apps/web/src/app/api/quality/scanner/pending/route.ts` GET returning pending inspection rows under PIN-auth session (06-SCN auth pattern reused). Filter assigned_to=session.user OR null AND status='pending'.\n2. `apps/web/src/app/api/quality/scanner/inspect/route.ts` POST {lp_id, action: 'pass'|'fail'|'hold'} → if pass: completes a quick scanner inspection and signs; if hold: creates quality_holds with reference_type='lp'; if fail: creates inspection draft with result='fail' and returns next-step URL to fail-reason.\n3. `apps/web/src/app/api/quality/scanner/fail-reason/route.ts` POST {inspection_id, fail_reason_code_id, notes} → completes + signs + auto-draft NCR via signInspection.\n4. `apps/web/src/app/api/quality/scanner/done/[id]/route.ts` GET returns {inspection_id, result, ncr_ref?}.\n\n## Files\n- apps/web/src/app/api/quality/scanner/pending/route.ts [create]\n- apps/web/src/app/api/quality/scanner/inspect/route.ts [create]\n- apps/web/src/app/api/quality/scanner/fail-reason/route.ts [create]\n- apps/web/src/app/api/quality/scanner/done/[id]/route.ts [create]\n- apps/web/src/server/quality/scannerHandlers.ts [create]\n- apps/web/src/server/quality/__tests__/scannerHandlers.test.ts [create]\n\n## Acceptance criteria\n1. Given a PIN-authed session with user role qa_inspector, when GET /api/quality/scanner/pending is called, then it returns up to 25 inspections assigned to the session user OR unassigned and status='pending', in priority+scheduled_at order\n2. Given POST /api/quality/scanner/inspect {lp_id, action:'fail'}, when called with valid PIN session, then a quality_inspections row is created with inspection_type='scanner_quick' and result='fail' (provisional), and the response 200 includes next_url='/api/quality/scanner/fail-reason'\n3. Given POST /api/quality/scanner/fail-reason {inspection_id, fail_reason_code_id, notes}, when fail_reason_code_id matches a scanner_visible=true row, then the inspection is signed (signature_hash set), an NCR draft is auto-linked, and the outbox event quality.inspection.completed is queued — all in one TX\n4. Given a fail_reason_code_id pointing to a row with scanner_visible=false, when POST /api/quality/scanner/fail-reason runs, then it rejects with INVALID_REASON_FOR_SCANNER and writes nothing",
+  "labels": ["prd", "api", "scanner-inspect", "T2-api"],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-029",
+    "source_prd": "09-QUALITY-PRD.md",
+    "prd_refs": ["§7.1", "§8.1 SCN-070..073"],
+    "category": "api",
+    "subcategory": "scanner-inspect",
+    "task_type": "T2-api",
+    "parent_feature": "09-c Incoming Inspection",
+    "context_budget": "55k",
+    "estimated_effort": "3h",
+    "description": "Scanner-bound 4 HTTP routes implementing SCN-070..073 contract: pending, inspect, fail-reason (auto-NCR), done.",
+    "details": "Next.js Route Handlers under /api/quality/scanner/* with PIN-auth session reuse (06-SCN §6). pending returns assigned/unassigned pending inspections. inspect dispatches by action: pass=quick-complete+sign, fail=create draft+redirect to fail-reason, hold=createQualityHold reference=lp. fail-reason calls signInspection (T-028). done returns persisted result + ncr ref. Validates fail reason as scanner_visible per T-002.",
+    "scope_files": [
+      "apps/web/src/app/api/quality/scanner/pending/route.ts [create]",
+      "apps/web/src/app/api/quality/scanner/inspect/route.ts [create]",
+      "apps/web/src/app/api/quality/scanner/fail-reason/route.ts [create]",
+      "apps/web/src/app/api/quality/scanner/done/[id]/route.ts [create]",
+      "apps/web/src/server/quality/scannerHandlers.ts [create]",
+      "apps/web/src/server/quality/__tests__/scannerHandlers.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not implement allergen changeover sign flow (T-051)",
+      "Do not modify 06-SCN scanner UI (cross-module)",
+      "Do not implement offline replay (06-SCN §5 owns)"
+    ],
+    "dependencies": ["T-002", "T-006", "T-026", "T-027", "T-028"],
+    "parallel_safe_with": ["T-027", "T-030", "T-031"],
+    "acceptance_criteria": [
+      "Given a PIN-authed session with role qa_inspector, when GET /api/quality/scanner/pending is called, then it returns up to 25 inspections assigned to the session user OR unassigned and status='pending', ordered by priority then scheduled_at",
+      "Given POST /api/quality/scanner/inspect {lp_id, action:'fail'} with valid PIN session, then a quality_inspections row is created with inspection_type='scanner_quick' and provisional result='fail' and the 200 response includes next_url='/api/quality/scanner/fail-reason'",
+      "Given POST /api/quality/scanner/fail-reason with a scanner_visible=true reason, then the inspection is signed, an NCR draft is auto-linked, and outbox quality.inspection.completed is queued — all in one TX",
+      "Given a fail_reason_code_id pointing at scanner_visible=false, then POST /api/quality/scanner/fail-reason rejects with INVALID_REASON_FOR_SCANNER and writes nothing"
+    ],
+    "test_strategy": [
+      "RED: write apps/web/src/server/quality/__tests__/scannerHandlers.test.ts asserting routes' shape, action dispatch, atomic NCR auto-draft, scanner_visible filter",
+      "Run 'pnpm --filter web test scannerHandlers'"
+    ],
+    "risk_red_lines": [
+      "Do not bypass 06-SCN PIN-auth (security boundary)",
+      "Do not allow non-scanner-visible reason codes via the scanner endpoint",
+      "Do not skip outbox event on success (12-REP and 05-WH consume)"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

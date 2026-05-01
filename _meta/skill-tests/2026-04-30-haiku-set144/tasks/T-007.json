@@ -1,0 +1,52 @@
+{
+  "title": "T-007 — Implement SET-003 First Warehouse step (warehouse create form)",
+  "prompt": "Implement step 2 form: First Warehouse creation (name, type, code).\n\nPRD §14.3-14.4 SET-003: Form fields:\n- Warehouse name (required, text)\n- Warehouse type (required, select: finished|raw|components; default: finished)\n- Warehouse code (required, text, unique)\n\nForm submits to POST /api/v1/onboarding/step {step_number: 2, data: {name, type, code}} and creates warehouse in DB via backend.\n\nAcceptance:\n- Form validates required fields\n- Type defaults to 'finished'\n- Code is validated as unique (backend returns 422 if duplicate)\n- Form submission updates onboarding_state.current_step to 3\n- Navigate to step 3 (SET-004) on success\n\nTest: RED test verifies warehouse is created in DB with correct attributes.",
+  "labels": ["prd", "ui", "screen", "T3-ui"],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-007",
+    "source_prd": "02-SETTINGS-PRD.md",
+    "prd_refs": ["§14.3", "§14.4"],
+    "category": "ui",
+    "subcategory": "screen",
+    "task_type": "T3-ui",
+    "parent_feature": "onboarding_wizard",
+    "context_budget": "30k",
+    "estimated_effort": "2-3h",
+    "description": "Step 2 RHF form: First Warehouse creation",
+    "details": "Create FirstWarehouseStep component using React Hook Form + Zod schema. Fields: (1) name: text input, required, minLength 1, maxLength 100. (2) type: select dropdown, required, options: [finished, raw, components], default 'finished'. (3) code: text input, required, pattern ^[A-Z0-9_]{3,20}$, backend validates uniqueness. Form validation: name/code required, type defaults to finished. Submit button calls POST /api/v1/onboarding/step with step_number=2 and form data (backend creates warehouse record and updates onboarding_state). On success, navigate to step 3 (SET-004). Show loading state. Handle error if code is duplicate (show error message).",
+    "scope_files": ["src/components/onboarding/steps/FirstWarehouseStep.tsx", "src/schemas/onboarding.schema.ts", "tests/e2e/onboarding.spec.ts"],
+    "out_of_scope": ["warehouse type enum definition (assume exists in schema)", "warehouse CRUD endpoints beyond onboarding context"],
+    "dependencies": ["T-002", "T-006"],
+    "parallel_safe_with": ["T-004", "T-005", "T-008", "T-009", "T-010"],
+    "acceptance_criteria": [
+      "Given step 2 form is rendered, when user enters name='Main Warehouse', type='finished', code='MAIN', then all fields show values and type defaults correctly",
+      "Given form with code='MAIN' submitted twice, when second submit occurs, then API returns 422 with duplicate code error",
+      "Given valid warehouse data submitted, when form submits, then warehouse record is created in DB and onboarding_state.current_step becomes 3"
+    ],
+    "test_strategy": [
+      "Write e2e test: test_warehouse_form_submission() fills form and verifies warehouse creation in DB",
+      "Write e2e test: test_warehouse_code_uniqueness() attempts to create duplicate code and verifies error",
+      "Run: npx cypress run -e TEST_FILE=tests/e2e/onboarding.spec.ts --spec '**/step-2*'",
+      "Verify warehouse appears in /api/v1/warehouses list after step 2 completes"
+    ],
+    "risk_red_lines": [
+      "Do not allow code values outside the ^[A-Z0-9_]{3,20}$ pattern",
+      "Do not proceed to step 3 if warehouse creation fails"
+    ],
+    "skills": ["test-driven-development"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

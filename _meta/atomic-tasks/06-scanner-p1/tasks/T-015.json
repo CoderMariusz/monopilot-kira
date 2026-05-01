@@ -1,0 +1,59 @@
+{
+  "title": "T-015 — ManualInput + qty keypad component (06-a)",
+  "prompt": "# T-015 — ManualInput primitive (text + qty keypad)\n\nPRD: 06-SCANNER-P1-PRD.md §8.1 FR-SC-FE-008, §9.1, §9.7\nUX: design/06-SCANNER-P1-UX.md §4.3 qty keypad sheet\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nDeliver `<ManualInput onSubmit={(value)=>...} mode='text'|'qty' />` — text input + numeric 3×4 keypad (1-9, 0, ⌫) — used as fallback for any scan screen and as the primary qty entry across SCN-020/050/080/082/084.\n\n## Implementation contract\n1. `apps/scanner/src/components/manual-input.tsx`:\n   - mode='text': single text input + 48dp submit button.\n   - mode='qty': 3×4 numeric keypad (digit, 0, backspace), 64dp tiles, large display showing current value 28px monospace.\n2. Server-side V-SCAN-INPUT-003 length≤100 echoed client-side (zod max 100).\n3. RTL test for both modes; keypad asserts backspace and submit behavior.\n\n## Files\n- apps/scanner/src/components/manual-input.tsx [create]\n- apps/scanner/__tests__/manual-input.test.tsx [create]\n\n## Acceptance criteria\n1. Given mode='qty' renders, when compared to the prototype qty keypad at `design/Monopilot Design System/scanner/modals.jsx:251-275` (qty_keypad_sheet), then it has the same 3×4 grid, the same digit order 1..9, 0, backspace, the same 28px monospace value display, and a submit button — RTL snapshot + manual checklist\n2. Given mode='text', when the user types 'LP-12345' and clicks submit, then onSubmit is invoked exactly once with 'LP-12345'\n3. Given mode='qty' value '12' and the user taps backspace, when the keypad re-renders, then the displayed value is '1' and submit emits 1 as a number on click\n\n## Test strategy\n- RED: write manual-input.test.tsx asserting parity + text submit + qty backspace before implementation\n- Run 'pnpm --filter scanner test manual-input'\n\n## Risk red lines\n- Do not allow non-numeric input in mode='qty'\n- Do not allow empty submit in either mode\n- Do not exceed 100 characters in mode='text'",
+  "labels": ["prd", "ui", "manual-input", "T3-ui"],
+  "priority": 80,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-015",
+    "source_prd": "06-SCANNER-P1-PRD.md",
+    "prd_refs": ["§8.1 FR-SC-FE-008", "§9.1", "§9.7"],
+    "category": "ui",
+    "subcategory": "manual-input",
+    "task_type": "T3-ui",
+    "parent_feature": "06-a Shell & Core",
+    "context_budget": "25k",
+    "estimated_effort": "1-2h",
+    "description": "ManualInput component supporting text fallback and 3×4 numeric qty keypad used by every quantity step.",
+    "details": "Parity checklist:\n1) Same 3×4 keypad layout as qty_keypad_sheet prototype.\n2) Digit order 1-9 then 0 then backspace; 64dp tiles.\n3) 28px monospace value display.\n4) Submit blocked on empty value.\n5) Text mode enforces max 100 characters.",
+    "scope_files": [
+      "apps/scanner/src/components/manual-input.tsx [create]",
+      "apps/scanner/__tests__/manual-input.test.tsx [create]",
+      "design/Monopilot Design System/scanner/modals.jsx:251-275 [ref]"
+    ],
+    "out_of_scope": [
+      "Do not implement reason picker here (modal owned by SCN-040/050/080)",
+      "Do not implement camera fallback here (T-014)",
+      "Do not implement scan-first input here (T-013)"
+    ],
+    "dependencies": [],
+    "parallel_safe_with": ["T-013", "T-014"],
+    "acceptance_criteria": [
+      "Given mode='qty' renders, when compared to design/Monopilot Design System/scanner/modals.jsx:251-275, then it has the same 3×4 keypad, digit order, 28px monospace display and submit button — RTL snapshot + manual checklist",
+      "Given mode='text', when user types 'LP-12345' and clicks submit, then onSubmit is invoked once with 'LP-12345'",
+      "Given mode='qty' value '12' and user taps backspace, when re-rendered the value is '1' and submit emits 1 as a number"
+    ],
+    "test_strategy": [
+      "RED: write manual-input.test.tsx asserting parity + text submit + qty backspace before implementation",
+      "Run 'pnpm --filter scanner test manual-input'"
+    ],
+    "risk_red_lines": [
+      "Do not allow non-numeric input in mode='qty'",
+      "Do not allow empty submit",
+      "Do not exceed 100 chars in text mode"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

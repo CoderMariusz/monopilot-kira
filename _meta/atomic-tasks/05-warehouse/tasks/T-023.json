@@ -1,0 +1,60 @@
+{
+  "title": "T-023 — GS1-128 barcode parser service",
+  "prompt": "# T-023 — GS1-128 barcode parser service\n\nPRD: `05-WAREHOUSE-PRD.md` §7.4 (FR-WH-009), §15.2.\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`.\n\n## Goal\n`parseGs1Barcode(input)` shared service handling Application Identifiers (01) GTIN, (10) Lot, (17) Expiry, (11) Manufacture, (37) Count, (310x) Net Weight, (21) Serial.\n\n## Implementation contract\n`packages/barcode-parser/src/gs1-parser.ts`. Support FNC1-separated and parentheses-format. Return typed object {gtin?, lot?, expiry?, manufactureDate?, count?, netWeightKg?, serial?} plus `parseErrors[]` and `raw`. SLO <100ms.\n\n## Files (scope)\n- packages/barcode-parser/src/gs1-parser.ts [create]\n- packages/barcode-parser/src/__tests__/gs1-parser.test.ts [create]\n- packages/barcode-parser/package.json [create]\n\n## Acceptance criteria\n1. Given parentheses input '(01)05012345678900(10)B-2026-04-15(17)260501', when parsed, then gtin='05012345678900', lot='B-2026-04-15', expiry=2026-05-01.\n2. Given FNC1-separated input with same AIs, when parsed, then the same object is returned.\n3. Given (3103)001840 (kg with 3 decimals), when parsed, then netWeightKg equals 1.840.\n4. Given malformed input '(99)abc', when parsed, then a parseError row is returned and known fields stay undefined.\n\n## Test strategy\n- RED: gs1-parser.test.ts covers four scenarios above plus performance assertion <100ms median.\n- Run `pnpm --filter barcode-parser test`.\n\n## Risk red lines\n- Do not throw on unknown AI — collect into parseErrors.\n- Do not import warehouse code from this package.\n- Do not depend on Next.js APIs.",
+  "labels": ["prd", "api", "barcode", "T2-api"],
+  "priority": 90,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-023",
+    "source_prd": "05-WAREHOUSE-PRD.md",
+    "prd_refs": ["§7.4", "§15.2"],
+    "category": "api",
+    "subcategory": "barcode",
+    "task_type": "T2-api",
+    "parent_feature": "warehouse-grn",
+    "context_budget": "25k",
+    "estimated_effort": "1-2h",
+    "description": "Shared GS1-128 parser for warehouse + scanner modules.",
+    "details": "Pure package, framework-free. Handles FNC1 + parentheses. Returns typed object plus parseErrors. <100ms median.",
+    "scope_files": [
+      "packages/barcode-parser/src/gs1-parser.ts [create]",
+      "packages/barcode-parser/src/__tests__/gs1-parser.test.ts [create]",
+      "packages/barcode-parser/package.json [create]"
+    ],
+    "out_of_scope": [
+      "Scanner endpoints (T-040)",
+      "Warehouse-specific lookup (T-040)",
+      "GS1 SSCC-18 generation (P2 pallets)"
+    ],
+    "dependencies": [],
+    "parallel_safe_with": ["T-021", "T-022", "T-024"],
+    "acceptance_criteria": [
+      "Given parentheses input '(01)05012345678900(10)B-2026-04-15(17)260501', when parsed, then gtin/lot/expiry equal the PRD example values",
+      "Given FNC1-separated input with same AIs, when parsed, then the same object is returned",
+      "Given (3103)001840 net weight, when parsed, then netWeightKg=1.840",
+      "Given malformed '(99)abc', when parsed, then a parseError row is returned and known fields stay undefined"
+    ],
+    "test_strategy": [
+      "RED: gs1-parser.test.ts covers four scenarios + median runtime <100ms",
+      "Run 'pnpm --filter barcode-parser test'"
+    ],
+    "risk_red_lines": [
+      "Do not throw on unknown AI",
+      "Do not import warehouse-specific modules",
+      "Do not depend on Next.js APIs"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

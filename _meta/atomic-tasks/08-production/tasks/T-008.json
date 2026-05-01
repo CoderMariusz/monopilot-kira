@@ -1,0 +1,59 @@
+{
+  "title": "T-008 — Drizzle migration: oee_snapshots table + uniqueness V-PROD-10 + RLS",
+  "prompt": "# T-008 — Drizzle migration: oee_snapshots\n\nPRD: 08-PRODUCTION-PRD.md §9.9, §16.4 V-PROD-10/25, §5.5 90d retention\n\n## Goal\nCreate oee_snapshots per §9.9 with GENERATED oee_pct column, UNIQUE per (tenant, line, shift, snapshot_minute) per V-PROD-10, V-PROD-25 component CHECKs in [0,100], 90-day retention note.\n\n## Implementation contract\npackages/db/schema/production/oee-snapshots.ts: PK id BIGSERIAL, tenant_id, line_id text, shift_id text, snapshot_minute TIMESTAMPTZ NOT NULL, availability_pct/performance_pct/quality_pct NUMERIC(5,2) each with CHECK BETWEEN 0 AND 100 (V-PROD-25), oee_pct NUMERIC(5,2) GENERATED ALWAYS AS (availability_pct*performance_pct*quality_pct/10000) STORED, active_wo_id, output_qty_delta NUMERIC(12,3), downtime_min_delta INTEGER, waste_qty_delta NUMERIC(12,3), ideal_cycle_time_sec NUMERIC(8,2), created_at default now. UNIQUE (tenant_id, line_id, shift_id, snapshot_minute) (V-PROD-10). Index idx_oee_line_time (line_id, snapshot_minute DESC). RLS by tenant_id.\n\n## Files (scope)\n- packages/db/schema/production/oee-snapshots.ts [create]\n- packages/db/schema/production/index.ts [modify]\n- packages/db/migrations/NNNN_oee_snapshots.sql [create]\n- packages/db/__tests__/oee-snapshots-schema.test.ts [create]\n\n## Acceptance criteria\n1. Given two INSERTs share (tenant,line,shift,snapshot_minute), when both run, then second fails with unique_violation (V-PROD-10)\n2. Given INSERT availability_pct=120, when run, then CHECK BETWEEN 0 AND 100 rejects (V-PROD-25)\n3. Given INSERT with A/P/Q values, when row queried, then oee_pct equals A*P*Q/10000 within ±0.01 (GENERATED column)\n\n## Test strategy\n- RED: schema test asserting UNIQUE constraint + GENERATED oee_pct + CHECK BETWEEN 0 AND 100 before schema exists\n- Run 'pnpm --filter db drizzle:generate && pnpm --filter db test oee-snapshots-schema'\n\n## Risk red lines\n- Do not weaken uniqueness (V-PROD-10 — duplicate OEE rows would corrupt 15-OEE consumer)\n- Do not let oee_pct be settable manually\n- Do not skip RLS",
+  "labels": ["prd", "data", "schema-migration", "T1-schema"],
+  "priority": 50,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-008",
+    "source_prd": "08-PRODUCTION-PRD.md",
+    "prd_refs": ["§9.9", "§16.4 V-PROD-10", "§16.4 V-PROD-25", "§5.5"],
+    "category": "data",
+    "subcategory": "schema-migration",
+    "task_type": "T1-schema",
+    "parent_feature": "08-PROD E6 Dashboard+OEE",
+    "context_budget": "24k",
+    "estimated_effort": "1h",
+    "description": "oee_snapshots table with GENERATED oee_pct, UNIQUE per minute key, V-PROD-25 component bounds.",
+    "details": "Per §9.9 SQL. PK BIGSERIAL. UNIQUE (tenant_id, line_id, shift_id, snapshot_minute) for V-PROD-10. CHECKs availability/performance/quality_pct BETWEEN 0 AND 100 (V-PROD-25). oee_pct GENERATED ALWAYS AS (a*p*q/10000) STORED. Index idx_oee_line_time(line_id, snapshot_minute DESC). 90-day retention noted in migration comment. RLS by tenant_id.",
+    "scope_files": [
+      "packages/db/schema/production/oee-snapshots.ts [create]",
+      "packages/db/schema/production/index.ts [modify]",
+      "packages/db/migrations/NNNN_oee_snapshots.sql [create]",
+      "packages/db/__tests__/oee-snapshots-schema.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not implement aggregation job",
+      "Do not modify other tables"
+    ],
+    "dependencies": [],
+    "parallel_safe_with": ["T-001", "T-002", "T-003", "T-004", "T-005", "T-006", "T-007"],
+    "acceptance_criteria": [
+      "Given duplicate (tenant,line,shift,snapshot_minute), when second INSERT runs, then unique_violation raised",
+      "Given availability_pct=120 INSERT, when run, then CHECK BETWEEN 0 AND 100 rejects",
+      "Given A/P/Q values, when row queried, then oee_pct equals A*P*Q/10000 within ±0.01"
+    ],
+    "test_strategy": [
+      "RED: schema test asserting UNIQUE + GENERATED + CHECK before schema exists",
+      "Run 'pnpm --filter db drizzle:generate && pnpm --filter db test oee-snapshots-schema'"
+    ],
+    "risk_red_lines": [
+      "Do not weaken UNIQUE (V-PROD-10)",
+      "Do not let oee_pct be writable",
+      "Do not skip RLS"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

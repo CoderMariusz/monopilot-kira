@@ -1,0 +1,58 @@
+{
+  "title": "T-015 — IsAllRequiredFilled + Done_<Dept> + Status_Overall computed view",
+  "prompt": "# T-015 — IsAllRequiredFilled + Done flags + Status_Overall\n\nPRD: 01-NPD-PRD.md §5.10, §7.3\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nProvide function isAllRequiredFilled(productCode, dept) and SQL view fa_status_overall computing Done_<Dept> per dept and 5-state Status_Overall enum (Built/Complete/Alert/InProgress/Pending).\n\n## Implementation contract\nMigration 0017 emits CREATE OR REPLACE FUNCTION is_all_required_filled(product_code TEXT, dept TEXT) RETURNS BOOLEAN reading Reference.DeptColumns required cols + product row. Plus VIEW fa_status_overall(product_code, tenant_id, done_core..done_procurement, status_overall, days_to_launch). Logic per §5.10 + §7.3. Use COALESCE for NULL handling.\n\n## Files\n- packages/db/migrations/0017_status_view.sql [create]\n- packages/db/__tests__/status-overall.test.ts [create]\n- packages/db/src/queries/status-overall.ts [create]\n\n## Acceptance criteria\n1. Given a fa with all Core required cols filled and closed_core='Yes', when SELECT done_core FROM fa_status_overall, then done_core=TRUE\n2. Given fa with launch_date 5 days from today and missing data, when SELECT status_overall, then it equals 'Alert'\n3. Given fa with all 7 done flags TRUE and built=FALSE, when SELECT status_overall, then it equals 'Complete'\n\n## Test strategy\n- RED: 3 tests covering done_core, Alert, Complete states\n- Run 'pnpm --filter db migrate && pnpm --filter db test status-overall'\n\n## Risk red lines\n- Do not persist days_to_launch (must be computed per Phase D #4)\n- Do not include built FAs in InProgress\n- Do not bypass RLS in view",
+  "labels": ["prd", "data", "view", "T1-schema"],
+  "priority": 80,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-015",
+    "source_prd": "01-NPD-PRD.md",
+    "prd_refs": ["§5.10", "§7.3"],
+    "category": "data",
+    "subcategory": "status-view",
+    "task_type": "T1-schema",
+    "parent_feature": "01-NPD-a workflow",
+    "context_budget": "40k",
+    "estimated_effort": "2h",
+    "description": "Function is_all_required_filled and view fa_status_overall computing Done flags + Status_Overall + days_to_launch.",
+    "details": "Migration 0017 emits SQL function reading DeptColumns + product, plus VIEW joining product to fa_status_overall fields. Logic exactly per §5.10/§7.3.",
+    "scope_files": [
+      "packages/db/migrations/0017_status_view.sql [create]",
+      "packages/db/__tests__/status-overall.test.ts [create]",
+      "packages/db/src/queries/status-overall.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not include dashboard counters here (T-049)",
+      "Do not seed FA rows here"
+    ],
+    "dependencies": ["T-001", "T-003"],
+    "parallel_safe_with": ["T-014", "T-016"],
+    "acceptance_criteria": [
+      "Given fa with all Core required cols filled and closed_core='Yes', when SELECT done_core FROM fa_status_overall, then done_core=TRUE",
+      "Given fa with launch_date 5 days from today and missing data, when SELECT status_overall, then it equals 'Alert'",
+      "Given fa with all 7 done flags TRUE and built=FALSE, when SELECT status_overall, then it equals 'Complete'"
+    ],
+    "test_strategy": [
+      "RED: 3 tests covering done_core, Alert, Complete states before migration exists",
+      "Run 'pnpm --filter db migrate && pnpm --filter db test status-overall'"
+    ],
+    "risk_red_lines": [
+      "Do not persist days_to_launch",
+      "Do not classify built FAs as InProgress",
+      "Do not bypass RLS in view"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

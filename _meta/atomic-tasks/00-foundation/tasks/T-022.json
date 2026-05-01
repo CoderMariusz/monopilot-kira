@@ -1,0 +1,90 @@
+{
+  "title": "T-022 \u2014 i18n scaffold with next-intl + ICU MessageFormat for pl/en/uk/ro baseline",
+  "prompt": "# T-022 \u2014 i18n scaffold with next-intl + ICU MessageFormat for pl/en/uk/ro baseline\n\nPRD: `00-FOUNDATION-PRD.md` \u2014 sections: \u00a75, \u00a711\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`\n\n## Goal\nSet up next-intl with four locales pl, en, uk, ro. Locale-aware date/number formatters. ICU MessageFormat (no string concat).\n\n## Implementation contract\nInstall next-intl. Add apps/web/i18n/{pl,en,uk,ro}.json with at least 5 keys (auth.signin.title, auth.signin.email, common.cancel, common.save, common.error.generic). Add app/[locale]/layout.tsx wrapping NextIntlClientProvider. Add lib/i18n/format.ts exporting formatDate(date, locale) and formatNumber(n, locale) using Intl.* with the locale list. Vitest unit test asserts ICU-formatted plural rules render correctly for each of the 4 locales (pl: dwa+kilka+wiele cases; ro: 1+few+other). Add a CI lint that fails if any tsx file outside lib/i18n contains a hardcoded user-facing string longer than 3 characters not wrapped in t() (allow-list URLs, code idents).\n\n## Files (scope)\n- apps/web/i18n/pl.json [create]\n- apps/web/i18n/en.json [create]\n- apps/web/i18n/uk.json [create]\n- apps/web/i18n/ro.json [create]\n- apps/web/lib/i18n/format.ts [create]\n- apps/web/lib/i18n/__tests__/format.test.ts [create]\n- apps/web/app/[locale]/layout.tsx [create]\n- scripts/lint-no-hardcoded-strings.mjs [create]\n\n## Acceptance criteria\n1. Given the four locale files exist with the same key set, when lib/i18n/format.test.ts runs, then ICU plural rules pass for pl (1/few/many), en (one/other), uk (1/few/many), ro (1/few/other)\n2. Given a tsx file contains a hardcoded literal '\"Save changes\"', when 'node scripts/lint-no-hardcoded-strings.mjs' runs, then it exits non-zero with the offending file:line\n3. Given a request to /pl/some-page, when middleware resolves the locale, then NextIntlClientProvider receives 'pl' and the date formatter returns a Polish-localised date\n\n## Test strategy\n- RED: write apps/web/lib/i18n/__tests__/format.test.ts asserting plural rules for the 4 locales before format.ts exists\n- Run 'pnpm --filter web test'\n\n## Risk red lines\n- Do not concatenate translated fragments \u2014 ICU MessageFormat only (PRD \u00a711)\n\n## Dependencies (must be complete first)\n- T-001\n\n## Closeout evidence\nProvide: changed_files, test_commands_and_results, acceptance_criteria_status (per AC), deviations_from_prd, git_status. Use the test-driven-development skill (RED test before implementation) and requesting-code-review at GREEN.",
+  "labels": [
+    "prd",
+    "infra",
+    "i18n",
+    "T2-api"
+  ],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-022",
+    "source_prd": "00-FOUNDATION-PRD.md",
+    "prd_refs": [
+      "\u00a75",
+      "\u00a711"
+    ],
+    "category": "infra",
+    "subcategory": "i18n",
+    "task_type": "T2-api",
+    "parent_feature": "00-FOUNDATION-impl-i i18n",
+    "context_budget": "45k",
+    "estimated_effort": "1-2h",
+    "description": "Set up next-intl with four locales pl, en, uk, ro. Locale-aware date/number formatters. ICU MessageFormat (no string concat).",
+    "details": "Install next-intl. Add apps/web/i18n/{pl,en,uk,ro}.json with at least 5 keys (auth.signin.title, auth.signin.email, common.cancel, common.save, common.error.generic). Add app/[locale]/layout.tsx wrapping NextIntlClientProvider. Add lib/i18n/format.ts exporting formatDate(date, locale) and formatNumber(n, locale) using Intl.* with the locale list. Vitest unit test asserts ICU-formatted plural rules render correctly for each of the 4 locales (pl: dwa+kilka+wiele cases; ro: 1+few+other). Add a CI lint that fails if any tsx file outside lib/i18n contains a hardcoded user-facing string longer than 3 characters not wrapped in t() (allow-list URLs, code idents).",
+    "scope_files": [
+      "apps/web/i18n/pl.json [create]",
+      "apps/web/i18n/en.json [create]",
+      "apps/web/i18n/uk.json [create]",
+      "apps/web/i18n/ro.json [create]",
+      "apps/web/lib/i18n/format.ts [create]",
+      "apps/web/lib/i18n/__tests__/format.test.ts [create]",
+      "apps/web/app/[locale]/layout.tsx [create]",
+      "scripts/lint-no-hardcoded-strings.mjs [create]"
+    ],
+    "out_of_scope": [
+      "Do not modify files outside the scope_files list",
+      "Do not introduce business logic from later module PRDs (01-NPD, 02-SETTINGS, etc.)",
+      "No translation memory or vendor wiring"
+    ],
+    "dependencies": [
+      "T-001"
+    ],
+    "parallel_safe_with": [
+      "T-006",
+      "T-008",
+      "T-009"
+    ],
+    "acceptance_criteria": [
+      "Given the four locale files exist with the same key set, when lib/i18n/format.test.ts runs, then ICU plural rules pass for pl (1/few/many), en (one/other), uk (1/few/many), ro (1/few/other)",
+      "Given a tsx file contains a hardcoded literal '\"Save changes\"', when 'node scripts/lint-no-hardcoded-strings.mjs' runs, then it exits non-zero with the offending file:line",
+      "Given a request to /pl/some-page, when middleware resolves the locale, then NextIntlClientProvider receives 'pl' and the date formatter returns a Polish-localised date"
+    ],
+    "test_strategy": [
+      "RED: write apps/web/lib/i18n/__tests__/format.test.ts asserting plural rules for the 4 locales before format.ts exists",
+      "Run 'pnpm --filter web test'"
+    ],
+    "risk_red_lines": [
+      "Do not concatenate translated fragments \u2014 ICU MessageFormat only (PRD \u00a711)"
+    ],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

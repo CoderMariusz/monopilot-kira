@@ -1,18 +1,61 @@
 ---
 module: 02-SETTINGS
-version: 3.3
-status: Phase C5 Sesja 2 delta (bundled)
+version: 3.5
+status: Phase C1 + v3.5 delta (UX↔PRD gap-backlog amendments S-U1..S-U8 + S-A1..S-A4)
 primary: false
 role: admin-foundation
 depends_on: [00-FOUNDATION]
 depended_on_by: [01-NPD, 03-TECHNICAL, 04-PLANNING-BASIC, 05-WAREHOUSE, 06-SCANNER-P1, 08-PRODUCTION, 09-QUALITY, 10-FINANCE, 11-SHIPPING, 12-REPORTING, 13-MAINTENANCE, 14-MULTI-SITE, 15-OEE]
 written: 2026-04-19
-revised: 2026-04-20 (v3.1 bundled C4 Sesja 3 close), 2026-04-20 (v3.2 bundled C5 Sesja 1 close), 2026-04-20 (v3.3 bundled C5 Sesja 2 close)
+revised: 2026-04-20 (v3.1 bundled C4 Sesja 3 close), 2026-04-20 (v3.2 bundled C5 Sesja 1 close), 2026-04-20 (v3.3 bundled C5 Sesja 2 close), 2026-04-30 (v3.4 Manufacturing Operations §8.9), 2026-04-30 (v3.5 gap-backlog amendments)
 ---
 
 # PRD 02-SETTINGS — MonoPilot MES
 
-**Admin foundation module.** Dostarcza organizacji, użytkowników, RBAC, module toggles, schema admin wizard (ADR-028), read-only rule registry (ADR-029), 8+3 Reference tables CRUD, multi-tenant L2 config (ADR-031), feature flags, audit log viewer, D365 constants admin (INTEGRATIONS stage 1 inline), infrastructure (warehouses/locations/machines/lines), security + i18n + onboarding wizard.
+**Admin foundation module.** Dostarcza organizacji, użytkowników, RBAC, module toggles, schema admin wizard (ADR-028), read-only rule registry (ADR-029), 24 Reference tables CRUD (including Manufacturing Operations §8.9), multi-tenant L2 config (ADR-031), feature flags, audit log viewer, D365 constants admin (INTEGRATIONS stage 1 inline), infrastructure (warehouses/locations/machines/lines), security + i18n + onboarding wizard.
+
+---
+
+## §0 — Modal Contract [UNIVERSAL] [S-A4 per gap-backlog 2026-04-30]
+
+**Canonical contract:** [`_shared/MODAL-SCHEMA.md`](./_shared/MODAL-SCHEMA.md). All settings modals **MUST** reuse the shared primitives package (`packages/ui` per 00-FOUNDATION §5.y) and conform to one of the 10 patterns. No bespoke `<Dialog>` wiring is permitted in settings UI; ESLint rule `no-restricted-imports` blocks `@radix-ui/react-dialog` outside `packages/ui`.
+
+**5 base primitives (build once, reuse):**
+
+| Primitive | Purpose |
+|---|---|
+| `<Modal/>` | Base wrapper (Radix Dialog + size tokens, focus-trap, ESC, return-focus) |
+| `<Stepper/>` | Wizard step indicator with jump support |
+| `<Field/>` | RHF Controller + Zod-bound input wrapper |
+| `<ReasonInput/>` | Textarea with `minLength` counter for audit reasons |
+| `<Summary/>` | Read-only review table for confirm steps |
+
+**10 patterns (one MUST be picked per modal):**
+
+| # | Pattern | When to use |
+|---|---|---|
+| 1 | Wizard | Multi-step entry, >3 required fields, cross-entity validation |
+| 2 | Simple form | Single-step create/edit |
+| 3 | Dual-path | Approve + Reject branching with different fields |
+| 4 | Picker | Search + select from large dataset |
+| 5 | Override with reason | Break a rule, audit-logged |
+| 6 | Error dialog | Validation failure with remediation links |
+| 7 | Confirm non-destructive | High-stakes but recoverable |
+| 8 | Confirm destructive (simple) | Irreversible, type-to-confirm |
+| 9 | Confirm destructive (with reason) | Irreversible + audit + checkbox |
+| 10 | Preview / compare | Show predicted result before apply |
+
+**Backfilled MODAL IDs (5 dangling IDs from prototype catalog mapped to settings screen codes):**
+
+| Prototype MODAL ID | Settings screen code | Pattern |
+|---|---|---|
+| `MODAL-INVITE-USER` | **SM-06** | Pattern-02 (Simple form) |
+| `MODAL-ROLE-ASSIGNMENT` | **SM-07** | Pattern-04 (Picker) |
+| `MODAL-D365-CONNECTION-TEST` | **SM-08** | Pattern-07 (Confirm non-destructive) + async submit |
+| `MODAL-CONFIRM-DELETE` | **SM-10** | Pattern-08 (Destructive type-to-confirm) |
+| `MODAL-REF-ROW-EDIT` | **SM-11** | Pattern-02 (Simple form, already SET-052) |
+
+**A11y baseline:** every settings modal MUST call `assertModalA11y()` helper (axe-core RTL) in tests; ESC closes; focus returns to opener; `aria-labelledby`/`aria-describedby` set; no focus traps outside the modal.
 
 ---
 
@@ -24,7 +67,7 @@ Rozszerzamy baseline o 5 nowych core obszarów wymagane przez Phase D architectu
 
 1. **Schema Admin Wizard (§6)** `[ADR-028]` — UI do add/edit kolumny biznesowe bez dev. Główny blocker dla P1 "easy extension contract" z 00-FOUNDATION §1.
 2. **Rule Definitions Registry (§7)** `[ADR-029]` — **read-only rejestr reguł DSL** (cascading / conditional / gate / workflow-as-data). Reguły authored przez dev (PR → deploy as migration), admin ma visibility + audit + version diff — **nie edytuje**. Decyzja 2026-04-19.
-3. **Reference Tables CRUD (§8)** — 8 tabel z v7 + 3 nowe (AlertThresholds, Allergens, D365_Constants). Generic metadata-driven UI zamiast hardcoded view per tabela.
+3. **Reference Tables CRUD (§8)** — 24 tabel (8 z v7 + 16 Phase C1-C5 nowych). Generic metadata-driven UI zamiast hardcoded view per tabela. Manufacturing Operations (§8.9) — configurable processes per tenant with industry-specific seed data (Bakery, Pharmacy, FMCG).
 4. **Multi-tenant L2 Config (§9)** `[ADR-031]` — dept taxonomy variation (ADR-030), tenant_variations, upgrade orchestration L1→L2→L3→L4.
 5. **D365 Constants Admin (§11)** `[LEGACY-D365]` — INTEGRATIONS stage 1 inline: FNOR / APX100048 / ApexDG / FinGoods / APXProd01 admin CRUD + item/BOM one-way sync config.
 
@@ -81,13 +124,28 @@ Status: `[UNIVERSAL]` dla core admin, `[APEX-CONFIG]` dla D365 consts + 7-dept b
 
 **Custom roles** — Phase 3 (Enterprise), `roles.is_system=false`, `org_id` scoped.
 
-### Permission model
+### 4 customer-facing role categories [S-U6 per gap-backlog 2026-04-30] [D1]
 
-Permission = `module_code + action + scope`:
+The DB stores 10 system roles for permission resolution. The Users UI surfaces a **4-category display alias map** so customers see a simpler model:
+
+| UI category | System roles included | Color hint |
+|---|---|---|
+| **Admin** | `owner`, `admin` | red/danger |
+| **Manager** | `npd_manager`, `module_admin`, `planner`, `production_lead`, `quality_lead` | blue |
+| **Operator** | `warehouse_operator` | green |
+| **Viewer** | `viewer`, `auditor` | gray |
+
+A `role_categories` reference (read-only) maps `role_code → ui_category`. The UI filter pills, KPI tiles, and the Users table "Role" column all consume this mapping. Permission resolution remains keyed on the underlying 10 system roles — categories are presentational only.
+
+### Permission model [S-U6 per gap-backlog 2026-04-30] [D2]
+
+Permission = `module_code + action + scope` (flat dot-namespaced strings, single source-of-truth in `permissions.enum.ts`):
 - `settings.users.create`, `settings.users.deactivate`
 - `npd.fa.edit`, `npd.d365_builder.execute` (tylko `npd_manager`)
 - `settings.schema.edit` — hard-lock: **L2/L3 tak, L1 promotion wymaga Owner + approval workflow** (Q1 decision)
 - `settings.rules.view` (read-only); `settings.rules.edit` — **deferred / not granted w UI** (rule authoring przez dev PR, Q2)
+
+**Rejected:** 4-level permission matrix UI per (module × role) cell with admin (◉) / rw (✎) / r (◎) / none (–) (D2 decision 2026-04-30). The flat permission model is canonical; the Permissions UI MUST render checkboxes per permission grouped by module — see T-02SETa-009. A derived `module_permission_levels` view is NOT introduced.
 
 ---
 
@@ -153,6 +211,7 @@ CREATE TABLE organizations (
   gs1_prefix TEXT,
   region TEXT NOT NULL DEFAULT 'eu',            -- [R7] data residency
   tier TEXT NOT NULL DEFAULT 'L2',              -- 'L1'|'L2'|'L3'|'L4' ADR-031
+  seat_limit INT,                               -- NULL = unlimited; tier-derived default; consumed by inviteUser pre-flight + KPI tile [S-U8]
   onboarding_state JSONB DEFAULT '{}',
   onboarding_completed_at TIMESTAMPTZ,
   created_at TIMESTAMPTZ DEFAULT now(),
@@ -167,11 +226,18 @@ CREATE TABLE users (
   role_id UUID NOT NULL REFERENCES roles(id),
   language TEXT NOT NULL DEFAULT 'pl',
   is_active BOOLEAN NOT NULL DEFAULT true,
-  invite_token TEXT,
+  invite_token TEXT,                            -- magic-link token, 7-day TTL single-use [S-U7]
+  invite_token_expires_at TIMESTAMPTZ,          -- enforced server-side via Supabase Auth config (default 7d) [S-U7]
   last_login_at TIMESTAMPTZ,
   created_at TIMESTAMPTZ DEFAULT now(),
   updated_at TIMESTAMPTZ DEFAULT now()
 );
+
+-- inviteUser pre-flight (server action MUST execute before insert): [S-U8]
+--   1. SELECT seat_limit FROM organizations WHERE id = :org_id
+--   2. SELECT count(*) FROM users WHERE org_id = :org_id AND is_active = true
+--   3. IF seat_limit IS NOT NULL AND count >= seat_limit THEN raise SEAT_LIMIT_REACHED (HTTP 409)
+-- Magic-link TTL: 7 days, single-use; Supabase Auth config `JWT_EXP=604800` for invite tokens. [S-U7]
 
 CREATE TABLE roles (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -441,11 +507,19 @@ CREATE TABLE audit_log (
 ```sql
 CREATE TABLE org_security_policies (
   org_id UUID PRIMARY KEY REFERENCES organizations(id),
+  -- Password policy [S-U5 per gap-backlog 2026-04-30]
   password_min_length INT DEFAULT 12,
+  password_complexity TEXT NOT NULL DEFAULT 'strong',    -- 'basic'|'standard'|'strong'|'custom' [S-U5]
+  password_expiry_days INT,                              -- NULL = never expire [S-U5]
   password_history_count INT DEFAULT 5,
-  session_timeout_minutes INT DEFAULT 480,
+  -- Session policy [S-U5 — renamed/extended]
+  session_idle_timeout_minutes INT DEFAULT 60,           -- renamed from session_timeout_minutes [S-U5]
+  session_max_length_minutes INT DEFAULT 480,            -- absolute cap (8h) [S-U5]
+  -- Lockout
   lockout_threshold INT DEFAULT 5,
+  -- MFA
   mfa_requirement TEXT NOT NULL DEFAULT 'optional',      -- 'disabled'|'optional'|'required_admins'|'required_all'
+  mfa_allowed_methods TEXT[] NOT NULL DEFAULT ARRAY['totp','sms']::TEXT[], -- subset of {totp,sms,webauthn}; webauthn deferred Phase 3 [S-U5]
   updated_at TIMESTAMPTZ DEFAULT now()
 );
 
@@ -820,6 +894,278 @@ Dropdown caches (hot path dla v7-equivalent renderer) = Postgres materialized vi
 - Red: OEE < `oee_target_pct × 0.786` (e.g., <55%)
 
 Note: The exact amber/red cutoffs for P1 badge coloring on individual KPI cards are derived proportionally from the target. Heatmap color scale remains fixed 65/85 (not derived from target in P1).
+
+### 8.9 Manufacturing Operations Configuration
+
+#### 8.9.1 Overview
+
+Manufacturing operations (processes) are now configurable per tenant, allowing different industries to define custom process names and suffixes. This enables flexibility across diverse manufacturing verticals:
+
+- **Bakery example:** Mix (MX), Knead (KN), Proof (PR), Bake (BK)
+- **Pharmacy example:** Synthesis (SY), Separation (SE), Crystallization (CZ), Drying (DR)
+- **FMCG example:** Mix (MX), Fill (FL), Seal (SL), Label (LB)
+
+Each tenant configures their own operation_name/process_suffix pairs, which cascade into intermediate code generation and template application workflows (01-NPD §13).
+
+#### 8.9.2 Reference.ManufacturingOperations Table Structure
+
+```sql
+CREATE TABLE "Reference.ManufacturingOperations" (
+    id              UUID PRIMARY KEY,
+    tenant_id       UUID NOT NULL REFERENCES organizations(id),
+    operation_name  TEXT NOT NULL,         -- "Mix", "Bake", "Synthesis", etc.
+    process_suffix  TEXT NOT NULL,         -- "MX", "BK", "SY", etc. (2-4 chars)
+    description     TEXT,
+    operation_seq   INT,                   -- Order in typical recipe (1, 2, 3, 4...)
+    industry_code   TEXT,                  -- 'bakery', 'pharma', 'fmcg', 'generic', 'custom'
+    is_active       BOOLEAN DEFAULT true,
+    marker          TEXT NOT NULL DEFAULT 'ORG-CONFIG',  -- References ADR-034 generic naming
+    created_at      TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    
+    UNIQUE(tenant_id, process_suffix),     -- Suffix unique per tenant
+    UNIQUE(tenant_id, operation_name)      -- Name also unique per tenant (prevent duplicates)
+);
+
+CREATE INDEX idx_manufacturing_ops_tenant_active ON "Reference.ManufacturingOperations"(tenant_id, is_active);
+CREATE INDEX idx_manufacturing_ops_suffix ON "Reference.ManufacturingOperations"(process_suffix);
+```
+
+**Marker field:** Part of ADR-034 (Generic Product Lifecycle Naming). All manufacturing operations use marker='ORG-CONFIG' to identify tenant-configurable lifecycle components.
+
+#### 8.9.3 CRUD Endpoints
+
+Reference Tables CRUD framework (§8.3) extended:
+
+- `GET /api/settings/reference/manufacturing-operations` — list operations (tenant-scoped, filter by industry_code/is_active)
+- `GET /api/settings/reference/manufacturing-operations/:id` — detail
+- `POST /api/settings/reference/manufacturing-operations` — create operation (uniqueness enforced on process_suffix)
+- `PUT /api/settings/reference/manufacturing-operations/:id` — update operation (suffix immutable, name immutable)
+- `DELETE /api/settings/reference/manufacturing-operations/:id` — soft delete (set is_active=false)
+- `POST /api/settings/reference/manufacturing-operations/reorder` — bulk reorder by operation_seq (array of {id, operation_seq})
+
+#### 8.9.4 Admin UI: Manufacturing Operations Editor
+
+**Location:** Settings → Reference Tables → Manufacturing Operations (or Process Configuration)
+
+**Feature 1: List View** (data grid, SET-055):
+- Columns: Operation Name, Process Suffix, Sequence, Industry Code, Status (Active/Inactive)
+- Toolbar buttons:
+  - "Add New Operation" — opens ADD modal
+  - Bulk actions: Delete inactive rows, Reset to seed data (confirmation required)
+- Row actions:
+  - Edit icon → opens EDIT modal
+  - Delete icon → soft delete (if not referenced; see §8.9.7)
+- Reorder: Drag-to-reorder rows (updates operation_seq); auto-save per drag
+- Filter: By industry_code dropdown + show/hide inactive toggle
+
+**Feature 2: Add/Edit Form** (modal, SET-056):
+
+Form fields (RHF + Zod):
+
+| Field | Type | Required | Constraints | Examples |
+|---|---|---|---|---|
+| Operation Name | Text | ✅ | Max 50 chars, alphanumeric + spaces; unique per tenant | "Mix", "Knead", "Proof", "Bake", "Synthesis" |
+| Process Suffix | Text | ✅ | 2–4 chars, uppercase letters/numbers, unique per tenant; immutable on edit | "MX", "KN", "PR", "BK", "SY", "DR", "FL", "SL" |
+| Description | Text | ❌ | Max 200 chars | "Mixing dry ingredients for dough" |
+| Industry Code | Dropdown | ✅ | Options: bakery, pharma, fmcg, generic, custom; for reference/filtering only | "bakery" |
+| Sequence Order | Number | ✅ | Range 1–99; controls operation_seq | 1, 2, 3, 4 |
+| Active | Toggle | ✅ | Default true | true/false |
+
+**Add mode:**
+- All fields editable
+- Operation Name, Process Suffix, Sequence, Industry Code, Active required
+- On save: Validate uniqueness; create row; log audit event
+
+**Edit mode:**
+- Operation Name immutable (shown as read-only text)
+- Process Suffix immutable (shown as read-only text)
+- Other fields editable
+- On save: Validate no conflicts; update row; log audit event with field diff
+
+#### 8.9.5 Validation Rules V-SET-MFG
+
+- **V-SET-MFG-01**: Process Suffix must be 2–4 chars, uppercase alphanumeric only, unique per (tenant_id, process_suffix)
+- **V-SET-MFG-02**: Operation Name must be ≤50 chars, alphanumeric + spaces, unique per (tenant_id, operation_name)
+- **V-SET-MFG-03**: Sequence Order must be 1–99; at least one operation must have seq 1
+- **V-SET-MFG-04**: Cannot delete/deactivate operation if referenced in:
+  - Active FA rows: `manufacturing_operation_1..4` match operation_name
+  - Active Template rows: `template_operation_1..4` match operation_name
+  - Confirmation dialog: "Are you sure you want to remove [Operation Name]? This operation is used in [N] templates and [M] active FAs. Deactivating will prevent new FAs from using it."
+- **V-SET-MFG-05**: Industry Code must be one of: {bakery, pharma, fmcg, generic, custom}
+- **V-SET-MFG-06**: On deactivate, warn user: "This operation will no longer be available for new FA assignments. Existing FAs using this operation will continue to function."
+
+#### 8.9.6 Confirmation Dialogs
+
+**Delete Operation (soft delete):**
+```
+Title: "Remove [Operation Name]?"
+Body: "This operation is used in [N] active FAs and [M] templates. 
+       Deactivating will prevent new FAs from using it, but existing FAs will continue.
+       Are you sure?"
+Buttons: "Cancel" | "Deactivate"
+```
+
+**Deactivate Only (without delete):**
+```
+Title: "Deactivate [Operation Name]?"
+Body: "This will prevent new FAs from being assigned to this operation. 
+       [N] existing FAs will continue to use it."
+Buttons: "Cancel" | "Deactivate"
+```
+
+**Reset to Seed Data:**
+```
+Title: "Reset to Industry Seed Data?"
+Body: "This will replace all current operations with the [Industry] baseline:
+       [Bakery | Pharmacy | FMCG] seed list. Existing FAs will be unaffected.
+       Are you sure?"
+Buttons: "Cancel" | "Reset"
+```
+
+#### 8.9.7 Pre-populated Seed Data (on Tenant Creation)
+
+Seed data inserted during onboarding flow (00-FOUNDATION §9 "Tenant Onboarding"), keyed by industry_code:
+
+**Bakery seed:**
+```
+(1, "Mix", "MX", "Mixing", "bakery"),
+(2, "Knead", "KN", "Kneading dough", "bakery"),
+(3, "Proof", "PR", "Proofing/bulk fermentation", "bakery"),
+(4, "Bake", "BK", "Baking in oven", "bakery")
+```
+
+**Pharmacy seed:**
+```
+(1, "Synthesis", "SY", "Chemical synthesis", "pharma"),
+(2, "Separation", "SE", "Separation/chromatography", "pharma"),
+(3, "Crystallization", "CZ", "Crystallization", "pharma"),
+(4, "Drying", "DR", "Drying/lyophilization", "pharma")
+```
+
+**FMCG seed:**
+```
+(1, "Mix", "MX", "Mixing ingredients", "fmcg"),
+(2, "Fill", "FL", "Filling containers", "fmcg"),
+(3, "Seal", "SL", "Sealing/capping", "fmcg"),
+(4, "Label", "LB", "Labeling packaging", "fmcg")
+```
+
+**Generic seed (fallback):**
+```
+(1, "Process_A", "PA", "Generic process 1", "generic"),
+(2, "Process_B", "PB", "Generic process 2", "generic"),
+(3, "Process_C", "PC", "Generic process 3", "generic"),
+(4, "Process_D", "PD", "Generic process 4", "generic")
+```
+
+Migration script populates seed data on first tenant creation; admin can reset to seed via bulk action button.
+
+#### 8.9.8 Integration with Cascading Rules
+
+When a FA's manufacturing_operation_1..4 columns change (01-NPD §13 "Cascading Rules Chain 2/4"):
+
+1. Cascade engine receives FA update event: `manufacturing_operation_1 = "Mix"`
+2. Lookup in Reference.ManufacturingOperations: `SELECT process_suffix WHERE tenant_id=X AND operation_name='Mix'` → "MX"
+3. Retrieve sequence: operation_seq (e.g., 1)
+4. Generate Intermediate_Code_P1 using pattern: `WIP-<process_suffix>-<zero_padded_seq>`
+
+**Example cascade:**
+```
+FA: FA-BRD-0001 (tenant: Apex Bakery)
+manufacturing_operation_1 = "Mix" 
+  → lookup: process_suffix="MX", operation_seq=1
+  → intermediate_code_p1 = "WIP-MX-00001"
+
+manufacturing_operation_2 = "Bake"
+  → lookup: process_suffix="BK", operation_seq=4
+  → intermediate_code_p2 = "WIP-BK-00004"
+```
+
+Cascade engine consumes Reference.ManufacturingOperations via:
+- **Runtime lookup:** `{tenant_id, operation_name} → process_suffix` (cached in memory, TTL=1h)
+- **Fallback:** If operation_name not found, cascade engine logs warning and uses placeholder suffix (configurable per deployment)
+
+#### 8.9.9 Integration with Templates
+
+When a template is applied to a new FA (01-NPD §6 "Templates"):
+
+1. Template specifies: `template_operation_1="Mix", template_operation_2="Bake", template_operation_3="Proof", template_operation_4=null`
+2. On FA creation from template:
+   - Copy template_operation_1..4 → FA's manufacturing_operation_1..4 (by name, not suffix)
+   - Cascade engine auto-fills intermediate_code_p1..4 using Reference.ManufacturingOperations suffix lookup (§8.9.8)
+3. If template references operation_name that no longer exists (deactivated), UI shows warning: "Template uses operation [Name] which is no longer active. Please reassign or create a new operation."
+
+#### 8.9.10 RBAC Permissions
+
+Add to permission matrix (§3 extended):
+
+| Permission | `admin` | `npd_manager` | `core_user` | `viewer` |
+|---|---|---|---|---|
+| `manufacturing_operations.view` | ✅ | ⚠️ (read-only) | ✅ (read-only) | ❌ |
+| `manufacturing_operations.edit` | ✅ | ❌ | ❌ | ❌ |
+| `manufacturing_operations.create` | ✅ | ❌ | ❌ | ❌ |
+| `manufacturing_operations.delete` | ✅ | ❌ | ❌ | ❌ |
+| `manufacturing_operations.reorder` | ✅ | ❌ | ❌ | ❌ |
+
+**Access control:**
+- Only users with `manufacturing_operations.edit` can open ADD/EDIT modals
+- `npd_manager` + `core_user` can see reference operations in dropdowns (read-only list view)
+- `viewer` cannot access Manufacturing Operations settings at all
+
+#### 8.9.11 Audit Trail
+
+All changes to Reference.ManufacturingOperations logged in `audit_log` table:
+
+```sql
+-- audit_log entries for manufacturing operations
+INSERT INTO audit_log (
+  user_id, tenant_id, entity_type, entity_id, action, old_value, new_value, timestamp
+)
+VALUES
+  (user_123, tenant_456, 'manufacturing_operation', op_id_789, 'create', 
+   NULL, '{"operation_name":"Mix","process_suffix":"MX",...}', NOW()),
+  (user_456, tenant_456, 'manufacturing_operation', op_id_789, 'update',
+   '{"is_active":true}', '{"is_active":false}', NOW()),
+  (user_789, tenant_456, 'manufacturing_operation', op_id_789, 'delete',
+   '{"operation_name":"Mix",...}', NULL, NOW());
+```
+
+Audit Trail UI (SET-057, ref §16 audit log viewer extension):
+- Per-operation edit history (linked from list view "View History" icon)
+- Shows: User, Action (create/update/delete), Timestamp, Field diff (old→new)
+- Searchable by operation_name, user, date range
+
+#### 8.9.12 UI Surfaces (additional)
+
+| Screen code | Screen | Capability |
+|---|---|---|
+| SET-055 | Manufacturing Operations List | List/filter/reorder operations; bulk actions |
+| SET-056 | Manufacturing Operation Edit Modal | Add/edit form with validation |
+| SET-057 | Manufacturing Operation Audit Trail | Per-operation history viewer |
+
+#### 8.9.13 Phase C1 Acceptance Criteria
+
+- [ ] Manufacturing Operations editor UI implemented (Add/Edit/Delete/Reorder) — SET-055, SET-056
+- [ ] Suffix uniqueness enforced (per-tenant, V-SET-MFG-01)
+- [ ] Operation name uniqueness enforced (per-tenant, V-SET-MFG-02)
+- [ ] Seed data loaded per industry selection (Bakery/Pharmacy/FMCG/Generic) on tenant creation
+- [ ] Cascade engine correctly looks up process_suffix on operation change (§8.9.8)
+- [ ] Cascade engine generates intermediate codes using process_suffix + sequence pattern
+- [ ] Template application uses operation_names (not hardcoded Process_A/B/C/D) (§8.9.9)
+- [ ] Delete/deactivate validation prevents removal if referenced in active FAs/Templates (V-SET-MFG-04)
+- [ ] Reorder drag-to-reorder updates operation_seq correctly
+- [ ] Audit trail captures all create/update/delete operations (SET-057)
+- [ ] RBAC permissions enforced (manufacturing_operations.view/edit/create/delete/reorder)
+- [ ] Seed data reset button works (bulk action)
+
+#### 8.9.14 Related Decisions & Cross-references
+
+- **ADR-034**: Generic Product Lifecycle Naming (Reference.CodePrefixes, Reference.ColumnLabels, Reference.ManufacturingOperations, marker='ORG-CONFIG')
+- **01-NPD-PRD §6**: Templates — template_operation_1..4 field definitions and cascade on FA creation
+- **01-NPD-PRD §13**: Dependencies — Cascading Rules Chain 2/4 (Manufacturing_Operation cascade to Intermediate_Code_P1..4)
+- **00-FOUNDATION §9**: Tenant Onboarding — seed data insertion on tenant creation flow
+- **§3**: RBAC Permission Matrix (extended with manufacturing_operations permissions)
+- **§16**: Dependencies, Build Sequence (Manufacturing Operations as Phase C1 dependency for 01-NPD)
 
 ---
 
@@ -1215,19 +1561,23 @@ CREATE TABLE notification_preferences (
 
 ## §14 — Security + i18n + Onboarding
 
-### 14.1 Security policies (per §5.7)
+### 14.1 Security policies (per §5.7) [S-U5 per gap-backlog 2026-04-30]
 
 - `org_security_policies.password_min_length` default 12, min 8, max 128
+- `password_complexity` default `'strong'` — enum `'basic' | 'standard' | 'strong' | 'custom'`; `'strong'` enforces NIST 800-63B (lower + upper + digit + symbol + HIBP k-anon check)
+- `password_expiry_days` default `NULL` (never expire); when set, `min 30, max 365` per NIST guidance
 - `password_history_count` default 5, prevents reuse
-- `session_timeout_minutes` default 480 (8h), min 15, max 1440
+- `session_idle_timeout_minutes` default 60 (renamed from `session_timeout_minutes`), min 5, max 480 — inactivity logout
+- `session_max_length_minutes` default 480 (8h), min 60, max 1440 — absolute cap regardless of activity
 - `lockout_threshold` default 5, after → 15min cool-down
 - `mfa_requirement`:
   - `disabled` — no MFA anywhere
   - `optional` — user-opt-in
   - `required_admins` — owner/admin/module_admin roles forced
   - `required_all` — all users forced
+- `mfa_allowed_methods` default `['totp', 'sms']` — TEXT[] subset of `{totp, sms, webauthn}`; admin chooses which methods users may enroll
 
-MFA method: TOTP (Google Authenticator / Authy) via Supabase Auth MFA or custom `otp` library. Biometric (WebAuthn) deferred Phase 3.
+MFA methods: **TOTP** (Google Authenticator / Authy) via Supabase Auth MFA or `otplib`. **SMS** via Twilio (Phase 2). **WebAuthn** (biometric / hardware key) deferred Phase 3 — UI checkbox renders `disabled` with tooltip "Coming Phase 3" (D7 decision 2026-04-30).
 
 ### 14.2 i18n (R11) [UNIVERSAL od dnia 1]
 
@@ -1245,41 +1595,150 @@ MFA method: TOTP (Google Authenticator / Authy) via Supabase Auth MFA or custom 
 
 6-step, <15min target P50:
 
-1. **Organization Profile** — name, timezone, locale, currency, logo (optional)
+1. **Organization Profile** — name, timezone, locale, currency, **GS1 Company Prefix (`gs1_prefix`, required for 11-SHIPPING SSCC generation)** [S-U2 per gap-backlog 2026-04-30], logo (optional)
 2. **First Warehouse** — name, type (default: finished), code
-3. **First Location** — zone/bin w created warehouse
+3. **First Location** — **ltree path (e.g., `FG › Zone A › Rack 1 › Bin 1`), zone label, bin code** [S-U3 per gap-backlog 2026-04-30]
 4. **First Product** — soft redirect do 03-TECHNICAL create product (skippable)
-5. **First Work Order** — soft redirect do 04-PLANNING-BASIC create WO (skippable)
+5. **First Work Order** — soft redirect do 04-PLANNING-BASIC create WO (skippable; on success callback persists `organizations.onboarding_state.first_wo_at` for P50 KPI) [S-U4]
 6. **Completion Celebration** — confetti + next steps (cards linking to Module Toggles, Schema Browser, Rules Registry)
+
+**Wizard navigation [S-U4 per gap-backlog 2026-04-30]:**
+- **Back** button on steps 2-6 returns to previous step preserving entered data.
+- **Jump-to-step** via `<Stepper/>` clicks (only to already-completed or current step).
+- **Restart** button in wizard header re-initializes `onboarding_state` (resets `completed_steps`, `current_step=1`); requires confirm modal (Pattern-07).
+- **Skip** remains available on optional steps (4, 5) only; pushes step index to `skipped_steps[]`.
+
+**Redirect-while-incomplete guard [S-U4]:** while `organizations.onboarding_completed_at IS NULL`, the edge middleware enforces:
+- Admin-role users (`owner`, `admin`) attempting any `/admin/**` route → force redirect to `/onboarding`.
+- Non-admin users (any other role) → splash page `/onboarding/in-progress` explaining "Setup in progress, please contact your administrator."
+- Public routes (`/login`, `/invite/accept`, `/scim/**` SCIM bearer) bypass the guard.
+
+**First-WO timestamp persistence [S-U4]:** step 5 success callback writes `organizations.onboarding_state.first_wo_at = now()`. The KPI `time_to_first_wo` is computed as `first_wo_at - started_at`; target P50 < 15min, P95 < 30min.
 
 State tracked w `organizations.onboarding_state` JSONB:
 ```json
-{"current_step": 3, "completed_steps": [1, 2], "skipped_steps": [], "started_at": "...", "last_activity_at": "..."}
+{
+  "current_step": 3,
+  "completed_steps": [1, 2],
+  "skipped_steps": [],
+  "started_at": "2026-04-30T08:15:00Z",
+  "last_activity_at": "2026-04-30T08:18:42Z",
+  "first_wo_at": null
+}
 ```
 
-Resume capability: user powraca → wizard continues from `current_step`. Skip button on every step (optional steps only).
+Resume capability: user powraca → wizard continues from `current_step`. Skip button on every optional step.
 
-### 14.4 UI surfaces
+### 14.4 UI surfaces [S-U1 per gap-backlog 2026-04-30 — renumbered SET-001..SET-006 to match UX, dropped launcher per D3]
 
 | Screen code | Screen | Capability |
 |---|---|---|
-| SET-001 | Wizard Launcher | Auto-show for new orgs |
-| SET-002 | Org Profile Step | RHF form |
-| SET-003 | First Warehouse Step | Warehouse create |
-| SET-004 | First Location Step | Location create |
-| SET-005 | First Product Step | Redirect do 03-TECHNICAL |
-| SET-006 | First WO Step | Redirect do 04-PLANNING-BASIC |
-| SET-007 | Completion Celebration | Confetti + card grid |
+| SET-001 | Org Profile Step | RHF form (name, timezone, locale, currency, **gs1_prefix**, logo) |
+| SET-002 | First Warehouse Step | Warehouse create |
+| SET-003 | First Location Step | ltree path + zone label + bin code |
+| SET-004 | First Product Step | Redirect do 03-TECHNICAL (skippable) |
+| SET-005 | First WO Step | Redirect do 04-PLANNING-BASIC (skippable; persists `first_wo_at`) |
+| SET-006 | Completion Celebration | Confetti + card grid (links to `/admin/features`, `/admin/schema`, `/admin/rules`) |
 | SET-100 | User Menu Language Picker | i18n switch |
 | SET-101 | User Preferences | Language, notifications, MFA enroll |
 
-### 14.5 Validation V-SET-SEC
+> **Note:** the prior SET-001 "Wizard Launcher" screen is removed; the wizard auto-mounts on `/onboarding` based on the redirect-while-incomplete guard. Analytics + Playwright contracts must use SET-001..SET-006.
+
+### 14.5 SSO Configuration [S-A1 per gap-backlog 2026-04-30] [Phase 2/3]
+
+Enterprise tenants federate identity to a corporate IdP (typically Microsoft Entra ID for Apex). Phase 1 baseline: **SAML 2.0** with Microsoft Entra ID. Phase 2: generic SAML, OIDC.
+
+```sql
+CREATE TABLE org_sso_config (
+  org_id UUID PRIMARY KEY REFERENCES organizations(id),
+  idp_type TEXT NOT NULL,                                -- 'saml_entra' | 'saml_generic' | 'oidc'
+  display_name TEXT,                                     -- e.g. "Apex Azure AD"
+  metadata_url TEXT,                                     -- IdP metadata XML URL (SAML)
+  entity_id TEXT NOT NULL,                               -- SP entity id (per-org)
+  acs_url TEXT NOT NULL,                                 -- Assertion Consumer Service URL
+  x509_cert TEXT,                                        -- IdP signing cert (PEM, fallback when metadata_url not used)
+  oidc_issuer_url TEXT,                                  -- OIDC discovery URL (when idp_type='oidc')
+  oidc_client_id TEXT,
+  oidc_client_secret_vault_key TEXT,                     -- Vault ref, never plaintext
+  enforce_for_non_admins BOOLEAN NOT NULL DEFAULT false, -- when true, password login rejected for non-admins
+  jit_provisioning BOOLEAN NOT NULL DEFAULT true,        -- auto-create users on first SSO login
+  default_role_code TEXT NOT NULL DEFAULT 'viewer',      -- role assigned to JIT-provisioned users
+  attribute_map JSONB DEFAULT '{}',                      -- {"email":"http://schemas.../emailaddress","name":"...","groups":"..."}
+  enabled BOOLEAN NOT NULL DEFAULT false,
+  last_test_at TIMESTAMPTZ,
+  last_test_status TEXT,                                 -- 'ok' | 'failed' | 'never'
+  created_at TIMESTAMPTZ DEFAULT now(),
+  updated_at TIMESTAMPTZ DEFAULT now()
+);
+```
+
+**Library:** `@boxyhq/saml-jackson` (SAML SP) + `openid-client` (OIDC). Routes:
+- `POST /api/auth/saml/login` — initiate IdP redirect
+- `POST /api/auth/saml/callback` — ACS endpoint (SAMLResponse handling)
+- `GET /api/auth/saml/metadata` — SP metadata XML
+- `POST /api/auth/sso/test` — admin-only round-trip validation
+
+Server actions: `upsertSsoConfig`, `testSamlConnection`, `disableSso`. Owner/admin only. SSO secret keys stored only in Vault (referenced by `oidc_client_secret_vault_key`).
+
+### 14.6 SCIM 2.0 Provisioning [S-A2 per gap-backlog 2026-04-30] [Phase 2/3]
+
+Auto-provision and de-provision users from corporate IdP via standard SCIM 2.0. Required for Entra ID enterprise apps.
+
+```sql
+CREATE TABLE scim_tokens (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  org_id UUID NOT NULL REFERENCES organizations(id),
+  label TEXT NOT NULL,                                   -- e.g. "Entra ID provisioning"
+  token_hash TEXT NOT NULL,                              -- argon2id hash; plaintext shown once on create
+  last_used_at TIMESTAMPTZ,
+  expires_at TIMESTAMPTZ,                                -- NULL = never; recommend 1y rotation
+  created_by UUID REFERENCES users(id),
+  created_at TIMESTAMPTZ DEFAULT now(),
+  revoked_at TIMESTAMPTZ
+);
+```
+
+**Endpoints (bearer-token auth, scoped to `org_id`):**
+- `GET / POST / PATCH / DELETE /scim/v2/Users` — user CRUD; soft-delete on `active=false`
+- `GET / POST / PATCH / DELETE /scim/v2/Groups` — group CRUD; group → role mapping via `org_sso_config.attribute_map.groups`
+- `GET /scim/v2/ServiceProviderConfig` — capability discovery
+
+PATCH ops (RFC 7644 §3.5.2) supported: `add`, `replace`, `remove`. De-provisioning sets `users.is_active=false` (soft delete) so audit trail preserved. SCIM bearer-token paths bypass the redirect-while-incomplete onboarding guard and the IP allowlist (per §14.7).
+
+### 14.7 Admin IP Allowlist [S-A3 per gap-backlog 2026-04-30] [Phase 2]
+
+Restrict admin route access by source IP/CIDR for high-security tenants.
+
+```sql
+CREATE TABLE admin_ip_allowlist (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  org_id UUID NOT NULL REFERENCES organizations(id),
+  cidr INET NOT NULL,                                    -- e.g. '203.0.113.0/24' or '198.51.100.42/32'
+  label TEXT,                                            -- e.g. "HQ office", "VPN exit"
+  created_by UUID REFERENCES users(id),
+  created_at TIMESTAMPTZ DEFAULT now()
+);
+```
+
+**Middleware enforcement:** before serving any `/(admin)` route, the edge middleware:
+1. If `admin_ip_allowlist` rows exist for `org_id`, request IP MUST match at least one CIDR; else respond `403 IP_NOT_ALLOWED`.
+2. **Bypass:** SCIM bearer-token paths (§14.6) and active superadmin impersonation sessions (audit-logged) are exempt.
+3. Empty allowlist = no restriction (default open).
+
+Audit: every `403 IP_NOT_ALLOWED` writes an `audit_events` entry (`admin_ip_blocked`, source_ip, attempted_route).
+
+### 14.8 Validation V-SET-SEC
 
 - **V-SET-80**: Password regex zgodny z `org_security_policies` (min_length, complexity)
 - **V-SET-81**: Password history — new password must not match last N hashes
 - **V-SET-82**: MFA enrollment forced on first login jeśli `mfa_requirement='required_admins'` i user ma admin role
-- **V-SET-83**: Session timeout enforced w middleware (refresh token expiry)
+- **V-SET-83**: Idle and absolute session timeouts enforced w middleware (refresh token expiry, hard cap on session age)
 - **V-SET-84**: Language code w supported enum (pl/en/uk/ro/de/fr)
+- **V-SET-85** [S-A1]: SSO config validates IdP metadata before `enabled=true` (round-trip test passes)
+- **V-SET-86** [S-A2]: SCIM bearer token cannot create users beyond `organizations.seat_limit`
+- **V-SET-87** [S-A3]: IP allowlist accepts only valid CIDR; rejects when `cidr` overlaps `0.0.0.0/0` (would defeat the allowlist)
+- **V-SET-88** [S-U7]: Magic-link invite tokens reject when `now() > invite_token_expires_at` (7-day TTL enforced server-side)
+- **V-SET-89** [S-U8]: `inviteUser` server action rejects with `SEAT_LIMIT_REACHED` when active user count ≥ `seat_limit`
 
 ---
 
@@ -1297,7 +1756,7 @@ Resume capability: user powraca → wizard continues from `current_step`. Skip b
 | V-SET-50..53 | D365 constants | §11.6 |
 | V-SET-60..63 | Infrastructure | §12.3 |
 | V-SET-70..72 | Email config | §13.5 |
-| V-SET-80..84 | Security | §14.5 |
+| V-SET-80..89 | Security + SSO/SCIM/IP allowlist | §14.8 [S-A1..A3, S-U5, S-U7, S-U8] |
 
 ### 15.2 KPIs
 
@@ -1483,6 +1942,20 @@ Gate: onboarding < 15min ready for customer beta.
 ---
 
 ## Changelog
+
+- **v3.5** (2026-04-30) — UX↔PRD gap-backlog amendments (`_meta/plans/2026-04-30-ux-prd-plan-gap-backlog.md`). Coverage 70% → ≥90%. No breaking changes, extensions and clarifications only:
+  - **§0 Modal Contract** (NEW, S-A4) — references `_shared/MODAL-SCHEMA.md` as canonical; lists 5 base primitives + 10 patterns; backfills 5 dangling MODAL-* IDs (MODAL-INVITE-USER → SM-06; MODAL-ROLE-ASSIGNMENT → SM-07; MODAL-D365-CONNECTION-TEST → SM-08; MODAL-CONFIRM-DELETE → SM-10; MODAL-REF-ROW-EDIT → SM-11). All settings modals MUST consume `packages/ui` primitives.
+  - **§3 Personas & RBAC** (S-U6) — clarified 10 system roles in DB + 4 customer-facing UI categories (Admin/Manager/Operator/Viewer) via `role_categories` mapping. Explicitly rejected 4-level perm matrix (D2); flat permission model is canonical, UI uses checkbox-per-permission grouped by module.
+  - **§5.1 Core identity** — added `seat_limit INT` on `organizations` (S-U8); added `invite_token_expires_at TIMESTAMPTZ` on `users` codifying magic-link 7-day TTL (S-U7); added inviteUser pre-flight comment.
+  - **§5.7 Security + session** (S-U5) — `org_security_policies` extended: `password_complexity TEXT`, `password_expiry_days INT NULL`, renamed `session_timeout_minutes` → `session_idle_timeout_minutes`, added `session_max_length_minutes INT DEFAULT 480`, added `mfa_allowed_methods TEXT[]`.
+  - **§14.1 Security policies** (S-U5 doc) — extended bullet list to match new schema fields.
+  - **§14.3 Onboarding Wizard** (S-U2/S-U3/S-U4) — step 1 includes `gs1_prefix` (required for 11-SHIPPING SSCC); step 3 changed from "zone/bin" to "ltree path + zone label + bin code"; added Back/Jump/Restart wizard navigation; added redirect-while-incomplete guard; added first-WO timestamp persisted to `onboarding_state.first_wo_at` for P50 KPI.
+  - **§14.4 UI surfaces** (S-U1) — renumbered onboarding screen codes from SET-001..SET-007 to SET-001..SET-006 (dropped Wizard Launcher per D3, matches UX + Playwright contracts).
+  - **§14.5 SSO Configuration** (NEW, S-A1) — `org_sso_config` table; SAML 2.0 + Microsoft Entra ID Phase 1 baseline; `@boxyhq/saml-jackson`; routes `/api/auth/saml/{login,callback,metadata}`; `enforce_for_non_admins` toggle; JIT provisioning.
+  - **§14.6 SCIM 2.0 Provisioning** (NEW, S-A2) — `scim_tokens` table (argon2id-hashed); endpoints `/scim/v2/Users` and `/scim/v2/Groups`; bearer-token auth scoped to `org_id`; soft-delete on `active=false`.
+  - **§14.7 Admin IP Allowlist** (NEW, S-A3) — `admin_ip_allowlist` table (CIDR INET); middleware enforcement on `/(admin)` routes; SCIM + impersonation bypass.
+  - **§14.8 Validation V-SET-SEC** — renumbered from §14.5; extended V-SET-80..89 (added 5 new validators V-SET-85..89 covering SSO, SCIM, IP allowlist, magic-link TTL, seat limit).
+  - **§15.1 Validation list** — security row updated to V-SET-80..89.
 
 - **v3.4** (2026-04-21) — Stakeholder decisions delta (15-OEE OQ resolution session). No breaking changes, extensions only:
   - **§8.1 Reference Tables** — rozszerzono z 24 do **25 tabel**. Nowa tabela #25: `changeover_target_duration_min` (15-OEE OQ-OEE-05 decision — per-line integer target in minutes, optional per-FA override, default null, consumed by 15-OEE + 08-PRODUCTION).

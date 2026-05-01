@@ -1,0 +1,59 @@
+{
+  "title": "T-005 — forecast_actuals table + RLS",
+  "prompt": "# T-005 — forecast_actuals table + RLS\n\nPRD: 07-PLANNING-EXT-PRD.md §9.6, §11.2 SMAPE\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nIntroduce `forecast_actuals` table holding (product, week) actual sums + matched forecast for SMAPE tracking, with tenant RLS and unique (tenant, product, week).\n\n## Implementation contract\n1. Migration `packages/db/migrations/0074_forecast_actuals.sql`: CREATE TABLE forecast_actuals per §9.6 DDL with UNIQUE (tenant_id, product_id, week_iso) and ENABLE RLS.\n2. RLS policy on tenant_id.\n3. Drizzle schema entry.\n\n## Files\n- packages/db/migrations/0074_forecast_actuals.sql [create]\n- packages/db/src/schema/forecast_actuals.ts [create]\n- packages/db/src/schema/index.ts [modify]\n- packages/db/__tests__/forecast-actuals.test.ts [create]\n\n## Acceptance criteria\n1. Given migration 0074 applied, when \\d forecast_actuals runs, then all §9.6 columns + UNIQUE (tenant_id, product_id, week_iso) + RLS enabled exist\n2. Given two rows with same (tenant, product, week), when second INSERT runs, then it fails the UNIQUE constraint\n3. Given two tenants insert, when each SELECTs, then each only sees its own rows\n\n## Test strategy\n- RED: write packages/db/__tests__/forecast-actuals.test.ts asserting UNIQUE + RLS + numeric precision\n- Run 'pnpm --filter db migrate && pnpm --filter db test forecast-actuals'\n\n## Risk red lines\n- Do not skip RLS\n- Do not relax the (tenant, product, week) UNIQUE constraint\n- Do not couple SMAPE column type to FLOAT (PRD says NUMERIC(5,2))",
+  "labels": ["prd", "data", "schema", "T1-schema"],
+  "priority": 80,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-005",
+    "source_prd": "07-PLANNING-EXT-PRD.md",
+    "prd_refs": ["§9.6", "§11.2"],
+    "category": "data",
+    "subcategory": "schema-forecast",
+    "task_type": "T1-schema",
+    "parent_feature": "07-EXT-c forecast bridge",
+    "context_budget": "40k",
+    "estimated_effort": "0.5-1h",
+    "description": "Create forecast_actuals table with UNIQUE (tenant, product, week) for SMAPE tracking.",
+    "details": "Migration 0074 emits CREATE TABLE forecast_actuals per §9.6 DDL with UNIQUE constraint, ENABLE RLS, tenant policy. Drizzle schema mirrors columns with NUMERIC(12,2) for actual_qty_kg and NUMERIC(5,2) for smape. RED test verifies UNIQUE rejection and RLS isolation.",
+    "scope_files": [
+      "packages/db/migrations/0074_forecast_actuals.sql [create]",
+      "packages/db/src/schema/forecast_actuals.ts [create]",
+      "packages/db/src/schema/index.ts [modify]",
+      "packages/db/__tests__/forecast-actuals.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not implement SMAPE compute job here (T-063)",
+      "Do not seed actuals"
+    ],
+    "dependencies": [],
+    "parallel_safe_with": ["T-001", "T-002", "T-003", "T-004", "T-006"],
+    "acceptance_criteria": [
+      "Given migration 0074 applied, when \\d forecast_actuals runs, then all §9.6 columns + UNIQUE (tenant_id, product_id, week_iso) + RLS exist",
+      "Given two rows with same (tenant, product, week), when second INSERT runs, then it fails UNIQUE",
+      "Given two tenants, when each SELECTs, then each only sees its own rows"
+    ],
+    "test_strategy": [
+      "RED: write packages/db/__tests__/forecast-actuals.test.ts asserting UNIQUE + RLS + numeric precision",
+      "Run 'pnpm --filter db migrate && pnpm --filter db test forecast-actuals'"
+    ],
+    "risk_red_lines": [
+      "Do not skip RLS",
+      "Do not relax (tenant, product, week) UNIQUE",
+      "Do not change smape column type from NUMERIC(5,2)"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

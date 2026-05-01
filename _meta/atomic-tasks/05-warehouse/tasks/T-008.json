@@ -1,0 +1,59 @@
+{
+  "title": "T-008 — shelf_life_rules table migration",
+  "prompt": "# T-008 — shelf_life_rules table migration\n\nPRD: `05-WAREHOUSE-PRD.md` §5.1, §12.5.\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`.\n\n## Goal\nCreate `shelf_life_rules` (customer/product min shelf life) — schema + API only in P1.\n\n## Implementation contract\nAdd `packages/db/src/schema/shelf-life-rules.ts`: id, tenant_id, customer_id (nullable for global rules), product_id, min_shelf_life_days INT, enforced BOOLEAN, reason TEXT, created_at/by.\nUNIQUE(tenant_id, customer_id, product_id) (with NULL customer_id treated as global; rely on partial unique idx where customer_id IS NULL).\nCHECK min_shelf_life_days > 0.\n\n## Files (scope)\n- packages/db/src/schema/shelf-life-rules.ts [create]\n- packages/db/migrations/0NN_shelf_life_rules.sql [create]\n- packages/db/src/schema/shelf-life-rules.test.ts [create]\n\n## Acceptance criteria\n1. Given the migration runs, when shelf_life_rules is inspected, then PRD §12.5 columns are present.\n2. Given two rows with same (tenant_id, customer_id, product_id), when the second commits, then DB raises a unique violation.\n3. Given INSERT with min_shelf_life_days=0, when committed, then DB raises a CHECK violation.\n\n## Test strategy\n- RED: shelf-life-rules.test.ts asserts unique and CHECK violations.\n- Run `pnpm --filter db migrate && pnpm --filter db test shelf-life-rules`.\n\n## Risk red lines\n- Do not implement pick-time enforcement here (P2 11-SHIPPING).\n- Do not embed customer override logic.\n- Do not embed service logic.",
+  "labels": ["prd", "data", "shelf-life", "T1-schema"],
+  "priority": 80,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-008",
+    "source_prd": "05-WAREHOUSE-PRD.md",
+    "prd_refs": ["§5.1", "§12.5"],
+    "category": "data",
+    "subcategory": "shelf-life",
+    "task_type": "T1-schema",
+    "parent_feature": "warehouse-foundation",
+    "context_budget": "20k",
+    "estimated_effort": "0.5-1h",
+    "description": "Create shelf_life_rules table for customer/product minimum shelf-life enforcement (P1: schema + API only).",
+    "details": "Drizzle schema + migration. UNIQUE(tenant_id, customer_id, product_id); CHECK min_shelf_life_days > 0. Pick-time enforcement deferred to P2.",
+    "scope_files": [
+      "packages/db/src/schema/shelf-life-rules.ts [create]",
+      "packages/db/migrations/0NN_shelf_life_rules.sql [create]",
+      "packages/db/src/schema/shelf-life-rules.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Pick-time enforcement (P2 11-SHIPPING)",
+      "Admin UI (T-076)",
+      "RLS (T-012)"
+    ],
+    "dependencies": [],
+    "parallel_safe_with": ["T-003", "T-004", "T-005", "T-006", "T-007", "T-009"],
+    "acceptance_criteria": [
+      "Given the migration runs, when shelf_life_rules is inspected, then PRD §12.5 columns are present",
+      "Given two rows with same (tenant_id, customer_id, product_id), when the second commits, then DB raises a unique violation",
+      "Given INSERT with min_shelf_life_days=0, when committed, then DB raises a CHECK violation"
+    ],
+    "test_strategy": [
+      "RED: shelf-life-rules.test.ts asserts unique + CHECK behaviors",
+      "Run 'pnpm --filter db migrate && pnpm --filter db test shelf-life-rules'"
+    ],
+    "risk_red_lines": [
+      "Do not embed pick-time enforcement",
+      "Do not allow zero/negative min_shelf_life_days",
+      "Do not embed service logic"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

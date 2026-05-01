@@ -1,0 +1,60 @@
+{
+  "title": "T-039 — shift_handovers + shift_assignments tables + Server Actions for crew/handover",
+  "prompt": "# T-039 — Shifts: handovers + assignments + Server Actions\n\nPRD: 08-PRODUCTION-PRD.md §8.1 SCR-08-08, V-PROD-SHIFT-001/002\n\n## Goal\nCreate shift_handovers and shift_assignments tables (referenced in §8.1 SCR-08-08), plus Server Actions assignCrew and saveHandover with V-PROD-SHIFT-001 line_certifications guard.\n\n## Implementation contract\nMigration: shift_assignments(id UUID PK, tenant_id, shift_id, line_id, operator_id, started_at, status enum 'active'|'on_break'|'left', UNIQUE(shift_id, line_id, operator_id)); shift_handovers(id UUID PK, tenant_id, shift_id, line_id, author_user_id, note text CHECK length<=500, created_at). Server Actions in apps/web/app/(production)/shifts/actions.ts: assignCrew({shift_id, line_id, operator_id}) verifies users.line_certifications contains line_id (V-PROD-SHIFT-001 → 422 if missing) then upserts shift_assignments; saveHandover({shift_id, line_id, note}) inserts shift_handovers row.\n\n## Files (scope)\n- packages/db/migrations/NNNN_shift_handovers_assignments.sql [create]\n- packages/db/schema/production/shifts.ts [create]\n- apps/web/app/(production)/shifts/actions.ts [create]\n- apps/web/app/(production)/shifts/__tests__/actions.test.ts [create]\n\n## Acceptance criteria\n1. Given operator with line_certifications containing 'LINE-01', when assignCrew({shift_id,'LINE-01',operator_id}), then row inserted into shift_assignments\n2. Given operator without 'LINE-01' in line_certifications, when assignCrew, then 422 ValidationError code='operator_not_certified_for_line' (V-PROD-SHIFT-001)\n3. Given saveHandover with note length 600, when called, then 422 listing note CHECK length<=500\n\n## Test strategy\n- RED: action test asserting certification guard + length CHECK + happy path before actions exist\n- Run 'pnpm --filter web test shifts.*actions'\n\n## Risk red lines\n- Do not skip line_certifications check (V-PROD-SHIFT-001)\n- Do not allow note >500 chars\n- Do not modify users table",
+  "labels": ["prd", "api", "shifts", "T2-api"],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-039",
+    "source_prd": "08-PRODUCTION-PRD.md",
+    "prd_refs": ["§8.1 SCR-08-08"],
+    "category": "api",
+    "subcategory": "shifts",
+    "task_type": "T2-api",
+    "parent_feature": "08-PROD SCR-08-08 Shift Management",
+    "context_budget": "32k",
+    "estimated_effort": "2-3h",
+    "description": "Schema + Server Actions for shift_assignments and shift_handovers with V-PROD-SHIFT-001 guard.",
+    "details": "Migration creates two tables; Server Actions in shifts/actions.ts: assignCrew (cert-guarded), saveHandover (length-checked). RLS on both tables.",
+    "scope_files": [
+      "packages/db/migrations/NNNN_shift_handovers_assignments.sql [create]",
+      "packages/db/schema/production/shifts.ts [create]",
+      "apps/web/app/(production)/shifts/actions.ts [create]",
+      "apps/web/app/(production)/shifts/__tests__/actions.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not implement shift end sign-off (T-040)",
+      "Do not implement shifts UI (T-070)",
+      "Do not modify users table"
+    ],
+    "dependencies": [],
+    "parallel_safe_with": ["T-040"],
+    "acceptance_criteria": [
+      "Given operator certified for LINE-01, when assignCrew, then shift_assignments row inserted",
+      "Given operator not certified, when assignCrew, then 422 operator_not_certified_for_line",
+      "Given saveHandover with note length 600, when called, then 422 listing note length"
+    ],
+    "test_strategy": [
+      "RED: action test asserting cert guard + length CHECK + happy path before actions exist",
+      "Run 'pnpm --filter web test shifts.*actions'"
+    ],
+    "risk_red_lines": [
+      "Do not skip cert check",
+      "Do not allow note >500",
+      "Do not modify users table"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

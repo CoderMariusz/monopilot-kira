@@ -1,0 +1,65 @@
+{
+  "title": "T-027 — API: planning dashboard data + Redis cache",
+  "prompt": "Implement dashboard data endpoint per PRD §13. Server function `getPlanningDashboardData(userId, tenantId)` returns:\n- KPI cards: open_pos, pending_approval, overdue_pos, open_tos, scheduled_today, in_progress, on_hold_24h.\n- Alerts: overdue_po, po_pending_2d, material_shortages, wo_on_hold_24h, wo_past_scheduled_end, d365_drift_unresolved.\n- Upcoming: po_calendar_14d, wo_schedule_7d, to_timeline, top_5_cascade_chains.\n\nCache via Redis with 1-min TTL key `dashboard:{tenantId}:{userId}` (per-user for permission-filtered views). Cache invalidation on outbox events 'po.state_changed', 'wo.state_changed', 'to.state_changed'.\n\nRED test asserts cache hit on second call < 50ms, cache miss after invalidation event, TTL expiration.",
+  "labels": ["prd", "api", "dashboard", "T2-api"],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-027",
+    "source_prd": "04-PLANNING-BASIC-PRD.md",
+    "prd_refs": ["§13.1", "§13.2", "§13.3"],
+    "category": "api",
+    "subcategory": "dashboard",
+    "task_type": "T2-api",
+    "parent_feature": "planning-dashboard",
+    "context_budget": "40k",
+    "estimated_effort": "3-4h",
+    "description": "Aggregated dashboard server function with Redis cache + outbox-driven invalidation.",
+    "details": "Use existing redis client from 00-FOUNDATION. Cache key `dashboard:{tenantId}:{userId}`. 1-min TTL per §13.2. Invalidation listener subscribes to outbox stream and DELs cache keys for affected tenant. Top-5 cascade chains query: `SELECT parent_wo, COUNT(*) FROM wo_dependencies GROUP BY parent_wo ORDER BY count DESC LIMIT 5`.",
+    "scope_files": [
+      "src/server/services/dashboard.ts [create]",
+      "src/server/services/dashboard-cache-invalidator.ts [create]",
+      "src/app/api/planning/dashboard/route.ts [create]",
+      "src/server/services/__tests__/dashboard.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Dashboard UI (T-028)",
+      "Resend notifications (P2)"
+    ],
+    "dependencies": ["T-002", "T-003", "T-004", "T-007"],
+    "parallel_safe_with": ["T-029", "T-030"],
+    "acceptance_criteria": [
+      "Given a fresh tenant, when getPlanningDashboardData is called twice within 1 minute, then second call serves from Redis (under 50ms in test).",
+      "Given an outbox event 'po.state_changed' fires, when getPlanningDashboardData is called next, then cache miss occurs and DB is hit again.",
+      "Given a Redis flush, when getPlanningDashboardData is called, then result still computes correctly from DB (cache is optional, not required).",
+      "Given `pnpm vitest run src/server/services/__tests__/dashboard.test.ts`, when run, then 0 failures."
+    ],
+    "test_strategy": [
+      "RED tests for cache hit/miss timings, invalidation on event, fall-back when Redis is down.",
+      "Run `pnpm vitest run src/server/services/__tests__/dashboard.test.ts`."
+    ],
+    "risk_red_lines": [
+      "Do not return cross-tenant data — cache key must include tenantId.",
+      "Do not skip invalidation listeners — stale dashboard misleads planners."
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

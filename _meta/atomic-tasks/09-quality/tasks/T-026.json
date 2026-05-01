@@ -1,0 +1,59 @@
+{
+  "title": "T-026 — Inspection lifecycle Server Actions (assign/start/complete/cancel)",
+  "prompt": "# T-026 — Inspection lifecycle Server Actions\n\nPRD: 09-QUALITY-PRD.md §7.1 EPIC 8C, §11.2 V-QA-INSP-001..009, §8.2 QA-031\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nServer Actions: createInspection, assignInspection, startInspection, completeInspection, cancelInspection. Enforces V-QA-INSP-001 (active spec at start), V-QA-INSP-007 (inspector role), V-QA-INSP-006 (fail_reason on fail), V-QA-INSP-005 (critical params all pass).\n\n## Implementation contract\n1. `apps/web/src/server/quality/inspections.ts` exports the 5 Server Actions with Zod validation.\n2. State transitions enforced server-side: pending → assigned → in_progress → completed | cancelled.\n3. completeInspection auto-computes top-level result from quality_test_results aggregation per V-QA-INSP-004 (fail if any critical fail; conditional if non-critical fail; pass if all pass).\n4. cancelInspection requires cancel_reason; only allowed from pending|assigned|in_progress.\n\n## Files\n- apps/web/src/server/quality/inspections.ts [create]\n- apps/web/src/server/quality/__tests__/inspections.test.ts [create]\n\n## Acceptance criteria\n1. Given a pending inspection bound to spec v_active, when assignInspection(inspector_id) runs and inspector role is qa_inspector, then status='assigned' and assigned_to_user_id is set\n2. Given an in_progress inspection where 1 critical parameter result='fail', when completeInspection runs, then top-level result='fail' (server overrides any client-passed result per V-QA-INSP-004)\n3. Given a completed inspection, when cancelInspection runs, then it rejects with INVALID_STATE and writes nothing\n4. Given completeInspection with result='fail' and no fail_reason_code_id and no fail_reason_notes, then it rejects with V-QA-INSP-006 and writes nothing",
+  "labels": ["prd", "api", "inspection-lifecycle", "T2-api"],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-026",
+    "source_prd": "09-QUALITY-PRD.md",
+    "prd_refs": ["§7.1", "§11.2", "§8.2 QA-031"],
+    "category": "api",
+    "subcategory": "inspection-lifecycle",
+    "task_type": "T2-api",
+    "parent_feature": "09-c Incoming Inspection",
+    "context_budget": "45k",
+    "estimated_effort": "2-3h",
+    "description": "Server Actions for inspection lifecycle (create/assign/start/complete/cancel) with V-QA-INSP server-authoritative result computation.",
+    "details": "Zod-validated Server Actions enforce state machine and V-QA-INSP rules. completeInspection re-aggregates quality_test_results to compute top-level result (V-QA-INSP-004 server authoritative). cancelInspection requires cancel_reason. RBAC checks per §2.3. Audit trigger on quality_inspections appends rows (T-040).",
+    "scope_files": [
+      "apps/web/src/server/quality/inspections.ts [create]",
+      "apps/web/src/server/quality/__tests__/inspections.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not implement scanner endpoint (T-029)",
+      "Do not implement test_results recording (T-027)",
+      "Do not implement GRN auto-create (T-030)"
+    ],
+    "dependencies": ["T-002", "T-017", "T-025"],
+    "parallel_safe_with": ["T-027", "T-028", "T-029"],
+    "acceptance_criteria": [
+      "Given a pending inspection bound to an active spec, when assignInspection(inspector_id) runs and inspector role is qa_inspector, then status='assigned' and assigned_to_user_id is set",
+      "Given an in_progress inspection where 1 critical parameter result='fail', when completeInspection runs, then top-level result='fail' (server overrides any client-passed result per V-QA-INSP-004)",
+      "Given a completed inspection, when cancelInspection runs, then it rejects with INVALID_STATE and writes nothing",
+      "Given completeInspection with result='fail' and neither fail_reason_code_id nor fail_reason_notes, then it rejects with V-QA-INSP-006 and writes nothing"
+    ],
+    "test_strategy": [
+      "RED: write apps/web/src/server/quality/__tests__/inspections.test.ts asserting state transitions, server-authoritative result, fail_reason requirement",
+      "Run 'pnpm --filter web test inspections'"
+    ],
+    "risk_red_lines": [
+      "Do not trust client-passed top-level result (V-QA-INSP-004 server-authoritative)",
+      "Do not allow cancel from completed status",
+      "Do not skip RBAC enforcement on assign/start/complete"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

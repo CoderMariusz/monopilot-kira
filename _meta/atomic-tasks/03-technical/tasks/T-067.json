@@ -1,0 +1,35 @@
+{
+  "title": "T-067 — Docs: TEC-045 Lab Results Log prototype gap brief",
+  "prompt": "Write engineering brief for missing TEC-045 'Lab Results Log' prototype per §10.7 [NO-PROTOTYPE-YET]. Output: design/specs/TEC-045-lab-results-log.md covering filterable table (item / WO / test_type / result_status), add-result modal, and ATP RLU pass/fail visualisation (threshold ≤10 RLU per §10.6). Cross-link to T-020 backend. Until prototype lands, T3-ui implementation is OUT OF SCOPE for Phase 1.",
+  "labels": ["prd", "docs", "spec-lab-results-log", "docs"],
+  "priority": 150,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-067",
+    "source_prd": "03-TECHNICAL-PRD.md",
+    "prd_refs": ["§10.6", "§10.7 TEC-045", "§4A TEC-045"],
+    "category": "docs",
+    "subcategory": "spec-lab-results-log",
+    "task_type": "docs",
+    "parent_feature": "03-TECHNICAL-b Lab",
+    "context_budget": "10k",
+    "estimated_effort": "1h",
+    "description": "Brief unblocking TEC-045 prototype design.",
+    "details": "Specify table columns, filter chips, ATP visualisation (numeric vs threshold gauge), add-result modal field set, and pass/fail color tokens.",
+    "scope_files": ["design/specs/TEC-045-lab-results-log.md"],
+    "out_of_scope": ["Prototype JSX", "Implementation"],
+    "dependencies": ["T-020"],
+    "parallel_safe_with": ["T-064", "T-065", "T-066", "T-068"],
+    "acceptance_criteria": [
+      "Given the brief, when reviewed, then table columns, filters, and ATP visualisation are documented.",
+      "Given the brief, when read by a designer, then it is sufficient to produce a labelled prototype."
+    ],
+    "test_strategy": ["Manual review.", "No automated tests for docs."],
+    "risk_red_lines": ["Do not embed real lab data in the doc."],
+    "skills": ["requesting-code-review"],
+    "checkpoint_policy": {"required_checkpoints": ["REVIEW", "CLOSEOUT"], "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]},
+    "routing_hints": {"red": "hermes_gpt55", "implementation": "hermes_gpt55", "review": "opus_if_high_risk_or_ui_or_architecture", "close": "spark_low_risk_else_opus"}
+  }
+}

@@ -1,0 +1,84 @@
+{
+  "title": "T-039 — Migration: Reference.ManufacturingOperations table + per-industry seed",
+  "prompt": "# T-039 — Migration: manufacturing_operations table + seed\n\n## Goal\nCreate dedicated table Reference.ManufacturingOperations per §8.9.2 plus seed inserts for Bakery/Pharmacy/FMCG/Generic industries. Indexes per §8.9.2 lines.\n\n## Files in scope\n- apps/web/db/schema/manufacturing-operations.ts [create]\n- apps/web/db/migrations/ [create]\n- apps/web/db/seeds/manufacturing-ops-seed.sql [create]\n- apps/web/db/migrations/__tests__/manufacturing-ops.test.ts [create]\n\n## Acceptance criteria (all must hold)\n- Given migration applied, when `\\d \"Reference.ManufacturingOperations\"` is shown, then UNIQUE(tenant_id, process_suffix) and UNIQUE(tenant_id, operation_name) hold.\n- Given migration applied, when `\\di` is shown, then idx_manufacturing_ops_tenant_active and idx_manufacturing_ops_suffix exist.\n- Given seed migration runs for a bakery tenant, when read, then 4 rows (Mix/Knead/Proof/Bake) are present with operation_seq 1..4 and industry_code='bakery'.\n\n## Test strategy (RED first)\n1. Add a failing test that exercises the acceptance criteria above. The RED command is:\n   `pnpm --filter @monopilot/web vitest run apps/web/db/migrations/__tests__/manufacturing-ops.test.ts`\n2. Run RED — it must fail before any production code is written.\n3. Implement the smallest change needed for GREEN.\n4. Re-run RED command — must pass.\n5. Run `pnpm typecheck` and `pnpm lint` in the changed package; both must pass.\n\n## Risk red lines\n- Do not edit files outside the listed scope without documenting why in CLOSEOUT.\n- Do not weaken existing acceptance criteria from prior tasks.\n- Do not introduce REST endpoints; use Server Actions per stack contract.\n- Do not commit secrets or vault keys.\n\n## Closeout evidence required\n- changed_files (with line counts)\n- exact test commands and outputs (RED→GREEN, typecheck, lint)\n- acceptance_criteria_status (one row per AC: pass/fail)\n- deviations_from_prd (or \"none\")\n- git_status\n\nStack: TS + Next.js App Router + Drizzle + pnpm + vitest + Playwright + Server Actions. Primitives in `packages/ui`. PRD: `02-SETTINGS-PRD.md` v3.5.\n",
+  "labels": [
+    "prd",
+    "data",
+    "manufacturing-ops-schema",
+    "T1-schema"
+  ],
+  "priority": 80,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-039",
+    "source_prd": "02-SETTINGS-PRD.md",
+    "prd_refs": [
+      "§8.9.2",
+      "§8.9.7",
+      "ADR-034"
+    ],
+    "category": "data",
+    "subcategory": "manufacturing-ops-schema",
+    "task_type": "T1-schema",
+    "parent_feature": "02-settings-d",
+    "context_budget": "40k",
+    "estimated_effort": "1-3h",
+    "description": "Manufacturing operations dedicated table + seeds.",
+    "details": "Note table name is quoted-identifier per §8.9.2 (`\"Reference.ManufacturingOperations\"`).",
+    "scope_files": [
+      "apps/web/db/schema/manufacturing-operations.ts",
+      "apps/web/db/migrations/",
+      "apps/web/db/seeds/manufacturing-ops-seed.sql",
+      "apps/web/db/migrations/__tests__/manufacturing-ops.test.ts"
+    ],
+    "out_of_scope": [
+      "broaden scope beyond listed files",
+      "implement future-phase features"
+    ],
+    "dependencies": [
+      "T-004"
+    ],
+    "parallel_safe_with": [
+      "T-008"
+    ],
+    "acceptance_criteria": [
+      "Table + indexes + uniques.",
+      "Seed for 4 industries.",
+      "vitest green."
+    ],
+    "test_strategy": [
+      "RED: 3 cases.",
+      "GREEN: emit."
+    ],
+    "risk_red_lines": [
+      "Do not store seed under generic reference_tables."
+    ],
+    "skills": [
+      "test-driven-development"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": false
+  }
+}

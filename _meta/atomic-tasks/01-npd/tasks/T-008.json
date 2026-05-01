@@ -1,0 +1,59 @@
+{
+  "title": "T-008 — Server Action createFa (NPD-a.1) with V01-V02 + RBAC + outbox",
+  "prompt": "# T-008 — Server Action createFa (NPD-a.1)\n\nPRD: 01-NPD-PRD.md §7.6, §12 (V01, V02), §2.2 (fa.create)\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nImplement createFa Server Action that validates Product_Code (V01 regex ^FA[A-Z0-9]+$), Product_Name non-empty (V02), checks RBAC fa.create, inserts row into product, emits fa.created event.\n\n## Implementation contract\nNew apps/web/app/(npd)/fa/actions/create-fa.ts as 'use server' function. Takes input (productCode, productName, optional pre-population from brief). Pipeline: 1) RBAC check via hasPermission(currentUser.role,'fa.create'); 2) Zod schema validates V01+V02; 3) Drizzle tx: INSERT product, emitFaEvent('fa.created'); 4) Returns {productCode}. Reject duplicate product_code with FormMessage. Errors: AuthError | ValidationError | DuplicateError.\n\n## Files\n- apps/web/app/(npd)/fa/actions/create-fa.ts [create]\n- apps/web/app/(npd)/fa/actions/__tests__/create-fa.test.ts [create]\n- packages/validation/src/v01-product-code.ts [create]\n- packages/validation/src/v02-product-name.ts [create]\n\n## Acceptance criteria\n1. Given user role npd_manager and productCode='FA5101' productName='Test', when createFa runs, then product row exists and one outbox_events row event_type='fa.created' is written\n2. Given productCode='ZZ123' (V01 fail), when createFa runs, then it throws ValidationError with code 'V01_FORMAT'\n3. Given user role core_user has fa.create, when createFa runs, then it succeeds; given user role viewer (no fa.create), when called, then it throws AuthError\n\n## Test strategy\n- RED: 3 tests covering happy path, V01 fail, RBAC denial before action exists\n- Run 'pnpm --filter web test create-fa'\n\n## Risk red lines\n- Do not bypass RBAC check\n- Do not commit if outbox emit fails (single tx)\n- Do not skip V01/V02 validation",
+  "labels": ["prd", "api", "fa-actions", "T2-api"],
+  "priority": 80,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-008",
+    "source_prd": "01-NPD-PRD.md",
+    "prd_refs": ["§7.6", "§12 V01", "§12 V02", "§2.2"],
+    "category": "api",
+    "subcategory": "fa-create",
+    "task_type": "T2-api",
+    "parent_feature": "01-NPD-a fa CRUD",
+    "context_budget": "40k",
+    "estimated_effort": "2h",
+    "description": "createFa Server Action with V01/V02 validation, RBAC gate, transactional product insert + outbox emit.",
+    "details": "Server Action validates input via Zod (V01 regex + V02 non-empty), checks fa.create permission, runs Drizzle transaction inserting product and emitting fa.created via emitFaEvent. Throws typed errors. Tests cover happy path, validation failure, RBAC denial.",
+    "scope_files": [
+      "apps/web/app/(npd)/fa/actions/create-fa.ts [create]",
+      "apps/web/app/(npd)/fa/actions/__tests__/create-fa.test.ts [create]",
+      "packages/validation/src/v01-product-code.ts [create]",
+      "packages/validation/src/v02-product-name.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not implement Convert-to-PLD pre-population path here (T-031)",
+      "Do not build the FA create modal UI (T-021)"
+    ],
+    "dependencies": ["T-001", "T-006", "T-007"],
+    "parallel_safe_with": ["T-009"],
+    "acceptance_criteria": [
+      "Given user role npd_manager and productCode='FA5101' productName='Test', when createFa runs, then product row exists and one outbox_events row event_type='fa.created' is written",
+      "Given productCode='ZZ123' (V01 fail), when createFa runs, then it throws ValidationError with code 'V01_FORMAT'",
+      "Given user role viewer (no fa.create), when createFa is called, then it throws AuthError"
+    ],
+    "test_strategy": [
+      "RED: write apps/web/app/(npd)/fa/actions/__tests__/create-fa.test.ts asserting all 3 ACs before action exists",
+      "Run 'pnpm --filter web test create-fa'"
+    ],
+    "risk_red_lines": [
+      "Do not bypass RBAC check",
+      "Do not commit if outbox emit fails (single transaction)",
+      "Do not skip V01 or V02 validation"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

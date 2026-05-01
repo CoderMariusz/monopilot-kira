@@ -1,0 +1,79 @@
+{
+  "title": "T-019 — Server Action: toggleModule + dependency check (V-SET-40)",
+  "prompt": "# T-019 — Server Action: toggleModule with dependency chain check\n\n## Goal\nImplement `toggleModule(moduleCode, enabled)` action. Reject disable if any downstream module is enabled (use `modules.dependencies` graph traversal). On enable, create organization_modules row if missing.\n\n## Files in scope\n- apps/web/actions/modules/toggle.ts [create]\n- apps/web/actions/modules/toggle.test.ts [create]\n\n## Acceptance criteria (all must hold)\n- Given module '08-production' is enabled and admin tries to disable '04-planning-basic', when action runs, then it returns DISABLE_CHAIN_BLOCKED with the list of dependent modules.\n- Given a valid toggle ON, when action commits, then organization_modules row has enabled=true, enabled_at=now(), enabled_by=user_id, and outbox event 'settings.module.toggled' is present.\n- Given a valid toggle OFF on a leaf module, when action commits, then enabled=false and event is emitted.\n\n## Test strategy (RED first)\n1. Add a failing test that exercises the acceptance criteria above. The RED command is:\n   `pnpm --filter @monopilot/web vitest run apps/web/actions/modules/toggle.test.ts`\n2. Run RED — it must fail before any production code is written.\n3. Implement the smallest change needed for GREEN.\n4. Re-run RED command — must pass.\n5. Run `pnpm typecheck` and `pnpm lint` in the changed package; both must pass.\n\n## Risk red lines\n- Do not edit files outside the listed scope without documenting why in CLOSEOUT.\n- Do not weaken existing acceptance criteria from prior tasks.\n- Do not introduce REST endpoints; use Server Actions per stack contract.\n- Do not commit secrets or vault keys.\n\n## Closeout evidence required\n- changed_files (with line counts)\n- exact test commands and outputs (RED→GREEN, typecheck, lint)\n- acceptance_criteria_status (one row per AC: pass/fail)\n- deviations_from_prd (or \"none\")\n- git_status\n\nStack: TS + Next.js App Router + Drizzle + pnpm + vitest + Playwright + Server Actions. Primitives in `packages/ui`. PRD: `02-SETTINGS-PRD.md` v3.5.\n",
+  "labels": [
+    "prd",
+    "api",
+    "modules-toggle",
+    "T2-api"
+  ],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-019",
+    "source_prd": "02-SETTINGS-PRD.md",
+    "prd_refs": [
+      "§10.1",
+      "V-SET-40"
+    ],
+    "category": "api",
+    "subcategory": "modules-toggle",
+    "task_type": "T2-api",
+    "parent_feature": "02-settings-b",
+    "context_budget": "40k",
+    "estimated_effort": "1-3h",
+    "description": "Module toggle Server Action with dependency chain validation.",
+    "details": "Walk modules.dependencies graph. Reject disable if any reverse-dep is enabled. Allow force-disable only with explicit `force: true` (separate test case). 15 modules from §10.1 table.",
+    "scope_files": [
+      "apps/web/actions/modules/toggle.ts",
+      "apps/web/actions/modules/toggle.test.ts"
+    ],
+    "out_of_scope": [
+      "broaden scope beyond listed files",
+      "implement future-phase features"
+    ],
+    "dependencies": [
+      "T-016"
+    ],
+    "parallel_safe_with": [],
+    "acceptance_criteria": [
+      "Chain check correct for 15-module graph.",
+      "Outbox event emitted.",
+      "Force flag bypasses with audit reason."
+    ],
+    "test_strategy": [
+      "RED: 3 cases (block, ON, OFF).",
+      "GREEN: implement."
+    ],
+    "risk_red_lines": [
+      "Do not allow disabling 00-foundation or 02-settings (can_disable=false)."
+    ],
+    "skills": [
+      "test-driven-development"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": false
+  }
+}

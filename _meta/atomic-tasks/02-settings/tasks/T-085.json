@@ -1,0 +1,77 @@
+{
+  "title": "T-085 — E2E Playwright: reference CSV import → preview → commit happy path",
+  "prompt": "# T-085 — E2E Playwright: reference CSV import\n\n## Goal\nEnd-to-end the CSV import wizard: upload → preview → commit. Assert summary counts match staged report and rows persist after commit.\n\n## Files in scope\n- apps/web/e2e/reference-csv.spec.ts [create]\n\n## Acceptance criteria (all must hold)\n- Given a CSV with 3 inserts + 2 updates + 1 skip, when uploaded, then preview report shows the same counts.\n- Given commit is clicked, when action returns, then 5 rows are persisted (errors excluded) and the table view reflects the new state.\n- Given a CSV with mismatched header, when uploaded, then UI shows CSV_HEADER_MISMATCH and commit is blocked.\n\n## Test strategy (RED first)\n1. Add a failing test that exercises the acceptance criteria above. The RED command is:\n   `pnpm --filter @monopilot/web playwright test e2e/reference-csv.spec.ts`\n2. Run RED — it must fail before any production code is written.\n3. Implement the smallest change needed for GREEN.\n4. Re-run RED command — must pass.\n5. Run `pnpm typecheck` and `pnpm lint` in the changed package; both must pass.\n\n## Risk red lines\n- Do not edit files outside the listed scope without documenting why in CLOSEOUT.\n- Do not weaken existing acceptance criteria from prior tasks.\n- Do not introduce REST endpoints; use Server Actions per stack contract.\n- Do not commit secrets or vault keys.\n\n## Closeout evidence required\n- changed_files (with line counts)\n- exact test commands and outputs (RED→GREEN, typecheck, lint)\n- acceptance_criteria_status (one row per AC: pass/fail)\n- deviations_from_prd (or \"none\")\n- git_status\n\nStack: TS + Next.js App Router + Drizzle + pnpm + vitest + Playwright + Server Actions. Primitives in `packages/ui`. PRD: `02-SETTINGS-PRD.md` v3.5.\n",
+  "labels": [
+    "prd",
+    "test",
+    "e2e-csv-import",
+    "T4-wiring-test"
+  ],
+  "priority": 120,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-085",
+    "source_prd": "02-SETTINGS-PRD.md",
+    "prd_refs": [
+      "§8.5"
+    ],
+    "category": "test",
+    "subcategory": "e2e-csv-import",
+    "task_type": "T4-wiring-test",
+    "parent_feature": "02-settings-d",
+    "context_budget": "40k",
+    "estimated_effort": "1-3h",
+    "description": "E2E reference CSV import wizard.",
+    "details": "Use small fixture CSVs in apps/web/e2e/fixtures/.",
+    "scope_files": [
+      "apps/web/e2e/reference-csv.spec.ts"
+    ],
+    "out_of_scope": [
+      "broaden scope beyond listed files",
+      "implement future-phase features"
+    ],
+    "dependencies": [
+      "T-022",
+      "T-067"
+    ],
+    "parallel_safe_with": [],
+    "acceptance_criteria": [
+      "Preview counts correct.",
+      "Commit persists.",
+      "Header mismatch blocks."
+    ],
+    "test_strategy": [
+      "RED: write spec + fixtures. GREEN: ensure UI."
+    ],
+    "risk_red_lines": [
+      "Do not skip the two-step preview/commit pattern."
+    ],
+    "skills": [
+      "test-driven-development"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": false
+  }
+}

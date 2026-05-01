@@ -1,0 +1,61 @@
+{
+  "title": "T-001 — scanner_sessions + users PIN columns migration (06-a)",
+  "prompt": "# T-001 — scanner_sessions + users PIN columns migration\n\nPRD: 06-SCANNER-P1-PRD.md §8.1 FR-SC-BE-001/004/005, §12.1, §12.2 D8\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nIntroduce the `scanner_sessions` table and the PIN-related columns on `users` so that scanner login/PIN setup/PIN rotation can be implemented (FR-SC-BE-001..005).\n\n## Implementation contract\n1. New Drizzle migration `packages/db/migrations/0060_scanner_sessions_and_pin.sql`:\n   - CREATE TABLE scanner_sessions (id UUID PK default gen_random_uuid, user_id UUID FK users.id, org_id UUID, site_id UUID NULL, line_id UUID NULL, shift_id UUID NULL, device_mode TEXT CHECK IN ('personal','kiosk'), device_type TEXT, ip_address INET, user_agent TEXT, created_at TIMESTAMPTZ default now, expires_at TIMESTAMPTZ, last_activity_at TIMESTAMPTZ, ended_at TIMESTAMPTZ NULL).\n   - ALTER TABLE users ADD COLUMN scanner_pin_hash TEXT NULL, ADD COLUMN pin_last_changed_at TIMESTAMPTZ NULL, ADD COLUMN pin_rotation_required BOOLEAN NOT NULL DEFAULT FALSE, ADD COLUMN preferred_device_mode TEXT CHECK IN ('personal','kiosk') NULL.\n   - Indexes: scanner_sessions (org_id, user_id, created_at DESC), (org_id, expires_at) WHERE ended_at IS NULL.\n   - ENABLE RLS on scanner_sessions with policy `tenant_isolation_scanner_sessions` (org_id = current_setting('app.org_id')::uuid).\n2. Drizzle schema entry `packages/db/src/schema/scanner-sessions.ts` mirroring columns; export Insert/Select.\n3. Extend `packages/db/src/schema/users.ts` with the four new columns.\n\n## Files\n- packages/db/migrations/0060_scanner_sessions_and_pin.sql [create]\n- packages/db/src/schema/scanner-sessions.ts [create]\n- packages/db/src/schema/users.ts [modify]\n- packages/db/src/schema/index.ts [modify]\n- packages/db/__tests__/scanner-sessions.test.ts [create]\n\n## Acceptance criteria\n1. Given migration 0060 runs on a fresh DB, when describing scanner_sessions, then both indexes exist and RLS is enabled with the tenant_isolation policy\n2. Given migration 0060 runs, when describing users, then scanner_pin_hash/pin_last_changed_at/pin_rotation_required/preferred_device_mode columns exist with the documented defaults and CHECK constraints\n3. Given two orgs with rows in scanner_sessions, when querying under org A app.org_id, then no org B rows are returned\n\n## Test strategy\n- RED: write packages/db/__tests__/scanner-sessions.test.ts asserting all three ACs before migration exists\n- Run 'pnpm --filter db migrate && pnpm --filter db test scanner-sessions'\n\n## Risk red lines\n- Do not drop existing users columns\n- Do not skip RLS policy\n- Do not store the PIN in plaintext anywhere",
+  "labels": ["prd", "data", "schema-scanner-auth", "T1-schema"],
+  "priority": 50,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-001",
+    "source_prd": "06-SCANNER-P1-PRD.md",
+    "prd_refs": ["§8.1 FR-SC-BE-001..005", "§12.1", "§12.2 D8"],
+    "category": "data",
+    "subcategory": "schema-scanner-auth",
+    "task_type": "T1-schema",
+    "parent_feature": "06-a Shell & Core",
+    "context_budget": "30k",
+    "estimated_effort": "1-2h",
+    "description": "Add scanner_sessions table + users PIN columns with RLS so scanner auth endpoints can land.",
+    "details": "Drizzle migration 0060 creates scanner_sessions (per §8.1 FR-SC-BE-001 column list) with two indexes and RLS, and extends users with scanner_pin_hash/pin_last_changed_at/pin_rotation_required/preferred_device_mode. Drizzle schema mirrors both. Tests verify index presence, RLS isolation, and users column defaults.",
+    "scope_files": [
+      "packages/db/migrations/0060_scanner_sessions_and_pin.sql [create]",
+      "packages/db/src/schema/scanner-sessions.ts [create]",
+      "packages/db/src/schema/users.ts [modify]",
+      "packages/db/src/schema/index.ts [modify]",
+      "packages/db/__tests__/scanner-sessions.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not implement the login endpoint here (T-006)",
+      "Do not seed PIN values here (T-048 seed)",
+      "Do not add scanner_audit_log here (T-002)"
+    ],
+    "dependencies": [],
+    "parallel_safe_with": ["T-002"],
+    "acceptance_criteria": [
+      "Given migration 0060 runs on a fresh DB, when describing scanner_sessions, then both indexes exist and RLS is enabled with tenant_isolation_scanner_sessions",
+      "Given migration 0060 runs, when describing users, then scanner_pin_hash/pin_last_changed_at/pin_rotation_required/preferred_device_mode exist with the documented defaults and CHECK constraints",
+      "Given two orgs with rows in scanner_sessions, when querying under org A app.org_id, then no org B rows are returned"
+    ],
+    "test_strategy": [
+      "RED: write packages/db/__tests__/scanner-sessions.test.ts asserting indexes + users columns + RLS isolation before migration exists",
+      "Run 'pnpm --filter db migrate && pnpm --filter db test scanner-sessions'"
+    ],
+    "risk_red_lines": [
+      "Do not drop existing users columns",
+      "Do not skip RLS policy on scanner_sessions",
+      "Do not store the PIN in plaintext"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

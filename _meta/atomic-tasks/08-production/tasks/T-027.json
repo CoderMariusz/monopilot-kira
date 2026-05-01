@@ -1,0 +1,59 @@
+{
+  "title": "T-027 — GET /api/production/work-orders/:id/material-status (FEFO context)",
+  "prompt": "# T-027 — GET /work-orders/:id/material-status\n\nPRD: 08-PRODUCTION-PRD.md §7.2 FR-08-E2 (consumed by SCN-080), §8.2.4\n\n## Goal\nImplement GET /api/production/work-orders/[id]/material-status returning per-component planned vs consumed totals plus FEFO LP suggestions (top 3 by expiry).\n\n## Implementation contract\nApp Router GET /api/production/work-orders/[id]/material-status. Read wo_materials (BOM snapshot) join wo_material_consumption sums per component. For each component, query 05-WH for top-3 FEFO LP candidates (call existing 05-WH FEFO suggestion API). Return JSON {wo_id, components:[{component_id, planned_qty, consumed_qty, remaining_qty, fefo_lp_suggestions:[{lp_id, expiry_date, qty_available, location}, ...]}]}. Cache 30s.\n\n## Files (scope)\n- apps/web/app/api/production/work-orders/[id]/material-status/route.ts [create]\n- apps/web/app/api/production/work-orders/[id]/material-status/__tests__/route.test.ts [create]\n- packages/api-services/production/get-material-status.ts [create]\n\n## Acceptance criteria\n1. Given WO with 3 BOM components and 2 consumed at 50%, when GET material-status, then components[0].consumed_qty equals 50% of planned_qty and remaining_qty matches\n2. Given 5 LPs available for component, when GET, then fefo_lp_suggestions returns top 3 sorted ascending by expiry_date\n3. Given non-existent wo_id, when GET, then 404\n\n## Test strategy\n- RED: route test asserting per-component sums + top-3 FEFO ordering before route exists\n- Run 'pnpm --filter web test material-status'\n\n## Risk red lines\n- Do not return more than 3 FEFO suggestions (operator UX clutter)\n- Do not skip RLS\n- Do not cache >30s (operator-facing FEFO must be near-real-time)",
+  "labels": ["prd", "api", "consumption", "T2-api"],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-027",
+    "source_prd": "08-PRODUCTION-PRD.md",
+    "prd_refs": ["§8.2.4", "§7.2"],
+    "category": "api",
+    "subcategory": "consumption",
+    "task_type": "T2-api",
+    "parent_feature": "08-PROD E2 Consumption",
+    "context_budget": "26k",
+    "estimated_effort": "2h",
+    "description": "GET material-status returning per-component progress + top-3 FEFO LP suggestions for SCN-080.",
+    "details": "Read BOM snapshot + sums of consumption per component. Call 05-WH FEFO suggestion adapter for each component to fetch top-3 LPs by expiry. cacheLife({stale:30}). Per-tenant RLS enforced.",
+    "scope_files": [
+      "apps/web/app/api/production/work-orders/[id]/material-status/route.ts [create]",
+      "apps/web/app/api/production/work-orders/[id]/material-status/__tests__/route.test.ts [create]",
+      "packages/api-services/production/get-material-status.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not implement 05-WH FEFO suggestion logic",
+      "Do not implement output progress (T-021 covers)",
+      "Do not modify schema"
+    ],
+    "dependencies": ["T-002"],
+    "parallel_safe_with": ["T-023", "T-024", "T-025", "T-026"],
+    "acceptance_criteria": [
+      "Given 3 components 2 consumed at 50%, when GET, then components[0].consumed_qty matches and remaining_qty correct",
+      "Given 5 LPs available, when GET, then fefo_lp_suggestions returns top 3 ascending by expiry_date",
+      "Given non-existent wo_id, when GET, then 404"
+    ],
+    "test_strategy": [
+      "RED: route test asserting sums + top-3 FEFO before route exists",
+      "Run 'pnpm --filter web test material-status'"
+    ],
+    "risk_red_lines": [
+      "Do not return >3 FEFO suggestions",
+      "Do not skip RLS",
+      "Do not cache >30s"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

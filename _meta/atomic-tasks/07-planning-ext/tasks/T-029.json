@@ -1,0 +1,58 @@
+{
+  "title": "T-029 — Outbox emitters: matrix.version.published + assignment.overridden + bulk_approved",
+  "prompt": "# T-029 — Outbox emitters: matrix.version.published + assignment.overridden + bulk_approved\n\nPRD: 07-PLANNING-EXT-PRD.md §9.8, §17.1 PLE-013, §17.1 PLE-004 FR-07-PLE-004-02\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nImplement remaining scheduler-domain outbox emitters for matrix version publish (PLE-013), assignment override audit, and the batched bulk_approved event with array payload.\n\n## Implementation contract\n1. Extend `apps/web/src/lib/outbox/emitters/scheduler.ts` (built in T-028) with:\n   - `emitMatrixVersionPublished(version, changedCellsCount)`\n   - `emitAssignmentOverridden(assignment, override)`\n   - `emitAssignmentsBulkApproved(assignmentIds: string[])` (array payload)\n2. All inserts transactional. Zod payload schemas per §9.8.\n3. Update tests to cover the three new emitters.\n\n## Files\n- apps/web/src/lib/outbox/emitters/scheduler.ts [modify]\n- apps/web/src/lib/outbox/emitters/__tests__/scheduler.test.ts [modify]\n\n## Acceptance criteria\n1. Given a transaction + new matrix version, when emitMatrixVersionPublished called, then outbox_events row event_type='scheduler.changeover_matrix.updated' inserted with version_id + changed_cells_count\n2. Given an override action, when emitAssignmentOverridden called, then outbox_events row event_type='scheduler.assignment.overridden' inserted with reason_code + reason_notes\n3. Given a bulk_approved batch of 5 assignment_ids, when emitAssignmentsBulkApproved called, then exactly ONE outbox_events row event_type='scheduler.assignments.bulk_approved' inserted with array payload of 5 ids\n\n## Test strategy\n- RED: extend __tests__/scheduler.test.ts to cover all 3 new emitters; assert array payload shape on bulk_approved\n- Run 'pnpm --filter web test outbox/emitters/scheduler'\n\n## Risk red lines\n- Do not emit per-id row in bulk_approved (must be one batched row)\n- Do not skip transactional guard on any emitter\n- Do not invent new event_type names beyond §9.8 list",
+  "labels": ["prd", "integration", "outbox", "T2-api"],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-029",
+    "source_prd": "07-PLANNING-EXT-PRD.md",
+    "prd_refs": ["§9.8", "§17.1 PLE-013", "§17.1 PLE-004"],
+    "category": "integration",
+    "subcategory": "outbox-emitter",
+    "task_type": "T2-api",
+    "parent_feature": "07-EXT outbox event-first",
+    "context_budget": "30k",
+    "estimated_effort": "1h",
+    "description": "Add 3 emitters: matrix.version.published, assignment.overridden, assignments.bulk_approved (single batched row).",
+    "details": "Extends T-028 module with three emitters. bulk_approved must always be a single outbox_events row with array payload regardless of batch size.",
+    "scope_files": [
+      "apps/web/src/lib/outbox/emitters/scheduler.ts [modify]",
+      "apps/web/src/lib/outbox/emitters/__tests__/scheduler.test.ts [modify]"
+    ],
+    "out_of_scope": [
+      "Do not implement matrix.review.requested here (covered by T-041 server action)",
+      "Do not implement forecast.uploaded here (P2-only event)",
+      "Do not implement consumers"
+    ],
+    "dependencies": ["T-028"],
+    "parallel_safe_with": [],
+    "acceptance_criteria": [
+      "Given a transaction + new matrix version, when emitMatrixVersionPublished called, then outbox_events row event_type='scheduler.changeover_matrix.updated' inserted with version_id + changed_cells_count",
+      "Given an override action, when emitAssignmentOverridden called, then outbox_events row event_type='scheduler.assignment.overridden' inserted with reason_code + reason_notes",
+      "Given bulk_approved batch of 5 ids, when emitAssignmentsBulkApproved called, then exactly ONE outbox_events row event_type='scheduler.assignments.bulk_approved' inserted with array payload of 5 ids"
+    ],
+    "test_strategy": [
+      "RED: extend __tests__/scheduler.test.ts to cover all 3 new emitters + bulk array payload",
+      "Run 'pnpm --filter web test outbox/emitters/scheduler'"
+    ],
+    "risk_red_lines": [
+      "Do not emit per-id row in bulk_approved",
+      "Do not skip transactional guard",
+      "Do not invent event_type names beyond §9.8"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

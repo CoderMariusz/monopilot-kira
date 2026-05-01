@@ -1,0 +1,59 @@
+{
+  "title": "T-010 — Warehouse outbox event types catalog",
+  "prompt": "# T-010 — Warehouse outbox event catalog\n\nPRD: `05-WAREHOUSE-PRD.md` §5.1 (#11 outbox), §7.6, §11.4.\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`.\n\n## Goal\nDeclare the warehouse-owned outbox event types in shared catalog so emitters can reference them by enum.\n\n## Implementation contract\nExtend `packages/outbox/src/event-types.ts` (assume already created in 00-FOUNDATION) with warehouse events: `lp.reserved`, `lp.consumed`, `lp.split`, `lp.merged`, `lp.expired`, `lp.quarantined`, `lp.qa_changed`, `lp.blocked`, `lp.shipped`, `lp.scrapped`, `grn.completed`. Provide TS payload types per §7.6 schema. No emitters here (T-047 owns).\n\n## Files (scope)\n- packages/outbox/src/event-types.ts [modify]\n- packages/outbox/src/warehouse-events.ts [create]\n- packages/outbox/src/__tests__/warehouse-events.test.ts [create]\n\n## Acceptance criteria\n1. Given consumers import the WarehouseEventType union, when assigning an unknown literal, then TypeScript raises a type error.\n2. Given a `grn.completed` payload is constructed without lp_ids array, when validated by Zod schema, then it rejects with a clear error.\n3. Given the test runs, when listing all warehouse event types, then 11 entries are returned matching PRD list.\n\n## Test strategy\n- RED: warehouse-events.test.ts checks union exhaustiveness and Zod payload validation for grn.completed.\n- Run `pnpm --filter outbox test warehouse-events`.\n\n## Risk red lines\n- Do not emit events here.\n- Do not change foundation outbox table schema.\n- Do not introduce wildcard event type strings.",
+  "labels": ["prd", "data", "outbox", "T1-schema"],
+  "priority": 80,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-010",
+    "source_prd": "05-WAREHOUSE-PRD.md",
+    "prd_refs": ["§5.1", "§7.6", "§11.4"],
+    "category": "data",
+    "subcategory": "outbox",
+    "task_type": "T1-schema",
+    "parent_feature": "warehouse-foundation",
+    "context_budget": "20k",
+    "estimated_effort": "1h",
+    "description": "Declare 11 warehouse outbox event types and Zod payload schemas per §7.6 / §11.4.",
+    "details": "Extend shared outbox catalog with WarehouseEventType union. Provide Zod schemas for each payload. No emitters here.",
+    "scope_files": [
+      "packages/outbox/src/event-types.ts [modify]",
+      "packages/outbox/src/warehouse-events.ts [create]",
+      "packages/outbox/src/__tests__/warehouse-events.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Emitter wiring (T-047)",
+      "Consumer services (P2 EPCIS — WH-E16)",
+      "Foundation outbox table schema"
+    ],
+    "dependencies": [],
+    "parallel_safe_with": ["T-001", "T-008", "T-009"],
+    "acceptance_criteria": [
+      "Given consumers assign 'lp.unknown' to WarehouseEventType, when compiled, then TypeScript raises a type error",
+      "Given a grn.completed payload is constructed without lp_ids, when validated by Zod, then it rejects",
+      "Given the test enumerates warehouse event types, when run, then 11 entries match the PRD list"
+    ],
+    "test_strategy": [
+      "RED: warehouse-events.test.ts checks union exhaustiveness and Zod schema",
+      "Run 'pnpm --filter outbox test warehouse-events'"
+    ],
+    "risk_red_lines": [
+      "Do not emit events here",
+      "Do not modify foundation outbox table",
+      "Do not allow wildcard event names"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

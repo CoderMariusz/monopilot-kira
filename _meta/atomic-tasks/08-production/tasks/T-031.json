@@ -1,0 +1,59 @@
+{
+  "title": "T-031 — Genealogy write on output (consumed LPs → output LP)",
+  "prompt": "# T-031 — Output genealogy write\n\nPRD: 08-PRODUCTION-PRD.md §7.3 FR-08-E3-007, §13 R1, §16.4 V-PROD-18\n\n## Goal\nWire register-output (and register-byproduct) to write lp_genealogy.operation_type='output' linking all consumed LPs of this WO → produced LP.\n\n## Implementation contract\nExtend register-output: after wo_outputs INSERT, query distinct source_lp_id from lp_genealogy WHERE target_wo_id=:wo_id (rows written by T-025), and for each, INSERT a fan-in row {operation_type:'output', source_lp_id, target_lp_id=produced_lp_id, qty_proportional, created_at}. Apply same to register-byproduct. Add integration test for V-PROD-18: every wo_outputs row has at least one lp_genealogy row with operation_type='output'.\n\n## Files (scope)\n- packages/api-services/production/register-output.ts [modify]\n- packages/api-services/production/register-byproduct.ts [modify]\n- packages/api-services/production/__tests__/output-genealogy.test.ts [create]\n\n## Acceptance criteria\n1. Given a WO with 3 consumed LPs, when register-output succeeds, then lp_genealogy contains 3 rows operation_type='output' with target_lp_id=produced_lp_id and source_lp_id matching each consumed LP\n2. Given no consumed LPs (zero wo_material_consumption), when register-output runs, then transaction fails with error code 'no_consumption_for_output' (V-PROD-18 invariant — outputs require inputs)\n3. Given output insert succeeds, when querying lp_genealogy WHERE target_lp_id=:lp, then row count matches distinct source_lp_id of consumption (R1)\n\n## Test strategy\n- RED: integration test asserting 3 consumed LPs → 3 output genealogy rows + zero-consumption-rejection before code change\n- Run 'pnpm --filter api-services test output-genealogy'\n\n## Risk red lines\n- Do not allow output without consumed LP genealogy (V-PROD-18 broken otherwise)\n- Do not write genealogy outside output transaction\n- Do not modify lp_genealogy schema",
+  "labels": ["prd", "api", "output", "T2-api"],
+  "priority": 80,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-031",
+    "source_prd": "08-PRODUCTION-PRD.md",
+    "prd_refs": ["§7.3 FR-08-E3-007", "§13 R1", "§16.4 V-PROD-18"],
+    "category": "api",
+    "subcategory": "output",
+    "task_type": "T2-api",
+    "parent_feature": "08-PROD E3 Output+Waste",
+    "context_budget": "26k",
+    "estimated_effort": "2h",
+    "description": "lp_genealogy fan-in writes on output registration (consumed LPs → produced LP).",
+    "details": "After wo_outputs insert, query existing consumption-genealogy rows for this WO and INSERT fan-in rows. Block output when zero consumption (V-PROD-18). Atomic with output transaction.",
+    "scope_files": [
+      "packages/api-services/production/register-output.ts [modify]",
+      "packages/api-services/production/register-byproduct.ts [modify]",
+      "packages/api-services/production/__tests__/output-genealogy.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not modify lp_genealogy schema",
+      "Do not implement genealogy query API (UI task)",
+      "Do not implement EPCIS export"
+    ],
+    "dependencies": ["T-025", "T-028", "T-029"],
+    "parallel_safe_with": ["T-030", "T-032", "T-033"],
+    "acceptance_criteria": [
+      "Given 3 consumed LPs, when register-output runs, then 3 lp_genealogy rows op='output' with target_lp_id=produced_lp_id",
+      "Given zero consumption, when register-output runs, then transaction fails with no_consumption_for_output (V-PROD-18)",
+      "Given output insert succeeds, when count lp_genealogy WHERE target_lp_id=:lp, then count matches distinct source_lp_id of consumption"
+    ],
+    "test_strategy": [
+      "RED: integration test asserting fan-in + zero-consumption rejection before changes",
+      "Run 'pnpm --filter api-services test output-genealogy'"
+    ],
+    "risk_red_lines": [
+      "Do not allow output without consumed genealogy",
+      "Do not write outside output transaction",
+      "Do not modify lp_genealogy schema"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

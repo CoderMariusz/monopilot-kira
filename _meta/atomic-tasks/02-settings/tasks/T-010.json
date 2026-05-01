@@ -1,0 +1,87 @@
+{
+  "title": "T-010 — Drizzle migration: audit_log monthly partitioning (ADR-008)",
+  "prompt": "# T-010 — Drizzle migration: partitioned audit_log\n\n## Goal\nCreate §5.6 audit_log table partitioned by RANGE(created_at) monthly with auto-partition creation function `audit_log_create_partitions(months_ahead INT)`. Retain 7 years.\n\n## Files in scope\n- apps/web/db/schema/audit-log.ts [create]\n- apps/web/db/migrations/ [create]\n- apps/web/db/migrations/__tests__/audit-log.test.ts [create]\n\n## Acceptance criteria (all must hold)\n- Given migration is applied, when `\\dt+` is shown, then `audit_log` is PARTITIONED BY RANGE (created_at) and 12 monthly child partitions exist for the current year.\n- Given a row is inserted into audit_log with created_at in next month, when child partition is missing, then the migration's pg_cron-equivalent creator function auto-provisions it.\n- Given an old partition older than 84 months exists, when the retention helper runs, then it is DETACHED (not dropped — manual archival).\n\n## Test strategy (RED first)\n1. Add a failing test that exercises the acceptance criteria above. The RED command is:\n   `pnpm --filter @monopilot/web vitest run apps/web/db/migrations/__tests__/audit-log.test.ts`\n2. Run RED — it must fail before any production code is written.\n3. Implement the smallest change needed for GREEN.\n4. Re-run RED command — must pass.\n5. Run `pnpm typecheck` and `pnpm lint` in the changed package; both must pass.\n\n## Risk red lines\n- Do not edit files outside the listed scope without documenting why in CLOSEOUT.\n- Do not weaken existing acceptance criteria from prior tasks.\n- Do not introduce REST endpoints; use Server Actions per stack contract.\n- Do not commit secrets or vault keys.\n\n## Closeout evidence required\n- changed_files (with line counts)\n- exact test commands and outputs (RED→GREEN, typecheck, lint)\n- acceptance_criteria_status (one row per AC: pass/fail)\n- deviations_from_prd (or \"none\")\n- git_status\n\nStack: TS + Next.js App Router + Drizzle + pnpm + vitest + Playwright + Server Actions. Primitives in `packages/ui`. PRD: `02-SETTINGS-PRD.md` v3.5.\n",
+  "labels": [
+    "prd",
+    "data",
+    "audit-log",
+    "T1-schema"
+  ],
+  "priority": 80,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-010",
+    "source_prd": "02-SETTINGS-PRD.md",
+    "prd_refs": [
+      "§5.6",
+      "ADR-008"
+    ],
+    "category": "data",
+    "subcategory": "audit-log-schema",
+    "task_type": "T1-schema",
+    "parent_feature": "02-settings-a",
+    "context_budget": "40k",
+    "estimated_effort": "1-3h",
+    "description": "Partitioned audit_log with 7-year retention.",
+    "details": "Use declarative partitioning (PARTITION BY RANGE). Provide `audit_log_create_partitions(N)` plpgsql function. Provide `audit_log_detach_old(months INT)` for retention. Schedule via pg_cron in a separate task (T-014).",
+    "scope_files": [
+      "apps/web/db/schema/audit-log.ts",
+      "apps/web/db/migrations/",
+      "apps/web/db/migrations/__tests__/audit-log.test.ts"
+    ],
+    "out_of_scope": [
+      "broaden scope beyond listed files",
+      "implement future-phase features"
+    ],
+    "dependencies": [
+      "T-004"
+    ],
+    "parallel_safe_with": [
+      "T-005",
+      "T-006",
+      "T-007",
+      "T-008",
+      "T-009"
+    ],
+    "acceptance_criteria": [
+      "audit_log partitioned monthly per ADR-008.",
+      "12 child partitions created up-front for current year.",
+      "Auto-create function operational.",
+      "vitest green."
+    ],
+    "test_strategy": [
+      "RED: assert partition count and creator function.",
+      "GREEN: emit migration."
+    ],
+    "risk_red_lines": [
+      "Do not drop old partitions automatically — DETACH only."
+    ],
+    "skills": [
+      "test-driven-development"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": false
+  }
+}

@@ -1,0 +1,44 @@
+{
+  "title": "T-010 — SET-007 Completion Celebration page",
+  "prompt": "Implement SET-007 Completion Celebration page at `/onboarding/6` per PRD §14.3 step 6 + §14.4 SET-007. On render: trigger confetti animation (canvas-confetti or framer-motion), call updateOnboardingState({current_step:6, completed_steps: [...prev, 6]}) once, then render a 3-card grid linking to: Module Toggles (`/admin/features`), Schema Browser (`/admin/schema`), Rules Registry (`/admin/rules`).\n\nMust be idempotent — refreshing the page does not re-fire updateOnboardingState if step 6 already in completed_steps.\n\nRED: `pnpm --filter web test -- onboarding-step6`.",
+  "labels": ["prd", "ui", "celebration-card-grid", "T3-ui"],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-010",
+    "source_prd": "02-SETTINGS-PRD.md",
+    "prd_refs": ["§14.3 step 6 (line 1525)", "§14.4 SET-007 (line 1544)"],
+    "category": "ui",
+    "subcategory": "celebration-card-grid",
+    "task_type": "T3-ui",
+    "parent_feature": "02-SETTINGS-onboarding-wizard",
+    "context_budget": "20k",
+    "estimated_effort": "1-1.5h",
+    "description": "Final page: confetti + 3 next-step cards; advances state to completed.",
+    "details": "Use `canvas-confetti` or shared <Confetti/> primitive. Cards use shadcn <Card>. Idempotency via useEffect guard checking completed_steps.includes(6).",
+    "scope_files": [
+      "apps/web/app/(onboarding)/6/page.tsx [create]",
+      "apps/web/app/(onboarding)/6/celebration.tsx [create]",
+      "apps/web/app/(onboarding)/6/celebration.test.tsx [create]"
+    ],
+    "out_of_scope": ["Building the target admin pages /admin/features etc.", "Other onboarding steps"],
+    "dependencies": ["T-002"],
+    "parallel_safe_with": ["T-005", "T-006", "T-007", "T-008", "T-009"],
+    "acceptance_criteria": [
+      "Given completed_steps does NOT include 6, when /onboarding/6 first renders, then updateOnboardingState fires once and confetti animation triggers.",
+      "Given completed_steps already includes 6, when page re-renders, then updateOnboardingState is NOT called again (idempotency).",
+      "Given page rendered, when DOM is queried, then exactly 3 anchor elements exist with hrefs /admin/features, /admin/schema, /admin/rules.",
+      "Given vitest+RTL covers above, when pnpm --filter web test runs, then 0 failures."
+    ],
+    "test_strategy": ["RED: RTL spec on 4 AC.", "GREEN: implement; pass.", "Command: pnpm --filter web test -- onboarding-step6"],
+    "risk_red_lines": ["Do not double-fire updateOnboardingState on remount.", "Do not block render if confetti library fails to load (must be progressive enhancement)."],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {"red": "hermes_gpt55", "implementation": "hermes_gpt55", "review": "opus_if_high_risk_or_ui_or_architecture", "close": "spark_low_risk_else_opus"}
+  }
+}

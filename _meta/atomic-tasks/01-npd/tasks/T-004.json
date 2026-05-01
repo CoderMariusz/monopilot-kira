@@ -1,0 +1,59 @@
+{
+  "title": "T-004 — Reference.ManufacturingOperations table + multi-industry seeds",
+  "prompt": "# T-004 — Reference.ManufacturingOperations table\n\nPRD: 01-NPD-PRD.md §4.5 + Appendix A\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nCreate Reference.ManufacturingOperations table (replaces hardcoded Process_1..4) and seed defaults for Bakery / Pharmacy / FMCG industries.\n\n## Implementation contract\nMigration 0013 emits Reference.ManufacturingOperations per §4.5 (id PK, tenant_id, operation_name, process_suffix UNIQUE, description, operation_seq, industry_code, is_active, marker, UNIQUE(tenant_id, operation_name)). Seed file packages/db/seeds/manufacturing-operations.ts emits 3 industry seeds (bakery: Mix/Knead/Proof/Bake; pharma: Synthesis/Separation/Crystallization/Drying; fmcg: Mix/Fill/Seal/Label). RLS policy. Drizzle schema.\n\n## Files\n- packages/db/migrations/0013_manufacturing_operations.sql [create]\n- packages/db/src/schema/manufacturing-operations.ts [create]\n- packages/db/seeds/manufacturing-operations.ts [create]\n- packages/db/__tests__/manufacturing-operations.test.ts [create]\n\n## Acceptance criteria\n1. Given migration 0013 ran and seed executed for tenant T1 with industry_code='bakery', when querying, then 4 rows (Mix/Knead/Proof/Bake) exist with suffixes (MX/KN/PR/BK)\n2. Given two operations with same name in same tenant, when INSERT second runs, then UNIQUE(tenant_id, operation_name) rejects\n3. Given seed run for pharma tenant, when querying, then Synthesis|SY, Separation|SE, Crystallization|CZ, Drying|DR exist\n\n## Test strategy\n- RED: tests asserting seeded rows per industry + uniqueness\n- Run 'pnpm --filter db migrate && pnpm --filter db seed:manufacturing-operations && pnpm --filter db test manufacturing-operations'\n\n## Risk red lines\n- Do not seed without tenant_id\n- Do not allow process_suffix collisions across the same tenant\n- Do not commit fmcg-cosmetic operations beyond the 4 PRD-listed defaults",
+  "labels": ["prd", "data", "schema", "T1-schema"],
+  "priority": 50,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-004",
+    "source_prd": "01-NPD-PRD.md",
+    "prd_refs": ["§4.5", "Appendix A"],
+    "category": "data",
+    "subcategory": "schema-reference",
+    "task_type": "T1-schema",
+    "parent_feature": "01-NPD-a multi-industry ops",
+    "context_budget": "35k",
+    "estimated_effort": "1-2h",
+    "description": "Reference.ManufacturingOperations table + Bakery/Pharmacy/FMCG seed enabling tenant-configurable process names and suffixes.",
+    "details": "DDL per §4.5 with UNIQUE(tenant_id, operation_name) and process_suffix global UNIQUE. Seed file inserts 3 industry sets. Drizzle schema mirrors. RLS scoped to tenant_id.",
+    "scope_files": [
+      "packages/db/migrations/0013_manufacturing_operations.sql [create]",
+      "packages/db/src/schema/manufacturing-operations.ts [create]",
+      "packages/db/seeds/manufacturing-operations.ts [create]",
+      "packages/db/__tests__/manufacturing-operations.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not implement cascade Chain 2 here (T-012)",
+      "Do not include settings UI for editing operations (02-SETTINGS Phase C1)"
+    ],
+    "dependencies": ["T-001"],
+    "parallel_safe_with": ["T-003", "T-005"],
+    "acceptance_criteria": [
+      "Given migration 0013 ran and seed for tenant T1 industry='bakery' executed, when querying, then 4 rows (Mix/Knead/Proof/Bake) with suffixes (MX/KN/PR/BK) exist",
+      "Given two operations with same name in same tenant, when INSERT second runs, then UNIQUE(tenant_id, operation_name) rejects",
+      "Given seed run for pharma tenant, when querying, then Synthesis|SY, Separation|SE, Crystallization|CZ, Drying|DR exist"
+    ],
+    "test_strategy": [
+      "RED: write test asserting seeded rows per industry + UNIQUE constraint before migration exists",
+      "Run 'pnpm --filter db migrate && pnpm --filter db seed:manufacturing-operations && pnpm --filter db test manufacturing-operations'"
+    ],
+    "risk_red_lines": [
+      "Do not seed without tenant_id parameter",
+      "Do not collide process_suffix within same tenant",
+      "Do not add operations beyond PRD §4.5 defaults"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

@@ -1,0 +1,36 @@
+{
+  "title": "T-007 — Migration: d365_sync_jobs and d365_sync_dlq",
+  "prompt": "Create Drizzle migration per §5.7 D365 sync state. `d365_sync_jobs`(id PK, org_id, direction TEXT CHECK in ('pull','push'), target_entity TEXT CHECK in ('items','bom','formula','wo_confirmation','journal'), status TEXT default 'scheduled' CHECK in ('scheduled','running','completed','failed','dlq'), records_processed INT default 0, records_failed INT default 0, started_at, completed_at, error_summary, trigger_source TEXT CHECK in ('cron','manual','event'), idempotency_key TEXT UNIQUE, created_at). `d365_sync_dlq`(id PK, sync_job_id FK d365_sync_jobs, record_key TEXT NOT NULL, payload JSONB NOT NULL, error_message TEXT NOT NULL, retry_count INT default 0, last_retry_at, resolved_at, resolution, created_at). RLS org_id-scoped. RED command: `pnpm vitest run tests/db/d365.migration.test.ts`.",
+  "labels": ["prd", "data", "schema-d365", "T1-schema"],
+  "priority": 50,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-007",
+    "source_prd": "03-TECHNICAL-PRD.md",
+    "prd_refs": ["§5.7", "§13.1", "§13.5", "§13.7"],
+    "category": "data",
+    "subcategory": "schema-d365",
+    "task_type": "T1-schema",
+    "parent_feature": "03-TECHNICAL-d D365",
+    "context_budget": "20k",
+    "estimated_effort": "1h",
+    "description": "D365 sync jobs + DLQ tables, idempotency_key UNIQUE, RLS isolation.",
+    "details": "DLQ.error_message NOT NULL enforces V-TEC-71. idempotency_key UNIQUE enforces V-TEC-72 (duplicate detection becomes 409 at API layer). 7-year retention is policy not schema — document in ADR.",
+    "scope_files": ["db/migrations/0xxx_d365_sync.sql", "db/schema/d365.ts", "tests/db/d365.migration.test.ts"],
+    "out_of_scope": ["Pull worker (T-029)", "Push worker (T-030)", "DLQ UI (T-058)"],
+    "dependencies": [],
+    "parallel_safe_with": ["T-001", "T-002", "T-003", "T-004", "T-005", "T-006"],
+    "acceptance_criteria": [
+      "Given migration applied, when inserting two rows with same idempotency_key, then second insert fails with unique-violation.",
+      "Given DLQ row attempted with empty error_message, then NOT NULL rejects.",
+      "Given RLS active, when org context absent, then no rows visible across both tables."
+    ],
+    "test_strategy": ["RED tests for UNIQUE idempotency + NOT NULL DLQ + RLS.", "Run: pnpm vitest run tests/db/d365.migration.test.ts"],
+    "risk_red_lines": ["Do not connect to live D365 in tests — schema-only here."],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {"required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"], "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]},
+    "routing_hints": {"red": "hermes_gpt55", "implementation": "hermes_gpt55", "review": "opus_if_high_risk_or_ui_or_architecture", "close": "spark_low_risk_else_opus"}
+  }
+}

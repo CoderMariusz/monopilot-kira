@@ -1,0 +1,59 @@
+{
+  "title": "T-036 — POST /api/production/downtime-events (manual entry by Shift Lead)",
+  "prompt": "# T-036 — POST /downtime-events (manual)\n\nPRD: 08-PRODUCTION-PRD.md §7.4 FR-08-E4-002, §8.2.5\n\n## Goal\nImplement POST /api/production/downtime-events for Shift Lead manual entry (not WO-PAUSE-linked) creating downtime_events row source='manual'.\n\n## Implementation contract\nApp Router POST. Zod body {transaction_id: uuid, line_id: string, category_id: uuid, started_at: ISO datetime, ended_at?: ISO datetime, reason_notes?: string, recorded_by: uuid}. withIdempotency. Verify recorder role >= shift_lead. Atomic: INSERT downtime_events row source='manual', wo_id=NULL. shift_id auto-resolved via shift attribution helper (T-038). Return 200 {downtime_event_id, line_id, started_at, ended_at, duration_min, source:'manual'}.\n\n## Files (scope)\n- apps/web/app/api/production/downtime-events/route.ts [create]\n- apps/web/app/api/production/downtime-events/__tests__/route.test.ts [create]\n- packages/api-services/production/create-manual-downtime.ts [create]\n\n## Acceptance criteria\n1. Given valid Shift Lead body with started_at and ended_at, when POST, then 200 + downtime_events row inserted source='manual', duration_min computed by GENERATED column\n2. Given recorder role='operator', when POST, then 403 insufficient_role\n3. Given missing line_id, when POST, then 422 ValidationError listing line_id\n\n## Test strategy\n- RED: route test asserting happy + 403 + 422 before route exists\n- Run 'pnpm --filter web test downtime-events'\n\n## Risk red lines\n- Do not allow operator role to create manual downtime\n- Do not write source='wo_pause' here (only via /pause endpoint)\n- Do not skip shift_id attribution",
+  "labels": ["prd", "api", "downtime", "T2-api"],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-036",
+    "source_prd": "08-PRODUCTION-PRD.md",
+    "prd_refs": ["§7.4 FR-08-E4-002", "§8.2.5"],
+    "category": "api",
+    "subcategory": "downtime",
+    "task_type": "T2-api",
+    "parent_feature": "08-PROD E4 Downtime+Shifts",
+    "context_budget": "24k",
+    "estimated_effort": "2h",
+    "description": "POST /downtime-events manual entry by Shift Lead+ with shift attribution.",
+    "details": "Manual downtime: source='manual', wo_id NULL allowed. Shift Lead role required. Idempotent. shift_id resolved via T-038 helper.",
+    "scope_files": [
+      "apps/web/app/api/production/downtime-events/route.ts [create]",
+      "apps/web/app/api/production/downtime-events/__tests__/route.test.ts [create]",
+      "packages/api-services/production/create-manual-downtime.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not implement GET /downtime-events list (T-037)",
+      "Do not implement downtime analytics screen (UI task)",
+      "Do not modify schema"
+    ],
+    "dependencies": ["T-005", "T-015", "T-035"],
+    "parallel_safe_with": ["T-037", "T-038"],
+    "acceptance_criteria": [
+      "Given Shift Lead body with start+end, when POST, then 200 + row source='manual' + duration_min computed",
+      "Given operator role, when POST, then 403 insufficient_role",
+      "Given missing line_id, when POST, then 422 listing line_id"
+    ],
+    "test_strategy": [
+      "RED: route test asserting happy + 403 + 422 before route exists",
+      "Run 'pnpm --filter web test downtime-events'"
+    ],
+    "risk_red_lines": [
+      "Do not allow operator role",
+      "Do not write source='wo_pause'",
+      "Do not skip shift_id attribution"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

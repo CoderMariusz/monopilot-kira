@@ -1,0 +1,36 @@
+{
+  "title": "T-053 — UI: TEC-087 Tooling/Equipment Setup List",
+  "prompt": "Build tooling/equipment setup list per §12A. Generic equipment configuration list (oven config / reactor setup / dieset). Match `tooling_screen` design/Monopilot Design System/technical/other-screens.jsx:314-352. UX-MISSING — parity reference falls back to prototype. RED tests/ui/tec-087-tooling.test.tsx. Run: `pnpm vitest run tests/ui/tec-087-tooling.test.tsx`.",
+  "labels": ["prd", "ui", "ui-tooling", "T3-ui"],
+  "priority": 120,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-053",
+    "source_prd": "03-TECHNICAL-PRD.md",
+    "prd_refs": ["§12A TEC-087"],
+    "category": "ui",
+    "subcategory": "tooling",
+    "task_type": "T3-ui",
+    "parent_feature": "03-TECHNICAL-c Routing",
+    "context_budget": "15k",
+    "estimated_effort": "1-2h",
+    "description": "Tooling/equipment setup list (INDUSTRY-CONFIG).",
+    "details": "List + create/edit drawer. Uses generic ext_jsonb storage on a tooling_setups table — assumed to exist in 02-SETTINGS or be created via existing reference_schemas.",
+    "scope_files": ["app/(app)/technical/tooling/page.tsx", "tests/ui/tec-087-tooling.test.tsx"],
+    "out_of_scope": ["Backend table creation (assume present via 02-SETTINGS)"],
+    "dependencies": ["T-022"],
+    "parallel_safe_with": ["T-052", "T-054"],
+    "acceptance_criteria": [
+      "Given the page renders, when compared to design/Monopilot Design System/technical/other-screens.jsx:314-352, then list columns, search, and Create CTA match — structural + visual + interaction parity verified by RTL.",
+      "Given empty state, when rendered, then empty copy and Create CTA appear.",
+      "Given Create clicked, when submitted, then row appears in list."
+    ],
+    "test_strategy": ["RED tests for parity + create flow.", "Run: pnpm vitest run tests/ui/tec-087-tooling.test.tsx"],
+    "risk_red_lines": ["Do not invent fields beyond prototype."],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {"required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"], "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]},
+    "routing_hints": {"red": "hermes_gpt55", "implementation": "hermes_gpt55", "review": "opus_if_high_risk_or_ui_or_architecture", "close": "spark_low_risk_else_opus"}
+  }
+}

@@ -1,0 +1,67 @@
+{
+  "title": "T-001 — Drizzle schema: suppliers + supplier_products",
+  "prompt": "Add Drizzle ORM table definitions for `suppliers` and `supplier_products` per PRD §5.2 + §5.3.\n\nDeliverable: TypeScript schema file under `src/db/schema/planning/suppliers.ts` exporting Drizzle pgTable definitions, including all columns from PRD §5.2 (id UUID PK, tenant_id, site_id, code, name, address_line1/2, city, postal_code, country CHAR(2), contact_name/email/phone, currency CHAR(3), tax_code_id, payment_terms, d365_supplier_id, d365_sync_status enum, d365_last_synced_at, notes, is_active, ext_jsonb, schema_version, audit cols) and §5.3 supplier_products (id, tenant_id, supplier_id FK, product_id FK, is_default, supplier_product_code, lead_time_days, unit_price, currency, moq, order_multiple, last_purchase_date, last_purchase_price, notes, audit). Include indexes per §5.2 and the partial-unique index `supplier_products_default_per_product_unique` on (tenant_id, product_id) WHERE is_default = true. Generate migration `0001_planning_suppliers.sql` via `pnpm drizzle-kit generate`.\n\nRED test: schema-shape test under `src/db/schema/planning/__tests__/suppliers.test.ts` asserting both tables export expected column names + the partial-unique index name appears in the generated SQL. The test must fail before implementation.\n\nDo NOT touch unrelated migration files. Do NOT seed data. Do NOT create API endpoints — that is T-005.\n\nClose-out: paste the generated migration filename + `pnpm vitest run src/db/schema/planning/__tests__/suppliers.test.ts` output.",
+  "labels": ["prd", "data", "schema-suppliers", "T1-schema"],
+  "priority": 80,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-001",
+    "source_prd": "04-PLANNING-BASIC-PRD.md",
+    "prd_refs": ["§5.2", "§5.3"],
+    "category": "data",
+    "subcategory": "schema-suppliers",
+    "task_type": "T1-schema",
+    "parent_feature": "planning-suppliers",
+    "context_budget": "30k",
+    "estimated_effort": "1-2h",
+    "description": "Drizzle pgTable definitions for suppliers + supplier_products with partial-unique is_default index.",
+    "details": "Tables per PRD §5.2 + §5.3. Use Drizzle pgEnum for d365_sync_status ('synced'|'drift'|'manual'|'conflict'). All FKs reference 03-TECHNICAL items (product_id) and 02-SETTINGS tax_code (tax_code_id) — declare as `uuid()` columns with deferred FK constraints documented in JSDoc comment. Include GIN index on ext_jsonb. Generate migration with `pnpm drizzle-kit generate`. Do NOT modify other module schemas.",
+    "scope_files": [
+      "src/db/schema/planning/suppliers.ts [create]",
+      "src/db/schema/planning/__tests__/suppliers.test.ts [create]",
+      "src/db/migrations/0001_planning_suppliers.sql [create via drizzle-kit]"
+    ],
+    "out_of_scope": [
+      "API endpoints (T-005)",
+      "Seed data (T-006)",
+      "UI (T-040..042)"
+    ],
+    "dependencies": [],
+    "parallel_safe_with": ["T-002", "T-003"],
+    "acceptance_criteria": [
+      "Given the schema file is loaded, when introspected, then `suppliers` and `supplier_products` are exported with all columns named in PRD §5.2/§5.3.",
+      "Given the migration is generated, when grepped, then it contains a partial-unique index on (tenant_id, product_id) WHERE is_default = true.",
+      "Given `pnpm vitest run src/db/schema/planning/__tests__/suppliers.test.ts` runs, when implementation is complete, then 0 failures.",
+      "Given `pnpm tsc --noEmit`, when the file is included, then no TypeScript errors are emitted."
+    ],
+    "test_strategy": [
+      "Add failing RED test before implementation in src/db/schema/planning/__tests__/suppliers.test.ts.",
+      "Run `pnpm vitest run src/db/schema/planning/__tests__/suppliers.test.ts`",
+      "Run `pnpm drizzle-kit generate` and `pnpm tsc --noEmit`."
+    ],
+    "risk_red_lines": [
+      "Do not modify schemas of other modules (01-NPD, 02-SETTINGS, 03-TECHNICAL, 05-WAREHOUSE).",
+      "Do not skip the partial-unique index — V-PLAN-PO-002 depends on it.",
+      "Do not commit secrets or .env values."
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

@@ -1,0 +1,61 @@
+{
+  "title": "T-005 — Drizzle migration: downtime_events + downtime_source_enum + RLS",
+  "prompt": "# T-005 — Drizzle migration: downtime_events table + downtime_source_enum\n\nPRD: 08-PRODUCTION-PRD.md §9.6, §16.4 V-PROD-06/22\n\n## Goal\nAdd Drizzle migration creating downtime_source_enum and downtime_events per §9.6 with GENERATED ALWAYS AS duration_min STORED column, FK to downtime_categories, RLS.\n\n## Implementation contract\npackages/db/schema/production/downtime-events.ts: pgEnum downtime_source_enum ('manual','wo_pause','plc_auto','changeover'). Table downtime_events: PK id UUID, tenant_id, line_id text, wo_id REFERENCES work_orders nullable, category_id REFERENCES downtime_categories (02-SETTINGS), source enum NOT NULL, started_at NOT NULL, ended_at, duration_min INTEGER GENERATED ALWAYS AS (CASE WHEN ended_at IS NOT NULL THEN EXTRACT(EPOCH FROM ended_at - started_at)/60 END) STORED (V-PROD-06), shift_id, operator_id, reason_notes, plc_fault_code, recorded_by, recorded_at default now, ext_jsonb. Indexes idx_downtime_line_time, idx_downtime_category, idx_downtime_open partial WHERE ended_at IS NULL. RLS by tenant_id.\n\n## Files (scope)\n- packages/db/schema/production/downtime-events.ts [create]\n- packages/db/schema/production/enums.ts [modify]\n- packages/db/schema/production/index.ts [modify]\n- packages/db/migrations/NNNN_downtime_events.sql [create]\n- packages/db/__tests__/downtime-events-schema.test.ts [create]\n\n## Acceptance criteria\n1. Given INSERT with started_at and ended_at, when row queried, then duration_min equals (ended_at-started_at) in minutes, computed by GENERATED column (V-PROD-06 not manually settable)\n2. Given source='wo_pause' INSERT with wo_id NULL, when row inserted, then validate-trigger or app-level check is delegated to T-016 — base table allows NULL wo_id with comment noting V-PROD-22 enforced at API\n3. Given migration applied, when pg_indexes queried, then idx_downtime_open partial WHERE ended_at IS NULL exists\n\n## Test strategy\n- RED: schema test asserting GENERATED ALWAYS AS duration_min STORED + enum values before schema exists\n- Run 'pnpm --filter db drizzle:generate && pnpm --filter db test downtime-events-schema'\n\n## Risk red lines\n- Do not let users SET duration_min directly (breaks V-PROD-06)\n- Do not change enum values without migration plan\n- Do not skip RLS",
+  "labels": ["prd", "data", "schema-migration", "T1-schema"],
+  "priority": 50,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-005",
+    "source_prd": "08-PRODUCTION-PRD.md",
+    "prd_refs": ["§9.6", "§16.4 V-PROD-06", "§16.4 V-PROD-22"],
+    "category": "data",
+    "subcategory": "schema-migration",
+    "task_type": "T1-schema",
+    "parent_feature": "08-PROD E4 Downtime+Shifts",
+    "context_budget": "26k",
+    "estimated_effort": "1-2h",
+    "description": "downtime_events table with downtime_source_enum, GENERATED ALWAYS duration_min, partial open index, RLS.",
+    "details": "Per §9.6: pgEnum downtime_source_enum with 4 values. Table has duration_min as GENERATED ALWAYS AS (...) STORED — not user-set (V-PROD-06). Partial index idx_downtime_open WHERE ended_at IS NULL for fast lookups of currently-open events. category_id FK to downtime_categories from 02-SETTINGS. RLS by tenant_id.",
+    "scope_files": [
+      "packages/db/schema/production/downtime-events.ts [create]",
+      "packages/db/schema/production/enums.ts [modify]",
+      "packages/db/schema/production/index.ts [modify]",
+      "packages/db/migrations/NNNN_downtime_events.sql [create]",
+      "packages/db/__tests__/downtime-events-schema.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not implement WO PAUSE side-effect",
+      "Do not seed downtime_categories (02-SETTINGS owns seed)",
+      "Do not enforce V-PROD-22 in DB (delegated to API per PRD note)"
+    ],
+    "dependencies": [],
+    "parallel_safe_with": ["T-001", "T-002", "T-003", "T-004", "T-006", "T-007", "T-008"],
+    "acceptance_criteria": [
+      "Given INSERT with both timestamps, when row queried, then duration_min computed by GENERATED column matches minute diff",
+      "Given INSERT attempting to SET duration_min, when run, then DB rejects (cannot insert into generated column)",
+      "Given migration applied, when pg_indexes queried, then idx_downtime_open partial WHERE ended_at IS NULL exists"
+    ],
+    "test_strategy": [
+      "RED: schema test asserting GENERATED column + enum values before schema exists",
+      "Run 'pnpm --filter db drizzle:generate && pnpm --filter db test downtime-events-schema'"
+    ],
+    "risk_red_lines": [
+      "Do not let users set duration_min (V-PROD-06)",
+      "Do not change enum values",
+      "Do not skip RLS"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

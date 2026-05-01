@@ -1,0 +1,85 @@
+{
+  "title": "T-034 — SCIM 2.0 endpoints (Users + Groups) + token CRUD",
+  "prompt": "# T-034 — SCIM 2.0 endpoints + token CRUD\n\n## Goal\nImplement /scim/v2/Users + /scim/v2/Groups + /scim/v2/ServiceProviderConfig route handlers (GET/POST/PATCH/DELETE). Bearer-token auth via scim_tokens (argon2id verify). Token CRUD Server Actions: createScimToken, revokeScimToken.\n\n## Files in scope\n- apps/web/app/api/scim/v2/Users/route.ts [create]\n- apps/web/app/api/scim/v2/Users/[id]/route.ts [create]\n- apps/web/app/api/scim/v2/Groups/route.ts [create]\n- apps/web/app/api/scim/v2/ServiceProviderConfig/route.ts [create]\n- apps/web/actions/scim/tokens.ts [create]\n- apps/web/app/api/scim/scim.test.ts [create]\n\n## Acceptance criteria (all must hold)\n- Given a request with invalid Authorization, when /scim/v2/Users is hit, then it returns 401 with SCIM error JSON.\n- Given POST /scim/v2/Users creates a user that exceeds seat_limit, when handled, then it returns 409 SEAT_LIMIT_REACHED (V-SET-86).\n- Given PATCH /scim/v2/Users/:id with active=false, when applied, then users.is_active=false (soft delete, audit preserved).\n- Given createScimToken returns plaintext only once, when stored, then DB has only argon2id hash (no plaintext column).\n\n## Test strategy (RED first)\n1. Add a failing test that exercises the acceptance criteria above. The RED command is:\n   `pnpm --filter @monopilot/web vitest run apps/web/app/api/scim/scim.test.ts`\n2. Run RED — it must fail before any production code is written.\n3. Implement the smallest change needed for GREEN.\n4. Re-run RED command — must pass.\n5. Run `pnpm typecheck` and `pnpm lint` in the changed package; both must pass.\n\n## Risk red lines\n- Do not edit files outside the listed scope without documenting why in CLOSEOUT.\n- Do not weaken existing acceptance criteria from prior tasks.\n- Do not introduce REST endpoints; use Server Actions per stack contract.\n- Do not commit secrets or vault keys.\n\n## Closeout evidence required\n- changed_files (with line counts)\n- exact test commands and outputs (RED→GREEN, typecheck, lint)\n- acceptance_criteria_status (one row per AC: pass/fail)\n- deviations_from_prd (or \"none\")\n- git_status\n\nStack: TS + Next.js App Router + Drizzle + pnpm + vitest + Playwright + Server Actions. Primitives in `packages/ui`. PRD: `02-SETTINGS-PRD.md` v3.5.\n",
+  "labels": [
+    "prd",
+    "auth",
+    "scim",
+    "T2-api"
+  ],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-034",
+    "source_prd": "02-SETTINGS-PRD.md",
+    "prd_refs": [
+      "§14.6",
+      "V-SET-86",
+      "S-A2"
+    ],
+    "category": "auth",
+    "subcategory": "scim",
+    "task_type": "T2-api",
+    "parent_feature": "02-settings-e",
+    "context_budget": "40k",
+    "estimated_effort": "1-3h",
+    "description": "SCIM 2.0 endpoints + token CRUD.",
+    "details": "Implement RFC 7644 §3.5.2 PATCH ops (add/replace/remove). SCIM error format: `{schemas:['urn:ietf:params:scim:api:messages:2.0:Error'], status, detail, scimType}`. Bypass onboarding redirect guard.",
+    "scope_files": [
+      "apps/web/app/api/scim/v2/Users/route.ts",
+      "apps/web/app/api/scim/v2/Users/[id]/route.ts",
+      "apps/web/app/api/scim/v2/Groups/route.ts",
+      "apps/web/app/api/scim/v2/ServiceProviderConfig/route.ts",
+      "apps/web/actions/scim/tokens.ts",
+      "apps/web/app/api/scim/scim.test.ts"
+    ],
+    "out_of_scope": [
+      "broaden scope beyond listed files",
+      "implement future-phase features"
+    ],
+    "dependencies": [
+      "T-012",
+      "T-017"
+    ],
+    "parallel_safe_with": [],
+    "acceptance_criteria": [
+      "Auth + seat-limit enforced.",
+      "PATCH ops correct.",
+      "Token plaintext shown once only."
+    ],
+    "test_strategy": [
+      "RED: 4 cases.",
+      "GREEN: implement."
+    ],
+    "risk_red_lines": [
+      "Do not store SCIM tokens plaintext."
+    ],
+    "skills": [
+      "test-driven-development"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": false
+  }
+}

@@ -1,0 +1,57 @@
+{
+  "title": "T-017 — Server Action closeDeptSection (NPD-a.4) with IsAllRequiredFilled gate",
+  "prompt": "# T-017 — closeDeptSection Server Action\n\nPRD: 01-NPD-PRD.md §7.3, §2.2\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\ncloseDeptSection(productCode, dept) Server Action that requires <dept>.write permission, asserts is_all_required_filled(productCode, dept) is TRUE, sets closed_<dept>='Yes', emits fa.dept_closed event.\n\n## Implementation contract\nNew apps/web/app/(npd)/fa/actions/close-dept-section.ts as 'use server'. RBAC dispatch by dept. Calls is_all_required_filled in same tx; if false returns DepartmentNotReadyError listing missing required cols. Else UPDATE product SET closed_<dept>='Yes' (parametrised, sanitised); emit fa.dept_closed with payload {dept}. Returns {dept, closedAt}.\n\n## Files\n- apps/web/app/(npd)/fa/actions/close-dept-section.ts [create]\n- apps/web/app/(npd)/fa/actions/__tests__/close-dept-section.test.ts [create]\n\n## Acceptance criteria\n1. Given fa Core all required filled by Jane, when closeDeptSection(code,'Core') runs, then closed_core='Yes' and one fa.dept_closed event is emitted with payload.dept='Core'\n2. Given a missing required Core col (e.g., recipe_components is NULL), when closeDeptSection runs, then DepartmentNotReadyError thrown listing 'recipe_components'\n3. Given user role planning_user attempts closeDeptSection(code,'Core'), when called, then AuthError thrown\n\n## Test strategy\n- RED: 3 tests covering happy path, NotReady error, RBAC denial\n- Run 'pnpm --filter web test close-dept-section'\n\n## Risk red lines\n- Do not bypass IsAllRequiredFilled gate\n- Do not allow injection via dept param (whitelist enum)\n- Do not skip outbox emit",
+  "labels": ["prd", "api", "fa-actions", "T2-api"],
+  "priority": 80,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-017",
+    "source_prd": "01-NPD-PRD.md",
+    "prd_refs": ["§7.3", "§2.2"],
+    "category": "api",
+    "subcategory": "fa-close-dept",
+    "task_type": "T2-api",
+    "parent_feature": "01-NPD-a workflow",
+    "context_budget": "30k",
+    "estimated_effort": "1-2h",
+    "description": "Server-side enforcement of Closed_<Dept>=Yes only when IsAllRequiredFilled passes; emits fa.dept_closed.",
+    "details": "Whitelisted dept enum, RBAC by dept, transactional check + update + outbox emit.",
+    "scope_files": [
+      "apps/web/app/(npd)/fa/actions/close-dept-section.ts [create]",
+      "apps/web/app/(npd)/fa/actions/__tests__/close-dept-section.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not implement reopen flow here (T-018)",
+      "Do not touch dashboard counters"
+    ],
+    "dependencies": ["T-001", "T-006", "T-007", "T-015"],
+    "parallel_safe_with": ["T-018", "T-019"],
+    "acceptance_criteria": [
+      "Given fa Core all required filled, when closeDeptSection(code,'Core') runs, then closed_core='Yes' and a fa.dept_closed event is emitted with payload.dept='Core'",
+      "Given a missing required Core col (recipe_components NULL), when closeDeptSection runs, then DepartmentNotReadyError is thrown listing 'recipe_components'",
+      "Given user role planning_user attempts closeDeptSection(code,'Core'), when called, then AuthError is thrown"
+    ],
+    "test_strategy": [
+      "RED: 3 tests covering happy path, NotReady error, RBAC denial before action exists",
+      "Run 'pnpm --filter web test close-dept-section'"
+    ],
+    "risk_red_lines": [
+      "Do not bypass IsAllRequiredFilled",
+      "Do not allow injection via dept param",
+      "Do not skip outbox emit"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

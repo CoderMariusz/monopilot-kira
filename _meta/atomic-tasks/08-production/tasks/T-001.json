@@ -1,0 +1,60 @@
+{
+  "title": "T-001 — Drizzle migration: wo_executions table + RLS",
+  "prompt": "# T-001 — Drizzle migration: wo_executions table + RLS\n\nPRD: 08-PRODUCTION-PRD.md §9.2, §5.5, §9.1\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nAdd Drizzle migration that creates `wo_executions` runtime state table per §9.2 with tenant RLS enforcement (5.1#6) and 7-year retention metadata (5.5).\n\n## Implementation contract\nWrite Drizzle schema in packages/db/schema/production/wo-executions.ts mirroring the SQL in §9.2 (PK wo_id REFERENCES work_orders(id), tenant_id NOT NULL, started_at/completed_at, override_closed_production fields, gate_eval_snapshot JSONB). Create RLS policy `tenant_isolation_wo_executions` enabling SELECT/INSERT/UPDATE only when tenant_id = current_setting('app.tenant_id')::uuid. Add the two indexes from §9.2 (idx_wo_executions_tenant, idx_wo_executions_current_op partial WHERE completed_at IS NULL). Generate migration via `pnpm --filter db drizzle:generate` and verify it produces a single forward SQL.\n\n## Files (scope)\n- packages/db/schema/production/wo-executions.ts [create]\n- packages/db/schema/production/index.ts [modify]\n- packages/db/migrations/NNNN_wo_executions.sql [create — generated]\n- packages/db/__tests__/wo-executions-schema.test.ts [create]\n\n## Acceptance criteria\n1. Given migration applied, when `\\d wo_executions` runs in psql, then all columns from §9.2 exist with NOT NULL where specified and JSONB for gate_eval_snapshot\n2. Given a non-tenant connection, when SELECT * FROM wo_executions runs without app.tenant_id set, then RLS rejects the query\n3. Given migration applied, when both indexes are queried via pg_indexes, then idx_wo_executions_tenant and idx_wo_executions_current_op exist with the partial predicate\n\n## Test strategy\n- RED: write packages/db/__tests__/wo-executions-schema.test.ts asserting Drizzle table has wo_id PK + tenant_id + RLS policy name before schema file exists\n- Run `pnpm --filter db drizzle:generate && pnpm --filter db test` and capture migration SQL + test output\n\n## Risk red lines\n- Do not add columns beyond §9.2 (no scope creep)\n- Do not skip RLS policy (multi-tenant data leak risk per R15)\n- Do not edit other production tables in this task",
+  "labels": ["prd", "data", "schema-migration", "T1-schema"],
+  "priority": 50,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-001",
+    "source_prd": "08-PRODUCTION-PRD.md",
+    "prd_refs": ["§9.2", "§9.1", "§5.1#6", "§5.5"],
+    "category": "data",
+    "subcategory": "schema-migration",
+    "task_type": "T1-schema",
+    "parent_feature": "08-PROD E1 Execution Core",
+    "context_budget": "30k",
+    "estimated_effort": "1-2h",
+    "description": "Drizzle migration creating wo_executions runtime state table with tenant RLS and §9.2 indexes.",
+    "details": "Mirror §9.2 SQL: PK wo_id REFERENCES work_orders(id), tenant_id UUID NOT NULL, timing fields (started_at/completed_at/cancelled_at), override fields (override_closed_production/override_reason/override_by), gate_eval_snapshot JSONB, current_operator_id UUID, total_pause_duration_min INTEGER DEFAULT 0. RLS policy via current_setting('app.tenant_id'). Two indexes: btree on tenant_id, partial on current_operator_id WHERE completed_at IS NULL. 7-year retention recorded as comment per §5.5.",
+    "scope_files": [
+      "packages/db/schema/production/wo-executions.ts [create]",
+      "packages/db/schema/production/index.ts [modify]",
+      "packages/db/migrations/NNNN_wo_executions.sql [create]",
+      "packages/db/__tests__/wo-executions-schema.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not create other production tables in this task",
+      "Do not modify work_orders table",
+      "Do not add API endpoints"
+    ],
+    "dependencies": [],
+    "parallel_safe_with": ["T-002", "T-003", "T-004", "T-005", "T-006", "T-007", "T-008"],
+    "acceptance_criteria": [
+      "Given migration applied, when '\\d wo_executions' runs, then all §9.2 columns exist with correct nullability and gate_eval_snapshot is JSONB",
+      "Given non-tenant connection without app.tenant_id, when SELECT runs, then RLS blocks query with insufficient_privilege",
+      "Given migration applied, when pg_indexes queried, then idx_wo_executions_tenant and idx_wo_executions_current_op (with partial predicate) exist"
+    ],
+    "test_strategy": [
+      "RED: write packages/db/__tests__/wo-executions-schema.test.ts asserting Drizzle table shape + RLS policy name before schema file exists",
+      "Run 'pnpm --filter db drizzle:generate && pnpm --filter db test wo-executions-schema'"
+    ],
+    "risk_red_lines": [
+      "Do not add columns beyond §9.2",
+      "Do not skip RLS policy (R15 multi-tenant leak)",
+      "Do not modify other tables"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

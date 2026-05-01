@@ -1,0 +1,60 @@
+{
+  "title": "T-023 — POST /api/production/scanner/consume-to-wo endpoint (basic happy path)",
+  "prompt": "# T-023 — POST /scanner/consume-to-wo (happy path)\n\nPRD: 08-PRODUCTION-PRD.md §7.2 FR-08-E2-001..003, §8.2.2, §16.4 V-PROD-02\n\n## Goal\nImplement consume-to-WO endpoint validating WO state, LP state, BOM component match, then writing wo_material_consumption + reducing LP qty (05-WH integration stub).\n\n## Implementation contract\nApp Router POST /api/production/scanner/consume-to-wo. Zod body {transaction_id: uuid, wo_id: uuid, lp_id: uuid, qty_consumed: number(>0), operator_id: uuid, fefo_suggested_lp_id?: uuid}. withIdempotency. Atomic transaction: assert WO.status='IN_PROGRESS', LP.status IN ('AVAILABLE','LOCKED') (V-PROD-02), LP.qa_status='PASSED', LP.product matches some BOM component_id of this WO. Compute fefo_adherence_flag = (lp_id == fefo_suggested_lp_id). INSERT wo_material_consumption row (over_consumption_flag=false at this stage — checked in T-024). Call 05-WH adapter to reduce LP.qty (interface stub). Return 200 {consumption_id, new_lp_qty, fefo_adherence_flag, over_consumption_requires_approval:false}.\n\n## Files (scope)\n- apps/web/app/api/production/scanner/consume-to-wo/route.ts [create]\n- apps/web/app/api/production/scanner/consume-to-wo/__tests__/route.test.ts [create]\n- packages/api-services/production/consume-to-wo.ts [create]\n- packages/api-services/integrations/warehouse-lp-adapter.ts [create]\n\n## Acceptance criteria\n1. Given WO IN_PROGRESS and LP AVAILABLE+PASSED matching BOM component, when POST consume-to-wo with qty within plan, then 200 + consumption_id + fefo_adherence_flag matching match-vs-suggestion\n2. Given LP.qa_status='HOLD', when POST, then 409 with error code 'lp_qa_not_passed' (V-PROD-02 + FR-08-E2-001)\n3. Given LP.product not in WO BOM, when POST, then 409 with error code 'component_not_in_bom'\n\n## Test strategy\n- RED: route test asserting happy + qa_hold reject + bom mismatch reject before route exists\n- Run 'pnpm --filter web test scanner.*consume-to-wo'\n\n## Risk red lines\n- Do not allow consumption from CONSUMED LPs (V-PROD-02)\n- Do not skip qa_status check\n- Do not split consumption + LP qty reduce across two transactions",
+  "labels": ["prd", "api", "consumption", "T2-api"],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-023",
+    "source_prd": "08-PRODUCTION-PRD.md",
+    "prd_refs": ["§7.2 FR-08-E2-001", "§7.2 FR-08-E2-002", "§7.2 FR-08-E2-003", "§8.2.2", "§16.4 V-PROD-02"],
+    "category": "api",
+    "subcategory": "consumption",
+    "task_type": "T2-api",
+    "parent_feature": "08-PROD E2 Consumption",
+    "context_budget": "40k",
+    "estimated_effort": "3h",
+    "description": "POST /scanner/consume-to-wo endpoint: validates WO/LP/BOM, writes wo_material_consumption, reduces LP qty.",
+    "details": "Atomic transaction: validate WO+LP+BOM, INSERT consumption row (over_consumption=false initial), call warehouse-lp-adapter to reduce LP qty. fefo_adherence_flag computed by comparing lp_id to fefo_suggested_lp_id. Genealogy write deferred to T-025. Outbox emit deferred to T-041.",
+    "scope_files": [
+      "apps/web/app/api/production/scanner/consume-to-wo/route.ts [create]",
+      "apps/web/app/api/production/scanner/consume-to-wo/__tests__/route.test.ts [create]",
+      "packages/api-services/production/consume-to-wo.ts [create]",
+      "packages/api-services/integrations/warehouse-lp-adapter.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not implement over-consumption flow (T-024)",
+      "Do not implement genealogy writes (T-025)",
+      "Do not implement FEFO suggestion API"
+    ],
+    "dependencies": ["T-002", "T-015", "T-016"],
+    "parallel_safe_with": ["T-024", "T-025", "T-026", "T-027"],
+    "acceptance_criteria": [
+      "Given WO IN_PROGRESS + LP AVAILABLE/PASSED matching BOM, when POST consume-to-wo, then 200 + consumption_id + fefo_adherence_flag",
+      "Given LP qa_status='HOLD', when POST, then 409 lp_qa_not_passed",
+      "Given LP product not in WO BOM, when POST, then 409 component_not_in_bom"
+    ],
+    "test_strategy": [
+      "RED: route test asserting happy + qa_hold + bom-mismatch before route exists",
+      "Run 'pnpm --filter web test scanner.*consume-to-wo'"
+    ],
+    "risk_red_lines": [
+      "Do not allow consumption from CONSUMED LPs",
+      "Do not skip qa_status check",
+      "Do not split into multiple transactions"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

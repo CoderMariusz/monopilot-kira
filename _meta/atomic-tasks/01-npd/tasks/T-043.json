@@ -1,0 +1,58 @@
+{
+  "title": "T-043 — fa_builder_outputs storage + signed URL service (24h expiry)",
+  "prompt": "# T-043 — fa_builder_outputs storage + signed URL\n\nPRD: 01-NPD-PRD.md §10.6\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nCreate fa_builder_outputs table + persistDownloadable(productCode, buffer) writing to S3-compatible bucket and returning signed URL with 24h expiry; supersede prior outputs when fa.built flips.\n\n## Implementation contract\nMigration 0051 emits fa_builder_outputs table per §10.6. New packages/storage/src/builder-storage.ts persists buffer to bucket (path tenant/<id>/builder/FA<code>-<ts>.xlsx), inserts row, returns signed URL. supersede helper sets prior superseded_at when newer row inserted.\n\n## Files\n- packages/db/migrations/0051_fa_builder_outputs.sql [create]\n- packages/storage/src/builder-storage.ts [create]\n- packages/storage/__tests__/builder-storage.test.ts [create]\n\n## Acceptance criteria\n1. Given migration 0051 ran, when describing schema, then fa_builder_outputs has product_code FK, file_path, generated_at, generated_by_user, app_version, superseded_at columns + RLS\n2. Given persistDownloadable(productCode, buffer) called, when run, then bucket has file at expected path and table row inserted with current timestamp\n3. Given a prior row exists, when persistDownloadable called again, then prior row.superseded_at is set and signed URL points to new row\n\n## Test strategy\n- RED: 3 tests using minio/localstack fixture\n- Run 'pnpm --filter db migrate && pnpm --filter storage test builder-storage'\n\n## Risk red lines\n- Do not put buffer into postgres\n- Do not return URL without expiry\n- Do not use cross-tenant bucket prefix",
+  "labels": ["prd", "infra", "storage", "T2-api"],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-043",
+    "source_prd": "01-NPD-PRD.md",
+    "prd_refs": ["§10.6"],
+    "category": "infra",
+    "subcategory": "builder-storage",
+    "task_type": "T2-api",
+    "parent_feature": "01-NPD-d storage",
+    "context_budget": "30k",
+    "estimated_effort": "2h",
+    "description": "Storage table + S3-compatible bucket helper + signed URL with supersede chain.",
+    "details": "Migration 0051 defines fa_builder_outputs. Helper persists buffer, inserts row, returns 24h signed URL. supersede sets prior row when newer added.",
+    "scope_files": [
+      "packages/db/migrations/0051_fa_builder_outputs.sql [create]",
+      "packages/storage/src/builder-storage.ts [create]",
+      "packages/storage/__tests__/builder-storage.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not implement download UI (T-046)",
+      "Do not implement Builder Server Action (T-044)"
+    ],
+    "dependencies": ["T-001"],
+    "parallel_safe_with": ["T-042"],
+    "acceptance_criteria": [
+      "Given migration 0051 ran, when describing schema, then fa_builder_outputs has product_code FK, file_path, generated_at, generated_by_user, app_version, superseded_at columns + RLS",
+      "Given persistDownloadable called, when run, then bucket has file at expected path and table row inserted",
+      "Given a prior row exists, when persistDownloadable called again, then prior row.superseded_at is set and signed URL points to new row"
+    ],
+    "test_strategy": [
+      "RED: 3 tests using minio/localstack fixture before code exists",
+      "Run 'pnpm --filter db migrate && pnpm --filter storage test builder-storage'"
+    ],
+    "risk_red_lines": [
+      "Do not store buffer inside postgres",
+      "Do not return URL without expiry",
+      "Do not use cross-tenant bucket prefix"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

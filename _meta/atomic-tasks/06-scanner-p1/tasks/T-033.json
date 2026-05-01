@@ -1,0 +1,62 @@
+{
+  "title": "T-033 — SCN-040 Putaway UI (scan / suggest / done) (06-b)",
+  "prompt": "# T-033 — SCN-040 Putaway\n\nPRD: 06-SCANNER-P1-PRD.md §8.2 FR-SC-FE-023/024\nUX: design/06-SCANNER-P1-UX.md:416-452 §3.9\nPrototype: design/Monopilot Design System/scanner/flow-putaway.jsx:5-63 (putaway_scan_screen), :65-144 (putaway_suggest_screen)\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nDeliver SCN-040 4-step putaway workflow (scan LP → suggest → optional override with reason_code → done) wired to T-030.\n\n## Implementation contract\n1. Routes /scanner/putaway, /scanner/putaway/[lpId]/suggest, /scanner/putaway/done.\n2. Scan step renders mini-grid 2×3 (product, qty, expiry, current loc, batch, status) after LP scan.\n3. Suggest step shows 28px monospace location code + strategy badge (FEFO/FIFO/PRODUCT/DEFAULT) + alternatives list.\n4. Override flow: amber warn-banner + 5 reason_code options + free-text 'Inne'.\n5. Done step renders from→to table + strategy used + override yes/no.\n\n## Files\n- apps/scanner/src/app/scanner/putaway/page.tsx [create]\n- apps/scanner/src/app/scanner/putaway/[lpId]/suggest/page.tsx [create]\n- apps/scanner/src/app/scanner/putaway/done/page.tsx [create]\n- apps/scanner/__tests__/scn-040-putaway.test.tsx [create]\n\n## Acceptance criteria\n1. Given the 3 prototype screens render, when compared to `design/Monopilot Design System/scanner/flow-putaway.jsx:5-63,65-144`, then the scan step shows the LP mini-grid 2×3, the suggest step shows a 28px monospace location code + strategy badge + alternatives list, and the override flow renders an amber warn-banner with 5 reason_code options + 'Inne' free text — RTL snapshot + manual checklist\n2. Given the user scans the suggested location, when the confirm button is tapped, then a single POST /putaway is issued with override=false and the user is redirected to done\n3. Given the user scans a different location and selects reason_code='space full', when confirm is tapped, then POST /putaway is issued with override=true and override_reason_code='space full' and the done step displays 'Override yes'\n\n## Test strategy\n- RED: write scn-040-putaway.test.tsx asserting parity + matched submit + override submit before implementation\n- Run 'pnpm --filter scanner test scn-040-putaway'\n\n## Risk red lines\n- Do not allow override submission without a reason_code\n- Do not skip the LP mini-grid render after scan\n- Do not navigate to done before /putaway returns 200",
+  "labels": ["prd", "ui", "scn-040-putaway", "T3-ui"],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-033",
+    "source_prd": "06-SCANNER-P1-PRD.md",
+    "prd_refs": ["§8.2 FR-SC-FE-023", "§8.2 FR-SC-FE-024"],
+    "category": "ui",
+    "subcategory": "scn-040-putaway",
+    "task_type": "T3-ui",
+    "parent_feature": "06-b Warehouse In",
+    "context_budget": "35k",
+    "estimated_effort": "3h",
+    "description": "SCN-040 putaway UI wired to suggest+execute APIs; renders override banner + reason_code picker.",
+    "details": "Parity checklist:\n1) LP mini-grid 2×3 after LP scan.\n2) Suggest screen with 28px monospace location code + strategy badge.\n3) Alternatives list visible with expiry/loc.\n4) Override path renders amber warn-banner + 5 reasons + 'Inne'.\n5) Done step from→to table + strategy + override yes/no.",
+    "scope_files": [
+      "apps/scanner/src/app/scanner/putaway/page.tsx [create]",
+      "apps/scanner/src/app/scanner/putaway/[lpId]/suggest/page.tsx [create]",
+      "apps/scanner/src/app/scanner/putaway/done/page.tsx [create]",
+      "apps/scanner/__tests__/scn-040-putaway.test.tsx [create]",
+      "design/Monopilot Design System/scanner/flow-putaway.jsx:5-63 [ref]",
+      "design/Monopilot Design System/scanner/flow-putaway.jsx:65-144 [ref]"
+    ],
+    "out_of_scope": [
+      "Do not implement label-printing trigger",
+      "Do not implement SSCC palet putaway (P2)",
+      "Do not implement supervisor approval"
+    ],
+    "dependencies": ["T-013", "T-030"],
+    "parallel_safe_with": ["T-031", "T-032"],
+    "acceptance_criteria": [
+      "Given the 3 prototype screens render, when compared to design/Monopilot Design System/scanner/flow-putaway.jsx:5-63 and :65-144, then the scan step shows the LP mini-grid 2×3, suggest shows 28px monospace location + strategy badge + alternatives list, and override flow renders amber warn-banner with 5 reason_code options + 'Inne' — RTL snapshot + manual checklist",
+      "Given the user scans the suggested location, when confirm is tapped, then a single POST /putaway is issued with override=false and the user is redirected to done",
+      "Given a different location is scanned and reason_code='space full' is selected, when confirm is tapped, then POST /putaway is issued with override=true and override_reason_code='space full' and done shows 'Override yes'"
+    ],
+    "test_strategy": [
+      "RED: write scn-040-putaway.test.tsx asserting parity + matched submit + override submit before implementation",
+      "Run 'pnpm --filter scanner test scn-040-putaway'"
+    ],
+    "risk_red_lines": [
+      "Do not allow override submission without reason_code",
+      "Do not skip mini-grid after LP scan",
+      "Do not navigate to done before 200"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

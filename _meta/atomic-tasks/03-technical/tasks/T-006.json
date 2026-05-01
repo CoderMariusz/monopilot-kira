@@ -1,0 +1,36 @@
+{
+  "title": "T-006 — Migration: routings and routing_operations tables",
+  "prompt": "Create Drizzle migration for §5.6 routing tables. `routings`(id PK, org_id, item_id FK items, version INT default 1, status TEXT CHECK in ('draft','approved','active','superseded'), effective_from DATE, effective_to DATE, approved_by, approved_at, UNIQUE(org_id,item_id,version)). `routing_operations`(id PK, routing_id FK routings ON DELETE CASCADE, op_no INT, op_code TEXT, op_name TEXT, line_id UUID nullable FK production_lines, machine_id UUID nullable FK machines, setup_time_min INT default 0, run_time_per_unit_sec NUMERIC(10,2), cost_per_hour NUMERIC(10,4), manufacturing_operation_name TEXT, UNIQUE(routing_id,op_no)). RLS on routings, cascade-driven for routing_operations. RED command: `pnpm vitest run tests/db/routing.migration.test.ts`.",
+  "labels": ["prd", "data", "schema-routing", "T1-schema"],
+  "priority": 50,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-006",
+    "source_prd": "03-TECHNICAL-PRD.md",
+    "prd_refs": ["§5.6", "§12.1", "§12.2"],
+    "category": "data",
+    "subcategory": "schema-routing",
+    "task_type": "T1-schema",
+    "parent_feature": "03-TECHNICAL-c Routing",
+    "context_budget": "20k",
+    "estimated_effort": "1h",
+    "description": "Routings + routing_operations with cascading delete and resource FKs.",
+    "details": "FK to production_lines and machines comes from 02-SETTINGS — if those tables exist, declare hard FK. If not present in test fixture, declare soft (UUID) and document in ADR-update note. manufacturing_operation_name pairs with bom_lines field of same name for cross-link queries.",
+    "scope_files": ["db/migrations/0xxx_routing.sql", "db/schema/routing.ts", "tests/db/routing.migration.test.ts"],
+    "out_of_scope": ["Routing API (T-022)", "Routing UI (T-051..054)"],
+    "dependencies": ["T-001"],
+    "parallel_safe_with": ["T-002", "T-003", "T-004", "T-005", "T-007"],
+    "acceptance_criteria": [
+      "Given migration applied, when describing routing_operations, then UNIQUE(routing_id,op_no) is enforced.",
+      "Given a routings row deleted, when querying routing_operations, then dependent rows are removed via CASCADE.",
+      "Given two versions for same item exist, when UNIQUE(org_id,item_id,version) constraint is hit, then duplicate fails."
+    ],
+    "test_strategy": ["RED tests for unique constraints + cascade.", "Run: pnpm vitest run tests/db/routing.migration.test.ts"],
+    "risk_red_lines": ["Do not pre-seed any routings or operations."],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {"required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"], "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]},
+    "routing_hints": {"red": "hermes_gpt55", "implementation": "hermes_gpt55", "review": "opus_if_high_risk_or_ui_or_architecture", "close": "spark_low_risk_else_opus"}
+  }
+}

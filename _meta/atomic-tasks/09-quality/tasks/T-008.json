@@ -1,0 +1,60 @@
+{
+  "title": "T-008 — Register qa_status_state_machine_v1 DSL rule (09-a-03)",
+  "prompt": "# T-008 — Register qa_status_state_machine_v1 DSL rule\n\nPRD: 09-QUALITY-PRD.md §10.1 + §10.2 rule definition, 02-SETTINGS §7 Registry, ADR-013\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nRegister the `qa_status_state_machine_v1` rule in `rule_definitions` (02-SETTINGS Registry) with the JSON definition verbatim from §10.2 and an evaluator that the LP qa_status writer (05-WH owns column, 09-QA writes via API) calls before each transition.\n\n## Implementation contract\n1. Drizzle migration `packages/db/migrations/0102_qa_status_rule.sql` INSERT INTO rule_definitions(rule_code, rule_type='workflow', tier='L1', version=1, definition_json) per §10.2 verbatim.\n2. Evaluator `apps/web/src/server/quality/qaStatusRule.ts` exports `evaluateTransition({from, to, role, evidence})` returning {ok:true} or {ok:false, error_message} based on the JSON definition; uses error_message_template from rule.\n3. Helper consumed by the LP qa_status writer (existing 05-WH endpoint client) in 09-QA — at this task the evaluator runs in pure isolation (no LP write changes).\n\n## Files\n- packages/db/migrations/0102_qa_status_rule.sql [create]\n- apps/web/src/server/quality/qaStatusRule.ts [create]\n- apps/web/src/server/quality/__tests__/qaStatusRule.test.ts [create]\n\n## Acceptance criteria\n1. Given migration 0102 applied, when SELECT FROM rule_definitions WHERE rule_code='qa_status_state_machine_v1' runs, then 1 row exists with version=1 and definition_json containing exactly 12 transitions (per §10.2)\n2. Given evaluateTransition({from:'PENDING', to:'PASSED', role:'qa_inspector', evidence:{inspection_id:'X'}}), then result is {ok:true}\n3. Given evaluateTransition({from:'HOLD', to:'RELEASED', role:'qa_inspector', evidence:{}}), then result is {ok:false, error_message:'Transition from HOLD to RELEASED not allowed for role qa_inspector'} (requires_role=quality_lead per §10.2)\n4. Given evaluateTransition({from:'PENDING', to:'PASSED', role:'qa_inspector', evidence:{}}), then result is {ok:false, error_message includes 'requires_evidence inspection_id'} (V-QA-HOLD evidence enforcement)",
+  "labels": ["prd", "api", "dsl-rule", "T2-api"],
+  "priority": 80,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-008",
+    "source_prd": "09-QUALITY-PRD.md",
+    "prd_refs": ["§10.1", "§10.2"],
+    "category": "api",
+    "subcategory": "dsl-rule-state-machine",
+    "task_type": "T2-api",
+    "parent_feature": "09-a Hold/Release",
+    "context_budget": "35k",
+    "estimated_effort": "2h",
+    "description": "Register qa_status_state_machine_v1 DSL rule in 02-SETTINGS Registry + provide pure evaluator function with role/evidence enforcement.",
+    "details": "Migration 0102 inserts the rule definition verbatim from §10.2 into rule_definitions. Evaluator qaStatusRule.ts loads the definition (cached) and validates transitions: from->to allowed pair, requires_role membership, requires_evidence presence, requires_signature flag. Returns {ok,error_message}. Uses error_message_template substitution. No DB writes besides migration; pure logic.",
+    "scope_files": [
+      "packages/db/migrations/0102_qa_status_rule.sql [create]",
+      "apps/web/src/server/quality/qaStatusRule.ts [create]",
+      "apps/web/src/server/quality/__tests__/qaStatusRule.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not modify 05-WH license_plates.qa_status writer (cross-module)",
+      "Do not implement audit triggers (T-009)",
+      "Do not change rule version mid-task — versioning is migration-driven"
+    ],
+    "dependencies": ["T-005"],
+    "parallel_safe_with": ["T-006", "T-007", "T-009"],
+    "acceptance_criteria": [
+      "Given migration 0102 applied, when SELECT FROM rule_definitions WHERE rule_code='qa_status_state_machine_v1' runs, then 1 row with version=1 and definition_json containing exactly 12 transitions per §10.2",
+      "Given evaluateTransition({from:'PENDING',to:'PASSED',role:'qa_inspector',evidence:{inspection_id:'X'}}), then result is {ok:true}",
+      "Given evaluateTransition({from:'HOLD',to:'RELEASED',role:'qa_inspector',evidence:{}}), then result is {ok:false} with error_message naming the role mismatch",
+      "Given evaluateTransition({from:'PENDING',to:'PASSED',role:'qa_inspector',evidence:{}}), then result is {ok:false} with error_message indicating missing requires_evidence inspection_id"
+    ],
+    "test_strategy": [
+      "RED: write apps/web/src/server/quality/__tests__/qaStatusRule.test.ts asserting 4 ACs (12 transitions, role enforce, evidence enforce) before migration exists",
+      "Run 'pnpm --filter db migrate && pnpm --filter web test qaStatusRule'"
+    ],
+    "risk_red_lines": [
+      "Do not deviate from §10.2 verbatim transitions (downstream 05-WH writer relies on contract)",
+      "Do not skip requires_evidence checks (violations leak unverified state changes)",
+      "Do not allow rule edit from runtime UI (registry is migration-only per §10.4)"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

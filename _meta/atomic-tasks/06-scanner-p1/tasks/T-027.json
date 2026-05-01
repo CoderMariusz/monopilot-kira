@@ -1,0 +1,60 @@
+{
+  "title": "T-027 — pending-receipts + PO lines APIs (06-b)",
+  "prompt": "# T-027 — pending receipts + PO lines\n\nPRD: 06-SCANNER-P1-PRD.md §8.2 FR-SC-BE-020/021\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nLand `GET /api/warehouse/scanner/pending-receipts` (PO/TO awaiting receipt with urgency dot) and `GET /api/warehouse/scanner/po/:id/lines` (per-line ordered/received/remaining/uom/catch_weight_required), both RLS-scoped on org_id + session site_id.\n\n## Implementation contract\n1. Two route handlers under apps/scanner/src/app/api/warehouse/scanner/.\n2. urgency dot rule: red ≤1d to ETA, amber ≤3d, blue otherwise.\n3. Single Drizzle query each (no N+1).\n\n## Files\n- apps/scanner/src/app/api/warehouse/scanner/pending-receipts/route.ts [create]\n- apps/scanner/src/app/api/warehouse/scanner/po/[id]/lines/route.ts [create]\n- apps/scanner/src/server/services/warehouse-receive.ts [create]\n- apps/scanner/__tests__/api/warehouse-pending-receipts.test.ts [create]\n\n## Acceptance criteria\n1. Given 1 PO with ETA tomorrow and 1 PO with ETA in 5 days, when GET /pending-receipts runs, then the response carries urgency='red' for the first PO and 'blue' for the second\n2. Given a PO not in the user's site, when GET /po/:id/lines runs, then the response is 404 SC_PO_NOT_FOUND\n3. Given a PO with three lines (60/100, 0/40, 50/50 received), when GET /po/:id/lines runs, then the response carries lines in stable order with remaining values 40, 40, 0 and the line with remaining=0 has flag fully_received=true\n\n## Test strategy\n- RED: write warehouse-pending-receipts.test.ts asserting urgency dots + RLS 404 + remaining math before implementation\n- Run 'pnpm --filter scanner test api/warehouse-pending-receipts'\n\n## Risk red lines\n- Do not return cross-site POs in /pending-receipts\n- Do not omit catch_weight_required flag on lines\n- Do not issue more than one SQL query per endpoint",
+  "labels": ["prd", "api", "warehouse-receive", "T2-api"],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-027",
+    "source_prd": "06-SCANNER-P1-PRD.md",
+    "prd_refs": ["§8.2 FR-SC-BE-020", "§8.2 FR-SC-BE-021"],
+    "category": "api",
+    "subcategory": "warehouse-receive-list",
+    "task_type": "T2-api",
+    "parent_feature": "06-b Warehouse In",
+    "context_budget": "30k",
+    "estimated_effort": "1-2h",
+    "description": "GET /pending-receipts (with urgency dot) + GET /po/:id/lines, both RLS-scoped + single-query.",
+    "details": "Two handlers. urgency dot computed server-side from ETA. Lines payload includes catch_weight_required so SCN-020 can branch. RLS via org_id + session site_id. Single query per call.",
+    "scope_files": [
+      "apps/scanner/src/app/api/warehouse/scanner/pending-receipts/route.ts [create]",
+      "apps/scanner/src/app/api/warehouse/scanner/po/[id]/lines/route.ts [create]",
+      "apps/scanner/src/server/services/warehouse-receive.ts [create]",
+      "apps/scanner/__tests__/api/warehouse-pending-receipts.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not implement the receive POST here (T-028)",
+      "Do not implement TO list filtering here (covered by /pending-receipts unioning TO)",
+      "Do not build SCN-020 UI here (T-031)"
+    ],
+    "dependencies": ["T-007"],
+    "parallel_safe_with": ["T-028", "T-029", "T-030"],
+    "acceptance_criteria": [
+      "Given 1 PO with ETA tomorrow and 1 PO with ETA in 5 days, when GET /pending-receipts runs, then urgency='red' for the first PO and 'blue' for the second",
+      "Given a PO not in the user's site, when GET /po/:id/lines runs, then the response is 404 SC_PO_NOT_FOUND",
+      "Given a PO with lines (60/100, 0/40, 50/50), when GET /po/:id/lines runs, then remaining values are 40/40/0 in stable order and the 50/50 line carries fully_received=true"
+    ],
+    "test_strategy": [
+      "RED: write warehouse-pending-receipts.test.ts asserting urgency + RLS + remaining math before implementation",
+      "Run 'pnpm --filter scanner test api/warehouse-pending-receipts'"
+    ],
+    "risk_red_lines": [
+      "Do not return cross-site POs",
+      "Do not omit catch_weight_required flag",
+      "Do not issue more than one SQL query per endpoint"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

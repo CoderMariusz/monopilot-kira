@@ -1,0 +1,59 @@
+{
+  "title": "T-039 — POST /consume-to-wo (intermediate cascade core) (06-d)",
+  "prompt": "# T-039 — consume-to-WO\n\nPRD: 06-SCANNER-P1-PRD.md §8.4 FR-SC-BE-044, §15.4 V-SCAN-WO-001..004; 05-WH §10 intermediate\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nLand `POST /production/scanner/consume-to-wo` — the intermediate cascade core. Validates WO IN_PROGRESS, LP available, LP product matches wo_material (RM or intermediate), qty bounds, qa_status allowed; transactionally updates LP qty (partial → reduce, full → status='consumed'), inserts wo_material_consumption with source='scanner', updates lp_genealogy operation_type='consume' + wo_id, emits outbox event lp.consumed.\n\n## Implementation contract\n1. Body Zod `{ wo_id, lp_id, qty_consumed, reason_code? }`.\n2. Idempotent via X-Client-Operation-Id.\n3. LP qa_status block list per V-WH-SCAN-003 (hold/blocked).\n4. Single transaction wraps all writes + outbox emit.\n\n## Files\n- apps/scanner/src/app/api/production/scanner/consume-to-wo/route.ts [create]\n- apps/scanner/src/server/services/production-consume.ts [create]\n- apps/scanner/__tests__/api/production-consume.test.ts [create]\n\n## Acceptance criteria\n1. Given LP X qty=50, WO Y IN_PROGRESS, BOM matches, when POST /consume-to-wo with qty_consumed=20 runs, then LP X.qty=30 stays available, wo_material_consumption is inserted, lp_genealogy is updated, and an outbox lp.consumed event is queued — all in one transaction\n2. Given WO Y not in IN_PROGRESS, when POST runs, then 409 SC_WO_NOT_IN_PROGRESS and no rows are mutated\n3. Given LP X qa_status='hold', when POST runs, then 409 SC_LP_QA_HOLD and no rows are mutated\n\n## Test strategy\n- RED: write production-consume.test.ts asserting partial-consume artifacts + WO state block + qa-hold block before implementation\n- Run 'pnpm --filter scanner test api/production-consume'\n\n## Risk red lines\n- Do not split the writes across multiple transactions\n- Do not skip outbox emit\n- Do not let consume bypass qa_status block",
+  "labels": ["prd", "api", "production-consume", "T2-api"],
+  "priority": 80,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-039",
+    "source_prd": "06-SCANNER-P1-PRD.md",
+    "prd_refs": ["§8.4 FR-SC-BE-044", "§15.4 V-SCAN-WO-001..004"],
+    "category": "api",
+    "subcategory": "production-consume",
+    "task_type": "T2-api",
+    "parent_feature": "06-d Production Pick + Consume",
+    "context_budget": "35k",
+    "estimated_effort": "3h",
+    "description": "Intermediate cascade core: validate WO/LP/qty/qa, transactionally update LP+consumption+genealogy + outbox emit.",
+    "details": "Single POST handler. Validates WO state, LP state, qty bounds, qa_status. Transaction writes wo_material_consumption (source='scanner'), reduces LP qty (mark consumed if zero), updates lp_genealogy, emits outbox lp.consumed. Idempotent via X-Client-Operation-Id.",
+    "scope_files": [
+      "apps/scanner/src/app/api/production/scanner/consume-to-wo/route.ts [create]",
+      "apps/scanner/src/server/services/production-consume.ts [create]",
+      "apps/scanner/__tests__/api/production-consume.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not implement output here (T-042)",
+      "Do not implement SCN-080/081 UI here (T-041)",
+      "Do not implement supervisor force-consume override"
+    ],
+    "dependencies": ["T-038"],
+    "parallel_safe_with": ["T-037"],
+    "acceptance_criteria": [
+      "Given LP X qty=50, WO Y IN_PROGRESS, BOM matches, when POST /consume-to-wo with qty_consumed=20 runs, then LP X.qty=30 stays available, wo_material_consumption is inserted, lp_genealogy is updated, and outbox lp.consumed is queued — all in one transaction",
+      "Given WO Y not in IN_PROGRESS, when POST runs, then 409 SC_WO_NOT_IN_PROGRESS and no rows are mutated",
+      "Given LP X qa_status='hold', when POST runs, then 409 SC_LP_QA_HOLD and no rows are mutated"
+    ],
+    "test_strategy": [
+      "RED: write production-consume.test.ts asserting partial-consume artifacts + WO state block + qa-hold block before implementation",
+      "Run 'pnpm --filter scanner test api/production-consume'"
+    ],
+    "risk_red_lines": [
+      "Do not split writes across multiple transactions",
+      "Do not skip outbox emit",
+      "Do not bypass qa_status block"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

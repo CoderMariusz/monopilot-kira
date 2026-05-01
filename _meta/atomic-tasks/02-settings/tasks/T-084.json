@@ -1,0 +1,80 @@
+{
+  "title": "T-084 — E2E Playwright: schema admin wizard happy path (L2 add column + dry-run preview)",
+  "prompt": "# T-084 — E2E Playwright: schema add column\n\n## Goal\nEnd-to-end the schema admin wizard for adding an L2 column: Pick table → data_type → validation rules → blocking_rule → required_for_done → presentation → preview → save. Assert reference_schemas row + Zod regen + downstream form picks up new field.\n\n## Files in scope\n- apps/web/e2e/schema-wizard.spec.ts [create]\n\n## Acceptance criteria (all must hold)\n- Given an L2 column is added with regex='^[A-Z]{3}$', when the wizard saves, then reference_schemas row exists and Zod regen produces schema rejecting 'abc'.\n- Given a downstream RHF form (e.g., NPD FA edit) is opened after publish, when fields render, then the new column appears with the correct label and placement.\n- Given concurrent edit (schema_version mismatch), when publish fires, then UI surfaces CONCURRENT_EDIT and shows the diff (V-SET-04).\n\n## Test strategy (RED first)\n1. Add a failing test that exercises the acceptance criteria above. The RED command is:\n   `pnpm --filter @monopilot/web playwright test e2e/schema-wizard.spec.ts`\n2. Run RED — it must fail before any production code is written.\n3. Implement the smallest change needed for GREEN.\n4. Re-run RED command — must pass.\n5. Run `pnpm typecheck` and `pnpm lint` in the changed package; both must pass.\n\n## Risk red lines\n- Do not edit files outside the listed scope without documenting why in CLOSEOUT.\n- Do not weaken existing acceptance criteria from prior tasks.\n- Do not introduce REST endpoints; use Server Actions per stack contract.\n- Do not commit secrets or vault keys.\n\n## Closeout evidence required\n- changed_files (with line counts)\n- exact test commands and outputs (RED→GREEN, typecheck, lint)\n- acceptance_criteria_status (one row per AC: pass/fail)\n- deviations_from_prd (or \"none\")\n- git_status\n\nStack: TS + Next.js App Router + Drizzle + pnpm + vitest + Playwright + Server Actions. Primitives in `packages/ui`. PRD: `02-SETTINGS-PRD.md` v3.5.\n",
+  "labels": [
+    "prd",
+    "test",
+    "e2e-schema-wizard",
+    "T4-wiring-test"
+  ],
+  "priority": 120,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-084",
+    "source_prd": "02-SETTINGS-PRD.md",
+    "prd_refs": [
+      "§6.1",
+      "§6.5",
+      "V-SET-04"
+    ],
+    "category": "test",
+    "subcategory": "e2e-schema-wizard",
+    "task_type": "T4-wiring-test",
+    "parent_feature": "02-settings-c",
+    "context_budget": "40k",
+    "estimated_effort": "1-3h",
+    "description": "E2E schema admin wizard add column.",
+    "details": "Wizard target screen is SET-031 (column edit wizard) — covered indirectly via SET-030 and SM-03.",
+    "scope_files": [
+      "apps/web/e2e/schema-wizard.spec.ts"
+    ],
+    "out_of_scope": [
+      "broaden scope beyond listed files",
+      "implement future-phase features"
+    ],
+    "dependencies": [
+      "T-023",
+      "T-024",
+      "T-066"
+    ],
+    "parallel_safe_with": [],
+    "acceptance_criteria": [
+      "L2 add column flow completes.",
+      "Zod regen reflects new column.",
+      "Concurrent edit detected."
+    ],
+    "test_strategy": [
+      "RED: write spec. GREEN: ensure UI + Zod regen wired."
+    ],
+    "risk_red_lines": [
+      "Do not modify L1 schema in this test path."
+    ],
+    "skills": [
+      "test-driven-development"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": false
+  }
+}

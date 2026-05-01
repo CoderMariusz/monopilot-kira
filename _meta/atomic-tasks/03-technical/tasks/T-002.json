@@ -1,0 +1,54 @@
+{
+  "title": "T-002 — Migration: bom_headers, bom_lines, bom_co_products, bom_snapshots",
+  "prompt": "Create Drizzle migration with BOM family of tables per §5.2. `bom_headers`(id PK, org_id, item_id FK items, version INT default 1, status TEXT in {draft,approved,active,superseded}, yield_pct NUMERIC(6,3) default 100, effective_from DATE, effective_to DATE, approved_by, approved_at, notes, created_at, UNIQUE(org_id,item_id,version)). `bom_lines`(id PK, bom_header_id FK ON DELETE CASCADE, line_no INT, component_item_id FK items, quantity NUMERIC(14,6), uom TEXT, scrap_pct NUMERIC(5,2) default 0, manufacturing_operation_name TEXT, sequence INT, is_phantom BOOL default false, notes, UNIQUE(bom_header_id,line_no)). `bom_co_products`(id PK, bom_header_id FK ON DELETE CASCADE, co_product_item_id FK items, quantity, uom, allocation_pct NUMERIC(6,3), is_byproduct BOOL default false, UNIQUE(bom_header_id,co_product_item_id)). `bom_snapshots`(id PK, org_id, work_order_id UUID nullable, bom_header_id FK, snapshot_json JSONB NOT NULL, snapshot_at TIMESTAMPTZ default now()). Enable RLS on all four tables with org_id isolation. RED test in tests/db/bom.migration.test.ts. Command: `pnpm vitest run tests/db/bom.migration.test.ts`.",
+  "labels": ["prd", "data", "schema-bom", "T1-schema"],
+  "priority": 50,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-002",
+    "source_prd": "03-TECHNICAL-PRD.md",
+    "prd_refs": ["§5.2", "§7.1", "§7.2"],
+    "category": "data",
+    "subcategory": "schema-bom",
+    "task_type": "T1-schema",
+    "parent_feature": "03-TECHNICAL-a BOM",
+    "context_budget": "30k",
+    "estimated_effort": "1-2h",
+    "description": "Drizzle migration creating BOM headers/lines/co-products and immutable bom_snapshots, all RLS-scoped.",
+    "details": "bom_snapshots.work_order_id stays UUID nullable — FK will be added in 08-PRODUCTION. snapshot_json must be NOT NULL JSONB. Statuses are TEXT with CHECK constraints (no DB enum types — keeps L3 extensibility). is_phantom and is_byproduct default false. Add index idx_bom_snapshots_wo on bom_snapshots(org_id, work_order_id) to speed lookups.",
+    "scope_files": [
+      "db/migrations/0xxx_bom.sql",
+      "db/schema/bom.ts",
+      "tests/db/bom.migration.test.ts"
+    ],
+    "out_of_scope": [
+      "Item table (T-001)",
+      "BOM Generator job code (T-019)",
+      "BOM API endpoints (T-013..016)"
+    ],
+    "dependencies": ["T-001"],
+    "parallel_safe_with": ["T-003", "T-004", "T-005", "T-006", "T-007"],
+    "acceptance_criteria": [
+      "Given a clean DB, when migration runs, then bom_headers, bom_lines, bom_co_products, bom_snapshots exist with FK and CHECK constraints per §5.2.",
+      "Given a bom_header is deleted, when querying bom_lines and bom_co_products, then dependent rows are removed (ON DELETE CASCADE).",
+      "Given RLS enabled, when org context is missing, then no rows are visible across all four tables.",
+      "Given the migration is re-applied, when it runs twice, then it is idempotent."
+    ],
+    "test_strategy": [
+      "Write RED tests asserting CASCADE delete, RLS isolation, and CHECK constraints.",
+      "Run: pnpm vitest run tests/db/bom.migration.test.ts"
+    ],
+    "risk_red_lines": [
+      "Do not add work_order FK constraint here — table lives in 08-PRODUCTION.",
+      "Do not write any seed BOM rows."
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {"red": "hermes_gpt55", "implementation": "hermes_gpt55", "review": "opus_if_high_risk_or_ui_or_architecture", "close": "spark_low_risk_else_opus"}
+  }
+}

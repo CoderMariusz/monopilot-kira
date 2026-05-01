@@ -1,0 +1,59 @@
+{
+  "title": "T-019 — Spec approval flow (e-signature + supersede prior version)",
+  "prompt": "# T-019 — Spec approval flow\n\nPRD: 09-QUALITY-PRD.md §5.3 signature flow, §11.3 V-QA-SPEC-002/004/005, §13.2 e-sig\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nServer Action `approveSpec(specId, pin_proof)` that requires quality_lead role, sets approved_by/approved_at/approval_signature_hash (server-computed), transitions status under_review->active, supersedes prior active version (sets status='superseded' + superseded_by).\n\n## Implementation contract\n1. `apps/web/src/server/quality/approveSpec.ts` Server Action.\n2. Pre-flight checks (V-QA-SPEC-002 all params have test_method, V-QA-SPEC-005 role=quality_lead). Reject with structured error.\n3. Compute signature hash server-side per §13.2 (SHA-256 over user_id || spec_id || 'quality_specifications' || signed_at_iso || record_content_hash || pin_proof).\n4. TX: UPDATE spec to status='active', approved_by/at, approval_signature_hash; UPDATE prior active version (same product_id+spec_code, version<this.version) to status='superseded', superseded_by=this.id.\n\n## Files\n- apps/web/src/server/quality/approveSpec.ts [create]\n- apps/web/src/server/quality/__tests__/approveSpec.test.ts [create]\n\n## Acceptance criteria\n1. Given a spec v2 in 'under_review' and an active v1 of the same (product_id,spec_code), when approveSpec(v2.id, valid_pin_proof) runs, then v2.status='active' with approval_signature_hash matching server-computed SHA-256 AND v1.status='superseded' with v1.superseded_by=v2.id, all in one TX\n2. Given a spec with a parameter missing test_method, when approveSpec runs, then it rejects with V-QA-SPEC-002 and writes nothing\n3. Given a caller with role qa_inspector, when approveSpec runs, then it rejects with V-QA-SPEC-005 ROLE_FORBIDDEN and writes nothing\n4. Given a stale pin_proof (>60s), when approveSpec runs, then it rejects with PIN_PROOF_EXPIRED and writes nothing",
+  "labels": ["prd", "api", "spec-approval", "T2-api"],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-019",
+    "source_prd": "09-QUALITY-PRD.md",
+    "prd_refs": ["§5.3", "§11.3", "§13.2"],
+    "category": "api",
+    "subcategory": "spec-approval",
+    "task_type": "T2-api",
+    "parent_feature": "09-b Specifications",
+    "context_budget": "30k",
+    "estimated_effort": "2h",
+    "description": "approveSpec Server Action: pre-flight V-QA-SPEC-002/005, server-computed signature hash, TX activation + supersede prior version.",
+    "details": "Server Action validates pin_proof TTL, role, and pre-flight V-QA-SPEC-002 params test_method. Computes SHA-256 signature hash server-side per §13.2. TX updates target spec to active + approval signatures, updates prior active version to superseded with superseded_by FK, all atomic. Audit trigger captures changes (T-040). Returns approved spec id.",
+    "scope_files": [
+      "apps/web/src/server/quality/approveSpec.ts [create]",
+      "apps/web/src/server/quality/__tests__/approveSpec.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not implement allergen_profile snapshot (T-020)",
+      "Do not implement spec CRUD (T-018)",
+      "Do not build sign modal UI (T-024)"
+    ],
+    "dependencies": ["T-017", "T-018"],
+    "parallel_safe_with": ["T-018", "T-020"],
+    "acceptance_criteria": [
+      "Given a spec v2 in 'under_review' and an active v1 of the same (product_id,spec_code), when approveSpec(v2.id, valid pin_proof) runs, then v2.status='active' with approval_signature_hash matching the server-computed SHA-256 AND v1.status='superseded' with v1.superseded_by=v2.id, all in one TX",
+      "Given a spec with a parameter missing test_method, when approveSpec runs, then it rejects with V-QA-SPEC-002 and writes nothing",
+      "Given a caller with role qa_inspector, when approveSpec runs, then it rejects with V-QA-SPEC-005 ROLE_FORBIDDEN and writes nothing",
+      "Given a pin_proof older than 60s, when approveSpec runs, then it rejects with PIN_PROOF_EXPIRED and writes nothing"
+    ],
+    "test_strategy": [
+      "RED: write apps/web/src/server/quality/__tests__/approveSpec.test.ts asserting all 4 ACs against fakes",
+      "Run 'pnpm --filter web test approveSpec'"
+    ],
+    "risk_red_lines": [
+      "Do not compute signature hash on the client",
+      "Do not skip V-QA-SPEC-002 pre-flight check",
+      "Do not allow non-atomic supersede (must run in TX with activation)"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

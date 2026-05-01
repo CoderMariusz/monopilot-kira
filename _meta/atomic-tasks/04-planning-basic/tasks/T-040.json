@@ -1,0 +1,65 @@
+{
+  "title": "T-040 — UI: PLN-016 PO Approval modal (parity with po_approval_modal)",
+  "prompt": "Build PLN-016 PO Approval modal at `src/components/planning/po/POApprovalModal.tsx` matching prototype `design/Monopilot Design System/planning/modals.jsx:228-264` 1:1.\n\nMode toggle (Approve / Reject) via ToggleGroup. ReasonInput (Textarea, minLength=10, required). PO summary rows (po_number, supplier, total). Dual-path footer renders Approve or Reject based on mode.\n\nRBAC: only callers with planning.po.approve role can submit. onConfirm calls T-013 endpoints. Outbox emits per side-effect contract.\n\nRED RTL test asserts mode toggle, minLength=10 enforcement, RBAC denial path, dual-path footer.",
+  "labels": ["prd", "ui", "pln-016-po-approval", "T3-ui"],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-040",
+    "source_prd": "04-PLANNING-BASIC-PRD.md",
+    "prd_refs": ["§6.2", "§6.6"],
+    "category": "ui",
+    "subcategory": "pln-016-po-approval",
+    "task_type": "T3-ui",
+    "parent_feature": "planning-po",
+    "context_budget": "30k",
+    "estimated_effort": "2-3h",
+    "prototype_match": true,
+    "description": "PO approve/reject modal with toggle + reason + dual-path footer.",
+    "details": "Prototype reference: planning/modals.jsx:228-264. Translation notes: mode toggle → Radix ToggleGroup; ReasonInput minLength=10 → react-hook-form with zod .min(10); approve calls T-013 approve route, reject calls T-013 reject route. Parity checklist: (1) toggle pill labels, (2) ReasonInput placeholder + char counter, (3) summary rows order, (4) footer button visibility per mode.",
+    "scope_files": [
+      "src/components/planning/po/POApprovalModal.tsx [create]",
+      "src/components/planning/po/__tests__/POApprovalModal.test.tsx [create]",
+      "design/Monopilot Design System/planning/modals.jsx:228-264 [ref]"
+    ],
+    "out_of_scope": [
+      "Bulk approval (P2)"
+    ],
+    "dependencies": ["T-013", "T-036"],
+    "parallel_safe_with": ["T-038", "T-039"],
+    "acceptance_criteria": [
+      "Given the modal opens, when compared to `design/Monopilot Design System/planning/modals.jsx:228-264`, then mode toggle pills, ReasonInput, summary rows, and footer match prototype — parity verified by RTL test.",
+      "Given mode='Reject' and reason='ok' (2 chars), when Submit clicked, then Zod error renders inline and no API call fires.",
+      "Given a caller without planning.po.approve, when modal renders, then submit button is disabled with tooltip 'You do not have approval rights'.",
+      "Given `pnpm vitest run src/components/planning/po/__tests__/POApprovalModal.test.tsx`, when run, then 0 failures."
+    ],
+    "test_strategy": [
+      "RED RTL parity + Zod min length + RBAC disable.",
+      "Playwright e2e: approve a pending_approval PO, expect status badge → confirmed.",
+      "Run `pnpm vitest run` and `pnpm playwright test`."
+    ],
+    "risk_red_lines": [
+      "Do not bypass RBAC client-side as defense in depth.",
+      "Do not allow reject without notes ≥ 10 chars."
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

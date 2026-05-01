@@ -1,0 +1,61 @@
+{
+  "title": "T-037 — pick-lists + pick APIs (06-d)",
+  "prompt": "# T-037 — production pick-lists + pick\n\nPRD: 06-SCANNER-P1-PRD.md §8.4 FR-SC-BE-040/041/042; 04-PLAN §12.3 reservations; 05-WH §9.1 FEFO\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nLand `GET /pick-lists`, `GET /pick-list/:woId`, `POST /pick` for production pick workflows. POST /pick enforces FEFO via fefo_strategy_v1 rule and reservation matching.\n\n## Implementation contract\n1. GET /pick-lists: WO IN_PROGRESS|RELEASED with material_source='stock' unfulfilled reservations.\n2. GET /pick-list/:woId: per 04-PLAN §12.3 reservation lines (RM root only) with FEFO suggestion top 1 + alternatives top 3.\n3. POST /pick body `{ wo_id, bom_line_id, lp_id, qty_picked }`. Validations: reservation exists, LP matches reserved material, qty ≤ available, FEFO enforce ⇒ deviation requires reason_code (warn).\n4. On success update wo_material_reservations.fulfilled_qty and insert stock_moves move_type='pick'.\n\n## Files\n- apps/scanner/src/app/api/production/scanner/pick-lists/route.ts [create]\n- apps/scanner/src/app/api/production/scanner/pick-list/[woId]/route.ts [create]\n- apps/scanner/src/app/api/production/scanner/pick/route.ts [create]\n- apps/scanner/src/server/services/production-pick.ts [create]\n- apps/scanner/__tests__/api/production-pick.test.ts [create]\n\n## Acceptance criteria\n1. Given a WO in IN_PROGRESS with two BOM lines unfulfilled, when GET /pick-list/:woId runs, then it returns 2 lines each with FEFO suggestion top 1 and alternatives length 3\n2. Given POST /pick with qty_picked > available, when validated, then 409 SC_LP_QTY_INSUFFICIENT and no rows are mutated\n3. Given POST /pick with FEFO deviation and missing reason_code, when validated, then 400 SC_FEFO_DEVIATION_REASON_REQUIRED\n\n## Test strategy\n- RED: write production-pick.test.ts asserting list + qty-insufficient + FEFO-reason-required before implementation\n- Run 'pnpm --filter scanner test api/production-pick'\n\n## Risk red lines\n- Do not let pick proceed without a valid reservation row\n- Do not skip FEFO deviation reason_code requirement\n- Do not let client override fulfilled_qty",
+  "labels": ["prd", "api", "production-pick", "T2-api"],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-037",
+    "source_prd": "06-SCANNER-P1-PRD.md",
+    "prd_refs": ["§8.4 FR-SC-BE-040", "§8.4 FR-SC-BE-041", "§8.4 FR-SC-BE-042"],
+    "category": "api",
+    "subcategory": "production-pick",
+    "task_type": "T2-api",
+    "parent_feature": "06-d Production Pick + Consume",
+    "context_budget": "30k",
+    "estimated_effort": "2-3h",
+    "description": "Pick-lists and pick endpoints for SCN-050; FEFO enforcement + reservation match + reason_code on deviation.",
+    "details": "Three handlers + production-pick service. List endpoints render WO + BOM line cards with FEFO suggestions. POST /pick validates reservation + LP + qty + FEFO deviation reason_code, transactionally updates fulfilled_qty + stock_moves.",
+    "scope_files": [
+      "apps/scanner/src/app/api/production/scanner/pick-lists/route.ts [create]",
+      "apps/scanner/src/app/api/production/scanner/pick-list/[woId]/route.ts [create]",
+      "apps/scanner/src/app/api/production/scanner/pick/route.ts [create]",
+      "apps/scanner/src/server/services/production-pick.ts [create]",
+      "apps/scanner/__tests__/api/production-pick.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not implement consume-to-WO here (T-039)",
+      "Do not implement SCN-050 UI here (T-040)",
+      "Do not implement output here (T-042)"
+    ],
+    "dependencies": ["T-007"],
+    "parallel_safe_with": ["T-034", "T-038", "T-039"],
+    "acceptance_criteria": [
+      "Given a WO in IN_PROGRESS with two unfulfilled BOM lines, when GET /pick-list/:woId runs, then it returns 2 lines each with FEFO suggestion top 1 and alternatives length 3",
+      "Given POST /pick with qty_picked > available, when validated, then 409 SC_LP_QTY_INSUFFICIENT and no rows are mutated",
+      "Given POST /pick with FEFO deviation and missing reason_code, when validated, then 400 SC_FEFO_DEVIATION_REASON_REQUIRED"
+    ],
+    "test_strategy": [
+      "RED: write production-pick.test.ts asserting list + qty-insufficient + FEFO-reason-required before implementation",
+      "Run 'pnpm --filter scanner test api/production-pick'"
+    ],
+    "risk_red_lines": [
+      "Do not let pick proceed without reservation row",
+      "Do not skip FEFO deviation reason_code requirement",
+      "Do not let client override fulfilled_qty"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

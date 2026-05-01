@@ -1,0 +1,64 @@
+{
+  "title": "T-005 — Drizzle schema: wo_outputs + wo_dependencies + wo_status_history",
+  "prompt": "Add Drizzle pgTable definitions for `wo_outputs`, `wo_dependencies`, `wo_status_history` per PRD §5.8 + §5.9 + §5.11. wo_outputs: id, tenant_id, wo_id FK, product_id FK, output_role enum ('primary'|'co_product'|'byproduct'), planned_qty, uom, actual_qty, allocation_pct DECIMAL(5,2), disposition enum ('to_stock'|'direct_continue'|'pending_decision'), downstream_wo_id FK NULL, output_lp_id NULL, notes. Add partial unique index ensuring one primary per WO. wo_dependencies: id, tenant_id, parent_wo_id FK, child_wo_id FK, material_link FK (wo_materials), required_qty, created_at. UNIQUE(tenant_id, parent_wo_id, child_wo_id). wo_status_history: wo_id, from_status, to_status, action, user_id, override_reason TEXT, timestamp, context_jsonb.\n\nGenerate migration `0005_planning_wo_outputs_dag.sql`. RED test asserts partial-unique primary constraint and UNIQUE on dependencies.",
+  "labels": ["prd", "data", "schema-wo-dag", "T1-schema"],
+  "priority": 80,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-005",
+    "source_prd": "04-PLANNING-BASIC-PRD.md",
+    "prd_refs": ["§5.8", "§5.9", "§5.11", "§8.11"],
+    "category": "data",
+    "subcategory": "schema-wo-dag",
+    "task_type": "T1-schema",
+    "parent_feature": "planning-wo",
+    "context_budget": "30k",
+    "estimated_effort": "1-2h",
+    "description": "Schema for wo_outputs (primary/co/byproduct), wo_dependencies (DAG edges), wo_status_history.",
+    "details": "Cycle prevention is service-layer (DFS topo sort) — DB only enforces UNIQUE(tenant_id, parent_wo_id, child_wo_id) per §5.9. Partial unique index `wo_outputs_one_primary_per_wo` on (tenant_id, wo_id) WHERE output_role='primary'. allocation_pct sum check = 100% deferred to service layer (V-PLAN-WO-004 — warn, not block by default). disposition default 'to_stock' (per §14.1, P1 enforces only to_stock).",
+    "scope_files": [
+      "src/db/schema/planning/wo_outputs_dag.ts [create]",
+      "src/db/schema/planning/__tests__/wo_outputs_dag.test.ts [create]",
+      "src/db/migrations/0005_planning_wo_outputs_dag.sql [create]"
+    ],
+    "out_of_scope": [
+      "Cascade generation algorithm (T-019)",
+      "Cycle detection service (T-020)"
+    ],
+    "dependencies": ["T-004"],
+    "parallel_safe_with": ["T-006", "T-007"],
+    "acceptance_criteria": [
+      "Given the schema loads, when introspected, then all 3 tables export expected columns including the 3 enums.",
+      "Given the migration is generated, when grepped, then partial-unique on (tenant_id, wo_id) WHERE output_role='primary' exists.",
+      "Given `pnpm vitest run src/db/schema/planning/__tests__/wo_outputs_dag.test.ts`, when run, then 0 failures.",
+      "Given `pnpm tsc --noEmit`, when run, then no errors."
+    ],
+    "test_strategy": [
+      "RED test asserts presence of partial-unique primary index + UNIQUE dependency edge constraint.",
+      "Run vitest + drizzle-kit generate + tsc."
+    ],
+    "risk_red_lines": [
+      "Do not enforce cycle-free at DB layer — performance-prohibitive on insert.",
+      "Do not delete wo_status_history rows on WO delete — history is permanent."
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

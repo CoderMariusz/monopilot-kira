@@ -1,0 +1,65 @@
+{
+  "title": "T-031 — API: D365 drift detection daily diff job",
+  "prompt": "Implement daily diff job per PRD §15.4 (FR-PLAN-039). Compares each suppliers row + D365-linked PO with its D365 snapshot. Tracks fields-in-drift in `d365_drift_fields` JSONB column on suppliers (add via migration). Updates `d365_sync_status='drift'` when local != D365.\n\nManual resolve endpoint `POST /api/planning/d365/resolve-drift` body { entity_type, entity_id, action: 'accept_local'|'accept_d365'|'merge', merged_fields? } updates accordingly + sets d365_sync_status='synced'.\n\nRED test asserts drift detection on edit-after-pull, accept_d365 overwrites local, accept_local clears drift_fields, merge applies subset.",
+  "labels": ["prd", "integration", "d365-drift", "T2-api"],
+  "priority": 120,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-031",
+    "source_prd": "04-PLANNING-BASIC-PRD.md",
+    "prd_refs": ["§15.4", "§6.7"],
+    "category": "integration",
+    "subcategory": "d365-drift",
+    "task_type": "T2-api",
+    "parent_feature": "planning-d365",
+    "context_budget": "30k",
+    "estimated_effort": "2-3h",
+    "description": "Daily drift detection job + manual resolve endpoint with three resolution paths.",
+    "details": "Migration `0008_planning_suppliers_drift.sql` adds `d365_drift_fields JSONB` to suppliers. Diff helper compares whitelisted fields (name, address, contact_*, payment_terms, currency). Job runs daily via cron. Manual resolve only allowed when d365_sync_status='drift'.",
+    "scope_files": [
+      "src/db/migrations/0008_planning_suppliers_drift.sql [create]",
+      "src/server/jobs/d365-drift-detect.ts [create]",
+      "src/server/actions/planning/d365-drift-resolve.ts [create]",
+      "src/app/api/planning/d365/resolve-drift/route.ts [create]",
+      "src/server/jobs/__tests__/d365-drift-detect.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Drift admin UI (02-SETTINGS §11)"
+    ],
+    "dependencies": ["T-001", "T-030"],
+    "parallel_safe_with": ["T-030"],
+    "acceptance_criteria": [
+      "Given a supplier whose name was edited locally after the last D365 pull, when drift-detect runs, then d365_sync_status='drift' and d365_drift_fields contains 'name'.",
+      "Given action='accept_d365' on a drifted supplier, when resolve runs, then local fields are overwritten with D365 snapshot and d365_sync_status='synced'.",
+      "Given action='accept_local', when resolve runs, then d365_drift_fields={} and d365_sync_status='manual'.",
+      "Given `pnpm vitest run src/server/jobs/__tests__/d365-drift-detect.test.ts`, when run, then 0 failures."
+    ],
+    "test_strategy": [
+      "RED tests for each resolve path + detection of drift + idempotency.",
+      "Run `pnpm vitest run src/server/jobs/__tests__/d365-drift-detect.test.ts`."
+    ],
+    "risk_red_lines": [
+      "Do not allow resolve on non-drifted rows.",
+      "Do not lose audit history — log every resolution to outbox."
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

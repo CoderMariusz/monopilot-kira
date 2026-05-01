@@ -1,0 +1,58 @@
+{
+  "title": "T-038 — Allergen cascade engine + fa_allergen_cascade view (NPD-c.2/c.3)",
+  "prompt": "# T-038 — Allergen cascade engine + view\n\nPRD: 01-NPD-PRD.md §8.5, §8.6\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nProvide cascade rule that on (recipe_components OR ingredient_codes OR prod_detail.process_*) change recomputes fa.allergens (union RM + process) and fa.may_contain (RM may-contain + line history); expose as DB view fa_allergen_cascade, with current overrides applied last.\n\n## Implementation contract\nMigration 0042 emits VIEW fa_allergen_cascade joining product, prod_detail, Reference.Allergens_by_RM, Reference.Allergens_added_by_Process, fa_allergen_overrides (current set). Cascade engine module packages/cascade-engine/src/chain-allergens.ts invokes view refresh + emits fa.allergens_changed when set differs from prior product.allergens. updateFaAllergenSet helper writes computed set onto product row.\n\n## Files\n- packages/db/migrations/0042_fa_allergen_cascade.sql [create]\n- packages/cascade-engine/src/chain-allergens.ts [create]\n- packages/cascade-engine/__tests__/chain-allergens.test.ts [create]\n\n## Acceptance criteria\n1. Given fa with ingredient_codes='RM1939' which Reference.Allergens_by_RM marks confirmed gluten, when cascade runs, then fa.allergens contains 'gluten' and fa_allergen_cascade view returns same\n2. Given a process step (operation 'Coat') with Reference.Allergens_added_by_Process row 'soy' confirmed, when cascade runs, then fa.allergens additionally contains 'soy'\n3. Given a fa_allergen_overrides row with action='remove' allergen='soy' current, when cascade reads view, then 'soy' is NOT in fa.allergens published set; emits fa.allergens_changed event\n\n## Test strategy\n- RED: 3 tests covering RM cascade, process addition, override removal\n- Run 'pnpm --filter db migrate && pnpm --filter cascade-engine test chain-allergens'\n\n## Risk red lines\n- Do not bypass current-overrides chain\n- Do not allow cross-tenant joins\n- Do not regress cascade perf <200 ms p95",
+  "labels": ["prd", "api", "cascade-allergens", "T2-api"],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-038",
+    "source_prd": "01-NPD-PRD.md",
+    "prd_refs": ["§8.5", "§8.6"],
+    "category": "api",
+    "subcategory": "cascade-allergens",
+    "task_type": "T2-api",
+    "parent_feature": "01-NPD-c allergen cascade",
+    "context_budget": "45k",
+    "estimated_effort": "3h",
+    "description": "Allergen cascade engine + fa_allergen_cascade view producing union(RM, process) minus current overrides.",
+    "details": "View joins all 4 sources; engine writes computed set to fa.allergens, emits fa.allergens_changed when delta non-empty. Override 'remove' subtracts; 'add' includes.",
+    "scope_files": [
+      "packages/db/migrations/0042_fa_allergen_cascade.sql [create]",
+      "packages/cascade-engine/src/chain-allergens.ts [create]",
+      "packages/cascade-engine/__tests__/chain-allergens.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not implement override modal here (T-040)",
+      "Do not implement may-contain line history beyond current allergens row (deferred)"
+    ],
+    "dependencies": ["T-001", "T-002", "T-036", "T-037"],
+    "parallel_safe_with": ["T-039"],
+    "acceptance_criteria": [
+      "Given fa with ingredient_codes='RM1939' marked confirmed gluten, when cascade runs, then fa.allergens contains 'gluten' and fa_allergen_cascade view returns same",
+      "Given operation 'Coat' with Reference.Allergens_added_by_Process row 'soy' confirmed, when cascade runs, then fa.allergens contains 'soy'",
+      "Given a fa_allergen_overrides row with action='remove' allergen='soy' current, when cascade reads view, then 'soy' is NOT in fa.allergens published set and fa.allergens_changed is emitted"
+    ],
+    "test_strategy": [
+      "RED: 3 tests covering RM cascade, process addition, override removal before migration+engine exist",
+      "Run 'pnpm --filter db migrate && pnpm --filter cascade-engine test chain-allergens'"
+    ],
+    "risk_red_lines": [
+      "Do not bypass current-overrides chain",
+      "Do not allow cross-tenant joins",
+      "Do not regress cascade perf <200 ms p95"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

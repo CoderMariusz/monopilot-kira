@@ -1,0 +1,92 @@
+{
+  "title": "T-025 \u2014 packages/ui workspace bootstrap + design-tokens.css + Modal primitive (Radix Dialog wrapper)",
+  "prompt": "# T-025 \u2014 packages/ui workspace bootstrap + design-tokens.css + Modal primitive (Radix Dialog wrapper)\n\nPRD: `00-FOUNDATION-PRD.md` \u2014 sections: \u00a75.y\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`\n\n## Goal\nCreate the @monopilot/ui workspace package with design-tokens.css and the Modal primitive that wraps @radix-ui/react-dialog (size sm/md/lg/xl, dismissible flag, focus trap, return focus).\n\n## Implementation contract\nCreate packages/ui/package.json (name '@monopilot/ui'), packages/ui/tokens.css (CSS custom properties for color/space/radius/typography), packages/ui/src/Modal.tsx wrapping Radix Dialog with size token + dismissible prop. Add ESLint no-restricted-imports blocking '@radix-ui/react-dialog' from anywhere outside packages/ui. Storybook 8 set up in packages/ui/.storybook with one story per size variant. axe-core CI step runs on every PR via a Vitest test using @axe-core/playwright. Add packages/ui/test/assertModalA11y.ts helper used by every modal RTL test downstream. There is no Foundation UX spec; the Settings prototype owns the canonical access modal patterns. Parity AC must reference the access-screens.jsx invite modal as the structural reference because it is the first concrete consumer.\n\n## Files (scope)\n- packages/ui/package.json [create]\n- packages/ui/tokens.css [create]\n- packages/ui/src/Modal.tsx [create]\n- packages/ui/.storybook/main.ts [create]\n- packages/ui/.storybook/Modal.stories.tsx [create]\n- packages/ui/test/assertModalA11y.ts [create]\n- packages/ui/src/__tests__/Modal.test.tsx [create]\n- .eslintrc.js [modify]\n- design/Monopilot Design System/settings/access-screens.jsx:131-154 [ref]\n\n## Acceptance criteria\n1. Given the Modal primitive renders, when compared to the invite-modal pattern in design/Monopilot Design System/settings/access-screens.jsx:131-154, then it matches structurally (header with title + close button, body with form-grid-2, footer with Cancel + primary action right-aligned), visually (uses Radix Dialog primitive \u2014 not native <dialog> \u2014 and reads sizes from tokens.css), and interactionally (ESC closes, focus is trapped inside the dialog while open, focus returns to the invoking trigger on close) \u2014 verified by Modal.test.tsx and the Storybook a11y addon\n2. Given an external file outside packages/ui imports '@radix-ui/react-dialog', when ESLint runs, then it fails with no-restricted-imports\n3. Given a Storybook build runs in CI with @axe-core/playwright, when the four size stories (sm/md/lg/xl) are scanned, then zero serious or critical a11y violations are reported\n4. Given assertModalA11y(container) is called in any modal RTL test, when invoked, then it asserts role='dialog', aria-modal='true', aria-labelledby is set, and focus is trapped\n\n## Test strategy\n- RED: write packages/ui/src/__tests__/Modal.test.tsx with the parity assertion (compare to access-screens.jsx:131-154 invite modal hierarchy) plus a11y assertions before Modal.tsx exists\n- Run 'pnpm --filter @monopilot/ui test && pnpm --filter @monopilot/ui storybook:build && pnpm --filter @monopilot/ui test:a11y'\n\n## Risk red lines\n- Do not let downstream packages import @radix-ui/react-dialog directly \u2014 drift is the explicit failure mode in PRD \u00a75.y\n- Do not skip axe-core in CI\n\n## Dependencies (must be complete first)\n- T-001\n\n## Closeout evidence\nProvide: changed_files, test_commands_and_results, acceptance_criteria_status (per AC), deviations_from_prd, git_status. Use the test-driven-development skill (RED test before implementation) and requesting-code-review at GREEN.",
+  "labels": [
+    "prd",
+    "ui",
+    "primitives",
+    "T3-ui"
+  ],
+  "priority": 80,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-025",
+    "source_prd": "00-FOUNDATION-PRD.md",
+    "prd_refs": [
+      "\u00a75.y"
+    ],
+    "category": "ui",
+    "subcategory": "primitives",
+    "task_type": "T3-ui",
+    "parent_feature": "00-FOUNDATION-impl-j UI primitives",
+    "context_budget": "60k",
+    "estimated_effort": "2-3h",
+    "description": "Create the @monopilot/ui workspace package with design-tokens.css and the Modal primitive that wraps @radix-ui/react-dialog (size sm/md/lg/xl, dismissible flag, focus trap, return focus).",
+    "details": "Create packages/ui/package.json (name '@monopilot/ui'), packages/ui/tokens.css (CSS custom properties for color/space/radius/typography), packages/ui/src/Modal.tsx wrapping Radix Dialog with size token + dismissible prop. Add ESLint no-restricted-imports blocking '@radix-ui/react-dialog' from anywhere outside packages/ui. Storybook 8 set up in packages/ui/.storybook with one story per size variant. axe-core CI step runs on every PR via a Vitest test using @axe-core/playwright. Add packages/ui/test/assertModalA11y.ts helper used by every modal RTL test downstream. There is no Foundation UX spec; the Settings prototype owns the canonical access modal patterns. Parity AC must reference the access-screens.jsx invite modal as the structural reference because it is the first concrete consumer.",
+    "scope_files": [
+      "packages/ui/package.json [create]",
+      "packages/ui/tokens.css [create]",
+      "packages/ui/src/Modal.tsx [create]",
+      "packages/ui/.storybook/main.ts [create]",
+      "packages/ui/.storybook/Modal.stories.tsx [create]",
+      "packages/ui/test/assertModalA11y.ts [create]",
+      "packages/ui/src/__tests__/Modal.test.tsx [create]",
+      ".eslintrc.js [modify]",
+      "design/Monopilot Design System/settings/access-screens.jsx:131-154 [ref]"
+    ],
+    "out_of_scope": [
+      "Do not modify files outside the scope_files list",
+      "Do not introduce business logic from later module PRDs (01-NPD, 02-SETTINGS, etc.)",
+      "No Stepper/Field/ReasonInput/Summary in this task \u2014 those are T-026 to T-029"
+    ],
+    "dependencies": [
+      "T-001"
+    ],
+    "parallel_safe_with": [
+      "T-022",
+      "T-024"
+    ],
+    "acceptance_criteria": [
+      "Given the Modal primitive renders, when compared to the invite-modal pattern in design/Monopilot Design System/settings/access-screens.jsx:131-154, then it matches structurally (header with title + close button, body with form-grid-2, footer with Cancel + primary action right-aligned), visually (uses Radix Dialog primitive \u2014 not native <dialog> \u2014 and reads sizes from tokens.css), and interactionally (ESC closes, focus is trapped inside the dialog while open, focus returns to the invoking trigger on close) \u2014 verified by Modal.test.tsx and the Storybook a11y addon",
+      "Given an external file outside packages/ui imports '@radix-ui/react-dialog', when ESLint runs, then it fails with no-restricted-imports",
+      "Given a Storybook build runs in CI with @axe-core/playwright, when the four size stories (sm/md/lg/xl) are scanned, then zero serious or critical a11y violations are reported",
+      "Given assertModalA11y(container) is called in any modal RTL test, when invoked, then it asserts role='dialog', aria-modal='true', aria-labelledby is set, and focus is trapped"
+    ],
+    "test_strategy": [
+      "RED: write packages/ui/src/__tests__/Modal.test.tsx with the parity assertion (compare to access-screens.jsx:131-154 invite modal hierarchy) plus a11y assertions before Modal.tsx exists",
+      "Run 'pnpm --filter @monopilot/ui test && pnpm --filter @monopilot/ui storybook:build && pnpm --filter @monopilot/ui test:a11y'"
+    ],
+    "risk_red_lines": [
+      "Do not let downstream packages import @radix-ui/react-dialog directly \u2014 drift is the explicit failure mode in PRD \u00a75.y",
+      "Do not skip axe-core in CI"
+    ],
+    "skills": [
+      "test-driven-development",
+      "verification-before-completion",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

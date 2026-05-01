@@ -1,0 +1,59 @@
+{
+  "title": "T-022 — Greedy assignment algorithm in solver service",
+  "prompt": "# T-022 — Greedy assignment algorithm in solver service\n\nPRD: 07-PLANNING-EXT-PRD.md §6 D1, §10.1 finite_capacity_solver_v1, §7.1 FR-07-E1-002\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nImplement greedy assignment algorithm in `services/planner-solver/app/algorithms/greedy.py`: sort WOs by weighted priority (deadline_days_until=0.4, allergen_complexity=0.3, customer_priority=0.2, line_affinity=0.1), iterate assigning each to earliest-feasible (line, shift, time_window) respecting capacity_kg_per_hour, shift_patterns, wo_dependencies (cascade DAG).\n\n## Implementation contract\n1. New module `services/planner-solver/app/algorithms/greedy.py` exporting `def greedy_assign(wos: list, lines: list, shifts: list, dependencies: list, matrix: dict) -> list[Assignment]`.\n2. Sort WOs by weighted priority score using params from §10.1 finite_capacity_solver_v1.\n3. For each WO in sort order: find earliest feasible slot respecting (line capacity_kg_per_hour, shift_patterns availability, wo_dependencies parent.planned_end_time <= child.planned_start_time, allergen line compatibility from input).\n4. Output: list of dataclass Assignment(wo_id, line_id, shift_id, planned_start_time, planned_end_time, optimizer_score).\n\n## Files\n- services/planner-solver/app/algorithms/greedy.py [create]\n- services/planner-solver/app/algorithms/__init__.py [create]\n- services/planner-solver/tests/test_greedy.py [create]\n\n## Acceptance criteria\n1. Given 5 WOs + 2 lines, when greedy_assign runs, then all 5 WOs assigned (no unassigned in fixture) with planned_start_time non-decreasing per line\n2. Given a WO with parent dependency in input, when greedy_assign runs, then child WO planned_start_time >= parent WO planned_end_time (V-SCHED-03)\n3. Given line capacity 100 kg/h and 3 WOs requiring 80kg each in shift A (8h=800kg), when greedy_assign runs, then all fit within shift; if requirement totals exceed 800kg, surplus moves to next shift\n\n## Test strategy\n- RED: write services/planner-solver/tests/test_greedy.py asserting cascade DAG respect + capacity respect + sort order\n- Run 'cd services/planner-solver && uv run pytest tests/test_greedy.py'\n\n## Risk red lines\n- Do not violate cascade DAG (V-SCHED-03 hard constraint)\n- Do not exceed capacity_kg_per_hour per shift (V-SCHED-04 hard constraint)\n- Do not place WO on line with incompatible allergen (V-SCHED-02 hard constraint)",
+  "labels": ["prd", "infra", "algorithm", "T2-api"],
+  "priority": 80,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-022",
+    "source_prd": "07-PLANNING-EXT-PRD.md",
+    "prd_refs": ["§6 D1", "§10.1", "§7.1 FR-07-E1-002"],
+    "category": "infra",
+    "subcategory": "algorithm-greedy",
+    "task_type": "T2-api",
+    "parent_feature": "07-EXT-a finite-capacity engine core",
+    "context_budget": "60k",
+    "estimated_effort": "3-4h",
+    "description": "Greedy assignment algorithm: weighted-priority sort + earliest-feasible-slot loop respecting cascade DAG, capacity, allergen.",
+    "details": "Pure function operating on already-loaded inputs. Sort by weighted priority score with params from §10.1. Earliest-feasible search per WO honors capacity, shifts, dependencies, allergen compat. No DB writes in this module (caller writes assignments).",
+    "scope_files": [
+      "services/planner-solver/app/algorithms/greedy.py [create]",
+      "services/planner-solver/app/algorithms/__init__.py [create]",
+      "services/planner-solver/tests/test_greedy.py [create]"
+    ],
+    "out_of_scope": [
+      "Do not implement local search here (T-023)",
+      "Do not write to DB here (caller responsibility)",
+      "Do not invoke allergen optimizer DSL (T-026 plugs in via cost function)"
+    ],
+    "dependencies": ["T-021"],
+    "parallel_safe_with": ["T-023"],
+    "acceptance_criteria": [
+      "Given 5 WOs + 2 lines, when greedy_assign runs, then all 5 WOs assigned with planned_start_time non-decreasing per line",
+      "Given a WO with parent dependency, when greedy_assign runs, then child WO planned_start_time >= parent WO planned_end_time",
+      "Given line capacity 100 kg/h with 3 WOs of 80kg in shift A, when greedy_assign runs, then surplus beyond 800kg moves to next shift"
+    ],
+    "test_strategy": [
+      "RED: write services/planner-solver/tests/test_greedy.py asserting cascade + capacity + sort order",
+      "Run 'cd services/planner-solver && uv run pytest tests/test_greedy.py'"
+    ],
+    "risk_red_lines": [
+      "Do not violate cascade DAG",
+      "Do not exceed capacity_kg_per_hour per shift",
+      "Do not place WO on incompatible-allergen line"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

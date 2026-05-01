@@ -1,0 +1,57 @@
+{
+  "title": "T-026 — Partial-move split cascade",
+  "prompt": "# T-026 — Partial-move split cascade\n\nPRD: `05-WAREHOUSE-PRD.md` §8.2 (FR-WH-011), V-WH-MOV-002.\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`.\n\n## Goal\nWhen `createStockMove` requests qty < LP.qty, run an automatic split (T-017) producing a child LP with the move qty, then move only that child. Source LP keeps remainder at original location.\n\n## Implementation contract\n`apps/web/lib/services/warehouse/stock-move-split-cascade.ts` exposes `splitCascadeMove(sourceLp, moveQty, destinationLocId, reason?)`. Steps: split (T-017) without optional move; create stock_moves on the new child LP only; insert lp_genealogy chain (split parent→child + implicit move relationship via context_jsonb).\n\n## Files (scope)\n- apps/web/lib/services/warehouse/stock-move-split-cascade.ts [create]\n- apps/web/lib/services/warehouse/__tests__/stock-move-split-cascade.test.ts [create]\n\n## Acceptance criteria\n1. Given LP qty=100 at LOC-A and moveQty=40 to LOC-B, when splitCascadeMove runs, then a child LP qty=40 exists at LOC-B and source LP qty=60 stays at LOC-A.\n2. Given the operation completes, when stock_moves is queried, then exactly one move references the child LP (no row on the parent).\n3. Given the operation completes, when lp_genealogy is queried, then split row exists with operation_type='split' and quantity=40 plus context_jsonb.move_type='transfer'.\n\n## Test strategy\n- RED: stock-move-split-cascade.test.ts covers the three behaviors with fixture data.\n- Run `pnpm --filter web test stock-move-split-cascade`.\n\n## Risk red lines\n- Do not generate a stock_moves row against the parent LP.\n- Do not call T-017 sequentially with extra split (single split only).\n- Do not bypass single-transaction guarantee.",
+  "labels": ["prd", "api", "stock-move", "T2-api"],
+  "priority": 95,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-026",
+    "source_prd": "05-WAREHOUSE-PRD.md",
+    "prd_refs": ["§8.2"],
+    "category": "api",
+    "subcategory": "stock-move",
+    "task_type": "T2-api",
+    "parent_feature": "warehouse-stock-moves",
+    "context_budget": "25k",
+    "estimated_effort": "1h",
+    "description": "Partial move split cascade: split LP, then move only the child child to destination.",
+    "details": "Single transaction; one stock_moves row referencing the child LP; lp_genealogy split row with context_jsonb.move_type='transfer'.",
+    "scope_files": [
+      "apps/web/lib/services/warehouse/stock-move-split-cascade.ts [create]",
+      "apps/web/lib/services/warehouse/__tests__/stock-move-split-cascade.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Stock move main service (T-025)",
+      "Adjustment threshold (T-028)"
+    ],
+    "dependencies": ["T-017", "T-025"],
+    "parallel_safe_with": ["T-027", "T-028"],
+    "acceptance_criteria": [
+      "Given LP qty=100 at LOC-A and moveQty=40 to LOC-B, when run, then child LP qty=40 at LOC-B and source qty=60 at LOC-A",
+      "Given operation completes, when stock_moves is queried, then exactly one move references the child LP",
+      "Given operation completes, when lp_genealogy is queried, then split row exists with quantity=40 and context_jsonb.move_type='transfer'"
+    ],
+    "test_strategy": [
+      "RED: stock-move-split-cascade.test.ts asserts the three behaviors",
+      "Run 'pnpm --filter web test stock-move-split-cascade'"
+    ],
+    "risk_red_lines": [
+      "Do not log a move on the parent LP",
+      "Do not split twice",
+      "Do not break single-transaction guarantee"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

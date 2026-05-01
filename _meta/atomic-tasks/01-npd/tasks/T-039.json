@@ -1,0 +1,58 @@
+{
+  "title": "T-039 — Server Actions: setAllergenOverride + V07 validator (NPD-c.5)",
+  "prompt": "# T-039 — Allergen override action + V07 validator\n\nPRD: 01-NPD-PRD.md §8.6, §8.10, §12 V07\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nServer Action setAllergenOverride(productCode, allergenCode, action, reason) requiring <dept>.write (Technical or Quality), inserts fa_allergen_overrides row with supersedes_id chaining, then runs cascade refresh; V07 validator returns WARN unless cascade non-null + every override has reason >=10.\n\n## Implementation contract\nNew apps/web/app/(npd)/fa/actions/set-allergen-override.ts: RBAC check (technical/quality .write or npd_manager bypass), Zod validates (action enum 'add'|'remove', reason min length 10), read current override (if any), set its superseded_at=now, insert new row with supersedes_id, refresh cascade. v07-allergens.ts validator queries cascade view + override audit. Tests cover happy chain, reason validation, V07 gate.\n\n## Files\n- apps/web/app/(npd)/fa/actions/set-allergen-override.ts [create]\n- apps/web/app/(npd)/fa/actions/__tests__/set-allergen-override.test.ts [create]\n- packages/validation/src/v07-allergens.ts [create]\n- packages/validation/__tests__/v07.test.ts [create]\n\n## Acceptance criteria\n1. Given existing override 'remove gluten' current, when setAllergenOverride('add','gluten','...reason...') runs, then prior row.superseded_at set, new row.action='add' superseded_at IS NULL, supersedes_id pointing to prior row\n2. Given reason length 5, when setAllergenOverride called, then ValidationError with code 'REASON_TOO_SHORT' thrown\n3. Given fa.allergens populated and any override has reason>=10, when v07() runs, then PASS; given an override with reason='' due to legacy data, then WARN with details\n\n## Test strategy\n- RED: 3 tests covering chain, reason validation, V07 PASS/WARN\n- Run 'pnpm --filter web test set-allergen-override && pnpm --filter validation test v07'\n\n## Risk red lines\n- Do not bypass dept RBAC\n- Do not skip cascade refresh\n- Do not allow reason shorter than 10",
+  "labels": ["prd", "api", "allergens-action", "T2-api"],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-039",
+    "source_prd": "01-NPD-PRD.md",
+    "prd_refs": ["§8.6", "§8.10", "§12 V07"],
+    "category": "api",
+    "subcategory": "allergen-override",
+    "task_type": "T2-api",
+    "parent_feature": "01-NPD-c override flow",
+    "context_budget": "30k",
+    "estimated_effort": "2h",
+    "description": "Server Action for allergen override with supersedes chain + V07 validator.",
+    "details": "Action chains supersedes_id, refreshes cascade, emits audit. V07 reads view + audit history.",
+    "scope_files": [
+      "apps/web/app/(npd)/fa/actions/set-allergen-override.ts [create]",
+      "apps/web/app/(npd)/fa/actions/__tests__/set-allergen-override.test.ts [create]",
+      "packages/validation/src/v07-allergens.ts [create]",
+      "packages/validation/__tests__/v07.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not implement override modal UI here (T-040)"
+    ],
+    "dependencies": ["T-006", "T-037", "T-038"],
+    "parallel_safe_with": ["T-038", "T-040"],
+    "acceptance_criteria": [
+      "Given existing override 'remove gluten' current, when setAllergenOverride('add','gluten','...reason...') runs, then prior row.superseded_at set, new row.action='add' superseded_at IS NULL, supersedes_id pointing to prior row",
+      "Given reason length 5, when setAllergenOverride called, then ValidationError with code 'REASON_TOO_SHORT' thrown",
+      "Given fa.allergens populated and any override has reason>=10, when v07() runs, then PASS; given an override with reason='', then WARN with details"
+    ],
+    "test_strategy": [
+      "RED: 3 tests covering chain, reason validation, V07 PASS/WARN before action+validator exist",
+      "Run 'pnpm --filter web test set-allergen-override && pnpm --filter validation test v07'"
+    ],
+    "risk_red_lines": [
+      "Do not bypass dept RBAC",
+      "Do not skip cascade refresh",
+      "Do not allow reason shorter than 10 chars"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

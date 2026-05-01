@@ -1,0 +1,83 @@
+{
+  "title": "T-001 — Lock settings permission enum (10 system role baseline)",
+  "prompt": "# T-001 — Lock settings permission enum\n\n## Goal\nAppend a delimited SETTINGS_CORE permission group to `apps/web/lib/rbac/permissions.enum.ts` covering org/users/roles/audit/impersonate strings. Export `ALL_SETTINGS_CORE_PERMISSIONS`. Per PRD §3 [D2] the model is flat dot-namespaced strings; no derived 4-level matrix view.\n\n## Files in scope\n- apps/web/lib/rbac/permissions.enum.ts [modify]\n- apps/web/lib/rbac/permissions.test.ts [modify]\n- CODEOWNERS [modify if missing entry]\n\n## Acceptance criteria (all must hold)\n- Given the enum file is read, when imported, then it exposes exactly these new strings: 'settings.org.read', 'settings.org.update', 'settings.users.create', 'settings.users.deactivate', 'settings.users.invite', 'settings.roles.assign', 'settings.audit.read', 'settings.impersonate.tenant'.\n- Given a permission key matches the regex `^settings\\.[a-z_]+\\.[a-z_]+$`, when the enum is parsed, then no duplicates exist (vitest assertion).\n- Given the file is changed, when CODEOWNERS is read, then the file remains architect-locked (`apps/web/lib/rbac/permissions.enum.ts` listed under @architects).\n\n## Test strategy (RED first)\n1. Add a failing test that exercises the acceptance criteria above. The RED command is:\n   `pnpm --filter @monopilot/web vitest run apps/web/lib/rbac/permissions.test.ts`\n2. Run RED — it must fail before any production code is written.\n3. Implement the smallest change needed for GREEN.\n4. Re-run RED command — must pass.\n5. Run `pnpm typecheck` and `pnpm lint` in the changed package; both must pass.\n\n## Risk red lines\n- Do not edit files outside the listed scope without documenting why in CLOSEOUT.\n- Do not weaken existing acceptance criteria from prior tasks.\n- Do not introduce REST endpoints; use Server Actions per stack contract.\n- Do not commit secrets or vault keys.\n\n## Closeout evidence required\n- changed_files (with line counts)\n- exact test commands and outputs (RED→GREEN, typecheck, lint)\n- acceptance_criteria_status (one row per AC: pass/fail)\n- deviations_from_prd (or \"none\")\n- git_status\n\nStack: TS + Next.js App Router + Drizzle + pnpm + vitest + Playwright + Server Actions. Primitives in `packages/ui`. PRD: `02-SETTINGS-PRD.md` v3.5.\n",
+  "labels": [
+    "prd",
+    "auth",
+    "permissions",
+    "T1-schema",
+    "p0-lock"
+  ],
+  "priority": 50,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-001",
+    "source_prd": "02-SETTINGS-PRD.md",
+    "prd_refs": [
+      "§3",
+      "§5.1"
+    ],
+    "category": "auth",
+    "subcategory": "permissions-enum",
+    "task_type": "T1-schema",
+    "parent_feature": "02-settings-a",
+    "context_budget": "40k",
+    "estimated_effort": "1-3h",
+    "description": "Lock settings permission enum strings (RBAC foundation for §3).",
+    "details": "Append ONLY the 8 listed strings; do not include schema/rules/reference/d365/email/onboarding permissions yet (those come in T-002). Use the same pattern as the foundation enum: const object with JSDoc comments referencing PRD §3 line numbers. Add `ALL_SETTINGS_CORE_PERMISSIONS` as a typed array literal so tests can iterate.",
+    "scope_files": [
+      "apps/web/lib/rbac/permissions.enum.ts",
+      "apps/web/lib/rbac/permissions.test.ts",
+      "CODEOWNERS"
+    ],
+    "out_of_scope": [
+      "broaden scope beyond listed files",
+      "implement future-phase features"
+    ],
+    "dependencies": [],
+    "parallel_safe_with": [],
+    "acceptance_criteria": [
+      "8 new permission strings present in enum, regex-validated, no duplicates.",
+      "`ALL_SETTINGS_CORE_PERMISSIONS` exported and typed `Permission[]`.",
+      "vitest covers regex + uniqueness; suite green via `pnpm vitest run apps/web/lib/rbac/permissions.test.ts`.",
+      "CODEOWNERS keeps `apps/web/lib/rbac/permissions.enum.ts` architect-only."
+    ],
+    "test_strategy": [
+      "RED: extend permissions.test.ts to assert presence of 8 new strings + regex + uniqueness; run vitest, expect failure.",
+      "GREEN: append the strings, re-run test.",
+      "Run `pnpm typecheck` after change."
+    ],
+    "risk_red_lines": [
+      "Do not remove or rename existing permission strings.",
+      "Do not introduce a parallel 4-level matrix model (rejected per §3 [D2])."
+    ],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": false
+  }
+}

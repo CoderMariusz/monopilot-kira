@@ -1,0 +1,83 @@
+{
+  "title": "T-043 — SET-003 First Location step (ltree path + zone + bin, S-U3)",
+  "prompt": "# T-043 — SET-003 First Location step (ltree path + zone + bin, S-U3)\n\n## Goal\nBuild SET-003 (warehouses_screen) following prototype `design/Monopilot Design System/settings/org-screens.jsx:192-252` 1:1 plus the production contract notes below.\n\nStep 3: create first location with ltree path (e.g., `FG › Zone A › Rack 1 › Bin 1`), zone label, and bin code. Replace prior 'zone/bin' thin spec per S-U3.\n\n## Files in scope\n- apps/web/app/onboarding/location/page.tsx [create]\n- apps/web/app/onboarding/location/page.test.tsx [create]\n\n## Acceptance criteria (all must hold)\n- Given the production page renders, when compared to `design/Monopilot Design System/settings/org-screens.jsx:192-252` (warehouses_screen), then it has structural parity (the same form sections, same field labels, same shadcn primitives, same modals invoked from same triggers), visual parity (same shadcn/Radix primitives — no drift to plain HTML, same density tokens), and interaction parity (same enable/disable rules, same loading/empty/error states, same keyboard focus order) — verified by an RTL snapshot test plus the parity checklist embedded in `pipeline_inputs.details`.\n- Given the user enters a 4-level path, when submitted, then locations row is created with level=4, path materialized correctly, and the wizard advances.\n- Given the path string contains an invalid separator, when validated, then the form shows 'Use ` › ` between segments' inline.\n\n## Test strategy (RED first)\n1. Add a failing test that exercises the acceptance criteria above. The RED command is:\n   `pnpm --filter @monopilot/web vitest run apps/web/app/onboarding/location/page.test.tsx [create]`\n2. Run RED — it must fail before any production code is written.\n3. Implement the smallest change needed for GREEN.\n4. Re-run RED command — must pass.\n5. Run `pnpm typecheck` and `pnpm lint` in the changed package; both must pass.\n\n## Risk red lines\n- Do not edit files outside the listed scope without documenting why in CLOSEOUT.\n- Do not weaken existing acceptance criteria from prior tasks.\n- Do not introduce REST endpoints; use Server Actions per stack contract.\n- Do not commit secrets or vault keys.\n\n## Closeout evidence required\n- changed_files (with line counts)\n- exact test commands and outputs (RED→GREEN, typecheck, lint)\n- acceptance_criteria_status (one row per AC: pass/fail)\n- deviations_from_prd (or \"none\")\n- git_status\n\nStack: TS + Next.js App Router + Drizzle + pnpm + vitest + Playwright + Server Actions. Primitives in `packages/ui`. PRD: `02-SETTINGS-PRD.md` v3.5.\n",
+  "labels": [
+    "prd",
+    "ui",
+    "set-003",
+    "T3-ui"
+  ],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-043",
+    "source_prd": "02-SETTINGS-PRD.md",
+    "prd_refs": [
+      "§14.3 step 3"
+    ],
+    "category": "ui",
+    "subcategory": "set-003",
+    "task_type": "T3-ui",
+    "parent_feature": "02-settings-e-onboarding",
+    "context_budget": "40k",
+    "estimated_effort": "1-3h",
+    "description": "SET-003 warehouses_screen production component (prototype-parity).",
+    "details": "Prototype: design/Monopilot Design System/settings/org-screens.jsx:192-252. Translation notes (canonical from prototype-index-settings.json): see `_meta/prototype-labels/translation-notes-settings.md` and the entry's `translation_notes` array. Production contract: data via Server Components (Drizzle); mutations via Server Actions; primitives from `packages/ui` only (no @radix-ui/react-dialog import outside packages/ui per §0). Parity checklist (verify item-by-item before GREEN):\n1. Section/region count + order matches prototype.\n2. Field labels + types match prototype.\n3. shadcn/Radix primitives match (Input, Select, Switch, Dialog etc).\n4. Action buttons present in same order with same enable/disable rules.\n5. Loading/empty/error states render per prototype.\n6. Modal triggers open the correct modal id (SM-NN).\n7. Keyboard focus order matches prototype.\n8. assertModalA11y() passes for any modals invoked.",
+    "scope_files": [
+      "apps/web/app/onboarding/location/page.tsx [create]",
+      "apps/web/app/onboarding/location/page.test.tsx [create]"
+    ],
+    "out_of_scope": [
+      "broaden scope beyond listed files",
+      "implement future-phase features"
+    ],
+    "dependencies": [
+      "T-029",
+      "T-037"
+    ],
+    "parallel_safe_with": [],
+    "acceptance_criteria": [
+      "Given the production page renders, when compared to `design/Monopilot Design System/settings/org-screens.jsx:192-252` (warehouses_screen), then it has structural parity (the same form sections, same field labels, same shadcn primitives, same modals invoked from same triggers), visual parity (same shadcn/Radix primitives — no drift to plain HTML, same density tokens), and interaction parity (same enable/disable rules, same loading/empty/error states, same keyboard focus order) — verified by an RTL snapshot test plus the parity checklist embedded in `pipeline_inputs.details`.",
+      "Given the user enters a 4-level path, when submitted, then locations row is created with level=4, path materialized correctly, and the wizard advances.",
+      "Given the path string contains an invalid separator, when validated, then the form shows 'Use ` › ` between segments' inline."
+    ],
+    "test_strategy": [
+      "RED: write RTL test that mounts the page with mocked data and asserts the parity AC items + ac_extra coverage.",
+      "GREEN: build component, wire Server Action(s).",
+      "Run `pnpm --filter @monopilot/web vitest run apps/web/app/onboarding/location/page.test.tsx [create]` and `pnpm typecheck`."
+    ],
+    "risk_red_lines": [
+      "Do not import @radix-ui/react-dialog outside packages/ui (§0 ESLint rule).",
+      "Do not paste prototype JSX wholesale — translate to production contract.",
+      "Do not regress accessibility (axe violations = fail)."
+    ],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": true
+  }
+}

@@ -1,0 +1,37 @@
+{
+  "title": "T-009 — API: Item create (POST /api/technical/items) with V-TEC-01..04 validation",
+  "prompt": "Implement POST /api/technical/items per §6.2 + V-TEC-01..04. Zod schema validates: item_code unique per org (V-TEC-01), item_code pattern per type (RM<digits>|SALT-XX for rm; WIP-<2-letter-suffix>-<7-digit-sequence> for intermediate; FG<digits> for fg), weight_mode='catch' requires nominal_weight, gross_weight_max and variance_tolerance_pct (V-TEC-02), intermediate requires WIP code pattern (V-TEC-03), d365_item_id unique when set (V-TEC-04). Insert via Drizzle within transaction. Permission gate: technical.items.create. RED tests/api/items-create.test.ts. Run: `pnpm vitest run tests/api/items-create.test.ts`.",
+  "labels": ["prd", "api", "items-create", "T2-api"],
+  "priority": 80,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-009",
+    "source_prd": "03-TECHNICAL-PRD.md",
+    "prd_refs": ["§6.2", "§6.6", "§3"],
+    "category": "api",
+    "subcategory": "items-create",
+    "task_type": "T2-api",
+    "parent_feature": "03-TECHNICAL-a Item Master",
+    "context_budget": "35k",
+    "estimated_effort": "2-3h",
+    "description": "Item create endpoint with full Zod validation per V-TEC-01..04 and RBAC.",
+    "details": "Zod schema lives in lib/technical/items/schemas.ts. Extension fields validated against reference_schemas (02-SETTINGS) — fetch active schema for items at request time and merge into Zod object. RBAC enforced via permission resolver checking technical.items.create.",
+    "scope_files": ["app/api/technical/items/route.ts", "lib/technical/items/schemas.ts", "lib/technical/items/service.ts", "tests/api/items-create.test.ts"],
+    "out_of_scope": ["Bulk import CSV (out-of-scope per [NO-PROTOTYPE-YET] T-068)", "D365 push"],
+    "dependencies": ["T-001", "T-008"],
+    "parallel_safe_with": ["T-010", "T-011"],
+    "acceptance_criteria": [
+      "Given duplicate item_code for same org, when POST runs, then 409 returned with V-TEC-01 error code.",
+      "Given weight_mode='catch' missing nominal_weight, when POST runs, then 422 with V-TEC-02 error.",
+      "Given item_type='intermediate' with item_code='RM1234', when POST runs, then 422 V-TEC-03 violation.",
+      "Given user lacks technical.items.create, when POST runs, then 403 returned."
+    ],
+    "test_strategy": ["RED tests covering each V-TEC-01..04 violation path.", "Run: pnpm vitest run tests/api/items-create.test.ts"],
+    "risk_red_lines": ["Do not perform any D365 pull/push side effects in this endpoint."],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {"required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"], "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]},
+    "routing_hints": {"red": "hermes_gpt55", "implementation": "hermes_gpt55", "review": "opus_if_high_risk_or_ui_or_architecture", "close": "spark_low_risk_else_opus"}
+  }
+}

@@ -1,0 +1,59 @@
+{
+  "title": "T-034 — output_yield_gate_v1 evaluator + soft flag on registration complete",
+  "prompt": "# T-034 — output_yield_gate_v1 evaluator (soft gate)\n\nPRD: 08-PRODUCTION-PRD.md §10.4, §6 D4\n\n## Goal\nImplement evaluator for output_yield_gate_v1 (soft gate) that fires after register-output marks the WO outputs as complete; if abs(1 - actual_yield/bom.yield_pct) > 0.10 default, raise an alert event flagging Prod Manager review.\n\n## Implementation contract\npackages/api-services/production/evaluate-output-yield-gate.ts: input wo_id, output sum(wo_outputs.qty_kg) / sum(wo_material_consumption.qty_consumed), variance_ratio = actual / bom.yield_pct. If abs(1-ratio) > 0.10 (configurable from prod_settings.output_yield_gate.variance_threshold), INSERT alerts row {severity:'medium', kind:'yield_anomaly', wo_id, actual_yield_pct, expected_yield_pct, variance_pct} and emit log warn. The evaluator runs inside register-output once final output flag set on the WO (introduce a 'completion candidate' helper). Returns {passed: boolean, variance_pct, alert_id?}.\n\n## Files (scope)\n- packages/api-services/production/evaluate-output-yield-gate.ts [create]\n- packages/api-services/production/register-output.ts [modify]\n- packages/api-services/production/__tests__/output-yield-gate.test.ts [create]\n\n## Acceptance criteria\n1. Given actual_yield=0.99 and bom.yield_pct=0.95 (variance ~4%), when evaluator runs, then passed=true and no alert row inserted\n2. Given actual_yield=0.70 and bom.yield_pct=0.95 (variance ~26%), when evaluator runs, then passed=false, variance_pct≈0.263, and alert row inserted severity=medium kind='yield_anomaly'\n3. Given prod_settings.variance_threshold overridden to 0.05, when actual variance=0.07, then passed=false (override respected)\n\n## Test strategy\n- RED: unit test asserting pass + flag + threshold-override before evaluator exists\n- Run 'pnpm --filter api-services test output-yield-gate'\n\n## Risk red lines\n- Do not block output registration (D4: soft gate)\n- Do not skip threshold override from prod_settings (per-tenant config)\n- Do not raise alert without Prod Manager routing flag",
+  "labels": ["prd", "api", "yield-gate", "T2-api"],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-034",
+    "source_prd": "08-PRODUCTION-PRD.md",
+    "prd_refs": ["§10.4", "§6 D4"],
+    "category": "api",
+    "subcategory": "yield-gate",
+    "task_type": "T2-api",
+    "parent_feature": "08-PROD E3 Output+Waste",
+    "context_budget": "26k",
+    "estimated_effort": "2h",
+    "description": "Soft output yield gate evaluator: variance >10% raises Prod Manager alert.",
+    "details": "Pure evaluator + alert insert. No state machine block. Integrates with register-output completion candidate flag. Threshold from prod_settings.output_yield_gate.variance_threshold default 0.10.",
+    "scope_files": [
+      "packages/api-services/production/evaluate-output-yield-gate.ts [create]",
+      "packages/api-services/production/register-output.ts [modify]",
+      "packages/api-services/production/__tests__/output-yield-gate.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not implement Prod Manager review screen (UI task)",
+      "Do not modify rule registry",
+      "Do not block on variance"
+    ],
+    "dependencies": ["T-014", "T-028"],
+    "parallel_safe_with": ["T-029", "T-030", "T-031", "T-032", "T-033"],
+    "acceptance_criteria": [
+      "Given variance ~4%, when evaluator runs, then passed=true and no alert row",
+      "Given variance ~26%, when evaluator runs, then passed=false and alert row inserted severity=medium kind='yield_anomaly'",
+      "Given threshold override 0.05 and variance 0.07, when evaluator runs, then passed=false"
+    ],
+    "test_strategy": [
+      "RED: unit test asserting pass + flag + threshold override before evaluator exists",
+      "Run 'pnpm --filter api-services test output-yield-gate'"
+    ],
+    "risk_red_lines": [
+      "Do not block output registration",
+      "Do not skip prod_settings override",
+      "Do not skip Prod Manager routing"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

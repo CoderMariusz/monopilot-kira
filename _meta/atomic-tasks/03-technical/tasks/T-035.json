@@ -1,0 +1,36 @@
+{
+  "title": "T-035 — UI: TEC-081 Item Deactivate modal",
+  "prompt": "Build TEC-081 deactivate modal per §6A. Reason picker (Discontinued / Recipe Change / D365 Mismatch / Other), notes textarea (required when reason='Other'), target_status select (deprecated/blocked). On confirm calls POST /deactivate (T-011). Match prototype `archive_product_modal` design/Monopilot Design System/technical/modals.jsx:138-163. RED tests/ui/tec-081-deactivate.test.tsx. Run: `pnpm vitest run tests/ui/tec-081-deactivate.test.tsx`.",
+  "labels": ["prd", "ui", "ui-deactivate", "T3-ui"],
+  "priority": 120,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-035",
+    "source_prd": "03-TECHNICAL-PRD.md",
+    "prd_refs": ["§6A TEC-081"],
+    "category": "ui",
+    "subcategory": "deactivate",
+    "task_type": "T3-ui",
+    "parent_feature": "03-TECHNICAL-a Item Master",
+    "context_budget": "15k",
+    "estimated_effort": "1-2h",
+    "description": "Item deactivate confirmation modal with required reason and target status.",
+    "details": "Use shadcn Dialog. Confirm button disabled until reason selected. When reason='Other', notes field becomes required (validation on submit).",
+    "scope_files": ["app/(app)/technical/items/_components/deactivate-modal.tsx", "tests/ui/tec-081-deactivate.test.tsx"],
+    "out_of_scope": ["BOM-side cleanup"],
+    "dependencies": ["T-011", "T-034"],
+    "parallel_safe_with": ["T-034", "T-036"],
+    "acceptance_criteria": [
+      "Given the modal opens, when compared to design/Monopilot Design System/technical/modals.jsx:138-163, then it shows the same 4 reason options, the same target_status select, and the same Cancel/Confirm button order — structural + visual + interaction parity verified by RTL.",
+      "Given reason='Other' selected and notes empty, when Confirm clicked, then validation error displayed.",
+      "Given Confirm clicked with valid input, when POST /deactivate returns 200, then modal closes and parent table refreshes."
+    ],
+    "test_strategy": ["RED tests for reason validation + parity.", "Run: pnpm vitest run tests/ui/tec-081-deactivate.test.tsx"],
+    "risk_red_lines": ["Do not allow confirm without a reason."],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {"required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"], "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]},
+    "routing_hints": {"red": "hermes_gpt55", "implementation": "hermes_gpt55", "review": "opus_if_high_risk_or_ui_or_architecture", "close": "spark_low_risk_else_opus"}
+  }
+}

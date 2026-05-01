@@ -1,0 +1,36 @@
+{
+  "title": "T-063 — UI: TEC-095 Traceability Search foundation (cross-tagged → 05-WAREHOUSE)",
+  "prompt": "Build read-only traceability search foundation per §9.4 + §10A TEC-095. Audit CC-5 primary owner = 05-WAREHOUSE. Tech-side foundation provides the search input + result list. Match `traceability_screen` design/Monopilot Design System/technical/other-screens.jsx:823-901. RED tests/ui/tec-095-traceability.test.tsx. Run: `pnpm vitest run tests/ui/tec-095-traceability.test.tsx`.",
+  "labels": ["prd", "ui", "ui-traceability", "T3-ui"],
+  "priority": 120,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-063",
+    "source_prd": "03-TECHNICAL-PRD.md",
+    "prd_refs": ["§9.4", "§10A TEC-095"],
+    "category": "ui",
+    "subcategory": "traceability",
+    "task_type": "T3-ui",
+    "parent_feature": "03-TECHNICAL Cross-tag",
+    "context_budget": "15k",
+    "estimated_effort": "1-2h",
+    "description": "Forward/backward lot-genealogy search foundation; full query lives in 05-WAREHOUSE.",
+    "details": "Search by item_code or lot. Result list links to /warehouse/lots/[lp_id] for full genealogy.",
+    "scope_files": ["app/(app)/technical/traceability/page.tsx", "tests/ui/tec-095-traceability.test.tsx"],
+    "out_of_scope": ["Genealogy DAG (05-WAREHOUSE / 12-REPORTING)"],
+    "dependencies": ["T-008"],
+    "parallel_safe_with": ["T-061", "T-062"],
+    "acceptance_criteria": [
+      "Given the page renders, when compared to design/Monopilot Design System/technical/other-screens.jsx:823-901, then search bar, result list, and link styling match — structural + visual + interaction parity verified by RTL.",
+      "Given empty query, when on page, then prompt 'Enter item or lot' shows.",
+      "Given clicking a result row, when fired, then navigation goes to /warehouse/lots/[lp_id]."
+    ],
+    "test_strategy": ["RED tests for parity + navigation.", "Run: pnpm vitest run tests/ui/tec-095-traceability.test.tsx"],
+    "risk_red_lines": ["Do not implement full genealogy here."],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {"required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"], "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]},
+    "routing_hints": {"red": "hermes_gpt55", "implementation": "hermes_gpt55", "review": "opus_if_high_risk_or_ui_or_architecture", "close": "spark_low_risk_else_opus"}
+  }
+}

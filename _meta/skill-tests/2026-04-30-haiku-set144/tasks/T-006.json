@@ -1,0 +1,52 @@
+{
+  "title": "T-006 — Implement SET-002 Organization Profile step (RHF form)",
+  "prompt": "Implement step 1 form: Organization Profile (name, timezone, locale, currency, logo optional).\n\nPRD §14.3-14.4 SET-002: RHF form with fields:\n- Organization name (required, text)\n- Timezone (required, select/combobox)\n- Locale (required, select from supported languages)\n- Currency (required, select from ISO 4217 codes)\n- Logo (optional, file upload with preview)\n\nForm submits to POST /api/v1/onboarding/step {step_number: 1, data: {name, timezone, locale, currency, logo_url}}\n\nAcceptance:\n- Form validates required fields (name at least 1 char, timezone/locale/currency not empty)\n- Logo upload previews before submission\n- Form submits cleanly and updates onboarding_state.current_step to 2\n- Navigate to step 2 (SET-003) on success\n\nTest: RED test verifies form submission updates org with correct values.",
+  "labels": ["prd", "ui", "screen", "T3-ui"],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-006",
+    "source_prd": "02-SETTINGS-PRD.md",
+    "prd_refs": ["§14.3", "§14.4"],
+    "category": "ui",
+    "subcategory": "screen",
+    "task_type": "T3-ui",
+    "parent_feature": "onboarding_wizard",
+    "context_budget": "30k",
+    "estimated_effort": "2-3h",
+    "description": "Step 1 RHF form: Organization Profile data entry",
+    "details": "Create OrganizationProfileStep component using React Hook Form + Zod schema. Fields: (1) name: text input, required, minLength 1, maxLength 100. (2) timezone: select dropdown, required, populate from IANA timezone list. (3) locale: select dropdown, required, populate from supported locales (e.g. en-US, pl-PL, de-DE). (4) currency: select dropdown, required, ISO 4217 codes (e.g. USD, EUR, PLN). (5) logo: optional file input with image preview (jpg, png, svg allowed; max 5MB). Form validation shows inline error messages. Submit button calls POST /api/v1/onboarding/step with step_number=1 and collected form data (including logo as URL if uploaded, or null). On success, navigate to step 2 (SET-003). Show loading state during submission. Match wizard styling (colors, spacing, fonts).",
+    "scope_files": ["src/components/onboarding/steps/OrganizationProfileStep.tsx", "src/schemas/onboarding.schema.ts", "tests/e2e/onboarding.spec.ts"],
+    "out_of_scope": ["logo file storage/CDN (assume URL returns after upload)", "timezone/locale/currency seed data"],
+    "dependencies": ["T-002"],
+    "parallel_safe_with": ["T-004", "T-005", "T-007", "T-008", "T-009", "T-010"],
+    "acceptance_criteria": [
+      "Given step 1 form is rendered, when user enters name='ACME Corp', timezone='America/New_York', locale='en-US', currency='USD', then all fields show values",
+      "Given form with name empty, when user tries to submit, then validation error appears for name field",
+      "Given form fully filled, when user submits, then POST /api/v1/onboarding/step is called and response returns current_step=2"
+    ],
+    "test_strategy": [
+      "Write e2e test: test_org_profile_form_submission() fills form and verifies API call + navigation",
+      "Write e2e test: test_org_profile_validation() submits empty form and verifies error messages",
+      "Run: npx cypress run -e TEST_FILE=tests/e2e/onboarding.spec.ts --spec '**/step-1*'",
+      "Verify form data is persisted to DB via GET /api/v1/onboarding/resume after submission"
+    ],
+    "risk_red_lines": [
+      "Do not allow submission with empty required fields",
+      "Do not proceed to step 2 if step 1 data is not saved to onboarding_state"
+    ],
+    "skills": ["test-driven-development"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

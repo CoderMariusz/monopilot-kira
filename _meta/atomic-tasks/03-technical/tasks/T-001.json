@@ -1,0 +1,62 @@
+{
+  "title": "T-001 — Migration: items table (universal item master)",
+  "prompt": "Create Drizzle migration adding the universal item master table per 03-TECHNICAL-PRD §5.1 and §6.1. Table `items` with columns: id UUID PK default gen_random_uuid(), org_id UUID NOT NULL FK organizations(id), item_code TEXT NOT NULL, item_type TEXT NOT NULL CHECK in ('rm','intermediate','fg','co_product','byproduct'), name TEXT NOT NULL, description TEXT, status TEXT NOT NULL DEFAULT 'active' CHECK in ('draft','active','deprecated','blocked'), product_group TEXT, uom_base TEXT NOT NULL, uom_secondary TEXT, gs1_gtin TEXT, weight_mode TEXT NOT NULL DEFAULT 'fixed' CHECK in ('fixed','catch'), nominal_weight NUMERIC(10,4), tare_weight NUMERIC(10,4), gross_weight_max NUMERIC(10,4), variance_tolerance_pct NUMERIC(5,2) DEFAULT 5.0, shelf_life_days INT, shelf_life_mode TEXT DEFAULT 'use_by' CHECK in ('use_by','best_before'), date_code_format TEXT, cost_per_kg NUMERIC(10,4), d365_item_id TEXT, d365_last_sync_at TIMESTAMPTZ, d365_sync_status TEXT DEFAULT 'unsynced', ext_jsonb JSONB DEFAULT '{}', private_jsonb JSONB DEFAULT '{}', schema_version INT NOT NULL DEFAULT 1, created_by UUID FK users(id), created_at TIMESTAMPTZ DEFAULT now(), updated_at TIMESTAMPTZ DEFAULT now(), UNIQUE(org_id,item_code). Indexes idx_items_org_type (org_id,item_type,status), idx_items_d365 partial WHERE d365_item_id IS NOT NULL, idx_items_ext_jsonb GIN(ext_jsonb). Enable RLS with policy USING (org_id = current_setting('app.current_org_id')::uuid). RED: a vitest+pg-mem (or testcontainers) test asserts table exists with all columns, constraints, indexes and that RLS policy is enabled. Run: `pnpm vitest run db/migrations/items`.",
+  "labels": ["prd", "data", "schema-items", "T1-schema"],
+  "priority": 50,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-001",
+    "source_prd": "03-TECHNICAL-PRD.md",
+    "prd_refs": ["§5.1", "§6.1", "§6.4"],
+    "category": "data",
+    "subcategory": "schema-items",
+    "task_type": "T1-schema",
+    "parent_feature": "03-TECHNICAL-a Item Master",
+    "context_budget": "30k",
+    "estimated_effort": "1-2h",
+    "description": "Drizzle migration: items master table with RLS, indexes, item_type+status enums.",
+    "details": "Use Drizzle migration in db/migrations. Follow pattern of existing organizations/users tables. CHECK constraints expressed as Postgres CHECK clauses. RLS policy named `items_org_isolation` on the table. uom_base accepted values informational (kg|g|l|ml|pcs) — store as TEXT (no enum lock yet). gs1_gtin nullable. Coordinate with 02-SETTINGS reference_schemas — schema_version field reserved for future ext_jsonb shape evolution. Do NOT seed any rows in this task.",
+    "scope_files": [
+      "db/migrations/0xxx_items.sql",
+      "db/schema/items.ts",
+      "tests/db/items.migration.test.ts"
+    ],
+    "out_of_scope": [
+      "BOM tables (separate task T-002)",
+      "Cost history table (T-003)",
+      "Allergen tables (T-004)",
+      "API endpoints (T-010..)",
+      "UI work"
+    ],
+    "dependencies": [],
+    "parallel_safe_with": ["T-002", "T-003", "T-004", "T-005", "T-006", "T-007"],
+    "acceptance_criteria": [
+      "Given a clean test database, when the migration runs, then table `items` exists with all 23 columns and enums per §5.1.",
+      "Given table `items` exists, when querying pg_indexes, then idx_items_org_type, idx_items_d365 (partial), idx_items_ext_jsonb (GIN) are present.",
+      "Given RLS is enabled on items, when SELECT runs without app.current_org_id, then no rows are visible.",
+      "Given the migration file, when re-applied, then it is idempotent (no duplicate-table error)."
+    ],
+    "test_strategy": [
+      "Add failing RED test in tests/db/items.migration.test.ts before writing migration.",
+      "Run: pnpm vitest run tests/db/items.migration.test.ts"
+    ],
+    "risk_red_lines": [
+      "Do not modify organizations or users tables.",
+      "Do not seed any item rows here.",
+      "Do not introduce hard FK to D365 — d365_item_id is a soft reference (TEXT)."
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

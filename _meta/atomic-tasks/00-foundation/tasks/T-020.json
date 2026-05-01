@@ -1,0 +1,85 @@
+{
+  "title": "T-020 \u2014 Reference.ManufacturingOperations schema + bakery/pharma/fmcg/generic seeds (ADR-028 extension)",
+  "prompt": "# T-020 \u2014 Reference.ManufacturingOperations schema + bakery/pharma/fmcg/generic seeds (ADR-028 extension)\n\nPRD: `00-FOUNDATION-PRD.md` \u2014 sections: \u00a79.1\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`\n\n## Goal\nCreate the Reference.ManufacturingOperations table per \u00a79.1 with the per-tenant uniqueness constraint and seed bakery + pharma + fmcg + generic operation sets.\n\n## Implementation contract\nMigration 012-manufacturing-ops.sql copying the verbatim DDL from PRD \u00a79.1 (id UUID, tenant_id UUID, operation_name TEXT, process_suffix TEXT, description, operation_seq INT, industry_code TEXT, is_active BOOLEAN, marker TEXT) plus UNIQUE(tenant_id, process_suffix) and CHECK(process_suffix ~ '^[A-Z0-9]{2,4}$'). Seed four industry sets: bakery (Mix/Knead/Proof/Bake \u2192 MX/KN/PR/BK), pharma (Synthesis/Separation/Crystallization/Drying \u2192 SY/SE/CZ/DR), fmcg (Mix/Fill/Seal/Label \u2192 MX/FL/SL/LB), generic (Process_A..D \u2192 PA/PB/PC/PD). Test asserts the four seed sets exist, the unique-per-tenant constraint blocks duplicates, and the regex check rejects '!!' as a suffix.\n\n## Files (scope)\n- packages/db/migrations/012-manufacturing-ops.sql [create]\n- packages/db/seeds/manufacturing-operations.sql [create]\n- packages/db/__tests__/manufacturing-ops.integration.test.ts [create]\n\n## Acceptance criteria\n1. Given the four industry seeds run for one tenant, when SELECT industry_code, count(*) FROM Reference.ManufacturingOperations runs, then bakery=4, pharma=4, fmcg=4, generic=4\n2. Given an INSERT with process_suffix='MX' for a tenant that already has 'MX', when committed, then PostgreSQL rejects with the unique-violation error\n3. Given an INSERT with process_suffix='!!', when attempted, then the CHECK constraint rejects it\n\n## Test strategy\n- RED: write packages/db/__tests__/manufacturing-ops.integration.test.ts asserting seeds + uniqueness + regex before migration exists\n- Run 'pnpm --filter @monopilot/db test:integration -- manufacturing-ops'\n\n## Risk red lines\n- Do not hardcode operation_name in code \u2014 PRD \u00a79.1 makes it ORG-CONFIG\n\n## Dependencies (must be complete first)\n- T-006\n- T-019\n\n## Closeout evidence\nProvide: changed_files, test_commands_and_results, acceptance_criteria_status (per AC), deviations_from_prd, git_status. Use the test-driven-development skill (RED test before implementation) and requesting-code-review at GREEN.",
+  "labels": [
+    "prd",
+    "data",
+    "manufacturing",
+    "T1-schema"
+  ],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-020",
+    "source_prd": "00-FOUNDATION-PRD.md",
+    "prd_refs": [
+      "\u00a79.1"
+    ],
+    "category": "data",
+    "subcategory": "manufacturing",
+    "task_type": "T1-schema",
+    "parent_feature": "00-FOUNDATION manufacturing-operations",
+    "context_budget": "50k",
+    "estimated_effort": "1-3h",
+    "description": "Create the Reference.ManufacturingOperations table per \u00a79.1 with the per-tenant uniqueness constraint and seed bakery + pharma + fmcg + generic operation sets.",
+    "details": "Migration 012-manufacturing-ops.sql copying the verbatim DDL from PRD \u00a79.1 (id UUID, tenant_id UUID, operation_name TEXT, process_suffix TEXT, description, operation_seq INT, industry_code TEXT, is_active BOOLEAN, marker TEXT) plus UNIQUE(tenant_id, process_suffix) and CHECK(process_suffix ~ '^[A-Z0-9]{2,4}$'). Seed four industry sets: bakery (Mix/Knead/Proof/Bake \u2192 MX/KN/PR/BK), pharma (Synthesis/Separation/Crystallization/Drying \u2192 SY/SE/CZ/DR), fmcg (Mix/Fill/Seal/Label \u2192 MX/FL/SL/LB), generic (Process_A..D \u2192 PA/PB/PC/PD). Test asserts the four seed sets exist, the unique-per-tenant constraint blocks duplicates, and the regex check rejects '!!' as a suffix.",
+    "scope_files": [
+      "packages/db/migrations/012-manufacturing-ops.sql [create]",
+      "packages/db/seeds/manufacturing-operations.sql [create]",
+      "packages/db/__tests__/manufacturing-ops.integration.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not modify files outside the scope_files list",
+      "Do not introduce business logic from later module PRDs (01-NPD, 02-SETTINGS, etc.)",
+      "No 02-SETTINGS Admin UI editor (Phase C1)",
+      "No intermediate_code_pN cascade engine (T-021)"
+    ],
+    "dependencies": [
+      "T-006",
+      "T-019"
+    ],
+    "parallel_safe_with": [
+      "T-021",
+      "T-018"
+    ],
+    "acceptance_criteria": [
+      "Given the four industry seeds run for one tenant, when SELECT industry_code, count(*) FROM Reference.ManufacturingOperations runs, then bakery=4, pharma=4, fmcg=4, generic=4",
+      "Given an INSERT with process_suffix='MX' for a tenant that already has 'MX', when committed, then PostgreSQL rejects with the unique-violation error",
+      "Given an INSERT with process_suffix='!!', when attempted, then the CHECK constraint rejects it"
+    ],
+    "test_strategy": [
+      "RED: write packages/db/__tests__/manufacturing-ops.integration.test.ts asserting seeds + uniqueness + regex before migration exists",
+      "Run 'pnpm --filter @monopilot/db test:integration -- manufacturing-ops'"
+    ],
+    "risk_red_lines": [
+      "Do not hardcode operation_name in code \u2014 PRD \u00a79.1 makes it ORG-CONFIG"
+    ],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

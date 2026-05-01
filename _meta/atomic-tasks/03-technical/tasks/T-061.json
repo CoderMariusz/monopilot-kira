@@ -1,0 +1,36 @@
+{
+  "title": "T-061 — UI: TEC-093 Nutrition Panel (cross-tagged → 01-NPD)",
+  "prompt": "Build read-only Nutrition Panel under Item Detail per §10A TEC-093. Audit CC-5: prototype currently mis-tagged here; canonical owner = 01-NPD. Retain as a Tech-side viewer that READS nutrition fields from items.ext_jsonb.nutrition_panel. Match `nutrition_screen` design/Monopilot Design System/technical/other-screens.jsx:608-661. RED tests/ui/tec-093-nutrition.test.tsx. Run: `pnpm vitest run tests/ui/tec-093-nutrition.test.tsx`.",
+  "labels": ["prd", "ui", "ui-nutrition", "T3-ui"],
+  "priority": 120,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-061",
+    "source_prd": "03-TECHNICAL-PRD.md",
+    "prd_refs": ["§10A TEC-093"],
+    "category": "ui",
+    "subcategory": "nutrition",
+    "task_type": "T3-ui",
+    "parent_feature": "03-TECHNICAL Cross-tag",
+    "context_budget": "12k",
+    "estimated_effort": "1h",
+    "description": "Read-only nutrition viewer pulling from items.ext_jsonb.nutrition_panel.",
+    "details": "Per EU 1169/2011 100g format. No edit path here — edit lives in 01-NPD.",
+    "scope_files": ["app/(app)/technical/items/[item_code]/_tabs/nutrition-tab.tsx", "tests/ui/tec-093-nutrition.test.tsx"],
+    "out_of_scope": ["Edit (owned by 01-NPD)"],
+    "dependencies": ["T-034"],
+    "parallel_safe_with": ["T-060", "T-062"],
+    "acceptance_criteria": [
+      "Given the panel renders, when compared to design/Monopilot Design System/technical/other-screens.jsx:608-661, then the 100g table layout and field labels match — structural + visual + interaction parity verified by RTL.",
+      "Given items.ext_jsonb.nutrition_panel missing, when rendered, then 'Not declared' state appears.",
+      "Given user attempts to click any field, when fired, then fields remain read-only (no edit affordance)."
+    ],
+    "test_strategy": ["RED tests for parity + read-only behaviour.", "Run: pnpm vitest run tests/ui/tec-093-nutrition.test.tsx"],
+    "risk_red_lines": ["Do not allow edits — this is a read-only cross-tag view."],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {"required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"], "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]},
+    "routing_hints": {"red": "hermes_gpt55", "implementation": "hermes_gpt55", "review": "opus_if_high_risk_or_ui_or_architecture", "close": "spark_low_risk_else_opus"}
+  }
+}

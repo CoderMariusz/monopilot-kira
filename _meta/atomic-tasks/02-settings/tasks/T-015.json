@@ -1,0 +1,80 @@
+{
+  "title": "T-015 — RLS policies + app.current_org_id middleware contract test",
+  "prompt": "# T-015 — RLS contract: app.current_org_id enforcement\n\n## Goal\nAdd a contract test confirming RLS denies cross-tenant SELECT on every settings table. Add helper `withOrgContext(orgId, fn)` for Server Actions that runs `SET LOCAL app.current_org_id = ...` inside a transaction.\n\n## Files in scope\n- apps/web/lib/db/with-org-context.ts [create]\n- apps/web/lib/db/with-org-context.test.ts [create]\n\n## Acceptance criteria (all must hold)\n- Given two orgs A and B exist, when a user authenticated as A reads users for B with `app.current_org_id` set to A, then the query returns 0 rows.\n- Given the helper `withOrgContext(orgId, fn)` is invoked, when fn issues SQL, then SET LOCAL is active for the duration of the transaction only.\n- Given the contract test runs across all 12 RLS-scoped tables, when executed, then each table denies cross-tenant access (12 assertions pass).\n\n## Test strategy (RED first)\n1. Add a failing test that exercises the acceptance criteria above. The RED command is:\n   `pnpm --filter @monopilot/web vitest run apps/web/lib/db/with-org-context.test.ts`\n2. Run RED — it must fail before any production code is written.\n3. Implement the smallest change needed for GREEN.\n4. Re-run RED command — must pass.\n5. Run `pnpm typecheck` and `pnpm lint` in the changed package; both must pass.\n\n## Risk red lines\n- Do not edit files outside the listed scope without documenting why in CLOSEOUT.\n- Do not weaken existing acceptance criteria from prior tasks.\n- Do not introduce REST endpoints; use Server Actions per stack contract.\n- Do not commit secrets or vault keys.\n\n## Closeout evidence required\n- changed_files (with line counts)\n- exact test commands and outputs (RED→GREEN, typecheck, lint)\n- acceptance_criteria_status (one row per AC: pass/fail)\n- deviations_from_prd (or \"none\")\n- git_status\n\nStack: TS + Next.js App Router + Drizzle + pnpm + vitest + Playwright + Server Actions. Primitives in `packages/ui`. PRD: `02-SETTINGS-PRD.md` v3.5.\n",
+  "labels": [
+    "prd",
+    "auth",
+    "rls-contract",
+    "T2-api"
+  ],
+  "priority": 80,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-015",
+    "source_prd": "02-SETTINGS-PRD.md",
+    "prd_refs": [
+      "§5",
+      "ADR-013"
+    ],
+    "category": "auth",
+    "subcategory": "rls-helpers",
+    "task_type": "T2-api",
+    "parent_feature": "02-settings-a",
+    "context_budget": "40k",
+    "estimated_effort": "1-3h",
+    "description": "RLS helper + cross-tenant contract test.",
+    "details": "Helper opens transaction, runs SET LOCAL app.current_org_id = $1, calls fn, commits. Reject calls without orgId. Provide typed return.",
+    "scope_files": [
+      "apps/web/lib/db/with-org-context.ts",
+      "apps/web/lib/db/with-org-context.test.ts"
+    ],
+    "out_of_scope": [
+      "broaden scope beyond listed files",
+      "implement future-phase features"
+    ],
+    "dependencies": [
+      "T-004",
+      "T-014"
+    ],
+    "parallel_safe_with": [],
+    "acceptance_criteria": [
+      "Helper exists and is type-safe.",
+      "Cross-tenant SELECT returns 0 rows on every settings table.",
+      "vitest green for all 12 tables."
+    ],
+    "test_strategy": [
+      "RED: write contract test for 12 tables.",
+      "GREEN: implement helper + ensure RLS policies allow scope."
+    ],
+    "risk_red_lines": [
+      "Do not bypass RLS by using a service role connection from app code."
+    ],
+    "skills": [
+      "test-driven-development"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": false
+  }
+}

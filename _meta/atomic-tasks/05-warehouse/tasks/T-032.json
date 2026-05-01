@@ -1,0 +1,59 @@
+{
+  "title": "T-032 — Reservation release service",
+  "prompt": "# T-032 — Reservation release service\n\nPRD: `05-WAREHOUSE-PRD.md` §9.4 (release triggers), V-WH-FEFO-006.\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`.\n\n## Goal\n`releaseReservation(reservationId, releaseReason, reasonText?)` Server Action setting released_at, restoring LP.reserved_qty/status, with audit on admin_override.\n\n## Implementation contract\n`apps/web/lib/services/warehouse/reservation-release.ts`. release_reason ENUM ('consumed','cancelled','wo_cancelled','admin_override'). For 'admin_override' require RBAC Manager/Admin AND reason_text length ≥10 (V-WH-FEFO-006). Set released_at=NOW(), released_by=user. Update LP.reserved_qty -= reserved_qty; if all reservations released, LP.status reverts to 'available'. Insert audit row 'lp_reservation_released'.\n\n## Files (scope)\n- apps/web/lib/services/warehouse/reservation-release.ts [create]\n- apps/web/lib/services/warehouse/__tests__/reservation-release.test.ts [create]\n\n## Acceptance criteria\n1. Given an active reservation, when releaseReservation runs with reason='consumed', then released_at is set and LP.reserved_qty decrements.\n2. Given reason='admin_override' by an Operator, when called, then RBAC error returns.\n3. Given reason='admin_override' by Manager without reason_text, when called, then V-WH-FEFO-006 error returns.\n4. Given the last active reservation released, when committed, then LP.status reverts from 'reserved' to 'available'.\n\n## Test strategy\n- RED: reservation-release.test.ts covers four scenarios.\n- Run `pnpm --filter web test reservation-release`.\n\n## Risk red lines\n- Do not delete reservation rows (audit-preserving).\n- Do not skip admin_override RBAC + reason_text gate.\n- Do not flip LP status while other active reservations remain.",
+  "labels": ["prd", "api", "reservations", "T2-api"],
+  "priority": 95,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-032",
+    "source_prd": "05-WAREHOUSE-PRD.md",
+    "prd_refs": ["§9.4"],
+    "category": "api",
+    "subcategory": "reservations",
+    "task_type": "T2-api",
+    "parent_feature": "warehouse-fefo",
+    "context_budget": "25k",
+    "estimated_effort": "1-2h",
+    "description": "Reservation release with admin_override RBAC + reason_text gate; LP.status reverts when last reservation released.",
+    "details": "Audit log entry 'lp_reservation_released' mandatory. Single transaction.",
+    "scope_files": [
+      "apps/web/lib/services/warehouse/reservation-release.ts [create]",
+      "apps/web/lib/services/warehouse/__tests__/reservation-release.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "WO cancel cascade (T-079)",
+      "UI modal (T-062)",
+      "Outbox emission (T-047)"
+    ],
+    "dependencies": ["T-031"],
+    "parallel_safe_with": ["T-030", "T-033"],
+    "acceptance_criteria": [
+      "Given an active reservation, when released with reason='consumed', then released_at is set and LP.reserved_qty decrements",
+      "Given admin_override by Operator, when called, then RBAC error returns",
+      "Given admin_override by Manager without reason_text (≥10 chars), when called, then V-WH-FEFO-006 error returns",
+      "Given the last active reservation released, when committed, then LP.status reverts to 'available'"
+    ],
+    "test_strategy": [
+      "RED: reservation-release.test.ts covers four scenarios",
+      "Run 'pnpm --filter web test reservation-release'"
+    ],
+    "risk_red_lines": [
+      "Do not delete reservation rows",
+      "Do not skip admin_override gate",
+      "Do not flip LP status prematurely"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

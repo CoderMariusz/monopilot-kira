@@ -1,0 +1,36 @@
+{
+  "title": "T-045 — UI: TEC-089 BOM Change History timeline",
+  "prompt": "Build the BOM change history audit timeline per §7A. Reads audit_log filtered to bom_* tables for current BOM. Shows actor + reason + delta% summary per change. Match `history_screen` design/Monopilot Design System/technical/other-screens.jsx:230-263. RED tests/ui/tec-089-history.test.tsx. Run: `pnpm vitest run tests/ui/tec-089-history.test.tsx`.",
+  "labels": ["prd", "ui", "ui-bom-history", "T3-ui"],
+  "priority": 120,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-045",
+    "source_prd": "03-TECHNICAL-PRD.md",
+    "prd_refs": ["§7A TEC-089"],
+    "category": "ui",
+    "subcategory": "bom-history",
+    "task_type": "T3-ui",
+    "parent_feature": "03-TECHNICAL-a BOM",
+    "context_budget": "12k",
+    "estimated_effort": "1h",
+    "description": "Audit timeline filtered to BOM changes for one BOM.",
+    "details": "Use shadcn ScrollArea + Card list. Each entry shows actor, action, reason, and rendered delta summary (qty changed by N%, components added/removed counts).",
+    "scope_files": ["app/(app)/technical/boms/[id]/history/page.tsx", "tests/ui/tec-089-history.test.tsx"],
+    "out_of_scope": ["Audit_log writer side"],
+    "dependencies": ["T-038"],
+    "parallel_safe_with": ["T-040", "T-044"],
+    "acceptance_criteria": [
+      "Given the history page renders, when compared to design/Monopilot Design System/technical/other-screens.jsx:230-263, then the timeline structure, entry layout, and primitives match — structural + visual + interaction parity verified by RTL.",
+      "Given audit_log empty, when rendered, then 'No history' empty state appears.",
+      "Given filter actor=user1, when applied, then timeline shows only their entries."
+    ],
+    "test_strategy": ["RED tests for parity + filter behaviour.", "Run: pnpm vitest run tests/ui/tec-089-history.test.tsx"],
+    "risk_red_lines": ["Do not query audit_log without org RLS."],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {"required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"], "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]},
+    "routing_hints": {"red": "hermes_gpt55", "implementation": "hermes_gpt55", "review": "opus_if_high_risk_or_ui_or_architecture", "close": "spark_low_risk_else_opus"}
+  }
+}

@@ -1,0 +1,58 @@
+{
+  "title": "T-005 — Reference lookup tables (PackSizes, Templates, Lines_By_PackSize, Equipment_Setup_By_Line_Pack, CloseConfirm, AlertThresholds)",
+  "prompt": "# T-005 — Reference lookup tables (Phase B.2 baseline)\n\nPRD: 01-NPD-PRD.md §4.1, §6.1 Chain 1, §7.2, §11.3\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nCreate the 6 baseline Reference lookup tables driving cascade Chain 1 and dropdown values: PackSizes, Templates, Lines_By_PackSize, Equipment_Setup_By_Line_Pack, CloseConfirm, AlertThresholds.\n\n## Implementation contract\nMigration 0014 emits 6 tables, each with tenant_id + RLS. Schemas: PackSizes(value PK), Templates(template_name PK, operation_1..4_name TEXT), Lines_By_PackSize(line PK, supported_pack_sizes TEXT[]), Equipment_Setup_By_Line_Pack(line + pack_size composite PK, equipment_setup TEXT), CloseConfirm(value PK with allowed list ('Yes'|'No'|'')), AlertThresholds(level PK ('RED'|'YELLOW'|'GREEN'), threshold_days INT). Drizzle schema entries. Tests verify table existence + indexes.\n\n## Files\n- packages/db/migrations/0014_reference_lookups.sql [create]\n- packages/db/src/schema/reference-lookups.ts [create]\n- packages/db/__tests__/reference-lookups.test.ts [create]\n\n## Acceptance criteria\n1. Given migration 0014 ran, when describing schema, then all 6 tables exist with primary keys per spec\n2. Given Lines_By_PackSize seed row line='L1' supported_pack_sizes=ARRAY['250g','500g'], when filtering by pack_size '250g', then row matches via array contains\n3. Given AlertThresholds rows seeded with RED=10 YELLOW=21, when SELECT WHERE level='RED', then threshold_days=10\n\n## Test strategy\n- RED: tests for tables, PK enforcement, ARRAY contains query\n- Run 'pnpm --filter db migrate && pnpm --filter db test reference-lookups'\n\n## Risk red lines\n- Do not skip tenant_id on any table\n- Do not skip RLS\n- Do not seed application-specific data here (separate seed tasks)",
+  "labels": ["prd", "data", "schema", "T1-schema"],
+  "priority": 50,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-005",
+    "source_prd": "01-NPD-PRD.md",
+    "prd_refs": ["§4.1", "§6.1", "§7.2", "§11.3"],
+    "category": "data",
+    "subcategory": "schema-reference",
+    "task_type": "T1-schema",
+    "parent_feature": "01-NPD-a reference baseline",
+    "context_budget": "35k",
+    "estimated_effort": "1-2h",
+    "description": "Add 6 baseline Reference lookup tables (PackSizes, Templates, Lines_By_PackSize, Equipment_Setup_By_Line_Pack, CloseConfirm, AlertThresholds).",
+    "details": "Migration 0014 creates 6 tables with tenant_id + RLS + structural indexes. Drizzle schema exposes each. Tests verify presence + array contains lookup + AlertThresholds row.",
+    "scope_files": [
+      "packages/db/migrations/0014_reference_lookups.sql [create]",
+      "packages/db/src/schema/reference-lookups.ts [create]",
+      "packages/db/__tests__/reference-lookups.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not seed Apex-specific values (separate seed task)",
+      "Do not implement cascade engine logic"
+    ],
+    "dependencies": ["T-001"],
+    "parallel_safe_with": ["T-003", "T-004"],
+    "acceptance_criteria": [
+      "Given migration 0014 ran, when describing schema, then all 6 lookup tables exist with primary keys per spec",
+      "Given Lines_By_PackSize seed row line='L1' supported_pack_sizes=ARRAY['250g','500g'], when filtering by pack_size '250g', then row matches via array contains",
+      "Given AlertThresholds rows seeded with RED=10 YELLOW=21, when SELECT WHERE level='RED', then threshold_days=10"
+    ],
+    "test_strategy": [
+      "RED: tests for tables, PK enforcement, ARRAY contains query before migration exists",
+      "Run 'pnpm --filter db migrate && pnpm --filter db test reference-lookups'"
+    ],
+    "risk_red_lines": [
+      "Do not skip tenant_id on any table",
+      "Do not skip RLS policies",
+      "Do not seed Apex-specific data here"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

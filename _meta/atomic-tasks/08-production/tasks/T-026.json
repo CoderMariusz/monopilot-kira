@@ -1,0 +1,59 @@
+{
+  "title": "T-026 — FEFO compliance check + deviation reason capture",
+  "prompt": "# T-026 — FEFO compliance check + deviation reason\n\nPRD: 08-PRODUCTION-PRD.md §7.2 FR-08-E2-007, §11.1, §13 R10\n\n## Goal\nIn consume-to-wo, when chosen LP differs from fefo_suggested_lp_id, set fefo_adherence_flag=false and require fefo_deviation_reason from a predefined list (R10).\n\n## Implementation contract\nExtend consume-to-wo zod schema: when fefo_suggested_lp_id provided AND lp_id != fefo_suggested_lp_id, body must also include fefo_deviation_reason ∈ enum {expired_alt, qty_insufficient, location_unavailable, qa_hold, operator_override}. Compute fefo_adherence_flag accordingly. Persist fefo_deviation_reason on wo_material_consumption row. Return 422 ValidationError if deviation occurs without reason. Add observability: log when fefo_adherence_flag=false with reason.\n\n## Files (scope)\n- packages/api-services/production/consume-to-wo.ts [modify]\n- packages/api-services/production/fefo-deviation-enum.ts [create]\n- packages/api-services/production/__tests__/fefo-deviation.test.ts [create]\n\n## Acceptance criteria\n1. Given lp_id == fefo_suggested_lp_id, when POST consume, then fefo_adherence_flag=true and fefo_deviation_reason is null\n2. Given lp_id != fefo_suggested_lp_id without fefo_deviation_reason, when POST consume, then 422 ValidationError listing fefo_deviation_reason\n3. Given lp_id != fefo_suggested_lp_id and fefo_deviation_reason='expired_alt', when POST consume, then 200 with fefo_adherence_flag=false and reason persisted\n\n## Test strategy\n- RED: test asserting all 3 paths before consume-to-wo modification\n- Run 'pnpm --filter api-services test fefo-deviation'\n\n## Risk red lines\n- Do not accept free-text fefo_deviation_reason (must be enum to prevent gaming R10)\n- Do not skip flag when fefo_suggested_lp_id absent (treat as adherent only when explicitly suggested)\n- Do not allow non-enumerated reason values",
+  "labels": ["prd", "api", "consumption", "T2-api"],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-026",
+    "source_prd": "08-PRODUCTION-PRD.md",
+    "prd_refs": ["§7.2 FR-08-E2-007", "§11.1", "§13 R10"],
+    "category": "api",
+    "subcategory": "consumption",
+    "task_type": "T2-api",
+    "parent_feature": "08-PROD E2 Consumption",
+    "context_budget": "24k",
+    "estimated_effort": "1-2h",
+    "description": "FEFO deviation reason enforced via enum on deviation; flag persisted on consumption row.",
+    "details": "Enum fefo_deviation_enum (5 values). Zod cross-field validation: deviation requires reason. Flag false only when explicit suggestion and chosen LP differs. Observability hook fires structured log on deviation.",
+    "scope_files": [
+      "packages/api-services/production/consume-to-wo.ts [modify]",
+      "packages/api-services/production/fefo-deviation-enum.ts [create]",
+      "packages/api-services/production/__tests__/fefo-deviation.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not implement FEFO suggestion (05-WH owns)",
+      "Do not implement KPI dashboard for FEFO (T-052)",
+      "Do not modify schema beyond enum"
+    ],
+    "dependencies": ["T-023"],
+    "parallel_safe_with": ["T-024", "T-025", "T-027"],
+    "acceptance_criteria": [
+      "Given lp_id == fefo_suggested_lp_id, when POST, then fefo_adherence_flag=true and reason null",
+      "Given deviation without reason, when POST, then 422 listing fefo_deviation_reason",
+      "Given deviation with reason 'expired_alt', when POST, then 200 + flag false + reason persisted"
+    ],
+    "test_strategy": [
+      "RED: tests asserting all 3 paths before service change",
+      "Run 'pnpm --filter api-services test fefo-deviation'"
+    ],
+    "risk_red_lines": [
+      "Do not accept free-text reason",
+      "Do not invert flag logic when suggestion absent",
+      "Do not allow values outside enum"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

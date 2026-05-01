@@ -1,0 +1,89 @@
+{
+  "title": "T-001 \u2014 Monorepo bootstrap (pnpm workspace + Next.js App Router + TypeScript strict)",
+  "prompt": "# T-001 \u2014 Monorepo bootstrap (pnpm workspace + Next.js App Router + TypeScript strict)\n\nPRD: `00-FOUNDATION-PRD.md` \u2014 sections: \u00a75, \u00a74.2-AMENDMENT\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`\n\n## Goal\nBootstrap pnpm monorepo with apps/web (Next.js 15 App Router, RSC, TypeScript 5 strict) and packages/ workspace ready to host db/ui/rbac/outbox/i18n.\n\n## Implementation contract\nCreate root pnpm-workspace.yaml listing apps/* and packages/*. Initialise apps/web with Next.js 15 App Router (TypeScript strict, eslint-config-next, tailwind preset). Add tsconfig base with paths '@monopilot/*' resolving to packages. Add Vitest config and a single smoke test that boots Next.js dev server in test mode and asserts GET / returns 200. Add Playwright skeleton config (no specs yet). Add CI script 'pnpm build && pnpm test:smoke && pnpm lint'.\n\n## Files (scope)\n- pnpm-workspace.yaml [create]\n- package.json [create]\n- tsconfig.base.json [create]\n- apps/web/package.json [create]\n- apps/web/next.config.mjs [create]\n- apps/web/tsconfig.json [create]\n- apps/web/app/layout.tsx [create]\n- apps/web/app/page.tsx [create]\n- apps/web/app/__tests__/smoke.test.ts [create]\n- vitest.config.ts [create]\n- playwright.config.ts [create]\n\n## Acceptance criteria\n1. Given a fresh checkout, when 'pnpm install' runs, then it completes without errors and pnpm lists apps/web plus the workspace\n2. Given the workspace is installed, when 'pnpm --filter web dev' starts and 'pnpm test:smoke' runs against it, then the smoke test asserts GET / returns HTTP 200\n3. Given TypeScript strict is enabled, when 'pnpm --filter web typecheck' runs, then it exits 0 with zero errors\n\n## Test strategy\n- RED: write apps/web/app/__tests__/smoke.test.ts asserting GET / returns 200 before page.tsx exists\n- Run 'pnpm install && pnpm --filter web build && pnpm test:smoke' and capture output\n\n## Risk red lines\n- Do not pin Node version below 20\n- Do not disable TypeScript strict mode\n- Do not commit node_modules\n\n## Closeout evidence\nProvide: changed_files, test_commands_and_results, acceptance_criteria_status (per AC), deviations_from_prd, git_status. Use the test-driven-development skill (RED test before implementation) and requesting-code-review at GREEN.",
+  "labels": [
+    "prd",
+    "infra",
+    "scaffold",
+    "T4-wiring-test"
+  ],
+  "priority": 50,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-001",
+    "source_prd": "00-FOUNDATION-PRD.md",
+    "prd_refs": [
+      "\u00a75",
+      "\u00a74.2-AMENDMENT"
+    ],
+    "category": "infra",
+    "subcategory": "scaffold",
+    "task_type": "T4-wiring-test",
+    "parent_feature": "00-FOUNDATION-impl-a scaffolding",
+    "context_budget": "35k",
+    "estimated_effort": "1-2h",
+    "description": "Bootstrap pnpm monorepo with apps/web (Next.js 15 App Router, RSC, TypeScript 5 strict) and packages/ workspace ready to host db/ui/rbac/outbox/i18n.",
+    "details": "Create root pnpm-workspace.yaml listing apps/* and packages/*. Initialise apps/web with Next.js 15 App Router (TypeScript strict, eslint-config-next, tailwind preset). Add tsconfig base with paths '@monopilot/*' resolving to packages. Add Vitest config and a single smoke test that boots Next.js dev server in test mode and asserts GET / returns 200. Add Playwright skeleton config (no specs yet). Add CI script 'pnpm build && pnpm test:smoke && pnpm lint'.",
+    "scope_files": [
+      "pnpm-workspace.yaml [create]",
+      "package.json [create]",
+      "tsconfig.base.json [create]",
+      "apps/web/package.json [create]",
+      "apps/web/next.config.mjs [create]",
+      "apps/web/tsconfig.json [create]",
+      "apps/web/app/layout.tsx [create]",
+      "apps/web/app/page.tsx [create]",
+      "apps/web/app/__tests__/smoke.test.ts [create]",
+      "vitest.config.ts [create]",
+      "playwright.config.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not modify files outside the scope_files list",
+      "Do not introduce business logic from later module PRDs (01-NPD, 02-SETTINGS, etc.)",
+      "Do not create packages/db, packages/ui, packages/rbac yet (separate tasks)"
+    ],
+    "dependencies": [],
+    "parallel_safe_with": [],
+    "acceptance_criteria": [
+      "Given a fresh checkout, when 'pnpm install' runs, then it completes without errors and pnpm lists apps/web plus the workspace",
+      "Given the workspace is installed, when 'pnpm --filter web dev' starts and 'pnpm test:smoke' runs against it, then the smoke test asserts GET / returns HTTP 200",
+      "Given TypeScript strict is enabled, when 'pnpm --filter web typecheck' runs, then it exits 0 with zero errors"
+    ],
+    "test_strategy": [
+      "RED: write apps/web/app/__tests__/smoke.test.ts asserting GET / returns 200 before page.tsx exists",
+      "Run 'pnpm install && pnpm --filter web build && pnpm test:smoke' and capture output"
+    ],
+    "risk_red_lines": [
+      "Do not pin Node version below 20",
+      "Do not disable TypeScript strict mode",
+      "Do not commit node_modules"
+    ],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

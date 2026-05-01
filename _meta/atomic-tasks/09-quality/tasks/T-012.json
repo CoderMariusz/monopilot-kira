@@ -1,0 +1,62 @@
+{
+  "title": "T-012 — esign_modal primitive (UI cross-cut, prototype parity)",
+  "prompt": "# T-012 — esign_modal primitive (UI cross-cut)\n\nPRD: 09-QUALITY-PRD.md §5.3 signature flow, §13.2 PIN re-verify, §8.5 row 'E-Signature primitive'\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nBuild the shared `EsignBlock` Next.js client component (Dialog) that handles PIN re-verification + signature_meaning selection, returning a short-lived `pin_proof` token to the parent for sign-time submission. This is reused by hold release, spec approval, NCR close, CCP signoff.\n\n## Implementation contract\n1. `apps/web/src/components/quality/EsignBlock.tsx` — shadcn Dialog with masked PIN input, signature_meaning dropdown (approved/released/rejected/witnessed/counter_signed), and submit button.\n2. On submit calls Server Action `verifyPin(pin)` returning `pin_proof` (HMAC token TTL 60s); never computes hash on client.\n3. Parent passes `record_id`, `record_type`, `meaning`; child returns pin_proof on success.\n4. 1:1 prototype parity vs `design/Monopilot Design System/quality/modals.jsx:597-634` (esign_modal).\n\n## Files\n- apps/web/src/components/quality/EsignBlock.tsx [create]\n- apps/web/src/server/quality/verifyPin.ts [create]\n- apps/web/src/components/quality/__tests__/EsignBlock.test.tsx [create]\n\n## Acceptance criteria\n1. Given the EsignBlock dialog renders, when compared to design/Monopilot Design System/quality/modals.jsx:597-634, then the production dialog matches the prototype in structural parity (header + PIN input + meaning dropdown + 2 footer buttons in same order), visual parity (shadcn Dialog + Input type=password + Select + Button primitives, no native HTML select), and interaction parity (Submit disabled while PIN length<4 and during in-flight request) — verified by RTL snapshot + parity checklist in pipeline_inputs.details\n2. Given verifyPin(pin) is called server-side with the user's stored PIN hash, when the PIN matches, then it returns a pin_proof HMAC with TTL exp=now+60s; when it mismatches, returns 401 PIN_INVALID and emits audit auth.pin_failed\n3. Given the dialog completes, when onSuccess fires, then the parent receives {pin_proof, signature_meaning} only — the dialog never receives or displays a signature hash\n\n## Parity checklist (1:1 with prototype)\n- Dialog header titled 'Electronic Signature' (i18n key qa.esign.title)\n- PIN field uses masked Input (type=password) with label key qa.esign.pin_label\n- Signature meaning Select with 5 options (approved/released/rejected/witnessed/counter_signed)\n- Footer: Cancel button (variant=ghost) on left, Sign button (variant=primary) on right; same order as prototype\n- Submit disabled until PIN min 4 digits\n- Loading spinner inside Sign button during in-flight (no client-side hash computation)\n- Same shadcn primitives Dialog/Input/Select/Button (no native HTML select)\n- Same shadcn spacing tokens (space-y-4 between fields)",
+  "labels": ["prd", "ui", "esign-primitive", "T3-ui"],
+  "priority": 80,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-012",
+    "source_prd": "09-QUALITY-PRD.md",
+    "prd_refs": ["§5.3", "§13.2", "§8.5"],
+    "category": "ui",
+    "subcategory": "esign-primitive",
+    "task_type": "T3-ui",
+    "parent_feature": "09-cross-cut e-signature",
+    "context_budget": "35k",
+    "estimated_effort": "2h",
+    "prototype_match": true,
+    "description": "EsignBlock shadcn Dialog primitive + verifyPin Server Action (HMAC pin_proof TTL 60s) reused by hold/spec/NCR/CCP sign flows.",
+    "details": "Build shadcn Dialog component matching design/Monopilot Design System/quality/modals.jsx:597-634 (esign_modal) with structural, visual, and interaction parity per the parity checklist embedded in the prompt: header 'Electronic Signature', masked Input type=password for PIN, Select with 5 signature meanings, Cancel(ghost)/Sign(primary) buttons in that order, submit disabled until PIN>=4 chars, loading spinner during request. Server Action verifyPin checks PBKDF2 against user.pin_hash and returns HMAC pin_proof TTL=60s on success. Component never sees the signature_hash; parent submits pin_proof to its sign endpoint where the server computes the hash. Translation notes from prototype-index-quality.json esign_modal entry must be honored (no native select, server-side hash, PIN HMAC TTL).",
+    "scope_files": [
+      "apps/web/src/components/quality/EsignBlock.tsx [create]",
+      "apps/web/src/server/quality/verifyPin.ts [create]",
+      "apps/web/src/components/quality/__tests__/EsignBlock.test.tsx [create]",
+      "design/Monopilot Design System/quality/modals.jsx [ref]"
+    ],
+    "out_of_scope": [
+      "Do not implement the hash-computation server action (lives in each consumer task: T-007/T-019/T-039/T-046)",
+      "Do not implement PIN rotation policy (out of scope; 02-SETTINGS §14)",
+      "Do not embed virtual keypad (BL-QA-06 deferred per prototype known_bugs)"
+    ],
+    "dependencies": [],
+    "parallel_safe_with": ["T-006", "T-007", "T-008", "T-009", "T-010", "T-011"],
+    "acceptance_criteria": [
+      "Given the EsignBlock renders, when compared to design/Monopilot Design System/quality/modals.jsx:597-634, then it has parity with the prototype on structure (header + PIN input + meaning Select + 2 footer buttons in same order), visuals (shadcn Dialog/Input/Select/Button only, no native select), and interaction (Submit disabled until PIN>=4 chars and during in-flight) — verified by RTL snapshot test plus the parity checklist embedded in pipeline_inputs.details",
+      "Given verifyPin(pin) runs server-side, when PIN matches the user's stored hash, then it returns an HMAC pin_proof with exp=now+60s; when mismatch, returns 401 PIN_INVALID and emits audit auth.pin_failed",
+      "Given the dialog completes successfully, when onSuccess fires, then the parent receives only {pin_proof, signature_meaning} and never a signature_hash"
+    ],
+    "test_strategy": [
+      "RED: write apps/web/src/components/quality/__tests__/EsignBlock.test.tsx with RTL snapshot test that fails before implementation, plus an integration test for verifyPin success/failure",
+      "Run 'pnpm --filter web test EsignBlock'"
+    ],
+    "risk_red_lines": [
+      "Do not compute signature hash on the client",
+      "Do not allow pin_proof TTL >60s",
+      "Do not log raw PIN values in any path",
+      "Do not drift to native HTML <select> per prototype translation notes"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

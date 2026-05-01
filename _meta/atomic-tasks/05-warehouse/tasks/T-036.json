@@ -1,0 +1,59 @@
+{
+  "title": "T-036 — Daily expiry cron job",
+  "prompt": "# T-036 — Daily expiry cron job\n\nPRD: `05-WAREHOUSE-PRD.md` §12.3 (FR-WH-022), V-WH-EXP-002/004.\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`.\n\n## Goal\nVercel Cron (or scheduler) runs daily at warehouse_settings.expiry_cron_schedule (default '0 2 * * *') auto-blocking expired use_by LPs and emitting alerts.\n\n## Implementation contract\nRoute handler `apps/web/app/api/cron/warehouse/expiry-check/route.ts`. Per LP where `expiry_date < CURRENT_DATE AND status IN ('available','reserved') AND qa_status NOT IN ('QUARANTINED','FAILED')`:\n- shelf_life_mode='use_by' → set status='blocked', insert lp_state_history, emit lp.expired (T-047 wiring).\n- shelf_life_mode='best_before' → keep status, dashboard alert flag.\nLog cron_jobs row {job_name, started_at, finished_at, lps_blocked, lps_warned}. Email manager via 02-SETTINGS EmailConfig.\n`vercel.json` adds the cron schedule.\n\n## Files (scope)\n- apps/web/app/api/cron/warehouse/expiry-check/route.ts [create]\n- vercel.json [modify]\n- apps/web/app/api/cron/warehouse/expiry-check/__tests__/route.test.ts [create]\n\n## Acceptance criteria\n1. Given LPs with expiry < today and shelf_life_mode='use_by', when cron runs, then status='blocked' and lp_state_history records auto-block.\n2. Given LPs with shelf_life_mode='best_before' and expired, when cron runs, then status remains unchanged but a warning flag/log is captured.\n3. Given cron completes, when cron_jobs is queried, then a row exists with started_at/finished_at/lps_blocked/lps_warned counts.\n\n## Test strategy\n- RED: route.test.ts seeds two expired LPs, invokes the cron handler, asserts state and cron_jobs row.\n- Run `pnpm --filter web test expiry-check`.\n\n## Risk red lines\n- Do not auto-block best_before LPs.\n- Do not skip cron_jobs row (SLO alert depends on it).\n- Do not modify expiry_date (LP retention principle).",
+  "labels": ["prd", "api", "expiry", "T2-api"],
+  "priority": 90,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-036",
+    "source_prd": "05-WAREHOUSE-PRD.md",
+    "prd_refs": ["§12.3"],
+    "category": "api",
+    "subcategory": "expiry",
+    "task_type": "T2-api",
+    "parent_feature": "warehouse-expiry",
+    "context_budget": "30k",
+    "estimated_effort": "1-2h",
+    "description": "Daily cron auto-blocking use_by-expired LPs and warning best_before; cron_jobs audit row.",
+    "details": "Vercel Cron schedule from warehouse_settings; email notification via 02-SETTINGS EmailConfig; never modify expiry_date.",
+    "scope_files": [
+      "apps/web/app/api/cron/warehouse/expiry-check/route.ts [create]",
+      "vercel.json [modify]",
+      "apps/web/app/api/cron/warehouse/expiry-check/__tests__/route.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Manager override (T-037)",
+      "Expiry dashboard (T-073)",
+      "Outbox emission (T-047)"
+    ],
+    "dependencies": ["T-019", "T-002", "T-009"],
+    "parallel_safe_with": ["T-035", "T-037"],
+    "acceptance_criteria": [
+      "Given expired use_by LPs, when cron runs, then status='blocked' and lp_state_history records auto-block",
+      "Given expired best_before LPs, when cron runs, then status remains unchanged and warning flag is captured",
+      "Given cron completes, when cron_jobs is queried, then row exists with started_at/finished_at/lps_blocked/lps_warned"
+    ],
+    "test_strategy": [
+      "RED: route.test.ts seeds expired LPs and invokes the handler",
+      "Run 'pnpm --filter web test expiry-check'"
+    ],
+    "risk_red_lines": [
+      "Do not auto-block best_before LPs",
+      "Do not skip cron_jobs row",
+      "Do not modify expiry_date"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

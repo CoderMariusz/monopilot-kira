@@ -1,0 +1,84 @@
+{
+  "title": "T-017 \u2014 Reference.DeptColumns + Reference.FieldTypes + json-schema-to-zod runtime engine",
+  "prompt": "# T-017 \u2014 Reference.DeptColumns + Reference.FieldTypes + json-schema-to-zod runtime engine\n\nPRD: `00-FOUNDATION-PRD.md` \u2014 sections: \u00a76, \u00a75\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`\n\n## Goal\nAuthor the DeptColumns metadata tables and a Zod-runtime that compiles a row set into a JSON schema and a Zod resolver.\n\n## Implementation contract\nMigration 009-schema-driven.sql: Reference.DeptColumns(id, tenant_id, dept_code, column_key, field_type, is_required, validation_dsl JSONB, schema_version), Reference.FieldTypes(code PK, ts_type, json_schema JSONB), Reference.Formulas(id, tenant_id, formula_key, expression). Implement packages/schema-runtime/src/compile.ts: given a tenant_id + dept_code, query DeptColumns + FieldTypes, emit JSON schema, convert via json-schema-to-zod, return a Zod resolver. LRU cache keyed by (tenant_id, schema_version). Vitest covers: 5 column types compile, schema_version bump invalidates cache, Zod resolver rejects out-of-spec payload.\n\n## Files (scope)\n- packages/db/migrations/009-schema-driven.sql [create]\n- packages/schema-runtime/src/compile.ts [create]\n- packages/schema-runtime/src/__tests__/compile.test.ts [create]\n\n## Acceptance criteria\n1. Given DeptColumns rows for dept_code='core' with 5 fields (string, number, date, enum, formula), when compile('core') runs, then it returns a Zod schema that accepts a valid payload and rejects a payload missing a required field with a structured error\n2. Given the same compile call is invoked twice with the same schema_version, when the second call runs, then the LRU cache returns in <1ms (no DB query)\n3. Given schema_version is bumped, when compile() runs again, then the cache misses and the new resolver reflects the new column set\n\n## Test strategy\n- RED: write packages/schema-runtime/src/__tests__/compile.test.ts covering all three AC before compile.ts exists\n- Run 'pnpm --filter @monopilot/schema-runtime test'\n\n## Risk red lines\n- Do not bypass the schema_version cache \u2014 that path is the source of stale form errors\n\n## Dependencies (must be complete first)\n- T-006\n\n## Closeout evidence\nProvide: changed_files, test_commands_and_results, acceptance_criteria_status (per AC), deviations_from_prd, git_status. Use the test-driven-development skill (RED test before implementation) and requesting-code-review at GREEN.",
+  "labels": [
+    "prd",
+    "data",
+    "schema-driven",
+    "T1-schema"
+  ],
+  "priority": 80,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-017",
+    "source_prd": "00-FOUNDATION-PRD.md",
+    "prd_refs": [
+      "\u00a76",
+      "\u00a75"
+    ],
+    "category": "data",
+    "subcategory": "schema-driven",
+    "task_type": "T1-schema",
+    "parent_feature": "00-FOUNDATION schema-driven",
+    "context_budget": "55k",
+    "estimated_effort": "2-3h",
+    "description": "Author the DeptColumns metadata tables and a Zod-runtime that compiles a row set into a JSON schema and a Zod resolver.",
+    "details": "Migration 009-schema-driven.sql: Reference.DeptColumns(id, tenant_id, dept_code, column_key, field_type, is_required, validation_dsl JSONB, schema_version), Reference.FieldTypes(code PK, ts_type, json_schema JSONB), Reference.Formulas(id, tenant_id, formula_key, expression). Implement packages/schema-runtime/src/compile.ts: given a tenant_id + dept_code, query DeptColumns + FieldTypes, emit JSON schema, convert via json-schema-to-zod, return a Zod resolver. LRU cache keyed by (tenant_id, schema_version). Vitest covers: 5 column types compile, schema_version bump invalidates cache, Zod resolver rejects out-of-spec payload.",
+    "scope_files": [
+      "packages/db/migrations/009-schema-driven.sql [create]",
+      "packages/schema-runtime/src/compile.ts [create]",
+      "packages/schema-runtime/src/__tests__/compile.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not modify files outside the scope_files list",
+      "Do not introduce business logic from later module PRDs (01-NPD, 02-SETTINGS, etc.)",
+      "No Admin UI wizard in this task \u2014 that lives in 02-SETTINGS"
+    ],
+    "dependencies": [
+      "T-006"
+    ],
+    "parallel_safe_with": [
+      "T-018",
+      "T-019"
+    ],
+    "acceptance_criteria": [
+      "Given DeptColumns rows for dept_code='core' with 5 fields (string, number, date, enum, formula), when compile('core') runs, then it returns a Zod schema that accepts a valid payload and rejects a payload missing a required field with a structured error",
+      "Given the same compile call is invoked twice with the same schema_version, when the second call runs, then the LRU cache returns in <1ms (no DB query)",
+      "Given schema_version is bumped, when compile() runs again, then the cache misses and the new resolver reflects the new column set"
+    ],
+    "test_strategy": [
+      "RED: write packages/schema-runtime/src/__tests__/compile.test.ts covering all three AC before compile.ts exists",
+      "Run 'pnpm --filter @monopilot/schema-runtime test'"
+    ],
+    "risk_red_lines": [
+      "Do not bypass the schema_version cache \u2014 that path is the source of stale form errors"
+    ],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

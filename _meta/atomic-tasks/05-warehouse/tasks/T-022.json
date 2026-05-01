@@ -1,0 +1,58 @@
+{
+  "title": "T-022 — GRN from TO Server Action (transit→destination)",
+  "prompt": "# T-022 — GRN from TO Server Action\n\nPRD: `05-WAREHOUSE-PRD.md` §7.2, §7.5.\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`.\n\n## Goal\nServer Action `receiveTransferOrder(toId, lpReceipts[])` moving transit LPs to destination location and updating to_lines.received_qty.\n\n## Implementation contract\n`apps/web/lib/services/warehouse/grn-from-to.ts`. Per receipt entry: locate LP at TRN-IN-{warehouse_code}, update LP.location_id and LP.warehouse_id to destination, insert stock_moves (move_type='receipt'). Update to_lines.received_qty. Trigger TO status transition per 04§7.4 (handled cross-module). Edge case: bulk-qty-no-LP transit creates new LP at receipt via T-016.\n\n## Files (scope)\n- apps/web/lib/services/warehouse/grn-from-to.ts [create]\n- apps/web/lib/services/warehouse/__tests__/grn-from-to.test.ts [create]\n\n## Acceptance criteria\n1. Given a transit LP with location_id=transit-in and shipped TO line, when service runs, then LP.location_id moves to destination location and warehouse_id updates.\n2. Given a bulk-qty-no-LP TO, when service runs with operator-entered batch+qty, then a new LP is created at the destination location.\n3. Given service completes, when to_lines is queried, then received_qty increments by the receipt quantity.\n\n## Test strategy\n- RED: grn-from-to.test.ts covers transit-LP receipt, bulk-no-LP creation, to_lines aggregation.\n- Run `pnpm --filter web test grn-from-to`.\n\n## Risk red lines\n- Do not create duplicate LPs for the same transit shipment.\n- Do not skip the receipt stock_move.\n- Do not transition TO status here — emit handoff signal for 04-PLANNING.",
+  "labels": ["prd", "api", "grn", "T2-api"],
+  "priority": 95,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-022",
+    "source_prd": "05-WAREHOUSE-PRD.md",
+    "prd_refs": ["§7.2", "§7.5"],
+    "category": "api",
+    "subcategory": "grn",
+    "task_type": "T2-api",
+    "parent_feature": "warehouse-grn",
+    "context_budget": "30k",
+    "estimated_effort": "1-2h",
+    "description": "GRN-from-TO Server Action moving transit LPs to destination and updating to_lines aggregation.",
+    "details": "Existing LP path moves location/warehouse_id; bulk-no-LP path creates new LP at destination. Receipt stock_moves per LP. TO status transition delegated.",
+    "scope_files": [
+      "apps/web/lib/services/warehouse/grn-from-to.ts [create]",
+      "apps/web/lib/services/warehouse/__tests__/grn-from-to.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "TO status transitions (04-PLANNING)",
+      "UI modal (T-057)",
+      "GRN from PO (T-021)"
+    ],
+    "dependencies": ["T-005", "T-016", "T-025"],
+    "parallel_safe_with": ["T-021", "T-023", "T-024"],
+    "acceptance_criteria": [
+      "Given a transit LP with location=transit-in and shipped TO line, when service runs, then LP.location_id moves to destination and warehouse_id updates",
+      "Given a bulk-qty-no-LP TO, when service runs with operator entries, then a new LP is created at destination",
+      "Given service completes, when to_lines is queried, then received_qty increments by the receipt quantity"
+    ],
+    "test_strategy": [
+      "RED: grn-from-to.test.ts covers transit-LP receipt, bulk-no-LP creation, to_lines aggregation",
+      "Run 'pnpm --filter web test grn-from-to'"
+    ],
+    "risk_red_lines": [
+      "Do not duplicate LPs",
+      "Do not skip receipt stock_move",
+      "Do not transition TO status inside this service"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

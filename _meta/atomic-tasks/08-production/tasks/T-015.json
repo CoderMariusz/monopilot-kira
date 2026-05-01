@@ -1,0 +1,60 @@
+{
+  "title": "T-015 — Idempotency helper: server-side R14 transaction_id cache",
+  "prompt": "# T-015 — R14 idempotency helper\n\nPRD: 08-PRODUCTION-PRD.md §5.1#4, §12.4 R14, §7.1 FR-08-E1-008\n\n## Goal\nImplement a reusable server helper `withIdempotency(transactionId, fn)` for Server Actions / route handlers that caches successful response bodies for 1 hour keyed by transaction_id and returns the cached response on replay (R14).\n\n## Implementation contract\nCreate packages/idempotency/src/with-idempotency.ts exposing `withIdempotency<T>(transactionId: string, fn: () => Promise<T>): Promise<T>`. Backing store: a Postgres table idempotency_cache (transaction_id UUID PK, response JSONB, created_at TIMESTAMPTZ, expires_at TIMESTAMPTZ DEFAULT now()+'1 hour'). On call: SELECT cached row WHERE transaction_id matches AND expires_at > now() — if hit, return JSON; else run fn, INSERT row with response, return. Validate transaction_id is UUID v7. Add unit tests for cache-miss-then-hit, expired-row-replay, invalid-uuid-rejection, and concurrent-call (FOR UPDATE).\n\n## Files (scope)\n- packages/idempotency/src/with-idempotency.ts [create]\n- packages/idempotency/package.json [create]\n- packages/db/migrations/NNNN_idempotency_cache.sql [create]\n- packages/idempotency/src/__tests__/with-idempotency.test.ts [create]\n\n## Acceptance criteria\n1. Given fn runs once and returns {id:'X'}, when withIdempotency called twice with same transaction_id within 1h, then both return identical {id:'X'} and fn invoked exactly once\n2. Given an invalid (non UUID v7) transaction_id, when withIdempotency invoked, then throws ValidationError with code 'INVALID_TRANSACTION_ID'\n3. Given expires_at is past, when withIdempotency called with same transaction_id, then fn re-invoked (cache miss) and new row replaces stale\n\n## Test strategy\n- RED: write packages/idempotency/src/__tests__/with-idempotency.test.ts asserting cache-hit + invalid-uuid + expiry-replay before with-idempotency.ts exists\n- Run 'pnpm --filter idempotency test'\n\n## Risk red lines\n- Do not skip UUID v7 validation (R14 contract)\n- Do not cache on error (only successful responses)\n- Do not skip RLS (idempotency_cache rows leak across tenants if tenant_id missing — include tenant_id in PK)",
+  "labels": ["prd", "infra", "idempotency", "T2-api"],
+  "priority": 80,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-015",
+    "source_prd": "08-PRODUCTION-PRD.md",
+    "prd_refs": ["§5.1#4", "§12.4", "§7.1 FR-08-E1-008"],
+    "category": "infra",
+    "subcategory": "idempotency",
+    "task_type": "T2-api",
+    "parent_feature": "08-PROD E1 Execution Core",
+    "context_budget": "30k",
+    "estimated_effort": "2-3h",
+    "description": "Server-side R14 idempotency helper with 1h Postgres-backed cache and UUID v7 validation.",
+    "details": "Single function `withIdempotency(transaction_id, fn)`. Storage table idempotency_cache (transaction_id UUID + tenant_id composite PK, response JSONB, expires_at). Cache only successes. Reject non-UUIDv7. Concurrent calls use FOR UPDATE SKIP LOCKED so duplicate replay during in-flight returns the in-flight result.",
+    "scope_files": [
+      "packages/idempotency/src/with-idempotency.ts [create]",
+      "packages/idempotency/package.json [create]",
+      "packages/db/migrations/NNNN_idempotency_cache.sql [create]",
+      "packages/idempotency/src/__tests__/with-idempotency.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not integrate with specific WO endpoints in this task (separate tasks)",
+      "Do not implement client-side UUID v7 generator (browser package)",
+      "Do not extend cache beyond 1 hour"
+    ],
+    "dependencies": [],
+    "parallel_safe_with": ["T-001", "T-002", "T-003"],
+    "acceptance_criteria": [
+      "Given two replays within 1h with same transaction_id, when called, then identical response returned and fn invoked exactly once",
+      "Given non-UUIDv7 transaction_id, when called, then ValidationError 'INVALID_TRANSACTION_ID' thrown",
+      "Given expired cache entry, when re-called, then fn re-invoked and new row replaces stale"
+    ],
+    "test_strategy": [
+      "RED: unit test asserting cache hit + invalid uuid + expiry before helper exists",
+      "Run 'pnpm --filter idempotency test'"
+    ],
+    "risk_red_lines": [
+      "Do not skip UUID v7 validation",
+      "Do not cache errors",
+      "Do not skip tenant_id in cache PK"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

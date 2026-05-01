@@ -1,0 +1,36 @@
+{
+  "title": "T-030 — API: D365 connection test + feature flag gate",
+  "prompt": "Per §13.6 + V-TEC-70. Implement GET /api/technical/d365/health (admin only) calling D365 ping endpoint with stored credentials; returns { connected: bool, latency_ms, last_sync_at, version }. Also implement gate utility `assertD365Enabled()` used by all D365 endpoints — checks feature flag `integration.d365.enabled` AND that 5 Apex D365 constants from 02-SETTINGS §11 are populated (V-SET-42). RED tests/api/d365-health.test.ts. Run: `pnpm vitest run tests/api/d365-health.test.ts`.",
+  "labels": ["prd", "api", "d365-health", "T2-api"],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-030",
+    "source_prd": "03-TECHNICAL-PRD.md",
+    "prd_refs": ["§13.6", "§13.10"],
+    "category": "api",
+    "subcategory": "d365-health",
+    "task_type": "T2-api",
+    "parent_feature": "03-TECHNICAL-d D365",
+    "context_budget": "15k",
+    "estimated_effort": "1h",
+    "description": "Connection test endpoint + feature-flag gate utility for all D365 endpoints.",
+    "details": "Permission gate: technical.d365.sync.trigger or 'owner' role. Returns sanitized info — no secrets in payload. assertD365Enabled used as guard.",
+    "scope_files": ["app/api/technical/d365/health/route.ts", "lib/integrations/d365/gate.ts", "tests/api/d365-health.test.ts"],
+    "out_of_scope": ["Pull/push (T-028/T-029)"],
+    "dependencies": ["T-007"],
+    "parallel_safe_with": ["T-028", "T-029"],
+    "acceptance_criteria": [
+      "Given integration.d365.enabled=false, when assertD365Enabled invoked, then throws Disabled error.",
+      "Given any of 5 Apex constants empty, when assertD365Enabled invoked, then throws V-SET-42 error.",
+      "Given valid config, when GET /health called, then JSON includes connected, latency_ms, last_sync_at."
+    ],
+    "test_strategy": ["RED tests for gate + sanitized health response.", "Run: pnpm vitest run tests/api/d365-health.test.ts"],
+    "risk_red_lines": ["Do not return secrets in health response."],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {"required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"], "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]},
+    "routing_hints": {"red": "hermes_gpt55", "implementation": "hermes_gpt55", "review": "opus_if_high_risk_or_ui_or_architecture", "close": "spark_low_risk_else_opus"}
+  }
+}

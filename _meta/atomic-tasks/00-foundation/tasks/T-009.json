@@ -1,0 +1,83 @@
+{
+  "title": "T-009 \u2014 audit_events 13-field append-only table with retention_class CHECK",
+  "prompt": "# T-009 \u2014 audit_events 13-field append-only table with retention_class CHECK\n\nPRD: `00-FOUNDATION-PRD.md` \u2014 sections: \u00a711\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`\n\n## Goal\nMigration 004 creating the F-U3 13-field audit_events table with append-only enforcement and retention_class enum.\n\n## Implementation contract\nMigration 004-audit.sql per PRD \u00a711: id BIGSERIAL PK, tenant_id UUID NOT NULL, occurred_at TIMESTAMPTZ NOT NULL DEFAULT now(), actor_user_id UUID, actor_type TEXT CHECK IN ('user','system','scim','impersonation'), impersonator_id UUID, action TEXT NOT NULL, resource_type TEXT NOT NULL, resource_id TEXT NOT NULL, before_state JSONB, after_state JSONB, ip_address INET, user_agent TEXT, request_id UUID NOT NULL, retention_class TEXT DEFAULT 'standard' CHECK IN ('security','standard','operational','ephemeral'). Create three indexes per PRD. Append-only enforcement: REVOKE UPDATE,DELETE FROM app_user; create CHECK trigger that raises when actor_type='impersonation' AND impersonator_id IS NULL. Test inserts each retention class, attempts UPDATE as app_user (must fail), and asserts impersonation guard.\n\n## Files (scope)\n- packages/db/migrations/004-audit.sql [create]\n- packages/db/__tests__/audit.integration.test.ts [create]\n\n## Acceptance criteria\n1. Given audit_events exists, when information_schema is queried, then exactly the 13 PRD-listed columns plus retention_class are present and the four-value CHECK on retention_class is enforced\n2. Given app_user attempts UPDATE audit_events SET action='x' WHERE id=1, when the statement runs, then PostgreSQL rejects it with a permission or RLS error\n3. Given an INSERT with actor_type='impersonation' and impersonator_id IS NULL, when committed, then the trigger raises and the INSERT is rolled back\n\n## Test strategy\n- RED: write packages/db/__tests__/audit.integration.test.ts covering 13-field, immutability, impersonation guard before migration exists\n- Run 'pnpm --filter @monopilot/db test:integration -- audit'\n\n## Risk red lines\n- Append-only is non-negotiable per F-U3 \u2014 no superadmin DELETE path in this task\n- Do not mark before_state/after_state NOT NULL \u2014 create has no before, delete has no after\n\n## Dependencies (must be complete first)\n- T-007\n\n## Closeout evidence\nProvide: changed_files, test_commands_and_results, acceptance_criteria_status (per AC), deviations_from_prd, git_status. Use the test-driven-development skill (RED test before implementation) and requesting-code-review at GREEN.",
+  "labels": [
+    "prd",
+    "data",
+    "audit",
+    "T1-schema"
+  ],
+  "priority": 80,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-009",
+    "source_prd": "00-FOUNDATION-PRD.md",
+    "prd_refs": [
+      "\u00a711"
+    ],
+    "category": "data",
+    "subcategory": "audit",
+    "task_type": "T1-schema",
+    "parent_feature": "00-FOUNDATION-impl-h audit",
+    "context_budget": "50k",
+    "estimated_effort": "1-3h",
+    "description": "Migration 004 creating the F-U3 13-field audit_events table with append-only enforcement and retention_class enum.",
+    "details": "Migration 004-audit.sql per PRD \u00a711: id BIGSERIAL PK, tenant_id UUID NOT NULL, occurred_at TIMESTAMPTZ NOT NULL DEFAULT now(), actor_user_id UUID, actor_type TEXT CHECK IN ('user','system','scim','impersonation'), impersonator_id UUID, action TEXT NOT NULL, resource_type TEXT NOT NULL, resource_id TEXT NOT NULL, before_state JSONB, after_state JSONB, ip_address INET, user_agent TEXT, request_id UUID NOT NULL, retention_class TEXT DEFAULT 'standard' CHECK IN ('security','standard','operational','ephemeral'). Create three indexes per PRD. Append-only enforcement: REVOKE UPDATE,DELETE FROM app_user; create CHECK trigger that raises when actor_type='impersonation' AND impersonator_id IS NULL. Test inserts each retention class, attempts UPDATE as app_user (must fail), and asserts impersonation guard.",
+    "scope_files": [
+      "packages/db/migrations/004-audit.sql [create]",
+      "packages/db/__tests__/audit.integration.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not modify files outside the scope_files list",
+      "Do not introduce business logic from later module PRDs (01-NPD, 02-SETTINGS, etc.)",
+      "No retention job (Glacier rotation) in this task \u2014 that is operational"
+    ],
+    "dependencies": [
+      "T-007"
+    ],
+    "parallel_safe_with": [
+      "T-008"
+    ],
+    "acceptance_criteria": [
+      "Given audit_events exists, when information_schema is queried, then exactly the 13 PRD-listed columns plus retention_class are present and the four-value CHECK on retention_class is enforced",
+      "Given app_user attempts UPDATE audit_events SET action='x' WHERE id=1, when the statement runs, then PostgreSQL rejects it with a permission or RLS error",
+      "Given an INSERT with actor_type='impersonation' and impersonator_id IS NULL, when committed, then the trigger raises and the INSERT is rolled back"
+    ],
+    "test_strategy": [
+      "RED: write packages/db/__tests__/audit.integration.test.ts covering 13-field, immutability, impersonation guard before migration exists",
+      "Run 'pnpm --filter @monopilot/db test:integration -- audit'"
+    ],
+    "risk_red_lines": [
+      "Append-only is non-negotiable per F-U3 \u2014 no superadmin DELETE path in this task",
+      "Do not mark before_state/after_state NOT NULL \u2014 create has no before, delete has no after"
+    ],
+    "skills": [
+      "test-driven-development",
+      "verification-before-completion",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

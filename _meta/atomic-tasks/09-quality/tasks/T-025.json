@@ -1,0 +1,61 @@
+{
+  "title": "T-025 — quality_inspections + quality_test_results schema + RLS (09-c-01)",
+  "prompt": "# T-025 — quality_inspections + quality_test_results schema\n\nPRD: 09-QUALITY-PRD.md §6.3 quality_inspections, §6.3 quality_test_results, §9.1 RLS, §11.2 V-QA-INSP\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nCreate quality_inspections (unified inspection table with inspection_seq, inspection_number GENERATED, all CHECK constraints, retention_until GENERATED, idx_insp_pending partial index) and quality_test_results child table per §6.3.\n\n## Implementation contract\n1. Drizzle migration `packages/db/migrations/0120_quality_inspections.sql` per §6.3 verbatim DDL: quality_inspection_seq SEQUENCE; quality_inspections columns including inspection_type CHECK enum, reference_type CHECK enum, status CHECK enum, result CHECK enum, samples_taken/accept/reject, signature_hash, fail_reason_code_id, retention_until GENERATED 7y; idx_insp_pending and idx_insp_ref indexes.\n2. quality_test_results child table with parameter_id FK, measured_value, measured_text, result CHECK enum, external_lims_id stub, evidence_refs JSONB, idx_results_inspection.\n3. RLS tenant_isolation on both.\n\n## Files\n- packages/db/migrations/0120_quality_inspections.sql [create]\n- packages/db/src/schema/qualityInspections.ts [create]\n- packages/db/src/schema/qualityTestResults.ts [create]\n- packages/db/src/schema/index.ts [modify]\n- packages/db/__tests__/quality-inspections-schema.test.ts [create]\n\n## Acceptance criteria\n1. Given migration 0120 applied, when \\d quality_inspections runs, then all §6.3 columns exist with inspection_type CHECK enum (5 values), result CHECK enum (4 values), retention_until GENERATED 7y, RLS enabled\n2. Given two inspections inserted, when SELECT inspection_number runs, then both have format 'INS-' + 8-digit zero-padded sequence\n3. Given a quality_test_results insert with result='conditional', then it succeeds; with result='partial' it fails the CHECK constraint",
+  "labels": ["prd", "data", "schema-inspections", "T1-schema"],
+  "priority": 80,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-025",
+    "source_prd": "09-QUALITY-PRD.md",
+    "prd_refs": ["§6.3", "§9.1", "§11.2"],
+    "category": "data",
+    "subcategory": "schema-inspections",
+    "task_type": "T1-schema",
+    "parent_feature": "09-c Incoming Inspection",
+    "context_budget": "35k",
+    "estimated_effort": "1-2h",
+    "description": "Create quality_inspections + quality_test_results tables with sequences, CHECK enums, indexes, RLS, Drizzle schemas.",
+    "details": "Migration 0120 emits both tables per §6.3 verbatim including SEQUENCE, GENERATED inspection_number, retention_until 7y, all CHECK enums (inspection_type 5 values, reference_type 5 values, status 6 values, result 4 values, priority 4 values). Child quality_test_results has parameter FK and result enum. RLS tenant_isolation on both.",
+    "scope_files": [
+      "packages/db/migrations/0120_quality_inspections.sql [create]",
+      "packages/db/src/schema/qualityInspections.ts [create]",
+      "packages/db/src/schema/qualityTestResults.ts [create]",
+      "packages/db/src/schema/index.ts [modify]",
+      "packages/db/__tests__/quality-inspections-schema.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not implement CRUD API (T-026)",
+      "Do not implement scanner API (T-029)",
+      "Do not implement sampling plans here (T-031)"
+    ],
+    "dependencies": [],
+    "parallel_safe_with": ["T-004", "T-017"],
+    "acceptance_criteria": [
+      "Given migration 0120 applied, when \\d quality_inspections runs, then all §6.3 columns exist with inspection_type CHECK enum (5 values), result CHECK enum (4 values), retention_until GENERATED 7y, RLS enabled",
+      "Given two inspections inserted, when SELECT inspection_number runs, then both have format 'INS-' + 8-digit zero-padded sequence",
+      "Given a quality_test_results insert with result='conditional', then it succeeds; with result='partial' it fails the CHECK constraint"
+    ],
+    "test_strategy": [
+      "RED: write packages/db/__tests__/quality-inspections-schema.test.ts asserting columns, GENERATED inspection_number format, CHECK enum rejection, RLS",
+      "Run 'pnpm --filter db migrate && pnpm --filter db test quality-inspections-schema'"
+    ],
+    "risk_red_lines": [
+      "Do not omit retention_until GENERATED 7y (BRCGS Issue 10)",
+      "Do not change CHECK enums (downstream rules and reports depend on values)",
+      "Do not skip RLS policy"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

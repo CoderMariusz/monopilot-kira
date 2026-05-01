@@ -1,0 +1,61 @@
+{
+  "title": "T-017 — SCN-010 Login screen UI (06-a)",
+  "prompt": "# T-017 — SCN-010 Login\n\nPRD: 06-SCANNER-P1-PRD.md §8.1 FR-SC-FE-002\nUX: design/06-SCANNER-P1-UX.md:183-203 §3.1\nPrototype: design/Monopilot Design System/scanner/login.jsx:5-56 (label login_screen)\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nRender SCN-010 login screen — logo 72×72, username input, password input, card scan input (scan-first), 'Użyj PIN' secondary button — wired to a Server Action calling /api/scanner/login (T-006).\n\n## Implementation contract\n1. `apps/scanner/src/app/scanner/login/page.tsx` — Server Component renders form; Client Component handles ScanInput.\n2. Server Action `loginAction(state, formData)` calls `/api/scanner/login` → on success Set-Cookie + router.push('/scanner/pin' if PIN required else '/scanner/site-select').\n3. RHF + zod resolver for username/password (fallback path) and ScanInput for card scan.\n4. Card barcode lookup via `/api/scanner/lookup/auto/<barcode>` (T-010); kind='user_badge' shortcut for badge scans (extend lookup type whitelist).\n\n## Files\n- apps/scanner/src/app/scanner/login/page.tsx [create]\n- apps/scanner/src/app/scanner/login/login-form.client.tsx [create]\n- apps/scanner/src/app/scanner/login/login.action.ts [create]\n- apps/scanner/__tests__/scn-010-login.test.tsx [create]\n\n## Acceptance criteria\n1. Given the production page renders, when compared to `design/Monopilot Design System/scanner/login.jsx:5-56`, then it has the 72×72 logo, username + password inputs, the card scan ScanInput, and the 'Użyj PIN' secondary button in the same order — RTL snapshot + manual checklist (structural + visual + interaction parity)\n2. Given the user types valid username + password and submits, when the Server Action runs, then it POSTs /api/scanner/login and on 200 redirects to /scanner/site-select (or /scanner/pin/setup if pin_rotation_required)\n3. Given the user scans an invalid card barcode, when the ScanInput emits, then a red flash + error banner appears with code SC_INVALID_BARCODE and the form remains focused\n\n## Test strategy\n- RED: write scn-010-login.test.tsx asserting parity + happy-path redirect + invalid-card error before implementation\n- Run 'pnpm --filter scanner test scn-010-login'\n\n## Risk red lines\n- Do not store password in any client state beyond the form scope\n- Do not redirect to /scanner/home before a site is chosen\n- Do not skip the 'Użyj PIN' affordance",
+  "labels": ["prd", "ui", "scn-010-login", "T3-ui"],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-017",
+    "source_prd": "06-SCANNER-P1-PRD.md",
+    "prd_refs": ["§8.1 FR-SC-FE-002"],
+    "category": "ui",
+    "subcategory": "scn-010-login",
+    "task_type": "T3-ui",
+    "parent_feature": "06-a Shell & Core",
+    "context_budget": "30k",
+    "estimated_effort": "2h",
+    "description": "SCN-010 login page with username/password + card scan + Użyj PIN button wired to /api/scanner/login.",
+    "details": "Parity checklist:\n1) 72×72 logo at top.\n2) Username then password inputs.\n3) ScanInput for card under credentials.\n4) Secondary 'Użyj PIN' button below.\n5) Order matches login_screen prototype.\n6) Invalid card barcode renders red flash + error banner.\n7) Successful submit redirects to /scanner/site-select (or /scanner/pin/setup when rotation required).",
+    "scope_files": [
+      "apps/scanner/src/app/scanner/login/page.tsx [create]",
+      "apps/scanner/src/app/scanner/login/login-form.client.tsx [create]",
+      "apps/scanner/src/app/scanner/login/login.action.ts [create]",
+      "apps/scanner/__tests__/scn-010-login.test.tsx [create]",
+      "design/Monopilot Design System/scanner/login.jsx:5-56 [ref]"
+    ],
+    "out_of_scope": [
+      "Do not implement SCN-011 PIN entry here (T-018)",
+      "Do not implement SCN-011b/c PIN setup/change here (T-019/T-020)",
+      "Do not implement SCN-012 site/line/shift here (T-021)"
+    ],
+    "dependencies": ["T-006", "T-013", "T-012"],
+    "parallel_safe_with": ["T-018", "T-019", "T-020", "T-021"],
+    "acceptance_criteria": [
+      "Given the production page renders, when compared to design/Monopilot Design System/scanner/login.jsx:5-56, then it has 72×72 logo, username+password inputs, card ScanInput, 'Użyj PIN' button in the same order — RTL snapshot + manual checklist",
+      "Given valid username + password submitted, when the Server Action runs, then POST /api/scanner/login is invoked and 200 redirects to /scanner/site-select (or /scanner/pin/setup if pin_rotation_required)",
+      "Given an invalid card barcode scan, when ScanInput emits, then a red flash + SC_INVALID_BARCODE banner is shown and the form remains focused"
+    ],
+    "test_strategy": [
+      "RED: write scn-010-login.test.tsx asserting parity + redirect + invalid-card error before implementation",
+      "Run 'pnpm --filter scanner test scn-010-login'"
+    ],
+    "risk_red_lines": [
+      "Do not store password in any persistent client state",
+      "Do not redirect to /scanner/home before site selection",
+      "Do not omit 'Użyj PIN' affordance"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

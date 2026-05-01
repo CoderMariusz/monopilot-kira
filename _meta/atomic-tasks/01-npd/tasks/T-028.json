@@ -1,0 +1,60 @@
+{
+  "title": "T-028 — V03/V04 validators (Pack_Size in Reference; D365 material status)",
+  "prompt": "# T-028 — V03 + V04 validators\n\nPRD: 01-NPD-PRD.md §12 V03, V04 + §10.8\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nImplement V03 (Pack_Size in Reference.PackSizes) and V04 (material code status from d365_import_cache, comma-sep handling, status union {Found, NoCost, Missing, Empty}) validators.\n\n## Implementation contract\nNew packages/validation/src/v03-pack-size.ts and v04-d365-material.ts. v03 returns FAIL if value not in PackSizes for tenant. v04 splits comma-sep, queries d365_import_cache, returns worst status (Missing > NoCost > Found) plus per-cell statuses array. Both pure async functions, db client injected for testability.\n\n## Files\n- packages/validation/src/v03-pack-size.ts [create]\n- packages/validation/src/v04-d365-material.ts [create]\n- packages/validation/__tests__/v03.test.ts [create]\n- packages/validation/__tests__/v04.test.ts [create]\n- packages/db/migrations/0019_d365_import_cache.sql [create]\n\n## Acceptance criteria\n1. Given Reference.PackSizes contains '250g', when v03('500g') runs, then it returns FAIL with message naming the unknown pack size\n2. Given d365_import_cache rows {RM123: Found, RM456: Missing}, when v04('RM123, RM456') runs, then status='Missing' and details array shows both cells\n3. Given d365_import_cache empty, when v04('RM999') runs, then status='Empty' (skip)\n\n## Test strategy\n- RED: 3 unit tests + cache migration smoke\n- Run 'pnpm --filter db migrate && pnpm --filter validation test v03 && pnpm --filter validation test v04'\n\n## Risk red lines\n- Do not block save on V04 NoCost\n- Do not query without tenant_id\n- Do not consider trailing whitespace as part of code",
+  "labels": ["prd", "api", "validation", "T2-api"],
+  "priority": 80,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-028",
+    "source_prd": "01-NPD-PRD.md",
+    "prd_refs": ["§12 V03", "§12 V04", "§10.8"],
+    "category": "api",
+    "subcategory": "validation-v03-v04",
+    "task_type": "T2-api",
+    "parent_feature": "01-NPD-a + 01-NPD-d validators",
+    "context_budget": "30k",
+    "estimated_effort": "2h",
+    "description": "V03 Pack_Size membership + V04 D365 material status (comma-sep, worst-status reduction).",
+    "details": "Validators read Reference.PackSizes and d365_import_cache (new in migration 0019). V04 reduces multi-code worst severity. Pure async functions with injected db client.",
+    "scope_files": [
+      "packages/validation/src/v03-pack-size.ts [create]",
+      "packages/validation/src/v04-d365-material.ts [create]",
+      "packages/validation/__tests__/v03.test.ts [create]",
+      "packages/validation/__tests__/v04.test.ts [create]",
+      "packages/db/migrations/0019_d365_import_cache.sql [create]"
+    ],
+    "out_of_scope": [
+      "Do not implement D365 cache refresh worker (T-064)",
+      "Do not implement V05/V07/V08 here"
+    ],
+    "dependencies": ["T-001", "T-005"],
+    "parallel_safe_with": ["T-029"],
+    "acceptance_criteria": [
+      "Given Reference.PackSizes contains '250g', when v03('500g') runs, then it returns FAIL with message naming the unknown pack size",
+      "Given d365_import_cache rows {RM123:Found, RM456:Missing}, when v04('RM123, RM456') runs, then status='Missing' and details array shows both cells",
+      "Given d365_import_cache empty, when v04('RM999') runs, then status='Empty'"
+    ],
+    "test_strategy": [
+      "RED: 3 tests covering V03 fail, V04 worst-status reduction, V04 empty before validators exist",
+      "Run 'pnpm --filter db migrate && pnpm --filter validation test v03 && pnpm --filter validation test v04'"
+    ],
+    "risk_red_lines": [
+      "Do not block save on V04 NoCost",
+      "Do not query without tenant_id",
+      "Do not include trailing whitespace in code lookup"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

@@ -1,0 +1,58 @@
+{
+  "title": "T-024 — Under-receipt PO line force-close service",
+  "prompt": "# T-024 — Under-receipt PO line force-close\n\nPRD: `05-WAREHOUSE-PRD.md` §7.3 (FR-WH-008), V-WH-GRN-008.\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`.\n\n## Goal\n`forceClosePoLine(poLineId, reasonCode, reasonText?)` Server Action moving a partially-received PO line to status='force_closed' with audit log.\n\n## Implementation contract\n`apps/web/lib/services/warehouse/po-line-force-close.ts`. Validate reasonCode IN ('under_delivery','supplier_discontinued','quality_reject','other'). reason_text required when 'other'. Update po_lines.status='force_closed', append audit row 'po_line.force_closed'. RBAC: Manager or Admin.\n\n## Files (scope)\n- apps/web/lib/services/warehouse/po-line-force-close.ts [create]\n- apps/web/lib/services/warehouse/__tests__/po-line-force-close.test.ts [create]\n\n## Acceptance criteria\n1. Given a partial-received PO line, when forceClosePoLine runs with reason_code='under_delivery', then po_lines.status='force_closed' and an audit row exists.\n2. Given reason_code='other' without reason_text, when forceClosePoLine runs, then it returns V-WH-GRN-008 validation error.\n3. Given the caller is an Operator (no Manager role), when forceClosePoLine runs, then it returns an RBAC error.\n\n## Test strategy\n- RED: po-line-force-close.test.ts covers happy path, missing reason_text, RBAC.\n- Run `pnpm --filter web test po-line-force-close`.\n\n## Risk red lines\n- Do not delete the PO line — only set status.\n- Do not allow Operator role.\n- Do not skip audit log entry.",
+  "labels": ["prd", "api", "grn", "T2-api"],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-024",
+    "source_prd": "05-WAREHOUSE-PRD.md",
+    "prd_refs": ["§7.3"],
+    "category": "api",
+    "subcategory": "grn",
+    "task_type": "T2-api",
+    "parent_feature": "warehouse-grn",
+    "context_budget": "20k",
+    "estimated_effort": "1h",
+    "description": "Force-close partial PO line with audit; Manager/Admin RBAC.",
+    "details": "Update status='force_closed'; insert audit row; reason_code+text validation per V-WH-GRN-008.",
+    "scope_files": [
+      "apps/web/lib/services/warehouse/po-line-force-close.ts [create]",
+      "apps/web/lib/services/warehouse/__tests__/po-line-force-close.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "UI surface (uses GRN wizard side-panel from T-056)",
+      "Email notifications",
+      "Hard-delete"
+    ],
+    "dependencies": ["T-005"],
+    "parallel_safe_with": ["T-021", "T-022", "T-023"],
+    "acceptance_criteria": [
+      "Given a partial PO line, when forceClosePoLine runs with under_delivery, then status='force_closed' and audit row appended",
+      "Given reason_code='other' without reason_text, when run, then V-WH-GRN-008 error returns",
+      "Given an Operator caller, when run, then an RBAC error returns"
+    ],
+    "test_strategy": [
+      "RED: po-line-force-close.test.ts covers happy path, missing text, RBAC",
+      "Run 'pnpm --filter web test po-line-force-close'"
+    ],
+    "risk_red_lines": [
+      "Do not hard-delete PO line",
+      "Do not allow Operator role",
+      "Do not skip audit"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

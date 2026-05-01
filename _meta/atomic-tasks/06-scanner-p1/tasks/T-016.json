@@ -1,0 +1,59 @@
+{
+  "title": "T-016 — withScannerPermission HOC + role check (06-a)",
+  "prompt": "# T-016 — scanner permission guard\n\nPRD: 06-SCANNER-P1-PRD.md §8.1 FR-SC-FE-012, §12.5 RBAC\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nDeliver `withScannerPermission(workflow)` HOC + `usePermission(workflow)` hook that checks `scanner.access` plus the workflow-specific role (warehouse.receive, production.consume, quality.inspect, etc.). Missing permission ⇒ redirect to /scanner with an amber warn banner. Auth-context comes from session JWT decoded server-side.\n\n## Implementation contract\n1. `apps/scanner/src/lib/scanner/permission-guard.tsx`:\n   - `usePermission(workflow: ScannerWorkflow): { allowed: boolean, reason?: string }` from session.roles[].\n   - `withScannerPermission(Component, workflow)` returns a wrapper that redirects via `next/navigation` if not allowed and surfaces a query-param 'denied=workflow' for SCN-home banner.\n2. Mapping table workflow → required role list in `apps/scanner/src/lib/scanner/permission-map.ts`.\n3. RTL test verifying redirect + allowed render.\n\n## Files\n- apps/scanner/src/lib/scanner/permission-guard.tsx [create]\n- apps/scanner/src/lib/scanner/permission-map.ts [create]\n- apps/scanner/__tests__/permission-guard.test.tsx [create]\n\n## Acceptance criteria\n1. Given a session with roles=['scanner.access','warehouse.operator'], when usePermission('warehouse.receive') runs, then allowed=true\n2. Given a session without 'production.operator', when withScannerPermission wraps a SCN-080 component and that page mounts, then the user is redirected to /scanner?denied=production.consume and the wrapped component never renders\n3. Given an empty roles array, when usePermission('quality.inspect') runs, then allowed=false and reason='missing scanner.access'\n\n## Test strategy\n- RED: write permission-guard.test.tsx asserting all three ACs before implementation\n- Run 'pnpm --filter scanner test permission-guard'\n\n## Risk red lines\n- Do not rely solely on client-side guard — every API endpoint must re-check (out of scope here)\n- Do not allow guard bypass via unauthenticated layout fallback\n- Do not redirect into a loop when /scanner itself is denied",
+  "labels": ["prd", "ui", "permission-guard", "T4-wiring-test"],
+  "priority": 80,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-016",
+    "source_prd": "06-SCANNER-P1-PRD.md",
+    "prd_refs": ["§8.1 FR-SC-FE-012", "§12.5"],
+    "category": "ui",
+    "subcategory": "permission-guard",
+    "task_type": "T4-wiring-test",
+    "parent_feature": "06-a Shell & Core",
+    "context_budget": "20k",
+    "estimated_effort": "1h",
+    "description": "RBAC HOC + hook for scanner workflows; redirects unauthorized users back to /scanner with denial banner.",
+    "details": "permission-map.ts maps workflow to roles[]; usePermission decodes session.roles and returns { allowed, reason }; withScannerPermission wraps page components and redirects to /scanner?denied=<workflow> when not allowed. RTL test stubs session provider for three role scenarios.",
+    "scope_files": [
+      "apps/scanner/src/lib/scanner/permission-guard.tsx [create]",
+      "apps/scanner/src/lib/scanner/permission-map.ts [create]",
+      "apps/scanner/__tests__/permission-guard.test.tsx [create]"
+    ],
+    "out_of_scope": [
+      "Do not enforce server-side permission here (every endpoint owns its check)",
+      "Do not implement SCN-home denial banner UX here (T-023)",
+      "Do not implement supervisor override here"
+    ],
+    "dependencies": [],
+    "parallel_safe_with": ["T-012", "T-013", "T-014", "T-015"],
+    "acceptance_criteria": [
+      "Given roles=['scanner.access','warehouse.operator'], when usePermission('warehouse.receive') runs, then allowed=true",
+      "Given roles missing 'production.operator', when a SCN-080 page wrapped by withScannerPermission mounts, then the user is redirected to /scanner?denied=production.consume and the wrapped component never renders",
+      "Given empty roles array, when usePermission('quality.inspect') runs, then allowed=false and reason='missing scanner.access'"
+    ],
+    "test_strategy": [
+      "RED: write permission-guard.test.tsx asserting all three ACs before implementation",
+      "Run 'pnpm --filter scanner test permission-guard'"
+    ],
+    "risk_red_lines": [
+      "Do not rely solely on client-side guard",
+      "Do not allow bypass via unauthenticated layout fallback",
+      "Do not redirect into a loop when /scanner itself is denied"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

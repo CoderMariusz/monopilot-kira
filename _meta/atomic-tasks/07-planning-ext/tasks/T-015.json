@@ -1,0 +1,60 @@
+{
+  "title": "T-015 — POST /api/scheduler/assignments/:id/override",
+  "prompt": "# T-015 — POST /api/scheduler/assignments/:id/override\n\nPRD: 07-PLANNING-EXT-PRD.md §8.2 override, §9.3 business rules, §15.4 V-SCHED-02/03/04/08\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nImplement override endpoint with cross-field validators V-SCHED-02 (allergen compat), V-SCHED-03 (cascade), V-SCHED-04 (no overlap), V-SCHED-08 (reason_code required).\n\n## Implementation contract\n1. Route `apps/web/src/app/api/scheduler/assignments/[assignmentId]/override/route.ts`: POST body { user_id, new_line_id, new_planned_start_time, new_shift_id, reason_code, reason_notes }.\n2. Zod schema requires reason_code (V-SCHED-08).\n3. Validators: V-SCHED-02 (production_lines.allergen_constraints + items.allergen_profiles match), V-SCHED-03 (parent WO planned_end_time <= new start), V-SCHED-04 (no overlap on same (new_line_id, time window)).\n4. Transaction: UPDATE scheduler_assignments SET status='overridden', override_original_*, new fields; UPDATE work_orders; INSERT outbox_events scheduler.assignment.overridden.\n\n## Files\n- apps/web/src/app/api/scheduler/assignments/[assignmentId]/override/route.ts [create]\n- apps/web/src/lib/scheduler/override-validators.ts [create]\n- apps/web/src/app/api/scheduler/assignments/[assignmentId]/override/__tests__/route.test.ts [create]\n\n## Acceptance criteria\n1. Given a valid override + Planner role, when POST runs, then status='overridden', override_original_* preserved, new fields written, outbox emitted (one transaction)\n2. Given new_line_id incompatible with item allergen, when POST runs, then 422 returned with V-SCHED-02 error code\n3. Given an overlapping assignment on (new_line_id, time_window), when POST runs, then 422 returned with V-SCHED-04 error code\n4. Given missing reason_code, when POST runs, then 400 returned (Zod V-SCHED-08)\n\n## Test strategy\n- RED: write __tests__/route.test.ts covering all four validators + happy path\n- Run 'pnpm --filter web test scheduler/assignments/override'\n\n## Risk red lines\n- Do not skip allergen compatibility check (BRCGS audit risk per §5.2.6)\n- Do not bypass cross-tenant RLS\n- Do not allow override without reason_code (V-SCHED-08)",
+  "labels": ["prd", "api", "endpoint-post", "T2-api"],
+  "priority": 80,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-015",
+    "source_prd": "07-PLANNING-EXT-PRD.md",
+    "prd_refs": ["§8.2", "§9.3", "§15.4 V-SCHED-02", "V-SCHED-03", "V-SCHED-04", "V-SCHED-08"],
+    "category": "api",
+    "subcategory": "endpoint-post",
+    "task_type": "T2-api",
+    "parent_feature": "07-EXT-a override flow",
+    "context_budget": "60k",
+    "estimated_effort": "2-3h",
+    "description": "Override assignment: cross-field validators V-SCHED-02/03/04/08 + transactional write + outbox event.",
+    "details": "Endpoint enforces four validators in order: 02 allergen compat, 03 cascade DAG, 04 no overlap, 08 reason_code required. Single transaction writes status flip + override_original_* + new fields + outbox event scheduler.assignment.overridden. Returns structured error per validator.",
+    "scope_files": [
+      "apps/web/src/app/api/scheduler/assignments/[assignmentId]/override/route.ts [create]",
+      "apps/web/src/lib/scheduler/override-validators.ts [create]",
+      "apps/web/src/app/api/scheduler/assignments/[assignmentId]/override/__tests__/route.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not implement reschedule modal UI here (T-034)",
+      "Do not implement bulk override (not in PRD)",
+      "Do not consume outbox event here"
+    ],
+    "dependencies": ["T-002", "T-011", "T-028"],
+    "parallel_safe_with": ["T-014", "T-016"],
+    "acceptance_criteria": [
+      "Given a valid override + Planner role, when POST runs, then status='overridden', override_original_* preserved, new fields written, outbox emitted in one transaction",
+      "Given new_line_id incompatible with item allergen, when POST runs, then 422 returned with V-SCHED-02 error code",
+      "Given an overlapping assignment on (new_line_id, time_window), when POST runs, then 422 with V-SCHED-04",
+      "Given missing reason_code, when POST runs, then 400 (V-SCHED-08)"
+    ],
+    "test_strategy": [
+      "RED: write __tests__/route.test.ts covering V-SCHED-02/03/04/08 + happy path",
+      "Run 'pnpm --filter web test scheduler/assignments/override'"
+    ],
+    "risk_red_lines": [
+      "Do not skip allergen compatibility check",
+      "Do not bypass cross-tenant RLS",
+      "Do not allow override without reason_code"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

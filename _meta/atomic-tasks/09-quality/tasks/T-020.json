@@ -1,0 +1,59 @@
+{
+  "title": "T-020 — Allergen profile snapshot at spec activation (03-TECH consumer)",
+  "prompt": "# T-020 — Allergen profile snapshot at activation\n\nPRD: 09-QUALITY-PRD.md §6.3 quality_specifications.allergen_profile, §10.3 03-TECH consumer (allergen_cascade_rm_to_fg)\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nDuring approveSpec (T-019), snapshot the product's allergen profile from 03-TECH §10.2 (`allergen_cascade_rm_to_fg` outputs) into `quality_specifications.allergen_profile` JSONB at the moment of activation. Read-only post-activation.\n\n## Implementation contract\n1. `apps/web/src/server/quality/snapshotAllergenProfile.ts` exports `snapshotAllergenProfile(productId)` returning the JSONB shape {sku, allergen_codes:[], cross_contact_risk:[], cascade_path:[], snapshot_at}.\n2. Hook into approveSpec (T-019) as the first step inside the TX so the snapshot is part of activation atomically.\n3. Reads from 03-TECH `product_allergens` view; if cascade not resolved (rm-to-fg path missing), reject with PROFILE_UNRESOLVED and abort the TX (V-QA-SPEC-002 strengthened).\n\n## Files\n- apps/web/src/server/quality/snapshotAllergenProfile.ts [create]\n- apps/web/src/server/quality/__tests__/snapshotAllergenProfile.test.ts [create]\n- apps/web/src/server/quality/approveSpec.ts [modify]\n\n## Acceptance criteria\n1. Given a product with allergens={milk,egg} and a resolved cascade_path, when approveSpec runs and triggers the snapshot, then quality_specifications.allergen_profile contains {sku,allergen_codes:['milk','egg'],cross_contact_risk:[...],cascade_path:[...],snapshot_at:<now>}\n2. Given a product whose 03-TECH cascade is unresolved, when approveSpec runs, then the TX aborts with PROFILE_UNRESOLVED and no changes are persisted\n3. Given an active spec, when its allergen_profile JSONB is read post-approval, then the value never changes regardless of subsequent 03-TECH product allergen edits (snapshot immutability)",
+  "labels": ["prd", "api", "spec-allergen-snapshot", "T2-api"],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-020",
+    "source_prd": "09-QUALITY-PRD.md",
+    "prd_refs": ["§6.3", "§10.3"],
+    "category": "api",
+    "subcategory": "spec-allergen-snapshot",
+    "task_type": "T2-api",
+    "parent_feature": "09-b Specifications",
+    "context_budget": "30k",
+    "estimated_effort": "1-2h",
+    "description": "Snapshot 03-TECH product allergen profile into quality_specifications.allergen_profile at activation time; abort on unresolved cascade.",
+    "details": "Helper snapshotAllergenProfile reads 03-TECH product_allergens (cascade_rm_to_fg) and serializes into JSONB shape committed inside approveSpec TX. Unresolved cascade aborts. Snapshot is read-only post-activation (immutability trigger from T-040 covers updates). Tests assert shape, abort path, and post-approval immutability.",
+    "scope_files": [
+      "apps/web/src/server/quality/snapshotAllergenProfile.ts [create]",
+      "apps/web/src/server/quality/__tests__/snapshotAllergenProfile.test.ts [create]",
+      "apps/web/src/server/quality/approveSpec.ts [modify]"
+    ],
+    "out_of_scope": [
+      "Do not modify 03-TECH product_allergens view (cross-module)",
+      "Do not implement cascade rule rm_to_fg (owned by 03-TECH §10.2)",
+      "Do not implement spec UI changes (T-022/T-023)"
+    ],
+    "dependencies": ["T-017", "T-019"],
+    "parallel_safe_with": ["T-018"],
+    "acceptance_criteria": [
+      "Given a product with allergens={milk,egg} and resolved cascade_path, when approveSpec runs and triggers the snapshot, then quality_specifications.allergen_profile contains {sku,allergen_codes:['milk','egg'],cross_contact_risk:[...],cascade_path:[...],snapshot_at:<now>}",
+      "Given a product whose 03-TECH cascade is unresolved, when approveSpec runs, then the TX aborts with PROFILE_UNRESOLVED and no rows change",
+      "Given an active spec, when its allergen_profile JSONB is read after subsequent 03-TECH allergen edits, then it remains identical to the value captured at activation (snapshot immutability)"
+    ],
+    "test_strategy": [
+      "RED: write apps/web/src/server/quality/__tests__/snapshotAllergenProfile.test.ts asserting shape, abort, and immutability after upstream edit",
+      "Run 'pnpm --filter web test snapshotAllergenProfile'"
+    ],
+    "risk_red_lines": [
+      "Do not allow snapshot to drift after activation (immutability per §6.3)",
+      "Do not allow approval to proceed when cascade unresolved (regulatory FIC 1169/2011 risk)",
+      "Do not bypass 03-TECH view (no shadow allergen joins)"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

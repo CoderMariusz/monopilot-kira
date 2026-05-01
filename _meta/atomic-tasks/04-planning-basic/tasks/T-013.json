@@ -1,0 +1,65 @@
+{
+  "title": "T-013 — API: PO approval / rejection (FR-PLAN-008)",
+  "prompt": "Implement approval-flow Server Actions per PRD §6.2 FR-PLAN-008. Endpoints:\n- POST /api/planning/purchase-orders/:id/approve  body { notes? } — caller role must intersect planning_settings.po_approval_roles. Transitions pending_approval→confirmed; sets approved_at, approved_by.\n- POST /api/planning/purchase-orders/:id/reject  body { notes (required, min 10 chars) } — transitions pending_approval→draft, audit logged.\n\nUse rule registry (T-007). Outbox events emitted per side-effect contract.\n\nRED test asserts (a) approver-role check rejects callers outside list; (b) reject without notes ≥ 10 chars returns 400; (c) approved_at/by populated; (d) outbox emits.",
+  "labels": ["prd", "api", "po-approval", "T2-api"],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-013",
+    "source_prd": "04-PLANNING-BASIC-PRD.md",
+    "prd_refs": ["§6.2", "§6.7"],
+    "category": "api",
+    "subcategory": "po-approval",
+    "task_type": "T2-api",
+    "parent_feature": "planning-po",
+    "context_budget": "30k",
+    "estimated_effort": "2-3h",
+    "description": "PO approve/reject Server Actions with role gate and reason validation.",
+    "details": "Caller's roles read from session JWT (RBAC matrix from 02-SETTINGS §10). RBAC check happens BEFORE rule engine call. notes minLength=10 enforced via Zod. approved_at populated to NOW() and approved_by to user.id only on approve action. Reject keeps approved_at/by NULL.",
+    "scope_files": [
+      "src/server/actions/planning/po-approval.ts [create]",
+      "src/app/api/planning/purchase-orders/[id]/approve/route.ts [create]",
+      "src/app/api/planning/purchase-orders/[id]/reject/route.ts [create]",
+      "src/server/actions/planning/__tests__/po-approval.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "PO submit/cancel (T-012)",
+      "Approval modal UI (T-016)"
+    ],
+    "dependencies": ["T-007", "T-010"],
+    "parallel_safe_with": ["T-011", "T-012"],
+    "acceptance_criteria": [
+      "Given a caller without any role in planning_settings.po_approval_roles, when approve is called, then HTTP 403 with code 'PO_APPROVE_FORBIDDEN'.",
+      "Given a reject call with notes='ok' (4 chars), when validated, then HTTP 400 with Zod error citing min length 10.",
+      "Given a successful approve, when the PO is fetched, then status='confirmed', approved_at is set, and outbox event 'po.state_changed' exists.",
+      "Given `pnpm vitest run src/server/actions/planning/__tests__/po-approval.test.ts`, when run, then 0 failures."
+    ],
+    "test_strategy": [
+      "RED tests for RBAC denial, Zod min-length on reject reason, approve happy path with audit columns set.",
+      "Run `pnpm vitest run src/server/actions/planning/__tests__/po-approval.test.ts`."
+    ],
+    "risk_red_lines": [
+      "Do not bypass RBAC — V-PLAN-PO-005 is a hard block.",
+      "Do not allow reject with empty notes — audit trail integrity."
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

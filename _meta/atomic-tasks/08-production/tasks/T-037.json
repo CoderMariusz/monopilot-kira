@@ -1,0 +1,59 @@
+{
+  "title": "T-037 — GET /api/production/downtime-events with filters + analytics aggregations",
+  "prompt": "# T-037 — GET /downtime-events with filters\n\nPRD: 08-PRODUCTION-PRD.md §7.4 FR-08-E4-005, §8.2.5\n\n## Goal\nImplement GET /api/production/downtime-events?line_id=&date_from=&date_to=&category_id= returning paginated events plus aggregations (MTTR, top categories Pareto).\n\n## Implementation contract\nApp Router GET. Query params line_id?, date_from?, date_to?, category_id?, page?, limit? (default 50, max 200). Returns {events:[...], pagination, aggregations:{mttr_minutes:number, total_downtime_min:number, top_categories:[{category_id, name, count, total_min, pct}], by_line:[{line_id, total_min, count}]}}. Aggregations computed inline via single SQL (window functions or CTEs). cacheLife({stale:60}).\n\n## Files (scope)\n- apps/web/app/api/production/downtime-events/route.ts [modify or merge with T-036]\n- apps/web/app/api/production/downtime-events/__tests__/list.test.ts [create]\n- packages/api-services/production/list-downtime-events.ts [create]\n\n## Acceptance criteria\n1. Given 50 events spanning 7d, when GET with date_from=7d-ago, then events array length matches and aggregations.mttr_minutes equals avg duration\n2. Given top 3 categories cover 80% of total minutes, when GET, then aggregations.top_categories returns 3 rows with pct summing to ~80%\n3. Given page=2 limit=10, when GET, then events length=10 starting at offset 10 (pagination correct)\n\n## Test strategy\n- RED: route test asserting events + aggregations + pagination before service exists\n- Run 'pnpm --filter web test downtime-events.*list'\n\n## Risk red lines\n- Do not aggregate in JS (push to SQL for performance)\n- Do not return >200 events per page\n- Do not skip RLS",
+  "labels": ["prd", "api", "downtime", "T2-api"],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-037",
+    "source_prd": "08-PRODUCTION-PRD.md",
+    "prd_refs": ["§7.4 FR-08-E4-005", "§8.2.5"],
+    "category": "api",
+    "subcategory": "downtime",
+    "task_type": "T2-api",
+    "parent_feature": "08-PROD E4 Downtime+Shifts",
+    "context_budget": "26k",
+    "estimated_effort": "2h",
+    "description": "GET /downtime-events list + Pareto + MTTR aggregations via single SQL.",
+    "details": "Single SQL CTE returns paginated rows + aggregations (MTTR avg duration, Pareto top categories with pct, by-line totals). Cache 60s. Max limit 200.",
+    "scope_files": [
+      "apps/web/app/api/production/downtime-events/route.ts [modify]",
+      "apps/web/app/api/production/downtime-events/__tests__/list.test.ts [create]",
+      "packages/api-services/production/list-downtime-events.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not implement Gantt-rendering (UI task)",
+      "Do not modify schema",
+      "Do not implement export"
+    ],
+    "dependencies": ["T-005"],
+    "parallel_safe_with": ["T-036", "T-038"],
+    "acceptance_criteria": [
+      "Given 50 events 7d window, when GET, then events length matches and mttr_minutes equals avg duration",
+      "Given top 3 cover 80%, when GET, then top_categories.length=3 with pct summing ~80%",
+      "Given page=2 limit=10, when GET, then events length=10 starting offset=10"
+    ],
+    "test_strategy": [
+      "RED: route test asserting events + aggregations + pagination before service exists",
+      "Run 'pnpm --filter web test downtime-events.*list'"
+    ],
+    "risk_red_lines": [
+      "Do not aggregate in JS",
+      "Do not return >200 events",
+      "Do not skip RLS"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

@@ -1,0 +1,61 @@
+{
+  "title": "T-046 — UI: D365 Build modal + D365 Wizard modal (8 steps + SSE) (N-A1)",
+  "prompt": "# T-046 — D365 Build + Wizard modals\n\nPRD: 01-NPD-PRD.md §10.6, §10.6.1 + UX d365_build_modal + d365_wizard_modal\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\nPrototype: design/Monopilot Design System/npd/modals.jsx:194-241 (d365_build_modal) + 431-594 (d365_wizard_modal)\n\n## Goal\nClient modals for both single-click Build and 8-step Guided Wizard. Wizard subscribes via EventSource to /(npd)/fa/d365-progress-stream and renders linear progress + dismissible=false during execute.\n\n## Implementation contract\nNew apps/web/app/(npd)/_modals/d365-build-modal.tsx (single click + MFA prompt) and d365-wizard-modal.tsx (Stepper with 8 steps mapped to wizard server actions; EventSource for progress; dismissible toggled on Execute). Server route apps/web/app/(npd)/fa/d365-progress-stream/route.ts streams SSE events keyed by phase.\n\n## Files\n- apps/web/app/(npd)/_modals/d365-build-modal.tsx [create]\n- apps/web/app/(npd)/_modals/d365-wizard-modal.tsx [create]\n- apps/web/app/(npd)/fa/d365-progress-stream/route.ts [create]\n- apps/web/app/(npd)/_modals/__tests__/d365-build-modal.test.tsx [create]\n- apps/web/app/(npd)/_modals/__tests__/d365-wizard-modal.test.tsx [create]\n- design/Monopilot Design System/npd/modals.jsx [ref]\n\n## Acceptance criteria\n1. Given the wizard modal renders, when compared to design/Monopilot Design System/npd/modals.jsx:431-594 (d365_wizard_modal, 8 steps), then it renders all 8 step labels, the same Next/Back/Cancel buttons, and applies dismissible=false guard during the execute step — verified by RTL test counting steps and asserting button states (structural+visual+interaction parity)\n2. Given the build modal renders, when compared to design/Monopilot Design System/npd/modals.jsx:194-241 (d365_build_modal), then it shows MFA Input + Build button + warning Alert with shadcn Dialog+Input+Button+Alert primitives — verified by RTL parity checklist\n3. Given the wizard subscribes to SSE and progress events arrive, when each event arrives, then the matching phase row toggles to 'done' and progress bar advances\n\n## Test strategy\n- RED: 3 RTL tests covering wizard parity (8 steps + dismissible), build parity, SSE phase update\n- Run 'pnpm --filter web test d365-build-modal d365-wizard-modal'\n\n## Risk red lines\n- Do not allow dismiss during execute phase\n- Do not invoke buildD365 from client (must be wizardExecute)\n- Do not render plain HTML <input> for MFA (use shadcn Input)",
+  "labels": ["prd", "ui", "d365-modals", "T3-ui"],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-046",
+    "source_prd": "01-NPD-PRD.md",
+    "prd_refs": ["§10.6", "§10.6.1", "N-A1"],
+    "category": "ui",
+    "subcategory": "d365-modals",
+    "task_type": "T3-ui",
+    "parent_feature": "01-NPD-d UI",
+    "context_budget": "55k",
+    "estimated_effort": "4-5h",
+    "description": "Two client modals (single-click Build + 8-step Wizard with SSE progress) calling Server Actions; dismissible guard during execute.",
+    "details": "Wizard parity: 8 step labels in same order, Next/Back/Cancel buttons in same positions, dismissible=false during execute (per AC quote in skill). Build modal parity: MFA Input + Alert + Build button. SSE route streams phases: validate, bom_preview, allergen_check, constants_check, n1_preview, mfa, execute_compute, execute_xlsx, execute_persist, execute_emit.",
+    "scope_files": [
+      "apps/web/app/(npd)/_modals/d365-build-modal.tsx [create]",
+      "apps/web/app/(npd)/_modals/d365-wizard-modal.tsx [create]",
+      "apps/web/app/(npd)/fa/d365-progress-stream/route.ts [create]",
+      "apps/web/app/(npd)/_modals/__tests__/d365-build-modal.test.tsx [create]",
+      "apps/web/app/(npd)/_modals/__tests__/d365-wizard-modal.test.tsx [create]",
+      "design/Monopilot Design System/npd/modals.jsx [ref]"
+    ],
+    "out_of_scope": [
+      "Do not implement wizard step Server Actions here beyond integration (T-047)",
+      "Do not implement Build action core (T-044)"
+    ],
+    "dependencies": ["T-044"],
+    "parallel_safe_with": ["T-047"],
+    "acceptance_criteria": [
+      "Given the wizard modal renders, when compared to design/Monopilot Design System/npd/modals.jsx:431-594, then it renders all 8 step labels, same Next/Back/Cancel buttons, and dismissible=false guard during execute step — verified by RTL test counting steps + asserting button states (structural + visual + interaction parity)",
+      "Given the build modal renders, when compared to design/Monopilot Design System/npd/modals.jsx:194-241, then it shows MFA Input + Build button + warning Alert using shadcn Dialog+Input+Button+Alert primitives — verified by RTL parity checklist",
+      "Given the wizard subscribes to SSE and progress events arrive, when each event arrives, then the matching phase row toggles to 'done' and progress bar advances"
+    ],
+    "test_strategy": [
+      "RED: 3 RTL tests covering wizard parity (8 steps + dismissible), build parity, SSE phase update before components exist",
+      "Run 'pnpm --filter web test d365-build-modal d365-wizard-modal'"
+    ],
+    "risk_red_lines": [
+      "Do not allow dismiss during execute phase",
+      "Do not invoke buildD365 directly from client during wizard",
+      "Do not render plain HTML <input> for MFA"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

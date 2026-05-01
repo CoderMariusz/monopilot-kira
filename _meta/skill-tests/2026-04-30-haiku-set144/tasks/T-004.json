@@ -1,0 +1,52 @@
+{
+  "title": "T-004 — Implement SET-007 Completion Celebration UI screen",
+  "prompt": "Implement the final celebration screen (step 6) with confetti animation and next-step cards.\n\nPRD §14.3-14.4: After step 5, user sees a celebration screen with:\n- Visual confetti/celebration animation (can use library like confetti-js or canvas)\n- Text: \"Congratulations! You're ready to go.\"\n- Card grid linking to:\n  - Module Toggles (link)\n  - Schema Browser (link)\n  - Rules Registry (link)\n\nScreen code: SET-007. Step 6 has no form data (just confirmation).\n\nAcceptance:\n- Component renders confetti animation on mount\n- Three cards visible (Module Toggles, Schema Browser, Rules Registry)\n- Each card is clickable with href to the corresponding admin/config module (/admin/toggles, /admin/schema, /admin/rules)\n- Matches zeropoint design language (or whichever the project uses)\n- Step 6 completion submits to T-002 endpoint with step_number=6, data={}\n\nTest: E2E test navigates to step 6 and verifies confetti starts + cards are clickable.",
+  "labels": ["prd", "ui", "screen", "T3-ui"],
+  "priority": 90,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-004",
+    "source_prd": "02-SETTINGS-PRD.md",
+    "prd_refs": ["§14.3", "§14.4"],
+    "category": "ui",
+    "subcategory": "screen",
+    "task_type": "T3-ui",
+    "parent_feature": "onboarding_wizard",
+    "context_budget": "30k",
+    "estimated_effort": "2-3h",
+    "description": "Celebration screen component (SET-007) for onboarding completion",
+    "details": "Create React component OnboardingCompletionCelebration (or similar) that renders step 6 (final screen). Include: (1) Confetti animation (use confetti-js or similar; fires automatically on mount). (2) Heading text 'Congratulations! You're ready to go.' (3) Subtext explaining next steps. (4) Card grid (3 columns or responsive) with three clickable cards: 'Module Toggles' (links to /admin/toggles), 'Schema Browser' (links to /admin/schema), 'Rules Registry' (links to /admin/rules). Each card includes icon and description. (5) Submit button that calls POST /api/v1/onboarding/step with step_number=6, data={}. Match design language of wizard (RHF form styling, color palette, spacing). Component must be accessible (ARIA labels, semantic HTML). Test via Cypress or Playwright e2e test that verifies confetti renders + all three cards are visible and clickable.",
+    "scope_files": ["src/components/onboarding/OnboardingCompletionCelebration.tsx", "src/pages/settings/onboarding/step-6.tsx", "tests/e2e/onboarding.spec.ts"],
+    "out_of_scope": ["admin/toggles endpoint (separate feature)", "admin/schema endpoint", "admin/rules endpoint"],
+    "dependencies": ["T-002"],
+    "parallel_safe_with": ["T-005", "T-006", "T-007", "T-008"],
+    "acceptance_criteria": [
+      "Given user navigates to step 6 screen, when component mounts, then confetti animation plays and 'Congratulations' heading is visible",
+      "Given step 6 screen is rendered, when user scrolls, then three cards (Module Toggles, Schema Browser, Rules Registry) are fully visible with clickable links",
+      "Given user clicks 'Finish Onboarding' button, when step_number=6 is submitted to endpoint, then endpoint returns status='complete' and wizard closes or redirects"
+    ],
+    "test_strategy": [
+      "Write e2e test: test_completion_celebration_renders() navigates to step 6 and screenshots confetti",
+      "Write e2e test: test_celebration_cards_clickable() verifies href attributes and card navigation",
+      "Run: npx cypress run -e TEST_FILE=tests/e2e/onboarding.spec.ts --spec '**/step-6*'",
+      "Manual QA: verify confetti timing and animation smoothness"
+    ],
+    "risk_red_lines": [
+      "Do not hard-code admin URLs; use configurable route constants",
+      "Do not block confetti animation from rendering if it fails (graceful fallback)"
+    ],
+    "skills": ["test-driven-development"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

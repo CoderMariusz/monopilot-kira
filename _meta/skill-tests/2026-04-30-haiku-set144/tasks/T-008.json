@@ -1,0 +1,51 @@
+{
+  "title": "T-008 — Implement SET-004 First Location step (location create form)",
+  "prompt": "Implement step 3 form: First Location creation within the warehouse (zone, bin).\n\nPRD §14.3-14.4 SET-004: Form fields:\n- Zone (required, text)\n- Bin (required, text)\n\nForm submits to POST /api/v1/onboarding/step {step_number: 3, data: {zone, bin}} and creates location in the first warehouse.\n\nAcceptance:\n- Form validates required fields\n- Location is created in the warehouse created in step 2\n- Form submission updates onboarding_state.current_step to 4\n- Navigate to step 4 (SET-005) on success\n\nTest: RED test verifies location is created in DB with correct zone/bin.",
+  "labels": ["prd", "ui", "screen", "T3-ui"],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-008",
+    "source_prd": "02-SETTINGS-PRD.md",
+    "prd_refs": ["§14.3", "§14.4"],
+    "category": "ui",
+    "subcategory": "screen",
+    "task_type": "T3-ui",
+    "parent_feature": "onboarding_wizard",
+    "context_budget": "28k",
+    "estimated_effort": "2-3h",
+    "description": "Step 3 RHF form: First Location creation",
+    "details": "Create FirstLocationStep component using React Hook Form + Zod schema. Fields: (1) zone: text input, required, minLength 1, maxLength 100 (e.g. 'Zone A'). (2) bin: text input, required, minLength 1, maxLength 100 (e.g. 'Bin 1'). Backend logic: POST /api/v1/onboarding/step with step_number=3 should create a location record in the warehouse_id retrieved from the org's first warehouse (created in step 2). Update onboarding_state.current_step to 4. Form validation: both fields required. Submit button shows loading state. On success, navigate to step 4 (SET-005).",
+    "scope_files": ["src/components/onboarding/steps/FirstLocationStep.tsx", "src/schemas/onboarding.schema.ts", "tests/e2e/onboarding.spec.ts"],
+    "out_of_scope": ["location type/attributes beyond zone/bin", "warehouse/location relationship queries"],
+    "dependencies": ["T-002", "T-007"],
+    "parallel_safe_with": ["T-004", "T-005", "T-006", "T-009", "T-010"],
+    "acceptance_criteria": [
+      "Given step 3 form is rendered, when user enters zone='Zone A', bin='Bin 1', then fields show values",
+      "Given valid location data submitted, when form submits, then location record is created in the warehouse from step 2",
+      "Given location created successfully, when step 3 completes, then onboarding_state.current_step becomes 4"
+    ],
+    "test_strategy": [
+      "Write e2e test: test_location_form_submission() fills form and verifies location creation in DB",
+      "Write e2e test: test_location_in_correct_warehouse() verifies location is in the warehouse from step 2",
+      "Run: npx cypress run -e TEST_FILE=tests/e2e/onboarding.spec.ts --spec '**/step-3*'"
+    ],
+    "risk_red_lines": [
+      "Do not allow submission with empty zone or bin",
+      "Do not create location in wrong warehouse (must use warehouse from step 2)"
+    ],
+    "skills": ["test-driven-development"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

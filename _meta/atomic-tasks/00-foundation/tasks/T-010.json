@@ -1,0 +1,86 @@
+{
+  "title": "T-010 \u2014 tenant_idp_config table per F-A2 with \u00a75.x default seed values",
+  "prompt": "# T-010 \u2014 tenant_idp_config table per F-A2 with \u00a75.x default seed values\n\nPRD: `00-FOUNDATION-PRD.md` \u2014 sections: \u00a78.x, \u00a75.x, \u00a713\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`\n\n## Goal\nMigration 005 creating tenant_idp_config exactly as specified in PRD \u00a78.x DDL block, plus a seed function that creates a row with \u00a75.x + F-U5 defaults whenever a tenant is inserted.\n\n## Implementation contract\nMigration 005-tenant-idp-config.sql copying the verbatim DDL from PRD \u00a78.x: provider_type CHECK IN ('saml','oidc','password','magic'), idle_timeout_min INT DEFAULT 60, session_max_h INT DEFAULT 8, mfa_required BOOLEAN DEFAULT true, mfa_required_for_roles TEXT[] DEFAULT ARRAY['org.access.admin','org.schema.admin'], mfa_allowed_methods TEXT[] DEFAULT ARRAY['totp'], password_complexity TEXT DEFAULT 'strong'. Add a trigger AFTER INSERT ON tenants that inserts a default tenant_idp_config row. Test inserts a tenant and asserts the row exists with the F-U5 defaults (\u00a713 success criteria).\n\n## Files (scope)\n- packages/db/migrations/005-tenant-idp-config.sql [create]\n- packages/db/__tests__/tenant-idp-config.integration.test.ts [create]\n\n## Acceptance criteria\n1. Given a new tenant is inserted, when the AFTER INSERT trigger fires, then exactly one tenant_idp_config row exists with provider_type='password', idle_timeout_min=60, session_max_h=8, mfa_required=true, mfa_required_for_roles={'org.access.admin','org.schema.admin'}, password_complexity='strong'\n2. Given an UPDATE attempts to set provider_type='ldap', when the statement runs, then the CHECK constraint rejects it\n3. Given the integration test runs, then it asserts every default value listed in PRD \u00a713 F-U5 is present on the seeded row\n\n## Test strategy\n- RED: write packages/db/__tests__/tenant-idp-config.integration.test.ts asserting the F-U5 defaults before the migration exists\n- Run 'pnpm --filter @monopilot/db test:integration -- tenant-idp-config'\n\n## Risk red lines\n- MFA-by-default for both org.access.admin and org.schema.admin is a F-U5 success criterion \u2014 do not relax it\n\n## Dependencies (must be complete first)\n- T-006\n\n## Closeout evidence\nProvide: changed_files, test_commands_and_results, acceptance_criteria_status (per AC), deviations_from_prd, git_status. Use the test-driven-development skill (RED test before implementation) and requesting-code-review at GREEN.",
+  "labels": [
+    "prd",
+    "auth",
+    "schema",
+    "T1-schema"
+  ],
+  "priority": 80,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-010",
+    "source_prd": "00-FOUNDATION-PRD.md",
+    "prd_refs": [
+      "\u00a78.x",
+      "\u00a75.x",
+      "\u00a713"
+    ],
+    "category": "auth",
+    "subcategory": "schema",
+    "task_type": "T1-schema",
+    "parent_feature": "00-FOUNDATION-impl-f auth",
+    "context_budget": "40k",
+    "estimated_effort": "1-2h",
+    "description": "Migration 005 creating tenant_idp_config exactly as specified in PRD \u00a78.x DDL block, plus a seed function that creates a row with \u00a75.x + F-U5 defaults whenever a tenant is inserted.",
+    "details": "Migration 005-tenant-idp-config.sql copying the verbatim DDL from PRD \u00a78.x: provider_type CHECK IN ('saml','oidc','password','magic'), idle_timeout_min INT DEFAULT 60, session_max_h INT DEFAULT 8, mfa_required BOOLEAN DEFAULT true, mfa_required_for_roles TEXT[] DEFAULT ARRAY['org.access.admin','org.schema.admin'], mfa_allowed_methods TEXT[] DEFAULT ARRAY['totp'], password_complexity TEXT DEFAULT 'strong'. Add a trigger AFTER INSERT ON tenants that inserts a default tenant_idp_config row. Test inserts a tenant and asserts the row exists with the F-U5 defaults (\u00a713 success criteria).",
+    "scope_files": [
+      "packages/db/migrations/005-tenant-idp-config.sql [create]",
+      "packages/db/__tests__/tenant-idp-config.integration.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not modify files outside the scope_files list",
+      "Do not introduce business logic from later module PRDs (01-NPD, 02-SETTINGS, etc.)",
+      "No SAML/SCIM endpoint wiring (T-011, T-012)"
+    ],
+    "dependencies": [
+      "T-006"
+    ],
+    "parallel_safe_with": [
+      "T-007",
+      "T-008",
+      "T-009"
+    ],
+    "acceptance_criteria": [
+      "Given a new tenant is inserted, when the AFTER INSERT trigger fires, then exactly one tenant_idp_config row exists with provider_type='password', idle_timeout_min=60, session_max_h=8, mfa_required=true, mfa_required_for_roles={'org.access.admin','org.schema.admin'}, password_complexity='strong'",
+      "Given an UPDATE attempts to set provider_type='ldap', when the statement runs, then the CHECK constraint rejects it",
+      "Given the integration test runs, then it asserts every default value listed in PRD \u00a713 F-U5 is present on the seeded row"
+    ],
+    "test_strategy": [
+      "RED: write packages/db/__tests__/tenant-idp-config.integration.test.ts asserting the F-U5 defaults before the migration exists",
+      "Run 'pnpm --filter @monopilot/db test:integration -- tenant-idp-config'"
+    ],
+    "risk_red_lines": [
+      "MFA-by-default for both org.access.admin and org.schema.admin is a F-U5 success criterion \u2014 do not relax it"
+    ],
+    "skills": [
+      "test-driven-development",
+      "verification-before-completion",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

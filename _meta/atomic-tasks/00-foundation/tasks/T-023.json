@@ -1,0 +1,84 @@
+{
+  "title": "T-023 \u2014 GS1-first identifier helpers (GTIN/SSCC/GLN/GRAI/GDTI parsers + check-digit)",
+  "prompt": "# T-023 \u2014 GS1-first identifier helpers (GTIN/SSCC/GLN/GRAI/GDTI parsers + check-digit)\n\nPRD: `00-FOUNDATION-PRD.md` \u2014 sections: \u00a75, \u00a710\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`\n\n## Goal\nImplement GS1 General Specs 24.0 parsers + check-digit validators for GTIN-13/14, SSCC-18, GLN-13, GRAI, GDTI. Used as preferred IDs over local SKUs.\n\n## Implementation contract\nCreate packages/gs1/src/check-digit.ts exporting computeMod10(digits: string): string (GS1 standard mod-10). Create packages/gs1/src/parse.ts exporting parseGTIN(s), parseSSCC(s), parseGLN(s), parseGRAI(s), parseGDTI(s) \u2014 each returns {valid: boolean, digits: string, error?: string}. Vitest covers a known-good set: GTIN '5901234123457', SSCC '376104250021234566', plus malformed cases (length wrong, check-digit wrong).\n\n## Files (scope)\n- packages/gs1/src/check-digit.ts [create]\n- packages/gs1/src/parse.ts [create]\n- packages/gs1/src/__tests__/parse.test.ts [create]\n\n## Acceptance criteria\n1. Given known-good GTIN '5901234123457', when parseGTIN runs, then valid=true and digits='5901234123457'\n2. Given a tampered GTIN '5901234123458' (last digit wrong), when parseGTIN runs, then valid=false and error='check_digit_mismatch'\n3. Given an SSCC '376104250021234566', when parseSSCC runs, then valid=true; given a 17-digit SSCC, valid=false and error='length'\n\n## Test strategy\n- RED: write packages/gs1/src/__tests__/parse.test.ts asserting check-digit and length cases before parse.ts exists\n- Run 'pnpm --filter @monopilot/gs1 test'\n\n## Risk red lines\n- Do not invent custom mod-10 \u2014 match GS1 General Specs 24.0\n\n## Dependencies (must be complete first)\n- T-001\n\n## Closeout evidence\nProvide: changed_files, test_commands_and_results, acceptance_criteria_status (per AC), deviations_from_prd, git_status. Use the test-driven-development skill (RED test before implementation) and requesting-code-review at GREEN.",
+  "labels": [
+    "prd",
+    "infra",
+    "gs1",
+    "T2-api"
+  ],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-023",
+    "source_prd": "00-FOUNDATION-PRD.md",
+    "prd_refs": [
+      "\u00a75",
+      "\u00a710"
+    ],
+    "category": "infra",
+    "subcategory": "gs1",
+    "task_type": "T2-api",
+    "parent_feature": "00-FOUNDATION GS1",
+    "context_budget": "35k",
+    "estimated_effort": "1-2h",
+    "description": "Implement GS1 General Specs 24.0 parsers + check-digit validators for GTIN-13/14, SSCC-18, GLN-13, GRAI, GDTI. Used as preferred IDs over local SKUs.",
+    "details": "Create packages/gs1/src/check-digit.ts exporting computeMod10(digits: string): string (GS1 standard mod-10). Create packages/gs1/src/parse.ts exporting parseGTIN(s), parseSSCC(s), parseGLN(s), parseGRAI(s), parseGDTI(s) \u2014 each returns {valid: boolean, digits: string, error?: string}. Vitest covers a known-good set: GTIN '5901234123457', SSCC '376104250021234566', plus malformed cases (length wrong, check-digit wrong).",
+    "scope_files": [
+      "packages/gs1/src/check-digit.ts [create]",
+      "packages/gs1/src/parse.ts [create]",
+      "packages/gs1/src/__tests__/parse.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not modify files outside the scope_files list",
+      "Do not introduce business logic from later module PRDs (01-NPD, 02-SETTINGS, etc.)",
+      "No GS1-128 AI parser (deferred to scanner module)"
+    ],
+    "dependencies": [
+      "T-001"
+    ],
+    "parallel_safe_with": [
+      "T-022",
+      "T-024"
+    ],
+    "acceptance_criteria": [
+      "Given known-good GTIN '5901234123457', when parseGTIN runs, then valid=true and digits='5901234123457'",
+      "Given a tampered GTIN '5901234123458' (last digit wrong), when parseGTIN runs, then valid=false and error='check_digit_mismatch'",
+      "Given an SSCC '376104250021234566', when parseSSCC runs, then valid=true; given a 17-digit SSCC, valid=false and error='length'"
+    ],
+    "test_strategy": [
+      "RED: write packages/gs1/src/__tests__/parse.test.ts asserting check-digit and length cases before parse.ts exists",
+      "Run 'pnpm --filter @monopilot/gs1 test'"
+    ],
+    "risk_red_lines": [
+      "Do not invent custom mod-10 \u2014 match GS1 General Specs 24.0"
+    ],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

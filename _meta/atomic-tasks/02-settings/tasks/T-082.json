@@ -1,0 +1,79 @@
+{
+  "title": "T-082 — E2E Playwright: SSO SAML round-trip with mock Entra IdP (S-A1)",
+  "prompt": "# T-082 — E2E Playwright: SAML round-trip\n\n## Goal\nStand up a mock SAML IdP (e.g., samltest.id-style fixture or simple-saml-php container) and exercise upsertSsoConfig → testSamlConnection → /api/auth/saml/login → callback → JIT-provisioned login.\n\n## Files in scope\n- apps/web/e2e/sso-saml.spec.ts [create]\n- apps/web/e2e/fixtures/mock-idp/ [create directory]\n\n## Acceptance criteria (all must hold)\n- Given a valid IdP metadata URL is set, when testSamlConnection runs, then last_test_status='ok' is persisted.\n- Given user clicks 'Sign in with SSO' on /login, when redirect → IdP → callback completes, then a users row is JIT-provisioned (jit_provisioning=true) with default_role_code='viewer'.\n- Given enforce_for_non_admins=true and a non-admin tries password login, when /api/auth/login runs, then it rejects with PASSWORD_LOGIN_DISABLED.\n\n## Test strategy (RED first)\n1. Add a failing test that exercises the acceptance criteria above. The RED command is:\n   `pnpm --filter @monopilot/web playwright test e2e/sso-saml.spec.ts`\n2. Run RED — it must fail before any production code is written.\n3. Implement the smallest change needed for GREEN.\n4. Re-run RED command — must pass.\n5. Run `pnpm typecheck` and `pnpm lint` in the changed package; both must pass.\n\n## Risk red lines\n- Do not edit files outside the listed scope without documenting why in CLOSEOUT.\n- Do not weaken existing acceptance criteria from prior tasks.\n- Do not introduce REST endpoints; use Server Actions per stack contract.\n- Do not commit secrets or vault keys.\n\n## Closeout evidence required\n- changed_files (with line counts)\n- exact test commands and outputs (RED→GREEN, typecheck, lint)\n- acceptance_criteria_status (one row per AC: pass/fail)\n- deviations_from_prd (or \"none\")\n- git_status\n\nStack: TS + Next.js App Router + Drizzle + pnpm + vitest + Playwright + Server Actions. Primitives in `packages/ui`. PRD: `02-SETTINGS-PRD.md` v3.5.\n",
+  "labels": [
+    "prd",
+    "test",
+    "e2e-sso",
+    "T4-wiring-test"
+  ],
+  "priority": 120,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-082",
+    "source_prd": "02-SETTINGS-PRD.md",
+    "prd_refs": [
+      "§14.5",
+      "S-A1"
+    ],
+    "category": "test",
+    "subcategory": "e2e-sso",
+    "task_type": "T4-wiring-test",
+    "parent_feature": "02-settings-e",
+    "context_budget": "40k",
+    "estimated_effort": "1-3h",
+    "description": "E2E SAML SSO round-trip.",
+    "details": "Use a fixture IdP that signs assertions with a known cert; bake cert into the test config.",
+    "scope_files": [
+      "apps/web/e2e/sso-saml.spec.ts",
+      "apps/web/e2e/fixtures/mock-idp/"
+    ],
+    "out_of_scope": [
+      "broaden scope beyond listed files",
+      "implement future-phase features"
+    ],
+    "dependencies": [
+      "T-033",
+      "T-060"
+    ],
+    "parallel_safe_with": [],
+    "acceptance_criteria": [
+      "Connection test succeeds.",
+      "JIT provisioning works.",
+      "enforce_for_non_admins blocks password login."
+    ],
+    "test_strategy": [
+      "RED: write suite + fixture. GREEN: implement."
+    ],
+    "risk_red_lines": [
+      "Do not commit real IdP certs/secrets."
+    ],
+    "skills": [
+      "test-driven-development"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": false
+  }
+}

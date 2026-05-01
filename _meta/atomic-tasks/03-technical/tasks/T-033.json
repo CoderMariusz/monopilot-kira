@@ -1,0 +1,37 @@
+{
+  "title": "T-033 — UI: TEC-011 Item Create Wizard modal (4-step)",
+  "prompt": "Build the 4-step wizard modal (basic + classification + weight mode + extensions) per §6.5 TEC-011. Render as shadcn Dialog (matches prototype). Use RHF + Zod with schema fetched from server (T-027 cache). Steps: 1) Basics (item_code, name, type, uom_base); 2) Classification (product_group, gs1_gtin); 3) Weight mode (fixed/catch + variance fields gated by mode); 4) Extensions (L3 ext_jsonb fields). Submit calls POST /api/technical/items (T-009). Parity with prototype `product_create_modal` design/Monopilot Design System/technical/modals.jsx:22-136. RED tests/ui/tec-011-item-create.test.tsx. Run: `pnpm vitest run tests/ui/tec-011-item-create.test.tsx`.",
+  "labels": ["prd", "ui", "ui-items-create", "T3-ui"],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-033",
+    "source_prd": "03-TECHNICAL-PRD.md",
+    "prd_refs": ["§6.5", "§6.6"],
+    "category": "ui",
+    "subcategory": "items-create",
+    "task_type": "T3-ui",
+    "parent_feature": "03-TECHNICAL-a Item Master",
+    "context_budget": "30k",
+    "estimated_effort": "3-4h",
+    "description": "Item create wizard modal with 4 steps + RHF/Zod + dynamic extensions.",
+    "details": "Step navigation: Next/Back/Cancel buttons consistent with prototype. Weight-mode 'catch' reveals nominal_weight/gross_weight_max/variance_tolerance_pct. Use shadcn Dialog, Form, Input, Select, Switch.",
+    "scope_files": ["app/(app)/technical/items/_components/item-create-wizard.tsx", "tests/ui/tec-011-item-create.test.tsx", "design/Monopilot Design System/technical/modals.jsx [ref]"],
+    "out_of_scope": ["Edit mode (handled by T-034)"],
+    "dependencies": ["T-009", "T-027", "T-032"],
+    "parallel_safe_with": ["T-034", "T-035"],
+    "acceptance_criteria": [
+      "Given the modal opens, when compared to design/Monopilot Design System/technical/modals.jsx:22-136, then it has 4 steps in the same order, the same Next/Back/Cancel buttons, and uses the same shadcn primitives (Dialog, Form, Input, Select, Switch) — structural + visual + interaction parity verified by RTL test counting steps and asserting button labels.",
+      "Given weight_mode='catch' is selected, when on Step 3, then nominal_weight, gross_weight_max, variance_tolerance_pct fields appear and are required.",
+      "Given submission with duplicate item_code, when API returns 409, then form-level error 'V-TEC-01' shown.",
+      "Given user clicks Cancel, when on any step, then modal closes and no API call is made."
+    ],
+    "test_strategy": ["RED tests for parity (step count + button states) + Zod validation behaviour.", "Run: pnpm vitest run tests/ui/tec-011-item-create.test.tsx"],
+    "risk_red_lines": ["Do not skip validations between steps.", "Do not hardcode extension fields — fetch via schema cache."],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {"required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"], "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]},
+    "routing_hints": {"red": "hermes_gpt55", "implementation": "hermes_gpt55", "review": "opus_if_high_risk_or_ui_or_architecture", "close": "spark_low_risk_else_opus"}
+  }
+}

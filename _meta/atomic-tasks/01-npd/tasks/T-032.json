@@ -1,0 +1,58 @@
+{
+  "title": "T-032 — Reference.BriefFieldMapping seed (Brief → PLD per §9.5)",
+  "prompt": "# T-032 — Reference.BriefFieldMapping seed\n\nPRD: 01-NPD-PRD.md §9.5\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nCreate Reference.BriefFieldMapping table + seed all defined Brief→FA mappings (C1-C20 explicit, C21-C37 reserved) per §9.5 mapping table.\n\n## Implementation contract\nMigration 0031 emits Reference.BriefFieldMapping(brief_col, fa_target, transform, marker, tenant_id, schema_version, PK(tenant_id, brief_col)). Seed populates the 20 explicit mappings; C21-C37 marked status='reserved' or omitted. RLS policy.\n\n## Files\n- packages/db/migrations/0031_brief_field_mapping.sql [create]\n- packages/db/seeds/brief-field-mapping-apex.ts [create]\n- packages/db/__tests__/brief-field-mapping.test.ts [create]\n\n## Acceptance criteria\n1. Given seed runs for tenant T1, when SELECT WHERE brief_col='C1', then fa_target='fa.product_name' transform='1:1'\n2. Given seed re-runs, when called twice, then row count unchanged (idempotent)\n3. Given C21-C37 left out, when SELECT, then 20 rows exist with explicit C1-C20 entries\n\n## Test strategy\n- RED: 3 tests for spec mapping, idempotency, count\n- Run 'pnpm --filter db migrate && pnpm --filter db seed:brief-field-mapping-apex && pnpm --filter db test brief-field-mapping'\n\n## Risk red lines\n- Do not include C21-C37 placeholder labels (BL-NPD-01)\n- Do not skip RLS\n- Do not seed without tenant_id",
+  "labels": ["prd", "data", "seed", "T5-seed"],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-032",
+    "source_prd": "01-NPD-PRD.md",
+    "prd_refs": ["§9.5"],
+    "category": "data",
+    "subcategory": "seed-brief-mapping",
+    "task_type": "T5-seed",
+    "parent_feature": "01-NPD-b brief mapping",
+    "context_budget": "25k",
+    "estimated_effort": "1-2h",
+    "description": "Reference.BriefFieldMapping table + Apex seed of 20 explicit Brief→FA mappings.",
+    "details": "DDL with composite PK + RLS. Idempotent seed for C1-C20 mappings; C21-C37 deliberately omitted per BL-NPD-01.",
+    "scope_files": [
+      "packages/db/migrations/0031_brief_field_mapping.sql [create]",
+      "packages/db/seeds/brief-field-mapping-apex.ts [create]",
+      "packages/db/__tests__/brief-field-mapping.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not implement Convert pre-population logic (T-033)",
+      "Do not commit C21-C37 mappings"
+    ],
+    "dependencies": ["T-001"],
+    "parallel_safe_with": ["T-031", "T-035"],
+    "acceptance_criteria": [
+      "Given seed runs for tenant T1, when SELECT WHERE brief_col='C1', then fa_target='fa.product_name' transform='1:1'",
+      "Given seed re-runs, when called twice, then row count unchanged (idempotent)",
+      "Given C21-C37 left out, when SELECT, then exactly 20 rows exist with explicit C1-C20 entries"
+    ],
+    "test_strategy": [
+      "RED: 3 tests for spec mapping, idempotency, count before seed exists",
+      "Run 'pnpm --filter db migrate && pnpm --filter db seed:brief-field-mapping-apex && pnpm --filter db test brief-field-mapping'"
+    ],
+    "risk_red_lines": [
+      "Do not include C21-C37 placeholder mappings",
+      "Do not skip RLS",
+      "Do not seed without tenant_id"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

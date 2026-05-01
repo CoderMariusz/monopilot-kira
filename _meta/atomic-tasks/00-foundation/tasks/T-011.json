@@ -1,0 +1,90 @@
+{
+  "title": "T-011 \u2014 Supabase Auth (GoTrue) wiring with @supabase/auth-helpers-nextjs and 15-min access / 60-min idle",
+  "prompt": "# T-011 \u2014 Supabase Auth (GoTrue) wiring with @supabase/auth-helpers-nextjs and 15-min access / 60-min idle\n\nPRD: `00-FOUNDATION-PRD.md` \u2014 sections: \u00a75.x\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`\n\n## Goal\nConfigure Supabase Auth as the primary IdP per \u00a75.x: 15-min access token, rotating refresh, 60-min idle, 8-h absolute, magic-link 7-day TTL.\n\n## Implementation contract\nAdd @supabase/supabase-js and @supabase/auth-helpers-nextjs to apps/web. Create lib/auth/supabase-server.ts and lib/auth/supabase-browser.ts factories. Configure access TTL=15min, refresh rotation enabled, idle=60min (read from tenant_idp_config), session_max=8h. Implement Server Action signInWithMagicLink(email) that generates a signed 7-day TTL token. Add middleware.ts validating the session JWT and setting app.tenant_id via app.set_tenant(uuid) (T-007 wrapper). Vitest unit tests on the helpers with a mocked Supabase client. Playwright E2E covering the magic-link round-trip against a Supabase local instance.\n\n## Files (scope)\n- apps/web/lib/auth/supabase-server.ts [create]\n- apps/web/lib/auth/supabase-browser.ts [create]\n- apps/web/middleware.ts [create]\n- apps/web/app/(auth)/actions.ts [create]\n- apps/web/__tests__/auth/magic-link.e2e.test.ts [create]\n- apps/web/package.json [modify]\n\n## Acceptance criteria\n1. Given a Supabase local instance is running, when signInWithMagicLink('user@example.com') is called and the resulting token is consumed within 7 days, then a session is established and the access token TTL header is 15 minutes\n2. Given a signed-in user has been idle 61 minutes, when the next request hits middleware.ts, then it returns 401 and forces re-authentication\n3. Given a successful sign-in, when the request reaches a server action, then current_setting('app.tenant_id') resolves to the user's tenant UUID (set via app.set_tenant)\n\n## Test strategy\n- RED: write apps/web/__tests__/auth/magic-link.e2e.test.ts asserting the 15-min/60-min/8-h windows before middleware.ts exists\n- Run 'pnpm --filter web test:e2e -- magic-link'\n\n## Risk red lines\n- Do not store JWT secrets in the repo\n- Do not bypass app.set_tenant in middleware \u2014 RLS depends on it\n\n## Dependencies (must be complete first)\n- T-001\n- T-010\n\n## Closeout evidence\nProvide: changed_files, test_commands_and_results, acceptance_criteria_status (per AC), deviations_from_prd, git_status. Use the test-driven-development skill (RED test before implementation) and requesting-code-review at GREEN.",
+  "labels": [
+    "prd",
+    "auth",
+    "identity",
+    "T2-api"
+  ],
+  "priority": 80,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-011",
+    "source_prd": "00-FOUNDATION-PRD.md",
+    "prd_refs": [
+      "\u00a75.x"
+    ],
+    "category": "auth",
+    "subcategory": "identity",
+    "task_type": "T2-api",
+    "parent_feature": "00-FOUNDATION-impl-f auth",
+    "context_budget": "60k",
+    "estimated_effort": "2-3h",
+    "description": "Configure Supabase Auth as the primary IdP per \u00a75.x: 15-min access token, rotating refresh, 60-min idle, 8-h absolute, magic-link 7-day TTL.",
+    "details": "Add @supabase/supabase-js and @supabase/auth-helpers-nextjs to apps/web. Create lib/auth/supabase-server.ts and lib/auth/supabase-browser.ts factories. Configure access TTL=15min, refresh rotation enabled, idle=60min (read from tenant_idp_config), session_max=8h. Implement Server Action signInWithMagicLink(email) that generates a signed 7-day TTL token. Add middleware.ts validating the session JWT and setting app.tenant_id via app.set_tenant(uuid) (T-007 wrapper). Vitest unit tests on the helpers with a mocked Supabase client. Playwright E2E covering the magic-link round-trip against a Supabase local instance.",
+    "scope_files": [
+      "apps/web/lib/auth/supabase-server.ts [create]",
+      "apps/web/lib/auth/supabase-browser.ts [create]",
+      "apps/web/middleware.ts [create]",
+      "apps/web/app/(auth)/actions.ts [create]",
+      "apps/web/__tests__/auth/magic-link.e2e.test.ts [create]",
+      "apps/web/package.json [modify]"
+    ],
+    "out_of_scope": [
+      "Do not modify files outside the scope_files list",
+      "Do not introduce business logic from later module PRDs (01-NPD, 02-SETTINGS, etc.)",
+      "No SAML in this task (T-012). No SCIM (T-013). No TOTP MFA (T-015)."
+    ],
+    "dependencies": [
+      "T-001",
+      "T-010"
+    ],
+    "parallel_safe_with": [
+      "T-007",
+      "T-008",
+      "T-009"
+    ],
+    "acceptance_criteria": [
+      "Given a Supabase local instance is running, when signInWithMagicLink('user@example.com') is called and the resulting token is consumed within 7 days, then a session is established and the access token TTL header is 15 minutes",
+      "Given a signed-in user has been idle 61 minutes, when the next request hits middleware.ts, then it returns 401 and forces re-authentication",
+      "Given a successful sign-in, when the request reaches a server action, then current_setting('app.tenant_id') resolves to the user's tenant UUID (set via app.set_tenant)"
+    ],
+    "test_strategy": [
+      "RED: write apps/web/__tests__/auth/magic-link.e2e.test.ts asserting the 15-min/60-min/8-h windows before middleware.ts exists",
+      "Run 'pnpm --filter web test:e2e -- magic-link'"
+    ],
+    "risk_red_lines": [
+      "Do not store JWT secrets in the repo",
+      "Do not bypass app.set_tenant in middleware \u2014 RLS depends on it"
+    ],
+    "skills": [
+      "test-driven-development",
+      "verification-before-completion",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

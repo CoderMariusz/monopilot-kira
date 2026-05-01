@@ -1,0 +1,60 @@
+{
+  "title": "T-013 — GET /api/scheduler/runs/:id and /:id/status endpoints",
+  "prompt": "# T-013 — GET /api/scheduler/runs/:id and /:id/status endpoints\n\nPRD: 07-PLANNING-EXT-PRD.md §8.2 GET /api/scheduler/runs/:run_id, §8.2 GET /:run_id/status, §8.3 SLO\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nImplement two GET endpoints: full detail (run + assignments + override log) <1s P95 and lightweight status poll <50ms P95.\n\n## Implementation contract\n1. Route `apps/web/src/app/api/scheduler/runs/[runId]/route.ts`: GET returns scheduler_run row + scheduler_assignments[] joined with override audit; uses single Drizzle query with leftJoin.\n2. Route `apps/web/src/app/api/scheduler/runs/[runId]/status/route.ts`: GET returns {status, progress_pct, messages[]} only — no assignments hydration.\n3. RBAC: read for Planner Advanced + Scheduling Officer + Prod Manager; 403 otherwise.\n4. Tenant scoping: WHERE tenant_id = current_setting('app.tenant_id') (RLS enforces too).\n\n## Files\n- apps/web/src/app/api/scheduler/runs/[runId]/route.ts [create]\n- apps/web/src/app/api/scheduler/runs/[runId]/status/route.ts [create]\n- apps/web/src/lib/scheduler/queries.ts [create]\n- apps/web/src/app/api/scheduler/runs/[runId]/__tests__/route.test.ts [create]\n\n## Acceptance criteria\n1. Given a completed run, when GET /:id runs, then 200 returned with run row + assignments[] sorted by optimizer_rank ASC\n2. Given a queued run, when GET /:id/status runs, then 200 returned with {status:'queued', progress_pct:0} in <50ms (assert response time in test)\n3. Given a different tenant's run_id, when GET runs under another tenant, then 404 returned (RLS hides; do not leak existence)\n\n## Test strategy\n- RED: write apps/web/src/app/api/scheduler/runs/[runId]/__tests__/route.test.ts asserting 200 shape + status latency + 404 cross-tenant\n- Run 'pnpm --filter web test scheduler/runs/[runId]/route'\n\n## Risk red lines\n- Do not return 403 instead of 404 for cross-tenant access (information leak)\n- Do not hydrate assignments in status endpoint (perf SLO would break)\n- Do not skip RLS scoping",
+  "labels": ["prd", "api", "endpoint-get", "T2-api"],
+  "priority": 80,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-013",
+    "source_prd": "07-PLANNING-EXT-PRD.md",
+    "prd_refs": ["§8.2", "§8.3"],
+    "category": "api",
+    "subcategory": "endpoint-get",
+    "task_type": "T2-api",
+    "parent_feature": "07-EXT-a finite-capacity engine",
+    "context_budget": "50k",
+    "estimated_effort": "1-2h",
+    "description": "Implement GET /:id (full detail) and /:id/status (lightweight) endpoints respecting SLO + RLS + cross-tenant 404.",
+    "details": "Two routes share a query helper. Detail route does single leftJoin to fetch assignments + override audit; status route reads only the run row's status/progress_pct. Both enforce RBAC + RLS. Cross-tenant returns 404 not 403.",
+    "scope_files": [
+      "apps/web/src/app/api/scheduler/runs/[runId]/route.ts [create]",
+      "apps/web/src/app/api/scheduler/runs/[runId]/status/route.ts [create]",
+      "apps/web/src/lib/scheduler/queries.ts [create]",
+      "apps/web/src/app/api/scheduler/runs/[runId]/__tests__/route.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not implement WebSocket push (optional per FR-07-E1-005, separate task)",
+      "Do not include WO row hydration (UI fetches via 04-PLAN endpoints)",
+      "Do not implement re-run action here (T-046)"
+    ],
+    "dependencies": ["T-001", "T-002"],
+    "parallel_safe_with": ["T-012", "T-014"],
+    "acceptance_criteria": [
+      "Given a completed run, when GET /:id runs, then 200 returned with run row + assignments[] sorted by optimizer_rank ASC",
+      "Given a queued run, when GET /:id/status runs, then 200 returned with {status:'queued', progress_pct:0} in <50ms",
+      "Given a different tenant's run_id, when GET runs under another tenant, then 404 returned (no leak)"
+    ],
+    "test_strategy": [
+      "RED: write apps/web/src/app/api/scheduler/runs/[runId]/__tests__/route.test.ts with vitest + perf assertion + cross-tenant 404",
+      "Run 'pnpm --filter web test scheduler/runs/[runId]/route'"
+    ],
+    "risk_red_lines": [
+      "Do not return 403 for cross-tenant",
+      "Do not hydrate assignments in status endpoint",
+      "Do not skip RLS scoping"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

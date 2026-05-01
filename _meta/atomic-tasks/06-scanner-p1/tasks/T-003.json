@@ -1,0 +1,60 @@
+{
+  "title": "T-003 — GS1-128 parser utility lib/utils/gs1-parser.ts (06-a)",
+  "prompt": "# T-003 — GS1-128 parser utility\n\nPRD: 06-SCANNER-P1-PRD.md §8.1 FR-SC-BE-010, §10.3, §15.2 V-SCAN-INPUT-001..003\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nShip a deterministic GS1-128 parser used by every scanner workflow: GTIN-14 mod-10 check, AI extraction (01/10/17/21/310x/3103/3922), variable-length AI handling via Group Separator (ASCII 29), Y2K date handling per GS1 spec, and graceful fallback for unknown AIs.\n\n## Implementation contract\n1. New module `packages/scanner-utils/src/gs1-parser.ts` exporting:\n   - `parseGS1(input: string): ParsedGS1` (per §10.3 type)\n   - `validateGTIN14(gtin: string): boolean` (mod 10)\n   - `detectBarcodeType(input: string): 'gs1-128' | 'code-128' | 'manual' | 'unknown'`\n2. Y2K rule: YYMMDD → ISO 8601, YY<50 → 20YY else 19YY.\n3. Variable-length AIs terminated by GS (\\x1d) or end-of-string.\n4. Unknown AI captured into `unknownAIs[]` with raw payload, never throws.\n5. Vitest fixtures: ≥20 cases per AI 01/10/17/21/310x/3103/3922 covering: missing GS, invalid checksum, leading-zero weight, mixed case, UTF-8 batch.\n\n## Files\n- packages/scanner-utils/src/gs1-parser.ts [create]\n- packages/scanner-utils/src/index.ts [modify]\n- packages/scanner-utils/__tests__/gs1-parser.test.ts [create]\n- packages/scanner-utils/__tests__/fixtures/gs1-samples.json [create]\n\n## Acceptance criteria\n1. Given an input '0110012345678902' '10B20260410' GS '17260501' '3103000184', when parseGS1 runs, then it returns gtin='10012345678902', batch='B20260410', expiry=Date('2026-05-01T00:00:00Z'), netWeightKg=18.4 and valid=true\n2. Given a GTIN with bad mod-10 check digit, when validateGTIN14 runs, then it returns false and parseGS1 sets valid=false with errors[] containing 'invalid_gtin_checksum'\n3. Given an unknown AI like '99XYZ', when parseGS1 runs, then valid=true and unknownAIs contains '99' with raw payload preserved\n\n## Test strategy\n- RED: write packages/scanner-utils/__tests__/gs1-parser.test.ts with ≥20 fixtures per primary AI before implementation exists\n- Run 'pnpm --filter scanner-utils test gs1-parser'\n\n## Risk red lines\n- Do not silently mutate the original input (return immutable ParsedGS1)\n- Do not throw on unknown AI (graceful degradation per §10.3)\n- Do not introduce dependency on the @zxing camera library here",
+  "labels": ["prd", "data", "gs1-parser", "T1-schema"],
+  "priority": 80,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-003",
+    "source_prd": "06-SCANNER-P1-PRD.md",
+    "prd_refs": ["§8.1 FR-SC-BE-010", "§10.3", "§15.2"],
+    "category": "data",
+    "subcategory": "gs1-parser",
+    "task_type": "T1-schema",
+    "parent_feature": "06-a Shell & Core",
+    "context_budget": "30k",
+    "estimated_effort": "2-3h",
+    "description": "Shared GS1-128 parser + GTIN-14 mod-10 validator + barcode-type detector with vitest fixtures.",
+    "details": "Create packages/scanner-utils/src/gs1-parser.ts with parseGS1/validateGTIN14/detectBarcodeType per §10.3. Handle GS (\\x1d) variable-length AIs, Y2K convention, primary AIs 01/10/17/21/310x/3103/3922. Unknown AIs land in unknownAIs[] without throwing. Tests use a curated fixture file with ≥20 cases per primary AI plus edge cases listed in PRD §10.3.",
+    "scope_files": [
+      "packages/scanner-utils/src/gs1-parser.ts [create]",
+      "packages/scanner-utils/src/index.ts [modify]",
+      "packages/scanner-utils/__tests__/gs1-parser.test.ts [create]",
+      "packages/scanner-utils/__tests__/fixtures/gs1-samples.json [create]"
+    ],
+    "out_of_scope": [
+      "Do not implement camera scanning here (T-014)",
+      "Do not couple this to a server-only runtime (must be isomorphic)",
+      "Do not extend P2 AIs (13/15/SSCC) in this task"
+    ],
+    "dependencies": [],
+    "parallel_safe_with": ["T-001", "T-002", "T-004", "T-005"],
+    "acceptance_criteria": [
+      "Given an input concatenating AI 01 GTIN, AI 10 batch with GS terminator, AI 17 260501, AI 3103 000184, when parseGS1 runs, then it returns gtin='10012345678902', batch='B20260410', expiry=Date('2026-05-01Z'), netWeightKg=18.4 and valid=true",
+      "Given a GTIN with bad mod-10 check digit, when validateGTIN14 runs, then it returns false and parseGS1 sets valid=false with errors[] containing 'invalid_gtin_checksum'",
+      "Given an unknown AI like '99XYZ', when parseGS1 runs, then valid=true and unknownAIs contains '99' with raw payload preserved"
+    ],
+    "test_strategy": [
+      "RED: write parser tests with ≥20 fixtures per primary AI + edge cases before implementation",
+      "Run 'pnpm --filter scanner-utils test gs1-parser'"
+    ],
+    "risk_red_lines": [
+      "Do not throw on unknown AI",
+      "Do not import camera library in this module",
+      "Do not mutate the input string"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

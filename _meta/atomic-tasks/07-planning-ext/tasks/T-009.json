@@ -1,0 +1,60 @@
+{
+  "title": "T-009 — changeover_matrix_drafts staging table (PLE-012)",
+  "prompt": "# T-009 — changeover_matrix_drafts staging table (PLE-012)\n\nPRD: 07-PLANNING-EXT-PRD.md §17.1 PLE-012, §17.3 backlog item 3\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nIntroduce `changeover_matrix_drafts` staging table for the [Apply Import] preview step before [Save & Publish] commits to changeover_matrix (per PLE-012 3-stage state machine).\n\n## Implementation contract\n1. Migration `packages/db/migrations/0078_changeover_matrix_drafts.sql`: CREATE TABLE changeover_matrix_drafts mirroring changeover_matrix columns + draft_id UUID + uploaded_by + uploaded_at + status TEXT IN (preview|applied|discarded) + auto_expire_at + RLS.\n2. Drizzle schema entry.\n3. Index on (tenant_id, status) for cleanup job.\n\n## Files\n- packages/db/migrations/0078_changeover_matrix_drafts.sql [create]\n- packages/db/src/schema/changeover_matrix_drafts.ts [create]\n- packages/db/src/schema/index.ts [modify]\n- packages/db/__tests__/changeover-matrix-drafts.test.ts [create]\n\n## Acceptance criteria\n1. Given migration 0078 applied, when \\d changeover_matrix_drafts runs, then all PLE-012 columns + status CHECK + RLS + (tenant_id, status) index exist\n2. Given two tenants, when each SELECTs, then each only sees its own drafts\n3. Given an INSERT with status='committed' (not in enum), when executed, then CHECK rejects\n\n## Test strategy\n- RED: write packages/db/__tests__/changeover-matrix-drafts.test.ts asserting status CHECK + RLS + index existence\n- Run 'pnpm --filter db migrate && pnpm --filter db test changeover-matrix-drafts'\n\n## Risk red lines\n- Do not skip RLS\n- Do not allow status values outside (preview|applied|discarded)\n- Do not auto-publish drafts on insert (must require explicit Save & Publish)",
+  "labels": ["prd", "data", "schema", "T1-schema"],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-009",
+    "source_prd": "07-PLANNING-EXT-PRD.md",
+    "prd_refs": ["§17.1 PLE-012", "§17.3"],
+    "category": "data",
+    "subcategory": "schema-matrix",
+    "task_type": "T1-schema",
+    "parent_feature": "07-EXT-b matrix CSV import",
+    "context_budget": "40k",
+    "estimated_effort": "1h",
+    "description": "Create changeover_matrix_drafts staging table for the 3-stage CSV import flow per PLE-012.",
+    "details": "Migration 0078 emits staging table mirroring changeover_matrix shape + draft metadata. status enforces (preview|applied|discarded). Cleanup index supports daily TTL job. Drizzle schema mirrors columns. RED test verifies CHECK + RLS + index.",
+    "scope_files": [
+      "packages/db/migrations/0078_changeover_matrix_drafts.sql [create]",
+      "packages/db/src/schema/changeover_matrix_drafts.ts [create]",
+      "packages/db/src/schema/index.ts [modify]",
+      "packages/db/__tests__/changeover-matrix-drafts.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not implement CSV parsing or upload here (T-039)",
+      "Do not implement [Apply Import] action here (T-039)",
+      "Do not implement TTL cleanup cron here"
+    ],
+    "dependencies": ["T-003"],
+    "parallel_safe_with": ["T-007", "T-008"],
+    "acceptance_criteria": [
+      "Given migration 0078 applied, when \\d changeover_matrix_drafts runs, then all columns + status CHECK + RLS + (tenant_id, status) index exist",
+      "Given two tenants, when each SELECTs, then each only sees its own drafts",
+      "Given INSERT with status='committed', when executed, then CHECK rejects"
+    ],
+    "test_strategy": [
+      "RED: write packages/db/__tests__/changeover-matrix-drafts.test.ts asserting CHECK + RLS + index",
+      "Run 'pnpm --filter db migrate && pnpm --filter db test changeover-matrix-drafts'"
+    ],
+    "risk_red_lines": [
+      "Do not skip RLS",
+      "Do not allow status values outside (preview|applied|discarded)",
+      "Do not auto-publish drafts to changeover_matrix on insert"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

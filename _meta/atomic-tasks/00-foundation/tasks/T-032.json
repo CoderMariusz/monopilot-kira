@@ -1,0 +1,89 @@
+{
+  "title": "T-032 \u2014 Regulatory roadmap artifact under _foundation/regulatory/ with FSMA 204 / EUDR / Peppol / KSeF deadlines",
+  "prompt": "# T-032 \u2014 Regulatory roadmap artifact under _foundation/regulatory/ with FSMA 204 / EUDR / Peppol / KSeF deadlines\n\nPRD: `00-FOUNDATION-PRD.md` \u2014 sections: \u00a711, \u00a714\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`\n\n## Goal\nCreate _foundation/regulatory/ with one markdown per regulation (FSMA 204, EUDR, Peppol BE, EU ViDA, BRCGS Issue 10, EU FIC 1169/2011 + 2021/382, Polska KSeF) plus a quarterly review process doc.\n\n## Implementation contract\nCreate _foundation/regulatory/README.md (review process, quarterly cadence). One file per regulation listing: enforcement date, scope (which modules), key fields/events impacted, source URL, last reviewed date. Add scripts/check-regulatory-staleness.mjs that fails CI when any regulatory doc has last_reviewed_at older than 100 days.\n\n## Files (scope)\n- _foundation/regulatory/README.md [create]\n- _foundation/regulatory/fsma-204.md [create]\n- _foundation/regulatory/eudr.md [create]\n- _foundation/regulatory/peppol-be.md [create]\n- _foundation/regulatory/eu-vida.md [create]\n- _foundation/regulatory/brcgs-issue-10.md [create]\n- _foundation/regulatory/eu-fic-1169-2011.md [create]\n- _foundation/regulatory/polska-kseF.md [create]\n- scripts/check-regulatory-staleness.mjs [create]\n\n## Acceptance criteria\n1. Given seven regulation files exist under _foundation/regulatory/, when each file is parsed, then each contains exactly the keys: title, enforcement_date, scope_modules, last_reviewed_at, source_url\n2. Given a file has last_reviewed_at older than 100 days, when 'node scripts/check-regulatory-staleness.mjs' runs, then it exits non-zero with the offending filename\n\n## Test strategy\n- Run 'node scripts/check-regulatory-staleness.mjs' against fixtures and capture exit codes\n\n## Risk red lines\n- Do not invent enforcement dates \u2014 copy from PRD \u00a711 table only\n\n## Dependencies (must be complete first)\n- T-005\n\n## Closeout evidence\nProvide: changed_files, test_commands_and_results, acceptance_criteria_status (per AC), deviations_from_prd, git_status. Use the test-driven-development skill (RED test before implementation) and requesting-code-review at GREEN.",
+  "labels": [
+    "prd",
+    "docs",
+    "regulatory",
+    "docs"
+  ],
+  "priority": 120,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-032",
+    "source_prd": "00-FOUNDATION-PRD.md",
+    "prd_refs": [
+      "\u00a711",
+      "\u00a714"
+    ],
+    "category": "docs",
+    "subcategory": "regulatory",
+    "task_type": "docs",
+    "parent_feature": "governance",
+    "context_budget": "30k",
+    "estimated_effort": "1-2h",
+    "description": "Create _foundation/regulatory/ with one markdown per regulation (FSMA 204, EUDR, Peppol BE, EU ViDA, BRCGS Issue 10, EU FIC 1169/2011 + 2021/382, Polska KSeF) plus a quarterly review process doc.",
+    "details": "Create _foundation/regulatory/README.md (review process, quarterly cadence). One file per regulation listing: enforcement date, scope (which modules), key fields/events impacted, source URL, last reviewed date. Add scripts/check-regulatory-staleness.mjs that fails CI when any regulatory doc has last_reviewed_at older than 100 days.",
+    "scope_files": [
+      "_foundation/regulatory/README.md [create]",
+      "_foundation/regulatory/fsma-204.md [create]",
+      "_foundation/regulatory/eudr.md [create]",
+      "_foundation/regulatory/peppol-be.md [create]",
+      "_foundation/regulatory/eu-vida.md [create]",
+      "_foundation/regulatory/brcgs-issue-10.md [create]",
+      "_foundation/regulatory/eu-fic-1169-2011.md [create]",
+      "_foundation/regulatory/polska-kseF.md [create]",
+      "scripts/check-regulatory-staleness.mjs [create]"
+    ],
+    "out_of_scope": [
+      "Do not modify files outside the scope_files list",
+      "Do not introduce business logic from later module PRDs (01-NPD, 02-SETTINGS, etc.)",
+      "No implementation \u2014 this is documentation only"
+    ],
+    "dependencies": [
+      "T-005"
+    ],
+    "parallel_safe_with": [
+      "T-022",
+      "T-023",
+      "T-024"
+    ],
+    "acceptance_criteria": [
+      "Given seven regulation files exist under _foundation/regulatory/, when each file is parsed, then each contains exactly the keys: title, enforcement_date, scope_modules, last_reviewed_at, source_url",
+      "Given a file has last_reviewed_at older than 100 days, when 'node scripts/check-regulatory-staleness.mjs' runs, then it exits non-zero with the offending filename"
+    ],
+    "test_strategy": [
+      "Run 'node scripts/check-regulatory-staleness.mjs' against fixtures and capture exit codes"
+    ],
+    "risk_red_lines": [
+      "Do not invent enforcement dates \u2014 copy from PRD \u00a711 table only"
+    ],
+    "skills": [
+      "writing-plans",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

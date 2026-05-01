@@ -1,658 +1,1007 @@
-[
-  {
-    "label": "site_create_modal",
-    "file": "design/Monopilot Design System/multi-site/modals.jsx",
-    "lines": "21-175",
-    "component_type": "wizard",
-    "ui_pattern": "multi-step-wizard",
-    "data_domain": "Site",
-    "interaction": "create",
-    "complexity": "page-level",
-    "depends_on_prototypes": ["Stepper", "Field", "Modal"],
-    "translation_notes": [
-      "Modal wrapper → @radix-ui/react-dialog Dialog with size='wide' variant via className",
-      "Local useState form object → useForm (react-hook-form) + zodResolver with Site zod schema",
-      "Stepper primitive → shadcn Steps or custom stepper using cn() utility with completed Set",
-      "Checkbox-based module toggles → Controller-wrapped Checkbox components from shadcn",
-      "User table in step 4 → shadcn Table with RadioGroup for primary selection and Checkbox for assign",
-      "Add Server Action `createSite` / `updateSite` with RBAC guard (Admin only) and outbox event",
-      "Hardcoded country/timezone lists → pull from shared reference data table or next-intl keys",
-      "canNext validation → zod schema trigger per-step using form.trigger(['code','name'])"
-    ],
-    "shadcn_equivalent": ["Dialog", "Form", "Input", "Select", "Checkbox", "RadioGroup", "Textarea", "Button", "Table"],
-    "known_bugs": [],
-    "estimated_translation_time_min": 180
-  },
-  {
-    "label": "ist_cancel_modal",
-    "file": "design/Monopilot Design System/multi-site/modals.jsx",
-    "lines": "177-208",
-    "component_type": "modal",
-    "ui_pattern": "crud-form-with-validation",
-    "data_domain": "IST",
-    "interaction": "delete",
-    "complexity": "composite",
-    "depends_on_prototypes": ["Field", "Modal"],
-    "translation_notes": [
-      "Modal wrapper → @radix-ui/react-dialog Dialog, size='default'",
-      "Danger confirm button disabled until reason selected → shadcn Button with disabled prop bound to zod validation",
-      "Alert amber box → shadcn Alert with AlertTriangle icon from lucide-react",
-      "Select reason → shadcn Select component with Controller from react-hook-form",
-      "Server Action `cancelIST(id, reason, notes)` with state-machine guard (must not be closed/cancelled)",
-      "Emits outbox event to release hard-locked LPs back to available status",
-      "Hardcoded reason list → database-driven enum or next-intl i18n keys"
-    ],
-    "shadcn_equivalent": ["Dialog", "Alert", "Select", "Textarea", "Button"],
-    "known_bugs": [],
-    "estimated_translation_time_min": 45
-  },
-  {
-    "label": "ist_amend_modal",
-    "file": "design/Monopilot Design System/multi-site/modals.jsx",
-    "lines": "210-239",
-    "component_type": "modal",
-    "ui_pattern": "crud-form-with-validation",
-    "data_domain": "IST",
-    "interaction": "edit",
-    "complexity": "composite",
-    "depends_on_prototypes": ["Field", "Modal"],
-    "translation_notes": [
-      "Modal wrapper → @radix-ui/react-dialog Dialog",
-      "Date inputs → shadcn Calendar / DatePicker (Popover + Calendar) with Controller",
-      "Number input for freight cost → shadcn Input type='number' with min/step props",
-      "Info alert about approval reset on date change → shadcn Alert with InfoIcon",
-      "Server Action `amendIST(id, patch)` must re-trigger from-site approval when ship_date changes",
-      "Cost allocation select → shadcn Select with Controller",
-      "Add field-level RLS guard: only draft/planned ISTs are amendable"
-    ],
-    "shadcn_equivalent": ["Dialog", "Input", "Select", "Textarea", "Button", "Alert"],
-    "known_bugs": [],
-    "estimated_translation_time_min": 45
-  },
-  {
-    "label": "replication_retry_modal",
-    "file": "design/Monopilot Design System/multi-site/modals.jsx",
-    "lines": "241-270",
-    "component_type": "modal",
-    "ui_pattern": "bulk-action",
-    "data_domain": "Replication",
-    "interaction": "bulk",
-    "complexity": "composite",
-    "depends_on_prototypes": ["Field", "Modal"],
-    "translation_notes": [
-      "Modal wrapper → @radix-ui/react-dialog Dialog",
-      "Dynamic title/description based on scope prop → computed from Server Component data or passed as prop",
-      "Priority select → shadcn Select with Controller, maps to queue priority field",
-      "Entity badges → shadcn Badge component with variant='secondary'",
-      "Server Action `retryReplicationJobs(scope, priority)` enqueues jobs in background worker",
-      "Target sites list → fetched from active sites query, not hardcoded filter",
-      "Scope variants (failed/all/single) → discriminated union type in zod schema"
-    ],
-    "shadcn_equivalent": ["Dialog", "Select", "Badge", "Alert", "Button"],
-    "known_bugs": [],
-    "estimated_translation_time_min": 40
-  },
-  {
-    "label": "conflict_resolve_modal",
-    "file": "design/Monopilot Design System/multi-site/modals.jsx",
-    "lines": "272-354",
-    "component_type": "modal",
-    "ui_pattern": "detail-view",
-    "data_domain": "Replication",
-    "interaction": "approve",
-    "complexity": "page-level",
-    "depends_on_prototypes": ["Field", "Modal"],
-    "translation_notes": [
-      "Wide modal with diff table → @radix-ui/react-dialog Dialog with max-w-4xl class override",
-      "Radio per field row (source vs site) → RadioGroup with RadioGroupItem per diff field",
-      "Bulk 'Choose All Source/Site' buttons → single click handler updating all radio values in useForm",
-      "Reason select (required before submit) → shadcn Select with Controller + zod .min(1) guard",
-      "E-signature password gate → conditional shadcn Input type='password', wired to Server Action re-auth check",
-      "Apply Resolution → Server Action `resolveConflict(entityId, siteId, fieldChoices, reason, esig)` writes audit log",
-      "Hardcoded conflict data → Drizzle query for conflict record, passed as Server Component prop",
-      "Known bug BL-MS-02: e-signature gate rendered but not wired — must implement before production"
-    ],
-    "shadcn_equivalent": ["Dialog", "RadioGroup", "Select", "Textarea", "Input", "Button", "Badge", "Table"],
-    "known_bugs": ["BL-MS-02: E-signature gate on conflict resolve rendered but not functionally wired (spec §9.2)"],
-    "estimated_translation_time_min": 120
-  },
-  {
-    "label": "lane_create_modal",
-    "file": "design/Monopilot Design System/multi-site/modals.jsx",
-    "lines": "356-388",
-    "component_type": "modal",
-    "ui_pattern": "crud-form-with-validation",
-    "data_domain": "IST",
-    "interaction": "create",
-    "complexity": "composite",
-    "depends_on_prototypes": ["Field", "Modal"],
-    "translation_notes": [
-      "Modal wrapper → @radix-ui/react-dialog Dialog, size='default'",
-      "Dual-use create/edit pattern via isEdit flag → single form with useForm defaultValues loaded from lane prop",
-      "From/To site selects → shadcn Select sourced from active sites query (Server Component)",
-      "Checkbox flags (HAZMAT, cold chain, customs, active) → shadcn Checkbox with Controller",
-      "Comma-separated carriers input → shadcn Input, parsed server-side to string[]",
-      "Server Action `createLane` / `updateLane` with Admin RBAC guard",
-      "Hardcoded site list → Drizzle query for active sites",
-      "Add outbox event on lane create/update for downstream config propagation"
-    ],
-    "shadcn_equivalent": ["Dialog", "Form", "Input", "Select", "Checkbox", "Textarea", "Button"],
-    "known_bugs": [],
-    "estimated_translation_time_min": 60
-  },
-  {
-    "label": "rate_card_upload_modal",
-    "file": "design/Monopilot Design System/multi-site/modals.jsx",
-    "lines": "390-470",
-    "component_type": "wizard",
-    "ui_pattern": "import-export",
-    "data_domain": "IST",
-    "interaction": "import",
-    "complexity": "page-level",
-    "depends_on_prototypes": ["Stepper", "Modal", "Summary"],
-    "translation_notes": [
-      "4-step import wizard → Stepper + conditional step render, same pattern as SiteCreateModal",
-      "Drag-and-drop file zone → shadcn or @radix-ui DropZone, wired to useDropzone (react-dropzone)",
-      "Column mapping step → shadcn Table with Select in each row for field mapping",
-      "Preview step (first 5 rows) → shadcn Table showing parsed CSV rows from Server Action parse call",
-      "Confirm Summary → shadcn Card with labeled key/value pairs (Summary primitive)",
-      "File upload → multipart Server Action, parse CSV server-side with papaparse, return preview rows",
-      "Validate file size (max 5MB) and type (csv/xlsx) in Server Action before processing",
-      "Import result → background job with progress websocket or polling; show toast on complete"
-    ],
-    "shadcn_equivalent": ["Dialog", "Table", "Select", "Button", "Card"],
-    "known_bugs": [],
-    "estimated_translation_time_min": 120
-  },
-  {
-    "label": "site_config_override_modal",
-    "file": "design/Monopilot Design System/multi-site/modals.jsx",
-    "lines": "472-512",
-    "component_type": "modal",
-    "ui_pattern": "crud-form-with-validation",
-    "data_domain": "Site",
-    "interaction": "edit",
-    "complexity": "composite",
-    "depends_on_prototypes": ["Field", "Modal"],
-    "translation_notes": [
-      "Dynamic field rendering based on selected key → conditional shadcn Select or Input per key type",
-      "Setting key select → shadcn Select drives conditional rendering of Override Value field",
-      "L1 base value display → read-only Card section, sourced from org config query",
-      "Effective From date → shadcn DatePicker (Popover + Calendar)",
-      "Server Action `upsertSiteConfigOverride(siteId, key, value, effectiveFrom, notes)` with Admin/SiteManager guard",
-      "Setting key list → database-driven enum or config schema, not hardcoded",
-      "Add audit log entry on every override change",
-      "Known pattern: key→value type mapping table needed in DB schema (string, select, number per key)"
-    ],
-    "shadcn_equivalent": ["Dialog", "Select", "Input", "Textarea", "Button", "Card"],
-    "known_bugs": [],
-    "estimated_translation_time_min": 60
-  },
-  {
-    "label": "permission_bulk_assign_modal",
-    "file": "design/Monopilot Design System/multi-site/modals.jsx",
-    "lines": "514-575",
-    "component_type": "modal",
-    "ui_pattern": "bulk-action",
-    "data_domain": "Role",
-    "interaction": "bulk",
-    "complexity": "composite",
-    "depends_on_prototypes": ["Field", "Modal"],
-    "translation_notes": [
-      "Tabbed single/bulk mode → shadcn Tabs + TabsList + TabsContent",
-      "Single assignment tab: user + site + role selects → shadcn Select with Controller for each",
-      "Primary site checkbox → shadcn Checkbox with Controller",
-      "Bulk CSV tab: drop zone → react-dropzone wired to multipart Server Action",
-      "CSV bulk path: upload → column mapping → preview → confirm (same wizard pattern as rate card upload)",
-      "Server Action `assignUserToSite(userId, siteId, role, isPrimary)` with Admin RBAC guard",
-      "Bulk Server Action `bulkAssignUsersFromCSV(file)` validates emails, site codes, roles before applying",
-      "Hardcoded role list → roles enum from DB or next-intl keys"
-    ],
-    "shadcn_equivalent": ["Dialog", "Tabs", "Select", "Checkbox", "Input", "Button"],
-    "known_bugs": [],
-    "estimated_translation_time_min": 90
-  },
-  {
-    "label": "site_decommission_modal",
-    "file": "design/Monopilot Design System/multi-site/modals.jsx",
-    "lines": "577-633",
-    "component_type": "modal",
-    "ui_pattern": "crud-form-with-validation",
-    "data_domain": "Site",
-    "interaction": "delete",
-    "complexity": "composite",
-    "depends_on_prototypes": ["Field", "Modal"],
-    "translation_notes": [
-      "Destructive type-to-confirm pattern → shadcn Input with value compared to site code, disables confirm Button",
-      "Impact summary table (users, WOs, ISTs, holds) → shadcn Table, rows colored red/green via cn() utility",
-      "Pre-conditions checklist with actionable links → shadcn Alert list, each item conditionally red/green",
-      "Server Action `decommissionSite(siteId, confirmCode)` requires Admin role and all pre-conditions clear",
-      "Pre-condition checks → Drizzle queries for open WOs, in-transit ISTs, quality holds, unassigned users",
-      "dismissible=false → Dialog not closeable via Escape/overlay-click (use onInteractOutside prevention)",
-      "On success: archive all site data, revoke user access, emit audit event with 7-year retention tag",
-      "Hardcoded color logic → Tailwind conditional classes via cn() — no inline style"
-    ],
-    "shadcn_equivalent": ["Dialog", "Table", "Alert", "Input", "Button"],
-    "known_bugs": [],
-    "estimated_translation_time_min": 90
-  },
-  {
-    "label": "activation_confirm_modal",
-    "file": "design/Monopilot Design System/multi-site/modals.jsx",
-    "lines": "635-662",
-    "component_type": "modal",
-    "ui_pattern": "detail-view",
-    "data_domain": "Site",
-    "interaction": "approve",
-    "complexity": "composite",
-    "depends_on_prototypes": ["Modal", "Summary"],
-    "translation_notes": [
-      "Modal wrapper → @radix-ui/react-dialog Dialog with dismissible=false (prevent outside close)",
-      "Summary rows (tables affected, users, sites, duration) → shadcn Card with labeled dl/dt/dd pairs",
-      "Progress indicator (simulated) → shadcn Progress component or shadcn Skeleton rows while running",
-      "Server Action `activateMultiSite()` applies RLS policies to 20 tables, takes 30-60s → background job",
-      "Use optimistic UI + polling or server-sent events to show progress of RLS application",
-      "Confirm button → triggers activation job and enters loading state with spinner",
-      "Emit activation_completed audit event on success, activation_failed on error with rollback option",
-      "dismissible=false → onInteractOutside e.preventDefault() on DialogContent"
-    ],
-    "shadcn_equivalent": ["Dialog", "Button", "Alert", "Card", "Progress"],
-    "known_bugs": [],
-    "estimated_translation_time_min": 75
-  },
-  {
-    "label": "rollback_confirm_modal",
-    "file": "design/Monopilot Design System/multi-site/modals.jsx",
-    "lines": "664-686",
-    "component_type": "modal",
-    "ui_pattern": "crud-form-with-validation",
-    "data_domain": "Site",
-    "interaction": "delete",
-    "complexity": "primitive",
-    "depends_on_prototypes": ["Field", "Modal"],
-    "translation_notes": [
-      "Type-to-confirm 'ROLLBACK' pattern → shadcn Input, compare value === 'ROLLBACK' to enable Button",
-      "Danger alert → shadcn Alert with variant='destructive' and AlertTriangle icon",
-      "dismissible=false → onInteractOutside e.preventDefault() on DialogContent",
-      "Server Action `rollbackToSingleSite()` reverts RLS policies, only allowed from dual_run state",
-      "State machine guard: check activationState === 'dual_run' in Server Action before proceeding",
-      "Hardcoded state machine documentation → derive from DB activationState field",
-      "Emit rollback_completed audit event, notify all site managers via notification outbox"
-    ],
-    "shadcn_equivalent": ["Dialog", "Alert", "Input", "Button"],
-    "known_bugs": [],
-    "estimated_translation_time_min": 35
-  },
-  {
-    "label": "promote_env_modal",
-    "file": "design/Monopilot Design System/multi-site/modals.jsx",
-    "lines": "688-730",
-    "component_type": "modal",
-    "ui_pattern": "crud-form-with-validation",
-    "data_domain": "Site",
-    "interaction": "approve",
-    "complexity": "composite",
-    "depends_on_prototypes": ["Field", "Modal", "ReasonInput"],
-    "translation_notes": [
-      "L1→L2→L3 env ladder visualization → custom CSS flex layout or shadcn Card sequence with connecting arrows",
-      "Target scope select (site or line depending on level) → shadcn Select, options driven by level prop",
-      "Multi-select keys to promote → shadcn Command + Badge pattern or native select[multiple] with shadcn styling",
-      "ReasonInput with minLength → shadcn Textarea + zod .min(10) validation via zodResolver",
-      "Server Action `promoteConfigKeys(level, targetScope, keys, reason)` with Admin guard",
-      "Level prop determines scope options: L2 → sites, L3 → lines (future)",
-      "Hardcoded key options → query from org config schema table for available promotable keys",
-      "Emit config_promoted audit event with old/new value diff per key"
-    ],
-    "shadcn_equivalent": ["Dialog", "Select", "Textarea", "Button", "Alert", "Badge", "Card"],
-    "known_bugs": [],
-    "estimated_translation_time_min": 75
-  },
-  {
-    "label": "ms_dashboard",
-    "file": "design/Monopilot Design System/multi-site/dashboard.jsx",
-    "lines": "6-227",
-    "component_type": "page-layout",
-    "ui_pattern": "dashboard-tile",
-    "data_domain": "Site",
-    "interaction": "read-only",
-    "complexity": "page-level",
-    "depends_on_prototypes": ["SiteCrumb", "ActState", "Stepper", "StatusDot", "SiteTypeBadge", "SiteRef", "ISTStatus"],
-    "translation_notes": [
-      "KPI strip (5 cards) → shadcn Card array with role-gated value display using session RBAC check",
-      "Network tree view (L0→L3) → custom TreeView component using shadcn Collapsible, or react-arborist",
-      "Map View stub → placeholder Card with 'P2 feature' note; real impl uses react-leaflet or mapbox-gl (BL-MS-01)",
-      "Alerts strip with dismiss → shadcn Alert array, dismissed state persisted in user preferences DB column",
-      "Active Transfers feed → shadcn ScrollArea + timeline items, data from Drizzle IST query filtered to active statuses",
-      "Replication Health mini-panel → three numeric KPI divs, data from replication_jobs aggregate query",
-      "Site Status widget → list with StatusDot per site, last_seen from site_heartbeat table",
-      "Auto-refresh 60s → SWR or React Query with refreshInterval, or Server-Sent Events for live updates",
-      "Known bug BL-MS-01: Map View is a P2 stub — library decision pending (spec §9.1)",
-      "Known bug BL-MS-06: site heartbeat is static mock, real pinger out of scope"
-    ],
-    "shadcn_equivalent": ["Card", "Badge", "Alert", "Button", "ScrollArea"],
-    "known_bugs": ["BL-MS-01: Map view library choice deferred; placeholder stub only", "BL-MS-06: Site heartbeat 'degraded' state is static mock"],
-    "estimated_translation_time_min": 180
-  },
-  {
-    "label": "ms_sites_list",
-    "file": "design/Monopilot Design System/multi-site/sites-screens.jsx",
-    "lines": "4-100",
-    "component_type": "table",
-    "ui_pattern": "search-filter-list",
-    "data_domain": "Site",
-    "interaction": "read-only",
-    "complexity": "page-level",
-    "depends_on_prototypes": ["SiteCrumb", "AllSitesBanner", "SiteTypeBadge", "StatusDot"],
-    "translation_notes": [
-      "Filter bar (search + type + status) → shadcn Input + two Select components, state in URL params via useSearchParams",
-      "Sites table → shadcn Table with TanStack Table for server-side sort/filter, row click navigates to detail",
-      "Module count (e.g. 12/15) → computed from site_modules join table in Drizzle query",
-      "Last Sync column → formatted from site_heartbeat.last_seen with date-fns",
-      "Export button → Server Action streaming CSV response or Blob download",
-      "Add Site button → Admin-only RBAC, opens SiteCreateModal",
-      "Decommission action → Admin-only, not shown on isDefault sites — replicate this guard in Server Component",
-      "Empty state → shadcn empty state card with clear-filters CTA"
-    ],
-    "shadcn_equivalent": ["Table", "Input", "Select", "Button", "Badge"],
-    "known_bugs": [],
-    "estimated_translation_time_min": 90
-  },
-  {
-    "label": "ms_site_detail",
-    "file": "design/Monopilot Design System/multi-site/sites-screens.jsx",
-    "lines": "102-410",
-    "component_type": "tabs",
-    "ui_pattern": "detail-view",
-    "data_domain": "Site",
-    "interaction": "read-only",
-    "complexity": "page-level",
-    "depends_on_prototypes": ["SiteCrumb", "SiteTypeBadge", "StatusDot", "SiteRef", "ISTStatus"],
-    "translation_notes": [
-      "8-tab detail view → shadcn Tabs + TabsList + TabsContent, tab state in URL search params for deep linking",
-      "Overview identity/status cards → shadcn Card grid with dl/dt/dd definition list pattern",
-      "Config (L2 overrides) tab → shadcn Table with conditional Edit/Clear actions gated by isAdmin || isSiteManager",
-      "Inventory snapshot → KPI cards + shadcn Table, data from inventory aggregate query for this site",
-      "Production snapshot → KPI cards + WO table, data from work_orders query filtered to site",
-      "Users tab → shadcn Table, joins perm_matrix + users, with Edit/Remove actions for Admin",
-      "Transfers tab split inbound/outbound → two shadcn Card + Table, IST query filtered by site",
-      "Calendar tab → custom calendar grid (month view), holidays from site_holidays table",
-      "Docs tab → shadcn Table with upload/download/delete, backed by object storage (S3/Vercel Blob)",
-      "Known bug BL-MS-04: IST tabs need mobile accordion (<768px) instead of horizontal scroll"
-    ],
-    "shadcn_equivalent": ["Tabs", "Card", "Table", "Badge", "Button", "Dialog"],
-    "known_bugs": ["BL-MS-04: Mobile accordion for IST tabs (<768px) not implemented; currently horizontal scroll"],
-    "estimated_translation_time_min": 240
-  },
-  {
-    "label": "ms_ist_list",
-    "file": "design/Monopilot Design System/multi-site/ist-screens.jsx",
-    "lines": "6-120",
-    "component_type": "table",
-    "ui_pattern": "search-filter-list",
-    "data_domain": "IST",
-    "interaction": "read-only",
-    "complexity": "page-level",
-    "depends_on_prototypes": ["SiteCrumb", "AllSitesBanner", "SiteRef", "ISTStatus"],
-    "translation_notes": [
-      "Filter bar (search + route + status) → shadcn Input + two Select, state managed in URL params",
-      "Route filter only shown for ALL sites scope → conditional render based on session site scope",
-      "IST table with overdue ETA coloring → shadcn Table, ETA color applied via cn() not inline style",
-      "Linked TO/WO references → clickable monospace spans navigating to planning module",
-      "Row-level action buttons (view, amend, cancel) → shadcn DropdownMenu or inline Button group, gated by IST status",
-      "Export CSV → Server Action generating CSV from Drizzle query",
-      "isOperator role hides Freight column → RBAC check in Server Component, column omitted from render",
-      "Empty state with create CTA → shadcn Card empty state pattern"
-    ],
-    "shadcn_equivalent": ["Table", "Input", "Select", "Badge", "Button", "DropdownMenu"],
-    "known_bugs": [],
-    "estimated_translation_time_min": 90
-  },
-  {
-    "label": "ms_ist_detail",
-    "file": "design/Monopilot Design System/multi-site/ist-screens.jsx",
-    "lines": "122-341",
-    "component_type": "tabs",
-    "ui_pattern": "detail-view",
-    "data_domain": "IST",
-    "interaction": "approve",
-    "complexity": "page-level",
-    "depends_on_prototypes": ["SiteCrumb", "SiteRef", "ISTStatus"],
-    "translation_notes": [
-      "State machine progress bar (6 steps) → custom Stepper built on shadcn primitives, steps derived from IST status enum",
-      "Dual approval widgets (from-site + to-site) → two shadcn Card components with conditional approve Button",
-      "7-tab detail view → shadcn Tabs + TabsList + TabsContent, tab in URL params",
-      "Items tab with LP badges → shadcn Table, LP chips use shadcn Badge variant='outline'",
-      "Outbound + Inbound tabs → shadcn Card with definition list, link to Shipping/GRN modules",
-      "Docs tab → shadcn Table with upload/download, Vercel Blob or S3 backend",
-      "Audit timeline → shadcn ScrollArea + timeline-item pattern, events from ist_events table",
-      "Finance tab → read-only Card, inter-company journal posting via Server Action with Admin guard",
-      "State-gated action buttons (Submit/Receive/Close) → server-driven state, buttons rendered by Server Component"
-    ],
-    "shadcn_equivalent": ["Tabs", "Card", "Table", "Badge", "Button", "ScrollArea"],
-    "known_bugs": [],
-    "estimated_translation_time_min": 210
-  },
-  {
-    "label": "ms_ist_create",
-    "file": "design/Monopilot Design System/multi-site/ist-screens.jsx",
-    "lines": "343-490",
-    "component_type": "form",
-    "ui_pattern": "crud-form-with-validation",
-    "data_domain": "IST",
-    "interaction": "create",
-    "complexity": "page-level",
-    "depends_on_prototypes": ["SiteCrumb", "Field", "SiteRef"],
-    "translation_notes": [
-      "4-section single-page form with progressive disclosure → single form page, sections revealed as fields filled",
-      "Same-site validation error → zod .refine() checking fromSite !== toSite, displayed via FormMessage",
-      "ETA-after-ship-date validation → zod .refine() cross-field check, displayed via FormMessage",
-      "Lane auto-suggestion based on site pair → useEffect or server action lookup when fromSite/toSite change",
-      "Dynamic items table (add/remove rows) → useFieldArray from react-hook-form",
-      "LP picker per item row → shadcn Combobox or Command palette filtered to site's available LPs",
-      "Availability badge per item → resolved via Server Action checking LP stock at fromSite",
-      "On Create Transfer: Server Action auto-generates outbound shipment + inbound GRN placeholder, hard-locks LPs",
-      "Save as Draft → same Server Action with isDraft=true flag, no LP locking",
-      "Freight + allocation cross-validation warning → shadcn Alert, shown when freight > 0 and allocation === 'none'"
-    ],
-    "shadcn_equivalent": ["Form", "Select", "Input", "Textarea", "Table", "Badge", "Alert", "Button"],
-    "known_bugs": [],
-    "estimated_translation_time_min": 150
-  },
-  {
-    "label": "ms_lanes_list",
-    "file": "design/Monopilot Design System/multi-site/ist-screens.jsx",
-    "lines": "492-548",
-    "component_type": "table",
-    "ui_pattern": "search-filter-list",
-    "data_domain": "IST",
-    "interaction": "read-only",
-    "complexity": "composite",
-    "depends_on_prototypes": ["SiteCrumb", "SiteRef", "LaneHealth"],
-    "translation_notes": [
-      "Filter bar (search + from + to + status) → shadcn Input + three Select components, URL params",
-      "Lanes table → shadcn Table with TanStack Table for sorting by lead days / cost",
-      "LaneHealth status badge → custom Badge with color variant (active=green, stale=amber, failed=red)",
-      "Edit lane action → Admin-only, opens LaneCreateModal (edit mode)",
-      "Upload Rate Card action → opens RateCardUploadModal",
-      "Export → Server Action CSV download",
-      "Health field computed from last IST date + success rate → Drizzle aggregate query",
-      "Admin RBAC gates on edit button — use session check in Server Component, omit button from render"
-    ],
-    "shadcn_equivalent": ["Table", "Input", "Select", "Badge", "Button"],
-    "known_bugs": [],
-    "estimated_translation_time_min": 60
-  },
-  {
-    "label": "ms_lane_detail",
-    "file": "design/Monopilot Design System/multi-site/ist-screens.jsx",
-    "lines": "551-672",
-    "component_type": "tabs",
-    "ui_pattern": "detail-view",
-    "data_domain": "IST",
-    "interaction": "read-only",
-    "complexity": "page-level",
-    "depends_on_prototypes": ["SiteCrumb", "SiteRef", "LaneHealth"],
-    "translation_notes": [
-      "4-tab detail view (overview/rates/history/constraints) → shadcn Tabs, tab count badges from DB",
-      "Lane identity + health overview → two shadcn Card components with definition list",
-      "Rates tab → shadcn Table with Add Rate + Upload CSV actions",
-      "History tab bar chart → real chart implementation required (CSS-only placeholder per BL-MS-05); use Recharts or @tremor/react",
-      "History ISTs table → Drizzle query joining ISTs filtered by lane_id",
-      "Constraints tab → shadcn Table/definition list, constraint values from lane record",
-      "Deactivate button → Server Action `deactivateLane(laneId)` with Admin guard + check for in-transit ISTs",
-      "Known bug BL-MS-05: bar chart is CSS-only placeholder, real chart rendering needed"
-    ],
-    "shadcn_equivalent": ["Tabs", "Card", "Table", "Badge", "Button"],
-    "known_bugs": ["BL-MS-05: Real chart rendering in Lane History is a CSS-only placeholder (spec §9.7)"],
-    "estimated_translation_time_min": 120
-  },
-  {
-    "label": "ms_master_data_sync",
-    "file": "design/Monopilot Design System/multi-site/replication-screens.jsx",
-    "lines": "4-132",
-    "component_type": "table",
-    "ui_pattern": "list-with-actions",
-    "data_domain": "Replication",
-    "interaction": "bulk",
-    "complexity": "page-level",
-    "depends_on_prototypes": ["SiteCrumb", "AllSitesBanner", "SiteRef", "RepStatus"],
-    "translation_notes": [
-      "Expandable row table (conflict drill-down) → TanStack Table with getExpandedRowModel, sub-row shows conflict fields",
-      "3-KPI strip (synced/pending/conflict) → shadcn Card row, data from replication_status aggregate",
-      "Filter bar (entity + status) → shadcn Select + Select, state in URL params",
-      "RepStatus badge → custom Badge variant based on status enum (synced=green, pending=amber, conflict=red)",
-      "Conflict sub-row → nested shadcn Table showing field-level diff (source vs site)",
-      "Resolve button → opens ConflictResolveModal, only shown for conflict rows",
-      "Run Sync Now → Server Action `triggerReplicationSync(scope)` with Admin guard, enqueues background job",
-      "Export Report → Server Action streaming CSV of current filtered view"
-    ],
-    "shadcn_equivalent": ["Table", "Select", "Badge", "Button", "Card"],
-    "known_bugs": [],
-    "estimated_translation_time_min": 120
-  },
-  {
-    "label": "ms_replication_queue",
-    "file": "design/Monopilot Design System/multi-site/replication-screens.jsx",
-    "lines": "134-292",
-    "component_type": "tabs",
-    "ui_pattern": "list-with-actions",
-    "data_domain": "Replication",
-    "interaction": "bulk",
-    "complexity": "page-level",
-    "depends_on_prototypes": ["SiteCrumb", "SiteRef", "RepStatus"],
-    "translation_notes": [
-      "3-tab view (active/historical/schedule) → shadcn Tabs + TabsList + TabsContent",
-      "Active jobs table with expandable failed-entity rows → TanStack Table with expandable rows, sub-row shows error detail",
-      "Spinner animation for running jobs → shadcn Skeleton or lucide Loader2 icon with animate-spin",
-      "Retry All Failed button disabled when failedCount === 0 → computed from query, Button disabled prop",
-      "Retry single job → opens ReplicationRetryModal",
-      "Historical table → read-only shadcn Table from rep_jobs_history table",
-      "Schedule table → shadcn Table with edit action per entity (Admin only)",
-      "DLQ-style error detail → error_code, error_message, last_attempt from job_errors join table",
-      "All-green success alert → shadcn Alert with variant='default' (green) when all jobs complete"
-    ],
-    "shadcn_equivalent": ["Tabs", "Table", "Badge", "Button", "Alert", "Select"],
-    "known_bugs": [],
-    "estimated_translation_time_min": 120
-  },
-  {
-    "label": "ms_permissions",
-    "file": "design/Monopilot Design System/multi-site/admin-screens.jsx",
-    "lines": "4-138",
-    "component_type": "table",
-    "ui_pattern": "list-with-actions",
-    "data_domain": "Role",
-    "interaction": "bulk",
-    "complexity": "page-level",
-    "depends_on_prototypes": ["SiteCrumb", "SiteRef"],
-    "translation_notes": [
-      "3-view toggle (matrix/user/site) → shadcn Tabs or segmented control using shadcn ToggleGroup",
-      "Matrix view → custom CSS grid table with user rows × site columns; use shadcn Table + sticky first column",
-      "Empty cell click to assign → Admin-gated onClick on pm-empty cells opens AssignUserModal",
-      "User view (flat list) → shadcn Table with Edit/Remove row actions, Admin-gated",
-      "Site view (per-site cards) → shadcn Accordion or Card per site with user sub-table",
-      "Super-admin indicator (ALL badge) → shadcn Badge for users with super_admin role, skip per-site cells",
-      "Filter bar (search + role) → shadcn Input + Select, client-side filter on loaded data",
-      "Server Component loads all users + perm_matrix + sites in a single Drizzle join query"
-    ],
-    "shadcn_equivalent": ["Table", "Tabs", "Badge", "Button", "Card", "Input", "Select"],
-    "known_bugs": [],
-    "estimated_translation_time_min": 120
-  },
-  {
-    "label": "ms_analytics",
-    "file": "design/Monopilot Design System/multi-site/admin-screens.jsx",
-    "lines": "140-333",
-    "component_type": "tabs",
-    "ui_pattern": "dashboard-tile",
-    "data_domain": "Site",
-    "interaction": "read-only",
-    "complexity": "page-level",
-    "depends_on_prototypes": ["SiteCrumb", "SiteRef", "LaneHealth"],
-    "translation_notes": [
-      "5-tab analytics (inventory/shipping/utilization/conflict/benchmark) → shadcn Tabs",
-      "Inventory balance bar chart → replace CSS ms-bar-chart with Recharts BarChart or @tremor/react BarChart (BL-MS-05)",
-      "Rebalance suggestions → shadcn Card list with Create Suggested Transfer action button per suggestion",
-      "Shipping cost monthly chart → Recharts AreaChart or BarChart, data from shipment_costs monthly aggregate",
-      "Cost-by-lane table → shadcn Table with numeric formatting via Intl.NumberFormat",
-      "Conflict trend chart → Recharts BarChart with red/blue conditional bar color",
-      "Per-site benchmark table → shadcn Table with conditional text color via cn() for OEE/onTime/QA columns",
-      "Date range selector → shadcn Select, drives Server Component re-fetch or SWR key change",
-      "Known bug BL-MS-05: all charts are CSS-only placeholders requiring real chart library implementation"
-    ],
-    "shadcn_equivalent": ["Tabs", "Card", "Table", "Select", "Button", "Badge", "Alert"],
-    "known_bugs": ["BL-MS-05: Real chart rendering required for Analytics tabs; currently CSS-only bar/line chart placeholders"],
-    "estimated_translation_time_min": 180
-  },
-  {
-    "label": "ms_settings",
-    "file": "design/Monopilot Design System/multi-site/admin-screens.jsx",
-    "lines": "335-493",
-    "component_type": "page-layout",
-    "ui_pattern": "crud-form-with-validation",
-    "data_domain": "Site",
-    "interaction": "edit",
-    "complexity": "page-level",
-    "depends_on_prototypes": ["SiteCrumb", "ActState", "Field", "SiteRef"],
-    "translation_notes": [
-      "7-section settings page → shadcn Card per section, each with its own save Server Action",
-      "Activation state section → read-only ActState badge + Rollback button (opens RollbackModal, Admin only)",
-      "Replication cadence table → shadcn Table with Edit Schedule action per entity row",
-      "Conflict resolution policy select → shadcn Select + conditional source-of-truth site select, saved via Server Action",
-      "Timezone/language toggles → shadcn Switch components, settings persisted to org_config table",
-      "FX pairs table → read-only shadcn Table, missing rates highlighted with amber Alert + CTA to Finance",
-      "Hierarchy config section → read-only summary with Edit Hierarchy button (stub per BL-MS-07)",
-      "Config promotion section → env ladder visualization + recent promotions table, opens PromoteEnvModal",
-      "Known bug BL-MS-03: timezone toggle wired in UI but not applied to timestamp rendering across app",
-      "Known bug BL-MS-07: Hierarchy depth migration wizard (MODAL-HIERARCHY-EDIT) is a stub"
-    ],
-    "shadcn_equivalent": ["Card", "Table", "Select", "Switch", "Button", "Alert", "Badge"],
-    "known_bugs": ["BL-MS-03: Timezone toggle live state not applied to timestamp rendering across the app", "BL-MS-07: Hierarchy depth migration wizard left as stub (spec §9.6)"],
-    "estimated_translation_time_min": 180
-  },
-  {
-    "label": "ms_activation_wizard",
-    "file": "design/Monopilot Design System/multi-site/admin-screens.jsx",
-    "lines": "495-652",
-    "component_type": "wizard",
-    "ui_pattern": "multi-step-wizard",
-    "data_domain": "Site",
-    "interaction": "create",
-    "complexity": "page-level",
-    "depends_on_prototypes": ["SiteCrumb", "Stepper", "Field"],
-    "translation_notes": [
-      "3-step full-page wizard shell → dedicated /activate route with Stepper, not inside Modal",
-      "Step 1 (Create Sites): repeating site draft cards → useFieldArray for dynamic site list, each with zod schema",
-      "Add Another Site → useFieldArray append(), Remove → useFieldArray remove(i)",
-      "Step 2 (Assign Users): user×site matrix with checkboxes, role select, primary radio → complex useFieldArray or object state",
-      "Step 3 (Backfill & Review): backfill preview table from Server Action pre-computation, 3 confirm checkboxes",
-      "allChecked gate on Activate button → zod schema with .refine() requiring all 3 checkboxes true",
-      "Activate triggers ActivationConfirmModal → separate modal from main wizard flow",
-      "Save & Exit persists wizard state to activation_wizard_draft table for resumability",
-      "State machine: inactive → wizard → dual_run → activated enforced server-side, wizard only shown when inactive"
-    ],
-    "shadcn_equivalent": ["Card", "Form", "Input", "Select", "Checkbox", "RadioGroup", "Table", "Button", "Alert"],
-    "known_bugs": [],
-    "estimated_translation_time_min": 240
-  }
-]
+{
+  "module": "multi-site",
+  "generated_at": "2026-04-30T18:27:34Z",
+  "generator": "audit-fix-2026-04-30",
+  "mode": "labeling",
+  "entries": [
+    {
+      "label": "site_create_modal",
+      "file": "design/Monopilot Design System/multi-site/modals.jsx",
+      "lines": "21-175",
+      "component_type": "wizard",
+      "ui_pattern": "multi-step-wizard",
+      "data_domain": "Site",
+      "interaction": "create",
+      "complexity": "page-level",
+      "depends_on_prototypes": [
+        "primitive:Stepper",
+        "primitive:Field",
+        "primitive:Modal"
+      ],
+      "translation_notes": [
+        "Modal wrapper → @radix-ui/react-dialog Dialog with size='wide' variant via className",
+        "Local useState form object → useForm (react-hook-form) + zodResolver with Site zod schema",
+        "Stepper primitive → shadcn Steps or custom stepper using cn() utility with completed Set",
+        "Checkbox-based module toggles → Controller-wrapped Checkbox components from shadcn",
+        "User table in step 4 → shadcn Table with RadioGroup for primary selection and Checkbox for assign",
+        "Add Server Action `createSite` / `updateSite` with RBAC guard (Admin only) and outbox event",
+        "Hardcoded country/timezone lists → pull from shared reference data table or next-intl keys",
+        "canNext validation → zod schema trigger per-step using form.trigger(['code','name'])"
+      ],
+      "shadcn_equivalent": [
+        "Dialog",
+        "Form",
+        "Input",
+        "Select",
+        "Checkbox",
+        "RadioGroup",
+        "Textarea",
+        "Button",
+        "Table"
+      ],
+      "known_bugs": [],
+      "estimated_translation_time_min": 180
+    },
+    {
+      "label": "ist_cancel_modal",
+      "file": "design/Monopilot Design System/multi-site/modals.jsx",
+      "lines": "177-208",
+      "component_type": "modal",
+      "ui_pattern": "crud-form-with-validation",
+      "data_domain": "IST",
+      "interaction": "delete",
+      "complexity": "composite",
+      "depends_on_prototypes": [
+        "primitive:Field",
+        "primitive:Modal"
+      ],
+      "translation_notes": [
+        "Modal wrapper → @radix-ui/react-dialog Dialog, size='default'",
+        "Danger confirm button disabled until reason selected → shadcn Button with disabled prop bound to zod validation",
+        "Alert amber box → shadcn Alert with AlertTriangle icon from lucide-react",
+        "Select reason → shadcn Select component with Controller from react-hook-form",
+        "Server Action `cancelIST(id, reason, notes)` with state-machine guard (must not be closed/cancelled)",
+        "Emits outbox event to release hard-locked LPs back to available status",
+        "Hardcoded reason list → database-driven enum or next-intl i18n keys"
+      ],
+      "shadcn_equivalent": [
+        "Dialog",
+        "Alert",
+        "Select",
+        "Textarea",
+        "Button"
+      ],
+      "known_bugs": [],
+      "estimated_translation_time_min": 45
+    },
+    {
+      "label": "ist_amend_modal",
+      "file": "design/Monopilot Design System/multi-site/modals.jsx",
+      "lines": "210-239",
+      "component_type": "modal",
+      "ui_pattern": "crud-form-with-validation",
+      "data_domain": "IST",
+      "interaction": "edit",
+      "complexity": "composite",
+      "depends_on_prototypes": [
+        "primitive:Field",
+        "primitive:Modal"
+      ],
+      "translation_notes": [
+        "Modal wrapper → @radix-ui/react-dialog Dialog",
+        "Date inputs → shadcn Calendar / DatePicker (Popover + Calendar) with Controller",
+        "Number input for freight cost → shadcn Input type='number' with min/step props",
+        "Info alert about approval reset on date change → shadcn Alert with InfoIcon",
+        "Server Action `amendIST(id, patch)` must re-trigger from-site approval when ship_date changes",
+        "Cost allocation select → shadcn Select with Controller",
+        "Add field-level RLS guard: only draft/planned ISTs are amendable"
+      ],
+      "shadcn_equivalent": [
+        "Dialog",
+        "Input",
+        "Select",
+        "Textarea",
+        "Button",
+        "Alert"
+      ],
+      "known_bugs": [],
+      "estimated_translation_time_min": 45
+    },
+    {
+      "label": "replication_retry_modal",
+      "file": "design/Monopilot Design System/multi-site/modals.jsx",
+      "lines": "241-270",
+      "component_type": "modal",
+      "ui_pattern": "bulk-action",
+      "data_domain": "Replication",
+      "interaction": "bulk",
+      "complexity": "composite",
+      "depends_on_prototypes": [
+        "primitive:Field",
+        "primitive:Modal"
+      ],
+      "translation_notes": [
+        "Modal wrapper → @radix-ui/react-dialog Dialog",
+        "Dynamic title/description based on scope prop → computed from Server Component data or passed as prop",
+        "Priority select → shadcn Select with Controller, maps to queue priority field",
+        "Entity badges → shadcn Badge component with variant='secondary'",
+        "Server Action `retryReplicationJobs(scope, priority)` enqueues jobs in background worker",
+        "Target sites list → fetched from active sites query, not hardcoded filter",
+        "Scope variants (failed/all/single) → discriminated union type in zod schema"
+      ],
+      "shadcn_equivalent": [
+        "Dialog",
+        "Select",
+        "Badge",
+        "Alert",
+        "Button"
+      ],
+      "known_bugs": [],
+      "estimated_translation_time_min": 40
+    },
+    {
+      "label": "conflict_resolve_modal",
+      "file": "design/Monopilot Design System/multi-site/modals.jsx",
+      "lines": "272-354",
+      "component_type": "modal",
+      "ui_pattern": "detail-view",
+      "data_domain": "Replication",
+      "interaction": "approve",
+      "complexity": "page-level",
+      "depends_on_prototypes": [
+        "primitive:Field",
+        "primitive:Modal"
+      ],
+      "translation_notes": [
+        "Wide modal with diff table → @radix-ui/react-dialog Dialog with max-w-4xl class override",
+        "Radio per field row (source vs site) → RadioGroup with RadioGroupItem per diff field",
+        "Bulk 'Choose All Source/Site' buttons → single click handler updating all radio values in useForm",
+        "Reason select (required before submit) → shadcn Select with Controller + zod .min(1) guard",
+        "E-signature password gate → conditional shadcn Input type='password', wired to Server Action re-auth check",
+        "Apply Resolution → Server Action `resolveConflict(entityId, siteId, fieldChoices, reason, esig)` writes audit log",
+        "Hardcoded conflict data → Drizzle query for conflict record, passed as Server Component prop",
+        "Known bug BL-MS-02: e-signature gate rendered but not wired — must implement before production"
+      ],
+      "shadcn_equivalent": [
+        "Dialog",
+        "RadioGroup",
+        "Select",
+        "Textarea",
+        "Input",
+        "Button",
+        "Badge",
+        "Table"
+      ],
+      "known_bugs": [
+        "BL-MS-02: E-signature gate on conflict resolve rendered but not functionally wired (spec §9.2)"
+      ],
+      "estimated_translation_time_min": 120
+    },
+    {
+      "label": "lane_create_modal",
+      "file": "design/Monopilot Design System/multi-site/modals.jsx",
+      "lines": "356-388",
+      "component_type": "modal",
+      "ui_pattern": "crud-form-with-validation",
+      "data_domain": "IST",
+      "interaction": "create",
+      "complexity": "composite",
+      "depends_on_prototypes": [
+        "primitive:Field",
+        "primitive:Modal"
+      ],
+      "translation_notes": [
+        "Modal wrapper → @radix-ui/react-dialog Dialog, size='default'",
+        "Dual-use create/edit pattern via isEdit flag → single form with useForm defaultValues loaded from lane prop",
+        "From/To site selects → shadcn Select sourced from active sites query (Server Component)",
+        "Checkbox flags (HAZMAT, cold chain, customs, active) → shadcn Checkbox with Controller",
+        "Comma-separated carriers input → shadcn Input, parsed server-side to string[]",
+        "Server Action `createLane` / `updateLane` with Admin RBAC guard",
+        "Hardcoded site list → Drizzle query for active sites",
+        "Add outbox event on lane create/update for downstream config propagation"
+      ],
+      "shadcn_equivalent": [
+        "Dialog",
+        "Form",
+        "Input",
+        "Select",
+        "Checkbox",
+        "Textarea",
+        "Button"
+      ],
+      "known_bugs": [],
+      "estimated_translation_time_min": 60
+    },
+    {
+      "label": "rate_card_upload_modal",
+      "file": "design/Monopilot Design System/multi-site/modals.jsx",
+      "lines": "390-470",
+      "component_type": "wizard",
+      "ui_pattern": "import-export",
+      "data_domain": "IST",
+      "interaction": "import",
+      "complexity": "page-level",
+      "depends_on_prototypes": [
+        "primitive:Stepper",
+        "primitive:Modal",
+        "primitive:Summary"
+      ],
+      "translation_notes": [
+        "4-step import wizard → Stepper + conditional step render, same pattern as SiteCreateModal",
+        "Drag-and-drop file zone → shadcn or @radix-ui DropZone, wired to useDropzone (react-dropzone)",
+        "Column mapping step → shadcn Table with Select in each row for field mapping",
+        "Preview step (first 5 rows) → shadcn Table showing parsed CSV rows from Server Action parse call",
+        "Confirm Summary → shadcn Card with labeled key/value pairs (Summary primitive)",
+        "File upload → multipart Server Action, parse CSV server-side with papaparse, return preview rows",
+        "Validate file size (max 5MB) and type (csv/xlsx) in Server Action before processing",
+        "Import result → background job with progress websocket or polling; show toast on complete"
+      ],
+      "shadcn_equivalent": [
+        "Dialog",
+        "Table",
+        "Select",
+        "Button",
+        "Card"
+      ],
+      "known_bugs": [],
+      "estimated_translation_time_min": 120
+    },
+    {
+      "label": "site_config_override_modal",
+      "file": "design/Monopilot Design System/multi-site/modals.jsx",
+      "lines": "472-512",
+      "component_type": "modal",
+      "ui_pattern": "crud-form-with-validation",
+      "data_domain": "Site",
+      "interaction": "edit",
+      "complexity": "composite",
+      "depends_on_prototypes": [
+        "primitive:Field",
+        "primitive:Modal"
+      ],
+      "translation_notes": [
+        "Dynamic field rendering based on selected key → conditional shadcn Select or Input per key type",
+        "Setting key select → shadcn Select drives conditional rendering of Override Value field",
+        "L1 base value display → read-only Card section, sourced from org config query",
+        "Effective From date → shadcn DatePicker (Popover + Calendar)",
+        "Server Action `upsertSiteConfigOverride(siteId, key, value, effectiveFrom, notes)` with Admin/SiteManager guard",
+        "Setting key list → database-driven enum or config schema, not hardcoded",
+        "Add audit log entry on every override change",
+        "Known pattern: key→value type mapping table needed in DB schema (string, select, number per key)"
+      ],
+      "shadcn_equivalent": [
+        "Dialog",
+        "Select",
+        "Input",
+        "Textarea",
+        "Button",
+        "Card"
+      ],
+      "known_bugs": [],
+      "estimated_translation_time_min": 60
+    },
+    {
+      "label": "permission_bulk_assign_modal",
+      "file": "design/Monopilot Design System/multi-site/modals.jsx",
+      "lines": "514-575",
+      "component_type": "modal",
+      "ui_pattern": "bulk-action",
+      "data_domain": "Role",
+      "interaction": "bulk",
+      "complexity": "composite",
+      "depends_on_prototypes": [
+        "primitive:Field",
+        "primitive:Modal"
+      ],
+      "translation_notes": [
+        "Tabbed single/bulk mode → shadcn Tabs + TabsList + TabsContent",
+        "Single assignment tab: user + site + role selects → shadcn Select with Controller for each",
+        "Primary site checkbox → shadcn Checkbox with Controller",
+        "Bulk CSV tab: drop zone → react-dropzone wired to multipart Server Action",
+        "CSV bulk path: upload → column mapping → preview → confirm (same wizard pattern as rate card upload)",
+        "Server Action `assignUserToSite(userId, siteId, role, isPrimary)` with Admin RBAC guard",
+        "Bulk Server Action `bulkAssignUsersFromCSV(file)` validates emails, site codes, roles before applying",
+        "Hardcoded role list → roles enum from DB or next-intl keys"
+      ],
+      "shadcn_equivalent": [
+        "Dialog",
+        "Tabs",
+        "Select",
+        "Checkbox",
+        "Input",
+        "Button"
+      ],
+      "known_bugs": [],
+      "estimated_translation_time_min": 90
+    },
+    {
+      "label": "site_decommission_modal",
+      "file": "design/Monopilot Design System/multi-site/modals.jsx",
+      "lines": "577-633",
+      "component_type": "modal",
+      "ui_pattern": "crud-form-with-validation",
+      "data_domain": "Site",
+      "interaction": "delete",
+      "complexity": "composite",
+      "depends_on_prototypes": [
+        "primitive:Field",
+        "primitive:Modal"
+      ],
+      "translation_notes": [
+        "Destructive type-to-confirm pattern → shadcn Input with value compared to site code, disables confirm Button",
+        "Impact summary table (users, WOs, ISTs, holds) → shadcn Table, rows colored red/green via cn() utility",
+        "Pre-conditions checklist with actionable links → shadcn Alert list, each item conditionally red/green",
+        "Server Action `decommissionSite(siteId, confirmCode)` requires Admin role and all pre-conditions clear",
+        "Pre-condition checks → Drizzle queries for open WOs, in-transit ISTs, quality holds, unassigned users",
+        "dismissible=false → Dialog not closeable via Escape/overlay-click (use onInteractOutside prevention)",
+        "On success: archive all site data, revoke user access, emit audit event with 7-year retention tag",
+        "Hardcoded color logic → Tailwind conditional classes via cn() — no inline style"
+      ],
+      "shadcn_equivalent": [
+        "Dialog",
+        "Table",
+        "Alert",
+        "Input",
+        "Button"
+      ],
+      "known_bugs": [],
+      "estimated_translation_time_min": 90
+    },
+    {
+      "label": "activation_confirm_modal",
+      "file": "design/Monopilot Design System/multi-site/modals.jsx",
+      "lines": "635-662",
+      "component_type": "modal",
+      "ui_pattern": "detail-view",
+      "data_domain": "Site",
+      "interaction": "approve",
+      "complexity": "composite",
+      "depends_on_prototypes": [
+        "primitive:Modal",
+        "primitive:Summary"
+      ],
+      "translation_notes": [
+        "Modal wrapper → @radix-ui/react-dialog Dialog with dismissible=false (prevent outside close)",
+        "Summary rows (tables affected, users, sites, duration) → shadcn Card with labeled dl/dt/dd pairs",
+        "Progress indicator (simulated) → shadcn Progress component or shadcn Skeleton rows while running",
+        "Server Action `activateMultiSite()` applies RLS policies to 20 tables, takes 30-60s → background job",
+        "Use optimistic UI + polling or server-sent events to show progress of RLS application",
+        "Confirm button → triggers activation job and enters loading state with spinner",
+        "Emit activation_completed audit event on success, activation_failed on error with rollback option",
+        "dismissible=false → onInteractOutside e.preventDefault() on DialogContent"
+      ],
+      "shadcn_equivalent": [
+        "Dialog",
+        "Button",
+        "Alert",
+        "Card",
+        "Progress"
+      ],
+      "known_bugs": [],
+      "estimated_translation_time_min": 75
+    },
+    {
+      "label": "rollback_confirm_modal",
+      "file": "design/Monopilot Design System/multi-site/modals.jsx",
+      "lines": "664-686",
+      "component_type": "modal",
+      "ui_pattern": "crud-form-with-validation",
+      "data_domain": "Site",
+      "interaction": "delete",
+      "complexity": "primitive",
+      "depends_on_prototypes": [
+        "primitive:Field",
+        "primitive:Modal"
+      ],
+      "translation_notes": [
+        "Type-to-confirm 'ROLLBACK' pattern → shadcn Input, compare value === 'ROLLBACK' to enable Button",
+        "Danger alert → shadcn Alert with variant='destructive' and AlertTriangle icon",
+        "dismissible=false → onInteractOutside e.preventDefault() on DialogContent",
+        "Server Action `rollbackToSingleSite()` reverts RLS policies, only allowed from dual_run state",
+        "State machine guard: check activationState === 'dual_run' in Server Action before proceeding",
+        "Hardcoded state machine documentation → derive from DB activationState field",
+        "Emit rollback_completed audit event, notify all site managers via notification outbox"
+      ],
+      "shadcn_equivalent": [
+        "Dialog",
+        "Alert",
+        "Input",
+        "Button"
+      ],
+      "known_bugs": [],
+      "estimated_translation_time_min": 35
+    },
+    {
+      "label": "promote_env_modal",
+      "file": "design/Monopilot Design System/multi-site/modals.jsx",
+      "lines": "688-730",
+      "component_type": "modal",
+      "ui_pattern": "crud-form-with-validation",
+      "data_domain": "Site",
+      "interaction": "approve",
+      "complexity": "composite",
+      "depends_on_prototypes": [
+        "primitive:Field",
+        "primitive:Modal",
+        "primitive:ReasonInput"
+      ],
+      "translation_notes": [
+        "L1→L2→L3 env ladder visualization → custom CSS flex layout or shadcn Card sequence with connecting arrows",
+        "Target scope select (site or line depending on level) → shadcn Select, options driven by level prop",
+        "Multi-select keys to promote → shadcn Command + Badge pattern or native select[multiple] with shadcn styling",
+        "ReasonInput with minLength → shadcn Textarea + zod .min(10) validation via zodResolver",
+        "Server Action `promoteConfigKeys(level, targetScope, keys, reason)` with Admin guard",
+        "Level prop determines scope options: L2 → sites, L3 → lines (future)",
+        "Hardcoded key options → query from org config schema table for available promotable keys",
+        "Emit config_promoted audit event with old/new value diff per key"
+      ],
+      "shadcn_equivalent": [
+        "Dialog",
+        "Select",
+        "Textarea",
+        "Button",
+        "Alert",
+        "Badge",
+        "Card"
+      ],
+      "known_bugs": [],
+      "estimated_translation_time_min": 75
+    },
+    {
+      "label": "ms_dashboard",
+      "file": "design/Monopilot Design System/multi-site/dashboard.jsx",
+      "lines": "6-227",
+      "component_type": "page-layout",
+      "ui_pattern": "dashboard-tile",
+      "data_domain": "Site",
+      "interaction": "read-only",
+      "complexity": "page-level",
+      "depends_on_prototypes": [
+        "primitive:SiteCrumb",
+        "primitive:ActState",
+        "primitive:Stepper",
+        "primitive:StatusDot",
+        "primitive:SiteTypeBadge",
+        "primitive:SiteRef",
+        "primitive:ISTStatus"
+      ],
+      "translation_notes": [
+        "KPI strip (5 cards) → shadcn Card array with role-gated value display using session RBAC check",
+        "Network tree view (L0→L3) → custom TreeView component using shadcn Collapsible, or react-arborist",
+        "Map View stub → placeholder Card with 'P2 feature' note; real impl uses react-leaflet or mapbox-gl (BL-MS-01)",
+        "Alerts strip with dismiss → shadcn Alert array, dismissed state persisted in user preferences DB column",
+        "Active Transfers feed → shadcn ScrollArea + timeline items, data from Drizzle IST query filtered to active statuses",
+        "Replication Health mini-panel → three numeric KPI divs, data from replication_jobs aggregate query",
+        "Site Status widget → list with StatusDot per site, last_seen from site_heartbeat table",
+        "Auto-refresh 60s → SWR or React Query with refreshInterval, or Server-Sent Events for live updates",
+        "Known bug BL-MS-01: Map View is a P2 stub — library decision pending (spec §9.1)",
+        "Known bug BL-MS-06: site heartbeat is static mock, real pinger out of scope"
+      ],
+      "shadcn_equivalent": [
+        "Card",
+        "Badge",
+        "Alert",
+        "Button",
+        "ScrollArea"
+      ],
+      "known_bugs": [
+        "BL-MS-01: Map view library choice deferred; placeholder stub only",
+        "BL-MS-06: Site heartbeat 'degraded' state is static mock"
+      ],
+      "estimated_translation_time_min": 180
+    },
+    {
+      "label": "ms_sites_list",
+      "file": "design/Monopilot Design System/multi-site/sites-screens.jsx",
+      "lines": "4-100",
+      "component_type": "table",
+      "ui_pattern": "search-filter-list",
+      "data_domain": "Site",
+      "interaction": "read-only",
+      "complexity": "page-level",
+      "depends_on_prototypes": [
+        "primitive:SiteCrumb",
+        "primitive:AllSitesBanner",
+        "primitive:SiteTypeBadge",
+        "primitive:StatusDot"
+      ],
+      "translation_notes": [
+        "Filter bar (search + type + status) → shadcn Input + two Select components, state in URL params via useSearchParams",
+        "Sites table → shadcn Table with TanStack Table for server-side sort/filter, row click navigates to detail",
+        "Module count (e.g. 12/15) → computed from site_modules join table in Drizzle query",
+        "Last Sync column → formatted from site_heartbeat.last_seen with date-fns",
+        "Export button → Server Action streaming CSV response or Blob download",
+        "Add Site button → Admin-only RBAC, opens SiteCreateModal",
+        "Decommission action → Admin-only, not shown on isDefault sites — replicate this guard in Server Component",
+        "Empty state → shadcn empty state card with clear-filters CTA"
+      ],
+      "shadcn_equivalent": [
+        "Table",
+        "Input",
+        "Select",
+        "Button",
+        "Badge"
+      ],
+      "known_bugs": [],
+      "estimated_translation_time_min": 90
+    },
+    {
+      "label": "ms_site_detail",
+      "file": "design/Monopilot Design System/multi-site/sites-screens.jsx",
+      "lines": "102-410",
+      "component_type": "tabs",
+      "ui_pattern": "detail-view",
+      "data_domain": "Site",
+      "interaction": "read-only",
+      "complexity": "page-level",
+      "depends_on_prototypes": [
+        "primitive:SiteCrumb",
+        "primitive:SiteTypeBadge",
+        "primitive:StatusDot",
+        "primitive:SiteRef",
+        "primitive:ISTStatus"
+      ],
+      "translation_notes": [
+        "8-tab detail view → shadcn Tabs + TabsList + TabsContent, tab state in URL search params for deep linking",
+        "Overview identity/status cards → shadcn Card grid with dl/dt/dd definition list pattern",
+        "Config (L2 overrides) tab → shadcn Table with conditional Edit/Clear actions gated by isAdmin || isSiteManager",
+        "Inventory snapshot → KPI cards + shadcn Table, data from inventory aggregate query for this site",
+        "Production snapshot → KPI cards + WO table, data from work_orders query filtered to site",
+        "Users tab → shadcn Table, joins perm_matrix + users, with Edit/Remove actions for Admin",
+        "Transfers tab split inbound/outbound → two shadcn Card + Table, IST query filtered by site",
+        "Calendar tab → custom calendar grid (month view), holidays from site_holidays table",
+        "Docs tab → shadcn Table with upload/download/delete, backed by object storage (S3/Vercel Blob)",
+        "Known bug BL-MS-04: IST tabs need mobile accordion (<768px) instead of horizontal scroll"
+      ],
+      "shadcn_equivalent": [
+        "Tabs",
+        "Card",
+        "Table",
+        "Badge",
+        "Button",
+        "Dialog"
+      ],
+      "known_bugs": [
+        "BL-MS-04: Mobile accordion for IST tabs (<768px) not implemented; currently horizontal scroll"
+      ],
+      "estimated_translation_time_min": 240
+    },
+    {
+      "label": "ms_ist_list",
+      "file": "design/Monopilot Design System/multi-site/ist-screens.jsx",
+      "lines": "6-120",
+      "component_type": "table",
+      "ui_pattern": "search-filter-list",
+      "data_domain": "IST",
+      "interaction": "read-only",
+      "complexity": "page-level",
+      "depends_on_prototypes": [
+        "primitive:SiteCrumb",
+        "primitive:AllSitesBanner",
+        "primitive:SiteRef",
+        "primitive:ISTStatus"
+      ],
+      "translation_notes": [
+        "Filter bar (search + route + status) → shadcn Input + two Select, state managed in URL params",
+        "Route filter only shown for ALL sites scope → conditional render based on session site scope",
+        "IST table with overdue ETA coloring → shadcn Table, ETA color applied via cn() not inline style",
+        "Linked TO/WO references → clickable monospace spans navigating to planning module",
+        "Row-level action buttons (view, amend, cancel) → shadcn DropdownMenu or inline Button group, gated by IST status",
+        "Export CSV → Server Action generating CSV from Drizzle query",
+        "isOperator role hides Freight column → RBAC check in Server Component, column omitted from render",
+        "Empty state with create CTA → shadcn Card empty state pattern"
+      ],
+      "shadcn_equivalent": [
+        "Table",
+        "Input",
+        "Select",
+        "Badge",
+        "Button",
+        "DropdownMenu"
+      ],
+      "known_bugs": [],
+      "estimated_translation_time_min": 90
+    },
+    {
+      "label": "ms_ist_detail",
+      "file": "design/Monopilot Design System/multi-site/ist-screens.jsx",
+      "lines": "122-341",
+      "component_type": "tabs",
+      "ui_pattern": "detail-view",
+      "data_domain": "IST",
+      "interaction": "approve",
+      "complexity": "page-level",
+      "depends_on_prototypes": [
+        "primitive:SiteCrumb",
+        "primitive:SiteRef",
+        "primitive:ISTStatus"
+      ],
+      "translation_notes": [
+        "State machine progress bar (6 steps) → custom Stepper built on shadcn primitives, steps derived from IST status enum",
+        "Dual approval widgets (from-site + to-site) → two shadcn Card components with conditional approve Button",
+        "7-tab detail view → shadcn Tabs + TabsList + TabsContent, tab in URL params",
+        "Items tab with LP badges → shadcn Table, LP chips use shadcn Badge variant='outline'",
+        "Outbound + Inbound tabs → shadcn Card with definition list, link to Shipping/GRN modules",
+        "Docs tab → shadcn Table with upload/download, Vercel Blob or S3 backend",
+        "Audit timeline → shadcn ScrollArea + timeline-item pattern, events from ist_events table",
+        "Finance tab → read-only Card, inter-company journal posting via Server Action with Admin guard",
+        "State-gated action buttons (Submit/Receive/Close) → server-driven state, buttons rendered by Server Component"
+      ],
+      "shadcn_equivalent": [
+        "Tabs",
+        "Card",
+        "Table",
+        "Badge",
+        "Button",
+        "ScrollArea"
+      ],
+      "known_bugs": [],
+      "estimated_translation_time_min": 210
+    },
+    {
+      "label": "ms_ist_create",
+      "file": "design/Monopilot Design System/multi-site/ist-screens.jsx",
+      "lines": "343-490",
+      "component_type": "form",
+      "ui_pattern": "crud-form-with-validation",
+      "data_domain": "IST",
+      "interaction": "create",
+      "complexity": "page-level",
+      "depends_on_prototypes": [
+        "primitive:SiteCrumb",
+        "primitive:Field",
+        "primitive:SiteRef"
+      ],
+      "translation_notes": [
+        "4-section single-page form with progressive disclosure → single form page, sections revealed as fields filled",
+        "Same-site validation error → zod .refine() checking fromSite !== toSite, displayed via FormMessage",
+        "ETA-after-ship-date validation → zod .refine() cross-field check, displayed via FormMessage",
+        "Lane auto-suggestion based on site pair → useEffect or server action lookup when fromSite/toSite change",
+        "Dynamic items table (add/remove rows) → useFieldArray from react-hook-form",
+        "LP picker per item row → shadcn Combobox or Command palette filtered to site's available LPs",
+        "Availability badge per item → resolved via Server Action checking LP stock at fromSite",
+        "On Create Transfer: Server Action auto-generates outbound shipment + inbound GRN placeholder, hard-locks LPs",
+        "Save as Draft → same Server Action with isDraft=true flag, no LP locking",
+        "Freight + allocation cross-validation warning → shadcn Alert, shown when freight > 0 and allocation === 'none'"
+      ],
+      "shadcn_equivalent": [
+        "Form",
+        "Select",
+        "Input",
+        "Textarea",
+        "Table",
+        "Badge",
+        "Alert",
+        "Button"
+      ],
+      "known_bugs": [],
+      "estimated_translation_time_min": 150
+    },
+    {
+      "label": "ms_lanes_list",
+      "file": "design/Monopilot Design System/multi-site/ist-screens.jsx",
+      "lines": "492-548",
+      "component_type": "table",
+      "ui_pattern": "search-filter-list",
+      "data_domain": "IST",
+      "interaction": "read-only",
+      "complexity": "composite",
+      "depends_on_prototypes": [
+        "primitive:SiteCrumb",
+        "primitive:SiteRef",
+        "primitive:LaneHealth"
+      ],
+      "translation_notes": [
+        "Filter bar (search + from + to + status) → shadcn Input + three Select components, URL params",
+        "Lanes table → shadcn Table with TanStack Table for sorting by lead days / cost",
+        "LaneHealth status badge → custom Badge with color variant (active=green, stale=amber, failed=red)",
+        "Edit lane action → Admin-only, opens LaneCreateModal (edit mode)",
+        "Upload Rate Card action → opens RateCardUploadModal",
+        "Export → Server Action CSV download",
+        "Health field computed from last IST date + success rate → Drizzle aggregate query",
+        "Admin RBAC gates on edit button — use session check in Server Component, omit button from render"
+      ],
+      "shadcn_equivalent": [
+        "Table",
+        "Input",
+        "Select",
+        "Badge",
+        "Button"
+      ],
+      "known_bugs": [],
+      "estimated_translation_time_min": 60
+    },
+    {
+      "label": "ms_lane_detail",
+      "file": "design/Monopilot Design System/multi-site/ist-screens.jsx",
+      "lines": "551-672",
+      "component_type": "tabs",
+      "ui_pattern": "detail-view",
+      "data_domain": "IST",
+      "interaction": "read-only",
+      "complexity": "page-level",
+      "depends_on_prototypes": [
+        "primitive:SiteCrumb",
+        "primitive:SiteRef",
+        "primitive:LaneHealth"
+      ],
+      "translation_notes": [
+        "4-tab detail view (overview/rates/history/constraints) → shadcn Tabs, tab count badges from DB",
+        "Lane identity + health overview → two shadcn Card components with definition list",
+        "Rates tab → shadcn Table with Add Rate + Upload CSV actions",
+        "History tab bar chart → real chart implementation required (CSS-only placeholder per BL-MS-05); use Recharts or @tremor/react",
+        "History ISTs table → Drizzle query joining ISTs filtered by lane_id",
+        "Constraints tab → shadcn Table/definition list, constraint values from lane record",
+        "Deactivate button → Server Action `deactivateLane(laneId)` with Admin guard + check for in-transit ISTs",
+        "Known bug BL-MS-05: bar chart is CSS-only placeholder, real chart rendering needed"
+      ],
+      "shadcn_equivalent": [
+        "Tabs",
+        "Card",
+        "Table",
+        "Badge",
+        "Button"
+      ],
+      "known_bugs": [
+        "BL-MS-05: Real chart rendering in Lane History is a CSS-only placeholder (spec §9.7)"
+      ],
+      "estimated_translation_time_min": 120
+    },
+    {
+      "label": "ms_master_data_sync",
+      "file": "design/Monopilot Design System/multi-site/replication-screens.jsx",
+      "lines": "4-132",
+      "component_type": "table",
+      "ui_pattern": "list-with-actions",
+      "data_domain": "Replication",
+      "interaction": "bulk",
+      "complexity": "page-level",
+      "depends_on_prototypes": [
+        "primitive:SiteCrumb",
+        "primitive:AllSitesBanner",
+        "primitive:SiteRef",
+        "primitive:RepStatus"
+      ],
+      "translation_notes": [
+        "Expandable row table (conflict drill-down) → TanStack Table with getExpandedRowModel, sub-row shows conflict fields",
+        "3-KPI strip (synced/pending/conflict) → shadcn Card row, data from replication_status aggregate",
+        "Filter bar (entity + status) → shadcn Select + Select, state in URL params",
+        "RepStatus badge → custom Badge variant based on status enum (synced=green, pending=amber, conflict=red)",
+        "Conflict sub-row → nested shadcn Table showing field-level diff (source vs site)",
+        "Resolve button → opens ConflictResolveModal, only shown for conflict rows",
+        "Run Sync Now → Server Action `triggerReplicationSync(scope)` with Admin guard, enqueues background job",
+        "Export Report → Server Action streaming CSV of current filtered view"
+      ],
+      "shadcn_equivalent": [
+        "Table",
+        "Select",
+        "Badge",
+        "Button",
+        "Card"
+      ],
+      "known_bugs": [],
+      "estimated_translation_time_min": 120
+    },
+    {
+      "label": "ms_replication_queue",
+      "file": "design/Monopilot Design System/multi-site/replication-screens.jsx",
+      "lines": "134-292",
+      "component_type": "tabs",
+      "ui_pattern": "list-with-actions",
+      "data_domain": "Replication",
+      "interaction": "bulk",
+      "complexity": "page-level",
+      "depends_on_prototypes": [
+        "primitive:SiteCrumb",
+        "primitive:SiteRef",
+        "primitive:RepStatus"
+      ],
+      "translation_notes": [
+        "3-tab view (active/historical/schedule) → shadcn Tabs + TabsList + TabsContent",
+        "Active jobs table with expandable failed-entity rows → TanStack Table with expandable rows, sub-row shows error detail",
+        "Spinner animation for running jobs → shadcn Skeleton or lucide Loader2 icon with animate-spin",
+        "Retry All Failed button disabled when failedCount === 0 → computed from query, Button disabled prop",
+        "Retry single job → opens ReplicationRetryModal",
+        "Historical table → read-only shadcn Table from rep_jobs_history table",
+        "Schedule table → shadcn Table with edit action per entity (Admin only)",
+        "DLQ-style error detail → error_code, error_message, last_attempt from job_errors join table",
+        "All-green success alert → shadcn Alert with variant='default' (green) when all jobs complete"
+      ],
+      "shadcn_equivalent": [
+        "Tabs",
+        "Table",
+        "Badge",
+        "Button",
+        "Alert",
+        "Select"
+      ],
+      "known_bugs": [],
+      "estimated_translation_time_min": 120
+    },
+    {
+      "label": "ms_permissions",
+      "file": "design/Monopilot Design System/multi-site/admin-screens.jsx",
+      "lines": "4-138",
+      "component_type": "table",
+      "ui_pattern": "list-with-actions",
+      "data_domain": "Role",
+      "interaction": "bulk",
+      "complexity": "page-level",
+      "depends_on_prototypes": [
+        "primitive:SiteCrumb",
+        "primitive:SiteRef"
+      ],
+      "translation_notes": [
+        "3-view toggle (matrix/user/site) → shadcn Tabs or segmented control using shadcn ToggleGroup",
+        "Matrix view → custom CSS grid table with user rows × site columns; use shadcn Table + sticky first column",
+        "Empty cell click to assign → Admin-gated onClick on pm-empty cells opens AssignUserModal",
+        "User view (flat list) → shadcn Table with Edit/Remove row actions, Admin-gated",
+        "Site view (per-site cards) → shadcn Accordion or Card per site with user sub-table",
+        "Super-admin indicator (ALL badge) → shadcn Badge for users with super_admin role, skip per-site cells",
+        "Filter bar (search + role) → shadcn Input + Select, client-side filter on loaded data",
+        "Server Component loads all users + perm_matrix + sites in a single Drizzle join query"
+      ],
+      "shadcn_equivalent": [
+        "Table",
+        "Tabs",
+        "Badge",
+        "Button",
+        "Card",
+        "Input",
+        "Select"
+      ],
+      "known_bugs": [],
+      "estimated_translation_time_min": 120
+    },
+    {
+      "label": "ms_analytics",
+      "file": "design/Monopilot Design System/multi-site/admin-screens.jsx",
+      "lines": "140-333",
+      "component_type": "tabs",
+      "ui_pattern": "dashboard-tile",
+      "data_domain": "Site",
+      "interaction": "read-only",
+      "complexity": "page-level",
+      "depends_on_prototypes": [
+        "primitive:SiteCrumb",
+        "primitive:SiteRef",
+        "primitive:LaneHealth"
+      ],
+      "translation_notes": [
+        "5-tab analytics (inventory/shipping/utilization/conflict/benchmark) → shadcn Tabs",
+        "Inventory balance bar chart → replace CSS ms-bar-chart with Recharts BarChart or @tremor/react BarChart (BL-MS-05)",
+        "Rebalance suggestions → shadcn Card list with Create Suggested Transfer action button per suggestion",
+        "Shipping cost monthly chart → Recharts AreaChart or BarChart, data from shipment_costs monthly aggregate",
+        "Cost-by-lane table → shadcn Table with numeric formatting via Intl.NumberFormat",
+        "Conflict trend chart → Recharts BarChart with red/blue conditional bar color",
+        "Per-site benchmark table → shadcn Table with conditional text color via cn() for OEE/onTime/QA columns",
+        "Date range selector → shadcn Select, drives Server Component re-fetch or SWR key change",
+        "Known bug BL-MS-05: all charts are CSS-only placeholders requiring real chart library implementation"
+      ],
+      "shadcn_equivalent": [
+        "Tabs",
+        "Card",
+        "Table",
+        "Select",
+        "Button",
+        "Badge",
+        "Alert"
+      ],
+      "known_bugs": [
+        "BL-MS-05: Real chart rendering required for Analytics tabs; currently CSS-only bar/line chart placeholders"
+      ],
+      "estimated_translation_time_min": 180
+    },
+    {
+      "label": "ms_settings",
+      "file": "design/Monopilot Design System/multi-site/admin-screens.jsx",
+      "lines": "335-493",
+      "component_type": "page-layout",
+      "ui_pattern": "crud-form-with-validation",
+      "data_domain": "Site",
+      "interaction": "edit",
+      "complexity": "page-level",
+      "depends_on_prototypes": [
+        "primitive:SiteCrumb",
+        "primitive:ActState",
+        "primitive:Field",
+        "primitive:SiteRef"
+      ],
+      "translation_notes": [
+        "7-section settings page → shadcn Card per section, each with its own save Server Action",
+        "Activation state section → read-only ActState badge + Rollback button (opens RollbackModal, Admin only)",
+        "Replication cadence table → shadcn Table with Edit Schedule action per entity row",
+        "Conflict resolution policy select → shadcn Select + conditional source-of-truth site select, saved via Server Action",
+        "Timezone/language toggles → shadcn Switch components, settings persisted to org_config table",
+        "FX pairs table → read-only shadcn Table, missing rates highlighted with amber Alert + CTA to Finance",
+        "Hierarchy config section → read-only summary with Edit Hierarchy button (stub per BL-MS-07)",
+        "Config promotion section → env ladder visualization + recent promotions table, opens PromoteEnvModal",
+        "Known bug BL-MS-03: timezone toggle wired in UI but not applied to timestamp rendering across app",
+        "Known bug BL-MS-07: Hierarchy depth migration wizard (MODAL-HIERARCHY-EDIT) is a stub"
+      ],
+      "shadcn_equivalent": [
+        "Card",
+        "Table",
+        "Select",
+        "Switch",
+        "Button",
+        "Alert",
+        "Badge"
+      ],
+      "known_bugs": [
+        "BL-MS-03: Timezone toggle live state not applied to timestamp rendering across the app",
+        "BL-MS-07: Hierarchy depth migration wizard left as stub (spec §9.6)"
+      ],
+      "estimated_translation_time_min": 180
+    },
+    {
+      "label": "ms_activation_wizard",
+      "file": "design/Monopilot Design System/multi-site/admin-screens.jsx",
+      "lines": "495-652",
+      "component_type": "wizard",
+      "ui_pattern": "multi-step-wizard",
+      "data_domain": "Site",
+      "interaction": "create",
+      "complexity": "page-level",
+      "depends_on_prototypes": [
+        "primitive:SiteCrumb",
+        "primitive:Stepper",
+        "primitive:Field"
+      ],
+      "translation_notes": [
+        "3-step full-page wizard shell → dedicated /activate route with Stepper, not inside Modal",
+        "Step 1 (Create Sites): repeating site draft cards → useFieldArray for dynamic site list, each with zod schema",
+        "Add Another Site → useFieldArray append(), Remove → useFieldArray remove(i)",
+        "Step 2 (Assign Users): user×site matrix with checkboxes, role select, primary radio → complex useFieldArray or object state",
+        "Step 3 (Backfill & Review): backfill preview table from Server Action pre-computation, 3 confirm checkboxes",
+        "allChecked gate on Activate button → zod schema with .refine() requiring all 3 checkboxes true",
+        "Activate triggers ActivationConfirmModal → separate modal from main wizard flow",
+        "Save & Exit persists wizard state to activation_wizard_draft table for resumability",
+        "State machine: inactive → wizard → dual_run → activated enforced server-side, wizard only shown when inactive"
+      ],
+      "shadcn_equivalent": [
+        "Card",
+        "Form",
+        "Input",
+        "Select",
+        "Checkbox",
+        "RadioGroup",
+        "Table",
+        "Button",
+        "Alert"
+      ],
+      "known_bugs": [],
+      "estimated_translation_time_min": 240
+    },
+    {
+      "label": "sites_screen",
+      "file": "design/Monopilot Design System/settings/org-screens.jsx",
+      "lines": "103-189",
+      "component_type": "page-layout",
+      "ui_pattern": "list-with-actions",
+      "data_domain": "Org",
+      "interaction": "edit",
+      "complexity": "page-level",
+      "depends_on_prototypes": [],
+      "translation_notes": [
+        "CSS grid 280px + 1fr two-column layout → shadcn ResizablePanelGroup or Tailwind grid-cols-[280px_1fr]",
+        "Site map with absolute-positioned pins → replace placeholder with a real map (react-leaflet or Mapbox); for production use a lightweight SVG country map as fallback",
+        "window.SETTINGS_SITES + window.SETTINGS_LINES → Drizzle queries in Server Component for sites and production_lines tables filtered by site",
+        "Inline <table> for lines → shadcn Table with TanStack Table for sort/filter",
+        "Toggle + text fields in 'Site settings' section → useForm with Server Action for site update; HACCP cert expiry from certification_records table",
+        "Hardcoded labels → next-intl keys"
+      ],
+      "shadcn_equivalent": [
+        "Table",
+        "TableHead",
+        "TableRow",
+        "Badge",
+        "Button",
+        "Toggle",
+        "Separator"
+      ],
+      "known_bugs": [],
+      "estimated_translation_time_min": 120
+    }
+  ]
+}

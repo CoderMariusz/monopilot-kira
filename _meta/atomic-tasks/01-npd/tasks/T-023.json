@@ -1,0 +1,58 @@
+{
+  "title": "T-023 — UI: FA Core tab (fa_core_tab) — schema-driven form",
+  "prompt": "# T-023 — FA Core tab UI\n\nPRD: 01-NPD-PRD.md §5.2, §5.3, §6.1 Chain 3, ADR-028 + UX fa_core_tab\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\nPrototype: design/Monopilot Design System/npd/fa-screens.jsx:455-517 (fa_core_tab)\n\n## Goal\nClient form for FA Core dept (8 base cols + 7 brief extensions) generated dynamically from buildDeptZod('Core'). Auto-derived ingredient_codes is read-only. Triggers cascade Chain 3 on recipe_components save.\n\n## Implementation contract\nNew apps/web/app/(npd)/fa/[productCode]/_tabs/core-tab.tsx 'use client'. RHF + zodResolver(buildDeptZod('Core')). Read-only auto fields (ingredient_codes) styled green. Submit button calls updateFaCell per dirty field; recipe_components dirty triggers chain3 invocation server-side. shadcn Form/Input/Select primitives; closed_core via Select with values from CloseConfirm reference.\n\n## Files\n- apps/web/app/(npd)/fa/[productCode]/_tabs/core-tab.tsx [create]\n- apps/web/app/(npd)/fa/[productCode]/_tabs/__tests__/core-tab.test.tsx [create]\n- design/Monopilot Design System/npd/fa-screens.jsx [ref]\n\n## Acceptance criteria\n1. Given the tab renders, when compared to design/Monopilot Design System/npd/fa-screens.jsx:455-517 (fa_core_tab), then it shows the same 8 base + brief extension fields in same order, ingredient_codes is read-only with green background, and uses shadcn Form/Input/Select primitives — verified by RTL parity checklist (structural+visual+interaction)\n2. Given user edits recipe_components and submits, when Server Action runs, then chain3 is invoked and prod_detail rows sync\n3. Given user changes pack_size, when submitted, then chain1 cascade triggers (line+equipment_setup cleared)\n\n## Test strategy\n- RED: 3 RTL tests for parity, chain3 trigger, chain1 trigger\n- Run 'pnpm --filter web test core-tab'\n\n## Risk red lines\n- Do not hardcode field list (use buildDeptZod)\n- Do not allow editing of ingredient_codes\n- Do not skip cascade invocations",
+  "labels": ["prd", "ui", "fa-core-tab", "T3-ui"],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-023",
+    "source_prd": "01-NPD-PRD.md",
+    "prd_refs": ["§5.2", "§5.3", "§6.1"],
+    "category": "ui",
+    "subcategory": "fa-core-tab",
+    "task_type": "T3-ui",
+    "parent_feature": "01-NPD-a fa detail tabs",
+    "context_budget": "40k",
+    "estimated_effort": "2-3h",
+    "description": "Schema-driven Core tab form using buildDeptZod with cascade triggers on recipe_components and pack_size.",
+    "details": "Parity: 8 base + 7 brief extensions in spec order; auto-derived ingredient_codes read-only green; closed_core via shadcn Select bound to CloseConfirm reference. Cascades chain3 + chain1 invoked server-side via updateFaCell.",
+    "scope_files": [
+      "apps/web/app/(npd)/fa/[productCode]/_tabs/core-tab.tsx [create]",
+      "apps/web/app/(npd)/fa/[productCode]/_tabs/__tests__/core-tab.test.tsx [create]",
+      "design/Monopilot Design System/npd/fa-screens.jsx [ref]"
+    ],
+    "out_of_scope": [
+      "Do not implement other dept tabs (T-024..T-028)",
+      "Do not handle Convert-to-PLD pre-fill here"
+    ],
+    "dependencies": ["T-009", "T-010", "T-012", "T-014", "T-020"],
+    "parallel_safe_with": ["T-024", "T-025", "T-026", "T-027", "T-028"],
+    "acceptance_criteria": [
+      "Given the tab renders, when compared to design/Monopilot Design System/npd/fa-screens.jsx:455-517, then it shows same 8 base + brief extension fields in same order, ingredient_codes read-only green, and uses shadcn Form/Input/Select primitives — verified by RTL parity checklist (structural + visual + interaction parity)",
+      "Given user edits recipe_components and submits, when Server Action runs, then chain3 is invoked and prod_detail rows sync",
+      "Given user changes pack_size, when submitted, then chain1 cascade triggers (line+equipment_setup cleared)"
+    ],
+    "test_strategy": [
+      "RED: 3 RTL tests for parity, chain3 trigger, chain1 trigger before component exists",
+      "Run 'pnpm --filter web test core-tab'"
+    ],
+    "risk_red_lines": [
+      "Do not hardcode field list",
+      "Do not allow editing of ingredient_codes",
+      "Do not skip cascade invocations"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

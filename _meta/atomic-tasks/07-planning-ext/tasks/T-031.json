@@ -1,0 +1,60 @@
+{
+  "title": "T-031 — Assignment Side Panel (open on Gantt block click)",
+  "prompt": "# T-031 — Assignment Side Panel (open on Gantt block click)\n\nPRD: 07-PLANNING-EXT-PRD.md §8.1 SCR-07-01, side panel, §3.4 approve/reject/override\nPrototype: design/Monopilot Design System/planning-ext/dashboard.jsx:365-451 (`assignment_side_panel`)\nUX: design/07-PLANNING-EXT-UX.md:392-426\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nImplement side panel rendered on WO Gantt block click, showing WO details (materials, dependencies, allergen profile, changeover info) + actions [Approve] [Reject] [Override] [Reschedule WO].\n\n## Implementation contract\n1. New `apps/web/src/components/scheduler/AssignmentSidePanel.tsx` (shadcn Sheet) with controlled open/onOpenChange.\n2. Loads WO + materials + dependencies via Server Action / Drizzle query helper (lazy-load on open).\n3. Action buttons: Approve → POST approve (T-014); Reject → POST reject (T-016); Override → opens override_assignment_modal (T-033); Reschedule WO → opens reschedule_wo_modal (T-034).\n4. Allergen + changeover info computed from changeover_matrix join.\n\n## Files\n- apps/web/src/components/scheduler/AssignmentSidePanel.tsx [create]\n- apps/web/src/components/scheduler/use-assignment-detail.ts [create]\n- apps/web/src/components/scheduler/__tests__/AssignmentSidePanel.test.tsx [create]\n- design/Monopilot Design System/planning-ext/dashboard.jsx [ref]\n\n## Acceptance criteria\n1. Given a Gantt block click event, when the panel opens, then it lazy-fetches WO detail (materials + dependencies) and renders 4 action buttons\n2. Given the rendered panel, when compared to prototype design/Monopilot Design System/planning-ext/dashboard.jsx:365-451, then it has the same allergen warning section, the same 4 action buttons in the same order, and uses the same shadcn primitives (Sheet, Button, Badge) — parity verified by RTL snapshot + checklist (structural + visual + interaction)\n3. Given Scheduling Officer role, when panel renders, then [Override] button is hidden (only Approve/Reject/Reschedule visible per §3.2 RBAC)\n\n## Test strategy\n- RED: write apps/web/src/components/scheduler/__tests__/AssignmentSidePanel.test.tsx covering lazy load + parity + RBAC visibility\n- Run 'pnpm --filter web test scheduler/AssignmentSidePanel'\n\n## Risk red lines\n- Do not load WO detail eagerly on Gantt page mount (must be lazy on panel open)\n- Do not show [Override] button to Scheduling Officer\n- Do not duplicate approve logic — call shared approve-action helper",
+  "labels": ["prd", "ui", "panel", "T3-ui"],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-031",
+    "source_prd": "07-PLANNING-EXT-PRD.md",
+    "prd_refs": ["§8.1 SCR-07-01", "§3.4"],
+    "category": "ui",
+    "subcategory": "panel-side",
+    "task_type": "T3-ui",
+    "parent_feature": "07-EXT-a Scheduler Dashboard",
+    "context_budget": "50k",
+    "estimated_effort": "2-3h",
+    "description": "Lazy-loading side Sheet showing WO detail + 4 action buttons with RBAC-gated Override.",
+    "details": "shadcn Sheet (controlled). Lazy fetch on open. 4 actions wired to existing API endpoints. RBAC hides Override for Scheduling Officer. Parity with prototype enforced via RTL snapshot.",
+    "scope_files": [
+      "apps/web/src/components/scheduler/AssignmentSidePanel.tsx [create]",
+      "apps/web/src/components/scheduler/use-assignment-detail.ts [create]",
+      "apps/web/src/components/scheduler/__tests__/AssignmentSidePanel.test.tsx [create]",
+      "design/Monopilot Design System/planning-ext/dashboard.jsx:365-451 [ref]"
+    ],
+    "out_of_scope": [
+      "Do not implement override modal here (T-033)",
+      "Do not implement reschedule modal here (T-034)",
+      "Do not implement run scheduler modal (T-032)"
+    ],
+    "dependencies": ["T-014", "T-016", "T-030"],
+    "parallel_safe_with": ["T-032", "T-033"],
+    "acceptance_criteria": [
+      "Given a Gantt block click, when panel opens, then it lazy-fetches WO detail + renders 4 action buttons",
+      "Given the rendered panel, when compared to prototype design/Monopilot Design System/planning-ext/dashboard.jsx:365-451, then it has the same allergen warning, same 4 action buttons in same order, and same shadcn primitives (Sheet, Button, Badge) — parity verified by RTL snapshot + checklist",
+      "Given Scheduling Officer role, when panel renders, then [Override] button is hidden"
+    ],
+    "test_strategy": [
+      "RED: write __tests__/AssignmentSidePanel.test.tsx covering lazy load + parity + RBAC visibility",
+      "Run 'pnpm --filter web test scheduler/AssignmentSidePanel'"
+    ],
+    "risk_red_lines": [
+      "Do not load WO detail eagerly",
+      "Do not show [Override] to Scheduling Officer",
+      "Do not duplicate approve logic"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

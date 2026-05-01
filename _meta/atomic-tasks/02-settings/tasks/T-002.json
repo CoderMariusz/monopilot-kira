@@ -1,0 +1,89 @@
+{
+  "title": "T-002 — Extend settings permission enum (schema/rules/ref/infra/d365/email/onboarding/security)",
+  "prompt": "# T-002 — Extend settings permission enum\n\n## Goal\nAppend the second SETTINGS_EXT permission group covering schema admin, rule registry, reference CRUD, infrastructure, D365, email, onboarding, security policy, SSO, SCIM, IP allowlist, and feature flags. Export `ALL_SETTINGS_EXT_PERMISSIONS`.\n\n## Files in scope\n- apps/web/lib/rbac/permissions.enum.ts [modify]\n- apps/web/lib/rbac/permissions.test.ts [modify]\n\n## Acceptance criteria (all must hold)\n- Given the enum file is read, when imported, then it exposes settings.schema.{view,edit,promote_l1}; settings.rules.view; settings.reference.{view,edit,import}; settings.infra.{view,edit}; settings.d365.{view,edit,toggle}; settings.email.{view,edit}; settings.onboarding.complete; settings.security.edit; settings.sso.{view,edit}; settings.scim.{view,edit}; settings.ip_allowlist.{view,edit}; settings.flags.{view,edit}.\n- Given the file is parsed, when checked, then all new strings match `^settings\\.[a-z_]+\\.[a-z_0-9]+$` and zero duplicates exist.\n- Given vitest runs `apps/web/lib/rbac/permissions.test.ts`, when executed, then ALL_SETTINGS_EXT_PERMISSIONS array length equals exactly the count of new strings declared.\n\n## Test strategy (RED first)\n1. Add a failing test that exercises the acceptance criteria above. The RED command is:\n   `pnpm --filter @monopilot/web vitest run apps/web/lib/rbac/permissions.test.ts`\n2. Run RED — it must fail before any production code is written.\n3. Implement the smallest change needed for GREEN.\n4. Re-run RED command — must pass.\n5. Run `pnpm typecheck` and `pnpm lint` in the changed package; both must pass.\n\n## Risk red lines\n- Do not edit files outside the listed scope without documenting why in CLOSEOUT.\n- Do not weaken existing acceptance criteria from prior tasks.\n- Do not introduce REST endpoints; use Server Actions per stack contract.\n- Do not commit secrets or vault keys.\n\n## Closeout evidence required\n- changed_files (with line counts)\n- exact test commands and outputs (RED→GREEN, typecheck, lint)\n- acceptance_criteria_status (one row per AC: pass/fail)\n- deviations_from_prd (or \"none\")\n- git_status\n\nStack: TS + Next.js App Router + Drizzle + pnpm + vitest + Playwright + Server Actions. Primitives in `packages/ui`. PRD: `02-SETTINGS-PRD.md` v3.5.\n",
+  "labels": [
+    "prd",
+    "auth",
+    "permissions",
+    "T1-schema",
+    "p0-lock"
+  ],
+  "priority": 50,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-002",
+    "source_prd": "02-SETTINGS-PRD.md",
+    "prd_refs": [
+      "§3",
+      "§6",
+      "§7",
+      "§8",
+      "§10",
+      "§11",
+      "§12",
+      "§13",
+      "§14"
+    ],
+    "category": "auth",
+    "subcategory": "permissions-enum",
+    "task_type": "T1-schema",
+    "parent_feature": "02-settings-a",
+    "context_budget": "40k",
+    "estimated_effort": "1-3h",
+    "description": "Extend settings permission enum with all submodule (b/c/d/e) strings.",
+    "details": "Same conventions as T-001. Group with delimiter comments (Schema, Rules, Reference, Infra, D365, Email, Onboarding, Security, SSO, SCIM, IP Allowlist, Flags). Include JSDoc per group with PRD section refs.",
+    "scope_files": [
+      "apps/web/lib/rbac/permissions.enum.ts",
+      "apps/web/lib/rbac/permissions.test.ts"
+    ],
+    "out_of_scope": [
+      "broaden scope beyond listed files",
+      "implement future-phase features"
+    ],
+    "dependencies": [
+      "T-001"
+    ],
+    "parallel_safe_with": [],
+    "acceptance_criteria": [
+      "All listed strings present; regex passes; uniqueness verified.",
+      "`ALL_SETTINGS_EXT_PERMISSIONS` array exported, typed Permission[].",
+      "vitest suite green."
+    ],
+    "test_strategy": [
+      "RED: extend permissions.test.ts.",
+      "GREEN: append strings.",
+      "Run `pnpm typecheck`."
+    ],
+    "risk_red_lines": [
+      "Do not introduce permissions outside settings namespace.",
+      "Do not couple enum strings to specific UI components."
+    ],
+    "skills": [
+      "test-driven-development"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": false
+  }
+}

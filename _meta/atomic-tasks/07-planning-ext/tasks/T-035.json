@@ -1,0 +1,58 @@
+{
+  "title": "T-035 — Approve All modal (approve_all_modal)",
+  "prompt": "# T-035 — Approve All modal\n\nPRD: 07-PLANNING-EXT-PRD.md §8.1 SCR-07-01 Zone D, §16.2 OQ-EXT-06\nPrototype: design/Monopilot Design System/planning-ext/modals.jsx:289-320 (`approve_all_modal`)\nUX: design/07-PLANNING-EXT-UX.md:336\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nImplement Dialog confirmation for [Approve All] bulk action covering all completed runs (per OQ-EXT-06) — shows assignment count grouped by run, calls bulk_approve API.\n\n## Implementation contract\n1. New `apps/web/src/components/scheduler/ApproveAllModal.tsx` (shadcn Dialog).\n2. Loads pending count grouped by run_id via server query before opening.\n3. Confirm → calls /api/scheduler/assignments/bulk_approve (T-017); shows loading state; on success → toast 'X assignments approved'.\n4. Scheduling Officer scope warning: 'You will only approve assignments in your scope (N of M)'.\n\n## Files\n- apps/web/src/components/scheduler/ApproveAllModal.tsx [create]\n- apps/web/src/components/scheduler/__tests__/ApproveAllModal.test.tsx [create]\n- design/Monopilot Design System/planning-ext/modals.jsx [ref]\n\n## Acceptance criteria\n1. Given Planner Advanced + 5 pending across 2 runs, when modal opens, then table shows 2 rows (Run A: 3, Run B: 2) and total=5\n2. Given the rendered modal, when compared to prototype design/Monopilot Design System/planning-ext/modals.jsx:289-320, then it has same Dialog layout, same run-group table, same [Approve All]/[Cancel] buttons, and same shadcn primitives (Dialog, Table, Badge, Button) — parity by RTL snapshot + checklist\n3. Given Scheduling Officer with scope=2 of 5 pending, when modal opens, then warning Alert variant='warning' shows 'You will only approve assignments in your scope (2 of 5)'\n\n## Test strategy\n- RED: write __tests__/ApproveAllModal.test.tsx covering count grouping + parity + officer-scope warning\n- Run 'pnpm --filter web test scheduler/ApproveAllModal'\n\n## Risk red lines\n- Do not approve outside Scheduling Officer scope\n- Do not call API without confirmation\n- Do not group by run on client (server query returns pre-grouped)",
+  "labels": ["prd", "ui", "modal", "T3-ui"],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-035",
+    "source_prd": "07-PLANNING-EXT-PRD.md",
+    "prd_refs": ["§8.1", "§16.2 OQ-EXT-06"],
+    "category": "ui",
+    "subcategory": "modal-bulk-approve",
+    "task_type": "T3-ui",
+    "parent_feature": "07-EXT-a bulk approve",
+    "context_budget": "40k",
+    "estimated_effort": "1-2h",
+    "description": "Confirmation Dialog for bulk approve across all runs with run-group table + officer-scope warning.",
+    "details": "Server-grouped count query feeds table. shadcn Dialog. Confirm calls T-017 bulk_approve endpoint. Officer-scope warning rendered conditionally.",
+    "scope_files": [
+      "apps/web/src/components/scheduler/ApproveAllModal.tsx [create]",
+      "apps/web/src/components/scheduler/__tests__/ApproveAllModal.test.tsx [create]",
+      "design/Monopilot Design System/planning-ext/modals.jsx:289-320 [ref]"
+    ],
+    "out_of_scope": [
+      "Do not implement bulk_approve API here (T-017)",
+      "Do not implement individual approve modal (uses inline button)"
+    ],
+    "dependencies": ["T-017"],
+    "parallel_safe_with": ["T-033", "T-034"],
+    "acceptance_criteria": [
+      "Given Planner Advanced + 5 pending across 2 runs, when modal opens, then table shows 2 rows (Run A: 3, Run B: 2) and total=5",
+      "Given the rendered modal, when compared to prototype design/Monopilot Design System/planning-ext/modals.jsx:289-320, then it has same Dialog layout, same run-group table, same [Approve All]/[Cancel] buttons, and same shadcn primitives — parity by RTL snapshot + checklist",
+      "Given Scheduling Officer with scope=2 of 5, when modal opens, then warning Alert shows 'You will only approve assignments in your scope (2 of 5)'"
+    ],
+    "test_strategy": [
+      "RED: write __tests__/ApproveAllModal.test.tsx covering grouping + parity + scope warning",
+      "Run 'pnpm --filter web test scheduler/ApproveAllModal'"
+    ],
+    "risk_red_lines": [
+      "Do not approve outside Scheduling Officer scope",
+      "Do not call API without confirmation",
+      "Do not group on client"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

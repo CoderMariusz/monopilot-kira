@@ -1,0 +1,84 @@
+{
+  "title": "T-003 \u2014 events.enum.ts source-of-truth lock with fa.* / brief.* / org.* / lp.* / wo.* / quality.* / shipment.* prefixes",
+  "prompt": "# T-003 \u2014 events.enum.ts source-of-truth lock with fa.* / brief.* / org.* / lp.* / wo.* / quality.* / shipment.* prefixes\n\nPRD: `00-FOUNDATION-PRD.md` \u2014 sections: \u00a710\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`\n\n## Goal\nLock outbox event_type strings as a single TypeScript const map. Foundation aggregates only \u2014 module-specific events added by later tasks.\n\n## Implementation contract\nCreate packages/outbox/src/events.enum.ts exporting EventType const object. Foundation entries: org.created, user.invited, role.assigned, audit.recorded, fa.created, fa.allergens_changed, brief.created, lp.received, wo.ready, quality.recorded, shipment.created. Format regex enforced: ^[a-z]+(\\.[a-z_]+)+$. Export ALL_EVENTS readonly array. Add JSDoc comment naming aggregate prefix per \u00a710. Add CODEOWNERS entry blocking modification without architect review. fa.* is canonical for the NPD finished-article aggregate even after the ADR-034 product table rename \u2014 assert this in a test.\n\n## Files (scope)\n- packages/outbox/src/events.enum.ts [create]\n- packages/outbox/src/__tests__/events.test.ts [create]\n- CODEOWNERS [modify]\n\n## Acceptance criteria\n1. Given the events.enum.ts file is loaded, when ALL_EVENTS is iterated, then no duplicate values exist and every value matches /^[a-z]+(\\.[a-z_]+)+$/\n2. Given fa.* aggregate is canonical per \u00a710, when the test asserts EventType.FA_CREATED === 'fa.created' and EventType.FA_ALLERGENS_CHANGED === 'fa.allergens_changed', then both pass\n3. Given CODEOWNERS contains 'packages/outbox/src/events.enum.ts @architect', when 'git check-attr' is run, then ownership is reported\n\n## Test strategy\n- RED: write packages/outbox/src/__tests__/events.test.ts asserting no dupes + format regex + canonical fa.* values before events.enum.ts exists\n- Run 'pnpm --filter @monopilot/outbox test'\n\n## Risk red lines\n- Do not introduce free-form event_type strings outside this enum\n- Do not collapse fa.* and product.* \u2014 they are reserved for different aggregates\n\n## Dependencies (must be complete first)\n- T-001\n\n## Closeout evidence\nProvide: changed_files, test_commands_and_results, acceptance_criteria_status (per AC), deviations_from_prd, git_status. Use the test-driven-development skill (RED test before implementation) and requesting-code-review at GREEN.",
+  "labels": [
+    "prd",
+    "infra",
+    "enum-lock",
+    "T1-schema"
+  ],
+  "priority": 50,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-003",
+    "source_prd": "00-FOUNDATION-PRD.md",
+    "prd_refs": [
+      "\u00a710"
+    ],
+    "category": "infra",
+    "subcategory": "enum-lock",
+    "task_type": "T1-schema",
+    "parent_feature": "cross-cutting enum locks",
+    "context_budget": "25k",
+    "estimated_effort": "0.5-1h",
+    "description": "Lock outbox event_type strings as a single TypeScript const map. Foundation aggregates only \u2014 module-specific events added by later tasks.",
+    "details": "Create packages/outbox/src/events.enum.ts exporting EventType const object. Foundation entries: org.created, user.invited, role.assigned, audit.recorded, fa.created, fa.allergens_changed, brief.created, lp.received, wo.ready, quality.recorded, shipment.created. Format regex enforced: ^[a-z]+(\\.[a-z_]+)+$. Export ALL_EVENTS readonly array. Add JSDoc comment naming aggregate prefix per \u00a710. Add CODEOWNERS entry blocking modification without architect review. fa.* is canonical for the NPD finished-article aggregate even after the ADR-034 product table rename \u2014 assert this in a test.",
+    "scope_files": [
+      "packages/outbox/src/events.enum.ts [create]",
+      "packages/outbox/src/__tests__/events.test.ts [create]",
+      "CODEOWNERS [modify]"
+    ],
+    "out_of_scope": [
+      "Do not modify files outside the scope_files list",
+      "Do not introduce business logic from later module PRDs (01-NPD, 02-SETTINGS, etc.)",
+      "Do not add events for unimplemented modules (no scanner.*, oee.*, finance.* yet)"
+    ],
+    "dependencies": [
+      "T-001"
+    ],
+    "parallel_safe_with": [
+      "T-004",
+      "T-005"
+    ],
+    "acceptance_criteria": [
+      "Given the events.enum.ts file is loaded, when ALL_EVENTS is iterated, then no duplicate values exist and every value matches /^[a-z]+(\\.[a-z_]+)+$/",
+      "Given fa.* aggregate is canonical per \u00a710, when the test asserts EventType.FA_CREATED === 'fa.created' and EventType.FA_ALLERGENS_CHANGED === 'fa.allergens_changed', then both pass",
+      "Given CODEOWNERS contains 'packages/outbox/src/events.enum.ts @architect', when 'git check-attr' is run, then ownership is reported"
+    ],
+    "test_strategy": [
+      "RED: write packages/outbox/src/__tests__/events.test.ts asserting no dupes + format regex + canonical fa.* values before events.enum.ts exists",
+      "Run 'pnpm --filter @monopilot/outbox test'"
+    ],
+    "risk_red_lines": [
+      "Do not introduce free-form event_type strings outside this enum",
+      "Do not collapse fa.* and product.* \u2014 they are reserved for different aggregates"
+    ],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

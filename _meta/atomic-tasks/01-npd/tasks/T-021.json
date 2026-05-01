@@ -1,0 +1,58 @@
+{
+  "title": "T-021 — UI: FA Create modal (fa_create_modal prototype)",
+  "prompt": "# T-021 — FA Create modal UI\n\nPRD: 01-NPD-PRD.md §7.6, §12 V01/V02 + UX 01-NPD-UX.md fa_create_modal\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\nPrototype: design/Monopilot Design System/npd/modals.jsx:9-43 (fa_create_modal)\n\n## Goal\nClient Component FA Create modal opened via URL ?modal=faCreate (parsed in root layout) using shadcn Dialog + RHF + zodResolver wired to V01/V02 schemas; calls createFa Server Action.\n\n## Implementation contract\nNew apps/web/app/(npd)/_modals/fa-create-modal.tsx 'use client'. RHF form with two fields (productCode, productName), shadcn Input+FormField+FormMessage, Submit button. zodResolver(faCreateSchema). On success: router.push to /(npd)/fa/[productCode]. Show duplicate Alert when Server Action returns DuplicateError. Disable submit while pending.\n\n## Files\n- apps/web/app/(npd)/_modals/fa-create-modal.tsx [create]\n- apps/web/app/(npd)/_modals/__tests__/fa-create-modal.test.tsx [create]\n- design/Monopilot Design System/npd/modals.jsx [ref]\n\n## Acceptance criteria\n1. Given the modal renders, when compared to design/Monopilot Design System/npd/modals.jsx:9-43 (fa_create_modal), then it has the same 2 fields (Product_Code, Product_Name) in same order, the same 2 buttons (Cancel/Create), Create disabled until valid, and uses shadcn Dialog+Form+Input+Button (no HTML form) — verified by RTL parity checklist (structural+visual+interaction)\n2. Given user types 'ZZ123' in productCode, when blurring, then FormMessage 'V01' inline error visible and submit disabled\n3. Given user submits valid input, when createFa returns success, then router.push('/(npd)/fa/<code>') is called\n\n## Test strategy\n- RED: RTL tests asserting parity, V01 inline error, success navigation\n- Run 'pnpm --filter web test fa-create-modal'\n\n## Risk red lines\n- Do not bypass zodResolver\n- Do not call DB directly in client component\n- Do not omit dismissible=true (this modal must be cancellable)",
+  "labels": ["prd", "ui", "fa-modals", "T3-ui"],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-021",
+    "source_prd": "01-NPD-PRD.md",
+    "prd_refs": ["§7.6", "§12 V01", "§12 V02"],
+    "category": "ui",
+    "subcategory": "fa-create-modal",
+    "task_type": "T3-ui",
+    "parent_feature": "01-NPD-a fa CRUD UI",
+    "context_budget": "30k",
+    "estimated_effort": "2h",
+    "description": "FA create dialog using shadcn Dialog + RHF + Zod V01/V02 mirror; calls createFa Server Action.",
+    "details": "Parity: 2 fields in order, 2 buttons (Cancel/Create), disabled state until valid, V01 regex inline error mirroring server, shadcn primitives only. URL search params drive open state.",
+    "scope_files": [
+      "apps/web/app/(npd)/_modals/fa-create-modal.tsx [create]",
+      "apps/web/app/(npd)/_modals/__tests__/fa-create-modal.test.tsx [create]",
+      "design/Monopilot Design System/npd/modals.jsx [ref]"
+    ],
+    "out_of_scope": [
+      "Do not implement Brief Convert (T-031)",
+      "Do not implement DeptClose modal (T-022)"
+    ],
+    "dependencies": ["T-008"],
+    "parallel_safe_with": ["T-022"],
+    "acceptance_criteria": [
+      "Given the modal renders, when compared to design/Monopilot Design System/npd/modals.jsx:9-43, then it has same 2 fields in same order, same 2 buttons (Cancel/Create), Create disabled until valid, and uses shadcn Dialog+Form+Input+Button — verified by RTL parity checklist (structural + visual + interaction parity)",
+      "Given user types 'ZZ123' in productCode, when blurring, then FormMessage 'V01' inline error is visible and submit disabled",
+      "Given user submits valid input, when createFa returns success, then router.push('/(npd)/fa/<code>') is called"
+    ],
+    "test_strategy": [
+      "RED: RTL tests asserting parity, V01 inline error, success navigation before component exists",
+      "Run 'pnpm --filter web test fa-create-modal'"
+    ],
+    "risk_red_lines": [
+      "Do not bypass zodResolver",
+      "Do not call DB directly from client component",
+      "Do not make modal non-dismissible"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

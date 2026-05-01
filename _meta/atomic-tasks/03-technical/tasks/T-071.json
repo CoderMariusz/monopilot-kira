@@ -1,0 +1,35 @@
+{
+  "title": "T-071 — Docs: ADR-002 + ADR-008 + ADR-028 + ADR-029 cross-reference notes for 03-TECHNICAL",
+  "prompt": "Write a concise ADR cross-ref note for 03-TECHNICAL at design/specs/03-TECHNICAL-ADR-notes.md. Cover: ADR-002 (BOM snapshot pattern — implemented in T-002 + T-025), ADR-008 (audit_log mutation tracking — implemented across T-009/T-010/T-011/T-013/T-014/T-016/T-017/T-021), ADR-028 (schema-driven cols implemented via T-001 ext_jsonb + T-027 propagation), ADR-029 (rule registry — cascade rule deployed in T-024). Each ADR section ends with the canonical task reference and the file/line touched.",
+  "labels": ["prd", "docs", "adr-notes", "docs"],
+  "priority": 150,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-071",
+    "source_prd": "03-TECHNICAL-PRD.md",
+    "prd_refs": ["§16"],
+    "category": "docs",
+    "subcategory": "adr-notes",
+    "task_type": "docs",
+    "parent_feature": "03-TECHNICAL References",
+    "context_budget": "8k",
+    "estimated_effort": "0.5h",
+    "description": "ADR cross-reference notes mapping each ADR to its task implementations.",
+    "details": "Useful for reviewers + closeout traceability. No code changes — pure docs.",
+    "scope_files": ["design/specs/03-TECHNICAL-ADR-notes.md"],
+    "out_of_scope": ["Editing the ADRs themselves"],
+    "dependencies": [],
+    "parallel_safe_with": ["T-064", "T-065", "T-066", "T-067", "T-068", "T-069", "T-070"],
+    "acceptance_criteria": [
+      "Given the note exists, when reviewed, then 4 ADRs are cross-referenced with task IDs.",
+      "Given a reviewer reads it, when tracing closeout, then they can map ADR-029 cascade rule to T-024 directly."
+    ],
+    "test_strategy": ["Manual review.", "No automated tests."],
+    "risk_red_lines": ["Do not edit ADR source files."],
+    "skills": ["requesting-code-review"],
+    "checkpoint_policy": {"required_checkpoints": ["REVIEW", "CLOSEOUT"], "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]},
+    "routing_hints": {"red": "hermes_gpt55", "implementation": "hermes_gpt55", "review": "opus_if_high_risk_or_ui_or_architecture", "close": "spark_low_risk_else_opus"}
+  }
+}

@@ -1,0 +1,59 @@
+{
+  "title": "T-012 — Register DSL rule wo_state_machine_v1 in 02-SETTINGS rule registry",
+  "prompt": "# T-012 — Register DSL rule wo_state_machine_v1\n\nPRD: 08-PRODUCTION-PRD.md §10.1, §6 D1\nDependency: 02-SETTINGS §7 rule registry must exist (assume present from earlier modules).\n\n## Goal\nRegister the wo_state_machine_v1 DSL rule per §10.1 in the 02-SETTINGS rule registry: states, transitions, guards, side_effects exactly as documented.\n\n## Implementation contract\nCreate packages/dsl-rules/rules/production/wo-state-machine-v1.yaml with full state machine spec from §10.1. Add registration loader in packages/dsl-rules/src/registry/load-production-rules.ts that on app boot upserts rule_id 'wo_state_machine_v1' v1 active=true into rule_registry table (02-SETTINGS §7). Add unit test that the registered rule exposes 6 states (DRAFT/READY/IN_PROGRESS/PAUSED/COMPLETED/CANCELLED) and the 6 transitions from §10.1 with their guards.\n\n## Files (scope)\n- packages/dsl-rules/rules/production/wo-state-machine-v1.yaml [create]\n- packages/dsl-rules/src/registry/load-production-rules.ts [create]\n- packages/dsl-rules/src/__tests__/wo-state-machine-v1.test.ts [create]\n\n## Acceptance criteria\n1. Given the rules loader runs, when rule_registry queried for 'wo_state_machine_v1', then row exists with version='v1', active=true, payload includes 6 states and 6 transitions per §10.1\n2. Given rule loaded, when load output is parsed, then transitions[READY→IN_PROGRESS].guards include 'allergen_changeover_gate_v1_passes_or_not_required' (§10.1)\n3. Given rule loaded, when transitions[IN_PROGRESS→COMPLETED].side_effects parsed, then they include 'enqueue_outbox(d365_push, output_yield_gate_eval)'\n\n## Test strategy\n- RED: write packages/dsl-rules/src/__tests__/wo-state-machine-v1.test.ts asserting 6 states + 6 transitions + specific guards before YAML exists\n- Run 'pnpm --filter dsl-rules test wo-state-machine-v1'\n\n## Risk red lines\n- Do not change state list (locked at D1)\n- Do not add side_effects beyond §10.1\n- Do not register rule outside 02-SETTINGS rule_registry table",
+  "labels": ["prd", "data", "dsl-rule", "T1-schema"],
+  "priority": 80,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-012",
+    "source_prd": "08-PRODUCTION-PRD.md",
+    "prd_refs": ["§10.1", "§6 D1"],
+    "category": "data",
+    "subcategory": "dsl-rule",
+    "task_type": "T1-schema",
+    "parent_feature": "08-PROD E1 Execution Core",
+    "context_budget": "28k",
+    "estimated_effort": "1-2h",
+    "description": "Register wo_state_machine_v1 DSL rule (states+transitions+guards+side_effects) in 02-SETTINGS rule_registry.",
+    "details": "Materialize §10.1 YAML spec in packages/dsl-rules/rules/production/wo-state-machine-v1.yaml. Loader upserts into rule_registry on app boot. 02-SETTINGS owns rule_registry schema; this task only registers the rule, does not modify the registry table. Tests assert state/transition/guard payload integrity.",
+    "scope_files": [
+      "packages/dsl-rules/rules/production/wo-state-machine-v1.yaml [create]",
+      "packages/dsl-rules/src/registry/load-production-rules.ts [create]",
+      "packages/dsl-rules/src/__tests__/wo-state-machine-v1.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not modify rule_registry table schema (02-SETTINGS owns)",
+      "Do not implement rule evaluation engine here",
+      "Do not implement endpoints"
+    ],
+    "dependencies": [],
+    "parallel_safe_with": ["T-013", "T-014"],
+    "acceptance_criteria": [
+      "Given loader runs, when rule_registry queried for wo_state_machine_v1, then row exists with version='v1', active=true, 6 states, 6 transitions",
+      "Given rule loaded, when transitions[READY→IN_PROGRESS].guards parsed, then include 'allergen_changeover_gate_v1_passes_or_not_required'",
+      "Given rule loaded, when transitions[IN_PROGRESS→COMPLETED].side_effects parsed, then include 'enqueue_outbox(d365_push, output_yield_gate_eval)'"
+    ],
+    "test_strategy": [
+      "RED: test asserting 6 states + 6 transitions + specific guards before YAML exists",
+      "Run 'pnpm --filter dsl-rules test wo-state-machine-v1'"
+    ],
+    "risk_red_lines": [
+      "Do not change state list",
+      "Do not add side_effects beyond §10.1",
+      "Do not modify rule_registry table"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

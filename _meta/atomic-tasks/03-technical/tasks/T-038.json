@@ -1,0 +1,37 @@
+{
+  "title": "T-038 — UI: TEC-021 BOM Detail page with 7 tabs",
+  "prompt": "Build /technical/boms/[id] page (TEC-021, §7.5) with tabs: Ingredients Tree / Cost Panel / Routing / Process Params / Costs / Versions / Graph / Recipe Sheet — matching prototype tab structure. Match `bom_detail_page` design/Monopilot Design System/technical/bom-detail.jsx:3-60 (page chrome) plus the seven tab components in same file lines 63-603. RED tests/ui/tec-021-bom-detail.test.tsx. Run: `pnpm vitest run tests/ui/tec-021-bom-detail.test.tsx`.",
+  "labels": ["prd", "ui", "ui-bom-detail", "T3-ui"],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-038",
+    "source_prd": "03-TECHNICAL-PRD.md",
+    "prd_refs": ["§7.5", "§7A TEC-083", "§7A TEC-084"],
+    "category": "ui",
+    "subcategory": "bom-detail",
+    "task_type": "T3-ui",
+    "parent_feature": "03-TECHNICAL-a BOM",
+    "context_budget": "40k",
+    "estimated_effort": "4h",
+    "description": "BOM detail with 7 tabs (Ingredients Tree, Cost Panel, Routing, Process Params, Costs, Versions, Graph, Recipe Sheet).",
+    "details": "Each tab is a Client/Server Component split. Versions tab links to T-040 diff view. Graph tab uses lightweight DAG renderer (e.g., reactflow) — keep behind dynamic import.",
+    "scope_files": ["app/(app)/technical/boms/[id]/page.tsx", "app/(app)/technical/boms/[id]/_tabs/*.tsx", "tests/ui/tec-021-bom-detail.test.tsx"],
+    "out_of_scope": ["BOM edit modal (T-039)", "Version diff (T-040)"],
+    "dependencies": ["T-012", "T-037"],
+    "parallel_safe_with": ["T-039", "T-040"],
+    "acceptance_criteria": [
+      "Given the BOM detail renders, when compared to design/Monopilot Design System/technical/bom-detail.jsx:3-60 and the seven tab components at lines 63-152, 154-206, 209-249, 252-307, 310-370, 373-468, 471-544, 551-603, then tab order, header, and primitives match — structural + visual + interaction parity verified by RTL counting tabs and asserting layout sections.",
+      "Given user clicks 'Versions' tab, when fired, then version timeline renders and includes a 'View diff' link per pair.",
+      "Given user lacks technical.bom.approve, when on Versions tab, then 'Approve' action is hidden.",
+      "Given BOM has co_products, when on Ingredients Tree tab, then they are rendered with byproduct flag."
+    ],
+    "test_strategy": ["RED tests for parity + tab order + RBAC.", "Run: pnpm vitest run tests/ui/tec-021-bom-detail.test.tsx"],
+    "risk_red_lines": ["Do not eager-load Graph tab.", "Do not collapse tabs into a single accordion."],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {"required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"], "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]},
+    "routing_hints": {"red": "hermes_gpt55", "implementation": "hermes_gpt55", "review": "opus_if_high_risk_or_ui_or_architecture", "close": "spark_low_risk_else_opus"}
+  }
+}

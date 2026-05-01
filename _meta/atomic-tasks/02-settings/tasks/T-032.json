@@ -1,0 +1,84 @@
+{
+  "title": "T-032 — Server Actions: org_security_policies upsert + MFA enrollment trigger",
+  "prompt": "# T-032 — Server Action: security policy upsert with MFA enforce\n\n## Goal\nImplement `upsertSecurityPolicy(policy)` and `forceMfaEnrollment(userId)`. Use Zod schema with all S-U5 fields. Reject mfa_allowed_methods including 'webauthn' (deferred Phase 3 — D7).\n\n## Files in scope\n- apps/web/actions/security/upsert-policy.ts [create]\n- apps/web/actions/security/force-mfa.ts [create]\n- apps/web/actions/security/policy.test.ts [create]\n\n## Acceptance criteria (all must hold)\n- Given input contains 'webauthn' in mfa_allowed_methods, when upsertSecurityPolicy runs, then it raises WEBAUTHN_DEFERRED.\n- Given mfa_requirement changes from 'optional' to 'required_admins', when committed, then a background flag forces MFA enrollment on next admin login (V-SET-82) and outbox event 'settings.security.policy_changed' is emitted.\n- Given password_min_length=4 input, when validated, then it raises BELOW_MIN_LENGTH (min 8 per §14.1).\n\n## Test strategy (RED first)\n1. Add a failing test that exercises the acceptance criteria above. The RED command is:\n   `pnpm --filter @monopilot/web vitest run apps/web/actions/security/policy.test.ts`\n2. Run RED — it must fail before any production code is written.\n3. Implement the smallest change needed for GREEN.\n4. Re-run RED command — must pass.\n5. Run `pnpm typecheck` and `pnpm lint` in the changed package; both must pass.\n\n## Risk red lines\n- Do not edit files outside the listed scope without documenting why in CLOSEOUT.\n- Do not weaken existing acceptance criteria from prior tasks.\n- Do not introduce REST endpoints; use Server Actions per stack contract.\n- Do not commit secrets or vault keys.\n\n## Closeout evidence required\n- changed_files (with line counts)\n- exact test commands and outputs (RED→GREEN, typecheck, lint)\n- acceptance_criteria_status (one row per AC: pass/fail)\n- deviations_from_prd (or \"none\")\n- git_status\n\nStack: TS + Next.js App Router + Drizzle + pnpm + vitest + Playwright + Server Actions. Primitives in `packages/ui`. PRD: `02-SETTINGS-PRD.md` v3.5.\n",
+  "labels": [
+    "prd",
+    "auth",
+    "security-policy",
+    "T2-api"
+  ],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-032",
+    "source_prd": "02-SETTINGS-PRD.md",
+    "prd_refs": [
+      "§5.7",
+      "§14.1",
+      "V-SET-80..83",
+      "S-U5",
+      "D7"
+    ],
+    "category": "auth",
+    "subcategory": "security-policy",
+    "task_type": "T2-api",
+    "parent_feature": "02-settings-e",
+    "context_budget": "40k",
+    "estimated_effort": "1-3h",
+    "description": "org_security_policies upsert + MFA force.",
+    "details": "Mfa_requirement transition triggers a marker on users (e.g., requires_mfa_at) so middleware can enforce on next login. Password complexity 'strong' = NIST 800-63B regex + HIBP k-anon check (probe via /api/security/hibp-check at policy-save time but optional).",
+    "scope_files": [
+      "apps/web/actions/security/upsert-policy.ts",
+      "apps/web/actions/security/force-mfa.ts",
+      "apps/web/actions/security/policy.test.ts"
+    ],
+    "out_of_scope": [
+      "broaden scope beyond listed files",
+      "implement future-phase features"
+    ],
+    "dependencies": [
+      "T-011",
+      "T-016"
+    ],
+    "parallel_safe_with": [],
+    "acceptance_criteria": [
+      "WebAuthn rejected.",
+      "MFA enforce trigger fires for admin role.",
+      "Min-length floor enforced."
+    ],
+    "test_strategy": [
+      "RED: 3 cases.",
+      "GREEN: implement."
+    ],
+    "risk_red_lines": [
+      "Do not enable WebAuthn until Phase 3 ADR."
+    ],
+    "skills": [
+      "test-driven-development"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": false
+  }
+}

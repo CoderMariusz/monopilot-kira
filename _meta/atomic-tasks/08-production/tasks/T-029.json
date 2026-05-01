@@ -1,0 +1,59 @@
+{
+  "title": "T-029 — POST /api/production/work-orders/:id/by-products (co + by-products with allocation_pct)",
+  "prompt": "# T-029 — POST /work-orders/:id/by-products\n\nPRD: 08-PRODUCTION-PRD.md §7.3 FR-08-E3-002, §8.2.3, 03-TECH §7.2 (allocation_pct)\n\n## Goal\nImplement POST /by-products that registers co_product or by_product LPs sized per BOM.allocation_pct from 03-TECH §7.2.\n\n## Implementation contract\nApp Router POST /api/production/work-orders/[id]/by-products accepting one body per call: {transaction_id: uuid, operator_id: uuid, output_type: 'co_product'|'by_product', item_id: uuid, qty_kg: number(>0)}. withIdempotency. Validate item_id is in BOM.bom_co_products for this WO. Validate qty_kg roughly matches BOM.allocation_pct × primary_output_qty within 10% (warn-only). Otherwise reuses register-output service. Return 200 {output_id, lp_id, batch_number, allocation_match: boolean, expected_pct, actual_pct}.\n\n## Files (scope)\n- apps/web/app/api/production/work-orders/[id]/by-products/route.ts [create]\n- apps/web/app/api/production/work-orders/[id]/by-products/__tests__/route.test.ts [create]\n- packages/api-services/production/register-byproduct.ts [create]\n\n## Acceptance criteria\n1. Given by_product item_id in BOM.bom_co_products with allocation_pct=0.05, when POST with qty matching 5% of primary, then 200 + allocation_match=true\n2. Given item_id NOT in BOM.bom_co_products for this WO, when POST, then 409 with error code 'item_not_in_bom_byproducts'\n3. Given qty deviates >10% from expected allocation, when POST, then 200 with allocation_match=false (warn) and actual_pct populated — does not block\n\n## Test strategy\n- RED: route test asserting allocation match + 409 + warn path before route exists\n- Run 'pnpm --filter web test work-orders.*by-products'\n\n## Risk red lines\n- Do not strictly block on allocation mismatch (warn only — yield gate handles strict in T-035)\n- Do not allow registering items outside bom_co_products\n- Do not skip RLS",
+  "labels": ["prd", "api", "output", "T2-api"],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-029",
+    "source_prd": "08-PRODUCTION-PRD.md",
+    "prd_refs": ["§7.3 FR-08-E3-002", "§8.2.3"],
+    "category": "api",
+    "subcategory": "output",
+    "task_type": "T2-api",
+    "parent_feature": "08-PROD E3 Output+Waste",
+    "context_budget": "28k",
+    "estimated_effort": "2h",
+    "description": "POST /by-products: validates item against bom_co_products, computes allocation match.",
+    "details": "Per call registers one co/by-product LP. Allocation_pct read from BOM.bom_co_products (03-TECH §7.2). Mismatch >10% logged as warn (allocation_match=false) but does not block. Reuses register-output service for LP creation + wo_outputs insert.",
+    "scope_files": [
+      "apps/web/app/api/production/work-orders/[id]/by-products/route.ts [create]",
+      "apps/web/app/api/production/work-orders/[id]/by-products/__tests__/route.test.ts [create]",
+      "packages/api-services/production/register-byproduct.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not implement primary output here (T-028)",
+      "Do not implement output yield gate (T-035)",
+      "Do not modify BOM schema"
+    ],
+    "dependencies": ["T-028"],
+    "parallel_safe_with": ["T-030", "T-031", "T-032"],
+    "acceptance_criteria": [
+      "Given by_product allocation_pct=0.05, when POST qty=5% of primary, then 200 + allocation_match=true",
+      "Given item not in bom_co_products, when POST, then 409 item_not_in_bom_byproducts",
+      "Given >10% deviation, when POST, then 200 + allocation_match=false (warn, no block)"
+    ],
+    "test_strategy": [
+      "RED: route test asserting allocation match + 409 + warn before route exists",
+      "Run 'pnpm --filter web test work-orders.*by-products'"
+    ],
+    "risk_red_lines": [
+      "Do not block on allocation mismatch",
+      "Do not allow non-BOM items",
+      "Do not skip RLS"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

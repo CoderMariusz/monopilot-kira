@@ -1,0 +1,59 @@
+{
+  "title": "T-013 — Register DSL rule closed_production_strict_v1",
+  "prompt": "# T-013 — Register DSL rule closed_production_strict_v1\n\nPRD: 08-PRODUCTION-PRD.md §10.3, §6 D3 (Phase D #17)\n\n## Goal\nRegister closed_production_strict_v1 gate rule per §10.3 verbatim in 02-SETTINGS rule_registry: trigger wo.transition.in_progress_to_completed, evaluation steps (check_all_components_consumed tolerance 0.02, check_all_outputs_registered, decide), pass_with_override if production_manager.\n\n## Implementation contract\nCreate packages/dsl-rules/rules/production/closed-production-strict-v1.yaml with §10.3 spec. Update load-production-rules.ts to also register this rule. Add unit test asserting tolerance=0.02, override role='production_manager', three evaluation steps in order.\n\n## Files (scope)\n- packages/dsl-rules/rules/production/closed-production-strict-v1.yaml [create]\n- packages/dsl-rules/src/registry/load-production-rules.ts [modify]\n- packages/dsl-rules/src/__tests__/closed-production-strict-v1.test.ts [create]\n\n## Acceptance criteria\n1. Given loader runs, when rule_registry queried for closed_production_strict_v1, then row exists with version='v1' active=true and tolerance=0.02 in step check_all_components_consumed\n2. Given rule loaded, when decide.rules parsed, then 'pass_with_override' requires override_by.role == 'production_manager'\n3. Given rule loaded, when triggers parsed, then trigger event is exactly 'wo.transition.in_progress_to_completed'\n\n## Test strategy\n- RED: test asserting tolerance + override role + trigger event before YAML exists\n- Run 'pnpm --filter dsl-rules test closed-production-strict-v1'\n\n## Risk red lines\n- Do not change tolerance from 0.02 without ADR (D3 lock)\n- Do not allow override roles beyond production_manager\n- Do not change trigger event name (consumers depend on it)",
+  "labels": ["prd", "data", "dsl-rule", "T1-schema"],
+  "priority": 80,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-013",
+    "source_prd": "08-PRODUCTION-PRD.md",
+    "prd_refs": ["§10.3", "§6 D3"],
+    "category": "data",
+    "subcategory": "dsl-rule",
+    "task_type": "T1-schema",
+    "parent_feature": "08-PROD E1 Execution Core",
+    "context_budget": "22k",
+    "estimated_effort": "1h",
+    "description": "Register closed_production_strict_v1 gate rule per §10.3 (Phase D #17 lock).",
+    "details": "Verbatim §10.3 YAML: triggers (wo.transition.in_progress_to_completed), 3 evaluation steps (components, outputs, decide), tolerance 0.02, override role production_manager. No engine impl in this task — only registration.",
+    "scope_files": [
+      "packages/dsl-rules/rules/production/closed-production-strict-v1.yaml [create]",
+      "packages/dsl-rules/src/registry/load-production-rules.ts [modify]",
+      "packages/dsl-rules/src/__tests__/closed-production-strict-v1.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not implement gate evaluation engine",
+      "Do not modify rule_registry table",
+      "Do not implement WO complete API"
+    ],
+    "dependencies": [],
+    "parallel_safe_with": ["T-012", "T-014"],
+    "acceptance_criteria": [
+      "Given loader runs, when rule_registry queried, then closed_production_strict_v1 row exists with tolerance=0.02 in components step",
+      "Given rule loaded, when decide.rules parsed, then pass_with_override requires role 'production_manager'",
+      "Given rule loaded, when triggers parsed, then event is 'wo.transition.in_progress_to_completed'"
+    ],
+    "test_strategy": [
+      "RED: test asserting tolerance + override role + trigger before YAML exists",
+      "Run 'pnpm --filter dsl-rules test closed-production-strict-v1'"
+    ],
+    "risk_red_lines": [
+      "Do not change tolerance from 0.02",
+      "Do not allow other override roles",
+      "Do not change trigger event name"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}
