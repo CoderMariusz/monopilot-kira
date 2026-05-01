@@ -1,0 +1,69 @@
+{
+  "title": "T-043 — UI: PLN-040 Supplier List + PLN-041 Supplier Detail (master data)",
+  "prompt": "Build the Supplier List and Supplier Detail screens at `/planning/suppliers` and `/planning/suppliers/[id]` per `design/04-PLANNING-BASIC-UX.md` PLN-040/PLN-041.\n\nList screen (`src/app/(planning)/suppliers/page.tsx`, Server Component):\n- Searchable table (debounced 300ms, persists ?search= in URL).\n- Status filter chip group (All / Active / Inactive) persists ?status= in URL.\n- Columns: code, name, country, currency, payment_terms, lead_time_days, is_active badge, last_modified.\n- Row click → navigate to /planning/suppliers/[id].\n- Top-right `Add Supplier` button → opens drawer/dialog calling T-042 createSupplier.\n- Pagination via shadcn DataTable.\n\nDetail screen (`src/app/(planning)/suppliers/[id]/page.tsx`, Server Component shell + client form):\n- Form fields: name, code (read-only after create), country (Combobox of ISO-3166 alpha-2), currency (Combobox ISO-4217), email, phone (E.164 mask), payment_terms (Select), lead_time_days (number), tax_code, is_active toggle, notes (Textarea).\n- Zod resolver mirroring server-side validators; client-side blocks invalid format before submit.\n- Save button calls T-042 updateSupplier; toggle inactive calls toggleSupplierActive with confirm dialog.\n- Show D365 sync status badge (synced/drift/manual/conflict) — read-only.\n- Sub-table for supplier_products is OUT OF SCOPE here — implemented in T-044 and embedded as a separate tab.\n\nRBAC: `planning.suppliers.read` to view; `planning.suppliers.write` to mutate. Show read-only state otherwise.\n\nRED RTL tests:\n- List: search debounces and updates URL; status chip filters rows; Add Supplier opens dialog.\n- Detail: invalid country rejected before submit; valid save calls updateSupplier action; toggle inactive shows confirm.\n\nDo NOT implement supplier_products table here. Do NOT bypass Server Action validation. Do NOT import @radix-ui/* outside packages/ui.\n\nClose-out: paste RTL output + URL state behavior screenshots paths + parity check vs PLN-040/041 prototypes.",
+  "labels": ["prd", "ui", "pln-040-supplier-list", "pln-041-supplier-detail", "T3-ui"],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-043",
+    "source_prd": "04-PLANNING-BASIC-PRD.md",
+    "prd_refs": ["§5.2", "PLN-040", "PLN-041"],
+    "category": "ui",
+    "subcategory": "supplier-master",
+    "task_type": "T3-ui",
+    "parent_feature": "planning-suppliers-ux",
+    "context_budget": "50k",
+    "estimated_effort": "4-5h",
+    "description": "Supplier list (search + status filter + add) and supplier detail (master-data form) screens.",
+    "details": "Server Components fetch via T-042 listSuppliers / getSupplier; client form uses RHF + Zod resolver; URL state via searchParams; status badge for D365 sync. Sub-table for products in T-044 (separate tab in detail).",
+    "scope_files": [
+      "src/app/(planning)/suppliers/page.tsx [create]",
+      "src/app/(planning)/suppliers/_components/SupplierListTable.tsx [create]",
+      "src/app/(planning)/suppliers/_components/AddSupplierDialog.tsx [create]",
+      "src/app/(planning)/suppliers/[id]/page.tsx [create]",
+      "src/app/(planning)/suppliers/[id]/_components/SupplierDetailForm.tsx [create]",
+      "src/app/(planning)/suppliers/[id]/_components/__tests__/SupplierDetailForm.test.tsx [create]",
+      "src/app/(planning)/suppliers/_components/__tests__/SupplierListTable.test.tsx [create]"
+    ],
+    "out_of_scope": [
+      "Supplier-Product assignment sub-table (T-044)",
+      "D365 push/pull (separate sync task)",
+      "Schema (T-041) and Server Actions (T-042)"
+    ],
+    "dependencies": ["T-041", "T-042"],
+    "parallel_safe_with": ["T-044"],
+    "acceptance_criteria": [
+      "Given the user types in search, when 300 ms elapse without further input, then the URL updates with ?search=... and the table re-renders filtered.",
+      "Given the user picks the Inactive status chip, when state settles, then URL contains ?status=inactive and only is_active=false rows render.",
+      "Given the user opens Add Supplier and submits with country='POLAND', when validated, then submit is blocked with an ISO-3166 error message.",
+      "Given a valid edit on detail, when Save is clicked, then updateSupplier Server Action is invoked with the dirty fields only.",
+      "Given a user without planning.suppliers.write, when on detail, then form fields render disabled and Save is hidden.",
+      "Given `pnpm vitest run` for the new test files, then 0 failures.",
+      "Given `pnpm tsc --noEmit` and `pnpm lint`, when run, then 0 errors."
+    ],
+    "test_strategy": [
+      "RED RTL tests for list (search debounce, status chip, add dialog) and detail (invalid format block, save call, RBAC disabled).",
+      "Run `pnpm vitest run src/app/(planning)/suppliers`.",
+      "Run `pnpm tsc --noEmit && pnpm lint`."
+    ],
+    "risk_red_lines": [
+      "Do not call DB directly from the client — only via Server Actions.",
+      "Do not import @radix-ui/* outside packages/ui.",
+      "Do not duplicate Zod schemas — import from T-042.",
+      "Do not skip RBAC gating."
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}
