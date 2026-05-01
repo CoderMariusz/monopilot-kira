@@ -1,0 +1,86 @@
+{
+  "title": "T-035 — Workflow-as-data state-machine executor (4th rule_type) for WO/TO/release-to-warehouse flows",
+  "prompt": "# T-035 — Workflow-as-data state-machine executor (4th rule_type) for WO/TO/release-to-warehouse flows\n\nPRD: `00-FOUNDATION-PRD.md` — sections: §7\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`\n\n## Goal\nExtend the rule engine with a dedicated workflow-as-data evaluator: load a workflow definition (states, transitions, guards) from Reference.Rules where rule_type='workflow' and evaluate a transition request against current state. T-018 only stubbed the 'workflow' branch with a throw — this task implements it.\n\n## Implementation contract\n(1) Add packages/rule-engine/src/workflow.ts exporting evaluateTransition(workflowDef, currentState, requestedTransition, context) → { allowed: boolean, nextState: string | null, guard_failed: string[] | null, actions: Action[] }. (2) Workflow JSON shape: { rule_id, rule_type='workflow', states: string[], initial_state, transitions: [{from, to, trigger, guards: Condition[], actions: Action[]}] }. (3) Wire into executor.ts (T-018) so that rule_type='workflow' dispatches to evaluateTransition instead of throwing. (4) Honour dry-run mode (no side-effects). (5) Vitest replicates a sample WO state machine (DRAFT → READY → IN_PROGRESS → DONE) and asserts an illegal transition (DRAFT → DONE) returns allowed=false with guard_failed populated.\n\n## Files (scope)\n- packages/rule-engine/src/workflow.ts [create]\n- packages/rule-engine/src/executor.ts [modify]\n- packages/rule-engine/src/__tests__/workflow.test.ts [create]\n\n## Acceptance criteria\n1. Given a §7 workflow rule with states ['DRAFT','READY','IN_PROGRESS','DONE'] and a DRAFT→READY transition with guard 'has_bom=true', when evaluateTransition runs with currentState='DRAFT' + context.has_bom=true, then allowed=true and nextState='READY'\n2. Given the same workflow definition, when evaluateTransition is asked for DRAFT→DONE (no transition declared), then allowed=false, nextState=null, and guard_failed=['no_matching_transition']\n3. Given dry-run=true, when evaluateTransition runs and the transition would emit outbox actions, then no rows are inserted into outbox_events and the actions are returned in the result for caller inspection\n4. Given the executor is invoked with rule_type='workflow', when the workflow branch dispatches to evaluateTransition, then it no longer throws the 'unknown rule_type' error from T-018\n\n## Test strategy\n- RED: write packages/rule-engine/src/__tests__/workflow.test.ts covering all four ACs before workflow.ts exists\n- Run 'pnpm --filter @monopilot/rule-engine test'\n\n## Risk red lines\n- Dry-run MUST be side-effect-free — same contract as T-018 §7\n- Do not hard-code WO state names — they come from the workflow JSON, not from code\n- Do not invent new rule_type values — workflow is the 4th and final type per PRD §7 table\n\n## Dependencies (must be complete first)\n- T-018\n\n## Closeout evidence\nProvide: changed_files, test_commands_and_results, acceptance_criteria_status (per AC), deviations_from_prd, git_status. Use the test-driven-development skill (RED test before implementation) and requesting-code-review at GREEN.",
+  "labels": [
+    "prd",
+    "data",
+    "rule-engine",
+    "T2-api"
+  ],
+  "priority": 80,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-035",
+    "source_prd": "00-FOUNDATION-PRD.md",
+    "prd_refs": [
+      "§7"
+    ],
+    "category": "data",
+    "subcategory": "rule-engine",
+    "task_type": "T2-api",
+    "parent_feature": "00-FOUNDATION rule-engine workflow-as-data",
+    "context_budget": "55k",
+    "estimated_effort": "2-3h",
+    "description": "Implement the 4th rule_type 'workflow' (state-machine evaluator) and wire it into the executor stub from T-018.",
+    "details": "T-018 stubbed all 4 rule_types but only 3 work end-to-end ('cascading','conditional_required','gate'). The 'workflow' branch throws. This task implements evaluateTransition() honouring transitions[from,to,trigger,guards,actions], dispatches it from the executor when rule_type='workflow', and respects dry-run.",
+    "scope_files": [
+      "packages/rule-engine/src/workflow.ts [create]",
+      "packages/rule-engine/src/executor.ts [modify]",
+      "packages/rule-engine/src/__tests__/workflow.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not modify files outside the scope_files list",
+      "Do not introduce business logic from later module PRDs (01-NPD, 02-SETTINGS, etc.)",
+      "No Mermaid auto-generation (separate task in 02-SETTINGS)",
+      "No workflow versioning UI (Phase D+ per §7 open items)"
+    ],
+    "dependencies": [
+      "T-018"
+    ],
+    "parallel_safe_with": [
+      "T-021"
+    ],
+    "acceptance_criteria": [
+      "Given a §7 workflow rule with states ['DRAFT','READY','IN_PROGRESS','DONE'] and a DRAFT→READY transition with guard 'has_bom=true', when evaluateTransition runs with currentState='DRAFT' + context.has_bom=true, then allowed=true and nextState='READY'",
+      "Given the same workflow definition, when evaluateTransition is asked for DRAFT→DONE (no transition declared), then allowed=false, nextState=null, and guard_failed=['no_matching_transition']",
+      "Given dry-run=true, when evaluateTransition runs and the transition would emit outbox actions, then no rows are inserted into outbox_events and the actions are returned in the result for caller inspection",
+      "Given the executor is invoked with rule_type='workflow', when the workflow branch dispatches to evaluateTransition, then it no longer throws the 'unknown rule_type' error from T-018"
+    ],
+    "test_strategy": [
+      "RED: write packages/rule-engine/src/__tests__/workflow.test.ts covering all four ACs before workflow.ts exists",
+      "Run 'pnpm --filter @monopilot/rule-engine test'"
+    ],
+    "risk_red_lines": [
+      "Dry-run MUST be side-effect-free — same contract as T-018 §7",
+      "Do not hard-code WO state names — they come from the workflow JSON, not from code",
+      "Do not invent new rule_type values — workflow is the 4th and final type per PRD §7 table"
+    ],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}
