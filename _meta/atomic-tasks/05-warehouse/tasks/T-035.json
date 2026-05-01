@@ -1,0 +1,58 @@
+{
+  "title": "T-035 — Expiry calc on GRN ingest",
+  "prompt": "# T-035 — Expiry calc on GRN ingest\n\nPRD: `05-WAREHOUSE-PRD.md` §12.1 (FR-WH-020), V-WH-EXP-001.\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`.\n\n## Goal\nDuring GRN complete (T-021/T-022), compute LP.expiry_date and LP.date_code_rendered when GRN row omits explicit expiry.\n\n## Implementation contract\n`apps/web/lib/services/warehouse/expiry-calc.ts` exposes `computeExpiryAndDateCode(grnRow, product)` returning {expiry_date, date_code_rendered, shelf_life_mode_snapshot}. Logic: if grnRow.expiry_date present → use; else expiry = manufacture_date + product.shelf_life_days. date_code_rendered uses 03§9.2 format from product.date_code_format. shelf_life_mode_snapshot copied from product.shelf_life_mode.\n\n## Files (scope)\n- apps/web/lib/services/warehouse/expiry-calc.ts [create]\n- apps/web/lib/services/warehouse/__tests__/expiry-calc.test.ts [create]\n\n## Acceptance criteria\n1. Given product.shelf_life_days=90 and manufacture_date=2026-01-01 with no explicit expiry, when computed, then expiry=2026-04-01.\n2. Given grnRow.expiry_date=2026-05-15, when computed, then result equals 2026-05-15 (operator override wins).\n3. Given product.date_code_format='YYWW' and date 2026-04-01 (week 14), when computed, then date_code_rendered='2614'.\n\n## Test strategy\n- RED: expiry-calc.test.ts covers three scenarios.\n- Run `pnpm --filter web test expiry-calc`.\n\n## Risk red lines\n- Do not silently overwrite explicit expiry.\n- Do not assume shelf_life_days when neither manufacture_date nor explicit expiry provided (surface error).\n- Do not import LP table here — pure function.",
+  "labels": ["prd", "api", "expiry", "T2-api"],
+  "priority": 95,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-035",
+    "source_prd": "05-WAREHOUSE-PRD.md",
+    "prd_refs": ["§12.1"],
+    "category": "api",
+    "subcategory": "expiry",
+    "task_type": "T2-api",
+    "parent_feature": "warehouse-expiry",
+    "context_budget": "20k",
+    "estimated_effort": "1h",
+    "description": "Pure expiry/date_code calculator used by GRN ingest.",
+    "details": "Operator-explicit expiry wins. date_code_format covers YYWW/YYYY-MM-DD/JJWW/YYJJJ. Errors if neither expiry nor manufacture_date+shelf_life_days available.",
+    "scope_files": [
+      "apps/web/lib/services/warehouse/expiry-calc.ts [create]",
+      "apps/web/lib/services/warehouse/__tests__/expiry-calc.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "GRN ingest wiring (T-021/T-022 already consume this)",
+      "Daily cron (T-036)",
+      "Use_by override (T-037)"
+    ],
+    "dependencies": [],
+    "parallel_safe_with": ["T-036", "T-037"],
+    "acceptance_criteria": [
+      "Given shelf_life_days=90 and manufacture_date=2026-01-01 with no explicit expiry, when computed, then expiry=2026-04-01",
+      "Given grnRow.expiry_date=2026-05-15, when computed, then result equals 2026-05-15",
+      "Given format='YYWW' and date=2026-04-01 (ISO week 14), when computed, then date_code_rendered='2614'"
+    ],
+    "test_strategy": [
+      "RED: expiry-calc.test.ts covers three scenarios",
+      "Run 'pnpm --filter web test expiry-calc'"
+    ],
+    "risk_red_lines": [
+      "Do not overwrite explicit operator expiry",
+      "Do not assume defaults when manufacture_date missing",
+      "Do not import LP DB module"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

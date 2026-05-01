@@ -1,0 +1,87 @@
+{
+  "title": "T-027 \u2014 Field primitive \u2014 RHF Controller + Zod resolver wrapper with label/hint/error/required states",
+  "prompt": "# T-027 \u2014 Field primitive \u2014 RHF Controller + Zod resolver wrapper with label/hint/error/required states\n\nPRD: `00-FOUNDATION-PRD.md` \u2014 sections: \u00a75.y, \u00a75\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`\n\n## Goal\nField primitive wrapping React Hook Form Controller + Zod resolver. Renders label, hint, error message, required-mark, inline-validation states.\n\n## Implementation contract\npackages/ui/src/Field.tsx: props = { name, label, hint?, required?, type, schema? }. Internally uses useFormContext() (caller wraps with FormProvider) and Controller. Exposes 'error', 'success', 'idle' states via aria-invalid + aria-describedby. Inline validation triggers on blur and on form submit. Required-mark is a visible asterisk wrapped in <span aria-label='required'>. The Settings invite-modal in access-screens.jsx:139-145 (Email/Role/Site fields) is the canonical structural reference. Field.test.tsx parity asserts the same label-on-top + input-below + hint-below structure as access-screens.jsx:139-145.\n\n## Files (scope)\n- packages/ui/src/Field.tsx [create]\n- packages/ui/.storybook/Field.stories.tsx [create]\n- packages/ui/src/__tests__/Field.test.tsx [create]\n- design/Monopilot Design System/settings/access-screens.jsx:139-145 [ref]\n\n## Acceptance criteria\n1. Given the Field primitive renders, when compared to the invite-modal field block in design/Monopilot Design System/settings/access-screens.jsx:139-145, then it matches structurally (label on top, input below, optional hint/error below), visually (uses shadcn Input as the inner primitive \u2014 no raw <input>), and interactionally (validation runs on blur and on submit, error message replaces hint when present, aria-invalid='true' is set on error) \u2014 verified by Field.test.tsx\n2. Given a Zod schema rejects the value, when the user blurs the field, then aria-invalid='true' is set and the resolver error message renders below the input\n3. Given required=true, when the field renders, then a visible asterisk is present with aria-label='required'\n\n## Test strategy\n- RED: write packages/ui/src/__tests__/Field.test.tsx asserting parity + a11y before Field.tsx exists\n- Run 'pnpm --filter @monopilot/ui test'\n\n## Risk red lines\n- Do not render a raw <input> \u2014 must use the shadcn Input wrapper to keep visual parity with prototypes\n\n## Dependencies (must be complete first)\n- T-025\n\n## Closeout evidence\nProvide: changed_files, test_commands_and_results, acceptance_criteria_status (per AC), deviations_from_prd, git_status. Use the test-driven-development skill (RED test before implementation) and requesting-code-review at GREEN.",
+  "labels": [
+    "prd",
+    "ui",
+    "primitives",
+    "T3-ui"
+  ],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-027",
+    "source_prd": "00-FOUNDATION-PRD.md",
+    "prd_refs": [
+      "\u00a75.y",
+      "\u00a75"
+    ],
+    "category": "ui",
+    "subcategory": "primitives",
+    "task_type": "T3-ui",
+    "parent_feature": "00-FOUNDATION-impl-j UI primitives",
+    "context_budget": "45k",
+    "estimated_effort": "1-2h",
+    "description": "Field primitive wrapping React Hook Form Controller + Zod resolver. Renders label, hint, error message, required-mark, inline-validation states.",
+    "details": "packages/ui/src/Field.tsx: props = { name, label, hint?, required?, type, schema? }. Internally uses useFormContext() (caller wraps with FormProvider) and Controller. Exposes 'error', 'success', 'idle' states via aria-invalid + aria-describedby. Inline validation triggers on blur and on form submit. Required-mark is a visible asterisk wrapped in <span aria-label='required'>. The Settings invite-modal in access-screens.jsx:139-145 (Email/Role/Site fields) is the canonical structural reference. Field.test.tsx parity asserts the same label-on-top + input-below + hint-below structure as access-screens.jsx:139-145.",
+    "scope_files": [
+      "packages/ui/src/Field.tsx [create]",
+      "packages/ui/.storybook/Field.stories.tsx [create]",
+      "packages/ui/src/__tests__/Field.test.tsx [create]",
+      "design/Monopilot Design System/settings/access-screens.jsx:139-145 [ref]"
+    ],
+    "out_of_scope": [
+      "Do not modify files outside the scope_files list",
+      "Do not introduce business logic from later module PRDs (01-NPD, 02-SETTINGS, etc.)",
+      "No business validation rules in this task"
+    ],
+    "dependencies": [
+      "T-025"
+    ],
+    "parallel_safe_with": [
+      "T-026",
+      "T-028",
+      "T-029"
+    ],
+    "acceptance_criteria": [
+      "Given the Field primitive renders, when compared to the invite-modal field block in design/Monopilot Design System/settings/access-screens.jsx:139-145, then it matches structurally (label on top, input below, optional hint/error below), visually (uses shadcn Input as the inner primitive \u2014 no raw <input>), and interactionally (validation runs on blur and on submit, error message replaces hint when present, aria-invalid='true' is set on error) \u2014 verified by Field.test.tsx",
+      "Given a Zod schema rejects the value, when the user blurs the field, then aria-invalid='true' is set and the resolver error message renders below the input",
+      "Given required=true, when the field renders, then a visible asterisk is present with aria-label='required'"
+    ],
+    "test_strategy": [
+      "RED: write packages/ui/src/__tests__/Field.test.tsx asserting parity + a11y before Field.tsx exists",
+      "Run 'pnpm --filter @monopilot/ui test'"
+    ],
+    "risk_red_lines": [
+      "Do not render a raw <input> \u2014 must use the shadcn Input wrapper to keep visual parity with prototypes"
+    ],
+    "skills": [
+      "test-driven-development",
+      "verification-before-completion",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

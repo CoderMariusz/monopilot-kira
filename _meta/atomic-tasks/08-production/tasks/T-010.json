@@ -1,0 +1,59 @@
+{
+  "title": "T-010 — Drizzle migration: d365_push_dlq table + RLS",
+  "prompt": "# T-010 — Drizzle migration: d365_push_dlq\n\nPRD: 08-PRODUCTION-PRD.md §9.11, §12.6, §16.4 V-PROD-13\n\n## Goal\nCreate d365_push_dlq per §9.11 with idx_dlq_open partial WHERE resolved_at IS NULL (V-PROD-13 open/closed split), RLS.\n\n## Implementation contract\npackages/db/schema/production/d365-push-dlq.ts: PK id UUID, tenant_id NOT NULL, source_outbox_event_id BIGINT REFERENCES production_outbox_events(id), event_type text NOT NULL, payload JSONB NOT NULL, last_error text, attempt_count INTEGER NOT NULL, moved_to_dlq_at default now, resolved_at, resolved_by, resolution_notes text. Index idx_dlq_open partial WHERE resolved_at IS NULL. RLS by tenant_id.\n\n## Files (scope)\n- packages/db/schema/production/d365-push-dlq.ts [create]\n- packages/db/schema/production/index.ts [modify]\n- packages/db/migrations/NNNN_d365_push_dlq.sql [create]\n- packages/db/__tests__/d365-push-dlq-schema.test.ts [create]\n\n## Acceptance criteria\n1. Given migration applied, when pg_indexes queried, then idx_dlq_open partial WHERE resolved_at IS NULL exists (V-PROD-13)\n2. Given INSERT with source_outbox_event_id pointing to non-existent row, when run, then FK violation raised\n3. Given migration applied, when SELECT * FROM d365_push_dlq runs without app.tenant_id, then RLS rejects\n\n## Test strategy\n- RED: schema test asserting partial index + FK before schema exists\n- Run 'pnpm --filter db drizzle:generate && pnpm --filter db test d365-push-dlq-schema'\n\n## Risk red lines\n- Do not skip RLS (cross-tenant DLQ leak)\n- Do not break partial index predicate (impacts query plan)\n- Do not weaken FK to outbox",
+  "labels": ["prd", "data", "schema-migration", "T1-schema"],
+  "priority": 50,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-010",
+    "source_prd": "08-PRODUCTION-PRD.md",
+    "prd_refs": ["§9.11", "§12.6", "§16.4 V-PROD-13"],
+    "category": "data",
+    "subcategory": "schema-migration",
+    "task_type": "T1-schema",
+    "parent_feature": "08-PROD E5 INTEGRATIONS stage 2",
+    "context_budget": "20k",
+    "estimated_effort": "0.5-1h",
+    "description": "d365_push_dlq table with FK to outbox, partial open-row index, RLS.",
+    "details": "Per §9.11 SQL. FK to production_outbox_events(id). idx_dlq_open partial WHERE resolved_at IS NULL. RLS by tenant_id.",
+    "scope_files": [
+      "packages/db/schema/production/d365-push-dlq.ts [create]",
+      "packages/db/schema/production/index.ts [modify]",
+      "packages/db/migrations/NNNN_d365_push_dlq.sql [create]",
+      "packages/db/__tests__/d365-push-dlq-schema.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not implement DLQ replay UI",
+      "Do not implement DLQ admin endpoints"
+    ],
+    "dependencies": ["T-009"],
+    "parallel_safe_with": ["T-001", "T-002", "T-003", "T-004", "T-005", "T-006", "T-007", "T-008"],
+    "acceptance_criteria": [
+      "Given migration applied, when pg_indexes queried, then idx_dlq_open partial WHERE resolved_at IS NULL exists",
+      "Given INSERT with non-existent source_outbox_event_id, when run, then FK violation raised",
+      "Given non-tenant connection, when SELECT runs without app.tenant_id, then RLS rejects"
+    ],
+    "test_strategy": [
+      "RED: schema test asserting partial index + FK before schema exists",
+      "Run 'pnpm --filter db drizzle:generate && pnpm --filter db test d365-push-dlq-schema'"
+    ],
+    "risk_red_lines": [
+      "Do not skip RLS",
+      "Do not break partial index",
+      "Do not weaken FK"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

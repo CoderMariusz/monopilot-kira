@@ -1,0 +1,91 @@
+{
+  "title": "T-012 \u2014 SAML 2.0 SP via @boxyhq/saml-jackson with /api/auth/saml/{login,callback,logout,metadata} routes",
+  "prompt": "# T-012 \u2014 SAML 2.0 SP via @boxyhq/saml-jackson with /api/auth/saml/{login,callback,logout,metadata} routes\n\nPRD: `00-FOUNDATION-PRD.md` \u2014 sections: \u00a75.x, \u00a78.x\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`\n\n## Goal\nWire @boxyhq/saml-jackson as the SAML SP. Each tenant maps to one IdP via tenant_idp_config (metadata_url, entity_id, x509_cert). JIT provisioning gated by tenant_idp_config.jit_provisioning.\n\n## Implementation contract\nInstall @boxyhq/saml-jackson. Create apps/web/app/api/auth/saml/login/route.ts, callback/route.ts, logout/route.ts, metadata/route.ts using the Jackson SDK. Configure Jackson with the Drizzle Postgres adapter (or its own table prefixed 'saml_'). Read tenant_idp_config row for each request to resolve metadata_url + x509_cert. On callback, if jit_provisioning=true and email is unknown, INSERT into users with the org_default_role role. Integration test uses a saml-jackson mock IdP and asserts a successful round-trip ends with a valid Supabase session.\n\n## Files (scope)\n- apps/web/app/api/auth/saml/login/route.ts [create]\n- apps/web/app/api/auth/saml/callback/route.ts [create]\n- apps/web/app/api/auth/saml/logout/route.ts [create]\n- apps/web/app/api/auth/saml/metadata/route.ts [create]\n- apps/web/lib/auth/saml.ts [create]\n- apps/web/__tests__/auth/saml.integration.test.ts [create]\n\n## Acceptance criteria\n1. Given a tenant has tenant_idp_config.provider_type='saml' with valid metadata, when an unauthenticated user hits /api/auth/saml/login, then they are redirected to the IdP's SSO URL with a signed AuthnRequest\n2. Given a SAML response arrives at /api/auth/saml/callback for an unknown email and jit_provisioning=true, when processed, then a users row is created with org_default_role and a Supabase session is established\n3. Given enforce_for_non_admins=true, when a non-admin tries password sign-in, then it is rejected with 403\n\n## Test strategy\n- RED: write apps/web/__tests__/auth/saml.integration.test.ts using saml-jackson's test IdP harness before the routes exist\n- Run 'pnpm --filter web test:integration -- saml'\n\n## Risk red lines\n- Do not skip x509 signature validation\n- Do not provision into a tenant that didn't initiate the flow \u2014 verify tenant_id from RelayState\n\n## Dependencies (must be complete first)\n- T-010\n- T-011\n\n## Closeout evidence\nProvide: changed_files, test_commands_and_results, acceptance_criteria_status (per AC), deviations_from_prd, git_status. Use the test-driven-development skill (RED test before implementation) and requesting-code-review at GREEN.",
+  "labels": [
+    "prd",
+    "auth",
+    "federation",
+    "T2-api"
+  ],
+  "priority": 80,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-012",
+    "source_prd": "00-FOUNDATION-PRD.md",
+    "prd_refs": [
+      "\u00a75.x",
+      "\u00a78.x"
+    ],
+    "category": "auth",
+    "subcategory": "federation",
+    "task_type": "T2-api",
+    "parent_feature": "00-FOUNDATION-impl-f auth",
+    "context_budget": "70k",
+    "estimated_effort": "2-3h",
+    "description": "Wire @boxyhq/saml-jackson as the SAML SP. Each tenant maps to one IdP via tenant_idp_config (metadata_url, entity_id, x509_cert). JIT provisioning gated by tenant_idp_config.jit_provisioning.",
+    "details": "Install @boxyhq/saml-jackson. Create apps/web/app/api/auth/saml/login/route.ts, callback/route.ts, logout/route.ts, metadata/route.ts using the Jackson SDK. Configure Jackson with the Drizzle Postgres adapter (or its own table prefixed 'saml_'). Read tenant_idp_config row for each request to resolve metadata_url + x509_cert. On callback, if jit_provisioning=true and email is unknown, INSERT into users with the org_default_role role. Integration test uses a saml-jackson mock IdP and asserts a successful round-trip ends with a valid Supabase session.",
+    "scope_files": [
+      "apps/web/app/api/auth/saml/login/route.ts [create]",
+      "apps/web/app/api/auth/saml/callback/route.ts [create]",
+      "apps/web/app/api/auth/saml/logout/route.ts [create]",
+      "apps/web/app/api/auth/saml/metadata/route.ts [create]",
+      "apps/web/lib/auth/saml.ts [create]",
+      "apps/web/__tests__/auth/saml.integration.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not modify files outside the scope_files list",
+      "Do not introduce business logic from later module PRDs (01-NPD, 02-SETTINGS, etc.)",
+      "No OIDC in this task (deferred per \u00a75.x)",
+      "No UI for SAML config (lives in 02-SETTINGS)"
+    ],
+    "dependencies": [
+      "T-010",
+      "T-011"
+    ],
+    "parallel_safe_with": [
+      "T-013",
+      "T-015"
+    ],
+    "acceptance_criteria": [
+      "Given a tenant has tenant_idp_config.provider_type='saml' with valid metadata, when an unauthenticated user hits /api/auth/saml/login, then they are redirected to the IdP's SSO URL with a signed AuthnRequest",
+      "Given a SAML response arrives at /api/auth/saml/callback for an unknown email and jit_provisioning=true, when processed, then a users row is created with org_default_role and a Supabase session is established",
+      "Given enforce_for_non_admins=true, when a non-admin tries password sign-in, then it is rejected with 403"
+    ],
+    "test_strategy": [
+      "RED: write apps/web/__tests__/auth/saml.integration.test.ts using saml-jackson's test IdP harness before the routes exist",
+      "Run 'pnpm --filter web test:integration -- saml'"
+    ],
+    "risk_red_lines": [
+      "Do not skip x509 signature validation",
+      "Do not provision into a tenant that didn't initiate the flow \u2014 verify tenant_id from RelayState"
+    ],
+    "skills": [
+      "test-driven-development",
+      "verification-before-completion",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

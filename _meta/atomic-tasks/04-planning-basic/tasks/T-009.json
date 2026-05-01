@@ -1,0 +1,66 @@
+{
+  "title": "T-009 — API: PO numbering service (PO-YYYY-NNNNN)",
+  "prompt": "Implement deterministic PO number generation per PRD §5.4 + §14.1 (po_number_format, po_number_prefix). Service `src/lib/services/po-numbering.ts` exposes `generatePoNumber(tenantId, date): Promise<string>`. Reads planning_settings.po_number_format ICU pattern for the tenant; produces 'PO-2026-00001' style with strict monotonic sequence per (tenant, year) using a Postgres advisory lock or a `po_number_sequences` table. Idempotent under concurrent calls.\n\nRED test: `src/lib/services/__tests__/po-numbering.test.ts` runs 50 concurrent calls in same tenant+year and asserts 50 distinct sequential numbers, none skipped.",
+  "labels": ["prd", "api", "numbering", "T2-api"],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-009",
+    "source_prd": "04-PLANNING-BASIC-PRD.md",
+    "prd_refs": ["§5.4", "§14.1"],
+    "category": "api",
+    "subcategory": "numbering",
+    "task_type": "T2-api",
+    "parent_feature": "planning-po",
+    "context_budget": "30k",
+    "estimated_effort": "2h",
+    "description": "Concurrency-safe PO numbering generator honoring per-tenant ICU pattern from planning_settings.",
+    "details": "Use a dedicated `planning_number_sequences` table with PRIMARY KEY (tenant_id, sequence_kind, year) and `next_value` column, updated via UPDATE ... RETURNING under serializable isolation OR advisory lock pg_advisory_xact_lock(hashtext(tenant_id::text || ':po:' || year)). ICU pattern parsing minimal: support {YYYY} and {NNNNN} (zero-padded). Reset every Jan 1 per tenant. Error on missing planning_settings row (auto-seeded defaults at tenant onboarding).",
+    "scope_files": [
+      "src/lib/services/po-numbering.ts [create]",
+      "src/db/schema/planning/number_sequences.ts [create]",
+      "src/db/migrations/0007_planning_number_sequences.sql [create]",
+      "src/lib/services/__tests__/po-numbering.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "TO numbering (T-010 reuses pattern)",
+      "WO numbering (T-018 reuses pattern with WIP-suffix)"
+    ],
+    "dependencies": ["T-002", "T-006"],
+    "parallel_safe_with": ["T-008", "T-011"],
+    "acceptance_criteria": [
+      "Given 50 concurrent calls for tenant T in year 2026, when promises settle, then 50 distinct values 'PO-2026-00001'..'PO-2026-00050' are returned with no duplicates and no gaps.",
+      "Given tenant T1 generates 'PO-2026-00005' and tenant T2 makes its first call same year, when T2 resolves, then it returns 'PO-2026-00001'.",
+      "Given the year rolls from 2026 to 2027 mid-test, when the next call is made on 2027-01-01, then sequence resets to 'PO-2027-00001'.",
+      "Given `pnpm vitest run src/lib/services/__tests__/po-numbering.test.ts`, when run, then 0 failures."
+    ],
+    "test_strategy": [
+      "RED concurrency test using Promise.all of 50 calls; assert distinct + sequential.",
+      "Run `pnpm vitest run src/lib/services/__tests__/po-numbering.test.ts`."
+    ],
+    "risk_red_lines": [
+      "Do not use uuidv4 or random — sequence must be strictly monotonic per tenant+year.",
+      "Do not leak sequences across tenants.",
+      "Do not skip the advisory lock or the test will be flaky under contention."
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

@@ -1,0 +1,61 @@
+{
+  "title": "T-017 — quality_specifications + quality_spec_parameters schema + RLS (09-b-01)",
+  "prompt": "# T-017 — quality_specifications + quality_spec_parameters schema\n\nPRD: 09-QUALITY-PRD.md §6.3 quality_specifications, §6.3 quality_spec_parameters, §9.1 RLS, §11.3 V-QA-SPEC\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nCreate the quality_specifications versioned table + quality_spec_parameters child table with CHECK (min<=target<=max), UNIQUE(org_id,product_id,spec_code,version), RLS, Drizzle schemas.\n\n## Implementation contract\n1. Drizzle migration `packages/db/migrations/0110_quality_specifications.sql` per §6.3 verbatim DDL (status CHECK enum, version INT, applies_to CHECK enum, allergen_profile JSONB, approval_signature_hash, superseded_by self-FK, UNIQUE constraint).\n2. quality_spec_parameters child with CHECK (min_value <= max_value when both present) and parameter_type CHECK enum (visual/measurement/attribute/microbiological/chemical/sensory/equipment).\n3. RLS tenant_isolation on both tables.\n4. Drizzle ORM schema files exporting types.\n\n## Files\n- packages/db/migrations/0110_quality_specifications.sql [create]\n- packages/db/src/schema/qualitySpecifications.ts [create]\n- packages/db/src/schema/qualitySpecParameters.ts [create]\n- packages/db/src/schema/index.ts [modify]\n- packages/db/__tests__/quality-specifications-schema.test.ts [create]\n\n## Acceptance criteria\n1. Given migration 0110 applied, when \\d quality_specifications runs, then all §6.3 columns exist with status CHECK enum and UNIQUE(org_id,product_id,spec_code,version) constraint, RLS enabled\n2. Given a parameter insert with min_value=10 and max_value=5, then it fails CHECK (min<=max) constraint\n3. Given two specs with same (org_id, product_id, spec_code, version), then the second insert fails UNIQUE violation",
+  "labels": ["prd", "data", "schema-specs", "T1-schema"],
+  "priority": 80,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-017",
+    "source_prd": "09-QUALITY-PRD.md",
+    "prd_refs": ["§6.3", "§9.1", "§11.3"],
+    "category": "data",
+    "subcategory": "schema-specs",
+    "task_type": "T1-schema",
+    "parent_feature": "09-b Specifications",
+    "context_budget": "30k",
+    "estimated_effort": "1-2h",
+    "description": "Create quality_specifications + quality_spec_parameters tables with CHECK constraints, UNIQUE, RLS, Drizzle schemas.",
+    "details": "Migration 0110 emits both tables per §6.3 verbatim. quality_specifications: status CHECK enum draft/under_review/active/expired/superseded, applies_to CHECK enum, allergen_profile JSONB, UNIQUE(org_id,product_id,spec_code,version). quality_spec_parameters: parameter_type CHECK enum (7 values), min<=max CHECK, sort_order. Both tables RLS-enabled with tenant_isolation. Drizzle types mirror columns.",
+    "scope_files": [
+      "packages/db/migrations/0110_quality_specifications.sql [create]",
+      "packages/db/src/schema/qualitySpecifications.ts [create]",
+      "packages/db/src/schema/qualitySpecParameters.ts [create]",
+      "packages/db/src/schema/index.ts [modify]",
+      "packages/db/__tests__/quality-specifications-schema.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not implement spec CRUD/approval (T-018)",
+      "Do not implement immutability triggers (T-040)",
+      "Do not seed spec data (out-of-scope; tenant-driven)"
+    ],
+    "dependencies": [],
+    "parallel_safe_with": ["T-004", "T-005"],
+    "acceptance_criteria": [
+      "Given migration 0110 applied, when \\d quality_specifications runs, then all §6.3 columns exist with status CHECK enum and UNIQUE(org_id,product_id,spec_code,version) constraint and RLS enabled",
+      "Given a parameter insert with min_value=10 and max_value=5, then it fails the CHECK (min<=max) constraint",
+      "Given two specs with same (org_id, product_id, spec_code, version), then the second insert fails the UNIQUE constraint"
+    ],
+    "test_strategy": [
+      "RED: write packages/db/__tests__/quality-specifications-schema.test.ts asserting columns, RLS, CHECK and UNIQUE constraints before migration exists",
+      "Run 'pnpm --filter db migrate && pnpm --filter db test quality-specifications-schema'"
+    ],
+    "risk_red_lines": [
+      "Do not omit allergen_profile JSONB (snapshot at approval per §6.3)",
+      "Do not skip RLS",
+      "Do not change CHECK enums (downstream rules depend on them)"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

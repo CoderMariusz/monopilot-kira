@@ -1,0 +1,60 @@
+{
+  "title": "T-015 — QA-012 hold_create_modal (prototype parity)",
+  "prompt": "# T-015 — QA-012 hold_create_modal\n\nPRD: 09-QUALITY-PRD.md §8.2 QA-012 fields, §8.5 prototype hold_create_modal\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nClient Component dialog `HoldCreateModal` driven by react-hook-form + Zod that submits to createQualityHold (T-006). Matches prototype `quality/modals.jsx:22-96` 1:1.\n\n## Implementation contract\n1. `apps/web/src/components/quality/holds/HoldCreateModal.tsx` shadcn Dialog with fields per §8.2: Hold target (radio LP/batch/WO/PO/GRN + search input), Reason (Select from quality_hold_reasons grouped by category), Free text note (Textarea, required iff reason='other'), Priority (RadioGroup low/med/high/critical), Disposition (Select), Estimated release (DatePicker auto-default).\n2. RHF + zodResolver with cross-field validation (note required when reason='other').\n3. Submits to createQualityHold Server Action; on success closes dialog and triggers parent revalidate.\n4. 1:1 parity vs `design/Monopilot Design System/quality/modals.jsx:22-96`.\n\n## Files\n- apps/web/src/components/quality/holds/HoldCreateModal.tsx [create]\n- apps/web/src/components/quality/holds/__tests__/HoldCreateModal.test.tsx [create]\n- design/Monopilot Design System/quality/modals.jsx [ref]\n\n## Acceptance criteria\n1. Given the modal renders, when compared to design/Monopilot Design System/quality/modals.jsx:22-96, then it has parity with the prototype on structural parity (header + 6 fields in fixed order: Hold target radio + reference search, Reason Select, Free text Textarea, Priority RadioGroup, Disposition Select, Estimated Release DatePicker; footer Cancel(ghost) + Create(primary)), visual parity (shadcn Dialog/Form/Input/Select/Textarea/RadioGroup/DatePicker/Button only, no native HTML), and interaction parity (Free text becomes required when Reason='other', Estimated Release auto-fills from reason.default_hold_duration_days, Submit disabled when invalid) — verified by RTL test plus parity checklist in pipeline_inputs.details\n2. Given form is submitted with reason='other' and free_text empty, when validation runs, then the form rejects with field error key qa.hold.note_required and createQualityHold is not called\n3. Given form submits successfully, when createQualityHold returns hold_number, then the modal closes and parent receives onSuccess(hold_number)",
+  "labels": ["prd", "ui", "hold-create-modal", "T3-ui"],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-015",
+    "source_prd": "09-QUALITY-PRD.md",
+    "prd_refs": ["§8.2 QA-012", "§8.5"],
+    "category": "ui",
+    "subcategory": "hold-create-modal",
+    "task_type": "T3-ui",
+    "parent_feature": "09-a Hold/Release",
+    "context_budget": "40k",
+    "estimated_effort": "2h",
+    "prototype_match": true,
+    "description": "Hold create modal Dialog with RHF+Zod, 6 fields, parity with prototype hold_create_modal.",
+    "details": "shadcn Dialog with Form (RHF + zodResolver) per prototype design/Monopilot Design System/quality/modals.jsx:22-96. Fields in fixed order per §8.2. Reason Select reads from getHoldReasonOptions (T-001). Cross-field rule: note required when reason='other'. DatePicker default from reason.default_hold_duration_days. Submits to createQualityHold (T-006). Honor translation notes (no native select, server-side FK validation, role guard).",
+    "scope_files": [
+      "apps/web/src/components/quality/holds/HoldCreateModal.tsx [create]",
+      "apps/web/src/components/quality/holds/__tests__/HoldCreateModal.test.tsx [create]",
+      "design/Monopilot Design System/quality/modals.jsx [ref]"
+    ],
+    "out_of_scope": [
+      "Do not implement reference search autocomplete BL-QA-07 (deferred per prototype known_bugs)",
+      "Do not implement hold release modal (T-016)",
+      "Do not implement create-hold backend Server Action (T-006)"
+    ],
+    "dependencies": ["T-001", "T-006", "T-014"],
+    "parallel_safe_with": ["T-013", "T-016"],
+    "acceptance_criteria": [
+      "Given the modal renders, when compared to design/Monopilot Design System/quality/modals.jsx:22-96, then it matches the prototype on structural parity (header + 6 fields in declared order + Cancel/Create footer), visual parity (shadcn Dialog/Form/Input/Select/Textarea/RadioGroup/DatePicker/Button only), and interaction parity (note required when reason='other', Estimated Release auto-fills from reason.default_hold_duration_days, Submit disabled when invalid) — verified by RTL plus parity checklist in pipeline_inputs.details",
+      "Given a submit with reason='other' and free_text empty, when validation runs, then the form rejects with qa.hold.note_required field error and createQualityHold is not called",
+      "Given a successful submit, when createQualityHold returns hold_number, then the modal closes and parent receives onSuccess(hold_number)"
+    ],
+    "test_strategy": [
+      "RED: write apps/web/src/components/quality/holds/__tests__/HoldCreateModal.test.tsx asserting field order, conditional validation, success flow",
+      "Run 'pnpm --filter web test HoldCreateModal'"
+    ],
+    "risk_red_lines": [
+      "Do not use native HTML <select> per prototype translation notes",
+      "Do not skip cross-field validation for reason=='other' note",
+      "Do not bypass createQualityHold Server Action (no direct DB writes from client)"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

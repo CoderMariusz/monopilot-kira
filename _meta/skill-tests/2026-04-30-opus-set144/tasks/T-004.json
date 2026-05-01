@@ -1,0 +1,60 @@
+{
+  "title": "T-004 — SET-001 Wizard Launcher: auto-show route guard for new orgs",
+  "prompt": "Implement the SET-001 Wizard Launcher per PRD §14.4: when an org's `onboarding_state.current_step < 6` and `current_step` ∉ `completed_steps`, redirect any user landing on the app shell to `/onboarding/[step]` corresponding to current_step.\n\nLanding behavior: server-component check via `getOnboardingState` (from T-002) on the (admin) layout entry; non-onboarding routes redirect with Next.js `redirect()`. Once wizard completes (current_step=6 AND 6 ∈ completed_steps), guard is bypassed and user lands on default home.\n\nDo NOT implement individual step pages (T-005..T-010), backend actions (T-001/T-002/T-003), or the celebration screen (T-010).\n\nRED test command: `pnpm --filter web test -- onboarding-launcher.guard`.",
+  "labels": ["prd", "ui", "route-guard-launcher", "T3-ui"],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-004",
+    "source_prd": "02-SETTINGS-PRD.md",
+    "prd_refs": ["§14.4 SET-001 (line 1538)"],
+    "category": "ui",
+    "subcategory": "route-guard-launcher",
+    "task_type": "T3-ui",
+    "parent_feature": "02-SETTINGS-onboarding-wizard",
+    "context_budget": "25k",
+    "estimated_effort": "2h",
+    "description": "Auto-redirect logic for new orgs landing in app shell while onboarding incomplete.",
+    "details": "Implemented as a server-component guard in apps/web/app/(app)/layout.tsx (or a small util it imports). Reads onboarding_state via T-002 action; if current_step <= 6 and not all completed, redirect to /onboarding/[current_step]. Vitest covers redirect decisions for 4 state shapes.",
+    "scope_files": [
+      "apps/web/app/(app)/layout.tsx [modify]",
+      "apps/web/app/(app)/_lib/onboarding-launcher.ts [create]",
+      "apps/web/app/(app)/_lib/onboarding-launcher.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Step UIs (T-005..T-010)",
+      "Onboarding state actions (T-001, T-002, T-003)",
+      "Middleware-level enforcement (gap-backlog T-02SETe-007a; out of scope here)"
+    ],
+    "dependencies": ["T-002"],
+    "parallel_safe_with": ["T-005", "T-006", "T-007", "T-008", "T-009", "T-010"],
+    "acceptance_criteria": [
+      "Given onboarding_state.current_step=1 and completed_steps=[], when user GETs /, then response is redirect to /onboarding/1.",
+      "Given onboarding_state.current_step=6 and 6 ∈ completed_steps, when user GETs /, then response is 200 (no redirect).",
+      "Given onboarding_state.current_step=3 and completed_steps=[1,2], when user GETs /admin/anywhere, then redirect to /onboarding/3.",
+      "Given vitest spec covers above, when pnpm --filter web test runs, then 0 failures."
+    ],
+    "test_strategy": [
+      "RED: vitest spec asserting redirect targets for all 4 AC.",
+      "GREEN: implement guard; all AC pass.",
+      "Command: pnpm --filter web test -- onboarding-launcher.guard"
+    ],
+    "risk_red_lines": [
+      "Do not use client-side redirect — must be server-side via Next.js redirect() in server component.",
+      "Do not bypass guard for any role — even admins must complete onboarding (per PRD §14.3 wizard is mandatory)."
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

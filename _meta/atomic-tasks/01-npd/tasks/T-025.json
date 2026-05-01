@@ -1,0 +1,63 @@
+{
+  "title": "T-025 — UI: FA MRP tab + Procurement tab + Commercial tab + Planning tab (schema-driven shells)",
+  "prompt": "# T-025 — Remaining schema-driven dept tab shells (Planning/Commercial/MRP/Procurement)\n\nPRD: 01-NPD-PRD.md §5.4-§5.9 + UX fa_mrp_tab/fa_procurement_tab\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\nPrototype: design/Monopilot Design System/npd/fa-screens.jsx (fa_mrp_tab 746-786, fa_procurement_tab 789-820)\n\n## Goal\nWire 4 schema-driven tab forms (Planning, Commercial, MRP, Procurement) using buildDeptZod and updateFaCell, mirroring corresponding prototypes; blocking rules enforced via Reference.DeptColumns.\n\n## Implementation contract\nFour 'use client' tab modules under _tabs/. Each invokes buildDeptZod for its dept; renders fields via shared SchemaDrivenForm component; respects blocking_rule (lock cells when rule false). Save calls updateFaCell per dirty field. Reuse SchemaDrivenForm primitive from packages/ui.\n\n## Files\n- apps/web/app/(npd)/fa/[productCode]/_tabs/planning-tab.tsx [create]\n- apps/web/app/(npd)/fa/[productCode]/_tabs/commercial-tab.tsx [create]\n- apps/web/app/(npd)/fa/[productCode]/_tabs/mrp-tab.tsx [create]\n- apps/web/app/(npd)/fa/[productCode]/_tabs/procurement-tab.tsx [create]\n- packages/ui/src/schema-driven-form.tsx [create]\n- packages/ui/__tests__/schema-driven-form.test.tsx [create]\n- design/Monopilot Design System/npd/fa-screens.jsx [ref]\n\n## Acceptance criteria\n1. Given the MRP tab renders, when compared to design/Monopilot Design System/npd/fa-screens.jsx:746-786 (fa_mrp_tab), then it has the same 13 MRP fields in DeptColumns display_order, locked cells use disabled shadcn Input, and uses shadcn Form+Input+Select primitives — verified by RTL parity checklist (structural+visual+interaction)\n2. Given Procurement tab and price.blocking_rule='Core + Production done' is unmet, when rendered, then price input is disabled with tooltip explaining gate\n3. Given user changes a Planning field, when saved, then updateFaCell is called with that single field and the DB row updates\n\n## Test strategy\n- RED: 3 RTL tests covering MRP parity, Procurement price gating, Planning save\n- Run 'pnpm --filter web test \"planning|commercial|mrp|procurement\"-tab && pnpm --filter ui test schema-driven-form'\n\n## Risk red lines\n- Do not bypass blocking_rule\n- Do not duplicate field definitions (read DeptColumns)\n- Do not skip per-tab parity checklist",
+  "labels": ["prd", "ui", "fa-tabs", "T3-ui"],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-025",
+    "source_prd": "01-NPD-PRD.md",
+    "prd_refs": ["§5.4", "§5.5", "§5.8", "§5.9"],
+    "category": "ui",
+    "subcategory": "fa-dept-tabs",
+    "task_type": "T3-ui",
+    "parent_feature": "01-NPD-a fa detail tabs",
+    "context_budget": "45k",
+    "estimated_effort": "3-4h",
+    "description": "Four schema-driven dept tab shells (Planning/Commercial/MRP/Procurement) plus shared SchemaDrivenForm primitive.",
+    "details": "Each tab invokes buildDeptZod and renders fields via SchemaDrivenForm. Blocking rules lock cells with tooltip. Reference: fa_mrp_tab 746-786, fa_procurement_tab 789-820. Parity ACs assert structural + visual + interaction match for at least MRP and Procurement.",
+    "scope_files": [
+      "apps/web/app/(npd)/fa/[productCode]/_tabs/planning-tab.tsx [create]",
+      "apps/web/app/(npd)/fa/[productCode]/_tabs/commercial-tab.tsx [create]",
+      "apps/web/app/(npd)/fa/[productCode]/_tabs/mrp-tab.tsx [create]",
+      "apps/web/app/(npd)/fa/[productCode]/_tabs/procurement-tab.tsx [create]",
+      "packages/ui/src/schema-driven-form.tsx [create]",
+      "packages/ui/__tests__/schema-driven-form.test.tsx [create]",
+      "design/Monopilot Design System/npd/fa-screens.jsx [ref]"
+    ],
+    "out_of_scope": [
+      "Do not implement Technical tab (T-026)",
+      "Do not implement BOM tab (T-066)",
+      "Do not implement V04 D365 status badges (T-064)"
+    ],
+    "dependencies": ["T-009", "T-014", "T-016", "T-020"],
+    "parallel_safe_with": ["T-023", "T-024", "T-026", "T-027"],
+    "acceptance_criteria": [
+      "Given the MRP tab renders, when compared to design/Monopilot Design System/npd/fa-screens.jsx:746-786, then it has same 13 MRP fields in DeptColumns display_order, locked cells use disabled shadcn Input, and uses shadcn Form+Input+Select primitives — verified by RTL parity checklist (structural + visual + interaction parity)",
+      "Given Procurement tab and price.blocking_rule unmet, when rendered, then price input is disabled with tooltip explaining gate",
+      "Given user changes a Planning field, when saved, then updateFaCell is called and DB row updates"
+    ],
+    "test_strategy": [
+      "RED: 3 RTL tests covering MRP parity, Procurement gating, Planning save before components exist",
+      "Run 'pnpm --filter web test planning-tab commercial-tab mrp-tab procurement-tab && pnpm --filter ui test schema-driven-form'"
+    ],
+    "risk_red_lines": [
+      "Do not bypass blocking_rule",
+      "Do not duplicate field definitions",
+      "Do not skip parity checklist for MRP/Procurement"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

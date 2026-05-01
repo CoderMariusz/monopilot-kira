@@ -1,0 +1,37 @@
+{
+  "title": "T-028 — API + worker: D365 pull job (items + BOM) with idempotency",
+  "prompt": "Per §13.3 + §13.5 + V-TEC-70..73. Implement POST /api/technical/d365/sync (manual trigger) that enqueues a d365_sync_jobs row + cron handler `dailyD365Pull` (lib/integrations/d365/pull.ts). Worker calls D365 Data Entity API `/data/Products` and `/data/BOMVersions/BOMLines` filtered by ModifiedDateTime > last_sync. UPSERT into items / bom_headers / bom_lines via match on d365_item_id. Drift detection: when local items.updated_at > d365_last_sync_at AND incoming differs → audit_log action='d365_drift', skip overwrite (V-TEC-73). Refuse when integration.d365.enabled=false (412 V-TEC-70). Idempotency_key = hash(entity+record_key+direction+payload_version). RED tests/wiring/d365-pull.test.ts using msw to mock D365. Run: `pnpm vitest run tests/wiring/d365-pull.test.ts`.",
+  "labels": ["prd", "integration", "d365-pull", "T4-wiring-test"],
+  "priority": 80,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-028",
+    "source_prd": "03-TECHNICAL-PRD.md",
+    "prd_refs": ["§13.1", "§13.3", "§13.5", "§13.10"],
+    "category": "integration",
+    "subcategory": "d365-pull",
+    "task_type": "T4-wiring-test",
+    "parent_feature": "03-TECHNICAL-d D365",
+    "context_budget": "45k",
+    "estimated_effort": "4h",
+    "description": "D365 nightly + on-demand pull worker with idempotency, drift detection, V-TEC-70..73.",
+    "details": "Use msw or nock to mock D365 endpoints in tests. Cron registration in lib/cron/registry.ts. Connection config from 02-SETTINGS §11.3 (encrypted via pgcrypto). Failure path writes to d365_sync_dlq.",
+    "scope_files": ["app/api/technical/d365/sync/route.ts", "lib/integrations/d365/pull.ts", "lib/integrations/d365/idempotency.ts", "lib/cron/d365-pull.ts", "tests/wiring/d365-pull.test.ts"],
+    "out_of_scope": ["Push (T-029)", "DLQ UI (T-058)", "Drift resolution UI (T-060)"],
+    "dependencies": ["T-001", "T-002", "T-007"],
+    "parallel_safe_with": ["T-029", "T-030"],
+    "acceptance_criteria": [
+      "Given integration.d365.enabled=false, when POST /sync runs, then 412 V-TEC-70.",
+      "Given local items.updated_at > d365_last_sync_at AND incoming differs, when worker processes record, then audit row 'd365_drift' written and items row not overwritten.",
+      "Given duplicate idempotency_key, when worker runs again, then second attempt is no-op.",
+      "Given mocked D365 returns 3 items modified, when pull completes, then d365_sync_jobs.records_processed=3."
+    ],
+    "test_strategy": ["RED tests using msw/nock for V-TEC-70..73 paths.", "Run: pnpm vitest run tests/wiring/d365-pull.test.ts"],
+    "risk_red_lines": ["Do not call live D365 in tests.", "Do not store credentials in plaintext."],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {"required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"], "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]},
+    "routing_hints": {"red": "hermes_gpt55", "implementation": "hermes_gpt55", "review": "opus_if_high_risk_or_ui_or_architecture", "close": "spark_low_risk_else_opus"}
+  }
+}

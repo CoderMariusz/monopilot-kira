@@ -1,0 +1,60 @@
+{
+  "title": "T-004 — Drizzle migration: wo_waste_log table + RLS",
+  "prompt": "# T-004 — Drizzle migration: wo_waste_log + RLS\n\nPRD: 08-PRODUCTION-PRD.md §9.5, §16.4 V-PROD-05\n\n## Goal\nAdd Drizzle migration creating wo_waste_log per §9.5 with FK to waste_categories (V-PROD-05), shift_id stamping (V-PROD-19), RLS, 3-year retention.\n\n## Implementation contract\npackages/db/schema/production/wo-waste-log.ts: PK id UUID, transaction_id UNIQUE (R14), tenant_id, wo_id REFERENCES work_orders, category_id REFERENCES waste_categories (V-PROD-05), qty_kg NUMERIC(12,3) CHECK >0, operator_id, shift_id text NOT NULL (V-PROD-19), reason_notes, approved_by, recorded_at default now. Indexes idx_waste_wo, idx_waste_category_time, idx_waste_tenant_time. RLS by tenant_id. Note 3-year retention in migration comment per §5.5.\n\n## Files (scope)\n- packages/db/schema/production/wo-waste-log.ts [create]\n- packages/db/schema/production/index.ts [modify]\n- packages/db/migrations/NNNN_wo_waste_log.sql [create]\n- packages/db/__tests__/wo-waste-log-schema.test.ts [create]\n\n## Acceptance criteria\n1. Given category_id pointing to non-existent waste_categories row, when INSERT runs, then FK violation raised (V-PROD-05)\n2. Given shift_id NULL, when INSERT runs, then NOT NULL constraint rejects (V-PROD-19)\n3. Given migration applied, when pg_indexes queried, then idx_waste_category_time and idx_waste_tenant_time both indexed on (col, recorded_at)\n\n## Test strategy\n- RED: schema test asserting category_id FK + shift_id NOT NULL before schema exists\n- Run 'pnpm --filter db drizzle:generate && pnpm --filter db test wo-waste-log-schema'\n\n## Risk red lines\n- Do not allow shift_id NULL (breaks V-PROD-19)\n- Do not skip waste_categories FK (V-PROD-05)\n- Do not allow qty_kg<=0",
+  "labels": ["prd", "data", "schema-migration", "T1-schema"],
+  "priority": 50,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-004",
+    "source_prd": "08-PRODUCTION-PRD.md",
+    "prd_refs": ["§9.5", "§16.4 V-PROD-05", "§16.4 V-PROD-19", "§5.5"],
+    "category": "data",
+    "subcategory": "schema-migration",
+    "task_type": "T1-schema",
+    "parent_feature": "08-PROD E3 Output+Waste",
+    "context_budget": "24k",
+    "estimated_effort": "1h",
+    "description": "wo_waste_log Drizzle table with waste_categories FK, shift_id NOT NULL, RLS.",
+    "details": "Mirror §9.5 SQL exactly. category_id REFERENCES waste_categories(id) (waste_categories defined in 02-SETTINGS — assume exists). shift_id text NOT NULL (V-PROD-19). qty_kg CHECK >0. Indexes: idx_waste_wo, idx_waste_category_time(category_id, recorded_at), idx_waste_tenant_time(tenant_id, recorded_at). RLS by tenant_id. 3-year retention noted as migration comment.",
+    "scope_files": [
+      "packages/db/schema/production/wo-waste-log.ts [create]",
+      "packages/db/schema/production/index.ts [modify]",
+      "packages/db/migrations/NNNN_wo_waste_log.sql [create]",
+      "packages/db/__tests__/wo-waste-log-schema.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not implement waste API endpoints",
+      "Do not seed waste_categories (02-SETTINGS owns)",
+      "Do not modify other tables"
+    ],
+    "dependencies": [],
+    "parallel_safe_with": ["T-001", "T-002", "T-003", "T-005", "T-006", "T-007", "T-008"],
+    "acceptance_criteria": [
+      "Given non-existent category_id, when INSERT runs, then FK violation raised",
+      "Given shift_id NULL, when INSERT runs, then NOT NULL violation raised",
+      "Given migration applied, when pg_indexes queried, then idx_waste_category_time and idx_waste_tenant_time exist on (col, recorded_at)"
+    ],
+    "test_strategy": [
+      "RED: schema test asserting category_id FK and shift_id NOT NULL before schema exists",
+      "Run 'pnpm --filter db drizzle:generate && pnpm --filter db test wo-waste-log-schema'"
+    ],
+    "risk_red_lines": [
+      "Do not allow shift_id NULL",
+      "Do not skip waste_categories FK",
+      "Do not allow qty_kg<=0"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

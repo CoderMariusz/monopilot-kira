@@ -1,0 +1,57 @@
+{
+  "title": "T-044 — Force-unlock scanner LP service (Admin)",
+  "prompt": "# T-044 — Force-unlock scanner LP service\n\nPRD: `05-WAREHOUSE-PRD.md` §6.11 (FR-WH-036), V-WH-LP-011.\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`.\n\n## Goal\n`forceUnlockLp(lpId, reason)` Server Action allowing Admin to clear a scanner lock with mandatory audit.\n\n## Implementation contract\n`apps/web/lib/services/warehouse/lp-force-unlock.ts`. RBAC: Admin only. Update license_plates SET locked_by=NULL, locked_at=NULL WHERE id=$lp; insert audit row 'scanner_lock_force_released' (admin_user_id, target_lp, original_holder, lock_duration_sec, reason). Reject if lock already free.\n\n## Files (scope)\n- apps/web/lib/services/warehouse/lp-force-unlock.ts [create]\n- apps/web/lib/services/warehouse/__tests__/lp-force-unlock.test.ts [create]\n\n## Acceptance criteria\n1. Given an LP locked by another user and Admin caller, when forceUnlockLp runs, then locked_by/locked_at clear and audit row 'scanner_lock_force_released' exists.\n2. Given a Manager caller (not Admin), when called, then RBAC error returns per V-WH-LP-011.\n3. Given the LP is already unlocked, when called, then a no-op response returns and no audit row is added.\n\n## Test strategy\n- RED: lp-force-unlock.test.ts covers Admin success, RBAC denial, no-op.\n- Run `pnpm --filter web test lp-force-unlock`.\n\n## Risk red lines\n- Do not allow non-Admin role.\n- Do not skip the audit row.\n- Do not log when already unlocked (avoid noise).",
+  "labels": ["prd", "api", "lp-core", "T2-api"],
+  "priority": 110,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-044",
+    "source_prd": "05-WAREHOUSE-PRD.md",
+    "prd_refs": ["§6.11"],
+    "category": "api",
+    "subcategory": "lp-core",
+    "task_type": "T2-api",
+    "parent_feature": "warehouse-lp-core",
+    "context_budget": "20k",
+    "estimated_effort": "1h",
+    "description": "Admin-only force-unlock scanner LP with audit row 'scanner_lock_force_released'.",
+    "details": "Single transaction; no-op when already unlocked.",
+    "scope_files": [
+      "apps/web/lib/services/warehouse/lp-force-unlock.ts [create]",
+      "apps/web/lib/services/warehouse/__tests__/lp-force-unlock.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Modal UI (T-069)",
+      "Dashboard alert (T-048)"
+    ],
+    "dependencies": ["T-020"],
+    "parallel_safe_with": ["T-043", "T-045", "T-046"],
+    "acceptance_criteria": [
+      "Given Admin caller and LP locked by other user, when run, then locked_by/locked_at clear and audit row exists",
+      "Given Manager caller, when run, then RBAC error returns",
+      "Given the LP is already unlocked, when run, then no-op returns and no audit row added"
+    ],
+    "test_strategy": [
+      "RED: lp-force-unlock.test.ts covers Admin success, RBAC, no-op",
+      "Run 'pnpm --filter web test lp-force-unlock'"
+    ],
+    "risk_red_lines": [
+      "Do not allow non-Admin",
+      "Do not skip audit",
+      "Do not log no-op cases"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

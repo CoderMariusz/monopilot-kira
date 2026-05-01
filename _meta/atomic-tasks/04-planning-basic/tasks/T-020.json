@@ -1,0 +1,63 @@
+{
+  "title": "T-020 — API: cycle detection service for wo_dependencies",
+  "prompt": "Implement DFS cycle detection per PRD §5.9 + V-PLAN-WO-005. Function `assertNoCycle(parentWoId, childWoId, tx)` reads existing wo_dependencies graph for tenant, simulates the proposed edge, runs DFS with visited+recursion-stack sets, throws `CycleError({ cyclePath: [woId,...], offendingEdge: {parent, child} })` if a cycle would form. Pure-TypeScript implementation; unit-test against in-memory graph fixtures.\n\nRED test: 4 fixtures — linear chain OK, self-loop A→A rejected, cycle A→B→C→A rejected with cyclePath=[A,B,C,A], diamond A→B,A→C,B→D,C→D OK.",
+  "labels": ["prd", "api", "cycle-detection", "T2-api"],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-020",
+    "source_prd": "04-PLANNING-BASIC-PRD.md",
+    "prd_refs": ["§5.9", "§8.11"],
+    "category": "api",
+    "subcategory": "cycle-detection",
+    "task_type": "T2-api",
+    "parent_feature": "planning-wo-cascade",
+    "context_budget": "20k",
+    "estimated_effort": "1-2h",
+    "description": "Pure-TS DFS cycle detection used by cascade generator and dependency-edit endpoints.",
+    "details": "Algorithm: build adjacency list from existing wo_dependencies for tenant + the candidate edge, run iterative DFS using two sets (visited + onStack), abort + throw on first onStack hit returning cycle path via parent pointer. Avoid recursion (stack overflow on deep chains). cyclePath rebuilt from parent[] map.",
+    "scope_files": [
+      "src/server/services/cycle-detection.ts [create]",
+      "src/server/services/__tests__/cycle-detection.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "UI for cycle warning (T-029)",
+      "Cascade generator integration (T-019)"
+    ],
+    "dependencies": ["T-005"],
+    "parallel_safe_with": ["T-019", "T-021"],
+    "acceptance_criteria": [
+      "Given an empty graph and edge A→A, when assertNoCycle runs, then it throws CycleError with cyclePath=[A,A].",
+      "Given graph A→B,B→C and proposed edge C→A, when assertNoCycle runs, then it throws with cyclePath=[A,B,C,A].",
+      "Given diamond A→B, A→C, B→D, C→D and any new edge that does not close a cycle, when assertNoCycle runs, then it returns without throwing.",
+      "Given `pnpm vitest run src/server/services/__tests__/cycle-detection.test.ts`, when run, then 0 failures."
+    ],
+    "test_strategy": [
+      "RED tests for self-loop, simple cycle, indirect cycle, diamond no-cycle case.",
+      "Run `pnpm vitest run src/server/services/__tests__/cycle-detection.test.ts`."
+    ],
+    "risk_red_lines": [
+      "Do not use recursive DFS — risk of stack overflow on long chains.",
+      "Do not mutate the graph passed in — pure function only."
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

@@ -1,0 +1,65 @@
+{
+  "title": "T-039 — UI: PLN-015 Add PO Line modal (parity with add_po_line_modal)",
+  "prompt": "Build PLN-015 Add PO Line modal at `src/components/planning/po/AddPOLineModal.tsx` matching prototype `design/Monopilot Design System/planning/modals.jsx:182-225` 1:1.\n\nFields: product (combobox with server search), qty, uom (read-only auto-filled from product), unit_price (auto-filled from supplier_products), discount, expected_delivery_date. Computed line_total visible (derived).\n\nZod schema enforces qty > 0 (V-PLAN-PO-004). Submit invokes Server Action that POSTs po_line.\n\nRED RTL test asserts qty=0 rejected, product select autofills uom + unit_price, line_total derives.",
+  "labels": ["prd", "ui", "pln-015-add-po-line", "T3-ui"],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-039",
+    "source_prd": "04-PLANNING-BASIC-PRD.md",
+    "prd_refs": ["§6.2", "§6.6", "§6.7"],
+    "category": "ui",
+    "subcategory": "pln-015-add-po-line",
+    "task_type": "T3-ui",
+    "parent_feature": "planning-po",
+    "context_budget": "30k",
+    "estimated_effort": "2-3h",
+    "prototype_match": true,
+    "description": "Add PO Line modal with product combobox, autofill, derived line_total.",
+    "details": "Prototype reference: planning/modals.jsx:182-225. Translation notes: useState form → useForm with zodResolver; uom read-only autofilled from product; unit_price from supplier_products lookup; line_total derived; product options via Server Action search; labels via next-intl planning.po.line. Parity checklist: (1) field order (product, qty, uom, unit_price, discount, expected_delivery, total), (2) qty validation message text, (3) Cancel/Save footer.",
+    "scope_files": [
+      "src/components/planning/po/AddPOLineModal.tsx [create]",
+      "src/components/planning/po/__tests__/AddPOLineModal.test.tsx [create]",
+      "design/Monopilot Design System/planning/modals.jsx:182-225 [ref]"
+    ],
+    "out_of_scope": [
+      "Bulk import (T-041)"
+    ],
+    "dependencies": ["T-036"],
+    "parallel_safe_with": ["T-038", "T-040"],
+    "acceptance_criteria": [
+      "Given the modal opens, when compared to `design/Monopilot Design System/planning/modals.jsx:182-225`, then it shows the same 7 fields in the same order, the same uom read-only behavior, and the same Cancel/Save footer — parity verified by RTL test.",
+      "Given qty=0 input, when Save is clicked, then Zod rejects with message matching V-PLAN-PO-004 and no API call is made.",
+      "Given a product with supplier_products.unit_price=4.20, when selected, then unit_price field shows 4.20 and is read-only by default.",
+      "Given `pnpm vitest run src/components/planning/po/__tests__/AddPOLineModal.test.tsx`, when run, then 0 failures."
+    ],
+    "test_strategy": [
+      "RED RTL test for parity + qty=0 rejection + autofill + line_total derivation.",
+      "Playwright e2e: open modal, add line, expect new row in PO Detail lines table.",
+      "Run `pnpm vitest run` and `pnpm playwright test`."
+    ],
+    "risk_red_lines": [
+      "Do not allow qty=0 to bypass validation.",
+      "Do not place line_total into form state — must derive."
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

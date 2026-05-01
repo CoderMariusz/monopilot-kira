@@ -1,0 +1,361 @@
+{
+  "before": {
+    "master_count": 514,
+    "per_module_files_initial": [
+      "prototype-index-finance.json",
+      "prototype-index-maintenance.json",
+      "prototype-index-multi-site.json",
+      "prototype-index-npd.json",
+      "prototype-index-oee.json",
+      "prototype-index-planning-ext.json",
+      "prototype-index-planning.json",
+      "prototype-index-production.json",
+      "prototype-index-quality.json",
+      "prototype-index-reporting.json",
+      "prototype-index-scanner.json",
+      "prototype-index-settings.json",
+      "prototype-index-shipping.json",
+      "prototype-index-technical.json",
+      "prototype-index-warehouse-haiku.json",
+      "prototype-index-warehouse-sonnet.json"
+    ],
+    "wrappers_count": 0
+  },
+  "after": {
+    "master_count": 514,
+    "per_module_files": [
+      "prototype-index-finance.json",
+      "prototype-index-maintenance.json",
+      "prototype-index-multi-site.json",
+      "prototype-index-npd.json",
+      "prototype-index-oee.json",
+      "prototype-index-planning-ext.json",
+      "prototype-index-planning.json",
+      "prototype-index-production.json",
+      "prototype-index-quality.json",
+      "prototype-index-reporting.json",
+      "prototype-index-scanner.json",
+      "prototype-index-settings.json",
+      "prototype-index-shipping.json",
+      "prototype-index-technical.json",
+      "prototype-index-warehouse.json"
+    ],
+    "wrappers_count": 15,
+    "per_module_total_entries": 510,
+    "deps_total": 1612,
+    "deps_canonical": 1462,
+    "deps_unresolved": 150,
+    "deps_other": 0
+  },
+  "actions": [
+    {
+      "defect": "BLOCKER1",
+      "action": "archive warehouse-haiku.json",
+      "result": "FIXED",
+      "evidence": "/Users/mariuszkrawczyk/Projects/monopilot-kira/_meta/prototype-labels/_archive/prototype-index-warehouse-haiku.json"
+    },
+    {
+      "defect": "BLOCKER1",
+      "action": "rename warehouse-sonnet.json -> warehouse.json",
+      "result": "FIXED",
+      "evidence": "/Users/mariuszkrawczyk/Projects/monopilot-kira/_meta/prototype-labels/prototype-index-warehouse.json"
+    },
+    {
+      "defect": "BLOCKER1/HIGH7",
+      "action": "archive warehouse-haiku.md",
+      "result": "FIXED",
+      "evidence": "/Users/mariuszkrawczyk/Projects/monopilot-kira/_meta/prototype-labels/_archive/translation-notes-warehouse-haiku.md"
+    },
+    {
+      "defect": "BLOCKER1/HIGH7",
+      "action": "rename warehouse-sonnet.md -> warehouse.md",
+      "result": "FIXED",
+      "evidence": "/Users/mariuszkrawczyk/Projects/monopilot-kira/_meta/prototype-labels/translation-notes-warehouse.md"
+    },
+    {
+      "defect": "BLOCKER1-verify",
+      "action": "warehouse labels match master",
+      "result": "FIXED",
+      "evidence": "31 labels identical"
+    },
+    {
+      "defect": "HIGH6",
+      "action": "moved 1 entries to multi-site",
+      "result": "FIXED",
+      "evidence": "labels=['sites_screen']"
+    },
+    {
+      "defect": "HIGH6",
+      "action": "moved 1 entries to oee",
+      "result": "FIXED",
+      "evidence": "labels=['shifts_screen']"
+    },
+    {
+      "defect": "HIGH6",
+      "action": "moved 1 entries to scanner",
+      "result": "FIXED",
+      "evidence": "labels=['devices_screen']"
+    },
+    {
+      "defect": "HIGH6",
+      "action": "moved 3 entries to technical",
+      "result": "FIXED",
+      "evidence": "labels=['products_screen', 'boms_screen', 'partners_screen']"
+    },
+    {
+      "defect": "HIGH6-settings",
+      "action": "removed 6 from settings",
+      "result": "FIXED",
+      "evidence": "new size=31"
+    },
+    {
+      "defect": "HIGH6-master",
+      "action": "re-tagged sites_screen -> multi-site_sites_screen (multi-site)",
+      "result": "FIXED",
+      "evidence": ""
+    },
+    {
+      "defect": "HIGH6-master",
+      "action": "re-tagged settings_shifts_screen -> oee_shifts_screen (oee)",
+      "result": "FIXED",
+      "evidence": ""
+    },
+    {
+      "defect": "HIGH6-master",
+      "action": "re-tagged devices_screen -> scanner_devices_screen (scanner)",
+      "result": "FIXED",
+      "evidence": ""
+    },
+    {
+      "defect": "HIGH6-master",
+      "action": "re-tagged products_screen -> technical_products_screen (technical)",
+      "result": "FIXED",
+      "evidence": ""
+    },
+    {
+      "defect": "HIGH6-master",
+      "action": "re-tagged boms_screen -> technical_boms_screen (technical)",
+      "result": "FIXED",
+      "evidence": ""
+    },
+    {
+      "defect": "HIGH6-master",
+      "action": "re-tagged partners_screen -> technical_partners_screen (technical)",
+      "result": "FIXED",
+      "evidence": ""
+    },
+    {
+      "defect": "HIGH4-master",
+      "action": "set ui_pattern=dashboard-tile on gate_checklist_panel",
+      "result": "FIXED",
+      "evidence": "matches=1"
+    },
+    {
+      "defect": "HIGH4-npd",
+      "action": "set ui_pattern=dashboard-tile on gate_checklist_panel (npd)",
+      "result": "NOT_FOUND",
+      "evidence": "matches=0"
+    },
+    {
+      "defect": "HIGH5-master",
+      "action": "set interaction=read-only on approval_history_timeline",
+      "result": "FIXED",
+      "evidence": "matches=1"
+    },
+    {
+      "defect": "HIGH5-npd",
+      "action": "set interaction=read-only on approval_history_timeline (npd)",
+      "result": "NOT_FOUND",
+      "evidence": "matches=0"
+    },
+    {
+      "defect": "HIGH9-master",
+      "action": "normalized 784 dep refs in master",
+      "result": "FIXED",
+      "evidence": ""
+    },
+    {
+      "defect": "BLOCKER3-finance",
+      "action": "wrapped with 25 entries",
+      "result": "FIXED",
+      "evidence": ""
+    },
+    {
+      "defect": "BLOCKER3-maintenance",
+      "action": "wrapped with 36 entries",
+      "result": "FIXED",
+      "evidence": ""
+    },
+    {
+      "defect": "BLOCKER3-multi-site",
+      "action": "wrapped with 28 entries",
+      "result": "FIXED",
+      "evidence": ""
+    },
+    {
+      "defect": "BLOCKER3-npd",
+      "action": "wrapped with 47 entries",
+      "result": "FIXED",
+      "evidence": ""
+    },
+    {
+      "defect": "BLOCKER3-oee",
+      "action": "wrapped with 28 entries",
+      "result": "FIXED",
+      "evidence": ""
+    },
+    {
+      "defect": "BLOCKER3-planning",
+      "action": "wrapped with 33 entries",
+      "result": "FIXED",
+      "evidence": ""
+    },
+    {
+      "defect": "BLOCKER3-planning-ext",
+      "action": "wrapped with 25 entries",
+      "result": "FIXED",
+      "evidence": ""
+    },
+    {
+      "defect": "BLOCKER3-production",
+      "action": "wrapped with 33 entries",
+      "result": "FIXED",
+      "evidence": ""
+    },
+    {
+      "defect": "BLOCKER3-quality",
+      "action": "wrapped with 32 entries",
+      "result": "FIXED",
+      "evidence": ""
+    },
+    {
+      "defect": "BLOCKER3-reporting",
+      "action": "wrapped with 28 entries",
+      "result": "FIXED",
+      "evidence": ""
+    },
+    {
+      "defect": "BLOCKER3-scanner",
+      "action": "wrapped with 42 entries",
+      "result": "FIXED",
+      "evidence": ""
+    },
+    {
+      "defect": "BLOCKER3-settings",
+      "action": "wrapped with 31 entries",
+      "result": "FIXED",
+      "evidence": ""
+    },
+    {
+      "defect": "BLOCKER3-shipping",
+      "action": "wrapped with 41 entries",
+      "result": "FIXED",
+      "evidence": ""
+    },
+    {
+      "defect": "BLOCKER3-technical",
+      "action": "wrapped with 50 entries",
+      "result": "FIXED",
+      "evidence": ""
+    },
+    {
+      "defect": "BLOCKER3-warehouse",
+      "action": "wrapped with 31 entries",
+      "result": "FIXED",
+      "evidence": ""
+    },
+    {
+      "defect": "master-save",
+      "action": "saved master with HIGH4/5/6 + HIGH9 normalization",
+      "result": "FIXED",
+      "evidence": ""
+    },
+    {
+      "defect": "HIGH8-finance",
+      "action": "appended 1 stubs",
+      "result": "FIXED",
+      "evidence": ""
+    },
+    {
+      "defect": "HIGH8-reporting",
+      "action": "appended 10 stubs",
+      "result": "FIXED",
+      "evidence": ""
+    },
+    {
+      "defect": "HIGH8-total",
+      "action": "appended 11 stubs total",
+      "result": "FIXED",
+      "evidence": ""
+    },
+    {
+      "defect": "BLOCKER2-readme",
+      "action": "wrote README.md documenting (module, label) compound key",
+      "result": "FIXED",
+      "evidence": "/Users/mariuszkrawczyk/Projects/monopilot-kira/_meta/prototype-labels/README.md"
+    }
+  ],
+  "deferred": [],
+  "verify_results": [
+    [
+      "PASS",
+      "master entry count = 514 (expected 514)"
+    ],
+    [
+      "PASS",
+      "wrappers=15/15 files"
+    ],
+    [
+      "PASS",
+      "bare-primitive deps remaining: 0"
+    ],
+    [
+      "PASS",
+      "gate_checklist_panel.ui_pattern = dashboard-tile"
+    ],
+    [
+      "PASS",
+      "approval_history_timeline.interaction = read-only"
+    ],
+    [
+      "PASS",
+      "moved labels still in settings: set()"
+    ],
+    [
+      "PASS",
+      "sites_screen present in multi-site"
+    ],
+    [
+      "FAIL",
+      "settings_shifts_screen present in oee"
+    ],
+    [
+      "PASS",
+      "devices_screen present in scanner"
+    ],
+    [
+      "PASS",
+      "products_screen present in technical"
+    ],
+    [
+      "PASS",
+      "boms_screen present in technical"
+    ],
+    [
+      "PASS",
+      "partners_screen present in technical"
+    ],
+    [
+      "PASS",
+      "_archive/ exists"
+    ],
+    [
+      "PASS",
+      "_archive/prototype-index-warehouse-haiku.json exists"
+    ],
+    [
+      "PASS",
+      "_archive/translation-notes-warehouse-haiku.md exists"
+    ]
+  ]
+}

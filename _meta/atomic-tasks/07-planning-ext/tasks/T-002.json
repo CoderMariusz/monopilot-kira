@@ -1,0 +1,60 @@
+{
+  "title": "T-002 — scheduler_assignments table + RLS + indexes",
+  "prompt": "# T-002 — scheduler_assignments table + RLS + indexes\n\nPRD: 07-PLANNING-EXT-PRD.md §9.3, §15.4 V-SCHED-04\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nIntroduce `scheduler_assignments` table holding draft/approved/rejected/overridden WO assignments produced by solver, with tenant RLS, four indexes, and FK chain to scheduler_runs(run_id) ON DELETE CASCADE.\n\n## Implementation contract\n1. Migration `packages/db/migrations/0071_scheduler_assignments.sql`: CREATE TYPE assignment_status ENUM (draft|approved|rejected|overridden), CREATE TABLE scheduler_assignments per §9.3 DDL.\n2. RLS policy on tenant_id; four indexes: idx_scheduler_assignments_run, _wo, _status, _time.\n3. Drizzle schema in `packages/db/src/schema/scheduler_assignments.ts`.\n4. RED test asserts RLS, FK cascade, optimizer_score numeric precision (10,2).\n\n## Files\n- packages/db/migrations/0071_scheduler_assignments.sql [create]\n- packages/db/src/schema/scheduler_assignments.ts [create]\n- packages/db/src/schema/index.ts [modify]\n- packages/db/__tests__/scheduler-assignments.test.ts [create]\n\n## Acceptance criteria\n1. Given migration 0071 applied, when \\d scheduler_assignments runs, then all §9.3 columns present, RLS enabled, four specified indexes exist\n2. Given a scheduler_runs row deleted, when ON DELETE CASCADE fires, then all child scheduler_assignments rows are removed\n3. Given two tenants, when each SELECTs, then each sees only its own assignments\n\n## Test strategy\n- RED: write packages/db/__tests__/scheduler-assignments.test.ts asserting cascade + RLS + numeric(10,2) precision\n- Run 'pnpm --filter db migrate && pnpm --filter db test scheduler-assignments'\n\n## Risk red lines\n- Do not omit ON DELETE CASCADE on run_id FK\n- Do not skip RLS policy\n- Do not relax assignment_status enum to TEXT",
+  "labels": ["prd", "data", "schema", "T1-schema"],
+  "priority": 50,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-002",
+    "source_prd": "07-PLANNING-EXT-PRD.md",
+    "prd_refs": ["§9.3", "§15.4"],
+    "category": "data",
+    "subcategory": "schema-scheduler",
+    "task_type": "T1-schema",
+    "parent_feature": "07-EXT-a finite-capacity engine",
+    "context_budget": "40k",
+    "estimated_effort": "1-2h",
+    "description": "Create scheduler_assignments table with RLS, status enum, FK cascade to scheduler_runs, four indexes, and override audit columns.",
+    "details": "Migration 0071 emits CREATE TYPE assignment_status, CREATE TABLE scheduler_assignments per §9.3 DDL with override_original_* columns, ENABLE RLS, four indexes. Drizzle schema mirrors columns with NUMERIC(10,2) precision for optimizer_score. RED test verifies cascade delete and tenant isolation.",
+    "scope_files": [
+      "packages/db/migrations/0071_scheduler_assignments.sql [create]",
+      "packages/db/src/schema/scheduler_assignments.ts [create]",
+      "packages/db/src/schema/index.ts [modify]",
+      "packages/db/__tests__/scheduler-assignments.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not write approve/override API logic here (T-014..T-017)",
+      "Do not seed assignments",
+      "Do not add changeover blocks (synthesized at view layer)"
+    ],
+    "dependencies": ["T-001"],
+    "parallel_safe_with": ["T-003", "T-004", "T-005"],
+    "acceptance_criteria": [
+      "Given migration 0071 applied, when \\d scheduler_assignments runs, then all §9.3 columns present, RLS enabled, four indexes exist",
+      "Given a scheduler_runs row is deleted, when cascade fires, then all child scheduler_assignments rows are removed",
+      "Given two tenants insert assignments, when each SELECTs under app.tenant_id, then each only sees its own rows"
+    ],
+    "test_strategy": [
+      "RED: write packages/db/__tests__/scheduler-assignments.test.ts asserting cascade + RLS + numeric(10,2)",
+      "Run 'pnpm --filter db migrate && pnpm --filter db test scheduler-assignments'"
+    ],
+    "risk_red_lines": [
+      "Do not omit ON DELETE CASCADE on run_id FK",
+      "Do not skip RLS policy on scheduler_assignments",
+      "Do not relax assignment_status to TEXT"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

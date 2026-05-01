@@ -1,0 +1,84 @@
+{
+  "title": "T-028 — Server Actions: upgrade orchestration (preview/start/promote/rollback)",
+  "prompt": "# T-028 — Server Actions: tenant_migrations orchestration\n\n## Goal\nImplement `previewUpgrade(component, targetVersion)`, `startUpgrade(...)`, `promoteCanary(canaryPct)`, `rollbackUpgrade(migrationId)`. Region change blocked (V-SET-32). Force migration warnings (V-SET-33).\n\n## Files in scope\n- apps/web/actions/tenant/preview-upgrade.ts [create]\n- apps/web/actions/tenant/start-upgrade.ts [create]\n- apps/web/actions/tenant/promote-canary.ts [create]\n- apps/web/actions/tenant/rollback-upgrade.ts [create]\n- apps/web/actions/tenant/upgrade.test.ts [create]\n\n## Acceptance criteria (all must hold)\n- Given previewUpgrade(component='rule_engine', target='v2'), when called, then it returns affected rows count + JSON diff vs current.\n- Given a tenant tries `setRegion('us')` post-onboarding, when called, then it raises REGION_CHANGE_BLOCKED (V-SET-32) and instructs to open a support ticket.\n- Given a migration row at canary_pct=10 and rollbackUpgrade is called within 7 days of completion, when committed, then status='rolled_back' and outbox event emitted.\n\n## Test strategy (RED first)\n1. Add a failing test that exercises the acceptance criteria above. The RED command is:\n   `pnpm --filter @monopilot/web vitest run apps/web/actions/tenant/upgrade.test.ts`\n2. Run RED — it must fail before any production code is written.\n3. Implement the smallest change needed for GREEN.\n4. Re-run RED command — must pass.\n5. Run `pnpm typecheck` and `pnpm lint` in the changed package; both must pass.\n\n## Risk red lines\n- Do not edit files outside the listed scope without documenting why in CLOSEOUT.\n- Do not weaken existing acceptance criteria from prior tasks.\n- Do not introduce REST endpoints; use Server Actions per stack contract.\n- Do not commit secrets or vault keys.\n\n## Closeout evidence required\n- changed_files (with line counts)\n- exact test commands and outputs (RED→GREEN, typecheck, lint)\n- acceptance_criteria_status (one row per AC: pass/fail)\n- deviations_from_prd (or \"none\")\n- git_status\n\nStack: TS + Next.js App Router + Drizzle + pnpm + vitest + Playwright + Server Actions. Primitives in `packages/ui`. PRD: `02-SETTINGS-PRD.md` v3.5.\n",
+  "labels": [
+    "prd",
+    "api",
+    "tenant-upgrade",
+    "T2-api"
+  ],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-028",
+    "source_prd": "02-SETTINGS-PRD.md",
+    "prd_refs": [
+      "§9.4",
+      "§9.5",
+      "V-SET-32",
+      "V-SET-33"
+    ],
+    "category": "api",
+    "subcategory": "tenant-upgrade",
+    "task_type": "T2-api",
+    "parent_feature": "02-settings-b",
+    "context_budget": "40k",
+    "estimated_effort": "1-3h",
+    "description": "Tenant upgrade orchestration Server Actions.",
+    "details": "Rollback time-window 7 days post-completion (per §9.9 proposal). Open question: locked after 7d. Background job to do canary routing is a separate task (deferred — outside this decomposition's MVP).",
+    "scope_files": [
+      "apps/web/actions/tenant/preview-upgrade.ts",
+      "apps/web/actions/tenant/start-upgrade.ts",
+      "apps/web/actions/tenant/promote-canary.ts",
+      "apps/web/actions/tenant/rollback-upgrade.ts",
+      "apps/web/actions/tenant/upgrade.test.ts"
+    ],
+    "out_of_scope": [
+      "broaden scope beyond listed files",
+      "implement future-phase features"
+    ],
+    "dependencies": [
+      "T-027"
+    ],
+    "parallel_safe_with": [],
+    "acceptance_criteria": [
+      "Preview returns diff + impact count.",
+      "Region change blocked.",
+      "Rollback within 7d works."
+    ],
+    "test_strategy": [
+      "RED: 3 cases.",
+      "GREEN: implement."
+    ],
+    "risk_red_lines": [
+      "Do not allow rollback after 7d window without explicit support ticket flag."
+    ],
+    "skills": [
+      "test-driven-development"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": false
+  }
+}

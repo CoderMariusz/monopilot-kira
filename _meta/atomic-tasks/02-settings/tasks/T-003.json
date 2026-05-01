@@ -1,0 +1,81 @@
+{
+  "title": "T-003 — Lock settings outbox event enum",
+  "prompt": "# T-003 — Lock settings outbox event enum\n\n## Goal\nAppend SETTINGS event group to `apps/web/lib/outbox/events.enum.ts` for org/user/role/module/reference/schema-migration/rule-deploy/sso/scim mutation events. Use ISA-95 dot format (e.g. `settings.org.created`).\n\n## Files in scope\n- apps/web/lib/outbox/events.enum.ts [modify]\n- apps/web/lib/outbox/events.test.ts [modify]\n\n## Acceptance criteria (all must hold)\n- Given the enum is read, when listed, then events 'settings.org.created', 'settings.org.updated', 'settings.user.invited', 'settings.user.deactivated', 'settings.role.assigned', 'settings.module.toggled', 'settings.reference.row_updated', 'settings.schema.migration_requested', 'settings.rule.deployed', 'settings.sso.config_changed', 'settings.scim.token_created' exist.\n- Given the file is parsed, when validated, then all new strings match `^settings\\.[a-z_]+\\.[a-z_]+$` and no duplicates exist.\n- Given vitest runs `apps/web/lib/outbox/events.test.ts`, when executed, then suite is green.\n\n## Test strategy (RED first)\n1. Add a failing test that exercises the acceptance criteria above. The RED command is:\n   `pnpm --filter @monopilot/web vitest run apps/web/lib/outbox/events.test.ts`\n2. Run RED — it must fail before any production code is written.\n3. Implement the smallest change needed for GREEN.\n4. Re-run RED command — must pass.\n5. Run `pnpm typecheck` and `pnpm lint` in the changed package; both must pass.\n\n## Risk red lines\n- Do not edit files outside the listed scope without documenting why in CLOSEOUT.\n- Do not weaken existing acceptance criteria from prior tasks.\n- Do not introduce REST endpoints; use Server Actions per stack contract.\n- Do not commit secrets or vault keys.\n\n## Closeout evidence required\n- changed_files (with line counts)\n- exact test commands and outputs (RED→GREEN, typecheck, lint)\n- acceptance_criteria_status (one row per AC: pass/fail)\n- deviations_from_prd (or \"none\")\n- git_status\n\nStack: TS + Next.js App Router + Drizzle + pnpm + vitest + Playwright + Server Actions. Primitives in `packages/ui`. PRD: `02-SETTINGS-PRD.md` v3.5.\n",
+  "labels": [
+    "prd",
+    "data",
+    "outbox-events",
+    "T1-schema",
+    "p0-lock"
+  ],
+  "priority": 50,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-003",
+    "source_prd": "02-SETTINGS-PRD.md",
+    "prd_refs": [
+      "§5.6",
+      "§7.3"
+    ],
+    "category": "data",
+    "subcategory": "outbox-events",
+    "task_type": "T1-schema",
+    "parent_feature": "02-settings-foundation",
+    "context_budget": "40k",
+    "estimated_effort": "1-3h",
+    "description": "Lock settings outbox event enum strings.",
+    "details": "Match the foundation outbox event style; group block delimited by comment; export ALL_SETTINGS_EVENTS array.",
+    "scope_files": [
+      "apps/web/lib/outbox/events.enum.ts",
+      "apps/web/lib/outbox/events.test.ts"
+    ],
+    "out_of_scope": [
+      "broaden scope beyond listed files",
+      "implement future-phase features"
+    ],
+    "dependencies": [],
+    "parallel_safe_with": [
+      "T-001",
+      "T-002"
+    ],
+    "acceptance_criteria": [
+      "11 new event strings present, regex-validated, unique.",
+      "`ALL_SETTINGS_EVENTS` array exported.",
+      "vitest suite green."
+    ],
+    "test_strategy": [
+      "RED: extend events.test.ts.",
+      "GREEN: append events."
+    ],
+    "risk_red_lines": [
+      "Do not change event payload contracts here (separate task)."
+    ],
+    "skills": [
+      "test-driven-development"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": false
+  }
+}

@@ -1,0 +1,59 @@
+{
+  "title": "T-026 — Offline detection indicator stub (P1) (06-a)",
+  "prompt": "# T-026 — offline indicator stub\n\nPRD: 06-SCANNER-P1-PRD.md §8.6 FR-SC-FE-070 (P1 stub), §8.1 FR-SC-FE-015\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nDeliver online/offline detection — `navigator.onLine` + 15s ping `/api/health` — surfaced in the topbar SyncStatus dot (green/amber/red). P1 includes only detection + visual; queue UI is P2.\n\n## Implementation contract\n1. `apps/scanner/src/lib/scanner/online-detector.ts` exporting a singleton subscribe API.\n2. Tap into the SyncStatus slot of the topbar (T-012): green when online, amber while ping pending, red on offline ≥1 ping miss.\n3. Disabled (no queue badge) — placeholder click opens a 'Tryb offline P2' modal.\n\n## Files\n- apps/scanner/src/lib/scanner/online-detector.ts [create]\n- apps/scanner/src/components/sync-status.tsx [create]\n- apps/scanner/__tests__/online-detector.test.ts [create]\n\n## Acceptance criteria\n1. Given navigator.onLine becomes false, when the detector subscribers fire, then the SyncStatus dot transitions to red within one tick\n2. Given /api/health returns 200, when the 15s ping cycle runs, then the dot stays green and the next tick stays scheduled\n3. Given the user taps the disabled SyncStatus dot, when the click handler runs, then a 'Tryb offline P2' modal opens with link to docs\n\n## Test strategy\n- RED: write online-detector.test.ts asserting offline transition + ping cycle + P2 modal before implementation\n- Run 'pnpm --filter scanner test online-detector'\n\n## Risk red lines\n- Do not run the ping cycle while no scanner page is mounted\n- Do not block render if /api/health is unreachable (degrade to red dot)\n- Do not enable queue UI in P1",
+  "labels": ["prd", "ui", "offline-stub", "T4-wiring-test"],
+  "priority": 130,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-026",
+    "source_prd": "06-SCANNER-P1-PRD.md",
+    "prd_refs": ["§8.6 FR-SC-FE-070 (P1 stub)", "§8.1 FR-SC-FE-015"],
+    "category": "ui",
+    "subcategory": "offline-stub",
+    "task_type": "T4-wiring-test",
+    "parent_feature": "06-a Shell & Core",
+    "context_budget": "20k",
+    "estimated_effort": "1h",
+    "description": "P1 detection-only online/offline indicator surfaced in topbar; opens 'Tryb offline P2' modal on tap.",
+    "details": "Detector polls /api/health every 15s plus listens to navigator.onLine events. SyncStatus component renders dot color and disabled-tap modal. P2 queue UI is explicitly deferred.",
+    "scope_files": [
+      "apps/scanner/src/lib/scanner/online-detector.ts [create]",
+      "apps/scanner/src/components/sync-status.tsx [create]",
+      "apps/scanner/__tests__/online-detector.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not implement IndexedDB queue (P2)",
+      "Do not implement /api/scanner/sync-queue (P2)",
+      "Do not implement SCN-090 queue view (P2)"
+    ],
+    "dependencies": ["T-012"],
+    "parallel_safe_with": ["T-024", "T-025"],
+    "acceptance_criteria": [
+      "Given navigator.onLine becomes false, when subscribers fire, then the SyncStatus dot transitions to red within one tick",
+      "Given /api/health returns 200, when the 15s ping cycle runs, then the dot stays green and the next tick is scheduled",
+      "Given the user taps the disabled SyncStatus dot, when the click handler runs, then a 'Tryb offline P2' modal opens with a docs link"
+    ],
+    "test_strategy": [
+      "RED: write online-detector.test.ts asserting offline transition + ping cycle + P2 modal before implementation",
+      "Run 'pnpm --filter scanner test online-detector'"
+    ],
+    "risk_red_lines": [
+      "Do not run ping cycle while no scanner page is mounted",
+      "Do not block render on /api/health unreachable",
+      "Do not enable queue UI in P1"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

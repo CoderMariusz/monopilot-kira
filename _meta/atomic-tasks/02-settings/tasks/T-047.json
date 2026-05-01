@@ -1,0 +1,82 @@
+{
+  "title": "T-047 — SM-01 RuleDryRunModal (read-only Pattern-10 preview)",
+  "prompt": "# T-047 — SM-01 RuleDryRunModal (read-only Pattern-10 preview)\n\n## Goal\nBuild SM-01 (rule_dry_run_modal) following prototype `design/Monopilot Design System/settings/modals.jsx:18-69` 1:1 plus the production contract notes below.\n\nRead-only preview/compare modal (Pattern-10). Two-column grid (input JSON / result JSON). Calls T-025 listRuleDryRuns + a dev-only POST /api/rules/:code/dry-run mock.\n\n## Files in scope\n- apps/web/components/settings/modals/rule-dry-run-modal.tsx [create]\n- apps/web/components/settings/modals/rule-dry-run-modal.test.tsx [create]\n\n## Acceptance criteria (all must hold)\n- Given the production page renders, when compared to `design/Monopilot Design System/settings/modals.jsx:18-69` (rule_dry_run_modal), then it has structural parity (the same form sections, same field labels, same shadcn primitives, same modals invoked from same triggers), visual parity (same shadcn/Radix primitives — no drift to plain HTML, same density tokens), and interaction parity (same enable/disable rules, same loading/empty/error states, same keyboard focus order) — verified by an RTL snapshot test plus the parity checklist embedded in `pipeline_inputs.details`.\n- Given a sample input is loaded, when 'Run dry-run' is clicked, then the result panel shows pass/fail/warnings JSON within ≤5s.\n- Given the modal opens, when the a11y helper assertModalA11y() runs, then 0 axe violations are reported.\n\n## Test strategy (RED first)\n1. Add a failing test that exercises the acceptance criteria above. The RED command is:\n   `pnpm --filter @monopilot/web vitest run apps/web/components/settings/modals/rule-dry-run-modal.test.tsx [create]`\n2. Run RED — it must fail before any production code is written.\n3. Implement the smallest change needed for GREEN.\n4. Re-run RED command — must pass.\n5. Run `pnpm typecheck` and `pnpm lint` in the changed package; both must pass.\n\n## Risk red lines\n- Do not edit files outside the listed scope without documenting why in CLOSEOUT.\n- Do not weaken existing acceptance criteria from prior tasks.\n- Do not introduce REST endpoints; use Server Actions per stack contract.\n- Do not commit secrets or vault keys.\n\n## Closeout evidence required\n- changed_files (with line counts)\n- exact test commands and outputs (RED→GREEN, typecheck, lint)\n- acceptance_criteria_status (one row per AC: pass/fail)\n- deviations_from_prd (or \"none\")\n- git_status\n\nStack: TS + Next.js App Router + Drizzle + pnpm + vitest + Playwright + Server Actions. Primitives in `packages/ui`. PRD: `02-SETTINGS-PRD.md` v3.5.\n",
+  "labels": [
+    "prd",
+    "ui",
+    "sm-01",
+    "T3-ui"
+  ],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-047",
+    "source_prd": "02-SETTINGS-PRD.md",
+    "prd_refs": [
+      "§0, §7.6"
+    ],
+    "category": "ui",
+    "subcategory": "sm-01",
+    "task_type": "T3-ui",
+    "parent_feature": "02-settings-d-modals",
+    "context_budget": "40k",
+    "estimated_effort": "1-3h",
+    "description": "SM-01 rule_dry_run_modal production component (prototype-parity).",
+    "details": "Prototype: design/Monopilot Design System/settings/modals.jsx:18-69. Translation notes (canonical from prototype-index-settings.json): see `_meta/prototype-labels/translation-notes-settings.md` and the entry's `translation_notes` array. Production contract: data via Server Components (Drizzle); mutations via Server Actions; primitives from `packages/ui` only (no @radix-ui/react-dialog import outside packages/ui per §0). Parity checklist (verify item-by-item before GREEN):\n1. Section/region count + order matches prototype.\n2. Field labels + types match prototype.\n3. shadcn/Radix primitives match (Input, Select, Switch, Dialog etc).\n4. Action buttons present in same order with same enable/disable rules.\n5. Loading/empty/error states render per prototype.\n6. Modal triggers open the correct modal id (SM-NN).\n7. Keyboard focus order matches prototype.\n8. assertModalA11y() passes for any modals invoked.",
+    "scope_files": [
+      "apps/web/components/settings/modals/rule-dry-run-modal.tsx [create]",
+      "apps/web/components/settings/modals/rule-dry-run-modal.test.tsx [create]"
+    ],
+    "out_of_scope": [
+      "broaden scope beyond listed files",
+      "implement future-phase features"
+    ],
+    "dependencies": [
+      "T-025"
+    ],
+    "parallel_safe_with": [],
+    "acceptance_criteria": [
+      "Given the production page renders, when compared to `design/Monopilot Design System/settings/modals.jsx:18-69` (rule_dry_run_modal), then it has structural parity (the same form sections, same field labels, same shadcn primitives, same modals invoked from same triggers), visual parity (same shadcn/Radix primitives — no drift to plain HTML, same density tokens), and interaction parity (same enable/disable rules, same loading/empty/error states, same keyboard focus order) — verified by an RTL snapshot test plus the parity checklist embedded in `pipeline_inputs.details`.",
+      "Given a sample input is loaded, when 'Run dry-run' is clicked, then the result panel shows pass/fail/warnings JSON within ≤5s.",
+      "Given the modal opens, when the a11y helper assertModalA11y() runs, then 0 axe violations are reported."
+    ],
+    "test_strategy": [
+      "RED: write RTL test that mounts the page with mocked data and asserts the parity AC items + ac_extra coverage.",
+      "GREEN: build component, wire Server Action(s).",
+      "Run `pnpm --filter @monopilot/web vitest run apps/web/components/settings/modals/rule-dry-run-modal.test.tsx [create]` and `pnpm typecheck`."
+    ],
+    "risk_red_lines": [
+      "Do not import @radix-ui/react-dialog outside packages/ui (§0 ESLint rule).",
+      "Do not paste prototype JSX wholesale — translate to production contract.",
+      "Do not regress accessibility (axe violations = fail)."
+    ],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": true
+  }
+}

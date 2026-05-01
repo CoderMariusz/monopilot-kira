@@ -1,0 +1,59 @@
+{
+  "title": "T-005 — scanner feedback (audio + haptic) lib/scanner/feedback.ts (06-a)",
+  "prompt": "# T-005 — scanner feedback (audio + haptic + visual hooks)\n\nPRD: 06-SCANNER-P1-PRD.md §6 D2, §8.1 FR-SC-FE-009\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nProvide `playSuccess() | playError() | playWarn() | playCritical()` using Web Audio API + Vibration API + visual callback dispatch, with on/off config persisted in localStorage.\n\n## Implementation contract\n1. `apps/scanner/src/lib/scanner/feedback.ts`:\n   - Lazy AudioContext singleton (created on first call to keep iOS autoplay rules happy).\n   - Frequencies/durations exactly per §6 D2 (success 800Hz/500ms, error 400Hz/200ms×2, warn 600Hz/300ms, critical short×3).\n   - Vibration patterns exactly per §6 D2.\n   - LocalStorage keys `scanner.feedback.beep` / `.vibration` (default true).\n   - Visual callback dispatched via a `FeedbackBus` event emitter (subscribers attach in components later).\n2. Vitest with WebAudio + navigator.vibrate mocks.\n\n## Files\n- apps/scanner/src/lib/scanner/feedback.ts [create]\n- apps/scanner/src/lib/scanner/feedback-bus.ts [create]\n- apps/scanner/__tests__/feedback.test.ts [create]\n\n## Acceptance criteria\n1. Given localStorage has scanner.feedback.beep=false, when playSuccess runs, then no AudioContext.createOscillator call is made\n2. Given navigator.vibrate is mocked, when playError runs with vibration enabled, then vibrate is called with pattern [100,100]\n3. Given a subscriber attached to FeedbackBus 'success', when playSuccess runs, then the subscriber is invoked with payload { type: 'success' }\n\n## Test strategy\n- RED: write feedback.test.ts asserting all three ACs with mocked AudioContext + vibrate before implementation\n- Run 'pnpm --filter scanner test feedback'\n\n## Risk red lines\n- Do not create AudioContext at module load (must be lazy on first user gesture)\n- Do not crash if Web Audio API is unavailable (graceful no-op)\n- Do not store user PIN or other secrets in localStorage",
+  "labels": ["prd", "ui", "feedback", "T4-wiring-test"],
+  "priority": 80,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-005",
+    "source_prd": "06-SCANNER-P1-PRD.md",
+    "prd_refs": ["§6 D2", "§8.1 FR-SC-FE-009"],
+    "category": "ui",
+    "subcategory": "feedback",
+    "task_type": "T4-wiring-test",
+    "parent_feature": "06-a Shell & Core",
+    "context_budget": "25k",
+    "estimated_effort": "1-2h",
+    "description": "Audio + haptic + visual feedback bus with localStorage on/off config; lazy AudioContext for iOS autoplay rules.",
+    "details": "Create apps/scanner/src/lib/scanner/feedback.ts + feedback-bus.ts. Lazy AudioContext, exact §6 D2 freq/duration/vibration patterns, localStorage on/off keys, FeedbackBus event emitter subscribed by visual layers later. Vitest mocks AudioContext and navigator.vibrate to assert call patterns and on/off gating.",
+    "scope_files": [
+      "apps/scanner/src/lib/scanner/feedback.ts [create]",
+      "apps/scanner/src/lib/scanner/feedback-bus.ts [create]",
+      "apps/scanner/__tests__/feedback.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not implement the visual flash component here (consumed via FeedbackBus by layout/ScanInput)",
+      "Do not write SCN-settings UI here (T-024)",
+      "Do not handle session timeout audio here"
+    ],
+    "dependencies": [],
+    "parallel_safe_with": ["T-003", "T-004"],
+    "acceptance_criteria": [
+      "Given localStorage scanner.feedback.beep=false, when playSuccess runs, then AudioContext.createOscillator is not called",
+      "Given navigator.vibrate is mocked, when playError runs with vibration enabled, then vibrate is called with pattern [100,100]",
+      "Given a subscriber attached to FeedbackBus 'success', when playSuccess runs, then the subscriber is invoked with payload { type: 'success' }"
+    ],
+    "test_strategy": [
+      "RED: write feedback.test.ts mocking AudioContext + vibrate asserting on/off gating + bus dispatch before implementation",
+      "Run 'pnpm --filter scanner test feedback'"
+    ],
+    "risk_red_lines": [
+      "Do not create AudioContext at module load",
+      "Do not crash if Web Audio API is unavailable",
+      "Do not store secrets in localStorage"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

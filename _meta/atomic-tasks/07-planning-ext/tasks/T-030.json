@@ -1,0 +1,61 @@
+{
+  "title": "T-030 — SCR-07-01 Scheduler Dashboard Gantt (read-only)",
+  "prompt": "# T-030 — SCR-07-01 Scheduler Dashboard Gantt (read-only)\n\nPRD: 07-PLANNING-EXT-PRD.md §8.1 SCR-07-01, §4.1.5, §16.2 OQ-EXT-05 (drag-drop DESCOPED)\nPrototype: design/Monopilot Design System/planning-ext/dashboard.jsx:9-363 (`pext_dashboard_gantt`)\nUX: design/07-PLANNING-EXT-UX.md:248-470\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nImplement /scheduler page rendering horizontal Gantt (Y=lines, X=time) READ-ONLY (no drag-drop per OQ-EXT-05) with allergen-color WO blocks, changeover blocks (diagonal stripe), shift boundaries, KPI strip, run banner.\n\n## Implementation contract\n1. New route `apps/web/src/app/scheduler/page.tsx` (Server Component) loads active scheduler_runs row + assignments via `/api/scheduler/runs/:id` query helper.\n2. Client component `apps/web/src/components/scheduler/GanttBoard.tsx` renders Gantt grid; uses CSS grid (no drag handlers — read-only per OQ-EXT-05).\n3. Top bar with horizon toggle (7d/14d), line filter, [Run Scheduler] button (opens MODAL-07-01 = T-032).\n4. Click WO block → side panel (T-031); changeover blocks rendered between consecutive WOs from changeover_matrix join.\n\n## Files\n- apps/web/src/app/scheduler/page.tsx [create]\n- apps/web/src/components/scheduler/GanttBoard.tsx [create]\n- apps/web/src/components/scheduler/GanttCell.tsx [create]\n- apps/web/src/components/scheduler/__tests__/GanttBoard.test.tsx [create]\n- design/Monopilot Design System/planning-ext/dashboard.jsx [ref]\n\n## Acceptance criteria\n1. Given a completed scheduler_run with 5 assignments, when /scheduler renders, then Gantt grid shows 5 WO blocks colored by allergen_group, top bar with horizon toggle/line filter/[Run Scheduler], KPI strip at bottom\n2. Given the production page renders, when compared to prototype design/Monopilot Design System/planning-ext/dashboard.jsx:9-363, then it has the same Y-axis lines list, same X-axis day default, same allergen color tokens, and same shadcn primitives (Card, Badge, Button) — verified by RTL snapshot + parity checklist (structural, visual, interaction parity per Step 7)\n3. Given a user clicks a WO block, when click fires, then side panel opens (does NOT trigger drag — drag handlers are absent per OQ-EXT-05 verified via RTL absence assertion)\n\n## Test strategy\n- RED: write apps/web/src/components/scheduler/__tests__/GanttBoard.test.tsx (RTL + vitest) covering grid rendering + parity snapshot + drag-handler absence\n- Run 'pnpm --filter web test scheduler/GanttBoard'\n\n## Risk red lines\n- Do not implement drag-drop reassignment (DESCOPED OQ-EXT-05)\n- Do not bypass RBAC at page level (Planner Advanced + Scheduling Officer + Prod Manager only)\n- Do not load full WO row in Gantt (use side panel lazy-load)",
+  "labels": ["prd", "ui", "screen", "T3-ui"],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-030",
+    "source_prd": "07-PLANNING-EXT-PRD.md",
+    "prd_refs": ["§8.1 SCR-07-01", "§4.1.5", "§16.2 OQ-EXT-05"],
+    "category": "ui",
+    "subcategory": "screen-gantt",
+    "task_type": "T3-ui",
+    "parent_feature": "07-EXT-a Scheduler Dashboard",
+    "context_budget": "60k",
+    "estimated_effort": "3-4h",
+    "description": "Read-only horizontal Gantt scheduler dashboard (Y=lines, X=time) with allergen color blocks, changeover stripes, top bar, KPI strip.",
+    "details": "Server Component loads active run; client GanttBoard renders grid with CSS grid (no drag handlers per OQ-EXT-05). Allergen color tokens from design system. Click WO opens side panel. Parity contract: structural (lanes per line, blocks per WO), visual (allergen tokens, shadcn Card/Badge/Button), interaction (click only, no drag). Translation notes: useState for filters, useForm for run modal, controlled state for line filter; mock PEXT_LINES → Drizzle query in loader.",
+    "scope_files": [
+      "apps/web/src/app/scheduler/page.tsx [create]",
+      "apps/web/src/components/scheduler/GanttBoard.tsx [create]",
+      "apps/web/src/components/scheduler/GanttCell.tsx [create]",
+      "apps/web/src/components/scheduler/__tests__/GanttBoard.test.tsx [create]",
+      "design/Monopilot Design System/planning-ext/dashboard.jsx:9-363 [ref]"
+    ],
+    "out_of_scope": [
+      "Do not implement drag-drop (DESCOPED OQ-EXT-05)",
+      "Do not implement side panel here (T-031)",
+      "Do not implement Run Scheduler modal here (T-032)"
+    ],
+    "dependencies": ["T-013"],
+    "parallel_safe_with": ["T-031", "T-044"],
+    "acceptance_criteria": [
+      "Given a completed scheduler_run with 5 assignments, when /scheduler renders, then Gantt shows 5 WO blocks colored by allergen_group, top bar with horizon toggle/line filter/[Run Scheduler], KPI strip at bottom",
+      "Given the production page renders, when compared to prototype design/Monopilot Design System/planning-ext/dashboard.jsx:9-363, then it has the same Y-axis lines list, same X-axis day default, same allergen color tokens, and same shadcn primitives (Card, Badge, Button) — parity verified by RTL snapshot + checklist (structural + visual + interaction)",
+      "Given a user clicks a WO block, when click fires, then side panel opens; drag handlers are absent (RTL asserts no onDragStart)"
+    ],
+    "test_strategy": [
+      "RED: write apps/web/src/components/scheduler/__tests__/GanttBoard.test.tsx covering grid + parity snapshot + drag-handler absence",
+      "Run 'pnpm --filter web test scheduler/GanttBoard'"
+    ],
+    "risk_red_lines": [
+      "Do not implement drag-drop reassignment",
+      "Do not bypass RBAC at page level",
+      "Do not load full WO row in Gantt (lazy-load via side panel)"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

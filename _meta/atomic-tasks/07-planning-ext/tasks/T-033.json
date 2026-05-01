@@ -1,0 +1,60 @@
+{
+  "title": "T-033 — Override Assignment Modal (override_assignment_modal)",
+  "prompt": "# T-033 — Override Assignment Modal\n\nPRD: 07-PLANNING-EXT-PRD.md §8.2 override, §15.4 V-SCHED-02/03/04/08\nPrototype: design/Monopilot Design System/planning-ext/modals.jsx:98-212 (`override_assignment_modal`)\nUX: design/07-PLANNING-EXT-UX.md:455-470\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nImplement wide Dialog where Planner overrides assignment (new line_id, new_planned_start_time, new_shift_id, reason_code, reason_notes) with allergen-conflict alert + impact preview.\n\n## Implementation contract\n1. New `apps/web/src/components/scheduler/OverrideAssignmentModal.tsx` (shadcn Dialog max-w-3xl).\n2. Form fields: new_line_id Select (eligible lines from fa_line_compatibility), new_planned_start_time Input datetime-local, new_shift_id Select, reason_code Select (loaded from override_reason_codes ref table), reason_notes Textarea.\n3. Cross-field zod superRefine: V-SCHED-02 allergen compat warning rendered as Alert; V-SCHED-04 overlap → field error; reason_code required (V-SCHED-08).\n4. Calls /api/scheduler/assignments/:id/override (T-015); on 422 displays structured error toast.\n\n## Files\n- apps/web/src/components/scheduler/OverrideAssignmentModal.tsx [create]\n- apps/web/src/lib/scheduler/get-changeover-impact.ts [create]\n- apps/web/src/components/scheduler/__tests__/OverrideAssignmentModal.test.tsx [create]\n- design/Monopilot Design System/planning-ext/modals.jsx [ref]\n\n## Acceptance criteria\n1. Given allergen-incompatible new_line_id, when form is filled, then Alert variant 'destructive' appears showing 'Allergen conflict' and submit is blocked\n2. Given the rendered modal, when compared to prototype design/Monopilot Design System/planning-ext/modals.jsx:98-212, then it has the same wide layout, same field set in same order (line, datetime, shift, reason_code, notes), same impact preview card, and uses the same shadcn primitives (Dialog, Select, Input, Textarea, Alert, Button) — parity verified by RTL snapshot + checklist\n3. Given a 422 V-SCHED-04 overlap response, when submit fires, then toast shows 'Time slot overlap on LINE-X' and form remains open\n\n## Test strategy\n- RED: write __tests__/OverrideAssignmentModal.test.tsx covering allergen alert + parity + 422 toast\n- Run 'pnpm --filter web test scheduler/OverrideAssignmentModal'\n\n## Risk red lines\n- Do not bypass V-SCHED-02 allergen check on client-side warning (also enforced server-side per T-015)\n- Do not allow submit with empty reason_code\n- Do not call solver client-side for impact preview (use server action)",
+  "labels": ["prd", "ui", "modal", "T3-ui"],
+  "priority": 80,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-033",
+    "source_prd": "07-PLANNING-EXT-PRD.md",
+    "prd_refs": ["§8.2", "§15.4 V-SCHED-02/03/04/08"],
+    "category": "ui",
+    "subcategory": "modal-override",
+    "task_type": "T3-ui",
+    "parent_feature": "07-EXT-a override flow",
+    "context_budget": "60k",
+    "estimated_effort": "2-3h",
+    "description": "Wide Dialog with allergen-conflict alert, impact preview, V-SCHED cross-field validation, calls override API.",
+    "details": "react-hook-form + zodResolver superRefine for V-SCHED-02. Impact preview computed via server helper getChangeoverImpact. reason_code from override_reason_codes ref table. Translation notes: hardcoded options → ref table; setTimeout → real Server Action; emit outbox via API.",
+    "scope_files": [
+      "apps/web/src/components/scheduler/OverrideAssignmentModal.tsx [create]",
+      "apps/web/src/lib/scheduler/get-changeover-impact.ts [create]",
+      "apps/web/src/components/scheduler/__tests__/OverrideAssignmentModal.test.tsx [create]",
+      "design/Monopilot Design System/planning-ext/modals.jsx:98-212 [ref]"
+    ],
+    "out_of_scope": [
+      "Do not implement reschedule modal (T-034)",
+      "Do not call solver microservice from client",
+      "Do not implement /override endpoint here (T-015)"
+    ],
+    "dependencies": ["T-015", "T-011"],
+    "parallel_safe_with": ["T-032", "T-034"],
+    "acceptance_criteria": [
+      "Given allergen-incompatible new_line_id, when form is filled, then Alert 'destructive' shows 'Allergen conflict' and submit is blocked",
+      "Given the rendered modal, when compared to prototype design/Monopilot Design System/planning-ext/modals.jsx:98-212, then it has same wide layout, same field set in same order, same impact preview card, and same shadcn primitives (Dialog, Select, Input, Textarea, Alert, Button) — parity by RTL snapshot + checklist",
+      "Given a 422 V-SCHED-04 overlap response, when submit fires, then toast shows 'Time slot overlap on LINE-X' and form remains open"
+    ],
+    "test_strategy": [
+      "RED: write __tests__/OverrideAssignmentModal.test.tsx covering allergen alert + parity + 422 toast",
+      "Run 'pnpm --filter web test scheduler/OverrideAssignmentModal'"
+    ],
+    "risk_red_lines": [
+      "Do not bypass V-SCHED-02 client warning",
+      "Do not allow empty reason_code",
+      "Do not call solver client-side for impact preview"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

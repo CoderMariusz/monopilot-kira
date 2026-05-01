@@ -1,0 +1,86 @@
+{
+  "title": "T-006 \u2014 Baseline schema migration \u2014 tenants, organizations, users with R13 identity columns",
+  "prompt": "# T-006 \u2014 Baseline schema migration \u2014 tenants, organizations, users with R13 identity columns\n\nPRD: `00-FOUNDATION-PRD.md` \u2014 sections: \u00a78, \u00a710\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`\n\n## Goal\nDrizzle migration 001 creating tenants, organizations, users tables. Every business table carries the \u00a710 R13 identity column block.\n\n## Implementation contract\nAuthor packages/db/schema/baseline.ts with three Drizzle tables: tenants (id UUID PK, name TEXT, region_cluster TEXT NOT NULL CHECK IN ('eu','us'), data_plane_url TEXT), organizations (id PK, tenant_id FK, name, industry_code TEXT CHECK IN ('bakery','pharma','fmcg','generic')), users (id PK, tenant_id FK, email CITEXT UNIQUE per tenant, display_name). All tables MUST include \u00a710 R13 columns: id UUID DEFAULT gen_random_uuid(), tenant_id UUID NOT NULL, created_at TIMESTAMPTZ DEFAULT now(), created_by_user UUID, created_by_device TEXT, app_version TEXT, model_prediction_id UUID NULL, epcis_event_id UUID NULL, external_id TEXT, schema_version INT NOT NULL DEFAULT 1. Generate packages/db/migrations/001-baseline.sql via drizzle-kit. Integration test asserts INFORMATION_SCHEMA shows every R13 column on each table.\n\n## Files (scope)\n- packages/db/schema/baseline.ts [create]\n- packages/db/migrations/001-baseline.sql [create]\n- packages/db/__tests__/baseline.integration.test.ts [create]\n\n## Acceptance criteria\n1. Given migration 001 is applied to a fresh Postgres 16 database, when SELECT * FROM information_schema.columns WHERE table_name IN ('tenants','organizations','users') runs, then every R13 column from PRD \u00a710 is present on every row\n2. Given organizations.industry_code has a CHECK constraint, when an INSERT with industry_code='unknown' is attempted, then it is rejected by the database\n3. Given the integration test packages/db/__tests__/baseline.integration.test.ts runs, then it asserts the \u00a710 R13 columns array length = 10 and exits 0\n\n## Test strategy\n- RED: write packages/db/__tests__/baseline.integration.test.ts listing all R13 columns and asserting presence before baseline.ts exists\n- Run 'pnpm --filter @monopilot/db test'\n\n## Risk red lines\n- Do not omit any R13 column \u2014 adding them later is migration hell (PRD \u00a710 explicit)\n- Do not enable RLS in this migration\n\n## Dependencies (must be complete first)\n- T-002\n\n## Closeout evidence\nProvide: changed_files, test_commands_and_results, acceptance_criteria_status (per AC), deviations_from_prd, git_status. Use the test-driven-development skill (RED test before implementation) and requesting-code-review at GREEN.",
+  "labels": [
+    "prd",
+    "data",
+    "migration",
+    "T1-schema"
+  ],
+  "priority": 80,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-006",
+    "source_prd": "00-FOUNDATION-PRD.md",
+    "prd_refs": [
+      "\u00a78",
+      "\u00a710"
+    ],
+    "category": "data",
+    "subcategory": "migration",
+    "task_type": "T1-schema",
+    "parent_feature": "00-FOUNDATION-impl-d DB+RLS",
+    "context_budget": "50k",
+    "estimated_effort": "1-3h",
+    "description": "Drizzle migration 001 creating tenants, organizations, users tables. Every business table carries the \u00a710 R13 identity column block.",
+    "details": "Author packages/db/schema/baseline.ts with three Drizzle tables: tenants (id UUID PK, name TEXT, region_cluster TEXT NOT NULL CHECK IN ('eu','us'), data_plane_url TEXT), organizations (id PK, tenant_id FK, name, industry_code TEXT CHECK IN ('bakery','pharma','fmcg','generic')), users (id PK, tenant_id FK, email CITEXT UNIQUE per tenant, display_name). All tables MUST include \u00a710 R13 columns: id UUID DEFAULT gen_random_uuid(), tenant_id UUID NOT NULL, created_at TIMESTAMPTZ DEFAULT now(), created_by_user UUID, created_by_device TEXT, app_version TEXT, model_prediction_id UUID NULL, epcis_event_id UUID NULL, external_id TEXT, schema_version INT NOT NULL DEFAULT 1. Generate packages/db/migrations/001-baseline.sql via drizzle-kit. Integration test asserts INFORMATION_SCHEMA shows every R13 column on each table.",
+    "scope_files": [
+      "packages/db/schema/baseline.ts [create]",
+      "packages/db/migrations/001-baseline.sql [create]",
+      "packages/db/__tests__/baseline.integration.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not modify files outside the scope_files list",
+      "Do not introduce business logic from later module PRDs (01-NPD, 02-SETTINGS, etc.)",
+      "No RLS policies in this task (T-007). No roles or RBAC tables (T-014)."
+    ],
+    "dependencies": [
+      "T-002"
+    ],
+    "parallel_safe_with": [
+      "T-003",
+      "T-004"
+    ],
+    "acceptance_criteria": [
+      "Given migration 001 is applied to a fresh Postgres 16 database, when SELECT * FROM information_schema.columns WHERE table_name IN ('tenants','organizations','users') runs, then every R13 column from PRD \u00a710 is present on every row",
+      "Given organizations.industry_code has a CHECK constraint, when an INSERT with industry_code='unknown' is attempted, then it is rejected by the database",
+      "Given the integration test packages/db/__tests__/baseline.integration.test.ts runs, then it asserts the \u00a710 R13 columns array length = 10 and exits 0"
+    ],
+    "test_strategy": [
+      "RED: write packages/db/__tests__/baseline.integration.test.ts listing all R13 columns and asserting presence before baseline.ts exists",
+      "Run 'pnpm --filter @monopilot/db test'"
+    ],
+    "risk_red_lines": [
+      "Do not omit any R13 column \u2014 adding them later is migration hell (PRD \u00a710 explicit)",
+      "Do not enable RLS in this migration"
+    ],
+    "skills": [
+      "test-driven-development",
+      "verification-before-completion",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

@@ -1,7 +1,7 @@
 # 08-PRODUCTION-PRD.md
 
 **Module:** 08-PRODUCTION — WO Execution Engine, Shop Floor Control, Allergen Changeover Gate, INTEGRATIONS stage 2 (D365 WO push)
-**Version:** 3.1 (Phase C3 Sesja 1, 2026-04-30)
+**Version:** 3.1.1 (Phase C3 Sesja 1, 2026-04-30 + PRD↔UX reconciliation pass 2026-04-30)
 **Status:** Written (multi-industry manufacturing operations pattern standardization)
 **Owner:** Production Operations domain
 **Dependencies:** 04-PLANNING-BASIC v3.1, 05-WAREHOUSE v3.0, 06-SCANNER-P1 v3.0, 03-TECHNICAL v3.0, 02-SETTINGS v3.0, 00-FOUNDATION v3.0, 07-PLANNING-EXT v3.0
@@ -11,6 +11,7 @@
 
 ## Changelog
 
+- **v3.1.1 (2026-04-30, PRD↔UX reconciliation pass)** — Bidirectional 08-PRODUCTION coverage fix lifting design-spec coverage from ~50% (7 SCR vs 14 PROD) to ≥90%. Added: SCR-08-08 Shift Mgmt (PROD-008), SCR-08-09 Analytics Hub (PROD-009), SCR-08-10 Production Settings (PROD-011), SCR-08-11 Line Detail (PROD-013), SCR-08-12 Scanner Reference Cards (PROD-014), SCR-08-13 Operator Tweaks Panel (orphan-flagged). Added §8.1.X UI surfaces traceability matrix mapping all 13 SCR + 15 MODAL contracts to UX line and prototype label/file:lines. Added §1.5 `[ORG-CONFIG]` / `[INDUSTRY-CONFIG]` markers per ADR-034. Boundary clarification on SCR-08-07 ↔ 15-OEE. No deletions; PRD only added/extended. UX file unchanged.
 - **v3.1 (2026-04-30)** — Multi-industry manufacturing operations pattern standardization. Standardizes all process references to use dynamic Manufacturing_Operation lookup from Reference.ManufacturingOperations with 2-letter process_suffix (e.g., Mix=MX, Bake=BK). Changes: FA→FG (finished goods), PR→WIP (work-in-progress), WIP code pattern WIP-<suffix>-<7digit> (e.g., WIP-MX-0000001). Updates changeover gate examples to use operation names + suffixes (not A/B/C/D). All validation rules, column references, SQL examples, and Mermaid diagrams updated. Changeover gate logic unchanged; examples only updated for clarity. Version control: cross-references validated with 01-NPD v3.2 §6, 02-SETTINGS v3.4 §8.9, 00-FOUNDATION v4.0 §9.1.
 - **v3.0 (2026-04-20)** — Full rewrite vs v3.1 baseline (774 linii pre-Phase-D). Phase D renumbering M06→08. Adds: allergen changeover gate rule engine DSL, INTEGRATIONS stage 2 inline (D365 WO confirmations push, outbox, DLQ, R14 idempotency), per-minute OEE aggregation (Q4), PLC integration deferred P2 (Q5), schema-driven changeover L3 (Q6), async outbox D365 push (Q7), admin-configurable downtime categories (Q8), catch weight confirmation, ZPL label printing P2, operator KPIs (consumption speed, FEFO compliance). 16 sections, 15 decisions (D1-D15 — D1-D11 baseline retained + D12-D15 Phase C3 new), 7 sub-modules build sequence (08-a..g) + 5 Phase 2 (08-h..l).
 - **v3.0 baseline (2026-02-18)** — pre-Phase-D, 774 lines, M06 naming, 6 epics P1 + 4 P2, D1-D11 baseline decisions. Covers LP-based consumption, output+by-products, genealogy P1, waste categorization, downtime tracking. Missing: allergen gate, INTEGRATIONS stage 2, OEE, catch weight, ZPL, PLC — all added in v3.0.
@@ -85,7 +86,9 @@ Module boundaries clarified:
 ### 1.5 Markers legend
 
 - `[UNIVERSAL]` — applies to all tenants (L1 core)
-- `[APEX-CONFIG]` — Apex-specific configuration, pattern universal
+- `[ORG-CONFIG]` — tenant/organisation-specific configuration value (e.g., line count, shift count, PIN rotation cadence). Per ADR-034, all `[APEX-CONFIG]` references retained for historical context but should be read as `[ORG-CONFIG]` exemplar bound to the bakery launch tenant.
+- `[INDUSTRY-CONFIG]` — industry-vertical default (e.g., bakery RLU threshold 10, `manufacturing_operation` taxonomy seed, food-mfg waste category seed). Tenant admin can override via 02-SETTINGS admin wizard.
+- `[APEX-CONFIG]` — legacy marker, retained for cross-PRD traceability; equivalent to `[ORG-CONFIG]` for the launch tenant. New content should prefer `[ORG-CONFIG]` / `[INDUSTRY-CONFIG]`.
 - `[EVOLVING]` — under active change
 - `[LEGACY-D365]` — D365 shape/logic for bridge-period
 
@@ -733,6 +736,165 @@ E7 ← 07-EXT §9.4 (changeover_matrix), 09-QUALITY (ATP integration P2)
 #### SCR-08-07: OEE Dashboard (P2, → 15-OEE)
 
 15-OEE owns this screen; 08-PROD owns data layer (`oee_snapshots`). Cross-link in nav.
+
+> **Boundary clarification (added 2026-04-30 reconciliation):** UX `design/08-PRODUCTION-UX.md:562-611` (PROD-006) describes a P1 OEE *foundation* dashboard inside the production module backed by `oee_snapshots`, with a "Go to 15-OEE" link for advanced analytics, EWMA anomaly detection, and benchmarking. Prototypes `oee_screen` (`other-screens.jsx:4-121`) and `oee_target_edit_modal` (`modals.jsx:560-635`) implement this foundation view. 08-PROD therefore owns: `oee_snapshots` ingestion (job + table), the read-only OEE summary inside `/production/oee`, and OEE-target admin (PROD-011 §6). 15-OEE owns: cross-shift trend analytics, anomaly detection, equipment health, six-big-losses Pareto, TV mode (P2). Both surfaces share the same `oee_snapshots` source per §9.9.
+
+#### SCR-08-08: Shift Management (Crew + Handover) [PROD-008]
+
+**Route:** `/production/shifts`
+**Roles:** Operator (read self), Shift Lead (write crew + handover + sign-off), Prod Manager (read all)
+**UX evidence:** `design/08-PRODUCTION-UX.md:658-700` (PROD-008)
+**Prototype evidence:** `shifts_screen` (`other-screens.jsx:215-291`), `shift_start_modal` (`modals.jsx:438-497`), `shift_end_modal` (`modals.jsx:500-557`), `assign_crew_modal` (`modals.jsx:366-386`)
+
+**Layout:**
+- Shift selector bar: [Current Shift] / [Previous Shifts] toggle, with shift name + window times + live elapsed clock; 02-SETTINGS owns shift pattern definitions (§7), this screen consumes them.
+- Crew assignment grid: table of Line / Operator / Start time / Status (Active/Break/Left) / Actions. [+ Assign Operator] opens a searchable users dropdown filtered by `users.line_certifications` (V-PROD-SHIFT-001 — operator must be certified for the line). One operator per line per shift (uniqueness enforced server-side).
+- Per-line shift summary card: WOs completed (codes + products + qty), WOs in progress, output kg vs target, waste kg + %, downtime min + top category, yield %, FEFO compliance %.
+- Handover notes textarea (≤500 chars) labelled "visible to incoming Shift Lead"; persisted in `shift_handovers` (new ref data table — see §9.X to be added in 08-d build).
+- End-of-shift sign-off panel (Shift Lead only): summary checklist (all WOs completed, all outputs registered, no open QA holds, no open downtime, handover entered) — each item green ✓ or amber ⚠ with action link. [Sign Off Shift] disabled until checklist resolved; opens MODAL `shift_end_modal` (PIN sign-off + V-PROD-SHIFT-002 server-side guard against unresolved gates).
+
+**Actions:**
+- Assign Operator → bulk upsert `shift_assignments` (rejects if line_certifications missing).
+- Save Handover → INSERT into `shift_handovers`.
+- Sign Off Shift → atomic transaction creates `shift_end_event`, calculates final shift KPIs, emits `shift.ended` outbox event for downstream OEE + 12-REPORTING.
+
+**State machine:** `shift = {NOT_STARTED → ACTIVE → COMPLETED}`. ACTIVE start triggered by `shift_start_modal` (PIN + handover review + crew override). COMPLETED is immutable (read-only thereafter).
+
+**P1 acceptance:** crew CRUD, certification guard, handover note persistence, sign-off ≤2 clicks once gates green, BL-PROD-03 multi-plant picker resolved (or explicit P2 deferral with feature flag).
+
+#### SCR-08-09: Production Analytics Hub [PROD-009]
+
+**Route:** `/production/analytics`
+**Roles:** Shift Lead, Prod Manager (full); Operator (own KPIs only)
+**UX evidence:** `design/08-PRODUCTION-UX.md:703-742` (PROD-009)
+**Prototype evidence:** `analytics_screen` (`other-screens.jsx:393-496`)
+
+**Layout:**
+- Sticky filter bar: date range (default Last 30d), Line, Product, Shift, Operator, [Apply] / [Reset]; [Export Dashboard CSV].
+- KPI summary row (5 cards): WO Yield Compliance %, On-time Completion %, Avg Waste %, FEFO Compliance %, D365 Push Success Rate. Each card has period value + delta vs prior period + target reference (per §2.4).
+- Charts (two-column grid): (1) Production Output Trend (line, weekly, 12 weeks, target overlay); (2) Yield by Product (horizontal bars, green/amber/red per threshold, "Show only below target" toggle); (3) Waste by Category (stacked bar weekly + total % overlay); (4) WO Completion On-time vs Late (grouped bars + on-time % trend); (5) FEFO Compliance Trend (line + dashed 98% target); (6) Downtime by Category (Pareto, mirrors SCR-08-05 for selected period).
+- Operator KPIs table (Shift Lead+ visibility): rows from `operator_kpis_monthly` materialized view; columns Operator Name | Consumptions | Avg Scan Speed (s) | FEFO Compliance % | Over-consumption Incidents | Waste Attributed (kg). Note: "refreshed nightly, current month includes data to <last_refresh_ts>" — wired to `operator_kpis_monthly` refresh job timestamp.
+
+**Source tables:** `wo_executions`, `wo_outputs`, `wo_material_consumption`, `wo_waste_log`, `downtime_events`, `operator_kpis_monthly`. Pre-aggregated period KPIs cached for 5 min (read-mostly).
+
+**Actions:** [Export PDF] (Server Action → Puppeteer route, BL-RPT-04 `@media print` stylesheet pending); [Drill into Operator] → row click opens operator detail panel; [Customize KPIs] saves user-scoped layout in `user_preferences` (P2).
+
+**Boundary:** This screen is the 08-PROD-scoped historical view. 12-REPORTING (RPT-001..010) owns cross-module/factory rollups and scheduled reports. Both consume the same source tables; the analytics hub deliberately stops at module boundary to avoid double-source ambiguity.
+
+#### SCR-08-10: Production Settings [PROD-011]
+
+**Route:** `/production/settings`
+**Roles:** Prod Manager (RBAC guard via 02-SETTINGS §14); other roles see read-only.
+**UX evidence:** `design/08-PRODUCTION-UX.md:770-832` (PROD-011)
+**Prototype evidence:** `settings_screen` (`other-screens.jsx:560-649`), `oee_target_edit_modal` (`modals.jsx:560-635`)
+
+**Layout (8 collapsible sections, sticky [Save] / [Discard] footer, "• Unsaved changes" indicator):**
+
+1. **WO Lifecycle:** `production.closed_production_strict.enabled` (toggle, default ON), `production.over_consumption.tolerance_pct` (1-50, default 5), `production.state_machine.version` (read-only "v1", locked — change via 02-SETTINGS Rule Registry §7).
+2. **Output:** `production.output_yield_gate.variance_threshold` (1-50, default 10), `production.catch_weight.tolerance_pct` (default 10), label print trigger radio (On Registration / Manual), ZPL native row greyed [P2].
+3. **Material & FEFO:** FEFO deviation reason policy (required / optional / disabled, default required), `production.waste.threshold_pct_alert` (default 5).
+4. **Downtime:** [Manage Downtime Categories] deep-link to 02-SETTINGS taxonomy admin; expandable seed view (10 categories) [INDUSTRY-CONFIG]; `production.oee_aggregation.enabled` toggle; `production.oee_aggregation.interval_sec` (30-300, default 60).
+5. **D365 Integration:** `integration.d365.push.enabled` (toggle, default ON for [ORG-CONFIG] tenants opted-in to D365), `integration.d365.push.dry_run` (debug-only, label warns "do not leave enabled in production"), `integration.d365.push.batch_size` (default 100), [Configure D365 Connection → 02-SETTINGS §11].
+6. **Allergen Changeover Gate:** `production.allergen_gate.version` (read-only, locked); ATP RLU threshold (default 10 [INDUSTRY-CONFIG], per-line override possible — feeds `prod_settings` per-line); [Configure Allergen Changeover Matrix → 07-PLANNING-EXT §9.4]; OEE target edit per-line opens MODAL-08 `oee_target_edit_modal` (V-PROD-OEE-001: Plant Manager only, BL-PROD-04 `prod_oee_targets` table required for effective-date windowing).
+7. **Scanner Links:** Info card pointing to 06-SCANNER Settings (operator scan KPIs, FEFO prompts, catch-weight UX live there).
+8. **Phase 2 (locked):** PLC, Catch-weight scale, ZPL printing, OEE streaming — all `.badge-gray` "Phase 2" with feature-flag references.
+
+**RBAC:** Server Action wraps every save with role check (Prod Manager). Non-PM users see disabled inputs + tooltip. All settings audit-logged (`audit_log` row with old/new value + actor + timestamp).
+
+**Persistence:** `prod_settings` table per `tenant_id`/`factory_id` scope (§9.X to be added in 08-f); per-line overrides via `prod_settings_line_overrides`.
+
+#### SCR-08-11: Line Detail [PROD-013]
+
+**Route:** `/production/lines/:line_id`
+**Roles:** Operator (own line), Shift Lead, Prod Manager
+**UX evidence:** `design/08-PRODUCTION-UX.md:872-890` (PROD-013)
+**Prototype evidence:** `line_detail` (`new-screens.jsx:212-478`)
+
+**Layout:**
+- Header card: Line name + code + status badge (RUNNING / IDLE / DOWN / CHANGEOVER); machine list linked to 02-SETTINGS machines registry; current operator avatar + name.
+- Current WO card: progress bars for consumption + output, catch-weight summary if `item.weight_mode='catch'`, time elapsed vs planned.
+- Line OEE mini-dashboard: three gauges (A / P / Q) + composite OEE; last 8h sparkline trend (per-minute granularity from `oee_snapshots`).
+- Tab bar (URL-driven): Today's Output | Yield Rolling 4h | Downtime History | OEE Breakdown | Shift Log | Live Events.
+- Today's Output table: lp_outputs WHERE `line_id=:id AND registered_at::date=TODAY` (BL-PROD-01 — replace prototype static mock with Drizzle query).
+- Live event stream sidebar: SSE stream from `/api/lines/:id/events` (replaces prototype `d.events` mock array).
+
+**Actions:** [Pause WO] / [Resume WO] (Shift Lead, opens MODAL-02/MODAL-03), [Log Downtime] → SCR-08-05 modal, [View Upcoming WOs] → 04-PLANNING WO list filtered to this line.
+
+**Allergen-changeover indicator:** Upcoming WO chips show red badge if next allergen profile differs from current (delta computed via 03-TECH §10 cascade); click navigates to SCR-08-03 changeover gate.
+
+**Performance:** Server Component primary fetch + Suspense boundaries per zone; SSE stream for live events; OEE sparkline cached 30s.
+
+#### SCR-08-12: Scanner-Linked Reference Cards [PROD-014]
+
+**Route:** Embedded within SCR-08-02 (WO detail) tabs Consumption / Output / Waste, and within SCR-08-11 (Line Detail) header.
+**Roles:** Shift Lead, Prod Manager (deep-link generators).
+**UX evidence:** `design/08-PRODUCTION-UX.md:894-908` (PROD-014)
+**Prototype evidence:** No dedicated JSX label — pattern realised inline within `consumption_tab` and `output_tab` via `scanner_modal` (`modals.jsx:246-278`); represented in PROD-002 prototype as "Open on Scanner" buttons.
+
+**Purpose:** Desktop reference cards for scanner-executed flows. The actual operator UX lives in 06-SCANNER-P1; these cards give the supervisor visibility + a deep-link mechanism so a paused operator can resume on a handheld without re-authentication friction.
+
+**Layout:** Each card is a `.card` with title "Scanner Flows — <flow name>", a one-line description, current status summary (e.g., "8 of 12 LPs consumed via scanner"), and an [Open on Scanner] button that generates a signed deep-link (JWT-tokenised URL, e.g., `scanner://wo/:wo_id/consume?token=…`) shown as QR code + copy-link.
+
+**Flows covered:**
+- SCN-080 Consume to WO → linked from SCR-08-02 Consumption tab + SCR-08-11.
+- SCN-082 Register Primary Output → linked from SCR-08-02 Output tab.
+- SCN-083 Register Co-product / By-product → linked from SCR-08-02 Output tab.
+- SCN-084 Log Waste → linked from SCR-08-02 Waste tab.
+- SCN-081 WO Execute (start/pause/resume) → linked from SCR-08-02 header.
+
+**Token contract:** Deep-link JWT signed server-side, lifetime ≤15 min, single-use claim, encodes `{wo_id, line_id, action, operator_id, exp}`. Server validates against scanner session on first scan; subsequent scans require fresh token. BL-SCN-01 references separate scanner PWA hosting decision.
+
+**Boundary:** Pure cross-link + token-issuance UI inside 08-PROD; scanner runtime + entire scan session UX continues to live in 06-SCANNER-P1 §14. No data mutation here.
+
+#### SCR-08-13: Operator Tweaks Panel [internal/devtools — PROD-INT-01]
+
+**Route:** Floating panel on `/production/dashboard` (Shift Lead+ only).
+**Roles:** Shift Lead, Prod Manager.
+**UX evidence:** Not in UX file — orphan prototype.
+**Prototype evidence:** `tweaks_panel` (`modals.jsx:389-428`).
+
+**Status:** `[NO-UX-YET]` — prototype-only ergonomics panel for density / KPI accent / banner toggles. Not exposed in design spec.
+
+**Decision:** Convert to user-preferences page in 02-SETTINGS or remove. Tracked as **TODO PROD-PRD-AMEND-01** — "decide whether floating tweaks panel survives or migrates to 02-SETTINGS user preferences (`user_preferences` table)". P1 default: hide panel behind `production.tweaks_panel.enabled` feature flag (default false).
+
+### 8.1.X UI surfaces traceability matrix (added 2026-04-30)
+
+Bidirectional PRD ↔ UX ↔ prototype mapping. Status legend: `OK` = aligned, `BOUND` = boundary clarification, `NEEDS-IMPL` = prototype underbuilt vs PRD spec, `NO-UX-YET` = PRD entry without UX, `NO-PROTOTYPE-YET` = PRD/UX entry without prototype.
+
+| PRD ID | UX section / line | Prototype label / file:lines | Status | Notes |
+|---|---|---|---|---|
+| SCR-08-01 | PROD-001 (`UX:148-211`) | `production_dashboard` (`dashboard.jsx:3-146`), `line_card` (`dashboard.jsx:149-229`) | OK | 6 KPI tiles + per-line cards + recent events feed. |
+| SCR-08-02 | PROD-002 (`UX:214-338`), PROD-003 (`UX:339-399`), PROD-004 (`UX:400-461`) | `wo_detail` (`wo-detail.jsx:3-87`), `consumption_tab` (`:90-176`), `output_tab` (`:179-238`), `genealogy_tab` (`:285-332`), `history_tab` (`:335-358`) | OK | 5 tabs + side panels. |
+| SCR-08-03 | PROD-005 (`UX:462-561`) | `changeover_screen` (`other-screens.jsx:294-390`), `changeover_gate_modal` (`modals.jsx:344-364`) | NEEDS-IMPL | TODO PROD-PRD-AMEND-02 — modal currently 20-line stub; PRD specs cleaning checklist + ATP + dual sign-off. |
+| SCR-08-04 | PROD-010 (`UX:746-768`) | `waste_analytics_screen` (`new-screens.jsx:4-209`), `waste_modal` (`modals.jsx:185-204`) | OK | Pareto + trend + by-line + events table; BL-PROD-02 rolling-14d query pending. |
+| SCR-08-05 | PROD-007 (`UX:612-655`) | `downtime_screen` (`other-screens.jsx:124-212`), `pause_line_modal` (`modals.jsx:69-117`), `resume_line_modal` (`modals.jsx:328-342`) | OK | MTTR/MTBF KPIs + Pareto + active-downtime banner. |
+| SCR-08-06 | PROD-012 (`UX:836-868`) | `dlq_screen` (`other-screens.jsx:499-557`), `dlq_inspect_modal` (`modals.jsx:280-326`) | OK | DLQ health bar + filters + inspect/replay/mark-resolved actions. |
+| SCR-08-07 | PROD-006 (`UX:562-610`) | `oee_screen` (`other-screens.jsx:4-121`), `oee_target_edit_modal` (`modals.jsx:560-635`) | BOUND | 08-PROD owns P1 foundation view; 15-OEE owns advanced analytics. Same `oee_snapshots` source. |
+| SCR-08-08 | PROD-008 (`UX:658-700`) | `shifts_screen` (`other-screens.jsx:215-291`), `shift_start_modal` (`modals.jsx:438-497`), `shift_end_modal` (`modals.jsx:500-557`), `assign_crew_modal` (`modals.jsx:366-386`) | OK | Added 2026-04-30 reconciliation. |
+| SCR-08-09 | PROD-009 (`UX:703-742`) | `analytics_screen` (`other-screens.jsx:393-496`) | OK | Added 2026-04-30 reconciliation. |
+| SCR-08-10 | PROD-011 (`UX:770-832`) | `settings_screen` (`other-screens.jsx:560-649`), `oee_target_edit_modal` (`modals.jsx:560-635`) | OK | Added 2026-04-30 reconciliation. |
+| SCR-08-11 | PROD-013 (`UX:872-890`) | `line_detail` (`new-screens.jsx:212-478`) | OK | Added 2026-04-30 reconciliation. BL-PROD-01 today-output query pending. |
+| SCR-08-12 | PROD-014 (`UX:894-908`) | `scanner_modal` (`modals.jsx:246-278`) — pattern; no dedicated JSX label | OK | Added 2026-04-30 reconciliation. Pattern, not a single screen. |
+| SCR-08-13 | (none — orphan) | `tweaks_panel` (`modals.jsx:389-428`) | NO-UX-YET | TODO PROD-PRD-AMEND-01 — devtools panel; convert to 02-SETTINGS preference or remove. |
+| MODAL-08-01 Release WO | MODAL §4 (`UX:911+`) | `release_wo_modal` (`modals.jsx:3-46`) | OK | WO READY → IN_PROGRESS via `start_wo_modal` PIN flow. |
+| MODAL-08-02 Start WO | MODAL-01 (`UX:917-941`) | `start_wo_modal` (`modals.jsx:48-67`) | OK | PIN sign-off, BOM snapshot freeze. |
+| MODAL-08-03 Pause WO | MODAL-02 (`UX:942-958`) | `pause_line_modal` (`modals.jsx:69-117`) | OK | 4P category required. |
+| MODAL-08-04 Resume WO | MODAL-03 (`UX:959+`) | `resume_line_modal` (`modals.jsx:328-342`) | OK | Closes downtime event. |
+| MODAL-08-05 Complete WO | MODAL §4 | `complete_wo_modal` (`modals.jsx:119-155`) | OK | `closed_production_strict_v1` gate-check; BL-PROD-05 `.btn-danger` styling fix. |
+| MODAL-08-06 Over-consumption Approve | MODAL §4 | `over_consume_modal` (`modals.jsx:157-183`) | OK | Shift Lead PIN approval. |
+| MODAL-08-07 Waste log | MODAL §4 | `waste_modal` (`modals.jsx:185-204`) | OK | Category + qty + photo (P2). |
+| MODAL-08-08 Catch-weight capture | MODAL §4 | `catch_weight_modal` (`modals.jsx:206-244`) | OK | Per-unit grid + scale stream (P2). |
+| MODAL-08-09 Scanner deep-link | MODAL §4 | `scanner_modal` (`modals.jsx:246-278`) | OK | Powers SCR-08-12 cards. |
+| MODAL-08-10 DLQ inspect | MODAL §4 | `dlq_inspect_modal` (`modals.jsx:280-326`) | OK | Replay / mark resolved / view raw / view D365 mapped. |
+| MODAL-08-11 Changeover gate sign-off | MODAL §4 | `changeover_gate_modal` (`modals.jsx:344-364`) | NEEDS-IMPL | See SCR-08-03 row. |
+| MODAL-08-12 Crew assign | MODAL §4 | `assign_crew_modal` (`modals.jsx:366-386`) | OK | Certified-operator-only (V-PROD-SHIFT-001). |
+| MODAL-08-13 Shift start | MODAL §4 | `shift_start_modal` (`modals.jsx:438-497`) | OK | Handover review + crew override + V-PROD-SHIFT-001 guard. |
+| MODAL-08-14 Shift end | MODAL §4 | `shift_end_modal` (`modals.jsx:500-557`) | OK | V-PROD-SHIFT-002 server-side guard. |
+| MODAL-08-15 OEE target edit | MODAL §4 | `oee_target_edit_modal` (`modals.jsx:560-635`) | NEEDS-IMPL | BL-PROD-04 `prod_oee_targets` table with effective-date windowing required. |
+
+**Direction A residuals (PRD entries without prototype):** None — all SCR-08-NN PRD entries have UX + prototype evidence after this reconciliation.
+
+**Direction B residuals (prototypes without PRD entry):** All resolved by adding SCR-08-08..SCR-08-13 in this revision. The only remaining orphan is `tweaks_panel` (devtools) which is explicitly captured as SCR-08-13 with `NO-UX-YET` status and TODO PROD-PRD-AMEND-01.
 
 ### 8.2 APIs
 

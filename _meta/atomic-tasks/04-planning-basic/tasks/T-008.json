@@ -1,0 +1,67 @@
+{
+  "title": "T-008 — API: supplier CRUD + supplier_products assignment",
+  "prompt": "Implement supplier CRUD API per PRD §6.1 + FR-PLAN-001/002. Endpoints:\n- GET /api/planning/suppliers (list, filter by is_active)\n- GET /api/planning/suppliers/:id\n- POST /api/planning/suppliers (Zod validate; country ISO 3166-1, currency ISO 4217, email regex, phone E.164 optional)\n- PUT /api/planning/suppliers/:id\n- DELETE /api/planning/suppliers/:id (soft delete: is_active=false)\n- POST /api/planning/suppliers/:id/products (assign product with is_default flag, enforce max-1-default per product via T-001 partial-unique index)\n\nNext.js Server Actions or route handlers acceptable; use Drizzle queries with tenant_id RLS. Validation via Zod schemas in `src/lib/validators/supplier.ts`.\n\nRED test: `src/app/api/planning/suppliers/__tests__/route.test.ts` covers V-PLAN-PO-001 (unique code per tenant), V-PLAN-PO-002 (max 1 default per product), soft-delete preserves history.",
+  "labels": ["prd", "api", "supplier-crud", "T2-api"],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-008",
+    "source_prd": "04-PLANNING-BASIC-PRD.md",
+    "prd_refs": ["§6.1", "§6.7"],
+    "category": "api",
+    "subcategory": "supplier-crud",
+    "task_type": "T2-api",
+    "parent_feature": "planning-suppliers",
+    "context_budget": "40k",
+    "estimated_effort": "3-4h",
+    "description": "RESTful CRUD for suppliers + supplier_products assignment with default enforcement.",
+    "details": "Use Next.js App Router route handlers under `src/app/api/planning/suppliers/`. Tenant scoping via `getTenantId()` helper that reads from session JWT and sets app.tenant_id Postgres GUC. Zod validators export both `supplierCreateSchema` and `supplierUpdateSchema`. is_default conflict returns 409 with body { code: 'V-PLAN-PO-002', existing_default_supplier_id }. Soft-delete sets is_active=false; hard-delete forbidden (return 405).",
+    "scope_files": [
+      "src/app/api/planning/suppliers/route.ts [create]",
+      "src/app/api/planning/suppliers/[id]/route.ts [create]",
+      "src/app/api/planning/suppliers/[id]/products/route.ts [create]",
+      "src/lib/validators/supplier.ts [create]",
+      "src/app/api/planning/suppliers/__tests__/route.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "D365 supplier pull worker (T-027)",
+      "UI (T-040..042)"
+    ],
+    "dependencies": ["T-001"],
+    "parallel_safe_with": ["T-009", "T-010", "T-011"],
+    "acceptance_criteria": [
+      "Given two suppliers in same tenant with code='ACME', when second POST is attempted, then HTTP 409 is returned.",
+      "Given supplier_products row with is_default=true exists for product P, when another assignment with is_default=true is POSTed for same product, then HTTP 409 with code 'V-PLAN-PO-002'.",
+      "Given DELETE /api/planning/suppliers/:id is called, when fetched again, then row remains with is_active=false (soft delete).",
+      "Given `pnpm vitest run src/app/api/planning/suppliers/__tests__/route.test.ts`, when run, then 0 failures."
+    ],
+    "test_strategy": [
+      "RED tests for V-PLAN-PO-001/002 + soft-delete semantics.",
+      "Run `pnpm vitest run src/app/api/planning/suppliers/__tests__/route.test.ts`."
+    ],
+    "risk_red_lines": [
+      "Do not hard-delete supplier rows — history retention required.",
+      "Do not skip Zod validation on the API boundary.",
+      "Do not allow cross-tenant reads — RLS must be active for every request."
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

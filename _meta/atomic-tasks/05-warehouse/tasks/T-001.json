@@ -1,0 +1,59 @@
+{
+  "title": "T-001 — Warehouse enum locks (lp_status, lp_qa_status, item_type_snapshot, lp_source)",
+  "prompt": "# T-001 — Warehouse enum locks\n\nPRD: `05-WAREHOUSE-PRD.md` §5.2, §6.1, §6.2.\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`.\n\n## Goal\nLock the four core warehouse enums in Drizzle so downstream migrations and services share the exact value sets.\n\n## Implementation contract\nAdd four pgEnum definitions in `packages/db/src/schema/warehouse-enums.ts`:\n- `lp_status` = ['available','reserved','consumed','shipped','blocked','merged']\n- `lp_qa_status` = ['PENDING','PASSED','FAILED','HOLD','RELEASED','QUARANTINED','COND_APPROVED']\n- `item_type_snapshot` = ['rm','intermediate','fg','co_product','byproduct']\n- `lp_source` = ['grn','wo_output','split','merge','adjustment']\nEmit a Drizzle migration `0NN_warehouse_enums.sql` creating the types. Export TS unions from same file. No table references yet.\n\n## Files (scope)\n- packages/db/src/schema/warehouse-enums.ts [create]\n- packages/db/migrations/0NN_warehouse_enums.sql [create]\n- packages/db/src/schema/warehouse-enums.test.ts [create]\n\n## Acceptance criteria\n1. Given the migration runs, when `\\dT lp_status` is queried, then it returns 6 values exactly matching PRD §5.2.\n2. Given the TS module is imported, when consumers reference `LpStatus` union, then it resolves to the 6-string literal type.\n3. Given the test runs, when an invalid value is checked against the union, then a type error is raised at compile time and a runtime guard rejects it.\n\n## Test strategy\n- RED: write `warehouse-enums.test.ts` that imports the unions and asserts `assertNever` style guard rejects 'foo'.\n- Run `pnpm --filter db migrate && pnpm --filter db test`.\n\n## Risk red lines\n- Do not add stray values not in PRD §5.2.\n- Do not collapse `qa_status` letter-case.\n- Do not create tables in this migration.",
+  "labels": ["prd", "data", "enum-lock", "T1-schema"],
+  "priority": 50,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-001",
+    "source_prd": "05-WAREHOUSE-PRD.md",
+    "prd_refs": ["§5.2", "§6.1", "§6.2"],
+    "category": "data",
+    "subcategory": "enum-lock",
+    "task_type": "T1-schema",
+    "parent_feature": "warehouse-foundation",
+    "context_budget": "25k",
+    "estimated_effort": "1h",
+    "description": "Lock four warehouse enums (lp_status, lp_qa_status, item_type_snapshot, lp_source) so downstream tables share identical value sets.",
+    "details": "Create pgEnum definitions in packages/db/src/schema/warehouse-enums.ts and a Drizzle migration that creates the types in Postgres. Export TS string-literal unions for consumers. Verify against PRD §5.2 wording and §6.1 state machine (ADR-029).",
+    "scope_files": [
+      "packages/db/src/schema/warehouse-enums.ts [create]",
+      "packages/db/migrations/0NN_warehouse_enums.sql [create]",
+      "packages/db/src/schema/warehouse-enums.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not create license_plates or any other table in this task",
+      "Do not import warehouse-enums into apps/web yet",
+      "Do not add additional enums (item_type, scrap_reason etc.) here"
+    ],
+    "dependencies": [],
+    "parallel_safe_with": [],
+    "acceptance_criteria": [
+      "Given the migration runs, when '\\dT lp_status' is queried, then it returns the 6 values exactly matching PRD §5.2",
+      "Given consumers import 'LpQaStatus', when they assign 'passed' (lowercase), then TypeScript raises a type error",
+      "Given the runtime guard is invoked with 'merged', when validated against lp_status, then it returns true"
+    ],
+    "test_strategy": [
+      "RED: warehouse-enums.test.ts with assertNever guard checks asserting rejection of unknown values",
+      "Run 'pnpm --filter db migrate && pnpm --filter db test' and capture results"
+    ],
+    "risk_red_lines": [
+      "Do not add stray enum values not enumerated in PRD §5.2",
+      "Do not collapse qa_status casing (preserve UPPER_SNAKE)",
+      "Do not create tables in this migration"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

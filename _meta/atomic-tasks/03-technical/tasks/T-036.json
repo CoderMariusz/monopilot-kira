@@ -1,0 +1,36 @@
+{
+  "title": "T-036 — UI: TEC-080 Technical Dashboard landing page",
+  "prompt": "Build /technical (root) page TEC-080 per §6A. KPI strip (Products / Active BOMs / Routings / Allergen Overrides / D365 Sync) + Recent Changes timeline + Quick Actions + D365 Sync Health card. Reuses shared `kpi_tile` primitive. Match prototype `tech_dashboard_screen` design/Monopilot Design System/technical/other-screens.jsx:370-429. RED tests/ui/tec-080-dashboard.test.tsx. Run: `pnpm vitest run tests/ui/tec-080-dashboard.test.tsx`.",
+  "labels": ["prd", "ui", "ui-dashboard", "T3-ui"],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-036",
+    "source_prd": "03-TECHNICAL-PRD.md",
+    "prd_refs": ["§6A TEC-080"],
+    "category": "ui",
+    "subcategory": "dashboard",
+    "task_type": "T3-ui",
+    "parent_feature": "03-TECHNICAL Dashboard",
+    "context_budget": "20k",
+    "estimated_effort": "2h",
+    "description": "Technical module landing page with KPIs + Recent Changes + Quick Actions + D365 Health.",
+    "details": "Server Component aggregates counts via SQL. Quick Actions button group navigates to TEC-011, TEC-022, TEC-070.",
+    "scope_files": ["app/(app)/technical/page.tsx", "app/(app)/technical/_components/kpi-strip.tsx", "tests/ui/tec-080-dashboard.test.tsx"],
+    "out_of_scope": ["Real-time KPI streaming"],
+    "dependencies": ["T-008"],
+    "parallel_safe_with": ["T-032", "T-037"],
+    "acceptance_criteria": [
+      "Given the dashboard renders, when compared to design/Monopilot Design System/technical/other-screens.jsx:370-429, then KPI strip has 5 tiles in the prototype order, Recent Changes timeline below, Quick Actions row, D365 Health card on the right — structural + visual + interaction parity verified by RTL.",
+      "Given counts query returns 0 for all KPIs, when rendered, then tiles still show '0' and the empty timeline copy.",
+      "Given user clicks the Quick Action 'Create item', when fired, then TEC-011 modal opens."
+    ],
+    "test_strategy": ["RED tests for tile structure + parity.", "Run: pnpm vitest run tests/ui/tec-080-dashboard.test.tsx"],
+    "risk_red_lines": ["Do not block render on slow KPI query — use Suspense fallback."],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {"required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"], "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]},
+    "routing_hints": {"red": "hermes_gpt55", "implementation": "hermes_gpt55", "review": "opus_if_high_risk_or_ui_or_architecture", "close": "spark_low_risk_else_opus"}
+  }
+}

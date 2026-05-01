@@ -1,0 +1,61 @@
+{
+  "title": "T-040 — UI: Allergen Cascade widget + Override modal (allergen_cascade + allergen_override_modal)",
+  "prompt": "# T-040 — Allergen cascade widget + override modal\n\nPRD: 01-NPD-PRD.md §8.7 + UX allergen_cascade + allergen_override_modal\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\nPrototype: design/Monopilot Design System/npd/allergen-screens.jsx:5-118 (allergen_cascade) + design/Monopilot Design System/npd/modals.jsx:389-428 (allergen_override_modal)\n\n## Goal\nClient widget rendered in Technical tab slot showing auto-derived allergens (badges with source tooltip), may-contain badges, override checkbox per allergen + Refresh button. Override modal opens with reason Textarea + action selector calling setAllergenOverride.\n\n## Implementation contract\nNew apps/web/app/(npd)/fa/[productCode]/_components/allergen-cascade-widget.tsx (client) + _modals/allergen-override-modal.tsx. Widget reads fa_allergen_cascade view via Server prefetch. Refresh button invokes refresh-cascade Server Action. Modal: shadcn Dialog + RadioGroup (add|remove) + Textarea (reason min 10) + Submit. shadcn Badge primitives.\n\n## Files\n- apps/web/app/(npd)/fa/[productCode]/_components/allergen-cascade-widget.tsx [create]\n- apps/web/app/(npd)/_modals/allergen-override-modal.tsx [create]\n- apps/web/app/(npd)/fa/[productCode]/_components/__tests__/allergen-cascade-widget.test.tsx [create]\n- apps/web/app/(npd)/_modals/__tests__/allergen-override-modal.test.tsx [create]\n- design/Monopilot Design System/npd/allergen-screens.jsx [ref]\n- design/Monopilot Design System/npd/modals.jsx [ref]\n\n## Acceptance criteria\n1. Given the widget renders, when compared to design/Monopilot Design System/npd/allergen-screens.jsx:5-118 (allergen_cascade), then it shows 3 sections (RM-derived, process-added, may-contain) with same Badge structure + source tooltip + Refresh button, using shadcn Card+Badge+Tooltip+Button primitives — verified by RTL parity checklist (structural+visual+interaction)\n2. Given override modal renders, when compared to design/Monopilot Design System/npd/modals.jsx:389-428 (allergen_override_modal), then it has same 3 controls (allergen Select preselected, action RadioGroup, reason Textarea), and uses shadcn Dialog+RadioGroup+Textarea+Button — verified by RTL parity checklist\n3. Given user submits with reason length 8, when modal validates, then submit disabled and FormMessage 'min 10' visible\n\n## Test strategy\n- RED: 3 RTL tests covering both parity ACs + reason length\n- Run 'pnpm --filter web test allergen-cascade-widget allergen-override-modal'\n\n## Risk red lines\n- Do not bypass debounced Refresh (avoid hammering server)\n- Do not call DB directly from client\n- Do not skip Tooltip with allergen source",
+  "labels": ["prd", "ui", "allergens", "T3-ui"],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-040",
+    "source_prd": "01-NPD-PRD.md",
+    "prd_refs": ["§8.7"],
+    "category": "ui",
+    "subcategory": "allergen-cascade-ui",
+    "task_type": "T3-ui",
+    "parent_feature": "01-NPD-c allergen UI",
+    "context_budget": "40k",
+    "estimated_effort": "3h",
+    "description": "Allergen cascade widget (RM/process/may-contain badges + Refresh) + Override modal calling setAllergenOverride.",
+    "details": "Parity for both surfaces. Widget includes Tooltip with source. Modal enforces reason min length client-side mirroring server.",
+    "scope_files": [
+      "apps/web/app/(npd)/fa/[productCode]/_components/allergen-cascade-widget.tsx [create]",
+      "apps/web/app/(npd)/_modals/allergen-override-modal.tsx [create]",
+      "apps/web/app/(npd)/fa/[productCode]/_components/__tests__/allergen-cascade-widget.test.tsx [create]",
+      "apps/web/app/(npd)/_modals/__tests__/allergen-override-modal.test.tsx [create]",
+      "design/Monopilot Design System/npd/allergen-screens.jsx [ref]",
+      "design/Monopilot Design System/npd/modals.jsx [ref]"
+    ],
+    "out_of_scope": [
+      "Do not implement labelling preview here (handoff to 11-SHIPPING Phase C4)",
+      "Do not animate SVG diagram (BL-NPD-05)"
+    ],
+    "dependencies": ["T-026", "T-038", "T-039"],
+    "parallel_safe_with": ["T-039"],
+    "acceptance_criteria": [
+      "Given the widget renders, when compared to design/Monopilot Design System/npd/allergen-screens.jsx:5-118, then it shows 3 sections (RM-derived, process-added, may-contain) with Badge + source Tooltip + Refresh button, using shadcn Card+Badge+Tooltip+Button primitives — verified by RTL parity checklist (structural + visual + interaction parity)",
+      "Given override modal renders, when compared to design/Monopilot Design System/npd/modals.jsx:389-428, then it has same 3 controls (allergen Select preselected, action RadioGroup, reason Textarea), and uses shadcn Dialog+RadioGroup+Textarea+Button — verified by RTL parity checklist",
+      "Given user submits with reason length 8, when modal validates, then submit is disabled and FormMessage 'min 10' is visible"
+    ],
+    "test_strategy": [
+      "RED: 3 RTL tests covering both parity ACs + reason length before components exist",
+      "Run 'pnpm --filter web test allergen-cascade-widget allergen-override-modal'"
+    ],
+    "risk_red_lines": [
+      "Do not bypass debounced Refresh button",
+      "Do not call DB directly from client",
+      "Do not omit Tooltip with allergen source"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

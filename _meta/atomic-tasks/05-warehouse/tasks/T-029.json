@@ -1,0 +1,58 @@
+{
+  "title": "T-029 — Cycle-count quick adjustment service (P1 stub)",
+  "prompt": "# T-029 — Cycle-count quick adjustment service\n\nPRD: `05-WAREHOUSE-PRD.md` §8.8 (FR-WH-037), V-WH-MOV-007.\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`.\n\n## Goal\n`cycleCountQuickAdjust(lpId, actualQty, reasonCode, reasonText?)` reusing T-028 threshold logic but tagged for cycle-count provenance.\n\n## Implementation contract\n`apps/web/lib/services/warehouse/cycle-count-quick-adj.ts`. Wraps `adjustLp` with reason_code restricted to ('counting_error','damage','other') and tags `context_jsonb.source='cycle_count_p1_stub'` on stock_moves and lp_genealogy. RBAC: Manager only per UX trigger. Full WH-E14 cycle counts deferred to P2.\n\n## Files (scope)\n- apps/web/lib/services/warehouse/cycle-count-quick-adj.ts [create]\n- apps/web/lib/services/warehouse/__tests__/cycle-count-quick-adj.test.ts [create]\n\n## Acceptance criteria\n1. Given Manager calls cycleCountQuickAdjust with reason_code='counting_error', when service runs, then it dispatches to T-028 and tags context_jsonb.source='cycle_count_p1_stub'.\n2. Given an Operator (no Manager role), when called, then it returns an RBAC error.\n3. Given reason_code='damage' with delta 15%, when called, then movement_approvals row is created via T-028 threshold gate.\n\n## Test strategy\n- RED: cycle-count-quick-adj.test.ts covers Manager success, RBAC denial, threshold dispatch.\n- Run `pnpm --filter web test cycle-count-quick-adj`.\n\n## Risk red lines\n- Do not implement full cycle count workflow (P2).\n- Do not bypass T-028 threshold gate.\n- Do not allow Operator role.",
+  "labels": ["prd", "api", "cycle-count", "T2-api"],
+  "priority": 110,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-029",
+    "source_prd": "05-WAREHOUSE-PRD.md",
+    "prd_refs": ["§8.8"],
+    "category": "api",
+    "subcategory": "cycle-count",
+    "task_type": "T2-api",
+    "parent_feature": "warehouse-stock-moves",
+    "context_budget": "20k",
+    "estimated_effort": "0.5-1h",
+    "description": "P1 cycle-count quick adjustment service tagging stock_moves with cycle_count provenance; reuses T-028 threshold.",
+    "details": "Manager-only; reason_code subset; provenance tag in context_jsonb. Full WH-E14 deferred to P2.",
+    "scope_files": [
+      "apps/web/lib/services/warehouse/cycle-count-quick-adj.ts [create]",
+      "apps/web/lib/services/warehouse/__tests__/cycle-count-quick-adj.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Full cycle count workflow (P2 WH-E14)",
+      "UI modal (T-067)",
+      "T-028 internals"
+    ],
+    "dependencies": ["T-028"],
+    "parallel_safe_with": ["T-027"],
+    "acceptance_criteria": [
+      "Given Manager call with reason_code='counting_error', when run, then dispatches to T-028 and context_jsonb.source='cycle_count_p1_stub'",
+      "Given an Operator caller, when run, then RBAC error returns",
+      "Given reason_code='damage' with delta 15%, when run, then movement_approvals row is created via T-028"
+    ],
+    "test_strategy": [
+      "RED: cycle-count-quick-adj.test.ts covers Manager success, RBAC denial, threshold dispatch",
+      "Run 'pnpm --filter web test cycle-count-quick-adj'"
+    ],
+    "risk_red_lines": [
+      "Do not implement full cycle count",
+      "Do not bypass T-028 threshold",
+      "Do not allow Operator role"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

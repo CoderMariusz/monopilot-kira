@@ -1,0 +1,58 @@
+{
+  "title": "T-011 — Outbox publisher: quality.hold.* events (12-REP/05-WH consumer)",
+  "prompt": "# T-011 — Outbox publisher: quality.hold.* events\n\nPRD: 09-QUALITY-PRD.md §12.1 outbound events table, ADR-008 outbox pattern\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nWire the outbox publisher worker so quality.hold.created and quality.hold.released events written by T-006/T-007 are picked up and dispatched to consumer endpoints (05-WH, 12-REP) with retry, idempotency, and DLQ.\n\n## Implementation contract\n1. `apps/web/src/server/outbox/qualityHoldPublisher.ts` extends the shared outbox poller registry (existing module) with handler `'quality.hold.created'` and `'quality.hold.released'` mapping to deliver functions per consumer.\n2. Idempotency: outbox row UUIDv7 used as request_id header; consumers ignore replays with same id.\n3. Retry: exponential backoff (1s, 5s, 25s, 125s, 600s), then DLQ insert into outbox_dead_letter with original payload.\n4. Metric increment `quality_hold_outbox_published_total{event}` and `..._failed_total{event,reason}`.\n\n## Files\n- apps/web/src/server/outbox/qualityHoldPublisher.ts [create]\n- apps/web/src/server/outbox/__tests__/qualityHoldPublisher.test.ts [create]\n\n## Acceptance criteria\n1. Given an outbox row with event='quality.hold.created' and 2 fake consumers wired, when the publisher polls, then both consumers receive the payload with the same request_id header equal to outbox.id\n2. Given a consumer that fails 5 times, when retry budget exceeded, then the row is moved to outbox_dead_letter with original payload preserved and the metric ..._failed_total{reason='retry_exhausted'} increments\n3. Given two pollers running concurrently picking the same row, when both attempt to publish, then only one succeeds (advisory lock or claim-token enforces single-flight)",
+  "labels": ["prd", "integration", "outbox", "T4-wiring-test"],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-011",
+    "source_prd": "09-QUALITY-PRD.md",
+    "prd_refs": ["§12.1"],
+    "category": "integration",
+    "subcategory": "outbox-publisher",
+    "task_type": "T4-wiring-test",
+    "parent_feature": "09-a Hold/Release",
+    "context_budget": "35k",
+    "estimated_effort": "2h",
+    "description": "Outbox publisher handlers for quality.hold.created and quality.hold.released with retry, idempotency, DLQ.",
+    "details": "Register handlers in shared outbox poller. Each handler dispatches the payload to known consumer fan-out endpoints (05-WH, 12-REP). Idempotency via outbox row UUIDv7 -> request_id header. Retry with exponential backoff capped at 5 attempts then DLQ. Single-flight via Postgres advisory lock keyed by outbox.id. Metrics emitted via existing prometheus client.",
+    "scope_files": [
+      "apps/web/src/server/outbox/qualityHoldPublisher.ts [create]",
+      "apps/web/src/server/outbox/__tests__/qualityHoldPublisher.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not change shared outbox poller core (out of scope this task)",
+      "Do not implement consumer-side idempotency in 05-WH or 12-REP (their responsibility)",
+      "Do not add quality.inspection.* publishers (T-029)"
+    ],
+    "dependencies": ["T-006", "T-007"],
+    "parallel_safe_with": ["T-009", "T-010"],
+    "acceptance_criteria": [
+      "Given an outbox row event='quality.hold.created' with 2 fake consumers, when the publisher polls, then both consumers receive the payload with request_id equal to outbox.id",
+      "Given a consumer that fails 5 times, when the retry budget is exhausted, then the row is moved to outbox_dead_letter with original payload preserved and metric ..._failed_total{reason='retry_exhausted'} increments by 1",
+      "Given two pollers concurrently claiming the same row, when both attempt to publish, then exactly one succeeds (advisory lock single-flight enforced)"
+    ],
+    "test_strategy": [
+      "RED: write apps/web/src/server/outbox/__tests__/qualityHoldPublisher.test.ts asserting fan-out, retry/DLQ, single-flight",
+      "Run 'pnpm --filter web test qualityHoldPublisher'"
+    ],
+    "risk_red_lines": [
+      "Do not lose events on transient consumer failures (DLQ mandatory)",
+      "Do not allow concurrent double-publish (idempotency contract for downstream)",
+      "Do not silently drop payload fields (full event body preserved end-to-end)"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

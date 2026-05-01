@@ -1,0 +1,66 @@
+{
+  "title": "T-030 — API: D365 SO pull worker [LEGACY-D365]",
+  "prompt": "Implement D365 SO pull worker per PRD §15.2 (FR-PLAN-037). Cron-triggered job (per planning_settings.d365_so_pull_cron) + on-demand endpoint `POST /api/planning/d365/pull-so`:\n1. Query D365 SO endpoint via 03-TECHNICAL §13 D365 adapter (mockable in tests).\n2. Filter: status ∈ d365_so_status_filter, delivery_date ≤ now() + d365_so_pull_window_days.\n3. Per SO: dedupe by source_reference=so_id (V-PLAN-D365-002/003).\n4. New SO: createWorkOrder with source_of_demand='d365_so', source_reference=so_id, status='DRAFT' (planner approves manually). Trigger cascade if BOM has intermediates.\n5. Emit outbox event 'wo.created_from_d365_so'.\n6. Log batch summary (rows, woCreated, errors) to outbox events.\n\nFeature flag gate `integration.d365.so_trigger.enabled` from settings.\n\nRED test asserts dedupe (same SO twice → 1 WO), feature flag off → no-op, batch summary written.",
+  "labels": ["prd", "integration", "d365-so-pull", "T2-api"],
+  "priority": 110,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-030",
+    "source_prd": "04-PLANNING-BASIC-PRD.md",
+    "prd_refs": ["§15.1", "§15.2", "§15.5", "§15.6"],
+    "category": "integration",
+    "subcategory": "d365-so-pull",
+    "task_type": "T2-api",
+    "parent_feature": "planning-d365",
+    "context_budget": "40k",
+    "estimated_effort": "4h",
+    "description": "Cron + on-demand D365 SO pull → draft WO generation with idempotent dedupe and feature-flag gate.",
+    "details": "D365 adapter `from '@/server/integrations/d365'` (03-TECHNICAL §13 prereq). Use BullMQ or vercel cron for scheduling. Per-batch transaction is bounded (max 100 SOs per batch); rollback per-SO on cascade error, continue batch. Retry with exponential backoff (max 3) for transient D365 errors; dead-letter to outbox on final failure (V-PLAN-D365-004).",
+    "scope_files": [
+      "src/server/jobs/d365-so-pull.ts [create]",
+      "src/app/api/planning/d365/pull-so/route.ts [create]",
+      "src/server/jobs/__tests__/d365-so-pull.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "WO push to D365 (03-TECHNICAL §13 worker)",
+      "Drift detection (T-031)",
+      "D365 queue UI (T-037)"
+    ],
+    "dependencies": ["T-018", "T-019", "T-028"],
+    "parallel_safe_with": ["T-031"],
+    "acceptance_criteria": [
+      "Given a D365 SO is fetched twice within the same window, when the worker runs both times, then exactly 1 WO is created (V-PLAN-D365-003).",
+      "Given d365_so_trigger_enabled=false, when on-demand pull runs, then HTTP 409 with code 'D365_SO_TRIGGER_DISABLED' and no WOs are created.",
+      "Given a transient D365 error on SO #2 of 3, when worker retries 2x and succeeds, then all 3 WOs are created and outbox batch summary records 0 errors.",
+      "Given `pnpm vitest run src/server/jobs/__tests__/d365-so-pull.test.ts`, when run, then 0 failures."
+    ],
+    "test_strategy": [
+      "RED tests for dedupe, feature flag gate, retry/back-off, batch summary.",
+      "Mock D365 adapter for deterministic responses.",
+      "Run `pnpm vitest run src/server/jobs/__tests__/d365-so-pull.test.ts`."
+    ],
+    "risk_red_lines": [
+      "Do not bypass feature flag — V-PLAN-D365-001 + 15.5.",
+      "Do not auto-release WOs — must remain DRAFT until planner approves."
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

@@ -1,0 +1,57 @@
+{
+  "title": "T-013 — Cascade Chain 4: Template → ApplyTemplate to ProdDetail",
+  "prompt": "# T-013 — Cascade Chain 4 (Template apply)\n\nPRD: 01-NPD-PRD.md §6.1 Chain 4\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nWhen fa.template changes, look up Reference.Templates row and copy operation_1..4 names into all current prod_detail rows for the FA, then invoke chain2 recompute.\n\n## Implementation contract\nNew packages/cascade-engine/src/chain4-template.ts. handleTemplateChange(productCode, newTemplate). Reads Reference.Templates row, iterates prod_detail rows, sets manufacturing_operation_1..4 from template fields, then calls chain2 recompute for each row. Single tx. Emits fa.template_applied with affected count.\n\n## Files\n- packages/cascade-engine/src/chain4-template.ts [create]\n- packages/cascade-engine/__tests__/chain4.test.ts [create]\n\n## Acceptance criteria\n1. Given fa with 3 prod_detail rows and Template 'BakeryStandard' (Mix/Knead/Proof/Bake), when handleTemplateChange runs, then all 3 rows have manufacturing_operation_1='Mix' through 4='Bake'\n2. Given chain2 recompute is required after template apply, when handler returns, then intermediate_code_p1..4 and intermediate_code_final are recomputed for each row\n3. Given non-existent template, when handler runs, then it throws TemplateNotFoundError without mutating any prod_detail row\n\n## Test strategy\n- RED: 3 tests for happy path, downstream chain2 recompute, error path\n- Run 'pnpm --filter cascade-engine test chain4'\n\n## Risk red lines\n- Do not partially apply (atomic on tx)\n- Do not skip chain2 recompute invocation\n- Do not break existing prod_detail rows for unrelated FAs",
+  "labels": ["prd", "api", "cascade", "T2-api"],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-013",
+    "source_prd": "01-NPD-PRD.md",
+    "prd_refs": ["§6.1 Chain 4"],
+    "category": "api",
+    "subcategory": "cascade-chain4",
+    "task_type": "T2-api",
+    "parent_feature": "01-NPD-a cascade engine",
+    "context_budget": "30k",
+    "estimated_effort": "1-2h",
+    "description": "Template cascade copies operation names into prod_detail rows and triggers chain2 recompute.",
+    "details": "Single-tx handler. Reads Reference.Templates, applies operations to all prod_detail rows for FA, invokes chain2 recompute for each.",
+    "scope_files": [
+      "packages/cascade-engine/src/chain4-template.ts [create]",
+      "packages/cascade-engine/__tests__/chain4.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not seed Reference.Templates here",
+      "Do not implement chain2 here (T-011)"
+    ],
+    "dependencies": ["T-001", "T-002", "T-005", "T-011"],
+    "parallel_safe_with": ["T-010", "T-012"],
+    "acceptance_criteria": [
+      "Given fa with 3 prod_detail rows and Template 'BakeryStandard' (Mix/Knead/Proof/Bake), when handleTemplateChange runs, then all 3 rows have manufacturing_operation_1='Mix' through 4='Bake'",
+      "Given chain2 recompute required after template apply, when handler returns, then intermediate_code_p1..4 and intermediate_code_final recomputed for each row",
+      "Given non-existent template, when handler runs, then TemplateNotFoundError thrown without mutating any prod_detail row"
+    ],
+    "test_strategy": [
+      "RED: 3 tests for happy path, downstream chain2 recompute, error path before handler exists",
+      "Run 'pnpm --filter cascade-engine test chain4'"
+    ],
+    "risk_red_lines": [
+      "Do not partially apply (single tx)",
+      "Do not skip chain2 recompute",
+      "Do not affect prod_detail rows for unrelated FAs"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

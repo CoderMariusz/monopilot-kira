@@ -1,0 +1,87 @@
+{
+  "title": "T-014 — Audit trigger framework (write-on-change) + pg_cron retention",
+  "prompt": "# T-014 — Audit trigger framework + pg_cron retention\n\n## Goal\nWire generic audit trigger that writes to `audit_log` on INSERT/UPDATE/DELETE for settings tables. Compute changed_fields. Schedule pg_cron job for partition creation + detach.\n\n## Files in scope\n- apps/web/db/migrations/ [create]\n- apps/web/db/migrations/__tests__/audit-trigger.test.ts [create]\n\n## Acceptance criteria (all must hold)\n- Given a row in users is updated, when the trigger fires, then audit_log gets (action='update', table_name='users', changed_fields[] populated, old_data + new_data JSONB).\n- Given an UPDATE that does not change any column, when the trigger evaluates, then no audit_log row is written (skip-noop).\n- Given pg_cron is enabled, when the daily job runs, then `audit_log_create_partitions(3)` and `audit_log_detach_old(84)` are invoked successfully.\n\n## Test strategy (RED first)\n1. Add a failing test that exercises the acceptance criteria above. The RED command is:\n   `pnpm --filter @monopilot/web vitest run apps/web/db/migrations/__tests__/audit-trigger.test.ts`\n2. Run RED — it must fail before any production code is written.\n3. Implement the smallest change needed for GREEN.\n4. Re-run RED command — must pass.\n5. Run `pnpm typecheck` and `pnpm lint` in the changed package; both must pass.\n\n## Risk red lines\n- Do not edit files outside the listed scope without documenting why in CLOSEOUT.\n- Do not weaken existing acceptance criteria from prior tasks.\n- Do not introduce REST endpoints; use Server Actions per stack contract.\n- Do not commit secrets or vault keys.\n\n## Closeout evidence required\n- changed_files (with line counts)\n- exact test commands and outputs (RED→GREEN, typecheck, lint)\n- acceptance_criteria_status (one row per AC: pass/fail)\n- deviations_from_prd (or \"none\")\n- git_status\n\nStack: TS + Next.js App Router + Drizzle + pnpm + vitest + Playwright + Server Actions. Primitives in `packages/ui`. PRD: `02-SETTINGS-PRD.md` v3.5.\n",
+  "labels": [
+    "prd",
+    "data",
+    "audit-trigger",
+    "T1-schema"
+  ],
+  "priority": 80,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-014",
+    "source_prd": "02-SETTINGS-PRD.md",
+    "prd_refs": [
+      "§5.6",
+      "ADR-008"
+    ],
+    "category": "data",
+    "subcategory": "audit-trigger",
+    "task_type": "T1-schema",
+    "parent_feature": "02-settings-a",
+    "context_budget": "40k",
+    "estimated_effort": "1-3h",
+    "description": "Generic audit trigger writing to partitioned audit_log.",
+    "details": "plpgsql FUNCTION audit_trigger() — read TG_TABLE_NAME, TG_OP, NEW/OLD, compute diff, write audit_log row with org_id from NEW.org_id (or OLD.org_id on DELETE). Attach trigger to users, roles, organization_modules, reference_tables, schema_migrations, rule_definitions.",
+    "scope_files": [
+      "apps/web/db/migrations/",
+      "apps/web/db/migrations/__tests__/audit-trigger.test.ts"
+    ],
+    "out_of_scope": [
+      "broaden scope beyond listed files",
+      "implement future-phase features"
+    ],
+    "dependencies": [
+      "T-004",
+      "T-005",
+      "T-006",
+      "T-008",
+      "T-009",
+      "T-010",
+      "T-011",
+      "T-012"
+    ],
+    "parallel_safe_with": [],
+    "acceptance_criteria": [
+      "Audit trigger created and attached to settings tables.",
+      "changed_fields computation correct.",
+      "Skip-noop guard works.",
+      "pg_cron jobs scheduled."
+    ],
+    "test_strategy": [
+      "RED: insert/update/delete and assert audit_log rows.",
+      "GREEN: implement trigger."
+    ],
+    "risk_red_lines": [
+      "Do not log sensitive secret columns (oidc_client_secret_vault_key etc.) verbatim."
+    ],
+    "skills": [
+      "test-driven-development"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": false
+  }
+}

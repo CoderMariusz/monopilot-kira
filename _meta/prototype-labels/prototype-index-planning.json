@@ -1,789 +1,1174 @@
-[
-  {
-    "label": "po_fast_flow_wizard",
-    "file": "design/Monopilot Design System/planning/modals.jsx",
-    "lines": "21-179",
-    "component_type": "wizard",
-    "ui_pattern": "multi-step-wizard",
-    "data_domain": "PO",
-    "interaction": "create",
-    "complexity": "composite",
-    "depends_on_prototypes": ["_shared/modals.jsx (Modal, Stepper, Field, Summary)"],
-    "translation_notes": [
-      "window.Modal → @radix-ui/react-dialog Dialog with size variants (default/wide/fullpage)",
-      "Local React.useState step machine → useReducer or @tanstack/react-form multi-step pattern",
-      "Mock supplier/warehouse options → Drizzle query via Server Action (cached supplier list)",
-      "Hardcoded 20% tax and £15 000 approval threshold → server-side config rows from plan_settings table",
-      "addLine/subtotal computation → moved to form lib; totals derived on every render without setState",
-      "Submit mock setTimeout → Server Action with optimistic UI and outbox event (po.created)",
-      "Hardcoded labels (e.g., 'Supplier', 'GBP') → next-intl t() keys under planning.po namespace",
-      "Approval banner conditional on total > 15 000 → guard in Server Action, surface via returned error shape"
-    ],
-    "shadcn_equivalent": ["Dialog", "Stepper (custom)", "Form", "Select", "Input", "Textarea", "Button", "Alert"],
-    "known_bugs": [],
-    "estimated_translation_time_min": 120
-  },
-  {
-    "label": "add_po_line_modal",
-    "file": "design/Monopilot Design System/planning/modals.jsx",
-    "lines": "182-225",
-    "component_type": "modal",
-    "ui_pattern": "crud-form-with-validation",
-    "data_domain": "PO",
-    "interaction": "create",
-    "complexity": "composite",
-    "depends_on_prototypes": ["_shared/modals.jsx (Modal, Field)"],
-    "translation_notes": [
-      "window.Modal → @radix-ui/react-dialog Dialog (size default)",
-      "Local useState form → useForm with zodResolver; zod schema enforces qty > 0 (V-PLAN-PO-004)",
-      "UoM read-only input auto-filled from product selection → lookup join in Server Action or client-side derived state",
-      "Unit price 'auto-filled from supplier_products' label → real fill from supplier_products table Drizzle query on product select",
-      "Line total display → computed derived value, no separate state",
-      "Hardcoded product options → combobox with server search (Supplier + Product autocomplete)",
-      "Hardcoded labels → next-intl keys under planning.po.line namespace"
-    ],
-    "shadcn_equivalent": ["Dialog", "Form", "Select", "Input", "Button"],
-    "known_bugs": [],
-    "estimated_translation_time_min": 45
-  },
-  {
-    "label": "po_approval_modal",
-    "file": "design/Monopilot Design System/planning/modals.jsx",
-    "lines": "228-264",
-    "component_type": "modal",
-    "ui_pattern": "bulk-action",
-    "data_domain": "PO",
-    "interaction": "approve",
-    "complexity": "composite",
-    "depends_on_prototypes": ["_shared/modals.jsx (Modal, Field, ReasonInput, Summary)"],
-    "translation_notes": [
-      "window.Modal → @radix-ui/react-dialog Dialog (size sm)",
-      "Local mode toggle (approve/reject pills) → ToggleGroup from Radix UI or simple useState with two radio-style buttons",
-      "ReasonInput with minLength=10 → react-hook-form field with zod .min(10) validator",
-      "onConfirm callback → Server Action with RBAC guard (only Production Manager role may approve)",
-      "PO summary rows → passed as prop; populated from Drizzle PO detail query in parent Server Component",
-      "Dual-path footer (Approve vs Reject button) → conditional render inside Dialog.Footer based on mode state",
-      "Emit outbox event (po.approved / po.rejected) on confirmed action",
-      "Hardcoded labels → next-intl keys under planning.po.approval namespace"
-    ],
-    "shadcn_equivalent": ["Dialog", "Form", "Textarea", "Button", "ToggleGroup"],
-    "known_bugs": [],
-    "estimated_translation_time_min": 60
-  },
-  {
-    "label": "lp_picker_modal",
-    "file": "design/Monopilot Design System/planning/modals.jsx",
-    "lines": "269-341",
-    "component_type": "modal",
-    "ui_pattern": "search-filter-list",
-    "data_domain": "LP",
-    "interaction": "create",
-    "complexity": "composite",
-    "depends_on_prototypes": ["_shared/modals.jsx (Modal)"],
-    "translation_notes": [
-      "window.Modal → @radix-ui/react-dialog Dialog (size wide)",
-      "Local LP mock array → Drizzle query filtered by product, status=available, FEFO-sorted by expiry_date",
-      "Checkbox multi-select with Set state → useReducer or react-hook-form Controller with array field",
-      "Text search and FEFO/FIFO sort pills → URL search params or local derived filter (no server round-trip needed for small LP sets)",
-      "Status badges (available/reserved/hard_lock/quarantine) → map from DB lp.status enum to Badge variant",
-      "totalSelected >= requiredQty gate on Confirm button → derived boolean, no extra state",
-      "Scan button placeholder → future camera/barcode integration (zxing or native BarcodeDetector API)",
-      "Hardcoded requiredQty/product props → sourced from WO/TO parent entity in production"
-    ],
-    "shadcn_equivalent": ["Dialog", "Input", "Table", "Checkbox", "Badge", "Button", "ToggleGroup"],
-    "known_bugs": [],
-    "estimated_translation_time_min": 90
-  },
-  {
-    "label": "cascade_preview_modal",
-    "file": "design/Monopilot Design System/planning/modals.jsx",
-    "lines": "346-396",
-    "component_type": "modal",
-    "ui_pattern": "detail-view",
-    "data_domain": "WO",
-    "interaction": "read-only",
-    "complexity": "composite",
-    "depends_on_prototypes": ["_shared/modals.jsx (Modal)", "planning/modals.jsx (WOPlanStatus, Priority)"],
-    "translation_notes": [
-      "window.Modal with size=fullpage → @radix-ui/react-dialog Dialog with max-w-none or sheet variant",
-      "Hard-coded cascade node tree → computed from cascade_generation_v1 rule output; fetched via Server Action before modal opens",
-      "cascade-canvas CSS layout (layers + arrows) → BACKLOG Q2: replace with react-flow DAG in production (SVG edges with edge labels per spec)",
-      "WOPlanStatus / Priority badge components → shared Badge + variant map from design tokens",
-      "Totals footer (2 new WOs, timeline, aggregated RM) → derived from cascade preview response payload",
-      "Cycle-check banner → returned from cascade-generation preview endpoint; never computed client-side",
-      "Hardcoded labels → next-intl keys under planning.cascade namespace",
-      "onConfirm creates all WOs atomically → Server Action with DB transaction + outbox event (wo.cascade_created)"
-    ],
-    "shadcn_equivalent": ["Dialog", "Alert", "Badge", "Button"],
-    "known_bugs": ["Q2 in BACKLOG.md: cascade canvas is layered list, not true DAG with SVG edges; missing edge labels and cycle-highlight arrows"],
-    "estimated_translation_time_min": 90
-  },
-  {
-    "label": "wo_create_wizard",
-    "file": "design/Monopilot Design System/planning/modals.jsx",
-    "lines": "399-500",
-    "component_type": "wizard",
-    "ui_pattern": "multi-step-wizard",
-    "data_domain": "WO",
-    "interaction": "create",
-    "complexity": "composite",
-    "depends_on_prototypes": ["_shared/modals.jsx (Modal, Stepper, Field, Summary)", "planning/modals.jsx (CascadePreviewModal)"],
-    "translation_notes": [
-      "window.Modal → @radix-ui/react-dialog Dialog (size wide); cascade preview opens as a second Dialog on top",
-      "Local useState step machine → useReducer with step enum (basic | confirm)",
-      "Product select with hasIntermediate detection → server-side: product.has_intermediate flag from BOM table; triggers cascade preview on client",
-      "BOM auto-select note (FR-PLAN-018) → Server Action fetches latest active BOM version on product select; pre-fills form field",
-      "Rework checkbox → separate validation path; rework WOs route to approval workflow (require_rework_approval setting)",
-      "CascadePreviewModal sub-modal → fetch cascade preview from cascade_generation_v1 rule before confirming",
-      "Create WO + cascade button → single Server Action with atomic DB transaction; emit wo.created + wo.cascade_created outbox events",
-      "Hardcoded labels + priority/line options → next-intl keys; lines fetched from production_lines table"
-    ],
-    "shadcn_equivalent": ["Dialog", "Stepper (custom)", "Form", "Select", "Input", "Checkbox", "Button", "Alert"],
-    "known_bugs": [],
-    "estimated_translation_time_min": 120
-  },
-  {
-    "label": "reservation_override_modal",
-    "file": "design/Monopilot Design System/planning/modals.jsx",
-    "lines": "505-549",
-    "component_type": "modal",
-    "ui_pattern": "crud-form-with-validation",
-    "data_domain": "LP",
-    "interaction": "delete",
-    "complexity": "composite",
-    "depends_on_prototypes": ["_shared/modals.jsx (Modal, Field, ReasonInput, Summary)"],
-    "translation_notes": [
-      "window.Modal (size sm) → @radix-ui/react-dialog Dialog with destructive styling (red border/header accent)",
-      "reason + category + confirmation checkbox → useForm with zodResolver; zod requires category !== '' and reason.length >= 10 and confirmed === true (V-PLAN-RES-003/004)",
-      "Audit-log confirmation checkbox text → surface actual username from auth session in label",
-      "onConfirm → Server Action with admin RBAC guard; writes to lp_reservation_history with reason + category; emits reservation.released outbox event",
-      "ReasonInput → Textarea with character counter and zod min(10) error",
-      "Category select options (consumed_manually / wo_cancelled / admin_correction / emergency_realloc / other) → enum type in DB; fetch valid options from server or hardcode as const",
-      "LP/material/qty summary → passed as prop from parent reservation query",
-      "Hardcoded labels → next-intl keys under planning.reservation namespace"
-    ],
-    "shadcn_equivalent": ["Dialog", "Form", "Select", "Textarea", "Checkbox", "Button", "Alert"],
-    "known_bugs": [],
-    "estimated_translation_time_min": 60
-  },
-  {
-    "label": "cycle_check_warning_modal",
-    "file": "design/Monopilot Design System/planning/modals.jsx",
-    "lines": "552-583",
-    "component_type": "modal",
-    "ui_pattern": "detail-view",
-    "data_domain": "WO",
-    "interaction": "read-only",
-    "complexity": "primitive",
-    "depends_on_prototypes": ["_shared/modals.jsx (Modal)"],
-    "translation_notes": [
-      "window.Modal (size default) → @radix-ui/react-dialog Dialog; single OK footer button",
-      "cycle array prop → returned from cascade_generation_v1 rule as error payload; passed through Server Action error boundary",
-      "BOM link and Rule Registry link → next/link or router.push to /technical/bom/:id and /settings/rules/:id",
-      "Cycle path ordered list → render from API error shape, not client-computed",
-      "Red alert box → Alert component with destructive variant",
-      "Hardcoded labels → next-intl keys under planning.cascade.cycleError namespace"
-    ],
-    "shadcn_equivalent": ["Dialog", "Alert", "Button"],
-    "known_bugs": [],
-    "estimated_translation_time_min": 30
-  },
-  {
-    "label": "d365_trigger_confirm_modal",
-    "file": "design/Monopilot Design System/planning/modals.jsx",
-    "lines": "586-606",
-    "component_type": "modal",
-    "ui_pattern": "bulk-action",
-    "data_domain": "WO",
-    "interaction": "create",
-    "complexity": "primitive",
-    "depends_on_prototypes": ["_shared/modals.jsx (Modal, Summary)"],
-    "translation_notes": [
-      "window.Modal (size sm) → @radix-ui/react-dialog Dialog; non-destructive confirm pattern",
-      "Summary rows (Last pull, SOs pulled, Draft WOs, Errors) → fetched from d365_pull_history table via Server Component before modal opens",
-      "onConfirm → Server Action that enqueues d365.so_pull job to BullMQ/pg-boss; returns job ID for optimistic feedback",
-      "Filter description (Open, Confirmed, 14 days) → sourced from plan_settings.d365 config row, not hardcoded",
-      "Info alert about planner notifications → informational only; real notification via outbox + email template (SET-090 scope)",
-      "Hardcoded labels → next-intl keys under planning.d365 namespace"
-    ],
-    "shadcn_equivalent": ["Dialog", "Button", "Alert"],
-    "known_bugs": [],
-    "estimated_translation_time_min": 30
-  },
-  {
-    "label": "to_create_edit_modal",
-    "file": "design/Monopilot Design System/planning/modals.jsx",
-    "lines": "697-845",
-    "component_type": "modal",
-    "ui_pattern": "crud-form-with-validation",
-    "data_domain": "TO",
-    "interaction": "create",
-    "complexity": "composite",
-    "depends_on_prototypes": ["_shared/modals.jsx (Modal, Field)"],
-    "translation_notes": [
-      "window.Modal (size wide) → @radix-ui/react-dialog Dialog; supports create and edit mode via editing prop",
-      "Full inline validation (validate() fn) runs on trySave; errors surfaced per field → useForm with zodResolver; zod schema encodes V-PLAN-TO-001 (from !== to) and V-PLAN-TO-003 (lines.length > 0)",
-      "V-PLAN-TO-002 site check currently advisory-only → BACKLOG: add sites lookup table in data.jsx and block at save when from.site !== to.site",
-      "addLine/updLine/delLine array mutations → useFieldArray from react-hook-form; UoM auto-fill on product select via getValues/setValue",
-      "Save Draft vs Save & Plan dual-CTA → two Server Actions sharing form validation; status field determines WO state transition",
-      "requireLpSelection prop showing LP picker CTA → integrates with LPPickerModal; selection stored in form state as lines[].lp_ids",
-      "TO_WAREHOUSES and TO_PRODUCTS arrays → fetched from DB (warehouses and products tables); passed as props or via context",
-      "Hardcoded labels → next-intl keys under planning.to namespace"
-    ],
-    "shadcn_equivalent": ["Dialog", "Form", "Select", "Input", "Textarea", "Table", "Button", "Alert"],
-    "known_bugs": ["BACKLOG: Planning — warehouse → site taxonomy needed to enforce V-PLAN-TO-002 at save"],
-    "estimated_translation_time_min": 90
-  },
-  {
-    "label": "ship_to_modal",
-    "file": "design/Monopilot Design System/planning/modals.jsx",
-    "lines": "852-931",
-    "component_type": "modal",
-    "ui_pattern": "crud-form-with-validation",
-    "data_domain": "TO",
-    "interaction": "edit",
-    "complexity": "composite",
-    "depends_on_prototypes": ["_shared/modals.jsx (Modal, Summary)", "planning/modals.jsx (TOStatus)"],
-    "translation_notes": [
-      "window.Modal (size default) → @radix-ui/react-dialog Dialog",
-      "Per-line qty inputs seeded from remaining unshipped qty → useEffect on open seeds useForm defaultValues from TO data",
-      "lineErrors per line (V-PLAN-TO-004: shipped_qty <= remaining) → zod refine at array item level; error rendered below each input",
-      "Status transition preview (TOStatus badges) → purely derived from totalBatch / totalRemaining comparison; no extra state",
-      "nextStatus computation (shipped / partially_shipped / no change) → replicated in Server Action; client display is optimistic preview only",
-      "onConfirm → Server Action updates to_lines.shipped_qty, updates TO status, emits to.shipped outbox event",
-      "willBeFull floating-point comparison (< 0.0001) → keep same guard in Server Action to avoid rounding issues",
-      "Hardcoded labels → next-intl keys under planning.to.ship namespace"
-    ],
-    "shadcn_equivalent": ["Dialog", "Form", "Input", "Table", "Button", "Alert", "Badge"],
-    "known_bugs": [],
-    "estimated_translation_time_min": 60
-  },
-  {
-    "label": "draft_wo_review_modal",
-    "file": "design/Monopilot Design System/planning/modals.jsx",
-    "lines": "937-1046",
-    "component_type": "modal",
-    "ui_pattern": "multi-step-wizard",
-    "data_domain": "WO",
-    "interaction": "approve",
-    "complexity": "composite",
-    "depends_on_prototypes": ["_shared/modals.jsx (Modal, Field, ReasonInput, Summary)", "planning/modals.jsx (WOPlanStatus)"],
-    "translation_notes": [
-      "window.Modal (size wide) → @radix-ui/react-dialog Dialog",
-      "review.materials and review.cascadeChain → fetched via Server Action before modal opens; not computed client-side",
-      "availDot colour logic (green/yellow/red) → map from availability_status enum returned by material availability query",
-      "Three-way radio action (approve / keep draft / reject) → react-hook-form RadioGroup with zod discriminated union; reject path adds reason field",
-      "ReasonInput min 10 chars for reject → zod .min(10) with custom message referencing rule",
-      "Allergen hint (line + seqPosition) → fetched from sequencing queue for the WO's assigned line",
-      "onConfirm → Server Action: approve triggers WO release + reservation creation; reject deletes draft chain atomically",
-      "Hardcoded labels → next-intl keys under planning.d365.draftReview namespace"
-    ],
-    "shadcn_equivalent": ["Dialog", "Form", "RadioGroup", "Textarea", "Table", "Button", "Alert", "Badge"],
-    "known_bugs": [],
-    "estimated_translation_time_min": 90
-  },
-  {
-    "label": "delete_confirm_modal",
-    "file": "design/Monopilot Design System/planning/modals.jsx",
-    "lines": "609-629",
-    "component_type": "modal",
-    "ui_pattern": "crud-form-with-validation",
-    "data_domain": "WO",
-    "interaction": "delete",
-    "complexity": "primitive",
-    "depends_on_prototypes": ["_shared/modals.jsx (Modal, Field)"],
-    "translation_notes": [
-      "window.Modal (size sm) → @radix-ui/react-dialog Dialog with AlertDialog variant for destructive semantics",
-      "Type-to-confirm input pattern → useForm with zod .refine(v => v === entity.id, 'Must match') guard",
-      "entity.type/id/impact props → passed from parent with entity type, ID string, and human-readable impact description",
-      "Delete button → Server Action with RBAC guard; soft-delete via status=CANCELLED or hard delete depending on entity.type",
-      "entity.impact message should be computed server-side (check dependencies, reservations) before modal opens",
-      "autoFocus on text input → use Dialog onOpenAutoFocus to focus the confirm input field",
-      "Hardcoded labels ('This action is permanent') → next-intl keys under shared.deleteConfirm namespace",
-      "Emit entity.deleted outbox event on success"
-    ],
-    "shadcn_equivalent": ["AlertDialog", "Form", "Input", "Button"],
-    "known_bugs": [],
-    "estimated_translation_time_min": 30
-  },
-  {
-    "label": "hard_lock_release_confirm_modal",
-    "file": "design/Monopilot Design System/planning/modals.jsx",
-    "lines": "632-671",
-    "component_type": "modal",
-    "ui_pattern": "list-with-actions",
-    "data_domain": "LP",
-    "interaction": "delete",
-    "complexity": "composite",
-    "depends_on_prototypes": ["_shared/modals.jsx (Modal)"],
-    "translation_notes": [
-      "window.Modal (size default) → @radix-ui/react-dialog Dialog with destructive header styling",
-      "wo.locks LP list → fetched from lp_reservations table filtered by WO id; passed as prop from parent detail query",
-      "Confirmation checkbox → useForm boolean field with zod .literal(true) refinement",
-      "Cancel WO & release locks → single Server Action with DB transaction: WO status → CANCELLED, lp_reservations released, outbox events (wo.cancelled, reservation.released_bulk)",
-      "LP table (LP, Material, Qty) → shadcn Table with sticky header if many rows",
-      "Count of locks in warning text ({wo.locks.length}) → derived from passed prop; no additional state",
-      "Hardcoded labels → next-intl keys under planning.wo.hardLockRelease namespace",
-      "Audit log: Server Action must record user, timestamp, and all released LP IDs in lp_reservation_history"
-    ],
-    "shadcn_equivalent": ["Dialog", "Table", "Checkbox", "Button", "Alert"],
-    "known_bugs": [],
-    "estimated_translation_time_min": 60
-  },
-  {
-    "label": "sequencing_apply_confirm_modal",
-    "file": "design/Monopilot Design System/planning/modals.jsx",
-    "lines": "1053-1100",
-    "component_type": "modal",
-    "ui_pattern": "bulk-action",
-    "data_domain": "WO",
-    "interaction": "edit",
-    "complexity": "composite",
-    "depends_on_prototypes": ["_shared/modals.jsx (Modal, Summary)"],
-    "translation_notes": [
-      "window.Modal (size default) → @radix-ui/react-dialog Dialog; Q1 audit decision: preview stays inline in SCREEN-11, this modal is the apply-confirm only",
-      "SEQ_QUEUE and SEQ_KPIS globals → fetched as Server Component props from sequencing queue query; passed as serialized prop to modal",
-      "criticalExempt filter (queue.filter(q => q.exempt)) → server-side: WOs with priority=critical are exempt; flag returned in queue payload",
-      "Acknowledgement checkbox → useForm boolean with zod .literal(true) guard",
-      "onConfirm → Server Action: applies allergen_sequencing_heuristic_v1 rule, bulk-updates wo.sequence_position, emits sequencing.applied event",
-      "Blast radius count (nWOs on LINE-04) → must be scoped to the selected line (not all lines); line passed as prop",
-      "Before/after changeover delta (−N / −N%) → derived from server-side rule output; client displays only",
-      "Hardcoded labels → next-intl keys under planning.sequencing.applyConfirm namespace"
-    ],
-    "shadcn_equivalent": ["Dialog", "Checkbox", "Button", "Alert"],
-    "known_bugs": [],
-    "estimated_translation_time_min": 45
-  },
-  {
-    "label": "plan_dashboard",
-    "file": "design/Monopilot Design System/planning/dashboard.jsx",
-    "lines": "3-261",
-    "component_type": "page-layout",
-    "ui_pattern": "dashboard-tile",
-    "data_domain": "WO",
-    "interaction": "read-only",
-    "complexity": "page-level",
-    "depends_on_prototypes": ["planning/po-screens.jsx (POStatus)", "planning/wo-list.jsx (WOPlanStatus, SourceBadge, Avail)", "planning/to-screens.jsx (TOStatus)", "_shared/"],
-    "translation_notes": [
-      "PO_ALERTS/WO_ALERTS/TO_ALERTS globals + dismissed Set state → Server Component fetches alerts from DB; dismiss is a Server Action that writes to user_dismissed_alerts; re-fetches on mutation",
-      "PLAN_KPIS array → each KPI tile is a separate async RSC query; aggregate counts from wo, po, to tables via COUNT queries",
-      "Upcoming tabs (PO calendar / WO schedule / TO timeline / Cascade chains) → tabbed Server Component with per-tab Drizzle queries; tab selection via URL search params for deep-linkability",
-      "ACTIVITY_FEED → sourced from audit_log table filtered by module=planning, ordered by created_at desc, limit 10; cached with next: { revalidate: 60 }",
-      "D365 drift alert → derived from po table where d365_drift=true; dismissible via Server Action",
-      "Quick strip buttons (Create PO/TO/WO, Bulk import, Run sequencing, Trigger D365) → link to modal openers or route navigations",
-      "Three-column alert layout (PO/WO/TO) → CSS grid 3-col with color-coded column headers; each column is its own async RSC",
-      "Hardcoded 'Factory-A', data refresh cadence labels → sourced from user session context (active_site) and next.js revalidation config"
-    ],
-    "shadcn_equivalent": ["Card", "Tabs", "TabsList", "TabsContent", "Table", "Badge", "Button", "Alert"],
-    "known_bugs": [],
-    "estimated_translation_time_min": 180
-  },
-  {
-    "label": "plan_wo_list",
-    "file": "design/Monopilot Design System/planning/wo-list.jsx",
-    "lines": "3-177",
-    "component_type": "table",
-    "ui_pattern": "search-filter-list",
-    "data_domain": "WO",
-    "interaction": "read-only",
-    "complexity": "page-level",
-    "depends_on_prototypes": ["_shared/", "planning/modals.jsx (WOCreateModal, DeleteConfirmModal)"],
-    "translation_notes": [
-      "Tab counts (PLAN_WOS.filter) → DB-side COUNT per status via Drizzle groupBy; avoid client-side filtering of full dataset",
-      "Multi-filter bar (line, priority, allergen, source, date range) → URL search params driving Server Component re-fetch with Drizzle .where() composition",
-      "Bulk actions bar (Release selected / Export / Cancel) → useSelectedItems hook; Server Action for bulk-release with transaction; export via route handler streaming CSV",
-      "Status-conditional row action buttons (Plan/Release/Start/Pause/Resume/Close) → map from WO status to allowed actions via state machine; RBAC guard in Server Action",
-      "KPI mini-cards (Scheduled today, In progress, On hold >24h, This week) → async RSC tiles with individual DB queries; 'On hold >24h' uses timestampdiff in Drizzle raw query",
-      "Row click → navigation to /planning/work-orders/[id]; no client-side state needed",
-      "AllergenCluster, Avail, WOPlanStatus, Priority, SourceBadge → extract to shared design-system components with shadcn Badge base",
-      "Pagination (← Prev / Next →) → cursor-based pagination via URL params; Drizzle .limit().offset() or keyset pagination"
-    ],
-    "shadcn_equivalent": ["Table", "TableHeader", "TableBody", "TableRow", "TableCell", "Tabs", "Input", "Select", "Checkbox", "Badge", "Button"],
-    "known_bugs": [],
-    "estimated_translation_time_min": 180
-  },
-  {
-    "label": "plan_wo_detail",
-    "file": "design/Monopilot Design System/planning/wo-detail.jsx",
-    "lines": "3-99",
-    "component_type": "tabs",
-    "ui_pattern": "detail-view",
-    "data_domain": "WO",
-    "interaction": "read-only",
-    "complexity": "page-level",
-    "depends_on_prototypes": ["planning/wo-detail.jsx (OverviewTab, OutputsTab, DependenciesTab, ReservationsTab, SequencingTab, HistoryTab, D365Tab)"],
-    "translation_notes": [
-      "PlanWODetail shell (header + summary bar + tabs) → Server Component fetching PLAN_WO_DETAIL from wo table with all relations in one query",
-      "Status-conditional actions map (actions obj) → computed server-side from WO status; state machine rule determines allowed transitions per role",
-      "Cascade dependency banner (alert-blue) → conditional on w.cascadeLayer; links to /planning/cascade?highlight=<wo.id>",
-      "Tab navigation → shadcn Tabs component; each tab content is an async RSC loaded lazily or via tab URL param",
-      "Summary bar (7 key fields) → horizontal scroll on mobile; each cell is a definition-list item",
-      "BOM snapshot link → next/link to /technical/bom/:bomVersion",
-      "WO head action buttons → Server Actions wrapped in useTransition for optimistic state; each action is guarded by RBAC",
-      "Hardcoded labels → next-intl keys under planning.wo.detail namespace"
-    ],
-    "shadcn_equivalent": ["Tabs", "TabsList", "TabsTrigger", "TabsContent", "Badge", "Button", "Alert", "Breadcrumb"],
-    "known_bugs": [],
-    "estimated_translation_time_min": 90
-  },
-  {
-    "label": "wo_overview_tab",
-    "file": "design/Monopilot Design System/planning/wo-detail.jsx",
-    "lines": "102-239",
-    "component_type": "tabs",
-    "ui_pattern": "detail-view",
-    "data_domain": "WO",
-    "interaction": "read-only",
-    "complexity": "composite",
-    "depends_on_prototypes": ["_shared/ (Avail, AllergenCluster)", "planning/wo-detail.jsx (WOPlanStatus, Priority)"],
-    "translation_notes": [
-      "Materials table (BOM snapshot) → Drizzle join: wo_materials + lp_reservations + upstream WO projections in single query; source enum (stock/upstream_wo_output/manual) maps to Badge variant",
-      "Meat-pct aggregation row → computed via BOM expand query (FR-PLAN-026); displayed as read-only definition list",
-      "Operations table (routing snapshot) → wo_operations table joined with machines; actual_duration populated by Scanner events",
-      "Right column sidecars (WO info / Capacity / BOM) → three Card components in a sticky right column (CSS grid 1fr 320px)",
-      "Capacity conflict badge → from a capacity slot query; greedy allocation stub in P1, finite-capacity engine in P2",
-      "reservedLP hard lock display (per material row) → from lp_reservations table filtered by wo_id + material_code",
-      "upstream WO projected qty → from wo_outputs table for the upstream WO; projectedDate from wo.planned_end",
-      "Hardcoded labels → next-intl keys under planning.wo.overview namespace"
-    ],
-    "shadcn_equivalent": ["Table", "Card", "Badge", "Alert"],
-    "known_bugs": [],
-    "estimated_translation_time_min": 120
-  },
-  {
-    "label": "wo_dependencies_tab",
-    "file": "design/Monopilot Design System/planning/wo-detail.jsx",
-    "lines": "292-372",
-    "component_type": "tabs",
-    "ui_pattern": "detail-view",
-    "data_domain": "WO",
-    "interaction": "read-only",
-    "complexity": "composite",
-    "depends_on_prototypes": ["_shared/ (WOPlanStatus, Avail)"],
-    "translation_notes": [
-      "Graph/List toggle (pills) → shadcn ToggleGroup; each view is a distinct component rendered conditionally",
-      "DAG canvas (layered nodes) → BACKLOG Q2: replace with react-flow in production; for P1 prototype, CSS flexbox layering is acceptable",
-      "byLayer grouping (dagNodes forEach) → server-side: wo_dag_view or cascade_edges table; layer number computed from BFS/topo sort in backend",
-      "DAG legend → simple inline flex legend; use design token colors for status mapping",
-      "List view table (direction, WO, product, reqQty, parentStatus, materialLink) → from wo_dependencies table join",
-      "Cycle-check passed badge → from cascade_generation_v1 rule result stored on the WO or chain record",
-      "Open full cascade → next/link to /planning/cascade?chain=<chainId>",
-      "Hardcoded labels → next-intl keys under planning.wo.dependencies namespace"
-    ],
-    "shadcn_equivalent": ["ToggleGroup", "Table", "Badge", "Card", "Button"],
-    "known_bugs": ["Q2 in BACKLOG.md: DAG canvas is layered list, not true directed graph with SVG edges"],
-    "estimated_translation_time_min": 90
-  },
-  {
-    "label": "wo_reservations_tab",
-    "file": "design/Monopilot Design System/planning/wo-detail.jsx",
-    "lines": "375-417",
-    "component_type": "tabs",
-    "ui_pattern": "list-with-actions",
-    "data_domain": "LP",
-    "interaction": "read-only",
-    "complexity": "composite",
-    "depends_on_prototypes": ["_shared/modals.jsx (ReservationOverrideModal)"],
-    "translation_notes": [
-      "Reservations table → Drizzle query on lp_reservations filtered by wo_id; columns: material, lp, reserved_qty, type, reserved_at, reserved_by, released_at, release_reason",
-      "Status column (Pending on RELEASE / Active / released date) → derived from reservation.status enum + pending_release boolean flag",
-      "Release button (admin only, disabled for non-admin) → RBAC check server-side; triggers ReservationOverrideModal",
-      "Reservation banner → informational card explaining P1 semantics (reserved on RELEASED transition, RM stock only)",
-      "pending/active/released badge variants → map reservation.status to shadcn Badge variant",
-      "Count summary in tab label (w.reservations.length) → from aggregated count in WO detail query",
-      "Hardcoded 'Pending on RELEASE' badge text → next-intl keys under planning.wo.reservations namespace",
-      "Admin Release button → opens ReservationOverrideModal with LP data as prop"
-    ],
-    "shadcn_equivalent": ["Table", "Badge", "Button", "Alert", "Card"],
-    "known_bugs": [],
-    "estimated_translation_time_min": 60
-  },
-  {
-    "label": "wo_sequencing_tab",
-    "file": "design/Monopilot Design System/planning/wo-detail.jsx",
-    "lines": "420-494",
-    "component_type": "tabs",
-    "ui_pattern": "detail-view",
-    "data_domain": "WO",
-    "interaction": "read-only",
-    "complexity": "composite",
-    "depends_on_prototypes": ["_shared/ (AllergenCluster, Priority)"],
-    "translation_notes": [
-      "Sequencing card with allergen profile + changeover cost → fetched from sequencing_queue table for this WO's assigned line",
-      "Position in queue (s.position / s.totalOnLine) → from sequencing_queue.position and COUNT on line",
-      "Before/After WO neighbors → from sequencing_queue ordered by position, take adjacent rows",
-      "Changeover cost badge (low/medium/high) → computed by allergen_sequencing_heuristic_v1 rule; stored in sequencing_queue.changeover_cost",
-      "Queue preview table (next 5) → Drizzle query on sequencing_queue ordered by position, limit 5 starting from current WO position - 1",
-      "Override active alert → from sequencing_queue.override_active + override_reason; Clear override → Server Action",
-      "Changeover cost → badge colors: low=green, medium=amber, high=red; map from enum",
-      "Hardcoded labels → next-intl keys under planning.wo.sequencing namespace"
-    ],
-    "shadcn_equivalent": ["Card", "Table", "Badge", "Alert", "Button"],
-    "known_bugs": [],
-    "estimated_translation_time_min": 60
-  },
-  {
-    "label": "wo_history_tab",
-    "file": "design/Monopilot Design System/planning/wo-detail.jsx",
-    "lines": "497-526",
-    "component_type": "tabs",
-    "ui_pattern": "list-with-actions",
-    "data_domain": "WO",
-    "interaction": "read-only",
-    "complexity": "primitive",
-    "depends_on_prototypes": ["_shared/ (WOPlanStatus)"],
-    "translation_notes": [
-      "Status history table → from wo_status_history table ordered by timestamp asc; columns: from, to, timestamp, user, action, override_reason, context",
-      "context column rendered as JSON.stringify → use a Collapsible or Tooltip to show JSON without column overflow; consider JSONTree in production",
-      "WOPlanStatus badge for from/to columns → shared Badge component with status → variant map",
-      "Workflow rule link ('02-SETTINGS §7') → next/link to /settings/rules/wo_state_machine_v1",
-      "transition count badge → from .length of fetched history; displayed in tab label",
-      "Override reason column → amber color on non-null values; tooltip on truncated text",
-      "Hardcoded labels → next-intl keys under planning.wo.history namespace",
-      "No write operations here; this is a pure audit log view"
-    ],
-    "shadcn_equivalent": ["Table", "Badge", "Card"],
-    "known_bugs": [],
-    "estimated_translation_time_min": 30
-  },
-  {
-    "label": "plan_po_list",
-    "file": "design/Monopilot Design System/planning/po-screens.jsx",
-    "lines": "3-139",
-    "component_type": "table",
-    "ui_pattern": "search-filter-list",
-    "data_domain": "PO",
-    "interaction": "read-only",
-    "complexity": "page-level",
-    "depends_on_prototypes": ["_shared/ (POStatus)", "planning/modals.jsx (POFastFlowModal)"],
-    "translation_notes": [
-      "Tab counts (PLAN_POS.filter) → DB-side COUNT per status grouped; fetch counts and list in same RSC query",
-      "Filter bar (supplier, date range) → URL search params; Drizzle .where() with optional supplier_id and date range",
-      "Bulk actions (Release selected / Export / Cancel) → Server Actions; CSV export via route handler",
-      "D365 drift tag per row → po.d365_drift boolean column; Badge shown inline in PO number cell",
-      "KPI mini-cards (Open POs, Pending approval, Overdue, This month) → async RSC tiles; overdue from exp_date < now(); pending from COUNT WHERE status=pending_approval",
-      "Row click → navigation to /planning/purchase-orders/[id]",
-      "POStatus badge → shared Badge with status enum → variant map",
-      "Pagination → cursor-based via URL params"
-    ],
-    "shadcn_equivalent": ["Table", "Tabs", "Input", "Select", "Badge", "Checkbox", "Button", "Card"],
-    "known_bugs": [],
-    "estimated_translation_time_min": 150
-  },
-  {
-    "label": "plan_po_detail",
-    "file": "design/Monopilot Design System/planning/po-screens.jsx",
-    "lines": "143-353",
-    "component_type": "page-layout",
-    "ui_pattern": "detail-view",
-    "data_domain": "PO",
-    "interaction": "approve",
-    "complexity": "page-level",
-    "depends_on_prototypes": ["_shared/ (POStatus)", "planning/modals.jsx (POApprovalModal, AddPOLineModal)"],
-    "translation_notes": [
-      "PO detail → Server Component fetching po + po_lines + status_history + d365 sync data in single Drizzle query with joins",
-      "Status-conditional action buttons (Edit/Cancel/Submit/Approve/Reject/View GRNs/Download PDF) → state machine map; each action is a Server Action with RBAC guard",
-      "Pending approval amber banner with inline Approve/Reject CTAs → shown when po.status=pending_approval; links to POApprovalModal",
-      "PO lines table with per-line progress bar (received/qty) → from po_lines table; received from grn_lines aggregation",
-      "GRN progress bar in right sidebar → aggregate received_total/total_ordered from po_lines join grn_lines",
-      "Approval card (state/approver role/threshold/this PO total) → from po.approval_required + plan_settings.po.approval_threshold",
-      "D365 sync card (drift badge, d365_supplier_id, last_sync) → from po.d365 JSONB or d365_sync_log table",
-      "Collapsible status history → accordioned by default on page load; Drizzle query on po_status_history"
-    ],
-    "shadcn_equivalent": ["Card", "Table", "Badge", "Button", "Alert", "Collapsible", "Breadcrumb"],
-    "known_bugs": [],
-    "estimated_translation_time_min": 180
-  },
-  {
-    "label": "plan_to_list",
-    "file": "design/Monopilot Design System/planning/to-screens.jsx",
-    "lines": "3-99",
-    "component_type": "table",
-    "ui_pattern": "search-filter-list",
-    "data_domain": "TO",
-    "interaction": "read-only",
-    "complexity": "page-level",
-    "depends_on_prototypes": ["_shared/ (TOStatus, Priority)", "planning/modals.jsx (TOCreateModal)"],
-    "translation_notes": [
-      "Tab counts → DB-side COUNT per status grouped; from/to warehouse KPI tiles",
-      "Filter bar (from warehouse, to warehouse, priority, date range) → URL search params driving Drizzle .where() composition",
-      "Overdue highlighting (row-overdue CSS class) → CSS class applied when to.planned_ship_date < now() and status not in (shipped/received/closed)",
-      "KPI strip (Open TOs, In transit, Overdue, This week) → async RSC tiles with individual Drizzle COUNT queries",
-      "Row click → navigation to /planning/transfer-orders/[id]",
-      "TOStatus badge → shared Badge component with status enum → variant map",
-      "Create TO button → opens TOCreateModal; on success, router.refresh() to reload Server Component",
-      "Overdue rel label (Overdue Xd) → computed from now() - planned_ship_date in Drizzle raw query or in application layer"
-    ],
-    "shadcn_equivalent": ["Table", "Tabs", "Input", "Select", "Badge", "Button", "Card"],
-    "known_bugs": [],
-    "estimated_translation_time_min": 120
-  },
-  {
-    "label": "plan_to_detail",
-    "file": "design/Monopilot Design System/planning/to-screens.jsx",
-    "lines": "103-281",
-    "component_type": "page-layout",
-    "ui_pattern": "detail-view",
-    "data_domain": "TO",
-    "interaction": "edit",
-    "complexity": "page-level",
-    "depends_on_prototypes": ["_shared/ (TOStatus, Priority)", "planning/modals.jsx (TOCreateModal, ShipTOModal)"],
-    "translation_notes": [
-      "TO detail → Server Component fetching to + to_lines + lps + status_history in single Drizzle query",
-      "Status-conditional action buttons (Edit/Cancel/Ship/Receive) → handler map passes modal opener; each Server Action has RBAC guard",
-      "TO lines table with per-line ship/receive progress bars → from to_lines with shipped/received aggregation",
-      "LP breakdown collapsible section → from to_lp_reservations table; Add LP → opens LPPickerModal",
-      "TO summary right sidebar → formatted fields from TO record with actual vs planned ship/receive dates",
-      "Status history collapsible → from to_status_history table ordered by timestamp; rendered as timeline (not table) for readability",
-      "TOCreateModal in edit mode → passing editing=t; useEffect re-seeds form on open",
-      "ShipTOModal → opened from 'Ship' action button; receives full TO data as prop"
-    ],
-    "shadcn_equivalent": ["Card", "Table", "Badge", "Button", "Collapsible", "Alert", "Breadcrumb"],
-    "known_bugs": [],
-    "estimated_translation_time_min": 180
-  },
-  {
-    "label": "plan_gantt",
-    "file": "design/Monopilot Design System/planning/gantt.jsx",
-    "lines": "7-162",
-    "component_type": "page-layout",
-    "ui_pattern": "detail-view",
-    "data_domain": "WO",
-    "interaction": "read-only",
-    "complexity": "page-level",
-    "depends_on_prototypes": ["_shared/ (WOPlanStatus, Priority)", "planning/modals.jsx (WOPlanStatus)"],
-    "translation_notes": [
-      "DAY_W / HOUR_W pixel constants → in production these should be CSS custom properties or computed from container width (ResizeObserver); zoom in/out adjusts the multiplier",
-      "GANTT_BARS and GANTT_LINES globals → Drizzle query: WOs with planned_start/planned_end for the selected week + line filter; returned as serialized JSON from Server Component",
-      "Bar positioning (b.day * DAY_W + b.start * HOUR_W) → computed in client component from ISO datetime strings; day index = diff from week start, hour = hour-of-day",
-      "Allergen color band (gb-band CSS class) → map allergen family to design token color; allergen data joined from WO materials",
-      "Changeover markers → computed server-side from sequencing_queue; position from planned_start of each WO",
-      "Popover on bar click → shadcn Popover or custom absolute-positioned card; not a full Dialog since it should not block interaction",
-      "Bar conflict class (conflict: true) → from a capacity slot overlap query; greedy allocation P1 stub",
-      "SVG dependency arrows → simplified stub; production will use dagre layout for multi-line cross-lane arrows"
-    ],
-    "shadcn_equivalent": ["Card", "Select", "ToggleGroup", "Popover", "Button", "Badge", "Alert"],
-    "known_bugs": [],
-    "estimated_translation_time_min": 240
-  },
-  {
-    "label": "plan_cascade_dag",
-    "file": "design/Monopilot Design System/planning/cascade.jsx",
-    "lines": "3-239",
-    "component_type": "page-layout",
-    "ui_pattern": "detail-view",
-    "data_domain": "WO",
-    "interaction": "read-only",
-    "complexity": "page-level",
-    "depends_on_prototypes": ["_shared/ (WOPlanStatus, Priority, AllergenCluster, Avail)"],
-    "translation_notes": [
-      "CASCADE_DAG and CASCADE_EDGES globals → Drizzle query on cascade_edges table with full WO join; grouped by chain_id server-side",
-      "Chain list sidebar → left panel with chain-row items; activeChain URL search param for deep-link; selectedNode stored in client state",
-      "Layered DAG canvas → BACKLOG Q2: replace with react-flow in production with SVG directed edges, edge labels (qty + uom + to_stock badge), cycle-highlight; current CSS flexbox layers acceptable for P1 prototype",
-      "Availability dot on node (green/yellow/red/produced) → from WO material availability summary; computed server-side",
-      "Side panel (Materials / Outputs / Deps tabs) → shadcn Sheet (slide-in from right) with Tabs inside; data from CASCADE_EDGES filtered by selectedNode.code",
-      "Stats bar (chains, totalWos, avgDepth, conflicts) → aggregate query on cascade_edges; cycle count from cycle_check_results",
-      "Export PNG button → html-to-image or dom-to-svg library; out of scope for P1",
-      "Open full detail button → next/link to /planning/work-orders/[selectedNode.code]"
-    ],
-    "shadcn_equivalent": ["Card", "Sheet", "Tabs", "TabsList", "TabsContent", "Select", "Badge", "Button"],
-    "known_bugs": ["Q2 in BACKLOG.md: cascade canvas is a layered list, not a true directed graph with SVG edges and edge labels; react-flow integration needed before production implementation"],
-    "estimated_translation_time_min": 240
-  },
-  {
-    "label": "plan_reservations",
-    "file": "design/Monopilot Design System/planning/other-screens.jsx",
-    "lines": "3-120",
-    "component_type": "table",
-    "ui_pattern": "search-filter-list",
-    "data_domain": "LP",
-    "interaction": "read-only",
-    "complexity": "page-level",
-    "depends_on_prototypes": ["_shared/ (Avail)", "planning/modals.jsx (ReservationOverrideModal)"],
-    "translation_notes": [
-      "PLAN_RESERVATIONS global → Drizzle query on lp_reservations with joins to WOs, LPs, materials; filtered by status (active/consumed/cancelled/admin_override)",
-      "Multi-filter bar (search, status, warehouse, WO status, reservation type) → URL search params; Drizzle .where() composition",
-      "Summary strip (active hard locks, LPs locked, fully committed LPs) → aggregate subquery counts; fully committed = LPs where reserved >= total_qty",
-      "Availability panel (right sidebar) → for selected product: from lp table where product_code = selectedProduct, FEFO sorted; net = total - reserved; over-committed alert when net < 0",
-      "Release button (admin only) → RBAC check; triggers ReservationOverrideModal with LP data as prop",
-      "Status badges (Active/Consumed/Cancelled/Admin override) → map reservation.status enum to Badge variant",
-      "Click row → navigate to WO detail (/planning/work-orders/[r.wo])",
-      "Export button → route handler streaming CSV of current filtered view"
-    ],
-    "shadcn_equivalent": ["Table", "Input", "Select", "Badge", "Card", "Button", "Alert"],
-    "known_bugs": [],
-    "estimated_translation_time_min": 120
-  },
-  {
-    "label": "plan_sequencing",
-    "file": "design/Monopilot Design System/planning/other-screens.jsx",
-    "lines": "124-252",
-    "component_type": "page-layout",
-    "ui_pattern": "list-with-actions",
-    "data_domain": "WO",
-    "interaction": "bulk",
-    "complexity": "page-level",
-    "depends_on_prototypes": ["_shared/ (AllergenCluster, Priority)", "planning/modals.jsx (SequencingApplyConfirmModal)"],
-    "translation_notes": [
-      "SEQ_QUEUE and SEQ_KPIS globals → Drizzle query on sequencing_queue filtered by line + date window; groups computed server-side by allergen_family",
-      "Drag handle (seq-drag ⋮⋮ icon) → wired to @dnd-kit/sortable in production for manual override; position updates via Server Action",
-      "Group headers (allergen family, row count, total hours) → computed from grouped queue rows; changeover cost estimated by rule",
-      "Before/after compare modal (inline in other-screens.jsx) → rendered as shadcn Dialog; uses SEQ_KPIS from server prop",
-      "Line selector → URL search param; page re-fetches sequencing_queue for selected line",
-      "KPI strip (changeovers, baseline, reduction %) → from SEQ_KPIS; highlight good/bad vs target (>30% reduction)",
-      "Apply Sequencing button → opens SequencingApplyConfirmModal with queue + kpis as props",
-      "Override button per row → opens a per-WO override form; stores override in sequencing_queue.override_active + override_reason"
-    ],
-    "shadcn_equivalent": ["Card", "Select", "Badge", "Button", "Dialog", "Alert"],
-    "known_bugs": [],
-    "estimated_translation_time_min": 180
-  },
-  {
-    "label": "plan_settings",
-    "file": "design/Monopilot Design System/planning/other-screens.jsx",
-    "lines": "256-490",
-    "component_type": "page-layout",
-    "ui_pattern": "crud-form-with-validation",
-    "data_domain": "WO",
-    "interaction": "edit",
-    "complexity": "page-level",
-    "depends_on_prototypes": ["_shared/"],
-    "translation_notes": [
-      "9-tab settings page → shadcn Tabs with URL hash or search param for deep-link; tab list rendered as vertical sidebar on desktop",
-      "Dirty state + unsaved banner → useFormState from react-hook-form with isDirty; unsaved-changes confirmation on navigation (useBeforeUnload)",
-      "Field components (Field, Toggle) → replace with shadcn FormField + Switch (Toggle) + Label; help text via FormDescription",
-      "Per-tab form state (general, po, to, wo, cascade, seq, d365, status, visibility) → split into separate React Hook Forms or a single nested form with sections",
-      "Save changes → single Server Action per tab section; validates entire section with zod; emits settings.updated outbox event",
-      "Status display table (editable labels, colors, icons) → inline-editable Table rows with react-hook-form useFieldArray",
-      "Field visibility table (RBAC toggles) → checkboxes matrix; required fields disabled; save via Server Action with server-side RBAC enforcement",
-      "D365 settings tab → cron expression validated with cron-parser; 'Test D365 connection' → async Server Action returning live status"
-    ],
-    "shadcn_equivalent": ["Tabs", "Form", "Input", "Select", "Switch", "Table", "Button", "Alert", "Card"],
-    "known_bugs": ["Q5 in BACKLOG.md: ~30 additional settings screens (SET-040 through SET-100) not yet prototyped; blocks D365 end-to-end and Rules Registry browsing"],
-    "estimated_translation_time_min": 300
-  },
-  {
-    "label": "plan_d365_queue",
-    "file": "design/Monopilot Design System/planning/other-screens.jsx",
-    "lines": "510-648",
-    "component_type": "page-layout",
-    "ui_pattern": "list-with-actions",
-    "data_domain": "WO",
-    "interaction": "approve",
-    "complexity": "page-level",
-    "depends_on_prototypes": ["_shared/ (WOPlanStatus)", "planning/modals.jsx (DraftWOReviewModal)"],
-    "translation_notes": [
-      "D365 trigger enabled gate (if !enabled → show disabled state) → Server Component reads plan_settings.d365.enabled; renders disabled gate page or full queue page",
-      "D365_PULL_HISTORY strip → from d365_pull_log table: last_run, so_count, draft_wo_count, errors; cached with short revalidation",
-      "Draft WOs table with expandable cascade chain rows → Drizzle query on wo where source=d365 and status=draft, joined with cascade_edges; expanded state is client-side via useExpandedRows",
-      "Pull errors section (collapsible) → from d365_pull_errors table; retry button → Server Action re-queues SO for processing",
-      "Review button → opens DraftWOReviewModal with WO data as prop; modal fetches review detail (materials, cascade chain) via Server Action",
-      "Filter bar (SO ref search, SO status, WO status, time range) → URL search params; Drizzle .where() with optional filters",
-      "Manual trigger button → Server Action that enqueues d365.so_pull job immediately; returns job status for optimistic feedback",
-      "Hardcoded labels → next-intl keys under planning.d365.queue namespace"
-    ],
-    "shadcn_equivalent": ["Table", "Collapsible", "Input", "Select", "Badge", "Button", "Card", "Alert"],
-    "known_bugs": [],
-    "estimated_translation_time_min": 150
-  }
-]
+{
+  "module": "planning",
+  "generated_at": "2026-04-30T18:27:34Z",
+  "generator": "audit-fix-2026-04-30",
+  "mode": "labeling",
+  "entries": [
+    {
+      "label": "po_fast_flow_wizard",
+      "file": "design/Monopilot Design System/planning/modals.jsx",
+      "lines": "21-179",
+      "component_type": "wizard",
+      "ui_pattern": "multi-step-wizard",
+      "data_domain": "PO",
+      "interaction": "create",
+      "complexity": "composite",
+      "depends_on_prototypes": [
+        "design/Monopilot Design System/_shared/modals.jsx#Modal",
+        "design/Monopilot Design System/_shared/modals.jsx#Stepper",
+        "design/Monopilot Design System/_shared/modals.jsx#Field",
+        "design/Monopilot Design System/_shared/modals.jsx#Summary"
+      ],
+      "translation_notes": [
+        "window.Modal → @radix-ui/react-dialog Dialog with size variants (default/wide/fullpage)",
+        "Local React.useState step machine → useReducer or @tanstack/react-form multi-step pattern",
+        "Mock supplier/warehouse options → Drizzle query via Server Action (cached supplier list)",
+        "Hardcoded 20% tax and £15 000 approval threshold → server-side config rows from plan_settings table",
+        "addLine/subtotal computation → moved to form lib; totals derived on every render without setState",
+        "Submit mock setTimeout → Server Action with optimistic UI and outbox event (po.created)",
+        "Hardcoded labels (e.g., 'Supplier', 'GBP') → next-intl t() keys under planning.po namespace",
+        "Approval banner conditional on total > 15 000 → guard in Server Action, surface via returned error shape"
+      ],
+      "shadcn_equivalent": [
+        "Dialog",
+        "Stepper (custom)",
+        "Form",
+        "Select",
+        "Input",
+        "Textarea",
+        "Button",
+        "Alert"
+      ],
+      "known_bugs": [],
+      "estimated_translation_time_min": 120
+    },
+    {
+      "label": "add_po_line_modal",
+      "file": "design/Monopilot Design System/planning/modals.jsx",
+      "lines": "182-225",
+      "component_type": "modal",
+      "ui_pattern": "crud-form-with-validation",
+      "data_domain": "PO",
+      "interaction": "create",
+      "complexity": "composite",
+      "depends_on_prototypes": [
+        "design/Monopilot Design System/_shared/modals.jsx#Modal",
+        "design/Monopilot Design System/_shared/modals.jsx#Field"
+      ],
+      "translation_notes": [
+        "window.Modal → @radix-ui/react-dialog Dialog (size default)",
+        "Local useState form → useForm with zodResolver; zod schema enforces qty > 0 (V-PLAN-PO-004)",
+        "UoM read-only input auto-filled from product selection → lookup join in Server Action or client-side derived state",
+        "Unit price 'auto-filled from supplier_products' label → real fill from supplier_products table Drizzle query on product select",
+        "Line total display → computed derived value, no separate state",
+        "Hardcoded product options → combobox with server search (Supplier + Product autocomplete)",
+        "Hardcoded labels → next-intl keys under planning.po.line namespace"
+      ],
+      "shadcn_equivalent": [
+        "Dialog",
+        "Form",
+        "Select",
+        "Input",
+        "Button"
+      ],
+      "known_bugs": [],
+      "estimated_translation_time_min": 45
+    },
+    {
+      "label": "po_approval_modal",
+      "file": "design/Monopilot Design System/planning/modals.jsx",
+      "lines": "228-264",
+      "component_type": "modal",
+      "ui_pattern": "bulk-action",
+      "data_domain": "PO",
+      "interaction": "approve",
+      "complexity": "composite",
+      "depends_on_prototypes": [
+        "design/Monopilot Design System/_shared/modals.jsx#Modal",
+        "design/Monopilot Design System/_shared/modals.jsx#Field",
+        "design/Monopilot Design System/_shared/modals.jsx#ReasonInput",
+        "design/Monopilot Design System/_shared/modals.jsx#Summary"
+      ],
+      "translation_notes": [
+        "window.Modal → @radix-ui/react-dialog Dialog (size sm)",
+        "Local mode toggle (approve/reject pills) → ToggleGroup from Radix UI or simple useState with two radio-style buttons",
+        "ReasonInput with minLength=10 → react-hook-form field with zod .min(10) validator",
+        "onConfirm callback → Server Action with RBAC guard (only Production Manager role may approve)",
+        "PO summary rows → passed as prop; populated from Drizzle PO detail query in parent Server Component",
+        "Dual-path footer (Approve vs Reject button) → conditional render inside Dialog.Footer based on mode state",
+        "Emit outbox event (po.approved / po.rejected) on confirmed action",
+        "Hardcoded labels → next-intl keys under planning.po.approval namespace"
+      ],
+      "shadcn_equivalent": [
+        "Dialog",
+        "Form",
+        "Textarea",
+        "Button",
+        "ToggleGroup"
+      ],
+      "known_bugs": [],
+      "estimated_translation_time_min": 60
+    },
+    {
+      "label": "lp_picker_modal",
+      "file": "design/Monopilot Design System/planning/modals.jsx",
+      "lines": "269-341",
+      "component_type": "modal",
+      "ui_pattern": "search-filter-list",
+      "data_domain": "LP",
+      "interaction": "create",
+      "complexity": "composite",
+      "depends_on_prototypes": [
+        "design/Monopilot Design System/_shared/modals.jsx#Modal"
+      ],
+      "translation_notes": [
+        "window.Modal → @radix-ui/react-dialog Dialog (size wide)",
+        "Local LP mock array → Drizzle query filtered by product, status=available, FEFO-sorted by expiry_date",
+        "Checkbox multi-select with Set state → useReducer or react-hook-form Controller with array field",
+        "Text search and FEFO/FIFO sort pills → URL search params or local derived filter (no server round-trip needed for small LP sets)",
+        "Status badges (available/reserved/hard_lock/quarantine) → map from DB lp.status enum to Badge variant",
+        "totalSelected >= requiredQty gate on Confirm button → derived boolean, no extra state",
+        "Scan button placeholder → future camera/barcode integration (zxing or native BarcodeDetector API)",
+        "Hardcoded requiredQty/product props → sourced from WO/TO parent entity in production"
+      ],
+      "shadcn_equivalent": [
+        "Dialog",
+        "Input",
+        "Table",
+        "Checkbox",
+        "Badge",
+        "Button",
+        "ToggleGroup"
+      ],
+      "known_bugs": [],
+      "estimated_translation_time_min": 90
+    },
+    {
+      "label": "cascade_preview_modal",
+      "file": "design/Monopilot Design System/planning/modals.jsx",
+      "lines": "346-396",
+      "component_type": "modal",
+      "ui_pattern": "detail-view",
+      "data_domain": "WO",
+      "interaction": "read-only",
+      "complexity": "composite",
+      "depends_on_prototypes": [
+        "design/Monopilot Design System/_shared/modals.jsx#Modal",
+        "planning/modals.jsx#WOPlanStatus",
+        "planning/modals.jsx#Priority"
+      ],
+      "translation_notes": [
+        "window.Modal with size=fullpage → @radix-ui/react-dialog Dialog with max-w-none or sheet variant",
+        "Hard-coded cascade node tree → computed from cascade_generation_v1 rule output; fetched via Server Action before modal opens",
+        "cascade-canvas CSS layout (layers + arrows) → BACKLOG Q2: replace with react-flow DAG in production (SVG edges with edge labels per spec)",
+        "WOPlanStatus / Priority badge components → shared Badge + variant map from design tokens",
+        "Totals footer (2 new WOs, timeline, aggregated RM) → derived from cascade preview response payload",
+        "Cycle-check banner → returned from cascade-generation preview endpoint; never computed client-side",
+        "Hardcoded labels → next-intl keys under planning.cascade namespace",
+        "onConfirm creates all WOs atomically → Server Action with DB transaction + outbox event (wo.cascade_created)"
+      ],
+      "shadcn_equivalent": [
+        "Dialog",
+        "Alert",
+        "Badge",
+        "Button"
+      ],
+      "known_bugs": [
+        "Q2 in BACKLOG.md: cascade canvas is layered list, not true DAG with SVG edges; missing edge labels and cycle-highlight arrows"
+      ],
+      "estimated_translation_time_min": 90
+    },
+    {
+      "label": "wo_create_wizard",
+      "file": "design/Monopilot Design System/planning/modals.jsx",
+      "lines": "399-500",
+      "component_type": "wizard",
+      "ui_pattern": "multi-step-wizard",
+      "data_domain": "WO",
+      "interaction": "create",
+      "complexity": "composite",
+      "depends_on_prototypes": [
+        "design/Monopilot Design System/_shared/modals.jsx#Modal",
+        "design/Monopilot Design System/_shared/modals.jsx#Stepper",
+        "design/Monopilot Design System/_shared/modals.jsx#Field",
+        "design/Monopilot Design System/_shared/modals.jsx#Summary",
+        "planning/modals.jsx#CascadePreviewModal"
+      ],
+      "translation_notes": [
+        "window.Modal → @radix-ui/react-dialog Dialog (size wide); cascade preview opens as a second Dialog on top",
+        "Local useState step machine → useReducer with step enum (basic | confirm)",
+        "Product select with hasIntermediate detection → server-side: product.has_intermediate flag from BOM table; triggers cascade preview on client",
+        "BOM auto-select note (FR-PLAN-018) → Server Action fetches latest active BOM version on product select; pre-fills form field",
+        "Rework checkbox → separate validation path; rework WOs route to approval workflow (require_rework_approval setting)",
+        "CascadePreviewModal sub-modal → fetch cascade preview from cascade_generation_v1 rule before confirming",
+        "Create WO + cascade button → single Server Action with atomic DB transaction; emit wo.created + wo.cascade_created outbox events",
+        "Hardcoded labels + priority/line options → next-intl keys; lines fetched from production_lines table"
+      ],
+      "shadcn_equivalent": [
+        "Dialog",
+        "Stepper (custom)",
+        "Form",
+        "Select",
+        "Input",
+        "Checkbox",
+        "Button",
+        "Alert"
+      ],
+      "known_bugs": [],
+      "estimated_translation_time_min": 120
+    },
+    {
+      "label": "reservation_override_modal",
+      "file": "design/Monopilot Design System/planning/modals.jsx",
+      "lines": "505-549",
+      "component_type": "modal",
+      "ui_pattern": "crud-form-with-validation",
+      "data_domain": "LP",
+      "interaction": "delete",
+      "complexity": "composite",
+      "depends_on_prototypes": [
+        "design/Monopilot Design System/_shared/modals.jsx#Modal",
+        "design/Monopilot Design System/_shared/modals.jsx#Field",
+        "design/Monopilot Design System/_shared/modals.jsx#ReasonInput",
+        "design/Monopilot Design System/_shared/modals.jsx#Summary"
+      ],
+      "translation_notes": [
+        "window.Modal (size sm) → @radix-ui/react-dialog Dialog with destructive styling (red border/header accent)",
+        "reason + category + confirmation checkbox → useForm with zodResolver; zod requires category !== '' and reason.length >= 10 and confirmed === true (V-PLAN-RES-003/004)",
+        "Audit-log confirmation checkbox text → surface actual username from auth session in label",
+        "onConfirm → Server Action with admin RBAC guard; writes to lp_reservation_history with reason + category; emits reservation.released outbox event",
+        "ReasonInput → Textarea with character counter and zod min(10) error",
+        "Category select options (consumed_manually / wo_cancelled / admin_correction / emergency_realloc / other) → enum type in DB; fetch valid options from server or hardcode as const",
+        "LP/material/qty summary → passed as prop from parent reservation query",
+        "Hardcoded labels → next-intl keys under planning.reservation namespace"
+      ],
+      "shadcn_equivalent": [
+        "Dialog",
+        "Form",
+        "Select",
+        "Textarea",
+        "Checkbox",
+        "Button",
+        "Alert"
+      ],
+      "known_bugs": [],
+      "estimated_translation_time_min": 60
+    },
+    {
+      "label": "cycle_check_warning_modal",
+      "file": "design/Monopilot Design System/planning/modals.jsx",
+      "lines": "552-583",
+      "component_type": "modal",
+      "ui_pattern": "detail-view",
+      "data_domain": "WO",
+      "interaction": "read-only",
+      "complexity": "primitive",
+      "depends_on_prototypes": [
+        "design/Monopilot Design System/_shared/modals.jsx#Modal"
+      ],
+      "translation_notes": [
+        "window.Modal (size default) → @radix-ui/react-dialog Dialog; single OK footer button",
+        "cycle array prop → returned from cascade_generation_v1 rule as error payload; passed through Server Action error boundary",
+        "BOM link and Rule Registry link → next/link or router.push to /technical/bom/:id and /settings/rules/:id",
+        "Cycle path ordered list → render from API error shape, not client-computed",
+        "Red alert box → Alert component with destructive variant",
+        "Hardcoded labels → next-intl keys under planning.cascade.cycleError namespace"
+      ],
+      "shadcn_equivalent": [
+        "Dialog",
+        "Alert",
+        "Button"
+      ],
+      "known_bugs": [],
+      "estimated_translation_time_min": 30
+    },
+    {
+      "label": "d365_trigger_confirm_modal",
+      "file": "design/Monopilot Design System/planning/modals.jsx",
+      "lines": "586-606",
+      "component_type": "modal",
+      "ui_pattern": "bulk-action",
+      "data_domain": "WO",
+      "interaction": "create",
+      "complexity": "primitive",
+      "depends_on_prototypes": [
+        "design/Monopilot Design System/_shared/modals.jsx#Modal",
+        "design/Monopilot Design System/_shared/modals.jsx#Summary"
+      ],
+      "translation_notes": [
+        "window.Modal (size sm) → @radix-ui/react-dialog Dialog; non-destructive confirm pattern",
+        "Summary rows (Last pull, SOs pulled, Draft WOs, Errors) → fetched from d365_pull_history table via Server Component before modal opens",
+        "onConfirm → Server Action that enqueues d365.so_pull job to BullMQ/pg-boss; returns job ID for optimistic feedback",
+        "Filter description (Open, Confirmed, 14 days) → sourced from plan_settings.d365 config row, not hardcoded",
+        "Info alert about planner notifications → informational only; real notification via outbox + email template (SET-090 scope)",
+        "Hardcoded labels → next-intl keys under planning.d365 namespace"
+      ],
+      "shadcn_equivalent": [
+        "Dialog",
+        "Button",
+        "Alert"
+      ],
+      "known_bugs": [],
+      "estimated_translation_time_min": 30
+    },
+    {
+      "label": "to_create_edit_modal",
+      "file": "design/Monopilot Design System/planning/modals.jsx",
+      "lines": "697-845",
+      "component_type": "modal",
+      "ui_pattern": "crud-form-with-validation",
+      "data_domain": "TO",
+      "interaction": "create",
+      "complexity": "composite",
+      "depends_on_prototypes": [
+        "design/Monopilot Design System/_shared/modals.jsx#Modal",
+        "design/Monopilot Design System/_shared/modals.jsx#Field"
+      ],
+      "translation_notes": [
+        "window.Modal (size wide) → @radix-ui/react-dialog Dialog; supports create and edit mode via editing prop",
+        "Full inline validation (validate() fn) runs on trySave; errors surfaced per field → useForm with zodResolver; zod schema encodes V-PLAN-TO-001 (from !== to) and V-PLAN-TO-003 (lines.length > 0)",
+        "V-PLAN-TO-002 site check currently advisory-only → BACKLOG: add sites lookup table in data.jsx and block at save when from.site !== to.site",
+        "addLine/updLine/delLine array mutations → useFieldArray from react-hook-form; UoM auto-fill on product select via getValues/setValue",
+        "Save Draft vs Save & Plan dual-CTA → two Server Actions sharing form validation; status field determines WO state transition",
+        "requireLpSelection prop showing LP picker CTA → integrates with LPPickerModal; selection stored in form state as lines[].lp_ids",
+        "TO_WAREHOUSES and TO_PRODUCTS arrays → fetched from DB (warehouses and products tables); passed as props or via context",
+        "Hardcoded labels → next-intl keys under planning.to namespace"
+      ],
+      "shadcn_equivalent": [
+        "Dialog",
+        "Form",
+        "Select",
+        "Input",
+        "Textarea",
+        "Table",
+        "Button",
+        "Alert"
+      ],
+      "known_bugs": [
+        "BACKLOG: Planning — warehouse → site taxonomy needed to enforce V-PLAN-TO-002 at save"
+      ],
+      "estimated_translation_time_min": 90
+    },
+    {
+      "label": "ship_to_modal",
+      "file": "design/Monopilot Design System/planning/modals.jsx",
+      "lines": "852-931",
+      "component_type": "modal",
+      "ui_pattern": "crud-form-with-validation",
+      "data_domain": "TO",
+      "interaction": "edit",
+      "complexity": "composite",
+      "depends_on_prototypes": [
+        "design/Monopilot Design System/_shared/modals.jsx#Modal",
+        "design/Monopilot Design System/_shared/modals.jsx#Summary",
+        "planning/modals.jsx#TOStatus"
+      ],
+      "translation_notes": [
+        "window.Modal (size default) → @radix-ui/react-dialog Dialog",
+        "Per-line qty inputs seeded from remaining unshipped qty → useEffect on open seeds useForm defaultValues from TO data",
+        "lineErrors per line (V-PLAN-TO-004: shipped_qty <= remaining) → zod refine at array item level; error rendered below each input",
+        "Status transition preview (TOStatus badges) → purely derived from totalBatch / totalRemaining comparison; no extra state",
+        "nextStatus computation (shipped / partially_shipped / no change) → replicated in Server Action; client display is optimistic preview only",
+        "onConfirm → Server Action updates to_lines.shipped_qty, updates TO status, emits to.shipped outbox event",
+        "willBeFull floating-point comparison (< 0.0001) → keep same guard in Server Action to avoid rounding issues",
+        "Hardcoded labels → next-intl keys under planning.to.ship namespace"
+      ],
+      "shadcn_equivalent": [
+        "Dialog",
+        "Form",
+        "Input",
+        "Table",
+        "Button",
+        "Alert",
+        "Badge"
+      ],
+      "known_bugs": [],
+      "estimated_translation_time_min": 60
+    },
+    {
+      "label": "draft_wo_review_modal",
+      "file": "design/Monopilot Design System/planning/modals.jsx",
+      "lines": "937-1046",
+      "component_type": "modal",
+      "ui_pattern": "multi-step-wizard",
+      "data_domain": "WO",
+      "interaction": "approve",
+      "complexity": "composite",
+      "depends_on_prototypes": [
+        "design/Monopilot Design System/_shared/modals.jsx#Modal",
+        "design/Monopilot Design System/_shared/modals.jsx#Field",
+        "design/Monopilot Design System/_shared/modals.jsx#ReasonInput",
+        "design/Monopilot Design System/_shared/modals.jsx#Summary",
+        "planning/modals.jsx#WOPlanStatus"
+      ],
+      "translation_notes": [
+        "window.Modal (size wide) → @radix-ui/react-dialog Dialog",
+        "review.materials and review.cascadeChain → fetched via Server Action before modal opens; not computed client-side",
+        "availDot colour logic (green/yellow/red) → map from availability_status enum returned by material availability query",
+        "Three-way radio action (approve / keep draft / reject) → react-hook-form RadioGroup with zod discriminated union; reject path adds reason field",
+        "ReasonInput min 10 chars for reject → zod .min(10) with custom message referencing rule",
+        "Allergen hint (line + seqPosition) → fetched from sequencing queue for the WO's assigned line",
+        "onConfirm → Server Action: approve triggers WO release + reservation creation; reject deletes draft chain atomically",
+        "Hardcoded labels → next-intl keys under planning.d365.draftReview namespace"
+      ],
+      "shadcn_equivalent": [
+        "Dialog",
+        "Form",
+        "RadioGroup",
+        "Textarea",
+        "Table",
+        "Button",
+        "Alert",
+        "Badge"
+      ],
+      "known_bugs": [],
+      "estimated_translation_time_min": 90
+    },
+    {
+      "label": "delete_confirm_modal",
+      "file": "design/Monopilot Design System/planning/modals.jsx",
+      "lines": "609-629",
+      "component_type": "modal",
+      "ui_pattern": "crud-form-with-validation",
+      "data_domain": "WO",
+      "interaction": "delete",
+      "complexity": "primitive",
+      "depends_on_prototypes": [
+        "design/Monopilot Design System/_shared/modals.jsx#Modal",
+        "design/Monopilot Design System/_shared/modals.jsx#Field"
+      ],
+      "translation_notes": [
+        "window.Modal (size sm) → @radix-ui/react-dialog Dialog with AlertDialog variant for destructive semantics",
+        "Type-to-confirm input pattern → useForm with zod .refine(v => v === entity.id, 'Must match') guard",
+        "entity.type/id/impact props → passed from parent with entity type, ID string, and human-readable impact description",
+        "Delete button → Server Action with RBAC guard; soft-delete via status=CANCELLED or hard delete depending on entity.type",
+        "entity.impact message should be computed server-side (check dependencies, reservations) before modal opens",
+        "autoFocus on text input → use Dialog onOpenAutoFocus to focus the confirm input field",
+        "Hardcoded labels ('This action is permanent') → next-intl keys under shared.deleteConfirm namespace",
+        "Emit entity.deleted outbox event on success"
+      ],
+      "shadcn_equivalent": [
+        "AlertDialog",
+        "Form",
+        "Input",
+        "Button"
+      ],
+      "known_bugs": [],
+      "estimated_translation_time_min": 30
+    },
+    {
+      "label": "hard_lock_release_confirm_modal",
+      "file": "design/Monopilot Design System/planning/modals.jsx",
+      "lines": "632-671",
+      "component_type": "modal",
+      "ui_pattern": "list-with-actions",
+      "data_domain": "LP",
+      "interaction": "delete",
+      "complexity": "composite",
+      "depends_on_prototypes": [
+        "design/Monopilot Design System/_shared/modals.jsx#Modal"
+      ],
+      "translation_notes": [
+        "window.Modal (size default) → @radix-ui/react-dialog Dialog with destructive header styling",
+        "wo.locks LP list → fetched from lp_reservations table filtered by WO id; passed as prop from parent detail query",
+        "Confirmation checkbox → useForm boolean field with zod .literal(true) refinement",
+        "Cancel WO & release locks → single Server Action with DB transaction: WO status → CANCELLED, lp_reservations released, outbox events (wo.cancelled, reservation.released_bulk)",
+        "LP table (LP, Material, Qty) → shadcn Table with sticky header if many rows",
+        "Count of locks in warning text ({wo.locks.length}) → derived from passed prop; no additional state",
+        "Hardcoded labels → next-intl keys under planning.wo.hardLockRelease namespace",
+        "Audit log: Server Action must record user, timestamp, and all released LP IDs in lp_reservation_history"
+      ],
+      "shadcn_equivalent": [
+        "Dialog",
+        "Table",
+        "Checkbox",
+        "Button",
+        "Alert"
+      ],
+      "known_bugs": [],
+      "estimated_translation_time_min": 60
+    },
+    {
+      "label": "sequencing_apply_confirm_modal",
+      "file": "design/Monopilot Design System/planning/modals.jsx",
+      "lines": "1053-1100",
+      "component_type": "modal",
+      "ui_pattern": "bulk-action",
+      "data_domain": "WO",
+      "interaction": "edit",
+      "complexity": "composite",
+      "depends_on_prototypes": [
+        "design/Monopilot Design System/_shared/modals.jsx#Modal",
+        "design/Monopilot Design System/_shared/modals.jsx#Summary"
+      ],
+      "translation_notes": [
+        "window.Modal (size default) → @radix-ui/react-dialog Dialog; Q1 audit decision: preview stays inline in SCREEN-11, this modal is the apply-confirm only",
+        "SEQ_QUEUE and SEQ_KPIS globals → fetched as Server Component props from sequencing queue query; passed as serialized prop to modal",
+        "criticalExempt filter (queue.filter(q => q.exempt)) → server-side: WOs with priority=critical are exempt; flag returned in queue payload",
+        "Acknowledgement checkbox → useForm boolean with zod .literal(true) guard",
+        "onConfirm → Server Action: applies allergen_sequencing_heuristic_v1 rule, bulk-updates wo.sequence_position, emits sequencing.applied event",
+        "Blast radius count (nWOs on LINE-04) → must be scoped to the selected line (not all lines); line passed as prop",
+        "Before/after changeover delta (−N / −N%) → derived from server-side rule output; client displays only",
+        "Hardcoded labels → next-intl keys under planning.sequencing.applyConfirm namespace"
+      ],
+      "shadcn_equivalent": [
+        "Dialog",
+        "Checkbox",
+        "Button",
+        "Alert"
+      ],
+      "known_bugs": [],
+      "estimated_translation_time_min": 45
+    },
+    {
+      "label": "plan_dashboard",
+      "file": "design/Monopilot Design System/planning/dashboard.jsx",
+      "lines": "3-261",
+      "component_type": "page-layout",
+      "ui_pattern": "dashboard-tile",
+      "data_domain": "WO",
+      "interaction": "read-only",
+      "complexity": "page-level",
+      "depends_on_prototypes": [
+        "planning/po-screens.jsx#POStatus",
+        "planning/wo-list.jsx#WOPlanStatus",
+        "planning/wo-list.jsx#SourceBadge",
+        "planning/wo-list.jsx#Avail",
+        "planning/to-screens.jsx#TOStatus",
+        "unresolved:_shared/"
+      ],
+      "translation_notes": [
+        "PO_ALERTS/WO_ALERTS/TO_ALERTS globals + dismissed Set state → Server Component fetches alerts from DB; dismiss is a Server Action that writes to user_dismissed_alerts; re-fetches on mutation",
+        "PLAN_KPIS array → each KPI tile is a separate async RSC query; aggregate counts from wo, po, to tables via COUNT queries",
+        "Upcoming tabs (PO calendar / WO schedule / TO timeline / Cascade chains) → tabbed Server Component with per-tab Drizzle queries; tab selection via URL search params for deep-linkability",
+        "ACTIVITY_FEED → sourced from audit_log table filtered by module=planning, ordered by created_at desc, limit 10; cached with next: { revalidate: 60 }",
+        "D365 drift alert → derived from po table where d365_drift=true; dismissible via Server Action",
+        "Quick strip buttons (Create PO/TO/WO, Bulk import, Run sequencing, Trigger D365) → link to modal openers or route navigations",
+        "Three-column alert layout (PO/WO/TO) → CSS grid 3-col with color-coded column headers; each column is its own async RSC",
+        "Hardcoded 'Factory-A', data refresh cadence labels → sourced from user session context (active_site) and next.js revalidation config"
+      ],
+      "shadcn_equivalent": [
+        "Card",
+        "Tabs",
+        "TabsList",
+        "TabsContent",
+        "Table",
+        "Badge",
+        "Button",
+        "Alert"
+      ],
+      "known_bugs": [],
+      "estimated_translation_time_min": 180
+    },
+    {
+      "label": "plan_wo_list",
+      "file": "design/Monopilot Design System/planning/wo-list.jsx",
+      "lines": "3-177",
+      "component_type": "table",
+      "ui_pattern": "search-filter-list",
+      "data_domain": "WO",
+      "interaction": "read-only",
+      "complexity": "page-level",
+      "depends_on_prototypes": [
+        "unresolved:_shared/",
+        "planning/modals.jsx#WOCreateModal",
+        "planning/modals.jsx#DeleteConfirmModal"
+      ],
+      "translation_notes": [
+        "Tab counts (PLAN_WOS.filter) → DB-side COUNT per status via Drizzle groupBy; avoid client-side filtering of full dataset",
+        "Multi-filter bar (line, priority, allergen, source, date range) → URL search params driving Server Component re-fetch with Drizzle .where() composition",
+        "Bulk actions bar (Release selected / Export / Cancel) → useSelectedItems hook; Server Action for bulk-release with transaction; export via route handler streaming CSV",
+        "Status-conditional row action buttons (Plan/Release/Start/Pause/Resume/Close) → map from WO status to allowed actions via state machine; RBAC guard in Server Action",
+        "KPI mini-cards (Scheduled today, In progress, On hold >24h, This week) → async RSC tiles with individual DB queries; 'On hold >24h' uses timestampdiff in Drizzle raw query",
+        "Row click → navigation to /planning/work-orders/[id]; no client-side state needed",
+        "AllergenCluster, Avail, WOPlanStatus, Priority, SourceBadge → extract to shared design-system components with shadcn Badge base",
+        "Pagination (← Prev / Next →) → cursor-based pagination via URL params; Drizzle .limit().offset() or keyset pagination"
+      ],
+      "shadcn_equivalent": [
+        "Table",
+        "TableHeader",
+        "TableBody",
+        "TableRow",
+        "TableCell",
+        "Tabs",
+        "Input",
+        "Select",
+        "Checkbox",
+        "Badge",
+        "Button"
+      ],
+      "known_bugs": [],
+      "estimated_translation_time_min": 180
+    },
+    {
+      "label": "plan_wo_detail",
+      "file": "design/Monopilot Design System/planning/wo-detail.jsx",
+      "lines": "3-99",
+      "component_type": "tabs",
+      "ui_pattern": "detail-view",
+      "data_domain": "WO",
+      "interaction": "read-only",
+      "complexity": "page-level",
+      "depends_on_prototypes": [
+        "planning/wo-detail.jsx#OverviewTab",
+        "planning/wo-detail.jsx#OutputsTab",
+        "planning/wo-detail.jsx#DependenciesTab",
+        "planning/wo-detail.jsx#ReservationsTab",
+        "planning/wo-detail.jsx#SequencingTab",
+        "planning/wo-detail.jsx#HistoryTab",
+        "planning/wo-detail.jsx#D365Tab"
+      ],
+      "translation_notes": [
+        "PlanWODetail shell (header + summary bar + tabs) → Server Component fetching PLAN_WO_DETAIL from wo table with all relations in one query",
+        "Status-conditional actions map (actions obj) → computed server-side from WO status; state machine rule determines allowed transitions per role",
+        "Cascade dependency banner (alert-blue) → conditional on w.cascadeLayer; links to /planning/cascade?highlight=<wo.id>",
+        "Tab navigation → shadcn Tabs component; each tab content is an async RSC loaded lazily or via tab URL param",
+        "Summary bar (7 key fields) → horizontal scroll on mobile; each cell is a definition-list item",
+        "BOM snapshot link → next/link to /technical/bom/:bomVersion",
+        "WO head action buttons → Server Actions wrapped in useTransition for optimistic state; each action is guarded by RBAC",
+        "Hardcoded labels → next-intl keys under planning.wo.detail namespace"
+      ],
+      "shadcn_equivalent": [
+        "Tabs",
+        "TabsList",
+        "TabsTrigger",
+        "TabsContent",
+        "Badge",
+        "Button",
+        "Alert",
+        "Breadcrumb"
+      ],
+      "known_bugs": [],
+      "estimated_translation_time_min": 90
+    },
+    {
+      "label": "wo_overview_tab",
+      "file": "design/Monopilot Design System/planning/wo-detail.jsx",
+      "lines": "102-239",
+      "component_type": "tabs",
+      "ui_pattern": "detail-view",
+      "data_domain": "WO",
+      "interaction": "read-only",
+      "complexity": "composite",
+      "depends_on_prototypes": [
+        "primitive:Avail",
+        "primitive:AllergenCluster",
+        "planning/wo-detail.jsx#WOPlanStatus",
+        "planning/wo-detail.jsx#Priority"
+      ],
+      "translation_notes": [
+        "Materials table (BOM snapshot) → Drizzle join: wo_materials + lp_reservations + upstream WO projections in single query; source enum (stock/upstream_wo_output/manual) maps to Badge variant",
+        "Meat-pct aggregation row → computed via BOM expand query (FR-PLAN-026); displayed as read-only definition list",
+        "Operations table (routing snapshot) → wo_operations table joined with machines; actual_duration populated by Scanner events",
+        "Right column sidecars (WO info / Capacity / BOM) → three Card components in a sticky right column (CSS grid 1fr 320px)",
+        "Capacity conflict badge → from a capacity slot query; greedy allocation stub in P1, finite-capacity engine in P2",
+        "reservedLP hard lock display (per material row) → from lp_reservations table filtered by wo_id + material_code",
+        "upstream WO projected qty → from wo_outputs table for the upstream WO; projectedDate from wo.planned_end",
+        "Hardcoded labels → next-intl keys under planning.wo.overview namespace"
+      ],
+      "shadcn_equivalent": [
+        "Table",
+        "Card",
+        "Badge",
+        "Alert"
+      ],
+      "known_bugs": [],
+      "estimated_translation_time_min": 120
+    },
+    {
+      "label": "wo_dependencies_tab",
+      "file": "design/Monopilot Design System/planning/wo-detail.jsx",
+      "lines": "292-372",
+      "component_type": "tabs",
+      "ui_pattern": "detail-view",
+      "data_domain": "WO",
+      "interaction": "read-only",
+      "complexity": "composite",
+      "depends_on_prototypes": [
+        "primitive:WOPlanStatus",
+        "primitive:Avail"
+      ],
+      "translation_notes": [
+        "Graph/List toggle (pills) → shadcn ToggleGroup; each view is a distinct component rendered conditionally",
+        "DAG canvas (layered nodes) → BACKLOG Q2: replace with react-flow in production; for P1 prototype, CSS flexbox layering is acceptable",
+        "byLayer grouping (dagNodes forEach) → server-side: wo_dag_view or cascade_edges table; layer number computed from BFS/topo sort in backend",
+        "DAG legend → simple inline flex legend; use design token colors for status mapping",
+        "List view table (direction, WO, product, reqQty, parentStatus, materialLink) → from wo_dependencies table join",
+        "Cycle-check passed badge → from cascade_generation_v1 rule result stored on the WO or chain record",
+        "Open full cascade → next/link to /planning/cascade?chain=<chainId>",
+        "Hardcoded labels → next-intl keys under planning.wo.dependencies namespace"
+      ],
+      "shadcn_equivalent": [
+        "ToggleGroup",
+        "Table",
+        "Badge",
+        "Card",
+        "Button"
+      ],
+      "known_bugs": [
+        "Q2 in BACKLOG.md: DAG canvas is layered list, not true directed graph with SVG edges"
+      ],
+      "estimated_translation_time_min": 90
+    },
+    {
+      "label": "wo_reservations_tab",
+      "file": "design/Monopilot Design System/planning/wo-detail.jsx",
+      "lines": "375-417",
+      "component_type": "tabs",
+      "ui_pattern": "list-with-actions",
+      "data_domain": "LP",
+      "interaction": "read-only",
+      "complexity": "composite",
+      "depends_on_prototypes": [
+        "design/Monopilot Design System/_shared/modals.jsx#ReservationOverrideModal"
+      ],
+      "translation_notes": [
+        "Reservations table → Drizzle query on lp_reservations filtered by wo_id; columns: material, lp, reserved_qty, type, reserved_at, reserved_by, released_at, release_reason",
+        "Status column (Pending on RELEASE / Active / released date) → derived from reservation.status enum + pending_release boolean flag",
+        "Release button (admin only, disabled for non-admin) → RBAC check server-side; triggers ReservationOverrideModal",
+        "Reservation banner → informational card explaining P1 semantics (reserved on RELEASED transition, RM stock only)",
+        "pending/active/released badge variants → map reservation.status to shadcn Badge variant",
+        "Count summary in tab label (w.reservations.length) → from aggregated count in WO detail query",
+        "Hardcoded 'Pending on RELEASE' badge text → next-intl keys under planning.wo.reservations namespace",
+        "Admin Release button → opens ReservationOverrideModal with LP data as prop"
+      ],
+      "shadcn_equivalent": [
+        "Table",
+        "Badge",
+        "Button",
+        "Alert",
+        "Card"
+      ],
+      "known_bugs": [],
+      "estimated_translation_time_min": 60
+    },
+    {
+      "label": "wo_sequencing_tab",
+      "file": "design/Monopilot Design System/planning/wo-detail.jsx",
+      "lines": "420-494",
+      "component_type": "tabs",
+      "ui_pattern": "detail-view",
+      "data_domain": "WO",
+      "interaction": "read-only",
+      "complexity": "composite",
+      "depends_on_prototypes": [
+        "primitive:AllergenCluster",
+        "primitive:Priority"
+      ],
+      "translation_notes": [
+        "Sequencing card with allergen profile + changeover cost → fetched from sequencing_queue table for this WO's assigned line",
+        "Position in queue (s.position / s.totalOnLine) → from sequencing_queue.position and COUNT on line",
+        "Before/After WO neighbors → from sequencing_queue ordered by position, take adjacent rows",
+        "Changeover cost badge (low/medium/high) → computed by allergen_sequencing_heuristic_v1 rule; stored in sequencing_queue.changeover_cost",
+        "Queue preview table (next 5) → Drizzle query on sequencing_queue ordered by position, limit 5 starting from current WO position - 1",
+        "Override active alert → from sequencing_queue.override_active + override_reason; Clear override → Server Action",
+        "Changeover cost → badge colors: low=green, medium=amber, high=red; map from enum",
+        "Hardcoded labels → next-intl keys under planning.wo.sequencing namespace"
+      ],
+      "shadcn_equivalent": [
+        "Card",
+        "Table",
+        "Badge",
+        "Alert",
+        "Button"
+      ],
+      "known_bugs": [],
+      "estimated_translation_time_min": 60
+    },
+    {
+      "label": "wo_history_tab",
+      "file": "design/Monopilot Design System/planning/wo-detail.jsx",
+      "lines": "497-526",
+      "component_type": "tabs",
+      "ui_pattern": "list-with-actions",
+      "data_domain": "WO",
+      "interaction": "read-only",
+      "complexity": "primitive",
+      "depends_on_prototypes": [
+        "primitive:WOPlanStatus"
+      ],
+      "translation_notes": [
+        "Status history table → from wo_status_history table ordered by timestamp asc; columns: from, to, timestamp, user, action, override_reason, context",
+        "context column rendered as JSON.stringify → use a Collapsible or Tooltip to show JSON without column overflow; consider JSONTree in production",
+        "WOPlanStatus badge for from/to columns → shared Badge component with status → variant map",
+        "Workflow rule link ('02-SETTINGS §7') → next/link to /settings/rules/wo_state_machine_v1",
+        "transition count badge → from .length of fetched history; displayed in tab label",
+        "Override reason column → amber color on non-null values; tooltip on truncated text",
+        "Hardcoded labels → next-intl keys under planning.wo.history namespace",
+        "No write operations here; this is a pure audit log view"
+      ],
+      "shadcn_equivalent": [
+        "Table",
+        "Badge",
+        "Card"
+      ],
+      "known_bugs": [],
+      "estimated_translation_time_min": 30
+    },
+    {
+      "label": "plan_po_list",
+      "file": "design/Monopilot Design System/planning/po-screens.jsx",
+      "lines": "3-139",
+      "component_type": "table",
+      "ui_pattern": "search-filter-list",
+      "data_domain": "PO",
+      "interaction": "read-only",
+      "complexity": "page-level",
+      "depends_on_prototypes": [
+        "primitive:POStatus",
+        "planning/modals.jsx#POFastFlowModal"
+      ],
+      "translation_notes": [
+        "Tab counts (PLAN_POS.filter) → DB-side COUNT per status grouped; fetch counts and list in same RSC query",
+        "Filter bar (supplier, date range) → URL search params; Drizzle .where() with optional supplier_id and date range",
+        "Bulk actions (Release selected / Export / Cancel) → Server Actions; CSV export via route handler",
+        "D365 drift tag per row → po.d365_drift boolean column; Badge shown inline in PO number cell",
+        "KPI mini-cards (Open POs, Pending approval, Overdue, This month) → async RSC tiles; overdue from exp_date < now(); pending from COUNT WHERE status=pending_approval",
+        "Row click → navigation to /planning/purchase-orders/[id]",
+        "POStatus badge → shared Badge with status enum → variant map",
+        "Pagination → cursor-based via URL params"
+      ],
+      "shadcn_equivalent": [
+        "Table",
+        "Tabs",
+        "Input",
+        "Select",
+        "Badge",
+        "Checkbox",
+        "Button",
+        "Card"
+      ],
+      "known_bugs": [],
+      "estimated_translation_time_min": 150
+    },
+    {
+      "label": "plan_po_detail",
+      "file": "design/Monopilot Design System/planning/po-screens.jsx",
+      "lines": "143-353",
+      "component_type": "page-layout",
+      "ui_pattern": "detail-view",
+      "data_domain": "PO",
+      "interaction": "approve",
+      "complexity": "page-level",
+      "depends_on_prototypes": [
+        "primitive:POStatus",
+        "planning/modals.jsx#POApprovalModal",
+        "planning/modals.jsx#AddPOLineModal"
+      ],
+      "translation_notes": [
+        "PO detail → Server Component fetching po + po_lines + status_history + d365 sync data in single Drizzle query with joins",
+        "Status-conditional action buttons (Edit/Cancel/Submit/Approve/Reject/View GRNs/Download PDF) → state machine map; each action is a Server Action with RBAC guard",
+        "Pending approval amber banner with inline Approve/Reject CTAs → shown when po.status=pending_approval; links to POApprovalModal",
+        "PO lines table with per-line progress bar (received/qty) → from po_lines table; received from grn_lines aggregation",
+        "GRN progress bar in right sidebar → aggregate received_total/total_ordered from po_lines join grn_lines",
+        "Approval card (state/approver role/threshold/this PO total) → from po.approval_required + plan_settings.po.approval_threshold",
+        "D365 sync card (drift badge, d365_supplier_id, last_sync) → from po.d365 JSONB or d365_sync_log table",
+        "Collapsible status history → accordioned by default on page load; Drizzle query on po_status_history"
+      ],
+      "shadcn_equivalent": [
+        "Card",
+        "Table",
+        "Badge",
+        "Button",
+        "Alert",
+        "Collapsible",
+        "Breadcrumb"
+      ],
+      "known_bugs": [],
+      "estimated_translation_time_min": 180
+    },
+    {
+      "label": "plan_to_list",
+      "file": "design/Monopilot Design System/planning/to-screens.jsx",
+      "lines": "3-99",
+      "component_type": "table",
+      "ui_pattern": "search-filter-list",
+      "data_domain": "TO",
+      "interaction": "read-only",
+      "complexity": "page-level",
+      "depends_on_prototypes": [
+        "primitive:TOStatus",
+        "primitive:Priority",
+        "planning/modals.jsx#TOCreateModal"
+      ],
+      "translation_notes": [
+        "Tab counts → DB-side COUNT per status grouped; from/to warehouse KPI tiles",
+        "Filter bar (from warehouse, to warehouse, priority, date range) → URL search params driving Drizzle .where() composition",
+        "Overdue highlighting (row-overdue CSS class) → CSS class applied when to.planned_ship_date < now() and status not in (shipped/received/closed)",
+        "KPI strip (Open TOs, In transit, Overdue, This week) → async RSC tiles with individual Drizzle COUNT queries",
+        "Row click → navigation to /planning/transfer-orders/[id]",
+        "TOStatus badge → shared Badge component with status enum → variant map",
+        "Create TO button → opens TOCreateModal; on success, router.refresh() to reload Server Component",
+        "Overdue rel label (Overdue Xd) → computed from now() - planned_ship_date in Drizzle raw query or in application layer"
+      ],
+      "shadcn_equivalent": [
+        "Table",
+        "Tabs",
+        "Input",
+        "Select",
+        "Badge",
+        "Button",
+        "Card"
+      ],
+      "known_bugs": [],
+      "estimated_translation_time_min": 120
+    },
+    {
+      "label": "plan_to_detail",
+      "file": "design/Monopilot Design System/planning/to-screens.jsx",
+      "lines": "103-281",
+      "component_type": "page-layout",
+      "ui_pattern": "detail-view",
+      "data_domain": "TO",
+      "interaction": "edit",
+      "complexity": "page-level",
+      "depends_on_prototypes": [
+        "primitive:TOStatus",
+        "primitive:Priority",
+        "planning/modals.jsx#TOCreateModal",
+        "planning/modals.jsx#ShipTOModal"
+      ],
+      "translation_notes": [
+        "TO detail → Server Component fetching to + to_lines + lps + status_history in single Drizzle query",
+        "Status-conditional action buttons (Edit/Cancel/Ship/Receive) → handler map passes modal opener; each Server Action has RBAC guard",
+        "TO lines table with per-line ship/receive progress bars → from to_lines with shipped/received aggregation",
+        "LP breakdown collapsible section → from to_lp_reservations table; Add LP → opens LPPickerModal",
+        "TO summary right sidebar → formatted fields from TO record with actual vs planned ship/receive dates",
+        "Status history collapsible → from to_status_history table ordered by timestamp; rendered as timeline (not table) for readability",
+        "TOCreateModal in edit mode → passing editing=t; useEffect re-seeds form on open",
+        "ShipTOModal → opened from 'Ship' action button; receives full TO data as prop"
+      ],
+      "shadcn_equivalent": [
+        "Card",
+        "Table",
+        "Badge",
+        "Button",
+        "Collapsible",
+        "Alert",
+        "Breadcrumb"
+      ],
+      "known_bugs": [],
+      "estimated_translation_time_min": 180
+    },
+    {
+      "label": "plan_gantt",
+      "file": "design/Monopilot Design System/planning/gantt.jsx",
+      "lines": "7-162",
+      "component_type": "page-layout",
+      "ui_pattern": "detail-view",
+      "data_domain": "WO",
+      "interaction": "read-only",
+      "complexity": "page-level",
+      "depends_on_prototypes": [
+        "primitive:WOPlanStatus",
+        "primitive:Priority",
+        "planning/modals.jsx#WOPlanStatus"
+      ],
+      "translation_notes": [
+        "DAY_W / HOUR_W pixel constants → in production these should be CSS custom properties or computed from container width (ResizeObserver); zoom in/out adjusts the multiplier",
+        "GANTT_BARS and GANTT_LINES globals → Drizzle query: WOs with planned_start/planned_end for the selected week + line filter; returned as serialized JSON from Server Component",
+        "Bar positioning (b.day * DAY_W + b.start * HOUR_W) → computed in client component from ISO datetime strings; day index = diff from week start, hour = hour-of-day",
+        "Allergen color band (gb-band CSS class) → map allergen family to design token color; allergen data joined from WO materials",
+        "Changeover markers → computed server-side from sequencing_queue; position from planned_start of each WO",
+        "Popover on bar click → shadcn Popover or custom absolute-positioned card; not a full Dialog since it should not block interaction",
+        "Bar conflict class (conflict: true) → from a capacity slot overlap query; greedy allocation P1 stub",
+        "SVG dependency arrows → simplified stub; production will use dagre layout for multi-line cross-lane arrows"
+      ],
+      "shadcn_equivalent": [
+        "Card",
+        "Select",
+        "ToggleGroup",
+        "Popover",
+        "Button",
+        "Badge",
+        "Alert"
+      ],
+      "known_bugs": [],
+      "estimated_translation_time_min": 240
+    },
+    {
+      "label": "plan_cascade_dag",
+      "file": "design/Monopilot Design System/planning/cascade.jsx",
+      "lines": "3-239",
+      "component_type": "page-layout",
+      "ui_pattern": "detail-view",
+      "data_domain": "WO",
+      "interaction": "read-only",
+      "complexity": "page-level",
+      "depends_on_prototypes": [
+        "primitive:WOPlanStatus",
+        "primitive:Priority",
+        "primitive:AllergenCluster",
+        "primitive:Avail"
+      ],
+      "translation_notes": [
+        "CASCADE_DAG and CASCADE_EDGES globals → Drizzle query on cascade_edges table with full WO join; grouped by chain_id server-side",
+        "Chain list sidebar → left panel with chain-row items; activeChain URL search param for deep-link; selectedNode stored in client state",
+        "Layered DAG canvas → BACKLOG Q2: replace with react-flow in production with SVG directed edges, edge labels (qty + uom + to_stock badge), cycle-highlight; current CSS flexbox layers acceptable for P1 prototype",
+        "Availability dot on node (green/yellow/red/produced) → from WO material availability summary; computed server-side",
+        "Side panel (Materials / Outputs / Deps tabs) → shadcn Sheet (slide-in from right) with Tabs inside; data from CASCADE_EDGES filtered by selectedNode.code",
+        "Stats bar (chains, totalWos, avgDepth, conflicts) → aggregate query on cascade_edges; cycle count from cycle_check_results",
+        "Export PNG button → html-to-image or dom-to-svg library; out of scope for P1",
+        "Open full detail button → next/link to /planning/work-orders/[selectedNode.code]"
+      ],
+      "shadcn_equivalent": [
+        "Card",
+        "Sheet",
+        "Tabs",
+        "TabsList",
+        "TabsContent",
+        "Select",
+        "Badge",
+        "Button"
+      ],
+      "known_bugs": [
+        "Q2 in BACKLOG.md: cascade canvas is a layered list, not a true directed graph with SVG edges and edge labels; react-flow integration needed before production implementation"
+      ],
+      "estimated_translation_time_min": 240
+    },
+    {
+      "label": "plan_reservations",
+      "file": "design/Monopilot Design System/planning/other-screens.jsx",
+      "lines": "3-120",
+      "component_type": "table",
+      "ui_pattern": "search-filter-list",
+      "data_domain": "LP",
+      "interaction": "read-only",
+      "complexity": "page-level",
+      "depends_on_prototypes": [
+        "primitive:Avail",
+        "planning/modals.jsx#ReservationOverrideModal"
+      ],
+      "translation_notes": [
+        "PLAN_RESERVATIONS global → Drizzle query on lp_reservations with joins to WOs, LPs, materials; filtered by status (active/consumed/cancelled/admin_override)",
+        "Multi-filter bar (search, status, warehouse, WO status, reservation type) → URL search params; Drizzle .where() composition",
+        "Summary strip (active hard locks, LPs locked, fully committed LPs) → aggregate subquery counts; fully committed = LPs where reserved >= total_qty",
+        "Availability panel (right sidebar) → for selected product: from lp table where product_code = selectedProduct, FEFO sorted; net = total - reserved; over-committed alert when net < 0",
+        "Release button (admin only) → RBAC check; triggers ReservationOverrideModal with LP data as prop",
+        "Status badges (Active/Consumed/Cancelled/Admin override) → map reservation.status enum to Badge variant",
+        "Click row → navigate to WO detail (/planning/work-orders/[r.wo])",
+        "Export button → route handler streaming CSV of current filtered view"
+      ],
+      "shadcn_equivalent": [
+        "Table",
+        "Input",
+        "Select",
+        "Badge",
+        "Card",
+        "Button",
+        "Alert"
+      ],
+      "known_bugs": [],
+      "estimated_translation_time_min": 120
+    },
+    {
+      "label": "plan_sequencing",
+      "file": "design/Monopilot Design System/planning/other-screens.jsx",
+      "lines": "124-252",
+      "component_type": "page-layout",
+      "ui_pattern": "list-with-actions",
+      "data_domain": "WO",
+      "interaction": "bulk",
+      "complexity": "page-level",
+      "depends_on_prototypes": [
+        "primitive:AllergenCluster",
+        "primitive:Priority",
+        "planning/modals.jsx#SequencingApplyConfirmModal"
+      ],
+      "translation_notes": [
+        "SEQ_QUEUE and SEQ_KPIS globals → Drizzle query on sequencing_queue filtered by line + date window; groups computed server-side by allergen_family",
+        "Drag handle (seq-drag ⋮⋮ icon) → wired to @dnd-kit/sortable in production for manual override; position updates via Server Action",
+        "Group headers (allergen family, row count, total hours) → computed from grouped queue rows; changeover cost estimated by rule",
+        "Before/after compare modal (inline in other-screens.jsx) → rendered as shadcn Dialog; uses SEQ_KPIS from server prop",
+        "Line selector → URL search param; page re-fetches sequencing_queue for selected line",
+        "KPI strip (changeovers, baseline, reduction %) → from SEQ_KPIS; highlight good/bad vs target (>30% reduction)",
+        "Apply Sequencing button → opens SequencingApplyConfirmModal with queue + kpis as props",
+        "Override button per row → opens a per-WO override form; stores override in sequencing_queue.override_active + override_reason"
+      ],
+      "shadcn_equivalent": [
+        "Card",
+        "Select",
+        "Badge",
+        "Button",
+        "Dialog",
+        "Alert"
+      ],
+      "known_bugs": [],
+      "estimated_translation_time_min": 180
+    },
+    {
+      "label": "plan_settings",
+      "file": "design/Monopilot Design System/planning/other-screens.jsx",
+      "lines": "256-490",
+      "component_type": "page-layout",
+      "ui_pattern": "crud-form-with-validation",
+      "data_domain": "WO",
+      "interaction": "edit",
+      "complexity": "page-level",
+      "depends_on_prototypes": [
+        "unresolved:_shared/"
+      ],
+      "translation_notes": [
+        "9-tab settings page → shadcn Tabs with URL hash or search param for deep-link; tab list rendered as vertical sidebar on desktop",
+        "Dirty state + unsaved banner → useFormState from react-hook-form with isDirty; unsaved-changes confirmation on navigation (useBeforeUnload)",
+        "Field components (Field, Toggle) → replace with shadcn FormField + Switch (Toggle) + Label; help text via FormDescription",
+        "Per-tab form state (general, po, to, wo, cascade, seq, d365, status, visibility) → split into separate React Hook Forms or a single nested form with sections",
+        "Save changes → single Server Action per tab section; validates entire section with zod; emits settings.updated outbox event",
+        "Status display table (editable labels, colors, icons) → inline-editable Table rows with react-hook-form useFieldArray",
+        "Field visibility table (RBAC toggles) → checkboxes matrix; required fields disabled; save via Server Action with server-side RBAC enforcement",
+        "D365 settings tab → cron expression validated with cron-parser; 'Test D365 connection' → async Server Action returning live status"
+      ],
+      "shadcn_equivalent": [
+        "Tabs",
+        "Form",
+        "Input",
+        "Select",
+        "Switch",
+        "Table",
+        "Button",
+        "Alert",
+        "Card"
+      ],
+      "known_bugs": [
+        "Q5 in BACKLOG.md: ~30 additional settings screens (SET-040 through SET-100) not yet prototyped; blocks D365 end-to-end and Rules Registry browsing"
+      ],
+      "estimated_translation_time_min": 300
+    },
+    {
+      "label": "plan_d365_queue",
+      "file": "design/Monopilot Design System/planning/other-screens.jsx",
+      "lines": "510-648",
+      "component_type": "page-layout",
+      "ui_pattern": "list-with-actions",
+      "data_domain": "WO",
+      "interaction": "approve",
+      "complexity": "page-level",
+      "depends_on_prototypes": [
+        "primitive:WOPlanStatus",
+        "planning/modals.jsx#DraftWOReviewModal"
+      ],
+      "translation_notes": [
+        "D365 trigger enabled gate (if !enabled → show disabled state) → Server Component reads plan_settings.d365.enabled; renders disabled gate page or full queue page",
+        "D365_PULL_HISTORY strip → from d365_pull_log table: last_run, so_count, draft_wo_count, errors; cached with short revalidation",
+        "Draft WOs table with expandable cascade chain rows → Drizzle query on wo where source=d365 and status=draft, joined with cascade_edges; expanded state is client-side via useExpandedRows",
+        "Pull errors section (collapsible) → from d365_pull_errors table; retry button → Server Action re-queues SO for processing",
+        "Review button → opens DraftWOReviewModal with WO data as prop; modal fetches review detail (materials, cascade chain) via Server Action",
+        "Filter bar (SO ref search, SO status, WO status, time range) → URL search params; Drizzle .where() with optional filters",
+        "Manual trigger button → Server Action that enqueues d365.so_pull job immediately; returns job status for optimistic feedback",
+        "Hardcoded labels → next-intl keys under planning.d365.queue namespace"
+      ],
+      "shadcn_equivalent": [
+        "Table",
+        "Collapsible",
+        "Input",
+        "Select",
+        "Badge",
+        "Button",
+        "Card",
+        "Alert"
+      ],
+      "known_bugs": [],
+      "estimated_translation_time_min": 150
+    }
+  ]
+}

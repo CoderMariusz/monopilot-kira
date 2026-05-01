@@ -1,0 +1,60 @@
+{
+  "title": "T-004 — demand_forecasts table + RLS + supersession index",
+  "prompt": "# T-004 — demand_forecasts table + RLS + supersession index\n\nPRD: 07-PLANNING-EXT-PRD.md §9.5, §4.1.4 manual forecast supersede semantics, §4.2 P2 #1 Prophet\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nIntroduce `demand_forecasts` table holding manual (P1) and Prophet (P2) forecasts with confidence interval columns, supersession audit (superseded_at NULL = current), and tenant RLS.\n\n## Implementation contract\n1. Migration `packages/db/migrations/0073_demand_forecasts.sql`: CREATE TYPE forecast_source ENUM (manual|prophet|d365|overridden), CREATE TABLE demand_forecasts per §9.5 DDL with UNIQUE (tenant_id, product_id, week_iso, source, created_at).\n2. Partial index idx_demand_forecasts_current ON (tenant_id, product_id, week_iso) WHERE superseded_at IS NULL.\n3. RLS policy.\n4. Drizzle schema entry.\n\n## Files\n- packages/db/migrations/0073_demand_forecasts.sql [create]\n- packages/db/src/schema/demand_forecasts.ts [create]\n- packages/db/src/schema/index.ts [modify]\n- packages/db/__tests__/demand-forecasts.test.ts [create]\n\n## Acceptance criteria\n1. Given migration 0073 applied, when \\d demand_forecasts runs, then all §9.5 columns including yhat_lower/upper, source enum, supersession columns exist\n2. Given two rows for same (tenant, product, week, source) with different created_at, when both INSERTed, then both succeed (UNIQUE includes created_at)\n3. Given the partial index exists, when a row has superseded_at SET, then it is excluded from the current-forecast index lookup plan\n\n## Test strategy\n- RED: write packages/db/__tests__/demand-forecasts.test.ts asserting supersession partial index + source enum + RLS\n- Run 'pnpm --filter db migrate && pnpm --filter db test demand-forecasts'\n\n## Risk red lines\n- Do not omit the partial index on superseded_at IS NULL (read path depends on it)\n- Do not skip RLS\n- Do not enforce single-active forecast row at DB layer (P2 supersession is event-based, not unique)",
+  "labels": ["prd", "data", "schema", "T1-schema"],
+  "priority": 80,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-004",
+    "source_prd": "07-PLANNING-EXT-PRD.md",
+    "prd_refs": ["§9.5", "§4.1.4", "§4.2"],
+    "category": "data",
+    "subcategory": "schema-forecast",
+    "task_type": "T1-schema",
+    "parent_feature": "07-EXT-c forecast bridge",
+    "context_budget": "40k",
+    "estimated_effort": "1-2h",
+    "description": "Create demand_forecasts table with confidence interval columns, source enum, supersession partial index, RLS.",
+    "details": "Migration 0073 emits CREATE TYPE forecast_source + CREATE TABLE demand_forecasts per §9.5 DDL. Partial index supports the supersession-aware current-forecast read path. Drizzle schema mirrors columns with NUMERIC(12,2) and NUMERIC(3,2) precisions. RED test verifies enum, partial index, RLS.",
+    "scope_files": [
+      "packages/db/migrations/0073_demand_forecasts.sql [create]",
+      "packages/db/src/schema/demand_forecasts.ts [create]",
+      "packages/db/src/schema/index.ts [modify]",
+      "packages/db/__tests__/demand-forecasts.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not create forecast_actuals here (T-005)",
+      "Do not seed data",
+      "Do not implement upload API (T-019)"
+    ],
+    "dependencies": [],
+    "parallel_safe_with": ["T-001", "T-002", "T-003", "T-005", "T-006"],
+    "acceptance_criteria": [
+      "Given migration 0073 applied, when \\d demand_forecasts runs, then all §9.5 columns including yhat_lower/upper, source enum, superseded_at exist",
+      "Given two rows for same (tenant, product, week, source) with different created_at, when both INSERTed, then both succeed",
+      "Given partial index, when a row has superseded_at NOT NULL, then idx_demand_forecasts_current excludes it"
+    ],
+    "test_strategy": [
+      "RED: write packages/db/__tests__/demand-forecasts.test.ts asserting partial index + source enum + RLS",
+      "Run 'pnpm --filter db migrate && pnpm --filter db test demand-forecasts'"
+    ],
+    "risk_red_lines": [
+      "Do not omit partial index on superseded_at IS NULL",
+      "Do not skip RLS",
+      "Do not enforce single-active forecast row via unique at DB layer"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

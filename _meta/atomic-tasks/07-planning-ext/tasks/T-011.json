@@ -1,0 +1,60 @@
+{
+  "title": "T-011 — seed override_reason_codes reference table",
+  "prompt": "# T-011 — seed override_reason_codes reference table\n\nPRD: 07-PLANNING-EXT-PRD.md §8.2 POST /assignments/:id/override (reason_code field), prototype `override_assignment_modal` translation note: 'reference data table override_reason_codes'\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nCreate `override_reason_codes` reference table + seed its initial values (customer_priority|material_shortage|machine_breakdown|allergen_constraint|other) per §8.2 enum.\n\n## Implementation contract\n1. Migration `packages/db/migrations/0079_override_reason_codes.sql`: CREATE TABLE override_reason_codes (code TEXT PRIMARY KEY, label_key TEXT NOT NULL, sort_order INTEGER NOT NULL, active BOOLEAN DEFAULT true).\n2. Seed file `packages/db/seeds/0002_override_reason_codes.ts` inserts the 5 reasons with i18n label keys (`scheduler.override.reason.customer_priority`, etc).\n3. Drizzle schema entry.\n4. Idempotent seed.\n\n## Files\n- packages/db/migrations/0079_override_reason_codes.sql [create]\n- packages/db/src/schema/override_reason_codes.ts [create]\n- packages/db/seeds/0002_override_reason_codes.ts [create]\n- packages/db/__tests__/seed-override-reason-codes.test.ts [create]\n\n## Acceptance criteria\n1. Given migration 0079 applied, when \\d override_reason_codes runs, then code (PK), label_key, sort_order, active columns exist\n2. Given seed runs, when SELECT count(*) FROM override_reason_codes, then result is 5 (customer_priority, material_shortage, machine_breakdown, allergen_constraint, other)\n3. Given seed runs twice, when second run completes, then no duplicates (idempotent UPSERT on code)\n\n## Test strategy\n- RED: write packages/db/__tests__/seed-override-reason-codes.test.ts asserting count + idempotency + all 5 codes present\n- Run 'pnpm --filter db migrate && pnpm --filter db seed override-reason-codes && pnpm --filter db test seed-override-reason-codes'\n\n## Risk red lines\n- Do not hardcode i18n labels in DB; only label_key (next-intl resolves at render time)\n- Do not omit 'other' code (UI relies on it as fallback)\n- Do not put RLS on this reference table (cross-tenant shared)",
+  "labels": ["prd", "data", "seed", "T5-seed"],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-011",
+    "source_prd": "07-PLANNING-EXT-PRD.md",
+    "prd_refs": ["§8.2"],
+    "category": "data",
+    "subcategory": "seed-reference",
+    "task_type": "T5-seed",
+    "parent_feature": "07-EXT override flow",
+    "context_budget": "30k",
+    "estimated_effort": "0.5-1h",
+    "description": "Create + seed override_reason_codes reference table (5 codes, i18n keys, no RLS — shared across tenants).",
+    "details": "Migration 0079 + seed 0002 create cross-tenant reference table holding 5 standard override reasons with i18n label_key entries. Idempotent UPSERT keeps re-runs safe. RED test verifies count, idempotency, label_key shape.",
+    "scope_files": [
+      "packages/db/migrations/0079_override_reason_codes.sql [create]",
+      "packages/db/src/schema/override_reason_codes.ts [create]",
+      "packages/db/seeds/0002_override_reason_codes.ts [create]",
+      "packages/db/__tests__/seed-override-reason-codes.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not seed i18n strings (handled in next-intl bundles)",
+      "Do not add RLS on this reference table",
+      "Do not use this for other override flows beyond scheduler"
+    ],
+    "dependencies": [],
+    "parallel_safe_with": ["T-010"],
+    "acceptance_criteria": [
+      "Given migration 0079 applied, when \\d override_reason_codes runs, then code (PK), label_key, sort_order, active columns exist",
+      "Given seed runs, when SELECT count(*) runs, then result is 5",
+      "Given seed runs twice, when second run completes, then no duplicates (idempotent UPSERT on code)"
+    ],
+    "test_strategy": [
+      "RED: write packages/db/__tests__/seed-override-reason-codes.test.ts asserting count, idempotency, all 5 codes present",
+      "Run 'pnpm --filter db migrate && pnpm --filter db seed override-reason-codes && pnpm --filter db test seed-override-reason-codes'"
+    ],
+    "risk_red_lines": [
+      "Do not hardcode i18n labels in DB",
+      "Do not omit the 'other' code",
+      "Do not add RLS to this reference table"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

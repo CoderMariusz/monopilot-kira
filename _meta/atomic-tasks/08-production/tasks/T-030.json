@@ -1,0 +1,59 @@
+{
+  "title": "T-030 — POST /api/production/work-orders/:id/waste-record",
+  "prompt": "# T-030 — POST /work-orders/:id/waste-record\n\nPRD: 08-PRODUCTION-PRD.md §7.3 FR-08-E3-003, §8.2.3, §11.4 alert\n\n## Goal\nImplement POST /waste-record creating wo_waste_log entry with shift_id (V-PROD-19), category from waste_categories taxonomy, and triggering Shift Lead alert when waste% exceeds 5% threshold (default).\n\n## Implementation contract\nApp Router POST /api/production/work-orders/[id]/waste-record. Zod body {transaction_id: uuid, operator_id: uuid, qty_kg: number(>0), category_id: uuid, reason_notes?: string}. withIdempotency. Atomic transaction: lookup active shift_id for line (T-038 helper), assert category_id references active waste_categories row (V-PROD-05), INSERT wo_waste_log. After commit, evaluate cumulative waste% for this WO (sum waste / sum consumption); if > prod_settings.waste_threshold_pct_alert (default 0.05), enqueue alert event (placeholder log; outbox emit in T-041). Return 200 {waste_id, recorded_at, cumulative_waste_pct, alert_triggered: boolean}.\n\n## Files (scope)\n- apps/web/app/api/production/work-orders/[id]/waste-record/route.ts [create]\n- apps/web/app/api/production/work-orders/[id]/waste-record/__tests__/route.test.ts [create]\n- packages/api-services/production/record-waste.ts [create]\n\n## Acceptance criteria\n1. Given category_id valid + qty_kg=10, when POST waste-record, then 200 with waste_id and shift_id stamped (V-PROD-19)\n2. Given category_id pointing to inactive waste_categories row, when POST, then 409 inactive_waste_category (V-PROD-05)\n3. Given cumulative waste% crosses 5% threshold after this entry, when POST, then response.alert_triggered=true and an alert audit row written\n\n## Test strategy\n- RED: route test asserting happy + inactive category reject + alert trigger before route exists\n- Run 'pnpm --filter web test work-orders.*waste-record'\n\n## Risk red lines\n- Do not allow inactive waste category (V-PROD-05)\n- Do not skip shift_id (V-PROD-19)\n- Do not block on alert (warn only — Shift Lead receives notification)",
+  "labels": ["prd", "api", "waste", "T2-api"],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-030",
+    "source_prd": "08-PRODUCTION-PRD.md",
+    "prd_refs": ["§7.3 FR-08-E3-003", "§8.2.3", "§11.4", "§16.4 V-PROD-05", "§16.4 V-PROD-19"],
+    "category": "api",
+    "subcategory": "waste",
+    "task_type": "T2-api",
+    "parent_feature": "08-PROD E3 Output+Waste",
+    "context_budget": "30k",
+    "estimated_effort": "2h",
+    "description": "POST /waste-record with shift attribution + threshold alert.",
+    "details": "INSERT wo_waste_log with active shift lookup. Threshold 5% default from prod_settings. Alert enqueue is placeholder (audit row + outbox emit deferred to T-041). Active waste_categories enforced.",
+    "scope_files": [
+      "apps/web/app/api/production/work-orders/[id]/waste-record/route.ts [create]",
+      "apps/web/app/api/production/work-orders/[id]/waste-record/__tests__/route.test.ts [create]",
+      "packages/api-services/production/record-waste.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not implement notification dispatcher (T-041)",
+      "Do not implement waste analytics screen (UI tasks)",
+      "Do not modify waste_categories taxonomy"
+    ],
+    "dependencies": ["T-004", "T-015"],
+    "parallel_safe_with": ["T-028", "T-029", "T-031", "T-032"],
+    "acceptance_criteria": [
+      "Given category active + qty=10, when POST, then 200 + waste_id + shift_id stamped",
+      "Given inactive category_id, when POST, then 409 inactive_waste_category",
+      "Given cumulative waste% crosses 5%, when POST, then alert_triggered=true and audit row written"
+    ],
+    "test_strategy": [
+      "RED: route test asserting happy + reject + alert before route exists",
+      "Run 'pnpm --filter web test work-orders.*waste-record'"
+    ],
+    "risk_red_lines": [
+      "Do not allow inactive category",
+      "Do not skip shift_id",
+      "Do not block on alert"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

@@ -1,0 +1,86 @@
+{
+  "title": "T-029 \u2014 Summary primitive \u2014 read-only key/value list with optional diff highlighting",
+  "prompt": "# T-029 \u2014 Summary primitive \u2014 read-only key/value list with optional diff highlighting\n\nPRD: `00-FOUNDATION-PRD.md` \u2014 sections: \u00a75.y\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`\n\n## Goal\nRead-only key/value summary used by P8/P9 Confirm patterns and P10 Preview-compare. Supports optional diff highlighting (added/changed/removed).\n\n## Implementation contract\npackages/ui/src/Summary.tsx: props = { rows: { label: string; before?: ReactNode; after: ReactNode; status?: 'unchanged'|'added'|'changed'|'removed' }[] }. Renders a <dl> with <dt>/<dd>. When status='changed' or 'added' or 'removed', applies a coloured left-border via tokens.css (no inline styles). The Settings schema_view_modal (modals.jsx:111-138) uses the same key/value pattern as a baseline; parity references that prototype. Diff variants get their own Storybook stories.\n\n## Files (scope)\n- packages/ui/src/Summary.tsx [create]\n- packages/ui/.storybook/Summary.stories.tsx [create]\n- packages/ui/src/__tests__/Summary.test.tsx [create]\n- design/Monopilot Design System/settings/modals.jsx:111-138 [ref]\n\n## Acceptance criteria\n1. Given the Summary renders rows in unchanged mode, when compared to the schema_view_modal key/value block in design/Monopilot Design System/settings/modals.jsx:111-138, then it matches structurally (dl with dt/dd pairs in the same order as the rows prop), visually (uses tokens.css for spacing \u2014 no inline styles), and interactionally (no interactive controls; entirely read-only with role='term'/'definition') \u2014 verified by Summary.test.tsx\n2. Given a row has status='changed', when rendered, then a coloured left-border (via the design token --color-warning) is applied and the row's accessible name includes 'changed'\n3. Given an empty rows array, when rendered, then the component renders an EmptyState fallback (T-030 dependency satisfied via prop fallback) without crashing\n\n## Test strategy\n- RED: write packages/ui/src/__tests__/Summary.test.tsx asserting parity + diff variants before Summary.tsx exists\n- Run 'pnpm --filter @monopilot/ui test'\n\n## Risk red lines\n- Do not use inline styles for diff colours \u2014 must come from tokens.css for tenant theming hook (PRD \u00a75.y)\n\n## Dependencies (must be complete first)\n- T-025\n\n## Closeout evidence\nProvide: changed_files, test_commands_and_results, acceptance_criteria_status (per AC), deviations_from_prd, git_status. Use the test-driven-development skill (RED test before implementation) and requesting-code-review at GREEN.",
+  "labels": [
+    "prd",
+    "ui",
+    "primitives",
+    "T3-ui"
+  ],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-029",
+    "source_prd": "00-FOUNDATION-PRD.md",
+    "prd_refs": [
+      "\u00a75.y"
+    ],
+    "category": "ui",
+    "subcategory": "primitives",
+    "task_type": "T3-ui",
+    "parent_feature": "00-FOUNDATION-impl-j UI primitives",
+    "context_budget": "35k",
+    "estimated_effort": "1-2h",
+    "description": "Read-only key/value summary used by P8/P9 Confirm patterns and P10 Preview-compare. Supports optional diff highlighting (added/changed/removed).",
+    "details": "packages/ui/src/Summary.tsx: props = { rows: { label: string; before?: ReactNode; after: ReactNode; status?: 'unchanged'|'added'|'changed'|'removed' }[] }. Renders a <dl> with <dt>/<dd>. When status='changed' or 'added' or 'removed', applies a coloured left-border via tokens.css (no inline styles). The Settings schema_view_modal (modals.jsx:111-138) uses the same key/value pattern as a baseline; parity references that prototype. Diff variants get their own Storybook stories.",
+    "scope_files": [
+      "packages/ui/src/Summary.tsx [create]",
+      "packages/ui/.storybook/Summary.stories.tsx [create]",
+      "packages/ui/src/__tests__/Summary.test.tsx [create]",
+      "design/Monopilot Design System/settings/modals.jsx:111-138 [ref]"
+    ],
+    "out_of_scope": [
+      "Do not modify files outside the scope_files list",
+      "Do not introduce business logic from later module PRDs (01-NPD, 02-SETTINGS, etc.)",
+      "No data fetching in this task \u2014 caller passes rows"
+    ],
+    "dependencies": [
+      "T-025"
+    ],
+    "parallel_safe_with": [
+      "T-026",
+      "T-027",
+      "T-028"
+    ],
+    "acceptance_criteria": [
+      "Given the Summary renders rows in unchanged mode, when compared to the schema_view_modal key/value block in design/Monopilot Design System/settings/modals.jsx:111-138, then it matches structurally (dl with dt/dd pairs in the same order as the rows prop), visually (uses tokens.css for spacing \u2014 no inline styles), and interactionally (no interactive controls; entirely read-only with role='term'/'definition') \u2014 verified by Summary.test.tsx",
+      "Given a row has status='changed', when rendered, then a coloured left-border (via the design token --color-warning) is applied and the row's accessible name includes 'changed'",
+      "Given an empty rows array, when rendered, then the component renders an EmptyState fallback (T-030 dependency satisfied via prop fallback) without crashing"
+    ],
+    "test_strategy": [
+      "RED: write packages/ui/src/__tests__/Summary.test.tsx asserting parity + diff variants before Summary.tsx exists",
+      "Run 'pnpm --filter @monopilot/ui test'"
+    ],
+    "risk_red_lines": [
+      "Do not use inline styles for diff colours \u2014 must come from tokens.css for tenant theming hook (PRD \u00a75.y)"
+    ],
+    "skills": [
+      "test-driven-development",
+      "verification-before-completion",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

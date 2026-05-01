@@ -1,0 +1,59 @@
+{
+  "title": "T-006 — stock_moves table migration",
+  "prompt": "# T-006 — stock_moves table migration\n\nPRD: `05-WAREHOUSE-PRD.md` §5.6, §8.\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`.\n\n## Goal\nCreate `stock_moves` table per PRD §5.6 covering all move_types (transfer/putaway/issue/receipt/adjustment/return/quarantine/consume_to_wo).\n\n## Implementation contract\nAdd `packages/db/src/schema/stock-moves.ts` with columns: id, tenant_id, move_number (auto SM-YYYY-NNNNN), lp_id FK, move_type ENUM (8 values per §8.1), from_location_id (nullable for putaway), to_location_id, quantity (decimal(14,4)), catch_weight_kg, move_date, status ENUM ('completed','cancelled') default 'completed', reason_code (varchar 32), reason_text, wo_id, reference_type (varchar 32), reference_id (uuid), created_at, created_by.\nConstraints: CHECK (quantity > 0); UNIQUE(tenant_id, move_number).\n\n## Files (scope)\n- packages/db/src/schema/stock-moves.ts [create]\n- packages/db/migrations/0NN_stock_moves.sql [create]\n- packages/db/src/schema/stock-moves.test.ts [create]\n\n## Acceptance criteria\n1. Given the migration runs, when stock_moves is inspected, then all PRD §5.6 columns and the 8-value move_type enum exist.\n2. Given INSERT with quantity=0, when committed, then DB raises a CHECK violation.\n3. Given two rows share (tenant_id, move_number), when the second commits, then DB raises a unique violation.\n\n## Test strategy\n- RED: stock-moves.test.ts checks enum membership, CHECK qty, UNIQUE.\n- Run `pnpm --filter db migrate && pnpm --filter db test stock-moves`.\n\n## Risk red lines\n- Do not allow move_type values outside §8.1.\n- Do not auto-cascade-delete via stock_moves (audit-preserving).\n- Do not implement service logic.",
+  "labels": ["prd", "data", "stock-moves", "T1-schema"],
+  "priority": 60,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-006",
+    "source_prd": "05-WAREHOUSE-PRD.md",
+    "prd_refs": ["§5.6", "§8"],
+    "category": "data",
+    "subcategory": "stock-moves",
+    "task_type": "T1-schema",
+    "parent_feature": "warehouse-foundation",
+    "context_budget": "25k",
+    "estimated_effort": "1h",
+    "description": "Create stock_moves table with the 8 move-types enum per §5.6 + §8.1.",
+    "details": "Drizzle schema + migration. CHECK quantity > 0; UNIQUE(tenant_id, move_number); from_location_id nullable for putaway/receipt. Audit-preserving design (no soft delete cascade).",
+    "scope_files": [
+      "packages/db/src/schema/stock-moves.ts [create]",
+      "packages/db/migrations/0NN_stock_moves.sql [create]",
+      "packages/db/src/schema/stock-moves.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Service logic (T-025)",
+      "RLS (T-012)",
+      "Indexes (T-011)"
+    ],
+    "dependencies": ["T-001", "T-002"],
+    "parallel_safe_with": ["T-003", "T-004", "T-005", "T-007", "T-008", "T-009"],
+    "acceptance_criteria": [
+      "Given the migration runs, when stock_moves is inspected, then PRD §5.6 columns and 8-value move_type enum exist",
+      "Given INSERT with quantity=0, when committed, then DB raises a CHECK violation",
+      "Given two rows share (tenant_id, move_number), when the second commits, then DB raises a unique violation"
+    ],
+    "test_strategy": [
+      "RED: stock-moves.test.ts asserts enum, CHECK, UNIQUE behaviors",
+      "Run 'pnpm --filter db migrate && pnpm --filter db test stock-moves'"
+    ],
+    "risk_red_lines": [
+      "Do not allow move_type values outside §8.1",
+      "Do not allow quantity <= 0",
+      "Do not embed service logic"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

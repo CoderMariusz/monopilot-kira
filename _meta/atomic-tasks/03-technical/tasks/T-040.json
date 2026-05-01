@@ -1,0 +1,36 @@
+{
+  "title": "T-040 — UI: TEC-023 BOM Version Diff view (PARTIAL prototype)",
+  "prompt": "Build BOM Version Diff side-by-side view (TEC-023, §7.5). Reuse data from T-015 diff endpoint. Visual reference is `bom_versions_tab` at design/Monopilot Design System/technical/bom-detail.jsx:373-468 (PARTIAL — embedded version timeline) — extend to dedicated diff panel under /technical/boms/[id]/diff. Side-by-side columns Header / Lines / Co-products with added/removed/changed highlighting. RED tests/ui/tec-023-bom-diff.test.tsx. Run: `pnpm vitest run tests/ui/tec-023-bom-diff.test.tsx`.",
+  "labels": ["prd", "ui", "ui-bom-diff", "T3-ui"],
+  "priority": 120,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-040",
+    "source_prd": "03-TECHNICAL-PRD.md",
+    "prd_refs": ["§7.5 TEC-023"],
+    "category": "ui",
+    "subcategory": "bom-diff",
+    "task_type": "T3-ui",
+    "parent_feature": "03-TECHNICAL-a BOM",
+    "context_budget": "20k",
+    "estimated_effort": "2h",
+    "description": "Side-by-side BOM version diff view. PARTIAL prototype anchor extended.",
+    "details": "Empty/all-equal state copy 'No differences'. Color tokens: added=success, removed=destructive, changed=warning per design tokens. Routes from Versions tab in TEC-021 (T-038).",
+    "scope_files": ["app/(app)/technical/boms/[id]/diff/page.tsx", "tests/ui/tec-023-bom-diff.test.tsx"],
+    "out_of_scope": ["Snapshot diff (T-067 doc gap)"],
+    "dependencies": ["T-015", "T-038"],
+    "parallel_safe_with": ["T-039"],
+    "acceptance_criteria": [
+      "Given the diff view renders for v1 vs v2, when compared to design/Monopilot Design System/technical/bom-detail.jsx:373-468 (versions tab), then layout primitives + side-by-side regions follow the prototype patterns — structural + visual + interaction parity verified by RTL with parity checklist embedded in details.",
+      "Given the API returns empty diff, when rendered, then 'No differences' state shows.",
+      "Given a removed line, when rendered, then it appears under the 'Removed' region with destructive color token."
+    ],
+    "test_strategy": ["RED tests for parity + empty state + color tokens.", "Run: pnpm vitest run tests/ui/tec-023-bom-diff.test.tsx"],
+    "risk_red_lines": ["Do not call backend repeatedly — use single GET /diff."],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {"required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"], "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]},
+    "routing_hints": {"red": "hermes_gpt55", "implementation": "hermes_gpt55", "review": "opus_if_high_risk_or_ui_or_architecture", "close": "spark_low_risk_else_opus"}
+  }
+}

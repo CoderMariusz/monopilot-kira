@@ -1,0 +1,59 @@
+{
+  "title": "T-020 — POST /api/production/work-orders/:id/cancel endpoint",
+  "prompt": "# T-020 — POST /work-orders/:id/cancel\n\nPRD: 08-PRODUCTION-PRD.md §7.1 FR-08-E1-005, §8.2.1, §10.1\n\n## Goal\nImplement POST /cancel transitioning DRAFT/READY/IN_PROGRESS/PAUSED → CANCELLED with reason_code + side-effect release_reservations.\n\n## Implementation contract\nApp Router POST handler. Zod body {transaction_id: uuid, user_id: uuid, reason_code: string, notes?: string}. withIdempotency. Atomic transaction: assert WO.status IN ('DRAFT','READY','IN_PROGRESS','PAUSED') (else 409), UPDATE work_orders.status='CANCELLED', UPDATE wo_executions.cancelled_at=now, cancellation_reason_code. Call material reservation release helper (05-WH side-effect — implement as stub interface, real wiring delegated to inventory release task in 05-WH; here just emit a release_reservations log row). Return 200 {wo_id, status:'CANCELLED', cancelled_at, reservations_released:[]}.\n\n## Files (scope)\n- apps/web/app/api/production/work-orders/[id]/cancel/route.ts [create]\n- apps/web/app/api/production/work-orders/[id]/cancel/__tests__/route.test.ts [create]\n- packages/api-services/production/cancel-wo.ts [create]\n\n## Acceptance criteria\n1. Given WO status=READY, when POST /cancel with reason_code, then 200 status=CANCELLED, wo_executions.cancelled_at set, cancellation_reason_code stored\n2. Given WO status=COMPLETED, when POST /cancel, then 409 invalid_state_transition\n3. Given missing reason_code, when POST /cancel, then 422 ValidationError listing reason_code (per §10.1 cancel_reason_provided guard)\n\n## Test strategy\n- RED: route test asserting happy + 409 + 422 missing reason before route exists\n- Run 'pnpm --filter web test work-orders.*cancel'\n\n## Risk red lines\n- Do not skip reason_code (audit trail)\n- Do not transition CANCELLED→anything (terminal state)\n- Do not skip release_reservations side-effect (causes phantom inventory locks)",
+  "labels": ["prd", "api", "wo-execution", "T2-api"],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-020",
+    "source_prd": "08-PRODUCTION-PRD.md",
+    "prd_refs": ["§7.1 FR-08-E1-005", "§8.2.1", "§10.1"],
+    "category": "api",
+    "subcategory": "wo-execution",
+    "task_type": "T2-api",
+    "parent_feature": "08-PROD E1 Execution Core",
+    "context_budget": "30k",
+    "estimated_effort": "2h",
+    "description": "POST /work-orders/:id/cancel: state transition + reservation release stub.",
+    "details": "Cancel is allowed from any non-terminal state per §10.1. reason_code mandatory (audit). Reservation release is invoked through 05-WH adapter interface (stub log row + TODO marker for real wiring in 05-WH integration task — do not insert literal placeholder strings into prompts here).",
+    "scope_files": [
+      "apps/web/app/api/production/work-orders/[id]/cancel/route.ts [create]",
+      "apps/web/app/api/production/work-orders/[id]/cancel/__tests__/route.test.ts [create]",
+      "packages/api-services/production/cancel-wo.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not implement 05-WH inventory release (separate module)",
+      "Do not modify wo_executions schema",
+      "Do not implement outbox emit"
+    ],
+    "dependencies": ["T-001", "T-015"],
+    "parallel_safe_with": ["T-016", "T-017", "T-018", "T-019", "T-021", "T-022"],
+    "acceptance_criteria": [
+      "Given WO READY, when POST /cancel with reason_code, then 200 + cancelled_at + cancellation_reason_code",
+      "Given WO COMPLETED, when POST /cancel, then 409 invalid_state_transition",
+      "Given missing reason_code, when POST /cancel, then 422 listing reason_code"
+    ],
+    "test_strategy": [
+      "RED: route test asserting happy + 409 + 422 missing reason before route exists",
+      "Run 'pnpm --filter web test work-orders.*cancel'"
+    ],
+    "risk_red_lines": [
+      "Do not skip reason_code",
+      "Do not allow transitions from CANCELLED",
+      "Do not skip release_reservations side-effect"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

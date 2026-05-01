@@ -1,0 +1,42 @@
+{
+  "title": "T-008 — API: Items list (GET /api/technical/items) with filters",
+  "prompt": "Implement Next.js App Router route GET /api/technical/items per §6.2. Accept query: type (csv item_types), status, allergens (csv codes — match items having those allergens via item_allergen_profiles), d365_sync_status, q (item_code/name search). Return paginated array (default limit 50). Use Drizzle. Apply RLS via session-level SET app.current_org_id from auth context. Zod validate query parameters; include validation messages for V-TEC-01 codes match per type pattern (informational). RED in tests/api/items-list.test.ts using msw or supertest pattern. Run: `pnpm vitest run tests/api/items-list.test.ts`.",
+  "labels": ["prd", "api", "items-read", "T2-api"],
+  "priority": 80,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-008",
+    "source_prd": "03-TECHNICAL-PRD.md",
+    "prd_refs": ["§6.2", "§6.5"],
+    "category": "api",
+    "subcategory": "items-read",
+    "task_type": "T2-api",
+    "parent_feature": "03-TECHNICAL-a Item Master",
+    "context_budget": "30k",
+    "estimated_effort": "2h",
+    "description": "Items list endpoint with filters, pagination, RLS-aware SELECT.",
+    "details": "Use Server Action variant via app/api/technical/items/route.ts. Pagination via cursor or offset+limit (consistent with project convention). Filter by allergens uses EXISTS subquery joining item_allergen_profiles. Response shape: { items: ItemDTO[], total, next_cursor }. ItemDTO maps SQL columns to camelCase.",
+    "scope_files": [
+      "app/api/technical/items/route.ts",
+      "lib/technical/items/queries.ts",
+      "lib/technical/items/schemas.ts",
+      "tests/api/items-list.test.ts"
+    ],
+    "out_of_scope": ["Item create (T-009)", "Item detail UI", "D365 pull"],
+    "dependencies": ["T-001", "T-004"],
+    "parallel_safe_with": ["T-009", "T-010", "T-011", "T-012", "T-013", "T-014", "T-015", "T-016", "T-017", "T-018", "T-019"],
+    "acceptance_criteria": [
+      "Given org A and org B both have items, when GET /api/technical/items is called as org A, then only org A items are returned (RLS).",
+      "Given query type=fg&status=active, when records exist, then only fg+active items are returned.",
+      "Given query allergens=A01, when an item profile has A01, then it appears; otherwise it does not.",
+      "Given missing/invalid auth, when GET runs, then 401 is returned."
+    ],
+    "test_strategy": ["RED test asserting RLS isolation + filter combos.", "Run: pnpm vitest run tests/api/items-list.test.ts"],
+    "risk_red_lines": ["Do not return private_jsonb to non-owner roles.", "Do not bypass RLS via service-role connection."],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {"required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"], "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]},
+    "routing_hints": {"red": "hermes_gpt55", "implementation": "hermes_gpt55", "review": "opus_if_high_risk_or_ui_or_architecture", "close": "spark_low_risk_else_opus"}
+  }
+}

@@ -1,0 +1,36 @@
+{
+  "title": "T-050 — UI: TEC-050 Cost History panel + TEC-051 Cost Edit/Recompute modal",
+  "prompt": "Build cost history panel (TEC-050) per §11.5 plus the cost-rollup recompute modal (TEC-051 PARTIAL). Match `cost_history_screen` design/Monopilot Design System/technical/other-screens.jsx:761-820 and `cost_rollup_recompute_modal` design/Monopilot Design System/technical/modals.jsx:518-537. Uses T-021 endpoints; >20% delta triggers approver header field. RED tests/ui/tec-050-cost.test.tsx. Run: `pnpm vitest run tests/ui/tec-050-cost.test.tsx`.",
+  "labels": ["prd", "ui", "ui-cost", "T3-ui"],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-050",
+    "source_prd": "03-TECHNICAL-PRD.md",
+    "prd_refs": ["§11.5 TEC-050", "§11.5 TEC-051", "§11A"],
+    "category": "ui",
+    "subcategory": "cost",
+    "task_type": "T3-ui",
+    "parent_feature": "03-TECHNICAL-c Cost",
+    "context_budget": "20k",
+    "estimated_effort": "2h",
+    "description": "Cost history timeline + recompute modal with V-TEC-53 high-variance approver field.",
+    "details": "Timeline shows source badges (manual/d365_sync/supplier_update/variance_roll). Recompute modal triggers POST /cost — for >20% deltas the modal reveals an Approver picker (Owner role).",
+    "scope_files": ["app/(app)/technical/items/[item_code]/_tabs/cost-tab.tsx", "app/(app)/technical/items/[item_code]/_components/cost-edit-modal.tsx", "tests/ui/tec-050-cost.test.tsx"],
+    "out_of_scope": ["D365 cost diff (T-066 docs gap)"],
+    "dependencies": ["T-021", "T-034"],
+    "parallel_safe_with": ["T-051", "T-052"],
+    "acceptance_criteria": [
+      "Given the cost panel renders, when compared to design/Monopilot Design System/technical/other-screens.jsx:761-820 and design/Monopilot Design System/technical/modals.jsx:518-537, then timeline structure, source badges, and modal layout match — structural + visual + interaction parity verified by RTL.",
+      "Given cost delta exceeds 20%, when modal opens, then Approver picker is required.",
+      "Given user lacks technical.cost.edit, when on tab, then Edit button is hidden."
+    ],
+    "test_strategy": ["RED tests for parity + 20% threshold + RBAC.", "Run: pnpm vitest run tests/ui/tec-050-cost.test.tsx"],
+    "risk_red_lines": ["Do not bypass V-TEC-53 approver requirement."],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {"required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"], "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]},
+    "routing_hints": {"red": "hermes_gpt55", "implementation": "hermes_gpt55", "review": "opus_if_high_risk_or_ui_or_architecture", "close": "spark_low_risk_else_opus"}
+  }
+}

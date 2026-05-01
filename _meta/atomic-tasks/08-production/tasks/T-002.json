@@ -1,0 +1,60 @@
+{
+  "title": "T-002 — Drizzle migration: wo_material_consumption table + RLS",
+  "prompt": "# T-002 — Drizzle migration: wo_material_consumption table + RLS\n\nPRD: 08-PRODUCTION-PRD.md §9.3, §16.4 V-PROD-02/16, §5.1#4 R14\n\n## Goal\nAdd Drizzle migration creating wo_material_consumption per §9.3 with R14 idempotency (transaction_id UNIQUE), CHECK constraint chk_over_consumption_approval, RLS, and §9.3 indexes.\n\n## Implementation contract\npackages/db/schema/production/wo-material-consumption.ts: PK id UUID, transaction_id UUID UNIQUE NOT NULL (R14), tenant_id, wo_id, component_id, lp_id, qty_consumed NUMERIC(12,3) CHECK >0, operator_id, fefo_adherence_flag bool NOT NULL, fefo_deviation_reason text, over_consumption_flag default false, over_consumption_approved_by/_at/_reason_code, consumed_at default now, ext_jsonb. Add CHECK chk_over_consumption_approval per §9.3. Indexes: idx_consumption_wo, idx_consumption_lp, idx_consumption_fefo_dev (partial WHERE fefo_adherence_flag = false), idx_consumption_operator_time. RLS by tenant_id.\n\n## Files (scope)\n- packages/db/schema/production/wo-material-consumption.ts [create]\n- packages/db/schema/production/index.ts [modify]\n- packages/db/migrations/NNNN_wo_material_consumption.sql [create]\n- packages/db/__tests__/wo-material-consumption-schema.test.ts [create]\n\n## Acceptance criteria\n1. Given two INSERTs share a transaction_id, when both execute, then second fails with unique_violation (R14)\n2. Given over_consumption_flag=true and approved_by NULL, when INSERT runs, then CHECK constraint chk_over_consumption_approval rejects it\n3. Given migration applied, when pg_indexes queried, then idx_consumption_fefo_dev exists with partial predicate WHERE fefo_adherence_flag = false\n\n## Test strategy\n- RED: write schema test asserting transaction_id UNIQUE + check constraint name before schema exists\n- Run pnpm --filter db drizzle:generate && pnpm --filter db test wo-material-consumption-schema\n\n## Risk red lines\n- Do not weaken qty_consumed > 0 CHECK\n- Do not drop CHECK chk_over_consumption_approval\n- Do not add foreign keys outside §9.3 (license_plates, work_orders, wo_materials, users only)",
+  "labels": ["prd", "data", "schema-migration", "T1-schema"],
+  "priority": 50,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-002",
+    "source_prd": "08-PRODUCTION-PRD.md",
+    "prd_refs": ["§9.3", "§5.1#4", "§16.4 V-PROD-02", "§16.4 V-PROD-16"],
+    "category": "data",
+    "subcategory": "schema-migration",
+    "task_type": "T1-schema",
+    "parent_feature": "08-PROD E2 Consumption",
+    "context_budget": "28k",
+    "estimated_effort": "1-2h",
+    "description": "wo_material_consumption Drizzle table with R14 idempotency, over-consumption CHECK, FEFO partial index, RLS.",
+    "details": "Mirror §9.3 SQL exactly: 4 indexes including partial idx_consumption_fefo_dev WHERE fefo_adherence_flag=false, CHECK chk_over_consumption_approval (over_consumption_flag = false OR over_consumption_approved_by IS NOT NULL), CHECK qty_consumed > 0, transaction_id UUID UNIQUE for R14 idempotency, RLS policy on tenant_id.",
+    "scope_files": [
+      "packages/db/schema/production/wo-material-consumption.ts [create]",
+      "packages/db/schema/production/index.ts [modify]",
+      "packages/db/migrations/NNNN_wo_material_consumption.sql [create]",
+      "packages/db/__tests__/wo-material-consumption-schema.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not add API endpoints",
+      "Do not implement FEFO logic here",
+      "Do not modify other tables"
+    ],
+    "dependencies": [],
+    "parallel_safe_with": ["T-001", "T-003", "T-004", "T-005", "T-006", "T-007", "T-008"],
+    "acceptance_criteria": [
+      "Given two INSERTs sharing transaction_id, when both execute, then unique_violation raised",
+      "Given over_consumption_flag=true and approved_by NULL, when INSERT runs, then chk_over_consumption_approval rejects",
+      "Given migration applied, when pg_indexes queried, then idx_consumption_fefo_dev partial index exists with predicate fefo_adherence_flag=false"
+    ],
+    "test_strategy": [
+      "RED: schema test asserting transaction_id UNIQUE + chk_over_consumption_approval present, before schema exists",
+      "Run 'pnpm --filter db drizzle:generate && pnpm --filter db test wo-material-consumption-schema'"
+    ],
+    "risk_red_lines": [
+      "Do not drop CHECK chk_over_consumption_approval (R16 risk)",
+      "Do not weaken qty_consumed > 0",
+      "Do not skip RLS"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

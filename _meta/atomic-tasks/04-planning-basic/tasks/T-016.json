@@ -1,0 +1,64 @@
+{
+  "title": "T-016 — API: LP picker + FEFO suggestion (TO line)",
+  "prompt": "Implement endpoint `GET /api/planning/transfer-orders/lp-suggestions?product_id=&warehouse_id=&qty=` returning available LPs sorted by FEFO (expiry_date asc) by default with FIFO fallback for non-expiring items. Result includes lp_id, expiry_date, remaining_qty, status badge, fefo_score. Calls 05-WAREHOUSE LP query helper.\n\nServer Action `attachLpsToToLine({ to_line_id, lp_ids[] })` writes to_line_lps rows after re-validating availability.\n\nRED test asserts FEFO ordering, deterministic tie-break, and that reserved/quarantine LPs are excluded.",
+  "labels": ["prd", "api", "lp-picker", "T2-api"],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-016",
+    "source_prd": "04-PLANNING-BASIC-PRD.md",
+    "prd_refs": ["§7.3", "§12.3"],
+    "category": "api",
+    "subcategory": "lp-picker",
+    "task_type": "T2-api",
+    "parent_feature": "planning-to",
+    "context_budget": "30k",
+    "estimated_effort": "2h",
+    "description": "FEFO/FIFO LP suggestion endpoint and attach helper for TO lines.",
+    "details": "Query: `SELECT * FROM lps WHERE product_id=? AND warehouse_id=? AND status='available' ORDER BY expiry_date ASC NULLS LAST, lp_code ASC LIMIT 50`. Reserved/quarantine excluded by status filter. fefo_score = days_until_expiry. Tie-break by lp_code asc.",
+    "scope_files": [
+      "src/app/api/planning/transfer-orders/lp-suggestions/route.ts [create]",
+      "src/server/actions/planning/lp-picker.ts [create]",
+      "src/app/api/planning/transfer-orders/lp-suggestions/__tests__/route.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "LP picker modal UI (T-022)",
+      "Scanner FEFO at consumption-time (06-SCANNER-P1)"
+    ],
+    "dependencies": ["T-014"],
+    "parallel_safe_with": ["T-015"],
+    "acceptance_criteria": [
+      "Given 5 LPs with expiries 2026-05-01, 2026-04-01, NULL, 2026-04-01, 2026-03-01, when GET runs, then result is ordered 2026-03-01, 2026-04-01 (lp_code asc), 2026-04-01 (lp_code asc), 2026-05-01, NULL.",
+      "Given an LP with status='reserved', when GET runs, then it is not in the result.",
+      "Given attachLpsToToLine called with an lp now reserved by another WO, when validated, then HTTP 409 with code 'V-PLAN-TO-006'.",
+      "Given `pnpm vitest run src/app/api/planning/transfer-orders/lp-suggestions/__tests__/route.test.ts`, when run, then 0 failures."
+    ],
+    "test_strategy": [
+      "RED tests for FEFO ordering, exclusion of reserved, and re-validation at attach.",
+      "Run `pnpm vitest run src/app/api/planning/transfer-orders/lp-suggestions/__tests__/route.test.ts`."
+    ],
+    "risk_red_lines": [
+      "Do not include reserved or quarantine LPs in suggestions — would bypass hard-lock semantics.",
+      "Do not skip re-validation at attach time."
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

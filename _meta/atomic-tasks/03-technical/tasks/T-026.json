@@ -1,0 +1,36 @@
+{
+  "title": "T-026 — Wiring: ATP swab auto-fail trigger (V-TEC-44) + WO close gate emit",
+  "prompt": "Per §10.6 + V-TEC-44 — ATP swab `result_value > threshold_rlu` must auto-set status='fail' AND emit a `lab.fail` event consumed by 08-PRODUCTION WO close gate. Implementation lives in lib/technical/lab/atp-fail.ts as a service called from POST /lab-results (T-020) and via DB trigger backstop (so D365 inserts also catch it). Add a Postgres trigger `lab_results_atp_autofail_trigger` that runs BEFORE INSERT setting result_status when test_type='atp_swab'. Outbox event 'lab.fail' published on fail. RED tests/wiring/atp-fail.test.ts. Run: `pnpm vitest run tests/wiring/atp-fail.test.ts`.",
+  "labels": ["prd", "integration", "atp-fail", "T4-wiring-test"],
+  "priority": 80,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-026",
+    "source_prd": "03-TECHNICAL-PRD.md",
+    "prd_refs": ["§10.6", "§10.8"],
+    "category": "integration",
+    "subcategory": "atp-fail",
+    "task_type": "T4-wiring-test",
+    "parent_feature": "03-TECHNICAL-b Lab",
+    "context_budget": "20k",
+    "estimated_effort": "2h",
+    "description": "DB trigger + service ensuring ATP swab fail propagates and emits outbox event.",
+    "details": "Threshold default 10 RLU pulled from reference_tables.alert_thresholds.row_key='atp_swab_rlu_max'. Outbox event payload: { item_id, work_order_id, test_code, result_value, threshold_rlu }. The 08-PRODUCTION close gate consumer is downstream — only emit here.",
+    "scope_files": ["db/migrations/0xxx_atp_autofail_trigger.sql", "lib/technical/lab/atp-fail.ts", "tests/wiring/atp-fail.test.ts"],
+    "out_of_scope": ["Allergen changeover gate", "WO state machine"],
+    "dependencies": ["T-005", "T-020"],
+    "parallel_safe_with": ["T-024", "T-025", "T-027"],
+    "acceptance_criteria": [
+      "Given direct INSERT into lab_results with test_type='atp_swab', value=15, threshold=10, when committed, then result_status='fail'.",
+      "Given fail row written, when outbox queue inspected, then 'lab.fail' event present with item_id and value.",
+      "Given test_type='allergen_elisa' and result_status='pass' provided, when inserted, then trigger does not modify status."
+    ],
+    "test_strategy": ["RED tests covering DB trigger + outbox emit.", "Run: pnpm vitest run tests/wiring/atp-fail.test.ts"],
+    "risk_red_lines": ["Do not consume the event here (08-PRODUCTION side)."],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {"required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"], "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]},
+    "routing_hints": {"red": "hermes_gpt55", "implementation": "hermes_gpt55", "review": "opus_if_high_risk_or_ui_or_architecture", "close": "spark_low_risk_else_opus"}
+  }
+}

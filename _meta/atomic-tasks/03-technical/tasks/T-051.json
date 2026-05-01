@@ -1,0 +1,36 @@
+{
+  "title": "T-051 — UI: TEC-060 Routing List + TEC-061 Routing Edit modal",
+  "prompt": "Build routing list at /technical/routings (TEC-060) and the routing step add/edit modal (TEC-061). Match `routings_screen` design/Monopilot Design System/technical/other-screens.jsx:4-34 and `routing_step_add_modal` design/Monopilot Design System/technical/modals.jsx:271-304. Drag-sort op order via dnd-kit. Uses T-022 endpoints. RED tests/ui/tec-060-routing.test.tsx. Run: `pnpm vitest run tests/ui/tec-060-routing.test.tsx`.",
+  "labels": ["prd", "ui", "ui-routing", "T3-ui"],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-051",
+    "source_prd": "03-TECHNICAL-PRD.md",
+    "prd_refs": ["§12.4 TEC-060", "§12.4 TEC-061"],
+    "category": "ui",
+    "subcategory": "routing",
+    "task_type": "T3-ui",
+    "parent_feature": "03-TECHNICAL-c Routing",
+    "context_budget": "25k",
+    "estimated_effort": "3h",
+    "description": "Routing list + add/edit modal with drag-sort and manufacturing_operation_name picker.",
+    "details": "manufacturing_operation_name picker fed from reference_tables.manufacturing_operations. Drag-sort recomputes op_no contiguous (V-TEC-60).",
+    "scope_files": ["app/(app)/technical/routings/page.tsx", "app/(app)/technical/routings/_components/step-add-modal.tsx", "tests/ui/tec-060-routing.test.tsx"],
+    "out_of_scope": ["Cost preview (T-052)"],
+    "dependencies": ["T-022"],
+    "parallel_safe_with": ["T-052", "T-053"],
+    "acceptance_criteria": [
+      "Given the screen and modal render, when compared to design/Monopilot Design System/technical/other-screens.jsx:4-34 and design/Monopilot Design System/technical/modals.jsx:271-304, then list columns, modal field set, and Cancel/Confirm button order match — structural + visual + interaction parity verified by RTL.",
+      "Given user reorders ops via drag, when saved, then op_no resequenced contiguous starting at 1.",
+      "Given op without line_id and machine_id, when Save clicked, then validation error V-TEC-61."
+    ],
+    "test_strategy": ["RED tests for parity + drag-sort + validation.", "Run: pnpm vitest run tests/ui/tec-060-routing.test.tsx"],
+    "risk_red_lines": ["Do not allow op gaps."],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {"required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"], "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]},
+    "routing_hints": {"red": "hermes_gpt55", "implementation": "hermes_gpt55", "review": "opus_if_high_risk_or_ui_or_architecture", "close": "spark_low_risk_else_opus"}
+  }
+}

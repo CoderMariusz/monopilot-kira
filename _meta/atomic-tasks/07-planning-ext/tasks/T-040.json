@@ -1,0 +1,59 @@
+{
+  "title": "T-040 — Matrix Diff Modal (matrix_diff_modal) — cross-version compare",
+  "prompt": "# T-040 — Matrix Diff Modal\n\nPRD: 07-PLANNING-EXT-PRD.md §17.1 PLE-011\nPrototype: design/Monopilot Design System/planning-ext/modals.jsx:472-496 (`matrix_diff_modal`)\nUX: design/07-PLANNING-EXT-UX.md:594-611\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nImplement full-width Sheet/Dialog comparing two changeover_matrix_versions with color-coded diff (yellow=changed, green=added, red=removed-from-override) + delta column + [Download CSV] action.\n\n## Implementation contract\n1. New `apps/web/src/components/matrix/MatrixDiffModal.tsx` (shadcn Dialog with className max-w-7xl).\n2. Server helper `apps/web/src/lib/scheduler/get-matrix-version-diff.ts` exporting getMatrixVersionDiff(versionA, versionB) → MatrixCellDiff[]; cached 5min per pair (FR-07-PLE-011-02).\n3. CSV download invokes Server Action returning attachment.\n4. Color tokens follow heatmap legend.\n\n## Files\n- apps/web/src/components/matrix/MatrixDiffModal.tsx [create]\n- apps/web/src/lib/scheduler/get-matrix-version-diff.ts [create]\n- apps/web/src/components/matrix/__tests__/MatrixDiffModal.test.tsx [create]\n- design/Monopilot Design System/planning-ext/modals.jsx [ref]\n\n## Acceptance criteria\n1. Given versionA with cell {EGG→MILK: 30min} and versionB with same cell {EGG→MILK: 45min}, when getMatrixVersionDiff(A,B) runs, then result includes {type:'changed', delta:+15, color:'yellow'} for that cell\n2. Given the rendered modal, when compared to prototype design/Monopilot Design System/planning-ext/modals.jsx:472-496, then it has same color-coded diff table, same delta column, same [Download CSV] button, and same shadcn primitives (Dialog, Table, Button) — parity by RTL snapshot + checklist\n3. Given diff cached 5min ago for same (A,B) pair, when modal re-opens, then second computation reuses cache (no DB hit, verified via spy on the helper)\n\n## Test strategy\n- RED: write __tests__/MatrixDiffModal.test.tsx covering diff classification + parity + cache hit\n- Run 'pnpm --filter web test matrix/MatrixDiffModal'\n\n## Risk red lines\n- Do not include current draft rows (only published versions)\n- Do not skip cache (perf SLO needs it)\n- Do not allow non-admin to download segregated cell rows (filter on download)",
+  "labels": ["prd", "ui", "modal", "T3-ui"],
+  "priority": 120,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-040",
+    "source_prd": "07-PLANNING-EXT-PRD.md",
+    "prd_refs": ["§17.1 PLE-011"],
+    "category": "ui",
+    "subcategory": "modal-diff",
+    "task_type": "T3-ui",
+    "parent_feature": "07-EXT-b matrix version diff",
+    "context_budget": "40k",
+    "estimated_effort": "1-2h",
+    "description": "Cross-version diff modal with color-coded changes, delta column, CSV download, 5min cache.",
+    "details": "Server-side diff with 5min memoize. shadcn Dialog max-w-7xl. Color tokens consistent with heatmap legend.",
+    "scope_files": [
+      "apps/web/src/components/matrix/MatrixDiffModal.tsx [create]",
+      "apps/web/src/lib/scheduler/get-matrix-version-diff.ts [create]",
+      "apps/web/src/components/matrix/__tests__/MatrixDiffModal.test.tsx [create]",
+      "design/Monopilot Design System/planning-ext/modals.jsx:472-496 [ref]"
+    ],
+    "out_of_scope": [
+      "Do not implement editor here (T-036)",
+      "Do not implement publish modal (T-038)"
+    ],
+    "dependencies": ["T-018"],
+    "parallel_safe_with": ["T-039", "T-041"],
+    "acceptance_criteria": [
+      "Given versionA cell {EGG→MILK: 30min} and versionB cell {EGG→MILK: 45min}, when getMatrixVersionDiff(A,B) runs, then result includes {type:'changed', delta:+15, color:'yellow'}",
+      "Given the rendered modal, when compared to prototype design/Monopilot Design System/planning-ext/modals.jsx:472-496, then it has same diff table, same delta column, same [Download CSV] button, and same shadcn primitives — parity by RTL snapshot + checklist",
+      "Given diff cached 5min ago for same (A,B) pair, when modal re-opens, then second computation reuses cache (helper spy)"
+    ],
+    "test_strategy": [
+      "RED: write __tests__/MatrixDiffModal.test.tsx covering diff classification + parity + cache hit",
+      "Run 'pnpm --filter web test matrix/MatrixDiffModal'"
+    ],
+    "risk_red_lines": [
+      "Do not include draft rows",
+      "Do not skip cache",
+      "Do not allow non-admin to download segregated cells"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

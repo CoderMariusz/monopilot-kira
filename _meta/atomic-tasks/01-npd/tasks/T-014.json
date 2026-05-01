@@ -1,0 +1,58 @@
+{
+  "title": "T-014 — Schema-driven Zod runtime from Reference.DeptColumns",
+  "prompt": "# T-014 — Schema-driven Zod runtime from DeptColumns\n\nPRD: 01-NPD-PRD.md §4.2 (ADR-028)\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nGenerate per-dept Zod schemas at runtime from Reference.DeptColumns metadata, used by Server Actions for input validation and by client forms via zodResolver.\n\n## Implementation contract\nNew packages/schema-runtime/src/build-dept-zod.ts exposing buildDeptZod(tenantId, dept) returning ZodObject. Each column maps: text→z.string(), number→z.coerce.number(), date→z.coerce.date(), dropdown→z.enum() built from Reference[dropdown_source]. required_for_done=true → required, else .optional(). 5-min cache keyed by (tenant_id, dept, schema_version). Tests verify required handling, dropdown enum sourcing, and cache invalidation.\n\n## Files\n- packages/schema-runtime/src/build-dept-zod.ts [create]\n- packages/schema-runtime/src/cache.ts [create]\n- packages/schema-runtime/__tests__/build-dept-zod.test.ts [create]\n\n## Acceptance criteria\n1. Given Reference.DeptColumns row product_name(text, required_for_done=true), when buildDeptZod('Core') runs, then resulting schema rejects undefined product_name with required message\n2. Given dropdown column pack_size with dropdown_source='PackSizes' rows ['250g','500g'], when schema validates pack_size='1kg', then validation fails with enum error\n3. Given DeptColumns row schema_version increments, when next buildDeptZod call runs, then a fresh schema is returned (cache busted)\n\n## Test strategy\n- RED: 3 tests for required, enum, cache invalidation\n- Run 'pnpm --filter schema-runtime test'\n\n## Risk red lines\n- Do not bypass tenant scoping in DeptColumns query\n- Do not cache cross-tenant entries together\n- Do not generate types at build time (must be runtime per ADR-028)",
+  "labels": ["prd", "infra", "schema-runtime", "T2-api"],
+  "priority": 80,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-014",
+    "source_prd": "01-NPD-PRD.md",
+    "prd_refs": ["§4.2", "ADR-028"],
+    "category": "infra",
+    "subcategory": "schema-runtime",
+    "task_type": "T2-api",
+    "parent_feature": "01-NPD-a schema-driven backbone",
+    "context_budget": "40k",
+    "estimated_effort": "2-3h",
+    "description": "buildDeptZod runtime generator that produces per-dept Zod schemas from Reference.DeptColumns metadata.",
+    "details": "Drizzle reads DeptColumns + dropdown source rows; reducer maps data_type to Zod primitive, applies required_for_done. 5-min in-memory cache keyed by (tenant, dept, schema_version).",
+    "scope_files": [
+      "packages/schema-runtime/src/build-dept-zod.ts [create]",
+      "packages/schema-runtime/src/cache.ts [create]",
+      "packages/schema-runtime/__tests__/build-dept-zod.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not introduce Drizzle-Zod codegen at build time",
+      "Do not couple to specific Apex tenant"
+    ],
+    "dependencies": ["T-003", "T-005"],
+    "parallel_safe_with": ["T-010", "T-015"],
+    "acceptance_criteria": [
+      "Given DeptColumns row product_name(text, required_for_done=true), when buildDeptZod('Core') runs, then schema rejects undefined product_name with required message",
+      "Given dropdown col pack_size with source PackSizes rows ['250g','500g'], when schema validates pack_size='1kg', then validation fails with enum error",
+      "Given DeptColumns row schema_version increments, when next buildDeptZod call runs, then a fresh schema is returned"
+    ],
+    "test_strategy": [
+      "RED: 3 tests for required, enum, cache invalidation before generator exists",
+      "Run 'pnpm --filter schema-runtime test'"
+    ],
+    "risk_red_lines": [
+      "Do not bypass tenant scoping",
+      "Do not cache cross-tenant entries together",
+      "Do not generate types at build time"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

@@ -1,0 +1,59 @@
+{
+  "title": "T-011 — POST /api/scanner/audit batch ingest (06-a)",
+  "prompt": "# T-011 — scanner audit batch ingest\n\nPRD: 06-SCANNER-P1-PRD.md §8.1 FR-SC-BE-012, §5.3, §16.1 telemetry\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nAccept up to 50 audit entries per call, write them async to scanner_audit_log, deduplicate via client_operation_id, and emit telemetry events.\n\n## Implementation contract\n1. `apps/scanner/src/app/api/scanner/audit/route.ts` (POST) accepting `{ entries: AuditEntry[] (1..50) }`.\n2. Insert via single Drizzle insert..on conflict (client_operation_id) do nothing.\n3. Emit one PostHog event per entry per §16.1 mapping (scanner.scan.success/error, scanner.fefo_deviation, etc.).\n4. Auth required; org_id/user_id stamped server-side; ignore any client-provided org_id.\n\n## Files\n- apps/scanner/src/app/api/scanner/audit/route.ts [create]\n- apps/scanner/src/server/services/scanner-audit.ts [create]\n- apps/scanner/__tests__/api/scanner-audit.test.ts [create]\n\n## Acceptance criteria\n1. Given a batch of 3 entries with unique client_operation_id values, when POST /api/scanner/audit runs, then 3 rows are inserted into scanner_audit_log and the response is { inserted: 3, skipped: 0 }\n2. Given a batch where two entries share the same client_operation_id with an existing row, when POST runs, then the response is { inserted: 1, skipped: 2 } and the existing row is unchanged\n3. Given a batch of 51 entries, when POST runs, then it returns 400 SC_AUDIT_BATCH_TOO_LARGE\n\n## Test strategy\n- RED: write scanner-audit.test.ts asserting insert + dedup + 51-entry rejection before implementation\n- Run 'pnpm --filter scanner test api/scanner-audit'\n\n## Risk red lines\n- Do not let client override org_id or user_id\n- Do not block the request on PostHog failure (fire-and-forget)\n- Do not exceed batch size 50",
+  "labels": ["prd", "api", "scanner-audit", "T2-api"],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-011",
+    "source_prd": "06-SCANNER-P1-PRD.md",
+    "prd_refs": ["§8.1 FR-SC-BE-012", "§5.3", "§16.1"],
+    "category": "api",
+    "subcategory": "scanner-audit",
+    "task_type": "T2-api",
+    "parent_feature": "06-a Shell & Core",
+    "context_budget": "25k",
+    "estimated_effort": "1-2h",
+    "description": "Batch (up to 50) audit ingest endpoint with client_operation_id dedup and PostHog event fan-out per §16.1.",
+    "details": "POST handler validates the batch (max 50 entries), stamps org_id/user_id server-side, performs a single insert..on conflict (client_operation_id) do nothing, and dispatches PostHog events per §16.1 mapping. Failures in PostHog must not fail the request.",
+    "scope_files": [
+      "apps/scanner/src/app/api/scanner/audit/route.ts [create]",
+      "apps/scanner/src/server/services/scanner-audit.ts [create]",
+      "apps/scanner/__tests__/api/scanner-audit.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not implement retention cron here",
+      "Do not implement client-side queueing here",
+      "Do not implement P2 sync-queue endpoint here"
+    ],
+    "dependencies": ["T-002", "T-007"],
+    "parallel_safe_with": ["T-009", "T-010"],
+    "acceptance_criteria": [
+      "Given 3 entries with unique client_operation_id values, when POST /api/scanner/audit runs, then 3 rows are inserted and response is { inserted: 3, skipped: 0 }",
+      "Given two entries with a duplicate client_operation_id, when POST runs, then response is { inserted: 1, skipped: 2 } and the existing row is unchanged",
+      "Given a batch of 51 entries, when POST runs, then it returns 400 SC_AUDIT_BATCH_TOO_LARGE"
+    ],
+    "test_strategy": [
+      "RED: write scanner-audit.test.ts asserting insert + dedup + 51-entry rejection before implementation",
+      "Run 'pnpm --filter scanner test api/scanner-audit'"
+    ],
+    "risk_red_lines": [
+      "Do not let client override org_id or user_id",
+      "Do not block the request on PostHog failure",
+      "Do not exceed batch size 50"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

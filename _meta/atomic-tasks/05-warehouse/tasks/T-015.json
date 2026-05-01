@@ -1,0 +1,59 @@
+{
+  "title": "T-015 — Seed fifo_strategy_v1 DSL rule",
+  "prompt": "# T-015 — Seed fifo_strategy_v1 DSL rule\n\nPRD: `05-WAREHOUSE-PRD.md` §9.1, §9.3.\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`.\n\n## Goal\nSeed the rule registry with `fifo_strategy_v1` for non-expiring goods picking — orders by created_at ASC.\n\n## Implementation contract\nJSON DSL `packages/db/seed/rules/fifo-strategy-v1.json` (inputs identical to FEFO; outputs sorted by created_at ASC with qa_status gating). Seed script upserts.\n\n## Files (scope)\n- packages/db/seed/rules/fifo-strategy-v1.json [create]\n- packages/db/seed/rules/fifo-strategy-v1.seed.ts [create]\n- packages/db/seed/rules/__tests__/fifo-strategy-v1.test.ts [create]\n\n## Acceptance criteria\n1. Given the seed runs, when rule_registry is queried, then fifo_strategy_v1 v1.0 exists with §9.1 input shape.\n2. Given two LPs created at 09:00 and 10:00, when the rule executes, then 09:00 LP ranks first.\n3. Given an LP with qa_status='FAILED', when the rule executes with defaults, then it is excluded.\n\n## Test strategy\n- RED: fifo-strategy-v1.test.ts seeds two LP fixtures and asserts FIFO order + FAILED exclusion.\n- Run `pnpm --filter db test fifo-strategy-v1`.\n\n## Risk red lines\n- Do not include FAILED/HOLD/QUARANTINED LPs.\n- Do not let rule become editable at runtime.\n- Do not duplicate FEFO logic — order by created_at only.",
+  "labels": ["prd", "data", "rule-registry", "T5-seed"],
+  "priority": 90,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-015",
+    "source_prd": "05-WAREHOUSE-PRD.md",
+    "prd_refs": ["§9.1", "§9.3"],
+    "category": "data",
+    "subcategory": "rule-registry",
+    "task_type": "T5-seed",
+    "parent_feature": "warehouse-foundation",
+    "context_budget": "20k",
+    "estimated_effort": "0.5-1h",
+    "description": "Seed fifo_strategy_v1 DSL rule for non-expiring goods picking.",
+    "details": "Order by created_at ASC. qa_status gating defaults to PASSED/RELEASED.",
+    "scope_files": [
+      "packages/db/seed/rules/fifo-strategy-v1.json [create]",
+      "packages/db/seed/rules/fifo-strategy-v1.seed.ts [create]",
+      "packages/db/seed/rules/__tests__/fifo-strategy-v1.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "FEFO logic (T-014)",
+      "Endpoint exposure (T-030)",
+      "Admin UI"
+    ],
+    "dependencies": ["T-002"],
+    "parallel_safe_with": ["T-013", "T-014"],
+    "acceptance_criteria": [
+      "Given the seed runs, when rule_registry is queried, then fifo_strategy_v1 v1.0 exists with §9.1 inputs",
+      "Given two LPs (09:00 and 10:00), when the rule executes, then 09:00 LP ranks first",
+      "Given an LP with qa_status='FAILED', when the rule executes, then it is excluded"
+    ],
+    "test_strategy": [
+      "RED: fifo-strategy-v1.test.ts with two-LP fixture asserting order + FAILED exclusion",
+      "Run 'pnpm --filter db test fifo-strategy-v1'"
+    ],
+    "risk_red_lines": [
+      "Do not include disallowed qa_status",
+      "Do not embed FEFO sort key",
+      "Do not allow admin runtime edits"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

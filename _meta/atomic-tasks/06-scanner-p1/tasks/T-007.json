@@ -1,0 +1,60 @@
+{
+  "title": "T-007 — scanner logout + GET /session sliding refresh (06-a)",
+  "prompt": "# T-007 — scanner logout + GET /session\n\nPRD: 06-SCANNER-P1-PRD.md §8.1 FR-SC-BE-002/003, §12.1 sliding refresh, §6 D7 kiosk vs personal\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nImplement idempotent logout and a session-validation endpoint with sliding refresh (issue new token if exp-now<60s) and per-mode idle timeout (300s personal / 60s kiosk).\n\n## Implementation contract\n1. `apps/scanner/src/app/api/scanner/logout/route.ts` (POST): mark scanner_sessions.ended_at=now(), clear refresh cookie, write audit row. Idempotent (returns 200 even if already ended).\n2. `apps/scanner/src/app/api/scanner/session/route.ts` (GET): verify JWT + DB session, sliding refresh when (exp-now)<60s, return `{ valid, expires_at, user, context: { site_id, line_id, shift_id } }`. Enforce idle timeout: if now - last_activity_at > scanner_idle_timeout(mode) ⇒ 401 SC_SESSION_EXPIRED + ended_at update.\n3. Service additions in `scanner-auth.ts`.\n\n## Files\n- apps/scanner/src/app/api/scanner/logout/route.ts [create]\n- apps/scanner/src/app/api/scanner/session/route.ts [create]\n- apps/scanner/src/server/services/scanner-auth.ts [modify]\n- apps/scanner/__tests__/api/scanner-session.test.ts [create]\n\n## Acceptance criteria\n1. Given an active session, when POST /api/scanner/logout runs twice, then both calls return 200 and scanner_sessions.ended_at is set exactly once\n2. Given a JWT with exp 30 seconds in the future, when GET /api/scanner/session runs, then the response sets a new session_token with extended exp and updates last_activity_at\n3. Given a kiosk-mode session idle for 70 seconds, when GET /api/scanner/session runs, then it returns 401 SC_SESSION_EXPIRED and scanner_sessions.ended_at is set\n\n## Test strategy\n- RED: write scanner-session.test.ts asserting idempotent logout, sliding refresh, and kiosk idle expiry before implementation\n- Run 'pnpm --filter scanner test api/scanner-session'\n\n## Risk red lines\n- Do not refresh sessions whose ended_at is already set\n- Do not skip the cookie clear on logout\n- Do not allow personal idle policy to apply to a kiosk session",
+  "labels": ["prd", "auth", "scanner-session", "T2-api"],
+  "priority": 80,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-007",
+    "source_prd": "06-SCANNER-P1-PRD.md",
+    "prd_refs": ["§8.1 FR-SC-BE-002", "§8.1 FR-SC-BE-003", "§12.1", "§6 D7"],
+    "category": "auth",
+    "subcategory": "scanner-session",
+    "task_type": "T2-api",
+    "parent_feature": "06-a Shell & Core",
+    "context_budget": "30k",
+    "estimated_effort": "1-2h",
+    "description": "Idempotent logout + session validate endpoint with sliding refresh and per-mode idle timeout enforcement.",
+    "details": "Two route handlers backed by scanner-auth service. Logout sets ended_at + clears refresh cookie idempotently. Session endpoint validates JWT, checks scanner_sessions row, enforces idle timeout per device_mode, slides exp when within 60s, and returns context. Tests cover idempotent logout, sliding refresh, and kiosk idle 60s expiry.",
+    "scope_files": [
+      "apps/scanner/src/app/api/scanner/logout/route.ts [create]",
+      "apps/scanner/src/app/api/scanner/session/route.ts [create]",
+      "apps/scanner/src/server/services/scanner-auth.ts [modify]",
+      "apps/scanner/__tests__/api/scanner-session.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not implement PIN endpoints here (T-008)",
+      "Do not implement context-set endpoint here (T-009)",
+      "Do not implement client-side timeout modal here (T-025)"
+    ],
+    "dependencies": ["T-006"],
+    "parallel_safe_with": ["T-008", "T-009"],
+    "acceptance_criteria": [
+      "Given an active session, when POST /api/scanner/logout runs twice, then both calls return 200 and scanner_sessions.ended_at is set exactly once",
+      "Given a JWT with exp 30s in the future, when GET /api/scanner/session runs, then it sets a new session_token with extended exp and updates last_activity_at",
+      "Given a kiosk-mode session idle for 70 seconds, when GET /api/scanner/session runs, then it returns 401 SC_SESSION_EXPIRED and scanner_sessions.ended_at is set"
+    ],
+    "test_strategy": [
+      "RED: write scanner-session.test.ts asserting idempotent logout + sliding refresh + kiosk idle expiry before implementation",
+      "Run 'pnpm --filter scanner test api/scanner-session'"
+    ],
+    "risk_red_lines": [
+      "Do not refresh ended sessions",
+      "Do not skip cookie clear on logout",
+      "Do not apply personal idle to kiosk sessions"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

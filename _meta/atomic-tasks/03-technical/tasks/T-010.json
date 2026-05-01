@@ -1,0 +1,37 @@
+{
+  "title": "T-010 — API: Item detail and update (GET/PUT /api/technical/items/:item_code)",
+  "prompt": "Implement GET and PUT for /api/technical/items/[item_code] per §6.2. GET returns item with related counts (active BOMs, allergen profile entries count, last cost effective_from, last D365 sync). PUT accepts partial update; re-validates V-TEC-01..04. Both org-scoped via RLS. Permission gate: technical.items.edit on PUT. Audit log entry on PUT (ADR-008) using audit_log table. RED tests/api/items-detail.test.ts. Run: `pnpm vitest run tests/api/items-detail.test.ts`.",
+  "labels": ["prd", "api", "items-rw", "T2-api"],
+  "priority": 80,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-010",
+    "source_prd": "03-TECHNICAL-PRD.md",
+    "prd_refs": ["§6.2", "§6.4", "§6.6"],
+    "category": "api",
+    "subcategory": "items-rw",
+    "task_type": "T2-api",
+    "parent_feature": "03-TECHNICAL-a Item Master",
+    "context_budget": "30k",
+    "estimated_effort": "2h",
+    "description": "Item detail GET and PUT endpoints with audit and validations.",
+    "details": "Audit log row inserts before/after JSON of changed fields and userId. Use Drizzle transactions. 404 when item_code not found in current org.",
+    "scope_files": ["app/api/technical/items/[item_code]/route.ts", "lib/technical/items/service.ts", "tests/api/items-detail.test.ts"],
+    "out_of_scope": ["Status transitions (T-011)", "BOM-side data"],
+    "dependencies": ["T-009"],
+    "parallel_safe_with": ["T-011", "T-012"],
+    "acceptance_criteria": [
+      "Given item exists in org A, when GET as org A, then 200 with related counts; when GET as org B, then 404 (RLS).",
+      "Given PUT updates name, when committed, then audit_log row contains old+new name.",
+      "Given PUT to deprecated item where field protected, when run, then 409.",
+      "Given invalid weight_mode update breaking V-TEC-02, when PUT runs, then 422."
+    ],
+    "test_strategy": ["RED tests: cross-org GET, audit emission on PUT, V-TEC validation on PUT.", "Run: pnpm vitest run tests/api/items-detail.test.ts"],
+    "risk_red_lines": ["Do not allow PUT to change item_code (immutable after create).", "Do not return private_jsonb unless requester role is owner."],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {"required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"], "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]},
+    "routing_hints": {"red": "hermes_gpt55", "implementation": "hermes_gpt55", "review": "opus_if_high_risk_or_ui_or_architecture", "close": "spark_low_risk_else_opus"}
+  }
+}

@@ -1,0 +1,65 @@
+{
+  "title": "T-004 — Drizzle schema: work_orders + wo_materials + wo_operations",
+  "prompt": "Add Drizzle pgTable definitions for `work_orders`, `wo_materials`, `wo_operations` per PRD §5.6 + §5.7. Include all columns including item_type_at_creation enum, is_rework, released_to_warehouse, status VARCHAR(30), source_of_demand enum ('manual'|'d365_so'|'forecast'|'rework'|'intermediate_cascade'), source_reference, disposition_policy enum ('to_stock'|'direct_continue'|'planner_decides'), allergen_profile_snapshot JSONB, ext_jsonb. wo_materials with material_source enum ('stock'|'upstream_wo_output'|'manual'), source_wo_id nullable FK to work_orders. wo_operations with sequence, machine_id, line_id, expected_duration_minutes, expected_yield_percent.\n\nIndexes per §5.6 (incl. partial index on released_to_warehouse=true). Generate migration `0004_planning_work_orders.sql`. RED test asserts all enum types + indexes.",
+  "labels": ["prd", "data", "schema-wo", "T1-schema"],
+  "priority": 80,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-004",
+    "source_prd": "04-PLANNING-BASIC-PRD.md",
+    "prd_refs": ["§5.6", "§5.7"],
+    "category": "data",
+    "subcategory": "schema-wo",
+    "task_type": "T1-schema",
+    "parent_feature": "planning-wo",
+    "context_budget": "35k",
+    "estimated_effort": "2-3h",
+    "description": "Drizzle pgTable definitions for work_orders + wo_materials + wo_operations.",
+    "details": "Use pgEnum for item_type_at_creation, source_of_demand, disposition_policy, material_source. priority as VARCHAR(20). bom_id, routing_id as nullable uuid (cross-module 03-TECHNICAL). Partial index `idx_wo_released_to_warehouse_true` on (released_to_warehouse) WHERE released_to_warehouse = true (Scanner hot path). Index (production_line_id, scheduled_start_time) for §10 sequencing. yield_percent column is `generatedAlwaysAs` (Drizzle generated column) computing actual_qty / planned_quantity (NULL-safe).",
+    "scope_files": [
+      "src/db/schema/planning/work_orders.ts [create]",
+      "src/db/schema/planning/__tests__/work_orders.test.ts [create]",
+      "src/db/migrations/0004_planning_work_orders.sql [create]"
+    ],
+    "out_of_scope": [
+      "wo_outputs / wo_dependencies (T-005)",
+      "WO state machine rule (T-024)",
+      "Reservations table (T-006)"
+    ],
+    "dependencies": [],
+    "parallel_safe_with": ["T-001", "T-002", "T-003"],
+    "acceptance_criteria": [
+      "Given the schema loads, when introspected, then work_orders + wo_materials + wo_operations export the exact column set from PRD §5.6 + §5.7.",
+      "Given the migration is generated, when grepped, then partial index on released_to_warehouse=true exists.",
+      "Given `pnpm vitest run src/db/schema/planning/__tests__/work_orders.test.ts`, when run, then 0 failures.",
+      "Given `pnpm tsc --noEmit`, when run, then no errors."
+    ],
+    "test_strategy": [
+      "RED schema-shape test asserts all enum types are exported and partial index present.",
+      "Run vitest + drizzle-kit generate + tsc."
+    ],
+    "risk_red_lines": [
+      "Do not include cycle-prevention logic at DB level — handled in service layer per §5.9.",
+      "Do not couple wo_materials FK to source_wo_id with cascade delete — manual handling per §9.4."
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

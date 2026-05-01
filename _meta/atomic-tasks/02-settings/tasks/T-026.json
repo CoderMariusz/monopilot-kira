@@ -1,0 +1,81 @@
+{
+  "title": "T-026 — CI deploy script: rules JSON → rule_definitions upsert with V-SET-14 schema check",
+  "prompt": "# T-026 — Rules deploy migration script\n\n## Goal\nAuthor CI deploy migration that scans `/rules/<type>/<rule_code>.json`, validates each against `<rule_code>.schema.json` (V-SET-14), and upserts rule_definitions (version+1, active_to=NULL on prior). Audit + outbox event on each deploy.\n\n## Files in scope\n- scripts/rules-deploy.ts [create]\n- scripts/rules-deploy.test.ts [create]\n- rules/.gitkeep [create]\n\n## Acceptance criteria (all must hold)\n- Given a rule JSON missing its sibling .schema.json file, when deploy runs, then it exits non-zero with V_SET_14_VIOLATION and writes nothing.\n- Given a valid new rule JSON, when deploy runs, then a new rule_definitions row is inserted with version=N+1 and the prior version's active_to is set to now().\n- Given the deploy commits, when outbox is queried, then 'settings.rule.deployed' event with deploy_ref=git_sha is present.\n\n## Test strategy (RED first)\n1. Add a failing test that exercises the acceptance criteria above. The RED command is:\n   `pnpm --filter @monopilot/web vitest run scripts/rules-deploy.test.ts`\n2. Run RED — it must fail before any production code is written.\n3. Implement the smallest change needed for GREEN.\n4. Re-run RED command — must pass.\n5. Run `pnpm typecheck` and `pnpm lint` in the changed package; both must pass.\n\n## Risk red lines\n- Do not edit files outside the listed scope without documenting why in CLOSEOUT.\n- Do not weaken existing acceptance criteria from prior tasks.\n- Do not introduce REST endpoints; use Server Actions per stack contract.\n- Do not commit secrets or vault keys.\n\n## Closeout evidence required\n- changed_files (with line counts)\n- exact test commands and outputs (RED→GREEN, typecheck, lint)\n- acceptance_criteria_status (one row per AC: pass/fail)\n- deviations_from_prd (or \"none\")\n- git_status\n\nStack: TS + Next.js App Router + Drizzle + pnpm + vitest + Playwright + Server Actions. Primitives in `packages/ui`. PRD: `02-SETTINGS-PRD.md` v3.5.\n",
+  "labels": [
+    "prd",
+    "infra",
+    "rules-deploy",
+    "T2-api"
+  ],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-026",
+    "source_prd": "02-SETTINGS-PRD.md",
+    "prd_refs": [
+      "§7.3",
+      "V-SET-14"
+    ],
+    "category": "infra",
+    "subcategory": "rules-deploy",
+    "task_type": "T2-api",
+    "parent_feature": "02-settings-d",
+    "context_budget": "40k",
+    "estimated_effort": "1-3h",
+    "description": "Rules CI deploy migration script.",
+    "details": "Runs as Node script in CI. JSON Schema for each rule_type is in `rules/_schemas/<rule_type>.schema.json` (stub created in T-068). Idempotent: re-running with unchanged JSON should result in NO-OP, not version bump.",
+    "scope_files": [
+      "scripts/rules-deploy.ts",
+      "scripts/rules-deploy.test.ts",
+      "rules/.gitkeep"
+    ],
+    "out_of_scope": [
+      "broaden scope beyond listed files",
+      "implement future-phase features"
+    ],
+    "dependencies": [
+      "T-006"
+    ],
+    "parallel_safe_with": [],
+    "acceptance_criteria": [
+      "V-SET-14 enforced.",
+      "Version bump correct.",
+      "Idempotent on no-change.",
+      "Outbox event emitted."
+    ],
+    "test_strategy": [
+      "RED: 3 cases via fixtures.",
+      "GREEN: implement."
+    ],
+    "risk_red_lines": [
+      "Do not run from app at request time — CI/CD only."
+    ],
+    "skills": [
+      "test-driven-development"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": false
+  }
+}

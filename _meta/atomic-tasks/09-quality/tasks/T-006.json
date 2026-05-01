@@ -1,0 +1,59 @@
+{
+  "title": "T-006 — Hold create Server Action + multi-LP support (09-a-02)",
+  "prompt": "# T-006 — Hold create Server Action + multi-LP support\n\nPRD: 09-QUALITY-PRD.md §8.2 QA-012, §11.1 V-QA-HOLD-001..004, §6.3, §12.1 outbox quality.hold.created\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nImplement a server action `createQualityHold(input)` that inserts quality_holds + N quality_hold_items, calls the 05-WH PUT /api/warehouse/lps/:id/qa-status='HOLD' for each LP target, emits quality.hold.created outbox event, and returns the hold_number.\n\n## Implementation contract\n1. `apps/web/src/server/quality/createHold.ts` exports the Server Action with Zod schema enforcing V-QA-HOLD-001 (reference_type enum), V-QA-HOLD-002 (FK exists), V-QA-HOLD-004 (reason_code_id OR reason_free_text required).\n2. RBAC guard: callers must hold one of (quality_lead, qa_inspector, hygiene_lead, shift_lead, prod_manager) per §2.3 matrix.\n3. Transactional insert of quality_holds + quality_hold_items (skip when reference_type != 'lp' or single LP only). Outbox event row inserted in same TX.\n4. After commit, call 05-WH PUT for each LP id (best-effort with retry; failure does NOT roll back hold creation but logs warning and emits quality.hold.lp_status_sync_failed).\n\n## Files\n- apps/web/src/server/quality/createHold.ts [create]\n- apps/web/src/server/quality/__tests__/createHold.test.ts [create]\n\n## Acceptance criteria\n1. Given a payload with reference_type='lp' and 3 license_plate_ids, when createQualityHold runs, then 1 quality_holds row is inserted, 3 quality_hold_items rows are inserted, 1 outbox quality.hold.created event is queued, all in one TX\n2. Given a payload missing both reason_code_id and reason_free_text, when createQualityHold runs, then it rejects with V-QA-HOLD-004 error and writes nothing\n3. Given the caller has only role 'auditor_readonly', when createQualityHold runs, then it rejects with 403 per §2.3 matrix\n4. Given 05-WH PUT call fails after the TX commits, when createQualityHold runs, then the hold is still created and a quality.hold.lp_status_sync_failed event is emitted",
+  "labels": ["prd", "api", "hold-crud", "T2-api"],
+  "priority": 80,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-006",
+    "source_prd": "09-QUALITY-PRD.md",
+    "prd_refs": ["§8.2 QA-012", "§11.1", "§12.1", "§2.3"],
+    "category": "api",
+    "subcategory": "hold-crud",
+    "task_type": "T2-api",
+    "parent_feature": "09-a Hold/Release",
+    "context_budget": "45k",
+    "estimated_effort": "2-3h",
+    "description": "Server Action createQualityHold inserting quality_holds + quality_hold_items, emitting outbox event, syncing 05-WH LP status.",
+    "details": "Server Action with Zod validation (reference_type enum, FK existence pre-check, reason required), RBAC guard against §2.3 matrix, transactional insert (hold + items + outbox row in one TX), then post-commit best-effort PUT to 05-WH /api/warehouse/lps/:id/qa-status with HOLD status. Failures of 05-WH PUT emit quality.hold.lp_status_sync_failed but do not roll back the hold. Tests cover happy path, validation rejection, RBAC rejection, and 05-WH sync failure path.",
+    "scope_files": [
+      "apps/web/src/server/quality/createHold.ts [create]",
+      "apps/web/src/server/quality/__tests__/createHold.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not implement release flow (T-007)",
+      "Do not implement DSL state machine rule (T-008)",
+      "Do not build the create modal UI (T-015)"
+    ],
+    "dependencies": ["T-001", "T-004", "T-005"],
+    "parallel_safe_with": ["T-007", "T-008"],
+    "acceptance_criteria": [
+      "Given a payload with reference_type='lp' and 3 license_plate_ids, when createQualityHold runs, then 1 quality_holds row + 3 quality_hold_items rows + 1 outbox quality.hold.created event are written in one TX",
+      "Given a payload missing both reason_code_id and reason_free_text, when createQualityHold runs, then it rejects with V-QA-HOLD-004 and writes nothing",
+      "Given the caller holds only role auditor_readonly, when createQualityHold runs, then it rejects with 403 per §2.3 matrix",
+      "Given 05-WH PUT fails after commit, when createQualityHold runs, then the hold is still persisted and a quality.hold.lp_status_sync_failed event is emitted"
+    ],
+    "test_strategy": [
+      "RED: write apps/web/src/server/quality/__tests__/createHold.test.ts asserting all 4 ACs against fakes (db tx, 05-WH client mock) before implementation exists",
+      "Run 'pnpm --filter web test createHold'"
+    ],
+    "risk_red_lines": [
+      "Do not skip outbox event (downstream 05-WH/12-REP depend on it)",
+      "Do not roll back the hold on 05-WH sync failure (R14 retry pattern)",
+      "Do not bypass §2.3 RBAC matrix"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

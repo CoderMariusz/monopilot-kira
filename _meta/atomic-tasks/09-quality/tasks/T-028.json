@@ -1,0 +1,59 @@
+{
+  "title": "T-028 — Inspection sign + auto-NCR draft on fail (V-QA-INSP-009)",
+  "prompt": "# T-028 — Inspection sign + auto-NCR draft on fail\n\nPRD: 09-QUALITY-PRD.md §11.2 V-QA-INSP-009, §13.2, §12.1 quality.inspection.completed\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nServer Action `signInspection(inspectionId, pin_proof)` that locks an inspection (sets signature_hash, signed_at, signed_by); if result='fail' AND no existing linked_ncr_id, auto-creates an NCR draft (severity from spec.is_critical mapping) and links it; emits quality.inspection.completed outbox event.\n\n## Implementation contract\n1. `apps/web/src/server/quality/signInspection.ts` Server Action.\n2. Pre-flight V-QA-INSP-007 (role qa_inspector or quality_lead). Server-computed signature_hash per §13.2.\n3. TX: UPDATE quality_inspections set signature_hash + signed_*; if result='fail' and linked_ncr_id IS NULL → INSERT ncr_reports draft (basic) and SET linked_ncr_id; INSERT outbox event quality.inspection.completed.\n4. NCR severity rule: critical if any quality_test_results.result='fail' AND parameter.is_critical=true; major otherwise on fail.\n\n## Files\n- apps/web/src/server/quality/signInspection.ts [create]\n- apps/web/src/server/quality/__tests__/signInspection.test.ts [create]\n\n## Acceptance criteria\n1. Given a completed inspection with result='fail' and a critical parameter failing, when signInspection runs with valid pin_proof, then the inspection is signed, an ncr_reports draft with severity='critical' is inserted, linked_ncr_id is set, and outbox quality.inspection.completed is queued — all in one TX\n2. Given a signed inspection, when signInspection runs again, then it rejects with ALREADY_SIGNED and writes nothing\n3. Given a completed inspection result='pass', when signInspection runs, then no NCR is created and outbox event is still queued\n4. Given a caller with role=auditor_readonly, when signInspection runs, then it rejects with V-QA-INSP-007 ROLE_FORBIDDEN",
+  "labels": ["prd", "api", "inspection-sign", "T2-api"],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-028",
+    "source_prd": "09-QUALITY-PRD.md",
+    "prd_refs": ["§11.2", "§13.2", "§12.1"],
+    "category": "api",
+    "subcategory": "inspection-sign",
+    "task_type": "T2-api",
+    "parent_feature": "09-c Incoming Inspection",
+    "context_budget": "40k",
+    "estimated_effort": "2h",
+    "description": "Sign inspection + conditional NCR auto-draft on fail + outbox publication, all atomic.",
+    "details": "Server Action with role+PIN guard. TX updates inspection signature; if result='fail' AND no linked NCR, inserts ncr_reports draft with severity rule (critical when any critical param failed, else major) and sets linked_ncr_id; inserts outbox quality.inspection.completed. Rejects re-sign and unauthorized roles.",
+    "scope_files": [
+      "apps/web/src/server/quality/signInspection.ts [create]",
+      "apps/web/src/server/quality/__tests__/signInspection.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not build the NCR module here (T-037..T-044)",
+      "Do not implement scanner sign flow specifically (covered indirectly via T-029)",
+      "Do not implement immutability triggers (T-040)"
+    ],
+    "dependencies": ["T-025", "T-026", "T-027", "T-037"],
+    "parallel_safe_with": ["T-029"],
+    "acceptance_criteria": [
+      "Given a completed inspection result='fail' with a critical parameter failing, when signInspection runs with valid pin_proof, then the inspection is signed, an ncr_reports draft severity='critical' is inserted, linked_ncr_id is set, and outbox quality.inspection.completed is queued — all in one TX",
+      "Given a signed inspection, when signInspection runs again, then it rejects with ALREADY_SIGNED and writes nothing",
+      "Given a completed inspection with result='pass', when signInspection runs, then no NCR is created and outbox event is still queued",
+      "Given role=auditor_readonly, when signInspection runs, then it rejects with V-QA-INSP-007 ROLE_FORBIDDEN"
+    ],
+    "test_strategy": [
+      "RED: write apps/web/src/server/quality/__tests__/signInspection.test.ts asserting all 4 ACs against fakes",
+      "Run 'pnpm --filter web test signInspection'"
+    ],
+    "risk_red_lines": [
+      "Do not allow re-sign of an already-signed inspection",
+      "Do not create NCR before signing (atomicity matters)",
+      "Do not skip outbox event on pass (downstream 05-WH needs to update qa_status)"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

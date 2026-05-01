@@ -1,0 +1,63 @@
+{
+  "title": "T-024 — API: reservation override (admin-only) + audit",
+  "prompt": "Implement Server Action `overrideReservation({ reservation_id, reason })` per PRD §9.4 release_reason='admin_override'. Caller must hold 'planning.reservation.override' RBAC. Reason min 10 chars (V-PLAN-RES-004). Sets released_at=NOW(), released_by=user, release_reason='admin_override'. LP returns to status='available'. Audit log entry to wo_status_history with action='RESERVATION_OVERRIDE'. Outbox event 'reservation.released'.\n\nRED test asserts RBAC denial for non-admin, reason validation, audit row written.",
+  "labels": ["prd", "api", "reservation-override", "T2-api"],
+  "priority": 110,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-024",
+    "source_prd": "04-PLANNING-BASIC-PRD.md",
+    "prd_refs": ["§9.4", "§9.6"],
+    "category": "api",
+    "subcategory": "reservation-override",
+    "task_type": "T2-api",
+    "parent_feature": "planning-reservations",
+    "context_budget": "20k",
+    "estimated_effort": "1-2h",
+    "description": "Admin-only manual reservation release with mandatory reason and audit trail.",
+    "details": "Single transaction: SELECT FOR UPDATE on reservation, UPDATE reservation, UPDATE LP, INSERT wo_status_history, INSERT outbox_event. Idempotency check on already-released reservation returns 409.",
+    "scope_files": [
+      "src/server/actions/planning/reservation-override.ts [create]",
+      "src/app/api/planning/reservations/[id]/override/route.ts [create]",
+      "src/server/actions/planning/__tests__/reservation-override.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Override modal UI (T-024 UI = T-026)"
+    ],
+    "dependencies": ["T-006", "T-021"],
+    "parallel_safe_with": ["T-022", "T-023"],
+    "acceptance_criteria": [
+      "Given a non-admin caller, when overrideReservation runs, then HTTP 403 with code 'RESERVATION_OVERRIDE_FORBIDDEN'.",
+      "Given an admin and reason='ok' (2 chars), when validated, then HTTP 400 Zod min length 10.",
+      "Given a successful override, when reservation is fetched, then released_at is set, release_reason='admin_override', and LP.status='available'.",
+      "Given `pnpm vitest run src/server/actions/planning/__tests__/reservation-override.test.ts`, when run, then 0 failures."
+    ],
+    "test_strategy": [
+      "RED tests for RBAC, reason validation, idempotency on re-override.",
+      "Run `pnpm vitest run src/server/actions/planning/__tests__/reservation-override.test.ts`."
+    ],
+    "risk_red_lines": [
+      "Do not bypass RBAC — V-PLAN-RES-004 hard block.",
+      "Do not skip audit log entry."
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

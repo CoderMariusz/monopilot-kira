@@ -1,0 +1,82 @@
+{
+  "title": "T-005 \u2014 Marker discipline ADR + 15-module registry seed file",
+  "prompt": "# T-005 \u2014 Marker discipline ADR + 15-module registry seed file\n\nPRD: `00-FOUNDATION-PRD.md` \u2014 sections: \u00a71, \u00a72, \u00a74\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`\n\n## Goal\nCodify the four marker tags ([UNIVERSAL], [APEX-CONFIG], [EVOLVING], [LEGACY-D365]) as ADR-035 and seed the 15-module registry as JSON consumed by 02-SETTINGS later.\n\n## Implementation contract\nWrite _foundation/decisions/ADR-035-marker-discipline.md documenting the four markers, when each is used, and the 'no fragment without a marker' rule (PRD \u00a72). Create _foundation/registry/modules.json with the 15-row table from PRD \u00a74.3 (id, slug, phase, build_order, file, dependencies). Add a CI script scripts/check-markers.mjs that fails when a PRD/ADR file in _foundation or root has a heading lacking a marker tag (allow-list for executive summary).\n\n## Files (scope)\n- _foundation/decisions/ADR-035-marker-discipline.md [create]\n- _foundation/registry/modules.json [create]\n- scripts/check-markers.mjs [create]\n\n## Acceptance criteria\n1. Given _foundation/registry/modules.json is loaded, when parsed as JSON, then it contains exactly 15 entries with ids 00..15 and matches the PRD \u00a74.3 dependencies column\n2. Given ADR-035 exists, when the CI script scripts/check-markers.mjs runs against _foundation/decisions, then it exits 0 (no missing markers)\n\n## Test strategy\n- Run 'node scripts/check-markers.mjs' and capture exit code\n- Run 'jq length _foundation/registry/modules.json' and assert == 15\n\n## Risk red lines\n- Do not invent module slugs not in PRD \u00a74.3\n\n## Closeout evidence\nProvide: changed_files, test_commands_and_results, acceptance_criteria_status (per AC), deviations_from_prd, git_status. Use the test-driven-development skill (RED test before implementation) and requesting-code-review at GREEN.",
+  "labels": [
+    "prd",
+    "docs",
+    "adr",
+    "docs"
+  ],
+  "priority": 80,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-005",
+    "source_prd": "00-FOUNDATION-PRD.md",
+    "prd_refs": [
+      "\u00a71",
+      "\u00a72",
+      "\u00a74"
+    ],
+    "category": "docs",
+    "subcategory": "adr",
+    "task_type": "docs",
+    "parent_feature": "governance",
+    "context_budget": "25k",
+    "estimated_effort": "0.5-1h",
+    "description": "Codify the four marker tags ([UNIVERSAL], [APEX-CONFIG], [EVOLVING], [LEGACY-D365]) as ADR-035 and seed the 15-module registry as JSON consumed by 02-SETTINGS later.",
+    "details": "Write _foundation/decisions/ADR-035-marker-discipline.md documenting the four markers, when each is used, and the 'no fragment without a marker' rule (PRD \u00a72). Create _foundation/registry/modules.json with the 15-row table from PRD \u00a74.3 (id, slug, phase, build_order, file, dependencies). Add a CI script scripts/check-markers.mjs that fails when a PRD/ADR file in _foundation or root has a heading lacking a marker tag (allow-list for executive summary).",
+    "scope_files": [
+      "_foundation/decisions/ADR-035-marker-discipline.md [create]",
+      "_foundation/registry/modules.json [create]",
+      "scripts/check-markers.mjs [create]"
+    ],
+    "out_of_scope": [
+      "Do not modify files outside the scope_files list",
+      "Do not introduce business logic from later module PRDs (01-NPD, 02-SETTINGS, etc.)",
+      "Do not modify PRD content"
+    ],
+    "dependencies": [],
+    "parallel_safe_with": [
+      "T-003",
+      "T-004"
+    ],
+    "acceptance_criteria": [
+      "Given _foundation/registry/modules.json is loaded, when parsed as JSON, then it contains exactly 15 entries with ids 00..15 and matches the PRD \u00a74.3 dependencies column",
+      "Given ADR-035 exists, when the CI script scripts/check-markers.mjs runs against _foundation/decisions, then it exits 0 (no missing markers)"
+    ],
+    "test_strategy": [
+      "Run 'node scripts/check-markers.mjs' and capture exit code",
+      "Run 'jq length _foundation/registry/modules.json' and assert == 15"
+    ],
+    "risk_red_lines": [
+      "Do not invent module slugs not in PRD \u00a74.3"
+    ],
+    "skills": [
+      "writing-plans",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

@@ -1,0 +1,78 @@
+{
+  "title": "T-088 — E2E Playwright: 4 customer-facing role categories filter pills + KPI tile (S-U6)",
+  "prompt": "# T-088 — E2E Playwright: role categories\n\n## Goal\nVerify Users page renders 4-category role pills (Admin/Manager/Operator/Viewer) and KPI tiles per S-U6. role_categories mapping is consumed.\n\n## Files in scope\n- apps/web/e2e/users-categories.spec.ts [create]\n\n## Acceptance criteria (all must hold)\n- Given the Users page loads with 10 system roles seeded, when filter pill 'Operator' is clicked, then only warehouse_operator users are listed.\n- Given KPI tile 'Active' renders, when read, then the value matches COUNT users WHERE is_active=true (no hardcode).\n- Given the URL ?role=admin is loaded, when page renders, then both 'owner' and 'admin' system role users are listed (Admin category includes both).\n\n## Test strategy (RED first)\n1. Add a failing test that exercises the acceptance criteria above. The RED command is:\n   `pnpm --filter @monopilot/web playwright test e2e/users-categories.spec.ts`\n2. Run RED — it must fail before any production code is written.\n3. Implement the smallest change needed for GREEN.\n4. Re-run RED command — must pass.\n5. Run `pnpm typecheck` and `pnpm lint` in the changed package; both must pass.\n\n## Risk red lines\n- Do not edit files outside the listed scope without documenting why in CLOSEOUT.\n- Do not weaken existing acceptance criteria from prior tasks.\n- Do not introduce REST endpoints; use Server Actions per stack contract.\n- Do not commit secrets or vault keys.\n\n## Closeout evidence required\n- changed_files (with line counts)\n- exact test commands and outputs (RED→GREEN, typecheck, lint)\n- acceptance_criteria_status (one row per AC: pass/fail)\n- deviations_from_prd (or \"none\")\n- git_status\n\nStack: TS + Next.js App Router + Drizzle + pnpm + vitest + Playwright + Server Actions. Primitives in `packages/ui`. PRD: `02-SETTINGS-PRD.md` v3.5.\n",
+  "labels": [
+    "prd",
+    "test",
+    "e2e-roles",
+    "T4-wiring-test"
+  ],
+  "priority": 120,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-088",
+    "source_prd": "02-SETTINGS-PRD.md",
+    "prd_refs": [
+      "§3",
+      "S-U6"
+    ],
+    "category": "test",
+    "subcategory": "e2e-roles",
+    "task_type": "T4-wiring-test",
+    "parent_feature": "02-settings-a",
+    "context_budget": "40k",
+    "estimated_effort": "1-3h",
+    "description": "E2E 4 role categories on Users page.",
+    "details": "role_categories reference table is read-only and seeded by T-091.",
+    "scope_files": [
+      "apps/web/e2e/users-categories.spec.ts"
+    ],
+    "out_of_scope": [
+      "broaden scope beyond listed files",
+      "implement future-phase features"
+    ],
+    "dependencies": [
+      "T-059",
+      "T-091"
+    ],
+    "parallel_safe_with": [],
+    "acceptance_criteria": [
+      "Pill filter scopes to category.",
+      "KPI tiles dynamic.",
+      "URL param honors category."
+    ],
+    "test_strategy": [
+      "RED: write spec. GREEN: ensure UI + mapping."
+    ],
+    "risk_red_lines": [
+      "Do not change role permission resolution to category-keyed; categories are presentational only."
+    ],
+    "skills": [
+      "test-driven-development"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": false
+  }
+}

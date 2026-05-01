@@ -1,0 +1,36 @@
+{
+  "title": "T-015 — API: BOM version diff (GET .../boms/diff?from=&to=)",
+  "prompt": "Implement GET /api/technical/items/[item_code]/boms/diff?from=:vA&to=:vB returning structured JSON diff of header, lines (added / removed / changed by component_item_id), co_products. Per §7.5 TEC-023 contract. Each line entry shows old vs new quantity, scrap_pct, manufacturing_operation_name. RED tests/api/bom-diff.test.ts. Run: `pnpm vitest run tests/api/bom-diff.test.ts`.",
+  "labels": ["prd", "api", "bom-diff", "T2-api"],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-015",
+    "source_prd": "03-TECHNICAL-PRD.md",
+    "prd_refs": ["§7.5"],
+    "category": "api",
+    "subcategory": "bom-diff",
+    "task_type": "T2-api",
+    "parent_feature": "03-TECHNICAL-a BOM",
+    "context_budget": "20k",
+    "estimated_effort": "1-2h",
+    "description": "Endpoint returning structured diff between two BOM versions.",
+    "details": "Diff keyed by component_item_id (lines) and co_product_item_id (co_products). Header diff lists yield_pct, status, effective_from changes. Numeric diffs return delta and percent change.",
+    "scope_files": ["app/api/technical/items/[item_code]/boms/diff/route.ts", "lib/technical/bom/diff.ts", "tests/api/bom-diff.test.ts"],
+    "out_of_scope": ["Side-by-side renderer (UI)", "Snapshot diff"],
+    "dependencies": ["T-012"],
+    "parallel_safe_with": ["T-013", "T-014", "T-016"],
+    "acceptance_criteria": [
+      "Given v1 has 3 lines and v2 adds one and changes a quantity, when GET /diff?from=1&to=2, then response contains added=[], changed=[], removed=[] with one entry each in changed and added.",
+      "Given v1=v2, when GET /diff, then all arrays empty.",
+      "Given non-existent version pair, when GET /diff, then 404."
+    ],
+    "test_strategy": ["RED tests asserting shape of changed/added/removed arrays.", "Run: pnpm vitest run tests/api/bom-diff.test.ts"],
+    "risk_red_lines": ["Do not include private_jsonb in diff."],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {"required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"], "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]},
+    "routing_hints": {"red": "hermes_gpt55", "implementation": "hermes_gpt55", "review": "opus_if_high_risk_or_ui_or_architecture", "close": "spark_low_risk_else_opus"}
+  }
+}

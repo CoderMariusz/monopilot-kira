@@ -1,0 +1,36 @@
+{
+  "title": "T-046 — UI: TEC-030 Shelf Life Config + override modal",
+  "prompt": "Build TEC-030 shelf life config screen per §9.5 with date code preview. Match `shelf_life_screen` design/Monopilot Design System/technical/other-screens.jsx:715-758 and `shelf_life_override_modal` design/Monopilot Design System/technical/modals.jsx:486-513. Includes V-TEC-30..32 surfacing (FG without shelf_life_days flagged). RED tests/ui/tec-030-shelf-life.test.tsx. Run: `pnpm vitest run tests/ui/tec-030-shelf-life.test.tsx`.",
+  "labels": ["prd", "ui", "ui-shelf-life", "T3-ui"],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-046",
+    "source_prd": "03-TECHNICAL-PRD.md",
+    "prd_refs": ["§9.1", "§9.2", "§9.5"],
+    "category": "ui",
+    "subcategory": "shelf-life",
+    "task_type": "T3-ui",
+    "parent_feature": "03-TECHNICAL-b Shelf Life",
+    "context_budget": "20k",
+    "estimated_effort": "2h",
+    "description": "Shelf life config list + override modal with regulatory presets and date-code preview.",
+    "details": "Date code preview component validates date_code_format pattern (YYWW|YYYY-MM-DD|JJWW|YYJJJ|custom regex) and renders sample for today.",
+    "scope_files": ["app/(app)/technical/shelf-life/page.tsx", "app/(app)/technical/shelf-life/_components/override-modal.tsx", "tests/ui/tec-030-shelf-life.test.tsx"],
+    "out_of_scope": ["Regulatory dashboard (T-070 docs)"],
+    "dependencies": ["T-008", "T-010"],
+    "parallel_safe_with": ["T-040", "T-047", "T-048"],
+    "acceptance_criteria": [
+      "Given the screen renders, when compared to design/Monopilot Design System/technical/other-screens.jsx:715-758 and design/Monopilot Design System/technical/modals.jsx:486-513, then list layout, preset chip list, and override modal field set match — structural + visual + interaction parity verified by RTL.",
+      "Given date_code_format='YYWW', when previewing today, then a 4-digit YYWW string is shown.",
+      "Given override modal saved, when API returns 200, then list refreshes."
+    ],
+    "test_strategy": ["RED tests for parity + format preview.", "Run: pnpm vitest run tests/ui/tec-030-shelf-life.test.tsx"],
+    "risk_red_lines": ["Do not allow saving shelf_life_mode outside enum."],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {"required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"], "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]},
+    "routing_hints": {"red": "hermes_gpt55", "implementation": "hermes_gpt55", "review": "opus_if_high_risk_or_ui_or_architecture", "close": "spark_low_risk_else_opus"}
+  }
+}

@@ -1,619 +1,1004 @@
-[
-  {
-    "label": "annotate_downtime_modal",
-    "file": "design/Monopilot Design System/oee/modals.jsx",
-    "lines": "19-93",
-    "component_type": "modal",
-    "ui_pattern": "crud-form-with-validation",
-    "data_domain": "Downtime",
-    "interaction": "edit",
-    "complexity": "composite",
-    "depends_on_prototypes": [],
-    "translation_notes": [
-      "window.Modal → @radix-ui/react-dialog Dialog with forwardRef and aria-labelledby",
-      "Local useState (notes, catOverride, submitting) → useForm + zodResolver with z.object({ notes: z.string().min(1).max(500), catOverride: z.string() })",
-      "Mock data prop → Server Component fetching downtime event by ID via Drizzle from downtime_events table (08-PRODUCTION authoritative)",
-      "Hardcoded role string prop → session.user.role from next-auth/Clerk, RBAC guard in Server Action",
-      "PATCH /api/production/downtime-events/:id → Server Action with outbox event emitted on success",
-      "isSupervisor inline check → centralized can(role, 'downtime:override-category') policy function",
-      "editWindowClosed hardcoded false → computed server-side: event.ended_at + 3600s < now()",
-      "Hardcoded labels (e.g. 'Save note') → next-intl t('oee.downtime.annotate.save')"
-    ],
-    "shadcn_equivalent": ["Dialog", "DialogContent", "DialogHeader", "DialogFooter", "Form", "FormField", "Textarea", "Select", "SelectItem", "Button", "Alert"],
-    "known_bugs": [],
-    "estimated_translation_time_min": 90
-  },
-  {
-    "label": "export_oee_modal",
-    "file": "design/Monopilot Design System/oee/modals.jsx",
-    "lines": "95-161",
-    "component_type": "modal",
-    "ui_pattern": "import-export",
-    "data_domain": "OEE",
-    "interaction": "export",
-    "complexity": "composite",
-    "depends_on_prototypes": [],
-    "translation_notes": [
-      "window.Modal → @radix-ui/react-dialog Dialog; format radio group → RadioGroup + RadioGroupItem from shadcn",
-      "sections useState object → useForm with z.object({ format: z.enum(['csv','pdf']), sections: z.object({...}) })",
-      "POST /api/reporting/export → Server Action calling 12-REPORTING export engine; queues a background job and returns jobId",
-      "Filename preview string interpolation → computed in useMemo, update on form value changes",
-      "XLSX option rendered disabled with P2 badge → feature-flag guard oee.export.xlsx_enabled, hide entirely when false",
-      "Raw snapshot warning (5 MB / 15-30s) → persist as toast notification after modal closes, not blocking alert",
-      "Hardcoded labels → next-intl t('oee.export.*') keys",
-      "Export recorded in report_exports → Server Action writes audit row before returning"
-    ],
-    "shadcn_equivalent": ["Dialog", "DialogContent", "DialogHeader", "DialogFooter", "RadioGroup", "RadioGroupItem", "Checkbox", "Label", "Button", "Alert"],
-    "known_bugs": [],
-    "estimated_translation_time_min": 60
-  },
-  {
-    "label": "line_override_modal",
-    "file": "design/Monopilot Design System/oee/modals.jsx",
-    "lines": "163-204",
-    "component_type": "modal",
-    "ui_pattern": "crud-form-with-validation",
-    "data_domain": "OEE",
-    "interaction": "edit",
-    "complexity": "composite",
-    "depends_on_prototypes": [],
-    "translation_notes": [
-      "window.Modal → @radix-ui/react-dialog Dialog; title changes between create/edit based on data prop presence",
-      "Four separate useState fields → useForm with zodResolver; z.number().min(0).max(100) for each percentage field",
-      "Line select disabled on edit → field disabled via form schema + FormField disabled prop, not manual condition",
-      "Mock OEE_LINES_META → Server Component query from oee_line_configs table in 02-SETTINGS",
-      "Save override button → Server Action PUT /api/settings/oee/line-overrides/:lineId with RBAC oee_admin guard",
-      "Hardcoded tenant default hint (70/70/80/95) → fetched from oee_alert_thresholds tenant row, not hardcoded",
-      "Hardcoded labels → next-intl t('oee.settings.lineOverride.*')"
-    ],
-    "shadcn_equivalent": ["Dialog", "DialogContent", "DialogHeader", "DialogFooter", "Form", "FormField", "Select", "SelectItem", "Input", "Button", "Alert"],
-    "known_bugs": [],
-    "estimated_translation_time_min": 50
-  },
-  {
-    "label": "big_loss_mapping_modal",
-    "file": "design/Monopilot Design System/oee/modals.jsx",
-    "lines": "206-259",
-    "component_type": "modal",
-    "ui_pattern": "bulk-action",
-    "data_domain": "Downtime",
-    "interaction": "edit",
-    "complexity": "composite",
-    "depends_on_prototypes": [],
-    "translation_notes": [
-      "window.Modal size='fullpage' → Dialog with DialogContent className='max-w-full h-screen' or dedicated Sheet primitive from shadcn",
-      "Local mapping state array + dirty flag → useForm with zodResolver on array field; isDirty from formState",
-      "Inline row selects mutating array copy → useFieldArray from react-hook-form for dynamic mapping rows",
-      "Reset to defaults button → form.reset(defaultValues) bound to BIG_LOSS_CATEGORIES seed from 02-SETTINGS",
-      "PUT /api/settings/oee/big-loss-mapping → Server Action; must invalidate all oee_daily_summary materialized views after publish",
-      "Historical data re-classifies dynamically note → add warning toast explaining MV refresh lag (~5 min)",
-      "Unpublished changes badge → use formState.isDirty, not manual dirty flag",
-      "Hardcoded labels → next-intl t('oee.settings.bigLossMapping.*')"
-    ],
-    "shadcn_equivalent": ["Sheet", "SheetContent", "SheetHeader", "SheetFooter", "Table", "TableHeader", "TableBody", "TableRow", "TableCell", "Select", "SelectItem", "Button", "Badge", "Alert"],
-    "known_bugs": [],
-    "estimated_translation_time_min": 75
-  },
-  {
-    "label": "changeover_detail_modal",
-    "file": "design/Monopilot Design System/oee/modals.jsx",
-    "lines": "261-298",
-    "component_type": "modal",
-    "ui_pattern": "detail-view",
-    "data_domain": "OEE",
-    "interaction": "read-only",
-    "complexity": "composite",
-    "depends_on_prototypes": [],
-    "translation_notes": [
-      "window.Modal size='wide' → Dialog with DialogContent className='max-w-3xl'",
-      "Summary two-column grid → dl/dt/dd pairs wrapped in a CSS grid or shadcn Card with grid-cols-2",
-      "Mock CHANGEOVER_EVENTS data prop → Server Component fetching from changeover_events table (08-PRODUCTION authoritative)",
-      "Cross-link button → Next.js <Link href={`/production/changeover/${data.id}`}> rather than window.alert",
-      "Allergen risk field → color-coded Badge; allergen matrix ownership note kept as info Alert",
-      "Target duration → fetched from 02-SETTINGS changeover_target_duration_min per line, not embedded in event row",
-      "Hardcoded labels → next-intl t('oee.changeover.detail.*')"
-    ],
-    "shadcn_equivalent": ["Dialog", "DialogContent", "DialogHeader", "DialogFooter", "Badge", "Button", "Alert"],
-    "known_bugs": [],
-    "estimated_translation_time_min": 40
-  },
-  {
-    "label": "cell_drill_modal",
-    "file": "design/Monopilot Design System/oee/modals.jsx",
-    "lines": "300-326",
-    "component_type": "modal",
-    "ui_pattern": "detail-view",
-    "data_domain": "OEE",
-    "interaction": "read-only",
-    "complexity": "composite",
-    "depends_on_prototypes": [],
-    "translation_notes": [
-      "window.Modal size='wide' → Dialog with DialogContent className='max-w-2xl'",
-      "Inline ArcGauge SVG components → production RadialBarChart from recharts or custom SVG component wrapped in a shared <ArcGauge /> server component",
-      "HEATMAP_APQ mock lookup → Server Action / loader fetching oee_shift_metrics row for (line, day, shift) triple",
-      "Hardcoded snapshot count '432 / 480 · 1 gap' → real gap detection query counting NULL slots in oee_snapshots",
-      "onPickLine callback → router.push(`/oee/line-trend?line=${data.line}`) in production",
-      "ArcGauge targets hardcoded (70/80/95) → sourced from oee_alert_thresholds per line or tenant default",
-      "Hardcoded labels → next-intl t('oee.heatmap.cellDrill.*')"
-    ],
-    "shadcn_equivalent": ["Dialog", "DialogContent", "DialogHeader", "DialogFooter", "Button"],
-    "known_bugs": [],
-    "estimated_translation_time_min": 50
-  },
-  {
-    "label": "request_edit_modal",
-    "file": "design/Monopilot Design System/oee/modals.jsx",
-    "lines": "328-348",
-    "component_type": "modal",
-    "ui_pattern": "crud-form-with-validation",
-    "data_domain": "Downtime",
-    "interaction": "approve",
-    "complexity": "primitive",
-    "depends_on_prototypes": ["annotate_downtime_modal"],
-    "translation_notes": [
-      "window.Modal dismissible={false} → Dialog with onInteractOutside={(e) => e.preventDefault()} and no close-on-escape",
-      "reason.length >= 10 inline validation → zod z.string().min(10, 'Minimum 10 characters') in useForm",
-      "ReasonInput prototype component → Textarea with FormMessage showing remaining character hint",
-      "Server Action: POST /api/production/downtime-events/:id/escalate; sends in-app notification to nearest oee_supervisor role",
-      "Audit log entry must be written server-side on escalation submit",
-      "Hardcoded labels → next-intl t('oee.downtime.requestEdit.*')"
-    ],
-    "shadcn_equivalent": ["Dialog", "DialogContent", "DialogHeader", "DialogFooter", "Form", "FormField", "Textarea", "Button", "Alert"],
-    "known_bugs": [],
-    "estimated_translation_time_min": 35
-  },
-  {
-    "label": "delete_override_modal",
-    "file": "design/Monopilot Design System/oee/modals.jsx",
-    "lines": "350-370",
-    "component_type": "modal",
-    "ui_pattern": "crud-form-with-validation",
-    "data_domain": "OEE",
-    "interaction": "delete",
-    "complexity": "primitive",
-    "depends_on_prototypes": ["line_override_modal"],
-    "translation_notes": [
-      "window.Modal dismissible={false} → Dialog with onInteractOutside prevented; type-to-confirm pattern requires client component",
-      "confirm === data.line string match → zod z.literal(data.line) applied via superRefine on useForm",
-      "Delete button enabled only on match → formState.isValid gates button disabled prop",
-      "Server Action: DELETE /api/settings/oee/line-overrides/:lineId; must clear cached threshold for that line",
-      "After delete: revalidatePath('/oee/settings') and invalidate SWR/React Query key for oee_thresholds",
-      "Hardcoded labels → next-intl t('oee.settings.deleteOverride.*')"
-    ],
-    "shadcn_equivalent": ["Dialog", "DialogContent", "DialogHeader", "DialogFooter", "Form", "FormField", "Input", "Button", "Alert"],
-    "known_bugs": [],
-    "estimated_translation_time_min": 30
-  },
-  {
-    "label": "copy_clipboard_modal",
-    "file": "design/Monopilot Design System/oee/modals.jsx",
-    "lines": "372-408",
-    "component_type": "modal",
-    "ui_pattern": "detail-view",
-    "data_domain": "OEE",
-    "interaction": "read-only",
-    "complexity": "primitive",
-    "depends_on_prototypes": [],
-    "translation_notes": [
-      "window.Modal size='wide' → Dialog with DialogContent className='max-w-2xl'",
-      "Hardcoded sample text block → Server Component rendering actual KPI data from oee_daily_summary MV for requested date",
-      "navigator.clipboard?.writeText(sample) → client-side useClipboard() hook with toast feedback on success/failure",
-      "Pre tag for plain-text preview → keep as <pre> with scrollable overflow; no markdown rendering needed",
-      "Clipboard copy toast → use Sonner (shadcn toast) to confirm 'Copied to clipboard'",
-      "Hardcoded labels → next-intl t('oee.clipboard.*')"
-    ],
-    "shadcn_equivalent": ["Dialog", "DialogContent", "DialogHeader", "DialogFooter", "Button", "Alert"],
-    "known_bugs": [],
-    "estimated_translation_time_min": 25
-  },
-  {
-    "label": "compare_weeks_modal",
-    "file": "design/Monopilot Design System/oee/modals.jsx",
-    "lines": "410-446",
-    "component_type": "modal",
-    "ui_pattern": "detail-view",
-    "data_domain": "OEE",
-    "interaction": "read-only",
-    "complexity": "primitive",
-    "depends_on_prototypes": [],
-    "translation_notes": [
-      "window.Modal → Dialog; two Select dropdowns for week A/B → Select + SelectItem populated from available week keys in oee_shift_metrics",
-      "Hardcoded preview KPI rows (74.8%, 77.1%, +2.3pp) → Server Action fetching actual week averages from oee_shift_metrics on weekA/weekB change",
-      "P1.5 backlog: Compare button routes to heatmap diff view → implement as query param ?compareWeekA=W15&compareWeekB=W16 on /oee/heatmap; BL-OEE-05",
-      "Week picker limited to 4 hardcoded weeks → dynamic: fetch last N weeks from oee_shift_metrics distinct week_key",
-      "Hardcoded labels → next-intl t('oee.heatmap.compareWeeks.*')"
-    ],
-    "shadcn_equivalent": ["Dialog", "DialogContent", "DialogHeader", "DialogFooter", "Select", "SelectItem", "Button"],
-    "known_bugs": ["BL-OEE-05: Compare-weeks diff view — modal shows preview only, no live diff (Medium priority)"],
-    "estimated_translation_time_min": 40
-  },
-  {
-    "label": "acknowledge_anomaly_modal",
-    "file": "design/Monopilot Design System/oee/modals.jsx",
-    "lines": "448-484",
-    "component_type": "modal",
-    "ui_pattern": "crud-form-with-validation",
-    "data_domain": "OEE",
-    "interaction": "approve",
-    "complexity": "composite",
-    "depends_on_prototypes": [],
-    "translation_notes": [
-      "window.Modal → Dialog; dual-path action (investigate vs false-positive) drives different button variants (primary vs destructive)",
-      "action useState + notes → useForm z.object({ action: z.enum(['investigate','falsepositive']), notes: z.string().optional() })",
-      "Server Action: POST /api/oee/anomalies/:id/acknowledge; branches on action field; emits outbox event for audit workflow",
-      "EWMA rule oee_anomaly_detector_v1 is P2 — guard entire modal behind feature flag oee.anomaly_detection_enabled",
-      "Severity badge → dynamic color from severity value using cva variants map",
-      "Hardcoded labels → next-intl t('oee.anomaly.acknowledge.*')"
-    ],
-    "shadcn_equivalent": ["Dialog", "DialogContent", "DialogHeader", "DialogFooter", "RadioGroup", "RadioGroupItem", "Textarea", "Button", "Badge", "Alert"],
-    "known_bugs": [],
-    "estimated_translation_time_min": 45
-  },
-  {
-    "label": "auto_refresh_pause_modal",
-    "file": "design/Monopilot Design System/oee/modals.jsx",
-    "lines": "486-509",
-    "component_type": "modal",
-    "ui_pattern": "crud-form-with-validation",
-    "data_domain": "OEE",
-    "interaction": "edit",
-    "complexity": "primitive",
-    "depends_on_prototypes": [],
-    "translation_notes": [
-      "window.Modal size='sm' → Dialog with DialogContent className='max-w-sm'",
-      "Pill buttons for duration → ToggleGroup + ToggleGroupItem from shadcn/ui; selected item maps to z.number().int()",
-      "Pause logic → client-side: store pauseUntil = Date.now() + duration*60000 in Zustand or jotai atom; polling hook checks it",
-      "60s auto-refresh interval → useInterval hook paused when pauseUntil > Date.now()",
-      "No server interaction needed — purely client-side state management",
-      "Hardcoded labels → next-intl t('oee.autoRefresh.*')"
-    ],
-    "shadcn_equivalent": ["Dialog", "DialogContent", "DialogHeader", "DialogFooter", "ToggleGroup", "ToggleGroupItem", "Button", "Alert"],
-    "known_bugs": [],
-    "estimated_translation_time_min": 20
-  },
-  {
-    "label": "oee_daily_summary_page",
-    "file": "design/Monopilot Design System/oee/dashboard.jsx",
-    "lines": "1-198",
-    "component_type": "page-layout",
-    "ui_pattern": "dashboard-tile",
-    "data_domain": "OEE",
-    "interaction": "read-only",
-    "complexity": "page-level",
-    "depends_on_prototypes": ["six_big_losses_tab", "changeover_tab", "annotate_downtime_modal", "export_oee_modal", "copy_clipboard_modal"],
-    "translation_notes": [
-      "React.useState for date/lineFilter/tab/sort → URL search params via useSearchParams + router.push for shareable state; default date computed server-side as 'yesterday'",
-      "OEE_TODAY / SUMMARY_KPIS_TODAY mock objects → Server Component fetching from oee_daily_summary materialized view with date + line filter params",
-      "Five KPI cards row → each as a shadcn Card; click-to-scroll replaced by anchor link or router.push to line trend",
-      "Inline alert for LINE-02 → alerts driven by data: if any line OEE < threshold for 3 consecutive days, render Alert with drill link; no hardcoding",
-      "Three-tab layout (Summary / Six Big Losses / Changeover) → shadcn Tabs + TabsContent; tab state synced to URL ?tab= param",
-      "Sortable table → TanStack Table with server-side sort via searchParam col/dir; useOptimistic for immediate re-order UX",
-      "Factory avg footer row → computed in SQL window function, returned alongside line rows, not client-side reduce",
-      "Freshness / stale banner → Server Component reads oee_daily_summary.last_refreshed_at, renders Alert if > 20 min old",
-      "Hardcoded labels + subtitles → next-intl t('oee.summary.*')"
-    ],
-    "shadcn_equivalent": ["Card", "CardHeader", "CardContent", "Tabs", "TabsList", "TabsTrigger", "TabsContent", "Table", "TableHeader", "TableBody", "TableRow", "TableHead", "TableCell", "Badge", "Button", "Alert", "Select"],
-    "known_bugs": ["BL-OEE-08: localStorage persistence for last-viewed date (Low priority)"],
-    "estimated_translation_time_min": 180
-  },
-  {
-    "label": "six_big_losses_tab",
-    "file": "design/Monopilot Design System/oee/dashboard.jsx",
-    "lines": "200-306",
-    "component_type": "tabs",
-    "ui_pattern": "dashboard-tile",
-    "data_domain": "Downtime",
-    "interaction": "read-only",
-    "complexity": "composite",
-    "depends_on_prototypes": ["annotate_downtime_modal", "big_loss_mapping_modal"],
-    "translation_notes": [
-      "SIX_BIG_LOSSES mock array + client-side reduce for A/P/Q totals → Server Component query aggregating downtime_events grouped by big_loss_category and impact dimension",
-      "Pareto bar chart (CSS div widths) → recharts BarChart or shadcn-compatible D3 bar; note BL-OEE-09 re: zero-dep SVG vs recharts decision",
-      "OEE impact decomposition <pre> block → computed server-side from real A/P/Q values, rendered as formatted text or a dedicated Card",
-      "Downtime events table with inline [Add note] / Edit links → annotate_downtime_modal opened client-side; table data from 08-PRODUCTION downtime_events API",
-      "Role-conditional column hint text → server-side: pass role from session, render appropriate hint; no client-side role check in JSX",
-      "Hardcoded legend labels (Plant/Process/People) → next-intl t('oee.losses.class.*') with Lean class enum"
-    ],
-    "shadcn_equivalent": ["Card", "CardHeader", "CardContent", "Table", "TableHeader", "TableBody", "TableRow", "TableHead", "TableCell", "Badge", "Button", "Alert"],
-    "known_bugs": ["BL-OEE-09: Recharts dependency consideration vs inline SVG (Low priority)"],
-    "estimated_translation_time_min": 90
-  },
-  {
-    "label": "changeover_tab",
-    "file": "design/Monopilot Design System/oee/dashboard.jsx",
-    "lines": "308-390",
-    "component_type": "tabs",
-    "ui_pattern": "list-with-actions",
-    "data_domain": "OEE",
-    "interaction": "read-only",
-    "complexity": "composite",
-    "depends_on_prototypes": ["changeover_detail_modal"],
-    "translation_notes": [
-      "CHANGEOVER_EVENTS mock array + client-side reduce/filter for KPIs → Server Component aggregating changeover_events for given date from 08-PRODUCTION",
-      "Four KPI mini-cards (total, avg, high-allergen count, longest) → shadcn Card grid; all values from SQL aggregation not JS reduce",
-      "Allergen risk badge color mapping (High=red, Medium=amber, Low=green) → cva variant map shared across modules; enum driven from allergen_risk_level column",
-      "Variance badge (+/- colored) → shared <VarianceBadge> primitive with sign-aware color logic",
-      "View → button → opens changeover_detail_modal client-side with fetched row data",
-      "Target durations from 02-SETTINGS note → info Alert with cross-link to /settings/changeover-targets",
-      "Hardcoded labels → next-intl t('oee.changeover.*')"
-    ],
-    "shadcn_equivalent": ["Card", "CardHeader", "CardContent", "Table", "TableHeader", "TableBody", "TableRow", "TableHead", "TableCell", "Badge", "Button", "Alert"],
-    "known_bugs": [],
-    "estimated_translation_time_min": 70
-  },
-  {
-    "label": "oee_line_trend_page",
-    "file": "design/Monopilot Design System/oee/screens.jsx",
-    "lines": "3-209",
-    "component_type": "page-layout",
-    "ui_pattern": "detail-view",
-    "data_domain": "OEE",
-    "interaction": "read-only",
-    "complexity": "page-level",
-    "depends_on_prototypes": ["annotate_downtime_modal", "changeover_detail_modal", "export_oee_modal"],
-    "translation_notes": [
-      "lineId + windowVal + shift as useState → URL search params (?line=LINE-02&window=24h&shift=all) for shareable deep links",
-      "OEE_TODAY / OEE_TREND mock objects → Server Component loading oee_snapshots with line + window filter; pass to client TrendChart as serialized data",
-      "Four ArcGauge header row with hover-highlight (hlAll) → client component island; gauges receive target from oee_alert_thresholds",
-      "TrendChart with downtime bands + changeover markers → recharts ComposedChart with ReferenceArea (downtime) + ReferenceLine (changeover); data from oee_snapshots + changeover_events join",
-      "Top Downtime Causes pareto bars → Server Component reading downtime_events aggregated by category for the line/window",
-      "Changeover summary mini-card → Server Component fetching latest changeover_events row for line, cross-links to changeover_detail_modal",
-      "LINE-02 alert hardcoded → alert driven by data: if any single downtime event > 60 min in window, render Alert with annotate CTA",
-      "Spark 7-day sparkline → recharts LineChart mini or inline SVG; data from oee_snapshots rolling 7-day window",
-      "Hardcoded labels → next-intl t('oee.lineTrend.*')"
-    ],
-    "shadcn_equivalent": ["Card", "CardHeader", "CardContent", "Select", "SelectItem", "ToggleGroup", "ToggleGroupItem", "Badge", "Button", "Alert"],
-    "known_bugs": ["BL-OEE-01: Incremental chart append via ?since=last_ts — currently only toggle refresh (Medium priority)", "BL-OEE-09: Recharts dependency consideration vs inline SVG (Low priority)"],
-    "estimated_translation_time_min": 200
-  },
-  {
-    "label": "oee_shift_heatmap_page",
-    "file": "design/Monopilot Design System/oee/screens.jsx",
-    "lines": "211-377",
-    "component_type": "page-layout",
-    "ui_pattern": "dashboard-tile",
-    "data_domain": "Shift",
-    "interaction": "read-only",
-    "complexity": "page-level",
-    "depends_on_prototypes": ["cell_drill_modal", "export_oee_modal"],
-    "translation_notes": [
-      "week + lineFilter + selected cell as useState → URL search params (?week=2026-W16&line=all&selLine=LINE-02&selDay=sat&selShift=Night)",
-      "HEATMAP mock nested object → Server Component fetching oee_shift_metrics MV for given week, shaped into line×day×shift lookup",
-      "Heatmap grid role='grid' with gridcell + aria-label → keep ARIA attributes; add onKeyDown arrow-key navigation (BL-OEE-04)",
-      "heatColor() inline function → CSS custom property or Tailwind arbitrary value driven by OEE value thresholds; note BL-OEE-03 for color-blind mode",
-      "Selected cell detail panel with ArcGauge quartet → client island; data fetched via Server Action on cell click using (line, day, shift) triple",
-      "Four weekly KPI mini-cards → Server Component aggregation over oee_shift_metrics for the selected week",
-      "Compare weeks → compare_weeks_modal; BL-OEE-05 diff view remains a backlog item",
-      "Heatmap colour scale fixed in P1 (65/85) → note in settings screen; P2: make tenant-configurable via oee_alert_thresholds",
-      "Hardcoded labels → next-intl t('oee.heatmap.*')"
-    ],
-    "shadcn_equivalent": ["Card", "CardHeader", "CardContent", "Select", "SelectItem", "Button", "Badge", "Alert"],
-    "known_bugs": ["BL-OEE-02: Sort by shift column in heatmap (Low priority)", "BL-OEE-03: Color-blind mode (Low priority)", "BL-OEE-04: Arrow-key nav on heatmap cells (Low priority)", "BL-OEE-05: Compare-weeks diff view (Medium priority)"],
-    "estimated_translation_time_min": 180
-  },
-  {
-    "label": "oee_downtime_pareto_page",
-    "file": "design/Monopilot Design System/oee/screens.jsx",
-    "lines": "379-469",
-    "component_type": "page-layout",
-    "ui_pattern": "dashboard-tile",
-    "data_domain": "Downtime",
-    "interaction": "read-only",
-    "complexity": "page-level",
-    "depends_on_prototypes": ["six_big_losses_tab"],
-    "translation_notes": [
-      "Client-side cumulative Pareto calculation (sort + reduce) → move to Server Component or SQL window function SUM() OVER (ORDER BY mins DESC)",
-      "Pareto bar chart CSS divs with dynamic width → recharts BarChart + ComposedChart with secondary LineChart for cumulative curve (classic Pareto chart pattern)",
-      "80% threshold line detection (findIndex) → computed server-side, passed as prop; rendered as ReferenceArea on chart",
-      "Distribution by Lean class (plant/process/people) → GROUP BY lean_class SQL query, not JS filter+reduce",
-      "P2 preview alert → keep as info Alert; link to six_big_losses_tab on oee_daily_summary_page",
-      "Date range pills (Today / This week / 30 days) → URL param ?range=today|week|30d; Server Component reads and queries accordingly",
-      "Hardcoded labels → next-intl t('oee.pareto.*')"
-    ],
-    "shadcn_equivalent": ["Card", "CardHeader", "CardContent", "Button", "Badge", "Alert"],
-    "known_bugs": ["BL-OEE-09: Recharts dependency consideration vs inline SVG (Low priority)"],
-    "estimated_translation_time_min": 100
-  },
-  {
-    "label": "oee_availability_drilldown_page",
-    "file": "design/Monopilot Design System/oee/screens.jsx",
-    "lines": "471-543",
-    "component_type": "page-layout",
-    "ui_pattern": "detail-view",
-    "data_domain": "OEE",
-    "interaction": "read-only",
-    "complexity": "page-level",
-    "depends_on_prototypes": ["six_big_losses_tab"],
-    "translation_notes": [
-      "factoryA from SUMMARY_KPIS_TODAY → Server Component reading oee_daily_summary.factory_a for current date",
-      "A by line table with sparklines → Server Component; Spark data from oee_snapshots rolling 7-day window per line mapped to availability",
-      "Availability loss categories → SIX_BIG_LOSSES filtered by impact=A → Server Component query with WHERE impact_dimension = 'A'",
-      "7-day trend multi-line chart → recharts LineChart with one series per line; data from oee_snapshots 7-day window aggregated by day",
-      "Hardcoded MTBF note for MIX-04 → data-driven from 13-MAINTENANCE equipment_health table (P2 cross-module dependency)",
-      "Equipment Health cross-link → P2 route /oee/equipment-health; guard with feature flag oee.equipment_health_enabled",
-      "Hardcoded labels → next-intl t('oee.availability.*')"
-    ],
-    "shadcn_equivalent": ["Card", "CardHeader", "CardContent", "Table", "TableHeader", "TableBody", "TableRow", "TableHead", "TableCell", "Badge", "Button"],
-    "known_bugs": [],
-    "estimated_translation_time_min": 90
-  },
-  {
-    "label": "oee_performance_drilldown_page",
-    "file": "design/Monopilot Design System/oee/screens.jsx",
-    "lines": "546-598",
-    "component_type": "page-layout",
-    "ui_pattern": "detail-view",
-    "data_domain": "OEE",
-    "interaction": "read-only",
-    "complexity": "page-level",
-    "depends_on_prototypes": ["six_big_losses_tab"],
-    "translation_notes": [
-      "factoryP from SUMMARY_KPIS_TODAY → Server Component reading oee_daily_summary.factory_p for current date",
-      "P by line table with micro stops column (Math.round(d.downtime/8)) → replace mock formula with real micro_stops_count from oee_snapshots",
-      "P loss categories → SIX_BIG_LOSSES filtered by impact=P → Server Component WHERE impact_dimension = 'P'",
-      "Sparkline data series for P dimension (SPARK_7D[l.id]) → separate query for performance dimension 7-day sparkline from oee_shift_metrics",
-      "Structure mirrors OeeAvailability exactly → extract shared <OeeFactorDrillPage> layout component parameterized by factor (A|P|Q)",
-      "Hardcoded labels → next-intl t('oee.performance.*')"
-    ],
-    "shadcn_equivalent": ["Card", "CardHeader", "CardContent", "Table", "TableHeader", "TableBody", "TableRow", "TableHead", "TableCell", "Badge", "Button"],
-    "known_bugs": [],
-    "estimated_translation_time_min": 60
-  },
-  {
-    "label": "oee_quality_drilldown_page",
-    "file": "design/Monopilot Design System/oee/screens.jsx",
-    "lines": "600-655",
-    "component_type": "page-layout",
-    "ui_pattern": "detail-view",
-    "data_domain": "OEE",
-    "interaction": "read-only",
-    "complexity": "page-level",
-    "depends_on_prototypes": ["six_big_losses_tab"],
-    "translation_notes": [
-      "factoryQ from SUMMARY_KPIS_TODAY → Server Component reading oee_daily_summary.factory_q for current date",
-      "Rejects column (Math.round(d.output * (1 - d.q/100))) → real reject_kg or reject_units column from production_output_events, not derived from mock",
-      "Q loss categories → SIX_BIG_LOSSES filtered by impact=Q → Server Component WHERE impact_dimension = 'Q'",
-      "QA holds cross-reference note → add link to /quality/holds?line=... when 09-QUALITY module is available",
-      "Structure mirrors OeeAvailability → same <OeeFactorDrillPage> parameterized component as OeePerformance",
-      "Hardcoded labels → next-intl t('oee.quality.*')"
-    ],
-    "shadcn_equivalent": ["Card", "CardHeader", "CardContent", "Table", "TableHeader", "TableBody", "TableRow", "TableHead", "TableCell", "Badge", "Button", "Alert"],
-    "known_bugs": [],
-    "estimated_translation_time_min": 60
-  },
-  {
-    "label": "oee_settings_page",
-    "file": "design/Monopilot Design System/oee/screens.jsx",
-    "lines": "698-833",
-    "component_type": "page-layout",
-    "ui_pattern": "crud-form-with-validation",
-    "data_domain": "OEE",
-    "interaction": "edit",
-    "complexity": "page-level",
-    "depends_on_prototypes": ["line_override_modal", "delete_override_modal", "big_loss_mapping_modal"],
-    "translation_notes": [
-      "isAdmin role check + early return → middleware RBAC guard on /oee/settings route; server-side redirect to /oee if role !== oee_admin",
-      "edit/thresh useState toggle pattern → inline edit uses useForm + optimistic update; PUT Server Action on save",
-      "OEE_THRESHOLDS.tenant mutation on save → Server Action PUT /api/settings/oee/alert-thresholds; revalidatePath for all OEE dashboards",
-      "Per-line overrides table with Edit/Delete actions → TanStack Table with action column calling line_override_modal and delete_override_modal",
-      "Big Loss Mapping preview table (slice 0-8) → Server Component; '+ N more' count from Drizzle COUNT(); full editor in big_loss_mapping_modal",
-      "P2 rows with opacity:0.5 → render as disabled TableRow with Tooltip explaining P2 status; do not hide",
-      "Hardcoded labels → next-intl t('oee.settings.*')"
-    ],
-    "shadcn_equivalent": ["Card", "CardHeader", "CardContent", "Table", "TableHeader", "TableBody", "TableRow", "TableHead", "TableCell", "Form", "FormField", "Input", "Button", "Badge", "Alert", "Tooltip"],
-    "known_bugs": [],
-    "estimated_translation_time_min": 120
-  },
-  {
-    "label": "oee_shift_configs_page",
-    "file": "design/Monopilot Design System/oee/screens.jsx",
-    "lines": "836-900",
-    "component_type": "page-layout",
-    "ui_pattern": "detail-view",
-    "data_domain": "Shift",
-    "interaction": "read-only",
-    "complexity": "page-level",
-    "depends_on_prototypes": [],
-    "translation_notes": [
-      "isAdmin role check + early return → middleware RBAC guard; server redirect if role !== oee_admin",
-      "SHIFT_CONFIGS mock array → Server Component reading shift_configs table from 02-SETTINGS database; this page is explicitly read-only in OEE",
-      "Edit in 02-SETTINGS cross-link button → Next.js <Link href='/settings/reference-tables/shift-configs'>; not window.alert",
-      "DSL rule status section → Server Component reading rule_registry row for shift_aggregator_v1 from 02-SETTINGS",
-      "Check Rule Status cross-link → /reporting/rules-usage route; Check Feature Flag → /settings/feature-flags route",
-      "Hardcoded labels → next-intl t('oee.shifts.*')"
-    ],
-    "shadcn_equivalent": ["Card", "CardHeader", "CardContent", "Table", "TableHeader", "TableBody", "TableRow", "TableHead", "TableCell", "Badge", "Button", "Alert"],
-    "known_bugs": [],
-    "estimated_translation_time_min": 50
-  },
-  {
-    "label": "oee_anomaly_detection_page",
-    "file": "design/Monopilot Design System/oee/screens.jsx",
-    "lines": "950-995",
-    "component_type": "page-layout",
-    "ui_pattern": "list-with-actions",
-    "data_domain": "OEE",
-    "interaction": "read-only",
-    "complexity": "page-level",
-    "depends_on_prototypes": ["acknowledge_anomaly_modal"],
-    "translation_notes": [
-      "P2 component — gate entire route behind feature flag oee.anomaly_detection_enabled; render redirect or 'Coming in P2' placeholder when disabled",
-      "ANOMALIES mock array → Server Component fetching oee_anomalies table populated by oee_anomaly_detector_v1 DSL rule",
-      "Table opacity:0.75 sample rows → full opacity when P2 is live; EWMA rule fires from 12-REPORTING rules engine",
-      "Severity badge color mapping → cva variant based on severity enum (critical/high/medium/low) matching badge-red/amber/blue/gray",
-      "Status badge (resolved/ack/open) → same cva variant map; ack action via acknowledge_anomaly_modal",
-      "In-app toast + daily email digest (OQ-OEE-08) → Server Action emits notification outbox event; email via /api/notifications/digest cron",
-      "Hardcoded labels → next-intl t('oee.anomalies.*')"
-    ],
-    "shadcn_equivalent": ["Card", "CardHeader", "CardContent", "Table", "TableHeader", "TableBody", "TableRow", "TableHead", "TableCell", "Badge", "Button", "Alert"],
-    "known_bugs": [],
-    "estimated_translation_time_min": 80
-  },
-  {
-    "label": "oee_equipment_health_page",
-    "file": "design/Monopilot Design System/oee/screens.jsx",
-    "lines": "997-1036",
-    "component_type": "page-layout",
-    "ui_pattern": "list-with-actions",
-    "data_domain": "OEE",
-    "interaction": "read-only",
-    "complexity": "page-level",
-    "depends_on_prototypes": [],
-    "translation_notes": [
-      "P2 component — gate route behind feature flag oee.equipment_health_enabled; depends on 13-MAINTENANCE module being live",
-      "EQUIPMENT_HEALTH mock array → Server Component joining equipment table (13-MAINTENANCE) with oee_snapshots for 30-day availability computation",
-      "MTBF / MTTR columns → computed server-side from maintenance_work_orders fault history; not stored directly",
-      "30-day A% CompBadge → same CompBadge primitive as other OEE tables, min threshold from oee_alert_thresholds",
-      "Trend arrow (up/down/stable) → server-side: compare last-7-day avg to prior-7-day avg availability; return enum",
-      "PM trigger rule note → oee_maintenance_trigger_v1 is DSL rule; link to /settings/rules/oee_maintenance_trigger_v1",
-      "Hardcoded labels → next-intl t('oee.equipmentHealth.*')"
-    ],
-    "shadcn_equivalent": ["Card", "CardHeader", "CardContent", "Table", "TableHeader", "TableBody", "TableRow", "TableHead", "TableCell", "Badge", "Button", "Alert"],
-    "known_bugs": [],
-    "estimated_translation_time_min": 70
-  },
-  {
-    "label": "oee_tv_dashboard_page",
-    "file": "design/Monopilot Design System/oee/screens.jsx",
-    "lines": "1038-1080",
-    "component_type": "page-layout",
-    "ui_pattern": "detail-view",
-    "data_domain": "OEE",
-    "interaction": "read-only",
-    "complexity": "page-level",
-    "depends_on_prototypes": [],
-    "translation_notes": [
-      "P2 component — gate behind feature flag oee.tv_dashboard_enabled; OS kiosk decision open (OQ-OEE-03 / BL-OEE-06)",
-      "Dark-mode hardcoded inline styles (bg #0f172a, text #f8fafc) → Tailwind dark class scope on root div; or separate /oee/tv route with dark layout",
-      "30s auto-refresh → route.revalidate = 30 on a dedicated TV RSC route; or client useInterval with router.refresh()",
-      "Hardcoded single-line mock (LINE-01) → Server Component reading oee_snapshots for all active lines; render in responsive grid",
-      "Font sizes (96px OEE value) → Tailwind text-9xl; ensure ColorBrewer RdYlGn palette used for color-blind safety (BL-OEE-03)",
-      "No interactive controls (read-only kiosk) → no focusable elements; remove all Button/Link from TV route",
-      "Hardcoded labels → next-intl t('oee.tv.*') with minimal key set"
-    ],
-    "shadcn_equivalent": ["Card"],
-    "known_bugs": ["BL-OEE-06: TV OS kiosk decision pending (P2 priority)"],
-    "estimated_translation_time_min": 60
-  },
-  {
-    "label": "p2_placeholder_shell",
-    "file": "design/Monopilot Design System/oee/screens.jsx",
-    "lines": "902-948",
-    "component_type": "page-layout",
-    "ui_pattern": "detail-view",
-    "data_domain": "OEE",
-    "interaction": "read-only",
-    "complexity": "primitive",
-    "depends_on_prototypes": [],
-    "translation_notes": [
-      "Generic P2Placeholder component → shared <ComingSoonPage> primitive in /components/shared/coming-soon-page.tsx; accept title, description, featureFlag, alternativeLink props",
-      "window.alert cross-links → Next.js <Link> components; /reporting/rules-usage and /settings/feature-flags as actual routes",
-      "Data preview stub table with opacity:0.6 → render only when data prop provided; use same shadcn Table with skeleton rows",
-      "Feature flag prop → read from 02-SETTINGS feature_flags table server-side; display actual flag name and current value",
-      "Hardcoded emoji ⏳ → remove or use lucide-react Clock icon for consistency with design system"
-    ],
-    "shadcn_equivalent": ["Card", "CardHeader", "CardContent", "Table", "TableHeader", "TableBody", "TableRow", "TableHead", "TableCell", "Button", "Badge"],
-    "known_bugs": [],
-    "estimated_translation_time_min": 25
-  }
-]
+{
+  "module": "oee",
+  "generated_at": "2026-04-30T18:27:34Z",
+  "generator": "audit-fix-2026-04-30",
+  "mode": "labeling",
+  "entries": [
+    {
+      "label": "annotate_downtime_modal",
+      "file": "design/Monopilot Design System/oee/modals.jsx",
+      "lines": "19-93",
+      "component_type": "modal",
+      "ui_pattern": "crud-form-with-validation",
+      "data_domain": "Downtime",
+      "interaction": "edit",
+      "complexity": "composite",
+      "depends_on_prototypes": [],
+      "translation_notes": [
+        "window.Modal → @radix-ui/react-dialog Dialog with forwardRef and aria-labelledby",
+        "Local useState (notes, catOverride, submitting) → useForm + zodResolver with z.object({ notes: z.string().min(1).max(500), catOverride: z.string() })",
+        "Mock data prop → Server Component fetching downtime event by ID via Drizzle from downtime_events table (08-PRODUCTION authoritative)",
+        "Hardcoded role string prop → session.user.role from next-auth/Clerk, RBAC guard in Server Action",
+        "PATCH /api/production/downtime-events/:id → Server Action with outbox event emitted on success",
+        "isSupervisor inline check → centralized can(role, 'downtime:override-category') policy function",
+        "editWindowClosed hardcoded false → computed server-side: event.ended_at + 3600s < now()",
+        "Hardcoded labels (e.g. 'Save note') → next-intl t('oee.downtime.annotate.save')"
+      ],
+      "shadcn_equivalent": [
+        "Dialog",
+        "DialogContent",
+        "DialogHeader",
+        "DialogFooter",
+        "Form",
+        "FormField",
+        "Textarea",
+        "Select",
+        "SelectItem",
+        "Button",
+        "Alert"
+      ],
+      "known_bugs": [],
+      "estimated_translation_time_min": 90
+    },
+    {
+      "label": "export_oee_modal",
+      "file": "design/Monopilot Design System/oee/modals.jsx",
+      "lines": "95-161",
+      "component_type": "modal",
+      "ui_pattern": "import-export",
+      "data_domain": "OEE",
+      "interaction": "export",
+      "complexity": "composite",
+      "depends_on_prototypes": [],
+      "translation_notes": [
+        "window.Modal → @radix-ui/react-dialog Dialog; format radio group → RadioGroup + RadioGroupItem from shadcn",
+        "sections useState object → useForm with z.object({ format: z.enum(['csv','pdf']), sections: z.object({...}) })",
+        "POST /api/reporting/export → Server Action calling 12-REPORTING export engine; queues a background job and returns jobId",
+        "Filename preview string interpolation → computed in useMemo, update on form value changes",
+        "XLSX option rendered disabled with P2 badge → feature-flag guard oee.export.xlsx_enabled, hide entirely when false",
+        "Raw snapshot warning (5 MB / 15-30s) → persist as toast notification after modal closes, not blocking alert",
+        "Hardcoded labels → next-intl t('oee.export.*') keys",
+        "Export recorded in report_exports → Server Action writes audit row before returning"
+      ],
+      "shadcn_equivalent": [
+        "Dialog",
+        "DialogContent",
+        "DialogHeader",
+        "DialogFooter",
+        "RadioGroup",
+        "RadioGroupItem",
+        "Checkbox",
+        "Label",
+        "Button",
+        "Alert"
+      ],
+      "known_bugs": [],
+      "estimated_translation_time_min": 60
+    },
+    {
+      "label": "line_override_modal",
+      "file": "design/Monopilot Design System/oee/modals.jsx",
+      "lines": "163-204",
+      "component_type": "modal",
+      "ui_pattern": "crud-form-with-validation",
+      "data_domain": "OEE",
+      "interaction": "edit",
+      "complexity": "composite",
+      "depends_on_prototypes": [],
+      "translation_notes": [
+        "window.Modal → @radix-ui/react-dialog Dialog; title changes between create/edit based on data prop presence",
+        "Four separate useState fields → useForm with zodResolver; z.number().min(0).max(100) for each percentage field",
+        "Line select disabled on edit → field disabled via form schema + FormField disabled prop, not manual condition",
+        "Mock OEE_LINES_META → Server Component query from oee_line_configs table in 02-SETTINGS",
+        "Save override button → Server Action PUT /api/settings/oee/line-overrides/:lineId with RBAC oee_admin guard",
+        "Hardcoded tenant default hint (70/70/80/95) → fetched from oee_alert_thresholds tenant row, not hardcoded",
+        "Hardcoded labels → next-intl t('oee.settings.lineOverride.*')"
+      ],
+      "shadcn_equivalent": [
+        "Dialog",
+        "DialogContent",
+        "DialogHeader",
+        "DialogFooter",
+        "Form",
+        "FormField",
+        "Select",
+        "SelectItem",
+        "Input",
+        "Button",
+        "Alert"
+      ],
+      "known_bugs": [],
+      "estimated_translation_time_min": 50
+    },
+    {
+      "label": "big_loss_mapping_modal",
+      "file": "design/Monopilot Design System/oee/modals.jsx",
+      "lines": "206-259",
+      "component_type": "modal",
+      "ui_pattern": "bulk-action",
+      "data_domain": "Downtime",
+      "interaction": "edit",
+      "complexity": "composite",
+      "depends_on_prototypes": [],
+      "translation_notes": [
+        "window.Modal size='fullpage' → Dialog with DialogContent className='max-w-full h-screen' or dedicated Sheet primitive from shadcn",
+        "Local mapping state array + dirty flag → useForm with zodResolver on array field; isDirty from formState",
+        "Inline row selects mutating array copy → useFieldArray from react-hook-form for dynamic mapping rows",
+        "Reset to defaults button → form.reset(defaultValues) bound to BIG_LOSS_CATEGORIES seed from 02-SETTINGS",
+        "PUT /api/settings/oee/big-loss-mapping → Server Action; must invalidate all oee_daily_summary materialized views after publish",
+        "Historical data re-classifies dynamically note → add warning toast explaining MV refresh lag (~5 min)",
+        "Unpublished changes badge → use formState.isDirty, not manual dirty flag",
+        "Hardcoded labels → next-intl t('oee.settings.bigLossMapping.*')"
+      ],
+      "shadcn_equivalent": [
+        "Sheet",
+        "SheetContent",
+        "SheetHeader",
+        "SheetFooter",
+        "Table",
+        "TableHeader",
+        "TableBody",
+        "TableRow",
+        "TableCell",
+        "Select",
+        "SelectItem",
+        "Button",
+        "Badge",
+        "Alert"
+      ],
+      "known_bugs": [],
+      "estimated_translation_time_min": 75
+    },
+    {
+      "label": "changeover_detail_modal",
+      "file": "design/Monopilot Design System/oee/modals.jsx",
+      "lines": "261-298",
+      "component_type": "modal",
+      "ui_pattern": "detail-view",
+      "data_domain": "OEE",
+      "interaction": "read-only",
+      "complexity": "composite",
+      "depends_on_prototypes": [],
+      "translation_notes": [
+        "window.Modal size='wide' → Dialog with DialogContent className='max-w-3xl'",
+        "Summary two-column grid → dl/dt/dd pairs wrapped in a CSS grid or shadcn Card with grid-cols-2",
+        "Mock CHANGEOVER_EVENTS data prop → Server Component fetching from changeover_events table (08-PRODUCTION authoritative)",
+        "Cross-link button → Next.js <Link href={`/production/changeover/${data.id}`}> rather than window.alert",
+        "Allergen risk field → color-coded Badge; allergen matrix ownership note kept as info Alert",
+        "Target duration → fetched from 02-SETTINGS changeover_target_duration_min per line, not embedded in event row",
+        "Hardcoded labels → next-intl t('oee.changeover.detail.*')"
+      ],
+      "shadcn_equivalent": [
+        "Dialog",
+        "DialogContent",
+        "DialogHeader",
+        "DialogFooter",
+        "Badge",
+        "Button",
+        "Alert"
+      ],
+      "known_bugs": [],
+      "estimated_translation_time_min": 40
+    },
+    {
+      "label": "cell_drill_modal",
+      "file": "design/Monopilot Design System/oee/modals.jsx",
+      "lines": "300-326",
+      "component_type": "modal",
+      "ui_pattern": "detail-view",
+      "data_domain": "OEE",
+      "interaction": "read-only",
+      "complexity": "composite",
+      "depends_on_prototypes": [],
+      "translation_notes": [
+        "window.Modal size='wide' → Dialog with DialogContent className='max-w-2xl'",
+        "Inline ArcGauge SVG components → production RadialBarChart from recharts or custom SVG component wrapped in a shared <ArcGauge /> server component",
+        "HEATMAP_APQ mock lookup → Server Action / loader fetching oee_shift_metrics row for (line, day, shift) triple",
+        "Hardcoded snapshot count '432 / 480 · 1 gap' → real gap detection query counting NULL slots in oee_snapshots",
+        "onPickLine callback → router.push(`/oee/line-trend?line=${data.line}`) in production",
+        "ArcGauge targets hardcoded (70/80/95) → sourced from oee_alert_thresholds per line or tenant default",
+        "Hardcoded labels → next-intl t('oee.heatmap.cellDrill.*')"
+      ],
+      "shadcn_equivalent": [
+        "Dialog",
+        "DialogContent",
+        "DialogHeader",
+        "DialogFooter",
+        "Button"
+      ],
+      "known_bugs": [],
+      "estimated_translation_time_min": 50
+    },
+    {
+      "label": "request_edit_modal",
+      "file": "design/Monopilot Design System/oee/modals.jsx",
+      "lines": "328-348",
+      "component_type": "modal",
+      "ui_pattern": "crud-form-with-validation",
+      "data_domain": "Downtime",
+      "interaction": "approve",
+      "complexity": "primitive",
+      "depends_on_prototypes": [
+        "annotate_downtime_modal"
+      ],
+      "translation_notes": [
+        "window.Modal dismissible={false} → Dialog with onInteractOutside={(e) => e.preventDefault()} and no close-on-escape",
+        "reason.length >= 10 inline validation → zod z.string().min(10, 'Minimum 10 characters') in useForm",
+        "ReasonInput prototype component → Textarea with FormMessage showing remaining character hint",
+        "Server Action: POST /api/production/downtime-events/:id/escalate; sends in-app notification to nearest oee_supervisor role",
+        "Audit log entry must be written server-side on escalation submit",
+        "Hardcoded labels → next-intl t('oee.downtime.requestEdit.*')"
+      ],
+      "shadcn_equivalent": [
+        "Dialog",
+        "DialogContent",
+        "DialogHeader",
+        "DialogFooter",
+        "Form",
+        "FormField",
+        "Textarea",
+        "Button",
+        "Alert"
+      ],
+      "known_bugs": [],
+      "estimated_translation_time_min": 35
+    },
+    {
+      "label": "delete_override_modal",
+      "file": "design/Monopilot Design System/oee/modals.jsx",
+      "lines": "350-370",
+      "component_type": "modal",
+      "ui_pattern": "crud-form-with-validation",
+      "data_domain": "OEE",
+      "interaction": "delete",
+      "complexity": "primitive",
+      "depends_on_prototypes": [
+        "line_override_modal"
+      ],
+      "translation_notes": [
+        "window.Modal dismissible={false} → Dialog with onInteractOutside prevented; type-to-confirm pattern requires client component",
+        "confirm === data.line string match → zod z.literal(data.line) applied via superRefine on useForm",
+        "Delete button enabled only on match → formState.isValid gates button disabled prop",
+        "Server Action: DELETE /api/settings/oee/line-overrides/:lineId; must clear cached threshold for that line",
+        "After delete: revalidatePath('/oee/settings') and invalidate SWR/React Query key for oee_thresholds",
+        "Hardcoded labels → next-intl t('oee.settings.deleteOverride.*')"
+      ],
+      "shadcn_equivalent": [
+        "Dialog",
+        "DialogContent",
+        "DialogHeader",
+        "DialogFooter",
+        "Form",
+        "FormField",
+        "Input",
+        "Button",
+        "Alert"
+      ],
+      "known_bugs": [],
+      "estimated_translation_time_min": 30
+    },
+    {
+      "label": "copy_clipboard_modal",
+      "file": "design/Monopilot Design System/oee/modals.jsx",
+      "lines": "372-408",
+      "component_type": "modal",
+      "ui_pattern": "detail-view",
+      "data_domain": "OEE",
+      "interaction": "read-only",
+      "complexity": "primitive",
+      "depends_on_prototypes": [],
+      "translation_notes": [
+        "window.Modal size='wide' → Dialog with DialogContent className='max-w-2xl'",
+        "Hardcoded sample text block → Server Component rendering actual KPI data from oee_daily_summary MV for requested date",
+        "navigator.clipboard?.writeText(sample) → client-side useClipboard() hook with toast feedback on success/failure",
+        "Pre tag for plain-text preview → keep as <pre> with scrollable overflow; no markdown rendering needed",
+        "Clipboard copy toast → use Sonner (shadcn toast) to confirm 'Copied to clipboard'",
+        "Hardcoded labels → next-intl t('oee.clipboard.*')"
+      ],
+      "shadcn_equivalent": [
+        "Dialog",
+        "DialogContent",
+        "DialogHeader",
+        "DialogFooter",
+        "Button",
+        "Alert"
+      ],
+      "known_bugs": [],
+      "estimated_translation_time_min": 25
+    },
+    {
+      "label": "compare_weeks_modal",
+      "file": "design/Monopilot Design System/oee/modals.jsx",
+      "lines": "410-446",
+      "component_type": "modal",
+      "ui_pattern": "detail-view",
+      "data_domain": "OEE",
+      "interaction": "read-only",
+      "complexity": "primitive",
+      "depends_on_prototypes": [],
+      "translation_notes": [
+        "window.Modal → Dialog; two Select dropdowns for week A/B → Select + SelectItem populated from available week keys in oee_shift_metrics",
+        "Hardcoded preview KPI rows (74.8%, 77.1%, +2.3pp) → Server Action fetching actual week averages from oee_shift_metrics on weekA/weekB change",
+        "P1.5 backlog: Compare button routes to heatmap diff view → implement as query param ?compareWeekA=W15&compareWeekB=W16 on /oee/heatmap; BL-OEE-05",
+        "Week picker limited to 4 hardcoded weeks → dynamic: fetch last N weeks from oee_shift_metrics distinct week_key",
+        "Hardcoded labels → next-intl t('oee.heatmap.compareWeeks.*')"
+      ],
+      "shadcn_equivalent": [
+        "Dialog",
+        "DialogContent",
+        "DialogHeader",
+        "DialogFooter",
+        "Select",
+        "SelectItem",
+        "Button"
+      ],
+      "known_bugs": [
+        "BL-OEE-05: Compare-weeks diff view — modal shows preview only, no live diff (Medium priority)"
+      ],
+      "estimated_translation_time_min": 40
+    },
+    {
+      "label": "acknowledge_anomaly_modal",
+      "file": "design/Monopilot Design System/oee/modals.jsx",
+      "lines": "448-484",
+      "component_type": "modal",
+      "ui_pattern": "crud-form-with-validation",
+      "data_domain": "OEE",
+      "interaction": "approve",
+      "complexity": "composite",
+      "depends_on_prototypes": [],
+      "translation_notes": [
+        "window.Modal → Dialog; dual-path action (investigate vs false-positive) drives different button variants (primary vs destructive)",
+        "action useState + notes → useForm z.object({ action: z.enum(['investigate','falsepositive']), notes: z.string().optional() })",
+        "Server Action: POST /api/oee/anomalies/:id/acknowledge; branches on action field; emits outbox event for audit workflow",
+        "EWMA rule oee_anomaly_detector_v1 is P2 — guard entire modal behind feature flag oee.anomaly_detection_enabled",
+        "Severity badge → dynamic color from severity value using cva variants map",
+        "Hardcoded labels → next-intl t('oee.anomaly.acknowledge.*')"
+      ],
+      "shadcn_equivalent": [
+        "Dialog",
+        "DialogContent",
+        "DialogHeader",
+        "DialogFooter",
+        "RadioGroup",
+        "RadioGroupItem",
+        "Textarea",
+        "Button",
+        "Badge",
+        "Alert"
+      ],
+      "known_bugs": [],
+      "estimated_translation_time_min": 45
+    },
+    {
+      "label": "auto_refresh_pause_modal",
+      "file": "design/Monopilot Design System/oee/modals.jsx",
+      "lines": "486-509",
+      "component_type": "modal",
+      "ui_pattern": "crud-form-with-validation",
+      "data_domain": "OEE",
+      "interaction": "edit",
+      "complexity": "primitive",
+      "depends_on_prototypes": [],
+      "translation_notes": [
+        "window.Modal size='sm' → Dialog with DialogContent className='max-w-sm'",
+        "Pill buttons for duration → ToggleGroup + ToggleGroupItem from shadcn/ui; selected item maps to z.number().int()",
+        "Pause logic → client-side: store pauseUntil = Date.now() + duration*60000 in Zustand or jotai atom; polling hook checks it",
+        "60s auto-refresh interval → useInterval hook paused when pauseUntil > Date.now()",
+        "No server interaction needed — purely client-side state management",
+        "Hardcoded labels → next-intl t('oee.autoRefresh.*')"
+      ],
+      "shadcn_equivalent": [
+        "Dialog",
+        "DialogContent",
+        "DialogHeader",
+        "DialogFooter",
+        "ToggleGroup",
+        "ToggleGroupItem",
+        "Button",
+        "Alert"
+      ],
+      "known_bugs": [],
+      "estimated_translation_time_min": 20
+    },
+    {
+      "label": "oee_daily_summary_page",
+      "file": "design/Monopilot Design System/oee/dashboard.jsx",
+      "lines": "1-198",
+      "component_type": "page-layout",
+      "ui_pattern": "dashboard-tile",
+      "data_domain": "OEE",
+      "interaction": "read-only",
+      "complexity": "page-level",
+      "depends_on_prototypes": [
+        "six_big_losses_tab",
+        "changeover_tab",
+        "annotate_downtime_modal",
+        "export_oee_modal",
+        "copy_clipboard_modal"
+      ],
+      "translation_notes": [
+        "React.useState for date/lineFilter/tab/sort → URL search params via useSearchParams + router.push for shareable state; default date computed server-side as 'yesterday'",
+        "OEE_TODAY / SUMMARY_KPIS_TODAY mock objects → Server Component fetching from oee_daily_summary materialized view with date + line filter params",
+        "Five KPI cards row → each as a shadcn Card; click-to-scroll replaced by anchor link or router.push to line trend",
+        "Inline alert for LINE-02 → alerts driven by data: if any line OEE < threshold for 3 consecutive days, render Alert with drill link; no hardcoding",
+        "Three-tab layout (Summary / Six Big Losses / Changeover) → shadcn Tabs + TabsContent; tab state synced to URL ?tab= param",
+        "Sortable table → TanStack Table with server-side sort via searchParam col/dir; useOptimistic for immediate re-order UX",
+        "Factory avg footer row → computed in SQL window function, returned alongside line rows, not client-side reduce",
+        "Freshness / stale banner → Server Component reads oee_daily_summary.last_refreshed_at, renders Alert if > 20 min old",
+        "Hardcoded labels + subtitles → next-intl t('oee.summary.*')"
+      ],
+      "shadcn_equivalent": [
+        "Card",
+        "CardHeader",
+        "CardContent",
+        "Tabs",
+        "TabsList",
+        "TabsTrigger",
+        "TabsContent",
+        "Table",
+        "TableHeader",
+        "TableBody",
+        "TableRow",
+        "TableHead",
+        "TableCell",
+        "Badge",
+        "Button",
+        "Alert",
+        "Select"
+      ],
+      "known_bugs": [
+        "BL-OEE-08: localStorage persistence for last-viewed date (Low priority)"
+      ],
+      "estimated_translation_time_min": 180
+    },
+    {
+      "label": "six_big_losses_tab",
+      "file": "design/Monopilot Design System/oee/dashboard.jsx",
+      "lines": "200-306",
+      "component_type": "tabs",
+      "ui_pattern": "dashboard-tile",
+      "data_domain": "Downtime",
+      "interaction": "read-only",
+      "complexity": "composite",
+      "depends_on_prototypes": [
+        "annotate_downtime_modal",
+        "big_loss_mapping_modal"
+      ],
+      "translation_notes": [
+        "SIX_BIG_LOSSES mock array + client-side reduce for A/P/Q totals → Server Component query aggregating downtime_events grouped by big_loss_category and impact dimension",
+        "Pareto bar chart (CSS div widths) → recharts BarChart or shadcn-compatible D3 bar; note BL-OEE-09 re: zero-dep SVG vs recharts decision",
+        "OEE impact decomposition <pre> block → computed server-side from real A/P/Q values, rendered as formatted text or a dedicated Card",
+        "Downtime events table with inline [Add note] / Edit links → annotate_downtime_modal opened client-side; table data from 08-PRODUCTION downtime_events API",
+        "Role-conditional column hint text → server-side: pass role from session, render appropriate hint; no client-side role check in JSX",
+        "Hardcoded legend labels (Plant/Process/People) → next-intl t('oee.losses.class.*') with Lean class enum"
+      ],
+      "shadcn_equivalent": [
+        "Card",
+        "CardHeader",
+        "CardContent",
+        "Table",
+        "TableHeader",
+        "TableBody",
+        "TableRow",
+        "TableHead",
+        "TableCell",
+        "Badge",
+        "Button",
+        "Alert"
+      ],
+      "known_bugs": [
+        "BL-OEE-09: Recharts dependency consideration vs inline SVG (Low priority)"
+      ],
+      "estimated_translation_time_min": 90
+    },
+    {
+      "label": "changeover_tab",
+      "file": "design/Monopilot Design System/oee/dashboard.jsx",
+      "lines": "308-390",
+      "component_type": "tabs",
+      "ui_pattern": "list-with-actions",
+      "data_domain": "OEE",
+      "interaction": "read-only",
+      "complexity": "composite",
+      "depends_on_prototypes": [
+        "changeover_detail_modal"
+      ],
+      "translation_notes": [
+        "CHANGEOVER_EVENTS mock array + client-side reduce/filter for KPIs → Server Component aggregating changeover_events for given date from 08-PRODUCTION",
+        "Four KPI mini-cards (total, avg, high-allergen count, longest) → shadcn Card grid; all values from SQL aggregation not JS reduce",
+        "Allergen risk badge color mapping (High=red, Medium=amber, Low=green) → cva variant map shared across modules; enum driven from allergen_risk_level column",
+        "Variance badge (+/- colored) → shared <VarianceBadge> primitive with sign-aware color logic",
+        "View → button → opens changeover_detail_modal client-side with fetched row data",
+        "Target durations from 02-SETTINGS note → info Alert with cross-link to /settings/changeover-targets",
+        "Hardcoded labels → next-intl t('oee.changeover.*')"
+      ],
+      "shadcn_equivalent": [
+        "Card",
+        "CardHeader",
+        "CardContent",
+        "Table",
+        "TableHeader",
+        "TableBody",
+        "TableRow",
+        "TableHead",
+        "TableCell",
+        "Badge",
+        "Button",
+        "Alert"
+      ],
+      "known_bugs": [],
+      "estimated_translation_time_min": 70
+    },
+    {
+      "label": "oee_line_trend_page",
+      "file": "design/Monopilot Design System/oee/screens.jsx",
+      "lines": "3-209",
+      "component_type": "page-layout",
+      "ui_pattern": "detail-view",
+      "data_domain": "OEE",
+      "interaction": "read-only",
+      "complexity": "page-level",
+      "depends_on_prototypes": [
+        "annotate_downtime_modal",
+        "changeover_detail_modal",
+        "export_oee_modal"
+      ],
+      "translation_notes": [
+        "lineId + windowVal + shift as useState → URL search params (?line=LINE-02&window=24h&shift=all) for shareable deep links",
+        "OEE_TODAY / OEE_TREND mock objects → Server Component loading oee_snapshots with line + window filter; pass to client TrendChart as serialized data",
+        "Four ArcGauge header row with hover-highlight (hlAll) → client component island; gauges receive target from oee_alert_thresholds",
+        "TrendChart with downtime bands + changeover markers → recharts ComposedChart with ReferenceArea (downtime) + ReferenceLine (changeover); data from oee_snapshots + changeover_events join",
+        "Top Downtime Causes pareto bars → Server Component reading downtime_events aggregated by category for the line/window",
+        "Changeover summary mini-card → Server Component fetching latest changeover_events row for line, cross-links to changeover_detail_modal",
+        "LINE-02 alert hardcoded → alert driven by data: if any single downtime event > 60 min in window, render Alert with annotate CTA",
+        "Spark 7-day sparkline → recharts LineChart mini or inline SVG; data from oee_snapshots rolling 7-day window",
+        "Hardcoded labels → next-intl t('oee.lineTrend.*')"
+      ],
+      "shadcn_equivalent": [
+        "Card",
+        "CardHeader",
+        "CardContent",
+        "Select",
+        "SelectItem",
+        "ToggleGroup",
+        "ToggleGroupItem",
+        "Badge",
+        "Button",
+        "Alert"
+      ],
+      "known_bugs": [
+        "BL-OEE-01: Incremental chart append via ?since=last_ts — currently only toggle refresh (Medium priority)",
+        "BL-OEE-09: Recharts dependency consideration vs inline SVG (Low priority)"
+      ],
+      "estimated_translation_time_min": 200
+    },
+    {
+      "label": "oee_shift_heatmap_page",
+      "file": "design/Monopilot Design System/oee/screens.jsx",
+      "lines": "211-377",
+      "component_type": "page-layout",
+      "ui_pattern": "dashboard-tile",
+      "data_domain": "Shift",
+      "interaction": "read-only",
+      "complexity": "page-level",
+      "depends_on_prototypes": [
+        "cell_drill_modal",
+        "export_oee_modal"
+      ],
+      "translation_notes": [
+        "week + lineFilter + selected cell as useState → URL search params (?week=2026-W16&line=all&selLine=LINE-02&selDay=sat&selShift=Night)",
+        "HEATMAP mock nested object → Server Component fetching oee_shift_metrics MV for given week, shaped into line×day×shift lookup",
+        "Heatmap grid role='grid' with gridcell + aria-label → keep ARIA attributes; add onKeyDown arrow-key navigation (BL-OEE-04)",
+        "heatColor() inline function → CSS custom property or Tailwind arbitrary value driven by OEE value thresholds; note BL-OEE-03 for color-blind mode",
+        "Selected cell detail panel with ArcGauge quartet → client island; data fetched via Server Action on cell click using (line, day, shift) triple",
+        "Four weekly KPI mini-cards → Server Component aggregation over oee_shift_metrics for the selected week",
+        "Compare weeks → compare_weeks_modal; BL-OEE-05 diff view remains a backlog item",
+        "Heatmap colour scale fixed in P1 (65/85) → note in settings screen; P2: make tenant-configurable via oee_alert_thresholds",
+        "Hardcoded labels → next-intl t('oee.heatmap.*')"
+      ],
+      "shadcn_equivalent": [
+        "Card",
+        "CardHeader",
+        "CardContent",
+        "Select",
+        "SelectItem",
+        "Button",
+        "Badge",
+        "Alert"
+      ],
+      "known_bugs": [
+        "BL-OEE-02: Sort by shift column in heatmap (Low priority)",
+        "BL-OEE-03: Color-blind mode (Low priority)",
+        "BL-OEE-04: Arrow-key nav on heatmap cells (Low priority)",
+        "BL-OEE-05: Compare-weeks diff view (Medium priority)"
+      ],
+      "estimated_translation_time_min": 180
+    },
+    {
+      "label": "oee_downtime_pareto_page",
+      "file": "design/Monopilot Design System/oee/screens.jsx",
+      "lines": "379-469",
+      "component_type": "page-layout",
+      "ui_pattern": "dashboard-tile",
+      "data_domain": "Downtime",
+      "interaction": "read-only",
+      "complexity": "page-level",
+      "depends_on_prototypes": [
+        "six_big_losses_tab"
+      ],
+      "translation_notes": [
+        "Client-side cumulative Pareto calculation (sort + reduce) → move to Server Component or SQL window function SUM() OVER (ORDER BY mins DESC)",
+        "Pareto bar chart CSS divs with dynamic width → recharts BarChart + ComposedChart with secondary LineChart for cumulative curve (classic Pareto chart pattern)",
+        "80% threshold line detection (findIndex) → computed server-side, passed as prop; rendered as ReferenceArea on chart",
+        "Distribution by Lean class (plant/process/people) → GROUP BY lean_class SQL query, not JS filter+reduce",
+        "P2 preview alert → keep as info Alert; link to six_big_losses_tab on oee_daily_summary_page",
+        "Date range pills (Today / This week / 30 days) → URL param ?range=today|week|30d; Server Component reads and queries accordingly",
+        "Hardcoded labels → next-intl t('oee.pareto.*')"
+      ],
+      "shadcn_equivalent": [
+        "Card",
+        "CardHeader",
+        "CardContent",
+        "Button",
+        "Badge",
+        "Alert"
+      ],
+      "known_bugs": [
+        "BL-OEE-09: Recharts dependency consideration vs inline SVG (Low priority)"
+      ],
+      "estimated_translation_time_min": 100
+    },
+    {
+      "label": "oee_availability_drilldown_page",
+      "file": "design/Monopilot Design System/oee/screens.jsx",
+      "lines": "471-543",
+      "component_type": "page-layout",
+      "ui_pattern": "detail-view",
+      "data_domain": "OEE",
+      "interaction": "read-only",
+      "complexity": "page-level",
+      "depends_on_prototypes": [
+        "six_big_losses_tab"
+      ],
+      "translation_notes": [
+        "factoryA from SUMMARY_KPIS_TODAY → Server Component reading oee_daily_summary.factory_a for current date",
+        "A by line table with sparklines → Server Component; Spark data from oee_snapshots rolling 7-day window per line mapped to availability",
+        "Availability loss categories → SIX_BIG_LOSSES filtered by impact=A → Server Component query with WHERE impact_dimension = 'A'",
+        "7-day trend multi-line chart → recharts LineChart with one series per line; data from oee_snapshots 7-day window aggregated by day",
+        "Hardcoded MTBF note for MIX-04 → data-driven from 13-MAINTENANCE equipment_health table (P2 cross-module dependency)",
+        "Equipment Health cross-link → P2 route /oee/equipment-health; guard with feature flag oee.equipment_health_enabled",
+        "Hardcoded labels → next-intl t('oee.availability.*')"
+      ],
+      "shadcn_equivalent": [
+        "Card",
+        "CardHeader",
+        "CardContent",
+        "Table",
+        "TableHeader",
+        "TableBody",
+        "TableRow",
+        "TableHead",
+        "TableCell",
+        "Badge",
+        "Button"
+      ],
+      "known_bugs": [],
+      "estimated_translation_time_min": 90
+    },
+    {
+      "label": "oee_performance_drilldown_page",
+      "file": "design/Monopilot Design System/oee/screens.jsx",
+      "lines": "546-598",
+      "component_type": "page-layout",
+      "ui_pattern": "detail-view",
+      "data_domain": "OEE",
+      "interaction": "read-only",
+      "complexity": "page-level",
+      "depends_on_prototypes": [
+        "six_big_losses_tab"
+      ],
+      "translation_notes": [
+        "factoryP from SUMMARY_KPIS_TODAY → Server Component reading oee_daily_summary.factory_p for current date",
+        "P by line table with micro stops column (Math.round(d.downtime/8)) → replace mock formula with real micro_stops_count from oee_snapshots",
+        "P loss categories → SIX_BIG_LOSSES filtered by impact=P → Server Component WHERE impact_dimension = 'P'",
+        "Sparkline data series for P dimension (SPARK_7D[l.id]) → separate query for performance dimension 7-day sparkline from oee_shift_metrics",
+        "Structure mirrors OeeAvailability exactly → extract shared <OeeFactorDrillPage> layout component parameterized by factor (A|P|Q)",
+        "Hardcoded labels → next-intl t('oee.performance.*')"
+      ],
+      "shadcn_equivalent": [
+        "Card",
+        "CardHeader",
+        "CardContent",
+        "Table",
+        "TableHeader",
+        "TableBody",
+        "TableRow",
+        "TableHead",
+        "TableCell",
+        "Badge",
+        "Button"
+      ],
+      "known_bugs": [],
+      "estimated_translation_time_min": 60
+    },
+    {
+      "label": "oee_quality_drilldown_page",
+      "file": "design/Monopilot Design System/oee/screens.jsx",
+      "lines": "600-655",
+      "component_type": "page-layout",
+      "ui_pattern": "detail-view",
+      "data_domain": "OEE",
+      "interaction": "read-only",
+      "complexity": "page-level",
+      "depends_on_prototypes": [
+        "six_big_losses_tab"
+      ],
+      "translation_notes": [
+        "factoryQ from SUMMARY_KPIS_TODAY → Server Component reading oee_daily_summary.factory_q for current date",
+        "Rejects column (Math.round(d.output * (1 - d.q/100))) → real reject_kg or reject_units column from production_output_events, not derived from mock",
+        "Q loss categories → SIX_BIG_LOSSES filtered by impact=Q → Server Component WHERE impact_dimension = 'Q'",
+        "QA holds cross-reference note → add link to /quality/holds?line=... when 09-QUALITY module is available",
+        "Structure mirrors OeeAvailability → same <OeeFactorDrillPage> parameterized component as OeePerformance",
+        "Hardcoded labels → next-intl t('oee.quality.*')"
+      ],
+      "shadcn_equivalent": [
+        "Card",
+        "CardHeader",
+        "CardContent",
+        "Table",
+        "TableHeader",
+        "TableBody",
+        "TableRow",
+        "TableHead",
+        "TableCell",
+        "Badge",
+        "Button",
+        "Alert"
+      ],
+      "known_bugs": [],
+      "estimated_translation_time_min": 60
+    },
+    {
+      "label": "oee_settings_page",
+      "file": "design/Monopilot Design System/oee/screens.jsx",
+      "lines": "698-833",
+      "component_type": "page-layout",
+      "ui_pattern": "crud-form-with-validation",
+      "data_domain": "OEE",
+      "interaction": "edit",
+      "complexity": "page-level",
+      "depends_on_prototypes": [
+        "line_override_modal",
+        "delete_override_modal",
+        "big_loss_mapping_modal"
+      ],
+      "translation_notes": [
+        "isAdmin role check + early return → middleware RBAC guard on /oee/settings route; server-side redirect to /oee if role !== oee_admin",
+        "edit/thresh useState toggle pattern → inline edit uses useForm + optimistic update; PUT Server Action on save",
+        "OEE_THRESHOLDS.tenant mutation on save → Server Action PUT /api/settings/oee/alert-thresholds; revalidatePath for all OEE dashboards",
+        "Per-line overrides table with Edit/Delete actions → TanStack Table with action column calling line_override_modal and delete_override_modal",
+        "Big Loss Mapping preview table (slice 0-8) → Server Component; '+ N more' count from Drizzle COUNT(); full editor in big_loss_mapping_modal",
+        "P2 rows with opacity:0.5 → render as disabled TableRow with Tooltip explaining P2 status; do not hide",
+        "Hardcoded labels → next-intl t('oee.settings.*')"
+      ],
+      "shadcn_equivalent": [
+        "Card",
+        "CardHeader",
+        "CardContent",
+        "Table",
+        "TableHeader",
+        "TableBody",
+        "TableRow",
+        "TableHead",
+        "TableCell",
+        "Form",
+        "FormField",
+        "Input",
+        "Button",
+        "Badge",
+        "Alert",
+        "Tooltip"
+      ],
+      "known_bugs": [],
+      "estimated_translation_time_min": 120
+    },
+    {
+      "label": "oee_shift_configs_page",
+      "file": "design/Monopilot Design System/oee/screens.jsx",
+      "lines": "836-900",
+      "component_type": "page-layout",
+      "ui_pattern": "detail-view",
+      "data_domain": "Shift",
+      "interaction": "read-only",
+      "complexity": "page-level",
+      "depends_on_prototypes": [],
+      "translation_notes": [
+        "isAdmin role check + early return → middleware RBAC guard; server redirect if role !== oee_admin",
+        "SHIFT_CONFIGS mock array → Server Component reading shift_configs table from 02-SETTINGS database; this page is explicitly read-only in OEE",
+        "Edit in 02-SETTINGS cross-link button → Next.js <Link href='/settings/reference-tables/shift-configs'>; not window.alert",
+        "DSL rule status section → Server Component reading rule_registry row for shift_aggregator_v1 from 02-SETTINGS",
+        "Check Rule Status cross-link → /reporting/rules-usage route; Check Feature Flag → /settings/feature-flags route",
+        "Hardcoded labels → next-intl t('oee.shifts.*')"
+      ],
+      "shadcn_equivalent": [
+        "Card",
+        "CardHeader",
+        "CardContent",
+        "Table",
+        "TableHeader",
+        "TableBody",
+        "TableRow",
+        "TableHead",
+        "TableCell",
+        "Badge",
+        "Button",
+        "Alert"
+      ],
+      "known_bugs": [],
+      "estimated_translation_time_min": 50
+    },
+    {
+      "label": "oee_anomaly_detection_page",
+      "file": "design/Monopilot Design System/oee/screens.jsx",
+      "lines": "950-995",
+      "component_type": "page-layout",
+      "ui_pattern": "list-with-actions",
+      "data_domain": "OEE",
+      "interaction": "read-only",
+      "complexity": "page-level",
+      "depends_on_prototypes": [
+        "acknowledge_anomaly_modal"
+      ],
+      "translation_notes": [
+        "P2 component — gate entire route behind feature flag oee.anomaly_detection_enabled; render redirect or 'Coming in P2' placeholder when disabled",
+        "ANOMALIES mock array → Server Component fetching oee_anomalies table populated by oee_anomaly_detector_v1 DSL rule",
+        "Table opacity:0.75 sample rows → full opacity when P2 is live; EWMA rule fires from 12-REPORTING rules engine",
+        "Severity badge color mapping → cva variant based on severity enum (critical/high/medium/low) matching badge-red/amber/blue/gray",
+        "Status badge (resolved/ack/open) → same cva variant map; ack action via acknowledge_anomaly_modal",
+        "In-app toast + daily email digest (OQ-OEE-08) → Server Action emits notification outbox event; email via /api/notifications/digest cron",
+        "Hardcoded labels → next-intl t('oee.anomalies.*')"
+      ],
+      "shadcn_equivalent": [
+        "Card",
+        "CardHeader",
+        "CardContent",
+        "Table",
+        "TableHeader",
+        "TableBody",
+        "TableRow",
+        "TableHead",
+        "TableCell",
+        "Badge",
+        "Button",
+        "Alert"
+      ],
+      "known_bugs": [],
+      "estimated_translation_time_min": 80
+    },
+    {
+      "label": "oee_equipment_health_page",
+      "file": "design/Monopilot Design System/oee/screens.jsx",
+      "lines": "997-1036",
+      "component_type": "page-layout",
+      "ui_pattern": "list-with-actions",
+      "data_domain": "OEE",
+      "interaction": "read-only",
+      "complexity": "page-level",
+      "depends_on_prototypes": [],
+      "translation_notes": [
+        "P2 component — gate route behind feature flag oee.equipment_health_enabled; depends on 13-MAINTENANCE module being live",
+        "EQUIPMENT_HEALTH mock array → Server Component joining equipment table (13-MAINTENANCE) with oee_snapshots for 30-day availability computation",
+        "MTBF / MTTR columns → computed server-side from maintenance_work_orders fault history; not stored directly",
+        "30-day A% CompBadge → same CompBadge primitive as other OEE tables, min threshold from oee_alert_thresholds",
+        "Trend arrow (up/down/stable) → server-side: compare last-7-day avg to prior-7-day avg availability; return enum",
+        "PM trigger rule note → oee_maintenance_trigger_v1 is DSL rule; link to /settings/rules/oee_maintenance_trigger_v1",
+        "Hardcoded labels → next-intl t('oee.equipmentHealth.*')"
+      ],
+      "shadcn_equivalent": [
+        "Card",
+        "CardHeader",
+        "CardContent",
+        "Table",
+        "TableHeader",
+        "TableBody",
+        "TableRow",
+        "TableHead",
+        "TableCell",
+        "Badge",
+        "Button",
+        "Alert"
+      ],
+      "known_bugs": [],
+      "estimated_translation_time_min": 70
+    },
+    {
+      "label": "oee_tv_dashboard_page",
+      "file": "design/Monopilot Design System/oee/screens.jsx",
+      "lines": "1038-1080",
+      "component_type": "page-layout",
+      "ui_pattern": "detail-view",
+      "data_domain": "OEE",
+      "interaction": "read-only",
+      "complexity": "page-level",
+      "depends_on_prototypes": [],
+      "translation_notes": [
+        "P2 component — gate behind feature flag oee.tv_dashboard_enabled; OS kiosk decision open (OQ-OEE-03 / BL-OEE-06)",
+        "Dark-mode hardcoded inline styles (bg #0f172a, text #f8fafc) → Tailwind dark class scope on root div; or separate /oee/tv route with dark layout",
+        "30s auto-refresh → route.revalidate = 30 on a dedicated TV RSC route; or client useInterval with router.refresh()",
+        "Hardcoded single-line mock (LINE-01) → Server Component reading oee_snapshots for all active lines; render in responsive grid",
+        "Font sizes (96px OEE value) → Tailwind text-9xl; ensure ColorBrewer RdYlGn palette used for color-blind safety (BL-OEE-03)",
+        "No interactive controls (read-only kiosk) → no focusable elements; remove all Button/Link from TV route",
+        "Hardcoded labels → next-intl t('oee.tv.*') with minimal key set"
+      ],
+      "shadcn_equivalent": [
+        "Card"
+      ],
+      "known_bugs": [
+        "BL-OEE-06: TV OS kiosk decision pending (P2 priority)"
+      ],
+      "estimated_translation_time_min": 60
+    },
+    {
+      "label": "p2_placeholder_shell",
+      "file": "design/Monopilot Design System/oee/screens.jsx",
+      "lines": "902-948",
+      "component_type": "page-layout",
+      "ui_pattern": "detail-view",
+      "data_domain": "OEE",
+      "interaction": "read-only",
+      "complexity": "primitive",
+      "depends_on_prototypes": [],
+      "translation_notes": [
+        "Generic P2Placeholder component → shared <ComingSoonPage> primitive in /components/shared/coming-soon-page.tsx; accept title, description, featureFlag, alternativeLink props",
+        "window.alert cross-links → Next.js <Link> components; /reporting/rules-usage and /settings/feature-flags as actual routes",
+        "Data preview stub table with opacity:0.6 → render only when data prop provided; use same shadcn Table with skeleton rows",
+        "Feature flag prop → read from 02-SETTINGS feature_flags table server-side; display actual flag name and current value",
+        "Hardcoded emoji ⏳ → remove or use lucide-react Clock icon for consistency with design system"
+      ],
+      "shadcn_equivalent": [
+        "Card",
+        "CardHeader",
+        "CardContent",
+        "Table",
+        "TableHeader",
+        "TableBody",
+        "TableRow",
+        "TableHead",
+        "TableCell",
+        "Button",
+        "Badge"
+      ],
+      "known_bugs": [],
+      "estimated_translation_time_min": 25
+    },
+    {
+      "label": "shifts_screen",
+      "file": "design/Monopilot Design System/settings/org-screens.jsx",
+      "lines": "255-306",
+      "component_type": "page-layout",
+      "ui_pattern": "list-with-actions",
+      "data_domain": "Org",
+      "interaction": "edit",
+      "complexity": "page-level",
+      "depends_on_prototypes": [],
+      "translation_notes": [
+        "window.SETTINGS_SHIFTS → Drizzle query on shift_patterns table",
+        "Inline calendar grid (7-col CSS grid with day math) → replace with shadcn Calendar or react-day-picker; holidays from org_non_production_days table",
+        "Static holiday highlighting ([25,26,1] hardcoded days) → dynamic from non_production_days table with date range filtering",
+        "Inline <table> for shifts → shadcn Table with TanStack Table",
+        "No save action on shifts or calendar → Server Actions needed: shift_patterns upsert, non_production_days create/delete",
+        "Hardcoded labels → next-intl keys"
+      ],
+      "shadcn_equivalent": [
+        "Table",
+        "Calendar",
+        "Badge",
+        "Button",
+        "Separator"
+      ],
+      "known_bugs": [],
+      "estimated_translation_time_min": 90
+    }
+  ]
+}

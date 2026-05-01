@@ -1,0 +1,82 @@
+{
+  "title": "T-007 \u2014 RLS baseline policies on tenants/organizations/users with LEAKPROOF SECURITY DEFINER tenant context",
+  "prompt": "# T-007 \u2014 RLS baseline policies on tenants/organizations/users with LEAKPROOF SECURITY DEFINER tenant context\n\nPRD: `00-FOUNDATION-PRD.md` \u2014 sections: \u00a75, \u00a78\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`\n\n## Goal\nEnable PostgreSQL RLS on every business table. Use a LEAKPROOF SECURITY DEFINER wrapper to inject current_setting('app.tenant_id'). Tests run with an app role, never superuser.\n\n## Implementation contract\nMigration 002-rls-baseline.sql: ALTER TABLE tenants/organizations/users ENABLE ROW LEVEL SECURITY; create policy USING (tenant_id = current_setting('app.tenant_id')::uuid) WITH CHECK same. Create function app.set_tenant(uuid) SECURITY DEFINER LEAKPROOF that calls set_config('app.tenant_id', $1::text, true). Create role 'app_user' (NOSUPERUSER NOINHERIT) granted USAGE on schema and SELECT/INSERT/UPDATE on the three tables. Playwright/integration test connects as 'app_user', sets tenant A, inserts a row, switches to tenant B, attempts to read tenant A's row, and asserts zero rows returned.\n\n## Files (scope)\n- packages/db/migrations/002-rls-baseline.sql [create]\n- packages/db/__tests__/rls.cross-tenant.integration.test.ts [create]\n\n## Acceptance criteria\n1. Given RLS is enabled on tenants/organizations/users, when 'app_user' connects with app.tenant_id set to tenant A and SELECTs a row owned by tenant B, then zero rows are returned\n2. Given the LEAKPROOF SECURITY DEFINER function app.set_tenant(uuid) exists, when pg_proc is queried, then prosecdef=true AND proleakproof=true\n3. Given a test attempts to set app.tenant_id from outside app.set_tenant, when 'app_user' tries 'SET app.tenant_id = ...' directly, then the policy still treats it as unset and returns zero rows for cross-tenant SELECT\n\n## Test strategy\n- RED: write packages/db/__tests__/rls.cross-tenant.integration.test.ts with two-tenant scenario before policies exist\n- Run 'pnpm --filter @monopilot/db test:integration -- rls.cross-tenant'\n\n## Risk red lines\n- Tests MUST connect as 'app_user', never as superuser (PRD \u00a75 explicit)\n- Do not use SECURITY DEFINER without LEAKPROOF \u2014 RLS bypass risk\n\n## Dependencies (must be complete first)\n- T-006\n\n## Closeout evidence\nProvide: changed_files, test_commands_and_results, acceptance_criteria_status (per AC), deviations_from_prd, git_status. Use the test-driven-development skill (RED test before implementation) and requesting-code-review at GREEN.",
+  "labels": [
+    "prd",
+    "data",
+    "security",
+    "T1-schema"
+  ],
+  "priority": 80,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-007",
+    "source_prd": "00-FOUNDATION-PRD.md",
+    "prd_refs": [
+      "\u00a75",
+      "\u00a78"
+    ],
+    "category": "data",
+    "subcategory": "security",
+    "task_type": "T1-schema",
+    "parent_feature": "00-FOUNDATION-impl-d DB+RLS",
+    "context_budget": "50k",
+    "estimated_effort": "1-3h",
+    "description": "Enable PostgreSQL RLS on every business table. Use a LEAKPROOF SECURITY DEFINER wrapper to inject current_setting('app.tenant_id'). Tests run with an app role, never superuser.",
+    "details": "Migration 002-rls-baseline.sql: ALTER TABLE tenants/organizations/users ENABLE ROW LEVEL SECURITY; create policy USING (tenant_id = current_setting('app.tenant_id')::uuid) WITH CHECK same. Create function app.set_tenant(uuid) SECURITY DEFINER LEAKPROOF that calls set_config('app.tenant_id', $1::text, true). Create role 'app_user' (NOSUPERUSER NOINHERIT) granted USAGE on schema and SELECT/INSERT/UPDATE on the three tables. Playwright/integration test connects as 'app_user', sets tenant A, inserts a row, switches to tenant B, attempts to read tenant A's row, and asserts zero rows returned.",
+    "scope_files": [
+      "packages/db/migrations/002-rls-baseline.sql [create]",
+      "packages/db/__tests__/rls.cross-tenant.integration.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not modify files outside the scope_files list",
+      "Do not introduce business logic from later module PRDs (01-NPD, 02-SETTINGS, etc.)",
+      "No business module tables here \u2014 only the three baseline ones from T-006"
+    ],
+    "dependencies": [
+      "T-006"
+    ],
+    "parallel_safe_with": [],
+    "acceptance_criteria": [
+      "Given RLS is enabled on tenants/organizations/users, when 'app_user' connects with app.tenant_id set to tenant A and SELECTs a row owned by tenant B, then zero rows are returned",
+      "Given the LEAKPROOF SECURITY DEFINER function app.set_tenant(uuid) exists, when pg_proc is queried, then prosecdef=true AND proleakproof=true",
+      "Given a test attempts to set app.tenant_id from outside app.set_tenant, when 'app_user' tries 'SET app.tenant_id = ...' directly, then the policy still treats it as unset and returns zero rows for cross-tenant SELECT"
+    ],
+    "test_strategy": [
+      "RED: write packages/db/__tests__/rls.cross-tenant.integration.test.ts with two-tenant scenario before policies exist",
+      "Run 'pnpm --filter @monopilot/db test:integration -- rls.cross-tenant'"
+    ],
+    "risk_red_lines": [
+      "Tests MUST connect as 'app_user', never as superuser (PRD \u00a75 explicit)",
+      "Do not use SECURITY DEFINER without LEAKPROOF \u2014 RLS bypass risk"
+    ],
+    "skills": [
+      "test-driven-development",
+      "verification-before-completion",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

@@ -249,3 +249,70 @@ Also relevant from other modules:
 | Combobox | recipient_group_modal, rpt_scheduled_edit |
 | ScrollArea | rpt_rules_usage (pre block) |
 | Separator | schedule_report_modal |
+
+
+---
+
+## Audit-generated stubs (2026-04-30)
+
+The following entries were missing per-component sections at audit time.
+
+## error_log_modal — `design/Monopilot Design System/reporting/modals.jsx:306-329`
+
+- **shadcn equivalent:** Dialog, DialogContent, DialogFooter, Button, Table, TableRow, TableCell
+- **known bugs:** _none recorded_
+- **gotchas:** _to be filled when this prototype is translated; this is an audit-generated stub (2026-04-30)._
+
+## refresh_confirm_modal — `design/Monopilot Design System/reporting/modals.jsx:381-400`
+
+- **shadcn equivalent:** Dialog, DialogContent, DialogFooter, Button
+- **known bugs:** _none recorded_
+- **gotchas:** _to be filled when this prototype is translated; this is an audit-generated stub (2026-04-30)._
+
+## run_now_confirm_modal — `design/Monopilot Design System/reporting/modals.jsx:438-450`
+
+- **shadcn equivalent:** Dialog, DialogContent, DialogFooter, Button
+- **known bugs:** _none recorded_
+- **gotchas:** _to be filled when this prototype is translated; this is an audit-generated stub (2026-04-30)._
+
+## p2_toast_modal — `design/Monopilot Design System/reporting/modals.jsx:453-464`
+
+- **shadcn equivalent:** Dialog, DialogContent, DialogFooter, Alert, AlertDescription, Button
+- **known bugs:** _none recorded_
+- **gotchas:** _to be filled when this prototype is translated; this is an audit-generated stub (2026-04-30)._
+
+## access_denied_modal — `design/Monopilot Design System/reporting/modals.jsx:467-481`
+
+- **shadcn equivalent:** Dialog, DialogContent, DialogFooter, Alert, AlertDescription, Button
+- **known bugs:** _none recorded_
+- **gotchas:** _to be filled when this prototype is translated; this is an audit-generated stub (2026-04-30)._
+
+## rpt_home_dashboard_catalog — `design/Monopilot Design System/reporting/dashboard.jsx:3-112`
+
+- **shadcn equivalent:** Card, CardHeader, CardContent, CardFooter, Badge, Input, Select, SelectContent, SelectItem, Button, Skeleton
+- **known bugs:** BL-RPT-03: Onboarding/fresh-install zero-state variants not implemented (Medium priority)
+- **gotchas:** _to be filled when this prototype is translated; this is an audit-generated stub (2026-04-30)._
+
+## rpt_factory_overview — `design/Monopilot Design System/reporting/catalog-screens.jsx:251-398`
+
+- **shadcn equivalent:** Card, CardHeader, CardContent, Table, TableHeader, TableBody, TableRow, TableCell, Badge, Button, DropdownMenu, DropdownMenuContent, DropdownMenuItem, Separator
+- **known bugs:** BL-RPT-02: Hand-rolled SVG charts need replacement with D3-shape + d3-scale (P2), BL-RPT-04: @media print stylesheet for Puppeteer PDF export missing (Medium)
+- **gotchas:** _to be filled when this prototype is translated; this is an audit-generated stub (2026-04-30)._
+
+## rpt_yield_by_line — `design/Monopilot Design System/reporting/catalog-screens.jsx:402-492`
+
+- **shadcn equivalent:** Card, CardHeader, CardContent, Table, TableHeader, TableBody, TableRow, TableCell, Badge, Button
+- **known bugs:** BL-RPT-02: Hand-rolled SVG charts (Spark) need replacement (P2)
+- **gotchas:** _to be filled when this prototype is translated; this is an audit-generated stub (2026-04-30)._
+
+## rpt_saved_filters — `design/Monopilot Design System/reporting/other-screens.jsx:89-156`
+
+- **shadcn equivalent:** Card, CardHeader, CardContent, Table, TableHeader, TableBody, TableRow, TableCell, Badge, Button
+- **known bugs:** _none recorded_
+- **gotchas:** _to be filled when this prototype is translated; this is an audit-generated stub (2026-04-30)._
+
+## rpt_scheduled_list — `design/Monopilot Design System/reporting/other-screens.jsx:159-242`
+
+- **shadcn equivalent:** Card, CardHeader, CardContent, Table, TableHeader, TableBody, TableRow, TableCell, Badge, Button, Alert, AlertDescription
+- **known bugs:** _none recorded_
+- **gotchas:** _to be filled when this prototype is translated; this is an audit-generated stub (2026-04-30)._

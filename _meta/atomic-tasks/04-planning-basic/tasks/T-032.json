@@ -1,0 +1,63 @@
+{
+  "title": "T-032 — API: outbox event emitter helper + transactional consistency",
+  "prompt": "Implement reusable outbox emitter `emitOutboxEvent({ event, payload, tx })` per PRD §6.5, §7.6, §10.2, §11.4, §12.2, §15.2. Inserts into outbox_events table within caller's transaction (no separate connection). Ensures every state-change emits exactly one event in commit. Includes correlation_id from request context for tracing.\n\nRED test asserts: (a) emit inside tx that rolls back leaves no event row, (b) emit inside committed tx leaves exactly one row with payload echo, (c) duplicate emission within same tx ok (allowed for fanout) + each row distinct.",
+  "labels": ["prd", "infra", "outbox-emitter", "T2-api"],
+  "priority": 80,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-032",
+    "source_prd": "04-PLANNING-BASIC-PRD.md",
+    "prd_refs": ["§6.5", "§7.6", "§10.2", "§11.4", "§12.2", "§15.2"],
+    "category": "infra",
+    "subcategory": "outbox-emitter",
+    "task_type": "T2-api",
+    "parent_feature": "planning-infra",
+    "context_budget": "20k",
+    "estimated_effort": "1-2h",
+    "description": "Common outbox emit helper that all planning state changes use; transactional integrity is the contract.",
+    "details": "outbox_events table assumed to exist in 00-FOUNDATION (cross-module). Helper signature: `emitOutboxEvent({ tenant_id, event, payload, tx, correlation_id? }): Promise<{ id }>`. correlation_id auto-generated via crypto.randomUUID() if not provided. Each row carries status='pending' initially; consumer marks 'delivered' downstream.",
+    "scope_files": [
+      "src/server/lib/outbox.ts [create]",
+      "src/server/lib/__tests__/outbox.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Outbox consumer / dispatcher (00-FOUNDATION)",
+      "Event schema registry"
+    ],
+    "dependencies": [],
+    "parallel_safe_with": ["T-001", "T-002", "T-003", "T-004"],
+    "acceptance_criteria": [
+      "Given an outer transaction that rolls back, when emitOutboxEvent ran inside it, then 0 outbox rows exist after rollback.",
+      "Given a successful commit, when emitOutboxEvent ran with payload {x:1}, then 1 outbox row exists with payload JSON containing x=1 and a correlation_id.",
+      "Given two emit calls in the same transaction, when committed, then 2 distinct outbox rows exist with distinct ids.",
+      "Given `pnpm vitest run src/server/lib/__tests__/outbox.test.ts`, when run, then 0 failures."
+    ],
+    "test_strategy": [
+      "RED tests for transactional rollback, single-emit happy, duplicate-emit allowed.",
+      "Run `pnpm vitest run src/server/lib/__tests__/outbox.test.ts`."
+    ],
+    "risk_red_lines": [
+      "Do not open a separate connection for outbox writes — must use caller tx.",
+      "Do not silently drop events — failure must propagate to caller."
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

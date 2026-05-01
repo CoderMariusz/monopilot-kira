@@ -1,0 +1,63 @@
+{
+  "title": "T-017 — API: WO numbering (WIP-<suffix>-<sequence>)",
+  "prompt": "Implement WO numbering per PRD §14.1 default `WIP-{SUFFIX}-{NNNNNNN}` (7-digit zero-padded sequence). Service `src/lib/services/wo-numbering.ts` exposes `generateWoNumber(tenantId, productId)`. Suffix derived from product.code 2-letter prefix (uppercase, fallback 'XX'). Sequence monotonic per (tenant_id, suffix). Concurrency-safe via advisory lock or sequence table.\n\nRED test runs 50 concurrent calls for same suffix → 50 distinct sequential numbers.",
+  "labels": ["prd", "api", "wo-numbering", "T2-api"],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-017",
+    "source_prd": "04-PLANNING-BASIC-PRD.md",
+    "prd_refs": ["§14.1", "§5.6"],
+    "category": "api",
+    "subcategory": "wo-numbering",
+    "task_type": "T2-api",
+    "parent_feature": "planning-wo",
+    "context_budget": "30k",
+    "estimated_effort": "1-2h",
+    "description": "Concurrency-safe WO numbering with WIP-<2letter>-<7digit> pattern from planning_settings.",
+    "details": "Reuse `planning_number_sequences` table from T-009 with sequence_kind='wo:<SUFFIX>'. Pattern read from planning_settings.wo_number_format; supports {SUFFIX} and {NNNNNNN} ICU placeholders. Suffix lookup helper covers products.code starting characters. Strict regex check on output: ^WIP-[A-Z]{2}-\\d{7}$.",
+    "scope_files": [
+      "src/lib/services/wo-numbering.ts [create]",
+      "src/lib/services/__tests__/wo-numbering.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "WO create flow (T-018)",
+      "Cascade generator (T-019)"
+    ],
+    "dependencies": ["T-004", "T-009"],
+    "parallel_safe_with": ["T-018", "T-019"],
+    "acceptance_criteria": [
+      "Given suffix 'BK' and 50 concurrent calls, when promises resolve, then 50 distinct sequential numbers WIP-BK-0000001..WIP-BK-0000050 are returned.",
+      "Given product.code='cake-XL' (lowercase), when generateWoNumber runs, then suffix uppercases to 'CA' and number format matches regex.",
+      "Given two tenants T1 (suffix 'BK' seq 5) and T2 (first 'BK' call), when both run, then T1 yields '0000006' and T2 yields '0000001' independently.",
+      "Given `pnpm vitest run src/lib/services/__tests__/wo-numbering.test.ts`, when run, then 0 failures."
+    ],
+    "test_strategy": [
+      "RED concurrency test, regex strict-match test, cross-tenant isolation test.",
+      "Run `pnpm vitest run src/lib/services/__tests__/wo-numbering.test.ts`."
+    ],
+    "risk_red_lines": [
+      "Do not generate non-WIP-prefixed numbers — V-PLAN-WO-010 hard block.",
+      "Do not allow sequence collisions under concurrent calls."
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

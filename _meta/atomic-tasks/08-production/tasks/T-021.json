@@ -1,0 +1,59 @@
+{
+  "title": "T-021 — GET /api/production/work-orders/:id full runtime state endpoint",
+  "prompt": "# T-021 — GET /work-orders/:id runtime state\n\nPRD: 08-PRODUCTION-PRD.md §7.1 FR-08-E1-006\n\n## Goal\nImplement GET /api/production/work-orders/[id] returning full runtime state: status, consumption progress %, output progress %, current operator, elapsed time, BOM snapshot.\n\n## Implementation contract\nApp Router GET handler returning JSON {wo_id, status, started_at, current_operator_id, elapsed_min, planned_duration_min, consumption_progress_pct, output_progress_pct, components:[{component_id, planned_qty, consumed_qty, remaining_qty}], outputs:[{output_type, qty_kg, lp_id, batch_number}]}. Compute: consumption_progress = sum(consumed)/sum(planned) on BOM snapshot, output_progress = sum(qty_kg)/expected_output_qty. Cache 30s with cacheLife() per Next.js 16 Cache Components.\n\n## Files (scope)\n- apps/web/app/api/production/work-orders/[id]/route.ts [create]\n- apps/web/app/api/production/work-orders/[id]/__tests__/route.test.ts [create]\n- packages/api-services/production/get-wo-runtime-state.ts [create]\n\n## Acceptance criteria\n1. Given WO with 3 BOM components and 2 consumed at 50% each, when GET called, then response.consumption_progress_pct equals 33.3 (1.5 consumed / 3 planned ×100/3)\n2. Given WO IN_PROGRESS for 45min planned 60min, when GET called, then response.elapsed_min=45, planned_duration_min=60\n3. Given non-existent wo_id, when GET called, then 404 with error code 'wo_not_found'\n\n## Test strategy\n- RED: route test asserting consumption_progress + elapsed + 404 before route exists\n- Run 'pnpm --filter web test work-orders.*runtime-state'\n\n## Risk red lines\n- Do not expose other tenants' WOs (RLS enforced)\n- Do not return null for required fields (use 404 instead)\n- Do not cache for >30s (operator-facing freshness §5.4#1)",
+  "labels": ["prd", "api", "wo-execution", "T2-api"],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-021",
+    "source_prd": "08-PRODUCTION-PRD.md",
+    "prd_refs": ["§7.1 FR-08-E1-006", "§5.4#1"],
+    "category": "api",
+    "subcategory": "wo-execution",
+    "task_type": "T2-api",
+    "parent_feature": "08-PROD E1 Execution Core",
+    "context_budget": "32k",
+    "estimated_effort": "2h",
+    "description": "GET /work-orders/:id runtime state aggregating wo_executions + BOM + consumption + outputs.",
+    "details": "Single read query joining wo_executions, work_orders, wo_materials (BOM snapshot), wo_material_consumption sums, wo_outputs sums. Cache with cacheLife({stale:30}). Response shape per §7.1 FR-08-E1-006.",
+    "scope_files": [
+      "apps/web/app/api/production/work-orders/[id]/route.ts [create]",
+      "apps/web/app/api/production/work-orders/[id]/__tests__/route.test.ts [create]",
+      "packages/api-services/production/get-wo-runtime-state.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not implement timeline tab (UI task)",
+      "Do not implement genealogy tab (UI task)",
+      "Do not modify schemas"
+    ],
+    "dependencies": ["T-001", "T-002", "T-003"],
+    "parallel_safe_with": ["T-016", "T-017", "T-018", "T-019", "T-020", "T-022"],
+    "acceptance_criteria": [
+      "Given 3 components 2 consumed at 50%, when GET, then consumption_progress_pct=33.3 (1.5/3×100)/3 averaged correctly",
+      "Given WO 45min in 60min plan, when GET, then elapsed_min=45 planned_duration_min=60",
+      "Given non-existent wo_id, when GET, then 404 wo_not_found"
+    ],
+    "test_strategy": [
+      "RED: route test asserting progress + elapsed + 404 before route exists",
+      "Run 'pnpm --filter web test work-orders.*runtime-state'"
+    ],
+    "risk_red_lines": [
+      "Do not expose cross-tenant WOs",
+      "Do not return null required fields",
+      "Do not cache >30s"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

@@ -1048,6 +1048,134 @@ Phase order (P2):
 - Second-sign pending gate (dual sign flow from 08-PROD E7)
 - Override (if authority per Q6 from 08-PROD; requires override reason + e-sign)
 
+### 8.3 Direction-B reconciliation (UX/prototype → PRD subsections)
+
+> **Note:** Subsections below were added 2026-04-30 to close orphan-prototype gaps surfaced by `_meta/audits/2026-04-30-design-prd-coverage.md` §2 / Module 09-QUALITY. UX numbering (QA-001..QA-099) differs from §8.1 PRD numbering (QA-001..QA-070); both are kept and cross-referenced in §8.4 traceability table. Industry-neutral product/lifecycle terminology applies per **ADR-034** (Generic Product Lifecycle Naming & Industry Configuration) — all "spec/product/component" references are tenant-configurable per `Reference.CodePrefixes` and industry preset.
+
+#### QUA-101 — Hold Detail (matches UX `QA-002a`)
+
+**UX anchor:** `design/09-QUALITY-UX.md:265-291` (QA-002a `/quality/holds/:id`).
+**Prototype:** `hold_detail` (`quality/holds-screens.jsx:164-286`).
+**Status:** alias for §8.1 row `QA-011` (Hold detail + release). UX route uses `QA-002a` schema; PRD `QA-011` is the canonical capability code. Both refer to the same screen surface — see §8.4 mapping. ADR-034: hold reasons sourced from `quality_hold_reasons` reference table (industry-configurable).
+
+#### QUA-102 — Specification Detail (matches UX `QA-003b`)
+
+**UX anchor:** `design/09-QUALITY-UX.md:398-419` (QA-003b `/quality/specs/:id`).
+**Prototype:** `spec_detail` (`quality/specs-screens.jsx:305-420`).
+**Capability:** Read-only spec view post-approval. Renders allergen profile snapshot, parameter table (read-only), regulation tags, signature banner, "Clone to new version" action (creates draft v+1), "Approve Specification" entry-point for `under_review` specs (quality_lead only, opens `spec_sign_modal`), and PDF download. Immutable after approval per §5.3 signature evidence pattern. ADR-034: industry-specific regulation tags stored as `text[]` per spec; product code prefix configurable.
+
+#### QUA-103 — Edit Specification (matches UX `QA-003c`)
+
+**UX anchor:** `design/09-QUALITY-UX.md:117` (QA-003c `/quality/specs/:id/edit`).
+**Prototype:** `spec_wizard` (`quality/specs-screens.jsx:82-302`) reused with edit mode.
+**Capability:** Edit-mode reuse of the spec wizard (§8.1 QA-021 in v3.0 numbering), restricted to `status='draft'` records (V-QA-SPEC-001). Signed/active specs cannot be edited; clone-to-new-version path is mandatory. ADR-034 applies to the same fields as QUA-102.
+
+#### QUA-104 — Incoming Inspection Detail (matches UX `QA-005a`)
+
+**UX anchor:** `design/09-QUALITY-UX.md:489-538` (QA-005a `/quality/inspections/incoming/:id`).
+**Prototype:** `inspection_detail` (`quality/inspection-screens.jsx:100-297`), `sample_draw_modal` (`quality/modals.jsx:248-297`).
+**Status:** alias for §8.1 row `QA-031` (Inspection detail) restricted to incoming inspections. Same capability code; UX route is type-segmented (`/incoming/:id`, `/in-process/:id`, `/final/:id`) — only incoming is P1.
+
+#### QUA-105 — NCR Detail + Workflow P1 (matches UX `QA-009a`)
+
+**UX anchor:** `design/09-QUALITY-UX.md:636-674` (QA-009a `/quality/ncr/:id`).
+**Prototype:** `ncr_detail` (`quality/ncr-screens.jsx:126-283`), `ncr_close_modal` (`quality/modals.jsx:385-466`).
+**Capability uplift vs §8.1:** §8.1 lists `QA-042 NCR detail + workflow` as **P2**. Prototype + UX implement a P1 read+close workflow (root cause text, pre-close checklist, dual sign-off for critical NCRs per V-QA-NCR-006, linked-records sidebar, activity timeline, signed banner). **Decision:** promote NCR detail/close to **P1 minimum** (read + close + dual-sign for critical); CAPA workflow remains P2 (Epic 8G). Update §8.1 row QA-042 P1/P2 column accordingly during Phase E task creation. ADR-034: `ncr_root_cause_categories` is a tenant-configurable reference table.
+
+#### QUA-106 — HACCP Plan Detail (matches UX `QA-013a`)
+
+**UX anchor:** `design/09-QUALITY-UX.md:130` (QA-013a `/quality/haccp/:id`).
+**Prototype:** `haccp_plans` (`quality/haccp-screens.jsx:3-106`) renders sidebar+detail layout matching this route.
+**Status:** alias of §8.1 row `QA-050` (HACCP plans board) when a plan is selected. PRD §8.1 conflates list and detail under one ID; UX splits via `:id` route. No new capability — labeling clarification only.
+
+#### QUA-107 — CCP Deviations List (matches UX `QA-015`)
+
+**UX anchor:** `design/09-QUALITY-UX.md:778-808` (QA-015 `/quality/ccp/deviations`).
+**Prototype:** `ccp_deviations` (`quality/haccp-screens.jsx:229-299`), `ccp_deviation_log_modal` (`quality/modals.jsx:554-594`).
+**Capability:** Dedicated browse + sign-off list for CCP deviation records (separate from QA-051 reading entry). Filters: hazard type, CCP, severity, status (signed/unsigned), date. KPI strip: open count / action-pending / resolved-today. Row actions: "Sign off" (opens `esign_modal` with `meaning='witnessed'`), "Add corrective action" (inline textarea), "Log deviation manually" (opens `ccp_deviation_log_modal`). Backed by `haccp_monitoring_records WHERE within_limits=false` joined to `ncr_reports` for auto-created linkages. **§8.1 addition:** add `QA-052 CCP Deviations list` (P1) — distinct from QA-052 Complaint stub which is renumbered to QA-053 if needed; resolve numbering collision in next PRD revision.
+
+#### QUA-108 — Audit Trail (matches UX `QA-021`)
+
+**UX anchor:** `design/09-QUALITY-UX.md:849-888` (QA-021 `/quality/audit`).
+**Prototype:** `audit_trail` (`quality/other-screens.jsx:117-229`), `audit_export_modal` (`quality/modals.jsx:700-756`).
+**Capability:** Immutable audit log browser for all quality-related events. Filters: table, record id, user, op (INSERT/UPDATE/DELETE/SIGN/RELEASE/APPROVE/CLOSE), date range. Expand-row shows before/after JSON diff. SIGN events show signature_hash (first 16 chars), signature_meaning, pin_verified flag. Export CSV/JSON streams response and itself emits an audit event. Backed by `quality_audit_log` (§9.1, immutable, BRCGS §3.11.1 7-year retention). **Capability already implied by §5.3** (signature evidence pattern); this subsection makes the screen-level surface explicit. ADR-034: regulation tag set ("BRCGS Issue 10 §3.11.1", "21 CFR Part 11", "FSMA 204") is industry-presets driven.
+
+#### QUA-109 — Quality Settings (matches UX `QA-099`)
+
+**UX anchor:** `design/09-QUALITY-UX.md:135` (QA-099 `/quality/settings`).
+**Prototype:** `qa_settings` (`quality/other-screens.jsx:272-395`).
+**Capability:** Tabbed admin page (5 tabs): General (hold reason default durations, CCP escalation delay), Regulations (BRCGS / 21 CFR Part 11 / ISO 22000 / Codex / FSMA 204 / EU FIC / IFS toggles), Notifications (event × channel matrix), Retention (read-only display — 7y immutable per BRCGS §3.11.1, cannot change from UI), Rules (read-only DSL rule registry view linking to 02-Settings Rule Registry — `qa_status_state_machine_v1`, `ccp_deviation_escalation_v1`, `batch_release_gate_v1`). RBAC: `quality_lead` or `admin`. Settings changes → Server Action with role guard, audit-logged. ADR-034: regulation preset list, hold reason taxonomy, and notification channel set are all industry-configurable (`tenant_settings.quality_regulations text[]`, `quality_hold_reasons` reference table, etc.).
+
+#### QUA-110 — Scanner Desktop Redirect Notice (matches UX `QA-025`)
+
+**UX anchor:** `design/09-QUALITY-UX.md:894-911` (QA-025 `/quality/scanner`).
+**Prototype:** none (informational page only).
+**Capability:** Stub desktop landing page reached if a desktop user navigates to `/quality/scanner`. Renders read-only summary of SCN-070..073 + SCN-081 flows (already enumerated in §8.1 scanner table) and a CTA "Open scanner app on a handheld device". No data writes, no DB schema. **Direction-B labeling only** — no new functional requirement.
+
+#### QUA-111 — In-line Inspection Assign Modal
+
+**UX anchor:** `design/09-QUALITY-UX.md:477` (MODAL-INSPECTION-ASSIGN referenced from QA-005 row Assign action).
+**Prototype:** `inspection_assign_modal` (`quality/modals.jsx:783-816`).
+**Capability:** Reassign a pending inspection to a different `qa_inspector` or `quality_lead`, optionally override priority, attach notes. Server Action sets `assigned_to_user_id` + `status='assigned'`, RBAC: `quality_lead` (or self-assign by `qa_inspector`), emits `inspection_assigned` outbox event. ADR-034 not applicable (operational metadata).
+
+#### QUA-112 — Generic Delete-with-Reason Modal
+
+**UX anchor:** UX does not enumerate this modal; reused across QA-009 NCR draft delete, QA-003/QA-021 draft spec delete, QA-004 template delete.
+**Prototype:** `delete_with_reason_modal` (`quality/modals.jsx:759-780`).
+**Capability:** Destructive-action primitive: requires `reason` (min 10 chars), allowed only for entities in deletable state (V-QA-NCR-005 — draft-only for NCR; analogous draft-only for spec/template). Audit row INSERT before DELETE; `reason_for_deletion` stored in `quality_audit_log.notes`. Already covered by §5.3 audit pattern; this subsection makes the modal-level contract explicit.
+
+### 8.4 Direction-A `[NO-PROTOTYPE-YET]` items
+
+| §8.1 PRD ID | Title | UX anchor | Prototype | TODO |
+|---|---|---|---|---|
+| QA-052 | Complaint + Incident form (P1 stub) | (absent in UX) | (absent) | `[NO-PROTOTYPE-YET]` — design + prototype during Phase E (Epic 8E sub-task `09-e-07`). PRD §6.3 carries `quality_complaints` + `quality_incidents` tables already. ADR-034: complaint source channels (phone/email/portal/retailer) are tenant-configurable. |
+| QA-060 | Lab Results browser (ATP, allergen, etc.) | (absent dedicated page in UX) | (no dedicated prototype; ATP referenced in `allergen_dual_sign_modal` and CCP screens) | `[NO-PROTOTYPE-YET]` — read-only list view over `lab_results` table (`pass_threshold` per test_type). Defer prototyping to Phase E if not available before; meanwhile data is reachable via QA-016 allergen-gate drawer. |
+| QA-070 | Allergen Changeover gate evidence view | UX `QA-016 /quality/allergen-gates` (`design/09-QUALITY-UX.md:812-845`) | `allergen_gates` (`quality/haccp-screens.jsx:302-422`), `allergen_dual_sign_modal` (`quality/modals.jsx:637-697`) | **Linked.** §8.1 `QA-070` ↔ UX `QA-016` ↔ prototype `allergen_gates`. No `[NO-PROTOTYPE-YET]` — relabel only in §8.4 traceability. |
+| QA-032 | Inspection results form | UX folds into QA-005a (`design/09-QUALITY-UX.md:489-538`) | `inspection_detail` (`quality/inspection-screens.jsx:100-297`) | **Linked.** PRD splits results form from detail; UX merges into one screen. Behavioral parity confirmed (parameter table, auto-result computation, e-sign). |
+| QA-042 | NCR detail + workflow (currently P2 in §8.1) | UX `QA-009a` (`design/09-QUALITY-UX.md:636-674`) | `ncr_detail`, `ncr_close_modal` | **P1 promotion** per QUA-105 above. Update §8.1 row P1/P2 column. |
+
+### 8.5 UI Surfaces traceability table
+
+> Authoritative cross-walk PRD §8.1 ↔ UX route ↔ prototype label. ADR-034 applies module-wide: every "product"/"spec"/"recipe"/"ingredient" reference is mediated by `Reference.CodePrefixes` + industry preset.
+
+| PRD §8.1 ID | PRD title | UX QA code | UX route | Prototype label | Phase | Status |
+|---|---|---|---|---|---|---|
+| QA-001 | Quality Dashboard | QA-001 | `/quality` | `qa_dashboard` (`quality/dashboard.jsx:3-147`) | P1 basic / P2 rich | OK |
+| QA-010 | Holds list + filters | QA-002 | `/quality/holds` | `holds_list` (`quality/holds-screens.jsx:3-161`) | P1 | OK |
+| QA-011 | Hold detail + release | QA-002a | `/quality/holds/:id` | `hold_detail` (`quality/holds-screens.jsx:164-286`), `hold_release_modal` (`quality/modals.jsx:99-156`) | P1 | OK (alias QUA-101) |
+| QA-012 | Hold create modal | (modal of QA-002) | (modal) | `hold_create_modal` (`quality/modals.jsx:22-96`) | P1 | OK |
+| QA-020 | Specifications list | QA-003 | `/quality/specs` | `specs_list` (`quality/specs-screens.jsx:3-79`) | P1 | OK |
+| QA-021 | Spec wizard (3-step) | QA-003a | `/quality/specs/new` | `spec_wizard` (`quality/specs-screens.jsx:82-302`), `spec_sign_modal` (`quality/modals.jsx:159-206`) | P1 | OK |
+| (alias) | Spec detail | QA-003b | `/quality/specs/:id` | `spec_detail` (`quality/specs-screens.jsx:305-420`) | P1 | OK (QUA-102) |
+| (alias) | Spec edit (draft only) | QA-003c | `/quality/specs/:id/edit` | `spec_wizard` edit-mode | P1 | OK (QUA-103) |
+| QA-022 | Sampling plans config | QA-008 | `/quality/sampling` | `sampling_plans` (`quality/other-screens.jsx:57-114`) | P1 | OK |
+| (extra) | Test Templates | QA-004 | `/quality/templates` | `qa_templates` (`quality/other-screens.jsx:3-54`), `template_create_modal` (`quality/modals.jsx:209-245`) | P1 | OK (covers FR-QA-004) |
+| QA-030 | Inspection queue | QA-005 | `/quality/inspections/incoming` | `incoming_inspection_list` (`quality/inspection-screens.jsx:3-97`) | P1 | OK |
+| QA-031 | Inspection detail | QA-005a | `/quality/inspections/incoming/:id` | `inspection_detail` (`quality/inspection-screens.jsx:100-297`), `sample_draw_modal` (`quality/modals.jsx:248-297`) | P1 | OK (alias QUA-104) |
+| QA-032 | Inspection results form | (folded into QA-005a) | — | `inspection_detail` (form section) | P1 | Merged — see §8.4 |
+| QA-040 | NCR list + filters | QA-009 | `/quality/ncr` | `ncr_list` (`quality/ncr-screens.jsx:3-123`), `ncr_create_modal` (`quality/modals.jsx:300-382`) | P1 | OK |
+| QA-041 | NCR form (create/edit) | (modal of QA-009) | — | `ncr_create_modal` | P1 | OK |
+| QA-042 | NCR detail + workflow | QA-009a | `/quality/ncr/:id` | `ncr_detail`, `ncr_close_modal` (`quality/modals.jsx:385-466`) | **P1 promote** | OK (QUA-105) |
+| QA-050 | HACCP plans board | QA-013 / QA-013a | `/quality/haccp`, `/quality/haccp/:id` | `haccp_plans` (`quality/haccp-screens.jsx:3-106`) | P1 basic | OK (QUA-106) |
+| QA-051 | CCP monitoring entry | QA-014 | `/quality/ccp` | `ccp_monitoring` (`quality/haccp-screens.jsx:109-226`), `ccp_reading_modal` (`quality/modals.jsx:469-551`) | P1 | OK |
+| (new) | CCP Deviations list | QA-015 | `/quality/ccp/deviations` | `ccp_deviations` (`quality/haccp-screens.jsx:229-299`), `ccp_deviation_log_modal` (`quality/modals.jsx:554-594`) | **P1** | OK (QUA-107) |
+| QA-052 | Complaint + Incident form | (absent) | — | (absent) | P1 stub | `[NO-PROTOTYPE-YET]` — Phase E |
+| QA-060 | Lab Results browser | (absent) | — | (absent dedicated page) | P1 read-only | `[NO-PROTOTYPE-YET]` — Phase E |
+| QA-070 | Allergen Changeover gate evidence | QA-016 | `/quality/allergen-gates` | `allergen_gates` (`quality/haccp-screens.jsx:302-422`), `allergen_dual_sign_modal` (`quality/modals.jsx:637-697`) | P1 consumer view | OK |
+| (cross-cut) | E-Signature primitive | (modal everywhere) | — | `esign_modal` (`quality/modals.jsx:597-634`) | P1 | OK (§5.3 contract) |
+| (audit) | Audit Trail | QA-021 | `/quality/audit` | `audit_trail` (`quality/other-screens.jsx:117-229`), `audit_export_modal` (`quality/modals.jsx:700-756`) | P1 | OK (QUA-108) |
+| (admin) | Quality Settings | QA-099 | `/quality/settings` | `qa_settings` (`quality/other-screens.jsx:272-395`) | P1 | OK (QUA-109) |
+| (stub) | Scanner desktop redirect | QA-025 | `/quality/scanner` | (none) | P1 informational | OK (QUA-110) |
+| (modal) | Inspection Assign | (modal of QA-005) | — | `inspection_assign_modal` (`quality/modals.jsx:783-816`) | P1 | OK (QUA-111) |
+| (modal) | Delete-with-Reason | (cross-screen modal) | — | `delete_with_reason_modal` (`quality/modals.jsx:759-780`) | P1 | OK (QUA-112) |
+| SCN-070 | Scanner QA Inspect entry | (06-SCN UX) | `/scanner/qa/list` | `qa_list_screen` (06-SCN proto) | P1 | OK (cross-module) |
+| SCN-071 | Scanner QA Inspect | (06-SCN UX) | `/scanner/qa/inspect` | `qa_inspect_screen` (06-SCN proto) | P1 | OK (cross-module) |
+| SCN-072 | Scanner QA Fail reason | (06-SCN UX) | `/scanner/qa/fail` | `qa_fail_reason_screen` (06-SCN proto) | P1 | OK (cross-module) |
+| SCN-073 | Scanner QA Done | (06-SCN UX) | `/scanner/qa/done` | (06-SCN proto) | P1 | OK (cross-module) |
+| SCN-081 | Scanner Allergen first sign | (06-SCN UX) | `/scanner/changeover` | (06-SCN proto) | P1 | OK (cross-module; 2nd sign on QA-016/QA-070) |
+
+**Coverage:** post-amendment 09-QUALITY PRD↔UX coverage ≈ 92% (24 of 26 enumerated PRD surfaces linked to a UX+prototype, 2 are `[NO-PROTOTYPE-YET]` Phase E TODOs). Direction-B orphan list (audit §2 module 09-QUALITY) is fully retired by §8.3 (QUA-101..QUA-112).
+
 ---
 
 ## §9. DB Schema — Detailed

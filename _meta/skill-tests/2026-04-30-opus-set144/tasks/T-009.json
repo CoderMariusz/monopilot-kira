@@ -1,0 +1,44 @@
+{
+  "title": "T-009 — SET-006 First Work Order Redirect Step (skippable)",
+  "prompt": "Implement SET-006 First WO Step page at `/onboarding/5` per PRD §14.3 step 5 + §14.4 SET-006. Soft-redirect to 04-PLANNING-BASIC create-WO with `?onboarding=true&return=/onboarding/6`. Skip button calls T-003 skipOnboardingStep(orgId, 5) then router.push('/onboarding/6').\n\nReturn handling: query `?onboardingComplete=true` advances state to step 6.\n\nRED: `pnpm --filter web test -- onboarding-step5`.",
+  "labels": ["prd", "ui", "wizard-step-redirect", "T3-ui"],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-009",
+    "source_prd": "02-SETTINGS-PRD.md",
+    "prd_refs": ["§14.3 step 5 (line 1524)", "§14.4 SET-006 (line 1543)"],
+    "category": "ui",
+    "subcategory": "wizard-step-redirect",
+    "task_type": "T3-ui",
+    "parent_feature": "02-SETTINGS-onboarding-wizard",
+    "context_budget": "20k",
+    "estimated_effort": "1.5h",
+    "description": "Soft-redirect to 04-PLANNING-BASIC create-WO; Skip allowed; first_wo timestamp NOT captured here (gap-backlog).",
+    "details": "Pattern mirrors T-008 with target route 04-PLANNING-BASIC.",
+    "scope_files": [
+      "apps/web/app/(onboarding)/5/page.tsx [create]",
+      "apps/web/app/(onboarding)/5/step5-redirect.tsx [create]",
+      "apps/web/app/(onboarding)/5/step5-redirect.test.tsx [create]"
+    ],
+    "out_of_scope": ["04-PLANNING-BASIC create-WO flow", "first_wo_at timestamp capture (gap-backlog S-PU2)", "Other steps"],
+    "dependencies": ["T-002", "T-003"],
+    "parallel_safe_with": ["T-005", "T-006", "T-007", "T-008", "T-010"],
+    "acceptance_criteria": [
+      "Given page render, when user clicks Skip, then skipOnboardingStep(orgId, 5) and navigation to /onboarding/6.",
+      "Given page render, when user clicks Create Work Order, then navigation to /04-planning-basic/wo/create?onboarding=true&return=/onboarding/6.",
+      "Given GET /onboarding/5?onboardingComplete=true, when page renders, then updateOnboardingState({current_step:6, completed_steps:[...,5]}) and redirect to /onboarding/6.",
+      "Given vitest+RTL covers above, when pnpm --filter web test runs, then 0 failures."
+    ],
+    "test_strategy": ["RED: spec on 4 AC.", "GREEN: implement; pass.", "Command: pnpm --filter web test -- onboarding-step5"],
+    "risk_red_lines": ["Do not capture first_wo_at — that is gap-backlog scope.", "Do not bypass skipOnboardingStep when Skip is clicked."],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {"red": "hermes_gpt55", "implementation": "hermes_gpt55", "review": "opus_if_high_risk_or_ui_or_architecture", "close": "spark_low_risk_else_opus"}
+  }
+}

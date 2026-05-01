@@ -1,0 +1,59 @@
+{
+  "title": "T-024 — Idempotency: UUID v7 + 1h cache for scheduler_runs",
+  "prompt": "# T-024 — Idempotency: UUID v7 + 1h cache for scheduler_runs\n\nPRD: 07-PLANNING-EXT-PRD.md §5.1.2 idempotent runs (R14), §8.2 POST /run cache contract\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nImplement idempotency middleware ensuring same client-supplied UUID v7 run_id within 1h returns cached scheduler_runs result; mismatched params at same run_id raises 409.\n\n## Implementation contract\n1. New helper `apps/web/src/lib/scheduler/idempotency.ts` exporting `checkAndCache(run_id, params): {status:'fresh'|'cached'|'conflict', cached_run?:Run}`.\n2. Validate run_id is UUID v7 (version field == 7); reject other versions with 400.\n3. Look up scheduler_runs by run_id; compare input params hash (line_ids, horizon, optimizer_version) with stored input_snapshot hash; equal → cache hit; differ → 409.\n4. Cache window: queued_at within last 1h.\n\n## Files\n- apps/web/src/lib/scheduler/idempotency.ts [create]\n- apps/web/src/lib/scheduler/uuid-v7.ts [create]\n- apps/web/src/lib/scheduler/__tests__/idempotency.test.ts [create]\n\n## Acceptance criteria\n1. Given run_id X with params P at t=0, when same X+P submitted at t=30min, then status='cached' returned (cache hit)\n2. Given run_id X with params P at t=0, when same X with different P submitted at t=30min, then status='conflict' returned (caller maps to 409)\n3. Given run_id with UUID v4 (not v7), when checkAndCache runs, then it raises validation error before DB lookup\n\n## Test strategy\n- RED: write apps/web/src/lib/scheduler/__tests__/idempotency.test.ts covering cache hit + 409 + UUID version validation\n- Run 'pnpm --filter web test scheduler/idempotency'\n\n## Risk red lines\n- Do not accept UUID v4 / v1 (R14 explicitly requires v7 for time-ordered behavior)\n- Do not return cached result if params differ (must 409 for safety)\n- Do not extend cache window beyond 1h without ADR (PRD-locked)",
+  "labels": ["prd", "infra", "idempotency", "T2-api"],
+  "priority": 50,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-024",
+    "source_prd": "07-PLANNING-EXT-PRD.md",
+    "prd_refs": ["§5.1.2 R14", "§8.2"],
+    "category": "infra",
+    "subcategory": "idempotency",
+    "task_type": "T2-api",
+    "parent_feature": "07-EXT-a R14 idempotency",
+    "context_budget": "40k",
+    "estimated_effort": "1-2h",
+    "description": "UUID v7 validation + 1h param-hash idempotency cache; conflict on param drift at same run_id.",
+    "details": "Helper validates v7, hashes input params, compares against stored input_snapshot. Cache hit returns stored run; conflict returns marker for caller to surface 409. Hard 1h window per PRD R14.",
+    "scope_files": [
+      "apps/web/src/lib/scheduler/idempotency.ts [create]",
+      "apps/web/src/lib/scheduler/uuid-v7.ts [create]",
+      "apps/web/src/lib/scheduler/__tests__/idempotency.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not implement run dispatch here (T-012)",
+      "Do not generate UUID v7 server-side (client-supplied per PRD)",
+      "Do not extend cache to other resources"
+    ],
+    "dependencies": ["T-001"],
+    "parallel_safe_with": ["T-021"],
+    "acceptance_criteria": [
+      "Given run_id X with params P at t=0, when same X+P submitted at t=30min, then status='cached' returned",
+      "Given run_id X with params P at t=0, when same X with different P submitted at t=30min, then status='conflict' returned",
+      "Given run_id with UUID v4, when checkAndCache runs, then it raises validation error before DB lookup"
+    ],
+    "test_strategy": [
+      "RED: write __tests__/idempotency.test.ts covering cache hit + 409 + v7-only validation",
+      "Run 'pnpm --filter web test scheduler/idempotency'"
+    ],
+    "risk_red_lines": [
+      "Do not accept UUID v4/v1",
+      "Do not return cached result if params differ",
+      "Do not extend cache window beyond 1h without ADR"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

@@ -1,0 +1,81 @@
+{
+  "title": "T-018 — Server Actions: assignRole, deactivateUser, resetPassword",
+  "prompt": "# T-018 — Server Actions: role assign / deactivate / reset password\n\n## Goal\nImplement three Server Actions: `assignRole(userId, roleCode)`, `deactivateUser(userId)`, `resetPassword(userId)`. Each guarded by `settings.users.*` or `settings.roles.assign` permission. Each emits outbox event.\n\n## Files in scope\n- apps/web/actions/users/assign-role.ts [create]\n- apps/web/actions/users/deactivate.ts [create]\n- apps/web/actions/users/reset-password.ts [create]\n- apps/web/actions/users/admin-actions.test.ts [create]\n\n## Acceptance criteria (all must hold)\n- Given the caller lacks `settings.roles.assign`, when assignRole runs, then it raises FORBIDDEN.\n- Given deactivateUser runs successfully, when users row is read, then is_active=false and outbox event 'settings.user.deactivated' is present.\n- Given resetPassword runs, when called, then it triggers Supabase Auth password reset email and revokes all active sessions for that user.\n\n## Test strategy (RED first)\n1. Add a failing test that exercises the acceptance criteria above. The RED command is:\n   `pnpm --filter @monopilot/web vitest run apps/web/actions/users/admin-actions.test.ts`\n2. Run RED — it must fail before any production code is written.\n3. Implement the smallest change needed for GREEN.\n4. Re-run RED command — must pass.\n5. Run `pnpm typecheck` and `pnpm lint` in the changed package; both must pass.\n\n## Risk red lines\n- Do not edit files outside the listed scope without documenting why in CLOSEOUT.\n- Do not weaken existing acceptance criteria from prior tasks.\n- Do not introduce REST endpoints; use Server Actions per stack contract.\n- Do not commit secrets or vault keys.\n\n## Closeout evidence required\n- changed_files (with line counts)\n- exact test commands and outputs (RED→GREEN, typecheck, lint)\n- acceptance_criteria_status (one row per AC: pass/fail)\n- deviations_from_prd (or \"none\")\n- git_status\n\nStack: TS + Next.js App Router + Drizzle + pnpm + vitest + Playwright + Server Actions. Primitives in `packages/ui`. PRD: `02-SETTINGS-PRD.md` v3.5.\n",
+  "labels": [
+    "prd",
+    "api",
+    "users-admin-actions",
+    "T2-api"
+  ],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-018",
+    "source_prd": "02-SETTINGS-PRD.md",
+    "prd_refs": [
+      "§3",
+      "§5.1"
+    ],
+    "category": "api",
+    "subcategory": "users-admin-actions",
+    "task_type": "T2-api",
+    "parent_feature": "02-settings-a",
+    "context_budget": "40k",
+    "estimated_effort": "1-3h",
+    "description": "Role assignment, deactivation, password reset Server Actions.",
+    "details": "Use a thin guard helper `requirePermission(perm)` that throws FORBIDDEN if the resolved user role lacks the permission. resetPassword must call Supabase Auth admin API + revoke all sessions in user_sessions (or equivalent).",
+    "scope_files": [
+      "apps/web/actions/users/assign-role.ts",
+      "apps/web/actions/users/deactivate.ts",
+      "apps/web/actions/users/reset-password.ts",
+      "apps/web/actions/users/admin-actions.test.ts"
+    ],
+    "out_of_scope": [
+      "broaden scope beyond listed files",
+      "implement future-phase features"
+    ],
+    "dependencies": [
+      "T-016"
+    ],
+    "parallel_safe_with": [],
+    "acceptance_criteria": [
+      "Permission guards enforced.",
+      "Outbox events for assign + deactivate.",
+      "resetPassword revokes active sessions."
+    ],
+    "test_strategy": [
+      "RED: per-action vitest case.",
+      "GREEN: implement."
+    ],
+    "risk_red_lines": [
+      "Do not allow self-deactivation (V-SET should reject)."
+    ],
+    "skills": [
+      "test-driven-development"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": false
+  }
+}

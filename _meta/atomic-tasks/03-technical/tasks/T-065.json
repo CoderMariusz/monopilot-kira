@@ -1,0 +1,35 @@
+{
+  "title": "T-065 — Docs: TEC-025 BOM Snapshots Viewer prototype gap brief",
+  "prompt": "Write engineering brief for missing TEC-025 'BOM Snapshots Viewer' prototype per §7.5 [NO-PROTOTYPE-YET]. Output: design/specs/TEC-025-bom-snapshots-viewer.md describing list of immutable snapshots per WO + JSON-diff viewer modal. Document that snapshots are read-only and live in bom_snapshots (T-002 + T-025). Until prototype lands, the implementation T3-ui task is OUT OF SCOPE for Phase 1.",
+  "labels": ["prd", "docs", "spec-bom-snapshots", "docs"],
+  "priority": 150,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-065",
+    "source_prd": "03-TECHNICAL-PRD.md",
+    "prd_refs": ["§7.5 TEC-025", "§4A TEC-025"],
+    "category": "docs",
+    "subcategory": "spec-bom-snapshots",
+    "task_type": "docs",
+    "parent_feature": "03-TECHNICAL-a BOM",
+    "context_budget": "10k",
+    "estimated_effort": "1h",
+    "description": "Brief documenting the snapshots viewer UX contract for future prototype work.",
+    "details": "Cover: list filterable by WO + immutability badge; diff modal between snapshot and current BOM; rule: never allow edit. Reuse the diff renderer from T-040.",
+    "scope_files": ["design/specs/TEC-025-bom-snapshots-viewer.md"],
+    "out_of_scope": ["Prototype JSX", "Implementation"],
+    "dependencies": [],
+    "parallel_safe_with": ["T-064", "T-066", "T-067", "T-068"],
+    "acceptance_criteria": [
+      "Given the brief, when reviewed, then it specifies list filters, immutability rules, and diff-modal contract.",
+      "Given the brief, when read by a designer, then they can produce a labelled prototype that matches the contract."
+    ],
+    "test_strategy": ["Manual review by UX team.", "No automated tests for docs."],
+    "risk_red_lines": ["Do not propose any edit affordance for snapshots."],
+    "skills": ["requesting-code-review"],
+    "checkpoint_policy": {"required_checkpoints": ["REVIEW", "CLOSEOUT"], "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]},
+    "routing_hints": {"red": "hermes_gpt55", "implementation": "hermes_gpt55", "review": "opus_if_high_risk_or_ui_or_architecture", "close": "spark_low_risk_else_opus"}
+  }
+}

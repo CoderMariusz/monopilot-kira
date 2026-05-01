@@ -1,0 +1,58 @@
+{
+  "title": "T-023 — Local search refinement (swap pairs, move between lines)",
+  "prompt": "# T-023 — Local search refinement (swap pairs, move between lines)\n\nPRD: 07-PLANNING-EXT-PRD.md §6 D1, §10.1 local_search_iterations=200, threshold 2%\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nImplement N-iteration local search refinement in `services/planner-solver/app/algorithms/local_search.py` accepting random-pair swaps + between-line moves if total_cost decreases ≥ acceptance_threshold_pct (default 2.0).\n\n## Implementation contract\n1. New module `services/planner-solver/app/algorithms/local_search.py` exporting `def refine(assignments, cost_fn, iterations=200, threshold_pct=2.0) -> list[Assignment]`.\n2. Each iteration: pick two random assignments, propose either (a) swap order on same line, or (b) move one to another line at same time slot; compute cost_fn(new); accept if reduction ≥ threshold_pct of current.\n3. Maintain best-cost found; final return = best, not last iteration.\n4. Deterministic when seed provided (testability).\n\n## Files\n- services/planner-solver/app/algorithms/local_search.py [create]\n- services/planner-solver/tests/test_local_search.py [create]\n\n## Acceptance criteria\n1. Given baseline assignments with cost C0 + a refinement that strictly reduces cost, when refine runs, then returned assignments have cost ≤ C0\n2. Given seed=42 + identical inputs, when refine runs twice, then result is identical (deterministic)\n3. Given 200 iterations + a no-improvement scenario, when refine runs, then it returns the original assignments (best-of-found = baseline)\n\n## Test strategy\n- RED: write services/planner-solver/tests/test_local_search.py asserting non-worsening + determinism with seed + 200-iter cap\n- Run 'cd services/planner-solver && uv run pytest tests/test_local_search.py'\n\n## Risk red lines\n- Do not accept worsening swaps (must reduce cost ≥ threshold)\n- Do not violate hard constraints during swap (V-SCHED-02/03/04 must still hold)\n- Do not exceed iteration cap (algorithm must terminate)",
+  "labels": ["prd", "infra", "algorithm", "T2-api"],
+  "priority": 80,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-023",
+    "source_prd": "07-PLANNING-EXT-PRD.md",
+    "prd_refs": ["§6 D1", "§10.1"],
+    "category": "infra",
+    "subcategory": "algorithm-local-search",
+    "task_type": "T2-api",
+    "parent_feature": "07-EXT-a finite-capacity engine refinement",
+    "context_budget": "50k",
+    "estimated_effort": "2-3h",
+    "description": "Local search refinement: random swap/move with threshold acceptance, deterministic with seed, hard-constraint preserving.",
+    "details": "Operates on greedy output; explores 200 random neighbors; accepts only ≥2% improvements. Re-validates V-SCHED hard constraints on every proposed move. Returns best-of-found.",
+    "scope_files": [
+      "services/planner-solver/app/algorithms/local_search.py [create]",
+      "services/planner-solver/tests/test_local_search.py [create]"
+    ],
+    "out_of_scope": [
+      "Do not implement greedy here (T-022)",
+      "Do not implement OR-Tools CP-SAT (deferred per D1)",
+      "Do not implement allergen DSL rule (T-026)"
+    ],
+    "dependencies": ["T-022"],
+    "parallel_safe_with": ["T-021"],
+    "acceptance_criteria": [
+      "Given baseline assignments with cost C0 + a strictly-better refinement, when refine runs, then returned assignments have cost ≤ C0",
+      "Given seed=42 + identical inputs, when refine runs twice, then result is byte-identical",
+      "Given 200 iterations + no-improvement scenario, when refine runs, then it returns the baseline assignments"
+    ],
+    "test_strategy": [
+      "RED: write services/planner-solver/tests/test_local_search.py asserting non-worsening + determinism + iteration cap",
+      "Run 'cd services/planner-solver && uv run pytest tests/test_local_search.py'"
+    ],
+    "risk_red_lines": [
+      "Do not accept worsening swaps",
+      "Do not violate V-SCHED-02/03/04 during proposed moves",
+      "Do not exceed iteration cap"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

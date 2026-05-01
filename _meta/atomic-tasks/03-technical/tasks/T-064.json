@@ -1,0 +1,35 @@
+{
+  "title": "T-064 — Docs: TEC-014 Bulk Import CSV prototype gap brief",
+  "prompt": "Write a UX-engineering brief for the missing TEC-014 'Bulk Import CSV' prototype (per §6.5 [NO-PROTOTYPE-YET] + audit BLOCKER row 4). Output: design/specs/TEC-014-bulk-import-csv.md describing the proposed 3-step wizard (upload → validate → diff preview → confirm), required field mappings (item_code, name, type, uom_base, weight_mode, allergens), and acceptance gates that must be met before a T3-ui task can be drafted. Cross-link to 02-SETTINGS Reference CRUD import patterns for consistency. Until prototype lands, the implementation T3-ui task is OUT OF SCOPE for Phase 1.",
+  "labels": ["prd", "docs", "spec-bulk-import", "docs"],
+  "priority": 150,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-064",
+    "source_prd": "03-TECHNICAL-PRD.md",
+    "prd_refs": ["§6.5 TEC-014", "§4A TEC-014"],
+    "category": "docs",
+    "subcategory": "spec-bulk-import",
+    "task_type": "docs",
+    "parent_feature": "03-TECHNICAL-a Item Master",
+    "context_budget": "15k",
+    "estimated_effort": "1h",
+    "description": "Engineering brief unblocking TEC-014 prototype creation.",
+    "details": "Document the wizard steps, validation rules per row (V-TEC-01..04), CSV column contract, error reporting format. The brief sets the parity contract that a future prototype + T3-ui must meet.",
+    "scope_files": ["design/specs/TEC-014-bulk-import-csv.md"],
+    "out_of_scope": ["Prototype JSX creation", "API endpoint"],
+    "dependencies": [],
+    "parallel_safe_with": ["T-065", "T-066", "T-067", "T-068"],
+    "acceptance_criteria": [
+      "Given the brief is written, when reviewed, then it lists CSV column contract, 3 wizard steps, and per-step validation rules covering V-TEC-01..04.",
+      "Given the brief, when an engineer reads it, then they have a clear list of acceptance gates that must be met before a T3-ui task can be drafted."
+    ],
+    "test_strategy": ["Manual review by Quality Lead + UX team.", "No automated tests for docs."],
+    "risk_red_lines": ["Do not implement UI or API in this task.", "Do not block other Phase 1 work on this brief."],
+    "skills": ["requesting-code-review"],
+    "checkpoint_policy": {"required_checkpoints": ["REVIEW", "CLOSEOUT"], "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]},
+    "routing_hints": {"red": "hermes_gpt55", "implementation": "hermes_gpt55", "review": "opus_if_high_risk_or_ui_or_architecture", "close": "spark_low_risk_else_opus"}
+  }
+}

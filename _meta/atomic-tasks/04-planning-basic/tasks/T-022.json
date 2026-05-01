@@ -1,0 +1,65 @@
+{
+  "title": "T-022 — API: WO cancel + reservation release (hard-lock cleanup)",
+  "prompt": "Implement Server Action `cancelWorkOrder(wo_id, reason)` per PRD §9.4. Calls wo_state_machine_v1 *→CANCELLED transition (allowed from any non-terminal state, audit logged). Side-effects:\n1. For each active wo_material_reservations of this WO with material_source='stock': set released_at=NOW(), released_by=user, release_reason='wo_cancelled'; LP.status returns to 'available'.\n2. material_source='upstream_wo_output': zero cleanup (LPs stay available per §9.4 resilience).\n3. wo_outputs LPs already materialized stay 'available' for downstream WOs to reuse.\n4. Outbox event 'wo.state_changed'.\n\nReason min 10 chars (audit trail).\n\nRED test asserts release of stock-source reservations, no-op on upstream-source, idempotent re-cancel returns 409.",
+  "labels": ["prd", "api", "wo-cancel", "T2-api"],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-022",
+    "source_prd": "04-PLANNING-BASIC-PRD.md",
+    "prd_refs": ["§9.4", "§9.6"],
+    "category": "api",
+    "subcategory": "wo-cancel",
+    "task_type": "T2-api",
+    "parent_feature": "planning-wo",
+    "context_budget": "30k",
+    "estimated_effort": "2h",
+    "description": "WO cancel with hard-lock reservation release for RM root only; intermediate cascade is zero-cleanup.",
+    "details": "Reservation release is batch UPDATE WHERE wo_id=? AND released_at IS NULL AND release_reason IS NULL RETURNING lp_id; subsequent UPDATE on license_plates SET status='available' WHERE id IN (...). Both in same transaction. release_reason='wo_cancelled' (V-PLAN-RES-003). reason field stored on wo_status_history.context_jsonb.",
+    "scope_files": [
+      "src/server/actions/planning/wo-cancel.ts [create]",
+      "src/app/api/planning/work-orders/[id]/cancel/route.ts [create]",
+      "src/server/actions/planning/__tests__/wo-cancel.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Cancel parent → cancel children prompt (OQ5 — warn-only per §16.3)",
+      "Hard-lock release confirm UI (T-025)"
+    ],
+    "dependencies": ["T-007", "T-021"],
+    "parallel_safe_with": ["T-021", "T-023"],
+    "acceptance_criteria": [
+      "Given a WO with 5 reservations (4 stock, 1 fictitiously labeled 'upstream' but excluded from reservation creation), when cancel runs, then 4 reservations have released_at set with reason='wo_cancelled' and 4 LPs return to status='available'.",
+      "Given an already CANCELLED WO, when cancel runs again, then HTTP 409 with code 'WO_ALREADY_CANCELLED'.",
+      "Given reason='ok' (3 chars), when cancel attempted, then HTTP 400 Zod min length 10.",
+      "Given `pnpm vitest run src/server/actions/planning/__tests__/wo-cancel.test.ts`, when run, then 0 failures."
+    ],
+    "test_strategy": [
+      "RED tests for batch release, idempotent guard, reason validation, outbox emit.",
+      "Run `pnpm vitest run src/server/actions/planning/__tests__/wo-cancel.test.ts`."
+    ],
+    "risk_red_lines": [
+      "Do not skip release_reason on reservation update — V-PLAN-RES-003.",
+      "Do not auto-cancel children — OQ5 resolution: warn-only.",
+      "Do not orphan LP.reserved_for_wo_id pointer — must clear during release."
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

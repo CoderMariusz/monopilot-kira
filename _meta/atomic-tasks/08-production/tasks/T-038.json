@@ -1,0 +1,58 @@
+{
+  "title": "T-038 — Shift attribution helper: resolve active shift_id for line + timestamp",
+  "prompt": "# T-038 — Shift attribution helper\n\nPRD: 08-PRODUCTION-PRD.md §7.4 FR-08-E4-004, §16.4 V-PROD-19\n\n## Goal\nImplement reusable resolveActiveShift(lineId, timestamp) → shift_id helper that consults 02-SETTINGS shift_patterns and returns the active shift covering the timestamp.\n\n## Implementation contract\npackages/api-services/production/shift-attribution.ts: function resolveActiveShift(line_id: string, ts: Date): Promise<string>. Reads shift_patterns from 02-SETTINGS (active patterns for tenant), determines which window covers timestamp, returns shift_id. Returns null and logs warn if no shift covers timestamp (shift gap). Cache shift patterns 5min via in-memory cache. Add unit test for: (a) standard 3-shift coverage, (b) overnight shift wrapping past midnight, (c) shift gap fallback to null.\n\n## Files (scope)\n- packages/api-services/production/shift-attribution.ts [create]\n- packages/api-services/production/__tests__/shift-attribution.test.ts [create]\n\n## Acceptance criteria\n1. Given 3 shift_patterns A(06-14)/B(14-22)/C(22-06), when resolveActiveShift called with ts='10:00', then returns 'A'\n2. Given overnight shift_pattern C(22-06), when called with ts='02:00', then returns 'C' (wrap-past-midnight)\n3. Given no active shift_pattern covering ts (gap), when called, then returns null and warn log emitted\n\n## Test strategy\n- RED: unit test for 3-shift, overnight wrap, and gap before helper exists\n- Run 'pnpm --filter api-services test shift-attribution'\n\n## Risk red lines\n- Do not return wrong shift on overnight wrap (V-PROD-19 audit drift)\n- Do not skip in-memory cache (read every mutation = perf risk per §5.4)\n- Do not modify shift_patterns table",
+  "labels": ["prd", "api", "shifts", "T2-api"],
+  "priority": 80,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-038",
+    "source_prd": "08-PRODUCTION-PRD.md",
+    "prd_refs": ["§7.4 FR-08-E4-004", "§16.4 V-PROD-19", "§5.4"],
+    "category": "api",
+    "subcategory": "shifts",
+    "task_type": "T2-api",
+    "parent_feature": "08-PROD E4 Downtime+Shifts",
+    "context_budget": "20k",
+    "estimated_effort": "2h",
+    "description": "Resolve active shift_id for (line, timestamp). Handles overnight wrap. 5min cache.",
+    "details": "Reads shift_patterns from 02-SETTINGS. Window membership including overnight wrap. In-memory cache 5min. Returns null on gap.",
+    "scope_files": [
+      "packages/api-services/production/shift-attribution.ts [create]",
+      "packages/api-services/production/__tests__/shift-attribution.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not implement shift management UI",
+      "Do not modify shift_patterns schema",
+      "Do not implement shift handover"
+    ],
+    "dependencies": [],
+    "parallel_safe_with": ["T-035", "T-036", "T-037"],
+    "acceptance_criteria": [
+      "Given A(06-14)/B(14-22)/C(22-06), when called with 10:00, then returns 'A'",
+      "Given C(22-06), when called with 02:00, then returns 'C' (overnight wrap)",
+      "Given gap, when called, then returns null and warn log emitted"
+    ],
+    "test_strategy": [
+      "RED: unit test 3-shift + overnight + gap before helper exists",
+      "Run 'pnpm --filter api-services test shift-attribution'"
+    ],
+    "risk_red_lines": [
+      "Do not misattribute on overnight wrap",
+      "Do not skip cache",
+      "Do not modify shift_patterns"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

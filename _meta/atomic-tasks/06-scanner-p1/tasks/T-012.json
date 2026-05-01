@@ -1,0 +1,64 @@
+{
+  "title": "T-012 — apps/scanner Next.js workspace + /scanner layout (06-a)",
+  "prompt": "# T-012 — scanner workspace + dark layout shell\n\nPRD: 06-SCANNER-P1-PRD.md §6 D1, §8.1 FR-SC-FE-001, §5.1 stack\nUX: design/06-SCANNER-P1-UX.md\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nStand up the dedicated Next.js App Router workspace `apps/scanner/` and ship the dark scanner layout (no sidebar, 56px topbar with BackButton + Title + UserBadge + SyncStatus + overflow Menu, optional fixed bottom action bar) that all SCN-* screens render under.\n\n## Implementation contract\n1. Create `apps/scanner/` (Next.js 15 App Router, pnpm workspace, vitest + Playwright config), with `app/scanner/layout.tsx` rendering slate-900 theme + topbar.\n2. Add CSS tokens used by §9 patterns (slate-900 bg, f1f5f9 fg, blue-500 border, amber/green/red banners) into `apps/scanner/src/styles/scanner-tokens.css` so prototype shape can be reproduced.\n3. Topbar slots: BackButton (router.back), Title, UserBadge (initials chip), SyncStatus (placeholder green/amber/red dot), Menu (Radix DropdownMenu).\n4. RTL test verifying the 5-slot topbar order and dark-theme class.\n\n## Files\n- apps/scanner/package.json [create]\n- apps/scanner/next.config.ts [create]\n- apps/scanner/src/app/scanner/layout.tsx [create]\n- apps/scanner/src/components/scanner-topbar.tsx [create]\n- apps/scanner/src/styles/scanner-tokens.css [create]\n- apps/scanner/__tests__/scanner-layout.test.tsx [create]\n- pnpm-workspace.yaml [modify]\n\n## Acceptance criteria\n1. Given a /scanner page renders, when compared to the prototype shell at `design/Monopilot Design System/scanner/home.jsx:7-61` and the topbar implied by SCN-home prototype usage, then it has a 56px topbar containing 5 slots in this order — BackButton, Title, UserBadge, SyncStatus, Menu — and uses the slate-900 background tokens (structural + visual + interaction parity verified via RTL snapshot + manual checklist embedded in pipeline_inputs.details)\n2. Given pnpm install runs at repo root, when 'pnpm --filter scanner build' is invoked, then it succeeds with App Router and pnpm workspace registration in pnpm-workspace.yaml\n3. Given the layout renders without an authenticated session, when the topbar checks user, then it renders the UserBadge in 'guest' state instead of throwing\n\n## Test strategy\n- RED: write apps/scanner/__tests__/scanner-layout.test.tsx asserting 5-slot order + dark theme + guest fallback before implementation\n- Run 'pnpm --filter scanner test scanner-layout && pnpm --filter scanner build'\n\n## Risk red lines\n- Do not duplicate desktop sidebar into the scanner layout\n- Do not import desktop /(authenticated) layout\n- Do not block render if SyncStatus subscription fails (degrade to gray)",
+  "labels": ["prd", "ui", "scanner-shell", "T3-ui"],
+  "priority": 80,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-012",
+    "source_prd": "06-SCANNER-P1-PRD.md",
+    "prd_refs": ["§6 D1", "§8.1 FR-SC-FE-001", "§5.1"],
+    "category": "ui",
+    "subcategory": "scanner-shell",
+    "task_type": "T3-ui",
+    "parent_feature": "06-a Shell & Core",
+    "context_budget": "35k",
+    "estimated_effort": "2-3h",
+    "description": "Stand up apps/scanner Next.js workspace and the dark slate-900 scanner layout with 56px topbar (5 slots).",
+    "details": "Parity checklist (must verify in RTL test + manual review):\n1) Layout uses slate-900 background and f1f5f9 foreground tokens.\n2) Topbar height 56px and contains exactly 5 slots in order BackButton, Title, UserBadge, SyncStatus, Menu.\n3) UserBadge degrades to 'guest' if no session.\n4) SyncStatus dot color order green/amber/red matches §6 D2 banner severity.\n5) No sidebar, no desktop chrome.",
+    "scope_files": [
+      "apps/scanner/package.json [create]",
+      "apps/scanner/next.config.ts [create]",
+      "apps/scanner/src/app/scanner/layout.tsx [create]",
+      "apps/scanner/src/components/scanner-topbar.tsx [create]",
+      "apps/scanner/src/styles/scanner-tokens.css [create]",
+      "apps/scanner/__tests__/scanner-layout.test.tsx [create]",
+      "pnpm-workspace.yaml [modify]",
+      "design/Monopilot Design System/scanner/home.jsx:7-61 [ref]"
+    ],
+    "out_of_scope": [
+      "Do not implement SCN-home content here (T-023)",
+      "Do not implement ScanInput/Camera/Manual primitives here (T-013/T-014/T-015)",
+      "Do not wire AuthContext provider here (T-025 owns timeout modal; AuthContext is a thin SWR wrapper inside layout)"
+    ],
+    "dependencies": [],
+    "parallel_safe_with": ["T-013", "T-014", "T-015", "T-016"],
+    "acceptance_criteria": [
+      "Given a /scanner page renders, when compared to design/Monopilot Design System/scanner/home.jsx:7-61, then the layout has a 56px topbar with the 5 slots in order BackButton, Title, UserBadge, SyncStatus, Menu and uses slate-900 tokens (RTL snapshot + manual checklist)",
+      "Given pnpm install at repo root, when 'pnpm --filter scanner build' runs, then it succeeds and the workspace is registered in pnpm-workspace.yaml",
+      "Given an unauthenticated render, when the layout mounts, then UserBadge shows 'guest' instead of throwing"
+    ],
+    "test_strategy": [
+      "RED: write scanner-layout.test.tsx asserting 5-slot order + dark theme + guest fallback before implementation",
+      "Run 'pnpm --filter scanner test scanner-layout && pnpm --filter scanner build'"
+    ],
+    "risk_red_lines": [
+      "Do not duplicate desktop sidebar",
+      "Do not import desktop authenticated layout",
+      "Do not block render on SyncStatus subscription failure"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

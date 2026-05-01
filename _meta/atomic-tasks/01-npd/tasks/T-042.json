@@ -1,0 +1,60 @@
+{
+  "title": "T-042 — exceljs Builder generator: 8 tabs per FA + N+1 products",
+  "prompt": "# T-042 — D365 Builder xlsx generator\n\nPRD: 01-NPD-PRD.md §10.2, §10.3, §10.5\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nbuildD365Workbook(productCode) generates Buffer of Builder_FA<code>.xlsx with 8 tabs (D365_Data, Formula_Version, Formula_Lines, Route_Headers, Route_Versions, Route_Operations, Route_OpProperties, Resource_Req) covering N+1 products (1 final FA + N intermediate PR products) per §10.3.\n\n## Implementation contract\nNew packages/d365-builder/src/build-workbook.ts. Reads product + prod_detail + Reference.D365_Constants + d365_import_cache. Uses exceljs to compose 8 sheets per spec. Mapping per §10.5. Pure function returns Buffer. Tests use a fixture FA with known prod_detail and assert sheet count + first row in Formula_Version + N+1 product count.\n\n## Files\n- packages/d365-builder/src/build-workbook.ts [create]\n- packages/d365-builder/src/sheets/ [create]\n- packages/d365-builder/__tests__/build-workbook.test.ts [create]\n- packages/d365-builder/fixtures/fa-fixture.ts [create]\n\n## Acceptance criteria\n1. Given fixture FA5101 with 2 manufacturing operations Strip+Slice, when buildD365Workbook runs, then resulting Buffer parses to a workbook with exactly 8 sheets named per §10.2\n2. Given the same fixture, when inspecting Formula_Version sheet, then it has 3 rows (FA5101 + PR5101A + PR5101F) per N+1 rule\n3. Given the same fixture, when inspecting Route_Operations OPERATIONNUMBER, then first op is 10 per §10.3\n\n## Test strategy\n- RED: 3 tests parsing the Buffer and asserting structure\n- Run 'pnpm --filter d365-builder test'\n\n## Risk red lines\n- Do not write file to disk in builder (Buffer only; storage is separate task)\n- Do not skip Reference.D365_Constants lookup\n- Do not regress generator perf <5 s per FA",
+  "labels": ["prd", "api", "d365-builder", "T2-api"],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-042",
+    "source_prd": "01-NPD-PRD.md",
+    "prd_refs": ["§10.2", "§10.3", "§10.5"],
+    "category": "api",
+    "subcategory": "d365-builder",
+    "task_type": "T2-api",
+    "parent_feature": "01-NPD-d Builder",
+    "context_budget": "60k",
+    "estimated_effort": "4-5h",
+    "description": "Pure exceljs Builder generator producing 8-sheet Buffer with N+1 products per FA.",
+    "details": "Reads product + prod_detail + constants + cache. Composes 8 sheets per spec. Returns Buffer. No FS writes. Targets <5 s per FA.",
+    "scope_files": [
+      "packages/d365-builder/src/build-workbook.ts [create]",
+      "packages/d365-builder/src/sheets/ [create]",
+      "packages/d365-builder/__tests__/build-workbook.test.ts [create]",
+      "packages/d365-builder/fixtures/fa-fixture.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not handle storage (T-043)",
+      "Do not handle MFA gate (T-044)",
+      "Do not implement wizard flow (T-046)"
+    ],
+    "dependencies": ["T-001", "T-002", "T-041"],
+    "parallel_safe_with": ["T-043"],
+    "acceptance_criteria": [
+      "Given fixture FA5101 with 2 ops Strip+Slice, when buildD365Workbook runs, then Buffer parses to workbook with exactly 8 sheets named per §10.2",
+      "Given the same fixture, when inspecting Formula_Version sheet, then 3 rows exist (FA5101 + PR5101A + PR5101F)",
+      "Given the same fixture, when inspecting Route_Operations OPERATIONNUMBER, then first op is 10"
+    ],
+    "test_strategy": [
+      "RED: 3 tests parsing Buffer and asserting structure before generator exists",
+      "Run 'pnpm --filter d365-builder test'"
+    ],
+    "risk_red_lines": [
+      "Do not write file to disk inside builder",
+      "Do not skip Reference.D365_Constants lookup",
+      "Do not regress <5 s per FA budget"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

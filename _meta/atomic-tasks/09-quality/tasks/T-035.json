@@ -1,0 +1,61 @@
+{
+  "title": "T-035 — QA-022 Sampling plans config page + v_inspection_backlog view",
+  "prompt": "# T-035 — QA-022 Sampling plans config page + v_inspection_backlog view\n\nPRD: 09-QUALITY-PRD.md §8.2 QA-022, §9.2 v_inspection_backlog, §8.5 prototype sampling_plans\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nCreate the v_inspection_backlog view (consumed by T-032 list page) AND build `/quality/sampling` config page listing seeded sampling_plans (read-only P1 view + Create custom plan stub).\n\n## Implementation contract\n1. Drizzle migration `packages/db/migrations/0123_v_inspection_backlog.sql` creates v_inspection_backlog view per §9.2 verbatim.\n2. `apps/web/src/app/quality/sampling/page.tsx` Server Component reads listSamplingPlans (filter by plan_type+inspection_level+aql).\n3. shadcn Table 8 columns: Plan code | Type | Inspection level | AQL | Lot range | Sample size | Accept/Reject | Active.\n4. Custom plan create stub (button visible only to quality_lead+admin; routing TODO P2 — emits structured event for future).\n5. 1:1 parity vs `design/Monopilot Design System/quality/other-screens.jsx:57-114` (sampling_plans).\n\n## Files\n- packages/db/migrations/0123_v_inspection_backlog.sql [create]\n- apps/web/src/app/quality/sampling/page.tsx [create]\n- apps/web/src/server/quality/listSamplingPlans.ts [create]\n- apps/web/src/components/quality/sampling/SamplingPlansTable.tsx [create]\n- apps/web/src/components/quality/sampling/__tests__/samplingPlans.test.tsx [create]\n- design/Monopilot Design System/quality/other-screens.jsx [ref]\n\n## Acceptance criteria\n1. Given migration 0123 applied, when SELECT FROM v_inspection_backlog runs, then the view returns rows with status IN (pending, assigned, in_progress) and computed urgency column ('overdue'|'urgent'|'normal') per §9.2 logic\n2. Given the page renders, when compared to design/Monopilot Design System/quality/other-screens.jsx:57-114, then it has parity with the prototype on structure (filter row with plan_type/level/aql Selects + Create custom button + 8-col Table in declared order), visuals (shadcn Table/Select/Badge/Button only), and interaction (Create custom button visible only to quality_lead/admin) — verified by RTL plus parity checklist in pipeline_inputs.details\n3. Given a non-quality_lead caller, when the page renders, then the Create custom button is hidden",
+  "labels": ["prd", "ui", "qa-sampling-config", "T3-ui"],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-035",
+    "source_prd": "09-QUALITY-PRD.md",
+    "prd_refs": ["§8.2 QA-022", "§9.2", "§8.5"],
+    "category": "ui",
+    "subcategory": "qa-sampling-config",
+    "task_type": "T3-ui",
+    "parent_feature": "09-c Incoming Inspection",
+    "context_budget": "40k",
+    "estimated_effort": "2h",
+    "prototype_match": true,
+    "description": "Create v_inspection_backlog view + build sampling plans config page; parity with sampling_plans prototype.",
+    "details": "Migration creates v_inspection_backlog (per §9.2). Page lists seeded plans with filter Selects. Create custom button role-gated. shadcn primitives only.",
+    "scope_files": [
+      "packages/db/migrations/0123_v_inspection_backlog.sql [create]",
+      "apps/web/src/app/quality/sampling/page.tsx [create]",
+      "apps/web/src/server/quality/listSamplingPlans.ts [create]",
+      "apps/web/src/components/quality/sampling/SamplingPlansTable.tsx [create]",
+      "apps/web/src/components/quality/sampling/__tests__/samplingPlans.test.tsx [create]",
+      "design/Monopilot Design System/quality/other-screens.jsx [ref]"
+    ],
+    "out_of_scope": [
+      "Do not implement custom plan editor (P2)",
+      "Do not modify sampling_plans schema (T-031 owns)"
+    ],
+    "dependencies": ["T-031"],
+    "parallel_safe_with": ["T-032", "T-033", "T-034"],
+    "acceptance_criteria": [
+      "Given migration 0123 applied, when SELECT FROM v_inspection_backlog runs, then the view returns rows with status IN (pending,assigned,in_progress) and computed urgency column with values in {overdue,urgent,normal} per §9.2 logic",
+      "Given the page renders, when compared to design/Monopilot Design System/quality/other-screens.jsx:57-114, then it has parity on structure (filter row with plan_type/level/aql Selects + Create custom button + 8-col Table in declared order), visuals (shadcn primitives only), and interaction (Create custom button visible only to quality_lead/admin) — verified by RTL plus parity checklist in pipeline_inputs.details",
+      "Given a non-quality_lead caller, when the page renders, then the Create custom button is hidden"
+    ],
+    "test_strategy": [
+      "RED: write apps/web/src/components/quality/sampling/__tests__/samplingPlans.test.tsx asserting view, parity structure, role-gated button",
+      "Run 'pnpm --filter db migrate && pnpm --filter web test samplingPlans'"
+    ],
+    "risk_red_lines": [
+      "Do not allow non-quality_lead to view custom-plan editor",
+      "Do not skip RLS on listSamplingPlans"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

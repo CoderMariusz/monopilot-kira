@@ -1,0 +1,81 @@
+{
+  "title": "T-005 — Drizzle migration: schema metadata (reference_schemas, schema_migrations)",
+  "prompt": "# T-005 — Drizzle migration: schema metadata (ADR-028)\n\n## Goal\nCreate Drizzle + SQL migration for §5.2: reference_schemas + schema_migrations. RLS on org-scoped rows. Include CHECK constraint on data_type enum and tier enum.\n\n## Files in scope\n- apps/web/db/schema/schema-metadata.ts [create]\n- apps/web/db/migrations/ [create]\n- apps/web/db/migrations/__tests__/schema-metadata.test.ts [create]\n\n## Acceptance criteria (all must hold)\n- Given migration is applied, when `\\d reference_schemas` is shown, then columns include all 14 from §5.2 plus UNIQUE(org_id, table_code, column_code).\n- Given migration is applied, when `\\d schema_migrations` is shown, then status enum includes pending/approved/running/completed/failed/rolled_back.\n- Given a row with data_type='boolean' is inserted, when constraint runs, then insert is rejected (only text/number/date/enum/formula/relation allowed).\n\n## Test strategy (RED first)\n1. Add a failing test that exercises the acceptance criteria above. The RED command is:\n   `pnpm --filter @monopilot/web drizzle-kit migrate && pnpm vitest run apps/web/db/migrations/__tests__/schema-metadata.test.ts`\n2. Run RED — it must fail before any production code is written.\n3. Implement the smallest change needed for GREEN.\n4. Re-run RED command — must pass.\n5. Run `pnpm typecheck` and `pnpm lint` in the changed package; both must pass.\n\n## Risk red lines\n- Do not edit files outside the listed scope without documenting why in CLOSEOUT.\n- Do not weaken existing acceptance criteria from prior tasks.\n- Do not introduce REST endpoints; use Server Actions per stack contract.\n- Do not commit secrets or vault keys.\n\n## Closeout evidence required\n- changed_files (with line counts)\n- exact test commands and outputs (RED→GREEN, typecheck, lint)\n- acceptance_criteria_status (one row per AC: pass/fail)\n- deviations_from_prd (or \"none\")\n- git_status\n\nStack: TS + Next.js App Router + Drizzle + pnpm + vitest + Playwright + Server Actions. Primitives in `packages/ui`. PRD: `02-SETTINGS-PRD.md` v3.5.\n",
+  "labels": [
+    "prd",
+    "data",
+    "schema-metadata",
+    "T1-schema"
+  ],
+  "priority": 80,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-005",
+    "source_prd": "02-SETTINGS-PRD.md",
+    "prd_refs": [
+      "§5.2",
+      "ADR-028"
+    ],
+    "category": "data",
+    "subcategory": "schema-metadata",
+    "task_type": "T1-schema",
+    "parent_feature": "02-settings-c",
+    "context_budget": "40k",
+    "estimated_effort": "1-3h",
+    "description": "Schema admin wizard storage tables.",
+    "details": "Use Postgres CHECK constraints for data_type and tier enums (do not create enum types — PRD style is TEXT + CHECK). Create indexes per common access (org_id, table_code).",
+    "scope_files": [
+      "apps/web/db/schema/schema-metadata.ts",
+      "apps/web/db/migrations/",
+      "apps/web/db/migrations/__tests__/schema-metadata.test.ts"
+    ],
+    "out_of_scope": [
+      "broaden scope beyond listed files",
+      "implement future-phase features"
+    ],
+    "dependencies": [
+      "T-004"
+    ],
+    "parallel_safe_with": [],
+    "acceptance_criteria": [
+      "Both tables created exactly per §5.2.",
+      "data_type and tier CHECK constraints enforce allowed values.",
+      "RLS policy on reference_schemas enforces org_id scope.",
+      "vitest migration test green."
+    ],
+    "test_strategy": [
+      "RED: assert table shape + constraint rejection.",
+      "GREEN: emit migration."
+    ],
+    "risk_red_lines": [
+      "Do not shortcut by allowing free-form data_type values."
+    ],
+    "skills": [
+      "test-driven-development"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": false
+  }
+}

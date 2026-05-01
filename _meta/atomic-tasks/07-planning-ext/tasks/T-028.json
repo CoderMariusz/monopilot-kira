@@ -1,0 +1,58 @@
+{
+  "title": "T-028 — Outbox emitters: scheduler.run.completed + assignment.approved",
+  "prompt": "# T-028 — Outbox emitters: scheduler.run.completed + assignment.approved\n\nPRD: 07-PLANNING-EXT-PRD.md §9.8, §5.1.3 event-first outbox\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nImplement helper module that emits scheduler.run.completed (after solver finishes) and scheduler.assignment.approved (consumed by 08-PROD + 15-OEE) into outbox_events with proper payload schema.\n\n## Implementation contract\n1. New `apps/web/src/lib/outbox/emitters/scheduler.ts` exporting `emitRunCompleted(run, summary)` and `emitAssignmentApproved(assignment, wo)`.\n2. Each emitter inserts an outbox_events row with event_type, payload (typed JSON per §9.8), aggregate_id, occurred_at within the caller's transaction.\n3. Payload schemas (Zod):\n   - run.completed: { run_id, tenant_id, summary }\n   - assignment.approved: { assignment_id, wo_id, planned_start_time, line_id }\n4. Use shared outbox writer from packages/db (existing).\n\n## Files\n- apps/web/src/lib/outbox/emitters/scheduler.ts [create]\n- apps/web/src/lib/outbox/emitters/__tests__/scheduler.test.ts [create]\n\n## Acceptance criteria\n1. Given a transaction handle + completed run, when emitRunCompleted called, then outbox_events row inserted with event_type='scheduler.run.completed' and payload matching schema\n2. Given a transaction handle + approved assignment, when emitAssignmentApproved called, then outbox_events row inserted with event_type='scheduler.assignment.approved' and aggregate_id=assignment_id\n3. Given an emitter called outside a transaction, when invoked, then it raises an error (must be transactional)\n\n## Test strategy\n- RED: write apps/web/src/lib/outbox/emitters/__tests__/scheduler.test.ts asserting both events + transactional guard\n- Run 'pnpm --filter web test outbox/emitters/scheduler'\n\n## Risk red lines\n- Do not insert outbox row outside the producing transaction (atomicity = R1 contract)\n- Do not skip Zod validation of payload before INSERT\n- Do not couple emitters to specific consumers (08-PROD, 15-OEE register independently)",
+  "labels": ["prd", "integration", "outbox", "T2-api"],
+  "priority": 80,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-028",
+    "source_prd": "07-PLANNING-EXT-PRD.md",
+    "prd_refs": ["§9.8", "§5.1.3"],
+    "category": "integration",
+    "subcategory": "outbox-emitter",
+    "task_type": "T2-api",
+    "parent_feature": "07-EXT outbox event-first",
+    "context_budget": "30k",
+    "estimated_effort": "1-2h",
+    "description": "Outbox emitters for scheduler.run.completed + scheduler.assignment.approved with Zod payloads + transactional guard.",
+    "details": "Two pure functions invoked within callers' transactions. Zod-validated payloads. Test verifies atomic insertion and rejection if called outside a tx.",
+    "scope_files": [
+      "apps/web/src/lib/outbox/emitters/scheduler.ts [create]",
+      "apps/web/src/lib/outbox/emitters/__tests__/scheduler.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not implement consumers (08-PROD, 15-OEE)",
+      "Do not implement matrix/override emitters here (T-029)",
+      "Do not implement outbox dispatcher worker (existing)"
+    ],
+    "dependencies": ["T-001", "T-002"],
+    "parallel_safe_with": ["T-029"],
+    "acceptance_criteria": [
+      "Given a transaction handle + completed run, when emitRunCompleted called, then outbox_events row inserted with event_type='scheduler.run.completed' and payload matching schema",
+      "Given a transaction handle + approved assignment, when emitAssignmentApproved called, then outbox_events row inserted with event_type='scheduler.assignment.approved' and aggregate_id=assignment_id",
+      "Given emitter called outside a transaction, when invoked, then it raises an error"
+    ],
+    "test_strategy": [
+      "RED: write apps/web/src/lib/outbox/emitters/__tests__/scheduler.test.ts asserting both events + transactional guard",
+      "Run 'pnpm --filter web test outbox/emitters/scheduler'"
+    ],
+    "risk_red_lines": [
+      "Do not insert outbox row outside producing transaction",
+      "Do not skip Zod validation",
+      "Do not couple emitters to specific consumers"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

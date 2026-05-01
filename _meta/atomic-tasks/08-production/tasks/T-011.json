@@ -1,0 +1,60 @@
+{
+  "title": "T-011 — operator_kpis_monthly materialized view + nightly refresh job",
+  "prompt": "# T-011 — operator_kpis_monthly materialized view\n\nPRD: 08-PRODUCTION-PRD.md §9.12, §11.3, §6 D11\n\n## Goal\nCreate the operator_kpis_monthly materialized view per §9.12 SQL with unique index on (operator_id, month) and add a nightly refresh job (cron) that runs `REFRESH MATERIALIZED VIEW CONCURRENTLY operator_kpis_monthly`.\n\n## Implementation contract\nMigration packages/db/migrations/NNNN_operator_kpis_monthly.sql: copy §9.12 SQL verbatim (operator_kpis_monthly aggregating wo_material_consumption + wo_waste_log), create UNIQUE INDEX idx_operator_kpis_unique. Add Vercel Cron route apps/web/app/api/cron/refresh-operator-kpis/route.ts (GET, secured by CRON_SECRET) that calls REFRESH MATERIALIZED VIEW CONCURRENTLY. Add vercel.json crons entry triggering this route nightly at 02:00 UTC.\n\n## Files (scope)\n- packages/db/migrations/NNNN_operator_kpis_monthly.sql [create]\n- apps/web/app/api/cron/refresh-operator-kpis/route.ts [create]\n- vercel.json [modify]\n- apps/web/app/api/cron/refresh-operator-kpis/__tests__/route.test.ts [create]\n\n## Acceptance criteria\n1. Given migration applied, when SELECT * FROM operator_kpis_monthly runs, then row shape matches §9.12 columns (operator_id, month, fefo_compliance_pct, over_consumption_incidents, waste_attributed_kg)\n2. Given GET /api/cron/refresh-operator-kpis with valid CRON_SECRET header, when called, then runs REFRESH MATERIALIZED VIEW CONCURRENTLY and returns 200 with refreshed_at timestamp\n3. Given GET /api/cron/refresh-operator-kpis without CRON_SECRET, when called, then returns 401\n\n## Test strategy\n- RED: write apps/web/app/api/cron/refresh-operator-kpis/__tests__/route.test.ts asserting 401 without secret + 200 with secret + invokes REFRESH before route exists\n- Run 'pnpm --filter db drizzle:migrate && pnpm --filter web test refresh-operator-kpis'\n\n## Risk red lines\n- Do not REFRESH non-CONCURRENTLY (locks reads) — UNIQUE index required for CONCURRENTLY\n- Do not expose route without CRON_SECRET (RBAC bypass)\n- Do not change view columns (downstream KPI consumers)",
+  "labels": ["prd", "data", "kpi-view", "T1-schema"],
+  "priority": 80,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-011",
+    "source_prd": "08-PRODUCTION-PRD.md",
+    "prd_refs": ["§9.12", "§11.3", "§6 D11"],
+    "category": "data",
+    "subcategory": "kpi-view",
+    "task_type": "T1-schema",
+    "parent_feature": "08-PROD E6 Dashboard+OEE+KPI",
+    "context_budget": "26k",
+    "estimated_effort": "1-2h",
+    "description": "operator_kpis_monthly materialized view + Vercel Cron nightly refresh route.",
+    "details": "Copy §9.12 SQL verbatim into a Drizzle migration. UNIQUE INDEX idx_operator_kpis_unique enables REFRESH MATERIALIZED VIEW CONCURRENTLY. Route uses CRON_SECRET header check, calls REFRESH via raw SQL, returns refreshed_at. vercel.json cron schedule '0 2 * * *' UTC.",
+    "scope_files": [
+      "packages/db/migrations/NNNN_operator_kpis_monthly.sql [create]",
+      "apps/web/app/api/cron/refresh-operator-kpis/route.ts [create]",
+      "vercel.json [modify]",
+      "apps/web/app/api/cron/refresh-operator-kpis/__tests__/route.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not implement leaderboard UI (P2)",
+      "Do not modify wo_material_consumption schema",
+      "Do not implement 12-REPORTING export"
+    ],
+    "dependencies": ["T-002", "T-004"],
+    "parallel_safe_with": ["T-008"],
+    "acceptance_criteria": [
+      "Given migration applied, when SELECT runs, then row shape matches §9.12 columns",
+      "Given GET /api/cron/refresh-operator-kpis with valid CRON_SECRET, when called, then 200 with refreshed_at and REFRESH MATERIALIZED VIEW CONCURRENTLY invoked",
+      "Given request without CRON_SECRET, when called, then 401"
+    ],
+    "test_strategy": [
+      "RED: route test asserting 401 without secret + 200 with secret invoking REFRESH before route exists",
+      "Run 'pnpm --filter db drizzle:migrate && pnpm --filter web test refresh-operator-kpis'"
+    ],
+    "risk_red_lines": [
+      "Do not REFRESH non-CONCURRENTLY",
+      "Do not expose route without CRON_SECRET",
+      "Do not change view columns"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

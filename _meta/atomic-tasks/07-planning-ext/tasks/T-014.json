@@ -1,0 +1,59 @@
+{
+  "title": "T-014 — POST /api/scheduler/assignments/:id/approve",
+  "prompt": "# T-014 — POST /api/scheduler/assignments/:id/approve\n\nPRD: 07-PLANNING-EXT-PRD.md §8.2 approve, §9.3 business rules, §15.4 V-SCHED-07\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nImplement approve endpoint that flips scheduler_assignments.status='approved', updates work_orders fields atomically, and emits scheduler.assignment.approved outbox event.\n\n## Implementation contract\n1. Route `apps/web/src/app/api/scheduler/assignments/[assignmentId]/approve/route.ts`: POST body { user_id, notes? }.\n2. Single transaction: UPDATE scheduler_assignments SET status='approved', approved_by, approved_at; UPDATE work_orders SET planned_start_time, assigned_line_id, assigned_shift_id; INSERT outbox_events.\n3. RBAC V-SCHED-07: Planner Advanced or Scheduling Officer only; 403 otherwise.\n4. Conflict guard: 409 if assignment.status != 'draft'.\n\n## Files\n- apps/web/src/app/api/scheduler/assignments/[assignmentId]/approve/route.ts [create]\n- apps/web/src/lib/scheduler/approve-action.ts [create]\n- apps/web/src/app/api/scheduler/assignments/[assignmentId]/approve/__tests__/route.test.ts [create]\n\n## Acceptance criteria\n1. Given a draft assignment + Planner role, when POST runs, then assignment.status='approved', work_orders updated, outbox_events row inserted (all in one transaction)\n2. Given an already-approved assignment, when POST runs again, then 409 returned\n3. Given role 'Operator', when POST runs, then 403 returned\n\n## Test strategy\n- RED: write __tests__/route.test.ts asserting transactional update + outbox emit + 409 + 403\n- Run 'pnpm --filter web test scheduler/assignments/approve'\n\n## Risk red lines\n- Do not split the work_orders update + outbox emit across separate transactions (must be atomic)\n- Do not bypass V-SCHED-07 RBAC\n- Do not delete the original draft state (status flip preserves audit trail)",
+  "labels": ["prd", "api", "endpoint-post", "T2-api"],
+  "priority": 80,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-014",
+    "source_prd": "07-PLANNING-EXT-PRD.md",
+    "prd_refs": ["§8.2", "§9.3", "§15.4 V-SCHED-07"],
+    "category": "api",
+    "subcategory": "endpoint-post",
+    "task_type": "T2-api",
+    "parent_feature": "07-EXT-a approve flow",
+    "context_budget": "50k",
+    "estimated_effort": "1-2h",
+    "description": "Approve assignment: status flip + work_orders update + outbox event in one transaction with RBAC + conflict guard.",
+    "details": "Single Drizzle transaction wraps three writes: assignment status update, work_orders fields update (planned_start_time, assigned_line_id, assigned_shift_id), and outbox_events row (scheduler.assignment.approved). RBAC enforces V-SCHED-07 (Planner Advanced or Scheduling Officer). 409 if assignment not in 'draft' state.",
+    "scope_files": [
+      "apps/web/src/app/api/scheduler/assignments/[assignmentId]/approve/route.ts [create]",
+      "apps/web/src/lib/scheduler/approve-action.ts [create]",
+      "apps/web/src/app/api/scheduler/assignments/[assignmentId]/approve/__tests__/route.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not implement override here (T-015)",
+      "Do not implement bulk approve here (T-017)",
+      "Do not consume outbox event here (08-PROD owns consumption)"
+    ],
+    "dependencies": ["T-002", "T-028"],
+    "parallel_safe_with": ["T-015", "T-016"],
+    "acceptance_criteria": [
+      "Given a draft assignment + Planner role, when POST runs, then assignment.status='approved', work_orders updated, outbox_events row inserted, all in a single transaction",
+      "Given an already-approved assignment, when POST runs again, then 409 returned",
+      "Given role 'Operator', when POST runs, then 403 returned"
+    ],
+    "test_strategy": [
+      "RED: write __tests__/route.test.ts asserting transactional atomicity + outbox emit + 409 + 403",
+      "Run 'pnpm --filter web test scheduler/assignments/approve'"
+    ],
+    "risk_red_lines": [
+      "Do not split writes across multiple transactions",
+      "Do not bypass V-SCHED-07 RBAC",
+      "Do not delete original draft state"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

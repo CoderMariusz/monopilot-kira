@@ -1,0 +1,61 @@
+{
+  "title": "T-002 — scanner_audit_log + scanner_devices migration (06-a)",
+  "prompt": "# T-002 — scanner_audit_log + scanner_devices migration\n\nPRD: 06-SCANNER-P1-PRD.md §5.3 retention, §8.1 FR-SC-BE-012, §8.1 FR-SC-FE-004b SCN-013 Devices\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nLand the high-volume `scanner_audit_log` table (30-day retention) and the `scanner_devices` fleet table (powering SCN-013), both with RLS and ADR-028 schema-driven extension column.\n\n## Implementation contract\n1. Drizzle migration `packages/db/migrations/0061_scanner_audit_and_devices.sql`:\n   - scanner_audit_log (id BIGSERIAL PK, org_id UUID, user_id UUID, site_id UUID NULL, line_id UUID NULL, session_id UUID NULL, timestamp TIMESTAMPTZ default now, barcode TEXT, scan_type TEXT, scan_method TEXT CHECK IN ('hardware','camera','manual'), device_type TEXT, result TEXT CHECK IN ('success','error','warn','info'), error_code TEXT NULL, ip_address INET, client_operation_id UUID NULL, metadata JSONB NOT NULL DEFAULT '{}', ext_jsonb JSONB NOT NULL DEFAULT '{}', schema_version INT NOT NULL DEFAULT 1).\n   - Indexes: (org_id, timestamp DESC), (org_id, user_id, timestamp DESC), (org_id, barcode), btree (client_operation_id) WHERE client_operation_id IS NOT NULL.\n   - scanner_devices (id UUID PK, org_id UUID, site_id UUID, device_type TEXT, device_label TEXT, pairing_token UUID NULL, paired_user_id UUID NULL, last_seen_at TIMESTAMPTZ, battery_pct INT NULL CHECK 0..100, status TEXT CHECK IN ('online','offline','low_battery'), default_line_id UUID NULL, ext_jsonb JSONB NOT NULL DEFAULT '{}').\n   - RLS on both tables (tenant_isolation_scanner_audit_log, tenant_isolation_scanner_devices) keyed on org_id.\n2. Drizzle schemas `scanner-audit-log.ts` + `scanner-devices.ts`.\n3. Note (comment in SQL): retention cron is added in a separate ops task; DDL only here.\n\n## Files\n- packages/db/migrations/0061_scanner_audit_and_devices.sql [create]\n- packages/db/src/schema/scanner-audit-log.ts [create]\n- packages/db/src/schema/scanner-devices.ts [create]\n- packages/db/src/schema/index.ts [modify]\n- packages/db/__tests__/scanner-audit-and-devices.test.ts [create]\n\n## Acceptance criteria\n1. Given migration 0061 ran, when describing scanner_audit_log, then all four indexes exist and RLS is enabled with tenant_isolation_scanner_audit_log\n2. Given migration 0061 ran, when describing scanner_devices, then status CHECK constraint allows only online/offline/low_battery and battery_pct CHECK enforces 0..100\n3. Given two orgs each insert audit rows, when querying under org A app.org_id, then no org B rows are returned\n\n## Test strategy\n- RED: write packages/db/__tests__/scanner-audit-and-devices.test.ts asserting indexes, CHECK constraints, RLS isolation\n- Run 'pnpm --filter db migrate && pnpm --filter db test scanner-audit-and-devices'\n\n## Risk red lines\n- Do not point retention cleanup at the main audit_log table (separate retention)\n- Do not omit ext_jsonb (ADR-028 backbone)\n- Do not skip RLS on either table",
+  "labels": ["prd", "data", "schema-scanner-audit", "T1-schema"],
+  "priority": 50,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-002",
+    "source_prd": "06-SCANNER-P1-PRD.md",
+    "prd_refs": ["§5.3 retention", "§8.1 FR-SC-BE-012", "§8.1 FR-SC-FE-004b"],
+    "category": "data",
+    "subcategory": "schema-scanner-audit",
+    "task_type": "T1-schema",
+    "parent_feature": "06-a Shell & Core",
+    "context_budget": "30k",
+    "estimated_effort": "1-2h",
+    "description": "Create scanner_audit_log (30d retention table) + scanner_devices fleet table with RLS + ext_jsonb backbone.",
+    "details": "Migration 0061 emits both tables per PRD §5.3+§8.1. scanner_audit_log carries four indexes + ext_jsonb for ADR-028. scanner_devices powers SCN-013 admin screen (KPI/online/battery/pairing). RLS is org_id-scoped on both. Tests verify indexes, CHECK constraints, and tenant isolation.",
+    "scope_files": [
+      "packages/db/migrations/0061_scanner_audit_and_devices.sql [create]",
+      "packages/db/src/schema/scanner-audit-log.ts [create]",
+      "packages/db/src/schema/scanner-devices.ts [create]",
+      "packages/db/src/schema/index.ts [modify]",
+      "packages/db/__tests__/scanner-audit-and-devices.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not write the retention cron job here",
+      "Do not add audit ingestion endpoint here (T-011)",
+      "Do not implement SCN-013 UI here (T-022)"
+    ],
+    "dependencies": [],
+    "parallel_safe_with": ["T-001"],
+    "acceptance_criteria": [
+      "Given migration 0061 ran, when describing scanner_audit_log, then all four indexes exist and RLS is enabled with tenant_isolation_scanner_audit_log",
+      "Given migration 0061 ran, when describing scanner_devices, then status CHECK allows only online/offline/low_battery and battery_pct CHECK enforces 0..100",
+      "Given two orgs each insert audit rows, when querying under org A app.org_id, then no org B rows are returned"
+    ],
+    "test_strategy": [
+      "RED: write packages/db/__tests__/scanner-audit-and-devices.test.ts asserting indexes + CHECKs + RLS before migration exists",
+      "Run 'pnpm --filter db migrate && pnpm --filter db test scanner-audit-and-devices'"
+    ],
+    "risk_red_lines": [
+      "Do not couple retention with main audit_log",
+      "Do not omit ext_jsonb columns",
+      "Do not skip RLS on either table"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

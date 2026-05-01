@@ -1,0 +1,62 @@
+{
+  "title": "T-022 — QA-021 spec wizard (3-step) + edit mode (prototype parity)",
+  "prompt": "# T-022 — QA-021 spec wizard 3-step\n\nPRD: 09-QUALITY-PRD.md §8.2 QA-021 wizard, §8.3 QUA-103 edit mode (draft only), §8.5 prototype spec_wizard\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nBuild `/quality/specs/new` and `/quality/specs/:id/edit` (draft-only) using the same SpecWizard 3-step Client Component (Header → Parameters → Review) backed by react-hook-form + Zod.\n\n## Implementation contract\n1. `apps/web/src/components/quality/specs/SpecWizard.tsx` 3-step wizard: Step 1 Header (product, spec_code, applies_to, effective_from), Step 2 Parameters (CRUD list with parameter_type Select, min/target/max, unit, test_method, is_critical), Step 3 Review (read-only summary + Submit for review).\n2. RHF + zodResolver enforces V-QA-SPEC-003 client-side; server re-validates.\n3. Edit mode: hydrates from getSpecDraft(id); rejects when status!='draft'.\n4. 1:1 parity vs `design/Monopilot Design System/quality/specs-screens.jsx:82-302` (spec_wizard).\n\n## Files\n- apps/web/src/app/quality/specs/new/page.tsx [create]\n- apps/web/src/app/quality/specs/[id]/edit/page.tsx [create]\n- apps/web/src/components/quality/specs/SpecWizard.tsx [create]\n- apps/web/src/components/quality/specs/__tests__/SpecWizard.test.tsx [create]\n- design/Monopilot Design System/quality/specs-screens.jsx [ref]\n\n## Acceptance criteria\n1. Given the wizard renders, when compared to design/Monopilot Design System/quality/specs-screens.jsx:82-302, then it has parity with the prototype on structure (3-step stepper at top + step content panel + Back/Next/Submit footer in same order), visuals (shadcn Tabs or stepper, Form, Input, Select, Switch for is_critical, Button only — no native select), and interaction (Next disabled until current step valid, Back preserves entered data, Submit only on Step 3, edit mode rejects when status!='draft' with toast key qa.spec.edit_locked) — verified by RTL test plus parity checklist in pipeline_inputs.details\n2. Given a parameter row with min_value=10 and max_value=5, when Next is clicked on Step 2, then the row shows V-QA-SPEC-003 error and Next remains disabled\n3. Given edit mode for a spec with status='active', when the page loads, then it shows 'qa.spec.edit_locked' toast and redirects to /quality/specs/:id (read-only)",
+  "labels": ["prd", "ui", "qa-spec-wizard", "T3-ui"],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-022",
+    "source_prd": "09-QUALITY-PRD.md",
+    "prd_refs": ["§8.2 QA-021", "§8.3 QUA-103", "§8.5"],
+    "category": "ui",
+    "subcategory": "qa-spec-wizard",
+    "task_type": "T3-ui",
+    "parent_feature": "09-b Specifications",
+    "context_budget": "55k",
+    "estimated_effort": "3h",
+    "prototype_match": true,
+    "description": "3-step spec wizard (Header/Parameters/Review) with edit-mode reuse for draft specs; parity with prototype spec_wizard.",
+    "details": "Client Component RHF wizard with zodResolver. Step 1 header fields, Step 2 parameter array (useFieldArray) with parameter_type Select and is_critical Switch, Step 3 read-only review + submit. Edit mode rejects non-draft status with toast and redirect. shadcn primitives only per translation notes. Honor BL-QA-07 deferred (no real-time autocomplete in P1).",
+    "scope_files": [
+      "apps/web/src/app/quality/specs/new/page.tsx [create]",
+      "apps/web/src/app/quality/specs/[id]/edit/page.tsx [create]",
+      "apps/web/src/components/quality/specs/SpecWizard.tsx [create]",
+      "apps/web/src/components/quality/specs/__tests__/SpecWizard.test.tsx [create]",
+      "design/Monopilot Design System/quality/specs-screens.jsx [ref]"
+    ],
+    "out_of_scope": [
+      "Do not implement spec detail (T-023)",
+      "Do not implement spec sign modal (T-024)",
+      "Do not implement allergen profile snapshot (T-020)"
+    ],
+    "dependencies": ["T-018", "T-021"],
+    "parallel_safe_with": ["T-021", "T-023", "T-024"],
+    "acceptance_criteria": [
+      "Given the wizard renders, when compared to design/Monopilot Design System/quality/specs-screens.jsx:82-302, then it has parity on structure (3-step stepper + step content + Back/Next/Submit footer in same order), visuals (shadcn Tabs/Form/Input/Select/Switch/Button only, no native select), and interaction (Next disabled until step valid, Back preserves data, edit mode rejects when status!='draft' with toast qa.spec.edit_locked) — verified by RTL plus parity checklist in pipeline_inputs.details",
+      "Given a parameter row with min_value=10 and max_value=5, when Next is clicked on Step 2, then the row shows V-QA-SPEC-003 error and Next remains disabled",
+      "Given edit mode for a spec with status='active', when the page loads, then it shows the qa.spec.edit_locked toast and redirects to /quality/specs/:id"
+    ],
+    "test_strategy": [
+      "RED: write apps/web/src/components/quality/specs/__tests__/SpecWizard.test.tsx asserting step structure, V-QA-SPEC-003 client validation, edit-mode redirect",
+      "Run 'pnpm --filter web test SpecWizard'"
+    ],
+    "risk_red_lines": [
+      "Do not skip server-side validation just because client validates",
+      "Do not allow edit on non-draft status (must clone-to-new-version per QUA-103)",
+      "Do not use native HTML select per translation notes"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

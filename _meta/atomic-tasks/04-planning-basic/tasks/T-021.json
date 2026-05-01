@@ -1,0 +1,67 @@
+{
+  "title": "T-021 — API: WO release transition + hard-lock reservation creation",
+  "prompt": "Implement Server Action `releaseWorkOrder(wo_id)` per PRD §8.7 + §9.2 (revised v3.1). Calls wo_state_machine_v1 DRAFT→RELEASED transition. Side-effect: per wo_material with material_source='stock' (ONLY), find available LP via FEFO (§9.2), insert wo_material_reservations with hard_lock semantics, update license_plates.status='reserved' + reserved_for_wo_id. material_source='upstream_wo_output' rows are SKIPPED (zero reservation per v3.1). V-PLAN-RES-005 enforced at insert. V-PLAN-WO-008 enforced via T-006 partial-unique index (LP single active reservation).\n\nCaptures allergen_profile_snapshot from product master (03-TECHNICAL §10) into wo.allergen_profile_snapshot at release.\n\nRED test asserts (a) reservation rows only for stock-source materials, (b) upstream_wo_output skipped, (c) concurrent release for same LP returns 409 V-PLAN-WO-008, (d) allergen snapshot captured.",
+  "labels": ["prd", "api", "wo-release", "T2-api"],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-021",
+    "source_prd": "04-PLANNING-BASIC-PRD.md",
+    "prd_refs": ["§8.7", "§9.1", "§9.2", "§9.6"],
+    "category": "api",
+    "subcategory": "wo-release",
+    "task_type": "T2-api",
+    "parent_feature": "planning-wo",
+    "context_budget": "40k",
+    "estimated_effort": "3-4h",
+    "description": "WO release transition with hard-lock reservation side-effect (RM root only per v3.1).",
+    "details": "Encode reservation creation as DSL side-effect of wo_state_machine_v1 transition or as service hook subscribed to outbox event 'wo.state_changed' (synchronous within same tx). FEFO query: LP WHERE product_id = m.product_id AND warehouse_id = wo.warehouse_id AND status='available' AND remaining_qty >= m.required_qty ORDER BY expiry_date ASC LIMIT 1. Multiple LPs picked if needed. allergen_profile_snapshot read from products.allergen_profile JSONB (03-TECHNICAL §10).",
+    "scope_files": [
+      "src/server/actions/planning/wo-release.ts [create]",
+      "src/server/services/reservation-creator.ts [create]",
+      "src/app/api/planning/work-orders/[id]/release/route.ts [create]",
+      "src/server/actions/planning/__tests__/wo-release.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Reservation override (T-024)",
+      "Hard-lock release confirm (T-025)",
+      "Scanner consumption (06-SCANNER-P1)"
+    ],
+    "dependencies": ["T-006", "T-007", "T-018"],
+    "parallel_safe_with": ["T-019", "T-020"],
+    "acceptance_criteria": [
+      "Given a WO with 3 wo_materials (2 stock, 1 upstream_wo_output), when releaseWorkOrder runs, then exactly 2 wo_material_reservations rows are inserted; the upstream_wo_output material has none.",
+      "Given two WOs racing to release reserving the same LP, when both transactions commit, then exactly one succeeds and the other returns HTTP 409 with code 'V-PLAN-WO-008'.",
+      "Given a product with allergen_profile JSONB present, when WO releases, then wo.allergen_profile_snapshot equals that JSONB.",
+      "Given `pnpm vitest run src/server/actions/planning/__tests__/wo-release.test.ts`, when run, then 0 failures."
+    ],
+    "test_strategy": [
+      "RED tests for reservation scope (stock vs upstream), hard-lock conflict, allergen snapshot capture, outbox emit.",
+      "Run `pnpm vitest run src/server/actions/planning/__tests__/wo-release.test.ts`."
+    ],
+    "risk_red_lines": [
+      "Do not create reservations for upstream_wo_output materials — v3.1 narrowed scope; V-PLAN-RES-005 hard block.",
+      "Do not split reservation insertion across multiple transactions.",
+      "Do not skip allergen_profile_snapshot capture — sequencing in §10 depends on it."
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

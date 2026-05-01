@@ -1,0 +1,62 @@
+{
+  "title": "T-022 — SCN-013 Devices admin screen + pairing API (06-a)",
+  "prompt": "# T-022 — SCN-013 Devices admin\n\nPRD: 06-SCANNER-P1-PRD.md §8.1 FR-SC-FE-004b\nUX: covered via 02-SETTINGS Org Admin entry-point (no dedicated UX section)\nPrototype: design/Monopilot Design System/settings/ops-screens.jsx:4-95 (label devices_screen)\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nDeliver the org-admin device fleet page at /scanner/admin/devices — KPI tiles (total/online/low battery/offline), device table with battery Progress bars, pair-device modal with QR pairing token (5-min TTL), device defaults form. Includes pair endpoints.\n\n## Implementation contract\n1. `apps/scanner/src/app/scanner/admin/devices/page.tsx` (Server Component, role-guard via T-016 'admin.devices').\n2. Drizzle query JOIN scanner_devices + users + production_lines.\n3. Pair API: POST /api/scanner/devices/pair → returns UUID pairing_token (5-min TTL); GET /api/scanner/devices/:id polls status.\n4. Modal renders the QR code via `qrcode` lib.\n5. Battery bar via shadcn Progress; low-battery threshold ≤ 20%.\n\n## Files\n- apps/scanner/src/app/scanner/admin/devices/page.tsx [create]\n- apps/scanner/src/app/scanner/admin/devices/pair-modal.client.tsx [create]\n- apps/scanner/src/app/api/scanner/devices/pair/route.ts [create]\n- apps/scanner/src/app/api/scanner/devices/[id]/route.ts [create]\n- apps/scanner/__tests__/scn-013-devices.test.tsx [create]\n\n## Acceptance criteria\n1. Given the page renders, when compared to `design/Monopilot Design System/settings/ops-screens.jsx:4-95`, then it has 4 KPI tiles (total / online / low battery / offline) above a device table with battery Progress bars and a 'Sparuj urządzenie' CTA opening the pair modal — RTL snapshot + manual checklist (structural + visual + interaction parity)\n2. Given a non-admin user, when they navigate to /scanner/admin/devices, then withScannerPermission redirects them back to /scanner with denied=admin.devices and the page never renders\n3. Given an admin clicks 'Sparuj urządzenie', when POST /api/scanner/devices/pair runs, then a pairing_token UUID is returned, the modal renders the QR, and 5 minutes later GET on the device row returns status='offline' with the token cleared\n\n## Test strategy\n- RED: write scn-013-devices.test.tsx asserting parity + admin-only guard + pairing-token TTL before implementation\n- Run 'pnpm --filter scanner test scn-013-devices'\n\n## Risk red lines\n- Do not expose pairing_token in the device list response after redemption\n- Do not let pairing_token survive past 5 minutes\n- Do not allow non-admin to view scanner_devices.battery_pct of other users",
+  "labels": ["prd", "ui", "scn-013-devices", "T3-ui"],
+  "priority": 120,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-022",
+    "source_prd": "06-SCANNER-P1-PRD.md",
+    "prd_refs": ["§8.1 FR-SC-FE-004b"],
+    "category": "ui",
+    "subcategory": "scn-013-devices",
+    "task_type": "T3-ui",
+    "parent_feature": "06-a Shell & Core",
+    "context_budget": "35k",
+    "estimated_effort": "2-3h",
+    "description": "Org-admin device fleet page (KPIs + table + pair-modal QR) with 5-min pairing-token TTL and admin-only guard.",
+    "details": "Parity checklist:\n1) 4 KPI tiles total / online / low battery / offline.\n2) Device table with battery Progress bar and status badge.\n3) Pair modal renders QR for the pairing_token.\n4) admin.devices role required.\n5) Pairing token TTL strictly 5 minutes.\n6) Battery threshold ≤ 20% triggers low_battery status.",
+    "scope_files": [
+      "apps/scanner/src/app/scanner/admin/devices/page.tsx [create]",
+      "apps/scanner/src/app/scanner/admin/devices/pair-modal.client.tsx [create]",
+      "apps/scanner/src/app/api/scanner/devices/pair/route.ts [create]",
+      "apps/scanner/src/app/api/scanner/devices/[id]/route.ts [create]",
+      "apps/scanner/__tests__/scn-013-devices.test.tsx [create]",
+      "design/Monopilot Design System/settings/ops-screens.jsx:4-95 [ref]"
+    ],
+    "out_of_scope": [
+      "Do not implement push notifications to devices",
+      "Do not implement OTA update orchestration",
+      "Do not implement remote-wipe"
+    ],
+    "dependencies": ["T-002", "T-016"],
+    "parallel_safe_with": ["T-021", "T-023", "T-024"],
+    "acceptance_criteria": [
+      "Given the page renders, when compared to design/Monopilot Design System/settings/ops-screens.jsx:4-95, then it has 4 KPI tiles, the device table with battery Progress bars and 'Sparuj urządzenie' CTA opening the pair modal — RTL snapshot + manual checklist",
+      "Given a non-admin user, when they navigate to /scanner/admin/devices, then withScannerPermission redirects to /scanner?denied=admin.devices and the page never renders",
+      "Given an admin opens pair modal, when POST /api/scanner/devices/pair runs, then a pairing_token UUID is returned + QR shown + 5 min later GET on the device row returns status='offline' with token cleared"
+    ],
+    "test_strategy": [
+      "RED: write scn-013-devices.test.tsx asserting parity + admin-only guard + 5-min TTL before implementation",
+      "Run 'pnpm --filter scanner test scn-013-devices'"
+    ],
+    "risk_red_lines": [
+      "Do not expose pairing_token after redemption",
+      "Do not let pairing_token survive past 5 min",
+      "Do not allow non-admin to view battery_pct of other users"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

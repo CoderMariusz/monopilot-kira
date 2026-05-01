@@ -1,0 +1,87 @@
+{
+  "title": "T-014 \u2014 RBAC enforcement library with org.access.admin / org.schema.admin SoD grant guard",
+  "prompt": "# T-014 \u2014 RBAC enforcement library with org.access.admin / org.schema.admin SoD grant guard\n\nPRD: `00-FOUNDATION-PRD.md` \u2014 sections: \u00a73, \u00a78\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`\n\n## Goal\nImplement role/permission tables, role-grant Server Action, and a guard that refuses to grant org.schema.admin to a user who already holds org.access.admin (and vice versa) unless dual_control_required=false.\n\n## Implementation contract\nMigration 006-rbac.sql: roles(id, tenant_id, slug UNIQUE per tenant, system BOOLEAN), role_permissions(role_id, permission TEXT), user_roles(user_id, role_id). Seed two system roles per tenant: 'org.access.admin' and 'org.schema.admin'. Add packages/rbac/src/grant.ts exporting grantRole(userId, roleSlug) that throws 'sod_violation' when granting one of the SoD pair to a user already holding the other (uses SOD_EXCLUSIVE_PAIRS from T-004). Add org_security_policies(tenant_id PK, dual_control_required BOOLEAN DEFAULT true). When dual_control_required=true, second-admin approval is required (record approval token). Vitest covers the SoD violation, the dual-control approval path, and seed correctness.\n\n## Files (scope)\n- packages/db/migrations/006-rbac.sql [create]\n- packages/rbac/src/grant.ts [create]\n- packages/rbac/src/__tests__/grant.test.ts [create]\n\n## Acceptance criteria\n1. Given a user holds 'org.access.admin', when grantRole(userId, 'org.schema.admin') is called and dual_control_required=true with no approval, then it throws 'sod_violation'\n2. Given dual_control_required=true and a valid second-admin approval token is supplied, when the same grant runs, then it succeeds and writes an audit_events row with action='role.assigned' retention_class='security'\n3. Given a fresh tenant is created, when seed runs, then both 'org.access.admin' and 'org.schema.admin' system roles exist for that tenant\n\n## Test strategy\n- RED: write packages/rbac/src/__tests__/grant.test.ts covering SoD violation + dual-control approval + seed before grant.ts exists\n- Run 'pnpm --filter @monopilot/rbac test'\n\n## Risk red lines\n- Do not allow a single admin to bypass the SoD guard by editing org_security_policies in the same transaction\n\n## Dependencies (must be complete first)\n- T-004\n- T-006\n\n## Closeout evidence\nProvide: changed_files, test_commands_and_results, acceptance_criteria_status (per AC), deviations_from_prd, git_status. Use the test-driven-development skill (RED test before implementation) and requesting-code-review at GREEN.",
+  "labels": [
+    "prd",
+    "auth",
+    "rbac",
+    "T2-api"
+  ],
+  "priority": 80,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-014",
+    "source_prd": "00-FOUNDATION-PRD.md",
+    "prd_refs": [
+      "\u00a73",
+      "\u00a78"
+    ],
+    "category": "auth",
+    "subcategory": "rbac",
+    "task_type": "T2-api",
+    "parent_feature": "00-FOUNDATION-impl-g RBAC",
+    "context_budget": "50k",
+    "estimated_effort": "2-3h",
+    "description": "Implement role/permission tables, role-grant Server Action, and a guard that refuses to grant org.schema.admin to a user who already holds org.access.admin (and vice versa) unless dual_control_required=false.",
+    "details": "Migration 006-rbac.sql: roles(id, tenant_id, slug UNIQUE per tenant, system BOOLEAN), role_permissions(role_id, permission TEXT), user_roles(user_id, role_id). Seed two system roles per tenant: 'org.access.admin' and 'org.schema.admin'. Add packages/rbac/src/grant.ts exporting grantRole(userId, roleSlug) that throws 'sod_violation' when granting one of the SoD pair to a user already holding the other (uses SOD_EXCLUSIVE_PAIRS from T-004). Add org_security_policies(tenant_id PK, dual_control_required BOOLEAN DEFAULT true). When dual_control_required=true, second-admin approval is required (record approval token). Vitest covers the SoD violation, the dual-control approval path, and seed correctness.",
+    "scope_files": [
+      "packages/db/migrations/006-rbac.sql [create]",
+      "packages/rbac/src/grant.ts [create]",
+      "packages/rbac/src/__tests__/grant.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not modify files outside the scope_files list",
+      "Do not introduce business logic from later module PRDs (01-NPD, 02-SETTINGS, etc.)",
+      "No RBAC UI (lives in 02-SETTINGS)"
+    ],
+    "dependencies": [
+      "T-004",
+      "T-006"
+    ],
+    "parallel_safe_with": [
+      "T-008",
+      "T-009",
+      "T-010"
+    ],
+    "acceptance_criteria": [
+      "Given a user holds 'org.access.admin', when grantRole(userId, 'org.schema.admin') is called and dual_control_required=true with no approval, then it throws 'sod_violation'",
+      "Given dual_control_required=true and a valid second-admin approval token is supplied, when the same grant runs, then it succeeds and writes an audit_events row with action='role.assigned' retention_class='security'",
+      "Given a fresh tenant is created, when seed runs, then both 'org.access.admin' and 'org.schema.admin' system roles exist for that tenant"
+    ],
+    "test_strategy": [
+      "RED: write packages/rbac/src/__tests__/grant.test.ts covering SoD violation + dual-control approval + seed before grant.ts exists",
+      "Run 'pnpm --filter @monopilot/rbac test'"
+    ],
+    "risk_red_lines": [
+      "Do not allow a single admin to bypass the SoD guard by editing org_security_policies in the same transaction"
+    ],
+    "skills": [
+      "test-driven-development",
+      "verification-before-completion",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

@@ -1,0 +1,59 @@
+{
+  "title": "T-029 — POST /receive-to-line (TO in-transit accept) (06-b)",
+  "prompt": "# T-029 — receive TO line\n\nPRD: 06-SCANNER-P1-PRD.md §8.2 FR-SC-BE-023\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nAccept a TO line by validating that the LP is in-transit and qty_actual ≤ expected; record discrepancy_reason if undershoot.\n\n## Implementation contract\n1. POST /api/warehouse/scanner/receive-to-line body Zod `{ to_line_id, lp_id_in_transit, qty_actual, discrepancy_reason? }`.\n2. Validations: LP exists in org; LP status='in_transit'; qty_actual > 0; qty_actual ≤ to_line.expected_qty.\n3. On success: update LP.status='available', LP.location_id=to.destination_location, write stock_moves move_type='receive_to', audit row.\n4. Idempotency via X-Client-Operation-Id.\n\n## Files\n- apps/scanner/src/app/api/warehouse/scanner/receive-to-line/route.ts [create]\n- apps/scanner/src/server/services/warehouse-receive.ts [modify]\n- apps/scanner/__tests__/api/receive-to-line.test.ts [create]\n\n## Acceptance criteria\n1. Given a TO line expected_qty=80 and an LP in-transit with current_qty=80, when POST receive-to-line is called with qty_actual=80, then 200 and the LP transitions to status='available' with location set to to.destination\n2. Given the LP is not in_transit (status='available'), when POST runs, then 409 SC_TO_NOT_IN_TRANSIT and no rows are mutated\n3. Given qty_actual=70 (undershoot) without discrepancy_reason, when POST runs, then 400 SC_QTY_DISCREPANCY_REQUIRES_REASON\n\n## Test strategy\n- RED: write receive-to-line.test.ts asserting happy path + non-in-transit reject + missing-discrepancy-reason reject before implementation\n- Run 'pnpm --filter scanner test api/receive-to-line'\n\n## Risk red lines\n- Do not allow qty_actual > expected_qty without supervisor override path (out of P1)\n- Do not skip stock_moves creation\n- Do not let client override org_id",
+  "labels": ["prd", "api", "warehouse-receive-to", "T2-api"],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-029",
+    "source_prd": "06-SCANNER-P1-PRD.md",
+    "prd_refs": ["§8.2 FR-SC-BE-023"],
+    "category": "api",
+    "subcategory": "warehouse-receive-to",
+    "task_type": "T2-api",
+    "parent_feature": "06-b Warehouse In",
+    "context_budget": "25k",
+    "estimated_effort": "1-2h",
+    "description": "TO-line receive endpoint with in-transit validation and discrepancy reason enforcement.",
+    "details": "Single POST handler validates LP status, qty bounds, optional discrepancy_reason, and on success transitions LP + writes stock_moves + audit. Idempotent via X-Client-Operation-Id.",
+    "scope_files": [
+      "apps/scanner/src/app/api/warehouse/scanner/receive-to-line/route.ts [create]",
+      "apps/scanner/src/server/services/warehouse-receive.ts [modify]",
+      "apps/scanner/__tests__/api/receive-to-line.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not implement supervisor over-receipt override",
+      "Do not implement SCN-030 UI here (T-032)",
+      "Do not implement putaway here (T-030)"
+    ],
+    "dependencies": ["T-027"],
+    "parallel_safe_with": ["T-028", "T-030"],
+    "acceptance_criteria": [
+      "Given a TO line expected_qty=80 and an LP in-transit with current_qty=80, when POST receive-to-line with qty_actual=80, then 200 and the LP transitions to status='available' with location set to to.destination",
+      "Given the LP is not in_transit, when POST runs, then 409 SC_TO_NOT_IN_TRANSIT and no rows are mutated",
+      "Given qty_actual=70 (undershoot) without discrepancy_reason, when POST runs, then 400 SC_QTY_DISCREPANCY_REQUIRES_REASON"
+    ],
+    "test_strategy": [
+      "RED: write receive-to-line.test.ts asserting happy path + non-in-transit + missing-discrepancy-reason before implementation",
+      "Run 'pnpm --filter scanner test api/receive-to-line'"
+    ],
+    "risk_red_lines": [
+      "Do not allow qty_actual > expected without supervisor override (out of P1)",
+      "Do not skip stock_moves creation",
+      "Do not let client override org_id"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

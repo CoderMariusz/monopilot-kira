@@ -1,0 +1,60 @@
+{
+  "title": "T-035 — SCN-031 Move LP UI (06-c)",
+  "prompt": "# T-035 — SCN-031 Move LP\n\nPRD: 06-SCANNER-P1-PRD.md §8.3 FR-SC-FE-030/031\nUX: design/06-SCANNER-P1-UX.md:454-480 §3.10\nPrototype: design/Monopilot Design System/scanner/flow-other.jsx:10-86 (label move_screen)\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nDeliver SCN-031 — scan LP → mini-grid details → scan destination (or 4 quick-buttons for frequent locations) → confirm → done success orange→green; with status-block error handling (hold/consumed/blocked).\n\n## Implementation contract\n1. /scanner/move + /scanner/move/done.\n2. Scan LP triggers /lock-lp; on success render mini-grid + destination scan + 4 quick-buttons.\n3. Submit calls /move-lp + /release-lock; on validation block render full-screen error per D9 block severity (e.g. 'LP na QA Hold, nie można przesunąć').\n\n## Files\n- apps/scanner/src/app/scanner/move/page.tsx [create]\n- apps/scanner/src/app/scanner/move/done/page.tsx [create]\n- apps/scanner/__tests__/scn-031-move.test.tsx [create]\n\n## Acceptance criteria\n1. Given the page renders, when compared to `design/Monopilot Design System/scanner/flow-other.jsx:10-86`, then it has the LP scan area, a mini-grid of LP details, the destination scan area, and 4 quick-buttons in the same order — RTL snapshot + manual checklist (structural + visual + interaction parity)\n2. Given an LP whose lookup returns status='hold', when the LP scan completes, then a full-screen block error 'LP na QA Hold, nie można przesunąć' is shown and the destination scan is hidden\n3. Given a successful move, when /move-lp returns 200, then /release-lock is called and the user is redirected to /scanner/move/done with the orange→green animation\n\n## Test strategy\n- RED: write scn-031-move.test.tsx asserting parity + hold-block + happy-path with lock release before implementation\n- Run 'pnpm --filter scanner test scn-031-move'\n\n## Risk red lines\n- Do not skip /release-lock on success\n- Do not let user proceed past hold/consumed/blocked status\n- Do not allow destination = current location",
+  "labels": ["prd", "ui", "scn-031-move", "T3-ui"],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-035",
+    "source_prd": "06-SCANNER-P1-PRD.md",
+    "prd_refs": ["§8.3 FR-SC-FE-030", "§8.3 FR-SC-FE-031"],
+    "category": "ui",
+    "subcategory": "scn-031-move",
+    "task_type": "T3-ui",
+    "parent_feature": "06-c Warehouse Movement",
+    "context_budget": "25k",
+    "estimated_effort": "2h",
+    "description": "SCN-031 Move LP screen with lock acquisition, mini-grid, 4 quick-buttons, hold/consumed/blocked block errors.",
+    "details": "Parity checklist:\n1) LP scan area at top.\n2) LP mini-grid below the scan area.\n3) Destination scan area + 4 quick-buttons (frequent locations).\n4) Status block errors per D9 — full screen.\n5) /lock-lp acquired before destination, /release-lock called after success.",
+    "scope_files": [
+      "apps/scanner/src/app/scanner/move/page.tsx [create]",
+      "apps/scanner/src/app/scanner/move/done/page.tsx [create]",
+      "apps/scanner/__tests__/scn-031-move.test.tsx [create]",
+      "design/Monopilot Design System/scanner/flow-other.jsx:10-86 [ref]"
+    ],
+    "out_of_scope": [
+      "Do not implement supervisor force-release here",
+      "Do not implement split-LP here (T-036)",
+      "Do not implement SCN-040 putaway here"
+    ],
+    "dependencies": ["T-013", "T-034"],
+    "parallel_safe_with": ["T-036"],
+    "acceptance_criteria": [
+      "Given the page renders, when compared to design/Monopilot Design System/scanner/flow-other.jsx:10-86, then it has the LP scan area, mini-grid, destination scan area, and 4 quick-buttons in the same order — RTL snapshot + manual checklist",
+      "Given an LP whose lookup returns status='hold', when the LP scan completes, then a full-screen block error 'LP na QA Hold, nie można przesunąć' is shown and destination scan is hidden",
+      "Given a successful move, when /move-lp returns 200, then /release-lock is called and the user is redirected to /scanner/move/done with orange→green animation"
+    ],
+    "test_strategy": [
+      "RED: write scn-031-move.test.tsx asserting parity + hold-block + happy-path lock release before implementation",
+      "Run 'pnpm --filter scanner test scn-031-move'"
+    ],
+    "risk_red_lines": [
+      "Do not skip /release-lock on success",
+      "Do not bypass hold/consumed/blocked",
+      "Do not allow destination = current"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

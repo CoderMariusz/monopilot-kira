@@ -1,0 +1,59 @@
+{
+  "title": "T-002 — Reference table qa_failure_reasons (02-SETTINGS §8 extension)",
+  "prompt": "# T-002 — Reference table qa_failure_reasons\n\nPRD: 09-QUALITY-PRD.md §6.3 quality_inspections.fail_reason_code_id, §8 SCN-072 (7 failure reasons), §16.3, ADR-034\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nRegister `qa_failure_reasons` reference table (industry-configurable taxonomy) with the 7 baseline scanner failure reasons matching 06-SCN §8.5 contract so SCN-072 and inspection fail flows can FK `fail_reason_code_id`.\n\n## Implementation contract\n1. Drizzle migration `packages/db/migrations/0091_qa_failure_reasons_reftable.sql` registers reference_tables row code=`qa_failure_reasons` with schema_json {code,label,scanner_visible bool,severity_default text,category,i18n jsonb}.\n2. Seed 7 scanner-visible rows: damaged_packaging, foreign_object, temperature_out_of_spec, weight_variance, missing_documentation, allergen_cross_contact, microbiological_concern. Plus 3 desktop-only rows: visual_defect_other, sensory_off_spec, label_mismatch.\n3. Server helper `apps/web/src/server/quality/failureReasons.ts` exporting `getFailureReasons(orgId, {scannerVisible?})`.\n\n## Files\n- packages/db/migrations/0091_qa_failure_reasons_reftable.sql [create]\n- apps/web/src/server/quality/failureReasons.ts [create]\n- apps/web/src/server/quality/__tests__/failureReasons.test.ts [create]\n\n## Acceptance criteria\n1. Given migration 0091 applied, when SELECT FROM reference_tables_rows WHERE table_code='qa_failure_reasons' runs, then exactly 10 rows exist (7 scanner_visible=true, 3 false)\n2. Given filter scannerVisible=true, when getFailureReasons(orgId,{scannerVisible:true}) is called, then it returns exactly 7 rows in stable category ordering\n3. Given a row insert with severity_default not in (critical,major,minor), then the reference_tables JSON-schema validator rejects it",
+  "labels": ["prd", "data", "reference-tables", "T1-schema"],
+  "priority": 50,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-002",
+    "source_prd": "09-QUALITY-PRD.md",
+    "prd_refs": ["§6.3", "§8 SCN-072", "§16.3"],
+    "category": "data",
+    "subcategory": "reference-tables",
+    "task_type": "T1-schema",
+    "parent_feature": "02-SETTINGS §8 extension for 09-QUALITY",
+    "context_budget": "25k",
+    "estimated_effort": "1h",
+    "description": "Register qa_failure_reasons reference table + seed 7 scanner + 3 desktop rows + server helper.",
+    "details": "Migration 0091 inserts registry row with schema_json {code,label,scanner_visible,severity_default,category,i18n}. Seeds 10 rows (7 scanner-visible matching 06-SCN §8.5, 3 desktop-only). Helper getFailureReasons supports scannerVisible filter under tenant RLS. Tests cover count, filter, validator rejection.",
+    "scope_files": [
+      "packages/db/migrations/0091_qa_failure_reasons_reftable.sql [create]",
+      "apps/web/src/server/quality/failureReasons.ts [create]",
+      "apps/web/src/server/quality/__tests__/failureReasons.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not create quality_inspections table (T-021)",
+      "Do not build scanner inspect API (T-024)",
+      "Do not register hold_reasons (T-001) or waste_categories (T-003)"
+    ],
+    "dependencies": [],
+    "parallel_safe_with": ["T-001", "T-003"],
+    "acceptance_criteria": [
+      "Given migration 0091 is applied, when SELECT FROM reference_tables_rows WHERE table_code='qa_failure_reasons' runs, then exactly 10 rows exist with 7 having scanner_visible=true and 3 false",
+      "Given scannerVisible filter, when getFailureReasons(orgId,{scannerVisible:true}) is called, then exactly 7 rows are returned ordered stably by (category,label)",
+      "Given a row insert with severity_default not in {critical,major,minor}, then the reference_tables JSON-schema validator rejects it"
+    ],
+    "test_strategy": [
+      "RED: write apps/web/src/server/quality/__tests__/failureReasons.test.ts asserting count, filter, validator rejection before migration exists",
+      "Run 'pnpm --filter db migrate && pnpm --filter web test failureReasons'"
+    ],
+    "risk_red_lines": [
+      "Do not hardcode failure reasons in scanner code (06-SCN §8.5 must read this reference table)",
+      "Do not omit i18n jsonb column",
+      "Do not deviate from the 7 canonical scanner reasons listed in §8 SCN-072"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

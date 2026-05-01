@@ -1,0 +1,36 @@
+{
+  "title": "T-027 — Wiring: Schema-driven L3 extension propagation from 02-SETTINGS",
+  "prompt": "Per §6.3 + KPI 'schema-driven extensions propagate within 5s'. Implement listener that subscribes to reference_schemas changes for entity='items' (02-SETTINGS §6) and rebuilds the runtime Zod schema used by item-create/edit endpoints. Cache invalidation broadcast via existing in-process pub/sub or NATS-style channel. RED tests/wiring/schema-propagation.test.ts. Run: `pnpm vitest run tests/wiring/schema-propagation.test.ts`.",
+  "labels": ["prd", "integration", "schema-propagation", "T4-wiring-test"],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-027",
+    "source_prd": "03-TECHNICAL-PRD.md",
+    "prd_refs": ["§6.3", "§14.3"],
+    "category": "integration",
+    "subcategory": "schema-propagation",
+    "task_type": "T4-wiring-test",
+    "parent_feature": "03-TECHNICAL-a Item Master",
+    "context_budget": "20k",
+    "estimated_effort": "2h",
+    "description": "Listener that rebuilds item Zod schema when 02-SETTINGS reference_schemas change.",
+    "details": "Use existing internal event bus. After change emit, subsequent POST /items must validate against new schema. Cache TTL <=5s for KPI compliance.",
+    "scope_files": ["lib/technical/items/schema-cache.ts", "tests/wiring/schema-propagation.test.ts"],
+    "out_of_scope": ["02-SETTINGS schema wizard UI"],
+    "dependencies": ["T-009"],
+    "parallel_safe_with": ["T-024", "T-025", "T-026"],
+    "acceptance_criteria": [
+      "Given reference_schemas adds field 'organic_certified', when POST /items omits it but it's required, then 422 within 5s of schema change.",
+      "Given schema removed, when POST runs, then field is no longer required.",
+      "Given cache invalidation event missed, when TTL expires, then schema reload still occurs within 5s."
+    ],
+    "test_strategy": ["RED tests with simulated schema mutation + timing.", "Run: pnpm vitest run tests/wiring/schema-propagation.test.ts"],
+    "risk_red_lines": ["Do not require app restart — must hot-reload."],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {"required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"], "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]},
+    "routing_hints": {"red": "hermes_gpt55", "implementation": "hermes_gpt55", "review": "opus_if_high_risk_or_ui_or_architecture", "close": "spark_low_risk_else_opus"}
+  }
+}

@@ -1,0 +1,52 @@
+{
+  "title": "T-010 — Implement SET-006 First Work Order step (soft redirect to 04-PLANNING-BASIC, skippable)",
+  "prompt": "Implement step 5 screen: soft redirect to 04-PLANNING-BASIC create work order, with skip button.\n\nPRD §14.3-14.4 SET-006:\n- Optional step (can skip via 'Skip Creating a Work Order' button)\n- Shows intro text: \"Create your first work order\"\n- \"Proceed to Planning Module\" button links to /planning/work-orders (or main create WO flow)\n- \"Skip\" button marks step 5 as skipped and moves to step 6 (completion)\n- Supports resume: if user navigates back, same state is recovered\n\nAcceptance:\n- Step 5 screen renders with both button options\n- 'Proceed' button navigates to WO creation (soft redirect)\n- 'Skip' button calls POST /api/v1/onboarding/step {step_number: 5, skip: true} and advances to step 6\n- onboarding_state.skipped_steps includes 5 after skip is clicked\n- KPI measurement: timestamp is captured when step 5 submitted (completed or skipped) — this triggers <30min P95 window\n\nTest: E2E test verifies skip button marks step 5 as skipped and final step is reachable.",
+  "labels": ["prd", "ui", "screen", "T3-ui"],
+  "priority": 105,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-010",
+    "source_prd": "02-SETTINGS-PRD.md",
+    "prd_refs": ["§14.3", "§14.4"],
+    "category": "ui",
+    "subcategory": "screen",
+    "task_type": "T3-ui",
+    "parent_feature": "onboarding_wizard",
+    "context_budget": "25k",
+    "estimated_effort": "1.5-2h",
+    "description": "Step 5 soft redirect to work order creation (skippable)",
+    "details": "Create FirstWorkOrderStep component (no form, just UI). Display: title 'Create Your First Work Order', description text, two buttons: (1) 'Proceed to Planning Module' (href to /planning/work-orders or /app/planning/work-orders). (2) 'Skip Creating a Work Order' (calls POST /api/v1/onboarding/step with step_number=5, skip=true). Backend should add 5 to skipped_steps and set current_step=6. After skip or proceed, user can reach step 6 (completion). Match wizard design language. Note: KPI measurement for 'first WO created' (PRD line 57) starts when step 5 is submitted (last user action before completion).",
+    "scope_files": ["src/components/onboarding/steps/FirstWorkOrderStep.tsx", "tests/e2e/onboarding.spec.ts"],
+    "out_of_scope": ["work order creation module (04-PLANNING-BASIC)", "work order schema/business logic", "KPI collection (assume measured elsewhere)"],
+    "dependencies": ["T-002", "T-009"],
+    "parallel_safe_with": ["T-004", "T-005", "T-006", "T-007", "T-008"],
+    "acceptance_criteria": [
+      "Given step 5 screen is rendered, when user clicks 'Proceed to Planning Module', then user navigates to /planning/work-orders (soft redirect)",
+      "Given step 5 screen is rendered, when user clicks 'Skip', then POST /api/v1/onboarding/step with step_number=5, skip=true is called",
+      "Given skip button clicked, when response returns current_step=6, then step 5 appears in skipped_steps array and next_step is null (completion reached)"
+    ],
+    "test_strategy": [
+      "Write e2e test: test_work_order_step_skip() clicks skip button and verifies skipped_steps contains 5",
+      "Write e2e test: test_work_order_step_redirect() clicks proceed button and verifies href navigation",
+      "Run: npx cypress run -e TEST_FILE=tests/e2e/onboarding.spec.ts --spec '**/step-5*'",
+      "Verify GET /api/v1/onboarding/resume after skip shows current_step=6 and status='complete'"
+    ],
+    "risk_red_lines": [
+      "Do not auto-skip this step; only skip on explicit user action",
+      "Do not block wizard completion if user skips WO creation"
+    ],
+    "skills": ["test-driven-development"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

@@ -1,0 +1,58 @@
+{
+  "title": "T-016 — LP create + numbering sequence service",
+  "prompt": "# T-016 — LP create + numbering sequence service\n\nPRD: `05-WAREHOUSE-PRD.md` §6.3 (FR-WH-001).\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`.\n\n## Goal\nProvide `createLicensePlate(input)` service that allocates the next LP number per (tenant, warehouse) sequence and inserts a row.\n\n## Implementation contract\nIn `apps/web/lib/services/warehouse/lp-create.ts` expose async function returning created LP. Use a Postgres sequence `lp_seq_{tenant_id}_{warehouse_id}` created lazily, formatted with `warehouse_settings.lp_number_prefix` + zero-padded `lp_number_sequence_length`. Allow manual override when `allow_manual_lp_number=true`. Insert audit fields. Emit nothing here (T-047 emits).\n\n## Files (scope)\n- apps/web/lib/services/warehouse/lp-create.ts [create]\n- apps/web/lib/services/warehouse/__tests__/lp-create.test.ts [create]\n\n## Acceptance criteria\n1. Given two consecutive calls for tenant A / warehouse X, when service runs, then second LP_number is exactly first+1 padded to length.\n2. Given allow_manual_lp_number=true and operator passes 'LP-CUSTOM-1', when service runs, then row is created with lp_number='LP-CUSTOM-1'.\n3. Given the same custom number is reused, when service runs, then it raises a unique-violation error from V-WH-LP-001.\n\n## Test strategy\n- RED: lp-create.test.ts with two fixtures (auto sequence and manual override + duplicate).\n- Run `pnpm --filter web test lp-create`.\n\n## Risk red lines\n- Do not bypass the sequence (race condition).\n- Do not skip RLS (must run inside transaction with app.tenant_id set).\n- Do not emit outbox events here.",
+  "labels": ["prd", "api", "lp-core", "T2-api"],
+  "priority": 90,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-016",
+    "source_prd": "05-WAREHOUSE-PRD.md",
+    "prd_refs": ["§6.3"],
+    "category": "api",
+    "subcategory": "lp-core",
+    "task_type": "T2-api",
+    "parent_feature": "warehouse-lp-core",
+    "context_budget": "30k",
+    "estimated_effort": "1-2h",
+    "description": "createLicensePlate service allocating LP number via per-(tenant, warehouse) sequence.",
+    "details": "Lazy sequence creation; padded format from warehouse_settings; manual override path; unique-violation surfaced as 409. Audit columns set; outbox emission deferred to T-047.",
+    "scope_files": [
+      "apps/web/lib/services/warehouse/lp-create.ts [create]",
+      "apps/web/lib/services/warehouse/__tests__/lp-create.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Outbox emission (T-047)",
+      "UI surfaces (T-049/T-050)",
+      "Split/merge/genealogy (T-017/T-018)"
+    ],
+    "dependencies": ["T-002", "T-009", "T-012"],
+    "parallel_safe_with": ["T-017", "T-018"],
+    "acceptance_criteria": [
+      "Given two consecutive calls for tenant A warehouse X, when run, then second LP_number = first+1 padded to length",
+      "Given allow_manual_lp_number=true and 'LP-CUSTOM-1', when run, then row persists with that value",
+      "Given duplicate manual number, when run, then service raises a unique-violation error"
+    ],
+    "test_strategy": [
+      "RED: lp-create.test.ts covers auto-sequence and manual override + duplicate",
+      "Run 'pnpm --filter web test lp-create'"
+    ],
+    "risk_red_lines": [
+      "Do not bypass the sequence",
+      "Do not skip RLS context",
+      "Do not emit outbox here"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

@@ -1,859 +1,1239 @@
-[
-  {
-    "label": "asset_edit_modal",
-    "file": "design/Monopilot Design System/maintenance/modals.jsx",
-    "lines": "29-79",
-    "component_type": "modal",
-    "ui_pattern": "crud-form-with-validation",
-    "data_domain": "Asset",
-    "interaction": "create",
-    "complexity": "composite",
-    "depends_on_prototypes": [],
-    "translation_notes": [
-      "window.Modal wrapper → @radix-ui/react-dialog Dialog with shadcn Dialog primitive",
-      "Local useState for loto/cal toggles → useForm (react-hook-form) with zodResolver; checkbox fields map to z.boolean()",
-      "Mock MNT_ASSETS/production_lines data → Drizzle query joining assets + production_lines tables in Server Component or RSC loader",
-      "L3 extension fields section → tenant JSONB column rendered dynamically from schema registry; use shadcn Collapsible to hide by default",
-      "Add Server Action with RBAC guard (isManager check) before upsert; emit asset.created / asset.updated outbox event",
-      "Conditional calibration interval field (disabled={!cal}) → Controller field with watch('requiresCalibration') and dynamic disabled prop",
-      "Hardcoded equipment types list → reference table query from settings_equipment_types",
-      "Hardcoded labels → next-intl keys under maintenance.asset.form.*"
-    ],
-    "shadcn_equivalent": ["Dialog", "Form", "FormField", "Input", "Select", "Checkbox", "Button", "Label"],
-    "known_bugs": [],
-    "estimated_translation_time_min": 90
-  },
-  {
-    "label": "wr_create_modal",
-    "file": "design/Monopilot Design System/maintenance/modals.jsx",
-    "lines": "81-121",
-    "component_type": "modal",
-    "ui_pattern": "crud-form-with-validation",
-    "data_domain": "WR",
-    "interaction": "create",
-    "complexity": "composite",
-    "depends_on_prototypes": [],
-    "translation_notes": [
-      "window.Modal → @radix-ui/react-dialog Dialog; use sheet variant for mobile shop-floor touch targets",
-      "Character counter on textarea (desc.length / 1000) → controlled Input with useWatch + FormDescription; enforce minLength=10 in zod schema",
-      "Severity grid buttons (wr-sev-btn) → shadcn ToggleGroup single-select mapped to z.enum(['critical','high','medium','low'])",
-      "Auto-fill from downtime event prop → Server Component pre-fills defaultValues from downtime_events query when downtimeEventId param present",
-      "QR Scan button → triggers camera permission + zxing scanner; wired as P2 per BL-SCN-02 pattern",
-      "File multi-upload → shadcn Input type=file + server-side S3 upload via presigned URL Server Action",
-      "Add Server Action with RBAC guard; emit work_request.created outbox event on success",
-      "Hardcoded labels → next-intl keys under maintenance.wr.create.*"
-    ],
-    "shadcn_equivalent": ["Dialog", "Form", "FormField", "Textarea", "Input", "ToggleGroup", "Button", "Alert"],
-    "known_bugs": [],
-    "estimated_translation_time_min": 75
-  },
-  {
-    "label": "wr_triage_modal",
-    "file": "design/Monopilot Design System/maintenance/modals.jsx",
-    "lines": "123-183",
-    "component_type": "modal",
-    "ui_pattern": "detail-view",
-    "data_domain": "WR",
-    "interaction": "approve",
-    "complexity": "composite",
-    "depends_on_prototypes": ["wr_create_modal"],
-    "translation_notes": [
-      "window.Modal size=wide → Dialog with max-w-3xl; read-only summary-block section → shadcn Card with read-only dl/dd key-value grid",
-      "Three-path decision toggle (approve/reject/duplicate) → shadcn RadioGroup or ToggleGroup; each value conditionally shows additional fields via watch()",
-      "Conditional approve fields (priority, type, technician, start) → useWatch('decision') === 'approve' guard wrapping FormField group",
-      "V-MNT-02 requester !== approver constraint → enforce in Server Action; display alert banner client-side as advisory only",
-      "Duplicate-of mWO picker → shadcn Command/Combobox with debounced search against mwos API route",
-      "Add Server Action that transitions WR status (requested → approved/rejected/duplicate) and creates mWO record when approved; emit wr.triaged outbox event",
-      "MNT_TECHNICIANS mock → Drizzle query on technicians table filtered by on_shift=true",
-      "Hardcoded labels → next-intl keys under maintenance.wr.triage.*"
-    ],
-    "shadcn_equivalent": ["Dialog", "Form", "RadioGroup", "Select", "Input", "Button", "Alert", "Card"],
-    "known_bugs": [],
-    "estimated_translation_time_min": 90
-  },
-  {
-    "label": "mwo_create_modal",
-    "file": "design/Monopilot Design System/maintenance/modals.jsx",
-    "lines": "185-234",
-    "component_type": "modal",
-    "ui_pattern": "crud-form-with-validation",
-    "data_domain": "MWO",
-    "interaction": "create",
-    "complexity": "composite",
-    "depends_on_prototypes": [],
-    "translation_notes": [
-      "window.Modal → @radix-ui/react-dialog Dialog; assetId prop pre-fills asset Select via defaultValues",
-      "mWO type radio grid (5 types) → shadcn RadioGroup with icon badges for each type variant",
-      "Priority radio grid → RadioGroup with PriorityBadge visual; maps to z.enum(['critical','high','medium','low'])",
-      "Conditional sanitation allergen checkbox → useWatch('type') === 'sanitation' guard; allergen changeover flag persisted on mwo record",
-      "PM schedule linker Select → Combobox with search against pm_schedules filtered by asset; optional field",
-      "Add Server Action creating mwo record with initial state=open; emit mwo.created outbox event; RBAC guard on isManager",
-      "MNT_PM_SCHEDULES / MNT_TECHNICIANS mocks → parallel Drizzle queries in Server Component",
-      "Hardcoded labels → next-intl keys under maintenance.mwo.create.*"
-    ],
-    "shadcn_equivalent": ["Dialog", "Form", "RadioGroup", "Select", "Textarea", "Input", "Checkbox", "Button", "Alert"],
-    "known_bugs": [],
-    "estimated_translation_time_min": 90
-  },
-  {
-    "label": "task_checkoff_modal",
-    "file": "design/Monopilot Design System/maintenance/modals.jsx",
-    "lines": "236-294",
-    "component_type": "modal",
-    "ui_pattern": "crud-form-with-validation",
-    "data_domain": "MWO",
-    "interaction": "edit",
-    "complexity": "composite",
-    "depends_on_prototypes": ["mwo_create_modal"],
-    "translation_notes": [
-      "window.Modal → Dialog; step prop drives dynamic title and conditional field rendering based on step.type",
-      "step.type === 'measure' branch → Input + unit Select; actual value stored and auto-compared to expected in Server Action returning pass/fail",
-      "step.type === 'photo' branch → Input type=file with capture=environment; upload via S3 presigned URL Server Action",
-      "Parts used sub-section → inline table with Drizzle query for planned parts on this step; quantity Input updates consumed_qty",
-      "step.type === 'signoff' + PIN input → shadcn Input type=password; Server Action verifies PIN against user credential hash",
-      "Time logged fields → duration Number Input + note Text; persisted as labor_entry row linked to mwo + step",
-      "Add Server Action marking checklist step done; emit mwo.step_completed outbox event; enforce RBAC (assigned tech only)",
-      "Hardcoded labels → next-intl keys under maintenance.mwo.tasks.*"
-    ],
-    "shadcn_equivalent": ["Dialog", "Form", "Input", "Select", "Button", "Card", "Label"],
-    "known_bugs": [],
-    "estimated_translation_time_min": 90
-  },
-  {
-    "label": "mwo_complete_signoff_modal",
-    "file": "design/Monopilot Design System/maintenance/modals.jsx",
-    "lines": "296-355",
-    "component_type": "modal",
-    "ui_pattern": "crud-form-with-validation",
-    "data_domain": "MWO",
-    "interaction": "sign-off",
-    "complexity": "composite",
-    "depends_on_prototypes": ["mwo_create_modal", "task_checkoff_modal"],
-    "translation_notes": [
-      "window.Modal size=wide → Dialog max-w-3xl; preconditions block → shadcn Card with dynamic check icons driven by Server Component query",
-      "allOk derived state → computed server-side from mwo checklist completion + LOTO cleared status; passed as prop to client component",
-      "Three-button footer (Cancel / Save draft / Confirm complete) → shadcn Button variants; Save draft calls partial-save Server Action",
-      "Sign-off strip rows (technician auto-applied, supervisor counter-sign, safety officer) → multi-role signoff table; each row calls request_signoff Server Action",
-      "Completion notes textarea required (V-MNT-04) → zod .min(1) + refine; persisted as mwo.completion_notes column",
-      "Follow-up mWO checkbox → if checked, Server Action creates new mwo record linked via parent_mwo_id",
-      "Asset status after work Select → updates assets.status column on mwo completion",
-      "Hardcoded labels → next-intl keys under maintenance.mwo.complete.*"
-    ],
-    "shadcn_equivalent": ["Dialog", "Form", "FormField", "Textarea", "Select", "Checkbox", "Button", "Alert", "Card"],
-    "known_bugs": [],
-    "estimated_translation_time_min": 120
-  },
-  {
-    "label": "pm_schedule_edit_wizard",
-    "file": "design/Monopilot Design System/maintenance/modals.jsx",
-    "lines": "357-472",
-    "component_type": "wizard",
-    "ui_pattern": "multi-step-wizard",
-    "data_domain": "PMSchedule",
-    "interaction": "create",
-    "complexity": "composite",
-    "depends_on_prototypes": [],
-    "translation_notes": [
-      "Stepper primitive → shadcn Steps (or custom stepper built on ol/li) tracking completed Set; step keys: asset/freq/assign/review",
-      "Step 1 asset selection → shadcn Select for asset + RadioGroup for schedule type + allergen Checkbox with conditional Alert",
-      "Step 2 frequency inputs → three-option RadioGroup for interval basis (calendar/usage-hours/cycles) + numeric Inputs for interval/warning/lead-time",
-      "Step 3 assignment → Select for technician + Combobox for template from task_templates table; auto-generate Checkbox",
-      "Step 4 review → read-only Summary Card + generated occurrences table computed server-side from interval; useQuery or Server Component",
-      "Save & activate vs Save buttons → Server Action with active=true/false flag; emit pm_schedule.created outbox event",
-      "MNT_TEMPLATES mock → Drizzle query on task_templates table",
-      "Hardcoded labels → next-intl keys under maintenance.pm.wizard.*"
-    ],
-    "shadcn_equivalent": ["Dialog", "Form", "Select", "RadioGroup", "Checkbox", "Input", "Button", "Alert", "Card", "Table"],
-    "known_bugs": [],
-    "estimated_translation_time_min": 150
-  },
-  {
-    "label": "pm_occurrence_skip_modal",
-    "file": "design/Monopilot Design System/maintenance/modals.jsx",
-    "lines": "474-498",
-    "component_type": "modal",
-    "ui_pattern": "crud-form-with-validation",
-    "data_domain": "PMSchedule",
-    "interaction": "edit",
-    "complexity": "primitive",
-    "depends_on_prototypes": ["pm_schedule_edit_wizard"],
-    "translation_notes": [
-      "window.Modal → Dialog; summary-block read-only section → shadcn dl key-value pairs",
-      "Reason Select (Planned downtime / Asset offline / ...) → shadcn Select mapped to z.enum(skipReasonEnum)",
-      "Additional notes ReasonInput with minLength=10 → shadcn Textarea with zod .min(10) validation",
-      "Next due date override date Input → shadcn DatePicker; if blank, computed by Server Action as last_done + interval_days",
-      "Compliance metric warning Alert → informational shadcn Alert; manager notification emitted as pm_schedule.skip_threshold_exceeded event if count > config threshold",
-      "Add Server Action updating pm_occurrence status=skipped + logging skip_reason; RBAC guard isManager",
-      "Hardcoded labels → next-intl keys under maintenance.pm.skip.*"
-    ],
-    "shadcn_equivalent": ["Dialog", "Form", "Select", "Textarea", "Input", "Button", "Alert"],
-    "known_bugs": [],
-    "estimated_translation_time_min": 60
-  },
-  {
-    "label": "calibration_reading_modal",
-    "file": "design/Monopilot Design System/maintenance/modals.jsx",
-    "lines": "500-568",
-    "component_type": "modal",
-    "ui_pattern": "crud-form-with-validation",
-    "data_domain": "Asset",
-    "interaction": "create",
-    "complexity": "composite",
-    "depends_on_prototypes": [],
-    "translation_notes": [
-      "window.Modal size=wide → Dialog max-w-3xl; dynamic test points array (add/remove) → useFieldArray from react-hook-form",
-      "Per-point inSpec auto-compute → derive pass/fail in onChange handler: Math.abs(measured - reference) / reference * 100 <= tolerance",
-      "Overall result auto-compute (PASS/FAIL) → derived from all point.inSpec values; override checkbox sets manual=FAIL in form state",
-      "FAIL result → Alert + Server Action emits calibration.fail outbox event triggering Quality hold candidate creation in 09-QUALITY",
-      "Certificate PDF upload → Input type=file; Server Action uploads to S3 + computes SHA-256 + stores hash in calibration_records.cert_sha256",
-      "Next due date readOnly field → computed server-side as calibrated_at + instrument.interval_days; displayed via Server Component",
-      "MNT_SKILL_MATRIX filter for Calibration skill → Drizzle query joining technicians + tech_skills where skill='Calibration'",
-      "Hardcoded labels → next-intl keys under maintenance.calibration.record.*"
-    ],
-    "shadcn_equivalent": ["Dialog", "Form", "FormField", "Input", "Select", "Button", "Alert", "Card", "Table", "Checkbox"],
-    "known_bugs": [],
-    "estimated_translation_time_min": 120
-  },
-  {
-    "label": "calibration_cert_upload_modal",
-    "file": "design/Monopilot Design System/maintenance/modals.jsx",
-    "lines": "570-593",
-    "component_type": "modal",
-    "ui_pattern": "crud-form-with-validation",
-    "data_domain": "Asset",
-    "interaction": "import",
-    "complexity": "primitive",
-    "depends_on_prototypes": ["calibration_reading_modal"],
-    "translation_notes": [
-      "window.Modal → Dialog; cert-card display → shadcn Card with pending SHA-256 placeholder",
-      "PDF file input → shadcn Input type=file accept=application/pdf; client-side 10MB size check before upload",
-      "Server Action: upload to S3, compute SHA-256 hash via crypto.subtle, store in calibration_certificates table with cert_date + issuing_authority",
-      "Authenticity confirmation Checkbox → required; z.literal(true) in zod schema to block submit until checked",
-      "21 CFR Part 11 note: SHA-256 hash stored immutably; retention = 7 years from cert_date (BRCGS Issue 10)",
-      "Hardcoded labels → next-intl keys under maintenance.calibration.certUpload.*"
-    ],
-    "shadcn_equivalent": ["Dialog", "Form", "Input", "Checkbox", "Button", "Card"],
-    "known_bugs": [],
-    "estimated_translation_time_min": 45
-  },
-  {
-    "label": "spare_reorder_modal",
-    "file": "design/Monopilot Design System/maintenance/modals.jsx",
-    "lines": "595-619",
-    "component_type": "modal",
-    "ui_pattern": "crud-form-with-validation",
-    "data_domain": "Spare",
-    "interaction": "create",
-    "complexity": "primitive",
-    "depends_on_prototypes": [],
-    "translation_notes": [
-      "window.Modal → Dialog; summary-block pre-filled from spare part master → read-only shadcn Card section loaded via Server Component",
-      "Reorder qty Input → z.number().positive(); UoM shown as readOnly pre-filled from spare.unit",
-      "Supplier and lead-time fields pre-filled from spare_parts.supplier_id join → readOnly display; link to supplier detail",
-      "Server Action creates purchase_request record with status=pending; BL-MAINT-07 note: P2 integration with 04-Planning PO module pending",
-      "P2 note Alert → informational shadcn Alert; track via feature flag purchasing.po_integration.enabled",
-      "Add RBAC guard; emit spare.reorder_requested outbox event; notify warehouse manager via notification service",
-      "Hardcoded labels → next-intl keys under maintenance.spares.reorder.*"
-    ],
-    "shadcn_equivalent": ["Dialog", "Form", "Input", "Button", "Alert", "Card"],
-    "known_bugs": ["BL-MAINT-07: P2 PO integration not wired; creates internal notification only in P1"],
-    "estimated_translation_time_min": 60
-  },
-  {
-    "label": "technician_skill_edit_modal",
-    "file": "design/Monopilot Design System/maintenance/modals.jsx",
-    "lines": "621-657",
-    "component_type": "modal",
-    "ui_pattern": "crud-form-with-validation",
-    "data_domain": "Role",
-    "interaction": "edit",
-    "complexity": "composite",
-    "depends_on_prototypes": [],
-    "translation_notes": [
-      "window.Modal size=wide → Dialog max-w-2xl; skill level RadioGroup → shadcn RadioGroup with z.enum(['basic','advanced','specialist'])",
-      "Certifications repeating rows table → useFieldArray; each row has text inputs for name/issuer + date pickers for issue/expiry + file upload for scan",
-      "File upload per row (⇪ button) → S3 presigned upload per certification scan; store URL in tech_certifications.scan_url",
-      "Add row button → fieldArray.append({ name:'', issuer:'', issue:'', expiry:'', scan:null })",
-      "Cert expiry tracking note → server-side cron job alerts 30 days before expiry via notification_events; display-only in prototype",
-      "GDPR note (Technician Detail) → personal data fields must have data_category annotation in Drizzle schema for GDPR compliance",
-      "Add Server Action upserting technician_skills + tech_certifications; RBAC guard isManager only",
-      "Hardcoded labels → next-intl keys under maintenance.technicians.skills.*"
-    ],
-    "shadcn_equivalent": ["Dialog", "Form", "RadioGroup", "Input", "Button", "Table"],
-    "known_bugs": ["BL-MAINT-05: Skills Matrix PDF export with cert scans is button stub only"],
-    "estimated_translation_time_min": 90
-  },
-  {
-    "label": "loto_apply_modal",
-    "file": "design/Monopilot Design System/maintenance/modals.jsx",
-    "lines": "659-731",
-    "component_type": "wizard",
-    "ui_pattern": "wizard-step",
-    "data_domain": "Asset",
-    "interaction": "create",
-    "complexity": "composite",
-    "depends_on_prototypes": [],
-    "translation_notes": [
-      "window.Modal dismissible=false → Dialog with no close on outside click; two-person policy enforced server-side",
-      "Energy source isolation checklist (nrg-step rows) → useFieldArray of steps with done boolean; toggle updates local Set via useState pattern → useForm array",
-      "Second verifier pending note → server-side WebSocket or polling; second person must confirm from own session (BL-MAINT-04: remote confirmation flow pending)",
-      "Tags/locks repeating rows → useFieldArray with location/tag-id/applied-by fields; add/remove via append/remove",
-      "Zero-energy Checkbox with PIN confirmation → shadcn Checkbox + PIN Input; Server Action verifies user credential before persisting",
-      "Server Action creates loto_procedure record with status=active + energy_sources JSONB array; emit loto.applied outbox event",
-      "V-MNT safety constraint: two-person verification required for critical assets; enforce in Server Action not just client",
-      "Hardcoded labels → next-intl keys under maintenance.loto.apply.*"
-    ],
-    "shadcn_equivalent": ["Dialog", "Form", "Checkbox", "Input", "Select", "Button", "Alert", "Card"],
-    "known_bugs": ["BL-MAINT-02: LOTO photo evidence currently Recommended; awaiting safety sign-off to gate as Required", "BL-MAINT-04: Two-person remote confirmation flow not prototyped — assumes separate sessions"],
-    "estimated_translation_time_min": 120
-  },
-  {
-    "label": "loto_clear_modal",
-    "file": "design/Monopilot Design System/maintenance/modals.jsx",
-    "lines": "733-802",
-    "component_type": "modal",
-    "ui_pattern": "crud-form-with-validation",
-    "data_domain": "Asset",
-    "interaction": "sign-off",
-    "complexity": "composite",
-    "depends_on_prototypes": ["loto_apply_modal"],
-    "translation_notes": [
-      "window.Modal dismissible=false size=wide → Dialog max-w-2xl; pre-clear checklist → useFieldArray of boolean checks",
-      "Two-person sign-off strip → two separate signoff rows; each sign button calls request_signoff Server Action with role (technician/safety_officer)",
-      "canConfirm derived state → allChecked && signed.t1 && signed.t2 → computed server-side; client receives pre-condition status as prop",
-      "mWO in-progress warning Alert → sourced from loto_procedure.linked_mwo join with mwos.status; shown only when status !== completed/paused",
-      "Photo evidence file input → optional in P1 per config loto.photoEvidence setting; S3 upload via Server Action",
-      "Server Action updates loto_procedure status=cleared + records cleared_by + cleared_at; RBAC guard two-person validation",
-      "V-MNT-09 constraint: both signers must be distinct users; enforce in Server Action",
-      "Hardcoded labels → next-intl keys under maintenance.loto.clear.*"
-    ],
-    "shadcn_equivalent": ["Dialog", "Form", "Checkbox", "Input", "Button", "Alert", "Card"],
-    "known_bugs": ["BL-MAINT-02: Photo evidence gate configurable but currently Recommended only"],
-    "estimated_translation_time_min": 120
-  },
-  {
-    "label": "delete_confirm_modal",
-    "file": "design/Monopilot Design System/maintenance/modals.jsx",
-    "lines": "804-822",
-    "component_type": "modal",
-    "ui_pattern": "crud-form-with-validation",
-    "data_domain": "Asset",
-    "interaction": "delete",
-    "complexity": "primitive",
-    "depends_on_prototypes": [],
-    "translation_notes": [
-      "window.Modal dismissible=false size=sm → AlertDialog (shadcn AlertDialog, not Dialog) for destructive confirmation pattern",
-      "Type-to-confirm Input → controlled state; submit disabled until typed.trim().toUpperCase() === code.toUpperCase(); zod .refine() to enforce",
-      "Generic entity/code props → single reusable component accepting entity: string + code: string; renders appropriate copy",
-      "Server Action performs soft-delete (active=false, deactivated_at=now()); linked records preserved for audit per business rule",
-      "RBAC guard isAdmin only for delete; emit entity.deactivated outbox event",
-      "Hardcoded labels → next-intl keys under maintenance.delete.*"
-    ],
-    "shadcn_equivalent": ["AlertDialog", "AlertDialogContent", "AlertDialogHeader", "AlertDialogFooter", "Input", "Button"],
-    "known_bugs": [],
-    "estimated_translation_time_min": 30
-  },
-  {
-    "label": "criticality_override_modal",
-    "file": "design/Monopilot Design System/maintenance/modals.jsx",
-    "lines": "824-844",
-    "component_type": "modal",
-    "ui_pattern": "crud-form-with-validation",
-    "data_domain": "Asset",
-    "interaction": "edit",
-    "complexity": "primitive",
-    "depends_on_prototypes": [],
-    "translation_notes": [
-      "window.Modal → Dialog; current criticality shown as read-only CritBadge → shadcn Badge with color variant",
-      "New criticality Select → z.enum(['critical','high','medium','low']); paired with effective_date DatePicker",
-      "ReasonInput with minLength=10 → shadcn Textarea with zod .min(10) validation message",
-      "Server Action appends row to maintenance_history audit log table; updates assets.criticality + assets.criticality_override_at",
-      "RBAC guard isManager; emit asset.criticality_changed outbox event with old/new values for downstream consumers",
-      "Audit log note → display-only; production component should link to maintenance_history filtered view",
-      "Hardcoded labels → next-intl keys under maintenance.asset.criticalityOverride.*"
-    ],
-    "shadcn_equivalent": ["Dialog", "Form", "Select", "Input", "Textarea", "Button", "Badge"],
-    "known_bugs": [],
-    "estimated_translation_time_min": 45
-  },
-  {
-    "label": "downtime_linkage_modal",
-    "file": "design/Monopilot Design System/maintenance/modals.jsx",
-    "lines": "846-879",
-    "component_type": "modal",
-    "ui_pattern": "list-with-actions",
-    "data_domain": "MWO",
-    "interaction": "edit",
-    "complexity": "primitive",
-    "depends_on_prototypes": ["mwo_create_modal"],
-    "translation_notes": [
-      "window.Modal size=wide → Dialog; read-only downtime events table → shadcn Table with radio-select row highlighting",
-      "Selected row state → single-select via RadioGroup with table row onClick; Button disabled until selected !== null",
-      "Downtime events sourced from 08-PRODUCTION downtime_events table → cross-module Drizzle query filtered by asset_id + status=open",
-      "V-MNT-22 source update note → Server Action updates mwos.source_type=auto_downtime + mwos.source_note when linking",
-      "Add Server Action linking mwo to downtime_event via mwo_downtime_links table; emit mwo.downtime_linked outbox event",
-      "Hardcoded labels → next-intl keys under maintenance.mwo.downtimeLink.*"
-    ],
-    "shadcn_equivalent": ["Dialog", "Table", "RadioGroup", "Button", "Alert"],
-    "known_bugs": [],
-    "estimated_translation_time_min": 45
-  },
-  {
-    "label": "spare_adjust_modal",
-    "file": "design/Monopilot Design System/maintenance/modals.jsx",
-    "lines": "902-925",
-    "component_type": "modal",
-    "ui_pattern": "crud-form-with-validation",
-    "data_domain": "Spare",
-    "interaction": "edit",
-    "complexity": "primitive",
-    "depends_on_prototypes": [],
-    "translation_notes": [
-      "window.Modal → Dialog; current qty shown as readOnly Input; new qty as controlled Input with zod z.number().int().nonnegative()",
-      "Reason Select (Damage/Cycle count/Spillage/Expired/Other) → shadcn Select mapped to z.enum(adjustReasonEnum)",
-      "Detailed reason Textarea → zod .min(10); manager approval gate: if abs(new-old)/old > 0.10 emit spare.adjustment_requires_approval event",
-      "Server Action creates spare_transaction row (type=adjust, delta=new-old) + updates spare_parts.qty_on_hand; RBAC guard",
-      ">10% delta approval gate → check in Server Action; return approval_required status to client; show pending state until manager confirms",
-      "Audit-logged note → immutable spare_transactions table; display in Spare Part Detail consumption history tab",
-      "Hardcoded labels → next-intl keys under maintenance.spares.adjust.*"
-    ],
-    "shadcn_equivalent": ["Dialog", "Form", "Input", "Select", "Textarea", "Button", "Alert"],
-    "known_bugs": [],
-    "estimated_translation_time_min": 60
-  },
-  {
-    "label": "maintenance_dashboard",
-    "file": "design/Monopilot Design System/maintenance/dashboard.jsx",
-    "lines": "1-257",
-    "component_type": "page-layout",
-    "ui_pattern": "dashboard-tile",
-    "data_domain": "MWO",
-    "interaction": "read-only",
-    "complexity": "page-level",
-    "depends_on_prototypes": ["mwo_create_modal", "wr_create_modal"],
-    "translation_notes": [
-      "MNT_KPIS mock data → parallel Drizzle queries in Server Component: mwos count grouped by status, pm_schedules overdue count, calibration overdue count",
-      "8-KPI grid → shadcn Card grid (kpi-grid-8 CSS) → Tailwind grid-cols-4 on md, grid-cols-8 on xl; each KPI is a clickable Card navigating to relevant list page",
-      "Today's mWO table → Drizzle query mwos WHERE scheduled_start::date = today ORDER BY priority; rendered as shadcn Table in Server Component",
-      "PM compliance strip (overdue/due counts + nearest-due table) → aggregate queries on pm_schedules; DueCell color logic via Tailwind conditional classes",
-      "Critical alerts strip → alerts_notifications table query; client-side dismiss stores dismissed codes in user session or localStorage",
-      "Active LOTO panel → loto_procedures WHERE status=active; real-time updates via SSE or 30s polling",
-      "Onboarding card (isManager only) → RBAC gate in Server Component; step completion computed from DB state; dismissal stored in user_preferences",
-      "MTBF sparkline → time-series from oee_shift_metrics (15-OEE cross-module read); inline SVG bars → Recharts BarChart in client component",
-      "Cross-module bridge section → read-only derived data from production_wos (delayed) + quality_ccps (blocked); no write actions",
-      "Hardcoded labels → next-intl keys under maintenance.dashboard.*"
-    ],
-    "shadcn_equivalent": ["Card", "CardHeader", "CardContent", "Table", "Badge", "Button", "Alert"],
-    "known_bugs": [],
-    "estimated_translation_time_min": 180
-  },
-  {
-    "label": "asset_list_page",
-    "file": "design/Monopilot Design System/maintenance/assets.jsx",
-    "lines": "1-183",
-    "component_type": "page-layout",
-    "ui_pattern": "search-filter-list",
-    "data_domain": "Asset",
-    "interaction": "read-only",
-    "complexity": "page-level",
-    "depends_on_prototypes": ["asset_edit_modal"],
-    "translation_notes": [
-      "MNT_ASSETS mock + MNT_ASSET_HIER mock → Drizzle query joining assets + asset_hierarchy (ltree) with recursive CTE for tree structure",
-      "Asset hierarchy sidebar tree (280px column) → shadcn Collapsible or custom TreeView using radix-ui Accordion; level-0/1/2 indent via Tailwind pl-x classes",
-      "Hierarchy node selected line filter → URL search param ?line=LINE-01; Server Component re-renders filtered table",
-      "Filter bar (type/criticality/status/loto/cal checkboxes) → URL search params with nuqs or native URLSearchParams; filters applied in Drizzle WHERE clause",
-      "Asset table with bulk checkbox → shadcn Table + Checkbox in header for select-all; useRowSelection hook for bulk actions",
-      "Export CSV button → Server Action streaming CSV response from Drizzle query; uses streaming Response with Content-Disposition header",
-      "RBAC guard: Add Asset button hidden for non-manager roles; check via session in Server Component",
-      "Hardcoded labels → next-intl keys under maintenance.assets.list.*"
-    ],
-    "shadcn_equivalent": ["Table", "Checkbox", "Select", "Input", "Badge", "Button", "Card", "Collapsible"],
-    "known_bugs": [],
-    "estimated_translation_time_min": 180
-  },
-  {
-    "label": "asset_detail_page",
-    "file": "design/Monopilot Design System/maintenance/assets.jsx",
-    "lines": "185-518",
-    "component_type": "page-layout",
-    "ui_pattern": "detail-view",
-    "data_domain": "Asset",
-    "interaction": "read-only",
-    "complexity": "page-level",
-    "depends_on_prototypes": ["asset_edit_modal", "mwo_create_modal", "loto_apply_modal", "pm_schedule_edit_wizard", "calibration_reading_modal"],
-    "translation_notes": [
-      "MNT_ASSET_DETAIL mock → Drizzle query joining assets + pm_schedules + history + spares + documents + downtime + calibration_records with tab-specific sub-queries",
-      "8-tab navigation (overview/history/pm/cal/spares/docs/downtime/sensors) → shadcn Tabs component; each tab is a separate Server Component fetch boundary via Suspense",
-      "Asset nameplate card → read-only dl/dd table in shadcn Card; Ltree path rendered as breadcrumb chips",
-      "MTBF/MTTR/Availability gauge rows → inline SVG progress bars; values sourced from oee_shift_metrics cross-module join",
-      "Spares BOM tab → shadcn Table with stock-low-row conditional styling (Tailwind bg-red-50); Reorder action inline",
-      "Downtime events tab → read-only from production_downtime_events; Link mWO button opens DtLinkModal",
-      "Sensors tab (P2) → placeholder with disabled overlay; gated by feature flag iot.sensors.enabled; BL-MAINT-01",
-      "LOTO active banner → conditional Alert shown when loto_procedures WHERE asset_id=? AND status=active exists",
-      "Hardcoded labels → next-intl keys under maintenance.assets.detail.*"
-    ],
-    "shadcn_equivalent": ["Tabs", "TabsList", "TabsContent", "Card", "Table", "Badge", "Button", "Alert"],
-    "known_bugs": ["BL-MAINT-01: IoT sensors tab is P2 placeholder — no real time-series chart"],
-    "estimated_translation_time_min": 240
-  },
-  {
-    "label": "wr_list_page",
-    "file": "design/Monopilot Design System/maintenance/work-orders.jsx",
-    "lines": "1-132",
-    "component_type": "page-layout",
-    "ui_pattern": "list-with-actions",
-    "data_domain": "WR",
-    "interaction": "read-only",
-    "complexity": "page-level",
-    "depends_on_prototypes": ["wr_create_modal", "wr_triage_modal"],
-    "translation_notes": [
-      "MNT_WRS mock → Drizzle query on work_requests with status filter pushed to WHERE clause via URL search params",
-      "Table/Kanban view toggle → URL param ?view=table|kanban; each view is a separate client component below the shared filter bar",
-      "Kanban columns (Submitted/Triaged/Scheduled-Done/Rejected) → drag-and-drop deferred; prototype uses click-to-triage only; use @hello-pangea/dnd for production",
-      "Kanban card → shadcn Card with compact layout; onClick opens wrTriage modal or navigates to mwo_detail",
-      "Filter bar (status/priority) → nuqs URL search params; filters applied in Drizzle WHERE clause in Server Component",
-      "Triage button inline in table → visible only to isManager + status=requested; opens WRTriageModal with wr prop",
-      "RBAC guard: Submit Work Request button visible to all roles; Triage button isManager only",
-      "Hardcoded labels → next-intl keys under maintenance.wr.list.*"
-    ],
-    "shadcn_equivalent": ["Table", "Card", "Badge", "Button", "Select", "Input", "Tabs"],
-    "known_bugs": [],
-    "estimated_translation_time_min": 150
-  },
-  {
-    "label": "mwo_list_page",
-    "file": "design/Monopilot Design System/maintenance/work-orders.jsx",
-    "lines": "134-259",
-    "component_type": "page-layout",
-    "ui_pattern": "search-filter-list",
-    "data_domain": "MWO",
-    "interaction": "read-only",
-    "complexity": "page-level",
-    "depends_on_prototypes": ["mwo_create_modal", "mwo_complete_signoff_modal"],
-    "translation_notes": [
-      "MNT_MWOS mock → Drizzle query with tab-aware WHERE clause (mine: tech_id=session.userId, open, in_progress, overdue, completed) via URL search param ?tab=X",
-      "Tab counts → aggregate COUNT queries per status group; use Promise.all for parallel fetch in Server Component",
-      "Filter bar (type/priority/source) → nuqs URL params; source enum maps to mwos.source_type column (manual/pm_schedule/auto_downtime/oee_trigger/calibration_alert)",
-      "DT impact column (mwo.dtImpact) → boolean join against downtime_links; render red chip vs dash",
-      "Inline action buttons by status → Start/Complete/Assign/Triage buttons; each calls Server Action or opens relevant modal",
-      "Export button → streaming CSV Server Action with full mwos join result",
-      "RBAC: New mWO button isManager only; Complete button tech or manager; Triage isManager only",
-      "Hardcoded labels → next-intl keys under maintenance.mwo.list.*"
-    ],
-    "shadcn_equivalent": ["Tabs", "Table", "Select", "Input", "Badge", "Button", "Card"],
-    "known_bugs": [],
-    "estimated_translation_time_min": 180
-  },
-  {
-    "label": "mwo_detail_page",
-    "file": "design/Monopilot Design System/maintenance/work-orders.jsx",
-    "lines": "261-584",
-    "component_type": "page-layout",
-    "ui_pattern": "detail-view",
-    "data_domain": "MWO",
-    "interaction": "edit",
-    "complexity": "page-level",
-    "depends_on_prototypes": ["mwo_create_modal", "task_checkoff_modal", "mwo_complete_signoff_modal", "downtime_linkage_modal", "loto_apply_modal"],
-    "translation_notes": [
-      "State machine strip (requested→approved→open→in_progress→completed) → read-only stepper built from shadcn Steps or custom ol/li with Tailwind; current state derived from mwos.status",
-      "7-tab layout (overview/tasks/parts/labor/downtime/signoff/history) → shadcn Tabs with Suspense per tab; each tab fetches its own sub-query",
-      "Tasks tab checklist → list of mwo_tasks rows; each item shows complete button calling TaskCheckoffModal; out-of-spec measurement rendered with red FAIL badge",
-      "Parts tab (planned + unplanned) → two shadcn Tables from mwo_parts_planned + mwo_parts_unplanned; Consume action triggers partsConsume Server Action updating spare qty",
-      "Labor tab time entries → mwo_labor_entries table; Log time button opens LogTime modal; rate calculation shown to isManager only",
-      "Downtime link tab → read-only from mwo_downtime_links join with downtime_events; Unlink Server Action for isManager",
-      "Sign-off tab → multi-role signoff rows from mwo_signoffs; Sign off button calls Server Action with current user + timestamp + role",
-      "History/audit tab → mwo_history event log; reverse-chronological activity feed using shadcn Timeline (custom) or simple ol/li",
-      "Hardcoded labels → next-intl keys under maintenance.mwo.detail.*"
-    ],
-    "shadcn_equivalent": ["Tabs", "TabsList", "TabsContent", "Card", "Table", "Badge", "Button", "Alert"],
-    "known_bugs": [],
-    "estimated_translation_time_min": 300
-  },
-  {
-    "label": "pm_schedules_list_page",
-    "file": "design/Monopilot Design System/maintenance/pm-schedules.jsx",
-    "lines": "1-138",
-    "component_type": "page-layout",
-    "ui_pattern": "search-filter-list",
-    "data_domain": "PMSchedule",
-    "interaction": "read-only",
-    "complexity": "page-level",
-    "depends_on_prototypes": ["pm_schedule_edit_wizard", "pm_occurrence_skip_modal"],
-    "translation_notes": [
-      "MNT_PM_SCHEDULES mock → Drizzle query on pm_schedules with overdue/due computed as (next_due_date - now())::int",
-      "List/Week/Month view toggle → URL param ?view=list|week|month; PMWeekCalendar and PMMonthCalendar rendered conditionally",
-      "6-KPI summary strip → aggregate COUNT/AVG queries; PM compliance % from pm_occurrences completed vs scheduled in last 30 days",
-      "Filter bar (type/technician/status/overdueOnly) → nuqs URL params applied to Drizzle WHERE",
-      "Row-level conditional styling (row-overdue/row-due) → Tailwind conditional classes based on days computed column",
-      "Edit/Skip inline buttons → isManager only via RBAC; open PMEditModal/PMSkipModal with pm prop",
-      "Create PM Schedule button → opens PMEditModal in create mode; RBAC guard isManager",
-      "Hardcoded labels → next-intl keys under maintenance.pm.list.*"
-    ],
-    "shadcn_equivalent": ["Table", "Select", "Checkbox", "Input", "Button", "Card", "Badge"],
-    "known_bugs": [],
-    "estimated_translation_time_min": 150
-  },
-  {
-    "label": "pm_month_calendar",
-    "file": "design/Monopilot Design System/maintenance/pm-schedules.jsx",
-    "lines": "140-216",
-    "component_type": "page-layout",
-    "ui_pattern": "dashboard-tile",
-    "data_domain": "PMSchedule",
-    "interaction": "read-only",
-    "complexity": "composite",
-    "depends_on_prototypes": ["pm_schedules_list_page"],
-    "translation_notes": [
-      "Hand-rolled calendar grid computation (firstDayOfWeek/cells array) → replace with date-fns or dayjs calendar helpers; monthOffset maps to URL param",
-      "eventsMap keyed by yyyy-mm-dd → computed from pm_schedules.next_due_date grouped by date in Server Component",
-      "Calendar cells grid (cal-grid-month CSS) → CSS Grid 7 columns with auto-rows; today cell highlighted via Tailwind ring-2",
-      "Event chips (cc-event) per day (max 4 + overflow) → colored span with truncate; overdue class adds red styling",
-      "Prev/Next month navigation → URL param ?monthOffset incremented/decremented; shallow routing via useRouter().push",
-      "Legend chips for PM types → static row of colored Badge components matching cal-event type classes",
-      "Hardcoded labels → next-intl keys under maintenance.pm.calendar.*"
-    ],
-    "shadcn_equivalent": ["Card", "Button", "Badge"],
-    "known_bugs": [],
-    "estimated_translation_time_min": 90
-  },
-  {
-    "label": "pm_week_calendar",
-    "file": "design/Monopilot Design System/maintenance/pm-schedules.jsx",
-    "lines": "218-275",
-    "component_type": "page-layout",
-    "ui_pattern": "dashboard-tile",
-    "data_domain": "PMSchedule",
-    "interaction": "read-only",
-    "complexity": "composite",
-    "depends_on_prototypes": ["pm_schedules_list_page"],
-    "translation_notes": [
-      "Hand-rolled week header (weekDays array) → replace with date-fns eachDayOfInterval for current week; today highlighted",
-      "byAsset grouping of schedules → SQL GROUP BY asset_id + date join in Server Component; assets × days grid",
-      "Asset × day grid (cal-week CSS) → CSS Grid with asset name column + 7 day columns using grid-template-columns: minmax(120px,auto) repeat(7,1fr)",
-      "Prev/Next week navigation → URL param ?weekOffset; shallow routing",
-      "Event chips per cell → same cc-event colored span pattern as month calendar; no overflow truncation needed (fewer events per cell)",
-      "Max 12 assets visible → pagination or virtual scrolling for large asset counts in production",
-      "Hardcoded labels → next-intl keys under maintenance.pm.weekCalendar.*"
-    ],
-    "shadcn_equivalent": ["Card", "Button", "Badge"],
-    "known_bugs": [],
-    "estimated_translation_time_min": 90
-  },
-  {
-    "label": "spares_list_page",
-    "file": "design/Monopilot Design System/maintenance/spares.jsx",
-    "lines": "1-115",
-    "component_type": "page-layout",
-    "ui_pattern": "search-filter-list",
-    "data_domain": "Spare",
-    "interaction": "read-only",
-    "complexity": "page-level",
-    "depends_on_prototypes": ["spare_reorder_modal", "spare_adjust_modal"],
-    "translation_notes": [
-      "MNT_SPARES mock → Drizzle query on spare_parts with on_hand, min, max columns; low stock computed as on_hand <= min",
-      "6-KPI summary strip → aggregate queries: COUNT(*), COUNT(on_hand<=min), COUNT(critical=true), COUNT(DISTINCT cat), AVG(lead_time_days), SUM(on_hand*unit_cost)",
-      "Filter bar (category/critOnly/lowOnly) → nuqs URL params; categories derived from DISTINCT cat query",
-      "stock-low-row conditional styling → Tailwind bg-red-50 based on s.onHand <= s.min computed in Server Component",
-      "WH ref column (CmChip) → cross-module link to warehouse LP; rendered as shadcn Badge with href to /warehouse/lps/[lp]",
-      "Reorder/Adjust inline buttons → conditional on low stock; open respective modals; RBAC guard for Adjust (isManager)",
-      "Add Part button incorrectly calls assetEdit modal in prototype → production should call separate spare part create form",
-      "Hardcoded labels → next-intl keys under maintenance.spares.list.*"
-    ],
-    "shadcn_equivalent": ["Table", "Select", "Checkbox", "Input", "Button", "Card", "Badge"],
-    "known_bugs": [],
-    "estimated_translation_time_min": 150
-  },
-  {
-    "label": "spare_detail_page",
-    "file": "design/Monopilot Design System/maintenance/spares.jsx",
-    "lines": "117-261",
-    "component_type": "page-layout",
-    "ui_pattern": "detail-view",
-    "data_domain": "Spare",
-    "interaction": "read-only",
-    "complexity": "page-level",
-    "depends_on_prototypes": ["spare_reorder_modal", "spare_adjust_modal"],
-    "translation_notes": [
-      "MNT_SPARE_DETAIL mock → Drizzle query joining spare_parts + spare_stock_by_location + spare_transactions + linked_assets with all sub-queries",
-      "4-KPI stock cards (on-hand/reorder/max/unit-cost) → shadcn Card grid; stock bar uses inline style width % → Tailwind dynamic or CSS variable",
-      "Stock by warehouse location table → spare_stock_by_location table with Ltree path display; Adjust action per row opens SpareAdjustModal",
-      "Consumption history table → spare_transactions ORDER BY created_at DESC; type badge (consume/receipt/adjustment) as colored Badge",
-      "Linked assets table → spare_asset_bom join table; click navigates to asset detail",
-      "Master data read-only panel → right column key-value table from spare_parts master; Edit Part calls separate CRUD form",
-      "Architecture note: no LP picker/FEFO logic → maintain this boundary; spare parts are qty_on_hand simple tracking only in P1",
-      "Hardcoded labels → next-intl keys under maintenance.spares.detail.*"
-    ],
-    "shadcn_equivalent": ["Card", "Table", "Badge", "Button", "Alert"],
-    "known_bugs": [],
-    "estimated_translation_time_min": 180
-  },
-  {
-    "label": "calibration_list_page",
-    "file": "design/Monopilot Design System/maintenance/other-screens.jsx",
-    "lines": "1-127",
-    "component_type": "page-layout",
-    "ui_pattern": "search-filter-list",
-    "data_domain": "Asset",
-    "interaction": "read-only",
-    "complexity": "page-level",
-    "depends_on_prototypes": ["calibration_reading_modal"],
-    "translation_notes": [
-      "MNT_INSTRUMENTS mock → Drizzle query on calibration_instruments joining calibration_records for last result + next_due_date computed column",
-      "6-KPI strip (current/due/overdue/CCP blocks/last FAIL/next scheduled) → aggregate queries; CCP blocks sourced from quality_ccps cross-module join",
-      "CCP block banner → alert sourced from calibration_instruments WHERE ccp_block=true; links to 09-QUALITY CCP detail",
-      "Filter bar (type/standard/status/ccpOnly) → nuqs URL params; status computed from days_until_due < 0 (overdue) / < 30 (due)",
-      "ccp-block-row conditional row styling → Tailwind bg-red-50 based on i.ccpBlock in Server Component",
-      "Record button inline → opens CalReadingModal with instrument code; all roles can record calibration (configurable via RBAC settings)",
-      "Export for audit button → streaming CSV with all calibration_records for audit period; include SHA-256 hashes for 21 CFR Part 11",
-      "Hardcoded labels → next-intl keys under maintenance.calibration.list.*"
-    ],
-    "shadcn_equivalent": ["Table", "Select", "Checkbox", "Input", "Button", "Card", "Badge", "Alert"],
-    "known_bugs": [],
-    "estimated_translation_time_min": 150
-  },
-  {
-    "label": "calibration_detail_page",
-    "file": "design/Monopilot Design System/maintenance/other-screens.jsx",
-    "lines": "129-264",
-    "component_type": "page-layout",
-    "ui_pattern": "detail-view",
-    "data_domain": "Asset",
-    "interaction": "read-only",
-    "complexity": "page-level",
-    "depends_on_prototypes": ["calibration_reading_modal", "calibration_cert_upload_modal"],
-    "translation_notes": [
-      "MNT_CAL_DETAIL mock → Drizzle query joining calibration_instruments + latest calibration_record + latestPoints + records history + certs",
-      "6-stat header row → shadcn Card with grid-cols-6; linked asset navigates to /maintenance/assets/[id]",
-      "CCP block alert (alert-red) → conditional from instrument.ccp_block boolean; Record now button is prominent primary action",
-      "Latest result banner with dynamic background (green/red/amber) → Tailwind conditional bg-green-50/bg-red-50/bg-amber-50 via cn()",
-      "Test points table (latest calibration) → read-only shadcn Table with in-spec tick/cross indicators (tp-check ok/fail classes → Tailwind text-green-600/text-red-600)",
-      "History tab → calibration_records table with BRCGS 7-year retention note; mWO link navigates cross-module",
-      "Certificate tab → calibration_certificates with SHA-256 display and PDF open; Upload new certificate button opens CertUploadModal",
-      "Hardcoded labels → next-intl keys under maintenance.calibration.detail.*"
-    ],
-    "shadcn_equivalent": ["Tabs", "TabsList", "TabsContent", "Card", "Table", "Badge", "Button", "Alert"],
-    "known_bugs": [],
-    "estimated_translation_time_min": 180
-  },
-  {
-    "label": "technicians_list_page",
-    "file": "design/Monopilot Design System/maintenance/other-screens.jsx",
-    "lines": "266-374",
-    "component_type": "page-layout",
-    "ui_pattern": "list-with-actions",
-    "data_domain": "Role",
-    "interaction": "read-only",
-    "complexity": "page-level",
-    "depends_on_prototypes": ["technician_skill_edit_modal"],
-    "translation_notes": [
-      "MNT_TECHNICIANS mock → Drizzle query on technicians table joining tech_certifications for cert expiry + mwo count",
-      "List/Skills matrix view toggle → URL param ?view=list|matrix; matrix is separate client component",
-      "Skills matrix table → technicians × MNT_SKILLS cross-join resolved via MNT_SKILL_MATRIX lookup → Drizzle query on tech_skill_matrix table",
-      "Matrix cell levels (specialist/has/none) → shadcn badge or text cell with Tailwind bg-color by level; ⚡/✓/— icons preserved",
-      "Cert expiry DueCell → DueCell component with amber/red color based on days_until_expiry < 30",
-      "Hourly rate hidden for non-managers → server-side RBAC gate; rate field not included in query for technician role",
-      "Edit skills inline button → TechSkillModal; isManager RBAC; PDF export (BL-MAINT-05) is stub",
-      "Hardcoded labels → next-intl keys under maintenance.technicians.list.*"
-    ],
-    "shadcn_equivalent": ["Table", "Select", "Checkbox", "Badge", "Button", "Card"],
-    "known_bugs": ["BL-MAINT-05: Skills Matrix PDF export with cert scans is button stub only"],
-    "estimated_translation_time_min": 150
-  },
-  {
-    "label": "technician_detail_page",
-    "file": "design/Monopilot Design System/maintenance/other-screens.jsx",
-    "lines": "376-486",
-    "component_type": "page-layout",
-    "ui_pattern": "detail-view",
-    "data_domain": "Role",
-    "interaction": "read-only",
-    "complexity": "page-level",
-    "depends_on_prototypes": ["technician_skill_edit_modal"],
-    "translation_notes": [
-      "MNT_TECHNICIANS[0] mock → Drizzle query on technicians WHERE id=? joining tech_certifications + tech_skill_matrix + assigned mwos count",
-      "Avatar initials circle → shadcn Avatar with fallback initials; color computed from id hash for uniqueness",
-      "Profile/History tabs → shadcn Tabs; history tab queries mwos WHERE tech_id=?",
-      "Certifications table → tech_certifications with DueCell for expiry; GDPR note displayed as info Alert",
-      "Skills table → tech_skill_matrix values for this technician; derived from join with skill catalog (MNT_SKILLS from settings_ref_tables)",
-      "Hourly rate shown to isManager only → server-side RBAC; field excluded from query for non-manager roles per GDPR minimization",
-      "Assignment history table → mwos filtered by tech_id; navigate to mwo detail on row click",
-      "Hardcoded labels → next-intl keys under maintenance.technicians.detail.*"
-    ],
-    "shadcn_equivalent": ["Tabs", "TabsList", "TabsContent", "Card", "Table", "Badge", "Avatar", "Button", "Alert"],
-    "known_bugs": [],
-    "estimated_translation_time_min": 120
-  },
-  {
-    "label": "loto_list_page",
-    "file": "design/Monopilot Design System/maintenance/other-screens.jsx",
-    "lines": "488-598",
-    "component_type": "page-layout",
-    "ui_pattern": "list-with-actions",
-    "data_domain": "Asset",
-    "interaction": "read-only",
-    "complexity": "page-level",
-    "depends_on_prototypes": ["loto_apply_modal", "loto_clear_modal"],
-    "translation_notes": [
-      "MNT_LOTO_PROCS mock + MNT_LOTO_DETAIL mock → Drizzle query on loto_procedures joining assets + mwos + energy_sources JSONB + tags JSONB",
-      "Active-only toggle → URL param ?activeOnly=true; WHERE status=active in Drizzle query",
-      "Active procedures count banner (alert-amber) → real-time via SSE subscription on loto_procedures table changes or 30s polling",
-      "LOTO table → shadcn Table; loto-row conditional class → Tailwind bg-amber-50 for active rows",
-      "Clear LOTO button → opens LotoClearModal with proc prop; View button navigates to procedure detail",
-      "Active LOTO detail expansion card → MNT_LOTO_DETAIL fetched for first active procedure; energy sources list + tags table rendered inline",
-      "Two-person verification confirmed display → shows both verifier names from loto_energy_sources.verified_by + second_verified_by",
-      "Hardcoded labels → next-intl keys under maintenance.loto.list.*"
-    ],
-    "shadcn_equivalent": ["Table", "Card", "Badge", "Button", "Alert", "Checkbox"],
-    "known_bugs": ["BL-MAINT-04: Remote two-person confirmation flow not prototyped"],
-    "estimated_translation_time_min": 150
-  },
-  {
-    "label": "maintenance_analytics_page",
-    "file": "design/Monopilot Design System/maintenance/other-screens.jsx",
-    "lines": "601-803",
-    "component_type": "page-layout",
-    "ui_pattern": "dashboard-tile",
-    "data_domain": "MWO",
-    "interaction": "read-only",
-    "complexity": "page-level",
-    "depends_on_prototypes": [],
-    "translation_notes": [
-      "MNT_ANALYTICS mock → Drizzle queries per tab: overview aggregates, MTBF trend from oee_shift_metrics (15-OEE), PM compliance from pm_occurrences, pareto from downtime_events+mwo join",
-      "Date range selector (7d/30d/90d/12m) + asset filter → URL params; passed as WHERE clause bounds to all sub-queries in Server Component",
-      "6-tab analytics layout → shadcn Tabs; each tab is a separate Suspense boundary with its own Server Component data fetch",
-      "Inline SVG bar charts (MTBF trend, PM compliance bars) → replace with shadcn Chart (Recharts wrapper) BarChart/LineChart; BL-RPT-02 pattern",
-      "Pareto chart → horizontal bar + cumulative % line → Recharts ComposedChart in client component; pareto data from downtime_events grouped by cause",
-      "Problem assets gauge rows → shadcn Progress bars with asset name label; dt hours data from mwo_labor aggregated by asset",
-      "Technician utilisation table → mwo_labor GROUP BY tech_id with SUM(hours) + AVG/mwo + SUM(cost) computed in SQL",
-      "Hardcoded labels → next-intl keys under maintenance.analytics.*"
-    ],
-    "shadcn_equivalent": ["Tabs", "TabsList", "TabsContent", "Card", "Table", "Select", "Button", "Progress", "Badge"],
-    "known_bugs": [],
-    "estimated_translation_time_min": 240
-  },
-  {
-    "label": "maintenance_settings_page",
-    "file": "design/Monopilot Design System/maintenance/other-screens.jsx",
-    "lines": "805-964",
-    "component_type": "page-layout",
-    "ui_pattern": "crud-form-with-validation",
-    "data_domain": "Asset",
-    "interaction": "edit",
-    "complexity": "page-level",
-    "depends_on_prototypes": [],
-    "translation_notes": [
-      "MNT_SETTINGS mock → Drizzle query on maintenance_settings table (keyed config rows) + criticality_taxonomy + notification_preferences per tenant",
-      "Left-nav section list (asset-hier sidebar pattern) → shadcn NavigationMenu or simple button list with active state; section stored in URL param ?section=general",
-      "General defaults form → react-hook-form with zod validation; numeric inputs for pmLeadTimeDays/calWarnDays/mtbfTarget etc.; Save calls Server Action",
-      "Criticality taxonomy table → useFieldArray; description textareas editable; drag-to-reorder → @hello-pangea/dnd Draggable rows; order persisted to DB",
-      "LOTO policy section → Select fields; two-person critical toggle enforced non-nullable; photo evidence has required/recommended/optional enum",
-      "OEE trigger section → rendered disabled with P2 Alert; gated by feature flag oeeTrigger.enabled",
-      "Notifications table → list of event+frequency+checkbox rows from notification_event_types reference; useFieldArray pattern",
-      "Reset to defaults button → Server Action resetting maintenance_settings rows to seed values; RBAC guard Admin only",
-      "Hardcoded labels → next-intl keys under maintenance.settings.*"
-    ],
-    "shadcn_equivalent": ["Form", "FormField", "Input", "Select", "Textarea", "Checkbox", "Button", "Alert", "Table", "Card"],
-    "known_bugs": [],
-    "estimated_translation_time_min": 180
-  }
-]
+{
+  "module": "maintenance",
+  "generated_at": "2026-04-30T18:27:34Z",
+  "generator": "audit-fix-2026-04-30",
+  "mode": "labeling",
+  "entries": [
+    {
+      "label": "asset_edit_modal",
+      "file": "design/Monopilot Design System/maintenance/modals.jsx",
+      "lines": "29-79",
+      "component_type": "modal",
+      "ui_pattern": "crud-form-with-validation",
+      "data_domain": "Asset",
+      "interaction": "create",
+      "complexity": "composite",
+      "depends_on_prototypes": [],
+      "translation_notes": [
+        "window.Modal wrapper → @radix-ui/react-dialog Dialog with shadcn Dialog primitive",
+        "Local useState for loto/cal toggles → useForm (react-hook-form) with zodResolver; checkbox fields map to z.boolean()",
+        "Mock MNT_ASSETS/production_lines data → Drizzle query joining assets + production_lines tables in Server Component or RSC loader",
+        "L3 extension fields section → tenant JSONB column rendered dynamically from schema registry; use shadcn Collapsible to hide by default",
+        "Add Server Action with RBAC guard (isManager check) before upsert; emit asset.created / asset.updated outbox event",
+        "Conditional calibration interval field (disabled={!cal}) → Controller field with watch('requiresCalibration') and dynamic disabled prop",
+        "Hardcoded equipment types list → reference table query from settings_equipment_types",
+        "Hardcoded labels → next-intl keys under maintenance.asset.form.*"
+      ],
+      "shadcn_equivalent": [
+        "Dialog",
+        "Form",
+        "FormField",
+        "Input",
+        "Select",
+        "Checkbox",
+        "Button",
+        "Label"
+      ],
+      "known_bugs": [],
+      "estimated_translation_time_min": 90
+    },
+    {
+      "label": "wr_create_modal",
+      "file": "design/Monopilot Design System/maintenance/modals.jsx",
+      "lines": "81-121",
+      "component_type": "modal",
+      "ui_pattern": "crud-form-with-validation",
+      "data_domain": "WR",
+      "interaction": "create",
+      "complexity": "composite",
+      "depends_on_prototypes": [],
+      "translation_notes": [
+        "window.Modal → @radix-ui/react-dialog Dialog; use sheet variant for mobile shop-floor touch targets",
+        "Character counter on textarea (desc.length / 1000) → controlled Input with useWatch + FormDescription; enforce minLength=10 in zod schema",
+        "Severity grid buttons (wr-sev-btn) → shadcn ToggleGroup single-select mapped to z.enum(['critical','high','medium','low'])",
+        "Auto-fill from downtime event prop → Server Component pre-fills defaultValues from downtime_events query when downtimeEventId param present",
+        "QR Scan button → triggers camera permission + zxing scanner; wired as P2 per BL-SCN-02 pattern",
+        "File multi-upload → shadcn Input type=file + server-side S3 upload via presigned URL Server Action",
+        "Add Server Action with RBAC guard; emit work_request.created outbox event on success",
+        "Hardcoded labels → next-intl keys under maintenance.wr.create.*"
+      ],
+      "shadcn_equivalent": [
+        "Dialog",
+        "Form",
+        "FormField",
+        "Textarea",
+        "Input",
+        "ToggleGroup",
+        "Button",
+        "Alert"
+      ],
+      "known_bugs": [],
+      "estimated_translation_time_min": 75
+    },
+    {
+      "label": "wr_triage_modal",
+      "file": "design/Monopilot Design System/maintenance/modals.jsx",
+      "lines": "123-183",
+      "component_type": "modal",
+      "ui_pattern": "detail-view",
+      "data_domain": "WR",
+      "interaction": "approve",
+      "complexity": "composite",
+      "depends_on_prototypes": [
+        "wr_create_modal"
+      ],
+      "translation_notes": [
+        "window.Modal size=wide → Dialog with max-w-3xl; read-only summary-block section → shadcn Card with read-only dl/dd key-value grid",
+        "Three-path decision toggle (approve/reject/duplicate) → shadcn RadioGroup or ToggleGroup; each value conditionally shows additional fields via watch()",
+        "Conditional approve fields (priority, type, technician, start) → useWatch('decision') === 'approve' guard wrapping FormField group",
+        "V-MNT-02 requester !== approver constraint → enforce in Server Action; display alert banner client-side as advisory only",
+        "Duplicate-of mWO picker → shadcn Command/Combobox with debounced search against mwos API route",
+        "Add Server Action that transitions WR status (requested → approved/rejected/duplicate) and creates mWO record when approved; emit wr.triaged outbox event",
+        "MNT_TECHNICIANS mock → Drizzle query on technicians table filtered by on_shift=true",
+        "Hardcoded labels → next-intl keys under maintenance.wr.triage.*"
+      ],
+      "shadcn_equivalent": [
+        "Dialog",
+        "Form",
+        "RadioGroup",
+        "Select",
+        "Input",
+        "Button",
+        "Alert",
+        "Card"
+      ],
+      "known_bugs": [],
+      "estimated_translation_time_min": 90
+    },
+    {
+      "label": "mwo_create_modal",
+      "file": "design/Monopilot Design System/maintenance/modals.jsx",
+      "lines": "185-234",
+      "component_type": "modal",
+      "ui_pattern": "crud-form-with-validation",
+      "data_domain": "MWO",
+      "interaction": "create",
+      "complexity": "composite",
+      "depends_on_prototypes": [],
+      "translation_notes": [
+        "window.Modal → @radix-ui/react-dialog Dialog; assetId prop pre-fills asset Select via defaultValues",
+        "mWO type radio grid (5 types) → shadcn RadioGroup with icon badges for each type variant",
+        "Priority radio grid → RadioGroup with PriorityBadge visual; maps to z.enum(['critical','high','medium','low'])",
+        "Conditional sanitation allergen checkbox → useWatch('type') === 'sanitation' guard; allergen changeover flag persisted on mwo record",
+        "PM schedule linker Select → Combobox with search against pm_schedules filtered by asset; optional field",
+        "Add Server Action creating mwo record with initial state=open; emit mwo.created outbox event; RBAC guard on isManager",
+        "MNT_PM_SCHEDULES / MNT_TECHNICIANS mocks → parallel Drizzle queries in Server Component",
+        "Hardcoded labels → next-intl keys under maintenance.mwo.create.*"
+      ],
+      "shadcn_equivalent": [
+        "Dialog",
+        "Form",
+        "RadioGroup",
+        "Select",
+        "Textarea",
+        "Input",
+        "Checkbox",
+        "Button",
+        "Alert"
+      ],
+      "known_bugs": [],
+      "estimated_translation_time_min": 90
+    },
+    {
+      "label": "task_checkoff_modal",
+      "file": "design/Monopilot Design System/maintenance/modals.jsx",
+      "lines": "236-294",
+      "component_type": "modal",
+      "ui_pattern": "crud-form-with-validation",
+      "data_domain": "MWO",
+      "interaction": "edit",
+      "complexity": "composite",
+      "depends_on_prototypes": [
+        "mwo_create_modal"
+      ],
+      "translation_notes": [
+        "window.Modal → Dialog; step prop drives dynamic title and conditional field rendering based on step.type",
+        "step.type === 'measure' branch → Input + unit Select; actual value stored and auto-compared to expected in Server Action returning pass/fail",
+        "step.type === 'photo' branch → Input type=file with capture=environment; upload via S3 presigned URL Server Action",
+        "Parts used sub-section → inline table with Drizzle query for planned parts on this step; quantity Input updates consumed_qty",
+        "step.type === 'signoff' + PIN input → shadcn Input type=password; Server Action verifies PIN against user credential hash",
+        "Time logged fields → duration Number Input + note Text; persisted as labor_entry row linked to mwo + step",
+        "Add Server Action marking checklist step done; emit mwo.step_completed outbox event; enforce RBAC (assigned tech only)",
+        "Hardcoded labels → next-intl keys under maintenance.mwo.tasks.*"
+      ],
+      "shadcn_equivalent": [
+        "Dialog",
+        "Form",
+        "Input",
+        "Select",
+        "Button",
+        "Card",
+        "Label"
+      ],
+      "known_bugs": [],
+      "estimated_translation_time_min": 90
+    },
+    {
+      "label": "mwo_complete_signoff_modal",
+      "file": "design/Monopilot Design System/maintenance/modals.jsx",
+      "lines": "296-355",
+      "component_type": "modal",
+      "ui_pattern": "crud-form-with-validation",
+      "data_domain": "MWO",
+      "interaction": "sign-off",
+      "complexity": "composite",
+      "depends_on_prototypes": [
+        "mwo_create_modal",
+        "task_checkoff_modal"
+      ],
+      "translation_notes": [
+        "window.Modal size=wide → Dialog max-w-3xl; preconditions block → shadcn Card with dynamic check icons driven by Server Component query",
+        "allOk derived state → computed server-side from mwo checklist completion + LOTO cleared status; passed as prop to client component",
+        "Three-button footer (Cancel / Save draft / Confirm complete) → shadcn Button variants; Save draft calls partial-save Server Action",
+        "Sign-off strip rows (technician auto-applied, supervisor counter-sign, safety officer) → multi-role signoff table; each row calls request_signoff Server Action",
+        "Completion notes textarea required (V-MNT-04) → zod .min(1) + refine; persisted as mwo.completion_notes column",
+        "Follow-up mWO checkbox → if checked, Server Action creates new mwo record linked via parent_mwo_id",
+        "Asset status after work Select → updates assets.status column on mwo completion",
+        "Hardcoded labels → next-intl keys under maintenance.mwo.complete.*"
+      ],
+      "shadcn_equivalent": [
+        "Dialog",
+        "Form",
+        "FormField",
+        "Textarea",
+        "Select",
+        "Checkbox",
+        "Button",
+        "Alert",
+        "Card"
+      ],
+      "known_bugs": [],
+      "estimated_translation_time_min": 120
+    },
+    {
+      "label": "pm_schedule_edit_wizard",
+      "file": "design/Monopilot Design System/maintenance/modals.jsx",
+      "lines": "357-472",
+      "component_type": "wizard",
+      "ui_pattern": "multi-step-wizard",
+      "data_domain": "PMSchedule",
+      "interaction": "create",
+      "complexity": "composite",
+      "depends_on_prototypes": [],
+      "translation_notes": [
+        "Stepper primitive → shadcn Steps (or custom stepper built on ol/li) tracking completed Set; step keys: asset/freq/assign/review",
+        "Step 1 asset selection → shadcn Select for asset + RadioGroup for schedule type + allergen Checkbox with conditional Alert",
+        "Step 2 frequency inputs → three-option RadioGroup for interval basis (calendar/usage-hours/cycles) + numeric Inputs for interval/warning/lead-time",
+        "Step 3 assignment → Select for technician + Combobox for template from task_templates table; auto-generate Checkbox",
+        "Step 4 review → read-only Summary Card + generated occurrences table computed server-side from interval; useQuery or Server Component",
+        "Save & activate vs Save buttons → Server Action with active=true/false flag; emit pm_schedule.created outbox event",
+        "MNT_TEMPLATES mock → Drizzle query on task_templates table",
+        "Hardcoded labels → next-intl keys under maintenance.pm.wizard.*"
+      ],
+      "shadcn_equivalent": [
+        "Dialog",
+        "Form",
+        "Select",
+        "RadioGroup",
+        "Checkbox",
+        "Input",
+        "Button",
+        "Alert",
+        "Card",
+        "Table"
+      ],
+      "known_bugs": [],
+      "estimated_translation_time_min": 150
+    },
+    {
+      "label": "pm_occurrence_skip_modal",
+      "file": "design/Monopilot Design System/maintenance/modals.jsx",
+      "lines": "474-498",
+      "component_type": "modal",
+      "ui_pattern": "crud-form-with-validation",
+      "data_domain": "PMSchedule",
+      "interaction": "edit",
+      "complexity": "primitive",
+      "depends_on_prototypes": [
+        "pm_schedule_edit_wizard"
+      ],
+      "translation_notes": [
+        "window.Modal → Dialog; summary-block read-only section → shadcn dl key-value pairs",
+        "Reason Select (Planned downtime / Asset offline / ...) → shadcn Select mapped to z.enum(skipReasonEnum)",
+        "Additional notes ReasonInput with minLength=10 → shadcn Textarea with zod .min(10) validation",
+        "Next due date override date Input → shadcn DatePicker; if blank, computed by Server Action as last_done + interval_days",
+        "Compliance metric warning Alert → informational shadcn Alert; manager notification emitted as pm_schedule.skip_threshold_exceeded event if count > config threshold",
+        "Add Server Action updating pm_occurrence status=skipped + logging skip_reason; RBAC guard isManager",
+        "Hardcoded labels → next-intl keys under maintenance.pm.skip.*"
+      ],
+      "shadcn_equivalent": [
+        "Dialog",
+        "Form",
+        "Select",
+        "Textarea",
+        "Input",
+        "Button",
+        "Alert"
+      ],
+      "known_bugs": [],
+      "estimated_translation_time_min": 60
+    },
+    {
+      "label": "calibration_reading_modal",
+      "file": "design/Monopilot Design System/maintenance/modals.jsx",
+      "lines": "500-568",
+      "component_type": "modal",
+      "ui_pattern": "crud-form-with-validation",
+      "data_domain": "Asset",
+      "interaction": "create",
+      "complexity": "composite",
+      "depends_on_prototypes": [],
+      "translation_notes": [
+        "window.Modal size=wide → Dialog max-w-3xl; dynamic test points array (add/remove) → useFieldArray from react-hook-form",
+        "Per-point inSpec auto-compute → derive pass/fail in onChange handler: Math.abs(measured - reference) / reference * 100 <= tolerance",
+        "Overall result auto-compute (PASS/FAIL) → derived from all point.inSpec values; override checkbox sets manual=FAIL in form state",
+        "FAIL result → Alert + Server Action emits calibration.fail outbox event triggering Quality hold candidate creation in 09-QUALITY",
+        "Certificate PDF upload → Input type=file; Server Action uploads to S3 + computes SHA-256 + stores hash in calibration_records.cert_sha256",
+        "Next due date readOnly field → computed server-side as calibrated_at + instrument.interval_days; displayed via Server Component",
+        "MNT_SKILL_MATRIX filter for Calibration skill → Drizzle query joining technicians + tech_skills where skill='Calibration'",
+        "Hardcoded labels → next-intl keys under maintenance.calibration.record.*"
+      ],
+      "shadcn_equivalent": [
+        "Dialog",
+        "Form",
+        "FormField",
+        "Input",
+        "Select",
+        "Button",
+        "Alert",
+        "Card",
+        "Table",
+        "Checkbox"
+      ],
+      "known_bugs": [],
+      "estimated_translation_time_min": 120
+    },
+    {
+      "label": "calibration_cert_upload_modal",
+      "file": "design/Monopilot Design System/maintenance/modals.jsx",
+      "lines": "570-593",
+      "component_type": "modal",
+      "ui_pattern": "crud-form-with-validation",
+      "data_domain": "Asset",
+      "interaction": "import",
+      "complexity": "primitive",
+      "depends_on_prototypes": [
+        "calibration_reading_modal"
+      ],
+      "translation_notes": [
+        "window.Modal → Dialog; cert-card display → shadcn Card with pending SHA-256 placeholder",
+        "PDF file input → shadcn Input type=file accept=application/pdf; client-side 10MB size check before upload",
+        "Server Action: upload to S3, compute SHA-256 hash via crypto.subtle, store in calibration_certificates table with cert_date + issuing_authority",
+        "Authenticity confirmation Checkbox → required; z.literal(true) in zod schema to block submit until checked",
+        "21 CFR Part 11 note: SHA-256 hash stored immutably; retention = 7 years from cert_date (BRCGS Issue 10)",
+        "Hardcoded labels → next-intl keys under maintenance.calibration.certUpload.*"
+      ],
+      "shadcn_equivalent": [
+        "Dialog",
+        "Form",
+        "Input",
+        "Checkbox",
+        "Button",
+        "Card"
+      ],
+      "known_bugs": [],
+      "estimated_translation_time_min": 45
+    },
+    {
+      "label": "spare_reorder_modal",
+      "file": "design/Monopilot Design System/maintenance/modals.jsx",
+      "lines": "595-619",
+      "component_type": "modal",
+      "ui_pattern": "crud-form-with-validation",
+      "data_domain": "Spare",
+      "interaction": "create",
+      "complexity": "primitive",
+      "depends_on_prototypes": [],
+      "translation_notes": [
+        "window.Modal → Dialog; summary-block pre-filled from spare part master → read-only shadcn Card section loaded via Server Component",
+        "Reorder qty Input → z.number().positive(); UoM shown as readOnly pre-filled from spare.unit",
+        "Supplier and lead-time fields pre-filled from spare_parts.supplier_id join → readOnly display; link to supplier detail",
+        "Server Action creates purchase_request record with status=pending; BL-MAINT-07 note: P2 integration with 04-Planning PO module pending",
+        "P2 note Alert → informational shadcn Alert; track via feature flag purchasing.po_integration.enabled",
+        "Add RBAC guard; emit spare.reorder_requested outbox event; notify warehouse manager via notification service",
+        "Hardcoded labels → next-intl keys under maintenance.spares.reorder.*"
+      ],
+      "shadcn_equivalent": [
+        "Dialog",
+        "Form",
+        "Input",
+        "Button",
+        "Alert",
+        "Card"
+      ],
+      "known_bugs": [
+        "BL-MAINT-07: P2 PO integration not wired; creates internal notification only in P1"
+      ],
+      "estimated_translation_time_min": 60
+    },
+    {
+      "label": "technician_skill_edit_modal",
+      "file": "design/Monopilot Design System/maintenance/modals.jsx",
+      "lines": "621-657",
+      "component_type": "modal",
+      "ui_pattern": "crud-form-with-validation",
+      "data_domain": "Role",
+      "interaction": "edit",
+      "complexity": "composite",
+      "depends_on_prototypes": [],
+      "translation_notes": [
+        "window.Modal size=wide → Dialog max-w-2xl; skill level RadioGroup → shadcn RadioGroup with z.enum(['basic','advanced','specialist'])",
+        "Certifications repeating rows table → useFieldArray; each row has text inputs for name/issuer + date pickers for issue/expiry + file upload for scan",
+        "File upload per row (⇪ button) → S3 presigned upload per certification scan; store URL in tech_certifications.scan_url",
+        "Add row button → fieldArray.append({ name:'', issuer:'', issue:'', expiry:'', scan:null })",
+        "Cert expiry tracking note → server-side cron job alerts 30 days before expiry via notification_events; display-only in prototype",
+        "GDPR note (Technician Detail) → personal data fields must have data_category annotation in Drizzle schema for GDPR compliance",
+        "Add Server Action upserting technician_skills + tech_certifications; RBAC guard isManager only",
+        "Hardcoded labels → next-intl keys under maintenance.technicians.skills.*"
+      ],
+      "shadcn_equivalent": [
+        "Dialog",
+        "Form",
+        "RadioGroup",
+        "Input",
+        "Button",
+        "Table"
+      ],
+      "known_bugs": [
+        "BL-MAINT-05: Skills Matrix PDF export with cert scans is button stub only"
+      ],
+      "estimated_translation_time_min": 90
+    },
+    {
+      "label": "loto_apply_modal",
+      "file": "design/Monopilot Design System/maintenance/modals.jsx",
+      "lines": "659-731",
+      "component_type": "wizard",
+      "ui_pattern": "wizard-step",
+      "data_domain": "Asset",
+      "interaction": "create",
+      "complexity": "composite",
+      "depends_on_prototypes": [],
+      "translation_notes": [
+        "window.Modal dismissible=false → Dialog with no close on outside click; two-person policy enforced server-side",
+        "Energy source isolation checklist (nrg-step rows) → useFieldArray of steps with done boolean; toggle updates local Set via useState pattern → useForm array",
+        "Second verifier pending note → server-side WebSocket or polling; second person must confirm from own session (BL-MAINT-04: remote confirmation flow pending)",
+        "Tags/locks repeating rows → useFieldArray with location/tag-id/applied-by fields; add/remove via append/remove",
+        "Zero-energy Checkbox with PIN confirmation → shadcn Checkbox + PIN Input; Server Action verifies user credential before persisting",
+        "Server Action creates loto_procedure record with status=active + energy_sources JSONB array; emit loto.applied outbox event",
+        "V-MNT safety constraint: two-person verification required for critical assets; enforce in Server Action not just client",
+        "Hardcoded labels → next-intl keys under maintenance.loto.apply.*"
+      ],
+      "shadcn_equivalent": [
+        "Dialog",
+        "Form",
+        "Checkbox",
+        "Input",
+        "Select",
+        "Button",
+        "Alert",
+        "Card"
+      ],
+      "known_bugs": [
+        "BL-MAINT-02: LOTO photo evidence currently Recommended; awaiting safety sign-off to gate as Required",
+        "BL-MAINT-04: Two-person remote confirmation flow not prototyped — assumes separate sessions"
+      ],
+      "estimated_translation_time_min": 120
+    },
+    {
+      "label": "loto_clear_modal",
+      "file": "design/Monopilot Design System/maintenance/modals.jsx",
+      "lines": "733-802",
+      "component_type": "modal",
+      "ui_pattern": "crud-form-with-validation",
+      "data_domain": "Asset",
+      "interaction": "sign-off",
+      "complexity": "composite",
+      "depends_on_prototypes": [
+        "loto_apply_modal"
+      ],
+      "translation_notes": [
+        "window.Modal dismissible=false size=wide → Dialog max-w-2xl; pre-clear checklist → useFieldArray of boolean checks",
+        "Two-person sign-off strip → two separate signoff rows; each sign button calls request_signoff Server Action with role (technician/safety_officer)",
+        "canConfirm derived state → allChecked && signed.t1 && signed.t2 → computed server-side; client receives pre-condition status as prop",
+        "mWO in-progress warning Alert → sourced from loto_procedure.linked_mwo join with mwos.status; shown only when status !== completed/paused",
+        "Photo evidence file input → optional in P1 per config loto.photoEvidence setting; S3 upload via Server Action",
+        "Server Action updates loto_procedure status=cleared + records cleared_by + cleared_at; RBAC guard two-person validation",
+        "V-MNT-09 constraint: both signers must be distinct users; enforce in Server Action",
+        "Hardcoded labels → next-intl keys under maintenance.loto.clear.*"
+      ],
+      "shadcn_equivalent": [
+        "Dialog",
+        "Form",
+        "Checkbox",
+        "Input",
+        "Button",
+        "Alert",
+        "Card"
+      ],
+      "known_bugs": [
+        "BL-MAINT-02: Photo evidence gate configurable but currently Recommended only"
+      ],
+      "estimated_translation_time_min": 120
+    },
+    {
+      "label": "delete_confirm_modal",
+      "file": "design/Monopilot Design System/maintenance/modals.jsx",
+      "lines": "804-822",
+      "component_type": "modal",
+      "ui_pattern": "crud-form-with-validation",
+      "data_domain": "Asset",
+      "interaction": "delete",
+      "complexity": "primitive",
+      "depends_on_prototypes": [],
+      "translation_notes": [
+        "window.Modal dismissible=false size=sm → AlertDialog (shadcn AlertDialog, not Dialog) for destructive confirmation pattern",
+        "Type-to-confirm Input → controlled state; submit disabled until typed.trim().toUpperCase() === code.toUpperCase(); zod .refine() to enforce",
+        "Generic entity/code props → single reusable component accepting entity: string + code: string; renders appropriate copy",
+        "Server Action performs soft-delete (active=false, deactivated_at=now()); linked records preserved for audit per business rule",
+        "RBAC guard isAdmin only for delete; emit entity.deactivated outbox event",
+        "Hardcoded labels → next-intl keys under maintenance.delete.*"
+      ],
+      "shadcn_equivalent": [
+        "AlertDialog",
+        "AlertDialogContent",
+        "AlertDialogHeader",
+        "AlertDialogFooter",
+        "Input",
+        "Button"
+      ],
+      "known_bugs": [],
+      "estimated_translation_time_min": 30
+    },
+    {
+      "label": "criticality_override_modal",
+      "file": "design/Monopilot Design System/maintenance/modals.jsx",
+      "lines": "824-844",
+      "component_type": "modal",
+      "ui_pattern": "crud-form-with-validation",
+      "data_domain": "Asset",
+      "interaction": "edit",
+      "complexity": "primitive",
+      "depends_on_prototypes": [],
+      "translation_notes": [
+        "window.Modal → Dialog; current criticality shown as read-only CritBadge → shadcn Badge with color variant",
+        "New criticality Select → z.enum(['critical','high','medium','low']); paired with effective_date DatePicker",
+        "ReasonInput with minLength=10 → shadcn Textarea with zod .min(10) validation message",
+        "Server Action appends row to maintenance_history audit log table; updates assets.criticality + assets.criticality_override_at",
+        "RBAC guard isManager; emit asset.criticality_changed outbox event with old/new values for downstream consumers",
+        "Audit log note → display-only; production component should link to maintenance_history filtered view",
+        "Hardcoded labels → next-intl keys under maintenance.asset.criticalityOverride.*"
+      ],
+      "shadcn_equivalent": [
+        "Dialog",
+        "Form",
+        "Select",
+        "Input",
+        "Textarea",
+        "Button",
+        "Badge"
+      ],
+      "known_bugs": [],
+      "estimated_translation_time_min": 45
+    },
+    {
+      "label": "downtime_linkage_modal",
+      "file": "design/Monopilot Design System/maintenance/modals.jsx",
+      "lines": "846-879",
+      "component_type": "modal",
+      "ui_pattern": "list-with-actions",
+      "data_domain": "MWO",
+      "interaction": "edit",
+      "complexity": "primitive",
+      "depends_on_prototypes": [
+        "mwo_create_modal"
+      ],
+      "translation_notes": [
+        "window.Modal size=wide → Dialog; read-only downtime events table → shadcn Table with radio-select row highlighting",
+        "Selected row state → single-select via RadioGroup with table row onClick; Button disabled until selected !== null",
+        "Downtime events sourced from 08-PRODUCTION downtime_events table → cross-module Drizzle query filtered by asset_id + status=open",
+        "V-MNT-22 source update note → Server Action updates mwos.source_type=auto_downtime + mwos.source_note when linking",
+        "Add Server Action linking mwo to downtime_event via mwo_downtime_links table; emit mwo.downtime_linked outbox event",
+        "Hardcoded labels → next-intl keys under maintenance.mwo.downtimeLink.*"
+      ],
+      "shadcn_equivalent": [
+        "Dialog",
+        "Table",
+        "RadioGroup",
+        "Button",
+        "Alert"
+      ],
+      "known_bugs": [],
+      "estimated_translation_time_min": 45
+    },
+    {
+      "label": "spare_adjust_modal",
+      "file": "design/Monopilot Design System/maintenance/modals.jsx",
+      "lines": "902-925",
+      "component_type": "modal",
+      "ui_pattern": "crud-form-with-validation",
+      "data_domain": "Spare",
+      "interaction": "edit",
+      "complexity": "primitive",
+      "depends_on_prototypes": [],
+      "translation_notes": [
+        "window.Modal → Dialog; current qty shown as readOnly Input; new qty as controlled Input with zod z.number().int().nonnegative()",
+        "Reason Select (Damage/Cycle count/Spillage/Expired/Other) → shadcn Select mapped to z.enum(adjustReasonEnum)",
+        "Detailed reason Textarea → zod .min(10); manager approval gate: if abs(new-old)/old > 0.10 emit spare.adjustment_requires_approval event",
+        "Server Action creates spare_transaction row (type=adjust, delta=new-old) + updates spare_parts.qty_on_hand; RBAC guard",
+        ">10% delta approval gate → check in Server Action; return approval_required status to client; show pending state until manager confirms",
+        "Audit-logged note → immutable spare_transactions table; display in Spare Part Detail consumption history tab",
+        "Hardcoded labels → next-intl keys under maintenance.spares.adjust.*"
+      ],
+      "shadcn_equivalent": [
+        "Dialog",
+        "Form",
+        "Input",
+        "Select",
+        "Textarea",
+        "Button",
+        "Alert"
+      ],
+      "known_bugs": [],
+      "estimated_translation_time_min": 60
+    },
+    {
+      "label": "maintenance_dashboard",
+      "file": "design/Monopilot Design System/maintenance/dashboard.jsx",
+      "lines": "1-257",
+      "component_type": "page-layout",
+      "ui_pattern": "dashboard-tile",
+      "data_domain": "MWO",
+      "interaction": "read-only",
+      "complexity": "page-level",
+      "depends_on_prototypes": [
+        "mwo_create_modal",
+        "wr_create_modal"
+      ],
+      "translation_notes": [
+        "MNT_KPIS mock data → parallel Drizzle queries in Server Component: mwos count grouped by status, pm_schedules overdue count, calibration overdue count",
+        "8-KPI grid → shadcn Card grid (kpi-grid-8 CSS) → Tailwind grid-cols-4 on md, grid-cols-8 on xl; each KPI is a clickable Card navigating to relevant list page",
+        "Today's mWO table → Drizzle query mwos WHERE scheduled_start::date = today ORDER BY priority; rendered as shadcn Table in Server Component",
+        "PM compliance strip (overdue/due counts + nearest-due table) → aggregate queries on pm_schedules; DueCell color logic via Tailwind conditional classes",
+        "Critical alerts strip → alerts_notifications table query; client-side dismiss stores dismissed codes in user session or localStorage",
+        "Active LOTO panel → loto_procedures WHERE status=active; real-time updates via SSE or 30s polling",
+        "Onboarding card (isManager only) → RBAC gate in Server Component; step completion computed from DB state; dismissal stored in user_preferences",
+        "MTBF sparkline → time-series from oee_shift_metrics (15-OEE cross-module read); inline SVG bars → Recharts BarChart in client component",
+        "Cross-module bridge section → read-only derived data from production_wos (delayed) + quality_ccps (blocked); no write actions",
+        "Hardcoded labels → next-intl keys under maintenance.dashboard.*"
+      ],
+      "shadcn_equivalent": [
+        "Card",
+        "CardHeader",
+        "CardContent",
+        "Table",
+        "Badge",
+        "Button",
+        "Alert"
+      ],
+      "known_bugs": [],
+      "estimated_translation_time_min": 180
+    },
+    {
+      "label": "asset_list_page",
+      "file": "design/Monopilot Design System/maintenance/assets.jsx",
+      "lines": "1-183",
+      "component_type": "page-layout",
+      "ui_pattern": "search-filter-list",
+      "data_domain": "Asset",
+      "interaction": "read-only",
+      "complexity": "page-level",
+      "depends_on_prototypes": [
+        "asset_edit_modal"
+      ],
+      "translation_notes": [
+        "MNT_ASSETS mock + MNT_ASSET_HIER mock → Drizzle query joining assets + asset_hierarchy (ltree) with recursive CTE for tree structure",
+        "Asset hierarchy sidebar tree (280px column) → shadcn Collapsible or custom TreeView using radix-ui Accordion; level-0/1/2 indent via Tailwind pl-x classes",
+        "Hierarchy node selected line filter → URL search param ?line=LINE-01; Server Component re-renders filtered table",
+        "Filter bar (type/criticality/status/loto/cal checkboxes) → URL search params with nuqs or native URLSearchParams; filters applied in Drizzle WHERE clause",
+        "Asset table with bulk checkbox → shadcn Table + Checkbox in header for select-all; useRowSelection hook for bulk actions",
+        "Export CSV button → Server Action streaming CSV response from Drizzle query; uses streaming Response with Content-Disposition header",
+        "RBAC guard: Add Asset button hidden for non-manager roles; check via session in Server Component",
+        "Hardcoded labels → next-intl keys under maintenance.assets.list.*"
+      ],
+      "shadcn_equivalent": [
+        "Table",
+        "Checkbox",
+        "Select",
+        "Input",
+        "Badge",
+        "Button",
+        "Card",
+        "Collapsible"
+      ],
+      "known_bugs": [],
+      "estimated_translation_time_min": 180
+    },
+    {
+      "label": "asset_detail_page",
+      "file": "design/Monopilot Design System/maintenance/assets.jsx",
+      "lines": "185-518",
+      "component_type": "page-layout",
+      "ui_pattern": "detail-view",
+      "data_domain": "Asset",
+      "interaction": "read-only",
+      "complexity": "page-level",
+      "depends_on_prototypes": [
+        "asset_edit_modal",
+        "mwo_create_modal",
+        "loto_apply_modal",
+        "pm_schedule_edit_wizard",
+        "calibration_reading_modal"
+      ],
+      "translation_notes": [
+        "MNT_ASSET_DETAIL mock → Drizzle query joining assets + pm_schedules + history + spares + documents + downtime + calibration_records with tab-specific sub-queries",
+        "8-tab navigation (overview/history/pm/cal/spares/docs/downtime/sensors) → shadcn Tabs component; each tab is a separate Server Component fetch boundary via Suspense",
+        "Asset nameplate card → read-only dl/dd table in shadcn Card; Ltree path rendered as breadcrumb chips",
+        "MTBF/MTTR/Availability gauge rows → inline SVG progress bars; values sourced from oee_shift_metrics cross-module join",
+        "Spares BOM tab → shadcn Table with stock-low-row conditional styling (Tailwind bg-red-50); Reorder action inline",
+        "Downtime events tab → read-only from production_downtime_events; Link mWO button opens DtLinkModal",
+        "Sensors tab (P2) → placeholder with disabled overlay; gated by feature flag iot.sensors.enabled; BL-MAINT-01",
+        "LOTO active banner → conditional Alert shown when loto_procedures WHERE asset_id=? AND status=active exists",
+        "Hardcoded labels → next-intl keys under maintenance.assets.detail.*"
+      ],
+      "shadcn_equivalent": [
+        "Tabs",
+        "TabsList",
+        "TabsContent",
+        "Card",
+        "Table",
+        "Badge",
+        "Button",
+        "Alert"
+      ],
+      "known_bugs": [
+        "BL-MAINT-01: IoT sensors tab is P2 placeholder — no real time-series chart"
+      ],
+      "estimated_translation_time_min": 240
+    },
+    {
+      "label": "wr_list_page",
+      "file": "design/Monopilot Design System/maintenance/work-orders.jsx",
+      "lines": "1-132",
+      "component_type": "page-layout",
+      "ui_pattern": "list-with-actions",
+      "data_domain": "WR",
+      "interaction": "read-only",
+      "complexity": "page-level",
+      "depends_on_prototypes": [
+        "wr_create_modal",
+        "wr_triage_modal"
+      ],
+      "translation_notes": [
+        "MNT_WRS mock → Drizzle query on work_requests with status filter pushed to WHERE clause via URL search params",
+        "Table/Kanban view toggle → URL param ?view=table|kanban; each view is a separate client component below the shared filter bar",
+        "Kanban columns (Submitted/Triaged/Scheduled-Done/Rejected) → drag-and-drop deferred; prototype uses click-to-triage only; use @hello-pangea/dnd for production",
+        "Kanban card → shadcn Card with compact layout; onClick opens wrTriage modal or navigates to mwo_detail",
+        "Filter bar (status/priority) → nuqs URL search params; filters applied in Drizzle WHERE clause in Server Component",
+        "Triage button inline in table → visible only to isManager + status=requested; opens WRTriageModal with wr prop",
+        "RBAC guard: Submit Work Request button visible to all roles; Triage button isManager only",
+        "Hardcoded labels → next-intl keys under maintenance.wr.list.*"
+      ],
+      "shadcn_equivalent": [
+        "Table",
+        "Card",
+        "Badge",
+        "Button",
+        "Select",
+        "Input",
+        "Tabs"
+      ],
+      "known_bugs": [],
+      "estimated_translation_time_min": 150
+    },
+    {
+      "label": "mwo_list_page",
+      "file": "design/Monopilot Design System/maintenance/work-orders.jsx",
+      "lines": "134-259",
+      "component_type": "page-layout",
+      "ui_pattern": "search-filter-list",
+      "data_domain": "MWO",
+      "interaction": "read-only",
+      "complexity": "page-level",
+      "depends_on_prototypes": [
+        "mwo_create_modal",
+        "mwo_complete_signoff_modal"
+      ],
+      "translation_notes": [
+        "MNT_MWOS mock → Drizzle query with tab-aware WHERE clause (mine: tech_id=session.userId, open, in_progress, overdue, completed) via URL search param ?tab=X",
+        "Tab counts → aggregate COUNT queries per status group; use Promise.all for parallel fetch in Server Component",
+        "Filter bar (type/priority/source) → nuqs URL params; source enum maps to mwos.source_type column (manual/pm_schedule/auto_downtime/oee_trigger/calibration_alert)",
+        "DT impact column (mwo.dtImpact) → boolean join against downtime_links; render red chip vs dash",
+        "Inline action buttons by status → Start/Complete/Assign/Triage buttons; each calls Server Action or opens relevant modal",
+        "Export button → streaming CSV Server Action with full mwos join result",
+        "RBAC: New mWO button isManager only; Complete button tech or manager; Triage isManager only",
+        "Hardcoded labels → next-intl keys under maintenance.mwo.list.*"
+      ],
+      "shadcn_equivalent": [
+        "Tabs",
+        "Table",
+        "Select",
+        "Input",
+        "Badge",
+        "Button",
+        "Card"
+      ],
+      "known_bugs": [],
+      "estimated_translation_time_min": 180
+    },
+    {
+      "label": "mwo_detail_page",
+      "file": "design/Monopilot Design System/maintenance/work-orders.jsx",
+      "lines": "261-584",
+      "component_type": "page-layout",
+      "ui_pattern": "detail-view",
+      "data_domain": "MWO",
+      "interaction": "edit",
+      "complexity": "page-level",
+      "depends_on_prototypes": [
+        "mwo_create_modal",
+        "task_checkoff_modal",
+        "mwo_complete_signoff_modal",
+        "downtime_linkage_modal",
+        "loto_apply_modal"
+      ],
+      "translation_notes": [
+        "State machine strip (requested→approved→open→in_progress→completed) → read-only stepper built from shadcn Steps or custom ol/li with Tailwind; current state derived from mwos.status",
+        "7-tab layout (overview/tasks/parts/labor/downtime/signoff/history) → shadcn Tabs with Suspense per tab; each tab fetches its own sub-query",
+        "Tasks tab checklist → list of mwo_tasks rows; each item shows complete button calling TaskCheckoffModal; out-of-spec measurement rendered with red FAIL badge",
+        "Parts tab (planned + unplanned) → two shadcn Tables from mwo_parts_planned + mwo_parts_unplanned; Consume action triggers partsConsume Server Action updating spare qty",
+        "Labor tab time entries → mwo_labor_entries table; Log time button opens LogTime modal; rate calculation shown to isManager only",
+        "Downtime link tab → read-only from mwo_downtime_links join with downtime_events; Unlink Server Action for isManager",
+        "Sign-off tab → multi-role signoff rows from mwo_signoffs; Sign off button calls Server Action with current user + timestamp + role",
+        "History/audit tab → mwo_history event log; reverse-chronological activity feed using shadcn Timeline (custom) or simple ol/li",
+        "Hardcoded labels → next-intl keys under maintenance.mwo.detail.*"
+      ],
+      "shadcn_equivalent": [
+        "Tabs",
+        "TabsList",
+        "TabsContent",
+        "Card",
+        "Table",
+        "Badge",
+        "Button",
+        "Alert"
+      ],
+      "known_bugs": [],
+      "estimated_translation_time_min": 300
+    },
+    {
+      "label": "pm_schedules_list_page",
+      "file": "design/Monopilot Design System/maintenance/pm-schedules.jsx",
+      "lines": "1-138",
+      "component_type": "page-layout",
+      "ui_pattern": "search-filter-list",
+      "data_domain": "PMSchedule",
+      "interaction": "read-only",
+      "complexity": "page-level",
+      "depends_on_prototypes": [
+        "pm_schedule_edit_wizard",
+        "pm_occurrence_skip_modal"
+      ],
+      "translation_notes": [
+        "MNT_PM_SCHEDULES mock → Drizzle query on pm_schedules with overdue/due computed as (next_due_date - now())::int",
+        "List/Week/Month view toggle → URL param ?view=list|week|month; PMWeekCalendar and PMMonthCalendar rendered conditionally",
+        "6-KPI summary strip → aggregate COUNT/AVG queries; PM compliance % from pm_occurrences completed vs scheduled in last 30 days",
+        "Filter bar (type/technician/status/overdueOnly) → nuqs URL params applied to Drizzle WHERE",
+        "Row-level conditional styling (row-overdue/row-due) → Tailwind conditional classes based on days computed column",
+        "Edit/Skip inline buttons → isManager only via RBAC; open PMEditModal/PMSkipModal with pm prop",
+        "Create PM Schedule button → opens PMEditModal in create mode; RBAC guard isManager",
+        "Hardcoded labels → next-intl keys under maintenance.pm.list.*"
+      ],
+      "shadcn_equivalent": [
+        "Table",
+        "Select",
+        "Checkbox",
+        "Input",
+        "Button",
+        "Card",
+        "Badge"
+      ],
+      "known_bugs": [],
+      "estimated_translation_time_min": 150
+    },
+    {
+      "label": "pm_month_calendar",
+      "file": "design/Monopilot Design System/maintenance/pm-schedules.jsx",
+      "lines": "140-216",
+      "component_type": "page-layout",
+      "ui_pattern": "dashboard-tile",
+      "data_domain": "PMSchedule",
+      "interaction": "read-only",
+      "complexity": "composite",
+      "depends_on_prototypes": [
+        "pm_schedules_list_page"
+      ],
+      "translation_notes": [
+        "Hand-rolled calendar grid computation (firstDayOfWeek/cells array) → replace with date-fns or dayjs calendar helpers; monthOffset maps to URL param",
+        "eventsMap keyed by yyyy-mm-dd → computed from pm_schedules.next_due_date grouped by date in Server Component",
+        "Calendar cells grid (cal-grid-month CSS) → CSS Grid 7 columns with auto-rows; today cell highlighted via Tailwind ring-2",
+        "Event chips (cc-event) per day (max 4 + overflow) → colored span with truncate; overdue class adds red styling",
+        "Prev/Next month navigation → URL param ?monthOffset incremented/decremented; shallow routing via useRouter().push",
+        "Legend chips for PM types → static row of colored Badge components matching cal-event type classes",
+        "Hardcoded labels → next-intl keys under maintenance.pm.calendar.*"
+      ],
+      "shadcn_equivalent": [
+        "Card",
+        "Button",
+        "Badge"
+      ],
+      "known_bugs": [],
+      "estimated_translation_time_min": 90
+    },
+    {
+      "label": "pm_week_calendar",
+      "file": "design/Monopilot Design System/maintenance/pm-schedules.jsx",
+      "lines": "218-275",
+      "component_type": "page-layout",
+      "ui_pattern": "dashboard-tile",
+      "data_domain": "PMSchedule",
+      "interaction": "read-only",
+      "complexity": "composite",
+      "depends_on_prototypes": [
+        "pm_schedules_list_page"
+      ],
+      "translation_notes": [
+        "Hand-rolled week header (weekDays array) → replace with date-fns eachDayOfInterval for current week; today highlighted",
+        "byAsset grouping of schedules → SQL GROUP BY asset_id + date join in Server Component; assets × days grid",
+        "Asset × day grid (cal-week CSS) → CSS Grid with asset name column + 7 day columns using grid-template-columns: minmax(120px,auto) repeat(7,1fr)",
+        "Prev/Next week navigation → URL param ?weekOffset; shallow routing",
+        "Event chips per cell → same cc-event colored span pattern as month calendar; no overflow truncation needed (fewer events per cell)",
+        "Max 12 assets visible → pagination or virtual scrolling for large asset counts in production",
+        "Hardcoded labels → next-intl keys under maintenance.pm.weekCalendar.*"
+      ],
+      "shadcn_equivalent": [
+        "Card",
+        "Button",
+        "Badge"
+      ],
+      "known_bugs": [],
+      "estimated_translation_time_min": 90
+    },
+    {
+      "label": "spares_list_page",
+      "file": "design/Monopilot Design System/maintenance/spares.jsx",
+      "lines": "1-115",
+      "component_type": "page-layout",
+      "ui_pattern": "search-filter-list",
+      "data_domain": "Spare",
+      "interaction": "read-only",
+      "complexity": "page-level",
+      "depends_on_prototypes": [
+        "spare_reorder_modal",
+        "spare_adjust_modal"
+      ],
+      "translation_notes": [
+        "MNT_SPARES mock → Drizzle query on spare_parts with on_hand, min, max columns; low stock computed as on_hand <= min",
+        "6-KPI summary strip → aggregate queries: COUNT(*), COUNT(on_hand<=min), COUNT(critical=true), COUNT(DISTINCT cat), AVG(lead_time_days), SUM(on_hand*unit_cost)",
+        "Filter bar (category/critOnly/lowOnly) → nuqs URL params; categories derived from DISTINCT cat query",
+        "stock-low-row conditional styling → Tailwind bg-red-50 based on s.onHand <= s.min computed in Server Component",
+        "WH ref column (CmChip) → cross-module link to warehouse LP; rendered as shadcn Badge with href to /warehouse/lps/[lp]",
+        "Reorder/Adjust inline buttons → conditional on low stock; open respective modals; RBAC guard for Adjust (isManager)",
+        "Add Part button incorrectly calls assetEdit modal in prototype → production should call separate spare part create form",
+        "Hardcoded labels → next-intl keys under maintenance.spares.list.*"
+      ],
+      "shadcn_equivalent": [
+        "Table",
+        "Select",
+        "Checkbox",
+        "Input",
+        "Button",
+        "Card",
+        "Badge"
+      ],
+      "known_bugs": [],
+      "estimated_translation_time_min": 150
+    },
+    {
+      "label": "spare_detail_page",
+      "file": "design/Monopilot Design System/maintenance/spares.jsx",
+      "lines": "117-261",
+      "component_type": "page-layout",
+      "ui_pattern": "detail-view",
+      "data_domain": "Spare",
+      "interaction": "read-only",
+      "complexity": "page-level",
+      "depends_on_prototypes": [
+        "spare_reorder_modal",
+        "spare_adjust_modal"
+      ],
+      "translation_notes": [
+        "MNT_SPARE_DETAIL mock → Drizzle query joining spare_parts + spare_stock_by_location + spare_transactions + linked_assets with all sub-queries",
+        "4-KPI stock cards (on-hand/reorder/max/unit-cost) → shadcn Card grid; stock bar uses inline style width % → Tailwind dynamic or CSS variable",
+        "Stock by warehouse location table → spare_stock_by_location table with Ltree path display; Adjust action per row opens SpareAdjustModal",
+        "Consumption history table → spare_transactions ORDER BY created_at DESC; type badge (consume/receipt/adjustment) as colored Badge",
+        "Linked assets table → spare_asset_bom join table; click navigates to asset detail",
+        "Master data read-only panel → right column key-value table from spare_parts master; Edit Part calls separate CRUD form",
+        "Architecture note: no LP picker/FEFO logic → maintain this boundary; spare parts are qty_on_hand simple tracking only in P1",
+        "Hardcoded labels → next-intl keys under maintenance.spares.detail.*"
+      ],
+      "shadcn_equivalent": [
+        "Card",
+        "Table",
+        "Badge",
+        "Button",
+        "Alert"
+      ],
+      "known_bugs": [],
+      "estimated_translation_time_min": 180
+    },
+    {
+      "label": "calibration_list_page",
+      "file": "design/Monopilot Design System/maintenance/other-screens.jsx",
+      "lines": "1-127",
+      "component_type": "page-layout",
+      "ui_pattern": "search-filter-list",
+      "data_domain": "Asset",
+      "interaction": "read-only",
+      "complexity": "page-level",
+      "depends_on_prototypes": [
+        "calibration_reading_modal"
+      ],
+      "translation_notes": [
+        "MNT_INSTRUMENTS mock → Drizzle query on calibration_instruments joining calibration_records for last result + next_due_date computed column",
+        "6-KPI strip (current/due/overdue/CCP blocks/last FAIL/next scheduled) → aggregate queries; CCP blocks sourced from quality_ccps cross-module join",
+        "CCP block banner → alert sourced from calibration_instruments WHERE ccp_block=true; links to 09-QUALITY CCP detail",
+        "Filter bar (type/standard/status/ccpOnly) → nuqs URL params; status computed from days_until_due < 0 (overdue) / < 30 (due)",
+        "ccp-block-row conditional row styling → Tailwind bg-red-50 based on i.ccpBlock in Server Component",
+        "Record button inline → opens CalReadingModal with instrument code; all roles can record calibration (configurable via RBAC settings)",
+        "Export for audit button → streaming CSV with all calibration_records for audit period; include SHA-256 hashes for 21 CFR Part 11",
+        "Hardcoded labels → next-intl keys under maintenance.calibration.list.*"
+      ],
+      "shadcn_equivalent": [
+        "Table",
+        "Select",
+        "Checkbox",
+        "Input",
+        "Button",
+        "Card",
+        "Badge",
+        "Alert"
+      ],
+      "known_bugs": [],
+      "estimated_translation_time_min": 150
+    },
+    {
+      "label": "calibration_detail_page",
+      "file": "design/Monopilot Design System/maintenance/other-screens.jsx",
+      "lines": "129-264",
+      "component_type": "page-layout",
+      "ui_pattern": "detail-view",
+      "data_domain": "Asset",
+      "interaction": "read-only",
+      "complexity": "page-level",
+      "depends_on_prototypes": [
+        "calibration_reading_modal",
+        "calibration_cert_upload_modal"
+      ],
+      "translation_notes": [
+        "MNT_CAL_DETAIL mock → Drizzle query joining calibration_instruments + latest calibration_record + latestPoints + records history + certs",
+        "6-stat header row → shadcn Card with grid-cols-6; linked asset navigates to /maintenance/assets/[id]",
+        "CCP block alert (alert-red) → conditional from instrument.ccp_block boolean; Record now button is prominent primary action",
+        "Latest result banner with dynamic background (green/red/amber) → Tailwind conditional bg-green-50/bg-red-50/bg-amber-50 via cn()",
+        "Test points table (latest calibration) → read-only shadcn Table with in-spec tick/cross indicators (tp-check ok/fail classes → Tailwind text-green-600/text-red-600)",
+        "History tab → calibration_records table with BRCGS 7-year retention note; mWO link navigates cross-module",
+        "Certificate tab → calibration_certificates with SHA-256 display and PDF open; Upload new certificate button opens CertUploadModal",
+        "Hardcoded labels → next-intl keys under maintenance.calibration.detail.*"
+      ],
+      "shadcn_equivalent": [
+        "Tabs",
+        "TabsList",
+        "TabsContent",
+        "Card",
+        "Table",
+        "Badge",
+        "Button",
+        "Alert"
+      ],
+      "known_bugs": [],
+      "estimated_translation_time_min": 180
+    },
+    {
+      "label": "technicians_list_page",
+      "file": "design/Monopilot Design System/maintenance/other-screens.jsx",
+      "lines": "266-374",
+      "component_type": "page-layout",
+      "ui_pattern": "list-with-actions",
+      "data_domain": "Role",
+      "interaction": "read-only",
+      "complexity": "page-level",
+      "depends_on_prototypes": [
+        "technician_skill_edit_modal"
+      ],
+      "translation_notes": [
+        "MNT_TECHNICIANS mock → Drizzle query on technicians table joining tech_certifications for cert expiry + mwo count",
+        "List/Skills matrix view toggle → URL param ?view=list|matrix; matrix is separate client component",
+        "Skills matrix table → technicians × MNT_SKILLS cross-join resolved via MNT_SKILL_MATRIX lookup → Drizzle query on tech_skill_matrix table",
+        "Matrix cell levels (specialist/has/none) → shadcn badge or text cell with Tailwind bg-color by level; ⚡/✓/— icons preserved",
+        "Cert expiry DueCell → DueCell component with amber/red color based on days_until_expiry < 30",
+        "Hourly rate hidden for non-managers → server-side RBAC gate; rate field not included in query for technician role",
+        "Edit skills inline button → TechSkillModal; isManager RBAC; PDF export (BL-MAINT-05) is stub",
+        "Hardcoded labels → next-intl keys under maintenance.technicians.list.*"
+      ],
+      "shadcn_equivalent": [
+        "Table",
+        "Select",
+        "Checkbox",
+        "Badge",
+        "Button",
+        "Card"
+      ],
+      "known_bugs": [
+        "BL-MAINT-05: Skills Matrix PDF export with cert scans is button stub only"
+      ],
+      "estimated_translation_time_min": 150
+    },
+    {
+      "label": "technician_detail_page",
+      "file": "design/Monopilot Design System/maintenance/other-screens.jsx",
+      "lines": "376-486",
+      "component_type": "page-layout",
+      "ui_pattern": "detail-view",
+      "data_domain": "Role",
+      "interaction": "read-only",
+      "complexity": "page-level",
+      "depends_on_prototypes": [
+        "technician_skill_edit_modal"
+      ],
+      "translation_notes": [
+        "MNT_TECHNICIANS[0] mock → Drizzle query on technicians WHERE id=? joining tech_certifications + tech_skill_matrix + assigned mwos count",
+        "Avatar initials circle → shadcn Avatar with fallback initials; color computed from id hash for uniqueness",
+        "Profile/History tabs → shadcn Tabs; history tab queries mwos WHERE tech_id=?",
+        "Certifications table → tech_certifications with DueCell for expiry; GDPR note displayed as info Alert",
+        "Skills table → tech_skill_matrix values for this technician; derived from join with skill catalog (MNT_SKILLS from settings_ref_tables)",
+        "Hourly rate shown to isManager only → server-side RBAC; field excluded from query for non-manager roles per GDPR minimization",
+        "Assignment history table → mwos filtered by tech_id; navigate to mwo detail on row click",
+        "Hardcoded labels → next-intl keys under maintenance.technicians.detail.*"
+      ],
+      "shadcn_equivalent": [
+        "Tabs",
+        "TabsList",
+        "TabsContent",
+        "Card",
+        "Table",
+        "Badge",
+        "Avatar",
+        "Button",
+        "Alert"
+      ],
+      "known_bugs": [],
+      "estimated_translation_time_min": 120
+    },
+    {
+      "label": "loto_list_page",
+      "file": "design/Monopilot Design System/maintenance/other-screens.jsx",
+      "lines": "488-598",
+      "component_type": "page-layout",
+      "ui_pattern": "list-with-actions",
+      "data_domain": "Asset",
+      "interaction": "read-only",
+      "complexity": "page-level",
+      "depends_on_prototypes": [
+        "loto_apply_modal",
+        "loto_clear_modal"
+      ],
+      "translation_notes": [
+        "MNT_LOTO_PROCS mock + MNT_LOTO_DETAIL mock → Drizzle query on loto_procedures joining assets + mwos + energy_sources JSONB + tags JSONB",
+        "Active-only toggle → URL param ?activeOnly=true; WHERE status=active in Drizzle query",
+        "Active procedures count banner (alert-amber) → real-time via SSE subscription on loto_procedures table changes or 30s polling",
+        "LOTO table → shadcn Table; loto-row conditional class → Tailwind bg-amber-50 for active rows",
+        "Clear LOTO button → opens LotoClearModal with proc prop; View button navigates to procedure detail",
+        "Active LOTO detail expansion card → MNT_LOTO_DETAIL fetched for first active procedure; energy sources list + tags table rendered inline",
+        "Two-person verification confirmed display → shows both verifier names from loto_energy_sources.verified_by + second_verified_by",
+        "Hardcoded labels → next-intl keys under maintenance.loto.list.*"
+      ],
+      "shadcn_equivalent": [
+        "Table",
+        "Card",
+        "Badge",
+        "Button",
+        "Alert",
+        "Checkbox"
+      ],
+      "known_bugs": [
+        "BL-MAINT-04: Remote two-person confirmation flow not prototyped"
+      ],
+      "estimated_translation_time_min": 150
+    },
+    {
+      "label": "maintenance_analytics_page",
+      "file": "design/Monopilot Design System/maintenance/other-screens.jsx",
+      "lines": "601-803",
+      "component_type": "page-layout",
+      "ui_pattern": "dashboard-tile",
+      "data_domain": "MWO",
+      "interaction": "read-only",
+      "complexity": "page-level",
+      "depends_on_prototypes": [],
+      "translation_notes": [
+        "MNT_ANALYTICS mock → Drizzle queries per tab: overview aggregates, MTBF trend from oee_shift_metrics (15-OEE), PM compliance from pm_occurrences, pareto from downtime_events+mwo join",
+        "Date range selector (7d/30d/90d/12m) + asset filter → URL params; passed as WHERE clause bounds to all sub-queries in Server Component",
+        "6-tab analytics layout → shadcn Tabs; each tab is a separate Suspense boundary with its own Server Component data fetch",
+        "Inline SVG bar charts (MTBF trend, PM compliance bars) → replace with shadcn Chart (Recharts wrapper) BarChart/LineChart; BL-RPT-02 pattern",
+        "Pareto chart → horizontal bar + cumulative % line → Recharts ComposedChart in client component; pareto data from downtime_events grouped by cause",
+        "Problem assets gauge rows → shadcn Progress bars with asset name label; dt hours data from mwo_labor aggregated by asset",
+        "Technician utilisation table → mwo_labor GROUP BY tech_id with SUM(hours) + AVG/mwo + SUM(cost) computed in SQL",
+        "Hardcoded labels → next-intl keys under maintenance.analytics.*"
+      ],
+      "shadcn_equivalent": [
+        "Tabs",
+        "TabsList",
+        "TabsContent",
+        "Card",
+        "Table",
+        "Select",
+        "Button",
+        "Progress",
+        "Badge"
+      ],
+      "known_bugs": [],
+      "estimated_translation_time_min": 240
+    },
+    {
+      "label": "maintenance_settings_page",
+      "file": "design/Monopilot Design System/maintenance/other-screens.jsx",
+      "lines": "805-964",
+      "component_type": "page-layout",
+      "ui_pattern": "crud-form-with-validation",
+      "data_domain": "Asset",
+      "interaction": "edit",
+      "complexity": "page-level",
+      "depends_on_prototypes": [],
+      "translation_notes": [
+        "MNT_SETTINGS mock → Drizzle query on maintenance_settings table (keyed config rows) + criticality_taxonomy + notification_preferences per tenant",
+        "Left-nav section list (asset-hier sidebar pattern) → shadcn NavigationMenu or simple button list with active state; section stored in URL param ?section=general",
+        "General defaults form → react-hook-form with zod validation; numeric inputs for pmLeadTimeDays/calWarnDays/mtbfTarget etc.; Save calls Server Action",
+        "Criticality taxonomy table → useFieldArray; description textareas editable; drag-to-reorder → @hello-pangea/dnd Draggable rows; order persisted to DB",
+        "LOTO policy section → Select fields; two-person critical toggle enforced non-nullable; photo evidence has required/recommended/optional enum",
+        "OEE trigger section → rendered disabled with P2 Alert; gated by feature flag oeeTrigger.enabled",
+        "Notifications table → list of event+frequency+checkbox rows from notification_event_types reference; useFieldArray pattern",
+        "Reset to defaults button → Server Action resetting maintenance_settings rows to seed values; RBAC guard Admin only",
+        "Hardcoded labels → next-intl keys under maintenance.settings.*"
+      ],
+      "shadcn_equivalent": [
+        "Form",
+        "FormField",
+        "Input",
+        "Select",
+        "Textarea",
+        "Checkbox",
+        "Button",
+        "Alert",
+        "Table",
+        "Card"
+      ],
+      "known_bugs": [],
+      "estimated_translation_time_min": 180
+    }
+  ]
+}

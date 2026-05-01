@@ -1,0 +1,36 @@
+{
+  "title": "T-054 — UI: TEC-088 Maintenance Cross-Link Panel",
+  "prompt": "Build maintenance cross-link panel embedded in item/routing detail per §12A. Read-only summary linking to 13-MAINTENANCE asset health. Match `maintenance_screen` design/Monopilot Design System/technical/other-screens.jsx:266-311. RED tests/ui/tec-088-maintenance.test.tsx. Run: `pnpm vitest run tests/ui/tec-088-maintenance.test.tsx`.",
+  "labels": ["prd", "ui", "ui-maintenance-link", "T3-ui"],
+  "priority": 120,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-054",
+    "source_prd": "03-TECHNICAL-PRD.md",
+    "prd_refs": ["§12A TEC-088"],
+    "category": "ui",
+    "subcategory": "maintenance-link",
+    "task_type": "T3-ui",
+    "parent_feature": "03-TECHNICAL Cross-link",
+    "context_budget": "12k",
+    "estimated_effort": "1h",
+    "description": "Read-only cross-link panel surfacing maintenance status from 13-MAINTENANCE.",
+    "details": "Reads via 13-MAINTENANCE GET endpoint (assumed present). Renders status badges + link to /maintenance/[asset_id].",
+    "scope_files": ["app/(app)/technical/_components/maintenance-link-card.tsx", "tests/ui/tec-088-maintenance.test.tsx"],
+    "out_of_scope": ["Asset CRUD"],
+    "dependencies": ["T-034", "T-051"],
+    "parallel_safe_with": ["T-053"],
+    "acceptance_criteria": [
+      "Given the panel renders, when compared to design/Monopilot Design System/technical/other-screens.jsx:266-311, then card layout, status badges, and link styling match — structural + visual + interaction parity verified by RTL.",
+      "Given asset has no maintenance data, when rendered, then empty card with 'No maintenance data' copy appears.",
+      "Given clicking a row, when fired, then router navigates to /maintenance/[asset_id]."
+    ],
+    "test_strategy": ["RED tests for parity + navigation.", "Run: pnpm vitest run tests/ui/tec-088-maintenance.test.tsx"],
+    "risk_red_lines": ["Do not allow writes from this panel."],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {"required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"], "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]},
+    "routing_hints": {"red": "hermes_gpt55", "implementation": "hermes_gpt55", "review": "opus_if_high_risk_or_ui_or_architecture", "close": "spark_low_risk_else_opus"}
+  }
+}

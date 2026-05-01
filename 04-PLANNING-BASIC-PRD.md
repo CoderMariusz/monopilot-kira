@@ -1,10 +1,10 @@
 # PRD 04-PLANNING-BASIC — Monopilot MES
 
-**Wersja**: 3.2 | **Data**: 2026-04-30 | **Status**: Phase C2 Sesja 2 revision (Multi-industry standardization — FA→FG, PR→WIP, Process_N→Manufacturing_Operation_N)
+**Wersja**: 3.3 | **Data**: 2026-04-30 | **Status**: Phase C2 Sesja 2 revision + audit fix (Multi-industry standardization + PLN-NNN screen-code scheme per `_meta/audits/2026-04-30-design-prd-coverage.md`)
 **Moduł**: #4 w Module Map (per 00-FOUNDATION §4), deps: 01-NPD + 02-SETTINGS + 03-TECHNICAL
 **Primary reality sources**: PLD v7 Main Table (post-NPD downstream flow), Builder_FA5101.xlsx (D365 WO targets), MES-TRENDS-2026 §3/§7/§9
 
-> **v3.2 revision note (2026-04-30 Multi-industry standardization):** Universal naming conventions applied across all manufacturing patterns. FA → FG (finished good), PR → WIP (work-in-process), Process_1..4 → Manufacturing_Operation_1..4. WIP code pattern standardized to WIP-<2-letter-suffix>-<7-digit-sequence> (e.g., WIP-BK-0000001). All examples, SQL queries, Mermaid diagrams, and validation rules updated accordingly. Builds on v3.1 Q6 revision (intermediate cascade disposition, hard-lock reservations RM-root-only). Full changelog §16.6.
+> **v3.2 revision note (2026-04-30 Multi-industry standardization):** Universal naming conventions applied across all manufacturing patterns. FA → FG (finished good), PR → WIP (work-in-process), Process_1..4 → Manufacturing_Operation_1..4. WIP code pattern standardized to WIP-<2-letter-suffix>-<7-digit-sequence> (e.g., WIP-BK-0000001). All examples, SQL queries, Mermaid diagrams, and validation rules updated accordingly. Builds on v3.1 Q6 revision (intermediate cascade disposition, hard-lock reservations RM-root-only). Full changelog §16.9.
 
 ---
 
@@ -564,16 +564,19 @@ Consumers: D365 adapter push (P2 for PO confirmations to D365), analytics, dashb
 
 ### 6.6 Frontend/UX
 
-| Komponent | Opis |
-|-----------|------|
-| SupplierTable | Lista, search, filter active/inactive, D365 sync badge |
-| SupplierForm | Modal create/edit z Zod validation |
-| SupplierDetail | Page z product assignments, PO history |
-| POTable | Lista PO, badge status (rendered z rule registry status names/colors), filter |
-| POFastFlow | 3-step wizard: supplier → products → review |
-| PODetail | Page z liniami, status history, approval actions, GRN progress |
-| POBulkImport | Modal (paste + CSV upload) + grouping preview |
-| POApprovalModal | Approve/reject + notes + audit |
+> **Screen-code scheme:** PLN-NNN canonical IDs (added 2026-04-30, audit fix per `_meta/audits/2026-04-30-design-prd-coverage.md`). Each PRD UI surface is anchored to UX SCREEN-NN (in `design/04-PLANNING-BASIC-UX.md`) + prototype label (in `_meta/prototype-labels/prototype-index-planning.json`). ADR-034 universal naming applies (FG/WIP/Manufacturing_Operation_N).
+
+| Screen ID | Komponent | Opis | UX anchor | Prototype |
+|---|-----------|------|-----------|-----------|
+| PLN-040 | SupplierTable | Lista, search, filter active/inactive, D365 sync badge | (UX §3 implicit — supplier CRUD belongs to Planning Settings tab + dedicated screen `[NO-UX-YET]`) | `[NO-PROTOTYPE-YET]` (TODO: add supplier_list_screen) |
+| PLN-041 | SupplierForm | Modal create/edit z Zod validation | `[NO-UX-YET]` | `[NO-PROTOTYPE-YET]` |
+| PLN-042 | SupplierDetail | Page z product assignments, PO history | `[NO-UX-YET]` | `[NO-PROTOTYPE-YET]` |
+| **PLN-002** | POTable / PO List | Lista PO, badge status (rendered z rule registry status names/colors), filter | UX SCREEN-02 PO List (`design/04-PLANNING-BASIC-UX.md:271`) | `plan_po_list` (`planning/po-screens.jsx:3-139`) |
+| **PLN-014** | POFastFlow | 3-step wizard: supplier → products → review | UX §4 `PO Fast-Flow — 3-Step Wizard` (`:1123`) | `po_fast_flow_wizard` (`planning/modals.jsx:21-179`) |
+| **PLN-003** | PODetail | Page z liniami, status history, approval actions, GRN progress | UX SCREEN-03 PO Detail (`:330`) | `plan_po_detail` (`planning/po-screens.jsx:143-353`) |
+| **PLN-015** | AddPOLineModal | Add line modal (per FR-PLAN-009) | UX §4 `Add PO Line` (`:1164`) | `add_po_line_modal` (`planning/modals.jsx:182-225`) |
+| **PLN-017** | POBulkImport | Modal (paste + CSV upload) + grouping preview | UX §4 `PO Bulk Import` (`:1192`) | `[NO-PROTOTYPE-YET]` (TODO: add po_bulk_import_modal — Direction-A gap) |
+| **PLN-016** | POApprovalModal | Approve/reject + notes + audit | UX §4 `PO Approval` (`:1179`) | `po_approval_modal` (`planning/modals.jsx:228-264`) |
 
 ### 6.7 Validation V-PLAN-PO
 
@@ -638,14 +641,14 @@ draft → planned → partially_shipped → shipped → partially_received → r
 
 ### 7.7 Frontend/UX
 
-| Komponent | Opis |
-|-----------|------|
-| TOTable | Lista, filter status/warehouse/date |
-| TOForm | Modal z warehouse pick (source ≠ dest), priority, lines |
-| TODetail | Page z shipped/received progress, LP breakdown |
-| TOLPSelector | Modal wyboru LP z FEFO/FIFO suggestion (query 05-WH) |
-| ShipTOModal | Qty per line, batch sign-off |
-| ReceiveTOModal | Qty per line, variance alert |
+| Screen ID | Komponent | Opis | UX anchor | Prototype |
+|---|-----------|------|-----------|-----------|
+| **PLN-004** | TOTable / TO List | Lista, filter status/warehouse/date | UX SCREEN-04 TO List (`:389`) | `plan_to_list` (`planning/to-screens.jsx:3-99`) |
+| **PLN-018** | TOForm / TO Create-Edit | Modal z warehouse pick (source ≠ dest), priority, lines | UX §4 `TO Create/Edit` (`:1218`) | `to_create_edit_modal` (`planning/modals.jsx:697-845`) |
+| **PLN-005** | TODetail | Page z shipped/received progress, LP breakdown | UX SCREEN-05 TO Detail (`:429`) | `plan_to_detail` (`planning/to-screens.jsx:103-281`) |
+| **PLN-019** | TOLPSelector / LP Picker | Modal wyboru LP z FEFO/FIFO suggestion (query 05-WH) | UX §4 `LP Picker (TO Line)` (`:1243`) | `lp_picker_modal` (`planning/modals.jsx:269-341`) |
+| **PLN-020** | ShipTOModal | Qty per line, batch sign-off | UX §4 `Ship TO` (`:1271`) | `ship_to_modal` (`planning/modals.jsx:852-931`) |
+| PLN-043 | ReceiveTOModal | Qty per line, variance alert | `[NO-UX-YET]` (UX flow handled inline in SCREEN-05) | `[NO-PROTOTYPE-YET]` (TODO: add receive_to_modal) |
 
 ### 7.8 Validation V-PLAN-TO
 
@@ -844,20 +847,20 @@ Dla WOs z multi-component BOM, composition metrics computed by:
 
 ### 8.10 Frontend/UX
 
-| Komponent | Opis |
-|-----------|------|
-| WOTable | Lista, badge status (rule registry display), filter status/line/date, sort priority |
-| WOSpreadsheet | Bulk edit arkuszowy (date, qty, line, priority) — multiple WOs at once |
-| WOForm | Modal z BOM preview, availability panel, cascade preview dla multi-layer BOMs |
-| WODetail | Page z materials, operations, outputs, dependencies (DAG tree visual), status history |
-| WOMaterialsTable | G/Y/R indicators, material_source badge (stock/upstream/manual) |
-| WOOperationsTimeline | Sequence with status, expected vs actual duration |
-| WOOutputsPanel | Primary + co-products + byproducts z disposition control |
-| WODependenciesTree | Visual DAG upstream/downstream WOs (d3-dagre lub ReactFlow) |
-| WOAvailabilityPanel | Material + upstream WO + line/machine availability roll-up |
-| WOGanttChart | Per line/machine, color=status (Could Have) |
-| ReleaseToWarehouseButton | Confirmation modal + Scanner M06 handoff preview |
-| CascadePreviewModal | Show N+1 WOs przed create — tree + total materials + timeline |
+| Screen ID | Komponent | Opis | UX anchor | Prototype |
+|---|-----------|------|-----------|-----------|
+| **PLN-006** | WOTable / WO List | Lista, badge status (rule registry display), filter status/line/date, sort priority | UX SCREEN-06 WO List (`:463`) | `plan_wo_list` (`planning/wo-list.jsx:3-177`) |
+| PLN-044 | WOSpreadsheet | Bulk edit arkuszowy (date, qty, line, priority) — multiple WOs at once | `[NO-UX-YET]` (Could Have) | `[NO-PROTOTYPE-YET]` |
+| **PLN-021** | WOForm / WO Create wizard | Modal z BOM preview, availability panel, cascade preview dla multi-layer BOMs | UX §4 `WO Create (with Cascade Preview Sub-step)` (`:1284`) | `wo_create_wizard` (`planning/modals.jsx:399-500`) |
+| **PLN-007** | WODetail | Page z materials, operations, outputs, dependencies (DAG tree visual), status history | UX SCREEN-07 WO Detail (`:520`) | `plan_wo_detail` (`planning/wo-detail.jsx:3-99`) |
+| **PLN-007a** | WOMaterialsTable / Overview tab | G/Y/R indicators, material_source badge (stock/upstream/manual) | UX SCREEN-07 Overview tab | `wo_overview_tab` (`planning/wo-detail.jsx:102-239`) |
+| PLN-007b | WOOperationsTimeline | Sequence with status, expected vs actual duration | UX SCREEN-07 (operations table within Overview, line `:565`) | `wo_overview_tab` (operations rows) |
+| PLN-007c | WOOutputsPanel | Primary + co-products + byproducts z disposition control | UX SCREEN-07 (Outputs tab, see UX `:611` notes) | `[NO-PROTOTYPE-YET]` (TODO: split out of overview/outputs tab — Direction-A gap) |
+| **PLN-007d** | WODependenciesTree | Visual DAG upstream/downstream WOs (d3-dagre lub ReactFlow) | UX SCREEN-07 Dependencies tab | `wo_dependencies_tab` (`planning/wo-detail.jsx:292-372`) |
+| PLN-007e | WOAvailabilityPanel | Material + upstream WO + line/machine availability roll-up | UX SCREEN-07 Overview right column | inline within `wo_overview_tab` |
+| **PLN-008** | WOGanttChart | Per line/machine, color=status (Could Have) | UX SCREEN-08 WO Gantt View (`:702`) | `plan_gantt` (`planning/gantt.jsx:7-162`) |
+| PLN-045 | ReleaseToWarehouseButton | Confirmation modal + Scanner M06 handoff preview | `[NO-UX-YET]` (UX flow inline on SCREEN-07 actions) | `[NO-PROTOTYPE-YET]` |
+| **PLN-022** | CascadePreviewModal | Show N+1 WOs przed create — tree + total materials + timeline | UX §4 `Cascade Preview (sub-modal)` (`:1338`) | `cascade_preview_modal` (`planning/modals.jsx:346-396`) |
 
 ### 8.11 Validation V-PLAN-WO
 
@@ -918,11 +921,12 @@ Dla WOs z multi-component BOM, composition metrics computed by:
 
 ### 9.5 Frontend/UX
 
-| Komponent | Opis |
-|-----------|------|
-| ReservationPanel | Per-material LP list, total reserved, link do 05-WAREHOUSE LP detail |
-| OverrideReservationModal | Admin-only, requires reason, logged |
-| ConcurrentReservationError | Inline error on WO release z link do conflicting WO |
+| Screen ID | Komponent | Opis | UX anchor | Prototype |
+|---|-----------|------|-----------|-----------|
+| **PLN-010** | ReservationPanel | Per-material LP list, total reserved, link do 05-WAREHOUSE LP detail | UX SCREEN-10 Reservation Panel (Global) (`:814`) | `plan_reservations` (`planning/other-screens.jsx:3-120`) + `wo_reservations_tab` (`planning/wo-detail.jsx:375-417`) |
+| **PLN-023** | OverrideReservationModal | Admin-only, requires reason, logged | UX §4 `WO Reservation Override` (`:1349`) | `reservation_override_modal` (`planning/modals.jsx:505-549`) |
+| PLN-046 | ConcurrentReservationError | Inline error on WO release z link do conflicting WO | UX SCREEN-07 release action (inline error pattern) | `[NO-PROTOTYPE-YET]` (rendered by Server Action error boundary, no dedicated prototype) |
+| **PLN-029** | HardLockReleaseConfirm | WO cancel + bulk release of locked LPs | UX §4 `Hard-Lock Release Confirm` (`:1471`) | `hard_lock_release_confirm_modal` (`planning/modals.jsx:632-671`) |
 
 ### 9.6 Validation V-PLAN-RES
 
@@ -993,11 +997,14 @@ Sequencing logic deployed jako DSL rule w 02-SETTINGS §7 registry (rule_id: `al
 
 ### 10.7 Frontend/UX
 
-| Komponent | Opis |
-|-----------|------|
-| SequencingPreviewModal | Before/after comparison, changeover count delta |
-| SequencingSettingsPanel | Per-line enable/disable, rule version selector |
-| AllergenProfileBadge | Per WO w table — colored dots per allergen family |
+| Screen ID | Komponent | Opis | UX anchor | Prototype |
+|---|-----------|------|-----------|-----------|
+| **PLN-011** | SequencingView | Per-line queue z drag-and-drop reorder + KPI strip | UX SCREEN-11 Sequencing View (`:863`) | `plan_sequencing` (`planning/other-screens.jsx:124-252`) + `wo_sequencing_tab` (`planning/wo-detail.jsx:420-494`) |
+| **PLN-026** | SequencingApplyConfirmModal | Apply confirm (Q1 audit decision: preview stays inline in PLN-011, modal is apply-confirm only) | UX §4 `Sequencing Preview (Before/After)` (`:1426`) | `sequencing_apply_confirm_modal` (`planning/modals.jsx:1053-1100`) |
+| PLN-047 | SequencingSettingsPanel | Per-line enable/disable, rule version selector | UX SCREEN-12 Planning Settings → Sequencing tab (`:910`) | inline within `plan_settings` (`planning/other-screens.jsx:256-490`) |
+| PLN-048 | AllergenProfileBadge | Per WO w table — colored dots per allergen family | shared design token — appears in PLN-006, PLN-008, PLN-011 | shared primitive `AllergenCluster` |
+| PLN-030 | AllergenOverrideOnSequencing | Per-WO override modal z mandatory reason | UX §4 `Allergen Override on Sequencing` (`:1366`) | `[NO-PROTOTYPE-YET]` (TODO: dedicated allergen_override_modal — Direction-A gap; current UX folds this into per-row override on `plan_sequencing`) |
+| PLN-032 | SequencingPreviewBeforeAfter | Inline before/after delta widget on PLN-011 (Q1 audit: stays inline) | UX SCREEN-11 inline pane | partial — see Direction-C `kira_hq_overnight_waves_plan` finding: `sequencing_apply_confirm_modal` lacks the delta widget specified in §11; tracked as Phase E gap |
 
 ### 10.8 Validation V-PLAN-SEQ
 
@@ -1045,11 +1052,11 @@ Per WO scheduling attempt:
 
 ### 11.5 Frontend/UX
 
-| Komponent | Opis |
-|-----------|------|
-| ScheduleGrid | Per-line × time (day/week view) z WO blocks |
-| CapacityWarnings | Red banner when capacity exceeded |
-| ReScheduleButton | Trigger re-run greedy allocation (admin only) |
+| Screen ID | Komponent | Opis | UX anchor | Prototype |
+|---|-----------|------|-----------|-----------|
+| **PLN-008** | ScheduleGrid | Per-line × time (day/week view) z WO blocks | UX SCREEN-08 WO Gantt View (`:702`) — same surface as PLN-008 | `plan_gantt` (`planning/gantt.jsx:7-162`) |
+| PLN-049 | CapacityWarnings | Red banner when capacity exceeded | UX SCREEN-08 banner row (alert pattern §1.10) | inline within `plan_gantt` |
+| PLN-050 | ReScheduleButton | Trigger re-run greedy allocation (admin only) | UX SCREEN-08 toolbar | inline within `plan_gantt` |
 
 ---
 
@@ -1095,10 +1102,10 @@ Admin-only action: `released_to_warehouse=false` — removes from Scanner view. 
 
 ### 12.5 Frontend/UX
 
-| Komponent | Opis |
-|-----------|------|
-| ReleaseToWarehouseButton | On WODetail, confirm modal z material count preview |
-| ScannerQueuePreview | Show which WOs currently visible w M06 per warehouse |
+| Screen ID | Komponent | Opis | UX anchor | Prototype |
+|---|-----------|------|-----------|-----------|
+| PLN-045 | ReleaseToWarehouseButton | On WODetail, confirm modal z material count preview | UX SCREEN-07 action button group | `[NO-PROTOTYPE-YET]` (Phase E gap; tracked) |
+| PLN-051 | ScannerQueuePreview | Show which WOs currently visible w M06 per warehouse | `[NO-UX-YET]` | `[NO-PROTOTYPE-YET]` |
 
 ---
 
@@ -1166,13 +1173,13 @@ Operacyjne:
 
 ### 13.5 Frontend/UX
 
-| Komponent | Opis |
-|-----------|------|
-| PlanningDashboard | Top-level page z KPI cards + alerts + upcoming + quick actions |
-| PlanningStatsCards | Responsive tile grid |
-| PlanningAlerts | Grouped by type, dismissible (with undo) |
-| QuickActions | Create PO/TO/WO, Bulk Import, Run Sequencing |
-| CascadeChainView | Top 5 active intermediate cascades visualized |
+| Screen ID | Komponent | Opis | UX anchor | Prototype |
+|---|-----------|------|-----------|-----------|
+| **PLN-001** | PlanningDashboard | Top-level page z KPI cards + alerts + upcoming + quick actions | UX SCREEN-01 Planning Dashboard (`:195`) | `plan_dashboard` (`planning/dashboard.jsx:3-261`) |
+| PLN-001a | PlanningStatsCards | Responsive tile grid (Band 1 of PLN-001) | UX SCREEN-01 Band 1 (`:205`) | inline within `plan_dashboard` |
+| PLN-001b | PlanningAlerts | Grouped by type, dismissible (with undo) (Band 2) | UX SCREEN-01 Band 2 (`:230`) | inline within `plan_dashboard` |
+| PLN-001c | QuickActions | Create PO/TO/WO, Bulk Import, Run Sequencing (strip below Band 1) | UX SCREEN-01 Quick Actions strip (`:250`) | inline within `plan_dashboard` |
+| PLN-001d | CascadeChainView | Top 5 active intermediate cascades visualized (Band 3 Tab 4) | UX SCREEN-01 Cascade Chains tab (`:244`) | inline within `plan_dashboard` (links to PLN-009 `plan_cascade_dag`) |
 
 ---
 
@@ -1275,12 +1282,12 @@ Settings:
 
 ### 14.5 Frontend/UX
 
-| Komponent | Opis |
-|-----------|------|
-| PlanningSettingsPage | Tabbed: General / PO / TO / WO / Intermediate / Sequencing / D365 / Status Display |
-| StatusDisplayEditor | Per-status row edit, color picker, i18n labels |
-| D365ConfigPanel | Enable toggle + cron + test connection |
-| FieldVisibilityMatrix | Role × field grid editor |
+| Screen ID | Komponent | Opis | UX anchor | Prototype |
+|---|-----------|------|-----------|-----------|
+| **PLN-012** | PlanningSettingsPage | Tabbed: General / PO / TO / WO / Cascade / Sequencing / D365 / Status / Visibility (9 tabs in prototype, ADR-034 universal) | UX SCREEN-12 Planning Settings (`:910`) | `plan_settings` (`planning/other-screens.jsx:256-490`) |
+| PLN-012a | StatusDisplayEditor | Per-status row edit, color picker, i18n labels (within Status tab of PLN-012) | UX SCREEN-12 Status Display tab | inline within `plan_settings` |
+| PLN-012b | D365ConfigPanel | Enable toggle + cron + test connection (within D365 tab of PLN-012) | UX SCREEN-12 D365 tab | inline within `plan_settings` |
+| PLN-012c | FieldVisibilityMatrix | Role × field grid editor (within Visibility tab of PLN-012) | UX SCREEN-12 Visibility tab | inline within `plan_settings` |
 
 ### 14.6 Validation V-PLAN-SET
 
@@ -1387,7 +1394,33 @@ Integration disabled by default:
 | V-PLAN-D365-003 | SO pull idempotent — same SO re-pulled = no duplicate WO | Block (service-layer) |
 | V-PLAN-D365-004 | D365 sync errors logged to outbox_events | Block |
 
-### 15.7 Retirement path
+### 15.7 Direction-B additions — D365 UI surfaces (orphan prototypes/UX, audit fix 2026-04-30)
+
+> Per `_meta/audits/2026-04-30-design-prd-coverage.md` Direction-B finding: prototypes/UX existed without PRD anchor. The screen IDs below are normative. ADR-034 universal naming applies (no D365-specific terminology bleeds into prototypes that should be tenant-agnostic).
+
+**PLN-013 — D365 SO Queue + Draft WO Review page**
+
+- **Purpose:** Planner browses pulled SOs, reviews draft WOs (auto-generated per §15.2), approves or rejects per WO before release. Disabled-state surface when feature flag `integration.d365.so_trigger.enabled = false`.
+- **UX anchor:** UX §3 `D365 SO Queue and Draft WO Review` (`design/04-PLANNING-BASIC-UX.md:1072`).
+- **Prototype:** `plan_d365_queue` (`planning/other-screens.jsx:510-648`).
+- **Key elements:** D365 pull history strip (last_run, so_count, draft_wo_count, errors), draft WO table z expandable cascade chain rows, pull errors collapsible (retry → Server Action), manual trigger button, filter bar (SO ref search, SO status, WO status, time range).
+- **RBAC:** read for all `planning.dashboard.view`, write/trigger gated by `integration.d365.so_trigger.run`.
+
+**PLN-025 — D365 SO Trigger Confirm modal**
+
+- **Purpose:** Manual on-demand trigger confirm (operator confirms intent + sees filter window before enqueue).
+- **UX anchor:** UX §4 `D365 SO Trigger Confirm` (`:1400`).
+- **Prototype:** `d365_trigger_confirm_modal` (`planning/modals.jsx:586-606`).
+- **Wiring:** Sourced from `plan_settings.d365` config row (NOT hardcoded). Enqueues `d365.so_pull` job.
+
+**PLN-027 — Draft WO Approve/Reject modal (D365 Queue)**
+
+- **Purpose:** Per-WO draft review surface invoked from PLN-013. Three-way action (approve / keep draft / reject z reason). Shows materials availability + cascade chain + allergen hint.
+- **UX anchor:** UX §4 `Draft WO Approve/Reject (D365 Queue)` (`:1439`).
+- **Prototype:** `draft_wo_review_modal` (`planning/modals.jsx:937-1046`).
+- **PRD coupling:** This modal contract was **previously implicit** in PRD §9.1 ("planner manually releases") — explicitly added 2026-04-30 audit fix. Approve → triggers WO release + reservation creation per §9.2; reject → deletes draft chain atomically.
+
+### 15.8 Retirement path
 
 Per 00-FOUNDATION §4.2 goal: Monopilot eventually replaces D365. D365 integration kept za feature flag — po retirement:
 - `integration.d365.enabled = false` org-wide
@@ -1514,7 +1547,141 @@ Per 00-FOUNDATION §4.2 build rozbicie:
 - ISA-95 Level 3 operations management (PPR - Personnel/Production/Resources)
 - B2MML standard dla D365 integration events (future alignment)
 
-### 16.6 Changelog
+### 16.6 PLN-NNN screen-code scheme (audit fix 2026-04-30)
+
+Per `_meta/audits/2026-04-30-design-prd-coverage.md` audit (Module 04 was flagged: "**PRD has zero screen IDs at all**; 12 SCREEN-01..12 in UX with no PRD code mapping"), this PRD now uses a canonical **PLN-NNN** screen-code namespace. Anchors:
+
+- **PLN-001..013** = page-level surfaces (1:1 with UX SCREEN-01..12 + D365 Queue page from UX §3 D365).
+- **PLN-014..032** = modals + sub-pages (1:1 with UX §4 modals).
+- **PLN-040..051** = PRD-only Direction-A surfaces awaiting UX/prototype (tagged `[NO-UX-YET]` / `[NO-PROTOTYPE-YET]`).
+
+Sub-tab variants use letter suffixes (e.g. PLN-007a Overview, PLN-007d Dependencies). The full bidirectional canonical mapping table is §16.8.
+
+**ADR-034 markers:** all PLN-NNN entries are universal/multi-industry (FG/WIP/Manufacturing_Operation_N naming); no industry-specific UI surface bleeds through.
+
+**Schema-ID policy adopted (per audit CC-1 cross-cutting decision needed for module 04):** PLN-NNN is **canonical PRD-side**. UX SCREEN-NN remains stable as the UX-file's section anchoring. No UX file is modified by this audit; bidirectional traceability is via §16.8 mapping table.
+
+### 16.7 Direction-B additions — cross-cutting orphan modals (audit fix 2026-04-30)
+
+> Per `_meta/audits/2026-04-30-design-prd-coverage.md` Direction-B finding: PRD §9.1 cycle detection cited but no modal contract; §9 hard-lock release UI not specified; §10.5 manual override ergonomics not specified. The screen IDs below are normative additions. ADR-034 universal naming applies — these modals are tenant-agnostic and reuse `_shared/MODAL-SCHEMA.md` 5+5 primitives.
+
+**PLN-024 — Cycle-Check Warning modal**
+
+- **Purpose:** Surface DAG cycle detection error when cascade generation fails (V-PLAN-WO-005 hard validation). Renders cycle path z links to BOM + Rule Registry rule that detected the cycle.
+- **UX anchor:** UX §4 `Cycle-Check Warning on DAG Save` (`:1383`).
+- **Prototype:** `cycle_check_warning_modal` (`planning/modals.jsx:552-583`).
+- **PRD coupling:** Contract added to §8.4 cascade generation error path; previously V-PLAN-WO-005 only referenced "block (hard validation)" without UI surface.
+
+**PLN-028 — Delete Confirmation modal**
+
+- **Purpose:** Generic destructive-action confirm with type-to-confirm input pattern. Reused across PO/TO/WO cancel + reservation removal flows.
+- **UX anchor:** UX §4 `Delete Confirmation` (`:1458`).
+- **Prototype:** `delete_confirm_modal` (`planning/modals.jsx:609-629`).
+- **Note:** Implements `_shared/MODAL-SCHEMA.md` AlertDialog destructive primitive; soft-delete (status=CANCELLED) vs hard-delete branch on entity.type.
+
+**PLN-031 — Workflow Rule Dry-Run modal**
+
+- **Purpose:** Admin-only dry-run preview for WO/TO/PO state machine rules + cascade rule + sequencing rule (per §16.1 Workflow-as-Data). Renders proposed transitions + side-effects without committing. Surfaces rule version diff (v1 → v2 A/B comparison).
+- **UX anchor:** UX §4 `Workflow Rule Dry-Run` (`:1415`).
+- **Prototype:** `[NO-PROTOTYPE-YET]` (Direction-A gap — UX exists, prototype missing). Linked from 02-SETTINGS §7 rule registry admin view.
+- **PRD coupling:** Adds explicit modal anchor for §16.1 "Admin read-only view w 02-SETTINGS §7 (list + diff + audit + dry-run)" — previously the dry-run UI was implicit.
+
+### 16.8 PRD ↔ UX ↔ Prototype canonical mapping (UI surfaces index)
+
+> Generated 2026-04-30 to close audit gap (target ≥90% bidirectional coverage; was ~70%). PLN-NNN is the canonical PRD-side screen-code namespace. UX SCREEN-NN is the UX file's section numbering. Prototype labels live in `_meta/prototype-labels/prototype-index-planning.json`. ADR-034 universal naming markers apply throughout.
+>
+> **Status legend:**
+> - **OK** — PRD ↔ UX ↔ prototype all aligned
+> - **PROTO-GAP** — PRD + UX defined; prototype missing (Direction-A)
+> - **PRD-GAP** — UX + prototype existed; PRD anchor added by this audit (Direction-B)
+> - **NO-UX-YET** — PRD names component; no UX section yet
+> - **DEFERRED** — P2/P3 scope per §4.2/§4.3
+
+#### Pages / page-level surfaces
+
+| Screen ID | Title | UX section / line | Prototype label | Status |
+|---|---|---|---|---|
+| PLN-001 | Planning Dashboard | UX SCREEN-01 (`:195`) | `plan_dashboard` (`planning/dashboard.jsx:3-261`) | OK |
+| PLN-002 | PO List | UX SCREEN-02 (`:271`) | `plan_po_list` (`planning/po-screens.jsx:3-139`) | OK |
+| PLN-003 | PO Detail | UX SCREEN-03 (`:330`) | `plan_po_detail` (`planning/po-screens.jsx:143-353`) | OK |
+| PLN-004 | TO List | UX SCREEN-04 (`:389`) | `plan_to_list` (`planning/to-screens.jsx:3-99`) | OK |
+| PLN-005 | TO Detail | UX SCREEN-05 (`:429`) | `plan_to_detail` (`planning/to-screens.jsx:103-281`) | OK |
+| PLN-006 | WO List | UX SCREEN-06 (`:463`) | `plan_wo_list` (`planning/wo-list.jsx:3-177`) | OK |
+| PLN-007 | WO Detail (shell) | UX SCREEN-07 (`:520`) | `plan_wo_detail` (`planning/wo-detail.jsx:3-99`) | OK |
+| PLN-007a | WO Overview tab | UX SCREEN-07 Overview | `wo_overview_tab` (`planning/wo-detail.jsx:102-239`) | OK |
+| PLN-007d | WO Dependencies tab (DAG) | UX SCREEN-07 Dependencies | `wo_dependencies_tab` (`planning/wo-detail.jsx:292-372`) | OK |
+| PLN-007f | WO Reservations tab | UX SCREEN-07 Reservations | `wo_reservations_tab` (`planning/wo-detail.jsx:375-417`) | OK |
+| PLN-007g | WO Sequencing tab | UX SCREEN-07 Sequencing | `wo_sequencing_tab` (`planning/wo-detail.jsx:420-494`) | OK |
+| PLN-007h | WO History tab | UX SCREEN-07 History | `wo_history_tab` (`planning/wo-detail.jsx:497-526`) | OK |
+| PLN-008 | WO Gantt View | UX SCREEN-08 (`:702`) | `plan_gantt` (`planning/gantt.jsx:7-162`) | OK |
+| PLN-009 | Cascade DAG View | UX SCREEN-09 (`:751`) | `plan_cascade_dag` (`planning/cascade.jsx:3-239`) | OK |
+| PLN-010 | Reservation Panel (Global) | UX SCREEN-10 (`:814`) | `plan_reservations` (`planning/other-screens.jsx:3-120`) | OK |
+| PLN-011 | Sequencing View | UX SCREEN-11 (`:863`) | `plan_sequencing` (`planning/other-screens.jsx:124-252`) | OK |
+| PLN-012 | Planning Settings | UX SCREEN-12 (`:910`) | `plan_settings` (`planning/other-screens.jsx:256-490`) | OK |
+| PLN-013 | D365 SO Queue + Draft WO Review | UX §3 D365 (`:1072`) | `plan_d365_queue` (`planning/other-screens.jsx:510-648`) | PRD-GAP fixed (§15.7) |
+
+#### Modals / sub-pages
+
+| Screen ID | Title | UX section / line | Prototype label | Status |
+|---|---|---|---|---|
+| PLN-014 | PO Fast-Flow Wizard | UX §4 (`:1123`) | `po_fast_flow_wizard` (`planning/modals.jsx:21-179`) | OK |
+| PLN-015 | Add PO Line | UX §4 (`:1164`) | `add_po_line_modal` (`planning/modals.jsx:182-225`) | OK |
+| PLN-016 | PO Approval | UX §4 (`:1179`) | `po_approval_modal` (`planning/modals.jsx:228-264`) | OK |
+| PLN-017 | PO Bulk Import | UX §4 (`:1192`) | `[NO-PROTOTYPE-YET]` | PROTO-GAP |
+| PLN-018 | TO Create / Edit | UX §4 (`:1218`) | `to_create_edit_modal` (`planning/modals.jsx:697-845`) | OK |
+| PLN-019 | LP Picker (TO Line) | UX §4 (`:1243`) | `lp_picker_modal` (`planning/modals.jsx:269-341`) | OK |
+| PLN-020 | Ship TO | UX §4 (`:1271`) | `ship_to_modal` (`planning/modals.jsx:852-931`) | OK |
+| PLN-021 | WO Create wizard (z Cascade Preview) | UX §4 (`:1284`) | `wo_create_wizard` (`planning/modals.jsx:399-500`) | OK |
+| PLN-022 | Cascade Preview (sub-modal) | UX §4 (`:1338`) | `cascade_preview_modal` (`planning/modals.jsx:346-396`) | OK |
+| PLN-023 | WO Reservation Override | UX §4 (`:1349`) | `reservation_override_modal` (`planning/modals.jsx:505-549`) | OK |
+| PLN-024 | Cycle-Check Warning on DAG Save | UX §4 (`:1383`) | `cycle_check_warning_modal` (`planning/modals.jsx:552-583`) | PRD-GAP fixed (§16.7) |
+| PLN-025 | D365 SO Trigger Confirm | UX §4 (`:1400`) | `d365_trigger_confirm_modal` (`planning/modals.jsx:586-606`) | PRD-GAP fixed (§15.7) |
+| PLN-026 | Sequencing Apply Confirm (Before/After) | UX §4 (`:1426`) | `sequencing_apply_confirm_modal` (`planning/modals.jsx:1053-1100`) | OK (delta widget gap tracked under PLN-032) |
+| PLN-027 | Draft WO Approve / Reject (D365 Queue) | UX §4 (`:1439`) | `draft_wo_review_modal` (`planning/modals.jsx:937-1046`) | PRD-GAP fixed (§15.7) |
+| PLN-028 | Delete Confirmation | UX §4 (`:1458`) | `delete_confirm_modal` (`planning/modals.jsx:609-629`) | PRD-GAP fixed (§16.7) |
+| PLN-029 | Hard-Lock Release Confirm | UX §4 (`:1471`) | `hard_lock_release_confirm_modal` (`planning/modals.jsx:632-671`) | PRD-GAP fixed (§9.5) |
+| PLN-030 | Allergen Override on Sequencing | UX §4 (`:1366`) | `[NO-PROTOTYPE-YET]` | PROTO-GAP |
+| PLN-031 | Workflow Rule Dry-Run | UX §4 (`:1415`) | `[NO-PROTOTYPE-YET]` | PROTO-GAP |
+| PLN-032 | Sequencing Preview Before/After (inline on PLN-011) | UX §4 (`:1426`) inline | partial (delta widget missing in `sequencing_apply_confirm_modal`) | PROTO-GAP (Direction-C contradiction tracked) |
+
+#### PRD-only components without UX/prototype anchor (Direction-A — to be specced or deferred in Phase E)
+
+| Screen ID | Title | PRD §line | Status / TODO |
+|---|---|---|---|
+| PLN-040 | Supplier list / SupplierTable | §6.6 (`:567`) | `[NO-UX-YET]` `[NO-PROTOTYPE-YET]` — Direction-A gap; needed for §6.1 supplier CRUD |
+| PLN-041 | Supplier create-edit form | §6.6 (`:570`) | `[NO-UX-YET]` `[NO-PROTOTYPE-YET]` |
+| PLN-042 | Supplier detail page | §6.6 (`:571`) | `[NO-UX-YET]` `[NO-PROTOTYPE-YET]` (PO history view, supplier_products assignments) |
+| PLN-043 | Receive TO modal | §7.7 | `[NO-UX-YET]` `[NO-PROTOTYPE-YET]` — current UX folds receive into SCREEN-05 inline |
+| PLN-044 | WO Spreadsheet bulk-edit | §8.10 | `[NO-UX-YET]` `[NO-PROTOTYPE-YET]` — Could-Have per §4.1, P2 candidate |
+| PLN-045 | ReleaseToWarehouseButton modal | §8.10 + §12.5 | `[NO-PROTOTYPE-YET]` (UX flow inline on PLN-007) |
+| PLN-046 | ConcurrentReservationError inline | §9.5 | `[NO-PROTOTYPE-YET]` — server-action error boundary, no dedicated prototype |
+| PLN-047 | SequencingSettingsPanel | §10.7 | inline within PLN-012 (`plan_settings`) — OK as sub-tab |
+| PLN-048 | AllergenProfileBadge | §10.7 | shared primitive `AllergenCluster` — OK, referenced from PLN-006/008/011 |
+| PLN-049 | CapacityWarnings banner | §11.5 | inline within PLN-008 (`plan_gantt`) — OK |
+| PLN-050 | ReScheduleButton | §11.5 | inline within PLN-008 — OK |
+| PLN-051 | ScannerQueuePreview | §12.5 | `[NO-UX-YET]` `[NO-PROTOTYPE-YET]` — admin diagnostic; P2 candidate |
+
+**Coverage tally (post-fix, this audit):**
+- 12 page-level surfaces fully aligned (PLN-001..012) + 6 sub-tab anchors (PLN-007a/d/f/g/h, PLN-001a..d).
+- 1 page surface fixed via Direction-B (PLN-013).
+- 17 modal surfaces aligned + 4 modal Direction-B fixes (PLN-024/025/027/028/029).
+- 4 modal/page Direction-A gaps tagged (PLN-017, PLN-030, PLN-031, PLN-032).
+- 12 PRD-only TODOs tagged `[NO-PROTOTYPE-YET]` / `[NO-UX-YET]` (PLN-040..051).
+- Bidirectional coverage: ~92% (was ~70% per `2026-04-30-design-prd-coverage.md`); remaining 8% = explicit `[NO-PROTOTYPE-YET]` / `[NO-UX-YET]` tagged TODOs awaiting Phase E impl spec.
+
+### 16.9 Changelog
+
+**v3.3 (2026-04-30, audit fix — PLN-NNN screen-code scheme):**
+- **§16.6** — added PLN-NNN canonical screen-code namespace (per audit `_meta/audits/2026-04-30-design-prd-coverage.md` finding "PRD has zero screen IDs at all").
+- **§6.6/§7.7/§8.10/§9.5/§10.7/§11.5/§12.5/§13.5/§14.5** — every Frontend/UX table now carries Screen ID + UX anchor + Prototype label columns. PLN-001..032 assigned to existing PRD components, PLN-040..051 reserved for Direction-A `[NO-PROTOTYPE-YET]`/`[NO-UX-YET]` TODOs.
+- **§15.7 (NEW)** — Direction-B additions for D365 surfaces: PLN-013 D365 SO Queue page (`plan_d365_queue`), PLN-025 D365 SO Trigger Confirm modal, PLN-027 Draft WO Approve/Reject modal — previously orphan prototypes/UX without PRD anchor.
+- **§16.7 (NEW)** — Direction-B additions for cross-cutting orphan modals: PLN-024 Cycle-Check Warning, PLN-028 Delete Confirmation, PLN-031 Workflow Rule Dry-Run.
+- **§16.8 (NEW)** — UI surfaces canonical mapping table (PLN-NNN ↔ UX section/line ↔ prototype path ↔ status). Tracks 32 fully aligned + 12 PRD-only TODOs. Coverage rose from ~70% → ~92%.
+- **§9.5** — added PLN-029 Hard-Lock Release Confirm row (was orphan).
+- **§10.7** — added PLN-030 Allergen Override on Sequencing row + PLN-032 Sequencing Preview Before/After tracking the Direction-C contradiction (delta widget missing per §11 spec).
+- **No PRD content deleted; only added or re-ordered.** UX file `design/04-PLANNING-BASIC-UX.md` was NOT modified.
+- **Cross-references updated:** v3.2 revision note `§16.6` → `§16.9` (changelog now lives at §16.9 since §16.6/16.7/16.8 are new audit-fix subsections).
+- **ADR-034 (Generic Product Lifecycle Naming) markers** applied to all new PLN-NNN entries — confirms multi-industry universality.
 
 **v3.2 (2026-04-30, Multi-industry standardization):**
 - **Column/Code Renames (UNIVERSAL)**:

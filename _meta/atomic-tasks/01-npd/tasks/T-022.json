@@ -1,0 +1,59 @@
+{
+  "title": "T-022 — UI: Dept Close modal (dept_close_modal prototype) with required checklist",
+  "prompt": "# T-022 — Dept Close modal UI\n\nPRD: 01-NPD-PRD.md §7.3 + UX 01-NPD-UX.md dept_close_modal\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\nPrototype: design/Monopilot Design System/npd/modals.jsx:143-191 (dept_close_modal)\n\n## Goal\nClient Component modal showing required-fields checklist for the chosen dept (server-checked via getRequiredFieldsForDept), enabling Confirm only when all required green, calling closeDeptSection action.\n\n## Implementation contract\nNew apps/web/app/(npd)/_modals/dept-close-modal.tsx 'use client'. Reads server action getRequiredFieldsForDept(productCode, dept) returning [{name, ok}]. Renders shadcn Dialog with checklist using Check/X icons, optional Reason Textarea (z.string().min(10) when present), Confirm Button enabled iff allPass. On submit calls closeDeptSection and refreshes route.\n\n## Files\n- apps/web/app/(npd)/_modals/dept-close-modal.tsx [create]\n- apps/web/app/(npd)/_modals/__tests__/dept-close-modal.test.tsx [create]\n- apps/web/app/(npd)/fa/actions/get-required-fields-for-dept.ts [create]\n- design/Monopilot Design System/npd/modals.jsx [ref]\n\n## Acceptance criteria\n1. Given the modal renders, when compared to design/Monopilot Design System/npd/modals.jsx:143-191 (dept_close_modal), then it shows the same dept header, the same checklist row pattern (label + pass/fail icon), the optional reason Textarea, and uses shadcn Dialog+Checkbox+Textarea+Button primitives — verified by RTL parity checklist (structural+visual+interaction)\n2. Given a missing required field returned by server, when modal renders, then Confirm button is disabled and the row shows X icon\n3. Given allPass returned and reason >=10 chars (when shown), when Confirm clicked, then closeDeptSection is called and route refreshes\n\n## Test strategy\n- RED: 3 RTL tests for parity, disabled state, action invocation\n- Run 'pnpm --filter web test dept-close-modal'\n\n## Risk red lines\n- Do not allow Confirm when any required field is missing\n- Do not skip reason validation when textarea visible\n- Do not call DB from client component",
+  "labels": ["prd", "ui", "fa-modals", "T3-ui"],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-022",
+    "source_prd": "01-NPD-PRD.md",
+    "prd_refs": ["§7.3"],
+    "category": "ui",
+    "subcategory": "dept-close-modal",
+    "task_type": "T3-ui",
+    "parent_feature": "01-NPD-a workflow UI",
+    "context_budget": "35k",
+    "estimated_effort": "2h",
+    "description": "Dept Close modal with server-checked required-fields checklist + optional reason; calls closeDeptSection.",
+    "details": "Parity items: same dept header, same checklist row pattern (label + icon), optional reason textarea, Confirm/Cancel buttons, shadcn primitives only. Server action computes pass/fail per required col.",
+    "scope_files": [
+      "apps/web/app/(npd)/_modals/dept-close-modal.tsx [create]",
+      "apps/web/app/(npd)/_modals/__tests__/dept-close-modal.test.tsx [create]",
+      "apps/web/app/(npd)/fa/actions/get-required-fields-for-dept.ts [create]",
+      "design/Monopilot Design System/npd/modals.jsx [ref]"
+    ],
+    "out_of_scope": [
+      "Do not implement reopen flow UI here",
+      "Do not include MFA gate (handled in d365 build flow)"
+    ],
+    "dependencies": ["T-015", "T-017"],
+    "parallel_safe_with": ["T-021"],
+    "acceptance_criteria": [
+      "Given the modal renders, when compared to design/Monopilot Design System/npd/modals.jsx:143-191, then it shows same dept header, same checklist row pattern (label + pass/fail icon), optional reason Textarea, and uses shadcn Dialog+Checkbox+Textarea+Button primitives — verified by RTL parity checklist (structural + visual + interaction parity)",
+      "Given a missing required field returned by server, when modal renders, then Confirm is disabled and the row shows X icon",
+      "Given allPass returned and reason >=10 chars (when shown), when Confirm clicked, then closeDeptSection is called and route refreshes"
+    ],
+    "test_strategy": [
+      "RED: 3 RTL tests for parity, disabled state, action invocation before component exists",
+      "Run 'pnpm --filter web test dept-close-modal'"
+    ],
+    "risk_red_lines": [
+      "Do not allow Confirm when any required field missing",
+      "Do not skip reason validation when textarea is visible",
+      "Do not call DB from client component"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

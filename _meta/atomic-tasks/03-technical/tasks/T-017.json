@@ -1,0 +1,37 @@
+{
+  "title": "T-017 — API: Allergen profile CRUD (POST/DELETE /api/technical/items/:code/allergens)",
+  "prompt": "Implement allergen profile endpoints per §10.1 + V-TEC-40..42. POST /api/technical/items/[item_code]/allergens body: { allergen_code, source, intensity?, confidence?, manual_override_reason? }. PUT updates an existing entry. DELETE removes (admin/quality_lead only). Validate: V-TEC-40 allergen_code exists in reference_tables.allergens_reference; V-TEC-42 manual_override requires non-empty reason. Audit log every mutation. RED tests/api/allergen-profile.test.ts. Run: `pnpm vitest run tests/api/allergen-profile.test.ts`.",
+  "labels": ["prd", "api", "allergens-profile", "T2-api"],
+  "priority": 80,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-017",
+    "source_prd": "03-TECHNICAL-PRD.md",
+    "prd_refs": ["§10.1", "§10.3", "§10.8"],
+    "category": "api",
+    "subcategory": "allergens-profile",
+    "task_type": "T2-api",
+    "parent_feature": "03-TECHNICAL-b Allergens",
+    "context_budget": "25k",
+    "estimated_effort": "2h",
+    "description": "Allergen profile create/update/delete endpoints with override reason validation.",
+    "details": "PUT path identifies row by composite (org_id,item_id,allergen_code). source='manual_override' forces reason field. Permission technical.allergens.edit. Action labels: allergen.create / allergen.update / allergen.override / allergen.delete in audit_log.",
+    "scope_files": ["app/api/technical/items/[item_code]/allergens/route.ts", "app/api/technical/items/[item_code]/allergens/[allergen_code]/route.ts", "lib/technical/allergens/service.ts", "tests/api/allergen-profile.test.ts"],
+    "out_of_scope": ["Cascade rule deploy (T-024)", "UI"],
+    "dependencies": ["T-004"],
+    "parallel_safe_with": ["T-018", "T-019", "T-020"],
+    "acceptance_criteria": [
+      "Given POST with allergen_code not in reference_tables, when validated, then 422 V-TEC-40.",
+      "Given POST source='manual_override' without reason, when validated, then 422 V-TEC-42.",
+      "Given DELETE manual_override row, when audit queried, then action='allergen.delete' row exists with old payload.",
+      "Given user without technical.allergens.edit, when POST runs, then 403."
+    ],
+    "test_strategy": ["RED tests for V-TEC-40, V-TEC-42, audit emit, RBAC.", "Run: pnpm vitest run tests/api/allergen-profile.test.ts"],
+    "risk_red_lines": ["Do not silently overwrite manual_override rows (preserved by cascade rule).", "Do not bypass audit_log."],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {"required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"], "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]},
+    "routing_hints": {"red": "hermes_gpt55", "implementation": "hermes_gpt55", "review": "opus_if_high_risk_or_ui_or_architecture", "close": "spark_low_risk_else_opus"}
+  }
+}

@@ -1,0 +1,51 @@
+{
+  "title": "T-003 — Implement GET /api/v1/onboarding/resume endpoint",
+  "prompt": "Implement the resume endpoint for users returning to an incomplete wizard.\n\nPRD §14.3 specifies: user can return to the wizard and resume from the current_step stored in onboarding_state.\n\nAcceptance:\n- GET /api/v1/onboarding/resume retrieves org's current onboarding state\n- Returns {\"current_step\": N, \"completed_steps\": [...], \"skipped_steps\": [...], \"started_at\": \"...\", \"last_activity_at\": \"...\"}\n- If onboarding is complete (current_step >= 6 and all mandatory steps done), return {\"status\": \"complete\"}\n- If not started (current_step still 1 and no activity), return {\"status\": \"not_started\"}\n- Otherwise return {\"status\": \"in_progress\", ...full state}\n\nTest: RED test verifies resume state is accurate after partial progression.",
+  "labels": ["prd", "api", "endpoint", "T2-api"],
+  "priority": 85,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-003",
+    "source_prd": "02-SETTINGS-PRD.md",
+    "prd_refs": ["§14.3"],
+    "category": "api",
+    "subcategory": "endpoint",
+    "task_type": "T2-api",
+    "parent_feature": "onboarding_wizard",
+    "context_budget": "25k",
+    "estimated_effort": "1-2h",
+    "description": "API endpoint to retrieve current onboarding state for resume",
+    "details": "Create GET /api/v1/onboarding/resume endpoint (FastAPI). Queries organizations table for current auth context org; returns onboarding_state JSON plus a status field. Status logic: if current_step > 5 and completed_steps includes [1,2,3] and (4 in completed OR 4 in skipped) and (5 in completed OR 5 in skipped), return status='complete'; if current_step == 1 and last_activity_at is null, return status='not_started'; otherwise return status='in_progress'. Response includes full state object (current_step, completed_steps, skipped_steps, started_at, last_activity_at) and status key.",
+    "scope_files": ["src/api/routes/onboarding.py", "tests/api/test_onboarding_resume.py"],
+    "out_of_scope": ["onboarding_state initialization (see T-001)", "step progression logic (see T-002)"],
+    "dependencies": ["T-001", "T-002"],
+    "parallel_safe_with": [],
+    "acceptance_criteria": [
+      "Given org at step 3 with completed_steps=[1,2], when GET /api/v1/onboarding/resume, then return status='in_progress' and current_step=3",
+      "Given org with current_step=7 and all mandatory steps completed, when GET /api/v1/onboarding/resume, then return status='complete'",
+      "Given new org never touched wizard, when GET /api/v1/onboarding/resume, then return status='not_started' and current_step=1"
+    ],
+    "test_strategy": [
+      "Write RED test: test_resume_in_progress() sets up org at step 3 and verifies resume response",
+      "Write RED test: test_resume_complete() sets up org with all steps done",
+      "Run: pytest tests/api/test_onboarding_resume.py -xvs"
+    ],
+    "risk_red_lines": [
+      "Do not expose sensitive data (timestamps must be ISO strings, no internal IDs)",
+      "Do not modify onboarding_state when reading (GET is read-only)"
+    ],
+    "skills": ["test-driven-development"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

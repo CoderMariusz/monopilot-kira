@@ -1,0 +1,59 @@
+{
+  "title": "T-004 — lp_reservations table migration",
+  "prompt": "# T-004 — lp_reservations table migration\n\nPRD: `05-WAREHOUSE-PRD.md` §5.4, §9.4.\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`.\n\n## Goal\nCreate `lp_reservations` table for hard-lock RM-root reservations with the partial-unique constraint preventing parallel reservations.\n\n## Implementation contract\nAdd `packages/db/src/schema/lp-reservations.ts` per §5.4: id, tenant_id, lp_id, wo_id, wo_material_id, reserved_qty (decimal(14,4)), reservation_type ENUM ('hard_lock'), reserved_at, reserved_by, released_at, released_by, release_reason ENUM ('consumed','cancelled','wo_cancelled','admin_override'). Partial unique: `UNIQUE(lp_id) WHERE released_at IS NULL`. CHECK reserved_qty > 0.\n\n## Files (scope)\n- packages/db/src/schema/lp-reservations.ts [create]\n- packages/db/migrations/0NN_lp_reservations.sql [create]\n- packages/db/src/schema/lp-reservations.test.ts [create]\n\n## Acceptance criteria\n1. Given two active reservations (released_at NULL) target the same lp_id, when the second inserts, then DB raises unique violation.\n2. Given the second reservation is created after the first sets released_at=NOW(), when committed, then it succeeds.\n3. Given INSERT with reserved_qty=0, when committed, then DB raises a CHECK violation.\n\n## Test strategy\n- RED: lp-reservations.test.ts covers the three scenarios above with tx rollback.\n- Run `pnpm --filter db migrate && pnpm --filter db test lp-reservations`.\n\n## Risk red lines\n- Do not drop the partial-unique constraint (V-WH-FEFO-003).\n- Do not allow reservations against intermediate LPs at schema level (enforcement is service-layer, but document in TS comment per Q6 revised).\n- Do not implement service logic here (T-031 owns).",
+  "labels": ["prd", "data", "reservations", "T1-schema"],
+  "priority": 60,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-004",
+    "source_prd": "05-WAREHOUSE-PRD.md",
+    "prd_refs": ["§5.4", "§9.4"],
+    "category": "data",
+    "subcategory": "reservations",
+    "task_type": "T1-schema",
+    "parent_feature": "warehouse-foundation",
+    "context_budget": "25k",
+    "estimated_effort": "1h",
+    "description": "Create lp_reservations table with partial-unique active-reservation constraint per §5.4.",
+    "details": "Drizzle schema + migration. Partial UNIQUE(lp_id) WHERE released_at IS NULL enforces V-WH-FEFO-003. CHECK reserved_qty > 0. Service logic deferred to T-031.",
+    "scope_files": [
+      "packages/db/src/schema/lp-reservations.ts [create]",
+      "packages/db/migrations/0NN_lp_reservations.sql [create]",
+      "packages/db/src/schema/lp-reservations.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Service-layer reservation creation (T-031)",
+      "Intermediate-LP enforcement at DB (service-layer concern)",
+      "RLS (T-012)"
+    ],
+    "dependencies": ["T-002"],
+    "parallel_safe_with": ["T-003", "T-005", "T-006", "T-007", "T-008", "T-009"],
+    "acceptance_criteria": [
+      "Given two active reservations target same lp_id, when the second inserts, then DB raises unique violation",
+      "Given the first reservation sets released_at=NOW() before the second commits, when the second commits, then it succeeds",
+      "Given INSERT with reserved_qty=0, when committed, then DB raises a CHECK violation"
+    ],
+    "test_strategy": [
+      "RED: lp-reservations.test.ts covers active-conflict, sequential ok, and CHECK qty",
+      "Run 'pnpm --filter db migrate && pnpm --filter db test lp-reservations'"
+    ],
+    "risk_red_lines": [
+      "Do not drop the partial-unique constraint",
+      "Do not allow reserved_qty <= 0",
+      "Do not add service logic here"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

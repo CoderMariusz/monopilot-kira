@@ -137,8 +137,18 @@ Permissions modeled w `Reference.RolePermissions` (schema-driven per ADR-028). B
 | `closed_flag.unset` (reopen dept) | ✅ | ✅ (own Core) | ✅ (own dept) | ❌ | ✅ | ❌ |
 | `schema.edit` (add/remove Main Table col) | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ |
 | `rule.edit` (modify DSL rules) | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ |
+| `risk.write` | ✅ | ❌ | ❌ | ❌ | ✅ | ❌ |
+| `compliance_doc.write` | ✅ | ❌ | ✅ (Technical/Quality) | ❌ | ✅ | ❌ |
+| `formulation.create_draft` | ✅ | ✅ | ❌ | ❌ | ✅ | ❌ |
+| `formulation.lock` | ✅ | ❌ | ❌ | ❌ | ✅ | ❌ |
+| `recipe.submit_for_trial` | ✅ | ✅ | ❌ | ❌ | ✅ | ❌ |
+| `pilot.promote_to_bom` | ✅ | ❌ | ❌ | ❌ | ✅ | ❌ |
+| `npd.gate.advance` | ✅ | ❌ | ❌ | ❌ | ✅ | ❌ |
+| `npd.gate.approve` | ✅ | ❌ | ❌ | ❌ | ✅ | ❌ |
 
 Marker: struktura permissions = [UNIVERSAL]. Konkretne permissions names + mapping to Apex roles = [APEX-CONFIG] (inni klienci mogą rename / rearrange per ADR-030 + ADR-031).
+
+> **[N-U6 per gap-backlog 2026-04-30]** Permissions `risk.write`, `compliance_doc.write` (§18, §19), `formulation.create_draft`, `formulation.lock`, `recipe.submit_for_trial` (§17.11.1), `pilot.promote_to_bom` (Stage-Gate G3→G4), `npd.gate.advance`, `npd.gate.approve` (previously §17.9 only) added per UX coverage of stage-screen surfaces and Risk/Compliance modules.
 
 ### 2.3 MFA + audit
 
@@ -370,7 +380,7 @@ CREATE TABLE brief_lines (
     code           TEXT,
     price          TEXT,                         -- 'see recipe' or NUMERIC
     weights        NUMERIC,
-    pct            NUMERIC,                      -- % meat content
+    pct            NUMERIC,                      -- % primary ingredient content [N-U7 per gap-backlog 2026-04-30]
     packs_per_case INT,
     comments       TEXT,
     benchmark_identified TEXT,
@@ -536,7 +546,9 @@ Production jest N:1 z FA przez ProdDetail (multi-component scenariusze). Main Ta
 |---|---|---|---|
 | `Allergens` | TEXT[] lub JSONB | Multi-level cascade RM → PR_step → FA | [UNIVERSAL] (EU FIC 1169/2011) |
 | `May_Contain` | TEXT[] | Cross-contamination manual + rule-derived | [UNIVERSAL] |
-| `Allergen_Override_Reason` | TEXT | Gdy manual override auto-cascade | [UNIVERSAL] (audit) |
+| `Allergen_Override_Reason` | TEXT | Gdy manual override auto-cascade (legacy single-value field; per-row history lives in `fa_allergen_overrides` — patrz §8.10) | [UNIVERSAL] (audit) |
+
+> **[N-U4 per gap-backlog 2026-04-30]** Per-allergen-row override history (allergen × FA × actor × timestamp) stored in dedicated `fa_allergen_overrides` table — see §8.10. The `Allergen_Override_Reason` TEXT col on `fa` retains the most recent global reason for backward-compat with v7 reports.
 
 ### 5.8 MRP (13 cols)
 
@@ -649,7 +661,7 @@ Line dropdown = filtered by `Reference.Lines_By_PackSize.Supported_Pack_Sizes` C
   "validate": {
     "rule": "suffix_match",
     "compare": "UCase(Right(recipe_components_component, 1)) == UCase(last_suffix)",
-    "on_fail": {"warn": "MISMATCH: Recipe_Component operation is 'X' but Intermediate_Code suffix is 'Y'", "severity": "V06"}
+    "on_fail": {"warn": "MISMATCH: Recipe_Component operation suffix is 'X' but last Intermediate_Code suffix is 'Y' (generic ingredient/component code wording per ADR-034 v3.1) [N-U7 per gap-backlog 2026-04-30]", "severity": "V06"}
   }
 }
 ```
@@ -985,6 +997,35 @@ Technical manager może override auto-cascade (np. supplier spec updated, new la
 - VITAL 3.0 reference doses integration (Phase C4+)
 - Cross-line carryover calculation (Phase C3 w 08-PRODUCTION changeover gate)
 
+### 8.10 `fa_allergen_overrides` — per-row override schema [N-U4 per gap-backlog 2026-04-30]
+
+UX `allergen_override_modal` (modals.jsx:389-428) writes one row per (FA × allergen × actor × timestamp) — replaces the v7 single-TEXT field with a full audit history.
+
+```sql
+CREATE TABLE fa_allergen_overrides (
+    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id       UUID NOT NULL REFERENCES tenants(id),
+    product_code    TEXT NOT NULL REFERENCES fa(product_code) ON DELETE CASCADE,
+    allergen_code   TEXT NOT NULL REFERENCES "Reference.Allergens"(allergen_code),
+    action          TEXT NOT NULL,        -- 'add' | 'remove' (vs auto-cascade)
+    reason          TEXT NOT NULL CHECK (length(reason) >= 10),
+    actor_user_id   UUID NOT NULL,
+    actor_role      TEXT NOT NULL,
+    supersedes_id   UUID REFERENCES fa_allergen_overrides(id), -- chain previous override
+    superseded_at   TIMESTAMPTZ,                                -- NULL when current
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+    schema_version  INT NOT NULL DEFAULT 1
+);
+CREATE INDEX ON fa_allergen_overrides (tenant_id, product_code, allergen_code) WHERE superseded_at IS NULL;
+CREATE INDEX ON fa_allergen_overrides (tenant_id, product_code, created_at DESC);
+```
+
+**Semantics:**
+- One row per allergen change. New override on same (FA, allergen) sets `supersedes_id` to prior current row + bumps prior `superseded_at`.
+- "Current effective override set" = `WHERE superseded_at IS NULL`. §8.5 cascade reads this set last to compute `fa.allergens` final.
+- `audit_events` row mirrors each insert (table='fa_allergen_overrides', op='INSERT'). RLS scopes per tenant.
+- RBAC: `<dept>.write` for Technical/Quality (action='add' or 'remove'). NPD Manager bypass.
+
 ---
 
 ## §9 — Brief Module (NPD-upstream)
@@ -1214,16 +1255,60 @@ Hardcoded / from Reference.D365_Constants:
 6. Response: download URL (signed, 24h expiry)
 7. Jane downloads → paste to D365
 
+### 10.6.1 D365 Guided Build Wizard [N-A1 per gap-backlog 2026-04-30]
+
+**Source:** UX MODAL-10 + `d365_wizard_modal` (modals.jsx:431-594). Replaces single-click flow when user opts for guided path; the simple §10.6 single-click + MFA flow remains available for power users.
+
+**Flow — 8 sequential steps (modal `dismissible=false` once Execute begins):**
+
+| # | Step | Server Action | Validations / Output |
+|---|---|---|---|
+| 1 | **Validate** | `wizardValidate(productCode)` | Runs V01–V08 (§12). Blocks Next if any FAIL. |
+| 2 | **Data Review** | `wizardDataPreview(productCode)` | Read-only summary of Core/Production/MRP/Procurement values, parity check vs `product` row. |
+| 3 | **BOM Preview** | `wizardBomPreview(productCode)` | Computes `fa_bom_view` rows (§10.7) with D365 status badges (Found/NoCost/Missing). |
+| 4 | **Allergen Check** | `wizardAllergenAudit(productCode)` | Asserts §8 cascade complete + V07 PASS + manual overrides have reason. |
+| 5 | **D365 Constants** | `wizardConstantsCheck()` | Reads `Reference.D365_Constants`; warns on missing/empty values. |
+| 6 | **N+1 Preview** | `wizardN1Preview(productCode)` | Lists every D365 product to be generated (1 final FA + N intermediates per §10.3). |
+| 7 | **MFA Confirm** | `wizardMfaChallenge()` | TOTP / WebAuthn step-up per §2.3. |
+| 8 | **Execute** | `wizardExecute(productCode)` | Identical to §10.6 execution + per-phase SSE progress events. |
+
+**Progress stream:** Server-Sent Events on `app/(npd)/fa/d365-progress-stream/route.ts` emitting `fa.builder.progress` events keyed by phase (`validate`, `bom_preview`, `allergen_check`, `constants_check`, `n1_preview`, `mfa`, `execute_compute`, `execute_xlsx`, `execute_persist`, `execute_emit`). Client subscribes via `EventSource` and renders linear progress per phase.
+
+**Transactional rollback:** If any phase after step 8 starts fails (xlsx generation, persist to `fa_builder_outputs`, outbox emit) the entire build is rolled back in one DB transaction; `fa.built` remains FALSE. Wizard surfaces inline error + "Retry from step 8" button. Modal becomes dismissible again only after success or final-rollback.
+
 ### 10.7 BOM tab relationship
 
 V7 miał BOM tab jako **user-facing intermediate** (`Product_Code | Component_Type | Component_Code | Quantity | Process_Stage | Source | D365_Status`). Phase D decision #20: BOM + D365 Builder = **osobne features z wspólnym trigger** (pre-flight check).
 
 **Monopilot implementation Phase B.2:**
-- BOM view (UI) = computed on-the-fly z FA + ProdDetail + MRP (read-only)
-- BOM export (optional) = osobny button, CSV/Excel format Apex-internal
+- BOM view (UI) = computed on-the-fly via explicit SQL view **`fa_bom_view`** (read-only) — see DDL below
+- BOM export = `bom_export_csv(product_code)` Server Action streaming CSV from `fa_bom_view`
 - D365 Builder (§10.6) = osobny button, generates Builder_FA<code>.xlsx
 
 Wspólny trigger: oba zależą od `status_overall = 'Complete'`. Oba mogą być wywołane niezależnie przez Jane.
+
+**`fa_bom_view` DDL [N-U3 per gap-backlog 2026-04-30]:**
+
+```sql
+CREATE OR REPLACE VIEW fa_bom_view AS
+SELECT
+    f.product_code,
+    f.tenant_id,
+    bom.row_seq,
+    bom.component_type,           -- 'RM' (raw material) | 'PM' (packaging material)
+    bom.component_code,
+    bom.quantity,
+    bom.process_stage,            -- which Manufacturing_Operation row uses it (NULL for FA-level packaging)
+    bom.source,                   -- 'recipe_components' | 'mrp_box' | 'mrp_label' | ...
+    COALESCE(d.status, 'Empty')   AS d365_status,  -- 'Found' | 'NoCost' | 'Missing' | 'Empty'
+    d.comment                     AS d365_comment
+FROM fa f
+JOIN LATERAL fa_bom_compute(f.product_code) AS bom ON TRUE
+LEFT JOIN d365_import_cache d
+    ON d.tenant_id = f.tenant_id AND d.code = bom.component_code;
+```
+
+UX SCR-03h (`fa_bom_tab`, fa-screens.jsx:823-868) renders this view directly. Per-row badges: green=Found, yellow=NoCost, red=Missing. Type badge (RM/PM) drives column grouping. CSV export button calls `bom_export_csv(product_code)` Server Action emitting `Content-Type: text/csv` with same column ordering. RBAC: `dashboard.view` (read) + `bom.export` (export, defaults to NPD Manager + dept managers).
 
 ### 10.8 V04 D365 material validation
 
@@ -1333,17 +1418,33 @@ Per FA, list wszystkich Required_for_done cols gdzie Main Table cell jest empty.
 "Core: Recipe_Components. Planning: Primary_Ingredient_Pct. MRP: Box. Tech: Shelf_Life."
 ```
 
-### 11.5 Dashboard refresh
+### 11.5 Dashboard refresh [N-U5 per gap-backlog 2026-04-30]
 
-- **Event-driven refresh:** outbox consumer subscribes `fa.*` events → invalidates dashboard cache (Redis lub materialized view refresh)
-- **Polling fallback:** UI polls `/api/dashboard/summary` every 30s
-- **Real-time:** WebSocket push dla power-users (Jane) gdy alert appears (optional Phase C5 feature)
+**Phase B.2 contract:** UI polls `/api/dashboard/summary` every **30 s** via SWR `refreshInterval: 30000` (or equivalent SSE) — this is the normative contract, not a fallback. Acceptance criterion: alert refresh latency ≤ 30 s p95.
+
+- **Event-driven cache invalidation:** outbox consumer subscribes `fa.*` events → invalidates dashboard cache (Redis or materialized view refresh) so the next 30 s poll returns fresh data.
+- **30 s polling (NORMATIVE Phase B.2):** SWR `refreshInterval: 30000` against `/api/dashboard/summary`. Same contract for `launch_alerts` endpoint.
+- **WebSocket push:** **deferred to Phase C5** (12-REPORTING). Not in Phase B.2 scope; do not introduce client websocket dependency.
 
 ### 11.6 Dashboard access (per §2.2 permissions)
 
 - `dashboard.view` = wszystkie role (NPD Manager + dept managers + users + viewer)
 - Filtered: dept managers widzą tylko per-dept breakdown dla własnego dept + all launch alerts
 - NPD Manager (Jane) widzi full dashboard + D365 Builder button inline per FA
+
+### 11.7 Dashboard interactive controls [N-U8 per gap-backlog 2026-04-30]
+
+UX prototype (`dashboard_screen`) exposes interactive controls referenced previously only in §10.8.
+
+| Control | Behavior | Backing action |
+|---|---|---|
+| **Show-built toggle** | Default OFF (hides FAs where `built=TRUE`). When ON, includes built FAs in alerts list and counters. URL persistence `?showBuilt=true`. | Client-side filter on already-fetched dashboard payload; no extra request. |
+| **Refresh D365 Cache button** | Triggers `refreshD365Cache()` Server Action; renders inline toast + `last_synced_at` timestamp. Throttled: max 1 invocation per 60 s per tenant (server-side guard). | `refreshD365Cache()` → re-syncs `d365_import_cache` (§10.8) + emits `d365.cache.refreshed`. |
+| **Last-sync timestamp** | Renders `d365_import_cache.last_synced_at` (max across rows) next to button. Auto-updates on 30 s poll (§11.5). | Read-only from `d365_import_cache_meta` view. |
+| **Per-dept filter chips** | Click filters launch-alerts table to FAs missing data in that dept. URL persistence `?dept=mrp`. Debounced 200 ms. | Client-side filter; no extra request. |
+| **Alert search** | Free-text search across Product_Code + Product_Name. Debounced 300 ms. | Client-side filter. |
+
+**Throttle/debounce contract:** Refresh-D365 button disables for 60 s after click and shows countdown. Search/filter inputs debounced (200–300 ms) to avoid jitter. RBAC: Refresh-D365 requires `d365_builder.execute` (NPD Manager only).
 
 ---
 
@@ -1360,7 +1461,27 @@ Current V01-V06 z v7 + 2 new Phase B.2 rules. Stored w `Reference.Rules` z `rule
 | **V05-\<Dept\>** | Dept complete: IsAllRequiredFilled AND Closed_<Dept>=Yes | INFO (status badge) | Per dept | All saves |
 | **V06** | Manufacturing_Operation suffix matches Intermediate_Code suffix — lookup operation_name → process_suffix from Reference.ManufacturingOperations; compare extracted suffix from intermediate_code_final == process_suffix | FAIL w/ MISMATCH comment | Per ProdDetail row | Production edit |
 | **V07** (new) | Allergens complete: auto-cascade has no nulls + any manual override has reason | WARN | fa.allergens | Technical save |
-| **V08** (new) | Brief mapping complete: if fa.brief_id, all required brief→FA fields populated | INFO | fa created from brief | Convert-to-PLD, fa edit |
+| **V08** (new) | Brief mapping complete: if fa.brief_id, all required brief→FA fields populated (see explicit field list below) | INFO | fa created from brief | Convert-to-PLD, fa edit |
+
+**V08 explicit field list [N-U10 per gap-backlog 2026-04-30]** — matches UX MODAL-03 13-field table; validator MUST check each:
+
+| # | Brief field | FA field | Required for V08 PASS |
+|---|---|---|---|
+| 1 | `brief.product_name` | `fa.product_name` | ✅ |
+| 2 | `brief.volume` | `fa.volume` | ✅ |
+| 3 | `brief.dev_code` | `fa.dev_code` | ✅ |
+| 4 | `brief.recipe_components` (parsed) | `fa.recipe_components` | ✅ |
+| 5 | `brief.code` (per row) | `fa.ingredient_codes` (derived) | ✅ |
+| 6 | `brief.weights` | `fa.weights` | ✅ |
+| 7 | `brief.pct` | `fa.primary_ingredient_pct` | ✅ |
+| 8 | `brief.packs_per_case` | `fa.packs_per_case` | ✅ |
+| 9 | `brief.comments` | `fa.comments` | optional (warn if missing) |
+| 10 | `brief.benchmark_identified` | `fa.benchmark` | optional (warn if missing) |
+| 11 | `brief.allergens_seed` | `fa.allergens` (initial cascade) | ✅ |
+| 12 | `brief.primary_packaging` | `fa.box` (or `fa.mrp_box`) | ✅ |
+| 13 | `brief.secondary_packaging` | `fa.mrp_cartons` | ✅ |
+
+V08 returns PASS only when all ✅ rows are non-empty AND every brief→FA mapping wrote successfully (`brief_to_fa_audit.status='applied'`).
 
 ### 12.1 Validation UI integration
 
@@ -1403,9 +1524,12 @@ Per 00-FOUNDATION §4.2, 01-NPD implementation sequential z 5 sub-parts:
 | **01-NPD-c** | Allergens multi-level cascade | Reference.Allergens + Allergens_by_RM + Allergens_added_by_Process tables, cascade rule impl, Technical UI widget, manual override + audit, labelling preview partial | NPD-c.1 Seed EU14 · NPD-c.2 RM→FA cascade · NPD-c.3 PR step adds · NPD-c.4 May-contain · NPD-c.5 Override UI · ... |
 | **01-NPD-d** | D365 Builder output | Reference.D365_Constants table + seed, Builder_FA<code>.xlsx generator (8 tabs, exceljs), N+1 products pattern, V04 D365 material validation, fa_builder_outputs storage, download UI | NPD-d.1 Formula_Version · NPD-d.2 Formula_Lines · NPD-d.3 Route tabs · NPD-d.4 N+1 products · NPD-d.5 V04 cache sync · ... |
 | **01-NPD-e** | Dashboard subset | dashboard_summary view, per-dept breakdown, launch alerts (RED/YELLOW/GREEN), Missing_Data text generation, counters, Reference.AlertThresholds | NPD-e.1 Summary counters · NPD-e.2 Dept breakdown · NPD-e.3 Alerts · NPD-e.4 Missing data · NPD-e.5 FA detail navigation · ... |
-| **01-NPD-f** | Stage-Gate pipeline | npd_projects + gate_checklist_items + gate_approvals tables, Pipeline kanban/list views, CreateProjectWizard, GateChecklistPanel, AdvanceGateModal, GateApprovalModal, ApprovalHistoryTimeline, RBAC npd.gate.advance/approve, Reference.GateChecklistTemplates seed | NPD-f.1 Project CRUD · NPD-f.2 Gate checklist schema · NPD-f.3 Gate advancement action · NPD-f.4 Gate approval + e-signature · NPD-f.5 Pipeline views · NPD-f.6 CreateProjectWizard · ... |
+| **01-NPD-f** | Stage-Gate pipeline | npd_projects + gate_checklist_items + gate_approvals tables, Pipeline kanban/list/split views (§17.12), CreateProjectWizard, GateChecklistPanel, AdvanceGateModal, GateApprovalModal, ApprovalHistoryTimeline, RBAC npd.gate.advance/approve, Reference.GateChecklistTemplates seed | NPD-f.1 Project CRUD · NPD-f.2 Gate checklist schema · NPD-f.3 Gate advancement action · NPD-f.4 Gate approval + e-signature · NPD-f.5 Pipeline views (kanban/table/split) · NPD-f.6 CreateProjectWizard · ... |
+| **01-NPD-g** [N-U9 per gap-backlog 2026-04-30] | Recipe + Formulation editor | `formulations`, `formulation_versions`, `formulation_ingredients`, `formulation_calc_cache`, `formulation_audit_log` tables; Server Actions `getFormulation`/`saveDraft`/`submitForTrial`/`lockVersion`/`compareVersions`/`recomputeCalc`; live cost/nutrition/allergen recompute; Submit-for-trial; Compare versions; Lock | NPD-g.1 Schema + seed · NPD-g.2 Server actions + pure calc · NPD-g.3 RecipeScreen UI · NPD-g.4 Save/Compare/Lock modals · NPD-g.5 Cost panel · NPD-g.6 Nutrition panel |
+| **01-NPD-h** [N-U9 per gap-backlog 2026-04-30] | Stage screens: Nutrition + Costing + Sensory | `nutrition_profiles` + `nutrition_allergens` + `nutri_score_results` + `costing_breakdowns` + `costing_waterfall_steps` + `sensory_panels` + `sensory_attribute_scores` + `sensory_panelist_comments` schemas; 9-step waterfall UI; 3 margin scenarios + what-if sliders; V07 margin ≥ 15%; sensory radar chart; V08 sensory ≥ 7.0 (defer per D4) | NPD-h.1 Nutrition schema + UI · NPD-h.2 Costing schema + waterfall · NPD-h.3 V07 margin rule · NPD-h.4 Sensory schema + radar |
+| **01-NPD-i** [N-U9 per gap-backlog 2026-04-30] | Approval (gate extension) + Risk Register + Compliance Docs | Reuses §17 gates with 7-criteria summary; `Reference.ApprovalChainTemplates` (single vs multi); ApprovalScreen UI (gates + chain cards) + e-signature; **Risk Register** (`risks` table, score=likelihood×impact, V18 built-blocker, RiskRegisterScreen + RiskAddModal) per §18; **Compliance Docs** (`compliance_docs` + signed-URL service, MIME allowlist, 20MB limit, expiry job ≤30d) per §19; dashboard tiles (Open High risks · Expiring docs ≤30d) | NPD-i.1 Approval gates view · NPD-i.2 Approval chain modes · NPD-i.3 ApprovalScreen UI · NPD-i.4 V08 sensory rule · NPD-i.10 Risk schema · NPD-i.12 Risk API + V18 · NPD-i.13 Compliance docs API + expiry job · NPD-i.14 RiskRegisterScreen · NPD-i.15 ComplianceDocsScreen · NPD-i.16 Dashboard tiles |
 
-Każdy sub-module end-to-end (stories → QA → regression → done) przed następnym. Oczekiwane sesje per sub-module: 01-NPD-a (5-8 sesji), 01-NPD-b (3-4), 01-NPD-c (3-4), 01-NPD-d (4-5), 01-NPD-e (2-3), 01-NPD-f (3-4). Łącznie ~20-28 sesji implementacji.
+Każdy sub-module end-to-end (stories → QA → regression → done) przed następnym. Oczekiwane sesje per sub-module: 01-NPD-a (5-8 sesji), 01-NPD-b (3-4), 01-NPD-c (3-4), 01-NPD-d (4-5), 01-NPD-e (2-3), 01-NPD-f (3-4), 01-NPD-g (5-7), 01-NPD-h (3-4), 01-NPD-i (4-6). Łącznie ~32-45 sesji implementacji [N-U9 per gap-backlog 2026-04-30].
 
 ---
 
@@ -1579,7 +1703,7 @@ CREATE TABLE npd_projects (
     tenant_id       UUID NOT NULL REFERENCES tenants(id),
     code            TEXT NOT NULL UNIQUE,        -- NPD-001 format
     name            TEXT NOT NULL,
-    type            TEXT NOT NULL,               -- 'Meat · Cold cut' | 'Meat · Smoked' | ...
+    type            TEXT NOT NULL,               -- 'Recipe · Standard' | 'Recipe · Premium' | ... [APEX-CONFIG seed; generic per ADR-034, N-U7 per gap-backlog 2026-04-30]
     current_gate    TEXT NOT NULL DEFAULT 'G0',  -- G0..G4 | 'Launched'
     current_stage   TEXT NOT NULL DEFAULT 'brief', -- brief|recipe|trial|approval|handoff
     prio            TEXT NOT NULL DEFAULT 'normal', -- 'high' | 'normal' | 'low'
@@ -1682,7 +1806,217 @@ CREATE TABLE gate_approvals (
 
 Configurable per tenant (admin UI Phase C1). Default seed provides standard checklist items per gate per category, mapped from `GATE_CHECKLISTS` constant in gate-screens.jsx prototype. Seeded per project on `CreateProject`.
 
+### 17.11 Stage Screen Specifications [N-U2 / N-A2 per gap-backlog 2026-04-30]
+
+UX prototypes (`recipe_screen`, `nutrition_screen`, `costing_screen`, `sensory_screen`, `approval_screen`) are anchored here. Each stage screen mounts at `/npd/pipeline/[projectId]?stage=<recipe|nutrition|costing|sensory|approval>`. Sub-modules: 01-NPD-g (Recipe), 01-NPD-h (Nutrition+Costing+Sensory), 01-NPD-i (Approval).
+
+#### 17.11.1 Recipe / Formulation editor (sub-module 01-NPD-g)
+
+**Tables:** `formulations`, `formulation_versions`, `formulation_ingredients`, `formulation_calc_cache`, `formulation_audit_log` (5 new tables; `Reference.RawMaterials` + `Reference.NutritionTargets` seeds).
+
+```sql
+CREATE TABLE formulations (
+    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id       UUID NOT NULL,
+    project_id      UUID NOT NULL REFERENCES npd_projects(id),
+    product_code    TEXT REFERENCES fa(product_code),
+    current_version_id UUID,
+    locked_at       TIMESTAMPTZ, locked_by_user UUID,
+    created_at      TIMESTAMPTZ DEFAULT now(), schema_version INT DEFAULT 1
+);
+CREATE TABLE formulation_versions (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    formulation_id UUID REFERENCES formulations(id) ON DELETE CASCADE,
+    version_number INT NOT NULL,
+    state          TEXT NOT NULL,        -- 'draft' | 'submitted_for_trial' | 'locked'
+    batch_size_kg  NUMERIC, target_yield_pct NUMERIC, target_price_eur NUMERIC,
+    created_at     TIMESTAMPTZ DEFAULT now(), created_by_user UUID,
+    UNIQUE(formulation_id, version_number)
+);
+CREATE TABLE formulation_ingredients (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    version_id UUID REFERENCES formulation_versions(id) ON DELETE CASCADE,
+    rm_code TEXT NOT NULL, qty_kg NUMERIC, pct NUMERIC,
+    cost_per_kg_eur NUMERIC, allergens_inherited TEXT[],
+    sequence INT NOT NULL
+);
+```
+
+**Server Actions:** `getFormulation`, `saveDraft` (debounced 800 ms), `submitForTrial`, `lockVersion`, `compareVersions`, `recomputeCalc` (pure functions for cost/nutrition/allergen). Cascade hooks rewrite `Core.Recipe_Components` + trigger §6 Chain 3.
+
+**UI:** ingredients table with CRUD rows, batch/yield/target-price inputs, Composition stacked bar (proportions per RM), live cost/nutrition/allergen recompute (<50 ms p95). Save/Compare/Lock modals (side-by-side diff up to 50 rows × 2 versions). Submit-for-trial CTA gated on `totalPct ∈ [99.99, 100.01]` AND every RM has cost AND no missing nutrition target.
+
+**RBAC:** `formulation.create_draft`, `formulation.lock`, `recipe.submit_for_trial` (§2.2).
+
+#### 17.11.2 Nutrition (sub-module 01-NPD-h)
+
+**Tables:** `nutrition_profiles` (FK FA), `nutrition_allergens`, `nutri_score_results`. Seed `Reference.Nutrients` (codes for 7 nutrients).
+
+**Computation:** Weighted sum from `Reference.RawMaterials.nutrition_per_100g` over `formulation_ingredients`. Per-100 g + per-portion rendered in 7-row table (energy / fat / saturates / carbs / sugars / protein / salt). Traffic-light bars driven by `Reference.NutritionTargets`. Allergens auto-detected from RM cascade (§8.5). Nutri-Score grade computed via standard algorithm; persisted to `nutri_score_results`.
+
+**UI:** Read-only stage screen rendering nutrition table + allergen card + Nutri-Score grade letter (A–E). Actions: Export CSV, Export label PDF (stub Phase B.2; full impl Phase C4 in 11-SHIPPING).
+
+#### 17.11.3 Costing (sub-module 01-NPD-h)
+
+**Tables:** `costing_breakdowns` (FK fa_id, scenario UNIQUE), `costing_waterfall_steps`. Seed `Reference.AlertThresholds` (margin warn ≤ 15 %).
+
+**9-step waterfall:** Raw materials → Yield loss → Process labour → Packaging → Overhead → Logistics → Margin → Distributor → Retail. Each step renders as SVG/CSS bar with delta vs prior. 3 margin scenarios (target / pessimistic / optimistic) shown as row highlights. What-if sliders persist as scenarios (named, retrievable).
+
+**V07 margin rule:** Scenario margin < 15 % displays warn badge; configurable per tenant via `Reference.AlertThresholds`. Hard fail at < 0 %.
+
+#### 17.11.4 Sensory (sub-module 01-NPD-h, status TBD per D4)
+
+**Tables:** `sensory_panels`, `sensory_attribute_scores`, `sensory_panelist_comments`.
+
+**UI:** SVG radar chart over N attributes (texture, aroma, flavor, appearance, mouthfeel — configurable). Attribute mini-bars. Panelist comments list. **V08 rule:** mean overall score ≥ 7.0 (1–10 scale).
+
+**Status:** BUILD if FA Technical dept does NOT absorb it as single `overall_score` cell; otherwise reduce to single FA cell + score history. **Decision pending (D4).** If reduced, §17.11.4 collapses to 1 paragraph + cell ref + V08 simplified.
+
+#### 17.11.5 Approval (sub-module 01-NPD-i — gate extension)
+
+Reuses §17 gates (G3, G4) with 7-criteria summary card derived from V01–V08 evaluation:
+
+- C1: Recipe locked (`formulations.locked_at IS NOT NULL`)
+- C2: Nutrition complete + Nutri-Score grade ∈ {A, B, C}
+- C3: Margin ≥ 15 % in target scenario
+- C4: Sensory mean ≥ 7.0 (or N/A if D4 reduces)
+- C5: All allergens audited (V07 PASS)
+- C6: 0 Open High risks (§18 V18)
+- C7: Compliance docs valid + non-expired (§19)
+
+Each criterion renders as pass/warn/pending badge. **Approval chain modes:** single-approver vs multi-approver, configured via `Reference.ApprovalChainTemplates` seed:
+
+```sql
+CREATE TABLE "Reference.ApprovalChainTemplates" (
+    template_id  TEXT PRIMARY KEY, tenant_id UUID NOT NULL,
+    chain_mode   TEXT NOT NULL,             -- 'single' | 'multi'
+    steps        JSONB NOT NULL,            -- [{role, order, required_count}]
+    created_at   TIMESTAMPTZ DEFAULT now()
+);
+```
+
+**Approval screen UI:** 2 cards (gates summary + chain status), Submit-for-approval CTA, badges Done/Awaiting/Pending. E-signature flow per §17.6 (G3/G4). RBAC: `npd.gate.advance`, `npd.gate.approve`.
+
+#### 17.11.6 LEGACY notes (Trial / Pilot / Handoff / Packaging) [BL-NPD-02]
+
+Per BL-NPD-02 (banner-applied prototype review), these legacy R&D stages are **deprecated** in favour of the FA + Stage-Gate + sibling-PRD model. Migration map for impl:
+
+| Legacy stage | Successor location | Rationale |
+|---|---|---|
+| **Trial** | FA Technical dept (`fa.shelf_life`, allergens cascade) | Trial outputs are Technical attributes |
+| **Pilot** | FA Production dept + 02-PRODUCTION (Phase C2) | Pilot run = first WO in 02-PROD |
+| **Handoff** | Stage-Gate G4 → "Launched" + 04-BOM | Handoff = formal G4 e-sign + BOM publish |
+| **Packaging** | Brief packaging cols (C14–C19) + MRP dept | Packaging specs already in Brief + MRP |
+
+LEGACY banner CSS reuse note: prototypes carry red banner; PRD references treat them as historical context only. Plan task `T-01NPDlegacy-002` documents migration paths.
+
+### 17.12 Pipeline View Modes [N-A3 per gap-backlog 2026-04-30]
+
+`Pipeline` screen supports **3 view modes** controlled by URL query `?view=kanban|table|split` (default `kanban`).
+
+| Mode | Layout | Behaviour |
+|---|---|---|
+| **kanban** | One column per gate (G0–G4 + Launched). Project cards drag-and-drop between columns via `@dnd-kit/core`. | DnD invokes `advanceGate(projectId, targetGate)` Server Action with **adjacency guard**: forward to N+1 only; backward blocked; non-adjacent blocked. Optimistic UI update reverted on 422 ADJACENCY_VIOLATION. |
+| **table** | Tabular view, sortable columns: Code · Name · Type · Current Gate · Priority · Owner · Target Launch · Progress. | URL persistence `?sort=field&dir=asc\|desc`. Row click → ProjectDetail. |
+| **split** | Two-pane: left `TableView` (compact rows, single selection) + right sticky `ProjectDetail` panel. | URL persistence `?view=split&selected=<projectId>`. Selection survives refresh. Min-width breakpoint: ≥ 1280 px (falls back to table on smaller screens). |
+
+**Adjacency guard rules (kanban + split DnD):**
+
+```
+allowAdvance(currentGate, targetGate):
+  if targetGate == nextGate(currentGate): allow
+  else if targetGate == currentGate: noop
+  else: reject 422 ADJACENCY_VIOLATION
+```
+
+`nextGate` map: `G0→G1, G1→G2, G2→G3, G3→G4, G4→Launched`. Reverse moves forbidden in this UI; admin reverse only via Server Action `revertGate` (audit-logged).
+
+### 17.13 — *(reserved for future view modes)*
+
 ---
+
+## §18 — Risk Register (per FA) [N-A4 per gap-backlog 2026-04-30]
+
+Per-FA risk register surfaced via UX `RiskRegisterScreen` (`docs-screens.jsx:56-106`) + `RiskAddModal` (MODAL-07, `modals.jsx:297-346`). Sub-module: 01-NPD-i.
+
+```sql
+CREATE TABLE risks (
+    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id       UUID NOT NULL,
+    product_code    TEXT NOT NULL REFERENCES fa(product_code) ON DELETE CASCADE,
+    title           TEXT NOT NULL CHECK (length(title) BETWEEN 3 AND 300),
+    description     TEXT NOT NULL CHECK (length(description) BETWEEN 10 AND 500),
+    likelihood      INT NOT NULL CHECK (likelihood BETWEEN 1 AND 3),  -- 1=low, 2=med, 3=high
+    impact          INT NOT NULL CHECK (impact BETWEEN 1 AND 3),
+    score           INT GENERATED ALWAYS AS (likelihood * impact) STORED,
+    bucket          TEXT GENERATED ALWAYS AS (
+                        CASE WHEN likelihood*impact >= 6 THEN 'High'
+                             WHEN likelihood*impact >= 3 THEN 'Med'
+                             ELSE 'Low' END) STORED,
+    state           TEXT NOT NULL DEFAULT 'Open',  -- 'Open' | 'Mitigated' | 'Closed'
+    mitigation      TEXT,
+    owner_user_id   UUID,
+    closed_at       TIMESTAMPTZ, closed_by_user UUID,
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+    schema_version  INT NOT NULL DEFAULT 1
+);
+CREATE INDEX ON risks (tenant_id, product_code, state);
+CREATE INDEX ON risks (tenant_id, bucket) WHERE state='Open';
+```
+
+**Score formula:** `score = likelihood × impact` (1..9).
+**Buckets:** `High ≥ 6`, `Med 3–5`, `Low < 3`.
+**Lifecycle:** `Open → Mitigated → Closed`. Reopen allowed (state back to `Open`); audit each transition.
+**RBAC:** `risk.write` (write/close/reopen) — NPD Manager + admin. `risk.view` = `dashboard.view`.
+
+**V18 — built-blocker validation rule:** FA cannot transition to `built=TRUE` while any `risks` row with `bucket='High' AND state='Open'` exists. V18 evaluated in §10.6 wizard step 1 + single-click pre-flight + dashboard tile. Severity: FAIL.
+
+**Audit:** every CRUD writes `audit_events` row. Mitigation/Close/Reopen require non-empty `reason` (≥ 10 chars).
+
+---
+
+## §19 — Compliance Documents (per FA) [N-A4 per gap-backlog 2026-04-30]
+
+Per-FA document attachments surfaced via UX `ComplianceDocsScreen` (`docs-screens.jsx:6-53`) + `DocUploadModal` (`modals.jsx:667-689`). Sub-module: 01-NPD-i.
+
+```sql
+CREATE TABLE compliance_docs (
+    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id       UUID NOT NULL,
+    product_code    TEXT NOT NULL REFERENCES fa(product_code) ON DELETE CASCADE,
+    doc_type        TEXT NOT NULL,    -- 'CoA' | 'SDS' | 'Spec' | 'Cert' | 'Other'
+    title           TEXT NOT NULL CHECK (length(title) BETWEEN 3 AND 300),
+    file_path       TEXT NOT NULL,    -- S3/blob path (tenant-isolated bucket)
+    mime_type       TEXT NOT NULL CHECK (mime_type IN
+                        ('application/pdf',
+                         'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                         'application/vnd.openxmlformats-officedocument.wordprocessingml.document')),
+    file_size_bytes BIGINT NOT NULL CHECK (file_size_bytes <= 20 * 1024 * 1024),  -- 20 MB
+    version_number  INT NOT NULL DEFAULT 1,
+    expires_at      DATE,
+    uploaded_by_user UUID NOT NULL,
+    uploaded_at     TIMESTAMPTZ NOT NULL DEFAULT now(),
+    deleted_at      TIMESTAMPTZ,                          -- soft-delete
+    schema_version  INT NOT NULL DEFAULT 1,
+    UNIQUE (tenant_id, product_code, doc_type, version_number)
+);
+CREATE INDEX ON compliance_docs (tenant_id, product_code) WHERE deleted_at IS NULL;
+CREATE INDEX ON compliance_docs (tenant_id, expires_at) WHERE deleted_at IS NULL AND expires_at IS NOT NULL;
+```
+
+**File constraints:**
+- MIME allowlist: PDF, XLSX, DOCX (3 types only; reject anything else at upload).
+- Max size: 20 MB (validated client + server).
+- Storage: per-tenant bucket; signed URLs with TTL ≤ 15 minutes.
+- Versioning: explicit (`version_number`); overwrite forbidden — new upload = new row with bumped version.
+- Soft-delete: `deleted_at` set; row retained for audit.
+
+**Expiry warnings (nightly job):**
+- ≤ 30 days remaining → dashboard tile "Expiring docs" badge.
+- Past expiry → dashboard tile "Expired" red badge + email to doc owner + NPD Manager.
+- Implemented as cron `0 2 * * *` running `compliance_docs_expiry_scan()` SECURITY DEFINER function.
+
+**RBAC:** `compliance_doc.write` (upload, soft-delete, set expiry) — NPD Manager + Technical/Quality manager + admin. Read = `dashboard.view`. Audit every upload/delete/access (signed-URL grant).
 
 ---
 
@@ -1791,6 +2125,8 @@ Then: BATCH-CZ-0000003 → DRYING → BATCH-DR-0000004 (Final: PROD-PHM-024)
 
 ## Changelog
 
+- **v3.4 (2026-04-30, Phase E-0 prep — UX→PRD coverage uplift)** — Applied gap-backlog `_meta/plans/2026-04-30-ux-prd-plan-gap-backlog.md` MODULE 01-NPD updates (N-U1..N-U10) and additions (N-A1..N-A4). UPDATES: §2.2 RBAC +7 perms (`risk.write`, `compliance_doc.write`, `formulation.create_draft`, `formulation.lock`, `recipe.submit_for_trial`, `pilot.promote_to_bom`, `npd.gate.advance`, `npd.gate.approve`); §5.7 `Allergen_Override_Reason` deferred to §8.10 audit table; §6.1 Chain 2 V06 MISMATCH copy → generic per ADR-034; §10.7 `fa_bom_view` SQL view + `bom_export_csv` action explicit; §11.5 30 s polling normative for Phase B.2 (WebSocket → Phase C5); §12 V08 13-field explicit list; §13.2 +3 sub-modules (01-NPD-g/h/i). ADDITIONS: §10.6.1 D365 Guided Build Wizard (8 steps + SSE progress + transactional rollback); §17.11 Stage Screen Specifications (6 sub-sections: Recipe/Formulation, Nutrition, Costing, Sensory, Approval, LEGACY notes); §17.12 Pipeline View Modes (kanban/table/split + adjacency guard); §8.10 `fa_allergen_overrides` schema; §11.7 Dashboard interactive controls; §18 Risk Register + V18 built-blocker; §19 Compliance Documents (signed URLs, expiry job, MIME allowlist). ADR-034 hygiene: `% meat content` → `% primary ingredient content`, project type seed `Meat · Cold cut/Smoked` → generic `Recipe · Standard/Premium`. Coverage 50 % → ≥ 85 %. Audit: `_meta/audits/2026-04-30-prd-amendments-01-npd.md`.
+
 - **v3.3 (2026-04-30, Phase E-0 prep)** — Aligned with 00-FOUNDATION v4.1 §4.3-AMENDMENT (table-naming decision, Option B per ADR-034): physical table for the FA aggregate is now **`product`** with `fa` as a read-only backward-compat SQL view through Phase C1. Added table-naming note above §4.2 DDL block. Updated §13.2 build sequence: 01-NPD-a now explicitly emits `CREATE TABLE product (...)` + `CREATE VIEW fa AS SELECT * FROM product;` (story NPD-a.6). Updated §15 acceptance criteria: RLS coverage references `product` table (with `fa` listed as compat view). Event aggregate prefix `fa.*` is unchanged (decoupled per `_meta/specs/event-naming-convention.md`). No semantic schema change — column list, cascade rules, validations, and lifecycle events are identical.
 
 - **v3.2 (2026-04-30)** — Phase B.2 finalization. Fixed validation code collision in 02-SETTINGS (V-SET-40..45 → V-SET-MFG-01..06, avoiding conflict with Module Toggles). Added Phase B.2 migration spec to 00-FOUNDATION §9.1: backward-compatible handling of existing tenants with hardcoded Process_1..4 (seed as generic operations, optional regeneration via Phase C1 wizard). Aligned with 00-FOUNDATION v4.0 §9.1 (Manufacturing Operations configuration pattern) and 02-SETTINGS v3.4 §8.9 (admin UI specification). Cascade engine ready for implementation: Chain 2 (manufacturing_operation_N → process_suffix lookup → intermediate_code_pN generation) fully specified. Dynamic suffix pattern WIP-<suffix>-<seq> works across Bakery/Pharmacy/FMCG industries. All cross-references updated (01-NPD §5.6, §6, §9.5, §12 validation rules, §13 acceptance criteria).
@@ -1803,4 +2139,4 @@ Then: BATCH-CZ-0000003 → DRYING → BATCH-DR-0000004 (Final: PROD-PHM-024)
 
 ---
 
-*PRD 01-NPD v3.3 — Phase E-0 prep alignment (table renamed `fa` → `product`, `fa` retained as compat view; event prefix `fa.*` unchanged). Next: Phase E-0 implementation (`00-FOUNDATION-impl-a..i` foundation tasks, then 01-NPD-a..f).*
+*PRD 01-NPD v3.4 — Phase E-0 prep alignment + UX→PRD coverage uplift (gap-backlog 2026-04-30 N-U1..U10 / N-A1..A4 applied; coverage 50 %→≥85 %). Next: Phase E-0 implementation (`00-FOUNDATION-impl-a..i` foundation tasks, then 01-NPD-a..f, then 01-NPD-g/h/i per §13.2).*

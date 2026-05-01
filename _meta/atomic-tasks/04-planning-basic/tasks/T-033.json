@@ -1,0 +1,64 @@
+{
+  "title": "T-033 — API: RBAC matrix wiring for planning permissions",
+  "prompt": "Wire planning RBAC permissions per PRD §3.2 (Permission surface) to every Server Action and route handler in 04-PLANNING. Permission set: planning.dashboard.view, planning.po.create, planning.po.approve, planning.po.cancel, planning.to.create, planning.to.ship, planning.to.receive, planning.wo.create, planning.wo.release, planning.wo.un_release, planning.wo.cancel, planning.reservation.override, planning.settings.edit, planning.sequencing.run, integration.d365.so_trigger.run.\n\nImplement helper `assertPermission(action, ctx)` that reads JWT roles and the role→permission matrix from 02-SETTINGS §10, throws ForbiddenError otherwise. Wire into existing endpoints (T-008..T-031) via shared middleware/decorator.\n\nRED test asserts each endpoint denies caller without the matching permission and allows with it.",
+  "labels": ["prd", "auth", "planning-rbac", "T4-wiring-test"],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-033",
+    "source_prd": "04-PLANNING-BASIC-PRD.md",
+    "prd_refs": ["§3.2", "§3.3"],
+    "category": "auth",
+    "subcategory": "planning-rbac",
+    "task_type": "T4-wiring-test",
+    "parent_feature": "planning-rbac",
+    "context_budget": "30k",
+    "estimated_effort": "2-3h",
+    "description": "Centralized permission helper wired into all planning endpoints with role→permission matrix.",
+    "details": "Helper in `src/server/lib/rbac.ts`. Role→permission matrix consumed from 02-SETTINGS §10 helper. ForbiddenError type maps to HTTP 403. Wire via Next.js middleware for /api/planning/* routes plus explicit calls inside Server Actions.",
+    "scope_files": [
+      "src/server/lib/rbac.ts [create]",
+      "src/server/lib/__tests__/rbac.test.ts [create]",
+      "src/server/actions/planning/*.ts [modify — add assertPermission]"
+    ],
+    "out_of_scope": [
+      "Role authoring UI (02-SETTINGS)",
+      "Field-visibility masking (separate task)"
+    ],
+    "dependencies": ["T-008", "T-014", "T-018", "T-021", "T-024", "T-028"],
+    "parallel_safe_with": [],
+    "acceptance_criteria": [
+      "Given a caller without 'planning.po.create', when POST /api/planning/purchase-orders is called, then HTTP 403 with code 'FORBIDDEN' and no DB write occurred.",
+      "Given a caller with 'planning.po.create' and not 'planning.po.approve', when approve endpoint is called, then HTTP 403; when create is called, then 200/201.",
+      "Given each of the 15 listed permissions, when the matching endpoint is exercised by a caller missing that permission, then all yield 403.",
+      "Given `pnpm vitest run src/server/lib/__tests__/rbac.test.ts`, when run, then 0 failures."
+    ],
+    "test_strategy": [
+      "RED matrix test parametrized over 15 permissions + 15 endpoints.",
+      "Run `pnpm vitest run src/server/lib/__tests__/rbac.test.ts`."
+    ],
+    "risk_red_lines": [
+      "Do not silently fall back to allow — default deny.",
+      "Do not hard-code role names — read from 02-SETTINGS matrix."
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

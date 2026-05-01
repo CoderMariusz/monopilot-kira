@@ -1,0 +1,59 @@
+{
+  "title": "T-004 — scanner capability detection lib/scanner/detect.ts (06-a)",
+  "prompt": "# T-004 — scanner capability detection\n\nPRD: 06-SCANNER-P1-PRD.md §6 D5, §8.1 FR-SC-FE-011, §11.1, §11.2\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nProvide `detectScannerCapabilities()` returning `{ hardware, camera, manual: true, deviceType, preferredMode }` so every scanner page can choose the right input affordance.\n\n## Implementation contract\n1. Module `apps/scanner/src/lib/scanner/detect.ts`:\n   - UserAgent regex: `/Zebra|Datalogic/i`, `/Honeywell/i`, `/iPhone|iPad/i`, `/Android/i`.\n   - Hardware heuristic: input event timing analysis — wedge bursts < 50ms per char, terminator Enter — exposed as `classifyKeystrokeBurst(events: KeyboardEvent[])`.\n   - Camera detection: `navigator.mediaDevices?.getUserMedia` capability probe, lazy (no permission prompt during detection).\n   - `preferredMode` rule: hardware > camera > manual.\n2. Type `ScannerCapabilities` exported.\n3. Vitest with mocked navigator (use jsdom + custom userAgent fixtures); cover all 7 device buckets in §11.1.\n\n## Files\n- apps/scanner/src/lib/scanner/detect.ts [create]\n- apps/scanner/src/lib/scanner/index.ts [modify]\n- apps/scanner/__tests__/detect.test.ts [create]\n\n## Acceptance criteria\n1. Given navigator.userAgent matches /Zebra/, when detectScannerCapabilities runs, then deviceType='zebra' and preferredMode='hardware'\n2. Given navigator.mediaDevices.getUserMedia is undefined, when detectScannerCapabilities runs, then camera=false and preferredMode never returns 'camera'\n3. Given a 6-char keystroke burst all <50ms apart ending in Enter, when classifyKeystrokeBurst runs, then it returns 'wedge'\n\n## Test strategy\n- RED: write apps/scanner/__tests__/detect.test.ts covering all 7 §11.1 device buckets + camera-absent + camera-present before implementation\n- Run 'pnpm --filter scanner test detect'\n\n## Risk red lines\n- Do not call getUserMedia at module load (no permission prompts during detection)\n- Do not throw if navigator is undefined (SSR safety — return manual-only)\n- Do not hardcode device list outside the regex constants",
+  "labels": ["prd", "ui", "device-detect", "T4-wiring-test"],
+  "priority": 80,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-004",
+    "source_prd": "06-SCANNER-P1-PRD.md",
+    "prd_refs": ["§6 D5", "§8.1 FR-SC-FE-011", "§11.1", "§11.2"],
+    "category": "ui",
+    "subcategory": "device-detect",
+    "task_type": "T4-wiring-test",
+    "parent_feature": "06-a Shell & Core",
+    "context_budget": "25k",
+    "estimated_effort": "1-2h",
+    "description": "Detect scanner hardware/camera/manual capabilities and preferred mode for SSR-safe scanner UI bootstrap.",
+    "details": "Create apps/scanner/src/lib/scanner/detect.ts exporting detectScannerCapabilities + classifyKeystrokeBurst + ScannerCapabilities type. Implement UserAgent regexes per §11.1, lazy mediaDevices probe (no permission prompt), keystroke timing analysis. SSR-safe (must not throw when navigator is undefined). Vitest fixtures cover all 7 §11.1 buckets + camera-absent + a 6-char wedge burst.",
+    "scope_files": [
+      "apps/scanner/src/lib/scanner/detect.ts [create]",
+      "apps/scanner/src/lib/scanner/index.ts [modify]",
+      "apps/scanner/__tests__/detect.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not implement the camera scanner component here (T-014)",
+      "Do not implement feedback audio/haptic here (T-005)",
+      "Do not write the scanner layout here (T-012)"
+    ],
+    "dependencies": [],
+    "parallel_safe_with": ["T-003", "T-005"],
+    "acceptance_criteria": [
+      "Given navigator.userAgent matches /Zebra/, when detectScannerCapabilities runs, then deviceType='zebra' and preferredMode='hardware'",
+      "Given navigator.mediaDevices.getUserMedia is undefined, when detectScannerCapabilities runs, then camera=false and preferredMode is never 'camera'",
+      "Given a 6-char keystroke burst all <50ms apart ending in Enter, when classifyKeystrokeBurst runs, then it returns 'wedge'"
+    ],
+    "test_strategy": [
+      "RED: write detect.test.ts covering all 7 §11.1 device buckets + camera-absent + wedge burst classifier before implementation",
+      "Run 'pnpm --filter scanner test detect'"
+    ],
+    "risk_red_lines": [
+      "Do not call getUserMedia at import time",
+      "Do not crash on SSR (no navigator)",
+      "Do not depend on @zxing in this module"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

@@ -1,0 +1,36 @@
+{
+  "title": "T-018 — API: Manufacturing operation allergen additions CRUD",
+  "prompt": "Implement /api/technical/manufacturing-operations/allergens endpoints per §10.4 and TEC-042. GET lists by manufacturing_operation_name. POST creates (manufacturing_operation_name, allergen_code, reason). DELETE by composite key. Validate manufacturing_operation_name in reference_tables.manufacturing_operations.row_key (per V-TEC-63). Permission technical.allergens.edit. RED tests/api/manufacturing-op-allergens.test.ts. Run: `pnpm vitest run tests/api/manufacturing-op-allergens.test.ts`.",
+  "labels": ["prd", "api", "allergens-mfg-op", "T2-api"],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-018",
+    "source_prd": "03-TECHNICAL-PRD.md",
+    "prd_refs": ["§10.4", "§6.5", "§10.7"],
+    "category": "api",
+    "subcategory": "allergens-mfg-op",
+    "task_type": "T2-api",
+    "parent_feature": "03-TECHNICAL-b Allergens",
+    "context_budget": "20k",
+    "estimated_effort": "1-2h",
+    "description": "CRUD on manufacturing_operation_allergen_additions table with reference_table FK validation.",
+    "details": "Used by allergen cascade rule when computing FG allergens (UNION RM allergens via BOM components + manufacturing operation allergens added). Org-scoped with RLS.",
+    "scope_files": ["app/api/technical/manufacturing-operations/allergens/route.ts", "lib/technical/allergens/manufacturing-op.ts", "tests/api/manufacturing-op-allergens.test.ts"],
+    "out_of_scope": ["Cascade rule (T-024)", "UI (TEC-042)"],
+    "dependencies": ["T-004"],
+    "parallel_safe_with": ["T-017", "T-019", "T-020"],
+    "acceptance_criteria": [
+      "Given POST with manufacturing_operation_name not in reference_table, when validated, then 422 V-TEC-63.",
+      "Given valid POST, when GET runs, then row appears for that manufacturing_operation_name.",
+      "Given DELETE, when audit_log queried, then action='manufacturing_op.allergen.delete' exists."
+    ],
+    "test_strategy": ["RED tests for FK validation + audit.", "Run: pnpm vitest run tests/api/manufacturing-op-allergens.test.ts"],
+    "risk_red_lines": ["Do not allow ad-hoc manufacturing_operation_name values — must reference Reference table."],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {"required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"], "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]},
+    "routing_hints": {"red": "hermes_gpt55", "implementation": "hermes_gpt55", "review": "opus_if_high_risk_or_ui_or_architecture", "close": "spark_low_risk_else_opus"}
+  }
+}

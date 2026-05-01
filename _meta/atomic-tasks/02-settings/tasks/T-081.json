@@ -1,0 +1,80 @@
+{
+  "title": "T-081 — E2E Playwright: invite → accept → first login flow with seat-limit + 7-day TTL",
+  "prompt": "# T-081 — E2E Playwright: invite + accept + seat-limit\n\n## Goal\nEnd-to-end suite for inviteUser → magic-link accept → first login. Asserts seat-limit rejection, expired-token rejection, and successful onboarding link from invite email.\n\n## Files in scope\n- apps/web/e2e/invite-accept.spec.ts [create]\n\n## Acceptance criteria (all must hold)\n- Given seat_limit=2 and 2 active users, when admin tries inviteUser, then UI surfaces SEAT_LIMIT_REACHED and no DB row is created.\n- Given a successful invite, when the user opens the magic-link within 7 days, then login succeeds and users.last_login_at is set.\n- Given a magic-link is opened on day 8, when route runs, then the response is 410 GONE with INVITE_EXPIRED copy.\n\n## Test strategy (RED first)\n1. Add a failing test that exercises the acceptance criteria above. The RED command is:\n   `pnpm --filter @monopilot/web playwright test e2e/invite-accept.spec.ts`\n2. Run RED — it must fail before any production code is written.\n3. Implement the smallest change needed for GREEN.\n4. Re-run RED command — must pass.\n5. Run `pnpm typecheck` and `pnpm lint` in the changed package; both must pass.\n\n## Risk red lines\n- Do not edit files outside the listed scope without documenting why in CLOSEOUT.\n- Do not weaken existing acceptance criteria from prior tasks.\n- Do not introduce REST endpoints; use Server Actions per stack contract.\n- Do not commit secrets or vault keys.\n\n## Closeout evidence required\n- changed_files (with line counts)\n- exact test commands and outputs (RED→GREEN, typecheck, lint)\n- acceptance_criteria_status (one row per AC: pass/fail)\n- deviations_from_prd (or \"none\")\n- git_status\n\nStack: TS + Next.js App Router + Drizzle + pnpm + vitest + Playwright + Server Actions. Primitives in `packages/ui`. PRD: `02-SETTINGS-PRD.md` v3.5.\n",
+  "labels": [
+    "prd",
+    "test",
+    "e2e-invite",
+    "T4-wiring-test"
+  ],
+  "priority": 120,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-081",
+    "source_prd": "02-SETTINGS-PRD.md",
+    "prd_refs": [
+      "§5.1",
+      "S-U7",
+      "S-U8"
+    ],
+    "category": "test",
+    "subcategory": "e2e-invite",
+    "task_type": "T4-wiring-test",
+    "parent_feature": "02-settings-a",
+    "context_budget": "40k",
+    "estimated_effort": "1-3h",
+    "description": "E2E invite + accept + seat limit.",
+    "details": "Use Mailcatcher / mailbox stub to retrieve magic link. Set system clock for TTL test.",
+    "scope_files": [
+      "apps/web/e2e/invite-accept.spec.ts"
+    ],
+    "out_of_scope": [
+      "broaden scope beyond listed files",
+      "implement future-phase features"
+    ],
+    "dependencies": [
+      "T-017",
+      "T-052",
+      "T-059"
+    ],
+    "parallel_safe_with": [],
+    "acceptance_criteria": [
+      "Seat-limit rejected.",
+      "Successful flow within TTL.",
+      "Expired link returns 410."
+    ],
+    "test_strategy": [
+      "RED: write suite. GREEN: ensure flows work."
+    ],
+    "risk_red_lines": [
+      "Do not bypass token TTL in test by writing past timestamps without clock advance."
+    ],
+    "skills": [
+      "test-driven-development"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": false
+  }
+}

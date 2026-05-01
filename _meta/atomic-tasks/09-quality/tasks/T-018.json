@@ -1,0 +1,59 @@
+{
+  "title": "T-018 — Spec CRUD + version clone Server Actions (09-b-02)",
+  "prompt": "# T-018 — Spec CRUD + version clone\n\nPRD: 09-QUALITY-PRD.md §7.1 EPIC 8B, §11.3 V-QA-SPEC, §16.3\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nServer Actions: createDraftSpec, updateDraftSpec, cloneToNewVersion (increments version, copies parameters), submitForReview (status -> 'under_review'). Edit-only-on-draft enforced (V-QA-SPEC-001 + immutability of approved specs).\n\n## Implementation contract\n1. `apps/web/src/server/quality/specs.ts` exports the four Server Actions with Zod validation.\n2. createDraftSpec: status='draft' default, version=1 if no prior, else max(version)+1.\n3. cloneToNewVersion(specId): copies header + child parameters, status='draft', superseded_by remains null until activation.\n4. updateDraftSpec rejects when status != 'draft'; submitForReview only from status='draft'.\n\n## Files\n- apps/web/src/server/quality/specs.ts [create]\n- apps/web/src/server/quality/__tests__/specs.test.ts [create]\n\n## Acceptance criteria\n1. Given an active spec v1, when cloneToNewVersion(v1.id) runs, then a new spec row exists with same spec_code+product_id, version=2, status='draft', and all parent parameters are copied to v2 (count match)\n2. Given a spec with status='active', when updateDraftSpec(id, patch) runs, then it rejects with V-QA-SPEC-006 IMMUTABLE error and writes nothing\n3. Given a spec with status='draft', when submitForReview(id) runs, then status='under_review' and an audit log entry with operation='UPDATE' and changed_fields containing 'status' is appended\n4. Given a draft spec where one parameter has min_value > max_value, when submitForReview runs, then it rejects with V-QA-SPEC-003 (server re-validates)",
+  "labels": ["prd", "api", "spec-crud", "T2-api"],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-018",
+    "source_prd": "09-QUALITY-PRD.md",
+    "prd_refs": ["§7.1", "§11.3"],
+    "category": "api",
+    "subcategory": "spec-crud",
+    "task_type": "T2-api",
+    "parent_feature": "09-b Specifications",
+    "context_budget": "35k",
+    "estimated_effort": "2h",
+    "description": "Server Actions createDraftSpec / updateDraftSpec / cloneToNewVersion / submitForReview with version increment and immutability enforcement.",
+    "details": "Zod-validated Server Actions; createDraftSpec auto-versions; cloneToNewVersion copies parameters; updateDraftSpec rejects when status!='draft'; submitForReview transitions draft->under_review and re-runs V-QA-SPEC-002/003. RBAC quality_lead-only for submit; quality_lead+admin for create/clone. Audit log entries via existing trigger (T-040).",
+    "scope_files": [
+      "apps/web/src/server/quality/specs.ts [create]",
+      "apps/web/src/server/quality/__tests__/specs.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not implement approval flow (T-019)",
+      "Do not implement allergen profile snapshot (T-020)",
+      "Do not build UI wizard (T-021..T-024)"
+    ],
+    "dependencies": ["T-017"],
+    "parallel_safe_with": ["T-019", "T-020"],
+    "acceptance_criteria": [
+      "Given an active spec v1, when cloneToNewVersion(v1.id) runs, then a new row exists with same (spec_code,product_id), version=2, status='draft', and all parent parameters are copied (count match)",
+      "Given a spec with status='active', when updateDraftSpec(id,patch) runs, then it rejects with V-QA-SPEC-006 IMMUTABLE error and writes nothing",
+      "Given a draft spec, when submitForReview(id) runs, then status becomes 'under_review' and an audit log entry with operation='UPDATE' and changed_fields containing 'status' is appended",
+      "Given a draft spec with a parameter where min_value>max_value, when submitForReview runs, then it rejects with V-QA-SPEC-003"
+    ],
+    "test_strategy": [
+      "RED: write apps/web/src/server/quality/__tests__/specs.test.ts asserting clone copy, immutability rejection, status transition with audit append, and V-QA-SPEC-003 re-validation",
+      "Run 'pnpm --filter web test specs'"
+    ],
+    "risk_red_lines": [
+      "Do not allow updateDraftSpec on non-draft status",
+      "Do not skip server-side V-QA-SPEC-003 even if client validates first",
+      "Do not omit audit log append on status transitions"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

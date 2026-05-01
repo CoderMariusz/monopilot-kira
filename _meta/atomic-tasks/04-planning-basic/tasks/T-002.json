@@ -1,0 +1,66 @@
+{
+  "title": "T-002 — Drizzle schema: purchase_orders + po_lines",
+  "prompt": "Add Drizzle pgTable definitions for `purchase_orders` and `po_lines` per PRD §5.4. Columns include id, tenant_id, site_id, po_number, supplier_id FK, currency, tax_code_id, expected_delivery_date, warehouse_id FK, status (string), payment_terms, shipping_method, notes, internal_notes, approval_required, approved_at/by, subtotal/tax_amount/discount_total/total decimals, source_type enum ('manual'|'bulk'|'forecast'|'d365_mrp'), source_reference, ext_jsonb, schema_version, audit. po_lines: id, po_id FK, line_number, product_id FK, quantity, uom, unit_price, discount_percent, discount_amount, line_total computed, expected_delivery_date, confirmed_delivery_date, received_qty, eudr_reference, notes. Include indexes (tenant_id, status, expected_delivery_date), (supplier_id), (po_id, line_number).\n\nGenerate migration `0002_planning_purchase_orders.sql`. RED test asserting both tables export expected columns + indexes are present in generated SQL.",
+  "labels": ["prd", "data", "schema-po", "T1-schema"],
+  "priority": 80,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-002",
+    "source_prd": "04-PLANNING-BASIC-PRD.md",
+    "prd_refs": ["§5.4", "§6.3"],
+    "category": "data",
+    "subcategory": "schema-po",
+    "task_type": "T1-schema",
+    "parent_feature": "planning-po",
+    "context_budget": "30k",
+    "estimated_effort": "1-2h",
+    "description": "Drizzle pgTable definitions for purchase_orders + po_lines.",
+    "details": "Status as VARCHAR(30) (workflow rules live in registry per §16.1, not enum-locked at DB level beyond display config). source_type as pgEnum. Foreign keys for supplier_id reference suppliers (T-001 must be merged first). line_total stored as DECIMAL(15,2) computed by service layer (not GENERATED). Add CHECK constraint quantity > 0 (V-PLAN-PO-004). Include all indexes named in PRD §5.4. Generate migration via drizzle-kit.",
+    "scope_files": [
+      "src/db/schema/planning/purchase_orders.ts [create]",
+      "src/db/schema/planning/__tests__/purchase_orders.test.ts [create]",
+      "src/db/migrations/0002_planning_purchase_orders.sql [create]"
+    ],
+    "out_of_scope": [
+      "PO API (T-006/T-007)",
+      "PO UI (T-014..017)"
+    ],
+    "dependencies": ["T-001"],
+    "parallel_safe_with": ["T-003", "T-004"],
+    "acceptance_criteria": [
+      "Given the schema file loads, when introspected, then both tables export all PRD §5.4 columns with correct types.",
+      "Given the migration is generated, when grepped, then all 3 indexes from §5.4 appear plus quantity > 0 CHECK constraint.",
+      "Given `pnpm vitest run src/db/schema/planning/__tests__/purchase_orders.test.ts`, when run, then 0 failures.",
+      "Given `pnpm tsc --noEmit`, when run, then no errors."
+    ],
+    "test_strategy": [
+      "Write RED schema-shape test asserting columns + indexes + CHECK constraint.",
+      "Run `pnpm vitest run src/db/schema/planning/__tests__/purchase_orders.test.ts`.",
+      "Run `pnpm drizzle-kit generate` and `pnpm tsc --noEmit`."
+    ],
+    "risk_red_lines": [
+      "Do not encode workflow transitions at DB level — they live in rule registry §16.1.",
+      "Do not skip indexes — performance-critical for dashboard P95 < 500ms (§13.4).",
+      "Do not couple to D365-specific source_type values at this layer."
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

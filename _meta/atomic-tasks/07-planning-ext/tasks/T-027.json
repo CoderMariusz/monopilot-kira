@@ -1,0 +1,58 @@
+{
+  "title": "T-027 — DSL rule disposition_bridge_v1 registered (P2 standby)",
+  "prompt": "# T-027 — DSL rule disposition_bridge_v1 registered (P2 standby)\n\nPRD: 07-PLANNING-EXT-PRD.md §10.3, §15.4 V-SCHED-10, Appendix B feature flag\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nRegister disposition_bridge_v1 rule per §10.3 pseudo-DSL with phase=p2, triggers (wo.completed where item_type='intermediate'), decision tree, and feature flag planning.disposition_bridge.enabled=false (P2 standby).\n\n## Implementation contract\n1. Migration `packages/db/migrations/0082_rule_disposition_bridge_v1.sql` upserting rule_registry row with type='decision', phase='p2', triggers JSONB, decision_tree JSONB.\n2. Feature flag planning.disposition_bridge.enabled=false (P2 default).\n3. Decision tree mirrors §10.3 logic (to_stock | direct_continue | planner_decides timeout 2h).\n\n## Files\n- packages/db/migrations/0082_rule_disposition_bridge_v1.sql [create]\n- packages/db/__tests__/rule-disposition-bridge.test.ts [create]\n\n## Acceptance criteria\n1. Given migration 0082 applied, when SELECT FROM rule_registry WHERE rule_id='disposition_bridge_v1' runs, then row exists with type='decision' and phase='p2'\n2. Given migration 0082 applied, when SELECT decision_tree from that row, then it includes branches for to_stock, direct_continue, planner_decides (3 cases)\n3. Given migration 0082 applied, when SELECT FROM feature_flags WHERE key='planning.disposition_bridge.enabled', then value=false\n\n## Test strategy\n- RED: write packages/db/__tests__/rule-disposition-bridge.test.ts asserting rule + decision_tree branches + flag\n- Run 'pnpm --filter db migrate && pnpm --filter db test rule-disposition-bridge'\n\n## Risk red lines\n- Do not enable in P1 (P2 only — flag must default false)\n- Do not implement event handler here (T-065/T-066)\n- Do not omit any of the 3 decision branches",
+  "labels": ["prd", "infra", "dsl-rule", "T1-schema"],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-027",
+    "source_prd": "07-PLANNING-EXT-PRD.md",
+    "prd_refs": ["§10.3", "§15.4 V-SCHED-10", "Appendix B"],
+    "category": "infra",
+    "subcategory": "dsl-rule",
+    "task_type": "T1-schema",
+    "parent_feature": "07-EXT-d disposition bridge P2",
+    "context_budget": "30k",
+    "estimated_effort": "1h",
+    "description": "Register disposition_bridge_v1 P2 rule + feature flag default false.",
+    "details": "Idempotent UPSERT registers rule with 3-branch decision_tree. Flag default false (P2 not active).",
+    "scope_files": [
+      "packages/db/migrations/0082_rule_disposition_bridge_v1.sql [create]",
+      "packages/db/__tests__/rule-disposition-bridge.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not implement event handler (T-065/T-066)",
+      "Do not enable in P1",
+      "Do not modify items table here (T-064)"
+    ],
+    "dependencies": ["T-025"],
+    "parallel_safe_with": ["T-026"],
+    "acceptance_criteria": [
+      "Given migration 0082 applied, when SELECT FROM rule_registry WHERE rule_id='disposition_bridge_v1' runs, then row exists with type='decision' and phase='p2'",
+      "Given migration 0082 applied, when SELECT decision_tree from that row, then it includes 3 branches (to_stock, direct_continue, planner_decides)",
+      "Given migration 0082 applied, when SELECT FROM feature_flags WHERE key='planning.disposition_bridge.enabled', then value=false"
+    ],
+    "test_strategy": [
+      "RED: write packages/db/__tests__/rule-disposition-bridge.test.ts asserting rule + decision_tree + flag",
+      "Run 'pnpm --filter db migrate && pnpm --filter db test rule-disposition-bridge'"
+    ],
+    "risk_red_lines": [
+      "Do not enable in P1",
+      "Do not implement event handler",
+      "Do not omit any of the 3 decision branches"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

@@ -1,0 +1,67 @@
+{
+  "title": "T-010 — API: PO 3-step fast flow + smart defaults",
+  "prompt": "Implement PO creation per PRD §6.2 (FR-PLAN-005). Server Action `createPurchaseOrder(input)` accepts the 3-step wizard payload and:\n1. Step 1: validates supplier_id and pulls smart defaults (currency, tax_code_id, payment_terms, default warehouse from user profile/site).\n2. Step 2: per po_line auto-fills unit_price (supplier_products fallback to product.last_cost), expected_delivery_date = order_date + COALESCE(sp.lead_time_days, p.lead_time_days), discount_percent. Returns a warning array for products without is_default supplier.\n3. Step 3: recomputes totals (FR-PLAN-009: line_total = qty * unit_price * (1-discount_pct/100) - discount_amount; subtotal = SUM; tax_amount; total) and inserts po + po_lines transactionally. Status='submitted' or 'pending_approval' per planning_settings.po_require_approval.\n\nReturns { po_id, po_number, warnings[] }. Calls T-009 for numbering.\n\nRED test asserts smart defaults populate, warnings emitted for non-default supplier products, totals computed deterministically.",
+  "labels": ["prd", "api", "po-create", "T2-api"],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-010",
+    "source_prd": "04-PLANNING-BASIC-PRD.md",
+    "prd_refs": ["§6.2", "§6.3", "§6.7"],
+    "category": "api",
+    "subcategory": "po-create",
+    "task_type": "T2-api",
+    "parent_feature": "planning-po",
+    "context_budget": "40k",
+    "estimated_effort": "3-4h",
+    "description": "PO 3-step fast-flow Server Action with smart defaults and totals recompute.",
+    "details": "Single transaction wrapping numbering call + insert + outbox event 'po.state_changed'. Wizard exposes intermediate step preview endpoints `/api/planning/purchase-orders/preview` (no insert) returning { defaults, warnings, totals }. Approval gate uses planning_settings.po_require_approval AND total > po_approval_threshold; if true, status='pending_approval'. Otherwise 'submitted'. RBAC: planning.po.create role required.",
+    "scope_files": [
+      "src/server/actions/planning/po-create.ts [create]",
+      "src/app/api/planning/purchase-orders/route.ts [create]",
+      "src/app/api/planning/purchase-orders/preview/route.ts [create]",
+      "src/server/actions/planning/__tests__/po-create.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Bulk PO (T-011)",
+      "PO approval modal (T-013)",
+      "PO UI wizard (T-014)"
+    ],
+    "dependencies": ["T-002", "T-007", "T-009"],
+    "parallel_safe_with": ["T-008", "T-011", "T-012"],
+    "acceptance_criteria": [
+      "Given a supplier with currency='GBP' and payment_terms='NET30', when step-1 preview is called, then { currency: 'GBP', payment_terms: 'NET30' } are returned in defaults.",
+      "Given a po_line with qty=10, unit_price=5.00, discount_percent=10, discount_amount=2, when totals computed, then line_total = 10 * 5 * 0.9 - 2 = 43.00.",
+      "Given planning_settings.po_require_approval=true and total > threshold, when createPurchaseOrder runs, then resulting po.status='pending_approval' and outbox event 'po.state_changed' is recorded.",
+      "Given `pnpm vitest run src/server/actions/planning/__tests__/po-create.test.ts`, when run, then 0 failures."
+    ],
+    "test_strategy": [
+      "RED tests for smart-default fill, total computation rounding, approval-gate branch, outbox emit.",
+      "Run `pnpm vitest run src/server/actions/planning/__tests__/po-create.test.ts`."
+    ],
+    "risk_red_lines": [
+      "Do not split the insert across multiple transactions — atomicity required.",
+      "Do not bypass numbering service — sequences would diverge.",
+      "Do not write workflow logic outside the rule registry — call po_state_machine_v1 (T-007)."
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

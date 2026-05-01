@@ -1,0 +1,36 @@
+{
+  "title": "T-060 — UI: TEC-085 Specification Review modal + TEC-086 Specifications List",
+  "prompt": "Build TEC-085 spec review modal (sign-off) and TEC-086 specifications list per §10A. Match `spec_review_modal` design/Monopilot Design System/technical/modals.jsx:460-483 and `specs_screen` design/Monopilot Design System/technical/other-screens.jsx:74-108. Quality-Lead approval workflow: list -> open spec -> review -> sign off. RED tests/ui/tec-085-086-specs.test.tsx. Run: `pnpm vitest run tests/ui/tec-085-086-specs.test.tsx`.",
+  "labels": ["prd", "ui", "ui-specs", "T3-ui"],
+  "priority": 120,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-060",
+    "source_prd": "03-TECHNICAL-PRD.md",
+    "prd_refs": ["§10A TEC-085", "§10A TEC-086"],
+    "category": "ui",
+    "subcategory": "specs",
+    "task_type": "T3-ui",
+    "parent_feature": "03-TECHNICAL-b Specs",
+    "context_budget": "20k",
+    "estimated_effort": "2h",
+    "description": "Cross-item specifications list + review modal for sign-off.",
+    "details": "Sign-off writes audit_log row action='spec.signoff'. Permission: quality_lead role.",
+    "scope_files": ["app/(app)/technical/specs/page.tsx", "app/(app)/technical/specs/_components/review-modal.tsx", "tests/ui/tec-085-086-specs.test.tsx"],
+    "out_of_scope": ["Spec storage backend (assume reference_tables.specifications exists)"],
+    "dependencies": ["T-008"],
+    "parallel_safe_with": ["T-046", "T-047", "T-048", "T-061", "T-062"],
+    "acceptance_criteria": [
+      "Given list and modal render, when compared to design/Monopilot Design System/technical/modals.jsx:460-483 and design/Monopilot Design System/technical/other-screens.jsx:74-108, then list columns and modal field set match — structural + visual + interaction parity verified by RTL.",
+      "Given quality_lead clicks Sign-off, when API returns 200, then modal closes and row status flips to 'signed'.",
+      "Given user lacks quality_lead role, when on page, then Sign-off button is disabled."
+    ],
+    "test_strategy": ["RED tests for parity + RBAC + signoff flow.", "Run: pnpm vitest run tests/ui/tec-085-086-specs.test.tsx"],
+    "risk_red_lines": ["Do not bypass audit on signoff."],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {"required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"], "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]},
+    "routing_hints": {"red": "hermes_gpt55", "implementation": "hermes_gpt55", "review": "opus_if_high_risk_or_ui_or_architecture", "close": "spark_low_risk_else_opus"}
+  }
+}

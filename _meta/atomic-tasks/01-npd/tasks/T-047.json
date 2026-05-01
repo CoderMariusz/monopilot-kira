@@ -1,0 +1,64 @@
+{
+  "title": "T-047 — Wizard step Server Actions (validate/dataPreview/bomPreview/allergenAudit/constantsCheck/n1Preview/mfaChallenge/execute)",
+  "prompt": "# T-047 — D365 Wizard step actions\n\nPRD: 01-NPD-PRD.md §10.6.1\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\n8 wizard step Server Actions per §10.6.1 table that emit SSE phase events and chain into transactional rollback on execute failure.\n\n## Implementation contract\nNew apps/web/app/(npd)/fa/actions/wizard/* — one file per step. Each action emits SSE event 'fa.builder.progress' with phase label. wizardExecute mirrors buildD365 but wrapped in tx with rollback on any failure (xlsx | persist | emit). Modal becomes dismissible only after success or final rollback.\n\n## Files\n- apps/web/app/(npd)/fa/actions/wizard/wizard-validate.ts [create]\n- apps/web/app/(npd)/fa/actions/wizard/wizard-data-preview.ts [create]\n- apps/web/app/(npd)/fa/actions/wizard/wizard-bom-preview.ts [create]\n- apps/web/app/(npd)/fa/actions/wizard/wizard-allergen-audit.ts [create]\n- apps/web/app/(npd)/fa/actions/wizard/wizard-constants-check.ts [create]\n- apps/web/app/(npd)/fa/actions/wizard/wizard-n1-preview.ts [create]\n- apps/web/app/(npd)/fa/actions/wizard/wizard-mfa-challenge.ts [create]\n- apps/web/app/(npd)/fa/actions/wizard/wizard-execute.ts [create]\n- apps/web/app/(npd)/fa/actions/wizard/__tests__/wizard.test.ts [create]\n\n## Acceptance criteria\n1. Given wizardValidate runs and any V01-V08 fails, when it returns, then the result blocks Next button (returns blocking errors per phase)\n2. Given wizardExecute begins and persist step throws, when transaction commits, then fa.built remains FALSE and no fa_builder_outputs row is inserted (full rollback)\n3. Given the full happy path runs, when wizardExecute returns success, then SSE has emitted phases in order: validate → data_preview → bom_preview → allergen_check → constants_check → n1_preview → mfa → execute_compute → execute_xlsx → execute_persist → execute_emit\n\n## Test strategy\n- RED: 3 integration tests in __tests__/wizard.test.ts covering blocking, rollback, SSE phase ordering\n- Run 'pnpm --filter web test wizard'\n\n## Risk red lines\n- Do not partially commit on rollback\n- Do not skip MFA gate\n- Do not allow non-monotonic SSE phase ordering",
+  "labels": ["prd", "api", "d365-wizard", "T2-api"],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-047",
+    "source_prd": "01-NPD-PRD.md",
+    "prd_refs": ["§10.6.1", "N-A1"],
+    "category": "api",
+    "subcategory": "d365-wizard-actions",
+    "task_type": "T2-api",
+    "parent_feature": "01-NPD-d Builder Wizard",
+    "context_budget": "55k",
+    "estimated_effort": "4-5h",
+    "description": "8 wizard Server Actions per §10.6.1 with SSE phase events + transactional rollback on execute failures.",
+    "details": "Each action streams SSE phase events. wizardExecute wraps build+persist+emit in single tx; on failure rolls back fully and surfaces inline error. Modal dismissibility toggled by action result.",
+    "scope_files": [
+      "apps/web/app/(npd)/fa/actions/wizard/wizard-validate.ts [create]",
+      "apps/web/app/(npd)/fa/actions/wizard/wizard-data-preview.ts [create]",
+      "apps/web/app/(npd)/fa/actions/wizard/wizard-bom-preview.ts [create]",
+      "apps/web/app/(npd)/fa/actions/wizard/wizard-allergen-audit.ts [create]",
+      "apps/web/app/(npd)/fa/actions/wizard/wizard-constants-check.ts [create]",
+      "apps/web/app/(npd)/fa/actions/wizard/wizard-n1-preview.ts [create]",
+      "apps/web/app/(npd)/fa/actions/wizard/wizard-mfa-challenge.ts [create]",
+      "apps/web/app/(npd)/fa/actions/wizard/wizard-execute.ts [create]",
+      "apps/web/app/(npd)/fa/actions/wizard/__tests__/wizard.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not duplicate buildD365 single-click action (T-044)",
+      "Do not implement wizard UI here (T-046)"
+    ],
+    "dependencies": ["T-042", "T-043", "T-044", "T-045"],
+    "parallel_safe_with": ["T-046"],
+    "acceptance_criteria": [
+      "Given wizardValidate runs and any V01-V08 fails, when it returns, then the result blocks Next button",
+      "Given wizardExecute persist step throws, when transaction commits, then fa.built remains FALSE and no fa_builder_outputs row exists",
+      "Given full happy path runs, when wizardExecute returns success, then SSE emitted phases in order: validate → data_preview → bom_preview → allergen_check → constants_check → n1_preview → mfa → execute_compute → execute_xlsx → execute_persist → execute_emit"
+    ],
+    "test_strategy": [
+      "RED: 3 integration tests in __tests__/wizard.test.ts covering blocking, rollback, SSE phase ordering before actions exist",
+      "Run 'pnpm --filter web test wizard'"
+    ],
+    "risk_red_lines": [
+      "Do not partially commit on rollback",
+      "Do not skip MFA gate",
+      "Do not allow non-monotonic SSE phase ordering"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

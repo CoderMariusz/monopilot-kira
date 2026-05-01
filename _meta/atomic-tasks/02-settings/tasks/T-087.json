@@ -1,0 +1,78 @@
+{
+  "title": "T-087 — E2E Playwright: IP allowlist 403 + SCIM bypass + impersonation bypass",
+  "prompt": "# T-087 — E2E Playwright: IP allowlist + bypass paths\n\n## Goal\nVerify edge middleware: when allowlist active, requests from outside CIDR get 403; SCIM bearer + superadmin impersonation are exempt.\n\n## Files in scope\n- apps/web/e2e/ip-allowlist.spec.ts [create]\n\n## Acceptance criteria (all must hold)\n- Given the org has allowlist=['203.0.113.0/24'] and the request comes from 198.51.100.5, when /admin is hit, then 403 IP_NOT_ALLOWED is returned and audit row is written.\n- Given a SCIM bearer hits /scim/v2/Users from an off-allowlist IP, when middleware runs, then the request succeeds (bypass).\n- Given an active superadmin impersonation session hits /admin from an off-allowlist IP, when middleware runs, then the request succeeds and audit_log records the impersonation context.\n\n## Test strategy (RED first)\n1. Add a failing test that exercises the acceptance criteria above. The RED command is:\n   `pnpm --filter @monopilot/web playwright test e2e/ip-allowlist.spec.ts`\n2. Run RED — it must fail before any production code is written.\n3. Implement the smallest change needed for GREEN.\n4. Re-run RED command — must pass.\n5. Run `pnpm typecheck` and `pnpm lint` in the changed package; both must pass.\n\n## Risk red lines\n- Do not edit files outside the listed scope without documenting why in CLOSEOUT.\n- Do not weaken existing acceptance criteria from prior tasks.\n- Do not introduce REST endpoints; use Server Actions per stack contract.\n- Do not commit secrets or vault keys.\n\n## Closeout evidence required\n- changed_files (with line counts)\n- exact test commands and outputs (RED→GREEN, typecheck, lint)\n- acceptance_criteria_status (one row per AC: pass/fail)\n- deviations_from_prd (or \"none\")\n- git_status\n\nStack: TS + Next.js App Router + Drizzle + pnpm + vitest + Playwright + Server Actions. Primitives in `packages/ui`. PRD: `02-SETTINGS-PRD.md` v3.5.\n",
+  "labels": [
+    "prd",
+    "test",
+    "e2e-ip-allowlist",
+    "T4-wiring-test"
+  ],
+  "priority": 120,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-087",
+    "source_prd": "02-SETTINGS-PRD.md",
+    "prd_refs": [
+      "§14.7",
+      "S-A3"
+    ],
+    "category": "test",
+    "subcategory": "e2e-ip-allowlist",
+    "task_type": "T4-wiring-test",
+    "parent_feature": "02-settings-e",
+    "context_budget": "40k",
+    "estimated_effort": "1-3h",
+    "description": "E2E IP allowlist enforcement + bypass paths.",
+    "details": "Use Playwright `extraHTTPHeaders` to spoof X-Forwarded-For; enable middleware trust of trusted proxy header in test env only.",
+    "scope_files": [
+      "apps/web/e2e/ip-allowlist.spec.ts"
+    ],
+    "out_of_scope": [
+      "broaden scope beyond listed files",
+      "implement future-phase features"
+    ],
+    "dependencies": [
+      "T-035",
+      "T-036"
+    ],
+    "parallel_safe_with": [],
+    "acceptance_criteria": [
+      "403 returned for off-allowlist IP.",
+      "SCIM bypass works.",
+      "Impersonation bypass works."
+    ],
+    "test_strategy": [
+      "RED: write spec. GREEN: ensure middleware behavior."
+    ],
+    "risk_red_lines": [
+      "Do not trust X-Forwarded-For in production unless behind a known proxy."
+    ],
+    "skills": [
+      "test-driven-development"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": false
+  }
+}

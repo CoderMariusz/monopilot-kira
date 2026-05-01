@@ -1,0 +1,37 @@
+{
+  "title": "T-034 — UI: TEC-012 Item Detail page with tabs",
+  "prompt": "Build /technical/items/[item_code] page (TEC-012, §6.5) with tabs: Overview / BOM / Allergens / Cost History / Routing / Supplier Specs / Lab Results / D365 Status. Each tab is a Server Component reading from corresponding API endpoint. Match prototype `material_detail_screen` design/Monopilot Design System/technical/other-screens.jsx:483-605. RED tests/ui/tec-012-item-detail.test.tsx. Run: `pnpm vitest run tests/ui/tec-012-item-detail.test.tsx`.",
+  "labels": ["prd", "ui", "ui-items-detail", "T3-ui"],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-034",
+    "source_prd": "03-TECHNICAL-PRD.md",
+    "prd_refs": ["§6.5", "§4A TEC-012"],
+    "category": "ui",
+    "subcategory": "items-detail",
+    "task_type": "T3-ui",
+    "parent_feature": "03-TECHNICAL-a Item Master",
+    "context_budget": "30k",
+    "estimated_effort": "3-4h",
+    "description": "Item detail page with 8 tabs and RBAC-aware action buttons (Edit, Deactivate).",
+    "details": "Use shadcn Tabs primitive. Edit button (TEC-013) reuses TEC-011 wizard in edit mode. Deactivate button opens TEC-081 modal. Tabs lazy-load via Suspense.",
+    "scope_files": ["app/(app)/technical/items/[item_code]/page.tsx", "app/(app)/technical/items/[item_code]/_components/tabs/*.tsx", "tests/ui/tec-012-item-detail.test.tsx"],
+    "out_of_scope": ["Sub-tab implementations beyond stub (e.g., BOM tab uses T-037 child)"],
+    "dependencies": ["T-010", "T-032"],
+    "parallel_safe_with": ["T-035", "T-037", "T-038"],
+    "acceptance_criteria": [
+      "Given the detail page renders, when compared to design/Monopilot Design System/technical/other-screens.jsx:483-605, then it shows the same 8 tabs in the same order, the same header layout with Edit/Deactivate actions, and uses shadcn Tabs primitive — structural + visual + interaction parity verified by RTL.",
+      "Given user lacks technical.items.edit, when the page renders, then the Edit button is disabled or hidden.",
+      "Given user clicks Deactivate, when modal opens, then TEC-081 deactivate modal appears.",
+      "Given GET /items/:code returns 404, when page renders, then a not-found message replaces the body."
+    ],
+    "test_strategy": ["RED tests for tab structure + RBAC + 404 path.", "Run: pnpm vitest run tests/ui/tec-012-item-detail.test.tsx"],
+    "risk_red_lines": ["Do not collapse tabs into a single page.", "Do not expose private_jsonb to non-owner."],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {"required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"], "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]},
+    "routing_hints": {"red": "hermes_gpt55", "implementation": "hermes_gpt55", "review": "opus_if_high_risk_or_ui_or_architecture", "close": "spark_low_risk_else_opus"}
+  }
+}

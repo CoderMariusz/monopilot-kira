@@ -1,0 +1,68 @@
+{
+  "title": "T-035 — UI: PLN-002 PO List page (parity with plan_po_list)",
+  "prompt": "Build PLN-002 PO List at `src/app/(planning)/planning/purchase-orders/page.tsx` matching prototype `design/Monopilot Design System/planning/po-screens.jsx:3-139` 1:1.\n\nFeatures: filterable table (status badge from rule registry display config, supplier, total, expected delivery), search, status filter, supplier filter, date filter, sort by columns, pagination. Status badges colored per planning_settings.status_display.po (T-029 seed).\n\nServer Component reads list via getPurchaseOrders(filters). RED RTL test asserts table columns + filter controls match prototype.",
+  "labels": ["prd", "ui", "pln-002-po-list", "T3-ui"],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-035",
+    "source_prd": "04-PLANNING-BASIC-PRD.md",
+    "prd_refs": ["§6.6"],
+    "category": "ui",
+    "subcategory": "pln-002-po-list",
+    "task_type": "T3-ui",
+    "parent_feature": "planning-po",
+    "context_budget": "40k",
+    "estimated_effort": "3-4h",
+    "prototype_match": true,
+    "description": "PO list page server-rendered with filters + status badges driven by status_display config.",
+    "details": "Prototype reference: planning/po-screens.jsx:3-139. Status badge component reads color/label from planning_settings.status_display.po keyed by status string. Use shadcn DataTable + @tanstack/react-table. Server-side pagination + filtering via Drizzle. Parity checklist: (1) header row labels and order, (2) toolbar filter controls (search input, status select, date range), (3) status badge variants and colors driven by config, (4) row action menu items.",
+    "scope_files": [
+      "src/app/(planning)/planning/purchase-orders/page.tsx [create]",
+      "src/components/planning/po/POTable.tsx [create]",
+      "src/components/planning/po/POStatusBadge.tsx [create]",
+      "src/components/planning/po/__tests__/POTable.test.tsx [create]",
+      "design/Monopilot Design System/planning/po-screens.jsx:3-139 [ref]"
+    ],
+    "out_of_scope": [
+      "PO Detail (T-036)",
+      "PO wizard (T-038)"
+    ],
+    "dependencies": ["T-008", "T-029"],
+    "parallel_safe_with": ["T-034", "T-036"],
+    "acceptance_criteria": [
+      "Given the page renders, when compared to `design/Monopilot Design System/planning/po-screens.jsx:3-139`, then the production component has the same column order, same toolbar filters, same status badge primitive, and same action menu items — parity verified by RTL snapshot per the checklist in `pipeline_inputs.details`.",
+      "Given a status_display.po.confirmed.color override in settings, when a confirmed PO renders, then its badge uses the override color.",
+      "Given the filter 'status=draft' is selected, when the URL updates, then only draft POs render and pagination is preserved.",
+      "Given `pnpm vitest run src/components/planning/po/__tests__/POTable.test.tsx`, when run, then 0 failures."
+    ],
+    "test_strategy": [
+      "RED RTL snapshot for column + toolbar parity, badge color test using mocked status_display.",
+      "Playwright e2e: filter by status=draft, expect only draft rows.",
+      "Run `pnpm vitest run` and `pnpm playwright test`."
+    ],
+    "risk_red_lines": [
+      "Do not hard-code badge colors — must read from status_display config.",
+      "Do not skip RBAC: planning.po.view required."
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

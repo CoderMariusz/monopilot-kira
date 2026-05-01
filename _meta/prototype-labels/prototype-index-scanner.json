@@ -1,902 +1,1468 @@
-[
-  {
-    "label": "reason_picker_sheet",
-    "file": "design/Monopilot Design System/scanner/modals.jsx",
-    "lines": "21-53",
-    "component_type": "modal",
-    "ui_pattern": "wizard-step",
-    "data_domain": "Scanner",
-    "interaction": "create",
-    "complexity": "composite",
-    "depends_on_prototypes": ["Modal", "Btn", "Field"],
-    "translation_notes": [
-      "Modal bottom-sheet CSS override → @radix-ui/react-dialog with data-side='bottom' + custom dark theme tokens",
-      "Local useState(sel/other) → useForm + zodResolver with .min(5) for 'other' branch",
-      "reasons[] prop with .map → shadcn RadioGroup/RadioGroupItem replacing custom sc-reason-btn buttons",
-      "canSubmit guard → form.formState.isValid + server action with audit log write on submit",
-      "Hard-coded Polish strings → next-intl t('scanner.reason_picker.*') keys",
-      "onConfirm callback pattern → optimistic update + server action returning Result<void, AppError>"
-    ],
-    "shadcn_equivalent": ["Dialog", "RadioGroup", "RadioGroupItem", "Textarea", "Button"],
-    "known_bugs": ["BL-SCN-01: bottom-sheet is CSS-override approach, should be refactored to dedicated ScannerModal primitive"],
-    "estimated_translation_time_min": 60
-  },
-  {
-    "label": "fefo_deviation_sheet",
-    "file": "design/Monopilot Design System/scanner/modals.jsx",
-    "lines": "55-98",
-    "component_type": "modal",
-    "ui_pattern": "wizard-step",
-    "data_domain": "LP",
-    "interaction": "approve",
-    "complexity": "composite",
-    "depends_on_prototypes": ["Modal", "Btn", "Field", "Banner"],
-    "translation_notes": [
-      "Side-by-side sc-cmp-grid div layout → CSS Grid 2-col with shadcn Card for suggested vs chosen LP",
-      "Local reason useState + native <select> → shadcn Select component with zodResolver enum validation",
-      "Banner 'audit log' note → production Banner must link to actual AuditLogService.write() Server Action",
-      "onConfirm/onUseFefo dual-path → two separate Server Actions with outbox event emission (FEFO_DEVIATION / FEFO_OVERRIDE_REVERTED)",
-      "Hard-coded SCN_REASONS_FEFO array → fetched from /api/reasons?type=fefo at page load, cached via React cache()",
-      "Hard-coded Polish strings → next-intl t('scanner.fefo_deviation.*') keys"
-    ],
-    "shadcn_equivalent": ["Dialog", "Select", "SelectItem", "Textarea", "Button", "Card"],
-    "known_bugs": ["BL-SCN-01: bottom-sheet CSS override approach needs refactor"],
-    "estimated_translation_time_min": 75
-  },
-  {
-    "label": "best_before_sheet",
-    "file": "design/Monopilot Design System/scanner/modals.jsx",
-    "lines": "100-124",
-    "component_type": "modal",
-    "ui_pattern": "wizard-step",
-    "data_domain": "LP",
-    "interaction": "approve",
-    "complexity": "composite",
-    "depends_on_prototypes": ["Modal", "Btn", "Field", "Banner"],
-    "translation_notes": [
-      "Modal receives daysLeft prop derived from client date arithmetic → compute server-side in Server Component to avoid clock skew",
-      "Native <select> for reason → shadcn Select with fixed option set extracted to a reason enum in shared/constants.ts",
-      "canConfirm = !!reason guard → zod .min(1) on reason field, form.formState.isValid drives Button disabled",
-      "onConfirm callback → Server Action BestBeforeAcceptance.create() with LP id, reason, userId from session",
-      "Hard-coded 3 reason options → reason set should be configurable via Settings (BL-SCN-07 generalization)",
-      "Hard-coded Polish strings → next-intl t('scanner.best_before.*') keys"
-    ],
-    "shadcn_equivalent": ["Dialog", "Select", "SelectItem", "Button"],
-    "known_bugs": ["BL-SCN-07: strings hard-coded Polish, i18n not implemented"],
-    "estimated_translation_time_min": 45
-  },
-  {
-    "label": "partial_consume_sheet",
-    "file": "design/Monopilot Design System/scanner/modals.jsx",
-    "lines": "126-155",
-    "component_type": "modal",
-    "ui_pattern": "wizard-step",
-    "data_domain": "WO",
-    "interaction": "approve",
-    "complexity": "composite",
-    "depends_on_prototypes": ["Modal", "Btn", "Field", "Banner"],
-    "translation_notes": [
-      "missing[] prop with inline deficit list → shadcn Table rows for material/done/req/uom derived from BOM query result",
-      "Native <select> for reason → shadcn Select pulling from SCN_REASONS_PARTIAL enum constant",
-      "Banner deficit list inline HTML → Table component with color-coded cells (amber done, red deficit)",
-      "onConfirm({reason}) callback → Server Action PartialConsumption.confirm() emitting PARTIAL_CONSUME outbox event",
-      "Prototype allows proceeding without full BOM — production must enforce V-SCAN-WO-008 rule check server-side",
-      "Hard-coded Polish strings → next-intl t('scanner.partial_consume.*') keys"
-    ],
-    "shadcn_equivalent": ["Dialog", "Table", "TableRow", "TableCell", "Select", "SelectItem", "Button"],
-    "known_bugs": ["BL-SCN-07: strings hard-coded Polish"],
-    "estimated_translation_time_min": 60
-  },
-  {
-    "label": "printer_picker_sheet",
-    "file": "design/Monopilot Design System/scanner/modals.jsx",
-    "lines": "157-180",
-    "component_type": "modal",
-    "ui_pattern": "detail-view",
-    "data_domain": "Scanner",
-    "interaction": "read-only",
-    "complexity": "primitive",
-    "depends_on_prototypes": ["Modal", "Btn", "Banner"],
-    "translation_notes": [
-      "P2 stub with disabled Print button → production impl calls ZPL print queue Server Action when P2 lands",
-      "Static printer card div → fetch available printers from /api/printers?site={siteId} with online/offline status badge",
-      "Banner 'P2' info → remove banner in P2, replace with actual printer selector list",
-      "onSkip callback → maintain in production as fallback for 'print from desktop' workflow",
-      "Hard-coded Polish strings → next-intl t('scanner.printer.*') keys"
-    ],
-    "shadcn_equivalent": ["Dialog", "Button", "Badge"],
-    "known_bugs": ["BL-SCN-02: printer integration deferred to P2"],
-    "estimated_translation_time_min": 30
-  },
-  {
-    "label": "language_sheet",
-    "file": "design/Monopilot Design System/scanner/modals.jsx",
-    "lines": "182-212",
-    "component_type": "modal",
-    "ui_pattern": "list-with-actions",
-    "data_domain": "Scanner",
-    "interaction": "edit",
-    "complexity": "primitive",
-    "depends_on_prototypes": ["Modal", "Btn"],
-    "translation_notes": [
-      "Hard-coded opts[] with flag emoji → read supported locales from next-intl routing.locales config, derive labels from Intl.DisplayNames",
-      "Local useState(sel) for selection → persist chosen locale to user session (DB user_preferences.locale) via Server Action",
-      "onApply(sel) callback triggers no re-render in prototype (BL-SCN-07) → production must call router.replace() with new locale segment",
-      "sc-reason-btn pattern reused for language items → shadcn RadioGroup/RadioGroupItem with locale flag in RadioGroupItem slot",
-      "Hard-coded Polish strings in options → locale labels auto-generated by Intl.DisplayNames in target locale",
-      "Hard-coded Polish UI strings → next-intl t('scanner.language.*') — bootstrapped before locale switch completes"
-    ],
-    "shadcn_equivalent": ["Dialog", "RadioGroup", "RadioGroupItem", "Button"],
-    "known_bugs": ["BL-SCN-07: language apply functional but i18n re-render not implemented — strings stay Polish after switch"],
-    "estimated_translation_time_min": 45
-  },
-  {
-    "label": "logout_sheet",
-    "file": "design/Monopilot Design System/scanner/modals.jsx",
-    "lines": "214-228",
-    "component_type": "modal",
-    "ui_pattern": "detail-view",
-    "data_domain": "Scanner",
-    "interaction": "delete",
-    "complexity": "primitive",
-    "depends_on_prototypes": ["Modal", "Btn", "Banner"],
-    "translation_notes": [
-      "Destructive Btn variant='d' → shadcn Button variant='destructive' with aria-label='Confirm logout'",
-      "Banner warns about offline queue data loss → production must drain/persist offline queue before allowing logout (BL-SCN-03)",
-      "onConfirm callback → Server Action Session.invalidate() + redirect to /scanner/login",
-      "Hard-coded Polish strings → next-intl t('scanner.logout.*') keys"
-    ],
-    "shadcn_equivalent": ["Dialog", "Button"],
-    "known_bugs": ["BL-SCN-03: offline queue not implemented — logout may lose unsynced operations"],
-    "estimated_translation_time_min": 25
-  },
-  {
-    "label": "scan_error_sheet",
-    "file": "design/Monopilot Design System/scanner/modals.jsx",
-    "lines": "230-249",
-    "component_type": "modal",
-    "ui_pattern": "detail-view",
-    "data_domain": "Scanner",
-    "interaction": "read-only",
-    "complexity": "primitive",
-    "depends_on_prototypes": ["Modal", "Btn", "Banner"],
-    "translation_notes": [
-      "Banner kind='err' for error message → shadcn Alert with variant='destructive' and AlertTitle/AlertDescription",
-      "code prop displayed as uppercase hint → map error codes to i18n keys; code shown only in debug mode (env check)",
-      "onRetry callback → clear scan state and re-focus ScanInputArea via ref",
-      "Hard-coded Polish strings → next-intl t('scanner.scan_error.*') keys"
-    ],
-    "shadcn_equivalent": ["Dialog", "Alert", "AlertTitle", "AlertDescription", "Button"],
-    "known_bugs": [],
-    "estimated_translation_time_min": 30
-  },
-  {
-    "label": "qty_keypad_sheet",
-    "file": "design/Monopilot Design System/scanner/modals.jsx",
-    "lines": "251-275",
-    "component_type": "modal",
-    "ui_pattern": "wizard-step",
-    "data_domain": "Scanner",
-    "interaction": "edit",
-    "complexity": "composite",
-    "depends_on_prototypes": ["Modal", "Btn"],
-    "translation_notes": [
-      "Custom 12-key sc-numpad button grid → extract as standalone NumpadInput primitive with CSS Grid 3-col, reuse across all flow screens",
-      "val string state with custom press() logic → controlled numeric input with parseFloat validation; enforce max prop server-side too",
-      "Decimal handling (leading zero strip, single dot) → use zod .number().min(0).max(max) with coerce on form submit",
-      "Monospace display div for current value → shadcn Input readOnly with tabular-nums font class",
-      "onConfirm(val) returns string → production should return number; let Server Action validate range",
-      "Hard-coded Polish strings → next-intl t('scanner.keypad.*') keys"
-    ],
-    "shadcn_equivalent": ["Dialog", "Input", "Button"],
-    "known_bugs": [],
-    "estimated_translation_time_min": 50
-  },
-  {
-    "label": "block_fullscreen",
-    "file": "design/Monopilot Design System/scanner/modals.jsx",
-    "lines": "277-298",
-    "component_type": "modal",
-    "ui_pattern": "detail-view",
-    "data_domain": "Scanner",
-    "interaction": "read-only",
-    "complexity": "primitive",
-    "depends_on_prototypes": ["Btn"],
-    "translation_notes": [
-      "position:absolute inset:0 overlay → React Portal rendered outside scanner shell, z-index managed via CSS custom property --z-block",
-      "Static error icon + title + message → shadcn Alert with variant='destructive' sized fullscreen, icon slot for the X mark",
-      "Hard-coded red color vars → map to Tailwind destructive token (bg-destructive, text-destructive-foreground)",
-      "onRetry / onClose dual action buttons → Server Action should reset LP lock before allowing retry",
-      "Hard-coded Polish strings → next-intl t('scanner.block_fullscreen.*') keys",
-      "code prop shown in production only in debug builds → guard with process.env.NEXT_PUBLIC_DEBUG_ERRORS"
-    ],
-    "shadcn_equivalent": ["Alert", "AlertTitle", "AlertDescription", "Button"],
-    "known_bugs": [],
-    "estimated_translation_time_min": 35
-  },
-  {
-    "label": "lp_locked_sheet",
-    "file": "design/Monopilot Design System/scanner/modals.jsx",
-    "lines": "300-310",
-    "component_type": "modal",
-    "ui_pattern": "detail-view",
-    "data_domain": "LP",
-    "interaction": "read-only",
-    "complexity": "primitive",
-    "depends_on_prototypes": ["Modal", "Btn", "Banner"],
-    "translation_notes": [
-      "Static 'seconds' prop → production must poll /api/lp/{lp}/lock-status to get real remaining TTL, display countdown",
-      "Banner kind='warn' → shadcn Alert variant='warning' (custom token or use default + amber class)",
-      "Hard-coded lockedBy string → fetch from LP lock record joined to users table",
-      "Hard-coded Polish strings → next-intl t('scanner.lp_locked.*') keys"
-    ],
-    "shadcn_equivalent": ["Dialog", "Alert", "Button"],
-    "known_bugs": [],
-    "estimated_translation_time_min": 25
-  },
-  {
-    "label": "home_screen",
-    "file": "design/Monopilot Design System/scanner/home.jsx",
-    "lines": "7-61",
-    "component_type": "page-layout",
-    "ui_pattern": "dashboard-tile",
-    "data_domain": "Scanner",
-    "interaction": "read-only",
-    "complexity": "page-level",
-    "depends_on_prototypes": ["Topbar", "Content", "Toast", "LogoutSheet"],
-    "translation_notes": [
-      "SCN_HOME_GROUPS + SCN_TILES mock arrays → fetch from /api/scanner/menu?userId={id}&role={role} to get RBAC-filtered tiles server-side",
-      "onOpenFlow(t.key) callback → Next.js router.push('/scanner/flow/'+t.key) replacing client-side state machine",
-      "sc-mitem button list → shadcn NavigationMenu or plain <a> wrapped button list with prefetch for flow pages",
-      "SCN_USER avatar + context bar → read from session (Next-Auth/Lucia session) server component, no prop drilling",
-      "Toast local state → replace with sonner Toaster + toast() calls, removing custom Toast component",
-      "Hard-coded Polish strings → next-intl t('scanner.home.*') keys"
-    ],
-    "shadcn_equivalent": ["Button", "Badge"],
-    "known_bugs": ["BL-SCN-07: strings hard-coded Polish"],
-    "estimated_translation_time_min": 60
-  },
-  {
-    "label": "settings_screen",
-    "file": "design/Monopilot Design System/scanner/home.jsx",
-    "lines": "63-136",
-    "component_type": "page-layout",
-    "ui_pattern": "crud-form-with-validation",
-    "data_domain": "Scanner",
-    "interaction": "edit",
-    "complexity": "page-level",
-    "depends_on_prototypes": ["Topbar", "Content", "LanguageSheet", "LogoutSheet"],
-    "translation_notes": [
-      "Local useState per toggle (sounds/vibrate/autoAdv/scanMode) → persist all settings to user_preferences table via Server Action on change, read from DB on page load",
-      "Inline Row + Toggle sub-components → shadcn Switch with Label, extracted to shared ScannerSettingRow server component",
-      "sc-segmented scan mode picker → shadcn ToggleGroup (single) for Hardware/Camera/Manual",
-      "PIN change row links nowhere → wire to /scanner/settings/pin-change page (BL-SCN-04 PIN setup flow)",
-      "Hard-coded language display in sd desc → read from user_preferences.locale, format with Intl.DisplayNames",
-      "Hard-coded Polish strings → next-intl t('scanner.settings.*') keys"
-    ],
-    "shadcn_equivalent": ["Switch", "Label", "ToggleGroup", "ToggleGroupItem", "Separator", "Button"],
-    "known_bugs": [
-      "BL-SCN-04: PIN setup/change flows only 6-digit entry done, not full setup wizard",
-      "BL-SCN-07: language picker functional but i18n re-render not implemented"
-    ],
-    "estimated_translation_time_min": 90
-  },
-  {
-    "label": "login_screen",
-    "file": "design/Monopilot Design System/scanner/login.jsx",
-    "lines": "5-56",
-    "component_type": "form",
-    "ui_pattern": "crud-form-with-validation",
-    "data_domain": "Scanner",
-    "interaction": "create",
-    "complexity": "page-level",
-    "depends_on_prototypes": ["Topbar", "Content", "BottomActions", "Btn", "GhostBtn"],
-    "translation_notes": [
-      "Badge scan input (sc-sinput) + email/password fallback → two separate Next-Auth credentials providers: BadgeCredentials + PasswordCredentials; autoFocus on badge field",
-      "tryLogin() client validation → move to Server Action with bcrypt compare for password path, badge lookup for scan path",
-      "Hard-coded email placeholder 'j.kowalski@apex.pl' → remove from production, use empty placeholder",
-      "err state inline div → shadcn Alert variant='destructive' with FormMessage pattern",
-      "GhostBtn '→ PIN login' → shadcn Button variant='ghost' linking to /scanner/login/pin",
-      "Hard-coded Polish strings → next-intl t('scanner.login.*') keys"
-    ],
-    "shadcn_equivalent": ["Input", "Button", "Alert", "AlertDescription", "Form", "FormField", "FormItem", "FormMessage"],
-    "known_bugs": ["BL-SCN-04: only 6-digit PIN entry done, setup wizard deferred"],
-    "estimated_translation_time_min": 75
-  },
-  {
-    "label": "pin_screen",
-    "file": "design/Monopilot Design System/scanner/login.jsx",
-    "lines": "58-112",
-    "component_type": "form",
-    "ui_pattern": "crud-form-with-validation",
-    "data_domain": "Scanner",
-    "interaction": "create",
-    "complexity": "composite",
-    "depends_on_prototypes": ["Topbar", "Content", "GhostBtn"],
-    "translation_notes": [
-      "Custom sc-numpad button grid + press() → extract NumpadInput primitive (same as qty_keypad_sheet), reuse across both screens",
-      "sc-pin-dots 6-dot row → shadcn custom OTP Input or array of 6 div elements with filled/err CSS classes via cn()",
-      "Demo auto-accept any 6 digits → production: Server Action PIN.verify(userId, hashedPin) with bcrypt, return session token on match",
-      "triesLeft local state hard-coded at 5 → production must persist attempt count in DB (pin_attempts table) with lockout after 5 failures",
-      "err shake animation class → add Tailwind animate-shake (custom keyframe) to dot row on error",
-      "Hard-coded Polish strings → next-intl t('scanner.pin.*') keys"
-    ],
-    "shadcn_equivalent": ["InputOTP", "InputOTPSlot", "Button"],
-    "known_bugs": [
-      "BL-SCN-04: PIN setup/change flows not implemented",
-      "BL-QA-06: virtual-keypad PIN anti-keylogger not implemented — currently plain masked input"
-    ],
-    "estimated_translation_time_min": 70
-  },
-  {
-    "label": "site_select_screen",
-    "file": "design/Monopilot Design System/scanner/login.jsx",
-    "lines": "114-180",
-    "component_type": "wizard",
-    "ui_pattern": "multi-step-wizard",
-    "data_domain": "Scanner",
-    "interaction": "create",
-    "complexity": "page-level",
-    "depends_on_prototypes": ["Topbar", "Content", "BottomActions", "Btn"],
-    "translation_notes": [
-      "SCN_SITES / SCN_LINES / SCN_SHIFTS mock arrays → Server Component fetches sites+lines+shifts from DB filtered by user.allowed_sites from RBAC",
-      "sc-opt-card for site, sc-opt-mini grid for line/shift → shadcn RadioGroup variants: RadioGroupCard for sites, RadioGroupPill grid for lines/shifts",
-      "summary string derived from selected values → computed in Server Component, passed as prop; use Intl.DateTimeFormat for shift hours",
-      "canGo = site && line && shift guard → form.formState.isValid with zod object requiring all three fields",
-      "on 'Start Shift' → Server Action ShiftContext.create({siteId, lineId, shiftId, userId}) sets session context + redirects to /scanner/home",
-      "Hard-coded Polish strings → next-intl t('scanner.site_select.*') keys; stored-context pre-fill per BL-SCN-08"
-    ],
-    "shadcn_equivalent": ["RadioGroup", "RadioGroupItem", "Button", "Form", "FormField"],
-    "known_bugs": ["BL-SCN-08: site-select stored-context pre-fill not implemented"],
-    "estimated_translation_time_min": 80
-  },
-  {
-    "label": "po_list_screen",
-    "file": "design/Monopilot Design System/scanner/flow-receive.jsx",
-    "lines": "7-37",
-    "component_type": "page-layout",
-    "ui_pattern": "search-filter-list",
-    "data_domain": "PO",
-    "interaction": "read-only",
-    "complexity": "composite",
-    "depends_on_prototypes": ["Topbar", "Content", "ScanInputArea", "StatusChip"],
-    "translation_notes": [
-      "SCN_POS mock filtered with client-side .filter() → Server Component with Drizzle query WHERE code ILIKE '%q%' OR supplier ILIKE '%q%', paginated",
-      "ScanInputArea onChange triggers re-render → use React Server Component with searchParams for SSR filtering, or client-side with useDeferredValue",
-      "sc-litem button list → shadcn CommandList or plain list items with urgency dot badge via Badge variant",
-      "Urgency dot urg-red/amber class → Tailwind conditional classes cn('h-2 w-2 rounded-full', urgency==='red' && 'bg-destructive')",
-      "onOpenPo callback → router.push('/scanner/receive/po/'+poCode)",
-      "Hard-coded Polish strings → next-intl t('scanner.po_list.*') keys"
-    ],
-    "shadcn_equivalent": ["Input", "Badge", "Button"],
-    "known_bugs": [],
-    "estimated_translation_time_min": 45
-  },
-  {
-    "label": "po_lines_screen",
-    "file": "design/Monopilot Design System/scanner/flow-receive.jsx",
-    "lines": "40-86",
-    "component_type": "page-layout",
-    "ui_pattern": "detail-view",
-    "data_domain": "PO",
-    "interaction": "read-only",
-    "complexity": "composite",
-    "depends_on_prototypes": ["Topbar", "Content", "StatusChip"],
-    "translation_notes": [
-      "sc-wo-card summary header → shadcn Card with CardHeader/CardContent, metadata as a dl grid",
-      "pct / done computed inline from received/ordered → compute server-side in Drizzle query using SQL expression",
-      "sc-crow checklist rows with cck-ok/warn/empty states → shadcn Table with CheckCircle/Clock/Circle icon from lucide-react",
-      "Color-coded qty display (green done, amber partial) → Tailwind conditional text-green-400 / text-amber-400",
-      "onOpenLine callback → router.push('/scanner/receive/po/'+poCode+'/line/'+lineId)",
-      "Hard-coded Polish strings → next-intl t('scanner.po_lines.*') keys"
-    ],
-    "shadcn_equivalent": ["Card", "CardHeader", "CardContent", "Table", "TableRow", "TableCell", "Badge", "Button"],
-    "known_bugs": [],
-    "estimated_translation_time_min": 55
-  },
-  {
-    "label": "po_item_screen",
-    "file": "design/Monopilot Design System/scanner/flow-receive.jsx",
-    "lines": "89-233",
-    "component_type": "wizard",
-    "ui_pattern": "multi-step-wizard",
-    "data_domain": "PO",
-    "interaction": "create",
-    "complexity": "page-level",
-    "depends_on_prototypes": ["Topbar", "Content", "BottomActions", "Btn", "StepsBar", "ScanInputArea", "MiniGrid", "Banner", "BestBeforeSheet", "QtyKeypadSheet"],
-    "translation_notes": [
-      "4-step local useState wizard → Next.js multi-step form using URL searchParam ?step=0..3 for deep-linkable back-navigation without double-push",
-      "autoExtract() GS1-128 parse simulation → production: Server Action GS1Parser.parse(barcode) using gs1-barcode-parser npm; returns {gtin, batch, expiry}",
-      "Best-before date check with hard-coded today new Date('2026-04-21') → replace with server clock from Server Action, compare against lp.expiry",
-      "overWarn two-click override pattern → production must emit PO_OVERRECEIVE outbox event with supervisor approval gate if qty > po_line.ordered * 1.1",
-      "Step 3 QtyKeypadSheet for qty entry → NumpadInput primitive (reused), value bound via useFormContext from parent react-hook-form instance",
-      "Hard-coded Polish strings → next-intl t('scanner.po_item.*') keys; SCN_QUICK_LOCS → fetch from /api/locations/quick?site={siteId}"
-    ],
-    "shadcn_equivalent": ["Form", "FormField", "FormItem", "FormMessage", "Input", "Button", "Progress"],
-    "known_bugs": [],
-    "estimated_translation_time_min": 120
-  },
-  {
-    "label": "po_done_screen",
-    "file": "design/Monopilot Design System/scanner/flow-receive.jsx",
-    "lines": "236-264",
-    "component_type": "page-layout",
-    "ui_pattern": "detail-view",
-    "data_domain": "PO",
-    "interaction": "read-only",
-    "complexity": "composite",
-    "depends_on_prototypes": ["Topbar", "Content", "BottomActions", "Btn", "Banner", "PrinterPickerSheet"],
-    "translation_notes": [
-      "sc-success-wrap with checkmark + title → reusable SuccessScreen layout component shared across all done screens",
-      "sc-lp-card showing new LP details → shadcn Card with monospace font for LP number, derived from Server Action response",
-      "Detail prop passed from wizard step → production: read from URL searchParam or re-fetch from DB after Server Action completes",
-      "bbNote conditional Banner → display only when audit record exists in DB for this LP receipt",
-      "P2 print button → wired to PrinterPickerSheet which is P2 stub; keep disabled in P1 with tooltip",
-      "Hard-coded Polish strings → next-intl t('scanner.po_done.*') keys"
-    ],
-    "shadcn_equivalent": ["Card", "Button", "Badge"],
-    "known_bugs": ["BL-SCN-02: label printing deferred to P2"],
-    "estimated_translation_time_min": 40
-  },
-  {
-    "label": "to_list_screen",
-    "file": "design/Monopilot Design System/scanner/flow-receive.jsx",
-    "lines": "267-294",
-    "component_type": "page-layout",
-    "ui_pattern": "search-filter-list",
-    "data_domain": "TO",
-    "interaction": "read-only",
-    "complexity": "composite",
-    "depends_on_prototypes": ["Topbar", "Content", "ScanInputArea", "StatusChip"],
-    "translation_notes": [
-      "SCN_TOS mock → Server Component Drizzle query transfer_orders WHERE status IN ('in_transit','ready') AND to_site = session.siteId",
-      "ScanInputArea for TO number → same scan-to-filter pattern as po_list_screen, useDeferredValue on client",
-      "sc-litem list with status chips → same list item pattern as PoListScreen, Badge for status",
-      "onOpenTo callback → router.push('/scanner/receive/to/'+toCode)",
-      "Hard-coded Polish strings → next-intl t('scanner.to_list.*') keys"
-    ],
-    "shadcn_equivalent": ["Input", "Badge", "Button"],
-    "known_bugs": [],
-    "estimated_translation_time_min": 40
-  },
-  {
-    "label": "to_scan_screen",
-    "file": "design/Monopilot Design System/scanner/flow-receive.jsx",
-    "lines": "297-385",
-    "component_type": "wizard",
-    "ui_pattern": "bulk-action",
-    "data_domain": "TO",
-    "interaction": "approve",
-    "complexity": "page-level",
-    "depends_on_prototypes": ["Topbar", "Content", "BottomActions", "Btn", "ScanInputArea", "Banner"],
-    "translation_notes": [
-      "Local state[] array tracking confirmed[] → useReducer with CONFIRM_LP / RESET actions; derive confirmed count from state",
-      "tryScan validation against state.lps → Server Action TO.confirmLP(toCode, lpCode) validates LP belongs to TO and marks confirmed in DB",
-      "sc-crow checklist with cck-ok / cck-empty → same CheckCircle/Circle pattern as po_lines_screen",
-      "Partial acceptance Banner → persist partial TO receipt with TO_PARTIAL_RECEIVE outbox event, remaining LPs stay in_transit status",
-      "Demo buttons simulate scan → remove from production; add keyboard event listener for hardware scanner HID input",
-      "Hard-coded Polish strings → next-intl t('scanner.to_scan.*') keys"
-    ],
-    "shadcn_equivalent": ["Table", "TableRow", "TableCell", "Button", "Badge", "Progress"],
-    "known_bugs": [],
-    "estimated_translation_time_min": 90
-  },
-  {
-    "label": "putaway_scan_screen",
-    "file": "design/Monopilot Design System/scanner/flow-putaway.jsx",
-    "lines": "5-63",
-    "component_type": "wizard",
-    "ui_pattern": "wizard-step",
-    "data_domain": "LP",
-    "interaction": "read-only",
-    "complexity": "composite",
-    "depends_on_prototypes": ["Topbar", "Content", "BottomActions", "Btn", "ScanInputArea", "MiniGrid"],
-    "translation_notes": [
-      "submit() validates LP prefix client-side → production Server Action LP.findForPutaway(code) enforces status available/qc_pending in DB",
-      "SCN_LPS[code] mock lookup → Drizzle query lp_units WHERE lp = code, joined to products for product name and uom",
-      "expiry color classification (red/amber/green) by days → compute days_until_expiry in SQL with EXTRACT(EPOCH FROM expiry - NOW())/86400, map to color in component",
-      "MiniGrid for LP details → shared LpDetailGrid server component reused across putaway/pick/consume flows",
-      "onSuggest(lp) callback → router.push('/scanner/putaway/suggest') with lp serialized as searchParam or stored in sessionStorage",
-      "Hard-coded Polish strings → next-intl t('scanner.putaway_scan.*') keys"
-    ],
-    "shadcn_equivalent": ["Input", "Button", "Card"],
-    "known_bugs": [],
-    "estimated_translation_time_min": 60
-  },
-  {
-    "label": "putaway_suggest_screen",
-    "file": "design/Monopilot Design System/scanner/flow-putaway.jsx",
-    "lines": "65-144",
-    "component_type": "wizard",
-    "ui_pattern": "wizard-step",
-    "data_domain": "LP",
-    "interaction": "create",
-    "complexity": "page-level",
-    "depends_on_prototypes": ["Topbar", "Content", "Btn", "ScanInputArea", "ReasonPickerSheet"],
-    "translation_notes": [
-      "Hard-coded suggested location mock → Server Action LocationSuggester.suggest(lpId) runs FEFO strategy against inventory_locations table",
-      "submit() checks code === suggested.code for override detection → Server Action Putaway.confirm(lpId, locationCode) detects deviation server-side",
-      "Override path opens ReasonPickerSheet → same modal as modals.jsx reason_picker_sheet, reasons fetched from /api/reasons?type=putaway",
-      "sc-quick-grid shortcut buttons → fetch SCN_QUICK_LOCS from /api/locations/quick?zone=putaway&site={siteId}",
-      "onDone({override, reason}) → Server Action Putaway.create() emits PUTAWAY_COMPLETE or PUTAWAY_OVERRIDE_REASON outbox events",
-      "Hard-coded Polish strings → next-intl t('scanner.putaway_suggest.*') keys"
-    ],
-    "shadcn_equivalent": ["Card", "Input", "Button", "Badge"],
-    "known_bugs": [],
-    "estimated_translation_time_min": 80
-  },
-  {
-    "label": "pick_wo_list_screen",
-    "file": "design/Monopilot Design System/scanner/flow-pick.jsx",
-    "lines": "5-40",
-    "component_type": "page-layout",
-    "ui_pattern": "search-filter-list",
-    "data_domain": "WO",
-    "interaction": "read-only",
-    "complexity": "composite",
-    "depends_on_prototypes": ["Topbar", "Content"],
-    "translation_notes": [
-      "SCN_PICK mock filtered with client .filter() → Server Component Drizzle query work_orders JOIN bom_pick_progress WHERE status IN ('released','inprog')",
-      "filter pills (all/my_line/incomplete) → URL searchParam ?filter=all|my_line|incomplete, server-side WHERE clause",
-      "q search bar → useDeferredValue on client or searchParam server-side ILIKE filter",
-      "sc-litem with inline picked/total badge → shadcn Badge with conditional variant based on completion ratio",
-      "onOpenPick(wo) → router.push('/scanner/pick/'+wo.wo)",
-      "Hard-coded Polish strings → next-intl t('scanner.pick_wo_list.*') keys"
-    ],
-    "shadcn_equivalent": ["Input", "Badge", "Button", "ToggleGroup"],
-    "known_bugs": [],
-    "estimated_translation_time_min": 50
-  },
-  {
-    "label": "pick_list_screen",
-    "file": "design/Monopilot Design System/scanner/flow-pick.jsx",
-    "lines": "42-94",
-    "component_type": "page-layout",
-    "ui_pattern": "detail-view",
-    "data_domain": "WO",
-    "interaction": "read-only",
-    "complexity": "composite",
-    "depends_on_prototypes": ["Topbar", "Content"],
-    "translation_notes": [
-      "sc-progress-strip + sc-pbar → shadcn Progress component with label overlay showing 'X / Y' count",
-      "sc-next-sug next-pick suggestion card → shadcn Card with info icon, derived from first BOM line WHERE status != 'ok'",
-      "sc-crow BOM component rows with location badge (cyan) → shadcn Table rows with Badge for location code",
-      "FEFO suggestion shown in sc-cdet → fetch from lp_units WHERE lp = bom.lpSuggested in same Drizzle query",
-      "onScanLine(woCode, line) → router.push('/scanner/pick/'+woCode+'/scan/'+line)",
-      "Hard-coded Polish strings → next-intl t('scanner.pick_list.*') keys"
-    ],
-    "shadcn_equivalent": ["Progress", "Table", "TableRow", "TableCell", "Badge", "Button", "Card"],
-    "known_bugs": [],
-    "estimated_translation_time_min": 60
-  },
-  {
-    "label": "pick_scan_screen",
-    "file": "design/Monopilot Design System/scanner/flow-pick.jsx",
-    "lines": "96-238",
-    "component_type": "wizard",
-    "ui_pattern": "multi-step-wizard",
-    "data_domain": "WO",
-    "interaction": "create",
-    "complexity": "page-level",
-    "depends_on_prototypes": ["Topbar", "Content", "BottomActions", "Btn", "StepsBar", "ScanInputArea", "MiniGrid", "FefoDeviationSheet", "QtyKeypadSheet"],
-    "translation_notes": [
-      "3-step location→LP→qty wizard → URL searchParam ?step=0..2 for browser back-button compatibility",
-      "submitLocation() enforces exact location match → Server Action Pick.verifyLocation(woCode, bomLine, locationCode) with error code for wrong location",
-      "submitLp() FEFO deviation detection compares expiry dates → Server Action Pick.verifyLP(lpCode, bomLine) returns {ok, fefoDeviation: {suggested, chosen}}",
-      "FefoDeviationSheet triggered on FEFO mismatch → same modal as modals.jsx fefo_deviation_sheet, shared across pick and consume flows",
-      "QtyKeypadSheet for qty entry → NumpadInput primitive reused; production Server Action validates qty <= lp.available_qty",
-      "Hard-coded Polish strings → next-intl t('scanner.pick_scan.*') keys"
-    ],
-    "shadcn_equivalent": ["Form", "FormField", "FormItem", "FormMessage", "Input", "Button", "Progress", "Card"],
-    "known_bugs": [],
-    "estimated_translation_time_min": 120
-  },
-  {
-    "label": "wo_list_screen",
-    "file": "design/Monopilot Design System/scanner/flow-consume.jsx",
-    "lines": "8-54",
-    "component_type": "page-layout",
-    "ui_pattern": "search-filter-list",
-    "data_domain": "WO",
-    "interaction": "read-only",
-    "complexity": "composite",
-    "depends_on_prototypes": ["Topbar", "Content", "StatusChip", "Banner"],
-    "translation_notes": [
-      "SCN_WOS mock with client filter → Server Component query work_orders WHERE site = session.siteId, filter by line/status via searchParams",
-      "sc-cbar inline progress bar in list item → shadcn Progress sized small (h-1) within table cell",
-      "filter pills (all/my_line/active) → shadcn Tabs or ToggleGroup with URL searchParam sync",
-      "Empty state Banner kind='info' → shadcn Alert with info icon when wos.length === 0",
-      "onOpenWo(code) → router.push('/scanner/consume/'+code)",
-      "Hard-coded Polish strings → next-intl t('scanner.wo_list.*') keys"
-    ],
-    "shadcn_equivalent": ["Input", "Badge", "Progress", "Button", "Alert", "Tabs", "TabsList", "TabsTrigger"],
-    "known_bugs": [],
-    "estimated_translation_time_min": 55
-  },
-  {
-    "label": "wo_detail_screen",
-    "file": "design/Monopilot Design System/scanner/flow-consume.jsx",
-    "lines": "56-121",
-    "component_type": "page-layout",
-    "ui_pattern": "detail-view",
-    "data_domain": "WO",
-    "interaction": "read-only",
-    "complexity": "page-level",
-    "depends_on_prototypes": ["Topbar", "Content", "BottomActions", "Btn", "StatusChip"],
-    "translation_notes": [
-      "sc-wo-card with meta grid → shadcn Card with CardHeader for WO number/product, CardContent with dl metadata grid (Cel/Wyprod/Start/Operator)",
-      "sc-pbar progress bar → shadcn Progress with percentage label",
-      "BOM component sc-crow checklist → same Table pattern as pick_list_screen, CheckCircle/Clock/Circle icons",
-      "BottomActions tall with 3 buttons (Continue/Pause/BOM Detail) → shadcn ButtonGroup or stacked buttons with appropriate variants",
-      "onExecute(woCode) → router.push('/scanner/consume/'+woCode+'/execute')",
-      "Hard-coded Polish strings → next-intl t('scanner.wo_detail.*') keys"
-    ],
-    "shadcn_equivalent": ["Card", "CardHeader", "CardContent", "Progress", "Table", "TableRow", "TableCell", "Button", "Badge"],
-    "known_bugs": [],
-    "estimated_translation_time_min": 70
-  },
-  {
-    "label": "wo_execute_screen",
-    "file": "design/Monopilot Design System/scanner/flow-consume.jsx",
-    "lines": "123-213",
-    "component_type": "page-layout",
-    "ui_pattern": "list-with-actions",
-    "data_domain": "WO",
-    "interaction": "edit",
-    "complexity": "page-level",
-    "depends_on_prototypes": ["Topbar", "Content", "BottomActions", "Btn", "Banner"],
-    "translation_notes": [
-      "sc-tabs Components/Scanned tab toggle → shadcn Tabs with TabsList/TabsTrigger/TabsContent; tab state in URL searchParam ?tab=components|scanned",
-      "sc-crow component rows with inline sc-cbar progress bar → shadcn Table with Progress cell showing qtyDone/qtyReq",
-      "sc-srow scanned items list → alternate Table variant (read-only) with CheckCircle icon and LP/batch/qty columns",
-      "Missing materials Banner kind='warn' → shadcn Alert variant='warning' with bulleted missing list",
-      "4-button BottomActions (Scan/Output/Coproduct/Waste) → shadcn ButtonGroup with variant mapping: p→default, s→success, v→violet, w→warning",
-      "Hard-coded Polish strings → next-intl t('scanner.wo_execute.*') keys"
-    ],
-    "shadcn_equivalent": ["Tabs", "TabsList", "TabsTrigger", "TabsContent", "Table", "TableRow", "TableCell", "Progress", "Alert", "Button"],
-    "known_bugs": [],
-    "estimated_translation_time_min": 90
-  },
-  {
-    "label": "consume_scan_screen",
-    "file": "design/Monopilot Design System/scanner/flow-consume.jsx",
-    "lines": "216-410",
-    "component_type": "wizard",
-    "ui_pattern": "multi-step-wizard",
-    "data_domain": "WO",
-    "interaction": "create",
-    "complexity": "page-level",
-    "depends_on_prototypes": ["Topbar", "Content", "BottomActions", "Btn", "StepsBar", "ScanInputArea", "MiniGrid", "FefoDeviationSheet", "BestBeforeSheet", "BlockFullscreen", "ScanErrorSheet", "QtyKeypadSheet", "LpLockedSheet"],
-    "translation_notes": [
-      "submitScan() multi-gate LP validation (format/exists/consumed/qa_hold/use_by/best_before/FEFO) → Server Action Consume.validateLP(lpCode, bomLine, woCode) returns typed Result union with all gate codes",
-      "use_by hard-block triggers BlockFullscreen → production: BlockFullscreen remains a client component over the page, Server Action returns USE_BY_EXPIRED error code",
-      "best_before 7-day window check with hard-coded today → Server Action computes days_until_expiry server-side with UTC clock",
-      "FEFO deviation detected and triggers FefoDeviationSheet → same pattern as pick_scan_screen; both flows share Server Action LP.checkFefoDeviation()",
-      "QtyKeypadSheet for quantity entry → NumpadInput primitive; production validates qty <= lp.available_qty and qty <= bom.remaining_req",
-      "Hard-coded Polish strings → next-intl t('scanner.consume_scan.*') keys; error code strings → map to i18n keys in error boundary"
-    ],
-    "shadcn_equivalent": ["Form", "FormField", "FormItem", "FormMessage", "Input", "Button", "Progress", "Alert"],
-    "known_bugs": [],
-    "estimated_translation_time_min": 150
-  },
-  {
-    "label": "output_screen",
-    "file": "design/Monopilot Design System/scanner/flow-register.jsx",
-    "lines": "6-121",
-    "component_type": "wizard",
-    "ui_pattern": "multi-step-wizard",
-    "data_domain": "WO",
-    "interaction": "create",
-    "complexity": "page-level",
-    "depends_on_prototypes": ["Topbar", "Content", "BottomActions", "Btn", "StepsBar", "ScanInputArea", "Banner", "PartialConsumeSheet", "PrinterPickerSheet", "QtyKeypadSheet"],
-    "translation_notes": [
-      "4-step wizard (qty/batch+expiry/location/confirm) → URL searchParam ?step=0..3 with react-hook-form useFormContext spanning steps",
-      "yieldPct inline calculation → Server Action Output.calculateYield(woCode, newQty) to avoid rounding inconsistencies with planned quantities",
-      "Missing materials check triggers PartialConsumeSheet on submit → Server Action Output.validate(woCode) returns missing[] before allowing registration",
-      "Step 3 ScanInputArea for location + SCN_QUICK_LOCS grid → /api/locations/quick?type=fg_output&site={siteId} server fetch",
-      "LP number generation Math.floor(800+...) → production: Server Action Output.register() calls LP registry service which issues sequential LP number",
-      "Hard-coded Polish strings → next-intl t('scanner.output.*') keys; V-SCAN-WO-006/007 validation hints kept as FormDescription"
-    ],
-    "shadcn_equivalent": ["Form", "FormField", "FormItem", "FormMessage", "FormDescription", "Input", "Button", "Progress", "Card"],
-    "known_bugs": ["BL-SCN-02: label printing deferred to P2"],
-    "estimated_translation_time_min": 130
-  },
-  {
-    "label": "coproduct_screen",
-    "file": "design/Monopilot Design System/scanner/flow-register.jsx",
-    "lines": "152-202",
-    "component_type": "form",
-    "ui_pattern": "crud-form-with-validation",
-    "data_domain": "WO",
-    "interaction": "create",
-    "complexity": "composite",
-    "depends_on_prototypes": ["Topbar", "Content", "BottomActions", "Btn", "Banner", "QtyKeypadSheet"],
-    "translation_notes": [
-      "SCN_COPRODUCTS[woCode] mock → Server Component fetches bom_coproducts WHERE wo_code = woCode from DB",
-      "Native <select> for co-product selection → shadcn Select with options from co-product list; show allocPct in option label",
-      "Individual sc-fgroup fields for qty/batch/expiry/location → useForm with zod schema; FormField per field",
-      "LP type hard-coded 'co_product' (violet) → production LP registry must accept lp_type = 'co_product', inherit source WO",
-      "submit() random LP generation → Server Action Coproduct.register() calls LP registry, emits COPRODUCT_REGISTERED outbox event",
-      "Hard-coded Polish strings → next-intl t('scanner.coproduct.*') keys"
-    ],
-    "shadcn_equivalent": ["Select", "SelectItem", "Form", "FormField", "FormItem", "FormMessage", "Input", "Button"],
-    "known_bugs": [],
-    "estimated_translation_time_min": 75
-  },
-  {
-    "label": "waste_screen",
-    "file": "design/Monopilot Design System/scanner/flow-register.jsx",
-    "lines": "226-285",
-    "component_type": "form",
-    "ui_pattern": "crud-form-with-validation",
-    "data_domain": "WO",
-    "interaction": "create",
-    "complexity": "composite",
-    "depends_on_prototypes": ["Topbar", "Content", "BottomActions", "Btn", "Banner", "QtyKeypadSheet"],
-    "translation_notes": [
-      "SCN_WASTE_CATS mock → Server Component fetches waste_categories WHERE active = true from settings; each has id/label/icon/cls",
-      "sc-cat-btn category selector grid → shadcn RadioGroup with custom card-style RadioGroupItem rendering icon + label",
-      "Native <select> for production phase → shadcn Select with hard-coded phase options extracted to wastePhase enum in shared/constants.ts",
-      "Textarea for notes → shadcn Textarea with FormField; notes are optional so no min() zod constraint",
-      "submit() canSubmit guard → form.formState.isValid; Server Action Waste.register(woCode, cat, qty, phase, notes) emits WASTE_REGISTERED outbox event",
-      "Hard-coded Polish strings → next-intl t('scanner.waste.*') keys; waste categories labels should also be i18n'd via settings"
-    ],
-    "shadcn_equivalent": ["RadioGroup", "RadioGroupItem", "Select", "SelectItem", "Textarea", "Form", "FormField", "FormItem", "FormMessage", "Button"],
-    "known_bugs": [],
-    "estimated_translation_time_min": 80
-  },
-  {
-    "label": "move_screen",
-    "file": "design/Monopilot Design System/scanner/flow-other.jsx",
-    "lines": "10-86",
-    "component_type": "wizard",
-    "ui_pattern": "wizard-step",
-    "data_domain": "LP",
-    "interaction": "edit",
-    "complexity": "page-level",
-    "depends_on_prototypes": ["Topbar", "Content", "BottomActions", "Btn", "ScanInputArea", "MiniGrid", "Banner", "LpLockedSheet"],
-    "translation_notes": [
-      "Two-phase scan (LP then destination) → two ScanInputArea components sequentially shown, each backed by Server Action validation",
-      "onLpScan() qa_hold/consumed guards → Server Action Move.validateLP(code) returns typed error union; also acquires 5-min pessimistic lock",
-      "Banner '5 min lock' → production: lock record in lp_locks table with expires_at = NOW() + 5min; heartbeat from client every 60s",
-      "sc-quick-grid location shortcuts → /api/locations/quick?type=move&site={siteId} server fetch, cached via Next.js fetch cache",
-      "onDone({lp, from, to}) → Server Action Move.execute(lpId, destLocationCode) releases lock + emits LP_MOVED outbox event",
-      "Hard-coded Polish strings → next-intl t('scanner.move.*') keys"
-    ],
-    "shadcn_equivalent": ["Input", "Button", "Card", "Badge"],
-    "known_bugs": [],
-    "estimated_translation_time_min": 90
-  },
-  {
-    "label": "split_scan_screen",
-    "file": "design/Monopilot Design System/scanner/flow-other.jsx",
-    "lines": "111-150",
-    "component_type": "wizard",
-    "ui_pattern": "wizard-step",
-    "data_domain": "LP",
-    "interaction": "read-only",
-    "complexity": "composite",
-    "depends_on_prototypes": ["Topbar", "Content", "BottomActions", "Btn", "ScanInputArea", "MiniGrid", "Banner"],
-    "translation_notes": [
-      "onScan() validates LP status === 'available' and qty > 0 → Server Action Split.validateLP(code) with RBAC check (split requires warehouse_operator role minimum)",
-      "Banner 'Split preserves batch' → keep as shadcn Alert info in production, this is an important UX affordance for traceability",
-      "MiniGrid LP preview → shared LpDetailGrid server component reused from putaway/move flows",
-      "onNext(lp) passes lp object → use URL searchParam ?lp=LP-XXXXX; next screen re-fetches from DB to avoid stale data",
-      "SCN_LPS mock lookup → Drizzle query lp_units WHERE lp = code JOIN products",
-      "Hard-coded Polish strings → next-intl t('scanner.split_scan.*') keys"
-    ],
-    "shadcn_equivalent": ["Input", "Button", "Card", "Alert"],
-    "known_bugs": [],
-    "estimated_translation_time_min": 50
-  },
-  {
-    "label": "split_qty_screen",
-    "file": "design/Monopilot Design System/scanner/flow-other.jsx",
-    "lines": "152-193",
-    "component_type": "form",
-    "ui_pattern": "crud-form-with-validation",
-    "data_domain": "LP",
-    "interaction": "create",
-    "complexity": "composite",
-    "depends_on_prototypes": ["Topbar", "Content", "BottomActions", "Btn", "MiniGrid", "QtyKeypadSheet"],
-    "translation_notes": [
-      "origRem computed inline (lp.qty - qty) → compute in Server Action after validation to ensure no floating-point drift",
-      "sc-split-grid 2-col before/after preview → shadcn Card with 2-col grid; left = original LP remaining, right = new LP preview",
-      "valid guard: 0 < qty < lp.qty → zod .number().positive().max(lp.qty - 0.001) validated in both client form and Server Action",
-      "Auto LP number 'LP-XXXX (auto)' preview → show placeholder until Server Action Split.execute() returns actual new LP number",
-      "QtyKeypadSheet for numeric entry → NumpadInput primitive, max = lp.qty - 0.01 enforced",
-      "Hard-coded Polish strings → next-intl t('scanner.split_qty.*') keys"
-    ],
-    "shadcn_equivalent": ["Form", "FormField", "FormItem", "FormMessage", "Input", "Button", "Card"],
-    "known_bugs": [],
-    "estimated_translation_time_min": 65
-  },
-  {
-    "label": "qa_list_screen",
-    "file": "design/Monopilot Design System/scanner/flow-other.jsx",
-    "lines": "227-260",
-    "component_type": "page-layout",
-    "ui_pattern": "search-filter-list",
-    "data_domain": "LP",
-    "interaction": "read-only",
-    "complexity": "composite",
-    "depends_on_prototypes": ["Topbar", "Content", "ScanInputArea"],
-    "translation_notes": [
-      "SCN_QA mock array → Server Component Drizzle query lp_qa_tasks WHERE status = 'pending' AND site = session.siteId ORDER BY urgency DESC",
-      "sc-litem list with urgency dot → urgency derived from lp.age days; color badge same pattern as po_list_screen",
-      "ScanInputArea scan-to-find → jump directly to /scanner/qa/{lpCode} on scan, skipping list navigation",
-      "Age + inspection type displayed in sc-lsub → compute age = NOW() - lp.created_at in SQL, format with Intl.RelativeTimeFormat",
-      "onInspect(lp) → router.push('/scanner/qa/'+lp)",
-      "Hard-coded Polish strings → next-intl t('scanner.qa_list.*') keys"
-    ],
-    "shadcn_equivalent": ["Input", "Badge", "Button"],
-    "known_bugs": [],
-    "estimated_translation_time_min": 50
-  },
-  {
-    "label": "qa_inspect_screen",
-    "file": "design/Monopilot Design System/scanner/flow-other.jsx",
-    "lines": "262-294",
-    "component_type": "page-layout",
-    "ui_pattern": "detail-view",
-    "data_domain": "LP",
-    "interaction": "approve",
-    "complexity": "composite",
-    "depends_on_prototypes": ["Topbar", "Content", "MiniGrid", "Btn"],
-    "translation_notes": [
-      "SCN_LPS fallback with hardcoded LP mock → Server Component fetches full lp_unit JOIN qa_tasks JOIN products; no client fallback needed",
-      "sc-big3 3-button action row (Pass/Reject/Hold) → 3 shadcn Buttons: variant='default' for PASS, variant='destructive' for REJECT, variant='outline' (amber) for HOLD",
-      "Optional notes textarea inline → shadcn Textarea with FormField, notes passed to onResult callback then to Server Action",
-      "onResult({lpCode, result, notes}) → Server Action QA.submitResult(lpCode, result, notes); REJECT route pushes to /scanner/qa/{lp}/fail-reason",
-      "MiniGrid 4-row layout (8 cells) → shared LpDetailGrid with additional fields: WO ref, age, inspection type",
-      "Hard-coded Polish strings → next-intl t('scanner.qa_inspect.*') keys"
-    ],
-    "shadcn_equivalent": ["Card", "Textarea", "Button", "Form", "FormField"],
-    "known_bugs": [],
-    "estimated_translation_time_min": 65
-  },
-  {
-    "label": "qa_fail_reason_screen",
-    "file": "design/Monopilot Design System/scanner/flow-other.jsx",
-    "lines": "296-336",
-    "component_type": "form",
-    "ui_pattern": "crud-form-with-validation",
-    "data_domain": "LP",
-    "interaction": "create",
-    "complexity": "composite",
-    "depends_on_prototypes": ["Topbar", "Content", "BottomActions", "Btn"],
-    "translation_notes": [
-      "sc-reason-list with SCN_QA_REASONS → shadcn RadioGroup; reasons fetched from /api/reasons?type=qa_rejection",
-      "sel/other/extra three-field state → useForm with zod discriminatedUnion: when sel='other' require other.min(5), extra always optional",
-      "Btn variant='d' (destructive) creates NCR → Server Action NCR.create(lpCode, reason, notes) emits NCR_CREATED outbox event, updates LP status to 'rejected'",
-      "LP header display (monospace code) → shared LpCodeDisplay primitive with monospace font, reused across QA screens",
-      "needsOther conditional textarea → conditional FormField render based on watchField('sel') === 'other'",
-      "Hard-coded Polish strings → next-intl t('scanner.qa_fail_reason.*') keys"
-    ],
-    "shadcn_equivalent": ["RadioGroup", "RadioGroupItem", "Textarea", "Form", "FormField", "FormItem", "FormMessage", "Button"],
-    "known_bugs": [],
-    "estimated_translation_time_min": 70
-  },
-  {
-    "label": "inquiry_screen",
-    "file": "design/Monopilot Design System/scanner/flow-other.jsx",
-    "lines": "391-438",
-    "component_type": "page-layout",
-    "ui_pattern": "detail-view",
-    "data_domain": "LP",
-    "interaction": "read-only",
-    "complexity": "composite",
-    "depends_on_prototypes": ["Topbar", "Content", "BottomActions", "Btn", "ScanInputArea", "MiniGrid", "Banner"],
-    "translation_notes": [
-      "P2 preview screen with static LP history → mark as P2 in router with feature flag guard: if (!flags.scanner_lp_inquiry) redirect to /scanner/home",
-      "SCN_LPS[code] mock lookup → Server Action LP.findWithHistory(code) joining lp_movements, users, locations",
-      "Static hard-coded movement history list → in P2 replace with actual lp_movements timeline component using shadcn Timeline (custom) or Table",
-      "MiniGrid 4-row (8 cells) → same LpDetailGrid server component; add qaStatus and status fields",
-      "Banner 'P2 preview' → remove in P2 production; replace with full traceability tree when LP genealogy is implemented",
-      "Hard-coded Polish strings → next-intl t('scanner.inquiry.*') keys"
-    ],
-    "shadcn_equivalent": ["Input", "Card", "Button", "Badge", "Alert"],
-    "known_bugs": ["BL-TEC-02: traceability screen static — needs real WO_LIST cross-module link in P2"],
-    "estimated_translation_time_min": 50
-  }
-]
+{
+  "module": "scanner",
+  "generated_at": "2026-04-30T18:27:34Z",
+  "generator": "audit-fix-2026-04-30",
+  "mode": "labeling",
+  "entries": [
+    {
+      "label": "reason_picker_sheet",
+      "file": "design/Monopilot Design System/scanner/modals.jsx",
+      "lines": "21-53",
+      "component_type": "modal",
+      "ui_pattern": "wizard-step",
+      "data_domain": "Scanner",
+      "interaction": "create",
+      "complexity": "composite",
+      "depends_on_prototypes": [
+        "primitive:Modal",
+        "primitive:Btn",
+        "primitive:Field"
+      ],
+      "translation_notes": [
+        "Modal bottom-sheet CSS override → @radix-ui/react-dialog with data-side='bottom' + custom dark theme tokens",
+        "Local useState(sel/other) → useForm + zodResolver with .min(5) for 'other' branch",
+        "reasons[] prop with .map → shadcn RadioGroup/RadioGroupItem replacing custom sc-reason-btn buttons",
+        "canSubmit guard → form.formState.isValid + server action with audit log write on submit",
+        "Hard-coded Polish strings → next-intl t('scanner.reason_picker.*') keys",
+        "onConfirm callback pattern → optimistic update + server action returning Result<void, AppError>"
+      ],
+      "shadcn_equivalent": [
+        "Dialog",
+        "RadioGroup",
+        "RadioGroupItem",
+        "Textarea",
+        "Button"
+      ],
+      "known_bugs": [
+        "BL-SCN-01: bottom-sheet is CSS-override approach, should be refactored to dedicated ScannerModal primitive"
+      ],
+      "estimated_translation_time_min": 60
+    },
+    {
+      "label": "fefo_deviation_sheet",
+      "file": "design/Monopilot Design System/scanner/modals.jsx",
+      "lines": "55-98",
+      "component_type": "modal",
+      "ui_pattern": "wizard-step",
+      "data_domain": "LP",
+      "interaction": "approve",
+      "complexity": "composite",
+      "depends_on_prototypes": [
+        "primitive:Modal",
+        "primitive:Btn",
+        "primitive:Field",
+        "primitive:Banner"
+      ],
+      "translation_notes": [
+        "Side-by-side sc-cmp-grid div layout → CSS Grid 2-col with shadcn Card for suggested vs chosen LP",
+        "Local reason useState + native <select> → shadcn Select component with zodResolver enum validation",
+        "Banner 'audit log' note → production Banner must link to actual AuditLogService.write() Server Action",
+        "onConfirm/onUseFefo dual-path → two separate Server Actions with outbox event emission (FEFO_DEVIATION / FEFO_OVERRIDE_REVERTED)",
+        "Hard-coded SCN_REASONS_FEFO array → fetched from /api/reasons?type=fefo at page load, cached via React cache()",
+        "Hard-coded Polish strings → next-intl t('scanner.fefo_deviation.*') keys"
+      ],
+      "shadcn_equivalent": [
+        "Dialog",
+        "Select",
+        "SelectItem",
+        "Textarea",
+        "Button",
+        "Card"
+      ],
+      "known_bugs": [
+        "BL-SCN-01: bottom-sheet CSS override approach needs refactor"
+      ],
+      "estimated_translation_time_min": 75
+    },
+    {
+      "label": "best_before_sheet",
+      "file": "design/Monopilot Design System/scanner/modals.jsx",
+      "lines": "100-124",
+      "component_type": "modal",
+      "ui_pattern": "wizard-step",
+      "data_domain": "LP",
+      "interaction": "approve",
+      "complexity": "composite",
+      "depends_on_prototypes": [
+        "primitive:Modal",
+        "primitive:Btn",
+        "primitive:Field",
+        "primitive:Banner"
+      ],
+      "translation_notes": [
+        "Modal receives daysLeft prop derived from client date arithmetic → compute server-side in Server Component to avoid clock skew",
+        "Native <select> for reason → shadcn Select with fixed option set extracted to a reason enum in shared/constants.ts",
+        "canConfirm = !!reason guard → zod .min(1) on reason field, form.formState.isValid drives Button disabled",
+        "onConfirm callback → Server Action BestBeforeAcceptance.create() with LP id, reason, userId from session",
+        "Hard-coded 3 reason options → reason set should be configurable via Settings (BL-SCN-07 generalization)",
+        "Hard-coded Polish strings → next-intl t('scanner.best_before.*') keys"
+      ],
+      "shadcn_equivalent": [
+        "Dialog",
+        "Select",
+        "SelectItem",
+        "Button"
+      ],
+      "known_bugs": [
+        "BL-SCN-07: strings hard-coded Polish, i18n not implemented"
+      ],
+      "estimated_translation_time_min": 45
+    },
+    {
+      "label": "partial_consume_sheet",
+      "file": "design/Monopilot Design System/scanner/modals.jsx",
+      "lines": "126-155",
+      "component_type": "modal",
+      "ui_pattern": "wizard-step",
+      "data_domain": "WO",
+      "interaction": "approve",
+      "complexity": "composite",
+      "depends_on_prototypes": [
+        "primitive:Modal",
+        "primitive:Btn",
+        "primitive:Field",
+        "primitive:Banner"
+      ],
+      "translation_notes": [
+        "missing[] prop with inline deficit list → shadcn Table rows for material/done/req/uom derived from BOM query result",
+        "Native <select> for reason → shadcn Select pulling from SCN_REASONS_PARTIAL enum constant",
+        "Banner deficit list inline HTML → Table component with color-coded cells (amber done, red deficit)",
+        "onConfirm({reason}) callback → Server Action PartialConsumption.confirm() emitting PARTIAL_CONSUME outbox event",
+        "Prototype allows proceeding without full BOM — production must enforce V-SCAN-WO-008 rule check server-side",
+        "Hard-coded Polish strings → next-intl t('scanner.partial_consume.*') keys"
+      ],
+      "shadcn_equivalent": [
+        "Dialog",
+        "Table",
+        "TableRow",
+        "TableCell",
+        "Select",
+        "SelectItem",
+        "Button"
+      ],
+      "known_bugs": [
+        "BL-SCN-07: strings hard-coded Polish"
+      ],
+      "estimated_translation_time_min": 60
+    },
+    {
+      "label": "printer_picker_sheet",
+      "file": "design/Monopilot Design System/scanner/modals.jsx",
+      "lines": "157-180",
+      "component_type": "modal",
+      "ui_pattern": "detail-view",
+      "data_domain": "Scanner",
+      "interaction": "read-only",
+      "complexity": "primitive",
+      "depends_on_prototypes": [
+        "primitive:Modal",
+        "primitive:Btn",
+        "primitive:Banner"
+      ],
+      "translation_notes": [
+        "P2 stub with disabled Print button → production impl calls ZPL print queue Server Action when P2 lands",
+        "Static printer card div → fetch available printers from /api/printers?site={siteId} with online/offline status badge",
+        "Banner 'P2' info → remove banner in P2, replace with actual printer selector list",
+        "onSkip callback → maintain in production as fallback for 'print from desktop' workflow",
+        "Hard-coded Polish strings → next-intl t('scanner.printer.*') keys"
+      ],
+      "shadcn_equivalent": [
+        "Dialog",
+        "Button",
+        "Badge"
+      ],
+      "known_bugs": [
+        "BL-SCN-02: printer integration deferred to P2"
+      ],
+      "estimated_translation_time_min": 30
+    },
+    {
+      "label": "language_sheet",
+      "file": "design/Monopilot Design System/scanner/modals.jsx",
+      "lines": "182-212",
+      "component_type": "modal",
+      "ui_pattern": "list-with-actions",
+      "data_domain": "Scanner",
+      "interaction": "edit",
+      "complexity": "primitive",
+      "depends_on_prototypes": [
+        "primitive:Modal",
+        "primitive:Btn"
+      ],
+      "translation_notes": [
+        "Hard-coded opts[] with flag emoji → read supported locales from next-intl routing.locales config, derive labels from Intl.DisplayNames",
+        "Local useState(sel) for selection → persist chosen locale to user session (DB user_preferences.locale) via Server Action",
+        "onApply(sel) callback triggers no re-render in prototype (BL-SCN-07) → production must call router.replace() with new locale segment",
+        "sc-reason-btn pattern reused for language items → shadcn RadioGroup/RadioGroupItem with locale flag in RadioGroupItem slot",
+        "Hard-coded Polish strings in options → locale labels auto-generated by Intl.DisplayNames in target locale",
+        "Hard-coded Polish UI strings → next-intl t('scanner.language.*') — bootstrapped before locale switch completes"
+      ],
+      "shadcn_equivalent": [
+        "Dialog",
+        "RadioGroup",
+        "RadioGroupItem",
+        "Button"
+      ],
+      "known_bugs": [
+        "BL-SCN-07: language apply functional but i18n re-render not implemented — strings stay Polish after switch"
+      ],
+      "estimated_translation_time_min": 45
+    },
+    {
+      "label": "logout_sheet",
+      "file": "design/Monopilot Design System/scanner/modals.jsx",
+      "lines": "214-228",
+      "component_type": "modal",
+      "ui_pattern": "detail-view",
+      "data_domain": "Scanner",
+      "interaction": "delete",
+      "complexity": "primitive",
+      "depends_on_prototypes": [
+        "primitive:Modal",
+        "primitive:Btn",
+        "primitive:Banner"
+      ],
+      "translation_notes": [
+        "Destructive Btn variant='d' → shadcn Button variant='destructive' with aria-label='Confirm logout'",
+        "Banner warns about offline queue data loss → production must drain/persist offline queue before allowing logout (BL-SCN-03)",
+        "onConfirm callback → Server Action Session.invalidate() + redirect to /scanner/login",
+        "Hard-coded Polish strings → next-intl t('scanner.logout.*') keys"
+      ],
+      "shadcn_equivalent": [
+        "Dialog",
+        "Button"
+      ],
+      "known_bugs": [
+        "BL-SCN-03: offline queue not implemented — logout may lose unsynced operations"
+      ],
+      "estimated_translation_time_min": 25
+    },
+    {
+      "label": "scan_error_sheet",
+      "file": "design/Monopilot Design System/scanner/modals.jsx",
+      "lines": "230-249",
+      "component_type": "modal",
+      "ui_pattern": "detail-view",
+      "data_domain": "Scanner",
+      "interaction": "read-only",
+      "complexity": "primitive",
+      "depends_on_prototypes": [
+        "primitive:Modal",
+        "primitive:Btn",
+        "primitive:Banner"
+      ],
+      "translation_notes": [
+        "Banner kind='err' for error message → shadcn Alert with variant='destructive' and AlertTitle/AlertDescription",
+        "code prop displayed as uppercase hint → map error codes to i18n keys; code shown only in debug mode (env check)",
+        "onRetry callback → clear scan state and re-focus ScanInputArea via ref",
+        "Hard-coded Polish strings → next-intl t('scanner.scan_error.*') keys"
+      ],
+      "shadcn_equivalent": [
+        "Dialog",
+        "Alert",
+        "AlertTitle",
+        "AlertDescription",
+        "Button"
+      ],
+      "known_bugs": [],
+      "estimated_translation_time_min": 30
+    },
+    {
+      "label": "qty_keypad_sheet",
+      "file": "design/Monopilot Design System/scanner/modals.jsx",
+      "lines": "251-275",
+      "component_type": "modal",
+      "ui_pattern": "wizard-step",
+      "data_domain": "Scanner",
+      "interaction": "edit",
+      "complexity": "composite",
+      "depends_on_prototypes": [
+        "primitive:Modal",
+        "primitive:Btn"
+      ],
+      "translation_notes": [
+        "Custom 12-key sc-numpad button grid → extract as standalone NumpadInput primitive with CSS Grid 3-col, reuse across all flow screens",
+        "val string state with custom press() logic → controlled numeric input with parseFloat validation; enforce max prop server-side too",
+        "Decimal handling (leading zero strip, single dot) → use zod .number().min(0).max(max) with coerce on form submit",
+        "Monospace display div for current value → shadcn Input readOnly with tabular-nums font class",
+        "onConfirm(val) returns string → production should return number; let Server Action validate range",
+        "Hard-coded Polish strings → next-intl t('scanner.keypad.*') keys"
+      ],
+      "shadcn_equivalent": [
+        "Dialog",
+        "Input",
+        "Button"
+      ],
+      "known_bugs": [],
+      "estimated_translation_time_min": 50
+    },
+    {
+      "label": "block_fullscreen",
+      "file": "design/Monopilot Design System/scanner/modals.jsx",
+      "lines": "277-298",
+      "component_type": "modal",
+      "ui_pattern": "detail-view",
+      "data_domain": "Scanner",
+      "interaction": "read-only",
+      "complexity": "primitive",
+      "depends_on_prototypes": [
+        "primitive:Btn"
+      ],
+      "translation_notes": [
+        "position:absolute inset:0 overlay → React Portal rendered outside scanner shell, z-index managed via CSS custom property --z-block",
+        "Static error icon + title + message → shadcn Alert with variant='destructive' sized fullscreen, icon slot for the X mark",
+        "Hard-coded red color vars → map to Tailwind destructive token (bg-destructive, text-destructive-foreground)",
+        "onRetry / onClose dual action buttons → Server Action should reset LP lock before allowing retry",
+        "Hard-coded Polish strings → next-intl t('scanner.block_fullscreen.*') keys",
+        "code prop shown in production only in debug builds → guard with process.env.NEXT_PUBLIC_DEBUG_ERRORS"
+      ],
+      "shadcn_equivalent": [
+        "Alert",
+        "AlertTitle",
+        "AlertDescription",
+        "Button"
+      ],
+      "known_bugs": [],
+      "estimated_translation_time_min": 35
+    },
+    {
+      "label": "lp_locked_sheet",
+      "file": "design/Monopilot Design System/scanner/modals.jsx",
+      "lines": "300-310",
+      "component_type": "modal",
+      "ui_pattern": "detail-view",
+      "data_domain": "LP",
+      "interaction": "read-only",
+      "complexity": "primitive",
+      "depends_on_prototypes": [
+        "primitive:Modal",
+        "primitive:Btn",
+        "primitive:Banner"
+      ],
+      "translation_notes": [
+        "Static 'seconds' prop → production must poll /api/lp/{lp}/lock-status to get real remaining TTL, display countdown",
+        "Banner kind='warn' → shadcn Alert variant='warning' (custom token or use default + amber class)",
+        "Hard-coded lockedBy string → fetch from LP lock record joined to users table",
+        "Hard-coded Polish strings → next-intl t('scanner.lp_locked.*') keys"
+      ],
+      "shadcn_equivalent": [
+        "Dialog",
+        "Alert",
+        "Button"
+      ],
+      "known_bugs": [],
+      "estimated_translation_time_min": 25
+    },
+    {
+      "label": "home_screen",
+      "file": "design/Monopilot Design System/scanner/home.jsx",
+      "lines": "7-61",
+      "component_type": "page-layout",
+      "ui_pattern": "dashboard-tile",
+      "data_domain": "Scanner",
+      "interaction": "read-only",
+      "complexity": "page-level",
+      "depends_on_prototypes": [
+        "primitive:Topbar",
+        "primitive:Content",
+        "primitive:Toast",
+        "primitive:LogoutSheet"
+      ],
+      "translation_notes": [
+        "SCN_HOME_GROUPS + SCN_TILES mock arrays → fetch from /api/scanner/menu?userId={id}&role={role} to get RBAC-filtered tiles server-side",
+        "onOpenFlow(t.key) callback → Next.js router.push('/scanner/flow/'+t.key) replacing client-side state machine",
+        "sc-mitem button list → shadcn NavigationMenu or plain <a> wrapped button list with prefetch for flow pages",
+        "SCN_USER avatar + context bar → read from session (Next-Auth/Lucia session) server component, no prop drilling",
+        "Toast local state → replace with sonner Toaster + toast() calls, removing custom Toast component",
+        "Hard-coded Polish strings → next-intl t('scanner.home.*') keys"
+      ],
+      "shadcn_equivalent": [
+        "Button",
+        "Badge"
+      ],
+      "known_bugs": [
+        "BL-SCN-07: strings hard-coded Polish"
+      ],
+      "estimated_translation_time_min": 60
+    },
+    {
+      "label": "settings_screen",
+      "file": "design/Monopilot Design System/scanner/home.jsx",
+      "lines": "63-136",
+      "component_type": "page-layout",
+      "ui_pattern": "crud-form-with-validation",
+      "data_domain": "Scanner",
+      "interaction": "edit",
+      "complexity": "page-level",
+      "depends_on_prototypes": [
+        "primitive:Topbar",
+        "primitive:Content",
+        "primitive:LanguageSheet",
+        "primitive:LogoutSheet"
+      ],
+      "translation_notes": [
+        "Local useState per toggle (sounds/vibrate/autoAdv/scanMode) → persist all settings to user_preferences table via Server Action on change, read from DB on page load",
+        "Inline Row + Toggle sub-components → shadcn Switch with Label, extracted to shared ScannerSettingRow server component",
+        "sc-segmented scan mode picker → shadcn ToggleGroup (single) for Hardware/Camera/Manual",
+        "PIN change row links nowhere → wire to /scanner/settings/pin-change page (BL-SCN-04 PIN setup flow)",
+        "Hard-coded language display in sd desc → read from user_preferences.locale, format with Intl.DisplayNames",
+        "Hard-coded Polish strings → next-intl t('scanner.settings.*') keys"
+      ],
+      "shadcn_equivalent": [
+        "Switch",
+        "Label",
+        "ToggleGroup",
+        "ToggleGroupItem",
+        "Separator",
+        "Button"
+      ],
+      "known_bugs": [
+        "BL-SCN-04: PIN setup/change flows only 6-digit entry done, not full setup wizard",
+        "BL-SCN-07: language picker functional but i18n re-render not implemented"
+      ],
+      "estimated_translation_time_min": 90
+    },
+    {
+      "label": "login_screen",
+      "file": "design/Monopilot Design System/scanner/login.jsx",
+      "lines": "5-56",
+      "component_type": "form",
+      "ui_pattern": "crud-form-with-validation",
+      "data_domain": "Scanner",
+      "interaction": "create",
+      "complexity": "page-level",
+      "depends_on_prototypes": [
+        "primitive:Topbar",
+        "primitive:Content",
+        "primitive:BottomActions",
+        "primitive:Btn",
+        "primitive:GhostBtn"
+      ],
+      "translation_notes": [
+        "Badge scan input (sc-sinput) + email/password fallback → two separate Next-Auth credentials providers: BadgeCredentials + PasswordCredentials; autoFocus on badge field",
+        "tryLogin() client validation → move to Server Action with bcrypt compare for password path, badge lookup for scan path",
+        "Hard-coded email placeholder 'j.kowalski@apex.pl' → remove from production, use empty placeholder",
+        "err state inline div → shadcn Alert variant='destructive' with FormMessage pattern",
+        "GhostBtn '→ PIN login' → shadcn Button variant='ghost' linking to /scanner/login/pin",
+        "Hard-coded Polish strings → next-intl t('scanner.login.*') keys"
+      ],
+      "shadcn_equivalent": [
+        "Input",
+        "Button",
+        "Alert",
+        "AlertDescription",
+        "Form",
+        "FormField",
+        "FormItem",
+        "FormMessage"
+      ],
+      "known_bugs": [
+        "BL-SCN-04: only 6-digit PIN entry done, setup wizard deferred"
+      ],
+      "estimated_translation_time_min": 75
+    },
+    {
+      "label": "pin_screen",
+      "file": "design/Monopilot Design System/scanner/login.jsx",
+      "lines": "58-112",
+      "component_type": "form",
+      "ui_pattern": "crud-form-with-validation",
+      "data_domain": "Scanner",
+      "interaction": "create",
+      "complexity": "composite",
+      "depends_on_prototypes": [
+        "primitive:Topbar",
+        "primitive:Content",
+        "primitive:GhostBtn"
+      ],
+      "translation_notes": [
+        "Custom sc-numpad button grid + press() → extract NumpadInput primitive (same as qty_keypad_sheet), reuse across both screens",
+        "sc-pin-dots 6-dot row → shadcn custom OTP Input or array of 6 div elements with filled/err CSS classes via cn()",
+        "Demo auto-accept any 6 digits → production: Server Action PIN.verify(userId, hashedPin) with bcrypt, return session token on match",
+        "triesLeft local state hard-coded at 5 → production must persist attempt count in DB (pin_attempts table) with lockout after 5 failures",
+        "err shake animation class → add Tailwind animate-shake (custom keyframe) to dot row on error",
+        "Hard-coded Polish strings → next-intl t('scanner.pin.*') keys"
+      ],
+      "shadcn_equivalent": [
+        "InputOTP",
+        "InputOTPSlot",
+        "Button"
+      ],
+      "known_bugs": [
+        "BL-SCN-04: PIN setup/change flows not implemented",
+        "BL-QA-06: virtual-keypad PIN anti-keylogger not implemented — currently plain masked input"
+      ],
+      "estimated_translation_time_min": 70
+    },
+    {
+      "label": "site_select_screen",
+      "file": "design/Monopilot Design System/scanner/login.jsx",
+      "lines": "114-180",
+      "component_type": "wizard",
+      "ui_pattern": "multi-step-wizard",
+      "data_domain": "Scanner",
+      "interaction": "create",
+      "complexity": "page-level",
+      "depends_on_prototypes": [
+        "primitive:Topbar",
+        "primitive:Content",
+        "primitive:BottomActions",
+        "primitive:Btn"
+      ],
+      "translation_notes": [
+        "SCN_SITES / SCN_LINES / SCN_SHIFTS mock arrays → Server Component fetches sites+lines+shifts from DB filtered by user.allowed_sites from RBAC",
+        "sc-opt-card for site, sc-opt-mini grid for line/shift → shadcn RadioGroup variants: RadioGroupCard for sites, RadioGroupPill grid for lines/shifts",
+        "summary string derived from selected values → computed in Server Component, passed as prop; use Intl.DateTimeFormat for shift hours",
+        "canGo = site && line && shift guard → form.formState.isValid with zod object requiring all three fields",
+        "on 'Start Shift' → Server Action ShiftContext.create({siteId, lineId, shiftId, userId}) sets session context + redirects to /scanner/home",
+        "Hard-coded Polish strings → next-intl t('scanner.site_select.*') keys; stored-context pre-fill per BL-SCN-08"
+      ],
+      "shadcn_equivalent": [
+        "RadioGroup",
+        "RadioGroupItem",
+        "Button",
+        "Form",
+        "FormField"
+      ],
+      "known_bugs": [
+        "BL-SCN-08: site-select stored-context pre-fill not implemented"
+      ],
+      "estimated_translation_time_min": 80
+    },
+    {
+      "label": "po_list_screen",
+      "file": "design/Monopilot Design System/scanner/flow-receive.jsx",
+      "lines": "7-37",
+      "component_type": "page-layout",
+      "ui_pattern": "search-filter-list",
+      "data_domain": "PO",
+      "interaction": "read-only",
+      "complexity": "composite",
+      "depends_on_prototypes": [
+        "primitive:Topbar",
+        "primitive:Content",
+        "primitive:ScanInputArea",
+        "primitive:StatusChip"
+      ],
+      "translation_notes": [
+        "SCN_POS mock filtered with client-side .filter() → Server Component with Drizzle query WHERE code ILIKE '%q%' OR supplier ILIKE '%q%', paginated",
+        "ScanInputArea onChange triggers re-render → use React Server Component with searchParams for SSR filtering, or client-side with useDeferredValue",
+        "sc-litem button list → shadcn CommandList or plain list items with urgency dot badge via Badge variant",
+        "Urgency dot urg-red/amber class → Tailwind conditional classes cn('h-2 w-2 rounded-full', urgency==='red' && 'bg-destructive')",
+        "onOpenPo callback → router.push('/scanner/receive/po/'+poCode)",
+        "Hard-coded Polish strings → next-intl t('scanner.po_list.*') keys"
+      ],
+      "shadcn_equivalent": [
+        "Input",
+        "Badge",
+        "Button"
+      ],
+      "known_bugs": [],
+      "estimated_translation_time_min": 45
+    },
+    {
+      "label": "po_lines_screen",
+      "file": "design/Monopilot Design System/scanner/flow-receive.jsx",
+      "lines": "40-86",
+      "component_type": "page-layout",
+      "ui_pattern": "detail-view",
+      "data_domain": "PO",
+      "interaction": "read-only",
+      "complexity": "composite",
+      "depends_on_prototypes": [
+        "primitive:Topbar",
+        "primitive:Content",
+        "primitive:StatusChip"
+      ],
+      "translation_notes": [
+        "sc-wo-card summary header → shadcn Card with CardHeader/CardContent, metadata as a dl grid",
+        "pct / done computed inline from received/ordered → compute server-side in Drizzle query using SQL expression",
+        "sc-crow checklist rows with cck-ok/warn/empty states → shadcn Table with CheckCircle/Clock/Circle icon from lucide-react",
+        "Color-coded qty display (green done, amber partial) → Tailwind conditional text-green-400 / text-amber-400",
+        "onOpenLine callback → router.push('/scanner/receive/po/'+poCode+'/line/'+lineId)",
+        "Hard-coded Polish strings → next-intl t('scanner.po_lines.*') keys"
+      ],
+      "shadcn_equivalent": [
+        "Card",
+        "CardHeader",
+        "CardContent",
+        "Table",
+        "TableRow",
+        "TableCell",
+        "Badge",
+        "Button"
+      ],
+      "known_bugs": [],
+      "estimated_translation_time_min": 55
+    },
+    {
+      "label": "po_item_screen",
+      "file": "design/Monopilot Design System/scanner/flow-receive.jsx",
+      "lines": "89-233",
+      "component_type": "wizard",
+      "ui_pattern": "multi-step-wizard",
+      "data_domain": "PO",
+      "interaction": "create",
+      "complexity": "page-level",
+      "depends_on_prototypes": [
+        "primitive:Topbar",
+        "primitive:Content",
+        "primitive:BottomActions",
+        "primitive:Btn",
+        "primitive:StepsBar",
+        "primitive:ScanInputArea",
+        "primitive:MiniGrid",
+        "primitive:Banner",
+        "primitive:BestBeforeSheet",
+        "primitive:QtyKeypadSheet"
+      ],
+      "translation_notes": [
+        "4-step local useState wizard → Next.js multi-step form using URL searchParam ?step=0..3 for deep-linkable back-navigation without double-push",
+        "autoExtract() GS1-128 parse simulation → production: Server Action GS1Parser.parse(barcode) using gs1-barcode-parser npm; returns {gtin, batch, expiry}",
+        "Best-before date check with hard-coded today new Date('2026-04-21') → replace with server clock from Server Action, compare against lp.expiry",
+        "overWarn two-click override pattern → production must emit PO_OVERRECEIVE outbox event with supervisor approval gate if qty > po_line.ordered * 1.1",
+        "Step 3 QtyKeypadSheet for qty entry → NumpadInput primitive (reused), value bound via useFormContext from parent react-hook-form instance",
+        "Hard-coded Polish strings → next-intl t('scanner.po_item.*') keys; SCN_QUICK_LOCS → fetch from /api/locations/quick?site={siteId}"
+      ],
+      "shadcn_equivalent": [
+        "Form",
+        "FormField",
+        "FormItem",
+        "FormMessage",
+        "Input",
+        "Button",
+        "Progress"
+      ],
+      "known_bugs": [],
+      "estimated_translation_time_min": 120
+    },
+    {
+      "label": "po_done_screen",
+      "file": "design/Monopilot Design System/scanner/flow-receive.jsx",
+      "lines": "236-264",
+      "component_type": "page-layout",
+      "ui_pattern": "detail-view",
+      "data_domain": "PO",
+      "interaction": "read-only",
+      "complexity": "composite",
+      "depends_on_prototypes": [
+        "primitive:Topbar",
+        "primitive:Content",
+        "primitive:BottomActions",
+        "primitive:Btn",
+        "primitive:Banner",
+        "primitive:PrinterPickerSheet"
+      ],
+      "translation_notes": [
+        "sc-success-wrap with checkmark + title → reusable SuccessScreen layout component shared across all done screens",
+        "sc-lp-card showing new LP details → shadcn Card with monospace font for LP number, derived from Server Action response",
+        "Detail prop passed from wizard step → production: read from URL searchParam or re-fetch from DB after Server Action completes",
+        "bbNote conditional Banner → display only when audit record exists in DB for this LP receipt",
+        "P2 print button → wired to PrinterPickerSheet which is P2 stub; keep disabled in P1 with tooltip",
+        "Hard-coded Polish strings → next-intl t('scanner.po_done.*') keys"
+      ],
+      "shadcn_equivalent": [
+        "Card",
+        "Button",
+        "Badge"
+      ],
+      "known_bugs": [
+        "BL-SCN-02: label printing deferred to P2"
+      ],
+      "estimated_translation_time_min": 40
+    },
+    {
+      "label": "to_list_screen",
+      "file": "design/Monopilot Design System/scanner/flow-receive.jsx",
+      "lines": "267-294",
+      "component_type": "page-layout",
+      "ui_pattern": "search-filter-list",
+      "data_domain": "TO",
+      "interaction": "read-only",
+      "complexity": "composite",
+      "depends_on_prototypes": [
+        "primitive:Topbar",
+        "primitive:Content",
+        "primitive:ScanInputArea",
+        "primitive:StatusChip"
+      ],
+      "translation_notes": [
+        "SCN_TOS mock → Server Component Drizzle query transfer_orders WHERE status IN ('in_transit','ready') AND to_site = session.siteId",
+        "ScanInputArea for TO number → same scan-to-filter pattern as po_list_screen, useDeferredValue on client",
+        "sc-litem list with status chips → same list item pattern as PoListScreen, Badge for status",
+        "onOpenTo callback → router.push('/scanner/receive/to/'+toCode)",
+        "Hard-coded Polish strings → next-intl t('scanner.to_list.*') keys"
+      ],
+      "shadcn_equivalent": [
+        "Input",
+        "Badge",
+        "Button"
+      ],
+      "known_bugs": [],
+      "estimated_translation_time_min": 40
+    },
+    {
+      "label": "to_scan_screen",
+      "file": "design/Monopilot Design System/scanner/flow-receive.jsx",
+      "lines": "297-385",
+      "component_type": "wizard",
+      "ui_pattern": "bulk-action",
+      "data_domain": "TO",
+      "interaction": "approve",
+      "complexity": "page-level",
+      "depends_on_prototypes": [
+        "primitive:Topbar",
+        "primitive:Content",
+        "primitive:BottomActions",
+        "primitive:Btn",
+        "primitive:ScanInputArea",
+        "primitive:Banner"
+      ],
+      "translation_notes": [
+        "Local state[] array tracking confirmed[] → useReducer with CONFIRM_LP / RESET actions; derive confirmed count from state",
+        "tryScan validation against state.lps → Server Action TO.confirmLP(toCode, lpCode) validates LP belongs to TO and marks confirmed in DB",
+        "sc-crow checklist with cck-ok / cck-empty → same CheckCircle/Circle pattern as po_lines_screen",
+        "Partial acceptance Banner → persist partial TO receipt with TO_PARTIAL_RECEIVE outbox event, remaining LPs stay in_transit status",
+        "Demo buttons simulate scan → remove from production; add keyboard event listener for hardware scanner HID input",
+        "Hard-coded Polish strings → next-intl t('scanner.to_scan.*') keys"
+      ],
+      "shadcn_equivalent": [
+        "Table",
+        "TableRow",
+        "TableCell",
+        "Button",
+        "Badge",
+        "Progress"
+      ],
+      "known_bugs": [],
+      "estimated_translation_time_min": 90
+    },
+    {
+      "label": "putaway_scan_screen",
+      "file": "design/Monopilot Design System/scanner/flow-putaway.jsx",
+      "lines": "5-63",
+      "component_type": "wizard",
+      "ui_pattern": "wizard-step",
+      "data_domain": "LP",
+      "interaction": "read-only",
+      "complexity": "composite",
+      "depends_on_prototypes": [
+        "primitive:Topbar",
+        "primitive:Content",
+        "primitive:BottomActions",
+        "primitive:Btn",
+        "primitive:ScanInputArea",
+        "primitive:MiniGrid"
+      ],
+      "translation_notes": [
+        "submit() validates LP prefix client-side → production Server Action LP.findForPutaway(code) enforces status available/qc_pending in DB",
+        "SCN_LPS[code] mock lookup → Drizzle query lp_units WHERE lp = code, joined to products for product name and uom",
+        "expiry color classification (red/amber/green) by days → compute days_until_expiry in SQL with EXTRACT(EPOCH FROM expiry - NOW())/86400, map to color in component",
+        "MiniGrid for LP details → shared LpDetailGrid server component reused across putaway/pick/consume flows",
+        "onSuggest(lp) callback → router.push('/scanner/putaway/suggest') with lp serialized as searchParam or stored in sessionStorage",
+        "Hard-coded Polish strings → next-intl t('scanner.putaway_scan.*') keys"
+      ],
+      "shadcn_equivalent": [
+        "Input",
+        "Button",
+        "Card"
+      ],
+      "known_bugs": [],
+      "estimated_translation_time_min": 60
+    },
+    {
+      "label": "putaway_suggest_screen",
+      "file": "design/Monopilot Design System/scanner/flow-putaway.jsx",
+      "lines": "65-144",
+      "component_type": "wizard",
+      "ui_pattern": "wizard-step",
+      "data_domain": "LP",
+      "interaction": "create",
+      "complexity": "page-level",
+      "depends_on_prototypes": [
+        "primitive:Topbar",
+        "primitive:Content",
+        "primitive:Btn",
+        "primitive:ScanInputArea",
+        "primitive:ReasonPickerSheet"
+      ],
+      "translation_notes": [
+        "Hard-coded suggested location mock → Server Action LocationSuggester.suggest(lpId) runs FEFO strategy against inventory_locations table",
+        "submit() checks code === suggested.code for override detection → Server Action Putaway.confirm(lpId, locationCode) detects deviation server-side",
+        "Override path opens ReasonPickerSheet → same modal as modals.jsx reason_picker_sheet, reasons fetched from /api/reasons?type=putaway",
+        "sc-quick-grid shortcut buttons → fetch SCN_QUICK_LOCS from /api/locations/quick?zone=putaway&site={siteId}",
+        "onDone({override, reason}) → Server Action Putaway.create() emits PUTAWAY_COMPLETE or PUTAWAY_OVERRIDE_REASON outbox events",
+        "Hard-coded Polish strings → next-intl t('scanner.putaway_suggest.*') keys"
+      ],
+      "shadcn_equivalent": [
+        "Card",
+        "Input",
+        "Button",
+        "Badge"
+      ],
+      "known_bugs": [],
+      "estimated_translation_time_min": 80
+    },
+    {
+      "label": "pick_wo_list_screen",
+      "file": "design/Monopilot Design System/scanner/flow-pick.jsx",
+      "lines": "5-40",
+      "component_type": "page-layout",
+      "ui_pattern": "search-filter-list",
+      "data_domain": "WO",
+      "interaction": "read-only",
+      "complexity": "composite",
+      "depends_on_prototypes": [
+        "primitive:Topbar",
+        "primitive:Content"
+      ],
+      "translation_notes": [
+        "SCN_PICK mock filtered with client .filter() → Server Component Drizzle query work_orders JOIN bom_pick_progress WHERE status IN ('released','inprog')",
+        "filter pills (all/my_line/incomplete) → URL searchParam ?filter=all|my_line|incomplete, server-side WHERE clause",
+        "q search bar → useDeferredValue on client or searchParam server-side ILIKE filter",
+        "sc-litem with inline picked/total badge → shadcn Badge with conditional variant based on completion ratio",
+        "onOpenPick(wo) → router.push('/scanner/pick/'+wo.wo)",
+        "Hard-coded Polish strings → next-intl t('scanner.pick_wo_list.*') keys"
+      ],
+      "shadcn_equivalent": [
+        "Input",
+        "Badge",
+        "Button",
+        "ToggleGroup"
+      ],
+      "known_bugs": [],
+      "estimated_translation_time_min": 50
+    },
+    {
+      "label": "pick_list_screen",
+      "file": "design/Monopilot Design System/scanner/flow-pick.jsx",
+      "lines": "42-94",
+      "component_type": "page-layout",
+      "ui_pattern": "detail-view",
+      "data_domain": "WO",
+      "interaction": "read-only",
+      "complexity": "composite",
+      "depends_on_prototypes": [
+        "primitive:Topbar",
+        "primitive:Content"
+      ],
+      "translation_notes": [
+        "sc-progress-strip + sc-pbar → shadcn Progress component with label overlay showing 'X / Y' count",
+        "sc-next-sug next-pick suggestion card → shadcn Card with info icon, derived from first BOM line WHERE status != 'ok'",
+        "sc-crow BOM component rows with location badge (cyan) → shadcn Table rows with Badge for location code",
+        "FEFO suggestion shown in sc-cdet → fetch from lp_units WHERE lp = bom.lpSuggested in same Drizzle query",
+        "onScanLine(woCode, line) → router.push('/scanner/pick/'+woCode+'/scan/'+line)",
+        "Hard-coded Polish strings → next-intl t('scanner.pick_list.*') keys"
+      ],
+      "shadcn_equivalent": [
+        "Progress",
+        "Table",
+        "TableRow",
+        "TableCell",
+        "Badge",
+        "Button",
+        "Card"
+      ],
+      "known_bugs": [],
+      "estimated_translation_time_min": 60
+    },
+    {
+      "label": "pick_scan_screen",
+      "file": "design/Monopilot Design System/scanner/flow-pick.jsx",
+      "lines": "96-238",
+      "component_type": "wizard",
+      "ui_pattern": "multi-step-wizard",
+      "data_domain": "WO",
+      "interaction": "create",
+      "complexity": "page-level",
+      "depends_on_prototypes": [
+        "primitive:Topbar",
+        "primitive:Content",
+        "primitive:BottomActions",
+        "primitive:Btn",
+        "primitive:StepsBar",
+        "primitive:ScanInputArea",
+        "primitive:MiniGrid",
+        "primitive:FefoDeviationSheet",
+        "primitive:QtyKeypadSheet"
+      ],
+      "translation_notes": [
+        "3-step location→LP→qty wizard → URL searchParam ?step=0..2 for browser back-button compatibility",
+        "submitLocation() enforces exact location match → Server Action Pick.verifyLocation(woCode, bomLine, locationCode) with error code for wrong location",
+        "submitLp() FEFO deviation detection compares expiry dates → Server Action Pick.verifyLP(lpCode, bomLine) returns {ok, fefoDeviation: {suggested, chosen}}",
+        "FefoDeviationSheet triggered on FEFO mismatch → same modal as modals.jsx fefo_deviation_sheet, shared across pick and consume flows",
+        "QtyKeypadSheet for qty entry → NumpadInput primitive reused; production Server Action validates qty <= lp.available_qty",
+        "Hard-coded Polish strings → next-intl t('scanner.pick_scan.*') keys"
+      ],
+      "shadcn_equivalent": [
+        "Form",
+        "FormField",
+        "FormItem",
+        "FormMessage",
+        "Input",
+        "Button",
+        "Progress",
+        "Card"
+      ],
+      "known_bugs": [],
+      "estimated_translation_time_min": 120
+    },
+    {
+      "label": "wo_list_screen",
+      "file": "design/Monopilot Design System/scanner/flow-consume.jsx",
+      "lines": "8-54",
+      "component_type": "page-layout",
+      "ui_pattern": "search-filter-list",
+      "data_domain": "WO",
+      "interaction": "read-only",
+      "complexity": "composite",
+      "depends_on_prototypes": [
+        "primitive:Topbar",
+        "primitive:Content",
+        "primitive:StatusChip",
+        "primitive:Banner"
+      ],
+      "translation_notes": [
+        "SCN_WOS mock with client filter → Server Component query work_orders WHERE site = session.siteId, filter by line/status via searchParams",
+        "sc-cbar inline progress bar in list item → shadcn Progress sized small (h-1) within table cell",
+        "filter pills (all/my_line/active) → shadcn Tabs or ToggleGroup with URL searchParam sync",
+        "Empty state Banner kind='info' → shadcn Alert with info icon when wos.length === 0",
+        "onOpenWo(code) → router.push('/scanner/consume/'+code)",
+        "Hard-coded Polish strings → next-intl t('scanner.wo_list.*') keys"
+      ],
+      "shadcn_equivalent": [
+        "Input",
+        "Badge",
+        "Progress",
+        "Button",
+        "Alert",
+        "Tabs",
+        "TabsList",
+        "TabsTrigger"
+      ],
+      "known_bugs": [],
+      "estimated_translation_time_min": 55
+    },
+    {
+      "label": "wo_detail_screen",
+      "file": "design/Monopilot Design System/scanner/flow-consume.jsx",
+      "lines": "56-121",
+      "component_type": "page-layout",
+      "ui_pattern": "detail-view",
+      "data_domain": "WO",
+      "interaction": "read-only",
+      "complexity": "page-level",
+      "depends_on_prototypes": [
+        "primitive:Topbar",
+        "primitive:Content",
+        "primitive:BottomActions",
+        "primitive:Btn",
+        "primitive:StatusChip"
+      ],
+      "translation_notes": [
+        "sc-wo-card with meta grid → shadcn Card with CardHeader for WO number/product, CardContent with dl metadata grid (Cel/Wyprod/Start/Operator)",
+        "sc-pbar progress bar → shadcn Progress with percentage label",
+        "BOM component sc-crow checklist → same Table pattern as pick_list_screen, CheckCircle/Clock/Circle icons",
+        "BottomActions tall with 3 buttons (Continue/Pause/BOM Detail) → shadcn ButtonGroup or stacked buttons with appropriate variants",
+        "onExecute(woCode) → router.push('/scanner/consume/'+woCode+'/execute')",
+        "Hard-coded Polish strings → next-intl t('scanner.wo_detail.*') keys"
+      ],
+      "shadcn_equivalent": [
+        "Card",
+        "CardHeader",
+        "CardContent",
+        "Progress",
+        "Table",
+        "TableRow",
+        "TableCell",
+        "Button",
+        "Badge"
+      ],
+      "known_bugs": [],
+      "estimated_translation_time_min": 70
+    },
+    {
+      "label": "wo_execute_screen",
+      "file": "design/Monopilot Design System/scanner/flow-consume.jsx",
+      "lines": "123-213",
+      "component_type": "page-layout",
+      "ui_pattern": "list-with-actions",
+      "data_domain": "WO",
+      "interaction": "edit",
+      "complexity": "page-level",
+      "depends_on_prototypes": [
+        "primitive:Topbar",
+        "primitive:Content",
+        "primitive:BottomActions",
+        "primitive:Btn",
+        "primitive:Banner"
+      ],
+      "translation_notes": [
+        "sc-tabs Components/Scanned tab toggle → shadcn Tabs with TabsList/TabsTrigger/TabsContent; tab state in URL searchParam ?tab=components|scanned",
+        "sc-crow component rows with inline sc-cbar progress bar → shadcn Table with Progress cell showing qtyDone/qtyReq",
+        "sc-srow scanned items list → alternate Table variant (read-only) with CheckCircle icon and LP/batch/qty columns",
+        "Missing materials Banner kind='warn' → shadcn Alert variant='warning' with bulleted missing list",
+        "4-button BottomActions (Scan/Output/Coproduct/Waste) → shadcn ButtonGroup with variant mapping: p→default, s→success, v→violet, w→warning",
+        "Hard-coded Polish strings → next-intl t('scanner.wo_execute.*') keys"
+      ],
+      "shadcn_equivalent": [
+        "Tabs",
+        "TabsList",
+        "TabsTrigger",
+        "TabsContent",
+        "Table",
+        "TableRow",
+        "TableCell",
+        "Progress",
+        "Alert",
+        "Button"
+      ],
+      "known_bugs": [],
+      "estimated_translation_time_min": 90
+    },
+    {
+      "label": "consume_scan_screen",
+      "file": "design/Monopilot Design System/scanner/flow-consume.jsx",
+      "lines": "216-410",
+      "component_type": "wizard",
+      "ui_pattern": "multi-step-wizard",
+      "data_domain": "WO",
+      "interaction": "create",
+      "complexity": "page-level",
+      "depends_on_prototypes": [
+        "primitive:Topbar",
+        "primitive:Content",
+        "primitive:BottomActions",
+        "primitive:Btn",
+        "primitive:StepsBar",
+        "primitive:ScanInputArea",
+        "primitive:MiniGrid",
+        "primitive:FefoDeviationSheet",
+        "primitive:BestBeforeSheet",
+        "primitive:BlockFullscreen",
+        "primitive:ScanErrorSheet",
+        "primitive:QtyKeypadSheet",
+        "primitive:LpLockedSheet"
+      ],
+      "translation_notes": [
+        "submitScan() multi-gate LP validation (format/exists/consumed/qa_hold/use_by/best_before/FEFO) → Server Action Consume.validateLP(lpCode, bomLine, woCode) returns typed Result union with all gate codes",
+        "use_by hard-block triggers BlockFullscreen → production: BlockFullscreen remains a client component over the page, Server Action returns USE_BY_EXPIRED error code",
+        "best_before 7-day window check with hard-coded today → Server Action computes days_until_expiry server-side with UTC clock",
+        "FEFO deviation detected and triggers FefoDeviationSheet → same pattern as pick_scan_screen; both flows share Server Action LP.checkFefoDeviation()",
+        "QtyKeypadSheet for quantity entry → NumpadInput primitive; production validates qty <= lp.available_qty and qty <= bom.remaining_req",
+        "Hard-coded Polish strings → next-intl t('scanner.consume_scan.*') keys; error code strings → map to i18n keys in error boundary"
+      ],
+      "shadcn_equivalent": [
+        "Form",
+        "FormField",
+        "FormItem",
+        "FormMessage",
+        "Input",
+        "Button",
+        "Progress",
+        "Alert"
+      ],
+      "known_bugs": [],
+      "estimated_translation_time_min": 150
+    },
+    {
+      "label": "output_screen",
+      "file": "design/Monopilot Design System/scanner/flow-register.jsx",
+      "lines": "6-121",
+      "component_type": "wizard",
+      "ui_pattern": "multi-step-wizard",
+      "data_domain": "WO",
+      "interaction": "create",
+      "complexity": "page-level",
+      "depends_on_prototypes": [
+        "primitive:Topbar",
+        "primitive:Content",
+        "primitive:BottomActions",
+        "primitive:Btn",
+        "primitive:StepsBar",
+        "primitive:ScanInputArea",
+        "primitive:Banner",
+        "primitive:PartialConsumeSheet",
+        "primitive:PrinterPickerSheet",
+        "primitive:QtyKeypadSheet"
+      ],
+      "translation_notes": [
+        "4-step wizard (qty/batch+expiry/location/confirm) → URL searchParam ?step=0..3 with react-hook-form useFormContext spanning steps",
+        "yieldPct inline calculation → Server Action Output.calculateYield(woCode, newQty) to avoid rounding inconsistencies with planned quantities",
+        "Missing materials check triggers PartialConsumeSheet on submit → Server Action Output.validate(woCode) returns missing[] before allowing registration",
+        "Step 3 ScanInputArea for location + SCN_QUICK_LOCS grid → /api/locations/quick?type=fg_output&site={siteId} server fetch",
+        "LP number generation Math.floor(800+...) → production: Server Action Output.register() calls LP registry service which issues sequential LP number",
+        "Hard-coded Polish strings → next-intl t('scanner.output.*') keys; V-SCAN-WO-006/007 validation hints kept as FormDescription"
+      ],
+      "shadcn_equivalent": [
+        "Form",
+        "FormField",
+        "FormItem",
+        "FormMessage",
+        "FormDescription",
+        "Input",
+        "Button",
+        "Progress",
+        "Card"
+      ],
+      "known_bugs": [
+        "BL-SCN-02: label printing deferred to P2"
+      ],
+      "estimated_translation_time_min": 130
+    },
+    {
+      "label": "coproduct_screen",
+      "file": "design/Monopilot Design System/scanner/flow-register.jsx",
+      "lines": "152-202",
+      "component_type": "form",
+      "ui_pattern": "crud-form-with-validation",
+      "data_domain": "WO",
+      "interaction": "create",
+      "complexity": "composite",
+      "depends_on_prototypes": [
+        "primitive:Topbar",
+        "primitive:Content",
+        "primitive:BottomActions",
+        "primitive:Btn",
+        "primitive:Banner",
+        "primitive:QtyKeypadSheet"
+      ],
+      "translation_notes": [
+        "SCN_COPRODUCTS[woCode] mock → Server Component fetches bom_coproducts WHERE wo_code = woCode from DB",
+        "Native <select> for co-product selection → shadcn Select with options from co-product list; show allocPct in option label",
+        "Individual sc-fgroup fields for qty/batch/expiry/location → useForm with zod schema; FormField per field",
+        "LP type hard-coded 'co_product' (violet) → production LP registry must accept lp_type = 'co_product', inherit source WO",
+        "submit() random LP generation → Server Action Coproduct.register() calls LP registry, emits COPRODUCT_REGISTERED outbox event",
+        "Hard-coded Polish strings → next-intl t('scanner.coproduct.*') keys"
+      ],
+      "shadcn_equivalent": [
+        "Select",
+        "SelectItem",
+        "Form",
+        "FormField",
+        "FormItem",
+        "FormMessage",
+        "Input",
+        "Button"
+      ],
+      "known_bugs": [],
+      "estimated_translation_time_min": 75
+    },
+    {
+      "label": "waste_screen",
+      "file": "design/Monopilot Design System/scanner/flow-register.jsx",
+      "lines": "226-285",
+      "component_type": "form",
+      "ui_pattern": "crud-form-with-validation",
+      "data_domain": "WO",
+      "interaction": "create",
+      "complexity": "composite",
+      "depends_on_prototypes": [
+        "primitive:Topbar",
+        "primitive:Content",
+        "primitive:BottomActions",
+        "primitive:Btn",
+        "primitive:Banner",
+        "primitive:QtyKeypadSheet"
+      ],
+      "translation_notes": [
+        "SCN_WASTE_CATS mock → Server Component fetches waste_categories WHERE active = true from settings; each has id/label/icon/cls",
+        "sc-cat-btn category selector grid → shadcn RadioGroup with custom card-style RadioGroupItem rendering icon + label",
+        "Native <select> for production phase → shadcn Select with hard-coded phase options extracted to wastePhase enum in shared/constants.ts",
+        "Textarea for notes → shadcn Textarea with FormField; notes are optional so no min() zod constraint",
+        "submit() canSubmit guard → form.formState.isValid; Server Action Waste.register(woCode, cat, qty, phase, notes) emits WASTE_REGISTERED outbox event",
+        "Hard-coded Polish strings → next-intl t('scanner.waste.*') keys; waste categories labels should also be i18n'd via settings"
+      ],
+      "shadcn_equivalent": [
+        "RadioGroup",
+        "RadioGroupItem",
+        "Select",
+        "SelectItem",
+        "Textarea",
+        "Form",
+        "FormField",
+        "FormItem",
+        "FormMessage",
+        "Button"
+      ],
+      "known_bugs": [],
+      "estimated_translation_time_min": 80
+    },
+    {
+      "label": "move_screen",
+      "file": "design/Monopilot Design System/scanner/flow-other.jsx",
+      "lines": "10-86",
+      "component_type": "wizard",
+      "ui_pattern": "wizard-step",
+      "data_domain": "LP",
+      "interaction": "edit",
+      "complexity": "page-level",
+      "depends_on_prototypes": [
+        "primitive:Topbar",
+        "primitive:Content",
+        "primitive:BottomActions",
+        "primitive:Btn",
+        "primitive:ScanInputArea",
+        "primitive:MiniGrid",
+        "primitive:Banner",
+        "primitive:LpLockedSheet"
+      ],
+      "translation_notes": [
+        "Two-phase scan (LP then destination) → two ScanInputArea components sequentially shown, each backed by Server Action validation",
+        "onLpScan() qa_hold/consumed guards → Server Action Move.validateLP(code) returns typed error union; also acquires 5-min pessimistic lock",
+        "Banner '5 min lock' → production: lock record in lp_locks table with expires_at = NOW() + 5min; heartbeat from client every 60s",
+        "sc-quick-grid location shortcuts → /api/locations/quick?type=move&site={siteId} server fetch, cached via Next.js fetch cache",
+        "onDone({lp, from, to}) → Server Action Move.execute(lpId, destLocationCode) releases lock + emits LP_MOVED outbox event",
+        "Hard-coded Polish strings → next-intl t('scanner.move.*') keys"
+      ],
+      "shadcn_equivalent": [
+        "Input",
+        "Button",
+        "Card",
+        "Badge"
+      ],
+      "known_bugs": [],
+      "estimated_translation_time_min": 90
+    },
+    {
+      "label": "split_scan_screen",
+      "file": "design/Monopilot Design System/scanner/flow-other.jsx",
+      "lines": "111-150",
+      "component_type": "wizard",
+      "ui_pattern": "wizard-step",
+      "data_domain": "LP",
+      "interaction": "read-only",
+      "complexity": "composite",
+      "depends_on_prototypes": [
+        "primitive:Topbar",
+        "primitive:Content",
+        "primitive:BottomActions",
+        "primitive:Btn",
+        "primitive:ScanInputArea",
+        "primitive:MiniGrid",
+        "primitive:Banner"
+      ],
+      "translation_notes": [
+        "onScan() validates LP status === 'available' and qty > 0 → Server Action Split.validateLP(code) with RBAC check (split requires warehouse_operator role minimum)",
+        "Banner 'Split preserves batch' → keep as shadcn Alert info in production, this is an important UX affordance for traceability",
+        "MiniGrid LP preview → shared LpDetailGrid server component reused from putaway/move flows",
+        "onNext(lp) passes lp object → use URL searchParam ?lp=LP-XXXXX; next screen re-fetches from DB to avoid stale data",
+        "SCN_LPS mock lookup → Drizzle query lp_units WHERE lp = code JOIN products",
+        "Hard-coded Polish strings → next-intl t('scanner.split_scan.*') keys"
+      ],
+      "shadcn_equivalent": [
+        "Input",
+        "Button",
+        "Card",
+        "Alert"
+      ],
+      "known_bugs": [],
+      "estimated_translation_time_min": 50
+    },
+    {
+      "label": "split_qty_screen",
+      "file": "design/Monopilot Design System/scanner/flow-other.jsx",
+      "lines": "152-193",
+      "component_type": "form",
+      "ui_pattern": "crud-form-with-validation",
+      "data_domain": "LP",
+      "interaction": "create",
+      "complexity": "composite",
+      "depends_on_prototypes": [
+        "primitive:Topbar",
+        "primitive:Content",
+        "primitive:BottomActions",
+        "primitive:Btn",
+        "primitive:MiniGrid",
+        "primitive:QtyKeypadSheet"
+      ],
+      "translation_notes": [
+        "origRem computed inline (lp.qty - qty) → compute in Server Action after validation to ensure no floating-point drift",
+        "sc-split-grid 2-col before/after preview → shadcn Card with 2-col grid; left = original LP remaining, right = new LP preview",
+        "valid guard: 0 < qty < lp.qty → zod .number().positive().max(lp.qty - 0.001) validated in both client form and Server Action",
+        "Auto LP number 'LP-XXXX (auto)' preview → show placeholder until Server Action Split.execute() returns actual new LP number",
+        "QtyKeypadSheet for numeric entry → NumpadInput primitive, max = lp.qty - 0.01 enforced",
+        "Hard-coded Polish strings → next-intl t('scanner.split_qty.*') keys"
+      ],
+      "shadcn_equivalent": [
+        "Form",
+        "FormField",
+        "FormItem",
+        "FormMessage",
+        "Input",
+        "Button",
+        "Card"
+      ],
+      "known_bugs": [],
+      "estimated_translation_time_min": 65
+    },
+    {
+      "label": "qa_list_screen",
+      "file": "design/Monopilot Design System/scanner/flow-other.jsx",
+      "lines": "227-260",
+      "component_type": "page-layout",
+      "ui_pattern": "search-filter-list",
+      "data_domain": "LP",
+      "interaction": "read-only",
+      "complexity": "composite",
+      "depends_on_prototypes": [
+        "primitive:Topbar",
+        "primitive:Content",
+        "primitive:ScanInputArea"
+      ],
+      "translation_notes": [
+        "SCN_QA mock array → Server Component Drizzle query lp_qa_tasks WHERE status = 'pending' AND site = session.siteId ORDER BY urgency DESC",
+        "sc-litem list with urgency dot → urgency derived from lp.age days; color badge same pattern as po_list_screen",
+        "ScanInputArea scan-to-find → jump directly to /scanner/qa/{lpCode} on scan, skipping list navigation",
+        "Age + inspection type displayed in sc-lsub → compute age = NOW() - lp.created_at in SQL, format with Intl.RelativeTimeFormat",
+        "onInspect(lp) → router.push('/scanner/qa/'+lp)",
+        "Hard-coded Polish strings → next-intl t('scanner.qa_list.*') keys"
+      ],
+      "shadcn_equivalent": [
+        "Input",
+        "Badge",
+        "Button"
+      ],
+      "known_bugs": [],
+      "estimated_translation_time_min": 50
+    },
+    {
+      "label": "qa_inspect_screen",
+      "file": "design/Monopilot Design System/scanner/flow-other.jsx",
+      "lines": "262-294",
+      "component_type": "page-layout",
+      "ui_pattern": "detail-view",
+      "data_domain": "LP",
+      "interaction": "approve",
+      "complexity": "composite",
+      "depends_on_prototypes": [
+        "primitive:Topbar",
+        "primitive:Content",
+        "primitive:MiniGrid",
+        "primitive:Btn"
+      ],
+      "translation_notes": [
+        "SCN_LPS fallback with hardcoded LP mock → Server Component fetches full lp_unit JOIN qa_tasks JOIN products; no client fallback needed",
+        "sc-big3 3-button action row (Pass/Reject/Hold) → 3 shadcn Buttons: variant='default' for PASS, variant='destructive' for REJECT, variant='outline' (amber) for HOLD",
+        "Optional notes textarea inline → shadcn Textarea with FormField, notes passed to onResult callback then to Server Action",
+        "onResult({lpCode, result, notes}) → Server Action QA.submitResult(lpCode, result, notes); REJECT route pushes to /scanner/qa/{lp}/fail-reason",
+        "MiniGrid 4-row layout (8 cells) → shared LpDetailGrid with additional fields: WO ref, age, inspection type",
+        "Hard-coded Polish strings → next-intl t('scanner.qa_inspect.*') keys"
+      ],
+      "shadcn_equivalent": [
+        "Card",
+        "Textarea",
+        "Button",
+        "Form",
+        "FormField"
+      ],
+      "known_bugs": [],
+      "estimated_translation_time_min": 65
+    },
+    {
+      "label": "qa_fail_reason_screen",
+      "file": "design/Monopilot Design System/scanner/flow-other.jsx",
+      "lines": "296-336",
+      "component_type": "form",
+      "ui_pattern": "crud-form-with-validation",
+      "data_domain": "LP",
+      "interaction": "create",
+      "complexity": "composite",
+      "depends_on_prototypes": [
+        "primitive:Topbar",
+        "primitive:Content",
+        "primitive:BottomActions",
+        "primitive:Btn"
+      ],
+      "translation_notes": [
+        "sc-reason-list with SCN_QA_REASONS → shadcn RadioGroup; reasons fetched from /api/reasons?type=qa_rejection",
+        "sel/other/extra three-field state → useForm with zod discriminatedUnion: when sel='other' require other.min(5), extra always optional",
+        "Btn variant='d' (destructive) creates NCR → Server Action NCR.create(lpCode, reason, notes) emits NCR_CREATED outbox event, updates LP status to 'rejected'",
+        "LP header display (monospace code) → shared LpCodeDisplay primitive with monospace font, reused across QA screens",
+        "needsOther conditional textarea → conditional FormField render based on watchField('sel') === 'other'",
+        "Hard-coded Polish strings → next-intl t('scanner.qa_fail_reason.*') keys"
+      ],
+      "shadcn_equivalent": [
+        "RadioGroup",
+        "RadioGroupItem",
+        "Textarea",
+        "Form",
+        "FormField",
+        "FormItem",
+        "FormMessage",
+        "Button"
+      ],
+      "known_bugs": [],
+      "estimated_translation_time_min": 70
+    },
+    {
+      "label": "inquiry_screen",
+      "file": "design/Monopilot Design System/scanner/flow-other.jsx",
+      "lines": "391-438",
+      "component_type": "page-layout",
+      "ui_pattern": "detail-view",
+      "data_domain": "LP",
+      "interaction": "read-only",
+      "complexity": "composite",
+      "depends_on_prototypes": [
+        "primitive:Topbar",
+        "primitive:Content",
+        "primitive:BottomActions",
+        "primitive:Btn",
+        "primitive:ScanInputArea",
+        "primitive:MiniGrid",
+        "primitive:Banner"
+      ],
+      "translation_notes": [
+        "P2 preview screen with static LP history → mark as P2 in router with feature flag guard: if (!flags.scanner_lp_inquiry) redirect to /scanner/home",
+        "SCN_LPS[code] mock lookup → Server Action LP.findWithHistory(code) joining lp_movements, users, locations",
+        "Static hard-coded movement history list → in P2 replace with actual lp_movements timeline component using shadcn Timeline (custom) or Table",
+        "MiniGrid 4-row (8 cells) → same LpDetailGrid server component; add qaStatus and status fields",
+        "Banner 'P2 preview' → remove in P2 production; replace with full traceability tree when LP genealogy is implemented",
+        "Hard-coded Polish strings → next-intl t('scanner.inquiry.*') keys"
+      ],
+      "shadcn_equivalent": [
+        "Input",
+        "Card",
+        "Button",
+        "Badge",
+        "Alert"
+      ],
+      "known_bugs": [
+        "BL-TEC-02: traceability screen static — needs real WO_LIST cross-module link in P2"
+      ],
+      "estimated_translation_time_min": 50
+    },
+    {
+      "label": "devices_screen",
+      "file": "design/Monopilot Design System/settings/ops-screens.jsx",
+      "lines": "4-95",
+      "component_type": "page-layout",
+      "ui_pattern": "list-with-actions",
+      "data_domain": "Org",
+      "interaction": "create",
+      "complexity": "page-level",
+      "depends_on_prototypes": [],
+      "translation_notes": [
+        "window.SETTINGS_DEVICES mock → Drizzle query on scanner_devices table joined with users and production_lines",
+        "KPI tiles (total/online/low battery/offline) → aggregate queries: COUNT(*), COUNT WHERE status, COUNT WHERE battery < 20",
+        "Battery bar (inline style width %) → shadcn Progress with color variant based on battery threshold",
+        "Pair device modal (inline custom overlay with QR) → extract to shared PairDeviceModal Dialog; QR generated server-side via qrcode library and returned as data URL",
+        "SVG QR placeholder (Math.random()) → real QR code from server-generated pairing token (UUID, 5-min TTL)",
+        "Device defaults section → useForm with Server Action for device_defaults upsert",
+        "Hardcoded labels → next-intl keys"
+      ],
+      "shadcn_equivalent": [
+        "Table",
+        "Progress",
+        "Badge",
+        "Dialog",
+        "Button",
+        "Switch",
+        "Select"
+      ],
+      "known_bugs": [],
+      "estimated_translation_time_min": 120
+    }
+  ]
+}

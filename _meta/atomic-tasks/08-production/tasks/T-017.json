@@ -1,0 +1,59 @@
+{
+  "title": "T-017 — POST /api/production/work-orders/:id/pause endpoint + auto downtime stub",
+  "prompt": "# T-017 — POST /work-orders/:id/pause endpoint\n\nPRD: 08-PRODUCTION-PRD.md §7.1 FR-08-E1-002, §7.4 FR-08-E4-001, §8.2.1, §10.1\n\n## Goal\nImplement POST /api/production/work-orders/[id]/pause performing IN_PROGRESS→PAUSED with side-effect open_downtime_event (source='wo_pause', category_required=true) per §10.1.\n\n## Implementation contract\nApp Router POST handler. Zod body {transaction_id: uuid, operator_id: uuid, reason_category_id: uuid, notes?: string}. withIdempotency wrap. Single DB transaction: assert WO.status='IN_PROGRESS' (else 409), UPDATE work_orders.status='PAUSED', INSERT downtime_events row (source='wo_pause', wo_id=:id, category_id=reason_category_id, started_at=now, ended_at=NULL, recorded_by=operator_id). Return 200 {wo_id, status:'PAUSED', downtime_event_id, paused_at}.\n\n## Files (scope)\n- apps/web/app/api/production/work-orders/[id]/pause/route.ts [create]\n- apps/web/app/api/production/work-orders/[id]/pause/__tests__/route.test.ts [create]\n- packages/api-services/production/pause-wo.ts [create]\n\n## Acceptance criteria\n1. Given WO status=IN_PROGRESS, when POST /pause with valid body, then 200 status=PAUSED, downtime_events row inserted with source='wo_pause' and ended_at NULL\n2. Given WO status=PAUSED, when POST /pause called, then 409 Conflict invalid_state_transition\n3. Given missing reason_category_id, when POST /pause, then 422 ValidationError listing reason_category_id (V-PROD-22 + §10.1 category_required)\n\n## Test strategy\n- RED: route test asserting happy + 409 + 422 missing category before route exists\n- Run 'pnpm --filter web test work-orders.*pause'\n\n## Risk red lines\n- Do not allow PAUSE without category (V-PROD-22)\n- Do not split UPDATE+INSERT across transactions\n- Do not skip idempotency",
+  "labels": ["prd", "api", "wo-execution", "T2-api"],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-017",
+    "source_prd": "08-PRODUCTION-PRD.md",
+    "prd_refs": ["§7.1 FR-08-E1-002", "§7.4 FR-08-E4-001", "§8.2.1", "§10.1"],
+    "category": "api",
+    "subcategory": "wo-execution",
+    "task_type": "T2-api",
+    "parent_feature": "08-PROD E1 Execution Core",
+    "context_budget": "32k",
+    "estimated_effort": "2h",
+    "description": "POST /work-orders/:id/pause with auto-create downtime_event source='wo_pause'.",
+    "details": "Atomic transaction: state transition IN_PROGRESS→PAUSED + downtime_events row insert with source='wo_pause'. category_required enforced at zod layer. wo_id linked (V-PROD-22 ensured by route since source='wo_pause' always has wo_id present).",
+    "scope_files": [
+      "apps/web/app/api/production/work-orders/[id]/pause/route.ts [create]",
+      "apps/web/app/api/production/work-orders/[id]/pause/__tests__/route.test.ts [create]",
+      "packages/api-services/production/pause-wo.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not implement resume here (T-018)",
+      "Do not implement manual downtime entry endpoint (T-039)",
+      "Do not implement outbox emit (T-041 wires)"
+    ],
+    "dependencies": ["T-005", "T-015", "T-016"],
+    "parallel_safe_with": ["T-018", "T-019", "T-020", "T-021"],
+    "acceptance_criteria": [
+      "Given WO IN_PROGRESS, when POST /pause valid, then 200 PAUSED + downtime_events row inserted source='wo_pause' ended_at NULL",
+      "Given WO PAUSED, when POST /pause, then 409 invalid_state_transition",
+      "Given missing reason_category_id, when POST /pause, then 422 listing reason_category_id"
+    ],
+    "test_strategy": [
+      "RED: route test asserting happy + 409 + 422 before route exists",
+      "Run 'pnpm --filter web test work-orders.*pause'"
+    ],
+    "risk_red_lines": [
+      "Do not allow PAUSE without category",
+      "Do not split state+downtime across two transactions",
+      "Do not skip idempotency"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

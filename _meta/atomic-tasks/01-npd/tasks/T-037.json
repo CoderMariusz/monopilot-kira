@@ -1,0 +1,58 @@
+{
+  "title": "T-037 — fa_allergen_overrides table + audit chain (N-U4)",
+  "prompt": "# T-037 — fa_allergen_overrides schema\n\nPRD: 01-NPD-PRD.md §8.10\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nCreate fa_allergen_overrides table per §8.10 with supersedes_id chain, partial index for current set, RLS, and audit_events mirror trigger.\n\n## Implementation contract\nMigration 0041 emits the table per spec (UUID PK, tenant_id, product_code FK CASCADE, allergen_code FK, action enum, reason CHECK length>=10, actor_user_id, actor_role, supersedes_id self-FK, superseded_at, created_at, schema_version), partial index WHERE superseded_at IS NULL, secondary index for history. Trigger writes audit_events(table='fa_allergen_overrides', op='INSERT'). RLS scoped per tenant.\n\n## Files\n- packages/db/migrations/0041_fa_allergen_overrides.sql [create]\n- packages/db/src/schema/fa-allergen-overrides.ts [create]\n- packages/db/__tests__/fa-allergen-overrides.test.ts [create]\n\n## Acceptance criteria\n1. Given migration 0041 ran, when describing schema, then fa_allergen_overrides has both indexes and partial index condition WHERE superseded_at IS NULL\n2. Given INSERT with reason length 5, when committing, then CHECK constraint rejects\n3. Given INSERT a row, when committed, then audit_events row with table='fa_allergen_overrides' op='INSERT' and same actor_user_id is written by trigger\n\n## Test strategy\n- RED: 3 tests covering indexes, CHECK rejection, trigger\n- Run 'pnpm --filter db migrate && pnpm --filter db test fa-allergen-overrides'\n\n## Risk red lines\n- Do not allow reason shorter than 10\n- Do not skip audit trigger\n- Do not bypass tenant RLS",
+  "labels": ["prd", "data", "schema", "T1-schema"],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-037",
+    "source_prd": "01-NPD-PRD.md",
+    "prd_refs": ["§8.10", "N-U4"],
+    "category": "data",
+    "subcategory": "schema-allergen-override",
+    "task_type": "T1-schema",
+    "parent_feature": "01-NPD-c override audit",
+    "context_budget": "25k",
+    "estimated_effort": "1-2h",
+    "description": "fa_allergen_overrides per-row override schema + audit trigger.",
+    "details": "DDL with supersedes_id chain, partial index for current set, audit trigger mirror, and RLS.",
+    "scope_files": [
+      "packages/db/migrations/0041_fa_allergen_overrides.sql [create]",
+      "packages/db/src/schema/fa-allergen-overrides.ts [create]",
+      "packages/db/__tests__/fa-allergen-overrides.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not implement override Server Action here (T-039)",
+      "Do not seed reason templates"
+    ],
+    "dependencies": ["T-001", "T-036"],
+    "parallel_safe_with": ["T-036"],
+    "acceptance_criteria": [
+      "Given migration 0041 ran, when describing schema, then fa_allergen_overrides has both indexes and partial index condition WHERE superseded_at IS NULL",
+      "Given INSERT with reason length 5, when committing, then CHECK constraint rejects",
+      "Given INSERT a row, when committed, then audit_events row with table='fa_allergen_overrides' op='INSERT' and same actor_user_id is written by trigger"
+    ],
+    "test_strategy": [
+      "RED: 3 tests covering indexes, CHECK rejection, trigger before migration exists",
+      "Run 'pnpm --filter db migrate && pnpm --filter db test fa-allergen-overrides'"
+    ],
+    "risk_red_lines": [
+      "Do not allow reason shorter than 10 chars",
+      "Do not skip audit trigger",
+      "Do not bypass tenant RLS"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

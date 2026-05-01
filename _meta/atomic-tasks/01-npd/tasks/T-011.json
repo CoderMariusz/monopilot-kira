@@ -1,0 +1,58 @@
+{
+  "title": "T-011 — Cascade Chain 2: Manufacturing_Operation → Intermediate_Code_P/Final + V06",
+  "prompt": "# T-011 — Cascade Chain 2 + V06 validation\n\nPRD: 01-NPD-PRD.md §6.1 Chain 2, §12 V06\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nWhen prod_detail.manufacturing_operation_N changes, look up process_suffix in Reference.ManufacturingOperations and auto-fill prod_detail.intermediate_code_p<N>; then recompute intermediate_code_final and emit V06 warning when last suffix mismatches recipe component last char.\n\n## Implementation contract\nNew packages/cascade-engine/src/chain2-operations.ts exporting handleOperationChange(prodDetailId, n, newOpName). Reads operation row by name, formats intermediate_code_pN as 'WIP-<suffix>-<seq>', updates row, then computes intermediate_code_final from p1..p4. Emits V06 (severity=WARN per ADR-034) when UCase(last char of recipe_components last component) != UCase(last suffix). Tests assert auto-fill, final composition, and V06 trigger.\n\n## Files\n- packages/cascade-engine/src/chain2-operations.ts [create]\n- packages/cascade-engine/__tests__/chain2.test.ts [create]\n- packages/validation/src/v06-suffix-match.ts [create]\n\n## Acceptance criteria\n1. Given prod_detail row with operation 'Mix' configured suffix 'MX', when handleOperationChange runs for n=1, then intermediate_code_p1 starts with 'WIP-MX-'\n2. Given p1..p4 filled with WIP-MX, WIP-KN, WIP-PR, WIP-BK, when chain2 recomputes, then intermediate_code_final = 'WIP-MX-KN-PR-BK-<seq>' style per Phase D #10\n3. Given recipe_components last component ends with letter 'A' but last suffix is 'B', when validation runs, then V06 returns severity='WARN' with generic mismatch message\n\n## Test strategy\n- RED: 3 tests for auto-fill, final composition, V06 mismatch warning\n- Run 'pnpm --filter cascade-engine test chain2 && pnpm --filter validation test v06'\n\n## Risk red lines\n- Do not hardcode operation suffixes (always read Reference)\n- Do not block save on V06 (WARN only)\n- Do not regress perf budget",
+  "labels": ["prd", "api", "cascade", "T2-api"],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-011",
+    "source_prd": "01-NPD-PRD.md",
+    "prd_refs": ["§6.1 Chain 2", "§12 V06"],
+    "category": "api",
+    "subcategory": "cascade-chain2",
+    "task_type": "T2-api",
+    "parent_feature": "01-NPD-a cascade engine",
+    "context_budget": "40k",
+    "estimated_effort": "2-3h",
+    "description": "Manufacturing_Operation cascade fills intermediate_code_pN + final; emits V06 WARN on suffix mismatch.",
+    "details": "Cascade reads Reference.ManufacturingOperations.process_suffix per operation, formats WIP-<suffix>-<seq> for pN, recomputes intermediate_code_final, runs V06 mismatch check returning WARN.",
+    "scope_files": [
+      "packages/cascade-engine/src/chain2-operations.ts [create]",
+      "packages/cascade-engine/__tests__/chain2.test.ts [create]",
+      "packages/validation/src/v06-suffix-match.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not implement other chains here",
+      "Do not block save on V06"
+    ],
+    "dependencies": ["T-001", "T-002", "T-004"],
+    "parallel_safe_with": ["T-010", "T-012", "T-013"],
+    "acceptance_criteria": [
+      "Given prod_detail row with operation 'Mix' suffix 'MX', when handleOperationChange runs for n=1, then intermediate_code_p1 starts with 'WIP-MX-'",
+      "Given p1..p4 filled with WIP-MX, WIP-KN, WIP-PR, WIP-BK, when chain2 recomputes, then intermediate_code_final composes Phase D #10 style",
+      "Given recipe_components last component ends with 'A' but last suffix is 'B', when V06 runs, then severity='WARN' with generic mismatch message"
+    ],
+    "test_strategy": [
+      "RED: 3 tests for auto-fill, final composition, V06 mismatch warning before handler exists",
+      "Run 'pnpm --filter cascade-engine test chain2 && pnpm --filter validation test v06'"
+    ],
+    "risk_red_lines": [
+      "Do not hardcode operation suffixes",
+      "Do not block save on V06 (WARN only)",
+      "Do not regress chain perf gate"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

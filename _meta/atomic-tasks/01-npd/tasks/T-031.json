@@ -1,0 +1,59 @@
+{
+  "title": "T-031 — Server Actions: createBrief + saveBriefDraft (NPD-b.1)",
+  "prompt": "# T-031 — Brief CRUD actions\n\nPRD: 01-NPD-PRD.md §9.2 (form validation), §2.2 (brief.create)\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\nPrototype: design/Monopilot Design System/npd/modals.jsx:46-86 (brief_create_modal)\n\n## Goal\nServer Actions createBrief(template, devCode) and saveBriefDraft(briefId, fields) with Zod validation: dev_code regex /^DEV\\d{4}-\\d+$/, volume>0 per row, multi_component summary weight = sum components ± tolerance.\n\n## Implementation contract\nNew apps/web/app/(npd)/brief/actions/create-brief.ts + save-brief-draft.ts. Zod schema enforces template enum, dev_code regex, volume positivity, multi-comp weight invariant. RBAC brief.create. createBrief inserts brief + sample brief_lines row (line_type='product'). Emit brief.created event.\n\n## Files\n- apps/web/app/(npd)/brief/actions/create-brief.ts [create]\n- apps/web/app/(npd)/brief/actions/save-brief-draft.ts [create]\n- apps/web/app/(npd)/brief/actions/__tests__/create-brief.test.ts [create]\n- apps/web/app/(npd)/brief/actions/__tests__/save-brief-draft.test.ts [create]\n\n## Acceptance criteria\n1. Given role npd_manager calls createBrief('multi_component','DEV26-052'), when run, then brief row + 1 product line exist and brief.created event emitted\n2. Given dev_code='DEV-XX', when createBrief called, then ValidationError with code 'DEV_CODE_FORMAT' thrown\n3. Given multi_component summary weight 1000g vs sum components 850g (>1% tolerance), when saveBriefDraft runs, then ValidationError with code 'WEIGHT_MISMATCH' thrown\n\n## Test strategy\n- RED: 3 tests covering happy path, dev_code format, weight invariant\n- Run 'pnpm --filter web test create-brief save-brief-draft'\n\n## Risk red lines\n- Do not bypass weight invariant\n- Do not skip RBAC\n- Do not commit empty brief without 1 product line",
+  "labels": ["prd", "api", "brief-actions", "T2-api"],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-031",
+    "source_prd": "01-NPD-PRD.md",
+    "prd_refs": ["§9.2", "§2.2"],
+    "category": "api",
+    "subcategory": "brief-crud",
+    "task_type": "T2-api",
+    "parent_feature": "01-NPD-b brief actions",
+    "context_budget": "35k",
+    "estimated_effort": "2-3h",
+    "description": "createBrief + saveBriefDraft Server Actions with Zod-enforced dev_code regex, volume positivity, weight invariant.",
+    "details": "Two actions sharing brief Zod schema. RBAC + emit brief.created on insert. saveBriefDraft updates fields and recomputes summary weight invariant on multi_component.",
+    "scope_files": [
+      "apps/web/app/(npd)/brief/actions/create-brief.ts [create]",
+      "apps/web/app/(npd)/brief/actions/save-brief-draft.ts [create]",
+      "apps/web/app/(npd)/brief/actions/__tests__/create-brief.test.ts [create]",
+      "apps/web/app/(npd)/brief/actions/__tests__/save-brief-draft.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not implement Convert action here (T-033)",
+      "Do not implement UI here (T-034)"
+    ],
+    "dependencies": ["T-006", "T-007", "T-030"],
+    "parallel_safe_with": ["T-032"],
+    "acceptance_criteria": [
+      "Given role npd_manager calls createBrief('multi_component','DEV26-052'), when run, then brief row + 1 product line exist and brief.created event emitted",
+      "Given dev_code='DEV-XX', when createBrief called, then ValidationError with code 'DEV_CODE_FORMAT' thrown",
+      "Given multi_component summary weight 1000g vs sum components 850g (>1% tolerance), when saveBriefDraft runs, then ValidationError with code 'WEIGHT_MISMATCH' thrown"
+    ],
+    "test_strategy": [
+      "RED: 3 tests covering happy path, dev_code format, weight invariant before actions exist",
+      "Run 'pnpm --filter web test create-brief save-brief-draft'"
+    ],
+    "risk_red_lines": [
+      "Do not bypass weight invariant",
+      "Do not skip RBAC",
+      "Do not commit empty brief without 1 product line"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

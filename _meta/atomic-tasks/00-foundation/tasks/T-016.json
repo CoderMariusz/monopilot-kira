@@ -1,0 +1,84 @@
+{
+  "title": "T-016 \u2014 Verify-PIN step-up auth with argon2id (m=64MiB,t=3,p=1) + lockout policy",
+  "prompt": "# T-016 \u2014 Verify-PIN step-up auth with argon2id (m=64MiB,t=3,p=1) + lockout policy\n\nPRD: `00-FOUNDATION-PRD.md` \u2014 sections: \u00a75.x\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`\n\n## Goal\nShort-lived PIN for destructive admin actions. Stored as argon2id hash (memory=64MiB, t=3, p=1). Rate limit identical to login.\n\n## Implementation contract\nAdd packages/auth/src/verify-pin.ts: setPin(userId, pin) hashes via argon2.hash(pin, {type: argon2id, memoryCost: 65536, timeCost: 3, parallelism: 1}). verifyPin(userId, pin) calls argon2.verify and decrements a per-user attempt counter; after 5 failures within 10 minutes the account is soft-locked for 15 minutes (login lockout policy). Persist user_pins(user_id PK, pin_hash, attempts_count INT, locked_until TIMESTAMPTZ). Tests cover correct verify, lockout after 5 wrong attempts, and unlock after 15 minutes via fake timers.\n\n## Files (scope)\n- packages/auth/src/verify-pin.ts [create]\n- packages/db/migrations/008-pins.sql [create]\n- packages/auth/src/__tests__/verify-pin.test.ts [create]\n\n## Acceptance criteria\n1. Given a PIN is set with setPin, when verifyPin is called with the same plaintext, then it returns true and the database stores only the argon2id hash (no plaintext anywhere)\n2. Given 5 wrong attempts in 10 minutes, when the 6th attempt is made, then verifyPin returns 'locked' and locked_until is set 15 minutes ahead\n3. Given the argon2 parameters, when the hash is decoded, then memory_cost=65536 (64MiB), time_cost=3, parallelism=1\n\n## Test strategy\n- RED: write packages/auth/src/__tests__/verify-pin.test.ts covering hash params, lockout, unlock with fake timers before verify-pin.ts exists\n- Run 'pnpm --filter @monopilot/auth test'\n\n## Risk red lines\n- PIN must NEVER be stored plaintext or with reversible encryption\n- Lockout must be enforced server-side; do not rely on client-side counter\n\n## Dependencies (must be complete first)\n- T-010\n\n## Closeout evidence\nProvide: changed_files, test_commands_and_results, acceptance_criteria_status (per AC), deviations_from_prd, git_status. Use the test-driven-development skill (RED test before implementation) and requesting-code-review at GREEN.",
+  "labels": [
+    "prd",
+    "auth",
+    "step-up",
+    "T2-api"
+  ],
+  "priority": 80,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-016",
+    "source_prd": "00-FOUNDATION-PRD.md",
+    "prd_refs": [
+      "\u00a75.x"
+    ],
+    "category": "auth",
+    "subcategory": "step-up",
+    "task_type": "T2-api",
+    "parent_feature": "00-FOUNDATION-impl-f auth",
+    "context_budget": "40k",
+    "estimated_effort": "1-2h",
+    "description": "Short-lived PIN for destructive admin actions. Stored as argon2id hash (memory=64MiB, t=3, p=1). Rate limit identical to login.",
+    "details": "Add packages/auth/src/verify-pin.ts: setPin(userId, pin) hashes via argon2.hash(pin, {type: argon2id, memoryCost: 65536, timeCost: 3, parallelism: 1}). verifyPin(userId, pin) calls argon2.verify and decrements a per-user attempt counter; after 5 failures within 10 minutes the account is soft-locked for 15 minutes (login lockout policy). Persist user_pins(user_id PK, pin_hash, attempts_count INT, locked_until TIMESTAMPTZ). Tests cover correct verify, lockout after 5 wrong attempts, and unlock after 15 minutes via fake timers.",
+    "scope_files": [
+      "packages/auth/src/verify-pin.ts [create]",
+      "packages/db/migrations/008-pins.sql [create]",
+      "packages/auth/src/__tests__/verify-pin.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not modify files outside the scope_files list",
+      "Do not introduce business logic from later module PRDs (01-NPD, 02-SETTINGS, etc.)",
+      "No PIN reset UI in this task"
+    ],
+    "dependencies": [
+      "T-010"
+    ],
+    "parallel_safe_with": [
+      "T-015"
+    ],
+    "acceptance_criteria": [
+      "Given a PIN is set with setPin, when verifyPin is called with the same plaintext, then it returns true and the database stores only the argon2id hash (no plaintext anywhere)",
+      "Given 5 wrong attempts in 10 minutes, when the 6th attempt is made, then verifyPin returns 'locked' and locked_until is set 15 minutes ahead",
+      "Given the argon2 parameters, when the hash is decoded, then memory_cost=65536 (64MiB), time_cost=3, parallelism=1"
+    ],
+    "test_strategy": [
+      "RED: write packages/auth/src/__tests__/verify-pin.test.ts covering hash params, lockout, unlock with fake timers before verify-pin.ts exists",
+      "Run 'pnpm --filter @monopilot/auth test'"
+    ],
+    "risk_red_lines": [
+      "PIN must NEVER be stored plaintext or with reversible encryption",
+      "Lockout must be enforced server-side; do not rely on client-side counter"
+    ],
+    "skills": [
+      "test-driven-development",
+      "verification-before-completion",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

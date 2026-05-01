@@ -1,0 +1,83 @@
+{
+  "title": "T-020 — Server Action: maintenance_mode + integration.d365.enabled flag flip with V-SET-42",
+  "prompt": "# T-020 — Server Actions: feature_flags_core flip\n\n## Goal\nImplement `setCoreFlag(flagCode, enabled, rolloutPct?)`. For `integration.d365.enabled=true`, V-SET-42 must run: 5 d365_constants rows present + test connection passed. For `maintenance_mode=true`, also set middleware kill-switch.\n\n## Files in scope\n- apps/web/actions/flags/set-core.ts [create]\n- apps/web/actions/flags/set-core.test.ts [create]\n\n## Acceptance criteria (all must hold)\n- Given flag='integration.d365.enabled' and only 4 d365_constants rows exist, when flip to true is attempted, then action raises D365_CONSTANTS_MISSING.\n- Given flag='maintenance_mode' and caller has settings.flags.edit, when flipped to true, then feature_flags_core row updated and outbox event 'settings.module.toggled' (with flag_code) emitted.\n- Given flag flip succeeds, when audit_log queried, then a row with action='update' table_name='feature_flags_core' is present with old/new diff.\n\n## Test strategy (RED first)\n1. Add a failing test that exercises the acceptance criteria above. The RED command is:\n   `pnpm --filter @monopilot/web vitest run apps/web/actions/flags/set-core.test.ts`\n2. Run RED — it must fail before any production code is written.\n3. Implement the smallest change needed for GREEN.\n4. Re-run RED command — must pass.\n5. Run `pnpm typecheck` and `pnpm lint` in the changed package; both must pass.\n\n## Risk red lines\n- Do not edit files outside the listed scope without documenting why in CLOSEOUT.\n- Do not weaken existing acceptance criteria from prior tasks.\n- Do not introduce REST endpoints; use Server Actions per stack contract.\n- Do not commit secrets or vault keys.\n\n## Closeout evidence required\n- changed_files (with line counts)\n- exact test commands and outputs (RED→GREEN, typecheck, lint)\n- acceptance_criteria_status (one row per AC: pass/fail)\n- deviations_from_prd (or \"none\")\n- git_status\n\nStack: TS + Next.js App Router + Drizzle + pnpm + vitest + Playwright + Server Actions. Primitives in `packages/ui`. PRD: `02-SETTINGS-PRD.md` v3.5.\n",
+  "labels": [
+    "prd",
+    "api",
+    "flags-core",
+    "T2-api"
+  ],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-020",
+    "source_prd": "02-SETTINGS-PRD.md",
+    "prd_refs": [
+      "§10.2",
+      "§11.4",
+      "V-SET-42",
+      "V-SET-50",
+      "V-SET-52"
+    ],
+    "category": "api",
+    "subcategory": "flags-core",
+    "task_type": "T2-api",
+    "parent_feature": "02-settings-b",
+    "context_budget": "40k",
+    "estimated_effort": "1-3h",
+    "description": "Core feature flag flip with V-SET-42 D365 pre-check.",
+    "details": "V-SET-42 = 5 d365_constants rows populated; V-SET-50 = constants populated; V-SET-52 = test connection passes (call SM-08 logic from T-040 D365 test connection action). For non-D365 flags, only RBAC + audit are needed.",
+    "scope_files": [
+      "apps/web/actions/flags/set-core.ts",
+      "apps/web/actions/flags/set-core.test.ts"
+    ],
+    "out_of_scope": [
+      "broaden scope beyond listed files",
+      "implement future-phase features"
+    ],
+    "dependencies": [
+      "T-013",
+      "T-016"
+    ],
+    "parallel_safe_with": [],
+    "acceptance_criteria": [
+      "D365 pre-flight enforced.",
+      "Audit log row written via trigger.",
+      "Outbox event emitted."
+    ],
+    "test_strategy": [
+      "RED: 3 cases (D365 fail, maintenance success, audit row).",
+      "GREEN: implement."
+    ],
+    "risk_red_lines": [
+      "Do not flip integration.d365.enabled without all guards."
+    ],
+    "skills": [
+      "test-driven-development"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": false
+  }
+}

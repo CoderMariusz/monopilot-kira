@@ -1,0 +1,67 @@
+{
+  "title": "T-015 — API: TO ship + receive (partial shipments) + 05-WAREHOUSE handoff",
+  "prompt": "Implement ship/receive endpoints per PRD §7.4 + §7.5. Server Actions: shipTransferOrder({ to_id, lines: [{ to_line_id, shipped_qty }] }) and receiveTransferOrder({ to_id, lines: [{ to_line_id, received_qty }] }). Updates per-line shipped_qty/received_qty, transitions overall TO status per §7.4 algorithm (any line < qty → partially_shipped/received, all = qty → shipped/received). Calls 05-WAREHOUSE stock_move helper (cross-module): from_location → transit on ship, transit → to_location on receive.\n\nV-PLAN-TO-004/005/006 enforced. Outbox event 'to.state_changed' on transition.\n\nRED test covers full ship, partial ship (status partially_shipped), V-PLAN-TO-004 (shipped > qty rejected), V-PLAN-TO-005 (received > shipped rejected).",
+  "labels": ["prd", "api", "to-ship-receive", "T2-api"],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-015",
+    "source_prd": "04-PLANNING-BASIC-PRD.md",
+    "prd_refs": ["§7.4", "§7.5", "§7.7", "§7.8"],
+    "category": "api",
+    "subcategory": "to-ship-receive",
+    "task_type": "T2-api",
+    "parent_feature": "planning-to",
+    "context_budget": "40k",
+    "estimated_effort": "3-4h",
+    "description": "Ship/Receive Server Actions + 05-WAREHOUSE stock_move handoff.",
+    "details": "Stock move helper imported as `import { createStockMove } from '@/server/warehouse/stock-moves'` (05-WAREHOUSE prereq). Transit location resolved per §7.5. LP pre-select (V-PLAN-TO-006): if to_line_lps rows exist, re-validate availability before ship; abort with 409 if any LP no longer available. Atomic transaction across stock_move + TO update.",
+    "scope_files": [
+      "src/server/actions/planning/to-ship.ts [create]",
+      "src/server/actions/planning/to-receive.ts [create]",
+      "src/app/api/planning/transfer-orders/[id]/ship/route.ts [create]",
+      "src/app/api/planning/transfer-orders/[id]/receive/route.ts [create]",
+      "src/server/actions/planning/__tests__/to-ship-receive.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "LP picker UI (T-022)",
+      "Cross-site TO (M14)"
+    ],
+    "dependencies": ["T-014"],
+    "parallel_safe_with": ["T-016"],
+    "acceptance_criteria": [
+      "Given a TO line with quantity=10 and shipped_qty=10 input, when shipTransferOrder runs, then line.shipped_qty=10 and TO.status transitions to 'shipped'.",
+      "Given an input shipped_qty=11 against quantity=10, when validated, then HTTP 400 with code 'V-PLAN-TO-004'.",
+      "Given received_qty=7 against shipped_qty=5, when validated, then HTTP 400 with code 'V-PLAN-TO-005'.",
+      "Given `pnpm vitest run src/server/actions/planning/__tests__/to-ship-receive.test.ts`, when run, then 0 failures."
+    ],
+    "test_strategy": [
+      "RED tests for full and partial flows + V-PLAN-TO-004/005 rejections + outbox emit.",
+      "Mock stock-move helper to assert it is called with correct args.",
+      "Run `pnpm vitest run src/server/actions/planning/__tests__/to-ship-receive.test.ts`."
+    ],
+    "risk_red_lines": [
+      "Do not skip the stock-move call — inventory will desync from LP locations.",
+      "Do not weaken V-PLAN-TO-006 LP re-validation at ship time."
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

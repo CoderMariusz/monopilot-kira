@@ -1,0 +1,37 @@
+{
+  "title": "T-021 — API: Cost history endpoints (POST/GET /api/technical/items/:code/cost)",
+  "prompt": "Implement cost endpoints per §11.1-11.6 + V-TEC-50..53. POST body: { cost_per_kg, currency, effective_from, source, notes? }. Logic: insert into item_cost_history; close prior active row by setting its effective_to = effective_from-1; update items.cost_per_kg = new value (denormalized). Validate V-TEC-50 (cost>=0), V-TEC-51 (effective_from<=today for active), V-TEC-52 (currency in ISO 4217 list), V-TEC-53 (>20% delta vs current requires X-Approver-Id header). GET returns timeline (descending). Permission technical.cost.edit. RED tests/api/cost.test.ts. Run: `pnpm vitest run tests/api/cost.test.ts`.",
+  "labels": ["prd", "api", "cost", "T2-api"],
+  "priority": 80,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-021",
+    "source_prd": "03-TECHNICAL-PRD.md",
+    "prd_refs": ["§11.1", "§11.2", "§11.6"],
+    "category": "api",
+    "subcategory": "cost",
+    "task_type": "T2-api",
+    "parent_feature": "03-TECHNICAL-c Cost",
+    "context_budget": "25k",
+    "estimated_effort": "2h",
+    "description": "Cost POST with V-TEC-50..53 + history close + denormalized current cost.",
+    "details": "ISO 4217 list lives in lib/shared/iso4217.ts (create if absent). Approver requirement only fires when source ∈ {manual,supplier_update}; d365_sync and variance_roll bypass V-TEC-53. Audit log entry on every write.",
+    "scope_files": ["app/api/technical/items/[item_code]/cost/route.ts", "lib/technical/cost/service.ts", "lib/shared/iso4217.ts", "tests/api/cost.test.ts"],
+    "out_of_scope": ["Cost roll-up (10-FINANCE)", "D365 cost diff UI"],
+    "dependencies": ["T-003"],
+    "parallel_safe_with": ["T-017", "T-018", "T-019", "T-020", "T-022"],
+    "acceptance_criteria": [
+      "Given current cost 10.0, when POST cost_per_kg=12.5 source='manual' without approver header, then 422 V-TEC-53 (>20% delta).",
+      "Given POST cost_per_kg=-1, when validated, then 422 V-TEC-50.",
+      "Given valid POST, when committed, then prior history row.effective_to = new.effective_from - 1 day, and items.cost_per_kg updated.",
+      "Given GET, when called, then rows ordered by effective_from DESC."
+    ],
+    "test_strategy": ["RED tests across V-TEC-50/51/52/53 paths.", "Run: pnpm vitest run tests/api/cost.test.ts"],
+    "risk_red_lines": ["Do not insert negative cost.", "Do not skip audit log."],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {"required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"], "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]},
+    "routing_hints": {"red": "hermes_gpt55", "implementation": "hermes_gpt55", "review": "opus_if_high_risk_or_ui_or_architecture", "close": "spark_low_risk_else_opus"}
+  }
+}

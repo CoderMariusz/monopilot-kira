@@ -1,0 +1,58 @@
+{
+  "title": "T-037 — Matrix Cell Edit Modal (matrix_cell_edit_modal)",
+  "prompt": "# T-037 — Matrix Cell Edit Modal\n\nPRD: 07-PLANNING-EXT-PRD.md §8.1 SCR-07-02 §4.4 MODAL-07-02-CELL, §17.1 PLE-013, V-CM-04\nPrototype: design/Monopilot Design System/planning-ext/modals.jsx:322-378 (`matrix_cell_edit_modal`)\nUX: design/07-PLANNING-EXT-UX.md:563-579\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nImplement Dialog editing a single matrix cell: changeover_minutes, cleaning_required, atp_required, notes; segregation_required field HIDDEN from Planner role (V-CM-04 enforced).\n\n## Implementation contract\n1. New `apps/web/src/components/matrix/MatrixCellEditModal.tsx` (shadcn Dialog).\n2. Form fields: minutes (Input number ≥0), cleaning_required (Switch), atp_required (Switch), notes (Textarea).\n3. segregation_required Switch shown ONLY if user role IN ('Admin'); also requires confirmation step when toggled to true.\n4. Save: calls /api/scheduler/changeover-matrix with single-cell change → creates new version (handled by T-018).\n\n## Files\n- apps/web/src/components/matrix/MatrixCellEditModal.tsx [create]\n- apps/web/src/components/matrix/__tests__/MatrixCellEditModal.test.tsx [create]\n- design/Monopilot Design System/planning-ext/modals.jsx [ref]\n\n## Acceptance criteria\n1. Given Planner role, when MatrixCellEditModal renders, then segregation_required Switch is NOT in the DOM (hidden via role guard, V-CM-04)\n2. Given the rendered modal, when compared to prototype design/Monopilot Design System/planning-ext/modals.jsx:322-378, then it has same field set in same order (minutes, cleaning, atp, notes), same Save/Cancel buttons, and same shadcn primitives (Dialog, Input, Switch, Textarea, Button) — parity by RTL snapshot + checklist\n3. Given Admin role + toggling segregation to true, when [Save] clicked, then confirmation step appears (second click required) before submit\n\n## Test strategy\n- RED: write __tests__/MatrixCellEditModal.test.tsx covering segregation hidden for Planner + parity + Admin double-confirm\n- Run 'pnpm --filter web test matrix/MatrixCellEditModal'\n\n## Risk red lines\n- Do not show segregation field to Planner (hidden, not just disabled)\n- Do not save without confirmation when Admin toggles segregation true\n- Do not allow negative changeover_minutes (Zod min 0)",
+  "labels": ["prd", "ui", "modal", "T3-ui"],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-037",
+    "source_prd": "07-PLANNING-EXT-PRD.md",
+    "prd_refs": ["§8.1 SCR-07-02", "§17.1 PLE-013", "V-CM-04"],
+    "category": "ui",
+    "subcategory": "modal-cell-edit",
+    "task_type": "T3-ui",
+    "parent_feature": "07-EXT-b matrix cell edit",
+    "context_budget": "40k",
+    "estimated_effort": "1-2h",
+    "description": "Per-cell edit Dialog with role-gated segregation field + Admin double-confirm.",
+    "details": "shadcn Dialog. Role-gated rendering hides segregation_required entirely for non-Admin. Admin toggle requires confirmation step.",
+    "scope_files": [
+      "apps/web/src/components/matrix/MatrixCellEditModal.tsx [create]",
+      "apps/web/src/components/matrix/__tests__/MatrixCellEditModal.test.tsx [create]",
+      "design/Monopilot Design System/planning-ext/modals.jsx:322-378 [ref]"
+    ],
+    "out_of_scope": [
+      "Do not implement matrix editor here (T-036)",
+      "Do not implement publish modal here (T-038)"
+    ],
+    "dependencies": ["T-018", "T-036"],
+    "parallel_safe_with": ["T-038", "T-039"],
+    "acceptance_criteria": [
+      "Given Planner role, when MatrixCellEditModal renders, then segregation_required Switch is NOT in the DOM (hidden via role guard)",
+      "Given the rendered modal, when compared to prototype design/Monopilot Design System/planning-ext/modals.jsx:322-378, then it has same field set in same order, same Save/Cancel buttons, and same shadcn primitives (Dialog, Input, Switch, Textarea, Button) — parity by RTL snapshot + checklist",
+      "Given Admin role + toggling segregation to true, when [Save] clicked, then confirmation step appears before submit"
+    ],
+    "test_strategy": [
+      "RED: write __tests__/MatrixCellEditModal.test.tsx covering segregation hidden + parity + Admin double-confirm",
+      "Run 'pnpm --filter web test matrix/MatrixCellEditModal'"
+    ],
+    "risk_red_lines": [
+      "Do not show segregation field to Planner",
+      "Do not save without confirmation when Admin toggles segregation true",
+      "Do not allow negative changeover_minutes"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

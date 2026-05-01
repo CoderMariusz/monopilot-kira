@@ -1,0 +1,36 @@
+{
+  "title": "T-042 — UI: TEC-082 BOM Version Delete modal (type-to-confirm)",
+  "prompt": "Build the type-to-confirm BOM version delete modal per §7A. Guards against deletion when active bom_snapshots reference the version. Match prototype `delete_bom_version_modal` design/Monopilot Design System/technical/modals.jsx:245-266. RED tests/ui/tec-082-delete-version.test.tsx. Run: `pnpm vitest run tests/ui/tec-082-delete-version.test.tsx`.",
+  "labels": ["prd", "ui", "ui-bom-delete", "T3-ui"],
+  "priority": 120,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-042",
+    "source_prd": "03-TECHNICAL-PRD.md",
+    "prd_refs": ["§7A TEC-082"],
+    "category": "ui",
+    "subcategory": "bom-delete",
+    "task_type": "T3-ui",
+    "parent_feature": "03-TECHNICAL-a BOM",
+    "context_budget": "12k",
+    "estimated_effort": "1h",
+    "description": "Type-to-confirm version delete modal that blocks when snapshots exist.",
+    "details": "Server-side check via GET .../snapshots-count before allowing delete. If snapshots exist, modal shows 'BLOCKED: snapshot referenced by WO X' message and disables delete.",
+    "scope_files": ["app/(app)/technical/boms/[id]/_components/delete-version-modal.tsx", "tests/ui/tec-082-delete-version.test.tsx"],
+    "out_of_scope": ["Server endpoint snapshots-count"],
+    "dependencies": ["T-038"],
+    "parallel_safe_with": ["T-040", "T-043"],
+    "acceptance_criteria": [
+      "Given the modal opens, when compared to design/Monopilot Design System/technical/modals.jsx:245-266, then it shows the same warning copy, type-to-confirm input, and destructive Delete button — structural + visual + interaction parity verified by RTL.",
+      "Given snapshot count > 0, when modal opens, then Delete button is disabled and a blocking notice appears.",
+      "Given user types matching version label, when confirmed, then DELETE request is fired."
+    ],
+    "test_strategy": ["RED tests for parity + guard.", "Run: pnpm vitest run tests/ui/tec-082-delete-version.test.tsx"],
+    "risk_red_lines": ["Do not allow delete when snapshots exist."],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {"required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"], "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]},
+    "routing_hints": {"red": "hermes_gpt55", "implementation": "hermes_gpt55", "review": "opus_if_high_risk_or_ui_or_architecture", "close": "spark_low_risk_else_opus"}
+  }
+}

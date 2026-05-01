@@ -1,0 +1,59 @@
+{
+  "title": "T-002 — prod_detail table + indexes (NPD-a core schema)",
+  "prompt": "# T-002 — prod_detail table + indexes\n\nPRD: 01-NPD-PRD.md §4.3\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nCreate prod_detail table for multi-component ProdDetail rows (1 per component for multi-comp FAs; mirror row for single-comp).\n\n## Implementation contract\nEmit Drizzle migration 0011_prod_detail.sql per §4.3 DDL: id UUID PK, product_code FK references product(product_code) ON DELETE CASCADE, tenant_id UUID, intermediate_code TEXT, component_index INT, manufacturing_operation_1..4 TEXT, operation_yield_1..4 NUMERIC, line TEXT, equipment_setup TEXT, yield_line, resource_requirement, rate, intermediate_code_p1..p4 (auto), intermediate_code_final, slice_count, component_weight, created_at. Indexes: (product_code), (tenant_id, product_code). Enable RLS with tenant_id policy. Drizzle ORM schema in packages/db/src/schema/prod-detail.ts.\n\n## Files\n- packages/db/migrations/0011_prod_detail.sql [create]\n- packages/db/src/schema/prod-detail.ts [create]\n- packages/db/src/schema/index.ts [modify]\n- packages/db/__tests__/prod-detail.test.ts [create]\n\n## Acceptance criteria\n1. Given migration 0011 ran, when describing prod_detail, then both indexes exist and FK product_code → product enforces ON DELETE CASCADE\n2. Given a product row deleted, when DELETE cascades, then all prod_detail rows for that product_code are removed\n3. Given two tenants with rows, when querying prod_detail under tenant A session, then no tenant B rows appear\n\n## Test strategy\n- RED: tests asserting cascade delete + RLS isolation\n- Run 'pnpm --filter db migrate && pnpm --filter db test prod-detail'\n\n## Risk red lines\n- Do not allow component_index to be NULL\n- Do not skip RLS\n- Do not omit FK CASCADE",
+  "labels": ["prd", "data", "schema", "T1-schema"],
+  "priority": 50,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-002",
+    "source_prd": "01-NPD-PRD.md",
+    "prd_refs": ["§4.3"],
+    "category": "data",
+    "subcategory": "schema-prod-detail",
+    "task_type": "T1-schema",
+    "parent_feature": "01-NPD-a core schema",
+    "context_budget": "30k",
+    "estimated_effort": "1h",
+    "description": "Create prod_detail table for per-component manufacturing data with FK to product + RLS + Drizzle schema.",
+    "details": "Migration 0011 emits prod_detail per §4.3 DDL with cascade delete on product. Drizzle schema exports types. Tests verify cascade and RLS isolation between tenants.",
+    "scope_files": [
+      "packages/db/migrations/0011_prod_detail.sql [create]",
+      "packages/db/src/schema/prod-detail.ts [create]",
+      "packages/db/src/schema/index.ts [modify]",
+      "packages/db/__tests__/prod-detail.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not implement cascade engine logic",
+      "Do not seed test data beyond test fixtures"
+    ],
+    "dependencies": ["T-001"],
+    "parallel_safe_with": ["T-003", "T-006"],
+    "acceptance_criteria": [
+      "Given migration 0011 ran, when describing prod_detail, then indexes (product_code) and (tenant_id, product_code) exist and FK enforces ON DELETE CASCADE",
+      "Given a product row deleted, when DELETE cascades, then all prod_detail rows for that product_code are removed",
+      "Given two tenants with rows, when querying prod_detail under tenant A session, then no tenant B rows appear"
+    ],
+    "test_strategy": [
+      "RED: write packages/db/__tests__/prod-detail.test.ts asserting cascade + RLS before migration exists",
+      "Run 'pnpm --filter db migrate && pnpm --filter db test prod-detail'"
+    ],
+    "risk_red_lines": [
+      "Do not allow component_index NULL",
+      "Do not skip RLS policy",
+      "Do not omit ON DELETE CASCADE on product_code FK"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

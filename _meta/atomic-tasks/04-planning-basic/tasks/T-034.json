@@ -1,0 +1,71 @@
+{
+  "title": "T-034 — UI: PLN-001 Planning Dashboard page (parity with prototype)",
+  "prompt": "Build PLN-001 PlanningDashboard page (Next.js App Router server component) at `src/app/(planning)/planning/page.tsx` matching the prototype `design/Monopilot Design System/planning/dashboard.jsx:3-261` 1:1.\n\nLayout (3 bands): Band 1 PLN-001a stat tiles (open POs, pending approval, overdue, open TOs, scheduled today, in_progress, on_hold>24h). Band 2 PLN-001b grouped alerts (per §13.1). Band 3 includes PLN-001c QuickActions strip (Create PO, TO, WO, Bulk Import, Run Sequencing) and PLN-001d CascadeChainView tab.\n\nUse shadcn primitives only. Server Component fetches data via T-027 dashboard service. Loading + empty + error states match prototype.\n\nRED test: RTL snapshot test asserts component hierarchy matches prototype regions; Playwright e2e test loads /planning and verifies KPI tiles render.",
+  "labels": ["prd", "ui", "pln-001-dashboard", "T3-ui"],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-034",
+    "source_prd": "04-PLANNING-BASIC-PRD.md",
+    "prd_refs": ["§13.1", "§13.2", "§13.5"],
+    "category": "ui",
+    "subcategory": "pln-001-dashboard",
+    "task_type": "T3-ui",
+    "parent_feature": "planning-dashboard",
+    "context_budget": "40k",
+    "estimated_effort": "4-5h",
+    "prototype_match": true,
+    "description": "PLN-001 server-rendered page with KPI tiles, alerts, and quick actions matching dashboard prototype.",
+    "details": "Prototype reference: planning/dashboard.jsx:3-261 (read-only). Translation notes: window.Modal → Radix Dialog; mock states → real Server Action data; mock setTimeout → Server Action with optimistic UI; hardcoded labels → next-intl t() keys under planning.dashboard. Parity checklist (verify each in RTL test): (1) 3 bands present in same order; (2) 7 KPI tiles present in Band 1 with correct labels; (3) alerts grouped by category in Band 2; (4) Quick Actions strip shows 5 buttons in same order. Use Suspense for streaming. Cache headers: revalidate=60.",
+    "scope_files": [
+      "src/app/(planning)/planning/page.tsx [create]",
+      "src/components/planning/dashboard/StatsCards.tsx [create]",
+      "src/components/planning/dashboard/Alerts.tsx [create]",
+      "src/components/planning/dashboard/QuickActions.tsx [create]",
+      "src/components/planning/dashboard/CascadeChainView.tsx [create]",
+      "src/components/planning/dashboard/__tests__/PlanningDashboard.test.tsx [create]",
+      "design/Monopilot Design System/planning/dashboard.jsx:3-261 [ref]"
+    ],
+    "out_of_scope": [
+      "Cascade DAG view page (T-046)",
+      "PO/TO/WO list pages (T-035..T-037)"
+    ],
+    "dependencies": ["T-027"],
+    "parallel_safe_with": ["T-035", "T-036", "T-037"],
+    "acceptance_criteria": [
+      "Given the production page renders, when compared to `design/Monopilot Design System/planning/dashboard.jsx:3-261`, then it has the same 3 bands in the same order, the same 7 KPI tiles in Band 1, the same alert categories in Band 2, and the same 5 Quick Action buttons — verified by RTL snapshot, with the parity checklist in `pipeline_inputs.details`.",
+      "Given the dashboard endpoint returns empty arrays, when the page renders, then empty-state copy matches the prototype empty state.",
+      "Given the API returns an error, when the page renders, then the error boundary shows the same red banner copy as the prototype.",
+      "Given `pnpm vitest run src/components/planning/dashboard/__tests__/PlanningDashboard.test.tsx` and `pnpm playwright test e2e/planning/dashboard.spec.ts`, when run, then 0 failures."
+    ],
+    "test_strategy": [
+      "RED RTL snapshot asserting prototype parity (3 bands, 7 tiles, 5 actions).",
+      "Playwright e2e: navigate /planning, expect KPI tiles, click Create PO → wizard opens.",
+      "Run `pnpm vitest run` and `pnpm playwright test`."
+    ],
+    "risk_red_lines": [
+      "Do not deviate from shadcn primitive choices in the prototype.",
+      "Do not hardcode strings — use next-intl.",
+      "Do not add new bands not in the prototype."
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

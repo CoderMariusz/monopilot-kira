@@ -1,0 +1,37 @@
+{
+  "title": "T-031 — API: Variance tracking nightly job (catch-weight)",
+  "prompt": "Per §8.5 implement nightly job `catchWeightVariance` in lib/cron/catch-weight-variance.ts. For each item with weight_mode='catch': compute avg actual vs nominal, stddev, per-WO roll-up. Read source: work_order_items.actual_weight (08-PRODUCTION — assume read-only join). Write summary into a small cache table or materialized view `catch_weight_variance_daily`. Alert publish on outbox when avg variance > threshold from reference_tables.alert_thresholds.row_key='catch_weight_variance_pct'. RED tests/wiring/catch-weight-variance.test.ts. Run: `pnpm vitest run tests/wiring/catch-weight-variance.test.ts`.",
+  "labels": ["prd", "integration", "catch-weight", "T4-wiring-test"],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-031",
+    "source_prd": "03-TECHNICAL-PRD.md",
+    "prd_refs": ["§8.1", "§8.5", "§8.6"],
+    "category": "integration",
+    "subcategory": "catch-weight",
+    "task_type": "T4-wiring-test",
+    "parent_feature": "03-TECHNICAL-c Catch Weight",
+    "context_budget": "25k",
+    "estimated_effort": "2-3h",
+    "description": "Nightly variance computation job; emits alert when avg variance exceeds threshold.",
+    "details": "Provide a migration creating catch_weight_variance_daily table with (org_id, item_id, day, avg_variance_pct, stddev, samples). Tests stub work_order_items rows. Alert outbox event 'catch_weight.alert'.",
+    "scope_files": ["db/migrations/0xxx_catch_weight_variance_daily.sql", "lib/cron/catch-weight-variance.ts", "tests/wiring/catch-weight-variance.test.ts"],
+    "out_of_scope": ["Scale HW driver", "Variance UI"],
+    "dependencies": ["T-001"],
+    "parallel_safe_with": ["T-024", "T-025", "T-026", "T-027", "T-028"],
+    "acceptance_criteria": [
+      "Given 100 weighings with avg variance 4%, threshold 5%, when job runs, then no alert emitted.",
+      "Given avg variance 7%, when job runs, then 'catch_weight.alert' present in outbox with item_id+avg.",
+      "Given fixed-weight items, when job runs, then they are skipped (no rows produced).",
+      "Given empty work_order_items, when job runs, then no errors (graceful no-op)."
+    ],
+    "test_strategy": ["RED tests for threshold behaviour + skip rules.", "Run: pnpm vitest run tests/wiring/catch-weight-variance.test.ts"],
+    "risk_red_lines": ["Do not modify work_order_items (read-only)."],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {"required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"], "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]},
+    "routing_hints": {"red": "hermes_gpt55", "implementation": "hermes_gpt55", "review": "opus_if_high_risk_or_ui_or_architecture", "close": "spark_low_risk_else_opus"}
+  }
+}

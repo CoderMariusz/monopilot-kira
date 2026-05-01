@@ -1,0 +1,64 @@
+{
+  "title": "T-026 — API: finite-capacity scheduling stub (greedy)",
+  "prompt": "Implement scheduling stub per PRD §11.1 (FR-PLAN-030):\n1. Line/machine availability check (is_active + shift calendar from 02-SETTINGS §12 + existing WO bookings).\n2. Capacity tally per line per scheduling window.\n3. Greedy first-fit: WOs sorted by priority DESC, scheduled_start_time ASC.\n4. Overflow flag `scheduled_slot_conflict=true` (no block).\n5. DAG respect: downstream WO scheduled_start_time >= parent.projected_end_time.\n\nPopulates wo.scheduled_start_time + scheduled_end_time. Outbox event 'wo.scheduled' (§11.4).\n\nRED test asserts greedy allocation order, conflict flag on overflow, DAG ordering preserved.",
+  "labels": ["prd", "api", "scheduling-stub", "T2-api"],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-026",
+    "source_prd": "04-PLANNING-BASIC-PRD.md",
+    "prd_refs": ["§11.1", "§11.2", "§11.4"],
+    "category": "api",
+    "subcategory": "scheduling-stub",
+    "task_type": "T2-api",
+    "parent_feature": "planning-scheduling",
+    "context_budget": "30k",
+    "estimated_effort": "2-3h",
+    "description": "Greedy first-fit scheduling stub with DAG ordering respect and overflow flagging.",
+    "details": "Per WO duration = SUM(wo_operations.expected_duration_minutes). Shift calendar query reads 02-SETTINGS §12 production_shifts table. Conflict flag stored on wo (NOT separate table). Stub does NOT preempt or re-optimize — full engine in 07-PLANNING-EXT (§11.3 limitations).",
+    "scope_files": [
+      "src/server/services/scheduling-stub.ts [create]",
+      "src/app/api/planning/work-orders/schedule/route.ts [create]",
+      "src/server/services/__tests__/scheduling-stub.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Full engine (07-PLANNING-EXT)",
+      "Gantt UI (T-030)"
+    ],
+    "dependencies": ["T-004", "T-005", "T-019"],
+    "parallel_safe_with": ["T-025"],
+    "acceptance_criteria": [
+      "Given 3 WOs sorted by priority [critical=1, normal=2, low=3] on a single line, when scheduler runs, then scheduled_start_time order is [critical, normal, low].",
+      "Given line capacity 8h and 3 WOs of 4h each, when scheduler runs, then the third WO has scheduled_slot_conflict=true.",
+      "Given a parent WO with projected_end_time T+60min, when child WO scheduled, then child.scheduled_start_time >= T+60min.",
+      "Given `pnpm vitest run src/server/services/__tests__/scheduling-stub.test.ts`, when run, then 0 failures."
+    ],
+    "test_strategy": [
+      "RED tests for priority ordering, capacity overflow flag, DAG ordering.",
+      "Run `pnpm vitest run src/server/services/__tests__/scheduling-stub.test.ts`."
+    ],
+    "risk_red_lines": [
+      "Do not preempt or re-optimize — §11.3 limitations apply to P1.",
+      "Do not block on overflow — flag only."
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

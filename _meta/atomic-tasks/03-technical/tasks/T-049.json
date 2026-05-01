@@ -1,0 +1,36 @@
+{
+  "title": "T-049 — UI: TEC-044 Allergen Manual Override Audit panel (PARTIAL)",
+  "prompt": "Build allergen manual override audit panel per §10.7 TEC-044 (PARTIAL — embedded in TEC-012 detail UX:746). Lists override entries (item, allergen, reason, declared_by, timestamp). Reuses `allergen_declaration_modal` override variant at design/Monopilot Design System/technical/modals.jsx:309-347. RED tests/ui/tec-044-override-audit.test.tsx. Run: `pnpm vitest run tests/ui/tec-044-override-audit.test.tsx`.",
+  "labels": ["prd", "ui", "ui-allergens-override", "T3-ui"],
+  "priority": 120,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-049",
+    "source_prd": "03-TECHNICAL-PRD.md",
+    "prd_refs": ["§10.3", "§10.7 TEC-044"],
+    "category": "ui",
+    "subcategory": "allergens-override",
+    "task_type": "T3-ui",
+    "parent_feature": "03-TECHNICAL-b Allergens",
+    "context_budget": "15k",
+    "estimated_effort": "1-2h",
+    "description": "Override audit list + opens declaration-modal override variant.",
+    "details": "Lives as a card on item detail Allergens tab plus an aggregate cross-item view at /technical/allergens/overrides.",
+    "scope_files": ["app/(app)/technical/allergens/overrides/page.tsx", "tests/ui/tec-044-override-audit.test.tsx"],
+    "out_of_scope": ["Override write path (T-017)"],
+    "dependencies": ["T-017", "T-047"],
+    "parallel_safe_with": ["T-046", "T-048"],
+    "acceptance_criteria": [
+      "Given the panel renders, when compared to design/Monopilot Design System/technical/modals.jsx:309-347 (override variant), then the modal opens with reason field required and matches the prototype's primitives — structural + visual + interaction parity verified by RTL.",
+      "Given an override row, when clicked, then modal opens pre-filled with reason and allergen.",
+      "Given user lacks technical.allergens.edit, when override Save attempted, then disabled."
+    ],
+    "test_strategy": ["RED tests for parity + reason validation.", "Run: pnpm vitest run tests/ui/tec-044-override-audit.test.tsx"],
+    "risk_red_lines": ["Do not allow Save without manual_override_reason."],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {"required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"], "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]},
+    "routing_hints": {"red": "hermes_gpt55", "implementation": "hermes_gpt55", "review": "opus_if_high_risk_or_ui_or_architecture", "close": "spark_low_risk_else_opus"}
+  }
+}

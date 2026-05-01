@@ -1,0 +1,35 @@
+{
+  "title": "T-069 — Docs: TEC-092 ECO Phase-2 marker (Phase 1 out-of-scope)",
+  "prompt": "Add a Phase-2 marker note for TEC-092 ECO (Engineering Change Order) per §7A + §4.4 line 108. Output: design/specs/TEC-092-eco-phase2.md confirming that the ECO prototypes (eco_screen, eco_change_request_modal, eco_approval_modal) are tracked for traceability but are explicitly OUT OF SCOPE for Phase 1. Include hand-off pointers for the Phase-2 backlog.",
+  "labels": ["prd", "docs", "spec-eco-phase2", "docs"],
+  "priority": 150,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-069",
+    "source_prd": "03-TECHNICAL-PRD.md",
+    "prd_refs": ["§4.4", "§7A TEC-092"],
+    "category": "docs",
+    "subcategory": "spec-eco-phase2",
+    "task_type": "docs",
+    "parent_feature": "03-TECHNICAL-a BOM",
+    "context_budget": "8k",
+    "estimated_effort": "0.5h",
+    "description": "Phase-2 marker note for ECO so prototypes are not orphaned.",
+    "details": "Note links the three ECO prototypes (eco_screen, eco_change_request_modal, eco_approval_modal) and the §4.4 exclusion. Include suggested Phase-2 acceptance criteria scaffolding for future re-decomposition.",
+    "scope_files": ["design/specs/TEC-092-eco-phase2.md"],
+    "out_of_scope": ["Implementation", "Prototype changes"],
+    "dependencies": [],
+    "parallel_safe_with": ["T-064", "T-065", "T-066", "T-067", "T-068"],
+    "acceptance_criteria": [
+      "Given the note exists, when reviewed, then it confirms ECO is Phase-2 and lists the three prototypes.",
+      "Given the note, when planning Phase-2, then it provides scaffolding for re-decomposition."
+    ],
+    "test_strategy": ["Manual review.", "No automated tests."],
+    "risk_red_lines": ["Do not draft Phase-1 ECO tasks."],
+    "skills": ["requesting-code-review"],
+    "checkpoint_policy": {"required_checkpoints": ["REVIEW", "CLOSEOUT"], "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]},
+    "routing_hints": {"red": "hermes_gpt55", "implementation": "hermes_gpt55", "review": "opus_if_high_risk_or_ui_or_architecture", "close": "spark_low_risk_else_opus"}
+  }
+}

@@ -1,0 +1,63 @@
+{
+  "title": "T-029 — Seed: planning_settings defaults + status_display per tenant",
+  "prompt": "Implement seed/migration helper that inserts a planning_settings row for each tenant on tenant onboarding. Seed values per PRD §14.1 defaults table. status_display JSONB seeded with the 7 PO statuses + 8 TO statuses + 7 WO statuses, each with default { label_pl, label_en, color (Tailwind tone hex), icon }. po_approval_roles default '{}'. wo_number_format='WIP-{SUFFIX}-{NNNNNNN}' default. default_intermediate_disposition='to_stock'.\n\nIdempotent: ON CONFLICT (tenant_id) DO NOTHING. Hook into 02-SETTINGS tenant-create flow.\n\nRED test creates a fresh tenant, asserts settings row materializes with all defaults and status_display covers all enum values.",
+  "labels": ["prd", "data", "settings-seed", "T5-seed"],
+  "priority": 110,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-029",
+    "source_prd": "04-PLANNING-BASIC-PRD.md",
+    "prd_refs": ["§14.1", "§14.2"],
+    "category": "data",
+    "subcategory": "settings-seed",
+    "task_type": "T5-seed",
+    "parent_feature": "planning-settings",
+    "context_budget": "20k",
+    "estimated_effort": "1-2h",
+    "description": "Per-tenant planning_settings seeding with status_display + defaults.",
+    "details": "status_display structure mirrors PRD §14.2 example. PO statuses: draft, submitted, pending_approval, confirmed, receiving, closed, cancelled. TO: draft, planned, partially_shipped, shipped, partially_received, received, closed, cancelled. WO: DRAFT, RELEASED, IN_PROGRESS, ON_HOLD, COMPLETED, CLOSED, CANCELLED. Default colors mapped to Tailwind tones.",
+    "scope_files": [
+      "src/server/services/planning-settings-seed.ts [create]",
+      "src/server/services/__tests__/planning-settings-seed.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Settings PATCH endpoint (T-028)",
+      "Status display editor UI (T-038a)"
+    ],
+    "dependencies": ["T-006"],
+    "parallel_safe_with": ["T-028"],
+    "acceptance_criteria": [
+      "Given a fresh tenant T1, when planning-settings-seed runs, then a planning_settings row exists with default_po_currency='GBP', wo_number_format='WIP-{SUFFIX}-{NNNNNNN}', default_intermediate_disposition='to_stock'.",
+      "Given the seed runs twice for the same tenant, when the second run completes, then the row count is still 1 (idempotent).",
+      "Given the seeded status_display, when iterated, then it covers all 22 enum values (7 PO + 8 TO + 7 WO) per V-PLAN-SET-003.",
+      "Given `pnpm vitest run src/server/services/__tests__/planning-settings-seed.test.ts`, when run, then 0 failures."
+    ],
+    "test_strategy": [
+      "RED tests for default coverage, idempotency, status_display completeness.",
+      "Run `pnpm vitest run src/server/services/__tests__/planning-settings-seed.test.ts`."
+    ],
+    "risk_red_lines": [
+      "Do not seed without tenant_id — RLS guard would reject anyway, but logic must call with valid context.",
+      "Do not omit any status from status_display — V-PLAN-SET-003 hard rule."
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

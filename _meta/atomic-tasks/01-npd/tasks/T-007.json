@@ -1,0 +1,58 @@
+{
+  "title": "T-007 — outbox_events emitter wrapper for fa.* events",
+  "prompt": "# T-007 — outbox_events emitter wrapper for fa.* events\n\nPRD: 01-NPD-PRD.md §4.1, §3.1, §15 events list\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nProvide a typed emitFaEvent(eventType, productCode, payload, ctx) helper that writes one outbox_events row per call inside the caller's DB transaction, with strongly typed event names: fa.created, fa.core_closed, fa.dept_closed, fa.built, fa.built_reset, fa.allergens_changed, brief.converted.\n\n## Implementation contract\nNew packages/outbox/src/emit-fa-event.ts: function takes (db tx, eventType union, aggregateId, payload jsonb, ctx={tenant_id, app_version}) and INSERTs into outbox_events with aggregate_type='fa' (or 'brief' for brief.converted). Use Drizzle. Reject unknown event types via type union. Tests assert insert + idempotent on retry with same dedup key.\n\n## Files\n- packages/outbox/src/emit-fa-event.ts [create]\n- packages/outbox/src/event-types.ts [create]\n- packages/outbox/__tests__/emit-fa-event.test.ts [create]\n\n## Acceptance criteria\n1. Given emitFaEvent(tx,'fa.created','FA0042',{...},ctx) called, when transaction commits, then outbox_events has one row with event_type='fa.created' aggregate_id='FA0042'\n2. Given typing emitFaEvent(tx,'fa.unknown','FA0042',{},ctx), when pnpm typecheck runs, then TS reports type error (not assignable to event union)\n3. Given the same call repeated with same dedup_key inside one tx, when committed, then exactly one row exists (idempotent)\n\n## Test strategy\n- RED: tests for insert + type check failure (compile-time) + idempotency\n- Run 'pnpm --filter outbox test && pnpm --filter outbox typecheck'\n\n## Risk red lines\n- Do not bypass tx context (always require tx parameter)\n- Do not write outside outbox_events table\n- Do not allow free-form event_type strings",
+  "labels": ["prd", "infra", "outbox", "T2-api"],
+  "priority": 80,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-007",
+    "source_prd": "01-NPD-PRD.md",
+    "prd_refs": ["§4.1", "§3.1", "§15"],
+    "category": "infra",
+    "subcategory": "outbox-emitter",
+    "task_type": "T2-api",
+    "parent_feature": "01-NPD-a outbox events",
+    "context_budget": "30k",
+    "estimated_effort": "1-2h",
+    "description": "Typed emitFaEvent helper that writes domain events to outbox_events inside caller transactions.",
+    "details": "Drizzle-based emitter with discriminated union of event_type. Function inserts payload JSONB row, uses dedup_key for idempotency. Event union exported from event-types.ts.",
+    "scope_files": [
+      "packages/outbox/src/emit-fa-event.ts [create]",
+      "packages/outbox/src/event-types.ts [create]",
+      "packages/outbox/__tests__/emit-fa-event.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not implement consumer side here",
+      "Do not introduce websocket or queue brokers"
+    ],
+    "dependencies": [],
+    "parallel_safe_with": ["T-005", "T-006"],
+    "acceptance_criteria": [
+      "Given emitFaEvent(tx,'fa.created','FA0042',{...},ctx) called, when tx commits, then outbox_events has one row with event_type='fa.created' aggregate_id='FA0042'",
+      "Given calling with event_type 'fa.unknown', when pnpm typecheck runs, then TS reports a type error",
+      "Given same call repeated with same dedup_key inside one tx, when committed, then exactly one row exists"
+    ],
+    "test_strategy": [
+      "RED: write packages/outbox/__tests__/emit-fa-event.test.ts asserting insert + typecheck guard + idempotency",
+      "Run 'pnpm --filter outbox test && pnpm --filter outbox typecheck'"
+    ],
+    "risk_red_lines": [
+      "Do not bypass tx parameter",
+      "Do not allow free-form event_type strings",
+      "Do not write to any table besides outbox_events"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

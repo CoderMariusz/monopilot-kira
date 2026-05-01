@@ -1,583 +1,874 @@
-[
-  {
-    "label": "run_scheduler_modal",
-    "file": "design/Monopilot Design System/planning-ext/modals.jsx",
-    "lines": "21-95",
-    "component_type": "modal",
-    "ui_pattern": "crud-form-with-validation",
-    "data_domain": "Sequence",
-    "interaction": "create",
-    "complexity": "composite",
-    "depends_on_prototypes": [],
-    "translation_notes": [
-      "Modal primitive → @radix-ui/react-dialog Dialog with controlled open/onOpenChange",
-      "Local useState (horizon, linesChecked, includeForecast, submitting) → useForm (react-hook-form) + zodResolver schema with min-1-line validation",
-      "Mock PEXT_LINES array → Drizzle query `db.select().from(productionLines).where(eq(lines.active, true))` in Server Component loader",
-      "Hardcoded setTimeout fake submit → Server Action `runOptimizerAction(formData)` calling solver microservice with RBAC guard (role IN ['Planner','Admin'])",
-      "Emit outbox event `scheduler.run.requested` on submit success",
-      "Hardcoded optimizer version string → read from `feature_flags` table key `allergen_sequencing_optimizer_v2`",
-      "Hardcoded labels (e.g. '7 days (default)', 'P2' pill) → next-intl keys `scheduler.run.horizon.*`"
-    ],
-    "shadcn_equivalent": ["Dialog", "DialogContent", "DialogHeader", "DialogFooter", "Checkbox", "Button", "Label", "Badge"],
-    "known_bugs": [],
-    "estimated_translation_time_min": 90
-  },
-  {
-    "label": "override_assignment_modal",
-    "file": "design/Monopilot Design System/planning-ext/modals.jsx",
-    "lines": "98-212",
-    "component_type": "modal",
-    "ui_pattern": "crud-form-with-validation",
-    "data_domain": "WO",
-    "interaction": "edit",
-    "complexity": "composite",
-    "depends_on_prototypes": ["run_scheduler_modal"],
-    "translation_notes": [
-      "Modal size='wide' → Dialog with className max-w-3xl in DialogContent",
-      "Allergen incompatibility computed inline (wo.allergen.includes) → derive from changeover_matrix join in loader; pass as `allergenConflict: boolean` prop to avoid client-side matrix lookups",
-      "Reason code dropdown hardcoded options → reference data table `override_reason_codes` with i18n labels",
-      "Impact preview section (new CO before/after delta) → compute server-side via `getChangeoverImpact(fromLine, toLine, allergenFrom, allergenTo)` helper and stream back to client",
-      "Fake submit setTimeout → Server Action `overrideAssignmentAction` with V-SCHED-02/03/04 validator, audit log write, outbox `scheduler.assignment.overridden`",
-      "Blocked/allergenIncompat state → enforce hard block in Server Action, not just UI; return structured error for toast display",
-      "Hardcoded labels → next-intl keys `scheduler.override.*`"
-    ],
-    "shadcn_equivalent": ["Dialog", "DialogContent", "Select", "Input", "Textarea", "Button", "Alert", "Label"],
-    "known_bugs": [],
-    "estimated_translation_time_min": 120
-  },
-  {
-    "label": "reschedule_wo_modal",
-    "file": "design/Monopilot Design System/planning-ext/modals.jsx",
-    "lines": "214-287",
-    "component_type": "modal",
-    "ui_pattern": "crud-form-with-validation",
-    "data_domain": "WO",
-    "interaction": "edit",
-    "complexity": "composite",
-    "depends_on_prototypes": ["override_assignment_modal"],
-    "translation_notes": [
-      "FA-line eligibility mock array → derive from `fa_line_compatibility` join table in Server Component; pass `eligibleLineIds: string[]` as prop",
-      "Modal size='wide' → Dialog with className max-w-3xl",
-      "Acknowledgement checkbox for ineligible line → must be recorded in audit log as explicit user acceptance; add `ack_override_reason` field to Server Action payload",
-      "useForm validation: `isEligible || ackIneligible` → zod `.superRefine()` cross-field rule matching V-SCHED-03",
-      "Fake submit → Server Action `rescheduleWOAction` with cascade dependency check (V-SCHED-04 no overlap) + outbox `scheduler.wo.rescheduled`",
-      "Shift window constraint on datetime-local → enforce in Server Action using shift_definitions table, return field error on violation",
-      "Hardcoded reason codes → reference data table; next-intl for labels"
-    ],
-    "shadcn_equivalent": ["Dialog", "DialogContent", "Select", "Input", "Checkbox", "Button", "Alert", "Label"],
-    "known_bugs": [],
-    "estimated_translation_time_min": 100
-  },
-  {
-    "label": "approve_all_modal",
-    "file": "design/Monopilot Design System/planning-ext/modals.jsx",
-    "lines": "289-320",
-    "component_type": "modal",
-    "ui_pattern": "bulk-action",
-    "data_domain": "WO",
-    "interaction": "approve",
-    "complexity": "primitive",
-    "depends_on_prototypes": [],
-    "translation_notes": [
-      "Modal primitive → Dialog; size='default' maps to max-w-lg DialogContent",
-      "Hardcoded count prop → pass as `draftCount: number` derived from server query `db.select().from(schedulerAssignments).where(eq(assignments.status,'draft'))` scoped to run group",
-      "Fake submit → Server Action `approveAllAssignmentsAction(runGroupId)` with RBAC (Planner Advanced or Scheduling Officer); bulk UPDATE + outbox emit `scheduler.assignment.approved` × N",
-      "Summary rows component → shadcn Table or simple dl/dt/dd; move to shared `<SummaryList>` component for reuse across modals",
-      "Alert ('bulk action approves from all runs') → persist as permanent warning text, not dismissible, because it describes a data contract",
-      "Emit single batched outbox event `scheduler.assignments.bulk_approved` with array payload instead of N individual events",
-      "Hardcoded labels → next-intl keys `scheduler.approveAll.*`"
-    ],
-    "shadcn_equivalent": ["Dialog", "DialogContent", "DialogFooter", "Button", "Alert"],
-    "known_bugs": [],
-    "estimated_translation_time_min": 45
-  },
-  {
-    "label": "matrix_cell_edit_modal",
-    "file": "design/Monopilot Design System/planning-ext/modals.jsx",
-    "lines": "322-378",
-    "component_type": "modal",
-    "ui_pattern": "crud-form-with-validation",
-    "data_domain": "Allergen",
-    "interaction": "edit",
-    "complexity": "composite",
-    "depends_on_prototypes": [],
-    "translation_notes": [
-      "Modal primitive → Dialog; dynamic title `${from} → ${to}${lineId ? ' · '+lineId : ''}` computed from URL params or prop",
-      "segregation checkbox disabled for Planner role → enforce role check server-side in Server Action `updateMatrixCellAction`; field should be hidden entirely for Planner (not just disabled) per RBAC V-CM-04",
-      "V-CM-02 validation (minutes int ≥ 0) → zod schema `z.number().int().min(0)` with refinement warning >120",
-      "Fake save (onSave callback) → Server Action that writes to `changeover_matrix_cells` staging table and creates a pending version draft; no immediate publish",
-      "Notes field → store in `changeover_matrix_cells.notes` column; add 500-char max validation",
-      "Hardcoded labels → next-intl keys `matrix.cell.*`",
-      "Add confirmation step when `segregation_required` toggled true — separate admin-only modal guard"
-    ],
-    "shadcn_equivalent": ["Dialog", "DialogContent", "Input", "Checkbox", "Textarea", "Button", "Alert", "Label"],
-    "known_bugs": [],
-    "estimated_translation_time_min": 75
-  },
-  {
-    "label": "matrix_publish_modal",
-    "file": "design/Monopilot Design System/planning-ext/modals.jsx",
-    "lines": "380-412",
-    "component_type": "modal",
-    "ui_pattern": "crud-form-with-validation",
-    "data_domain": "Allergen",
-    "interaction": "approve",
-    "complexity": "primitive",
-    "depends_on_prototypes": ["matrix_cell_edit_modal"],
-    "translation_notes": [
-      "New version number computed inline as `parseInt(lastVersion.slice(1)) + 1` → derive from DB sequence or `MAX(version_number) + 1` in Server Action `publishMatrixVersionAction`",
-      "Summary rows (cells modified, per-line overrides) → Server Action returns diff summary before confirming; render in Dialog before final commit",
-      "Version notes textarea → store in `changeover_matrix_versions.notes` column",
-      "Warning 'affects next scheduler run' → inform UI that runs currently in-progress are unaffected (version_id snapshot at run start)",
-      "Outbox event `changeover_matrix.version.published` with new version_id and summary stats",
-      "Hardcoded PEXT_MATRIX_VERSIONS → Drizzle query for latest version metadata",
-      "Hardcoded labels → next-intl keys `matrix.publish.*`"
-    ],
-    "shadcn_equivalent": ["Dialog", "DialogContent", "Textarea", "Button", "Alert", "Label"],
-    "known_bugs": [],
-    "estimated_translation_time_min": 50
-  },
-  {
-    "label": "matrix_import_modal",
-    "file": "design/Monopilot Design System/planning-ext/modals.jsx",
-    "lines": "414-470",
-    "component_type": "modal",
-    "ui_pattern": "import-export",
-    "data_domain": "Allergen",
-    "interaction": "import",
-    "complexity": "composite",
-    "depends_on_prototypes": [],
-    "translation_notes": [
-      "3-stage state machine (upload | validate | preview) → implement with useReducer; upload stage triggers Server Action `validateMatrixCSVAction` returning { rows, errors, diff }",
-      "Dropzone div with onClick → replace with shadcn-compatible drag-and-drop using react-dropzone or HTML5 File API; enforce 5 MB / 10,000 row limits server-side",
-      "Simulated parsing delay (setTimeout) → real CSV parse on server with Papa.parse or built-in Node stream; stream progress via Server-Sent Events if >1,000 rows",
-      "Preview diff table (current vs new, change badge) → server returns typed `MatrixDiff[]`; render with color-coded cells matching heatmap legend",
-      "V-CM-01..V-CM-04 validation displayed inline → map server error array to field-level feedback in preview table row",
-      "Apply import → Server Action `applyMatrixImportAction(draftId)` that promotes validated staging rows to active draft version",
-      "Hardcoded labels → next-intl keys `matrix.import.*`"
-    ],
-    "shadcn_equivalent": ["Dialog", "DialogContent", "DialogFooter", "Button", "Alert", "Table", "TableHeader", "TableBody", "TableRow", "TableCell", "Badge"],
-    "known_bugs": ["BL-PEXT-09: diff rows are sample data, not real diff vs historical version"],
-    "estimated_translation_time_min": 150
-  },
-  {
-    "label": "matrix_diff_modal",
-    "file": "design/Monopilot Design System/planning-ext/modals.jsx",
-    "lines": "472-496",
-    "component_type": "modal",
-    "ui_pattern": "detail-view",
-    "data_domain": "Allergen",
-    "interaction": "read-only",
-    "complexity": "primitive",
-    "depends_on_prototypes": ["matrix_publish_modal"],
-    "translation_notes": [
-      "Modal size='fullpage' → Dialog with className max-w-6xl or a Sheet (full-width slide-over) for wide diff tables",
-      "Hardcoded diff rows → Server Action or loader `getMatrixVersionDiff(versionId, activeVersionId)` returning typed `MatrixCellDiff[]`",
-      "Color-coded diff cells (yellow for changed, green for added) → CSS classes applied based on diff type field; extract to shared `<DiffCell>` component",
-      "Delta column (±Nm string) → compute server-side as `override_min - default_min`; color-code red for positive delta, green for negative",
-      "Add download-as-CSV button for the diff table using a Server Action streaming CSV response",
-      "Hardcoded labels → next-intl keys `matrix.diff.*`"
-    ],
-    "shadcn_equivalent": ["Dialog", "DialogContent", "DialogFooter", "Button", "Alert", "Table", "TableHeader", "TableBody", "TableRow", "TableCell"],
-    "known_bugs": ["BL-PEXT-09: version diff modal shows sample rows, not real diff vs historical"],
-    "estimated_translation_time_min": 60
-  },
-  {
-    "label": "forecast_upload_modal",
-    "file": "design/Monopilot Design System/planning-ext/modals.jsx",
-    "lines": "498-560",
-    "component_type": "modal",
-    "ui_pattern": "import-export",
-    "data_domain": "Forecast",
-    "interaction": "import",
-    "complexity": "composite",
-    "depends_on_prototypes": [],
-    "translation_notes": [
-      "2-stage state machine (upload | preview) → useReducer with stages; upload triggers Server Action `validateForecastCSVAction` parsing `product_code, week_iso, qty_kg` columns",
-      "Dropzone → react-dropzone with .csv/.txt accept filter; enforce 5 MB / 10,000 rows server-side",
-      "Overwrite policy radio (replace / keep) → map to `upsert_policy: 'replace' | 'upsert'` param in `uploadForecastAction` Server Action",
-      "Preview table (product × week grid) → server returns paginated `ForecastRow[]`; render max 20 rows with '…N more' indicator",
-      "V-SCHED-09 retention window validation (3-year) → enforce in Server Action; return field error if week_iso out of range",
-      "Emit outbox event `forecast.upload.completed` with coverage summary (weeks, products) on commit",
-      "Download CSV template → pre-built static asset at `/files/forecast-template.csv` served from object storage; next-intl keys `forecast.upload.*`"
-    ],
-    "shadcn_equivalent": ["Dialog", "DialogContent", "DialogFooter", "Button", "Alert", "Table", "TableHeader", "TableBody", "RadioGroup", "RadioGroupItem", "Label"],
-    "known_bugs": [],
-    "estimated_translation_time_min": 120
-  },
-  {
-    "label": "disposition_decision_modal",
-    "file": "design/Monopilot Design System/planning-ext/modals.jsx",
-    "lines": "562-629",
-    "component_type": "modal",
-    "ui_pattern": "crud-form-with-validation",
-    "data_domain": "LP",
-    "interaction": "approve",
-    "complexity": "composite",
-    "depends_on_prototypes": [],
-    "translation_notes": [
-      "Countdown timer with setInterval → use a server-computed `deadline` timestamp; client renders remaining time via `useInterval` hook against `Date.now()`, avoiding drift from re-renders",
-      "'+1h / +4h' extend buttons → Server Action `extendDispositionDeadlineAction(lpId, extensionHours)` updating `disposition_deadline` in DB; revalidate path",
-      "Radio card selection (to_stock vs direct_continue) → shadcn RadioGroup with styled card items; selected state via form value not local useState",
-      "LP shelf-life display (V-SCHED-10 eligibility) → derive from `lot_palettes.expiry_date` minus `now()` in loader; pass as `shelfLifeHoursRemaining: number`",
-      "Default auto-decision 'To Stock' at deadline → implement as background cron job / pg_cron trigger writing to `disposition_decisions` table and emitting outbox event",
-      "P2 feature → gate entire modal render behind `feature_flags.disposition_bridge` check in parent; show locked state if disabled",
-      "Hardcoded labels → next-intl keys `disposition.*`; Polish strings must be replaced with i18n tokens"
-    ],
-    "shadcn_equivalent": ["Dialog", "DialogContent", "DialogFooter", "RadioGroup", "RadioGroupItem", "Button", "Alert", "Label"],
-    "known_bugs": ["BL-PEXT-03: disposition bridge wiring to notification tray + reminder-after-15min loop is P2"],
-    "estimated_translation_time_min": 150
-  },
-  {
-    "label": "rerun_confirm_modal",
-    "file": "design/Monopilot Design System/planning-ext/modals.jsx",
-    "lines": "631-648",
-    "component_type": "modal",
-    "ui_pattern": "bulk-action",
-    "data_domain": "Sequence",
-    "interaction": "create",
-    "complexity": "primitive",
-    "depends_on_prototypes": ["run_scheduler_modal"],
-    "translation_notes": [
-      "Modal size='sm' → Dialog with className max-w-md",
-      "New run ID preview (OPT-XXXX +1) → server generates actual UUID v7 in `createSchedulerRunAction`; display as 'New Run ID: auto-generated'",
-      "Summary rows (source run, horizon, lines) → props derived from `scheduler_runs` row passed from parent; no additional fetch needed",
-      "Confirm re-run → Server Action `rerunSchedulerAction(sourceRunId)` cloning input snapshot and enqueuing new solver job",
-      "Inform user existing run is unchanged and current schedule remains active → keep as disclaimer text below summary",
-      "Hardcoded labels → next-intl keys `scheduler.rerun.*`"
-    ],
-    "shadcn_equivalent": ["Dialog", "DialogContent", "DialogFooter", "Button"],
-    "known_bugs": [],
-    "estimated_translation_time_min": 35
-  },
-  {
-    "label": "disable_v2_modal",
-    "file": "design/Monopilot Design System/planning-ext/modals.jsx",
-    "lines": "650-675",
-    "component_type": "modal",
-    "ui_pattern": "crud-form-with-validation",
-    "data_domain": "Sequence",
-    "interaction": "delete",
-    "complexity": "primitive",
-    "depends_on_prototypes": [],
-    "translation_notes": [
-      "Type-to-confirm pattern (type 'DISABLE') → zod schema `z.literal('DISABLE')` with custom error message; Button enabled only when field valid",
-      "Destructive button style (btn-danger) → shadcn Button variant='destructive'; note BL-PROD-05: `.btn-danger` missing from shared.css — must be added",
-      "Disable v2 → Server Action `disableOptimizerV2Action(auditReason)` toggling `feature_flags.allergen_sequencing_optimizer_v2 = false`, writing audit log, emitting outbox `optimizer.v2.disabled`",
-      "Audit reason ReasonInput → Textarea with min-length validation via zod `.min(10, ...)`; reason stored in `audit_log.notes`",
-      "Fallback rule display → read from `rule_registry` table where id='allergen_sequencing_heuristic_v1'; do not hardcode string",
-      "Admin-only action → RBAC guard in Server Action; return 403 for non-admin callers",
-      "Hardcoded labels → next-intl keys `optimizer.disable.*`"
-    ],
-    "shadcn_equivalent": ["Dialog", "DialogContent", "DialogFooter", "Input", "Textarea", "Button", "Alert", "Label"],
-    "known_bugs": ["BL-PROD-05: .btn-danger referenced in MODAL-SCHEMA but missing from production.css"],
-    "estimated_translation_time_min": 55
-  },
-  {
-    "label": "request_review_modal",
-    "file": "design/Monopilot Design System/planning-ext/modals.jsx",
-    "lines": "677-696",
-    "component_type": "modal",
-    "ui_pattern": "crud-form-with-validation",
-    "data_domain": "Allergen",
-    "interaction": "approve",
-    "complexity": "primitive",
-    "depends_on_prototypes": ["matrix_cell_edit_modal"],
-    "translation_notes": [
-      "Modal with dynamic title `${from} → ${to}` → derive allergen pair from URL params or parent state; pass as typed props",
-      "Justification textarea min 10 chars → zod `.min(10)` validation; wire to useForm",
-      "Submit → Server Action `submitMatrixReviewRequestAction({ allergenFrom, allergenTo, justification })` inserting into `changeover_matrix_reviews` table, sending notification to Admin role",
-      "Info block describing BLOCKED state (segregation_required=true) → keep as static content; reference V-CM-04 rule ID",
-      "Admin notification on submit → trigger via outbox event `changeover_matrix.review.requested`; admin sees it in notification tray",
-      "Hardcoded labels → next-intl keys `matrix.review.*`"
-    ],
-    "shadcn_equivalent": ["Dialog", "DialogContent", "DialogFooter", "Textarea", "Button", "Alert", "Label"],
-    "known_bugs": [],
-    "estimated_translation_time_min": 40
-  },
-  {
-    "label": "pext_dashboard_gantt",
-    "file": "design/Monopilot Design System/planning-ext/dashboard.jsx",
-    "lines": "9-363",
-    "component_type": "page-layout",
-    "ui_pattern": "detail-view",
-    "data_domain": "Sequence",
-    "interaction": "approve",
-    "complexity": "page-level",
-    "depends_on_prototypes": ["run_scheduler_modal", "override_assignment_modal", "reschedule_wo_modal", "approve_all_modal"],
-    "translation_notes": [
-      "Hardcoded DAY_W/HOUR_W/TOTAL_W pixel constants for Gantt positioning → use CSS custom properties and container-query-aware layout; or adopt a Gantt library (e.g. frappe-gantt, bryntum) for production fidelity",
-      "All PEXT_ASSIGNMENTS / PEXT_LINES / PEXT_DATES mock data → parallel Drizzle queries in Server Component loader: `schedulerAssignments`, `productionLines`, `calendarDays` for the horizon",
-      "runState / runProgress simulation via setInterval → poll Server Action or SSE endpoint `GET /api/scheduler/run/{runId}/status` every 5s; use SWR or TanStack Query",
-      "Solver progress phases (greedy seed → local-search → finalize) → real phase data from `scheduler_runs.phase` column or solver SSE stream",
-      "pendingActions local state (approve/reject/override per id) → optimistic updates via TanStack Query mutation + Server Action; revalidate `scheduler_assignments` on settle",
-      "RBAC: canSeeRunBtn (role check) → derive from session in Server Component; pass as `canRun: boolean` prop",
-      "Allergen color legend (PEXT_ALLERGEN_COLORS) → derive from `allergen_types` table with `color_hex` column",
-      "BL-PEXT-05: hour-level Gantt zoom toggles state but doesn't re-render finer grid — fix by recomputing HOUR_W and re-rendering lane tracks",
-      "BL-PEXT-08: undo-approval 60s window is visual-only — wire real server-side deadline using `approved_at + 60s` with countdown invalidation"
-    ],
-    "shadcn_equivalent": ["Button", "Select", "Badge", "Alert", "Tooltip", "Popover"],
-    "known_bugs": [
-      "BL-PEXT-05: hour-level Gantt zoom toggles state but doesn't re-render finer grid",
-      "BL-PEXT-08: undo-approval 60s window is visual-only, no timer countdown"
-    ],
-    "estimated_translation_time_min": 480
-  },
-  {
-    "label": "assignment_side_panel",
-    "file": "design/Monopilot Design System/planning-ext/dashboard.jsx",
-    "lines": "365-451",
-    "component_type": "sidebar",
-    "ui_pattern": "detail-view",
-    "data_domain": "WO",
-    "interaction": "read-only",
-    "complexity": "composite",
-    "depends_on_prototypes": ["override_assignment_modal", "reschedule_wo_modal"],
-    "translation_notes": [
-      "Custom `.asn-side` slide-in panel → shadcn Sheet (side='right') with controlled open state",
-      "Hardcoded materials list (R-1001, R-1002, R-2101) → fetch from `wo_bom_lines` joined to `materials` table; show `material_code`, `required_qty`, `available_qty` with status pill",
-      "Allergen/changeover section → derive CO before/after from `changeover_matrix_cells` join using previous/next WO allergen groups on same line",
-      "Approval section with 'Undo approval' link → show only if `approved_at > now() - interval '60 seconds'`; Server Action `undoApprovalAction(assignmentId)` with audit log",
-      "DAG dependencies section → query `wo_dependencies` table for parent/child relationships; render as linked list or mini-tree",
-      "Status-conditional action buttons (Approve/Reject/Override/Reschedule) → derive from `assignment.status` + session role; disable at Server Action level too",
-      "Hardcoded labels → next-intl keys `assignment.detail.*`"
-    ],
-    "shadcn_equivalent": ["Sheet", "SheetContent", "SheetHeader", "SheetFooter", "Button", "Badge", "Alert", "Separator"],
-    "known_bugs": ["BL-PEXT-08: undo-approval 60s window is visual-only, no timer countdown"],
-    "estimated_translation_time_min": 150
-  },
-  {
-    "label": "pext_forecasts_screen",
-    "file": "design/Monopilot Design System/planning-ext/forecast-screens.jsx",
-    "lines": "3-155",
-    "component_type": "page-layout",
-    "ui_pattern": "search-filter-list",
-    "data_domain": "Forecast",
-    "interaction": "read-only",
-    "complexity": "page-level",
-    "depends_on_prototypes": ["forecast_upload_modal"],
-    "translation_notes": [
-      "PEXT_FORECASTS mock data → Drizzle query `db.select().from(forecastRows).where(and(between(forecastRows.weekIso, weekFrom, weekTo), sourceFilter))` with pagination",
-      "PEXT_FORECAST_WEEKS column headers → derived from query distinct weeks; generate dynamically to support any coverage range",
-      "Prophet health card section (prophetEnabled flag) → gate behind `feature_flags.prophet_ml` server-side; read SMAPE/health from `forecast_model_metrics` table",
-      "SVG sparkline charts for 4 products → replace with shadcn-compatible chart library (Recharts or Tremor); use real actual-vs-forecast data from `forecast_actuals` table",
-      "Source filter (manual/prophet/overridden) → URL search param; Server Component re-fetches on change",
-      "Override / Delete row actions → Server Actions `overrideForecastAction` and `deleteForecastRowAction` with audit log; optimistic UI",
-      "Hardcoded labels → next-intl keys `forecast.*`"
-    ],
-    "shadcn_equivalent": ["Button", "Select", "Input", "Table", "TableHeader", "TableBody", "TableRow", "TableCell", "Badge", "Alert"],
-    "known_bugs": ["BL-PEXT-01: full Prophet chart integration with confidence bands and SMAPE per-product drill-down is P2"],
-    "estimated_translation_time_min": 200
-  },
-  {
-    "label": "pext_matrix_editor",
-    "file": "design/Monopilot Design System/planning-ext/matrix-screens.jsx",
-    "lines": "12-245",
-    "component_type": "page-layout",
-    "ui_pattern": "crud-form-with-validation",
-    "data_domain": "Allergen",
-    "interaction": "edit",
-    "complexity": "page-level",
-    "depends_on_prototypes": ["matrix_cell_edit_modal", "matrix_publish_modal", "matrix_import_modal", "matrix_diff_modal", "request_review_modal"],
-    "translation_notes": [
-      "N×N allergen matrix table rendered with PEXT_ALLERGEN_CODES → Drizzle query `db.select().from(allergenTypes)` for row/column headers; cells from `changeover_matrix_cells` (default + per-line) with edits overlay from session draft",
-      "edits local state object → optimistic draft stored in `changeover_matrix_drafts` table per session; Server Action `saveCellDraftAction` on each cell edit; consolidate to version on publish",
-      "classifyCell heatmap coloring (none/low/med/high/blocked) → pure utility fn `classifyMatrixCell(minutes: number | 'BLKD'): string` — extract to shared `lib/matrix.ts`",
-      "3-tab layout (Default Matrix / Per-Line Overrides / Review Requests) → shadcn Tabs component with URL hash or search param for deep-linking",
-      "Per-line overrides accordion (selectedLine toggle) → shadcn Accordion with `AccordionItem` per line; override data from `changeover_matrix_line_overrides` table",
-      "Review requests table → Drizzle query `db.select().from(matrixReviewRequests).where(eq(status,'pending'))`; Admin-only Unblock/Reject actions as Server Actions with RBAC",
-      "Hardcoded labels → next-intl keys `matrix.*`; BL-PEXT-06: matrix JSON viewer placeholder link needs a real modal"
-    ],
-    "shadcn_equivalent": ["Tabs", "TabsList", "TabsTrigger", "TabsContent", "Accordion", "AccordionItem", "Button", "Badge", "Alert", "Table"],
-    "known_bugs": [
-      "BL-PEXT-06: matrix JSON viewer modal (View Full Snapshot JSON) is a placeholder link",
-      "BL-PEXT-09: version diff modal shows sample rows, not real diff vs historical"
-    ],
-    "estimated_translation_time_min": 360
-  },
-  {
-    "label": "pext_pending_full_page",
-    "file": "design/Monopilot Design System/planning-ext/optimizer-screens.jsx",
-    "lines": "4-110",
-    "component_type": "page-layout",
-    "ui_pattern": "list-with-actions",
-    "data_domain": "WO",
-    "interaction": "approve",
-    "complexity": "page-level",
-    "depends_on_prototypes": ["approve_all_modal", "override_assignment_modal"],
-    "translation_notes": [
-      "PEXT_ASSIGNMENTS mock data → Drizzle query with status filter, line/shift/search params; support URL-driven filtering for deep-links from KPI tiles",
-      "Local actions state (approve/reject per id) → optimistic updates with useOptimistic (React 19) or TanStack Query mutation; Server Actions `approveAssignmentAction` / `rejectAssignmentAction`",
-      "4 KPI tiles (In queue / Pending / Approved / Overridden) → derived from server aggregation query; avoid waterfall by including counts in same loader fetch",
-      "Filter bar (pills + selects + search input) → URL search params; nuqs library for type-safe param management",
-      "Export queue CSV button → Server Action streaming CSV response from `scheduler_assignments` table filtered by current params",
-      "Status badges (AssnStatus component) → extract to shared `<AssignmentStatusBadge status={...} />` component using shadcn Badge with variant map",
-      "Hardcoded labels → next-intl keys `pending.*`"
-    ],
-    "shadcn_equivalent": ["Button", "Select", "Input", "Table", "TableHeader", "TableBody", "TableRow", "TableCell", "Badge"],
-    "known_bugs": [],
-    "estimated_translation_time_min": 180
-  },
-  {
-    "label": "pext_capacity_projection",
-    "file": "design/Monopilot Design System/planning-ext/optimizer-screens.jsx",
-    "lines": "113-206",
-    "component_type": "page-layout",
-    "ui_pattern": "detail-view",
-    "data_domain": "Sequence",
-    "interaction": "read-only",
-    "complexity": "page-level",
-    "depends_on_prototypes": [],
-    "translation_notes": [
-      "PEXT_CAPACITY_PROJECTION mock data → Drizzle query joining `scheduler_assignments` with `production_lines` to compute `SUM(qty_kg / duration_h) / line.cap_kg_h * 100` per line per day",
-      "Color-coded utilisation cells (>100% red, >90% amber, else green) → extract `utilColour(pct: number)` utility to `lib/capacity.ts`; replicate in both table cells and bar fills",
-      "Line utilisation bars section → shadcn Progress or custom div bars; use same `utilColour` utility for fill color class",
-      "V-SCHED-04 violation alert with specific line/day callouts → violations derived from query `WHERE pct > 100`; display as AlertDescription list",
-      "Refresh projection button → Server Action or SWR revalidation trigger; add `last_refreshed_at` timestamp from `scheduler_runs.completed_at`",
-      "Export CSV → Server Action streaming CSV of the same capacity_projection dataset",
-      "Hardcoded labels → next-intl keys `capacity.*`"
-    ],
-    "shadcn_equivalent": ["Button", "Alert", "AlertDescription", "Table", "TableHeader", "TableBody", "Progress"],
-    "known_bugs": [],
-    "estimated_translation_time_min": 150
-  },
-  {
-    "label": "pext_run_history",
-    "file": "design/Monopilot Design System/planning-ext/runhistory-screens.jsx",
-    "lines": "3-115",
-    "component_type": "page-layout",
-    "ui_pattern": "search-filter-list",
-    "data_domain": "Sequence",
-    "interaction": "read-only",
-    "complexity": "page-level",
-    "depends_on_prototypes": ["rerun_confirm_modal"],
-    "translation_notes": [
-      "PEXT_RUNS mock data → Drizzle query `db.select().from(schedulerRuns).orderBy(desc(schedulerRuns.startedAt))` with type/status/date/user filter params via URL search params",
-      "4 KPI tiles (from PEXT_RUN_KPIS) → derived from aggregate query: count by status, avg duration; include in same loader fetch",
-      "Row click → next/navigation `router.push` to run detail page `/scheduler/runs/[runId]`; or inline selectedRun state for prototype fidelity",
-      "Re-run button disabled for failed runs and non-Planner role → RBAC in Server Action; also gate at button level via session role",
-      "Duration color coding (durCls: amber >60s, red >120s) → utility `runDurationVariant(dur: number): 'default' | 'warning' | 'destructive'` for Badge variant",
-      "Export CSV button → Server Action streaming CSV of filtered `scheduler_runs`",
-      "Hardcoded labels → next-intl keys `runHistory.*`"
-    ],
-    "shadcn_equivalent": ["Button", "Select", "Input", "Table", "TableHeader", "TableBody", "TableRow", "TableCell", "Badge"],
-    "known_bugs": [],
-    "estimated_translation_time_min": 150
-  },
-  {
-    "label": "pext_run_detail",
-    "file": "design/Monopilot Design System/planning-ext/runhistory-screens.jsx",
-    "lines": "119-260",
-    "component_type": "page-layout",
-    "ui_pattern": "detail-view",
-    "data_domain": "Sequence",
-    "interaction": "read-only",
-    "complexity": "page-level",
-    "depends_on_prototypes": ["pext_run_history"],
-    "translation_notes": [
-      "Dual-column run-detail-grid (metadata left / output summary right) → CSS Grid with responsive collapse; extract `<RunMetaCard>` and `<RunOutputCard>` as server components",
-      "PEXT_RUN_DETAIL mock → single Drizzle query `db.query.schedulerRuns.findFirst({ where: eq(id, runId), with: { assignments: true, overrides: true } })`",
-      "Input snapshot JSON link ('View full snapshot JSON →') → link to `/scheduler/runs/{runId}/snapshot.json` endpoint or inline collapsed `<pre>` with shadcn Collapsible",
-      "Per-line utilisation bars → derive from assignments aggregation; reuse `utilColour` utility from capacity projection",
-      "Override log items (oli-diff, oli-reason) → query `scheduler_assignment_overrides` joined to `override_reason_codes`; display as timeline with shadcn Timeline or Card list",
-      "Partial/failed run alert variants → map `run.status` to shadcn Alert variant ('warning' for partial, 'destructive' for failed)",
-      "Hardcoded labels → next-intl keys `runDetail.*`"
-    ],
-    "shadcn_equivalent": ["Button", "Alert", "AlertDescription", "Card", "CardContent", "Badge", "Collapsible", "Table", "Progress", "Separator"],
-    "known_bugs": [],
-    "estimated_translation_time_min": 200
-  },
-  {
-    "label": "pext_scenarios",
-    "file": "design/Monopilot Design System/planning-ext/scenario-screens.jsx",
-    "lines": "3-211",
-    "component_type": "page-layout",
-    "ui_pattern": "multi-step-wizard",
-    "data_domain": "Scenario",
-    "interaction": "create",
-    "complexity": "page-level",
-    "depends_on_prototypes": ["run_scheduler_modal"],
-    "translation_notes": [
-      "P2 feature gate → wrap entire interactive section in server-side `feature_flags.what_if_simulation` check; show upgrade/locked card when disabled",
-      "Scenario builder left panel + result right panel → two-column layout with shadcn ResizablePanel or fixed 340px/1fr grid",
-      "mods array local state (add/remove modifications) → useReducer with typed `ScenarioModification[]`; preset chips map to strongly-typed mod objects",
-      "runSim setTimeout canned deltas → real Server Action `runScenarioSimulationAction(scenarioId, mods)` calling solver with `dry_run: true` flag; poll for result",
-      "KPI compare grid (4×4: KPI / Baseline / Simulation / Delta) → shadcn Table with color-coded delta Badge per row",
-      "MiniGantt SVG → replace with shared mini-Gantt React component reusing GanttLane primitives from dashboard; render baseline vs scenario side-by-side",
-      "Saved scenarios list → Drizzle query `db.select().from(scenarios).orderBy(desc(createdAt))`; delete via Server Action with confirmation",
-      "Hardcoded labels → next-intl keys `scenario.*`"
-    ],
-    "shadcn_equivalent": ["Button", "Input", "Select", "Badge", "Alert", "Table", "TableHeader", "TableBody", "Card", "Collapsible"],
-    "known_bugs": ["BL-PEXT-02: what-if simulation real solver hook-up is P2 (currently preset-driven + canned deltas)"],
-    "estimated_translation_time_min": 360
-  },
-  {
-    "label": "pext_sequencing",
-    "file": "design/Monopilot Design System/planning-ext/sequencing-screens.jsx",
-    "lines": "3-179",
-    "component_type": "page-layout",
-    "ui_pattern": "detail-view",
-    "data_domain": "Sequence",
-    "interaction": "approve",
-    "complexity": "page-level",
-    "depends_on_prototypes": ["disable_v2_modal"],
-    "translation_notes": [
-      "v2 enhancement banner with rule ID → read `rule_registry.id` and `fallback_rule` from DB; avoid hardcoding rule IDs in component",
-      "4 KPI tiles (CO total, v1 baseline, CO reduction, cross-line moves) → aggregate query from `scheduler_assignments` joined to `changeover_matrix_cells`; target ≥30% saving from `optimizer_targets` table",
-      "Preview mode dry-run (previewRunState) → Server Action `previewSequenceAction(runId)` calling solver with dry_run=true flag; store result in `sequence_previews` table with 24h TTL",
-      "Sequence compare panels (baseline v1 / proposed v2) → Drizzle query `seq_baseline` and `seq_proposed` from `sequence_preview_rows`; `moved` flag highlighted with Badge",
-      "MOVED badge and saved Nm annotation → derive from diff between baseline and proposed row positions per line",
-      "Commit preview → Server Action `commitSequencePreviewAction(previewId)` writing to `scheduler_assignments` as draft status; emit `sequencing.preview.committed`",
-      "Sequence table (non-preview mode) → current v2 optimizer output from `scheduler_assignments` with allergen/CO/risk columns; CORisk badge uses same utility as capacity screen"
-    ],
-    "shadcn_equivalent": ["Button", "Badge", "Alert", "AlertDescription", "Table", "TableHeader", "TableBody", "TableRow", "TableCell", "Progress"],
-    "known_bugs": [],
-    "estimated_translation_time_min": 250
-  },
-  {
-    "label": "pext_rules_screen",
-    "file": "design/Monopilot Design System/planning-ext/other-screens.jsx",
-    "lines": "4-76",
-    "component_type": "page-layout",
-    "ui_pattern": "list-with-actions",
-    "data_domain": "Sequence",
-    "interaction": "read-only",
-    "complexity": "page-level",
-    "depends_on_prototypes": [],
-    "translation_notes": [
-      "PEXT_RULES mock → Drizzle query `db.select().from(ruleRegistry).orderBy(asc(phase), asc(id))`; separate active/standby/disabled with filter",
-      "Active rules card list (rc-dsl, rc-desc, rc-meta) → shadcn Card per rule with Badge for status; 'View source →' button opens rule DSL in a Sheet/Dialog with syntax highlighting",
-      "Feature flags table → Drizzle query `db.select().from(featureFlags)` with `phase` column; ON/OFF Badge uses Badge variant='default'/'secondary'",
-      "Publish changes button (disabled for non-admin) → RBAC from session; admin publishes via Server Action `publishRuleAction(ruleId)` creating new rule version",
-      "Read-only for Planners → gate entire page with session role check in layout; redirect to dashboard if not Admin",
-      "invokes7d stat → aggregate from `scheduler_runs` where `started_at > now() - interval '7 days'`; join to rule invocation log",
-      "Hardcoded labels → next-intl keys `rules.*`"
-    ],
-    "shadcn_equivalent": ["Button", "Badge", "Card", "CardContent", "Table", "TableHeader", "TableBody", "Alert"],
-    "known_bugs": [],
-    "estimated_translation_time_min": 120
-  },
-  {
-    "label": "pext_settings_screen",
-    "file": "design/Monopilot Design System/planning-ext/other-screens.jsx",
-    "lines": "79-133",
-    "component_type": "page-layout",
-    "ui_pattern": "crud-form-with-validation",
-    "data_domain": "Sequence",
-    "interaction": "edit",
-    "complexity": "page-level",
-    "depends_on_prototypes": [],
-    "translation_notes": [
-      "4-card 2-column grid layout → shadcn Card with 2-col CSS Grid; responsive collapse on tablet",
-      "Default run parameters form (horizon, refresh interval, forecast, solver timeout) → useForm with zod schema; Server Action `updateSchedulerSettingsAction` writing to `scheduler_config` table",
-      "Alerts config form (capacity threshold, stale schedule warning, override rate) → same pattern; separate `scheduler_alert_config` table or JSON config column",
-      "Integration card (solver URL, circuit breaker params) → Admin-only; fields disabled for non-admin; values from environment config not editable via UI in production (use env vars)",
-      "Premium status card → derive from `tenant_subscriptions` table; feature list is content, not data, so i18n keys suffice",
-      "14-day horizon option disabled → gate via feature flag `scheduler.horizon_14d.enabled`; show as disabled Select option with tooltip explanation",
-      "Hardcoded labels → next-intl keys `settings.*`"
-    ],
-    "shadcn_equivalent": ["Card", "CardHeader", "CardContent", "Select", "Input", "Button", "Label", "Badge"],
-    "known_bugs": [],
-    "estimated_translation_time_min": 120
-  }
-]
+{
+  "module": "planning-ext",
+  "generated_at": "2026-04-30T18:27:34Z",
+  "generator": "audit-fix-2026-04-30",
+  "mode": "labeling",
+  "entries": [
+    {
+      "label": "run_scheduler_modal",
+      "file": "design/Monopilot Design System/planning-ext/modals.jsx",
+      "lines": "21-95",
+      "component_type": "modal",
+      "ui_pattern": "crud-form-with-validation",
+      "data_domain": "Sequence",
+      "interaction": "create",
+      "complexity": "composite",
+      "depends_on_prototypes": [],
+      "translation_notes": [
+        "Modal primitive → @radix-ui/react-dialog Dialog with controlled open/onOpenChange",
+        "Local useState (horizon, linesChecked, includeForecast, submitting) → useForm (react-hook-form) + zodResolver schema with min-1-line validation",
+        "Mock PEXT_LINES array → Drizzle query `db.select().from(productionLines).where(eq(lines.active, true))` in Server Component loader",
+        "Hardcoded setTimeout fake submit → Server Action `runOptimizerAction(formData)` calling solver microservice with RBAC guard (role IN ['Planner','Admin'])",
+        "Emit outbox event `scheduler.run.requested` on submit success",
+        "Hardcoded optimizer version string → read from `feature_flags` table key `allergen_sequencing_optimizer_v2`",
+        "Hardcoded labels (e.g. '7 days (default)', 'P2' pill) → next-intl keys `scheduler.run.horizon.*`"
+      ],
+      "shadcn_equivalent": [
+        "Dialog",
+        "DialogContent",
+        "DialogHeader",
+        "DialogFooter",
+        "Checkbox",
+        "Button",
+        "Label",
+        "Badge"
+      ],
+      "known_bugs": [],
+      "estimated_translation_time_min": 90
+    },
+    {
+      "label": "override_assignment_modal",
+      "file": "design/Monopilot Design System/planning-ext/modals.jsx",
+      "lines": "98-212",
+      "component_type": "modal",
+      "ui_pattern": "crud-form-with-validation",
+      "data_domain": "WO",
+      "interaction": "edit",
+      "complexity": "composite",
+      "depends_on_prototypes": [
+        "run_scheduler_modal"
+      ],
+      "translation_notes": [
+        "Modal size='wide' → Dialog with className max-w-3xl in DialogContent",
+        "Allergen incompatibility computed inline (wo.allergen.includes) → derive from changeover_matrix join in loader; pass as `allergenConflict: boolean` prop to avoid client-side matrix lookups",
+        "Reason code dropdown hardcoded options → reference data table `override_reason_codes` with i18n labels",
+        "Impact preview section (new CO before/after delta) → compute server-side via `getChangeoverImpact(fromLine, toLine, allergenFrom, allergenTo)` helper and stream back to client",
+        "Fake submit setTimeout → Server Action `overrideAssignmentAction` with V-SCHED-02/03/04 validator, audit log write, outbox `scheduler.assignment.overridden`",
+        "Blocked/allergenIncompat state → enforce hard block in Server Action, not just UI; return structured error for toast display",
+        "Hardcoded labels → next-intl keys `scheduler.override.*`"
+      ],
+      "shadcn_equivalent": [
+        "Dialog",
+        "DialogContent",
+        "Select",
+        "Input",
+        "Textarea",
+        "Button",
+        "Alert",
+        "Label"
+      ],
+      "known_bugs": [],
+      "estimated_translation_time_min": 120
+    },
+    {
+      "label": "reschedule_wo_modal",
+      "file": "design/Monopilot Design System/planning-ext/modals.jsx",
+      "lines": "214-287",
+      "component_type": "modal",
+      "ui_pattern": "crud-form-with-validation",
+      "data_domain": "WO",
+      "interaction": "edit",
+      "complexity": "composite",
+      "depends_on_prototypes": [
+        "override_assignment_modal"
+      ],
+      "translation_notes": [
+        "FA-line eligibility mock array → derive from `fa_line_compatibility` join table in Server Component; pass `eligibleLineIds: string[]` as prop",
+        "Modal size='wide' → Dialog with className max-w-3xl",
+        "Acknowledgement checkbox for ineligible line → must be recorded in audit log as explicit user acceptance; add `ack_override_reason` field to Server Action payload",
+        "useForm validation: `isEligible || ackIneligible` → zod `.superRefine()` cross-field rule matching V-SCHED-03",
+        "Fake submit → Server Action `rescheduleWOAction` with cascade dependency check (V-SCHED-04 no overlap) + outbox `scheduler.wo.rescheduled`",
+        "Shift window constraint on datetime-local → enforce in Server Action using shift_definitions table, return field error on violation",
+        "Hardcoded reason codes → reference data table; next-intl for labels"
+      ],
+      "shadcn_equivalent": [
+        "Dialog",
+        "DialogContent",
+        "Select",
+        "Input",
+        "Checkbox",
+        "Button",
+        "Alert",
+        "Label"
+      ],
+      "known_bugs": [],
+      "estimated_translation_time_min": 100
+    },
+    {
+      "label": "approve_all_modal",
+      "file": "design/Monopilot Design System/planning-ext/modals.jsx",
+      "lines": "289-320",
+      "component_type": "modal",
+      "ui_pattern": "bulk-action",
+      "data_domain": "WO",
+      "interaction": "approve",
+      "complexity": "primitive",
+      "depends_on_prototypes": [],
+      "translation_notes": [
+        "Modal primitive → Dialog; size='default' maps to max-w-lg DialogContent",
+        "Hardcoded count prop → pass as `draftCount: number` derived from server query `db.select().from(schedulerAssignments).where(eq(assignments.status,'draft'))` scoped to run group",
+        "Fake submit → Server Action `approveAllAssignmentsAction(runGroupId)` with RBAC (Planner Advanced or Scheduling Officer); bulk UPDATE + outbox emit `scheduler.assignment.approved` × N",
+        "Summary rows component → shadcn Table or simple dl/dt/dd; move to shared `<SummaryList>` component for reuse across modals",
+        "Alert ('bulk action approves from all runs') → persist as permanent warning text, not dismissible, because it describes a data contract",
+        "Emit single batched outbox event `scheduler.assignments.bulk_approved` with array payload instead of N individual events",
+        "Hardcoded labels → next-intl keys `scheduler.approveAll.*`"
+      ],
+      "shadcn_equivalent": [
+        "Dialog",
+        "DialogContent",
+        "DialogFooter",
+        "Button",
+        "Alert"
+      ],
+      "known_bugs": [],
+      "estimated_translation_time_min": 45
+    },
+    {
+      "label": "matrix_cell_edit_modal",
+      "file": "design/Monopilot Design System/planning-ext/modals.jsx",
+      "lines": "322-378",
+      "component_type": "modal",
+      "ui_pattern": "crud-form-with-validation",
+      "data_domain": "Allergen",
+      "interaction": "edit",
+      "complexity": "composite",
+      "depends_on_prototypes": [],
+      "translation_notes": [
+        "Modal primitive → Dialog; dynamic title `${from} → ${to}${lineId ? ' · '+lineId : ''}` computed from URL params or prop",
+        "segregation checkbox disabled for Planner role → enforce role check server-side in Server Action `updateMatrixCellAction`; field should be hidden entirely for Planner (not just disabled) per RBAC V-CM-04",
+        "V-CM-02 validation (minutes int ≥ 0) → zod schema `z.number().int().min(0)` with refinement warning >120",
+        "Fake save (onSave callback) → Server Action that writes to `changeover_matrix_cells` staging table and creates a pending version draft; no immediate publish",
+        "Notes field → store in `changeover_matrix_cells.notes` column; add 500-char max validation",
+        "Hardcoded labels → next-intl keys `matrix.cell.*`",
+        "Add confirmation step when `segregation_required` toggled true — separate admin-only modal guard"
+      ],
+      "shadcn_equivalent": [
+        "Dialog",
+        "DialogContent",
+        "Input",
+        "Checkbox",
+        "Textarea",
+        "Button",
+        "Alert",
+        "Label"
+      ],
+      "known_bugs": [],
+      "estimated_translation_time_min": 75
+    },
+    {
+      "label": "matrix_publish_modal",
+      "file": "design/Monopilot Design System/planning-ext/modals.jsx",
+      "lines": "380-412",
+      "component_type": "modal",
+      "ui_pattern": "crud-form-with-validation",
+      "data_domain": "Allergen",
+      "interaction": "approve",
+      "complexity": "primitive",
+      "depends_on_prototypes": [
+        "matrix_cell_edit_modal"
+      ],
+      "translation_notes": [
+        "New version number computed inline as `parseInt(lastVersion.slice(1)) + 1` → derive from DB sequence or `MAX(version_number) + 1` in Server Action `publishMatrixVersionAction`",
+        "Summary rows (cells modified, per-line overrides) → Server Action returns diff summary before confirming; render in Dialog before final commit",
+        "Version notes textarea → store in `changeover_matrix_versions.notes` column",
+        "Warning 'affects next scheduler run' → inform UI that runs currently in-progress are unaffected (version_id snapshot at run start)",
+        "Outbox event `changeover_matrix.version.published` with new version_id and summary stats",
+        "Hardcoded PEXT_MATRIX_VERSIONS → Drizzle query for latest version metadata",
+        "Hardcoded labels → next-intl keys `matrix.publish.*`"
+      ],
+      "shadcn_equivalent": [
+        "Dialog",
+        "DialogContent",
+        "Textarea",
+        "Button",
+        "Alert",
+        "Label"
+      ],
+      "known_bugs": [],
+      "estimated_translation_time_min": 50
+    },
+    {
+      "label": "matrix_import_modal",
+      "file": "design/Monopilot Design System/planning-ext/modals.jsx",
+      "lines": "414-470",
+      "component_type": "modal",
+      "ui_pattern": "import-export",
+      "data_domain": "Allergen",
+      "interaction": "import",
+      "complexity": "composite",
+      "depends_on_prototypes": [],
+      "translation_notes": [
+        "3-stage state machine (upload | validate | preview) → implement with useReducer; upload stage triggers Server Action `validateMatrixCSVAction` returning { rows, errors, diff }",
+        "Dropzone div with onClick → replace with shadcn-compatible drag-and-drop using react-dropzone or HTML5 File API; enforce 5 MB / 10,000 row limits server-side",
+        "Simulated parsing delay (setTimeout) → real CSV parse on server with Papa.parse or built-in Node stream; stream progress via Server-Sent Events if >1,000 rows",
+        "Preview diff table (current vs new, change badge) → server returns typed `MatrixDiff[]`; render with color-coded cells matching heatmap legend",
+        "V-CM-01..V-CM-04 validation displayed inline → map server error array to field-level feedback in preview table row",
+        "Apply import → Server Action `applyMatrixImportAction(draftId)` that promotes validated staging rows to active draft version",
+        "Hardcoded labels → next-intl keys `matrix.import.*`"
+      ],
+      "shadcn_equivalent": [
+        "Dialog",
+        "DialogContent",
+        "DialogFooter",
+        "Button",
+        "Alert",
+        "Table",
+        "TableHeader",
+        "TableBody",
+        "TableRow",
+        "TableCell",
+        "Badge"
+      ],
+      "known_bugs": [
+        "BL-PEXT-09: diff rows are sample data, not real diff vs historical version"
+      ],
+      "estimated_translation_time_min": 150
+    },
+    {
+      "label": "matrix_diff_modal",
+      "file": "design/Monopilot Design System/planning-ext/modals.jsx",
+      "lines": "472-496",
+      "component_type": "modal",
+      "ui_pattern": "detail-view",
+      "data_domain": "Allergen",
+      "interaction": "read-only",
+      "complexity": "primitive",
+      "depends_on_prototypes": [
+        "matrix_publish_modal"
+      ],
+      "translation_notes": [
+        "Modal size='fullpage' → Dialog with className max-w-6xl or a Sheet (full-width slide-over) for wide diff tables",
+        "Hardcoded diff rows → Server Action or loader `getMatrixVersionDiff(versionId, activeVersionId)` returning typed `MatrixCellDiff[]`",
+        "Color-coded diff cells (yellow for changed, green for added) → CSS classes applied based on diff type field; extract to shared `<DiffCell>` component",
+        "Delta column (±Nm string) → compute server-side as `override_min - default_min`; color-code red for positive delta, green for negative",
+        "Add download-as-CSV button for the diff table using a Server Action streaming CSV response",
+        "Hardcoded labels → next-intl keys `matrix.diff.*`"
+      ],
+      "shadcn_equivalent": [
+        "Dialog",
+        "DialogContent",
+        "DialogFooter",
+        "Button",
+        "Alert",
+        "Table",
+        "TableHeader",
+        "TableBody",
+        "TableRow",
+        "TableCell"
+      ],
+      "known_bugs": [
+        "BL-PEXT-09: version diff modal shows sample rows, not real diff vs historical"
+      ],
+      "estimated_translation_time_min": 60
+    },
+    {
+      "label": "forecast_upload_modal",
+      "file": "design/Monopilot Design System/planning-ext/modals.jsx",
+      "lines": "498-560",
+      "component_type": "modal",
+      "ui_pattern": "import-export",
+      "data_domain": "Forecast",
+      "interaction": "import",
+      "complexity": "composite",
+      "depends_on_prototypes": [],
+      "translation_notes": [
+        "2-stage state machine (upload | preview) → useReducer with stages; upload triggers Server Action `validateForecastCSVAction` parsing `product_code, week_iso, qty_kg` columns",
+        "Dropzone → react-dropzone with .csv/.txt accept filter; enforce 5 MB / 10,000 rows server-side",
+        "Overwrite policy radio (replace / keep) → map to `upsert_policy: 'replace' | 'upsert'` param in `uploadForecastAction` Server Action",
+        "Preview table (product × week grid) → server returns paginated `ForecastRow[]`; render max 20 rows with '…N more' indicator",
+        "V-SCHED-09 retention window validation (3-year) → enforce in Server Action; return field error if week_iso out of range",
+        "Emit outbox event `forecast.upload.completed` with coverage summary (weeks, products) on commit",
+        "Download CSV template → pre-built static asset at `/files/forecast-template.csv` served from object storage; next-intl keys `forecast.upload.*`"
+      ],
+      "shadcn_equivalent": [
+        "Dialog",
+        "DialogContent",
+        "DialogFooter",
+        "Button",
+        "Alert",
+        "Table",
+        "TableHeader",
+        "TableBody",
+        "RadioGroup",
+        "RadioGroupItem",
+        "Label"
+      ],
+      "known_bugs": [],
+      "estimated_translation_time_min": 120
+    },
+    {
+      "label": "disposition_decision_modal",
+      "file": "design/Monopilot Design System/planning-ext/modals.jsx",
+      "lines": "562-629",
+      "component_type": "modal",
+      "ui_pattern": "crud-form-with-validation",
+      "data_domain": "LP",
+      "interaction": "approve",
+      "complexity": "composite",
+      "depends_on_prototypes": [],
+      "translation_notes": [
+        "Countdown timer with setInterval → use a server-computed `deadline` timestamp; client renders remaining time via `useInterval` hook against `Date.now()`, avoiding drift from re-renders",
+        "'+1h / +4h' extend buttons → Server Action `extendDispositionDeadlineAction(lpId, extensionHours)` updating `disposition_deadline` in DB; revalidate path",
+        "Radio card selection (to_stock vs direct_continue) → shadcn RadioGroup with styled card items; selected state via form value not local useState",
+        "LP shelf-life display (V-SCHED-10 eligibility) → derive from `lot_palettes.expiry_date` minus `now()` in loader; pass as `shelfLifeHoursRemaining: number`",
+        "Default auto-decision 'To Stock' at deadline → implement as background cron job / pg_cron trigger writing to `disposition_decisions` table and emitting outbox event",
+        "P2 feature → gate entire modal render behind `feature_flags.disposition_bridge` check in parent; show locked state if disabled",
+        "Hardcoded labels → next-intl keys `disposition.*`; Polish strings must be replaced with i18n tokens"
+      ],
+      "shadcn_equivalent": [
+        "Dialog",
+        "DialogContent",
+        "DialogFooter",
+        "RadioGroup",
+        "RadioGroupItem",
+        "Button",
+        "Alert",
+        "Label"
+      ],
+      "known_bugs": [
+        "BL-PEXT-03: disposition bridge wiring to notification tray + reminder-after-15min loop is P2"
+      ],
+      "estimated_translation_time_min": 150
+    },
+    {
+      "label": "rerun_confirm_modal",
+      "file": "design/Monopilot Design System/planning-ext/modals.jsx",
+      "lines": "631-648",
+      "component_type": "modal",
+      "ui_pattern": "bulk-action",
+      "data_domain": "Sequence",
+      "interaction": "create",
+      "complexity": "primitive",
+      "depends_on_prototypes": [
+        "run_scheduler_modal"
+      ],
+      "translation_notes": [
+        "Modal size='sm' → Dialog with className max-w-md",
+        "New run ID preview (OPT-XXXX +1) → server generates actual UUID v7 in `createSchedulerRunAction`; display as 'New Run ID: auto-generated'",
+        "Summary rows (source run, horizon, lines) → props derived from `scheduler_runs` row passed from parent; no additional fetch needed",
+        "Confirm re-run → Server Action `rerunSchedulerAction(sourceRunId)` cloning input snapshot and enqueuing new solver job",
+        "Inform user existing run is unchanged and current schedule remains active → keep as disclaimer text below summary",
+        "Hardcoded labels → next-intl keys `scheduler.rerun.*`"
+      ],
+      "shadcn_equivalent": [
+        "Dialog",
+        "DialogContent",
+        "DialogFooter",
+        "Button"
+      ],
+      "known_bugs": [],
+      "estimated_translation_time_min": 35
+    },
+    {
+      "label": "disable_v2_modal",
+      "file": "design/Monopilot Design System/planning-ext/modals.jsx",
+      "lines": "650-675",
+      "component_type": "modal",
+      "ui_pattern": "crud-form-with-validation",
+      "data_domain": "Sequence",
+      "interaction": "delete",
+      "complexity": "primitive",
+      "depends_on_prototypes": [],
+      "translation_notes": [
+        "Type-to-confirm pattern (type 'DISABLE') → zod schema `z.literal('DISABLE')` with custom error message; Button enabled only when field valid",
+        "Destructive button style (btn-danger) → shadcn Button variant='destructive'; note BL-PROD-05: `.btn-danger` missing from shared.css — must be added",
+        "Disable v2 → Server Action `disableOptimizerV2Action(auditReason)` toggling `feature_flags.allergen_sequencing_optimizer_v2 = false`, writing audit log, emitting outbox `optimizer.v2.disabled`",
+        "Audit reason ReasonInput → Textarea with min-length validation via zod `.min(10, ...)`; reason stored in `audit_log.notes`",
+        "Fallback rule display → read from `rule_registry` table where id='allergen_sequencing_heuristic_v1'; do not hardcode string",
+        "Admin-only action → RBAC guard in Server Action; return 403 for non-admin callers",
+        "Hardcoded labels → next-intl keys `optimizer.disable.*`"
+      ],
+      "shadcn_equivalent": [
+        "Dialog",
+        "DialogContent",
+        "DialogFooter",
+        "Input",
+        "Textarea",
+        "Button",
+        "Alert",
+        "Label"
+      ],
+      "known_bugs": [
+        "BL-PROD-05: .btn-danger referenced in MODAL-SCHEMA but missing from production.css"
+      ],
+      "estimated_translation_time_min": 55
+    },
+    {
+      "label": "request_review_modal",
+      "file": "design/Monopilot Design System/planning-ext/modals.jsx",
+      "lines": "677-696",
+      "component_type": "modal",
+      "ui_pattern": "crud-form-with-validation",
+      "data_domain": "Allergen",
+      "interaction": "approve",
+      "complexity": "primitive",
+      "depends_on_prototypes": [
+        "matrix_cell_edit_modal"
+      ],
+      "translation_notes": [
+        "Modal with dynamic title `${from} → ${to}` → derive allergen pair from URL params or parent state; pass as typed props",
+        "Justification textarea min 10 chars → zod `.min(10)` validation; wire to useForm",
+        "Submit → Server Action `submitMatrixReviewRequestAction({ allergenFrom, allergenTo, justification })` inserting into `changeover_matrix_reviews` table, sending notification to Admin role",
+        "Info block describing BLOCKED state (segregation_required=true) → keep as static content; reference V-CM-04 rule ID",
+        "Admin notification on submit → trigger via outbox event `changeover_matrix.review.requested`; admin sees it in notification tray",
+        "Hardcoded labels → next-intl keys `matrix.review.*`"
+      ],
+      "shadcn_equivalent": [
+        "Dialog",
+        "DialogContent",
+        "DialogFooter",
+        "Textarea",
+        "Button",
+        "Alert",
+        "Label"
+      ],
+      "known_bugs": [],
+      "estimated_translation_time_min": 40
+    },
+    {
+      "label": "pext_dashboard_gantt",
+      "file": "design/Monopilot Design System/planning-ext/dashboard.jsx",
+      "lines": "9-363",
+      "component_type": "page-layout",
+      "ui_pattern": "detail-view",
+      "data_domain": "Sequence",
+      "interaction": "approve",
+      "complexity": "page-level",
+      "depends_on_prototypes": [
+        "run_scheduler_modal",
+        "override_assignment_modal",
+        "reschedule_wo_modal",
+        "approve_all_modal"
+      ],
+      "translation_notes": [
+        "Hardcoded DAY_W/HOUR_W/TOTAL_W pixel constants for Gantt positioning → use CSS custom properties and container-query-aware layout; or adopt a Gantt library (e.g. frappe-gantt, bryntum) for production fidelity",
+        "All PEXT_ASSIGNMENTS / PEXT_LINES / PEXT_DATES mock data → parallel Drizzle queries in Server Component loader: `schedulerAssignments`, `productionLines`, `calendarDays` for the horizon",
+        "runState / runProgress simulation via setInterval → poll Server Action or SSE endpoint `GET /api/scheduler/run/{runId}/status` every 5s; use SWR or TanStack Query",
+        "Solver progress phases (greedy seed → local-search → finalize) → real phase data from `scheduler_runs.phase` column or solver SSE stream",
+        "pendingActions local state (approve/reject/override per id) → optimistic updates via TanStack Query mutation + Server Action; revalidate `scheduler_assignments` on settle",
+        "RBAC: canSeeRunBtn (role check) → derive from session in Server Component; pass as `canRun: boolean` prop",
+        "Allergen color legend (PEXT_ALLERGEN_COLORS) → derive from `allergen_types` table with `color_hex` column",
+        "BL-PEXT-05: hour-level Gantt zoom toggles state but doesn't re-render finer grid — fix by recomputing HOUR_W and re-rendering lane tracks",
+        "BL-PEXT-08: undo-approval 60s window is visual-only — wire real server-side deadline using `approved_at + 60s` with countdown invalidation"
+      ],
+      "shadcn_equivalent": [
+        "Button",
+        "Select",
+        "Badge",
+        "Alert",
+        "Tooltip",
+        "Popover"
+      ],
+      "known_bugs": [
+        "BL-PEXT-05: hour-level Gantt zoom toggles state but doesn't re-render finer grid",
+        "BL-PEXT-08: undo-approval 60s window is visual-only, no timer countdown"
+      ],
+      "estimated_translation_time_min": 480
+    },
+    {
+      "label": "assignment_side_panel",
+      "file": "design/Monopilot Design System/planning-ext/dashboard.jsx",
+      "lines": "365-451",
+      "component_type": "sidebar",
+      "ui_pattern": "detail-view",
+      "data_domain": "WO",
+      "interaction": "read-only",
+      "complexity": "composite",
+      "depends_on_prototypes": [
+        "override_assignment_modal",
+        "reschedule_wo_modal"
+      ],
+      "translation_notes": [
+        "Custom `.asn-side` slide-in panel → shadcn Sheet (side='right') with controlled open state",
+        "Hardcoded materials list (R-1001, R-1002, R-2101) → fetch from `wo_bom_lines` joined to `materials` table; show `material_code`, `required_qty`, `available_qty` with status pill",
+        "Allergen/changeover section → derive CO before/after from `changeover_matrix_cells` join using previous/next WO allergen groups on same line",
+        "Approval section with 'Undo approval' link → show only if `approved_at > now() - interval '60 seconds'`; Server Action `undoApprovalAction(assignmentId)` with audit log",
+        "DAG dependencies section → query `wo_dependencies` table for parent/child relationships; render as linked list or mini-tree",
+        "Status-conditional action buttons (Approve/Reject/Override/Reschedule) → derive from `assignment.status` + session role; disable at Server Action level too",
+        "Hardcoded labels → next-intl keys `assignment.detail.*`"
+      ],
+      "shadcn_equivalent": [
+        "Sheet",
+        "SheetContent",
+        "SheetHeader",
+        "SheetFooter",
+        "Button",
+        "Badge",
+        "Alert",
+        "Separator"
+      ],
+      "known_bugs": [
+        "BL-PEXT-08: undo-approval 60s window is visual-only, no timer countdown"
+      ],
+      "estimated_translation_time_min": 150
+    },
+    {
+      "label": "pext_forecasts_screen",
+      "file": "design/Monopilot Design System/planning-ext/forecast-screens.jsx",
+      "lines": "3-155",
+      "component_type": "page-layout",
+      "ui_pattern": "search-filter-list",
+      "data_domain": "Forecast",
+      "interaction": "read-only",
+      "complexity": "page-level",
+      "depends_on_prototypes": [
+        "forecast_upload_modal"
+      ],
+      "translation_notes": [
+        "PEXT_FORECASTS mock data → Drizzle query `db.select().from(forecastRows).where(and(between(forecastRows.weekIso, weekFrom, weekTo), sourceFilter))` with pagination",
+        "PEXT_FORECAST_WEEKS column headers → derived from query distinct weeks; generate dynamically to support any coverage range",
+        "Prophet health card section (prophetEnabled flag) → gate behind `feature_flags.prophet_ml` server-side; read SMAPE/health from `forecast_model_metrics` table",
+        "SVG sparkline charts for 4 products → replace with shadcn-compatible chart library (Recharts or Tremor); use real actual-vs-forecast data from `forecast_actuals` table",
+        "Source filter (manual/prophet/overridden) → URL search param; Server Component re-fetches on change",
+        "Override / Delete row actions → Server Actions `overrideForecastAction` and `deleteForecastRowAction` with audit log; optimistic UI",
+        "Hardcoded labels → next-intl keys `forecast.*`"
+      ],
+      "shadcn_equivalent": [
+        "Button",
+        "Select",
+        "Input",
+        "Table",
+        "TableHeader",
+        "TableBody",
+        "TableRow",
+        "TableCell",
+        "Badge",
+        "Alert"
+      ],
+      "known_bugs": [
+        "BL-PEXT-01: full Prophet chart integration with confidence bands and SMAPE per-product drill-down is P2"
+      ],
+      "estimated_translation_time_min": 200
+    },
+    {
+      "label": "pext_matrix_editor",
+      "file": "design/Monopilot Design System/planning-ext/matrix-screens.jsx",
+      "lines": "12-245",
+      "component_type": "page-layout",
+      "ui_pattern": "crud-form-with-validation",
+      "data_domain": "Allergen",
+      "interaction": "edit",
+      "complexity": "page-level",
+      "depends_on_prototypes": [
+        "matrix_cell_edit_modal",
+        "matrix_publish_modal",
+        "matrix_import_modal",
+        "matrix_diff_modal",
+        "request_review_modal"
+      ],
+      "translation_notes": [
+        "N×N allergen matrix table rendered with PEXT_ALLERGEN_CODES → Drizzle query `db.select().from(allergenTypes)` for row/column headers; cells from `changeover_matrix_cells` (default + per-line) with edits overlay from session draft",
+        "edits local state object → optimistic draft stored in `changeover_matrix_drafts` table per session; Server Action `saveCellDraftAction` on each cell edit; consolidate to version on publish",
+        "classifyCell heatmap coloring (none/low/med/high/blocked) → pure utility fn `classifyMatrixCell(minutes: number | 'BLKD'): string` — extract to shared `lib/matrix.ts`",
+        "3-tab layout (Default Matrix / Per-Line Overrides / Review Requests) → shadcn Tabs component with URL hash or search param for deep-linking",
+        "Per-line overrides accordion (selectedLine toggle) → shadcn Accordion with `AccordionItem` per line; override data from `changeover_matrix_line_overrides` table",
+        "Review requests table → Drizzle query `db.select().from(matrixReviewRequests).where(eq(status,'pending'))`; Admin-only Unblock/Reject actions as Server Actions with RBAC",
+        "Hardcoded labels → next-intl keys `matrix.*`; BL-PEXT-06: matrix JSON viewer placeholder link needs a real modal"
+      ],
+      "shadcn_equivalent": [
+        "Tabs",
+        "TabsList",
+        "TabsTrigger",
+        "TabsContent",
+        "Accordion",
+        "AccordionItem",
+        "Button",
+        "Badge",
+        "Alert",
+        "Table"
+      ],
+      "known_bugs": [
+        "BL-PEXT-06: matrix JSON viewer modal (View Full Snapshot JSON) is a placeholder link",
+        "BL-PEXT-09: version diff modal shows sample rows, not real diff vs historical"
+      ],
+      "estimated_translation_time_min": 360
+    },
+    {
+      "label": "pext_pending_full_page",
+      "file": "design/Monopilot Design System/planning-ext/optimizer-screens.jsx",
+      "lines": "4-110",
+      "component_type": "page-layout",
+      "ui_pattern": "list-with-actions",
+      "data_domain": "WO",
+      "interaction": "approve",
+      "complexity": "page-level",
+      "depends_on_prototypes": [
+        "approve_all_modal",
+        "override_assignment_modal"
+      ],
+      "translation_notes": [
+        "PEXT_ASSIGNMENTS mock data → Drizzle query with status filter, line/shift/search params; support URL-driven filtering for deep-links from KPI tiles",
+        "Local actions state (approve/reject per id) → optimistic updates with useOptimistic (React 19) or TanStack Query mutation; Server Actions `approveAssignmentAction` / `rejectAssignmentAction`",
+        "4 KPI tiles (In queue / Pending / Approved / Overridden) → derived from server aggregation query; avoid waterfall by including counts in same loader fetch",
+        "Filter bar (pills + selects + search input) → URL search params; nuqs library for type-safe param management",
+        "Export queue CSV button → Server Action streaming CSV response from `scheduler_assignments` table filtered by current params",
+        "Status badges (AssnStatus component) → extract to shared `<AssignmentStatusBadge status={...} />` component using shadcn Badge with variant map",
+        "Hardcoded labels → next-intl keys `pending.*`"
+      ],
+      "shadcn_equivalent": [
+        "Button",
+        "Select",
+        "Input",
+        "Table",
+        "TableHeader",
+        "TableBody",
+        "TableRow",
+        "TableCell",
+        "Badge"
+      ],
+      "known_bugs": [],
+      "estimated_translation_time_min": 180
+    },
+    {
+      "label": "pext_capacity_projection",
+      "file": "design/Monopilot Design System/planning-ext/optimizer-screens.jsx",
+      "lines": "113-206",
+      "component_type": "page-layout",
+      "ui_pattern": "detail-view",
+      "data_domain": "Sequence",
+      "interaction": "read-only",
+      "complexity": "page-level",
+      "depends_on_prototypes": [],
+      "translation_notes": [
+        "PEXT_CAPACITY_PROJECTION mock data → Drizzle query joining `scheduler_assignments` with `production_lines` to compute `SUM(qty_kg / duration_h) / line.cap_kg_h * 100` per line per day",
+        "Color-coded utilisation cells (>100% red, >90% amber, else green) → extract `utilColour(pct: number)` utility to `lib/capacity.ts`; replicate in both table cells and bar fills",
+        "Line utilisation bars section → shadcn Progress or custom div bars; use same `utilColour` utility for fill color class",
+        "V-SCHED-04 violation alert with specific line/day callouts → violations derived from query `WHERE pct > 100`; display as AlertDescription list",
+        "Refresh projection button → Server Action or SWR revalidation trigger; add `last_refreshed_at` timestamp from `scheduler_runs.completed_at`",
+        "Export CSV → Server Action streaming CSV of the same capacity_projection dataset",
+        "Hardcoded labels → next-intl keys `capacity.*`"
+      ],
+      "shadcn_equivalent": [
+        "Button",
+        "Alert",
+        "AlertDescription",
+        "Table",
+        "TableHeader",
+        "TableBody",
+        "Progress"
+      ],
+      "known_bugs": [],
+      "estimated_translation_time_min": 150
+    },
+    {
+      "label": "pext_run_history",
+      "file": "design/Monopilot Design System/planning-ext/runhistory-screens.jsx",
+      "lines": "3-115",
+      "component_type": "page-layout",
+      "ui_pattern": "search-filter-list",
+      "data_domain": "Sequence",
+      "interaction": "read-only",
+      "complexity": "page-level",
+      "depends_on_prototypes": [
+        "rerun_confirm_modal"
+      ],
+      "translation_notes": [
+        "PEXT_RUNS mock data → Drizzle query `db.select().from(schedulerRuns).orderBy(desc(schedulerRuns.startedAt))` with type/status/date/user filter params via URL search params",
+        "4 KPI tiles (from PEXT_RUN_KPIS) → derived from aggregate query: count by status, avg duration; include in same loader fetch",
+        "Row click → next/navigation `router.push` to run detail page `/scheduler/runs/[runId]`; or inline selectedRun state for prototype fidelity",
+        "Re-run button disabled for failed runs and non-Planner role → RBAC in Server Action; also gate at button level via session role",
+        "Duration color coding (durCls: amber >60s, red >120s) → utility `runDurationVariant(dur: number): 'default' | 'warning' | 'destructive'` for Badge variant",
+        "Export CSV button → Server Action streaming CSV of filtered `scheduler_runs`",
+        "Hardcoded labels → next-intl keys `runHistory.*`"
+      ],
+      "shadcn_equivalent": [
+        "Button",
+        "Select",
+        "Input",
+        "Table",
+        "TableHeader",
+        "TableBody",
+        "TableRow",
+        "TableCell",
+        "Badge"
+      ],
+      "known_bugs": [],
+      "estimated_translation_time_min": 150
+    },
+    {
+      "label": "pext_run_detail",
+      "file": "design/Monopilot Design System/planning-ext/runhistory-screens.jsx",
+      "lines": "119-260",
+      "component_type": "page-layout",
+      "ui_pattern": "detail-view",
+      "data_domain": "Sequence",
+      "interaction": "read-only",
+      "complexity": "page-level",
+      "depends_on_prototypes": [
+        "pext_run_history"
+      ],
+      "translation_notes": [
+        "Dual-column run-detail-grid (metadata left / output summary right) → CSS Grid with responsive collapse; extract `<RunMetaCard>` and `<RunOutputCard>` as server components",
+        "PEXT_RUN_DETAIL mock → single Drizzle query `db.query.schedulerRuns.findFirst({ where: eq(id, runId), with: { assignments: true, overrides: true } })`",
+        "Input snapshot JSON link ('View full snapshot JSON →') → link to `/scheduler/runs/{runId}/snapshot.json` endpoint or inline collapsed `<pre>` with shadcn Collapsible",
+        "Per-line utilisation bars → derive from assignments aggregation; reuse `utilColour` utility from capacity projection",
+        "Override log items (oli-diff, oli-reason) → query `scheduler_assignment_overrides` joined to `override_reason_codes`; display as timeline with shadcn Timeline or Card list",
+        "Partial/failed run alert variants → map `run.status` to shadcn Alert variant ('warning' for partial, 'destructive' for failed)",
+        "Hardcoded labels → next-intl keys `runDetail.*`"
+      ],
+      "shadcn_equivalent": [
+        "Button",
+        "Alert",
+        "AlertDescription",
+        "Card",
+        "CardContent",
+        "Badge",
+        "Collapsible",
+        "Table",
+        "Progress",
+        "Separator"
+      ],
+      "known_bugs": [],
+      "estimated_translation_time_min": 200
+    },
+    {
+      "label": "pext_scenarios",
+      "file": "design/Monopilot Design System/planning-ext/scenario-screens.jsx",
+      "lines": "3-211",
+      "component_type": "page-layout",
+      "ui_pattern": "multi-step-wizard",
+      "data_domain": "Scenario",
+      "interaction": "create",
+      "complexity": "page-level",
+      "depends_on_prototypes": [
+        "run_scheduler_modal"
+      ],
+      "translation_notes": [
+        "P2 feature gate → wrap entire interactive section in server-side `feature_flags.what_if_simulation` check; show upgrade/locked card when disabled",
+        "Scenario builder left panel + result right panel → two-column layout with shadcn ResizablePanel or fixed 340px/1fr grid",
+        "mods array local state (add/remove modifications) → useReducer with typed `ScenarioModification[]`; preset chips map to strongly-typed mod objects",
+        "runSim setTimeout canned deltas → real Server Action `runScenarioSimulationAction(scenarioId, mods)` calling solver with `dry_run: true` flag; poll for result",
+        "KPI compare grid (4×4: KPI / Baseline / Simulation / Delta) → shadcn Table with color-coded delta Badge per row",
+        "MiniGantt SVG → replace with shared mini-Gantt React component reusing GanttLane primitives from dashboard; render baseline vs scenario side-by-side",
+        "Saved scenarios list → Drizzle query `db.select().from(scenarios).orderBy(desc(createdAt))`; delete via Server Action with confirmation",
+        "Hardcoded labels → next-intl keys `scenario.*`"
+      ],
+      "shadcn_equivalent": [
+        "Button",
+        "Input",
+        "Select",
+        "Badge",
+        "Alert",
+        "Table",
+        "TableHeader",
+        "TableBody",
+        "Card",
+        "Collapsible"
+      ],
+      "known_bugs": [
+        "BL-PEXT-02: what-if simulation real solver hook-up is P2 (currently preset-driven + canned deltas)"
+      ],
+      "estimated_translation_time_min": 360
+    },
+    {
+      "label": "pext_sequencing",
+      "file": "design/Monopilot Design System/planning-ext/sequencing-screens.jsx",
+      "lines": "3-179",
+      "component_type": "page-layout",
+      "ui_pattern": "detail-view",
+      "data_domain": "Sequence",
+      "interaction": "approve",
+      "complexity": "page-level",
+      "depends_on_prototypes": [
+        "disable_v2_modal"
+      ],
+      "translation_notes": [
+        "v2 enhancement banner with rule ID → read `rule_registry.id` and `fallback_rule` from DB; avoid hardcoding rule IDs in component",
+        "4 KPI tiles (CO total, v1 baseline, CO reduction, cross-line moves) → aggregate query from `scheduler_assignments` joined to `changeover_matrix_cells`; target ≥30% saving from `optimizer_targets` table",
+        "Preview mode dry-run (previewRunState) → Server Action `previewSequenceAction(runId)` calling solver with dry_run=true flag; store result in `sequence_previews` table with 24h TTL",
+        "Sequence compare panels (baseline v1 / proposed v2) → Drizzle query `seq_baseline` and `seq_proposed` from `sequence_preview_rows`; `moved` flag highlighted with Badge",
+        "MOVED badge and saved Nm annotation → derive from diff between baseline and proposed row positions per line",
+        "Commit preview → Server Action `commitSequencePreviewAction(previewId)` writing to `scheduler_assignments` as draft status; emit `sequencing.preview.committed`",
+        "Sequence table (non-preview mode) → current v2 optimizer output from `scheduler_assignments` with allergen/CO/risk columns; CORisk badge uses same utility as capacity screen"
+      ],
+      "shadcn_equivalent": [
+        "Button",
+        "Badge",
+        "Alert",
+        "AlertDescription",
+        "Table",
+        "TableHeader",
+        "TableBody",
+        "TableRow",
+        "TableCell",
+        "Progress"
+      ],
+      "known_bugs": [],
+      "estimated_translation_time_min": 250
+    },
+    {
+      "label": "pext_rules_screen",
+      "file": "design/Monopilot Design System/planning-ext/other-screens.jsx",
+      "lines": "4-76",
+      "component_type": "page-layout",
+      "ui_pattern": "list-with-actions",
+      "data_domain": "Sequence",
+      "interaction": "read-only",
+      "complexity": "page-level",
+      "depends_on_prototypes": [],
+      "translation_notes": [
+        "PEXT_RULES mock → Drizzle query `db.select().from(ruleRegistry).orderBy(asc(phase), asc(id))`; separate active/standby/disabled with filter",
+        "Active rules card list (rc-dsl, rc-desc, rc-meta) → shadcn Card per rule with Badge for status; 'View source →' button opens rule DSL in a Sheet/Dialog with syntax highlighting",
+        "Feature flags table → Drizzle query `db.select().from(featureFlags)` with `phase` column; ON/OFF Badge uses Badge variant='default'/'secondary'",
+        "Publish changes button (disabled for non-admin) → RBAC from session; admin publishes via Server Action `publishRuleAction(ruleId)` creating new rule version",
+        "Read-only for Planners → gate entire page with session role check in layout; redirect to dashboard if not Admin",
+        "invokes7d stat → aggregate from `scheduler_runs` where `started_at > now() - interval '7 days'`; join to rule invocation log",
+        "Hardcoded labels → next-intl keys `rules.*`"
+      ],
+      "shadcn_equivalent": [
+        "Button",
+        "Badge",
+        "Card",
+        "CardContent",
+        "Table",
+        "TableHeader",
+        "TableBody",
+        "Alert"
+      ],
+      "known_bugs": [],
+      "estimated_translation_time_min": 120
+    },
+    {
+      "label": "pext_settings_screen",
+      "file": "design/Monopilot Design System/planning-ext/other-screens.jsx",
+      "lines": "79-133",
+      "component_type": "page-layout",
+      "ui_pattern": "crud-form-with-validation",
+      "data_domain": "Sequence",
+      "interaction": "edit",
+      "complexity": "page-level",
+      "depends_on_prototypes": [],
+      "translation_notes": [
+        "4-card 2-column grid layout → shadcn Card with 2-col CSS Grid; responsive collapse on tablet",
+        "Default run parameters form (horizon, refresh interval, forecast, solver timeout) → useForm with zod schema; Server Action `updateSchedulerSettingsAction` writing to `scheduler_config` table",
+        "Alerts config form (capacity threshold, stale schedule warning, override rate) → same pattern; separate `scheduler_alert_config` table or JSON config column",
+        "Integration card (solver URL, circuit breaker params) → Admin-only; fields disabled for non-admin; values from environment config not editable via UI in production (use env vars)",
+        "Premium status card → derive from `tenant_subscriptions` table; feature list is content, not data, so i18n keys suffice",
+        "14-day horizon option disabled → gate via feature flag `scheduler.horizon_14d.enabled`; show as disabled Select option with tooltip explanation",
+        "Hardcoded labels → next-intl keys `settings.*`"
+      ],
+      "shadcn_equivalent": [
+        "Card",
+        "CardHeader",
+        "CardContent",
+        "Select",
+        "Input",
+        "Button",
+        "Label",
+        "Badge"
+      ],
+      "known_bugs": [],
+      "estimated_translation_time_min": 120
+    }
+  ]
+}

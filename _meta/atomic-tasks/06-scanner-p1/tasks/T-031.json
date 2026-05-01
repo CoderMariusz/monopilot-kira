@@ -1,0 +1,65 @@
+{
+  "title": "T-031 — SCN-020 Receive PO 4-step UI (06-b)",
+  "prompt": "# T-031 — SCN-020 Receive PO\n\nPRD: 06-SCANNER-P1-PRD.md §8.2 FR-SC-FE-020/021/025\nUX: design/06-SCANNER-P1-UX.md:327-389 §3.7\nPrototype: design/Monopilot Design System/scanner/flow-receive.jsx:7-37 (po_list_screen), :40-86 (po_lines_screen), :89-233 (po_item_screen), :236-264 (po_done_screen)\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nDeliver SCN-020 Receive PO 4-step workflow (list → lines → item → done) wired to T-027 + T-028 with multi-LP per line, GS1-128 auto-fill of lot/expiry, catch-weight branch.\n\n## Implementation contract\n1. Routes: /scanner/receive/po, /scanner/receive/po/[id], /scanner/receive/po/[id]/[lineId], /scanner/receive/po/done.\n2. Item step: scan product (GS1 → auto-fill lot AI 10 + expiry AI 17), then qty numpad, then location scan; multi-LP add-row support.\n3. Done step: green LP card 26px monospace + 'Kolejna pozycja' button.\n4. Catch weight branch (FR-SC-FE-025): if product.is_catch_weight, show 'Waga LP / Jednostek' inputs.\n\n## Files\n- apps/scanner/src/app/scanner/receive/po/page.tsx [create]\n- apps/scanner/src/app/scanner/receive/po/[id]/page.tsx [create]\n- apps/scanner/src/app/scanner/receive/po/[id]/[lineId]/page.tsx [create]\n- apps/scanner/src/app/scanner/receive/po/done/page.tsx [create]\n- apps/scanner/__tests__/scn-020-receive-po.test.tsx [create]\n\n## Acceptance criteria\n1. Given the 4 steps render, when compared to `design/Monopilot Design System/scanner/flow-receive.jsx:7-37,40-86,89-233,236-264`, then they have the same urgency-dot list, the same progress-circles per line, the same item-step scan + qty + location order, and the same green LP card + 'Kolejna pozycja' on done — RTL snapshot + manual checklist (structural + visual + interaction parity)\n2. Given the user scans a GS1-128 with AI 10 batch + AI 17 expiry on the item step, when ScanInput emits, then the lot and expiry inputs are auto-filled and the qty numpad opens focused\n3. Given product.is_catch_weight=true, when the item step renders for that line, then a catch_weight_kg field is displayed alongside qty and the submit posts both fields to /receive-po-line\n\n## Test strategy\n- RED: write scn-020-receive-po.test.tsx asserting parity + GS1 auto-fill + catch-weight branch before implementation\n- Run 'pnpm --filter scanner test scn-020-receive-po'\n\n## Risk red lines\n- Do not allow over-receipt without server-side error surfacing\n- Do not strip GS1 AI parsing failures (must show error banner)\n- Do not navigate to done step before /receive-po-line returns 200",
+  "labels": ["prd", "ui", "scn-020-receive-po", "T3-ui"],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-031",
+    "source_prd": "06-SCANNER-P1-PRD.md",
+    "prd_refs": ["§8.2 FR-SC-FE-020", "§8.2 FR-SC-FE-021", "§8.2 FR-SC-FE-025"],
+    "category": "ui",
+    "subcategory": "scn-020-receive-po",
+    "task_type": "T3-ui",
+    "parent_feature": "06-b Warehouse In",
+    "context_budget": "40k",
+    "estimated_effort": "3-4h",
+    "description": "SCN-020 Receive PO 4-step workflow (list/lines/item/done) with GS1 auto-fill, multi-LP, catch-weight branch.",
+    "details": "Parity checklist:\n1) PO list shows urgency dots red/amber/blue per ETA.\n2) Lines step renders progress circles colored by % complete.\n3) Item step order: scan product → auto-fill lot/expiry → qty numpad → location scan.\n4) Multi-LP add-row affordance on item step.\n5) Done step renders green LP card 26px monospace + 'Kolejna pozycja'.\n6) Catch-weight branch shows weight + units inputs when product.is_catch_weight.",
+    "scope_files": [
+      "apps/scanner/src/app/scanner/receive/po/page.tsx [create]",
+      "apps/scanner/src/app/scanner/receive/po/[id]/page.tsx [create]",
+      "apps/scanner/src/app/scanner/receive/po/[id]/[lineId]/page.tsx [create]",
+      "apps/scanner/src/app/scanner/receive/po/done/page.tsx [create]",
+      "apps/scanner/__tests__/scn-020-receive-po.test.tsx [create]",
+      "design/Monopilot Design System/scanner/flow-receive.jsx:7-37 [ref]",
+      "design/Monopilot Design System/scanner/flow-receive.jsx:40-86 [ref]",
+      "design/Monopilot Design System/scanner/flow-receive.jsx:89-233 [ref]",
+      "design/Monopilot Design System/scanner/flow-receive.jsx:236-264 [ref]"
+    ],
+    "out_of_scope": [
+      "Do not implement TO receive UI here (T-032)",
+      "Do not implement putaway UI here (T-033)",
+      "Do not implement label printing (P2)"
+    ],
+    "dependencies": ["T-013", "T-014", "T-015", "T-027", "T-028"],
+    "parallel_safe_with": ["T-032", "T-033"],
+    "acceptance_criteria": [
+      "Given the 4 steps render, when compared to design/Monopilot Design System/scanner/flow-receive.jsx:7-37, :40-86, :89-233, :236-264, then they have the same urgency-dot list, progress-circles per line, item-step scan + qty + location order, and green LP card + 'Kolejna pozycja' on done — RTL snapshot + manual checklist",
+      "Given a GS1-128 scan with AI 10 batch + AI 17 expiry on the item step, when ScanInput emits, then lot and expiry inputs are auto-filled and qty numpad opens focused",
+      "Given product.is_catch_weight=true, when the item step renders, then a catch_weight_kg field is displayed alongside qty and submit posts both to /receive-po-line"
+    ],
+    "test_strategy": [
+      "RED: write scn-020-receive-po.test.tsx asserting parity + GS1 auto-fill + catch-weight branch before implementation",
+      "Run 'pnpm --filter scanner test scn-020-receive-po'"
+    ],
+    "risk_red_lines": [
+      "Do not allow over-receipt without surfacing server error",
+      "Do not strip GS1 parse failure error banner",
+      "Do not navigate to done before 200"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

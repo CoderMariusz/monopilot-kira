@@ -1,0 +1,66 @@
+{
+  "title": "T-011 — API: bulk PO creation grouped by default supplier",
+  "prompt": "Implement FR-PLAN-006 (PO bulk creation). Endpoint `POST /api/planning/purchase-orders/bulk` accepts:\n```\n{ items: [{ product_id, quantity }] }\n```\nGroups items by `supplier_products.is_default=true.supplier_id`, drafts one PO per supplier. Items without a default supplier are returned in `warnings[]` (do not block).\n\nReturns `{ created: [{ po_id, po_number, supplier_id, line_count }], warnings: [{ product_id, reason }] }`.\n\nRED test asserts: 5 items with 3 distinct default suppliers + 1 unassigned → 3 PO drafts + 1 warning. Test must run within 5s for 100 lines (perf hint per §13.4).",
+  "labels": ["prd", "api", "po-bulk", "T2-api"],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-011",
+    "source_prd": "04-PLANNING-BASIC-PRD.md",
+    "prd_refs": ["§6.2", "§6.7", "§13.4"],
+    "category": "api",
+    "subcategory": "po-bulk",
+    "task_type": "T2-api",
+    "parent_feature": "planning-po",
+    "context_budget": "30k",
+    "estimated_effort": "2-3h",
+    "description": "Bulk PO endpoint that groups inputs by default supplier and emits one PO per group.",
+    "details": "Process all items in a single transaction. Use one supplier_products query with WHERE product_id = ANY(...) AND is_default = true to fetch all default suppliers in one round trip. For each grouped supplier, call the same insertion path used by T-010 (factor common helper). Status='draft' for bulk-created POs (not auto-submitted). Outbox event 'po.bulk_created' emitted once per bulk run.",
+    "scope_files": [
+      "src/app/api/planning/purchase-orders/bulk/route.ts [create]",
+      "src/server/actions/planning/po-bulk-create.ts [create]",
+      "src/app/api/planning/purchase-orders/bulk/__tests__/route.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "CSV parsing UI (T-016)",
+      "PO approval logic (T-013)"
+    ],
+    "dependencies": ["T-010"],
+    "parallel_safe_with": ["T-008", "T-009", "T-012"],
+    "acceptance_criteria": [
+      "Given 5 input items and 3 distinct default suppliers + 1 product without default, when bulk creates run, then 3 POs are returned in `created[]` and 1 entry in `warnings[]`.",
+      "Given 100 input items spread across 5 suppliers, when bulk creates run, then total wall time is < 5s on a typical dev DB.",
+      "Given any group fails to insert, when transaction rolls back, then NO PO from any group is persisted.",
+      "Given `pnpm vitest run src/app/api/planning/purchase-orders/bulk/__tests__/route.test.ts`, when run, then 0 failures."
+    ],
+    "test_strategy": [
+      "RED tests for grouping correctness, warning emission, transactional all-or-nothing.",
+      "Add a non-failing perf assertion (test runtime < 5s).",
+      "Run `pnpm vitest run src/app/api/planning/purchase-orders/bulk/__tests__/route.test.ts`."
+    ],
+    "risk_red_lines": [
+      "Do not silently skip unassigned products — they must surface in warnings.",
+      "Do not split into multiple transactions — partial bulk insert is a data-integrity hazard.",
+      "Do not reuse PO numbers across the group — each PO gets its own number from T-009."
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

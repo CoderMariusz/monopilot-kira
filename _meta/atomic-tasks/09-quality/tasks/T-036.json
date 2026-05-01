@@ -1,0 +1,59 @@
+{
+  "title": "T-036 — inspection_assign_modal (parity)",
+  "prompt": "# T-036 — inspection_assign_modal\n\nPRD: 09-QUALITY-PRD.md §8.3 QUA-111, §8.5 prototype inspection_assign_modal\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nBuild `InspectionAssignModal` Client Component to reassign a pending inspection to a different qa_inspector or quality_lead with optional priority override + notes. Submits to assignInspection (T-026) and emits inspection_assigned outbox event.\n\n## Implementation contract\n1. `apps/web/src/components/quality/inspections/InspectionAssignModal.tsx` shadcn Dialog: Inspector Select (RBAC-filtered to qa_inspector+quality_lead), Priority Select override (optional), Notes Textarea.\n2. RHF + Zod, Submit calls assignInspection(inspectionId, payload).\n3. RBAC: quality_lead may assign anyone; qa_inspector may only self-assign (server enforces).\n4. 1:1 parity vs `design/Monopilot Design System/quality/modals.jsx:783-816`.\n\n## Files\n- apps/web/src/components/quality/inspections/InspectionAssignModal.tsx [create]\n- apps/web/src/components/quality/inspections/__tests__/InspectionAssignModal.test.tsx [create]\n- design/Monopilot Design System/quality/modals.jsx [ref]\n\n## Acceptance criteria\n1. Given the modal renders, when compared to design/Monopilot Design System/quality/modals.jsx:783-816, then it has parity with the prototype on structure (header + Inspector Select + Priority Select + Notes Textarea + Cancel/Assign footer in same order), visuals (shadcn Dialog/Form/Select/Textarea/Button only — no native select), and interaction (Inspector list filtered to qa_inspector+quality_lead, Assign disabled until inspector chosen, qa_inspector callers see only self in the inspector list) — verified by RTL plus parity checklist in pipeline_inputs.details\n2. Given a qa_inspector caller and Inspector picker showing only self, when the modal opens, then the Inspector Select has only one option (the session user) and Priority override is hidden\n3. Given Submit succeeds, when the response returns ok, then the modal closes and parent receives onSuccess(inspection_id) and the inspection_assigned outbox event row is verified to exist (assert via test fake)",
+  "labels": ["prd", "ui", "inspection-assign-modal", "T3-ui"],
+  "priority": 120,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-036",
+    "source_prd": "09-QUALITY-PRD.md",
+    "prd_refs": ["§8.3 QUA-111", "§8.5"],
+    "category": "ui",
+    "subcategory": "inspection-assign-modal",
+    "task_type": "T3-ui",
+    "parent_feature": "09-c Incoming Inspection",
+    "context_budget": "30k",
+    "estimated_effort": "1h",
+    "prototype_match": true,
+    "description": "Inspection assign modal with RBAC-filtered Inspector list + Priority override + Notes; parity with inspection_assign_modal prototype.",
+    "details": "shadcn Dialog with RHF+Zod. Inspector Select filtered by role on the server-fetched options endpoint. Priority Select hidden for qa_inspector role. Submit calls assignInspection (T-026). Honor translation notes (server-side option fetch, no native select).",
+    "scope_files": [
+      "apps/web/src/components/quality/inspections/InspectionAssignModal.tsx [create]",
+      "apps/web/src/components/quality/inspections/__tests__/InspectionAssignModal.test.tsx [create]",
+      "design/Monopilot Design System/quality/modals.jsx [ref]"
+    ],
+    "out_of_scope": [
+      "Do not implement assignInspection backend (T-026)",
+      "Do not implement inspection list (T-032)"
+    ],
+    "dependencies": ["T-026"],
+    "parallel_safe_with": ["T-032", "T-033", "T-034", "T-035"],
+    "acceptance_criteria": [
+      "Given the modal renders, when compared to design/Monopilot Design System/quality/modals.jsx:783-816, then it has parity on structure (header + Inspector Select + Priority Select + Notes Textarea + Cancel/Assign footer in declared order), visuals (shadcn primitives only — no native select), and interaction (Inspector list filtered to qa_inspector+quality_lead, Assign disabled until inspector chosen, qa_inspector callers see only self) — verified by RTL plus parity checklist in pipeline_inputs.details",
+      "Given a qa_inspector caller, when the modal opens, then the Inspector Select has only one option (the session user) and Priority override is hidden",
+      "Given Submit succeeds, when the response returns ok, then the modal closes, parent receives onSuccess(inspection_id), and the inspection_assigned outbox event row is verified via test fake"
+    ],
+    "test_strategy": [
+      "RED: write apps/web/src/components/quality/inspections/__tests__/InspectionAssignModal.test.tsx asserting parity structure, role-filtered options, outbox event verification",
+      "Run 'pnpm --filter web test InspectionAssignModal'"
+    ],
+    "risk_red_lines": [
+      "Do not let qa_inspector assign to other users (server enforces)",
+      "Do not use native HTML <select>",
+      "Do not skip the inspection_assigned outbox emit on success"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

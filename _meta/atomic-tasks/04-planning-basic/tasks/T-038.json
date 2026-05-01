@@ -1,0 +1,66 @@
+{
+  "title": "T-038 — UI: PLN-014 PO Fast-Flow Wizard modal (parity with po_fast_flow_wizard)",
+  "prompt": "Build PLN-014 PO 3-step wizard modal at `src/components/planning/po/POFastFlowWizard.tsx` matching prototype `design/Monopilot Design System/planning/modals.jsx:21-179` 1:1.\n\nSteps: (1) Supplier pick + smart defaults (currency, tax_code, payment_terms, warehouse), (2) Products + qty rows with auto-fill (unit_price, expected_delivery_date, discount); warning for products without is_default supplier, (3) Review with totals + optional approval banner.\n\nRadix Dialog (size wide). useReducer step machine. react-hook-form + Zod resolver. Submit calls T-010 Server Action.\n\nRED RTL test asserts 3-step navigation, smart defaults populate after supplier pick, total recompute on line change.",
+  "labels": ["prd", "ui", "pln-014-po-wizard", "T3-ui"],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-038",
+    "source_prd": "04-PLANNING-BASIC-PRD.md",
+    "prd_refs": ["§6.2", "§6.6"],
+    "category": "ui",
+    "subcategory": "pln-014-po-wizard",
+    "task_type": "T3-ui",
+    "parent_feature": "planning-po",
+    "context_budget": "40k",
+    "estimated_effort": "4-5h",
+    "prototype_match": true,
+    "description": "PO 3-step wizard modal with smart defaults, react-hook-form, totals derivation.",
+    "details": "Prototype reference: planning/modals.jsx:21-179. Translation notes (verbatim from prototype index): window.Modal → Radix Dialog wide; useState step machine → useReducer; mock supplier options → Server Action cached supplier list; addLine/subtotal computation → derived without setState; submit setTimeout → Server Action with optimistic UI; approval banner → conditional on total > settings.po_approval_threshold; labels → next-intl planning.po. Parity checklist: (1) 3-step Stepper, (2) Step 1 fields and order (supplier, currency, tax, terms, warehouse), (3) Step 2 line table columns, (4) Step 3 review summary + approval banner, (5) Next/Back/Submit footer.",
+    "scope_files": [
+      "src/components/planning/po/POFastFlowWizard.tsx [create]",
+      "src/components/planning/po/__tests__/POFastFlowWizard.test.tsx [create]",
+      "design/Monopilot Design System/planning/modals.jsx:21-179 [ref]"
+    ],
+    "out_of_scope": [
+      "Add Line modal (T-039)",
+      "PO list page (T-035)"
+    ],
+    "dependencies": ["T-010", "T-035"],
+    "parallel_safe_with": ["T-039", "T-040"],
+    "acceptance_criteria": [
+      "Given the modal opens, when compared to `design/Monopilot Design System/planning/modals.jsx:21-179`, then it renders the same 3 step labels, the same field set on each step in the same order, the same Next/Back/Submit footer, and the same shadcn primitives (Dialog, Stepper, Form, Select, Input, Textarea, Button, Alert) — parity verified by RTL test per the checklist.",
+      "Given Step 1 supplier is selected, when defaults endpoint resolves, then currency/payment_terms/warehouse fields populate and become read-only by default.",
+      "Given Step 3 total > planning_settings.po_approval_threshold, when the modal renders the review, then the approval banner is visible.",
+      "Given `pnpm vitest run src/components/planning/po/__tests__/POFastFlowWizard.test.tsx`, when run, then 0 failures."
+    ],
+    "test_strategy": [
+      "RED RTL test asserts step navigation, smart-default propagation, totals derivation, parity.",
+      "Playwright e2e: open wizard from PO list, complete all steps, expect new PO row visible.",
+      "Run `pnpm vitest run` and `pnpm playwright test`."
+    ],
+    "risk_red_lines": [
+      "Do not store totals in setState — must derive.",
+      "Do not skip Zod validation in any step."
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

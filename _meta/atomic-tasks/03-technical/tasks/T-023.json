@@ -1,0 +1,36 @@
+{
+  "title": "T-023 — API: Routing cost preview (GET /api/technical/items/:code/routings/:v/cost-preview)",
+  "prompt": "Implement GET endpoint computing routing cost preview per §12.4 TEC-062. Inputs: routing version, expected volume (query param). Output: per-op cost = setup_time_min/60 * cost_per_hour + (run_time_per_unit_sec * volume / 3600) * cost_per_hour, plus total. Currency from organizations.currency. Org-scoped. RED tests/api/routing-cost-preview.test.ts. Run: `pnpm vitest run tests/api/routing-cost-preview.test.ts`.",
+  "labels": ["prd", "api", "routing-cost", "T2-api"],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-023",
+    "source_prd": "03-TECHNICAL-PRD.md",
+    "prd_refs": ["§12.4"],
+    "category": "api",
+    "subcategory": "routing-cost",
+    "task_type": "T2-api",
+    "parent_feature": "03-TECHNICAL-c Routing",
+    "context_budget": "15k",
+    "estimated_effort": "1h",
+    "description": "Routing cost preview endpoint summing setup + run × volume × cost_per_hour.",
+    "details": "Single SQL query with arithmetic, returns array of operations + total. No write side effects.",
+    "scope_files": ["app/api/technical/items/[item_code]/routings/[version]/cost-preview/route.ts", "tests/api/routing-cost-preview.test.ts"],
+    "out_of_scope": ["BOM cost roll-up (10-FINANCE)"],
+    "dependencies": ["T-022"],
+    "parallel_safe_with": ["T-024", "T-025"],
+    "acceptance_criteria": [
+      "Given routing with one op (setup=30 min, run=10 sec, cost=60/h) and volume=100, when GET, then op_cost = 30 + 16.67 ≈ 46.67 (within 0.01).",
+      "Given missing volume param, when GET, then 422.",
+      "Given cross-org request, when GET, then 404 (RLS)."
+    ],
+    "test_strategy": ["RED tests for arithmetic precision + RLS.", "Run: pnpm vitest run tests/api/routing-cost-preview.test.ts"],
+    "risk_red_lines": ["Do not write to any table — read-only."],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {"required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"], "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]},
+    "routing_hints": {"red": "hermes_gpt55", "implementation": "hermes_gpt55", "review": "opus_if_high_risk_or_ui_or_architecture", "close": "spark_low_risk_else_opus"}
+  }
+}

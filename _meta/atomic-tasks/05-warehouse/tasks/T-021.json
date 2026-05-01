@@ -1,0 +1,60 @@
+{
+  "title": "T-021 — GRN from PO Server Action",
+  "prompt": "# T-021 — GRN from PO Server Action\n\nPRD: `05-WAREHOUSE-PRD.md` §7.1 (FR-WH-006), V-WH-GRN-001..007.\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`.\n\n## Goal\nServer Action `completeGrnFromPo(grnId)` validating multi-LP-per-line entries, creating LPs (T-016), updating PO aggregation, and emitting receipt stock_moves.\n\n## Implementation contract\n`apps/web/lib/services/warehouse/grn-from-po.ts`. Steps per §7.1: validate per-row batch/expiry/catch_weight per warehouse_settings; validate over-receipt per allow_over_receipt + over_receipt_tolerance_pct; create one LP per grn_items row (T-016); populate grn_items.lp_id; aggregate po_lines.received_qty += sum; update PO status (confirmed→receiving or →closed); insert receipt stock_moves (T-025); set GRN status='completed'. Single transaction. Outbox emission delegated to T-047.\n\n## Files (scope)\n- apps/web/lib/services/warehouse/grn-from-po.ts [create]\n- apps/web/lib/services/warehouse/__tests__/grn-from-po.test.ts [create]\n\n## Acceptance criteria\n1. Given a 100-box PO line with 2 grn_items rows (40+60), when completeGrnFromPo runs, then 2 LPs are created with their distinct batches and po_lines.received_qty becomes 100.\n2. Given require_batch_on_receipt=true and a row missing batch, when completeGrnFromPo runs, then it returns V-WH-GRN-003 validation error and no LPs are created.\n3. Given over-receipt 110 vs ordered 100 with allow_over_receipt=false, when completeGrnFromPo runs, then it returns V-WH-GRN-002 validation error.\n4. Given a successful complete, when stock_moves is queried, then one move_type='receipt' row exists per created LP.\n\n## Test strategy\n- RED: grn-from-po.test.ts covers happy multi-row, missing-batch error, over-receipt block, receipt stock_moves.\n- Run `pnpm --filter web test grn-from-po`.\n\n## Risk red lines\n- Do not auto-complete (manual only per baseline D12).\n- Do not auto-split rows.\n- Do not bypass single-transaction guarantee.",
+  "labels": ["prd", "api", "grn", "T2-api"],
+  "priority": 90,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-021",
+    "source_prd": "05-WAREHOUSE-PRD.md",
+    "prd_refs": ["§7.1", "§7.3"],
+    "category": "api",
+    "subcategory": "grn",
+    "task_type": "T2-api",
+    "parent_feature": "warehouse-grn",
+    "context_budget": "40k",
+    "estimated_effort": "2-3h",
+    "description": "Server Action completing GRN from PO with multi-LP-per-line per Q1 baseline D16.",
+    "details": "Validate per-row constraints; over-receipt gate; create LP per row; aggregate po_lines.received_qty; update PO status; insert receipt stock_moves; mark GRN completed. Single transaction.",
+    "scope_files": [
+      "apps/web/lib/services/warehouse/grn-from-po.ts [create]",
+      "apps/web/lib/services/warehouse/__tests__/grn-from-po.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "GS1 parser (T-023)",
+      "UI wizard (T-056)",
+      "Outbox emission (T-047)",
+      "GRN from TO (T-022)"
+    ],
+    "dependencies": ["T-005", "T-016", "T-025"],
+    "parallel_safe_with": ["T-022", "T-023", "T-024"],
+    "acceptance_criteria": [
+      "Given a 100-box PO line with 2 grn_items rows (40+60), when complete runs, then 2 LPs are created with distinct batches and po_lines.received_qty=100",
+      "Given require_batch_on_receipt=true and a row missing batch, when run, then V-WH-GRN-003 error returns and no LPs are created",
+      "Given over-receipt 110 vs ordered 100 with allow_over_receipt=false, when run, then V-WH-GRN-002 error returns",
+      "Given successful complete, when stock_moves is queried, then one move_type='receipt' row exists per created LP"
+    ],
+    "test_strategy": [
+      "RED: grn-from-po.test.ts covers multi-row, batch missing, over-receipt, receipt moves",
+      "Run 'pnpm --filter web test grn-from-po'"
+    ],
+    "risk_red_lines": [
+      "Do not auto-complete",
+      "Do not auto-split rows",
+      "Do not break single-transaction guarantee"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

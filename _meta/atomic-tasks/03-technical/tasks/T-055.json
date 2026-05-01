@@ -1,0 +1,36 @@
+{
+  "title": "T-055 — UI: TEC-070 D365 Sync Dashboard + TEC-071 Manual Sync Trigger",
+  "prompt": "Build D365 sync dashboard (TEC-070) and manual sync trigger modal (TEC-071) per §13.8. Match `d365_status_screen` design/Monopilot Design System/technical/other-screens.jsx:904-935 and `d365_item_sync_confirm_modal` design/Monopilot Design System/technical/modals.jsx:542-559. Uses T-028 + T-030 endpoints. RED tests/ui/tec-070-d365-dashboard.test.tsx. Run: `pnpm vitest run tests/ui/tec-070-d365-dashboard.test.tsx`.",
+  "labels": ["prd", "ui", "ui-d365-dashboard", "T3-ui"],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-055",
+    "source_prd": "03-TECHNICAL-PRD.md",
+    "prd_refs": ["§13.8 TEC-070", "§13.8 TEC-071"],
+    "category": "ui",
+    "subcategory": "d365-dashboard",
+    "task_type": "T3-ui",
+    "parent_feature": "03-TECHNICAL-d D365",
+    "context_budget": "20k",
+    "estimated_effort": "2-3h",
+    "description": "D365 dashboard + manual sync trigger modal.",
+    "details": "Dashboard polls /api/technical/d365/health every 30s. Trigger modal asks for entity (items|bom|formula) + direction (pull|push). Shows last_sync_at + success-rate sparkline.",
+    "scope_files": ["app/(app)/technical/d365/page.tsx", "app/(app)/technical/d365/_components/manual-sync-modal.tsx", "tests/ui/tec-070-d365-dashboard.test.tsx"],
+    "out_of_scope": ["DLQ manager (T-058)", "Drift resolution (T-060)"],
+    "dependencies": ["T-028", "T-030"],
+    "parallel_safe_with": ["T-056", "T-057", "T-058", "T-059", "T-060"],
+    "acceptance_criteria": [
+      "Given the dashboard renders, when compared to design/Monopilot Design System/technical/other-screens.jsx:904-935 and design/Monopilot Design System/technical/modals.jsx:542-559, then KPI cards, last-runs table, modal field set, and Cancel/Confirm button order match — structural + visual + interaction parity verified by RTL.",
+      "Given integration.d365.enabled=false, when on dashboard, then a banner shows 'Disabled' state.",
+      "Given user lacks technical.d365.sync.trigger, when on dashboard, then 'Sync now' button is hidden."
+    ],
+    "test_strategy": ["RED tests for parity + RBAC + flag-off banner.", "Run: pnpm vitest run tests/ui/tec-070-d365-dashboard.test.tsx"],
+    "risk_red_lines": ["Do not surface raw credentials in UI."],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {"required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"], "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]},
+    "routing_hints": {"red": "hermes_gpt55", "implementation": "hermes_gpt55", "review": "opus_if_high_risk_or_ui_or_architecture", "close": "spark_low_risk_else_opus"}
+  }
+}

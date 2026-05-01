@@ -1,0 +1,36 @@
+{
+  "title": "T-037 — UI: TEC-020 BOM List screen",
+  "prompt": "Build /technical/boms page (TEC-020, §7.5) listing BOMs across items with version timeline. Filter by item, status. Match prototype `bom_list` design/Monopilot Design System/technical/bom-list.jsx:3-95 and `boms_screen` design/Monopilot Design System/settings/data-screens.jsx:55-103. RED tests/ui/tec-020-bom-list.test.tsx. Run: `pnpm vitest run tests/ui/tec-020-bom-list.test.tsx`.",
+  "labels": ["prd", "ui", "ui-bom-list", "T3-ui"],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-037",
+    "source_prd": "03-TECHNICAL-PRD.md",
+    "prd_refs": ["§7.5"],
+    "category": "ui",
+    "subcategory": "bom-list",
+    "task_type": "T3-ui",
+    "parent_feature": "03-TECHNICAL-a BOM",
+    "context_budget": "20k",
+    "estimated_effort": "2h",
+    "description": "BOM list with version timeline and item-scoped filters.",
+    "details": "Use shadcn Table. Row expansion shows version timeline. Top-right button 'Generate BOMs' opens TEC-024 generator modal.",
+    "scope_files": ["app/(app)/technical/boms/page.tsx", "tests/ui/tec-020-bom-list.test.tsx"],
+    "out_of_scope": ["BOM detail (T-038)", "Generator modal (T-039)"],
+    "dependencies": ["T-012"],
+    "parallel_safe_with": ["T-038", "T-039"],
+    "acceptance_criteria": [
+      "Given the BOM list renders, when compared to design/Monopilot Design System/technical/bom-list.jsx:3-95 and design/Monopilot Design System/settings/data-screens.jsx:55-103, then column order, filter chips, and Generate BOMs CTA position match — structural + visual + interaction parity confirmed via RTL.",
+      "Given filter status='active', when applied, then table reloads with only active BOMs.",
+      "Given user clicks Generate BOMs, when fired, then TEC-024 modal opens."
+    ],
+    "test_strategy": ["RED tests for parity + filter behaviour.", "Run: pnpm vitest run tests/ui/tec-020-bom-list.test.tsx"],
+    "risk_red_lines": ["Do not load all BOMs unpaginated."],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {"required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"], "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]},
+    "routing_hints": {"red": "hermes_gpt55", "implementation": "hermes_gpt55", "review": "opus_if_high_risk_or_ui_or_architecture", "close": "spark_low_risk_else_opus"}
+  }
+}

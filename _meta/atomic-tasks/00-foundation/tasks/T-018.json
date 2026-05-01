@@ -1,0 +1,84 @@
+{
+  "title": "T-018 \u2014 Reference.Rules table + ADR-029 DSL executor stub for cascading/gate/conditional/workflow",
+  "prompt": "# T-018 \u2014 Reference.Rules table + ADR-029 DSL executor stub for cascading/gate/conditional/workflow\n\nPRD: `00-FOUNDATION-PRD.md` \u2014 sections: \u00a77\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`\n\n## Goal\nReference.Rules schema + a TypeScript executor that evaluates a single ADR-029 rule definition against a sample event. No UI, no rule-versioning UI.\n\n## Implementation contract\nMigration 010-rules.sql: Reference.Rules(id, tenant_id, rule_id TEXT, rule_type TEXT CHECK IN ('cascading','conditional_required','gate','workflow'), definition_json JSONB, version INT, active_from TIMESTAMPTZ, active_to TIMESTAMPTZ NULL). Implement packages/rule-engine/src/executor.ts: input = (rule, event_payload), output = { fired: boolean, actions: Action[], on_fail: object }. Support the four rule_types with the cascading + gate examples from PRD \u00a77. Add a dry-run mode that does NOT side-effect (no outbox writes, no DB mutations). Vitest exercises the \u00a77 allergen_changeover_gate example end-to-end.\n\n## Files (scope)\n- packages/db/migrations/010-rules.sql [create]\n- packages/rule-engine/src/executor.ts [create]\n- packages/rule-engine/src/__tests__/executor.test.ts [create]\n\n## Acceptance criteria\n1. Given the \u00a77 allergen_changeover_gate JSON rule, when executor runs against a wo.status_change.READY event with prev_wo.allergens overlapping next_wo.allergen_free_claim, then fired=true and the actions list contains require: cleaning_validation_checklist_signed and require: atp_swab_result max_rlu=10\n2. Given dry-run mode, when the executor runs against the same rule, then no rows are inserted into outbox_events or any other table\n3. Given rule_type='unknown', when executor is invoked, then it throws an explicit error (not silent pass)\n\n## Test strategy\n- RED: write packages/rule-engine/src/__tests__/executor.test.ts replicating the \u00a77 example before executor.ts exists\n- Run 'pnpm --filter @monopilot/rule-engine test'\n\n## Risk red lines\n- Dry-run MUST be side-effect-free \u2014 that is the contract from PRD \u00a77 + \u00a714 open items\n\n## Dependencies (must be complete first)\n- T-006\n\n## Closeout evidence\nProvide: changed_files, test_commands_and_results, acceptance_criteria_status (per AC), deviations_from_prd, git_status. Use the test-driven-development skill (RED test before implementation) and requesting-code-review at GREEN.",
+  "labels": [
+    "prd",
+    "data",
+    "rule-engine",
+    "T1-schema"
+  ],
+  "priority": 80,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-018",
+    "source_prd": "00-FOUNDATION-PRD.md",
+    "prd_refs": [
+      "\u00a77"
+    ],
+    "category": "data",
+    "subcategory": "rule-engine",
+    "task_type": "T1-schema",
+    "parent_feature": "00-FOUNDATION rule-engine",
+    "context_budget": "55k",
+    "estimated_effort": "2-3h",
+    "description": "Reference.Rules schema + a TypeScript executor that evaluates a single ADR-029 rule definition against a sample event. No UI, no rule-versioning UI.",
+    "details": "Migration 010-rules.sql: Reference.Rules(id, tenant_id, rule_id TEXT, rule_type TEXT CHECK IN ('cascading','conditional_required','gate','workflow'), definition_json JSONB, version INT, active_from TIMESTAMPTZ, active_to TIMESTAMPTZ NULL). Implement packages/rule-engine/src/executor.ts: input = (rule, event_payload), output = { fired: boolean, actions: Action[], on_fail: object }. Support the four rule_types with the cascading + gate examples from PRD \u00a77. Add a dry-run mode that does NOT side-effect (no outbox writes, no DB mutations). Vitest exercises the \u00a77 allergen_changeover_gate example end-to-end.",
+    "scope_files": [
+      "packages/db/migrations/010-rules.sql [create]",
+      "packages/rule-engine/src/executor.ts [create]",
+      "packages/rule-engine/src/__tests__/executor.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not modify files outside the scope_files list",
+      "Do not introduce business logic from later module PRDs (01-NPD, 02-SETTINGS, etc.)",
+      "No Admin UI rule wizard (02-SETTINGS)",
+      "No rule versioning UI"
+    ],
+    "dependencies": [
+      "T-006"
+    ],
+    "parallel_safe_with": [
+      "T-017",
+      "T-019"
+    ],
+    "acceptance_criteria": [
+      "Given the \u00a77 allergen_changeover_gate JSON rule, when executor runs against a wo.status_change.READY event with prev_wo.allergens overlapping next_wo.allergen_free_claim, then fired=true and the actions list contains require: cleaning_validation_checklist_signed and require: atp_swab_result max_rlu=10",
+      "Given dry-run mode, when the executor runs against the same rule, then no rows are inserted into outbox_events or any other table",
+      "Given rule_type='unknown', when executor is invoked, then it throws an explicit error (not silent pass)"
+    ],
+    "test_strategy": [
+      "RED: write packages/rule-engine/src/__tests__/executor.test.ts replicating the \u00a77 example before executor.ts exists",
+      "Run 'pnpm --filter @monopilot/rule-engine test'"
+    ],
+    "risk_red_lines": [
+      "Dry-run MUST be side-effect-free \u2014 that is the contract from PRD \u00a77 + \u00a714 open items"
+    ],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

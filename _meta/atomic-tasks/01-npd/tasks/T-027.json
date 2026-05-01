@@ -1,0 +1,59 @@
+{
+  "title": "T-027 — UI: FA History tab + audit_events read-only timeline",
+  "prompt": "# T-027 — FA History tab UI\n\nPRD: 01-NPD-PRD.md §3.1 events list + UX fa_history_tab\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\nPrototype: design/Monopilot Design System/npd/fa-screens.jsx:921-950 (fa_history_tab)\n\n## Goal\nHistory tab rendering audit_events + outbox_events read-only timeline for the current FA: dept closes, built/reset transitions, allergen overrides, brief conversion.\n\n## Implementation contract\nNew apps/web/app/(npd)/fa/[productCode]/_tabs/history-tab.tsx (RSC). Reads packages/queries listFaHistory(productCode) returning union of audit_events + outbox_events ordered DESC. Render shadcn Timeline pattern: Avatar + actor + dt + event_type Badge + payload summary.\n\n## Files\n- apps/web/app/(npd)/fa/[productCode]/_tabs/history-tab.tsx [create]\n- apps/web/app/(npd)/fa/[productCode]/_tabs/__tests__/history-tab.test.tsx [create]\n- packages/queries/src/list-fa-history.ts [create]\n- design/Monopilot Design System/npd/fa-screens.jsx [ref]\n\n## Acceptance criteria\n1. Given the tab renders, when compared to design/Monopilot Design System/npd/fa-screens.jsx:921-950 (fa_history_tab), then it shows the same timeline structure (avatar + actor + dt + event_type badge + summary), and uses shadcn Card+Avatar+Badge primitives — verified by RTL parity checklist (structural+visual+interaction)\n2. Given fa with one fa.created and one fa.dept_closed event, when listFaHistory runs, then both rows appear ordered DESC by created_at\n3. Given an event payload contains diff JSON, when rendered, then it renders a Collapsible 'Details' button revealing pretty JSON\n\n## Test strategy\n- RED: 3 RTL tests for parity, ordering, collapsible details\n- Run 'pnpm --filter web test history-tab && pnpm --filter queries test list-fa-history'\n\n## Risk red lines\n- Do not allow editing of history entries\n- Do not bypass tenant RLS\n- Do not include other FAs",
+  "labels": ["prd", "ui", "fa-history-tab", "T3-ui"],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-027",
+    "source_prd": "01-NPD-PRD.md",
+    "prd_refs": ["§3.1", "§15"],
+    "category": "ui",
+    "subcategory": "fa-history-tab",
+    "task_type": "T3-ui",
+    "parent_feature": "01-NPD-a fa detail tabs",
+    "context_budget": "30k",
+    "estimated_effort": "1-2h",
+    "description": "Read-only audit + outbox timeline for FA history.",
+    "details": "RSC reads union view; renders Card+Avatar+Badge timeline matching fa_history_tab prototype; collapsible details for payloads.",
+    "scope_files": [
+      "apps/web/app/(npd)/fa/[productCode]/_tabs/history-tab.tsx [create]",
+      "apps/web/app/(npd)/fa/[productCode]/_tabs/__tests__/history-tab.test.tsx [create]",
+      "packages/queries/src/list-fa-history.ts [create]",
+      "design/Monopilot Design System/npd/fa-screens.jsx [ref]"
+    ],
+    "out_of_scope": [
+      "Do not include export to CSV here",
+      "Do not implement edit-history capability"
+    ],
+    "dependencies": ["T-001", "T-007", "T-020"],
+    "parallel_safe_with": ["T-026", "T-028"],
+    "acceptance_criteria": [
+      "Given the tab renders, when compared to design/Monopilot Design System/npd/fa-screens.jsx:921-950, then it shows same timeline structure (avatar + actor + dt + event_type badge + summary), and uses shadcn Card+Avatar+Badge primitives — verified by RTL parity checklist (structural + visual + interaction parity)",
+      "Given fa with one fa.created and one fa.dept_closed event, when listFaHistory runs, then both rows appear ordered DESC by created_at",
+      "Given an event payload contains diff JSON, when rendered, then a Collapsible 'Details' button reveals pretty JSON"
+    ],
+    "test_strategy": [
+      "RED: 3 RTL tests for parity, ordering, collapsible details before component exists",
+      "Run 'pnpm --filter web test history-tab && pnpm --filter queries test list-fa-history'"
+    ],
+    "risk_red_lines": [
+      "Do not allow editing of history entries",
+      "Do not bypass tenant RLS",
+      "Do not include other FAs in the list"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

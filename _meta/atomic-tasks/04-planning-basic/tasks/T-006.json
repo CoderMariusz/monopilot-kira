@@ -1,0 +1,65 @@
+{
+  "title": "T-006 — Drizzle schema: wo_material_reservations + planning_settings",
+  "prompt": "Add Drizzle pgTable definitions for `wo_material_reservations` per §5.10 (revised v3.1 — RM root only) and `planning_settings` per §5.12 + §14.1. Reservations columns: id, tenant_id, wo_id FK, wo_material_id FK, lp_id (uuid), quantity, reservation_type enum ('hard_lock'|'soft_plan'), reserved_at, reserved_by, released_at NULL, released_by NULL, release_reason enum ('consumed'|'cancelled'|'wo_cancelled'|'admin_override'). Partial unique index `lp_active_reservation_unique` on (lp_id) WHERE released_at IS NULL.\n\nplanning_settings: 30+ columns per §14.1 including po_/to_/wo_ prefixes, default_intermediate_disposition, intermediate_cascade_max_depth, sequencing_enabled_default, d365_so_trigger_enabled, status_display JSONB, field_visibility JSONB. UNIQUE(tenant_id) on settings.\n\nGenerate migration `0006_planning_reservations_settings.sql`. RED test asserts partial-unique on (lp_id) WHERE released_at IS NULL.",
+  "labels": ["prd", "data", "schema-reservations", "T1-schema"],
+  "priority": 80,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-006",
+    "source_prd": "04-PLANNING-BASIC-PRD.md",
+    "prd_refs": ["§5.10", "§5.12", "§14.1", "§9.1"],
+    "category": "data",
+    "subcategory": "schema-reservations-settings",
+    "task_type": "T1-schema",
+    "parent_feature": "planning-reservations",
+    "context_budget": "30k",
+    "estimated_effort": "1-2h",
+    "description": "Reservations + planning_settings tables. Hard-lock partial-unique index is the load-bearing constraint.",
+    "details": "Insert guard V-PLAN-RES-005 (material_source='stock' check) is service-layer, not DB. CHECK constraint on planning_settings.intermediate_cascade_max_depth BETWEEN 1 AND 20 (V-PLAN-SET-002). status_display JSONB seeded via separate seed task T-029. Defaults per §14.1 (po_default_lead_time_days=7, wo_number_format='WIP-{SUFFIX}-{NNNNNNN}', default_intermediate_disposition='to_stock').",
+    "scope_files": [
+      "src/db/schema/planning/reservations.ts [create]",
+      "src/db/schema/planning/planning_settings.ts [create]",
+      "src/db/schema/planning/__tests__/reservations.test.ts [create]",
+      "src/db/migrations/0006_planning_reservations_settings.sql [create]"
+    ],
+    "out_of_scope": [
+      "Reservation creation service (T-021)",
+      "Settings seed (T-029)"
+    ],
+    "dependencies": ["T-004"],
+    "parallel_safe_with": ["T-005"],
+    "acceptance_criteria": [
+      "Given the schema loads, when introspected, then both tables export expected columns including release_reason enum.",
+      "Given the migration is generated, when grepped, then partial-unique on (lp_id) WHERE released_at IS NULL exists.",
+      "Given `pnpm vitest run src/db/schema/planning/__tests__/reservations.test.ts`, when run, then 0 failures.",
+      "Given `pnpm tsc --noEmit`, when run, then no errors."
+    ],
+    "test_strategy": [
+      "RED test asserts partial-unique index on (lp_id) WHERE released_at IS NULL is present in generated SQL.",
+      "Run vitest + drizzle-kit generate + tsc."
+    ],
+    "risk_red_lines": [
+      "Do not weaken the partial-unique constraint — V-PLAN-RES-001 hard-lock relies on DB enforcement.",
+      "Do not add reservations for material_source='upstream_wo_output' — service layer must reject (V-PLAN-RES-005)."
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

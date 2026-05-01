@@ -1,0 +1,59 @@
+{
+  "title": "T-027 — Test result recording + auto pass/fail vs spec compare",
+  "prompt": "# T-027 — Test result recording + spec compare\n\nPRD: 09-QUALITY-PRD.md §6.3 quality_test_results, §11.2 V-QA-INSP-003..005\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nServer Action `recordTestResult({inspection_id, parameter_id, measured_value?, measured_text?, notes?})` that auto-computes per-parameter result by comparing measured_value against quality_spec_parameters.target/min/max OR matching measured_text against attribute spec. Returns persisted row.\n\n## Implementation contract\n1. `apps/web/src/server/quality/recordTestResult.ts` Server Action.\n2. Loads parameter (with parameter_type, min/max/target). Compute result:\n   - measurement/microbiological/chemical: pass if min<=measured<=max, else fail\n   - attribute/visual: pass if measured_text matches expected pattern (case-insensitive trim), else fail\n   - sensory: requires explicit pass/fail in input\n   - equipment: equipment_id must be provided + within calibration window stub\n3. Reject if inspection.status not in (assigned, in_progress) (V-QA-INSP-003 timing).\n4. UPSERT (one row per (inspection_id, parameter_id)). Update inspection.samples_taken counter.\n\n## Files\n- apps/web/src/server/quality/recordTestResult.ts [create]\n- apps/web/src/server/quality/__tests__/recordTestResult.test.ts [create]\n\n## Acceptance criteria\n1. Given a parameter type='measurement' with min=10, max=20, target=15, when recordTestResult({measured_value:18}) runs, then a row is upserted with result='pass'\n2. Given the same parameter and measured_value=22, when recordTestResult runs, then result='fail'\n3. Given an inspection with status='completed', when recordTestResult runs, then it rejects with V-QA-INSP-003 INVALID_STATE and writes nothing\n4. Given a parameter type='attribute' with expected text='clear' and measured_text='Clear', when recordTestResult runs, then result='pass' (case-insensitive trim)",
+  "labels": ["prd", "api", "test-results", "T2-api"],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-027",
+    "source_prd": "09-QUALITY-PRD.md",
+    "prd_refs": ["§6.3", "§11.2"],
+    "category": "api",
+    "subcategory": "test-results",
+    "task_type": "T2-api",
+    "parent_feature": "09-c Incoming Inspection",
+    "context_budget": "35k",
+    "estimated_effort": "2h",
+    "description": "Server Action recordTestResult with auto pass/fail compare against spec parameter; UPSERT per (inspection,parameter); state-machine guard.",
+    "details": "Server Action loads parameter type+limits and computes result per type-specific rule (numeric range, text match, sensory explicit, equipment calibration stub). UPSERT keyed by (inspection_id,parameter_id). Updates inspection.samples_taken. Rejects when inspection not in active state per V-QA-INSP-003. Tests cover numeric pass/fail, text match, state guard.",
+    "scope_files": [
+      "apps/web/src/server/quality/recordTestResult.ts [create]",
+      "apps/web/src/server/quality/__tests__/recordTestResult.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not implement LIMS sync (P2)",
+      "Do not implement equipment calibration check beyond stub (cross-module 13-MAINT)",
+      "Do not implement scanner endpoint (T-029)"
+    ],
+    "dependencies": ["T-017", "T-025", "T-026"],
+    "parallel_safe_with": ["T-026", "T-029", "T-030"],
+    "acceptance_criteria": [
+      "Given a parameter type='measurement' with min=10, max=20, target=15, when recordTestResult({measured_value:18}) runs, then a row is upserted with result='pass'",
+      "Given the same parameter and measured_value=22, when recordTestResult runs, then result='fail'",
+      "Given an inspection with status='completed', when recordTestResult runs, then it rejects with V-QA-INSP-003 INVALID_STATE and writes nothing",
+      "Given a parameter type='attribute' with expected text='clear' and measured_text='Clear', when recordTestResult runs, then result='pass' (case-insensitive trim)"
+    ],
+    "test_strategy": [
+      "RED: write apps/web/src/server/quality/__tests__/recordTestResult.test.ts asserting numeric pass/fail, text match, state guard, UPSERT semantics",
+      "Run 'pnpm --filter web test recordTestResult'"
+    ],
+    "risk_red_lines": [
+      "Do not let the client send a result value (server computes)",
+      "Do not allow recording when inspection.status is completed/cancelled",
+      "Do not duplicate rows per (inspection_id,parameter_id) — must UPSERT"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

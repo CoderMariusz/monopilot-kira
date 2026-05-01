@@ -1,0 +1,59 @@
+{
+  "title": "T-001 — Reference table quality_hold_reasons (02-SETTINGS §8 extension)",
+  "prompt": "# T-001 — Reference table quality_hold_reasons\n\nPRD: 09-QUALITY-PRD.md §6.3 quality_holds.reason_code_id, §16.3 02-SETTINGS additions, ADR-034 (industry-configurable taxonomies)\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nRegister `quality_hold_reasons` as a reference table row-set in 02-SETTINGS reference_tables (already-modeled by 02-SETTINGS §8) so 09-QUALITY hold creation can FK `reason_code_id` to a tenant-configurable taxonomy with `default_hold_duration_days` per row.\n\n## Implementation contract\n1. Drizzle migration `packages/db/migrations/0090_quality_hold_reasons_reftable.sql` inserts a row into `reference_tables` with code `quality_hold_reasons`, schema_json containing fields `code text`, `label text`, `category text`, `default_hold_duration_days int`, `default_priority text`, `i18n jsonb`.\n2. Seed 8 baseline rows into `reference_tables_rows` (contamination=7d, temperature=2d, documentation=5d, foreign_object=10d, microbiological=14d, allergen_cross_contact=7d, weight_variance=3d, other=5d) with `default_priority` mapping per row.\n3. Server-side TypeScript helper `apps/web/src/server/quality/holdReasons.ts` exporting `getHoldReasonOptions(orgId)` returning rows ordered by category + label.\n\n## Files\n- packages/db/migrations/0090_quality_hold_reasons_reftable.sql [create]\n- apps/web/src/server/quality/holdReasons.ts [create]\n- apps/web/src/server/quality/__tests__/holdReasons.test.ts [create]\n\n## Acceptance criteria\n1. Given migration 0090 applied, when SELECT * FROM reference_tables WHERE code='quality_hold_reasons' runs, then 1 row exists with the schema_json above and 8 reference_tables_rows exist for it scoped to seed org_id\n2. Given an authenticated tenant context, when getHoldReasonOptions(orgId) is called, then it returns 8 rows ordered by category, each with default_hold_duration_days numeric and default_priority enum in (low,medium,high,critical)\n3. Given the schema_json defines required fields, when a row is inserted missing default_hold_duration_days, then JSON-schema validation rejects it (re-uses existing reference_tables validator)\n\n## Test strategy\n- RED: write apps/web/src/server/quality/__tests__/holdReasons.test.ts asserting shape + count + ordering before migration exists\n- Run 'pnpm --filter db migrate && pnpm --filter web test holdReasons'\n\n## Risk red lines\n- Do not hardcode hold reasons inside 09-QUALITY (must live in reference table per ADR-034)\n- Do not skip i18n jsonb column (pl/en/uk/ro per §14.1)",
+  "labels": ["prd", "data", "reference-tables", "T1-schema"],
+  "priority": 50,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-001",
+    "source_prd": "09-QUALITY-PRD.md",
+    "prd_refs": ["§6.3", "§16.3", "§14.1"],
+    "category": "data",
+    "subcategory": "reference-tables",
+    "task_type": "T1-schema",
+    "parent_feature": "02-SETTINGS §8 extension for 09-QUALITY",
+    "context_budget": "30k",
+    "estimated_effort": "1h",
+    "description": "Register quality_hold_reasons reference table + seed 8 baseline rows + server helper for hold reason options.",
+    "details": "Migration 0090 inserts the reference_tables registry entry with schema_json {code,label,category,default_hold_duration_days,default_priority,i18n} and seeds 8 rows. TypeScript helper getHoldReasonOptions queries reference_tables_rows under tenant RLS. Test asserts row count, ordering, and JSON-schema validation rejection for missing fields.",
+    "scope_files": [
+      "packages/db/migrations/0090_quality_hold_reasons_reftable.sql [create]",
+      "apps/web/src/server/quality/holdReasons.ts [create]",
+      "apps/web/src/server/quality/__tests__/holdReasons.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not create quality_holds table here (T-004)",
+      "Do not build hold create UI (T-013)",
+      "Do not register qa_failure_reasons (T-002) or waste_categories (T-003)"
+    ],
+    "dependencies": [],
+    "parallel_safe_with": ["T-002", "T-003"],
+    "acceptance_criteria": [
+      "Given migration 0090 is applied, when SELECT FROM reference_tables WHERE code='quality_hold_reasons' runs, then 1 registry row exists and 8 seed rows are present in reference_tables_rows",
+      "Given tenant context, when getHoldReasonOptions(orgId) is called, then it returns 8 rows ordered by (category,label) each with default_hold_duration_days numeric and default_priority in {low,medium,high,critical}",
+      "Given schema_json declares required fields, when a row insert omits default_hold_duration_days, then the reference_tables JSON-schema validator rejects it"
+    ],
+    "test_strategy": [
+      "RED: write apps/web/src/server/quality/__tests__/holdReasons.test.ts asserting registry row, seed count, ordering, validator rejection before migration exists",
+      "Run 'pnpm --filter db migrate && pnpm --filter web test holdReasons'"
+    ],
+    "risk_red_lines": [
+      "Do not hardcode hold reasons in 09-QUALITY code (must remain reference-table driven per ADR-034)",
+      "Do not skip i18n jsonb column (pl/en/uk/ro support required per §14.1)",
+      "Do not bypass reference_tables JSON-schema validator"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

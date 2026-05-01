@@ -1,0 +1,79 @@
+{
+  "title": "T-094 — ADR-034 docs: Generic Product Lifecycle Naming reference + ManufacturingOperations integration",
+  "prompt": "# T-094 — Docs: ADR-034 + ManufacturingOperations integration\n\n## Goal\nAuthor docs page describing how Reference.ManufacturingOperations + marker='ORG-CONFIG' interact with Templates (01-NPD §6) and Cascading Rules Chain 2/4 (01-NPD §13).\n\n## Files in scope\n- docs/02-settings/manufacturing-operations.mdx [create]\n\n## Acceptance criteria (all must hold)\n- Given the docs page is built, when rendered, then it includes a sequence diagram of cascade lookup (FA update → MO suffix → intermediate code generation).\n- Given the docs page links ADR-034, when checked, then the link resolves to `_foundation/decisions/ADR-034-*.md`.\n- Given the docs page lists the 4 industry seed sets, when checked, then Bakery/Pharmacy/FMCG/Generic are documented with the same row sets as T-039 seed.\n\n## Test strategy (RED first)\n1. Add a failing test that exercises the acceptance criteria above. The RED command is:\n   `pnpm --filter @monopilot/web docs:lint`\n2. Run RED — it must fail before any production code is written.\n3. Implement the smallest change needed for GREEN.\n4. Re-run RED command — must pass.\n5. Run `pnpm typecheck` and `pnpm lint` in the changed package; both must pass.\n\n## Risk red lines\n- Do not edit files outside the listed scope without documenting why in CLOSEOUT.\n- Do not weaken existing acceptance criteria from prior tasks.\n- Do not introduce REST endpoints; use Server Actions per stack contract.\n- Do not commit secrets or vault keys.\n\n## Closeout evidence required\n- changed_files (with line counts)\n- exact test commands and outputs (RED→GREEN, typecheck, lint)\n- acceptance_criteria_status (one row per AC: pass/fail)\n- deviations_from_prd (or \"none\")\n- git_status\n\nStack: TS + Next.js App Router + Drizzle + pnpm + vitest + Playwright + Server Actions. Primitives in `packages/ui`. PRD: `02-SETTINGS-PRD.md` v3.5.\n",
+  "labels": [
+    "prd",
+    "docs",
+    "manufacturing-ops-docs",
+    "docs"
+  ],
+  "priority": 150,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-094",
+    "source_prd": "02-SETTINGS-PRD.md",
+    "prd_refs": [
+      "§8.9.14",
+      "ADR-034"
+    ],
+    "category": "docs",
+    "subcategory": "manufacturing-ops-docs",
+    "task_type": "docs",
+    "parent_feature": "02-settings-d",
+    "context_budget": "40k",
+    "estimated_effort": "1-3h",
+    "description": "Docs for Manufacturing Operations integration.",
+    "details": "MDX with sequence diagram (mermaid) + table of seed rows.",
+    "scope_files": [
+      "docs/02-settings/manufacturing-operations.mdx"
+    ],
+    "out_of_scope": [
+      "broaden scope beyond listed files",
+      "implement future-phase features"
+    ],
+    "dependencies": [
+      "T-038",
+      "T-039"
+    ],
+    "parallel_safe_with": [],
+    "acceptance_criteria": [
+      "Sequence diagram present.",
+      "ADR link resolves.",
+      "Seed rows documented."
+    ],
+    "test_strategy": [
+      "RED: write docs:lint check that asserts page exists + headings.",
+      "GREEN: write MDX."
+    ],
+    "risk_red_lines": [
+      "Do not paste prototype JSX."
+    ],
+    "skills": [
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": false
+  }
+}

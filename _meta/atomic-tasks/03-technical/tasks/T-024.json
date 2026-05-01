@@ -1,0 +1,37 @@
+{
+  "title": "T-024 — Wiring: Allergen cascade rule deployment to rule_definitions",
+  "prompt": "Deploy the `allergen_cascade_rm_to_fg` rule per §10.2 + ADR-029. Create migration adding row in `rule_definitions` (02-SETTINGS §7) with the JSON DSL from §10.2: triggers (bom_lines.insert/update + item_allergen_profiles.update WHERE item_type='rm'), aggregation logic, manufacturing_operation_allergen_additions merge, override protection (preserve source='manual_override'). Implement runtime engine handler in lib/technical/allergens/cascade.ts that the existing rule engine invokes. Per V-TEC-41/45. Async — uses outbox pattern. RED tests/wiring/allergen-cascade.test.ts covers: changing RM allergen propagates to FG within one engine cycle; manual_override row is NOT overwritten. Run: `pnpm vitest run tests/wiring/allergen-cascade.test.ts`.",
+  "labels": ["prd", "integration", "ui-allergen-cascade", "T4-wiring-test"],
+  "priority": 80,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-024",
+    "source_prd": "03-TECHNICAL-PRD.md",
+    "prd_refs": ["§10.2", "§10.3", "§10.8"],
+    "category": "integration",
+    "subcategory": "allergen-cascade",
+    "task_type": "T4-wiring-test",
+    "parent_feature": "03-TECHNICAL-b Allergens",
+    "context_budget": "40k",
+    "estimated_effort": "3-4h",
+    "description": "Deploy cascade rule definition + handler; assert RM→intermediate→FG propagation and override protection.",
+    "details": "Rule row written via Drizzle migration that targets rule_definitions table (created by 02-SETTINGS). Handler executes: SELECT distinct active BOMs containing changed component; aggregate allergens; UPSERT cascaded rows; never overwrite manual_override. End-to-end test seeds a small graph FG -> intermediate -> RM and asserts propagation under <5s.",
+    "scope_files": ["db/migrations/0xxx_allergen_cascade_rule.sql", "lib/technical/allergens/cascade.ts", "tests/wiring/allergen-cascade.test.ts"],
+    "out_of_scope": ["Cascade preview UI (T-047)", "Allergen changeover gate in 08-PRODUCTION"],
+    "dependencies": ["T-002", "T-004", "T-017", "T-018"],
+    "parallel_safe_with": ["T-025", "T-026", "T-027"],
+    "acceptance_criteria": [
+      "Given FG has BOM with RM that gets allergen A01 added, when cascade runs, then FG profile contains cascaded A01 within one engine cycle.",
+      "Given FG has manual_override row for A01='trace', when RM A01 changes intensity, then FG manual_override row is preserved unchanged.",
+      "Given KPI target ≤5s, when measured in test, then propagation completes within 5000ms.",
+      "Given manufacturing_operation has allergen_addition for A12, when BOM uses that op, then FG cascaded set includes A12."
+    ],
+    "test_strategy": ["RED tests covering propagation + override protection + timing.", "Run: pnpm vitest run tests/wiring/allergen-cascade.test.ts"],
+    "risk_red_lines": ["Never overwrite source='manual_override' rows.", "Do not run cascade synchronously in API request paths."],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {"required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"], "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]},
+    "routing_hints": {"red": "hermes_gpt55", "implementation": "hermes_gpt55", "review": "opus_if_high_risk_or_ui_or_architecture", "close": "spark_low_risk_else_opus"}
+  }
+}

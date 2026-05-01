@@ -1,0 +1,60 @@
+{
+  "title": "T-001 — product table + fa compat view DDL (NPD-a.6)",
+  "prompt": "# T-001 — product table + fa compat view DDL (NPD-a.6)\n\nPRD: 01-NPD-PRD.md §4.2, §13.2, v3.3 changelog (ADR-034 Option B)\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nIntroduce the physical `product` table holding the FA aggregate (69 cols + ext_jsonb + private_jsonb + R13 audit/AI cols) plus the read-only `fa` SQL view aliasing it for backwards compatibility through Phase C1.\n\n## Implementation contract\n1. New Drizzle migration `packages/db/migrations/0010_product_and_fa_view.sql` containing CREATE TABLE product (per §4.2 DDL, but renamed `fa`→`product`) + ENABLE ROW LEVEL SECURITY + the two indexes specified + `CREATE VIEW fa AS SELECT * FROM product;` with `security_invoker = true`.\n2. Drizzle ORM schema entry in `packages/db/src/schema/product.ts` mirroring the columns; export typed Insert/Select.\n3. RLS policy `tenant_isolation_product` on (tenant_id = current_setting('app.tenant_id')::uuid).\n4. fa view is read-only: emit no triggers; verify INSERT/UPDATE on `fa` view fails by default.\n\n## Files\n- packages/db/migrations/0010_product_and_fa_view.sql [create]\n- packages/db/src/schema/product.ts [create]\n- packages/db/src/schema/index.ts [modify]\n- packages/db/__tests__/product-and-fa-view.test.ts [create]\n\n## Acceptance criteria\n1. Given a fresh DB, when migration 0010 runs, then `\\d product` lists all 69 cols + ext_jsonb + private_jsonb + schema_version + R13 audit cols + RLS=enabled\n2. Given the migration is applied, when `SELECT * FROM fa LIMIT 1` runs as tenant A and tenant B, then each only sees its own tenant rows (RLS enforced via product table policy)\n3. Given the fa view exists, when `INSERT INTO fa(product_code, tenant_id) VALUES (...)` runs, then it fails with 'cannot insert into view' (read-only confirmed)\n\n## Test strategy\n- RED: write packages/db/__tests__/product-and-fa-view.test.ts asserting all three ACs before migration exists\n- Run 'pnpm --filter db migrate && pnpm --filter db test product-and-fa-view'\n\n## Risk red lines\n- Do not drop `fa` table if pre-existing — migration must error and require explicit `--allow-rename` flag\n- Do not skip RLS policy\n- Do not add cascade DELETE on tenant FK (tenants are not deleted in this migration)",
+  "labels": ["prd", "data", "schema", "T1-schema"],
+  "priority": 50,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-001",
+    "source_prd": "01-NPD-PRD.md",
+    "prd_refs": ["§4.2", "§13.2", "v3.3-changelog"],
+    "category": "data",
+    "subcategory": "schema-fa",
+    "task_type": "T1-schema",
+    "parent_feature": "01-NPD-a core schema",
+    "context_budget": "40k",
+    "estimated_effort": "1-2h",
+    "description": "Create product physical table (renamed from fa per ADR-034 Option B) + fa read-only compat view + RLS + Drizzle schema entry.",
+    "details": "Migration 0010 emits CREATE TABLE product (...69 cols + JSONB extensions + R13 audit cols), ENABLE ROW LEVEL SECURITY, two specified indexes, and CREATE VIEW fa AS SELECT * FROM product (security_invoker=true). Drizzle schema mirrors columns. Tests verify RLS isolation and view read-only enforcement.",
+    "scope_files": [
+      "packages/db/migrations/0010_product_and_fa_view.sql [create]",
+      "packages/db/src/schema/product.ts [create]",
+      "packages/db/src/schema/index.ts [modify]",
+      "packages/db/__tests__/product-and-fa-view.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not create prod_detail in this task (T-002)",
+      "Do not seed Reference.* tables here",
+      "Do not add cascade triggers (T-003+)"
+    ],
+    "dependencies": [],
+    "parallel_safe_with": ["T-006", "T-008"],
+    "acceptance_criteria": [
+      "Given a fresh DB, when migration 0010 runs, then \\d product lists all 69 cols + ext_jsonb + private_jsonb + schema_version + R13 audit cols and RLS is enabled",
+      "Given migration 0010 is applied, when SELECT runs as tenant A and tenant B, then each only sees its own rows",
+      "Given the fa view exists, when INSERT INTO fa runs, then it fails with cannot insert into view"
+    ],
+    "test_strategy": [
+      "RED: write packages/db/__tests__/product-and-fa-view.test.ts asserting RLS isolation + view read-only before migration exists",
+      "Run 'pnpm --filter db migrate && pnpm --filter db test product-and-fa-view'"
+    ],
+    "risk_red_lines": [
+      "Do not drop existing fa table without explicit --allow-rename flag",
+      "Do not skip RLS policy on product",
+      "Do not omit security_invoker on fa view"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

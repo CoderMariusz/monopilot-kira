@@ -1,0 +1,90 @@
+{
+  "title": "T-013 \u2014 SCIM 2.0 /Users and /Groups endpoints with argon2id-hashed bearer tokens",
+  "prompt": "# T-013 \u2014 SCIM 2.0 /Users and /Groups endpoints with argon2id-hashed bearer tokens\n\nPRD: `00-FOUNDATION-PRD.md` \u2014 sections: \u00a75.x, \u00a78.x\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`\n\n## Goal\nSCIM 2.0 RFC 7644 endpoints (/Users, /Groups) scoped to a single tenant. Bearer token argon2id-verified against tenant_idp_config.scim_token_hash. Soft-delete via active=false.\n\n## Implementation contract\nCreate apps/web/app/api/scim/v2/Users/route.ts (GET list, POST create) plus [id]/route.ts (GET, PATCH, DELETE). Same shape for Groups. Token middleware: argon2.verify(authorization.replace('Bearer ',''), tenant_idp_config.scim_token_hash). On success, set app.tenant_id and grant request the org.scim.write permission. Soft-delete: PATCH active=false \u2192 users.deleted_at=now() and audit_events row with action='user.deactivated_via_scim'. Integration test issues a token, hits POST /Users, then GET /Users, asserts argon2id rejection of an invalid token, and asserts cross-tenant token reuse fails.\n\n## Files (scope)\n- apps/web/app/api/scim/v2/Users/route.ts [create]\n- apps/web/app/api/scim/v2/Users/[id]/route.ts [create]\n- apps/web/app/api/scim/v2/Groups/route.ts [create]\n- apps/web/lib/scim/middleware.ts [create]\n- apps/web/__tests__/scim/users.integration.test.ts [create]\n\n## Acceptance criteria\n1. Given a SCIM bearer token whose argon2id hash matches tenant_idp_config.scim_token_hash for tenant A, when POST /scim/v2/Users runs, then a user is created in tenant A and SELECT scoped to tenant B returns zero rows\n2. Given an invalid bearer token, when any SCIM route is called, then it returns 401 in <10ms (argon2 verify path) and writes an audit_events row with retention_class='security'\n3. Given a PATCH active=false arrives, when processed, then users.deleted_at is set and an audit_events row with action='user.deactivated_via_scim' is written\n\n## Test strategy\n- RED: write apps/web/__tests__/scim/users.integration.test.ts covering token verify + cross-tenant + soft-delete before routes exist\n- Run 'pnpm --filter web test:integration -- scim'\n\n## Risk red lines\n- Do not store SCIM tokens in plaintext anywhere\n- Do not skip the cross-tenant guard \u2014 SCIM is a high-risk surface\n\n## Dependencies (must be complete first)\n- T-010\n- T-011\n\n## Closeout evidence\nProvide: changed_files, test_commands_and_results, acceptance_criteria_status (per AC), deviations_from_prd, git_status. Use the test-driven-development skill (RED test before implementation) and requesting-code-review at GREEN.",
+  "labels": [
+    "prd",
+    "auth",
+    "provisioning",
+    "T2-api"
+  ],
+  "priority": 80,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-013",
+    "source_prd": "00-FOUNDATION-PRD.md",
+    "prd_refs": [
+      "\u00a75.x",
+      "\u00a78.x"
+    ],
+    "category": "auth",
+    "subcategory": "provisioning",
+    "task_type": "T2-api",
+    "parent_feature": "00-FOUNDATION-impl-f auth",
+    "context_budget": "60k",
+    "estimated_effort": "2-3h",
+    "description": "SCIM 2.0 RFC 7644 endpoints (/Users, /Groups) scoped to a single tenant. Bearer token argon2id-verified against tenant_idp_config.scim_token_hash. Soft-delete via active=false.",
+    "details": "Create apps/web/app/api/scim/v2/Users/route.ts (GET list, POST create) plus [id]/route.ts (GET, PATCH, DELETE). Same shape for Groups. Token middleware: argon2.verify(authorization.replace('Bearer ',''), tenant_idp_config.scim_token_hash). On success, set app.tenant_id and grant request the org.scim.write permission. Soft-delete: PATCH active=false \u2192 users.deleted_at=now() and audit_events row with action='user.deactivated_via_scim'. Integration test issues a token, hits POST /Users, then GET /Users, asserts argon2id rejection of an invalid token, and asserts cross-tenant token reuse fails.",
+    "scope_files": [
+      "apps/web/app/api/scim/v2/Users/route.ts [create]",
+      "apps/web/app/api/scim/v2/Users/[id]/route.ts [create]",
+      "apps/web/app/api/scim/v2/Groups/route.ts [create]",
+      "apps/web/lib/scim/middleware.ts [create]",
+      "apps/web/__tests__/scim/users.integration.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not modify files outside the scope_files list",
+      "Do not introduce business logic from later module PRDs (01-NPD, 02-SETTINGS, etc.)",
+      "No SCIM token issuance UI (lives in 02-SETTINGS)",
+      "No /Schemas or /ServiceProviderConfig discovery (deferred)"
+    ],
+    "dependencies": [
+      "T-010",
+      "T-011"
+    ],
+    "parallel_safe_with": [
+      "T-012",
+      "T-015"
+    ],
+    "acceptance_criteria": [
+      "Given a SCIM bearer token whose argon2id hash matches tenant_idp_config.scim_token_hash for tenant A, when POST /scim/v2/Users runs, then a user is created in tenant A and SELECT scoped to tenant B returns zero rows",
+      "Given an invalid bearer token, when any SCIM route is called, then it returns 401 in <10ms (argon2 verify path) and writes an audit_events row with retention_class='security'",
+      "Given a PATCH active=false arrives, when processed, then users.deleted_at is set and an audit_events row with action='user.deactivated_via_scim' is written"
+    ],
+    "test_strategy": [
+      "RED: write apps/web/__tests__/scim/users.integration.test.ts covering token verify + cross-tenant + soft-delete before routes exist",
+      "Run 'pnpm --filter web test:integration -- scim'"
+    ],
+    "risk_red_lines": [
+      "Do not store SCIM tokens in plaintext anywhere",
+      "Do not skip the cross-tenant guard \u2014 SCIM is a high-risk surface"
+    ],
+    "skills": [
+      "test-driven-development",
+      "verification-before-completion",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

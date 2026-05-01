@@ -1,0 +1,58 @@
+{
+  "title": "T-016 — POST /api/scheduler/assignments/:id/reject",
+  "prompt": "# T-016 — POST /api/scheduler/assignments/:id/reject\n\nPRD: 07-PLANNING-EXT-PRD.md §8.2 reject, §9.3 business rules\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nImplement reject endpoint that flips assignment.status='rejected' (returning the WO to unscheduled pool for next run consideration).\n\n## Implementation contract\n1. Route `apps/web/src/app/api/scheduler/assignments/[assignmentId]/reject/route.ts`: POST body { user_id, reason_notes? }.\n2. UPDATE assignment SET status='rejected'; do NOT update work_orders.planned_start_time (preserved for next run).\n3. RBAC: Planner Advanced or Scheduling Officer; 403 otherwise.\n4. 409 if status != 'draft'.\n\n## Files\n- apps/web/src/app/api/scheduler/assignments/[assignmentId]/reject/route.ts [create]\n- apps/web/src/app/api/scheduler/assignments/[assignmentId]/reject/__tests__/route.test.ts [create]\n\n## Acceptance criteria\n1. Given a draft assignment + Planner role, when POST runs, then assignment.status='rejected' and work_orders.planned_start_time UNCHANGED\n2. Given an approved assignment, when POST runs, then 409 returned\n3. Given role 'Operator', when POST runs, then 403 returned\n\n## Test strategy\n- RED: write __tests__/route.test.ts covering rejection state + work_orders untouched + 409 + 403\n- Run 'pnpm --filter web test scheduler/assignments/reject'\n\n## Risk red lines\n- Do not update work_orders fields on reject (assignment returns to pool)\n- Do not bypass RBAC\n- Do not allow reject on already-approved assignment (409 mandatory)",
+  "labels": ["prd", "api", "endpoint-post", "T2-api"],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-016",
+    "source_prd": "07-PLANNING-EXT-PRD.md",
+    "prd_refs": ["§8.2", "§9.3"],
+    "category": "api",
+    "subcategory": "endpoint-post",
+    "task_type": "T2-api",
+    "parent_feature": "07-EXT-a reject flow",
+    "context_budget": "30k",
+    "estimated_effort": "0.5-1h",
+    "description": "Reject assignment without touching work_orders.planned_start_time; RBAC + 409 conflict guard.",
+    "details": "Simple status flip endpoint. Crucial: no work_orders.planned_start_time mutation (WO returns to unscheduled pool implicitly). RBAC enforced. 409 on non-draft state.",
+    "scope_files": [
+      "apps/web/src/app/api/scheduler/assignments/[assignmentId]/reject/route.ts [create]",
+      "apps/web/src/app/api/scheduler/assignments/[assignmentId]/reject/__tests__/route.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not emit outbox event for reject (PRD §9.8 lists only approved/overridden)",
+      "Do not implement bulk reject UI here (T-052)",
+      "Do not modify work_orders fields"
+    ],
+    "dependencies": ["T-002"],
+    "parallel_safe_with": ["T-014", "T-015"],
+    "acceptance_criteria": [
+      "Given a draft assignment + Planner role, when POST runs, then assignment.status='rejected' and work_orders.planned_start_time unchanged",
+      "Given an approved assignment, when POST runs, then 409 returned",
+      "Given role 'Operator', when POST runs, then 403 returned"
+    ],
+    "test_strategy": [
+      "RED: write __tests__/route.test.ts covering rejection + work_orders untouched + 409 + 403",
+      "Run 'pnpm --filter web test scheduler/assignments/reject'"
+    ],
+    "risk_red_lines": [
+      "Do not update work_orders fields on reject",
+      "Do not bypass RBAC",
+      "Do not allow reject on already-approved (409 mandatory)"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

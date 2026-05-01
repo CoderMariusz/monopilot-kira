@@ -1,0 +1,65 @@
+{
+  "title": "T-041 — SCN-080 Consume-to-WO + SCN-081 WO execute UI (06-d)",
+  "prompt": "# T-041 — SCN-080 Consume-to-WO + SCN-081 WO execute\n\nPRD: 06-SCANNER-P1-PRD.md §8.4 FR-SC-FE-043..048\nUX: design/06-SCANNER-P1-UX.md:546-608 §3.13\nPrototype: design/Monopilot Design System/scanner/flow-consume.jsx:8-54 (wo_list_screen), :56-121 (wo_detail_screen), :123-213 (wo_execute_screen), :216-410 (consume_scan_screen)\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nDeliver the production central screen — SCN-081 WO execute (tabs Komponenty/Zeskanowane + warn-banner partial-consume + next-suggestion chip + 4 action buttons) and SCN-080-scan (LP details + qty + batch). Wired to T-038/T-039.\n\n## Implementation contract\n1. Routes /scanner/wo, /scanner/wo/[id], /scanner/wo/[id]/execute, /scanner/wo/[id]/consume.\n2. SCN-081 tabs: Komponenty (BOM lines progress mini-bar) / Zeskanowane (consumed LPs).\n3. 4 buttons 44dp: 'Skanuj komponent' (blue primary) / 'Wyrób gotowy' (green) / 'Co-product' (purple) / 'Odpad' (amber).\n4. SCN-080-scan: LP details card + qty input (catch-weight branch) + batch field mandatory.\n5. FEFO deviation banner with 5 reasons (warn severity, audit metadata).\n\n## Files\n- apps/scanner/src/app/scanner/wo/page.tsx [create]\n- apps/scanner/src/app/scanner/wo/[id]/page.tsx [create]\n- apps/scanner/src/app/scanner/wo/[id]/execute/page.tsx [create]\n- apps/scanner/src/app/scanner/wo/[id]/consume/page.tsx [create]\n- apps/scanner/__tests__/scn-080-consume.test.tsx [create]\n\n## Acceptance criteria\n1. Given SCN-081 renders, when compared to `design/Monopilot Design System/scanner/flow-consume.jsx:123-213`, then it has the Komponenty/Zeskanowane tabs in that order, the 4 action buttons in order Skanuj komponent / Wyrób gotowy / Co-product / Odpad with the prototype colors (blue/green/purple/amber), and the next-suggestion cyan chip when applicable — RTL snapshot + manual checklist\n2. Given the user is on SCN-080 consume scan and chooses an LP whose expiry is later than the FEFO suggestion, when ScanInput emits, then the FEFO deviation amber banner is shown and submit is disabled until reason_code is selected from the 5-option dropdown\n3. Given the user taps 'Wyrób gotowy' but BOM has unconsumed materials, when the navigation handler runs, then the partial-consume warn banner is shown with [Anuluj] / [Kontynuuj + audit log] and Kontynuuj records reason_code='partial_consume' before routing to SCN-082\n\n## Test strategy\n- RED: write scn-080-consume.test.tsx asserting parity + FEFO deviation gating + partial-consume warning before implementation\n- Run 'pnpm --filter scanner test scn-080-consume'\n\n## Risk red lines\n- Do not allow output navigation while BOM unconsumed without recording reason_code\n- Do not omit batch* mandatory on consume\n- Do not bypass FEFO reason_code on deviation",
+  "labels": ["prd", "ui", "scn-080-consume", "T3-ui"],
+  "priority": 80,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-041",
+    "source_prd": "06-SCANNER-P1-PRD.md",
+    "prd_refs": ["§8.4 FR-SC-FE-043..048"],
+    "category": "ui",
+    "subcategory": "scn-080-consume",
+    "task_type": "T3-ui",
+    "parent_feature": "06-d Production Pick + Consume",
+    "context_budget": "45k",
+    "estimated_effort": "4-5h",
+    "description": "SCN-081 WO execute (tabs + 4 actions + next-suggestion + partial warn) and SCN-080 consume scan with FEFO deviation gating.",
+    "details": "Parity checklist:\n1) Tabs Komponenty / Zeskanowane in that order.\n2) 4 action buttons in order Skanuj komponent / Wyrób gotowy / Co-product / Odpad with blue/green/purple/amber colors.\n3) Next-suggestion cyan chip when applicable.\n4) FEFO deviation amber banner + 5 reasons.\n5) Partial-consume warn before output navigation requires reason_code.\n6) batch* field mandatory on consume scan.",
+    "scope_files": [
+      "apps/scanner/src/app/scanner/wo/page.tsx [create]",
+      "apps/scanner/src/app/scanner/wo/[id]/page.tsx [create]",
+      "apps/scanner/src/app/scanner/wo/[id]/execute/page.tsx [create]",
+      "apps/scanner/src/app/scanner/wo/[id]/consume/page.tsx [create]",
+      "apps/scanner/__tests__/scn-080-consume.test.tsx [create]",
+      "design/Monopilot Design System/scanner/flow-consume.jsx:8-54 [ref]",
+      "design/Monopilot Design System/scanner/flow-consume.jsx:56-121 [ref]",
+      "design/Monopilot Design System/scanner/flow-consume.jsx:123-213 [ref]",
+      "design/Monopilot Design System/scanner/flow-consume.jsx:216-410 [ref]"
+    ],
+    "out_of_scope": [
+      "Do not implement output / co-product / waste UIs here (T-043, T-044)",
+      "Do not implement QA flows here (T-046)",
+      "Do not implement label printing"
+    ],
+    "dependencies": ["T-013", "T-014", "T-015", "T-038", "T-039"],
+    "parallel_safe_with": ["T-040", "T-043", "T-044"],
+    "acceptance_criteria": [
+      "Given SCN-081 renders, when compared to design/Monopilot Design System/scanner/flow-consume.jsx:123-213, then it has Komponenty/Zeskanowane tabs in that order, 4 action buttons in order Skanuj komponent / Wyrób gotowy / Co-product / Odpad with blue/green/purple/amber colors, and the next-suggestion cyan chip when applicable — RTL snapshot + manual checklist",
+      "Given the user chooses an LP later than FEFO suggestion on consume scan, when ScanInput emits, then the FEFO deviation amber banner is shown and submit is disabled until reason_code is selected from the 5-option dropdown",
+      "Given the user taps 'Wyrób gotowy' with BOM unconsumed, when the navigation handler runs, then the partial-consume warn banner is shown with [Anuluj] / [Kontynuuj + audit log] and Kontynuuj records reason_code='partial_consume' before routing to SCN-082"
+    ],
+    "test_strategy": [
+      "RED: write scn-080-consume.test.tsx asserting parity + FEFO gating + partial-consume warn before implementation",
+      "Run 'pnpm --filter scanner test scn-080-consume'"
+    ],
+    "risk_red_lines": [
+      "Do not allow output navigation without reason_code when BOM unconsumed",
+      "Do not omit batch* mandatory",
+      "Do not bypass FEFO reason_code"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

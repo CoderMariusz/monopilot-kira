@@ -1,0 +1,61 @@
+{
+  "title": "T-019 — SCN-011b PIN First-time Setup wizard (2-step) (06-a)",
+  "prompt": "# T-019 — SCN-011b PIN First-time Setup\n\nPRD: 06-SCANNER-P1-PRD.md §8.1 FR-SC-FE-003b, §6 D8\nUX: design/06-SCANNER-P1-UX.md:240-249 §3.3\nPrototype: design/Monopilot Design System/scanner/login.jsx:58-112 (label pin_screen, reused for setup)\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nDeliver the forced first-time PIN setup wizard — 2-step Set/Confirm — invoked when scanner_pin_hash is null after login. Reuses the SCN-011 6-dot+numpad pattern with a 2-step indicator and a top info banner.\n\n## Implementation contract\n1. `apps/scanner/src/app/scanner/pin/setup/page.tsx` renders 2-step wizard with steps indicator.\n2. Step 1 'Ustaw PIN' captures new_pin; Step 2 'Potwierdź PIN' must equal step 1.\n3. Server Action calls POST /api/scanner/pin/setup (T-008); on policy-violation server response, render inline error 'PIN nie spełnia wymagań bezpieczeństwa.'.\n4. Top info banner: 'PIN jest wymagany do szybkiego logowania na hali. Zapamiętaj go — nie możesz go zresetować samodzielnie.'\n5. Success ⇒ router.push('/scanner/site-select').\n\n## Files\n- apps/scanner/src/app/scanner/pin/setup/page.tsx [create]\n- apps/scanner/src/app/scanner/pin/setup/setup-form.client.tsx [create]\n- apps/scanner/src/app/scanner/pin/setup/setup.action.ts [create]\n- apps/scanner/__tests__/scn-011b-pin-setup.test.tsx [create]\n\n## Acceptance criteria\n1. Given the wizard renders, when compared to `design/Monopilot Design System/scanner/login.jsx:58-112` (pin_screen reused) plus the §3.3 UX spec, then it has a 2-step indicator above the same 6-dot+numpad pattern, the info banner above the steps, and a 'Wróć' back button — RTL snapshot + manual checklist (structural + visual + interaction parity)\n2. Given step 1 captured PIN '264719' and step 2 captured '264720', when the user taps confirm, then an inline error 'PIN-y nie pasują' is shown and the wizard returns to step 2 with cleared dots\n3. Given a step-2-confirmed PIN that fails server policy (e.g. '111111' with forbid_repeating=true), when POST /pin/setup responds 400 SC_PIN_POLICY_VIOLATION, then the wizard renders the inline message 'PIN nie spełnia wymagań bezpieczeństwa.' and returns to step 1\n\n## Test strategy\n- RED: write scn-011b-pin-setup.test.tsx asserting parity + mismatch handling + policy-violation handling before implementation\n- Run 'pnpm --filter scanner test scn-011b-pin-setup'\n\n## Risk red lines\n- Do not allow entering the wizard if scanner_pin_hash already exists\n- Do not log either entered PIN value\n- Do not auto-advance past step 2 without server confirmation",
+  "labels": ["prd", "ui", "scn-011b-pin-setup", "T3-ui"],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-019",
+    "source_prd": "06-SCANNER-P1-PRD.md",
+    "prd_refs": ["§8.1 FR-SC-FE-003b", "§6 D8"],
+    "category": "ui",
+    "subcategory": "scn-011b-pin-setup",
+    "task_type": "T3-ui",
+    "parent_feature": "06-a Shell & Core",
+    "context_budget": "25k",
+    "estimated_effort": "1-2h",
+    "description": "Forced first-time PIN setup 2-step wizard reusing SCN-011 numpad with steps indicator + info banner.",
+    "details": "Parity checklist:\n1) 2-step indicator above the 6-dot+numpad block.\n2) Info banner with mandatory copy at top.\n3) 'Wróć' back button retained.\n4) Mismatch between step 1 and step 2 shows inline error and resets step 2.\n5) Server policy violation returns user to step 1 with inline error.\n6) Success redirects to /scanner/site-select.",
+    "scope_files": [
+      "apps/scanner/src/app/scanner/pin/setup/page.tsx [create]",
+      "apps/scanner/src/app/scanner/pin/setup/setup-form.client.tsx [create]",
+      "apps/scanner/src/app/scanner/pin/setup/setup.action.ts [create]",
+      "apps/scanner/__tests__/scn-011b-pin-setup.test.tsx [create]",
+      "design/Monopilot Design System/scanner/login.jsx:58-112 [ref]"
+    ],
+    "out_of_scope": [
+      "Do not implement self-service PIN change here (T-020)",
+      "Do not implement admin reset (desktop 02-SETTINGS owns it)",
+      "Do not implement biometric (P2)"
+    ],
+    "dependencies": ["T-008", "T-018"],
+    "parallel_safe_with": ["T-017", "T-018", "T-020"],
+    "acceptance_criteria": [
+      "Given the wizard renders, when compared to design/Monopilot Design System/scanner/login.jsx:58-112 reused for setup + UX §3.3, then it has the 2-step indicator, info banner, same 6-dot+numpad pattern and 'Wróć' button — RTL snapshot + manual checklist",
+      "Given step 1 PIN '264719' and step 2 '264720', when confirm is tapped, then inline error 'PIN-y nie pasują' is shown and step 2 dots reset",
+      "Given step-2 PIN '111111' rejected by server with SC_PIN_POLICY_VIOLATION, when response arrives, then the wizard shows 'PIN nie spełnia wymagań bezpieczeństwa.' and returns to step 1"
+    ],
+    "test_strategy": [
+      "RED: write scn-011b-pin-setup.test.tsx asserting parity + mismatch + policy-violation paths before implementation",
+      "Run 'pnpm --filter scanner test scn-011b-pin-setup'"
+    ],
+    "risk_red_lines": [
+      "Do not allow entry if scanner_pin_hash already exists",
+      "Do not log entered PIN values",
+      "Do not auto-advance without server confirmation"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

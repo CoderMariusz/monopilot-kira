@@ -1,0 +1,85 @@
+{
+  "title": "T-033 \u2014 PostHog self-host feature flags wiring with per-tenant targeting",
+  "prompt": "# T-033 \u2014 PostHog self-host feature flags wiring with per-tenant targeting\n\nPRD: `00-FOUNDATION-PRD.md` \u2014 sections: \u00a75, \u00a78\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`\n\n## Goal\nWire PostHog (self-host) for feature flags with per-tenant evaluation. Server-side flag evaluation only; no client SDK exposure of internal flags.\n\n## Implementation contract\nInstall posthog-node. Add lib/feature-flags/index.ts exposing isEnabled(flagKey, { tenantId, userId }): boolean using PostHog's group identification (group='tenant', key=tenantId). Add a thin admin endpoint GET /api/internal/flags?tenant=... returning the resolved flag set for the current tenant (org.access.admin only). Vitest mocks the PostHog client and asserts: (1) per-tenant override resolves correctly, (2) unknown flag returns false (fail-closed), (3) the admin endpoint is 403 for non-admins.\n\n## Files (scope)\n- apps/web/lib/feature-flags/index.ts [create]\n- apps/web/app/api/internal/flags/route.ts [create]\n- apps/web/__tests__/feature-flags.test.ts [create]\n\n## Acceptance criteria\n1. Given a flag 'foo' is enabled for tenant A and disabled for tenant B in PostHog, when isEnabled('foo', { tenantId: 'A' }) is called, then it returns true; for 'B' it returns false\n2. Given an unknown flag 'does-not-exist', when isEnabled is called, then it returns false (fail-closed)\n3. Given a non-admin requests GET /api/internal/flags, when the request is processed, then it returns 403\n\n## Test strategy\n- RED: write apps/web/__tests__/feature-flags.test.ts covering all three AC before lib/feature-flags/index.ts exists\n- Run 'pnpm --filter web test'\n\n## Risk red lines\n- Do not expose internal flag keys to non-admin clients \u2014 that leaks the roadmap\n\n## Dependencies (must be complete first)\n- T-001\n- T-014\n\n## Closeout evidence\nProvide: changed_files, test_commands_and_results, acceptance_criteria_status (per AC), deviations_from_prd, git_status. Use the test-driven-development skill (RED test before implementation) and requesting-code-review at GREEN.",
+  "labels": [
+    "prd",
+    "infra",
+    "feature-flags",
+    "T2-api"
+  ],
+  "priority": 120,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-033",
+    "source_prd": "00-FOUNDATION-PRD.md",
+    "prd_refs": [
+      "\u00a75",
+      "\u00a78"
+    ],
+    "category": "infra",
+    "subcategory": "feature-flags",
+    "task_type": "T2-api",
+    "parent_feature": "00-FOUNDATION feature-flags",
+    "context_budget": "40k",
+    "estimated_effort": "1-2h",
+    "description": "Wire PostHog (self-host) for feature flags with per-tenant evaluation. Server-side flag evaluation only; no client SDK exposure of internal flags.",
+    "details": "Install posthog-node. Add lib/feature-flags/index.ts exposing isEnabled(flagKey, { tenantId, userId }): boolean using PostHog's group identification (group='tenant', key=tenantId). Add a thin admin endpoint GET /api/internal/flags?tenant=... returning the resolved flag set for the current tenant (org.access.admin only). Vitest mocks the PostHog client and asserts: (1) per-tenant override resolves correctly, (2) unknown flag returns false (fail-closed), (3) the admin endpoint is 403 for non-admins.",
+    "scope_files": [
+      "apps/web/lib/feature-flags/index.ts [create]",
+      "apps/web/app/api/internal/flags/route.ts [create]",
+      "apps/web/__tests__/feature-flags.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not modify files outside the scope_files list",
+      "Do not introduce business logic from later module PRDs (01-NPD, 02-SETTINGS, etc.)",
+      "No client SDK in this task \u2014 server-side only"
+    ],
+    "dependencies": [
+      "T-001",
+      "T-014"
+    ],
+    "parallel_safe_with": [
+      "T-022",
+      "T-023"
+    ],
+    "acceptance_criteria": [
+      "Given a flag 'foo' is enabled for tenant A and disabled for tenant B in PostHog, when isEnabled('foo', { tenantId: 'A' }) is called, then it returns true; for 'B' it returns false",
+      "Given an unknown flag 'does-not-exist', when isEnabled is called, then it returns false (fail-closed)",
+      "Given a non-admin requests GET /api/internal/flags, when the request is processed, then it returns 403"
+    ],
+    "test_strategy": [
+      "RED: write apps/web/__tests__/feature-flags.test.ts covering all three AC before lib/feature-flags/index.ts exists",
+      "Run 'pnpm --filter web test'"
+    ],
+    "risk_red_lines": [
+      "Do not expose internal flag keys to non-admin clients \u2014 that leaks the roadmap"
+    ],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

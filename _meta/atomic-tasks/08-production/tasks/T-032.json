@@ -1,0 +1,58 @@
+{
+  "title": "T-032 — Catch-weight entry: variance soft-warning when item.weight_mode='catch'",
+  "prompt": "# T-032 — Catch-weight entry + variance soft-warning\n\nPRD: 08-PRODUCTION-PRD.md §7.3 FR-08-E3-004, §6 D13, §16.4 V-PROD-17, §5.2#7\n\n## Goal\nExtend register-output for items where weight_mode='catch' to require catch_weight_kg_per_unit array, store as catch_weight_details JSONB, and compute variance vs item.avg_unit_kg with ±10% soft warning.\n\n## Implementation contract\nIn register-output, when item.weight_mode='catch', require catch_weight_kg_per_unit (number[]) in body. Persist as catch_weight_details = {per_unit_kg: [...], avg_kg, total_kg, variance_pct}. Compute variance = abs(avg_kg - item.avg_unit_kg)/item.avg_unit_kg. If variance > 0.10 (default tolerance from prod_settings.catch_weight_tolerance_pct), set catch_weight_details.variance_warning=true (soft warning, P1; D13 hard P2). Return existing 200 body extended with catch_weight_summary {avg_kg, total_kg, variance_pct, warning}.\n\n## Files (scope)\n- packages/api-services/production/register-output.ts [modify]\n- packages/api-services/production/__tests__/catch-weight.test.ts [create]\n\n## Acceptance criteria\n1. Given item.weight_mode='catch' and catch_weight_kg_per_unit=[1.0,1.05,0.95] item.avg_unit_kg=1.0, when POST /outputs, then 200 + catch_weight_summary.avg_kg=1.0 and warning=false\n2. Given catch_weight_kg_per_unit=[2.0,2.0,2.0] item.avg_unit_kg=1.0 (>10% variance), when POST, then 200 + warning=true and variance_pct=1.0\n3. Given item.weight_mode='catch' and missing catch_weight_kg_per_unit, when POST, then 422 ValidationError listing catch_weight_kg_per_unit\n\n## Test strategy\n- RED: test asserting variance computation + warning + missing-field 422 before service change\n- Run 'pnpm --filter api-services test catch-weight'\n\n## Risk red lines\n- Do not hard-block on variance >10% (P1 = soft warning only per D13)\n- Do not skip catch_weight_details persistence (audit trail)\n- Do not require catch_weight when item.weight_mode='nominal'",
+  "labels": ["prd", "api", "output", "T2-api"],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-032",
+    "source_prd": "08-PRODUCTION-PRD.md",
+    "prd_refs": ["§7.3 FR-08-E3-004", "§6 D13", "§16.4 V-PROD-17", "§5.2#7"],
+    "category": "api",
+    "subcategory": "output",
+    "task_type": "T2-api",
+    "parent_feature": "08-PROD E3 Output+Waste",
+    "context_budget": "26k",
+    "estimated_effort": "2h",
+    "description": "Catch-weight entry: array per unit, variance soft-warning P1 (D13 P2 hard).",
+    "details": "Extends register-output. When item.weight_mode='catch', body requires catch_weight_kg_per_unit array. Persisted on wo_outputs.catch_weight_details JSONB. Variance computed vs item.avg_unit_kg, default tolerance 10% from prod_settings. Soft warning P1.",
+    "scope_files": [
+      "packages/api-services/production/register-output.ts [modify]",
+      "packages/api-services/production/__tests__/catch-weight.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not implement scale integration (D13 P2)",
+      "Do not hard-block on variance",
+      "Do not modify items table"
+    ],
+    "dependencies": ["T-028"],
+    "parallel_safe_with": ["T-029", "T-030", "T-031", "T-033"],
+    "acceptance_criteria": [
+      "Given catch array near avg, when POST, then 200 + warning=false",
+      "Given variance >10%, when POST, then 200 + warning=true and variance_pct populated",
+      "Given weight_mode=catch and missing catch array, when POST, then 422 listing catch_weight_kg_per_unit"
+    ],
+    "test_strategy": [
+      "RED: test asserting variance + warning + missing-field 422 before service change",
+      "Run 'pnpm --filter api-services test catch-weight'"
+    ],
+    "risk_red_lines": [
+      "Do not hard-block on variance >10% (P1)",
+      "Do not skip catch_weight_details persistence",
+      "Do not require catch_weight for nominal items"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

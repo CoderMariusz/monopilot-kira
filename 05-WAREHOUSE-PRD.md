@@ -1,8 +1,9 @@
 # PRD 05-WAREHOUSE — Monopilot MES
 
-**Wersja**: 3.1 | **Data**: 2026-04-30 | **Status**: Phase C2 Sesja 2 — standardized for multi-industry FG naming
+**Wersja**: 3.2 | **Data**: 2026-04-30 | **Status**: Phase D audit reconciliation — UX/PRD bidirectional coverage ≥90% (was ~75%)
 **Phase D alignment**: Module #05 (renumbered) | **Primary consumer**: 04-PLANNING + 06-SCANNER-P1 + 08-PRODUCTION + 09-QUALITY
-**Baseline**: v2.1 (2026-02-18, pre-Phase-D)
+**Baseline**: v3.1 (2026-04-30 multi-industry FG naming) ← v2.1 (2026-02-18, pre-Phase-D)
+**v3.2 amendments**: 8 new FRs (WH-101..108) + 7 new validation rules + UI Surfaces Coverage Matrix (§16.6) — see audit `_meta/audits/2026-04-30-prd-amendments-05-warehouse.md`
 
 ---
 
@@ -550,17 +551,33 @@ Przykłady Apex L3:
 
 ### 6.9 Frontend/UX
 
-| Komponent | Opis |
-|---|---|
-| LPTable | Lista z filtrami (warehouse, location, product, status, qa_status, expiry range, item_type), paginacja 50/page, sort, quick actions (split/merge/block/print) |
-| LPDetailPage | Tabs: Details / Movement History / Genealogy Tree / Reservations / QA History. Expiry indicator (🟡 ≤30d, 🔴 expired). Status badge z rule registry colors |
-| LPSplitModal | Source info + split qty + destination + confirm + print |
-| LPMergeModal | Scan primary + additional z walidacją inline, running total, confirm |
-| LPGenealogyTree | Recursive visual (d3-hierarchy lub ReactFlow), expand/collapse, operation type icons |
-| QAStatusChangeModal | Current → new (dropdown filtered by allowed transitions) + reason_code + reason_text + confirm; logs `quality_status_history` |
-| ExtColEditor | JSONB editor z schema hint z 02§6 (field types, validations) |
+| Komponent | Opis | UX anchor |
+|---|---|---|
+| LPTable | Lista z filtrami (warehouse, location, product, status, qa_status, expiry range, item_type), paginacja 50/page, sort, quick actions (split/merge/block/print) | UX:215 (WH-002) / proto `lp_list_page` |
+| LPDetailPage | Tabs: Details / Movement History / Genealogy Tree / Reservations / QA History. Expiry indicator (🟡 ≤30d, 🔴 expired). Status badge z rule registry colors | UX:294 (WH-003) / proto `lp_detail_page` |
+| LPSplitModal | Source info + split qty + destination + confirm + print | UX:668 (WH-008) / proto `lp_split_modal` |
+| LPMergeModal | Scan primary + additional z walidacją inline, running total, confirm | UX:1189 (M-05) / proto `lp_merge_modal` |
+| LPGenealogyTree | Recursive visual (d3-hierarchy lub ReactFlow), expand/collapse, operation type icons | UX:358 (WH-003 Tab 3) + UX:858 (WH-014) / proto `genealogy_traceability_page` |
+| QAStatusChangeModal | Current → new (dropdown filtered by allowed transitions) + reason_code + reason_text + confirm; logs `quality_status_history` | UX:706 (WH-009) / proto `qa_status_change_modal` |
+| ExtColEditor | JSONB editor z schema hint z 02§6 (field types, validations) | UX:344 (WH-003 Tab 1 Ext fields) — editor inline P2 (BL-WH-06) |
 
-### 6.10 Validation V-WH-LP
+### 6.10 LP state-transition confirm (WH-101) [ADR-029 / ADR-034 [UNIVERSAL]]
+
+**FR-WH-035 (NEW v3.1, anchors UX M-15 + proto `state_transition_confirm_modal`):** Generic confirmation modal pattern dla każdej LP state-machine transition triggered z desktop (Block / Unblock / Destroy / inne side-effect transitions). Modal renderuje aktualny + nowy state, side-effect summary (np. "Blocking this LP will prevent all picking and movement operations."), oraz reason_code dropdown filtered per `lp_state_machine_v1` allowed reasons dla transition pair (from_state, to_state). Reason_text required jeśli reason_code = `other`.
+
+Rationale: PRD §6.1 enumeruje transition guards na poziomie reguły; user-facing confirm UI był dotychczas niejawny. UX M-15 (`design/05-WAREHOUSE-UX.md:1344`) materializuje wzorzec; prototyp `state_transition_confirm_modal` (`warehouse/modals.jsx:1106-1138`) implementuje. ADR-029 wymaga, by allowed reasons były server-driven z `lp_state_transitions` config, nie hardcoded w client.
+
+V-WH-LP-010 (added): destructive transitions (block/destroy) MUSZĄ mieć reason_code; UI MUSI używać `.btn-danger` styling (BL-PROD-05 unblock — ensure shared design token import).
+
+### 6.11 Force-unlock scanner lock (WH-102) [ADR-006 / ADR-008 [UNIVERSAL]]
+
+**FR-WH-036 (NEW v3.1, anchors UX WH-001 alert "Scanner lock stuck" + proto `force_unlock_scanner_modal`):** Admin-only override dla LP-level scanner lock (§6.6) gdy auto-release 5min nie zwolnił locku (np. operator session crash). Source surface: WH-001 dashboard alert "Scanner lock stuck" (`design/05-WAREHOUSE-UX.md:169`) + WH-003 LP detail "Force release" w lock banner (`UX:416`). Modal pokazuje LP, locked-by user, lock duration, fizyczna lokalizacja. Submit → DELETE z `scanner_locks` + insert audit event `scanner_lock_force_released` (admin_user_id, target_lp, original_holder, reason). RBAC: Admin only.
+
+V-WH-LP-011 (added): force-unlock requires Admin role (server-side enforcement) + audit row mandatory.
+
+Prototyp: `force_unlock_scanner_modal` (`warehouse/modals.jsx:1141-1159`).
+
+### 6.12 Validation V-WH-LP
 
 | ID | Rule | Severity |
 |---|---|---|
@@ -573,6 +590,8 @@ Przykłady Apex L3:
 | V-WH-LP-007 | Block/unblock role ∈ (Manager, QA, Admin) | Block |
 | V-WH-LP-008 | Lock released ≤5min idle | Auto-cleanup |
 | V-WH-LP-009 | Catch weight required if is_catch_weight=true | Block GRN complete |
+| V-WH-LP-010 | LP state-transition confirm: reason_code required for destructive transitions (block/destroy); allowed reasons z `lp_state_transitions` config (server-driven, nie hardcoded) | Block (server-side) |
+| V-WH-LP-011 | Force-unlock scanner lock: Admin role + audit event `scanner_lock_force_released` mandatory | Block (RBAC + audit) |
 
 ---
 
@@ -753,14 +772,29 @@ Dashboard roll-ups (inventory per warehouse/zone) używają tego pattern.
 
 ### 8.7 Frontend/UX
 
-| Komponent | Opis |
-|---|---|
-| MovementsListPage | Filters: type, date range, LP, from/to location, WO |
-| CreateMoveModal | Scan LP → LP info → select destination → qty (default full) → confirm |
-| AdjustmentForm | LP + new qty + reason_code + reason_text + (if >10%) pending approval state |
-| ManagerApprovalsTab | Pending adjustments, approve/reject + notes |
+| Komponent | Opis | UX anchor |
+|---|---|---|
+| MovementsListPage | Filters: type, date range, LP, from/to location, WO | UX:578 (WH-006) / proto `stock_movement_list_page` |
+| CreateMoveModal | Scan LP → LP info → select destination → qty (default full) → confirm | UX:628 (WH-007 / M-03) / proto `stock_move_modal` |
+| AdjustmentForm | LP + new qty + reason_code + reason_text + (if >10%) pending approval state | UX:634 (WH-007 form) / proto `stock_move_modal` |
+| ManagerApprovalsTab | Pending adjustments, approve/reject + notes | UX:583+ (WH-006 side-panel) / proto `stock_movement_list_page` Manager Approvals tab |
 
-### 8.8 Validation V-WH-MOV
+### 8.8 Cycle-count quick adjustment (P1 stub) [WH-103, ADR-008 [APEX-CONFIG→UNIVERSAL]]
+
+**FR-WH-037 (NEW v3.1, anchors UX M-14 + proto `cycle_count_quick_adjustment_modal`):** Lightweight P1 quantity-adjustment surface dla one-off counting corrections — full cycle count workflow (WH-E14) deferred → P2 (BL-WH-01). UX surface: `design/05-WAREHOUSE-UX.md:1329` (M-14 "Quick Stock Adjustment (Cycle Count)"). Pattern:
+- Trigger: LP list / Inventory Browser context menu, manager only.
+- Fields: LP (pre-filled), Current Qty (read-only), Actual Qty (numeric), Delta (auto-computed), Reason Code (`counting_error`/`damage`/`other`), Reason Text.
+- Threshold gate (re-uses §8.5): |delta| > 10% → submit changes do `[Submit for Approval]`, insert do `movement_approvals`.
+- On confirm: `stock_moves(move_type='adjustment')` + `lp_genealogy(operation_type='adjustment', is_reversed=false)`.
+- Banner `.alert-blue` informuje, że full cycle count = P2 (WH-E14) — UX explicit P1 stub framing.
+
+Rationale: PRD baseline stwierdzał "P2 cycle count execute" co stworzyło rozdźwięk z UX (P1 stub jest legalny + potrzebny dla podstawowych korekt), reconciled tu — P1 stub OK, full workflow (variance detection, ABC, manager approval queue full) = P2.
+
+V-WH-MOV-007 (added): cycle-count adjustment respects §8.5 threshold gate; |delta| > 10% routes do `movement_approvals`. Reason_code mandatory.
+
+Prototyp: `cycle_count_quick_adjustment_modal` (`warehouse/modals.jsx:1051-1103`, BL-WH-01).
+
+### 8.9 Validation V-WH-MOV
 
 | ID | Rule | Severity |
 |---|---|---|
@@ -770,6 +804,7 @@ Dashboard roll-ups (inventory per warehouse/zone) używają tego pattern.
 | V-WH-MOV-004 | Adjustment >10% → manager approval | Block until approved |
 | V-WH-MOV-005 | Reason required for adjustment/quarantine/return | Block |
 | V-WH-MOV-006 | Capacity check (P2) — warn 90%, block 100% (override) | Warn/Block |
+| V-WH-MOV-007 | Cycle-count quick adjustment respects §8.5 threshold; |delta|>10% → manager approval; reason_code mandatory (P1 stub, full WH-E14 P2) | Block/Approval |
 
 ---
 
@@ -1065,13 +1100,26 @@ Outbox event payload (P1):
 
 P2 consumer maps to EPCIS ObjectEvent with `bizStep=consuming`, `disposition=in_transit`, `epcList=[LP GS1 URI]`, `sourceList/destinationList`.
 
-### 11.5 Traceability UI (P2 full, P1 API only)
+### 11.5 Traceability UI (P1 dashboard page + LP-detail widget; P2 full report)
 
-| Komponent | Status |
-|---|---|
-| TraceabilityReportPage (12-REPORTING) | P2 — full forward/backward visualization |
-| GenealogyTreeWidget (LP detail) | P1 — simple tree current+children, current+parents (depth 3) |
-| RecallSearchModal | P2 — "given batch_number → LPs → WOs → customers/shipments" |
+| Komponent | Status | UX anchor |
+|---|---|---|
+| **GenealogyDashboardPage `/warehouse/genealogy`** [WH-104] | **P1** — recursive CTE seed-LP query (depth 1-10), forward/backward/full mode toggle, FSMA 204 export (PDF/CSV), FEFO compliance flag per consume node | UX:858 (WH-014) / proto `genealogy_traceability_page` (`other-screens.jsx:268-359`) |
+| GenealogyTreeWidget (LP detail Tab 3) | P1 — simple tree current+children, current+parents (depth 3) | UX:358 (WH-003 Tab 3) / proto `lp_detail_page` Genealogy tab |
+| TraceabilityReportPage (12-REPORTING) | P2 — full forward/backward visualization | (cross-module) |
+| RecallSearchModal | P2 — "given batch_number → LPs → WOs → customers/shipments" | [NO-PROTOTYPE-YET — P2 12-REPORTING] |
+
+**FR-WH-038 (NEW v3.1, anchors WH-104):** Dedicated `/warehouse/genealogy` page jako P1 surface dla operator/manager-driven trace queries (poza per-LP widget). Page-level features:
+- Search input: LP number, batch_number, supplier_batch_number, scan barcode
+- Mode toggle: forward / backward / full (radio)
+- Depth limit slider 1-10 (default 10, SLO <30s)
+- Tree view (default) + List view (tab toggle)
+- Per consume-op FEFO compliance badge (green = `pick_overrides` row absent, amber = override z reason_code tooltip)
+- `[Export Trace Report]` → PDF/CSV via Server Action (FSMA 204 format)
+- Loading state z indeterminate progress + cancel button (long queries)
+- ADR-029 marker: query implementation = recursive CTE (§11.2), nie graph DB w P1 (Neo4j → Phase 3 WH-E18).
+
+V-WH-TRACE-005 (added): genealogy dashboard query MUSI respect tenant_id RLS (ADR-003) + depth limit guard prevents runaway recursion.
 
 ### 11.6 Validation V-WH-TRACE
 
@@ -1081,6 +1129,7 @@ P2 consumer maps to EPCIS ObjectEvent with `bizStep=consuming`, `disposition=in_
 | V-WH-TRACE-002 | No cycle in genealogy (DAG invariant) | Block (DB trigger) |
 | V-WH-TRACE-003 | Forward trace depth ≤10 | Warn (operational limit) |
 | V-WH-TRACE-004 | Traceability query <30s P95 | SLO alert |
+| V-WH-TRACE-005 | Genealogy dashboard query MUSI respect tenant_id RLS + depth limit guard (max 10) | Block/SLO |
 
 ---
 
@@ -1139,14 +1188,35 @@ Pick filter: shipment dla customer_X → `LP.expiry_date ≥ today + rule.min_sh
 
 P1: schema + API only. Full enforcement in 11-SHIPPING Phase 2.
 
-### 12.6 Frontend/UX
+**UI surface status:** **[NO-PROTOTYPE-YET]** — admin CRUD UI dla `shelf_life_rules` nie ma P1 prototypu (audit Direction A HIGH gap). Per audit `_meta/audits/2026-04-30-design-prd-coverage.md:138`, owned przez 05-WH ale brak surface w `prototype-index-warehouse.json` ani w UX. **TODO Phase E (05-WAREHOUSE-d split):** dodać `ShelfLifeRulesAdminPage` + `shelf_life_rule_edit_modal` jako Admin/Manager-only CRUD na `/warehouse/settings/shelf-life-rules` (sub-page WH-020 Settings → new "Shelf Life Rules" category). Pick-time enforcement renderowane w 11-SHIPPING Phase 2.
 
-| Komponent | Opis |
-|---|---|
-| ExpiringSoonWidget (dashboard) | Red/yellow tiers, sort by expiry ASC, drill-down |
-| ExpiryConfigPanel (02-SETTINGS §10) | Set red/yellow days, cron schedule, per-tenant override |
-| UseByBlockModal | If user tries operate expired use_by LP → manager override modal |
-| ExpiredLPReport (12-REPORTING) | Monthly auto-report: expired LPs, write-off value |
+### 12.6 Expiry Management Dashboard [WH-105, [APEX-CONFIG→UNIVERSAL]]
+
+**FR-WH-039 (NEW v3.1, anchors UX WH-019 + proto `expiry_management_page`):** Dedicated `/warehouse/expiry` dashboard surface (poza dashboard widget WH-001) dla manualnych akcji wokół expired/expiring LP.
+
+UX anchor: `design/05-WAREHOUSE-UX.md:1021` (WH-019). Prototyp: `expiry_management_page` (`other-screens.jsx:363-480`).
+
+Page-level features:
+- Header: last cron run timestamp + next 3 scheduled runs + `[Run Cron Now]` (Admin)
+- Alert summary strip: red card (`use_by` blocked count) + amber card (`best_before` expired count)
+- Two-tab view: **Expired** | **Expiring Soon**
+- Expired tab: filter shelf_life_mode (use_by/best_before/all), product, warehouse; row actions context-driven per LP type (`use_by` blocked → `[Destroy/Scrap]` + `[Manager Override - Unblock]` z reason; `best_before` expired → `[Block]` / `[Destroy]` / "Allow with warning" inline)
+- Expiring Soon tab: range toggle 7d / 30d / custom; row → `[View LP]`
+- Reference info card: use_by (EU 1169/2011 hard block) vs best_before (warning) gating summary
+
+Cross-link: §12.4 ExpiringSoonWidget na WH-001 dashboard drill-down → ten page z filter pre-set.
+
+V-WH-EXP-006 (added): manager override unblock dla expired use_by MUSI mieć reason_code + audit row + email notification (per §12.3).
+
+### 12.7 Frontend/UX
+
+| Komponent | Opis | UX anchor |
+|---|---|---|
+| ExpiringSoonWidget (dashboard) | Red/yellow tiers, sort by expiry ASC, drill-down | UX:175 (WH-001 Expiry Summary) / proto `warehouse_dashboard` |
+| **ExpiryDashboardPage [WH-105]** | Pełna strona §12.6 — Expired + Expiring Soon tabs, cron status, manager override actions | UX:1021 (WH-019) / proto `expiry_management_page` |
+| ExpiryConfigPanel (02-SETTINGS §10 / WH-020 Expiry & Shelf Life cat) | Set red/yellow days, cron schedule, per-tenant override | UX:1126 (WH-020 Expiry cat) / proto `warehouse_settings_page` |
+| UseByBlockModal | If user tries operate expired use_by LP → manager override modal | UX:1293 (M-12) / [NO-PROTOTYPE-YET] — modal pattern enumerated UX-only; prototype TODO Phase E |
+| ExpiredLPReport (12-REPORTING) | Monthly auto-report: expired LPs, write-off value | (cross-module 12-REPORTING) |
 
 ### 12.7 Validation V-WH-EXP
 
@@ -1157,6 +1227,7 @@ P1: schema + API only. Full enforcement in 11-SHIPPING Phase 2.
 | V-WH-EXP-003 | best_before expired → warning + confirm | Warn |
 | V-WH-EXP-004 | Cron auto-block runs daily, audit log per change | SLO alert if missing |
 | V-WH-EXP-005 | shelf_life_rules customer min enforced at ship (11-SHIPPING) | Block ship (P2) |
+| V-WH-EXP-006 | Manager override unblock expired use_by → reason_code + audit + email notification (mandatory) | Block (RBAC + audit) |
 
 ---
 
@@ -1305,13 +1376,42 @@ Katalog screen codes dla 06-SCANNER-P1 (detail tam):
 
 ### 14.4 Frontend/UX
 
-| Komponent | Opis |
-|---|---|
-| DashboardPage (`/warehouse/dashboard`) | KPI cards row + Alerts panel + Recent Activity feed + Capacity heatmap (P2) |
-| InventoryValueTile | Drill-down: per product top 20, per warehouse, trend 30d |
-| ExpiringWidget | Red/yellow tiers, click → ExpiringLPsPage filtered |
-| AlertsPanel | Per severity, click → context page (LP, WO, cycle count) |
-| RecentActivityFeed | Infinite scroll, filter type (split/merge/move/consume/output) |
+| Komponent | Opis | UX anchor |
+|---|---|---|
+| DashboardPage (`/warehouse`) | KPI cards row + Alerts panel + Recent Activity feed + Capacity heatmap (P2) | UX:136 (WH-001) / proto `warehouse_dashboard` |
+| InventoryValueTile | Drill-down: per product top 20, per warehouse, trend 30d | UX:152 (WH-001 KPI #3) / proto `warehouse_dashboard` (RBAC-gated tile) |
+| ExpiringWidget | Red/yellow tiers, click → ExpiringLPsPage filtered | UX:175 (WH-001) — drill-down do WH-105 §12.6 |
+| AlertsPanel | Per severity, click → context page (LP, WO, cycle count) | UX:161 (WH-001) / proto `warehouse_dashboard` Alerts panel |
+| RecentActivityFeed | Infinite scroll, filter type (split/merge/move/consume/output) | UX:183 (WH-001) / proto `warehouse_dashboard` activity feed |
+
+### 14.5 Inventory Browser [WH-106, [UNIVERSAL]]
+
+**FR-WH-040 (NEW v3.1, anchors UX WH-012 + proto `inventory_browser_page`):** Aggregated read-only inventory view na `/warehouse/inventory`, complementing WH-002 LP list (LP-level) z aggregated grupowaniem.
+
+UX anchor: `design/05-WAREHOUSE-UX.md:770` (WH-012). Prototyp: `inventory_browser_page` (`other-screens.jsx:3-152`, BL-WH-05 — by-location P1 flat L2 only, full ltree hierarchy P2).
+
+Three-view toggle (URL param `?view=product|location|batch`):
+- **By Product**: row per product z Total Qty / Reserved / Available / QC Hold / Total LPs / Earliest Expiry / Locations count / Picking Strategy / Inventory Value (RBAC-gated). Row expand → LP list inline.
+- **By Location**: collapsible ltree tree (lewa kolumna) + LP table per zaznaczony node (descendants via ltree `@>` query) — P1 P2 limit per BL-WH-05.
+- **By Batch**: row per (batch_number + product) — earliest expiry, qty, LP count, QA majority status.
+
+Export CSV per current view/filter. RBAC: `canSeeValue` (Manager/Planner/Admin) gate na inventory value column server-side (ADR-013).
+
+V-WH-DASH-001 (added): inventory value column MUSI być server-side RBAC-gated (nie client-side); operator/QA odpowiedź zwraca null lub pomija column.
+
+### 14.6 Locations Hierarchy View [WH-107, [UNIVERSAL]]
+
+**FR-WH-041 (NEW v3.1, anchors UX WH-018 + proto `locations_hierarchy_page`):** Read-only/admin location hierarchy management surface na `/warehouse/locations`. Operator/Manager browse hierarchy + LPs per location; Admin CRUD via M-13 modal.
+
+UX anchor: `design/05-WAREHOUSE-UX.md:988` (WH-018). Prototyp: `locations_hierarchy_page` (`other-screens.jsx:156-264`) + `location_edit_modal` (`modals.jsx:1010-1048`).
+
+Layout: master-detail (lewa kolumna location tree z `.tree-item.l0..l3` + LP count badges per node, prawa LP table filtered by zaznaczonej location ltree path).
+
+Admin actions per node (gated): `[Edit Location]` / `[Add Child Location]` / `[Deactivate]` (M-13 modal). Depth validation per `warehouse_settings.location_depth_max` (Apex default 3, system 2-5 per ADR-031).
+
+Cross-ref: `locations` tabela owned przez 02-SETTINGS §12; 05-WH renderuje + filtruje. Deactivate blokowany jeśli active LPs present (server-side enforcement).
+
+V-WH-DASH-002 (added): location deactivate blocked jeśli ≥1 LP aktywne (status IN available/reserved); error UI explicit message.
 
 ---
 
@@ -1416,6 +1516,29 @@ Dual UoM label (baseline D21): "120 BOX / 184 KG" — operator enters primary, s
 
 ## §16 — Settings + Build Sequence + Open Questions + References + Changelog
 
+### 16.0 Warehouse Settings Page [WH-108, [UNIVERSAL]]
+
+**FR-WH-042 (NEW v3.1, anchors UX WH-020 + proto `warehouse_settings_page`):** Tenant-level warehouse settings surface na `/warehouse/settings`, Admin-edit / Manager-read.
+
+UX anchor: `design/05-WAREHOUSE-UX.md:1071` (WH-020). Prototyp: `warehouse_settings_page` (`other-screens.jsx:484-631`, BL-WH-02 — Locations + Integrations tabs są P1 placeholders).
+
+Layout: left-nav (sticky, 200px) z 9 setting categories (URL param `?cat=`). Każda kategoria = osobny react-hook-form, osobny `[Save Changes]` button — nie jeden giant form.
+
+Categories (per §16.1 toggles + UX WH-020 layout):
+1. **General** — archival retention, dashboard cache TTL
+2. **LP Numbering** — auto-generate, prefix, sequence length, allow manual
+3. **Receiving (GRN)** — require batch/expiry/supplier_batch, default QA, allow over-receipt + tolerance %
+4. **Picking & Strategy** — enable FEFO/FIFO, allow override, require reason, **read-only links to rule registry** (`fefo_strategy_v1`, `lp_state_machine_v1`) — admins read-only per §6.10 ADR-029 wymóg
+5. **Expiry & Shelf Life** — red/yellow thresholds, cron schedule, use_by auto-block (locked ON dla food tenants per EU 1169/2011)
+6. **Labels & Printing** — print_on_receipt, default copies, default printer (z 02-SETTINGS Printer Config), label templates read-only list
+7. **Scanner** — idle timeout, lock timeout, sound feedback, vibration
+8. **Locations** — placeholder P1 (full CRUD na WH-107 §14.6 hierarchy page)
+9. **Integrations** — placeholder P1 (D365 sync detail w 03-TECHNICAL §13)
+
+RBAC: non-Admin user = read-only mode + `.alert-blue` "You have read-only access to warehouse settings." Server-side enforced (ADR-013).
+
+V-WH-SET-001 (added): rule-registry settings (FEFO strategy, LP state machine) MUSZĄ być read-only z UI; edycja tylko via PR/deploy (ADR-029).
+
 ### 16.1 warehouse_settings (toggles tabelka)
 
 | Setting | Default | Opis | Marker |
@@ -1495,16 +1618,18 @@ Per 00-FOUNDATION §4.2 batch-writing + sequential-implementation approach.
 
 ### 16.4 Validation index
 
-**37 validation rules across 7 families:**
-- V-WH-LP (9 rules) — LP Core
+**44 validation rules across 9 families (post v3.2):**
+- V-WH-LP (11 rules, +2 v3.2) — LP Core (incl. state-transition confirm + force-unlock scanner)
 - V-WH-GRN (8 rules) — Receiving
-- V-WH-MOV (6 rules) — Stock moves
+- V-WH-MOV (7 rules, +1 v3.2) — Stock moves (incl. cycle-count quick adjustment)
 - V-WH-FEFO (6 rules) — Pick strategy + reservations
 - V-WH-INT (5 rules) — Intermediate LP handling
-- V-WH-TRACE (4 rules) — Genealogy
-- V-WH-EXP (5 rules) — Expiry management
+- V-WH-TRACE (5 rules, +1 v3.2) — Genealogy (incl. dashboard depth/RLS guard)
+- V-WH-EXP (6 rules, +1 v3.2) — Expiry management (incl. use_by manager override audit)
 - V-WH-SCAN (5 rules) — Scanner integration
 - V-WH-LABEL (5 rules) — Label/GS1
+- V-WH-DASH (2 rules, NEW v3.2) — Inventory value RBAC + location deactivate guard
+- V-WH-SET (1 rule, NEW v3.2) — Rule-registry settings read-only enforcement
 
 ### 16.5 References
 
@@ -1547,7 +1672,74 @@ Per 00-FOUNDATION §4.2 batch-writing + sequential-implementation approach.
 | **GS1 Global Traceability** | End-to-end | SSCC-18, EPCIS (P2) |
 | **BRCGS v9** | Retail food safety | Digital records (audit trail 100%) |
 
-### 16.6 Changelog
+### 16.6 UI Surfaces Coverage Matrix (WH-NNN ↔ UX ↔ prototype) [ADR-034 [UNIVERSAL]]
+
+Bidirectional reconciliation table per audit `_meta/audits/2026-04-30-design-prd-coverage.md` §2 (05-WAREHOUSE row, ~75% → ≥90% post-amendment). All entries [UNIVERSAL] unless tagged otherwise. Status legend: **OK** (PRD↔UX↔proto aligned) / **TODO** (PRD anchor present, prototype/UX gap) / **P2/P3** (deferred per phase plan).
+
+| WH-NNN | UX screen | Prototype label | PRD §ref | Status | Notes |
+|---|---|---|---|---|---|
+| WH-001 | UX:136 (Dashboard) | `warehouse_dashboard` | §14.1-14.4 (FR-WH-029) | OK | KPI cards + alerts + recent activity |
+| WH-002 | UX:215 (LP List) | `lp_list_page` | §6.9 (LPTable) | OK | Filters + bulk actions + export |
+| WH-003 | UX:294 (LP Detail) | `lp_detail_page` | §6.9 (LPDetailPage) | OK (BL-WH-06 ext_jsonb editor P2) | 7 tabs incl. Genealogy, Reservations, State, Labels, Audit |
+| WH-004-PO | UX:420 (GRN Wizard 3-step) | `grn_from_po_wizard` | §7.1 (FR-WH-006), §7.7 GRNFromPOWizard | OK | Multi-LP per line core pattern |
+| WH-005 | UX:549 (GRN from TO) | `grn_from_to_modal` | §7.2 (FR-WH-007), §7.7 GRNFromTOWizard | OK | Transit → destination receipt |
+| WH-006 / WH-011 | UX:578 (Movements List) | `stock_movement_list_page` | §8.1 (FR-WH-010), §8.7 MovementsListPage | OK | Includes Manager Approvals tab side-panel |
+| WH-007 | UX:628 (Stock Move Create) | `stock_move_modal` | §8.1-8.5 (FR-WH-010,011,014), §8.7 CreateMoveModal | OK | Partial → split cascade + >10% approval |
+| WH-008 | UX:668 (LP Split) | `lp_split_modal` | §6.4 (FR-WH-002), §6.9 LPSplitModal | OK (open issue audit row 15: destination should be optional per PRD; UX requires) |
+| WH-009 (M-06) | UX:706 (QA Status Change) | `qa_status_change_modal` | §6.2, §6.9 QAStatusChangeModal | OK | 09-QUALITY owns enum |
+| WH-010 | UX:743 (GRN List) | `grn_list_page` + `grn_detail_page` | §7.7 GRNListPage | OK | List + detail page split |
+| WH-012 [WH-106] | UX:770 (Inventory Browser) | `inventory_browser_page` | **§14.5 (FR-WH-040 NEW)** | OK (BL-WH-05 location view P2 full hierarchy) | 3-view toggle, RBAC value gate |
+| WH-013 (M-07) | UX:829 (Label Print) | `label_print_modal` | §15.6 PrintLabelModal | OK (BL-WH-04 ZPL real preview = backend) |
+| WH-014 [WH-104] | UX:858 (Genealogy Tree) | `genealogy_traceability_page` | **§11.5 (FR-WH-038 NEW)** | OK | FSMA 204 export, depth slider |
+| WH-015 (M-08) | UX:897 (LP Picker) | (logic in `lp_list_page` + reservations flow) | §9.7 LPPickerComponent | OK | FEFO sort + override warn |
+| WH-016 (M-08) | UX:929 (Reserve Modal) | `reserve_lp_modal` | §9.4 (FR-WH-016) | OK | RM root only per Q6 revised |
+| WH-017 | UX:956 (WO Reservations Panel) | `reservations_list_page` + per-WO panel | §9.7 ReservationPanel | OK | Release modal M-09 |
+| WH-018 [WH-107] | UX:988 (Locations Hierarchy) | `locations_hierarchy_page` + `location_edit_modal` (M-13) | **§14.6 (FR-WH-041 NEW)** | OK | Master-detail + ltree |
+| WH-019 [WH-105] | UX:1021 (Expiry Dashboard) | `expiry_management_page` | **§12.6 (FR-WH-039 NEW)** | OK | Expired/Expiring tabs + cron status |
+| WH-020 [WH-108] | UX:1071 (Settings Page) | `warehouse_settings_page` | **§16.0 (FR-WH-042 NEW)** | OK (BL-WH-02 Locations/Integrations tabs P1 placeholders) | 9 categories, RBAC read-only fallback |
+| **M-05 LP Merge** | UX:1189 | `lp_merge_modal` | §6.5 (FR-WH-003), §6.9 LPMergeModal | OK | 2-step wizard z validation |
+| **M-09 Release Reservation** | UX:1231 | `release_reservation_modal` | §9.4 release triggers | OK | admin_override branch high-visibility |
+| **M-10 FEFO Deviation** | UX:1247 | `fefo_deviation_modal` | §9.3, §9.6 OverrideWarningModal | OK | Q6B pattern — warn never block |
+| **M-11 Destroy/Scrap** | UX:1277 | `destroy_scrap_lp_modal` | §6.9 (action buttons) — PRD anchor implicit | OK (BL-PROD-05 .btn-danger token) | Irreversible + audit |
+| **M-12 use_by Block Override** | UX:1293 | (no dedicated proto label) | §12.2 (FR-WH-021), §12.6 UseByBlockModal | **TODO Phase E** prototype `use_by_override_modal` exists in index — verify mapping; M-12 anchored | EU 1169/2011 manager override |
+| **M-13 Location Create/Edit** | UX:1312 | `location_edit_modal` | §14.6 (FR-WH-041) | OK | Depth validation per ADR-031 |
+| **M-14 Cycle Count Quick Adj** | UX:1329 | `cycle_count_quick_adjustment_modal` | **§8.8 (FR-WH-037 NEW)** | OK (BL-WH-01 full WH-E14 P2) | P1 stub only |
+| **M-15 State Transition Confirm** | UX:1344 | `state_transition_confirm_modal` | **§6.10 (FR-WH-035 NEW)** | OK | Generic block/unblock/destroy confirm |
+| **WH-101 Force Unlock Scanner** | UX:169 (alert) + UX:416 (LP banner) | `force_unlock_scanner_modal` | **§6.11 (FR-WH-036 NEW)** | OK | Admin only, audit mandatory |
+| **WH-109 Shelf Life Rules CRUD** | (no UX) | (no prototype) | §12.5 (FR-WH-024) | **[NO-PROTOTYPE-YET] TODO Phase E** | Owned 05-WH per audit `:138`; Settings → Shelf Life Rules sub-page; pick enforcement P2 11-SHIPPING |
+| FR-WH-008 GS1 GRN auto-fill | UX:480-491 (inline GS1 scan in WH-004-PO Step 2) | (no dedicated picker proto — auto-fill behavior) | §7.4 (FR-WH-009) | OK | Behavior, not screen |
+| FR-WH-019 EPCIS events | (none) | (none) | §11.4 | **P2 (WH-E16)** | Consumer service |
+| Pallets & SSCC | (none) | (none) | §15.5 (FR-WH-034) | **P2 (WH-E10)** | Defer per scope §4.2 |
+| ASN | (none) | (none) | §4.2 (WH-E09) | **P2** | |
+| Cycle Counts Full | (none — only M-14 stub) | (none full) | §4.2 (WH-E14) | **P2** | |
+| Scanner Offline | (none) | (none) | §4.2 (WH-E15), §13.6 | **P2** | |
+
+**Coverage delta summary (per audit framework):**
+- Direction A gaps (PRD bullets without prototype/UX) — pre-amendment: FR-WH-024 (HIGH), FR-WH-008 (LOW), FR-WH-019 (P2 OK). Post-amendment: FR-WH-024 marked `[NO-PROTOTYPE-YET]` z TODO Phase E; pozostałe rozwiązane lub P2-deferred.
+- Direction B orphans (UX/proto without PRD anchor) — pre-amendment: `force_unlock_scanner_modal`, `cycle_count_quick_adjustment_modal`, `state_transition_confirm_modal`, full `expiry_management_page`, `inventory_browser_page`, `locations_hierarchy_page`, `genealogy_traceability_page`, `warehouse_settings_page` all orphan. Post-amendment: all anchored via FR-WH-035..042 (8 new FRs) + WH-101..108 surface IDs.
+- Direction C contradictions: `lp_split_modal` destination required vs PRD §6.4 optional — flagged in matrix row WH-008 (audit row 15, MED), nie reorder/delete; resolution Phase E.
+
+ADR markers applied: ADR-008 (audit trail) na new V-WH-LP-010/011, V-WH-MOV-007, V-WH-EXP-006; ADR-013 (RLS) na new V-WH-DASH-001/TRACE-005; ADR-029 (rule DSL read-only) na V-WH-SET-001; ADR-031 (configurable depths) na §14.6; ADR-034 (multi-industry naming) — wszystkie new FR-WH-035..042 nadal stosują FG/RM/intermediate UNIVERSAL terminology bez domain-specific re-naming (Phase D §10 cascade alignment preserved).
+
+### 16.7 Changelog
+
+**v3.2 (2026-04-30 — UX/PRD bidirectional reconciliation, audit `_meta/audits/2026-04-30-design-prd-coverage.md`)**
+- Bidirectional reconciliation per Direction A + B + C audit framework — 05-WAREHOUSE coverage ~75% (concept-level) → ≥90% (PRD↔UX↔proto traceability)
+- 8 new functional requirements added z surface IDs WH-101..108 anchoring previously-orphan UX/prototypes:
+  - FR-WH-035 (§6.10) LP state-transition confirm modal pattern (anchors UX M-15 + `state_transition_confirm_modal`)
+  - FR-WH-036 (§6.11) Force-unlock scanner LP lock (anchors WH-001 alert + `force_unlock_scanner_modal`)
+  - FR-WH-037 (§8.8) Cycle-count quick adjustment P1 stub (anchors UX M-14 + `cycle_count_quick_adjustment_modal`, full WH-E14 P2 retained)
+  - FR-WH-038 (§11.5) Genealogy dashboard page WH-104 (anchors UX WH-014 + `genealogy_traceability_page`)
+  - FR-WH-039 (§12.6) Expiry Management Dashboard WH-105 (anchors UX WH-019 + `expiry_management_page`)
+  - FR-WH-040 (§14.5) Inventory Browser WH-106 (anchors UX WH-012 + `inventory_browser_page`)
+  - FR-WH-041 (§14.6) Locations Hierarchy View WH-107 (anchors UX WH-018 + `locations_hierarchy_page` + M-13)
+  - FR-WH-042 (§16.0) Warehouse Settings Page WH-108 (anchors UX WH-020 + `warehouse_settings_page`)
+- 7 new validation rules: V-WH-LP-010/011, V-WH-MOV-007, V-WH-EXP-006, V-WH-TRACE-005, V-WH-DASH-001/002, V-WH-SET-001 (now 44 rules across 9 families incl. V-WH-DASH + V-WH-SET)
+- §6.9, §8.7, §12.7, §14.4 Frontend/UX tables expanded z UX line refs + prototype label anchors
+- §12.5 FR-WH-024 (shelf_life_rules customer/product min) explicitly tagged `[NO-PROTOTYPE-YET]` z TODO Phase E (audit Direction A HIGH gap, owned 05-WH per audit `:138`)
+- §16.6 NEW UI Surfaces Coverage Matrix — bidirectional WH-NNN ↔ UX ↔ prototype z status (OK/TODO/P2/P3); flags Direction C audit row 15 contradiction (lp_split destination required vs PRD optional) for Phase E resolution
+- ADR-034 markers applied to all new content (FG/RM/intermediate UNIVERSAL preservation, no domain re-naming)
+- No PRD content deleted; ADD only (audit constraint enforced)
 
 **v3.1 (2026-04-30 — multi-industry standardization)**
 - Standardized product naming: item_type_snapshot enum 'fa' → 'fg' (Finished Goods UNIVERSAL convention)
@@ -1580,6 +1772,6 @@ Per 00-FOUNDATION §4.2 batch-writing + sequential-implementation approach.
 
 ---
 
-_PRD 05-WAREHOUSE v3.1 — 8 epików P1 + 9 P2 + 3 P3, 37 FR, 11 tabel DB core, 37 validation rules. Phase D aligned (6 principles + 15-module renumbering). Cross-PRD consistency enforced (04-PLANNING v3.1 cascade revision). Multi-industry standardization: item_type_snapshot 'fa' → 'fg' (UNIVERSAL FG naming). Intermediate LP handling = core innovation (scan-to-consume, zero inter-WO locking). FSMA 204 + EU 178/2002 + GS1 foundation. Build sequence 4 sub-modules 05-a..d (16-20 sesji impl est.)._
+_PRD 05-WAREHOUSE v3.2 — 8 epików P1 + 9 P2 + 3 P3, 45 FR (37 baseline + 8 NEW WH-101..108), 11 tabel DB core, 44 validation rules (37 baseline + 7 NEW). Phase D aligned (6 principles + 15-module renumbering). Cross-PRD consistency enforced (04-PLANNING v3.1 cascade revision). Multi-industry standardization: item_type_snapshot 'fa' → 'fg' (UNIVERSAL FG naming). Intermediate LP handling = core innovation (scan-to-consume, zero inter-WO locking). UX/PRD bidirectional reconciliation per audit 2026-04-30 (~75% → ≥90% coverage). FSMA 204 + EU 178/2002 + GS1 foundation. Build sequence 4 sub-modules 05-a..d (16-20 sesji impl est.)._
 
-_Data: 2026-04-20 | Autor: Monopilot Phase C2 Sesja 2_
+_Data: 2026-04-30 (v3.2 amendments) / 2026-04-20 (v3.0 baseline) | Autor: Monopilot Phase C2 Sesja 2 + Phase D audit reconciliation_

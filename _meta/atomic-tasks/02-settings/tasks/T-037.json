@@ -1,0 +1,84 @@
+{
+  "title": "T-037 — Server Actions: onboarding state (next/back/skip/restart/jump) + first_wo callback",
+  "prompt": "# T-037 — Server Actions: onboarding state machine\n\n## Goal\nImplement `advanceOnboardingStep`, `backOnboardingStep`, `jumpOnboardingStep(toStep)`, `skipOnboardingStep(step)`, `restartOnboarding`, `markFirstWoCreated`. Updates organizations.onboarding_state JSONB.\n\n## Files in scope\n- apps/web/actions/onboarding/advance.ts [create]\n- apps/web/actions/onboarding/back.ts [create]\n- apps/web/actions/onboarding/skip.ts [create]\n- apps/web/actions/onboarding/jump.ts [create]\n- apps/web/actions/onboarding/restart.ts [create]\n- apps/web/actions/onboarding/first-wo.ts [create]\n- apps/web/actions/onboarding/state.test.ts [create]\n\n## Acceptance criteria (all must hold)\n- Given current_step=3 and skipOnboardingStep(4) runs, when committed, then completed_steps unchanged and skipped_steps=[4]; current_step advances to 5.\n- Given jumpOnboardingStep(5) is called when 5 is not yet completed and not the current step, when run, then it raises ILLEGAL_JUMP (only completed-or-current steps allowed).\n- Given markFirstWoCreated runs once, when committed, then onboarding_state.first_wo_at = now() and KPI snapshot for time_to_first_wo is computed (first_wo_at - started_at).\n\n## Test strategy (RED first)\n1. Add a failing test that exercises the acceptance criteria above. The RED command is:\n   `pnpm --filter @monopilot/web vitest run apps/web/actions/onboarding/state.test.ts`\n2. Run RED — it must fail before any production code is written.\n3. Implement the smallest change needed for GREEN.\n4. Re-run RED command — must pass.\n5. Run `pnpm typecheck` and `pnpm lint` in the changed package; both must pass.\n\n## Risk red lines\n- Do not edit files outside the listed scope without documenting why in CLOSEOUT.\n- Do not weaken existing acceptance criteria from prior tasks.\n- Do not introduce REST endpoints; use Server Actions per stack contract.\n- Do not commit secrets or vault keys.\n\n## Closeout evidence required\n- changed_files (with line counts)\n- exact test commands and outputs (RED→GREEN, typecheck, lint)\n- acceptance_criteria_status (one row per AC: pass/fail)\n- deviations_from_prd (or \"none\")\n- git_status\n\nStack: TS + Next.js App Router + Drizzle + pnpm + vitest + Playwright + Server Actions. Primitives in `packages/ui`. PRD: `02-SETTINGS-PRD.md` v3.5.\n",
+  "labels": [
+    "prd",
+    "api",
+    "onboarding-state",
+    "T2-api"
+  ],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-037",
+    "source_prd": "02-SETTINGS-PRD.md",
+    "prd_refs": [
+      "§14.3",
+      "S-U4"
+    ],
+    "category": "api",
+    "subcategory": "onboarding-state",
+    "task_type": "T2-api",
+    "parent_feature": "02-settings-e",
+    "context_budget": "40k",
+    "estimated_effort": "1-3h",
+    "description": "Onboarding state machine actions.",
+    "details": "Steps 1..6 per §14.4 (renumbered S-U1). Optional steps: 4, 5. Restart resets to {current_step:1, completed_steps:[], skipped_steps:[]} and requires confirm dialog (Pattern-07) — UI side.",
+    "scope_files": [
+      "apps/web/actions/onboarding/advance.ts",
+      "apps/web/actions/onboarding/back.ts",
+      "apps/web/actions/onboarding/skip.ts",
+      "apps/web/actions/onboarding/jump.ts",
+      "apps/web/actions/onboarding/restart.ts",
+      "apps/web/actions/onboarding/first-wo.ts",
+      "apps/web/actions/onboarding/state.test.ts"
+    ],
+    "out_of_scope": [
+      "broaden scope beyond listed files",
+      "implement future-phase features"
+    ],
+    "dependencies": [
+      "T-016"
+    ],
+    "parallel_safe_with": [],
+    "acceptance_criteria": [
+      "All 6 actions implemented with state machine guards.",
+      "first_wo_at persisted.",
+      "Illegal jump rejected."
+    ],
+    "test_strategy": [
+      "RED: 3 cases.",
+      "GREEN: implement."
+    ],
+    "risk_red_lines": [
+      "Do not allow skip on required steps (1, 2, 3, 6)."
+    ],
+    "skills": [
+      "test-driven-development"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": false
+  }
+}

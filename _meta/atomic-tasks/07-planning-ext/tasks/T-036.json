@@ -1,0 +1,61 @@
+{
+  "title": "T-036 — SCR-07-02 Changeover Matrix Editor (heatmap + tabs)",
+  "prompt": "# T-036 — SCR-07-02 Changeover Matrix Editor\n\nPRD: 07-PLANNING-EXT-PRD.md §8.1 SCR-07-02, §6 D5\nPrototype: design/Monopilot Design System/planning-ext/matrix-screens.jsx:12-245 (`pext_matrix_editor`)\nUX: design/07-PLANNING-EXT-UX.md:473-635\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nImplement /settings/planning/changeover-matrix page with Tab 1 (Default matrix N×N heatmap), Tab 2 (Per-line overrides list), Tab 3 (Review Requests queue), [Save & Publish], [Import CSV], [Export CSV], [View History] actions.\n\n## Implementation contract\n1. New route `apps/web/src/app/settings/planning/changeover-matrix/page.tsx` (Server Component) loads active matrix via T-018 GET endpoint.\n2. Client component `MatrixEditor.tsx` with shadcn Tabs (3 tabs).\n3. Heatmap: green <15min, yellow 15-45min, red >45min, BLOCKED (segregation_required) shown with [Request Review] button.\n4. Click cell → opens matrix_cell_edit_modal (T-037).\n\n## Files\n- apps/web/src/app/settings/planning/changeover-matrix/page.tsx [create]\n- apps/web/src/components/matrix/MatrixEditor.tsx [create]\n- apps/web/src/components/matrix/MatrixHeatmapCell.tsx [create]\n- apps/web/src/components/matrix/__tests__/MatrixEditor.test.tsx [create]\n- design/Monopilot Design System/planning-ext/matrix-screens.jsx [ref]\n\n## Acceptance criteria\n1. Given seeded 16x16 matrix, when /settings/planning/changeover-matrix renders, then 256 cells render with heatmap colors per range and Tabs Default/Per-Line/Reviews are visible\n2. Given the rendered editor, when compared to prototype design/Monopilot Design System/planning-ext/matrix-screens.jsx:12-245, then it has same Tab structure, same heatmap legend, same action buttons in same order, and same shadcn primitives (Tabs, Card, Button, Badge) — parity by RTL snapshot + checklist\n3. Given a BLOCKED cell, when user (Planner) clicks it, then [Request Review] button appears in cell tooltip and clicking opens request_review_modal (T-041)\n\n## Test strategy\n- RED: write __tests__/MatrixEditor.test.tsx covering heatmap render + parity + BLOCKED cell flow\n- Run 'pnpm --filter web test matrix/MatrixEditor'\n\n## Risk red lines\n- Do not allow Planner to set segregation_required (server-side V-CM-04)\n- Do not load all per-line overrides eagerly (use Tab 2 lazy)\n- Do not skip RBAC at page level",
+  "labels": ["prd", "ui", "screen", "T3-ui"],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-036",
+    "source_prd": "07-PLANNING-EXT-PRD.md",
+    "prd_refs": ["§8.1 SCR-07-02", "§6 D5"],
+    "category": "ui",
+    "subcategory": "screen-matrix-editor",
+    "task_type": "T3-ui",
+    "parent_feature": "07-EXT-b matrix editor",
+    "context_budget": "60k",
+    "estimated_effort": "3-4h",
+    "description": "3-tab matrix editor with heatmap (color ranges), per-line overrides tab, review requests tab, Save & Publish + Import/Export actions.",
+    "details": "shadcn Tabs (Default | Per-Line | Reviews). Heatmap uses CSS grid + Tailwind tokens (green/yellow/red). BLOCKED cells render [Request Review] (Planner) and editable (Admin). Click cell opens edit modal.",
+    "scope_files": [
+      "apps/web/src/app/settings/planning/changeover-matrix/page.tsx [create]",
+      "apps/web/src/components/matrix/MatrixEditor.tsx [create]",
+      "apps/web/src/components/matrix/MatrixHeatmapCell.tsx [create]",
+      "apps/web/src/components/matrix/__tests__/MatrixEditor.test.tsx [create]",
+      "design/Monopilot Design System/planning-ext/matrix-screens.jsx:12-245 [ref]"
+    ],
+    "out_of_scope": [
+      "Do not implement cell edit modal here (T-037)",
+      "Do not implement publish modal here (T-038)",
+      "Do not implement import modal here (T-039)"
+    ],
+    "dependencies": ["T-018"],
+    "parallel_safe_with": ["T-037", "T-038"],
+    "acceptance_criteria": [
+      "Given seeded 16x16 matrix, when page renders, then 256 cells render with heatmap colors and Tabs Default/Per-Line/Reviews are visible",
+      "Given the rendered editor, when compared to prototype design/Monopilot Design System/planning-ext/matrix-screens.jsx:12-245, then it has same Tab structure, same heatmap legend, same action buttons in same order, and same shadcn primitives (Tabs, Card, Button, Badge) — parity by RTL snapshot + checklist",
+      "Given a BLOCKED cell, when Planner clicks, then [Request Review] button appears and clicking opens request_review_modal"
+    ],
+    "test_strategy": [
+      "RED: write __tests__/MatrixEditor.test.tsx covering heatmap + parity + BLOCKED cell flow",
+      "Run 'pnpm --filter web test matrix/MatrixEditor'"
+    ],
+    "risk_red_lines": [
+      "Do not allow Planner to set segregation_required",
+      "Do not load all per-line overrides eagerly",
+      "Do not skip RBAC at page level"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

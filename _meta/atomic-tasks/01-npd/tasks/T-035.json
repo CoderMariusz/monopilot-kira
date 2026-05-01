@@ -1,0 +1,61 @@
+{
+  "title": "T-035 — UI: Brief Create + Brief Convert modals (brief_create_modal + brief_convert_modal)",
+  "prompt": "# T-035 — Brief Create + Convert modals\n\nPRD: 01-NPD-PRD.md §9.1, §9.3 + UX brief_create_modal + brief_convert_modal\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\nPrototype: design/Monopilot Design System/npd/modals.jsx:46-86 (brief_create_modal) + 89-140 (brief_convert_modal)\n\n## Goal\nClient Component modals for create (template radio + dev_code) and convert (read-only summary + duplicate fa code check + Convert CTA) using shadcn Dialog + RHF + zodResolver.\n\n## Implementation contract\nbrief-create-modal: RadioGroup for template, Input for dev_code with regex validation, calls createBrief. brief-convert-modal: shows joined brief + fa_defaults via Server Component, debounced fa code availability check via checkFaCodeAvailable, locks brief on success via convertBriefToFa.\n\n## Files\n- apps/web/app/(npd)/_modals/brief-create-modal.tsx [create]\n- apps/web/app/(npd)/_modals/brief-convert-modal.tsx [create]\n- apps/web/app/(npd)/_modals/__tests__/brief-create-modal.test.tsx [create]\n- apps/web/app/(npd)/_modals/__tests__/brief-convert-modal.test.tsx [create]\n- apps/web/app/(npd)/fa/actions/check-fa-code-available.ts [create]\n- design/Monopilot Design System/npd/modals.jsx [ref]\n\n## Acceptance criteria\n1. Given brief create modal renders, when compared to design/Monopilot Design System/npd/modals.jsx:46-86 (brief_create_modal), then it has same 2 fields (template RadioGroup + Dev_Code Input) and same Cancel/Create buttons, using shadcn Dialog+RadioGroup+Input+Button primitives — verified by RTL parity checklist (structural+visual+interaction)\n2. Given brief convert modal renders, when compared to design/Monopilot Design System/npd/modals.jsx:89-140 (brief_convert_modal), then it shows the read-only summary table, FA code Input with debounced availability indicator, warning Alert about brief locking, and uses shadcn Dialog+Table+Input+Alert+Button primitives — verified by RTL parity checklist\n3. Given user enters duplicate FA code, when checkFaCodeAvailable returns conflict, then FormMessage shows error and Convert disabled\n\n## Test strategy\n- RED: 3 RTL tests covering both parity ACs + duplicate-code disabled state\n- Run 'pnpm --filter web test brief-create-modal brief-convert-modal'\n\n## Risk red lines\n- Do not skip debounced availability check\n- Do not allow Convert without brief in status='complete'\n- Do not bypass zodResolver",
+  "labels": ["prd", "ui", "brief-modals", "T3-ui"],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-035",
+    "source_prd": "01-NPD-PRD.md",
+    "prd_refs": ["§9.1", "§9.3"],
+    "category": "ui",
+    "subcategory": "brief-modals",
+    "task_type": "T3-ui",
+    "parent_feature": "01-NPD-b brief modals",
+    "context_budget": "40k",
+    "estimated_effort": "2-3h",
+    "description": "Two brief modals (Create + Convert) using shadcn Dialog + RHF + Zod + debounced FA code availability check.",
+    "details": "Parity for both modals: structural + visual + interaction. Convert modal includes debounced availability + locking warning. Both modals dismissible.",
+    "scope_files": [
+      "apps/web/app/(npd)/_modals/brief-create-modal.tsx [create]",
+      "apps/web/app/(npd)/_modals/brief-convert-modal.tsx [create]",
+      "apps/web/app/(npd)/_modals/__tests__/brief-create-modal.test.tsx [create]",
+      "apps/web/app/(npd)/_modals/__tests__/brief-convert-modal.test.tsx [create]",
+      "apps/web/app/(npd)/fa/actions/check-fa-code-available.ts [create]",
+      "design/Monopilot Design System/npd/modals.jsx [ref]"
+    ],
+    "out_of_scope": [
+      "Do not implement allergen cascade UI",
+      "Do not implement Brief detail form here (T-034)"
+    ],
+    "dependencies": ["T-031", "T-033"],
+    "parallel_safe_with": ["T-034"],
+    "acceptance_criteria": [
+      "Given brief create modal renders, when compared to design/Monopilot Design System/npd/modals.jsx:46-86, then it has same 2 fields (template RadioGroup + Dev_Code Input) and same Cancel/Create buttons, using shadcn Dialog+RadioGroup+Input+Button primitives — verified by RTL parity checklist (structural + visual + interaction parity)",
+      "Given brief convert modal renders, when compared to design/Monopilot Design System/npd/modals.jsx:89-140, then it shows read-only summary table, FA code Input with debounced availability indicator, warning Alert about brief locking, and uses shadcn Dialog+Table+Input+Alert+Button primitives — verified by RTL parity checklist",
+      "Given user enters duplicate FA code, when checkFaCodeAvailable returns conflict, then FormMessage shows error and Convert is disabled"
+    ],
+    "test_strategy": [
+      "RED: 3 RTL tests covering parity + duplicate-code disabled before components exist",
+      "Run 'pnpm --filter web test brief-create-modal brief-convert-modal'"
+    ],
+    "risk_red_lines": [
+      "Do not skip debounced availability check",
+      "Do not allow Convert without brief status='complete'",
+      "Do not bypass zodResolver"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

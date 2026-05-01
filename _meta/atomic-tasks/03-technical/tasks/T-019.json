@@ -1,0 +1,36 @@
+{
+  "title": "T-019 — API: Allergen contamination risk matrix CRUD",
+  "prompt": "Implement /api/technical/allergens/contamination-risk endpoints per §10.5 and TEC-043. GET by line_id and/or machine_id. POST/PUT upsert (line_id|machine_id, allergen_code, risk_level, mitigation, last_assessed_at, assessed_by). Validate risk_level enum. V-TEC-43 warning surfacing: GET also returns coverage gaps (active line/machine × EU-14 allergens missing entries). Permission technical.allergens.edit. RED tests/api/contamination-risk.test.ts. Run: `pnpm vitest run tests/api/contamination-risk.test.ts`.",
+  "labels": ["prd", "api", "allergens-risk", "T2-api"],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-019",
+    "source_prd": "03-TECHNICAL-PRD.md",
+    "prd_refs": ["§10.5", "§10.8"],
+    "category": "api",
+    "subcategory": "allergens-risk",
+    "task_type": "T2-api",
+    "parent_feature": "03-TECHNICAL-b Allergens",
+    "context_budget": "20k",
+    "estimated_effort": "2h",
+    "description": "Cross-contamination risk grid CRUD with coverage-gap report.",
+    "details": "Coverage gap = LEFT JOIN production_lines × allergens_reference (EU-14) without entries. Useful for V-TEC-43 dashboard. Permission gate uses technical.allergens.edit on writes.",
+    "scope_files": ["app/api/technical/allergens/contamination-risk/route.ts", "lib/technical/allergens/contamination.ts", "tests/api/contamination-risk.test.ts"],
+    "out_of_scope": ["Allergen changeover gate (08-PRODUCTION cross-cuts)", "UI"],
+    "dependencies": ["T-004"],
+    "parallel_safe_with": ["T-017", "T-018", "T-020"],
+    "acceptance_criteria": [
+      "Given line L1 has entry only for A01, when GET /contamination-risk?line_id=L1, then response includes 'gaps' array of remaining EU-14 codes.",
+      "Given POST risk_level='extreme', when validated, then 422 (not in enum).",
+      "Given valid upsert, when re-POST same key, then update wins (no duplicate)."
+    ],
+    "test_strategy": ["RED tests for gap computation + enum + upsert.", "Run: pnpm vitest run tests/api/contamination-risk.test.ts"],
+    "risk_red_lines": ["Do not couple to 08-PRODUCTION allergen gate code here."],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {"required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"], "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]},
+    "routing_hints": {"red": "hermes_gpt55", "implementation": "hermes_gpt55", "review": "opus_if_high_risk_or_ui_or_architecture", "close": "spark_low_risk_else_opus"}
+  }
+}

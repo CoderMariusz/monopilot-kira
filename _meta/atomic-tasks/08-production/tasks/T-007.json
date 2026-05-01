@@ -1,0 +1,60 @@
+{
+  "title": "T-007 — Drizzle migration: allergen_changeover_validations + retention CHECK + RLS",
+  "prompt": "# T-007 — Drizzle migration: allergen_changeover_validations\n\nPRD: 08-PRODUCTION-PRD.md §9.8, §16.4 V-PROD-08/09, §5.3 BRCGS\n\n## Goal\nCreate allergen_changeover_validations per §9.8 with V-PROD-09 retention_until = validated_at + 7y enforced via CHECK or trigger, V-PROD-08 signatures>=2 for risk>=medium, RLS.\n\n## Implementation contract\npackages/db/schema/production/allergen-changeover-validations.ts: PK id UUID, tenant_id, changeover_event_id REFERENCES changeover_events, validation_result text NOT NULL, risk_level text NOT NULL, cleaning_evidence JSONB NOT NULL, atp_evidence JSONB, signatures JSONB NOT NULL, override_by, override_reason, validated_at NOT NULL default now, retention_until DATE NOT NULL. Add BEFORE INSERT/UPDATE trigger fn_set_allergen_retention_until that sets retention_until = validated_at + INTERVAL '7 years' (V-PROD-09). Add CHECK constraint chk_allergen_signatures (jsonb_array_length(signatures) >= 2 OR risk_level NOT IN ('medium','high','segregated')) per V-PROD-08. Indexes idx_allergen_val_changeover, idx_allergen_val_retention. RLS by tenant_id.\n\n## Files (scope)\n- packages/db/schema/production/allergen-changeover-validations.ts [create]\n- packages/db/schema/production/index.ts [modify]\n- packages/db/migrations/NNNN_allergen_changeover_validations.sql [create]\n- packages/db/__tests__/allergen-changeover-validations-schema.test.ts [create]\n\n## Acceptance criteria\n1. Given INSERT without retention_until, when row queried, then retention_until = validated_at + 7y (V-PROD-09 trigger)\n2. Given INSERT risk_level='high' with signatures=[1 item], when run, then chk_allergen_signatures rejects (V-PROD-08)\n3. Given INSERT risk_level='low' with signatures=[1 item], when run, then accepted (low risk does not require dual sign-off)\n\n## Test strategy\n- RED: schema test asserting trigger and CHECK present before schema exists\n- Run 'pnpm --filter db drizzle:generate && pnpm --filter db test allergen-changeover-validations-schema'\n\n## Risk red lines\n- Do not allow override of retention_until below 7y (BRCGS Issue 10 §5.3#1)\n- Do not skip dual-signature enforcement for risk>=medium (V-PROD-08)\n- Do not skip RLS",
+  "labels": ["prd", "data", "schema-migration", "T1-schema"],
+  "priority": 50,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-007",
+    "source_prd": "08-PRODUCTION-PRD.md",
+    "prd_refs": ["§9.8", "§5.3", "§16.4 V-PROD-08", "§16.4 V-PROD-09"],
+    "category": "data",
+    "subcategory": "schema-migration",
+    "task_type": "T1-schema",
+    "parent_feature": "08-PROD E7 Allergen Gate",
+    "context_budget": "26k",
+    "estimated_effort": "1-2h",
+    "description": "allergen_changeover_validations table with 7y retention trigger, dual-signature CHECK, RLS — BRCGS Issue 10.",
+    "details": "Per §9.8 SQL. Add BEFORE INSERT trigger fn_set_allergen_retention_until enforcing retention_until = validated_at + INTERVAL '7 years' (V-PROD-09). Add CHECK chk_allergen_signatures using jsonb_array_length(signatures) >= 2 OR risk_level NOT IN ('medium','high','segregated') for V-PROD-08. RLS by tenant_id. BRCGS Issue 10 7-year audit retention non-negotiable.",
+    "scope_files": [
+      "packages/db/schema/production/allergen-changeover-validations.ts [create]",
+      "packages/db/schema/production/index.ts [modify]",
+      "packages/db/migrations/NNNN_allergen_changeover_validations.sql [create]",
+      "packages/db/__tests__/allergen-changeover-validations-schema.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not implement allergen gate DSL rule (separate task)",
+      "Do not implement sign-off UI",
+      "Do not modify other tables"
+    ],
+    "dependencies": ["T-006"],
+    "parallel_safe_with": ["T-001", "T-002", "T-003", "T-004", "T-005", "T-008"],
+    "acceptance_criteria": [
+      "Given INSERT without retention_until, when row queried, then retention_until = validated_at + 7y",
+      "Given INSERT risk_level='high' with 1 signature, when run, then CHECK rejects (V-PROD-08)",
+      "Given INSERT risk_level='low' with 1 signature, when run, then row accepted"
+    ],
+    "test_strategy": [
+      "RED: schema test asserting fn_set_allergen_retention_until trigger + chk_allergen_signatures before schema exists",
+      "Run 'pnpm --filter db drizzle:generate && pnpm --filter db test allergen-changeover-validations-schema'"
+    ],
+    "risk_red_lines": [
+      "Do not allow retention_until override below 7y (BRCGS)",
+      "Do not skip V-PROD-08 dual-signature for risk>=medium",
+      "Do not skip RLS"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

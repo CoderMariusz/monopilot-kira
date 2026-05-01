@@ -1,0 +1,66 @@
+{
+  "title": "T-047 — Outbox emission wiring across warehouse services",
+  "prompt": "# T-047 — Outbox emission wiring\n\nPRD: `05-WAREHOUSE-PRD.md` §5.1, §7.6, §11.4.\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`.\n\n## Goal\nWire all warehouse mutating services (T-016..T-038, T-044) to emit the corresponding outbox events declared in T-010 inside the same DB transaction.\n\n## Implementation contract\nAdd a thin helper `apps/web/lib/services/warehouse/emit-warehouse-event.ts` that wraps the foundation outbox publisher with a typed signature. Modify each mutating service to call it before transaction commit. Events: lp.reserved, lp.consumed, lp.split, lp.merged, lp.expired, lp.quarantined, lp.qa_changed, lp.blocked, lp.shipped, lp.scrapped, grn.completed.\n\n## Files (scope)\n- apps/web/lib/services/warehouse/emit-warehouse-event.ts [create]\n- apps/web/lib/services/warehouse/lp-create.ts [modify]\n- apps/web/lib/services/warehouse/lp-split.ts [modify]\n- apps/web/lib/services/warehouse/lp-merge.ts [modify]\n- apps/web/lib/services/warehouse/lp-state-transition.ts [modify]\n- apps/web/lib/services/warehouse/grn-from-po.ts [modify]\n- apps/web/lib/services/warehouse/grn-from-to.ts [modify]\n- apps/web/lib/services/warehouse/reservation-create.ts [modify]\n- apps/web/lib/services/warehouse/reservation-release.ts [modify]\n- apps/web/lib/services/warehouse/__tests__/emit-warehouse-event.test.ts [create]\n\n## Acceptance criteria\n1. Given GRN complete (T-021), when service runs, then exactly one outbox row 'grn.completed' is appended within the same transaction.\n2. Given an LP merge, when service runs, then exactly one 'lp.merged' outbox row is emitted (not one per secondary).\n3. Given a service rolls back (e.g. reservation conflict), when committed, then no outbox row is created.\n\n## Test strategy\n- RED: emit-warehouse-event.test.ts asserts counts and tx-rollback safety.\n- Run `pnpm --filter web test emit-warehouse-event`.\n\n## Risk red lines\n- Do not emit outside the originating transaction.\n- Do not emit duplicate events.\n- Do not break existing service contracts.",
+  "labels": ["prd", "api", "outbox", "T2-api"],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-047",
+    "source_prd": "05-WAREHOUSE-PRD.md",
+    "prd_refs": ["§5.1", "§7.6", "§11.4"],
+    "category": "api",
+    "subcategory": "outbox",
+    "task_type": "T2-api",
+    "parent_feature": "warehouse-foundation",
+    "context_budget": "35k",
+    "estimated_effort": "2h",
+    "description": "Wire warehouse mutating services to emit typed outbox events transactionally.",
+    "details": "Helper-based pattern; per-service modifications; one event per business operation; tx-rollback honored.",
+    "scope_files": [
+      "apps/web/lib/services/warehouse/emit-warehouse-event.ts [create]",
+      "apps/web/lib/services/warehouse/lp-create.ts [modify]",
+      "apps/web/lib/services/warehouse/lp-split.ts [modify]",
+      "apps/web/lib/services/warehouse/lp-merge.ts [modify]",
+      "apps/web/lib/services/warehouse/lp-state-transition.ts [modify]",
+      "apps/web/lib/services/warehouse/grn-from-po.ts [modify]",
+      "apps/web/lib/services/warehouse/grn-from-to.ts [modify]",
+      "apps/web/lib/services/warehouse/reservation-create.ts [modify]",
+      "apps/web/lib/services/warehouse/reservation-release.ts [modify]",
+      "apps/web/lib/services/warehouse/__tests__/emit-warehouse-event.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "EPCIS consumer (P2)",
+      "Foundation outbox table",
+      "Other consumers (cross-module)"
+    ],
+    "dependencies": ["T-010", "T-016", "T-017", "T-018", "T-019", "T-021", "T-022", "T-031", "T-032"],
+    "parallel_safe_with": [],
+    "acceptance_criteria": [
+      "Given GRN complete via T-021, when run, then one 'grn.completed' outbox row is emitted in the same transaction",
+      "Given LP merge via T-018, when run, then exactly one 'lp.merged' outbox row is emitted",
+      "Given a reservation conflict rollback, when committed, then no outbox row exists"
+    ],
+    "test_strategy": [
+      "RED: emit-warehouse-event.test.ts asserts counts and rollback safety",
+      "Run 'pnpm --filter web test emit-warehouse-event'"
+    ],
+    "risk_red_lines": [
+      "Do not emit outside originating tx",
+      "Do not emit duplicate events",
+      "Do not break service contracts"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

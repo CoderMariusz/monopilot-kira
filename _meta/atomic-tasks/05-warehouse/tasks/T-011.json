@@ -1,0 +1,58 @@
+{
+  "title": "T-011 — Warehouse indexes (FEFO composite, ltree, genealogy, stock_moves)",
+  "prompt": "# T-011 — Warehouse performance indexes\n\nPRD: `05-WAREHOUSE-PRD.md` §5.2 (FEFO composite), §5.3, §5.6, §8.6.\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`.\n\n## Goal\nCreate the indexes referenced inline in PRD §5.2/§5.3/§5.6 supporting FEFO query (<500ms), ltree zone roll-ups, and genealogy traversal.\n\n## Implementation contract\nMigration `0NN_warehouse_indexes.sql`:\n- `idx_lp_fefo` ON license_plates (tenant_id, warehouse_id, product_id, status, expiry_date ASC NULLS LAST)\n- `idx_lp_status_partial` ON license_plates (id) WHERE status IN ('available','reserved')\n- `idx_lp_genealogy_parent` ON lp_genealogy (parent_lp_id, operation_date DESC)\n- `idx_lp_genealogy_child` ON lp_genealogy (child_lp_id, operation_date DESC)\n- `idx_lp_genealogy_wo` ON lp_genealogy (wo_id, operation_type)\n- `idx_stock_moves_lp_date` ON stock_moves (lp_id, move_date DESC)\n- `idx_stock_moves_wo_consume` ON stock_moves (wo_id) WHERE move_type='consume_to_wo'\n- GiST on locations.path (ltree) — declared/asserted in 02-SETTINGS but verify present, otherwise add.\n\n## Files (scope)\n- packages/db/migrations/0NN_warehouse_indexes.sql [create]\n- packages/db/src/schema/__tests__/warehouse-indexes.test.ts [create]\n\n## Acceptance criteria\n1. Given the migration runs, when `pg_indexes` is queried, then idx_lp_fefo and the 6 other warehouse indexes exist.\n2. Given an EXPLAIN of the §9.2 FEFO query, when run on a 10k-row dataset, then the planner uses idx_lp_fefo (Index Scan, not Seq Scan).\n3. Given the GiST index on locations.path is queried with `path @>` operator, when EXPLAIN is run, then it uses Index Scan.\n\n## Test strategy\n- RED: warehouse-indexes.test.ts asserts pg_indexes presence and EXPLAIN plan uses idx_lp_fefo.\n- Run `pnpm --filter db migrate && pnpm --filter db test warehouse-indexes` after seeding 10k rows.\n\n## Risk red lines\n- Do not drop existing 02-SETTINGS ltree indexes — verify, do not recreate destructively.\n- Do not add unrelated indexes.\n- Do not make any index UNIQUE.",
+  "labels": ["prd", "data", "indexes", "T1-schema"],
+  "priority": 80,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-011",
+    "source_prd": "05-WAREHOUSE-PRD.md",
+    "prd_refs": ["§5.2", "§5.3", "§5.6", "§8.6"],
+    "category": "data",
+    "subcategory": "indexes",
+    "task_type": "T1-schema",
+    "parent_feature": "warehouse-foundation",
+    "context_budget": "25k",
+    "estimated_effort": "1h",
+    "description": "Add the FEFO/genealogy/stock_moves/ltree indexes called out in PRD §5.2/§5.3/§5.6.",
+    "details": "Migration creates seven warehouse indexes; verifies the GiST index on locations.path exists from 02-SETTINGS. EXPLAIN-plan asserts confirm planner adoption.",
+    "scope_files": [
+      "packages/db/migrations/0NN_warehouse_indexes.sql [create]",
+      "packages/db/src/schema/__tests__/warehouse-indexes.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Service layer",
+      "Service-level caching (Redis dashboard cache T-048)",
+      "Locations table creation (owned by 02-SETTINGS)"
+    ],
+    "dependencies": ["T-002", "T-003", "T-006"],
+    "parallel_safe_with": ["T-012"],
+    "acceptance_criteria": [
+      "Given the migration runs, when pg_indexes is queried, then idx_lp_fefo and the 6 other listed indexes exist",
+      "Given EXPLAIN of the §9.2 FEFO query on a 10k-row seed, when inspected, then it uses idx_lp_fefo via Index Scan",
+      "Given EXPLAIN of `WHERE path @> 'org.apex.wh_a'::ltree` on locations, when inspected, then it uses GiST Index Scan"
+    ],
+    "test_strategy": [
+      "RED: warehouse-indexes.test.ts asserts catalog presence and EXPLAIN plans on a seeded fixture",
+      "Run 'pnpm --filter db migrate && pnpm --filter db test warehouse-indexes'"
+    ],
+    "risk_red_lines": [
+      "Do not recreate or drop 02-SETTINGS ltree index destructively",
+      "Do not add UNIQUE indexes",
+      "Do not include unrelated indexes"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

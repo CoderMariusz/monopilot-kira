@@ -1,0 +1,60 @@
+{
+  "title": "T-001 — scheduler_runs table + RLS + indexes",
+  "prompt": "# T-001 — scheduler_runs table + RLS + indexes\n\nPRD: 07-PLANNING-EXT-PRD.md §9.1, §9.2, §5.1.1, §5.4.4\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nIntroduce the physical `scheduler_runs` table holding solver run history (input snapshot, output summary, status, idempotency support per R14) with tenant RLS and the two indexes specified.\n\n## Implementation contract\n1. New Drizzle migration `packages/db/migrations/0070_scheduler_runs.sql` containing CREATE TYPE scheduler_run_status ENUM (queued|running|completed|failed|cancelled) + CREATE TABLE scheduler_runs per §9.2 DDL (run_id UUID v7 PK, tenant_id, requested_by, status, horizon_days CHECK 1..30, line_ids TEXT[], include_forecast, optimizer_version default 'v2', input_snapshot JSONB, output_summary JSONB, solve_duration_ms, error_message, queued_at, started_at, completed_at, run_type TEXT default 'schedule' for OQ-EXT-09 dry-run support).\n2. ENABLE ROW LEVEL SECURITY + policy `scheduler_runs_tenant_isolation` on tenant_id = current_setting('app.tenant_id')::uuid.\n3. Two indexes: idx_scheduler_runs_tenant_status (tenant_id, status, queued_at DESC) + idx_scheduler_runs_requested_by (requested_by, queued_at DESC).\n4. Drizzle ORM schema entry in `packages/db/src/schema/scheduler_runs.ts` exporting Insert/Select types.\n\n## Files\n- packages/db/migrations/0070_scheduler_runs.sql [create]\n- packages/db/src/schema/scheduler_runs.ts [create]\n- packages/db/src/schema/index.ts [modify]\n- packages/db/__tests__/scheduler-runs.test.ts [create]\n\n## Acceptance criteria\n1. Given a fresh DB, when migration 0070 runs, then \\d scheduler_runs lists all columns from §9.2 + run_type column + RLS=enabled and the two specified indexes exist\n2. Given migration applied, when SELECT runs as tenant A and tenant B, then each only sees its own rows (RLS enforced)\n3. Given an invalid horizon_days=31 INSERT, when executed, then it fails CHECK constraint\n\n## Test strategy\n- RED: write packages/db/__tests__/scheduler-runs.test.ts asserting RLS isolation + horizon CHECK + status enum before migration exists\n- Run 'pnpm --filter db migrate && pnpm --filter db test scheduler-runs'\n\n## Risk red lines\n- Do not skip RLS policy\n- Do not omit the run_type column (OQ-EXT-09 dry-run reuse)\n- Do not change run_id PK type from UUID (R14 idempotency requires UUID v7)",
+  "labels": ["prd", "data", "schema", "T1-schema"],
+  "priority": 50,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-001",
+    "source_prd": "07-PLANNING-EXT-PRD.md",
+    "prd_refs": ["§9.1", "§9.2", "§5.1.1", "§5.4.4", "OQ-EXT-09"],
+    "category": "data",
+    "subcategory": "schema-scheduler",
+    "task_type": "T1-schema",
+    "parent_feature": "07-EXT-a finite-capacity engine",
+    "context_budget": "40k",
+    "estimated_effort": "1-2h",
+    "description": "Create scheduler_runs table with RLS, status enum, idempotency-friendly UUID v7 PK, run_type column for dry-run reuse, two performance indexes.",
+    "details": "Migration 0070 emits CREATE TYPE scheduler_run_status, CREATE TABLE scheduler_runs (per §9.2 DDL + run_type for OQ-EXT-09), ENABLE RLS + tenant_isolation policy, two indexes. Drizzle schema mirrors columns with proper types (UUID, TEXT[], JSONB, TIMESTAMPTZ). RED test verifies RLS, CHECK constraint on horizon_days, and run_type default.",
+    "scope_files": [
+      "packages/db/migrations/0070_scheduler_runs.sql [create]",
+      "packages/db/src/schema/scheduler_runs.ts [create]",
+      "packages/db/src/schema/index.ts [modify]",
+      "packages/db/__tests__/scheduler-runs.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not create scheduler_assignments here (T-002)",
+      "Do not add changeover_matrix here (T-003)",
+      "Do not seed any data"
+    ],
+    "dependencies": [],
+    "parallel_safe_with": ["T-003", "T-004", "T-005", "T-006", "T-007", "T-008", "T-009"],
+    "acceptance_criteria": [
+      "Given a fresh DB, when migration 0070 runs, then scheduler_runs has all §9.2 columns plus run_type, RLS enabled, and both specified indexes exist",
+      "Given migration applied, when SELECT runs as tenant A then tenant B, then each sees only its own rows",
+      "Given an INSERT with horizon_days=31, when executed, then it fails the CHECK constraint"
+    ],
+    "test_strategy": [
+      "RED: write packages/db/__tests__/scheduler-runs.test.ts asserting RLS isolation + horizon CHECK + status enum before migration exists",
+      "Run 'pnpm --filter db migrate && pnpm --filter db test scheduler-runs'"
+    ],
+    "risk_red_lines": [
+      "Do not skip RLS policy on scheduler_runs",
+      "Do not omit run_type column (OQ-EXT-09 dry-run reuses this table)",
+      "Do not allow run_id type other than UUID (R14)"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

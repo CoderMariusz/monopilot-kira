@@ -1,0 +1,36 @@
+{
+  "title": "T-047 — UI: TEC-040 Allergen Profile Editor + cascade preview",
+  "prompt": "Build TEC-040 (Allergen Profile Editor) and embedded TEC-041 cascade preview tab per §10.7. Match `allergen_declaration_modal` design/Monopilot Design System/technical/modals.jsx:309-347. Profile editor lives as Item Detail tab. Cascade preview renders derivation chain RM1→RM2→intermediate→FG. Calls T-017 for write paths. RED tests/ui/tec-040-allergens.test.tsx. Run: `pnpm vitest run tests/ui/tec-040-allergens.test.tsx`.",
+  "labels": ["prd", "ui", "ui-allergens-profile", "T3-ui"],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-047",
+    "source_prd": "03-TECHNICAL-PRD.md",
+    "prd_refs": ["§10.7 TEC-040", "§10.7 TEC-041"],
+    "category": "ui",
+    "subcategory": "allergens-profile",
+    "task_type": "T3-ui",
+    "parent_feature": "03-TECHNICAL-b Allergens",
+    "context_budget": "25k",
+    "estimated_effort": "2-3h",
+    "description": "Allergen profile editor + cascade preview tab using prototype declaration modal.",
+    "details": "Cascade preview lists each parent BOM line and the allergens it contributed (color-coded by source: cascaded vs override vs lab_result). Manual override flow: separate path (T-049 modal).",
+    "scope_files": ["app/(app)/technical/items/[item_code]/_tabs/allergens-tab.tsx", "app/(app)/technical/items/[item_code]/_components/allergen-declaration-modal.tsx", "tests/ui/tec-040-allergens.test.tsx"],
+    "out_of_scope": ["Manual override audit (T-049)", "Lab Results Log (T-067 doc gap)"],
+    "dependencies": ["T-017", "T-024", "T-034"],
+    "parallel_safe_with": ["T-046", "T-048"],
+    "acceptance_criteria": [
+      "Given the editor opens, when compared to design/Monopilot Design System/technical/modals.jsx:309-347, then field set, source/intensity/confidence selectors, and Save/Cancel layout match — structural + visual + interaction parity verified by RTL.",
+      "Given an FG, when cascade preview renders, then each component is listed under its source label.",
+      "Given user without technical.allergens.edit, when modal opens, then Save is disabled."
+    ],
+    "test_strategy": ["RED tests for parity + RBAC + cascade list.", "Run: pnpm vitest run tests/ui/tec-040-allergens.test.tsx"],
+    "risk_red_lines": ["Do not bypass V-TEC-42 reason requirement when writing manual override."],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {"required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"], "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]},
+    "routing_hints": {"red": "hermes_gpt55", "implementation": "hermes_gpt55", "review": "opus_if_high_risk_or_ui_or_architecture", "close": "spark_low_risk_else_opus"}
+  }
+}

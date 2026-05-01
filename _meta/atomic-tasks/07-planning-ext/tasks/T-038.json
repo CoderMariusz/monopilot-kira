@@ -1,0 +1,58 @@
+{
+  "title": "T-038 — Matrix Publish Modal (matrix_publish_modal)",
+  "prompt": "# T-038 — Matrix Publish Modal\n\nPRD: 07-PLANNING-EXT-PRD.md §17.1 PLE-013, §8.1 SCR-07-02 §4.7\nPrototype: design/Monopilot Design System/planning-ext/modals.jsx:380-412 (`matrix_publish_modal`)\nUX: design/07-PLANNING-EXT-UX.md:582-592\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nImplement Dialog [Save & Publish] showing summary of changes (cells modified count, per-line override delta), version notes textarea, warning that runs in-progress are unaffected; confirm creates new active version.\n\n## Implementation contract\n1. New `apps/web/src/components/matrix/MatrixPublishModal.tsx` (shadcn Dialog).\n2. Summary card with delta counts + version notes Textarea (stored in changeover_matrix_versions.notes).\n3. Confirm calls T-018 POST endpoint; on success → emits scheduler.changeover_matrix.updated outbox via T-029.\n4. Warning Alert: 'Runs in progress will continue to use the previous version.'.\n\n## Files\n- apps/web/src/components/matrix/MatrixPublishModal.tsx [create]\n- apps/web/src/components/matrix/__tests__/MatrixPublishModal.test.tsx [create]\n- design/Monopilot Design System/planning-ext/modals.jsx [ref]\n\n## Acceptance criteria\n1. Given 5 cells modified + 1 line override added, when MatrixPublishModal opens, then summary shows '5 cells modified, 1 override added' and version notes Textarea is empty\n2. Given the rendered modal, when compared to prototype design/Monopilot Design System/planning-ext/modals.jsx:380-412, then it has same summary card layout, same warning Alert, same notes Textarea, and same shadcn primitives (Dialog, Card, Alert, Textarea, Button) — parity by RTL snapshot + checklist\n3. Given user clicks [Publish], when API succeeds, then scheduler.changeover_matrix.updated outbox event was emitted (assertion via test spy on emitter)\n\n## Test strategy\n- RED: write __tests__/MatrixPublishModal.test.tsx covering summary + parity + outbox emission spy\n- Run 'pnpm --filter web test matrix/MatrixPublishModal'\n\n## Risk red lines\n- Do not skip outbox emission (audit trail mandatory)\n- Do not auto-version on every cell edit (only on Publish action)\n- Do not allow publishing with empty notes if change count >5 cells (warn user)",
+  "labels": ["prd", "ui", "modal", "T3-ui"],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-038",
+    "source_prd": "07-PLANNING-EXT-PRD.md",
+    "prd_refs": ["§17.1 PLE-013", "§8.1 SCR-07-02"],
+    "category": "ui",
+    "subcategory": "modal-publish",
+    "task_type": "T3-ui",
+    "parent_feature": "07-EXT-b matrix publish",
+    "context_budget": "30k",
+    "estimated_effort": "1-2h",
+    "description": "Publish Dialog with delta summary, version notes, in-progress runs warning, outbox emission.",
+    "details": "Server-side version_number = MAX+1 (no client computation per FR-07-PLE-013-01). Confirm triggers T-018 POST + T-029 emitter.",
+    "scope_files": [
+      "apps/web/src/components/matrix/MatrixPublishModal.tsx [create]",
+      "apps/web/src/components/matrix/__tests__/MatrixPublishModal.test.tsx [create]",
+      "design/Monopilot Design System/planning-ext/modals.jsx:380-412 [ref]"
+    ],
+    "out_of_scope": [
+      "Do not implement matrix editor here (T-036)",
+      "Do not compute version_number on client"
+    ],
+    "dependencies": ["T-018", "T-029", "T-036"],
+    "parallel_safe_with": ["T-037", "T-039"],
+    "acceptance_criteria": [
+      "Given 5 cells modified + 1 line override added, when MatrixPublishModal opens, then summary shows '5 cells modified, 1 override added' and notes Textarea is empty",
+      "Given the rendered modal, when compared to prototype design/Monopilot Design System/planning-ext/modals.jsx:380-412, then it has same summary card layout, same warning Alert, same notes Textarea, and same shadcn primitives (Dialog, Card, Alert, Textarea, Button) — parity by RTL snapshot + checklist",
+      "Given user clicks [Publish], when API succeeds, then scheduler.changeover_matrix.updated outbox event was emitted (test spy)"
+    ],
+    "test_strategy": [
+      "RED: write __tests__/MatrixPublishModal.test.tsx covering summary + parity + outbox spy",
+      "Run 'pnpm --filter web test matrix/MatrixPublishModal'"
+    ],
+    "risk_red_lines": [
+      "Do not skip outbox emission",
+      "Do not auto-version on cell edit",
+      "Do not allow large publishes with empty notes silently"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

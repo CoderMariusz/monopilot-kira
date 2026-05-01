@@ -1,0 +1,60 @@
+{
+  "title": "T-040 — Barcode lookup endpoints (LP / location / validate)",
+  "prompt": "# T-040 — Barcode lookup endpoints\n\nPRD: `05-WAREHOUSE-PRD.md` §13.2 (FR-WH-026).\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`.\n\n## Goal\nThree route handlers used by Scanner: lookup LP by barcode, lookup location by barcode, validate any barcode (returns type + decoded). SLO <200ms P95.\n\n## Implementation contract\nFiles:\n- `apps/web/app/api/warehouse/scanner/lookup/lp/[barcode]/route.ts`\n- `apps/web/app/api/warehouse/scanner/lookup/location/[barcode]/route.ts`\n- `apps/web/app/api/warehouse/scanner/validate-barcode/route.ts`\nAuto-detect prefix LP, GS1-128 (use T-023 parser to extract embedded SSCC/LP), or location code. Validate-barcode returns {type: 'lp'|'location'|'gs1', decoded}. Tenant RLS applies. Reject unknown barcodes with 404 + structured reason.\n\n## Files (scope)\n- apps/web/app/api/warehouse/scanner/lookup/lp/[barcode]/route.ts [create]\n- apps/web/app/api/warehouse/scanner/lookup/location/[barcode]/route.ts [create]\n- apps/web/app/api/warehouse/scanner/validate-barcode/route.ts [create]\n- apps/web/app/api/warehouse/scanner/lookup/__tests__/lookup.test.ts [create]\n\n## Acceptance criteria\n1. Given GET /lookup/lp/LP00000123, when LP exists, then 200 with LP info; when missing, 404 with reason 'lp_not_found'.\n2. Given GET /lookup/location/A.B3, when location exists, then 200 with ltree path; when not, 404 with reason 'location_not_found'.\n3. Given POST /validate-barcode with body '(01)05012345678900', when called, then response.type='gs1' and decoded.gtin='05012345678900'.\n\n## Test strategy\n- RED: lookup.test.ts covers three endpoints with hit/miss scenarios.\n- Run `pnpm --filter web test scanner-lookup`.\n\n## Risk red lines\n- Do not allow cross-tenant lookups.\n- Do not throw on parse errors — return 404 with reason.\n- Do not exceed 200ms P95 — log if slower.",
+  "labels": ["prd", "api", "scanner", "T2-api"],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-040",
+    "source_prd": "05-WAREHOUSE-PRD.md",
+    "prd_refs": ["§13.2"],
+    "category": "api",
+    "subcategory": "scanner",
+    "task_type": "T2-api",
+    "parent_feature": "warehouse-scanner",
+    "context_budget": "25k",
+    "estimated_effort": "1-2h",
+    "description": "LP / location / validate barcode lookups for Scanner; uses T-023 parser.",
+    "details": "Three route handlers; structured 404 reasons; SLO <200ms P95.",
+    "scope_files": [
+      "apps/web/app/api/warehouse/scanner/lookup/lp/[barcode]/route.ts [create]",
+      "apps/web/app/api/warehouse/scanner/lookup/location/[barcode]/route.ts [create]",
+      "apps/web/app/api/warehouse/scanner/validate-barcode/route.ts [create]",
+      "apps/web/app/api/warehouse/scanner/lookup/__tests__/lookup.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Inventory query (T-039)",
+      "FEFO suggest (T-042)",
+      "Auth (T-041)"
+    ],
+    "dependencies": ["T-023", "T-002", "T-012"],
+    "parallel_safe_with": ["T-039", "T-041", "T-042"],
+    "acceptance_criteria": [
+      "Given GET /lookup/lp/LP00000123, when LP exists, then 200 with info; when missing, 404 with reason 'lp_not_found'",
+      "Given GET /lookup/location/A.B3, when location exists, then 200 with ltree path; missing returns 404 'location_not_found'",
+      "Given POST /validate-barcode with '(01)05012345678900', when called, then type='gs1' and decoded.gtin='05012345678900'"
+    ],
+    "test_strategy": [
+      "RED: lookup.test.ts covers hit/miss for three endpoints",
+      "Run 'pnpm --filter web test scanner-lookup'"
+    ],
+    "risk_red_lines": [
+      "Do not allow cross-tenant lookups",
+      "Do not throw on parse errors",
+      "Do not exceed 200ms silently"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

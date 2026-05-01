@@ -1,0 +1,60 @@
+{
+  "title": "T-019 — POST /api/production/work-orders/:id/complete + closed_production_strict gate eval",
+  "prompt": "# T-019 — POST /work-orders/:id/complete with gate evaluation\n\nPRD: 08-PRODUCTION-PRD.md §7.1 FR-08-E1-004, §8.2.1, §10.3, §6 D3\n\n## Goal\nImplement POST /complete that runs closed_production_strict_v1 gate (T-013 rule) and either transitions IN_PROGRESS→COMPLETED on pass, allows pass_with_override (Prod Manager + reason), or returns 409 with shortfall list.\n\n## Implementation contract\nRoute apps/web/app/api/production/work-orders/[id]/complete/route.ts. Zod body {transaction_id: uuid, operator_id: uuid, override_reason_code?: string}. withIdempotency. Inside transaction: load WO, evaluate closed_production_strict_v1 gate (T-013 rule loader returns evaluator) — components consumed within tolerance + outputs registered. On pass → UPDATE work_orders.status='COMPLETED', UPDATE wo_executions.completed_at=now, completed_by. On fail without override → return 409 {error:'closed_production_strict_failed', gate_failures:[{component_id, short_by_qty}], outputs_missing:[...]}. On fail WITH override_reason_code AND requester role='production_manager' → set override_closed_production=true, override_reason, override_by; transition still occurs. Return 200 {wo_id, status:'COMPLETED', completed_at}.\n\n## Files (scope)\n- apps/web/app/api/production/work-orders/[id]/complete/route.ts [create]\n- apps/web/app/api/production/work-orders/[id]/complete/__tests__/route.test.ts [create]\n- packages/api-services/production/complete-wo.ts [create]\n- packages/api-services/production/evaluate-closed-production-strict.ts [create]\n\n## Acceptance criteria\n1. Given all components consumed within 2% tolerance and all outputs registered, when POST /complete called, then 200 status=COMPLETED, completed_at set\n2. Given component shortfall (consumed < 0.98×planned), when POST /complete without override, then 409 with gate_failures listing component_id and short_by_qty\n3. Given shortfall + override_reason_code + requester role='production_manager', when POST /complete, then 200 with override_closed_production=true and override_by stamped\n\n## Test strategy\n- RED: route test asserting happy + 409 shortfall + override-pass before route exists\n- Run 'pnpm --filter web test work-orders.*complete'\n\n## Risk red lines\n- Do not allow override by non-Production-Manager roles (R9)\n- Do not skip outbox enqueue plumbing point (T-041 wires real emit)\n- Do not bypass gate without override path",
+  "labels": ["prd", "api", "wo-execution", "T2-api"],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-019",
+    "source_prd": "08-PRODUCTION-PRD.md",
+    "prd_refs": ["§7.1 FR-08-E1-004", "§8.2.1", "§10.3", "§6 D3"],
+    "category": "api",
+    "subcategory": "wo-execution",
+    "task_type": "T2-api",
+    "parent_feature": "08-PROD E1 Execution Core",
+    "context_budget": "45k",
+    "estimated_effort": "3h",
+    "description": "POST /complete: runs closed_production_strict_v1 gate, supports override path for Production Manager.",
+    "details": "Gate evaluator reads BOM snapshot, sums wo_material_consumption per component, sums wo_outputs per type. Tolerance 0.02 from rule (T-013). Override path: reason_code + role check + audit stamp. 409 response shape includes shortfalls array. Outbox enqueue side-effect deferred to T-041 wiring.",
+    "scope_files": [
+      "apps/web/app/api/production/work-orders/[id]/complete/route.ts [create]",
+      "apps/web/app/api/production/work-orders/[id]/complete/__tests__/route.test.ts [create]",
+      "packages/api-services/production/complete-wo.ts [create]",
+      "packages/api-services/production/evaluate-closed-production-strict.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not implement output_yield_gate evaluation here (post-output side-effect; T-035)",
+      "Do not implement outbox emit",
+      "Do not implement allergen gate"
+    ],
+    "dependencies": ["T-001", "T-002", "T-003", "T-013", "T-015"],
+    "parallel_safe_with": ["T-020", "T-021", "T-022"],
+    "acceptance_criteria": [
+      "Given full consumption + outputs, when POST /complete, then 200 status=COMPLETED with completed_at",
+      "Given component shortfall without override, when POST /complete, then 409 + gate_failures list",
+      "Given shortfall + override_reason_code + role=production_manager, when POST /complete, then 200 + override_closed_production=true + override_by stamped"
+    ],
+    "test_strategy": [
+      "RED: route test asserting happy + 409 + override-pass before route exists",
+      "Run 'pnpm --filter web test work-orders.*complete'"
+    ],
+    "risk_red_lines": [
+      "Do not allow override by non-PM roles",
+      "Do not skip outbox plumbing point",
+      "Do not bypass gate without override path"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

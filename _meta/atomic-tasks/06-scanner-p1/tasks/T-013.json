@@ -1,0 +1,60 @@
+{
+  "title": "T-013 — ScanInput component (auto-focus, hardware/camera/manual) (06-a)",
+  "prompt": "# T-013 — ScanInput primitive\n\nPRD: 06-SCANNER-P1-PRD.md §8.1 FR-SC-FE-006, §6 D5, §9.1 scan-first input pattern\nUX: design/06-SCANNER-P1-UX.md §9.1\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nDeliver the shared `<ScanInput onScan={(value, method) => ...} />` primitive that every operational screen embeds — autofocus, inputMode='none' default, Enter terminator, blue-500 border + 3px focus ring, 300ms debounce auto-advance, clear-after-scan.\n\n## Implementation contract\n1. `apps/scanner/src/components/scan-input.tsx`:\n   - Props: `{ onScan, hint?, big?: boolean, disabled?, allowManual?: boolean }`.\n   - Auto-focus on mount and on remount; restore focus when window regains focus.\n   - Hardware mode default (inputMode='none'); a 'Wpisz ręcznie' link toggles manual which sets inputMode='text'.\n   - 'Skanuj aparatem' button delegates to CameraScanner (T-014) via render prop slot.\n   - Detects scan method via T-004 detect util, classifies last 6 keystrokes timing, passes 'hardware'|'manual' to onScan; camera path passes 'camera'.\n2. RTL tests + Playwright keystroke burst test.\n\n## Files\n- apps/scanner/src/components/scan-input.tsx [create]\n- apps/scanner/__tests__/scan-input.test.tsx [create]\n- apps/scanner/__tests__/scan-input.e2e.spec.ts [create]\n\n## Acceptance criteria\n1. Given the production component renders, when compared to the prototype scan input pattern at `design/Monopilot Design System/scanner/flow-receive.jsx:89-233` (po_item_screen scan area), then it has the same blue-500 border, autofocus behavior, hint text below, 'Wpisz ręcznie' fallback link and 'Skanuj aparatem' camera button — verified by RTL snapshot + manual checklist in pipeline_inputs.details\n2. Given a 6-character keystroke burst <50ms apart ending in Enter, when fired into ScanInput, then onScan is invoked once with method='hardware' and the input clears\n3. Given the user clicks 'Wpisz ręcznie' and types '6 chars + Enter' slowly (>200ms between keys), when Enter fires, then onScan is invoked once with method='manual'\n\n## Test strategy\n- RED: write scan-input.test.tsx + scan-input.e2e.spec.ts asserting hardware burst, manual fallback, prototype parity before implementation\n- Run 'pnpm --filter scanner test scan-input && pnpm --filter scanner test:e2e scan-input'\n\n## Risk red lines\n- Do not let onScan fire twice for a single Enter\n- Do not lose focus when the window blurs and refocuses\n- Do not emit onScan with empty value",
+  "labels": ["prd", "ui", "scan-input", "T3-ui"],
+  "priority": 80,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-013",
+    "source_prd": "06-SCANNER-P1-PRD.md",
+    "prd_refs": ["§8.1 FR-SC-FE-006", "§6 D5", "§9.1"],
+    "category": "ui",
+    "subcategory": "scan-input",
+    "task_type": "T3-ui",
+    "parent_feature": "06-a Shell & Core",
+    "context_budget": "30k",
+    "estimated_effort": "2-3h",
+    "description": "Shared ScanInput primitive with autofocus, hardware/camera/manual parity, debounce, clear-after-scan.",
+    "details": "Parity checklist (must verify in RTL + manual review):\n1) Same blue-500 border + 3px alpha-20 focus ring as prototype scan input area.\n2) hint text rendered below input.\n3) 'Wpisz ręcznie' link toggles inputMode and emits manual method.\n4) 'Skanuj aparatem' button slot for CameraScanner (T-014).\n5) Auto-focus on mount; restore focus on window focus event.\n6) onScan never fires with empty value or twice per Enter.",
+    "scope_files": [
+      "apps/scanner/src/components/scan-input.tsx [create]",
+      "apps/scanner/__tests__/scan-input.test.tsx [create]",
+      "apps/scanner/__tests__/scan-input.e2e.spec.ts [create]",
+      "design/Monopilot Design System/scanner/flow-receive.jsx:89-233 [ref]"
+    ],
+    "out_of_scope": [
+      "Do not implement CameraScanner here (T-014)",
+      "Do not wire ScanInput into specific screens here",
+      "Do not add audio feedback inside ScanInput (subscriber pattern via T-005 FeedbackBus)"
+    ],
+    "dependencies": ["T-004"],
+    "parallel_safe_with": ["T-014", "T-015", "T-012"],
+    "acceptance_criteria": [
+      "Given the production component renders, when compared to design/Monopilot Design System/scanner/flow-receive.jsx:89-233, then it has the same blue-500 border, autofocus, hint text, manual fallback link and camera button — verified by RTL snapshot + manual checklist",
+      "Given a 6-char keystroke burst <50ms apart ending in Enter, when fired into ScanInput, then onScan is invoked once with method='hardware' and input clears",
+      "Given the user toggles to manual and types '6 chars + Enter' slowly (>200ms between keys), when Enter fires, then onScan is invoked once with method='manual'"
+    ],
+    "test_strategy": [
+      "RED: write scan-input.test.tsx + e2e spec asserting parity + hardware burst + manual fallback before implementation",
+      "Run 'pnpm --filter scanner test scan-input && pnpm --filter scanner test:e2e scan-input'"
+    ],
+    "risk_red_lines": [
+      "Do not fire onScan twice per Enter",
+      "Do not lose focus on window refocus",
+      "Do not emit onScan with empty value"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

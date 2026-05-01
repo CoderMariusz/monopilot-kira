@@ -1,0 +1,82 @@
+{
+  "title": "T-086 — E2E Playwright: D365 connection toggle gated by 5 constants + test pass (V-SET-42/50/52)",
+  "prompt": "# T-086 — E2E Playwright: D365 toggle gating\n\n## Goal\nVerify integration.d365.enabled toggle blocks until 5 constants populated AND test connection passes. Verify SM-08 modal flow.\n\n## Files in scope\n- apps/web/e2e/d365-toggle.spec.ts [create]\n\n## Acceptance criteria (all must hold)\n- Given only 4 of 5 d365_constants populated, when toggle ON is attempted, then UI surfaces D365_CONSTANTS_MISSING and toggle returns to off.\n- Given 5 constants and test connection succeeds via SM-08, when toggle ON, then feature_flags_core.is_enabled=true persists and a 'Connected' badge renders.\n- Given the OAuth secret is rotated, when handler runs, then the secret field is cleared and a toast confirms; no plaintext appears in DOM.\n\n## Test strategy (RED first)\n1. Add a failing test that exercises the acceptance criteria above. The RED command is:\n   `pnpm --filter @monopilot/web playwright test e2e/d365-toggle.spec.ts`\n2. Run RED — it must fail before any production code is written.\n3. Implement the smallest change needed for GREEN.\n4. Re-run RED command — must pass.\n5. Run `pnpm typecheck` and `pnpm lint` in the changed package; both must pass.\n\n## Risk red lines\n- Do not edit files outside the listed scope without documenting why in CLOSEOUT.\n- Do not weaken existing acceptance criteria from prior tasks.\n- Do not introduce REST endpoints; use Server Actions per stack contract.\n- Do not commit secrets or vault keys.\n\n## Closeout evidence required\n- changed_files (with line counts)\n- exact test commands and outputs (RED→GREEN, typecheck, lint)\n- acceptance_criteria_status (one row per AC: pass/fail)\n- deviations_from_prd (or \"none\")\n- git_status\n\nStack: TS + Next.js App Router + Drizzle + pnpm + vitest + Playwright + Server Actions. Primitives in `packages/ui`. PRD: `02-SETTINGS-PRD.md` v3.5.\n",
+  "labels": [
+    "prd",
+    "test",
+    "e2e-d365",
+    "T4-wiring-test"
+  ],
+  "priority": 120,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-086",
+    "source_prd": "02-SETTINGS-PRD.md",
+    "prd_refs": [
+      "§11.4",
+      "V-SET-42",
+      "V-SET-50",
+      "V-SET-52"
+    ],
+    "category": "test",
+    "subcategory": "e2e-d365",
+    "task_type": "T4-wiring-test",
+    "parent_feature": "02-settings-e",
+    "context_budget": "40k",
+    "estimated_effort": "1-3h",
+    "description": "E2E D365 toggle gating + secret rotation.",
+    "details": "Mock D365 metadata endpoint via MSW or Playwright route interceptor.",
+    "scope_files": [
+      "apps/web/e2e/d365-toggle.spec.ts"
+    ],
+    "out_of_scope": [
+      "broaden scope beyond listed files",
+      "implement future-phase features"
+    ],
+    "dependencies": [
+      "T-020",
+      "T-030",
+      "T-061",
+      "T-054"
+    ],
+    "parallel_safe_with": [],
+    "acceptance_criteria": [
+      "Constants gating enforced.",
+      "Toggle ON only after test pass.",
+      "Secret rotation safe."
+    ],
+    "test_strategy": [
+      "RED: write spec. GREEN: implement gating."
+    ],
+    "risk_red_lines": [
+      "Do not weaken gating in test by env override."
+    ],
+    "skills": [
+      "test-driven-development"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": false
+  }
+}

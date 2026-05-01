@@ -1,0 +1,84 @@
+{
+  "title": "T-024 \u2014 Idempotent mutation helper with client-generated UUID v7 transaction_id",
+  "prompt": "# T-024 \u2014 Idempotent mutation helper with client-generated UUID v7 transaction_id\n\nPRD: `00-FOUNDATION-PRD.md` \u2014 sections: \u00a710\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`\n\n## Goal\nServer helper that accepts a client-generated UUID v7 transaction_id and returns deterministic responses on replay (R14).\n\n## Implementation contract\nAdd packages/db/migrations/013-idempotency.sql creating idempotency_keys(transaction_id UUID PK, tenant_id UUID NOT NULL, request_hash TEXT NOT NULL, response_json JSONB NOT NULL, created_at TIMESTAMPTZ DEFAULT now()). Implement packages/server/src/idempotent.ts exporting withIdempotency<T>(transactionId, requestPayload, handler) that: (1) hashes requestPayload, (2) selects existing row by transaction_id, (3) if hit and request_hash matches \u2192 returns stored response, (4) if hit and hash mismatches \u2192 throws 'idempotency_conflict', (5) if miss \u2192 runs handler, stores response, returns. Vitest covers: replay returns same response without re-running handler; hash mismatch throws; concurrent first-call uses ON CONFLICT DO NOTHING for safety.\n\n## Files (scope)\n- packages/db/migrations/013-idempotency.sql [create]\n- packages/server/src/idempotent.ts [create]\n- packages/server/src/__tests__/idempotent.test.ts [create]\n\n## Acceptance criteria\n1. Given withIdempotency is called twice with the same transaction_id and identical payload, when both calls complete, then handler is invoked exactly once and both calls return the identical response_json\n2. Given the second call uses the same transaction_id but a different payload, when invoked, then it throws 'idempotency_conflict' and no row is mutated\n3. Given the transaction_id is not a valid UUID v7 (version nibble != 7), when invoked, then it throws 'invalid_transaction_id'\n\n## Test strategy\n- RED: write packages/server/src/__tests__/idempotent.test.ts covering all three AC before idempotent.ts exists\n- Run 'pnpm --filter @monopilot/server test'\n\n## Risk red lines\n- Replay must NOT re-run side-effects \u2014 that is the whole contract\n\n## Dependencies (must be complete first)\n- T-006\n\n## Closeout evidence\nProvide: changed_files, test_commands_and_results, acceptance_criteria_status (per AC), deviations_from_prd, git_status. Use the test-driven-development skill (RED test before implementation) and requesting-code-review at GREEN.",
+  "labels": [
+    "prd",
+    "infra",
+    "idempotency",
+    "T2-api"
+  ],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-024",
+    "source_prd": "00-FOUNDATION-PRD.md",
+    "prd_refs": [
+      "\u00a710"
+    ],
+    "category": "infra",
+    "subcategory": "idempotency",
+    "task_type": "T2-api",
+    "parent_feature": "00-FOUNDATION idempotency",
+    "context_budget": "45k",
+    "estimated_effort": "1-2h",
+    "description": "Server helper that accepts a client-generated UUID v7 transaction_id and returns deterministic responses on replay (R14).",
+    "details": "Add packages/db/migrations/013-idempotency.sql creating idempotency_keys(transaction_id UUID PK, tenant_id UUID NOT NULL, request_hash TEXT NOT NULL, response_json JSONB NOT NULL, created_at TIMESTAMPTZ DEFAULT now()). Implement packages/server/src/idempotent.ts exporting withIdempotency<T>(transactionId, requestPayload, handler) that: (1) hashes requestPayload, (2) selects existing row by transaction_id, (3) if hit and request_hash matches \u2192 returns stored response, (4) if hit and hash mismatches \u2192 throws 'idempotency_conflict', (5) if miss \u2192 runs handler, stores response, returns. Vitest covers: replay returns same response without re-running handler; hash mismatch throws; concurrent first-call uses ON CONFLICT DO NOTHING for safety.",
+    "scope_files": [
+      "packages/db/migrations/013-idempotency.sql [create]",
+      "packages/server/src/idempotent.ts [create]",
+      "packages/server/src/__tests__/idempotent.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not modify files outside the scope_files list",
+      "Do not introduce business logic from later module PRDs (01-NPD, 02-SETTINGS, etc.)",
+      "No scanner-specific PWA wiring (separate module)"
+    ],
+    "dependencies": [
+      "T-006"
+    ],
+    "parallel_safe_with": [
+      "T-022",
+      "T-023"
+    ],
+    "acceptance_criteria": [
+      "Given withIdempotency is called twice with the same transaction_id and identical payload, when both calls complete, then handler is invoked exactly once and both calls return the identical response_json",
+      "Given the second call uses the same transaction_id but a different payload, when invoked, then it throws 'idempotency_conflict' and no row is mutated",
+      "Given the transaction_id is not a valid UUID v7 (version nibble != 7), when invoked, then it throws 'invalid_transaction_id'"
+    ],
+    "test_strategy": [
+      "RED: write packages/server/src/__tests__/idempotent.test.ts covering all three AC before idempotent.ts exists",
+      "Run 'pnpm --filter @monopilot/server test'"
+    ],
+    "risk_red_lines": [
+      "Replay must NOT re-run side-effects \u2014 that is the whole contract"
+    ],
+    "skills": [
+      "test-driven-development",
+      "verification-before-completion",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

@@ -1,0 +1,59 @@
+{
+  "title": "T-033 — Server Action convertBriefToFa (NPD-b.3) + V08 audit",
+  "prompt": "# T-033 — convertBriefToFa Server Action\n\nPRD: 01-NPD-PRD.md §9.3, §9.4, §12 V08 + UX brief_convert_modal\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\nPrototype: design/Monopilot Design System/npd/modals.jsx:89-140\n\n## Goal\nconvertBriefToFa(briefId, productCode) Server Action: gates on brief.status='complete', creates product row pre-populated with mapped fields per Reference.BriefFieldMapping, creates ProdDetail rows per components, locks brief (status='converted'), emits brief.converted + fa.created, writes brief_to_fa_audit row enabling V08.\n\n## Implementation contract\nMigration 0032 adds brief_to_fa_audit(id, brief_id, product_code, field_name, applied BOOLEAN, mapping_version, created_at). Action enforces RBAC brief.convert_to_fa, validates brief readiness, runs single tx: insert product, insert prod_detail rows from components, copy mapped fields per BriefFieldMapping, run allergen seed (delegated to NPD-c chain), set brief.status='converted'. V08 evaluation reads audit rows to confirm all mandatory fields applied.\n\n## Files\n- packages/db/migrations/0032_brief_to_fa_audit.sql [create]\n- apps/web/app/(npd)/brief/actions/convert-brief-to-fa.ts [create]\n- apps/web/app/(npd)/brief/actions/__tests__/convert-brief-to-fa.test.ts [create]\n- packages/validation/src/v08-brief-mapping.ts [create]\n\n## Acceptance criteria\n1. Given brief in status='complete' with all 13 V08 mandatory fields populated, when convertBriefToFa runs, then product row created with mapped fields, prod_detail rows = component count, brief.status='converted'\n2. Given brief in status='draft', when convertBriefToFa called, then GateError thrown with code 'BRIEF_NOT_COMPLETE'\n3. Given V08 evaluation post-convert, when all 13 mandatory mappings have brief_to_fa_audit.applied=TRUE, then v08() returns PASS; if any optional missing, returns INFO/WARN per §12 table\n\n## Test strategy\n- RED: 3 tests covering happy path, gate, V08 PASS\n- Run 'pnpm --filter db migrate && pnpm --filter web test convert-brief-to-fa && pnpm --filter validation test v08'\n\n## Risk red lines\n- Do not skip transaction\n- Do not bypass brief readiness gate\n- Do not unlock brief once converted",
+  "labels": ["prd", "api", "brief-convert", "T2-api"],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-033",
+    "source_prd": "01-NPD-PRD.md",
+    "prd_refs": ["§9.3", "§9.4", "§12 V08"],
+    "category": "api",
+    "subcategory": "brief-convert",
+    "task_type": "T2-api",
+    "parent_feature": "01-NPD-b brief convert",
+    "context_budget": "45k",
+    "estimated_effort": "3-4h",
+    "description": "Convert brief to FA with mapped fields, ProdDetail rows, audit log, V08 PASS evaluation.",
+    "details": "Single transaction: insert product, prod_detail per component, apply mappings via Reference.BriefFieldMapping, write brief_to_fa_audit rows, lock brief, emit events. V08 evaluation reads audit rows.",
+    "scope_files": [
+      "packages/db/migrations/0032_brief_to_fa_audit.sql [create]",
+      "apps/web/app/(npd)/brief/actions/convert-brief-to-fa.ts [create]",
+      "apps/web/app/(npd)/brief/actions/__tests__/convert-brief-to-fa.test.ts [create]",
+      "packages/validation/src/v08-brief-mapping.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not implement allergen cascade seed (NPD-c chain)",
+      "Do not implement Convert modal UI here (T-034)"
+    ],
+    "dependencies": ["T-001", "T-002", "T-008", "T-030", "T-031", "T-032"],
+    "parallel_safe_with": ["T-035"],
+    "acceptance_criteria": [
+      "Given brief status='complete' with all 13 V08 mandatory fields, when convertBriefToFa runs, then product row created with mapped fields, prod_detail rows equal component count, brief.status='converted'",
+      "Given brief status='draft', when convertBriefToFa called, then GateError thrown with code 'BRIEF_NOT_COMPLETE'",
+      "Given post-convert V08 evaluation, when all 13 mandatory mappings have applied=TRUE, then v08() returns PASS"
+    ],
+    "test_strategy": [
+      "RED: 3 tests covering happy path, gate, V08 PASS before action exists",
+      "Run 'pnpm --filter db migrate && pnpm --filter web test convert-brief-to-fa && pnpm --filter validation test v08'"
+    ],
+    "risk_red_lines": [
+      "Do not skip transaction",
+      "Do not bypass brief readiness gate",
+      "Do not unlock brief once converted"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

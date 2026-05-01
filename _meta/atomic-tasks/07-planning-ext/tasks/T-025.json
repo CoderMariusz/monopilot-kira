@@ -1,0 +1,58 @@
+{
+  "title": "T-025 — DSL rule finite_capacity_solver_v1 registered in 02-SETTINGS",
+  "prompt": "# T-025 — DSL rule finite_capacity_solver_v1 registered in 02-SETTINGS\n\nPRD: 07-PLANNING-EXT-PRD.md §10.1, §6 D2\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nRegister `finite_capacity_solver_v1` rule in 02-SETTINGS rule registry per §10.1 pseudo-DSL, with params (greedy_priority_weights, local_search_iterations=200, threshold=2.0, timeout=60, hard_timeout=120) + hooks (on_timeout, on_crash).\n\n## Implementation contract\n1. New migration `packages/db/migrations/0080_rule_finite_capacity_solver_v1.sql` upserting rule_registry row with rule_id='finite_capacity_solver_v1', type='algorithm', implementation='python_service', service_endpoint='http://planner-solver.internal/solve', params JSONB.\n2. Rule active by default (feature flag planning.finite_capacity_solver.enabled=true per Appendix B).\n3. RED test queries rule_registry and asserts shape.\n\n## Files\n- packages/db/migrations/0080_rule_finite_capacity_solver_v1.sql [create]\n- packages/db/__tests__/rule-finite-capacity-solver.test.ts [create]\n\n## Acceptance criteria\n1. Given migration 0080 applied, when SELECT FROM rule_registry WHERE rule_id='finite_capacity_solver_v1' runs, then row exists with type='algorithm' and params containing all 6 listed keys\n2. Given migration 0080 applied, when SELECT FROM feature_flags WHERE key='planning.finite_capacity_solver.enabled', then value=true\n3. Given the rule row, when SELECT params->'hooks'->>'on_timeout' runs, then value='return_partial_with_warning'\n\n## Test strategy\n- RED: write packages/db/__tests__/rule-finite-capacity-solver.test.ts asserting rule + flag + hook keys\n- Run 'pnpm --filter db migrate && pnpm --filter db test rule-finite-capacity-solver'\n\n## Risk red lines\n- Do not enable additional rules in this migration (one rule per task)\n- Do not embed Python implementation inline (DSL + service endpoint pattern only)\n- Do not omit hooks (on_timeout, on_crash both required)",
+  "labels": ["prd", "infra", "dsl-rule", "T1-schema"],
+  "priority": 50,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-025",
+    "source_prd": "07-PLANNING-EXT-PRD.md",
+    "prd_refs": ["§10.1", "§6 D2"],
+    "category": "infra",
+    "subcategory": "dsl-rule",
+    "task_type": "T1-schema",
+    "parent_feature": "07-EXT-a DSL registration",
+    "context_budget": "30k",
+    "estimated_effort": "1h",
+    "description": "Upsert finite_capacity_solver_v1 into rule_registry with full §10.1 params + feature flag enabled.",
+    "details": "Idempotent UPSERT migration registers rule row + corresponding feature flag. RED test asserts JSONB shape for params and hooks.",
+    "scope_files": [
+      "packages/db/migrations/0080_rule_finite_capacity_solver_v1.sql [create]",
+      "packages/db/__tests__/rule-finite-capacity-solver.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not register allergen optimizer here (T-026)",
+      "Do not register disposition bridge here (T-027)",
+      "Do not implement Python algorithm (T-022, T-023)"
+    ],
+    "dependencies": [],
+    "parallel_safe_with": ["T-026", "T-027"],
+    "acceptance_criteria": [
+      "Given migration 0080 applied, when SELECT FROM rule_registry WHERE rule_id='finite_capacity_solver_v1' runs, then row exists with type='algorithm' + 6 param keys",
+      "Given migration 0080 applied, when SELECT FROM feature_flags WHERE key='planning.finite_capacity_solver.enabled', then value=true",
+      "Given the rule row, when SELECT params->'hooks'->>'on_timeout' runs, then value='return_partial_with_warning'"
+    ],
+    "test_strategy": [
+      "RED: write packages/db/__tests__/rule-finite-capacity-solver.test.ts asserting rule + flag + hooks shape",
+      "Run 'pnpm --filter db migrate && pnpm --filter db test rule-finite-capacity-solver'"
+    ],
+    "risk_red_lines": [
+      "Do not enable additional rules in this migration",
+      "Do not embed Python implementation inline",
+      "Do not omit hooks"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

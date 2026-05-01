@@ -1,0 +1,80 @@
+{
+  "title": "T-022 — Server Actions: reference CSV import + export with conflict report (V-SET-23)",
+  "prompt": "# T-022 — Server Actions: reference CSV import/export\n\n## Goal\nImplement `importReferenceCsv(tableCode, csv)` returning a preview report (insert/update/skip/error) plus `commitReferenceImport(reportId)` and `exportReferenceCsv(tableCode)`.\n\n## Files in scope\n- apps/web/actions/reference/import-csv.ts [create]\n- apps/web/actions/reference/export-csv.ts [create]\n- apps/web/actions/reference/csv.test.ts [create]\n\n## Acceptance criteria (all must hold)\n- Given a CSV with headers that don't match reference_schemas.columns (case-insensitive trim), when importReferenceCsv runs, then it raises CSV_HEADER_MISMATCH (V-SET-23).\n- Given the preview report shows 3 inserts, 2 updates, 1 skip, 1 error, when commitReferenceImport runs, then 5 rows are persisted (errors excluded) and the response summarizes counts.\n- Given exportReferenceCsv runs for `pack_sizes`, when streamed, then it returns a CSV with header columns from reference_schemas and active rows only.\n\n## Test strategy (RED first)\n1. Add a failing test that exercises the acceptance criteria above. The RED command is:\n   `pnpm --filter @monopilot/web vitest run apps/web/actions/reference/csv.test.ts`\n2. Run RED — it must fail before any production code is written.\n3. Implement the smallest change needed for GREEN.\n4. Re-run RED command — must pass.\n5. Run `pnpm typecheck` and `pnpm lint` in the changed package; both must pass.\n\n## Risk red lines\n- Do not edit files outside the listed scope without documenting why in CLOSEOUT.\n- Do not weaken existing acceptance criteria from prior tasks.\n- Do not introduce REST endpoints; use Server Actions per stack contract.\n- Do not commit secrets or vault keys.\n\n## Closeout evidence required\n- changed_files (with line counts)\n- exact test commands and outputs (RED→GREEN, typecheck, lint)\n- acceptance_criteria_status (one row per AC: pass/fail)\n- deviations_from_prd (or \"none\")\n- git_status\n\nStack: TS + Next.js App Router + Drizzle + pnpm + vitest + Playwright + Server Actions. Primitives in `packages/ui`. PRD: `02-SETTINGS-PRD.md` v3.5.\n",
+  "labels": [
+    "prd",
+    "api",
+    "reference-csv",
+    "T2-api"
+  ],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-022",
+    "source_prd": "02-SETTINGS-PRD.md",
+    "prd_refs": [
+      "§8.5",
+      "V-SET-23"
+    ],
+    "category": "api",
+    "subcategory": "reference-csv",
+    "task_type": "T2-api",
+    "parent_feature": "02-settings-d",
+    "context_budget": "40k",
+    "estimated_effort": "1-3h",
+    "description": "Reference CSV import/export with conflict detection.",
+    "details": "Use `papaparse` for CSV parse. Preview report stored in transient table or temp dir keyed by reportId; expires in 1h. Commit re-validates. Export streams via Server Action returning a Response with Content-Disposition.",
+    "scope_files": [
+      "apps/web/actions/reference/import-csv.ts",
+      "apps/web/actions/reference/export-csv.ts",
+      "apps/web/actions/reference/csv.test.ts"
+    ],
+    "out_of_scope": [
+      "broaden scope beyond listed files",
+      "implement future-phase features"
+    ],
+    "dependencies": [
+      "T-021"
+    ],
+    "parallel_safe_with": [],
+    "acceptance_criteria": [
+      "Header validation enforced (V-SET-23).",
+      "Preview/commit two-step model works.",
+      "Export streams CSV with correct headers."
+    ],
+    "test_strategy": [
+      "RED: 3 cases.",
+      "GREEN: implement."
+    ],
+    "risk_red_lines": [
+      "Do not commit on import without explicit two-step confirmation."
+    ],
+    "skills": [
+      "test-driven-development"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": false
+  }
+}

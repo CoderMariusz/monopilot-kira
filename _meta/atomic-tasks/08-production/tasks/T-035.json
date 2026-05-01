@@ -1,0 +1,59 @@
+{
+  "title": "T-035 — Seed downtime_categories with 10 Apex 4P+1M categories",
+  "prompt": "# T-035 — Seed downtime_categories\n\nPRD: 08-PRODUCTION-PRD.md §6 D6, §16.5 [APEX-CONFIG]\n\n## Goal\nSeed Apex's 10 default downtime categories per §6 D6 mapped to lean 6 Big Losses (People/Process/Plant) into the 02-SETTINGS-owned downtime_categories table.\n\n## Implementation contract\nCreate seeds/production/downtime-categories-apex.ts with array of 10 rows: People (operator_break, operator_missing, training); Process (material_wait, upstream_delay, downstream_blocked, quality_hold); Plant (machine_fault, cleaning, changeover). Each row {code, name, lean_loss_class:'people'|'process'|'plant', is_active:true, sort_order, tenant_id:'apex'}. Add seed runner script packages/db/seeds/run-production-seeds.ts that idempotently INSERTs ON CONFLICT (tenant_id, code) DO NOTHING. Add unit test asserting 10 rows seeded after script run.\n\n## Files (scope)\n- packages/db/seeds/production/downtime-categories-apex.ts [create]\n- packages/db/seeds/run-production-seeds.ts [create]\n- packages/db/seeds/__tests__/downtime-categories-seed.test.ts [create]\n\n## Acceptance criteria\n1. Given seed runner runs first time, when SELECT count(*) FROM downtime_categories WHERE tenant_id='apex', then count=10\n2. Given seed runner runs twice, when count queried again, then still 10 (idempotent ON CONFLICT DO NOTHING)\n3. Given seed runner completes, when SELECT lean_loss_class GROUP BY runs, then result includes 3 'people', 4 'process', 3 'plant' rows\n\n## Test strategy\n- RED: seed test asserting 10 rows + idempotency + class distribution before seed file exists\n- Run 'pnpm --filter db test downtime-categories-seed'\n\n## Risk red lines\n- Do not modify downtime_categories schema (02-SETTINGS owns)\n- Do not seed without tenant_id (would leak to other tenants)\n- Do not use UPDATE on conflict (categories may be tenant-customized)",
+  "labels": ["prd", "data", "seed", "T5-seed"],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-035",
+    "source_prd": "08-PRODUCTION-PRD.md",
+    "prd_refs": ["§6 D6", "§16.5"],
+    "category": "data",
+    "subcategory": "seed",
+    "task_type": "T5-seed",
+    "parent_feature": "08-PROD E4 Downtime+Shifts",
+    "context_budget": "20k",
+    "estimated_effort": "1h",
+    "description": "Seed Apex 10 downtime categories mapped to 6BL across People/Process/Plant.",
+    "details": "Idempotent seed script with INSERT ... ON CONFLICT DO NOTHING. tenant_id='apex'. lean_loss_class enum {people, process, plant}. Categories per §6 D6.",
+    "scope_files": [
+      "packages/db/seeds/production/downtime-categories-apex.ts [create]",
+      "packages/db/seeds/run-production-seeds.ts [create]",
+      "packages/db/seeds/__tests__/downtime-categories-seed.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not modify downtime_categories schema",
+      "Do not seed for other tenants",
+      "Do not implement category admin UI"
+    ],
+    "dependencies": [],
+    "parallel_safe_with": ["T-036", "T-037"],
+    "acceptance_criteria": [
+      "Given first seed run, when count rows for tenant=apex, then count=10",
+      "Given seed runs twice, when count queried, then still 10 (ON CONFLICT DO NOTHING)",
+      "Given complete seed, when GROUP BY lean_loss_class, then 3 people + 4 process + 3 plant"
+    ],
+    "test_strategy": [
+      "RED: seed test asserting 10+idempotent+distribution before seed exists",
+      "Run 'pnpm --filter db test downtime-categories-seed'"
+    ],
+    "risk_red_lines": [
+      "Do not modify schema",
+      "Do not seed without tenant_id",
+      "Do not UPDATE on conflict"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

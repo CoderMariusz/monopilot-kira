@@ -1,0 +1,57 @@
+{
+  "title": "T-045 — fa_bom_view + bom_export_csv Server Action (NPD-d / N-U3)",
+  "prompt": "# T-045 — fa_bom_view + CSV export\n\nPRD: 01-NPD-PRD.md §10.7\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nCreate fa_bom_view per §10.7 + bom_export_csv(productCode) Server Action streaming CSV with same column ordering and badges (RM/PM, d365_status).\n\n## Implementation contract\nMigration 0052 emits CREATE OR REPLACE VIEW fa_bom_view per spec, joining fa + LATERAL fa_bom_compute + d365_import_cache. Server Action streams text/csv from view rows. RBAC: dashboard.view to read, bom.export to export.\n\n## Files\n- packages/db/migrations/0052_fa_bom_view.sql [create]\n- apps/web/app/(npd)/fa/actions/bom-export-csv.ts [create]\n- apps/web/app/(npd)/fa/actions/__tests__/bom-export-csv.test.ts [create]\n\n## Acceptance criteria\n1. Given migration 0052 ran, when SELECT * FROM fa_bom_view WHERE product_code='FA5101', then rows include component_type, component_code, quantity, process_stage, source, d365_status with COALESCE 'Empty' default\n2. Given role npd_manager calls bom_export_csv('FA5101'), when run, then response Content-Type='text/csv' and rows match view ordering\n3. Given role viewer (no bom.export), when bom_export_csv called, then AuthError thrown\n\n## Test strategy\n- RED: 3 tests for view shape, CSV stream, RBAC\n- Run 'pnpm --filter db migrate && pnpm --filter web test bom-export-csv'\n\n## Risk red lines\n- Do not include built FAs without filter\n- Do not skip RBAC for export\n- Do not bypass tenant RLS",
+  "labels": ["prd", "api", "bom-export", "T2-api"],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-045",
+    "source_prd": "01-NPD-PRD.md",
+    "prd_refs": ["§10.7", "N-U3"],
+    "category": "api",
+    "subcategory": "bom-export",
+    "task_type": "T2-api",
+    "parent_feature": "01-NPD-d BOM",
+    "context_budget": "30k",
+    "estimated_effort": "2h",
+    "description": "fa_bom_view + bom_export_csv streaming Server Action with d365_status badges.",
+    "details": "View joins LATERAL fa_bom_compute and d365_import_cache. Action streams CSV. RBAC: dashboard.view read, bom.export export.",
+    "scope_files": [
+      "packages/db/migrations/0052_fa_bom_view.sql [create]",
+      "apps/web/app/(npd)/fa/actions/bom-export-csv.ts [create]",
+      "apps/web/app/(npd)/fa/actions/__tests__/bom-export-csv.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not implement BOM tab UI here (T-066)"
+    ],
+    "dependencies": ["T-001", "T-006", "T-028"],
+    "parallel_safe_with": ["T-044"],
+    "acceptance_criteria": [
+      "Given migration 0052 ran, when SELECT * FROM fa_bom_view WHERE product_code='FA5101', then rows include component_type, component_code, quantity, process_stage, source, d365_status with COALESCE 'Empty' default",
+      "Given role npd_manager calls bom_export_csv('FA5101'), when run, then response Content-Type='text/csv' and rows match view ordering",
+      "Given role viewer (no bom.export), when bom_export_csv called, then AuthError thrown"
+    ],
+    "test_strategy": [
+      "RED: 3 tests for view shape, CSV stream, RBAC before code exists",
+      "Run 'pnpm --filter db migrate && pnpm --filter web test bom-export-csv'"
+    ],
+    "risk_red_lines": [
+      "Do not omit COALESCE default for d365_status",
+      "Do not skip RBAC",
+      "Do not bypass tenant RLS"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

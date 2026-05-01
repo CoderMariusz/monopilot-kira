@@ -1,0 +1,55 @@
+{
+  "title": "T-006 — SET-003 First Warehouse Step UI",
+  "prompt": "Implement the SET-003 First Warehouse Step page at `/onboarding/2` per PRD §14.3 step 2 + §14.4 SET-003.\n\nRHF + Zod fields: `name` (required, 2-80 chars), `type` (select; default `finished`; options per Reference.WarehouseTypes), `code` (required, regex `^[A-Z][A-Z0-9-]{1,11}$`).\n\nSubmit advances state to step 3 via T-002 action; calls existing `createWarehouse` action (stub import — implementation belongs to 03-TECHNICAL or 05-WAREHOUSE feature, out of scope here).\n\nNo Skip button.\n\nRED test command: `pnpm --filter web test -- onboarding-step2`.",
+  "labels": ["prd", "ui", "wizard-step-form", "T3-ui"],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-006",
+    "source_prd": "02-SETTINGS-PRD.md",
+    "prd_refs": ["§14.3 step 2 (line 1521)", "§14.4 SET-003 (line 1540)"],
+    "category": "ui",
+    "subcategory": "wizard-step-form",
+    "task_type": "T3-ui",
+    "parent_feature": "02-SETTINGS-onboarding-wizard",
+    "context_budget": "25k",
+    "estimated_effort": "2h",
+    "description": "Step 2 RHF form for first warehouse; advances to step 3.",
+    "details": "Page + form component pattern mirrors T-005. createWarehouse import is stubbed.",
+    "scope_files": [
+      "apps/web/app/(onboarding)/2/page.tsx [create]",
+      "apps/web/app/(onboarding)/2/step2-form.tsx [create]",
+      "apps/web/app/(onboarding)/2/step2-form.test.tsx [create]"
+    ],
+    "out_of_scope": [
+      "createWarehouse action implementation",
+      "Other step pages",
+      "ltree path field for location (gap-backlog S-U3; out of scope here — that's step 3 anyway)"
+    ],
+    "dependencies": ["T-001", "T-002"],
+    "parallel_safe_with": ["T-005", "T-007", "T-008", "T-009", "T-010"],
+    "acceptance_criteria": [
+      "Given empty form submit, when triggered, then 3 required-field errors and no updateOnboardingState call.",
+      "Given valid name/type/code submitted, when accepted, then updateOnboardingState({current_step:3, completed_steps:[...,2]}) AND router.push('/onboarding/3') fire.",
+      "Given code='ab123' (lowercase), when submitted, then regex validation error shown.",
+      "Given vitest covers above, when pnpm --filter web test runs, then 0 failures."
+    ],
+    "test_strategy": [
+      "RED: RTL spec on 4 AC with mocked dependencies.",
+      "GREEN: implement; pass.",
+      "Command: pnpm --filter web test -- onboarding-step2"
+    ],
+    "risk_red_lines": [
+      "Do not render Skip button.",
+      "Do not duplicate Zod field constraints inline — share with createWarehouse schema if it exists."
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {"red": "hermes_gpt55", "implementation": "hermes_gpt55", "review": "opus_if_high_risk_or_ui_or_architecture", "close": "spark_low_risk_else_opus"}
+  }
+}

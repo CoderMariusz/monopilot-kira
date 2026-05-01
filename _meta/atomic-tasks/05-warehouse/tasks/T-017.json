@@ -1,0 +1,58 @@
+{
+  "title": "T-017 — LP split service",
+  "prompt": "# T-017 — LP split service\n\nPRD: `05-WAREHOUSE-PRD.md` §6.4 (FR-WH-002), V-WH-LP-003.\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`.\n\n## Goal\nImplement `splitLp(sourceLpId, splitQty, destLocationId?)` Server Action that creates a child LP, decrements source, prorates catch_weight, and inserts genealogy row.\n\n## Implementation contract\nFile `apps/web/lib/services/warehouse/lp-split.ts`. Steps per §6.4 algorithm:\n1) validate (status in available/reserved, 0 < splitQty < source.qty)\n2) create child LP via T-016 inheriting product/uom/batch/expiry/qa_status/manufacture_date/shelf_life_mode_snapshot, prorated catch_weight\n3) UPDATE source.quantity -= splitQty\n4) INSERT lp_genealogy (operation_type='split')\n5) Optional stock_move to destLocationId\nAll within a single transaction.\n\n## Files (scope)\n- apps/web/lib/services/warehouse/lp-split.ts [create]\n- apps/web/lib/services/warehouse/__tests__/lp-split.test.ts [create]\n\n## Acceptance criteria\n1. Given source.qty=100 and splitQty=40, when service runs, then source becomes qty=60 and child has qty=40 with the same batch.\n2. Given splitQty=0 or splitQty>=source.qty, when service runs, then it returns a validation error and rolls back.\n3. Given service completes, when lp_genealogy is queried, then a row links source as parent and child with operation_type='split' and quantity=splitQty.\n\n## Test strategy\n- RED: lp-split.test.ts covers happy path, invalid qty, and genealogy row.\n- Run `pnpm --filter web test lp-split`.\n\n## Risk red lines\n- Do not perform any step outside one DB transaction.\n- Do not orphan child LP without genealogy.\n- Do not allow split on status='consumed'/'shipped'/'blocked'.",
+  "labels": ["prd", "api", "lp-core", "T2-api"],
+  "priority": 90,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-017",
+    "source_prd": "05-WAREHOUSE-PRD.md",
+    "prd_refs": ["§6.4"],
+    "category": "api",
+    "subcategory": "lp-core",
+    "task_type": "T2-api",
+    "parent_feature": "warehouse-lp-core",
+    "context_budget": "35k",
+    "estimated_effort": "1-2h",
+    "description": "Implement LP split Server Action that creates child, decrements source, prorates catch_weight, and writes genealogy.",
+    "details": "Single-transaction algorithm per §6.4. Optional stock_move to destination. Catch-weight proration. Status validation per V-WH-LP-003.",
+    "scope_files": [
+      "apps/web/lib/services/warehouse/lp-split.ts [create]",
+      "apps/web/lib/services/warehouse/__tests__/lp-split.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "UI modal (T-051)",
+      "Label print (T-043)",
+      "Outbox emission (T-047)"
+    ],
+    "dependencies": ["T-016", "T-003"],
+    "parallel_safe_with": ["T-018"],
+    "acceptance_criteria": [
+      "Given source.qty=100 and splitQty=40, when service runs, then source.qty=60 and child.qty=40 with same batch",
+      "Given splitQty=0 or splitQty >= source.qty, when service runs, then it returns a validation error and rolls back",
+      "Given service completes, when lp_genealogy is queried, then a row links source→child with operation_type='split' and quantity=40"
+    ],
+    "test_strategy": [
+      "RED: lp-split.test.ts covers happy/invalid/genealogy paths",
+      "Run 'pnpm --filter web test lp-split'"
+    ],
+    "risk_red_lines": [
+      "Do not perform steps outside one transaction",
+      "Do not split status outside available/reserved",
+      "Do not skip catch_weight proration"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

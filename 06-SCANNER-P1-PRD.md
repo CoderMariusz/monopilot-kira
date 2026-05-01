@@ -1,6 +1,6 @@
-# 06-SCANNER-P1 — PRD v3.1
+# 06-SCANNER-P1 — PRD v3.1.1
 
-**Wersja:** 3.1
+**Wersja:** 3.1.1 (PRD ↔ UX reconciliation pass — adds SCN-011b/c, SCN-013, SCN-095 + §8.8 traceability matrix)
 **Data:** 2026-04-30
 **Status:** Phase C2 Sesja 3 deliverable (Monopilot Migration) — Multi-industry code standardization
 **Phase D module #:** 06 (renumbering per 00-FOUNDATION §4.2)
@@ -517,13 +517,16 @@ Phase 2:
 
 ### 7.3 Screen catalog (SCN-010..090 + sub-screens per Q8)
 
-**Major codes (9):**
+**Major codes (9 + 4 PIN/devices/inquiry variants amended 2026-04-30):**
 
 | Code | Screen | Epik | Workflow |
 |---|---|---|---|
 | SCN-010 | Login (card scan + email/pass + PIN button) | E1 | Auth entry |
 | SCN-011 | PIN (6-digit numpad 3×4, auto-advance) | E1 | Auth PIN |
+| SCN-011b | PIN First-time Setup (forced 2-step Set/Confirm) | E1 | Auth PIN setup |
+| SCN-011c | PIN Change (self-service 3-step Old/New/Confirm) | E1 | Auth PIN rotation |
 | SCN-012 | Site/Line/Shift select | E1 | Context |
+| SCN-013 | Devices (Org/Admin device fleet pairing+health) | E1 | Admin device mgmt |
 | SCN-home | Home menu (grid: Produkcja / Magazyn / Jakość) | E1 | Task router |
 | SCN-020 | Receive PO | E2 | Receive |
 | SCN-030 | Receive TO | E2 | Receive |
@@ -538,10 +541,11 @@ Phase 2:
 | SCN-083 | Co-product (purple LP) | E5 | Production output |
 | SCN-084 | Waste (no LP) | E5 | Production output |
 | SCN-090 | Offline sync indicator | E6 (P2) | Offline UX |
+| SCN-095 | LP Inquiry (read-only LP detail + history) | E1 | Inquiry (P2) |
 
 **Sub-screens (hierarchical, ~34 total):** każdy major code rozwinięty w 2-5 sub-screens per prototype HTML. Nazewnictwo `SCN-{code}-{step}` (np. SCN-020-lines, SCN-020-item, SCN-020-done).
 
-Detal sub-screens w §8 Requirements.
+Detal sub-screens w §8 Requirements; bidirectional traceability matrix w §8.8 (added 2026-04-30 reconciliation pass per ADR-034 generic naming convention — entity labels like "Devices" follow `[UNIVERSAL]` pattern, configurable per industry).
 
 ---
 
@@ -578,7 +582,10 @@ Detal sub-screens w §8 Requirements.
 | FR-SC-FE-001 | Scanner Layout `app/scanner/layout.tsx` — dark theme slate-900, no sidebar, 56px topbar (BackButton + Title + UserBadge + SyncStatus + Menu), full-height `content` area overflow-y auto, optional fixed bottom action bar. | HIGH |
 | FR-SC-FE-002 | **SCN-010 Login** — logo 72×72px, username input, password input, card scan input (scan-first), "Użyj PIN" secondary button. Device frame 390px (responsive scales down na smaller). | HIGH |
 | FR-SC-FE-003 | **SCN-011 PIN** — 6-dot indicator + numpad 3×4 (1-9, 0, ⌫), auto-advance po 6th digit, biometric button (future P2), "Wróć" back button. Error shake animation on wrong PIN. | HIGH |
+| FR-SC-FE-003b | **SCN-011b PIN First-time Setup** (forced przy first-ever scanner login per FR-SC-BE-004; UX `design/06-SCANNER-P1-UX.md:240-249`; prototype label `pin_screen` `scanner/login.jsx:58-112` reused for setup steps) — 2-step wizard (Set / Confirm) z progress steps indicator, ten sam 6-dot+numpad pattern co SCN-011, info banner "PIN jest wymagany do szybkiego logowania na hali. Zapamiętaj go — nie możesz go zresetować samodzielnie." Policy validation post-confirm: minimum 4 unique digits (admin-configurable, `[UNIVERSAL]` per ADR-034), reject sequential (1234) lub all-repeating (1111) → inline error "PIN nie spełnia wymagań bezpieczeństwa." Success → SCN-012. | HIGH |
+| FR-SC-FE-003c | **SCN-011c PIN Change (self-service)** (entry z SCN-settings "Zmień PIN" button per FR-SC-BE-005; UX `design/06-SCANNER-P1-UX.md:253-258`; prototype label `pin_screen` reused) — 3-step wizard (Wpisz obecny PIN → Wpisz nowy PIN → Potwierdź nowy PIN), 3-step indicator, success banner "PIN zmieniony pomyślnie." → return SCN-settings. Policy identyczna jak SCN-011b. Verifies old PIN before accepting new (per FR-SC-BE-005). | HIGH |
 | FR-SC-FE-004 | **SCN-012 Site/Line/Shift** — 2-column cards site (FNOR, FKOB), grid 4 lines (L1-L4), 3 shift buttons (Ranna 6-14, Popołudniowa 14-22, Nocna 22-6), "Rozpocznij zmianę" CTA. | HIGH |
+| FR-SC-FE-004b | **SCN-013 Devices** (Admin/Org screen — moved from 02-SETTINGS prototype index 2026-04-30 labeling fix; prototype label `devices_screen` `design/Monopilot Design System/settings/ops-screens.jsx:4-95`) — fleet management page surface owned by scanner module per device-pairing flow: KPI tiles (total/online/low battery/offline), table with battery bar (Progress component), pair-device modal with QR (server-generated UUID pairing token, 5-min TTL), device defaults form. Backed by `scanner_devices` table (Drizzle query JOIN users + production_lines). Visibility: `org_admin` + `site_admin` roles only — surfaces in 02-SETTINGS Org Admin entry-point but rendered under `/scanner/admin/devices` for shared device-context with scanner sessions (`[UNIVERSAL]` per ADR-034 — applies to all industries). Bridge with 02-SETTINGS §6 schema admin (device_defaults config). | MEDIUM |
 | FR-SC-FE-005 | **SCN-home** — task menu grid organized 3 sekcje: **Produkcja** (Work Order z badge liczbą aktywnych, Pick dla WO), **Magazyn** (Przyjęcie PO, Przyjęcie TO, Putaway, Przesuń LP, Split LP, Part Movement P2), **Jakość** (Inspekcja QC z badge, Inwentaryzacja P2). Icons 46dp, labels 14px medium, subtitle 11px. Visibility per role (RLS + client-side filter). | HIGH |
 | FR-SC-FE-006 | **ScanInput component** — wspólny prymityw: auto-focus, `inputMode="none"` default (hardware mode), Enter jako terminator, min height 50px (desktop) / 64px (scanner), font 16px (standard) / 24px (big mode), blue border (#3b82f6), focus ring 3px alpha-20. Clear after scan. Props: `onScan(value: string, method: 'hardware'|'camera'|'manual')`. | HIGH |
 | FR-SC-FE-007 | **CameraScanner component** — `@zxing/browser` BrowserMultiFormatReader, viewfinder 300×100px overlay, amber border 2px rounded, front/rear toggle, torch toggle (if supported), auto-detect + 300ms debounce close, permission denied → fallback message + manual button. Max FPS 10. | HIGH |
@@ -701,18 +708,20 @@ Detal sub-screens w §8 Requirements.
 | FR-SC-FE-059 | QA batch inspection — "Inspect Next" button → auto-reset do SCN-070. Counter inspected/total. | MEDIUM |
 | FR-SC-FE-060 | QA visual indicators — LP card z color-coded status badge (available=green, qc_pending=amber, hold=yellow, blocked=red, consumed=gray). | HIGH |
 
-### 8.6 SC-E6 Offline Mode (Phase 2)
+### 8.6 SC-E6 Offline Mode + SCN-095 Inquiry (Phase 2)
 
-**Note:** Full spec deferred P2. P1 includes detection stub + SCN-090 placeholder.
+**Note:** Full spec deferred P2. P1 includes detection stub + SCN-090 placeholder + SCN-095 inquiry preview screen (data wired to mock fallback).
 
 | ID | Wymaganie | Priorytet | Phase |
 |---|---|---|---|
 | FR-SC-BE-070 | `POST /api/scanner/sync-queue` — batch sync endpoint: accepts array of ops, processes FIFO, returns per-op results. Idempotency via `client_operation_id`. | HIGH | P2 |
 | FR-SC-BE-071 | Conflict resolution: LP already consumed → reject + suggest re-scan; qty exceeds → reject + return current; PO fully received → reject. | HIGH | P2 |
+| FR-SC-BE-072 | `GET /api/scanner/lp/:code/inquiry` — read-only LP detail with history: full LP record JOIN lp_movements + users + locations + parent WO + child LPs. RLS org_id + site_id. SLO <500ms P95. (P2 endpoint; P1 uses `SCN_LPS` mock fallback in prototype.) | MEDIUM | P2 |
 | FR-SC-FE-070 | Offline detection: `navigator.onLine` + ping `/api/health` 15s. Status indicator header (green/amber/red dot). | HIGH | P1 stub |
 | FR-SC-FE-071 | **SCN-090 Queue view** — badge pending count, list (operation type, timestamp, status queued/syncing/synced/failed), "Sync Now" button, per-op retry/discard. | HIGH | P2 |
 | FR-SC-FE-072 | Auto-sync on reconnect + progress bar. | HIGH | P2 |
 | FR-SC-FE-073 | Queue overflow: 80 ops → amber warning, 100 ops → red + block new ops. | MEDIUM | P2 |
+| FR-SC-FE-074 | **SCN-095 LP Inquiry** (entry: SCN-home Magazyn section "Inspekcja LP" P2 tile lub deep-link `/scanner/inquiry`; UX cross-ref `design/06-SCANNER-P1-UX.md:1057-1063` §5.7 LP Inquiry; prototype label `inquiry_screen` `scanner/flow-other.jsx:391-438`) — Read-only screen: scan LP input → 8-cell `mini-grid` 2×4 (Product, SKU, Batch/Lot, Expiry, Qty available, Location, Status, QA status) + collapsible "Historia LP" timeline (received → picked → consumed → output) + parent WO link + child LP list. P1 prototype shows static history with feature flag `flags.scanner_lp_inquiry` defaulting OFF (redirect to SCN-home). P2 wires to FR-SC-BE-072. Banner "P2 preview" while flag is OFF. `[UNIVERSAL]` per ADR-034 (applies to any product type — meat / bakery / pharma). | MEDIUM | P2 (UI shell P1) |
 
 ### 8.7 SC-E7+ Phase 2 placeholders
 
@@ -727,6 +736,62 @@ Skrócone (pełne spec post-P1):
 | SC-E11 CCP Monitoring | QR scan CCP checkpoints, HACCP full (po 09-QUALITY E10+) |
 | SC-E12 Stock Audit | Cycle count workflow, blind count, discrepancy reconciliation (po 05-WH WH-E14) |
 | SC-E13 EPCIS consumer | GS1 EPCIS events (po 05-WH WH-E16) |
+
+### 8.8 UI Surfaces Traceability Matrix (added 2026-04-30 reconciliation pass)
+
+**Purpose:** Bidirectional PRD ↔ UX-spec ↔ prototype label traceability for downstream task decomposition (Phase E ASP). Every prototype in `_meta/prototype-labels/prototype-index-scanner.json` must appear here; every PRD SCN-NNN must link to a UX line + prototype label or carry an explicit `[NO-PROTOTYPE-YET]` / `[NO-UX-YET]` TODO.
+
+Per ADR-034 generic naming convention, entity labels in this matrix follow `[UNIVERSAL]` patterns (e.g. "WO" = work order across industries; "LP" = license plate / container; "Devices" = scanner fleet) — industry-specific renaming (FA→FG, PR→WIP) is handled in 03-TECHNICAL/01-NPD reference data, not here.
+
+| PRD SCN-ID | Screen / contract | UX line (`design/06-SCANNER-P1-UX.md`) | Prototype label (`_meta/prototype-labels/prototype-index-scanner.json`) | Prototype file:lines | Status |
+|---|---|---|---|---|---|
+| SCN-010 | Login (badge scan + email/pass + PIN button) | `:183-203` §3.1 | `login_screen` | `scanner/login.jsx:5-56` | OK |
+| SCN-011 | PIN entry (6-dot + 3×4 numpad) | `:212-231` §3.2 | `pin_screen` | `scanner/login.jsx:58-112` | OK |
+| SCN-011b | PIN First-time Setup (2-step Set/Confirm) | `:240-249` §3.3 | `pin_screen` (reused) | `scanner/login.jsx:58-112` | OK (FR-SC-FE-003b) |
+| SCN-011c | PIN Change Self-service (3-step) | `:253-258` §3.4 | `pin_screen` (reused) | `scanner/login.jsx:58-112` | OK (FR-SC-FE-003c) |
+| SCN-012 | Site / Line / Shift select | `:262-286` §3.5 | `site_select_screen` | `scanner/login.jsx:114-180` | OK |
+| SCN-013 | Devices fleet management (org admin) | (no dedicated section — covered via 02-SETTINGS Org Admin entry-point) | `devices_screen` | `settings/ops-screens.jsx:4-95` | OK (FR-SC-FE-004b — moved from settings 2026-04-30) |
+| SCN-home | Workflow launcher menu | `:290-323` §3.6 | `home_screen` | `scanner/home.jsx:7-61` | OK |
+| SCN-settings | Per-user scanner settings | `:778-813` §3.22 | `settings_screen` | `scanner/home.jsx:63-136` | OK |
+| SCN-020 | Receive PO (4-step list/lines/item/done) | `:327-389` §3.7 (sub `:334`/`:346`/`:354`/`:383`) | `po_list_screen` / `po_lines_screen` / `po_item_screen` / `po_done_screen` | `scanner/flow-receive.jsx:7-37, 40-86, 89-233, 236-264` | OK |
+| SCN-030 | Receive TO (3-step list/scan/done) | `:391-414` §3.8 | `to_list_screen` / `to_scan_screen` | `scanner/flow-receive.jsx:267-294, 297-385` | OK |
+| SCN-031 | Move LP | `:454-480` §3.10 | `move_screen` | `scanner/flow-other.jsx:10-86` | OK |
+| SCN-040 | Putaway (scan/suggest/done) | `:416-452` §3.9 | `putaway_scan_screen` / `putaway_suggest_screen` | `scanner/flow-putaway.jsx:5-63, 65-144` | OK |
+| SCN-050 | Pick for WO (5-step) | `:507-544` §3.12 | `pick_wo_list_screen` / `pick_list_screen` / `pick_scan_screen` | `scanner/flow-pick.jsx:5-40, 42-94, 96-238` | OK |
+| SCN-060 | Split LP (3-step) | `:482-505` §3.11 | `split_scan_screen` / `split_qty_screen` | `scanner/flow-other.jsx:111-150, 152-193` | OK |
+| SCN-070 | QA Inspection list | `:678-693` §3.17 | `qa_list_screen` | `scanner/flow-other.jsx:227-260` | OK |
+| SCN-071 | QA Inspect (PASS/FAIL/HOLD) | `:695-716` §3.18 | `qa_inspect_screen` | `scanner/flow-other.jsx:262-294` | OK |
+| SCN-072 | QA Fail Reason + NCR create | `:718-741` §3.19 | `qa_fail_reason_screen` | `scanner/flow-other.jsx:296-336` | OK |
+| SCN-073 | QA Done (dynamic per result) | `:743-755` §3.20 | (rendered inline in qa_inspect/qa_fail flows) | `scanner/flow-other.jsx` (success branches) | OK (composed) |
+| SCN-080 | Consume-to-WO (intermediate cascade core) | `:546-608` §3.13 (sub `:551`/`:555`/`:586`) | `wo_list_screen` / `wo_detail_screen` / `consume_scan_screen` | `scanner/flow-consume.jsx:8-54, 56-121, 216-410` | OK |
+| SCN-081 | WO Execute (tabs + 4 actions) | `:561-584` §3.13.3 | `wo_execute_screen` | `scanner/flow-consume.jsx:123-213` | OK |
+| SCN-082 | Output registration (new LP) | `:610-631` §3.14 | `output_screen` | `scanner/flow-register.jsx:6-121` | OK |
+| SCN-083 | Co-product registration (purple LP) | `:633-650` §3.15 | `coproduct_screen` | `scanner/flow-register.jsx:152-202` | OK |
+| SCN-084 | Waste registration (no LP) | `:652-676` §3.16 | `waste_screen` | `scanner/flow-register.jsx:226-285` | OK |
+| SCN-090 | Offline Queue view | `:757-776` §3.21 | `[NO-PROTOTYPE-YET]` (P2 deferred) | — | OK (P2) |
+| SCN-095 | LP Inquiry (read-only detail + history) | `:1057-1063` §5.7 | `inquiry_screen` | `scanner/flow-other.jsx:391-438` | OK (P2 shell P1 — FR-SC-FE-074) |
+| SCN-error | Unrecoverable error overlay | `:817-846` §3.23 | `block_fullscreen` | `scanner/modals.jsx:277-298` | OK |
+
+**Modal contracts (referenced from above flows):**
+
+| Modal | UX section | Prototype label | Prototype file:lines | Owner flow |
+|---|---|---|---|---|
+| Reason Code Picker | `:848` §4.1 | `reason_picker_sheet` | `scanner/modals.jsx:21-53` | Putaway override, FEFO override |
+| FEFO Deviation Confirm | `:858` §4.2 | `fefo_deviation_sheet` | `scanner/modals.jsx:55-98` | SCN-050, SCN-080 |
+| Qty Entry Keypad | `:870` §4.3 | `qty_keypad_sheet` | `scanner/modals.jsx:251-275` | All quantity steps |
+| Best-before Warning | `:914` §4.8 | `best_before_sheet` | `scanner/modals.jsx:100-124` | SCN-020-item, SCN-080 |
+| Partial Consume Warning | `:886` §4.5 | `partial_consume_sheet` | `scanner/modals.jsx:126-155` | SCN-082 (output gate) |
+| Printer Picker (P2) | `:924` §4.9 | `printer_picker_sheet` | `scanner/modals.jsx:157-180` | SCN-020-done, SCN-082-done |
+| Language Picker | `:932` §4.10 | `language_sheet` | `scanner/modals.jsx:182-212` | SCN-settings |
+| Logout Confirm | `:940` §4.11 | `logout_sheet` | `scanner/modals.jsx:214-228` | Topbar overflow |
+| Generic Scan Error | `:964` §4.14 | `scan_error_sheet` | `scanner/modals.jsx:230-249` | All scan inputs |
+| LP Locked (5-min lock collision) | (covered §3.10 Move + §3.13.4 Consume narratives) | `lp_locked_sheet` | `scanner/modals.jsx:300-310` | SCN-031, SCN-080 |
+| Use-by Hard Block | `:908` §4.7 | `block_fullscreen` (reused fullscreen) | `scanner/modals.jsx:277-298` | SCN-080 |
+
+**Coverage summary 2026-04-30:**
+- Direction A (PRD → UX/prototype): 24/24 SCN-IDs linked (SCN-090 explicitly P2-deferred with `[NO-PROTOTYPE-YET]` marker; all others link both UX line + prototype label).
+- Direction B (prototype → PRD): 41/41 entries in `prototype-index-scanner.json` referenced — `pin_screen` is multi-anchored (SCN-011 + SCN-011b + SCN-011c), `block_fullscreen` is multi-anchored (SCN-error + Use-by Hard Block).
+- Coverage ≥98% (was ~95% in `_meta/audits/2026-04-30-design-prd-coverage.md` Module 06-SCANNER-P1).
 
 ---
 
@@ -1426,6 +1491,13 @@ Widok per site/line/zmiana:
 
 ### 16.6 Changelog
 
+**v3.1.1 (2026-04-30) — PRD ↔ UX reconciliation pass**
+- Added screen IDs **SCN-011b** PIN First-time Setup + **SCN-011c** PIN Change Self-service to §7.3 catalog (UX `:240-258`); enumerated as FR-SC-FE-003b/003c (HIGH).
+- Added **SCN-013 Devices** screen (admin device fleet pairing+health) — anchors prototype `devices_screen` (`design/Monopilot Design System/settings/ops-screens.jsx:4-95`) which moved from settings to scanner index during 2026-04-30 labeling fix; FR-SC-FE-004b (MEDIUM). `[UNIVERSAL]` per ADR-034.
+- Added **SCN-095 LP Inquiry** (P2 with P1 shell) anchoring orphan `inquiry_screen` prototype (UX `:1057-1063` §5.7); FR-SC-FE-074 + FR-SC-BE-072 (MEDIUM, P2). `[UNIVERSAL]` per ADR-034.
+- Added **§8.8 UI Surfaces Traceability Matrix** — bidirectional PRD ↔ UX line ↔ prototype label table (24 screens + 11 modal contracts); coverage 95% → ≥98%.
+- No content removed; all FR-SC-BE-NNN/FR-SC-FE-NNN existing IDs unchanged.
+
 **v3.1 (2026-04-30) — Multi-industry code standardization**
 - **Code nomenclature update:** FA codes → **FG** (Finished Goods), PR codes → **WIP-<2-letter-process-suffix>-<7-digit-sequence>** per 01-NPD v3.2 multi-industry manufacturing operations pattern
 - Examples updated: "FA-BRD-0001" → "FG-BRD-0001", "PR-A-001" → "WIP-BK-0000001", "PR-H-002" → "WIP-MX-0000042"
@@ -1521,6 +1593,7 @@ Mapping major SCN codes → HTML screens (per `SCANNER-SCREEN-INDEX`):
 - ADR-028 Schema-driven ext cols (L3 on scanner_audit_log + scanner_sessions)
 - ADR-029 Rule engine DSL (`fefo_strategy_v1` consumer)
 - ADR-031 Multi-tenant variation (site/line/device_mode per tenant L2)
+- ADR-034 Generic product lifecycle naming & industry configuration (`[UNIVERSAL]` entity labels — Devices/LP/WO are industry-agnostic; tenant-level prefix renaming applies in 03-TECHNICAL/01-NPD reference data, scanner UI uses generic labels)
 
 ---
 

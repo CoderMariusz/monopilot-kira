@@ -1,0 +1,60 @@
+{
+  "title": "T-008 — POST /api/scanner/pin/setup + /pin/change with policy enforcement (06-a)",
+  "prompt": "# T-008 — PIN setup + change endpoints\n\nPRD: 06-SCANNER-P1-PRD.md §6 D8, §8.1 FR-SC-BE-004/005, §12.2, §15.1 V-SCAN-LOGIN-001/003\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nLand first-time PIN setup and self-service PIN change endpoints with admin-configurable complexity policy (length 4-6, forbid sequential/repeating, min unique digits).\n\n## Implementation contract\n1. `apps/scanner/src/app/api/scanner/pin/setup/route.ts` (POST): authenticated; rejects if scanner_pin_hash already set. Body Zod `{ new_pin: string.regex(/^\\d{4,6}$/) }`.\n2. `apps/scanner/src/app/api/scanner/pin/change/route.ts` (POST): authenticated; body `{ old_pin, new_pin }`. Verify old via bcrypt then set new.\n3. Policy module `apps/scanner/src/server/services/pin-policy.ts` exposing `validatePin(pin, policy)` returning `{ ok, errors[] }`. Reads org policy from `02-SETTINGS` config (forbid_sequential boolean, forbid_repeating boolean, min_unique_digits int default 3). Sequential check supports both 1234 and 4321 directions.\n4. On success: bcrypt rounds 10, set users.scanner_pin_hash + pin_last_changed_at=now, clear pin_rotation_required, write audit row.\n\n## Files\n- apps/scanner/src/app/api/scanner/pin/setup/route.ts [create]\n- apps/scanner/src/app/api/scanner/pin/change/route.ts [create]\n- apps/scanner/src/server/services/pin-policy.ts [create]\n- apps/scanner/__tests__/api/scanner-pin.test.ts [create]\n\n## Acceptance criteria\n1. Given a user without scanner_pin_hash, when POST /pin/setup runs with new_pin='2647', then 200 and users.scanner_pin_hash is updated and pin_last_changed_at is set\n2. Given org policy forbid_sequential=true, when POST /pin/setup is called with new_pin='1234', then 400 with error code SC_PIN_POLICY_VIOLATION and errors[] contains 'sequential'\n3. Given a user with an existing PIN, when POST /pin/change runs with the wrong old_pin, then 401 SC_UNAUTHORIZED and the stored hash is unchanged\n\n## Test strategy\n- RED: write scanner-pin.test.ts asserting setup + sequential rejection + change-wrong-old before implementation\n- Run 'pnpm --filter scanner test api/scanner-pin'\n\n## Risk red lines\n- Do not allow setup if scanner_pin_hash is already set\n- Do not log raw PIN values\n- Do not weaken bcrypt rounds below 10",
+  "labels": ["prd", "auth", "scanner-pin", "T2-api"],
+  "priority": 80,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-008",
+    "source_prd": "06-SCANNER-P1-PRD.md",
+    "prd_refs": ["§6 D8", "§8.1 FR-SC-BE-004/005", "§12.2", "§15.1"],
+    "category": "auth",
+    "subcategory": "scanner-pin",
+    "task_type": "T2-api",
+    "parent_feature": "06-a Shell & Core",
+    "context_budget": "30k",
+    "estimated_effort": "2h",
+    "description": "Forced first-time PIN setup + self-service PIN change with admin-configurable complexity policy and bcrypt rounds 10.",
+    "details": "Two POST endpoints + a pin-policy service implementing forbid_sequential (1234/4321), forbid_repeating (1111), min_unique_digits (default 3) and length 4-6. Setup rejects if pin already exists; change requires bcrypt-verified old_pin. Both write audit rows and update pin_last_changed_at.",
+    "scope_files": [
+      "apps/scanner/src/app/api/scanner/pin/setup/route.ts [create]",
+      "apps/scanner/src/app/api/scanner/pin/change/route.ts [create]",
+      "apps/scanner/src/server/services/pin-policy.ts [create]",
+      "apps/scanner/__tests__/api/scanner-pin.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not implement admin reset here (desktop 02-SETTINGS owns that)",
+      "Do not build the SCN-011b/c UI here (T-019, T-020)",
+      "Do not enforce forced rotation cron here"
+    ],
+    "dependencies": ["T-001", "T-007"],
+    "parallel_safe_with": ["T-009"],
+    "acceptance_criteria": [
+      "Given a user without scanner_pin_hash, when POST /pin/setup with new_pin='2647', then 200 and users.scanner_pin_hash + pin_last_changed_at are updated",
+      "Given org policy forbid_sequential=true, when POST /pin/setup with new_pin='1234', then 400 SC_PIN_POLICY_VIOLATION and errors[] contains 'sequential'",
+      "Given a user with an existing PIN, when POST /pin/change with wrong old_pin, then 401 SC_UNAUTHORIZED and the stored hash is unchanged"
+    ],
+    "test_strategy": [
+      "RED: write scanner-pin.test.ts asserting setup, sequential rejection, change-wrong-old before implementation",
+      "Run 'pnpm --filter scanner test api/scanner-pin'"
+    ],
+    "risk_red_lines": [
+      "Do not allow setup if scanner_pin_hash already set",
+      "Do not log raw PIN values",
+      "Do not weaken bcrypt rounds below 10"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

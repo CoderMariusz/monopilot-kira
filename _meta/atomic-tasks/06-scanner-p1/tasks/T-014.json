@@ -1,0 +1,60 @@
+{
+  "title": "T-014 — CameraScanner component (@zxing/browser viewfinder + torch) (06-a)",
+  "prompt": "# T-014 — CameraScanner primitive\n\nPRD: 06-SCANNER-P1-PRD.md §6 D5 camera UX, §8.1 FR-SC-FE-007, §11.4\nUX: design/06-SCANNER-P1-UX.md (camera viewfinder pattern)\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nDeliver `<CameraScanner onDetected={(value)=>...} onClose={...} />` using `@zxing/browser` BrowserMultiFormatReader (lazy-loaded via dynamic import), with viewfinder overlay 300×100px amber-bordered, front/rear toggle, torch toggle, 10 FPS limit, 1s duplicate debounce, 300ms auto-close after detection, graceful permission-denied fallback.\n\n## Implementation contract\n1. `apps/scanner/src/components/camera-scanner.tsx` — dynamic import `@zxing/browser`. Use native `BarcodeDetector` API as fast-path when available.\n2. Permission flow: request via getUserMedia; on denial render 'Brak uprawnień — skorzystaj z trybu ręcznego' fallback with manual button.\n3. Torch toggle uses MediaStreamTrack.getCapabilities().torch; hide button if unsupported.\n4. Front/rear switch via facingMode constraint flip.\n5. Strict 10 FPS scan loop; debounce duplicate scans 1000ms.\n6. RTL test mocks BrowserMultiFormatReader; Playwright spec uses fake media stream.\n\n## Files\n- apps/scanner/src/components/camera-scanner.tsx [create]\n- apps/scanner/__tests__/camera-scanner.test.tsx [create]\n- apps/scanner/__tests__/camera-scanner.e2e.spec.ts [create]\n\n## Acceptance criteria\n1. Given the camera viewfinder renders, when compared to the prototype camera affordance referenced from `design/Monopilot Design System/scanner/flow-receive.jsx:89-233` (po_item scan area camera button) and §11.4 spec, then it shows the 300×100 amber-bordered viewfinder rectangle, a torch toggle, a front/rear switch, and a close button — RTL snapshot + manual checklist\n2. Given the same barcode value is detected twice within 1000ms, when the scan loop runs, then onDetected fires only once\n3. Given getUserMedia rejects with NotAllowedError, when the component mounts, then it renders the manual-fallback message and never calls BrowserMultiFormatReader.decodeFromVideoDevice\n\n## Test strategy\n- RED: write camera-scanner.test.tsx + camera-scanner.e2e.spec.ts asserting parity + dedup + permission fallback before implementation\n- Run 'pnpm --filter scanner test camera-scanner && pnpm --filter scanner test:e2e camera-scanner'\n\n## Risk red lines\n- Do not eagerly bundle @zxing/browser (must dynamic-import)\n- Do not leave the MediaStream open after onClose\n- Do not render torch button on devices without torch capability",
+  "labels": ["prd", "ui", "camera-scanner", "T3-ui"],
+  "priority": 80,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-014",
+    "source_prd": "06-SCANNER-P1-PRD.md",
+    "prd_refs": ["§6 D5", "§8.1 FR-SC-FE-007", "§11.4"],
+    "category": "ui",
+    "subcategory": "camera-scanner",
+    "task_type": "T3-ui",
+    "parent_feature": "06-a Shell & Core",
+    "context_budget": "35k",
+    "estimated_effort": "3h",
+    "description": "Camera viewfinder primitive (@zxing/browser dynamic import) with torch + front/rear + 10 FPS scan + 1s dedup + permission fallback.",
+    "details": "Parity checklist (must verify):\n1) 300×100 amber-bordered viewfinder overlay matches the camera affordance described in §11.4.\n2) Buttons close (top-left), front/rear switch (top-center), torch (top-right when supported).\n3) BarcodeDetector fast-path used when available, else dynamic import @zxing/browser.\n4) MediaStream cleaned up on unmount.\n5) Duplicate scan dedup 1000ms.\n6) Permission denial renders manual fallback message.",
+    "scope_files": [
+      "apps/scanner/src/components/camera-scanner.tsx [create]",
+      "apps/scanner/__tests__/camera-scanner.test.tsx [create]",
+      "apps/scanner/__tests__/camera-scanner.e2e.spec.ts [create]",
+      "design/Monopilot Design System/scanner/flow-receive.jsx:89-233 [ref]"
+    ],
+    "out_of_scope": [
+      "Do not implement Data Matrix / SSCC formats here (P2)",
+      "Do not implement ScanInput here (T-013)",
+      "Do not implement audit logging from camera here (T-011 receives entries)"
+    ],
+    "dependencies": ["T-004"],
+    "parallel_safe_with": ["T-013", "T-015"],
+    "acceptance_criteria": [
+      "Given the viewfinder renders, when compared to design/Monopilot Design System/scanner/flow-receive.jsx:89-233 + §11.4, then it shows the 300×100 amber-bordered viewfinder, torch toggle (when supported), front/rear switch, close button — RTL snapshot + manual checklist",
+      "Given the same barcode value is detected twice within 1000ms, when the scan loop runs, then onDetected fires only once",
+      "Given getUserMedia rejects with NotAllowedError, when the component mounts, then it renders the manual-fallback message and never calls decodeFromVideoDevice"
+    ],
+    "test_strategy": [
+      "RED: write camera-scanner.test.tsx + e2e spec asserting parity + dedup + permission fallback before implementation",
+      "Run 'pnpm --filter scanner test camera-scanner && pnpm --filter scanner test:e2e camera-scanner'"
+    ],
+    "risk_red_lines": [
+      "Do not eagerly bundle @zxing/browser",
+      "Do not leave MediaStream open after close",
+      "Do not show torch button when unsupported"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

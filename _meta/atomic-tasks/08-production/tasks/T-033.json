@@ -1,0 +1,60 @@
+{
+  "title": "T-033 — Browser PDF label generation (pdf-lib) on output registration",
+  "prompt": "# T-033 — Browser PDF label generation\n\nPRD: 08-PRODUCTION-PRD.md §7.3 FR-08-E3-006, §6 D14\n\n## Goal\nGenerate browser-printable PDF label using pdf-lib on output registration with GTIN, batch_number, expiry_date, qty/weight, QR code linking to /lp/:id.\n\n## Implementation contract\nCreate packages/labels/src/generate-output-label.ts using pdf-lib. Inputs: {item_gtin, batch_number, expiry_date, qty_kg, lp_id, item_name}. Output: Uint8Array PDF (4x6 inch label). Include human-readable + QR code (qrcode npm). Add route apps/web/app/api/production/outputs/[id]/label/route.ts (GET) returning PDF stream. Update register-output to set label_pdf_url to this route URL. Add unit test verifying PDF is non-empty, includes batch_number text, and is valid PDF/A.\n\n## Files (scope)\n- packages/labels/src/generate-output-label.ts [create]\n- packages/labels/package.json [create]\n- apps/web/app/api/production/outputs/[id]/label/route.ts [create]\n- packages/labels/src/__tests__/generate-output-label.test.ts [create]\n\n## Acceptance criteria\n1. Given valid output_id, when GET /api/production/outputs/:id/label, then 200 application/pdf with non-empty body and PDF magic header '%PDF-'\n2. Given inputs {batch='WO-001-OUT-001', qty=100}, when generate-output-label runs, then PDF text content includes 'WO-001-OUT-001' and '100'\n3. Given non-existent output_id, when GET label, then 404\n\n## Test strategy\n- RED: unit test asserting PDF magic header + batch text + 404 before label generator exists\n- Run 'pnpm --filter labels test generate-output-label'\n\n## Risk red lines\n- Do not implement ZPL generation (D14 P2)\n- Do not embed credentials in PDF\n- Do not skip QR code (operator UX requirement)",
+  "labels": ["prd", "api", "labels", "T2-api"],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-033",
+    "source_prd": "08-PRODUCTION-PRD.md",
+    "prd_refs": ["§7.3 FR-08-E3-006", "§6 D14"],
+    "category": "api",
+    "subcategory": "labels",
+    "task_type": "T2-api",
+    "parent_feature": "08-PROD E3 Output+Waste",
+    "context_budget": "28k",
+    "estimated_effort": "2-3h",
+    "description": "Browser PDF label via pdf-lib + QR code; label route returns PDF stream.",
+    "details": "Standalone package packages/labels. pdf-lib generates 4x6 label, qrcode encodes GTIN-128 + batch + expiry + LP link. Route streams PDF. label_pdf_url stored on wo_outputs row.",
+    "scope_files": [
+      "packages/labels/src/generate-output-label.ts [create]",
+      "packages/labels/package.json [create]",
+      "apps/web/app/api/production/outputs/[id]/label/route.ts [create]",
+      "packages/labels/src/__tests__/generate-output-label.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not implement ZPL generation",
+      "Do not implement printer pairing",
+      "Do not modify wo_outputs schema"
+    ],
+    "dependencies": ["T-028"],
+    "parallel_safe_with": ["T-029", "T-030", "T-031", "T-032"],
+    "acceptance_criteria": [
+      "Given valid output_id, when GET label, then 200 application/pdf body with '%PDF-' header",
+      "Given batch='WO-001-OUT-001' qty=100, when generated, then PDF text includes batch and '100'",
+      "Given non-existent output_id, when GET, then 404"
+    ],
+    "test_strategy": [
+      "RED: unit test asserting PDF header + text + 404 before generator exists",
+      "Run 'pnpm --filter labels test generate-output-label'"
+    ],
+    "risk_red_lines": [
+      "Do not implement ZPL",
+      "Do not embed credentials",
+      "Do not skip QR code"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

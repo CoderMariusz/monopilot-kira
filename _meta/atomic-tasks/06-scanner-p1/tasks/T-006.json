@@ -1,0 +1,59 @@
+{
+  "title": "T-006 — POST /api/scanner/login + bcrypt PIN verify (06-a)",
+  "prompt": "# T-006 — POST /api/scanner/login\n\nPRD: 06-SCANNER-P1-PRD.md §8.1 FR-SC-BE-001, §12.1, §12.3 V-SCAN-LOGIN-002, §15.1\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nLand the username + PIN login endpoint that creates a `scanner_sessions` row, returns a JWT token + refresh cookie, and enforces 5/10min lockout.\n\n## Implementation contract\n1. Next.js Route Handler `apps/scanner/src/app/api/scanner/login/route.ts`:\n   - Body schema (Zod): `{ username: string.min(2), pin: string.regex(/^\\d{4,6}$/) }`.\n   - Lookup user; bcrypt compare against `users.scanner_pin_hash` (rounds 10).\n   - Insert scanner_sessions row (device_mode default 'personal' until SCN-012 sets it).\n   - Sign JWT with claims per §12.1 (user_id, org_id, site_id null, line_id null, device_mode, roles[]); 5min sliding expiry.\n   - Set HttpOnly SameSite=Strict refresh cookie `scanner_session` (8h personal default).\n   - Rate limit: track failures in Redis-style key `scanner:login:fail:<user_id>`; 5 fails / 10min ⇒ 429 + audit row.\n   - On success/failure write scanner_audit_log row (scan_type='login').\n2. Service `apps/scanner/src/server/services/scanner-auth.ts` exposing `loginScanner({username,pin,ip,userAgent})`.\n\n## Files\n- apps/scanner/src/app/api/scanner/login/route.ts [create]\n- apps/scanner/src/server/services/scanner-auth.ts [create]\n- apps/scanner/__tests__/api/scanner-login.test.ts [create]\n\n## Acceptance criteria\n1. Given a valid username + PIN, when POST /api/scanner/login runs, then the response 200 carries session_token + expires_at + user{id,name,role} + allowed_sites[] and a scanner_sessions row was inserted\n2. Given an invalid PIN attempted 5 times in 10 minutes for the same username, when POST runs again, then it responds 429 SC_RATE_LIMITED and a scanner_audit_log row with result='error', error_code='SC_RATE_LIMITED' is written\n3. Given an unknown username, when POST runs, then the response is 401 SC_UNAUTHORIZED with a generic message and the same response time as a wrong-PIN case (timing-safe via bcrypt dummy hash)\n\n## Test strategy\n- RED: write apps/scanner/__tests__/api/scanner-login.test.ts asserting all three ACs against an in-memory test DB + bcrypt mock\n- Run 'pnpm --filter scanner test api/scanner-login'\n\n## Risk red lines\n- Do not log the raw PIN anywhere (including request bodies)\n- Do not skip the dummy bcrypt path on unknown user (timing-safe)\n- Do not hand out the JWT before the scanner_sessions row commit",
+  "labels": ["prd", "auth", "scanner-login", "T2-api"],
+  "priority": 80,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-006",
+    "source_prd": "06-SCANNER-P1-PRD.md",
+    "prd_refs": ["§8.1 FR-SC-BE-001", "§12.1", "§12.3", "§15.1"],
+    "category": "auth",
+    "subcategory": "scanner-login",
+    "task_type": "T2-api",
+    "parent_feature": "06-a Shell & Core",
+    "context_budget": "40k",
+    "estimated_effort": "2-3h",
+    "description": "Username + PIN login endpoint that mints scanner_sessions + JWT + refresh cookie with 5/10min lockout.",
+    "details": "Route handler validates body, bcrypt-compares against users.scanner_pin_hash, inserts scanner_sessions row, signs JWT (5min sliding) and sets HttpOnly SameSite=Strict refresh cookie. Rate limiter enforces V-SCAN-LOGIN-002 (5 fails / 10min lockout). All success and failure paths emit a scanner_audit_log row. Unknown user path uses a dummy bcrypt compare for timing safety.",
+    "scope_files": [
+      "apps/scanner/src/app/api/scanner/login/route.ts [create]",
+      "apps/scanner/src/server/services/scanner-auth.ts [create]",
+      "apps/scanner/__tests__/api/scanner-login.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not implement logout / refresh here (T-007)",
+      "Do not implement PIN setup here (T-008)",
+      "Do not implement context endpoints here (T-009)"
+    ],
+    "dependencies": ["T-001", "T-002"],
+    "parallel_safe_with": ["T-007", "T-008", "T-009"],
+    "acceptance_criteria": [
+      "Given a valid username + PIN, when POST /api/scanner/login runs, then 200 carries session_token + expires_at + user + allowed_sites and a scanner_sessions row was inserted",
+      "Given an invalid PIN attempted 5 times in 10 minutes for the same username, when POST runs again, then 429 SC_RATE_LIMITED and a scanner_audit_log row with error_code='SC_RATE_LIMITED' is written",
+      "Given an unknown username, when POST runs, then 401 SC_UNAUTHORIZED with a generic message and a timing-safe bcrypt dummy path"
+    ],
+    "test_strategy": [
+      "RED: write scanner-login.test.ts asserting success, lockout after 5 fails, and timing-safe unknown-user path before implementation",
+      "Run 'pnpm --filter scanner test api/scanner-login'"
+    ],
+    "risk_red_lines": [
+      "Do not log the raw PIN",
+      "Do not skip dummy bcrypt path on unknown user",
+      "Do not return JWT before scanner_sessions commit"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

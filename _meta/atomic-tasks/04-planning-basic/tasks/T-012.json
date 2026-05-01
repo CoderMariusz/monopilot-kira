@@ -1,0 +1,66 @@
+{
+  "title": "T-012 — API: PO state transition via rule registry (submit / cancel)",
+  "prompt": "Implement Server Actions `submitPurchaseOrder(po_id)` and `cancelPurchaseOrder(po_id, reason)` that delegate to the `po_state_machine_v1` rule from T-007. Submit transitions draft→submitted (or submitted→pending_approval if planning_settings.po_require_approval && total > threshold). Cancel allowed only in {draft, submitted, pending_approval}. Each transition writes an outbox event with payload from §6.5 example.\n\nRED test exercises happy path, V-PLAN-PO-003 lines>=1 guard failure, and forbidden cancel from confirmed (returns 409).",
+  "labels": ["prd", "api", "po-state", "T2-api"],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-012",
+    "source_prd": "04-PLANNING-BASIC-PRD.md",
+    "prd_refs": ["§6.2", "§6.5", "§6.7", "§16.1"],
+    "category": "api",
+    "subcategory": "po-state",
+    "task_type": "T2-api",
+    "parent_feature": "planning-po",
+    "context_budget": "30k",
+    "estimated_effort": "2h",
+    "description": "PO submit/cancel Server Actions backed by rule registry transitions.",
+    "details": "Both actions call `workflowEngine.transition({ entity: 'po', id, action })`. Engine resolves `po_state_machine_v1`, evaluates guards, fires side-effects. Cancel reason stored in po.notes audit + outbox payload. For confirmed→cancelled an admin override flow returns a structured 409 with `{ code: 'PO_CONFIRMED_CANCEL_REQUIRES_OVERRIDE', overrideEndpoint: '...' }`.",
+    "scope_files": [
+      "src/server/actions/planning/po-transitions.ts [create]",
+      "src/app/api/planning/purchase-orders/[id]/submit/route.ts [create]",
+      "src/app/api/planning/purchase-orders/[id]/cancel/route.ts [create]",
+      "src/server/actions/planning/__tests__/po-transitions.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Approval/reject (T-013)",
+      "GRN / receiving (05-WAREHOUSE)"
+    ],
+    "dependencies": ["T-007", "T-010"],
+    "parallel_safe_with": ["T-008", "T-011", "T-013"],
+    "acceptance_criteria": [
+      "Given a draft PO with 1 line, when submitPurchaseOrder runs, then status becomes 'submitted' and outbox event 'po.state_changed' is inserted in same transaction.",
+      "Given a draft PO with 0 lines, when submitPurchaseOrder runs, then guard V-PLAN-PO-003 returns a 400 with code 'V-PLAN-PO-003' and PO remains 'draft'.",
+      "Given a PO in 'confirmed' state, when cancelPurchaseOrder runs, then HTTP 409 with code 'PO_CONFIRMED_CANCEL_REQUIRES_OVERRIDE' is returned.",
+      "Given `pnpm vitest run src/server/actions/planning/__tests__/po-transitions.test.ts`, when run, then 0 failures."
+    ],
+    "test_strategy": [
+      "RED tests for happy submit, V-PLAN-PO-003 guard, confirmed-cancel block, outbox emit.",
+      "Run `pnpm vitest run src/server/actions/planning/__tests__/po-transitions.test.ts`."
+    ],
+    "risk_red_lines": [
+      "Do not write transition logic outside the rule engine — must call workflowEngine.transition.",
+      "Do not skip outbox event — analytics depend on it.",
+      "Do not allow cancel of confirmed PO without explicit admin-override audit entry."
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

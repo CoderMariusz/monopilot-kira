@@ -1,0 +1,59 @@
+{
+  "title": "T-016 — POST /api/production/work-orders/:id/start endpoint (no allergen gate yet)",
+  "prompt": "# T-016 — POST /work-orders/:id/start endpoint\n\nPRD: 08-PRODUCTION-PRD.md §7.1 FR-08-E1-001, §8.2.1, §10.1\n\n## Goal\nImplement Next.js App Router route handler POST /api/production/work-orders/[id]/start performing READY→IN_PROGRESS transition per wo_state_machine_v1, R14 idempotency, R14 transaction_id, allergen-gate placeholder returning false (allergen wired in T-055).\n\n## Implementation contract\nCreate apps/web/app/api/production/work-orders/[id]/start/route.ts. POST body validated by zod schema {transaction_id: uuid, operator_id: uuid, line_id: string, shift_id: string}. Wrap handler in withIdempotency. Inside transaction: load WO, assert status IN ('DRAFT','READY'), evaluate guards from §10.1 (operator_authenticated, line_available; allergen_changeover_gate_v1_passes_or_not_required hardcoded TRUE for now — TODO T-055 will wire), UPDATE work_orders.status='IN_PROGRESS', INSERT wo_executions row with started_at=now, started_by, current_operator_id. Emit outbox event 'production.wo.started' (skipped here — wired in T-041). Return 200 {wo_id, status, started_at, allergen_gate_required: false}.\n\n## Files (scope)\n- apps/web/app/api/production/work-orders/[id]/start/route.ts [create]\n- apps/web/app/api/production/work-orders/[id]/start/__tests__/route.test.ts [create]\n- packages/api-services/production/start-wo.ts [create]\n\n## Acceptance criteria\n1. Given WO status='READY', when POST /start called with valid body, then 200 with status=IN_PROGRESS, wo_executions row created with started_at, work_orders.status updated\n2. Given WO status='COMPLETED', when POST /start called, then 409 Conflict with error code 'invalid_state_transition' (per §10.1 wo_state_machine_v1)\n3. Given same transaction_id replayed within 1h, when POST /start called twice, then second returns identical 200 body and no duplicate wo_executions row\n\n## Test strategy\n- RED: write route test asserting 200 happy path + 409 wrong state + idempotent replay before route exists\n- Run 'pnpm --filter web test work-orders.*start'\n\n## Risk red lines\n- Do not skip transaction_id validation (R14)\n- Do not perform transition without DB transaction\n- Do not implement allergen gate evaluation here (delegated to T-055)",
+  "labels": ["prd", "api", "wo-execution", "T2-api"],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-016",
+    "source_prd": "08-PRODUCTION-PRD.md",
+    "prd_refs": ["§7.1 FR-08-E1-001", "§8.2.1", "§10.1"],
+    "category": "api",
+    "subcategory": "wo-execution",
+    "task_type": "T2-api",
+    "parent_feature": "08-PROD E1 Execution Core",
+    "context_budget": "40k",
+    "estimated_effort": "2-3h",
+    "description": "POST /work-orders/:id/start route handler performing READY→IN_PROGRESS with R14 idempotency.",
+    "details": "App Router POST handler. Zod body schema. withIdempotency wrap. DB transaction: load+assert state, run guards (allergen TRUE-stub, replaced in T-055), UPDATE work_orders.status, INSERT wo_executions row. Return §8.2.1 success body. 409 on invalid state per state machine. Outbox emit deferred to T-041 (TODO marker but no placeholder text in body).",
+    "scope_files": [
+      "apps/web/app/api/production/work-orders/[id]/start/route.ts [create]",
+      "apps/web/app/api/production/work-orders/[id]/start/__tests__/route.test.ts [create]",
+      "packages/api-services/production/start-wo.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not implement allergen gate evaluation (T-055 wires)",
+      "Do not implement outbox emit (T-041 wires)",
+      "Do not implement other WO transition endpoints"
+    ],
+    "dependencies": ["T-001", "T-012", "T-015"],
+    "parallel_safe_with": ["T-017", "T-018", "T-019", "T-020"],
+    "acceptance_criteria": [
+      "Given WO status=READY, when POST /start with valid body, then 200 + status=IN_PROGRESS + wo_executions row created",
+      "Given WO status=COMPLETED, when POST /start, then 409 with error code invalid_state_transition",
+      "Given same transaction_id replayed, when POST /start twice, then identical 200 body and single wo_executions row"
+    ],
+    "test_strategy": [
+      "RED: route test asserting happy + invalid-state + idempotent-replay before route exists",
+      "Run 'pnpm --filter web test work-orders.*start'"
+    ],
+    "risk_red_lines": [
+      "Do not skip transaction_id validation",
+      "Do not transition without DB transaction",
+      "Do not implement allergen gate here"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

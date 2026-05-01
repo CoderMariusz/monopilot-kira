@@ -1,0 +1,36 @@
+{
+  "title": "T-058 — UI: TEC-073 DLQ Manager (PARTIAL — drift resolve modal anchor)",
+  "prompt": "Build TEC-073 DLQ manager per §13.8. Lists d365_sync_dlq rows with retry / mark-resolved actions. Reuses retry endpoint from T-029. Visual reference: `d365_drift_resolve_modal` design/Monopilot Design System/technical/modals.jsx:562-598 (PARTIAL — drift, not DLQ). Use that prototype as the parity anchor for the row-action modal pattern, but render distinct DLQ table layout. RED tests/ui/tec-073-dlq.test.tsx. Run: `pnpm vitest run tests/ui/tec-073-dlq.test.tsx`.",
+  "labels": ["prd", "ui", "ui-d365-dlq", "T3-ui"],
+  "priority": 120,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-058",
+    "source_prd": "03-TECHNICAL-PRD.md",
+    "prd_refs": ["§13.7", "§13.8 TEC-073"],
+    "category": "ui",
+    "subcategory": "d365-dlq",
+    "task_type": "T3-ui",
+    "parent_feature": "03-TECHNICAL-d D365",
+    "context_budget": "18k",
+    "estimated_effort": "2h",
+    "description": "DLQ row table + retry + mark-resolved actions.",
+    "details": "Row click expands to error_message + payload viewer. Bulk retry button (admin only). Threshold banner when DLQ depth > 50.",
+    "scope_files": ["app/(app)/technical/d365/dlq/page.tsx", "tests/ui/tec-073-dlq.test.tsx"],
+    "out_of_scope": ["Server retry logic (T-029)"],
+    "dependencies": ["T-029", "T-055"],
+    "parallel_safe_with": ["T-056", "T-057", "T-059"],
+    "acceptance_criteria": [
+      "Given the DLQ page renders, when compared to design/Monopilot Design System/technical/modals.jsx:562-598 (drift resolve modal as row-action anchor) and the UX contract at UX:1280, then table columns, row action modal layout, and Retry/Resolve buttons match — structural + visual + interaction parity verified by RTL with parity checklist in details.",
+      "Given DLQ depth > 50, when rendered, then warning banner appears.",
+      "Given user lacks technical.d365.sync.trigger, when on page, then row actions are disabled."
+    ],
+    "test_strategy": ["RED tests for parity + threshold banner + RBAC.", "Run: pnpm vitest run tests/ui/tec-073-dlq.test.tsx"],
+    "risk_red_lines": ["Do not show secrets in payload viewer."],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {"required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"], "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]},
+    "routing_hints": {"red": "hermes_gpt55", "implementation": "hermes_gpt55", "review": "opus_if_high_risk_or_ui_or_architecture", "close": "spark_low_risk_else_opus"}
+  }
+}

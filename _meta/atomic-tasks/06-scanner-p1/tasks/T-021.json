@@ -1,0 +1,61 @@
+{
+  "title": "T-021 — SCN-012 Site / Line / Shift select UI (06-a)",
+  "prompt": "# T-021 — SCN-012 Site / Line / Shift select\n\nPRD: 06-SCANNER-P1-PRD.md §8.1 FR-SC-FE-004\nUX: design/06-SCANNER-P1-UX.md:262-286 §3.5\nPrototype: design/Monopilot Design System/scanner/login.jsx:114-180 (label site_select_screen)\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nDeliver SCN-012 — 2-column site cards (FNOR / FKOB), 4-line grid (L1..L4), 3 shift buttons (Ranna / Popołudniowa / Nocna), and 'Rozpocznij zmianę' CTA — wired to GET /context/sites|lines|shifts + POST /api/scanner/context (T-009).\n\n## Implementation contract\n1. `apps/scanner/src/app/scanner/site-select/page.tsx` — Server Component prefetches sites/lines/shifts via T-009.\n2. Client Component manages selection state (site → lines refetch → shift selection → enable CTA).\n3. CTA POSTs /api/scanner/context and on success redirects to /scanner/home.\n\n## Files\n- apps/scanner/src/app/scanner/site-select/page.tsx [create]\n- apps/scanner/src/app/scanner/site-select/select-form.client.tsx [create]\n- apps/scanner/src/app/scanner/site-select/select.action.ts [create]\n- apps/scanner/__tests__/scn-012-site-select.test.tsx [create]\n\n## Acceptance criteria\n1. Given the page renders, when compared to `design/Monopilot Design System/scanner/login.jsx:114-180`, then it has a 2-column site card grid, a 4-line grid, three shift buttons in the same order Ranna/Popołudniowa/Nocna, and a 'Rozpocznij zmianę' CTA at the bottom — RTL snapshot + manual checklist (structural + visual + interaction parity)\n2. Given the user picks site=FNOR but no line, when the CTA is examined, then it is disabled until both line and shift are chosen\n3. Given site, line, shift selected and CTA tapped, when the Server Action succeeds, then POST /api/scanner/context is called once and the user is redirected to /scanner/home\n\n## Test strategy\n- RED: write scn-012-site-select.test.tsx asserting parity + CTA-disabled-until-complete + redirect-on-success before implementation\n- Run 'pnpm --filter scanner test scn-012-site-select'\n\n## Risk red lines\n- Do not allow CTA submission with missing site/line/shift\n- Do not let users pick a site outside their allowed_sites (server enforces; UI must hide)\n- Do not skip lines refetch when the site changes",
+  "labels": ["prd", "ui", "scn-012-site-select", "T3-ui"],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-021",
+    "source_prd": "06-SCANNER-P1-PRD.md",
+    "prd_refs": ["§8.1 FR-SC-FE-004"],
+    "category": "ui",
+    "subcategory": "scn-012-site-select",
+    "task_type": "T3-ui",
+    "parent_feature": "06-a Shell & Core",
+    "context_budget": "25k",
+    "estimated_effort": "1-2h",
+    "description": "SCN-012 site / line / shift selection page with cascade refetch and start-shift CTA wired to /api/scanner/context.",
+    "details": "Parity checklist:\n1) 2-column site card grid.\n2) 4-line grid below sites.\n3) Three shift buttons in order Ranna, Popołudniowa, Nocna.\n4) 'Rozpocznij zmianę' CTA at bottom.\n5) CTA disabled until site+line+shift chosen.\n6) Lines refetch when site changes.",
+    "scope_files": [
+      "apps/scanner/src/app/scanner/site-select/page.tsx [create]",
+      "apps/scanner/src/app/scanner/site-select/select-form.client.tsx [create]",
+      "apps/scanner/src/app/scanner/site-select/select.action.ts [create]",
+      "apps/scanner/__tests__/scn-012-site-select.test.tsx [create]",
+      "design/Monopilot Design System/scanner/login.jsx:114-180 [ref]"
+    ],
+    "out_of_scope": [
+      "Do not implement device pairing here (SCN-013 owned by T-022)",
+      "Do not implement shift-enforcement policy (OQ-SC-02)",
+      "Do not implement SCN-home here (T-023)"
+    ],
+    "dependencies": ["T-009", "T-012"],
+    "parallel_safe_with": ["T-017", "T-018", "T-019", "T-020", "T-022", "T-023"],
+    "acceptance_criteria": [
+      "Given the page renders, when compared to design/Monopilot Design System/scanner/login.jsx:114-180, then it has a 2-column site grid, 4-line grid, three shift buttons in order Ranna/Popołudniowa/Nocna, and 'Rozpocznij zmianę' CTA — RTL snapshot + manual checklist",
+      "Given the user picks site=FNOR but no line, when the CTA is examined, then it is disabled until both line and shift are chosen",
+      "Given site, line and shift selected and CTA tapped, when the Server Action succeeds, then POST /api/scanner/context is called once and user is redirected to /scanner/home"
+    ],
+    "test_strategy": [
+      "RED: write scn-012-site-select.test.tsx asserting parity + CTA gating + redirect before implementation",
+      "Run 'pnpm --filter scanner test scn-012-site-select'"
+    ],
+    "risk_red_lines": [
+      "Do not allow CTA submission with missing fields",
+      "Do not show sites outside allowed_sites",
+      "Do not skip lines refetch on site change"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

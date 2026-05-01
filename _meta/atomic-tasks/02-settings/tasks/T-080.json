@@ -1,0 +1,86 @@
+{
+  "title": "T-080 — E2E Playwright: 6-step onboarding wizard <15min P50 + jump/skip/restart guards",
+  "prompt": "# T-080 — E2E Playwright: onboarding wizard happy path + edge cases\n\n## Goal\nPlaywright test suite that exercises the full 6-step onboarding wizard, asserts P50 <15min via timing, asserts jump-to-step rejects illegal jumps, restart resets state, and the redirect-while-incomplete guard works.\n\n## Files in scope\n- apps/web/e2e/onboarding-wizard.spec.ts [create]\n\n## Acceptance criteria (all must hold)\n- Given a fresh org, when an admin user steps through SET-001..006 with realistic typing, then onboarding_completed_at is set and (first_wo_at - started_at) < 900_000 ms (P50 target).\n- Given onboarding_state.current_step=2 and the user clicks step 5 in the Stepper, when handler runs, then the click is no-op (target step not yet reachable).\n- Given a deep-link to /admin/users while onboarding is incomplete, when middleware runs, then the user is 302-redirected to /onboarding.\n- Given Restart is clicked + confirmed, when state is read, then current_step=1 and skipped_steps=[]; first_wo_at remains preserved (not reset).\n\n## Test strategy (RED first)\n1. Add a failing test that exercises the acceptance criteria above. The RED command is:\n   `pnpm --filter @monopilot/web playwright test e2e/onboarding-wizard.spec.ts`\n2. Run RED — it must fail before any production code is written.\n3. Implement the smallest change needed for GREEN.\n4. Re-run RED command — must pass.\n5. Run `pnpm typecheck` and `pnpm lint` in the changed package; both must pass.\n\n## Risk red lines\n- Do not edit files outside the listed scope without documenting why in CLOSEOUT.\n- Do not weaken existing acceptance criteria from prior tasks.\n- Do not introduce REST endpoints; use Server Actions per stack contract.\n- Do not commit secrets or vault keys.\n\n## Closeout evidence required\n- changed_files (with line counts)\n- exact test commands and outputs (RED→GREEN, typecheck, lint)\n- acceptance_criteria_status (one row per AC: pass/fail)\n- deviations_from_prd (or \"none\")\n- git_status\n\nStack: TS + Next.js App Router + Drizzle + pnpm + vitest + Playwright + Server Actions. Primitives in `packages/ui`. PRD: `02-SETTINGS-PRD.md` v3.5.\n",
+  "labels": [
+    "prd",
+    "test",
+    "e2e-onboarding",
+    "T4-wiring-test"
+  ],
+  "priority": 120,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-080",
+    "source_prd": "02-SETTINGS-PRD.md",
+    "prd_refs": [
+      "§14.3",
+      "S-U4"
+    ],
+    "category": "test",
+    "subcategory": "e2e-onboarding",
+    "task_type": "T4-wiring-test",
+    "parent_feature": "02-settings-e-onboarding",
+    "context_budget": "40k",
+    "estimated_effort": "1-3h",
+    "description": "E2E onboarding wizard happy path + edge cases.",
+    "details": "Use Playwright fixture seeding a fresh org. Track timing with page.evaluate(performance.now). Assert middleware behavior with separate request context (not the wizard tab) — opening /admin/users in a new tab should redirect.",
+    "scope_files": [
+      "apps/web/e2e/onboarding-wizard.spec.ts"
+    ],
+    "out_of_scope": [
+      "broaden scope beyond listed files",
+      "implement future-phase features"
+    ],
+    "dependencies": [
+      "T-035",
+      "T-041",
+      "T-042",
+      "T-043",
+      "T-044",
+      "T-045",
+      "T-046"
+    ],
+    "parallel_safe_with": [],
+    "acceptance_criteria": [
+      "Happy path completes within 15min target.",
+      "Illegal jump no-op verified.",
+      "Redirect guard verified.",
+      "Restart preserves first_wo_at."
+    ],
+    "test_strategy": [
+      "RED: write the suite first (skipped tests).",
+      "GREEN: ensure UI/middleware satisfy all assertions."
+    ],
+    "risk_red_lines": [
+      "Do not hard-code timing thresholds in production code."
+    ],
+    "skills": [
+      "test-driven-development",
+      "verification-before-completion"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": false
+  }
+}

@@ -1,10 +1,10 @@
 ---
 title: PRD 00-FOUNDATION — Monopilot MES
-version: 4.0
+version: 4.2
 date: 2026-04-30
-phase: Phase B.1 continued (Phase D renumbered + Research R1-R15 + Manufacturing Operations pattern)
-status: Draft v4.1 — Phase E-0 prep clarifications (build order, event naming, table naming)
-supersedes: v3.0 (2026-04-18, Phase B.1 initial)
+phase: Phase B.1 continued (Phase D renumbered + Research R1-R15 + Manufacturing Operations pattern + UX gap-backlog amendments)
+status: Draft v4.2 — UX→PRD gap-backlog F-U1..F-U5 + F-A1..F-A4 applied
+supersedes: v4.1 (2026-04-30, Phase E-0 prep clarifications)
 references:
   - _foundation/decisions/MONOPILOT-V2-ARCHITECTURE.md
   - _foundation/research/MES-TRENDS-2026.md
@@ -121,13 +121,16 @@ Cztery markery obowiązkowe w każdym PRD / ADR / skill / code comment dotycząc
 
 ### Secondary
 
-| Persona | Modules |
-|---|---|
-| Dyrektor zakładu | Wszystkie (read-only), 12-REPORTING |
-| Administrator | 02-SETTINGS (schema-driven config, rule engine wizard) |
-| Maintenance Tech | 13-MAINTENANCE, 02-SETTINGS (maszyny) |
-| Finance Analyst | 10-FINANCE (cost roll, variance); GL/AP/AR w D365/Xero |
-| Site Manager (multi-site) | 14-MULTI-SITE, 12-REPORTING filtered |
+| Persona | Modules | Pillar |
+|---|---|---|
+| Dyrektor zakładu | Wszystkie (read-only), 12-REPORTING | — |
+| **Org Admin** | 02-SETTINGS users/roles/security/SSO/SCIM/IP allowlist/audit | **ACCESS** |
+| **Schema Admin** | 02-SETTINGS schema-driven column wizard, rule engine wizard, reference data, feature flags | **ADMIN** |
+| Maintenance Tech | 13-MAINTENANCE, 02-SETTINGS (maszyny) | — |
+| Finance Analyst | 10-FINANCE (cost roll, variance); GL/AP/AR w D365/Xero | — |
+| Site Manager (multi-site) | 14-MULTI-SITE, 12-REPORTING filtered | — |
+
+> **Administrator split [F-U4 per gap-backlog 2026-04-30, UNIVERSAL]:** the prior single "Administrator" persona is split into **Org Admin** (ACCESS pillar — identity, authentication, authorization, session policy, audit visibility) and **Schema Admin** (ADMIN pillar — data model, business rules, reference data, feature flags) to satisfy **SOC 2 CC6.3 separation-of-duties**. The two personas are mutually exclusive at the role-grant level by default (an Org Admin cannot grant themselves Schema Admin without a second Org Admin's approval in `org_security_policies.dual_control_required=true` mode). UI surfaces partition accordingly: ACCESS-pillar screens (Users / Roles / Security / SSO / SCIM / IP Allowlist / Audit) live under `/settings/access/*` and require the `org.access.admin` system role; ADMIN-pillar screens (Schema / Rules / Reference Data / Feature Flags / Manufacturing Operations) live under `/settings/admin/*` and require the `org.schema.admin` system role.
 
 **Role naming (Phase D decision #15):** Core = **NPD team** (nie "Development"). Technical = Quality (QA). MRP **NIE** split.
 
@@ -184,6 +187,8 @@ Build = **per module albo jego części, po kolei, z rozbiciem na stories/tasks*
 **Regression rule:** po każdym module impl → regression test suite (Vitest + Playwright) przed kolejnym. Skills: `vba-regression` pattern (for VBA) / analogous web-app regression pipeline (to be defined C1).
 
 > **§4.2-AMENDMENT (2026-04-22, per ADR-032):** build order row 2 dependency "Foundation infra w minimum scope" zastępujemy explicit Phase E-0 = `00-FOUNDATION-impl-a..i` (atomic task spec w `_meta/specs/00-FOUNDATION-impl-spec.md`; tasks listed in `_meta/plans/2026-04-25-foundation-tasks.md`). Row 3 prerequisite "01-NPD done" zmieniamy na **"02-SETTINGS-a minimum carveout done"** (orgs/users + RBAC + 7 ref tables + module toggles + i18n scaffold + org security baseline) z parallel Track A (01-NPD-a..e) / Track B (02-SETTINGS-b..e). Pełna revised tabela: patrz `_meta/plans/2026-04-22-phase-e-kickoff-plan.md` §3.2. Foundation modules `00-FOUNDATION-impl-d/e/f/g/h` (DB+RLS, outbox, RBAC primitives, audit, i18n) MUST complete before 01-NPD-a can start.
+
+> **§4.2-AMENDMENT addendum (2026-04-30) [F-A4 per gap-backlog 2026-04-30]:** the Phase E-0 Foundation set is extended with **`00-FOUNDATION-impl-j` (UI primitives + design-token package)** covering `packages/ui` bootstrap, the 5 modal/form primitives, the 5 tuning primitives, the 10 MODAL-SCHEMA pattern templates, design tokens, Storybook 8 + axe-core CI, and the `assertModalA11y()` helper (per §5.y / F-A3). Atomic tasks: `T-00j-001..007` in `_meta/plans/2026-04-30-ux-prd-plan-gap-backlog.md` §00-FOUNDATION ADD list. **Critical-path:** `impl-j` MUST complete **in parallel with `impl-d/e/f/g/h`** and **before any 01-NPD-a or 02-SETTINGS T3-ui task starts** (12 downstream modules consume the primitives — letting any T3-ui task ship first guarantees drift from MODAL-SCHEMA.md and forces re-work). The build sequence in `_meta/plans/2026-04-22-phase-e-kickoff-plan.md` §3.2 is updated to add `impl-j` to the Foundation set; row 3 prerequisite becomes **"02-SETTINGS-a minimum carveout done AND `impl-j` complete"**.
 
 ### §4.3 Tabela 15 modułów
 
@@ -260,6 +265,41 @@ Stare dokumenty opisywały "Scanner M05" z 5 epikami. Phase D: 06-SCANNER-P1 to 
 - **D365 adapter** [R8] (`@monopilot/d365-adapter`): DMF client + retry/DLQ + schema mapping. One-way pull (items/BOM/customers/suppliers/locations/UoM nightly + on-demand); one-way push (production confirmations/inventory movements/shipments/quality holds near-real-time via Azure Service Bus).
 - **Peppol access point (open question)** (MES-TRENDS-2026 §8): Storecove / Pagero / Tradeshift SaaS P1; on-prem Phase 2.
 - **GS1 lib (shared backend + frontend)** [R15] (MES-TRENDS-2026 §7.3): GS1-128 AI parser zgodny z GS1 General Specs 24.0.
+
+### §5.x — Auth & Identity Stack [UNIVERSAL] [F-A1 per gap-backlog 2026-04-30]
+
+> **Source for new requirement:** UX evidence in `design/Monopilot Design System/settings/access-screens.jsx:162-244` (TOTP/SMS/WebAuthn checkbox row, SAML Entra ID connector, SCIM token panel, password policy strong/standard/custom, idle timeout, max session, IP allowlist, audit log preview). Prior PRD §5 mentioned Supabase only as a Postgres host; the auth subsystem was invisible. **F-U1 update + F-A1 addition** make it explicit and lock 6 OSS libraries.
+
+**Primary IdP:** **GoTrue / Supabase Auth** as the canonical first-party identity provider for all tenants on the EU and US clusters. Email+password, magic-link, OAuth social (deferred), and admin-issued invitations all flow through GoTrue. Sessions are JWT-based; the access token TTL is **15 minutes** with rotating refresh tokens; refresh enforces an **idle timeout of 60 minutes** (org-tunable per §8.x) and an **absolute session max of 8 hours** (org-tunable). Magic-link invitation tokens are signed, single-use, and carry a **7-day TTL** (codified, not Supabase-default).
+
+**Federation (SAML 2.0):** **`@boxyhq/saml-jackson`** as the SAML SP. Each tenant connects an external IdP (Microsoft Entra ID baseline; Okta / Google Workspace / generic SAML 2.0 supported) via metadata URL or x509-cert upload. JIT user provisioning is per-tenant configurable (see §8.x `tenant_idp_config`). Routes: `/api/auth/saml/{login,callback,logout,metadata}`.
+
+**Provisioning (SCIM 2.0):** SCIM `/Users` and `/Groups` endpoints with bearer-token auth scoped to a single tenant; tokens stored as **argon2id** hashes in `scim_tokens`. Soft-delete on `active=false`. Group sync maps to system roles per tenant policy.
+
+**MFA:** **TOTP** primary via **`otplib`** (RFC 6238, 30-s window, 6-digit), with recovery codes hashed argon2id and one-time use. **WebAuthn** secondary via **`@simplewebauthn/server`** (deferred behaviour to Phase 3 per D7 — UI checkbox shown disabled with tooltip "Coming Phase 3"). SMS as fallback only (rate-limited). MFA enrolment is enforceable per-role via `org_security_policies.mfa_required_for_roles[]`.
+
+**Verify-PIN / step-up auth:** secondary short-lived PINs for destructive admin actions are stored as **argon2id** hashes (memory=64 MiB, t=3, p=1) — never plaintext, never reversible. PIN entry is rate-limited identically to login (see lockout policy).
+
+**Six OSS libraries locked:** `@supabase/supabase-js` (auth client), `@supabase/auth-helpers-nextjs`, `@boxyhq/saml-jackson` (SAML SP), `otplib` (TOTP), `@simplewebauthn/server` (WebAuthn), `argon2` (PIN/recovery-code hashing). Versions pinned in `apps/web/package.json` and tracked by Renovate.
+
+### §5.y — Shared UI Primitives `@monopilot/ui` [UNIVERSAL] [F-A3 per gap-backlog 2026-04-30]
+
+> **Source for new requirement:** UX evidence across all module prototypes (10 distinct modal patterns reused; 5 tuning primitives for run-strip / empty-state / counted-tabs / compact-activity / dry-run); `_shared/MODAL-SCHEMA.md` (225 lines) is the canonical contract but is **never referenced from any PRD or plan** — every module re-invents modal wiring and drifts. F-A3 makes the contract first-class.
+
+**Workspace package:** `packages/ui` — published as `@monopilot/ui` inside the monorepo (npm workspace, not separate registry). Single source of truth for cross-module UI primitives; **direct imports from `@radix-ui/react-dialog` outside `packages/ui` are blocked** by ESLint `no-restricted-imports`.
+
+**5 modal/form primitives:**
+1. `<Modal/>` — Radix Dialog wrapper, size tokens (`sm` / `md` / `lg` / `xl`), dismissible flag, ESC-to-close, focus-trap, return-focus on close.
+2. `<Stepper/>` — multi-step wizard chrome with Back / Next / Jump-to-step / Restart, persisted step state, progress indicator.
+3. `<Field/>` — RHF Controller + Zod resolver wrapper with label / hint / error / required-mark / inline-validation states.
+4. `<ReasonInput/>` — textarea + character counter + minLength enforcement (default 10 chars, configurable per modal); used by all destructive-with-reason patterns.
+5. `<Summary/>` — read-only key/value summary with optional diff highlighting; consumed by Confirm patterns and Preview-compare pattern.
+
+**5 tuning primitives** (ported from prototypes; Phase B.2 settings tuning audit): `<RunStrip/>`, `<EmptyState/>`, `<TabsCounted/>`, `<CompactActivity/>`, `<DryRunButton/>` plus `deriveRunHistory()` helper.
+
+**Canonical modal contract:** `_shared/MODAL-SCHEMA.md` is **normative** and lists 10 patterns: Wizard (P1), SimpleForm (P2), DualPath (P3), Picker (P4), Override-with-reason (P5), Simple (P6), Async-with-states (P7), Confirm-non-destructive (P8 weak / P9 ack), Confirm-destructive-type-to-confirm (P8), Confirm-destructive-with-reason (P9), Preview-compare (P10). All settings/NPD/production modals MUST use a shared primitive and one of the 10 patterns.
+
+**Quality gates:** Storybook 8 with **≥21 stories** (11 primitives × 1 + 10 pattern templates) + **axe-core CI** running on every PR; the `assertModalA11y()` RTL helper from `packages/ui/test` is required in every modal's test file. Design tokens live in `packages/ui/tokens.css` with a Tailwind theme map and a per-tenant override hook (Phase C5 multi-tenant theming).
 
 ---
 
@@ -388,6 +428,46 @@ UI flow do add/edit column:
 - **Impersonation**: explicit `impersonating_as` flag w session + audit log każdej operacji. Nigdy silent RLS bypass.
 - **Tenant switcher**: superadmin-only, MFA, SIEM logged.
 - **Cross-tenant analytics**: osobny warehouse schema (denormalized snapshots), nigdy prod RLS bypass.
+
+### §8.x — Per-tenant IdP Mapping [UNIVERSAL] [F-A2 per gap-backlog 2026-04-30]
+
+> **Source for new requirement:** UX `SecurityScreen` exposes an "Enforce SSO" toggle that disables password login for non-admins; SCIM provisions users from Entra ID directly into a tenant. The PRD previously treated `tenant_id` as the only multi-tenancy primitive and never specced the tenant→IdP mapping; F-U2 + F-A2 close that gap.
+
+**Table `tenant_idp_config`** (one row per tenant, primary identity-policy record):
+
+```sql
+CREATE TABLE tenant_idp_config (
+  tenant_id                   UUID PRIMARY KEY REFERENCES organizations(id),
+  provider_type               TEXT NOT NULL
+                              CHECK (provider_type IN ('saml','oidc','password','magic')),
+  provider_label              TEXT,                       -- "Entra ID — Apex UK"
+  metadata_url                TEXT,                       -- SAML/OIDC metadata document
+  entity_id                   TEXT,                       -- SAML SP/IdP entity
+  x509_cert                   TEXT,                       -- SAML signing cert (PEM)
+  jit_provisioning            BOOLEAN NOT NULL DEFAULT false,
+  scim_token_hash             TEXT,                       -- argon2id of the SCIM bearer token
+  scim_token_last_four        TEXT,                       -- display-only, never the secret
+  enforce_for_non_admins      BOOLEAN NOT NULL DEFAULT false,
+  -- per-tenant session/MFA overrides (override §5.x defaults)
+  idle_timeout_min            INT NOT NULL DEFAULT 60,
+  session_max_h               INT NOT NULL DEFAULT 8,
+  mfa_required                BOOLEAN NOT NULL DEFAULT true,
+  mfa_required_for_roles      TEXT[] DEFAULT ARRAY['org.access.admin','org.schema.admin'],
+  mfa_allowed_methods         TEXT[] DEFAULT ARRAY['totp'],   -- 'totp' | 'sms' | 'webauthn'
+  password_complexity         TEXT NOT NULL DEFAULT 'strong', -- 'strong' | 'standard' | 'custom'
+  password_expiry_days        INT,                        -- NULL = no expiry (NIST SP 800-63B default)
+  created_at                  TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at                  TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+```
+
+**Behaviour:**
+- `provider_type='saml'` + `enforce_for_non_admins=true` → password login disabled for everyone except `org.access.admin` (break-glass account).
+- `jit_provisioning=true` + first SAML assertion for an unknown email → user row created in `users` and assigned the default role per `org_default_role`.
+- SCIM bearer requests authenticate via `scim_token_hash` argon2id-verify; on success, the request bypasses the normal session middleware and runs scoped to `tenant_id` + the `org.scim.write` system role.
+- Per-tenant overrides stack on top of §5.x defaults; an org may only relax `idle_timeout_min` upward in `'standard'` complexity mode and may not exceed cluster-wide hard limits.
+
+**UI:** the editor lives in **02-SETTINGS ACCESS pillar** (Org Admin only); see 02-SETTINGS-PRD §14.5 (SSO) / §14.6 (SCIM) / §14.7 (IP Allowlist).
 
 ### Open items multi-tenant
 
@@ -821,8 +901,47 @@ Wszystkie scanner-originated mutations (06-SCANNER) MUSZĄ akceptować client-ge
 ### i18n [R11] — UNIVERSAL od dnia 1
 Minimum **pl, en, uk, ro** baseline (Apex realnie ma UA+RO workers). ICU MessageFormat. Locale-aware date/number parsing. RTL-ready structure. Nie string concat.
 
-### Audit log
-Append-only `audit_events` tabela; triggers na business tables + event-sourced integration z rule engine (ADR-029). Retention per tabela. Zgodność: SOC 2, GDPR, FDA 21 CFR Part 11 (gdy US klient), FSMA 204 (traceability records).
+### Audit log [F-U3 per gap-backlog 2026-04-30, UNIVERSAL]
+
+Append-only `audit_events` table; triggers on business tables + event-sourced integration with the rule engine (ADR-029). Append-only is enforced at the DB level (no UPDATE / DELETE policy for any non-superadmin role; superadmin DELETE is itself logged to a separate immutable WORM bucket).
+
+**13-field schema:**
+
+```sql
+CREATE TABLE audit_events (
+  id              BIGSERIAL PRIMARY KEY,
+  tenant_id       UUID NOT NULL,                           -- 1. RLS scope
+  occurred_at     TIMESTAMPTZ NOT NULL DEFAULT now(),      -- 2. monotonic
+  actor_user_id   UUID,                                    -- 3. NULL when actor is system/SCIM
+  actor_type      TEXT NOT NULL                            -- 4. 'user' | 'system' | 'scim' | 'impersonation'
+                  CHECK (actor_type IN ('user','system','scim','impersonation')),
+  impersonator_id UUID,                                    -- 5. NOT NULL when actor_type='impersonation'
+  action          TEXT NOT NULL,                           -- 6. dot-string, e.g. 'org.security.policy.update'
+  resource_type   TEXT NOT NULL,                           -- 7. 'user' | 'role' | 'fa' | 'wo' | …
+  resource_id     TEXT NOT NULL,                           -- 8. UUID or natural key
+  before_state    JSONB,                                   -- 9. nullable for create
+  after_state     JSONB,                                   -- 10. nullable for delete
+  ip_address      INET,                                    -- 11.
+  user_agent      TEXT,                                    -- 12.
+  request_id      UUID NOT NULL,                           -- 13. correlates with outbox + tracing
+  retention_class TEXT NOT NULL DEFAULT 'standard'
+                  CHECK (retention_class IN ('security','standard','operational','ephemeral'))
+);
+CREATE INDEX ON audit_events (tenant_id, occurred_at DESC);
+CREATE INDEX ON audit_events (tenant_id, resource_type, resource_id, occurred_at DESC);
+CREATE INDEX ON audit_events (tenant_id, actor_user_id, occurred_at DESC) WHERE actor_user_id IS NOT NULL;
+```
+
+**Retention tiers** (per `retention_class`):
+
+| Class | Examples | Retention | Storage |
+|---|---|---|---|
+| `security` | login / logout / MFA enrol / role grant / SSO config / impersonation start+end / SCIM token issue | **7 years** | hot 90d + cold S3 Glacier with object-lock |
+| `standard` | business mutations on FA / WO / lot / shipment / quality_event | **3 years** | hot 1y + cold S3 |
+| `operational` | reference-data edits, schema-driven column changes, feature-flag toggles | **18 months** | hot |
+| `ephemeral` | UI-only navigation traces, dry-run previews | **30 days** | hot only |
+
+**Compliance scope:** SOC 2 CC6.1/CC6.3/CC7.2; GDPR Art. 30 (processing records) + Art. 32 (security of processing); FDA 21 CFR Part 11 (electronic records — when a US tenant requires it, `retention_class='security'` extends to **10 years**); FSMA 204 traceability records (handled via `aggregate_type IN ('lot','shipment')` rows). The `before_state` / `after_state` JSONB columns make every change reversible at the audit level (Part 11 §11.10(e) "secure, computer-generated, time-stamped audit trails"). Impersonation flows MUST write a paired `impersonation.start` + `impersonation.end` row with `actor_type='impersonation'` and `impersonator_id` populated; the `org.access.admin` UI surfaces this as a yellow banner.
 
 ### Regulatory roadmap — first-class artifact
 Proponowane utrzymanie w `_foundation/regulatory/` (Phase C task). Deadliny:
@@ -932,6 +1051,11 @@ Dodane do §13 open items.
 - [ ] RLS policy coverage 100% business tables
 - [ ] DR documented + tested quarterly
 - [ ] Tests run w app-role (nigdy superuser) w CI
+- [ ] **MFA-by-default** for both `org.access.admin` and `org.schema.admin` system roles in every new tenant (`tenant_idp_config.mfa_required_for_roles` seeded with both) [F-U5 per gap-backlog 2026-04-30]
+- [ ] **Password policy = NIST SP 800-63B-aligned** by default: min 12 characters, no expiry, breach-check via HIBP k-anonymity, last-5 history; `password_complexity='strong'` is the seed value for every new `tenant_idp_config` row [F-U5]
+- [ ] **Idle-timeout default = 60 minutes** absolute; **session_max_h default = 8 hours**; both org-tunable per §8.x within cluster-wide hard caps [F-U5]
+- [ ] **SSO baseline = SAML 2.0 + Microsoft Entra ID connector** available to every tenant from day 1 (no upsell gating); SCIM 2.0 endpoints exposed when `tenant_idp_config.scim_token_hash IS NOT NULL` [F-U5]
+- [ ] **Magic-link invitation TTL = 7 days, single-use, signed**; codified, not Supabase-default; expiry shown to inviter and a self-service "resend" path is available [F-U5]
 
 ### Compliance
 
@@ -1061,6 +1185,8 @@ Dodane do §13 open items.
 
 ## Changelog
 
+- **v4.2 (2026-04-30, UX→PRD gap-backlog amendments)** — Applied UX→PRD gap-backlog (`_meta/plans/2026-04-30-ux-prd-plan-gap-backlog.md`) §MODULE 00-FOUNDATION. **Updates:** F-U1 §5 Tech Stack — Auth & Identity Stack (§5.x) added with 6 OSS libraries locked (GoTrue/Supabase Auth, `@boxyhq/saml-jackson`, `otplib`, `@simplewebauthn/server`, `argon2`, Supabase auth-helpers); F-U2 §8 Multi-tenant — `tenant_idp_config` table + per-tenant IdP mapping (§8.x); F-U3 §11 Audit log — expanded from 1 paragraph to 13-field schema with 4 retention tiers (security 7y / standard 3y / operational 18mo / ephemeral 30d) + Part 11 + GDPR Art. 30/32 alignment; F-U4 §3 Personas — Administrator split into Org Admin (ACCESS pillar) + Schema Admin (ADMIN pillar) per SOC 2 CC6.3 separation-of-duties; F-U5 §13 Success Criteria — added 5 niefunkcjonalne items (MFA-by-default, NIST password policy, idle timeout default, SSO baseline, magic-link 7-day TTL). **Additions:** F-A1 §5.x Auth & Identity Stack (~330 words, [UNIVERSAL]); F-A2 §8.x Per-tenant IdP Mapping with full DDL (~210 words, [UNIVERSAL]); F-A3 §5.y Shared UI Primitives `@monopilot/ui` workspace package + 10 MODAL-SCHEMA patterns + Storybook 8/axe-core CI (~210 words, [UNIVERSAL]); F-A4 §4.2-AMENDMENT addendum adding `00-FOUNDATION-impl-j` to the Foundation set as a critical-path blocker before any T3-ui task. ADR-034 markers `[UNIVERSAL]` applied to all new sections. Coverage 60% → ≥85% per gap-backlog target.
+
 - **v4.1 (2026-04-30, Phase E-0 prep)** — Three Phase B.2 PRD-suite clarifications before Phase E-0 kickoff: (1) Added **§4.2-AMENDMENT** (per ADR-032) explicitly listing Phase E-0 atomic foundation tasks `00-FOUNDATION-impl-a..i` as the prerequisite for 01-NPD-a (replacing vague "Foundation infra w minimum scope"), and clarifying parallel Track A / Track B build sequence with `_meta/plans/2026-04-22-phase-e-kickoff-plan.md` as authoritative source; (2) Disambiguated event naming in §10 — `fa.*` is canonical for the NPD finished-article aggregate, `product.*` is reserved for future product-master/reference-data events; published full aggregate registry in `_meta/specs/event-naming-convention.md`; (3) Added **§4.3-AMENDMENT** finalising the table-naming decision: physical table renamed `fa` → `product` (Option B per ADR-034), `fa` retained as a backward-compat read-only SQL view through Phase C1 D365 adapter cutover. No structural changes to existing sections.
 
 - **v4.0 (2026-04-30)** — Added §9.1 Manufacturing Operations (Process) Configuration Pattern. Documents configurable suffix-based naming scheme (Reference.ManufacturingOperations) for manufacturing_operation_1..4 fields. Includes pattern overview, table schema [UNIVERSAL] + [ORG-CONFIG] marker discipline, cascade rule integration (ADR-029 Chain 2), template application, industry seed data (bakery/pharma/fmcg), phase implementation roadmap (B.2/C1/C+), and cross-references to sibling PRDs (01-NPD, 02-SETTINGS, 08-PRODUCTION). Aligns with P1 (easy extension contract) and ADR-028 (schema-driven pattern).
@@ -1071,4 +1197,4 @@ Dodane do §13 open items.
 
 ---
 
-*PRD 00-FOUNDATION v4.1 — Phase E-0 prep clarifications (build order amendment, event naming canonicalisation, table-naming decision finalised). Next: Phase E-0 kickoff (`00-FOUNDATION-impl-a..i`).*
+*PRD 00-FOUNDATION v4.2 — UX→PRD gap-backlog amendments F-U1..F-U5 + F-A1..F-A4 applied (auth subsystem, per-tenant IdP, expanded audit log, persona split, UI primitives package). Next: Phase E-0 kickoff (`00-FOUNDATION-impl-a..j`).*

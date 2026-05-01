@@ -1,0 +1,58 @@
+{
+  "title": "T-027 — Manual put-away service (P1)",
+  "prompt": "# T-027 — Manual put-away service\n\nPRD: `05-WAREHOUSE-PRD.md` §8.3 (FR-WH-012).\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`.\n\n## Goal\n`putawayLp(lpId, targetLocationId)` Server Action recording move_type='putaway' from receiving zone to target storage location.\n\n## Implementation contract\n`apps/web/lib/services/warehouse/putaway.ts`. Validate target location is descendant of LP.warehouse_id via ltree, target.active=true. Update LP.location_id; insert stock_moves(move_type='putaway'). P1 manual only — put-away rules deferred to P2.\n\n## Files (scope)\n- apps/web/lib/services/warehouse/putaway.ts [create]\n- apps/web/lib/services/warehouse/__tests__/putaway.test.ts [create]\n\n## Acceptance criteria\n1. Given a freshly-received LP at receiving location, when putawayLp runs to a storage location, then LP.location_id updates and a stock_moves(move_type='putaway') row is added.\n2. Given target location is in a different warehouse, when putawayLp runs, then it returns a validation error.\n3. Given target.active=false, when putawayLp runs, then V-WH-MOV-003 error is returned.\n\n## Test strategy\n- RED: putaway.test.ts covers happy path, cross-warehouse error, inactive target.\n- Run `pnpm --filter web test putaway`.\n\n## Risk red lines\n- Do not introduce putaway rules (P2).\n- Do not allow cross-warehouse putaway.\n- Do not skip stock_moves insert.",
+  "labels": ["prd", "api", "putaway", "T2-api"],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-027",
+    "source_prd": "05-WAREHOUSE-PRD.md",
+    "prd_refs": ["§8.3"],
+    "category": "api",
+    "subcategory": "putaway",
+    "task_type": "T2-api",
+    "parent_feature": "warehouse-stock-moves",
+    "context_budget": "20k",
+    "estimated_effort": "1h",
+    "description": "Manual put-away P1 — move LP to storage location and log putaway stock_move.",
+    "details": "Ltree descendant check; active check; single transaction. P2 putaway rules deferred.",
+    "scope_files": [
+      "apps/web/lib/services/warehouse/putaway.ts [create]",
+      "apps/web/lib/services/warehouse/__tests__/putaway.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Putaway rules (P2 WH-E12)",
+      "Capacity check (P2)",
+      "Scanner UI"
+    ],
+    "dependencies": ["T-025"],
+    "parallel_safe_with": ["T-026", "T-028"],
+    "acceptance_criteria": [
+      "Given a freshly-received LP, when putawayLp runs to a storage location, then LP.location_id updates and a putaway stock_move is added",
+      "Given target in a different warehouse, when run, then a validation error returns",
+      "Given target.active=false, when run, then V-WH-MOV-003 error returns"
+    ],
+    "test_strategy": [
+      "RED: putaway.test.ts covers happy / cross-warehouse / inactive scenarios",
+      "Run 'pnpm --filter web test putaway'"
+    ],
+    "risk_red_lines": [
+      "Do not introduce putaway rules",
+      "Do not allow cross-warehouse putaway",
+      "Do not skip stock_moves insert"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

@@ -1,0 +1,69 @@
+{
+  "title": "T-037 — UI: PLN-013 D365 SO Queue + Draft WO Review (parity with plan_d365_queue)",
+  "prompt": "Build PLN-013 D365 SO Queue page at `src/app/(planning)/planning/d365/page.tsx` matching prototype `design/Monopilot Design System/planning/other-screens.jsx:510-648` 1:1. Per PRD §15.7.\n\nLayout: pull history strip (last_run, so_count, draft_wo_count, errors), draft WO table with expandable cascade chain rows, pull errors collapsible (retry button → Server Action), manual trigger button (PLN-025 modal), filter bar (SO ref search, SO status, WO status, time range).\n\nDisabled-state surface when feature flag integration.d365.so_trigger.enabled = false. RBAC: read=planning.dashboard.view; trigger=integration.d365.so_trigger.run.\n\nRED RTL test asserts disabled-state, error retry, expand row reveals cascade.",
+  "labels": ["prd", "ui", "pln-013-d365-queue", "T3-ui"],
+  "priority": 110,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-037",
+    "source_prd": "04-PLANNING-BASIC-PRD.md",
+    "prd_refs": ["§15.7"],
+    "category": "ui",
+    "subcategory": "pln-013-d365-queue",
+    "task_type": "T3-ui",
+    "parent_feature": "planning-d365",
+    "context_budget": "40k",
+    "estimated_effort": "4-5h",
+    "prototype_match": true,
+    "description": "D365 SO queue page with pull history, draft WO review table, filter bar, disabled-state.",
+    "details": "Prototype reference: planning/other-screens.jsx:510-648. Pull history strip pulls aggregates from outbox_events. Draft WO row click → PLN-027 modal (T-052). Manual trigger → PLN-025 modal (T-051). Disabled-state: when feature flag off, shows tinted overlay with copy 'D365 integration is disabled. Enable in Planning Settings.' Parity checklist: (1) pull history strip metrics ordering, (2) filter bar layout, (3) draft WO row expand affordance, (4) error retry button placement.",
+    "scope_files": [
+      "src/app/(planning)/planning/d365/page.tsx [create]",
+      "src/components/planning/d365/PullHistoryStrip.tsx [create]",
+      "src/components/planning/d365/DraftWOTable.tsx [create]",
+      "src/components/planning/d365/PullErrorsList.tsx [create]",
+      "src/components/planning/d365/__tests__/D365Queue.test.tsx [create]",
+      "design/Monopilot Design System/planning/other-screens.jsx:510-648 [ref]"
+    ],
+    "out_of_scope": [
+      "D365 Trigger modal (T-051)",
+      "Draft WO Review modal (T-052)"
+    ],
+    "dependencies": ["T-030"],
+    "parallel_safe_with": ["T-034", "T-035", "T-036"],
+    "acceptance_criteria": [
+      "Given the page renders, when compared to `design/Monopilot Design System/planning/other-screens.jsx:510-648`, then it has the same pull history strip metrics order, the same filter bar layout, the same draft WO table columns, and the same retry affordance — parity verified by RTL snapshot per the checklist.",
+      "Given d365_so_trigger_enabled=false, when the page renders, then the trigger button is disabled with tooltip 'Enable in Planning Settings'.",
+      "Given an error row is rendered, when the retry button is clicked, then a Server Action is invoked and a toast confirms enqueue.",
+      "Given `pnpm vitest run src/components/planning/d365/__tests__/D365Queue.test.tsx`, when run, then 0 failures."
+    ],
+    "test_strategy": [
+      "RED RTL test asserts parity, disabled-state behavior, retry click triggers Server Action mock.",
+      "Playwright e2e: navigate to /planning/d365, expect filter bar + history strip.",
+      "Run `pnpm vitest run` and `pnpm playwright test`."
+    ],
+    "risk_red_lines": [
+      "Do not allow trigger when feature flag off.",
+      "Do not skip RBAC for retry button."
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

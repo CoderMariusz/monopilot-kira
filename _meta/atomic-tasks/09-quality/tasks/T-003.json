@@ -1,0 +1,58 @@
+{
+  "title": "T-003 — Reference table waste_categories (02-SETTINGS §8 extension)",
+  "prompt": "# T-003 — Reference table waste_categories\n\nPRD: 09-QUALITY-PRD.md §16.3 (cross-PRD additions), 10-FINANCE waste rollup consumer, ADR-034\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nRegister `waste_categories` reference table (industry-configurable). Used by NCR yield_issue rollup → 10-FINANCE waste cost allocation downstream consumer.\n\n## Implementation contract\n1. Drizzle migration `packages/db/migrations/0092_waste_categories_reftable.sql` registers reference_tables row code=`waste_categories` with schema_json {code,label,fa_account_hint text,is_recoverable bool,category,i18n jsonb}.\n2. Seed 6 baseline rows: spoilage_perishable, breakage_packaging, expired_inventory, off_spec_rework, off_spec_scrap, contamination_loss.\n3. Server helper `apps/web/src/server/quality/wasteCategories.ts` exporting `getWasteCategories(orgId)`.\n\n## Files\n- packages/db/migrations/0092_waste_categories_reftable.sql [create]\n- apps/web/src/server/quality/wasteCategories.ts [create]\n- apps/web/src/server/quality/__tests__/wasteCategories.test.ts [create]\n\n## Acceptance criteria\n1. Given migration 0092 applied, when SELECT FROM reference_tables_rows WHERE table_code='waste_categories' runs, then 6 seed rows exist and exactly 1 has is_recoverable=true (off_spec_rework)\n2. Given tenant context, when getWasteCategories(orgId) is called, then it returns 6 rows each with non-empty fa_account_hint and label translated keys for pl/en\n3. Given a row insert with is_recoverable not boolean, then JSON-schema validation rejects it",
+  "labels": ["prd", "data", "reference-tables", "T1-schema"],
+  "priority": 50,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-003",
+    "source_prd": "09-QUALITY-PRD.md",
+    "prd_refs": ["§16.3"],
+    "category": "data",
+    "subcategory": "reference-tables",
+    "task_type": "T1-schema",
+    "parent_feature": "02-SETTINGS §8 extension for 09-QUALITY",
+    "context_budget": "20k",
+    "estimated_effort": "0.5h",
+    "description": "Register waste_categories reference table + seed 6 baseline rows + server helper for 10-FINANCE rollup consumer.",
+    "details": "Migration 0092 inserts registry row with schema_json {code,label,fa_account_hint,is_recoverable,category,i18n}. Seeds 6 rows. Helper getWasteCategories under tenant RLS. Tests cover counts, fields, validator rejection.",
+    "scope_files": [
+      "packages/db/migrations/0092_waste_categories_reftable.sql [create]",
+      "apps/web/src/server/quality/wasteCategories.ts [create]",
+      "apps/web/src/server/quality/__tests__/wasteCategories.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not implement NCR yield rollup (T-038)",
+      "Do not implement 10-FINANCE consumer (out of scope this module)",
+      "Do not register hold_reasons (T-001) or qa_failure_reasons (T-002)"
+    ],
+    "dependencies": [],
+    "parallel_safe_with": ["T-001", "T-002"],
+    "acceptance_criteria": [
+      "Given migration 0092 is applied, when SELECT FROM reference_tables_rows WHERE table_code='waste_categories' runs, then 6 seed rows exist and exactly 1 has is_recoverable=true (off_spec_rework)",
+      "Given tenant context, when getWasteCategories(orgId) is called, then it returns 6 rows each with non-empty fa_account_hint and i18n keys for pl and en",
+      "Given a row insert with is_recoverable not boolean, then the reference_tables JSON-schema validator rejects it"
+    ],
+    "test_strategy": [
+      "RED: write apps/web/src/server/quality/__tests__/wasteCategories.test.ts asserting count, fields, validator rejection before migration exists",
+      "Run 'pnpm --filter db migrate && pnpm --filter web test wasteCategories'"
+    ],
+    "risk_red_lines": [
+      "Do not hardcode categories in finance code (must remain reference-table driven)",
+      "Do not omit fa_account_hint (10-FINANCE consumer needs the mapping seed)"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

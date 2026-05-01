@@ -1,0 +1,60 @@
+{
+  "title": "T-030 — putaway suggest + execute APIs (06-b)",
+  "prompt": "# T-030 — putaway suggest + execute\n\nPRD: 06-SCANNER-P1-PRD.md §8.2 FR-SC-BE-024/025; 05-WH §8.4 algorithm + §9.1 FEFO\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nLand `GET /putaway/suggest/:lpId` returning the per-05-WH §8.4 strategy result plus top-3 alternatives, and `POST /putaway` to execute the move (with override + reason_code).\n\n## Implementation contract\n1. GET handler runs the 4-step strategy (FEFO zone → FIFO zone → product.preferred_zone_id → default) and returns `{ suggested_location, reason_code, strategy, alternatives[3], lp_details }`. SLO P95 <300ms.\n2. POST handler: body `{ lp_id, location_id, suggested_location_id?, override: boolean, override_reason_code? }`; validate location exists + available, lp ≠ already at destination; insert stock_moves move_type='putaway' + lp.location_id update; if override=true with reason_code, audit metadata captures suggested vs selected.\n3. If override=true and override_reason_code missing ⇒ 400 SC_OVERRIDE_REASON_REQUIRED.\n\n## Files\n- apps/scanner/src/app/api/warehouse/scanner/putaway/suggest/[lpId]/route.ts [create]\n- apps/scanner/src/app/api/warehouse/scanner/putaway/route.ts [create]\n- apps/scanner/src/server/services/warehouse-putaway.ts [create]\n- apps/scanner/__tests__/api/warehouse-putaway.test.ts [create]\n\n## Acceptance criteria\n1. Given an LP with product P having a FEFO zone match, when GET /putaway/suggest/:lpId runs, then strategy='fefo' and alternatives[] contains the next-best 3 locations\n2. Given POST /putaway with override=true and missing override_reason_code, when the request is validated, then 400 SC_OVERRIDE_REASON_REQUIRED\n3. Given a successful POST /putaway with location ≠ suggested, when the response returns 200, then a stock_moves row with move_type='putaway' is inserted and a scanner_audit_log row records suggested vs selected with metadata.override_reason_code\n\n## Test strategy\n- RED: write warehouse-putaway.test.ts asserting strategy resolution + override-reason-required + audit metadata before implementation\n- Run 'pnpm --filter scanner test api/warehouse-putaway'\n\n## Risk red lines\n- Do not allow lp.location_id to remain unchanged on success\n- Do not skip the lp ≠ destination check\n- Do not let client override the strategy field",
+  "labels": ["prd", "api", "warehouse-putaway", "T2-api"],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-030",
+    "source_prd": "06-SCANNER-P1-PRD.md",
+    "prd_refs": ["§8.2 FR-SC-BE-024", "§8.2 FR-SC-BE-025"],
+    "category": "api",
+    "subcategory": "warehouse-putaway",
+    "task_type": "T2-api",
+    "parent_feature": "06-b Warehouse In",
+    "context_budget": "30k",
+    "estimated_effort": "2h",
+    "description": "Putaway suggestion endpoint (FEFO/FIFO/product/default strategy) + execute endpoint with override + reason_code capture.",
+    "details": "Suggest endpoint runs the 4-step strategy and returns alternatives top 3. Execute endpoint validates location, requires reason_code on override, transactionally writes stock_moves + lp.location update + audit row.",
+    "scope_files": [
+      "apps/scanner/src/app/api/warehouse/scanner/putaway/suggest/[lpId]/route.ts [create]",
+      "apps/scanner/src/app/api/warehouse/scanner/putaway/route.ts [create]",
+      "apps/scanner/src/server/services/warehouse-putaway.ts [create]",
+      "apps/scanner/__tests__/api/warehouse-putaway.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not implement SCN-040 UI here (T-033)",
+      "Do not implement label printing trigger (P2)",
+      "Do not implement SSCC palet putaway (P2)"
+    ],
+    "dependencies": ["T-027"],
+    "parallel_safe_with": ["T-028", "T-029"],
+    "acceptance_criteria": [
+      "Given an LP with product P having a FEFO zone match, when GET /putaway/suggest/:lpId runs, then strategy='fefo' and alternatives[] contains the next-best 3 locations",
+      "Given POST /putaway with override=true and missing override_reason_code, when validated, then 400 SC_OVERRIDE_REASON_REQUIRED",
+      "Given a successful POST /putaway with location ≠ suggested, when the response returns 200, then a stock_moves row with move_type='putaway' is inserted and audit metadata records override_reason_code + suggested vs selected"
+    ],
+    "test_strategy": [
+      "RED: write warehouse-putaway.test.ts asserting strategy + override-reason + audit metadata before implementation",
+      "Run 'pnpm --filter scanner test api/warehouse-putaway'"
+    ],
+    "risk_red_lines": [
+      "Do not leave lp.location_id unchanged on success",
+      "Do not skip the lp ≠ destination check",
+      "Do not let client override the strategy field"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

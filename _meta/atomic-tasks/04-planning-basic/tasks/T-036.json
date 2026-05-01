@@ -1,0 +1,70 @@
+{
+  "title": "T-036 — UI: PLN-003 PO Detail page (parity with plan_po_detail)",
+  "prompt": "Build PLN-003 PODetail at `src/app/(planning)/planning/purchase-orders/[id]/page.tsx` matching prototype `design/Monopilot Design System/planning/po-screens.jsx:143-353` 1:1.\n\nSections: header with PO number + supplier + status badge + actions (Submit, Approve/Reject, Cancel), totals strip (subtotal, tax, total), lines table with add/remove/edit per V-PLAN-PO-004 qty>0, status history timeline, GRN progress bar (read-only from 05-WAREHOUSE), audit log.\n\nRED RTL test asserts: status-driven action button enable/disable, totals recompute on line edit, parity checklist.",
+  "labels": ["prd", "ui", "pln-003-po-detail", "T3-ui"],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-036",
+    "source_prd": "04-PLANNING-BASIC-PRD.md",
+    "prd_refs": ["§6.6", "§6.3"],
+    "category": "ui",
+    "subcategory": "pln-003-po-detail",
+    "task_type": "T3-ui",
+    "parent_feature": "planning-po",
+    "context_budget": "40k",
+    "estimated_effort": "4-5h",
+    "prototype_match": true,
+    "description": "PO Detail page with status-driven actions, lines table, status history, GRN progress.",
+    "details": "Prototype reference: planning/po-screens.jsx:143-353. Action buttons enable/disable map: draft→Submit visible; pending_approval→Approve/Reject visible (RBAC-gated); confirmed/receiving/closed→Cancel hidden. Totals strip recomputes client-side via derived state when lines change. Parity checklist: (1) header layout and action buttons, (2) totals strip ordering, (3) lines table columns + inline edit affordances, (4) status history timeline items, (5) GRN progress bar.",
+    "scope_files": [
+      "src/app/(planning)/planning/purchase-orders/[id]/page.tsx [create]",
+      "src/components/planning/po/POHeader.tsx [create]",
+      "src/components/planning/po/POTotalsStrip.tsx [create]",
+      "src/components/planning/po/POLinesTable.tsx [create]",
+      "src/components/planning/po/POStatusHistory.tsx [create]",
+      "src/components/planning/po/__tests__/PODetail.test.tsx [create]",
+      "design/Monopilot Design System/planning/po-screens.jsx:143-353 [ref]"
+    ],
+    "out_of_scope": [
+      "Add line modal (T-039)",
+      "Approval modal (T-040)"
+    ],
+    "dependencies": ["T-010", "T-012", "T-013", "T-035"],
+    "parallel_safe_with": ["T-035", "T-037"],
+    "acceptance_criteria": [
+      "Given the page renders for a draft PO, when compared to `design/Monopilot Design System/planning/po-screens.jsx:143-353`, then the production page has the same header layout, the same totals strip, the same lines table columns, the same status history timeline, and the same GRN progress bar — parity verified by RTL snapshot per the checklist.",
+      "Given a po with status='pending_approval' and a caller without 'planning.po.approve', when the page renders, then Approve/Reject buttons are hidden.",
+      "Given a line edit changes quantity, when the user blurs, then totals strip recomputes deterministically per FR-PLAN-009.",
+      "Given `pnpm vitest run src/components/planning/po/__tests__/PODetail.test.tsx`, when run, then 0 failures."
+    ],
+    "test_strategy": [
+      "RED RTL test for action enable/disable matrix, totals recompute, parity checklist.",
+      "Playwright e2e: open detail, edit line, click Submit (draft), expect status badge update.",
+      "Run `pnpm vitest run` and `pnpm playwright test`."
+    ],
+    "risk_red_lines": [
+      "Do not allow edits when status not in editable set.",
+      "Do not skip RBAC on action buttons."
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

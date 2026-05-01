@@ -1,0 +1,60 @@
+{
+  "title": "T-007 — matrix_review_request table (PLE-010)",
+  "prompt": "# T-007 — matrix_review_request table (PLE-010)\n\nPRD: 07-PLANNING-EXT-PRD.md §17.1 PLE-010, §16.2 OQ-EXT-04\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nIntroduce `matrix_review_request` table per OQ-EXT-04 closure for the [Request Review] flow on BLOCKED changeover_matrix cells, with RLS, justification CHECK, and partial unique index on (allergen_from, allergen_to, line_id) WHERE status='pending'.\n\n## Implementation contract\n1. Migration `packages/db/migrations/0076_matrix_review_request.sql`: CREATE TABLE per PLE-010 DDL stub with CHECK length(justification) >= 10, status CHECK IN (pending|approved|rejected).\n2. Partial UNIQUE INDEX idx_matrix_review_one_pending ON matrix_review_request(tenant_id, allergen_from, allergen_to, COALESCE(line_id, '')) WHERE status='pending'.\n3. RLS policy on tenant_id.\n4. Drizzle schema entry.\n\n## Files\n- packages/db/migrations/0076_matrix_review_request.sql [create]\n- packages/db/src/schema/matrix_review_request.ts [create]\n- packages/db/src/schema/index.ts [modify]\n- packages/db/__tests__/matrix-review-request.test.ts [create]\n\n## Acceptance criteria\n1. Given migration 0076 applied, when \\d matrix_review_request runs, then all PLE-010 columns + CHECK justification length>=10 + status CHECK + RLS + partial unique index exist\n2. Given a row with justification of length 5, when INSERT runs, then it fails the CHECK constraint\n3. Given two pending requests for same (tenant, from, to, line_id), when second INSERT runs, then it fails the partial unique index\n\n## Test strategy\n- RED: write packages/db/__tests__/matrix-review-request.test.ts asserting CHECK + partial unique + RLS\n- Run 'pnpm --filter db migrate && pnpm --filter db test matrix-review-request'\n\n## Risk red lines\n- Do not relax justification length CHECK below 10\n- Do not skip RLS\n- Do not enforce one-pending uniqueness without COALESCE(line_id, '') (NULL line_id must be treated as a value)",
+  "labels": ["prd", "data", "schema", "T1-schema"],
+  "priority": 80,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-007",
+    "source_prd": "07-PLANNING-EXT-PRD.md",
+    "prd_refs": ["§17.1 PLE-010", "§16.2 OQ-EXT-04"],
+    "category": "data",
+    "subcategory": "schema-matrix",
+    "task_type": "T1-schema",
+    "parent_feature": "07-EXT-b allergen optimizer review flow",
+    "context_budget": "40k",
+    "estimated_effort": "1h",
+    "description": "Create matrix_review_request table per OQ-EXT-04 with justification CHECK, partial unique on pending, RLS.",
+    "details": "Migration 0076 emits CREATE TABLE matrix_review_request per PLE-010 DDL. Partial unique index ensures only one pending request per (tenant, allergen pair, line). justification CHECK enforces business rule. Drizzle schema mirrors columns. RED test verifies CHECK rejection and partial unique semantics with NULL line_id.",
+    "scope_files": [
+      "packages/db/migrations/0076_matrix_review_request.sql [create]",
+      "packages/db/src/schema/matrix_review_request.ts [create]",
+      "packages/db/src/schema/index.ts [modify]",
+      "packages/db/__tests__/matrix-review-request.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not implement request_review_modal UI here (T-041)",
+      "Do not implement admin Tab 3 review queue here (covered by editor T-036)",
+      "Do not seed example requests"
+    ],
+    "dependencies": ["T-003"],
+    "parallel_safe_with": ["T-008", "T-009"],
+    "acceptance_criteria": [
+      "Given migration 0076 applied, when \\d matrix_review_request runs, then all PLE-010 columns + length CHECK + status CHECK + partial unique + RLS exist",
+      "Given a row with justification length 5, when INSERT runs, then CHECK rejects",
+      "Given two pending requests for same (tenant, from, to, line_id including NULL via COALESCE), when second INSERT runs, then partial unique rejects"
+    ],
+    "test_strategy": [
+      "RED: write packages/db/__tests__/matrix-review-request.test.ts asserting CHECK + partial unique + RLS",
+      "Run 'pnpm --filter db migrate && pnpm --filter db test matrix-review-request'"
+    ],
+    "risk_red_lines": [
+      "Do not relax justification length CHECK below 10",
+      "Do not skip RLS",
+      "Do not omit COALESCE(line_id, '') in partial unique index"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

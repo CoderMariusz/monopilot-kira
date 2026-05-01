@@ -1,0 +1,52 @@
+{
+  "title": "T-005 — Implement SET-001 Wizard Launcher modal (auto-show for new orgs)",
+  "prompt": "Implement the entry point modal that auto-shows for new organizations.\n\nPRD §14.4 SET-001: Wizard Launcher screen that:\n- Auto-shows when an org is created (new onboarding_state detected)\n- Can be triggered manually from settings\n- Shows intro text and \"Start Onboarding\" button\n- Can be dismissed (skip for now) — dismissal does NOT set skipped_steps, just closes modal\n- After click, transitions to step 1 (Organization Profile screen, SET-002)\n\nAcceptance:\n- Modal component renders on app mount if org.onboarding_state.current_step == 1 and last_activity_at is null\n- \"Start Onboarding\" button navigates to step 1 form\n- \"Skip for now\" button closes modal (no state change; can re-trigger later)\n- Modal is accessible (focus trapping, ARIA labels)\n\nTest: E2E test creates new org and verifies launcher modal appears automatically.",
+  "labels": ["prd", "ui", "screen", "T3-ui"],
+  "priority": 95,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-005",
+    "source_prd": "02-SETTINGS-PRD.md",
+    "prd_refs": ["§14.4"],
+    "category": "ui",
+    "subcategory": "screen",
+    "task_type": "T3-ui",
+    "parent_feature": "onboarding_wizard",
+    "context_budget": "28k",
+    "estimated_effort": "2-3h",
+    "description": "Wizard launcher modal that auto-shows for new organizations",
+    "details": "Create OnboardingLauncherModal component that: (1) Renders as a modal overlay at app root level. (2) Checks on mount: if org exists AND onboarding_state.current_step == 1 AND last_activity_at is null, automatically show modal. (3) Modal displays: title 'Get Started with <OrgName>', subtitle/intro text, two buttons: 'Start Onboarding' and 'Skip for now'. (4) 'Start Onboarding' button calls POST /api/v1/onboarding/step {step_number: 1, data: {...}} or navigates to step 1 form (depends on wizard flow). (5) 'Skip for now' button simply closes modal without changing onboarding_state. (6) Modal can be manually triggered from Settings → Onboarding (if dismissed). (7) Use responsive design; works on mobile and desktop. (8) Implement focus trap and keyboard close (Esc key) for accessibility.",
+    "scope_files": ["src/components/onboarding/OnboardingLauncherModal.tsx", "src/hooks/useOnboardingAutoLaunch.ts", "tests/e2e/onboarding.spec.ts"],
+    "out_of_scope": ["step 1 form implementation (see T-006)", "app root layout integration (may be in Layout component)"],
+    "dependencies": ["T-001", "T-002"],
+    "parallel_safe_with": ["T-004", "T-006", "T-007", "T-008", "T-009"],
+    "acceptance_criteria": [
+      "Given a new organization created, when user logs in, then launcher modal auto-shows with 'Get Started' text",
+      "Given launcher modal is open, when user clicks 'Start Onboarding', then modal closes and user navigates to step 1 (SET-002)",
+      "Given launcher modal is open, when user clicks 'Skip for now', then modal closes and onboarding_state is NOT modified (can be re-triggered later)"
+    ],
+    "test_strategy": [
+      "Write e2e test: test_launcher_auto_shows_for_new_org() creates org via API and verifies modal visibility",
+      "Write e2e test: test_launcher_skip_for_now() clicks skip button and verifies modal closes without state change",
+      "Run: npx cypress run -e TEST_FILE=tests/e2e/onboarding.spec.ts --spec '**/launcher*'",
+      "Verify modal closes on Esc key press"
+    ],
+    "risk_red_lines": [
+      "Do not auto-show modal if onboarding is already in progress (current_step > 1)",
+      "Do not modify onboarding_state on skip action"
+    ],
+    "skills": ["test-driven-development"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

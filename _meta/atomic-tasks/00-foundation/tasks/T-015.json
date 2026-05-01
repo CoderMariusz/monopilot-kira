@@ -1,0 +1,87 @@
+{
+  "title": "T-015 \u2014 TOTP MFA enrolment via otplib with argon2id recovery codes (WebAuthn placeholder disabled)",
+  "prompt": "# T-015 \u2014 TOTP MFA enrolment via otplib with argon2id recovery codes (WebAuthn placeholder disabled)\n\nPRD: `00-FOUNDATION-PRD.md` \u2014 sections: \u00a75.x\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`\n\n## Goal\nTOTP RFC 6238 enrolment (30-s window, 6-digit) using otplib. Recovery codes hashed argon2id (memory=64MiB, t=3, p=1), one-time use. WebAuthn surface remains disabled per Phase 3 deferral.\n\n## Implementation contract\nCreate packages/auth/src/totp.ts wrapping otplib.authenticator. Add server actions enrollTotp() (returns provisioning URI + 10 recovery codes) and verifyTotp(code). Persist mfa_secrets(user_id, secret_encrypted, enrolled_at) and recovery_codes(user_id, code_hash, used_at). Encrypt secret with libsodium secretbox using a per-tenant key derived from a master env var. Recovery codes hashed argon2id and one-time-use enforced (set used_at, reject reuse). Vitest unit covers the 30-s TOTP window, recovery-code one-time-use, and asserts WebAuthn is exposed as a disabled-with-tooltip stub when called server-side.\n\n## Files (scope)\n- packages/auth/src/totp.ts [create]\n- packages/auth/src/recovery.ts [create]\n- packages/db/migrations/007-mfa.sql [create]\n- packages/auth/src/__tests__/totp.test.ts [create]\n\n## Acceptance criteria\n1. Given a user enrolls in TOTP, when verifyTotp() is called with a code generated for the same secret within the 30-s window, then it returns true; outside the window, false\n2. Given a recovery code is used once, when the same code is submitted again, then verification returns false and an audit_events row with action='mfa.recovery_replay_attempt' is written\n3. Given WebAuthn is requested, when the server action is invoked, then it returns {disabled: true, reason: 'phase_3_deferred'} without contacting the WebAuthn API\n\n## Test strategy\n- RED: write packages/auth/src/__tests__/totp.test.ts covering window, replay-protection, and WebAuthn stub before totp.ts exists\n- Run 'pnpm --filter @monopilot/auth test'\n\n## Risk red lines\n- Recovery codes MUST be hashed argon2id, never stored plaintext\n- Do not enable WebAuthn \u2014 Phase 3 deferral is explicit (\u00a75.x)\n\n## Dependencies (must be complete first)\n- T-010\n- T-011\n\n## Closeout evidence\nProvide: changed_files, test_commands_and_results, acceptance_criteria_status (per AC), deviations_from_prd, git_status. Use the test-driven-development skill (RED test before implementation) and requesting-code-review at GREEN.",
+  "labels": [
+    "prd",
+    "auth",
+    "mfa",
+    "T2-api"
+  ],
+  "priority": 80,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-015",
+    "source_prd": "00-FOUNDATION-PRD.md",
+    "prd_refs": [
+      "\u00a75.x"
+    ],
+    "category": "auth",
+    "subcategory": "mfa",
+    "task_type": "T2-api",
+    "parent_feature": "00-FOUNDATION-impl-f auth",
+    "context_budget": "55k",
+    "estimated_effort": "2-3h",
+    "description": "TOTP RFC 6238 enrolment (30-s window, 6-digit) using otplib. Recovery codes hashed argon2id (memory=64MiB, t=3, p=1), one-time use. WebAuthn surface remains disabled per Phase 3 deferral.",
+    "details": "Create packages/auth/src/totp.ts wrapping otplib.authenticator. Add server actions enrollTotp() (returns provisioning URI + 10 recovery codes) and verifyTotp(code). Persist mfa_secrets(user_id, secret_encrypted, enrolled_at) and recovery_codes(user_id, code_hash, used_at). Encrypt secret with libsodium secretbox using a per-tenant key derived from a master env var. Recovery codes hashed argon2id and one-time-use enforced (set used_at, reject reuse). Vitest unit covers the 30-s TOTP window, recovery-code one-time-use, and asserts WebAuthn is exposed as a disabled-with-tooltip stub when called server-side.",
+    "scope_files": [
+      "packages/auth/src/totp.ts [create]",
+      "packages/auth/src/recovery.ts [create]",
+      "packages/db/migrations/007-mfa.sql [create]",
+      "packages/auth/src/__tests__/totp.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not modify files outside the scope_files list",
+      "Do not introduce business logic from later module PRDs (01-NPD, 02-SETTINGS, etc.)",
+      "WebAuthn enrolment is deferred to Phase 3 per \u00a75.x \u2014 only the disabled stub is shipped here"
+    ],
+    "dependencies": [
+      "T-010",
+      "T-011"
+    ],
+    "parallel_safe_with": [
+      "T-012",
+      "T-013"
+    ],
+    "acceptance_criteria": [
+      "Given a user enrolls in TOTP, when verifyTotp() is called with a code generated for the same secret within the 30-s window, then it returns true; outside the window, false",
+      "Given a recovery code is used once, when the same code is submitted again, then verification returns false and an audit_events row with action='mfa.recovery_replay_attempt' is written",
+      "Given WebAuthn is requested, when the server action is invoked, then it returns {disabled: true, reason: 'phase_3_deferred'} without contacting the WebAuthn API"
+    ],
+    "test_strategy": [
+      "RED: write packages/auth/src/__tests__/totp.test.ts covering window, replay-protection, and WebAuthn stub before totp.ts exists",
+      "Run 'pnpm --filter @monopilot/auth test'"
+    ],
+    "risk_red_lines": [
+      "Recovery codes MUST be hashed argon2id, never stored plaintext",
+      "Do not enable WebAuthn \u2014 Phase 3 deferral is explicit (\u00a75.x)"
+    ],
+    "skills": [
+      "test-driven-development",
+      "verification-before-completion",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

@@ -1,0 +1,58 @@
+{
+  "title": "T-029 — Server Action deleteFa (NPD-a) with confirmation + audit",
+  "prompt": "# T-029 — deleteFa Server Action\n\nPRD: 01-NPD-PRD.md §2.2 (fa.delete), §2.3 (audit + confirmation)\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\nPrototype: design/Monopilot Design System/npd/modals.jsx:349-386 (fa_delete_modal)\n\n## Goal\ndeleteFa(productCode, reason) Server Action requiring fa.delete permission, requires reason >=10 chars, soft-deletes via setting deleted_at column (migration adds it), emits fa.deleted event, writes audit_events row.\n\n## Implementation contract\nMigration 0020 adds product.deleted_at TIMESTAMPTZ + view fa filter where deleted_at IS NULL. Server Action checks RBAC, validates reason, sets deleted_at, emits fa.deleted, writes audit row {actor, productCode, reason}. Tests for happy path, reason length, RBAC.\n\n## Files\n- packages/db/migrations/0020_product_soft_delete.sql [create]\n- apps/web/app/(npd)/fa/actions/delete-fa.ts [create]\n- apps/web/app/(npd)/fa/actions/__tests__/delete-fa.test.ts [create]\n\n## Acceptance criteria\n1. Given user role npd_manager calls deleteFa(code,'invalid recipe per QA'), when run, then product.deleted_at is set and listFaByDept excludes the row\n2. Given reason length 5, when deleteFa runs, then ValidationError thrown for reason min length\n3. Given user role core_user calls deleteFa, when run, then AuthError thrown (no fa.delete)\n\n## Test strategy\n- RED: 3 tests covering soft-delete, reason length, RBAC denial\n- Run 'pnpm --filter db migrate && pnpm --filter web test delete-fa'\n\n## Risk red lines\n- Do not hard-delete (audit retention required)\n- Do not skip audit row\n- Do not allow deletion without reason",
+  "labels": ["prd", "api", "fa-delete", "T2-api"],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-029",
+    "source_prd": "01-NPD-PRD.md",
+    "prd_refs": ["§2.2", "§2.3"],
+    "category": "api",
+    "subcategory": "fa-delete",
+    "task_type": "T2-api",
+    "parent_feature": "01-NPD-a fa CRUD",
+    "context_budget": "25k",
+    "estimated_effort": "1-2h",
+    "description": "Soft-delete FA with reason and audit log; updates fa view to exclude deleted rows.",
+    "details": "Migration adds deleted_at column + updates fa view; action validates reason min length, RBAC, writes audit + outbox.",
+    "scope_files": [
+      "packages/db/migrations/0020_product_soft_delete.sql [create]",
+      "apps/web/app/(npd)/fa/actions/delete-fa.ts [create]",
+      "apps/web/app/(npd)/fa/actions/__tests__/delete-fa.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not implement restore here",
+      "Do not build fa-delete modal UI here (covered by separate UI task in NPD-i if needed)"
+    ],
+    "dependencies": ["T-001", "T-006", "T-007"],
+    "parallel_safe_with": ["T-028"],
+    "acceptance_criteria": [
+      "Given user role npd_manager calls deleteFa(code,'invalid recipe per QA'), when run, then product.deleted_at is set and listFaByDept excludes the row",
+      "Given reason length 5, when deleteFa runs, then ValidationError thrown for reason min length",
+      "Given user role core_user calls deleteFa, when run, then AuthError thrown"
+    ],
+    "test_strategy": [
+      "RED: 3 tests for soft-delete, reason length, RBAC denial before action exists",
+      "Run 'pnpm --filter db migrate && pnpm --filter web test delete-fa'"
+    ],
+    "risk_red_lines": [
+      "Do not hard-delete",
+      "Do not skip audit row",
+      "Do not allow deletion without reason"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

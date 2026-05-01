@@ -1,0 +1,59 @@
+{
+  "title": "T-028 — POST /receive-po-line (multi-LP receive + tolerance) (06-b)",
+  "prompt": "# T-028 — receive PO line\n\nPRD: 06-SCANNER-P1-PRD.md §8.2 FR-SC-BE-022, §8.2 FR-SC-BE-026 idempotency, §8.2 FR-SC-BE-027 GS1 match\n05-WH §7 multi-LP, §7.2 tolerance\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nAccept a single receipt row (Multi-LP Q1) and create the GRN row + new LP per 05-WH §6 state machine. Validates qty ≤ ordered + tolerance, idempotent via X-Client-Operation-Id header.\n\n## Implementation contract\n1. POST /api/warehouse/scanner/receive-po-line with body Zod `{ po_line_id, product_id, qty, lot_number, expiry_date, catch_weight_kg?, location_id, pallet_id? }`.\n2. Idempotency: lookup scanner_audit_log.client_operation_id; if exists return cached envelope.\n3. Tolerance check from 05-WH §7.2 config; over-receipt ⇒ 409 SC_PO_OVER_RECEIPT_EXCEEDED.\n4. Insert lp + grn_row + audit row in a single transaction.\n5. GS1 batch match: if lot_number matches AI 10 from gs1-parser of the scanned barcode, server normalizes to uppercase.\n\n## Files\n- apps/scanner/src/app/api/warehouse/scanner/receive-po-line/route.ts [create]\n- apps/scanner/src/server/services/warehouse-receive.ts [modify]\n- apps/scanner/__tests__/api/receive-po-line.test.ts [create]\n\n## Acceptance criteria\n1. Given a PO line ordered 100, received 60, with tolerance 5%, when POST receive-po-line is called with qty=46, then the response is 409 SC_PO_OVER_RECEIPT_EXCEEDED\n2. Given the same X-Client-Operation-Id header on two POSTs of qty=20, when the second POST runs, then it returns the cached envelope and no duplicate LP is created\n3. Given a successful receive of qty=40, when the response returns 200, then a new lp row exists with qty=40, status='available', a grn_row is linked, and a scanner_audit_log row with scan_type='receive_po' and client_operation_id is recorded\n\n## Test strategy\n- RED: write receive-po-line.test.ts asserting tolerance reject + idempotency replay + happy-path artifacts before implementation\n- Run 'pnpm --filter scanner test api/receive-po-line'\n\n## Risk red lines\n- Do not allow qty=0 (V-SCAN-WO-005-style block)\n- Do not skip the transaction wrapping lp+grn_row insert\n- Do not let client override org_id or user_id",
+  "labels": ["prd", "api", "warehouse-receive-po", "T2-api"],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-028",
+    "source_prd": "06-SCANNER-P1-PRD.md",
+    "prd_refs": ["§8.2 FR-SC-BE-022", "§8.2 FR-SC-BE-026", "§8.2 FR-SC-BE-027"],
+    "category": "api",
+    "subcategory": "warehouse-receive-po",
+    "task_type": "T2-api",
+    "parent_feature": "06-b Warehouse In",
+    "context_budget": "30k",
+    "estimated_effort": "2-3h",
+    "description": "Receive a PO line; create LP + GRN row in one transaction; idempotent via X-Client-Operation-Id and tolerance-checked.",
+    "details": "Single POST handler validates body, looks up cached idempotent response, enforces 05-WH §7.2 tolerance, then transactionally inserts lp + grn_row + audit row. GS1 batch normalized to uppercase if AI 10 matches.",
+    "scope_files": [
+      "apps/scanner/src/app/api/warehouse/scanner/receive-po-line/route.ts [create]",
+      "apps/scanner/src/server/services/warehouse-receive.ts [modify]",
+      "apps/scanner/__tests__/api/receive-po-line.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not implement TO receive here (T-029)",
+      "Do not implement putaway here (T-030)",
+      "Do not build SCN-020 UI here (T-031)"
+    ],
+    "dependencies": ["T-027"],
+    "parallel_safe_with": ["T-029", "T-030"],
+    "acceptance_criteria": [
+      "Given a PO line ordered 100 with received 60 and tolerance 5%, when POST receive-po-line is called with qty=46, then 409 SC_PO_OVER_RECEIPT_EXCEEDED",
+      "Given the same X-Client-Operation-Id header on two POSTs of qty=20, when the second POST runs, then the cached envelope is returned and no duplicate LP is created",
+      "Given a successful qty=40 receive, when the response returns 200, then a new lp row exists with qty=40 status='available', a grn_row is linked, and a scanner_audit_log row with scan_type='receive_po' is recorded"
+    ],
+    "test_strategy": [
+      "RED: write receive-po-line.test.ts asserting tolerance reject + idempotency + happy-path before implementation",
+      "Run 'pnpm --filter scanner test api/receive-po-line'"
+    ],
+    "risk_red_lines": [
+      "Do not allow qty=0",
+      "Do not skip transaction around lp+grn_row insert",
+      "Do not let client override org_id or user_id"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

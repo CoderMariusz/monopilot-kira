@@ -1,0 +1,65 @@
+{
+  "title": "T-014 — API: TO CRUD + numbering + state transitions",
+  "prompt": "Implement TO CRUD per PRD §7. Endpoints under `/api/planning/transfer-orders/`. Numbering reuses pattern from T-009 (`generateToNumber`). Server Actions: createTransferOrder, updateTransferOrder, deleteTransferOrder (allowed only in draft). State transitions delegate to to_state_machine_v1 (T-007). V-PLAN-TO-001/002 enforced (from!=to, same site). V-PLAN-TO-003 blocks ship without lines.\n\nRED test covers: from/to same warehouse → 400, draft delete OK, planned delete blocked, ship without lines blocked.",
+  "labels": ["prd", "api", "to-crud", "T2-api"],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-014",
+    "source_prd": "04-PLANNING-BASIC-PRD.md",
+    "prd_refs": ["§7.1", "§7.2", "§7.7", "§7.8"],
+    "category": "api",
+    "subcategory": "to-crud",
+    "task_type": "T2-api",
+    "parent_feature": "planning-to",
+    "context_budget": "40k",
+    "estimated_effort": "3h",
+    "description": "TO CRUD endpoints + state transitions backed by to_state_machine_v1.",
+    "details": "Schema validates from_warehouse !== to_warehouse + same site_id (V-PLAN-TO-002). Site comparison uses warehouses.site_id from 02-SETTINGS §12. Numbering format 'TO-YYYY-NNNNN'. Delete: only draft status; planned/shipped use cancel transition.",
+    "scope_files": [
+      "src/app/api/planning/transfer-orders/route.ts [create]",
+      "src/app/api/planning/transfer-orders/[id]/route.ts [create]",
+      "src/server/actions/planning/to-crud.ts [create]",
+      "src/server/actions/planning/__tests__/to-crud.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Ship/Receive endpoints (T-015)",
+      "LP picker logic (T-016)"
+    ],
+    "dependencies": ["T-003", "T-007", "T-009"],
+    "parallel_safe_with": ["T-015", "T-016"],
+    "acceptance_criteria": [
+      "Given from_warehouse_id == to_warehouse_id, when createTransferOrder runs, then HTTP 400 with code 'V-PLAN-TO-001'.",
+      "Given two warehouses on different sites, when createTransferOrder runs, then HTTP 400 with code 'V-PLAN-TO-002'.",
+      "Given a TO in 'planned' state, when DELETE called, then HTTP 409 (must use cancel transition); 'draft' state DELETE succeeds.",
+      "Given `pnpm vitest run src/server/actions/planning/__tests__/to-crud.test.ts`, when run, then 0 failures."
+    ],
+    "test_strategy": [
+      "RED tests for V-PLAN-TO-001/002, draft-only delete, numbering issuance.",
+      "Run `pnpm vitest run src/server/actions/planning/__tests__/to-crud.test.ts`."
+    ],
+    "risk_red_lines": [
+      "Do not allow cross-site TOs at this layer — M14 boundary.",
+      "Do not implement state transitions outside the rule engine."
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

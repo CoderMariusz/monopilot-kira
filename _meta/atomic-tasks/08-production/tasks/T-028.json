@@ -1,0 +1,59 @@
+{
+  "title": "T-028 — POST /api/production/work-orders/:id/outputs (primary output registration)",
+  "prompt": "# T-028 — POST /work-orders/:id/outputs (primary)\n\nPRD: 08-PRODUCTION-PRD.md §7.3 FR-08-E3-001, §8.2.3, §16.4 V-PROD-04/24\n\n## Goal\nImplement POST /outputs endpoint for primary output registration: LP creation via 05-WH, batch_number auto-gen (pattern WO_CODE-OUT-NNN), expiry = today + item.shelf_life_days, write wo_outputs row.\n\n## Implementation contract\nApp Router POST /api/production/work-orders/[id]/outputs. Zod body {transaction_id: uuid, operator_id: uuid, output_type: 'primary'|'co_product'|'by_product', qty_kg: number(>0), batch_number_auto?: boolean, catch_weight_kg_per_unit?: number, putaway_location_id?: uuid}. withIdempotency. Atomic transaction: load WO + item, generate batch_number (WO_CODE-OUT-{seq}; seq computed via SELECT count+1 of wo_outputs WHERE wo_id and output_type), compute expiry_date = current_date + item.shelf_life_days (V-PROD-04), call 05-WH lp-create adapter, INSERT wo_outputs row. Return 200 {output_id, lp_id, batch_number, label_pdf_url} (label_pdf_url stub deferred to T-033).\n\n## Files (scope)\n- apps/web/app/api/production/work-orders/[id]/outputs/route.ts [create]\n- apps/web/app/api/production/work-orders/[id]/outputs/__tests__/route.test.ts [create]\n- packages/api-services/production/register-output.ts [create]\n\n## Acceptance criteria\n1. Given valid WO + item shelf_life=30, when POST /outputs with primary qty=100kg, then 200 with batch_number matching WO_CODE-OUT-001 and expiry_date = today + 30d (V-PROD-04)\n2. Given two sequential primary outputs same WO, when POSTed, then batch_numbers WO_CODE-OUT-001 and WO_CODE-OUT-002 (incremented seq)\n3. Given qty_kg=0, when POST, then 422 ValidationError listing qty_kg (V-PROD-03)\n\n## Test strategy\n- RED: route test asserting batch_number pattern + expiry date + 422 before route exists\n- Run 'pnpm --filter web test work-orders.*outputs'\n\n## Risk red lines\n- Do not generate batch_number outside the WO_CODE-OUT-NNN pattern\n- Do not skip expiry_date computation (V-PROD-04)\n- Do not split LP creation + wo_outputs insert across two transactions",
+  "labels": ["prd", "api", "output", "T2-api"],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-028",
+    "source_prd": "08-PRODUCTION-PRD.md",
+    "prd_refs": ["§7.3 FR-08-E3-001", "§8.2.3", "§16.4 V-PROD-04", "§16.4 V-PROD-24"],
+    "category": "api",
+    "subcategory": "output",
+    "task_type": "T2-api",
+    "parent_feature": "08-PROD E3 Output+Waste",
+    "context_budget": "36k",
+    "estimated_effort": "2-3h",
+    "description": "POST /outputs primary output: 05-WH LP creation + auto batch_number + expiry from shelf_life.",
+    "details": "Atomic: increment seq via wo_outputs count, generate batch_number, call lp-create, INSERT wo_outputs. expiry_date = current_date + item.shelf_life_days (V-PROD-04). label_pdf_url stub returned (real PDF in T-033).",
+    "scope_files": [
+      "apps/web/app/api/production/work-orders/[id]/outputs/route.ts [create]",
+      "apps/web/app/api/production/work-orders/[id]/outputs/__tests__/route.test.ts [create]",
+      "packages/api-services/production/register-output.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not implement co/by-products (T-029)",
+      "Do not implement label PDF (T-033)",
+      "Do not implement output yield gate (T-035)"
+    ],
+    "dependencies": ["T-003", "T-015", "T-016"],
+    "parallel_safe_with": ["T-029", "T-030", "T-031", "T-032"],
+    "acceptance_criteria": [
+      "Given item shelf_life=30, when POST primary qty=100, then batch_number=WO_CODE-OUT-001 and expiry=today+30d",
+      "Given two sequential primary outputs, when POSTed, then batches WO_CODE-OUT-001 and WO_CODE-OUT-002",
+      "Given qty_kg=0, when POST, then 422 listing qty_kg (V-PROD-03)"
+    ],
+    "test_strategy": [
+      "RED: route test asserting batch + expiry + 422 before route exists",
+      "Run 'pnpm --filter web test work-orders.*outputs'"
+    ],
+    "risk_red_lines": [
+      "Do not deviate from WO_CODE-OUT-NNN pattern",
+      "Do not skip expiry_date computation",
+      "Do not split LP+wo_outputs across transactions"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

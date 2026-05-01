@@ -1,0 +1,61 @@
+{
+  "title": "T-038 — active-WOs + WO materials + suggest-LP APIs (06-d)",
+  "prompt": "# T-038 — production active-WOs + materials + suggest-LP\n\nPRD: 06-SCANNER-P1-PRD.md §8.4 FR-SC-BE-043/045/046\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nLand `GET /active-wos` (list IN_PROGRESS WOs filtered by user site+line context), `GET /wo/:id/materials` (BOM expected materials with multi-source — stock + upstream_wo_output), and `POST /warehouse/scanner/suggest-lp` for SCN-080 Consume top-5 FEFO ranking.\n\n## Implementation contract\n1. GET /production/scanner/active-wos: status=IN_PROGRESS, RLS site_id+line_id; payload `{ id, number, planned_qty, actual_qty, consumed_count, output_count, progress_pct }`.\n2. GET /production/scanner/wo/:id/materials: BOM snapshot per 03-TECH §7 with material_source per line + LP suggestions top 3 FEFO.\n3. POST /warehouse/scanner/suggest-lp body `{ wo_id, wo_material_id, qty_needed, warehouse_id }` → top 5 FEFO-ranked LP suggestions.\n\n## Files\n- apps/scanner/src/app/api/production/scanner/active-wos/route.ts [create]\n- apps/scanner/src/app/api/production/scanner/wo/[id]/materials/route.ts [create]\n- apps/scanner/src/app/api/warehouse/scanner/suggest-lp/route.ts [create]\n- apps/scanner/src/server/services/production-execute.ts [create]\n- apps/scanner/__tests__/api/production-active-wos.test.ts [create]\n\n## Acceptance criteria\n1. Given two WOs IN_PROGRESS on the user's line and one on a different line, when GET /active-wos runs, then only the two on the user's line are returned\n2. Given a WO with 3 BOM lines (1 stock RM, 1 stock RM, 1 upstream_wo_output intermediate), when GET /wo/:id/materials runs, then each line carries its material_source and the upstream_wo_output line has empty stock LP suggestions but a non-empty 'projected_intermediate' field\n3. Given POST /warehouse/scanner/suggest-lp for a material with 8 candidate LPs, when the response returns 200, then it carries exactly 5 LPs ordered by ascending expiry (FEFO)\n\n## Test strategy\n- RED: write production-active-wos.test.ts asserting site+line filter + BOM materials shape + top-5 FEFO before implementation\n- Run 'pnpm --filter scanner test api/production-active-wos'\n\n## Risk red lines\n- Do not return WOs outside the user's site+line context\n- Do not omit material_source per BOM line\n- Do not return more than 5 LP suggestions on suggest-lp",
+  "labels": ["prd", "api", "production-execute-list", "T2-api"],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-038",
+    "source_prd": "06-SCANNER-P1-PRD.md",
+    "prd_refs": ["§8.4 FR-SC-BE-043", "§8.4 FR-SC-BE-045", "§8.4 FR-SC-BE-046"],
+    "category": "api",
+    "subcategory": "production-execute-list",
+    "task_type": "T2-api",
+    "parent_feature": "06-d Production Pick + Consume",
+    "context_budget": "30k",
+    "estimated_effort": "2h",
+    "description": "Three GET endpoints feeding SCN-080/081 + suggest-LP top-5 FEFO; site+line scoped.",
+    "details": "active-wos returns the WO summary cards, materials returns BOM lines with material_source distinction (stock vs upstream_wo_output) and top-3 FEFO suggestions, suggest-lp returns top-5 FEFO ranked LPs.",
+    "scope_files": [
+      "apps/scanner/src/app/api/production/scanner/active-wos/route.ts [create]",
+      "apps/scanner/src/app/api/production/scanner/wo/[id]/materials/route.ts [create]",
+      "apps/scanner/src/app/api/warehouse/scanner/suggest-lp/route.ts [create]",
+      "apps/scanner/src/server/services/production-execute.ts [create]",
+      "apps/scanner/__tests__/api/production-active-wos.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not implement consume-to-WO here (T-039)",
+      "Do not implement output here (T-042)",
+      "Do not implement SCN-080/081 UI here (T-041)"
+    ],
+    "dependencies": ["T-007"],
+    "parallel_safe_with": ["T-037", "T-039"],
+    "acceptance_criteria": [
+      "Given two WOs IN_PROGRESS on the user's line and one on a different line, when GET /active-wos runs, then only the two on the user's line are returned",
+      "Given a WO with 3 BOM lines (1 stock RM, 1 stock RM, 1 upstream_wo_output intermediate), when GET /wo/:id/materials runs, then each line carries its material_source and the upstream_wo_output line has empty stock LP suggestions but a non-empty projected_intermediate field",
+      "Given POST /warehouse/scanner/suggest-lp for a material with 8 candidate LPs, when the response returns 200, then it carries exactly 5 LPs ordered by ascending expiry"
+    ],
+    "test_strategy": [
+      "RED: write production-active-wos.test.ts asserting site+line filter + materials shape + top-5 FEFO before implementation",
+      "Run 'pnpm --filter scanner test api/production-active-wos'"
+    ],
+    "risk_red_lines": [
+      "Do not return WOs outside user's site+line",
+      "Do not omit material_source per BOM line",
+      "Do not return more than 5 suggestions"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

@@ -1,0 +1,58 @@
+{
+  "title": "T-030 — GRN outbox consumer: auto-create incoming inspection",
+  "prompt": "# T-030 — GRN outbox consumer auto-create inspection\n\nPRD: 09-QUALITY-PRD.md §12.1 grn.received consumer, §7.1 EPIC 8C 09-c-05\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nSubscribe to 05-WH outbox event `grn.received`. For each GRN line whose product `items.inspection_required=true`, auto-create a quality_inspections row with inspection_type='incoming', reference_type='grn', reference_id=grn.id, specification_id resolved from the active spec for product+applies_to='incoming'.\n\n## Implementation contract\n1. `apps/web/src/server/outbox/grnConsumer.ts` registers handler 'grn.received'.\n2. For each line: lookup product.inspection_required and the active quality_specifications (status='active', applies_to in ('incoming','all')); skip if either missing (log SKIP reason).\n3. INSERT quality_inspections {inspection_type:'incoming', reference_*, product_id, specification_id, specification_version, sampling_plan_id resolved via getDefaultSamplingPlan, scheduled_at=NOW+1h}.\n4. Idempotency: on retry, check existing inspection rows by (reference_type='grn', reference_id, product_id) and skip duplicates.\n\n## Files\n- apps/web/src/server/outbox/grnConsumer.ts [create]\n- apps/web/src/server/outbox/__tests__/grnConsumer.test.ts [create]\n\n## Acceptance criteria\n1. Given a grn.received event with 2 lines (product A inspection_required=true, product B false), when the consumer processes it, then exactly 1 quality_inspections row is inserted (for A) and 0 for B\n2. Given product A has no active spec for applies_to in ('incoming','all'), when the consumer processes the event, then 0 inspections are inserted and a structured warning log SKIP=spec_unresolved is emitted\n3. Given the same event delivered twice (idempotency replay), when the consumer processes both, then exactly 1 quality_inspections row exists for that GRN+product (no duplicates)",
+  "labels": ["prd", "integration", "grn-consumer", "T4-wiring-test"],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-030",
+    "source_prd": "09-QUALITY-PRD.md",
+    "prd_refs": ["§12.1", "§7.1"],
+    "category": "integration",
+    "subcategory": "grn-consumer",
+    "task_type": "T4-wiring-test",
+    "parent_feature": "09-c Incoming Inspection",
+    "context_budget": "40k",
+    "estimated_effort": "2h",
+    "description": "Outbox consumer for grn.received that auto-creates incoming inspections; spec resolution + idempotency.",
+    "details": "Handler registered in shared outbox poller. Filters lines by items.inspection_required. Resolves active spec via lookup. Idempotency check by (reference_type, reference_id, product_id). Emits structured warning when spec unresolved. Tests cover filtering, skip reason, replay idempotency.",
+    "scope_files": [
+      "apps/web/src/server/outbox/grnConsumer.ts [create]",
+      "apps/web/src/server/outbox/__tests__/grnConsumer.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not implement other outbox consumers (allergen.changeover.requested → T-052)",
+      "Do not modify items.inspection_required field (cross-module 03-TECH)",
+      "Do not implement P2 wo.completed consumer"
+    ],
+    "dependencies": ["T-017", "T-025", "T-031"],
+    "parallel_safe_with": ["T-029"],
+    "acceptance_criteria": [
+      "Given a grn.received event with 2 lines (product A inspection_required=true, product B false), when the consumer processes it, then exactly 1 quality_inspections row is inserted (for A) and 0 for B",
+      "Given product A has no active spec for applies_to in ('incoming','all'), when the consumer processes the event, then 0 inspections are inserted and a structured warning log SKIP=spec_unresolved is emitted",
+      "Given the same event delivered twice, when the consumer processes both, then exactly 1 quality_inspections row exists for that (GRN, product) combination"
+    ],
+    "test_strategy": [
+      "RED: write apps/web/src/server/outbox/__tests__/grnConsumer.test.ts asserting filtering, skip reason, idempotency replay",
+      "Run 'pnpm --filter web test grnConsumer'"
+    ],
+    "risk_red_lines": [
+      "Do not double-create inspections on retry (idempotency contract)",
+      "Do not silently swallow spec_unresolved (must emit structured warning)",
+      "Do not block the consumer chain on a single failing line (per-line error isolation)"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

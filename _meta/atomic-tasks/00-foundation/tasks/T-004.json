@@ -1,0 +1,84 @@
+{
+  "title": "T-004 \u2014 permissions.enum.ts source-of-truth lock with org.access.admin / org.schema.admin SoD pair",
+  "prompt": "# T-004 \u2014 permissions.enum.ts source-of-truth lock with org.access.admin / org.schema.admin SoD pair\n\nPRD: `00-FOUNDATION-PRD.md` \u2014 sections: \u00a73, \u00a713\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`\n\n## Goal\nLock RBAC permission strings. Includes the F-U4 ACCESS/ADMIN pillar split: org.access.admin and org.schema.admin must both exist and be mutually exclusive at grant time.\n\n## Implementation contract\nCreate packages/rbac/src/permissions.enum.ts exporting Permission const map: org.access.admin, org.schema.admin, org.scim.write, fa.create, fa.edit, brief.convert_to_fa, ref.edit, audit.read, outbox.admin, impersonate.tenant. Export ALL_PERMISSIONS readonly array and SOD_EXCLUSIVE_PAIRS = [['org.access.admin','org.schema.admin']] enforcing SOC 2 CC6.3 separation-of-duties. Format regex ^[a-z]+(\\.[a-z_]+)+$. Add CODEOWNERS lock.\n\n## Files (scope)\n- packages/rbac/src/permissions.enum.ts [create]\n- packages/rbac/src/__tests__/permissions.test.ts [create]\n- CODEOWNERS [modify]\n\n## Acceptance criteria\n1. Given the permissions enum is loaded, when ALL_PERMISSIONS is iterated, then every value matches the dot-format regex and there are no duplicates\n2. Given SOC 2 CC6.3 separation-of-duties is required (PRD \u00a73 F-U4), when SOD_EXCLUSIVE_PAIRS is inspected, then it contains exactly the tuple ['org.access.admin','org.schema.admin']\n3. Given org.access.admin and org.schema.admin must both exist, when both keys are read, then they resolve to those exact strings\n\n## Test strategy\n- RED: write packages/rbac/src/__tests__/permissions.test.ts asserting SoD pair and format regex before permissions.enum.ts exists\n- Run 'pnpm --filter @monopilot/rbac test'\n\n## Risk red lines\n- Do not let a single role grant both org.access.admin and org.schema.admin without the dual-control flag (validation will be added in T-014; the enum constant must already encode the pair)\n\n## Dependencies (must be complete first)\n- T-001\n\n## Closeout evidence\nProvide: changed_files, test_commands_and_results, acceptance_criteria_status (per AC), deviations_from_prd, git_status. Use the test-driven-development skill (RED test before implementation) and requesting-code-review at GREEN.",
+  "labels": [
+    "prd",
+    "auth",
+    "enum-lock",
+    "T1-schema"
+  ],
+  "priority": 50,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-004",
+    "source_prd": "00-FOUNDATION-PRD.md",
+    "prd_refs": [
+      "\u00a73",
+      "\u00a713"
+    ],
+    "category": "auth",
+    "subcategory": "enum-lock",
+    "task_type": "T1-schema",
+    "parent_feature": "cross-cutting enum locks",
+    "context_budget": "25k",
+    "estimated_effort": "0.5-1h",
+    "description": "Lock RBAC permission strings. Includes the F-U4 ACCESS/ADMIN pillar split: org.access.admin and org.schema.admin must both exist and be mutually exclusive at grant time.",
+    "details": "Create packages/rbac/src/permissions.enum.ts exporting Permission const map: org.access.admin, org.schema.admin, org.scim.write, fa.create, fa.edit, brief.convert_to_fa, ref.edit, audit.read, outbox.admin, impersonate.tenant. Export ALL_PERMISSIONS readonly array and SOD_EXCLUSIVE_PAIRS = [['org.access.admin','org.schema.admin']] enforcing SOC 2 CC6.3 separation-of-duties. Format regex ^[a-z]+(\\.[a-z_]+)+$. Add CODEOWNERS lock.",
+    "scope_files": [
+      "packages/rbac/src/permissions.enum.ts [create]",
+      "packages/rbac/src/__tests__/permissions.test.ts [create]",
+      "CODEOWNERS [modify]"
+    ],
+    "out_of_scope": [
+      "Do not modify files outside the scope_files list",
+      "Do not introduce business logic from later module PRDs (01-NPD, 02-SETTINGS, etc.)",
+      "Do not implement RBAC enforcement in this task \u2014 only the enum (T-014 wires it)"
+    ],
+    "dependencies": [
+      "T-001"
+    ],
+    "parallel_safe_with": [
+      "T-003",
+      "T-005"
+    ],
+    "acceptance_criteria": [
+      "Given the permissions enum is loaded, when ALL_PERMISSIONS is iterated, then every value matches the dot-format regex and there are no duplicates",
+      "Given SOC 2 CC6.3 separation-of-duties is required (PRD \u00a73 F-U4), when SOD_EXCLUSIVE_PAIRS is inspected, then it contains exactly the tuple ['org.access.admin','org.schema.admin']",
+      "Given org.access.admin and org.schema.admin must both exist, when both keys are read, then they resolve to those exact strings"
+    ],
+    "test_strategy": [
+      "RED: write packages/rbac/src/__tests__/permissions.test.ts asserting SoD pair and format regex before permissions.enum.ts exists",
+      "Run 'pnpm --filter @monopilot/rbac test'"
+    ],
+    "risk_red_lines": [
+      "Do not let a single role grant both org.access.admin and org.schema.admin without the dual-control flag (validation will be added in T-014; the enum constant must already encode the pair)"
+    ],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

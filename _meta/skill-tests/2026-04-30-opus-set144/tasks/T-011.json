@@ -1,0 +1,47 @@
+{
+  "title": "T-011 — Playwright E2E happy-path: full wizard <15min P50",
+  "prompt": "Author a Playwright E2E test exercising the full SET-001..SET-007 onboarding flow per PRD §14.3 (6-step <15min P50 target on KPI line 57).\n\nFlow:\n1. Sign in as a freshly created org owner (factory creates org with default onboarding_state).\n2. Visit `/` — assert redirect to /onboarding/1 (T-004 launcher).\n3. Submit valid Org Profile (T-005) → assert /onboarding/2.\n4. Submit valid Warehouse (T-006) → assert /onboarding/3.\n5. Submit valid Location (T-007) → assert /onboarding/4.\n6. Click Skip on step 4 (T-008) → assert /onboarding/5.\n7. Click Skip on step 5 (T-009) → assert /onboarding/6.\n8. Assert page contains 3 next-step cards (T-010).\n9. Capture `started_at` and `last_activity_at` from DB; assert delta <15min.\n\nRED: `pnpm --filter web test:e2e -- onboarding-happy-path`.",
+  "labels": ["prd", "test", "e2e-playwright-happy-path", "T4-wiring-test"],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-011",
+    "source_prd": "02-SETTINGS-PRD.md",
+    "prd_refs": ["§14.3 (lines 1516-1532)", "§14.4 (lines 1534-1547)", "KPI line 57 (Onboarding time <15min P50)"],
+    "category": "test",
+    "subcategory": "e2e-playwright-happy-path",
+    "task_type": "T4-wiring-test",
+    "parent_feature": "02-SETTINGS-onboarding-wizard",
+    "context_budget": "30k",
+    "estimated_effort": "2-3h",
+    "description": "End-to-end Playwright test covering all 6 steps + KPI assertion.",
+    "details": "Spec lives in apps/web/e2e/onboarding-happy-path.spec.ts. Uses factory helper to seed an org with default onboarding_state. Asserts navigation, state mutations, and timing delta.",
+    "scope_files": [
+      "apps/web/e2e/onboarding-happy-path.spec.ts [create]",
+      "apps/web/e2e/_factories/org.factory.ts [create-or-extend]"
+    ],
+    "out_of_scope": ["Step UIs themselves (T-004..T-010)", "Backend actions (T-001..T-003)", "P95 timing edge case (kpi line 57 also has <30min P95 — defer to perf suite)"],
+    "dependencies": ["T-004", "T-005", "T-006", "T-007", "T-008", "T-009", "T-010"],
+    "parallel_safe_with": [],
+    "acceptance_criteria": [
+      "Given a freshly created org, when the spec runs through all 6 step interactions, then every navigation assertion passes and final URL is /onboarding/6.",
+      "Given the spec completes, when DB is queried for the org's onboarding_state, then completed_steps ⊇ [1,2,3,6] AND skipped_steps ⊇ [4,5] AND current_step=6.",
+      "Given started_at and last_activity_at recorded, when computed, then last_activity_at - started_at < 15 minutes.",
+      "Given the spec runs in CI via pnpm --filter web test:e2e, when finished, then exit code 0 with the spec named onboarding-happy-path."
+    ],
+    "test_strategy": [
+      "Author the spec first (RED) against an unimplemented stack — expect failures.",
+      "After T-004..T-010 land, re-run; spec turns GREEN.",
+      "Command: pnpm --filter web test:e2e -- onboarding-happy-path"
+    ],
+    "risk_red_lines": ["Do not stub backend in this E2E — must hit real DB via test factories.", "Do not assert P95<30min here — that belongs to a perf suite."],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {"red": "hermes_gpt55", "implementation": "hermes_gpt55", "review": "opus_if_high_risk_or_ui_or_architecture", "close": "spark_low_risk_else_opus"}
+  }
+}

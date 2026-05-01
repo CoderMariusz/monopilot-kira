@@ -1,0 +1,58 @@
+{
+  "title": "T-031 — sampling_plans + sampling_records schema + AQL ISO 2859 seed",
+  "prompt": "# T-031 — sampling_plans + sampling_records schema + AQL seed\n\nPRD: 09-QUALITY-PRD.md §6.3 sampling_plans, §6.3 sampling_records, §7.1 EPIC 8C\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nCreate sampling_plans + sampling_records tables per §6.3, RLS policies, and seed the AQL ISO 2859 standard rows for inspection_level GII at AQL 1.0/2.5/4.0 across lot size bands.\n\n## Implementation contract\n1. Drizzle migration `packages/db/migrations/0121_sampling_plans.sql` per §6.3 verbatim: sampling_plans (plan_type CHECK, aql_level, inspection_level, lot_size_min/max, sample_size, accept/reject numbers); sampling_records FK inspection_id ON DELETE CASCADE.\n2. Seed sampling_plans with the standard ISO 2859 GII rows for AQL 1.0 / 2.5 / 4.0 (~12 rows total per AQL covering lot_size bands 2-8 / 9-15 / 16-25 / 26-50 / 51-90 / 91-150 / 151-280 / 281-500 / 501-1200 / 1201-3200 / 3201-10000 / 10001-35000).\n3. Helper `apps/web/src/server/quality/getDefaultSamplingPlan.ts` returning the matching row given (lot_size, aql_level, inspection_level).\n4. RLS tenant_isolation on both tables.\n\n## Files\n- packages/db/migrations/0121_sampling_plans.sql [create]\n- apps/web/src/server/quality/getDefaultSamplingPlan.ts [create]\n- packages/db/__tests__/sampling-plans-schema.test.ts [create]\n- apps/web/src/server/quality/__tests__/getDefaultSamplingPlan.test.ts [create]\n\n## Acceptance criteria\n1. Given migration 0121 applied, when SELECT FROM sampling_plans WHERE inspection_level='GII' runs, then 36 seeded rows exist (12 lot size bands x 3 AQL levels) all active=true\n2. Given getDefaultSamplingPlan({lot_size:120, aql:2.5, level:'GII'}), when called, then it returns the row whose lot_size_min<=120<=lot_size_max with aql_level=2.5 and inspection_level='GII'\n3. Given a sampling_records insert with accept_reject='accept' and defects_found exceeding plan.accept_number, then the helper returns a structured anomaly warning (logged, not blocking) — assert via test fake",
+  "labels": ["prd", "data", "schema-sampling", "T1-schema"],
+  "priority": 80,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-031",
+    "source_prd": "09-QUALITY-PRD.md",
+    "prd_refs": ["§6.3", "§7.1"],
+    "category": "data",
+    "subcategory": "schema-sampling",
+    "task_type": "T1-schema",
+    "parent_feature": "09-c Incoming Inspection",
+    "context_budget": "35k",
+    "estimated_effort": "2h",
+    "description": "Sampling plans + sampling records tables + AQL ISO 2859 GII seed for AQL 1.0/2.5/4.0 + helper to pick default plan by lot size.",
+    "details": "Migration 0121 emits both tables per §6.3 with CHECK enums and FK CASCADE on records. Seeds 36 ISO 2859 GII rows. Helper getDefaultSamplingPlan picks the matching row by lot size + AQL + level. Anomaly warning when accept exceeds plan.accept_number.",
+    "scope_files": [
+      "packages/db/migrations/0121_sampling_plans.sql [create]",
+      "apps/web/src/server/quality/getDefaultSamplingPlan.ts [create]",
+      "packages/db/__tests__/sampling-plans-schema.test.ts [create]",
+      "apps/web/src/server/quality/__tests__/getDefaultSamplingPlan.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not implement sampling plan UI (T-035)",
+      "Do not implement custom sampling plans (P2)"
+    ],
+    "dependencies": [],
+    "parallel_safe_with": ["T-025", "T-029", "T-030"],
+    "acceptance_criteria": [
+      "Given migration 0121 applied, when SELECT FROM sampling_plans WHERE inspection_level='GII' runs, then 36 seeded rows exist (12 lot bands x 3 AQL levels) all active=true",
+      "Given getDefaultSamplingPlan({lot_size:120, aql:2.5, level:'GII'}), when called, then it returns the row with lot_size_min<=120<=lot_size_max and aql_level=2.5",
+      "Given a sampling_records insert with defects_found > plan.accept_number but accept_reject='accept', then the helper emits a structured anomaly warning (logged, not blocking) — verified via test fake"
+    ],
+    "test_strategy": [
+      "RED: write packages/db/__tests__/sampling-plans-schema.test.ts and apps/web/src/server/quality/__tests__/getDefaultSamplingPlan.test.ts asserting seed count, helper lookup, anomaly warning",
+      "Run 'pnpm --filter db migrate && pnpm --filter web test getDefaultSamplingPlan'"
+    ],
+    "risk_red_lines": [
+      "Do not deviate from ISO 2859 GII row counts (36 rows for the 3 AQLs)",
+      "Do not allow accept_reject='accept' to override plan limits silently"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

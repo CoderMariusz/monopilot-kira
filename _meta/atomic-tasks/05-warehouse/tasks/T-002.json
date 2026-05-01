@@ -1,0 +1,60 @@
+{
+  "title": "T-002 — license_plates table migration",
+  "prompt": "# T-002 — license_plates table migration\n\nPRD: `05-WAREHOUSE-PRD.md` §5.2.\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`.\n\n## Goal\nCreate `license_plates` table with all PRD §5.2 columns, constraints, RLS column, ext/private JSONB, and audit columns.\n\n## Implementation contract\nAdd Drizzle schema `packages/db/src/schema/license-plates.ts` referencing enums from T-001. Columns per §5.2: id, tenant_id, lp_number, warehouse_id, location_id, product_id, item_type_snapshot, quantity (decimal(14,4)), uom (varchar 8), catch_weight_kg (decimal(10,3)), status, qa_status, batch_number, supplier_batch_number, gtin (varchar 14), manufacture_date, expiry_date, shelf_life_mode_snapshot enum (use_by/best_before), date_code_rendered, source enum, grn_id, wo_id, parent_lp_id, pallet_id, po_number, reserved_for_wo_id, reserved_qty, consumed_by_wo_id, consumed_at, locked_by, locked_at, ext_jsonb, private_jsonb, created_at/by, updated_at/by.\nConstraints: UNIQUE(tenant_id, warehouse_id, lp_number); CHECK(quantity >= 0); CHECK(reserved_qty <= quantity); FK reserved_for_wo_id nullable.\nDo not add indexes here (T-011 owns indexes). Do not enable RLS policy here (T-012 owns RLS).\n\n## Files (scope)\n- packages/db/src/schema/license-plates.ts [create]\n- packages/db/migrations/0NN_license_plates.sql [create]\n- packages/db/src/schema/license-plates.test.ts [create]\n\n## Acceptance criteria\n1. Given migration runs, when `\\d license_plates` is inspected, then all PRD §5.2 columns are present with declared types.\n2. Given an INSERT with quantity=-1, when committed, then DB raises a CHECK violation (quantity >= 0).\n3. Given two rows insert with same (tenant_id, warehouse_id, lp_number), when committed, then DB raises unique violation.\n\n## Test strategy\n- RED: license-plates.test.ts using a tx with rollback that asserts CHECK and UNIQUE violations.\n- Run `pnpm --filter db migrate && pnpm --filter db test license-plates`.\n\n## Risk red lines\n- Do not weaken CHECK or UNIQUE constraints.\n- Do not add columns beyond §5.2.\n- Do not depend on later tables (grn, wo) — keep FKs nullable.",
+  "labels": ["prd", "data", "lp-core", "T1-schema"],
+  "priority": 60,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-002",
+    "source_prd": "05-WAREHOUSE-PRD.md",
+    "prd_refs": ["§5.2"],
+    "category": "data",
+    "subcategory": "lp-core",
+    "task_type": "T1-schema",
+    "parent_feature": "warehouse-foundation",
+    "context_budget": "35k",
+    "estimated_effort": "1-2h",
+    "description": "Create license_plates Drizzle table + SQL migration with all §5.2 columns, CHECK and UNIQUE constraints; no indexes or RLS yet.",
+    "details": "Add packages/db/src/schema/license-plates.ts and accompanying migration. Use enums from T-001. Constraints: UNIQUE(tenant_id, warehouse_id, lp_number); CHECK(quantity >= 0); CHECK(reserved_qty <= quantity). FK reserved_for_wo_id nullable. ext_jsonb + private_jsonb default '{}'. Audit columns created_at/by, updated_at/by. Indexes deferred to T-011. RLS policy deferred to T-012.",
+    "scope_files": [
+      "packages/db/src/schema/license-plates.ts [create]",
+      "packages/db/migrations/0NN_license_plates.sql [create]",
+      "packages/db/src/schema/license-plates.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "No indexes (T-011)",
+      "No RLS policies (T-012)",
+      "No service-layer behavior",
+      "No FK to grns/work_orders (kept nullable in this task)"
+    ],
+    "dependencies": ["T-001"],
+    "parallel_safe_with": ["T-003", "T-004", "T-005", "T-006", "T-007", "T-008", "T-009"],
+    "acceptance_criteria": [
+      "Given the migration runs, when '\\d license_plates' is run, then every column listed in PRD §5.2 exists with matching type",
+      "Given INSERT with quantity=-1 runs, when committed, then DB raises a CHECK violation",
+      "Given two INSERTs share (tenant_id, warehouse_id, lp_number), when the second commits, then it fails with a unique violation"
+    ],
+    "test_strategy": [
+      "RED: license-plates.test.ts asserts CHECK and UNIQUE violations via tx rollback",
+      "Run 'pnpm --filter db migrate && pnpm --filter db test license-plates' and capture results"
+    ],
+    "risk_red_lines": [
+      "Do not weaken CHECK constraints",
+      "Do not collapse UNIQUE to (warehouse_id, lp_number) without tenant_id",
+      "Do not add columns not in PRD §5.2"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

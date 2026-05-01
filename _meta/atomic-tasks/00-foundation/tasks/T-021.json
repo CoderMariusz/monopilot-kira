@@ -1,0 +1,86 @@
+{
+  "title": "T-021 \u2014 Cascading rule manufacturing_operation_N \u2192 intermediate_code_pN with fa.intermediate_code_changed event",
+  "prompt": "# T-021 \u2014 Cascading rule manufacturing_operation_N \u2192 intermediate_code_pN with fa.intermediate_code_changed event\n\nPRD: `00-FOUNDATION-PRD.md` \u2014 sections: \u00a79.1, \u00a77\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`\n\n## Goal\nWire the \u00a79.1 Chain-2 cascade rule using the rule executor (T-018), the manufacturing operations seed (T-020), and the outbox (T-008). Emit fa.intermediate_code_changed.\n\n## Implementation contract\nInsert the JSON rule definition from PRD \u00a79.1 into Reference.Rules (rule_id='manufacturing_operation_to_intermediate_code_cascade', rule_type='cascading'). Implement packages/rule-engine/src/cascade-handler.ts that listens for fa.manufacturing_operation_N.changed (N=1..4), runs the executor against the rule, looks up Reference.ManufacturingOperations.process_suffix, generates intermediate_code_pN = '<prefix>-<process_suffix>-<seq>' (prefix from Reference.CodePrefixes default 'WIP'), updates the row, and emits fa.intermediate_code_changed via the outbox. Add fa.intermediate_code_changed to events.enum.ts (T-003) extension test. E2E test inserts a fa row, sets manufacturing_operation_1='Mix' for a bakery tenant, runs the handler, and asserts intermediate_code_p1 like 'WIP-MX-%' plus the outbox event.\n\n## Files (scope)\n- packages/rule-engine/src/cascade-handler.ts [create]\n- packages/db/seeds/cascade-rules.sql [create]\n- packages/outbox/src/events.enum.ts [modify]\n- packages/rule-engine/src/__tests__/cascade-mfg.e2e.test.ts [create]\n\n## Acceptance criteria\n1. Given a bakery tenant and a fa row, when manufacturing_operation_1 is set to 'Mix' and the cascade handler runs, then intermediate_code_p1 matches /^WIP-MX-\\d{7}$/ and an outbox row with event_type='fa.intermediate_code_changed' is emitted\n2. Given operation_name 'Mix' is missing from Reference.ManufacturingOperations for the tenant, when the handler runs, then it throws 'operation_not_found' and rolls back without partial updates\n3. Given a pharma tenant with operation_name='Synthesis', when the handler runs, then intermediate_code_pN matches /^WIP-SY-\\d{7}$/ (WIP prefix override would come from Reference.CodePrefixes; default WIP for pharma in this seed)\n\n## Test strategy\n- RED: write packages/rule-engine/src/__tests__/cascade-mfg.e2e.test.ts replicating \u00a79.1 \u00a7Chain-2 example before cascade-handler.ts exists\n- Run 'pnpm --filter @monopilot/rule-engine test:e2e'\n\n## Risk red lines\n- Do not partial-update on lookup miss \u2014 atomicity is required\n- Do not bypass the outbox for the resulting event\n\n## Dependencies (must be complete first)\n- T-008\n- T-018\n- T-020\n\n## Closeout evidence\nProvide: changed_files, test_commands_and_results, acceptance_criteria_status (per AC), deviations_from_prd, git_status. Use the test-driven-development skill (RED test before implementation) and requesting-code-review at GREEN.",
+  "labels": [
+    "prd",
+    "data",
+    "rule-cascade",
+    "T4-wiring-test"
+  ],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-021",
+    "source_prd": "00-FOUNDATION-PRD.md",
+    "prd_refs": [
+      "\u00a79.1",
+      "\u00a77"
+    ],
+    "category": "data",
+    "subcategory": "rule-cascade",
+    "task_type": "T4-wiring-test",
+    "parent_feature": "00-FOUNDATION manufacturing-operations",
+    "context_budget": "60k",
+    "estimated_effort": "2-3h",
+    "description": "Wire the \u00a79.1 Chain-2 cascade rule using the rule executor (T-018), the manufacturing operations seed (T-020), and the outbox (T-008). Emit fa.intermediate_code_changed.",
+    "details": "Insert the JSON rule definition from PRD \u00a79.1 into Reference.Rules (rule_id='manufacturing_operation_to_intermediate_code_cascade', rule_type='cascading'). Implement packages/rule-engine/src/cascade-handler.ts that listens for fa.manufacturing_operation_N.changed (N=1..4), runs the executor against the rule, looks up Reference.ManufacturingOperations.process_suffix, generates intermediate_code_pN = '<prefix>-<process_suffix>-<seq>' (prefix from Reference.CodePrefixes default 'WIP'), updates the row, and emits fa.intermediate_code_changed via the outbox. Add fa.intermediate_code_changed to events.enum.ts (T-003) extension test. E2E test inserts a fa row, sets manufacturing_operation_1='Mix' for a bakery tenant, runs the handler, and asserts intermediate_code_p1 like 'WIP-MX-%' plus the outbox event.",
+    "scope_files": [
+      "packages/rule-engine/src/cascade-handler.ts [create]",
+      "packages/db/seeds/cascade-rules.sql [create]",
+      "packages/outbox/src/events.enum.ts [modify]",
+      "packages/rule-engine/src/__tests__/cascade-mfg.e2e.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not modify files outside the scope_files list",
+      "Do not introduce business logic from later module PRDs (01-NPD, 02-SETTINGS, etc.)",
+      "No regenerate-intermediate-codes wizard (Phase C1)"
+    ],
+    "dependencies": [
+      "T-008",
+      "T-018",
+      "T-020"
+    ],
+    "parallel_safe_with": [],
+    "acceptance_criteria": [
+      "Given a bakery tenant and a fa row, when manufacturing_operation_1 is set to 'Mix' and the cascade handler runs, then intermediate_code_p1 matches /^WIP-MX-\\d{7}$/ and an outbox row with event_type='fa.intermediate_code_changed' is emitted",
+      "Given operation_name 'Mix' is missing from Reference.ManufacturingOperations for the tenant, when the handler runs, then it throws 'operation_not_found' and rolls back without partial updates",
+      "Given a pharma tenant with operation_name='Synthesis', when the handler runs, then intermediate_code_pN matches /^WIP-SY-\\d{7}$/ (WIP prefix override would come from Reference.CodePrefixes; default WIP for pharma in this seed)"
+    ],
+    "test_strategy": [
+      "RED: write packages/rule-engine/src/__tests__/cascade-mfg.e2e.test.ts replicating \u00a79.1 \u00a7Chain-2 example before cascade-handler.ts exists",
+      "Run 'pnpm --filter @monopilot/rule-engine test:e2e'"
+    ],
+    "risk_red_lines": [
+      "Do not partial-update on lookup miss \u2014 atomicity is required",
+      "Do not bypass the outbox for the resulting event"
+    ],
+    "skills": [
+      "test-driven-development",
+      "verification-before-completion",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

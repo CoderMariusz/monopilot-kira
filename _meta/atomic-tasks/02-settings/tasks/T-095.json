@@ -1,0 +1,80 @@
+{
+  "title": "T-095 — Decisions log: lock D1..D8 from gap-backlog into _meta/decisions/",
+  "prompt": "# T-095 — Decisions log: D1..D8\n\n## Goal\nCreate a decision document recording the resolutions to D1 (10 system roles + 4 UI categories), D2 (flat permission model), D3 (renumbered SET-001..006), D7 (WebAuthn deferred Phase 3), D8 (mistagged prototypes moved). Reference PRD v3.5 changelog.\n\n## Files in scope\n- _meta/decisions/2026-04-30-settings-d1-d8.md [create]\n\n## Acceptance criteria (all must hold)\n- Given the decision file exists, when read, then it lists each Dn with: decision, rationale (≤3 lines), date, source PRD section.\n- Given the file is committed, when CI runs, then a links-check confirms each PRD section reference resolves.\n- Given D8 is read, when verified against `_meta/prototype-labels/prototype-index-settings.json`, then no mistagged entries (sites/shifts/devices/products/boms/partners) remain in the settings index.\n\n## Test strategy (RED first)\n1. Add a failing test that exercises the acceptance criteria above. The RED command is:\n   `pnpm --filter @monopilot/web docs:links-check _meta/decisions/2026-04-30-settings-d1-d8.md`\n2. Run RED — it must fail before any production code is written.\n3. Implement the smallest change needed for GREEN.\n4. Re-run RED command — must pass.\n5. Run `pnpm typecheck` and `pnpm lint` in the changed package; both must pass.\n\n## Risk red lines\n- Do not edit files outside the listed scope without documenting why in CLOSEOUT.\n- Do not weaken existing acceptance criteria from prior tasks.\n- Do not introduce REST endpoints; use Server Actions per stack contract.\n- Do not commit secrets or vault keys.\n\n## Closeout evidence required\n- changed_files (with line counts)\n- exact test commands and outputs (RED→GREEN, typecheck, lint)\n- acceptance_criteria_status (one row per AC: pass/fail)\n- deviations_from_prd (or \"none\")\n- git_status\n\nStack: TS + Next.js App Router + Drizzle + pnpm + vitest + Playwright + Server Actions. Primitives in `packages/ui`. PRD: `02-SETTINGS-PRD.md` v3.5.\n",
+  "labels": [
+    "prd",
+    "docs",
+    "decisions-log",
+    "docs"
+  ],
+  "priority": 150,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-095",
+    "source_prd": "02-SETTINGS-PRD.md",
+    "prd_refs": [
+      "Changelog v3.5",
+      "§3",
+      "§14.4",
+      "§14.1"
+    ],
+    "category": "docs",
+    "subcategory": "decisions-log",
+    "task_type": "docs",
+    "parent_feature": "02-settings-foundation",
+    "context_budget": "40k",
+    "estimated_effort": "1-3h",
+    "description": "Decisions log for D1..D8.",
+    "details": "One markdown table + section per decision. Single source of truth for downstream tasks.",
+    "scope_files": [
+      "_meta/decisions/2026-04-30-settings-d1-d8.md"
+    ],
+    "out_of_scope": [
+      "broaden scope beyond listed files",
+      "implement future-phase features"
+    ],
+    "dependencies": [],
+    "parallel_safe_with": [
+      "T-094"
+    ],
+    "acceptance_criteria": [
+      "All 8 decisions present.",
+      "PRD links resolve.",
+      "D8 verified against prototype index."
+    ],
+    "test_strategy": [
+      "RED: write docs link-check test.",
+      "GREEN: write decisions doc."
+    ],
+    "risk_red_lines": [
+      "Do not re-open settled decisions; reference PRD v3.5."
+    ],
+    "skills": [
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": false
+  }
+}

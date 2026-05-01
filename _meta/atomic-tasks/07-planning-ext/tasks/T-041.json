@@ -1,0 +1,59 @@
+{
+  "title": "T-041 — Request Review Modal (request_review_modal) — PLE-010",
+  "prompt": "# T-041 — Request Review Modal\n\nPRD: 07-PLANNING-EXT-PRD.md §17.1 PLE-010, §16.2 OQ-EXT-04\nPrototype: design/Monopilot Design System/planning-ext/modals.jsx:677-696 (`request_review_modal`)\nUX: design/07-PLANNING-EXT-UX.md:522\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nImplement Dialog opened from BLOCKED matrix cell — Planner submits justification (≥10 chars) → INSERT matrix_review_request + outbox event changeover_matrix.review.requested.\n\n## Implementation contract\n1. New `apps/web/src/components/matrix/RequestReviewModal.tsx` (shadcn Dialog).\n2. Dynamic title `{allergen_from} → {allergen_to}`.\n3. Mandatory justification Textarea ≥10 chars (zod min(10)).\n4. Submit → Server Action → INSERT matrix_review_request (T-007) + emit outbox changeover_matrix.review.requested.\n5. Partial unique enforced server-side (T-007); UI shows toast 'A pending request already exists' on 409.\n\n## Files\n- apps/web/src/components/matrix/RequestReviewModal.tsx [create]\n- apps/web/src/lib/scheduler/request-review-action.ts [create]\n- apps/web/src/components/matrix/__tests__/RequestReviewModal.test.tsx [create]\n- design/Monopilot Design System/planning-ext/modals.jsx [ref]\n\n## Acceptance criteria\n1. Given justification length 5, when [Submit] clicked, then submit blocked with field error 'Minimum 10 characters'\n2. Given the rendered modal, when compared to prototype design/Monopilot Design System/planning-ext/modals.jsx:677-696, then it has same title format, same Textarea, same Submit/Cancel buttons, and same shadcn primitives (Dialog, Textarea, Button, Label) — parity by RTL snapshot + checklist\n3. Given a pending request already exists for (tenant, from, to, line_id), when [Submit] runs, then 409 toast 'A pending request already exists' shown\n\n## Test strategy\n- RED: write __tests__/RequestReviewModal.test.tsx covering min-10 + parity + 409 partial unique handling\n- Run 'pnpm --filter web test matrix/RequestReviewModal'\n\n## Risk red lines\n- Do not allow submit with justification <10 chars\n- Do not skip outbox emit (admin notification depends on it)\n- Do not bypass partial unique on (allergen_from, allergen_to, line_id) WHERE status='pending'",
+  "labels": ["prd", "ui", "modal", "T3-ui"],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-041",
+    "source_prd": "07-PLANNING-EXT-PRD.md",
+    "prd_refs": ["§17.1 PLE-010", "§16.2 OQ-EXT-04"],
+    "category": "ui",
+    "subcategory": "modal-review-request",
+    "task_type": "T3-ui",
+    "parent_feature": "07-EXT-b matrix review request flow",
+    "context_budget": "40k",
+    "estimated_effort": "1-2h",
+    "description": "Dialog submitting matrix_review_request with justification ≥10 chars + outbox emit + 409 handling on duplicate pending.",
+    "details": "Zod min(10) on justification. Server Action inserts row + emits outbox. UI maps 409 to toast.",
+    "scope_files": [
+      "apps/web/src/components/matrix/RequestReviewModal.tsx [create]",
+      "apps/web/src/lib/scheduler/request-review-action.ts [create]",
+      "apps/web/src/components/matrix/__tests__/RequestReviewModal.test.tsx [create]",
+      "design/Monopilot Design System/planning-ext/modals.jsx:677-696 [ref]"
+    ],
+    "out_of_scope": [
+      "Do not implement admin Tab 3 review queue here (covered by editor T-036)",
+      "Do not implement matrix editor (T-036)"
+    ],
+    "dependencies": ["T-007", "T-036"],
+    "parallel_safe_with": ["T-040"],
+    "acceptance_criteria": [
+      "Given justification length 5, when [Submit] clicked, then submit blocked with field error 'Minimum 10 characters'",
+      "Given the rendered modal, when compared to prototype design/Monopilot Design System/planning-ext/modals.jsx:677-696, then it has same title format, same Textarea, same Submit/Cancel buttons, and same shadcn primitives — parity by RTL snapshot + checklist",
+      "Given a pending request already exists, when [Submit] runs, then 409 toast 'A pending request already exists' shown"
+    ],
+    "test_strategy": [
+      "RED: write __tests__/RequestReviewModal.test.tsx covering min-10 + parity + 409 handling",
+      "Run 'pnpm --filter web test matrix/RequestReviewModal'"
+    ],
+    "risk_red_lines": [
+      "Do not allow submit with <10 chars",
+      "Do not skip outbox emit",
+      "Do not bypass partial unique"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

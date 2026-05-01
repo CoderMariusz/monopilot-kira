@@ -1,0 +1,60 @@
+{
+  "title": "T-008 — scheduler_config table (PLE-005)",
+  "prompt": "# T-008 — scheduler_config table (PLE-005)\n\nPRD: 07-PLANNING-EXT-PRD.md §17.1 PLE-005, §17.3 backlog item 1\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nIntroduce `scheduler_config` table holding per-tenant default run parameters and alert thresholds (PLE-005 Cards 1-2 persistence target).\n\n## Implementation contract\n1. Migration `packages/db/migrations/0077_scheduler_config.sql`: CREATE TABLE scheduler_config per PLE-005 DDL stub (tenant_id PK, default_horizon_days, default_include_forecast, solver_timeout_seconds, alerts JSONB, updated_by, updated_at) + RLS.\n2. CHECK default_horizon_days IN (7, 14) and solver_timeout_seconds BETWEEN 10 AND 300.\n3. RLS policy on tenant_id.\n4. Drizzle schema entry.\n\n## Files\n- packages/db/migrations/0077_scheduler_config.sql [create]\n- packages/db/src/schema/scheduler_config.ts [create]\n- packages/db/src/schema/index.ts [modify]\n- packages/db/__tests__/scheduler-config.test.ts [create]\n\n## Acceptance criteria\n1. Given migration 0077 applied, when \\d scheduler_config runs, then all PLE-005 columns + horizon CHECK + timeout CHECK + RLS exist\n2. Given an INSERT with default_horizon_days=21, when executed, then it fails CHECK\n3. Given two tenants, when each SELECTs, then each only sees its own config row\n\n## Test strategy\n- RED: write packages/db/__tests__/scheduler-config.test.ts asserting CHECK + RLS + tenant_id PK\n- Run 'pnpm --filter db migrate && pnpm --filter db test scheduler-config'\n\n## Risk red lines\n- Do not skip CHECK constraints (UI relies on these for validation rendering)\n- Do not skip RLS\n- Do not forget to make tenant_id the PRIMARY KEY (one row per tenant)",
+  "labels": ["prd", "data", "schema", "T1-schema"],
+  "priority": 80,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-008",
+    "source_prd": "07-PLANNING-EXT-PRD.md",
+    "prd_refs": ["§17.1 PLE-005", "§17.3"],
+    "category": "data",
+    "subcategory": "schema-config",
+    "task_type": "T1-schema",
+    "parent_feature": "07-EXT scheduler settings",
+    "context_budget": "40k",
+    "estimated_effort": "0.5-1h",
+    "description": "Create scheduler_config table per PLE-005 with horizon and timeout CHECK constraints + RLS.",
+    "details": "Migration 0077 emits CREATE TABLE scheduler_config per PLE-005 DDL stub with CHECK constraints. tenant_id is PK (one row per tenant). RLS policy. Drizzle schema mirrors columns. RED test verifies CHECK rejection + RLS isolation.",
+    "scope_files": [
+      "packages/db/migrations/0077_scheduler_config.sql [create]",
+      "packages/db/src/schema/scheduler_config.ts [create]",
+      "packages/db/src/schema/index.ts [modify]",
+      "packages/db/__tests__/scheduler-config.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not implement Settings UI here (T-053)",
+      "Do not seed config rows",
+      "Do not implement audit log here (covered by app-layer)"
+    ],
+    "dependencies": [],
+    "parallel_safe_with": ["T-007", "T-009"],
+    "acceptance_criteria": [
+      "Given migration 0077 applied, when \\d scheduler_config runs, then all PLE-005 columns + horizon CHECK + timeout CHECK + RLS + tenant_id PK exist",
+      "Given an INSERT with default_horizon_days=21, when executed, then CHECK rejects",
+      "Given two tenants, when each SELECTs under app.tenant_id, then each only sees its own row"
+    ],
+    "test_strategy": [
+      "RED: write packages/db/__tests__/scheduler-config.test.ts asserting CHECK + RLS + tenant_id PK uniqueness",
+      "Run 'pnpm --filter db migrate && pnpm --filter db test scheduler-config'"
+    ],
+    "risk_red_lines": [
+      "Do not skip CHECK constraints",
+      "Do not skip RLS",
+      "Do not omit tenant_id as PRIMARY KEY"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

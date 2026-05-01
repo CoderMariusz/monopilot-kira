@@ -1,0 +1,36 @@
+{
+  "title": "T-057 — UI: TEC-090 D365 Field Mapping admin",
+  "prompt": "Build D365 field mapping admin page per §13A. Field-level push/pull mapping configuration. Surfaces unmapped-field alerts (BL-TEC-01 Item.allergens[]). Match `d365_mapping_screen` design/Monopilot Design System/technical/other-screens.jsx:938-978. RED tests/ui/tec-090-d365-mapping.test.tsx. Run: `pnpm vitest run tests/ui/tec-090-d365-mapping.test.tsx`.",
+  "labels": ["prd", "ui", "ui-d365-mapping", "T3-ui"],
+  "priority": 120,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-057",
+    "source_prd": "03-TECHNICAL-PRD.md",
+    "prd_refs": ["§13A TEC-090"],
+    "category": "ui",
+    "subcategory": "d365-mapping",
+    "task_type": "T3-ui",
+    "parent_feature": "03-TECHNICAL-d D365",
+    "context_budget": "18k",
+    "estimated_effort": "2h",
+    "description": "Admin mapping table + unmapped-field alert banner (BL-TEC-01).",
+    "details": "Mapping persisted via existing 02-SETTINGS reference_tables.d365_field_mappings (assumed). Alert banner per unmapped row + 'Acknowledge' button.",
+    "scope_files": ["app/(app)/technical/d365/mapping/page.tsx", "tests/ui/tec-090-d365-mapping.test.tsx"],
+    "out_of_scope": ["Mapping engine apply"],
+    "dependencies": ["T-028", "T-055"],
+    "parallel_safe_with": ["T-056", "T-058", "T-059"],
+    "acceptance_criteria": [
+      "Given the mapping page renders, when compared to design/Monopilot Design System/technical/other-screens.jsx:938-978, then table columns, unmapped-field banner, and Save button placement match — structural + visual + interaction parity verified by RTL.",
+      "Given allergens[] unmapped, when rendered, then BL-TEC-01 alert is shown.",
+      "Given non-admin user, when on page, then editing is disabled."
+    ],
+    "test_strategy": ["RED tests for parity + alert behaviour.", "Run: pnpm vitest run tests/ui/tec-090-d365-mapping.test.tsx"],
+    "risk_red_lines": ["Do not allow ad-hoc field name input — pick from contract registry."],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {"required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"], "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]},
+    "routing_hints": {"red": "hermes_gpt55", "implementation": "hermes_gpt55", "review": "opus_if_high_risk_or_ui_or_architecture", "close": "spark_low_risk_else_opus"}
+  }
+}

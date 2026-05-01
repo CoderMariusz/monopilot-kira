@@ -1,0 +1,59 @@
+{
+  "title": "T-034 — Scanner consume-to-WO endpoint",
+  "prompt": "# T-034 — Scanner consume-to-WO endpoint\n\nPRD: `05-WAREHOUSE-PRD.md` §10.5 (FR-WH-017), §13.\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`.\n\n## Goal\nRoute handler `POST /api/warehouse/scanner/consume-to-wo` validating LP+WO, computing FEFO suggestion vs picked, logging override if needed, and applying consume.\n\n## Implementation contract\n`apps/web/app/api/warehouse/scanner/consume-to-wo/route.ts`. Body: {wo_id, lp_id, qty_consumed, catch_weight_kg?, operator_id, session_id}. Steps per §10.5: validate (LP.status='available', LP.qa_status in ('PASSED','RELEASED','COND_APPROVED'), WO status RELEASED/IN_PROGRESS, product matches WO.wo_materials); compute FEFO suggestion (T-030); if picked != suggested, dispatch T-033 pick-override-log; apply stock_move 'consume_to_wo'; update LP (consumed_by_wo_id, consumed_at, qty); update wo_materials.consumed_qty += qty; insert lp_genealogy (operation_type='consume'). Single transaction. SLO <500ms.\n\n## Files (scope)\n- apps/web/app/api/warehouse/scanner/consume-to-wo/route.ts [create]\n- apps/web/app/api/warehouse/scanner/consume-to-wo/__tests__/route.test.ts [create]\n\n## Acceptance criteria\n1. Given matched LP+WO and picked == FEFO suggestion, when endpoint is hit, then LP qty decrements, wo_materials.consumed_qty increments, no pick_overrides row appears.\n2. Given picked != suggested, when endpoint is hit, then a pick_overrides row is created via T-033 and consume still applies.\n3. Given LP.qa_status='HOLD', when endpoint is hit, then 422 returns with V-WH-SCAN-003 error.\n4. Given partial consume (qty < LP.qty), when endpoint is hit, then LP.status stays 'available' and qty decrements; lp_genealogy row references consume.\n\n## Test strategy\n- RED: route.test.ts covers four scenarios via httpMocks supertest.\n- Run `pnpm --filter web test consume-to-wo`.\n\n## Risk red lines\n- Do not skip qa_status gating.\n- Do not consume against intermediate LP whose product doesn't match WO.\n- Do not break single-transaction guarantee.",
+  "labels": ["prd", "api", "scanner", "T2-api"],
+  "priority": 80,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-034",
+    "source_prd": "05-WAREHOUSE-PRD.md",
+    "prd_refs": ["§10.5", "§13.5"],
+    "category": "api",
+    "subcategory": "scanner",
+    "task_type": "T2-api",
+    "parent_feature": "warehouse-intermediate",
+    "context_budget": "35k",
+    "estimated_effort": "2h",
+    "description": "Scanner consume-to-WO endpoint enforcing qa gating, FEFO override audit, and single-tx consume.",
+    "details": "Validates LP+WO; computes FEFO; logs override if deviation; applies consume; updates wo_materials. SLO <500ms P95.",
+    "scope_files": [
+      "apps/web/app/api/warehouse/scanner/consume-to-wo/route.ts [create]",
+      "apps/web/app/api/warehouse/scanner/consume-to-wo/__tests__/route.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Scanner login (T-041)",
+      "Scanner UI screens (06-SCANNER-P1)",
+      "Outbox emission (T-047)"
+    ],
+    "dependencies": ["T-030", "T-033", "T-025", "T-003"],
+    "parallel_safe_with": ["T-040", "T-041", "T-042"],
+    "acceptance_criteria": [
+      "Given picked == FEFO, when endpoint is hit, then LP qty decrements, wo_materials.consumed_qty increments, no pick_overrides row appears",
+      "Given picked != suggested, when endpoint is hit, then a pick_overrides row is created and consume still applies",
+      "Given LP.qa_status='HOLD', when endpoint is hit, then 422 returns with V-WH-SCAN-003 error",
+      "Given partial consume, when endpoint is hit, then LP.status stays 'available' and lp_genealogy consume row exists"
+    ],
+    "test_strategy": [
+      "RED: route.test.ts covers four scenarios (httpMocks supertest)",
+      "Run 'pnpm --filter web test consume-to-wo'"
+    ],
+    "risk_red_lines": [
+      "Do not skip qa_status gating",
+      "Do not allow product-mismatched consume",
+      "Do not break single-transaction guarantee"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

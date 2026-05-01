@@ -1,0 +1,36 @@
+{
+  "title": "T-059 — UI: TEC-091 D365 Drift Resolution table",
+  "prompt": "Build D365 drift resolution per §13A. Table of items where local.updated_at > d365_last_sync_at AND content diffs (V-TEC-73). Bulk accept/reject. Match `d365_drift_screen` design/Monopilot Design System/technical/other-screens.jsx:981-1022 and `d365_drift_resolve_modal` design/Monopilot Design System/technical/modals.jsx:562-598. RED tests/ui/tec-091-drift.test.tsx. Run: `pnpm vitest run tests/ui/tec-091-drift.test.tsx`.",
+  "labels": ["prd", "ui", "ui-d365-drift", "T3-ui"],
+  "priority": 120,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-059",
+    "source_prd": "03-TECHNICAL-PRD.md",
+    "prd_refs": ["§13A TEC-091"],
+    "category": "ui",
+    "subcategory": "d365-drift",
+    "task_type": "T3-ui",
+    "parent_feature": "03-TECHNICAL-d D365",
+    "context_budget": "18k",
+    "estimated_effort": "2h",
+    "description": "Drift resolution table with bulk accept/reject + per-row resolve modal.",
+    "details": "Reads audit_log entries action='d365_drift'. Accept = overwrite local with D365 (calls a new admin endpoint, scoped). Reject = mark resolved with no change.",
+    "scope_files": ["app/(app)/technical/d365/drift/page.tsx", "tests/ui/tec-091-drift.test.tsx"],
+    "out_of_scope": ["Drift overwrite endpoint"],
+    "dependencies": ["T-028", "T-055"],
+    "parallel_safe_with": ["T-056", "T-057", "T-058"],
+    "acceptance_criteria": [
+      "Given the drift page renders, when compared to design/Monopilot Design System/technical/other-screens.jsx:981-1022 and design/Monopilot Design System/technical/modals.jsx:562-598, then table columns, modal field set, and bulk-action buttons match — structural + visual + interaction parity verified by RTL.",
+      "Given user selects 3 rows + Accept bulk, when submitted, then 3 endpoints fire and table refreshes.",
+      "Given user lacks technical.d365.sync.trigger, when on page, then bulk actions are disabled."
+    ],
+    "test_strategy": ["RED tests for parity + bulk action + RBAC.", "Run: pnpm vitest run tests/ui/tec-091-drift.test.tsx"],
+    "risk_red_lines": ["Do not auto-overwrite without explicit user action."],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {"required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"], "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]},
+    "routing_hints": {"red": "hermes_gpt55", "implementation": "hermes_gpt55", "review": "opus_if_high_risk_or_ui_or_architecture", "close": "spark_low_risk_else_opus"}
+  }
+}

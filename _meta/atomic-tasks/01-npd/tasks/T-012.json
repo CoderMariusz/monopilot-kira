@@ -1,0 +1,57 @@
+{
+  "title": "T-012 — Cascade Chain 3: Recipe_Components → Ingredient_Codes + sync_prod_detail_rows (NPD-a.3)",
+  "prompt": "# T-012 — Cascade Chain 3 (Recipe_Components sync)\n\nPRD: 01-NPD-PRD.md §6.1 Chain 3\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nOn fa.recipe_components change, parse comma-separated codes, generate fa.ingredient_codes, and idempotently sync prod_detail rows (delete missing, create new, keep matches).\n\n## Implementation contract\nNew packages/cascade-engine/src/chain3-recipe.ts. parseRecipeComponents splits comma-sep, trims. Generate ingredient_codes via Reference.CodePrefixes['ingredient'].prefix + extract_digits. syncProdDetailRows runs in tx: SELECT current rows, compute add/remove sets keyed by intermediate_code, perform deletes + inserts, preserve unchanged rows. Emit fa.recipe_changed event with diff. Multi-component sync target <500 ms for ≤10 components.\n\n## Files\n- packages/cascade-engine/src/chain3-recipe.ts [create]\n- packages/cascade-engine/__tests__/chain3.test.ts [create]\n\n## Acceptance criteria\n1. Given fa.recipe_components changes from 'PR123H' to 'PR123H, PR456A', when handler runs, then prod_detail has 2 rows, ingredient_codes='RM123, RM456'\n2. Given idempotent re-run of same value, when handler runs twice, then prod_detail row count remains 2 and no new rows are inserted\n3. Given sync of 10 components, when measured over 1000 runs, then p95 <500 ms\n\n## Test strategy\n- RED: 3 tests for parsing+sync, idempotency, perf benchmark\n- Run 'pnpm --filter cascade-engine test chain3'\n\n## Risk red lines\n- Do not delete rows whose intermediate_code still appears in new list\n- Do not bypass RLS\n- Do not call without DB tx",
+  "labels": ["prd", "api", "cascade", "T2-api"],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-012",
+    "source_prd": "01-NPD-PRD.md",
+    "prd_refs": ["§6.1 Chain 3", "§6.3"],
+    "category": "api",
+    "subcategory": "cascade-chain3",
+    "task_type": "T2-api",
+    "parent_feature": "01-NPD-a cascade engine",
+    "context_budget": "40k",
+    "estimated_effort": "2-3h",
+    "description": "Recipe_Components cascade auto-builds ingredient_codes and idempotently syncs prod_detail rows.",
+    "details": "Parse comma-sep, derive ingredient_codes, run set diff against existing prod_detail rows, delete absent, insert missing, keep matches. Emit fa.recipe_changed.",
+    "scope_files": [
+      "packages/cascade-engine/src/chain3-recipe.ts [create]",
+      "packages/cascade-engine/__tests__/chain3.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not implement allergen cascade here (T-038)",
+      "Do not write Reference.CodePrefixes here"
+    ],
+    "dependencies": ["T-001", "T-002"],
+    "parallel_safe_with": ["T-010", "T-011", "T-013"],
+    "acceptance_criteria": [
+      "Given fa.recipe_components changes from 'PR123H' to 'PR123H, PR456A', when handler runs, then prod_detail has 2 rows and ingredient_codes='RM123, RM456'",
+      "Given idempotent re-run of same value, when handler runs twice, then prod_detail row count remains 2",
+      "Given sync of 10 components, when measured over 1000 runs, then p95 <500 ms"
+    ],
+    "test_strategy": [
+      "RED: 3 tests for parsing+sync, idempotency, perf benchmark before handler exists",
+      "Run 'pnpm --filter cascade-engine test chain3'"
+    ],
+    "risk_red_lines": [
+      "Do not delete rows whose intermediate_code still appears in new list",
+      "Do not bypass RLS",
+      "Do not call without explicit DB transaction"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

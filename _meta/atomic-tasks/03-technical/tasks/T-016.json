@@ -1,0 +1,37 @@
+{
+  "title": "T-016 — API: BOM Generator batch endpoint (POST /api/technical/bom-generator)",
+  "prompt": "Implement POST /api/technical/bom-generator per §7.3. Body: { scope: 'all_complete'|'selected_fgs', fg_codes?: string[], output_mode: 'per_fg'|'single_batch' }. Enqueue async outbox job: select target FGs (V-TEC-15 = Status_Overall='Complete' from 01-NPD), collect items + active BOM lines + co_products. Worker writes XLSX (ExcelJS) to S3/Blob (use existing storage adapter). Return { job_id, expected_count }. Permission technical.bom.generate_batch. RED tests/api/bom-generator.test.ts. Run: `pnpm vitest run tests/api/bom-generator.test.ts`.",
+  "labels": ["prd", "api", "bom-generator", "T2-api"],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-016",
+    "source_prd": "03-TECHNICAL-PRD.md",
+    "prd_refs": ["§7.3", "§7.6"],
+    "category": "api",
+    "subcategory": "bom-generator",
+    "task_type": "T2-api",
+    "parent_feature": "03-TECHNICAL-d BOM Generator",
+    "context_budget": "35k",
+    "estimated_effort": "3h",
+    "description": "BOM Generator endpoint enqueuing async XLSX job, V-TEC-15 enforcement.",
+    "details": "Use existing outbox pattern (00-FOUNDATION §10). Worker generates BOM_FG<code>.xlsx per FG when output_mode='per_fg', or BOM_Batch_<date>.xlsx with N sheets when 'single_batch'. Audit row action='bom_batch_generate'. Skip FGs not in Status_Overall='Complete'.",
+    "scope_files": ["app/api/technical/bom-generator/route.ts", "lib/technical/bom/generator.ts", "lib/technical/bom/generator-worker.ts", "tests/api/bom-generator.test.ts"],
+    "out_of_scope": ["UI modal (T-039)", "D365 Builder (01-NPD)"],
+    "dependencies": ["T-012"],
+    "parallel_safe_with": ["T-014", "T-015", "T-017", "T-018"],
+    "acceptance_criteria": [
+      "Given 3 FGs of which 2 are Status_Overall='Complete', when POST scope='all_complete', then expected_count=2 and only 2 are queued.",
+      "Given output_mode='per_fg' with 2 FGs, when worker runs, then 2 distinct XLSX URLs are produced.",
+      "Given user without technical.bom.generate_batch, when POST runs, then 403.",
+      "Given POST runs, when audit_log queried, then action='bom_batch_generate' row exists."
+    ],
+    "test_strategy": ["RED tests for V-TEC-15 filter + RBAC + output mode.", "Run: pnpm vitest run tests/api/bom-generator.test.ts"],
+    "risk_red_lines": ["Do not generate XLSX synchronously inside the request (must be outbox-async).", "Do not include private_jsonb in XLSX output."],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {"required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"], "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]},
+    "routing_hints": {"red": "hermes_gpt55", "implementation": "hermes_gpt55", "review": "opus_if_high_risk_or_ui_or_architecture", "close": "spark_low_risk_else_opus"}
+  }
+}

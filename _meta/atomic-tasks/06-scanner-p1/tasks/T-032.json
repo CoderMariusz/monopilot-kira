@@ -1,0 +1,62 @@
+{
+  "title": "T-032 — SCN-030 Receive TO 3-step UI (06-b)",
+  "prompt": "# T-032 — SCN-030 Receive TO\n\nPRD: 06-SCANNER-P1-PRD.md §8.2 FR-SC-FE-022\nUX: design/06-SCANNER-P1-UX.md:391-414 §3.8\nPrototype: design/Monopilot Design System/scanner/flow-receive.jsx:267-294 (to_list_screen), :297-385 (to_scan_screen)\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nDeliver SCN-030 — list → scan (LP checklist ✓/○ + scan input + partial-accept) → done (accepted LPs + warnings for un-scanned).\n\n## Implementation contract\n1. Routes /scanner/receive/to, /scanner/receive/to/[id]/scan, /scanner/receive/to/done.\n2. Scan step shows LP checklist with ✓/○ per expected LP and a partial-accept button.\n3. Wires to T-029 receive-to-line.\n4. Done step renders accepted-LP table + un-scanned warning banner.\n\n## Files\n- apps/scanner/src/app/scanner/receive/to/page.tsx [create]\n- apps/scanner/src/app/scanner/receive/to/[id]/scan/page.tsx [create]\n- apps/scanner/src/app/scanner/receive/to/done/page.tsx [create]\n- apps/scanner/__tests__/scn-030-receive-to.test.tsx [create]\n\n## Acceptance criteria\n1. Given the 3 steps render, when compared to `design/Monopilot Design System/scanner/flow-receive.jsx:267-294,297-385`, then they have the same TO list, the same LP checklist with ✓/○ markers, the same partial-accept button placement, and the same done summary — RTL snapshot + manual checklist\n2. Given two of three expected LPs are scanned and the user taps 'Akceptuj częściowo', when the action runs, then 2 receive-to-line calls are issued and the done step shows the third LP under 'Niezeskanowane'\n3. Given an LP is scanned that is not in the TO checklist, when ScanInput emits, then a red flash + 'LP poza TO' error banner is shown and no API call is made\n\n## Test strategy\n- RED: write scn-030-receive-to.test.tsx asserting parity + partial accept + out-of-list error before implementation\n- Run 'pnpm --filter scanner test scn-030-receive-to'\n\n## Risk red lines\n- Do not let an LP outside the TO checklist trigger an API call\n- Do not navigate to done before all expected receive calls have committed\n- Do not omit the un-scanned warning",
+  "labels": ["prd", "ui", "scn-030-receive-to", "T3-ui"],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-032",
+    "source_prd": "06-SCANNER-P1-PRD.md",
+    "prd_refs": ["§8.2 FR-SC-FE-022"],
+    "category": "ui",
+    "subcategory": "scn-030-receive-to",
+    "task_type": "T3-ui",
+    "parent_feature": "06-b Warehouse In",
+    "context_budget": "30k",
+    "estimated_effort": "2-3h",
+    "description": "SCN-030 Receive TO 3-step UI with checklist + partial-accept + done summary; wired to /receive-to-line.",
+    "details": "Parity checklist:\n1) TO list rows match prototype.\n2) Scan step shows LP checklist with ✓/○.\n3) Partial-accept button at bottom.\n4) Out-of-list scan triggers red flash + error banner without API call.\n5) Done step lists accepted LPs and warns about un-scanned.",
+    "scope_files": [
+      "apps/scanner/src/app/scanner/receive/to/page.tsx [create]",
+      "apps/scanner/src/app/scanner/receive/to/[id]/scan/page.tsx [create]",
+      "apps/scanner/src/app/scanner/receive/to/done/page.tsx [create]",
+      "apps/scanner/__tests__/scn-030-receive-to.test.tsx [create]",
+      "design/Monopilot Design System/scanner/flow-receive.jsx:267-294 [ref]",
+      "design/Monopilot Design System/scanner/flow-receive.jsx:297-385 [ref]"
+    ],
+    "out_of_scope": [
+      "Do not implement PO receive UI here (T-031)",
+      "Do not implement supervisor over-receipt override",
+      "Do not implement label printing"
+    ],
+    "dependencies": ["T-013", "T-027", "T-029"],
+    "parallel_safe_with": ["T-031", "T-033"],
+    "acceptance_criteria": [
+      "Given the 3 steps render, when compared to design/Monopilot Design System/scanner/flow-receive.jsx:267-294 and :297-385, then they have the same TO list, the same LP checklist with ✓/○, the same partial-accept button placement, and the same done summary — RTL snapshot + manual checklist",
+      "Given two of three expected LPs scanned and 'Akceptuj częściowo' tapped, when the action runs, then 2 receive-to-line calls are issued and done shows the third LP under 'Niezeskanowane'",
+      "Given an LP outside the TO checklist is scanned, when ScanInput emits, then a red flash + 'LP poza TO' banner is shown and no API call is made"
+    ],
+    "test_strategy": [
+      "RED: write scn-030-receive-to.test.tsx asserting parity + partial accept + out-of-list error before implementation",
+      "Run 'pnpm --filter scanner test scn-030-receive-to'"
+    ],
+    "risk_red_lines": [
+      "Do not call API for out-of-list scan",
+      "Do not navigate to done before all commits",
+      "Do not omit un-scanned warning"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

@@ -1,0 +1,59 @@
+{
+  "title": "T-034 — Reschedule WO Modal (reschedule_wo_modal)",
+  "prompt": "# T-034 — Reschedule WO Modal\n\nPRD: 07-PLANNING-EXT-PRD.md §8.1 SCR-07-01 §3.6 [Reschedule WO]\nPrototype: design/Monopilot Design System/planning-ext/modals.jsx:214-287 (`reschedule_wo_modal`)\nUX: design/07-PLANNING-EXT-UX.md:1000-1011\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nImplement Dialog (variant of Override) for [Reschedule WO] action — preserves WO id, prefills current line/shift; uses fa_line_compatibility for line eligibility + acknowledgement checkbox for ineligible lines (audit-logged).\n\n## Implementation contract\n1. New `apps/web/src/components/scheduler/RescheduleWOModal.tsx` (shadcn Dialog max-w-3xl).\n2. Loads eligibleLineIds from fa_line_compatibility join in Server Component prop.\n3. zod superRefine: `isEligible || ackIneligible` (V-SCHED-03 cross-field).\n4. Server Action `rescheduleWOAction` (separate from override): cascade dependency check (V-SCHED-04 no overlap), audit log ack_override_reason, outbox emit scheduler.wo.rescheduled.\n\n## Files\n- apps/web/src/components/scheduler/RescheduleWOModal.tsx [create]\n- apps/web/src/lib/scheduler/reschedule-action.ts [create]\n- apps/web/src/components/scheduler/__tests__/RescheduleWOModal.test.tsx [create]\n- design/Monopilot Design System/planning-ext/modals.jsx [ref]\n\n## Acceptance criteria\n1. Given a WO with eligibleLineIds=[LINE-01,LINE-02] and user selects LINE-03 (ineligible), when ack checkbox unchecked, then submit is blocked; when ack checked, then submit allowed and ack_override_reason recorded in audit log\n2. Given the rendered modal, when compared to prototype design/Monopilot Design System/planning-ext/modals.jsx:214-287, then it has same wide layout, same line/datetime/shift/ack-checkbox/reason fields in same order, and same shadcn primitives (Dialog, Select, Input, Checkbox, Button) — parity by RTL snapshot + checklist\n3. Given a parent WO with planned_end_time=T+3h and selected new_planned_start_time=T+2h (cascade violation), when submit fires, then 422 returned with V-SCHED-03 error and field error displayed\n\n## Test strategy\n- RED: write __tests__/RescheduleWOModal.test.tsx covering ack-required-on-ineligible + parity + V-SCHED-03 cascade error\n- Run 'pnpm --filter web test scheduler/RescheduleWOModal'\n\n## Risk red lines\n- Do not allow submit on ineligible line without ack\n- Do not skip cascade DAG check (V-SCHED-03)\n- Do not skip audit log of ack_override_reason",
+  "labels": ["prd", "ui", "modal", "T3-ui"],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-034",
+    "source_prd": "07-PLANNING-EXT-PRD.md",
+    "prd_refs": ["§8.1 SCR-07-01"],
+    "category": "ui",
+    "subcategory": "modal-reschedule",
+    "task_type": "T3-ui",
+    "parent_feature": "07-EXT-a reschedule flow",
+    "context_budget": "50k",
+    "estimated_effort": "2h",
+    "description": "Reschedule WO Dialog with line eligibility check, ack-checkbox for ineligible, cascade validation, audit log.",
+    "details": "Variant of override modal. Loads eligibleLineIds via Server Component join. zod superRefine enforces ack rule. Server Action rescheduleWOAction emits scheduler.wo.rescheduled outbox event.",
+    "scope_files": [
+      "apps/web/src/components/scheduler/RescheduleWOModal.tsx [create]",
+      "apps/web/src/lib/scheduler/reschedule-action.ts [create]",
+      "apps/web/src/components/scheduler/__tests__/RescheduleWOModal.test.tsx [create]",
+      "design/Monopilot Design System/planning-ext/modals.jsx:214-287 [ref]"
+    ],
+    "out_of_scope": [
+      "Do not implement override modal (T-033)",
+      "Do not implement /reschedule endpoint here (server action delegates to /override + outbox)"
+    ],
+    "dependencies": ["T-015", "T-029"],
+    "parallel_safe_with": ["T-032", "T-033"],
+    "acceptance_criteria": [
+      "Given eligibleLineIds=[LINE-01,LINE-02] and user selects LINE-03 + ack checkbox unchecked, when submit fires, then submit blocked; with ack checked, then submit allowed and ack_override_reason recorded in audit log",
+      "Given the rendered modal, when compared to prototype design/Monopilot Design System/planning-ext/modals.jsx:214-287, then it has same wide layout, same field order (line/datetime/shift/ack/reason), and same shadcn primitives — parity by RTL snapshot + checklist",
+      "Given parent WO planned_end_time=T+3h and new_planned_start_time=T+2h, when submit fires, then 422 with V-SCHED-03 error and field error displayed"
+    ],
+    "test_strategy": [
+      "RED: write __tests__/RescheduleWOModal.test.tsx covering ack-required + parity + cascade V-SCHED-03",
+      "Run 'pnpm --filter web test scheduler/RescheduleWOModal'"
+    ],
+    "risk_red_lines": [
+      "Do not allow submit on ineligible line without ack",
+      "Do not skip cascade DAG check",
+      "Do not skip audit log of ack_override_reason"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

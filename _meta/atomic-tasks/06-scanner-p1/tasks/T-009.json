@@ -1,0 +1,61 @@
+{
+  "title": "T-009 — context endpoints sites/lines/shifts + POST /context (06-a)",
+  "prompt": "# T-009 — site / line / shift context endpoints\n\nPRD: 06-SCANNER-P1-PRD.md §8.1 FR-SC-BE-006/007/008/009, §12.5 RBAC\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nLand the four endpoints SCN-012 needs to load sites/lines/shifts and persist the chosen context onto the active scanner_sessions row.\n\n## Implementation contract\n1. `GET /api/scanner/context/sites` — return sites the authenticated user may access (org_id RLS + users.allowed_sites). Response: `[{ id, code, name }]`.\n2. `GET /api/scanner/context/lines?site_id=` — return lines at site filtered by users.allowed_lines (if set, else all). Response: `[{ id, code, name, device_mode_default }]`.\n3. `GET /api/scanner/context/shifts` — return active shifts (default 3: morning/afternoon/night with start/end times from settings).\n4. `POST /api/scanner/context` — body Zod `{ site_id, line_id, shift_id, device_mode? }`; updates current scanner_sessions row's site_id/line_id/shift_id/device_mode (if user.preferred_device_mode allows the override; never personal→kiosk by user, only kiosk→personal denial).\n5. Audit-log every POST.\n\n## Files\n- apps/scanner/src/app/api/scanner/context/sites/route.ts [create]\n- apps/scanner/src/app/api/scanner/context/lines/route.ts [create]\n- apps/scanner/src/app/api/scanner/context/shifts/route.ts [create]\n- apps/scanner/src/app/api/scanner/context/route.ts [create]\n- apps/scanner/__tests__/api/scanner-context.test.ts [create]\n\n## Acceptance criteria\n1. Given a user with allowed_sites=[FNOR], when GET /api/scanner/context/sites runs, then the response only contains the FNOR row\n2. Given a session with device_mode='kiosk', when POST /api/scanner/context with device_mode='personal' runs, then it responds 403 SC_DEVICE_MODE_DOWNGRADE_FORBIDDEN and scanner_sessions.device_mode stays 'kiosk'\n3. Given a valid POST /api/scanner/context, when it succeeds, then scanner_sessions row's site_id/line_id/shift_id are updated and a scanner_audit_log row with scan_type='context_set' is written\n\n## Test strategy\n- RED: write scanner-context.test.ts asserting allowed_sites filter + downgrade rejection + audit row before implementation\n- Run 'pnpm --filter scanner test api/scanner-context'\n\n## Risk red lines\n- Do not allow user to set site_id outside their allowed_sites\n- Do not skip RLS on the site/line lookup\n- Do not let an inactive shift be chosen",
+  "labels": ["prd", "auth", "scanner-context", "T2-api"],
+  "priority": 80,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-009",
+    "source_prd": "06-SCANNER-P1-PRD.md",
+    "prd_refs": ["§8.1 FR-SC-BE-006..009", "§12.5"],
+    "category": "auth",
+    "subcategory": "scanner-context",
+    "task_type": "T2-api",
+    "parent_feature": "06-a Shell & Core",
+    "context_budget": "25k",
+    "estimated_effort": "1-2h",
+    "description": "GET sites/lines/shifts + POST set-context endpoints feeding SCN-012; enforces allowed_sites and kiosk downgrade rule.",
+    "details": "Four route handlers backed by RLS. POST applies the user's allowed_sites/allowed_lines filter, blocks kiosk→personal downgrade by user, and writes audit row. Lines GET also returns line.device_mode_default so the UI can preselect.",
+    "scope_files": [
+      "apps/scanner/src/app/api/scanner/context/sites/route.ts [create]",
+      "apps/scanner/src/app/api/scanner/context/lines/route.ts [create]",
+      "apps/scanner/src/app/api/scanner/context/shifts/route.ts [create]",
+      "apps/scanner/src/app/api/scanner/context/route.ts [create]",
+      "apps/scanner/__tests__/api/scanner-context.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not build SCN-012 UI here (T-021)",
+      "Do not implement shift_enforcement policy (OQ-SC-02 carry-forward)",
+      "Do not implement device pairing endpoints (T-022 owns SCN-013 backend hooks)"
+    ],
+    "dependencies": ["T-007"],
+    "parallel_safe_with": ["T-008", "T-010", "T-011"],
+    "acceptance_criteria": [
+      "Given a user with allowed_sites=[FNOR], when GET /api/scanner/context/sites runs, then the response only contains the FNOR row",
+      "Given a session with device_mode='kiosk', when POST /api/scanner/context with device_mode='personal' runs, then 403 SC_DEVICE_MODE_DOWNGRADE_FORBIDDEN and scanner_sessions.device_mode stays 'kiosk'",
+      "Given a valid POST /api/scanner/context, when it succeeds, then scanner_sessions row's site_id/line_id/shift_id are updated and a scanner_audit_log row with scan_type='context_set' is written"
+    ],
+    "test_strategy": [
+      "RED: write scanner-context.test.ts asserting filter + downgrade rejection + audit row before implementation",
+      "Run 'pnpm --filter scanner test api/scanner-context'"
+    ],
+    "risk_red_lines": [
+      "Do not allow site_id outside allowed_sites",
+      "Do not skip RLS on site/line lookup",
+      "Do not allow inactive shift selection"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

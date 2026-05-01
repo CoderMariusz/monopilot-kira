@@ -1,0 +1,59 @@
+{
+  "title": "T-018 — GET/POST /api/scheduler/changeover-matrix endpoints",
+  "prompt": "# T-018 — GET/POST /api/scheduler/changeover-matrix endpoints\n\nPRD: 07-PLANNING-EXT-PRD.md §8.2 GET/POST changeover-matrix, §7.2 FR-07-E2-002\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nImplement GET (returns active matrix, optional ?line_id= for per-line override) and POST (creates new version with cells, marks active) endpoints with RBAC + audit log.\n\n## Implementation contract\n1. Route `apps/web/src/app/api/scheduler/changeover-matrix/route.ts`: GET reads active version, optionally merging per-line override rows; POST body { matrix: [...], line_id?: string, notes? }.\n2. POST: in transaction — INSERT new changeover_matrix_versions row (auto-incremented version_number), UPDATE old active is_active=false, INSERT cells, emit outbox event scheduler.changeover_matrix.updated.\n3. RBAC: GET = Planner Advanced + Prod Manager (read); POST = Planner Advanced only.\n4. Validation: each cell {from, to, minutes, cleaning, atp, segregation?} via Zod; segregation_required=true ONLY allowed for Admin role.\n\n## Files\n- apps/web/src/app/api/scheduler/changeover-matrix/route.ts [create]\n- apps/web/src/lib/scheduler/matrix-service.ts [create]\n- apps/web/src/app/api/scheduler/changeover-matrix/__tests__/route.test.ts [create]\n\n## Acceptance criteria\n1. Given Planner POST with valid matrix, when called, then new version row inserted, old set is_active=false, cells inserted, outbox emitted (single transaction)\n2. Given GET ?line_id=LINE-03, when called, then response merges default + LINE-03 override rows (override wins per cell)\n3. Given Planner POST with cell segregation_required=true, when executed, then 403 returned (Admin-only field)\n\n## Test strategy\n- RED: write __tests__/route.test.ts covering versioning + override merge + segregation-only-admin\n- Run 'pnpm --filter web test scheduler/changeover-matrix'\n\n## Risk red lines\n- Do not allow Planner to set segregation_required=true (V-CM-04 enforced)\n- Do not skip the version flip transaction (two active versions = data corruption)\n- Do not skip outbox emit (audit trail mandatory per §9.8)",
+  "labels": ["prd", "api", "endpoint-mixed", "T2-api"],
+  "priority": 80,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-018",
+    "source_prd": "07-PLANNING-EXT-PRD.md",
+    "prd_refs": ["§8.2", "§7.2 FR-07-E2-002"],
+    "category": "api",
+    "subcategory": "endpoint-mixed",
+    "task_type": "T2-api",
+    "parent_feature": "07-EXT-b matrix editor backend",
+    "context_budget": "50k",
+    "estimated_effort": "2h",
+    "description": "GET (active matrix + optional per-line merge) and POST (new version + cells + outbox event) for changeover_matrix.",
+    "details": "Versioning logic: POST creates new version (version_number = MAX+1), flips is_active in single tx, inserts cells, emits outbox event. GET merges default + override when line_id query provided. Zod validation enforces V-CM-04 (segregation Admin-only).",
+    "scope_files": [
+      "apps/web/src/app/api/scheduler/changeover-matrix/route.ts [create]",
+      "apps/web/src/lib/scheduler/matrix-service.ts [create]",
+      "apps/web/src/app/api/scheduler/changeover-matrix/__tests__/route.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not implement CSV import endpoint here (T-039)",
+      "Do not implement diff endpoint here (T-040)",
+      "Do not implement matrix_review_request endpoint here (T-041)"
+    ],
+    "dependencies": ["T-003", "T-029"],
+    "parallel_safe_with": ["T-019"],
+    "acceptance_criteria": [
+      "Given Planner POST with valid matrix, when called, then new version inserted, old set is_active=false, cells inserted, outbox emitted in single transaction",
+      "Given GET ?line_id=LINE-03, when called, then response merges default + LINE-03 override rows (override wins per cell)",
+      "Given Planner POST with cell segregation_required=true, when executed, then 403 returned"
+    ],
+    "test_strategy": [
+      "RED: write __tests__/route.test.ts covering versioning + override merge + segregation-only-admin",
+      "Run 'pnpm --filter web test scheduler/changeover-matrix'"
+    ],
+    "risk_red_lines": [
+      "Do not allow Planner to set segregation_required=true",
+      "Do not skip version flip transaction",
+      "Do not skip outbox emit"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

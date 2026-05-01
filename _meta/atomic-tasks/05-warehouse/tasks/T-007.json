@@ -1,0 +1,59 @@
+{
+  "title": "T-007 — pick_overrides table migration",
+  "prompt": "# T-007 — pick_overrides table migration\n\nPRD: `05-WAREHOUSE-PRD.md` §5.7, §9.6.\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`.\n\n## Goal\nCreate `pick_overrides` table to audit FEFO/FIFO deviations per Q6B pattern.\n\n## Implementation contract\nAdd `packages/db/src/schema/pick-overrides.ts` per §5.7: id, tenant_id, pick_request_id (varchar 64), wo_id, to_line_id, suggested_lp_id FK, picked_lp_id FK, reason_code ENUM ('batch_exhaustion','qa_release','physical_accessibility','line_priority','operator_decision','other'), reason_text, confirmed_by, confirmed_at, delta_days INT.\nCHECK: when reason_code='other' then reason_text NOT NULL (DB trigger or app-level — choose CHECK with COALESCE NULLIF for app-friendly behavior).\n\n## Files (scope)\n- packages/db/src/schema/pick-overrides.ts [create]\n- packages/db/migrations/0NN_pick_overrides.sql [create]\n- packages/db/src/schema/pick-overrides.test.ts [create]\n\n## Acceptance criteria\n1. Given the migration runs, when pick_overrides is inspected, then PRD §5.7 columns exist with the 6-value reason_code enum.\n2. Given INSERT with reason_code='other' and reason_text NULL, when committed, then DB raises a CHECK violation.\n3. Given INSERT with picked_lp_id == suggested_lp_id, when committed, then DB raises a CHECK violation.\n\n## Test strategy\n- RED: pick-overrides.test.ts asserts the three behaviors.\n- Run `pnpm --filter db migrate && pnpm --filter db test pick-overrides`.\n\n## Risk red lines\n- Do not allow other-reason without text.\n- Do not log overrides where picked == suggested (defeats audit).\n- Do not implement service logic.",
+  "labels": ["prd", "data", "pick-overrides", "T1-schema"],
+  "priority": 70,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-007",
+    "source_prd": "05-WAREHOUSE-PRD.md",
+    "prd_refs": ["§5.7", "§9.6"],
+    "category": "data",
+    "subcategory": "pick-overrides",
+    "task_type": "T1-schema",
+    "parent_feature": "warehouse-foundation",
+    "context_budget": "20k",
+    "estimated_effort": "0.5-1h",
+    "description": "Create pick_overrides table for FEFO/FIFO deviation audit (Q6B).",
+    "details": "Drizzle schema + migration. CHECK reason_text required when reason_code='other'; CHECK picked_lp_id != suggested_lp_id.",
+    "scope_files": [
+      "packages/db/src/schema/pick-overrides.ts [create]",
+      "packages/db/migrations/0NN_pick_overrides.sql [create]",
+      "packages/db/src/schema/pick-overrides.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Service logic (T-033)",
+      "Dashboard KPI (T-048)",
+      "RLS (T-012)"
+    ],
+    "dependencies": ["T-002"],
+    "parallel_safe_with": ["T-003", "T-004", "T-005", "T-006", "T-008", "T-009"],
+    "acceptance_criteria": [
+      "Given the migration runs, when pick_overrides is inspected, then §5.7 columns and 6-value reason_code enum exist",
+      "Given INSERT with reason_code='other' and reason_text NULL, when committed, then DB raises CHECK violation",
+      "Given INSERT with picked_lp_id == suggested_lp_id, when committed, then DB raises CHECK violation"
+    ],
+    "test_strategy": [
+      "RED: pick-overrides.test.ts asserts the two CHECK behaviors and enum",
+      "Run 'pnpm --filter db migrate && pnpm --filter db test pick-overrides'"
+    ],
+    "risk_red_lines": [
+      "Do not allow other-reason without text",
+      "Do not allow picked == suggested",
+      "Do not embed service logic"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

@@ -1,0 +1,57 @@
+{
+  "title": "T-016 — Reference.DeptColumns Apex baseline seed (69 cols)",
+  "prompt": "# T-016 — Reference.DeptColumns Apex baseline seed\n\nPRD: 01-NPD-PRD.md §5.1-§5.10 (full 69 col matrix)\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nSeed Reference.DeptColumns with the full 69-col Apex baseline (Core 8 + Planning 4 + Commercial 8 + Production 19 + Technical 2 + MRP 13 + Procurement 5 + System 10) including blocking_rule, required_for_done, marker per §5.1 summary table.\n\n## Implementation contract\nNew packages/db/seeds/dept-columns-apex.ts: a typed array of 69 entries (one per col §5.2-§5.10), each with column_name/dept/data_type/dropdown_source/blocking_rule/required_for_done/display_order/marker/schema_version=1. Insert as ON CONFLICT DO UPDATE keyed on (tenant_id, column_name). Idempotent. Includes Phase B.2 brief extensions (§5.3) and EVOLVING markers.\n\n## Files\n- packages/db/seeds/dept-columns-apex.ts [create]\n- packages/db/__tests__/dept-columns-seed.test.ts [create]\n\n## Acceptance criteria\n1. Given seed runs for tenant T1, when SELECT count(*) FROM \"Reference.DeptColumns\" WHERE tenant_id=T1, then count=69 (or 76 incl. brief extensions when feature flag on)\n2. Given seed re-runs, when called twice, then count remains 69 and content unchanged (idempotent)\n3. Given seed completes, when SELECT WHERE column_name='price', then blocking_rule='Core + Production done' (Phase D #7 tightening)\n\n## Test strategy\n- RED: 3 tests for count, idempotency, blocking_rule correctness\n- Run 'pnpm --filter db seed:dept-columns-apex && pnpm --filter db test dept-columns-seed'\n\n## Risk red lines\n- Do not seed required_for_done=true on auto-derived cols (e.g., ingredient_codes, equipment_setup)\n- Do not skip System cols\n- Do not change blocking_rule values from PRD specification",
+  "labels": ["prd", "data", "seed", "T5-seed"],
+  "priority": 80,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-016",
+    "source_prd": "01-NPD-PRD.md",
+    "prd_refs": ["§5.1", "§5.2", "§5.3", "§5.4", "§5.5", "§5.6", "§5.7", "§5.8", "§5.9", "§5.10"],
+    "category": "data",
+    "subcategory": "seed-dept-columns",
+    "task_type": "T5-seed",
+    "parent_feature": "01-NPD-a Apex baseline",
+    "context_budget": "30k",
+    "estimated_effort": "2h",
+    "description": "Idempotent seed of 69-col Reference.DeptColumns baseline matching §5 PRD matrix.",
+    "details": "Typed seed array with all cols, blocking rules, required flags, markers, display order. ON CONFLICT DO UPDATE for idempotency. Tests verify count, idempotency, key blocking rules.",
+    "scope_files": [
+      "packages/db/seeds/dept-columns-apex.ts [create]",
+      "packages/db/__tests__/dept-columns-seed.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not seed brief field mapping here",
+      "Do not seed Reference.Allergens (separate task T-035)"
+    ],
+    "dependencies": ["T-003"],
+    "parallel_safe_with": ["T-014", "T-015"],
+    "acceptance_criteria": [
+      "Given seed runs for tenant T1, when SELECT count(*) FROM Reference.DeptColumns WHERE tenant_id=T1, then count equals 69 baseline",
+      "Given seed re-runs, when called twice, then count remains 69 and content unchanged",
+      "Given seed completes, when SELECT WHERE column_name='price', then blocking_rule='Core + Production done'"
+    ],
+    "test_strategy": [
+      "RED: tests for count, idempotency, key blocking rule before seed exists",
+      "Run 'pnpm --filter db seed:dept-columns-apex && pnpm --filter db test dept-columns-seed'"
+    ],
+    "risk_red_lines": [
+      "Do not set required_for_done=true on auto-derived cols",
+      "Do not skip System cols",
+      "Do not deviate from PRD blocking rules"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

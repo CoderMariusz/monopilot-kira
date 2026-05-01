@@ -1,0 +1,37 @@
+{
+  "title": "T-014 — API: BOM approve and publish workflow (POST .../approve, POST .../publish)",
+  "prompt": "Implement two endpoints under /api/technical/items/[item_code]/boms/[version]: POST /approve sets status='approved', approved_by, approved_at (V-TEC-10 enforced — only after approve can publish run). POST /publish sets status='active', supersedes prior active version (set its status='superseded' and effective_to = today). Permission technical.bom.approve and technical.bom.version_publish. Both transactional. Audit log per ADR-008. RED tests/api/bom-workflow.test.ts. Run: `pnpm vitest run tests/api/bom-workflow.test.ts`.",
+  "labels": ["prd", "api", "bom-workflow", "T2-api"],
+  "priority": 80,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-014",
+    "source_prd": "03-TECHNICAL-PRD.md",
+    "prd_refs": ["§7.4", "§7.6"],
+    "category": "api",
+    "subcategory": "bom-workflow",
+    "task_type": "T2-api",
+    "parent_feature": "03-TECHNICAL-a BOM",
+    "context_budget": "25k",
+    "estimated_effort": "2h",
+    "description": "BOM approval + publish endpoints; supersede prior active version atomically.",
+    "details": "Rollback by publishing a prior version simply means re-running publish on that version. Both endpoints write audit_log rows action='bom.approve' / 'bom.publish'.",
+    "scope_files": ["app/api/technical/items/[item_code]/boms/[version]/approve/route.ts", "app/api/technical/items/[item_code]/boms/[version]/publish/route.ts", "lib/technical/bom/workflow.ts", "tests/api/bom-workflow.test.ts"],
+    "out_of_scope": ["Version diff", "Generator"],
+    "dependencies": ["T-013"],
+    "parallel_safe_with": ["T-015", "T-016"],
+    "acceptance_criteria": [
+      "Given draft BOM, when /publish runs, then 422 because V-TEC-10 unmet.",
+      "Given approved v2 with active v1, when /publish on v2, then v1.status='superseded', v2.status='active' atomically.",
+      "Given user without technical.bom.approve, when /approve runs, then 403.",
+      "Given approve runs, when audit_log queried, then a row with action='bom.approve' exists."
+    ],
+    "test_strategy": ["RED tests for V-TEC-10 + supersede atomicity.", "Run: pnpm vitest run tests/api/bom-workflow.test.ts"],
+    "risk_red_lines": ["Do not allow approving a BOM with cycles (revalidate cycle-check at approve time)."],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {"required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"], "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]},
+    "routing_hints": {"red": "hermes_gpt55", "implementation": "hermes_gpt55", "review": "opus_if_high_risk_or_ui_or_architecture", "close": "spark_low_risk_else_opus"}
+  }
+}

@@ -1,0 +1,64 @@
+{
+  "title": "T-033 — QA-031 inspection_detail page + sample_draw_modal (parity)",
+  "prompt": "# T-033 — QA-031 inspection_detail + sample_draw_modal\n\nPRD: 09-QUALITY-PRD.md §8.2 QA-031, §8.3 QUA-104, §8.5 prototypes inspection_detail + sample_draw_modal\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nBuild `/quality/inspections/incoming/:id` Server Component with top metadata Card, parameter results table (auto-compute pass/fail per row), bottom action bar (Save draft / Submit / Cancel inspection / Create hold on fail), e-sign block. Sample draw modal Client Component for AQL sampling.\n\n## Implementation contract\n1. `apps/web/src/app/quality/inspections/incoming/[id]/page.tsx` Server Component reads getInspectionDetail(id) (returns inspection + spec + parameters + results).\n2. `apps/web/src/components/quality/inspections/InspectionDetailForm.tsx` Client Component (RHF + Zod) with parameter rows; on each row blur calls recordTestResult (T-027).\n3. `apps/web/src/components/quality/inspections/SampleDrawModal.tsx` shadcn Dialog matching prototype quality/modals.jsx:248-297.\n4. Action bar: Submit calls completeInspection + signInspection; Create hold opens HoldCreateModal pre-filled with reference_type='lp' and lp_id from inspection.\n5. 1:1 parity vs `design/Monopilot Design System/quality/inspection-screens.jsx:100-297` (inspection_detail) and `quality/modals.jsx:248-297` (sample_draw_modal).\n\n## Files\n- apps/web/src/app/quality/inspections/incoming/[id]/page.tsx [create]\n- apps/web/src/server/quality/getInspectionDetail.ts [create]\n- apps/web/src/components/quality/inspections/InspectionDetailForm.tsx [create]\n- apps/web/src/components/quality/inspections/SampleDrawModal.tsx [create]\n- apps/web/src/components/quality/inspections/__tests__/inspectionDetail.test.tsx [create]\n- design/Monopilot Design System/quality/inspection-screens.jsx [ref]\n- design/Monopilot Design System/quality/modals.jsx [ref]\n\n## Acceptance criteria\n1. Given the page renders, when compared to design/Monopilot Design System/quality/inspection-screens.jsx:100-297, then it has parity with the prototype on structure (top metadata card + parameters table + bottom action bar with 4 buttons in same order Save/Submit/Cancel/CreateHold), visuals (shadcn Card/Table/Input/Select/Button only, signed banner uses Alert variant=success when signed), and interaction (per-row auto-compute on blur, Submit disabled until all critical params have results, Create hold pre-fills lp reference) — verified by RTL plus parity checklist in pipeline_inputs.details\n2. Given the SampleDrawModal renders, when compared to design/Monopilot Design System/quality/modals.jsx:248-297, then it has parity on structure (header + lot size Input + AQL Select + computed sample size readout + Cancel/Confirm buttons), visuals (shadcn Dialog/Form/Select/Button only), and interaction (Confirm disabled until lot_size>0 AND AQL chosen; sample size auto-computed via getDefaultSamplingPlan) — verified by RTL plus parity checklist\n3. Given a parameter is critical and result='fail', when Submit is clicked, then the form prompts the user to enter fail_reason and offers 'Create hold' shortcut routing to HoldCreateModal pre-filled with reference_type='lp' and the inspection's lp_id",
+  "labels": ["prd", "ui", "qa-inspection-detail", "T3-ui"],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-033",
+    "source_prd": "09-QUALITY-PRD.md",
+    "prd_refs": ["§8.2 QA-031", "§8.3 QUA-104", "§8.5"],
+    "category": "ui",
+    "subcategory": "qa-inspection-detail",
+    "task_type": "T3-ui",
+    "parent_feature": "09-c Incoming Inspection",
+    "context_budget": "60k",
+    "estimated_effort": "3-4h",
+    "prototype_match": true,
+    "description": "Inspection detail with parameter rows (auto-compute on blur) + action bar + sample draw modal; parity with inspection_detail and sample_draw_modal prototypes.",
+    "details": "Server Component fetches inspection+spec+parameters+results. Client form (RHF) records per-parameter via recordTestResult on blur. Sample draw modal computes sample size via getDefaultSamplingPlan (T-031). Submit triggers completeInspection + signInspection. Create hold opens HoldCreateModal pre-filled. shadcn primitives only.",
+    "scope_files": [
+      "apps/web/src/app/quality/inspections/incoming/[id]/page.tsx [create]",
+      "apps/web/src/server/quality/getInspectionDetail.ts [create]",
+      "apps/web/src/components/quality/inspections/InspectionDetailForm.tsx [create]",
+      "apps/web/src/components/quality/inspections/SampleDrawModal.tsx [create]",
+      "apps/web/src/components/quality/inspections/__tests__/inspectionDetail.test.tsx [create]",
+      "design/Monopilot Design System/quality/inspection-screens.jsx [ref]",
+      "design/Monopilot Design System/quality/modals.jsx [ref]"
+    ],
+    "out_of_scope": [
+      "Do not implement P2 in_process/final inspection flows",
+      "Do not implement assign modal (T-036)",
+      "Do not implement template list (T-034)"
+    ],
+    "dependencies": ["T-015", "T-025", "T-026", "T-027", "T-028", "T-031"],
+    "parallel_safe_with": ["T-032", "T-034", "T-035"],
+    "acceptance_criteria": [
+      "Given the page renders, when compared to design/Monopilot Design System/quality/inspection-screens.jsx:100-297, then it has parity on structure (top metadata card + parameters table + bottom action bar with 4 buttons Save/Submit/Cancel/CreateHold in declared order), visuals (shadcn Card/Table/Input/Select/Button only, signed banner Alert variant=success), and interaction (per-row auto-compute on blur, Submit disabled until all critical params have results, Create hold pre-fills lp reference) — verified by RTL plus parity checklist in pipeline_inputs.details",
+      "Given the SampleDrawModal renders, when compared to design/Monopilot Design System/quality/modals.jsx:248-297, then it has parity on structure (header + lot size Input + AQL Select + computed sample-size readout + Cancel/Confirm), visuals (shadcn primitives only), and interaction (Confirm disabled until lot_size>0 AND AQL chosen; sample size auto-computed via getDefaultSamplingPlan) — verified by RTL plus parity checklist",
+      "Given a critical parameter result='fail', when Submit is clicked, then the form prompts for fail_reason and offers Create hold shortcut routing to HoldCreateModal pre-filled with reference_type='lp' and the inspection's lp_id"
+    ],
+    "test_strategy": [
+      "RED: write apps/web/src/components/quality/inspections/__tests__/inspectionDetail.test.tsx asserting structure, sample-size auto-compute, Create-hold pre-fill",
+      "Run 'pnpm --filter web test inspectionDetail'"
+    ],
+    "risk_red_lines": [
+      "Do not let client compute the top-level inspection result (server-authoritative per V-QA-INSP-004)",
+      "Do not allow Submit while critical params are missing results",
+      "Do not skip the auto-create-hold prompt when fail involves a critical parameter"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

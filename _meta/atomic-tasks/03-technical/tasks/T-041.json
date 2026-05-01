@@ -1,0 +1,36 @@
+{
+  "title": "T-041 — UI: TEC-024 BOM Generator modal (PARTIAL — gallery anchor)",
+  "prompt": "Build BOM Generator modal per §7.3 + UX:1314-1338. Selection scope (All Complete vs Selected FAs), output mode (per-FG vs single-batch), submit -> POST /api/technical/bom-generator (T-016). Visual reference: `tech_modal_gallery` design/Monopilot Design System/technical/modals.jsx:619-655 (PARTIAL — gallery includes sketches but no isolated label; treat UX spec UX:1314-1338 as parity reference per Step 7 fallback to UX). RED tests/ui/tec-024-bom-generator.test.tsx. Run: `pnpm vitest run tests/ui/tec-024-bom-generator.test.tsx`.",
+  "labels": ["prd", "ui", "ui-bom-generator", "T3-ui"],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-041",
+    "source_prd": "03-TECHNICAL-PRD.md",
+    "prd_refs": ["§7.3", "§7.5 TEC-024"],
+    "category": "ui",
+    "subcategory": "bom-generator",
+    "task_type": "T3-ui",
+    "parent_feature": "03-TECHNICAL-d BOM Generator",
+    "context_budget": "15k",
+    "estimated_effort": "1-2h",
+    "description": "BOM Generator confirm modal — RadioGroup scope + RadioGroup output mode + multi-select FA picker.",
+    "details": "When scope='selected_fgs', show searchable picker of FGs with Status_Overall='Complete'. Submit returns job_id; show success toast with link to job status.",
+    "scope_files": ["app/(app)/technical/_components/bom-generator-modal.tsx", "tests/ui/tec-024-bom-generator.test.tsx"],
+    "out_of_scope": ["XLSX worker logic"],
+    "dependencies": ["T-016", "T-037"],
+    "parallel_safe_with": ["T-039", "T-040"],
+    "acceptance_criteria": [
+      "Given the modal opens, when compared to design/Monopilot Design System/technical/modals.jsx:619-655 (gallery anchor) and the UX contract at UX:1314-1338, then it has the same scope/output radio groups and Cancel/Confirm buttons — structural + visual + interaction parity verified by RTL with parity checklist in details.",
+      "Given scope='selected_fgs' and 0 FGs picked, when Confirm clicked, then validation error.",
+      "Given valid submission, when API returns job_id, then a success toast appears."
+    ],
+    "test_strategy": ["RED tests for parity + validation.", "Run: pnpm vitest run tests/ui/tec-024-bom-generator.test.tsx"],
+    "risk_red_lines": ["Do not include FGs without Status_Overall='Complete' (V-TEC-15)."],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {"required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"], "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]},
+    "routing_hints": {"red": "hermes_gpt55", "implementation": "hermes_gpt55", "review": "opus_if_high_risk_or_ui_or_architecture", "close": "spark_low_risk_else_opus"}
+  }
+}

@@ -1,0 +1,37 @@
+{
+  "title": "T-020 — API: Lab results endpoints (POST/GET /api/technical/lab-results)",
+  "prompt": "Implement endpoints for lab results per §5.5 + §10.6 + V-TEC-44. POST body: { item_id, work_order_id?, test_type, test_code?, result_value, result_unit, threshold_rlu?, tested_at, lab_provider?, notes? }. result_status auto-set: for test_type='atp_swab' if result_value > threshold_rlu (default 10 from reference_tables.alert_thresholds), then 'fail'; otherwise 'pass'. Other test_types use explicit input. GET filterable by item_id, work_order_id, test_type, result_status. RED tests/api/lab-results.test.ts. Run: `pnpm vitest run tests/api/lab-results.test.ts`.",
+  "labels": ["prd", "api", "lab-results", "T2-api"],
+  "priority": 80,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-020",
+    "source_prd": "03-TECHNICAL-PRD.md",
+    "prd_refs": ["§5.5", "§10.6", "§10.8"],
+    "category": "api",
+    "subcategory": "lab-results",
+    "task_type": "T2-api",
+    "parent_feature": "03-TECHNICAL-b Lab",
+    "context_budget": "25k",
+    "estimated_effort": "2h",
+    "description": "Lab results POST with auto pass/fail for ATP swab + GET with filters.",
+    "details": "ATP threshold pulled from reference_tables.alert_thresholds where row_key='atp_swab_rlu_max' default 10. If row absent, fallback to 10 and log warning. fail status emits notification (out-of-scope: actual delivery — emit event only).",
+    "scope_files": ["app/api/technical/lab-results/route.ts", "lib/technical/lab/service.ts", "tests/api/lab-results.test.ts"],
+    "out_of_scope": ["WO close gate logic (08-PRODUCTION)", "UI Lab Results Log (T-049 doc)"],
+    "dependencies": ["T-005"],
+    "parallel_safe_with": ["T-017", "T-018", "T-019", "T-021"],
+    "acceptance_criteria": [
+      "Given test_type='atp_swab' and result_value=12 with threshold_rlu=10, when POST runs, then result_status='fail' written.",
+      "Given test_type='atp_swab' result_value=8 threshold=10, when POST, then result_status='pass'.",
+      "Given GET ?test_type=allergen_elisa&result_status=fail, then only matching rows returned.",
+      "Given POST without item_id and without work_order_id, when validated, then 422 (at least one required)."
+    ],
+    "test_strategy": ["RED tests covering V-TEC-44 trigger semantics.", "Run: pnpm vitest run tests/api/lab-results.test.ts"],
+    "risk_red_lines": ["Do not call external lab APIs (Phase 2)."],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {"required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"], "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]},
+    "routing_hints": {"red": "hermes_gpt55", "implementation": "hermes_gpt55", "review": "opus_if_high_risk_or_ui_or_architecture", "close": "spark_low_risk_else_opus"}
+  }
+}

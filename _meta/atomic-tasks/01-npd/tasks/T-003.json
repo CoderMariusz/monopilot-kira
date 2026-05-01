@@ -1,0 +1,59 @@
+{
+  "title": "T-003 — Reference.DeptColumns metadata table + Drizzle schema",
+  "prompt": "# T-003 — Reference.DeptColumns metadata table\n\nPRD: 01-NPD-PRD.md §4.2 (ADR-028 schema-driven backbone)\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nCreate Reference.DeptColumns metadata table that drives schema-driven dept proxy views, RHF Zod resolvers, runtime validators, and IsAllRequiredFilled checks.\n\n## Implementation contract\nMigration 0012 emits CREATE TABLE \"Reference.DeptColumns\" per §4.2: column_name PK, tenant_id, dept (Core|Planning|Commercial|Production|Technical|MRP|Procurement|System), data_type (text|number|date|dropdown|auto), dropdown_source nullable, blocking_rule TEXT, required_for_done BOOLEAN, display_order INT, marker TEXT, schema_version INT, created_at. Index (tenant_id, dept, display_order). Drizzle schema in packages/db/src/schema/reference-dept-columns.ts. RLS policy.\n\n## Files\n- packages/db/migrations/0012_reference_dept_columns.sql [create]\n- packages/db/src/schema/reference-dept-columns.ts [create]\n- packages/db/src/schema/index.ts [modify]\n- packages/db/__tests__/reference-dept-columns.test.ts [create]\n\n## Acceptance criteria\n1. Given migration 0012 ran, when querying schema, then Reference.DeptColumns has (tenant_id, dept, display_order) index and RLS enabled\n2. Given a row with data_type='dropdown' and dropdown_source NULL, when INSERT runs, then it fails CHECK constraint\n3. Given Drizzle schema imported, when typecheck runs, then DeptColumn Insert/Select types compile with strict\n\n## Test strategy\n- RED: tests for index existence + dropdown_source CHECK + Drizzle types\n- Run 'pnpm --filter db migrate && pnpm --filter db test reference-dept-columns && pnpm --filter db typecheck'\n\n## Risk red lines\n- Do not allow data_type values outside enum\n- Do not skip RLS\n- Do not seed values here (separate seed task T-016)",
+  "labels": ["prd", "data", "schema", "T1-schema"],
+  "priority": 50,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-003",
+    "source_prd": "01-NPD-PRD.md",
+    "prd_refs": ["§4.2"],
+    "category": "data",
+    "subcategory": "schema-reference",
+    "task_type": "T1-schema",
+    "parent_feature": "01-NPD-a schema-driven backbone",
+    "context_budget": "30k",
+    "estimated_effort": "1h",
+    "description": "Create Reference.DeptColumns metadata table driving schema-driven runtime per ADR-028.",
+    "details": "Migration 0012 emits Reference.DeptColumns DDL with composite index, CHECK on data_type/dropdown_source pairing, and RLS. Drizzle schema mirrors columns with strict types.",
+    "scope_files": [
+      "packages/db/migrations/0012_reference_dept_columns.sql [create]",
+      "packages/db/src/schema/reference-dept-columns.ts [create]",
+      "packages/db/src/schema/index.ts [modify]",
+      "packages/db/__tests__/reference-dept-columns.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not seed values (T-016 covers seed)",
+      "Do not implement runtime engine here (T-014)"
+    ],
+    "dependencies": ["T-001"],
+    "parallel_safe_with": ["T-002", "T-004"],
+    "acceptance_criteria": [
+      "Given migration 0012 ran, when querying schema, then index (tenant_id, dept, display_order) exists and RLS enabled",
+      "Given a row with data_type='dropdown' and dropdown_source NULL, when INSERT runs, then CHECK constraint rejects",
+      "Given Drizzle schema imported, when pnpm typecheck runs, then DeptColumn types compile with strict"
+    ],
+    "test_strategy": [
+      "RED: tests for index, CHECK, and Drizzle types before migration exists",
+      "Run 'pnpm --filter db migrate && pnpm --filter db test reference-dept-columns && pnpm --filter db typecheck'"
+    ],
+    "risk_red_lines": [
+      "Do not allow data_type outside enum (text|number|date|dropdown|auto)",
+      "Do not skip RLS policy",
+      "Do not include seed data in this migration"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

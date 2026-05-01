@@ -1,0 +1,58 @@
+{
+  "title": "T-041 — Reference.D365_Constants table + Apex seed (NPD-d)",
+  "prompt": "# T-041 — Reference.D365_Constants schema + Apex seed\n\nPRD: 01-NPD-PRD.md §10.4\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nCreate Reference.D365_Constants table per §10.4 and seed the 12 Apex constants.\n\n## Implementation contract\nMigration 0050 emits Reference.D365_Constants(constant_key PK, tenant_id, constant_value, description, marker, last_updated, schema_version, RLS). Seed file with 12 entries (PRODUCTIONSITEID=FNOR, APPROVERPERSONNELNUMBER=APX100048, etc. per §10.4 table).\n\n## Files\n- packages/db/migrations/0050_d365_constants.sql [create]\n- packages/db/src/schema/d365-constants.ts [create]\n- packages/db/seeds/d365-constants-apex.ts [create]\n- packages/db/__tests__/d365-constants.test.ts [create]\n\n## Acceptance criteria\n1. Given migration 0050 ran and seed executed, when SELECT count(*) FROM \"Reference.D365_Constants\" WHERE tenant_id=apex, then count=12\n2. Given SELECT WHERE constant_key='PRODUCTIONSITEID', then constant_value='FNOR'\n3. Given seed re-runs, when called twice, then count remains 12 and content unchanged\n\n## Test strategy\n- RED: 3 tests for count, key value, idempotency\n- Run 'pnpm --filter db migrate && pnpm --filter db seed:d365-constants-apex && pnpm --filter db test d365-constants'\n\n## Risk red lines\n- Do not skip RLS\n- Do not seed without tenant_id\n- Do not commit PRODUCTGROUPID_PR placeholder TBD value (mark NULL until configured)",
+  "labels": ["prd", "data", "schema", "T1-schema"],
+  "priority": 80,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-041",
+    "source_prd": "01-NPD-PRD.md",
+    "prd_refs": ["§10.4"],
+    "category": "data",
+    "subcategory": "schema-d365-constants",
+    "task_type": "T1-schema",
+    "parent_feature": "01-NPD-d D365 Builder seed",
+    "context_budget": "25k",
+    "estimated_effort": "1h",
+    "description": "Reference.D365_Constants table + 12 Apex seed values per §10.4 table.",
+    "details": "DDL with composite PK on (tenant_id, constant_key) + RLS. Seed uses PRD-listed 12 entries idempotently.",
+    "scope_files": [
+      "packages/db/migrations/0050_d365_constants.sql [create]",
+      "packages/db/src/schema/d365-constants.ts [create]",
+      "packages/db/seeds/d365-constants-apex.ts [create]",
+      "packages/db/__tests__/d365-constants.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not implement Builder generator here (T-042)"
+    ],
+    "dependencies": ["T-001"],
+    "parallel_safe_with": ["T-042"],
+    "acceptance_criteria": [
+      "Given migration 0050 ran and seed executed, when SELECT count(*) FROM Reference.D365_Constants WHERE tenant_id=apex, then count=12",
+      "Given SELECT WHERE constant_key='PRODUCTIONSITEID', then constant_value='FNOR'",
+      "Given seed re-runs, when called twice, then count remains 12 and content unchanged"
+    ],
+    "test_strategy": [
+      "RED: 3 tests for count, key value, idempotency before migration+seed exist",
+      "Run 'pnpm --filter db migrate && pnpm --filter db seed:d365-constants-apex && pnpm --filter db test d365-constants'"
+    ],
+    "risk_red_lines": [
+      "Do not skip RLS",
+      "Do not seed without tenant_id",
+      "Do not commit PRODUCTGROUPID_PR placeholder value"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

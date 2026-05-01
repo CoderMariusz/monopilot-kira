@@ -1,0 +1,59 @@
+{
+  "title": "T-018 — POST /api/production/work-orders/:id/resume endpoint + close downtime",
+  "prompt": "# T-018 — POST /work-orders/:id/resume\n\nPRD: 08-PRODUCTION-PRD.md §7.1 FR-08-E1-003, §8.2.1, §10.1\n\n## Goal\nImplement POST resume performing PAUSED→IN_PROGRESS with side-effect close_downtime_event (set ended_at, duration_min computed by GENERATED column).\n\n## Implementation contract\nApp Router POST handler. Zod body {transaction_id: uuid, operator_id: uuid, actual_duration_min?: integer}. withIdempotency. Atomic transaction: assert WO.status='PAUSED' else 409, UPDATE work_orders.status='IN_PROGRESS', UPDATE the open downtime_events row WHERE wo_id=:id AND source='wo_pause' AND ended_at IS NULL SET ended_at=now (or actual_duration_min override resolves to ended_at = started_at + actual_duration_min minutes), update wo_executions.total_pause_duration_min += duration. Return 200 {wo_id, status:'IN_PROGRESS', resumed_at, downtime_event_id, duration_min}.\n\n## Files (scope)\n- apps/web/app/api/production/work-orders/[id]/resume/route.ts [create]\n- apps/web/app/api/production/work-orders/[id]/resume/__tests__/route.test.ts [create]\n- packages/api-services/production/resume-wo.ts [create]\n\n## Acceptance criteria\n1. Given WO PAUSED with one open downtime_events row (ended_at NULL), when POST /resume, then 200, downtime_events.ended_at set, duration_min populated by GENERATED column, wo_executions.total_pause_duration_min incremented\n2. Given WO IN_PROGRESS, when POST /resume, then 409 invalid_state_transition\n3. Given actual_duration_min override=15, when POST /resume, then ended_at = started_at + 15min (operator-corrected duration)\n\n## Test strategy\n- RED: route test asserting happy + 409 + override-duration before route exists\n- Run 'pnpm --filter web test work-orders.*resume'\n\n## Risk red lines\n- Do not double-close already-ended downtime\n- Do not change duration_min directly (V-PROD-06: GENERATED only — adjust via ended_at)\n- Do not skip transaction atomicity",
+  "labels": ["prd", "api", "wo-execution", "T2-api"],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-018",
+    "source_prd": "08-PRODUCTION-PRD.md",
+    "prd_refs": ["§7.1 FR-08-E1-003", "§8.2.1", "§10.1"],
+    "category": "api",
+    "subcategory": "wo-execution",
+    "task_type": "T2-api",
+    "parent_feature": "08-PROD E1 Execution Core",
+    "context_budget": "30k",
+    "estimated_effort": "2h",
+    "description": "POST /work-orders/:id/resume closes open downtime_event and transitions to IN_PROGRESS.",
+    "details": "Atomic: state PAUSED→IN_PROGRESS + close open downtime_events row matching wo_id+source='wo_pause'+ended_at IS NULL. Optional actual_duration_min override sets ended_at = started_at + override*60s. wo_executions.total_pause_duration_min cumulative.",
+    "scope_files": [
+      "apps/web/app/api/production/work-orders/[id]/resume/route.ts [create]",
+      "apps/web/app/api/production/work-orders/[id]/resume/__tests__/route.test.ts [create]",
+      "packages/api-services/production/resume-wo.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not implement complete endpoint (T-019)",
+      "Do not modify downtime schema",
+      "Do not implement outbox emit"
+    ],
+    "dependencies": ["T-005", "T-015", "T-017"],
+    "parallel_safe_with": ["T-019", "T-020", "T-021"],
+    "acceptance_criteria": [
+      "Given WO PAUSED with open downtime_events, when POST /resume, then 200 + ended_at set + duration_min populated + total_pause_duration_min incremented",
+      "Given WO IN_PROGRESS, when POST /resume, then 409 invalid_state_transition",
+      "Given override actual_duration_min=15, when POST /resume, then ended_at = started_at + 15min"
+    ],
+    "test_strategy": [
+      "RED: route test asserting happy + 409 + override before route exists",
+      "Run 'pnpm --filter web test work-orders.*resume'"
+    ],
+    "risk_red_lines": [
+      "Do not double-close downtime",
+      "Do not write duration_min directly (V-PROD-06)",
+      "Do not skip transaction atomicity"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}
