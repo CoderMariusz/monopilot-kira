@@ -1,0 +1,65 @@
+{
+  "title": "T-118 — UI: Settings toggle for `require_grn_qc_inspection` (Quality section placeholder)",
+  "prompt": "Add a `Quality` settings sub-section toggle for `require_grn_qc_inspection` to the Settings UI, surfacing the flag created in T-117.\n\nDeliverable:\n- New section card on `/settings/quality` (Server Component shell) with a single toggle: 'Require QC inspection on GRN before stock available'.\n- Helper text under the toggle: 'When ON, GRN completion will require QA sign-off (full enforcement ships with the Quality module).' — i18n keys in 02-settings.json (PL+EN) per existing T-116 namespace seed.\n- Save action calls a new Server Action `setRequireGrnQcInspection(value: boolean)` that updates the flag from T-117 inside withOrgContext + emits an audit_log entry (entity_type='settings.quality_flag').\n- RBAC: `settings.quality.write` to mutate; otherwise toggle is disabled with tooltip.\n- Show a 'Coming with Quality module' info banner above the toggle.\n\nRED tests:\n- RTL: toggle reflects current flag value; flipping calls Server Action; audit_log entry created (mocked); RBAC read-only path renders disabled toggle.\n- i18n parity: keys present in PL + EN.\n\nDo NOT implement GRN-side enforcement (09-QUALITY scope). Do NOT add new tables. Do NOT bypass audit_log.\n\nClose-out: paste RTL output + screenshot path of toggle + i18n key list added.",
+  "labels": ["prd", "ui", "settings-grn-qc-toggle", "T3-ui"],
+  "priority": 70,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-118",
+    "source_prd": "02-SETTINGS-PRD.md",
+    "prd_refs": ["§grn-qc-gap", "§14.2"],
+    "category": "ui",
+    "subcategory": "settings-quality",
+    "task_type": "T3-ui",
+    "parent_feature": "settings-grn-qc",
+    "context_budget": "20k",
+    "estimated_effort": "1-2h",
+    "description": "Settings UI toggle for require_grn_qc_inspection + Server Action + audit_log + i18n keys.",
+    "details": "New /settings/quality section card. Server Action wraps T-117 accessor's setter. RBAC + audit + i18n keys. Banner notes full enforcement ships with 09-QUALITY.",
+    "scope_files": [
+      "apps/web/app/(admin)/settings/quality/page.tsx [create]",
+      "apps/web/app/(admin)/settings/quality/_components/RequireGrnQcToggle.tsx [create]",
+      "apps/web/app/(admin)/settings/quality/_actions/setRequireGrnQcInspection.ts [create]",
+      "apps/web/app/(admin)/settings/quality/_components/__tests__/RequireGrnQcToggle.test.tsx [create]",
+      "apps/web/messages/en/02-settings.json [edit]",
+      "apps/web/messages/pl/02-settings.json [edit]"
+    ],
+    "out_of_scope": [
+      "GRN enforcement (09-QUALITY)",
+      "Schema (T-117)",
+      "Other quality settings"
+    ],
+    "dependencies": ["T-117", "T-116"],
+    "parallel_safe_with": [],
+    "acceptance_criteria": [
+      "Given the page loads with flag=false, when rendered, then the toggle is OFF and helper text + 'Coming with Quality module' banner are visible.",
+      "Given the user toggles ON, when Save settles, then setRequireGrnQcInspection is called with true and an audit_log entry exists.",
+      "Given a user without settings.quality.write, when on the page, then the toggle is disabled with tooltip.",
+      "Given i18n keys are added, when 02-settings namespace test runs, then PL + EN parity holds.",
+      "Given `pnpm vitest run` for the toggle test + namespace test, then 0 failures."
+    ],
+    "test_strategy": [
+      "RED RTL tests for default render, toggle save path, RBAC disabled, audit emission (mock).",
+      "RED i18n parity test (re-uses T-116 namespace test).",
+      "Run `pnpm vitest run apps/web/app/(admin)/settings/quality && pnpm vitest run apps/web/messages/__tests__/02-settings.namespace.test.ts`."
+    ],
+    "risk_red_lines": [
+      "Do not implement GRN-side enforcement.",
+      "Do not bypass withOrgContext or audit_log.",
+      "Do not import @radix-ui/* outside packages/ui."
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

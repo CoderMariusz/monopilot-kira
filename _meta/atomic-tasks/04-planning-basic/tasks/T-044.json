@@ -1,0 +1,62 @@
+{
+  "title": "T-044 — UI: PLN-042 Supplier-Product assignment sub-table (default enforcement)",
+  "prompt": "Build the supplier-product assignment sub-table embedded as a tab inside Supplier Detail (`/planning/suppliers/[id]` → `Products` tab) per `design/04-PLANNING-BASIC-UX.md` PLN-042.\n\nDeliverable:\n- `src/app/(planning)/suppliers/[id]/_components/SupplierProductsTab.tsx` — client component reading rows via Server Component prefetch + T-042 action.\n- Inline editable table (shadcn DataTable + form-row pattern):\n  - Columns: product (Combobox with server search), supplier_product_code, unit_price, currency (auto from supplier), lead_time_days (override, blank inherits from supplier), moq, order_multiple, is_default toggle, actions (Save / Remove).\n  - Add row button at bottom → calls T-042 assignProductToSupplier on Save.\n  - is_default toggle: only one row per (tenant, product) may be default. Toggling ON one row WHILE another product-row in another supplier is default must call T-042 setDefaultSupplierForProduct (which clears the other atomically). Show confirm dialog: 'Supplier X is currently default for product P. Replacing with this supplier?' before commit.\n  - Remove row → confirm dialog → T-042 removeSupplierProduct.\n- Empty state with primary CTA `Add product`.\n- RBAC: `planning.suppliers.write` to mutate; otherwise read-only with badges + tooltips on disabled controls.\n\nRED RTL tests under `__tests__/SupplierProductsTab.test.tsx`:\n- Toggling is_default ON when another row already default → confirm dialog appears → on confirm, setDefaultSupplierForProduct is called with correct (product_id, supplier_id).\n- Adding a duplicate (existing) product shows server error toast.\n- Removing a row triggers confirm + removeSupplierProduct.\n- Read-only mode hides Save / Remove / Add buttons.\n\nDo NOT duplicate default-toggle logic on the client — always call setDefaultSupplierForProduct (server is the source of truth via partial-unique index). Do NOT bypass confirm dialog.\n\nClose-out: paste RTL output + screenshot path of confirm dialog + parity check vs PLN-042 prototype.",
+  "labels": ["prd", "ui", "pln-042-supplier-products", "T3-ui"],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-044",
+    "source_prd": "04-PLANNING-BASIC-PRD.md",
+    "prd_refs": ["§5.3", "PLN-042"],
+    "category": "ui",
+    "subcategory": "supplier-products",
+    "task_type": "T3-ui",
+    "parent_feature": "planning-suppliers-ux",
+    "context_budget": "40k",
+    "estimated_effort": "3-4h",
+    "description": "Supplier-Product assignment table with is_default enforcement via server action + confirm dialog.",
+    "details": "Embedded as Products tab in Supplier Detail. Inline-edit pattern. is_default toggle delegates to setDefaultSupplierForProduct (tx + unique index). RBAC gates mutations.",
+    "scope_files": [
+      "src/app/(planning)/suppliers/[id]/_components/SupplierProductsTab.tsx [create]",
+      "src/app/(planning)/suppliers/[id]/_components/__tests__/SupplierProductsTab.test.tsx [create]"
+    ],
+    "out_of_scope": [
+      "Master data form (T-043)",
+      "Schema (T-041)",
+      "Server actions implementation (T-042)"
+    ],
+    "dependencies": ["T-042", "T-043"],
+    "parallel_safe_with": [],
+    "acceptance_criteria": [
+      "Given product P has supplier A as default, when the user toggles is_default ON for supplier B in product P row, then a confirm dialog appears naming supplier A.",
+      "Given the user confirms the default replacement, when the dialog closes, then setDefaultSupplierForProduct is invoked once with (P, B).",
+      "Given the user adds a row with a product already linked to this supplier, when Save is clicked, then a toast surfaces the DUPLICATE server error and the row remains in edit mode.",
+      "Given the user clicks Remove, when the confirm dialog is accepted, then removeSupplierProduct is called and the row disappears.",
+      "Given a user without planning.suppliers.write, when the tab renders, then Add / Save / Remove / is_default toggle are disabled with tooltips.",
+      "Given `pnpm vitest run` on the test file, then 0 failures."
+    ],
+    "test_strategy": [
+      "RED RTL tests for default-toggle confirm flow, duplicate error, remove flow, RBAC read-only.",
+      "Run `pnpm vitest run src/app/(planning)/suppliers/[id]/_components/__tests__`.",
+      "Run `pnpm tsc --noEmit && pnpm lint`."
+    ],
+    "risk_red_lines": [
+      "Do not implement default-clearing client-side — only via setDefaultSupplierForProduct.",
+      "Do not skip confirm dialog before destructive ops.",
+      "Do not import @radix-ui/* outside packages/ui."
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

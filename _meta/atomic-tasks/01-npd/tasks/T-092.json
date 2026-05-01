@@ -1,0 +1,63 @@
+{
+  "title": "T-092 — Schema amendment: BOM single source of truth (NPD draft → Technical approve)",
+  "prompt": "Amend the existing `bom_headers` and `bom_lines` schemas (currently owned by 03-TECHNICAL) to support NPD as the originator of BOM records — making `bom_headers/bom_lines` the SINGLE SOURCE OF TRUTH for all BOMs. The legacy NPD computed BOM view must be retired in favor of direct rows.\n\nDeliverable:\n- Verify `bom_headers.status` enum supports the lifecycle: 'draft' → 'in_review' → 'approved' → 'active' → 'superseded' → 'archived'. If 'draft' or 'in_review' missing, ADD via Drizzle pgEnum extension migration.\n- Add `bom_headers.origin_module` enum ('npd' | 'technical' | 'imported') NOT NULL DEFAULT 'technical' — populates 'npd' for NPD-originated rows.\n- Add `bom_headers.fa_id` (UUID NULL) FK reference for NPD draft phase (so an FA in dev maps directly without a separate computed view); when product graduates to FG, fa_id remains for traceability and `product_id` gets populated.\n- Constraint: at least one of (`product_id`, `fa_id`) must be NOT NULL — CHECK.\n- Index: `bom_headers_fa_id_idx` (partial WHERE fa_id IS NOT NULL).\n- Drop or deprecate (mark VIEW DEPRECATED in JSDoc) the legacy NPD computed BOM view; do NOT remove the SQL VIEW definition in this task — only mark it. Removal happens in T-093 migration after API switches over.\n- Migration: `0092_bom_single_source_of_truth.sql`.\n\nRED schema tests:\n- bom_headers exposes new origin_module enum + fa_id column + draft/in_review status values.\n- CHECK ((product_id IS NOT NULL) OR (fa_id IS NOT NULL)) blocks INSERT with both NULL.\n- Inserting status='draft', origin_module='npd', fa_id=<uuid>, product_id=NULL succeeds.\n\nDo NOT modify bom_lines column shape (lines link to header_id and remain as-is). Do NOT remove the NPD computed view yet. Do NOT migrate existing data (T-093 handles back-fill).\n\nClose-out: paste migration filename, schema diff, test output.",
+  "labels": ["prd", "data", "bom-ssot", "T1-schema"],
+  "priority": 95,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-092",
+    "source_prd": "01-NPD-PRD.md",
+    "prd_refs": ["§bom-ssot-architecture", "03-TECHNICAL §bom"],
+    "category": "data",
+    "subcategory": "bom-schema-amendment",
+    "task_type": "T1-schema",
+    "parent_feature": "bom-single-source-of-truth",
+    "context_budget": "30k",
+    "estimated_effort": "2h",
+    "description": "Amend bom_headers to support NPD-originated draft BOMs with fa_id link + origin_module + lifecycle.",
+    "details": "Extend status enum, add origin_module, add fa_id FK, add CHECK + partial index, mark legacy NPD computed view DEPRECATED. No data migration here.",
+    "scope_files": [
+      "src/db/schema/technical/bom-headers.ts [edit]",
+      "src/db/migrations/0092_bom_single_source_of_truth.sql [create via drizzle-kit]",
+      "src/db/schema/technical/__tests__/bom-headers.test.ts [edit]"
+    ],
+    "out_of_scope": [
+      "API to write NPD BOMs (T-093)",
+      "Removing legacy NPD computed view (T-093)",
+      "FA → FG rename (T-094)",
+      "bom_lines schema changes"
+    ],
+    "dependencies": [],
+    "parallel_safe_with": [],
+    "acceptance_criteria": [
+      "Given the migration applies, when bom_headers is introspected, then origin_module enum is present with values ('npd','technical','imported') and fa_id column exists.",
+      "Given an INSERT with both product_id NULL and fa_id NULL, when committed, then it fails the CHECK constraint.",
+      "Given an INSERT with status='draft', origin_module='npd', fa_id=<uuid>, product_id NULL, when committed, then it succeeds.",
+      "Given the lifecycle test, when transitioning draft → in_review → approved → active, then no enum violation occurs.",
+      "Given `pnpm vitest run src/db/schema/technical/__tests__/bom-headers.test.ts`, then 0 failures.",
+      "Given the legacy NPD computed view is grepped, when run, then a DEPRECATED JSDoc/comment is present."
+    ],
+    "test_strategy": [
+      "Update RED schema test to cover origin_module, fa_id, CHECK constraint, lifecycle enum values.",
+      "Run `pnpm vitest run` + `pnpm drizzle-kit generate` + `pnpm tsc --noEmit`."
+    ],
+    "risk_red_lines": [
+      "Do not drop the legacy view in this task — back-fill in T-093 first.",
+      "Do not change bom_lines shape.",
+      "Do not weaken FK constraints on product_id."
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

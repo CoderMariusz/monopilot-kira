@@ -1,0 +1,70 @@
+{
+  "title": "T-042 — API: Supplier + Supplier-Product Server Actions (CRUD + default enforcement)",
+  "prompt": "Implement Server Actions for Supplier CRUD and Supplier-Product assignment, backing PLN-040/041/042 UI screens.\n\nDeliverable: Server Actions under `src/app/(planning)/suppliers/_actions/`:\n- `createSupplier.ts`, `updateSupplier.ts`, `toggleSupplierActive.ts`, `listSuppliers.ts` (search + status filter, pagination)\n- `assignProductToSupplier.ts`, `updateSupplierProduct.ts`, `removeSupplierProduct.ts`, `setDefaultSupplierForProduct.ts`\n\nAll actions:\n- Validated by Zod schemas; reuse format validators (ISO-3166, ISO-4217, E.164) from packages/domain.\n- Wrapped in `withOrgContext` to apply RLS / tenant scoping.\n- RBAC: `planning.suppliers.write` for mutations, `planning.suppliers.read` for list.\n- Idempotent default-supplier toggle: `setDefaultSupplierForProduct` runs in single tx — clears any existing default for (tenant_id, product_id), then sets new one (relies on partial-unique index from T-001/T-041).\n- Outbox: each mutation enqueues a `supplier.*` event per existing outbox contract.\n\nRED tests under `src/app/(planning)/suppliers/_actions/__tests__/`:\n- createSupplier: invalid ISO country rejected; valid path persists row.\n- setDefaultSupplierForProduct: existing default cleared atomically; concurrent invocations resolve via unique index.\n- assignProductToSupplier: duplicate (supplier_id, product_id) rejected.\n- listSuppliers: search by code/name, status filter (active/inactive/all) returns correct shape.\n\nDo NOT build UI in this task. Do NOT modify schema (use T-041 result). Do NOT bypass withOrgContext.\n\nClose-out: paste vitest output + Server Action call signatures + outbox event names.",
+  "labels": ["prd", "api", "supplier-crud", "T2-api"],
+  "priority": 90,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-042",
+    "source_prd": "04-PLANNING-BASIC-PRD.md",
+    "prd_refs": ["§5.2", "§5.3", "§7"],
+    "category": "api",
+    "subcategory": "supplier-crud",
+    "task_type": "T2-api",
+    "parent_feature": "planning-suppliers-ux",
+    "context_budget": "40k",
+    "estimated_effort": "3-4h",
+    "description": "Server Actions for supplier CRUD and supplier_products assignment with default enforcement.",
+    "details": "All mutations Zod-validated. Default supplier toggle uses single tx + partial-unique index. RBAC enforced via existing withOrgContext + role guards. Outbox emits supplier.created|updated|deactivated and supplier_product.assigned|updated|removed|default_changed.",
+    "scope_files": [
+      "src/app/(planning)/suppliers/_actions/createSupplier.ts [create]",
+      "src/app/(planning)/suppliers/_actions/updateSupplier.ts [create]",
+      "src/app/(planning)/suppliers/_actions/toggleSupplierActive.ts [create]",
+      "src/app/(planning)/suppliers/_actions/listSuppliers.ts [create]",
+      "src/app/(planning)/suppliers/_actions/assignProductToSupplier.ts [create]",
+      "src/app/(planning)/suppliers/_actions/updateSupplierProduct.ts [create]",
+      "src/app/(planning)/suppliers/_actions/removeSupplierProduct.ts [create]",
+      "src/app/(planning)/suppliers/_actions/setDefaultSupplierForProduct.ts [create]",
+      "src/app/(planning)/suppliers/_actions/__tests__/*.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "UI screens (T-043, T-044)",
+      "D365 sync logic",
+      "Schema changes (T-041)"
+    ],
+    "dependencies": ["T-001", "T-041"],
+    "parallel_safe_with": ["T-043", "T-044"],
+    "acceptance_criteria": [
+      "Given a payload with country='XX' (non ISO-3166), when createSupplier runs, then it returns a Zod validation error and writes nothing.",
+      "Given product P has supplier A as default, when setDefaultSupplierForProduct(P, B) runs, then A.is_default=false and B.is_default=true atomically (verified by single SELECT after).",
+      "Given two existing supplier_products rows for (S, P), when assignProductToSupplier(S, P) runs again, then it returns DUPLICATE error.",
+      "Given listSuppliers({search:'ACME', status:'active'}) is called, when run, then only active suppliers whose code or name matches 'ACME' are returned, sorted by name.",
+      "Given any mutation succeeds, when committed, then a corresponding outbox row exists with the documented event name.",
+      "Given `pnpm vitest run src/app/(planning)/suppliers/_actions/__tests__`, when run, then 0 failures."
+    ],
+    "test_strategy": [
+      "Add RED unit tests for each action covering happy path + 1 negative path before implementation.",
+      "Use a transactional test fixture with seeded tenant + 2 products.",
+      "Run `pnpm vitest run` for the actions test dir."
+    ],
+    "risk_red_lines": [
+      "Do not bypass withOrgContext (RLS leakage).",
+      "Do not implement default toggle as 2 separate actions (race condition).",
+      "Do not skip outbox emission.",
+      "Do not call Server Actions from another action without explicit composition."
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

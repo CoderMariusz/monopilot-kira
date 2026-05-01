@@ -1,0 +1,62 @@
+{
+  "title": "T-041 — Schema amendment: suppliers + supplier_products UX field coverage",
+  "prompt": "Amend the existing `suppliers` and `supplier_products` Drizzle schemas (originally created in T-001) to ensure full coverage of fields required by the Supplier UX (PLN-040 list, PLN-041 detail, PLN-042 supplier-product assignment) per `design/04-PLANNING-BASIC-UX.md` Supplier sections.\n\nRequired columns must include (audit, validate, ADD ONLY IF MISSING — do NOT recreate columns from T-001):\n- suppliers: country CHAR(2) ISO-3166 alpha-2, currency CHAR(3) ISO-4217, email CITEXT (CHECK regex), phone TEXT (E.164 CHECK regex), payment_terms TEXT, lead_time_days INTEGER (>=0), tax_code TEXT, is_active BOOLEAN DEFAULT true, notes TEXT.\n- supplier_products: is_default BOOLEAN, unit_price NUMERIC(14,4), currency CHAR(3), lead_time_days INTEGER NULL (override), notes TEXT.\n\nIntroduce a CHECK constraint or trigger to enforce ISO-3166 / ISO-4217 / E.164 formats. Reuse the existing `supplier_products_default_per_product_unique` partial-unique index from T-001 — do NOT duplicate.\n\nDeliverable: amendment file `src/db/schema/planning/suppliers.ts` + new migration `0041_planning_supplier_ux_fields.sql`. Update RED schema-shape test `src/db/schema/planning/__tests__/suppliers.test.ts` to cover the additional columns + format CHECKs.\n\nDo NOT touch unrelated migration files. Do NOT seed data. Do NOT create API or UI in this task.\n\nClose-out: paste migration filename + `pnpm vitest run src/db/schema/planning/__tests__/suppliers.test.ts` output + diff of schema file.",
+  "labels": ["prd", "data", "schema-suppliers", "T1-schema"],
+  "priority": 90,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-041",
+    "source_prd": "04-PLANNING-BASIC-PRD.md",
+    "prd_refs": ["§5.2", "§5.3"],
+    "category": "data",
+    "subcategory": "schema-suppliers",
+    "task_type": "T1-schema",
+    "parent_feature": "planning-suppliers-ux",
+    "context_budget": "30k",
+    "estimated_effort": "1-2h",
+    "description": "Amend suppliers + supplier_products schemas to fully cover Supplier UX fields with ISO format CHECKs.",
+    "details": "Verify columns from T-001 already cover requirements; add ONLY missing columns + CHECK constraints for ISO-3166 (^[A-Z]{2}$), ISO-4217 (^[A-Z]{3}$), E.164 (^\\+[1-9]\\d{1,14}$). Use citext extension for email column. Reuse existing partial-unique index. Generate migration with `pnpm drizzle-kit generate`.",
+    "scope_files": [
+      "src/db/schema/planning/suppliers.ts [edit]",
+      "src/db/schema/planning/__tests__/suppliers.test.ts [edit]",
+      "src/db/migrations/0041_planning_supplier_ux_fields.sql [create via drizzle-kit]"
+    ],
+    "out_of_scope": [
+      "Server actions (T-042)",
+      "UI screens (T-043, T-044)",
+      "Reseeding existing supplier data"
+    ],
+    "dependencies": ["T-001"],
+    "parallel_safe_with": [],
+    "acceptance_criteria": [
+      "Given the amended schema is loaded, when introspected, then suppliers exposes country/currency/email/phone/payment_terms/lead_time_days/tax_code/is_active/notes columns.",
+      "Given the migration is applied, when an INSERT supplies country='POLAND', then the CHECK constraint rejects with an ISO-3166 violation.",
+      "Given the migration is applied, when an INSERT supplies phone='123abc', then the CHECK constraint rejects with an E.164 violation.",
+      "Given `pnpm vitest run src/db/schema/planning/__tests__/suppliers.test.ts` runs, when implementation is complete, then 0 failures.",
+      "Given `pnpm tsc --noEmit`, when run, then 0 errors."
+    ],
+    "test_strategy": [
+      "Update RED test to assert new column names + CHECK constraint names appear in generated SQL.",
+      "Run `pnpm vitest run src/db/schema/planning/__tests__/suppliers.test.ts`.",
+      "Run `pnpm drizzle-kit generate` and `pnpm tsc --noEmit`."
+    ],
+    "risk_red_lines": [
+      "Do not drop or recreate the partial-unique index from T-001 — V-PLAN-PO-002 depends on it.",
+      "Do not modify other module schemas.",
+      "Do not weaken existing FK constraints."
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

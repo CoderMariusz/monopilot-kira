@@ -1,0 +1,72 @@
+{
+  "title": "T-045 — UI: Material Demand dashboard (MRP netting + low-stock alerts + Create PO quick action)",
+  "prompt": "Build a read-only Material Demand dashboard at `/planning/material-demand` providing minimal MRP netting visibility.\n\nDeliverable: Server Component page that aggregates per raw-material (RM):\n- on_hand: SUM available stock from warehouse (lp_stock or equivalent view).\n- in_transit: SUM open PO line qty NOT yet GRN'd.\n- reserved: SUM open WO material reservations.\n- net_position = on_hand + in_transit - reserved.\n- reorder_point: threshold per item (read from a new `reorder_thresholds` config table keyed by tenant_id+product_id; columns: min_qty, reorder_qty, preferred_supplier_id).\n- status badge: OK (net >= min), LOW (net < min and net + open_signals > min), CRITICAL (net < min and no signals).\n\nFeatures:\n- Filterable table: search by code/name, status filter chip group (All / OK / LOW / CRITICAL).\n- Per-row `Create PO` quick action button — opens existing PLN-014 PO Fast-Flow Wizard (T-038) prefilled with: product, qty=reorder_qty, supplier=preferred_supplier_id (or default supplier from supplier_products.is_default).\n- Per-row `Set threshold` action → small dialog editing min_qty / reorder_qty / preferred_supplier_id → upserts `reorder_thresholds` via Server Action.\n- Aggregation runs on-request (read DB views); no caching layer in this task.\n\nNew schema (within scope): `reorder_thresholds` table — Drizzle pgTable with (id UUID PK, tenant_id, product_id FK, min_qty NUMERIC, reorder_qty NUMERIC, preferred_supplier_id UUID NULL, updated_at, updated_by). UNIQUE(tenant_id, product_id). Migration `0045_planning_reorder_thresholds.sql`.\n\nServer Actions (within scope): `listMaterialDemand` (read aggregator) and `upsertReorderThreshold`.\n\nRBAC: `planning.material_demand.read` (default ON for planners) and `planning.thresholds.write` for upsert.\n\nRED tests:\n- Schema test: reorder_thresholds UNIQUE on (tenant_id, product_id).\n- Aggregator integration test: 1 RM with on_hand=10, open PO=5, WO reservation=8, min=10 → net=7, status=LOW.\n- RTL: status chip filters; Create PO button opens wizard prefilled (mock); Set threshold dialog upserts.\n\nDo NOT implement full MRP run / pegging in this task. Do NOT modify wo_materials or po_lines tables. Do NOT cache aggregator results.\n\nClose-out: paste RTL + integration test output, migration filename, screenshot path of dashboard.",
+  "labels": ["prd", "ui", "material-demand", "T3-ui"],
+  "priority": 90,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-045",
+    "source_prd": "04-PLANNING-BASIC-PRD.md",
+    "prd_refs": ["§MRP-gap", "PLN-014"],
+    "category": "ui",
+    "subcategory": "material-demand",
+    "task_type": "T3-ui",
+    "parent_feature": "planning-mrp-min-viable",
+    "context_budget": "60k",
+    "estimated_effort": "5-6h",
+    "description": "Read-only Material Demand dashboard with netting + reorder thresholds + Create PO quick action.",
+    "details": "Schema for reorder_thresholds, aggregator action joining stock/po/wo, Server Component page, Create PO opens existing PO wizard prefilled, threshold dialog upserts. No MRP pegging beyond simple sum.",
+    "scope_files": [
+      "src/db/schema/planning/reorder-thresholds.ts [create]",
+      "src/db/migrations/0045_planning_reorder_thresholds.sql [create via drizzle-kit]",
+      "src/app/(planning)/material-demand/page.tsx [create]",
+      "src/app/(planning)/material-demand/_actions/listMaterialDemand.ts [create]",
+      "src/app/(planning)/material-demand/_actions/upsertReorderThreshold.ts [create]",
+      "src/app/(planning)/material-demand/_components/MaterialDemandTable.tsx [create]",
+      "src/app/(planning)/material-demand/_components/SetThresholdDialog.tsx [create]",
+      "src/app/(planning)/material-demand/_components/__tests__/MaterialDemandTable.test.tsx [create]",
+      "src/app/(planning)/material-demand/_actions/__tests__/listMaterialDemand.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Full MRP run / multi-level pegging",
+      "Caching / scheduled refresh",
+      "Modifying PO/WO schemas",
+      "Multi-site netting"
+    ],
+    "dependencies": ["T-001", "T-038"],
+    "parallel_safe_with": [],
+    "acceptance_criteria": [
+      "Given a product with on_hand=10, open PO=5, WO reservation=8, min=10, when listMaterialDemand runs, then net=7 and status='LOW'.",
+      "Given a product with on_hand=2, open PO=0, WO reservation=5, min=10, when listMaterialDemand runs, then status='CRITICAL'.",
+      "Given the user clicks Create PO on a row, when the wizard opens, then product, qty=reorder_qty, supplier=preferred_supplier_id are prefilled.",
+      "Given the user submits Set Threshold for an existing product, when committed, then reorder_thresholds upserts (UNIQUE(tenant,product) holds).",
+      "Given the user lacks planning.thresholds.write, when on the page, then Set threshold buttons are disabled with tooltips.",
+      "Given `pnpm vitest run` for the new tests, then 0 failures."
+    ],
+    "test_strategy": [
+      "RED schema test for UNIQUE(tenant_id, product_id).",
+      "RED integration test seeding stock + PO + WO rows and asserting aggregator output.",
+      "RED RTL tests for status chip filter, Create PO prefill, threshold upsert.",
+      "Run `pnpm vitest run src/app/(planning)/material-demand` + `pnpm drizzle-kit generate`."
+    ],
+    "risk_red_lines": [
+      "Do not introduce caching — must read live.",
+      "Do not bypass withOrgContext.",
+      "Do not duplicate the PO wizard — open the existing T-038 component.",
+      "Do not block other planning routes via schema migration ordering."
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

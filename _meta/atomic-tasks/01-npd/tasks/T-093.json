@@ -1,0 +1,72 @@
+{
+  "title": "T-093 — API: NPD writes draft BOM into bom_headers/bom_lines + back-fill migration",
+  "prompt": "Switch NPD from the legacy computed BOM view to writing real `bom_headers/bom_lines` rows (status='draft', origin_module='npd') at FA creation, and back-fill existing FA records.\n\nDeliverables:\n1. Server Action `createDraftBomForFa(faId)` in `apps/web/app/(npd)/fa/_actions/create-draft-bom.ts`:\n   - Inserts `bom_headers` row (status='draft', origin_module='npd', fa_id, version='0.1.0').\n   - Inserts `bom_lines` rows by reading the FA's `prod_detail` components (the same dataset the legacy computed view used).\n   - Idempotent: if an active draft exists for fa_id, returns existing header_id without insert.\n   - Wrapped in withOrgContext + outbox emits `bom.draft_created`.\n2. Hook the action into the existing FA-creation Server Action (called immediately after FA insert).\n3. Update existing NPD readers (e.g. `getFaBom(faId)`) to query `bom_headers` directly via fa_id (or product_id once promoted), removing reads from the legacy computed view.\n4. Promotion helper `promoteBomToProduct(faId, productId)` — when an FA graduates to FG, sets `bom_headers.product_id` (keeps fa_id for traceability) and transitions status as appropriate (draft remains draft until Technical approves).\n5. Back-fill migration `0093_bom_npd_backfill.sql` — for every FA with no existing draft bom_header, insert one via SQL using prod_detail rows. Wrap in idempotent INSERT ... ON CONFLICT DO NOTHING using the partial index from T-092.\n6. After back-fill verified, DROP the legacy NPD computed view in the same migration (with comment explaining replacement) — only AFTER all FA rows have a header.\n\nRED tests:\n- Unit: createDraftBomForFa idempotency (calling twice yields one header).\n- Unit: prod_detail with N components → N bom_lines rows with correct qty/uom.\n- Integration: getFaBom returns rows from bom_headers (no view dependency); fail if it still hits the legacy view (grep guard).\n- Migration test: dry-run on a fixture with 5 FAs, 3 already with manual bom_headers → back-fill produces exactly 2 new headers.\n\nDo NOT alter bom_lines schema. Do NOT change Technical's approval flow. Do NOT promote draft → approved automatically (Technical owns that transition).\n\nClose-out: paste vitest output + migration filename + grep guard output confirming legacy view dropped + outbox event names.",
+  "labels": ["prd", "api", "bom-ssot", "T2-api"],
+  "priority": 95,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-093",
+    "source_prd": "01-NPD-PRD.md",
+    "prd_refs": ["§bom-ssot-architecture"],
+    "category": "api",
+    "subcategory": "npd-bom-write",
+    "task_type": "T2-api",
+    "parent_feature": "bom-single-source-of-truth",
+    "context_budget": "50k",
+    "estimated_effort": "4-5h",
+    "description": "NPD creates draft bom_headers/lines on FA creation; back-fill existing FAs; drop legacy view; switch readers.",
+    "details": "Idempotent Server Action wired into FA creation; promotion helper sets product_id when FA → FG; back-fill migration covers existing data BEFORE the view is dropped; readers retargeted to bom_headers; outbox emits bom.draft_created.",
+    "scope_files": [
+      "apps/web/app/(npd)/fa/_actions/create-draft-bom.ts [create]",
+      "apps/web/app/(npd)/fa/_actions/promote-bom-to-product.ts [create]",
+      "apps/web/app/(npd)/fa/_actions/__tests__/create-draft-bom.test.ts [create]",
+      "apps/web/app/(npd)/fa/_actions/create-fa.ts [edit — call createDraftBomForFa]",
+      "packages/domain/src/npd/bom/get-fa-bom.ts [edit — switch from view to bom_headers]",
+      "src/db/migrations/0093_bom_npd_backfill.sql [create]",
+      "apps/web/__tests__/integration/bom-backfill.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Schema changes (T-092)",
+      "Technical approval flow",
+      "FA → FG rename (T-094)",
+      "bom_lines schema changes"
+    ],
+    "dependencies": ["T-092"],
+    "parallel_safe_with": ["T-094"],
+    "acceptance_criteria": [
+      "Given an FA is created with 3 components in prod_detail, when create-fa action commits, then exactly 1 bom_headers row (status='draft', origin_module='npd', fa_id=...) and 3 bom_lines rows exist.",
+      "Given createDraftBomForFa is called twice for the same FA, when committed, then only 1 bom_headers row exists (idempotency).",
+      "Given an FA graduates to FG, when promoteBomToProduct(faId, productId) runs, then bom_headers.product_id is set and fa_id remains.",
+      "Given the back-fill migration runs against 5 FAs (3 already with manual headers), when committed, then exactly 2 new headers exist.",
+      "Given a grep of the codebase, when run, then no reader references the legacy computed NPD BOM view.",
+      "Given the legacy NPD computed view, when migration completes, then the view is DROPPED.",
+      "Given `pnpm vitest run` for new tests, then 0 failures."
+    ],
+    "test_strategy": [
+      "RED unit tests for idempotency and N-components → N-lines.",
+      "RED integration test for getFaBom returning header-driven rows.",
+      "RED migration dry-run test for 5-FA fixture.",
+      "Grep guard for legacy view name.",
+      "Run `pnpm vitest run` + `pnpm drizzle-kit generate`."
+    ],
+    "risk_red_lines": [
+      "Do not drop the legacy view BEFORE back-fill is verified — same migration must do back-fill first then DROP VIEW.",
+      "Do not auto-promote draft → approved (Technical's responsibility).",
+      "Do not bypass withOrgContext or skip outbox.",
+      "Do not duplicate BOM lines on re-runs."
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}
