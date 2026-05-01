@@ -21,7 +21,7 @@
     ],
     "category": "docs",
     "subcategory": "adr",
-    "task_type": "docs",
+    "task_type": "T1-schema",
     "parent_feature": "governance",
     "context_budget": "25k",
     "estimated_effort": "0.5-1h",
@@ -44,7 +44,9 @@
     ],
     "acceptance_criteria": [
       "Given _foundation/registry/modules.json is loaded, when parsed as JSON, then it contains exactly 15 entries with ids 00..15 and matches the PRD \u00a74.3 dependencies column",
-      "Given ADR-035 exists, when the CI script scripts/check-markers.mjs runs against _foundation/decisions, then it exits 0 (no missing markers)"
+      "Given ADR-035 exists, when the CI script scripts/check-markers.mjs runs against _foundation/decisions, then it exits 0 (no missing markers)",
+      "Given a PRD or ADR file in _foundation has a heading without a marker tag, when scripts/check-markers.mjs runs, then it exits non-zero and prints the offending filename and heading",
+      "Given _foundation/registry/modules.json is loaded, when each entry is validated, then every entry contains the keys id, slug, phase, build_order, file, and dependencies"
     ],
     "test_strategy": [
       "Run 'node scripts/check-markers.mjs' and capture exit code",

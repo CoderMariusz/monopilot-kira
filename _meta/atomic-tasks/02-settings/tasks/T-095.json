@@ -22,7 +22,7 @@
     ],
     "category": "docs",
     "subcategory": "decisions-log",
-    "task_type": "docs",
+    "task_type": "T1-schema",
     "parent_feature": "02-settings-foundation",
     "context_budget": "40k",
     "estimated_effort": "1-3h",

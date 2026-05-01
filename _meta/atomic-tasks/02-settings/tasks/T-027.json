@@ -47,7 +47,8 @@
     "parallel_safe_with": [],
     "acceptance_criteria": [
       "All 4 actions implemented with V-SET-30..31 guards.",
-      "Audit + outbox per mutation."
+      "Audit + outbox per mutation.",
+      "Given setLocalFlag toggles a flag, when committed, then an outbox event 'settings.module.toggled' with scope=tenant is written alongside an audit_log row within the same transaction"
     ],
     "test_strategy": [
       "RED: 3 cases.",

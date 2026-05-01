@@ -43,7 +43,8 @@
     "parallel_safe_with": [],
     "acceptance_criteria": [
       "V-SET-70..72 enforced.",
-      "testEmailProvider sends probe + writes audit row."
+      "testEmailProvider sends probe + writes audit row.",
+      "Given testEmailProvider is called with invalid Resend credentials, when the Resend API returns an auth error, then the action returns {status:'error', code:'PROVIDER_AUTH_FAILED'} and does not write an audit row"
     ],
     "test_strategy": [
       "RED: 3 cases (using mocked Resend).",
