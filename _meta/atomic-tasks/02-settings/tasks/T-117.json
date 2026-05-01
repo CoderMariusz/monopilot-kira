@@ -1,0 +1,62 @@
+{
+  "title": "T-117 — Schema: settings flag `require_grn_qc_inspection` (placeholder for 09-QUALITY)",
+  "prompt": "Add a tenant-scoped settings flag `require_grn_qc_inspection` (boolean, default false) to the Settings module. When true, downstream Warehouse GRN completion will require QA sign-off before LP state transitions to `available`. The full enforcement flow lives in 09-QUALITY (out of scope here) — this task only persists the flag + exposes a typed accessor.\n\nDeliverable:\n- Extend the existing `tenant_settings` (or `module_flags` / `settings_flags`, whichever is canonical — verify by reading existing 02-SETTINGS schema) to include `require_grn_qc_inspection BOOLEAN NOT NULL DEFAULT false`. If a generic key/value flags table exists, instead seed a default row with key='require_grn_qc_inspection' and a typed getter.\n- Add a typed accessor `getRequireGrnQcInspection(tenantId)` in `packages/domain/src/settings/grn-qc.ts` returning `boolean`, reading via withOrgContext.\n- Migration: `0117_settings_require_grn_qc_inspection.sql`.\n- Document the placeholder contract in JSDoc: 'Consumed by 05-WAREHOUSE GRN action when 09-QUALITY ships; today the flag is read but enforcement is no-op.'\n\nRED tests:\n- Schema-shape test: column or seeded flag row exists with correct default.\n- Accessor test: returns false when no override; returns true after a tenant override.\n\nDo NOT implement GRN-side enforcement (that lives in 09-QUALITY tasks). Do NOT add UI in this task — UI in T-118.\n\nClose-out: paste migration filename + vitest output + accessor signature.",
+  "labels": ["prd", "data", "settings-grn-qc-flag", "T1-schema"],
+  "priority": 70,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-117",
+    "source_prd": "02-SETTINGS-PRD.md",
+    "prd_refs": ["§grn-qc-gap", "09-QUALITY-link"],
+    "category": "data",
+    "subcategory": "settings-flag",
+    "task_type": "T1-schema",
+    "parent_feature": "settings-grn-qc",
+    "context_budget": "20k",
+    "estimated_effort": "1h",
+    "description": "Add require_grn_qc_inspection flag in settings + typed accessor (placeholder for 09-QUALITY).",
+    "details": "Verify canonical flags storage (tenant_settings vs module_flags) before deciding on column-add vs seeded row. Accessor wraps withOrgContext. Document placeholder contract.",
+    "scope_files": [
+      "src/db/schema/settings/flags.ts [edit or create]",
+      "src/db/migrations/0117_settings_require_grn_qc_inspection.sql [create via drizzle-kit]",
+      "packages/domain/src/settings/grn-qc.ts [create]",
+      "packages/domain/src/settings/__tests__/grn-qc.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "GRN-side enforcement (09-QUALITY)",
+      "UI screen (T-118)",
+      "QA sign-off workflow tables"
+    ],
+    "dependencies": [],
+    "parallel_safe_with": ["T-118"],
+    "acceptance_criteria": [
+      "Given the migration is applied, when the flag is queried for an unconfigured tenant, then it defaults to false.",
+      "Given a tenant sets the flag to true, when getRequireGrnQcInspection runs, then it returns true.",
+      "Given `pnpm vitest run packages/domain/src/settings/__tests__/grn-qc.test.ts`, when run, then 0 failures.",
+      "Given `pnpm tsc --noEmit`, when run, then 0 errors."
+    ],
+    "test_strategy": [
+      "RED schema-shape test asserting flag presence + default false.",
+      "RED accessor test for default and override paths.",
+      "Run `pnpm vitest run` for new test file."
+    ],
+    "risk_red_lines": [
+      "Do not enforce the flag in any GRN-side code path — that is 09-QUALITY scope.",
+      "Do not bypass withOrgContext.",
+      "Do not break existing settings migrations."
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}
