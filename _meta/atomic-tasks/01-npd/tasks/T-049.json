@@ -1,0 +1,61 @@
+{
+  "title": "T-049 — Reference.AlertThresholds + d365_import_cache tables (NPD-e)",
+  "prompt": "# T-049 — AlertThresholds + d365_import_cache tables\n\nPRD: 01-NPD-PRD.md §11.3, §10.8, §11.7\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nCreate two reference/cache tables that the dashboard depends on: Reference.AlertThresholds (per-tenant configurable RED/YELLOW day cutoffs + margin warn) and d365_import_cache (synced material codes + price status used by V04 + Refresh-D365 button).\n\n## Implementation contract\n1. Migration packages/db/migrations/0049_alert_thresholds_and_d365_cache.sql creates Reference.AlertThresholds(tenant_id, threshold_key TEXT PK-with-tenant, value_int, value_text, updated_at) + d365_import_cache(tenant_id, code TEXT PK-with-tenant, status TEXT CHECK in Found/NoCost/Missing, comment, last_synced_at).\n2. Both tables ENABLE ROW LEVEL SECURITY with tenant_isolation policies.\n3. Drizzle schema entries in packages/db/src/schema/alert-thresholds.ts + packages/db/src/schema/d365-import-cache.ts; export typed Insert/Select; barrel update.\n4. Indexes: AlertThresholds (tenant_id, threshold_key); d365_import_cache (tenant_id, status), (tenant_id, last_synced_at).\n\n## Files\n- packages/db/migrations/0049_alert_thresholds_and_d365_cache.sql [create]\n- packages/db/src/schema/alert-thresholds.ts [create]\n- packages/db/src/schema/d365-import-cache.ts [create]\n- packages/db/src/schema/index.ts [modify]\n- packages/db/__tests__/alert-thresholds-and-d365-cache.test.ts [create]\n\n## Acceptance criteria\n1. Given migration 0049 runs, when \\d Reference.AlertThresholds runs, then it lists threshold_key + value_int + value_text + tenant_id with composite PK (tenant_id, threshold_key) and RLS enabled per §11.3 last paragraph\n2. Given d365_import_cache exists, when an INSERT with status='Invalid' is attempted, then it fails with CHECK constraint violation per §10.8 status enum (Found/NoCost/Missing only)\n3. Given two tenants seeded, when tenant A SELECT * FROM d365_import_cache runs, then it returns only tenant A rows (RLS verified)\n\n## Test strategy\n- RED: write packages/db/__tests__/alert-thresholds-and-d365-cache.test.ts asserting RLS isolation + CHECK enforcement + indexes before migration exists\n- Run 'pnpm --filter db migrate && pnpm --filter db test alert-thresholds-and-d365-cache'\n\n## Risk red lines\n- Do not seed default threshold values here (separate seed task T-050)\n- Do not allow status='Empty' as stored value (Empty is computed in V04, not stored)\n- Do not skip RLS on either table",
+  "labels": ["prd", "data", "schema", "T1-schema"],
+  "priority": 50,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-049",
+    "source_prd": "01-NPD-PRD.md",
+    "prd_refs": ["§11.3", "§10.8", "§11.7"],
+    "category": "data",
+    "subcategory": "alert-thresholds-d365-cache",
+    "task_type": "T1-schema",
+    "parent_feature": "01-NPD-e Dashboard",
+    "context_budget": "40k",
+    "estimated_effort": "1-2h",
+    "description": "Create Reference.AlertThresholds + d365_import_cache tables with RLS for dashboard alerts and V04 material validation.",
+    "details": "Migration 0049 emits both tables with composite tenant PK + RLS. Drizzle schemas exported, barrel updated. Indexes per query patterns: thresholds by key, cache by status + last_synced_at. CHECK constraint restricts d365_import_cache.status to {Found,NoCost,Missing}.",
+    "scope_files": [
+      "packages/db/migrations/0049_alert_thresholds_and_d365_cache.sql [create]",
+      "packages/db/src/schema/alert-thresholds.ts [create]",
+      "packages/db/src/schema/d365-import-cache.ts [create]",
+      "packages/db/src/schema/index.ts [modify]",
+      "packages/db/__tests__/alert-thresholds-and-d365-cache.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not seed default thresholds here (T-050)",
+      "Do not implement refreshD365Cache action (T-051)",
+      "Do not implement d365_import_cache_meta view (T-090)"
+    ],
+    "dependencies": ["T-001"],
+    "parallel_safe_with": ["T-054", "T-063"],
+    "acceptance_criteria": [
+      "Given migration 0049 runs, when \\d Reference.AlertThresholds runs, then it lists threshold_key + value_int + value_text + tenant_id with composite PK (tenant_id, threshold_key) and RLS enabled per §11.3",
+      "Given d365_import_cache exists, when an INSERT with status='Invalid' is attempted, then it fails with CHECK constraint violation per §10.8 status enum",
+      "Given two tenants seeded, when tenant A SELECT * FROM d365_import_cache runs, then it returns only tenant A rows (RLS verified)"
+    ],
+    "test_strategy": [
+      "RED: write packages/db/__tests__/alert-thresholds-and-d365-cache.test.ts asserting RLS + CHECK + indexes before migration exists",
+      "Run 'pnpm --filter db migrate && pnpm --filter db test alert-thresholds-and-d365-cache'"
+    ],
+    "risk_red_lines": [
+      "Do not seed default threshold values here",
+      "Do not allow status='Empty' as stored value",
+      "Do not skip RLS on either table"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

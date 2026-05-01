@@ -1,0 +1,90 @@
+{
+  "title": "T-106 — Machine List screen (SET-016 §12.2)",
+  "prompt": "# T-106 — Machine List screen (SET-016 §12.2)\n\nPRD: 02-SETTINGS-PRD.md §12.2 (Infrastructure CRUD UI table)\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nBuild Machine List screen from §12.2 — status indicator + location breadcrumb per row, filter by status / warehouse, bulk activate/deactivate. Pulls from `machines` joined to `locations` via ltree to render breadcrumb (Warehouse > Zone > Rack > Bin).\n\n## Implementation contract\n1. Page at apps/web/app/(admin)/settings/infra/machines/page.tsx is a Server Component fetching `machines` joined to `locations` (with ltree path → label crumb).\n2. List columns: name, code, status indicator (online/offline/maintenance from machines.specs.status), location breadcrumb, deactivated_at badge.\n3. Toolbar: status filter, warehouse filter, bulk-select + bulk activate/deactivate calling T-029 server actions.\n4. Each row has Edit link routing to /settings/infra/machines/[id] (out of scope here — SET-017 Machine Edit is a separate screen).\n5. RBAC: requires `settings.infra.read` for view, `settings.infra.update` for bulk actions.\n\n## Files\n- apps/web/app/(admin)/settings/infra/machines/page.tsx [create]\n- apps/web/app/(admin)/settings/infra/machines/page.test.tsx [create]\n\n## Acceptance criteria\nSee `acceptance_criteria` array.\n\n## Test strategy\n1. RED: RTL test mounting list with mocked machines + locations seed; assert breadcrumb render, status filter, bulk action wiring.\n   `pnpm --filter @monopilot/web vitest run apps/web/app/(admin)/settings/infra/machines/page.test.tsx`\n2. RED must fail.\n3. GREEN: implement Server Component + filters + bulk action.\n4. Re-run RED + `pnpm typecheck` + `pnpm lint`.\n\n## Risk red lines\n- Do not import @radix-ui/* outside packages/ui (§0).\n- Do not query without withOrgContext (RLS).\n- Do not implement Edit modal (separate SET-017 screen).\n\nStack: TS + Next.js App Router + Drizzle + pnpm + vitest + Playwright + Server Actions. PRD: 02-SETTINGS-PRD.md v3.5.\n",
+  "labels": [
+    "prd",
+    "ui",
+    "set-016",
+    "T3-ui"
+  ],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-106",
+    "source_prd": "02-SETTINGS-PRD.md",
+    "prd_refs": [
+      "§12.1",
+      "§12.2"
+    ],
+    "category": "ui",
+    "subcategory": "set-016",
+    "task_type": "T3-ui",
+    "parent_feature": "02-settings-e-ui",
+    "context_budget": "40k",
+    "estimated_effort": "1-3h",
+    "description": "Machine List screen (SET-016): status indicator + location breadcrumb + filters + bulk activate/deactivate.",
+    "details": "PRD §12.2 SET-016: Machine List with `status indicator, location breadcrumb` capability. Status comes from `machines.specs.status` JSONB field per §5.6 + §12.1. Breadcrumb derived from joined `locations.path` ltree; helper `pathToBreadcrumb(path)` maps each path segment to a labeled crumb.",
+    "scope_files": [
+      "apps/web/app/(admin)/settings/infra/machines/page.tsx [create]",
+      "apps/web/app/(admin)/settings/infra/machines/page.test.tsx [create]"
+    ],
+    "out_of_scope": [
+      "SET-017 Machine Edit form (specs JSONB editor) — separate screen",
+      "Telemetry/online-offline live updates"
+    ],
+    "dependencies": [
+      "T-009",
+      "T-015",
+      "T-029"
+    ],
+    "parallel_safe_with": [
+      "T-104",
+      "T-105",
+      "T-107"
+    ],
+    "acceptance_criteria": [
+      "Given the machines list renders, when 5 machines exist across 2 warehouses, then each row shows a status indicator and a 4-segment breadcrumb derived from the location ltree path.",
+      "Given the user toggles the status filter to `maintenance`, when the list re-renders, then only rows with `specs.status='maintenance'` are visible.",
+      "Given the user bulk-selects 3 machines and clicks Bulk Deactivate, when action runs, then T-029 deactivateMachine is invoked once per row and the rows reflect new deactivated_at.",
+      "Given the caller lacks `settings.infra.update`, when they view the list, then bulk action buttons are disabled with an aria-label explaining insufficient permissions."
+    ],
+    "test_strategy": [
+      "RED: RTL test mounts list with mocked seed (machines + locations); asserts breadcrumb render, status filter, bulk-action invocation, RBAC disable.",
+      "GREEN: implement Server Component + breadcrumb helper + filters + bulk wiring.",
+      "Run `pnpm --filter @monopilot/web vitest run apps/web/app/(admin)/settings/infra/machines/page.test.tsx` and `pnpm typecheck`."
+    ],
+    "risk_red_lines": [
+      "Do not import @radix-ui/* outside packages/ui (§0).",
+      "Do not query without withOrgContext (RLS).",
+      "Do not implement Edit modal (separate SET-017 screen)."
+    ],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": false
+  }
+}

@@ -1,0 +1,93 @@
+{
+  "title": "T-045 — Postgres app-role connection split (separate role for app, never superuser in tests)",
+  "prompt": "# T-045 — Postgres app-role connection split (separate role for app, never superuser in tests)\n\nPRD: `00-FOUNDATION-PRD.md` — sections: §5 (RLS default — testy zawsze z app-role), §13 (Tests run w app-role w CI)\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`\n\n## Goal\nSplit Postgres connections into a privileged role (migrations only — owner) and a non-privileged app role (RLS-enforced runtime). Tests MUST connect via the app role per PRD §5/§13; superuser connections in test code are a CI failure.\n\n## Implementation contract\n(1) Add packages/db/migrations/0010_app_role.sql creating role monopilot_app with NOLOGIN-template + a per-env LOGIN role monopilot_app_local that inherits it; GRANT USAGE ON SCHEMA public + SELECT/INSERT/UPDATE/DELETE on existing tables; FORCE ROW LEVEL SECURITY on all RLS-enabled tables; revoke superuser-style privileges. (2) Add packages/db/src/clients.ts exporting two connection factories: getOwnerConnection() (uses DATABASE_URL_OWNER, used by drizzle-kit + migrations) and getAppConnection() (uses DATABASE_URL_APP, used at runtime + tests). (3) Update packages/db/src/index.ts to default-export getAppConnection(). (4) Add an ESLint rule (no-restricted-imports) blocking imports of getOwnerConnection from anywhere except packages/db/src/migrations/** and scripts/migrate.ts. (5) Add Vitest asserting that running a SELECT on tenants via app-role with no app.current_org_id set returns 0 rows (RLS active), while owner returns all rows.\n\n## Files (scope)\n- packages/db/migrations/0010_app_role.sql [create]\n- packages/db/src/clients.ts [create]\n- packages/db/src/index.ts [modify]\n- packages/db/.eslintrc.cjs [create]\n- packages/db/src/__tests__/app-role.test.ts [create]\n\n## Acceptance criteria\n1. Given the migration runs against a fresh DB, when 'pnpm --filter @monopilot/db migrate' completes, then role monopilot_app exists with no SUPERUSER, no BYPASSRLS, and FORCE ROW LEVEL SECURITY is applied to tenants/organizations/users\n2. Given the app role connects without setting app.current_org_id, when SELECT * FROM tenants runs, then it returns 0 rows; given the owner role connects, when the same SELECT runs, then it returns all rows (RLS bypass via owner)\n3. Given a developer attempts to import getOwnerConnection from anywhere outside packages/db/src/migrations/** or scripts/migrate.ts, when 'pnpm lint' runs, then ESLint reports no-restricted-imports and exits non-zero\n4. Given the test suite is configured, when 'pnpm --filter @monopilot/db test' runs, then every test connects via getAppConnection() (asserted by a beforeAll that introspects current_user)\n\n## Test strategy\n- RED: write packages/db/src/__tests__/app-role.test.ts asserting all four ACs (with owner connection injected only for assertion #2 and beforeAll introspection) before clients.ts exists\n- Run 'pnpm --filter @monopilot/db test:integration && pnpm lint'\n\n## Risk red lines\n- Do not GRANT BYPASSRLS to monopilot_app — that defeats the entire RLS contract from T-007\n- Do not allow application code to import getOwnerConnection — migrations only\n- Do not skip FORCE ROW LEVEL SECURITY — without it, the table owner connection silently bypasses RLS\n\n## Dependencies (must be complete first)\n- T-002\n- T-007\n\n## Closeout evidence\nProvide: changed_files, test_commands_and_results, acceptance_criteria_status (per AC), deviations_from_prd, git_status. Use the test-driven-development skill (RED test before implementation), verification-before-completion, and requesting-code-review at GREEN.",
+  "labels": [
+    "prd",
+    "data",
+    "security",
+    "T1-schema"
+  ],
+  "priority": 50,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-045",
+    "source_prd": "00-FOUNDATION-PRD.md",
+    "prd_refs": [
+      "§5",
+      "§13"
+    ],
+    "category": "data",
+    "subcategory": "security",
+    "task_type": "T1-schema",
+    "parent_feature": "00-FOUNDATION app-role connection split",
+    "context_budget": "50k",
+    "estimated_effort": "2h",
+    "description": "Postgres role split — owner role for migrations only, app role for runtime + tests with FORCE ROW LEVEL SECURITY; ESLint blocks owner-import outside migrations.",
+    "details": "PRD §5 says 'testy zawsze z app-role (nigdy superuser)' and §13 has it on the niefunkcjonalne checklist. T-007 created RLS policies but the project still uses a single connection. This task locks the split + adds ESLint guardrails so accidental superuser usage fails CI.",
+    "scope_files": [
+      "packages/db/migrations/0010_app_role.sql [create]",
+      "packages/db/src/clients.ts [create]",
+      "packages/db/src/index.ts [modify]",
+      "packages/db/.eslintrc.cjs [create]",
+      "packages/db/src/__tests__/app-role.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not modify files outside the scope_files list",
+      "Do not introduce business logic from later module PRDs (01-NPD, 02-SETTINGS, etc.)",
+      "No connection-pool tuning (deferred — Phase C ops)",
+      "No PgBouncer config (deferred — Phase C ops)"
+    ],
+    "dependencies": [
+      "T-002",
+      "T-007"
+    ],
+    "parallel_safe_with": [
+      "T-038",
+      "T-040",
+      "T-046"
+    ],
+    "acceptance_criteria": [
+      "Given the migration runs against a fresh DB, when 'pnpm --filter @monopilot/db migrate' completes, then role monopilot_app exists with no SUPERUSER, no BYPASSRLS, and FORCE ROW LEVEL SECURITY is applied to tenants/organizations/users",
+      "Given the app role connects without setting app.current_org_id, when SELECT * FROM tenants runs, then it returns 0 rows; given the owner role connects, when the same SELECT runs, then it returns all rows (RLS bypass via owner)",
+      "Given a developer attempts to import getOwnerConnection from anywhere outside packages/db/src/migrations/** or scripts/migrate.ts, when 'pnpm lint' runs, then ESLint reports no-restricted-imports and exits non-zero",
+      "Given the test suite is configured, when 'pnpm --filter @monopilot/db test' runs, then every test connects via getAppConnection() (asserted by a beforeAll that introspects current_user)"
+    ],
+    "test_strategy": [
+      "RED: write packages/db/src/__tests__/app-role.test.ts asserting all four ACs (with owner connection injected only for assertion #2 and beforeAll introspection) before clients.ts exists",
+      "Run 'pnpm --filter @monopilot/db test:integration && pnpm lint'"
+    ],
+    "risk_red_lines": [
+      "Do not GRANT BYPASSRLS to monopilot_app — that defeats the entire RLS contract from T-007",
+      "Do not allow application code to import getOwnerConnection — migrations only",
+      "Do not skip FORCE ROW LEVEL SECURITY — without it, the table owner connection silently bypasses RLS"
+    ],
+    "skills": [
+      "test-driven-development",
+      "verification-before-completion",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

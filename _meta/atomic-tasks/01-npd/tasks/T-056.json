@@ -1,0 +1,59 @@
+{
+  "title": "T-056 — Default G0-G4 GateChecklistTemplates seed (NPD-f)",
+  "prompt": "# T-056 — Gate checklist defaults seed\n\nPRD: 01-NPD-PRD.md §17.10 + prototype design/Monopilot Design System/npd/gate-screens.jsx:14-87 (GATE_CHECKLISTS constant)\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nIdempotent seed populating Reference.GateChecklistTemplates per tenant with the canonical G0-G4 checklist items from the gate-screens.jsx prototype GATE_CHECKLISTS constant — categories technical/business/compliance, required flags preserved.\n\n## Implementation contract\n1. Seed file packages/db/seed/gate-checklist-templates-seed.ts iterates tenants table and INSERTs per-gate items with ON CONFLICT (tenant_id, template_id, gate_code, sequence) DO NOTHING; default template_id='APEX_DEFAULT'.\n2. Items mirror GATE_CHECKLISTS prototype constant (G0=4 items, G1=5 items, G2=6 items, G3=8 items required, G4=6 items required); categories preserved.\n3. Hook into seed orchestrator packages/db/seed/index.ts.\n4. CLI 'pnpm --filter db seed:gate-checklist-templates'.\n\n## Files\n- packages/db/seed/gate-checklist-templates-seed.ts [create]\n- packages/db/seed/index.ts [modify]\n- packages/db/package.json [modify]\n- packages/db/__tests__/gate-checklist-templates-seed.test.ts [create]\n\n## Acceptance criteria\n1. Given a fresh DB with one apex tenant, when seed:gate-checklist-templates runs, then 5 gates × N items rows exist (matching GATE_CHECKLISTS counts in design/Monopilot Design System/npd/gate-screens.jsx:14-87) per §17.10\n2. Given the seed has already run, when it runs again, then row count is unchanged (idempotent ON CONFLICT)\n3. Given a G3 row exists, when its 'required' flag is queried, then it is TRUE for all 8 items (G3 fully gated per §17.6 approval contract)\n\n## Test strategy\n- RED: integration test asserting per-gate item counts + required flag for G3 + idempotency before seed exists\n- Run 'pnpm --filter db migrate && pnpm --filter db seed:gate-checklist-templates && pnpm --filter db test gate-checklist-templates-seed'\n\n## Risk red lines\n- Do not deviate from GATE_CHECKLISTS prototype item text (parity required)\n- Do not skip ON CONFLICT DO NOTHING\n- Do not seed only one tenant",
+  "labels": ["prd", "data", "seed", "T5-seed"],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-056",
+    "source_prd": "01-NPD-PRD.md",
+    "prd_refs": ["§17.10", "§17.6"],
+    "category": "data",
+    "subcategory": "gate-checklist-templates-seed",
+    "task_type": "T5-seed",
+    "parent_feature": "01-NPD-f Stage-Gate Pipeline",
+    "context_budget": "35k",
+    "estimated_effort": "1-2h",
+    "description": "Idempotent seed of GATE_CHECKLISTS constant from gate-screens.jsx into Reference.GateChecklistTemplates per tenant.",
+    "details": "Seed iterates tenants and inserts GATE_CHECKLISTS items per gate per category preserving required flags. Idempotent via ON CONFLICT.",
+    "scope_files": [
+      "packages/db/seed/gate-checklist-templates-seed.ts [create]",
+      "packages/db/seed/index.ts [modify]",
+      "packages/db/package.json [modify]",
+      "packages/db/__tests__/gate-checklist-templates-seed.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not implement createProject seeding from these (T-057)",
+      "Do not build admin UI to edit templates (Phase C1)"
+    ],
+    "dependencies": ["T-055"],
+    "parallel_safe_with": ["T-057"],
+    "acceptance_criteria": [
+      "Given a fresh DB with one apex tenant, when seed:gate-checklist-templates runs, then 5 gates × N items rows exist matching GATE_CHECKLISTS counts in design/Monopilot Design System/npd/gate-screens.jsx:14-87 per §17.10",
+      "Given the seed has already run, when it runs again, then row count is unchanged (idempotent ON CONFLICT)",
+      "Given a G3 row exists, when its 'required' flag is queried, then it is TRUE for all 8 items (G3 fully gated per §17.6 approval contract)"
+    ],
+    "test_strategy": [
+      "RED: integration test asserting per-gate counts + G3 required flag + idempotency before seed exists",
+      "Run 'pnpm --filter db migrate && pnpm --filter db seed:gate-checklist-templates && pnpm --filter db test gate-checklist-templates-seed'"
+    ],
+    "risk_red_lines": [
+      "Do not deviate from GATE_CHECKLISTS prototype item text",
+      "Do not skip ON CONFLICT DO NOTHING",
+      "Do not seed only one tenant"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

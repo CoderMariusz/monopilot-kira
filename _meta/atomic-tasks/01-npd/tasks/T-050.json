@@ -1,0 +1,59 @@
+{
+  "title": "T-050 — Reference.AlertThresholds default seed (NPD-e)",
+  "prompt": "# T-050 — AlertThresholds default seed\n\nPRD: 01-NPD-PRD.md §11.3, §17.11.3 (margin warn ≤15%)\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nSeed the canonical default AlertThreshold rows (RED days, YELLOW days, margin warn percent) for every existing tenant via an idempotent seed script invoked from the migration runner.\n\n## Implementation contract\n1. Seed file packages/db/seed/alert-thresholds-seed.ts inserting per-tenant rows: ('launch_alert_red_days', 10), ('launch_alert_yellow_days', 21), ('costing_margin_warn_pct', 15) with ON CONFLICT (tenant_id, threshold_key) DO NOTHING (idempotent).\n2. Hook into seed orchestrator packages/db/seed/index.ts so a fresh apex tenant gets thresholds.\n3. Provide CLI helper 'pnpm --filter db seed:alert-thresholds' that re-runs for all tenants.\n\n## Files\n- packages/db/seed/alert-thresholds-seed.ts [create]\n- packages/db/seed/index.ts [modify]\n- packages/db/package.json [modify]\n- packages/db/__tests__/alert-thresholds-seed.test.ts [create]\n\n## Acceptance criteria\n1. Given a fresh DB with one apex tenant, when seed:alert-thresholds runs, then 3 rows exist for that tenant with values (10, 21, 15) per §11.3 thresholds + §17.11.3 margin warn\n2. Given the seed has already run, when seed:alert-thresholds runs again, then row count remains 3 and updated_at is unchanged (idempotent)\n3. Given a second tenant is later created, when seed:alert-thresholds runs, then both tenants have the same 3 default rows\n\n## Test strategy\n- RED: integration test packages/db/__tests__/alert-thresholds-seed.test.ts asserting 3 rows + idempotency + multi-tenant before seed exists\n- Run 'pnpm --filter db migrate && pnpm --filter db seed:alert-thresholds && pnpm --filter db test alert-thresholds-seed'\n\n## Risk red lines\n- Do not use INSERT without ON CONFLICT (must be idempotent)\n- Do not embed tenant IDs as hardcoded UUIDs (iterate tenants table)\n- Do not seed per-FA overrides (out of scope)",
+  "labels": ["prd", "data", "seed", "T5-seed"],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-050",
+    "source_prd": "01-NPD-PRD.md",
+    "prd_refs": ["§11.3", "§17.11.3"],
+    "category": "data",
+    "subcategory": "alert-thresholds-seed",
+    "task_type": "T5-seed",
+    "parent_feature": "01-NPD-e Dashboard",
+    "context_budget": "30k",
+    "estimated_effort": "1h",
+    "description": "Idempotent seed of canonical RED/YELLOW launch alert + margin warn thresholds per tenant.",
+    "details": "Seed iterates tenants table and INSERTs 3 rows per tenant with ON CONFLICT DO NOTHING. Hooked into seed orchestrator. CLI command exposed. Test verifies count + idempotency + multi-tenant.",
+    "scope_files": [
+      "packages/db/seed/alert-thresholds-seed.ts [create]",
+      "packages/db/seed/index.ts [modify]",
+      "packages/db/package.json [modify]",
+      "packages/db/__tests__/alert-thresholds-seed.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not implement per-FA override seeding",
+      "Do not seed Reference.NutritionTargets here (T-069 territory)"
+    ],
+    "dependencies": ["T-049"],
+    "parallel_safe_with": ["T-048", "T-051"],
+    "acceptance_criteria": [
+      "Given a fresh DB with one apex tenant, when seed:alert-thresholds runs, then 3 rows exist for that tenant with values (10, 21, 15) per §11.3 + §17.11.3",
+      "Given the seed has already run, when seed:alert-thresholds runs again, then row count remains 3 and updated_at is unchanged (idempotent)",
+      "Given a second tenant is later created, when seed:alert-thresholds runs, then both tenants have the same 3 default rows"
+    ],
+    "test_strategy": [
+      "RED: integration test asserting 3 rows + idempotency + multi-tenant before seed exists",
+      "Run 'pnpm --filter db migrate && pnpm --filter db seed:alert-thresholds && pnpm --filter db test alert-thresholds-seed'"
+    ],
+    "risk_red_lines": [
+      "Do not use INSERT without ON CONFLICT (must be idempotent)",
+      "Do not embed tenant IDs as hardcoded UUIDs",
+      "Do not seed per-FA overrides"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

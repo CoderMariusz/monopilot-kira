@@ -1,0 +1,59 @@
+{
+  "title": "T-055 — Reference.GateChecklistTemplates table (NPD-f)",
+  "prompt": "# T-055 — GateChecklistTemplates table\n\nPRD: 01-NPD-PRD.md §17.10\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nCreate the Reference.GateChecklistTemplates table that stores per-tenant configurable gate checklist templates seeded onto each new npd_projects row at create-time.\n\n## Implementation contract\n1. Migration packages/db/migrations/0055_gate_checklist_templates.sql creates Reference.GateChecklistTemplates(template_id TEXT, tenant_id UUID, gate_code TEXT, category_code TEXT, item_text TEXT, required BOOLEAN, sequence INT, schema_version INT, PRIMARY KEY(tenant_id, template_id, gate_code, sequence)).\n2. ENABLE ROW LEVEL SECURITY + tenant_isolation policy.\n3. Drizzle schema in packages/db/src/schema/gate-checklist-templates.ts; barrel update.\n4. Index (tenant_id, template_id, gate_code) for the seed-on-create query.\n\n## Files\n- packages/db/migrations/0055_gate_checklist_templates.sql [create]\n- packages/db/src/schema/gate-checklist-templates.ts [create]\n- packages/db/src/schema/index.ts [modify]\n- packages/db/__tests__/gate-checklist-templates.test.ts [create]\n\n## Acceptance criteria\n1. Given migration 0055 runs, when \\d \"Reference.GateChecklistTemplates\" runs, then it lists template_id + gate_code + category_code + item_text + required + sequence with composite PK and RLS enabled per §17.10 spec\n2. Given two tenants seeded, when tenant A SELECT * FROM \"Reference.GateChecklistTemplates\" runs, then it returns only tenant A rows (RLS verified)\n3. Given an INSERT with required=NULL is attempted, when the statement runs, then it fails NOT NULL constraint per §17.4 schema parity\n\n## Test strategy\n- RED: write packages/db/__tests__/gate-checklist-templates.test.ts asserting schema + RLS + NOT NULL before migration exists\n- Run 'pnpm --filter db migrate && pnpm --filter db test gate-checklist-templates'\n\n## Risk red lines\n- Do not skip RLS\n- Do not omit composite PK\n- Do not seed default templates here (T-056)",
+  "labels": ["prd", "data", "schema", "T1-schema"],
+  "priority": 50,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-055",
+    "source_prd": "01-NPD-PRD.md",
+    "prd_refs": ["§17.10"],
+    "category": "data",
+    "subcategory": "gate-checklist-templates-table",
+    "task_type": "T1-schema",
+    "parent_feature": "01-NPD-f Stage-Gate Pipeline",
+    "context_budget": "30k",
+    "estimated_effort": "1h",
+    "description": "Create Reference.GateChecklistTemplates table for per-tenant configurable gate checklist templates per §17.10.",
+    "details": "Migration emits the table with composite PK and RLS. Drizzle types exported. Default values seeded in T-056.",
+    "scope_files": [
+      "packages/db/migrations/0055_gate_checklist_templates.sql [create]",
+      "packages/db/src/schema/gate-checklist-templates.ts [create]",
+      "packages/db/src/schema/index.ts [modify]",
+      "packages/db/__tests__/gate-checklist-templates.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not seed default templates here (T-056)",
+      "Do not implement createProject (T-057)"
+    ],
+    "dependencies": ["T-054"],
+    "parallel_safe_with": ["T-056"],
+    "acceptance_criteria": [
+      "Given migration 0055 runs, when \\d \"Reference.GateChecklistTemplates\" runs, then it lists template_id + gate_code + category_code + item_text + required + sequence with composite PK and RLS enabled per §17.10",
+      "Given two tenants seeded, when tenant A SELECT * FROM \"Reference.GateChecklistTemplates\" runs, then it returns only tenant A rows",
+      "Given an INSERT with required=NULL is attempted, when the statement runs, then it fails NOT NULL constraint per §17.4 schema parity"
+    ],
+    "test_strategy": [
+      "RED: write packages/db/__tests__/gate-checklist-templates.test.ts asserting schema + RLS + NOT NULL before migration exists",
+      "Run 'pnpm --filter db migrate && pnpm --filter db test gate-checklist-templates'"
+    ],
+    "risk_red_lines": [
+      "Do not skip RLS",
+      "Do not omit composite PK",
+      "Do not seed default templates here"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

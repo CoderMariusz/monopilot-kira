@@ -1,0 +1,86 @@
+{
+  "title": "T-108 — Rule Version Diff screen (SET-042 §7.6)",
+  "prompt": "# T-108 — Rule Version Diff screen (SET-042 §7.6)\n\nPRD: 02-SETTINGS-PRD.md §7.6 (Rules UI surfaces)\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nBuild SET-042 Rule Version Diff — side-by-side JSON deep diff comparing two `rule_definitions` versions for a given `rule_code`. Read-only. Used as a drilldown from SET-041 (Rule Detail). Diff highlights added / removed / changed paths with stable JSON sort.\n\n## Implementation contract\n1. Page at apps/web/app/(admin)/settings/rules/[rule_code]/diff/page.tsx is a Server Component reading two `rule_definitions` rows by `?from=<version>&to=<version>` query params (T-025 read-only Server Action).\n2. Compute deep diff with a deterministic JSON sort + recursive walker; categorize each path as `added`, `removed`, or `changed`.\n3. Render two columns (left=from, right=to) using shadcn ScrollArea + a code-block primitive; highlight diffed paths with token-level color (added=green, removed=red, changed=amber).\n4. Header strip shows: rule_code, from version + status badge, to version + status badge, total counts (added/removed/changed).\n5. RBAC: requires `settings.rules.read` only (read-only screen).\n\n## Files\n- apps/web/app/(admin)/settings/rules/[rule_code]/diff/page.tsx [create]\n- apps/web/app/(admin)/settings/rules/[rule_code]/diff/page.test.tsx [create]\n\n## Acceptance criteria\nSee `acceptance_criteria` array.\n\n## Test strategy\n1. RED: RTL test seeds two rule versions with known JSON shapes (one added field, one removed, one changed value); assert diff column counts + path highlighting.\n   `pnpm --filter @monopilot/web vitest run apps/web/app/(admin)/settings/rules/[rule_code]/diff/page.test.tsx`\n2. RED must fail.\n3. GREEN: implement Server Component + diff helper + columns.\n4. Re-run RED + `pnpm typecheck` + `pnpm lint`.\n\n## Risk red lines\n- Do not introduce write actions (read-only per §7).\n- Do not include external diff libraries with copyleft licenses; use a small in-repo recursive diff helper.\n- Do not import @radix-ui/* outside packages/ui (§0).\n\nStack: TS + Next.js App Router + Drizzle + pnpm + vitest + Playwright + Server Actions. PRD: 02-SETTINGS-PRD.md v3.5.\n",
+  "labels": [
+    "prd",
+    "ui",
+    "set-042",
+    "T3-ui"
+  ],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-108",
+    "source_prd": "02-SETTINGS-PRD.md",
+    "prd_refs": [
+      "§7.6"
+    ],
+    "category": "ui",
+    "subcategory": "set-042",
+    "task_type": "T3-ui",
+    "parent_feature": "02-settings-d-ui",
+    "context_budget": "40k",
+    "estimated_effort": "1-3h",
+    "description": "Rule Version Diff (SET-042) — side-by-side JSON deep diff between two rule_definitions versions, read-only.",
+    "details": "PRD §7.6 SET-042: `JSON deep diff (side-by-side)`. Read-only per §7 (rules registry is read-only via UI; authoring in PR/migrations only). Diff helper must be deterministic across runs (sort object keys before walk) so snapshot tests are stable. No external diff lib — small in-repo helper.",
+    "scope_files": [
+      "apps/web/app/(admin)/settings/rules/[rule_code]/diff/page.tsx [create]",
+      "apps/web/app/(admin)/settings/rules/[rule_code]/diff/page.test.tsx [create]"
+    ],
+    "out_of_scope": [
+      "Edit/promote actions (read-only screen)",
+      "Three-way diff or version merge"
+    ],
+    "dependencies": [
+      "T-006",
+      "T-025"
+    ],
+    "parallel_safe_with": [
+      "T-064"
+    ],
+    "acceptance_criteria": [
+      "Given two rule versions exist (v1 and v2 for rule_code='allergen_cascade_v1'), when /settings/rules/allergen_cascade_v1/diff?from=1&to=2 is loaded, then a side-by-side diff renders with header showing 'v1 → v2' and total counts of added/removed/changed paths.",
+      "Given v2 adds a `definition_json.threshold` key not present in v1, when the diff renders, then that path is highlighted green on the right column and absent on the left column.",
+      "Given v2 removes a key present in v1, when the diff renders, then that path is highlighted red on the left column and absent on the right.",
+      "Given the caller lacks `settings.rules.read`, when the page is requested, then a 403 page renders."
+    ],
+    "test_strategy": [
+      "RED: RTL test seeds two JSON versions with one add/one remove/one change; asserts column counts, highlight classes, RBAC.",
+      "GREEN: implement deterministic diff helper + Server Component + side-by-side render.",
+      "Run `pnpm --filter @monopilot/web vitest run apps/web/app/(admin)/settings/rules/[rule_code]/diff/page.test.tsx` and `pnpm typecheck`."
+    ],
+    "risk_red_lines": [
+      "Do not introduce write actions (read-only per §7).",
+      "Do not include external diff libraries with copyleft licenses; use a small in-repo recursive diff helper.",
+      "Do not import @radix-ui/* outside packages/ui (§0)."
+    ],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": false
+  }
+}

@@ -1,0 +1,86 @@
+{
+  "title": "T-042 — PWA install + offline-shell Playwright E2E",
+  "prompt": "# T-042 — PWA install + offline-shell Playwright E2E\n\nPRD: `00-FOUNDATION-PRD.md` — sections: §5 frontend (PWA Workbox), §13 (06-SCANNER-P1 PWA acceptance)\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`\n\n## Goal\nPlaywright E2E proving the PWA scaffold from T-041 actually works end-to-end: manifest is served, service worker activates, and the app shell loads when network is offline.\n\n## Implementation contract\n(1) Create apps/web/e2e/pwa.spec.ts using Playwright with Chromium service-worker support. (2) Test 1 navigates to /, asserts the manifest link tag and fetches /manifest.webmanifest, checks JSON contains name='Monopilot'. (3) Test 2 waits for navigator.serviceWorker.ready, then page.context().setOffline(true), then page.reload() — asserts the page still renders the layout (cached app shell). (4) Test 3 hits /api/health twice online (warm cache), then setOffline(true) + a third fetch — asserts the response comes from the SW cache (status 200, custom header X-Served-By='sw'). (5) Add 'pnpm test:e2e:pwa' script.\n\n## Files (scope)\n- apps/web/e2e/pwa.spec.ts [create]\n- apps/web/app/api/health/route.ts [create]\n- apps/web/package.json [modify]\n\n## Acceptance criteria\n1. Given the production build is running under Playwright, when /manifest.webmanifest is fetched, then it returns 200 with content-type containing 'manifest+json' and JSON name='Monopilot'\n2. Given the SW has activated, when the test sets offline and reloads /, then the layout still renders (cached app shell) within 3 seconds\n3. Given /api/health was hit twice online, when offline + third fetch runs, then the SW returns the cached response with header X-Served-By='sw' and status 200\n4. Given 'pnpm --filter web test:e2e:pwa' runs in CI, when the spec exits, then it exits 0 with all 3 tests green\n\n## Test strategy\n- RED: write apps/web/e2e/pwa.spec.ts (the spec file) before adjusting the SW to add the X-Served-By header — it must fail first, then pass after the SW change in T-041 sw.ts is extended\n- Run 'pnpm --filter web test:e2e:pwa'\n\n## Risk red lines\n- Do not run the PWA E2E in dev mode — only against production build (matches PRD §5 'PWA only in production')\n- Do not stub navigator.serviceWorker — use Playwright's real Chromium SW support\n- Do not extend the test to cover IndexedDB sync queue — that is T-044 scope\n\n## Dependencies (must be complete first)\n- T-041\n\n## Closeout evidence\nProvide: changed_files, test_commands_and_results, acceptance_criteria_status (per AC), deviations_from_prd, git_status. Use the test-driven-development skill (RED test before implementation), verification-before-completion, and requesting-code-review at GREEN.",
+  "labels": [
+    "prd",
+    "test",
+    "pwa",
+    "T4-wiring-test"
+  ],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-042",
+    "source_prd": "00-FOUNDATION-PRD.md",
+    "prd_refs": [
+      "§5",
+      "§13"
+    ],
+    "category": "test",
+    "subcategory": "pwa",
+    "task_type": "T4-wiring-test",
+    "parent_feature": "00-FOUNDATION PWA scaffold",
+    "context_budget": "55k",
+    "estimated_effort": "2h",
+    "description": "Playwright E2E proving the T-041 PWA scaffold serves manifest, activates SW, and serves app shell + /api/health from cache when offline.",
+    "details": "Uses Playwright real Chromium SW support (navigator.serviceWorker.ready) + page.context().setOffline(true) to verify the offline path. Adds /api/health as a tiny route to anchor the cache assertion.",
+    "scope_files": [
+      "apps/web/e2e/pwa.spec.ts [create]",
+      "apps/web/app/api/health/route.ts [create]",
+      "apps/web/package.json [modify]"
+    ],
+    "out_of_scope": [
+      "Do not modify files outside the scope_files list",
+      "Do not introduce business logic from later module PRDs (01-NPD, 02-SETTINGS, etc.)",
+      "No IndexedDB queue tests (T-044)",
+      "No DataWedge wedge tests (06-SCANNER PRD)"
+    ],
+    "dependencies": [
+      "T-041"
+    ],
+    "parallel_safe_with": [],
+    "acceptance_criteria": [
+      "Given the production build is running under Playwright, when /manifest.webmanifest is fetched, then it returns 200 with content-type containing 'manifest+json' and JSON name='Monopilot'",
+      "Given the SW has activated, when the test sets offline and reloads /, then the layout still renders (cached app shell) within 3 seconds",
+      "Given /api/health was hit twice online, when offline + third fetch runs, then the SW returns the cached response with header X-Served-By='sw' and status 200",
+      "Given 'pnpm --filter web test:e2e:pwa' runs in CI, when the spec exits, then it exits 0 with all 3 tests green"
+    ],
+    "test_strategy": [
+      "RED: write apps/web/e2e/pwa.spec.ts (the spec file) before adjusting the SW to add the X-Served-By header — it must fail first, then pass after the SW change in T-041 sw.ts is extended",
+      "Run 'pnpm --filter web test:e2e:pwa'"
+    ],
+    "risk_red_lines": [
+      "Do not run the PWA E2E in dev mode — only against production build (matches PRD §5 'PWA only in production')",
+      "Do not stub navigator.serviceWorker — use Playwright's real Chromium SW support",
+      "Do not extend the test to cover IndexedDB sync queue — that is T-044 scope"
+    ],
+    "skills": [
+      "test-driven-development",
+      "verification-before-completion",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

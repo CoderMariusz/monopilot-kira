@@ -1,0 +1,85 @@
+{
+  "title": "T-110 — PostHog Feature Flags Proxy (SET-072 §10.3)",
+  "prompt": "# T-110 — PostHog Feature Flags Proxy (SET-072 §10.3)\n\nPRD: 02-SETTINGS-PRD.md §10.3 (Module Toggles + Feature Flags UI surfaces)\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nImplement the read-through proxy endpoint that fetches PostHog feature flags scoped to the caller's org and returns a normalized payload for the SET-072 client. Built as a Next.js Route Handler (App Router) that calls PostHog's decide API server-side using a server-only API key, never exposing it to the browser. Cached per-org for 60s.\n\n## Implementation contract\n1. Route handler at apps/web/app/api/posthog/flags/route.ts (GET) — uses POSTHOG_PROJECT_API_KEY from process.env (server-only).\n2. Resolve caller org_id via withOrgContext (T-015); reject if not authenticated.\n3. Call PostHog decide API (`POST {POSTHOG_HOST}/decide?v=3` with `{api_key, distinct_id, groups: { organization: org_id }}`).\n4. Cache normalized response (Map<org_id, {flags, fetched_at}>) for 60 seconds via in-memory LRU; serve cached on hit.\n5. Return JSON `{ flags: Record<string, boolean | string>, fetched_at: ISO8601 }`. Errors return 502 with `{ error_code: 'POSTHOG_UPSTREAM_ERROR' }` and log via tenant audit.\n\n## Files\n- apps/web/app/api/posthog/flags/route.ts [create]\n- apps/web/app/api/posthog/flags/route.test.ts [create]\n\n## Acceptance criteria\nSee `acceptance_criteria` array.\n\n## Test strategy\n1. RED: vitest mocks `fetch` to PostHog decide endpoint; asserts org_id forwarded as `groups.organization`, response normalized, cache hit on second call within 60s.\n   `pnpm --filter @monopilot/web vitest run apps/web/app/api/posthog/flags/route.test.ts`\n2. RED must fail.\n3. GREEN: implement route + LRU cache + error mapping.\n4. Re-run RED + `pnpm typecheck` + `pnpm lint`.\n\n## Risk red lines\n- Do not expose POSTHOG_PROJECT_API_KEY to client bundles; reference only via process.env in server file.\n- Do not bypass withOrgContext (RLS / multi-tenant isolation).\n- Do not mirror PostHog flags into feature_flags_core table (per T-013 risk_red_line).\n\nStack: TS + Next.js App Router (Route Handler) + Drizzle + pnpm + vitest + Playwright + Server Actions. PRD: 02-SETTINGS-PRD.md v3.5.\n",
+  "labels": [
+    "prd",
+    "api",
+    "posthog-proxy",
+    "T2-api"
+  ],
+  "priority": 80,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-110",
+    "source_prd": "02-SETTINGS-PRD.md",
+    "prd_refs": [
+      "§10.3",
+      "§10.2"
+    ],
+    "category": "api",
+    "subcategory": "posthog-proxy",
+    "task_type": "T2-api",
+    "parent_feature": "02-settings-b",
+    "context_budget": "40k",
+    "estimated_effort": "1-3h",
+    "description": "Read-through Next.js Route Handler proxying PostHog decide API per-org with 60s LRU cache and audit on upstream error.",
+    "details": "PRD §10.3 SET-072 `Read-through view PostHog flags per org`. The proxy is the prerequisite backend for the future SET-072 view component (UI deferred). API key is server-only — never imported in `'use client'` modules. Cache is per-process LRU; 60s TTL acceptable for admin viewer use case. Upstream errors logged via tenant audit so SRE can alert.",
+    "scope_files": [
+      "apps/web/app/api/posthog/flags/route.ts [create]",
+      "apps/web/app/api/posthog/flags/route.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "SET-072 client component (separate T3 task, deferred)",
+      "Write/override flag values via UI (PostHog UI is source of truth)"
+    ],
+    "dependencies": [
+      "T-013",
+      "T-015"
+    ],
+    "parallel_safe_with": [],
+    "acceptance_criteria": [
+      "Given the caller is authenticated with org_id='org_42', when GET /api/posthog/flags is called, then the upstream POST to PostHog decide includes `groups.organization='org_42'` and the response is returned as `{ flags, fetched_at }`.",
+      "Given a successful response was cached at t0, when GET /api/posthog/flags is called again at t0+30s, then no second upstream fetch is issued and the cached payload is returned.",
+      "Given PostHog returns 5xx or times out, when the handler runs, then it returns 502 with `{ error_code: 'POSTHOG_UPSTREAM_ERROR' }` and emits an audit_log entry.",
+      "Given the caller is unauthenticated, when GET /api/posthog/flags is called, then 401 is returned and no upstream fetch is issued."
+    ],
+    "test_strategy": [
+      "RED: vitest mocks global fetch; case 1 happy path asserts decide payload + groups.organization; case 2 cache hit asserts only one fetch in 60s window; case 3 5xx returns 502 + audit; case 4 unauth returns 401.",
+      "GREEN: implement route + LRU + audit emit.",
+      "Run `pnpm --filter @monopilot/web vitest run apps/web/app/api/posthog/flags/route.test.ts` and `pnpm typecheck`."
+    ],
+    "risk_red_lines": [
+      "Do not expose POSTHOG_PROJECT_API_KEY to client bundles; reference only via process.env in server file.",
+      "Do not bypass withOrgContext (RLS / multi-tenant isolation).",
+      "Do not mirror PostHog flags into feature_flags_core (per T-013 risk_red_line)."
+    ],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": false
+  }
+}

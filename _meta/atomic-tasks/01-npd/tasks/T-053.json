@@ -1,0 +1,58 @@
+{
+  "title": "T-053 — E2E: dashboard refresh + alert thresholds smoke (NPD-e)",
+  "prompt": "# T-053 — Dashboard E2E\n\nPRD: 01-NPD-PRD.md §11.1, §11.5, §15 (alert refresh latency ≤30 s p95)\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nPlaywright E2E + integration test verifying the NPD dashboard renders, polls every 30 s, reflects new launch alerts after data mutation within 30 s p95, and respects RBAC dashboard.view filtering for dept managers.\n\n## Implementation contract\n1. apps/web/e2e/npd/dashboard.spec.ts: NPD Manager logs in → /(npd)/dashboard → asserts 3 cards visible → mutates an FA launch_date to be within 10 days → waits ≤ 30 s → asserts new RED row appears.\n2. Integration test apps/web/__tests__/integration/dashboard-rbac.test.ts: mrp dept manager calls page → only sees mrp row in dept breakdown.\n3. Reset DB seed before each test via global setup; uses mocked D365 adapter.\n\n## Files\n- apps/web/e2e/npd/dashboard.spec.ts [create]\n- apps/web/__tests__/integration/dashboard-rbac.test.ts [create]\n- apps/web/e2e/npd/fixtures/dashboard-seed.ts [create]\n\n## Acceptance criteria\n1. Given an NPD Manager session, when the dashboard mounts and an FA launch_date is mutated to launch_date - CURRENT_DATE = 5 days, then within 30 s the FA appears with RED badge in the launch alerts table per §11.5 normative latency\n2. Given a dept manager (mrp) session, when the dashboard mounts, then only the mrp row is visible in Dept Progress card per §11.6 filtering\n3. Given the page has been open for 65 s, when network log is inspected, then exactly 2 polls to /api/dashboard/summary occurred (initial + 1 interval) per §11.5\n\n## Test strategy\n- RED: write the 3 specs above before page wiring is final; run against test container DB seeded by fixtures\n- Run 'pnpm --filter web test:e2e dashboard && pnpm --filter web test dashboard-rbac'\n\n## Risk red lines\n- Do not skip polling assertion (latency contract is normative)\n- Do not run E2E against shared/staging DB (must be isolated container)\n- Do not allow flaky waits >30 s without timeout escalation",
+  "labels": ["prd", "test", "dashboard", "T4-wiring-test"],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-053",
+    "source_prd": "01-NPD-PRD.md",
+    "prd_refs": ["§11.1", "§11.5", "§11.6"],
+    "category": "test",
+    "subcategory": "dashboard-e2e",
+    "task_type": "T4-wiring-test",
+    "parent_feature": "01-NPD-e Dashboard",
+    "context_budget": "60k",
+    "estimated_effort": "2-3h",
+    "description": "Playwright E2E + integration tests for dashboard polling latency + RBAC filter + interval count.",
+    "details": "E2E mutates DB then asserts within 30 s; integration test verifies dept-manager filtering; fixtures seed dashboard data deterministically.",
+    "scope_files": [
+      "apps/web/e2e/npd/dashboard.spec.ts [create]",
+      "apps/web/__tests__/integration/dashboard-rbac.test.ts [create]",
+      "apps/web/e2e/npd/fixtures/dashboard-seed.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not test interactive controls deeply here (T-091)",
+      "Do not implement Server Actions (T-051)"
+    ],
+    "dependencies": ["T-051", "T-052"],
+    "parallel_safe_with": ["T-091"],
+    "acceptance_criteria": [
+      "Given an NPD Manager session, when the dashboard mounts and an FA launch_date is mutated to launch_date - CURRENT_DATE = 5 days, then within 30 s the FA appears with RED badge in the launch alerts table per §11.5 normative latency",
+      "Given a dept manager (mrp) session, when the dashboard mounts, then only the mrp row is visible in Dept Progress card per §11.6 filtering",
+      "Given the page has been open for 65 s, when network log is inspected, then exactly 2 polls to /api/dashboard/summary occurred per §11.5"
+    ],
+    "test_strategy": [
+      "RED: write 3 specs before final wiring; run against isolated test container",
+      "Run 'pnpm --filter web test:e2e dashboard && pnpm --filter web test dashboard-rbac'"
+    ],
+    "risk_red_lines": [
+      "Do not skip polling assertion",
+      "Do not run E2E against shared/staging DB",
+      "Do not allow flaky waits >30 s without timeout escalation"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

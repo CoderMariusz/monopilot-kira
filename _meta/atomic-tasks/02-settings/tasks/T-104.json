@@ -1,0 +1,91 @@
+{
+  "title": "T-104 — Warehouse List screen (SET-012-warehouse §12.2)",
+  "prompt": "# T-104 — Warehouse List screen (SET-012-warehouse §12.2)\n\nPRD: 02-SETTINGS-PRD.md §12.2 (Infrastructure CRUD UI table)\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nBuild the Warehouse List screen from §12.2 (sort, filter, bulk activate/deactivate). Server Component reads warehouses via Drizzle, list table mounts shadcn DataTable from packages/ui, bulk actions call T-029 deactivateWarehouse / activateWarehouse Server Actions. Soft-delete preserved per §12.1.\n\n## Implementation contract\n1. Page at apps/web/app/(admin)/settings/infra/warehouses/page.tsx renders Server Component fetching `warehouses` rows scoped via withOrgContext (T-015).\n2. List shows: name, code, address, deactivated_at badge, active WO count.\n3. Toolbar: text filter (debounced), status filter (active|deactivated|all), bulk-select checkboxes, bulk activate / bulk deactivate buttons.\n4. Bulk deactivate calls T-029 deactivateWarehouse per row; if any returns SOFT_WARNING_ACTIVE_WO (V-SET-63), confirm dialog asks for `force=true` then re-runs.\n5. RBAC: requires `settings.infra.read` for view, `settings.infra.update` for bulk actions.\n\n## Files\n- apps/web/app/(admin)/settings/infra/warehouses/page.tsx [create]\n- apps/web/app/(admin)/settings/infra/warehouses/page.test.tsx [create]\n\n## Acceptance criteria\nSee `acceptance_criteria` array.\n\n## Test strategy\n1. RED: write RTL test mounting the page with mocked warehouses data + a row with active WO; assert AC items.\n   `pnpm --filter @monopilot/web vitest run apps/web/app/(admin)/settings/infra/warehouses/page.test.tsx`\n2. RED must fail before implementation.\n3. GREEN: implement page + test wiring.\n4. Re-run RED, then `pnpm typecheck` and `pnpm lint`.\n\n## Risk red lines\n- Do not import @radix-ui/react-dialog outside packages/ui (§0).\n- Do not bypass withOrgContext when querying warehouses.\n- Do not hard-delete warehouses; soft-delete only per §12.1.\n\nStack: TS + Next.js App Router + Drizzle + pnpm + vitest + Playwright + Server Actions. PRD: 02-SETTINGS-PRD.md v3.5.\n",
+  "labels": [
+    "prd",
+    "ui",
+    "set-012-warehouse",
+    "T3-ui"
+  ],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-104",
+    "source_prd": "02-SETTINGS-PRD.md",
+    "prd_refs": [
+      "§12.1",
+      "§12.2",
+      "V-SET-63"
+    ],
+    "category": "ui",
+    "subcategory": "set-012-warehouse",
+    "task_type": "T3-ui",
+    "parent_feature": "02-settings-e-ui",
+    "context_budget": "40k",
+    "estimated_effort": "1-3h",
+    "description": "Warehouse List screen (SET-012-warehouse): sort/filter/bulk activate-deactivate with V-SET-63 soft-warning flow.",
+    "details": "PRD §12.2 lists SET-012 (Warehouse List) with capability `sort, filter, bulk activate/deactivate`. Note: numbering in §12.2 reuses SET-012 from §14.1 (security_screen, T-060); we disambiguate by the subcategory `set-012-warehouse`. UI consumes T-029 Server Actions; bulk-deactivate must surface SOFT_WARNING_ACTIVE_WO from V-SET-63 and re-call with `force=true` after confirm.",
+    "scope_files": [
+      "apps/web/app/(admin)/settings/infra/warehouses/page.tsx [create]",
+      "apps/web/app/(admin)/settings/infra/warehouses/page.test.tsx [create]"
+    ],
+    "out_of_scope": [
+      "Warehouse Edit form (separate SET-013-warehouse screen, not in this task)",
+      "address autocomplete integration"
+    ],
+    "dependencies": [
+      "T-009",
+      "T-015",
+      "T-029"
+    ],
+    "parallel_safe_with": [
+      "T-105",
+      "T-106",
+      "T-107"
+    ],
+    "acceptance_criteria": [
+      "Given the warehouses list renders, when 25 rows exist with mixed active/deactivated_at, then table shows status badge per row and the status filter narrows to active-only when toggled.",
+      "Given the user bulk-selects 3 active warehouses with no WO references, when they click Bulk Deactivate, then T-029 deactivateWarehouse runs for each and the rows update to `deactivated_at` set without confirm dialog.",
+      "Given a selected warehouse has active WO references, when Bulk Deactivate runs, then the SOFT_WARNING_ACTIVE_WO from V-SET-63 surfaces a confirm dialog and only after confirm re-issues with `force=true`.",
+      "Given the caller lacks `settings.infra.update`, when they click Bulk Deactivate, then the action button is disabled and an aria-label explains insufficient permissions."
+    ],
+    "test_strategy": [
+      "RED: write RTL test mounting page with mocked warehouses + one with active_wo_count>0; assert badge, filter, confirm-dialog flow, RBAC disable.",
+      "GREEN: implement Server Component + client toolbar + confirm dialog wiring T-029.",
+      "Run `pnpm --filter @monopilot/web vitest run apps/web/app/(admin)/settings/infra/warehouses/page.test.tsx` and `pnpm typecheck`."
+    ],
+    "risk_red_lines": [
+      "Do not import @radix-ui/react-dialog outside packages/ui (§0 ESLint rule).",
+      "Do not bypass withOrgContext when querying warehouses.",
+      "Do not hard-delete warehouses; soft-delete only per §12.1."
+    ],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": false
+  }
+}

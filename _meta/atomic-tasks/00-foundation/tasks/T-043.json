@@ -1,0 +1,88 @@
+{
+  "title": "T-043 — IndexedDB sync queue primitive (idb-keyval wrapper for offline mutations)",
+  "prompt": "# T-043 — IndexedDB sync queue primitive (idb-keyval wrapper for offline mutations)\n\nPRD: `00-FOUNDATION-PRD.md` — sections: §5 frontend (IndexedDB sync queue), §10 (Idempotent mutations [R14])\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`\n\n## Goal\nClient-side IndexedDB queue primitive that buffers scanner-originated mutations when offline. Mutations carry a client-generated transaction_id (UUID v7) so the server can deduplicate replays per §10 R14. The flusher endpoint is T-044.\n\n## Implementation contract\n(1) Add packages/sync-queue workspace package using idb-keyval as the IndexedDB wrapper. (2) Export enqueue(mutation: { transaction_id: string, endpoint: string, method: 'POST'|'PUT', body: unknown, created_at: string }) → Promise<void>; mutations stored under key `mut:${transaction_id}`. (3) Export listPending() → Promise<Mutation[]> ordered by created_at ASC. (4) Export remove(transaction_id: string) → Promise<void>. (5) Export generateTransactionId() → UUID v7 string (use uuid v9 lib). (6) Vitest with fake-indexeddb covers enqueue→list→remove + idempotent enqueue (re-enqueue same transaction_id is no-op).\n\n## Files (scope)\n- packages/sync-queue/package.json [create]\n- packages/sync-queue/src/index.ts [create]\n- packages/sync-queue/src/__tests__/queue.test.ts [create]\n- packages/sync-queue/tsconfig.json [create]\n\n## Acceptance criteria\n1. Given an empty queue, when enqueue is called with transaction_id='01HXY…' + endpoint='/api/scan/move' + method='POST' + body, then listPending() returns exactly 1 entry whose transaction_id matches\n2. Given enqueue is called twice with the same transaction_id, when listPending() runs, then it returns exactly 1 entry (idempotent — R14 contract)\n3. Given 3 entries exist, when remove(t2.transaction_id) is called, then listPending() returns 2 entries excluding t2 in the original order\n4. Given generateTransactionId() is called 1000 times, when the results are sorted lexicographically, then the order matches insertion order (UUID v7 time-ordered property)\n\n## Test strategy\n- RED: write packages/sync-queue/src/__tests__/queue.test.ts with fake-indexeddb covering all four ACs before src/index.ts exists\n- Run 'pnpm --filter @monopilot/sync-queue test'\n\n## Risk red lines\n- Do not implement the flusher / network call here — that is T-044 (server-side endpoint + retry policy)\n- Do not use localStorage as a fallback — IndexedDB is mandatory per PRD §5\n- Do not generate UUID v4 — must be v7 for time-ordering (R14 idempotency depends on monotonic order)\n\n## Dependencies (must be complete first)\n- T-001\n\n## Closeout evidence\nProvide: changed_files, test_commands_and_results, acceptance_criteria_status (per AC), deviations_from_prd, git_status. Use the test-driven-development skill (RED test before implementation) and requesting-code-review at GREEN.",
+  "labels": [
+    "prd",
+    "infra",
+    "offline-queue",
+    "T1-schema"
+  ],
+  "priority": 50,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-043",
+    "source_prd": "00-FOUNDATION-PRD.md",
+    "prd_refs": [
+      "§5",
+      "§10"
+    ],
+    "category": "infra",
+    "subcategory": "offline-queue",
+    "task_type": "T1-schema",
+    "parent_feature": "00-FOUNDATION IndexedDB sync queue",
+    "context_budget": "40k",
+    "estimated_effort": "1-2h",
+    "description": "Client-side IndexedDB queue primitive (enqueue / list / remove / UUID v7 generator) for offline-buffered scanner mutations.",
+    "details": "Uses idb-keyval as a tiny IndexedDB wrapper (no full Dexie dependency). Mutations are keyed by their R14 transaction_id so replay is idempotent both client-side (enqueue) and later server-side (T-044 dedup).",
+    "scope_files": [
+      "packages/sync-queue/package.json [create]",
+      "packages/sync-queue/src/index.ts [create]",
+      "packages/sync-queue/src/__tests__/queue.test.ts [create]",
+      "packages/sync-queue/tsconfig.json [create]"
+    ],
+    "out_of_scope": [
+      "Do not modify files outside the scope_files list",
+      "Do not introduce business logic from later module PRDs (01-NPD, 02-SETTINGS, etc.)",
+      "No fetch / network call (T-044)",
+      "No background-sync API integration (deferred — Phase D scanner hardening)"
+    ],
+    "dependencies": [
+      "T-001"
+    ],
+    "parallel_safe_with": [
+      "T-041"
+    ],
+    "acceptance_criteria": [
+      "Given an empty queue, when enqueue is called with transaction_id='01HXY…' + endpoint='/api/scan/move' + method='POST' + body, then listPending() returns exactly 1 entry whose transaction_id matches",
+      "Given enqueue is called twice with the same transaction_id, when listPending() runs, then it returns exactly 1 entry (idempotent — R14 contract)",
+      "Given 3 entries exist, when remove(t2.transaction_id) is called, then listPending() returns 2 entries excluding t2 in the original order",
+      "Given generateTransactionId() is called 1000 times, when the results are sorted lexicographically, then the order matches insertion order (UUID v7 time-ordered property)"
+    ],
+    "test_strategy": [
+      "RED: write packages/sync-queue/src/__tests__/queue.test.ts with fake-indexeddb covering all four ACs before src/index.ts exists",
+      "Run 'pnpm --filter @monopilot/sync-queue test'"
+    ],
+    "risk_red_lines": [
+      "Do not implement the flusher / network call here — that is T-044 (server-side endpoint + retry policy)",
+      "Do not use localStorage as a fallback — IndexedDB is mandatory per PRD §5",
+      "Do not generate UUID v4 — must be v7 for time-ordering (R14 idempotency depends on monotonic order)"
+    ],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

@@ -1,0 +1,88 @@
+{
+  "title": "T-038 — tenant_migrations table migration (canary upgrade orchestration baseline)",
+  "prompt": "# T-038 — tenant_migrations table migration (canary upgrade orchestration baseline)\n\nPRD: `00-FOUNDATION-PRD.md` — sections: §8 (Upgrade orchestration)\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`\n\n## Goal\nCreate the tenant_migrations Drizzle table that records which tenant is on which version of each component, used by canary upgrade orchestration (5-10% canary → progressive). The table is the data substrate for §8 'Tenant migrations table: (tenant_id, component, current_version, target_version, last_run_at)'.\n\n## Implementation contract\n(1) Add packages/db/src/schema/tenant-migrations.ts with Drizzle table tenantMigrations { tenant_id UUID NOT NULL REF organizations(id), component TEXT NOT NULL, current_version TEXT NOT NULL, target_version TEXT, cohort TEXT NOT NULL DEFAULT 'general' CHECK IN ('canary','early','general'), last_run_at TIMESTAMPTZ, status TEXT NOT NULL DEFAULT 'idle' CHECK IN ('idle','pending','running','succeeded','failed','rolled_back'), failure_reason TEXT, PRIMARY KEY (tenant_id, component) }. (2) Generate migration file packages/db/migrations/0008_tenant_migrations.sql with the table + index on (cohort, status). (3) Export the schema from packages/db/src/schema/index.ts. (4) Add Vitest unit asserting Drizzle infers tenant_id as UUID and cohort enum CHECK is present.\n\n## Files (scope)\n- packages/db/src/schema/tenant-migrations.ts [create]\n- packages/db/src/schema/index.ts [modify]\n- packages/db/migrations/0008_tenant_migrations.sql [create]\n- packages/db/src/__tests__/tenant-migrations.test.ts [create]\n\n## Acceptance criteria\n1. Given the migration runs from empty, when 'pnpm --filter @monopilot/db migrate' completes, then table tenant_migrations exists with all 8 columns (tenant_id, component, current_version, target_version, cohort, last_run_at, status, failure_reason) and PK = (tenant_id, component)\n2. Given a row INSERT with cohort='moonshot' (not in CHECK list), when SQL runs, then Postgres rejects the row with a CHECK constraint violation\n3. Given a row exists with status='running', when a second INSERT for the same (tenant_id, component) is attempted, then the PK constraint rejects it (no duplicate orchestration)\n4. Given the Drizzle schema is imported, when 'pnpm --filter @monopilot/db typecheck' runs, then tenant_id is inferred as string (UUID) and cohort union literal includes only 'canary' | 'early' | 'general'\n\n## Test strategy\n- RED: write packages/db/src/__tests__/tenant-migrations.test.ts covering all four ACs before the schema file exists\n- Run 'pnpm --filter @monopilot/db test'\n\n## Risk red lines\n- Do not add an upgrade orchestration Server Action in this task (covered by T-039)\n- Do not allow status updates to skip the audit_events emit — the API task wires that up\n- Do not partition this table — single global table is correct per §8 (small cardinality)\n\n## Dependencies (must be complete first)\n- T-006\n\n## Closeout evidence\nProvide: changed_files, test_commands_and_results, acceptance_criteria_status (per AC), deviations_from_prd, git_status. Use the test-driven-development skill (RED test before implementation) and requesting-code-review at GREEN.",
+  "labels": [
+    "prd",
+    "data",
+    "multi-tenant",
+    "T1-schema"
+  ],
+  "priority": 50,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-038",
+    "source_prd": "00-FOUNDATION-PRD.md",
+    "prd_refs": [
+      "§8"
+    ],
+    "category": "data",
+    "subcategory": "multi-tenant",
+    "task_type": "T1-schema",
+    "parent_feature": "00-FOUNDATION canary upgrade orchestration",
+    "context_budget": "40k",
+    "estimated_effort": "1-2h",
+    "description": "Drizzle table tenant_migrations recording per-tenant component versions + cohort + status for canary-first upgrade rollouts.",
+    "details": "PRD §8 names this table verbatim: '(tenant_id, component, current_version, target_version, last_run_at)'. We extend it with cohort (canary/early/general) + status enum + failure_reason because §8 also says canary 5-10% → monitor 15-30min → progressive — the orchestrator needs both cohort segmentation and run state.",
+    "scope_files": [
+      "packages/db/src/schema/tenant-migrations.ts [create]",
+      "packages/db/src/schema/index.ts [modify]",
+      "packages/db/migrations/0008_tenant_migrations.sql [create]",
+      "packages/db/src/__tests__/tenant-migrations.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not modify files outside the scope_files list",
+      "Do not introduce business logic from later module PRDs (01-NPD, 02-SETTINGS, etc.)",
+      "No orchestration Server Action (T-039)",
+      "No PostHog feature-flag wiring (T-033)"
+    ],
+    "dependencies": [
+      "T-006"
+    ],
+    "parallel_safe_with": [
+      "T-040",
+      "T-046"
+    ],
+    "acceptance_criteria": [
+      "Given the migration runs from empty, when 'pnpm --filter @monopilot/db migrate' completes, then table tenant_migrations exists with all 8 columns (tenant_id, component, current_version, target_version, cohort, last_run_at, status, failure_reason) and PK = (tenant_id, component)",
+      "Given a row INSERT with cohort='moonshot' (not in CHECK list), when SQL runs, then Postgres rejects the row with a CHECK constraint violation",
+      "Given a row exists with status='running', when a second INSERT for the same (tenant_id, component) is attempted, then the PK constraint rejects it (no duplicate orchestration)",
+      "Given the Drizzle schema is imported, when 'pnpm --filter @monopilot/db typecheck' runs, then tenant_id is inferred as string (UUID) and cohort union literal includes only 'canary' | 'early' | 'general'"
+    ],
+    "test_strategy": [
+      "RED: write packages/db/src/__tests__/tenant-migrations.test.ts covering all four ACs before the schema file exists",
+      "Run 'pnpm --filter @monopilot/db test'"
+    ],
+    "risk_red_lines": [
+      "Do not add an upgrade orchestration Server Action in this task (covered by T-039)",
+      "Do not allow status updates to skip the audit_events emit — the API task wires that up",
+      "Do not partition this table — single global table is correct per §8 (small cardinality)"
+    ],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

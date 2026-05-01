@@ -1,0 +1,62 @@
+{
+  "title": "T-054 — npd_projects + gate_checklist_items + gate_approvals tables (NPD-f)",
+  "prompt": "# T-054 — Stage-Gate core tables\n\nPRD: 01-NPD-PRD.md §17.3, §17.4, §17.5\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nCreate the three foundational Stage-Gate tables (npd_projects, gate_checklist_items, gate_approvals) with R13 audit columns + RLS + indexes per §17.3-§17.5 DDL.\n\n## Implementation contract\n1. Migration packages/db/migrations/0054_npd_projects_and_gates.sql per PRD §17.3-§17.5 DDL exactly: npd_projects (UUID PK, code UNIQUE, current_gate G0..G4|Launched, current_stage, prio, owner, target_launch, product_code FK fa, R13 audit cols), gate_checklist_items (UUID PK, project_id ON DELETE CASCADE, gate_code, category_code, item_text, required, completed_at, completed_by_user, evidence_file), gate_approvals (UUID PK, project_id, gate_code, decision in approved/rejected, approver_user_id, esigned_at, esign_hash).\n2. Indexes: gate_checklist_items (tenant_id, project_id, gate_code) + gate_approvals (tenant_id, project_id, gate_code).\n3. ENABLE ROW LEVEL SECURITY + tenant_isolation policies on all three tables.\n4. Drizzle schemas in packages/db/src/schema/npd-projects.ts + gate-checklist-items.ts + gate-approvals.ts; barrel updated.\n\n## Files\n- packages/db/migrations/0054_npd_projects_and_gates.sql [create]\n- packages/db/src/schema/npd-projects.ts [create]\n- packages/db/src/schema/gate-checklist-items.ts [create]\n- packages/db/src/schema/gate-approvals.ts [create]\n- packages/db/src/schema/index.ts [modify]\n- packages/db/__tests__/npd-projects-and-gates.test.ts [create]\n\n## Acceptance criteria\n1. Given migration 0054 runs, when \\d npd_projects runs, then it lists code (UNIQUE), current_gate, current_stage, prio, owner, target_launch, product_code FK fa(product_code), and R13 audit cols (created_at, created_by_user, app_version, schema_version) per §17.3 DDL\n2. Given an npd_projects row exists, when DELETE on it runs, then matching gate_checklist_items rows are CASCADE-deleted but gate_approvals rows are retained per §17.4 vs §17.5 DDL (CASCADE only on checklist_items)\n3. Given two tenants seeded, when tenant A SELECT * FROM gate_approvals runs, then it returns only tenant A rows (RLS verified)\n\n## Test strategy\n- RED: write packages/db/__tests__/npd-projects-and-gates.test.ts asserting schema shape + cascade rules + RLS isolation before migration exists\n- Run 'pnpm --filter db migrate && pnpm --filter db test npd-projects-and-gates'\n\n## Risk red lines\n- Do not omit ON DELETE CASCADE on gate_checklist_items (per §17.4 DDL)\n- Do not allow ON DELETE CASCADE on gate_approvals (audit immutable)\n- Do not skip RLS on any of the three tables",
+  "labels": ["prd", "data", "schema", "T1-schema"],
+  "priority": 50,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-054",
+    "source_prd": "01-NPD-PRD.md",
+    "prd_refs": ["§17.3", "§17.4", "§17.5"],
+    "category": "data",
+    "subcategory": "stage-gate-core-tables",
+    "task_type": "T1-schema",
+    "parent_feature": "01-NPD-f Stage-Gate Pipeline",
+    "context_budget": "50k",
+    "estimated_effort": "2-3h",
+    "description": "Create npd_projects + gate_checklist_items + gate_approvals tables with RLS + indexes + R13 audit cols per §17.3-§17.5.",
+    "details": "Migration 0054 emits the 3 tables verbatim per PRD DDL. CASCADE only on checklist_items; approvals retained for BRCGS audit. RLS isolation enforced. Drizzle types exported.",
+    "scope_files": [
+      "packages/db/migrations/0054_npd_projects_and_gates.sql [create]",
+      "packages/db/src/schema/npd-projects.ts [create]",
+      "packages/db/src/schema/gate-checklist-items.ts [create]",
+      "packages/db/src/schema/gate-approvals.ts [create]",
+      "packages/db/src/schema/index.ts [modify]",
+      "packages/db/__tests__/npd-projects-and-gates.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not create Reference.GateChecklistTemplates here (T-055)",
+      "Do not seed defaults (T-056)",
+      "Do not implement Server Actions (T-057, T-058)"
+    ],
+    "dependencies": ["T-001"],
+    "parallel_safe_with": ["T-049", "T-063"],
+    "acceptance_criteria": [
+      "Given migration 0054 runs, when \\d npd_projects runs, then it lists code UNIQUE, current_gate, current_stage, prio, owner, target_launch, product_code FK fa(product_code), and R13 audit cols per §17.3 DDL",
+      "Given an npd_projects row exists, when DELETE on it runs, then matching gate_checklist_items rows are CASCADE-deleted but gate_approvals rows are retained per §17.4 vs §17.5 DDL",
+      "Given two tenants seeded, when tenant A SELECT * FROM gate_approvals runs, then it returns only tenant A rows (RLS verified)"
+    ],
+    "test_strategy": [
+      "RED: write npd-projects-and-gates.test.ts asserting schema + cascade + RLS before migration exists",
+      "Run 'pnpm --filter db migrate && pnpm --filter db test npd-projects-and-gates'"
+    ],
+    "risk_red_lines": [
+      "Do not omit ON DELETE CASCADE on gate_checklist_items",
+      "Do not allow ON DELETE CASCADE on gate_approvals",
+      "Do not skip RLS on any of the three tables"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

@@ -1,0 +1,91 @@
+{
+  "title": "T-105 — Location Tree screen (SET-014 §12.2)",
+  "prompt": "# T-105 — Location Tree screen (SET-014 §12.2)\n\nPRD: 02-SETTINGS-PRD.md §12.2 (Infrastructure CRUD UI table)\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nBuild the Location Tree screen from §12.2 (drag-drop deferred to Phase 2; CSV import in scope). Renders ltree-backed `locations` hierarchy as expandable tree, per-warehouse sub-trees, and a CSV import action that posts to T-029 location server actions. V-SET-60 (level=parent.level+1) enforced server-side; UI surfaces errors inline.\n\n## Implementation contract\n1. Page at apps/web/app/(admin)/settings/infra/locations/page.tsx renders Server Component fetching `locations` rows joined by warehouse, ordered by `path`.\n2. Tree primitive (shadcn Accordion + custom indent) shows level 1 (warehouse root) -> 2 (zone) -> 3 (rack) -> 4 (bin), expandable per node.\n3. Toolbar: warehouse filter dropdown + 'Import CSV' button opening a CSV upload dialog (file input -> POST to /api/infra/locations/import dispatcher that calls T-029 internally).\n4. Drag-and-drop reorder is OUT OF SCOPE (Phase 2 per §12.2) — render rows in tree order only.\n5. RBAC: requires `settings.infra.read` for view, `settings.infra.update` for CSV import.\n\n## Files\n- apps/web/app/(admin)/settings/infra/locations/page.tsx [create]\n- apps/web/app/(admin)/settings/infra/locations/page.test.tsx [create]\n\n## Acceptance criteria\nSee `acceptance_criteria` array.\n\n## Test strategy\n1. RED: RTL test mounting tree with seed of 1 warehouse + 2 zones + 4 bins; assert ordered render, CSV upload triggers Server Action with file blob.\n   `pnpm --filter @monopilot/web vitest run apps/web/app/(admin)/settings/infra/locations/page.test.tsx`\n2. RED must fail.\n3. GREEN: implement Server Component + tree + CSV upload dialog.\n4. Re-run RED, then `pnpm typecheck` and `pnpm lint`.\n\n## Risk red lines\n- Do not implement drag-drop (Phase 2 per §12.2).\n- Do not derive ltree paths client-side; rely on T-029 server-side materialization.\n- Do not import @radix-ui/* outside packages/ui (§0).\n\nStack: TS + Next.js App Router + Drizzle + pnpm + vitest + Playwright + Server Actions. PRD: 02-SETTINGS-PRD.md v3.5.\n",
+  "labels": [
+    "prd",
+    "ui",
+    "set-014",
+    "T3-ui"
+  ],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-105",
+    "source_prd": "02-SETTINGS-PRD.md",
+    "prd_refs": [
+      "§12.1",
+      "§12.2",
+      "V-SET-60"
+    ],
+    "category": "ui",
+    "subcategory": "set-014",
+    "task_type": "T3-ui",
+    "parent_feature": "02-settings-e-ui",
+    "context_budget": "40k",
+    "estimated_effort": "1-3h",
+    "description": "Location Tree screen (SET-014): hierarchical view + CSV import; drag-drop deferred to Phase 2.",
+    "details": "PRD §12.2 lists SET-014 (Location Tree) with capability `drag-drop (Phase 2), import CSV`. Tree must reflect ltree path order; CSV import dispatches to T-029 createLocation per row, which validates V-SET-60 (level=parent.level+1) server-side and surfaces row-level errors aggregated in a toast.",
+    "scope_files": [
+      "apps/web/app/(admin)/settings/infra/locations/page.tsx [create]",
+      "apps/web/app/(admin)/settings/infra/locations/page.test.tsx [create]"
+    ],
+    "out_of_scope": [
+      "Drag-and-drop reorder (Phase 2 per §12.2)",
+      "Per-row Location Edit modal (separate SET-015 screen)"
+    ],
+    "dependencies": [
+      "T-009",
+      "T-015",
+      "T-029"
+    ],
+    "parallel_safe_with": [
+      "T-104",
+      "T-106",
+      "T-107"
+    ],
+    "acceptance_criteria": [
+      "Given the locations tree renders, when 1 warehouse + 2 zones + 4 bins exist, then the tree shows the warehouse root, expandable to 2 zones, each expandable to its bins in `path` order.",
+      "Given a CSV with 5 rows where row 3 has `level=3` but `parent.level=1`, when imported, then T-029 returns LEVEL_GAP for row 3 and the UI shows a row-level error toast referencing V-SET-60.",
+      "Given the warehouse filter is set to a single warehouse, when the tree re-renders, then only that warehouse's locations are visible.",
+      "Given the caller lacks `settings.infra.update`, when they open the page, then the Import CSV button is disabled with an aria-label explaining insufficient permissions."
+    ],
+    "test_strategy": [
+      "RED: RTL test renders tree with seed; asserts ordered indent + filter + CSV import error path.",
+      "GREEN: implement tree + CSV upload dispatching to T-029.",
+      "Run `pnpm --filter @monopilot/web vitest run apps/web/app/(admin)/settings/infra/locations/page.test.tsx` and `pnpm typecheck`."
+    ],
+    "risk_red_lines": [
+      "Do not implement drag-drop (Phase 2 per §12.2).",
+      "Do not derive ltree paths client-side; rely on T-029 server-side materialization.",
+      "Do not import @radix-ui/* outside packages/ui (§0)."
+    ],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": false
+  }
+}

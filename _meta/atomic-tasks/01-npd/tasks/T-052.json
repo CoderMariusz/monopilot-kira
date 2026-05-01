@@ -1,0 +1,61 @@
+{
+  "title": "T-052 — UI: NPD Dashboard page (NpdDashboard prototype) — counters + dept breakdown + launch alerts (NPD-e)",
+  "prompt": "# T-052 — NPD Dashboard page UI\n\nPRD: 01-NPD-PRD.md §11.1, §11.7 + UX 01-NPD-UX.md NpdDashboard\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\nPrototype: design/Monopilot Design System/npd/fa-screens.jsx:31-175 (NpdDashboard)\n\n## Goal\nServer Component page /(npd)/dashboard rendering Summary card + Department Progress card + Open Products launch alerts table + interactive controls (Show-built toggle, Refresh-D365 button, search, dept filter chips) matching prototype 1:1 with shadcn primitives.\n\n## Implementation contract\n1. apps/web/app/(npd)/dashboard/page.tsx (RSC) calls getDashboardSummary + getLaunchAlerts in parallel; passes data to client component DashboardClient.\n2. DashboardClient ('use client') wraps SWR with refreshInterval 30000 ms per §11.5 normative contract; renders Summary tile + Dept Progress table + Launch Alerts table.\n3. Interactive controls per §11.7: Show-built toggle (URL ?showBuilt), per-dept filter chips (URL ?dept), free-text search (debounced 300 ms), Refresh D365 button (60 s countdown disable + last_synced_at display).\n4. RTL test snapshot + parity checklist (3 cards + control region) verifies match against prototype line range.\n\n## Files\n- apps/web/app/(npd)/dashboard/page.tsx [create]\n- apps/web/app/(npd)/dashboard/_components/dashboard-client.tsx [create]\n- apps/web/app/(npd)/dashboard/_components/launch-alerts-table.tsx [create]\n- apps/web/app/(npd)/dashboard/_components/__tests__/dashboard-client.test.tsx [create]\n- design/Monopilot Design System/npd/fa-screens.jsx [ref]\n\n## Acceptance criteria\n1. Given the production page renders, when compared to design/Monopilot Design System/npd/fa-screens.jsx:31-175 (NpdDashboard), then it has the same 3 cards (Summary, Dept Progress, Launch Alerts) in the same layout, alert badges colored RED/YELLOW/GREEN via shadcn Badge variants, and Show-built/Refresh/Search controls — verified by RTL snapshot + parity checklist (structural + visual + interaction)\n2. Given URL ?showBuilt=true, when page renders, then built FAs appear in the launch alerts table per §11.7 toggle\n3. Given the SWR loop has been mounted for 31 s, when network log is inspected, then a /api/dashboard/summary request fired at ~30 s per §11.5 polling contract\n4. Given user clicks Refresh D365 button, when the action settles, then the button is disabled for 60 s with countdown, and last_synced_at re-renders per §11.7 throttle contract\n\n## Test strategy\n- RED: RTL test asserting parity (3 cards, badge variants, control presence) + URL toggle behaviour + 30 s SWR + 60 s button disable\n- Run 'pnpm --filter web test dashboard-client'\n\n## Risk red lines\n- Do not use HTML <select> instead of shadcn Select for filters\n- Do not paste prototype JSX verbatim — translate per shadcn primitives\n- Do not introduce client-side websocket dependency (deferred per §11.5)",
+  "labels": ["prd", "ui", "dashboard", "T3-ui"],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-052",
+    "source_prd": "01-NPD-PRD.md",
+    "prd_refs": ["§11.1", "§11.5", "§11.7"],
+    "category": "ui",
+    "subcategory": "dashboard-page",
+    "task_type": "T3-ui",
+    "parent_feature": "01-NPD-e Dashboard",
+    "context_budget": "55k",
+    "estimated_effort": "3-4h",
+    "description": "NPD Dashboard page (RSC + SWR client) with 3 cards + interactive controls matching NpdDashboard prototype.",
+    "details": "Parity checklist (verify all): (1) Summary card 4 counters, (2) Dept Progress 8-row 3-col table (Done/Pending/Blocked), (3) Launch Alerts table with Product_Code/Launch_Date/Days/Alert/Missing cols, (4) Show-built toggle, (5) Refresh-D365 button + last_synced_at, (6) Per-dept chip filter, (7) Search input. SWR refreshInterval=30000 ms per §11.5 normative.",
+    "scope_files": [
+      "apps/web/app/(npd)/dashboard/page.tsx [create]",
+      "apps/web/app/(npd)/dashboard/_components/dashboard-client.tsx [create]",
+      "apps/web/app/(npd)/dashboard/_components/launch-alerts-table.tsx [create]",
+      "apps/web/app/(npd)/dashboard/_components/__tests__/dashboard-client.test.tsx [create]",
+      "design/Monopilot Design System/npd/fa-screens.jsx [ref]"
+    ],
+    "out_of_scope": [
+      "Do not implement Server Actions here (T-051)",
+      "Do not build full E2E test (T-091)"
+    ],
+    "dependencies": ["T-051"],
+    "parallel_safe_with": ["T-053"],
+    "acceptance_criteria": [
+      "Given the production page renders, when compared to design/Monopilot Design System/npd/fa-screens.jsx:31-175 (NpdDashboard), then it has the same 3 cards (Summary, Dept Progress, Launch Alerts) in the same layout, alert badges colored RED/YELLOW/GREEN via shadcn Badge variants, and Show-built/Refresh/Search controls — verified by RTL snapshot + parity checklist",
+      "Given URL ?showBuilt=true, when page renders, then built FAs appear in the launch alerts table per §11.7 toggle",
+      "Given the SWR loop has been mounted for 31 s, when network log is inspected, then a /api/dashboard/summary request fired at ~30 s per §11.5 polling contract",
+      "Given user clicks Refresh D365 button, when the action settles, then the button is disabled for 60 s with countdown and last_synced_at re-renders per §11.7"
+    ],
+    "test_strategy": [
+      "RED: RTL test asserting parity (3 cards, badge variants, controls) + toggle + 30 s SWR + 60 s button disable",
+      "Run 'pnpm --filter web test dashboard-client'"
+    ],
+    "risk_red_lines": [
+      "Do not use HTML <select> instead of shadcn Select",
+      "Do not paste prototype JSX verbatim",
+      "Do not introduce client-side websocket dependency"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

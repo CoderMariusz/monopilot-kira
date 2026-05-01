@@ -1,0 +1,88 @@
+{
+  "title": "T-109 — Migration History screen (SET-064 §9.7)",
+  "prompt": "# T-109 — Migration History screen (SET-064 §9.7)\n\nPRD: 02-SETTINGS-PRD.md §9.7 (L2 UI surfaces)\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nBuild SET-064 Migration History — `tenant_migrations` audit trail viewer (read-only). Distinct from SET-063 Promotions (T-070), which is the operational orchestration screen with Active/History tabs scoped to in-flight + recent rollouts. SET-064 is the full historical list with filters across all statuses + ability to drill into per-row diff snapshot.\n\n## Implementation contract\n1. Page at apps/web/app/(admin)/settings/tenant/migrations/page.tsx (Server Component) reads `tenant_migrations` for caller's org_id, paginated.\n2. List columns: started_at, completed_at, migration_type (canary/promote/rollback), status, initiated_by_user, source_version, target_version.\n3. Toolbar: status filter, type filter, date range filter, search by user.\n4. Each row has 'View snapshot' link opening read-only modal with stored before/after snapshot JSON (no diff diff render — just two collapsible JSON panes).\n5. RBAC: requires `settings.audit.read` (re-uses audit perm from T-001).\n\n## Files\n- apps/web/app/(admin)/settings/tenant/migrations/page.tsx [create]\n- apps/web/app/(admin)/settings/tenant/migrations/page.test.tsx [create]\n\n## Acceptance criteria\nSee `acceptance_criteria` array.\n\n## Test strategy\n1. RED: RTL test seeds 5 tenant_migrations rows across status/type; assert filters narrow rows + RBAC 403 when missing perm.\n   `pnpm --filter @monopilot/web vitest run apps/web/app/(admin)/settings/tenant/migrations/page.test.tsx`\n2. RED must fail.\n3. GREEN: implement Server Component + filters + snapshot modal.\n4. Re-run RED + `pnpm typecheck` + `pnpm lint`.\n\n## Risk red lines\n- Do not duplicate SET-063 promotion controls (T-070); this is read-only history.\n- Do not bypass withOrgContext on tenant_migrations queries.\n- Do not import @radix-ui/* outside packages/ui (§0).\n\nStack: TS + Next.js App Router + Drizzle + pnpm + vitest + Playwright + Server Actions. PRD: 02-SETTINGS-PRD.md v3.5.\n",
+  "labels": [
+    "prd",
+    "ui",
+    "set-064",
+    "T3-ui"
+  ],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-109",
+    "source_prd": "02-SETTINGS-PRD.md",
+    "prd_refs": [
+      "§9.7",
+      "§5.4"
+    ],
+    "category": "ui",
+    "subcategory": "set-064",
+    "task_type": "T3-ui",
+    "parent_feature": "02-settings-b-ui",
+    "context_budget": "40k",
+    "estimated_effort": "1-3h",
+    "description": "Migration History (SET-064) — full read-only audit list of tenant_migrations rows with filters and per-row snapshot viewer.",
+    "details": "PRD §9.7 SET-064: `tenant_migrations audit`. Distinct from SET-063 (T-070) which mixes Active orchestration controls with a History tab; this screen is purely historical with full filter set. Snapshot modal shows raw before/after JSON only — diff visualization is OUT OF SCOPE (could be later enhancement re-using SET-042 helper from T-108).",
+    "scope_files": [
+      "apps/web/app/(admin)/settings/tenant/migrations/page.tsx [create]",
+      "apps/web/app/(admin)/settings/tenant/migrations/page.test.tsx [create]"
+    ],
+    "out_of_scope": [
+      "Active orchestration controls (covered by SET-063 / T-070)",
+      "Inline diff render (defer to future enhancement)"
+    ],
+    "dependencies": [
+      "T-007",
+      "T-015",
+      "T-028"
+    ],
+    "parallel_safe_with": [
+      "T-070"
+    ],
+    "acceptance_criteria": [
+      "Given 5 tenant_migrations rows exist (mix of statuses canary/completed/rolled_back), when the page renders, then all 5 rows are listed with started_at, status, type, initiated_by_user columns populated.",
+      "Given the user filters status='rolled_back' and date range 'last 30 days', when the list re-renders, then only rolled_back rows within that window are visible.",
+      "Given the user clicks 'View snapshot' on a row, when the modal opens, then two collapsible JSON panes (before/after) render the stored snapshot exactly.",
+      "Given the caller lacks `settings.audit.read`, when the page is requested, then a 403 page renders."
+    ],
+    "test_strategy": [
+      "RED: RTL test seeds rows + asserts filters + snapshot modal renders + RBAC 403.",
+      "GREEN: implement Server Component + filters + modal.",
+      "Run `pnpm --filter @monopilot/web vitest run apps/web/app/(admin)/settings/tenant/migrations/page.test.tsx` and `pnpm typecheck`."
+    ],
+    "risk_red_lines": [
+      "Do not duplicate SET-063 promotion controls (T-070); this is read-only history.",
+      "Do not bypass withOrgContext on tenant_migrations queries.",
+      "Do not import @radix-ui/* outside packages/ui (§0)."
+    ],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": false
+  }
+}

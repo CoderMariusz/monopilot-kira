@@ -1,0 +1,91 @@
+{
+  "title": "T-107 — Line List screen (SET-018 §12.2)",
+  "prompt": "# T-107 — Line List screen (SET-018 §12.2)\n\nPRD: 02-SETTINGS-PRD.md §12.2 (Infrastructure CRUD UI table)\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nBuild the Line List screen from §12.2 — list `production_lines` with a per-row machine sequence preview (ordered chip row) and filter by warehouse + status. Activation guarded by V-SET-62 (≥1 machine).\n\n## Implementation contract\n1. Page at apps/web/app/(admin)/settings/infra/lines/page.tsx (Server Component) fetches production_lines + their assigned machines (joined order_seq).\n2. Each row shows: line name, default_location_id breadcrumb, machine sequence chips (ordered) up to 6, overflow `+N more`, status badge.\n3. Toolbar: warehouse filter, status filter, bulk activate/deactivate buttons calling T-029 actions.\n4. Bulk activate flow surfaces V-SET-62 NO_MACHINE error per row (shown inline); successful rows proceed.\n5. RBAC: requires `settings.infra.read` for view, `settings.infra.update` for bulk actions.\n\n## Files\n- apps/web/app/(admin)/settings/infra/lines/page.tsx [create]\n- apps/web/app/(admin)/settings/infra/lines/page.test.tsx [create]\n\n## Acceptance criteria\nSee `acceptance_criteria` array.\n\n## Test strategy\n1. RED: RTL test mounting page with mocked lines (one with 0 machines, one with 4 machines); assert chips render, V-SET-62 error path on activate.\n   `pnpm --filter @monopilot/web vitest run apps/web/app/(admin)/settings/infra/lines/page.test.tsx`\n2. RED must fail.\n3. GREEN: implement Server Component + chips + bulk action wiring.\n4. Re-run RED + `pnpm typecheck` + `pnpm lint`.\n\n## Risk red lines\n- Do not import @radix-ui/* outside packages/ui (§0).\n- Do not bypass V-SET-62 client-side; rely on T-029 server enforcement.\n- Do not implement Line Edit drag-drop (separate SET-019 screen).\n\nStack: TS + Next.js App Router + Drizzle + pnpm + vitest + Playwright + Server Actions. PRD: 02-SETTINGS-PRD.md v3.5.\n",
+  "labels": [
+    "prd",
+    "ui",
+    "set-018",
+    "T3-ui"
+  ],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-107",
+    "source_prd": "02-SETTINGS-PRD.md",
+    "prd_refs": [
+      "§12.1",
+      "§12.2",
+      "V-SET-62"
+    ],
+    "category": "ui",
+    "subcategory": "set-018",
+    "task_type": "T3-ui",
+    "parent_feature": "02-settings-e-ui",
+    "context_budget": "40k",
+    "estimated_effort": "1-3h",
+    "description": "Line List screen (SET-018): production_lines list with machine sequence preview chips and V-SET-62 activate guard.",
+    "details": "PRD §12.2 SET-018: Line List with `machine sequence preview` capability. Machine chips ordered by line_machines.seq; bulk activate must hit T-029 activateLine which raises NO_MACHINE (V-SET-62) when no machines assigned — UI surfaces inline row-level error and proceeds with successful rows.",
+    "scope_files": [
+      "apps/web/app/(admin)/settings/infra/lines/page.tsx [create]",
+      "apps/web/app/(admin)/settings/infra/lines/page.test.tsx [create]"
+    ],
+    "out_of_scope": [
+      "SET-019 Line Edit drag-drop machine assignment — separate screen",
+      "Real-time line state telemetry"
+    ],
+    "dependencies": [
+      "T-009",
+      "T-015",
+      "T-029"
+    ],
+    "parallel_safe_with": [
+      "T-104",
+      "T-105",
+      "T-106"
+    ],
+    "acceptance_criteria": [
+      "Given the lines list renders, when a line has 4 assigned machines (seq 1..4), then the row shows 4 ordered chips in the preview column.",
+      "Given a line has 8 machines, when the row renders, then the first 6 chips show plus a `+2 more` indicator.",
+      "Given a line with 0 machines is bulk-selected and the user clicks Bulk Activate, when T-029 activateLine returns NO_MACHINE (V-SET-62), then the row shows an inline error and the action does not flip status.",
+      "Given the caller lacks `settings.infra.update`, when they view the list, then bulk action buttons are disabled with an aria-label explaining insufficient permissions."
+    ],
+    "test_strategy": [
+      "RED: RTL test mounts list with seed (line0=0 machines, line4=4 machines, line8=8 machines); asserts chip render + +N overflow + V-SET-62 inline error.",
+      "GREEN: implement Server Component + chips + bulk activate error rendering.",
+      "Run `pnpm --filter @monopilot/web vitest run apps/web/app/(admin)/settings/infra/lines/page.test.tsx` and `pnpm typecheck`."
+    ],
+    "risk_red_lines": [
+      "Do not import @radix-ui/* outside packages/ui (§0).",
+      "Do not bypass V-SET-62 client-side; rely on T-029 server enforcement.",
+      "Do not implement Line Edit drag-drop (separate SET-019 screen)."
+    ],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": false
+  }
+}
