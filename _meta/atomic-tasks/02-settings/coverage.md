@@ -368,5 +368,7 @@
 ## Notes
 
 - 25 reference tables (§8.1) are covered by a single generic-CRUD set (T-021/022 + UI T-067) plus dedicated Manufacturing Operations (T-038/039/040 + T-077/078) and dedicated seed (T-093). Per-table seed tasks are intentionally NOT atomized further — `reference_schemas` (T-093) drives schema-driven CRUD for all 25 codes.
+- Reference table #25 `changeover_target_duration_min` (§8.1/§8.8 v3.4 delta) is covered implicitly by T-093 (asserts "25 distinct table codes" in §8.1) — no dedicated migration task required because storage uses generic `reference_tables` row keyed `{line_id}:{fa_code}`.
+- `oee_alert_thresholds.oee_target_pct=70` default (§8.8 v3.4 delta) is covered by T-093 AC#3 ("oee_target_pct default reflects 70 (v3.4)") — no separate seed task required.
 - 6 mistagged prototypes from prototype-index-settings.json (sites/shifts/devices/products/boms/partners) are documented as moved to other modules per D8 in T-095 decisions log; those are NOT covered here.
 - Schema column edit wizard (SET-031), schema diff viewer (SET-032), and CSV import wizard (SET-053) carry parity AC against UX spec because no prototype exists (per Step 7 fallback).

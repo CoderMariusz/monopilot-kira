@@ -1,0 +1,60 @@
+{
+  "title": "T-063 — formulations + formulation_versions + formulation_ingredients + calc_cache + audit_log tables (NPD-g)",
+  "prompt": "# T-063 — Recipe formulation schema\n\nPRD: 01-NPD-PRD.md §17.11.1\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nCreate the 5 formulation tables (formulations, formulation_versions, formulation_ingredients, formulation_calc_cache, formulation_audit_log) per §17.11.1 DDL with RLS + state machine + cascade.\n\n## Implementation contract\n1. Migration packages/db/migrations/0063_formulations.sql per §17.11.1 DDL: formulations (UUID PK, project_id FK, product_code FK fa, current_version_id, locked_at, locked_by_user); formulation_versions (UUID PK, formulation_id ON DELETE CASCADE, version_number, state CHECK in draft/submitted_for_trial/locked, batch_size_kg, target_yield_pct, target_price_eur, UNIQUE(formulation_id, version_number)); formulation_ingredients (UUID PK, version_id ON DELETE CASCADE, rm_code, qty_kg, pct, cost_per_kg_eur, allergens_inherited TEXT[], sequence); formulation_calc_cache (cached cost/nutrition/allergen JSON keyed by version_id); formulation_audit_log (append-only).\n2. ENABLE ROW LEVEL SECURITY + tenant_isolation policies on all 5 tables.\n3. Drizzle schemas in packages/db/src/schema/formulations.ts (single file or 5 split — implementation choice); barrel update.\n4. Indexes: (tenant_id, project_id) on formulations; (formulation_id, version_number) UNIQUE; (version_id, sequence) on ingredients.\n\n## Files\n- packages/db/migrations/0063_formulations.sql [create]\n- packages/db/src/schema/formulations.ts [create]\n- packages/db/src/schema/index.ts [modify]\n- packages/db/__tests__/formulations.test.ts [create]\n\n## Acceptance criteria\n1. Given migration 0063 runs, when \\d formulation_versions runs, then it lists state CHECK in (draft|submitted_for_trial|locked) and UNIQUE(formulation_id, version_number) per §17.11.1 DDL\n2. Given a formulation_version is deleted, when DELETE runs, then matching formulation_ingredients rows are CASCADE-deleted (per ON DELETE CASCADE) and formulation_audit_log rows are retained\n3. Given two tenants seeded, when tenant A SELECT * FROM formulation_ingredients runs, then it returns only tenant A rows (RLS verified through formulation_versions parent join)\n\n## Test strategy\n- RED: write packages/db/__tests__/formulations.test.ts asserting state CHECK + UNIQUE + cascade + RLS before migration exists\n- Run 'pnpm --filter db migrate && pnpm --filter db test formulations'\n\n## Risk red lines\n- Do not allow state values outside the CHECK enum\n- Do not omit ON DELETE CASCADE on formulation_ingredients\n- Do not skip RLS on any of the 5 tables",
+  "labels": ["prd", "data", "schema", "T1-schema"],
+  "priority": 50,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-063",
+    "source_prd": "01-NPD-PRD.md",
+    "prd_refs": ["§17.11.1"],
+    "category": "data",
+    "subcategory": "formulation-schema",
+    "task_type": "T1-schema",
+    "parent_feature": "01-NPD-g Recipe Formulation Editor",
+    "context_budget": "55k",
+    "estimated_effort": "2-3h",
+    "description": "Create 5 formulation tables (formulations, versions, ingredients, calc_cache, audit_log) per §17.11.1 DDL with RLS.",
+    "details": "Migration 0063 emits all 5 tables. State machine enforced via CHECK. CASCADE on ingredients. Audit table append-only. Drizzle types exported.",
+    "scope_files": [
+      "packages/db/migrations/0063_formulations.sql [create]",
+      "packages/db/src/schema/formulations.ts [create]",
+      "packages/db/src/schema/index.ts [modify]",
+      "packages/db/__tests__/formulations.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not implement Server Actions (T-064, T-065)",
+      "Do not build editor UI (T-066, T-067)",
+      "Do not seed Reference.NutritionTargets (covered in T-069 territory)"
+    ],
+    "dependencies": ["T-001", "T-054"],
+    "parallel_safe_with": ["T-049", "T-069", "T-070"],
+    "acceptance_criteria": [
+      "Given migration 0063 runs, when \\d formulation_versions runs, then it lists state CHECK in (draft|submitted_for_trial|locked) and UNIQUE(formulation_id, version_number) per §17.11.1 DDL",
+      "Given a formulation_version is deleted, when DELETE runs, then matching formulation_ingredients rows are CASCADE-deleted and formulation_audit_log rows are retained",
+      "Given two tenants seeded, when tenant A SELECT * FROM formulation_ingredients runs, then it returns only tenant A rows (RLS verified)"
+    ],
+    "test_strategy": [
+      "RED: write packages/db/__tests__/formulations.test.ts asserting state CHECK + UNIQUE + cascade + RLS before migration exists",
+      "Run 'pnpm --filter db migrate && pnpm --filter db test formulations'"
+    ],
+    "risk_red_lines": [
+      "Do not allow state values outside the CHECK enum",
+      "Do not omit ON DELETE CASCADE on formulation_ingredients",
+      "Do not skip RLS on any of the 5 tables"
+    ],
+    "skills": ["test-driven-development", "requesting-code-review"],
+    "checkpoint_policy": {
+      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}
