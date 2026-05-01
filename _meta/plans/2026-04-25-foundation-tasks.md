@@ -262,7 +262,7 @@ Stwórz `lib/reference/ref-tables.enum.ts` — source of truth dla reference tab
 
 ---
 
-## §1 — Sub-module 00-a — Monorepo + Next.js 14 scaffold
+## §1 — Sub-module 00-a — Monorepo + Next.js 16 scaffold
 
 ---
 
@@ -324,7 +324,7 @@ Zainicjuj pnpm monorepo z Turborepo. Workspace resolves `apps/*` + `packages/*`.
 
 ---
 
-## T-00a-002 — Bootstrap `apps/web` (Next.js 14 App Router, TS strict)
+## T-00a-002 — Bootstrap `apps/web` (Next.js 16 App Router, TS strict)
 
 **Type:** T3-ui
 **Prototype ref:** none — no prototype exists for this component
@@ -347,17 +347,17 @@ Zainicjuj pnpm monorepo z Turborepo. Workspace resolves `apps/*` + `packages/*`.
 ### GIVEN / WHEN / THEN
 **GIVEN** workspace is initialised
 **WHEN** `pnpm --filter web dev` runs
-**THEN** Next.js 14 App Router boots at `localhost:3000`, TypeScript `strict: true` + `noUncheckedIndexedAccess: true` enforced
+**THEN** Next.js 16 App Router boots at `localhost:3000`, TypeScript `strict: true` + `noUncheckedIndexedAccess: true` enforced
 
 ### ACP Prompt
 ```
-# Task T-00a-002 — Bootstrap apps/web (Next.js 14 App Router, TS strict)
+# Task T-00a-002 — Bootstrap apps/web (Next.js 16 App Router, TS strict)
 
 ## Twoje zadanie
-Utwórz `apps/web` Next.js 14 App Router z TypeScript strict mode. Placeholder RSC page na `/`.
+Utwórz `apps/web` Next.js 16 App Router z TypeScript strict mode. Placeholder RSC page na `/`.
 
 ## Implementacja
-1. `pnpm create next-app@14 apps/web --ts --app --no-eslint` (bare scaffold)
+1. `pnpm create next-app@16 apps/web --ts --app --no-eslint` (bare scaffold)
 2. Harduj `apps/web/tsconfig.json`: `"strict": true`, `"noUncheckedIndexedAccess": true`
 3. Zamień `apps/web/app/page.tsx` na RSC placeholder: `export default function Home() { return <main>Monopilot</main> }`
 4. Dodaj `dev` script przez Turbo w `turbo.json`
@@ -544,7 +544,7 @@ Skonfiguruj ESLint (flat config), Prettier i TypeScript project references dla c
 Stwórz `README.md` (stack + local run) i `CONTRIBUTING.md` (PR rules + 40k token cap).
 
 ## Implementacja
-1. Utwórz `README.md`: Stack section (Next.js 14/Drizzle/Supabase/shadcn), Local setup (pnpm install + supabase start + pnpm dev), Monorepo layout (apps/web, packages/db, packages/rule-engine), Test commands
+1. Utwórz `README.md`: Stack section (Next.js 16/Drizzle/Supabase/shadcn), Local setup (pnpm install + supabase start + pnpm dev), Monorepo layout (apps/web, packages/db, packages/rule-engine), Test commands
 2. Utwórz `CONTRIBUTING.md`: PR rules, 40k token cap per PR (per PRD §11.3), Marker discipline pointer, link do phase E-0 plan
 3. Commit oba pliki
 

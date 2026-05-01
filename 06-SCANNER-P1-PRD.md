@@ -217,7 +217,7 @@ Admin L2 config decyduje default per site/line. User może override per session 
 | Constraint | Wartość | Rationale |
 |---|---|---|
 | Platform | **PWA** (web, Next.js App Router) | Q1 decision, cross-platform, no store approval |
-| Framework | Next.js 15+ / React 19+ (reuse Monopilot monorepo) | Shared services |
+| Framework | Next.js 16+ / React 19+ (reuse Monopilot monorepo) | Shared services |
 | Styling | Tailwind CSS + custom tokens (slate-900 dark) | Design system spójny z desktop |
 | Barcode P1 | **Code 128, GS1-128** (AI 01 GTIN, 10 Batch, 17 Expiry YYMMDD, 21 Serial, 310x/3103/3922 Weight) | 05-WH §7 GS1-128 spec |
 | Barcode P2 | QR Code, SSCC-18 (AI 00), Data Matrix, GS1-128 extended (AI 13 pack date, AI 15 best-before) | Customer demand driven |

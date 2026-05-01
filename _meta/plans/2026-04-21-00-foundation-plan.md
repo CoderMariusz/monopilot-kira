@@ -208,7 +208,7 @@ FOUNDATION has no "features" in the end-user sense. It is architectural contract
 
 ---
 
-## Task 8: [infra/config] Repo scaffold — Next.js 14+ App Router + TS strict
+## Task 8: [infra/config] Repo scaffold — Next.js 16+ App Router + TS strict
 
 **Files:**
 - Create: `package.json`, `tsconfig.json`, `next.config.mjs`, `app/layout.tsx`, `app/page.tsx`, `app/[tenant]/layout.tsx`
