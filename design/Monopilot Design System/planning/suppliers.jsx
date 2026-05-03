@@ -25,6 +25,7 @@ const SupplierD365Badge = ({ sync }) => {
 // ==================================================================
 // SCREEN — Supplier list (SupplierTable)
 // ==================================================================
+// data-prototype-label: plan_supplier_list
 const PlanSupplierList = ({ onOpenSupplier, onNav }) => {
   const [tab, setTab] = React.useState("active");
   const [search, setSearch] = React.useState("");
@@ -153,6 +154,7 @@ const PlanSupplierList = ({ onOpenSupplier, onNav }) => {
 // ==================================================================
 // SCREEN — Supplier detail (SupplierDetail)
 // ==================================================================
+// data-prototype-label: plan_supplier_detail
 const PlanSupplierDetail = ({ supplierId, onBack, onNav, onOpenPo }) => {
   const [tab, setTab] = React.useState("info");
   const [modal, setModal] = React.useState(null);
@@ -403,6 +405,7 @@ const PlanSupplierDetail = ({ supplierId, onBack, onNav, onOpenPo }) => {
 // ==================================================================
 // MODAL — Supplier create / edit (SupplierForm)
 // ==================================================================
+// data-prototype-label: supplier_form_modal
 const SupplierFormModal = ({ open, mode = "create", supplier, onClose }) => {
   const isEdit = mode === "edit" && supplier;
   const blank = {
@@ -514,6 +517,7 @@ const SupplierFormModal = ({ open, mode = "create", supplier, onClose }) => {
 // ==================================================================
 // MODAL — Deactivate supplier (soft delete per FR-PLAN-001)
 // ==================================================================
+// data-prototype-label: deactivate_supplier_modal
 const DeactivateSupplierModal = ({ open, onClose, supplier }) => {
   const [confirm, setConfirm] = React.useState("");
   const match = confirm.trim() === supplier?.code;

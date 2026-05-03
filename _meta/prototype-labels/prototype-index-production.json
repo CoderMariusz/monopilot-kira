@@ -1,27 +1,24 @@
 {
   "module": "production",
-  "generated_at": "2026-04-30T18:27:34Z",
-  "generator": "audit-fix-2026-04-30",
+  "generated_at": "2026-05-03T12:00:00Z",
+  "generator": "wave-next-production-full-readiness-hardening",
   "mode": "labeling",
   "entries": [
     {
       "label": "release_wo_modal",
       "file": "design/Monopilot Design System/production/modals.jsx",
-      "lines": "3-46",
+      "lines": "3-8",
       "component_type": "modal",
-      "ui_pattern": "crud-form-with-validation",
+      "ui_pattern": "detail-view",
       "data_domain": "WO",
-      "interaction": "create",
-      "complexity": "composite",
+      "interaction": "read-only",
+      "complexity": "primitive",
       "depends_on_prototypes": [],
       "translation_notes": [
-        "window.Modal wrapper → @radix-ui/react-dialog Dialog with DialogContent/DialogHeader/DialogFooter",
-        "Local <select> for WO list → Server Component query from wo table filtered by status='DRAFT' AND bom_released=true, fed into shadcn Select",
-        "BOM snapshot preview card → dedicated BomSnapshotSummary server component reading frozen bom_snapshot row at release time",
-        "Inline date inputs → shadcn DateTimePicker or react-day-picker with controlled state",
-        "Operator assignment select → query from users WHERE certified_for_line=lineId, passed as prop from parent Server Component",
-        "Hardcoded labels (e.g. 'Releasing a WO…') → next-intl t('production.release_wo.info') keys",
-        "On submit: Server Action validates BOM snapshot exists, sets WO status to READY or IN_PROGRESS, emits wo.released outbox event"
+        "Deprecated/stale index entry: production/modals.jsx lines 3-8 explicitly remove ReleaseWoModal as a hallucinated Production scope surface.",
+        "Do not implement a Production DRAFT→READY release modal. Release/readying belongs in 04-PLANNING and must use canonical factory release read model gates.",
+        "Production screens may deep-link to Planning release queue for blocked/draft WOs, but may not bypass Planning/Technical approval.",
+        "Wave Next hardening: do not implement this as a Production modal; keep only to prevent regression to D365/local bom_released source-of-truth."
       ],
       "shadcn_equivalent": [
         "Dialog",
@@ -33,13 +30,17 @@
         "Alert",
         "Card"
       ],
-      "known_bugs": [],
-      "estimated_translation_time_min": 75
+      "known_bugs": [
+        "INDEX_STALE: release_wo_modal label points to removal comment, not a JSX component. Keep only as deprecated cross-module trace until index regeneration removes it."
+      ],
+      "estimated_translation_time_min": 0,
+      "deprecated": true,
+      "deprecated_reason": "Stale historical trace only. Production release/readying was removed; 04-PLANNING owns release and Production only starts WOs with canonical approved active_bom_header_id + active_factory_spec_id."
     },
     {
       "label": "start_wo_modal",
       "file": "design/Monopilot Design System/production/modals.jsx",
-      "lines": "48-67",
+      "lines": "10-29",
       "component_type": "modal",
       "ui_pattern": "crud-form-with-validation",
       "data_domain": "WO",
@@ -51,7 +52,11 @@
         "Confirmation summary card (WO/Line/Operator/Planned) → Summary component reading WO detail from server, not passed as raw prop",
         "Password input for PIN → shadcn Input type='password' maxLength={4}, validated with zod min(4).max(4).regex(/^\\d+$/)",
         "On submit: Server Action hashes/verifies PIN against operator record, sets WO status to IN_PROGRESS, freezes BOM snapshot, starts event log",
-        "Hardcoded labels → next-intl keys (e.g. 'production.start_wo.pin_help')"
+        "Hardcoded labels → next-intl keys (e.g. 'production.start_wo.pin_help')",
+        "Before START, Server Action must verify the WO snapshot references canonical `active_bom_header_id` and `active_factory_spec_id` from the factory release read model and that release_status is `approved_for_factory` or `released_to_factory`.",
+        "If the canonical release row is `pending_npd_release`, `pending_technical_approval`, or `blocked`, disable Start and show typed `release_blockers`; do not rely on D365 sync/Built flags or local `bom_released=true` as source-of-truth.",
+        "BOM snapshot freeze must use the canonical active BOM/spec IDs already admitted by Planning/Technical; Production must not select a newer/latest BOM at start time.",
+        "Wave Next hardening: surface canonical release blockers and active_bom_header_id/active_factory_spec_id; D365 sync/Built flags are display-only integration metadata."
       ],
       "shadcn_equivalent": [
         "Dialog",
@@ -68,7 +73,7 @@
     {
       "label": "pause_line_modal",
       "file": "design/Monopilot Design System/production/modals.jsx",
-      "lines": "69-117",
+      "lines": "31-79",
       "component_type": "modal",
       "ui_pattern": "crud-form-with-validation",
       "data_domain": "WO",
@@ -100,7 +105,7 @@
     {
       "label": "complete_wo_modal",
       "file": "design/Monopilot Design System/production/modals.jsx",
-      "lines": "119-155",
+      "lines": "81-117",
       "component_type": "modal",
       "ui_pattern": "crud-form-with-validation",
       "data_domain": "WO",
@@ -135,7 +140,7 @@
     {
       "label": "over_consume_modal",
       "file": "design/Monopilot Design System/production/modals.jsx",
-      "lines": "157-183",
+      "lines": "119-145",
       "component_type": "modal",
       "ui_pattern": "crud-form-with-validation",
       "data_domain": "WO",
@@ -165,7 +170,7 @@
     {
       "label": "waste_modal",
       "file": "design/Monopilot Design System/production/modals.jsx",
-      "lines": "185-204",
+      "lines": "147-166",
       "component_type": "modal",
       "ui_pattern": "crud-form-with-validation",
       "data_domain": "WO",
@@ -195,7 +200,7 @@
     {
       "label": "catch_weight_modal",
       "file": "design/Monopilot Design System/production/modals.jsx",
-      "lines": "206-244",
+      "lines": "168-206",
       "component_type": "modal",
       "ui_pattern": "crud-form-with-validation",
       "data_domain": "LP",
@@ -225,7 +230,7 @@
     {
       "label": "scanner_modal",
       "file": "design/Monopilot Design System/production/modals.jsx",
-      "lines": "246-278",
+      "lines": "208-240",
       "component_type": "modal",
       "ui_pattern": "list-with-actions",
       "data_domain": "LP",
@@ -252,7 +257,7 @@
     {
       "label": "dlq_inspect_modal",
       "file": "design/Monopilot Design System/production/modals.jsx",
-      "lines": "280-326",
+      "lines": "242-288",
       "component_type": "modal",
       "ui_pattern": "detail-view",
       "data_domain": "WO",
@@ -281,7 +286,7 @@
     {
       "label": "resume_line_modal",
       "file": "design/Monopilot Design System/production/modals.jsx",
-      "lines": "328-342",
+      "lines": "290-304",
       "component_type": "modal",
       "ui_pattern": "crud-form-with-validation",
       "data_domain": "WO",
@@ -308,7 +313,7 @@
     {
       "label": "changeover_gate_modal",
       "file": "design/Monopilot Design System/production/modals.jsx",
-      "lines": "344-364",
+      "lines": "306-326",
       "component_type": "modal",
       "ui_pattern": "crud-form-with-validation",
       "data_domain": "WO",
@@ -322,7 +327,8 @@
         "Gate number (sign gate 4) → parameterized from changeover_step record; step unlocks only when both signatures present (server-enforced)",
         "'Sign & advance' disabled until Quality assigned → derive disabled state from server data (quality_signer_id IS NULL), not just client state",
         "Hardcoded allergen context → pull from changeover.allergen_in / allergen_out fields",
-        "Hardcoded labels → next-intl keys; emit changeover.gate_signed event on success"
+        "Hardcoded labels → next-intl keys; emit changeover.gate_signed event on success",
+        "Wave Next hardening: prototype stub must be expanded by T-048 into full cleaning checklist, ATP capture and dual sign-off UI; no P1 stub accepted."
       ],
       "shadcn_equivalent": [
         "Dialog",
@@ -338,7 +344,7 @@
     {
       "label": "assign_crew_modal",
       "file": "design/Monopilot Design System/production/modals.jsx",
-      "lines": "366-386",
+      "lines": "328-349",
       "component_type": "modal",
       "ui_pattern": "crud-form-with-validation",
       "data_domain": "WO",
@@ -366,7 +372,7 @@
     {
       "label": "shift_start_modal",
       "file": "design/Monopilot Design System/production/modals.jsx",
-      "lines": "438-497",
+      "lines": "400-459",
       "component_type": "modal",
       "ui_pattern": "crud-form-with-validation",
       "data_domain": "WO",
@@ -408,7 +414,7 @@
     {
       "label": "shift_end_modal",
       "file": "design/Monopilot Design System/production/modals.jsx",
-      "lines": "500-557",
+      "lines": "462-519",
       "component_type": "modal",
       "ui_pattern": "crud-form-with-validation",
       "data_domain": "WO",
@@ -441,7 +447,7 @@
     {
       "label": "oee_target_edit_modal",
       "file": "design/Monopilot Design System/production/modals.jsx",
-      "lines": "560-635",
+      "lines": "522-597",
       "component_type": "modal",
       "ui_pattern": "crud-form-with-validation",
       "data_domain": "WO",
@@ -456,7 +462,8 @@
         "Effective date → shadcn DatePicker with min date = tomorrow (cannot backdate targets)",
         "ReasonInput min(10) → shadcn Textarea with zod validation; stored in prod_oee_targets.change_reason",
         "On submit: Server Action inserts into prod_oee_targets (effective_date, line_id, target_a, target_p, target_q, changed_by, reason); existing window closed",
-        "BL-PROD-04: Currently stores in memory — needs prod_oee_targets table with effective-date window for historic comparison"
+        "BL-PROD-04: Currently stores in memory — needs prod_oee_targets table with effective-date window for historic comparison",
+        "Wave Next hardening: implement effective-date window validation via T-045; overlapping OEE targets are blocked."
       ],
       "shadcn_equivalent": [
         "Dialog",
@@ -477,7 +484,7 @@
     {
       "label": "tweaks_panel",
       "file": "design/Monopilot Design System/production/modals.jsx",
-      "lines": "389-428",
+      "lines": "351-390",
       "component_type": "sidebar",
       "ui_pattern": "crud-form-with-validation",
       "data_domain": "WO",
@@ -499,7 +506,9 @@
         "Button"
       ],
       "known_bugs": [],
-      "estimated_translation_time_min": 35
+      "estimated_translation_time_min": 35,
+      "feature_flag": "production.tweaks_panel.enabled",
+      "p1_readiness_status": "explicit_non_blocker_internal_devtools_hidden_by_default"
     },
     {
       "label": "wo_list",
@@ -511,7 +520,6 @@
       "interaction": "read-only",
       "complexity": "page-level",
       "depends_on_prototypes": [
-        "release_wo_modal",
         "pause_line_modal",
         "resume_line_modal",
         "start_wo_modal"
@@ -524,7 +532,9 @@
         "Progress bar per row (consumed/planned) → shadcn Progress with computed value; pct capped at 100",
         "Row click → navigates to /production/wo/[id] (WODetail page); action buttons stop propagation via e.stopPropagation()",
         "Export button → Server Action streaming CSV response from same Drizzle query",
-        "Allergen gate badge → derived from wo.allergen_gate boolean field"
+        "Allergen gate badge → derived from wo.allergen_gate boolean field",
+        "Show factory release read-model state separately from Production runtime state and D365 push state; pending/blocked WOs are visible only as non-startable with typed blockers.",
+        "Wave Next hardening: blocked/draft WOs may deep-link to Planning release queue; Production UI must not expose Release WO action."
       ],
       "shadcn_equivalent": [
         "Table",
@@ -565,7 +575,9 @@
         "Over-consumption alert banner → render conditionally from wo.pendingOverConsumptions array; Approve/Reject buttons open respective modals (client components)",
         "Progress bars for consumption and output → shadcn Progress; values computed from wo.consumed/plannedQty and wo.output/outputTarget",
         "Action buttons (Pause/Waste/Catch-weight/Complete) → client-side button group opening modals; must check WO status server-side before showing",
-        "BOM snapshot badge → display wo.bomSnapshotVersion, link to Technical BOM detail view"
+        "BOM snapshot badge → display wo.bomSnapshotVersion, link to Technical BOM detail view",
+        "Show factory release read-model state separately from Production runtime state and D365 push state; pending/blocked WOs are visible only as non-startable with typed blockers.",
+        "Wave Next hardening: surface canonical release blockers and active_bom_header_id/active_factory_spec_id; D365 sync/Built flags are display-only integration metadata."
       ],
       "shadcn_equivalent": [
         "Tabs",
@@ -584,7 +596,7 @@
     {
       "label": "consumption_tab",
       "file": "design/Monopilot Design System/production/wo-detail.jsx",
-      "lines": "90-176",
+      "lines": "256-345",
       "component_type": "table",
       "ui_pattern": "detail-view",
       "data_domain": "WO",
@@ -621,7 +633,7 @@
     {
       "label": "output_tab",
       "file": "design/Monopilot Design System/production/wo-detail.jsx",
-      "lines": "179-238",
+      "lines": "346-408",
       "component_type": "table",
       "ui_pattern": "list-with-actions",
       "data_domain": "LP",
@@ -655,7 +667,7 @@
     {
       "label": "genealogy_tab",
       "file": "design/Monopilot Design System/production/wo-detail.jsx",
-      "lines": "285-332",
+      "lines": "453-503",
       "component_type": "tabs",
       "ui_pattern": "detail-view",
       "data_domain": "WO",
@@ -682,7 +694,7 @@
     {
       "label": "history_tab",
       "file": "design/Monopilot Design System/production/wo-detail.jsx",
-      "lines": "335-358",
+      "lines": "504-530",
       "component_type": "table",
       "ui_pattern": "detail-view",
       "data_domain": "WO",
@@ -721,7 +733,6 @@
       "complexity": "page-level",
       "depends_on_prototypes": [
         "line_card",
-        "release_wo_modal",
         "pause_line_modal",
         "catch_weight_modal",
         "waste_modal",
@@ -735,7 +746,9 @@
         "Recent events feed → query wo_events + downtime_events last 30 min, merged and sorted by occurred_at; consider Server-Sent Events for live updates",
         "Quick actions panel → static list of buttons triggering modals; no data fetch needed",
         "Shift targets panel → query shift_kpi_summary view for current shift window; progress bars computed client-side from target vs actual",
-        "TV mode button → CSS class toggle adding fullscreen layout; target audience is plant floor displays (BL-OEE-06 reference)"
+        "TV mode button → CSS class toggle adding fullscreen layout; target audience is plant floor displays (BL-OEE-06 reference)",
+        "Show factory release read-model state separately from Production runtime state and D365 push state; pending/blocked WOs are visible only as non-startable with typed blockers.",
+        "Wave Next hardening: blocked/draft WOs may deep-link to Planning release queue; Production UI must not expose Release WO action."
       ],
       "shadcn_equivalent": [
         "Card",
@@ -762,8 +775,7 @@
         "pause_line_modal",
         "resume_line_modal",
         "complete_wo_modal",
-        "changeover_gate_modal",
-        "release_wo_modal"
+        "changeover_gate_modal"
       ],
       "translation_notes": [
         "line prop from LINES mock → Server Component receiving a line record from Drizzle query including active WO, operator, status, consumed/planned, downtime events",
@@ -772,7 +784,8 @@
         "Operator avatar (opInit abbreviation) → derive from operator.display_name first+last initials; shadcn Avatar with fallback",
         "Next WO chip → query wo WHERE line_id=lineId AND status='READY' ORDER BY planned_start LIMIT 1",
         "Action buttons vary by status → client-side conditional rendering; all modal triggers are client interactions, line data is server-fetched",
-        "Allergen change warning → from line.nextWoAllergenChange boolean derived from WO-to-WO allergen diff"
+        "Allergen change warning → from line.nextWoAllergenChange boolean derived from WO-to-WO allergen diff",
+        "Wave Next hardening: blocked/draft WOs may deep-link to Planning release queue; Production UI must not expose Release WO action."
       ],
       "shadcn_equivalent": [
         "Card",
@@ -845,7 +858,8 @@
         "Today's output table (static rows in prototype) → Drizzle query from lp_outputs WHERE line_id=lineId AND registered_at::date = TODAY; BL-PROD-01 flags this as static",
         "Yield rolling 4h chart (Spark component) → real hourly bucket aggregation from wo_events; replace Spark with Recharts AreaChart",
         "OEE breakdown gauge ring (GaugeRing SVG) → use a Recharts RadialBarChart or a dedicated gauge library; A/P/Q formulas are documented in component comments",
-        "Live event stream sidebar → Server-Sent Events stream from /api/lines/[id]/events endpoint, replacing static d.events mock array"
+        "Live event stream sidebar → Server-Sent Events stream from /api/lines/[id]/events endpoint, replacing static d.events mock array",
+        "Show factory release read-model state separately from Production runtime state and D365 push state; pending/blocked WOs are visible only as non-startable with typed blockers."
       ],
       "shadcn_equivalent": [
         "Tabs",
@@ -1122,6 +1136,75 @@
         "BL-PROD-04: OEE target edit (linked from this screen) stores targets in memory — needs prod_oee_targets table"
       ],
       "estimated_translation_time_min": 110
+    },
+    {
+      "label": "production_shifts_screen",
+      "file": "design/Monopilot Design System/production/other-screens.jsx",
+      "lines": "215-291",
+      "component_type": "page-layout",
+      "ui_pattern": "list-with-actions",
+      "data_domain": "WO",
+      "interaction": "read-only",
+      "complexity": "page-level",
+      "depends_on_prototypes": [],
+      "translation_notes": [
+        "SHIFT_CREW / LINES mock arrays → Server Component fetching shift_assignments JOIN production_lines JOIN users WHERE shift_date = today AND site = session.siteId",
+        "Start/End shift buttons → Server Actions ShiftManager.start() and ShiftManager.end() with RBAC guard (Shift Lead role); emit shift.started / shift.ended outbox events",
+        "Re-assign crew modal link → opens AssignCrewModal Dialog passed as prop from parent layout; crew re-assignment Server Action validates line capacity constraints",
+        "Line assignment table (line/operator/status/current WO) → shadcn Table with live status Badge; poll or SSE for real-time WO status without full page reload"
+      ],
+      "shadcn_equivalent": [
+        "Table",
+        "TableHeader",
+        "TableBody",
+        "TableRow",
+        "TableCell",
+        "Badge",
+        "Button",
+        "Card",
+        "CardHeader"
+      ],
+      "known_bugs": [],
+      "estimated_translation_time_min": 70
+    },
+    {
+      "label": "production_settings_screen",
+      "file": "design/Monopilot Design System/production/other-screens.jsx",
+      "lines": "560-649",
+      "component_type": "page-layout",
+      "ui_pattern": "crud-form-with-validation",
+      "data_domain": "WO",
+      "interaction": "edit",
+      "complexity": "page-level",
+      "depends_on_prototypes": [],
+      "translation_notes": [
+        "Mock prod_settings object → Server Component fetching prod_settings table (one row per site), passed as defaultValues to react-hook-form useForm",
+        "Per-section toggle groups (OEE mode, consumptions tolerance, catch weight, D365 sync) → shadcn Switch components within shadcn Card sections; each onChange triggers Server Action patchSetting(key, value)",
+        "Tolerance percentage inputs → shadcn Input type='number' with zod .number().min(0).max(100); display as percentage with % suffix via InputAdornment pattern",
+        "Save → single Server Action upsertProductionSettings(data) with RBAC guard (Admin|Production Manager); emit prod_settings.updated outbox event; settings cached per site"
+      ],
+      "shadcn_equivalent": [
+        "Card",
+        "CardHeader",
+        "CardContent",
+        "Form",
+        "FormField",
+        "Input",
+        "Switch",
+        "Select",
+        "Button",
+        "Separator"
+      ],
+      "known_bugs": [],
+      "estimated_translation_time_min": 80
     }
-  ]
+  ],
+  "readiness_notes": {
+    "status": "95%+ docs/meta/prototype/task readiness after Wave Next hardening",
+    "deprecated_labels": [
+      "release_wo_modal"
+    ],
+    "ui_evidence_policy": "T3-ui/T4-e2e tasks require screenshots/artifacts and Playwright traces/artifacts",
+    "canonical_release_contract": "Production starts only WOs with approved/released canonical release row and active_bom_header_id + active_factory_spec_id; D365 is not source-of-truth."
+  }
 }

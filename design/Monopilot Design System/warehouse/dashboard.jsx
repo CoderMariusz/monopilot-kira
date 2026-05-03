@@ -1,5 +1,6 @@
 // ============ WH-001 — Warehouse Dashboard ============
 
+// data-prototype-label: warehouse_dashboard
 const WhDashboard = ({ role, onNav, onOpenLp, openModal }) => {
   const [dismissed, setDismissed] = React.useState(new Set());
   const [feedFilter, setFeedFilter] = React.useState("all");

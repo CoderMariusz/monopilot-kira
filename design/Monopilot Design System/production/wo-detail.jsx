@@ -1,5 +1,6 @@
 // ============ WO Detail — the main operational screen ============
 
+// data-prototype-label: wo_detail
 const WODetail = ({ onBack, openModal }) => {
   // Audit Fix-5b: WO Detail tab set extended from 6 → 8 tabs to match UX
   // SCR-08-02 spec (Overview + QA Results were missing). Default tab is now
@@ -252,6 +253,7 @@ const QAResultsTab = ({ w, openModal }) => {
 };
 
 // ------ Consumption ------
+// data-prototype-label: consumption_tab
 const ConsumptionTab = ({ w, openModal }) => (
   <div style={{display:"grid", gridTemplateColumns:"1fr 320px", gap:12, alignItems:"flex-start"}}>
     <div className="bom-consumption">
@@ -341,6 +343,7 @@ const ConsumptionTab = ({ w, openModal }) => (
 );
 
 // ------ Output ------
+// data-prototype-label: output_tab
 const OutputTab = ({ w, openModal }) => (
   <div>
     <div className="card">
@@ -447,6 +450,7 @@ const DowntimeTab = ({ w, openModal }) => (
 );
 
 // ------ Genealogy ------
+// data-prototype-label: genealogy_tab
 const GenealogyTab = ({ w }) => (
   <div className="card">
     <div className="card-head">
@@ -497,6 +501,7 @@ const GenealogyTab = ({ w }) => (
 );
 
 // ------ History ------
+// data-prototype-label: history_tab
 const HistoryTab = ({ w }) => (
   <div className="card">
     <div className="card-head">

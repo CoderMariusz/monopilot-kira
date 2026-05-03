@@ -389,6 +389,7 @@ const CameraScanner = ({ onNav, returnTo = "home", onResult }) => {
 
   return (
     <>
+      {/* data-prototype-label: camera_scanner */}
       <Topbar title="Skanuj kamerą" onBack={() => onNav(returnTo)} syncState="online"/>
       <Content style={{padding:0, background:"#000"}}>
         <div style={{position:"relative", width:"100%", height:"100%", minHeight:460, overflow:"hidden", background:"#000"}}>

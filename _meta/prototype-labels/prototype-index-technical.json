@@ -1750,6 +1750,455 @@
       ],
       "known_bugs": [],
       "estimated_translation_time_min": 60
+    },
+    {
+      "label": "technical_products_screen",
+      "file": "design/Monopilot Design System/settings/data-screens.jsx",
+      "lines": "4-52",
+      "component_type": "table",
+      "ui_pattern": "search-filter-list",
+      "data_domain": "FA",
+      "interaction": "read-only",
+      "complexity": "page-level",
+      "depends_on_prototypes": [],
+      "translation_notes": [
+        "Mock product list array → Server Component Drizzle query finished_articles WHERE active = true ORDER BY fa_code; paginate with searchParam ?q=&page=",
+        "Filter pills (All/Active/Archived/Intermediates) → URL searchParam ?status=all|active|archived|intermediate, server-side WHERE clause on status field",
+        "Row actions (Edit/Archive) → on-row Button linking to product detail page or opening ArchiveProductModal; RBAC: Edit requires technologist role",
+        "Search bar → debounced URL searchParam update with useDeferredValue or server-side ILIKE on fa_code|name"
+      ],
+      "shadcn_equivalent": [
+        "Table",
+        "TableHeader",
+        "TableBody",
+        "TableRow",
+        "TableCell",
+        "Badge",
+        "Input",
+        "Button",
+        "DropdownMenu"
+      ],
+      "known_bugs": [],
+      "estimated_translation_time_min": 50
+    },
+    {
+      "label": "technical_boms_screen",
+      "file": "design/Monopilot Design System/settings/data-screens.jsx",
+      "lines": "55-103",
+      "component_type": "page-layout",
+      "ui_pattern": "list-with-actions",
+      "data_domain": "BOM",
+      "interaction": "read-only",
+      "complexity": "page-level",
+      "depends_on_prototypes": [],
+      "translation_notes": [
+        "Mock BOM list array → Server Component Drizzle query bom_headers WHERE active = true JOIN finished_articles ON fa_code; paginate with searchParam",
+        "Version badge (v8, v12) → shadcn Badge showing current_version from bom_headers.version; click to open BOM detail page",
+        "Status column (draft/approved/superseded) → shadcn Badge variant mapped from bom_headers.status; filter pill synced to URL searchParam ?status=",
+        "New BOM button → links to /technical/boms/new or opens BomVersionSaveModal; RBAC guard: requires technologist role minimum"
+      ],
+      "shadcn_equivalent": [
+        "Table",
+        "TableHeader",
+        "TableBody",
+        "TableRow",
+        "TableCell",
+        "Badge",
+        "Button",
+        "Input"
+      ],
+      "known_bugs": [],
+      "estimated_translation_time_min": 45
+    },
+    {
+      "label": "technical_partners_screen",
+      "file": "design/Monopilot Design System/settings/data-screens.jsx",
+      "lines": "106-148",
+      "component_type": "table",
+      "ui_pattern": "search-filter-list",
+      "data_domain": "Spec",
+      "interaction": "read-only",
+      "complexity": "page-level",
+      "depends_on_prototypes": [],
+      "translation_notes": [
+        "Mock partners array → Server Component Drizzle query technical_partners WHERE active = true; partners represent external supplier spec contacts",
+        "Search and filter → URL searchParam ?q= with server ILIKE on partner_name|contact_email",
+        "Partner type badge (Supplier/CoMfg/Lab) → shadcn Badge variant mapped from partner_type enum",
+        "Edit button per row → navigates to /technical/partners/{id} or opens edit modal; RBAC guard: requires technologist role minimum"
+      ],
+      "shadcn_equivalent": [
+        "Table",
+        "TableHeader",
+        "TableBody",
+        "TableRow",
+        "TableCell",
+        "Badge",
+        "Input",
+        "Button"
+      ],
+      "known_bugs": [],
+      "estimated_translation_time_min": 40
+    },
+    {
+      "label": "technical_nutrition_screen",
+      "file": "design/Monopilot Design System/technical/other-screens.jsx",
+      "lines": "608-661",
+      "component_type": "table",
+      "ui_pattern": "detail-view",
+      "data_domain": "FA",
+      "interaction": "edit",
+      "complexity": "composite",
+      "depends_on_prototypes": [],
+      "translation_notes": [
+        "Mock nutrition_facts array for FA → Server Component fetching nutrition_facts WHERE fa_code = ? via Drizzle, sorted by nutrient display_order",
+        "Per-row editable value cells → inline editing with react-hook-form field array; each cell is an Input with zod .number().nonneg()",
+        "Reference daily values column → fetched from nutrition_reference_values table by regulation (EU/UK); toggled via Tabs",
+        "Save → Server Action upsertNutritionFacts(faCode, nutrients[]) with RBAC guard (technologist); emit fa.nutrition_updated outbox event"
+      ],
+      "shadcn_equivalent": [
+        "Table",
+        "TableHeader",
+        "TableBody",
+        "TableRow",
+        "TableCell",
+        "Input",
+        "Tabs",
+        "TabsList",
+        "TabsTrigger",
+        "Button"
+      ],
+      "known_bugs": [],
+      "estimated_translation_time_min": 55
+    },
+    {
+      "label": "technical_costing_screen",
+      "file": "design/Monopilot Design System/technical/other-screens.jsx",
+      "lines": "664-712",
+      "component_type": "dashboard-tile",
+      "ui_pattern": "detail-view",
+      "data_domain": "FA",
+      "interaction": "read-only",
+      "complexity": "composite",
+      "depends_on_prototypes": [],
+      "translation_notes": [
+        "Mock cost breakdown → Server Component fetching std_costs JOIN cost_components for FA; derive RM/Labour/Overhead/Other cost lines",
+        "Cost tile cards (RM cost / labour / overhead / total) → shadcn Card grid (2x2); values formatted with Intl.NumberFormat and tenant currency",
+        "Cost trend mini chart → recharts LineChart or shadcn chart; X-axis = effective_from dates, Y-axis = total_cost; limit to last 6 versions",
+        "Cost history link → navigates to /finance/costs?fa_code={faCode} filtered view in Finance module; RBAC: read-only for technologist, edit only for Finance Manager"
+      ],
+      "shadcn_equivalent": [
+        "Card",
+        "CardHeader",
+        "CardContent",
+        "Badge",
+        "Button"
+      ],
+      "known_bugs": [],
+      "estimated_translation_time_min": 40
+    },
+    {
+      "label": "technical_d365_mapping_screen",
+      "file": "design/Monopilot Design System/technical/other-screens.jsx",
+      "lines": "938-978",
+      "component_type": "table",
+      "ui_pattern": "detail-view",
+      "data_domain": "FA",
+      "interaction": "edit",
+      "complexity": "page-level",
+      "depends_on_prototypes": [],
+      "translation_notes": [
+        "Mock D365 mapping fields for FA → Server Component fetching d365_fa_mappings WHERE fa_code = ? joining to d365_items",
+        "D365 item ID field with sync status → shadcn Input (readOnly unless in edit mode) + Badge showing sync_status from d365_fa_mappings.last_sync_status",
+        "Edit mapping button → enters edit mode; Server Action validateD365Item(d365Id) verifies item exists in D365 before saving mapping",
+        "Save → Server Action updateFaD365Mapping(faCode, d365Id) with RBAC guard (Admin only); emit fa.d365_mapping_updated outbox event; D365 integration metadata only, not source-of-truth"
+      ],
+      "shadcn_equivalent": [
+        "Table",
+        "TableHeader",
+        "TableBody",
+        "TableRow",
+        "TableCell",
+        "Input",
+        "Badge",
+        "Button"
+      ],
+      "known_bugs": [],
+      "estimated_translation_time_min": 45
+    },
+    {
+      "label": "bulk_import_csv_screen",
+      "file": "design/Monopilot Design System/technical/spec-driven-screens.jsx",
+      "lines": "25-218",
+      "component_type": "wizard",
+      "ui_pattern": "import-export",
+      "data_domain": "FG",
+      "interaction": "import",
+      "complexity": "page-level",
+      "depends_on_prototypes": [
+        "design/Monopilot Design System/_shared/modals.jsx#Stepper",
+        "design/Monopilot Design System/_shared/modals.jsx#Field",
+        "design/Monopilot Design System/_shared/modals.jsx#ReasonInput",
+        "design/Monopilot Design System/_shared/modals.jsx#Summary",
+        "design/Monopilot Design System/_shared/primitives.jsx#KPI",
+        "design/Monopilot Design System/technical/other-screens.jsx#PageHeader"
+      ],
+      "translation_notes": [
+        "Local useState step machine (upload→validate→diff→confirm) → server-paginated wizard route segments under /technical/items/import with state in URL search params + useTransition pending UI",
+        "Mock validation/diff arrays → Drizzle query against staged_import_rows + Server Action validateImportBatch(scope, fileId) returning { errors, warnings, diff }",
+        "scope <select> → zod enum schema fg|wip|rm|rm_supplier_specs; reject unknown via FormMessage; org_id always taken from auth session, never from CSV",
+        "Apply import button → Server Action applyBulkImport({ scope, fileId, reason }) wrapped in DB transaction; emit outbox event tech.bulk_import.applied with actor + diff summary",
+        "Hardcoded Polish placeholders → next-intl t('tech.bulk_import.*') keys including the audit reason example",
+        "Reversible undo-import note → real cron worker tech.import.undo with 24h TTL backed by import_audit table",
+        "Spec-driven Wave0 surface (TEC-014) — PRD §6.5 + design/03-TECHNICAL-UX.md remain canonical; this prototype illustrates layout/flow only",
+        "Production must expose data-prototype-label='bulk_import_csv_screen' on the page-level wrapper"
+      ],
+      "shadcn_equivalent": [
+        "Card",
+        "Form",
+        "FormField",
+        "FormLabel",
+        "FormMessage",
+        "Input",
+        "Select",
+        "Textarea",
+        "Button",
+        "Alert",
+        "Badge",
+        "Table"
+      ],
+      "known_bugs": [],
+      "estimated_translation_time_min": 90
+    },
+    {
+      "label": "bom_snapshots_viewer_screen",
+      "file": "design/Monopilot Design System/technical/spec-driven-screens.jsx",
+      "lines": "223-303",
+      "component_type": "page-layout",
+      "ui_pattern": "search-filter-list",
+      "data_domain": "BOM",
+      "interaction": "read-only",
+      "complexity": "page-level",
+      "depends_on_prototypes": [
+        "design/Monopilot Design System/technical/other-screens.jsx#PageHeader"
+      ],
+      "translation_notes": [
+        "Static snapshots[] array → Drizzle query against bom_snapshots WHERE org_id = ? ORDER BY taken_at DESC; Server Component pagination",
+        "filter pills + WO text filter → URL search params (?status=in_use&wo=WO-12044) consumed by parent Server Component to keep snapshots immutably read-only",
+        "Diff vs current button → opens BomSnapshotDiffModal via useState { openSnapshot } in parent client component; modal data prop is the row",
+        "Status badges (in_use|closed|orphaned) → derive in SQL view bom_snapshot_status_v based on referencing WO state and canonical BOM existence",
+        "Spec-driven Wave0 surface (TEC-025) — snapshots are immutable; never expose an edit action even via overflow menu",
+        "Red-line: orphaned snapshots stay read-only; do not auto-prune even if canonical BOM version was hard-deleted",
+        "Production must expose data-prototype-label='bom_snapshots_viewer_screen' on the page-level wrapper"
+      ],
+      "shadcn_equivalent": [
+        "Card",
+        "Tabs",
+        "Input",
+        "Table",
+        "TableHeader",
+        "TableBody",
+        "TableRow",
+        "TableCell",
+        "Badge",
+        "Button",
+        "Alert"
+      ],
+      "known_bugs": [],
+      "estimated_translation_time_min": 50
+    },
+    {
+      "label": "bom_snapshot_diff_modal",
+      "file": "design/Monopilot Design System/technical/spec-driven-screens.jsx",
+      "lines": "307-354",
+      "component_type": "modal",
+      "ui_pattern": "detail-view",
+      "data_domain": "BOM",
+      "interaction": "read-only",
+      "complexity": "composite",
+      "depends_on_prototypes": [
+        "design/Monopilot Design System/_shared/modals.jsx#Modal",
+        "design/Monopilot Design System/_shared/modals.jsx#Summary"
+      ],
+      "translation_notes": [
+        "window.Modal → Radix Dialog; force size='wide' to fit JSON-flatten diff table",
+        "Static diff[] → Server Action computeSnapshotDiff(snapshotId) returning flattened JSON-path diffs vs current canonical BOM",
+        "Export JSON button → Server Action streamSnapshotJson(snapshotId) with Content-Disposition; immutability is implicit because snapshot rows are read-only",
+        "kind badges (noop|chg|add|rem) → derive via stable JSON-path diff library (e.g. fast-json-patch) on server side; client never re-derives",
+        "Spec-driven Wave0 surface (TEC-025 companion) — companion to bom_snapshots_viewer_screen; never include any save/apply action that mutates snapshot",
+        "Production must expose data-prototype-label='bom_snapshot_diff_modal' on Dialog content root"
+      ],
+      "shadcn_equivalent": [
+        "Dialog",
+        "DialogContent",
+        "DialogHeader",
+        "DialogFooter",
+        "Table",
+        "Badge",
+        "Button",
+        "Alert"
+      ],
+      "known_bugs": [],
+      "estimated_translation_time_min": 40
+    },
+    {
+      "label": "regulatory_compliance_dashboard_screen",
+      "file": "design/Monopilot Design System/technical/spec-driven-screens.jsx",
+      "lines": "359-446",
+      "component_type": "dashboard-tile",
+      "ui_pattern": "dashboard-tile",
+      "data_domain": "FG",
+      "interaction": "read-only",
+      "complexity": "page-level",
+      "depends_on_prototypes": [
+        "design/Monopilot Design System/_shared/primitives.jsx#KPI",
+        "design/Monopilot Design System/technical/other-screens.jsx#PageHeader"
+      ],
+      "translation_notes": [
+        "Static regs[] coverage % → SQL view regulatory_coverage_v aggregating per-FG checks per regulation; refreshed by cron, surfaced via Server Component",
+        "Static flags[] → projection regulatory_flags_v joining label/spec/lab_results/HACCP records with severity computed by rule engine",
+        "Route action → Server Action routeRegulatoryFlag({ flagId, target }) that creates a 09-QUALITY task or 03-Technical ECO; never auto-resolves the flag here",
+        "Severity badges (high|medium|low) → derive deterministically server-side; client only renders the badge",
+        "Spec-driven Wave0 surface (TEC-031) — routing/remediation only, not legal advice; copy must keep that disclaimer",
+        "Quality-owned lifecycle: lab/NCR remediation lives in 09-QUALITY; this screen never marks lab results pass/fail",
+        "Production must expose data-prototype-label='regulatory_compliance_dashboard_screen' on the page wrapper"
+      ],
+      "shadcn_equivalent": [
+        "Card",
+        "Progress",
+        "Table",
+        "TableHeader",
+        "TableBody",
+        "TableRow",
+        "TableCell",
+        "Badge",
+        "Button",
+        "Alert"
+      ],
+      "known_bugs": [],
+      "estimated_translation_time_min": 60
+    },
+    {
+      "label": "lab_results_log_screen",
+      "file": "design/Monopilot Design System/technical/spec-driven-screens.jsx",
+      "lines": "451-546",
+      "component_type": "page-layout",
+      "ui_pattern": "search-filter-list",
+      "data_domain": "Spec",
+      "interaction": "read-only",
+      "complexity": "page-level",
+      "depends_on_prototypes": [
+        "design/Monopilot Design System/technical/other-screens.jsx#PageHeader"
+      ],
+      "translation_notes": [
+        "Static results[] → projection from quality.lab_results joined to specs by spec_id; expose only as Server Component prop, never via Technical Server Action",
+        "filter pills + text search → URL search params; parent Server Component re-queries on change",
+        "Verdict badges (pass|fail|ncr) → derive from quality.lab_results.verdict; Technical client never edits or re-derives",
+        "ATP RLU bar visualization → presentation-only; threshold comes from the referenced quality.lab_methods row, not hard-coded here",
+        "'Open in QA' link → cross-module navigation to /quality/lab/<id>; do not duplicate quality forms here",
+        "Spec-driven Wave0 surface (TEC-045) — Quality owns the lifecycle, Technical is read-only; production must hide any write action even with admin role",
+        "Production must expose data-prototype-label='lab_results_log_screen' on the page wrapper"
+      ],
+      "shadcn_equivalent": [
+        "Card",
+        "Tabs",
+        "Input",
+        "Table",
+        "TableHeader",
+        "TableBody",
+        "TableRow",
+        "TableCell",
+        "Badge",
+        "Progress",
+        "Alert"
+      ],
+      "known_bugs": [],
+      "estimated_translation_time_min": 50
+    },
+    {
+      "label": "cost_import_d365_screen",
+      "file": "design/Monopilot Design System/technical/spec-driven-screens.jsx",
+      "lines": "551-648",
+      "component_type": "page-layout",
+      "ui_pattern": "import-export",
+      "data_domain": "FA",
+      "interaction": "import",
+      "complexity": "page-level",
+      "depends_on_prototypes": [
+        "design/Monopilot Design System/_shared/modals.jsx#Field",
+        "design/Monopilot Design System/_shared/modals.jsx#ReasonInput",
+        "design/Monopilot Design System/_shared/primitives.jsx#KPI",
+        "design/Monopilot Design System/technical/other-screens.jsx#PageHeader"
+      ],
+      "translation_notes": [
+        "useState d365Enabled toggle (prototype demo) → server-side feature flag from settings.integrations.d365.enabled per org; never user-toggleable from this screen in production",
+        "Static diffRows[] → Server Action fetchD365CostDelta() returning { rows, source, fetchedAt }; respects connector circuit breaker",
+        "Apply import button → Server Action applyD365CostImport({ rows, reason }) that creates new cost_entry rows tagged source='d365'; never overwrites local cost history in place",
+        "Sign-off reason ReasonInput → required when |Δ| >= 5% on any row; enforced server-side too",
+        "Disabled-D365 alert copy → keep this UI usable as a clear info banner; the rest of Technical (incl. local cost history TEC-050) must remain editable",
+        "Spec-driven Wave0 surface (TEC-052) — Monopilot local cost history remains source of truth; D365 is an optional integration source only",
+        "Production must expose data-prototype-label='cost_import_d365_screen' on the page wrapper"
+      ],
+      "shadcn_equivalent": [
+        "Card",
+        "Form",
+        "FormField",
+        "FormLabel",
+        "FormMessage",
+        "Textarea",
+        "Table",
+        "TableHeader",
+        "TableBody",
+        "TableRow",
+        "TableCell",
+        "Badge",
+        "Button",
+        "Alert"
+      ],
+      "known_bugs": [],
+      "estimated_translation_time_min": 75
+    },
+    {
+      "label": "factory_spec_bom_bundle_approval_modal",
+      "file": "design/Monopilot Design System/technical/spec-driven-screens.jsx",
+      "lines": "653-781",
+      "component_type": "modal",
+      "ui_pattern": "crud-form-with-validation",
+      "data_domain": "Spec",
+      "interaction": "approve",
+      "complexity": "composite",
+      "depends_on_prototypes": [
+        "design/Monopilot Design System/_shared/modals.jsx#Modal",
+        "design/Monopilot Design System/_shared/modals.jsx#Field",
+        "design/Monopilot Design System/_shared/modals.jsx#ReasonInput",
+        "design/Monopilot Design System/_shared/modals.jsx#Summary"
+      ],
+      "translation_notes": [
+        "window.Modal → Radix Dialog with size='wide'; render inside both /technical/boms/[id] and /technical/factory-specs/[id] page trees",
+        "Static bundle blockers/history → Server Component prop sourced from the T-080 bundle approval API and T-081 release adapter; no fetch from client",
+        "Approve action button → Server Action approveFactorySpecBomBundle({ bundleId }) behind RBAC guard tech.factory_spec.approve; disabled state surfaces exact blocker/permission reason via aria-disabled + tooltip",
+        "Reject path with ReasonInput → Server Action rejectFactorySpecBomBundle({ bundleId, reason }); emit outbox event tech.bundle.rejected with audit payload",
+        "Clone-on-write banner → static text driven by bundle.bom.clonedFrom prop; never call clone API from this UI — that happens in the BOM editor",
+        "Local-D365-independent copy → must persist; D365 sync is informational only and never blocks Technical approval",
+        "Spec-driven Wave0 surface (T-090) — paired factory_spec + shared BOM SSOT release; must show paired statuses, blockers, history together",
+        "Production must expose data-prototype-label='factory_spec_bom_bundle_approval_modal' on the Dialog content root"
+      ],
+      "shadcn_equivalent": [
+        "Dialog",
+        "DialogContent",
+        "DialogHeader",
+        "DialogFooter",
+        "Form",
+        "FormField",
+        "FormLabel",
+        "FormMessage",
+        "Textarea",
+        "Button",
+        "Badge",
+        "Alert",
+        "Tooltip"
+      ],
+      "known_bugs": [],
+      "estimated_translation_time_min": 80
     }
   ]
 }

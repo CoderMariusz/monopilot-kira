@@ -1545,7 +1545,23 @@ The MonoPilot prototype is primarily designed for desktop (1280px+ wide) as the 
 
 ---
 
-## 9. Open Questions for Designer
+## 9. Spec-driven MVP UI additions for PRD TEC-014/025/031/045/052
+
+The PRD master table uses a broader `TEC-010..TEC-099` numbering range than the original UX prototype IDs. These five PRD screens have no exact canonical prototype. They are not blocked for MVP implementation: use PRD/UX as the source of truth and reuse adjacent Technical prototype primitives only as visual/pattern references. Do not claim 1:1 prototype parity for these screens.
+
+| PRD screen | Route | Spec-driven UX contract | Task |
+|---|---|---|---|
+| PRD TEC-014 Bulk Import CSV | `/technical/items/import` | 3-step import wizard: upload CSV, validate with row errors/warnings, diff preview against current RM/supplier_specs, confirm with audit note. Adjacent reference: Products/Materials list import button only. | `_meta/atomic-tasks/03-technical/tasks/T-085.json` |
+| PRD TEC-025 BOM Snapshots Viewer | `/technical/boms/snapshots` | Immutable WO snapshot list with filters, snapshot metadata, flattened header/lines/co-products, and JSON/field diff modal. Adjacent reference: TEC-006 BOM Detail snapshot-history tab. | `_meta/atomic-tasks/03-technical/tasks/T-086.json` |
+| PRD TEC-031 Regulatory Compliance Dashboard | `/technical/compliance` | KPI strip for EU 1169/2011, FSMA 204, BRCGS v9, ISO 22000, EU 2023/915, GS1 Digital Link and Peppol; per-FG flag table for missing shelf-life/allergen/training/compliance evidence. | `_meta/atomic-tasks/03-technical/tasks/T-087.json` |
+| PRD TEC-045 Lab Results Log | `/technical/lab-results` | Cross-item Quality-owned lab-results read model: filters by item/WO/test/status, ATP RLU pass/fail visualization, add/request flow via Quality bridge only. Adjacent reference: TEC-002 per-item Lab Results tab. | `_meta/atomic-tasks/03-technical/tasks/T-088.json` |
+| PRD TEC-052 Cost Import from D365 | `/technical/costs/d365-import` | Optional D365 cost pull: disabled-state banner, diff preview current vs incoming, percent delta, source/idempotency, batch confirm with audit note. Adjacent reference: generic D365 item sync modal. | `_meta/atomic-tasks/03-technical/tasks/T-089.json` |
+
+Closeout evidence for these UI tasks must follow `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`: screenshots/artifacts plus Playwright traces/artifacts where applicable, with explicit notes that the task is spec-driven rather than exact-prototype parity.
+
+---
+
+## 10. Open Questions for Designer
 
 1. **Allergen matrix cell density**: With 14+ allergens as columns and potentially 100+ products as rows, the matrix may require horizontal virtual scrolling. Should the matrix be transposed (allergens as rows, products as columns) for easier readability when product names are long?
 

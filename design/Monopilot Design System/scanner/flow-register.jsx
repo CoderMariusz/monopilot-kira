@@ -122,6 +122,7 @@ const OutputScreen = ({ woCode, onNav, onDone }) => {
 
 const OutputDoneScreen = ({ detail, onNav, woCode }) => (
   <>
+    {/* data-prototype-label: output_done_screen */}
     <Topbar title="Zarejestrowano" onBack={() => onNav("wo_execute", woCode)}/>
     <Content>
       <div className="sc-success-wrap">
@@ -203,6 +204,7 @@ const CoproductScreen = ({ woCode, onNav, onDone }) => {
 
 const CoproductDoneScreen = ({ detail, onNav, woCode }) => (
   <>
+    {/* data-prototype-label: coproduct_done_screen */}
     <Topbar title="Co-product zarejestrowany" onBack={() => onNav("wo_execute", woCode)}/>
     <Content>
       <div className="sc-success-wrap">
@@ -286,6 +288,7 @@ const WasteScreen = ({ woCode, onNav, onDone }) => {
 
 const WasteDoneScreen = ({ detail, onNav, woCode }) => (
   <>
+    {/* data-prototype-label: waste_done_screen */}
     <Topbar title="Odpad zarejestrowany" onBack={() => onNav("wo_execute", woCode)}/>
     <Content>
       <div className="sc-success-wrap">

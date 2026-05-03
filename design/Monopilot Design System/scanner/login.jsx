@@ -94,6 +94,7 @@ const PinScreen = ({ onNav }) => {
 
   return (
     <>
+      {/* data-prototype-label: pin_screen */}
       <Topbar title="Wpisz PIN" onBack={() => onNav("login")} syncState="online"/>
       <Content>
         <div style={{padding:"30px 16px 10px", textAlign:"center"}}>
@@ -249,6 +250,7 @@ const PinSetupScreen = ({ onNav, onDone }) => {
 
   return (
     <>
+      {/* data-prototype-label: pin_setup_screen */}
       <Topbar title={title} onBack={() => onNav("login")} syncState="online"/>
       <Content>
         <div style={{padding:"20px 16px 10px", textAlign:"center"}}>
@@ -392,6 +394,7 @@ const PinChangeScreen = ({ onNav }) => {
 
   return (
     <>
+      {/* data-prototype-label: pin_change_screen */}
       <Topbar title={titles[stage]} onBack={() => onNav("settings")}/>
       <Content>
         <div style={{padding:"20px 16px 10px", textAlign:"center"}}>

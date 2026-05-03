@@ -1,5 +1,6 @@
 // ============ SCREEN-07 — WO Detail (Planning view) ============
 
+// data-prototype-label: plan_wo_detail
 const PlanWODetail = ({ onBack, onNav }) => {
   const [tab, setTab] = React.useState("overview");
   const w = PLAN_WO_DETAIL;
@@ -125,6 +126,7 @@ const PlanWODetail = ({ onBack, onNav }) => {
 };
 
 // ---------- Overview ----------
+// data-prototype-label: wo_overview_tab
 const OverviewTab = ({ w }) => (
   <div style={{display:"grid", gridTemplateColumns:"1fr 320px", gap:12, alignItems:"flex-start"}}>
     <div>
@@ -315,6 +317,7 @@ const OutputsTab = ({ w }) => (
 );
 
 // ---------- Dependencies ----------
+// data-prototype-label: wo_dependencies_tab
 const DependenciesTab = ({ w, onNav }) => {
   const [view, setView] = React.useState("graph");
 
@@ -398,6 +401,7 @@ const DependenciesTab = ({ w, onNav }) => {
 };
 
 // ---------- Reservations ----------
+// data-prototype-label: wo_reservations_tab
 const ReservationsTab = ({ w }) => (
   <>
     <div className="reservation-banner">
@@ -443,6 +447,7 @@ const ReservationsTab = ({ w }) => (
 );
 
 // ---------- Sequencing ----------
+// data-prototype-label: wo_sequencing_tab
 const SequencingTab = ({ w }) => {
   const s = w.sequencing;
   return (
@@ -520,6 +525,7 @@ const SequencingTab = ({ w }) => {
 };
 
 // ---------- State history ----------
+// data-prototype-label: wo_history_tab
 const HistoryTab = ({ w }) => (
   <div className="card" style={{padding:0}}>
     <div className="card-head" style={{padding:"10px 14px", borderBottom:"1px solid var(--border)", marginBottom:0}}>

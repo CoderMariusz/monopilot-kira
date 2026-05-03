@@ -1,5 +1,6 @@
 // ============ SCREEN-04 / SCREEN-05 — Transfer Orders ============
 
+// data-prototype-label: plan_to_list
 const PlanTOList = ({ onOpenTo, onNav }) => {
   const [tab, setTab] = React.useState("all");
   const [search, setSearch] = React.useState("");
@@ -100,6 +101,7 @@ const PlanTOList = ({ onOpenTo, onNav }) => {
 
 // ============ SCREEN-05 — TO Detail ============
 
+// data-prototype-label: plan_to_detail
 const PlanTODetail = ({ onBack, onNav }) => {
   const [historyOpen, setHistoryOpen] = React.useState(false);
   const [lpOpen, setLpOpen] = React.useState(true);

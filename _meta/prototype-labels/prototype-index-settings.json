@@ -953,6 +953,36 @@
       ],
       "known_bugs": [],
       "estimated_translation_time_min": 120
+    },
+    {
+      "label": "settings_d365_mapping_screen",
+      "file": "design/Monopilot Design System/settings/admin-screens.jsx",
+      "lines": "109-146",
+      "component_type": "table",
+      "ui_pattern": "search-filter-list",
+      "data_domain": "Integration",
+      "interaction": "edit",
+      "complexity": "page-level",
+      "depends_on_prototypes": [],
+      "translation_notes": [
+        "Mock D365_MAPPINGS array → Server Component fetching d365_mappings table with JOIN to items/locations/cost_centres; paginate with searchParam ?q=",
+        "Inline edit cells (combobox for D365 id) → on-row edit mode using react-hook-form per-row; or shadcn Popover with combobox for D365 entity lookup",
+        "Sync status badge (synced/pending/error) → Badge variant mapped from d365_mappings.sync_status; live-updated via SSE or SWR polling /api/d365/sync-status",
+        "Save mapping → Server Action updateD365Mapping(localId, d365Id) with RBAC guard (Admin only); emit d365.mapping_updated outbox event; logs to integration_audit table"
+      ],
+      "shadcn_equivalent": [
+        "Table",
+        "TableHeader",
+        "TableBody",
+        "TableRow",
+        "TableCell",
+        "Badge",
+        "Input",
+        "Button",
+        "Popover"
+      ],
+      "known_bugs": [],
+      "estimated_translation_time_min": 60
     }
   ]
 }

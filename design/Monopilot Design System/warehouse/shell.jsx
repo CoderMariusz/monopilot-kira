@@ -1,5 +1,6 @@
 // ============ Warehouse module shell — sidebar, topbar, sub-nav, status badges ============
 
+// data-prototype-label: app_sidebar
 const PSidebar = () => (
   <div id="sidebar">
     <div className="sidebar-logo">Monopilot <span>MES</span></div>
@@ -21,6 +22,7 @@ const PSidebar = () => (
   </div>
 );
 
+// data-prototype-label: app_topbar
 const PTopbar = ({ role, onRole }) => (
   <div className="topbar">
     <div className="search"><input placeholder="Search LPs, batches, GRNs, movements, products…" /></div>
@@ -40,6 +42,7 @@ const PTopbar = ({ role, onRole }) => (
   </div>
 );
 
+// data-prototype-label: warehouse_sub_nav
 const WhNav = ({ current, onNav }) => (
   <div className="prod-nav">
     {WH_NAV.map(g => (

@@ -1,12 +1,12 @@
 # 06-SCANNER-P1 — UX Specification (for prototype generation)
 
-**Version:** 1.0
-**Date:** 2026-04-20
-**Status:** Final — Designer handoff
-**Source PRD:** 06-SCANNER-P1-PRD.md v3.0
-**Primary prototype reference:** SCANNER-PROTOTYPE (2).html (~1826 lines, 34 sub-screens)
-**Consumer of:** 05-WAREHOUSE v3.0 §13, 08-PRODUCTION stub, 09-QUALITY QA
-**Target output:** Interactive HTML prototypes via Claude Design
+**Version:** 1.1
+**Date:** 2026-05-03
+**Status:** Final — Wave Next-3 hardening applied
+**Source PRD:** 06-SCANNER-P1-PRD.md v3.1.2
+**Primary prototype reference:** `design/Monopilot Design System/scanner/*.jsx` plus `_meta/prototype-labels/prototype-index-scanner.json` (55 canonical labels after hardening)
+**Consumer of:** 05-WAREHOUSE v3.0 §13, 04-PLANNING-BASIC WO/reservation contracts, 08-PRODUCTION output/execute contracts, 09-QUALITY QA/NCR contracts
+**Target output:** Implementation tasks with 390x844 mobile screenshot and Playwright trace evidence
 
 ---
 
@@ -28,6 +28,8 @@ Scanner (module 06) is the **dedicated mobile interface** of MonoPilot MES. It r
 - **FEFO deviation runtime confirm** — consuming or picking an LP whose expiry is later than the FEFO-suggested LP triggers an amber warning requiring a reason code; it is never a hard block (per 05-WH Q6B).
 - **Intermediate LP always to_stock P1** — there is no "direct continue" option in the scanner UI. All intermediate outputs register to stock first.
 - **3-method input parity** — every scan step works identically via hardware wedge (Zebra/Honeywell HID), camera (zxing), or manual keypad fallback. The UI adapts the visible affordances based on detected capabilities.
+- **Canonical prototype labels** — ambiguous scanner-owned settings/devices surfaces use `scanner_settings_screen` and `scanner_devices_screen`. `PinSetupScreen`, `PinChangeScreen`, `CameraScanner`, and all user-visible done screens are first-class labels in the scanner prototype index.
+- **Mobile evidence policy** — every UI implementation closeout captures a 390x844 screenshot and Playwright trace, named with the canonical prototype label and task id.
 - **Kiosk vs personal device mode** — kiosk: 60 s hardcoded idle timeout, auto-logout after each success; personal: 300 s configurable timeout, remember-me 8 h.
 - **State machine transitions via scan** — each successful scan advances the workflow step automatically (300 ms debounce). Errors halt and display appropriate severity UI.
 

@@ -7,6 +7,7 @@
 // and lives in 04-PLANNING. Operator UX: "Release next WO" buttons now open
 // the Planning queue (cross-module deep-link) rather than a modal in Production.
 
+// data-prototype-label: start_wo_modal
 const StartWoModal = ({ onClose, data }) => (
   <Modal open onClose={onClose} title={"Start " + (data?.id || "WO-2026-0043")}
     foot={<>
@@ -28,6 +29,7 @@ const StartWoModal = ({ onClose, data }) => (
   </Modal>
 );
 
+// data-prototype-label: pause_line_modal
 const PauseLineModal = ({ onClose, data }) => {
   const [cat, setCat] = React.useState("plant");
   const subs = {
@@ -78,6 +80,7 @@ const PauseLineModal = ({ onClose, data }) => {
   );
 };
 
+// data-prototype-label: complete_wo_modal
 const CompleteWoModal = ({ onClose, data }) => (
   <Modal open onClose={onClose} title="Complete Work Order — gate checks" wide
     foot={<>
@@ -116,6 +119,7 @@ const CompleteWoModal = ({ onClose, data }) => (
   </Modal>
 );
 
+// data-prototype-label: over_consume_modal
 const OverConsumeModal = ({ onClose }) => (
   <Modal open onClose={onClose} title="Approve over-consumption"
     foot={<>
@@ -144,6 +148,7 @@ const OverConsumeModal = ({ onClose }) => (
   </Modal>
 );
 
+// data-prototype-label: waste_modal
 const WasteModal = ({ onClose }) => (
   <Modal open onClose={onClose} title="Log waste event"
     foot={<>
@@ -165,6 +170,7 @@ const WasteModal = ({ onClose }) => (
   </Modal>
 );
 
+// data-prototype-label: catch_weight_modal
 const CatchWeightModal = ({ onClose }) => (
   <Modal open onClose={onClose} title="Catch-weight output capture" wide
     foot={<>
@@ -205,6 +211,7 @@ const CatchWeightModal = ({ onClose }) => (
   </Modal>
 );
 
+// data-prototype-label: scanner_modal
 const ScannerModal = ({ onClose }) => (
   <Modal open onClose={onClose} title="Deep-link into Scanner UI (operator)"
     foot={<>
@@ -239,6 +246,7 @@ const ScannerModal = ({ onClose }) => (
   </Modal>
 );
 
+// data-prototype-label: dlq_inspect_modal
 const DlqInspectModal = ({ onClose, data }) => {
   const d = data || DLQ[0];
   return (
@@ -287,6 +295,7 @@ const DlqInspectModal = ({ onClose, data }) => {
   );
 };
 
+// data-prototype-label: resume_line_modal
 const ResumeLineModal = ({ onClose, data }) => (
   <Modal open onClose={onClose} title={"Resume " + (data?.id || "LINE-02")}
     foot={<>
@@ -303,6 +312,7 @@ const ResumeLineModal = ({ onClose, data }) => (
   </Modal>
 );
 
+// data-prototype-label: changeover_gate_modal
 const ChangeoverGateModal = ({ onClose }) => (
   <Modal open onClose={onClose} title="Allergen changeover — sign gate 4"
     foot={<>
@@ -325,6 +335,7 @@ const ChangeoverGateModal = ({ onClose }) => (
   </Modal>
 );
 
+// data-prototype-label: assign_crew_modal
 const AssignCrewModal = ({ onClose }) => (
   <Modal open onClose={onClose} title="Assign crew — Shift A"
     foot={<>
@@ -348,6 +359,7 @@ const AssignCrewModal = ({ onClose }) => (
 );
 
 // ---- Tweaks panel ----
+// data-prototype-label: tweaks_panel
 const TweaksPanel = ({ tweaks, setTweaks, onClose }) => (
   <div style={{position:"fixed", right:16, bottom:16, width:300, background:"#fff", border:"1px solid var(--border)", borderRadius:8, boxShadow:"0 10px 30px rgba(0,0,0,0.15)", zIndex:200}}>
     <div style={{padding:"10px 14px", borderBottom:"1px solid var(--border)", display:"flex", justifyContent:"space-between", alignItems:"center"}}>
@@ -397,6 +409,7 @@ const TweaksPanel = ({ tweaks, setTweaks, onClose }) => (
 // ================================================================
 
 // ---- ShiftStartModal — operator PIN + crew + handover notes ----
+// data-prototype-label: shift_start_modal
 const ShiftStartModal = ({ onClose }) => {
   const [pin, setPin] = React.useState("");
   const [handover, setHandover] = React.useState("");
@@ -459,6 +472,7 @@ const ShiftStartModal = ({ onClose }) => {
 };
 
 // ---- ShiftEndModal — checklist + handover note + PIN ----
+// data-prototype-label: shift_end_modal
 const ShiftEndModal = ({ onClose }) => {
   const [checks, setChecks] = React.useState({ oee: true, wos: true, downtime: false, waste: true });
   const [handover, setHandover] = React.useState("");
@@ -519,6 +533,7 @@ const ShiftEndModal = ({ onClose }) => {
 };
 
 // ---- OEETargetEditModal — admin-only edit of target A/P/Q per line ----
+// data-prototype-label: oee_target_edit_modal
 const OEETargetEditModal = ({ onClose, data }) => {
   const [line, setLine] = React.useState(data?.line || "LINE-01");
   const [a, setA] = React.useState(92);

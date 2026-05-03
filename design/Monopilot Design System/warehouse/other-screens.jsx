@@ -1,5 +1,6 @@
 // ============ WH-012 Inventory Browser ============
 
+// data-prototype-label: inventory_browser_page
 const WhInventory = ({ role, onNav, onOpenLp }) => {
   const [view, setView] = React.useState("product");
   const [expanded, setExpanded] = React.useState(new Set());
@@ -153,6 +154,7 @@ const WhInventory = ({ role, onNav, onOpenLp }) => {
 
 // ============ WH-018 Locations hierarchy ============
 
+// data-prototype-label: locations_hierarchy_page
 const WhLocations = ({ role, onNav, onOpenLp, openModal }) => {
   const [selected, setSelected] = React.useState("WH-Factory-A.Cold.B3");
   const isAdmin = role === "Admin";
@@ -277,6 +279,7 @@ const WhLocations = ({ role, onNav, onOpenLp, openModal }) => {
 
 // ============ WH-014 Genealogy ============
 
+// data-prototype-label: genealogy_traceability_page
 const WhGenealogy = ({ onNav, onOpenLp }) => {
   const [queried, setQueried] = React.useState(true);
   const [mode, setMode] = React.useState("backward");
@@ -372,6 +375,7 @@ const WhGenealogy = ({ onNav, onOpenLp }) => {
 
 // ============ WH-019 Expiry dashboard ============
 
+// data-prototype-label: expiry_management_page
 const WhExpiry = ({ role, onNav, onOpenLp, openModal }) => {
   const [tab, setTab] = React.useState("expired");
   const [modeFilter, setModeFilter] = React.useState("all");
@@ -506,6 +510,7 @@ const WhExpiry = ({ role, onNav, onOpenLp, openModal }) => {
 
 // ============ WH-020 Warehouse Settings ============
 
+// data-prototype-label: warehouse_settings_page
 const WhSettings = ({ role, onNav }) => {
   const [cat, setCat] = React.useState("general");
   const [dirty, setDirty] = React.useState(false);

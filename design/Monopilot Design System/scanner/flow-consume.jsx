@@ -424,6 +424,7 @@ const ConsumeScanScreen = ({ woCode, bomLine, onNav, onDone }) => {
 // SCN-080-done — consume confirmed
 const ConsumeDoneScreen = ({ detail, onNav, woCode }) => (
   <>
+    {/* data-prototype-label: consume_done_screen */}
     <Topbar title="Zeskanowano" onBack={() => onNav("wo_execute", woCode)}/>
     <Content>
       <div className="sc-success-wrap">

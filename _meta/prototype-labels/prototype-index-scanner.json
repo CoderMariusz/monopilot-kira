@@ -1,7 +1,7 @@
 {
   "module": "scanner",
-  "generated_at": "2026-04-30T18:27:34Z",
-  "generator": "audit-fix-2026-04-30",
+  "generated_at": "2026-05-03T00:00:00Z",
+  "generator": "wave-next-3-scanner-hardening-2026-05-03",
   "mode": "labeling",
   "entries": [
     {
@@ -386,7 +386,7 @@
       "estimated_translation_time_min": 60
     },
     {
-      "label": "settings_screen",
+      "label": "scanner_settings_screen",
       "file": "design/Monopilot Design System/scanner/home.jsx",
       "lines": "63-136",
       "component_type": "page-layout",
@@ -425,7 +425,7 @@
     {
       "label": "login_screen",
       "file": "design/Monopilot Design System/scanner/login.jsx",
-      "lines": "5-56",
+      "lines": "5-70",
       "component_type": "form",
       "ui_pattern": "crud-form-with-validation",
       "data_domain": "Scanner",
@@ -464,7 +464,7 @@
     {
       "label": "pin_screen",
       "file": "design/Monopilot Design System/scanner/login.jsx",
-      "lines": "58-112",
+      "lines": "72-126",
       "component_type": "form",
       "ui_pattern": "crud-form-with-validation",
       "data_domain": "Scanner",
@@ -497,7 +497,7 @@
     {
       "label": "site_select_screen",
       "file": "design/Monopilot Design System/scanner/login.jsx",
-      "lines": "114-180",
+      "lines": "128-199",
       "component_type": "wizard",
       "ui_pattern": "multi-step-wizard",
       "data_domain": "Scanner",
@@ -532,7 +532,7 @@
     {
       "label": "po_list_screen",
       "file": "design/Monopilot Design System/scanner/flow-receive.jsx",
-      "lines": "7-37",
+      "lines": "7-43",
       "component_type": "page-layout",
       "ui_pattern": "search-filter-list",
       "data_domain": "PO",
@@ -563,7 +563,7 @@
     {
       "label": "po_lines_screen",
       "file": "design/Monopilot Design System/scanner/flow-receive.jsx",
-      "lines": "40-86",
+      "lines": "45-92",
       "component_type": "page-layout",
       "ui_pattern": "detail-view",
       "data_domain": "PO",
@@ -598,7 +598,7 @@
     {
       "label": "po_item_screen",
       "file": "design/Monopilot Design System/scanner/flow-receive.jsx",
-      "lines": "89-233",
+      "lines": "94-239",
       "component_type": "wizard",
       "ui_pattern": "multi-step-wizard",
       "data_domain": "PO",
@@ -639,7 +639,7 @@
     {
       "label": "po_done_screen",
       "file": "design/Monopilot Design System/scanner/flow-receive.jsx",
-      "lines": "236-264",
+      "lines": "241-270",
       "component_type": "page-layout",
       "ui_pattern": "detail-view",
       "data_domain": "PO",
@@ -674,7 +674,7 @@
     {
       "label": "to_list_screen",
       "file": "design/Monopilot Design System/scanner/flow-receive.jsx",
-      "lines": "267-294",
+      "lines": "272-304",
       "component_type": "page-layout",
       "ui_pattern": "search-filter-list",
       "data_domain": "TO",
@@ -704,7 +704,7 @@
     {
       "label": "to_scan_screen",
       "file": "design/Monopilot Design System/scanner/flow-receive.jsx",
-      "lines": "297-385",
+      "lines": "306-394",
       "component_type": "wizard",
       "ui_pattern": "bulk-action",
       "data_domain": "TO",
@@ -806,7 +806,7 @@
     {
       "label": "pick_wo_list_screen",
       "file": "design/Monopilot Design System/scanner/flow-pick.jsx",
-      "lines": "5-40",
+      "lines": "5-44",
       "component_type": "page-layout",
       "ui_pattern": "search-filter-list",
       "data_domain": "WO",
@@ -836,7 +836,7 @@
     {
       "label": "pick_list_screen",
       "file": "design/Monopilot Design System/scanner/flow-pick.jsx",
-      "lines": "42-94",
+      "lines": "46-98",
       "component_type": "page-layout",
       "ui_pattern": "detail-view",
       "data_domain": "WO",
@@ -869,7 +869,7 @@
     {
       "label": "pick_scan_screen",
       "file": "design/Monopilot Design System/scanner/flow-pick.jsx",
-      "lines": "96-238",
+      "lines": "100-242",
       "component_type": "wizard",
       "ui_pattern": "multi-step-wizard",
       "data_domain": "WO",
@@ -910,7 +910,7 @@
     {
       "label": "wo_list_screen",
       "file": "design/Monopilot Design System/scanner/flow-consume.jsx",
-      "lines": "8-54",
+      "lines": "8-53",
       "component_type": "page-layout",
       "ui_pattern": "search-filter-list",
       "data_domain": "WO",
@@ -946,7 +946,7 @@
     {
       "label": "wo_detail_screen",
       "file": "design/Monopilot Design System/scanner/flow-consume.jsx",
-      "lines": "56-121",
+      "lines": "55-120",
       "component_type": "page-layout",
       "ui_pattern": "detail-view",
       "data_domain": "WO",
@@ -984,7 +984,7 @@
     {
       "label": "wo_execute_screen",
       "file": "design/Monopilot Design System/scanner/flow-consume.jsx",
-      "lines": "123-213",
+      "lines": "122-213",
       "component_type": "page-layout",
       "ui_pattern": "list-with-actions",
       "data_domain": "WO",
@@ -1023,7 +1023,7 @@
     {
       "label": "consume_scan_screen",
       "file": "design/Monopilot Design System/scanner/flow-consume.jsx",
-      "lines": "216-410",
+      "lines": "215-423",
       "component_type": "wizard",
       "ui_pattern": "multi-step-wizard",
       "data_domain": "WO",
@@ -1191,7 +1191,7 @@
     {
       "label": "move_screen",
       "file": "design/Monopilot Design System/scanner/flow-other.jsx",
-      "lines": "10-86",
+      "lines": "26-121",
       "component_type": "wizard",
       "ui_pattern": "wizard-step",
       "data_domain": "LP",
@@ -1227,7 +1227,7 @@
     {
       "label": "split_scan_screen",
       "file": "design/Monopilot Design System/scanner/flow-other.jsx",
-      "lines": "111-150",
+      "lines": "148-207",
       "component_type": "wizard",
       "ui_pattern": "wizard-step",
       "data_domain": "LP",
@@ -1262,7 +1262,7 @@
     {
       "label": "split_qty_screen",
       "file": "design/Monopilot Design System/scanner/flow-other.jsx",
-      "lines": "152-193",
+      "lines": "209-250",
       "component_type": "form",
       "ui_pattern": "crud-form-with-validation",
       "data_domain": "LP",
@@ -1299,7 +1299,7 @@
     {
       "label": "qa_list_screen",
       "file": "design/Monopilot Design System/scanner/flow-other.jsx",
-      "lines": "227-260",
+      "lines": "284-317",
       "component_type": "page-layout",
       "ui_pattern": "search-filter-list",
       "data_domain": "LP",
@@ -1329,7 +1329,7 @@
     {
       "label": "qa_inspect_screen",
       "file": "design/Monopilot Design System/scanner/flow-other.jsx",
-      "lines": "262-294",
+      "lines": "319-351",
       "component_type": "page-layout",
       "ui_pattern": "detail-view",
       "data_domain": "LP",
@@ -1362,7 +1362,7 @@
     {
       "label": "qa_fail_reason_screen",
       "file": "design/Monopilot Design System/scanner/flow-other.jsx",
-      "lines": "296-336",
+      "lines": "353-393",
       "component_type": "form",
       "ui_pattern": "crud-form-with-validation",
       "data_domain": "LP",
@@ -1398,7 +1398,7 @@
     {
       "label": "inquiry_screen",
       "file": "design/Monopilot Design System/scanner/flow-other.jsx",
-      "lines": "391-438",
+      "lines": "448-503",
       "component_type": "page-layout",
       "ui_pattern": "detail-view",
       "data_domain": "LP",
@@ -1434,7 +1434,7 @@
       "estimated_translation_time_min": 50
     },
     {
-      "label": "devices_screen",
+      "label": "scanner_devices_screen",
       "file": "design/Monopilot Design System/settings/ops-screens.jsx",
       "lines": "4-95",
       "component_type": "page-layout",
@@ -1463,6 +1463,346 @@
       ],
       "known_bugs": [],
       "estimated_translation_time_min": 120
+    },
+    {
+      "label": "pin_setup_screen",
+      "file": "design/Monopilot Design System/scanner/login.jsx",
+      "lines": "201-299",
+      "component_type": "wizard",
+      "ui_pattern": "multi-step-wizard",
+      "data_domain": "Scanner",
+      "interaction": "create",
+      "complexity": "page-level",
+      "depends_on_prototypes": [
+        "primitive:Topbar",
+        "primitive:Content",
+        "primitive:NumpadInput",
+        "primitive:StepsBar"
+      ],
+      "translation_notes": [
+        "First-class MVP label for PinSetupScreen; implement as SCN-011b forced first-time 2-step Set/Confirm wizard, not a composed state under pin_screen",
+        "Policy checks use scanner PIN settings from 02-SETTINGS; closeout must include 390x844 screenshot and Playwright trace artifact"
+      ],
+      "shadcn_equivalent": [
+        "InputOTP",
+        "Button",
+        "Alert"
+      ],
+      "known_bugs": [],
+      "estimated_translation_time_min": 85
+    },
+    {
+      "label": "pin_change_screen",
+      "file": "design/Monopilot Design System/scanner/login.jsx",
+      "lines": "301-426",
+      "component_type": "wizard",
+      "ui_pattern": "multi-step-wizard",
+      "data_domain": "Scanner",
+      "interaction": "edit",
+      "complexity": "page-level",
+      "depends_on_prototypes": [
+        "primitive:Topbar",
+        "primitive:Content",
+        "primitive:NumpadInput",
+        "primitive:StepsBar"
+      ],
+      "translation_notes": [
+        "First-class MVP label for PinChangeScreen; implement as SCN-011c Old/New/Confirm self-service flow linked from scanner_settings_screen",
+        "Verify old PIN through scanner auth contract; closeout must include 390x844 screenshot and Playwright trace artifact"
+      ],
+      "shadcn_equivalent": [
+        "InputOTP",
+        "Button",
+        "Alert"
+      ],
+      "known_bugs": [],
+      "estimated_translation_time_min": 90
+    },
+    {
+      "label": "camera_scanner",
+      "file": "design/Monopilot Design System/scanner/modals.jsx",
+      "lines": "326-391",
+      "component_type": "modal",
+      "ui_pattern": "wizard-step",
+      "data_domain": "Scanner",
+      "interaction": "create",
+      "complexity": "composite",
+      "depends_on_prototypes": [
+        "primitive:Modal",
+        "primitive:Btn",
+        "primitive:ScanInputArea"
+      ],
+      "translation_notes": [
+        "First-class MVP label for CameraScanner; P1 uses @zxing/browser or native BarcodeDetector fallback with 300x100 amber viewfinder",
+        "Permission denied falls back to manual input; closeout must include 390x844 screenshot and Playwright trace artifact"
+      ],
+      "shadcn_equivalent": [
+        "Dialog",
+        "Button",
+        "Alert"
+      ],
+      "known_bugs": [],
+      "estimated_translation_time_min": 95
+    },
+    {
+      "label": "to_done_screen",
+      "file": "design/Monopilot Design System/scanner/flow-receive.jsx",
+      "lines": "396-431",
+      "component_type": "page-layout",
+      "ui_pattern": "detail-view",
+      "data_domain": "TO",
+      "interaction": "read-only",
+      "complexity": "primitive",
+      "depends_on_prototypes": [
+        "primitive:Topbar",
+        "primitive:Content",
+        "primitive:SuccessScreen"
+      ],
+      "translation_notes": [
+        "First-class label for the existing to_done_screen user-visible scanner surface; keep mobile viewport evidence at 390x844 in implementation closeout",
+        "Translate with the shared Scanner shell, dark slate tokens, touch targets >=48dp, screenshot artifact, and Playwright trace evidence"
+      ],
+      "shadcn_equivalent": [
+        "Card",
+        "Button",
+        "Badge"
+      ],
+      "known_bugs": [],
+      "estimated_translation_time_min": 30
+    },
+    {
+      "label": "putaway_done_screen",
+      "file": "design/Monopilot Design System/scanner/flow-putaway.jsx",
+      "lines": "146-180",
+      "component_type": "page-layout",
+      "ui_pattern": "detail-view",
+      "data_domain": "LP",
+      "interaction": "read-only",
+      "complexity": "primitive",
+      "depends_on_prototypes": [
+        "primitive:Topbar",
+        "primitive:Content",
+        "primitive:SuccessScreen"
+      ],
+      "translation_notes": [
+        "First-class label for the existing putaway_done_screen user-visible scanner surface; keep mobile viewport evidence at 390x844 in implementation closeout",
+        "Translate with the shared Scanner shell, dark slate tokens, touch targets >=48dp, screenshot artifact, and Playwright trace evidence"
+      ],
+      "shadcn_equivalent": [
+        "Card",
+        "Button",
+        "Badge"
+      ],
+      "known_bugs": [],
+      "estimated_translation_time_min": 30
+    },
+    {
+      "label": "move_done_screen",
+      "file": "design/Monopilot Design System/scanner/flow-other.jsx",
+      "lines": "123-143",
+      "component_type": "page-layout",
+      "ui_pattern": "detail-view",
+      "data_domain": "LP",
+      "interaction": "read-only",
+      "complexity": "primitive",
+      "depends_on_prototypes": [
+        "primitive:Topbar",
+        "primitive:Content",
+        "primitive:SuccessScreen"
+      ],
+      "translation_notes": [
+        "First-class label for the existing move_done_screen user-visible scanner surface; keep mobile viewport evidence at 390x844 in implementation closeout",
+        "Translate with the shared Scanner shell, dark slate tokens, touch targets >=48dp, screenshot artifact, and Playwright trace evidence"
+      ],
+      "shadcn_equivalent": [
+        "Card",
+        "Button",
+        "Badge"
+      ],
+      "known_bugs": [],
+      "estimated_translation_time_min": 30
+    },
+    {
+      "label": "split_done_screen",
+      "file": "design/Monopilot Design System/scanner/flow-other.jsx",
+      "lines": "252-281",
+      "component_type": "page-layout",
+      "ui_pattern": "detail-view",
+      "data_domain": "LP",
+      "interaction": "read-only",
+      "complexity": "primitive",
+      "depends_on_prototypes": [
+        "primitive:Topbar",
+        "primitive:Content",
+        "primitive:SuccessScreen"
+      ],
+      "translation_notes": [
+        "First-class label for the existing split_done_screen user-visible scanner surface; keep mobile viewport evidence at 390x844 in implementation closeout",
+        "Translate with the shared Scanner shell, dark slate tokens, touch targets >=48dp, screenshot artifact, and Playwright trace evidence"
+      ],
+      "shadcn_equivalent": [
+        "Card",
+        "Button",
+        "Badge"
+      ],
+      "known_bugs": [],
+      "estimated_translation_time_min": 30
+    },
+    {
+      "label": "pick_done_screen",
+      "file": "design/Monopilot Design System/scanner/flow-pick.jsx",
+      "lines": "244-280",
+      "component_type": "page-layout",
+      "ui_pattern": "detail-view",
+      "data_domain": "WO",
+      "interaction": "read-only",
+      "complexity": "primitive",
+      "depends_on_prototypes": [
+        "primitive:Topbar",
+        "primitive:Content",
+        "primitive:SuccessScreen"
+      ],
+      "translation_notes": [
+        "First-class label for the existing pick_done_screen user-visible scanner surface; keep mobile viewport evidence at 390x844 in implementation closeout",
+        "Translate with the shared Scanner shell, dark slate tokens, touch targets >=48dp, screenshot artifact, and Playwright trace evidence"
+      ],
+      "shadcn_equivalent": [
+        "Card",
+        "Button",
+        "Badge"
+      ],
+      "known_bugs": [],
+      "estimated_translation_time_min": 30
+    },
+    {
+      "label": "consume_done_screen",
+      "file": "design/Monopilot Design System/scanner/flow-consume.jsx",
+      "lines": "425-445",
+      "component_type": "page-layout",
+      "ui_pattern": "detail-view",
+      "data_domain": "WO",
+      "interaction": "read-only",
+      "complexity": "primitive",
+      "depends_on_prototypes": [
+        "primitive:Topbar",
+        "primitive:Content",
+        "primitive:SuccessScreen"
+      ],
+      "translation_notes": [
+        "First-class label for the existing consume_done_screen user-visible scanner surface; keep mobile viewport evidence at 390x844 in implementation closeout",
+        "Translate with the shared Scanner shell, dark slate tokens, touch targets >=48dp, screenshot artifact, and Playwright trace evidence"
+      ],
+      "shadcn_equivalent": [
+        "Card",
+        "Button",
+        "Badge"
+      ],
+      "known_bugs": [],
+      "estimated_translation_time_min": 30
+    },
+    {
+      "label": "output_done_screen",
+      "file": "design/Monopilot Design System/scanner/flow-register.jsx",
+      "lines": "123-150",
+      "component_type": "page-layout",
+      "ui_pattern": "detail-view",
+      "data_domain": "WO",
+      "interaction": "read-only",
+      "complexity": "primitive",
+      "depends_on_prototypes": [
+        "primitive:Topbar",
+        "primitive:Content",
+        "primitive:SuccessScreen"
+      ],
+      "translation_notes": [
+        "First-class label for the existing output_done_screen user-visible scanner surface; keep mobile viewport evidence at 390x844 in implementation closeout",
+        "Translate with the shared Scanner shell, dark slate tokens, touch targets >=48dp, screenshot artifact, and Playwright trace evidence"
+      ],
+      "shadcn_equivalent": [
+        "Card",
+        "Button",
+        "Badge"
+      ],
+      "known_bugs": [],
+      "estimated_translation_time_min": 30
+    },
+    {
+      "label": "coproduct_done_screen",
+      "file": "design/Monopilot Design System/scanner/flow-register.jsx",
+      "lines": "204-224",
+      "component_type": "page-layout",
+      "ui_pattern": "detail-view",
+      "data_domain": "WO",
+      "interaction": "read-only",
+      "complexity": "primitive",
+      "depends_on_prototypes": [
+        "primitive:Topbar",
+        "primitive:Content",
+        "primitive:SuccessScreen"
+      ],
+      "translation_notes": [
+        "First-class label for the existing coproduct_done_screen user-visible scanner surface; keep mobile viewport evidence at 390x844 in implementation closeout",
+        "Translate with the shared Scanner shell, dark slate tokens, touch targets >=48dp, screenshot artifact, and Playwright trace evidence"
+      ],
+      "shadcn_equivalent": [
+        "Card",
+        "Button",
+        "Badge"
+      ],
+      "known_bugs": [],
+      "estimated_translation_time_min": 30
+    },
+    {
+      "label": "waste_done_screen",
+      "file": "design/Monopilot Design System/scanner/flow-register.jsx",
+      "lines": "287-315",
+      "component_type": "page-layout",
+      "ui_pattern": "detail-view",
+      "data_domain": "WO",
+      "interaction": "read-only",
+      "complexity": "primitive",
+      "depends_on_prototypes": [
+        "primitive:Topbar",
+        "primitive:Content",
+        "primitive:SuccessScreen"
+      ],
+      "translation_notes": [
+        "First-class label for the existing waste_done_screen user-visible scanner surface; keep mobile viewport evidence at 390x844 in implementation closeout",
+        "Translate with the shared Scanner shell, dark slate tokens, touch targets >=48dp, screenshot artifact, and Playwright trace evidence"
+      ],
+      "shadcn_equivalent": [
+        "Card",
+        "Button",
+        "Badge"
+      ],
+      "known_bugs": [],
+      "estimated_translation_time_min": 30
+    },
+    {
+      "label": "qa_done_screen",
+      "file": "design/Monopilot Design System/scanner/flow-other.jsx",
+      "lines": "395-445",
+      "component_type": "page-layout",
+      "ui_pattern": "detail-view",
+      "data_domain": "Quality",
+      "interaction": "read-only",
+      "complexity": "primitive",
+      "depends_on_prototypes": [
+        "primitive:Topbar",
+        "primitive:Content",
+        "primitive:SuccessScreen"
+      ],
+      "translation_notes": [
+        "First-class label for the existing qa_done_screen user-visible scanner surface; keep mobile viewport evidence at 390x844 in implementation closeout",
+        "Translate with the shared Scanner shell, dark slate tokens, touch targets >=48dp, screenshot artifact, and Playwright trace evidence"
+      ],
+      "shadcn_equivalent": [
+        "Card",
+        "Button",
+        "Badge"
+      ],
+      "known_bugs": [],
+      "estimated_translation_time_min": 30
     }
   ]
 }

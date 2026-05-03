@@ -684,7 +684,7 @@ Operator uses `[+ Add Output LP]` button to add rows. Minimum 2 rows required.
 
 Each row:
 - **Qty** (numeric, required): portion assigned to this output LP. V-WH-LP-003: sum of all rows must equal source LP qty.
-- **Destination Location** (searchable dropdown): defaults to source LP location. Operator can override for each output LP — useful to immediately put-away to different locations.
+- **Destination Location** (searchable dropdown, required): defaults to source LP location. Operator can override for each output LP — useful to immediately put-away to different locations. Decision 2026-05-03: WH-008 destination is required; submit is disabled until every output row has a destination.
 - **Label** checkbox: "Print label for this LP" (checked by default).
 
 **Running total validator** (below rows table): "Allocated: {Σ} / {source qty} {uom}." If sum < source: red text "Remaining unallocated: {delta}. All source quantity must be allocated." If sum > source: red "Exceeds source quantity by {delta}." Submit button disabled until sum equals source.
@@ -1183,6 +1183,31 @@ Described at WH-007. Key: partial-move auto-split notice; adjustment > 10% manag
 ### M-04 — LP Split
 
 Described at WH-008. Sum validation is real-time; submit blocked until allocated qty = source qty.
+
+---
+
+### WH-109 — Shelf Life Rules Admin Page
+
+**Route**: `/warehouse/settings/shelf-life-rules`
+**Purpose**: Phase 1 CRUD for customer/product minimum shelf-life rules consumed by downstream Shipping. Warehouse owns rule maintenance and read contract; 11-SHIPPING owns Phase 2 pick/ship enforcement.
+**Prototype labels**: `shelf_life_rules_admin_page`, `shelf_life_rule_edit_modal`.
+**Personas**: Manager and Admin can create/edit/disable; Planner/QA read-only; Operator hidden/permission-denied.
+
+#### Layout
+
+Settings sub-page with header "Shelf Life Rules", explanatory `.alert-blue` stating "Warehouse maintains the rules; Shipping enforces them at pick/ship in Phase 2." A filter bar provides Customer, Product, Enforced, and search by reason.
+
+Table columns: Customer, Product, Min Shelf Life Days, Enforced, Reason, Status, Updated By, Updated At, Actions. Disabled rules remain visible with badge-gray.
+
+Page actions: `[+ Add Rule]` opens the edit modal. Row actions: Edit / Disable / Enable. Export CSV is optional but should follow Settings export conventions.
+
+#### Edit modal
+
+560px modal titled "Shelf Life Rule". Fields: Customer (required), Product (required), Min Shelf Life Days (integer >= 0, required), Enforced toggle, Reason (required), Notes (optional). Duplicate active customer+product combination is blocked. Submit writes audit history.
+
+#### States
+
+Loading skeleton table, empty state "No shelf life rules configured yet", permission-denied read-only state, duplicate-rule error state, and successful save toast.
 
 ---
 

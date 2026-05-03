@@ -1,9 +1,14 @@
 # Translation Notes — Production Module (Prototype → Production Stack)
 
-Generated: 2026-04-23  
-Source files: `design/Monopilot Design System/production/`  
-Components indexed: 31  
+Generated: 2026-04-23; hardened: 2026-05-03 Wave Next
+Source files: `design/Monopilot Design System/production/`
+Components indexed: 33 in prototype index (31 active + deprecated `release_wo_modal` trace + internal `tweaks_panel`)
 Total estimated translation time: ~2 395 min (~40 hours)
+
+Wave Next readiness notes:
+- `release_wo_modal` is deprecated/stale and must not be implemented in Production. Release/readying belongs to 04-PLANNING.
+- Production START surfaces consume the canonical approved WO snapshot with `active_bom_header_id` and `active_factory_spec_id`; D365 `Built`/sync/export is display-only integration metadata.
+- T3-ui/T4-e2e tasks require prototype parity, screenshot/artifact evidence, and Playwright trace/artifact evidence.
 
 ---
 
@@ -11,7 +16,7 @@ Total estimated translation time: ~2 395 min (~40 hours)
 
 | Label | File | Lines | Type | Domain | Interaction | Complexity | Est. (min) |
 |---|---|---|---|---|---|---|---|
-| release_wo_modal | modals.jsx | 3-46 | modal | WO | create | composite | 75 |
+| release_wo_modal | modals.jsx | 3-8 | deprecated trace | WO | none | stale | 0 |
 | start_wo_modal | modals.jsx | 48-67 | modal | WO | approve | composite | 45 |
 | pause_line_modal | modals.jsx | 69-117 | modal | WO | edit | composite | 60 |
 | complete_wo_modal | modals.jsx | 119-155 | modal | WO | sign-off | composite | 90 |
@@ -72,17 +77,15 @@ Additional bugs from other BACKLOG sections affecting Production components:
 
 ---
 
-### release_wo_modal (modals.jsx:3-46)
+### release_wo_modal (modals.jsx:3-8) — DEPRECATED / DO NOT IMPLEMENT
 
-**Pattern:** Simple form + BOM snapshot preview card + dual action buttons (Release READY vs auto-start).
+This is a stale historical trace only. `design/Monopilot Design System/production/modals.jsx` removed ReleaseWoModal because WO release/readying is not Production scope.
 
-- `window.Modal` wrapper → `@radix-ui/react-dialog` Dialog with `DialogContent` / `DialogHeader` / `DialogFooter`; layout parity achieved via shadcn primitives
-- Local `<select>` for WO list → Server Component query from `wo` table filtered by `status='DRAFT' AND bom_released=true`, fed into shadcn `Select`
-- BOM snapshot preview card → dedicated `BomSnapshotSummary` Server Component reading the frozen `bom_snapshot` row; allergen-change badge derived from diff between current BOM and snapshot allergens
-- Inline date inputs → shadcn `DateTimePicker` or `react-day-picker` with controlled `useForm` state; planned start must be >= NOW()
-- Operator assignment select → query `users WHERE certified_for_line=lineId` passed as prop from parent Server Component
-- Hardcoded info alert text → `next-intl` `t('production.release_wo.info')`
-- On submit: Server Action validates BOM snapshot exists, sets WO status to `READY` or `IN_PROGRESS` depending on radio, emits `wo.released` outbox event
+- Do not build a Production DRAFT→READY release modal.
+- Release/readying belongs to 04-PLANNING and must consume the canonical factory release read model.
+- Production START UI must show only read-only release readiness: `release_status`/equivalent, `active_bom_header_id`, `active_factory_spec_id`, and typed blockers.
+- D365 `Built`, export, preload or sync status must never unlock START.
+- Keep this label only as an anti-regression trace until prototype-index regeneration removes/archives it.
 
 ---
 
@@ -93,7 +96,9 @@ Additional bugs from other BACKLOG sections affecting Production components:
 - `window.Modal` → `Dialog` with `DialogContent`; title via `DialogHeader`
 - Summary card (WO/Line/Operator/Planned) → read from WO Server Component prop, not raw string interpolation
 - PIN `input[type=password]` maxLength=4 → shadcn `Input` type="password"; validated with zod `z.string().length(4).regex(/^\d+$/)`
-- On submit: Server Action hashes/verifies PIN against `users.pin_hash`, sets WO status to `IN_PROGRESS`, freezes BOM snapshot, starts event log row with `event_type='WO_STARTED'`
+- On submit: Server Action verifies PIN and calls the START API. START must first verify the WO snapshot carries canonical `active_bom_header_id` and `active_factory_spec_id` and the current release read-model status is `approved_for_factory` or `released_to_factory`.
+- If status is pending/blocked or either active ID is missing, render a typed blocker with [Open in Planning]; do not mutate runtime state and do not inspect D365 `Built`/sync/export as approval evidence.
+- On successful START: set WO status to `IN_PROGRESS`, preserve the already-captured BOM/spec snapshot IDs, and start event log row with `event_type='WO_STARTED'`
 - Hardcoded labels → `next-intl` keys (e.g. `production.start_wo.pin_help`)
 
 ---

@@ -1,6 +1,7 @@
 // ============ Remaining production screens ============
 
 // ---------- OEE ----------
+// data-prototype-label: oee_screen
 const OEEScreen = () => {
   const plantA = 85, plantP = 88, plantQ = 99, plantOEE = 76.2;
   return (
@@ -121,6 +122,7 @@ const OEEScreen = () => {
 };
 
 // ---------- Downtime ----------
+// data-prototype-label: downtime_screen
 const DowntimeScreen = ({ openModal }) => {
   const tot = DOWNTIME.reduce((a,d) => a+d.duration, 0);
   return (
@@ -212,6 +214,7 @@ const DowntimeScreen = ({ openModal }) => {
 };
 
 // ---------- Shifts ----------
+// data-prototype-label: shifts_screen production_shifts_screen
 const ShiftsScreen = ({ openModal }) => (
   <>
     <div className="page-head">
@@ -291,6 +294,7 @@ const ShiftsScreen = ({ openModal }) => (
 );
 
 // ---------- Changeover ----------
+// data-prototype-label: changeover_screen
 const ChangeoverScreen = ({ openModal }) => (
   <>
     <div className="page-head">
@@ -390,6 +394,7 @@ const ChangeoverScreen = ({ openModal }) => (
 );
 
 // ---------- Analytics ----------
+// data-prototype-label: analytics_screen
 const AnalyticsScreen = () => (
   <>
     <div className="page-head">
@@ -496,6 +501,7 @@ const AnalyticsScreen = () => (
 );
 
 // ---------- DLQ ----------
+// data-prototype-label: dlq_screen
 const DLQScreen = ({ openModal }) => (
   <>
     <div className="page-head">
@@ -557,6 +563,7 @@ const DLQScreen = ({ openModal }) => (
 );
 
 // ---------- Settings ----------
+// data-prototype-label: settings_screen production_settings_screen
 const SettingsScreen = ({ openModal }) => (
   <>
     <div className="page-head">

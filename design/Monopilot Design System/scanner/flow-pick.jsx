@@ -247,6 +247,7 @@ const PickDoneScreen = ({ detail, onNav }) => {
   const nextLine = bom.find(b => b.status !== "ok");
   return (
     <>
+      {/* data-prototype-label: pick_done_screen */}
       <Topbar title="Pozycja zebrana" onBack={() => onNav("pick_list", detail.woCode)}/>
       <Content>
         <div className="sc-success-wrap">

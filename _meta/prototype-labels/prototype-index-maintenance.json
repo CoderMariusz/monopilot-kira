@@ -789,7 +789,7 @@
     {
       "label": "mwo_detail_page",
       "file": "design/Monopilot Design System/maintenance/work-orders.jsx",
-      "lines": "261-584",
+      "lines": "261-564",
       "component_type": "page-layout",
       "ui_pattern": "detail-view",
       "data_domain": "MWO",
@@ -824,7 +824,8 @@
         "Alert"
       ],
       "known_bugs": [],
-      "estimated_translation_time_min": 300
+      "estimated_translation_time_min": 300,
+      "line_range_note": "End line clamped to current JSX length during 2026-05-03 readiness validation."
     },
     {
       "label": "pm_schedules_list_page",

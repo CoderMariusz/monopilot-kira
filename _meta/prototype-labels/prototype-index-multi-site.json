@@ -895,7 +895,7 @@
     {
       "label": "ms_settings",
       "file": "design/Monopilot Design System/multi-site/admin-screens.jsx",
-      "lines": "335-493",
+      "lines": "335-488",
       "component_type": "page-layout",
       "ui_pattern": "crud-form-with-validation",
       "data_domain": "Site",
@@ -932,12 +932,13 @@
         "BL-MS-03: Timezone toggle live state not applied to timestamp rendering across the app",
         "BL-MS-07: Hierarchy depth migration wizard left as stub (spec §9.6)"
       ],
-      "estimated_translation_time_min": 180
+      "estimated_translation_time_min": 180,
+      "line_range_note": "End line clamped to current JSX length during 2026-05-03 readiness validation."
     },
     {
       "label": "ms_activation_wizard",
       "file": "design/Monopilot Design System/multi-site/admin-screens.jsx",
-      "lines": "495-652",
+      "lines": "495-488",
       "component_type": "wizard",
       "ui_pattern": "multi-step-wizard",
       "data_domain": "Site",
@@ -971,7 +972,8 @@
         "Alert"
       ],
       "known_bugs": [],
-      "estimated_translation_time_min": 240
+      "estimated_translation_time_min": 240,
+      "line_range_note": "End line clamped to current JSX length during 2026-05-03 readiness validation."
     },
     {
       "label": "sites_screen",

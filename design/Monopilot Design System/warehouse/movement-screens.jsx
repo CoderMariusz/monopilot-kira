@@ -215,7 +215,7 @@ const WhReservations = ({ onNav, onOpenLp, openModal }) => {
 
   return (
     <>
-      <div className="page-head">
+      <div className="page-head" data-prototype-label="reservations_list_page wo_reservations_panel">
         <div>
           <div className="breadcrumb"><a onClick={()=>onNav("dashboard")}>Warehouse</a> · Reservations</div>
           <h1 className="page-title">Reservations (LP hard-locks)</h1>

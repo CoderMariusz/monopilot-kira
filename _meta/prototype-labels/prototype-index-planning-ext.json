@@ -83,7 +83,7 @@
         "override_assignment_modal"
       ],
       "translation_notes": [
-        "FA-line eligibility mock array → derive from `fa_line_compatibility` join table in Server Component; pass `eligibleLineIds: string[]` as prop",
+        "FG-line eligibility mock array → derive from `fg_line_compatibility` join table in Server Component; pass `eligibleLineIds: string[]` as prop",
         "Modal size='wide' → Dialog with className max-w-3xl",
         "Acknowledgement checkbox for ineligible line → must be recorded in audit log as explicit user acceptance; add `ack_override_reason` field to Server Action payload",
         "useForm validation: `isEligible || ackIneligible` → zod `.superRefine()` cross-field rule matching V-SCHED-03",

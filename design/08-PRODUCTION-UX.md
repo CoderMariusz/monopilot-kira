@@ -17,7 +17,7 @@ The **Operator** interacts with WOs almost exclusively through the 06-SCANNER-P1
 
 **Key domain concepts for the designer:**
 
-- **WO states**: DRAFT → READY → IN_PROGRESS → PAUSED → COMPLETED | CANCELLED (driven by `wo_state_machine_v1` DSL rule in 02-SETTINGS §7; never hardcode transitions — always read from the state machine registry).
+- **WO states**: DRAFT → READY → IN_PROGRESS → PAUSED → COMPLETED | CANCELLED (driven by `wo_state_machine_v1` DSL rule in 02-SETTINGS §7; never hardcode transitions — always read from the state machine registry). Production may START only WOs already admitted by 04-PLANNING with the canonical factory release read-model snapshot: `release_status`/equivalent = `approved_for_factory` or `released_to_factory`, plus non-null `active_bom_header_id` and `active_factory_spec_id`. Pending/blocked/missing release rows are shown as typed blockers; D365 `Built`/sync/export flags are integration metadata only and never unlock START.
 - **wo_outputs rows**: Each WO can produce a primary output, one or more co-products, and one or more by-products; all defined in the BOM `co_products` allocation (03-TECHNICAL §7.2). Intermediate outputs are always put to stock P1 automatically.
 - **Catch-weight**: Items with `weight_mode='catch'` use FA code 3103 (fixed net weight per unit) or 3922 (variable weight per unit). The UI must display a toggle between modes and capture actual kg per LP at output registration.
 - **Meat_Pct aggregation**: WOs with multiple meat-ingredient inputs auto-aggregate the Meat_Pct from each consumed LP into a single displayed value on the output detail (tied to 03-TECHNICAL §8.9).
@@ -920,6 +920,7 @@ All modals use the shared `#modal-overlay` / `#modal-box` shell. Width: 560px. M
 **Role:** Shift Lead.
 
 Fields:
+- Factory release readiness: read-only preflight block at the top of the modal. Shows release status, `active_bom_header_id`, `active_factory_spec_id`, and typed blockers from the canonical factory release read model. If status is not `approved_for_factory` / `released_to_factory`, or either active ID is missing, disable [Start Production] and show [Open in Planning] deep-link. Do not read D365 `Built`/sync/export as a source of truth.
 - Line: pre-filled from WO scheduler assignment; if multiple options, a Select dropdown showing available lines. Unavailable lines greyed with "(In use by WO-XXXX)".
 - Shift: pre-filled from current active shift. Read-only if shift is auto-detected; editable Select if ambiguous.
 - Operator on duty: Select searchable dropdown, filtered to operator role, required.

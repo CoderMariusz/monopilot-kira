@@ -1568,6 +1568,104 @@
       ],
       "known_bugs": [],
       "estimated_translation_time_min": 60
+    },
+    {
+      "label": "npd_allergen_override_modal",
+      "file": "design/Monopilot Design System/npd/modals.jsx",
+      "lines": "389-428",
+      "component_type": "modal",
+      "ui_pattern": "crud-form-with-validation",
+      "data_domain": "FA",
+      "interaction": "edit",
+      "complexity": "composite",
+      "depends_on_prototypes": [
+        "design/Monopilot Design System/_shared/modals.jsx#Modal",
+        "design/Monopilot Design System/_shared/modals.jsx#Field",
+        "design/Monopilot Design System/_shared/modals.jsx#ReasonInput"
+      ],
+      "translation_notes": [
+        "window.Modal → @radix-ui/react-dialog Dialog with size='default'; allergen + FA code come from parent server component query, not window.NPD_FAS global",
+        "include/exclude pill toggle (two buttons) → shadcn RadioGroup with two RadioGroupItem styled as toggle buttons or shadcn ToggleGroup single-select",
+        "ReasonInput with minLength=10 max=500 → react-hook-form FormField with zod .string().min(10).max(500); surface char count via useWatch",
+        "onClose submit → Server Action overrideAllergen({ faCode, allergen, mode, reason }) guarded by RBAC (role: npd_technologist|npd_manager); emit allergen.override_set outbox event with full audit record"
+      ],
+      "shadcn_equivalent": [
+        "Dialog",
+        "DialogContent",
+        "DialogHeader",
+        "DialogFooter",
+        "Form",
+        "FormField",
+        "Textarea",
+        "ToggleGroup",
+        "ToggleGroupItem",
+        "Button",
+        "Alert"
+      ],
+      "known_bugs": [],
+      "estimated_translation_time_min": 55
+    },
+    {
+      "label": "npd_nutrition_screen",
+      "file": "design/Monopilot Design System/npd/other-stages.jsx",
+      "lines": "4-80",
+      "component_type": "page-layout",
+      "ui_pattern": "detail-view",
+      "data_domain": "FA",
+      "interaction": "edit",
+      "complexity": "page-level",
+      "depends_on_prototypes": [],
+      "translation_notes": [
+        "Mock nutrition data from window.NPD_FAS → Server Component fetching nutrition_facts table WHERE fa_code = ? via Drizzle; pass as prop to Client Component editor",
+        "Per-nutrient editable rows (energy/fat/protein/carbs) → react-hook-form useFieldArray with zod .number().nonnegative() per nutrient field; units locked server-side",
+        "Regulatory reference panel (EU/UK toggle) → shadcn Tabs with TabsContent per regulation; reference values fetched from regulatory_references table",
+        "Save → Server Action upsertNutritionFacts(faCode, nutrients[]) behind RBAC guard (role: npd_technologist); emit fa.nutrition_updated outbox event; version-stamp the record"
+      ],
+      "shadcn_equivalent": [
+        "Tabs",
+        "TabsList",
+        "TabsTrigger",
+        "TabsContent",
+        "Form",
+        "FormField",
+        "Input",
+        "Button",
+        "Table",
+        "TableRow",
+        "TableCell"
+      ],
+      "known_bugs": [],
+      "estimated_translation_time_min": 75
+    },
+    {
+      "label": "npd_costing_screen",
+      "file": "design/Monopilot Design System/npd/other-stages.jsx",
+      "lines": "83-163",
+      "component_type": "page-layout",
+      "ui_pattern": "detail-view",
+      "data_domain": "FA",
+      "interaction": "read-only",
+      "complexity": "page-level",
+      "depends_on_prototypes": [],
+      "translation_notes": [
+        "Mock cost breakdown from window.NPD_FAS → Server Component fetching std_costs table for FA; derive RM/Labour/Overhead breakdowns from cost_components join",
+        "Stacked cost bar chart (CSS width-% spans) → recharts BarChart or a custom Tailwind div-based bar driven by cost_components percentages",
+        "Scenario toggle (actual vs budget vs target) → shadcn Tabs synced to URL searchParam ?scenario=actual|budget|target for shareable links",
+        "Export button → Server Action generating CSV from cost_components; respond with file stream or signed S3 URL"
+      ],
+      "shadcn_equivalent": [
+        "Tabs",
+        "TabsList",
+        "TabsTrigger",
+        "TabsContent",
+        "Card",
+        "CardHeader",
+        "CardContent",
+        "Button",
+        "Badge"
+      ],
+      "known_bugs": [],
+      "estimated_translation_time_min": 65
     }
   ]
 }

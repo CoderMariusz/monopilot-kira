@@ -395,6 +395,7 @@ const ToScanScreen = ({ toCode, onNav, onDone }) => {
 
 const ToDoneScreen = ({ detail, onNav }) => (
   <>
+    {/* data-prototype-label: to_done_screen */}
     <Topbar title="Transfer odebrany" onBack={() => onNav("receive_to")}/>
     <Content>
       <div className="sc-success-wrap">

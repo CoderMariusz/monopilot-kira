@@ -1,5 +1,6 @@
 // ============ SCREEN-01 — Planning Dashboard ============
 
+// data-prototype-label: plan_dashboard
 const PlanDashboard = ({ onNav, onOpenWo }) => {
   const [upTab, setUpTab] = React.useState("wos");
   const [dismissed, setDismissed] = React.useState(new Set());

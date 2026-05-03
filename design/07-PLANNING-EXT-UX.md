@@ -1277,7 +1277,7 @@ Build components in this order for the P1 prototype:
 3. **Run Scheduler Modal** (MODAL-07-01) + progress state (§3.8) — must show queued → running → completed state machine.
 4. **Pending Review Panel** (SCR-07-01 Zone D) — approval workflow UX. Show run-group sub-headers.
 5. **Changeover Matrix Editor** (SCR-07-02) — heatmap grid; render as HTML table with cell backgrounds. Include `[Request Review]` button on BLOCKED cells.
-6. **Override Modal** (MODAL-07-03) — complex form with allergen conflict detection. Include Reschedule variant (§8.3) with FA–line eligibility check.
+6. **Override Modal** (MODAL-07-03) — complex form with allergen conflict detection. Include Reschedule variant (§8.3) with FG-line eligibility check.
 7. **Run History** (SCR-07-04) + Detail screen (SCR-07-04-DETAIL). Include `run_type` filter (Schedule / Dry Run).
 8. **Forecast Upload** (SCR-07-03) — simpler, CSV upload pattern.
 9. **What-If Simulation** (SCR-07-05) — P2 placeholder screen only in P1 prototype.
@@ -1346,6 +1346,21 @@ The prototype must implement these flag-gated UI states:
 
 ---
 
+### 15.7 Wave Next auxiliary screen addendum
+
+The following prototype-backed auxiliary screens are first-class for implementation even where earlier UX prose only referenced them indirectly:
+
+| Surface | Route | Prototype label | UX status |
+|---|---|---|---|
+| Capacity Projection | `/scheduler/capacity` | `pext_capacity_projection` | P1 advisory screen; details anchored in PRD §17.1 PLE-003 |
+| Pending Assignment Queue | `/scheduler/pending` | `pext_pending_full_page` | P1 full-page drill-down of SCR-07-01 Zone D; PRD §17.1 PLE-004 |
+| Scheduler Settings | `/scheduler/settings` | `pext_settings_screen` | P1 operational defaults; PRD §17.1 PLE-005 |
+| Scheduler Rules Viewer | `/scheduler/rules` | `pext_rules_screen` | P1 read-only mirror of 02-SETTINGS rule registry; PRD §17.1 PLE-006 |
+
+Release/D365 posture for these screens: display canonical factory release blockers from Planning/Technical/Production read models when relevant; never infer schedulability from D365 Built/export/preload/sync metadata. D365 appears only as optional P2 sales-history input for forecasting.
+
+---
+
 ## 16. Resolved Decisions
 
 All P1 open questions resolved 2026-04-21. No blockers remain.
@@ -1356,7 +1371,7 @@ All P1 open questions resolved 2026-04-21. No blockers remain.
 | OQ-EXT-02 | Operator shift preference in GanttView — overlay? GDPR consent? | Remains P2. No overlay in P1 GanttView. | 2026-04-21 | CLOSED (deferred P2) |
 | OQ-EXT-03 | What-if simulation baseline scope — in-flight WOs included? | Remains P2; no decision needed now. | 2026-04-21 | CLOSED (deferred P2) |
 | OQ-EXT-04 | Blocked cells in changeover matrix — allow note + admin review request? | Planner CAN add a note/justification and request admin review via `[Request Review]` button on blocked cells. Creates `matrix_review_request` record (stub — PRD to define table). See §4.2. | 2026-04-21 | CLOSED |
-| OQ-EXT-05 | GanttView drag-drop — entire horizon or affected cluster re-solve? | **DESCOPED.** Gantt is read-only visualization. No drag-drop in P1. Rescheduling via `[Re-run Scheduler]` (global) or MODAL-07-03 Assignment Override (per-WO via `[Reschedule WO]` in side panel). Rationale: 1-FA-to-1-line dominance; FA–line eligibility via `fa_line_compatibility` (03-TECHNICAL) has low UX value as drag target. See §3.5–§3.6 and §8.3. | 2026-04-21 | CLOSED |
+| OQ-EXT-05 | GanttView drag-drop — entire horizon or affected cluster re-solve? | **DESCOPED.** Gantt is read-only visualization. No drag-drop in P1. Rescheduling via `[Re-run Scheduler]` (global) or MODAL-07-03 Assignment Override (per-WO via `[Reschedule WO]` in side panel). Rationale: 1-FG-to-1-line dominance; FG-line eligibility via `fg_line_compatibility` (03-TECHNICAL) has low UX value as drag target. See §3.5–§3.6 and §8.3. | 2026-04-21 | CLOSED |
 | OQ-EXT-06 | `[Approve All]` — most recent run only, or all completed runs? | `[Approve All]` approves assignments from ALL completed runs. UI shows run grouping with sub-headers per run. See §3.1 Zone D. | 2026-04-21 | CLOSED |
 | OQ-EXT-07 | Disposition bridge (MODAL-07-04) timeout — can Planner extend per LP? | Planner CAN extend per LP via inline `[Extend 1h]` / `[Extend 4h]` buttons with reason required. Default 2h stays. See §9.1. | 2026-04-21 | CLOSED |
 | OQ-EXT-08 | Changeover matrix — dual sign-off required? | Single Planner Advanced publish (no dual sign-off). | 2026-04-21 | CLOSED |

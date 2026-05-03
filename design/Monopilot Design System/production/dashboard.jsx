@@ -35,6 +35,7 @@ const buildProdActivityGroups = (feed) => {
 };
 
 
+// data-prototype-label: production_dashboard
 const Dashboard = ({ onOpenWo, onOpenLine, onNav, openModal }) => {
   // Audit Fix-5b: KPI set now matches UX PROD-001 spec (6 KPIs):
   //   WOs In Progress · Output vs Target today · OEE current shift ·
@@ -179,6 +180,7 @@ const Dashboard = ({ onOpenWo, onOpenLine, onNav, openModal }) => {
 };
 
 // Per-line card
+// data-prototype-label: line_card
 const LineCard = ({ line, onOpen, onWo, openModal }) => {
   const l = line;
   const progPct = l.planned ? (l.consumed / l.planned * 100) : 0;

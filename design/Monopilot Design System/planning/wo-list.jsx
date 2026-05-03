@@ -1,5 +1,6 @@
 // ============ SCREEN-06 — WO List ============
 
+// data-prototype-label: plan_wo_list
 const PlanWOList = ({ onOpenWo, onNav }) => {
   const [tab, setTab] = React.useState("all");
   const [search, setSearch] = React.useState("");

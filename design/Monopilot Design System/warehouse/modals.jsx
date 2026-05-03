@@ -106,7 +106,7 @@ const GRNFromPOModal = ({ open, onClose }) => {
 
       {/* Size override: UX spec says 700px; MODAL-SCHEMA fullpage = 900px. Scoped to this modal only. */}
       <style>{`.modal-overlay:has(#grn-po-modal) .modal-box { width: 700px !important; max-width: 700px !important; }`}</style>
-      <div id="grn-po-modal">
+      <div id="grn-po-modal" data-prototype-label="grn_from_po_wizard">
       <Stepper steps={steps} current={step} completed={completed}/>
 
       {/* STEP 1 */}
@@ -523,7 +523,7 @@ const LPSplitModal = ({ open, onClose, data }) => {
         <button className="btn btn-secondary btn-sm" onClick={onClose}>Cancel</button>
         <button className="btn btn-primary btn-sm" disabled={!valid || rows.length < 2} onClick={onClose}>Confirm split ({rows.length} LPs)</button>
       </>}>
-      <div className="card" style={{padding:"10px 14px", marginBottom:10, background:"var(--gray-050)"}}>
+      <div className="card" data-prototype-label="lp_split_modal" style={{padding:"10px 14px", marginBottom:10, background:"var(--gray-050)"}}>
         <div style={{fontSize:12}}>
           <b className="mono" style={{fontSize:13}}>{lp.lp}</b> · {lp.product}<br/>
           Batch <span className="mono">{lp.batch}</span> · Expiry {lp.expiry} · <Ltree path={lp.loc}/>
@@ -1047,7 +1047,7 @@ const UseByOverrideModal = ({ open, onClose, data, isManager = true }) => {
         <button className="btn btn-secondary btn-sm" onClick={onClose}>Cancel</button>
         {isManager && <button className="btn btn-danger btn-sm" disabled={!valid} onClick={onClose}>Override and proceed</button>}
       </>}>
-      <div className="alert-red alert-box" style={{fontSize:12, marginBottom:14}}>
+      <div className="alert-red alert-box" data-prototype-label="use_by_override_modal" style={{fontSize:12, marginBottom:14}}>
         <span>⚠</span>
         <div>
           <b className="mono">{lp.lp}</b> has passed its use-by date (<b>{lp.expiry}</b>). All operations are blocked to comply with <span className="mono">EU 1169/2011</span> food safety requirements.

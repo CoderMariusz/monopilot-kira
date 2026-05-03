@@ -1,5 +1,6 @@
 // ============ Work Orders list ============
 
+// data-prototype-label: wo_list
 const WOList = ({ onOpenWo, openModal }) => {
   const [tab, setTab] = React.useState("in_progress");
   const [search, setSearch] = React.useState("");

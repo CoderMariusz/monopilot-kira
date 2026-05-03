@@ -1,6 +1,7 @@
 // ============ Newly built screens: Waste Analytics (PROD-010) + Line Detail (PROD-013) ============
 
 // ---------- Waste analytics (PROD-010) ----------
+// data-prototype-label: waste_analytics_screen
 const WasteAnalyticsScreen = ({ openModal }) => {
   const topCat = WASTE_PARETO[0];
   const totalKg = WASTE_PARETO.reduce((a, p) => a + p.kg, 0);
@@ -209,6 +210,7 @@ const WasteAnalyticsScreen = ({ openModal }) => {
 };
 
 // ---------- Line Detail (PROD-013) ----------
+// data-prototype-label: line_detail
 const LineDetail = ({ lineId, onBack, onOpenWo, openModal }) => {
   const [tab, setTab] = React.useState("current_wo");
   const l = LINES.find(x => x.id === lineId) || LINES[0];

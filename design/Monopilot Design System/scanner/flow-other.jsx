@@ -122,6 +122,7 @@ const MoveScreen = ({ onNav, onDone }) => {
 
 const MoveDoneScreen = ({ detail, onNav }) => (
   <>
+    {/* data-prototype-label: move_done_screen */}
     <Topbar title="Przeniesiono" onBack={() => onNav("home")}/>
     <Content>
       <div className="sc-success-wrap">
@@ -251,6 +252,7 @@ const SplitQtyScreen = ({ lp, onNav, onDone }) => {
 
 const SplitDoneScreen = ({ detail, onNav }) => (
   <>
+    {/* data-prototype-label: split_done_screen */}
     <Topbar title="Podzielono" onBack={() => onNav("home")}/>
     <Content>
       <div className="sc-success-wrap">
@@ -398,6 +400,7 @@ const QaDoneScreen = ({ detail, onNav }) => {
   const hold = detail.result === "hold";
   return (
     <>
+      {/* data-prototype-label: qa_done_screen */}
       <Topbar title="Inspekcja zakończona" onBack={() => onNav("qa")}/>
       <Content style={pass ? null : fail ? {background:"#1a0a0a"} : {background:"#1f1400"}}>
         <div className="sc-success-wrap">
@@ -445,6 +448,7 @@ const QaDoneScreen = ({ detail, onNav }) => {
 };
 
 // ---------- LP INQUIRY (P2 preview) ----------
+// data-prototype-label: inquiry_screen
 const InquiryScreen = ({ onNav }) => {
   const [scanVal, setScanVal] = React.useState("");
   const [lp, setLp] = React.useState(null);

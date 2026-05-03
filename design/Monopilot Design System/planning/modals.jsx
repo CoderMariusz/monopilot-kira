@@ -18,6 +18,7 @@
 // ============ 1. PO MODALS ============
 
 // -------- MODAL-01: PO Fast-Flow 3-Step Wizard (pattern: wizard) --------
+// data-prototype-label: po_fast_flow_wizard
 const POFastFlowModal = ({ open, onClose }) => {
   const [step, setStep] = React.useState("supplier");
   const [completed, setCompleted] = React.useState(new Set());
@@ -179,6 +180,7 @@ const POFastFlowModal = ({ open, onClose }) => {
 };
 
 // -------- MODAL-02: Add PO Line (pattern: simple form) --------
+// data-prototype-label: add_po_line_modal
 const AddPOLineModal = ({ open, onClose, onConfirm }) => {
   const [form, setForm] = React.useState({ code: "", qty: 0, unitPrice: 0, discount: 0, expDate: "2026-04-28" });
   const total = (form.qty || 0) * (form.unitPrice || 0) * (1 - (form.discount || 0) / 100);
@@ -225,6 +227,7 @@ const AddPOLineModal = ({ open, onClose, onConfirm }) => {
 };
 
 // -------- MODAL-03: PO Approval (pattern: dual-path) --------
+// data-prototype-label: po_approval_modal
 const POApprovalModal = ({ open, onClose, data, onConfirm }) => {
   const [mode, setMode] = React.useState("approve");
   const [notes, setNotes] = React.useState("");
@@ -266,6 +269,7 @@ const POApprovalModal = ({ open, onClose, data, onConfirm }) => {
 // ============ 3. TO MODALS ============
 
 // -------- MODAL-06: LP Picker (pattern: picker) --------
+// data-prototype-label: lp_picker_modal
 const LPPickerModal = ({ open, onClose, onConfirm, requiredQty = 200, product = "FA5100 · Kiełbasa śląska pieczona 450g" }) => {
   const [selected, setSelected] = React.useState(new Set());
   const [search, setSearch] = React.useState("");
@@ -343,6 +347,7 @@ const LPPickerModal = ({ open, onClose, onConfirm, requiredQty = 200, product = 
 // ============ 4. WO MODALS ============
 
 // -------- MODAL-09: Cascade Preview (sub-modal) --------
+// data-prototype-label: cascade_preview_modal
 const CascadePreviewModal = ({ open, onClose, onConfirm }) => (
   <Modal open={open} onClose={onClose} title="Cascade preview — proposed WO chain" subtitle="Read-only preview before creation" size="fullpage" dismissible={true}
     foot={<>
@@ -396,6 +401,7 @@ const CascadePreviewModal = ({ open, onClose, onConfirm }) => (
 );
 
 // -------- MODAL-08: WO Create (pattern: wizard + sub-modal) --------
+// data-prototype-label: wo_create_wizard
 const WOCreateModal = ({ open, onClose }) => {
   const [step, setStep] = React.useState("basic");
   const [completed, setCompleted] = React.useState(new Set());
@@ -502,6 +508,7 @@ const WOCreateModal = ({ open, onClose }) => {
 // ============ 5. CROSS-CUTTING MODALS ============
 
 // -------- MODAL-10: Reservation Override (pattern: override with reason) --------
+// data-prototype-label: reservation_override_modal
 const ReservationOverrideModal = ({ open, onClose, onConfirm, data }) => {
   const [reason, setReason] = React.useState("");
   const [category, setCategory] = React.useState("");
@@ -549,6 +556,7 @@ const ReservationOverrideModal = ({ open, onClose, onConfirm, data }) => {
 };
 
 // -------- MODAL-12: Cycle-Check Warning (pattern: error dialog) --------
+// data-prototype-label: cycle_check_warning_modal
 const CycleCheckWarningModal = ({ open, onClose, data }) => {
   const cycle = data?.cycle || ["FA5301 Pierogi z mięsem", "IN1301 Farsz pierogowy", "FA5301-B Pierogi rework", "FA5301 Pierogi z mięsem"];
   return (
@@ -583,6 +591,7 @@ const CycleCheckWarningModal = ({ open, onClose, data }) => {
 };
 
 // -------- MODAL-13: D365 Trigger Confirm (pattern: confirm non-destructive) --------
+// data-prototype-label: d365_trigger_confirm_modal
 const D365TriggerConfirmModal = ({ open, onClose, onConfirm }) => (
   <Modal open={open} onClose={onClose} title="Trigger D365 SO pull" size="sm"
     foot={<>
@@ -606,6 +615,7 @@ const D365TriggerConfirmModal = ({ open, onClose, onConfirm }) => (
 );
 
 // -------- MODAL-17: Delete Confirmation (pattern: destructive + type-to-confirm) --------
+// data-prototype-label: delete_confirm_modal
 const DeleteConfirmModal = ({ open, onClose, onConfirm, data }) => {
   const entity = data || { type: "Work Order", id: "WO-2026-0115", impact: "This WO is in DRAFT status. No reservations or dependencies will be affected." };
   const [typed, setTyped] = React.useState("");
@@ -629,6 +639,7 @@ const DeleteConfirmModal = ({ open, onClose, onConfirm, data }) => {
 };
 
 // -------- MODAL-18: Hard-Lock Release Confirm (pattern: destructive with reason) --------
+// data-prototype-label: hard_lock_release_confirm_modal
 const HardLockReleaseConfirmModal = ({ open, onClose, onConfirm, data }) => {
   const wo = data || { id: "WO-2026-0099", locks: [
     { lp: "LP-7201", material: "R-1501 · Mąka pszenna", qty: 28 },
@@ -694,6 +705,7 @@ const TO_PRODUCTS = [
   { code: "R-1001", name: "Wieprzowina kl. II", uom: "kg", type: "RM" },
 ];
 
+// data-prototype-label: to_create_edit_modal
 const TOCreateModal = ({ open, onClose, onConfirm, editing, requireLpSelection = false }) => {
   const initial = editing || { id: null, from: "WH-Factory-A", to: "WH-DistCentral", priority: "normal", shipDate: "2026-04-23", recvDate: "2026-04-24", notes: "", lines: [] };
   const [form, setForm] = React.useState(initial);
@@ -848,6 +860,7 @@ const TOCreateModal = ({ open, onClose, onConfirm, editing, requireLpSelection =
 // spec: 04-PLANNING-BASIC-UX.md §PLAN-MODAL-07 (lines 1271-1281)
 // Width 560px (default-wide; "default" is fine, use size default).
 // V-PLAN-TO-004: shipped_qty per line ≤ line qty.
+// data-prototype-label: ship_to_modal
 
 const ShipTOModal = ({ open, onClose, onConfirm, to }) => {
   const toRef = to || PLAN_TO_DETAIL;
@@ -933,6 +946,7 @@ const ShipTOModal = ({ open, onClose, onConfirm, to }) => {
 // ============ Draft WO Review — MODAL-16 ============
 // spec: 04-PLANNING-BASIC-UX.md §PLAN-MODAL-16 (lines 1439-1456)
 // Width 640px. Dual-path (approve / keep-draft / reject).
+// data-prototype-label: draft_wo_review_modal
 
 const DraftWOReviewModal = ({ open, onClose, onConfirm, wo }) => {
   const woRef = wo || D365_DRAFT_WOS[0];
@@ -1049,6 +1063,7 @@ const DraftWOReviewModal = ({ open, onClose, onConfirm, wo }) => {
 // Audit decision Q1:c — Before/After preview stays inline in the page;
 // this modal confirms the destructive reorder when user hits Run/Apply.
 // Audit decision Q4 — destructive confirm pattern (checkbox-gated).
+// data-prototype-label: sequencing_apply_confirm_modal
 
 const SequencingApplyConfirmModal = ({ open, onClose, onConfirm }) => {
   const [ack, setAck] = React.useState(false);
@@ -1114,6 +1129,7 @@ SUP-0022,R-2102,20,24.20,2026-04-28
 SUP-9999,R-1001,100,9.00,2026-04-28
 SUP-0052,R-1801,,1.20,2026-04-30`;
 
+// data-prototype-label: po_bulk_import_modal
 const POBulkImportModal = ({ open, onClose, onConfirm }) => {
   const [step, setStep] = React.useState("paste");
   const [completed, setCompleted] = React.useState(new Set());
@@ -1342,6 +1358,7 @@ const POBulkImportModal = ({ open, onClose, onConfirm }) => {
 // Mirror of ShipTOModal but for the receive step of a TO.
 // Pattern follows GRN Step 3 (Warehouse) — per-line receive-now + force-close flag.
 // V-PLAN-TO-005: received_qty per line ≤ shipped qty.
+// data-prototype-label: receive_to_modal
 
 const ReceiveTOModal = ({ open, onClose, onConfirm, to }) => {
   const toRef = to || PLAN_TO_DETAIL;

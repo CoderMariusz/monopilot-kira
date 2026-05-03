@@ -46,7 +46,7 @@ const WhLPList = ({ onOpenLp, onNav, openModal }) => {
 
   return (
     <>
-      <div className="page-head">
+      <div className="page-head" data-prototype-label="lp_list_page available_lp_picker">
         <div>
           <div className="breadcrumb"><a onClick={()=>onNav("dashboard")}>Warehouse</a> · License plates</div>
           <h1 className="page-title">License plates</h1>

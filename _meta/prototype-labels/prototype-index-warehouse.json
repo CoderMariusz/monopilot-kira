@@ -1,7 +1,7 @@
 {
   "module": "warehouse",
-  "generated_at": "2026-04-30T18:27:34Z",
-  "generator": "audit-fix-2026-04-30",
+  "generated_at": "2026-05-03T00:00:00Z",
+  "generator": "wave-next-3-warehouse-hardening",
   "mode": "labeling",
   "entries": [
     {
@@ -168,7 +168,8 @@
         "Destination location selects → ComboboxAsync backed by locations API; pre-selected to source LP location",
         "LP genealogy record note → reminder for Server Action to write lp_genealogy row with operation='split' linking parent LP id to all child LP ids",
         "Catch weight proration note → backend calculation, not UI; document in Server Action contract",
-        "Hardcoded PL labels → next-intl keys"
+        "Hardcoded PL labels → next-intl keys",
+        "Decision 2026-05-03: WH-008 destination is required for every output LP; keep destination validation in UI and service."
       ],
       "shadcn_equivalent": [
         "Dialog",
@@ -191,7 +192,8 @@
         "TableCell"
       ],
       "known_bugs": [],
-      "estimated_translation_time_min": 75
+      "estimated_translation_time_min": 75,
+      "decision_source": "_meta/decisions/2026-05-03-next-modules-warehouse-scanner-planning-production-decisions.md"
     },
     {
       "label": "lp_merge_modal",
@@ -513,7 +515,8 @@
         "Override reason codes (operational_requirement, etc.) → from use_by_override_reasons config table; hardcoded enum acceptable if immutable",
         "Submit → Server Action: insert use_by_override_log row with lp_id, manager_user_id, reason_code, reason_text, overridden_at; set lp.use_by_override_active=true with expiry; emit compliance outbox event; RBAC: Manager or Admin role required (enforce server-side)",
         "EU 1169/2011 reference in alert → static text; no i18n needed for regulatory citation but localize surrounding text",
-        "Hardcoded PL labels → next-intl keys"
+        "Hardcoded PL labels → next-intl keys",
+        "Decision 2026-05-03: this existing label is canonical; do not treat M-12 as no-prototype."
       ],
       "shadcn_equivalent": [
         "Dialog",
@@ -531,7 +534,9 @@
         "Alert"
       ],
       "known_bugs": [],
-      "estimated_translation_time_min": 60
+      "estimated_translation_time_min": 60,
+      "canonical_for": "M-12 Use_by Block Override",
+      "decision_source": "_meta/decisions/2026-05-03-next-modules-warehouse-scanner-planning-production-decisions.md"
     },
     {
       "label": "location_edit_modal",
@@ -1304,6 +1309,162 @@
       ],
       "known_bugs": [],
       "estimated_translation_time_min": 35
+    },
+    {
+      "label": "available_lp_picker",
+      "file": "design/05-WAREHOUSE-UX.md",
+      "lines": "897-927",
+      "component_type": "form",
+      "ui_pattern": "search-filter-list",
+      "data_domain": "LP",
+      "interaction": "read-only",
+      "complexity": "composite",
+      "prototype_status": "planned_first_class_marker",
+      "decision_source": "_meta/decisions/2026-05-03-next-modules-warehouse-scanner-planning-production-decisions.md",
+      "depends_on_prototypes": [
+        "warehouse/lp-screens.jsx#WhLPList",
+        "warehouse/modals.jsx#FEFODeviationModal"
+      ],
+      "translation_notes": [
+        "First-class WH-015 label per 2026-05-03 decision; may compose LP list table primitives but production must expose data-prototype-label='available_lp_picker'.",
+        "Used inside WO detail/reservation create contexts; server fetches FEFO-ranked LPs for product+warehouse and highlights rank #1.",
+        "Selecting any LP other than rank #1 opens fefo_deviation_modal and requires reason before continuing."
+      ],
+      "shadcn_equivalent": [
+        "Card",
+        "Table",
+        "TableHeader",
+        "TableBody",
+        "TableRow",
+        "TableCell",
+        "Button",
+        "Badge",
+        "Input",
+        "Select",
+        "Alert"
+      ],
+      "known_bugs": [],
+      "estimated_translation_time_min": 90
+    },
+    {
+      "label": "wo_reservations_panel",
+      "file": "design/05-WAREHOUSE-UX.md",
+      "lines": "956-986",
+      "component_type": "sidebar",
+      "ui_pattern": "list-with-actions",
+      "data_domain": "LP",
+      "interaction": "read-only",
+      "complexity": "composite",
+      "prototype_status": "planned_first_class_marker",
+      "decision_source": "_meta/decisions/2026-05-03-next-modules-warehouse-scanner-planning-production-decisions.md",
+      "depends_on_prototypes": [
+        "warehouse/movement-screens.jsx#WhReservations",
+        "warehouse/modals.jsx#ReleaseReservationModal"
+      ],
+      "translation_notes": [
+        "First-class WH-017 label per 2026-05-03 decision; renders inside 04 Planning WO Detail and can share table primitives with reservations_list_page.",
+        "Production must expose data-prototype-label='wo_reservations_panel' separately from reservations_list_page.",
+        "Intermediate material note is mandatory: intermediate LPs are consumed by scanner and never pre-reserved."
+      ],
+      "shadcn_equivalent": [
+        "Card",
+        "CardHeader",
+        "CardContent",
+        "Table",
+        "TableHeader",
+        "TableBody",
+        "TableRow",
+        "TableCell",
+        "Button",
+        "Badge",
+        "Alert"
+      ],
+      "known_bugs": [],
+      "estimated_translation_time_min": 80
+    },
+    {
+      "label": "shelf_life_rules_admin_page",
+      "file": "design/05-WAREHOUSE-UX.md",
+      "lines": "WH-109",
+      "component_type": "page-layout",
+      "ui_pattern": "crud-form-with-validation",
+      "data_domain": "Warehouse",
+      "interaction": "edit",
+      "complexity": "page-level",
+      "prototype_status": "planned_phase_1",
+      "decision_source": "_meta/decisions/2026-05-03-next-modules-warehouse-scanner-planning-production-decisions.md",
+      "depends_on_prototypes": [
+        "warehouse/other-screens.jsx#WhSettings",
+        "warehouse/modals.jsx#ShelfLifeRuleEditModal (planned)"
+      ],
+      "translation_notes": [
+        "WH-109 Shelf Life Rules CRUD is Phase 1. Route /warehouse/settings/shelf-life-rules under Warehouse Settings.",
+        "Admin/Manager create/edit/disable; Planner/QA read-only; Operator permission denied.",
+        "Warehouse owns CRUD/read contract; 11-SHIPPING Phase 2 owns enforcement at pick/ship."
+      ],
+      "shadcn_equivalent": [
+        "Card",
+        "Table",
+        "TableHeader",
+        "TableBody",
+        "TableRow",
+        "TableCell",
+        "Button",
+        "Badge",
+        "Input",
+        "Select",
+        "Alert"
+      ],
+      "known_bugs": [],
+      "estimated_translation_time_min": 120
+    },
+    {
+      "label": "shelf_life_rule_edit_modal",
+      "file": "design/05-WAREHOUSE-UX.md",
+      "lines": "WH-109",
+      "component_type": "modal",
+      "ui_pattern": "crud-form-with-validation",
+      "data_domain": "Warehouse",
+      "interaction": "edit",
+      "complexity": "composite",
+      "prototype_status": "planned_phase_1",
+      "decision_source": "_meta/decisions/2026-05-03-next-modules-warehouse-scanner-planning-production-decisions.md",
+      "depends_on_prototypes": [
+        "warehouse/shell.jsx#Modal",
+        "warehouse/shell.jsx#Field"
+      ],
+      "translation_notes": [
+        "Modal fields: Customer, Product, Min Shelf Life Days, Enforced, Reason, Notes.",
+        "Duplicate active customer+product rules must be blocked server-side and surfaced inline.",
+        "Production must expose data-prototype-label='shelf_life_rule_edit_modal'."
+      ],
+      "shadcn_equivalent": [
+        "Dialog",
+        "DialogContent",
+        "DialogHeader",
+        "DialogFooter",
+        "Form",
+        "FormField",
+        "Input",
+        "Select",
+        "Textarea",
+        "Switch",
+        "Button",
+        "Alert"
+      ],
+      "known_bugs": [],
+      "estimated_translation_time_min": 70
     }
-  ]
+  ],
+  "label_marker_policy": {
+    "status": "planned_and_partial",
+    "attribute": "data-prototype-label",
+    "required_for_new_phase1_labels": [
+      "available_lp_picker",
+      "wo_reservations_panel",
+      "shelf_life_rules_admin_page",
+      "shelf_life_rule_edit_modal"
+    ],
+    "notes": "Existing warehouse JSX uses component names plus external index; new/first-class labels must add root markers when implemented. T3/T4 tasks require marker assertions."
+  }
 }

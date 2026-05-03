@@ -1,5 +1,6 @@
 // ============ SCREEN-02 / SCREEN-03 — Purchase Orders ============
 
+// data-prototype-label: plan_po_list
 const PlanPOList = ({ onOpenPo, onNav }) => {
   const [tab, setTab] = React.useState("all");
   const [search, setSearch] = React.useState("");
@@ -140,6 +141,7 @@ const PlanPOList = ({ onOpenPo, onNav }) => {
 
 // ============ SCREEN-03 — PO Detail ============
 
+// data-prototype-label: plan_po_detail
 const PlanPODetail = ({ onBack, onNav }) => {
   const [historyOpen, setHistoryOpen] = React.useState(false);
   const p = PLAN_PO_DETAIL;

@@ -1,7 +1,7 @@
 {
   "module": "planning",
-  "generated_at": "2026-04-30T18:27:34Z",
-  "generator": "audit-fix-2026-04-30",
+  "generated_at": "2026-05-03T00:00:00Z",
+  "generator": "wave-next-3-planning-hardening",
   "mode": "labeling",
   "entries": [
     {
@@ -165,7 +165,9 @@
         "Totals footer (2 new WOs, timeline, aggregated RM) → derived from cascade preview response payload",
         "Cycle-check banner → returned from cascade-generation preview endpoint; never computed client-side",
         "Hardcoded labels → next-intl keys under planning.cascade namespace",
-        "onConfirm creates all WOs atomically → Server Action with DB transaction + outbox event (wo.cascade_created)"
+        "onConfirm creates all WOs atomically → Server Action with DB transaction + outbox event (wo.cascade_created)",
+        "Cascade preview must resolve every FG/WIP node through the canonical factory release read model and block confirmation if any required node is pending/blocked or lacks `active_bom_header_id` / `active_factory_spec_id`.",
+        "Display typed release blockers from the read model in the preview; do not infer factory readiness from D365 sync/Built flags."
       ],
       "shadcn_equivalent": [
         "Dialog",
@@ -202,7 +204,9 @@
         "Rework checkbox → separate validation path; rework WOs route to approval workflow (require_rework_approval setting)",
         "CascadePreviewModal sub-modal → fetch cascade preview from cascade_generation_v1 rule before confirming",
         "Create WO + cascade button → single Server Action with atomic DB transaction; emit wo.created + wo.cascade_created outbox events",
-        "Hardcoded labels + priority/line options → next-intl keys; lines fetched from production_lines table"
+        "Hardcoded labels + priority/line options → next-intl keys; lines fetched from production_lines table",
+        "Product/BOM selection must consume the canonical factory release read model owned by 01-NPD T-097: only rows with release_status in `approved_for_factory` or `released_to_factory` are selectable for normal WOs; use `active_bom_header_id` and `active_factory_spec_id` for snapshots, not ad-hoc latest active BOM/spec queries.",
+        "If release_status is `pending_npd_release`, `pending_technical_approval`, or `blocked`, keep the product visible as pending/blocked context but disable Create/Release actions and surface `release_blockers`; D365 import/export status is optional metadata, never source-of-truth for factory usability."
       ],
       "shadcn_equivalent": [
         "Dialog",
@@ -301,7 +305,8 @@
         "onConfirm → Server Action that enqueues d365.so_pull job to BullMQ/pg-boss; returns job ID for optimistic feedback",
         "Filter description (Open, Confirmed, 14 days) → sourced from plan_settings.d365 config row, not hardcoded",
         "Info alert about planner notifications → informational only; real notification via outbox + email template (SET-090 scope)",
-        "Hardcoded labels → next-intl keys under planning.d365 namespace"
+        "Hardcoded labels → next-intl keys under planning.d365 namespace",
+        "D365 SO pull may create draft demand only; it must not mark any FG/WIP factory-usable. Draft generation must call the same release-read-model guard used by manual WO creation."
       ],
       "shadcn_equivalent": [
         "Dialog",
@@ -409,7 +414,9 @@
         "ReasonInput min 10 chars for reject → zod .min(10) with custom message referencing rule",
         "Allergen hint (line + seqPosition) → fetched from sequencing queue for the WO's assigned line",
         "onConfirm → Server Action: approve triggers WO release + reservation creation; reject deletes draft chain atomically",
-        "Hardcoded labels → next-intl keys under planning.d365.draftReview namespace"
+        "Hardcoded labels → next-intl keys under planning.d365.draftReview namespace",
+        "Draft WO approval/release must re-check canonical factory release read model before moving WO out of draft: only `approved_for_factory` / `released_to_factory` with matching `active_bom_header_id` and `active_factory_spec_id` can pass.",
+        "D365 SO-origin drafts remain draft/blocked if release status is pending or blocked; show `release_blockers` rather than falling back to latest BOM or D365 status."
       ],
       "shadcn_equivalent": [
         "Dialog",
@@ -582,7 +589,8 @@
         "KPI mini-cards (Scheduled today, In progress, On hold >24h, This week) → async RSC tiles with individual DB queries; 'On hold >24h' uses timestampdiff in Drizzle raw query",
         "Row click → navigation to /planning/work-orders/[id]; no client-side state needed",
         "AllergenCluster, Avail, WOPlanStatus, Priority, SourceBadge → extract to shared design-system components with shadcn Badge base",
-        "Pagination (← Prev / Next →) → cursor-based pagination via URL params; Drizzle .limit().offset() or keyset pagination"
+        "Pagination (← Prev / Next →) → cursor-based pagination via URL params; Drizzle .limit().offset() or keyset pagination",
+        "WO list badges/filters for NPD/D365-origin WOs should show factory release read-model state separately from WO lifecycle and D365 sync state; pending/blocked rows are visible but non-releasable."
       ],
       "shadcn_equivalent": [
         "Table",
@@ -626,7 +634,8 @@
         "Summary bar (7 key fields) → horizontal scroll on mobile; each cell is a definition-list item",
         "BOM snapshot link → next/link to /technical/bom/:bomVersion",
         "WO head action buttons → Server Actions wrapped in useTransition for optimistic state; each action is guarded by RBAC",
-        "Hardcoded labels → next-intl keys under planning.wo.detail namespace"
+        "Hardcoded labels → next-intl keys under planning.wo.detail namespace",
+        "WO detail BOM/spec snapshot panel must show canonical `active_bom_header_id` and `active_factory_spec_id` captured at creation/release, plus release event/blocker metadata."
       ],
       "shadcn_equivalent": [
         "Tabs",
@@ -1169,6 +1178,197 @@
       ],
       "known_bugs": [],
       "estimated_translation_time_min": 150
+    },
+    {
+      "label": "po_bulk_import_modal",
+      "file": "design/Monopilot Design System/planning/modals.jsx",
+      "lines": "1102-1339",
+      "component_type": "modal",
+      "ui_pattern": "multi-step-wizard",
+      "data_domain": "PO",
+      "interaction": "bulk",
+      "complexity": "composite",
+      "depends_on_prototypes": [
+        "design/Monopilot Design System/_shared/modals.jsx#Modal"
+      ],
+      "translation_notes": [
+        "CSV parser/validation moves server-side; groups rows by supplier_code + expected_delivery in a transaction.",
+        "Surface row-level errors and skipped rows exactly as prototype; emit po.bulk_imported outbox event."
+      ],
+      "shadcn_equivalent": [
+        "Dialog",
+        "Form",
+        "Table",
+        "Badge",
+        "Button"
+      ],
+      "known_bugs": [],
+      "estimated_translation_time_min": 90
+    },
+    {
+      "label": "receive_to_modal",
+      "file": "design/Monopilot Design System/planning/modals.jsx",
+      "lines": "1341-1474",
+      "component_type": "modal",
+      "ui_pattern": "crud-form-with-validation",
+      "data_domain": "TO",
+      "interaction": "edit",
+      "complexity": "composite",
+      "depends_on_prototypes": [
+        "design/Monopilot Design System/_shared/modals.jsx#Modal"
+      ],
+      "translation_notes": [
+        "Server Action validates received_qty <= shipped outstanding and force-close reason when short.",
+        "Warehouse put-away handoff is via 05-WAREHOUSE contract; Planning records TO transition only."
+      ],
+      "shadcn_equivalent": [
+        "Dialog",
+        "Form",
+        "Table",
+        "Badge",
+        "Button"
+      ],
+      "known_bugs": [],
+      "estimated_translation_time_min": 90
+    },
+    {
+      "label": "plan_supplier_list",
+      "file": "design/Monopilot Design System/planning/suppliers.jsx",
+      "lines": "25-151",
+      "component_type": "table",
+      "ui_pattern": "search-filter-list",
+      "data_domain": "Supplier",
+      "interaction": "read-only",
+      "complexity": "composite",
+      "depends_on_prototypes": [
+        "unresolved:_shared/"
+      ],
+      "translation_notes": [
+        "Supplier list uses URL filters and Server Component data; D365 sync badge is optional metadata.",
+        "New supplier button opens SupplierFormModal; soft delete preserves PO history."
+      ],
+      "shadcn_equivalent": [
+        "Card",
+        "Table",
+        "Tabs",
+        "Input",
+        "Badge",
+        "Button"
+      ],
+      "known_bugs": [],
+      "estimated_translation_time_min": 90
+    },
+    {
+      "label": "plan_supplier_detail",
+      "file": "design/Monopilot Design System/planning/suppliers.jsx",
+      "lines": "153-401",
+      "component_type": "page-layout",
+      "ui_pattern": "detail-view",
+      "data_domain": "Supplier",
+      "interaction": "read-only",
+      "complexity": "composite",
+      "depends_on_prototypes": [
+        "unresolved:_shared/"
+      ],
+      "translation_notes": [
+        "Supplier detail renders info/products/PO history/D365 tabs from server data.",
+        "Product assignment sub-table enforces max one default supplier per product."
+      ],
+      "shadcn_equivalent": [
+        "Card",
+        "Table",
+        "Tabs",
+        "Input",
+        "Badge",
+        "Button"
+      ],
+      "known_bugs": [],
+      "estimated_translation_time_min": 90
+    },
+    {
+      "label": "supplier_form_modal",
+      "file": "design/Monopilot Design System/planning/suppliers.jsx",
+      "lines": "403-512",
+      "component_type": "modal",
+      "ui_pattern": "crud-form-with-validation",
+      "data_domain": "Supplier",
+      "interaction": "create",
+      "complexity": "composite",
+      "depends_on_prototypes": [
+        "design/Monopilot Design System/_shared/modals.jsx#Modal"
+      ],
+      "translation_notes": [
+        "React local validation becomes zod+Server Action; supplier code is immutable after create.",
+        "Editing D365-synced supplier marks drift; D365 remains adapter metadata only."
+      ],
+      "shadcn_equivalent": [
+        "Dialog",
+        "Form",
+        "Table",
+        "Badge",
+        "Button"
+      ],
+      "known_bugs": [],
+      "estimated_translation_time_min": 90
+    },
+    {
+      "label": "deactivate_supplier_modal",
+      "file": "design/Monopilot Design System/planning/suppliers.jsx",
+      "lines": "514-553",
+      "component_type": "modal",
+      "ui_pattern": "crud-form-with-validation",
+      "data_domain": "Supplier",
+      "interaction": "delete",
+      "complexity": "composite",
+      "depends_on_prototypes": [
+        "design/Monopilot Design System/_shared/modals.jsx#Modal"
+      ],
+      "translation_notes": [
+        "Soft-delete only; history and existing POs remain linked.",
+        "Type-to-confirm and audit log are mandatory."
+      ],
+      "shadcn_equivalent": [
+        "Dialog",
+        "Form",
+        "Table",
+        "Badge",
+        "Button"
+      ],
+      "known_bugs": [],
+      "estimated_translation_time_min": 90
+    },
+    {
+      "label": "planning_delete_confirm_modal",
+      "file": "design/Monopilot Design System/planning/modals.jsx",
+      "lines": "609-629",
+      "component_type": "modal",
+      "ui_pattern": "crud-form-with-validation",
+      "data_domain": "WO",
+      "interaction": "delete",
+      "complexity": "primitive",
+      "depends_on_prototypes": [
+        "design/Monopilot Design System/_shared/modals.jsx#Modal",
+        "design/Monopilot Design System/_shared/modals.jsx#Field"
+      ],
+      "translation_notes": [
+        "window.Modal size='sm' → @radix-ui/react-dialog Dialog; entity.type and entity.id passed as props from parent Server Component query, not hardcoded mock",
+        "Type-to-confirm input pattern (typed === entity.id guard) → react-hook-form field with zod .refine(v => v === entityId, 'Must match ID'); entityId injected as prop",
+        "entity.impact message string → internationalized with next-intl t('planning.delete.impact_message') interpolated with entity type and dependencies count from server",
+        "onConfirm → Server Action deleteEntity(entityType, entityId) with RBAC guard (Manager role); checks no active dependencies before deletion; emit entity.deleted outbox event; cascades to dependent entities per cascade_rules config"
+      ],
+      "shadcn_equivalent": [
+        "Dialog",
+        "DialogContent",
+        "DialogHeader",
+        "DialogFooter",
+        "Form",
+        "FormField",
+        "Input",
+        "Button",
+        "Alert"
+      ],
+      "known_bugs": [],
+      "estimated_translation_time_min": 35
     }
   ]
 }
