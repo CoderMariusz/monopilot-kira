@@ -30,7 +30,7 @@
     "context_budget": "45k",
     "estimated_effort": "3h",
     "description": "Single-click optional D365 export/import integration action chaining RBAC + MFA + V01-V08 + V18 pre-flight + workbook + storage + state transition.",
-    "details": "Single-tx commit of file + DB state. MFA verification via TOTP. Returns downloadUrl + expiresAt. D365 output is optional integration/export/import only; Monopilot/NPD Builder remains canonical for WIP + FG + validated BOM/product records. V18 open High risk is a hard build/export blocker.",
+    "details": "Single-tx commit of file + DB state. MFA verification via TOTP. Returns downloadUrl + expiresAt. D365 output is optional integration/export/import only; Monopilot/NPD Builder remains canonical for WIP + FG + validated BOM/product records. V18 open High risk is a hard build/export blocker.\n\nAdditional acceptance detail preserved from compressed AC list:\n- Given user role core_user attempts buildD365, when called, then AuthError thrown\n- UI closeout includes screenshot/artifact evidence and Playwright trace/artifacts where applicable per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`; if Playwright is unavailable, document the blocker and provide RTL/snapshot fallback evidence.",
     "scope_files": [
       "apps/web/app/(npd)/fa/actions/build-d365.ts [create]",
       "apps/web/app/(npd)/fa/actions/__tests__/build-d365.test.ts [create]",
@@ -57,11 +57,12 @@
       "Given Jane with valid TOTP and FA passing V01-V08 + V18 no Open High risk + V04 no Missing, when buildD365 runs, then product.built=TRUE, fa_builder_outputs row exists, fa.built event emitted, downloadUrl returned D365 is treated as optional export output, not canonical record creation.",
       "Given V04 returns Missing for one material, when buildD365 runs, then GateError 'V04_MISSING' thrown without setting built",
       "Given V18 returns an Open High risk, when buildD365/export runs, then GateError 'V18_HIGH_RISK_OPEN' is thrown without setting built or exporting.",
-      "Given user role core_user attempts buildD365, when called, then AuthError thrown"
+      "Given the task is closed out, when reviewers inspect the task evidence, then these additional requirements are proven together: Given user role core_user attempts buildD365, when called, then AuthError thrown; UI closeout includes screenshot/artifact evidence and Playwright trace/artifacts where applicable per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`; if Playwright is unavailable, document the blocker and provide RTL/snapshot fallback evidence."
     ],
     "test_strategy": [
       "RED: 3 tests covering happy path, V04 gate, RBAC denial before action exists",
-      "Run 'pnpm --filter web test build-d365'"
+      "Run 'pnpm --filter web test build-d365'",
+      "For UI parity, capture screenshots/artifacts and Playwright trace/video/artifacts where applicable; attach artifact paths in closeout."
     ],
     "risk_red_lines": [
       "Do not skip MFA",
@@ -94,6 +95,7 @@
       "implementation": "hermes_gpt55",
       "review": "opus_if_high_risk_or_ui_or_architecture",
       "close": "spark_low_risk_else_opus"
-    }
+    },
+    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md"
   }
 }

@@ -1,7 +1,12 @@
 {
   "title": "T-005 — Migration: lab_results and supplier_specs tables",
   "prompt": "Create Drizzle migration for §5.5 lab_results and supplier_specs. `lab_results`(id PK, org_id, item_id FK items nullable, work_order_id UUID nullable, test_type TEXT CHECK in ('atp_swab','allergen_elisa','micro_apc','nutrition'), test_code, result_value NUMERIC(14,4), result_unit, result_status TEXT CHECK in ('pass','fail','inconclusive','pending'), threshold_rlu NUMERIC(10,2), tested_at, lab_provider, notes, created_by, created_at). `supplier_specs`(id PK, org_id, item_id FK items NOT NULL, supplier_code TEXT, spec_document_url, spec_version, issued_date, expiry_date, declared_allergens TEXT[], declared_attrs JSONB DEFAULT '{}', uploaded_at, uploaded_by). RLS org_id-scoped. Index idx_lab_results_item(org_id,item_id,tested_at DESC). RED command: `pnpm vitest run tests/db/lab-supplier.migration.test.ts`.",
-  "labels": ["prd", "data", "schema-lab", "T1-schema"],
+  "labels": [
+    "prd",
+    "data",
+    "schema-lab",
+    "T1-schema"
+  ],
   "priority": 50,
   "max_attempts": 3,
   "pipeline_name": "kira_dev",
@@ -9,7 +14,10 @@
     "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
     "prd_task_id": "T-005",
     "source_prd": "03-TECHNICAL-PRD.md",
-    "prd_refs": ["§5.5", "§10.6"],
+    "prd_refs": [
+      "§5.5",
+      "§10.6"
+    ],
     "category": "data",
     "subcategory": "schema-lab",
     "task_type": "T1-schema",
@@ -24,18 +32,57 @@
       "db/schema/supplier-specs.ts",
       "tests/db/lab-supplier.migration.test.ts"
     ],
-    "out_of_scope": ["ATP threshold trigger (T-026)", "Lab UI (T-049)", "Supplier portal API (Phase 2)"],
-    "dependencies": ["T-001"],
-    "parallel_safe_with": ["T-002", "T-003", "T-004", "T-006", "T-007"],
+    "out_of_scope": [
+      "ATP threshold trigger (T-026)",
+      "Lab UI (T-049)",
+      "Supplier portal API (Phase 2)"
+    ],
+    "dependencies": [
+      "T-001"
+    ],
+    "parallel_safe_with": [
+      "T-002",
+      "T-003",
+      "T-004",
+      "T-006",
+      "T-007"
+    ],
     "acceptance_criteria": [
       "Given migration applied, when inserting lab_result with invalid test_type, then CHECK rejects.",
       "Given supplier_specs row, when reading declared_allergens, then it returns TEXT[] array.",
       "Given RLS active, when no org context, then both tables return 0 rows."
     ],
-    "test_strategy": ["RED test for CHECK + RLS + array column.", "Run: pnpm vitest run tests/db/lab-supplier.migration.test.ts"],
-    "risk_red_lines": ["Do not implement ATP auto-fail trigger here — it is its own task (T-026)."],
-    "skills": ["test-driven-development", "requesting-code-review"],
-    "checkpoint_policy": {"required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"], "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]},
-    "routing_hints": {"red": "hermes_gpt55", "implementation": "hermes_gpt55", "review": "opus_if_high_risk_or_ui_or_architecture", "close": "spark_low_risk_else_opus"}
+    "test_strategy": [
+      "RED test for CHECK + RLS + array column.",
+      "Run: pnpm vitest run tests/db/lab-supplier.migration.test.ts"
+    ],
+    "risk_red_lines": [
+      "Do not implement ATP auto-fail trigger here — it is its own task (T-026)."
+    ],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
   }
 }

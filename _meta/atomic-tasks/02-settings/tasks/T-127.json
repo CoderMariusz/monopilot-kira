@@ -1,0 +1,54 @@
+{
+  "title": "T-127 — Authorization Policies screen (SET-011b)",
+  "prompt": "T-127 — Authorization Policies screen (SET-011b)\nWave0 Settings task. Discover existing files, implement exact scope, keep one atomic type, local dependencies only.",
+  "labels": [
+    "monopilot-kira",
+    "02-settings",
+    "wave0-hardening"
+  ],
+  "priority": 80,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "description": "T-127 — Authorization Policies screen (SET-011b)",
+    "details": "T-127 — Authorization Policies screen (SET-011b)\n\nAdditional acceptance detail preserved from compressed AC list:\n- Targeted tests and closeout evidence are provided.\n- UI closeout includes screenshot/artifact evidence and Playwright trace/artifacts where applicable per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`; if Playwright is unavailable, document the blocker and provide RTL/snapshot fallback evidence.",
+    "scope_files": [
+      "Exact files discovered before editing",
+      "Targeted tests beside implementation"
+    ],
+    "acceptance_criteria": [
+      "Required backend/UI capability is implemented for the named SET scope.",
+      "Permissions, org_id isolation, audit/outbox and typed blockers are enforced where applicable.",
+      "Unsupported/bypass paths are rejected without partial mutation.",
+      "Given the task is closed out, when reviewers inspect the task evidence, then these additional requirements are proven together: Targeted tests and closeout evidence are provided.; UI closeout includes screenshot/artifact evidence and Playwright trace/artifacts where applicable per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`; if Playwright is unavailable, document the blocker and provide RTL/snapshot fallback evidence."
+    ],
+    "test_strategy": [
+      "Run targeted tests",
+      "For UI parity, capture screenshots/artifacts and Playwright trace/video/artifacts where applicable; attach artifact paths in closeout."
+    ],
+    "risk_red_lines": [
+      "No settings.quality.* permissions",
+      "No import/export bypass of authorization policies",
+      "Dependencies local T-XXX only"
+    ],
+    "skills": [
+      "repo-navigation",
+      "testing"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "discover",
+        "test",
+        "closeout"
+      ]
+    },
+    "task_type": "T3-ui",
+    "dependencies": [
+      "T-052",
+      "T-120",
+      "T-126"
+    ],
+    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md"
+  }
+}

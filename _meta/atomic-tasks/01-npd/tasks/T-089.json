@@ -1,7 +1,12 @@
 {
   "title": "T-089 — GDPR right-to-erasure function (fa/prod_detail/brief PII redaction) (NPD misc)",
   "prompt": "# T-089 — GDPR right-to-erasure\n\nPRD: 01-NPD-PRD.md §15 Compliance (right-to-erasure) + Foundation §15 GDPR scope\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nSECURITY DEFINER function gdpr_redact_user_pii(user_id) that pseudonymises (does not delete) PII columns on fa/prod_detail/brief that reference the subject user — preserving FK integrity and audit_events history while satisfying GDPR Art. 17 right-to-erasure.\n\n## Implementation contract\n1. Migration packages/db/migrations/0089_gdpr_redact_pii.sql defines gdpr_redact_user_pii(target_user_id UUID) RETURNS jsonb (counts per table) SECURITY DEFINER scoped to service role.\n2. Function pseudonymises created_by_user, updated_by_user, locked_by_user, completed_by_user, owner_user_id, uploaded_by_user, approver_user_id columns to a placeholder UUID '00000000-0000-0000-0000-000000000000' across fa, prod_detail, brief, formulations, gate_checklist_items, gate_approvals, risks, compliance_docs.\n3. audit_events row 'gdpr.erasure_executed' written per invocation with target_user_id + counts.\n4. Server Action wrapper apps/web/app/(admin)/gdpr/_actions/redact-user.ts — RBAC admin only.\n\n## Files\n- packages/db/migrations/0089_gdpr_redact_pii.sql [create]\n- apps/web/app/(admin)/gdpr/_actions/redact-user.ts [create]\n- apps/web/app/(admin)/gdpr/_actions/__tests__/redact-user.test.ts [create]\n\n## Acceptance criteria\n1. Given a user with FK references in fa.created_by_user (3 rows) + risks.owner_user_id (2 rows), when gdpr_redact_user_pii(user_id) runs, then all 5 rows now reference the placeholder UUID and the returned jsonb counts equal {fa:3, risks:2, ...} per §15 erasure contract\n2. Given the function runs, when audit_events is queried, then a row 'gdpr.erasure_executed' exists with target_user_id + counts payload per Foundation §15 GDPR audit\n3. Given a non-admin calls the redactUser Server Action, when the action runs, then it rejects with FORBIDDEN per Foundation §15 + admin-only RBAC\n\n## Test strategy\n- RED: __tests__/redact-user.test.ts with seeded multi-table FK references + audit + RBAC before function exists\n- Run 'pnpm --filter db migrate && pnpm --filter web test redact-user'\n\n## Risk red lines\n- Do not DELETE rows (must pseudonymise to preserve FK + audit)\n- Do not skip audit_events emission\n- Do not run with INVOKER rights (must be SECURITY DEFINER scoped to service role)",
-  "labels": ["prd", "data", "gdpr", "T1-schema"],
+  "labels": [
+    "prd",
+    "data",
+    "gdpr",
+    "T1-schema"
+  ],
   "priority": 50,
   "max_attempts": 3,
   "pipeline_name": "kira_dev",
@@ -9,7 +14,9 @@
     "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
     "prd_task_id": "T-089",
     "source_prd": "01-NPD-PRD.md",
-    "prd_refs": ["§15"],
+    "prd_refs": [
+      "§15"
+    ],
     "category": "data",
     "subcategory": "gdpr-erasure",
     "task_type": "T1-schema",
@@ -27,8 +34,17 @@
       "Do not implement full data export (separate Foundation task)",
       "Do not delete audit_events rows (immutable)"
     ],
-    "dependencies": ["T-001", "T-054", "T-063", "T-080", "T-083"],
-    "parallel_safe_with": ["T-090", "T-091"],
+    "dependencies": [
+      "T-001",
+      "T-054",
+      "T-063",
+      "T-080",
+      "T-083"
+    ],
+    "parallel_safe_with": [
+      "T-090",
+      "T-091"
+    ],
     "acceptance_criteria": [
       "Given a user with FK references in fa.created_by_user (3 rows) + risks.owner_user_id (2 rows), when gdpr_redact_user_pii(user_id) runs, then all 5 rows now reference the placeholder UUID and the returned jsonb counts equal {fa:3, risks:2, ...} per §15 erasure contract",
       "Given the function runs, when audit_events is queried, then a row 'gdpr.erasure_executed' exists with target_user_id + counts payload per Foundation §15 GDPR audit",
@@ -43,10 +59,24 @@
       "Do not skip audit_events emission",
       "Do not run with INVOKER rights"
     ],
-    "skills": ["test-driven-development", "requesting-code-review"],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
     "checkpoint_policy": {
-      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
-      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
     },
     "routing_hints": {
       "red": "hermes_gpt55",

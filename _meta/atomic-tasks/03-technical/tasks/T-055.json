@@ -49,11 +49,13 @@
     "acceptance_criteria": [
       "Given the dashboard renders, when compared to design/Monopilot Design System/technical/other-screens.jsx:904-935 and design/Monopilot Design System/technical/modals.jsx:542-559, then KPI cards, last-runs table, modal field set, and Cancel/Confirm button order match — structural + visual + interaction parity verified by RTL.",
       "Given integration.d365.enabled=false, when on dashboard, then a banner shows 'Disabled' state.",
-      "Given user lacks technical.d365.sync.trigger, when on dashboard, then 'Sync now' button is hidden."
+      "Given user lacks technical.d365.sync.trigger, when on dashboard, then 'Sync now' button is hidden.",
+      "UI closeout includes screenshot/artifact evidence and Playwright trace/artifacts where applicable per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`; if Playwright is unavailable, document the blocker and provide RTL/snapshot fallback evidence."
     ],
     "test_strategy": [
       "RED tests for parity + RBAC + flag-off banner.",
-      "Run: pnpm vitest run tests/ui/tec-070-d365-dashboard.test.tsx"
+      "Run: pnpm vitest run tests/ui/tec-070-d365-dashboard.test.tsx",
+      "For UI parity, capture screenshots/artifacts and Playwright trace/video/artifacts where applicable; attach artifact paths in closeout."
     ],
     "risk_red_lines": [
       "Do not surface raw credentials in UI.",
@@ -85,6 +87,7 @@
       "implementation": "hermes_gpt55",
       "review": "opus_if_high_risk_or_ui_or_architecture",
       "close": "spark_low_risk_else_opus"
-    }
+    },
+    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md"
   }
 }

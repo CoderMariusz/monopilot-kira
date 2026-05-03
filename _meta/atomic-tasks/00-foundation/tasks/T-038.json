@@ -40,10 +40,6 @@
     "dependencies": [
       "T-006"
     ],
-    "parallel_safe_with": [
-      "T-040",
-      "T-046"
-    ],
     "acceptance_criteria": [
       "Given the migration runs from empty, when 'pnpm --filter @monopilot/db migrate' completes, then table tenant_migrations exists with all 8 columns (tenant_id, component, current_version, target_version, cohort, last_run_at, status, failure_reason) and PK = (tenant_id, component)",
       "Given a row INSERT with cohort='moonshot' (not in CHECK list), when SQL runs, then Postgres rejects the row with a CHECK constraint violation",

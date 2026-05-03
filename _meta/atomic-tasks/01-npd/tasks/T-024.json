@@ -1,7 +1,12 @@
 {
   "title": "T-024 — UI: FA Production tab + ProdDetail rows editor (fa_production_tab)",
   "prompt": "# T-024 — FA Production tab UI\n\nPRD: 01-NPD-PRD.md §5.6, §6.1 Chain 2/4 + UX fa_production_tab\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\nPrototype: design/Monopilot Design System/npd/fa-screens.jsx:571-653 (fa_production_tab)\n\n## Goal\nProduction tab rendering ProdDetail rows table (one per component) with manufacturing_operation_1..4 dropdowns from Reference.ManufacturingOperations, intermediate_code_p1..final read-only auto, line+equipment_setup linked dropdowns.\n\n## Implementation contract\nNew apps/web/app/(npd)/fa/[productCode]/_tabs/production-tab.tsx 'use client'. Reads prod_detail rows + Reference operations via Server Component prefetch. Each row uses RHF subform; on operation change calls updateProdDetailCell which invokes chain2. Auto cols green readOnly. Single Save All button submits dirty rows in single tx.\n\n## Files\n- apps/web/app/(npd)/fa/[productCode]/_tabs/production-tab.tsx [create]\n- apps/web/app/(npd)/fa/[productCode]/_tabs/__tests__/production-tab.test.tsx [create]\n- apps/web/app/(npd)/fa/actions/update-prod-detail-cell.ts [create]\n- design/Monopilot Design System/npd/fa-screens.jsx [ref]\n\n## Acceptance criteria\n1. Given the tab renders, when compared to design/Monopilot Design System/npd/fa-screens.jsx:571-653 (fa_production_tab), then it shows same row structure (4 op dropdowns + yields + line + equipment_setup + intermediate codes), auto cols read-only green, and uses shadcn Table+Select+Input primitives — verified by RTL parity checklist (structural+visual+interaction)\n2. Given user changes manufacturing_operation_1, when saved, then chain2 cascade fills intermediate_code_p1\n3. Given user changes line, when saved, then chain1 fills equipment_setup automatically\n\n## Test strategy\n- RED: 3 RTL tests for parity, chain2 trigger, chain1 trigger\n- Run 'pnpm --filter web test production-tab'\n\n## Risk red lines\n- Do not bypass per-row RBAC\n- Do not allow editing intermediate_code_* fields\n- Do not duplicate cascade logic in client",
-  "labels": ["prd", "ui", "fa-production-tab", "T3-ui"],
+  "labels": [
+    "prd",
+    "ui",
+    "fa-production-tab",
+    "T3-ui"
+  ],
   "priority": 100,
   "max_attempts": 3,
   "pipeline_name": "kira_dev",
@@ -9,7 +14,10 @@
     "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
     "prd_task_id": "T-024",
     "source_prd": "01-NPD-PRD.md",
-    "prd_refs": ["§5.6", "§6.1"],
+    "prd_refs": [
+      "§5.6",
+      "§6.1"
+    ],
     "category": "ui",
     "subcategory": "fa-production-tab",
     "task_type": "T3-ui",
@@ -28,26 +36,53 @@
       "Do not handle multi-component sync UI here (covered by chain3 in core tab)",
       "Do not implement BOM tab"
     ],
-    "dependencies": ["T-002", "T-004", "T-010", "T-011", "T-020"],
-    "parallel_safe_with": ["T-023", "T-025", "T-026", "T-027"],
+    "dependencies": [
+      "T-002",
+      "T-004",
+      "T-010",
+      "T-011",
+      "T-020"
+    ],
+    "parallel_safe_with": [
+      "T-023",
+      "T-025",
+      "T-026",
+      "T-027"
+    ],
     "acceptance_criteria": [
       "Given the tab renders, when compared to design/Monopilot Design System/npd/fa-screens.jsx:571-653, then it shows same row structure (4 op dropdowns + yields + line + equipment_setup + intermediate codes), auto cols read-only green, and uses shadcn Table+Select+Input primitives — verified by RTL parity checklist (structural + visual + interaction parity)",
       "Given user changes manufacturing_operation_1, when saved, then chain2 cascade fills intermediate_code_p1",
-      "Given user changes line, when saved, then chain1 fills equipment_setup automatically"
+      "Given user changes line, when saved, then chain1 fills equipment_setup automatically",
+      "UI closeout includes screenshot/artifact evidence and Playwright trace/artifacts where applicable per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`; if Playwright is unavailable, document the blocker and provide RTL/snapshot fallback evidence."
     ],
     "test_strategy": [
       "RED: 3 RTL tests for parity, chain2 trigger, chain1 trigger before component exists",
-      "Run 'pnpm --filter web test production-tab'"
+      "Run 'pnpm --filter web test production-tab'",
+      "For UI parity, capture screenshots/artifacts and Playwright trace/video/artifacts where applicable; attach artifact paths in closeout."
     ],
     "risk_red_lines": [
       "Do not bypass per-row RBAC",
       "Do not allow editing intermediate_code_* fields",
       "Do not duplicate cascade logic in client"
     ],
-    "skills": ["test-driven-development", "requesting-code-review"],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
     "checkpoint_policy": {
-      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
-      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
     },
     "routing_hints": {
       "red": "hermes_gpt55",
@@ -56,6 +91,7 @@
       "close": "spark_low_risk_else_opus"
     },
     "prototype_match": true,
-    "prototype_index_entry": "fa_production_tab"
+    "prototype_index_entry": "fa_production_tab",
+    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md"
   }
 }

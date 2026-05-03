@@ -29,7 +29,7 @@
     "context_budget": "55k",
     "estimated_effort": "4-5h",
     "description": "8 wizard Server Actions per §10.6.1 with SSE phase events + transactional rollback on execute failures.",
-    "details": "Each action streams SSE phase events. wizardExecute wraps build+persist+emit in single tx; on failure rolls back fully and surfaces inline error. Modal dismissibility toggled by action result. D365 output is optional integration/export/import only; Monopilot/NPD Builder remains canonical for WIP + FG + validated BOM/product records. V18 open High risk is a hard build/export blocker.",
+    "details": "Each action streams SSE phase events. wizardExecute wraps build+persist+emit in single tx; on failure rolls back fully and surfaces inline error. Modal dismissibility toggled by action result. D365 output is optional integration/export/import only; Monopilot/NPD Builder remains canonical for WIP + FG + validated BOM/product records. V18 open High risk is a hard build/export blocker.\n\nAdditional acceptance detail preserved from compressed AC list:\n- Given full happy path runs, when wizardExecute returns success, then SSE emitted phases in order: validate → data_preview → bom_preview → allergen_check → constants_check → n1_preview → mfa → execute_compute → execute_xlsx → execute_persist → execute_emit\n- UI closeout includes screenshot/artifact evidence and Playwright trace/artifacts where applicable per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`; if Playwright is unavailable, document the blocker and provide RTL/snapshot fallback evidence.",
     "scope_files": [
       "apps/web/app/(npd)/fa/actions/wizard/wizard-validate.ts [create]",
       "apps/web/app/(npd)/fa/actions/wizard/wizard-data-preview.ts [create]",
@@ -60,11 +60,12 @@
       "Given wizardValidate runs and any V01-V08 fails or V18 has an Open High risk, when it returns, then the result blocks Next button",
       "Given V18 has an Open High risk, when wizardValidate runs, then the result blocks Next/Execute with 'V18_HIGH_RISK_OPEN'.",
       "Given wizardExecute persist step throws, when transaction commits, then fa.built remains FALSE and no fa_builder_outputs row exists",
-      "Given full happy path runs, when wizardExecute returns success, then SSE emitted phases in order: validate → data_preview → bom_preview → allergen_check → constants_check → n1_preview → mfa → execute_compute → execute_xlsx → execute_persist → execute_emit"
+      "Given the task is closed out, when reviewers inspect the task evidence, then these additional requirements are proven together: Given full happy path runs, when wizardExecute returns success, then SSE emitted phases in order: validate → data_preview → bom_preview → allergen_check → constants_check → n1_preview → mfa → execute_compute → execute_xlsx → execute_persist → execute_emit; UI closeout includes screenshot/artifact evidence and Playwright trace/artifacts where applicable per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`; if Playwright is unavailable, document the blocker and provide RTL/snapshot fallback evidence."
     ],
     "test_strategy": [
       "RED: 3 integration tests in __tests__/wizard.test.ts covering blocking, rollback, SSE phase ordering before actions exist",
-      "Run 'pnpm --filter web test wizard'"
+      "Run 'pnpm --filter web test wizard'",
+      "For UI parity, capture screenshots/artifacts and Playwright trace/video/artifacts where applicable; attach artifact paths in closeout."
     ],
     "risk_red_lines": [
       "Do not partially commit on rollback",
@@ -97,6 +98,7 @@
       "implementation": "hermes_gpt55",
       "review": "opus_if_high_risk_or_ui_or_architecture",
       "close": "spark_low_risk_else_opus"
-    }
+    },
+    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md"
   }
 }

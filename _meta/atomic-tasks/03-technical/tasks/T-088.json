@@ -1,0 +1,78 @@
+{
+  "title": "T-088 — UI: TEC-045 Lab Results Log spec-driven screen",
+  "prompt": "# T-088 — UI: TEC-045 Lab Results Log (spec-driven)\n\nImplement the MVP UI task for TEC-045 Lab Results Log. Exact canonical prototype is missing, so this is a spec-driven UI task: `03-TECHNICAL-PRD.md` §10.7 / Quality-owned lab read-model log and `design/03-TECHNICAL-UX.md` are authoritative; adjacent Technical prototype elements may be reused only as layout/primitives, not as a false 1:1 source. Route target: `/technical/lab-results`. Apply 03-TECHNICAL red-lines (FG/WIP, factory_specs, shared BOM SSOT, Quality lab ownership, D365 optional) where applicable. Closeout requires screenshot/artifacts plus Playwright traces/artifacts per shared UI policy.",
+  "labels": [
+    "prd",
+    "ui",
+    "spec-driven",
+    "T3-ui"
+  ],
+  "priority": 80,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "source_prd": "03-TECHNICAL-PRD.md",
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prd_task_id": "T-088",
+    "prd_refs": [
+      "§0",
+      "§5",
+      "§17",
+      "design/03-TECHNICAL-UX.md"
+    ],
+    "category": "ui",
+    "subcategory": "tec-045",
+    "task_type": "T3-ui",
+    "parent_feature": "03-TECHNICAL Readiness Patch",
+    "context_budget": "30k",
+    "estimated_effort": "2-4h",
+    "description": "UI: TEC-045 Lab Results Log spec-driven screen",
+    "details": "Spec-driven because only a per-item lab tab exists. Implement cross-item lab-results log as a Technical read model over Quality-owned lab_results. Filters: item, WO, test type, result status. Add/request flow must delegate through Quality bridge or show QUALITY_BRIDGE_MISSING; Technical must not write lab_results directly.\n\nAdditional acceptance detail preserved from compressed AC list:\n- Given closeout is prepared, screenshots/artifacts and Playwright traces/artifacts where applicable are listed per shared UI policy.\n- Given user adds a lab result, UI delegates through Quality bridge or shows QUALITY_BRIDGE_MISSING; Technical does not write lab_results directly.\n- UI closeout includes screenshot/artifact evidence and Playwright trace/artifacts where applicable per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`; if Playwright is unavailable, document the blocker and provide RTL/snapshot fallback evidence.",
+    "scope_files": [
+      "app/(app)/technical/lab-results/page.tsx",
+      "tests/ui/tec-045-lab-results-log.test.tsx"
+    ],
+    "acceptance_criteria": [
+      "Given the UI surface is implemented, when compared with the dedicated layout-primitive prototype `design/Monopilot Design System/technical/spec-driven-screens.jsx:451-546` (`lab_results_log_screen` Quality-owned read-model list with verdict pills + ATP RLU pass/fail visualization + Open-in-QA cross-link), then it satisfies structural parity, visual parity, and interaction parity against the PRD §10.7 / UX-spec Quality-owned lab read-model log layout/flow (PRD/UX is canonical, prototype is layout-primitive only), captures Playwright screenshots and traces, passes axe checks, and applies the Technical red-line overlay: FG not FA, WIP/intermediate not PR-code, factory_spec/internal_product_spec, shared BOM SSOT, and D365 optional only. Lab results are Quality-owned read model; Technical never writes lab_results, never raises NCR, never signs off — all that lives in 09-QUALITY.",
+      "Given TEC-045 renders, then it satisfies the named PRD/UX spec as source of truth and does not claim exact prototype parity.",
+      "Given adjacent prototype primitives are reused, then screen semantics/routes/fields/states remain those required by PRD/UX.",
+      "Given the task is closed out, when reviewers inspect the task evidence, then these additional requirements are proven together: Given closeout is prepared, screenshots/artifacts and Playwright traces/artifacts where applicable are listed per shared UI policy.; Given user adds a lab result, UI delegates through Quality bridge or shows QUALITY_BRIDGE_MISSING; Technical does not write lab_results directly.; UI closeout includes screenshot/artifact evidence and Playwright trace/artifacts where applicable per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`; if Playwright is unavailable, document the blocker and provide RTL/snapshot fallback evidence."
+    ],
+    "test_strategy": [
+      "RED RTL/Playwright tests for PRD/UX spec-driven structure and interactions.",
+      "Run the relevant UI test for TEC-045; capture screenshot and trace artifacts.",
+      "For UI parity, capture screenshots/artifacts and Playwright trace/video/artifacts where applicable; attach artifact paths in closeout."
+    ],
+    "risk_red_lines": [
+      "Do not block on missing prototype; use spec-driven contract explicitly.",
+      "Do not use adjacent prototype as 1:1 source."
+    ],
+    "dependencies": [],
+    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md"
+  }
+}

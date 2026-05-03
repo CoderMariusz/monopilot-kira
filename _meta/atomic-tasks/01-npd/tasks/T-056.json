@@ -27,7 +27,7 @@
     "context_budget": "35k",
     "estimated_effort": "1-2h",
     "description": "Idempotent seed of GATE_CHECKLISTS constant from gate-screens.jsx into Reference.GateChecklistTemplates per tenant.",
-    "details": "Seed iterates tenants and inserts GATE_CHECKLISTS items per gate per category preserving required flags. Idempotent via ON CONFLICT.",
+    "details": "Final gate matrix seed supersedes prototype-only counts when decisions conflict.",
     "scope_files": [
       "packages/db/seed/gate-checklist-templates-seed.ts [create]",
       "packages/db/seed/index.ts [modify]",
@@ -45,12 +45,10 @@
       "T-057"
     ],
     "acceptance_criteria": [
-      "Given a fresh DB with one apex tenant, when seed:gate-checklist-templates runs, then 5 gates × N items rows exist matching GATE_CHECKLISTS counts in design/Monopilot Design System/npd/gate-screens.jsx:14-87 per §17.10",
-      "Given the seed has already run, when it runs again, then row count is unchanged (idempotent ON CONFLICT)",
-      "Given a G3 row exists, when its 'required' flag is queried, then it is TRUE for all 8 items (G3 fully gated per §17.6 approval contract)",
-      "Given default templates are seeded, when G3 required items are listed, then one required item is FG candidate created/mapped.",
-      "Given default templates are seeded, when G4 required items are listed, then department Done_<Dept>, RM usability PASS, shared BOM ready and factory_spec Technical approval submission are represented.",
-      "Given Closed_Technical is present, then template text does not imply it equals approved_for_factory."
+      "Seed creates idempotent G0-G4 GateChecklistTemplates matching final gate matrix, superseding prototype-only counts where different.",
+      "G3 required items include FG candidate create/map and no Brief-level FG/FA code item.",
+      "G4 required items include department closures, Trial/Pilot/Handoff/Packaging evidence, RM usability PASS, shared BOM ready and factory_spec Technical submission.",
+      "Closed_Technical wording means Technical supplied/closed NPD data, not approved_for_factory."
     ],
     "test_strategy": [
       "RED: integration test asserting per-gate counts + G3 required flag + idempotency before seed exists",

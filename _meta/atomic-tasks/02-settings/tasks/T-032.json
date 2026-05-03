@@ -42,7 +42,6 @@
       "T-011",
       "T-016"
     ],
-    "parallel_safe_with": [],
     "acceptance_criteria": [
       "WebAuthn rejected.",
       "MFA enforce trigger fires for admin role.",

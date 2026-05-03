@@ -36,16 +36,17 @@
     "dependencies": [
       "T-028"
     ],
-    "parallel_safe_with": [],
     "acceptance_criteria": [
       "Given the production page renders, when compared to `design/Monopilot Design System/settings/modals.jsx:262-375` (promote_to_l2_modal), then it has structural parity (the same form sections, same field labels, same shadcn primitives, same modals invoked from same triggers), visual parity (same shadcn/Radix primitives — no drift to plain HTML, same density tokens), and interaction parity (same enable/disable rules, same loading/empty/error states, same keyboard focus order) — verified by an RTL snapshot test plus the parity checklist embedded in `pipeline_inputs.details`.",
       "Given the user is not Admin, when the modal trigger fires, then the trigger button is disabled and the modal does not open.",
-      "Given the diff step renders, when the impact card is shown, then affected_rows count comes from previewUpgrade response (no hardcoded value)."
+      "Given the diff step renders, when the impact card is shown, then affected_rows count comes from previewUpgrade response (no hardcoded value).",
+      "UI closeout includes screenshot/artifact evidence and Playwright trace/artifacts where applicable per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`; if Playwright is unavailable, document the blocker and provide RTL/snapshot fallback evidence."
     ],
     "test_strategy": [
       "RED: write RTL test that mounts the page with mocked data and asserts the parity AC items + ac_extra coverage.",
       "GREEN: build component, wire Server Action(s).",
-      "Run `pnpm --filter @monopilot/web vitest run apps/web/components/settings/modals/promote-to-l2-modal.test.tsx [create]` and `pnpm typecheck`."
+      "Run `pnpm --filter @monopilot/web vitest run apps/web/components/settings/modals/promote-to-l2-modal.test.tsx [create]` and `pnpm typecheck`.",
+      "For UI parity, capture screenshots/artifacts and Playwright trace/video/artifacts where applicable; attach artifact paths in closeout."
     ],
     "risk_red_lines": [
       "Do not import @radix-ui/react-dialog outside packages/ui (§0 ESLint rule).",
@@ -77,6 +78,7 @@
       "review": "opus_if_high_risk_or_ui_or_architecture",
       "close": "spark_low_risk_else_opus"
     },
-    "prototype_match": true
+    "prototype_match": true,
+    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md"
   }
 }

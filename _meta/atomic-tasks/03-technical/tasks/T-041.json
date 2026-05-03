@@ -44,11 +44,13 @@
     "acceptance_criteria": [
       "Given the modal opens, when compared to design/Monopilot Design System/technical/modals.jsx:619-655 (gallery anchor) and the UX contract at UX:1314-1338, then it has the same scope/output radio groups and Cancel/Confirm buttons — structural + visual + interaction parity verified by RTL with parity checklist in details.",
       "Given scope='selected_fgs' and 0 FGs picked, when Confirm clicked, then validation error.",
-      "Given valid submission, when API returns job_id, then a success toast appears."
+      "Given valid submission, when API returns job_id, then a success toast appears.",
+      "UI closeout includes screenshot/artifact evidence and Playwright trace/artifacts where applicable per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`; if Playwright is unavailable, document the blocker and provide RTL/snapshot fallback evidence."
     ],
     "test_strategy": [
       "RED tests for parity + validation.",
-      "Run: pnpm vitest run tests/ui/tec-024-bom-generator.test.tsx"
+      "Run: pnpm vitest run tests/ui/tec-024-bom-generator.test.tsx",
+      "For UI parity, capture screenshots/artifacts and Playwright trace/video/artifacts where applicable; attach artifact paths in closeout."
     ],
     "risk_red_lines": [
       "Do not include FGs without Status_Overall='Complete' (V-TEC-15).",
@@ -78,6 +80,7 @@
       "implementation": "hermes_gpt55",
       "review": "opus_if_high_risk_or_ui_or_architecture",
       "close": "spark_low_risk_else_opus"
-    }
+    },
+    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md"
   }
 }

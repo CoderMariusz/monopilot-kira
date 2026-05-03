@@ -44,11 +44,13 @@
     "acceptance_criteria": [
       "Given the panel renders, when compared to design/Monopilot Design System/technical/modals.jsx:309-347 (override variant), then the modal opens with reason field required and matches the prototype's primitives — structural + visual + interaction parity verified by RTL.",
       "Given an override row, when clicked, then modal opens pre-filled with reason and allergen.",
-      "Given user lacks technical.allergens.edit, when override Save attempted, then disabled."
+      "Given user lacks technical.allergens.edit, when override Save attempted, then disabled.",
+      "UI closeout includes screenshot/artifact evidence and Playwright trace/artifacts where applicable per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`; if Playwright is unavailable, document the blocker and provide RTL/snapshot fallback evidence."
     ],
     "test_strategy": [
       "RED tests for parity + reason validation.",
-      "Run: pnpm vitest run tests/ui/tec-044-override-audit.test.tsx"
+      "Run: pnpm vitest run tests/ui/tec-044-override-audit.test.tsx",
+      "For UI parity, capture screenshots/artifacts and Playwright trace/video/artifacts where applicable; attach artifact paths in closeout."
     ],
     "risk_red_lines": [
       "Do not allow Save without manual_override_reason.",
@@ -78,6 +80,7 @@
       "implementation": "hermes_gpt55",
       "review": "opus_if_high_risk_or_ui_or_architecture",
       "close": "spark_low_risk_else_opus"
-    }
+    },
+    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md"
   }
 }

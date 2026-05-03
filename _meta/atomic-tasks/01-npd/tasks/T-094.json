@@ -13,7 +13,7 @@
     "d365-integration-only",
     "bom-version-approval"
   ],
-  "priority": 20,
+  "priority": 80,
   "max_attempts": 3,
   "pipeline_name": "kira_dev",
   "pipeline_inputs": {
@@ -26,12 +26,12 @@
     ],
     "category": "refactor",
     "subcategory": "fg-terminology-compatibility",
-    "task_type": "T3-ui-i18n",
+    "task_type": "T3-ui",
     "parent_feature": "fg-canonical-terminology",
     "context_budget": "80k",
     "estimated_effort": "3-5h",
     "description": "ACTIONABLE final-decision terminology pass: user-facing NPD labels use FG/Finished Good while preserving FA compatibility aliases and avoiding risky DB/route/event mass rename.",
-    "details": "FG is canonical. FA is compatibility alias only. Update UI/i18n/docs/prototype-read red-lines; keep existing code/schema/routes/events compatible. D365 copy must say integration/export only; post-release edit copy must require new version + Technical approval.",
+    "details": "Terminology pass after gate/G3 tasks; UI/i18n/docs only, no DB/route/event mass rename.\n\nAdditional acceptance detail preserved from compressed AC list:\n- PL translations use FG / wyrób gotowy consistently.\n- UI closeout includes screenshot/artifact evidence and Playwright trace/artifacts where applicable per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`; if Playwright is unavailable, document the blocker and provide RTL/snapshot fallback evidence.",
     "scope_files": [
       "NPD UI/i18n label files discovered by grep",
       "NPD prototype/documentation label notes where implementation tasks read prototypes",
@@ -45,23 +45,22 @@
       "Renaming external D365/customer codes"
     ],
     "dependencies": [
-      "_meta/decisions/2026-05-03-flow-d365-settings-technical-decisions.md",
-      "01-NPD-PRD.md 2026-05-03 FINAL Amendment"
+      "T-056",
+      "T-058",
+      "T-095"
     ],
-    "parallel_safe_with": [],
     "acceptance_criteria": [
-      "Given key NPD screens render, when user-facing text is inspected, then canonical labels say FG/Finished Good rather than Factory Article/FA except explicit compatibility notes.",
-      "Given a compatibility field is displayed, when labelled, then it is clear as FG Code or FG Code (legacy FA code).",
-      "Given existing routes/schema/events use fa identifiers, when tests run, then backwards compatibility remains and no DB/route/event mass rename occurred.",
-      "Given D365 copy appears, when inspected, then it says export/import integration only and not source of truth.",
-      "Given post-release edit copy appears, when inspected, then it requires new BOM/product-spec version and Technical approval before factory use.",
-      "Given PL translations exist, when inspected, then they use FG / wyrób gotowy consistently and do not introduce FA as final term."
+      "NPD screens follow FG/Finished Good terminology with compatibility parity checked against design/Monopilot Design System/npd/fa-screens.jsx:300-452.",
+      "Existing fa routes/schema/events remain backward compatible; no mass rename.",
+      "D365 copy says export/import only and post-release edits require new BOM/spec version plus Technical approval.",
+      "Given the task is closed out, when reviewers inspect the task evidence, then these additional requirements are proven together: PL translations use FG / wyrób gotowy consistently.; UI closeout includes screenshot/artifact evidence and Playwright trace/artifacts where applicable per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`; if Playwright is unavailable, document the blocker and provide RTL/snapshot fallback evidence."
     ],
     "test_strategy": [
       "Snapshot/RTL tests for key NPD screens asserting FG labels.",
       "Grep guard for user-facing Factory Article/FA Projects outside allowlisted compatibility comments/tests.",
       "Route compatibility test proving existing /npd/fa/... still works if route rename is not performed.",
-      "i18n smoke test for EN+PL keys."
+      "i18n smoke test for EN+PL keys.",
+      "For UI parity, capture screenshots/artifacts and Playwright trace/video/artifacts where applicable; attach artifact paths in closeout."
     ],
     "risk_red_lines": [
       "Do not rename physical DB tables/columns, route segments, event names or external integrations in this task unless compatibility aliases and tests already exist.",
@@ -94,6 +93,7 @@
       "implementation": "hermes_gpt55",
       "review": "opus_if_high_risk_or_ui_or_architecture",
       "close": "spark_low_risk_else_opus"
-    }
+    },
+    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md"
   }
 }

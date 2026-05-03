@@ -1,0 +1,51 @@
+{
+  "title": "T-099 — Trial/Pilot/Handoff/Packaging evidence model and gate integration",
+  "prompt": "T-099 — Trial/Pilot/Handoff/Packaging evidence model and gate integration\nImplement this Wave0 missing NPD backend/read-model task. Discover files first; no app code outside scope; D365 is not SSOT; Technical approval controls factory use.",
+  "labels": [
+    "monopilot-kira",
+    "01-npd",
+    "wave0-hardening"
+  ],
+  "priority": 80,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "description": "T-099 — Trial/Pilot/Handoff/Packaging evidence model and gate integration",
+    "details": "T-099 — Trial/Pilot/Handoff/Packaging evidence model and gate integration",
+    "scope_files": [
+      "Existing NPD/BOM files discovered before editing",
+      "Targeted tests created beside implementation"
+    ],
+    "acceptance_criteria": [
+      "Schema/read model supports required NPD evidence or traceability.",
+      "Gate/release readers expose typed blockers/status and are org-scoped.",
+      "D365 is not treated as source of truth.",
+      "Targeted tests and closeout evidence are provided."
+    ],
+    "test_strategy": [
+      "Run targeted tests"
+    ],
+    "risk_red_lines": [
+      "No D365 as SSOT",
+      "No mocked Technical final approval"
+    ],
+    "skills": [
+      "repo-navigation",
+      "testing"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "discover",
+        "test",
+        "closeout"
+      ]
+    },
+    "task_type": "T1-schema",
+    "dependencies": [
+      "T-054",
+      "T-055",
+      "T-056"
+    ]
+  }
+}

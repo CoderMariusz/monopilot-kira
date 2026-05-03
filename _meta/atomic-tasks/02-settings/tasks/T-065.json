@@ -26,7 +26,7 @@
     "context_budget": "40k",
     "estimated_effort": "1-3h",
     "description": "SET-071 flags_admin_screen production component (prototype-parity).",
-    "details": "Prototype: design/Monopilot Design System/settings/admin-screens.jsx:350-408. Translation notes (canonical from prototype-index-settings.json): see `_meta/prototype-labels/translation-notes-settings.md` and the entry's `translation_notes` array. Production contract: data via Server Components (Drizzle); mutations via Server Actions; primitives from `packages/ui` only (no @radix-ui/react-dialog import outside packages/ui per §0). Parity checklist (verify item-by-item before GREEN):\n1. Section/region count + order matches prototype.\n2. Field labels + types match prototype.\n3. shadcn/Radix primitives match (Input, Select, Switch, Dialog etc).\n4. Action buttons present in same order with same enable/disable rules.\n5. Loading/empty/error states render per prototype.\n6. Modal triggers open the correct modal id (SM-NN).\n7. Keyboard focus order matches prototype.\n8. assertModalA11y() passes for any modals invoked.",
+    "details": "Prototype: design/Monopilot Design System/settings/admin-screens.jsx:350-408. Translation notes (canonical from prototype-index-settings.json): see `_meta/prototype-labels/translation-notes-settings.md` and the entry's `translation_notes` array. Production contract: data via Server Components (Drizzle); mutations via Server Actions; primitives from `packages/ui` only (no @radix-ui/react-dialog import outside packages/ui per §0). Parity checklist (verify item-by-item before GREEN):\n1. Section/region count + order matches prototype.\n2. Field labels + types match prototype.\n3. shadcn/Radix primitives match (Input, Select, Switch, Dialog etc).\n4. Action buttons present in same order with same enable/disable rules.\n5. Loading/empty/error states render per prototype.\n6. Modal triggers open the correct modal id (SM-NN).\n7. Keyboard focus order matches prototype.\n8. assertModalA11y() passes for any modals invoked.\n\nAdditional acceptance detail preserved from compressed AC list:\n- Core flags list includes npd.post_release_edit.enabled and technical.product_spec_approval.required; toggling NPD post-release edit ON shows V-SET-43 preflight and CTA to /settings/authorization when policy is missing.\n- UI closeout includes screenshot/artifact evidence and Playwright trace/artifacts where applicable per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`; if Playwright is unavailable, document the blocker and provide RTL/snapshot fallback evidence.",
     "scope_files": [
       "apps/web/app/(admin)/settings/flags/page.tsx [create]",
       "apps/web/app/(admin)/settings/flags/page.test.tsx [create]"
@@ -40,17 +40,17 @@
       "T-048",
       "T-051"
     ],
-    "parallel_safe_with": [],
     "acceptance_criteria": [
       "Given the production page renders, when compared to `design/Monopilot Design System/settings/admin-screens.jsx:350-408` (flags_admin_screen), then it has structural parity (the same form sections, same field labels, same shadcn primitives, same modals invoked from same triggers), visual parity (same shadcn/Radix primitives — no drift to plain HTML, same density tokens), and interaction parity (same enable/disable rules, same loading/empty/error states, same keyboard focus order) — verified by an RTL snapshot test plus the parity checklist embedded in `pipeline_inputs.details`.",
       "Given a row with tier=L1 is edited, when the Edit trigger fires, then SM-05 (PromoteToL2Modal) opens — not SM-02.",
       "Given env NEXT_PUBLIC_POSTHOG_URL is set, when page renders, then 'Open in PostHog' link points to that URL (no hardcode).",
-      "Core flags list includes npd.post_release_edit.enabled and technical.product_spec_approval.required; toggling NPD post-release edit ON shows V-SET-43 preflight and CTA to /settings/authorization when policy is missing."
+      "Given the task is closed out, when reviewers inspect the task evidence, then these additional requirements are proven together: Core flags list includes npd.post_release_edit.enabled and technical.product_spec_approval.required; toggling NPD post-release edit ON shows V-SET-43 preflight and CTA to /settings/authorization when policy is missing.; UI closeout includes screenshot/artifact evidence and Playwright trace/artifacts where applicable per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`; if Playwright is unavailable, document the blocker and provide RTL/snapshot fallback evidence."
     ],
     "test_strategy": [
       "RED: write RTL test that mounts the page with mocked data and asserts the parity AC items + ac_extra coverage.",
       "GREEN: build component, wire Server Action(s).",
-      "Run `pnpm --filter @monopilot/web vitest run apps/web/app/(admin)/settings/flags/page.test.tsx [create]` and `pnpm typecheck`."
+      "Run `pnpm --filter @monopilot/web vitest run apps/web/app/(admin)/settings/flags/page.test.tsx [create]` and `pnpm typecheck`.",
+      "For UI parity, capture screenshots/artifacts and Playwright trace/video/artifacts where applicable; attach artifact paths in closeout."
     ],
     "risk_red_lines": [
       "Do not import @radix-ui/react-dialog outside packages/ui (§0 ESLint rule).",
@@ -83,6 +83,7 @@
       "review": "opus_if_high_risk_or_ui_or_architecture",
       "close": "spark_low_risk_else_opus"
     },
-    "prototype_match": true
+    "prototype_match": true,
+    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md"
   }
 }

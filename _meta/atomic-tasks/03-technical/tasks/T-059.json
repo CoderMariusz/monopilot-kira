@@ -44,11 +44,13 @@
     "acceptance_criteria": [
       "Given the drift page renders, when compared to design/Monopilot Design System/technical/other-screens.jsx:981-1022 and design/Monopilot Design System/technical/modals.jsx:562-598, then table columns, modal field set, and bulk-action buttons match — structural + visual + interaction parity verified by RTL.",
       "Given authorized user selects 3 rows + Accept bulk, when submitted, then authorized overwrite/import actions are audited and table refreshes; without authorization bulk actions are disabled/403.",
-      "Given user lacks technical.d365.sync.trigger, when on page, then bulk actions are disabled."
+      "Given user lacks technical.d365.sync.trigger, when on page, then bulk actions are disabled.",
+      "UI closeout includes screenshot/artifact evidence and Playwright trace/artifacts where applicable per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`; if Playwright is unavailable, document the blocker and provide RTL/snapshot fallback evidence."
     ],
     "test_strategy": [
       "RED tests for parity + bulk action + RBAC.",
-      "Run: pnpm vitest run tests/ui/tec-091-drift.test.tsx"
+      "Run: pnpm vitest run tests/ui/tec-091-drift.test.tsx",
+      "For UI parity, capture screenshots/artifacts and Playwright trace/video/artifacts where applicable; attach artifact paths in closeout."
     ],
     "risk_red_lines": [
       "Do not auto-overwrite without explicit user action.",
@@ -80,6 +82,7 @@
       "implementation": "hermes_gpt55",
       "review": "opus_if_high_risk_or_ui_or_architecture",
       "close": "spark_low_risk_else_opus"
-    }
+    },
+    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md"
   }
 }

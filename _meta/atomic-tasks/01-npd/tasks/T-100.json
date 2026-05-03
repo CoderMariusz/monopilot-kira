@@ -1,0 +1,53 @@
+{
+  "title": "T-100 — BOM tab and formulation version read models for NPD release traceability",
+  "prompt": "T-100 — BOM tab and formulation version read models for NPD release traceability\nImplement this Wave0 missing NPD backend/read-model task. Discover files first; no app code outside scope; D365 is not SSOT; Technical approval controls factory use.",
+  "labels": [
+    "monopilot-kira",
+    "01-npd",
+    "wave0-hardening"
+  ],
+  "priority": 80,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "description": "T-100 — BOM tab and formulation version read models for NPD release traceability",
+    "details": "T-100 — BOM tab and formulation version read models for NPD release traceability",
+    "scope_files": [
+      "Existing NPD/BOM files discovered before editing",
+      "Targeted tests created beside implementation"
+    ],
+    "acceptance_criteria": [
+      "Schema/read model supports required NPD evidence or traceability.",
+      "Gate/release readers expose typed blockers/status and are org-scoped.",
+      "D365 is not treated as source of truth.",
+      "Targeted tests and closeout evidence are provided."
+    ],
+    "test_strategy": [
+      "Run targeted tests"
+    ],
+    "risk_red_lines": [
+      "No D365 as SSOT",
+      "No mocked Technical final approval"
+    ],
+    "skills": [
+      "repo-navigation",
+      "testing"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "discover",
+        "test",
+        "closeout"
+      ]
+    },
+    "task_type": "T2-api",
+    "dependencies": [
+      "T-064",
+      "T-065",
+      "T-092",
+      "T-093",
+      "T-097"
+    ]
+  }
+}

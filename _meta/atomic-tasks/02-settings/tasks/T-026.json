@@ -38,7 +38,6 @@
     "dependencies": [
       "T-006"
     ],
-    "parallel_safe_with": [],
     "acceptance_criteria": [
       "V-SET-14 enforced.",
       "Version bump correct.",

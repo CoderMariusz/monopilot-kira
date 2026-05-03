@@ -47,11 +47,13 @@
     "acceptance_criteria": [
       "Given the editor opens, when compared to design/Monopilot Design System/technical/modals.jsx:309-347, then field set, source/intensity/confidence selectors, and Save/Cancel layout match — structural + visual + interaction parity verified by RTL.",
       "Given an FG, when cascade preview renders, then each component is listed under its source label.",
-      "Given user without technical.allergens.edit, when modal opens, then Save is disabled."
+      "Given user without technical.allergens.edit, when modal opens, then Save is disabled.",
+      "UI closeout includes screenshot/artifact evidence and Playwright trace/artifacts where applicable per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`; if Playwright is unavailable, document the blocker and provide RTL/snapshot fallback evidence."
     ],
     "test_strategy": [
       "RED tests for parity + RBAC + cascade list.",
-      "Run: pnpm vitest run tests/ui/tec-040-allergens.test.tsx"
+      "Run: pnpm vitest run tests/ui/tec-040-allergens.test.tsx",
+      "For UI parity, capture screenshots/artifacts and Playwright trace/video/artifacts where applicable; attach artifact paths in closeout."
     ],
     "risk_red_lines": [
       "Do not bypass V-TEC-42 reason requirement when writing manual override.",
@@ -81,6 +83,7 @@
       "implementation": "hermes_gpt55",
       "review": "opus_if_high_risk_or_ui_or_architecture",
       "close": "spark_low_risk_else_opus"
-    }
+    },
+    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md"
   }
 }

@@ -8,7 +8,7 @@
     "approval",
     "T1-schema"
   ],
-  "priority": 60,
+  "priority": 50,
   "max_attempts": 3,
   "pipeline_name": "kira_dev",
   "pipeline_inputs": {

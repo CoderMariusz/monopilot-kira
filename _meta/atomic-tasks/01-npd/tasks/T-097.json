@@ -25,12 +25,12 @@
     ],
     "category": "data-api",
     "subcategory": "factory-release-status-read-model",
-    "task_type": "T1-schema+T2-api",
+    "task_type": "T2-api",
     "parent_feature": "npd-builder-release-to-factory",
     "context_budget": "60k",
     "estimated_effort": "5-6h",
     "description": "Canonical factory release status/read model and event transitions for NPD/Technical/Planning/factory consumers.",
-    "details": "Adds release state separate from D365 Built/export and transitions based on NPD Builder release plus Technical factory_spec/BOM approval.",
+    "details": "Adds release state separate from D365 Built/export and transitions based on NPD Builder release plus Technical factory_spec/BOM approval.\nPreserved acceptance requirements: Given Planning/factory consumers query the read model, then only approved_for_factory/released_to_factory rows are factory-usable; pending/blocked rows expose typed blockers.; Given a release is blocked, then fg.release_blocked event includes typed blockers and remediation links.",
     "scope_files": [
       "packages/db/migrations/00xx_factory_release_status.sql [create]",
       "packages/db/src/schema/factory-release-status.ts [create]",
@@ -44,16 +44,13 @@
     ],
     "dependencies": [
       "T-092",
-      "T-093",
-      "03-TECH-T-079"
+      "T-093"
     ],
-    "parallel_safe_with": [],
     "acceptance_criteria": [
-      "Given NPD Builder release creates records but Technical has not approved the factory_spec/BOM bundle, when release status is read, then it is pending_technical_approval with active_bom_header_id and active_factory_spec_id populated but factory_available_at null.",
-      "Given Technical approval event is consumed for the active factory_spec/BOM bundle, when transition runs, then status becomes approved_for_factory or released_to_factory and factory_available_at is set.",
-      "Given D365 export completes, when release status is read, then no status transition occurs unless a valid Technical approval/release event already occurred.",
-      "Given Planning/factory consumers query the read model, then only approved_for_factory/released_to_factory rows are factory-usable; pending/blocked rows expose typed blockers.",
-      "Given a release is blocked, then fg.release_blocked event includes typed blockers and remediation links."
+      "Before Technical approval, release status is pending_technical_approval with active IDs and factory_available_at null.",
+      "Real Technical approval event for active BOM/spec bundle transitions to approved_for_factory/released_to_factory.",
+      "D365 export alone never transitions release status.",
+      "Factory/Planning consumers only treat approved_for_factory/released_to_factory as usable and see blockers otherwise."
     ],
     "test_strategy": [
       "RED migration/schema tests for status enum/fields/FKs/RLS.",
@@ -91,6 +88,9 @@
       "implementation": "hermes_gpt55",
       "review": "opus_if_high_risk_or_ui_or_architecture",
       "close": "spark_low_risk_else_opus"
-    }
+    },
+    "cross_module_dependencies": [
+      "03-TECHNICAL:T-080 real Technical approval event/read model"
+    ]
   }
 }

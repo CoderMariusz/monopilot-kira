@@ -1,13 +1,13 @@
 {
-  "title": "T-032 \u2014 Regulatory roadmap artifact under _foundation/regulatory/ with FSMA 204 / EUDR / Peppol / KSeF deadlines",
-  "prompt": "# T-032 \u2014 Regulatory roadmap artifact under _foundation/regulatory/ with FSMA 204 / EUDR / Peppol / KSeF deadlines\n\nPRD: `00-FOUNDATION-PRD.md` \u2014 sections: \u00a711, \u00a714\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`\n\n## Goal\nCreate _foundation/regulatory/ with one markdown per regulation (FSMA 204, EUDR, Peppol BE, EU ViDA, BRCGS Issue 10, EU FIC 1169/2011 + 2021/382, Polska KSeF) plus a quarterly review process doc.\n\n## Implementation contract\nCreate _foundation/regulatory/README.md (review process, quarterly cadence). One file per regulation listing: enforcement date, scope (which modules), key fields/events impacted, source URL, last reviewed date. Add scripts/check-regulatory-staleness.mjs that fails CI when any regulatory doc has last_reviewed_at older than 100 days.\n\n## Files (scope)\n- _foundation/regulatory/README.md [create]\n- _foundation/regulatory/fsma-204.md [create]\n- _foundation/regulatory/eudr.md [create]\n- _foundation/regulatory/peppol-be.md [create]\n- _foundation/regulatory/eu-vida.md [create]\n- _foundation/regulatory/brcgs-issue-10.md [create]\n- _foundation/regulatory/eu-fic-1169-2011.md [create]\n- _foundation/regulatory/polska-kseF.md [create]\n- scripts/check-regulatory-staleness.mjs [create]\n\n## Acceptance criteria\n1. Given seven regulation files exist under _foundation/regulatory/, when each file is parsed, then each contains exactly the keys: title, enforcement_date, scope_modules, last_reviewed_at, source_url\n2. Given a file has last_reviewed_at older than 100 days, when 'node scripts/check-regulatory-staleness.mjs' runs, then it exits non-zero with the offending filename\n\n## Test strategy\n- Run 'node scripts/check-regulatory-staleness.mjs' against fixtures and capture exit codes\n\n## Risk red lines\n- Do not invent enforcement dates \u2014 copy from PRD \u00a711 table only\n\n## Dependencies (must be complete first)\n- T-005\n\n## Closeout evidence\nProvide: changed_files, test_commands_and_results, acceptance_criteria_status (per AC), deviations_from_prd, git_status. Use the test-driven-development skill (RED test before implementation) and requesting-code-review at GREEN.",
+  "title": "T-032 — Regulatory roadmap artifact under _foundation/regulatory/ with source dates and review guard",
+  "prompt": "# T-032 — Regulatory roadmap artifact under _foundation/regulatory/ with source dates and review guard\n\nPRD: `00-FOUNDATION-PRD.md` — sections: §11, §14, §W0-v4.3\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`\nACP import shape: top-level TaskCreate only (`title`, `prompt`, `labels`, `priority`, `max_attempts`, `pipeline_name`, `pipeline_inputs`). Do not add generated ACP fields such as task_id/status/project_id. `pipeline_inputs.root_path` is mandatory.\n\n## Goal\nCreate the regulatory roadmap documentation artifact and staleness guard from PRD §11 without inventing product implementation.\n\n## Locked Wave 0 decisions to honor\n- Business data-plane scope is `org_id`; do not create new business-table `tenant_id` columns. Tenant/control-plane concepts may exist above org scope, but app/business rows, RLS policies, audit/outbox rows, role grants, and R13 skeletons use `org_id`.\n- Canonical finished-good domain/event prefix is `fg.*`. `fa.*` / `FA` may appear only as an explicit legacy compatibility alias during migration, never as the primary new contract.\n- Use the safe non-spoofable org-context RLS pattern. Do not rely on unsafe direct custom GUC `SET` by app users. Do not declare `LEAKPROOF` unless the implementation proves it is valid and necessary.\n- Lower numeric priority is picked sooner; dependencies must be local `T-XXX` IDs. Cross-module blockers, if any, belong in `pipeline_inputs.cross_module_dependencies` and in this prompt.\n- Exactly one atomic task type: `T5-seed`.\n\n## Implementation contract\nCreate `_foundation/regulatory/README.md` with owner role, quarterly cadence, and Wave0 naming rules (`org_id`, `fg.*`). Create one markdown file each for FSMA 204, EUDR, Peppol BE, EU ViDA, BRCGS Issue 10, EU FIC 1169/2011 + 2021/382, and Polska KSeF. Each file has YAML front matter keys `title`, `enforcement_date`, `scope_modules`, `last_reviewed_at`, `source_url`, and body sections `Scope`, `Impacted foundation contracts`, `Open questions`. Add `scripts/check-regulatory-staleness.mjs` that fails when last_reviewed_at is older than 100 days or required keys are missing. Enforcement dates must come from PRD §11; use `direction-known-date-explicitly-unset` for KSeF because the PRD says delayed/direction certain and gives no exact date.\n\n## Files in scope\n- _foundation/regulatory/README.md [create]\n- _foundation/regulatory/fsma-204.md [create]\n- _foundation/regulatory/eudr.md [create]\n- _foundation/regulatory/peppol-be.md [create]\n- _foundation/regulatory/eu-vida.md [create]\n- _foundation/regulatory/brcgs-issue-10.md [create]\n- _foundation/regulatory/eu-fic-1169-2011.md [create]\n- _foundation/regulatory/polska-ksef.md [create]\n- scripts/check-regulatory-staleness.mjs [create]\n\n## Dependencies\n- T-005\n\n## Cross-module dependencies\n- None\n\n## Acceptance criteria\n1. Seven regulation files exist and each has exactly the required front matter keys.\n2. The staleness script exits non-zero for a fixture older than 100 days and for a file missing a required key.\n3. README names the owner role and quarterly review cadence.\n4. No enforcement date is invented beyond PRD §11; KSeF is represented as date explicitly-unset/direction-known.\n\n## Test strategy\n- Run `node scripts/check-regulatory-staleness.mjs`.\n- Run a fixture or temp-file negative test for stale/missing-key behavior.\n- Run markdown/front matter parse check if available.\n\n## Risk red lines\n- Do not invent enforcement dates.\n- Do not build regulatory app features.\n- Do not use old filename casing `polska-kseF.md`; use lowercase `polska-ksef.md`.\n\n## Closeout evidence\nProvide changed_files, test_commands_and_results, acceptance_criteria_status, deviations_from_prd, and git_status.",
   "labels": [
     "prd",
     "docs",
     "regulatory",
-    "docs"
+    "T5-seed"
   ],
-  "priority": 120,
+  "priority": 80,
   "max_attempts": 3,
   "pipeline_name": "kira_dev",
   "pipeline_inputs": {
@@ -15,17 +15,18 @@
     "prd_task_id": "T-032",
     "source_prd": "00-FOUNDATION-PRD.md",
     "prd_refs": [
-      "\u00a711",
-      "\u00a714"
+      "§11",
+      "§14",
+      "§W0-v4.3"
     ],
     "category": "docs",
     "subcategory": "regulatory",
     "task_type": "T5-seed",
     "parent_feature": "governance",
-    "context_budget": "30k",
-    "estimated_effort": "1-2h",
-    "description": "Create _foundation/regulatory/ with one markdown per regulation (FSMA 204, EUDR, Peppol BE, EU ViDA, BRCGS Issue 10, EU FIC 1169/2011 + 2021/382, Polska KSeF) plus a quarterly review process doc.",
-    "details": "Create _foundation/regulatory/README.md (review process, quarterly cadence). One file per regulation listing: enforcement date, scope (which modules), key fields/events impacted, source URL, last reviewed date. Add scripts/check-regulatory-staleness.mjs that fails CI when any regulatory doc has last_reviewed_at older than 100 days.",
+    "context_budget": "50k",
+    "estimated_effort": "1-3h",
+    "description": "Create the regulatory roadmap documentation artifact and staleness guard from PRD §11 without inventing product implementation.",
+    "details": "Create `_foundation/regulatory/README.md` with owner role, quarterly cadence, and Wave0 naming rules (`org_id`, `fg.*`). Create one markdown file each for FSMA 204, EUDR, Peppol BE, EU ViDA, BRCGS Issue 10, EU FIC 1169/2011 + 2021/382, and Polska KSeF. Each file has YAML front matter keys `title`, `enforcement_date`, `scope_modules`, `last_reviewed_at`, `source_url`, and body sections `Scope`, `Impacted foundation contracts`, `Open questions`. Add `scripts/check-regulatory-staleness.mjs` that fails when last_reviewed_at is older than 100 days or required keys are missing. Enforcement dates must come from PRD §11; use `direction-known-date-explicitly-unset` for KSeF because the PRD says delayed/direction certain and gives no exact date.",
     "scope_files": [
       "_foundation/regulatory/README.md [create]",
       "_foundation/regulatory/fsma-204.md [create]",
@@ -34,36 +35,36 @@
       "_foundation/regulatory/eu-vida.md [create]",
       "_foundation/regulatory/brcgs-issue-10.md [create]",
       "_foundation/regulatory/eu-fic-1169-2011.md [create]",
-      "_foundation/regulatory/polska-kseF.md [create]",
+      "_foundation/regulatory/polska-ksef.md [create]",
       "scripts/check-regulatory-staleness.mjs [create]"
     ],
     "out_of_scope": [
-      "Do not modify files outside the scope_files list",
-      "Do not introduce business logic from later module PRDs (01-NPD, 02-SETTINGS, etc.)",
-      "No implementation \u2014 this is documentation only"
+      "Do not modify files outside scope_files unless a test/build config in the same package is strictly required and listed in closeout.",
+      "Do not implement unrelated module behaviour from 01-NPD/02-SETTINGS/03-TECHNICAL unless explicitly named here.",
+      "Do not emit ACP-generated top-level fields in this JSON."
     ],
     "dependencies": [
       "T-005"
     ],
-    "parallel_safe_with": [
-      "T-022",
-      "T-023",
-      "T-024"
-    ],
     "acceptance_criteria": [
-      "Given seven regulation files exist under _foundation/regulatory/, when each file is parsed, then each contains exactly the keys: title, enforcement_date, scope_modules, last_reviewed_at, source_url",
-      "Given a file has last_reviewed_at older than 100 days, when 'node scripts/check-regulatory-staleness.mjs' runs, then it exits non-zero with the offending filename",
-      "Given _foundation/regulatory/README.md exists, when read, then it describes the quarterly review cadence and names the owner role responsible for updates",
-      "Given all regulation files have last_reviewed_at within the last 100 days, when 'node scripts/check-regulatory-staleness.mjs' runs, then it exits 0 with no output"
+      "Seven regulation files exist and each has exactly the required front matter keys.",
+      "The staleness script exits non-zero for a fixture older than 100 days and for a file missing a required key.",
+      "README names the owner role and quarterly review cadence.",
+      "No enforcement date is invented beyond PRD §11; KSeF is represented as date explicitly-unset/direction-known."
     ],
     "test_strategy": [
-      "Run 'node scripts/check-regulatory-staleness.mjs' against fixtures and capture exit codes"
+      "Run `node scripts/check-regulatory-staleness.mjs`.",
+      "Run a fixture or temp-file negative test for stale/missing-key behavior.",
+      "Run markdown/front matter parse check if available."
     ],
     "risk_red_lines": [
-      "Do not invent enforcement dates \u2014 copy from PRD \u00a711 table only"
+      "Do not invent enforcement dates.",
+      "Do not build regulatory app features.",
+      "Do not use old filename casing `polska-kseF.md`; use lowercase `polska-ksef.md`."
     ],
     "skills": [
       "writing-plans",
+      "verification-before-completion",
       "requesting-code-review"
     ],
     "checkpoint_policy": {

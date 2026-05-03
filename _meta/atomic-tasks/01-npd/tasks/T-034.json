@@ -26,7 +26,7 @@
     "context_budget": "45k",
     "estimated_effort": "3h",
     "description": "Brief list (RSC) + brief detail (RHF form) matching brief_list and brief_detail prototypes.",
-    "details": "Parity: list has 5 columns + status chips + Convert CTA; detail has Section A 13 fields, Section B 7 explicit fields + packaging_ext rendered as KeyValue list. shadcn primitives. Weight mismatch surfaces as destructive Badge.",
+    "details": "Parity: list has 5 columns + status chips + Convert CTA; detail has Section A 13 fields, Section B 7 explicit fields + packaging_ext rendered as KeyValue list. shadcn primitives. Weight mismatch surfaces as destructive Badge.\nPreserved acceptance requirements: Given a brief with linked project renders in the list/detail, then the UI shows project code/current_gate and links to the Stage-Gate project detail.; Given a complete brief has no G3 FG mapping yet, then the UI labels FG as 'Pending G3 mapping' and does not show 'FA created' as success.; Given D365 is disabled, then no Brief UI copy implies D365 build/export is required for project progression.\n\nAdditional acceptance detail preserved from compressed AC list:\n- Additional preserved requirements in details are implemented and covered by targeted tests.\n- UI closeout includes screenshot/artifact evidence and Playwright trace/artifacts where applicable per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`; if Playwright is unavailable, document the blocker and provide RTL/snapshot fallback evidence.",
     "scope_files": [
       "apps/web/app/(npd)/brief/page.tsx [create]",
       "apps/web/app/(npd)/brief/[briefId]/page.tsx [create]",
@@ -51,13 +51,12 @@
       "Given brief list renders, when compared to design/Monopilot Design System/npd/brief-screens.jsx:7-82, then it has same 5 columns in same order, status filter chips region, and uses shadcn Table+Badge primitives — verified by RTL parity checklist (structural + visual + interaction parity)",
       "Given brief detail renders, when compared to design/Monopilot Design System/npd/brief-screens.jsx:84-231, then Section A has 13 fields and Section B has 7 explicit fields + packaging_ext KeyValue list, with shadcn Form+Card+Input primitives — verified by RTL parity checklist",
       "Given user adds a component row whose summary weight delta exceeds tolerance, when rendered, then destructive Badge 'Weight mismatch' is shown inline",
-      "Given a brief with linked project renders in the list/detail, then the UI shows project code/current_gate and links to the Stage-Gate project detail.",
-      "Given a complete brief has no G3 FG mapping yet, then the UI labels FG as 'Pending G3 mapping' and does not show 'FA created' as success.",
-      "Given D365 is disabled, then no Brief UI copy implies D365 build/export is required for project progression."
+      "Given the task is closed out, when reviewers inspect the task evidence, then these additional requirements are proven together: Additional preserved requirements in details are implemented and covered by targeted tests.; UI closeout includes screenshot/artifact evidence and Playwright trace/artifacts where applicable per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`; if Playwright is unavailable, document the blocker and provide RTL/snapshot fallback evidence."
     ],
     "test_strategy": [
       "RED: 3 RTL tests for list parity, detail parity, weight mismatch badge before components exist",
-      "Run 'pnpm --filter web test brief-list-table brief-detail-form'"
+      "Run 'pnpm --filter web test brief-list-table brief-detail-form'",
+      "For UI parity, capture screenshots/artifacts and Playwright trace/video/artifacts where applicable; attach artifact paths in closeout."
     ],
     "risk_red_lines": [
       "Do not implement Convert modal here",
@@ -92,6 +91,7 @@
       "close": "spark_low_risk_else_opus"
     },
     "prototype_match": true,
-    "prototype_index_entry": "brief_list"
+    "prototype_index_entry": "brief_list",
+    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md"
   }
 }

@@ -1,13 +1,13 @@
 {
-  "title": "T-007 \u2014 RLS baseline policies on tenants/organizations/users with LEAKPROOF SECURITY DEFINER tenant context",
-  "prompt": "# T-007 \u2014 RLS baseline policies on tenants/organizations/users with LEAKPROOF SECURITY DEFINER tenant context\n\nPRD: `00-FOUNDATION-PRD.md` \u2014 sections: \u00a75, \u00a78\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`\n\n## Goal\nEnable PostgreSQL RLS on every business table. Use a LEAKPROOF SECURITY DEFINER wrapper to inject current_setting('app.tenant_id'). Tests run with an app role, never superuser.\n\n## Implementation contract\nMigration 002-rls-baseline.sql: ALTER TABLE tenants/organizations/users ENABLE ROW LEVEL SECURITY; create policy USING (tenant_id = current_setting('app.tenant_id')::uuid) WITH CHECK same. Create function app.set_tenant(uuid) SECURITY DEFINER LEAKPROOF that calls set_config('app.tenant_id', $1::text, true). Create role 'app_user' (NOSUPERUSER NOINHERIT) granted USAGE on schema and SELECT/INSERT/UPDATE on the three tables. Playwright/integration test connects as 'app_user', sets tenant A, inserts a row, switches to tenant B, attempts to read tenant A's row, and asserts zero rows returned.\n\n## Files (scope)\n- packages/db/migrations/002-rls-baseline.sql [create]\n- packages/db/__tests__/rls.cross-tenant.integration.test.ts [create]\n\n## Acceptance criteria\n1. Given RLS is enabled on tenants/organizations/users, when 'app_user' connects with app.tenant_id set to tenant A and SELECTs a row owned by tenant B, then zero rows are returned\n2. Given the LEAKPROOF SECURITY DEFINER function app.set_tenant(uuid) exists, when pg_proc is queried, then prosecdef=true AND proleakproof=true\n3. Given a test attempts to set app.tenant_id from outside app.set_tenant, when 'app_user' tries 'SET app.tenant_id = ...' directly, then the policy still treats it as unset and returns zero rows for cross-tenant SELECT\n\n## Test strategy\n- RED: write packages/db/__tests__/rls.cross-tenant.integration.test.ts with two-tenant scenario before policies exist\n- Run 'pnpm --filter @monopilot/db test:integration -- rls.cross-tenant'\n\n## Risk red lines\n- Tests MUST connect as 'app_user', never as superuser (PRD \u00a75 explicit)\n- Do not use SECURITY DEFINER without LEAKPROOF \u2014 RLS bypass risk\n\n## Dependencies (must be complete first)\n- T-006\n\n## Closeout evidence\nProvide: changed_files, test_commands_and_results, acceptance_criteria_status (per AC), deviations_from_prd, git_status. Use the test-driven-development skill (RED test before implementation) and requesting-code-review at GREEN.",
+  "title": "T-007 — Safe org-context RLS baseline for organizations/users without spoofable custom GUC SET",
+  "prompt": "# T-007 — Safe org-context RLS baseline for organizations/users without spoofable custom GUC SET\n\nPRD: `00-FOUNDATION-PRD.md` — sections: §5, §8, §W0-v4.3\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`\nACP import shape: top-level TaskCreate only (`title`, `prompt`, `labels`, `priority`, `max_attempts`, `pipeline_name`, `pipeline_inputs`). Do not add generated ACP fields such as task_id/status/project_id. `pipeline_inputs.root_path` is mandatory.\n\n## Goal\nEnable RLS on org-scoped baseline tables using a non-spoofable org context pattern and app-role tests, not unsafe direct custom GUC SET.\n\n## Locked Wave 0 decisions to honor\n- Business data-plane scope is `org_id`; do not create new business-table `tenant_id` columns. Tenant/control-plane concepts may exist above org scope, but app/business rows, RLS policies, audit/outbox rows, role grants, and R13 skeletons use `org_id`.\n- Canonical finished-good domain/event prefix is `fg.*`. `fa.*` / `FA` may appear only as an explicit legacy compatibility alias during migration, never as the primary new contract.\n- Use the safe non-spoofable org-context RLS pattern. Do not rely on unsafe direct custom GUC `SET` by app users. Do not declare `LEAKPROOF` unless the implementation proves it is valid and necessary.\n- Lower numeric priority is picked sooner; dependencies must be local `T-XXX` IDs. Cross-module blockers, if any, belong in `pipeline_inputs.cross_module_dependencies` and in this prompt.\n- Exactly one atomic task type: `T1-schema`.\n\n## Implementation contract\nCreate `002-rls-baseline.sql`. Enable RLS on `organizations` and `users`; tenants remains control-plane and is accessible only to service roles. Create an `app` schema with a private context table or signed session-context function pattern that the app role cannot spoof directly. Recommended implementation: `app.set_org_context(session_token uuid, org uuid)` SECURITY DEFINER validates a row in `app.session_org_contexts` written by trusted auth middleware, then sets a transaction-local internal context; policies read via `app.current_org_id()` and compare `organizations.id = current_org_id` and `users.org_id = current_org_id`. Revoke direct writes to context tables/functions from `app_user`. Do not declare LEAKPROOF unless the implementation includes a comment and pg_proc test proving why it is safe. Tests connect as `app_user`, never superuser, and prove direct `SET app.current_org_id='...'` does not grant access.\n\n## Files in scope\n- packages/db/migrations/002-rls-baseline.sql [create]\n- packages/db/__tests__/rls.cross-org.integration.test.ts [create]\n\n## Dependencies\n- T-006\n\n## Cross-module dependencies\n- None\n\n## Acceptance criteria\n1. As app_user scoped to org A, SELECT users for org B returns zero rows and INSERT with org_id B is rejected.\n2. Direct `SET app.current_org_id = '<org-b>'` or equivalent custom GUC spoofing does not grant access to org B.\n3. pg_policies for organizations/users reference `app.current_org_id()` or the chosen non-spoofable equivalent, not raw `current_setting('app.tenant_id')`.\n4. Tests run with app-role credentials and include an assertion that current_user is not a superuser.\n\n## Test strategy\n- RED: write rls.cross-org.integration.test.ts with two-org scenario, direct SET spoof attempt, and app-role assertion before policies exist.\n- Run `pnpm --filter @monopilot/db test:integration -- rls.cross-org`.\n\n## Risk red lines\n- Do not use `tenant_id` as the policy column for business rows.\n- Do not rely on direct app-user GUC SET as authorization.\n- Do not mark functions LEAKPROOF by default.\n\n## Closeout evidence\nProvide changed_files, test_commands_and_results, acceptance_criteria_status, deviations_from_prd, and git_status.",
   "labels": [
     "prd",
     "data",
     "security",
     "T1-schema"
   ],
-  "priority": 80,
+  "priority": 50,
   "max_attempts": 3,
   "pipeline_name": "kira_dev",
   "pipeline_inputs": {
@@ -15,8 +15,9 @@
     "prd_task_id": "T-007",
     "source_prd": "00-FOUNDATION-PRD.md",
     "prd_refs": [
-      "\u00a75",
-      "\u00a78"
+      "§5",
+      "§8",
+      "§W0-v4.3"
     ],
     "category": "data",
     "subcategory": "security",
@@ -24,33 +25,34 @@
     "parent_feature": "00-FOUNDATION-impl-d DB+RLS",
     "context_budget": "50k",
     "estimated_effort": "1-3h",
-    "description": "Enable PostgreSQL RLS on every business table. Use a LEAKPROOF SECURITY DEFINER wrapper to inject current_setting('app.tenant_id'). Tests run with an app role, never superuser.",
-    "details": "Migration 002-rls-baseline.sql: ALTER TABLE tenants/organizations/users ENABLE ROW LEVEL SECURITY; create policy USING (tenant_id = current_setting('app.tenant_id')::uuid) WITH CHECK same. Create function app.set_tenant(uuid) SECURITY DEFINER LEAKPROOF that calls set_config('app.tenant_id', $1::text, true). Create role 'app_user' (NOSUPERUSER NOINHERIT) granted USAGE on schema and SELECT/INSERT/UPDATE on the three tables. Playwright/integration test connects as 'app_user', sets tenant A, inserts a row, switches to tenant B, attempts to read tenant A's row, and asserts zero rows returned.",
+    "description": "Enable RLS on org-scoped baseline tables using a non-spoofable org context pattern and app-role tests, not unsafe direct custom GUC SET.",
+    "details": "Create `002-rls-baseline.sql`. Enable RLS on `organizations` and `users`; tenants remains control-plane and is accessible only to service roles. Create an `app` schema with a private context table or signed session-context function pattern that the app role cannot spoof directly. Recommended implementation: `app.set_org_context(session_token uuid, org uuid)` SECURITY DEFINER validates a row in `app.session_org_contexts` written by trusted auth middleware, then sets a transaction-local internal context; policies read via `app.current_org_id()` and compare `organizations.id = current_org_id` and `users.org_id = current_org_id`. Revoke direct writes to context tables/functions from `app_user`. Do not declare LEAKPROOF unless the implementation includes a comment and pg_proc test proving why it is safe. Tests connect as `app_user`, never superuser, and prove direct `SET app.current_org_id='...'` does not grant access.",
     "scope_files": [
       "packages/db/migrations/002-rls-baseline.sql [create]",
-      "packages/db/__tests__/rls.cross-tenant.integration.test.ts [create]"
+      "packages/db/__tests__/rls.cross-org.integration.test.ts [create]"
     ],
     "out_of_scope": [
-      "Do not modify files outside the scope_files list",
-      "Do not introduce business logic from later module PRDs (01-NPD, 02-SETTINGS, etc.)",
-      "No business module tables here \u2014 only the three baseline ones from T-006"
+      "Do not modify files outside scope_files unless a test/build config in the same package is strictly required and listed in closeout.",
+      "Do not implement unrelated module behaviour from 01-NPD/02-SETTINGS/03-TECHNICAL unless explicitly named here.",
+      "Do not emit ACP-generated top-level fields in this JSON."
     ],
     "dependencies": [
       "T-006"
     ],
-    "parallel_safe_with": [],
     "acceptance_criteria": [
-      "Given RLS is enabled on tenants/organizations/users, when 'app_user' connects with app.tenant_id set to tenant A and SELECTs a row owned by tenant B, then zero rows are returned",
-      "Given the LEAKPROOF SECURITY DEFINER function app.set_tenant(uuid) exists, when pg_proc is queried, then prosecdef=true AND proleakproof=true",
-      "Given a test attempts to set app.tenant_id from outside app.set_tenant, when 'app_user' tries 'SET app.tenant_id = ...' directly, then the policy still treats it as unset and returns zero rows for cross-tenant SELECT"
+      "As app_user scoped to org A, SELECT users for org B returns zero rows and INSERT with org_id B is rejected.",
+      "Direct `SET app.current_org_id = '<org-b>'` or equivalent custom GUC spoofing does not grant access to org B.",
+      "pg_policies for organizations/users reference `app.current_org_id()` or the chosen non-spoofable equivalent, not raw `current_setting('app.tenant_id')`.",
+      "Tests run with app-role credentials and include an assertion that current_user is not a superuser."
     ],
     "test_strategy": [
-      "RED: write packages/db/__tests__/rls.cross-tenant.integration.test.ts with two-tenant scenario before policies exist",
-      "Run 'pnpm --filter @monopilot/db test:integration -- rls.cross-tenant'"
+      "RED: write rls.cross-org.integration.test.ts with two-org scenario, direct SET spoof attempt, and app-role assertion before policies exist.",
+      "Run `pnpm --filter @monopilot/db test:integration -- rls.cross-org`."
     ],
     "risk_red_lines": [
-      "Tests MUST connect as 'app_user', never as superuser (PRD \u00a75 explicit)",
-      "Do not use SECURITY DEFINER without LEAKPROOF \u2014 RLS bypass risk"
+      "Do not use `tenant_id` as the policy column for business rows.",
+      "Do not rely on direct app-user GUC SET as authorization.",
+      "Do not mark functions LEAKPROOF by default."
     ],
     "skills": [
       "test-driven-development",

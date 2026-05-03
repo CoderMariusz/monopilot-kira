@@ -7,7 +7,7 @@
     "settings-grn-qc-flag",
     "T1-schema"
   ],
-  "priority": 70,
+  "priority": 80,
   "max_attempts": 3,
   "pipeline_name": "kira_dev",
   "pipeline_inputs": {

@@ -45,11 +45,13 @@
     "acceptance_criteria": [
       "Given the DLQ page renders, when compared to design/Monopilot Design System/technical/modals.jsx:562-598 (drift resolve modal as row-action anchor) and the UX contract at UX:1280, then table columns, row action modal layout, and Retry/Resolve buttons match — structural + visual + interaction parity verified by RTL with parity checklist in details.",
       "Given DLQ depth > 50, when rendered, then warning banner appears.",
-      "Given user lacks technical.d365.sync.trigger, when on page, then row actions are disabled."
+      "Given user lacks technical.d365.sync.trigger, when on page, then row actions are disabled.",
+      "UI closeout includes screenshot/artifact evidence and Playwright trace/artifacts where applicable per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`; if Playwright is unavailable, document the blocker and provide RTL/snapshot fallback evidence."
     ],
     "test_strategy": [
       "RED tests for parity + threshold banner + RBAC.",
-      "Run: pnpm vitest run tests/ui/tec-073-dlq.test.tsx"
+      "Run: pnpm vitest run tests/ui/tec-073-dlq.test.tsx",
+      "For UI parity, capture screenshots/artifacts and Playwright trace/video/artifacts where applicable; attach artifact paths in closeout."
     ],
     "risk_red_lines": [
       "Do not show secrets in payload viewer.",
@@ -81,6 +83,7 @@
       "implementation": "hermes_gpt55",
       "review": "opus_if_high_risk_or_ui_or_architecture",
       "close": "spark_low_risk_else_opus"
-    }
+    },
+    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md"
   }
 }

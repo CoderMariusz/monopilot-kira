@@ -25,7 +25,7 @@
     "context_budget": "40k",
     "estimated_effort": "1-3h",
     "description": "Email Delivery Log (SET-093): last N email outbox runs viewer + filters + payload modal + recipient masking.",
-    "details": "PRD §13.4 SET-093: `Last N sent + failed + retry status`. Underlying email_delivery_log table is populated by the email outbox worker per §13.2; this UI is purely read-only. Recipient masking guards admin viewers from inadvertently exposing PII at-a-glance — full address visible only in payload modal.",
+    "details": "PRD §13.4 SET-093: `Last N sent + failed + retry status`. Underlying email_delivery_log table is populated by the email outbox worker per §13.2; this UI is purely read-only. Recipient masking guards admin viewers from inadvertently exposing PII at-a-glance — full address visible only in payload modal.\n\nAdditional acceptance detail preserved from compressed AC list:\n- Given the caller lacks `settings.email.read`, when the page is requested, then a 403 page renders.\n- UI closeout includes screenshot/artifact evidence and Playwright trace/artifacts where applicable per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`; if Playwright is unavailable, document the blocker and provide RTL/snapshot fallback evidence.",
     "scope_files": [
       "apps/web/app/(admin)/settings/notifications/email-log/page.tsx [create]",
       "apps/web/app/(admin)/settings/notifications/email-log/page.test.tsx [create]"
@@ -46,12 +46,13 @@
       "Given 5 email_delivery_log rows exist (mix of sent / failed / dlq), when the page renders, then 5 rows are listed in created_at DESC order with status badges.",
       "Given a recipient email is 'jan.kowalski@example.com', when the row renders in the list column, then it is shown as 'jan@example.com' (first-3 + domain mask) and the full address is visible only after opening the payload modal.",
       "Given the user filters status='failed' with trigger_code='fa_d365_ready', when the list re-renders, then only failed rows for that trigger are visible.",
-      "Given the caller lacks `settings.email.read`, when the page is requested, then a 403 page renders."
+      "Given the task is closed out, when reviewers inspect the task evidence, then these additional requirements are proven together: Given the caller lacks `settings.email.read`, when the page is requested, then a 403 page renders.; UI closeout includes screenshot/artifact evidence and Playwright trace/artifacts where applicable per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`; if Playwright is unavailable, document the blocker and provide RTL/snapshot fallback evidence."
     ],
     "test_strategy": [
       "RED: RTL test seeds rows + asserts mask, filters, payload modal, RBAC 403.",
       "GREEN: implement Server Component + mask helper + filters + modal.",
-      "Run `pnpm --filter @monopilot/web vitest run apps/web/app/(admin)/settings/notifications/email-log/page.test.tsx` and `pnpm typecheck`."
+      "Run `pnpm --filter @monopilot/web vitest run apps/web/app/(admin)/settings/notifications/email-log/page.test.tsx` and `pnpm typecheck`.",
+      "For UI parity, capture screenshots/artifacts and Playwright trace/video/artifacts where applicable; attach artifact paths in closeout."
     ],
     "risk_red_lines": [
       "Do not allow re-send / retry from UI (DLQ worker owns retries per §13.2).",
@@ -83,6 +84,7 @@
       "review": "opus_if_high_risk_or_ui_or_architecture",
       "close": "spark_low_risk_else_opus"
     },
-    "prototype_match": false
+    "prototype_match": false,
+    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md"
   }
 }

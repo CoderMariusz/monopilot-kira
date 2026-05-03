@@ -37,7 +37,6 @@
       "T-059",
       "T-091"
     ],
-    "parallel_safe_with": [],
     "acceptance_criteria": [
       "Pill filter scopes to category.",
       "KPI tiles dynamic.",

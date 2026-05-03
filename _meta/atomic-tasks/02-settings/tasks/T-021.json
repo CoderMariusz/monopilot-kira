@@ -44,7 +44,6 @@
       "T-008",
       "T-016"
     ],
-    "parallel_safe_with": [],
     "acceptance_criteria": [
       "VERSION_CONFLICT correctly raised.",
       "FK warning surfaces (V-SET-22).",

@@ -39,7 +39,6 @@
       "T-052",
       "T-059"
     ],
-    "parallel_safe_with": [],
     "acceptance_criteria": [
       "Seat-limit rejected.",
       "Successful flow within TTL.",

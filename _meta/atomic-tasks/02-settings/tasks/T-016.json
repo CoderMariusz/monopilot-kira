@@ -43,7 +43,6 @@
       "T-004",
       "T-007"
     ],
-    "parallel_safe_with": [],
     "acceptance_criteria": [
       "Single-transaction insert of org + 10 roles + tenant_variations.",
       "Duplicate slug → SLUG_TAKEN typed error.",

@@ -42,11 +42,13 @@
     "acceptance_criteria": [
       "Given the recipe sheet renders, when compared to design/Monopilot Design System/technical/bom-detail.jsx:551-603, then the layout (header, ingredient table, manufacturing-op steps) matches — structural + visual + interaction parity verified by RTL with parity checklist.",
       "Given user clicks Print, when fired, then window.print is called.",
-      "Given industry='bakery', when rendered, then Bakery-specific section labels are used."
+      "Given industry='bakery', when rendered, then Bakery-specific section labels are used.",
+      "UI closeout includes screenshot/artifact evidence and Playwright trace/artifacts where applicable per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`; if Playwright is unavailable, document the blocker and provide RTL/snapshot fallback evidence."
     ],
     "test_strategy": [
       "RED tests for parity + print invocation.",
-      "Run: pnpm vitest run tests/ui/tec-084-recipe-sheet.test.tsx"
+      "Run: pnpm vitest run tests/ui/tec-084-recipe-sheet.test.tsx",
+      "For UI parity, capture screenshots/artifacts and Playwright trace/video/artifacts where applicable; attach artifact paths in closeout."
     ],
     "risk_red_lines": [
       "Do not show sensitive private_jsonb on print sheet.",
@@ -76,6 +78,7 @@
       "implementation": "hermes_gpt55",
       "review": "opus_if_high_risk_or_ui_or_architecture",
       "close": "spark_low_risk_else_opus"
-    }
+    },
+    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md"
   }
 }

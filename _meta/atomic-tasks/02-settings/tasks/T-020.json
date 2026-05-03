@@ -30,7 +30,7 @@
     "context_budget": "40k",
     "estimated_effort": "1-3h",
     "description": "Core feature flag flip with backend preflight for D365 and Settings/Auth workflow gates.",
-    "details": "V-SET-42 guards integration.d365.enabled. V-SET-43 guards npd.post_release_edit.enabled via org_authorization_policies npd_post_release_edit. V-SET-44 guards technical.product_spec_approval.required via org_authorization_policies technical_product_spec_approval and technical_product_spec_approval_gate_v1. setCoreFlag is the server-side source of truth.",
+    "details": "V-SET-42 guards integration.d365.enabled. V-SET-43 guards npd.post_release_edit.enabled via org_authorization_policies npd_post_release_edit. V-SET-44 guards technical.product_spec_approval.required via org_authorization_policies technical_product_spec_approval and technical_product_spec_approval_gate_v1. setCoreFlag is the server-side source of truth.\nPreserved acceptance requirements: Audit log row written via trigger.; Outbox event emitted.",
     "scope_files": [
       "apps/web/actions/flags/set-core.ts",
       "apps/web/actions/flags/set-core.test.ts"
@@ -43,15 +43,13 @@
       "T-013",
       "T-016",
       "T-030",
-      "T-122"
+      "T-126"
     ],
-    "parallel_safe_with": [],
     "acceptance_criteria": [
       "D365 V-SET-42/V-SET-50/V-SET-52 pre-flight enforced server-side.",
-      "NPD post-release edit V-SET-43 policy pre-flight enforced server-side.",
-      "Technical product-spec approval V-SET-44 policy/gate pre-flight enforced server-side.",
-      "Audit log row written via trigger.",
-      "Outbox event emitted."
+      "NPD V-SET-43 and Technical V-SET-44 preflights enforced via T-126 without T-020↔T-122 cycle.",
+      "Audit log and outbox row written once per successful flag change.",
+      "Tests cover allow, deny, audit/outbox and no partial update."
     ],
     "test_strategy": [
       "RED: D365 fail, V-SET-43 policy fail, V-SET-44 gate fail, maintenance success, audit/outbox success.",

@@ -41,7 +41,6 @@
       "T-024",
       "T-043"
     ],
-    "parallel_safe_with": [],
     "acceptance_criteria": [
       "Given 3 mutations queued and the network goes online, when window dispatches 'online', then flushOnce sends 3 fetches in FIFO order each carrying X-Transaction-Id matching the queued transaction_id",
       "Given a fetch returns HTTP 409 (server already saw this transaction_id per T-024), when flushOnce processes it, then the entry is removed from the queue (treat dedup-success as success)",

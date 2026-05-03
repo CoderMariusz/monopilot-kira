@@ -37,7 +37,6 @@
       "T-035",
       "T-036"
     ],
-    "parallel_safe_with": [],
     "acceptance_criteria": [
       "403 returned for off-allowlist IP.",
       "SCIM bypass works.",

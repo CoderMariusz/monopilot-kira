@@ -43,11 +43,6 @@
       "T-002",
       "T-007"
     ],
-    "parallel_safe_with": [
-      "T-038",
-      "T-040",
-      "T-046"
-    ],
     "acceptance_criteria": [
       "Given the migration runs against a fresh DB, when 'pnpm --filter @monopilot/db migrate' completes, then role monopilot_app exists with no SUPERUSER, no BYPASSRLS, and FORCE ROW LEVEL SECURITY is applied to tenants/organizations/users",
       "Given the app role connects without setting app.current_org_id, when SELECT * FROM tenants runs, then it returns 0 rows; given the owner role connects, when the same SELECT runs, then it returns all rows (RLS bypass via owner)",

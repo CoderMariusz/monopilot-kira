@@ -40,7 +40,6 @@
     "dependencies": [
       "T-021"
     ],
-    "parallel_safe_with": [],
     "acceptance_criteria": [
       "V-SET-70..72 enforced.",
       "testEmailProvider sends probe + writes audit row.",

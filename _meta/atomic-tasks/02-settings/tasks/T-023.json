@@ -43,7 +43,6 @@
       "T-005",
       "T-016"
     ],
-    "parallel_safe_with": [],
     "acceptance_criteria": [
       "V-SET-01..04 all enforced.",
       "L1 promotion routed to migration queue, never to live DDL.",

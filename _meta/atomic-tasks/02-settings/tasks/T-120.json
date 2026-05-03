@@ -22,7 +22,7 @@
     "task_type": "T3-ui",
     "parent_feature": "02-settings-a-ui",
     "description": "SET-011 Roles and Permissions production screen, in scope per PO 2026-05-03.",
-    "details": "Canonical Settings prototype source of truth is `design/Monopilot Design System/settings/*.jsx`. If an exact screen prototype is missing, implement spec-driven from `design/02-SETTINGS-UX.md` and reuse available prototype elements/patterns only where they match the UX contract. Use UX SET-011 as authoritative. Reuse role assignment modal `settings/modals.jsx:410-447` and access screen styling from `settings/access-screens.jsx`, but do not confuse this with the Users list task T-059. Depth patch 2026-05-03: ## Depth patch — Roles & Permissions permission depth - Render flat permissions grouped by namespace/module: Settings, NPD workflow authorization, Technical approval. The NPD/Technical workflow strings come from T-002 and remain flat strings, not a role×module matrix. - For each role, show whether permissions are directly granted by role seed and whether the org authorization policy still disables or blocks the workflow. - Role assignment controls require the correct Settings role-management permission; users without write permission can view but cannot assign. - Tests must assert NPD request/authorize and Technical approve permissions are visible, grouped, searchable/filterable, and not rendered as a rejected 4-level matrix.",
+    "details": "Canonical Settings prototype source of truth is `design/Monopilot Design System/settings/*.jsx`. If an exact screen prototype is missing, implement spec-driven from `design/02-SETTINGS-UX.md` and reuse available prototype elements/patterns only where they match the UX contract. Use UX SET-011 as authoritative. Reuse role assignment modal `settings/modals.jsx:410-447` and access screen styling from `settings/access-screens.jsx`, but do not confuse this with the Users list task T-059. Depth patch 2026-05-03: ## Depth patch — Roles & Permissions permission depth - Render flat permissions grouped by namespace/module: Settings, NPD workflow authorization, Technical approval. The NPD/Technical workflow strings come from T-002 and remain flat strings, not a role×module matrix. - For each role, show whether permissions are directly granted by role seed and whether the org authorization policy still disables or blocks the workflow. - Role assignment controls require the correct Settings role-management permission; users without write permission can view but cannot assign. - Tests must assert NPD request/authorize and Technical approve permissions are visible, grouped, searchable/filterable, and not rendered as a rejected 4-level matrix.\nPreserved acceptance requirements: View Permissions shows NPD/Technical workflow permissions (`npd.released_product_edit.request`, `npd.released_product_edit.authorize`, `technical.product_spec.approve`) grouped as flat permission strings and marks org-policy disabled/misconfigured states.; View Permissions groups Settings, NPD workflow, and Technical approval flat permission strings while preserving the rejected-matrix red-line.; Role assignment controls are hidden/disabled without role-management permission and covered by RTL tests.; Permission detail shows org-policy disabled/misconfigured summaries from T-122 for workflow permissions.\n\nAdditional acceptance detail preserved from compressed AC list:\n- Additional preserved requirements in details are implemented and covered by targeted tests.\n- UI closeout includes screenshot/artifact evidence and Playwright trace/artifacts where applicable per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`; if Playwright is unavailable, document the blocker and provide RTL/snapshot fallback evidence.",
     "scope_files": [
       "apps/web/app/(admin)/settings/roles/page.tsx [create]",
       "apps/web/app/(admin)/settings/roles/page.test.tsx [create]"
@@ -33,22 +33,20 @@
       "T-016",
       "T-018",
       "T-053",
-      "T-122"
+      "T-126"
     ],
     "acceptance_criteria": [
       "Given /settings/roles renders, then it follows UX SET-011: System Roles tab, disabled Custom Roles tab, 10 system roles, role code, users assigned, scope, View Permissions action, Assign Role to User action.",
       "Given View Permissions is clicked, then permissions are displayed grouped by module using flat permission names from T-002; no rejected 4-level permission matrix is introduced.",
       "Given Assign Role to User is clicked, then SM-07 role assignment modal is opened and uses T-018 actions.",
-      "View Permissions shows NPD/Technical workflow permissions (`npd.released_product_edit.request`, `npd.released_product_edit.authorize`, `technical.product_spec.approve`) grouped as flat permission strings and marks org-policy disabled/misconfigured states.",
-      "View Permissions groups Settings, NPD workflow, and Technical approval flat permission strings while preserving the rejected-matrix red-line.",
-      "Role assignment controls are hidden/disabled without role-management permission and covered by RTL tests.",
-      "Permission detail shows org-policy disabled/misconfigured summaries from T-122 for workflow permissions."
+      "Given the task is closed out, when reviewers inspect the task evidence, then these additional requirements are proven together: Additional preserved requirements in details are implemented and covered by targeted tests.; UI closeout includes screenshot/artifact evidence and Playwright trace/artifacts where applicable per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`; if Playwright is unavailable, document the blocker and provide RTL/snapshot fallback evidence."
     ],
     "test_strategy": [
       "RED: RTL test for 10 roles, disabled custom roles, grouped permissions, SM-07 trigger.",
       "GREEN: build page wired to roles query/actions.",
       "Run page test, typecheck, lint.",
-      "Add RTL tests for workflow permission grouping, no 4-level matrix labels, read-only role assignment, and org-policy summary display."
+      "Add RTL tests for workflow permission grouping, no 4-level matrix labels, read-only role assignment, and org-policy summary display.",
+      "For UI parity, capture screenshots/artifacts and Playwright trace/video/artifacts where applicable; attach artifact paths in closeout."
     ],
     "risk_red_lines": [
       "Do not replace flat permission model with rejected 4-level matrix UI.",
@@ -67,7 +65,6 @@
       "broaden scope beyond listed files",
       "implement future-phase features"
     ],
-    "parallel_safe_with": [],
     "skills": [
       "test-driven-development",
       "requesting-code-review"
@@ -92,6 +89,7 @@
       "implementation": "hermes_gpt55",
       "review": "opus_if_high_risk_or_ui_or_architecture",
       "close": "spark_low_risk_else_opus"
-    }
+    },
+    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md"
   }
 }

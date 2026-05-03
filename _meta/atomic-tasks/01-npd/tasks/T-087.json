@@ -49,11 +49,13 @@
     "acceptance_criteria": [
       "Given an FA with one Open High-bucket risk and built=FALSE, when buildD365 single-click is invoked, then it fails with 'V18_HIGH_RISK_OPEN' and fa.built remains FALSE per §18 V18 contract This applies to optional D365 export and any built transition from NPD Builder.",
       "Given the same scenario, when the wizard step 1 V18 check runs, then it lists the risk in blockers and the Next button is disabled per §18 V18 + §10.6.1 wizard",
-      "Given the risk is mitigated to state='Mitigated' (no longer Open) with reason ≥10 chars, when buildD365 is re-invoked, then it succeeds and fa.built=TRUE"
+      "Given the risk is mitigated to state='Mitigated' (no longer Open) with reason ≥10 chars, when buildD365 is re-invoked, then it succeeds and fa.built=TRUE",
+      "UI closeout includes screenshot/artifact evidence and Playwright trace/artifacts where applicable per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`; if Playwright is unavailable, document the blocker and provide RTL/snapshot fallback evidence."
     ],
     "test_strategy": [
       "RED: 3 specs above before final wiring; run against isolated test container",
-      "Run 'pnpm --filter web test:e2e v18-built-blocker && pnpm --filter web test v18-trigger'"
+      "Run 'pnpm --filter web test:e2e v18-built-blocker && pnpm --filter web test v18-trigger'",
+      "For UI parity, capture screenshots/artifacts and Playwright trace/video/artifacts where applicable; attach artifact paths in closeout."
     ],
     "risk_red_lines": [
       "Do not stub the V18 trigger",
@@ -87,6 +89,7 @@
       "implementation": "hermes_gpt55",
       "review": "opus_if_high_risk_or_ui_or_architecture",
       "close": "spark_low_risk_else_opus"
-    }
+    },
+    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md"
   }
 }

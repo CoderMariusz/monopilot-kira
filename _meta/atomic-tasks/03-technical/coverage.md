@@ -21,6 +21,10 @@ Source PRD: `03-TECHNICAL-PRD.md` v3.3 + 2026-05-03 PO decisions.
 | §0, §15A.3 | Canonical non-conformance event contract for PO/TO actual triggers | tasks/T-082.json | tasked |
 | §0, UX final red-lines | Local UI copy/prototype red-lines for FG/factory_spec/shared BOM/RM usability/D365 | tasks/T-083.json | tasked |
 | §15A.2 | D365 is optional import/export integration only, never source of truth | tasks/T-028.json, tasks/T-055.json..T-059.json, tasks/T-068.json, tasks/T-083.json | tasked |
+| §17 / Wave0 | Technical no-prototype MVP screens receive spec-driven UI tasks with screenshot + trace evidence | tasks/T-085.json..T-089.json | tasked |
+| §15A / Wave0 | Technical-owned sensory contract/read model is added so NPD does not own sensory schema/UI | tasks/T-090.json | tasked |
+| §5 / Wave0 | factory_specs, supplier_specs, NCR/outbox, Quality-owned lab read model are represented in PRD/task contracts | tasks/T-020.json, tasks/T-060.json, tasks/T-072.json, tasks/T-075.json, tasks/T-082.json | tasked |
+| §0 / Wave0 | Technical release status uses canonical NPD T-097 model; Technical task is adapter only | tasks/T-081.json | tasked |
 
 ## Notes
 
@@ -28,4 +32,5 @@ Source PRD: `03-TECHNICAL-PRD.md` v3.3 + 2026-05-03 PO decisions.
 - Status `tasked` means the requirement now has an ACP task contract; it does not claim the application is implemented.
 - T-072 remains the earlier supplier_specs docs brief. T-073..T-079 are final-decision implementation/depth tasks added after PO confirmed FG, factory_spec, shared BOM SSOT, PO/TO trigger semantics, and Technical approval rules.
 - T-080..T-083 were added after review to cover approval/release/NCR/UI blockers that remained after the first final-decision patch.
-- No unresolved GAP rows remain for the final decisions listed above; E2E spike may still identify cross-module flow gaps outside 03-TECHNICAL.
+- T-084..T-090 were added/updated in Wave0 readiness hardening to close the remaining 95%+ blockers: no-prototype MVP screens, supplier specs Phase 1 UI readiness, Technical sensory ownership, release adapter semantics, screenshots/traces, and UI red-line evidence.
+- No unresolved GAP rows remain for the final decisions listed above; downstream 04 Planning / 08 Production consumer contracts should still be patched before claiming full product-to-factory E2E readiness across the whole program.

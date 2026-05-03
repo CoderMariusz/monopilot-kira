@@ -38,7 +38,6 @@
       "T-004",
       "T-014"
     ],
-    "parallel_safe_with": [],
     "acceptance_criteria": [
       "Helper exists and is type-safe.",
       "Cross-tenant SELECT returns 0 rows on every settings table.",

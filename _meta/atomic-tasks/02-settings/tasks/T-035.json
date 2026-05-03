@@ -44,7 +44,6 @@
       "T-012",
       "T-017"
     ],
-    "parallel_safe_with": [],
     "acceptance_criteria": [
       "All 4 cases (4 ACs) hold.",
       "Bypass list correct.",

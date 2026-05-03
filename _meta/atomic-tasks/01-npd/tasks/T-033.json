@@ -28,7 +28,7 @@
     "context_budget": "45k",
     "estimated_effort": "3-4h",
     "description": "Convert brief to FA with mapped fields, ProdDetail rows, audit log, V08 PASS evaluation.",
-    "details": "Single transaction: insert product, prod_detail per component, apply mappings via Reference.BriefFieldMapping, write brief_to_fa_audit rows, lock brief, emit events. V08 evaluation reads audit rows.",
+    "details": "Canonical Brief→Project completion; convertBriefToFa is legacy wrapper only. No FG/Product before G3.",
     "scope_files": [
       "packages/db/migrations/0032_brief_to_fa_audit.sql [create]",
       "apps/web/app/(npd)/brief/actions/convert-brief-to-fa.ts [create]",
@@ -45,19 +45,16 @@
       "T-008",
       "T-030",
       "T-031",
-      "T-032",
-      "T-095"
+      "T-032"
     ],
     "parallel_safe_with": [
       "T-035"
     ],
     "acceptance_criteria": [
-      "Given brief status='complete' with all 13 V08 mandatory fields, when convertBriefToFa runs, then product row created with mapped fields, prod_detail rows equal component count, brief.status='converted'",
-      "Given brief status='draft', when convertBriefToFa called, then GateError thrown with code 'BRIEF_NOT_COMPLETE'",
-      "Given post-convert V08 evaluation, when all 13 mandatory mappings have applied=TRUE, then v08() returns PASS",
-      "Given brief status='complete' and a linked npd_project, when the action runs, then project mapped fields/evidence are updated and no canonical FG/Product row is created.",
-      "Given downstream code still calls convertBriefToFa, when invoked, then it delegates to the canonical Brief→Project implementation and emits compatibility audit only.",
-      "Given G3 has not been reached, when project detail is queried, then `product_code`/FG candidate remains null or pending."
+      "Complete brief updates linked npd_project evidence and V08 audit PASS without creating FG/Product rows.",
+      "Draft/incomplete brief returns typed BRIEF_NOT_COMPLETE or validation blocker with no partial mutation.",
+      "convertBriefToFa delegates to canonical Brief→Project implementation and emits compatibility audit only.",
+      "Before G3, product_code/FG candidate remains null or pending."
     ],
     "test_strategy": [
       "RED: 3 tests covering happy path, gate, V08 PASS before action exists",

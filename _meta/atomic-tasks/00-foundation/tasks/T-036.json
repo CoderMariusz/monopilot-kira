@@ -41,9 +41,6 @@
       "T-014",
       "T-017"
     ],
-    "parallel_safe_with": [
-      "T-035"
-    ],
     "acceptance_criteria": [
       "Given a tenant Schema Admin calls upsertDeptColumnDraft with field_type='enum' + validation rules, when the action returns, then a dept_column_drafts row exists with status='draft' and validation_json matches the input",
       "Given a draft row with status='draft', when publishDeptColumnDraft runs, then a Reference.DeptColumns row is created/updated, schema_version is bumped by exactly 1, a schema_migrations row is appended, and the draft status flips to 'published' — all in one transaction",

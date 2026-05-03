@@ -37,7 +37,6 @@
       "implement future-phase features"
     ],
     "dependencies": [],
-    "parallel_safe_with": [],
     "acceptance_criteria": [
       "8 new permission strings present in enum, regex-validated, no duplicates.",
       "`ALL_SETTINGS_CORE_PERMISSIONS` exported and typed `Permission[]`.",

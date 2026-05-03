@@ -37,7 +37,6 @@
       "T-038",
       "T-039"
     ],
-    "parallel_safe_with": [],
     "acceptance_criteria": [
       "Sequence diagram present.",
       "ADR link resolves.",

@@ -43,11 +43,13 @@
     "acceptance_criteria": [
       "Given the BOM list renders, when compared to design/Monopilot Design System/technical/bom-list.jsx:3-95 and design/Monopilot Design System/settings/data-screens.jsx:55-103, then column order, filter chips, and Generate BOMs CTA position match — structural + visual + interaction parity confirmed via RTL.",
       "Given filter status='active', when applied, then table reloads with only active BOMs.",
-      "Given user clicks Generate BOMs, when fired, then TEC-024 modal opens."
+      "Given user clicks Generate BOMs, when fired, then TEC-024 modal opens.",
+      "UI closeout includes screenshot/artifact evidence and Playwright trace/artifacts where applicable per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`; if Playwright is unavailable, document the blocker and provide RTL/snapshot fallback evidence."
     ],
     "test_strategy": [
       "RED tests for parity + filter behaviour.",
-      "Run: pnpm vitest run tests/ui/tec-020-bom-list.test.tsx"
+      "Run: pnpm vitest run tests/ui/tec-020-bom-list.test.tsx",
+      "For UI parity, capture screenshots/artifacts and Playwright trace/video/artifacts where applicable; attach artifact paths in closeout."
     ],
     "risk_red_lines": [
       "Do not load all BOMs unpaginated.",
@@ -77,6 +79,7 @@
       "implementation": "hermes_gpt55",
       "review": "opus_if_high_risk_or_ui_or_architecture",
       "close": "spark_low_risk_else_opus"
-    }
+    },
+    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md"
   }
 }

@@ -27,7 +27,7 @@
     "context_budget": "35k",
     "estimated_effort": "2-3h",
     "description": "createBrief + saveBriefDraft Server Actions with Zod-enforced dev_code regex, volume positivity, weight invariant.",
-    "details": "Two actions sharing brief Zod schema. RBAC + emit brief.created on insert. saveBriefDraft updates fields and recomputes summary weight invariant on multi_component.",
+    "details": "Two actions sharing brief Zod schema. RBAC + emit brief.created on insert. saveBriefDraft updates fields and recomputes summary weight invariant on multi_component.\nPreserved acceptance requirements: Given role npd_manager calls createBrief('multi_component','DEV26-052'), when run, then brief row + npd_projects row at G0 are created in one transaction and linked by npd_project_id.; Given the transaction commits, when outbox is inspected, then events appear in order brief.created → npd.project.created.; Given createBrief is retried after a transient failure with the same idempotency key/dev_code, then no duplicate project is created.",
     "scope_files": [
       "apps/web/app/(npd)/brief/actions/create-brief.ts [create]",
       "apps/web/app/(npd)/brief/actions/save-brief-draft.ts [create]",
@@ -51,9 +51,7 @@
       "Given role npd_manager calls createBrief('multi_component','DEV26-052'), when run, then brief row + 1 product line exist and brief.created event emitted",
       "Given dev_code='DEV-XX', when createBrief called, then ValidationError with code 'DEV_CODE_FORMAT' thrown",
       "Given multi_component summary weight 1000g vs sum components 850g (>1% tolerance), when saveBriefDraft runs, then ValidationError with code 'WEIGHT_MISMATCH' thrown",
-      "Given role npd_manager calls createBrief('multi_component','DEV26-052'), when run, then brief row + npd_projects row at G0 are created in one transaction and linked by npd_project_id.",
-      "Given the transaction commits, when outbox is inspected, then events appear in order brief.created → npd.project.created.",
-      "Given createBrief is retried after a transient failure with the same idempotency key/dev_code, then no duplicate project is created."
+      "Additional preserved requirements in details are implemented and covered by targeted tests."
     ],
     "test_strategy": [
       "RED: 3 tests covering happy path, dev_code format, weight invariant before actions exist",

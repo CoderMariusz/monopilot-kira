@@ -1,7 +1,12 @@
 {
   "title": "T-074 — UI: NutritionScreen (NutritionScreen prototype) — 7-row table + traffic-light + Nutri-Score (NPD-h)",
   "prompt": "# T-074 — Nutrition screen UI\n\nPRD: 01-NPD-PRD.md §17.11.2 + UX 01-NPD-UX.md nutrition_screen\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\nPrototype: design/Monopilot Design System/npd/other-stages.jsx:4-81 (NutritionScreen)\n\n## Goal\nServer Component page /(npd)/pipeline/[projectId]?stage=nutrition rendering 7-row per-100g + per-portion table, traffic-light bars, allergen card, Nutri-Score grade letter — read-only.\n\n## Implementation contract\n1. apps/web/app/(npd)/pipeline/[projectId]/nutrition/page.tsx (RSC) reads nutrition_profiles + nutri_score_results + nutrition_allergens via Drizzle.\n2. NutritionScreen component renders 7-row table (energy/fat/saturates/carbs/sugars/protein/salt) with traffic-light bars + per-portion column + Nutri-Score grade letter A-E + allergen card.\n3. Export buttons (CSV stub functional, label PDF stub disabled with tooltip).\n4. RTL parity test against prototype.\n\n## Files\n- apps/web/app/(npd)/pipeline/[projectId]/nutrition/page.tsx [create]\n- apps/web/app/(npd)/pipeline/[projectId]/nutrition/_components/nutrition-screen.tsx [create]\n- apps/web/app/(npd)/pipeline/[projectId]/nutrition/_components/__tests__/nutrition-screen.test.tsx [create]\n- design/Monopilot Design System/npd/other-stages.jsx [ref]\n\n## Acceptance criteria\n1. Given the production NutritionScreen renders, when compared to design/Monopilot Design System/npd/other-stages.jsx:4-81 (NutritionScreen), then it has the same 7-row nutrient table + traffic-light bars + Nutri-Score grade card + allergen card using shadcn Table + Badge + Card primitives — verified by RTL snapshot + parity checklist\n2. Given a nutri_score_results.grade='B' is returned, when the page renders, then a large 'B' letter Badge variant green is shown per §17.11.2 grade rendering\n3. Given the user clicks Export CSV, when the file downloads, then it contains 7 rows + header (nutrient, per_100g, per_portion) per §17.11.2 export contract\n\n## Test strategy\n- RED: __tests__/nutrition-screen.test.tsx asserting parity + grade rendering + CSV export before component exists\n- Run 'pnpm --filter web test nutrition-screen'\n\n## Risk red lines\n- Do not enable label PDF export in this task (deferred Phase C4)\n- Do not paste prototype JSX verbatim\n- Do not use HTML <table> in place of shadcn Table",
-  "labels": ["prd", "ui", "nutrition-screen", "T3-ui"],
+  "labels": [
+    "prd",
+    "ui",
+    "nutrition-screen",
+    "T3-ui"
+  ],
   "priority": 100,
   "max_attempts": 3,
   "pipeline_name": "kira_dev",
@@ -9,7 +14,9 @@
     "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
     "prd_task_id": "T-074",
     "source_prd": "01-NPD-PRD.md",
-    "prd_refs": ["§17.11.2"],
+    "prd_refs": [
+      "§17.11.2"
+    ],
     "category": "ui",
     "subcategory": "nutrition-screen",
     "task_type": "T3-ui",
@@ -28,26 +35,47 @@
       "Do not implement compute (T-072)",
       "Do not enable PDF label export (Phase C4)"
     ],
-    "dependencies": ["T-072"],
-    "parallel_safe_with": ["T-075", "T-076"],
+    "dependencies": [
+      "T-072"
+    ],
+    "parallel_safe_with": [
+      "T-075",
+      "T-076"
+    ],
     "acceptance_criteria": [
       "Given the production NutritionScreen renders, when compared to design/Monopilot Design System/npd/other-stages.jsx:4-81 (NutritionScreen), then it has the same 7-row nutrient table + traffic-light bars + Nutri-Score grade card + allergen card using shadcn primitives — verified by RTL snapshot + parity checklist",
       "Given a nutri_score_results.grade='B' is returned, when the page renders, then a large 'B' letter Badge variant green is shown per §17.11.2 grade rendering",
-      "Given the user clicks Export CSV, when the file downloads, then it contains 7 rows + header per §17.11.2 export contract"
+      "Given the user clicks Export CSV, when the file downloads, then it contains 7 rows + header per §17.11.2 export contract",
+      "UI closeout includes screenshot/artifact evidence and Playwright trace/artifacts where applicable per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`; if Playwright is unavailable, document the blocker and provide RTL/snapshot fallback evidence."
     ],
     "test_strategy": [
       "RED: __tests__/nutrition-screen.test.tsx asserting parity + grade rendering + CSV export before component exists",
-      "Run 'pnpm --filter web test nutrition-screen'"
+      "Run 'pnpm --filter web test nutrition-screen'",
+      "For UI parity, capture screenshots/artifacts and Playwright trace/video/artifacts where applicable; attach artifact paths in closeout."
     ],
     "risk_red_lines": [
       "Do not enable label PDF export in this task",
       "Do not paste prototype JSX verbatim",
       "Do not use HTML <table>"
     ],
-    "skills": ["test-driven-development", "requesting-code-review"],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
     "checkpoint_policy": {
-      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
-      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
     },
     "routing_hints": {
       "red": "hermes_gpt55",
@@ -56,6 +84,7 @@
       "close": "spark_low_risk_else_opus"
     },
     "prototype_match": true,
-    "prototype_index_entry": "nutrition_screen"
+    "prototype_index_entry": "nutrition_screen",
+    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md"
   }
 }

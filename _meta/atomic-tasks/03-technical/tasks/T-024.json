@@ -52,11 +52,13 @@
       "Given FG has manual_override row for A01='trace', when RM A01 changes intensity, then FG manual_override row is preserved unchanged.",
       "Given KPI target ≤5s, when measured in test, then propagation completes within 5000ms.",
       "Given manufacturing_operation has allergen_addition for A12, when BOM uses that op, then FG cascaded set includes A12.",
-      "Given item_allergen_profiles has no item_type column, when trigger/change detection runs, then it joins items by item_id to filter raw-material changes."
+      "Given item_allergen_profiles has no item_type column, when trigger/change detection runs, then it joins items by item_id to filter raw-material changes.",
+      "UI closeout includes screenshot/artifact evidence and Playwright trace/artifacts where applicable per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`; if Playwright is unavailable, document the blocker and provide RTL/snapshot fallback evidence."
     ],
     "test_strategy": [
       "RED tests covering propagation + override protection + timing.",
-      "Run: pnpm vitest run tests/wiring/allergen-cascade.test.ts"
+      "Run: pnpm vitest run tests/wiring/allergen-cascade.test.ts",
+      "For UI parity, capture screenshots/artifacts and Playwright trace/video/artifacts where applicable; attach artifact paths in closeout."
     ],
     "risk_red_lines": [
       "Never overwrite source='manual_override' rows.",
@@ -86,6 +88,7 @@
       "implementation": "hermes_gpt55",
       "review": "opus_if_high_risk_or_ui_or_architecture",
       "close": "spark_low_risk_else_opus"
-    }
+    },
+    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md"
   }
 }

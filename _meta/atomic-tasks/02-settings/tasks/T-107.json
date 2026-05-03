@@ -26,7 +26,7 @@
     "context_budget": "40k",
     "estimated_effort": "1-3h",
     "description": "Line List screen (SET-018): production_lines list with machine sequence preview chips and V-SET-62 activate guard.",
-    "details": "PRD §12.2 SET-018: Line List with `machine sequence preview` capability. Machine chips ordered by line_machines.seq; bulk activate must hit T-029 activateLine which raises NO_MACHINE (V-SET-62) when no machines assigned — UI surfaces inline row-level error and proceeds with successful rows.",
+    "details": "PRD §12.2 SET-018: Line List with `machine sequence preview` capability. Machine chips ordered by line_machines.seq; bulk activate must hit T-029 activateLine which raises NO_MACHINE (V-SET-62) when no machines assigned — UI surfaces inline row-level error and proceeds with successful rows.\n\nAdditional acceptance detail preserved from compressed AC list:\n- Given the caller lacks `settings.infra.update`, when they view the list, then bulk action buttons are disabled with an aria-label explaining insufficient permissions.\n- UI closeout includes screenshot/artifact evidence and Playwright trace/artifacts where applicable per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`; if Playwright is unavailable, document the blocker and provide RTL/snapshot fallback evidence.",
     "scope_files": [
       "apps/web/app/(admin)/settings/infra/lines/page.tsx [create]",
       "apps/web/app/(admin)/settings/infra/lines/page.test.tsx [create]"
@@ -49,12 +49,13 @@
       "Given the lines list renders, when a line has 4 assigned machines (seq 1..4), then the row shows 4 ordered chips in the preview column.",
       "Given a line has 8 machines, when the row renders, then the first 6 chips show plus a `+2 more` indicator.",
       "Given a line with 0 machines is bulk-selected and the user clicks Bulk Activate, when T-029 activateLine returns NO_MACHINE (V-SET-62), then the row shows an inline error and the action does not flip status.",
-      "Given the caller lacks `settings.infra.update`, when they view the list, then bulk action buttons are disabled with an aria-label explaining insufficient permissions."
+      "Given the task is closed out, when reviewers inspect the task evidence, then these additional requirements are proven together: Given the caller lacks `settings.infra.update`, when they view the list, then bulk action buttons are disabled with an aria-label explaining insufficient permissions.; UI closeout includes screenshot/artifact evidence and Playwright trace/artifacts where applicable per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`; if Playwright is unavailable, document the blocker and provide RTL/snapshot fallback evidence."
     ],
     "test_strategy": [
       "RED: RTL test mounts list with seed (line0=0 machines, line4=4 machines, line8=8 machines); asserts chip render + +N overflow + V-SET-62 inline error.",
       "GREEN: implement Server Component + chips + bulk activate error rendering.",
-      "Run `pnpm --filter @monopilot/web vitest run apps/web/app/(admin)/settings/infra/lines/page.test.tsx` and `pnpm typecheck`."
+      "Run `pnpm --filter @monopilot/web vitest run apps/web/app/(admin)/settings/infra/lines/page.test.tsx` and `pnpm typecheck`.",
+      "For UI parity, capture screenshots/artifacts and Playwright trace/video/artifacts where applicable; attach artifact paths in closeout."
     ],
     "risk_red_lines": [
       "Do not import @radix-ui/* outside packages/ui (§0).",
@@ -86,6 +87,7 @@
       "review": "opus_if_high_risk_or_ui_or_architecture",
       "close": "spark_low_risk_else_opus"
     },
-    "prototype_match": false
+    "prototype_match": false,
+    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md"
   }
 }

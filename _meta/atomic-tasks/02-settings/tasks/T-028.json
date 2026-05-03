@@ -42,7 +42,6 @@
     "dependencies": [
       "T-027"
     ],
-    "parallel_safe_with": [],
     "acceptance_criteria": [
       "Preview returns diff + impact count.",
       "Region change blocked.",

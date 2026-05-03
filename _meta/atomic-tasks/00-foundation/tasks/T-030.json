@@ -1,6 +1,6 @@
 {
-  "title": "T-030 \u2014 Tuning primitives RunStrip + EmptyState + TabsCounted + CompactActivity + DryRunButton + deriveRunHistory",
-  "prompt": "# T-030 \u2014 Tuning primitives RunStrip + EmptyState + TabsCounted + CompactActivity + DryRunButton + deriveRunHistory\n\nPRD: `00-FOUNDATION-PRD.md` \u2014 sections: \u00a75.y\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`\n\n## Goal\nFive tuning primitives ported from prototypes plus the deriveRunHistory() helper. Each is a primitive \u2014 no business data dependency.\n\n## Implementation contract\nImplement packages/ui/src/{RunStrip,EmptyState,TabsCounted,CompactActivity,DryRunButton}.tsx and packages/ui/src/run-history.ts (deriveRunHistory). RunStrip: horizontal status pill list. EmptyState: icon + title + body + action (already present in access-screens.jsx:39-43, parity reference). TabsCounted: shadcn Tabs with a numeric badge per tab. CompactActivity: terse activity-feed list (one row, one timestamp, one user). DryRunButton: Button variant tagged 'dry-run' (warning colour). deriveRunHistory(events: OutboxEvent[]): RunHistoryRow[] groups outbox events by aggregate_id. Storybook story per primitive. EmptyState parity reference is access-screens.jsx:39-43. Vitest covers deriveRunHistory grouping logic; RTL covers parity for EmptyState specifically.\n\n## Files (scope)\n- packages/ui/src/RunStrip.tsx [create]\n- packages/ui/src/EmptyState.tsx [create]\n- packages/ui/src/TabsCounted.tsx [create]\n- packages/ui/src/CompactActivity.tsx [create]\n- packages/ui/src/DryRunButton.tsx [create]\n- packages/ui/src/run-history.ts [create]\n- packages/ui/.storybook/Tuning.stories.tsx [create]\n- packages/ui/src/__tests__/tuning.test.tsx [create]\n- design/Monopilot Design System/settings/access-screens.jsx:39-43 [ref]\n\n## Acceptance criteria\n1. Given the EmptyState primitive renders with icon + title + body + action, when compared to the EmptyState usage in design/Monopilot Design System/settings/access-screens.jsx:39-43, then it matches structurally (icon emoji slot, title text, body text, single action button), visually (uses tokens.css padding and uses shadcn Button \u2014 not raw <button>), and interactionally (action onClick fires on Enter and Space) \u2014 verified by tuning.test.tsx\n2. Given a list of outbox events grouped by aggregate_id, when deriveRunHistory(events) runs, then it returns one RunHistoryRow per aggregate_id with newest-first ordering and a count of events\n3. Given DryRunButton is rendered with role='button', when inspected, then it carries the 'dry-run' variant class and a tooltip 'Preview only \u2014 no changes saved' (matches the rule_dry_run_modal pattern)\n\n## Test strategy\n- RED: write packages/ui/src/__tests__/tuning.test.tsx covering EmptyState parity + deriveRunHistory + DryRunButton variant before primitives exist\n- Run 'pnpm --filter @monopilot/ui test'\n\n## Risk red lines\n- Do not let any tuning primitive depend on a specific data domain \u2014 they must remain reusable across all 12 modules\n\n## Dependencies (must be complete first)\n- T-025\n\n## Closeout evidence\nProvide: changed_files, test_commands_and_results, acceptance_criteria_status (per AC), deviations_from_prd, git_status. Use the test-driven-development skill (RED test before implementation) and requesting-code-review at GREEN.",
+  "title": "T-030 — Tuning primitives RunStrip + EmptyState + TabsCounted + CompactActivity + DryRunButton + deriveRunHistory",
+  "prompt": "# T-030 — Tuning primitives RunStrip + EmptyState + TabsCounted + CompactActivity + DryRunButton + deriveRunHistory\n\nPRD: `00-FOUNDATION-PRD.md` — sections: §5.y\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`\n\n## Goal\nFive tuning primitives ported from prototypes plus the deriveRunHistory() helper. Each is a primitive — no business data dependency.\n\n## Implementation contract\nImplement packages/ui/src/{RunStrip,EmptyState,TabsCounted,CompactActivity,DryRunButton}.tsx and packages/ui/src/run-history.ts (deriveRunHistory). RunStrip: horizontal status pill list. EmptyState: icon + title + body + action (already present in access-screens.jsx:39-43, parity reference). TabsCounted: shadcn Tabs with a numeric badge per tab. CompactActivity: terse activity-feed list (one row, one timestamp, one user). DryRunButton: Button variant tagged 'dry-run' (warning colour). deriveRunHistory(events: OutboxEvent[]): RunHistoryRow[] groups outbox events by aggregate_id. Storybook story per primitive. EmptyState parity reference is access-screens.jsx:39-43. Vitest covers deriveRunHistory grouping logic; RTL covers parity for EmptyState specifically.\n\n## Files (scope)\n- packages/ui/src/RunStrip.tsx [create]\n- packages/ui/src/EmptyState.tsx [create]\n- packages/ui/src/TabsCounted.tsx [create]\n- packages/ui/src/CompactActivity.tsx [create]\n- packages/ui/src/DryRunButton.tsx [create]\n- packages/ui/src/run-history.ts [create]\n- packages/ui/.storybook/Tuning.stories.tsx [create]\n- packages/ui/src/__tests__/tuning.test.tsx [create]\n- design/Monopilot Design System/settings/access-screens.jsx:39-43 [ref]\n\n## Acceptance criteria\n1. Given the EmptyState primitive renders with icon + title + body + action, when compared to the EmptyState usage in design/Monopilot Design System/settings/access-screens.jsx:39-43, then it matches structurally (icon emoji slot, title text, body text, single action button), visually (uses tokens.css padding and uses shadcn Button — not raw <button>), and interactionally (action onClick fires on Enter and Space) — verified by tuning.test.tsx\n2. Given a list of outbox events grouped by aggregate_id, when deriveRunHistory(events) runs, then it returns one RunHistoryRow per aggregate_id with newest-first ordering and a count of events\n3. Given DryRunButton is rendered with role='button', when inspected, then it carries the 'dry-run' variant class and a tooltip 'Preview only — no changes saved' (matches the rule_dry_run_modal pattern)\n\n## Test strategy\n- RED: write packages/ui/src/__tests__/tuning.test.tsx covering EmptyState parity + deriveRunHistory + DryRunButton variant before primitives exist\n- Run 'pnpm --filter @monopilot/ui test'\n\n## Risk red lines\n- Do not let any tuning primitive depend on a specific data domain — they must remain reusable across all 12 modules\n\n## Dependencies (must be complete first)\n- T-025\n\n## Closeout evidence\nProvide: changed_files, test_commands_and_results, acceptance_criteria_status (per AC), deviations_from_prd, git_status. Use the test-driven-development skill (RED test before implementation) and requesting-code-review at GREEN.",
   "labels": [
     "prd",
     "ui",
@@ -15,7 +15,7 @@
     "prd_task_id": "T-030",
     "source_prd": "00-FOUNDATION-PRD.md",
     "prd_refs": [
-      "\u00a75.y"
+      "§5.y"
     ],
     "category": "ui",
     "subcategory": "tuning",
@@ -23,7 +23,7 @@
     "parent_feature": "00-FOUNDATION-impl-j UI primitives",
     "context_budget": "55k",
     "estimated_effort": "2-3h",
-    "description": "Five tuning primitives ported from prototypes plus the deriveRunHistory() helper. Each is a primitive \u2014 no business data dependency.",
+    "description": "Five tuning primitives ported from prototypes plus the deriveRunHistory() helper. Each is a primitive — no business data dependency.",
     "details": "Implement packages/ui/src/{RunStrip,EmptyState,TabsCounted,CompactActivity,DryRunButton}.tsx and packages/ui/src/run-history.ts (deriveRunHistory). RunStrip: horizontal status pill list. EmptyState: icon + title + body + action (already present in access-screens.jsx:39-43, parity reference). TabsCounted: shadcn Tabs with a numeric badge per tab. CompactActivity: terse activity-feed list (one row, one timestamp, one user). DryRunButton: Button variant tagged 'dry-run' (warning colour). deriveRunHistory(events: OutboxEvent[]): RunHistoryRow[] groups outbox events by aggregate_id. Storybook story per primitive. EmptyState parity reference is access-screens.jsx:39-43. Vitest covers deriveRunHistory grouping logic; RTL covers parity for EmptyState specifically.",
     "scope_files": [
       "packages/ui/src/RunStrip.tsx [create]",
@@ -39,28 +39,24 @@
     "out_of_scope": [
       "Do not modify files outside the scope_files list",
       "Do not introduce business logic from later module PRDs (01-NPD, 02-SETTINGS, etc.)",
-      "No business data wiring \u2014 primitives only"
+      "No business data wiring — primitives only"
     ],
     "dependencies": [
       "T-025"
     ],
-    "parallel_safe_with": [
-      "T-026",
-      "T-027",
-      "T-028",
-      "T-029"
-    ],
     "acceptance_criteria": [
-      "Given the EmptyState primitive renders with icon + title + body + action, when compared to the EmptyState usage in design/Monopilot Design System/settings/access-screens.jsx:39-43, then it matches structurally (icon emoji slot, title text, body text, single action button), visually (uses tokens.css padding and uses shadcn Button \u2014 not raw <button>), and interactionally (action onClick fires on Enter and Space) \u2014 verified by tuning.test.tsx",
+      "Given the EmptyState primitive renders with icon + title + body + action, when compared to the EmptyState usage in design/Monopilot Design System/settings/access-screens.jsx:39-43, then it matches structurally (icon emoji slot, title text, body text, single action button), visually (uses tokens.css padding and uses shadcn Button — not raw <button>), and interactionally (action onClick fires on Enter and Space) — verified by tuning.test.tsx",
       "Given a list of outbox events grouped by aggregate_id, when deriveRunHistory(events) runs, then it returns one RunHistoryRow per aggregate_id with newest-first ordering and a count of events",
-      "Given DryRunButton is rendered with role='button', when inspected, then it carries the 'dry-run' variant class and a tooltip 'Preview only \u2014 no changes saved' (matches the rule_dry_run_modal pattern)"
+      "Given DryRunButton is rendered with role='button', when inspected, then it carries the 'dry-run' variant class and a tooltip 'Preview only — no changes saved' (matches the rule_dry_run_modal pattern)",
+      "UI closeout includes screenshot/artifact evidence and Playwright trace/artifacts where applicable per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`; if Playwright is unavailable, document the blocker and provide RTL/snapshot fallback evidence."
     ],
     "test_strategy": [
       "RED: write packages/ui/src/__tests__/tuning.test.tsx covering EmptyState parity + deriveRunHistory + DryRunButton variant before primitives exist",
-      "Run 'pnpm --filter @monopilot/ui test'"
+      "Run 'pnpm --filter @monopilot/ui test'",
+      "For UI parity, capture screenshots/artifacts and Playwright trace/video/artifacts where applicable; attach artifact paths in closeout."
     ],
     "risk_red_lines": [
-      "Do not let any tuning primitive depend on a specific data domain \u2014 they must remain reusable across all 12 modules"
+      "Do not let any tuning primitive depend on a specific data domain — they must remain reusable across all 12 modules"
     ],
     "skills": [
       "test-driven-development",
@@ -87,6 +83,7 @@
       "implementation": "hermes_gpt55",
       "review": "opus_if_high_risk_or_ui_or_architecture",
       "close": "spark_low_risk_else_opus"
-    }
+    },
+    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md"
   }
 }

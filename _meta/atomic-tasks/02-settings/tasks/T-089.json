@@ -37,7 +37,6 @@
       "T-010",
       "T-014"
     ],
-    "parallel_safe_with": [],
     "acceptance_criteria": [
       "Partitions auto-created.",
       "Detach preserves data.",

@@ -25,7 +25,7 @@
     "context_budget": "40k",
     "estimated_effort": "1-3h",
     "description": "Migration History (SET-064) — full read-only audit list of tenant_migrations rows with filters and per-row snapshot viewer.",
-    "details": "PRD §9.7 SET-064: `tenant_migrations audit`. Distinct from SET-063 (T-070) which mixes Active orchestration controls with a History tab; this screen is purely historical with full filter set. Snapshot modal shows raw before/after JSON only — diff visualization is OUT OF SCOPE (could be later enhancement re-using SET-042 helper from T-108).",
+    "details": "PRD §9.7 SET-064: `tenant_migrations audit`. Distinct from SET-063 (T-070) which mixes Active orchestration controls with a History tab; this screen is purely historical with full filter set. Snapshot modal shows raw before/after JSON only — diff visualization is OUT OF SCOPE (could be later enhancement re-using SET-042 helper from T-108).\n\nAdditional acceptance detail preserved from compressed AC list:\n- Given the caller lacks `settings.audit.read`, when the page is requested, then a 403 page renders.\n- UI closeout includes screenshot/artifact evidence and Playwright trace/artifacts where applicable per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`; if Playwright is unavailable, document the blocker and provide RTL/snapshot fallback evidence.",
     "scope_files": [
       "apps/web/app/(admin)/settings/tenant/migrations/page.tsx [create]",
       "apps/web/app/(admin)/settings/tenant/migrations/page.test.tsx [create]"
@@ -46,12 +46,13 @@
       "Given 5 tenant_migrations rows exist (mix of statuses canary/completed/rolled_back), when the page renders, then all 5 rows are listed with started_at, status, type, initiated_by_user columns populated.",
       "Given the user filters status='rolled_back' and date range 'last 30 days', when the list re-renders, then only rolled_back rows within that window are visible.",
       "Given the user clicks 'View snapshot' on a row, when the modal opens, then two collapsible JSON panes (before/after) render the stored snapshot exactly.",
-      "Given the caller lacks `settings.audit.read`, when the page is requested, then a 403 page renders."
+      "Given the task is closed out, when reviewers inspect the task evidence, then these additional requirements are proven together: Given the caller lacks `settings.audit.read`, when the page is requested, then a 403 page renders.; UI closeout includes screenshot/artifact evidence and Playwright trace/artifacts where applicable per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`; if Playwright is unavailable, document the blocker and provide RTL/snapshot fallback evidence."
     ],
     "test_strategy": [
       "RED: RTL test seeds rows + asserts filters + snapshot modal renders + RBAC 403.",
       "GREEN: implement Server Component + filters + modal.",
-      "Run `pnpm --filter @monopilot/web vitest run apps/web/app/(admin)/settings/tenant/migrations/page.test.tsx` and `pnpm typecheck`."
+      "Run `pnpm --filter @monopilot/web vitest run apps/web/app/(admin)/settings/tenant/migrations/page.test.tsx` and `pnpm typecheck`.",
+      "For UI parity, capture screenshots/artifacts and Playwright trace/video/artifacts where applicable; attach artifact paths in closeout."
     ],
     "risk_red_lines": [
       "Do not duplicate SET-063 promotion controls (T-070); this is read-only history.",
@@ -83,6 +84,7 @@
       "review": "opus_if_high_risk_or_ui_or_architecture",
       "close": "spark_low_risk_else_opus"
     },
-    "prototype_match": false
+    "prototype_match": false,
+    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md"
   }
 }

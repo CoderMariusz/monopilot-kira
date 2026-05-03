@@ -1,0 +1,78 @@
+{
+  "title": "T-087 — UI: TEC-031 Regulatory Compliance Dashboard spec-driven screen",
+  "prompt": "# T-087 — UI: TEC-031 Regulatory Compliance Dashboard (spec-driven)\n\nImplement the MVP UI task for TEC-031 Regulatory Compliance Dashboard. Exact canonical prototype is missing, so this is a spec-driven UI task: `03-TECHNICAL-PRD.md` §9.5 / spec-driven regulatory dashboard and `design/03-TECHNICAL-UX.md` are authoritative; adjacent Technical prototype elements may be reused only as layout/primitives, not as a false 1:1 source. Route target: `/technical/compliance`. Apply 03-TECHNICAL red-lines (FG/WIP, factory_specs, shared BOM SSOT, Quality lab ownership, D365 optional) where applicable. Closeout requires screenshot/artifacts plus Playwright traces/artifacts per shared UI policy.",
+  "labels": [
+    "prd",
+    "ui",
+    "spec-driven",
+    "T3-ui"
+  ],
+  "priority": 80,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "source_prd": "03-TECHNICAL-PRD.md",
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prd_task_id": "T-087",
+    "prd_refs": [
+      "§0",
+      "§5",
+      "§17",
+      "design/03-TECHNICAL-UX.md"
+    ],
+    "category": "ui",
+    "subcategory": "tec-031",
+    "task_type": "T3-ui",
+    "parent_feature": "03-TECHNICAL Readiness Patch",
+    "context_budget": "30k",
+    "estimated_effort": "2-4h",
+    "description": "UI: TEC-031 Regulatory Compliance Dashboard spec-driven screen",
+    "details": "Spec-driven because no exact compliance dashboard prototype exists. Implement regulatory KPI dashboard with seven preset chips/tiles and per-FG flag table. Flags include missing shelf-life, allergen declaration, BRCGS training/evidence link, GS1/Peppol metadata and relevant org policy blockers. This is visibility/remediation routing, not regulatory legal advice engine.\n\nAdditional acceptance detail preserved from compressed AC list:\n- Given closeout is prepared, screenshots/artifacts and Playwright traces/artifacts where applicable are listed per shared UI policy.\n- UI closeout includes screenshot/artifact evidence and Playwright trace/artifacts where applicable per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`; if Playwright is unavailable, document the blocker and provide RTL/snapshot fallback evidence.",
+    "scope_files": [
+      "app/(app)/technical/compliance/page.tsx",
+      "tests/ui/tec-031-regulatory-compliance-dashboard.test.tsx"
+    ],
+    "acceptance_criteria": [
+      "Given the UI surface is implemented, when compared with the dedicated layout-primitive prototype `design/Monopilot Design System/technical/spec-driven-screens.jsx:359-446` (`regulatory_compliance_dashboard_screen` per-regulation KPI strip + per-FG flag table with Route → action), then it satisfies structural parity, visual parity, and interaction parity against the PRD §9.5 / UX-spec regulatory dashboard layout/flow (PRD/UX is canonical, prototype is layout-primitive only), captures Playwright screenshots and traces, passes axe checks, and applies the Technical red-line overlay: FG not FA, WIP/intermediate not PR-code, factory_spec/internal_product_spec, shared BOM SSOT, and D365 optional only. KPI tiles cover EU 1169/2011, FSMA 204, BRCGS v9, ISO 22000, EU 2023/915 (extend with GS1-DL, Peppol per PRD); remediation routing only — not regulatory legal advice; lab/HACCP gaps route to 09-QUALITY which owns the lifecycle.",
+      "Given TEC-031 renders, then it satisfies the named PRD/UX spec as source of truth and does not claim exact prototype parity.",
+      "Given adjacent prototype primitives are reused, then screen semantics/routes/fields/states remain those required by PRD/UX.",
+      "Given the task is closed out, when reviewers inspect the task evidence, then these additional requirements are proven together: Given closeout is prepared, screenshots/artifacts and Playwright traces/artifacts where applicable are listed per shared UI policy.; UI closeout includes screenshot/artifact evidence and Playwright trace/artifacts where applicable per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`; if Playwright is unavailable, document the blocker and provide RTL/snapshot fallback evidence."
+    ],
+    "test_strategy": [
+      "RED RTL/Playwright tests for PRD/UX spec-driven structure and interactions.",
+      "Run the relevant UI test for TEC-031; capture screenshot and trace artifacts.",
+      "For UI parity, capture screenshots/artifacts and Playwright trace/video/artifacts where applicable; attach artifact paths in closeout."
+    ],
+    "risk_red_lines": [
+      "Do not block on missing prototype; use spec-driven contract explicitly.",
+      "Do not use adjacent prototype as 1:1 source."
+    ],
+    "dependencies": [],
+    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md"
+  }
+}

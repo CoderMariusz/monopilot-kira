@@ -43,13 +43,6 @@
     "dependencies": [
       "T-001"
     ],
-    "parallel_safe_with": [
-      "T-003",
-      "T-004",
-      "T-038",
-      "T-040",
-      "T-045"
-    ],
     "acceptance_criteria": [
       "Given lib/reference/ref-tables.enum.ts is imported, when typeof RefTables.DeptColumns is checked, then it equals the literal 'Reference.DeptColumns' and the union RefTableName has exactly 8 members",
       "Given the registry is loaded, when the test iterates values, then every entry matches /^Reference\\.[A-Z][A-Za-z]+$/ and there are no duplicates",

@@ -36,7 +36,6 @@
     "dependencies": [
       "T-034"
     ],
-    "parallel_safe_with": [],
     "acceptance_criteria": [
       "Seat-limit enforced.",
       "PATCH active=false soft-deletes.",

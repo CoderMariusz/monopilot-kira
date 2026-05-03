@@ -36,16 +36,17 @@
     "dependencies": [
       "T-023"
     ],
-    "parallel_safe_with": [],
     "acceptance_criteria": [
       "Given the production page renders, it MUST satisfy `02-SETTINGS-UX.md SET-033 / schema-migrations` as the source of truth. UX spec replaces prototype parity for this task; no wrong/adjacent prototype may be used as a 1:1 source. Reused prototype elements must be limited to matching primitives/patterns and must not change the screen semantics, routes, fields, or states required by the UX spec.",
       "Given filter status='pending', when page renders, then only pending rows are listed and each row shows a 'View migration script' button (read-only).",
-      "Given a row is clicked, when detail panel opens, then `migration_script` is shown in a read-only CodeMirror SQL view."
+      "Given a row is clicked, when detail panel opens, then `migration_script` is shown in a read-only CodeMirror SQL view.",
+      "UI closeout includes screenshot/artifact evidence and Playwright trace/artifacts where applicable per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`; if Playwright is unavailable, document the blocker and provide RTL/snapshot fallback evidence."
     ],
     "test_strategy": [
       "RED: write RTL test that mounts the page with mocked data and asserts the parity AC items + ac_extra coverage.",
       "GREEN: build component, wire Server Action(s).",
-      "Run `pnpm --filter @monopilot/web vitest run apps/web/app/(admin)/settings/schema/migrations/page.test.tsx [create]` and `pnpm typecheck`."
+      "Run `pnpm --filter @monopilot/web vitest run apps/web/app/(admin)/settings/schema/migrations/page.test.tsx [create]` and `pnpm typecheck`.",
+      "For UI parity, capture screenshots/artifacts and Playwright trace/video/artifacts where applicable; attach artifact paths in closeout."
     ],
     "risk_red_lines": [
       "Do not import @radix-ui/react-dialog outside packages/ui (§0 ESLint rule).",
@@ -78,6 +79,7 @@
       "review": "opus_if_high_risk_or_ui_or_architecture",
       "close": "spark_low_risk_else_opus"
     },
-    "prototype_match": false
+    "prototype_match": false,
+    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md"
   }
 }

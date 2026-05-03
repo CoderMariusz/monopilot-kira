@@ -38,7 +38,6 @@
     "dependencies": [
       "T-004"
     ],
-    "parallel_safe_with": [],
     "acceptance_criteria": [
       "Both tables created exactly per §5.2.",
       "data_type and tier CHECK constraints enforce allowed values.",

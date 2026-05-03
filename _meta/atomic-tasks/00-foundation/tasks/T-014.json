@@ -1,13 +1,13 @@
 {
-  "title": "T-014 \u2014 RBAC enforcement library with org.access.admin / org.schema.admin SoD grant guard",
-  "prompt": "# T-014 \u2014 RBAC enforcement library with org.access.admin / org.schema.admin SoD grant guard\n\nPRD: `00-FOUNDATION-PRD.md` \u2014 sections: \u00a73, \u00a78\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`\n\n## Goal\nImplement role/permission tables, role-grant Server Action, and a guard that refuses to grant org.schema.admin to a user who already holds org.access.admin (and vice versa) unless dual_control_required=false.\n\n## Implementation contract\nMigration 006-rbac.sql: roles(id, tenant_id, slug UNIQUE per tenant, system BOOLEAN), role_permissions(role_id, permission TEXT), user_roles(user_id, role_id). Seed two system roles per tenant: 'org.access.admin' and 'org.schema.admin'. Add packages/rbac/src/grant.ts exporting grantRole(userId, roleSlug) that throws 'sod_violation' when granting one of the SoD pair to a user already holding the other (uses SOD_EXCLUSIVE_PAIRS from T-004). Add org_security_policies(tenant_id PK, dual_control_required BOOLEAN DEFAULT true). When dual_control_required=true, second-admin approval is required (record approval token). Vitest covers the SoD violation, the dual-control approval path, and seed correctness.\n\n## Files (scope)\n- packages/db/migrations/006-rbac.sql [create]\n- packages/rbac/src/grant.ts [create]\n- packages/rbac/src/__tests__/grant.test.ts [create]\n\n## Acceptance criteria\n1. Given a user holds 'org.access.admin', when grantRole(userId, 'org.schema.admin') is called and dual_control_required=true with no approval, then it throws 'sod_violation'\n2. Given dual_control_required=true and a valid second-admin approval token is supplied, when the same grant runs, then it succeeds and writes an audit_events row with action='role.assigned' retention_class='security'\n3. Given a fresh tenant is created, when seed runs, then both 'org.access.admin' and 'org.schema.admin' system roles exist for that tenant\n\n## Test strategy\n- RED: write packages/rbac/src/__tests__/grant.test.ts covering SoD violation + dual-control approval + seed before grant.ts exists\n- Run 'pnpm --filter @monopilot/rbac test'\n\n## Risk red lines\n- Do not allow a single admin to bypass the SoD guard by editing org_security_policies in the same transaction\n\n## Dependencies (must be complete first)\n- T-004\n- T-006\n\n## Closeout evidence\nProvide: changed_files, test_commands_and_results, acceptance_criteria_status (per AC), deviations_from_prd, git_status. Use the test-driven-development skill (RED test before implementation) and requesting-code-review at GREEN.",
+  "title": "T-014 — RBAC enforcement library with org-scoped roles and Org Admin / Schema Admin SoD grant guard",
+  "prompt": "# T-014 — RBAC enforcement library with org-scoped roles and Org Admin / Schema Admin SoD grant guard\n\nPRD: `00-FOUNDATION-PRD.md` — sections: §3, §8, §W0-v4.3\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`\nACP import shape: top-level TaskCreate only (`title`, `prompt`, `labels`, `priority`, `max_attempts`, `pipeline_name`, `pipeline_inputs`). Do not add generated ACP fields such as task_id/status/project_id. `pipeline_inputs.root_path` is mandatory.\n\n## Goal\nImplement org-scoped role/permission storage and a grant guard enforcing Org Admin / Schema Admin separation-of-duties.\n\n## Locked Wave 0 decisions to honor\n- Business data-plane scope is `org_id`; do not create new business-table `tenant_id` columns. Tenant/control-plane concepts may exist above org scope, but app/business rows, RLS policies, audit/outbox rows, role grants, and R13 skeletons use `org_id`.\n- Canonical finished-good domain/event prefix is `fg.*`. `fa.*` / `FA` may appear only as an explicit legacy compatibility alias during migration, never as the primary new contract.\n- Use the safe non-spoofable org-context RLS pattern. Do not rely on unsafe direct custom GUC `SET` by app users. Do not declare `LEAKPROOF` unless the implementation proves it is valid and necessary.\n- Lower numeric priority is picked sooner; dependencies must be local `T-XXX` IDs. Cross-module blockers, if any, belong in `pipeline_inputs.cross_module_dependencies` and in this prompt.\n- Exactly one atomic task type: `T2-api`.\n\n## Implementation contract\nMigration `006-rbac.sql`: `roles(id, org_id, slug, system boolean, unique(org_id, slug))`, `role_permissions(role_id, permission text)`, `user_roles(user_id, role_id, org_id)`, and `org_security_policies(org_id primary key, dual_control_required boolean default true)`. Seed system roles `org.access.admin` and `org.schema.admin` per org. Implement `packages/rbac/src/grant.ts` exporting `grantRole({actorUserId,targetUserId,orgId,roleSlug,approvalToken})`. It loads canonical permissions/aliases from T-004, refuses legacy permission strings, enforces SOD_EXCLUSIVE_PAIRS, requires a second-admin approval token when dual_control_required=true, and writes an audit_events row using `org_id`, action `role.assigned`, retention_class `security`. No UI.\n\n## Files in scope\n- packages/db/migrations/006-rbac.sql [create]\n- packages/rbac/src/grant.ts [create]\n- packages/rbac/src/__tests__/grant.test.ts [create]\n\n## Dependencies\n- T-004\n- T-006\n- T-009\n\n## Cross-module dependencies\n- None\n\n## Acceptance criteria\n1. A user holding org.access.admin cannot receive org.schema.admin in the same org without valid second-admin approval when dual_control_required=true.\n2. With valid second-admin approval, the grant succeeds and writes audit_events with org_id, action='role.assigned', retention_class='security'.\n3. Fresh org seed creates both system roles for that org and no tenant-scoped role rows.\n4. Attempting to grant a legacy alias permission/role path such as `fa.edit` is rejected or normalized before persistence; persisted permissions are canonical only.\n\n## Test strategy\n- RED: write grant.test.ts for SoD violation, approval success, org seed, audit row, and canonical-only permission persistence before grant.ts exists.\n- Run `pnpm --filter @monopilot/rbac test`.\n\n## Risk red lines\n- Do not persist tenant_id for RBAC business scope.\n- Do not allow actor to generate/approve their own dual-control token.\n- Do not build RBAC UI here.\n\n## Closeout evidence\nProvide changed_files, test_commands_and_results, acceptance_criteria_status, deviations_from_prd, and git_status.",
   "labels": [
     "prd",
     "auth",
     "rbac",
     "T2-api"
   ],
-  "priority": 80,
+  "priority": 50,
   "max_attempts": 3,
   "pipeline_name": "kira_dev",
   "pipeline_inputs": {
@@ -15,47 +15,47 @@
     "prd_task_id": "T-014",
     "source_prd": "00-FOUNDATION-PRD.md",
     "prd_refs": [
-      "\u00a73",
-      "\u00a78"
+      "§3",
+      "§8",
+      "§W0-v4.3"
     ],
     "category": "auth",
     "subcategory": "rbac",
     "task_type": "T2-api",
     "parent_feature": "00-FOUNDATION-impl-g RBAC",
     "context_budget": "50k",
-    "estimated_effort": "2-3h",
-    "description": "Implement role/permission tables, role-grant Server Action, and a guard that refuses to grant org.schema.admin to a user who already holds org.access.admin (and vice versa) unless dual_control_required=false.",
-    "details": "Migration 006-rbac.sql: roles(id, tenant_id, slug UNIQUE per tenant, system BOOLEAN), role_permissions(role_id, permission TEXT), user_roles(user_id, role_id). Seed two system roles per tenant: 'org.access.admin' and 'org.schema.admin'. Add packages/rbac/src/grant.ts exporting grantRole(userId, roleSlug) that throws 'sod_violation' when granting one of the SoD pair to a user already holding the other (uses SOD_EXCLUSIVE_PAIRS from T-004). Add org_security_policies(tenant_id PK, dual_control_required BOOLEAN DEFAULT true). When dual_control_required=true, second-admin approval is required (record approval token). Vitest covers the SoD violation, the dual-control approval path, and seed correctness.",
+    "estimated_effort": "1-3h",
+    "description": "Implement org-scoped role/permission storage and a grant guard enforcing Org Admin / Schema Admin separation-of-duties.",
+    "details": "Migration `006-rbac.sql`: `roles(id, org_id, slug, system boolean, unique(org_id, slug))`, `role_permissions(role_id, permission text)`, `user_roles(user_id, role_id, org_id)`, and `org_security_policies(org_id primary key, dual_control_required boolean default true)`. Seed system roles `org.access.admin` and `org.schema.admin` per org. Implement `packages/rbac/src/grant.ts` exporting `grantRole({actorUserId,targetUserId,orgId,roleSlug,approvalToken})`. It loads canonical permissions/aliases from T-004, refuses legacy permission strings, enforces SOD_EXCLUSIVE_PAIRS, requires a second-admin approval token when dual_control_required=true, and writes an audit_events row using `org_id`, action `role.assigned`, retention_class `security`. No UI.",
     "scope_files": [
       "packages/db/migrations/006-rbac.sql [create]",
       "packages/rbac/src/grant.ts [create]",
       "packages/rbac/src/__tests__/grant.test.ts [create]"
     ],
     "out_of_scope": [
-      "Do not modify files outside the scope_files list",
-      "Do not introduce business logic from later module PRDs (01-NPD, 02-SETTINGS, etc.)",
-      "No RBAC UI (lives in 02-SETTINGS)"
+      "Do not modify files outside scope_files unless a test/build config in the same package is strictly required and listed in closeout.",
+      "Do not implement unrelated module behaviour from 01-NPD/02-SETTINGS/03-TECHNICAL unless explicitly named here.",
+      "Do not emit ACP-generated top-level fields in this JSON."
     ],
     "dependencies": [
       "T-004",
-      "T-006"
-    ],
-    "parallel_safe_with": [
-      "T-008",
-      "T-009",
-      "T-010"
+      "T-006",
+      "T-009"
     ],
     "acceptance_criteria": [
-      "Given a user holds 'org.access.admin', when grantRole(userId, 'org.schema.admin') is called and dual_control_required=true with no approval, then it throws 'sod_violation'",
-      "Given dual_control_required=true and a valid second-admin approval token is supplied, when the same grant runs, then it succeeds and writes an audit_events row with action='role.assigned' retention_class='security'",
-      "Given a fresh tenant is created, when seed runs, then both 'org.access.admin' and 'org.schema.admin' system roles exist for that tenant"
+      "A user holding org.access.admin cannot receive org.schema.admin in the same org without valid second-admin approval when dual_control_required=true.",
+      "With valid second-admin approval, the grant succeeds and writes audit_events with org_id, action='role.assigned', retention_class='security'.",
+      "Fresh org seed creates both system roles for that org and no tenant-scoped role rows.",
+      "Attempting to grant a legacy alias permission/role path such as `fa.edit` is rejected or normalized before persistence; persisted permissions are canonical only."
     ],
     "test_strategy": [
-      "RED: write packages/rbac/src/__tests__/grant.test.ts covering SoD violation + dual-control approval + seed before grant.ts exists",
-      "Run 'pnpm --filter @monopilot/rbac test'"
+      "RED: write grant.test.ts for SoD violation, approval success, org seed, audit row, and canonical-only permission persistence before grant.ts exists.",
+      "Run `pnpm --filter @monopilot/rbac test`."
     ],
     "risk_red_lines": [
-      "Do not allow a single admin to bypass the SoD guard by editing org_security_policies in the same transaction"
+      "Do not persist tenant_id for RBAC business scope.",
+      "Do not allow actor to generate/approve their own dual-control token.",
+      "Do not build RBAC UI here."
     ],
     "skills": [
       "test-driven-development",

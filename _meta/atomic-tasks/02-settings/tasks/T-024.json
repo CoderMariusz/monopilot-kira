@@ -38,7 +38,6 @@
       "T-005",
       "T-008"
     ],
-    "parallel_safe_with": [],
     "acceptance_criteria": [
       "Cache hit on repeat call.",
       "Regex validation honored.",

@@ -41,7 +41,6 @@
     "dependencies": [
       "T-016"
     ],
-    "parallel_safe_with": [],
     "acceptance_criteria": [
       "Seat-limit pre-flight enforced (V-SET-89).",
       "TTL exactly 7 days enforced server-side (V-SET-88).",

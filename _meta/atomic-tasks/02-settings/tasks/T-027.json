@@ -44,7 +44,6 @@
       "T-007",
       "T-016"
     ],
-    "parallel_safe_with": [],
     "acceptance_criteria": [
       "All 4 actions implemented with V-SET-30..31 guards.",
       "Audit + outbox per mutation.",

@@ -42,7 +42,6 @@
       "T-045",
       "T-046"
     ],
-    "parallel_safe_with": [],
     "acceptance_criteria": [
       "Happy path completes within 15min target.",
       "Illegal jump no-op verified.",

@@ -42,9 +42,6 @@
       "T-014",
       "T-038"
     ],
-    "parallel_safe_with": [
-      "T-040"
-    ],
     "acceptance_criteria": [
       "Given a tenant on cohort='canary' with status='idle', when recordMigrationRun(component='rule-engine', tenantId, target='v2', status='succeeded') runs, then the tenant_migrations row is updated to current_version='v2', status='succeeded', last_run_at=now() and an outbox event tenant.migration.run is emitted with retention_class='operational'",
       "Given recordMigrationRun is called with status='failed' + failure_reason='migration X timeout', when it returns, then current_version is NOT bumped, status='failed' is persisted, and an outbox event with action='tenant.migration.run.failed' carries the failure_reason",

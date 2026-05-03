@@ -42,11 +42,13 @@
     "acceptance_criteria": [
       "Given the graph tab renders, when compared to design/Monopilot Design System/technical/bom-detail.jsx:471-544, then nodes/edges + toggle (down/up direction) controls match — structural + visual + interaction parity verified by RTL DOM checks.",
       "Given a BOM with 3 levels, when rendered, then 3 layers appear.",
-      "Given where-used toggle clicked, when applied, then inverse edges render."
+      "Given where-used toggle clicked, when applied, then inverse edges render.",
+      "UI closeout includes screenshot/artifact evidence and Playwright trace/artifacts where applicable per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`; if Playwright is unavailable, document the blocker and provide RTL/snapshot fallback evidence."
     ],
     "test_strategy": [
       "RED tests for parity + toggle behaviour.",
-      "Run: pnpm vitest run tests/ui/tec-083-bom-graph.test.tsx"
+      "Run: pnpm vitest run tests/ui/tec-083-bom-graph.test.tsx",
+      "For UI parity, capture screenshots/artifacts and Playwright trace/video/artifacts where applicable; attach artifact paths in closeout."
     ],
     "risk_red_lines": [
       "Do not load graph library on initial bundle (use dynamic import).",
@@ -76,6 +78,7 @@
       "implementation": "hermes_gpt55",
       "review": "opus_if_high_risk_or_ui_or_architecture",
       "close": "spark_low_risk_else_opus"
-    }
+    },
+    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md"
   }
 }

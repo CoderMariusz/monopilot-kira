@@ -1,0 +1,88 @@
+{
+  "title": "T-050 — Authorization policy foundation contract for org-scoped permissions and preflight helpers",
+  "prompt": "# T-050 — Authorization policy foundation contract for org-scoped permissions and preflight helpers\n\nPRD: `00-FOUNDATION-PRD.md` — sections: §3, §5.x, §8, §W0-v4.3\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`\nACP import shape: top-level TaskCreate only (`title`, `prompt`, `labels`, `priority`, `max_attempts`, `pipeline_name`, `pipeline_inputs`). Do not add generated ACP fields such as task_id/status/project_id. `pipeline_inputs.root_path` is mandatory.\n\n## Goal\nDefine the foundation authorization policy contract so Settings/NPD/Technical tasks implement one consistent org-scoped permission model.\n\n## Locked Wave 0 decisions to honor\n- Business data-plane scope is `org_id`; do not create new business-table `tenant_id` columns. Tenant/control-plane concepts may exist above org scope, but app/business rows, RLS policies, audit/outbox rows, role grants, and R13 skeletons use `org_id`.\n- Canonical finished-good domain/event prefix is `fg.*`. `fa.*` / `FA` may appear only as an explicit legacy compatibility alias during migration, never as the primary new contract.\n- Use the safe non-spoofable org-context RLS pattern. Do not rely on unsafe direct custom GUC `SET` by app users. Do not declare `LEAKPROOF` unless the implementation proves it is valid and necessary.\n- Lower numeric priority is picked sooner; dependencies must be local `T-XXX` IDs. Cross-module blockers, if any, belong in `pipeline_inputs.cross_module_dependencies` and in this prompt.\n- Exactly one atomic task type: `T1-schema`.\n\n## Implementation contract\nCreate `_foundation/contracts/authorization-policy.md`. Define policy layers: identity session, org context resolution, permission enum normalization, role grants, SoD, action preflight, audit. Lock `org_id` as authorization scope, canonical permissions from T-004, legacy aliases normalization only at boundary, no tenant_id business grants. Define helper contract names (`requireOrgPermission`, `preflightAction`, `assertSodGrantAllowed`, `withAuditContext`) but do not implement them. Include Settings Quality placeholder decision: use existing `settings.flags.edit`, not `settings.quality.*`. Include split ownership for future tasks (schema/seed, helpers/actions/preflight, UI) without creating Taskmaster artifacts.\n\n## Files in scope\n- _foundation/contracts/authorization-policy.md [create]\n\n## Dependencies\n- T-004\n- T-047\n- T-048\n\n## Cross-module dependencies\n- 02-SETTINGS T-122 split consumes this contract\n\n## Acceptance criteria\n1. Contract uses `org_id` consistently for authorization scope.\n2. Contract references canonical permissions and rejects persisted legacy aliases.\n3. Contract includes SoD for org.access.admin/org.schema.admin and dual-control expectation.\n4. Contract states Settings Quality placeholder uses `settings.flags.edit` / existing flag model, not `settings.quality.*`.\n\n## Test strategy\n- Run grep checks for `org_id`, `settings.flags.edit`, `org.access.admin`, `org.schema.admin`, and absence of `settings.quality.*` as a recommended permission.\n\n## Risk red lines\n- Do not implement helpers here.\n- Do not create new settings.quality permission namespace.\n- Do not use tenant_id as business authorization scope.\n\n## Closeout evidence\nProvide changed_files, test_commands_and_results, acceptance_criteria_status, deviations_from_prd, and git_status.",
+  "labels": [
+    "prd",
+    "docs",
+    "authorization-contract",
+    "T1-schema"
+  ],
+  "priority": 50,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-050",
+    "source_prd": "00-FOUNDATION-PRD.md",
+    "prd_refs": [
+      "§3",
+      "§5.x",
+      "§8",
+      "§W0-v4.3"
+    ],
+    "category": "docs",
+    "subcategory": "authorization-contract",
+    "task_type": "T1-schema",
+    "parent_feature": "Wave0 readiness",
+    "context_budget": "50k",
+    "estimated_effort": "1-3h",
+    "description": "Define the foundation authorization policy contract so Settings/NPD/Technical tasks implement one consistent org-scoped permission model.",
+    "details": "Create `_foundation/contracts/authorization-policy.md`. Define policy layers: identity session, org context resolution, permission enum normalization, role grants, SoD, action preflight, audit. Lock `org_id` as authorization scope, canonical permissions from T-004, legacy aliases normalization only at boundary, no tenant_id business grants. Define helper contract names (`requireOrgPermission`, `preflightAction`, `assertSodGrantAllowed`, `withAuditContext`) but do not implement them. Include Settings Quality placeholder decision: use existing `settings.flags.edit`, not `settings.quality.*`. Include split ownership for future tasks (schema/seed, helpers/actions/preflight, UI) without creating Taskmaster artifacts.",
+    "scope_files": [
+      "_foundation/contracts/authorization-policy.md [create]"
+    ],
+    "out_of_scope": [
+      "Do not modify files outside scope_files unless a test/build config in the same package is strictly required and listed in closeout.",
+      "Do not implement unrelated module behaviour from 01-NPD/02-SETTINGS/03-TECHNICAL unless explicitly named here.",
+      "Do not emit ACP-generated top-level fields in this JSON."
+    ],
+    "dependencies": [
+      "T-004",
+      "T-047",
+      "T-048"
+    ],
+    "acceptance_criteria": [
+      "Contract uses `org_id` consistently for authorization scope.",
+      "Contract references canonical permissions and rejects persisted legacy aliases.",
+      "Contract includes SoD for org.access.admin/org.schema.admin and dual-control expectation.",
+      "Contract states Settings Quality placeholder uses `settings.flags.edit` / existing flag model, not `settings.quality.*`."
+    ],
+    "test_strategy": [
+      "Run grep checks for `org_id`, `settings.flags.edit`, `org.access.admin`, `org.schema.admin`, and absence of `settings.quality.*` as a recommended permission."
+    ],
+    "risk_red_lines": [
+      "Do not implement helpers here.",
+      "Do not create new settings.quality permission namespace.",
+      "Do not use tenant_id as business authorization scope."
+    ],
+    "skills": [
+      "writing-plans",
+      "verification-before-completion",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "cross_module_dependencies": [
+      "02-SETTINGS T-122 split consumes this contract"
+    ]
+  }
+}

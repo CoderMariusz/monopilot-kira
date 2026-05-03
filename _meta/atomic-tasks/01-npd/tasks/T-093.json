@@ -15,7 +15,7 @@
     "release-orchestrator",
     "release-status"
   ],
-  "priority": 20,
+  "priority": 80,
   "max_attempts": 3,
   "pipeline_name": "kira_dev",
   "pipeline_inputs": {
@@ -33,7 +33,7 @@
     "context_budget": "50k",
     "estimated_effort": "4-5h",
     "description": "ACTIONABLE after T-092: NPD Builder writes initial shared BOM version with WIP/FG release, switches readers/backfill to shared BOM SSOT, and enforces new version + Technical approval for post-release edits.",
-    "details": "Use shared bom_headers/bom_lines as SSOT. Release creates WIP/intermediates + FG + initial BOM/product-spec version. D365 is optional integration/export only. Post-release edits create new version pending Technical approval.",
+    "details": "NPD Builder writes initial shared BOM and readers/backfill switch to BOM SSOT with idempotency checklist.",
     "scope_files": [
       "Existing NPD Builder/release actions/readers/migrations/tests; exact paths must be discovered before editing",
       "Legacy computed BOM view migration or compatibility view after backfill"
@@ -45,22 +45,13 @@
       "Technical approval UI beyond required pending-status/domain guard"
     ],
     "dependencies": [
-      "T-092",
-      "_meta/decisions/2026-05-03-flow-d365-settings-technical-decisions.md",
-      "01-NPD-PRD.md 2026-05-03 FINAL Amendment"
+      "T-092"
     ],
-    "parallel_safe_with": [],
     "acceptance_criteria": [
-      "Given NPD Builder releases a project with 3 components, when committed, then WIP/intermediate items + FG + exactly one initial shared BOM version and shared bom_lines exist.",
-      "Given the release action is retried, when rerun for the same project/version, then no duplicate BOM header or lines are created.",
-      "Given NPD BOM reader is called for a released FG, when traced/grepped, then it reads shared BOM SSOT and not the old computed view as canonical.",
-      "Given a released FG active BOM exists, when NPD requests a BOM/product-spec edit, then a new version is created and marked pending Technical approval; active approved version is not mutated.",
-      "Given Technical has not approved the new version, when factory/Planning reads active BOM, then the prior approved active version remains in use.",
-      "Given D365 data differs from Monopilot shared BOM, when release/readers run, then Monopilot shared BOM remains canonical and D365 is not silently applied.",
-      "Given backfill runs against existing released/built FGs, when complete, then every released/built FG has one shared BOM header/version and no duplicates.",
-      "Given T-096 invokes T-093 as part of release, then T-093 returns BOM identifiers/status to the orchestrator without marking the product factory-usable by itself.",
-      "Given the initial shared BOM is created, then its factory-use status remains pending Technical approval until T-097 observes Technical approval.",
-      "Given D365 export code exists, when T-093 tests run, then export is not required to create the BOM and cannot mark it active for factory use."
+      "Release with components creates exactly one initial shared BOM header/version and lines and returns IDs/status to release orchestrator.",
+      "Readers/backfill use shared BOM SSOT and existing FGs receive one backfilled version without duplicates.",
+      "Post-release edit creates pending Technical approval version while prior active approved version remains factory-readable.",
+      "D365 export disabled/present does not affect BOM creation or mark factory use active."
     ],
     "test_strategy": [
       "RED unit tests for idempotency and N-components → N-lines.",

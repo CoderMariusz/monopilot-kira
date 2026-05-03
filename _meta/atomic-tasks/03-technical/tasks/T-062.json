@@ -45,11 +45,13 @@
     "acceptance_criteria": [
       "Given the preview renders, when compared to design/Monopilot Design System/technical/other-screens.jsx:664-712, then sections (Material / Routing / Overhead / Total) and primitives match — structural + visual + interaction parity verified by RTL.",
       "Given overhead unavailable, when rendered, then row shows 'pending (10-FINANCE)' badge.",
-      "Given BOM missing, when rendered, then preview shows empty-state CTA."
+      "Given BOM missing, when rendered, then preview shows empty-state CTA.",
+      "UI closeout includes screenshot/artifact evidence and Playwright trace/artifacts where applicable per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`; if Playwright is unavailable, document the blocker and provide RTL/snapshot fallback evidence."
     ],
     "test_strategy": [
       "RED tests for parity + missing-data states.",
-      "Run: pnpm vitest run tests/ui/tec-094-costing.test.tsx"
+      "Run: pnpm vitest run tests/ui/tec-094-costing.test.tsx",
+      "For UI parity, capture screenshots/artifacts and Playwright trace/video/artifacts where applicable; attach artifact paths in closeout."
     ],
     "risk_red_lines": [
       "Do not call 10-FINANCE write paths.",
@@ -79,6 +81,7 @@
       "implementation": "hermes_gpt55",
       "review": "opus_if_high_risk_or_ui_or_architecture",
       "close": "spark_low_risk_else_opus"
-    }
+    },
+    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md"
   }
 }

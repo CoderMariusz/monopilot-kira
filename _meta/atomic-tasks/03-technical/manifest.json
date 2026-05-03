@@ -2,9 +2,9 @@
   "source_prd": "03-TECHNICAL-PRD.md",
   "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
   "generated_at": "2026-05-03T00:00:00Z",
-  "generator": "manual-final-decision-rebuild-plus-approval-release-blocker-patch",
+  "generator": "manual-wave0-readiness-95-plus-technical-ui-parity-patch",
   "pipeline_name": "kira_dev",
-  "task_count": 83,
+  "task_count": 90,
   "tasks": [
     "tasks/T-001.json",
     "tasks/T-002.json",
@@ -88,12 +88,23 @@
     "tasks/T-080.json",
     "tasks/T-081.json",
     "tasks/T-082.json",
-    "tasks/T-083.json"
+    "tasks/T-083.json",
+    "tasks/T-084.json",
+    "tasks/T-085.json",
+    "tasks/T-086.json",
+    "tasks/T-087.json",
+    "tasks/T-088.json",
+    "tasks/T-089.json",
+    "tasks/T-090.json"
   ],
   "coverage_file": "coverage.md",
   "notes": [
     "T-072 supplier_specs docs brief retained from first patch wave",
     "T-073..T-079 final decision foundational tasks",
-    "T-080..T-083 approval/release/NCR/UI blocker tasks added after review wave"
+    "T-080..T-083 approval/release/NCR/UI blocker tasks added after review wave",
+    "T-084 sensory contract added",
+    "T-085..T-089 spec-driven tasks close Technical no-prototype blockers",
+    "T-090 split UI half of factory_spec+BOM bundle approval",
+    "UI evidence policy applied across 00-03 UI tasks"
   ]
 }

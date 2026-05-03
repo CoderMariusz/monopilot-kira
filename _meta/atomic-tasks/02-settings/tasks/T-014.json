@@ -44,7 +44,6 @@
       "T-011",
       "T-012"
     ],
-    "parallel_safe_with": [],
     "acceptance_criteria": [
       "Audit trigger created and attached to settings tables.",
       "changed_fields computation correct.",

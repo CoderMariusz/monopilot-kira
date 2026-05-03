@@ -42,11 +42,13 @@
     "acceptance_criteria": [
       "Given the diff view renders for v1 vs v2, when compared to design/Monopilot Design System/technical/bom-detail.jsx:373-468 (versions tab), then layout primitives + side-by-side regions follow the prototype patterns — structural + visual + interaction parity verified by RTL with parity checklist embedded in details.",
       "Given the API returns empty diff, when rendered, then 'No differences' state shows.",
-      "Given a removed line, when rendered, then it appears under the 'Removed' region with destructive color token."
+      "Given a removed line, when rendered, then it appears under the 'Removed' region with destructive color token.",
+      "UI closeout includes screenshot/artifact evidence and Playwright trace/artifacts where applicable per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`; if Playwright is unavailable, document the blocker and provide RTL/snapshot fallback evidence."
     ],
     "test_strategy": [
       "RED tests for parity + empty state + color tokens.",
-      "Run: pnpm vitest run tests/ui/tec-023-bom-diff.test.tsx"
+      "Run: pnpm vitest run tests/ui/tec-023-bom-diff.test.tsx",
+      "For UI parity, capture screenshots/artifacts and Playwright trace/video/artifacts where applicable; attach artifact paths in closeout."
     ],
     "risk_red_lines": [
       "Do not call backend repeatedly — use single GET /diff.",
@@ -76,6 +78,7 @@
       "implementation": "hermes_gpt55",
       "review": "opus_if_high_risk_or_ui_or_architecture",
       "close": "spark_low_risk_else_opus"
-    }
+    },
+    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md"
   }
 }

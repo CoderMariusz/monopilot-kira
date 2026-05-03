@@ -25,7 +25,7 @@
     "context_budget": "40k",
     "estimated_effort": "1-3h",
     "description": "Machine List screen (SET-016): status indicator + location breadcrumb + filters + bulk activate/deactivate.",
-    "details": "PRD §12.2 SET-016: Machine List with `status indicator, location breadcrumb` capability. Status comes from `machines.specs.status` JSONB field per §5.6 + §12.1. Breadcrumb derived from joined `locations.path` ltree; helper `pathToBreadcrumb(path)` maps each path segment to a labeled crumb.",
+    "details": "PRD §12.2 SET-016: Machine List with `status indicator, location breadcrumb` capability. Status comes from `machines.specs.status` JSONB field per §5.6 + §12.1. Breadcrumb derived from joined `locations.path` ltree; helper `pathToBreadcrumb(path)` maps each path segment to a labeled crumb.\n\nAdditional acceptance detail preserved from compressed AC list:\n- Given the caller lacks `settings.infra.update`, when they view the list, then bulk action buttons are disabled with an aria-label explaining insufficient permissions.\n- UI closeout includes screenshot/artifact evidence and Playwright trace/artifacts where applicable per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`; if Playwright is unavailable, document the blocker and provide RTL/snapshot fallback evidence.",
     "scope_files": [
       "apps/web/app/(admin)/settings/infra/machines/page.tsx [create]",
       "apps/web/app/(admin)/settings/infra/machines/page.test.tsx [create]"
@@ -48,12 +48,13 @@
       "Given the machines list renders, when 5 machines exist across 2 warehouses, then each row shows a status indicator and a 4-segment breadcrumb derived from the location ltree path.",
       "Given the user toggles the status filter to `maintenance`, when the list re-renders, then only rows with `specs.status='maintenance'` are visible.",
       "Given the user bulk-selects 3 machines and clicks Bulk Deactivate, when action runs, then T-029 deactivateMachine is invoked once per row and the rows reflect new deactivated_at.",
-      "Given the caller lacks `settings.infra.update`, when they view the list, then bulk action buttons are disabled with an aria-label explaining insufficient permissions."
+      "Given the task is closed out, when reviewers inspect the task evidence, then these additional requirements are proven together: Given the caller lacks `settings.infra.update`, when they view the list, then bulk action buttons are disabled with an aria-label explaining insufficient permissions.; UI closeout includes screenshot/artifact evidence and Playwright trace/artifacts where applicable per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`; if Playwright is unavailable, document the blocker and provide RTL/snapshot fallback evidence."
     ],
     "test_strategy": [
       "RED: RTL test mounts list with mocked seed (machines + locations); asserts breadcrumb render, status filter, bulk-action invocation, RBAC disable.",
       "GREEN: implement Server Component + breadcrumb helper + filters + bulk wiring.",
-      "Run `pnpm --filter @monopilot/web vitest run apps/web/app/(admin)/settings/infra/machines/page.test.tsx` and `pnpm typecheck`."
+      "Run `pnpm --filter @monopilot/web vitest run apps/web/app/(admin)/settings/infra/machines/page.test.tsx` and `pnpm typecheck`.",
+      "For UI parity, capture screenshots/artifacts and Playwright trace/video/artifacts where applicable; attach artifact paths in closeout."
     ],
     "risk_red_lines": [
       "Do not import @radix-ui/* outside packages/ui (§0).",
@@ -85,6 +86,7 @@
       "review": "opus_if_high_risk_or_ui_or_architecture",
       "close": "spark_low_risk_else_opus"
     },
-    "prototype_match": false
+    "prototype_match": false,
+    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md"
   }
 }

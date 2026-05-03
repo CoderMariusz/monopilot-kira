@@ -10,7 +10,7 @@
     "cross-module",
     "blocked"
   ],
-  "priority": 10,
+  "priority": 80,
   "max_attempts": 3,
   "pipeline_name": "kira_dev",
   "pipeline_inputs": {
@@ -23,12 +23,12 @@
     ],
     "category": "cross-module",
     "subcategory": "sensory-ui-technical-owned-deferred",
-    "task_type": "T3-ui",
+    "task_type": "docs",
     "parent_feature": "01-NPD-h Nutrition+Costing+Sensory",
     "context_budget": "45k",
     "estimated_effort": "2-3h",
     "description": "Deferred guard task: do not build standalone NPD SensoryScreen; Sensory is Technical-owned per 2026-05-03 PO decision.",
-    "details": "DO NOT IMPLEMENT the old NPD SensoryScreen BUILD path. Use future Technical-owned sensory screen/status contract if NPD needs read-only gate visibility. Decision: _meta/decisions/2026-05-03-flow-d365-settings-technical-decisions.md.",
+    "details": "Sensory UI is Technical-owned; NPD may show read-only Technical status later only.",
     "scope_files": [
       "No application files — task is blocked/deferred pending Technical-owned sensory UI/contract"
     ],
@@ -37,17 +37,16 @@
       "Do not implement radar chart / attribute bars / panel comments as standalone NPD UI",
       "Do not enforce V08 sensory gate in NPD without Technical-owned contract"
     ],
-    "dependencies": [
-      "Technical-owned sensory UI/read-model contract / future Technical task"
-    ],
-    "parallel_safe_with": [],
+    "dependencies": [],
     "acceptance_criteria": [
-      "Given this task is selected for implementation, when read, then it is treated as BLOCKED/DEFERRED and no NPD application files are changed.",
-      "Given sensory UI is needed, when planning starts, then ownership is routed to Technical per _meta/decisions/2026-05-03-flow-d365-settings-technical-decisions.md.",
-      "Given NPD needs sensory gate visibility later, when implemented, then it displays Technical-owned status/read-model only."
+      "No standalone NPD sensory UI files are created by this guard task.",
+      "When sensory is not required, NPD UI/approval shows N/A/not_required.",
+      "When required by org policy, future UI displays Technical-owned status and remediation link only.",
+      "UI closeout includes screenshot/artifact evidence and Playwright trace/artifacts where applicable per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`; if Playwright is unavailable, document the blocker and provide RTL/snapshot fallback evidence."
     ],
     "test_strategy": [
-      "No implementation tests in NPD; validate by backlog/PR review that no standalone NPD SensoryScreen is built from this task."
+      "No implementation tests in NPD; validate by backlog/PR review that no standalone NPD SensoryScreen is built from this task.",
+      "For UI parity, capture screenshots/artifacts and Playwright trace/video/artifacts where applicable; attach artifact paths in closeout."
     ],
     "risk_red_lines": [
       "Do not build standalone NPD SensoryScreen.",
@@ -79,6 +78,7 @@
       "review": "opus_if_high_risk_or_ui_or_architecture",
       "close": "spark_low_risk_else_opus"
     },
-    "prototype_index_entry": "sensory_screen (reference only; not NPD build scope)"
+    "prototype_index_entry": "sensory_screen (reference only; not NPD build scope)",
+    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md"
   }
 }

@@ -43,7 +43,6 @@
       "T-012",
       "T-017"
     ],
-    "parallel_safe_with": [],
     "acceptance_criteria": [
       "Auth + seat-limit enforced.",
       "PATCH ops correct.",

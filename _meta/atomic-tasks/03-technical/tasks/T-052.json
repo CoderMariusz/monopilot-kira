@@ -44,11 +44,13 @@
     "acceptance_criteria": [
       "Given the preview card renders, when compared to design/Monopilot Design System/technical/bom-detail.jsx:154-206 and design/Monopilot Design System/technical/other-screens.jsx:37-71, then card layout, total-row formatting, and resource bars match — structural + visual + interaction parity verified by RTL.",
       "Given volume input changes, when typed, then totals re-render within 200ms.",
-      "Given no operations, when rendered, then empty-state copy appears."
+      "Given no operations, when rendered, then empty-state copy appears.",
+      "UI closeout includes screenshot/artifact evidence and Playwright trace/artifacts where applicable per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`; if Playwright is unavailable, document the blocker and provide RTL/snapshot fallback evidence."
     ],
     "test_strategy": [
       "RED tests for parity + volume reactivity.",
-      "Run: pnpm vitest run tests/ui/tec-062-063-routing-preview.test.tsx"
+      "Run: pnpm vitest run tests/ui/tec-062-063-routing-preview.test.tsx",
+      "For UI parity, capture screenshots/artifacts and Playwright trace/video/artifacts where applicable; attach artifact paths in closeout."
     ],
     "risk_red_lines": [
       "Do not call cost-preview API on every keystroke without debounce.",
@@ -78,6 +80,7 @@
       "implementation": "hermes_gpt55",
       "review": "opus_if_high_risk_or_ui_or_architecture",
       "close": "spark_low_risk_else_opus"
-    }
+    },
+    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md"
   }
 }

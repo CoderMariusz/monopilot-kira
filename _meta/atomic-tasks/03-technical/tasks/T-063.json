@@ -43,11 +43,13 @@
     "acceptance_criteria": [
       "Given the page renders, when compared to design/Monopilot Design System/technical/other-screens.jsx:823-901, then search bar, result list, and link styling match — structural + visual + interaction parity verified by RTL.",
       "Given empty query, when on page, then prompt 'Enter item or lot' shows.",
-      "Given clicking a result row, when fired, then navigation goes to /warehouse/lots/[lp_id]."
+      "Given clicking a result row, when fired, then navigation goes to /warehouse/lots/[lp_id].",
+      "UI closeout includes screenshot/artifact evidence and Playwright trace/artifacts where applicable per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`; if Playwright is unavailable, document the blocker and provide RTL/snapshot fallback evidence."
     ],
     "test_strategy": [
       "RED tests for parity + navigation.",
-      "Run: pnpm vitest run tests/ui/tec-095-traceability.test.tsx"
+      "Run: pnpm vitest run tests/ui/tec-095-traceability.test.tsx",
+      "For UI parity, capture screenshots/artifacts and Playwright trace/video/artifacts where applicable; attach artifact paths in closeout."
     ],
     "risk_red_lines": [
       "Do not implement full genealogy here.",
@@ -77,6 +79,7 @@
       "implementation": "hermes_gpt55",
       "review": "opus_if_high_risk_or_ui_or_architecture",
       "close": "spark_low_risk_else_opus"
-    }
+    },
+    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md"
   }
 }

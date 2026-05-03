@@ -42,7 +42,6 @@
     "dependencies": [
       "T-016"
     ],
-    "parallel_safe_with": [],
     "acceptance_criteria": [
       "All 6 actions implemented with state machine guards.",
       "first_wo_at persisted.",

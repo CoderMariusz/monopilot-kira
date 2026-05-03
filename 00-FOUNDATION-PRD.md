@@ -1,10 +1,10 @@
 ---
 title: PRD 00-FOUNDATION — Monopilot MES
-version: 4.2
-date: 2026-04-30
+version: 4.3
+date: 2026-05-03
 phase: Phase B.1 continued (Phase D renumbered + Research R1-R15 + Manufacturing Operations pattern + UX gap-backlog amendments)
-status: Draft v4.2 — UX→PRD gap-backlog F-U1..F-U5 + F-A1..F-A4 applied
-supersedes: v4.1 (2026-04-30, Phase E-0 prep clarifications)
+status: Draft v4.3 — Wave0 readiness amendment applied (org_id, fg.*, shared BOM SSOT, auth/D365 posture, ACP task shape)
+supersedes: v4.2 (2026-04-30, UX→PRD gap-backlog amendments)
 references:
   - _foundation/decisions/MONOPILOT-V2-ARCHITECTURE.md
   - _foundation/research/MES-TRENDS-2026.md
@@ -237,10 +237,10 @@ Stare dokumenty opisywały "Scanner M05" z 5 epikami. Phase D: 06-SCANNER-P1 to 
 
 ### Runtime + Frontend
 
-- **Next.js App Router + RSC** [R1 MES-TRENDS-2026 §1]: multi-tenant `/app/[tenant]/...` + middleware. Server Actions > większość REST endpointów w admin panelach.
+- **Next.js 16 App Router + RSC** [R1 MES-TRENDS-2026 §1]: multi-tenant `/app/[tenant]/...` + middleware. Server Actions > większość REST endpointów w admin panelach. `cacheLife`/`cacheTag` stable (no `unstable_` prefix).
 - **TypeScript 5+** strict mode.
-- **React 19+**, React Hook Form + Zod resolver.
-- **Tailwind** + minimal design system (per-tenant theming via L2 config).
+- **React 19.2+**, React Hook Form v7 + **Zod v4** resolver (`error:` param, nie `message:`).
+- **Tailwind CSS v4** + minimal design system (CSS-first config: `@import "tailwindcss"` + `@theme {}` — no `tailwind.config.ts`; per-tenant theming via L2 config).
 - **PWA (Workbox)** dla 06-SCANNER-P1 [R5 MES-TRENDS-2026 §7]: Service Worker + IndexedDB sync queue + DataWedge keyboard-wedge. Capacitor wrapper jako P2 fallback.
 
 ### Backend
@@ -257,7 +257,7 @@ Stare dokumenty opisywały "Scanner M05" z 5 epikami. Phase D: 06-SCANNER-P1 to 
 - **Observability**: Sentry + Datadog / OpenTelemetry (MES-TRENDS-2026 §9 cross-cutting).
 - **Event bus (open question R10.3 MES-TRENDS-2026)**: rekomendacja wstępna Azure Service Bus (D365 adapter pattern); weryfikacja Phase C.
 - **LLM platform (open question)**: Claude API direct [R12] (MES-TRENDS-2026 §6) + Modal dla custom models. Warstwy L0/L1 only P1-P3; L2 autonomous agents = post-12mies production data.
-- **Testing**: Vitest (Phase D decision #10) + Playwright (E2E per module).
+- **Testing**: Vitest v4 (Phase D decision #10; browser import: `import { page } from 'vitest/browser'`) + Playwright v1.58 (E2E per module).
 - **i18n** [R11] (MES-TRENDS-2026 §7.2): pl/en/uk/ro baseline od dnia 1. ICU MessageFormat, nie string concat.
 
 ### Integration stack
@@ -1183,7 +1183,27 @@ Dodane do §13 open items.
 
 ---
 
+
+## §W0-v4.3 — Wave0 Readiness Amendment (2026-05-03) [UNIVERSAL]
+
+Source decisions: `_meta/decisions/2026-05-03-wave0-readiness-answers.md`; ACP shape review: `_meta/reviews/2026-05-03-acp-real-task-shape.md`. This amendment supersedes older contradictory wording in this PRD and in Foundation atomic-task prompts.
+
+1. **Business scope:** `org_id` is the canonical business/RLS scope column for application and business tables. `tenant_id` may exist only for tenant/control-plane concerns above org scope. New business rows, RLS policies, audit/outbox rows, role grants, R13 placeholders, and module contracts use `org_id`.
+2. **Finished-good naming:** canonical finished-good domain/event naming moves to `fg.*` / FG. `FA`, `fa.*`, and `convertBriefToFa` are legacy compatibility aliases/wrappers only. Canonical flow is **Brief → NPD Project → FG / Product**, not Brief → FA.
+3. **Code timing and gates:** FG/Product code is chosen at G3, not during Brief completion. Trial, Pilot, Handoff, and Packaging evidence must be represented in the NPD flow. G4 closes NPD; Technical factory_spec/BOM approval separately unlocks factory use.
+4. **Shared BOM SSOT:** Foundation owns the shared BOM single-source-of-truth contract skeleton. NPD may create initial shared BOM/factory_spec output as `in_review`; Technical approval makes it factory-usable.
+5. **factory_spec/internal_product_spec:** these are Foundation-level terms with downstream Technical implementation contracts. Closed_Technical means Technical supplied/closed NPD department data, not factory_spec approval.
+6. **D365 posture:** D365 is optional import/export/integration only and never source of truth for FG, shared BOM, factory_spec, release approval, or factory usability. D365 export is not factory release and must not precede factory-use approval unless an org policy explicitly enables a non-usable preload/export.
+7. **Authorization/RLS:** use a safe non-spoofable org-context RLS pattern. Do not rely on unsafe direct custom GUC SET by app users. LEAKPROOF is not a default requirement and must be justified if used. Settings Quality placeholders use the existing Settings flag permission model (`settings.flags.edit`), not a new `settings.quality.*` namespace.
+8. **Quality/Technical ownership:** Quality owns NCR lifecycle and lab-result read models; Technical may emit `non_conformance.requested` and consume Quality read models/service bridges. Sensory may be N/A/not_required unless org policy requires the Technical sensory read model.
+9. **D365 / import-export / invitations Phase 1:** Global Import/Export includes backend jobs/capability registry, not just a shell. Pending Invitations includes backend lifecycle list/resend/revoke.
+10. **ACP task shape:** Foundation atomic tasks target real ACP `TaskCreate` shape: top-level `title`, `prompt`, `labels`, `priority`, `max_attempts`, `pipeline_name`, `pipeline_inputs`; `pipeline_inputs.root_path` and canonical metadata fields are required for `kira_dev`; lower priority values run sooner; local dependencies are `T-XXX`; cross-module blockers live in `pipeline_inputs.cross_module_dependencies`.
+
+---
+
 ## Changelog
+
+- **v4.3 (2026-05-03, Wave0 readiness amendment)** — Applied locked Wave0 decisions: `org_id` business scope; `fg.*` canonical finished-good events with FA/fa.* legacy aliases only; Brief → NPD Project flow; shared BOM SSOT skeleton; factory_spec/internal_product_spec foundation terminology; safe non-spoofable org-context RLS; authorization policy posture; D365 optional integration posture; ACP real TaskCreate shape and lower-priority-is-sooner convention for atomic tasks. Coverage/manifest/tasks patched to ≥95% readiness.
 
 - **v4.2 (2026-04-30, UX→PRD gap-backlog amendments)** — Applied UX→PRD gap-backlog (`_meta/plans/2026-04-30-ux-prd-plan-gap-backlog.md`) §MODULE 00-FOUNDATION. **Updates:** F-U1 §5 Tech Stack — Auth & Identity Stack (§5.x) added with 6 OSS libraries locked (GoTrue/Supabase Auth, `@boxyhq/saml-jackson`, `otplib`, `@simplewebauthn/server`, `argon2`, Supabase auth-helpers); F-U2 §8 Multi-tenant — `tenant_idp_config` table + per-tenant IdP mapping (§8.x); F-U3 §11 Audit log — expanded from 1 paragraph to 13-field schema with 4 retention tiers (security 7y / standard 3y / operational 18mo / ephemeral 30d) + Part 11 + GDPR Art. 30/32 alignment; F-U4 §3 Personas — Administrator split into Org Admin (ACCESS pillar) + Schema Admin (ADMIN pillar) per SOC 2 CC6.3 separation-of-duties; F-U5 §13 Success Criteria — added 5 niefunkcjonalne items (MFA-by-default, NIST password policy, idle timeout default, SSO baseline, magic-link 7-day TTL). **Additions:** F-A1 §5.x Auth & Identity Stack (~330 words, [UNIVERSAL]); F-A2 §8.x Per-tenant IdP Mapping with full DDL (~210 words, [UNIVERSAL]); F-A3 §5.y Shared UI Primitives `@monopilot/ui` workspace package + 10 MODAL-SCHEMA patterns + Storybook 8/axe-core CI (~210 words, [UNIVERSAL]); F-A4 §4.2-AMENDMENT addendum adding `00-FOUNDATION-impl-j` to the Foundation set as a critical-path blocker before any T3-ui task. ADR-034 markers `[UNIVERSAL]` applied to all new sections. Coverage 60% → ≥85% per gap-backlog target.
 
@@ -1197,4 +1217,4 @@ Dodane do §13 open items.
 
 ---
 
-*PRD 00-FOUNDATION v4.2 — UX→PRD gap-backlog amendments F-U1..F-U5 + F-A1..F-A4 applied (auth subsystem, per-tenant IdP, expanded audit log, persona split, UI primitives package). Next: Phase E-0 kickoff (`00-FOUNDATION-impl-a..j`).*
+*PRD 00-FOUNDATION v4.3 — Wave0 readiness amendment applied on top of UX→PRD gap-backlog F-U1..F-U5 + F-A1..F-A4. Canonical Foundation contracts now use `org_id`, `fg.*`, shared BOM SSOT, authorization/D365 posture, and ACP-real atomic task shape. Next: import/execute Phase E-0 foundation tasks from `_meta/atomic-tasks/00-foundation/`.*

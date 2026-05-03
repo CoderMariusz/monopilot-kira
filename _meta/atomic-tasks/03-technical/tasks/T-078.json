@@ -7,7 +7,7 @@
     "ux-red-lines",
     "T3-ui"
   ],
-  "priority": 60,
+  "priority": 50,
   "max_attempts": 3,
   "pipeline_name": "kira_dev",
   "pipeline_inputs": {
@@ -62,11 +62,13 @@
       "Given a BOM component modal references `design/Monopilot Design System/technical/modals.jsx:133-170`, then it preserves structural, visual and interaction parity while adding the RM usability check rows.",
       "Given D365 UI references `design/Monopilot Design System/technical/modals.jsx:475-540`, then it preserves structural, visual and interaction parity and includes a disabled optional-integration state.",
       "Given any Supplier Specs or Lab Results tab is implemented, then copy states supplier_specs are Technical Phase 1 master data and lab status is Quality-owned read-only.",
-      "Given T-083 red-line overlay exists, then UI task closeout references it and proves legacy copy/D365-first wording was not carried from prototypes into production UI."
+      "Given T-083 red-line overlay exists, then UI task closeout references it and proves legacy copy/D365-first wording was not carried from prototypes into production UI.",
+      "UI closeout includes screenshot/artifact evidence and Playwright trace/artifacts where applicable per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`; if Playwright is unavailable, document the blocker and provide RTL/snapshot fallback evidence."
     ],
     "test_strategy": [
       "For each UI task closeout, require screenshot/DOM assertions for legacy prototype parity plus domain red-line assertions.",
-      "Run the UI task-specific vitest/playwright command named in that task."
+      "Run the UI task-specific vitest/playwright command named in that task.",
+      "For UI parity, capture screenshots/artifacts and Playwright trace/video/artifacts where applicable; attach artifact paths in closeout."
     ],
     "risk_red_lines": [
       "Do not rewrite prototype files for visual churn.",
@@ -85,6 +87,7 @@
       "T-039",
       "T-055"
     ],
-    "description": "UI governance red-lines applied to Technical prototype-derived implementation tasks."
+    "description": "UI governance red-lines applied to Technical prototype-derived implementation tasks.",
+    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md"
   }
 }

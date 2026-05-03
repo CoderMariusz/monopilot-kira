@@ -52,11 +52,13 @@
       "Given the page renders, when compared to design/Monopilot Design System/technical/other-screens.jsx:432-480 and design/Monopilot Design System/settings/data-screens.jsx:4-52, then it shows structural parity (same filter row order, same table columns, same Create button placement), visual parity (shadcn Input/Select/Table primitives, same density tokens), and interaction parity (filter chips toggle, row click opens detail, empty-state matches) — verified by RTL snapshot + manual checklist in details.",
       "Given filters Type=fg + Status=active are selected, when applied, then the API receives ?type=fg&status=active and table reloads.",
       "Given empty result, when rendered, then the prototype empty-state copy and 'Create item' CTA appear.",
-      "Given user lacks technical.items.create, when page renders, then the Create button is hidden."
+      "Given user lacks technical.items.create, when page renders, then the Create button is hidden.",
+      "UI closeout includes screenshot/artifact evidence and Playwright trace/artifacts where applicable per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`; if Playwright is unavailable, document the blocker and provide RTL/snapshot fallback evidence."
     ],
     "test_strategy": [
       "RED tests asserting prototype parity (snapshot diff + DOM checks against checklist).",
-      "Run: pnpm vitest run tests/ui/tec-010-item-list.test.tsx"
+      "Run: pnpm vitest run tests/ui/tec-010-item-list.test.tsx",
+      "For UI parity, capture screenshots/artifacts and Playwright trace/video/artifacts where applicable; attach artifact paths in closeout."
     ],
     "risk_red_lines": [
       "Do not use raw <select> instead of shadcn Select.",
@@ -87,6 +89,7 @@
       "implementation": "hermes_gpt55",
       "review": "opus_if_high_risk_or_ui_or_architecture",
       "close": "spark_low_risk_else_opus"
-    }
+    },
+    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md"
   }
 }

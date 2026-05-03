@@ -43,11 +43,13 @@
     "acceptance_criteria": [
       "Given the log page renders, when compared to design/Monopilot Design System/technical/other-screens.jsx:1025-1051, then column order, filter bar, and row-detail expansion match — structural + visual + interaction parity verified by RTL.",
       "Given filter direction='pull', when applied, then rows narrow to pull jobs only.",
-      "Given a row has 0 errors, when expanded, then 'Clean run' state is shown."
+      "Given a row has 0 errors, when expanded, then 'Clean run' state is shown.",
+      "UI closeout includes screenshot/artifact evidence and Playwright trace/artifacts where applicable per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`; if Playwright is unavailable, document the blocker and provide RTL/snapshot fallback evidence."
     ],
     "test_strategy": [
       "RED tests for parity + filter behavior.",
-      "Run: pnpm vitest run tests/ui/tec-072-d365-log.test.tsx"
+      "Run: pnpm vitest run tests/ui/tec-072-d365-log.test.tsx",
+      "For UI parity, capture screenshots/artifacts and Playwright trace/video/artifacts where applicable; attach artifact paths in closeout."
     ],
     "risk_red_lines": [
       "Do not surface payload details containing secrets.",
@@ -79,6 +81,7 @@
       "implementation": "hermes_gpt55",
       "review": "opus_if_high_risk_or_ui_or_architecture",
       "close": "spark_low_risk_else_opus"
-    }
+    },
+    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md"
   }
 }

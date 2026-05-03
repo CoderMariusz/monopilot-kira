@@ -25,7 +25,7 @@
     "context_budget": "40k",
     "estimated_effort": "1-3h",
     "description": "D365 Sync Audit (SET-083): last N sync runs viewer + filters + per-row error modal + owner-gated manual trigger.",
-    "details": "PRD §11.3 SET-083: `Last N sync results + errors + manual trigger`. The 'Run sync now' button must be disabled for non-owner roles per §11.4 (flag flip + ops both require owner). Error JSON modal renders raw payload — no parsing/categorization in scope.",
+    "details": "PRD §11.3 SET-083: `Last N sync results + errors + manual trigger`. The 'Run sync now' button must be disabled for non-owner roles per §11.4 (flag flip + ops both require owner). Error JSON modal renders raw payload — no parsing/categorization in scope.\n\nAdditional acceptance detail preserved from compressed AC list:\n- Given the caller lacks `owner` role, when they view the page, then the 'Run sync now' button is disabled with an aria-label explaining insufficient permissions.\n- UI closeout includes screenshot/artifact evidence and Playwright trace/artifacts where applicable per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`; if Playwright is unavailable, document the blocker and provide RTL/snapshot fallback evidence.",
     "scope_files": [
       "apps/web/app/(admin)/settings/integrations/d365/audit/page.tsx [create]",
       "apps/web/app/(admin)/settings/integrations/d365/audit/page.test.tsx [create]"
@@ -45,12 +45,13 @@
       "Given 5 d365_sync_runs rows exist with mixed status (ok/partial/failed), when the page renders, then 5 rows are listed in started_at DESC order with status badges.",
       "Given the user filters status='failed' and direction='push', when the list re-renders, then only failed push runs are visible.",
       "Given the user clicks 'View errors' on a failed row, when the modal opens, then the raw errors[] JSON renders read-only.",
-      "Given the caller lacks `owner` role, when they view the page, then the 'Run sync now' button is disabled with an aria-label explaining insufficient permissions."
+      "Given the task is closed out, when reviewers inspect the task evidence, then these additional requirements are proven together: Given the caller lacks `owner` role, when they view the page, then the 'Run sync now' button is disabled with an aria-label explaining insufficient permissions.; UI closeout includes screenshot/artifact evidence and Playwright trace/artifacts where applicable per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`; if Playwright is unavailable, document the blocker and provide RTL/snapshot fallback evidence."
     ],
     "test_strategy": [
       "RED: RTL test seeds runs + asserts filter, error modal, manual-trigger RBAC disable.",
       "GREEN: implement Server Component + filters + modal + trigger wiring.",
-      "Run `pnpm --filter @monopilot/web vitest run apps/web/app/(admin)/settings/integrations/d365/audit/page.test.tsx` and `pnpm typecheck`."
+      "Run `pnpm --filter @monopilot/web vitest run apps/web/app/(admin)/settings/integrations/d365/audit/page.test.tsx` and `pnpm typecheck`.",
+      "For UI parity, capture screenshots/artifacts and Playwright trace/video/artifacts where applicable; attach artifact paths in closeout."
     ],
     "risk_red_lines": [
       "Do not bypass withOrgContext (RLS).",
@@ -82,6 +83,7 @@
       "review": "opus_if_high_risk_or_ui_or_architecture",
       "close": "spark_low_risk_else_opus"
     },
-    "prototype_match": false
+    "prototype_match": false,
+    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md"
   }
 }

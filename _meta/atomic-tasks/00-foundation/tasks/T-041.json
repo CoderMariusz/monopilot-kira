@@ -43,10 +43,6 @@
     "dependencies": [
       "T-001"
     ],
-    "parallel_safe_with": [
-      "T-038",
-      "T-040"
-    ],
     "acceptance_criteria": [
       "Given a production build runs, when 'pnpm --filter web build' completes, then a /sw.js bundle is emitted alongside /manifest.webmanifest and the manifest serves name='Monopilot' + start_url='/' + display='standalone'",
       "Given the production app is running, when a browser loads /, then RegisterSW calls navigator.serviceWorker.register('/sw.js') exactly once and the SW reaches activated state",

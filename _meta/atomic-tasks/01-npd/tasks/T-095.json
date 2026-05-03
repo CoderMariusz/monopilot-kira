@@ -25,12 +25,12 @@
     ],
     "category": "api-ui",
     "subcategory": "g3-fg-mapping",
-    "task_type": "T2-api+T3-ui+T4-wiring-test",
+    "task_type": "T3-ui",
     "parent_feature": "01-NPD-f Stage-Gate Pipeline",
     "context_budget": "55k",
     "estimated_effort": "4-5h",
     "description": "G3 Create/Map FG candidate action and UI gate for NPD projects.",
-    "details": "Adds createOrMapFgCandidateAtG3, uniqueness/idempotency, audit/event, and G3 modal. Blocks G3 approval until FG candidate exists.",
+    "details": "Spec-driven G3 create/map FG modal and flow; Brief has no FG code.\n\nAdditional acceptance detail preserved from compressed AC list:\n- UI/RTL evidence covers permission denial, blocker copy and modal behavior.\n- UI closeout includes screenshot/artifact evidence and Playwright trace/artifacts where applicable per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`; if Playwright is unavailable, document the blocker and provide RTL/snapshot fallback evidence.",
     "scope_files": [
       "apps/web/app/(npd)/pipeline/_actions/create-or-map-fg-candidate-at-g3.ts [create]",
       "apps/web/app/(npd)/pipeline/_components/g3-fg-mapping-modal.tsx [create]",
@@ -45,22 +45,23 @@
     "dependencies": [
       "T-031",
       "T-054",
-      "T-057"
+      "T-057",
+      "T-058"
     ],
     "parallel_safe_with": [
       "T-096"
     ],
     "acceptance_criteria": [
-      "Given a project at G2/G3 with no FG candidate, when approveProjectGate for G3 is called, then it is blocked with FG_CANDIDATE_REQUIRED.",
-      "Given create mode with an available productCode, when createOrMapFgCandidateAtG3 runs, then the project has exactly one FG candidate and event npd.fg_candidate_mapped is emitted.",
-      "Given map mode with an existing FG already linked to another active project, when called, then it rejects with FG_ALREADY_LINKED.",
-      "Given the mapping is retried idempotently for the same project/productCode, then no duplicate FG/Product link or event is created.",
-      "Given UI renders, then user-facing labels say FG/Finished Good and any FA text is explicitly legacy alias."
+      "Project at G2/G3 without FG shows FG_CANDIDATE_REQUIRED and opens create/map modal with parity reference design/Monopilot Design System/npd/modals.jsx:89-140.",
+      "Create/map links exactly one FG candidate and labels say FG/Finished Good with FA only legacy alias.",
+      "Already-linked FG rejects FG_ALREADY_LINKED; retries are idempotent without duplicate links/events.",
+      "Given the task is closed out, when reviewers inspect the task evidence, then these additional requirements are proven together: UI/RTL evidence covers permission denial, blocker copy and modal behavior.; UI closeout includes screenshot/artifact evidence and Playwright trace/artifacts where applicable per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`; if Playwright is unavailable, document the blocker and provide RTL/snapshot fallback evidence."
     ],
     "test_strategy": [
       "RED unit tests for uniqueness, idempotency, and blocker integration.",
       "RED RTL test for G3 mapping modal conflict and success states.",
-      "Run 'pnpm --filter web test g3-fg-mapping gate-actions'."
+      "Run 'pnpm --filter web test g3-fg-mapping gate-actions'.",
+      "For UI parity, capture screenshots/artifacts and Playwright trace/video/artifacts where applicable; attach artifact paths in closeout."
     ],
     "risk_red_lines": [
       "Do not create/map FG before G3.",
@@ -92,6 +93,7 @@
       "implementation": "hermes_gpt55",
       "review": "opus_if_high_risk_or_ui_or_architecture",
       "close": "spark_low_risk_else_opus"
-    }
+    },
+    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md"
   }
 }

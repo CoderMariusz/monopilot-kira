@@ -163,9 +163,9 @@ task(
     parent_feature="00-FOUNDATION-impl-a scaffolding",
     priority=50,
     prd_refs=["§5", "§4.2-AMENDMENT"],
-    description="Bootstrap pnpm monorepo with apps/web (Next.js 15 App Router, RSC, TypeScript 5 strict) and packages/ workspace ready to host db/ui/rbac/outbox/i18n.",
+    description="Bootstrap pnpm monorepo with apps/web (Next.js 16 App Router, RSC, TypeScript 5 strict) and packages/ workspace ready to host db/ui/rbac/outbox/i18n.",
     details=(
-        "Create root pnpm-workspace.yaml listing apps/* and packages/*. Initialise apps/web with Next.js 15 App Router (TypeScript strict, eslint-config-next, tailwind preset). "
+        "Create root pnpm-workspace.yaml listing apps/* and packages/*. Initialise apps/web with Next.js 16 App Router (TypeScript strict, eslint-config-next, Tailwind CSS v4 — CSS-first config: @import \"tailwindcss\" in globals.css + @theme {} for token overrides; no tailwind.config.ts). "
         "Add tsconfig base with paths '@monopilot/*' resolving to packages. Add Vitest config and a single smoke test that boots Next.js dev server in test mode and asserts GET / returns 200. Add Playwright skeleton config (no specs yet). "
         "Add CI script 'pnpm build && pnpm test:smoke && pnpm lint'."
     ),

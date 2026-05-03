@@ -44,11 +44,13 @@
     "acceptance_criteria": [
       "Given the screen and modal render, when compared to design/Monopilot Design System/technical/other-screens.jsx:4-34 and design/Monopilot Design System/technical/modals.jsx:271-304, then list columns, modal field set, and Cancel/Confirm button order match — structural + visual + interaction parity verified by RTL.",
       "Given user reorders ops via drag, when saved, then op_no resequenced contiguous starting at 1.",
-      "Given op without line_id and machine_id, when Save clicked, then validation error V-TEC-61."
+      "Given op without line_id and machine_id, when Save clicked, then validation error V-TEC-61.",
+      "UI closeout includes screenshot/artifact evidence and Playwright trace/artifacts where applicable per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`; if Playwright is unavailable, document the blocker and provide RTL/snapshot fallback evidence."
     ],
     "test_strategy": [
       "RED tests for parity + drag-sort + validation.",
-      "Run: pnpm vitest run tests/ui/tec-060-routing.test.tsx"
+      "Run: pnpm vitest run tests/ui/tec-060-routing.test.tsx",
+      "For UI parity, capture screenshots/artifacts and Playwright trace/video/artifacts where applicable; attach artifact paths in closeout."
     ],
     "risk_red_lines": [
       "Do not allow op gaps.",
@@ -78,6 +80,7 @@
       "implementation": "hermes_gpt55",
       "review": "opus_if_high_risk_or_ui_or_architecture",
       "close": "spark_low_risk_else_opus"
-    }
+    },
+    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md"
   }
 }

@@ -1,13 +1,13 @@
 {
-  "title": "T-005 \u2014 Marker discipline ADR + 15-module registry seed file",
-  "prompt": "# T-005 \u2014 Marker discipline ADR + 15-module registry seed file\n\nPRD: `00-FOUNDATION-PRD.md` \u2014 sections: \u00a71, \u00a72, \u00a74\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`\n\n## Goal\nCodify the four marker tags ([UNIVERSAL], [APEX-CONFIG], [EVOLVING], [LEGACY-D365]) as ADR-035 and seed the 15-module registry as JSON consumed by 02-SETTINGS later.\n\n## Implementation contract\nWrite _foundation/decisions/ADR-035-marker-discipline.md documenting the four markers, when each is used, and the 'no fragment without a marker' rule (PRD \u00a72). Create _foundation/registry/modules.json with the 15-row table from PRD \u00a74.3 (id, slug, phase, build_order, file, dependencies). Add a CI script scripts/check-markers.mjs that fails when a PRD/ADR file in _foundation or root has a heading lacking a marker tag (allow-list for executive summary).\n\n## Files (scope)\n- _foundation/decisions/ADR-035-marker-discipline.md [create]\n- _foundation/registry/modules.json [create]\n- scripts/check-markers.mjs [create]\n\n## Acceptance criteria\n1. Given _foundation/registry/modules.json is loaded, when parsed as JSON, then it contains exactly 15 entries with ids 00..15 and matches the PRD \u00a74.3 dependencies column\n2. Given ADR-035 exists, when the CI script scripts/check-markers.mjs runs against _foundation/decisions, then it exits 0 (no missing markers)\n\n## Test strategy\n- Run 'node scripts/check-markers.mjs' and capture exit code\n- Run 'jq length _foundation/registry/modules.json' and assert == 15\n\n## Risk red lines\n- Do not invent module slugs not in PRD \u00a74.3\n\n## Closeout evidence\nProvide: changed_files, test_commands_and_results, acceptance_criteria_status (per AC), deviations_from_prd, git_status. Use the test-driven-development skill (RED test before implementation) and requesting-code-review at GREEN.",
+  "title": "T-005 — Marker discipline ADR + 15-module registry seed file with Wave0 domain glossary references",
+  "prompt": "# T-005 — Marker discipline ADR + 15-module registry seed file with Wave0 domain glossary references\n\nPRD: `00-FOUNDATION-PRD.md` — sections: §1, §2, §4, §W0-v4.3\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`\nACP import shape: top-level TaskCreate only (`title`, `prompt`, `labels`, `priority`, `max_attempts`, `pipeline_name`, `pipeline_inputs`). Do not add generated ACP fields such as task_id/status/project_id. `pipeline_inputs.root_path` is mandatory.\n\n## Goal\nCodify marker discipline and seed the 15-module registry, explicitly linking the registry to the Wave0 domain glossary and ACP-ready task rules.\n\n## Locked Wave 0 decisions to honor\n- Business data-plane scope is `org_id`; do not create new business-table `tenant_id` columns. Tenant/control-plane concepts may exist above org scope, but app/business rows, RLS policies, audit/outbox rows, role grants, and R13 skeletons use `org_id`.\n- Canonical finished-good domain/event prefix is `fg.*`. `fa.*` / `FA` may appear only as an explicit legacy compatibility alias during migration, never as the primary new contract.\n- Use the safe non-spoofable org-context RLS pattern. Do not rely on unsafe direct custom GUC `SET` by app users. Do not declare `LEAKPROOF` unless the implementation proves it is valid and necessary.\n- Lower numeric priority is picked sooner; dependencies must be local `T-XXX` IDs. Cross-module blockers, if any, belong in `pipeline_inputs.cross_module_dependencies` and in this prompt.\n- Exactly one atomic task type: `T1-schema`.\n\n## Implementation contract\nWrite `_foundation/decisions/ADR-035-marker-discipline.md` documenting [UNIVERSAL], [APEX-CONFIG], [EVOLVING], [LEGACY-D365], and the rule that business-domain docs/tasks use `org_id` and `fg.*` unless they are documenting legacy aliases. Create `_foundation/registry/modules.json` from PRD §4.3 with ids 00..15, slugs, writing phase, build_order, file, dependencies, and `business_scope_column: 'org_id'`. Add `scripts/check-markers.mjs` that checks PRD/ADR headings for a marker tag with an allowlist for executive front matter. Include references to `_foundation/glossary/domain-terms.md` if present (T-048) but do not require T-048 to have run.\n\n## Files in scope\n- _foundation/decisions/ADR-035-marker-discipline.md [create]\n- _foundation/registry/modules.json [create]\n- scripts/check-markers.mjs [create]\n\n## Dependencies\n- None\n\n## Cross-module dependencies\n- None\n\n## Acceptance criteria\n1. modules.json parses as JSON and contains exactly 16 entries for ids 00 through 15 (00-FOUNDATION plus 15 business modules) matching PRD §4.3.\n2. Every registry entry has id, slug, phase, build_order, file, dependencies, and business_scope_column=`org_id`.\n3. ADR-035 documents the four markers and the Wave0 domain naming rule (`org_id`, `fg.*`, FA legacy alias only).\n4. scripts/check-markers.mjs exits non-zero for an unmarked PRD/ADR heading fixture and exits zero for ADR-035.\n\n## Test strategy\n- Run `node scripts/check-markers.mjs`.\n- Run `jq length _foundation/registry/modules.json` and assert 16.\n- Run `jq 'all(.[]; .business_scope_column==\"org_id\")' _foundation/registry/modules.json`.\n\n## Risk red lines\n- Do not invent modules not in PRD §4.3.\n- Do not write app implementation.\n- Do not require T-048 output at runtime; cross-reference only if present.\n\n## Closeout evidence\nProvide changed_files, test_commands_and_results, acceptance_criteria_status, deviations_from_prd, and git_status.",
   "labels": [
     "prd",
     "docs",
     "adr",
-    "docs"
+    "T1-schema"
   ],
-  "priority": 80,
+  "priority": 50,
   "max_attempts": 3,
   "pipeline_name": "kira_dev",
   "pipeline_inputs": {
@@ -15,48 +15,49 @@
     "prd_task_id": "T-005",
     "source_prd": "00-FOUNDATION-PRD.md",
     "prd_refs": [
-      "\u00a71",
-      "\u00a72",
-      "\u00a74"
+      "§1",
+      "§2",
+      "§4",
+      "§W0-v4.3"
     ],
     "category": "docs",
     "subcategory": "adr",
     "task_type": "T1-schema",
     "parent_feature": "governance",
-    "context_budget": "25k",
-    "estimated_effort": "0.5-1h",
-    "description": "Codify the four marker tags ([UNIVERSAL], [APEX-CONFIG], [EVOLVING], [LEGACY-D365]) as ADR-035 and seed the 15-module registry as JSON consumed by 02-SETTINGS later.",
-    "details": "Write _foundation/decisions/ADR-035-marker-discipline.md documenting the four markers, when each is used, and the 'no fragment without a marker' rule (PRD \u00a72). Create _foundation/registry/modules.json with the 15-row table from PRD \u00a74.3 (id, slug, phase, build_order, file, dependencies). Add a CI script scripts/check-markers.mjs that fails when a PRD/ADR file in _foundation or root has a heading lacking a marker tag (allow-list for executive summary).",
+    "context_budget": "50k",
+    "estimated_effort": "1-3h",
+    "description": "Codify marker discipline and seed the 15-module registry, explicitly linking the registry to the Wave0 domain glossary and ACP-ready task rules.",
+    "details": "Write `_foundation/decisions/ADR-035-marker-discipline.md` documenting [UNIVERSAL], [APEX-CONFIG], [EVOLVING], [LEGACY-D365], and the rule that business-domain docs/tasks use `org_id` and `fg.*` unless they are documenting legacy aliases. Create `_foundation/registry/modules.json` from PRD §4.3 with ids 00..15, slugs, writing phase, build_order, file, dependencies, and `business_scope_column: 'org_id'`. Add `scripts/check-markers.mjs` that checks PRD/ADR headings for a marker tag with an allowlist for executive front matter. Include references to `_foundation/glossary/domain-terms.md` if present (T-048) but do not require T-048 to have run.",
     "scope_files": [
       "_foundation/decisions/ADR-035-marker-discipline.md [create]",
       "_foundation/registry/modules.json [create]",
       "scripts/check-markers.mjs [create]"
     ],
     "out_of_scope": [
-      "Do not modify files outside the scope_files list",
-      "Do not introduce business logic from later module PRDs (01-NPD, 02-SETTINGS, etc.)",
-      "Do not modify PRD content"
+      "Do not modify files outside scope_files unless a test/build config in the same package is strictly required and listed in closeout.",
+      "Do not implement unrelated module behaviour from 01-NPD/02-SETTINGS/03-TECHNICAL unless explicitly named here.",
+      "Do not emit ACP-generated top-level fields in this JSON."
     ],
     "dependencies": [],
-    "parallel_safe_with": [
-      "T-003",
-      "T-004"
-    ],
     "acceptance_criteria": [
-      "Given _foundation/registry/modules.json is loaded, when parsed as JSON, then it contains exactly 15 entries with ids 00..15 and matches the PRD \u00a74.3 dependencies column",
-      "Given ADR-035 exists, when the CI script scripts/check-markers.mjs runs against _foundation/decisions, then it exits 0 (no missing markers)",
-      "Given a PRD or ADR file in _foundation has a heading without a marker tag, when scripts/check-markers.mjs runs, then it exits non-zero and prints the offending filename and heading",
-      "Given _foundation/registry/modules.json is loaded, when each entry is validated, then every entry contains the keys id, slug, phase, build_order, file, and dependencies"
+      "modules.json parses as JSON and contains exactly 16 entries for ids 00 through 15 (00-FOUNDATION plus 15 business modules) matching PRD §4.3.",
+      "Every registry entry has id, slug, phase, build_order, file, dependencies, and business_scope_column=`org_id`.",
+      "ADR-035 documents the four markers and the Wave0 domain naming rule (`org_id`, `fg.*`, FA legacy alias only).",
+      "scripts/check-markers.mjs exits non-zero for an unmarked PRD/ADR heading fixture and exits zero for ADR-035."
     ],
     "test_strategy": [
-      "Run 'node scripts/check-markers.mjs' and capture exit code",
-      "Run 'jq length _foundation/registry/modules.json' and assert == 15"
+      "Run `node scripts/check-markers.mjs`.",
+      "Run `jq length _foundation/registry/modules.json` and assert 16.",
+      "Run `jq 'all(.[]; .business_scope_column==\"org_id\")' _foundation/registry/modules.json`."
     ],
     "risk_red_lines": [
-      "Do not invent module slugs not in PRD \u00a74.3"
+      "Do not invent modules not in PRD §4.3.",
+      "Do not write app implementation.",
+      "Do not require T-048 output at runtime; cross-reference only if present."
     ],
     "skills": [
       "writing-plans",
+      "verification-before-completion",
       "requesting-code-review"
     ],
     "checkpoint_policy": {

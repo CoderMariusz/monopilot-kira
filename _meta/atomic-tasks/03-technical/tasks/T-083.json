@@ -8,7 +8,7 @@
     "coverage",
     "T3-ui"
   ],
-  "priority": 55,
+  "priority": 50,
   "max_attempts": 3,
   "pipeline_name": "kira_dev",
   "pipeline_inputs": {
@@ -67,11 +67,13 @@
       "Given production UI copy is reviewed, then FA/PR/D365-first wording is absent except explicit legacy imported-source/audit labels.",
       "Given a released BOM/spec edit UI is implemented, then clone-on-write banner copy is present and in-place edit copy is absent.",
       "Given RM component selection UI is implemented, then approved supplier, active supplier_spec, allergens, item active, cost/spec review and QC/release checks are listed with typed server codes.",
-      "Given lab result status appears in Technical UI, then it is labelled Quality-owned read-only and no Technical approval action is shown."
+      "Given lab result status appears in Technical UI, then it is labelled Quality-owned read-only and no Technical approval action is shown.",
+      "UI closeout includes screenshot/artifact evidence and Playwright trace/artifacts where applicable per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`; if Playwright is unavailable, document the blocker and provide RTL/snapshot fallback evidence."
     ],
     "test_strategy": [
       "Add/require UI copy assertions in each referenced UI task closeout.",
-      "Run relevant task tests named in T-038/T-039/T-060/T-078/T-080."
+      "Run relevant task tests named in T-038/T-039/T-060/T-078/T-080.",
+      "For UI parity, capture screenshots/artifacts and Playwright trace/video/artifacts where applicable; attach artifact paths in closeout."
     ],
     "risk_red_lines": [
       "Do not edit prototype files for cosmetic churn.",
@@ -83,6 +85,7 @@
       "T-080",
       "T-081",
       "T-082"
-    ]
+    ],
+    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md"
   }
 }

@@ -1,0 +1,85 @@
+{
+  "title": "T-047 — Final Wave0 PRD v4.3 domain amendment: org_id scope, fg.* events, shared BOM SSOT, D365 posture",
+  "prompt": "# T-047 — Final Wave0 PRD v4.3 domain amendment: org_id scope, fg.* events, shared BOM SSOT, D365 posture\n\nPRD: `00-FOUNDATION-PRD.md` — sections: §4, §5, §8, §10, §11, §13, §W0-v4.3\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`\nACP import shape: top-level TaskCreate only (`title`, `prompt`, `labels`, `priority`, `max_attempts`, `pipeline_name`, `pipeline_inputs`). Do not add generated ACP fields such as task_id/status/project_id. `pipeline_inputs.root_path` is mandatory.\n\n## Goal\nPatch 00-FOUNDATION-PRD.md to v4.3 with the locked Wave0 decisions so downstream implementation tasks stop relying on stale tenant_id/fa.* assumptions.\n\n## Locked Wave 0 decisions to honor\n- Business data-plane scope is `org_id`; do not create new business-table `tenant_id` columns. Tenant/control-plane concepts may exist above org scope, but app/business rows, RLS policies, audit/outbox rows, role grants, and R13 skeletons use `org_id`.\n- Canonical finished-good domain/event prefix is `fg.*`. `fa.*` / `FA` may appear only as an explicit legacy compatibility alias during migration, never as the primary new contract.\n- Use the safe non-spoofable org-context RLS pattern. Do not rely on unsafe direct custom GUC `SET` by app users. Do not declare `LEAKPROOF` unless the implementation proves it is valid and necessary.\n- Lower numeric priority is picked sooner; dependencies must be local `T-XXX` IDs. Cross-module blockers, if any, belong in `pipeline_inputs.cross_module_dependencies` and in this prompt.\n- Exactly one atomic task type: `T0-docs`.\n\n## Implementation contract\nEdit only `00-FOUNDATION-PRD.md`. Bump front matter version/status/supersedes to v4.3. Add a clearly delimited `§W0-v4.3 — Wave0 readiness amendment (2026-05-03)` covering: `org_id` as canonical business/RLS scope; tenant/control-plane above org; `fg.*` canonical finished-good events with `fa.*`/FA legacy alias only; Brief -> NPD Project canonical flow and `convertBriefToFa` wrapper-only compatibility; FG/Product code selected at G3, not brief completion; shared BOM SSOT skeleton lives in Foundation; factory_spec/internal_product_spec foundation contract; D365 optional import/export/integration posture, never source of truth and export not factory release; Trial/Pilot/Handoff/Packaging evidence in NPD flow; sensory may be N/A unless org policy requires Technical read model; safe RLS org context pattern; ACP real task-shape notes. Add changelog entry and final footer v4.3.\n\n## Files in scope\n- 00-FOUNDATION-PRD.md [modify]\n\n## Dependencies\n- None\n\n## Cross-module dependencies\n- None\n\n## Acceptance criteria\n1. Front matter says version 4.3 and supersedes v4.2.\n2. The amendment explicitly contains all locked Wave0 decisions relevant to Foundation.\n3. The PRD no longer states `fa.*` is canonical without an adjacent v4.3 correction to `fg.*`.\n4. The PRD documents D365 as optional integration/posture only, not source of truth.\n\n## Test strategy\n- Run markdown grep checks for `version: 4.3`, `org_id`, `fg.*`, `Shared BOM SSOT`, and `D365`.\n- Run `git diff -- 00-FOUNDATION-PRD.md` and verify only docs changed.\n\n## Risk red lines\n- Do not edit app code.\n- Do not rewrite unrelated PRD sections beyond the amendment/changelog/front matter.\n- Do not leave contradictory canonical `fa.*` wording unqualified.\n\n## Closeout evidence\nProvide changed_files, test_commands_and_results, acceptance_criteria_status, deviations_from_prd, and git_status.",
+  "labels": [
+    "prd",
+    "docs",
+    "prd-amendment",
+    "T0-docs"
+  ],
+  "priority": 50,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-047",
+    "source_prd": "00-FOUNDATION-PRD.md",
+    "prd_refs": [
+      "§4",
+      "§5",
+      "§8",
+      "§10",
+      "§11",
+      "§13",
+      "§W0-v4.3"
+    ],
+    "category": "docs",
+    "subcategory": "prd-amendment",
+    "task_type": "docs",
+    "parent_feature": "Wave0 readiness",
+    "context_budget": "50k",
+    "estimated_effort": "1-3h",
+    "description": "Patch 00-FOUNDATION-PRD.md to v4.3 with the locked Wave0 decisions so downstream implementation tasks stop relying on stale tenant_id/fa.* assumptions.",
+    "details": "Edit only `00-FOUNDATION-PRD.md`. Bump front matter version/status/supersedes to v4.3. Add a clearly delimited `§W0-v4.3 — Wave0 readiness amendment (2026-05-03)` covering: `org_id` as canonical business/RLS scope; tenant/control-plane above org; `fg.*` canonical finished-good events with `fa.*`/FA legacy alias only; Brief -> NPD Project canonical flow and `convertBriefToFa` wrapper-only compatibility; FG/Product code selected at G3, not brief completion; shared BOM SSOT skeleton lives in Foundation; factory_spec/internal_product_spec foundation contract; D365 optional import/export/integration posture, never source of truth and export not factory release; Trial/Pilot/Handoff/Packaging evidence in NPD flow; sensory may be N/A unless org policy requires Technical read model; safe RLS org context pattern; ACP real task-shape notes. Add changelog entry and final footer v4.3.",
+    "scope_files": [
+      "00-FOUNDATION-PRD.md [modify]"
+    ],
+    "out_of_scope": [
+      "Do not modify files outside scope_files unless a test/build config in the same package is strictly required and listed in closeout.",
+      "Do not implement unrelated module behaviour from 01-NPD/02-SETTINGS/03-TECHNICAL unless explicitly named here.",
+      "Do not emit ACP-generated top-level fields in this JSON."
+    ],
+    "dependencies": [],
+    "acceptance_criteria": [
+      "Front matter says version 4.3 and supersedes v4.2.",
+      "The amendment explicitly contains all locked Wave0 decisions relevant to Foundation.",
+      "The PRD no longer states `fa.*` is canonical without an adjacent v4.3 correction to `fg.*`.",
+      "The PRD documents D365 as optional integration/posture only, not source of truth."
+    ],
+    "test_strategy": [
+      "Run markdown grep checks for `version: 4.3`, `org_id`, `fg.*`, `Shared BOM SSOT`, and `D365`.",
+      "Run `git diff -- 00-FOUNDATION-PRD.md` and verify only docs changed."
+    ],
+    "risk_red_lines": [
+      "Do not edit app code.",
+      "Do not rewrite unrelated PRD sections beyond the amendment/changelog/front matter.",
+      "Do not leave contradictory canonical `fa.*` wording unqualified."
+    ],
+    "skills": [
+      "writing-plans",
+      "verification-before-completion",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

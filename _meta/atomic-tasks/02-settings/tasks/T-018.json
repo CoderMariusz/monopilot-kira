@@ -39,7 +39,6 @@
     "dependencies": [
       "T-016"
     ],
-    "parallel_safe_with": [],
     "acceptance_criteria": [
       "Permission guards enforced.",
       "Outbox events for assign + deactivate.",

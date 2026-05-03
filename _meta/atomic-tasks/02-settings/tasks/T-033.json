@@ -42,7 +42,6 @@
       "T-012",
       "T-016"
     ],
-    "parallel_safe_with": [],
     "acceptance_criteria": [
       "SAML metadata route returns SP XML.",
       "Test fail forces enabled=false.",

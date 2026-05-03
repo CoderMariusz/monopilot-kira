@@ -37,16 +37,17 @@
       "T-029",
       "T-037"
     ],
-    "parallel_safe_with": [],
     "acceptance_criteria": [
-      "Given the production onboarding step renders, when compared to `design/Monopilot Design System/settings/onboarding-screens.jsx:7-238` for current step `first_location` / SET-003 location fields, then it follows the onboarding wizard structure and interactions: stepper, labels, state transitions, skip/back/continue behavior, loading/error states and focus order. Org/data screens may be reused only for individual field styling, not as the 1:1 onboarding source.",
+      "Given the production onboarding step renders, when compared to `design/Monopilot Design System/settings/onboarding-screens.jsx:7-238` for current step `first_location` / SET-003 location fields, then literal prototype parity is required and it follows the onboarding wizard structure and interactions: stepper, labels, state transitions, skip/back/continue behavior, loading/error states and focus order. Org/data screens may be reused only for individual field styling, not as the 1:1 onboarding source.",
       "Given the user enters a 4-level path, when submitted, then locations row is created with level=4, path materialized correctly, and the wizard advances.",
-      "Given the path string contains an invalid separator, when validated, then the form shows 'Use ` › ` between segments' inline."
+      "Given the path string contains an invalid separator, when validated, then the form shows 'Use ` › ` between segments' inline.",
+      "UI closeout includes screenshot/artifact evidence and Playwright trace/artifacts where applicable per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`; if Playwright is unavailable, document the blocker and provide RTL/snapshot fallback evidence."
     ],
     "test_strategy": [
       "RED: write RTL test that mounts the page with mocked data and asserts the parity AC items + ac_extra coverage.",
       "GREEN: build component, wire Server Action(s).",
-      "Run `pnpm --filter @monopilot/web vitest run apps/web/app/onboarding/location/page.test.tsx [create]` and `pnpm typecheck`."
+      "Run `pnpm --filter @monopilot/web vitest run apps/web/app/onboarding/location/page.test.tsx [create]` and `pnpm typecheck`.",
+      "For UI parity, capture screenshots/artifacts and Playwright trace/video/artifacts where applicable; attach artifact paths in closeout."
     ],
     "risk_red_lines": [
       "Do not import @radix-ui/react-dialog outside packages/ui (§0 ESLint rule).",
@@ -79,6 +80,7 @@
       "review": "opus_if_high_risk_or_ui_or_architecture",
       "close": "spark_low_risk_else_opus"
     },
-    "prototype_match": true
+    "prototype_match": true,
+    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md"
   }
 }

@@ -30,7 +30,7 @@
     "context_budget": "40k",
     "estimated_effort": "1-2h",
     "description": "Seed active P1 technical_product_spec_approval_gate_v1 rule definition used by authorization-policy preflights and read-only rule views.",
-    "details": "Create an idempotent rules deploy seed for technical_product_spec_approval_gate_v1. It is the concrete rule_definitions row referenced by org_authorization_policies.approval_gate_rule_code and V-SET-44. The rule states that authorized NPD post-release edits create new BOM/product-spec versions and require Technical approval before factory use.",
+    "details": "Create an idempotent rules deploy seed for technical_product_spec_approval_gate_v1. It is the concrete rule_definitions row referenced by org_authorization_policies.approval_gate_rule_code and V-SET-44. The rule states that authorized NPD post-release edits create new BOM/product-spec versions and require Technical approval before factory use.\nPreserved acceptance requirements: SET-062 can render the gate read-only and cannot bypass factory-use approval invariants.; Deploy is idempotent and unchanged JSON does not bump version.",
     "scope_files": [
       "rules/technical_product_spec_approval_gate_v1.json [create]",
       "rules/_schemas/gate.schema.json [create/modify if missing]",
@@ -48,13 +48,11 @@
       "T-026",
       "T-122"
     ],
-    "parallel_safe_with": [],
     "acceptance_criteria": [
       "Active P1 gate rule technical_product_spec_approval_gate_v1 is seeded into rule_definitions by T-026 deploy.",
       "Rule metadata encodes new-version, Technical approval, org_authorization_policies, and segregation-of-duties invariants.",
       "T-122 V-SET-44 preflight can resolve the active gate rule and returns typed blockers for missing/inactive/wrong type.",
-      "SET-062 can render the gate read-only and cannot bypass factory-use approval invariants.",
-      "Deploy is idempotent and unchanged JSON does not bump version."
+      "Additional preserved requirements in details are implemented and covered by targeted tests."
     ],
     "test_strategy": [
       "RED: deploy fixture/test fails because rule seed is missing.",

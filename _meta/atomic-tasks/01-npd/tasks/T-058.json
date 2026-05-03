@@ -28,7 +28,7 @@
     "context_budget": "55k",
     "estimated_effort": "3-4h",
     "description": "advanceProjectGate + approveProjectGate (e-sig) + revertGate with blocker + adjacency + bcrypt + SHA-256 hash + audit.",
-    "details": "advanceProjectGate enforces blocker + adjacency. approveProjectGate verifies password via bcrypt then writes gate_approvals + esign_hash. revertGate is admin-only and audit-logged. Helper getBlockers + nextGate factored.",
+    "details": "advanceProjectGate enforces blocker + adjacency. approveProjectGate verifies password via bcrypt then writes gate_approvals + esign_hash. revertGate is admin-only and audit-logged. Helper getBlockers + nextGate factored.\nPreserved acceptance requirements: Given a project at G2 with no FG candidate, when approve/advance to G3 is called, then it rejects with FG_CANDIDATE_REQUIRED.; Given a project at G3 with any required department not Done, when approveProjectGate for G4 is called, then it rejects with DEPARTMENT_CLOSURE_REQUIRED and typed blockers.; Given D365 export exists but Technical approval is missing, when factory release blockers are evaluated, then the project is not released_to_factory.",
     "scope_files": [
       "apps/web/app/(npd)/pipeline/_actions/advance-project-gate.ts [create]",
       "apps/web/app/(npd)/pipeline/_actions/approve-project-gate.ts [create]",
@@ -54,9 +54,7 @@
       "Given a project at G2 with one required checklist item not done, when advanceProjectGate to G3 is called, then it rejects with BLOCKERS_PRESENT and current_gate stays G2 per §17.6 blocker rule",
       "Given a project at G2, when advanceProjectGate to G4 (non-adjacent) is called, then it rejects 422 ADJACENCY_VIOLATION per §17.12 adjacency guard",
       "Given approveProjectGate is called with correct password, when commit succeeds, then gate_approvals row contains esign_hash matching SHA-256(user_id + project_id + gate_code + esigned_at) per §17.5 + §17.6",
-      "Given a project at G2 with no FG candidate, when approve/advance to G3 is called, then it rejects with FG_CANDIDATE_REQUIRED.",
-      "Given a project at G3 with any required department not Done, when approveProjectGate for G4 is called, then it rejects with DEPARTMENT_CLOSURE_REQUIRED and typed blockers.",
-      "Given D365 export exists but Technical approval is missing, when factory release blockers are evaluated, then the project is not released_to_factory."
+      "Additional preserved requirements in details are implemented and covered by targeted tests."
     ],
     "test_strategy": [
       "RED: __tests__/gate-actions.test.ts with 4 cases (blocker, adjacency, password, hash + audit) before actions exist",

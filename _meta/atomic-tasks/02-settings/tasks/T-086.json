@@ -41,7 +41,6 @@
       "T-061",
       "T-054"
     ],
-    "parallel_safe_with": [],
     "acceptance_criteria": [
       "Constants gating enforced.",
       "Toggle ON only after test pass.",

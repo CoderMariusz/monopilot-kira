@@ -40,7 +40,6 @@
     "dependencies": [
       "T-012"
     ],
-    "parallel_safe_with": [],
     "acceptance_criteria": [
       "0.0.0.0/0 rejected.",
       "RBAC enforced.",

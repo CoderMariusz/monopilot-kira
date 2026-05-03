@@ -47,11 +47,13 @@
       "Given the modal opens, when compared to design/Monopilot Design System/technical/modals.jsx:22-136, then it has 4 steps in the same order, the same Next/Back/Cancel buttons, and uses the same shadcn primitives (Dialog, Form, Input, Select, Switch) — structural + visual + interaction parity verified by RTL test counting steps and asserting button labels.",
       "Given weight_mode='catch' is selected, when on Step 3, then nominal_weight, gross_weight_max, variance_tolerance_pct fields appear and are required.",
       "Given submission with duplicate item_code, when API returns 409, then form-level error 'V-TEC-01' shown.",
-      "Given user clicks Cancel, when on any step, then modal closes and no API call is made."
+      "Given user clicks Cancel, when on any step, then modal closes and no API call is made.",
+      "UI closeout includes screenshot/artifact evidence and Playwright trace/artifacts where applicable per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`; if Playwright is unavailable, document the blocker and provide RTL/snapshot fallback evidence."
     ],
     "test_strategy": [
       "RED tests for parity (step count + button states) + Zod validation behaviour.",
-      "Run: pnpm vitest run tests/ui/tec-011-item-create.test.tsx"
+      "Run: pnpm vitest run tests/ui/tec-011-item-create.test.tsx",
+      "For UI parity, capture screenshots/artifacts and Playwright trace/video/artifacts where applicable; attach artifact paths in closeout."
     ],
     "risk_red_lines": [
       "Do not skip validations between steps.",
@@ -82,6 +84,7 @@
       "implementation": "hermes_gpt55",
       "review": "opus_if_high_risk_or_ui_or_architecture",
       "close": "spark_low_risk_else_opus"
-    }
+    },
+    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md"
   }
 }

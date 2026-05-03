@@ -155,24 +155,24 @@ Status: `[UNIVERSAL]` dla core (item master, BOM, allergens EU-14), `[APEX-CONFI
 | TEC-011 Item Create Wizard | §6.5 :464 | TEC-002 Product Detail / Modal (UX:231) — wizard rendered as modal | `product_create_modal` (`modals.jsx:22-136`) | READY (modal vs page surface variance — see §6.5 note) | [UNIVERSAL] |
 | TEC-012 Item Detail | §6.5 :465 | TEC-002 Product Detail (UX:231) + TEC-004 Material Detail (UX:359) | `material_detail_screen` (`other-screens.jsx:483-605`); FG variant covered in `bom_detail_page` tabs | READY | [UNIVERSAL] |
 | TEC-013 Item Edit | §6.5 :467 | TEC-002 General tab edit mode (UX:240-294) | reuse of `product_create_modal` in edit mode | READY | [UNIVERSAL] |
-| TEC-014 Bulk Import CSV | §6.5 :468 | [UX-MISSING] | [NO-PROTOTYPE-YET] (audit 2026-04-30, BLOCKER row 4); `materials_list_screen` line 1258 has Import CSV button stub but no dedicated import wizard | TODO Prototype creation needed before T3-ui task can be drafted. Suggested: 3-step wizard (upload → validate → diff preview → confirm). | [UNIVERSAL] |
+| TEC-014 Bulk Import CSV | §6.5 :468 | [UX-MISSING] | [SPEC-DRIVEN-WAVE0] (audit 2026-04-30, former audit row 4); `materials_list_screen` line 1258 has Import CSV button stub but no dedicated import wizard | Wave0 spec-driven ACP task exists; dedicated prototype build is optional/future and not a T3-ui drafting blocker. Suggested: 3-step wizard (upload → validate → diff preview → confirm). | [UNIVERSAL] |
 | TEC-020 BOM List | §7.5 :535 | TEC-005 BOMs List (UX:374) | `bom_list` (`bom-list.jsx:593`), `boms_screen` (`settings/data-screens.jsx:1695`) | READY | [UNIVERSAL] |
 | TEC-021 BOM Detail | §7.5 :536 | TEC-006 BOM Detail (UX:419) | `bom_detail_page` (`bom-detail.jsx:650`) + tabs (`bom_ingredients_tree_tab`, `bom_cost_panel`, `bom_routing_tab`, `bom_process_params_tab`, `bom_costs_tab`, `bom_recipe_sheet_tab`, `bom_graph_tab`) | READY | [UNIVERSAL] |
 | TEC-022 BOM Edit | §7.5 :537 | TEC-006a BOM Items Detail (UX:491) | `bom_component_add_modal` (`modals.jsx:133`), `bom_version_save_modal` (`modals.jsx:94`) | READY | [UNIVERSAL] |
 | TEC-023 BOM Version Diff | §7.5 :538 | TEC-006 Version Diff tab (UX:473) | `bom_versions_tab` (`bom-detail.jsx:847`) — partial, side-by-side diff implicit | PARTIAL — dedicated diff viewer needs UX clarification (audit MED) | [UNIVERSAL] |
 | TEC-024 BOM Generator Modal | §7.5 :539 | UX Modal "BOM Generator Confirm" (UX:1314-1338) | (no dedicated prototype label — covered in `tech_modal_gallery`) | PARTIAL — prototype gallery references the contract; full modal not isolated | [INDUSTRY-CONFIG] (output format Bakery/Meat/Pharma differs) |
-| TEC-025 BOM Snapshots Viewer | §7.5 :540 | [UX-MISSING] | [NO-PROTOTYPE-YET] (audit 2026-04-30, BLOCKER row 4); `bom-detail.jsx` Snapshot History tab in UX TEC-006 references the data but no dedicated viewer | TODO Prototype creation needed before T3-ui task can be drafted. Suggested: list of immutable snapshots per WO with JSON-diff viewer modal. | [UNIVERSAL] |
+| TEC-025 BOM Snapshots Viewer | §7.5 :540 | [UX-MISSING] | [SPEC-DRIVEN-WAVE0] (audit 2026-04-30, former audit row 4); `bom-detail.jsx` Snapshot History tab in UX TEC-006 references the data but no dedicated viewer | Wave0 spec-driven ACP task exists; dedicated prototype build is optional/future and not a T3-ui drafting blocker. Suggested: list of immutable snapshots per WO with JSON-diff viewer modal. | [UNIVERSAL] |
 | TEC-030 Shelf Life Config | §9.5 :661 | TEC-014 Shelf-life Config (UX:866) | `shelf_life_screen` (`other-screens.jsx:1390`), `shelf_life_override_modal` (`modals.jsx:403`) | READY | [INDUSTRY-CONFIG] (regulatory presets 7) |
-| TEC-031 Regulatory Compliance Dashboard | §9.5 :662 | [UX-MISSING] | [NO-PROTOTYPE-YET] (audit 2026-04-30, BLOCKER row 4) | TODO Prototype creation needed before T3-ui task can be drafted. Suggested: dashboard with KPI tiles per regulation (EU 1169/2011, FSMA 204, BRCGS v9, ISO 22000, EU 2023/915, GS1-DL, Peppol) + per-FG flag table (missing shelf-life / missing allergen declaration / missing BRCGS training link). | [INDUSTRY-CONFIG] |
+| TEC-031 Regulatory Compliance Dashboard | §9.5 :662 | [UX-MISSING] | [SPEC-DRIVEN-WAVE0] (audit 2026-04-30, former audit row 4) | Wave0 spec-driven ACP task exists; dedicated prototype build is optional/future and not a T3-ui drafting blocker. Suggested: dashboard with KPI tiles per regulation (EU 1169/2011, FSMA 204, BRCGS v9, ISO 22000, EU 2023/915, GS1-DL, Peppol) + per-FG flag table (missing shelf-life / missing allergen declaration / missing BRCGS training link). | [INDUSTRY-CONFIG] |
 | TEC-040 Allergen Profile Editor | §10.7 :761 | TEC-010 Allergen Management → Item Profiles tab (UX:654) | `allergen_declaration_modal` (`modals.jsx:248`); allergen profile slide-over described UX:672 — no isolated prototype label | READY (uses `allergen_declaration_modal`) | [UNIVERSAL] |
 | TEC-041 Allergen Cascade Preview | §10.7 :762 | TEC-010 Allergen Management → Cascade Preview tab (UX:686) | (no isolated prototype — embedded in TEC-010 tab) | READY (embedded) | [UNIVERSAL] |
 | TEC-042 Manufacturing Operation Allergen Additions | §6.5 :466 + §10.7 :763 | TEC-010 Allergen Management → Process Additions tab (UX:704) | (embedded in `allergen_matrix_screen` neighbouring tabs) | READY (embedded; admin CRUD inline) | [INDUSTRY-CONFIG] |
 | TEC-043 Contamination Risk Matrix | §10.7 :764 | TEC-010 Allergen Management → Contamination Risk Matrix tab (UX:714) | `allergen_matrix_screen` (`other-screens.jsx:1034-1062`) | READY (label↔concept) | [UNIVERSAL] |
 | TEC-044 Allergen Manual Override Audit | §10.7 :765 | UX Modal "Allergen Manual Override" (UX:1193) + TEC-012 Allergen Warnings Panel "Recent Override Audit" card (UX:746) | `allergen_declaration_modal` (override variant) | PARTIAL — override modal exists; dedicated audit log view embedded in TEC-012, no isolated prototype label | [UNIVERSAL] |
-| TEC-045 Lab Results Log | §10.7 :766 | [UX-MISSING] (TEC-002 Lab Results tab UX:310 partial) | [NO-PROTOTYPE-YET] (audit 2026-04-30, BLOCKER row 4) | TODO Prototype creation needed before T3-ui task can be drafted. Suggested: filterable table (item / WO / test type / result status) + add-result modal + ATP RLU pass/fail visualization. UX TEC-002 Lab Results tab is a per-item embed; this is the cross-item log view. | [UNIVERSAL] |
+| TEC-045 Lab Results Log | §10.7 :766 | [UX-MISSING] (TEC-002 Lab Results tab UX:310 partial) | [SPEC-DRIVEN-WAVE0] (audit 2026-04-30, former audit row 4) | Wave0 spec-driven ACP task exists; dedicated prototype build is optional/future and not a T3-ui drafting blocker. Suggested: filterable table (item / WO / test type / result status) + add-result modal + ATP RLU pass/fail visualization. UX TEC-002 Lab Results tab is a per-item embed; this is the cross-item log view. | [UNIVERSAL] |
 | TEC-050 Cost History | §11.5 :808 | TEC-015 Cost History Panel (UX:838) | `cost_history_screen` (`other-screens.jsx:1428`) | READY | [UNIVERSAL] |
 | TEC-051 Cost Edit Modal | §11.5 :809 | UX Modal "Cost Adjustment" (UX:1220-1235) | `cost_rollup_recompute_modal` (`modals.jsx:444`) — partial (recompute, not direct cost edit) | PARTIAL — UX modal contract exists; isolated prototype label missing | [UNIVERSAL] |
-| TEC-052 Cost Import from D365 | §11.5 :810 | [UX-MISSING] | [NO-PROTOTYPE-YET] (audit 2026-04-30, BLOCKER row 4); `d365_item_sync_confirm_modal` (`modals.jsx:475`) covers items pull but not the cost-specific diff preview | TODO Prototype creation needed before T3-ui task can be drafted. Suggested: D365 cost pull → diff preview table (current vs incoming, % delta, source) → batch confirm with audit note. | [LEGACY-D365] |
+| TEC-052 Cost Import from D365 | §11.5 :810 | [UX-MISSING] | [SPEC-DRIVEN-WAVE0] (audit 2026-04-30, former audit row 4); `d365_item_sync_confirm_modal` (`modals.jsx:475`) covers items pull but not the cost-specific diff preview | Wave0 spec-driven ACP task exists; dedicated prototype build is optional/future and not a T3-ui drafting blocker. Suggested: D365 cost pull → diff preview table (current vs incoming, % delta, source) → batch confirm with audit note. | [LEGACY-D365] |
 | TEC-060 Routing List | §12.4 :852 | TEC-007 Routings List (UX:516) | `routings_screen` (`other-screens.jsx:937`) | READY | [UNIVERSAL] |
 | TEC-061 Routing Edit | §12.4 :853 | TEC-008 Routing Modal (UX:548) + TEC-008a Routing Detail (UX:585) | `routing_step_add_modal` (`modals.jsx:208`) + `bom_routing_tab` (`bom-detail.jsx:752`) | READY | [UNIVERSAL] |
 | TEC-062 Routing Cost Preview | §12.4 :854 | TEC-008a Cost / Duration Summary Card (UX:594) | `bom_cost_panel` (`bom-detail.jsx:723`) | READY | [UNIVERSAL] |
@@ -214,10 +214,10 @@ The following 11 prototypes from `prototype-index-technical.json` have no entry 
 - **UX IDs reachable:** 21 UX IDs all mapped (TEC-001..017 + TEC-070..073).
 - **READY (full PRD↔UX↔prototype):** 23 entries.
 - **PARTIAL (PRD↔UX present, prototype embedded or partial):** 6 entries.
-- **[NO-PROTOTYPE-YET] BLOCKERs:** 5 entries (TEC-014, TEC-025, TEC-031, TEC-045, TEC-052) — each carries an inline TODO line in its §-source for T3-ui drafting gate.
+- **[SPEC-DRIVEN-WAVE0] BLOCKERs:** 5 entries (TEC-014, TEC-025, TEC-031, TEC-045, TEC-052) — each carries an inline TODO line in its §-source for T3-ui drafting gate.
 - **Cross-tagged (CC-5 mis-tag candidates retained for now):** 3 entries (TEC-093, TEC-094, TEC-095) — owners re-confirmed in audit follow-up.
 - **Phase-2 deferred (Direction B closure for traceability):** 1 entry (TEC-092 ECO).
-- **Estimated coverage:** ~55% (pre) → ~88% (post) per audit methodology, factoring [NO-PROTOTYPE-YET] markers as "spec-side closed, design-side queued".
+- **Estimated coverage:** ~55% (pre) → ~88% (post) per audit methodology, factoring [SPEC-DRIVEN-WAVE0] markers as "spec-side closed, design-side queued".
 
 A complete master table appears at end of PRD (§17 — UI Surfaces Master Table).
 
@@ -281,15 +281,46 @@ CREATE INDEX idx_items_d365 ON items(org_id, d365_item_id) WHERE d365_item_id IS
 CREATE INDEX idx_items_ext_jsonb ON items USING GIN (ext_jsonb);
 ```
 
+### 5.1A factory_specs / internal_product_spec (Technical-owned factory spec)
+
+`factory_specs` is the Technical-owned factory-use specification for a FG/WIP item. NPD Builder may create the initial record after G4 handoff, but Technical owns review, approval and clone-on-write lifecycle. Initial status after NPD Builder is `in_review`; NPD G4 closes NPD, while Technical factory_spec+BOM bundle approval unlocks factory use. Do not use generic `reference_tables.specifications` as the backing store for factory specs.
+
+```sql
+CREATE TABLE factory_specs (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  org_id UUID NOT NULL REFERENCES organizations(id),
+  item_id UUID NOT NULL REFERENCES items(id),            -- FG or intermediate WIP
+  bom_header_id UUID REFERENCES bom_headers(id),         -- paired shared BOM version for approval bundle
+  version INT NOT NULL DEFAULT 1,
+  release_status TEXT NOT NULL DEFAULT 'in_review',      -- adapter to 01-NPD T-097 canonical release model
+  internal_product_spec JSONB NOT NULL DEFAULT '{}',     -- factory parameters, tolerances, packaging, process notes
+  customer_spec_refs JSONB NOT NULL DEFAULT '[]',        -- references only; customer_spec is not canonical factory spec
+  supplier_spec_refs JSONB NOT NULL DEFAULT '[]',        -- RM/component supplier specs used by this version
+  effective_from DATE,
+  effective_to DATE,
+  approved_by UUID REFERENCES users(id),
+  approved_at TIMESTAMPTZ,
+  approval_bundle_id UUID,
+  rejection_reason TEXT,
+  cloned_from_factory_spec_id UUID REFERENCES factory_specs(id),
+  created_by UUID REFERENCES users(id),
+  created_at TIMESTAMPTZ DEFAULT now(),
+  updated_at TIMESTAMPTZ DEFAULT now(),
+  UNIQUE(org_id, item_id, version)
+);
+
+CREATE INDEX idx_factory_specs_item_status ON factory_specs(org_id, item_id, release_status);
+```
+
 ### 5.2 BOM (header + lines + co-products + version)
 
 ```sql
 CREATE TABLE bom_headers (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   org_id UUID NOT NULL REFERENCES organizations(id),
-  item_id UUID NOT NULL REFERENCES items(id),            -- parent (intermediate or FA)
+  item_id UUID NOT NULL REFERENCES items(id),            -- parent (intermediate WIP or FG; FA legacy alias only)
   version INT NOT NULL DEFAULT 1,
-  status TEXT NOT NULL DEFAULT 'draft',                  -- 'draft'|'approved'|'active'|'superseded'
+  status TEXT NOT NULL DEFAULT 'draft',                  -- canonical release adapter: draft|in_review|rejected|approved_for_factory|active|superseded|blocked
   yield_pct NUMERIC(6,3) DEFAULT 100.000,                -- per-BOM overall yield
   effective_from DATE NOT NULL DEFAULT CURRENT_DATE,
   effective_to DATE,
@@ -394,7 +425,9 @@ CREATE TABLE allergen_contamination_risk (
 );
 ```
 
-### 5.5 Lab results + supplier spec
+### 5.5 Lab results + supplier_specs
+
+`lab_results` is a Quality-owned read model consumed by Technical. Technical writes are allowed only through an explicit Quality permission/service bridge; if the bridge is absent, Technical must fail closed rather than creating Technical-owned lab rows.
 
 ```sql
 CREATE TABLE lab_results (
@@ -402,16 +435,17 @@ CREATE TABLE lab_results (
   org_id UUID NOT NULL REFERENCES organizations(id),
   item_id UUID REFERENCES items(id),
   work_order_id UUID,                                    -- optional link to WO (09-QUALITY)
-  test_type TEXT NOT NULL,                               -- 'atp_swab'|'allergen_elisa'|'micro_apc'|'nutrition'
+  quality_result_id UUID,                                -- optional pointer to Quality canonical row/event
+  test_type TEXT NOT NULL,                               -- 'atp_swab'|'allergen_elisa'|'micro_apc'|'nutrition'|'sensory'
   test_code TEXT,
   result_value NUMERIC(14,4),
   result_unit TEXT,
-  result_status TEXT NOT NULL,                           -- 'pass'|'fail'|'inconclusive'|'pending'
+  result_status TEXT NOT NULL,                           -- 'pass'|'fail'|'inconclusive'|'pending'|'hold'
   threshold_rlu NUMERIC(10,2),                           -- for ATP (max 10 per 00-FOUNDATION §7 example)
   tested_at TIMESTAMPTZ,
   lab_provider TEXT,
   notes TEXT,
-  created_by UUID REFERENCES users(id),
+  created_by UUID REFERENCES users(id),                  -- Quality-side actor/bridge actor
   created_at TIMESTAMPTZ DEFAULT now()
 );
 
@@ -420,14 +454,50 @@ CREATE TABLE supplier_specs (
   org_id UUID NOT NULL REFERENCES organizations(id),
   item_id UUID NOT NULL REFERENCES items(id),
   supplier_code TEXT NOT NULL,
+  supplier_status TEXT NOT NULL DEFAULT 'pending',       -- 'pending'|'approved'|'blocked'
   spec_document_url TEXT,                                -- S3 / Blob storage link
-  spec_version TEXT,
+  document_sha256 TEXT,
+  document_mime_type TEXT,
+  spec_version TEXT NOT NULL,
   issued_date DATE,
+  effective_from DATE NOT NULL DEFAULT CURRENT_DATE,
   expiry_date DATE,
+  lifecycle_status TEXT NOT NULL DEFAULT 'draft',        -- 'draft'|'active'|'expired'|'superseded'|'blocked'
+  review_status TEXT NOT NULL DEFAULT 'pending',         -- 'pending'|'approved'|'rejected'|'blocked'
+  review_notes TEXT,
+  cost_review_blocked BOOLEAN NOT NULL DEFAULT false,
+  spec_review_blocked BOOLEAN NOT NULL DEFAULT false,
+  approved_by UUID REFERENCES users(id),
+  approved_at TIMESTAMPTZ,
+  rejected_by UUID REFERENCES users(id),
+  rejected_at TIMESTAMPTZ,
+  rejection_reason TEXT,
   declared_allergens TEXT[],                             -- supplier-declared allergens codes
   declared_attrs JSONB DEFAULT '{}',                     -- nutrition, origin, certifications
+  certificate_refs JSONB DEFAULT '[]',                   -- COA/BRCGS/organic/etc metadata
   uploaded_at TIMESTAMPTZ DEFAULT now(),
   uploaded_by UUID REFERENCES users(id)
+);
+
+-- Enforce at most one active approved non-expired spec per org/item/supplier.
+CREATE UNIQUE INDEX supplier_specs_one_active_approved
+  ON supplier_specs(org_id, item_id, supplier_code)
+  WHERE lifecycle_status = 'active' AND review_status = 'approved';
+```
+
+`non_conformance.requested` outbox event: Technical produces this event when PO/TO actuals reveal price/spec/allergen/shelf-life/location/temperature deviations that Quality must own as NCR lifecycle. Required payload fields: `source_module`, `source_event_name`, `source_event_id`, `idempotency_key`, `org_id`, `item_id`, `lot_id?`, `supplier_id?`, `purchase_order_id?`, `transfer_order_id?`, `reason_codes`, `severity`, `observed_values`, `expected_values`, `detected_at`, `detected_by`, `recommended_owner`. Technical must not mutate supplier_specs/BOM costs while emitting NCR.
+
+```sql
+CREATE TABLE technical_outbox_events (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  org_id UUID NOT NULL REFERENCES organizations(id),
+  event_name TEXT NOT NULL,                              -- e.g. 'non_conformance.requested'
+  payload JSONB NOT NULL,
+  idempotency_key TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'pending',                -- 'pending'|'published'|'failed'|'dlq'
+  created_at TIMESTAMPTZ DEFAULT now(),
+  published_at TIMESTAMPTZ,
+  UNIQUE(org_id, event_name, idempotency_key)
 );
 ```
 
@@ -560,7 +630,7 @@ Transitions audited (ADR-008 audit_log). `deprecated` items nie pojawiają się 
 | TEC-012 | Item Detail | Tabs: overview / BOM (§7) / allergens (§10) / cost history (§11) / routing (§12) / supplier specs / lab results / D365 status |
 | TEC-042 | Manufacturing Operation Allergen Additions | Config table editor (admin) |
 | TEC-013 | Item Edit | RHF z Zod schema gen'd z `reference_schemas` |
-| TEC-014 | Bulk Import CSV `[NO-PROTOTYPE-YET]` | Mass upload RMs z supplier spec — **TODO Prototype creation needed before T3-ui task can be drafted.** Suggested: 3-step wizard (upload → validate → diff preview → confirm). Audit BLOCKER row 4 (`_meta/audits/2026-04-30-design-prd-coverage.md`). [Source: 03-TECHNICAL-UX.md absent + prototype-index-technical.json no `bulk_import_*` label; only `materials_list_screen:1258` Import button stub]. [UNIVERSAL] |
+| TEC-014 | Bulk Import CSV `[SPEC-DRIVEN-WAVE0]` | Mass upload RMs z supplier spec — **Wave0 spec-driven ACP task exists; dedicated prototype build is optional/future and not a T3-ui drafting blocker.** Suggested: 3-step wizard (upload → validate → diff preview → confirm). Audit former audit row 4 (`_meta/audits/2026-04-30-design-prd-coverage.md`). [Source: 03-TECHNICAL-UX.md absent + prototype-index-technical.json no `bulk_import_*` label; only `materials_list_screen:1258` Import button stub]. [UNIVERSAL] |
 
 ### 6.6 Validation V-TEC-ITEM
 
@@ -641,7 +711,7 @@ Per 01-NPD §6 cascading rules + Phase D open item EVOLVING §11:
 | TEC-022 | BOM Edit | Line editor (drag-sort + manufacturing_operation_name picker) |
 | TEC-023 | BOM Version Diff | Side-by-side JSON diff |
 | TEC-024 | BOM Generator Modal | §7.3 UX flow |
-| TEC-025 | BOM Snapshots Viewer `[NO-PROTOTYPE-YET]` | Historical snapshots per WO (immutable) — **TODO Prototype creation needed before T3-ui task can be drafted.** Suggested: list of snapshots filterable by WO + JSON-diff viewer modal showing flattened header/lines/co-prods at snapshot time. Audit BLOCKER row 4. [Source: 03-TECHNICAL-UX.md:469-471 Snapshot History tab embedded in TEC-006 references but no dedicated viewer + prototype absent]. [UNIVERSAL] |
+| TEC-025 | BOM Snapshots Viewer `[SPEC-DRIVEN-WAVE0]` | Historical snapshots per WO (immutable) — **Wave0 spec-driven ACP task exists; dedicated prototype build is optional/future and not a T3-ui drafting blocker.** Suggested: list of snapshots filterable by WO + JSON-diff viewer modal showing flattened header/lines/co-prods at snapshot time. Audit former audit row 4. [Source: 03-TECHNICAL-UX.md:469-471 Snapshot History tab embedded in TEC-006 references but no dedicated viewer + prototype absent]. [UNIVERSAL] |
 
 ### 7.6 Validation V-TEC-BOM
 
@@ -773,7 +843,7 @@ Phase 1 scope: data structure + API supporting queries. Full UI z traceability r
 | Screen code | Screen | Capability |
 |---|---|---|
 | TEC-030 | Shelf Life Config | Per-item edit + date code preview |
-| TEC-031 | Regulatory Compliance Dashboard `[NO-PROTOTYPE-YET]` | Per-item flag status (missing shelf-life, missing allergen declaration, missing BRCGS training link) — **TODO Prototype creation needed before T3-ui task can be drafted.** Suggested: KPI strip per regulation (EU 1169/2011, FSMA 204, BRCGS v9, ISO 22000, EU 2023/915, GS1 Digital Link, Peppol) + per-FG flag table. Audit BLOCKER row 4. [Source: 03-TECHNICAL-UX.md absent for this screen; UX:875-887 has the 7-preset chip list inside TEC-014 Shelf-life but no aggregate dashboard]. [INDUSTRY-CONFIG] |
+| TEC-031 | Regulatory Compliance Dashboard `[SPEC-DRIVEN-WAVE0]` | Per-item flag status (missing shelf-life, missing allergen declaration, missing BRCGS training link) — **Wave0 spec-driven ACP task exists; dedicated prototype build is optional/future and not a T3-ui drafting blocker.** Suggested: KPI strip per regulation (EU 1169/2011, FSMA 204, BRCGS v9, ISO 22000, EU 2023/915, GS1 Digital Link, Peppol) + per-FG flag table. Audit former audit row 4. [Source: 03-TECHNICAL-UX.md absent for this screen; UX:875-887 has the 7-preset chip list inside TEC-014 Shelf-life but no aggregate dashboard]. [INDUSTRY-CONFIG] |
 
 ### 9.6 Validation V-TEC-SHELF
 
@@ -877,7 +947,7 @@ Lab result `fail` → blocks WO close gate (08-PRODUCTION), automatic notificati
 | TEC-042 | Manufacturing Operation Allergen Additions | Config table editor (admin) |
 | TEC-043 | Contamination Risk Matrix | Line × allergen grid edit |
 | TEC-044 | Allergen Manual Override Audit | Override history z reasons |
-| TEC-045 | Lab Results Log `[NO-PROTOTYPE-YET]` | Filter by item / WO / test type / result status — **TODO Prototype creation needed before T3-ui task can be drafted.** Suggested: filterable table + add-result modal + ATP RLU pass/fail visualization (threshold ≤10 RLU per §10.6). Audit BLOCKER row 4. [Source: 03-TECHNICAL-UX.md:310 Lab Results tab is per-item embed only; aggregate cross-item log view absent. Prototype-index has no `lab_results_*` label]. [UNIVERSAL] |
+| TEC-045 | Lab Results Log `[SPEC-DRIVEN-WAVE0]` | Filter by item / WO / test type / result status — **Wave0 spec-driven ACP task exists; dedicated prototype build is optional/future and not a T3-ui drafting blocker.** Suggested: filterable table + add-result modal + ATP RLU pass/fail visualization (threshold ≤10 RLU per §10.6). Audit former audit row 4. [Source: 03-TECHNICAL-UX.md:310 Lab Results tab is per-item embed only; aggregate cross-item log view absent. Prototype-index has no `lab_results_*` label]. [UNIVERSAL] |
 
 ### 10.8 Validation V-TEC-ALG
 
@@ -930,7 +1000,7 @@ FA cost = SUM(component.cost_per_kg × quantity × (1 + scrap_pct)) + routing op
 |---|---|---|
 | TEC-050 | Cost History | Per-item timeline + source + created_by |
 | TEC-051 | Cost Edit Modal | effective_from + value + source + notes |
-| TEC-052 | Cost Import from D365 `[NO-PROTOTYPE-YET]` | Preview diff + confirm batch update — **TODO Prototype creation needed before T3-ui task can be drafted.** Suggested: D365 cost pull → diff preview table (current vs incoming, % delta, source) → batch confirm with audit note. Audit BLOCKER row 4. [Source: 03-TECHNICAL-UX.md absent; `d365_item_sync_confirm_modal` (`modals.jsx:475`) handles items pull generically but not cost-specific diff workflow]. [LEGACY-D365] |
+| TEC-052 | Cost Import from D365 `[SPEC-DRIVEN-WAVE0]` | Preview diff + confirm batch update — **Wave0 spec-driven ACP task exists; dedicated prototype build is optional/future and not a T3-ui drafting blocker.** Suggested: D365 cost pull → diff preview table (current vs incoming, % delta, source) → batch confirm with audit note. Audit former audit row 4. [Source: 03-TECHNICAL-UX.md absent; `d365_item_sync_confirm_modal` (`modals.jsx:475`) handles items pull generically but not cost-specific diff workflow]. [LEGACY-D365] |
 
 ### 11.6 Validation V-TEC-COST
 
@@ -1383,24 +1453,24 @@ Canonical list of every TEC-NNN screen, its PRD section, UX section/line, protot
 | TEC-011 | Item Create Wizard | §6.5 | UX:231 (TEC-002 modal) | `design/Monopilot Design System/technical/modals.jsx:22-136` (`product_create_modal`) | READY | [UNIVERSAL] |
 | TEC-012 | Item Detail | §6.5 | UX:231 (TEC-002), UX:359 (TEC-004) | `design/Monopilot Design System/technical/other-screens.jsx:483-605` (`material_detail_screen`); BOM-side via `bom_detail_page` | READY | [UNIVERSAL] |
 | TEC-013 | Item Edit | §6.5 | UX:240-294 | `product_create_modal` (edit mode) | READY | [UNIVERSAL] |
-| TEC-014 | Bulk Import CSV | §6.5 | [UX-MISSING] | [NO-PROTOTYPE-YET] | BLOCKER | [UNIVERSAL] |
+| TEC-014 | Bulk Import CSV | §6.5 | [UX-MISSING] | `design/Monopilot Design System/technical/spec-driven-screens.jsx:25-218` (`bulk_import_csv_screen`) | READY (Wave0 dedicated prototype) | [UNIVERSAL] |
 | TEC-020 | BOM List | §7.5 | UX:374 (TEC-005) | `design/Monopilot Design System/technical/bom-list.jsx:593` (`bom_list`); `design/Monopilot Design System/settings/data-screens.jsx:1695` (`boms_screen`) | READY | [UNIVERSAL] |
 | TEC-021 | BOM Detail | §7.5 | UX:419 (TEC-006) | `design/Monopilot Design System/technical/bom-detail.jsx:650` (`bom_detail_page`) + tabs | READY | [UNIVERSAL] |
 | TEC-022 | BOM Edit | §7.5 | UX:491 (TEC-006a) | `design/Monopilot Design System/technical/modals.jsx:133` (`bom_component_add_modal`); `:94` (`bom_version_save_modal`) | READY | [UNIVERSAL] |
 | TEC-023 | BOM Version Diff | §7.5 | UX:473 | `design/Monopilot Design System/technical/bom-detail.jsx:847` (`bom_versions_tab`) | PARTIAL | [UNIVERSAL] |
 | TEC-024 | BOM Generator Modal | §7.5 | UX:1314-1338 | embedded in `tech_modal_gallery` (`modals.jsx:550`) | PARTIAL | [INDUSTRY-CONFIG] |
-| TEC-025 | BOM Snapshots Viewer | §7.5 | [UX-MISSING] | [NO-PROTOTYPE-YET] | BLOCKER | [UNIVERSAL] |
+| TEC-025 | BOM Snapshots Viewer | §7.5 | [UX-MISSING] | `design/Monopilot Design System/technical/spec-driven-screens.jsx:223-303` (`bom_snapshots_viewer_screen`) + `:307-354` (`bom_snapshot_diff_modal`) | READY (Wave0 dedicated prototype) | [UNIVERSAL] |
 | TEC-030 | Shelf Life Config | §9.5 | UX:866 (TEC-014) | `design/Monopilot Design System/technical/other-screens.jsx:1390` (`shelf_life_screen`); `modals.jsx:403` (`shelf_life_override_modal`) | READY | [INDUSTRY-CONFIG] |
-| TEC-031 | Regulatory Compliance Dashboard | §9.5 | [UX-MISSING] | [NO-PROTOTYPE-YET] | BLOCKER | [INDUSTRY-CONFIG] |
+| TEC-031 | Regulatory Compliance Dashboard | §9.5 | [UX-MISSING] | `design/Monopilot Design System/technical/spec-driven-screens.jsx:359-446` (`regulatory_compliance_dashboard_screen`) | READY (Wave0 dedicated prototype) | [INDUSTRY-CONFIG] |
 | TEC-040 | Allergen Profile Editor | §10.7 | UX:654 | `design/Monopilot Design System/technical/modals.jsx:248` (`allergen_declaration_modal`) | READY | [UNIVERSAL] |
 | TEC-041 | Allergen Cascade Preview | §10.7 | UX:686 | (embedded in TEC-010 Cascade Preview tab) | READY | [UNIVERSAL] |
 | TEC-042 | Manufacturing Operation Allergen Additions | §6.5 + §10.7 | UX:704 | (embedded in `allergen_matrix_screen` neighbouring tabs) | READY | [INDUSTRY-CONFIG] |
 | TEC-043 | Contamination Risk Matrix | §10.7 | UX:714 | `design/Monopilot Design System/technical/other-screens.jsx:1034-1062` (`allergen_matrix_screen`) | READY | [UNIVERSAL] |
 | TEC-044 | Allergen Manual Override Audit | §10.7 | UX:1193 + UX:746 | `allergen_declaration_modal` (override variant) | PARTIAL | [UNIVERSAL] |
-| TEC-045 | Lab Results Log | §10.7 | [UX-MISSING] | [NO-PROTOTYPE-YET] | BLOCKER | [UNIVERSAL] |
+| TEC-045 | Lab Results Log | §10.7 | [UX-MISSING] | `design/Monopilot Design System/technical/spec-driven-screens.jsx:451-546` (`lab_results_log_screen`) | READY (Wave0 dedicated prototype, Quality-owned read model) | [UNIVERSAL] |
 | TEC-050 | Cost History | §11.5 | UX:838 (TEC-015) | `design/Monopilot Design System/technical/other-screens.jsx:1428` (`cost_history_screen`) | READY | [UNIVERSAL] |
 | TEC-051 | Cost Edit Modal | §11.5 | UX:1220-1235 | `design/Monopilot Design System/technical/modals.jsx:444` (`cost_rollup_recompute_modal`) | PARTIAL | [UNIVERSAL] |
-| TEC-052 | Cost Import from D365 | §11.5 | [UX-MISSING] | [NO-PROTOTYPE-YET] | BLOCKER | [LEGACY-D365] |
+| TEC-052 | Cost Import from D365 | §11.5 | [UX-MISSING] | `design/Monopilot Design System/technical/spec-driven-screens.jsx:551-648` (`cost_import_d365_screen`) | READY (Wave0 dedicated prototype, D365 optional source only) | [LEGACY-D365] |
 | TEC-060 | Routing List | §12.4 | UX:516 (TEC-007) | `design/Monopilot Design System/technical/other-screens.jsx:937` (`routings_screen`) | READY | [UNIVERSAL] |
 | TEC-061 | Routing Edit | §12.4 | UX:548 (TEC-008), UX:585 (TEC-008a) | `design/Monopilot Design System/technical/modals.jsx:208` (`routing_step_add_modal`); `bom_routing_tab` | READY | [UNIVERSAL] |
 | TEC-062 | Routing Cost Preview | §12.4 | UX:594 | `design/Monopilot Design System/technical/bom-detail.jsx:723` (`bom_cost_panel`) | READY | [UNIVERSAL] |
@@ -1429,17 +1499,69 @@ Canonical list of every TEC-NNN screen, its PRD section, UX section/line, protot
 **Legend:**
 - `READY` — PRD spec, UX spec, and prototype all present.
 - `PARTIAL` — PRD + UX present; prototype embedded in a parent screen or partially covers contract.
-- `BLOCKER` / `[NO-PROTOTYPE-YET]` — PRD spec exists; UX absent; prototype absent. Inline TODO line in source PRD § blocks T3-ui drafting.
+- `SPEC-DRIVEN` / `[SPEC-DRIVEN-WAVE0]` — PRD spec exists; UX absent. Wave0 spec-driven UI surfaces (T-085..T-089) now ship with **dedicated layout-primitive prototypes** in `design/Monopilot Design System/technical/spec-driven-screens.jsx` (per §17A). PRD/UX still wins on semantics; the prototype provides layout/flow only.
 - `UX-MISSING` — Prototype + PRD exist; UX file silent. Tracked in separate UX workstream.
 - `PHASE-2` — Out of Phase 1 scope per §4.4; entry recorded for traceability.
 - Cross-tagged entries (TEC-093/094/095) flagged by audit CC-5 as candidates for prototype-index re-tag to their canonical owner module; retained here pending decision.
 
 ---
 
+## §17A — Spec-driven UI anchor map (T-085..T-090)
+
+For UI tasks under T-085..T-090, **PRD/UX is the canonical source of truth**. Wave0 spec-driven surfaces now have **dedicated layout-primitive prototypes** in `design/Monopilot Design System/technical/spec-driven-screens.jsx` (added 2026-05-03, opus missing-jsx wave); implementers may reuse the prototype layout 1:1 but must still follow PRD/UX semantics, fields, routes and Technical red-lines (FG/WIP, factory_specs, shared BOM SSOT, Quality-owned lab read model, D365 optional). Line ranges below are taken from `_meta/prototype-labels/prototype-index-technical.json` and verified against current JSX. Tasks T-085..T-090 cite these anchors in their parity AC.
+
+| Task | TEC ID | Surface | Dedicated prototype anchor(s) | Notes |
+|---|---|---|---|---|
+| T-085 | TEC-014 | Bulk Import CSV | `design/Monopilot Design System/technical/spec-driven-screens.jsx:25-218` (`bulk_import_csv_screen`) | 4-step wizard upload→validate→diff→confirm. Org-scoped, no D365 dependency, supplier_specs blocker on RM rows. Route `/technical/items/import`. |
+| T-086 | TEC-025 | BOM Snapshots Viewer | `design/Monopilot Design System/technical/spec-driven-screens.jsx:223-303` (`bom_snapshots_viewer_screen`) + `:307-354` (`bom_snapshot_diff_modal`) | Immutable snapshots list filtered by WO + JSON-flatten diff modal vs current canonical BOM; never expose an edit/save path on snapshots. Route `/technical/boms/snapshots`. |
+| T-087 | TEC-031 | Regulatory Compliance Dashboard | `design/Monopilot Design System/technical/spec-driven-screens.jsx:359-446` (`regulatory_compliance_dashboard_screen`) | KPI strip per regulation (EU 1169/2011, FSMA 204, BRCGS v9, ISO 22000, EU 2023/915) + per-FG flag table with Route → action. Routing/remediation only — not legal advice. Route `/technical/compliance`. |
+| T-088 | TEC-045 | Lab Results Log | `design/Monopilot Design System/technical/spec-driven-screens.jsx:451-546` (`lab_results_log_screen`) | Quality-owned read model exposed in Technical for FG/spec context. Filter pills + ATP RLU pass/fail visualization. Technical never writes lab_results — all entry/NCR/sign-off live in 09-QUALITY. Route `/technical/lab-results`. |
+| T-089 | TEC-052 | Cost Import from D365 | `design/Monopilot Design System/technical/spec-driven-screens.jsx:551-648` (`cost_import_d365_screen`) | D365 cost delta diff (current vs incoming, Δ%, source) + sign-off when |Δ|≥5% + D365-disabled banner that keeps local cost history (TEC-050) as source of truth. Route `/technical/costs/d365-import`. |
+| T-090 | (FactorySpec+BOM bundle) | Bundle approval panel/modal | `design/Monopilot Design System/technical/spec-driven-screens.jsx:653-781` (`factory_spec_bom_bundle_approval_modal`) | Paired factory_spec/BOM statuses, RM-usability + supplier_specs + release-guard blockers, clone-on-write banner, approval/rejection history. Approve disabled until blockers resolved; D365 sync is informational only. Mounted on BOM detail and factory_specs detail. |
+
+**Editing rule.** If a row's prototype is later renumbered, refactored, or replaced, update the anchor here, the matching task `acceptance_criteria` parity line, and `_meta/prototype-labels/prototype-index-technical.json`. Do not silently rewrite tasks without updating this map.
+
+---
+
+## §17B — Recommended Technical staged ACP wave order
+
+This section is advisory and informs ACP draft-import sequencing for the 03-TECHNICAL module. It complements the program-wide order in `_meta/reviews/2026-05-03-00-08-production-start-readiness-final-report.md` and is consistent with 01-NPD T-097 canonical release ownership.
+
+1. **Schema/contract spine** (release first):
+   - T-079 `factory_specs` Technical-owned approval table.
+   - T-073 shared BOM SSOT + clone-on-write guards.
+   - T-074 `validateRmUsability` shared decision service.
+   - T-081 release adapter to NPD T-097 canonical model.
+2. **Approval/release bundle**:
+   - T-080 FactorySpec+BOM bundle approval API/actions (depends on T-079, T-081).
+   - T-090 Bundle approval panel/modal UI (depends on T-080, T-081).
+3. **Cross-module event/contract layer**:
+   - T-082 NCR event contract for PO/TO actual triggers.
+   - T-076 PO actuals review/non-conformance triggers.
+   - T-077 TO actuals review/non-conformance triggers.
+4. **Supplier specs Phase 1**:
+   - T-072 docs brief (already in scope).
+   - T-075 supplier_specs schema/API/UI tasks.
+5. **Spec-driven UI surfaces (Wave0)**:
+   - T-085 Bulk Import CSV.
+   - T-086 BOM Snapshots Viewer.
+   - T-087 Regulatory Compliance Dashboard.
+   - T-088 Lab Results Log (Quality bridge required).
+   - T-089 Cost Import from D365 (optional integration only).
+6. **Governance/red-lines**:
+   - T-083 production red-line overlay applied to T-038/T-039/T-060/T-078/T-080.
+   - T-084 Technical sensory contract/read model for NPD policy consumers.
+
+Do not queue all 90 Technical tasks at once. Promote in dependency waves and verify NPD T-097 canonical release model is wired before staging T-081/T-080/T-090.
+
+---
+
 ## Changelog
 
+- **v3.3.2** (2026-05-03, opus missing-jsx wave) — Built dedicated layout-primitive prototypes for the five Wave0 spec-driven surfaces (TEC-014 / TEC-025 / TEC-031 / TEC-045 / TEC-052) and the FactorySpec+BOM bundle approval modal in new file `design/Monopilot Design System/technical/spec-driven-screens.jsx` (registered in `technical.html` loader). Updated §17 master-table Status from `SPEC-DRIVEN (Wave0 task; …)` to `READY (Wave0 dedicated prototype)` with literal `path:lines (label)` references; rewrote §17A anchor map so T-085..T-090 cite the new dedicated prototypes instead of adjacent layout-primitives; updated §17 legend; added 7 entries (`bulk_import_csv_screen`, `bom_snapshots_viewer_screen`, `bom_snapshot_diff_modal`, `regulatory_compliance_dashboard_screen`, `lab_results_log_screen`, `cost_import_d365_screen`, `factory_spec_bom_bundle_approval_modal`) to `_meta/prototype-labels/prototype-index-technical.json` and `_meta/prototype-labels/master-index.json`. Tasks T-085..T-090 parity AC anchors retargeted to the new prototypes. No production runtime app code changed; no other modules touched.
+- **v3.3.1** (2026-05-03, opus polish) — Technical readiness polish before staged ACP implementation: added §17A spec-driven UI anchor map (T-085..T-090) with verified layout-primitive file:line ranges from `_meta/prototype-labels/prototype-index-technical.json`; added §17B recommended Technical staged ACP wave order; replaced "BLOCKER" status with "SPEC-DRIVEN" + reworded §17 legend so Wave0 spec-driven entries do not look like T3-ui drafting blockers; tightened parity AC in T-085..T-090 to cite the right adjacent prototype anchors instead of the placeholder `other-screens.jsx:1-200`. No content deletions; no implementation code changes.
 - **v3.3** (2026-05-03) — PO/F/D amendment: canonical NPD→Technical handoff, Technical post-release factory-spec ownership, D365 integration-only posture (Monopilot canonical; optional export/import; authorized overwrite only), supplier_specs Phase 1, Quality-owned lab_results read model, specs taxonomy guardrails, and task red-lines for legacy prototype naming translation.
-- **v3.2** (2026-04-30) — PRD↔UX numbering reconciliation per audit `_meta/audits/2026-04-30-design-prd-coverage.md §Module 03-TECHNICAL`. Added: §4A canonical TEC-NNN map (PRD↔UX↔prototype, all 33 original PRD IDs + 16 new TEC-080..095 closures for orphan prototypes); §17 UI Surfaces Master Table; §6A/§7A/§10A/§11A/§12A/§13A Direction-B closure subsections; `[NO-PROTOTYPE-YET]` markers + TODO lines on TEC-014, TEC-025, TEC-031, TEC-045, TEC-052 (audit BLOCKER row 4). No content deletions; only additions and ADR-034 marker normalization. Coverage estimate ~55% → ~88%.
+- **v3.2** (2026-04-30) — PRD↔UX numbering reconciliation per audit `_meta/audits/2026-04-30-design-prd-coverage.md §Module 03-TECHNICAL`. Added: §4A canonical TEC-NNN map (PRD↔UX↔prototype, all 33 original PRD IDs + 16 new TEC-080..095 closures for orphan prototypes); §17 UI Surfaces Master Table; §6A/§7A/§10A/§11A/§12A/§13A Direction-B closure subsections; `[SPEC-DRIVEN-WAVE0]` markers + TODO lines on TEC-014, TEC-025, TEC-031, TEC-045, TEC-052 (audit former audit row 4). No content deletions; only additions and ADR-034 marker normalization. Coverage estimate ~55% → ~88%.
 - **v3.1** (2026-04-30) — Column/code renames for multi-industry manufacturing operations pattern. Changes: FA → FG (Finished Goods), PR → WIP (intermediate codes with pattern WIP-<suffix>-<sequence>), process_code/process_stage → manufacturing_operation_name. Updated: all examples (PR123R → WIP-RO-0000001, FA5101 → FG5101), SQL schemas (bom_lines.manufacturing_operation_name, process_allergen_additions → manufacturing_operation_allergen_additions), validation rules (V-TEC-03, V-TEC-63), cascade rule logic, UI screens (TEC-041, TEC-042), and success criteria. Verified: 0 orphaned old names remain, all cross-references updated, version bumped, changelog added.
 - **v3.0** (2026-04-20) — Phase C1 Sesja 2 writing. Pełny rewrite baseline v1.x (828l, 8 epics E02.1-E02.8 pre-Phase-D). Nowe core: §6 Product master z item_types (N+1 intermediate per Phase D #19), §7 BOM versioning + co-products + BOM Generator button (EVOLVING §11), §8 Catch weight + GS1 AI, §10 Allergens full (cascade via ADR-029 rule registry + ATP/ELISA lab + contamination risk matrix), §13 D365 Integration stage 1 technical (pull items/BOM + push confirmations, DLQ, idempotency). Refined: §9 shelf-life regulatory (BRCGS v9, FSMA 204, EU 1169/2011), §11 cost_per_kg per-item, §12 routing + resources. Build sequence 4 sub-modules (a..d), 18-22 sesji impl est.
 - v1.x (pre-Phase-D) — baseline 828l, 8 epics E02.1-E02.8, BOM snapshot (ADR-002) + routing-level costs (ADR-009). Deprecated przez v3.0.

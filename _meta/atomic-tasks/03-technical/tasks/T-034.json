@@ -47,11 +47,13 @@
       "Given the detail page renders, when compared to design/Monopilot Design System/technical/other-screens.jsx:483-605, then it shows the same 8 tabs in the same order, the same header layout with Edit/Deactivate actions, and uses shadcn Tabs primitive — structural + visual + interaction parity verified by RTL.",
       "Given user lacks technical.items.edit, when the page renders, then the Edit button is disabled or hidden.",
       "Given user clicks Deactivate, when modal opens, then TEC-081 deactivate modal appears.",
-      "Given GET /items/:code returns 404, when page renders, then a not-found message replaces the body."
+      "Given GET /items/:code returns 404, when page renders, then a not-found message replaces the body.",
+      "UI closeout includes screenshot/artifact evidence and Playwright trace/artifacts where applicable per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`; if Playwright is unavailable, document the blocker and provide RTL/snapshot fallback evidence."
     ],
     "test_strategy": [
       "RED tests for tab structure + RBAC + 404 path.",
-      "Run: pnpm vitest run tests/ui/tec-012-item-detail.test.tsx"
+      "Run: pnpm vitest run tests/ui/tec-012-item-detail.test.tsx",
+      "For UI parity, capture screenshots/artifacts and Playwright trace/video/artifacts where applicable; attach artifact paths in closeout."
     ],
     "risk_red_lines": [
       "Do not collapse tabs into a single page.",
@@ -82,6 +84,7 @@
       "implementation": "hermes_gpt55",
       "review": "opus_if_high_risk_or_ui_or_architecture",
       "close": "spark_low_risk_else_opus"
-    }
+    },
+    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md"
   }
 }

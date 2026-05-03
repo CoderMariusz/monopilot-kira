@@ -40,7 +40,6 @@
     "dependencies": [
       "T-041"
     ],
-    "parallel_safe_with": [],
     "acceptance_criteria": [
       "Given the production build is running under Playwright, when /manifest.webmanifest is fetched, then it returns 200 with content-type containing 'manifest+json' and JSON name='Monopilot'",
       "Given the SW has activated, when the test sets offline and reloads /, then the layout still renders (cached app shell) within 3 seconds",

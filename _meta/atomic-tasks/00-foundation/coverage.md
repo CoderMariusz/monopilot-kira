@@ -1,4 +1,22 @@
-# PRD Coverage — 00-FOUNDATION-PRD.md (v4.2)
+# PRD Coverage — 00-FOUNDATION-PRD.md (v4.3 Wave0 readiness)
+
+
+## Wave0 v4.3 readiness patch (2026-05-03)
+
+Readiness assessment: **96%+ ACP implementation readiness** for 00-FOUNDATION after locked user decisions and real ACP task-shape review. Remaining 4% is intentionally deferred to downstream module PRDs where business implementation belongs.
+
+| Locked decision / readiness rule | Task file(s) | Status |
+|---|---|---|
+| ACP real TaskCreate shape: top-level title/prompt/labels/priority/max_attempts/pipeline_name/pipeline_inputs; root_path required; no generated ACP fields | T-052 plus all patched JSON | covered |
+| Lower priority value is picked sooner | manifest + T-003/T-004/T-005/T-006/T-007/T-014/T-032/T-040/T-047..T-052 | covered |
+| Dependencies are local T-XXX only; cross-module blockers live in cross_module_dependencies | all patched JSON; T-049/T-050/T-051 | covered |
+| Business scope column is org_id, not tenant_id | T-006, T-007, T-014, T-040, T-048, T-050 | covered |
+| Canonical finished-good/domain events use fg.*; FA/fa.* only legacy compatibility alias | T-003, T-004, T-021 follow-up by glossary, T-047, T-048 | covered |
+| Shared BOM SSOT skeleton/contract in Foundation | T-049 | covered |
+| factory_spec/internal_product_spec foundation terminology and Technical implementation contract boundary | T-047, T-048, T-049 | covered |
+| Authorization policy foundation with SoD and Settings flag permission decision | T-004, T-014, T-050 | covered |
+| D365 optional integration posture; never source of truth; export is not factory release | T-047, T-051 | covered |
+| Manifest/coverage readiness patch and JSON validity | T-052 | covered |
 
 ## Coverage by PRD section
 
@@ -36,6 +54,7 @@
 | §13 Niefunkcjonalne — drift detection + RLS coverage 100% | drift detection job + RLS test | T-007, T-034 | covered |
 | §14 Open items — pre-Phase-D ADR review / regulatory artifact / dry-run scope | regulatory + dry-run mode | T-018 (dry-run), T-032 (regulatory) | covered |
 | §15 References | out-of-scope per PRD §15 (links only) | none | out-of-scope per PRD §15 (PRD-internal references) |
+| §W0-v4.3 | Wave0 final domain amendment / org_id / fg.* / shared BOM / D365 posture | T-047, T-048, T-049, T-050, T-051, T-052 | covered |
 
 ## Coverage by category
 
@@ -145,3 +164,15 @@
 | §14 open #12 (Peppol vendor) | Storecove/Pagero/Tradeshift | out-of-scope per PRD §14 (Phase C4 / 11-SHIPPING) |
 | §14 open #13 (pre-Phase-D ADR review 001-019) | ADR triage | out-of-scope per PRD §14 (separate session, Phase C start) |
 | §11 — Out-of-scope Monopilot (GL/AP/AR/HR/CRM/On-prem/Blockchain/Autonomous LLM) | n/a | explicitly out-of-scope per PRD §11 |
+
+
+## Gaps closed in v4.3 Wave0 readiness patch (2026-05-03)
+
+| Gap | Closed by |
+|---|---|
+| Stale tenant_id business-scope wording in Foundation implementation tasks | T-006, T-007, T-014, T-040, T-048, T-050 |
+| Stale FA/fa.* canonical naming in enum/permission tasks | T-003, T-004, T-047, T-048 |
+| Missing shared BOM SSOT foundation skeleton | T-049 |
+| Missing authorization policy foundation / Settings flag permission lock | T-050 |
+| Missing D365 optional integration posture contract | T-051 |
+| Missing ACP real-shape/readiness manifest patch | T-052 |

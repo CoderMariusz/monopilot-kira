@@ -37,7 +37,6 @@
       "T-067",
       "T-096"
     ],
-    "parallel_safe_with": [],
     "acceptance_criteria": [
       "Preview counts correct.",
       "Commit persists.",

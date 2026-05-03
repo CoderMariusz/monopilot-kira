@@ -1,7 +1,12 @@
 {
   "title": "T-003 — Migration: item_cost_history table",
   "prompt": "Create Drizzle migration for `item_cost_history` per §5.3 and §11.1-11.2. Columns: id UUID PK, org_id NOT NULL, item_id FK items NOT NULL, cost_per_kg NUMERIC(10,4) NOT NULL, currency CHAR(3) NOT NULL DEFAULT 'PLN', effective_from DATE NOT NULL, effective_to DATE, source TEXT CHECK in ('manual','d365_sync','supplier_update','variance_roll'), created_by UUID FK users(id), created_at TIMESTAMPTZ DEFAULT now(). Index idx_item_cost_active(org_id,item_id,effective_from DESC). Enable RLS org_id-scoped. RED tests assert insert/RLS/index. Command: `pnpm vitest run tests/db/cost.migration.test.ts`.",
-  "labels": ["prd", "data", "schema-cost", "T1-schema"],
+  "labels": [
+    "prd",
+    "data",
+    "schema-cost",
+    "T1-schema"
+  ],
   "priority": 50,
   "max_attempts": 3,
   "pipeline_name": "kira_dev",
@@ -9,7 +14,11 @@
     "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
     "prd_task_id": "T-003",
     "source_prd": "03-TECHNICAL-PRD.md",
-    "prd_refs": ["§5.3", "§11.1", "§11.2"],
+    "prd_refs": [
+      "§5.3",
+      "§11.1",
+      "§11.2"
+    ],
     "category": "data",
     "subcategory": "schema-cost",
     "task_type": "T1-schema",
@@ -23,9 +32,20 @@
       "db/schema/cost-history.ts",
       "tests/db/cost.migration.test.ts"
     ],
-    "out_of_scope": ["Cost API endpoints", "UI"],
-    "dependencies": ["T-001"],
-    "parallel_safe_with": ["T-002", "T-004", "T-005", "T-006", "T-007"],
+    "out_of_scope": [
+      "Cost API endpoints",
+      "UI"
+    ],
+    "dependencies": [
+      "T-001"
+    ],
+    "parallel_safe_with": [
+      "T-002",
+      "T-004",
+      "T-005",
+      "T-006",
+      "T-007"
+    ],
     "acceptance_criteria": [
       "Given migration applied, when describing item_cost_history, then all 9 columns and CHECK on source exist.",
       "Given two cost rows for same item, when querying with idx_item_cost_active, then ordering is effective_from DESC.",
@@ -35,9 +55,33 @@
       "RED test: insert two rows for same item across orgs and assert isolation under RLS.",
       "Run: pnpm vitest run tests/db/cost.migration.test.ts"
     ],
-    "risk_red_lines": ["Do not duplicate cost_per_kg field — it stays denormalized on items."],
-    "skills": ["test-driven-development", "requesting-code-review"],
-    "checkpoint_policy": {"required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"], "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]},
-    "routing_hints": {"red": "hermes_gpt55", "implementation": "hermes_gpt55", "review": "opus_if_high_risk_or_ui_or_architecture", "close": "spark_low_risk_else_opus"}
+    "risk_red_lines": [
+      "Do not duplicate cost_per_kg field — it stays denormalized on items."
+    ],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
   }
 }

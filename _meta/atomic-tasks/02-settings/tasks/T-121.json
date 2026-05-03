@@ -20,7 +20,7 @@
     "task_type": "T3-ui",
     "parent_feature": "02-settings-system-ui",
     "description": "SET-029 global Import / Export production screen, in scope per PO 2026-05-03.",
-    "details": "Canonical Settings prototype source of truth is `design/Monopilot Design System/settings/*.jsx`. If an exact screen prototype is missing, implement spec-driven from `design/02-SETTINGS-UX.md` and reuse available prototype elements/patterns only where they match the UX contract. No exact canonical prototype exists under `design/Monopilot Design System/settings/*.jsx`; UX SET-029 is authoritative. Root legacy `settings/import-export.jsx` may be used only as non-canonical pattern reference if helpful. This is global Settings Import/Export, not only reference table CSV T-096. Depth patch 2026-05-03: ## Depth patch — Global Import/Export permission and entity depth - This is the global Settings Import/Export hub, not only Reference CSV. Entity selector must include users, roles, invitations, reference tables, infrastructure, feature flags, and authorization policies. - Each entity declares import/export support, required permission(s), template availability, sync vs async behavior, and audit requirements. - Imports that mutate authorization policies require `settings.authorization.edit`, an explicit audit reason, dry-run validation through T-122, and must never bypass V-SET-43/V-SET-44 invariants. - Export is read-only and permission-filtered; unsupported imports are clearly marked export-only/unsupported instead of silently reusing reference CSV. - Tests must cover permission-filtered entity list, reference handoff to T-096/T-022, unsupported import messaging, authorization-policy dry-run blocker, and recent job statuses.",
+    "details": "Canonical Settings prototype source of truth is `design/Monopilot Design System/settings/*.jsx`. If an exact screen prototype is missing, implement spec-driven from `design/02-SETTINGS-UX.md` and reuse available prototype elements/patterns only where they match the UX contract. No exact canonical prototype exists under `design/Monopilot Design System/settings/*.jsx`; UX SET-029 is authoritative. Root legacy `settings/import-export.jsx` may be used only as non-canonical pattern reference if helpful. This is global Settings Import/Export, not only reference table CSV T-096. Depth patch 2026-05-03: ## Depth patch — Global Import/Export permission and entity depth - This is the global Settings Import/Export hub, not only Reference CSV. Entity selector must include users, roles, invitations, reference tables, infrastructure, feature flags, and authorization policies. - Each entity declares import/export support, required permission(s), template availability, sync vs async behavior, and audit requirements. - Imports that mutate authorization policies require `settings.authorization.edit`, an explicit audit reason, dry-run validation through T-122, and must never bypass V-SET-43/V-SET-44 invariants. - Export is read-only and permission-filtered; unsupported imports are clearly marked export-only/unsupported instead of silently reusing reference CSV. - Tests must cover permission-filtered entity list, reference handoff to T-096/T-022, unsupported import messaging, authorization-policy dry-run blocker, and recent job statuses.\nPreserved acceptance requirements: Entity selector explicitly distinguishes Settings entities (users, roles, reference tables, feature flags, authorization policies) and marks unsupported imports as read-only/export-only instead of silently routing to reference CSV.; Entity selector includes users, roles, invitations, reference tables, infrastructure, feature flags, and authorization policies with per-entity import/export capability labels.; Authorization policy import requires settings.authorization.edit, audit reason, and T-122 dry-run/preflight; V-SET-43/V-SET-44 cannot be bypassed by CSV import.; RTL tests cover permission-filtered entities, unsupported import states, reference handoff, authorization-policy blocker, and recent jobs/status area.\n\nAdditional acceptance detail preserved from compressed AC list:\n- Additional preserved requirements in details are implemented and covered by targeted tests.\n- UI closeout includes screenshot/artifact evidence and Playwright trace/artifacts where applicable per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`; if Playwright is unavailable, document the blocker and provide RTL/snapshot fallback evidence.",
     "scope_files": [
       "apps/web/app/(admin)/settings/import-export/page.tsx [create]",
       "apps/web/app/(admin)/settings/import-export/page.test.tsx [create]"
@@ -28,22 +28,21 @@
     "dependencies": [
       "T-022",
       "T-096",
-      "T-122"
+      "T-125",
+      "T-126"
     ],
     "acceptance_criteria": [
       "Given /settings/import-export renders, then it follows UX SET-029: Import card, Export card, entity selector, upload/dropzone, template download, export format choices, recent jobs/status area, loading/empty/error states.",
       "Given a supported entity is selected for import, when a CSV is uploaded, then the user is routed into the relevant preview/commit flow or sees a clear unsupported-entity message; Reference entity reuses T-096/T-022.",
       "Given export is requested, then the UI calls server export action for the selected entity/format and shows download/error status; do not conflate this with per-reference-table CSV only.",
-      "Entity selector explicitly distinguishes Settings entities (users, roles, reference tables, feature flags, authorization policies) and marks unsupported imports as read-only/export-only instead of silently routing to reference CSV.",
-      "Entity selector includes users, roles, invitations, reference tables, infrastructure, feature flags, and authorization policies with per-entity import/export capability labels.",
-      "Authorization policy import requires settings.authorization.edit, audit reason, and T-122 dry-run/preflight; V-SET-43/V-SET-44 cannot be bypassed by CSV import.",
-      "RTL tests cover permission-filtered entities, unsupported import states, reference handoff, authorization-policy blocker, and recent jobs/status area."
+      "Given the task is closed out, when reviewers inspect the task evidence, then these additional requirements are proven together: Additional preserved requirements in details are implemented and covered by targeted tests.; UI closeout includes screenshot/artifact evidence and Playwright trace/artifacts where applicable per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`; if Playwright is unavailable, document the blocker and provide RTL/snapshot fallback evidence."
     ],
     "test_strategy": [
       "RED: RTL test for two-card layout, entity selection, reference import route handoff, export action call.",
       "GREEN: build screen and wire existing import/export actions where available.",
       "Run page test, typecheck, lint.",
-      "Add RTL tests for per-entity permission filtering, authorization-policy import dry-run blocker, unsupported import message, and recent job statuses."
+      "Add RTL tests for per-entity permission filtering, authorization-policy import dry-run blocker, unsupported import message, and recent job statuses.",
+      "For UI parity, capture screenshots/artifacts and Playwright trace/video/artifacts where applicable; attach artifact paths in closeout."
     ],
     "risk_red_lines": [
       "Global Import/Export is Phase 1 scope per PO 2026-05-03; do not mark it out-of-scope or Phase 3.",
@@ -62,7 +61,6 @@
       "broaden scope beyond listed files",
       "implement future-phase features"
     ],
-    "parallel_safe_with": [],
     "skills": [
       "test-driven-development",
       "requesting-code-review"
@@ -87,6 +85,7 @@
       "implementation": "hermes_gpt55",
       "review": "opus_if_high_risk_or_ui_or_architecture",
       "close": "spark_low_risk_else_opus"
-    }
+    },
+    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md"
   }
 }

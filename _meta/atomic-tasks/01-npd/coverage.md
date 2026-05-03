@@ -104,3 +104,5 @@ PRD: `01-NPD-PRD.md` (v3.3 + N-* gap-backlog amendments 2026-04-30)
 - D365 is optional export/import only and never sets release/factory availability state.
 - Technical approval is required before factory_spec/BOM can be consumed by factory/Planning.
 - Release status/read model separates `pending_npd_release`, `pending_technical_approval`, `approved_for_factory`, `released_to_factory`, and `blocked`; `Built` is not canonical release state.
+
+- Wave0 readiness patch: added T-099/T-100 and hardened Brief→Project, G3 FG, BOM SSOT, sensory N/A, final gate matrix and real Technical approval requirements.

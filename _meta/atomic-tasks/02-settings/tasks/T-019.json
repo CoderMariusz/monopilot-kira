@@ -37,7 +37,6 @@
     "dependencies": [
       "T-016"
     ],
-    "parallel_safe_with": [],
     "acceptance_criteria": [
       "Chain check correct for 15-module graph.",
       "Outbox event emitted.",

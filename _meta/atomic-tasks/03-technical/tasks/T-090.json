@@ -1,0 +1,96 @@
+{
+  "title": "T-090 — UI: FactorySpec+BOM bundle approval panel/modal",
+  "prompt": "# T-090 — UI: FactorySpec+BOM bundle approval panel/modal\n\nBuild the UI panel/modal for the Technical factory_specs + shared BOM approval bundle. Backend/actions are T-080; release adapter is T-081. Preserve structural/visual/interaction parity with `design/Monopilot Design System/technical/bom-detail.jsx` and modal primitives where applicable, but apply final red-lines: FG/WIP naming, Technical-owned factory_specs, shared BOM SSOT, local release independent of D365, clone-on-write warning, RM/supplier_spec blockers and approval history. Closeout requires screenshot/artifacts plus Playwright traces/artifacts.",
+  "labels": [
+    "prd",
+    "ui",
+    "approval",
+    "factory-spec",
+    "bom-ssot",
+    "T3-ui"
+  ],
+  "priority": 50,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "source_prd": "03-TECHNICAL-PRD.md",
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prd_task_id": "T-090",
+    "prd_refs": [
+      "§0",
+      "§5",
+      "§17",
+      "design/03-TECHNICAL-UX.md"
+    ],
+    "category": "ui",
+    "subcategory": "factory-spec-bom-bundle-ui",
+    "task_type": "T3-ui",
+    "parent_feature": "03-TECHNICAL Readiness Patch",
+    "context_budget": "30k",
+    "estimated_effort": "2-4h",
+    "description": "UI: FactorySpec+BOM bundle approval panel/modal",
+    "details": "UI-only split from T-080. Render a release-bundle panel on BOM and factory_specs detail surfaces. Consume T-080 actions and T-081 adapter; do not implement backend release logic here. Must show paired statuses, blockers from RM usability/supplier_specs/release guards, Technical RBAC/preflight, local D365-disabled messaging, clone-on-write warning, approval/rejection history and audit/evidence link. Use prototype structure/patterns where applicable but red-line obsolete domain copy.\n\nAdditional acceptance detail preserved from compressed AC list:\n- Given approval action is disabled by blocker/RBAC, UI shows exact blocker/permission reason.\n- Given closeout runs, screenshots and Playwright trace artifacts are captured.\n- UI closeout includes screenshot/artifact evidence and Playwright trace/artifacts where applicable per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`; if Playwright is unavailable, document the blocker and provide RTL/snapshot fallback evidence.",
+    "scope_files": [
+      "app/(app)/technical/boms/[id]/_components/release-bundle-panel.tsx",
+      "app/(app)/technical/factory-specs/[id]/_components/release-bundle-panel.tsx",
+      "tests/ui/technical-release-bundle-panel.test.tsx"
+    ],
+    "acceptance_criteria": [
+      "Given the UI surface is implemented, when compared with the dedicated layout-primitive prototype `design/Monopilot Design System/technical/spec-driven-screens.jsx:653-781` (`factory_spec_bom_bundle_approval_modal` paired-status grid, blockers/preflight panel, approval/rejection history list, approve/reject radio with disabled-on-blocker behaviour and clone-on-write banner), then it satisfies structural parity, visual parity, and interaction parity against the PRD §0/§5/§7.4 / UX §0A FactorySpec+BOM bundle approval layout/flow (PRD/UX is canonical, prototype is layout-primitive only); the panel surfaces paired factory_spec/BOM statuses, RM-usability/supplier_specs/release-guard blockers, clone-on-write banner and approval/rejection history, captures Playwright screenshots and traces, passes axe checks, and applies the Technical red-line overlay: FG not FA, WIP/intermediate not PR-code, factory_spec/internal_product_spec, shared BOM SSOT, and D365 optional only (sync is informational, never blocks Technical approval).",
+      "Given panel renders, paired factory_spec/BOM statuses, blockers, clone-on-write warning and approval history are visible.",
+      "Given D365 is disabled, UI explains local Technical approval still unlocks factory use.",
+      "Given the task is closed out, when reviewers inspect the task evidence, then these additional requirements are proven together: Given approval action is disabled by blocker/RBAC, UI shows exact blocker/permission reason.; Given closeout runs, screenshots and Playwright trace artifacts are captured.; UI closeout includes screenshot/artifact evidence and Playwright trace/artifacts where applicable per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`; if Playwright is unavailable, document the blocker and provide RTL/snapshot fallback evidence."
+    ],
+    "test_strategy": [
+      "RED UI tests for panel blockers, disabled D365 state, RBAC and prototype parity/red-line copy.",
+      "Run: pnpm vitest run tests/ui/technical-release-bundle-panel.test.tsx",
+      "For UI parity, capture screenshots/artifacts and Playwright trace/video/artifacts where applicable; attach artifact paths in closeout."
+    ],
+    "risk_red_lines": [
+      "Do not implement API internals here; consume T-080.",
+      "Do not claim NPD G4 alone unlocks factory use."
+    ],
+    "dependencies": [
+      "T-080",
+      "T-081"
+    ],
+    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md",
+    "cross_module_dependencies": [
+      {
+        "module": "02-settings",
+        "task_id": "T-122",
+        "reason": "Authorization policy copy/permissions for approval buttons."
+      },
+      {
+        "module": "02-settings",
+        "task_id": "T-123",
+        "reason": "Authorization preflight helper for enabled/disabled actions."
+      }
+    ]
+  }
+}

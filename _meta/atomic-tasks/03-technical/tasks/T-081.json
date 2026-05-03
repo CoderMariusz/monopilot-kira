@@ -1,6 +1,6 @@
 {
-  "title": "T-081 — Shared release status model and guard adapters",
-  "prompt": "# T-081 — Shared release status model and guard adapters\n\nCreate or adopt the shared release status model for Technical releaseable records if no NPD-owned canonical model already exists. Model statuses and transitions for draft, in_review, rejected, approved_for_factory/released, active, superseded and blocked with typed guards. Provide adapters for factory_specs and BOM headers so UI/API tasks do not invent conflicting enums. If an NPD/shared platform release model exists, bind to it and add Technical adapters/tests only; otherwise implement the smallest shared Technical-owned model until platform extraction. RED first: illegal transitions and in-place edits of released records fail deterministically.",
+  "title": "T-081 — Technical release adapter for NPD T-097 canonical release model",
+  "prompt": "# T-081 — Technical release adapter for NPD T-097 canonical release model\n\nImplement Technical adapters only for the canonical release model owned by 01-NPD T-097. Do not create a competing shared/Technical release enum. Discovery is mandatory: inspect the NPD release contract produced by `_meta/atomic-tasks/01-npd/tasks/T-097.json` and the implementation files it names, then bind Technical factory_specs and shared BOM headers to that canonical status/transition model.\n\nTechnical adapter responsibilities: map canonical statuses to Technical factory-use labels/actions, expose typed guards for factory_specs and BOM bundle approval, keep D365 sync status separate, enforce released-record immutability/clone-on-write, and return badge metadata/blocking reason codes for UI tasks. Initial factory_spec created by NPD Builder starts `in_review`; NPD G4 closes NPD, while Technical factory_spec+BOM approval unlocks factory use.\n\nRED first: illegal transitions, direct edits to released records, accidental D365 gating, and duplicate local enum creation must fail deterministically.",
   "labels": [
     "prd",
     "architecture",
@@ -8,7 +8,7 @@
     "approval",
     "T2-api"
   ],
-  "priority": 55,
+  "priority": 50,
   "max_attempts": 3,
   "pipeline_name": "kira_dev",
   "pipeline_inputs": {
@@ -47,45 +47,43 @@
       "design/03-TECHNICAL-UX.md §0A"
     ],
     "category": "api",
-    "subcategory": "release-state",
+    "subcategory": "release-state-adapter",
     "task_type": "T2-api",
     "parent_feature": "03-TECHNICAL Approval/Release",
     "context_budget": "30k",
     "estimated_effort": "2-3h",
-    "description": "Shared release state and typed transition guards for factory_spec/BOM Technical release.",
-    "details": "Prerequisite discovery is mandatory: search for an existing NPD/platform release model before adding a new one. If found, this task creates Technical adapters and migration compatibility only. Release state must be usable by API and UI as stable typed codes, support clone-on-write guard checks, and leave D365 sync status as a separate optional integration field.",
+    "description": "Technical adapters for the NPD-owned canonical release model; no competing Technical release model.",
+    "details": "NPD T-097 is canonical. This task imports/uses that model and adds Technical adapter functions for factory_specs and shared BOM bundle approval only. If the canonical implementation is not yet present, stop with a clear blocker referencing 01-npd/T-097 rather than inventing a fallback enum.",
     "scope_files": [
-      "apps/web/lib/shared/release-state.ts",
       "apps/web/lib/technical/release-state-adapters.ts",
-      "db/migrations/0xxx_technical_release_status_compat.sql",
-      "tests/lib/shared/release-state.test.ts",
-      "tests/lib/technical/release-state-adapters.test.ts"
+      "apps/web/lib/technical/factory-spec-release-guards.ts",
+      "tests/lib/technical/release-state-adapters.test.ts",
+      "tests/lib/technical/factory-spec-release-guards.test.ts"
     ],
     "acceptance_criteria": [
-      "Given no canonical release model exists, then release-state.ts defines typed statuses/transitions and factory_specs/BOM adapters use it.",
-      "Given a canonical NPD/platform release model exists, then Technical adapters import/use it and this task does not add a conflicting enum.",
-      "Given released/approved_for_factory record receives direct update attempt, then guard returns RELEASED_RECORD_IMMUTABLE and clone-on-write path is required.",
-      "Given D365 sync status is pending/disabled/failed, then release status remains local and independent with optional integration warnings only.",
-      "Given UI asks for badge metadata, then adapter returns stable label, color token, allowed actions and blocking reason codes."
+      "Given canonical NPD T-097 release model exists, Technical adapters import/use it and no duplicate Technical/shared release enum is introduced.",
+      "Given factory_spec is created from NPD Builder, adapter maps initial canonical status to `in_review` and visible pending factory availability.",
+      "Given Technical approves factory_spec+BOM bundle, adapter maps canonical status to factory-usable approved/released UI state without changing D365 sync status.",
+      "Given released/approved_for_factory record receives direct update attempt, guard returns RELEASED_RECORD_IMMUTABLE and requires clone-on-write.",
+      "Given UI asks for badge metadata, adapter returns stable label, color token, allowed actions and blocking reason codes."
     ],
     "test_strategy": [
-      "RED tests for legal/illegal transitions and adapter mapping.",
-      "RED repository test or assertion proving no duplicate conflicting release enum was introduced when canonical model exists.",
-      "Run: pnpm vitest run tests/lib/shared/release-state.test.ts tests/lib/technical/release-state-adapters.test.ts"
+      "RED tests for adapter import/mapping to NPD T-097 canonical model.",
+      "RED tests for illegal transitions, clone-on-write and D365 independence.",
+      "Run: pnpm vitest run tests/lib/technical/release-state-adapters.test.ts tests/lib/technical/factory-spec-release-guards.test.ts"
     ],
     "risk_red_lines": [
+      "Do not create a competing release enum/model in Technical.",
       "Do not conflate local release status with D365 sync status.",
-      "Do not make NPD role ownership a prerequisite for Technical factory_spec approval.",
-      "Do not let each service invent its own release enum."
+      "Do not treat NPD G4 as factory-use approval; Technical approval remains required."
     ],
-    "dependencies": [
-      "T-072",
-      "T-073"
-    ],
-    "parallel_safe_with": [
-      "T-074",
-      "T-082",
-      "T-083"
+    "dependencies": [],
+    "cross_module_dependencies": [
+      {
+        "module": "01-npd",
+        "task_id": "T-097",
+        "reason": "Canonical release model owner; Technical T-081 is adapter only."
+      }
     ]
   }
 }

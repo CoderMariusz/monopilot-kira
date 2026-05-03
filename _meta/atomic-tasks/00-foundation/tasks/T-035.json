@@ -39,9 +39,6 @@
     "dependencies": [
       "T-018"
     ],
-    "parallel_safe_with": [
-      "T-021"
-    ],
     "acceptance_criteria": [
       "Given a §7 workflow rule with states ['DRAFT','READY','IN_PROGRESS','DONE'] and a DRAFT→READY transition with guard 'has_bom=true', when evaluateTransition runs with currentState='DRAFT' + context.has_bom=true, then allowed=true and nextState='READY'",
       "Given the same workflow definition, when evaluateTransition is asked for DRAFT→DONE (no transition declared), then allowed=false, nextState=null, and guard_failed=['no_matching_transition']",

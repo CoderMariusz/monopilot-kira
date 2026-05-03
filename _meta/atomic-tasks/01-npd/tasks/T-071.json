@@ -11,7 +11,7 @@
     "cross-module",
     "blocked"
   ],
-  "priority": 10,
+  "priority": 80,
   "max_attempts": 3,
   "pipeline_name": "kira_dev",
   "pipeline_inputs": {
@@ -29,7 +29,7 @@
     "context_budget": "40k",
     "estimated_effort": "2h",
     "description": "Deferred guard task: Sensory belongs under Technical per 2026-05-03 PO decision; do not create standalone NPD sensory tables.",
-    "details": "DO NOT IMPLEMENT the earlier NPD sensory BUILD path. Sensory is Technical-owned per _meta/decisions/2026-05-03-flow-d365-settings-technical-decisions.md. NPD may only consume/display Technical sensory status after a Technical-owned contract exists.",
+    "details": "Sensory schema is Technical-owned; NPD default is N/A/not_required unless org policy requires Technical sensory status.",
     "scope_files": [
       "No application files — task is blocked/deferred pending Technical-owned sensory contract"
     ],
@@ -38,14 +38,11 @@
       "Do not implement V08 sensory enforcement inside NPD",
       "Do not build NPD sensory UI; use future Technical-owned contract/status only"
     ],
-    "dependencies": [
-      "Technical-owned sensory data contract / future Technical task"
-    ],
-    "parallel_safe_with": [],
+    "dependencies": [],
     "acceptance_criteria": [
-      "Given this task is selected for implementation, when read, then it is treated as BLOCKED/DEFERRED and no NPD application files are changed.",
-      "Given sensory scope is needed, when planning starts, then ownership is routed to Technical per _meta/decisions/2026-05-03-flow-d365-settings-technical-decisions.md.",
-      "Given NPD approval gating needs sensory input, when implemented later, then it consumes a Technical-owned read model/status rather than creating standalone NPD sensory schema."
+      "No standalone NPD sensory schema is created by this guard task.",
+      "NPD approval defaults sensory to N/A/not_required unless org policy requires it.",
+      "When required, NPD consumes Technical-owned sensory read model/status with typed blocker if absent."
     ],
     "test_strategy": [
       "No implementation tests in NPD; validate by backlog/PR review that no NPD sensory schema is created from this task."

@@ -28,7 +28,7 @@
     "context_budget": "55k",
     "estimated_effort": "2-3h",
     "description": "Playwright E2E + integration test for project create → advance G0..G3 → e-sign + outbox event ordering + adjacency guard.",
-    "details": "E2E lifecycle test exercises kanban DnD; integration test asserts outbox event ordering; fixtures seed clean state.",
+    "details": "E2E lifecycle test exercises kanban DnD; integration test asserts outbox event ordering; fixtures seed clean state.\nPreserved acceptance requirements: Given an NPD Manager creates a brief, when the flow starts, then a linked npd_project at G0 exists before any FG is mapped.; Given the project reaches G3, when no FG candidate is mapped, then approval is blocked; after mapping, G3 can proceed.; Given G4 succeeds and NPD Builder release runs, then WIP/FG records, initial shared BOM, factory_spec in_review/draft, and release status pending_technical_approval are visible.; Given Technical approves the initial factory_spec/BOM bundle in the test fixture or mocked handoff, then the read model changes to approved_for_factory/released_to_factory and factory_available_at is set.; Given D365 integration is disabled, then the E2E still passes; given optional export is run, it does not mutate release state.",
     "scope_files": [
       "apps/web/e2e/npd/stage-gate.spec.ts [create]",
       "apps/web/__tests__/integration/gate-events.test.ts [create]",
@@ -55,11 +55,7 @@
       "Given an NPD Manager session, when the user creates a project then advances it from G0 to G3 via the UI then approves with password, then a gate_approvals row exists with decision='approved' + non-null esign_hash + esigned_at per §17.6 e-sig flow",
       "Given the project lifecycle completes, when the outbox table is queried, then events appear in order: npd.project.created → npd.gate.advanced (G0→G1) → npd.gate.advanced (G1→G2) → npd.gate.advanced (G2→G3) → npd.gate.approved per §17.6",
       "Given an attempt to drag from G2 to G4 (non-adjacent), when drop fires, then the card snaps back and a toast 'Adjacency violation' appears per §17.12",
-      "Given an NPD Manager creates a brief, when the flow starts, then a linked npd_project at G0 exists before any FG is mapped.",
-      "Given the project reaches G3, when no FG candidate is mapped, then approval is blocked; after mapping, G3 can proceed.",
-      "Given G4 succeeds and NPD Builder release runs, then WIP/FG records, initial shared BOM, factory_spec in_review/draft, and release status pending_technical_approval are visible.",
-      "Given Technical approves the initial factory_spec/BOM bundle in the test fixture or mocked handoff, then the read model changes to approved_for_factory/released_to_factory and factory_available_at is set.",
-      "Given D365 integration is disabled, then the E2E still passes; given optional export is run, it does not mutate release state."
+      "Additional preserved requirements in details are implemented and covered by targeted tests."
     ],
     "test_strategy": [
       "RED: 3 specs before final wiring; run against isolated test container",

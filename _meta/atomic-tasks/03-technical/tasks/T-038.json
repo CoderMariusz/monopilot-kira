@@ -54,11 +54,13 @@
       "Given BOM has co_products, when on Ingredients Tree tab, then they are rendered with byproduct flag.",
       "Given BOM is released/approved, when user starts editing, then UI shows clone-on-write banner and routes to draft version creation rather than in-place edit.",
       "Given paired factory_spec is not approved_for_factory/released, then BOM detail shows factory_spec blocker and factory-use action is disabled.",
-      "Given RM usability report has blockers, then Ingredients Tree tab shows blocker badges and remediation links from validateRmUsability."
+      "Given RM usability report has blockers, then Ingredients Tree tab shows blocker badges and remediation links from validateRmUsability.",
+      "UI closeout includes screenshot/artifact evidence and Playwright trace/artifacts where applicable per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`; if Playwright is unavailable, document the blocker and provide RTL/snapshot fallback evidence."
     ],
     "test_strategy": [
       "RED tests for parity + tab order + RBAC.",
-      "Run: pnpm vitest run tests/ui/tec-021-bom-detail.test.tsx"
+      "Run: pnpm vitest run tests/ui/tec-021-bom-detail.test.tsx",
+      "For UI parity, capture screenshots/artifacts and Playwright trace/video/artifacts where applicable; attach artifact paths in closeout."
     ],
     "risk_red_lines": [
       "Do not eager-load Graph tab.",
@@ -90,6 +92,7 @@
       "implementation": "hermes_gpt55",
       "review": "opus_if_high_risk_or_ui_or_architecture",
       "close": "spark_low_risk_else_opus"
-    }
+    },
+    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md"
   }
 }

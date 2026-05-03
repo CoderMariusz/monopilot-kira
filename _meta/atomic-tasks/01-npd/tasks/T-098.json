@@ -29,7 +29,7 @@
     "context_budget": "70k",
     "estimated_effort": "5-6h",
     "description": "Full E2E test from Brief-created project to Technical-approved factory release/read model.",
-    "details": "Covers Brief→Project, G3 FG mapping, G4 release orchestrator, Technical approval dependency, release status/read model and D365 optional behavior.",
+    "details": "True E2E; no mocked final factory approval. Final approval depends on Technical T-080 real approval/read model.",
     "scope_files": [
       "apps/web/e2e/npd/full-product-release.spec.ts [create]",
       "apps/web/e2e/npd/fixtures/full-release-seed.ts [create]",
@@ -49,19 +49,13 @@
       "T-093",
       "T-095",
       "T-096",
-      "T-097",
-      "03-TECH-T-074",
-      "03-TECH-T-079",
-      "02-SETTINGS-T-122"
+      "T-097"
     ],
-    "parallel_safe_with": [],
     "acceptance_criteria": [
-      "Given D365 integration is disabled and fixtures are seeded, when the full E2E runs, then DEV project reaches released_to_factory using Monopilot-owned records only.",
-      "Given no FG candidate exists at G3, when approval is attempted, then E2E observes FG_CANDIDATE_REQUIRED; after mapping, it proceeds.",
-      "Given an RM usability blocker fixture is enabled, when release is attempted, then release aborts with typed blocker and no factory_available_at is set.",
-      "Given Technical approval is not yet complete after NPD Builder release, when factory/Planning read model is queried, then the FG is visible as pending but not factory-usable.",
-      "Given Technical approval completes for the active BOM/spec bundle, when read model is queried, then status is released_to_factory/approved_for_factory and factory_available_at is non-null.",
-      "Given optional D365 export is clicked after release, then release status and active BOM/spec IDs remain unchanged."
+      "E2E creates Brief→Project, maps FG at G3, closes G4 and reaches pending_technical_approval with D365 disabled.",
+      "Without Technical approval, factory/Planning read model remains pending/not usable and no mocked final approval is allowed.",
+      "After real Technical T-080 approval for active BOM/spec, read model transitions to approved_for_factory/released_to_factory with factory_available_at.",
+      "Screenshots, Playwright trace and blocker/export assertions prove D365 does not mutate active BOM/spec release state."
     ],
     "test_strategy": [
       "RED Playwright happy path with mocked/fixture Technical approval handoff.",
@@ -99,6 +93,10 @@
       "implementation": "hermes_gpt55",
       "review": "opus_if_high_risk_or_ui_or_architecture",
       "close": "spark_low_risk_else_opus"
-    }
+    },
+    "cross_module_dependencies": [
+      "03-TECHNICAL:T-080 real approval required for final factory approval",
+      "02-SETTINGS:T-126 policy helpers"
+    ]
   }
 }

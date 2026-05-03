@@ -42,8 +42,7 @@
     ],
     "dependencies": [
       "T-061",
-      "T-078",
-      "Technical-owned sensory status contract if approval criteria include sensory"
+      "T-078"
     ],
     "parallel_safe_with": [
       "T-082",
@@ -52,11 +51,13 @@
     "acceptance_criteria": [
       "Given the production ApprovalScreen renders, when compared to design/Monopilot Design System/npd/other-stages.jsx:412-475 (ApprovalScreen), then it has the same 2 cards (gates summary + chain status) + 7-criteria summary card using shadcn primitives — verified by RTL snapshot + parity checklist If any criterion is sensory-related, it is displayed from a Technical-owned read-model/status, not from NPD sensory tables.",
       "Given evaluateApprovalCriteria returns one criterion as 'pending', when the screen renders, then the Submit-for-approval Button is disabled per §17.11.5",
-      "Given all 7 criteria return 'pass' and user clicks Submit, when the GateApprovalModal opens, then approveProjectGate is invoked on e-sign per §17.11.5 + §17.6"
+      "Given all 7 criteria return 'pass' and user clicks Submit, when the GateApprovalModal opens, then approveProjectGate is invoked on e-sign per §17.11.5 + §17.6",
+      "UI closeout includes screenshot/artifact evidence and Playwright trace/artifacts where applicable per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`; if Playwright is unavailable, document the blocker and provide RTL/snapshot fallback evidence."
     ],
     "test_strategy": [
       "RED: __tests__/approval-screen.test.tsx asserting parity + Submit gating + e-sig invocation before component exists",
-      "Run 'pnpm --filter web test approval-screen'"
+      "Run 'pnpm --filter web test approval-screen'",
+      "For UI parity, capture screenshots/artifacts and Playwright trace/video/artifacts where applicable; attach artifact paths in closeout."
     ],
     "risk_red_lines": [
       "Do not allow Submit when any criterion ≠ 'pass'",
@@ -90,6 +91,10 @@
       "close": "spark_low_risk_else_opus"
     },
     "prototype_match": true,
-    "prototype_index_entry": "approval_screen"
+    "prototype_index_entry": "approval_screen",
+    "cross_module_dependencies": [
+      "Technical-owned sensory status contract if approval criteria include sensory"
+    ],
+    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md"
   }
 }

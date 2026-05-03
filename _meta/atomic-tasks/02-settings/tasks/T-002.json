@@ -46,7 +46,6 @@
     "dependencies": [
       "T-001"
     ],
-    "parallel_safe_with": [],
     "acceptance_criteria": [
       "All listed strings present; mixed-namespace regex passes; uniqueness verified.",
       "`ALL_SETTINGS_EXT_PERMISSIONS` array exported, typed Permission[].",

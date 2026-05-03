@@ -40,7 +40,6 @@
       "T-066",
       "T-097"
     ],
-    "parallel_safe_with": [],
     "acceptance_criteria": [
       "L2 add column flow completes.",
       "Zod regen reflects new column.",

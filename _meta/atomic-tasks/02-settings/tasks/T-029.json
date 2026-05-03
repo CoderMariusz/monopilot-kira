@@ -45,7 +45,6 @@
       "T-009",
       "T-016"
     ],
-    "parallel_safe_with": [],
     "acceptance_criteria": [
       "V-SET-60..63 enforced.",
       "ltree path materialized.",

@@ -1,0 +1,51 @@
+{
+  "title": "T-126 — Authorization policy helpers, actions and preflight blockers",
+  "prompt": "T-126 — Authorization policy helpers, actions and preflight blockers\nWave0 Settings task. Discover existing files, implement exact scope, keep one atomic type, local dependencies only.",
+  "labels": [
+    "monopilot-kira",
+    "02-settings",
+    "wave0-hardening"
+  ],
+  "priority": 80,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "description": "T-126 — Authorization policy helpers, actions and preflight blockers",
+    "details": "T-126 — Authorization policy helpers, actions and preflight blockers",
+    "scope_files": [
+      "Exact files discovered before editing",
+      "Targeted tests beside implementation"
+    ],
+    "acceptance_criteria": [
+      "Required backend/UI capability is implemented for the named SET scope.",
+      "Permissions, org_id isolation, audit/outbox and typed blockers are enforced where applicable.",
+      "Unsupported/bypass paths are rejected without partial mutation.",
+      "Targeted tests and closeout evidence are provided."
+    ],
+    "test_strategy": [
+      "Run targeted tests"
+    ],
+    "risk_red_lines": [
+      "No settings.quality.* permissions",
+      "No import/export bypass of authorization policies",
+      "Dependencies local T-XXX only"
+    ],
+    "skills": [
+      "repo-navigation",
+      "testing"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "discover",
+        "test",
+        "closeout"
+      ]
+    },
+    "task_type": "T2-api",
+    "dependencies": [
+      "T-122",
+      "T-123"
+    ]
+  }
+}

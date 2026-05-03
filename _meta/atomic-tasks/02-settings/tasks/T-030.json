@@ -43,7 +43,6 @@
     "dependencies": [
       "T-021"
     ],
-    "parallel_safe_with": [],
     "acceptance_criteria": [
       "Constant whitelist enforced.",
       "Test connection writes audit row.",

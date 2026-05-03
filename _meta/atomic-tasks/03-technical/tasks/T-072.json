@@ -1,13 +1,13 @@
 {
-  "title": "T-072 — Docs gap: supplier_specs Phase 1 API/UI upload-view-review brief",
-  "prompt": "Write a concise engineering brief for supplier_specs Phase 1 per 03-TECHNICAL-PRD §5.5 + §15A.3. Output design/specs/TEC-supplier-specs-phase1.md covering minimum API/UI contract for upload/view/review of supplier-provided raw material/component parameters, certificates, allergens, cost/quality constraints and approved supplier facts. Include taxonomy distinction from customer_spec and factory_spec, PO deviation review behavior, and BOM raw-material usability validation hooks. Do not implement app code.",
+  "title": "T-072 — Docs gap: supplier_specs Phase 1 upload/view/review implementation brief",
+  "prompt": "Write a self-contained engineering brief for supplier_specs Phase 1 per 03-TECHNICAL-PRD §5.5 + §15A.3. Output `design/specs/TEC-supplier-specs-phase1.md`. Cover upload, view, review and approval of supplier-provided raw material/component specs: document metadata, declared allergens/attrs, certificates, allowed supplier/item pair, cost/spec review blockers, lifecycle/review statuses, permissions, audit, API routes, UI list/detail/review modal states, RM usability hooks, PO/TO deviation behavior, and taxonomy distinction from customer_spec and factory_specs/internal_product_spec. Phase 1 is internal Technical-maintained master data; do not build supplier portal app code.",
   "labels": [
     "prd",
     "docs",
     "supplier-specs",
     "docs"
   ],
-  "priority": 130,
+  "priority": 120,
   "max_attempts": 3,
   "pipeline_name": "kira_dev",
   "pipeline_inputs": {
@@ -25,8 +25,8 @@
     "parent_feature": "03-TECHNICAL-b Supplier Specs",
     "context_budget": "10k",
     "estimated_effort": "1h",
-    "description": "Docs gap brief for supplier_specs Phase 1 API/UI upload-view-review scope.",
-    "details": "Keep this as a brief/gap closure, not app implementation. Specify likely endpoints and UI tabs only at contract level; mark unresolved details explicitly.",
+    "description": "Self-contained Phase 1 supplier_specs upload/view/review brief.",
+    "details": "The brief must be implementable by later schema/API/UI tasks without rediscovery. Include exact candidate routes, server actions, fields, validation states, permissions, events and test expectations. Mark supplier portal/external negotiation as Phase 2/out of scope.",
     "scope_files": [
       "design/specs/TEC-supplier-specs-phase1.md"
     ],
@@ -43,9 +43,11 @@
       "T-067"
     ],
     "acceptance_criteria": [
-      "Given the brief is written, when reviewed, then it states supplier_specs is Phase 1 and distinct from customer_spec/factory_spec.",
-      "Given PO price/spec deviations are discussed, then the brief says they create review tasks/events and do not silently overwrite approved supplier_specs or BOM cost_per_kg.",
-      "Given BOM raw-material usability is discussed, then validation hooks include approved supplier, active supplier_spec, allergen compatibility, active item and QC/release status where configured."
+      "Brief states supplier_specs is Phase 1 internal Technical-maintained master data and distinct from customer_spec and factory_specs/internal_product_spec.",
+      "Brief defines upload/view/review flow including document metadata, status transitions, Technical approval/rejection, audit evidence and permissions.",
+      "Brief says PO/TO actual deviations create review tasks/events/non_conformance.requested and do not silently overwrite approved supplier_specs or BOM cost_per_kg.",
+      "Brief defines RM usability hooks: approved supplier, active approved non-expired supplier_spec, allergen compatibility, active item, cost/spec review not blocked, and QC/release status where configured.",
+      "Brief names candidate API routes/actions and UI states but does not implement app code."
     ],
     "test_strategy": [
       "Manual docs review.",

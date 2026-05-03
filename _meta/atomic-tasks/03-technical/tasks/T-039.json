@@ -51,11 +51,13 @@
       "Given the modal saves successfully, when API returns 200, then modal closes and parent table refreshes.",
       "Given selected RM fails usability, when user attempts Save, then server/client block save with the typed failing code and no BOM line mutation.",
       "Given source BOM is released/active/approved, when modal opens, then copy states Save as new draft version and in-place edit is not offered.",
-      "Given D365 integration is disabled, then no D365-required fields block local BOM component save."
+      "Given D365 integration is disabled, then no D365-required fields block local BOM component save.",
+      "UI closeout includes screenshot/artifact evidence and Playwright trace/artifacts where applicable per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`; if Playwright is unavailable, document the blocker and provide RTL/snapshot fallback evidence."
     ],
     "test_strategy": [
       "RED tests for parity + validation paths.",
-      "Run: pnpm vitest run tests/ui/tec-022-bom-edit.test.tsx"
+      "Run: pnpm vitest run tests/ui/tec-022-bom-edit.test.tsx",
+      "For UI parity, capture screenshots/artifacts and Playwright trace/video/artifacts where applicable; attach artifact paths in closeout."
     ],
     "risk_red_lines": [
       "Do not allow saving without manufacturing_operation_name picked.",
@@ -86,6 +88,7 @@
       "implementation": "hermes_gpt55",
       "review": "opus_if_high_risk_or_ui_or_architecture",
       "close": "spark_low_risk_else_opus"
-    }
+    },
+    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md"
   }
 }

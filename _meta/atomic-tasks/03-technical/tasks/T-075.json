@@ -1,13 +1,13 @@
 {
   "title": "T-075 — supplier_specs Phase 1 governance and review states",
-  "prompt": "# T-075 — supplier_specs Phase 1 governance\n\nExtend supplier_specs Phase 1 so it can support RM usability and PO review without becoming a supplier portal. Required fields if absent: supplier_status, spec_version not null, effective_from, expiry_date, lifecycle_status `draft|active|expired|superseded|blocked`, review_status `pending|approved|rejected|blocked`, cost_review_blocked, spec_review_blocked, approved_by, approved_at, declared_allergens, declared_attrs. Enforce at most one active approved non-expired spec per org,item,supplier through a partial unique index or equivalent safe constraint. RED first: tests prove expired/blocked specs cannot satisfy RM usability.",
+  "prompt": "# T-075 — supplier_specs Phase 1 governance\n\nExtend supplier_specs Phase 1 schema/actions so it can support internal upload/view/review/approval and RM usability without becoming a supplier portal. Required fields if absent: supplier_status, spec_version not null, effective_from, expiry_date, lifecycle_status `draft|active|expired|superseded|blocked`, review_status `pending|approved|rejected|blocked`, review_notes, cost_review_blocked, spec_review_blocked, approved_by, approved_at, rejected_by, rejected_at, rejection_reason, spec_document_url, document_sha256, document_mime_type, declared_allergens, declared_attrs, certificate_refs. Enforce at most one active approved non-expired spec per org,item,supplier through a partial unique index or equivalent safe constraint. Add Technical actions for upload metadata, view detail, submit review, approve, reject/block. RED first: tests prove expired/blocked/rejected specs cannot satisfy RM usability.",
   "labels": [
     "prd",
     "data",
     "supplier-specs",
     "T1-schema"
   ],
-  "priority": 60,
+  "priority": 50,
   "max_attempts": 3,
   "pipeline_name": "kira_dev",
   "pipeline_inputs": {
@@ -50,7 +50,7 @@
     "subcategory": "supplier-specs-phase1",
     "task_type": "T1-schema",
     "parent_feature": "03-TECHNICAL-b Supplier Specs",
-    "details": "Phase 1 is Technical-maintained master data. Supplier portal upload, supplier negotiation and external document workflow are out of scope. PO actuals may reference observed spec data and create review/non-conformance but cannot mutate supplier_specs without explicit Technical approval path. Keep document URL optional.",
+    "details": "Phase 1 is Technical-maintained master data with upload/view/review actions. Supplier portal upload, supplier negotiation and external document workflow are out of scope. PO actuals may reference observed spec data and create review/non-conformance but cannot mutate supplier_specs without explicit Technical approval path. Keep object storage integration minimal: persist metadata/url/hash, do not implement supplier portal.",
     "scope_files": [
       "db/migrations/0xxx_supplier_specs_phase1.sql",
       "db/schema/supplier-specs.ts",
@@ -62,7 +62,10 @@
       "Given two active approved supplier_specs for same org,item,supplier overlap, then the database or service rejects the second active record.",
       "Given expiry_date is in the past, then lifecycle_status resolves expired and RM usability cannot pass.",
       "Given PO review proposes supplier spec change, then supplier_specs remains unchanged until approveSupplierSpecReview is called by Technical role.",
-      "Given supplier_status is blocked, then RM usability returns SUPPLIER_NOT_APPROVED."
+      "Given supplier_status is blocked, then RM usability returns SUPPLIER_NOT_APPROVED.",
+      "Given Technical uploads supplier spec metadata/document reference, then record starts draft or pending review and is visible in supplier_specs list/detail.",
+      "Given reviewer approves supplier_spec, then lifecycle/review status allows RM usability only if non-expired and supplier_status is approved.",
+      "Given reviewer rejects/blocks supplier_spec, then RM usability fails with explicit reason and prior active approved spec is not overwritten."
     ],
     "test_strategy": [
       "Add RED migration tests for status enums and active uniqueness.",

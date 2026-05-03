@@ -24,7 +24,7 @@
     "context_budget": "40k",
     "estimated_effort": "1-3h",
     "description": "SET-032 Schema Diff Viewer production component (spec-driven; no exact prototype).",
-    "details": "Spec-driven UI: no exact canonical prototype exists under `design/Monopilot Design System/settings/*.jsx` for this screen. `02-SETTINGS-UX.md SET-032 / schema-diff` replaces prototype parity as the authoritative UI contract. Reuse read-only diff/code-panel patterns from rule/schema admin screens where available; do not implement RuleDetailScreen as the schema diff screen. Any prototype snippets are element/pattern references only, not 1:1 screen sources. Production contract: data via Server Components (Drizzle); mutations via Server Actions; primitives from `packages/ui` only.",
+    "details": "Spec-driven UI: no exact canonical prototype exists under `design/Monopilot Design System/settings/*.jsx` for this screen. `02-SETTINGS-UX.md SET-032 / schema-diff` replaces prototype parity as the authoritative UI contract. Reuse read-only diff/code-panel patterns from rule/schema admin screens where available; do not implement RuleDetailScreen as the schema diff screen. Any prototype snippets are element/pattern references only, not 1:1 screen sources. Production contract: data via Server Components (Drizzle); mutations via Server Actions; primitives from `packages/ui` only.\n\nAdditional acceptance detail preserved from compressed AC list:\n- Route matches UX route `/settings/schema/diff/:id`; do not create a divergent `[tableCode]/[columnCode]/diff` route.\n- UI closeout includes screenshot/artifact evidence and Playwright trace/artifacts where applicable per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`; if Playwright is unavailable, document the blocker and provide RTL/snapshot fallback evidence.",
     "scope_files": [
       "apps/web/app/(admin)/settings/schema/diff/[id]/page.tsx [create]",
       "apps/web/app/(admin)/settings/schema/diff/[id]/page.test.tsx [create]"
@@ -37,17 +37,17 @@
       "T-023",
       "T-066"
     ],
-    "parallel_safe_with": [],
     "acceptance_criteria": [
       "Given the production page renders, it MUST satisfy `02-SETTINGS-UX.md SET-032 / schema-diff` as the source of truth. UX spec replaces prototype parity for this task; no wrong/adjacent prototype may be used as a 1:1 source. Reused prototype elements must be limited to matching primitives/patterns and must not change the screen semantics, routes, fields, or states required by the UX spec.",
       "Given a column with 3 versions, when diff for v2 vs v3 is requested, then JSON deep-diff is rendered in unified view with added/removed/changed badges.",
       "Given there is no prior version, when v1 is selected, then the diff panel shows 'No prior version' empty state.",
-      "Route matches UX route `/settings/schema/diff/:id`; do not create a divergent `[tableCode]/[columnCode]/diff` route."
+      "Given the task is closed out, when reviewers inspect the task evidence, then these additional requirements are proven together: Route matches UX route `/settings/schema/diff/:id`; do not create a divergent `[tableCode]/[columnCode]/diff` route.; UI closeout includes screenshot/artifact evidence and Playwright trace/artifacts where applicable per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`; if Playwright is unavailable, document the blocker and provide RTL/snapshot fallback evidence."
     ],
     "test_strategy": [
       "RED: write RTL test that mounts the page with mocked data and asserts the parity AC items + ac_extra coverage.",
       "GREEN: build component, wire Server Action(s).",
-      "Run `pnpm --filter @monopilot/web vitest run apps/web/app/(admin)/settings/schema/diff/[id]/page.test.tsx` and `pnpm typecheck`."
+      "Run `pnpm --filter @monopilot/web vitest run apps/web/app/(admin)/settings/schema/diff/[id]/page.test.tsx` and `pnpm typecheck`.",
+      "For UI parity, capture screenshots/artifacts and Playwright trace/video/artifacts where applicable; attach artifact paths in closeout."
     ],
     "risk_red_lines": [
       "Do not import @radix-ui/react-dialog outside packages/ui (§0 ESLint rule).",
@@ -80,6 +80,7 @@
       "review": "opus_if_high_risk_or_ui_or_architecture",
       "close": "spark_low_risk_else_opus"
     },
-    "prototype_match": false
+    "prototype_match": false,
+    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md"
   }
 }

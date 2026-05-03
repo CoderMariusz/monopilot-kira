@@ -41,9 +41,6 @@
     "dependencies": [
       "T-001"
     ],
-    "parallel_safe_with": [
-      "T-041"
-    ],
     "acceptance_criteria": [
       "Given an empty queue, when enqueue is called with transaction_id='01HXY…' + endpoint='/api/scan/move' + method='POST' + body, then listPending() returns exactly 1 entry whose transaction_id matches",
       "Given enqueue is called twice with the same transaction_id, when listPending() runs, then it returns exactly 1 entry (idempotent — R14 contract)",

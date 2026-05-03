@@ -27,13 +27,12 @@
     "context_budget": "40k",
     "estimated_effort": "2-3h",
     "description": "Two brief modals (Create + Convert) using shadcn Dialog + RHF + Zod + debounced FA code availability check.",
-    "details": "Parity for both modals: structural + visual + interaction. Convert modal includes debounced availability + locking warning. Both modals dismissible.",
+    "details": "Brief create/complete modals only; no FG/FA code field at Brief. FG mapping belongs to G3 T-095.\n\nAdditional acceptance detail preserved from compressed AC list:\n- No visible primary CTA says Convert to FA, Build D365, or requires product code before G3.\n- UI closeout includes screenshot/artifact evidence and Playwright trace/artifacts where applicable per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`; if Playwright is unavailable, document the blocker and provide RTL/snapshot fallback evidence.",
     "scope_files": [
       "apps/web/app/(npd)/_modals/brief-create-modal.tsx [create]",
-      "apps/web/app/(npd)/_modals/brief-convert-modal.tsx [create]",
+      "apps/web/app/(npd)/_modals/brief-complete-modal.tsx [create]",
       "apps/web/app/(npd)/_modals/__tests__/brief-create-modal.test.tsx [create]",
-      "apps/web/app/(npd)/_modals/__tests__/brief-convert-modal.test.tsx [create]",
-      "apps/web/app/(npd)/fa/actions/check-fa-code-available.ts [create]",
+      "apps/web/app/(npd)/_modals/__tests__/brief-complete-modal.test.tsx [create]",
       "design/Monopilot Design System/npd/modals.jsx [ref]"
     ],
     "out_of_scope": [
@@ -49,16 +48,15 @@
       "T-034"
     ],
     "acceptance_criteria": [
-      "Given brief create modal renders, when compared to design/Monopilot Design System/npd/modals.jsx:46-86, then it has same 2 fields (template RadioGroup + Dev_Code Input) and same Cancel/Create buttons, using shadcn Dialog+RadioGroup+Input+Button primitives — verified by RTL parity checklist (structural + visual + interaction parity)",
-      "Given brief convert modal renders, when compared to design/Monopilot Design System/npd/modals.jsx:89-140, then it shows read-only summary table, FA code Input with debounced availability indicator, warning Alert about brief locking, and uses shadcn Dialog+Table+Input+Alert+Button primitives — verified by RTL parity checklist",
-      "Given user enters duplicate FA code, when checkFaCodeAvailable returns conflict, then FormMessage shows error and Convert is disabled",
-      "Given the create modal succeeds, then success copy says a project was created/linked at G0.",
-      "Given the complete/convert modal renders, then it does not request an FG/FA code as a prerequisite to completing the brief.",
-      "Given tests search visible text, then no primary CTA says 'Convert to FA' or 'Build D365'."
+      "Brief create modal matches design/Monopilot Design System/npd/modals.jsx:46-86 with structural, visual and interaction parity.",
+      "Brief complete modal uses design/Monopilot Design System/npd/modals.jsx:89-140 as compatibility source but removes FG/FA code requirement.",
+      "Success copy says project evidence completed/linked and FG pending G3 mapping.",
+      "Given the task is closed out, when reviewers inspect the task evidence, then these additional requirements are proven together: No visible primary CTA says Convert to FA, Build D365, or requires product code before G3.; UI closeout includes screenshot/artifact evidence and Playwright trace/artifacts where applicable per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`; if Playwright is unavailable, document the blocker and provide RTL/snapshot fallback evidence."
     ],
     "test_strategy": [
       "RED: 3 RTL tests covering parity + duplicate-code disabled before components exist",
-      "Run 'pnpm --filter web test brief-create-modal brief-convert-modal'"
+      "Run 'pnpm --filter web test brief-create-modal brief-convert-modal'",
+      "For UI parity, capture screenshots/artifacts and Playwright trace/video/artifacts where applicable; attach artifact paths in closeout."
     ],
     "risk_red_lines": [
       "Do not skip debounced availability check",
@@ -93,6 +91,7 @@
       "close": "spark_low_risk_else_opus"
     },
     "prototype_match": true,
-    "prototype_index_entry": "brief_create_modal"
+    "prototype_index_entry": "brief_create_modal",
+    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md"
   }
 }

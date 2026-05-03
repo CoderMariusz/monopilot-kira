@@ -40,7 +40,6 @@
       "T-001",
       "T-003"
     ],
-    "parallel_safe_with": [],
     "acceptance_criteria": [
       "All 5 tables created with exact §5.1 columns + S-U7/S-U8 fields.",
       "RLS policies enabled and deny by default without app.current_org_id.",

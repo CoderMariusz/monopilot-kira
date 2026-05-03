@@ -38,7 +38,6 @@
       "T-013",
       "T-015"
     ],
-    "parallel_safe_with": [],
     "acceptance_criteria": [
       "Given the caller is authenticated with org_id='org_42', when GET /api/posthog/flags is called, then the upstream POST to PostHog decide includes `groups.organization='org_42'` and the response is returned as `{ flags, fetched_at }`.",
       "Given a successful response was cached at t0, when GET /api/posthog/flags is called again at t0+30s, then no second upstream fetch is issued and the cached payload is returned.",

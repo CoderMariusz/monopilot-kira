@@ -1,16 +1,15 @@
 {
-  "title": "T-080 — FactorySpec+BOM bundle approval API and UI flow",
-  "prompt": "# T-080 — FactorySpec+BOM bundle approval API and UI flow\n\nBuild the Technical-owned approval path that releases a factory_spec and its shared BOM as one factory-use bundle. Provide API/action contract for submit bundle for review, get blockers, approve/reject with audit/e-sign evidence where platform support exists, and a UI panel/modal on BOM/factory_spec detail that shows paired statuses, RM usability blockers, clone-on-write warning and approval history. Preserve prototype parity where using `bom_detail_page` design/Monopilot Design System/technical/bom-detail.jsx:3-60 and modal primitives from design/Monopilot Design System/technical/modals.jsx:168-243, but apply final red-lines: FG/WIP naming, Technical-owned factory_spec, shared BOM SSOT, local release when D365 disabled. RED first: bundle approval cannot partially release unless Technical approver explicitly splits the request.",
+  "title": "T-080 — FactorySpec+BOM bundle approval API/actions",
+  "prompt": "# T-080 — FactorySpec+BOM bundle approval API/actions\n\nBuild the Technical-owned server/API approval path that releases a `factory_specs` record and its shared BOM version as one factory-use bundle. This is the backend/action task only; UI is split to T-090. Implement submit-for-review, get blockers, approve, reject, and explicit split-request handling if policy allows. Approval must verify shared BOM compatibility, RM usability, supplier_specs state, factory_spec version/status through T-081 adapter, Technical approver permission, audit/e-sign evidence when platform support exists, and D365 optional disabled/local mode. RED first: bundle approval cannot partially release unless Technical approver explicitly creates a separate split request; D365 export/preload must not unlock factory use.",
   "labels": [
     "prd",
     "api",
-    "ui",
     "approval",
     "factory-spec",
     "bom-ssot",
-    "T4-wiring-test"
+    "T2-api"
   ],
-  "priority": 55,
+  "priority": 50,
   "max_attempts": 3,
   "pipeline_name": "kira_dev",
   "pipeline_inputs": {
@@ -49,33 +48,31 @@
       "§7.6",
       "design/03-TECHNICAL-UX.md §0A"
     ],
-    "category": "docs",
-    "subcategory": "factory-spec-bom-bundle",
-    "task_type": "T4-wiring-test",
+    "category": "api",
+    "subcategory": "factory-spec-bom-bundle-api",
+    "task_type": "T2-api",
     "parent_feature": "03-TECHNICAL Approval/Release",
     "context_budget": "40k",
     "estimated_effort": "4-5h",
-    "description": "Combined Technical API/UI release workflow for factory_spec plus shared BOM bundle.",
-    "details": "This task closes the approval blocker left between T-072 factory_specs and T-073 shared BOM. It may compose existing services rather than create new tables. Approval must verify shared release state, RM usability, paired version compatibility, Technical permission, audit evidence, and D365 optional disabled/local mode. UI is a production component, not prototype editing.",
+    "description": "Backend/action contract for atomic factory_specs + shared BOM approval bundle.",
+    "details": "One task type: API/actions/service tests. UI panel/modal implementation is T-090. Approval starts from T-079 factory_specs and T-081 release adapter; local dependencies remain 03-TECHNICAL task IDs only. Settings T-122/T-123 authorization dependencies are declared under cross_module_dependencies.",
     "scope_files": [
       "apps/web/actions/technical/release-bundles/*.ts",
       "apps/web/lib/technical/release-bundle-service.ts",
-      "app/(app)/technical/boms/[id]/_components/release-bundle-panel.tsx",
-      "app/(app)/technical/factory-specs/[id]/_components/release-bundle-panel.tsx",
       "tests/actions/technical/release-bundle.test.ts",
-      "tests/ui/technical-release-bundle.test.tsx"
+      "tests/lib/technical/release-bundle-service.test.ts"
     ],
     "acceptance_criteria": [
-      "Given bundle panel renders, when compared to design/Monopilot Design System/technical/bom-detail.jsx:3-60 and design/Monopilot Design System/technical/modals.jsx:168-243, then structural, visual and interaction parity is preserved while final red-line copy/statuses are applied.",
-      "Given factory_spec is draft and BOM is draft with passing RM usability, when Technical approver approves bundle, then both move to released/approved_for_factory compatible statuses and audit evidence links them under one bundle id.",
+      "Given factory_spec is in_review and BOM is draft/reviewable with passing RM usability, when Technical approver approves bundle, then both move to canonical factory-usable status through T-081 and one audit/evidence bundle id links them.",
       "Given BOM passes but factory_spec fails release blocker, then approval is rejected atomically and neither record is released.",
-      "Given D365 integration is disabled, then local release still works and UI explains D365 sync is optional, not required.",
-      "Given a released bundle is edited, then UI/API create next draft versions through clone-on-write and keep released versions immutable."
+      "Given D365 integration is disabled, local Technical release still works and D365 sync/export state remains optional integration metadata.",
+      "Given released bundle is edited, API creates next draft versions through clone-on-write and keeps released versions immutable.",
+      "Given user lacks Technical approval permission from Settings policy, approve/reject actions fail with explicit authorization error."
     ],
     "test_strategy": [
       "RED unit/action tests for atomic approve/reject and split prohibition.",
-      "RED UI tests for panel blockers, disabled D365 state and prototype parity.",
-      "Run: pnpm vitest run tests/actions/technical/release-bundle.test.ts tests/ui/technical-release-bundle.test.tsx"
+      "RED tests for Settings authorization preflight and D365-disabled local release.",
+      "Run: pnpm vitest run tests/actions/technical/release-bundle.test.ts tests/lib/technical/release-bundle-service.test.ts"
     ],
     "risk_red_lines": [
       "Do not create a second BOM model or NPD-owned factory_spec path.",
@@ -84,14 +81,20 @@
       "Do not mutate released versions in place."
     ],
     "dependencies": [
-      "T-072",
-      "T-073",
-      "T-074",
+      "T-079",
       "T-081"
     ],
-    "parallel_safe_with": [
-      "T-082",
-      "T-083"
+    "cross_module_dependencies": [
+      {
+        "module": "02-settings",
+        "task_id": "T-122",
+        "reason": "Authorization policy schema/seeds for Technical approver permissions."
+      },
+      {
+        "module": "02-settings",
+        "task_id": "T-123",
+        "reason": "Authorization helper/action/preflight integration consumed by release actions."
+      }
     ]
   }
 }

@@ -42,11 +42,13 @@
     "acceptance_criteria": [
       "Given the panel renders, when compared to design/Monopilot Design System/technical/other-screens.jsx:266-311, then card layout, status badges, and link styling match — structural + visual + interaction parity verified by RTL.",
       "Given asset has no maintenance data, when rendered, then empty card with 'No maintenance data' copy appears.",
-      "Given clicking a row, when fired, then router navigates to /maintenance/[asset_id]."
+      "Given clicking a row, when fired, then router navigates to /maintenance/[asset_id].",
+      "UI closeout includes screenshot/artifact evidence and Playwright trace/artifacts where applicable per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`; if Playwright is unavailable, document the blocker and provide RTL/snapshot fallback evidence."
     ],
     "test_strategy": [
       "RED tests for parity + navigation.",
-      "Run: pnpm vitest run tests/ui/tec-088-maintenance.test.tsx"
+      "Run: pnpm vitest run tests/ui/tec-088-maintenance.test.tsx",
+      "For UI parity, capture screenshots/artifacts and Playwright trace/video/artifacts where applicable; attach artifact paths in closeout."
     ],
     "risk_red_lines": [
       "Do not allow writes from this panel.",
@@ -76,6 +78,7 @@
       "implementation": "hermes_gpt55",
       "review": "opus_if_high_risk_or_ui_or_architecture",
       "close": "spark_low_risk_else_opus"
-    }
+    },
+    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md"
   }
 }

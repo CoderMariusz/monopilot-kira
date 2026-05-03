@@ -28,7 +28,7 @@
     "context_budget": "30k",
     "estimated_effort": "1-2h",
     "description": "brief + brief_lines tables with section A/B columns + packaging_ext JSONB.",
-    "details": "Migration creates both tables with FK CASCADE, RLS, Drizzle schemas exported. Tests cover cascade and tenant isolation.",
+    "details": "Migration creates both tables with FK CASCADE, RLS, Drizzle schemas exported. Tests cover cascade and tenant isolation.\nPreserved acceptance requirements: Given a brief row exists, when queried, then it can be joined to exactly one canonical npd_project via npd_project_id or an equivalent non-null project link once created by T-031.; Given only a draft brief exists, when schema constraints are inspected, then no FG/product row is required before G3 mapping.; Given legacy FA fields/routes still exist, when schema comments or docs are generated, then they are marked compatibility aliases and not canonical release state.",
     "scope_files": [
       "packages/db/migrations/0030_brief_and_lines.sql [create]",
       "packages/db/src/schema/brief.ts [create]",
@@ -48,9 +48,7 @@
       "Given migration 0030 ran, when describing schema, then brief and brief_lines exist with FK CASCADE and RLS on both",
       "Given a brief with 3 component lines, when DELETE brief runs, then all 3 brief_lines rows are deleted",
       "Given two tenants, when querying brief, then RLS isolates rows per tenant",
-      "Given a brief row exists, when queried, then it can be joined to exactly one canonical npd_project via npd_project_id or an equivalent non-null project link once created by T-031.",
-      "Given only a draft brief exists, when schema constraints are inspected, then no FG/product row is required before G3 mapping.",
-      "Given legacy FA fields/routes still exist, when schema comments or docs are generated, then they are marked compatibility aliases and not canonical release state."
+      "Additional preserved requirements in details are implemented and covered by targeted tests."
     ],
     "test_strategy": [
       "RED: tests for cascade and RLS before migration exists",
