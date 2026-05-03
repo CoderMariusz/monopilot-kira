@@ -1,7 +1,12 @@
 {
   "title": "T-019 — API: cascade DAG generation rule (cascade_generation_v1)",
-  "prompt": "Implement intermediate cascade generation per PRD §8.4 as DSL rule `cascade_generation_v1` in 02-SETTINGS rule registry. Algorithm: starting from primary FG WO, traverse BOM children whose product type='intermediate', recursively create child WOs (status='DRAFT', source_of_demand='intermediate_cascade', source_reference=parent.wo_id). Insert wo_dependencies rows linking parent.wo_outputs to child.wo_materials with material_source='upstream_wo_output'. wo.numbering uses T-017 with appropriate suffix per product. Co-products + byproducts inserted into parent wo_outputs (FR-PLAN-021).\n\nIdempotent (V-PLAN-WO-006): if cascade already generated for source_reference, skip. Safety cap intermediate_cascade_max_depth from planning_settings (V-PLAN-SET-002). Cycle check before insert via DFS (T-020).\n\nRED test: 3-layer BOM yields 3 WOs + 2 dependency edges, re-run idempotent (no dupes), depth>cap returns 400.",
-  "labels": ["prd", "api", "cascade-generation", "T2-api"],
+  "prompt": "Implement intermediate cascade generation per PRD §8.4 as DSL rule `cascade_generation_v1` in 02-SETTINGS rule registry. Algorithm: starting from primary FG WO, traverse BOM children whose product type='intermediate', recursively create child WOs (status='DRAFT', source_of_demand='intermediate_cascade', source_reference=parent.wo_id). Insert wo_dependencies rows linking parent.wo_outputs to child.wo_materials with material_source='upstream_wo_output'. wo.numbering uses T-017 with specified suffix per product. Co-products + byproducts inserted into parent wo_outputs (FR-PLAN-021).\n\nIdempotent (V-PLAN-WO-006): if cascade already generated for source_reference, skip. Safety cap intermediate_cascade_max_depth from planning_settings (V-PLAN-SET-002). Cycle check before insert via DFS (T-020).\n\nRED test: 3-layer BOM yields 3 WOs + 2 dependency edges, re-run idempotent (no dupes), depth>cap returns 400.",
+  "labels": [
+    "prd",
+    "api",
+    "cascade-generation",
+    "T2-api"
+  ],
   "priority": 100,
   "max_attempts": 3,
   "pipeline_name": "kira_dev",
@@ -9,7 +14,11 @@
     "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
     "prd_task_id": "T-019",
     "source_prd": "04-PLANNING-BASIC-PRD.md",
-    "prd_refs": ["§8.3", "§8.4", "§8.11"],
+    "prd_refs": [
+      "§8.3",
+      "§8.4",
+      "§8.11"
+    ],
     "category": "api",
     "subcategory": "cascade-generation",
     "task_type": "T2-api",
@@ -27,8 +36,12 @@
       "Cycle-check warning UI (T-029)",
       "Cascade preview modal (T-027)"
     ],
-    "dependencies": ["T-005", "T-006", "T-007", "T-018"],
-    "parallel_safe_with": ["T-020"],
+    "dependencies": [
+      "T-005",
+      "T-006",
+      "T-007",
+      "T-018"
+    ],
     "acceptance_criteria": [
       "Given a BOM with 3 intermediate layers (FG → I1 → I2 → RM), when createWorkOrder for FG runs, then 3 WOs are created and 2 wo_dependencies edges are inserted (FG←I1, I1←I2).",
       "Given the cascade run twice for same source_reference, when second run completes, then no duplicate WOs are created (V-PLAN-WO-006 idempotent).",
@@ -44,9 +57,17 @@
       "Do not mutate BOM during traversal — read-only.",
       "Do not split cascade across multiple transactions — partial cascade is a data-integrity hazard."
     ],
-    "skills": ["test-driven-development", "requesting-code-review"],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
     "checkpoint_policy": {
-      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
       "closeout_requires": [
         "changed_files",
         "test_commands_and_results",
@@ -60,6 +81,23 @@
       "implementation": "hermes_gpt55",
       "review": "opus_if_high_risk_or_ui_or_architecture",
       "close": "spark_low_risk_else_opus"
-    }
+    },
+    "cross_module_dependencies": [
+      {
+        "module": "06-scanner-p1",
+        "task_id": "CONTRACT",
+        "reason": "Scanner consumes released WO/material reservation contracts and produces execution events."
+      },
+      {
+        "module": "03-technical",
+        "task_id": "T-081",
+        "reason": "Consumes Technical factory-use adapter/status/blocker contract; Planning is not source-of-truth for BOM/spec approval."
+      },
+      {
+        "module": "01-npd",
+        "task_id": "T-097",
+        "reason": "Consumes canonical NPD release read model for factory usability."
+      }
+    ]
   }
 }

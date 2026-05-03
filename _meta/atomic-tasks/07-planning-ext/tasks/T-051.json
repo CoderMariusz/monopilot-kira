@@ -1,0 +1,85 @@
+{
+  "title": "T-051 — Disable Optimizer v2 Modal",
+  "prompt": "# T-051 — Disable Optimizer v2 Modal\n\nPRD: `07-PLANNING-EXT-PRD.md` §17.1 PLE-013, §10.2 fallback.\nUX/prototype refs are listed in `pipeline_inputs.scope_files`.\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`.\n\n## Goal\nAdd the destructive control for rolling back allergen optimizer v2.\n\n## Implementation contract\nUse shadcn Dialog/Button destructive variant; if shared css lacks danger style, fix through shared style task before relying on custom class.\n\nACP shape reminder: keep this task as one atomic implementation. Do not add ACP-owned fields. Keep local dependencies in `dependencies`; cross-module contracts in `cross_module_dependencies` are blockers/inputs, not ACP local task IDs.",
+  "labels": [
+    "prd",
+    "ui",
+    "modal",
+    "T3-ui"
+  ],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "source_prd": "07-PLANNING-EXT-PRD.md",
+    "context_budget": "40k",
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prd_refs": [
+      "§17.1 PLE-013",
+      "§10.2 fallback"
+    ],
+    "category": "ui",
+    "subcategory": "disable-v2-modal",
+    "task_type": "T3-ui",
+    "parent_feature": "07-EXT-b allergen optimizer controls",
+    "estimated_effort": "1h",
+    "description": "Implement admin-only type-to-confirm disable_v2_modal with audit reason and fallback rule display.",
+    "details": "Matches disable_v2_modal. Requires literal DISABLE and reason ≥10 chars; toggles Settings feature flag and emits optimizer.v2.disabled.",
+    "scope_files": [
+      "apps/web/src/components/scheduler/DisableV2Modal.tsx [create]",
+      "apps/web/src/lib/scheduler/disable-v2-action.ts [create]",
+      "design/Monopilot Design System/planning-ext/modals.jsx:650-675 [ref]"
+    ],
+    "dependencies": [
+      "T-026",
+      "T-029"
+    ],
+    "cross_module_dependencies": [
+      {
+        "module": "02-settings",
+        "contract": "Feature flag storage, rule registry fallback, audit log."
+      }
+    ],
+    "acceptance_criteria": [
+      "Given the modal renders, then it has prototype parity with disable_v2_modal including title, warning copy, DISABLE input, reason textarea and destructive action layout.",
+      "Given input is not DISABLE or reason <10 chars, then submit is blocked with field errors.",
+      "Given admin confirms, then feature flag is disabled, audit log written, and optimizer.v2.disabled outbox emits."
+    ],
+    "test_strategy": [
+      "RED RTL validation/RBAC tests and Server Action tests.",
+      "Run pnpm --filter web test scheduler/DisableV2Modal disable-v2-action."
+    ],
+    "risk_red_lines": [
+      "Do not allow Planner role to disable v2.",
+      "Do not hardcode fallback rule details; read registry.",
+      "Do not skip audit reason."
+    ],
+    "prd_task_id": "T-051",
+    "priority_normalization_note": "Priority normalized to ACP convention bands on 2026-05-03; lower number means earlier execution."
+  }
+}

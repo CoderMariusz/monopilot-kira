@@ -1,0 +1,86 @@
+{
+  "title": "T-049 — Scheduler Rule Registry viewer",
+  "prompt": "# T-049 — Scheduler Rule Registry viewer\n\nPRD: `07-PLANNING-EXT-PRD.md` §17.1 PLE-006, §10 business rules.\nUX/prototype refs are listed in `pipeline_inputs.scope_files`.\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`.\n\n## Goal\nImplement the scheduler-scoped rule registry mirror.\n\n## Implementation contract\nRead rules/flags from 02-SETTINGS contracts, link to canonical editor for Admin, and render DSL source in a read-only Sheet/Dialog.\n\nACP shape reminder: keep this task as one atomic implementation. Do not add ACP-owned fields. Keep local dependencies in `dependencies`; cross-module contracts in `cross_module_dependencies` are blockers/inputs, not ACP local task IDs.",
+  "labels": [
+    "prd",
+    "ui",
+    "rules",
+    "T3-ui"
+  ],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "source_prd": "07-PLANNING-EXT-PRD.md",
+    "context_budget": "40k",
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prd_refs": [
+      "§17.1 PLE-006",
+      "§10 business rules"
+    ],
+    "category": "ui",
+    "subcategory": "rule-viewer",
+    "task_type": "T3-ui",
+    "parent_feature": "07-EXT rules mirror",
+    "estimated_effort": "2h",
+    "description": "Implement /scheduler/rules read-only mirror for scheduling DSL rules and planning feature flags.",
+    "details": "Matches pext_rules_screen. Authoritative editor remains 02-SETTINGS; this screen is a read-only scoped view except admin publish/deep-link if already authorized.",
+    "scope_files": [
+      "apps/web/src/app/scheduler/rules/page.tsx [create]",
+      "apps/web/src/components/scheduler/SchedulerRulesScreen.tsx [create]",
+      "design/Monopilot Design System/planning-ext/other-screens.jsx:4-76 [ref]"
+    ],
+    "dependencies": [
+      "T-025",
+      "T-026",
+      "T-027"
+    ],
+    "cross_module_dependencies": [
+      {
+        "module": "02-settings",
+        "contract": "Canonical rule registry, DSL source, feature flags and admin publish actions."
+      }
+    ],
+    "acceptance_criteria": [
+      "Given /scheduler/rules renders, then active/standby/disabled cards and flags table match pext_rules_screen parity.",
+      "Given Planner role views page, then rule source is read-only and publish controls are hidden/disabled.",
+      "Given invocations_7d is shown, then it is computed from scheduler/rule invocation data server-side."
+    ],
+    "test_strategy": [
+      "RED RTL role tests and loader aggregation tests.",
+      "Run pnpm --filter web test scheduler/SchedulerRulesScreen."
+    ],
+    "risk_red_lines": [
+      "Do not create a second rule editor outside 02-SETTINGS.",
+      "Do not hardcode rule DSL source; load registry rows.",
+      "Do not expose admin publish to Planner."
+    ],
+    "prd_task_id": "T-049",
+    "priority_normalization_note": "Priority normalized to ACP convention bands on 2026-05-03; lower number means earlier execution."
+  }
+}

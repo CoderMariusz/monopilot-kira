@@ -1,0 +1,82 @@
+{
+  "title": "T-044 — OEE snapshots, line event stream and aggregation service",
+  "prompt": "# T-044 — OEE snapshots, line event stream and aggregation service\n\nPRD/UX refs: §7 OEE, SCR-08-07, SCR-08-11, UX PROD-006/013\n\nGoal: Implement OEE aggregation read model and SSE line event stream consumed by dashboard and line detail.\n\nImplementation details:\nAggregate availability, performance and quality from downtime_events, wo_outputs, planned minutes and ideal cycle time into oee_snapshots. Provide GET endpoints for OEE dashboard filters and /api/lines/:id/events SSE for live production events. Cache line sparkline for 30 seconds and make aggregation idempotent per line+bucket.\n\nScope files:\n- packages/api-services/production/oee-aggregation.ts [create]\n- apps/web/app/api/production/oee/route.ts [create]\n- apps/web/app/api/production/lines/[id]/events/route.ts [create]\n\nAcceptance criteria:\n1. OEE aggregation creates one snapshot per line/time bucket and recalculates idempotently\n2. OEE API returns A/P/Q/composite values and breakdowns used by PROD-006\n3. Line SSE emits WO/downtime/output events and handles reconnect safely\n\nEvidence: include screenshots/artifacts and Playwright traces/artifacts for UI/E2E tasks; include API test output for backend tasks.",
+  "labels": [
+    "prd",
+    "T2-api"
+  ],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-044",
+    "source_prd": "08-PRODUCTION-PRD.md",
+    "prd_refs": [
+      "§7 OEE",
+      "SCR-08-07",
+      "SCR-08-11",
+      "UX PROD-006/013"
+    ],
+    "category": "production-readiness",
+    "subcategory": "OEE snapshots, line event stream and aggregation",
+    "task_type": "T2-api",
+    "parent_feature": "08-PRODUCTION full module readiness",
+    "context_budget": "40k",
+    "estimated_effort": "2-4h",
+    "description": "Implement OEE aggregation read model and SSE line event stream consumed by dashboard and line detail.",
+    "details": "Aggregate availability, performance and quality from downtime_events, wo_outputs, planned minutes and ideal cycle time into oee_snapshots. Provide GET endpoints for OEE dashboard filters and /api/lines/:id/events SSE for live production events. Cache line sparkline for 30 seconds and make aggregation idempotent per line+bucket.",
+    "scope_files": [
+      "packages/api-services/production/oee-aggregation.ts [create]",
+      "apps/web/app/api/production/oee/route.ts [create]",
+      "apps/web/app/api/production/lines/[id]/events/route.ts [create]"
+    ],
+    "dependencies": [
+      "T-003",
+      "T-004",
+      "T-005",
+      "T-008",
+      "T-038"
+    ],
+    "acceptance_criteria": [
+      "OEE aggregation creates one snapshot per line/time bucket and recalculates idempotently",
+      "OEE API returns A/P/Q/composite values and breakdowns used by PROD-006",
+      "Line SSE emits WO/downtime/output events and handles reconnect safely"
+    ],
+    "test_strategy": [
+      "RED: add failing unit/integration tests for the cited slice before implementation",
+      "GREEN: run targeted pnpm test command and relevant Playwright check"
+    ],
+    "risk_red_lines": [
+      "Do not treat D365 sync/export/Built as production release source-of-truth",
+      "Do not bypass 04-PLANNING WO snapshot or 03-TECHNICAL active factory spec/BOM approval"
+    ],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "screenshots_or_artifacts",
+        "playwright_traces_or_artifacts",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

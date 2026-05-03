@@ -1,15 +1,22 @@
 {
   "title": "T-045 — Inventory value RBAC server-side gating",
   "prompt": "# T-045 — Inventory value RBAC server-side gating\n\nPRD: `05-WAREHOUSE-PRD.md` §14.5 (FR-WH-040), V-WH-DASH-001.\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`.\n\n## Goal\nServer function `getInventoryValueIfAllowed(session)` returns inventory value rows only when session.role IN ('Manager','Planner','Admin'); other roles get null/omit.\n\n## Implementation contract\n`apps/web/lib/services/warehouse/inventory-value-rbac.ts`. Pull session via auth; gate the value column server-side. Returns either {totalValueGbp, perWarehouse[]} or null. All inventory APIs (T-039, T-070 inventory browser) MUST call through this helper to avoid client-side leakage.\n\n## Files (scope)\n- apps/web/lib/services/warehouse/inventory-value-rbac.ts [create]\n- apps/web/lib/services/warehouse/__tests__/inventory-value-rbac.test.ts [create]\n\n## Acceptance criteria\n1. Given session.role='Manager', when called, then a {totalValueGbp, perWarehouse[]} object returns with non-null totals.\n2. Given session.role='Operator', when called, then null returns and no SQL hits items.cost.\n3. Given the helper is grepped for usages in inventory route handlers, when checked at lint time, then any direct SUM(qty*items.cost) outside this helper raises a CI lint warning.\n\n## Test strategy\n- RED: inventory-value-rbac.test.ts covers role gating + lint coverage.\n- Run `pnpm --filter web test inventory-value-rbac`.\n\n## Risk red lines\n- Do not query items.cost without RBAC gate.\n- Do not let role be passed from client.\n- Do not bypass middleware-derived session.",
-  "labels": ["prd", "api", "rbac", "T2-api"],
-  "priority": 95,
+  "labels": [
+    "prd",
+    "api",
+    "rbac",
+    "T2-api"
+  ],
+  "priority": 100,
   "max_attempts": 3,
   "pipeline_name": "kira_dev",
   "pipeline_inputs": {
     "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
     "prd_task_id": "T-045",
     "source_prd": "05-WAREHOUSE-PRD.md",
-    "prd_refs": ["§14.5"],
+    "prd_refs": [
+      "§14.5"
+    ],
     "category": "auth",
     "subcategory": "rbac",
     "task_type": "T2-api",
@@ -28,7 +35,11 @@
       "Item.cost source (03-TECHNICAL)"
     ],
     "dependencies": [],
-    "parallel_safe_with": ["T-043", "T-044", "T-046"],
+    "parallel_safe_with": [
+      "T-043",
+      "T-044",
+      "T-046"
+    ],
     "acceptance_criteria": [
       "Given session.role='Manager', when called, then a {totalValueGbp, perWarehouse[]} object returns",
       "Given session.role='Operator', when called, then null returns and items.cost is not queried",
@@ -43,16 +54,61 @@
       "Do not trust client-supplied role",
       "Do not bypass middleware session"
     ],
-    "skills": ["test-driven-development", "requesting-code-review"],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
     "checkpoint_policy": {
-      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
-      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
     },
     "routing_hints": {
       "red": "hermes_gpt55",
       "implementation": "hermes_gpt55",
       "review": "opus_if_high_risk_or_ui_or_architecture",
       "close": "spark_low_risk_else_opus"
-    }
+    },
+    "cross_module_dependencies": [
+      {
+        "module": "02-settings",
+        "contract": "rule_registry, warehouses/locations/printers, feature flags, tenant security policy"
+      },
+      {
+        "module": "03-technical",
+        "contract": "items/products, shelf_life_mode/date_code_format, catch-weight, allergen snapshots"
+      },
+      {
+        "module": "04-planning-basic",
+        "contract": "PO/TO/WO read models, RM root reservations, WO release/cancel hooks"
+      },
+      {
+        "module": "06-scanner-p1",
+        "contract": "LP lookup, barcode validation, lock protocol, FEFO suggestion, consume-to-WO"
+      },
+      {
+        "module": "08-production",
+        "contract": "WO material consumption and output LP creation events"
+      },
+      {
+        "module": "09-quality",
+        "contract": "LP qa_status ownership and quality_status_history"
+      },
+      {
+        "module": "11-shipping",
+        "contract": "downstream shelf_life_rules enforcement in Phase 2"
+      }
+    ],
+    "priority_normalization_note": "Priority normalized to ACP convention bands on 2026-05-03; lower number means earlier execution."
   }
 }

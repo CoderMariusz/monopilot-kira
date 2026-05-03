@@ -1,0 +1,82 @@
+{
+  "title": "T-052 — What-If Simulation screen (P2 gated)",
+  "prompt": "# T-052 — What-If Simulation screen (P2 gated)\n\nPRD: `07-PLANNING-EXT-PRD.md` §8.1 SCR-07-05, §17.1 PLE-008, §9.7.\nUX/prototype refs are listed in `pipeline_inputs.scope_files`.\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`.\n\n## Goal\nPrepare the P2 what-if prototype as a feature-gated implementation task.\n\n## Implementation contract\nUse existing solver queue with dry_run semantics, persist scenario params/result_summary, and render locked mode cleanly for P1 tenants.\n\nACP shape reminder: keep this task as one atomic implementation. Do not add ACP-owned fields. Keep local dependencies in `dependencies`; cross-module contracts in `cross_module_dependencies` are blockers/inputs, not ACP local task IDs.",
+  "labels": [
+    "prd",
+    "ui",
+    "scenario",
+    "T3-ui"
+  ],
+  "priority": 120,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "source_prd": "07-PLANNING-EXT-PRD.md",
+    "context_budget": "40k",
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prd_refs": [
+      "§8.1 SCR-07-05",
+      "§17.1 PLE-008",
+      "§9.7"
+    ],
+    "category": "ui",
+    "subcategory": "what-if-simulation",
+    "task_type": "T3-ui",
+    "parent_feature": "07-EXT P2 what-if",
+    "estimated_effort": "3-4h",
+    "description": "Implement /scheduler/simulate P2-gated scenario builder, result compare table, mini-Gantt diff, saved scenarios list.",
+    "details": "Matches pext_scenarios. When flag off, render locked P2 placeholder; when on, run dry-run simulations that never commit to scheduler_assignments.",
+    "scope_files": [
+      "apps/web/src/app/scheduler/simulate/page.tsx [create]",
+      "apps/web/src/components/scheduler/ScenarioSimulationScreen.tsx [create]",
+      "apps/web/src/lib/scheduler/scenario-actions.ts [create]",
+      "design/Monopilot Design System/planning-ext/scenario-screens.jsx:3-211 [ref]"
+    ],
+    "dependencies": [
+      "T-006",
+      "T-012",
+      "T-021"
+    ],
+    "acceptance_criteria": [
+      "Given planning.what_if_simulation.enabled=false, then /scheduler/simulate shows locked P2 state and no solver action controls.",
+      "Given flag is on and Run Simulation is clicked, then solver runs dry_run=true and result stores in scheduler_scenarios without committing assignments.",
+      "Given saved scenario rows render, then view/re-run/delete controls match pext_scenarios parity and respect RBAC."
+    ],
+    "test_strategy": [
+      "RED feature-gate RTL tests and action test that assignments are unchanged.",
+      "Run pnpm --filter web test scheduler/ScenarioSimulationScreen scenario-actions."
+    ],
+    "risk_red_lines": [
+      "Do not commit scenario output to live schedule.",
+      "Do not expose P2 interactive controls when flag off.",
+      "Do not omit baseline_run_id traceability."
+    ],
+    "prd_task_id": "T-052",
+    "priority_normalization_note": "Priority normalized to ACP convention bands on 2026-05-03; lower number means earlier execution."
+  }
+}

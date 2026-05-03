@@ -1,7 +1,12 @@
 {
   "title": "T-016 — API: LP picker + FEFO suggestion (TO line)",
   "prompt": "Implement endpoint `GET /api/planning/transfer-orders/lp-suggestions?product_id=&warehouse_id=&qty=` returning available LPs sorted by FEFO (expiry_date asc) by default with FIFO fallback for non-expiring items. Result includes lp_id, expiry_date, remaining_qty, status badge, fefo_score. Calls 05-WAREHOUSE LP query helper.\n\nServer Action `attachLpsToToLine({ to_line_id, lp_ids[] })` writes to_line_lps rows after re-validating availability.\n\nRED test asserts FEFO ordering, deterministic tie-break, and that reserved/quarantine LPs are excluded.",
-  "labels": ["prd", "api", "lp-picker", "T2-api"],
+  "labels": [
+    "prd",
+    "api",
+    "lp-picker",
+    "T2-api"
+  ],
   "priority": 100,
   "max_attempts": 3,
   "pipeline_name": "kira_dev",
@@ -9,7 +14,10 @@
     "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
     "prd_task_id": "T-016",
     "source_prd": "04-PLANNING-BASIC-PRD.md",
-    "prd_refs": ["§7.3", "§12.3"],
+    "prd_refs": [
+      "§7.3",
+      "§12.3"
+    ],
     "category": "api",
     "subcategory": "lp-picker",
     "task_type": "T2-api",
@@ -27,8 +35,9 @@
       "LP picker modal UI (T-022)",
       "Scanner FEFO at consumption-time (06-SCANNER-P1)"
     ],
-    "dependencies": ["T-014"],
-    "parallel_safe_with": ["T-015"],
+    "dependencies": [
+      "T-014"
+    ],
     "acceptance_criteria": [
       "Given 5 LPs with expiries 2026-05-01, 2026-04-01, NULL, 2026-04-01, 2026-03-01, when GET runs, then result is ordered 2026-03-01, 2026-04-01 (lp_code asc), 2026-04-01 (lp_code asc), 2026-05-01, NULL.",
       "Given an LP with status='reserved', when GET runs, then it is not in the result.",
@@ -43,9 +52,17 @@
       "Do not include reserved or quarantine LPs in suggestions — would bypass hard-lock semantics.",
       "Do not skip re-validation at attach time."
     ],
-    "skills": ["test-driven-development", "requesting-code-review"],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
     "checkpoint_policy": {
-      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
       "closeout_requires": [
         "changed_files",
         "test_commands_and_results",
@@ -59,6 +76,13 @@
       "implementation": "hermes_gpt55",
       "review": "opus_if_high_risk_or_ui_or_architecture",
       "close": "spark_low_risk_else_opus"
-    }
+    },
+    "cross_module_dependencies": [
+      {
+        "module": "05-warehouse",
+        "task_id": "CONTRACT",
+        "reason": "Consumes Warehouse LP/location/GRN/TO handoff contracts; no Planning task may invent Warehouse state semantics."
+      }
+    ]
   }
 }

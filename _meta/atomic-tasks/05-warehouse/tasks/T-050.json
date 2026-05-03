@@ -1,0 +1,127 @@
+{
+  "title": "T-050 — Warehouse stock movement and adjustment UI surfaces",
+  "prompt": "# T-050 — Warehouse stock movement and adjustment UI surfaces\n\nPRD: `05-WAREHOUSE-PRD.md`.\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`.\n\n## Goal\nImplement stock movements list, movement modal, manager approvals, and cycle-count quick adjustment P1 stub with prototype parity.\n\n## Implementation contract\nBuild stock_movement_list_page, stock_move_modal, and cycle_count_quick_adjustment_modal. Include partial-move split notice, >10% threshold approval state, reason-code validation, side-panel detail, and P1 stub messaging for full cycle counts.\n\n## Files (scope)\n- apps/web/app/(app)/warehouse/movements/** [create]\n- apps/web/components/warehouse/movements/** [create]\n- design/Monopilot Design System/warehouse/movement-screens.jsx\n- design/Monopilot Design System/warehouse/modals.jsx\n\n## Acceptance criteria\n1. Given movement list renders, when compared to design/Monopilot Design System/warehouse/movement-screens.jsx label stock_movement_list_page, then filters, tabs, side-panel, quantities, and approval warnings match.\n2. Given stock_move_modal receives qty less than LP qty, then it shows the partial split cascade notice and blocks invalid qty greater than LP qty.\n3. Given cycle_count_quick_adjustment_modal delta is greater than 10%, then footer action changes to Submit for Approval and reason_code remains mandatory.\n4. Given components are inspected, then data-prototype-label markers exist for stock_movement_list_page, stock_move_modal, and cycle_count_quick_adjustment_modal.\n\n## Test strategy\n- RED: component tests for movement modal validation and delta threshold behavior.\n- GREEN: Playwright test side-panel open/close and approval tab flows.\n- Run pnpm test and pnpm playwright test --grep @warehouse-movement-ui.\n\n## Risk red lines\n- Do not treat full cycle counts as P1.\n- Do not allow adjustment without reason.\n- Do not move blocked LPs through this UI.",
+  "labels": [
+    "prd",
+    "ui",
+    "prototype-parity",
+    "T3-ui"
+  ],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "source_prd": "05-WAREHOUSE-PRD.md",
+    "context_budget": "35k",
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "cross_module_dependencies": [
+      {
+        "module": "02-settings",
+        "contract": "rule_registry, warehouses/locations/printers, feature flags, tenant security policy"
+      },
+      {
+        "module": "03-technical",
+        "contract": "items/products, shelf_life_mode/date_code_format, catch-weight, allergen snapshots"
+      },
+      {
+        "module": "04-planning-basic",
+        "contract": "PO/TO/WO read models, RM root reservations, WO release/cancel hooks"
+      },
+      {
+        "module": "06-scanner-p1",
+        "contract": "LP lookup, barcode validation, lock protocol, FEFO suggestion, consume-to-WO"
+      },
+      {
+        "module": "08-production",
+        "contract": "WO material consumption and output LP creation events"
+      },
+      {
+        "module": "09-quality",
+        "contract": "LP qa_status ownership and quality_status_history"
+      },
+      {
+        "module": "11-shipping",
+        "contract": "downstream shelf_life_rules enforcement in Phase 2"
+      }
+    ],
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prd_task_id": "T-050",
+    "prd_refs": [
+      "§8.1",
+      "§8.2",
+      "§8.3",
+      "§8.5",
+      "§8.8",
+      "§16.6 WH-006/007/M-14"
+    ],
+    "category": "ui",
+    "subcategory": "stock-move-ui",
+    "task_type": "T3-ui",
+    "parent_feature": "warehouse-stock-moves",
+    "estimated_effort": "1.5d",
+    "description": "Implement stock movements list, movement modal, manager approvals, and cycle-count quick adjustment P1 stub with prototype parity.",
+    "details": "Build stock_movement_list_page, stock_move_modal, and cycle_count_quick_adjustment_modal. Include partial-move split notice, >10% threshold approval state, reason-code validation, side-panel detail, and P1 stub messaging for full cycle counts.",
+    "scope_files": [
+      "apps/web/app/(app)/warehouse/movements/** [create]",
+      "apps/web/components/warehouse/movements/** [create]",
+      "design/Monopilot Design System/warehouse/movement-screens.jsx",
+      "design/Monopilot Design System/warehouse/modals.jsx"
+    ],
+    "out_of_scope": [
+      "No full P2 cycle count workflow",
+      "No capacity engine beyond documented warning stubs"
+    ],
+    "dependencies": [
+      "T-025",
+      "T-026",
+      "T-027",
+      "T-028",
+      "T-029"
+    ],
+    "parallel_safe_with": [
+      "T-048",
+      "T-049"
+    ],
+    "acceptance_criteria": [
+      "Given movement list renders, when compared to design/Monopilot Design System/warehouse/movement-screens.jsx label stock_movement_list_page, then filters, tabs, side-panel, quantities, and approval warnings match.",
+      "Given stock_move_modal receives qty less than LP qty, then it shows the partial split cascade notice and blocks invalid qty greater than LP qty.",
+      "Given cycle_count_quick_adjustment_modal delta is greater than 10%, then footer action changes to Submit for Approval and reason_code remains mandatory.",
+      "Given components are inspected, then data-prototype-label markers exist for stock_movement_list_page, stock_move_modal, and cycle_count_quick_adjustment_modal."
+    ],
+    "test_strategy": [
+      "RED: component tests for movement modal validation and delta threshold behavior.",
+      "GREEN: Playwright test side-panel open/close and approval tab flows.",
+      "Run pnpm test and pnpm playwright test --grep @warehouse-movement-ui."
+    ],
+    "risk_red_lines": [
+      "Do not treat full cycle counts as P1.",
+      "Do not allow adjustment without reason.",
+      "Do not move blocked LPs through this UI."
+    ],
+    "priority_normalization_note": "Priority normalized to ACP convention bands on 2026-05-03; lower number means earlier execution."
+  }
+}

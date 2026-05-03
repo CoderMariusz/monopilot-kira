@@ -1,0 +1,90 @@
+{
+  "title": "T-046 — Capacity Projection screen",
+  "prompt": "# T-046 — Capacity Projection screen\n\nPRD: `07-PLANNING-EXT-PRD.md` §17.1 PLE-003, §11.1, §15.4 V-SCHED-04.\nUX/prototype refs are listed in `pipeline_inputs.scope_files`.\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`.\n\n## Goal\nPromote the capacity projection prototype to a first-class advisory screen.\n\n## Implementation contract\nServer computes the utilization matrix; UI renders color thresholds consistently with design tokens and keeps export based on the same filtered dataset.\n\nACP shape reminder: keep this task as one atomic implementation. Do not add ACP-owned fields. Keep local dependencies in `dependencies`; cross-module contracts in `cross_module_dependencies` are blockers/inputs, not ACP local task IDs.",
+  "labels": [
+    "prd",
+    "ui",
+    "capacity",
+    "T3-ui"
+  ],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "source_prd": "07-PLANNING-EXT-PRD.md",
+    "context_budget": "40k",
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prd_refs": [
+      "§17.1 PLE-003",
+      "§11.1",
+      "§15.4 V-SCHED-04"
+    ],
+    "category": "ui",
+    "subcategory": "capacity-projection",
+    "task_type": "T3-ui",
+    "parent_feature": "07-EXT-a finite-capacity UI",
+    "estimated_effort": "2-3h",
+    "description": "Implement /scheduler/capacity utilization grid and overload alerts.",
+    "details": "Matches pext_capacity_projection. Computes per-line per-day utilization from approved assignments and production line capacity; flags >100% hard violations and >90% amber warnings.",
+    "scope_files": [
+      "apps/web/src/app/scheduler/capacity/page.tsx [create]",
+      "apps/web/src/components/scheduler/CapacityProjection.tsx [create]",
+      "apps/web/src/lib/scheduler/capacity-loader.ts [create]",
+      "design/Monopilot Design System/planning-ext/optimizer-screens.jsx:113-206 [ref]"
+    ],
+    "dependencies": [
+      "T-002",
+      "T-013"
+    ],
+    "cross_module_dependencies": [
+      {
+        "module": "02-settings",
+        "contract": "production_lines capacity and shift calendars."
+      },
+      {
+        "module": "15-oee",
+        "contract": "Planned capacity metrics are consumed downstream by OEE."
+      }
+    ],
+    "acceptance_criteria": [
+      "Given /scheduler/capacity renders, then grid, utilization bars, alerts and export controls match pext_capacity_projection parity.",
+      "Given utilization >100% for a line/day, then V-SCHED-04 alert lists the offending WOs.",
+      "Given user changes horizon/line filters, then URL state updates and loader recomputes server-side."
+    ],
+    "test_strategy": [
+      "RED tests for util calculation thresholds and RTL prototype parity.",
+      "Run pnpm --filter web test scheduler/CapacityProjection."
+    ],
+    "risk_red_lines": [
+      "Do not compute capacity from draft assignments unless explicitly filtered.",
+      "Do not hide >100% violations.",
+      "Do not duplicate OEE ownership; this is planning projection only."
+    ],
+    "prd_task_id": "T-046"
+  }
+}

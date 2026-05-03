@@ -1,7 +1,12 @@
 {
   "title": "T-018 — SCN-011 PIN entry UI (6-dot + 3×4 numpad) (06-a)",
   "prompt": "# T-018 — SCN-011 PIN entry\n\nPRD: 06-SCANNER-P1-PRD.md §8.1 FR-SC-FE-003\nUX: design/06-SCANNER-P1-UX.md:212-231 §3.2\nPrototype: design/Monopilot Design System/scanner/login.jsx:58-112 (label pin_screen)\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nDeliver SCN-011 PIN entry — 6-dot indicator + 3×4 numpad (1-9, 0, ⌫), auto-advance after 6th digit, biometric placeholder button, 'Wróć' back button, error shake animation on wrong PIN.\n\n## Implementation contract\n1. `apps/scanner/src/app/scanner/pin/page.tsx` rendering PIN client form.\n2. Server Action `pinAction(formData)` POSTs /api/scanner/login (when entry-from-username present) or refresh-via-PIN endpoint.\n3. Wrong PIN ⇒ shake animation (CSS keyframes 300ms) + error message.\n4. Auto-advance: when value.length === 6, dispatch submit immediately.\n\n## Files\n- apps/scanner/src/app/scanner/pin/page.tsx [create]\n- apps/scanner/src/app/scanner/pin/pin-form.client.tsx [create]\n- apps/scanner/src/app/scanner/pin/pin.action.ts [create]\n- apps/scanner/__tests__/scn-011-pin.test.tsx [create]\n\n## Acceptance criteria\n1. Given the page renders, when compared to `design/Monopilot Design System/scanner/login.jsx:58-112`, then it has the same 6-dot indicator above a 3×4 numpad (1..9, 0, ⌫), the same 'Wróć' button at the bottom, and the same biometric placeholder icon — RTL snapshot + manual checklist (structural + visual + interaction parity)\n2. Given the user types 6 digits, when the 6th digit is appended, then the form auto-submits without an explicit submit button click\n3. Given the API returns 401 wrong PIN, when the response arrives, then the dot row plays the 300ms shake keyframe and the input value is cleared\n\n## Test strategy\n- RED: write scn-011-pin.test.tsx asserting parity + auto-advance + shake-on-error before implementation\n- Run 'pnpm --filter scanner test scn-011-pin'\n\n## Risk red lines\n- Do not double-submit when the user re-enters digits during the network call\n- Do not store the PIN value in localStorage or sessionStorage\n- Do not allow more than 6 digits in the dot indicator",
-  "labels": ["prd", "ui", "scn-011-pin", "T3-ui"],
+  "labels": [
+    "prd",
+    "ui",
+    "scn-011-pin",
+    "T3-ui"
+  ],
   "priority": 100,
   "max_attempts": 3,
   "pipeline_name": "kira_dev",
@@ -9,7 +14,9 @@
     "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
     "prd_task_id": "T-018",
     "source_prd": "06-SCANNER-P1-PRD.md",
-    "prd_refs": ["§8.1 FR-SC-FE-003"],
+    "prd_refs": [
+      "§8.1 FR-SC-FE-003"
+    ],
     "category": "ui",
     "subcategory": "scn-011-pin",
     "task_type": "T3-ui",
@@ -30,12 +37,21 @@
       "Do not implement PIN setup/change here (T-019/T-020)",
       "Do not implement SCN-012 site/line/shift here (T-021)"
     ],
-    "dependencies": ["T-006", "T-012", "T-015"],
-    "parallel_safe_with": ["T-017", "T-019", "T-020", "T-021"],
+    "dependencies": [
+      "T-006",
+      "T-012",
+      "T-015"
+    ],
+    "parallel_safe_with": [
+      "T-017",
+      "T-019",
+      "T-020",
+      "T-021"
+    ],
     "acceptance_criteria": [
       "Given the page renders, when compared to design/Monopilot Design System/scanner/login.jsx:58-112, then it has the same 6-dot indicator above a 3×4 numpad (1..9, 0, ⌫), the same 'Wróć' button and biometric placeholder — RTL snapshot + manual checklist",
       "Given the user types 6 digits, when the 6th digit is appended, then the form auto-submits without explicit submit click",
-      "Given the API returns 401, when the response arrives, then the dot row plays the 300ms shake keyframe and the value is cleared"
+      "Given the API returns 401, when the response arrives, then the dot row plays the 300ms shake keyframe and the value is cleared. Follow parity evidence requirements in `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`."
     ],
     "test_strategy": [
       "RED: write scn-011-pin.test.tsx asserting parity + auto-advance + shake-on-error before implementation",
@@ -46,16 +62,49 @@
       "Do not store PIN in localStorage/sessionStorage",
       "Do not allow more than 6 digits in dot indicator"
     ],
-    "skills": ["test-driven-development", "requesting-code-review"],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
     "checkpoint_policy": {
-      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
-      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status",
+        "mobile_390x844_screenshot",
+        "playwright_trace",
+        "prototype_label_parity_notes"
+      ]
     },
     "routing_hints": {
       "red": "hermes_gpt55",
       "implementation": "hermes_gpt55",
       "review": "opus_if_high_risk_or_ui_or_architecture",
       "close": "spark_low_risk_else_opus"
-    }
+    },
+    "prototype_evidence_required": {
+      "viewport": "390x844",
+      "artifacts": [
+        "screenshot",
+        "Playwright trace"
+      ],
+      "parity_dimensions": [
+        "structure",
+        "visual",
+        "interaction"
+      ]
+    },
+    "cross_module_dependencies": [
+      "00-foundation: scanner routing/session/RLS baseline",
+      "02-settings: PIN policy, locale, scanner device defaults"
+    ]
   }
 }

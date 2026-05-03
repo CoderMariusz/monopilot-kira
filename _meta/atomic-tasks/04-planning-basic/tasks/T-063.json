@@ -1,0 +1,101 @@
+{
+  "title": "T-063 — UI: PLN-028/029 destructive confirmation modals (delete + hard-lock release parity)",
+  "prompt": "Implement UI: PLN-028/029 destructive confirmation modals (delete + hard-lock release parity) for 04-PLANNING-BASIC.\n\nPrototype: `_meta/prototype-labels/prototype-index-planning.json` label `delete_confirm_modal` -> `design/Monopilot Design System/planning/modals.jsx:609-671`. Read PRD refs §9.5, §16.7 and UX refs before coding. Match the prototype structurally and visually using shadcn/Radix primitives, Next.js App Router, Server Components for initial data, Server Actions for writes, next-intl for all copy, and existing repository conventions.\n\nBusiness rules: Type-to-confirm, acknowledgement, reason/audit, and transactional reservation release are mandatory.\n\nCloseout must include changed files, test commands/results, AC status, screenshot/artifact paths, Playwright trace paths, deviations, and git status. Do not implement out-of-scope modules; use cross-module contracts listed in pipeline_inputs.cross_module_dependencies.",
+  "labels": [
+    "prd",
+    "ui",
+    "pln-028-029-destructive-modals",
+    "T3-ui"
+  ],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-063",
+    "source_prd": "04-PLANNING-BASIC-PRD.md",
+    "prd_refs": [
+      "§9.5",
+      "§16.7"
+    ],
+    "category": "ui",
+    "subcategory": "pln-028-029-destructive-modals",
+    "task_type": "T3-ui",
+    "parent_feature": "planning-basic-full-ui",
+    "context_budget": "40k",
+    "estimated_effort": "4-6h",
+    "prototype_match": true,
+    "prototype_label": "delete_confirm_modal",
+    "description": "Delete confirmation and hard-lock release confirmation dialogs.",
+    "details": "Prototype reference: design/Monopilot Design System/planning/modals.jsx:609-671. Type-to-confirm, acknowledgement, reason/audit, and transactional reservation release are mandatory.",
+    "scope_files": [
+      "src/components/planning/shared/DeleteConfirmDialog.tsx [create]",
+      "src/components/planning/wo/HardLockReleaseConfirmDialog.tsx [create]",
+      "design/Monopilot Design System/planning/modals.jsx:609-671 [ref]"
+    ],
+    "out_of_scope": [
+      "Changing canonical NPD/Technical/Warehouse/Scanner contracts",
+      "Using D365 as source-of-truth for factory usability"
+    ],
+    "dependencies": [
+      "T-022",
+      "T-024"
+    ],
+    "cross_module_dependencies": [
+      {
+        "module": "05-warehouse",
+        "task_id": "CONTRACT",
+        "reason": "Planning TO/LP/reservation/release-to-warehouse UI must consume Warehouse contracts without inventing Warehouse state."
+      }
+    ],
+    "acceptance_criteria": [
+      "Given the surface is implemented, when compared to `design/Monopilot Design System/planning/modals.jsx:609-671`, then layout, copy hierarchy, components, interactions, empty/loading/error states, and accessibility affordances have prototype parity for `delete_confirm_modal`.",
+      "Given server data or validation returns blocked/empty/error cases, then the UI surfaces the exact PRD validation/status messages without client-invented business state.",
+      "Given closeout is prepared, then it includes desktop screenshots/artifacts for all material states plus Playwright trace artifacts for happy path and blocked/error path.",
+      "Given tests run, then targeted RTL/component tests and Playwright e2e for the route/modal pass with 0 failures. Follow parity evidence requirements in `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`."
+    ],
+    "test_strategy": [
+      "RED RTL/component test for prototype parity and validation states.",
+      "Playwright e2e covers route/modal open, happy path, blocked/error path, and records trace.",
+      "Run targeted pnpm vitest and pnpm playwright commands."
+    ],
+    "risk_red_lines": [
+      "Do not hardcode strings; use next-intl.",
+      "Do not bypass server-side RBAC/business validation.",
+      "Do not infer factory usability from D365 or latest BOM/spec outside canonical release read model."
+    ],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "screenshots_or_artifacts",
+        "playwright_trace_artifacts",
+        "prototype_parity_notes",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "ui_closeout_evidence": [
+      "Desktop screenshots/artifacts for all material states.",
+      "Playwright trace artifacts for happy path and blocked/error path.",
+      "Prototype parity notes citing label/path/lines."
+    ],
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

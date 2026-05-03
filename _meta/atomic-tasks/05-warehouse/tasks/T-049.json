@@ -1,0 +1,127 @@
+{
+  "title": "T-049 — Warehouse GRN desktop UI surfaces",
+  "prompt": "# T-049 — Warehouse GRN desktop UI surfaces\n\nPRD: `05-WAREHOUSE-PRD.md`.\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`.\n\n## Goal\nImplement GRN from PO wizard, GRN from TO modal, GRN list, and GRN detail with prototype parity.\n\n## Implementation contract\nBuild the multi-LP per PO line workflow exactly as the UX specifies: manual row entry, GS1 scan auto-fill cues, per-row batch/expiry/location, review and complete, success/error states, and TO transit-to-destination receiving.\n\n## Files (scope)\n- apps/web/app/(app)/warehouse/grn/** [create]\n- apps/web/components/warehouse/grn/** [create]\n- design/Monopilot Design System/warehouse/grn-screens.jsx\n- design/Monopilot Design System/warehouse/modals.jsx\n\n## Acceptance criteria\n1. Given Receive from PO opens, when compared to design/Monopilot Design System/warehouse/modals.jsx label grn_from_po_wizard, then the 3-step flow and multi-LP row table match prototype structure and copy.\n2. Given a TO receive modal opens, when an LP is checked as received, then Destination Location is required and visible inline as in grn_from_to_modal.\n3. Given GRN list/detail render, then routes, filters, LP created links, export controls, and empty/error states match design/Monopilot Design System/warehouse/grn-screens.jsx.\n4. Given components are inspected, then data-prototype-label markers exist for grn_from_po_wizard, grn_from_to_modal, grn_list_page, and grn_detail_page.\n\n## Test strategy\n- RED: Playwright tests for PO wizard step transitions and required field failures.\n- GREEN: component tests for multi-row add/remove, over/under-receipt warnings, and GS1 parsed badges.\n- Run pnpm playwright test --grep @warehouse-grn-ui and pnpm test.\n\n## Risk red lines\n- Do not auto-split a PO line; operator-entered rows are authoritative.\n- Do not auto-complete GRNs without explicit Complete Receipt.\n- Do not create new LPs for normal TO receive when source LPs already exist.",
+  "labels": [
+    "prd",
+    "ui",
+    "prototype-parity",
+    "T3-ui"
+  ],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "source_prd": "05-WAREHOUSE-PRD.md",
+    "context_budget": "35k",
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "cross_module_dependencies": [
+      {
+        "module": "02-settings",
+        "contract": "rule_registry, warehouses/locations/printers, feature flags, tenant security policy"
+      },
+      {
+        "module": "03-technical",
+        "contract": "items/products, shelf_life_mode/date_code_format, catch-weight, allergen snapshots"
+      },
+      {
+        "module": "04-planning-basic",
+        "contract": "PO/TO/WO read models, RM root reservations, WO release/cancel hooks"
+      },
+      {
+        "module": "06-scanner-p1",
+        "contract": "LP lookup, barcode validation, lock protocol, FEFO suggestion, consume-to-WO"
+      },
+      {
+        "module": "08-production",
+        "contract": "WO material consumption and output LP creation events"
+      },
+      {
+        "module": "09-quality",
+        "contract": "LP qa_status ownership and quality_status_history"
+      },
+      {
+        "module": "11-shipping",
+        "contract": "downstream shelf_life_rules enforcement in Phase 2"
+      }
+    ],
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prd_task_id": "T-049",
+    "prd_refs": [
+      "§7.1",
+      "§7.2",
+      "§7.3",
+      "§7.4",
+      "§7.7",
+      "§16.6 WH-004-PO/WH-005/WH-010"
+    ],
+    "category": "ui",
+    "subcategory": "grn-ui",
+    "task_type": "T3-ui",
+    "parent_feature": "warehouse-grn",
+    "estimated_effort": "2d",
+    "description": "Implement GRN from PO wizard, GRN from TO modal, GRN list, and GRN detail with prototype parity.",
+    "details": "Build the multi-LP per PO line workflow exactly as the UX specifies: manual row entry, GS1 scan auto-fill cues, per-row batch/expiry/location, review and complete, success/error states, and TO transit-to-destination receiving.",
+    "scope_files": [
+      "apps/web/app/(app)/warehouse/grn/** [create]",
+      "apps/web/components/warehouse/grn/** [create]",
+      "design/Monopilot Design System/warehouse/grn-screens.jsx",
+      "design/Monopilot Design System/warehouse/modals.jsx"
+    ],
+    "out_of_scope": [
+      "No scanner mobile receive flow",
+      "No PO schema changes"
+    ],
+    "dependencies": [
+      "T-021",
+      "T-022",
+      "T-023",
+      "T-024",
+      "T-043"
+    ],
+    "parallel_safe_with": [
+      "T-048",
+      "T-050"
+    ],
+    "acceptance_criteria": [
+      "Given Receive from PO opens, when compared to design/Monopilot Design System/warehouse/modals.jsx label grn_from_po_wizard, then the 3-step flow and multi-LP row table match prototype structure and copy.",
+      "Given a TO receive modal opens, when an LP is checked as received, then Destination Location is required and visible inline as in grn_from_to_modal.",
+      "Given GRN list/detail render, then routes, filters, LP created links, export controls, and empty/error states match design/Monopilot Design System/warehouse/grn-screens.jsx.",
+      "Given components are inspected, then data-prototype-label markers exist for grn_from_po_wizard, grn_from_to_modal, grn_list_page, and grn_detail_page."
+    ],
+    "test_strategy": [
+      "RED: Playwright tests for PO wizard step transitions and required field failures.",
+      "GREEN: component tests for multi-row add/remove, over/under-receipt warnings, and GS1 parsed badges.",
+      "Run pnpm playwright test --grep @warehouse-grn-ui and pnpm test."
+    ],
+    "risk_red_lines": [
+      "Do not auto-split a PO line; operator-entered rows are authoritative.",
+      "Do not auto-complete GRNs without explicit Complete Receipt.",
+      "Do not create new LPs for normal TO receive when source LPs already exist."
+    ],
+    "priority_normalization_note": "Priority normalized to ACP convention bands on 2026-05-03; lower number means earlier execution."
+  }
+}

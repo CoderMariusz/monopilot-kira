@@ -1,0 +1,94 @@
+{
+  "title": "T-050 — UI parity: shifts, line detail, analytics hub and production settings",
+  "prompt": "# T-050 — UI parity: shifts, line detail, analytics hub and production settings\n\nPRD/UX refs: SCR-08-08, SCR-08-09, SCR-08-10, SCR-08-11, MODAL-08-12..15\n\nGoal: Build shift management, line detail, analytics hub and production settings surfaces.\n\nImplementation details:\nUse Next.js App Router Server Components by default, shadcn/ui components, next-intl keys, org-scoped data access, loading/empty/error states, and literal data-prototype-label markers matching _meta/prototype-labels/prototype-index-production.json. Closeout must include desktop screenshots and Playwright traces. Match other-screens.jsx:215-291,393-496,560-649; new-screens.jsx:212-478; modals.jsx:366-386,438-557,560-635. Shift actions use T-039/T-040; settings use T-045; line detail uses T-044 SSE and OEE snapshots.\n\nScope files:\n- apps/web/app/production/shifts/page.tsx [create]\n- apps/web/app/production/analytics/page.tsx [create]\n- apps/web/app/production/settings/page.tsx [create]\n- apps/web/app/production/lines/[id]/page.tsx [create]\n- design/Monopilot Design System/production/other-screens.jsx:215-649\n- design/Monopilot Design System/production/new-screens.jsx:212-478\n\nAcceptance criteria:\n1. Shift/settings/line/analytics screens render with prototype labels and URL-driven tabs\n2. Shift end blocks unresolved gates and settings forms audit changes\n3. Closeout includes screenshots for shifts, line detail, settings, analytics and trace\n\nEvidence: include screenshots/artifacts and Playwright traces/artifacts for UI/E2E tasks; include API test output for backend tasks.",
+  "labels": [
+    "prd",
+    "T3-ui",
+    "ui"
+  ],
+  "priority": 120,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-050",
+    "source_prd": "08-PRODUCTION-PRD.md",
+    "prd_refs": [
+      "SCR-08-08",
+      "SCR-08-09",
+      "SCR-08-10",
+      "SCR-08-11",
+      "MODAL-08-12..15"
+    ],
+    "category": "production-readiness",
+    "subcategory": "UI parity: shifts, line detail, analytics hub an",
+    "task_type": "T3-ui",
+    "parent_feature": "08-PRODUCTION full module readiness",
+    "context_budget": "40k",
+    "estimated_effort": "2-4h",
+    "description": "Build shift management, line detail, analytics hub and production settings surfaces.",
+    "details": "Use Next.js App Router Server Components by default, shadcn/ui components, next-intl keys, org-scoped data access, loading/empty/error states, and literal data-prototype-label markers matching _meta/prototype-labels/prototype-index-production.json. Closeout must include desktop screenshots and Playwright traces. Match other-screens.jsx:215-291,393-496,560-649; new-screens.jsx:212-478; modals.jsx:366-386,438-557,560-635. Shift actions use T-039/T-040; settings use T-045; line detail uses T-044 SSE and OEE snapshots.",
+    "scope_files": [
+      "apps/web/app/production/shifts/page.tsx [create]",
+      "apps/web/app/production/analytics/page.tsx [create]",
+      "apps/web/app/production/settings/page.tsx [create]",
+      "apps/web/app/production/lines/[id]/page.tsx [create]",
+      "design/Monopilot Design System/production/other-screens.jsx:215-649",
+      "design/Monopilot Design System/production/new-screens.jsx:212-478"
+    ],
+    "dependencies": [
+      "T-039",
+      "T-040",
+      "T-044",
+      "T-045"
+    ],
+    "acceptance_criteria": [
+      "Shift/settings/line/analytics screens render with prototype labels and URL-driven tabs",
+      "Shift end blocks unresolved gates and settings forms audit changes",
+      "Closeout includes screenshots for shifts, line detail, settings, analytics and trace"
+    ],
+    "test_strategy": [
+      "RED: add failing unit/integration tests for the cited slice before implementation",
+      "GREEN: run targeted pnpm test command and relevant Playwright check"
+    ],
+    "risk_red_lines": [
+      "Do not treat D365 sync/export/Built as production release source-of-truth",
+      "Do not bypass 04-PLANNING WO snapshot or 03-TECHNICAL active factory spec/BOM approval"
+    ],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "screenshots_or_artifacts",
+        "playwright_traces_or_artifacts",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "cross_module_dependencies": [
+      {
+        "module": "02-settings",
+        "task_id": "T-020",
+        "reason": "Machine/line registry and operator certifications."
+      }
+    ],
+    "priority_normalization_note": "Priority normalized to ACP convention bands on 2026-05-03; lower number means earlier execution."
+  }
+}

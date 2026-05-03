@@ -1,7 +1,12 @@
 {
   "title": "T-038 — UI: PLN-014 PO Fast-Flow Wizard modal (parity with po_fast_flow_wizard)",
   "prompt": "Build PLN-014 PO 3-step wizard modal at `src/components/planning/po/POFastFlowWizard.tsx` matching prototype `design/Monopilot Design System/planning/modals.jsx:21-179` 1:1.\n\nSteps: (1) Supplier pick + smart defaults (currency, tax_code, payment_terms, warehouse), (2) Products + qty rows with auto-fill (unit_price, expected_delivery_date, discount); warning for products without is_default supplier, (3) Review with totals + optional approval banner.\n\nRadix Dialog (size wide). useReducer step machine. react-hook-form + Zod resolver. Submit calls T-010 Server Action.\n\nRED RTL test asserts 3-step navigation, smart defaults populate after supplier pick, total recompute on line change.",
-  "labels": ["prd", "ui", "pln-014-po-wizard", "T3-ui"],
+  "labels": [
+    "prd",
+    "ui",
+    "pln-014-po-wizard",
+    "T3-ui"
+  ],
   "priority": 100,
   "max_attempts": 3,
   "pipeline_name": "kira_dev",
@@ -9,7 +14,10 @@
     "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
     "prd_task_id": "T-038",
     "source_prd": "04-PLANNING-BASIC-PRD.md",
-    "prd_refs": ["§6.2", "§6.6"],
+    "prd_refs": [
+      "§6.2",
+      "§6.6"
+    ],
     "category": "ui",
     "subcategory": "pln-014-po-wizard",
     "task_type": "T3-ui",
@@ -28,13 +36,15 @@
       "Add Line modal (T-039)",
       "PO list page (T-035)"
     ],
-    "dependencies": ["T-010", "T-035"],
-    "parallel_safe_with": ["T-039", "T-040"],
+    "dependencies": [
+      "T-010",
+      "T-035"
+    ],
     "acceptance_criteria": [
       "Given the modal opens, when compared to `design/Monopilot Design System/planning/modals.jsx:21-179`, then it renders the same 3 step labels, the same field set on each step in the same order, the same Next/Back/Submit footer, and the same shadcn primitives (Dialog, Stepper, Form, Select, Input, Textarea, Button, Alert) — parity verified by RTL test per the checklist.",
       "Given Step 1 supplier is selected, when defaults endpoint resolves, then currency/payment_terms/warehouse fields populate and become read-only by default.",
       "Given Step 3 total > planning_settings.po_approval_threshold, when the modal renders the review, then the approval banner is visible.",
-      "Given `pnpm vitest run src/components/planning/po/__tests__/POFastFlowWizard.test.tsx`, when run, then 0 failures."
+      "Given `pnpm vitest run src/components/planning/po/__tests__/POFastFlowWizard.test.tsx`, when run, then 0 failures. Given the UI task is closed, then CLOSEOUT includes Playwright trace artifacts plus screenshots/artifacts for prototype parity and error/empty/blocked states. Follow parity evidence requirements in `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`."
     ],
     "test_strategy": [
       "RED RTL test asserts step navigation, smart-default propagation, totals derivation, parity.",
@@ -45,15 +55,26 @@
       "Do not store totals in setState — must derive.",
       "Do not skip Zod validation in any step."
     ],
-    "skills": ["test-driven-development", "requesting-code-review"],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
     "checkpoint_policy": {
-      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
       "closeout_requires": [
         "changed_files",
         "test_commands_and_results",
         "acceptance_criteria_status",
         "deviations_from_prd",
-        "git_status"
+        "git_status",
+        "screenshots_or_artifacts",
+        "playwright_trace_artifacts",
+        "prototype_parity_notes"
       ]
     },
     "routing_hints": {
@@ -61,6 +82,28 @@
       "implementation": "hermes_gpt55",
       "review": "opus_if_high_risk_or_ui_or_architecture",
       "close": "spark_low_risk_else_opus"
-    }
+    },
+    "cross_module_dependencies": [
+      {
+        "module": "05-warehouse",
+        "task_id": "CONTRACT",
+        "reason": "Consumes Warehouse LP/location/GRN/TO handoff contracts; no Planning task may invent Warehouse state semantics."
+      },
+      {
+        "module": "02-settings",
+        "task_id": "CONTRACT",
+        "reason": "Uses Settings rule registry, flags, status display, and permission contracts."
+      },
+      {
+        "module": "03-technical",
+        "task_id": "D365-CONTRACT",
+        "reason": "Consumes optional D365 integration adapter metadata; D365 never unlocks factory use."
+      }
+    ],
+    "ui_closeout_evidence": [
+      "Playwright trace artifact for each happy path and blocked/error path exercised by the task.",
+      "Desktop screenshots/artifacts for each implemented page/modal state compared against prototype line references.",
+      "Attach artifact paths in CLOSEOUT with changed files, test commands/results, and acceptance criteria status."
+    ]
   }
 }

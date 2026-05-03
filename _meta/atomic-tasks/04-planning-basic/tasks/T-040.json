@@ -1,7 +1,12 @@
 {
   "title": "T-040 — UI: PLN-016 PO Approval modal (parity with po_approval_modal)",
   "prompt": "Build PLN-016 PO Approval modal at `src/components/planning/po/POApprovalModal.tsx` matching prototype `design/Monopilot Design System/planning/modals.jsx:228-264` 1:1.\n\nMode toggle (Approve / Reject) via ToggleGroup. ReasonInput (Textarea, minLength=10, required). PO summary rows (po_number, supplier, total). Dual-path footer renders Approve or Reject based on mode.\n\nRBAC: only callers with planning.po.approve role can submit. onConfirm calls T-013 endpoints. Outbox emits per side-effect contract.\n\nRED RTL test asserts mode toggle, minLength=10 enforcement, RBAC denial path, dual-path footer.",
-  "labels": ["prd", "ui", "pln-016-po-approval", "T3-ui"],
+  "labels": [
+    "prd",
+    "ui",
+    "pln-016-po-approval",
+    "T3-ui"
+  ],
   "priority": 100,
   "max_attempts": 3,
   "pipeline_name": "kira_dev",
@@ -9,7 +14,10 @@
     "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
     "prd_task_id": "T-040",
     "source_prd": "04-PLANNING-BASIC-PRD.md",
-    "prd_refs": ["§6.2", "§6.6"],
+    "prd_refs": [
+      "§6.2",
+      "§6.6"
+    ],
     "category": "ui",
     "subcategory": "pln-016-po-approval",
     "task_type": "T3-ui",
@@ -27,13 +35,15 @@
     "out_of_scope": [
       "Bulk approval (P2)"
     ],
-    "dependencies": ["T-013", "T-036"],
-    "parallel_safe_with": ["T-038", "T-039"],
+    "dependencies": [
+      "T-013",
+      "T-036"
+    ],
     "acceptance_criteria": [
       "Given the modal opens, when compared to `design/Monopilot Design System/planning/modals.jsx:228-264`, then mode toggle pills, ReasonInput, summary rows, and footer match prototype — parity verified by RTL test.",
       "Given mode='Reject' and reason='ok' (2 chars), when Submit clicked, then Zod error renders inline and no API call fires.",
       "Given a caller without planning.po.approve, when modal renders, then submit button is disabled with tooltip 'You do not have approval rights'.",
-      "Given `pnpm vitest run src/components/planning/po/__tests__/POApprovalModal.test.tsx`, when run, then 0 failures."
+      "Given `pnpm vitest run src/components/planning/po/__tests__/POApprovalModal.test.tsx`, when run, then 0 failures. Given the UI task is closed, then CLOSEOUT includes Playwright trace artifacts plus screenshots/artifacts for prototype parity and error/empty/blocked states. Follow parity evidence requirements in `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`."
     ],
     "test_strategy": [
       "RED RTL parity + Zod min length + RBAC disable.",
@@ -44,15 +54,26 @@
       "Do not bypass RBAC client-side as defense in depth.",
       "Do not allow reject without notes ≥ 10 chars."
     ],
-    "skills": ["test-driven-development", "requesting-code-review"],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
     "checkpoint_policy": {
-      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
       "closeout_requires": [
         "changed_files",
         "test_commands_and_results",
         "acceptance_criteria_status",
         "deviations_from_prd",
-        "git_status"
+        "git_status",
+        "screenshots_or_artifacts",
+        "playwright_trace_artifacts",
+        "prototype_parity_notes"
       ]
     },
     "routing_hints": {
@@ -60,6 +81,12 @@
       "implementation": "hermes_gpt55",
       "review": "opus_if_high_risk_or_ui_or_architecture",
       "close": "spark_low_risk_else_opus"
-    }
+    },
+    "cross_module_dependencies": [],
+    "ui_closeout_evidence": [
+      "Playwright trace artifact for each happy path and blocked/error path exercised by the task.",
+      "Desktop screenshots/artifacts for each implemented page/modal state compared against prototype line references.",
+      "Attach artifact paths in CLOSEOUT with changed files, test commands/results, and acceptance criteria status."
+    ]
   }
 }

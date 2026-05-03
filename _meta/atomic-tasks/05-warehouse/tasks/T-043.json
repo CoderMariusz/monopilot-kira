@@ -1,7 +1,12 @@
 {
   "title": "T-043 — ZPL label generation service + print endpoint",
   "prompt": "# T-043 — ZPL label generation service\n\nPRD: `05-WAREHOUSE-PRD.md` §15.1, §15.3, V-WH-LABEL-001/003/004/005.\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`.\n\n## Goal\nGenerate a ZPL 4×6 label for an LP and POST it to the printer's TCP socket; expose `POST /api/warehouse/license-plates/:id/print-label`.\n\n## Implementation contract\n`apps/web/lib/services/warehouse/zpl-renderer.ts` exposes `renderLpLabelZpl(lp, copies)`. `apps/web/app/api/warehouse/license-plates/[id]/print-label/route.ts` accepts {copies, printer_id?} and sends ZPL via TCP to printer.ip:9100. Validate copies in 1..10 (V-WH-LABEL-004). Validate GTIN-14 check digit (V-WH-LABEL-001). Verify printer online flag (V-WH-LABEL-003) — fail with 503 + retry hint when offline.\n\n## Files (scope)\n- apps/web/lib/services/warehouse/zpl-renderer.ts [create]\n- apps/web/app/api/warehouse/license-plates/[id]/print-label/route.ts [create]\n- apps/web/lib/services/warehouse/__tests__/zpl-renderer.test.ts [create]\n\n## Acceptance criteria\n1. Given an LP with batch and expiry, when renderLpLabelZpl runs, then output contains barcode (Code 128) of LP number and the expiry date.\n2. Given copies=11, when endpoint is hit, then 422 returns with V-WH-LABEL-004 reason.\n3. Given printer.online=false, when endpoint is hit, then 503 returns with retry hint and no TCP write occurs.\n4. Given GTIN check-digit invalid, when renderLpLabelZpl runs, then it raises V-WH-LABEL-001.\n\n## Test strategy\n- RED: zpl-renderer.test.ts covers content, copies bound, printer offline, GTIN check.\n- Run `pnpm --filter web test zpl-renderer`.\n\n## Risk red lines\n- Do not embed printer secrets in ZPL.\n- Do not skip GTIN validation.\n- Do not retry indefinitely on TCP failure.",
-  "labels": ["prd", "api", "labels", "T2-api"],
+  "labels": [
+    "prd",
+    "api",
+    "labels",
+    "T2-api"
+  ],
   "priority": 100,
   "max_attempts": 3,
   "pipeline_name": "kira_dev",
@@ -9,7 +14,10 @@
     "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
     "prd_task_id": "T-043",
     "source_prd": "05-WAREHOUSE-PRD.md",
-    "prd_refs": ["§15.1", "§15.3"],
+    "prd_refs": [
+      "§15.1",
+      "§15.3"
+    ],
     "category": "api",
     "subcategory": "labels",
     "task_type": "T2-api",
@@ -28,8 +36,15 @@
       "SSCC pallet labels (P2)",
       "Label template editor"
     ],
-    "dependencies": ["T-002", "T-009"],
-    "parallel_safe_with": ["T-044", "T-045", "T-046"],
+    "dependencies": [
+      "T-002",
+      "T-009"
+    ],
+    "parallel_safe_with": [
+      "T-044",
+      "T-045",
+      "T-046"
+    ],
     "acceptance_criteria": [
       "Given an LP with batch and expiry, when renderLpLabelZpl runs, then output contains a Code 128 barcode of LP number and the expiry date",
       "Given copies=11, when endpoint is hit, then 422 returns with V-WH-LABEL-004 reason",
@@ -45,16 +60,60 @@
       "Do not skip GTIN validation",
       "Do not retry indefinitely on TCP failure"
     ],
-    "skills": ["test-driven-development", "requesting-code-review"],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
     "checkpoint_policy": {
-      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
-      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
     },
     "routing_hints": {
       "red": "hermes_gpt55",
       "implementation": "hermes_gpt55",
       "review": "opus_if_high_risk_or_ui_or_architecture",
       "close": "spark_low_risk_else_opus"
-    }
+    },
+    "cross_module_dependencies": [
+      {
+        "module": "02-settings",
+        "contract": "rule_registry, warehouses/locations/printers, feature flags, tenant security policy"
+      },
+      {
+        "module": "03-technical",
+        "contract": "items/products, shelf_life_mode/date_code_format, catch-weight, allergen snapshots"
+      },
+      {
+        "module": "04-planning-basic",
+        "contract": "PO/TO/WO read models, RM root reservations, WO release/cancel hooks"
+      },
+      {
+        "module": "06-scanner-p1",
+        "contract": "LP lookup, barcode validation, lock protocol, FEFO suggestion, consume-to-WO"
+      },
+      {
+        "module": "08-production",
+        "contract": "WO material consumption and output LP creation events"
+      },
+      {
+        "module": "09-quality",
+        "contract": "LP qa_status ownership and quality_status_history"
+      },
+      {
+        "module": "11-shipping",
+        "contract": "downstream shelf_life_rules enforcement in Phase 2"
+      }
+    ]
   }
 }

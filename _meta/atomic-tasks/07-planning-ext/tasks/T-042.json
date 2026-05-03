@@ -1,0 +1,92 @@
+{
+  "title": "T-042 — Forecast Upload screen and manual forecast management UI",
+  "prompt": "# T-042 — Forecast Upload screen and manual forecast management UI\n\nPRD: `07-PLANNING-EXT-PRD.md` §8.1 SCR-07-03, §17.1 PLE forecast coverage, §15.4 V-SCHED-09.\nUX/prototype refs are listed in `pipeline_inputs.scope_files`.\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`.\n\n## Goal\nBuild the first-class forecast management surface for P1 manual demand inputs and P2-gated Prophet display.\n\n## Implementation contract\nServer-load forecast rows from T-020, post uploads through T-019, and preserve prototype layout/interaction parity including upload/preview stages, source badges, and stale/health gated card. Use i18n keys for hardcoded strings.\n\nACP shape reminder: keep this task as one atomic implementation. Do not add ACP-owned fields. Keep local dependencies in `dependencies`; cross-module contracts in `cross_module_dependencies` are blockers/inputs, not ACP local task IDs.",
+  "labels": [
+    "prd",
+    "ui",
+    "forecast",
+    "T3-ui"
+  ],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "source_prd": "07-PLANNING-EXT-PRD.md",
+    "context_budget": "40k",
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prd_refs": [
+      "§8.1 SCR-07-03",
+      "§17.1 PLE forecast coverage",
+      "§15.4 V-SCHED-09"
+    ],
+    "category": "ui",
+    "subcategory": "forecast-screen",
+    "task_type": "T3-ui",
+    "parent_feature": "07-EXT-c forecast bridge UI",
+    "estimated_effort": "2-3h",
+    "description": "Implement /scheduler/forecasts with manual CSV upload modal, forecast grid, source filters, validation preview, and P2 Prophet gated health card.",
+    "details": "Use prototype pext_forecasts_screen and forecast_upload_modal. P1 manual CSV is active; Prophet chart/health is feature-gated P2. D365 sales history is optional P2 input only and never a scheduler source of truth in P1.",
+    "scope_files": [
+      "apps/web/src/app/scheduler/forecasts/page.tsx [create]",
+      "apps/web/src/components/scheduler/ForecastUploadModal.tsx [create]",
+      "apps/web/src/lib/scheduler/forecast-actions.ts",
+      "design/Monopilot Design System/planning-ext/forecast-screens.jsx:3-155 [ref]",
+      "design/Monopilot Design System/planning-ext/modals.jsx:498-560 [ref]"
+    ],
+    "dependencies": [
+      "T-019",
+      "T-020"
+    ],
+    "cross_module_dependencies": [
+      {
+        "module": "04-planning-basic",
+        "task_id": "T-001",
+        "reason": "Forecast-driven PO generation remains Planning-owned and reviewer-approved."
+      },
+      {
+        "module": "13-integrations",
+        "contract": "Optional P2 sales history pull; D365 is not P1 source of truth."
+      }
+    ],
+    "acceptance_criteria": [
+      "Given /scheduler/forecasts renders, then it has prototype parity with pext_forecasts_screen/forecast_upload_modal including filters, grid, modal stages and gated Prophet card.",
+      "Given a CSV is selected, then forecast_upload_modal validates product_code/week_iso/qty_kg and shows row errors for V-SCHED-09 before commit.",
+      "Given scheduler.prophet.enabled=false, then Prophet confidence bands/health controls are hidden or locked, while manual forecast flows remain usable."
+    ],
+    "test_strategy": [
+      "RED RTL tests for filters, modal validation, P2 feature gate.",
+      "Run pnpm --filter web test scheduler/ForecastUploadModal scheduler/forecasts-page."
+    ],
+    "risk_red_lines": [
+      "Do not make D365 mandatory for P1 forecasts.",
+      "Do not bypass server-side CSV validation.",
+      "Do not hardcode FA nomenclature; use FG/product_code labels."
+    ],
+    "prd_task_id": "T-042"
+  }
+}

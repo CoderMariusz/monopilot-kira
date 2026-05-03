@@ -1,15 +1,22 @@
 {
   "title": "T-046 — Location deactivate guard service",
   "prompt": "# T-046 — Location deactivate guard\n\nPRD: `05-WAREHOUSE-PRD.md` §14.6 (FR-WH-041), V-WH-DASH-002.\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`.\n\n## Goal\n`deactivateLocation(locationId)` Server Action that blocks deactivation when ≥1 active LP (status IN available/reserved) is present.\n\n## Implementation contract\n`apps/web/lib/services/warehouse/location-deactivate.ts`. Count active LPs at the location. If >0 return V-WH-DASH-002 error 'cannot_deactivate_location_with_active_lps' (count, location_path) — UI surfaces explicit message. Otherwise set locations.active=false, append audit row, emit outbox 'location.deactivated' (deferred T-047).\n\n## Files (scope)\n- apps/web/lib/services/warehouse/location-deactivate.ts [create]\n- apps/web/lib/services/warehouse/__tests__/location-deactivate.test.ts [create]\n\n## Acceptance criteria\n1. Given a location with 3 active LPs, when deactivateLocation runs, then it returns V-WH-DASH-002 with count=3 and the row stays active=true.\n2. Given a location with 0 active LPs, when run, then locations.active=false and audit row exists.\n3. Given Operator caller, when run, then RBAC error returns (Admin only per §14.6).\n\n## Test strategy\n- RED: location-deactivate.test.ts covers blocked, allowed, RBAC.\n- Run `pnpm --filter web test location-deactivate`.\n\n## Risk red lines\n- Do not count consumed/shipped/blocked LPs as active.\n- Do not bypass Admin RBAC.\n- Do not skip audit row.",
-  "labels": ["prd", "api", "locations", "T2-api"],
-  "priority": 110,
+  "labels": [
+    "prd",
+    "api",
+    "locations",
+    "T2-api"
+  ],
+  "priority": 120,
   "max_attempts": 3,
   "pipeline_name": "kira_dev",
   "pipeline_inputs": {
     "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
     "prd_task_id": "T-046",
     "source_prd": "05-WAREHOUSE-PRD.md",
-    "prd_refs": ["§14.6"],
+    "prd_refs": [
+      "§14.6"
+    ],
     "category": "api",
     "subcategory": "locations",
     "task_type": "T2-api",
@@ -26,8 +33,13 @@
       "Hierarchy UI (T-071)",
       "Locations CRUD (02-SETTINGS)"
     ],
-    "dependencies": ["T-002"],
-    "parallel_safe_with": ["T-044", "T-045"],
+    "dependencies": [
+      "T-002"
+    ],
+    "parallel_safe_with": [
+      "T-044",
+      "T-045"
+    ],
     "acceptance_criteria": [
       "Given a location with 3 active LPs, when run, then V-WH-DASH-002 returns with count=3 and active stays true",
       "Given a location with 0 active LPs, when run, then active=false and audit row exists",
@@ -42,16 +54,61 @@
       "Do not bypass Admin RBAC",
       "Do not skip audit"
     ],
-    "skills": ["test-driven-development", "requesting-code-review"],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
     "checkpoint_policy": {
-      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
-      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
     },
     "routing_hints": {
       "red": "hermes_gpt55",
       "implementation": "hermes_gpt55",
       "review": "opus_if_high_risk_or_ui_or_architecture",
       "close": "spark_low_risk_else_opus"
-    }
+    },
+    "cross_module_dependencies": [
+      {
+        "module": "02-settings",
+        "contract": "rule_registry, warehouses/locations/printers, feature flags, tenant security policy"
+      },
+      {
+        "module": "03-technical",
+        "contract": "items/products, shelf_life_mode/date_code_format, catch-weight, allergen snapshots"
+      },
+      {
+        "module": "04-planning-basic",
+        "contract": "PO/TO/WO read models, RM root reservations, WO release/cancel hooks"
+      },
+      {
+        "module": "06-scanner-p1",
+        "contract": "LP lookup, barcode validation, lock protocol, FEFO suggestion, consume-to-WO"
+      },
+      {
+        "module": "08-production",
+        "contract": "WO material consumption and output LP creation events"
+      },
+      {
+        "module": "09-quality",
+        "contract": "LP qa_status ownership and quality_status_history"
+      },
+      {
+        "module": "11-shipping",
+        "contract": "downstream shelf_life_rules enforcement in Phase 2"
+      }
+    ],
+    "priority_normalization_note": "Priority normalized to ACP convention bands on 2026-05-03; lower number means earlier execution."
   }
 }

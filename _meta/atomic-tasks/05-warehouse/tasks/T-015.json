@@ -1,15 +1,23 @@
 {
   "title": "T-015 — Seed fifo_strategy_v1 DSL rule",
   "prompt": "# T-015 — Seed fifo_strategy_v1 DSL rule\n\nPRD: `05-WAREHOUSE-PRD.md` §9.1, §9.3.\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`.\n\n## Goal\nSeed the rule registry with `fifo_strategy_v1` for non-expiring goods picking — orders by created_at ASC.\n\n## Implementation contract\nJSON DSL `packages/db/seed/rules/fifo-strategy-v1.json` (inputs identical to FEFO; outputs sorted by created_at ASC with qa_status gating). Seed script upserts.\n\n## Files (scope)\n- packages/db/seed/rules/fifo-strategy-v1.json [create]\n- packages/db/seed/rules/fifo-strategy-v1.seed.ts [create]\n- packages/db/seed/rules/__tests__/fifo-strategy-v1.test.ts [create]\n\n## Acceptance criteria\n1. Given the seed runs, when rule_registry is queried, then fifo_strategy_v1 v1.0 exists with §9.1 input shape.\n2. Given two LPs created at 09:00 and 10:00, when the rule executes, then 09:00 LP ranks first.\n3. Given an LP with qa_status='FAILED', when the rule executes with defaults, then it is excluded.\n\n## Test strategy\n- RED: fifo-strategy-v1.test.ts seeds two LP fixtures and asserts FIFO order + FAILED exclusion.\n- Run `pnpm --filter db test fifo-strategy-v1`.\n\n## Risk red lines\n- Do not include FAILED/HOLD/QUARANTINED LPs.\n- Do not let rule become editable at runtime.\n- Do not duplicate FEFO logic — order by created_at only.",
-  "labels": ["prd", "data", "rule-registry", "T5-seed"],
-  "priority": 90,
+  "labels": [
+    "prd",
+    "data",
+    "rule-registry",
+    "T5-seed"
+  ],
+  "priority": 100,
   "max_attempts": 3,
   "pipeline_name": "kira_dev",
   "pipeline_inputs": {
     "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
     "prd_task_id": "T-015",
     "source_prd": "05-WAREHOUSE-PRD.md",
-    "prd_refs": ["§9.1", "§9.3"],
+    "prd_refs": [
+      "§9.1",
+      "§9.3"
+    ],
     "category": "data",
     "subcategory": "rule-registry",
     "task_type": "T5-seed",
@@ -28,8 +36,13 @@
       "Endpoint exposure (T-030)",
       "Admin UI"
     ],
-    "dependencies": ["T-002"],
-    "parallel_safe_with": ["T-013", "T-014"],
+    "dependencies": [
+      "T-002"
+    ],
+    "parallel_safe_with": [
+      "T-013",
+      "T-014"
+    ],
     "acceptance_criteria": [
       "Given the seed runs, when rule_registry is queried, then fifo_strategy_v1 v1.0 exists with §9.1 inputs",
       "Given two LPs (09:00 and 10:00), when the rule executes, then 09:00 LP ranks first",
@@ -44,16 +57,61 @@
       "Do not embed FEFO sort key",
       "Do not allow admin runtime edits"
     ],
-    "skills": ["test-driven-development", "requesting-code-review"],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
     "checkpoint_policy": {
-      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
-      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
     },
     "routing_hints": {
       "red": "hermes_gpt55",
       "implementation": "hermes_gpt55",
       "review": "opus_if_high_risk_or_ui_or_architecture",
       "close": "spark_low_risk_else_opus"
-    }
+    },
+    "cross_module_dependencies": [
+      {
+        "module": "02-settings",
+        "contract": "rule_registry, warehouses/locations/printers, feature flags, tenant security policy"
+      },
+      {
+        "module": "03-technical",
+        "contract": "items/products, shelf_life_mode/date_code_format, catch-weight, allergen snapshots"
+      },
+      {
+        "module": "04-planning-basic",
+        "contract": "PO/TO/WO read models, RM root reservations, WO release/cancel hooks"
+      },
+      {
+        "module": "06-scanner-p1",
+        "contract": "LP lookup, barcode validation, lock protocol, FEFO suggestion, consume-to-WO"
+      },
+      {
+        "module": "08-production",
+        "contract": "WO material consumption and output LP creation events"
+      },
+      {
+        "module": "09-quality",
+        "contract": "LP qa_status ownership and quality_status_history"
+      },
+      {
+        "module": "11-shipping",
+        "contract": "downstream shelf_life_rules enforcement in Phase 2"
+      }
+    ],
+    "priority_normalization_note": "Priority normalized to ACP convention bands on 2026-05-03; lower number means earlier execution."
   }
 }

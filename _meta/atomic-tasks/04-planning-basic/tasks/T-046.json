@@ -1,0 +1,101 @@
+{
+  "title": "T-046 — UI: PLN-004 TO List page (parity with plan_to_list)",
+  "prompt": "Implement UI: PLN-004 TO List page (parity with plan_to_list) for 04-PLANNING-BASIC.\n\nPrototype: `_meta/prototype-labels/prototype-index-planning.json` label `plan_to_list` -> `design/Monopilot Design System/planning/to-screens.jsx:3-99`. Read PRD refs §7.1, §7.2, §7.7 and UX refs before coding. Match the prototype structurally and visually using shadcn/Radix primitives, Next.js App Router, Server Components for initial data, Server Actions for writes, next-intl for all copy, and existing repository conventions.\n\nBusiness rules: Use T-014 services for data/actions; status tabs/counts are server-derived; Warehouse handoff badges are read-only context.\n\nCloseout must include changed files, test commands/results, AC status, screenshot/artifact paths, Playwright trace paths, deviations, and git status. Do not implement out-of-scope modules; use cross-module contracts listed in pipeline_inputs.cross_module_dependencies.",
+  "labels": [
+    "prd",
+    "ui",
+    "pln-004-to-list",
+    "T3-ui"
+  ],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-046",
+    "source_prd": "04-PLANNING-BASIC-PRD.md",
+    "prd_refs": [
+      "§7.1",
+      "§7.2",
+      "§7.7"
+    ],
+    "category": "ui",
+    "subcategory": "pln-004-to-list",
+    "task_type": "T3-ui",
+    "parent_feature": "planning-basic-full-ui",
+    "context_budget": "40k",
+    "estimated_effort": "4-6h",
+    "prototype_match": true,
+    "prototype_label": "plan_to_list",
+    "description": "TO list with filters, KPI strip, overdue rows, row navigation, Create TO opener.",
+    "details": "Prototype reference: design/Monopilot Design System/planning/to-screens.jsx:3-99. Use T-014 services for data/actions; status tabs/counts are server-derived; Warehouse handoff badges are read-only context.",
+    "scope_files": [
+      "src/app/(planning)/planning/transfer-orders/page.tsx [create]",
+      "src/components/planning/to/TOList.tsx [create]",
+      "design/Monopilot Design System/planning/to-screens.jsx:3-99 [ref]"
+    ],
+    "out_of_scope": [
+      "Changing canonical NPD/Technical/Warehouse/Scanner contracts",
+      "Using D365 as source-of-truth for factory usability"
+    ],
+    "dependencies": [
+      "T-014"
+    ],
+    "cross_module_dependencies": [
+      {
+        "module": "05-warehouse",
+        "task_id": "CONTRACT",
+        "reason": "Planning TO/LP/reservation/release-to-warehouse UI must consume Warehouse contracts without inventing Warehouse state."
+      }
+    ],
+    "acceptance_criteria": [
+      "Given the surface is implemented, when compared to `design/Monopilot Design System/planning/to-screens.jsx:3-99`, then layout, copy hierarchy, components, interactions, empty/loading/error states, and accessibility affordances have prototype parity for `plan_to_list`.",
+      "Given server data or validation returns blocked/empty/error cases, then the UI surfaces the exact PRD validation/status messages without client-invented business state.",
+      "Given closeout is prepared, then it includes desktop screenshots/artifacts for all material states plus Playwright trace artifacts for happy path and blocked/error path.",
+      "Given tests run, then targeted RTL/component tests and Playwright e2e for the route/modal pass with 0 failures. Follow parity evidence requirements in `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`."
+    ],
+    "test_strategy": [
+      "RED RTL/component test for prototype parity and validation states.",
+      "Playwright e2e covers route/modal open, happy path, blocked/error path, and records trace.",
+      "Run targeted pnpm vitest and pnpm playwright commands."
+    ],
+    "risk_red_lines": [
+      "Do not hardcode strings; use next-intl.",
+      "Do not bypass server-side RBAC/business validation.",
+      "Do not infer factory usability from D365 or latest BOM/spec outside canonical release read model."
+    ],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "screenshots_or_artifacts",
+        "playwright_trace_artifacts",
+        "prototype_parity_notes",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "ui_closeout_evidence": [
+      "Desktop screenshots/artifacts for all material states.",
+      "Playwright trace artifacts for happy path and blocked/error path.",
+      "Prototype parity notes citing label/path/lines."
+    ],
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

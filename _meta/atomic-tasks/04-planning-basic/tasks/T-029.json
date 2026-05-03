@@ -1,15 +1,23 @@
 {
   "title": "T-029 — Seed: planning_settings defaults + status_display per tenant",
   "prompt": "Implement seed/migration helper that inserts a planning_settings row for each tenant on tenant onboarding. Seed values per PRD §14.1 defaults table. status_display JSONB seeded with the 7 PO statuses + 8 TO statuses + 7 WO statuses, each with default { label_pl, label_en, color (Tailwind tone hex), icon }. po_approval_roles default '{}'. wo_number_format='WIP-{SUFFIX}-{NNNNNNN}' default. default_intermediate_disposition='to_stock'.\n\nIdempotent: ON CONFLICT (tenant_id) DO NOTHING. Hook into 02-SETTINGS tenant-create flow.\n\nRED test creates a fresh tenant, asserts settings row materializes with all defaults and status_display covers all enum values.",
-  "labels": ["prd", "data", "settings-seed", "T5-seed"],
-  "priority": 110,
+  "labels": [
+    "prd",
+    "data",
+    "settings-seed",
+    "T5-seed"
+  ],
+  "priority": 120,
   "max_attempts": 3,
   "pipeline_name": "kira_dev",
   "pipeline_inputs": {
     "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
     "prd_task_id": "T-029",
     "source_prd": "04-PLANNING-BASIC-PRD.md",
-    "prd_refs": ["§14.1", "§14.2"],
+    "prd_refs": [
+      "§14.1",
+      "§14.2"
+    ],
     "category": "data",
     "subcategory": "settings-seed",
     "task_type": "T5-seed",
@@ -26,8 +34,9 @@
       "Settings PATCH endpoint (T-028)",
       "Status display editor UI (T-038a)"
     ],
-    "dependencies": ["T-006"],
-    "parallel_safe_with": ["T-028"],
+    "dependencies": [
+      "T-006"
+    ],
     "acceptance_criteria": [
       "Given a fresh tenant T1, when planning-settings-seed runs, then a planning_settings row exists with default_po_currency='GBP', wo_number_format='WIP-{SUFFIX}-{NNNNNNN}', default_intermediate_disposition='to_stock'.",
       "Given the seed runs twice for the same tenant, when the second run completes, then the row count is still 1 (idempotent).",
@@ -42,9 +51,17 @@
       "Do not seed without tenant_id — RLS guard would reject anyway, but logic must call with valid context.",
       "Do not omit any status from status_display — V-PLAN-SET-003 hard rule."
     ],
-    "skills": ["test-driven-development", "requesting-code-review"],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
     "checkpoint_policy": {
-      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
       "closeout_requires": [
         "changed_files",
         "test_commands_and_results",
@@ -58,6 +75,14 @@
       "implementation": "hermes_gpt55",
       "review": "opus_if_high_risk_or_ui_or_architecture",
       "close": "spark_low_risk_else_opus"
-    }
+    },
+    "cross_module_dependencies": [
+      {
+        "module": "02-settings",
+        "task_id": "CONTRACT",
+        "reason": "Uses Settings rule registry, flags, status display, and permission contracts."
+      }
+    ],
+    "priority_normalization_note": "Priority normalized to ACP convention bands on 2026-05-03; lower number means earlier execution."
   }
 }

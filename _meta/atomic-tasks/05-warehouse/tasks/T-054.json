@@ -1,0 +1,122 @@
+{
+  "title": "T-054 — Warehouse labels and genealogy export UI surfaces",
+  "prompt": "# T-054 — Warehouse labels and genealogy export UI surfaces\n\nPRD: `05-WAREHOUSE-PRD.md`.\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`.\n\n## Goal\nImplement label print modal and genealogy traceability page with prototype parity and export hooks.\n\n## Implementation contract\nBuild the label print/reprint UI and full genealogy trace query page. The label preview may remain HTML preview but must call the backend ZPL print endpoint. Genealogy export must expose CSV/PDF action hooks and depth warnings.\n\n## Files (scope)\n- apps/web/components/warehouse/labels/** [create]\n- apps/web/app/(app)/warehouse/genealogy/** [create]\n- design/Monopilot Design System/warehouse/modals.jsx\n- design/Monopilot Design System/warehouse/other-screens.jsx\n\n## Acceptance criteria\n1. Given label_print_modal renders, when compared to design/Monopilot Design System/warehouse/modals.jsx, then template/printer/copies/queue/reprint fields and expired use_by stamp behavior match.\n2. Given genealogy_traceability_page renders, then search, forward/backward/full toggle, depth 1-10, loading copy, tree/list results, and FSMA export buttons match prototype.\n3. Given genealogy query is run by a user from another tenant, then RLS/server guard blocks cross-tenant LP visibility.\n4. Given components are inspected, then data-prototype-label markers exist for label_print_modal and genealogy_traceability_page.\n\n## Test strategy\n- RED: component tests for label form validation and printer offline branch.\n- GREEN: Playwright tests for genealogy mode/depth controls and export disabled state before results.\n- Run pnpm test and pnpm playwright test --grep @warehouse-labels-genealogy-ui.\n\n## Risk red lines\n- Do not represent HTML preview as actual ZPL rendering.\n- Do not allow cross-tenant genealogy traversal.\n- Do not build EPCIS P2 here.",
+  "labels": [
+    "prd",
+    "ui",
+    "prototype-parity",
+    "T3-ui"
+  ],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "source_prd": "05-WAREHOUSE-PRD.md",
+    "context_budget": "35k",
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "cross_module_dependencies": [
+      {
+        "module": "02-settings",
+        "contract": "rule_registry, warehouses/locations/printers, feature flags, tenant security policy"
+      },
+      {
+        "module": "03-technical",
+        "contract": "items/products, shelf_life_mode/date_code_format, catch-weight, allergen snapshots"
+      },
+      {
+        "module": "04-planning-basic",
+        "contract": "PO/TO/WO read models, RM root reservations, WO release/cancel hooks"
+      },
+      {
+        "module": "06-scanner-p1",
+        "contract": "LP lookup, barcode validation, lock protocol, FEFO suggestion, consume-to-WO"
+      },
+      {
+        "module": "08-production",
+        "contract": "WO material consumption and output LP creation events"
+      },
+      {
+        "module": "09-quality",
+        "contract": "LP qa_status ownership and quality_status_history"
+      },
+      {
+        "module": "11-shipping",
+        "contract": "downstream shelf_life_rules enforcement in Phase 2"
+      }
+    ],
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prd_task_id": "T-054",
+    "prd_refs": [
+      "§11.1",
+      "§11.5",
+      "§15.1",
+      "§15.6",
+      "§16.6 WH-013/014"
+    ],
+    "category": "ui",
+    "subcategory": "labels-genealogy-ui",
+    "task_type": "T3-ui",
+    "parent_feature": "warehouse-traceability-labels",
+    "estimated_effort": "1.5d",
+    "description": "Implement label print modal and genealogy traceability page with prototype parity and export hooks.",
+    "details": "Build the label print/reprint UI and full genealogy trace query page. The label preview may remain HTML preview but must call the backend ZPL print endpoint. Genealogy export must expose CSV/PDF action hooks and depth warnings.",
+    "scope_files": [
+      "apps/web/components/warehouse/labels/** [create]",
+      "apps/web/app/(app)/warehouse/genealogy/** [create]",
+      "design/Monopilot Design System/warehouse/modals.jsx",
+      "design/Monopilot Design System/warehouse/other-screens.jsx"
+    ],
+    "out_of_scope": [
+      "No EPCIS P2 consumer",
+      "No graph database migration"
+    ],
+    "dependencies": [
+      "T-038",
+      "T-043"
+    ],
+    "parallel_safe_with": [
+      "T-053"
+    ],
+    "acceptance_criteria": [
+      "Given label_print_modal renders, when compared to design/Monopilot Design System/warehouse/modals.jsx, then template/printer/copies/queue/reprint fields and expired use_by stamp behavior match.",
+      "Given genealogy_traceability_page renders, then search, forward/backward/full toggle, depth 1-10, loading copy, tree/list results, and FSMA export buttons match prototype.",
+      "Given genealogy query is run by a user from another tenant, then RLS/server guard blocks cross-tenant LP visibility.",
+      "Given components are inspected, then data-prototype-label markers exist for label_print_modal and genealogy_traceability_page."
+    ],
+    "test_strategy": [
+      "RED: component tests for label form validation and printer offline branch.",
+      "GREEN: Playwright tests for genealogy mode/depth controls and export disabled state before results.",
+      "Run pnpm test and pnpm playwright test --grep @warehouse-labels-genealogy-ui."
+    ],
+    "risk_red_lines": [
+      "Do not represent HTML preview as actual ZPL rendering.",
+      "Do not allow cross-tenant genealogy traversal.",
+      "Do not build EPCIS P2 here."
+    ],
+    "priority_normalization_note": "Priority normalized to ACP convention bands on 2026-05-03; lower number means earlier execution."
+  }
+}

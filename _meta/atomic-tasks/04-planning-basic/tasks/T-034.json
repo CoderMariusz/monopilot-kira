@@ -1,7 +1,12 @@
 {
   "title": "T-034 — UI: PLN-001 Planning Dashboard page (parity with prototype)",
   "prompt": "Build PLN-001 PlanningDashboard page (Next.js App Router server component) at `src/app/(planning)/planning/page.tsx` matching the prototype `design/Monopilot Design System/planning/dashboard.jsx:3-261` 1:1.\n\nLayout (3 bands): Band 1 PLN-001a stat tiles (open POs, pending approval, overdue, open TOs, scheduled today, in_progress, on_hold>24h). Band 2 PLN-001b grouped alerts (per §13.1). Band 3 includes PLN-001c QuickActions strip (Create PO, TO, WO, Bulk Import, Run Sequencing) and PLN-001d CascadeChainView tab.\n\nUse shadcn primitives only. Server Component fetches data via T-027 dashboard service. Loading + empty + error states match prototype.\n\nRED test: RTL snapshot test asserts component hierarchy matches prototype regions; Playwright e2e test loads /planning and verifies KPI tiles render.",
-  "labels": ["prd", "ui", "pln-001-dashboard", "T3-ui"],
+  "labels": [
+    "prd",
+    "ui",
+    "pln-001-dashboard",
+    "T3-ui"
+  ],
   "priority": 100,
   "max_attempts": 3,
   "pipeline_name": "kira_dev",
@@ -9,7 +14,11 @@
     "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
     "prd_task_id": "T-034",
     "source_prd": "04-PLANNING-BASIC-PRD.md",
-    "prd_refs": ["§13.1", "§13.2", "§13.5"],
+    "prd_refs": [
+      "§13.1",
+      "§13.2",
+      "§13.5"
+    ],
     "category": "ui",
     "subcategory": "pln-001-dashboard",
     "task_type": "T3-ui",
@@ -32,13 +41,14 @@
       "Cascade DAG view page (T-046)",
       "PO/TO/WO list pages (T-035..T-037)"
     ],
-    "dependencies": ["T-027"],
-    "parallel_safe_with": ["T-035", "T-036", "T-037"],
+    "dependencies": [
+      "T-027"
+    ],
     "acceptance_criteria": [
       "Given the production page renders, when compared to `design/Monopilot Design System/planning/dashboard.jsx:3-261`, then it has the same 3 bands in the same order, the same 7 KPI tiles in Band 1, the same alert categories in Band 2, and the same 5 Quick Action buttons — verified by RTL snapshot, with the parity checklist in `pipeline_inputs.details`.",
       "Given the dashboard endpoint returns empty arrays, when the page renders, then empty-state copy matches the prototype empty state.",
       "Given the API returns an error, when the page renders, then the error boundary shows the same red banner copy as the prototype.",
-      "Given `pnpm vitest run src/components/planning/dashboard/__tests__/PlanningDashboard.test.tsx` and `pnpm playwright test e2e/planning/dashboard.spec.ts`, when run, then 0 failures."
+      "Given `pnpm vitest run src/components/planning/dashboard/__tests__/PlanningDashboard.test.tsx` and `pnpm playwright test e2e/planning/dashboard.spec.ts`, when run, then 0 failures. Given the UI task is closed, then CLOSEOUT includes Playwright trace artifacts plus screenshots/artifacts for prototype parity and error/empty/blocked states. Follow parity evidence requirements in `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`."
     ],
     "test_strategy": [
       "RED RTL snapshot asserting prototype parity (3 bands, 7 tiles, 5 actions).",
@@ -50,15 +60,26 @@
       "Do not hardcode strings — use next-intl.",
       "Do not add new bands not in the prototype."
     ],
-    "skills": ["test-driven-development", "requesting-code-review"],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
     "checkpoint_policy": {
-      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
       "closeout_requires": [
         "changed_files",
         "test_commands_and_results",
         "acceptance_criteria_status",
         "deviations_from_prd",
-        "git_status"
+        "git_status",
+        "screenshots_or_artifacts",
+        "playwright_trace_artifacts",
+        "prototype_parity_notes"
       ]
     },
     "routing_hints": {
@@ -66,6 +87,12 @@
       "implementation": "hermes_gpt55",
       "review": "opus_if_high_risk_or_ui_or_architecture",
       "close": "spark_low_risk_else_opus"
-    }
+    },
+    "cross_module_dependencies": [],
+    "ui_closeout_evidence": [
+      "Playwright trace artifact for each happy path and blocked/error path exercised by the task.",
+      "Desktop screenshots/artifacts for each implemented page/modal state compared against prototype line references.",
+      "Attach artifact paths in CLOSEOUT with changed files, test commands/results, and acceptance criteria status."
+    ]
   }
 }

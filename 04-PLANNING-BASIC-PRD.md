@@ -2,7 +2,7 @@
 
 **Wersja**: 3.3 | **Data**: 2026-04-30 | **Status**: Phase C2 Sesja 2 revision + audit fix (Multi-industry standardization + PLN-NNN screen-code scheme per `_meta/audits/2026-04-30-design-prd-coverage.md`)
 **Moduł**: #4 w Module Map (per 00-FOUNDATION §4), deps: 01-NPD + 02-SETTINGS + 03-TECHNICAL
-**Primary reality sources**: PLD v7 Main Table (post-NPD downstream flow), Builder_FA5101.xlsx (D365 WO targets), MES-TRENDS-2026 §3/§7/§9
+**Primary reality sources**: PLD v7 Main Table (post-NPD downstream flow), Builder_FA5101.xlsx (D365 WO targets), MES-TRENDS-2026 §3/§7/§9, canonical factory release read model from 01-NPD T-097 + 03-TECHNICAL T-080/T-081
 
 > **v3.2 revision note (2026-04-30 Multi-industry standardization):** Universal naming conventions applied across all manufacturing patterns. FA → FG (finished good), PR → WIP (work-in-process), Process_1..4 → Manufacturing_Operation_1..4. WIP code pattern standardized to WIP-<2-letter-suffix>-<7-digit-sequence> (e.g., WIP-BK-0000001). All examples, SQL queries, Mermaid diagrams, and validation rules updated accordingly. Builds on v3.1 Q6 revision (intermediate cascade disposition, hard-lock reservations RM-root-only). Full changelog §16.9.
 
@@ -21,6 +21,21 @@ Moduł **04-PLANNING-BASIC** (M04) to kręgosłup operacyjny MES — zarządza l
 - **D365 SO trigger** — pull sales orders → draft WO gen (feature flag `integration.d365.so_trigger.enabled`)
 - **Workflow-as-data** — state machines ADR-007/ADR-019 jako DSL rules w 02-SETTINGS §7 registry (dev-authored, admin read-only per Q2 C1 decision)
 - **Dashboard + Settings** — KPI, alerts, configurable status display (names/colors only)
+
+### Factory release read-model contract (Wave0 alignment, 2026-05-03)
+
+Planning is a **consumer only** of the canonical factory release read model owned by **01-NPD T-097** and transitioned by **03-TECHNICAL T-080/T-081**. Planning must not infer factory usability from D365 export/import, local `Built` flags, latest BOM queries, or ad-hoc Technical statuses.
+
+Canonical Planning gating fields:
+- `release_status` / equivalent canonical status: only `approved_for_factory` and `released_to_factory` are factory-usable for normal WO creation/release.
+- `active_bom_header_id`: the exact shared BOM header/version that Planning snapshots into WO materials/outputs.
+- `active_factory_spec_id`: the exact Technical factory spec that authorizes factory use.
+- `release_blockers`: typed blockers displayed in Planning UI/API when status is pending or blocked.
+
+Blocking rules:
+- `pending_npd_release`, `pending_technical_approval`, `blocked`, missing `active_bom_header_id`, or missing `active_factory_spec_id` must block WO release and normal WO creation from NPD/D365 demand. Pending/blocked rows may remain visible as planning demand context only.
+- D365 SO pull may create draft demand/WO candidates only; D365 `Built`, export, preload, or sync state is optional integration metadata and never source-of-truth for factory availability.
+- Rework WOs remain explicit exceptions (`is_rework=true`) and must not be used as a backdoor to manufacture unreleased FG/WIP.
 
 ### Kluczowa decyzja Phase D #19 (intermediate cascade core)
 
@@ -42,6 +57,7 @@ Multi-tenant friendly bez config switches — wynikowa liczba WO = liczba warstw
 - **02-SETTINGS §12** — warehouses, production lines, machines z infrastructure registry
 - **03-TECHNICAL §5-§6** — items (5 types: rm/intermediate/fg/co_product/byproduct), product master, WIP-<suffix>-<sequence> intermediate codes
 - **03-TECHNICAL §7** — BOM versioning, co-products allocation_pct, BOM Generator N+1 output
+- **01-NPD T-097 + 03-TECHNICAL T-080/T-081** — canonical factory release read model; Planning consumes `approved_for_factory` / `released_to_factory`, `active_bom_header_id`, `active_factory_spec_id`, and blockers
 - **03-TECHNICAL §8** — catch weight (GS1 AI 3103/3922) dla PO/WO qty tracking
 - **03-TECHNICAL §10** — allergens cascade + §10.5 cross-contamination risk matrix → allergen-aware sequencing input
 - **03-TECHNICAL §13** — D365 Integration workers (pull items/BOM/suppliers, push WO confirmations)
@@ -351,6 +367,10 @@ planning_settings
 | product_id | UUID FK | → 03-TECHNICAL items (rm/intermediate/fg/co_product/byproduct) |
 | item_type_at_creation | ENUM | Snapshot z product type (per Phase D #19 audit) |
 | bom_id | UUID FK NULL | NULL dla is_rework=true |
+| active_bom_header_id | UUID FK NULL | Canonical factory release read model `active_bom_header_id` captured at WO create/release; required for non-rework factory-usable WOs |
+| active_factory_spec_id | UUID FK NULL | Canonical factory release read model `active_factory_spec_id` captured at WO create/release; required for non-rework factory-usable WOs |
+| factory_release_event_id | UUID FK NULL | Read-model release/audit event used to admit this WO; D365 sync/export event is not sufficient |
+| factory_release_status_at_creation | VARCHAR(40) | Snapshot: must be `approved_for_factory` or `released_to_factory` for normal WOs |
 | routing_id | UUID FK NULL | Inherited via boms.routing_id |
 | planned_quantity, produced_quantity, uom | | |
 | **is_rework** | BOOLEAN DEFAULT false | Rework bez BOM, manual materials |
@@ -568,14 +588,14 @@ Consumers: D365 adapter push (P2 for PO confirmations to D365), analytics, dashb
 
 | Screen ID | Komponent | Opis | UX anchor | Prototype |
 |---|-----------|------|-----------|-----------|
-| PLN-040 | SupplierTable | Lista, search, filter active/inactive, D365 sync badge | (UX §3 implicit — supplier CRUD belongs to Planning Settings tab + dedicated screen `[NO-UX-YET]`) | `[NO-PROTOTYPE-YET]` (TODO: add supplier_list_screen) |
-| PLN-041 | SupplierForm | Modal create/edit z Zod validation | `[NO-UX-YET]` | `[NO-PROTOTYPE-YET]` |
-| PLN-042 | SupplierDetail | Page z product assignments, PO history | `[NO-UX-YET]` | `[NO-PROTOTYPE-YET]` |
+| PLN-040 | SupplierTable | Lista, search, filter active/inactive, D365 sync badge | dedicated supplier prototype (Wave Next-3) | `plan_supplier_list` (`planning/suppliers.jsx:25-151`) |
+| PLN-041 | SupplierForm | Modal create/edit z Zod validation | dedicated supplier prototype (Wave Next-3) | `supplier_form_modal` (`planning/suppliers.jsx:403-512`) |
+| PLN-042 | SupplierDetail | Page z product assignments, PO history | dedicated supplier prototype (Wave Next-3) | `plan_supplier_detail` (`planning/suppliers.jsx:153-401`) |
 | **PLN-002** | POTable / PO List | Lista PO, badge status (rendered z rule registry status names/colors), filter | UX SCREEN-02 PO List (`design/04-PLANNING-BASIC-UX.md:271`) | `plan_po_list` (`planning/po-screens.jsx:3-139`) |
 | **PLN-014** | POFastFlow | 3-step wizard: supplier → products → review | UX §4 `PO Fast-Flow — 3-Step Wizard` (`:1123`) | `po_fast_flow_wizard` (`planning/modals.jsx:21-179`) |
 | **PLN-003** | PODetail | Page z liniami, status history, approval actions, GRN progress | UX SCREEN-03 PO Detail (`:330`) | `plan_po_detail` (`planning/po-screens.jsx:143-353`) |
 | **PLN-015** | AddPOLineModal | Add line modal (per FR-PLAN-009) | UX §4 `Add PO Line` (`:1164`) | `add_po_line_modal` (`planning/modals.jsx:182-225`) |
-| **PLN-017** | POBulkImport | Modal (paste + CSV upload) + grouping preview | UX §4 `PO Bulk Import` (`:1192`) | `[NO-PROTOTYPE-YET]` (TODO: add po_bulk_import_modal — Direction-A gap) |
+| **PLN-017** | POBulkImport | Modal (paste + CSV upload) + grouping preview | UX §4 `PO Bulk Import` (`:1192`) | `po_bulk_import_modal` (`planning/modals.jsx:1102-1339`) |
 | **PLN-016** | POApprovalModal | Approve/reject + notes + audit | UX §4 `PO Approval` (`:1179`) | `po_approval_modal` (`planning/modals.jsx:228-264`) |
 
 ### 6.7 Validation V-PLAN-PO
@@ -648,7 +668,7 @@ draft → planned → partially_shipped → shipped → partially_received → r
 | **PLN-005** | TODetail | Page z shipped/received progress, LP breakdown | UX SCREEN-05 TO Detail (`:429`) | `plan_to_detail` (`planning/to-screens.jsx:103-281`) |
 | **PLN-019** | TOLPSelector / LP Picker | Modal wyboru LP z FEFO/FIFO suggestion (query 05-WH) | UX §4 `LP Picker (TO Line)` (`:1243`) | `lp_picker_modal` (`planning/modals.jsx:269-341`) |
 | **PLN-020** | ShipTOModal | Qty per line, batch sign-off | UX §4 `Ship TO` (`:1271`) | `ship_to_modal` (`planning/modals.jsx:852-931`) |
-| PLN-043 | ReceiveTOModal | Qty per line, variance alert | `[NO-UX-YET]` (UX flow handled inline in SCREEN-05) | `[NO-PROTOTYPE-YET]` (TODO: add receive_to_modal) |
+| PLN-043 | ReceiveTOModal | Qty per line, variance alert | UX flow handled inline in SCREEN-05 plus Wave Next-3 modal anchor | `receive_to_modal` (`planning/modals.jsx:1341-1474`) |
 
 ### 7.8 Validation V-PLAN-TO
 
@@ -671,11 +691,13 @@ draft → planned → partially_shipped → shipped → partially_received → r
 
 **FR-PLAN-017: WO CRUD** — standard fields per §5.6.
 
-**FR-PLAN-018: BOM auto-selection (ADR-002)**
-- Query: `active bom WHERE product_id = wo.product_id AND effective_from ≤ scheduled_date AND (effective_to IS NULL OR effective_to > scheduled_date)`
-- Multiple matches → najnowszy `effective_from`
-- User override allowed (dropdown z version history, audit logged)
-- Warning jeśli brak active BOM (blokuje release, nie create)
+**FR-PLAN-018: BOM/spec auto-selection (ADR-002 + canonical factory release read model)**
+- First query the canonical factory release read model for `product_id` / FG-WIP demand and scheduled date/org scope.
+- Only `release_status IN ('approved_for_factory', 'released_to_factory')` is selectable for normal WO creation/release.
+- Snapshot exactly `active_bom_header_id` and `active_factory_spec_id`; these replace ad-hoc "latest active BOM" selection for factory-usable WOs.
+- User override is allowed only among canonical read-model rows that are already `approved_for_factory` / `released_to_factory`; override audit must record previous/next active BOM/spec IDs and release event IDs.
+- If canonical row is missing, `pending_npd_release`, `pending_technical_approval`, `blocked`, or lacks active BOM/spec IDs: block release/normal create, show `release_blockers`, and keep demand as draft/planning context only.
+- D365 `Built`, SO import, preload/export, or sync status may prefill demand metadata but must never mark a BOM/spec factory-usable.
 
 **FR-PLAN-019: Routing copy (ADR-002)**
 - Routing inherited via `boms.routing_id`
@@ -719,7 +741,11 @@ function generateWODAG(root_demand):
 
     while demand_queue not empty:
         demand = dequeue()
-        bom = resolve_bom(demand.product_id, demand.scheduled_date)
+        release_row = resolve_factory_release_read_model(demand.product_id, demand.scheduled_date)
+        assert release_row.status in ['approved_for_factory', 'released_to_factory']
+        assert release_row.active_bom_header_id && release_row.active_factory_spec_id
+        bom = load_bom(release_row.active_bom_header_id)
+        factory_spec = load_factory_spec(release_row.active_factory_spec_id)
         wo = create_wo(demand, bom)
         created_wos[wo.product_id] = wo
 
@@ -850,16 +876,16 @@ Dla WOs z multi-component BOM, composition metrics computed by:
 | Screen ID | Komponent | Opis | UX anchor | Prototype |
 |---|-----------|------|-----------|-----------|
 | **PLN-006** | WOTable / WO List | Lista, badge status (rule registry display), filter status/line/date, sort priority | UX SCREEN-06 WO List (`:463`) | `plan_wo_list` (`planning/wo-list.jsx:3-177`) |
-| PLN-044 | WOSpreadsheet | Bulk edit arkuszowy (date, qty, line, priority) — multiple WOs at once | `[NO-UX-YET]` (Could Have) | `[NO-PROTOTYPE-YET]` |
+| PLN-044 | WOSpreadsheet | Bulk edit arkuszowy (date, qty, line, priority) — multiple WOs at once | deferred P2 candidate (Could Have) | deferred; not required for P1 readiness |
 | **PLN-021** | WOForm / WO Create wizard | Modal z BOM preview, availability panel, cascade preview dla multi-layer BOMs | UX §4 `WO Create (with Cascade Preview Sub-step)` (`:1284`) | `wo_create_wizard` (`planning/modals.jsx:399-500`) |
 | **PLN-007** | WODetail | Page z materials, operations, outputs, dependencies (DAG tree visual), status history | UX SCREEN-07 WO Detail (`:520`) | `plan_wo_detail` (`planning/wo-detail.jsx:3-99`) |
 | **PLN-007a** | WOMaterialsTable / Overview tab | G/Y/R indicators, material_source badge (stock/upstream/manual) | UX SCREEN-07 Overview tab | `wo_overview_tab` (`planning/wo-detail.jsx:102-239`) |
 | PLN-007b | WOOperationsTimeline | Sequence with status, expected vs actual duration | UX SCREEN-07 (operations table within Overview, line `:565`) | `wo_overview_tab` (operations rows) |
-| PLN-007c | WOOutputsPanel | Primary + co-products + byproducts z disposition control | UX SCREEN-07 (Outputs tab, see UX `:611` notes) | `[NO-PROTOTYPE-YET]` (TODO: split out of overview/outputs tab — Direction-A gap) |
+| PLN-007c | WOOutputsPanel | Primary + co-products + byproducts z disposition control | UX SCREEN-07 (Outputs tab, see UX `:611` notes) | composed in `plan_wo_detail` / `wo_overview_tab`; T-051 |
 | **PLN-007d** | WODependenciesTree | Visual DAG upstream/downstream WOs (d3-dagre lub ReactFlow) | UX SCREEN-07 Dependencies tab | `wo_dependencies_tab` (`planning/wo-detail.jsx:292-372`) |
 | PLN-007e | WOAvailabilityPanel | Material + upstream WO + line/machine availability roll-up | UX SCREEN-07 Overview right column | inline within `wo_overview_tab` |
 | **PLN-008** | WOGanttChart | Per line/machine, color=status (Could Have) | UX SCREEN-08 WO Gantt View (`:702`) | `plan_gantt` (`planning/gantt.jsx:7-162`) |
-| PLN-045 | ReleaseToWarehouseButton | Confirmation modal + Scanner M06 handoff preview | `[NO-UX-YET]` (UX flow inline on SCREEN-07 actions) | `[NO-PROTOTYPE-YET]` |
+| PLN-045 | ReleaseToWarehouseButton | Confirmation modal + Scanner M06 handoff preview | UX flow inline on SCREEN-07 actions | composed inline in `plan_wo_detail`; T-051 |
 | **PLN-022** | CascadePreviewModal | Show N+1 WOs przed create — tree + total materials + timeline | UX §4 `Cascade Preview (sub-modal)` (`:1338`) | `cascade_preview_modal` (`planning/modals.jsx:346-396`) |
 
 ### 8.11 Validation V-PLAN-WO
@@ -925,7 +951,7 @@ Dla WOs z multi-component BOM, composition metrics computed by:
 |---|-----------|------|-----------|-----------|
 | **PLN-010** | ReservationPanel | Per-material LP list, total reserved, link do 05-WAREHOUSE LP detail | UX SCREEN-10 Reservation Panel (Global) (`:814`) | `plan_reservations` (`planning/other-screens.jsx:3-120`) + `wo_reservations_tab` (`planning/wo-detail.jsx:375-417`) |
 | **PLN-023** | OverrideReservationModal | Admin-only, requires reason, logged | UX §4 `WO Reservation Override` (`:1349`) | `reservation_override_modal` (`planning/modals.jsx:505-549`) |
-| PLN-046 | ConcurrentReservationError | Inline error on WO release z link do conflicting WO | UX SCREEN-07 release action (inline error pattern) | `[NO-PROTOTYPE-YET]` (rendered by Server Action error boundary, no dedicated prototype) |
+| PLN-046 | ConcurrentReservationError | Inline error on WO release z link do conflicting WO | UX SCREEN-07 release action (inline error pattern) | server-action error boundary within `plan_wo_detail`; T-051/T-056 |
 | **PLN-029** | HardLockReleaseConfirm | WO cancel + bulk release of locked LPs | UX §4 `Hard-Lock Release Confirm` (`:1471`) | `hard_lock_release_confirm_modal` (`planning/modals.jsx:632-671`) |
 
 ### 9.6 Validation V-PLAN-RES
@@ -1003,8 +1029,8 @@ Sequencing logic deployed jako DSL rule w 02-SETTINGS §7 registry (rule_id: `al
 | **PLN-026** | SequencingApplyConfirmModal | Apply confirm (Q1 audit decision: preview stays inline in PLN-011, modal is apply-confirm only) | UX §4 `Sequencing Preview (Before/After)` (`:1426`) | `sequencing_apply_confirm_modal` (`planning/modals.jsx:1053-1100`) |
 | PLN-047 | SequencingSettingsPanel | Per-line enable/disable, rule version selector | UX SCREEN-12 Planning Settings → Sequencing tab (`:910`) | inline within `plan_settings` (`planning/other-screens.jsx:256-490`) |
 | PLN-048 | AllergenProfileBadge | Per WO w table — colored dots per allergen family | shared design token — appears in PLN-006, PLN-008, PLN-011 | shared primitive `AllergenCluster` |
-| PLN-030 | AllergenOverrideOnSequencing | Per-WO override modal z mandatory reason | UX §4 `Allergen Override on Sequencing` (`:1366`) | `[NO-PROTOTYPE-YET]` (TODO: dedicated allergen_override_modal — Direction-A gap; current UX folds this into per-row override on `plan_sequencing`) |
-| PLN-032 | SequencingPreviewBeforeAfter | Inline before/after delta widget on PLN-011 (Q1 audit: stays inline) | UX SCREEN-11 inline pane | partial — see Direction-C `kira_hq_overnight_waves_plan` finding: `sequencing_apply_confirm_modal` lacks the delta widget specified in §11; tracked as Phase E gap |
+| PLN-030 | AllergenOverrideOnSequencing | Per-WO override modal z mandatory reason | UX §4 `Allergen Override on Sequencing` (`:1366`) | composed/spec-driven under `plan_sequencing`; T-064 |
+| PLN-032 | SequencingPreviewBeforeAfter | Inline before/after delta widget on PLN-011 (Q1 audit: stays inline) | UX SCREEN-11 inline pane | accepted split: inline preview in `plan_sequencing`, confirmation in `sequencing_apply_confirm_modal`; T-057/T-062 |
 
 ### 10.8 Validation V-PLAN-SEQ
 
@@ -1104,8 +1130,8 @@ Admin-only action: `released_to_warehouse=false` — removes from Scanner view. 
 
 | Screen ID | Komponent | Opis | UX anchor | Prototype |
 |---|-----------|------|-----------|-----------|
-| PLN-045 | ReleaseToWarehouseButton | On WODetail, confirm modal z material count preview | UX SCREEN-07 action button group | `[NO-PROTOTYPE-YET]` (Phase E gap; tracked) |
-| PLN-051 | ScannerQueuePreview | Show which WOs currently visible w M06 per warehouse | `[NO-UX-YET]` | `[NO-PROTOTYPE-YET]` |
+| PLN-045 | ReleaseToWarehouseButton | On WODetail, confirm modal z material count preview | UX SCREEN-07 action button group | composed inline in `plan_wo_detail`; T-051 |
+| PLN-051 | ScannerQueuePreview | Show which WOs currently visible w M06 per warehouse | deferred P2 admin diagnostic | deferred; Scanner integration contract captured in cross-module metadata |
 
 ---
 
@@ -1553,7 +1579,7 @@ Per `_meta/audits/2026-04-30-design-prd-coverage.md` audit (Module 04 was flagge
 
 - **PLN-001..013** = page-level surfaces (1:1 with UX SCREEN-01..12 + D365 Queue page from UX §3 D365).
 - **PLN-014..032** = modals + sub-pages (1:1 with UX §4 modals).
-- **PLN-040..051** = PRD-only Direction-A surfaces awaiting UX/prototype (tagged `[NO-UX-YET]` / `[NO-PROTOTYPE-YET]`).
+- **PLN-040..051** = PRD-only Direction-A surfaces. Wave Next-3 hardening resolves P1 items through indexed prototypes (`suppliers.jsx`) or spec-driven/composed UI tasks; non-P1 diagnostics remain explicitly deferred.
 
 Sub-tab variants use letter suffixes (e.g. PLN-007a Overview, PLN-007d Dependencies). The full bidirectional canonical mapping table is §16.8.
 
@@ -1583,7 +1609,7 @@ Sub-tab variants use letter suffixes (e.g. PLN-007a Overview, PLN-007d Dependenc
 
 - **Purpose:** Admin-only dry-run preview for WO/TO/PO state machine rules + cascade rule + sequencing rule (per §16.1 Workflow-as-Data). Renders proposed transitions + side-effects without committing. Surfaces rule version diff (v1 → v2 A/B comparison).
 - **UX anchor:** UX §4 `Workflow Rule Dry-Run` (`:1415`).
-- **Prototype:** `[NO-PROTOTYPE-YET]` (Direction-A gap — UX exists, prototype missing). Linked from 02-SETTINGS §7 rule registry admin view.
+- **Prototype/task posture:** composed/spec-driven under `plan_settings` (`planning/other-screens.jsx:256-490`) and ACP task T-065. Linked from 02-SETTINGS §7 rule registry admin view.
 - **PRD coupling:** Adds explicit modal anchor for §16.1 "Admin read-only view w 02-SETTINGS §7 (list + diff + audit + dry-run)" — previously the dry-run UI was implicit.
 
 ### 16.8 PRD ↔ UX ↔ Prototype canonical mapping (UI surfaces index)
@@ -1592,9 +1618,9 @@ Sub-tab variants use letter suffixes (e.g. PLN-007a Overview, PLN-007d Dependenc
 >
 > **Status legend:**
 > - **OK** — PRD ↔ UX ↔ prototype all aligned
-> - **PROTO-GAP** — PRD + UX defined; prototype missing (Direction-A)
+> - **SPEC-DRIVEN** — PRD + UX defined and ACP task accepted; standalone prototype is intentionally composed/inline
 > - **PRD-GAP** — UX + prototype existed; PRD anchor added by this audit (Direction-B)
-> - **NO-UX-YET** — PRD names component; no UX section yet
+> - **DEFERRED-DIAGNOSTIC** — non-P1 diagnostic/could-have surface; not blocking Planning Basic readiness
 > - **DEFERRED** — P2/P3 scope per §4.2/§4.3
 
 #### Pages / page-level surfaces
@@ -1627,7 +1653,7 @@ Sub-tab variants use letter suffixes (e.g. PLN-007a Overview, PLN-007d Dependenc
 | PLN-014 | PO Fast-Flow Wizard | UX §4 (`:1123`) | `po_fast_flow_wizard` (`planning/modals.jsx:21-179`) | OK |
 | PLN-015 | Add PO Line | UX §4 (`:1164`) | `add_po_line_modal` (`planning/modals.jsx:182-225`) | OK |
 | PLN-016 | PO Approval | UX §4 (`:1179`) | `po_approval_modal` (`planning/modals.jsx:228-264`) | OK |
-| PLN-017 | PO Bulk Import | UX §4 (`:1192`) | `[NO-PROTOTYPE-YET]` | PROTO-GAP |
+| PLN-017 | PO Bulk Import | UX §4 (`:1192`) | `po_bulk_import_modal` (`planning/modals.jsx:1102-1339`) | OK (Wave Next-3 indexed prototype) |
 | PLN-018 | TO Create / Edit | UX §4 (`:1218`) | `to_create_edit_modal` (`planning/modals.jsx:697-845`) | OK |
 | PLN-019 | LP Picker (TO Line) | UX §4 (`:1243`) | `lp_picker_modal` (`planning/modals.jsx:269-341`) | OK |
 | PLN-020 | Ship TO | UX §4 (`:1271`) | `ship_to_modal` (`planning/modals.jsx:852-931`) | OK |
@@ -1640,43 +1666,45 @@ Sub-tab variants use letter suffixes (e.g. PLN-007a Overview, PLN-007d Dependenc
 | PLN-027 | Draft WO Approve / Reject (D365 Queue) | UX §4 (`:1439`) | `draft_wo_review_modal` (`planning/modals.jsx:937-1046`) | PRD-GAP fixed (§15.7) |
 | PLN-028 | Delete Confirmation | UX §4 (`:1458`) | `delete_confirm_modal` (`planning/modals.jsx:609-629`) | PRD-GAP fixed (§16.7) |
 | PLN-029 | Hard-Lock Release Confirm | UX §4 (`:1471`) | `hard_lock_release_confirm_modal` (`planning/modals.jsx:632-671`) | PRD-GAP fixed (§9.5) |
-| PLN-030 | Allergen Override on Sequencing | UX §4 (`:1366`) | `[NO-PROTOTYPE-YET]` | PROTO-GAP |
-| PLN-031 | Workflow Rule Dry-Run | UX §4 (`:1415`) | `[NO-PROTOTYPE-YET]` | PROTO-GAP |
-| PLN-032 | Sequencing Preview Before/After (inline on PLN-011) | UX §4 (`:1426`) inline | partial (delta widget missing in `sequencing_apply_confirm_modal`) | PROTO-GAP (Direction-C contradiction tracked) |
+| PLN-030 | Allergen Override on Sequencing | UX §4 (`:1366`) | composed/spec-driven under `plan_sequencing` (`planning/other-screens.jsx:124-252`) | OK (T-064 spec-driven) |
+| PLN-031 | Workflow Rule Dry-Run | UX §4 (`:1415`) | composed/spec-driven under `plan_settings` (`planning/other-screens.jsx:256-490`) | OK (T-065 spec-driven Settings bridge) |
+| PLN-032 | Sequencing Preview Before/After (inline on PLN-011) | UX §4 (`:1426`) inline | `plan_sequencing` + `sequencing_apply_confirm_modal` | OK (inline preview + confirm split) |
 
-#### PRD-only components without UX/prototype anchor (Direction-A — to be specced or deferred in Phase E)
+#### Composed / spec-driven / deferred components (Wave Next-3 readiness)
 
-| Screen ID | Title | PRD §line | Status / TODO |
+P1 supplier and receive-TO surfaces are now covered by indexed prototypes and ACP tasks. P1 inline/composed surfaces are covered by spec-driven tasks with screenshot/trace evidence. Non-P1 diagnostics remain explicitly deferred and do not block Planning Basic readiness.
+
+| Screen ID | Title | PRD §line | Status / readiness posture |
 |---|---|---|---|
-| PLN-040 | Supplier list / SupplierTable | §6.6 (`:567`) | `[NO-UX-YET]` `[NO-PROTOTYPE-YET]` — Direction-A gap; needed for §6.1 supplier CRUD |
-| PLN-041 | Supplier create-edit form | §6.6 (`:570`) | `[NO-UX-YET]` `[NO-PROTOTYPE-YET]` |
-| PLN-042 | Supplier detail page | §6.6 (`:571`) | `[NO-UX-YET]` `[NO-PROTOTYPE-YET]` (PO history view, supplier_products assignments) |
-| PLN-043 | Receive TO modal | §7.7 | `[NO-UX-YET]` `[NO-PROTOTYPE-YET]` — current UX folds receive into SCREEN-05 inline |
-| PLN-044 | WO Spreadsheet bulk-edit | §8.10 | `[NO-UX-YET]` `[NO-PROTOTYPE-YET]` — Could-Have per §4.1, P2 candidate |
-| PLN-045 | ReleaseToWarehouseButton modal | §8.10 + §12.5 | `[NO-PROTOTYPE-YET]` (UX flow inline on PLN-007) |
-| PLN-046 | ConcurrentReservationError inline | §9.5 | `[NO-PROTOTYPE-YET]` — server-action error boundary, no dedicated prototype |
-| PLN-047 | SequencingSettingsPanel | §10.7 | inline within PLN-012 (`plan_settings`) — OK as sub-tab |
-| PLN-048 | AllergenProfileBadge | §10.7 | shared primitive `AllergenCluster` — OK, referenced from PLN-006/008/011 |
-| PLN-049 | CapacityWarnings banner | §11.5 | inline within PLN-008 (`plan_gantt`) — OK |
-| PLN-050 | ReScheduleButton | §11.5 | inline within PLN-008 — OK |
-| PLN-051 | ScannerQueuePreview | §12.5 | `[NO-UX-YET]` `[NO-PROTOTYPE-YET]` — admin diagnostic; P2 candidate |
+| PLN-040 | Supplier list / SupplierTable | §6.6 (`:567`) | prototype `plan_supplier_list`; ACP task T-043 |
+| PLN-041 | Supplier create-edit form | §6.6 (`:570`) | prototype `supplier_form_modal`; ACP task T-043 |
+| PLN-042 | Supplier detail page | §6.6 (`:571`) | prototype `plan_supplier_detail`; ACP task T-044 |
+| PLN-043 | Receive TO modal | §7.7 | prototype `receive_to_modal`; ACP task T-060 |
+| PLN-044 | WO Spreadsheet bulk-edit | §8.10 | deferred P2 candidate; not required for 04 Planning Basic P1 readiness |
+| PLN-045 | ReleaseToWarehouseButton modal | §8.10 + §12.5 | composed inline in WO list/detail tasks T-050/T-051 |
+| PLN-046 | ConcurrentReservationError inline | §9.5 | server-action error boundary covered by T-056/T-063 |
+| PLN-047 | SequencingSettingsPanel | §10.7 | inline within PLN-012 (`plan_settings`); T-058 |
+| PLN-048 | AllergenProfileBadge | §10.7 | shared primitive `AllergenCluster`; covered by T-050/T-054/T-057 |
+| PLN-049 | CapacityWarnings banner | §11.5 | inline within PLN-008 (`plan_gantt`); T-054 |
+| PLN-050 | ReScheduleButton | §11.5 | inline within PLN-008; T-054 |
+| PLN-051 | ScannerQueuePreview | §12.5 | deferred P2 admin diagnostic; Scanner integration contract remains cross-module metadata |
 
-**Coverage tally (post-fix, this audit):**
-- 12 page-level surfaces fully aligned (PLN-001..012) + 6 sub-tab anchors (PLN-007a/d/f/g/h, PLN-001a..d).
-- 1 page surface fixed via Direction-B (PLN-013).
-- 17 modal surfaces aligned + 4 modal Direction-B fixes (PLN-024/025/027/028/029).
-- 4 modal/page Direction-A gaps tagged (PLN-017, PLN-030, PLN-031, PLN-032).
-- 12 PRD-only TODOs tagged `[NO-PROTOTYPE-YET]` / `[NO-UX-YET]` (PLN-040..051).
-- Bidirectional coverage: ~92% (was ~70% per `2026-04-30-design-prd-coverage.md`); remaining 8% = explicit `[NO-PROTOTYPE-YET]` / `[NO-UX-YET]` tagged TODOs awaiting Phase E impl spec.
+**Coverage tally (Wave Next-3 hardening, 2026-05-03):**
+- 13 page-level surfaces aligned/tasked (PLN-001..013) plus WO sub-tab anchors.
+- 19 modal/sub-page surfaces aligned/tasked (PLN-014..029 plus PO bulk import and Receive TO indexed during Wave Next-3).
+- 2 inline/spec-driven P1 surfaces accepted and tasked without standalone prototype labels (PLN-030/031).
+- 1 inline sequencing preview split accepted across `plan_sequencing` + `sequencing_apply_confirm_modal` (PLN-032).
+- 12 composed/P2 diagnostic surfaces reviewed: P1 supplier/receive surfaces are now indexed; remaining non-P1 diagnostics are explicitly deferred.
+- Bidirectional readiness: 95%+ for Planning Basic docs/meta/prototype/task handoff; no unresolved P1 prototype/task blocker remains.
 
 ### 16.9 Changelog
 
 **v3.3 (2026-04-30, audit fix — PLN-NNN screen-code scheme):**
 - **§16.6** — added PLN-NNN canonical screen-code namespace (per audit `_meta/audits/2026-04-30-design-prd-coverage.md` finding "PRD has zero screen IDs at all").
-- **§6.6/§7.7/§8.10/§9.5/§10.7/§11.5/§12.5/§13.5/§14.5** — every Frontend/UX table now carries Screen ID + UX anchor + Prototype label columns. PLN-001..032 assigned to existing PRD components, PLN-040..051 reserved for Direction-A `[NO-PROTOTYPE-YET]`/`[NO-UX-YET]` TODOs.
+- **§6.6/§7.7/§8.10/§9.5/§10.7/§11.5/§12.5/§13.5/§14.5** — every Frontend/UX table now carries Screen ID + UX anchor + Prototype label columns. Wave Next-3 later resolved P1 PLN-040..043 through indexed prototypes and accepted remaining P1 composed/spec-driven surfaces with ACP tasks.
 - **§15.7 (NEW)** — Direction-B additions for D365 surfaces: PLN-013 D365 SO Queue page (`plan_d365_queue`), PLN-025 D365 SO Trigger Confirm modal, PLN-027 Draft WO Approve/Reject modal — previously orphan prototypes/UX without PRD anchor.
 - **§16.7 (NEW)** — Direction-B additions for cross-cutting orphan modals: PLN-024 Cycle-Check Warning, PLN-028 Delete Confirmation, PLN-031 Workflow Rule Dry-Run.
-- **§16.8 (NEW)** — UI surfaces canonical mapping table (PLN-NNN ↔ UX section/line ↔ prototype path ↔ status). Tracks 32 fully aligned + 12 PRD-only TODOs. Coverage rose from ~70% → ~92%.
+- **§16.8 (NEW; Wave Next-3 amended)** — UI surfaces canonical mapping table (PLN-NNN ↔ UX section/line ↔ prototype path ↔ status). Planning Basic now has 95%+ docs/meta/prototype/task readiness; only explicit non-P1 diagnostics remain deferred.
 - **§9.5** — added PLN-029 Hard-Lock Release Confirm row (was orphan).
 - **§10.7** — added PLN-030 Allergen Override on Sequencing row + PLN-032 Sequencing Preview Before/After tracking the Direction-C contradiction (delta widget missing per §11 spec).
 - **No PRD content deleted; only added or re-ordered.** UX file `design/04-PLANNING-BASIC-UX.md` was NOT modified.

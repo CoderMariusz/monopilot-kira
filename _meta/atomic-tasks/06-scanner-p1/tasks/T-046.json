@@ -1,0 +1,109 @@
+{
+  "title": "T-046 — SCN-084 Waste registration UI and waste_done_screen",
+  "prompt": "# T-046 — SCN-084 Waste registration UI and waste_done_screen\n\nPRD: 06-SCANNER-P1-PRD.md §8.5 FR-SC-FE-053, §8.5 FR-SC-FE-054\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nBuild WasteScreen and first-class waste_done_screen with no-LP confirmation.\n\n## Implementation contract\nImplement scanner waste route with category buttons, qty, phase, notes, no-LP banner, and 4-cell summary using label waste_screen plus waste_done_screen.\n\n## Files\n- apps/scanner/src/app/scanner/waste/[woCode]/page.tsx [create]\n- apps/scanner/src/app/scanner/waste/[woCode]/done/page.tsx [create]\n- apps/scanner/src/components/waste-form.tsx [create]\n- apps/scanner/e2e/waste.spec.ts [create]\n\n## Acceptance criteria\n1. Given the scanner UI is implemented, when compared with `design/Monopilot Design System/scanner/flow-register.jsx:226-318` at mobile viewport 390x844, then it preserves structural, visual, and interaction parity, captures screenshot and Playwright trace artifacts, and documents intentional divergence from PRD/UX\n2. Given the route is loaded at 390x844, when the primary happy path is completed, then the first-class done screen label is reachable and uses the shared scanner SuccessScreen pattern\n3. Given API validation returns block or warn severity, when the screen receives it, then the correct full-screen block or amber reason-code pattern is rendered\n4. Given closeout runs, when artifacts are reviewed, then screenshot filenames include the canonical prototype label and task id\n\n## Test strategy\n- RED: write Playwright or component tests against the 390x844 route before implementation\n- Run pnpm --filter scanner test and pnpm --filter scanner e2e --project=scanner-mobile\n\n## Risk red lines\n- Do not implement server contracts in this UI task\n- Do not skip mobile screenshot or Playwright trace closeout\n- Do not silently diverge from the referenced prototype label",
+  "labels": [
+    "prd",
+    "ui",
+    "scn-084-waste",
+    "T3-ui"
+  ],
+  "priority": 120,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "source_prd": "06-SCANNER-P1-PRD.md",
+    "category": "ui",
+    "context_budget": "25k",
+    "estimated_effort": "2-4h",
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status",
+        "mobile_390x844_screenshot",
+        "playwright_trace",
+        "prototype_label_parity_notes"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_evidence_required": {
+      "viewport": "390x844",
+      "artifacts": [
+        "screenshot",
+        "Playwright trace"
+      ],
+      "parity_dimensions": [
+        "structure",
+        "visual",
+        "interaction"
+      ]
+    },
+    "prd_task_id": "T-046",
+    "prd_refs": [
+      "§8.5 FR-SC-FE-053",
+      "§8.5 FR-SC-FE-054"
+    ],
+    "subcategory": "scn-084-waste",
+    "task_type": "T3-ui",
+    "parent_feature": "06-e Production Output and QA",
+    "description": "Build WasteScreen and first-class waste_done_screen with no-LP confirmation.",
+    "details": "Implement scanner waste route with category buttons, qty, phase, notes, no-LP banner, and 4-cell summary using label waste_screen plus waste_done_screen.",
+    "scope_files": [
+      "apps/scanner/src/app/scanner/waste/[woCode]/page.tsx [create]",
+      "apps/scanner/src/app/scanner/waste/[woCode]/done/page.tsx [create]",
+      "apps/scanner/src/components/waste-form.tsx [create]",
+      "apps/scanner/e2e/waste.spec.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not implement unrelated scanner flows in this task",
+      "Do not change PRD decisions or prototype source during implementation",
+      "Do not bypass module contract validation"
+    ],
+    "dependencies": [
+      "T-041",
+      "T-042"
+    ],
+    "parallel_safe_with": [],
+    "acceptance_criteria": [
+      "Given the scanner UI is implemented, when compared with `design/Monopilot Design System/scanner/flow-register.jsx:226-318` at mobile viewport 390x844, then it preserves structural, visual, and interaction parity, captures screenshot and Playwright trace artifacts, and documents intentional divergence from PRD/UX",
+      "Given the route is loaded at 390x844, when the primary happy path is completed, then the first-class done screen label is reachable and uses the shared scanner SuccessScreen pattern",
+      "Given API validation returns block or warn severity, when the screen receives it, then the correct full-screen block or amber reason-code pattern is rendered",
+      "Given closeout runs, when artifacts are reviewed, then screenshot filenames include the canonical prototype label and task id. Follow parity evidence requirements in `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`."
+    ],
+    "test_strategy": [
+      "RED: write Playwright or component tests against the 390x844 route before implementation",
+      "Run pnpm --filter scanner test and pnpm --filter scanner e2e --project=scanner-mobile"
+    ],
+    "risk_red_lines": [
+      "Do not implement server contracts in this UI task",
+      "Do not skip mobile screenshot or Playwright trace closeout",
+      "Do not silently diverge from the referenced prototype label"
+    ],
+    "cross_module_dependencies": [
+      "08-production: waste contract",
+      "02-settings: waste categories",
+      "08-production: output, co-product, waste contracts",
+      "09-quality: QA inspection and NCR contracts",
+      "05-warehouse: LP qa_status/status contracts"
+    ],
+    "priority_normalization_note": "Priority normalized to ACP convention bands on 2026-05-03; lower number means earlier execution."
+  }
+}

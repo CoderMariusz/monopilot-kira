@@ -1,7 +1,12 @@
 {
   "title": "T-007 — Workflow rule definitions: po/to/wo state machines (rule registry)",
   "prompt": "Author the 3 state-machine rule definitions in 02-SETTINGS rule registry per PRD §16.1: `po_state_machine_v1`, `to_state_machine_v1`, `wo_state_machine_v1`. Encode each as a DSL JSON file under `src/rules/planning/v1/<name>.json` containing: states[], transitions[] (with from, to, action, guards[], side_effects[]), version='v1'. Guards reference declarative predicates ('lines.count > 0', 'first_grn_received', 'all_lines_fully_received'). Side-effects emit outbox events ('po.state_changed', 'to.state_changed', 'wo.state_changed').\n\nRegister rules in 02-SETTINGS §7 rule registry table at app boot via `src/rules/planning/v1/register.ts`. RED test: `src/rules/planning/v1/__tests__/state_machines.test.ts` invokes registered rule for sample transitions (draft→submitted PO, draft→planned TO, DRAFT→RELEASED WO) and verifies guards + emits.",
-  "labels": ["prd", "infra", "rule-registry", "T2-api"],
+  "labels": [
+    "prd",
+    "infra",
+    "rule-registry",
+    "T2-api"
+  ],
   "priority": 80,
   "max_attempts": 3,
   "pipeline_name": "kira_dev",
@@ -9,7 +14,12 @@
     "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
     "prd_task_id": "T-007",
     "source_prd": "04-PLANNING-BASIC-PRD.md",
-    "prd_refs": ["§16.1", "§6.2", "§7.2", "§8.7"],
+    "prd_refs": [
+      "§16.1",
+      "§6.2",
+      "§7.2",
+      "§8.7"
+    ],
     "category": "infra",
     "subcategory": "rule-registry",
     "task_type": "T2-api",
@@ -31,7 +41,6 @@
       "Material reservation policy rule (T-021)"
     ],
     "dependencies": [],
-    "parallel_safe_with": ["T-001", "T-002", "T-003", "T-004"],
     "acceptance_criteria": [
       "Given the registration runs at boot, when rule registry is queried, then 3 entries exist with version='v1'.",
       "Given a PO with status='submitted' and lines.count=0, when transition→submitted attempted, then guard fails per V-PLAN-PO-003 and no outbox row is written.",
@@ -47,9 +56,17 @@
       "Do not bypass engine for any state transition — all changes must traverse rule.",
       "Do not skip outbox emission — analytics + 12-REPORTING depend on the event stream."
     ],
-    "skills": ["test-driven-development", "requesting-code-review"],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
     "checkpoint_policy": {
-      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
       "closeout_requires": [
         "changed_files",
         "test_commands_and_results",
@@ -63,6 +80,13 @@
       "implementation": "hermes_gpt55",
       "review": "opus_if_high_risk_or_ui_or_architecture",
       "close": "spark_low_risk_else_opus"
-    }
+    },
+    "cross_module_dependencies": [
+      {
+        "module": "02-settings",
+        "task_id": "CONTRACT",
+        "reason": "Uses Settings rule registry, flags, status display, and permission contracts."
+      }
+    ]
   }
 }

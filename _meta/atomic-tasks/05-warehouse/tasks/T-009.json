@@ -1,15 +1,23 @@
 {
   "title": "T-009 — warehouse_settings table + 32 toggle defaults",
   "prompt": "# T-009 — warehouse_settings table + toggle defaults\n\nPRD: `05-WAREHOUSE-PRD.md` §5.8, §16.1.\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`.\n\n## Goal\nCreate `warehouse_settings` key-value table per §5.8 and seed all 32+ toggles from §16.1 with their PRD defaults.\n\n## Implementation contract\nDrizzle schema `packages/db/src/schema/warehouse-settings.ts`: id, tenant_id, warehouse_id (nullable for tenant-wide), setting_key VARCHAR(64), setting_value JSONB, marker VARCHAR(32) (UNIVERSAL/APEX-CONFIG/EVOLVING), updated_at/by. UNIQUE(tenant_id, warehouse_id, setting_key) (NULL warehouse_id treated as global).\nSeed migration inserts the 32 keys from §16.1 with default values + markers (e.g. 'auto_generate_lp_number'=true [UNIVERSAL]).\n\n## Files (scope)\n- packages/db/src/schema/warehouse-settings.ts [create]\n- packages/db/migrations/0NN_warehouse_settings.sql [create]\n- packages/db/seed/warehouse-settings-defaults.ts [create]\n- packages/db/src/schema/warehouse-settings.test.ts [create]\n\n## Acceptance criteria\n1. Given the migration runs and seed executes for a fresh tenant, when SELECT FROM warehouse_settings, then 32 default rows are returned.\n2. Given a duplicate (tenant, warehouse, key) insert, when committed, then DB raises a unique violation.\n3. Given the test reads default 'expiry_warning_days_red', when parsed as JSON, then it equals 7 per §16.1.\n\n## Test strategy\n- RED: warehouse-settings.test.ts asserts seed count and value defaults match §16.1.\n- Run `pnpm --filter db migrate && pnpm --filter db test warehouse-settings`.\n\n## Risk red lines\n- Do not omit any §16.1 toggle.\n- Do not change defaults from PRD values.\n- Do not implement settings UI (T-074).",
-  "labels": ["prd", "data", "settings", "T1-schema"],
-  "priority": 70,
+  "labels": [
+    "prd",
+    "data",
+    "settings",
+    "T1-schema"
+  ],
+  "priority": 80,
   "max_attempts": 3,
   "pipeline_name": "kira_dev",
   "pipeline_inputs": {
     "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
     "prd_task_id": "T-009",
     "source_prd": "05-WAREHOUSE-PRD.md",
-    "prd_refs": ["§5.8", "§16.1"],
+    "prd_refs": [
+      "§5.8",
+      "§16.1"
+    ],
     "category": "data",
     "subcategory": "settings",
     "task_type": "T1-schema",
@@ -30,7 +38,14 @@
       "RLS (T-012)"
     ],
     "dependencies": [],
-    "parallel_safe_with": ["T-003", "T-004", "T-005", "T-006", "T-007", "T-008"],
+    "parallel_safe_with": [
+      "T-003",
+      "T-004",
+      "T-005",
+      "T-006",
+      "T-007",
+      "T-008"
+    ],
     "acceptance_criteria": [
       "Given the seed runs for a tenant, when SELECT FROM warehouse_settings is run, then 32 rows exist matching §16.1 keys",
       "Given a duplicate (tenant, warehouse, key) insert, when committed, then DB raises a unique violation",
@@ -45,16 +60,61 @@
       "Do not change PRD default values",
       "Do not embed settings UI"
     ],
-    "skills": ["test-driven-development", "requesting-code-review"],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
     "checkpoint_policy": {
-      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
-      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
     },
     "routing_hints": {
       "red": "hermes_gpt55",
       "implementation": "hermes_gpt55",
       "review": "opus_if_high_risk_or_ui_or_architecture",
       "close": "spark_low_risk_else_opus"
-    }
+    },
+    "cross_module_dependencies": [
+      {
+        "module": "02-settings",
+        "contract": "rule_registry, warehouses/locations/printers, feature flags, tenant security policy"
+      },
+      {
+        "module": "03-technical",
+        "contract": "items/products, shelf_life_mode/date_code_format, catch-weight, allergen snapshots"
+      },
+      {
+        "module": "04-planning-basic",
+        "contract": "PO/TO/WO read models, RM root reservations, WO release/cancel hooks"
+      },
+      {
+        "module": "06-scanner-p1",
+        "contract": "LP lookup, barcode validation, lock protocol, FEFO suggestion, consume-to-WO"
+      },
+      {
+        "module": "08-production",
+        "contract": "WO material consumption and output LP creation events"
+      },
+      {
+        "module": "09-quality",
+        "contract": "LP qa_status ownership and quality_status_history"
+      },
+      {
+        "module": "11-shipping",
+        "contract": "downstream shelf_life_rules enforcement in Phase 2"
+      }
+    ],
+    "priority_normalization_note": "Priority normalized to ACP convention bands on 2026-05-03; lower number means earlier execution."
   }
 }

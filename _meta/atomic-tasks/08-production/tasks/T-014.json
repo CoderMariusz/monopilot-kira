@@ -1,7 +1,12 @@
 {
   "title": "T-014 — Register DSL rules output_yield_gate_v1 + allergen_changeover_gate_v1",
   "prompt": "# T-014 — Register output_yield_gate_v1 + allergen_changeover_gate_v1\n\nPRD: 08-PRODUCTION-PRD.md §10.2, §10.4, §6 D4 D10\n\n## Goal\nRegister two more DSL rules in 02-SETTINGS rule_registry: output_yield_gate_v1 (soft gate, ±10% variance) and allergen_changeover_gate_v1 (hard gate with matrix lookup, dual sign-off).\n\n## Implementation contract\nCreate two YAML files mirroring §10.4 (output_yield_gate_v1: trigger wo.outputs_registered_complete, formula sum(wo_outputs.qty_kg)/sum(wo_material_consumption.qty_consumed), threshold abs(1-variance_ratio) > 0.10) and §10.2 (allergen_changeover_gate_v1: triggers wo.transition.ready_to_in_progress, 5 evaluation steps, outcome pass→allow start, fail→423 redirect). Update load-production-rules.ts to register both. Each rule needs a unit test.\n\n## Files (scope)\n- packages/dsl-rules/rules/production/output-yield-gate-v1.yaml [create]\n- packages/dsl-rules/rules/production/allergen-changeover-gate-v1.yaml [create]\n- packages/dsl-rules/src/registry/load-production-rules.ts [modify]\n- packages/dsl-rules/src/__tests__/output-yield-gate-v1.test.ts [create]\n- packages/dsl-rules/src/__tests__/allergen-changeover-gate-v1.test.ts [create]\n\n## Acceptance criteria\n1. Given loader runs, when rule_registry queried for output_yield_gate_v1, then row exists with type=gate_soft and threshold 0.10 (D4 default)\n2. Given allergen_changeover_gate_v1 loaded, when steps parsed, then 5 steps in order: find_previous_wo_on_line, compute_allergen_delta, lookup_changeover_matrix, apply_matrix_requirements, emit_validation_event\n3. Given allergen_changeover_gate_v1 loaded, when outcome.fail parsed, then it returns 423 Locked with redirect_url '/production/changeover/:event_id'\n\n## Test strategy\n- RED: write both rule unit tests asserting structure before YAML files exist\n- Run 'pnpm --filter dsl-rules test output-yield-gate-v1 && pnpm --filter dsl-rules test allergen-changeover-gate-v1'\n\n## Risk red lines\n- Do not change yield variance threshold from 0.10 without ADR (D4)\n- Do not omit segregation_required step (D10)\n- Do not change 423 status code or redirect URL contract",
-  "labels": ["prd", "data", "dsl-rule", "T1-schema"],
+  "labels": [
+    "prd",
+    "data",
+    "dsl-rule",
+    "T1-schema"
+  ],
   "priority": 80,
   "max_attempts": 3,
   "pipeline_name": "kira_dev",
@@ -9,7 +14,12 @@
     "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
     "prd_task_id": "T-014",
     "source_prd": "08-PRODUCTION-PRD.md",
-    "prd_refs": ["§10.2", "§10.4", "§6 D4", "§6 D10"],
+    "prd_refs": [
+      "§10.2",
+      "§10.4",
+      "§6 D4",
+      "§6 D10"
+    ],
     "category": "data",
     "subcategory": "dsl-rule",
     "task_type": "T1-schema",
@@ -31,7 +41,10 @@
       "Do not implement allergen gate API"
     ],
     "dependencies": [],
-    "parallel_safe_with": ["T-012", "T-013"],
+    "parallel_safe_with": [
+      "T-012",
+      "T-013"
+    ],
     "acceptance_criteria": [
       "Given loader runs, when rule_registry queried for output_yield_gate_v1, then row exists type=gate_soft threshold=0.10",
       "Given allergen_changeover_gate_v1 loaded, when steps parsed, then 5 steps in order match §10.2",
@@ -46,10 +59,24 @@
       "Do not omit segregation step",
       "Do not change 423 contract"
     ],
-    "skills": ["test-driven-development", "requesting-code-review"],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
     "checkpoint_policy": {
-      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
-      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
     },
     "routing_hints": {
       "red": "hermes_gpt55",

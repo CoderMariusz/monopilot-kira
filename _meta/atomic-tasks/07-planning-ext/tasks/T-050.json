@@ -1,0 +1,97 @@
+{
+  "title": "T-050 — Sequencing v2 preview and commit overlay",
+  "prompt": "# T-050 — Sequencing v2 preview and commit overlay\n\nPRD: `07-PLANNING-EXT-PRD.md` §17.1 PLE-007, §10.2, §16.2 OQ-EXT-09.\nUX/prototype refs are listed in `pipeline_inputs.scope_files`.\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`.\n\n## Goal\nImplement the 07-EXT overlay that demonstrates and commits allergen optimizer v2 results.\n\n## Implementation contract\nFeature-gate the overlay; use scheduler_runs as the dry-run persistence model; compare v1 vs v2 without writing live schedule until commit.\n\nACP shape reminder: keep this task as one atomic implementation. Do not add ACP-owned fields. Keep local dependencies in `dependencies`; cross-module contracts in `cross_module_dependencies` are blockers/inputs, not ACP local task IDs.",
+  "labels": [
+    "prd",
+    "ui",
+    "sequencing",
+    "T3-ui"
+  ],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "source_prd": "07-PLANNING-EXT-PRD.md",
+    "context_budget": "40k",
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prd_refs": [
+      "§17.1 PLE-007",
+      "§10.2",
+      "§16.2 OQ-EXT-09"
+    ],
+    "category": "ui",
+    "subcategory": "sequencing-v2-overlay",
+    "task_type": "T3-ui",
+    "parent_feature": "07-EXT-b allergen optimizer",
+    "estimated_effort": "3-4h",
+    "description": "Implement v2 allergen sequencing overlay with preview dry-run, KPI comparison, commit/discard, and sequence table columns.",
+    "details": "Matches pext_sequencing. Overlays 04-Planning sequencing only when planning.allergen_optimizer.v2.enabled is true; dry-runs persist as scheduler_runs run_type=dry_run status=preview.",
+    "scope_files": [
+      "apps/web/src/app/scheduler/sequencing/page.tsx [create or integrate overlay]",
+      "apps/web/src/components/scheduler/SequencingV2Overlay.tsx [create]",
+      "apps/web/src/lib/scheduler/sequencing-actions.ts [create]",
+      "design/Monopilot Design System/planning-ext/sequencing-screens.jsx:3-179 [ref]"
+    ],
+    "dependencies": [
+      "T-001",
+      "T-002",
+      "T-026",
+      "T-030"
+    ],
+    "cross_module_dependencies": [
+      {
+        "module": "04-planning-basic",
+        "contract": "Base sequencing route/heuristic and WO sequence read model."
+      },
+      {
+        "module": "02-settings",
+        "contract": "Feature flag and rule registry."
+      },
+      {
+        "module": "03-technical",
+        "contract": "Allergen profile and FG-line compatibility."
+      }
+    ],
+    "acceptance_criteria": [
+      "Given v2 flag is on, then v2 banner, KPI cards, preview table and commit/discard actions match pext_sequencing parity.",
+      "Given Preview Sequence runs, then a scheduler_runs dry_run preview row is created with 24h expiry metadata and no approved assignments are mutated.",
+      "Given Commit Preview runs, then draft assignments are created and outbox sequencing.preview.committed emits."
+    ],
+    "test_strategy": [
+      "RED action tests for dry-run/no-commit/commit; RTL prototype parity.",
+      "Run pnpm --filter web test scheduler/SequencingV2Overlay sequencing-actions."
+    ],
+    "risk_red_lines": [
+      "Do not mutate approved schedule during preview.",
+      "Do not duplicate 04-Planning base heuristic ownership.",
+      "Do not ignore BLOCKED/segregation_required matrix cells."
+    ],
+    "prd_task_id": "T-050",
+    "priority_normalization_note": "Priority normalized to ACP convention bands on 2026-05-03; lower number means earlier execution."
+  }
+}

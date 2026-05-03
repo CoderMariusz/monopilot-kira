@@ -1,7 +1,12 @@
 {
   "title": "T-006 — scheduler_scenarios table (P2 what-if)",
   "prompt": "# T-006 — scheduler_scenarios table (P2 what-if)\n\nPRD: 07-PLANNING-EXT-PRD.md §9.7, §17.1 PLE-008\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nIntroduce `scheduler_scenarios` table for P2 what-if simulations (saved scenarios, never committed to scheduler_assignments) with RLS and FK to scheduler_runs.\n\n## Implementation contract\n1. Migration `packages/db/migrations/0075_scheduler_scenarios.sql`: CREATE TABLE scheduler_scenarios per §9.7 DDL + RLS.\n2. scenario_params JSONB shape per PLE-008: {line_down:[...], add_wos:[...], remove_wos:[...], capacity_changes:[...]}.\n3. Drizzle schema entry.\n\n## Files\n- packages/db/migrations/0075_scheduler_scenarios.sql [create]\n- packages/db/src/schema/scheduler_scenarios.ts [create]\n- packages/db/src/schema/index.ts [modify]\n- packages/db/__tests__/scheduler-scenarios.test.ts [create]\n\n## Acceptance criteria\n1. Given migration 0075 applied, when \\d scheduler_scenarios runs, then all §9.7 columns + RLS + FK to scheduler_runs(run_id) exist\n2. Given two tenants, when each SELECTs, then each sees only its own scenarios\n3. Given a scenario row, when scenario_params is INSERTed without required keys, then JSON validation passes (shape enforced at app layer not DB)\n\n## Test strategy\n- RED: write packages/db/__tests__/scheduler-scenarios.test.ts asserting RLS + FK to scheduler_runs\n- Run 'pnpm --filter db migrate && pnpm --filter db test scheduler-scenarios'\n\n## Risk red lines\n- Do not couple to scheduler_assignments (P2 simulations never commit to assignments)\n- Do not skip RLS\n- Do not enforce JSONB shape at DB layer (per PRD app-layer validation)",
-  "labels": ["prd", "data", "schema", "T1-schema"],
+  "labels": [
+    "prd",
+    "data",
+    "schema",
+    "T1-schema"
+  ],
   "priority": 100,
   "max_attempts": 3,
   "pipeline_name": "kira_dev",
@@ -9,7 +14,10 @@
     "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
     "prd_task_id": "T-006",
     "source_prd": "07-PLANNING-EXT-PRD.md",
-    "prd_refs": ["§9.7", "§17.1 PLE-008"],
+    "prd_refs": [
+      "§9.7",
+      "§17.1 PLE-008"
+    ],
     "category": "data",
     "subcategory": "schema-scenarios",
     "task_type": "T1-schema",
@@ -29,8 +37,9 @@
       "Do not implement P2 simulation API (covered by T-012 dry-run mode)",
       "Do not enforce scenario_params JSON shape at DB layer"
     ],
-    "dependencies": ["T-001"],
-    "parallel_safe_with": ["T-002", "T-003", "T-004", "T-005"],
+    "dependencies": [
+      "T-001"
+    ],
     "acceptance_criteria": [
       "Given migration 0075 applied, when \\d scheduler_scenarios runs, then all §9.7 columns + RLS + FK to scheduler_runs exist",
       "Given two tenants, when each SELECTs, then each only sees its own scenarios",
@@ -45,10 +54,24 @@
       "Do not skip RLS",
       "Do not enforce scenario_params shape at DB layer"
     ],
-    "skills": ["test-driven-development", "requesting-code-review"],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
     "checkpoint_policy": {
-      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
-      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
     },
     "routing_hints": {
       "red": "hermes_gpt55",

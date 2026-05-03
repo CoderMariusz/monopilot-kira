@@ -1,0 +1,168 @@
+{
+  "title": "T-055 — Warehouse end-to-end flow tests",
+  "prompt": "# T-055 — Warehouse end-to-end flow tests\n\nPRD: `05-WAREHOUSE-PRD.md`.\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`.\n\n## Goal\nAdd end-to-end tests covering Warehouse P1 critical paths across schema, services, UI, outbox, and prototype parity markers.\n\n## Implementation contract\nCover receive PO→LPs→putaway/move/split→reserve/release→FEFO deviation→consume contract stub→expiry cron/override→genealogy→label print. Include data-prototype-label selector checks for all first-class labels in prototype-index-warehouse.json.\n\n## Files (scope)\n- apps/web/e2e/warehouse/** [create]\n- packages/db/test/warehouse/** [create]\n- _meta/prototype-labels/prototype-index-warehouse.json\n\n## Acceptance criteria\n1. Given the Warehouse E2E suite runs, then GRN from PO creates one LP per operator-entered row and never auto-splits the PO line.\n2. Given WH-008 split flow runs, then every output row requires destination and genealogy is asserted.\n3. Given labels from prototype-index-warehouse.json are enumerated, then implemented surfaces expose matching data-prototype-label markers or an explicit planned-marker exception for Phase 2 entries.\n4. Given all P1 flows complete, then audit/outbox events are asserted for GRN, split/merge, reservation, override, expiry, and label print.\n\n## Test strategy\n- RED: write failing Playwright flows with seeded warehouse fixtures.\n- GREEN: add DB assertions for LP state, reservations, genealogy, outbox, and audit tables.\n- Run pnpm playwright test --grep @warehouse-e2e and pnpm test -- --runInBand warehouse.\n\n## Risk red lines\n- Do not skip audit/outbox assertions.\n- Do not use mocked authorization for RBAC-sensitive checks.\n- Do not treat planned P2 prototype labels as P1 blockers.",
+  "labels": [
+    "prd",
+    "test",
+    "e2e",
+    "T4-wiring-test"
+  ],
+  "priority": 120,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "source_prd": "05-WAREHOUSE-PRD.md",
+    "context_budget": "35k",
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "cross_module_dependencies": [
+      {
+        "module": "02-settings",
+        "contract": "rule_registry, warehouses/locations/printers, feature flags, tenant security policy"
+      },
+      {
+        "module": "03-technical",
+        "contract": "items/products, shelf_life_mode/date_code_format, catch-weight, allergen snapshots"
+      },
+      {
+        "module": "04-planning-basic",
+        "contract": "PO/TO/WO read models, RM root reservations, WO release/cancel hooks"
+      },
+      {
+        "module": "06-scanner-p1",
+        "contract": "LP lookup, barcode validation, lock protocol, FEFO suggestion, consume-to-WO"
+      },
+      {
+        "module": "08-production",
+        "contract": "WO material consumption and output LP creation events"
+      },
+      {
+        "module": "09-quality",
+        "contract": "LP qa_status ownership and quality_status_history"
+      },
+      {
+        "module": "11-shipping",
+        "contract": "downstream shelf_life_rules enforcement in Phase 2"
+      }
+    ],
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prd_task_id": "T-055",
+    "prd_refs": [
+      "§6-§15",
+      "§16.6"
+    ],
+    "category": "test",
+    "subcategory": "warehouse-e2e",
+    "task_type": "T4-wiring-test",
+    "parent_feature": "warehouse-wave0-closeout",
+    "estimated_effort": "2d",
+    "description": "Add end-to-end tests covering Warehouse P1 critical paths across schema, services, UI, outbox, and prototype parity markers.",
+    "details": "Cover receive PO→LPs→putaway/move/split→reserve/release→FEFO deviation→consume contract stub→expiry cron/override→genealogy→label print. Include data-prototype-label selector checks for all first-class labels in prototype-index-warehouse.json.\n\nDependency hardening: dependencies are expanded to concrete local task IDs T-001..T-054 because ACP/local validators must not receive range strings like T-001..T-054.",
+    "scope_files": [
+      "apps/web/e2e/warehouse/** [create]",
+      "packages/db/test/warehouse/** [create]",
+      "_meta/prototype-labels/prototype-index-warehouse.json"
+    ],
+    "out_of_scope": [
+      "No implementation of missing UI/services in this task",
+      "No scanner mobile E2E beyond warehouse API contracts"
+    ],
+    "dependencies": [
+      "T-001",
+      "T-002",
+      "T-003",
+      "T-004",
+      "T-005",
+      "T-006",
+      "T-007",
+      "T-008",
+      "T-009",
+      "T-010",
+      "T-011",
+      "T-012",
+      "T-013",
+      "T-014",
+      "T-015",
+      "T-016",
+      "T-017",
+      "T-018",
+      "T-019",
+      "T-020",
+      "T-021",
+      "T-022",
+      "T-023",
+      "T-024",
+      "T-025",
+      "T-026",
+      "T-027",
+      "T-028",
+      "T-029",
+      "T-030",
+      "T-031",
+      "T-032",
+      "T-033",
+      "T-034",
+      "T-035",
+      "T-036",
+      "T-037",
+      "T-038",
+      "T-039",
+      "T-040",
+      "T-041",
+      "T-042",
+      "T-043",
+      "T-044",
+      "T-045",
+      "T-046",
+      "T-047",
+      "T-048",
+      "T-049",
+      "T-050",
+      "T-051",
+      "T-052",
+      "T-053",
+      "T-054"
+    ],
+    "parallel_safe_with": [],
+    "acceptance_criteria": [
+      "Given the Warehouse E2E suite runs, then GRN from PO creates one LP per operator-entered row and never auto-splits the PO line.",
+      "Given WH-008 split flow runs, then every output row requires destination and genealogy is asserted.",
+      "Given labels from prototype-index-warehouse.json are enumerated, then implemented surfaces expose matching data-prototype-label markers or an explicit planned-marker exception for Phase 2 entries.",
+      "Given all P1 flows complete, then audit/outbox events are asserted for GRN, split/merge, reservation, override, expiry, and label print."
+    ],
+    "test_strategy": [
+      "RED: write failing Playwright flows with seeded warehouse fixtures.",
+      "GREEN: add DB assertions for LP state, reservations, genealogy, outbox, and audit tables.",
+      "Run pnpm playwright test --grep @warehouse-e2e and pnpm test -- --runInBand warehouse."
+    ],
+    "risk_red_lines": [
+      "Do not skip audit/outbox assertions.",
+      "Do not use mocked authorization for RBAC-sensitive checks.",
+      "Do not treat planned P2 prototype labels as P1 blockers."
+    ],
+    "priority_normalization_note": "Priority normalized to ACP convention bands on 2026-05-03; lower number means earlier execution."
+  }
+}

@@ -1,0 +1,101 @@
+{
+  "title": "T-057 — UI: PLN-011 Sequencing View (parity with plan_sequencing)",
+  "prompt": "Implement UI: PLN-011 Sequencing View (parity with plan_sequencing) for 04-PLANNING-BASIC.\n\nPrototype: `_meta/prototype-labels/prototype-index-planning.json` label `plan_sequencing` -> `design/Monopilot Design System/planning/other-screens.jsx:124-252`. Read PRD refs §10.2, §10.5, §10.7 and UX refs before coding. Match the prototype structurally and visually using shadcn/Radix primitives, Next.js App Router, Server Components for initial data, Server Actions for writes, next-intl for all copy, and existing repository conventions.\n\nBusiness rules: Heuristic results are server-derived; manual override stores audit reason and never bypasses WO state machine.\n\nCloseout must include changed files, test commands/results, AC status, screenshot/artifact paths, Playwright trace paths, deviations, and git status. Do not implement out-of-scope modules; use cross-module contracts listed in pipeline_inputs.cross_module_dependencies.",
+  "labels": [
+    "prd",
+    "ui",
+    "pln-011-sequencing",
+    "T3-ui"
+  ],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-057",
+    "source_prd": "04-PLANNING-BASIC-PRD.md",
+    "prd_refs": [
+      "§10.2",
+      "§10.5",
+      "§10.7"
+    ],
+    "category": "ui",
+    "subcategory": "pln-011-sequencing",
+    "task_type": "T3-ui",
+    "parent_feature": "planning-basic-full-ui",
+    "context_budget": "40k",
+    "estimated_effort": "4-6h",
+    "prototype_match": true,
+    "prototype_label": "plan_sequencing",
+    "description": "Sequencing page with line selector, allergen groups, drag/manual override affordance, KPI preview.",
+    "details": "Prototype reference: design/Monopilot Design System/planning/other-screens.jsx:124-252. Heuristic results are server-derived; manual override stores audit reason and never bypasses WO state machine.",
+    "scope_files": [
+      "src/app/(planning)/planning/sequencing/page.tsx [create]",
+      "src/components/planning/sequencing/SequencingPage.tsx [create]",
+      "design/Monopilot Design System/planning/other-screens.jsx:124-252 [ref]"
+    ],
+    "out_of_scope": [
+      "Changing canonical NPD/Technical/Warehouse/Scanner contracts",
+      "Using D365 as source-of-truth for factory usability"
+    ],
+    "dependencies": [
+      "T-025"
+    ],
+    "cross_module_dependencies": [
+      {
+        "module": "02-settings",
+        "task_id": "CONTRACT",
+        "reason": "Planning settings/workflow/status/RBAC UI consumes Settings rule registry, flags, and permission contracts."
+      }
+    ],
+    "acceptance_criteria": [
+      "Given the surface is implemented, when compared to `design/Monopilot Design System/planning/other-screens.jsx:124-252`, then layout, copy hierarchy, components, interactions, empty/loading/error states, and accessibility affordances have prototype parity for `plan_sequencing`.",
+      "Given server data or validation returns blocked/empty/error cases, then the UI surfaces the exact PRD validation/status messages without client-invented business state.",
+      "Given closeout is prepared, then it includes desktop screenshots/artifacts for all material states plus Playwright trace artifacts for happy path and blocked/error path.",
+      "Given tests run, then targeted RTL/component tests and Playwright e2e for the route/modal pass with 0 failures. Follow parity evidence requirements in `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`."
+    ],
+    "test_strategy": [
+      "RED RTL/component test for prototype parity and validation states.",
+      "Playwright e2e covers route/modal open, happy path, blocked/error path, and records trace.",
+      "Run targeted pnpm vitest and pnpm playwright commands."
+    ],
+    "risk_red_lines": [
+      "Do not hardcode strings; use next-intl.",
+      "Do not bypass server-side RBAC/business validation.",
+      "Do not infer factory usability from D365 or latest BOM/spec outside canonical release read model."
+    ],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "screenshots_or_artifacts",
+        "playwright_trace_artifacts",
+        "prototype_parity_notes",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "ui_closeout_evidence": [
+      "Desktop screenshots/artifacts for all material states.",
+      "Playwright trace artifacts for happy path and blocked/error path.",
+      "Prototype parity notes citing label/path/lines."
+    ],
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

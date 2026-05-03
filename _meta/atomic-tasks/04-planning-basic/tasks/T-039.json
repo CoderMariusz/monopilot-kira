@@ -1,7 +1,12 @@
 {
   "title": "T-039 — UI: PLN-015 Add PO Line modal (parity with add_po_line_modal)",
   "prompt": "Build PLN-015 Add PO Line modal at `src/components/planning/po/AddPOLineModal.tsx` matching prototype `design/Monopilot Design System/planning/modals.jsx:182-225` 1:1.\n\nFields: product (combobox with server search), qty, uom (read-only auto-filled from product), unit_price (auto-filled from supplier_products), discount, expected_delivery_date. Computed line_total visible (derived).\n\nZod schema enforces qty > 0 (V-PLAN-PO-004). Submit invokes Server Action that POSTs po_line.\n\nRED RTL test asserts qty=0 rejected, product select autofills uom + unit_price, line_total derives.",
-  "labels": ["prd", "ui", "pln-015-add-po-line", "T3-ui"],
+  "labels": [
+    "prd",
+    "ui",
+    "pln-015-add-po-line",
+    "T3-ui"
+  ],
   "priority": 100,
   "max_attempts": 3,
   "pipeline_name": "kira_dev",
@@ -9,7 +14,11 @@
     "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
     "prd_task_id": "T-039",
     "source_prd": "04-PLANNING-BASIC-PRD.md",
-    "prd_refs": ["§6.2", "§6.6", "§6.7"],
+    "prd_refs": [
+      "§6.2",
+      "§6.6",
+      "§6.7"
+    ],
     "category": "ui",
     "subcategory": "pln-015-add-po-line",
     "task_type": "T3-ui",
@@ -27,13 +36,14 @@
     "out_of_scope": [
       "Bulk import (T-041)"
     ],
-    "dependencies": ["T-036"],
-    "parallel_safe_with": ["T-038", "T-040"],
+    "dependencies": [
+      "T-036"
+    ],
     "acceptance_criteria": [
       "Given the modal opens, when compared to `design/Monopilot Design System/planning/modals.jsx:182-225`, then it shows the same 7 fields in the same order, the same uom read-only behavior, and the same Cancel/Save footer — parity verified by RTL test.",
       "Given qty=0 input, when Save is clicked, then Zod rejects with message matching V-PLAN-PO-004 and no API call is made.",
       "Given a product with supplier_products.unit_price=4.20, when selected, then unit_price field shows 4.20 and is read-only by default.",
-      "Given `pnpm vitest run src/components/planning/po/__tests__/AddPOLineModal.test.tsx`, when run, then 0 failures."
+      "Given `pnpm vitest run src/components/planning/po/__tests__/AddPOLineModal.test.tsx`, when run, then 0 failures. Given the UI task is closed, then CLOSEOUT includes Playwright trace artifacts plus screenshots/artifacts for prototype parity and error/empty/blocked states. Follow parity evidence requirements in `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`."
     ],
     "test_strategy": [
       "RED RTL test for parity + qty=0 rejection + autofill + line_total derivation.",
@@ -44,15 +54,26 @@
       "Do not allow qty=0 to bypass validation.",
       "Do not place line_total into form state — must derive."
     ],
-    "skills": ["test-driven-development", "requesting-code-review"],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
     "checkpoint_policy": {
-      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
       "closeout_requires": [
         "changed_files",
         "test_commands_and_results",
         "acceptance_criteria_status",
         "deviations_from_prd",
-        "git_status"
+        "git_status",
+        "screenshots_or_artifacts",
+        "playwright_trace_artifacts",
+        "prototype_parity_notes"
       ]
     },
     "routing_hints": {
@@ -60,6 +81,18 @@
       "implementation": "hermes_gpt55",
       "review": "opus_if_high_risk_or_ui_or_architecture",
       "close": "spark_low_risk_else_opus"
-    }
+    },
+    "cross_module_dependencies": [
+      {
+        "module": "03-technical",
+        "task_id": "D365-CONTRACT",
+        "reason": "Consumes optional D365 integration adapter metadata; D365 never unlocks factory use."
+      }
+    ],
+    "ui_closeout_evidence": [
+      "Playwright trace artifact for each happy path and blocked/error path exercised by the task.",
+      "Desktop screenshots/artifacts for each implemented page/modal state compared against prototype line references.",
+      "Attach artifact paths in CLOSEOUT with changed files, test commands/results, and acceptance criteria status."
+    ]
   }
 }

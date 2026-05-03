@@ -1,7 +1,12 @@
 {
   "title": "T-018 — API: WO create + BOM snapshot → wo_materials",
   "prompt": "Implement Server Action `createWorkOrder(input)` per PRD §8.1 (FR-PLAN-017) + §8.2 (FR-PLAN-020). Steps:\n1. Auto-select active BOM (FR-PLAN-018) by query `bom WHERE product_id = wo.product_id AND effective_from <= scheduled_date AND (effective_to IS NULL OR effective_to > scheduled_date)` ORDER BY effective_from DESC LIMIT 1. User override allowed.\n2. Snapshot bom_items → wo_materials with required_qty = bom_item.qty * (wo.planned_quantity / bom.output_qty) * (1 + scrap_percent/100). Default material_source='stock'.\n3. Copy routing_operations → wo_operations (FR-PLAN-019).\n4. Create wo_outputs row with output_role='primary', allocation_pct=100% (cascade generation T-019 will adjust for co-products).\n5. Calls T-017 for numbering.\n6. Status='DRAFT'. Outbox event 'wo.created'.\n\nV-PLAN-WO-001 (planned_quantity > 0). V-PLAN-WO-002 enforced at release time, not create.\n\nRED test asserts BOM snapshot math, primary output insertion, immutable post-release rule.",
-  "labels": ["prd", "api", "wo-create", "T2-api"],
+  "labels": [
+    "prd",
+    "api",
+    "wo-create",
+    "T2-api"
+  ],
   "priority": 100,
   "max_attempts": 3,
   "pipeline_name": "kira_dev",
@@ -9,7 +14,11 @@
     "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
     "prd_task_id": "T-018",
     "source_prd": "04-PLANNING-BASIC-PRD.md",
-    "prd_refs": ["§8.1", "§8.2", "§8.11"],
+    "prd_refs": [
+      "§8.1",
+      "§8.2",
+      "§8.11"
+    ],
     "category": "api",
     "subcategory": "wo-create",
     "task_type": "T2-api",
@@ -29,8 +38,12 @@
       "WO release transition (T-021)",
       "Reservation creation (T-021 side-effect)"
     ],
-    "dependencies": ["T-004", "T-005", "T-007", "T-017"],
-    "parallel_safe_with": ["T-019", "T-020"],
+    "dependencies": [
+      "T-004",
+      "T-005",
+      "T-007",
+      "T-017"
+    ],
     "acceptance_criteria": [
       "Given a BOM with output_qty=10 and a bom_item qty=2 + scrap_percent=5, when WO planned_quantity=20 is created, then wo_materials.required_qty = 2 * (20/10) * 1.05 = 4.20.",
       "Given a WO post-create, when wo_outputs is queried, then exactly 1 row exists with output_role='primary' and allocation_pct=100.00.",
@@ -46,9 +59,17 @@
       "Do not skip BOM auto-select when bom_id is unspecified — must respect §8.1.",
       "Do not create wo_outputs primary allocation_pct < 100 in non-cascade path."
     ],
-    "skills": ["test-driven-development", "requesting-code-review"],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
     "checkpoint_policy": {
-      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
       "closeout_requires": [
         "changed_files",
         "test_commands_and_results",
@@ -62,6 +83,23 @@
       "implementation": "hermes_gpt55",
       "review": "opus_if_high_risk_or_ui_or_architecture",
       "close": "spark_low_risk_else_opus"
-    }
+    },
+    "cross_module_dependencies": [
+      {
+        "module": "06-scanner-p1",
+        "task_id": "CONTRACT",
+        "reason": "Scanner consumes released WO/material reservation contracts and produces execution events."
+      },
+      {
+        "module": "03-technical",
+        "task_id": "T-081",
+        "reason": "Consumes Technical factory-use adapter/status/blocker contract; Planning is not source-of-truth for BOM/spec approval."
+      },
+      {
+        "module": "01-npd",
+        "task_id": "T-097",
+        "reason": "Consumes canonical NPD release read model for factory usability."
+      }
+    ]
   }
 }

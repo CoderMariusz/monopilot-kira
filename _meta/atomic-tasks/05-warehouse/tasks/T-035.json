@@ -1,15 +1,22 @@
 {
   "title": "T-035 — Expiry calc on GRN ingest",
   "prompt": "# T-035 — Expiry calc on GRN ingest\n\nPRD: `05-WAREHOUSE-PRD.md` §12.1 (FR-WH-020), V-WH-EXP-001.\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`.\n\n## Goal\nDuring GRN complete (T-021/T-022), compute LP.expiry_date and LP.date_code_rendered when GRN row omits explicit expiry.\n\n## Implementation contract\n`apps/web/lib/services/warehouse/expiry-calc.ts` exposes `computeExpiryAndDateCode(grnRow, product)` returning {expiry_date, date_code_rendered, shelf_life_mode_snapshot}. Logic: if grnRow.expiry_date present → use; else expiry = manufacture_date + product.shelf_life_days. date_code_rendered uses 03§9.2 format from product.date_code_format. shelf_life_mode_snapshot copied from product.shelf_life_mode.\n\n## Files (scope)\n- apps/web/lib/services/warehouse/expiry-calc.ts [create]\n- apps/web/lib/services/warehouse/__tests__/expiry-calc.test.ts [create]\n\n## Acceptance criteria\n1. Given product.shelf_life_days=90 and manufacture_date=2026-01-01 with no explicit expiry, when computed, then expiry=2026-04-01.\n2. Given grnRow.expiry_date=2026-05-15, when computed, then result equals 2026-05-15 (operator override wins).\n3. Given product.date_code_format='YYWW' and date 2026-04-01 (week 14), when computed, then date_code_rendered='2614'.\n\n## Test strategy\n- RED: expiry-calc.test.ts covers three scenarios.\n- Run `pnpm --filter web test expiry-calc`.\n\n## Risk red lines\n- Do not silently overwrite explicit expiry.\n- Do not assume shelf_life_days when neither manufacture_date nor explicit expiry provided (surface error).\n- Do not import LP table here — pure function.",
-  "labels": ["prd", "api", "expiry", "T2-api"],
-  "priority": 95,
+  "labels": [
+    "prd",
+    "api",
+    "expiry",
+    "T2-api"
+  ],
+  "priority": 100,
   "max_attempts": 3,
   "pipeline_name": "kira_dev",
   "pipeline_inputs": {
     "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
     "prd_task_id": "T-035",
     "source_prd": "05-WAREHOUSE-PRD.md",
-    "prd_refs": ["§12.1"],
+    "prd_refs": [
+      "§12.1"
+    ],
     "category": "api",
     "subcategory": "expiry",
     "task_type": "T2-api",
@@ -28,7 +35,10 @@
       "Use_by override (T-037)"
     ],
     "dependencies": [],
-    "parallel_safe_with": ["T-036", "T-037"],
+    "parallel_safe_with": [
+      "T-036",
+      "T-037"
+    ],
     "acceptance_criteria": [
       "Given shelf_life_days=90 and manufacture_date=2026-01-01 with no explicit expiry, when computed, then expiry=2026-04-01",
       "Given grnRow.expiry_date=2026-05-15, when computed, then result equals 2026-05-15",
@@ -43,16 +53,61 @@
       "Do not assume defaults when manufacture_date missing",
       "Do not import LP DB module"
     ],
-    "skills": ["test-driven-development", "requesting-code-review"],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
     "checkpoint_policy": {
-      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
-      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
     },
     "routing_hints": {
       "red": "hermes_gpt55",
       "implementation": "hermes_gpt55",
       "review": "opus_if_high_risk_or_ui_or_architecture",
       "close": "spark_low_risk_else_opus"
-    }
+    },
+    "cross_module_dependencies": [
+      {
+        "module": "02-settings",
+        "contract": "rule_registry, warehouses/locations/printers, feature flags, tenant security policy"
+      },
+      {
+        "module": "03-technical",
+        "contract": "items/products, shelf_life_mode/date_code_format, catch-weight, allergen snapshots"
+      },
+      {
+        "module": "04-planning-basic",
+        "contract": "PO/TO/WO read models, RM root reservations, WO release/cancel hooks"
+      },
+      {
+        "module": "06-scanner-p1",
+        "contract": "LP lookup, barcode validation, lock protocol, FEFO suggestion, consume-to-WO"
+      },
+      {
+        "module": "08-production",
+        "contract": "WO material consumption and output LP creation events"
+      },
+      {
+        "module": "09-quality",
+        "contract": "LP qa_status ownership and quality_status_history"
+      },
+      {
+        "module": "11-shipping",
+        "contract": "downstream shelf_life_rules enforcement in Phase 2"
+      }
+    ],
+    "priority_normalization_note": "Priority normalized to ACP convention bands on 2026-05-03; lower number means earlier execution."
   }
 }

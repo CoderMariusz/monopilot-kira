@@ -1,7 +1,12 @@
 {
   "title": "T-025 — API: allergen sequencing heuristic rule (allergen_sequencing_heuristic_v1)",
   "prompt": "Implement basic allergen sequencing per PRD §10.2 (FR-PLAN-029) as DSL rule `allergen_sequencing_heuristic_v1` registered via T-007. Algorithm:\n1. Query WOs WHERE status='RELEASED' AND production_line_id=X AND scheduled_start_time IN [window].\n2. Annotate each WO with allergen_profile_snapshot.\n3. Group: allergen-free → single-allergen (alphabetical per family) → multi-allergen.\n4. Within group: FIFO by scheduled_start_time.\n5. Update wo.scheduled_start_time respecting line capacity + operation durations.\n6. Emit outbox event 'wo.sequencing_applied'.\n\nManual override (§10.5): WOs with sequencing_override=true are kept in place. priority='critical' WOs exempt by default (V-PLAN-SEQ-001).\n\nRED test asserts grouping order, critical exemption, override skip, KPI emit.",
-  "labels": ["prd", "api", "allergen-sequencing", "T2-api"],
+  "labels": [
+    "prd",
+    "api",
+    "allergen-sequencing",
+    "T2-api"
+  ],
   "priority": 100,
   "max_attempts": 3,
   "pipeline_name": "kira_dev",
@@ -9,7 +14,12 @@
     "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
     "prd_task_id": "T-025",
     "source_prd": "04-PLANNING-BASIC-PRD.md",
-    "prd_refs": ["§10.2", "§10.4", "§10.5", "§10.8"],
+    "prd_refs": [
+      "§10.2",
+      "§10.4",
+      "§10.5",
+      "§10.8"
+    ],
     "category": "api",
     "subcategory": "allergen-sequencing",
     "task_type": "T2-api",
@@ -28,8 +38,10 @@
       "Full optimizer (07-PLANNING-EXT)",
       "Sequencing UI (T-031)"
     ],
-    "dependencies": ["T-007", "T-021"],
-    "parallel_safe_with": ["T-026"],
+    "dependencies": [
+      "T-007",
+      "T-021"
+    ],
     "acceptance_criteria": [
       "Given 3 WOs (allergen-free, gluten-only, multi-allergen) on same line, when sequencing runs, then resulting scheduled_start_time order is allergen-free → gluten-only → multi-allergen.",
       "Given a WO with priority='critical', when sequencing runs, then its scheduled_start_time is unchanged (V-PLAN-SEQ-001).",
@@ -44,9 +56,17 @@
       "Do not violate priority='critical' ordering — V-PLAN-SEQ-001.",
       "Do not implement multi-line cross-optimization — that is 07-PLANNING-EXT scope."
     ],
-    "skills": ["test-driven-development", "requesting-code-review"],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
     "checkpoint_policy": {
-      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
       "closeout_requires": [
         "changed_files",
         "test_commands_and_results",
@@ -60,6 +80,28 @@
       "implementation": "hermes_gpt55",
       "review": "opus_if_high_risk_or_ui_or_architecture",
       "close": "spark_low_risk_else_opus"
-    }
+    },
+    "cross_module_dependencies": [
+      {
+        "module": "05-warehouse",
+        "task_id": "CONTRACT",
+        "reason": "Consumes Warehouse LP/location/GRN/TO handoff contracts; no Planning task may invent Warehouse state semantics."
+      },
+      {
+        "module": "06-scanner-p1",
+        "task_id": "CONTRACT",
+        "reason": "Scanner consumes released WO/material reservation contracts and produces execution events."
+      },
+      {
+        "module": "03-technical",
+        "task_id": "T-081",
+        "reason": "Consumes Technical factory-use adapter/status/blocker contract; Planning is not source-of-truth for BOM/spec approval."
+      },
+      {
+        "module": "01-npd",
+        "task_id": "T-097",
+        "reason": "Consumes canonical NPD release read model for factory usability."
+      }
+    ]
   }
 }

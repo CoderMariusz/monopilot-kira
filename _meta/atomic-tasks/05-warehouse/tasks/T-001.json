@@ -1,7 +1,12 @@
 {
   "title": "T-001 — Warehouse enum locks (lp_status, lp_qa_status, item_type_snapshot, lp_source)",
   "prompt": "# T-001 — Warehouse enum locks\n\nPRD: `05-WAREHOUSE-PRD.md` §5.2, §6.1, §6.2.\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`.\n\n## Goal\nLock the four core warehouse enums in Drizzle so downstream migrations and services share the exact value sets.\n\n## Implementation contract\nAdd four pgEnum definitions in `packages/db/src/schema/warehouse-enums.ts`:\n- `lp_status` = ['available','reserved','consumed','shipped','blocked','merged']\n- `lp_qa_status` = ['PENDING','PASSED','FAILED','HOLD','RELEASED','QUARANTINED','COND_APPROVED']\n- `item_type_snapshot` = ['rm','intermediate','fg','co_product','byproduct']\n- `lp_source` = ['grn','wo_output','split','merge','adjustment']\nEmit a Drizzle migration `0NN_warehouse_enums.sql` creating the types. Export TS unions from same file. No table references yet.\n\n## Files (scope)\n- packages/db/src/schema/warehouse-enums.ts [create]\n- packages/db/migrations/0NN_warehouse_enums.sql [create]\n- packages/db/src/schema/warehouse-enums.test.ts [create]\n\n## Acceptance criteria\n1. Given the migration runs, when `\\dT lp_status` is queried, then it returns 6 values exactly matching PRD §5.2.\n2. Given the TS module is imported, when consumers reference `LpStatus` union, then it resolves to the 6-string literal type.\n3. Given the test runs, when an invalid value is checked against the union, then a type error is raised at compile time and a runtime guard rejects it.\n\n## Test strategy\n- RED: write `warehouse-enums.test.ts` that imports the unions and asserts `assertNever` style guard rejects 'foo'.\n- Run `pnpm --filter db migrate && pnpm --filter db test`.\n\n## Risk red lines\n- Do not add stray values not in PRD §5.2.\n- Do not collapse `qa_status` letter-case.\n- Do not create tables in this migration.",
-  "labels": ["prd", "data", "enum-lock", "T1-schema"],
+  "labels": [
+    "prd",
+    "data",
+    "enum-lock",
+    "T1-schema"
+  ],
   "priority": 50,
   "max_attempts": 3,
   "pipeline_name": "kira_dev",
@@ -9,7 +14,11 @@
     "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
     "prd_task_id": "T-001",
     "source_prd": "05-WAREHOUSE-PRD.md",
-    "prd_refs": ["§5.2", "§6.1", "§6.2"],
+    "prd_refs": [
+      "§5.2",
+      "§6.1",
+      "§6.2"
+    ],
     "category": "data",
     "subcategory": "enum-lock",
     "task_type": "T1-schema",
@@ -44,16 +53,60 @@
       "Do not collapse qa_status casing (preserve UPPER_SNAKE)",
       "Do not create tables in this migration"
     ],
-    "skills": ["test-driven-development", "requesting-code-review"],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
     "checkpoint_policy": {
-      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
-      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
     },
     "routing_hints": {
       "red": "hermes_gpt55",
       "implementation": "hermes_gpt55",
       "review": "opus_if_high_risk_or_ui_or_architecture",
       "close": "spark_low_risk_else_opus"
-    }
+    },
+    "cross_module_dependencies": [
+      {
+        "module": "02-settings",
+        "contract": "rule_registry, warehouses/locations/printers, feature flags, tenant security policy"
+      },
+      {
+        "module": "03-technical",
+        "contract": "items/products, shelf_life_mode/date_code_format, catch-weight, allergen snapshots"
+      },
+      {
+        "module": "04-planning-basic",
+        "contract": "PO/TO/WO read models, RM root reservations, WO release/cancel hooks"
+      },
+      {
+        "module": "06-scanner-p1",
+        "contract": "LP lookup, barcode validation, lock protocol, FEFO suggestion, consume-to-WO"
+      },
+      {
+        "module": "08-production",
+        "contract": "WO material consumption and output LP creation events"
+      },
+      {
+        "module": "09-quality",
+        "contract": "LP qa_status ownership and quality_status_history"
+      },
+      {
+        "module": "11-shipping",
+        "contract": "downstream shelf_life_rules enforcement in Phase 2"
+      }
+    ]
   }
 }

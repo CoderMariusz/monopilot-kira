@@ -1,7 +1,12 @@
 {
   "title": "T-028 — API: planning_settings CRUD + status display + field visibility",
   "prompt": "Implement planning_settings endpoint per PRD §14.1, §14.2, §14.4. GET /api/planning/settings returns the per-tenant settings row. PATCH /api/planning/settings updates allowed fields (everything except id, tenant_id, audit cols). Validation per V-PLAN-SET-001..004:\n- po_approval_threshold ≥ 0\n- intermediate_cascade_max_depth ∈ [1, 20]\n- status_display covers all enum values for po/to/wo entities (V-PLAN-SET-003)\n- d365_so_pull_cron is a valid cron expression (V-PLAN-SET-004)\n\nstatus_display JSONB shape per §14.2 (label_pl, label_en, color, icon). field_visibility JSONB per §14.4 (per-role mask).\n\nRED test asserts each V-PLAN-SET-XXX rule rejects bad input.",
-  "labels": ["prd", "api", "settings-crud", "T2-api"],
+  "labels": [
+    "prd",
+    "api",
+    "settings-crud",
+    "T2-api"
+  ],
   "priority": 100,
   "max_attempts": 3,
   "pipeline_name": "kira_dev",
@@ -9,7 +14,12 @@
     "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
     "prd_task_id": "T-028",
     "source_prd": "04-PLANNING-BASIC-PRD.md",
-    "prd_refs": ["§14.1", "§14.2", "§14.4", "§14.6"],
+    "prd_refs": [
+      "§14.1",
+      "§14.2",
+      "§14.4",
+      "§14.6"
+    ],
     "category": "api",
     "subcategory": "settings-crud",
     "task_type": "T2-api",
@@ -28,8 +38,9 @@
       "Settings UI (T-038)",
       "D365 cron worker (T-035)"
     ],
-    "dependencies": ["T-006"],
-    "parallel_safe_with": ["T-027", "T-029"],
+    "dependencies": [
+      "T-006"
+    ],
     "acceptance_criteria": [
       "Given PATCH with intermediate_cascade_max_depth=25, when validated, then HTTP 400 with code 'V-PLAN-SET-002'.",
       "Given PATCH with d365_so_pull_cron='not-a-cron', when validated, then HTTP 400 with code 'V-PLAN-SET-004'.",
@@ -44,9 +55,17 @@
       "Do not allow non-admin to mutate settings.",
       "Do not skip status_display coverage check — UI rendering depends on it."
     ],
-    "skills": ["test-driven-development", "requesting-code-review"],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
     "checkpoint_policy": {
-      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
       "closeout_requires": [
         "changed_files",
         "test_commands_and_results",
@@ -60,6 +79,13 @@
       "implementation": "hermes_gpt55",
       "review": "opus_if_high_risk_or_ui_or_architecture",
       "close": "spark_low_risk_else_opus"
-    }
+    },
+    "cross_module_dependencies": [
+      {
+        "module": "02-settings",
+        "task_id": "CONTRACT",
+        "reason": "Uses Settings rule registry, flags, status display, and permission contracts."
+      }
+    ]
   }
 }

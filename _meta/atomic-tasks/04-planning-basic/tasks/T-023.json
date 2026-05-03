@@ -1,7 +1,12 @@
 {
   "title": "T-023 — API: release-to-warehouse flag toggle",
   "prompt": "Implement endpoint `POST /api/planning/work-orders/:id/release-to-warehouse` per PRD §12.2 (FR-PLAN-031). Guard: wo.status ∈ {RELEASED, IN_PROGRESS} AND wo_materials.count > 0 OR is_rework=true. Side-effect: set released_to_warehouse=true; emit outbox event 'wo.released_to_warehouse'. Reverse endpoint `POST /api/planning/work-orders/:id/un-release-to-warehouse` (admin-only, requires reason min 10 chars per §12.4).\n\nRED test asserts guard rejects DRAFT status, success on RELEASED, un-release requires admin role + reason.",
-  "labels": ["prd", "api", "release-to-warehouse", "T2-api"],
+  "labels": [
+    "prd",
+    "api",
+    "release-to-warehouse",
+    "T2-api"
+  ],
   "priority": 100,
   "max_attempts": 3,
   "pipeline_name": "kira_dev",
@@ -9,7 +14,12 @@
     "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
     "prd_task_id": "T-023",
     "source_prd": "04-PLANNING-BASIC-PRD.md",
-    "prd_refs": ["§12.1", "§12.2", "§12.4", "§12.5"],
+    "prd_refs": [
+      "§12.1",
+      "§12.2",
+      "§12.4",
+      "§12.5"
+    ],
     "category": "api",
     "subcategory": "release-to-warehouse",
     "task_type": "T2-api",
@@ -27,8 +37,9 @@
       "Scanner pick UI (06-SCANNER-P1)",
       "Release confirm modal UI (T-035)"
     ],
-    "dependencies": ["T-021"],
-    "parallel_safe_with": ["T-022"],
+    "dependencies": [
+      "T-021"
+    ],
     "acceptance_criteria": [
       "Given a WO at status='DRAFT', when release-to-warehouse runs, then HTTP 409 with code 'WO_NOT_READY_FOR_WAREHOUSE'.",
       "Given a WO at status='RELEASED' with wo_materials count=3, when release-to-warehouse runs, then released_to_warehouse=true and outbox event 'wo.released_to_warehouse' is emitted.",
@@ -43,9 +54,17 @@
       "Do not let non-admin callers un-release.",
       "Do not skip outbox emit — Scanner queue refresh depends on it."
     ],
-    "skills": ["test-driven-development", "requesting-code-review"],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
     "checkpoint_policy": {
-      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
       "closeout_requires": [
         "changed_files",
         "test_commands_and_results",
@@ -59,6 +78,23 @@
       "implementation": "hermes_gpt55",
       "review": "opus_if_high_risk_or_ui_or_architecture",
       "close": "spark_low_risk_else_opus"
-    }
+    },
+    "cross_module_dependencies": [
+      {
+        "module": "05-warehouse",
+        "task_id": "CONTRACT",
+        "reason": "Consumes Warehouse LP/location/GRN/TO handoff contracts; no Planning task may invent Warehouse state semantics."
+      },
+      {
+        "module": "06-scanner-p1",
+        "task_id": "CONTRACT",
+        "reason": "Scanner consumes released WO/material reservation contracts and produces execution events."
+      },
+      {
+        "module": "02-settings",
+        "task_id": "CONTRACT",
+        "reason": "Uses Settings rule registry, flags, status display, and permission contracts."
+      }
+    ]
   }
 }

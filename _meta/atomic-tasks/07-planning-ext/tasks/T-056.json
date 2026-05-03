@@ -1,0 +1,101 @@
+{
+  "title": "T-056 — Scheduler end-to-end flow and prototype label marker tests",
+  "prompt": "# T-056 — Scheduler end-to-end flow and prototype label marker tests\n\nPRD: `07-PLANNING-EXT-PRD.md` §13.1 P1 checklist, §18 UI matrix, prototype-index-planning-ext.json.\nUX/prototype refs are listed in `pipeline_inputs.scope_files`.\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`.\n\n## Goal\nAdd cross-surface E2E and label marker proof for 95%+ readiness.\n\n## Implementation contract\nTests should be data-driven from prototype-index-planning-ext.json and confirm P1 surfaces expose stable markers; P2 surfaces may be locked but must be intentionally represented.\n\nACP shape reminder: keep this task as one atomic implementation. Do not add ACP-owned fields. Keep local dependencies in `dependencies`; cross-module contracts in `cross_module_dependencies` are blockers/inputs, not ACP local task IDs.",
+  "labels": [
+    "prd",
+    "test",
+    "e2e",
+    "T4-wiring-test"
+  ],
+  "priority": 150,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "source_prd": "07-PLANNING-EXT-PRD.md",
+    "context_budget": "40k",
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prd_refs": [
+      "§13.1 P1 checklist",
+      "§18 UI matrix",
+      "prototype-index-planning-ext.json"
+    ],
+    "category": "test",
+    "subcategory": "scheduler-e2e-prototype-coverage",
+    "task_type": "T4-wiring-test",
+    "parent_feature": "07-EXT readiness closeout",
+    "estimated_effort": "3-4h",
+    "description": "Add E2E coverage across run scheduler → Gantt → approve/override → matrix edit/import/publish → forecast upload and verify data-prototype-label markers.",
+    "details": "Closeout task proving prototype-index labels are implemented or explicitly feature-gated for P2. Uses labels from prototype-index-planning-ext.json as test data.",
+    "scope_files": [
+      "apps/web/e2e/scheduler/** [create]",
+      "tests/scheduler/** [create]",
+      "_meta/prototype-labels/prototype-index-planning-ext.json [ref]"
+    ],
+    "dependencies": [
+      "T-030",
+      "T-031",
+      "T-032",
+      "T-033",
+      "T-035",
+      "T-036",
+      "T-042",
+      "T-043",
+      "T-047"
+    ],
+    "cross_module_dependencies": [
+      {
+        "module": "04-planning-basic",
+        "contract": "Seed WO data and active factory-release snapshots."
+      },
+      {
+        "module": "02-settings",
+        "contract": "Rules/feature flags/reference data seeds."
+      },
+      {
+        "module": "08-production",
+        "contract": "Approved assignment event remains compatible with runtime preflight."
+      }
+    ],
+    "acceptance_criteria": [
+      "Given the scheduler E2E suite runs, then Run Scheduler → draft Gantt → approve/reject/override/reschedule paths pass with audit/outbox assertions.",
+      "Given prototype-index-planning-ext.json labels are enumerated, then every P1 surface has a matching data-prototype-label or explicit P2/locked exception.",
+      "Given matrix and forecast flows run, then import/validation/publish/upload states are asserted with no unresolved placeholder labels."
+    ],
+    "test_strategy": [
+      "RED Playwright tests with seeded scheduler fixtures and prototype label enumeration.",
+      "Run pnpm playwright test --grep @scheduler and pnpm vitest run tests/scheduler."
+    ],
+    "risk_red_lines": [
+      "Do not skip outbox/audit assertions.",
+      "Do not treat P2 gated labels as P1 failures.",
+      "Do not use D365 as a required seed dependency."
+    ],
+    "prd_task_id": "T-056",
+    "priority_normalization_note": "Priority normalized to ACP convention bands on 2026-05-03; lower number means earlier execution."
+  }
+}

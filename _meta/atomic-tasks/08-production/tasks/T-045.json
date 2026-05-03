@@ -1,0 +1,87 @@
+{
+  "title": "T-045 — Production settings, OEE target and taxonomy server actions",
+  "prompt": "# T-045 — Production settings, OEE target and taxonomy server actions\n\nPRD/UX refs: SCR-08-10, MODAL-08-15, UX PROD-011\n\nGoal: Implement settings forms backing production settings, OEE target effective-date windows, downtime/waste taxonomies and D365 push toggles.\n\nImplementation details:\nCreate server actions and zod schemas for consumption tolerance, yield thresholds, catch-weight settings, downtime/waste taxonomy maintenance, OEE targets with non-overlapping effective windows, and D365 push toggles. Use 02-SETTINGS registry/flags for global integration settings where required; Production settings can read but must not own D365 connection secrets.\n\nScope files:\n- packages/api-services/production/settings.ts [create]\n- apps/web/app/production/settings/actions.ts [create]\n- packages/db/schema/production-settings.ts [modify]\n\nAcceptance criteria:\n1. OEE target saves reject overlapping effective windows\n2. Downtime/waste taxonomies can be listed and modified with audit events\n3. D365 push toggles are read/written only through approved Settings flag path\n\nEvidence: include screenshots/artifacts and Playwright traces/artifacts for UI/E2E tasks; include API test output for backend tasks.",
+  "labels": [
+    "prd",
+    "T2-api"
+  ],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-045",
+    "source_prd": "08-PRODUCTION-PRD.md",
+    "prd_refs": [
+      "SCR-08-10",
+      "MODAL-08-15",
+      "UX PROD-011"
+    ],
+    "category": "production-readiness",
+    "subcategory": "Production settings, OEE target and taxonomy ser",
+    "task_type": "T2-api",
+    "parent_feature": "08-PRODUCTION full module readiness",
+    "context_budget": "40k",
+    "estimated_effort": "2-4h",
+    "description": "Implement settings forms backing production settings, OEE target effective-date windows, downtime/waste taxonomies and D365 push toggles.",
+    "details": "Create server actions and zod schemas for consumption tolerance, yield thresholds, catch-weight settings, downtime/waste taxonomy maintenance, OEE targets with non-overlapping effective windows, and D365 push toggles. Use 02-SETTINGS registry/flags for global integration settings where required; Production settings can read but must not own D365 connection secrets.",
+    "scope_files": [
+      "packages/api-services/production/settings.ts [create]",
+      "apps/web/app/production/settings/actions.ts [create]",
+      "packages/db/schema/production-settings.ts [modify]"
+    ],
+    "dependencies": [
+      "T-012",
+      "T-013",
+      "T-014",
+      "T-035"
+    ],
+    "acceptance_criteria": [
+      "OEE target saves reject overlapping effective windows",
+      "Downtime/waste taxonomies can be listed and modified with audit events",
+      "D365 push toggles are read/written only through approved Settings flag path"
+    ],
+    "test_strategy": [
+      "RED: add failing unit/integration tests for the cited slice before implementation",
+      "GREEN: run targeted pnpm test command and relevant Playwright check"
+    ],
+    "risk_red_lines": [
+      "Do not treat D365 sync/export/Built as production release source-of-truth",
+      "Do not bypass 04-PLANNING WO snapshot or 03-TECHNICAL active factory spec/BOM approval"
+    ],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "screenshots_or_artifacts",
+        "playwright_traces_or_artifacts",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "cross_module_dependencies": [
+      {
+        "module": "02-settings",
+        "task_id": "T-122",
+        "reason": "Settings schema/seed contract for flags/rule registry."
+      }
+    ]
+  }
+}

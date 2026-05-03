@@ -1,0 +1,108 @@
+{
+  "title": "T-048 — scanner mobile evidence and route label closeout harness",
+  "prompt": "# T-048 — scanner mobile evidence and route label closeout harness\n\nPRD: 06-SCANNER-P1-PRD.md §6 D1, §8.8 UI Surfaces Traceability Matrix\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nCreate the shared scanner UI closeout harness for 390x844 screenshots, traces, and route-to-prototype label evidence.\n\n## Implementation contract\nAdd Playwright project profile for viewport 390x844, shared screenshot naming convention, route-label smoke list covering canonical scanner-prefixed labels and first-class done, PIN, and camera labels, plus CI artifact retention notes.\n\n## Files\n- apps/scanner/e2e/scanner-label-smoke.spec.ts [create]\n- apps/scanner/playwright.config.ts [modify]\n- docs/testing/scanner-mobile-evidence.md [create]\n\n## Acceptance criteria\n1. Given the scanner UI is implemented, when compared with `design/Monopilot Design System/scanner/home.jsx:7-136` at mobile viewport 390x844, then it preserves structural, visual, and interaction parity, captures screenshot and Playwright trace artifacts, and documents intentional divergence from PRD/UX\n2. Given the route is loaded at 390x844, when the primary happy path is completed, then the first-class done screen label is reachable and uses the shared scanner SuccessScreen pattern\n3. Given API validation returns block or warn severity, when the screen receives it, then the correct full-screen block or amber reason-code pattern is rendered\n4. Given closeout runs, when artifacts are reviewed, then screenshot filenames include the canonical prototype label and task id\n\n## Test strategy\n- RED: write Playwright or component tests against the 390x844 route before implementation\n- Run pnpm --filter scanner test and pnpm --filter scanner e2e --project=scanner-mobile\n\n## Risk red lines\n- Do not implement server contracts in this UI task\n- Do not skip mobile screenshot or Playwright trace closeout\n- Do not silently diverge from the referenced prototype label",
+  "labels": [
+    "prd",
+    "ui",
+    "scanner-mobile-evidence",
+    "T3-ui"
+  ],
+  "priority": 120,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "source_prd": "06-SCANNER-P1-PRD.md",
+    "category": "ui",
+    "context_budget": "25k",
+    "estimated_effort": "2-4h",
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status",
+        "mobile_390x844_screenshot",
+        "playwright_trace",
+        "prototype_label_parity_notes"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_evidence_required": {
+      "viewport": "390x844",
+      "artifacts": [
+        "screenshot",
+        "Playwright trace"
+      ],
+      "parity_dimensions": [
+        "structure",
+        "visual",
+        "interaction"
+      ]
+    },
+    "prd_task_id": "T-048",
+    "prd_refs": [
+      "§6 D1",
+      "§8.8 UI Surfaces Traceability Matrix"
+    ],
+    "subcategory": "scanner-mobile-evidence",
+    "task_type": "T3-ui",
+    "parent_feature": "06-a Shell and Core",
+    "description": "Create the shared scanner UI closeout harness for 390x844 screenshots, traces, and route-to-prototype label evidence.",
+    "details": "Add Playwright project profile for viewport 390x844, shared screenshot naming convention, route-label smoke list covering canonical scanner-prefixed labels and first-class done, PIN, and camera labels, plus CI artifact retention notes.",
+    "scope_files": [
+      "apps/scanner/e2e/scanner-label-smoke.spec.ts [create]",
+      "apps/scanner/playwright.config.ts [modify]",
+      "docs/testing/scanner-mobile-evidence.md [create]"
+    ],
+    "out_of_scope": [
+      "Do not implement unrelated scanner flows in this task",
+      "Do not change PRD decisions or prototype source during implementation",
+      "Do not bypass module contract validation"
+    ],
+    "dependencies": [
+      "T-012",
+      "T-014"
+    ],
+    "parallel_safe_with": [],
+    "acceptance_criteria": [
+      "Given the scanner UI is implemented, when compared with `design/Monopilot Design System/scanner/home.jsx:7-136` at mobile viewport 390x844, then it preserves structural, visual, and interaction parity, captures screenshot and Playwright trace artifacts, and documents intentional divergence from PRD/UX",
+      "Given the route is loaded at 390x844, when the primary happy path is completed, then the first-class done screen label is reachable and uses the shared scanner SuccessScreen pattern",
+      "Given API validation returns block or warn severity, when the screen receives it, then the correct full-screen block or amber reason-code pattern is rendered",
+      "Given closeout runs, when artifacts are reviewed, then screenshot filenames include the canonical prototype label and task id. Follow parity evidence requirements in `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`."
+    ],
+    "test_strategy": [
+      "RED: write Playwright or component tests against the 390x844 route before implementation",
+      "Run pnpm --filter scanner test and pnpm --filter scanner e2e --project=scanner-mobile"
+    ],
+    "risk_red_lines": [
+      "Do not implement server contracts in this UI task",
+      "Do not skip mobile screenshot or Playwright trace closeout",
+      "Do not silently diverge from the referenced prototype label"
+    ],
+    "cross_module_dependencies": [
+      "05-warehouse: scanner consumer route parity",
+      "08-production: scanner output route parity",
+      "09-quality: scanner QA route parity",
+      "00-foundation: scanner routing/session/RLS baseline",
+      "02-settings: PIN policy, locale, scanner device defaults"
+    ],
+    "priority_normalization_note": "Priority normalized to ACP convention bands on 2026-05-03; lower number means earlier execution."
+  }
+}

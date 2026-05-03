@@ -1,7 +1,12 @@
 {
   "title": "T-002 — Drizzle schema: purchase_orders + po_lines",
   "prompt": "Add Drizzle pgTable definitions for `purchase_orders` and `po_lines` per PRD §5.4. Columns include id, tenant_id, site_id, po_number, supplier_id FK, currency, tax_code_id, expected_delivery_date, warehouse_id FK, status (string), payment_terms, shipping_method, notes, internal_notes, approval_required, approved_at/by, subtotal/tax_amount/discount_total/total decimals, source_type enum ('manual'|'bulk'|'forecast'|'d365_mrp'), source_reference, ext_jsonb, schema_version, audit. po_lines: id, po_id FK, line_number, product_id FK, quantity, uom, unit_price, discount_percent, discount_amount, line_total computed, expected_delivery_date, confirmed_delivery_date, received_qty, eudr_reference, notes. Include indexes (tenant_id, status, expected_delivery_date), (supplier_id), (po_id, line_number).\n\nGenerate migration `0002_planning_purchase_orders.sql`. RED test asserting both tables export expected columns + indexes are present in generated SQL.",
-  "labels": ["prd", "data", "schema-po", "T1-schema"],
+  "labels": [
+    "prd",
+    "data",
+    "schema-po",
+    "T1-schema"
+  ],
   "priority": 80,
   "max_attempts": 3,
   "pipeline_name": "kira_dev",
@@ -9,7 +14,10 @@
     "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
     "prd_task_id": "T-002",
     "source_prd": "04-PLANNING-BASIC-PRD.md",
-    "prd_refs": ["§5.4", "§6.3"],
+    "prd_refs": [
+      "§5.4",
+      "§6.3"
+    ],
     "category": "data",
     "subcategory": "schema-po",
     "task_type": "T1-schema",
@@ -27,8 +35,9 @@
       "PO API (T-006/T-007)",
       "PO UI (T-014..017)"
     ],
-    "dependencies": ["T-001"],
-    "parallel_safe_with": ["T-003", "T-004"],
+    "dependencies": [
+      "T-001"
+    ],
     "acceptance_criteria": [
       "Given the schema file loads, when introspected, then both tables export all PRD §5.4 columns with correct types.",
       "Given the migration is generated, when grepped, then all 3 indexes from §5.4 appear plus quantity > 0 CHECK constraint.",
@@ -45,9 +54,17 @@
       "Do not skip indexes — performance-critical for dashboard P95 < 500ms (§13.4).",
       "Do not couple to D365-specific source_type values at this layer."
     ],
-    "skills": ["test-driven-development", "requesting-code-review"],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
     "checkpoint_policy": {
-      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
       "closeout_requires": [
         "changed_files",
         "test_commands_and_results",
@@ -61,6 +78,18 @@
       "implementation": "hermes_gpt55",
       "review": "opus_if_high_risk_or_ui_or_architecture",
       "close": "spark_low_risk_else_opus"
-    }
+    },
+    "cross_module_dependencies": [
+      {
+        "module": "02-settings",
+        "task_id": "CONTRACT",
+        "reason": "Uses Settings rule registry, flags, status display, and permission contracts."
+      },
+      {
+        "module": "03-technical",
+        "task_id": "D365-CONTRACT",
+        "reason": "Consumes optional D365 integration adapter metadata; D365 never unlocks factory use."
+      }
+    ]
   }
 }

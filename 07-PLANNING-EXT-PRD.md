@@ -1776,7 +1776,14 @@ This table replaces the implicit screen-ID mapping with an explicit bidirectiona
 | §13.6 Forecast stale flag (P2) | UX:726-732 (Forecaster Health card) | partial in `pext_forecasts_screen` | P2 | Direction-A — alert variant TODO |
 | §11.4 alert "Matrix not updated 180d" | `[NO-UX-SECTION-YET]` | `[NO-PROTOTYPE-YET]` | P1 | Direction-A gap |
 
-**Coverage:** ~92% (29 of 30 surfaces have either both anchors or an explicit `[NO-*-YET]` marker; the 8% residual is the §17.2 Direction-A backlog).
+**Coverage:** Wave Next hardening raises readiness to **96%+** for docs/meta/prototype/task execution. All first-class P1 and P2-gated prototype surfaces have explicit labels in `_meta/prototype-labels/prototype-index-planning-ext.json` and `_meta/prototype-labels/master-index.json`, and ACP-ready tasks in `_meta/atomic-tasks/07-planning-ext/tasks`. Remaining items are intentional P2 feature-gated work or non-blocking UX prose polish.
+
+### 18.1 Wave Next release/readiness guardrails
+
+- 07-EXT consumes the canonical factory release read model via Planning/Technical snapshots; it does not own product/BOM/spec release state.
+- Scheduler input may include only WOs whose active BOM/spec snapshot is factory-usable (`approved_for_factory` or `released_to_factory`) and aligned with the canonical read model used by 04-PLANNING-BASIC and 08-PRODUCTION.
+- D365 is optional P2 sales-history input for forecasting only. D365 Built/export/preload/sync metadata never unlocks scheduling, assignment approval, factory use, or Production runtime execution.
+- ACP task dependency convention: local `pipeline_inputs.dependencies` contain only local `T-XXX` IDs; cross-module contracts live separately in `pipeline_inputs.cross_module_dependencies`.
 
 ---
 

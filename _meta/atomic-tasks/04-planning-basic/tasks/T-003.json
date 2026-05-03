@@ -1,7 +1,12 @@
 {
   "title": "T-003 — Drizzle schema: transfer_orders + to_lines + to_line_lps",
   "prompt": "Add Drizzle pgTable definitions for `transfer_orders`, `to_lines`, `to_line_lps` per PRD §5.5. transfer_orders: id, tenant_id, site_id, to_number unique per tenant, from_warehouse_id FK, to_warehouse_id FK with CHECK from != to, planned_ship_date, planned_receive_date, actual_ship_date, actual_receive_date, status VARCHAR(30), priority VARCHAR(20), notes, shipped_by, received_by, ext_jsonb, schema_version, audit. to_lines: to_id FK, line_number, product_id FK, quantity, uom, shipped_qty, received_qty, notes. to_line_lps: to_line_id FK, lp_id (uuid only — references 05-WAREHOUSE), quantity. Indexes per §5.5.\n\nGenerate migration `0003_planning_transfer_orders.sql`. RED test asserts table shape + the from/to CHECK constraint + uniqueness.",
-  "labels": ["prd", "data", "schema-to", "T1-schema"],
+  "labels": [
+    "prd",
+    "data",
+    "schema-to",
+    "T1-schema"
+  ],
   "priority": 80,
   "max_attempts": 3,
   "pipeline_name": "kira_dev",
@@ -9,7 +14,11 @@
     "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
     "prd_task_id": "T-003",
     "source_prd": "04-PLANNING-BASIC-PRD.md",
-    "prd_refs": ["§5.5", "§7.2", "§7.3"],
+    "prd_refs": [
+      "§5.5",
+      "§7.2",
+      "§7.3"
+    ],
     "category": "data",
     "subcategory": "schema-to",
     "task_type": "T1-schema",
@@ -29,7 +38,6 @@
       "TO UI (T-018..020)"
     ],
     "dependencies": [],
-    "parallel_safe_with": ["T-001", "T-002", "T-004"],
     "acceptance_criteria": [
       "Given the schema file loads, when introspected, then all 3 tables export PRD §5.5 columns and correct types.",
       "Given the migration is generated, when grepped, then the CHECK (from_warehouse_id != to_warehouse_id) constraint is present.",
@@ -44,9 +52,17 @@
       "Do not add FK to 05-WAREHOUSE lp table at DB level — cross-module boundary.",
       "Do not store multi-site (cross-site) TOs — that is M14 scope per §7.1."
     ],
-    "skills": ["test-driven-development", "requesting-code-review"],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
     "checkpoint_policy": {
-      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
       "closeout_requires": [
         "changed_files",
         "test_commands_and_results",
@@ -60,6 +76,13 @@
       "implementation": "hermes_gpt55",
       "review": "opus_if_high_risk_or_ui_or_architecture",
       "close": "spark_low_risk_else_opus"
-    }
+    },
+    "cross_module_dependencies": [
+      {
+        "module": "05-warehouse",
+        "task_id": "CONTRACT",
+        "reason": "Consumes Warehouse LP/location/GRN/TO handoff contracts; no Planning task may invent Warehouse state semantics."
+      }
+    ]
   }
 }

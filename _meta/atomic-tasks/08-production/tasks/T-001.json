@@ -1,60 +1,108 @@
 {
-  "title": "T-001 — Drizzle migration: wo_executions table + RLS",
-  "prompt": "# T-001 — Drizzle migration: wo_executions table + RLS\n\nPRD: 08-PRODUCTION-PRD.md §9.2, §5.5, §9.1\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nAdd Drizzle migration that creates `wo_executions` runtime state table per §9.2 with tenant RLS enforcement (5.1#6) and 7-year retention metadata (5.5).\n\n## Implementation contract\nWrite Drizzle schema in packages/db/schema/production/wo-executions.ts mirroring the SQL in §9.2 (PK wo_id REFERENCES work_orders(id), tenant_id NOT NULL, started_at/completed_at, override_closed_production fields, gate_eval_snapshot JSONB). Create RLS policy `tenant_isolation_wo_executions` enabling SELECT/INSERT/UPDATE only when tenant_id = current_setting('app.tenant_id')::uuid. Add the two indexes from §9.2 (idx_wo_executions_tenant, idx_wo_executions_current_op partial WHERE completed_at IS NULL). Generate migration via `pnpm --filter db drizzle:generate` and verify it produces a single forward SQL.\n\n## Files (scope)\n- packages/db/schema/production/wo-executions.ts [create]\n- packages/db/schema/production/index.ts [modify]\n- packages/db/migrations/NNNN_wo_executions.sql [create — generated]\n- packages/db/__tests__/wo-executions-schema.test.ts [create]\n\n## Acceptance criteria\n1. Given migration applied, when `\\d wo_executions` runs in psql, then all columns from §9.2 exist with NOT NULL where specified and JSONB for gate_eval_snapshot\n2. Given a non-tenant connection, when SELECT * FROM wo_executions runs without app.tenant_id set, then RLS rejects the query\n3. Given migration applied, when both indexes are queried via pg_indexes, then idx_wo_executions_tenant and idx_wo_executions_current_op exist with the partial predicate\n\n## Test strategy\n- RED: write packages/db/__tests__/wo-executions-schema.test.ts asserting Drizzle table has wo_id PK + tenant_id + RLS policy name before schema file exists\n- Run `pnpm --filter db drizzle:generate && pnpm --filter db test` and capture migration SQL + test output\n\n## Risk red lines\n- Do not add columns beyond §9.2 (no scope creep)\n- Do not skip RLS policy (multi-tenant data leak risk per R15)\n- Do not edit other production tables in this task",
-  "labels": ["prd", "data", "schema-migration", "T1-schema"],
+  "title": "T-001 — Production canonical factory release runtime preflight",
+  "prompt": "# T-001 — Production canonical factory release runtime preflight\n\nImplement the Production runtime guard that prevents START, material consumption, output registration, and scanner/desktop runtime mutations from using a WO whose FG/WIP/BOM/spec bundle is not admitted by the canonical factory release read model. This is one atomic API/service task for 08-PRODUCTION. Do not create a Production-owned release enum, do not revive ReleaseWoModal, and do not infer factory usability from D365 Built/export/preload/sync or local `bom_released=true`.\n\nProduction must read the WO snapshot produced by Planning and verify the canonical `active_bom_header_id` and `active_factory_spec_id` against the release read model owned by 01-NPD T-097 and adapted by Technical T-080/T-081. Only `approved_for_factory` and `released_to_factory` are runtime-usable. `pending_npd_release`, `pending_technical_approval`, `blocked`, missing active IDs, revoked/changed release rows, or mismatched WO snapshot must block START and downstream runtime mutations with typed `release_blockers`. Production may show blocked WOs for visibility and deep-link to Planning/Technical remediation, but it must not select a newer/latest BOM/spec or release the WO itself.\n\nScope includes START preflight, scanner consume-to-WO backend, output registration backend, production dashboard/list/detail badge data, and D365 confirmation outbox separation. D365 WO confirmation push remains an asynchronous post-event integration; it cannot approve/release/unlock factory use and must not change the canonical release status.\n\nRED first: tests must fail for pending Technical approval, blocked release, missing active IDs, D365 Built/export no-op, local bom_released no-op, snapshot mismatch, and approved/released success. Then implement guards and badge/blocker mapping. Close with tests and evidence.",
+  "labels": [
+    "prd",
+    "production",
+    "release-status",
+    "read-model",
+    "runtime-guard",
+    "T2-api"
+  ],
   "priority": 50,
   "max_attempts": 3,
   "pipeline_name": "kira_dev",
   "pipeline_inputs": {
     "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
-    "prd_task_id": "T-001",
     "source_prd": "08-PRODUCTION-PRD.md",
-    "prd_refs": ["§9.2", "§9.1", "§5.1#6", "§5.5"],
-    "category": "data",
-    "subcategory": "schema-migration",
-    "task_type": "T1-schema",
-    "parent_feature": "08-PROD E1 Execution Core",
-    "context_budget": "30k",
-    "estimated_effort": "1-2h",
-    "description": "Drizzle migration creating wo_executions runtime state table with tenant RLS and §9.2 indexes.",
-    "details": "Mirror §9.2 SQL: PK wo_id REFERENCES work_orders(id), tenant_id UUID NOT NULL, timing fields (started_at/completed_at/cancelled_at), override fields (override_closed_production/override_reason/override_by), gate_eval_snapshot JSONB, current_operator_id UUID, total_pause_duration_min INTEGER DEFAULT 0. RLS policy via current_setting('app.tenant_id'). Two indexes: btree on tenant_id, partial on current_operator_id WHERE completed_at IS NULL. 7-year retention recorded as comment per §5.5.",
-    "scope_files": [
-      "packages/db/schema/production/wo-executions.ts [create]",
-      "packages/db/schema/production/index.ts [modify]",
-      "packages/db/migrations/NNNN_wo_executions.sql [create]",
-      "packages/db/__tests__/wo-executions-schema.test.ts [create]"
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
     ],
-    "out_of_scope": [
-      "Do not create other production tables in this task",
-      "Do not modify work_orders table",
-      "Do not add API endpoints"
-    ],
-    "dependencies": [],
-    "parallel_safe_with": ["T-002", "T-003", "T-004", "T-005", "T-006", "T-007", "T-008"],
-    "acceptance_criteria": [
-      "Given migration applied, when '\\d wo_executions' runs, then all §9.2 columns exist with correct nullability and gate_eval_snapshot is JSONB",
-      "Given non-tenant connection without app.tenant_id, when SELECT runs, then RLS blocks query with insufficient_privilege",
-      "Given migration applied, when pg_indexes queried, then idx_wo_executions_tenant and idx_wo_executions_current_op (with partial predicate) exist"
-    ],
-    "test_strategy": [
-      "RED: write packages/db/__tests__/wo-executions-schema.test.ts asserting Drizzle table shape + RLS policy name before schema file exists",
-      "Run 'pnpm --filter db drizzle:generate && pnpm --filter db test wo-executions-schema'"
-    ],
-    "risk_red_lines": [
-      "Do not add columns beyond §9.2",
-      "Do not skip RLS policy (R15 multi-tenant leak)",
-      "Do not modify other tables"
-    ],
-    "skills": ["test-driven-development", "requesting-code-review"],
     "checkpoint_policy": {
-      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
-      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
     },
     "routing_hints": {
       "red": "hermes_gpt55",
       "implementation": "hermes_gpt55",
       "review": "opus_if_high_risk_or_ui_or_architecture",
       "close": "spark_low_risk_else_opus"
-    }
+    },
+    "prd_task_id": "T-001",
+    "prd_refs": [
+      "§1.1A Factory release read-model contract",
+      "§1.2 Module boundaries",
+      "§7.1 FR-08-E1-001A",
+      "§7.2 FR-08-E2-001",
+      "_meta/prototype-labels/prototype-index-production.json"
+    ],
+    "category": "api",
+    "subcategory": "factory-release-runtime-preflight",
+    "task_type": "T2-api",
+    "parent_feature": "08-PRODUCTION execution core",
+    "context_budget": "35k",
+    "estimated_effort": "3-4h",
+    "description": "Production runtime preflight and blocker mapping for canonical factory release read model.",
+    "details": "One task type: API/service/action tests. UI visual implementation is not included except returning blocker/badge data for existing Production screens. The canonical model is owned by 01-NPD T-097; Technical T-080/T-081 handles approval/adaptation; Planning snapshots active IDs. If canonical implementation is not present, stop with a blocker rather than inventing fallback status logic.\n\nAdditional acceptance detail preserved during validation hardening:\n- Given WO snapshot active_bom_header_id or active_factory_spec_id differs from the canonical active row, Production blocks and requires Planning/Technical remediation rather than selecting latest BOM/spec.\n- Given D365 confirmation push succeeds/fails, canonical release status is not changed by Production integration code.",
+    "scope_files": [
+      "apps/web/lib/production/factory-release-runtime-guards.ts [create]",
+      "apps/web/actions/production/work-orders/*.ts",
+      "apps/web/actions/production/scanner/*.ts",
+      "apps/web/lib/production/dashboard-service.ts",
+      "tests/lib/production/factory-release-runtime-guards.test.ts [create]",
+      "tests/actions/production/work-order-start-release-preflight.test.ts [create]"
+    ],
+    "acceptance_criteria": [
+      "Given WO snapshot active IDs match canonical status approved_for_factory or released_to_factory, START succeeds and runtime state mutates normally.",
+      "Given canonical status is pending_npd_release, pending_technical_approval or blocked, START and scanner runtime mutations fail with typed release_blockers and no runtime mutation.",
+      "Given WO has D365 Built/export/synced metadata or local bom_released=true but canonical status is not factory-usable, Production remains blocked.",
+      "Given the task is closed out, when reviewers inspect evidence, then these additional requirements are proven together: Given WO snapshot active_bom_header_id or active_factory_spec_id differs from the canonical active row, Production blocks and requires Planning/Technical remediation rather than selecting latest BOM/spec.; Given D365 confirmation push succeeds/fails, canonical release status is not changed by Production integration code."
+    ],
+    "test_strategy": [
+      "RED unit tests for runtime guard status matrix, missing/mismatched active IDs and D365/local flag no-op.",
+      "RED action tests for START, consume-to-WO and output registration preflight behavior.",
+      "Run: pnpm vitest run tests/lib/production/factory-release-runtime-guards.test.ts tests/actions/production/work-order-start-release-preflight.test.ts"
+    ],
+    "risk_red_lines": [
+      "Do not revive or implement Production ReleaseWoModal / DRAFT→READY release flow.",
+      "Do not create a Production-owned release enum/model.",
+      "Do not infer factory availability from D365 Built/export/sync or local bom_released flags.",
+      "Do not select a newer/latest BOM/spec at START time."
+    ],
+    "dependencies": [],
+    "cross_module_dependencies": [
+      {
+        "module": "01-npd",
+        "task_id": "T-097",
+        "reason": "Canonical factory release status/read model owner."
+      },
+      {
+        "module": "03-technical",
+        "task_id": "T-080",
+        "reason": "Technical factory_spec+BOM approval emits/transitions release."
+      },
+      {
+        "module": "03-technical",
+        "task_id": "T-081",
+        "reason": "Technical adapter exposes factory-use guards and badge/blocker mapping."
+      },
+      {
+        "module": "04-planning-basic",
+        "task_id": "T-001",
+        "reason": "Planning snapshots active_bom_header_id and active_factory_spec_id onto WOs before Production runtime."
+      }
+    ]
   }
 }

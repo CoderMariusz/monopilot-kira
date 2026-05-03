@@ -1,0 +1,101 @@
+{
+  "title": "T-052 — E2E happy path: approved WO start, consume, output, complete and D365 enqueue",
+  "prompt": "# T-052 — E2E happy path: approved WO start, consume, output, complete and D365 enqueue\n\nPRD/UX refs: §8.2.1-8.2.4, UX flows §5\n\nGoal: Create Playwright coverage and artifact evidence for E2E happy path: approved WO start, consume, output, complete and D365 enqueue.\n\nImplementation details:\nSeed an approved WO snapshot with active_bom_header_id and active_factory_spec_id, start it, consume material, register output, complete gates, and assert D365 outbox enqueued without treating D365 as source-of-truth. Tests must capture screenshots and retain trace.zip/video artifacts under test-results or configured Playwright output. Use deterministic seed fixtures and clean up org-scoped data after each run.\n\nScope files:\n- apps/web/e2e/production.spec.ts [create/modify]\n- apps/web/e2e/fixtures/production.ts [create/modify]\n- apps/web/playwright.config.ts [modify if artifact retention missing]\n\nAcceptance criteria:\n1. Playwright test covers the named flow with deterministic seeded data\n2. Assertions verify UI state, server-side data changes, and typed blocker/audit evidence\n3. Closeout includes screenshot paths and Playwright trace artifact paths\n\nEvidence: include screenshots/artifacts and Playwright traces/artifacts for UI/E2E tasks; include API test output for backend tasks.",
+  "labels": [
+    "prd",
+    "T4-e2e",
+    "e2e"
+  ],
+  "priority": 120,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-052",
+    "source_prd": "08-PRODUCTION-PRD.md",
+    "prd_refs": [
+      "§8.2.1-8.2.4",
+      "UX flows §5"
+    ],
+    "category": "production-readiness",
+    "subcategory": "E2E happy path: approved WO start, consume, outp",
+    "task_type": "T4-e2e",
+    "parent_feature": "08-PRODUCTION full module readiness",
+    "context_budget": "40k",
+    "estimated_effort": "2-4h",
+    "description": "Create Playwright coverage and artifact evidence for E2E happy path: approved WO start, consume, output, complete and D365 enqueue.",
+    "details": "Seed an approved WO snapshot with active_bom_header_id and active_factory_spec_id, start it, consume material, register output, complete gates, and assert D365 outbox enqueued without treating D365 as source-of-truth. Tests must capture screenshots and retain trace.zip/video artifacts under test-results or configured Playwright output. Use deterministic seed fixtures and clean up org-scoped data after each run.",
+    "scope_files": [
+      "apps/web/e2e/production.spec.ts [create/modify]",
+      "apps/web/e2e/fixtures/production.ts [create/modify]",
+      "apps/web/playwright.config.ts [modify if artifact retention missing]"
+    ],
+    "dependencies": [
+      "T-016",
+      "T-019",
+      "T-023",
+      "T-028",
+      "T-041",
+      "T-046",
+      "T-047"
+    ],
+    "acceptance_criteria": [
+      "Playwright test covers the named flow with deterministic seeded data",
+      "Assertions verify UI state, server-side data changes, and typed blocker/audit evidence",
+      "Closeout includes screenshot paths and Playwright trace artifact paths"
+    ],
+    "test_strategy": [
+      "RED: write Playwright spec that fails before target UI/API slices exist",
+      "GREEN: run pnpm --filter web exec playwright test production.spec.ts --trace=on"
+    ],
+    "risk_red_lines": [
+      "Do not treat D365 sync/export/Built as production release source-of-truth",
+      "Do not bypass 04-PLANNING WO snapshot or 03-TECHNICAL active factory spec/BOM approval"
+    ],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "screenshots_or_artifacts",
+        "playwright_traces_or_artifacts",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "cross_module_dependencies": [
+      {
+        "module": "01-npd",
+        "task_id": "T-097",
+        "reason": "Canonical factory release read-model owner."
+      },
+      {
+        "module": "03-technical",
+        "task_id": "T-080",
+        "reason": "Technical BOM/factory_spec approval emits factory-use state."
+      },
+      {
+        "module": "04-planning-basic",
+        "task_id": "T-001",
+        "reason": "Planning snapshots active_bom_header_id and active_factory_spec_id onto WOs."
+      }
+    ],
+    "priority_normalization_note": "Priority normalized to ACP convention bands on 2026-05-03; lower number means earlier execution."
+  }
+}

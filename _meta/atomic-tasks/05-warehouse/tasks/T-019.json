@@ -1,15 +1,23 @@
 {
   "title": "T-019 — LP state-transition service (block/unblock/destroy)",
   "prompt": "# T-019 — LP state-transition service\n\nPRD: `05-WAREHOUSE-PRD.md` §6.1, §6.10 (FR-WH-035), V-WH-LP-007/010.\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`.\n\n## Goal\nGeneric `transitionLpState(lpId, toState, reasonCode, reasonText?)` service that enforces lp_state_machine_v1 guards, RBAC, and writes audit history.\n\n## Implementation contract\n`apps/web/lib/services/warehouse/lp-state-transition.ts`. Pull allowed transitions + allowed reasons from rule registry (T-013). Reject unknown transitions. Require reasonCode for destructive (block/scrap/destroy). Require role IN ('Manager','QA','Admin') for block/unblock per V-WH-LP-007. Insert into `lp_state_history` (or quality_status_history if QA-related) and update license_plates.status.\n\n## Files (scope)\n- apps/web/lib/services/warehouse/lp-state-transition.ts [create]\n- packages/db/src/schema/lp-state-history.ts [create]\n- packages/db/migrations/0NN_lp_state_history.sql [create]\n- apps/web/lib/services/warehouse/__tests__/lp-state-transition.test.ts [create]\n\n## Acceptance criteria\n1. Given current status='available' and target='blocked', when called as Operator (no QA role), then it returns RBAC error per V-WH-LP-007.\n2. Given a destructive transition without reason_code, when called, then service returns V-WH-LP-010 validation error.\n3. Given a valid transition with allowed reason, when service completes, then license_plates.status updates and lp_state_history records (from,to,reason,user,timestamp).\n\n## Test strategy\n- RED: lp-state-transition.test.ts covers RBAC, missing reason, valid transition.\n- Run `pnpm --filter web test lp-state-transition`.\n\n## Risk red lines\n- Do not hardcode transitions in client.\n- Do not skip server-side RBAC (ADR-013).\n- Do not bypass rule registry version v1.0.",
-  "labels": ["prd", "api", "lp-core", "T2-api"],
-  "priority": 90,
+  "labels": [
+    "prd",
+    "api",
+    "lp-core",
+    "T2-api"
+  ],
+  "priority": 100,
   "max_attempts": 3,
   "pipeline_name": "kira_dev",
   "pipeline_inputs": {
     "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
     "prd_task_id": "T-019",
     "source_prd": "05-WAREHOUSE-PRD.md",
-    "prd_refs": ["§6.1", "§6.10"],
+    "prd_refs": [
+      "§6.1",
+      "§6.10"
+    ],
     "category": "api",
     "subcategory": "lp-core",
     "task_type": "T2-api",
@@ -29,8 +37,13 @@
       "Confirmation modal (T-068)",
       "Outbox emission wiring (T-047)"
     ],
-    "dependencies": ["T-002", "T-013"],
-    "parallel_safe_with": ["T-020"],
+    "dependencies": [
+      "T-002",
+      "T-013"
+    ],
+    "parallel_safe_with": [
+      "T-020"
+    ],
     "acceptance_criteria": [
       "Given current status='available' and target='blocked' as Operator, when called, then RBAC error per V-WH-LP-007 is returned",
       "Given a destructive transition without reason_code, when called, then V-WH-LP-010 validation error is returned",
@@ -45,16 +58,61 @@
       "Do not skip server-side RBAC",
       "Do not bypass rule registry"
     ],
-    "skills": ["test-driven-development", "requesting-code-review"],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
     "checkpoint_policy": {
-      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
-      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
     },
     "routing_hints": {
       "red": "hermes_gpt55",
       "implementation": "hermes_gpt55",
       "review": "opus_if_high_risk_or_ui_or_architecture",
       "close": "spark_low_risk_else_opus"
-    }
+    },
+    "cross_module_dependencies": [
+      {
+        "module": "02-settings",
+        "contract": "rule_registry, warehouses/locations/printers, feature flags, tenant security policy"
+      },
+      {
+        "module": "03-technical",
+        "contract": "items/products, shelf_life_mode/date_code_format, catch-weight, allergen snapshots"
+      },
+      {
+        "module": "04-planning-basic",
+        "contract": "PO/TO/WO read models, RM root reservations, WO release/cancel hooks"
+      },
+      {
+        "module": "06-scanner-p1",
+        "contract": "LP lookup, barcode validation, lock protocol, FEFO suggestion, consume-to-WO"
+      },
+      {
+        "module": "08-production",
+        "contract": "WO material consumption and output LP creation events"
+      },
+      {
+        "module": "09-quality",
+        "contract": "LP qa_status ownership and quality_status_history"
+      },
+      {
+        "module": "11-shipping",
+        "contract": "downstream shelf_life_rules enforcement in Phase 2"
+      }
+    ],
+    "priority_normalization_note": "Priority normalized to ACP convention bands on 2026-05-03; lower number means earlier execution."
   }
 }

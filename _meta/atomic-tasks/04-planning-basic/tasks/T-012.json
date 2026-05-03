@@ -1,7 +1,12 @@
 {
   "title": "T-012 — API: PO state transition via rule registry (submit / cancel)",
   "prompt": "Implement Server Actions `submitPurchaseOrder(po_id)` and `cancelPurchaseOrder(po_id, reason)` that delegate to the `po_state_machine_v1` rule from T-007. Submit transitions draft→submitted (or submitted→pending_approval if planning_settings.po_require_approval && total > threshold). Cancel allowed only in {draft, submitted, pending_approval}. Each transition writes an outbox event with payload from §6.5 example.\n\nRED test exercises happy path, V-PLAN-PO-003 lines>=1 guard failure, and forbidden cancel from confirmed (returns 409).",
-  "labels": ["prd", "api", "po-state", "T2-api"],
+  "labels": [
+    "prd",
+    "api",
+    "po-state",
+    "T2-api"
+  ],
   "priority": 100,
   "max_attempts": 3,
   "pipeline_name": "kira_dev",
@@ -9,7 +14,12 @@
     "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
     "prd_task_id": "T-012",
     "source_prd": "04-PLANNING-BASIC-PRD.md",
-    "prd_refs": ["§6.2", "§6.5", "§6.7", "§16.1"],
+    "prd_refs": [
+      "§6.2",
+      "§6.5",
+      "§6.7",
+      "§16.1"
+    ],
     "category": "api",
     "subcategory": "po-state",
     "task_type": "T2-api",
@@ -28,8 +38,10 @@
       "Approval/reject (T-013)",
       "GRN / receiving (05-WAREHOUSE)"
     ],
-    "dependencies": ["T-007", "T-010"],
-    "parallel_safe_with": ["T-008", "T-011", "T-013"],
+    "dependencies": [
+      "T-007",
+      "T-010"
+    ],
     "acceptance_criteria": [
       "Given a draft PO with 1 line, when submitPurchaseOrder runs, then status becomes 'submitted' and outbox event 'po.state_changed' is inserted in same transaction.",
       "Given a draft PO with 0 lines, when submitPurchaseOrder runs, then guard V-PLAN-PO-003 returns a 400 with code 'V-PLAN-PO-003' and PO remains 'draft'.",
@@ -45,9 +57,17 @@
       "Do not skip outbox event — analytics depend on it.",
       "Do not allow cancel of confirmed PO without explicit admin-override audit entry."
     ],
-    "skills": ["test-driven-development", "requesting-code-review"],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
     "checkpoint_policy": {
-      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
       "closeout_requires": [
         "changed_files",
         "test_commands_and_results",
@@ -61,6 +81,13 @@
       "implementation": "hermes_gpt55",
       "review": "opus_if_high_risk_or_ui_or_architecture",
       "close": "spark_low_risk_else_opus"
-    }
+    },
+    "cross_module_dependencies": [
+      {
+        "module": "02-settings",
+        "task_id": "CONTRACT",
+        "reason": "Uses Settings rule registry, flags, status display, and permission contracts."
+      }
+    ]
   }
 }

@@ -1,0 +1,86 @@
+{
+  "title": "T-042 — D365 DLQ management API routes",
+  "prompt": "# T-042 — D365 DLQ management API routes\n\nPRD/UX refs: §8.2.7, UX PROD-012, MODAL-08-10\n\nGoal: Implement DLQ list/replay/mark-resolved/payload routes for Production Manager/Admin.\n\nImplementation details:\nCreate GET /api/admin/integrations/d365/dlq with filters and stats, POST replay that moves an item back to outbox failed/pending retry, POST mark-resolved with resolution notes, and GET payload endpoint returning raw canonical plus mapped D365 JSON. Enforce permissions, audit every replay/resolve, and keep payload display read-only.\n\nScope files:\n- apps/web/app/api/admin/integrations/d365/dlq/route.ts [create]\n- apps/web/app/api/admin/integrations/d365/dlq/[id]/replay/route.ts [create]\n- apps/web/app/api/admin/integrations/d365/dlq/[id]/resolve/route.ts [create]\n- packages/api-services/production/d365-dlq.ts [create]\n\nAcceptance criteria:\n1. GET list returns open/resolved rows and aggregate health stats\n2. Replay increments audit trail and makes the event eligible for dispatcher retry\n3. Mark-resolved requires notes and never deletes DLQ evidence\n\nEvidence: include screenshots/artifacts and Playwright traces/artifacts for UI/E2E tasks; include API test output for backend tasks.",
+  "labels": [
+    "prd",
+    "T2-api"
+  ],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-042",
+    "source_prd": "08-PRODUCTION-PRD.md",
+    "prd_refs": [
+      "§8.2.7",
+      "UX PROD-012",
+      "MODAL-08-10"
+    ],
+    "category": "production-readiness",
+    "subcategory": "D365 DLQ management API routes",
+    "task_type": "T2-api",
+    "parent_feature": "08-PRODUCTION full module readiness",
+    "context_budget": "40k",
+    "estimated_effort": "2-4h",
+    "description": "Implement DLQ list/replay/mark-resolved/payload routes for Production Manager/Admin.",
+    "details": "Create GET /api/admin/integrations/d365/dlq with filters and stats, POST replay that moves an item back to outbox failed/pending retry, POST mark-resolved with resolution notes, and GET payload endpoint returning raw canonical plus mapped D365 JSON. Enforce permissions, audit every replay/resolve, and keep payload display read-only.",
+    "scope_files": [
+      "apps/web/app/api/admin/integrations/d365/dlq/route.ts [create]",
+      "apps/web/app/api/admin/integrations/d365/dlq/[id]/replay/route.ts [create]",
+      "apps/web/app/api/admin/integrations/d365/dlq/[id]/resolve/route.ts [create]",
+      "packages/api-services/production/d365-dlq.ts [create]"
+    ],
+    "dependencies": [
+      "T-010",
+      "T-041"
+    ],
+    "acceptance_criteria": [
+      "GET list returns open/resolved rows and aggregate health stats",
+      "Replay increments audit trail and makes the event eligible for dispatcher retry",
+      "Mark-resolved requires notes and never deletes DLQ evidence"
+    ],
+    "test_strategy": [
+      "RED: add failing unit/integration tests for the cited slice before implementation",
+      "GREEN: run targeted pnpm test command and relevant Playwright check"
+    ],
+    "risk_red_lines": [
+      "Do not treat D365 sync/export/Built as production release source-of-truth",
+      "Do not bypass 04-PLANNING WO snapshot or 03-TECHNICAL active factory spec/BOM approval"
+    ],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "screenshots_or_artifacts",
+        "playwright_traces_or_artifacts",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "cross_module_dependencies": [
+      {
+        "module": "02-settings",
+        "task_id": "T-126",
+        "reason": "Authorization helpers/actions/preflight blockers."
+      }
+    ]
+  }
+}

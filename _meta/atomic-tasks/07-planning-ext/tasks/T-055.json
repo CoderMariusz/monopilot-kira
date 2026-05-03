@@ -1,0 +1,102 @@
+{
+  "title": "T-055 — Factory release and D365 posture guard for scheduler inputs",
+  "prompt": "# T-055 — Factory release and D365 posture guard for scheduler inputs\n\nPRD: `07-PLANNING-EXT-PRD.md` §5.5 input data, §15 dependencies, Wave0 factory release decisions.\nUX/prototype refs are listed in `pipeline_inputs.scope_files`.\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`.\n\n## Goal\nHarden 07-EXT against release-model drift before solver execution.\n\n## Implementation contract\nThe scheduler input loader must read the same canonical factory release read model used by 04/08 and return explicit blockers for non-usable WOs. No D365 path can unlock factory scheduling.\n\nACP shape reminder: keep this task as one atomic implementation. Do not add ACP-owned fields. Keep local dependencies in `dependencies`; cross-module contracts in `cross_module_dependencies` are blockers/inputs, not ACP local task IDs.",
+  "labels": [
+    "prd",
+    "api",
+    "release-status",
+    "T2-api"
+  ],
+  "priority": 50,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "source_prd": "07-PLANNING-EXT-PRD.md",
+    "context_budget": "40k",
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prd_refs": [
+      "§5.5 input data",
+      "§15 dependencies",
+      "Wave0 factory release decisions"
+    ],
+    "category": "api",
+    "subcategory": "factory-release-input-guard",
+    "task_type": "T2-api",
+    "parent_feature": "07-EXT-a solver input safety",
+    "estimated_effort": "2-3h",
+    "description": "Ensure scheduler input loader consumes only Planning WOs whose canonical factory release snapshot is factory-usable; D365 metadata never unlocks scheduling.",
+    "details": "07-EXT is not the release owner. It reads Planning/Technical canonical active_bom_header_id and active_factory_spec_id status and excludes/blocks WOs that are not approved_for_factory or released_to_factory. This aligns with 04/08 Wave0 release model.",
+    "scope_files": [
+      "apps/web/src/lib/scheduler/scheduler-input-loader.ts [create/modify]",
+      "apps/web/src/lib/scheduler/factory-release-schedule-guard.ts [create]",
+      "tests/lib/scheduler/factory-release-schedule-guard.test.ts [create]"
+    ],
+    "dependencies": [
+      "T-012",
+      "T-021"
+    ],
+    "cross_module_dependencies": [
+      {
+        "module": "01-npd",
+        "task_id": "T-097",
+        "reason": "Canonical factory release read-model owner."
+      },
+      {
+        "module": "03-technical",
+        "task_id": "T-081",
+        "reason": "Adapter exposes release guard/read model."
+      },
+      {
+        "module": "04-planning-basic",
+        "task_id": "T-001",
+        "reason": "Planning snapshots active BOM/spec IDs onto WOs."
+      },
+      {
+        "module": "08-production",
+        "task_id": "T-001",
+        "reason": "Production runtime uses the same factory-usable status matrix."
+      }
+    ],
+    "acceptance_criteria": [
+      "Given WO canonical status is approved_for_factory or released_to_factory and snapshot IDs match, then it can enter scheduler input.",
+      "Given status is pending/blocked/missing/mismatched, then it is excluded or returned with typed release_blocker and no assignment is created.",
+      "Given D365 Built/export/preload/sync metadata exists, then it does not make a non-factory-usable WO schedulable."
+    ],
+    "test_strategy": [
+      "RED unit tests for status matrix, missing/mismatched active IDs, D365 no-op and success cases.",
+      "Run pnpm vitest run tests/lib/scheduler/factory-release-schedule-guard.test.ts."
+    ],
+    "risk_red_lines": [
+      "Do not invent a 07-owned release enum.",
+      "Do not infer release from D365 or bom_released flags.",
+      "Do not select latest BOM/spec at scheduling time."
+    ],
+    "prd_task_id": "T-055",
+    "priority_normalization_note": "Priority normalized to ACP convention bands on 2026-05-03; lower number means earlier execution."
+  }
+}

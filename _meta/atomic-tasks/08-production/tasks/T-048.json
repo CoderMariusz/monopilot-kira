@@ -1,0 +1,91 @@
+{
+  "title": "T-048 — UI parity: allergen changeover screen and full gate modal",
+  "prompt": "# T-048 — UI parity: allergen changeover screen and full gate modal\n\nPRD/UX refs: SCR-08-03, MODAL-08-11, prototype labels changeover_screen,changeover_gate_modal\n\nGoal: Replace changeover stub with full cleaning checklist, ATP capture, risk badges and dual sign-off UI.\n\nImplementation details:\nUse Next.js App Router Server Components by default, shadcn/ui components, next-intl keys, org-scoped data access, loading/empty/error states, and literal data-prototype-label markers matching _meta/prototype-labels/prototype-index-production.json. Closeout must include desktop screenshots and Playwright traces. Match design/Monopilot Design System/production/other-screens.jsx:294-390 and expand modals.jsx:344-364 to PRD/UX requirements: risk-level banner, cleaning steps with photo evidence, ATP grid for high risk, shift lead + quality lead PIN sign-off, segregated hard-block state.\n\nScope files:\n- apps/web/app/production/changeover/[event_id]/page.tsx [create]\n- apps/web/components/production/changeover-gate-modal.tsx [create]\n- design/Monopilot Design System/production/other-screens.jsx:294-390\n- design/Monopilot Design System/production/modals.jsx:344-364\n\nAcceptance criteria:\n1. Changeover screen shows medium/high/segregated states and required evidence\n2. Dual sign-off UI remains disabled until cleaning/ATP requirements pass\n3. Closeout includes screenshots for incomplete, ATP fail, and completed gate plus trace\n\nEvidence: include screenshots/artifacts and Playwright traces/artifacts for UI/E2E tasks; include API test output for backend tasks.",
+  "labels": [
+    "prd",
+    "T3-ui",
+    "ui"
+  ],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-048",
+    "source_prd": "08-PRODUCTION-PRD.md",
+    "prd_refs": [
+      "SCR-08-03",
+      "MODAL-08-11",
+      "prototype labels changeover_screen,changeover_gate_modal"
+    ],
+    "category": "production-readiness",
+    "subcategory": "UI parity: allergen changeover screen and full g",
+    "task_type": "T3-ui",
+    "parent_feature": "08-PRODUCTION full module readiness",
+    "context_budget": "40k",
+    "estimated_effort": "2-4h",
+    "description": "Replace changeover stub with full cleaning checklist, ATP capture, risk badges and dual sign-off UI.",
+    "details": "Use Next.js App Router Server Components by default, shadcn/ui components, next-intl keys, org-scoped data access, loading/empty/error states, and literal data-prototype-label markers matching _meta/prototype-labels/prototype-index-production.json. Closeout must include desktop screenshots and Playwright traces. Match design/Monopilot Design System/production/other-screens.jsx:294-390 and expand modals.jsx:344-364 to PRD/UX requirements: risk-level banner, cleaning steps with photo evidence, ATP grid for high risk, shift lead + quality lead PIN sign-off, segregated hard-block state.",
+    "scope_files": [
+      "apps/web/app/production/changeover/[event_id]/page.tsx [create]",
+      "apps/web/components/production/changeover-gate-modal.tsx [create]",
+      "design/Monopilot Design System/production/other-screens.jsx:294-390",
+      "design/Monopilot Design System/production/modals.jsx:344-364"
+    ],
+    "dependencies": [
+      "T-043"
+    ],
+    "acceptance_criteria": [
+      "Changeover screen shows medium/high/segregated states and required evidence",
+      "Dual sign-off UI remains disabled until cleaning/ATP requirements pass",
+      "Closeout includes screenshots for incomplete, ATP fail, and completed gate plus trace"
+    ],
+    "test_strategy": [
+      "RED: add failing unit/integration tests for the cited slice before implementation",
+      "GREEN: run targeted pnpm test command and relevant Playwright check"
+    ],
+    "risk_red_lines": [
+      "Do not treat D365 sync/export/Built as production release source-of-truth",
+      "Do not bypass 04-PLANNING WO snapshot or 03-TECHNICAL active factory spec/BOM approval"
+    ],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "screenshots_or_artifacts",
+        "playwright_traces_or_artifacts",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "cross_module_dependencies": [
+      {
+        "module": "03-technical",
+        "task_id": "T-080",
+        "reason": "Allergen profile and segregation matrix."
+      },
+      {
+        "module": "09-quality",
+        "task_id": "external-quality-contract",
+        "reason": "ATP and QA sign-off policy."
+      }
+    ]
+  }
+}

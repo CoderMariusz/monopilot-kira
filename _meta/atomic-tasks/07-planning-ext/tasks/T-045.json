@@ -1,0 +1,80 @@
+{
+  "title": "T-045 — Re-run Confirmation Modal",
+  "prompt": "# T-045 — Re-run Confirmation Modal\n\nPRD: `07-PLANNING-EXT-PRD.md` §17.1 PLE-009, §16.2 OQ-EXT-09, R14.\nUX/prototype refs are listed in `pipeline_inputs.scope_files`.\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`.\n\n## Goal\nAdd the safe re-run confirmation step used from run history and run detail.\n\n## Implementation contract\nClone only allowed input params/snapshot references; enqueue via the same T-012 path; existing run and approved schedule remain unchanged until new assignments are approved.\n\nACP shape reminder: keep this task as one atomic implementation. Do not add ACP-owned fields. Keep local dependencies in `dependencies`; cross-module contracts in `cross_module_dependencies` are blockers/inputs, not ACP local task IDs.",
+  "labels": [
+    "prd",
+    "ui",
+    "modal",
+    "T3-ui"
+  ],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "source_prd": "07-PLANNING-EXT-PRD.md",
+    "context_budget": "40k",
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prd_refs": [
+      "§17.1 PLE-009",
+      "§16.2 OQ-EXT-09",
+      "R14"
+    ],
+    "category": "ui",
+    "subcategory": "rerun-modal",
+    "task_type": "T3-ui",
+    "parent_feature": "07-EXT-a run history",
+    "estimated_effort": "1h",
+    "description": "Implement confirmation dialog for cloning a previous scheduler run into a new UUID v7 run request.",
+    "details": "Matches rerun_confirm_modal. Server Action clones safe input params and always creates a new run_id to avoid idempotency collision.",
+    "scope_files": [
+      "apps/web/src/components/scheduler/RerunConfirmModal.tsx [create]",
+      "apps/web/src/lib/scheduler/rerun-action.ts [create]",
+      "design/Monopilot Design System/planning-ext/modals.jsx:631-648 [ref]"
+    ],
+    "dependencies": [
+      "T-012",
+      "T-013",
+      "T-024"
+    ],
+    "acceptance_criteria": [
+      "Given a source run, then modal summary shows source run/horizon/lines/include_forecast and prototype parity.",
+      "Given Confirm is clicked, then server generates a new UUID v7 and never reuses source run_id.",
+      "Given source run is failed/cancelled or user lacks Planner role, then action returns 403/409 and no run is queued."
+    ],
+    "test_strategy": [
+      "RED action tests for new UUID, RBAC, failed-run block; RTL modal snapshot.",
+      "Run pnpm --filter web test scheduler/RerunConfirmModal rerun-action."
+    ],
+    "risk_red_lines": [
+      "Do not create idempotency collision by reusing source run_id.",
+      "Do not mutate existing run.",
+      "Do not expose rerun to read-only roles."
+    ],
+    "prd_task_id": "T-045"
+  }
+}

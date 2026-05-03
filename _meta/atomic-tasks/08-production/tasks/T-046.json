@@ -1,0 +1,104 @@
+{
+  "title": "T-046 — UI parity: dashboard, WO list/detail and Start WO release blockers",
+  "prompt": "# T-046 — UI parity: dashboard, WO list/detail and Start WO release blockers\n\nPRD/UX refs: SCR-08-01, SCR-08-02, MODAL-08-02, prototype labels production_dashboard,line_card,wo_list,wo_detail,start_wo_modal\n\nGoal: Build Production dashboard, line cards, WO list/detail shell, and Start WO modal with canonical release-readiness blocker UI.\n\nImplementation details:\nUse Next.js App Router Server Components by default, shadcn/ui components, next-intl keys, org-scoped data access, loading/empty/error states, and literal data-prototype-label markers matching _meta/prototype-labels/prototype-index-production.json. Closeout must include desktop screenshots and Playwright traces. Dashboard/list/detail must match design/Monopilot Design System/production/dashboard.jsx:3-229 and wo-detail.jsx:3-87 plus modals.jsx:48-67. Start modal shows release_status, active_bom_header_id, active_factory_spec_id and blockers from T-001/T-016; disabled blocked rows deep-link to Planning. Remove any visible Production Release WO action.\n\nScope files:\n- apps/web/app/production/page.tsx [create]\n- apps/web/app/production/wos/page.tsx [create]\n- apps/web/app/production/wos/[id]/page.tsx [create]\n- apps/web/components/production/start-wo-modal.tsx [create]\n- design/Monopilot Design System/production/dashboard.jsx:3-229\n- design/Monopilot Design System/production/wo-detail.jsx:3-87\n- design/Monopilot Design System/production/modals.jsx:48-67\n\nAcceptance criteria:\n1. Dashboard/list/detail render with data-prototype-label markers and match prototype layout\n2. Blocked release rows disable Start and show typed blockers plus Planning deep-link\n3. Closeout includes screenshots for dashboard, WO detail, and blocked Start modal plus Playwright trace\n\nEvidence: include screenshots/artifacts and Playwright traces/artifacts for UI/E2E tasks; include API test output for backend tasks.",
+  "labels": [
+    "prd",
+    "T3-ui",
+    "ui"
+  ],
+  "priority": 120,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-046",
+    "source_prd": "08-PRODUCTION-PRD.md",
+    "prd_refs": [
+      "SCR-08-01",
+      "SCR-08-02",
+      "MODAL-08-02",
+      "prototype labels production_dashboard,line_card,wo_list,wo_detail,start_wo_modal"
+    ],
+    "category": "production-readiness",
+    "subcategory": "UI parity: dashboard, WO list/detail and Start W",
+    "task_type": "T3-ui",
+    "parent_feature": "08-PRODUCTION full module readiness",
+    "context_budget": "40k",
+    "estimated_effort": "2-4h",
+    "description": "Build Production dashboard, line cards, WO list/detail shell, and Start WO modal with canonical release-readiness blocker UI.",
+    "details": "Use Next.js App Router Server Components by default, shadcn/ui components, next-intl keys, org-scoped data access, loading/empty/error states, and literal data-prototype-label markers matching _meta/prototype-labels/prototype-index-production.json. Closeout must include desktop screenshots and Playwright traces. Dashboard/list/detail must match design/Monopilot Design System/production/dashboard.jsx:3-229 and wo-detail.jsx:3-87 plus modals.jsx:48-67. Start modal shows release_status, active_bom_header_id, active_factory_spec_id and blockers from T-001/T-016; disabled blocked rows deep-link to Planning. Remove any visible Production Release WO action.",
+    "scope_files": [
+      "apps/web/app/production/page.tsx [create]",
+      "apps/web/app/production/wos/page.tsx [create]",
+      "apps/web/app/production/wos/[id]/page.tsx [create]",
+      "apps/web/components/production/start-wo-modal.tsx [create]",
+      "design/Monopilot Design System/production/dashboard.jsx:3-229",
+      "design/Monopilot Design System/production/wo-detail.jsx:3-87",
+      "design/Monopilot Design System/production/modals.jsx:48-67"
+    ],
+    "dependencies": [
+      "T-001",
+      "T-016",
+      "T-021",
+      "T-044"
+    ],
+    "acceptance_criteria": [
+      "Dashboard/list/detail render with data-prototype-label markers and match prototype layout",
+      "Blocked release rows disable Start and show typed blockers plus Planning deep-link",
+      "Closeout includes screenshots for dashboard, WO detail, and blocked Start modal plus Playwright trace"
+    ],
+    "test_strategy": [
+      "RED: add failing unit/integration tests for the cited slice before implementation",
+      "GREEN: run targeted pnpm test command and relevant Playwright check"
+    ],
+    "risk_red_lines": [
+      "Do not treat D365 sync/export/Built as production release source-of-truth",
+      "Do not bypass 04-PLANNING WO snapshot or 03-TECHNICAL active factory spec/BOM approval"
+    ],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "screenshots_or_artifacts",
+        "playwright_traces_or_artifacts",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "cross_module_dependencies": [
+      {
+        "module": "01-npd",
+        "task_id": "T-097",
+        "reason": "Canonical factory release read-model owner."
+      },
+      {
+        "module": "03-technical",
+        "task_id": "T-080",
+        "reason": "Technical BOM/factory_spec approval emits factory-use state."
+      },
+      {
+        "module": "04-planning-basic",
+        "task_id": "T-001",
+        "reason": "Planning snapshots active_bom_header_id and active_factory_spec_id onto WOs."
+      }
+    ],
+    "priority_normalization_note": "Priority normalized to ACP convention bands on 2026-05-03; lower number means earlier execution."
+  }
+}

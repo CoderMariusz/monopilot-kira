@@ -1,7 +1,12 @@
 {
   "title": "T-035 — SCN-031 Move LP UI (06-c)",
   "prompt": "# T-035 — SCN-031 Move LP\n\nPRD: 06-SCANNER-P1-PRD.md §8.3 FR-SC-FE-030/031\nUX: design/06-SCANNER-P1-UX.md:454-480 §3.10\nPrototype: design/Monopilot Design System/scanner/flow-other.jsx:10-86 (label move_screen)\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nDeliver SCN-031 — scan LP → mini-grid details → scan destination (or 4 quick-buttons for frequent locations) → confirm → done success orange→green; with status-block error handling (hold/consumed/blocked).\n\n## Implementation contract\n1. /scanner/move + /scanner/move/done.\n2. Scan LP triggers /lock-lp; on success render mini-grid + destination scan + 4 quick-buttons.\n3. Submit calls /move-lp + /release-lock; on validation block render full-screen error per D9 block severity (e.g. 'LP na QA Hold, nie można przesunąć').\n\n## Files\n- apps/scanner/src/app/scanner/move/page.tsx [create]\n- apps/scanner/src/app/scanner/move/done/page.tsx [create]\n- apps/scanner/__tests__/scn-031-move.test.tsx [create]\n\n## Acceptance criteria\n1. Given the page renders, when compared to `design/Monopilot Design System/scanner/flow-other.jsx:10-86`, then it has the LP scan area, a mini-grid of LP details, the destination scan area, and 4 quick-buttons in the same order — RTL snapshot + manual checklist (structural + visual + interaction parity)\n2. Given an LP whose lookup returns status='hold', when the LP scan completes, then a full-screen block error 'LP na QA Hold, nie można przesunąć' is shown and the destination scan is hidden\n3. Given a successful move, when /move-lp returns 200, then /release-lock is called and the user is redirected to /scanner/move/done with the orange→green animation\n\n## Test strategy\n- RED: write scn-031-move.test.tsx asserting parity + hold-block + happy-path with lock release before implementation\n- Run 'pnpm --filter scanner test scn-031-move'\n\n## Risk red lines\n- Do not skip /release-lock on success\n- Do not let user proceed past hold/consumed/blocked status\n- Do not allow destination = current location",
-  "labels": ["prd", "ui", "scn-031-move", "T3-ui"],
+  "labels": [
+    "prd",
+    "ui",
+    "scn-031-move",
+    "T3-ui"
+  ],
   "priority": 100,
   "max_attempts": 3,
   "pipeline_name": "kira_dev",
@@ -9,7 +14,10 @@
     "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
     "prd_task_id": "T-035",
     "source_prd": "06-SCANNER-P1-PRD.md",
-    "prd_refs": ["§8.3 FR-SC-FE-030", "§8.3 FR-SC-FE-031"],
+    "prd_refs": [
+      "§8.3 FR-SC-FE-030",
+      "§8.3 FR-SC-FE-031"
+    ],
     "category": "ui",
     "subcategory": "scn-031-move",
     "task_type": "T3-ui",
@@ -29,12 +37,17 @@
       "Do not implement split-LP here (T-036)",
       "Do not implement SCN-040 putaway here"
     ],
-    "dependencies": ["T-013", "T-034"],
-    "parallel_safe_with": ["T-036"],
+    "dependencies": [
+      "T-013",
+      "T-034"
+    ],
+    "parallel_safe_with": [
+      "T-036"
+    ],
     "acceptance_criteria": [
       "Given the page renders, when compared to design/Monopilot Design System/scanner/flow-other.jsx:10-86, then it has the LP scan area, mini-grid, destination scan area, and 4 quick-buttons in the same order — RTL snapshot + manual checklist",
       "Given an LP whose lookup returns status='hold', when the LP scan completes, then a full-screen block error 'LP na QA Hold, nie można przesunąć' is shown and destination scan is hidden",
-      "Given a successful move, when /move-lp returns 200, then /release-lock is called and the user is redirected to /scanner/move/done with orange→green animation"
+      "Given a successful move, when /move-lp returns 200, then /release-lock is called and the user is redirected to /scanner/move/done with orange→green animation. Follow parity evidence requirements in `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`."
     ],
     "test_strategy": [
       "RED: write scn-031-move.test.tsx asserting parity + hold-block + happy-path lock release before implementation",
@@ -45,16 +58,48 @@
       "Do not bypass hold/consumed/blocked",
       "Do not allow destination = current"
     ],
-    "skills": ["test-driven-development", "requesting-code-review"],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
     "checkpoint_policy": {
-      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
-      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status",
+        "mobile_390x844_screenshot",
+        "playwright_trace",
+        "prototype_label_parity_notes"
+      ]
     },
     "routing_hints": {
       "red": "hermes_gpt55",
       "implementation": "hermes_gpt55",
       "review": "opus_if_high_risk_or_ui_or_architecture",
       "close": "spark_low_risk_else_opus"
-    }
+    },
+    "prototype_evidence_required": {
+      "viewport": "390x844",
+      "artifacts": [
+        "screenshot",
+        "Playwright trace"
+      ],
+      "parity_dimensions": [
+        "structure",
+        "visual",
+        "interaction"
+      ]
+    },
+    "cross_module_dependencies": [
+      "05-warehouse: LP lock, move, split, location contracts"
+    ]
   }
 }

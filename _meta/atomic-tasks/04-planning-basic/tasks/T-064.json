@@ -1,0 +1,101 @@
+{
+  "title": "T-064 — UI: PLN-030 Allergen Override on Sequencing (spec-driven inline modal)",
+  "prompt": "Implement spec-driven UI: PLN-030 Allergen Override on Sequencing (spec-driven inline modal) for 04-PLANNING-BASIC. No standalone prototype component is required because PRD/UX declare this as an inline/composed surface. Read PRD refs §10.5, §10.7, UX §4 PLAN-MODAL-11 and UX section lines before coding. Use shadcn/Radix primitives, next-intl, server-side RBAC/business validation, and existing module contracts.\n\nDetails: Inline modal launched from sequencing rows. Requires override reason, before/after allergen/changeover impact, RBAC guard, audit event, and clear badge on affected WO rows. It is composed inside the PLN-011 sequencing page rather than a standalone prototype label.\n\nCloseout must include screenshots/artifacts, Playwright traces, changed files, tests, AC status, deviations, and git status.",
+  "labels": [
+    "prd",
+    "ui",
+    "pln-030-allergen-override",
+    "T3-ui",
+    "spec-driven"
+  ],
+  "priority": 120,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-064",
+    "source_prd": "04-PLANNING-BASIC-PRD.md",
+    "prd_refs": [
+      "§10.5",
+      "§10.7",
+      "UX §4 PLAN-MODAL-11"
+    ],
+    "category": "ui",
+    "subcategory": "pln-030-allergen-override",
+    "task_type": "T3-ui",
+    "parent_feature": "planning-basic-spec-driven-ui",
+    "context_budget": "40k",
+    "estimated_effort": "3-5h",
+    "prototype_match": false,
+    "description": "UI: PLN-030 Allergen Override on Sequencing (spec-driven inline modal)",
+    "details": "Inline modal launched from sequencing rows. Requires override reason, before/after allergen/changeover impact, RBAC guard, audit event, and clear badge on affected WO rows. It is composed inside the PLN-011 sequencing page rather than a standalone prototype label.",
+    "scope_files": [
+      "src/components/planning/sequencing/AllergenOverrideDialog.tsx [create]",
+      "design/04-PLANNING-BASIC-UX.md:1366-1382 [ref]"
+    ],
+    "out_of_scope": [
+      "Building unrelated Settings/Warehouse/Scanner surfaces"
+    ],
+    "dependencies": [
+      "T-025",
+      "T-057"
+    ],
+    "cross_module_dependencies": [
+      {
+        "module": "02-settings",
+        "task_id": "CONTRACT",
+        "reason": "Workflow dry-run and permissions consume Settings rule registry and flag contracts."
+      }
+    ],
+    "acceptance_criteria": [
+      "Given the composed/spec-driven UI renders, then it satisfies the PRD/UX fields, validations, RBAC gates, copy hierarchy, and state transitions listed in pipeline_inputs.details.",
+      "Given invalid/blocked/action-not-allowed cases occur, then the UI displays server-returned validation and audit requirements without client-invented business state.",
+      "Given closeout is prepared, then screenshots/artifacts and Playwright trace artifacts are attached for happy path and blocked/error states.",
+      "Given tests run, then targeted RTL/component tests and Playwright e2e pass with 0 failures. Follow parity evidence requirements in `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`."
+    ],
+    "test_strategy": [
+      "RED component test for form fields and validation states.",
+      "Playwright e2e for open/edit/confirm/cancel and blocked path with trace enabled.",
+      "Run targeted pnpm vitest and pnpm playwright commands."
+    ],
+    "risk_red_lines": [
+      "No client-only authorization.",
+      "No un-audited override/dry-run execution.",
+      "No new Settings permission namespace."
+    ],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "screenshots_or_artifacts",
+        "playwright_trace_artifacts",
+        "prototype_parity_notes",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "ui_closeout_evidence": [
+      "Screenshots/artifacts for all material states.",
+      "Playwright trace artifacts for happy path and blocked/error path.",
+      "Spec-driven parity notes citing PRD/UX refs."
+    ],
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "priority_normalization_note": "Priority normalized to ACP convention bands on 2026-05-03; lower number means earlier execution."
+  }
+}

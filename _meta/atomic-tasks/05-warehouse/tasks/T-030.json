@@ -1,15 +1,24 @@
 {
   "title": "T-030 — FEFO query API (server function)",
   "prompt": "# T-030 — FEFO query API\n\nPRD: `05-WAREHOUSE-PRD.md` §9.1, §9.2.\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`.\n\n## Goal\n`getFefoSuggestions(input)` server function executing the rule (T-014) and returning ranked suggestions. SLO <500ms P95.\n\n## Implementation contract\n`apps/web/lib/services/warehouse/fefo-query.ts`. Inputs per §9.1: product_id, warehouse_id, qty_required, target_qa_status. Pull rule version 'fefo_strategy_v1' from registry; execute SQL §9.2 (LIMIT 20). Apply per-product picking_strategy override (items.picking_strategy) — if 'fifo' route to fifo_strategy_v1.\n\n## Files (scope)\n- apps/web/lib/services/warehouse/fefo-query.ts [create]\n- apps/web/lib/services/warehouse/__tests__/fefo-query.test.ts [create]\n\n## Acceptance criteria\n1. Given a product with three available LPs (different expiries), when getFefoSuggestions runs, then results return top 3 sorted by expiry asc nulls last.\n2. Given items.picking_strategy='fifo', when getFefoSuggestions runs, then results sort by created_at asc using fifo_strategy_v1.\n3. Given an LP with qa_status='HOLD', when getFefoSuggestions runs with default target, then it is excluded from results.\n4. Given executions on a 10k seeded fixture, when measured, then P95 latency < 500ms.\n\n## Test strategy\n- RED: fefo-query.test.ts covers FEFO sort, FIFO route, qa-gating, latency.\n- Run `pnpm --filter web test fefo-query`.\n\n## Risk red lines\n- Do not bypass rule registry (must read fefo_strategy_v1).\n- Do not skip qa_status gating.\n- Do not return more than 20 rows.",
-  "labels": ["prd", "api", "fefo", "T2-api"],
-  "priority": 90,
+  "labels": [
+    "prd",
+    "api",
+    "fefo",
+    "T2-api"
+  ],
+  "priority": 100,
   "max_attempts": 3,
   "pipeline_name": "kira_dev",
   "pipeline_inputs": {
     "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
     "prd_task_id": "T-030",
     "source_prd": "05-WAREHOUSE-PRD.md",
-    "prd_refs": ["§9.1", "§9.2", "§9.3"],
+    "prd_refs": [
+      "§9.1",
+      "§9.2",
+      "§9.3"
+    ],
     "category": "api",
     "subcategory": "fefo",
     "task_type": "T2-api",
@@ -27,8 +36,17 @@
       "Override audit (T-033)",
       "Reservation creation (T-031)"
     ],
-    "dependencies": ["T-014", "T-015", "T-002", "T-011"],
-    "parallel_safe_with": ["T-031", "T-032", "T-033"],
+    "dependencies": [
+      "T-014",
+      "T-015",
+      "T-002",
+      "T-011"
+    ],
+    "parallel_safe_with": [
+      "T-031",
+      "T-032",
+      "T-033"
+    ],
     "acceptance_criteria": [
       "Given three available LPs with different expiries, when run, then results sort by expiry asc nulls last",
       "Given items.picking_strategy='fifo', when run, then results sort by created_at asc",
@@ -44,16 +62,61 @@
       "Do not skip qa_status gating",
       "Do not return more than 20 rows"
     ],
-    "skills": ["test-driven-development", "requesting-code-review"],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
     "checkpoint_policy": {
-      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
-      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
     },
     "routing_hints": {
       "red": "hermes_gpt55",
       "implementation": "hermes_gpt55",
       "review": "opus_if_high_risk_or_ui_or_architecture",
       "close": "spark_low_risk_else_opus"
-    }
+    },
+    "cross_module_dependencies": [
+      {
+        "module": "02-settings",
+        "contract": "rule_registry, warehouses/locations/printers, feature flags, tenant security policy"
+      },
+      {
+        "module": "03-technical",
+        "contract": "items/products, shelf_life_mode/date_code_format, catch-weight, allergen snapshots"
+      },
+      {
+        "module": "04-planning-basic",
+        "contract": "PO/TO/WO read models, RM root reservations, WO release/cancel hooks"
+      },
+      {
+        "module": "06-scanner-p1",
+        "contract": "LP lookup, barcode validation, lock protocol, FEFO suggestion, consume-to-WO"
+      },
+      {
+        "module": "08-production",
+        "contract": "WO material consumption and output LP creation events"
+      },
+      {
+        "module": "09-quality",
+        "contract": "LP qa_status ownership and quality_status_history"
+      },
+      {
+        "module": "11-shipping",
+        "contract": "downstream shelf_life_rules enforcement in Phase 2"
+      }
+    ],
+    "priority_normalization_note": "Priority normalized to ACP convention bands on 2026-05-03; lower number means earlier execution."
   }
 }

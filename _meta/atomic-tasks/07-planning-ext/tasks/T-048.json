@@ -1,0 +1,84 @@
+{
+  "title": "T-048 — Scheduler Settings screen",
+  "prompt": "# T-048 — Scheduler Settings screen\n\nPRD: `07-PLANNING-EXT-PRD.md` §17.1 PLE-005, Appendix B feature flags.\nUX/prototype refs are listed in `pipeline_inputs.scope_files`.\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`.\n\n## Goal\nCreate a scheduler-specific settings surface for operational defaults and alerts.\n\n## Implementation contract\nPersist only user-editable config fields to T-008 schema; read flags/entitlements from Settings; use i18n keys for all labels.\n\nACP shape reminder: keep this task as one atomic implementation. Do not add ACP-owned fields. Keep local dependencies in `dependencies`; cross-module contracts in `cross_module_dependencies` are blockers/inputs, not ACP local task IDs.",
+  "labels": [
+    "prd",
+    "ui",
+    "settings",
+    "T3-ui"
+  ],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "source_prd": "07-PLANNING-EXT-PRD.md",
+    "context_budget": "40k",
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prd_refs": [
+      "§17.1 PLE-005",
+      "Appendix B feature flags"
+    ],
+    "category": "ui",
+    "subcategory": "scheduler-settings",
+    "task_type": "T3-ui",
+    "parent_feature": "07-EXT settings",
+    "estimated_effort": "2h",
+    "description": "Implement /scheduler/settings cards for default run parameters, alerts, solver integration read-only state, premium flags.",
+    "details": "Matches pext_settings_screen. Cards 1-2 persist to scheduler_config. Solver URL/env card is admin/read-only in production. 14d and P2 capabilities are feature-gated.",
+    "scope_files": [
+      "apps/web/src/app/scheduler/settings/page.tsx [create]",
+      "apps/web/src/components/scheduler/SchedulerSettingsScreen.tsx [create]",
+      "apps/web/src/lib/scheduler/settings-actions.ts [create]",
+      "design/Monopilot Design System/planning-ext/other-screens.jsx:79-133 [ref]"
+    ],
+    "dependencies": [
+      "T-008"
+    ],
+    "cross_module_dependencies": [
+      {
+        "module": "02-settings",
+        "contract": "Feature flags, audit log and tenant subscription/entitlement data."
+      }
+    ],
+    "acceptance_criteria": [
+      "Given /scheduler/settings renders, then 4-card layout matches pext_settings_screen parity.",
+      "Given Planner edits default horizon/alerts, then scheduler_config persists and audit log captures before/after JSON.",
+      "Given scheduler.horizon_14d.enabled=false, then 14-day option is disabled with explanatory tooltip."
+    ],
+    "test_strategy": [
+      "RED action tests for validation/audit; RTL card layout snapshot.",
+      "Run pnpm --filter web test scheduler/SchedulerSettingsScreen settings-actions."
+    ],
+    "risk_red_lines": [
+      "Do not make env-bound solver URL editable in production.",
+      "Do not enable P2 flags without Settings feature flag.",
+      "Do not skip audit log for config changes."
+    ],
+    "prd_task_id": "T-048"
+  }
+}

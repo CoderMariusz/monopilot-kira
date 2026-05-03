@@ -1,0 +1,96 @@
+{
+  "title": "T-043 — Allergen changeover runtime endpoints and start-gate evaluator",
+  "prompt": "# T-043 — Allergen changeover runtime endpoints and start-gate evaluator\n\nPRD/UX refs: §8.2.6, §7.1 FR-08-E1-001, SCR-08-03, MODAL-08-11\n\nGoal: Implement cleaning-step, ATP result, dual sign-off endpoints and wire allergen_changeover_gate_v1 into WO START.\n\nImplementation details:\nUse changeover_events and allergen_changeover_validations. The evaluator compares current/next allergen profile from the WO factory spec/BOM snapshot, creates or loads a changeover_event, blocks START with 423 for medium/high/segregated requirements, records cleaning checklist and ATP readings, and unlocks only after required dual sign-off. Segregated hard-block returns a typed blocker and cannot be overridden in Production.\n\nScope files:\n- packages/api-services/production/allergen-changeover.ts [create]\n- apps/web/app/api/production/changeover-events/[id]/cleaning-step/route.ts [create]\n- apps/web/app/api/production/changeover-events/[id]/atp-result/route.ts [create]\n- apps/web/app/api/production/changeover-events/[id]/sign-off/route.ts [create]\n- packages/api-services/production/start-wo.ts [modify]\n\nAcceptance criteria:\n1. START returns 423 and redirect_url when required changeover is incomplete\n2. Cleaning/ATP/sign-off endpoints persist auditable records with signer roles\n3. Completed required dual sign-off permits START without selecting a new BOM/spec\n\nEvidence: include screenshots/artifacts and Playwright traces/artifacts for UI/E2E tasks; include API test output for backend tasks.",
+  "labels": [
+    "prd",
+    "T2-api"
+  ],
+  "priority": 80,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-043",
+    "source_prd": "08-PRODUCTION-PRD.md",
+    "prd_refs": [
+      "§8.2.6",
+      "§7.1 FR-08-E1-001",
+      "SCR-08-03",
+      "MODAL-08-11"
+    ],
+    "category": "production-readiness",
+    "subcategory": "Allergen changeover runtime endpoints and start-",
+    "task_type": "T2-api",
+    "parent_feature": "08-PRODUCTION full module readiness",
+    "context_budget": "40k",
+    "estimated_effort": "2-4h",
+    "description": "Implement cleaning-step, ATP result, dual sign-off endpoints and wire allergen_changeover_gate_v1 into WO START.",
+    "details": "Use changeover_events and allergen_changeover_validations. The evaluator compares current/next allergen profile from the WO factory spec/BOM snapshot, creates or loads a changeover_event, blocks START with 423 for medium/high/segregated requirements, records cleaning checklist and ATP readings, and unlocks only after required dual sign-off. Segregated hard-block returns a typed blocker and cannot be overridden in Production.",
+    "scope_files": [
+      "packages/api-services/production/allergen-changeover.ts [create]",
+      "apps/web/app/api/production/changeover-events/[id]/cleaning-step/route.ts [create]",
+      "apps/web/app/api/production/changeover-events/[id]/atp-result/route.ts [create]",
+      "apps/web/app/api/production/changeover-events/[id]/sign-off/route.ts [create]",
+      "packages/api-services/production/start-wo.ts [modify]"
+    ],
+    "dependencies": [
+      "T-001",
+      "T-006",
+      "T-007",
+      "T-014",
+      "T-016"
+    ],
+    "acceptance_criteria": [
+      "START returns 423 and redirect_url when required changeover is incomplete",
+      "Cleaning/ATP/sign-off endpoints persist auditable records with signer roles",
+      "Completed required dual sign-off permits START without selecting a new BOM/spec"
+    ],
+    "test_strategy": [
+      "RED: add failing unit/integration tests for the cited slice before implementation",
+      "GREEN: run targeted pnpm test command and relevant Playwright check"
+    ],
+    "risk_red_lines": [
+      "Do not treat D365 sync/export/Built as production release source-of-truth",
+      "Do not bypass 04-PLANNING WO snapshot or 03-TECHNICAL active factory spec/BOM approval"
+    ],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "screenshots_or_artifacts",
+        "playwright_traces_or_artifacts",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "cross_module_dependencies": [
+      {
+        "module": "03-technical",
+        "task_id": "T-080",
+        "reason": "Allergen matrix and active factory_spec source."
+      },
+      {
+        "module": "09-quality",
+        "task_id": "external-quality-contract",
+        "reason": "ATP/QA sign-off may be Quality-owned by policy."
+      }
+    ]
+  }
+}

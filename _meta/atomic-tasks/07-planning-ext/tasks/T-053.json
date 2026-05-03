@@ -1,0 +1,95 @@
+{
+  "title": "T-053 — Disposition Bridge P2 backend and decision modal",
+  "prompt": "# T-053 — Disposition Bridge P2 backend and decision modal\n\nPRD: `07-PLANNING-EXT-PRD.md` §7.4 Epic E4, §10.3, §17.1 PLE disposition, §15.4 V-SCHED-10.\nUX/prototype refs are listed in `pipeline_inputs.scope_files`.\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`.\n\n## Goal\nCreate the P2 disposition bridge wiring and modal task with clear feature gating.\n\n## Implementation contract\nListen to wo.completed, evaluate disposition_bridge_v1, respect V-SCHED-10, and coordinate with Warehouse LP state transitions through defined service contracts.\n\nACP shape reminder: keep this task as one atomic implementation. Do not add ACP-owned fields. Keep local dependencies in `dependencies`; cross-module contracts in `cross_module_dependencies` are blockers/inputs, not ACP local task IDs.",
+  "labels": [
+    "prd",
+    "api",
+    "ui",
+    "T4-wiring-test"
+  ],
+  "priority": 120,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "source_prd": "07-PLANNING-EXT-PRD.md",
+    "context_budget": "40k",
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prd_refs": [
+      "§7.4 Epic E4",
+      "§10.3",
+      "§17.1 PLE disposition",
+      "§15.4 V-SCHED-10"
+    ],
+    "category": "integration",
+    "subcategory": "disposition-bridge",
+    "task_type": "T4-wiring-test",
+    "parent_feature": "07-EXT-d disposition bridge P2",
+    "estimated_effort": "4-5h",
+    "description": "Implement P2 disposition bridge event flow and decision modal wiring with timeout/extend actions.",
+    "details": "Combines backend event handler with disposition_decision_modal because modal is only meaningful with notification/deadline actions. Feature-gated; to_stock remains P1 baseline.",
+    "scope_files": [
+      "apps/web/src/lib/scheduler/disposition-bridge.ts [create]",
+      "apps/web/src/components/scheduler/DispositionDecisionModal.tsx [create]",
+      "apps/web/src/lib/scheduler/disposition-actions.ts [create]",
+      "design/Monopilot Design System/planning-ext/modals.jsx:562-629 [ref]"
+    ],
+    "dependencies": [
+      "T-027"
+    ],
+    "cross_module_dependencies": [
+      {
+        "module": "04-planning-basic",
+        "contract": "Intermediate cascade DAG and disposition baseline to_stock."
+      },
+      {
+        "module": "05-warehouse",
+        "contract": "LP states, put-away, reservation handoff and cancellation semantics."
+      },
+      {
+        "module": "08-production",
+        "contract": "wo.completed event and output LP creation."
+      }
+    ],
+    "acceptance_criteria": [
+      "Given flag planning.disposition_bridge.enabled=false, then P2 modal and handlers do not alter to_stock baseline.",
+      "Given planner_decides item with shelf_life_hours<=24, then notification/deadline is created and modal allows To Stock or Direct Continue plus Extend 1h/4h with reason.",
+      "Given deadline passes, then default to_stock is applied and outbox/audit record the auto-decision."
+    ],
+    "test_strategy": [
+      "RED integration tests for direct_continue, planner_decides timeout, extend reason, cancel handoff.",
+      "Run pnpm --filter web test scheduler/disposition-bridge disposition-actions."
+    ],
+    "risk_red_lines": [
+      "Do not enable disposition bridge in P1 by default.",
+      "Do not create orphan LP reserved_for_child_wo without cleanup.",
+      "Do not bypass Warehouse LP state machine."
+    ],
+    "prd_task_id": "T-053",
+    "priority_normalization_note": "Priority normalized to ACP convention bands on 2026-05-03; lower number means earlier execution."
+  }
+}

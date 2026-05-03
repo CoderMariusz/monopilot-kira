@@ -1,0 +1,127 @@
+{
+  "title": "T-053 — Warehouse management pages UI surfaces",
+  "prompt": "# T-053 — Warehouse management pages UI surfaces\n\nPRD: `05-WAREHOUSE-PRD.md`.\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`.\n\n## Goal\nImplement dashboard, inventory browser, locations hierarchy, location edit modal, and settings page with prototype parity.\n\n## Implementation contract\nBuild management pages with server-side RBAC for inventory value, live count cards, ltree location hierarchy, read-only settings fallback, rule-registry links, and location deactivation guard UX.\n\n## Files (scope)\n- apps/web/app/(app)/warehouse/page.tsx [create]\n- apps/web/app/(app)/warehouse/inventory/** [create]\n- apps/web/app/(app)/warehouse/locations/** [create]\n- apps/web/app/(app)/warehouse/settings/** [create]\n- design/Monopilot Design System/warehouse/dashboard.jsx\n- design/Monopilot Design System/warehouse/other-screens.jsx\n- design/Monopilot Design System/warehouse/modals.jsx\n\n## Acceptance criteria\n1. Given warehouse_dashboard renders, then KPI cards, alerts, expiry widget, recent activity, and restricted inventory value state match design/Monopilot Design System/warehouse/dashboard.jsx.\n2. Given inventory_browser_page renders as unauthorized Operator, then inventory value data is not present in the response and the UI shows Restricted.\n3. Given locations_hierarchy_page and location_edit_modal render, then ltree tree, selected details, deactivate guard messaging, and depth validation match prototype and UX.\n4. Given components are inspected, then data-prototype-label markers exist for warehouse_dashboard, inventory_browser_page, locations_hierarchy_page, location_edit_modal, and warehouse_settings_page.\n\n## Test strategy\n- RED: server/component test proving inventory value is omitted for unauthorized roles.\n- GREEN: Playwright screenshots for dashboard, inventory, locations, settings surfaces.\n- Run pnpm test and pnpm playwright test --grep @warehouse-management-ui.\n\n## Risk red lines\n- Do not leak GBP inventory value to unauthorized roles.\n- Do not allow location deactivate when active LPs exist.\n- Do not make rule-registry settings editable in Warehouse.",
+  "labels": [
+    "prd",
+    "ui",
+    "prototype-parity",
+    "T3-ui"
+  ],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "source_prd": "05-WAREHOUSE-PRD.md",
+    "context_budget": "35k",
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "cross_module_dependencies": [
+      {
+        "module": "02-settings",
+        "contract": "rule_registry, warehouses/locations/printers, feature flags, tenant security policy"
+      },
+      {
+        "module": "03-technical",
+        "contract": "items/products, shelf_life_mode/date_code_format, catch-weight, allergen snapshots"
+      },
+      {
+        "module": "04-planning-basic",
+        "contract": "PO/TO/WO read models, RM root reservations, WO release/cancel hooks"
+      },
+      {
+        "module": "06-scanner-p1",
+        "contract": "LP lookup, barcode validation, lock protocol, FEFO suggestion, consume-to-WO"
+      },
+      {
+        "module": "08-production",
+        "contract": "WO material consumption and output LP creation events"
+      },
+      {
+        "module": "09-quality",
+        "contract": "LP qa_status ownership and quality_status_history"
+      },
+      {
+        "module": "11-shipping",
+        "contract": "downstream shelf_life_rules enforcement in Phase 2"
+      }
+    ],
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prd_task_id": "T-053",
+    "prd_refs": [
+      "§14.1",
+      "§14.5",
+      "§14.6",
+      "§16.0",
+      "§16.6 WH-001/012/018/020/M-13"
+    ],
+    "category": "ui",
+    "subcategory": "warehouse-management-ui",
+    "task_type": "T3-ui",
+    "parent_feature": "warehouse-dashboard",
+    "estimated_effort": "2d",
+    "description": "Implement dashboard, inventory browser, locations hierarchy, location edit modal, and settings page with prototype parity.",
+    "details": "Build management pages with server-side RBAC for inventory value, live count cards, ltree location hierarchy, read-only settings fallback, rule-registry links, and location deactivation guard UX.",
+    "scope_files": [
+      "apps/web/app/(app)/warehouse/page.tsx [create]",
+      "apps/web/app/(app)/warehouse/inventory/** [create]",
+      "apps/web/app/(app)/warehouse/locations/** [create]",
+      "apps/web/app/(app)/warehouse/settings/** [create]",
+      "design/Monopilot Design System/warehouse/dashboard.jsx",
+      "design/Monopilot Design System/warehouse/other-screens.jsx",
+      "design/Monopilot Design System/warehouse/modals.jsx"
+    ],
+    "out_of_scope": [
+      "No complete P2 integrations tab",
+      "No real printer health worker"
+    ],
+    "dependencies": [
+      "T-045",
+      "T-046",
+      "T-009",
+      "T-044"
+    ],
+    "parallel_safe_with": [
+      "T-054"
+    ],
+    "acceptance_criteria": [
+      "Given warehouse_dashboard renders, then KPI cards, alerts, expiry widget, recent activity, and restricted inventory value state match design/Monopilot Design System/warehouse/dashboard.jsx.",
+      "Given inventory_browser_page renders as unauthorized Operator, then inventory value data is not present in the response and the UI shows Restricted.",
+      "Given locations_hierarchy_page and location_edit_modal render, then ltree tree, selected details, deactivate guard messaging, and depth validation match prototype and UX.",
+      "Given components are inspected, then data-prototype-label markers exist for warehouse_dashboard, inventory_browser_page, locations_hierarchy_page, location_edit_modal, and warehouse_settings_page."
+    ],
+    "test_strategy": [
+      "RED: server/component test proving inventory value is omitted for unauthorized roles.",
+      "GREEN: Playwright screenshots for dashboard, inventory, locations, settings surfaces.",
+      "Run pnpm test and pnpm playwright test --grep @warehouse-management-ui."
+    ],
+    "risk_red_lines": [
+      "Do not leak GBP inventory value to unauthorized roles.",
+      "Do not allow location deactivate when active LPs exist.",
+      "Do not make rule-registry settings editable in Warehouse."
+    ],
+    "priority_normalization_note": "Priority normalized to ACP convention bands on 2026-05-03; lower number means earlier execution."
+  }
+}

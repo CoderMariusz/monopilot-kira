@@ -1,0 +1,79 @@
+{
+  "title": "T-043 — Scheduler Run History index UI",
+  "prompt": "# T-043 — Scheduler Run History index UI\n\nPRD: `07-PLANNING-EXT-PRD.md` §8.1 SCR-07-04, §17.1 PLE-001, §18 matrix.\nUX/prototype refs are listed in `pipeline_inputs.scope_files`.\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`.\n\n## Goal\nCreate the run history browser that planners use to audit solver runs and start a safe re-run flow.\n\n## Implementation contract\nUse T-013 API/loader data, display 50/page, surface errors/fallbacks, and deep-link to run detail. Re-run opens T-045 modal, never directly commits.\n\nACP shape reminder: keep this task as one atomic implementation. Do not add ACP-owned fields. Keep local dependencies in `dependencies`; cross-module contracts in `cross_module_dependencies` are blockers/inputs, not ACP local task IDs.",
+  "labels": [
+    "prd",
+    "ui",
+    "run-history",
+    "T3-ui"
+  ],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "source_prd": "07-PLANNING-EXT-PRD.md",
+    "context_budget": "40k",
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prd_refs": [
+      "§8.1 SCR-07-04",
+      "§17.1 PLE-001",
+      "§18 matrix"
+    ],
+    "category": "ui",
+    "subcategory": "run-history-index",
+    "task_type": "T3-ui",
+    "parent_feature": "07-EXT-a run history",
+    "estimated_effort": "2-3h",
+    "description": "Implement /scheduler/runs filterable run history index with KPI cards and Re-run entry point.",
+    "details": "Matches pext_run_history. Includes run_type Schedule/Dry Run filter per OQ-EXT-09, server-side pagination, duration badges, and RBAC disabling of re-run for non-Planners/failed runs.",
+    "scope_files": [
+      "apps/web/src/app/scheduler/runs/page.tsx [create]",
+      "apps/web/src/components/scheduler/RunHistoryTable.tsx [create]",
+      "apps/web/src/lib/scheduler/run-history-loader.ts [create]",
+      "design/Monopilot Design System/planning-ext/runhistory-screens.jsx:3-115 [ref]"
+    ],
+    "dependencies": [
+      "T-013"
+    ],
+    "acceptance_criteria": [
+      "Given /scheduler/runs renders, then KPI cards/table/filter bar match pext_run_history prototype parity.",
+      "Given run_type=dry_run filter is selected, then only preview/dry-run rows are listed and URL state is preserved.",
+      "Given a failed run or non-Planner user, then Re-run is disabled in UI and rejected server-side."
+    ],
+    "test_strategy": [
+      "RED RTL tests for filters, dry-run filter, RBAC disabled re-run.",
+      "Run pnpm --filter web test scheduler/RunHistoryTable."
+    ],
+    "risk_red_lines": [
+      "Do not reuse source run_id for re-runs.",
+      "Do not load unpaginated two-year history.",
+      "Do not show P2-only actions as active without feature flags."
+    ],
+    "prd_task_id": "T-043"
+  }
+}

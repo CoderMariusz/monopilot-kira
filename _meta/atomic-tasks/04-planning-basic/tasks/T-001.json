@@ -1,54 +1,31 @@
 {
-  "title": "T-001 — Drizzle schema: suppliers + supplier_products",
-  "prompt": "Add Drizzle ORM table definitions for `suppliers` and `supplier_products` per PRD §5.2 + §5.3.\n\nDeliverable: TypeScript schema file under `src/db/schema/planning/suppliers.ts` exporting Drizzle pgTable definitions, including all columns from PRD §5.2 (id UUID PK, tenant_id, site_id, code, name, address_line1/2, city, postal_code, country CHAR(2), contact_name/email/phone, currency CHAR(3), tax_code_id, payment_terms, d365_supplier_id, d365_sync_status enum, d365_last_synced_at, notes, is_active, ext_jsonb, schema_version, audit cols) and §5.3 supplier_products (id, tenant_id, supplier_id FK, product_id FK, is_default, supplier_product_code, lead_time_days, unit_price, currency, moq, order_multiple, last_purchase_date, last_purchase_price, notes, audit). Include indexes per §5.2 and the partial-unique index `supplier_products_default_per_product_unique` on (tenant_id, product_id) WHERE is_default = true. Generate migration `0001_planning_suppliers.sql` via `pnpm drizzle-kit generate`.\n\nRED test: schema-shape test under `src/db/schema/planning/__tests__/suppliers.test.ts` asserting both tables export expected column names + the partial-unique index name appears in the generated SQL. The test must fail before implementation.\n\nDo NOT touch unrelated migration files. Do NOT seed data. Do NOT create API endpoints — that is T-005.\n\nClose-out: paste the generated migration filename + `pnpm vitest run src/db/schema/planning/__tests__/suppliers.test.ts` output.",
-  "labels": ["prd", "data", "schema-suppliers", "T1-schema"],
-  "priority": 80,
+  "title": "T-001 — Planning canonical factory release read-model consumer guards",
+  "prompt": "# T-001 — Planning canonical factory release read-model consumer guards\n\nImplement the Planning-side consumer contract for the canonical factory release read model. This is one atomic API/service task for 04-PLANNING-BASIC. Do not create a competing Planning release enum, BOM activation rule, or D365-derived factory availability flag. Discover and import/use the canonical model from 01-NPD T-097 and the Technical adapter/approval contracts T-080/T-081.\n\nPlanning must use only canonical release rows with status `approved_for_factory` or `released_to_factory` to admit normal WO creation/release. The WO snapshot must persist the exact `active_bom_header_id`, `active_factory_spec_id`, release event/status metadata, and blocker context used at admission. `pending_npd_release`, `pending_technical_approval`, `blocked`, missing `active_bom_header_id`, or missing `active_factory_spec_id` must block normal WO creation/release and must surface typed `release_blockers` to UI callers. D365 SO pull may create draft demand candidates only; D365 Built/export/preload/sync status is optional metadata and never source-of-truth. Rework WOs remain explicit `is_rework=true` exceptions and must not become a backdoor for unreleased FG/WIP.\n\nScope includes manual WO create, D365 SO draft review/release, cascade preview/confirm, material/BOM snapshot creation, and Planning WO list/detail badge data. For cascades, every FG/WIP/intermediate node must resolve through the canonical read model before confirmation, and the created WO DAG must snapshot the active BOM/spec IDs used per node.\n\nRED first: write failing tests for approved/released success, pending Technical approval block, blocked release with typed blockers, missing active IDs block, D365 Built/export no-op, override limited to approved/released canonical rows, and cascade node block rollback. Then implement service/action code. Close with tests and evidence.",
+  "labels": [
+    "prd",
+    "planning",
+    "release-status",
+    "read-model",
+    "factory-availability",
+    "T2-api"
+  ],
+  "priority": 50,
   "max_attempts": 3,
   "pipeline_name": "kira_dev",
   "pipeline_inputs": {
     "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
-    "prd_task_id": "T-001",
     "source_prd": "04-PLANNING-BASIC-PRD.md",
-    "prd_refs": ["§5.2", "§5.3"],
-    "category": "data",
-    "subcategory": "schema-suppliers",
-    "task_type": "T1-schema",
-    "parent_feature": "planning-suppliers",
-    "context_budget": "30k",
-    "estimated_effort": "1-2h",
-    "description": "Drizzle pgTable definitions for suppliers + supplier_products with partial-unique is_default index.",
-    "details": "Tables per PRD §5.2 + §5.3. Use Drizzle pgEnum for d365_sync_status ('synced'|'drift'|'manual'|'conflict'). All FKs reference 03-TECHNICAL items (product_id) and 02-SETTINGS tax_code (tax_code_id) — declare as `uuid()` columns with deferred FK constraints documented in JSDoc comment. Include GIN index on ext_jsonb. Generate migration with `pnpm drizzle-kit generate`. Do NOT modify other module schemas.",
-    "scope_files": [
-      "src/db/schema/planning/suppliers.ts [create]",
-      "src/db/schema/planning/__tests__/suppliers.test.ts [create]",
-      "src/db/migrations/0001_planning_suppliers.sql [create via drizzle-kit]"
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
     ],
-    "out_of_scope": [
-      "API endpoints (T-005)",
-      "Seed data (T-006)",
-      "UI (T-040..042)"
-    ],
-    "dependencies": [],
-    "parallel_safe_with": ["T-002", "T-003"],
-    "acceptance_criteria": [
-      "Given the schema file is loaded, when introspected, then `suppliers` and `supplier_products` are exported with all columns named in PRD §5.2/§5.3.",
-      "Given the migration is generated, when grepped, then it contains a partial-unique index on (tenant_id, product_id) WHERE is_default = true.",
-      "Given `pnpm vitest run src/db/schema/planning/__tests__/suppliers.test.ts` runs, when implementation is complete, then 0 failures.",
-      "Given `pnpm tsc --noEmit`, when the file is included, then no TypeScript errors are emitted."
-    ],
-    "test_strategy": [
-      "Add failing RED test before implementation in src/db/schema/planning/__tests__/suppliers.test.ts.",
-      "Run `pnpm vitest run src/db/schema/planning/__tests__/suppliers.test.ts`",
-      "Run `pnpm drizzle-kit generate` and `pnpm tsc --noEmit`."
-    ],
-    "risk_red_lines": [
-      "Do not modify schemas of other modules (01-NPD, 02-SETTINGS, 03-TECHNICAL, 05-WAREHOUSE).",
-      "Do not skip the partial-unique index — V-PLAN-PO-002 depends on it.",
-      "Do not commit secrets or .env values."
-    ],
-    "skills": ["test-driven-development", "requesting-code-review"],
     "checkpoint_policy": {
-      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
       "closeout_requires": [
         "changed_files",
         "test_commands_and_results",
@@ -62,6 +39,80 @@
       "implementation": "hermes_gpt55",
       "review": "opus_if_high_risk_or_ui_or_architecture",
       "close": "spark_low_risk_else_opus"
-    }
+    },
+    "prd_task_id": "T-001",
+    "prd_refs": [
+      "§1 Factory release read-model contract",
+      "§5.6 work_orders",
+      "§8.1 FR-PLAN-018",
+      "§8.4 FR-PLAN-022",
+      "_meta/prototype-labels/prototype-index-planning.json"
+    ],
+    "category": "api",
+    "subcategory": "factory-release-read-model-consumer",
+    "task_type": "T2-api",
+    "parent_feature": "04-PLANNING-BASIC WO creation/release",
+    "context_budget": "40k",
+    "estimated_effort": "4-5h",
+    "description": "Planning consumer guards and WO snapshot contract for canonical factory release read model.",
+    "details": "One task type: API/service/action tests. UI visual implementation is not included except returning blocker/badge data for existing Planning screens. The canonical model is owned by 01-NPD T-097; Technical T-080/T-081 performs approval/adaptation. If canonical implementation is not present, stop with a blocker rather than inventing a fallback enum.\n\nAdditional acceptance detail preserved during validation hardening:\n- Given cascade confirmation includes a pending/blocked node, the whole DAG creation rolls back and blockers identify the offending product/node.\n- Given a user attempts BOM override, only canonical approved/released rows can be selected and audit records old/new active BOM/spec IDs.",
+    "scope_files": [
+      "apps/web/lib/planning/factory-release-guards.ts [create]",
+      "apps/web/actions/planning/work-orders/*.ts",
+      "apps/web/lib/planning/wo-cascade-service.ts",
+      "apps/web/lib/planning/d365-so-draft-service.ts",
+      "tests/lib/planning/factory-release-guards.test.ts [create]",
+      "tests/actions/planning/work-order-release-read-model.test.ts [create]"
+    ],
+    "acceptance_criteria": [
+      "Given canonical status is approved_for_factory or released_to_factory and active_bom_header_id plus active_factory_spec_id exist, normal WO creation/release snapshots those IDs and succeeds.",
+      "Given canonical status is pending_npd_release, pending_technical_approval or blocked, Planning blocks normal WO creation/release and returns typed release_blockers without mutating WO state.",
+      "Given D365 SO import has Built/export/preload/synced metadata but canonical status is not factory-usable, only draft demand is created and release remains blocked.",
+      "Given the task is closed out, when reviewers inspect evidence, then these additional requirements are proven together: Given cascade confirmation includes a pending/blocked node, the whole DAG creation rolls back and blockers identify the offending product/node.; Given a user attempts BOM override, only canonical approved/released rows can be selected and audit records old/new active BOM/spec IDs."
+    ],
+    "test_strategy": [
+      "RED unit tests for release guard status matrix and missing active IDs.",
+      "RED action/service tests for manual WO create, D365 draft review, and cascade rollback.",
+      "Run: pnpm vitest run tests/lib/planning/factory-release-guards.test.ts tests/actions/planning/work-order-release-read-model.test.ts"
+    ],
+    "risk_red_lines": [
+      "Do not create a Planning-owned release enum/model.",
+      "Do not infer factory availability from D365 Built/export/sync state.",
+      "Do not select latest active BOM/spec outside canonical active_bom_header_id and active_factory_spec_id.",
+      "Do not let rework bypass manufacture unreleased FG/WIP."
+    ],
+    "dependencies": [],
+    "cross_module_dependencies": [
+      {
+        "module": "01-npd",
+        "task_id": "T-097",
+        "reason": "Canonical factory release status/read model owner."
+      },
+      {
+        "module": "03-technical",
+        "task_id": "T-080",
+        "reason": "Technical factory_spec+BOM approval emits/transitions release."
+      },
+      {
+        "module": "03-technical",
+        "task_id": "T-081",
+        "reason": "Technical adapter exposes factory-use guards and badge/blocker mapping."
+      },
+      {
+        "module": "06-scanner-p1",
+        "task_id": "CONTRACT",
+        "reason": "Scanner consumes released WO/material reservation contracts and produces execution events."
+      },
+      {
+        "module": "03-technical",
+        "task_id": "T-081",
+        "reason": "Consumes Technical factory-use adapter/status/blocker contract; Planning is not source-of-truth for BOM/spec approval."
+      },
+      {
+        "module": "01-npd",
+        "task_id": "T-097",
+        "reason": "Consumes canonical NPD release read model for factory usability."
+      }
+    ]
   }
 }

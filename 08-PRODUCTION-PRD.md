@@ -4,7 +4,7 @@
 **Version:** 3.1.1 (Phase C3 Sesja 1, 2026-04-30 + PRD↔UX reconciliation pass 2026-04-30)
 **Status:** Written (multi-industry manufacturing operations pattern standardization)
 **Owner:** Production Operations domain
-**Dependencies:** 04-PLANNING-BASIC v3.1, 05-WAREHOUSE v3.0, 06-SCANNER-P1 v3.0, 03-TECHNICAL v3.0, 02-SETTINGS v3.0, 00-FOUNDATION v3.0, 07-PLANNING-EXT v3.0
+**Dependencies:** 04-PLANNING-BASIC v3.1, 05-WAREHOUSE v3.0, 06-SCANNER-P1 v3.0, 03-TECHNICAL v3.0, 02-SETTINGS v3.0, 00-FOUNDATION v3.0, 07-PLANNING-EXT v3.0, canonical factory release read model from 01-NPD T-097 + 03-TECHNICAL T-080/T-081
 **Consumers:** 09-QUALITY (CCP triggers), 10-FINANCE (WIP+yield costing), 12-REPORTING (production KPIs), 15-OEE (OEE calculation primary source)
 
 ---
@@ -33,10 +33,20 @@
 7. **Real-time OEE foundation** — per-minute Availability × Performance × Quality aggregation (P2 dashboard in 15-OEE)
 8. **INTEGRATIONS stage 2 inline** — D365 WO confirmations push via outbox pattern, DLQ retry, UUID v7 idempotency (R14)
 
+### 1.1A Factory release read-model contract (Wave0 alignment, 2026-05-03)
+
+Production is a **runtime consumer only** of the canonical factory release read model owned by **01-NPD T-097** and adapted/transitioned by **03-TECHNICAL T-080/T-081**. Production must not decide that an FG/WIP/BOM/spec is factory-usable from D365 `Built`, D365 export/preload, local `bom_released=true`, or latest active BOM/spec queries.
+
+Required pre-start/admission contract:
+- WO must carry the canonical `active_bom_header_id` and `active_factory_spec_id` captured by Planning from the release read model.
+- Current canonical release status for that bundle must be `approved_for_factory` or `released_to_factory` before START / material consumption / output registration.
+- `pending_npd_release`, `pending_technical_approval`, `blocked`, missing active IDs, or changed/revoked release rows block START and expose typed `release_blockers` to desktop/scanner UI.
+- D365 WO confirmation push remains an asynchronous integration side-effect after local production events; it does not approve, release, or unlock factory use.
+
 ### 1.2 Why this scope (vs 06-SCANNER, 04-PLANNING, 09-QUALITY)
 
 Module boundaries clarified:
-- **04-PLANNING-BASIC** — owns WO *definition* (what to make, when, with what BOM) + DAG cascade logic
+- **04-PLANNING-BASIC** — owns WO *definition* (what to make, when, with what canonical `active_bom_header_id` / `active_factory_spec_id`) + DAG cascade logic
 - **07-PLANNING-EXT** — owns WO *scheduling* (advanced optimizer, allergen sequencing)
 - **06-SCANNER-P1** — owns WO *interaction frontend* (PWA screens for operators on shop floor)
 - **08-PRODUCTION** — owns WO *execution backend engine* (state machine, mutations, side-effects, KPIs, integrations)
@@ -499,6 +509,7 @@ Stored as materialized view `operator_kpis_monthly`, refreshed daily. P2 publish
 
 **FRs:**
 - FR-08-E1-001: POST /api/production/work-orders/:id/start — transitions DRAFT/READY → IN_PROGRESS, sets started_at, triggers allergen_changeover_gate
+- FR-08-E1-001A: START preflight must verify canonical factory release read model status is `approved_for_factory` or `released_to_factory` for the WO's `active_bom_header_id` + `active_factory_spec_id`; pending/blocked/missing active IDs return a typed blocker and do not mutate runtime state.
 - FR-08-E1-002: POST /api/production/work-orders/:id/pause — sets status=PAUSED, opens downtime_event stub (requires reason + duration on resume)
 - FR-08-E1-003: POST /api/production/work-orders/:id/resume — closes downtime event, sets status=IN_PROGRESS
 - FR-08-E1-004: POST /api/production/work-orders/:id/complete — triggers closed_production_strict_v1; if passes, sets status=COMPLETED, emits outbox event
@@ -517,7 +528,7 @@ Stored as materialized view `operator_kpis_monthly`, refreshed daily. P2 publish
 - Genealogy link writes
 
 **FRs:**
-- FR-08-E2-001: Consume endpoint validates: WO status=IN_PROGRESS, LP.status=AVAILABLE, LP.qa_status=PASSED, LP.product matches BOM component
+- FR-08-E2-001: Consume endpoint validates: WO status=IN_PROGRESS, LP.status=AVAILABLE, LP.qa_status=PASSED, LP.product matches BOM component, and the WO remains tied to canonical `active_bom_header_id` / `active_factory_spec_id` admitted by the release read model
 - FR-08-E2-002: Updates `wo_material_consumption` (LP, qty, operator, timestamp, transaction_id, fefo_adherence_flag)
 - FR-08-E2-003: Calls 05-WH API: reduce LP.qty, if qty=0 then status=CONSUMED; create stock_move event
 - FR-08-E2-004: Writes lp_genealogy link (consumed LP → WO)
@@ -876,8 +887,8 @@ Bidirectional PRD ↔ UX ↔ prototype mapping. Status legend: `OK` = aligned, `
 | SCR-08-11 | PROD-013 (`UX:872-890`) | `line_detail` (`new-screens.jsx:212-478`) | OK | Added 2026-04-30 reconciliation. BL-PROD-01 today-output query pending. |
 | SCR-08-12 | PROD-014 (`UX:894-908`) | `scanner_modal` (`modals.jsx:246-278`) — pattern; no dedicated JSX label | OK | Added 2026-04-30 reconciliation. Pattern, not a single screen. |
 | SCR-08-13 | (none — orphan) | `tweaks_panel` (`modals.jsx:389-428`) | NO-UX-YET | TODO PROD-PRD-AMEND-01 — devtools panel; convert to 02-SETTINGS preference or remove. |
-| MODAL-08-01 Release WO | MODAL §4 (`UX:911+`) | `release_wo_modal` (`modals.jsx:3-46`) | OK | WO READY → IN_PROGRESS via `start_wo_modal` PIN flow. |
-| MODAL-08-02 Start WO | MODAL-01 (`UX:917-941`) | `start_wo_modal` (`modals.jsx:48-67`) | OK | PIN sign-off, BOM snapshot freeze. |
+| MODAL-08-01 Release WO | (deprecated / no Production UX) | `release_wo_modal` (`modals.jsx:3-8` removal note) | DEPRECATED | Stale prototype-index trace only. Production must not expose a DRAFT→READY release modal; release/readying belongs to 04-PLANNING and consumes the canonical factory release read model. |
+| MODAL-08-02 Start WO | MODAL-01 (`UX:917-941`) | `start_wo_modal` (`modals.jsx:48-67`) | OK | PIN sign-off; START is enabled only for a WO snapshot carrying approved `active_bom_header_id` + `active_factory_spec_id`; no latest-BOM selection and no D365 source-of-truth. |
 | MODAL-08-03 Pause WO | MODAL-02 (`UX:942-958`) | `pause_line_modal` (`modals.jsx:69-117`) | OK | 4P category required. |
 | MODAL-08-04 Resume WO | MODAL-03 (`UX:959+`) | `resume_line_modal` (`modals.jsx:328-342`) | OK | Closes downtime event. |
 | MODAL-08-05 Complete WO | MODAL §4 | `complete_wo_modal` (`modals.jsx:119-155`) | OK | `closed_production_strict_v1` gate-check; BL-PROD-05 `.btn-danger` styling fix. |

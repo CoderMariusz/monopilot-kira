@@ -1,0 +1,79 @@
+{
+  "title": "T-044 — Scheduler Run Detail page",
+  "prompt": "# T-044 — Scheduler Run Detail page\n\nPRD: `07-PLANNING-EXT-PRD.md` §17.1 PLE-002, §9.2, §9.3.\nUX/prototype refs are listed in `pipeline_inputs.scope_files`.\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`.\n\n## Goal\nCreate a full audit detail view for a single scheduler run.\n\n## Implementation contract\nOne server-side loader fetches run, assignments, override audit, and summary. UI follows the two-column prototype, with typed status variants and secure snapshot rendering.\n\nACP shape reminder: keep this task as one atomic implementation. Do not add ACP-owned fields. Keep local dependencies in `dependencies`; cross-module contracts in `cross_module_dependencies` are blockers/inputs, not ACP local task IDs.",
+  "labels": [
+    "prd",
+    "ui",
+    "run-history",
+    "T3-ui"
+  ],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "source_prd": "07-PLANNING-EXT-PRD.md",
+    "context_budget": "40k",
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prd_refs": [
+      "§17.1 PLE-002",
+      "§9.2",
+      "§9.3"
+    ],
+    "category": "ui",
+    "subcategory": "run-detail",
+    "task_type": "T3-ui",
+    "parent_feature": "07-EXT-a run history",
+    "estimated_effort": "2-3h",
+    "description": "Implement /scheduler/runs/[runId] detail with metadata, output summary, input snapshot viewer, override log, assignments table.",
+    "details": "Matches pext_run_detail. Reads scheduler_runs joined to assignments/override audit rows. Shows cached/fallback/partial status badges and per-line utilization.",
+    "scope_files": [
+      "apps/web/src/app/scheduler/runs/[runId]/page.tsx [create]",
+      "apps/web/src/components/scheduler/RunDetail.tsx [create]",
+      "apps/web/src/lib/scheduler/run-detail-loader.ts [create]",
+      "design/Monopilot Design System/planning-ext/runhistory-screens.jsx:119-260 [ref]"
+    ],
+    "dependencies": [
+      "T-013"
+    ],
+    "acceptance_criteria": [
+      "Given a completed run, then metadata/output summary/assignments/override log render with pext_run_detail prototype parity.",
+      "Given input_snapshot link is opened, then JSON is shown in a collapsible or modal without exposing another tenant.",
+      "Given a fallback/partial run, then warning badges and error/partial messaging are visible."
+    ],
+    "test_strategy": [
+      "RED loader tests for tenant scoping and joined data; RTL parity snapshot.",
+      "Run pnpm --filter web test scheduler/RunDetail."
+    ],
+    "risk_red_lines": [
+      "Do not expose raw input_snapshot cross-tenant or with PII beyond authorized roles.",
+      "Do not compute utilization client-side from incomplete data.",
+      "Do not omit override reason audit rows."
+    ],
+    "prd_task_id": "T-044"
+  }
+}

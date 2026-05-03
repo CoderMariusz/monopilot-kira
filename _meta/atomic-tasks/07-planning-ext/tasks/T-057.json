@@ -1,0 +1,79 @@
+{
+  "title": "T-057 — 07-EXT ACP/readiness closeout report task",
+  "prompt": "# T-057 — 07-EXT ACP/readiness closeout report task\n\nPRD: `07-PLANNING-EXT-PRD.md` coverage.md, manifest.json, _validate.py.\nUX/prototype refs are listed in `pipeline_inputs.scope_files`.\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`.\n\n## Goal\nProvide the final docs/readiness closeout step for ACP execution.\n\n## Implementation contract\nKeep this docs-only task focused on evidence and validation; it should not implement application code.\n\nACP shape reminder: keep this task as one atomic implementation. Do not add ACP-owned fields. Keep local dependencies in `dependencies`; cross-module contracts in `cross_module_dependencies` are blockers/inputs, not ACP local task IDs.",
+  "labels": [
+    "prd",
+    "docs",
+    "readiness",
+    "docs"
+  ],
+  "priority": 150,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "source_prd": "07-PLANNING-EXT-PRD.md",
+    "context_budget": "40k",
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prd_refs": [
+      "coverage.md",
+      "manifest.json",
+      "_validate.py"
+    ],
+    "category": "docs",
+    "subcategory": "readiness-closeout",
+    "task_type": "docs",
+    "parent_feature": "07-EXT readiness closeout",
+    "estimated_effort": "1h",
+    "description": "Produce implementation closeout evidence for 07-EXT after all local tasks, validators and prototype labels pass.",
+    "details": "This is a non-app docs closeout task for the implementer to update coverage evidence, run validators, and list any deferred P2 exceptions.",
+    "scope_files": [
+      " _meta/atomic-tasks/07-planning-ext/coverage.md [modify]",
+      "_meta/atomic-tasks/07-planning-ext/manifest.json [modify]",
+      "_meta/atomic-tasks/07-planning-ext/_validate.py [ref]"
+    ],
+    "dependencies": [
+      "T-056"
+    ],
+    "acceptance_criteria": [
+      "Given all 07-EXT tasks are imported or completed, then _validate.py passes and coverage.md has no ❌ GAP rows.",
+      "Given P2 items remain gated, then coverage marks them as tasked/gated rather than blockers.",
+      "Given closeout is submitted, then changed files, test commands/results, deviations and git status are included."
+    ],
+    "test_strategy": [
+      "Run python3 _meta/atomic-tasks/07-planning-ext/_validate.py and JSON parse checks.",
+      "Review prototype index/master index label counts."
+    ],
+    "risk_red_lines": [
+      "Do not mark P2 gated work as P1 done.",
+      "Do not leave missing manifest/coverage.",
+      "Do not add ACP-owned fields to task JSON."
+    ],
+    "prd_task_id": "T-057",
+    "priority_normalization_note": "Priority normalized to ACP convention bands on 2026-05-03; lower number means earlier execution."
+  }
+}

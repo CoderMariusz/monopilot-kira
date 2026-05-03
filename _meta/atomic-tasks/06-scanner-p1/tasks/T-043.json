@@ -1,0 +1,108 @@
+{
+  "title": "T-043 — quality scanner pending inspect APIs (06-e)",
+  "prompt": "# T-043 — quality scanner pending inspect APIs (06-e)\n\nPRD: 06-SCANNER-P1-PRD.md §8.5 FR-SC-BE-053, §8.5 FR-SC-BE-054, §8.5 FR-SC-BE-055\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nImplement scanner-facing Quality pending-inspections, inspect, and failure-reason endpoints.\n\n## Implementation contract\n1. Add quality scanner pending-inspections, inspect, and failure-reasons handlers. 2. Enforce org-site RLS and quality.inspect permission. 3. PASS, HOLD, and FAIL update LP qa_status and status per contract; FAIL creates a basic NCR reference. 4. Audit every decision with scanner_audit_log metadata.\n\n## Files\n- app/api/quality/scanner/pending-inspections/route.ts [create]\n- app/api/quality/scanner/inspect/route.ts [create]\n- app/api/quality/scanner/failure-reasons/route.ts [create]\n- lib/services/quality/scanner-inspection.ts [create]\n- tests/quality/scanner-inspection.test.ts [create]\n\n## Acceptance criteria\n1. Given pending LPs in site context, when GET pending-inspections runs, then only visible org-site LPs with qa_status pending or required WO inspection are returned\n2. Given result=pass, when POST inspect runs, then LP qa_status becomes passed and scanner audit is written\n3. Given result=fail with reason, when POST inspect runs, then LP qa_status becomes failed, status becomes blocked, and a basic NCR reference is created\n4. Given a user without quality.inspect, when any quality scanner endpoint runs, then access is denied server-side\n\n## Test strategy\n- RED: write endpoint tests for pending list, pass, fail with NCR, and RBAC denial before implementation\n- Run pnpm test quality scanner-inspection\n\n## Risk red lines\n- Do not rely on client-side permission guard only\n- Do not allow FAIL without failure_reason_id or valid other note\n- Do not expose cross-site LPs",
+  "labels": [
+    "prd",
+    "api",
+    "quality-scanner-api",
+    "T2-api"
+  ],
+  "priority": 120,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "source_prd": "06-SCANNER-P1-PRD.md",
+    "category": "api",
+    "context_budget": "25k",
+    "estimated_effort": "2-4h",
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status",
+        "mobile_390x844_screenshot",
+        "playwright_trace"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_evidence_required": {
+      "viewport": "390x844",
+      "artifacts": [
+        "screenshot",
+        "Playwright trace"
+      ],
+      "parity_dimensions": [
+        "structure",
+        "visual",
+        "interaction"
+      ]
+    },
+    "prd_task_id": "T-043",
+    "prd_refs": [
+      "§8.5 FR-SC-BE-053",
+      "§8.5 FR-SC-BE-054",
+      "§8.5 FR-SC-BE-055"
+    ],
+    "subcategory": "quality-scanner-api",
+    "task_type": "T2-api",
+    "parent_feature": "06-e Production Output and QA",
+    "description": "Implement scanner-facing Quality pending-inspections, inspect, and failure-reason endpoints.",
+    "details": "1. Add quality scanner pending-inspections, inspect, and failure-reasons handlers. 2. Enforce org-site RLS and quality.inspect permission. 3. PASS, HOLD, and FAIL update LP qa_status and status per contract; FAIL creates a basic NCR reference. 4. Audit every decision with scanner_audit_log metadata.",
+    "scope_files": [
+      "app/api/quality/scanner/pending-inspections/route.ts [create]",
+      "app/api/quality/scanner/inspect/route.ts [create]",
+      "app/api/quality/scanner/failure-reasons/route.ts [create]",
+      "lib/services/quality/scanner-inspection.ts [create]",
+      "tests/quality/scanner-inspection.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not implement unrelated scanner flows in this task",
+      "Do not change PRD decisions or prototype source during implementation",
+      "Do not bypass module contract validation"
+    ],
+    "dependencies": [
+      "T-011"
+    ],
+    "parallel_safe_with": [],
+    "acceptance_criteria": [
+      "Given pending LPs in site context, when GET pending-inspections runs, then only visible org-site LPs with qa_status pending or required WO inspection are returned",
+      "Given result=pass, when POST inspect runs, then LP qa_status becomes passed and scanner audit is written",
+      "Given result=fail with reason, when POST inspect runs, then LP qa_status becomes failed, status becomes blocked, and a basic NCR reference is created",
+      "Given a user without quality.inspect, when any quality scanner endpoint runs, then access is denied server-side"
+    ],
+    "test_strategy": [
+      "RED: write endpoint tests for pending list, pass, fail with NCR, and RBAC denial before implementation",
+      "Run pnpm test quality scanner-inspection"
+    ],
+    "risk_red_lines": [
+      "Do not rely on client-side permission guard only",
+      "Do not allow FAIL without failure_reason_id or valid other note",
+      "Do not expose cross-site LPs"
+    ],
+    "cross_module_dependencies": [
+      "05-warehouse: LP qa_status and status lifecycle",
+      "09-quality: inspection and NCR reason contracts",
+      "08-production: output, co-product, waste contracts",
+      "09-quality: QA inspection and NCR contracts",
+      "05-warehouse: LP qa_status/status contracts"
+    ]
+  }
+}

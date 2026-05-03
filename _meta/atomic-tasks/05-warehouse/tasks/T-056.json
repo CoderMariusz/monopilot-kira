@@ -1,0 +1,126 @@
+{
+  "title": "T-056 — Warehouse cross-module contract tests",
+  "prompt": "# T-056 — Warehouse cross-module contract tests\n\nPRD: `05-WAREHOUSE-PRD.md`.\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`.\n\n## Goal\nAdd contract tests for Warehouse dependencies with Settings, Technical, Planning, Scanner, Production, Quality, and Shipping.\n\n## Implementation contract\nVerify only documented contracts are consumed/produced: Settings rule/locations/printers, Technical item/shelf-life/catch-weight fields, Planning PO/TO/WO handoffs, Scanner endpoints, Production consume/output events, Quality status history, and Shipping Phase 2 shelf-life rule consumer contract.\n\n## Files (scope)\n- packages/contracts/warehouse/** [create]\n- apps/web/e2e/contracts/warehouse-cross-module.spec.ts [create]\n- _meta/atomic-tasks/05-warehouse/coverage.md\n\n## Acceptance criteria\n1. Given Planning emits PO/TO/WO fixtures, then Warehouse GRN, reservation, and consume contract tests accept only documented statuses and fields.\n2. Given Scanner calls warehouse endpoints, then LP lookup, barcode validate, FEFO suggest, lock, and consume-to-WO contracts return documented response shapes and error codes.\n3. Given Quality changes qa_status, then Warehouse gates pick/consume/ship according to V-WH-LP-006 without owning the transition definitions.\n4. Given 11-SHIPPING reads shelf_life_rules, then Warehouse exposes the P1 CRUD/read contract while enforcement remains marked as downstream Phase 2.\n\n## Test strategy\n- RED: Pact/OpenAPI-style fixtures fail for undocumented fields/statuses.\n- GREEN: integration tests run against seeded contract fixtures with tenant boundaries.\n- Run pnpm test --filter contracts -- warehouse and pnpm playwright test --grep @warehouse-contracts.\n\n## Risk red lines\n- Do not introduce D365 as source of truth.\n- Do not duplicate Quality transition ownership in Warehouse.\n- Do not make Shipping enforcement part of Warehouse P1 execution.",
+  "labels": [
+    "prd",
+    "integration",
+    "contracts",
+    "T4-wiring-test"
+  ],
+  "priority": 120,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "source_prd": "05-WAREHOUSE-PRD.md",
+    "context_budget": "35k",
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "cross_module_dependencies": [
+      {
+        "module": "02-settings",
+        "contract": "rule_registry, warehouses/locations/printers, feature flags, tenant security policy"
+      },
+      {
+        "module": "03-technical",
+        "contract": "items/products, shelf_life_mode/date_code_format, catch-weight, allergen snapshots"
+      },
+      {
+        "module": "04-planning-basic",
+        "contract": "PO/TO/WO read models, RM root reservations, WO release/cancel hooks"
+      },
+      {
+        "module": "06-scanner-p1",
+        "contract": "LP lookup, barcode validation, lock protocol, FEFO suggestion, consume-to-WO"
+      },
+      {
+        "module": "08-production",
+        "contract": "WO material consumption and output LP creation events"
+      },
+      {
+        "module": "09-quality",
+        "contract": "LP qa_status ownership and quality_status_history"
+      },
+      {
+        "module": "11-shipping",
+        "contract": "downstream shelf_life_rules enforcement in Phase 2"
+      }
+    ],
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prd_task_id": "T-056",
+    "prd_refs": [
+      "§13",
+      "§16.5",
+      "§16.6"
+    ],
+    "category": "integration",
+    "subcategory": "cross-module-contracts",
+    "task_type": "T4-wiring-test",
+    "parent_feature": "warehouse-cross-module-contracts",
+    "estimated_effort": "1.5d",
+    "description": "Add contract tests for Warehouse dependencies with Settings, Technical, Planning, Scanner, Production, Quality, and Shipping.",
+    "details": "Verify only documented contracts are consumed/produced: Settings rule/locations/printers, Technical item/shelf-life/catch-weight fields, Planning PO/TO/WO handoffs, Scanner endpoints, Production consume/output events, Quality status history, and Shipping Phase 2 shelf-life rule consumer contract.",
+    "scope_files": [
+      "packages/contracts/warehouse/** [create]",
+      "apps/web/e2e/contracts/warehouse-cross-module.spec.ts [create]",
+      "_meta/atomic-tasks/05-warehouse/coverage.md"
+    ],
+    "out_of_scope": [
+      "No app implementation outside contract fixtures",
+      "No 11-SHIPPING P2 UI"
+    ],
+    "dependencies": [
+      "T-021",
+      "T-022",
+      "T-030",
+      "T-034",
+      "T-035",
+      "T-039",
+      "T-040",
+      "T-042",
+      "T-047"
+    ],
+    "parallel_safe_with": [
+      "T-055"
+    ],
+    "acceptance_criteria": [
+      "Given Planning emits PO/TO/WO fixtures, then Warehouse GRN, reservation, and consume contract tests accept only documented statuses and fields.",
+      "Given Scanner calls warehouse endpoints, then LP lookup, barcode validate, FEFO suggest, lock, and consume-to-WO contracts return documented response shapes and error codes.",
+      "Given Quality changes qa_status, then Warehouse gates pick/consume/ship according to V-WH-LP-006 without owning the transition definitions.",
+      "Given 11-SHIPPING reads shelf_life_rules, then Warehouse exposes the P1 CRUD/read contract while enforcement remains marked as downstream Phase 2."
+    ],
+    "test_strategy": [
+      "RED: Pact/OpenAPI-style fixtures fail for undocumented fields/statuses.",
+      "GREEN: integration tests run against seeded contract fixtures with tenant boundaries.",
+      "Run pnpm test --filter contracts -- warehouse and pnpm playwright test --grep @warehouse-contracts."
+    ],
+    "risk_red_lines": [
+      "Do not introduce D365 as source of truth.",
+      "Do not duplicate Quality transition ownership in Warehouse.",
+      "Do not make Shipping enforcement part of Warehouse P1 execution."
+    ],
+    "priority_normalization_note": "Priority normalized to ACP convention bands on 2026-05-03; lower number means earlier execution."
+  }
+}

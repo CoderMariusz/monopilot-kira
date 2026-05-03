@@ -1,0 +1,113 @@
+{
+  "title": "T-042 — production scanner output co-product waste APIs (06-e)",
+  "prompt": "# T-042 — production scanner output co-product waste APIs (06-e)\n\nPRD: 06-SCANNER-P1-PRD.md §8.5 FR-SC-BE-050, §8.5 FR-SC-BE-051, §8.5 FR-SC-BE-052\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nImplement scanner-facing production output, co-product, and waste endpoints with LP genealogy and no-LP waste logging.\n\n## Implementation contract\n1. Add production scanner output, co-product, and waste handlers. 2. Validate WO in executable state with approved WO snapshot, active BOM, active factory spec, and site-line context. 3. Output and co-product create LPs and genealogy; waste creates wo_waste_log only. 4. Emit audit and outbox events for every write.\n\n## Files\n- app/api/production/scanner/output/route.ts [create]\n- app/api/production/scanner/co-product/route.ts [create]\n- app/api/production/scanner/waste/route.ts [create]\n- lib/services/production/scanner-output.ts [create]\n- tests/production/scanner-output.test.ts [create]\n\n## Acceptance criteria\n1. Given a valid IN_PROGRESS WO with complete snapshot, when POST production scanner output runs, then a primary LP, wo_outputs row, genealogy link, audit log, and outbox event are created\n2. Given a co-product registration, when product belongs to the BOM co_products contract, then the LP is created with type co_product and linked to the same WO genealogy\n3. Given a waste registration, when category and qty are valid, then wo_waste_log is created and no LP row is created\n4. Given WO snapshot lacks approved BOM or active factory spec, when any endpoint is called, then the API returns SC_WO_RELEASE_CONTRACT_BLOCKED\n\n## Test strategy\n- RED: write route and service tests for output, co-product, waste, and blocked WO snapshot before implementation\n- Run pnpm test production scanner-output\n\n## Risk red lines\n- Do not let D365 metadata unlock scanner production writes\n- Do not create LPs for waste\n- Do not mutate consumed LP genealogy outside the production service transaction",
+  "labels": [
+    "prd",
+    "api",
+    "production-output-api",
+    "T2-api"
+  ],
+  "priority": 120,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "source_prd": "06-SCANNER-P1-PRD.md",
+    "category": "api",
+    "context_budget": "25k",
+    "estimated_effort": "2-4h",
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status",
+        "mobile_390x844_screenshot",
+        "playwright_trace"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_evidence_required": {
+      "viewport": "390x844",
+      "artifacts": [
+        "screenshot",
+        "Playwright trace"
+      ],
+      "parity_dimensions": [
+        "structure",
+        "visual",
+        "interaction"
+      ]
+    },
+    "prd_task_id": "T-042",
+    "prd_refs": [
+      "§8.5 FR-SC-BE-050",
+      "§8.5 FR-SC-BE-051",
+      "§8.5 FR-SC-BE-052"
+    ],
+    "subcategory": "production-output-api",
+    "task_type": "T2-api",
+    "parent_feature": "06-e Production Output and QA",
+    "description": "Implement scanner-facing production output, co-product, and waste endpoints with LP genealogy and no-LP waste logging.",
+    "details": "1. Add production scanner output, co-product, and waste handlers. 2. Validate WO in executable state with approved WO snapshot, active BOM, active factory spec, and site-line context. 3. Output and co-product create LPs and genealogy; waste creates wo_waste_log only. 4. Emit audit and outbox events for every write.",
+    "scope_files": [
+      "app/api/production/scanner/output/route.ts [create]",
+      "app/api/production/scanner/co-product/route.ts [create]",
+      "app/api/production/scanner/waste/route.ts [create]",
+      "lib/services/production/scanner-output.ts [create]",
+      "tests/production/scanner-output.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not implement unrelated scanner flows in this task",
+      "Do not change PRD decisions or prototype source during implementation",
+      "Do not bypass module contract validation"
+    ],
+    "dependencies": [
+      "T-038",
+      "T-039"
+    ],
+    "parallel_safe_with": [],
+    "acceptance_criteria": [
+      "Given a valid IN_PROGRESS WO with complete snapshot, when POST production scanner output runs, then a primary LP, wo_outputs row, genealogy link, audit log, and outbox event are created",
+      "Given a co-product registration, when product belongs to the BOM co_products contract, then the LP is created with type co_product and linked to the same WO genealogy",
+      "Given a waste registration, when category and qty are valid, then wo_waste_log is created and no LP row is created",
+      "Given WO snapshot lacks approved BOM or active factory spec, when any endpoint is called, then the API returns SC_WO_RELEASE_CONTRACT_BLOCKED"
+    ],
+    "test_strategy": [
+      "RED: write route and service tests for output, co-product, waste, and blocked WO snapshot before implementation",
+      "Run pnpm test production scanner-output"
+    ],
+    "risk_red_lines": [
+      "Do not let D365 metadata unlock scanner production writes",
+      "Do not create LPs for waste",
+      "Do not mutate consumed LP genealogy outside the production service transaction"
+    ],
+    "cross_module_dependencies": [
+      "04-planning-basic: WO snapshot and reservation status",
+      "05-warehouse: LP lifecycle and genealogy",
+      "08-production: output co-product waste contracts",
+      "04-planning-basic: WO and reservation contracts",
+      "05-warehouse: FEFO, LP status, intermediate LP contracts",
+      "08-production: WO execute and consumption contracts",
+      "08-production: output, co-product, waste contracts",
+      "09-quality: QA inspection and NCR contracts",
+      "05-warehouse: LP qa_status/status contracts"
+    ]
+  }
+}

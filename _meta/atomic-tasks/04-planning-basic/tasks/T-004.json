@@ -1,7 +1,12 @@
 {
   "title": "T-004 — Drizzle schema: work_orders + wo_materials + wo_operations",
   "prompt": "Add Drizzle pgTable definitions for `work_orders`, `wo_materials`, `wo_operations` per PRD §5.6 + §5.7. Include all columns including item_type_at_creation enum, is_rework, released_to_warehouse, status VARCHAR(30), source_of_demand enum ('manual'|'d365_so'|'forecast'|'rework'|'intermediate_cascade'), source_reference, disposition_policy enum ('to_stock'|'direct_continue'|'planner_decides'), allergen_profile_snapshot JSONB, ext_jsonb. wo_materials with material_source enum ('stock'|'upstream_wo_output'|'manual'), source_wo_id nullable FK to work_orders. wo_operations with sequence, machine_id, line_id, expected_duration_minutes, expected_yield_percent.\n\nIndexes per §5.6 (incl. partial index on released_to_warehouse=true). Generate migration `0004_planning_work_orders.sql`. RED test asserts all enum types + indexes.",
-  "labels": ["prd", "data", "schema-wo", "T1-schema"],
+  "labels": [
+    "prd",
+    "data",
+    "schema-wo",
+    "T1-schema"
+  ],
   "priority": 80,
   "max_attempts": 3,
   "pipeline_name": "kira_dev",
@@ -9,7 +14,10 @@
     "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
     "prd_task_id": "T-004",
     "source_prd": "04-PLANNING-BASIC-PRD.md",
-    "prd_refs": ["§5.6", "§5.7"],
+    "prd_refs": [
+      "§5.6",
+      "§5.7"
+    ],
     "category": "data",
     "subcategory": "schema-wo",
     "task_type": "T1-schema",
@@ -29,7 +37,6 @@
       "Reservations table (T-006)"
     ],
     "dependencies": [],
-    "parallel_safe_with": ["T-001", "T-002", "T-003"],
     "acceptance_criteria": [
       "Given the schema loads, when introspected, then work_orders + wo_materials + wo_operations export the exact column set from PRD §5.6 + §5.7.",
       "Given the migration is generated, when grepped, then partial index on released_to_warehouse=true exists.",
@@ -44,9 +51,17 @@
       "Do not include cycle-prevention logic at DB level — handled in service layer per §5.9.",
       "Do not couple wo_materials FK to source_wo_id with cascade delete — manual handling per §9.4."
     ],
-    "skills": ["test-driven-development", "requesting-code-review"],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
     "checkpoint_policy": {
-      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
       "closeout_requires": [
         "changed_files",
         "test_commands_and_results",
@@ -60,6 +75,28 @@
       "implementation": "hermes_gpt55",
       "review": "opus_if_high_risk_or_ui_or_architecture",
       "close": "spark_low_risk_else_opus"
-    }
+    },
+    "cross_module_dependencies": [
+      {
+        "module": "05-warehouse",
+        "task_id": "CONTRACT",
+        "reason": "Consumes Warehouse LP/location/GRN/TO handoff contracts; no Planning task may invent Warehouse state semantics."
+      },
+      {
+        "module": "06-scanner-p1",
+        "task_id": "CONTRACT",
+        "reason": "Scanner consumes released WO/material reservation contracts and produces execution events."
+      },
+      {
+        "module": "03-technical",
+        "task_id": "T-081",
+        "reason": "Consumes Technical factory-use adapter/status/blocker contract; Planning is not source-of-truth for BOM/spec approval."
+      },
+      {
+        "module": "01-npd",
+        "task_id": "T-097",
+        "reason": "Consumes canonical NPD release read model for factory usability."
+      }
+    ]
   }
 }
