@@ -1,0 +1,21 @@
+{
+  "name": "@monopilot/db",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "./lib/client.ts",
+  "scripts": {
+    "test": "vitest run",
+    "migrate": "tsx scripts/migrate.ts"
+  },
+  "dependencies": {
+    "drizzle-orm": "0.40.0",
+    "drizzle-kit": "0.31.1",
+    "pg": "8.16.0"
+  },
+  "devDependencies": {
+    "tsx": "^4.20.3",
+    "typescript": "^5.8.2",
+    "vitest": "^2.1.8"
+  }
+}
