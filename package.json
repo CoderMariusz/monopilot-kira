@@ -5,7 +5,8 @@
     "build": "pnpm --filter web build",
     "test:smoke": "pnpm --filter web test:smoke",
     "lint": "pnpm --filter web lint",
-    "typecheck": "pnpm --filter web typecheck"
+    "typecheck": "pnpm --filter web typecheck",
+    "ci": "pnpm build && pnpm test:smoke && pnpm lint"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4.0.0",

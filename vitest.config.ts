@@ -7,7 +7,7 @@ export default defineConfig({
     environment: 'node',
     testTimeout: 120000,
     alias: {
-      '@monopilot/*': path.resolve(__dirname, 'packages/*')
+      '@monopilot/*': path.resolve(__dirname, 'packages/*/src')
     }
   }
 });
