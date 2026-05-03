@@ -1,53 +1,78 @@
 {
-  "title": "T-071 — sensory_panels + sensory_attribute_scores + sensory_panelist_comments tables (NPD-h)",
-  "prompt": "# T-071 — Sensory schema\n\nPRD: 01-NPD-PRD.md §17.11.4\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nCreate sensory tables for the Sensory stage screen: sensory_panels (per-FA panel session), sensory_attribute_scores (per-attribute mean across panelists, configurable attributes), sensory_panelist_comments (free-text). V08 mean overall ≥ 7.0 enforced in compute layer (T-073-style action), schema only.\n\n## Implementation contract\n1. Migration packages/db/migrations/0071_sensory.sql creates sensory_panels (id PK, tenant_id, product_code FK fa, formulation_version_id FK, panel_date, mean_overall NUMERIC), sensory_attribute_scores (id PK, panel_id ON DELETE CASCADE, attribute_code TEXT (texture/aroma/flavor/appearance/mouthfeel default), mean_score NUMERIC CHECK between 1 and 10), sensory_panelist_comments (id PK, panel_id ON DELETE CASCADE, panelist_user_id, comment_text).\n2. RLS + indexes (tenant_id, product_code).\n3. Drizzle schemas + barrel.\n4. NOTE: §17.11.4 D4 decision is pending downstream — schema implements full BUILD path; reduction to single FA cell is a separate downstream decision and out of scope here.\n\n## Files\n- packages/db/migrations/0071_sensory.sql [create]\n- packages/db/src/schema/sensory.ts [create]\n- packages/db/src/schema/index.ts [modify]\n- packages/db/__tests__/sensory.test.ts [create]\n\n## Acceptance criteria\n1. Given migration 0071 runs, when \\d sensory_attribute_scores runs, then it lists mean_score CHECK BETWEEN 1 AND 10 per §17.11.4 1–10 scale\n2. Given a sensory_panels row is deleted, when DELETE runs, then matching sensory_attribute_scores + sensory_panelist_comments rows are CASCADE-deleted\n3. Given two tenants seeded, when tenant A SELECT * FROM sensory_panels runs, then it returns only tenant A rows (RLS verified)\n\n## Test strategy\n- RED: write packages/db/__tests__/sensory.test.ts asserting CHECK + cascade + RLS before migration exists\n- Run 'pnpm --filter db migrate && pnpm --filter db test sensory'\n\n## Risk red lines\n- Do not allow mean_score outside 1-10\n- Do not omit ON DELETE CASCADE on child tables\n- Do not skip RLS",
-  "labels": ["prd", "data", "schema", "T1-schema"],
-  "priority": 50,
+  "title": "T-071 — DEFERRED/CROSS-MODULE: Sensory schema is Technical-owned (do not BUILD in NPD)",
+  "prompt": "# T-071 — DEFERRED/CROSS-MODULE Sensory schema\n\nDo not implement this as an NPD build task. Per 2026-05-03 PO decision, Sensory belongs under Technical. This task is retained only as a backlog guard so agents do not create standalone NPD sensory tables from older PRD text.\n\nRequired handling: route any sensory data model work to a Technical-owned task/contract; NPD may later consume Technical sensory status/read-model for approval gating if required.\n",
+  "labels": [
+    "prd",
+    "data",
+    "schema",
+    "sensory",
+    "technical-owned",
+    "deferred",
+    "cross-module",
+    "blocked"
+  ],
+  "priority": 10,
   "max_attempts": 3,
   "pipeline_name": "kira_dev",
   "pipeline_inputs": {
     "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
     "prd_task_id": "T-071",
     "source_prd": "01-NPD-PRD.md",
-    "prd_refs": ["§17.11.4"],
-    "category": "data",
-    "subcategory": "sensory-schema",
+    "prd_refs": [
+      "2026-05-03 PO Amendment",
+      "_meta/decisions/2026-05-03-flow-d365-settings-technical-decisions.md"
+    ],
+    "category": "cross-module",
+    "subcategory": "sensory-technical-owned-deferred",
     "task_type": "T1-schema",
     "parent_feature": "01-NPD-h Nutrition+Costing+Sensory",
     "context_budget": "40k",
     "estimated_effort": "2h",
-    "description": "Create sensory_panels + sensory_attribute_scores + sensory_panelist_comments tables with CHECK 1-10 + cascade + RLS.",
-    "details": "Migration emits 3 tables. Default attribute set (texture/aroma/flavor/appearance/mouthfeel) configurable. mean_score CHECK 1-10. RLS + cascade. D4 reduction decision is downstream and not in scope.",
+    "description": "Deferred guard task: Sensory belongs under Technical per 2026-05-03 PO decision; do not create standalone NPD sensory tables.",
+    "details": "DO NOT IMPLEMENT the earlier NPD sensory BUILD path. Sensory is Technical-owned per _meta/decisions/2026-05-03-flow-d365-settings-technical-decisions.md. NPD may only consume/display Technical sensory status after a Technical-owned contract exists.",
     "scope_files": [
-      "packages/db/migrations/0071_sensory.sql [create]",
-      "packages/db/src/schema/sensory.ts [create]",
-      "packages/db/src/schema/index.ts [modify]",
-      "packages/db/__tests__/sensory.test.ts [create]"
+      "No application files — task is blocked/deferred pending Technical-owned sensory contract"
     ],
     "out_of_scope": [
-      "Do not build sensory UI here (T-076)",
-      "Do not implement V08 enforcement action (downstream)"
+      "Do not create NPD sensory_panels / sensory_attribute_scores / sensory_panelist_comments tables",
+      "Do not implement V08 sensory enforcement inside NPD",
+      "Do not build NPD sensory UI; use future Technical-owned contract/status only"
     ],
-    "dependencies": ["T-001"],
-    "parallel_safe_with": ["T-069", "T-070"],
+    "dependencies": [
+      "Technical-owned sensory data contract / future Technical task"
+    ],
+    "parallel_safe_with": [],
     "acceptance_criteria": [
-      "Given migration 0071 runs, when \\d sensory_attribute_scores runs, then it lists mean_score CHECK BETWEEN 1 AND 10 per §17.11.4 1–10 scale",
-      "Given a sensory_panels row is deleted, when DELETE runs, then matching sensory_attribute_scores + sensory_panelist_comments rows are CASCADE-deleted",
-      "Given two tenants seeded, when tenant A SELECT * FROM sensory_panels runs, then it returns only tenant A rows (RLS verified)"
+      "Given this task is selected for implementation, when read, then it is treated as BLOCKED/DEFERRED and no NPD application files are changed.",
+      "Given sensory scope is needed, when planning starts, then ownership is routed to Technical per _meta/decisions/2026-05-03-flow-d365-settings-technical-decisions.md.",
+      "Given NPD approval gating needs sensory input, when implemented later, then it consumes a Technical-owned read model/status rather than creating standalone NPD sensory schema."
     ],
     "test_strategy": [
-      "RED: write packages/db/__tests__/sensory.test.ts asserting CHECK + cascade + RLS before migration exists",
-      "Run 'pnpm --filter db migrate && pnpm --filter db test sensory'"
+      "No implementation tests in NPD; validate by backlog/PR review that no NPD sensory schema is created from this task."
     ],
     "risk_red_lines": [
-      "Do not allow mean_score outside 1-10",
-      "Do not omit ON DELETE CASCADE on child tables",
-      "Do not skip RLS"
+      "Do not build standalone NPD sensory schema.",
+      "Do not contradict the 2026-05-03 decision that Sensory belongs under Technical.",
+      "Do not treat old D4 BUILD-path text as active."
     ],
-    "skills": ["test-driven-development", "requesting-code-review"],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
     "checkpoint_policy": {
-      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
-      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
     },
     "routing_hints": {
       "red": "hermes_gpt55",

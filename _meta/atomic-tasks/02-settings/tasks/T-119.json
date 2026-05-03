@@ -1,0 +1,92 @@
+{
+  "title": "T-119 — Pending Invitations screen (SET-010)",
+  "prompt": "# T-119 — Pending Invitations screen (SET-010)\n\n## Goal\nSET-010 Pending Invitations production screen, in scope per PO 2026-05-03.\n\nCanonical Settings prototype source of truth is `design/Monopilot Design System/settings/*.jsx`. If an exact screen prototype is missing, implement spec-driven from `design/02-SETTINGS-UX.md` and reuse available prototype elements/patterns only where they match the UX contract. Exact prototype for SET-010 is not confirmed; use UX SET-010 as authoritative and reuse user/invite table plus modal patterns from `settings/access-screens.jsx` and `settings/modals.jsx`.\n\n## Files in scope\n- apps/web/app/(admin)/settings/invitations/page.tsx [create]\n- apps/web/app/(admin)/settings/invitations/page.test.tsx [create]\n\n## Acceptance criteria (all must hold)\n- Given /settings/invitations renders, then it follows UX SET-010: table columns Email, Role, Invited By, Invited At, Expires At, Status, Actions; Pending/Expired/Accepted badges; Invite User trigger; loading and empty states.\n- Given an invitation is Pending or Expired, when Resend is clicked, then the invite action is called and success/error toast is shown.\n- Given an invitation is Pending, when Revoke is confirmed, then the invitation is revoked/audited and disappears or changes status without affecting accepted users.\n\n## Test strategy (RED first)\n- RED: RTL page test for table columns/states and resend/revoke calls.\n- GREEN: build screen wired to existing invite actions.\n- Run page test, typecheck, lint.\n\n## Risk red lines\n- Do not fold Pending Invitations into /settings/users only; PO says Pending Invitations is in scope as its own Settings screen.\n- Do not invent custom invite semantics outside T-017/T-052 contracts.\n\n## Depth patch — UI permissions and invitation lifecycle\n- Add route/nav visibility checks: `/settings/invitations` is visible only to users who can view users/invitations; write controls require invite/admin permissions.\n- Distinguish actions by state: Pending supports Resend/Revoke; Expired supports Resend and optional cleanup; Accepted is read-only and must never revoke a real user.\n- Show resend/revoke pending, success, error, and audit result states; include confirmation copy with invite email and expiry.\n- Tests must cover permission-denied/read-only, all three statuses, loading/empty/error, and that accepted invitations cannot be revoked.\n",
+  "labels": [
+    "prd",
+    "ui",
+    "set-010",
+    "T3-ui"
+  ],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "prd_refs": [
+      "§3",
+      "§5.1 S-U7",
+      "§14 PO amendment 2026-05-03"
+    ],
+    "category": "ui",
+    "subcategory": "set-010",
+    "task_type": "T3-ui",
+    "parent_feature": "02-settings-a-ui",
+    "description": "SET-010 Pending Invitations production screen, in scope per PO 2026-05-03.",
+    "details": "Canonical Settings prototype source of truth is `design/Monopilot Design System/settings/*.jsx`. If an exact screen prototype is missing, implement spec-driven from `design/02-SETTINGS-UX.md` and reuse available prototype elements/patterns only where they match the UX contract. Exact prototype for SET-010 is not confirmed; use UX SET-010 as authoritative and reuse user/invite table plus modal patterns from `settings/access-screens.jsx` and `settings/modals.jsx`. Depth patch 2026-05-03: ## Depth patch — UI permissions and invitation lifecycle - Add route/nav visibility checks: `/settings/invitations` is visible only to users who can view users/invitations; write controls require invite/admin permissions. - Distinguish actions by state: Pending supports Resend/Revoke; Expired supports Resend and optional cleanup; Accepted is read-only and must never revoke a real user. - Show resend/revoke pending, success, error, and audit result states; include confirmation copy with invite email and expiry. - Tests must cover permission-denied/read-only, all three statuses, loading/empty/error, and that accepted invitations cannot be revoked.",
+    "scope_files": [
+      "apps/web/app/(admin)/settings/invitations/page.tsx [create]",
+      "apps/web/app/(admin)/settings/invitations/page.test.tsx [create]"
+    ],
+    "dependencies": [
+      "T-017",
+      "T-052"
+    ],
+    "acceptance_criteria": [
+      "Given /settings/invitations renders, then it follows UX SET-010: table columns Email, Role, Invited By, Invited At, Expires At, Status, Actions; Pending/Expired/Accepted badges; Invite User trigger; loading and empty states.",
+      "Given an invitation is Pending or Expired, when Resend is clicked, then the invite action is called and success/error toast is shown.",
+      "Given an invitation is Pending, when Revoke is confirmed, then the invitation is revoked/audited and disappears or changes status without affecting accepted users.",
+      "Screen enforces `settings.users.invite`/`settings.roles.assign` permissions: users without invite permission see read-only table and no Invite/Resend/Revoke write controls.",
+      "Navigation/route access and write controls are permission-filtered; missing write permission renders a read-only table with no Invite/Resend/Revoke controls.",
+      "Accepted invitations are immutable/read-only; revoke never affects accepted users.",
+      "RTL tests cover pending, expired, accepted, loading, empty, error, and permission-denied states."
+    ],
+    "test_strategy": [
+      "RED: RTL page test for table columns/states and resend/revoke calls.",
+      "GREEN: build screen wired to existing invite actions.",
+      "Run page test, typecheck, lint.",
+      "Add permission-denied/read-only test case for missing invite/admin permissions.",
+      "Add RTL permission-denied/read-only test, accepted-immutable test, and loading/empty/error state tests."
+    ],
+    "risk_red_lines": [
+      "Do not fold Pending Invitations into /settings/users only; PO says Pending Invitations is in scope as its own Settings screen.",
+      "Do not invent custom invite semantics outside T-017/T-052 contracts.",
+      "Do not expose resend/revoke controls to users lacking invite/admin permissions.",
+      "Do not allow revoke to mutate accepted users."
+    ],
+    "prototype_match": false,
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-119",
+    "source_prd": "02-SETTINGS-PRD.md",
+    "context_budget": "40k",
+    "estimated_effort": "1-3h",
+    "out_of_scope": [
+      "broaden scope beyond listed files",
+      "implement future-phase features"
+    ],
+    "parallel_safe_with": [],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

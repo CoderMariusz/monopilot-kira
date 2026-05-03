@@ -1,4 +1,10 @@
 // ============ Technical module data ============
+// 2026-05-03 final decision overlay for prototype reuse:
+// - Render/translate legacy FA labels as FG in production UI.
+// - `factory_spec` / internal product spec is the Technical-owned factory spec.
+// - One shared BOM model/table is SSOT; active edits clone a new version requiring Technical approval.
+// - PO/TO actuals trigger review/non-conformance; they never mutate specs/costs silently.
+// - D365 is optional import/export integration only.
 
 const TECH_NAV = [
   { group: "Overview", items: [

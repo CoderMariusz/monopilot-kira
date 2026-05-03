@@ -1,7 +1,14 @@
 {
-  "title": "T-034 — UI: Brief list + Brief detail page (brief_list, brief_detail)",
-  "prompt": "# T-034 — Brief list + detail UI\n\nPRD: 01-NPD-PRD.md §9.2 + UX brief_list + brief_detail\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\nPrototype: design/Monopilot Design System/npd/brief-screens.jsx:7-82 (brief_list) + 84-231 (brief_detail)\n\n## Goal\nServer Component pages /(npd)/brief and /(npd)/brief/[briefId] rendering list + Section A/B form using shadcn primitives matching prototypes 1:1; detail uses RHF + saveBriefDraft action.\n\n## Implementation contract\nList page: filters (status), columns (dev_code, status, template, created_at, owner), Convert CTA visible for complete briefs. Detail page: collapsible sections A and B, multi_component component rows with add/remove, summary row weight diff badge. Translation notes: window.NPD_BRIEFS → Drizzle query.\n\n## Files\n- apps/web/app/(npd)/brief/page.tsx [create]\n- apps/web/app/(npd)/brief/[briefId]/page.tsx [create]\n- apps/web/app/(npd)/brief/_components/brief-list-table.tsx [create]\n- apps/web/app/(npd)/brief/_components/brief-detail-form.tsx [create]\n- apps/web/app/(npd)/brief/_components/__tests__/brief-list-table.test.tsx [create]\n- apps/web/app/(npd)/brief/_components/__tests__/brief-detail-form.test.tsx [create]\n- design/Monopilot Design System/npd/brief-screens.jsx [ref]\n\n## Acceptance criteria\n1. Given brief list renders, when compared to design/Monopilot Design System/npd/brief-screens.jsx:7-82 (brief_list), then it has the same 5 columns in same order, status filter chips region, and uses shadcn Table+Badge primitives — verified by RTL parity checklist (structural+visual+interaction)\n2. Given brief detail renders, when compared to design/Monopilot Design System/npd/brief-screens.jsx:84-231 (brief_detail), then Section A has 13 fields and Section B 7 explicit fields + packaging_ext JSONB (rendered as KeyValue list), with shadcn Form+Card+Input — verified by RTL parity checklist\n3. Given user adds a component row, when summary weight delta exceeds tolerance, then a destructive Badge 'Weight mismatch' renders inline\n\n## Test strategy\n- RED: 3 RTL tests for list parity, detail parity, weight mismatch badge\n- Run 'pnpm --filter web test brief-list-table brief-detail-form'\n\n## Risk red lines\n- Do not implement Convert modal UI here (T-035)\n- Do not bypass saveBriefDraft\n- Do not paste prototype JSX verbatim",
-  "labels": ["prd", "ui", "brief", "T3-ui"],
+  "title": "T-034 — UI: Brief list + Brief detail page (brief_list, brief_detail) [PATCH: Brief list shows project spine]",
+  "prompt": "# T-034 — Brief list + detail UI\n\nPRD: 01-NPD-PRD.md §9.2 + UX brief_list + brief_detail\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\nPrototype: design/Monopilot Design System/npd/brief-screens.jsx:7-82 (brief_list) + 84-231 (brief_detail)\n\n## Goal\nServer Component pages /(npd)/brief and /(npd)/brief/[briefId] rendering list + Section A/B form using shadcn primitives matching prototypes 1:1; detail uses RHF + saveBriefDraft action.\n\n## Implementation contract\nList page: filters (status), columns (dev_code, status, template, created_at, owner), Convert CTA visible for complete briefs. Detail page: collapsible sections A and B, multi_component component rows with add/remove, summary row weight diff badge. Translation notes: window.NPD_BRIEFS → Drizzle query.\n\n## Files\n- apps/web/app/(npd)/brief/page.tsx [create]\n- apps/web/app/(npd)/brief/[briefId]/page.tsx [create]\n- apps/web/app/(npd)/brief/_components/brief-list-table.tsx [create]\n- apps/web/app/(npd)/brief/_components/brief-detail-form.tsx [create]\n- apps/web/app/(npd)/brief/_components/__tests__/brief-list-table.test.tsx [create]\n- apps/web/app/(npd)/brief/_components/__tests__/brief-detail-form.test.tsx [create]\n- design/Monopilot Design System/npd/brief-screens.jsx [ref]\n\n## Acceptance criteria\n1. Given brief list renders, when compared to design/Monopilot Design System/npd/brief-screens.jsx:7-82 (brief_list), then it has the same 5 columns in same order, status filter chips region, and uses shadcn Table+Badge primitives — verified by RTL parity checklist (structural+visual+interaction)\n2. Given brief detail renders, when compared to design/Monopilot Design System/npd/brief-screens.jsx:84-231 (brief_detail), then Section A has 13 fields and Section B 7 explicit fields + packaging_ext JSONB (rendered as KeyValue list), with shadcn Form+Card+Input — verified by RTL parity checklist\n3. Given user adds a component row, when summary weight delta exceeds tolerance, then a destructive Badge 'Weight mismatch' renders inline\n\n## Test strategy\n- RED: 3 RTL tests for list parity, detail parity, weight mismatch badge\n- Run 'pnpm --filter web test brief-list-table brief-detail-form'\n\n## Risk red lines\n- Do not implement Convert modal UI here (T-035)\n- Do not bypass saveBriefDraft\n- Do not paste prototype JSX verbatim\n\n## 2026-05-03 E2E spine patch — Brief UI must navigate to Project, not FA\nPatch user-facing copy and navigation so Brief list/detail show the linked NPD project (`DEV-123`, current gate, release status if available) as the canonical next artefact. Convert/Complete CTA must say \"Complete brief for project\" or equivalent. FG/Finished Good appears only as pending G3 mapping; FA may appear only as a legacy alias label if absolutely required by compatibility routes.",
+  "labels": [
+    "prd",
+    "ui",
+    "brief",
+    "T3-ui",
+    "e2e-spine",
+    "ux-redline"
+  ],
   "priority": 100,
   "max_attempts": 3,
   "pipeline_name": "kira_dev",
@@ -9,7 +16,9 @@
     "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
     "prd_task_id": "T-034",
     "source_prd": "01-NPD-PRD.md",
-    "prd_refs": ["§9.2"],
+    "prd_refs": [
+      "§9.2"
+    ],
     "category": "ui",
     "subcategory": "brief-list-detail",
     "task_type": "T3-ui",
@@ -31,12 +40,20 @@
       "Do not implement Convert modal here",
       "Do not commit C21-C37 placeholder labels"
     ],
-    "dependencies": ["T-030", "T-031"],
-    "parallel_safe_with": ["T-035"],
+    "dependencies": [
+      "T-030",
+      "T-031"
+    ],
+    "parallel_safe_with": [
+      "T-035"
+    ],
     "acceptance_criteria": [
       "Given brief list renders, when compared to design/Monopilot Design System/npd/brief-screens.jsx:7-82, then it has same 5 columns in same order, status filter chips region, and uses shadcn Table+Badge primitives — verified by RTL parity checklist (structural + visual + interaction parity)",
       "Given brief detail renders, when compared to design/Monopilot Design System/npd/brief-screens.jsx:84-231, then Section A has 13 fields and Section B has 7 explicit fields + packaging_ext KeyValue list, with shadcn Form+Card+Input primitives — verified by RTL parity checklist",
-      "Given user adds a component row whose summary weight delta exceeds tolerance, when rendered, then destructive Badge 'Weight mismatch' is shown inline"
+      "Given user adds a component row whose summary weight delta exceeds tolerance, when rendered, then destructive Badge 'Weight mismatch' is shown inline",
+      "Given a brief with linked project renders in the list/detail, then the UI shows project code/current_gate and links to the Stage-Gate project detail.",
+      "Given a complete brief has no G3 FG mapping yet, then the UI labels FG as 'Pending G3 mapping' and does not show 'FA created' as success.",
+      "Given D365 is disabled, then no Brief UI copy implies D365 build/export is required for project progression."
     ],
     "test_strategy": [
       "RED: 3 RTL tests for list parity, detail parity, weight mismatch badge before components exist",
@@ -45,12 +62,28 @@
     "risk_red_lines": [
       "Do not implement Convert modal here",
       "Do not bypass saveBriefDraft",
-      "Do not paste prototype JSX verbatim"
+      "Do not paste prototype JSX verbatim",
+      "Do not send users from Brief completion directly to FA Core as canonical flow.",
+      "Do not use FA/Factory Article as primary user-facing term."
     ],
-    "skills": ["test-driven-development", "requesting-code-review"],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
     "checkpoint_policy": {
-      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
-      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
     },
     "routing_hints": {
       "red": "hermes_gpt55",

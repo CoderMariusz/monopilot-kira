@@ -1,0 +1,104 @@
+{
+  "title": "T-098 — Full Brief→Project→G3 FG→G4 release→Technical approval E2E",
+  "prompt": "# T-098 — Full E2E G4 release spine\n\nPRD: 01-NPD-PRD.md final decisions + 2026-05-03 E2E release spike\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nAdd a full Playwright/integration E2E proving one product can travel from Brief to factory-usable release through the canonical spine:\nBrief → NPD project G0 → G1/G2 → G3 FG mapping → department closure → G4 approval → NPD Builder release → Technical approval → release status/read model → factory/Planning visibility.\n\n## Required assertions\n- Brief creation creates/links NPD project before FG exists.\n- G3 blocks until FG candidate is created/mapped.\n- G4 blocks until required departments are Done, RM usability passes, and release preflight is clean.\n- NPD Builder creates/links WIP/intermediates, FG, initial shared BOM and factory_spec in one idempotent release.\n- Technical approval is required before factory/Planning can consume factory_spec/BOM.\n- Release status transitions to pending_technical_approval then approved_for_factory/released_to_factory.\n- D365 disabled does not block release; optional D365 export does not set release state.",
+  "labels": [
+    "prd",
+    "test",
+    "e2e",
+    "release-e2e",
+    "e2e-spine",
+    "fg-canonical",
+    "technical-approval",
+    "T4-wiring-test"
+  ],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-098",
+    "source_prd": "01-NPD-PRD.md",
+    "prd_refs": [
+      "2026-05-03 E2E release spike",
+      "_meta/decisions/2026-05-03-flow-d365-settings-technical-decisions.md"
+    ],
+    "category": "test",
+    "subcategory": "full-npd-release-e2e",
+    "task_type": "T4-wiring-test",
+    "parent_feature": "npd-builder-release-to-factory",
+    "context_budget": "70k",
+    "estimated_effort": "5-6h",
+    "description": "Full E2E test from Brief-created project to Technical-approved factory release/read model.",
+    "details": "Covers Brief→Project, G3 FG mapping, G4 release orchestrator, Technical approval dependency, release status/read model and D365 optional behavior.",
+    "scope_files": [
+      "apps/web/e2e/npd/full-product-release.spec.ts [create]",
+      "apps/web/e2e/npd/fixtures/full-release-seed.ts [create]",
+      "apps/web/__tests__/integration/npd-full-release-events.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Implementation of missing production app features beyond test wiring",
+      "Broad FA→FG route rename",
+      "External D365 service calls"
+    ],
+    "dependencies": [
+      "T-031",
+      "T-056",
+      "T-058",
+      "T-062",
+      "T-092",
+      "T-093",
+      "T-095",
+      "T-096",
+      "T-097",
+      "03-TECH-T-074",
+      "03-TECH-T-079",
+      "02-SETTINGS-T-122"
+    ],
+    "parallel_safe_with": [],
+    "acceptance_criteria": [
+      "Given D365 integration is disabled and fixtures are seeded, when the full E2E runs, then DEV project reaches released_to_factory using Monopilot-owned records only.",
+      "Given no FG candidate exists at G3, when approval is attempted, then E2E observes FG_CANDIDATE_REQUIRED; after mapping, it proceeds.",
+      "Given an RM usability blocker fixture is enabled, when release is attempted, then release aborts with typed blocker and no factory_available_at is set.",
+      "Given Technical approval is not yet complete after NPD Builder release, when factory/Planning read model is queried, then the FG is visible as pending but not factory-usable.",
+      "Given Technical approval completes for the active BOM/spec bundle, when read model is queried, then status is released_to_factory/approved_for_factory and factory_available_at is non-null.",
+      "Given optional D365 export is clicked after release, then release status and active BOM/spec IDs remain unchanged."
+    ],
+    "test_strategy": [
+      "RED Playwright happy path with mocked/fixture Technical approval handoff.",
+      "RED integration test for event ordering across modules.",
+      "RED negative tests for missing FG mapping and RM usability FAIL.",
+      "Run 'pnpm --filter web test:e2e full-product-release && pnpm --filter web test npd-full-release-events'."
+    ],
+    "risk_red_lines": [
+      "Do not stop at G3; must include G4 release and Technical approval/read model assertion.",
+      "Do not require live D365 or mutate release status from D365 export.",
+      "Do not treat factory_spec/BOM as usable before Technical approval.",
+      "Do not use FA as canonical visible terminology in E2E assertions."
+    ],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

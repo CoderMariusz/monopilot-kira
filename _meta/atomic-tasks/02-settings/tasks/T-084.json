@@ -1,6 +1,6 @@
 {
   "title": "T-084 — E2E Playwright: schema admin wizard happy path (L2 add column + dry-run preview)",
-  "prompt": "# T-084 — E2E Playwright: schema add column\n\n## Goal\nEnd-to-end the schema admin wizard for adding an L2 column: Pick table → data_type → validation rules → blocking_rule → required_for_done → presentation → preview → save. Assert reference_schemas row + Zod regen + downstream form picks up new field.\n\n## Files in scope\n- apps/web/e2e/schema-wizard.spec.ts [create]\n\n## Acceptance criteria (all must hold)\n- Given an L2 column is added with regex='^[A-Z]{3}$', when the wizard saves, then reference_schemas row exists and Zod regen produces schema rejecting 'abc'.\n- Given a downstream RHF form (e.g., NPD FA edit) is opened after publish, when fields render, then the new column appears with the correct label and placement.\n- Given concurrent edit (schema_version mismatch), when publish fires, then UI surfaces CONCURRENT_EDIT and shows the diff (V-SET-04).\n\n## Test strategy (RED first)\n1. Add a failing test that exercises the acceptance criteria above. The RED command is:\n   `pnpm --filter @monopilot/web playwright test e2e/schema-wizard.spec.ts`\n2. Run RED — it must fail before any production code is written.\n3. Implement the smallest change needed for GREEN.\n4. Re-run RED command — must pass.\n5. Run `pnpm typecheck` and `pnpm lint` in the changed package; both must pass.\n\n## Risk red lines\n- Do not edit files outside the listed scope without documenting why in CLOSEOUT.\n- Do not weaken existing acceptance criteria from prior tasks.\n- Do not introduce REST endpoints; use Server Actions per stack contract.\n- Do not commit secrets or vault keys.\n\n## Closeout evidence required\n- changed_files (with line counts)\n- exact test commands and outputs (RED→GREEN, typecheck, lint)\n- acceptance_criteria_status (one row per AC: pass/fail)\n- deviations_from_prd (or \"none\")\n- git_status\n\nStack: TS + Next.js App Router + Drizzle + pnpm + vitest + Playwright + Server Actions. Primitives in `packages/ui`. PRD: `02-SETTINGS-PRD.md` v3.5.\n",
+  "prompt": "# T-084 — E2E Playwright: schema admin wizard happy path (L2 add column + dry-run preview)\n\n## Goal\nE2E schema admin wizard add column.\n\nWizard target screen is SET-031 (column edit wizard) and must depend on T-097; SET-030/T-066 only provides browser entry/navigation.\n\n## Files in scope\n- apps/web/e2e/schema-wizard.spec.ts\n\n## Acceptance criteria (all must hold)\n- L2 add column flow completes.\n- Zod regen reflects new column.\n- Concurrent edit detected.\n\n## Test strategy (RED first)\n- RED: write spec. GREEN: ensure UI + Zod regen wired.\n\n## Risk red lines\n- Do not modify L1 schema in this test path.",
   "labels": [
     "prd",
     "test",
@@ -26,7 +26,7 @@
     "context_budget": "40k",
     "estimated_effort": "1-3h",
     "description": "E2E schema admin wizard add column.",
-    "details": "Wizard target screen is SET-031 (column edit wizard) — covered indirectly via SET-030 and SM-03.",
+    "details": "Wizard target screen is SET-031 (column edit wizard) and must depend on T-097; SET-030/T-066 only provides browser entry/navigation.",
     "scope_files": [
       "apps/web/e2e/schema-wizard.spec.ts"
     ],
@@ -37,7 +37,8 @@
     "dependencies": [
       "T-023",
       "T-024",
-      "T-066"
+      "T-066",
+      "T-097"
     ],
     "parallel_safe_with": [],
     "acceptance_criteria": [

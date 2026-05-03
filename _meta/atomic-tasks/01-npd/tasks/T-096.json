@@ -1,0 +1,102 @@
+{
+  "title": "T-096 — releaseNpdProjectToFactory canonical NPD Builder release orchestrator",
+  "prompt": "# T-096 — releaseNpdProjectToFactory canonical NPD Builder release transaction\n\nPRD: 01-NPD-PRD.md final decisions + 2026-05-03 E2E release spike\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nAdd the canonical `releaseNpdProjectToFactory(projectId)` / `executeNpdBuilderRelease(projectId)` domain action that ties Stage-Gate G4, department closure, FG mapping, shared BOM SSOT, RM usability, factory_spec creation and release status into one idempotent NPD Builder release transaction.\n\n## Implementation contract\nPreconditions:\n- project exists, has linked Brief, and current gate allows G4 release;\n- FG candidate mapped by T-095;\n- required 7-department Done_<Dept> closures are present per T-056 matrix;\n- Settings approval policy is satisfied;\n- risk/docs blockers clear where configured;\n- RM usability PASS for every BOM component via Technical T-074 service/read model;\n- Technical approval is required for factory_spec/BOM factory use.\n\nTransaction outputs:\n- WIP/intermediate item rows and confirmed FG item mapping;\n- initial shared BOM header/lines by invoking T-093/T-092 SSOT writer;\n- initial factory_spec draft or in_review through Technical T-079 API;\n- release audit row/outbox events;\n- release status from T-097 set to `pending_technical_approval` unless already approved by a valid Technical approval workflow.\n\nD365 export is explicitly out-of-transaction and optional.",
+  "labels": [
+    "prd",
+    "api",
+    "release-orchestrator",
+    "e2e-spine",
+    "bom-ssot",
+    "technical-approval",
+    "fg-canonical",
+    "T2-api",
+    "T4-wiring-test"
+  ],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-096",
+    "source_prd": "01-NPD-PRD.md",
+    "prd_refs": [
+      "2026-05-03 E2E release spike BL-E2E-04",
+      "_meta/decisions/2026-05-03-flow-d365-settings-technical-decisions.md"
+    ],
+    "category": "api",
+    "subcategory": "npd-builder-release-orchestrator",
+    "task_type": "T2-api+T4-wiring-test",
+    "parent_feature": "npd-builder-release-to-factory",
+    "context_budget": "70k",
+    "estimated_effort": "6-8h",
+    "description": "Canonical releaseNpdProjectToFactory action covering WIP/FG/shared BOM/factory_spec/status transaction and blockers.",
+    "details": "NPD Builder release transaction invokes G3 FG mapping, shared BOM SSOT writer, Technical factory_spec API, RM usability validation and release status model. D365 optional only.",
+    "scope_files": [
+      "apps/web/app/(npd)/builder/_actions/release-npd-project-to-factory.ts [create]",
+      "apps/web/app/(npd)/builder/_actions/__tests__/release-npd-project-to-factory.test.ts [create]",
+      "apps/web/app/(npd)/builder/_lib/release-preflight.ts [create]",
+      "Existing NPD Builder/release action paths discovered before editing"
+    ],
+    "out_of_scope": [
+      "D365 workbook/export implementation",
+      "Technical approval UI (cross-module, may be 03-TECH task)",
+      "Broad FA→FG physical rename"
+    ],
+    "dependencies": [
+      "T-056",
+      "T-058",
+      "T-092",
+      "T-093",
+      "T-095",
+      "T-097",
+      "03-TECH-T-074",
+      "03-TECH-T-079",
+      "02-SETTINGS-T-122"
+    ],
+    "parallel_safe_with": [],
+    "acceptance_criteria": [
+      "Given DEV-123 has linked brief, mapped FG, all required departments closed and G4 approval, when releaseNpdProjectToFactory runs, then WIP/intermediate items + FG mapping + initial shared BOM + factory_spec draft/in_review + release audit/events are created in one idempotent transaction.",
+      "Given any BOM component has RM usability FAIL, when release is requested, then it aborts with typed blockers and creates no partial factory-usable state.",
+      "Given release is retried for the same project/version, then no duplicate WIP/FG/BOM/spec versions are created.",
+      "Given D365 integration is disabled, when release runs, then Monopilot release still succeeds and no D365 export is attempted.",
+      "Given Technical approval is missing, when release completes, then status is pending_technical_approval and factory/Planning consumers cannot use the FG."
+    ],
+    "test_strategy": [
+      "RED unit tests for preflight blockers and idempotency.",
+      "RED integration test for transaction rollback on RM usability failure.",
+      "RED event-ordering test for release_requested → released_records_created → pending_technical_approval.",
+      "Run 'pnpm --filter web test release-npd-project-to-factory'."
+    ],
+    "risk_red_lines": [
+      "Do not perform D365 export inside release transaction.",
+      "Do not mark FG/BOM/spec factory-usable before Technical approval.",
+      "Do not bypass shared BOM SSOT or create NPD-only BOM tables.",
+      "Do not ignore RM usability blockers."
+    ],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

@@ -1,9 +1,9 @@
 ---
 module: 03-TECHNICAL
-version: 3.2
-status: Phase C1 writing
+version: 3.3
+status: final decisions incorporated — documentation/task rebuild only
 primary: false
-role: product-master + bom + quality specs + D365 sync
+role: Technical-owned factory spec + shared BOM SSOT + RM usability governance
 depends_on: [00-FOUNDATION, 02-SETTINGS, 01-NPD]
 depended_on_by: [04-PLANNING-BASIC, 05-WAREHOUSE, 08-PRODUCTION, 09-QUALITY, 10-FINANCE, 11-SHIPPING, 12-REPORTING]
 written: 2026-04-20
@@ -11,7 +11,20 @@ written: 2026-04-20
 
 # PRD 03-TECHNICAL — MonoPilot MES
 
-**Product master + BOM + quality specs + D365 sync module.** Dostarcza item master (RM / intermediate / FG), BOM versioning + co-products, catch weight, shelf-life regulatory, allergens full cascade (building na 01-NPD §8 + Reference.Allergens z 02-SETTINGS §8), cost_per_kg per-item, routing + resources, D365 items/BOM/formula **one-way pull** + production confirmations push (INTEGRATIONS stage 1 technical side).
+**Technical-owned factory specification + shared BOM SSOT module.** Dostarcza item master (RM / WIP/intermediate / FG), `factory_spec` / `internal_product_spec` jako kanoniczną specyfikację produkcyjną FG, jeden współdzielony model BOM jako SSOT dla NPD/Technical/Planning/Production, zatwierdzanie wersji BOM/spec przed użyciem w fabryce, RM usability validation, supplier_specs Phase 1, non-conformance triggers z PO/TO actuals, allergen cascade, shelf-life regulatory, cost/spec review governance, routing/resources oraz opcjonalną integrację D365 z Monopilot-owned data. D365 nie jest systemem kanonicznym; pull/import albo overwrite z D365 wymaga jawnie autoryzowanego workflow.
+
+## §0 — Final PO decisions incorporated 2026-05-03
+
+1. **FG jest kanoniczne.** Stare `FA`/Factory Article pozostaje wyłącznie w legacy copy/prototype labels i compat aliasach; nowe UI copy, taski, API docs i walidacje używają `fg` / Finished Good.
+2. **`factory_spec` / `internal_product_spec` jest własnością Technical.** NPD Builder może zainicjować rekord FG/WIP i pierwszą wersję specyfikacji, ale Technical zatwierdza specyfikację produkcyjną przed użyciem w fabryce.
+3. **Jeden shared BOM model/table jest SSOT.** Nie tworzymy osobnych BOM-ów per moduł. NPD Builder zapisuje initial BOM version jako draft w tym samym modelu; Planning/Production/Warehouse/Finance konsumują tę samą zatwierdzoną wersję albo immutable snapshot.
+4. **Released edits tworzą nowe wersje.** Edycja aktywnego/released BOM albo product/factory spec nigdy nie mutuje wersji używanej przez fabrykę. Tworzy nową wersję `draft`/`in_review`, która wymaga Technical approval przed statusem `approved_for_factory` / `active`.
+5. **PO actuals nie aktualizują cicho supplier_spec ani cost_per_kg.** Purchase Order receipt może zapisać actual supplier, price/cost, spec document ref i variance; różnice uruchamiają review/non-conformance, a nie automatyczną zmianę Technical master data.
+6. **TO nie zmienia specyfikacji.** Transfer Order może wpływać na inventory/location/lot/shelf-life status i może uruchomić non-conformance; nie zmienia BOM, factory_spec, supplier_spec ani cost_per_kg.
+7. **Technical/BOM waliduje RM usability.** RM może być użyty w BOM/factory tylko jeśli: supplier jest approved, aktywny `supplier_spec` istnieje i nie wygasł, alergeny są kompatybilne z FG/BOM, item jest active, cost/spec review nie jest blocked oraz QC/release status jest pozytywny jeśli dotyczy.
+8. **Lab Quality-owned read model.** 03-TECHNICAL konsumuje status laboratoryjny jako read model dla usability/spec review; autorstwo lab workflows i wyników pozostaje w 09-QUALITY.
+9. **D365 jest opcjonalną integracją.** D365 pull/push może seedować albo synchronizować dane, ale nie jest wymagany do core flow i nie jest źródłem prawdy dla factory_spec ani shared BOM w Monopilot.
+
 
 ---
 
@@ -25,7 +38,7 @@ Rozszerzamy baseline o 6 obszarów mandated przez Phase D architecture + discove
 2. **Allergens full cascade (§10)** — building na 01-NPD §8 (RM→intermediate→FG) + Reference.Allergens z 02-SETTINGS. Allergen profile per item + supplier spec integration + ATP swab lab results + cross-contamination risk matrix.
 3. **BOM versioning + co-products (§7)** — effective-dated BOM versions, co-product allocation %, scrap rates, BOM Generator button (EVOLVING §11) batch-exports gotowe FGs jako BOM_FG<code>.xlsx.
 4. **Catch weight + tare/gross/nominal (§8)** — mode per-item (fixed vs catch), scale integration spec, label weight vs actual variance tracking.
-5. **D365 Integration stage 1 technical (§13)** — items + BOM/formula **pull** (nightly cron + on-demand), production confirmations **push** to D365 journal. Retry + dead-letter queue + idempotent mutations [R14].
+5. **D365 Integration stage 1 technical (§13)** — optional import/export/publish integration convenience from Monopilot-owned items/BOM/formula; production confirmations may be pushed to D365 journal when enabled. D365 pull/import never silently overwrites canonical Monopilot data; authorized overwrite workflow required. Retry + dead-letter queue + idempotent mutations [R14].
 6. **Schema-driven extensibility** — wszystkie item specs + supplier attrs L3-ready via `reference_schemas` z 02-SETTINGS (ADR-028).
 
 **Pozostałe sekcje** (§9 shelf-life regulatory, §11 cost_per_kg, §12 routing + resources) = refinement baseline z markerami Phase D i regulacyjnym roadmap z MES-TRENDS §9.
@@ -47,7 +60,7 @@ Status: `[UNIVERSAL]` dla core (item master, BOM, allergens EU-14), `[APEX-CONFI
 3. **Allergens cascade end-to-end** — RM allergen profile → propagacja do intermediate → FG aggregation. Manual override audited. Cross-contamination risk matrix per manufacturing operation.
 4. **Shelf-life regulatory** — use-by vs best-before distinction, BRCGS v9 + FSMA 204 traceability foundation, date code generation (`Date_Code` z 01-NPD Planning dept).
 5. **Catch weight support** — mode per-item, scale integration spec, nominal vs actual variance tracking, GS1 AI (3103/3922) compatible.
-6. **D365 sync stage 1** — items + BOM pull nightly + on-demand, confirmations push, retry + DLQ, zero-downtime feature flag toggle.
+6. **D365 integration stage 1** — optional export/publish from Monopilot-owned data plus authorized import/overwrite workflows, confirmations push, retry + DLQ, zero-downtime feature flag toggle.
 7. **Cost_per_kg governance** — per-item attr, version history (effective dates), variance roll w 10-FINANCE.
 
 ### Metryki sukcesu
@@ -1261,6 +1274,54 @@ Gate: integration.d365.enabled can be turned on for Apex beta.
 
 ---
 
+## §15A — PO/F/D amendment 2026-05-03: NPD handoff, ownership, D365 posture, supplier/lab specs
+
+Source of truth: `_meta/decisions/2026-05-03-flow-d365-settings-technical-decisions.md`. This section supersedes older Technical wording that implied D365 was canonical or that Technical independently creates released FG/WIP master data before NPD Builder release.
+
+### §15A.1 NPD → Technical handoff
+
+Canonical MVP flow:
+
+1. Brief creates an NPD project (example `DEV-123`).
+2. Project moves through Stage-Gate G0-G4. Trial / Pilot / Handoff / Packaging remain part of NPD flow and are not deprecated.
+3. At G3 the project creates or maps the FG candidate.
+4. FG becomes available to factory / Planning / Technical only after all required departments close their sections, the project is approved, and NPD Builder has generated and validated product, shared BOM and WIP records.
+5. NPD Builder creates all WIP/intermediate items needed to manufacture the product. Technical must not assume WIP is created by D365 pull or by ad-hoc Technical UI.
+6. Shared BOM table/model is the single source of truth. NPD Builder creates the initial shared BOM version; Technical owns post-release version approval and factory-spec maintenance.
+7. After release, Technical owns factory specification maintenance and checks/updates specification correctness when meat/raw materials, allergens, BOM details or manufacturing-operation details change.
+
+NPD may request edits to released product/BOM data only through per-organization authorization. A released BOM/product/factory_spec edit must create a new version rather than mutating the approved factory version in-place. The new version goes to Technical for physical specification review and approval before factory use.
+
+### §15A.2 Monopilot-owned master data and D365 posture
+
+D365 is integration only. Monopilot is canonical for product, BOM, WIP/FG and factory-facing master data. Export/import is supported as integration convenience, including Excel-row style transfer in the current phase, but no Technical data model, flow or product strategy may depend on D365. Do not cache D365 data as a strategic dependency.
+
+D365 item/BOM/product publish/export tasks must be phrased as optional integration from Monopilot-owned data. Import/overwrite from D365 is allowed only through an authorized person/workflow, with audit, diff visibility and no silent overwrite of Monopilot canonical rows.
+
+### §15A.3 Supplier specs Phase 1, PO/TO triggers and RM usability
+
+`supplier_specs` is Phase 1. Phase 1 minimum is upload/view/review of supplier-provided raw material/component parameters, certificates, allergens, cost/quality constraints and approved supplier facts. Purchase Orders must not silently overwrite approved `supplier_specs` or BOM `cost_per_kg`; PO records actual purchase price, supplier lot, supplier item and delivery facts. Material/price/spec deviations create review or non-conformance events for supplier_spec, item cost history, allergen/spec review or finance approval.
+
+Transfer Orders must not change Technical master specification. TO can affect inventory availability, site/location, lot genealogy and shelf-life remaining; specification changes only through explicit spec/BOM/change-control workflows. If TO reveals an issue, it triggers non-conformance/review rather than mutating spec.
+
+Technical validation for RM/component use in a BOM must check, where configured: approved supplier, active non-expired supplier_spec, compatible allergen profile, active item, no blocked cost/spec review, and required QC/release status.
+
+### §15A.4 Lab results ownership
+
+`lab_results` is Quality-owned. Technical may consume/read lab results for specification correctness, allergen cascade, ATP fail gates and factory-maintenance workflows, but Technical UI/API tasks must not make Technical the canonical owner of lab-result authoring unless explicitly scoped as a Quality-owned read model or temporary Phase 1 bridge.
+
+### §15A.5 Specs taxonomy
+
+The accepted Phase 1 Technical-owned production specification concept is `factory_spec` / `internal_product_spec`:
+
+- `supplier_spec`: supplier-provided raw material/component parameters, certificates, allergens, cost/quality constraints and approved supplier facts.
+- `customer_spec`: outgoing product specification promised to a customer/private-label/market, including packaging, label, claims, nutritional/compliance and product parameters.
+- `factory_spec` / `internal_product_spec`: manufacturing-facing specification maintained by Technical/factory for BOM, process, allergens, shelf-life, print specs and QC limits.
+
+Customer-facing specification may exist as a separate derived/customer-facing artifact, but factory use must rely on the Technical-approved factory_spec/internal_product_spec. `specs_screen` / TEC-085/086 work must explain which taxonomy it is rendering and must not collapse `supplier_specs` into a generic `reference_tables.specifications` assumption.
+
+---
+
 ## §16 — References + Changelog
 
 ### Phase B/C dependencies
@@ -1377,6 +1438,7 @@ Canonical list of every TEC-NNN screen, its PRD section, UX section/line, protot
 
 ## Changelog
 
+- **v3.3** (2026-05-03) — PO/F/D amendment: canonical NPD→Technical handoff, Technical post-release factory-spec ownership, D365 integration-only posture (Monopilot canonical; optional export/import; authorized overwrite only), supplier_specs Phase 1, Quality-owned lab_results read model, specs taxonomy guardrails, and task red-lines for legacy prototype naming translation.
 - **v3.2** (2026-04-30) — PRD↔UX numbering reconciliation per audit `_meta/audits/2026-04-30-design-prd-coverage.md §Module 03-TECHNICAL`. Added: §4A canonical TEC-NNN map (PRD↔UX↔prototype, all 33 original PRD IDs + 16 new TEC-080..095 closures for orphan prototypes); §17 UI Surfaces Master Table; §6A/§7A/§10A/§11A/§12A/§13A Direction-B closure subsections; `[NO-PROTOTYPE-YET]` markers + TODO lines on TEC-014, TEC-025, TEC-031, TEC-045, TEC-052 (audit BLOCKER row 4). No content deletions; only additions and ADR-034 marker normalization. Coverage estimate ~55% → ~88%.
 - **v3.1** (2026-04-30) — Column/code renames for multi-industry manufacturing operations pattern. Changes: FA → FG (Finished Goods), PR → WIP (intermediate codes with pattern WIP-<suffix>-<sequence>), process_code/process_stage → manufacturing_operation_name. Updated: all examples (PR123R → WIP-RO-0000001, FA5101 → FG5101), SQL schemas (bom_lines.manufacturing_operation_name, process_allergen_additions → manufacturing_operation_allergen_additions), validation rules (V-TEC-03, V-TEC-63), cascade rule logic, UI screens (TEC-041, TEC-042), and success criteria. Verified: 0 orphaned old names remain, all cross-references updated, version bumped, changelog added.
 - **v3.0** (2026-04-20) — Phase C1 Sesja 2 writing. Pełny rewrite baseline v1.x (828l, 8 epics E02.1-E02.8 pre-Phase-D). Nowe core: §6 Product master z item_types (N+1 intermediate per Phase D #19), §7 BOM versioning + co-products + BOM Generator button (EVOLVING §11), §8 Catch weight + GS1 AI, §10 Allergens full (cascade via ADR-029 rule registry + ATP/ELISA lab + contamination risk matrix), §13 D365 Integration stage 1 technical (pull items/BOM + push confirmations, DLQ, idempotency). Refined: §9 shelf-life regulatory (BRCGS v9, FSMA 204, EU 1169/2011), §11 cost_per_kg per-item, §12 routing + resources. Build sequence 4 sub-modules (a..d), 18-22 sesji impl est.

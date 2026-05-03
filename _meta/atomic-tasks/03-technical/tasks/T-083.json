@@ -1,0 +1,88 @@
+{
+  "title": "T-083 — Local UI prototype copy red-lines for Technical final decisions",
+  "prompt": "# T-083 — Local UI prototype copy red-lines for Technical final decisions\n\nCreate a local production red-line overlay/checklist for Technical UI implementers so prototype parity does not preserve obsolete domain copy. Do not rewrite prototype JSX for visual churn. Produce a small Technical red-lines document or data fixture consumed by UI tasks that maps prototype labels to production copy/guards: FG/WIP not FA/PR, Technical-owned factory_spec/internal_product_spec, shared BOM SSOT, clone-on-write release banner, RM usability rows, PO/TO NCR trigger language, Quality lab read-only labels, and D365 optional disabled state. Validate that T-038/T-039/T-060/T-078/T-080 reference these red-lines. RED first: lint/test fails if UI tasks keep known forbidden copy in production components.",
+  "labels": [
+    "prd",
+    "ui",
+    "ux-red-lines",
+    "coverage",
+    "T3-ui"
+  ],
+  "priority": 55,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "source_prd": "03-TECHNICAL-PRD.md",
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prd_task_id": "T-083",
+    "prd_refs": [
+      "§0",
+      "§5.0",
+      "§7.4",
+      "design/03-TECHNICAL-UX.md §0A"
+    ],
+    "category": "ui",
+    "subcategory": "ux-red-lines-local-copy",
+    "task_type": "T3-ui",
+    "parent_feature": "03-TECHNICAL UI Governance",
+    "context_budget": "25k",
+    "estimated_effort": "2h",
+    "description": "Local copy/guard red-line source for Technical UI tasks, keeping prototypes as visual anchors but correcting production semantics.",
+    "details": "This is not app feature implementation. It creates a local copy contract or checklist in allowed PRD/UX/coverage/manifest/tasks scope and task acceptance criteria that implementation agents must follow. Prototype JSX remains an anchor; production UI copy must apply this overlay. Include forbidden legacy terms and allowed exceptions for imported source values/audit history. It complements T-078 rather than depending on it, to avoid a circular implementation dependency.",
+    "scope_files": [
+      "design/03-TECHNICAL-UX.md",
+      "_meta/atomic-tasks/03-technical/tasks/T-038.json",
+      "_meta/atomic-tasks/03-technical/tasks/T-039.json",
+      "_meta/atomic-tasks/03-technical/tasks/T-060.json",
+      "_meta/atomic-tasks/03-technical/tasks/T-078.json",
+      "_meta/atomic-tasks/03-technical/tasks/T-080.json"
+    ],
+    "acceptance_criteria": [
+      "Given UI task uses design/Monopilot Design System/technical/bom-detail.jsx:3-60 or design/Monopilot Design System/technical/modals.jsx:168-243, then structural, visual and interaction parity remains required while production copy applies this red-line overlay.",
+      "Given production UI copy is reviewed, then FA/PR/D365-first wording is absent except explicit legacy imported-source/audit labels.",
+      "Given a released BOM/spec edit UI is implemented, then clone-on-write banner copy is present and in-place edit copy is absent.",
+      "Given RM component selection UI is implemented, then approved supplier, active supplier_spec, allergens, item active, cost/spec review and QC/release checks are listed with typed server codes.",
+      "Given lab result status appears in Technical UI, then it is labelled Quality-owned read-only and no Technical approval action is shown."
+    ],
+    "test_strategy": [
+      "Add/require UI copy assertions in each referenced UI task closeout.",
+      "Run relevant task tests named in T-038/T-039/T-060/T-078/T-080."
+    ],
+    "risk_red_lines": [
+      "Do not edit prototype files for cosmetic churn.",
+      "Do not let prototype legacy labels override PRD §0 decisions.",
+      "Do not make D365 mandatory for local Technical workflows."
+    ],
+    "dependencies": [],
+    "parallel_safe_with": [
+      "T-080",
+      "T-081",
+      "T-082"
+    ]
+  }
+}

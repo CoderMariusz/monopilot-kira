@@ -36,9 +36,53 @@ references:
 
 ---
 
+## 2026-05-03 FINAL Amendment — FG / Stage-Gate / shared BOM SSOT / D365 posture
+
+Source of decision: `_meta/decisions/2026-05-03-flow-d365-settings-technical-decisions.md`.
+
+This amendment is authoritative for MVP and supersedes any earlier conflicting assumptions in this PRD, UX notes, prototype labels, task descriptions, coverage notes, or closeout wording. The decisions are final for 01-NPD planning; do not keep tasks blocked on the formerly open FA/FG naming or BOM SSOT questions.
+
+### Canonical terminology
+
+1. `FG` / Finished Good is the canonical UI/domain term for the released sellable product and for the NPD product candidate that will become released.
+2. `FA` / Factory Article is a compatibility alias only. It may remain in legacy DB fields, routes, seed codes, prototype variable names, migration views, or D365/customer code examples where mass rewrite would be risky, but it must not be introduced as the final user-facing domain term.
+3. User-facing copy should say `FG`, `Finished Good`, `FG project`, `FG candidate`, or `NPD project` as appropriate. If older screens expose `FA Code`, treat that as `FG Code (legacy FA code)` until a safe compatibility/refactor task lands.
+
+### Canonical NPD MVP flow
+
+1. Stage-Gate `G0-G4` is the canonical MVP flow for NPD.
+2. Brief creates an NPD project, e.g. `DEV-123`.
+3. The NPD project moves through `G0-G4`; at `G3` it creates or maps the FG candidate.
+4. Trial / Pilot / Handoff / Packaging remain in NPD and must be represented inside the Stage-Gate flow. They are not deprecated and must not be moved to Technical.
+5. After all required departments close their sections and the NPD project receives the configured approval, NPD Builder creates the required WIP/intermediate items, the FG product, and the initial shared BOM/product-spec version.
+6. From that point, the FG and WIP/intermediate items are available to factory, Planning and Technical.
+7. After release, Technical owns factory specification maintenance and checks/updates factory-spec correctness when meats/raw materials, allergens or BOM details change.
+
+### Shared BOM SSOT and version approval
+
+1. One shared BOM table/model is the single source of truth across NPD Builder, Technical, Planning, Production and integrations.
+2. NPD Builder creates the initial shared BOM version together with WIP/intermediate items and the FG. NPD must not maintain a separate long-lived canonical computed BOM after release.
+3. D365 import/export may synchronize with the shared BOM, but D365 never supersedes the Monopilot shared BOM as canonical source.
+4. Any NPD-requested edit to a released product, BOM, or factory-facing product spec must create a new BOM/product-spec version rather than mutating the currently approved factory version in place.
+5. The new version must go to Technical for physical/factory specification review and approval before it becomes approved/active for factory use.
+
+### D365 posture
+
+D365 is integration/export/import only. It is not the source of truth and must not be treated as the canonical product, BOM, WIP/FG or factory-facing master-data authority.
+
+Monopilot is the independent creator and system of record for NPD product/BOM/WIP/FG master data. D365-related functionality may export/send/import data for integration convenience, including Excel-row style transfer, only when enabled by an organization and/or authorized workflow. Product strategy, flow, and canonical data model must not depend on D365. Overwrite/import from D365 is allowed only via an authorized workflow/person and never as silent canonical replacement.
+
+### Ownership and module boundaries
+
+- Sensory belongs under Technical. NPD may display or consume Technical sensory status where needed for gating/approval, but standalone NPD sensory schema/UI build tasks are deferred/cross-module unless Technical explicitly owns the implementation.
+- Trial, Pilot, Handoff and Packaging are NPD-owned flow/stage concerns.
+- Released product/BOM/factory-spec edits from NPD require authorization, new version creation and Technical approval as described above.
+
+---
+
 ## Executive Summary
 
-**Co robi moduł 01-NPD:** zarządza pełnym lifecyclem Product (FA) od momentu NPD brief → przez 7-dept parallel fill (Core, Planning, Commercial, Production, Technical, MRP, Procurement) → do D365 Builder paste-ready output. Replaces 22-tab Smart_PLD_v7.xlsm z pełnym zakresem functionality.
+**Co robi moduł 01-NPD:** zarządza pełnym lifecyclem NPD project → FG (Finished Good) od momentu Briefu tworzącego projekt `DEV-123` → przez Stage-Gate G0-G4 i 7-dept parallel fill (Core, Planning, Commercial, Production, Technical, MRP, Procurement) → do NPD Builder, który tworzy WIP/intermediates + FG + initial shared BOM/product-spec version, oraz opcjonalnego D365 export/import. `FA` pozostaje wyłącznie aliasem kompatybilnościowym. Replaces 22-tab Smart_PLD_v7.xlsm z pełnym zakresem functionality.
 
 **Pozycja w build plan:**
 - PRD writing: **Phase B.2** (1-3 sesji).
@@ -47,7 +91,7 @@ references:
 
 **Strategiczna rola:** "Primary module" bo:
 1. 01-NPD pokrywa ~90% scope v7 (gdy to zbudowane, v7 Excel może zostać wyłączone — P2 Two-systems principle wymaga parallel-run przez ~12 mies.)
-2. Wszystkie pozostałe moduły (02-SETTINGS admin wizard, 03-TECHNICAL product master, 11-SHIPPING GS1/EPCIS, itd.) budowane po tym mają FA jako fundament.
+2. Wszystkie pozostałe moduły (02-SETTINGS admin wizard, 03-TECHNICAL product master/factory specs, 11-SHIPPING GS1/EPCIS, itd.) budowane po tym mają FG + shared BOM SSOT jako fundament.
 3. D365 Builder integration stage 1 (per 00-FOUNDATION §4.1) jest inline w 01-NPD — bridge do D365 przez 12 mies. dual-maintenance.
 
 **Dwa wielkie dodatki vs pre-Phase-D PRD:**
@@ -80,7 +124,7 @@ references:
 |---|---|
 | Admin UI wizard dla schema/rules editing | 02-SETTINGS (Phase C1) |
 | Product master CRUD (separate from FA spec) | 03-TECHNICAL (Phase C1) |
-| BOM versioning + co-products + routing costs | 03-TECHNICAL (Phase C1) |
+| Advanced Technical BOM maintenance (co-products, routing costs, post-release approval UI) | 03-TECHNICAL (Phase C1); initial shared BOM/product-spec version is created by 01-NPD Builder per 2026-05-03 final amendment |
 | PO/TO/WO state machines + RELEASE-to-warehouse | 04-PLANNING-BASIC (Phase C2) |
 | LP lifecycle + GRN + FEFO picking | 05-WAREHOUSE (Phase C2) |
 | Scanner PWA (Receive/Move/Pick/Count) | 06-SCANNER-P1 (Phase C2) |
@@ -204,13 +248,13 @@ sequenceDiagram
 
 | Stage | Trigger | Owner | Output | Duration ref |
 |---|---|---|---|---|
-| **Stage 0 — Brief** | NPD idea | NPD team | Brief row complete (37 cols) | variable |
-| **Stage 1 — Convert + Core setup** | Jane click Convert | Core user (w/ Jane supervision) | FA row created, Closed_Core=TRUE | hours—days |
-| **Stage 2 — Parallel dept fill** | Closed_Core=TRUE | 5 depts (Planning, Commercial, Production, Technical, MRP) + Procurement partial | 6 dept Closed flags | weeks—months |
-| **Stage 3 — Procurement Price finalization** | Production + MRP components ready | Procurement | Closed_Procurement=TRUE | days |
-| **Stage 4 — Closure + validation** | All 7 Closed=TRUE | Jane | Status_Overall=Complete + validation PASS | hours |
-| **Stage 5 — D365 Builder** | Jane click Build | Jane (via button) | Builder_FA<code>.xlsx + Built=TRUE | seconds (auto) |
-| **Stage 6 — Paste-back** | Builder output ready | Jane | FA live in D365 | minutes |
+| **Stage 0 — Brief** | NPD idea | NPD team | NPD project `DEV-123` created from completed Brief | variable |
+| **Stage 1 — G0/G1 setup** | Project intake accepted | NPD/Core user (w/ Jane supervision) | Project core data ready; legacy FA compatibility code may exist only as alias | hours—days |
+| **Stage 2 — G2 parallel dept fill** | Core/project setup complete | 5 depts (Planning, Commercial, Production, Technical, MRP) + Procurement partial | Required dept sections closed | weeks—months |
+| **Stage 3 — Trial / Pilot / Packaging / Procurement finalization** | Components/process/packaging ready | NPD + relevant depts | Trial/Pilot/Handoff/Packaging evidence and Procurement complete | days—weeks |
+| **Stage 4 — G3 FG create/map + closure validation** | All required closures/evidence complete | Jane / approval chain | FG candidate created/mapped; validation PASS; approval ready | hours |
+| **Stage 5 — G4 NPD Builder release** | Project approved | Jane / NPD Builder | WIP/intermediates + FG + initial shared BOM/product-spec version created in Monopilot | seconds—minutes |
+| **Stage 6 — Optional D365 export** | Monopilot release ready | Jane (authorized integration user) | Export/import artifact sent/pasted to D365 if enabled; D365 is not source of truth | minutes |
 
 **Timing constraint [APEX-CONFIG]:** Brief handoff → launch minimum **24 tygodnie** (hardcoded business rule, configurable per org in Phase C1 via `Reference.AlertThresholds`).
 
@@ -222,8 +266,9 @@ sequenceDiagram
 
 | Entity | Cardinality | Storage | Notes |
 |---|---|---|---|
-| **FA** (Product) | 1 row per product launch | Main Table, 69 cols typed | PK = `Product_Code` (format `FA*`, [APEX-CONFIG]); source of truth |
-| **ProdDetail** | N per FA (1 per component for multi-comp) | `prod_detail` table, ~20 cols | Foreign key `Product_Code`; per-component Manufacturing_Operation_1..4 + Yield + Line + Equipment_Setup + PR codes |
+| **FG** (Finished Good; legacy FA alias) | 1 row per product launch/release candidate | Product/Main Table, 69 cols typed plus compatibility aliases | Canonical user-facing term is FG. `Product_Code` may still use legacy `FA*` format for compatibility; Monopilot product/FG record is source of truth, not D365 |
+| **Shared BOM version** | N versions per FG/project over lifecycle | Shared `bom_headers` / `bom_lines` model | SSOT across NPD/Technical/Planning/Production/integrations; initial version created by NPD Builder; post-release versions require Technical approval |
+| **ProdDetail** | N per FG (1 per component for multi-comp; legacy FA alias may remain in code) | `prod_detail` table, ~20 cols | Foreign key `Product_Code`; per-component Manufacturing_Operation_1..4 + Yield + Line + Equipment_Setup + PR/WIP codes |
 | **Brief** | 1 row (single-comp) OR N rows (multi-comp) | `brief` table, 37 cols + `brief_version` metadata | 2 templates; pre-PLD upstream stage |
 | **Dept proxy views** | 7 views (read-through schema-driven) | Not stored — computed from Main Table + Reference.DeptColumns | Per-dept filtered columns + blocking states |
 | **Reference tables** | 8-10 tabs (config) | `Reference.*` tables | DeptColumns (metadata), PackSizes, Templates, Lines_By_PackSize, Equipment_Setup_By_Line_Pack, ManufacturingOperations (configurable per tenant), CloseConfirm, Allergens (new), D365_Constants (new), AlertThresholds (new) |
@@ -531,7 +576,7 @@ Total Core po Phase B.2 = **15 cols** (8 core + 7 brief extensions).
 | 38 | `Intermediate_Code_Final` | AUTO | `""` | No | Format `WIP<process_suffix_sequence><final_suffix>` (Phase D #10), multi-comp = comma-sep | Tenant-configurable per Reference.CodePrefixes |
 | 39 | `Closed_Production` | TEXT | `Pack_Size filled` | No | | |
 
-Production jest N:1 z FA przez ProdDetail (multi-component scenariusze). Main Table Manufacturing_Operation_1..4 + Line + Equipment_Setup + Intermediate_Code_Final = aggregate; ProdDetail = per-component source of truth. Manufacturing operations configurable per tenant via Reference.ManufacturingOperations (suffix from config, not hardcoded A/B/C/D).
+Production jest N:1 z FG (legacy FA alias w kodzie) przez ProdDetail (multi-component scenariusze). Main Table Manufacturing_Operation_1..4 + Line + Equipment_Setup + Intermediate_Code_Final = aggregate; ProdDetail = per-component source of truth. Manufacturing operations configurable per tenant via Reference.ManufacturingOperations (suffix from config, not hardcoded A/B/C/D).
 
 ### 5.7 Technical (2 cols baseline + N allergen fields [EVOLVING] → [UNIVERSAL])
 

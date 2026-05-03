@@ -11,7 +11,7 @@ PRD: `01-NPD-PRD.md` (v3.3 + N-* gap-backlog amendments 2026-04-30)
 | **NPD-c** | Allergens cascade (Reference.Allergens, by_RM, by_Process, V07) | T-009..T-017 (mixed) |
 | **NPD-d** | D365 Builder (8-tab xlsx, Builder wizard, V01-V08 validators) | T-030..T-047 |
 | **NPD-e** | Dashboard (counters, alerts, per-dept, controls, refresh) | T-048..T-053, T-091 |
-| **NPD-f** | Stage-Gate Pipeline (G0-G4, projects, gates, approvals, e-sig, kanban/table/split) | T-054..T-062 |
+| **NPD-f** | Stage-Gate Pipeline (G0-G4 canonical MVP, projects, gates, approvals, e-sig, kanban/table/split; Trial/Pilot/Handoff/Packaging stay in NPD flow) | T-054..T-062 |
 | **NPD-g** | Recipe / Formulation editor (versions, ingredients, compute, lock) | T-063..T-068 |
 | **NPD-h** | Nutrition + Costing + Sensory stage screens | T-069..T-076 |
 | **NPD-i** | Approval + Risk Register (V18) + Compliance Documents (expiry) | T-077..T-088 |
@@ -68,7 +68,39 @@ PRD: `01-NPD-PRD.md` (v3.3 + N-* gap-backlog amendments 2026-04-30)
 
 ## Notes
 
-- T-001..T-047 emitted in earlier batch and remain unchanged; this batch only adds T-048..T-091.
-- §17.11.4 Sensory follows the BUILD path; D4 reduction (collapse to single FA cell) is a separate downstream decision and not in scope here.
-- §17.11.6 LEGACY (Trial/Pilot/Handoff/Packaging) is deprecated per BL-NPD-02 and intentionally not decomposed into atomic tasks.
+- T-001..T-047 emitted in earlier batch and remain unchanged except targeted 2026-05-03 PO-decision safety patches in T-044/T-047.
+- T-092/T-093/T-094 were re-authored after the final 2026-05-03 decisions and are no longer blocked on FA/FG naming or BOM SSOT clarification:
+  - T-092: actionable shared BOM SSOT schema/lifecycle for NPD-originated initial BOM versions and Technical approval/versioning.
+  - T-093: actionable after T-092; NPD Builder writes initial shared BOM version, switches readers/backfill, and enforces post-release new version + Technical approval.
+  - T-094: actionable safe FG terminology/i18n compatibility pass; physical DB/route/event mass rename remains out of scope.
+- Canonical term is `FG` / Finished Good. `FA` may remain only as a compatibility alias in legacy fields/routes/prototype identifiers/external codes; do not introduce FA as final user-facing language.
+- Stage-Gate `G0-G4` is canonical MVP. Brief creates NPD project (`DEV-123`); project creates/maps FG at G3; NPD Builder creates WIP/intermediates + FG + initial shared BOM/product-spec version after department closure + approval.
+- §17.11.4 Sensory is Technical-owned per `_meta/decisions/2026-05-03-flow-d365-settings-technical-decisions.md`; NPD sensory tasks T-071/T-076 are deferred/cross-module and must not be implemented as standalone NPD BUILD tasks unless re-owned by Technical.
+- §17.11.6 LEGACY (Trial/Pilot/Handoff/Packaging) is not deprecated. These stages return as part of NPD and must be represented in Stage-Gate flow coverage.
+- One shared BOM table/model is SSOT across NPD Builder, Technical, Planning, Production and integrations. D365 is export/import integration only, not canonical source of truth.
+- Any post-release NPD edit to product/BOM/factory-spec data must create a new BOM/product-spec version and route to Technical approval before factory use; tasks must not model it as in-place mutation or simple built-flag reset.
 - The SECURITY DEFINER + cron pattern (T-085, T-090) requires a worker package (`apps/worker`) — assumed present from Foundation 00-f outbox/worker scope.
+
+## Coverage rows (E2E spine blocker closeout 2026-05-03)
+
+| PRD/review ref | Task file | Sub-module | Type | Status |
+|---|---|---|---|---|
+| Brief→Project spine / BL-E2E-01 | tasks/T-030.json, tasks/T-031.json, tasks/T-033.json, tasks/T-034.json, tasks/T-035.json | NPD-b/NPD-f | T1/T2/T3 | patched |
+| Gate matrix / BL-E2E-03 | tasks/T-056.json | NPD-f | T5-seed | patched |
+| G3/G4 blockers / BL-E2E-02/03 | tasks/T-058.json | NPD-f | T2-api | patched |
+| Stage-Gate E2E extended to G4/release | tasks/T-062.json | NPD-f | T4-wiring-test | patched |
+| Shared BOM handoff to release orchestrator | tasks/T-093.json | NPD Builder/BOM SSOT | T2-api | patched |
+| G3 FG create/map | tasks/T-095.json | NPD-f | T2-api+T3-ui+T4 | added |
+| NPD Builder release orchestrator | tasks/T-096.json | NPD Builder | T2-api+T4 | added |
+| Factory release status/read model | tasks/T-097.json | NPD/shared read model | T1-schema+T2-api | added |
+| Full Brief→factory release E2E | tasks/T-098.json | NPD E2E | T4-wiring-test | added |
+
+### 2026-05-03 E2E spine decisions now encoded in tasks
+
+- Brief creates/links canonical `npd_project` first; FG is not created during Brief create/complete.
+- G3 owns create/map of one canonical FG / Finished Good candidate (`FA` only as legacy alias).
+- G4/NPD Builder release is a Monopilot-owned transaction creating/confirming WIP/intermediates + FG + initial shared BOM SSOT + initial factory_spec handoff.
+- Shared `bom_headers`/`bom_lines` remain SSOT; no NPD-only BOM authority.
+- D365 is optional export/import only and never sets release/factory availability state.
+- Technical approval is required before factory_spec/BOM can be consumed by factory/Planning.
+- Release status/read model separates `pending_npd_release`, `pending_technical_approval`, `approved_for_factory`, `released_to_factory`, and `blocked`; `Built` is not canonical release state.

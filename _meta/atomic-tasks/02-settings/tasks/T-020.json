@@ -1,6 +1,6 @@
 {
-  "title": "T-020 — Server Action: maintenance_mode + integration.d365.enabled flag flip with V-SET-42",
-  "prompt": "# T-020 — Server Actions: feature_flags_core flip\n\n## Goal\nImplement `setCoreFlag(flagCode, enabled, rolloutPct?)`. For `integration.d365.enabled=true`, V-SET-42 must run: 5 d365_constants rows present + test connection passed. For `maintenance_mode=true`, also set middleware kill-switch.\n\n## Files in scope\n- apps/web/actions/flags/set-core.ts [create]\n- apps/web/actions/flags/set-core.test.ts [create]\n\n## Acceptance criteria (all must hold)\n- Given flag='integration.d365.enabled' and only 4 d365_constants rows exist, when flip to true is attempted, then action raises D365_CONSTANTS_MISSING.\n- Given flag='maintenance_mode' and caller has settings.flags.edit, when flipped to true, then feature_flags_core row updated and outbox event 'settings.module.toggled' (with flag_code) emitted.\n- Given flag flip succeeds, when audit_log queried, then a row with action='update' table_name='feature_flags_core' is present with old/new diff.\n\n## Test strategy (RED first)\n1. Add a failing test that exercises the acceptance criteria above. The RED command is:\n   `pnpm --filter @monopilot/web vitest run apps/web/actions/flags/set-core.test.ts`\n2. Run RED — it must fail before any production code is written.\n3. Implement the smallest change needed for GREEN.\n4. Re-run RED command — must pass.\n5. Run `pnpm typecheck` and `pnpm lint` in the changed package; both must pass.\n\n## Risk red lines\n- Do not edit files outside the listed scope without documenting why in CLOSEOUT.\n- Do not weaken existing acceptance criteria from prior tasks.\n- Do not introduce REST endpoints; use Server Actions per stack contract.\n- Do not commit secrets or vault keys.\n\n## Closeout evidence required\n- changed_files (with line counts)\n- exact test commands and outputs (RED→GREEN, typecheck, lint)\n- acceptance_criteria_status (one row per AC: pass/fail)\n- deviations_from_prd (or \"none\")\n- git_status\n\nStack: TS + Next.js App Router + Drizzle + pnpm + vitest + Playwright + Server Actions. Primitives in `packages/ui`. PRD: `02-SETTINGS-PRD.md` v3.5.\n",
+  "title": "T-020 — Server Action: setCoreFlag with V-SET-42/V-SET-43/V-SET-44 server-side enforcement",
+  "prompt": "# T-020 — Server Action: setCoreFlag with V-SET-42/V-SET-43/V-SET-44\n\n## Goal\nCore feature flag flip with backend-only preflight enforcement for D365 and Settings/Auth workflow gates.\n\nV-SET-42 = `integration.d365.enabled=true` requires 5 d365_constants rows populated plus V-SET-50/V-SET-52 test connection pass (call D365 constants/test-connection Server Action from T-030; SM-08/T-054 is UI-only).\n\nV-SET-43 = `npd.post_release_edit.enabled=true` requires enabled `org_authorization_policies.policy_code='npd_post_release_edit'`, at least one authorizer permission/role, and `requires_new_version=true`.\n\nV-SET-44 = `technical.product_spec_approval.required=true` requires enabled `org_authorization_policies.policy_code='technical_product_spec_approval'`, `approval_gate_rule_code='technical_product_spec_approval_gate_v1'`, `min_approvers>=1`, and satisfiable Technical approver permissions.\n\nFor other non-D365/non-workflow flags, only RBAC + audit are needed.\n\n## Files in scope\n- apps/web/actions/flags/set-core.ts\n- apps/web/actions/flags/set-core.test.ts\n\n## Acceptance criteria (all must hold)\n- Given `integration.d365.enabled=true`, when D365 constants/test connection preflight fails, then the flag remains unchanged and a typed V-SET-42 error is returned.\n- Given `npd.post_release_edit.enabled=true`, when the NPD authorization policy is missing, disabled, lacks authorizer roles/permissions, or has `requires_new_version=false`, then the flag remains unchanged and a typed V-SET-43 error is returned.\n- Given `technical.product_spec_approval.required=true`, when the Technical approval policy is missing, disabled, has the wrong/missing gate rule, `min_approvers<1`, or unsatisfiable approver permissions, then the flag remains unchanged and a typed V-SET-44 error is returned.\n- Given all relevant preflights pass, then the flag flips, audit log row is written via trigger, and outbox event is emitted.\n- Enforcement is server-side in `setCoreFlag`; UI affordances from T-065/T-122 may display preflight results but cannot be the source of truth.\n\n## Test strategy (RED first)\n- RED: D365 fail, V-SET-43 missing/misconfigured policy, V-SET-44 wrong gate/min approver, maintenance success, audit/outbox success.\n- GREEN: implement by calling T-030 D365 service and T-122 authorization-policy helper/preflight.\n- Run targeted vitest, typecheck, lint.\n\n## Risk red lines\n- Do not flip `integration.d365.enabled` without all V-SET-42/V-SET-50/V-SET-52 guards.\n- Do not flip `npd.post_release_edit.enabled` without V-SET-43 policy validation.\n- Do not flip `technical.product_spec_approval.required` without V-SET-44 policy/gate validation.\n- Do not depend on T-054/T-065/T-122 UI logic for flag preflight; backend guard is canonical.\n- Do not implement NPD or Technical application workflows in this task.",
   "labels": [
     "prd",
     "api",
@@ -18,6 +18,8 @@
       "§10.2",
       "§11.4",
       "V-SET-42",
+      "V-SET-43",
+      "V-SET-44",
       "V-SET-50",
       "V-SET-52"
     ],
@@ -27,8 +29,8 @@
     "parent_feature": "02-settings-b",
     "context_budget": "40k",
     "estimated_effort": "1-3h",
-    "description": "Core feature flag flip with V-SET-42 D365 pre-check.",
-    "details": "V-SET-42 = 5 d365_constants rows populated; V-SET-50 = constants populated; V-SET-52 = test connection passes (call SM-08 logic from T-040 D365 test connection action). For non-D365 flags, only RBAC + audit are needed.",
+    "description": "Core feature flag flip with backend preflight for D365 and Settings/Auth workflow gates.",
+    "details": "V-SET-42 guards integration.d365.enabled. V-SET-43 guards npd.post_release_edit.enabled via org_authorization_policies npd_post_release_edit. V-SET-44 guards technical.product_spec_approval.required via org_authorization_policies technical_product_spec_approval and technical_product_spec_approval_gate_v1. setCoreFlag is the server-side source of truth.",
     "scope_files": [
       "apps/web/actions/flags/set-core.ts",
       "apps/web/actions/flags/set-core.test.ts"
@@ -39,20 +41,29 @@
     ],
     "dependencies": [
       "T-013",
-      "T-016"
+      "T-016",
+      "T-030",
+      "T-122"
     ],
     "parallel_safe_with": [],
     "acceptance_criteria": [
-      "D365 pre-flight enforced.",
+      "D365 V-SET-42/V-SET-50/V-SET-52 pre-flight enforced server-side.",
+      "NPD post-release edit V-SET-43 policy pre-flight enforced server-side.",
+      "Technical product-spec approval V-SET-44 policy/gate pre-flight enforced server-side.",
       "Audit log row written via trigger.",
       "Outbox event emitted."
     ],
     "test_strategy": [
-      "RED: 3 cases (D365 fail, maintenance success, audit row).",
-      "GREEN: implement."
+      "RED: D365 fail, V-SET-43 policy fail, V-SET-44 gate fail, maintenance success, audit/outbox success.",
+      "GREEN: implement helper calls and typed errors.",
+      "Run targeted vitest, typecheck, lint."
     ],
     "risk_red_lines": [
-      "Do not flip integration.d365.enabled without all guards."
+      "Do not flip integration.d365.enabled without all guards.",
+      "Do not flip npd.post_release_edit.enabled without V-SET-43 policy validation.",
+      "Do not flip technical.product_spec_approval.required without V-SET-44 policy/gate validation.",
+      "Do not depend on UI modal/screen logic for pre-flight; backend guard is canonical.",
+      "Do not implement NPD or Technical application workflows."
     ],
     "skills": [
       "test-driven-development"

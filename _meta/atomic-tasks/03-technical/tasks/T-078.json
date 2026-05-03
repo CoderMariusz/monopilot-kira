@@ -1,0 +1,90 @@
+{
+  "title": "T-078 — UX implementation red-lines: factory_spec, BOM SSOT, RM usability, PO/TO and optional D365",
+  "prompt": "# T-078 — Apply final Technical UX red-lines to existing prototypes\n\nWhen implementing any 03-TECHNICAL UI task, apply UX §0A red-lines on top of existing prototype parity. Preserve structural, visual and interaction parity with the referenced prototype files, but change production copy/guards to FG/WIP naming, Technical-owned factory_spec, shared BOM SSOT, clone-on-edit approval banner, RM usability panel, supplier_specs Phase 1 review language, PO/TO non-conformance trigger language, Quality-owned lab read-only labels, and optional D365 disabled states. This governance task does not build a screen by itself; it adds required acceptance criteria to all downstream UI closeouts.",
+  "labels": [
+    "prd",
+    "ui",
+    "ux-red-lines",
+    "T3-ui"
+  ],
+  "priority": 60,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "source_prd": "03-TECHNICAL-PRD.md",
+    "category": "ui",
+    "context_budget": "30k",
+    "estimated_effort": "2-3h",
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prd_task_id": "T-078",
+    "prd_refs": [
+      "§0",
+      "§5.0",
+      "§7.4",
+      "design/03-TECHNICAL-UX.md §0A"
+    ],
+    "subcategory": "ux-red-lines",
+    "task_type": "T3-ui",
+    "parent_feature": "03-TECHNICAL UI Governance",
+    "details": "Use this as a UI governance task for ACP agents. Existing prototype labels may contain FA/PR or D365-first assumptions; agents must preserve layout and interactions while correcting domain copy and blocking states per PRD v3.3. For BOM detail, prototype path `design/Monopilot Design System/technical/bom-detail.jsx:650-930` is the visual anchor; for modals, use `design/Monopilot Design System/technical/modals.jsx:94-180` and `design/Monopilot Design System/technical/modals.jsx:371-475` where relevant. T-083 provides the local production copy/guard red-line overlay and must be treated as the concrete checklist for UI closeout copy assertions.",
+    "scope_files": [
+      "design/03-TECHNICAL-UX.md",
+      "_meta/atomic-tasks/03-technical/tasks/T-032..T-063.json",
+      "_meta/atomic-tasks/03-technical/tasks/T-083.json"
+    ],
+    "acceptance_criteria": [
+      "Given a UI implementation references `design/Monopilot Design System/technical/bom-detail.jsx:650-930`, then it preserves structural, visual and interaction parity while showing FG/WIP naming and the active-edit creates new draft approval banner.",
+      "Given a BOM component modal references `design/Monopilot Design System/technical/modals.jsx:133-170`, then it preserves structural, visual and interaction parity while adding the RM usability check rows.",
+      "Given D365 UI references `design/Monopilot Design System/technical/modals.jsx:475-540`, then it preserves structural, visual and interaction parity and includes a disabled optional-integration state.",
+      "Given any Supplier Specs or Lab Results tab is implemented, then copy states supplier_specs are Technical Phase 1 master data and lab status is Quality-owned read-only.",
+      "Given T-083 red-line overlay exists, then UI task closeout references it and proves legacy copy/D365-first wording was not carried from prototypes into production UI."
+    ],
+    "test_strategy": [
+      "For each UI task closeout, require screenshot/DOM assertions for legacy prototype parity plus domain red-line assertions.",
+      "Run the UI task-specific vitest/playwright command named in that task."
+    ],
+    "risk_red_lines": [
+      "Do not rewrite prototype files for visual churn.",
+      "Do not keep FA/PR in production copy except when showing legacy imported source values.",
+      "Do not make this governance task a standalone screen implementation."
+    ],
+    "dependencies": [
+      "T-083"
+    ],
+    "parallel_safe_with": [
+      "T-032",
+      "T-033",
+      "T-034",
+      "T-037",
+      "T-038",
+      "T-039",
+      "T-055"
+    ],
+    "description": "UI governance red-lines applied to Technical prototype-derived implementation tasks."
+  }
+}

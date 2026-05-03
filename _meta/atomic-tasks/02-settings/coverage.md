@@ -1,5 +1,16 @@
 # PRD Coverage — 02-SETTINGS-PRD v3.5
 
+## PO amendment coverage note — 2026-05-03
+
+- Canonical Settings prototype source of truth is `design/Monopilot Design System/settings/*.jsx`.
+- Global Import / Export is in scope and covered by T-121 (SET-029); reference-table CSV remains covered by T-022/T-096/T-085.
+- Roles & Permissions is in scope as a dedicated screen and covered by T-120 (SET-011); Users list remains T-059.
+- Pending Invitations is in scope as a dedicated screen and covered by T-119 (SET-010); Invite modal/actions remain T-052/T-017.
+- Schema/Tenant UI without exact prototype is spec-driven from `design/02-SETTINGS-UX.md`, with prototype element reuse only where matching; T-096..T-102 must not cite adjacent/wrong prototypes as 1:1 sources.
+- Onboarding T-041..T-046 use `design/Monopilot Design System/settings/onboarding-screens.jsx` as the canonical onboarding-flow source; org/data screens may only be reused for field/pattern styling.
+- T-117/T-118 quality flag placeholders remain in Settings per PO decision.
+- Per-org authorization policies for NPD post-release edits and Technical approval gates are covered by T-122, with supporting permission/flag updates in T-002/T-020/T-065/T-120/T-102 and active gate rule seed T-123.
+
 ## Coverage by PRD section
 
 | PRD ref | Requirement | Task file | Status |
@@ -118,14 +129,19 @@
 | §3 | createOrganization + 10 system role seed | tasks/T-016.json | covered |
 | §3 | Role/deactivate/reset Server Actions | tasks/T-018.json | covered |
 | §3 | SM-07 UI (role_assign_modal) | tasks/T-053.json | covered |
-| §3 | SET-011 UI (users_screen) | tasks/T-059.json | covered |
+| §3 | SET-008 UI (users_screen) | tasks/T-059.json | covered |
 | §3 | E2E 4 role categories | tasks/T-088.json | covered |
 | §3 | role_categories seed | tasks/T-091.json | covered |
+| §3 | SET-011 Roles & Permissions screen | tasks/T-120.json | covered |
+| §3 | SET-010 Pending Invitations screen | tasks/T-119.json | covered |
+| §3 PO decision 2026-05-03 | Per-org NPD post-release edit authorization + Technical approval permissions/policy | tasks/T-122.json | covered |
+| §3 PO decision 2026-05-03 | Roles & Permissions visibility for NPD/Technical workflow permissions | tasks/T-120.json | covered |
 | §5 | RLS contract test + withOrgContext helper | tasks/T-015.json | covered |
 | §5.1 | 10 system roles + flat permission enum (settings core) | tasks/T-001.json | covered |
 | §5.1 | Core identity schema with seat_limit + invite TTL | tasks/T-004.json | covered |
 | §5.1 | createOrganization + 10 system role seed | tasks/T-016.json | covered |
 | §5.1 | Role/deactivate/reset Server Actions | tasks/T-018.json | covered |
+| §5.1 PO decision 2026-05-03 | org_authorization_policies schema/actions/helpers | tasks/T-122.json | covered |
 | §5.1 | SM-06 UI (user_invite_modal) | tasks/T-052.json | covered |
 | §5.1 | SET-010 UI (company_profile_screen) | tasks/T-058.json | covered |
 | §5.1 | SET-011 UI (users_screen) | tasks/T-059.json | covered |
@@ -198,6 +214,12 @@
 | §9.7 | SET-060 UI (prototype: none (UX 02-SETTINGS-UX.md §tenant-variations)) | tasks/T-100.json | covered |
 | §9.7 | SET-061 UI (prototype: none (UX 02-SETTINGS-UX.md §dept-taxonomy)) | tasks/T-101.json | covered |
 | §9.7 | SET-062 UI (prototype: none (UX 02-SETTINGS-UX.md §rule-variant)) | tasks/T-102.json | covered |
+| §9.1 PO decision 2026-05-03 | Authorization policy flags in Tenant Variations summary | tasks/T-100.json; tasks/T-122.json | covered |
+| §10.2 PO decision 2026-05-03 | NPD post-release edit / Technical approval core flags and preflight | tasks/T-065.json; tasks/T-122.json | covered |
+| §4.1 amendment 2026-05-03 | Global Import / Export SET-029 | tasks/T-121.json | covered |
+| §7 rule table #32 / V-SET-44 | Active gate seed `technical_product_spec_approval_gate_v1` | tasks/T-123.json | covered |
+| §10.2 V-SET-43 | Server-side flag enforcement for `npd.post_release_edit.enabled` | tasks/T-020.json; tasks/T-122.json | covered |
+| §10.2 V-SET-44 | Server-side flag enforcement for `technical.product_spec_approval.required` and active gate resolution | tasks/T-020.json; tasks/T-122.json; tasks/T-123.json | covered |
 | §4.2 | Phase 2 features (multi-country VAT, waste categories, grade thresholds, fiscal calendar, target KPI, disposition codes, API keys, webhooks, MFA SMS, EmailConfig auto-triggers) | none | out-of-scope per §4.2 (Phase 2) |
 | §4.3 | Phase 3 features (subscription/billing, CSV bulk users, IP whitelist per role, GDPR tooling, custom roles, L4 schemas) | none | out-of-scope per §4.3 (Phase 3) |
 | §4.4 | Rule authoring UI; ad-hoc DDL via UI; tenant switching for non-superadmin; cross-tenant bulk ops | none | out-of-scope per §4.4 (exclusions) |
@@ -232,7 +254,7 @@
 | T-040 | cascade-engine | T2-api |
 | T-110 | posthog-proxy | T2-api |
 
-### auth (10 tasks)
+### auth (11 tasks)
 
 | Task | Subcategory | Type |
 |---|---|---|
@@ -246,8 +268,9 @@
 | T-034 | scim | T2-api |
 | T-035 | edge-middleware | T2-api |
 | T-036 | ip-allowlist | T2-api |
+| T-122 | authorization-policies | T2-api+T3-ui |
 
-### data (15 tasks)
+### data (16 tasks)
 
 | Task | Subcategory | Type |
 |---|---|---|
@@ -266,6 +289,7 @@
 | T-092 | seed-modules | T5-seed |
 | T-093 | seed-reference-schemas | T5-seed |
 | T-116 | seed-i18n-strings | T5-seed |
+| T-123 | seed-rule-technical-product-spec-approval-gate | T5-seed |
 
 ### docs (2 tasks)
 
@@ -296,7 +320,7 @@
 | T-089 | integration-audit | T4-wiring-test |
 | T-090 | integration-l2 | T4-wiring-test |
 
-### ui (58 tasks)
+### ui (61 tasks)
 
 | Task | Subcategory | Type |
 |---|---|---|
@@ -318,7 +342,7 @@
 | T-056 | sm-10 | T3-ui |
 | T-057 | sm-11 | T3-ui |
 | T-058 | set-010 | T3-ui |
-| T-059 | set-011 | T3-ui |
+| T-059 | set-008 | T3-ui |
 | T-060 | set-012 | T3-ui |
 | T-061 | set-080 | T3-ui |
 | T-062 | set-081 | T3-ui |
@@ -358,6 +382,9 @@
 | T-113 | set-093 | T3-ui |
 | T-114 | set-054 | T3-ui |
 | T-115 | set-057 | T3-ui |
+| T-119 | set-010 | T3-ui |
+| T-120 | set-011 | T3-ui |
+| T-121 | set-029 | T3-ui |
 
 ## Gaps
 
@@ -371,4 +398,7 @@
 - Reference table #25 `changeover_target_duration_min` (§8.1/§8.8 v3.4 delta) is covered implicitly by T-093 (asserts "25 distinct table codes" in §8.1) — no dedicated migration task required because storage uses generic `reference_tables` row keyed `{line_id}:{fa_code}`.
 - `oee_alert_thresholds.oee_target_pct=70` default (§8.8 v3.4 delta) is covered by T-093 AC#3 ("oee_target_pct default reflects 70 (v3.4)") — no separate seed task required.
 - 6 mistagged prototypes from prototype-index-settings.json (sites/shifts/devices/products/boms/partners) are documented as moved to other modules per D8 in T-095 decisions log; those are NOT covered here.
-- Schema column edit wizard (SET-031), schema diff viewer (SET-032), and CSV import wizard (SET-053) carry parity AC against UX spec because no prototype exists (per Step 7 fallback).
+- Schema column edit wizard (SET-031), schema diff viewer (SET-032), schema migrations queue (SET-033), CSV import wizard (SET-053), Tenant Variations (SET-060), Dept Taxonomy (SET-061), and Rule Variant Selector (SET-062) are spec-driven from `design/02-SETTINGS-UX.md`; UX spec replaces prototype parity where exact canonical prototype is missing.
+- PO 2026-05-03 scope additions are covered by T-119/T-120/T-121. Root `settings/import-export.jsx` is not canonical under the new prototype-source decision, but may be treated as non-canonical pattern reference for T-121 if useful.
+- Depth review completed for T-119/T-120/T-121 and T-096..T-102: shallow/mismatched items were tightened with permission-denied cases, explicit UX step coverage, org-policy summaries, global import/export entity capabilities, and route corrections to UX canonical routes (`/settings/schema/diff/:id`, `/settings/tenant/depts`, `/settings/tenant/rules`).
+- Auth/settings enforcement blocker patch 2026-05-03: T-002 mixed-namespace permission regex fixed; T-020 now owns server-side V-SET-43/V-SET-44 flag enforcement; T-122 deepened for schema/actions/UI/tests; T-123 added as the active `technical_product_spec_approval_gate_v1` rule seed.

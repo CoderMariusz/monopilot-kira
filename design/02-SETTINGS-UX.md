@@ -2,7 +2,7 @@
 
 > **Purpose:** Self-contained design brief for Claude Design to generate interactive HTML prototypes. Every screen, modal, state, field, column, button, and flow is described in enough detail that a designer needs no additional input.
 >
-> **Source authority:** PRD 02-SETTINGS v3.0 (2026-04-19) overrides archive wireframes wherever they conflict.
+> **Source authority:** PRD 02-SETTINGS v3.5 plus PO amendment 2026-05-03. Canonical Settings prototype source of truth is `design/Monopilot Design System/settings/*.jsx`; when an exact screen prototype is missing, this UX spec is authoritative and prototype elements may be reused only as matching primitives/patterns.
 
 ---
 
@@ -14,7 +14,7 @@
 **Sub-areas:**
 1. Settings landing / dashboard
 2. Organization profile
-3. Users, Roles, Permissions, Invitations
+3. Users, Roles, Permissions, Invitations, per-org authorization policies
 4. Onboarding wizard (6 steps)
 5. Schema admin wizard (L1/L2/L3/L4 tier management, L1 promotion flow)
 6. Rule Definitions Registry — **read-only** (dev-authored via PR pipeline)
@@ -124,6 +124,7 @@ Appears on every Settings page. Fixed 256px wide, positioned immediately right o
 **USERS & ROLES**
 - Users → `/settings/users`
 - Roles & Permissions → `/settings/roles`
+- Authorization Policies → `/settings/authorization`
 - Invitations → `/settings/invitations`
 
 **SCHEMA & RULES** *(new in v3.0)*
@@ -169,7 +170,7 @@ Appears on every Settings page. Fixed 256px wide, positioned immediately right o
 **ONBOARDING**
 - Setup Wizard → `/settings/onboarding`
 
-Items that are permission-filtered: items in SCHEMA & RULES visible to `owner`, `admin`, `auditor`. TENANT CONFIG visible to `owner`, `superadmin`. INTEGRATIONS > D365 visible to `owner`, `admin`, `npd_manager`. SYSTEM items visible to `owner`, `admin`, `auditor`. Disabled items show `[Soon]` badge, opacity 50%, cursor not-allowed.
+Items that are permission-filtered: items in SCHEMA & RULES visible to `owner`, `admin`, `auditor`. Authorization Policies visible to `owner`, `admin`, `auditor`; write controls require `settings.authorization.edit`. TENANT CONFIG visible to `owner`, `superadmin`. INTEGRATIONS > D365 visible to `owner`, `admin`, `npd_manager`. SYSTEM items visible to `owner`, `admin`, `auditor`. Disabled items show `[Soon]` badge, opacity 50%, cursor not-allowed.
 
 ### Route map
 
@@ -179,6 +180,7 @@ Items that are permission-filtered: items in SCHEMA & RULES visible to `owner`, 
 /settings/users                       SET-008  User List
 /settings/users/invite                         Invite modal (opens inline)
 /settings/roles                       SET-011  Roles & Permissions
+/settings/authorization               SET-011b Authorization Policies
 /settings/invitations                 SET-010  Pending Invitations
 /settings/onboarding                  SET-001  Onboarding Wizard Launcher
 /settings/onboarding/org              SET-002  Step 1 — Org Profile
@@ -233,6 +235,7 @@ Items that are permission-filtered: items in SCHEMA & RULES visible to `owner`, 
 |---|---|---|---|---|---|---|
 | Organization Profile | RW | RW | R | R | R | — |
 | Users / Roles / Invitations | RW | RW | — | — | R | — |
+| Authorization Policies | RW | RW | — | R summary only | R | — |
 | Schema Browser | RW | RW | R | R | R | — |
 | Schema Column Edit (L2/L3) | RW | RW | — | — | — | — |
 | L1 Promotion | RW | — | — | — | — | — |
@@ -439,6 +442,35 @@ System roles (10 rows): owner, admin, npd_manager, module_admin, planner, produc
 **States:** Always populated (system roles seeded at org creation). Loading: skeleton. No empty state.
 
 **Modals opened:** MODAL-PERMISSION-MATRIX, MODAL-ROLE-ASSIGNMENT.
+
+**Permission groups that must be visible:** Settings core/ext permissions plus cross-module workflow permissions configured by Settings: `npd.released_product_edit.request`, `npd.released_product_edit.authorize`, and `technical.product_spec.approve`. These must be shown as flat grouped permission names (NPD / Technical groups), not as a 4-level matrix. Each row shows whether the permission is system default, org override, or disabled by authorization policy.
+
+---
+
+### SET-011b — Authorization Policies
+
+**Route:** `/settings/authorization`
+**Purpose:** Configure per-org authorization policies that gate NPD post-release edits and Technical product-spec approval. Settings owns the configuration; NPD and Technical consume it.
+
+**Layout:** SettingsLayout "Authorization Policies" + description "Control who can request released product/BOM edits, who can authorize them, and who can approve the resulting Technical specification version." Two policy cards stacked vertically.
+
+**Policy card 1 — NPD Post-Release Edit Authorization:**
+- Toggle: `npd.post_release_edit.enabled` (default OFF).
+- Status badge: Enabled / Disabled / Misconfigured.
+- Required invariant banner: "Authorized edits always create a new BOM/product-spec version. In-place mutation is never allowed."
+- Fields: Request permission (`npd.released_product_edit.request`, read-only string), Authorize permission (`npd.released_product_edit.authorize`, read-only string), Authorized roles multi-select, Require segregation of duties toggle, Minimum authorizers number (default 1), Reason required toggle.
+- Validation: enabling requires at least one authorized role and `requires_new_version=true`.
+
+**Policy card 2 — Technical Product-Spec Approval Gate:**
+- Toggle: `technical.product_spec_approval.required` (default ON when Technical module enabled).
+- Gate rule code: read-only `technical_product_spec_approval_gate_v1`.
+- Fields: Approval permission (`technical.product_spec.approve`, read-only string), Approver roles multi-select, Minimum approvers number, Require QA/Technical dual sign-off toggle, Block factory-use until approved toggle (locked ON).
+
+**Actions:** `btn-primary` "Save Policies"; `btn-secondary` "Discard"; `btn-secondary` "View Audit Log" filtered to `authorization_policy_update`.
+
+**States:** Loading skeleton; Empty/missing seed shows `alert-red` "Authorization policy seed missing"; Misconfigured shows `alert-amber` with exact missing requirement; Permission-denied hides write controls and shows read-only summary.
+
+**Audit:** Every save writes `audit_log.action='authorization_policy_update'` with old/new JSON diff and reason.
 
 ---
 
@@ -1049,15 +1081,21 @@ Table of `feature_flags_core` rows:
 | Rollout % | number input 0–100 |
 | Updated At | date |
 
-4 core flags:
+6 core flags:
 1. `maintenance_mode` — "Put app into read-only mode for all non-superadmin users"
 2. `integration.d365.enabled` — "Enable D365 pull/push integration (requires 5 constants configured)"
 3. `scanner.pwa.enabled` — "Enable PWA scanner interface"
 4. `npd.d365_builder.execute` — "Allow NPD Manager to execute D365 Builder"
+5. `npd.post_release_edit.enabled` — "Allow authorized NPD users to request post-release edits; requires configured authorization policy and new version creation"
+6. `technical.product_spec_approval.required` — "Require Technical approval before a new BOM/product-spec version becomes factory-approved"
 
 Special: toggling `integration.d365.enabled` to ON triggers pre-flight check (V-SET-42): validates 5 D365 constants populated + test connection passed. If check fails → MODAL-D365-PREFLIGHT-FAILED. If check passes → MODAL-CONFIRM-FLAG-TOGGLE.
 
 Special: toggling `maintenance_mode` to ON shows MODAL-CONFIRM-MAINTENANCE-MODE with warning "All non-superadmin users will be locked out."
+
+Special: toggling `npd.post_release_edit.enabled` to ON triggers V-SET-43 pre-flight: `org_authorization_policies.npd_post_release_edit` must be enabled, have at least one authorizer role/permission, require segregation-of-duties unless explicitly overridden, and lock `requires_new_version=true`. Failure opens MODAL-AUTH-POLICY-PREFLIGHT with a CTA to `/settings/authorization`.
+
+Special: toggling `technical.product_spec_approval.required` to OFF is blocked while `npd.post_release_edit.enabled=true`; Technical approval is mandatory for new versions created from authorized NPD post-release edits.
 
 **Tab: PostHog Flags (read-only)**
 Read-through view. Table: Flag Name | Variant / Value | Rollout % | Targeting Rules summary. No edit controls. `btn-secondary` "Open PostHog Dashboard ↗" (external link). `alert-blue` "PostHog flags are managed in the PostHog console. This view is read-only."

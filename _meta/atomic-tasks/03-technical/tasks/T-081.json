@@ -1,0 +1,91 @@
+{
+  "title": "T-081 — Shared release status model and guard adapters",
+  "prompt": "# T-081 — Shared release status model and guard adapters\n\nCreate or adopt the shared release status model for Technical releaseable records if no NPD-owned canonical model already exists. Model statuses and transitions for draft, in_review, rejected, approved_for_factory/released, active, superseded and blocked with typed guards. Provide adapters for factory_specs and BOM headers so UI/API tasks do not invent conflicting enums. If an NPD/shared platform release model exists, bind to it and add Technical adapters/tests only; otherwise implement the smallest shared Technical-owned model until platform extraction. RED first: illegal transitions and in-place edits of released records fail deterministically.",
+  "labels": [
+    "prd",
+    "architecture",
+    "release-state",
+    "approval",
+    "T2-api"
+  ],
+  "priority": 55,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "source_prd": "03-TECHNICAL-PRD.md",
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prd_task_id": "T-081",
+    "prd_refs": [
+      "§0",
+      "§5.0",
+      "§7.4",
+      "design/03-TECHNICAL-UX.md §0A"
+    ],
+    "category": "api",
+    "subcategory": "release-state",
+    "task_type": "T2-api",
+    "parent_feature": "03-TECHNICAL Approval/Release",
+    "context_budget": "30k",
+    "estimated_effort": "2-3h",
+    "description": "Shared release state and typed transition guards for factory_spec/BOM Technical release.",
+    "details": "Prerequisite discovery is mandatory: search for an existing NPD/platform release model before adding a new one. If found, this task creates Technical adapters and migration compatibility only. Release state must be usable by API and UI as stable typed codes, support clone-on-write guard checks, and leave D365 sync status as a separate optional integration field.",
+    "scope_files": [
+      "apps/web/lib/shared/release-state.ts",
+      "apps/web/lib/technical/release-state-adapters.ts",
+      "db/migrations/0xxx_technical_release_status_compat.sql",
+      "tests/lib/shared/release-state.test.ts",
+      "tests/lib/technical/release-state-adapters.test.ts"
+    ],
+    "acceptance_criteria": [
+      "Given no canonical release model exists, then release-state.ts defines typed statuses/transitions and factory_specs/BOM adapters use it.",
+      "Given a canonical NPD/platform release model exists, then Technical adapters import/use it and this task does not add a conflicting enum.",
+      "Given released/approved_for_factory record receives direct update attempt, then guard returns RELEASED_RECORD_IMMUTABLE and clone-on-write path is required.",
+      "Given D365 sync status is pending/disabled/failed, then release status remains local and independent with optional integration warnings only.",
+      "Given UI asks for badge metadata, then adapter returns stable label, color token, allowed actions and blocking reason codes."
+    ],
+    "test_strategy": [
+      "RED tests for legal/illegal transitions and adapter mapping.",
+      "RED repository test or assertion proving no duplicate conflicting release enum was introduced when canonical model exists.",
+      "Run: pnpm vitest run tests/lib/shared/release-state.test.ts tests/lib/technical/release-state-adapters.test.ts"
+    ],
+    "risk_red_lines": [
+      "Do not conflate local release status with D365 sync status.",
+      "Do not make NPD role ownership a prerequisite for Technical factory_spec approval.",
+      "Do not let each service invent its own release enum."
+    ],
+    "dependencies": [
+      "T-072",
+      "T-073"
+    ],
+    "parallel_safe_with": [
+      "T-074",
+      "T-082",
+      "T-083"
+    ]
+  }
+}

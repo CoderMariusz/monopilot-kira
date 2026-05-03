@@ -1,7 +1,12 @@
 {
   "title": "T-056 — UI: TEC-072 D365 Sync Audit Log",
-  "prompt": "Build D365 sync audit log per §13.8 TEC-072. Per-run detail with diff view (records_processed/failed/error_summary). Match `d365_log_screen` design/Monopilot Design System/technical/other-screens.jsx:1025-1051. Reads d365_sync_jobs joined with audit drift entries. RED tests/ui/tec-072-d365-log.test.tsx. Run: `pnpm vitest run tests/ui/tec-072-d365-log.test.tsx`.",
-  "labels": ["prd", "ui", "ui-d365-log", "T3-ui"],
+  "prompt": "Build D365 sync audit log per §13.8 TEC-072. Per-run detail with diff view (records_processed/failed/error_summary). Match `d365_log_screen` design/Monopilot Design System/technical/other-screens.jsx:1025-1051. Reads d365_sync_jobs joined with audit drift entries. RED tests/ui/tec-072-d365-log.test.tsx. Run: `pnpm vitest run tests/ui/tec-072-d365-log.test.tsx`. Prototype naming red-line: translate any legacy prototype/domain labels `fa`/`FA5100`/Factory Article to canonical `fg`/FG, any `PR-code` wording to WIP/intermediate, and any `process_stage`/`process_code` to `manufacturing_operation_name`; do not introduce legacy field names in final code, labels, tests or schemas.",
+  "labels": [
+    "prd",
+    "ui",
+    "ui-d365-log",
+    "T3-ui"
+  ],
   "priority": 120,
   "max_attempts": 3,
   "pipeline_name": "kira_dev",
@@ -9,7 +14,9 @@
     "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
     "prd_task_id": "T-056",
     "source_prd": "03-TECHNICAL-PRD.md",
-    "prd_refs": ["§13.8 TEC-072"],
+    "prd_refs": [
+      "§13.8 TEC-072"
+    ],
     "category": "ui",
     "subcategory": "d365-log",
     "task_type": "T3-ui",
@@ -18,19 +25,60 @@
     "estimated_effort": "1-2h",
     "description": "Per-run sync audit log with diff drilldown.",
     "details": "Filters: direction, target_entity, status, date range. Row-click expands to drift entries.",
-    "scope_files": ["app/(app)/technical/d365/log/page.tsx", "tests/ui/tec-072-d365-log.test.tsx"],
-    "out_of_scope": ["DLQ"],
-    "dependencies": ["T-028", "T-055"],
-    "parallel_safe_with": ["T-057", "T-058"],
+    "scope_files": [
+      "app/(app)/technical/d365/log/page.tsx",
+      "tests/ui/tec-072-d365-log.test.tsx"
+    ],
+    "out_of_scope": [
+      "DLQ"
+    ],
+    "dependencies": [
+      "T-028",
+      "T-055"
+    ],
+    "parallel_safe_with": [
+      "T-057",
+      "T-058"
+    ],
     "acceptance_criteria": [
       "Given the log page renders, when compared to design/Monopilot Design System/technical/other-screens.jsx:1025-1051, then column order, filter bar, and row-detail expansion match — structural + visual + interaction parity verified by RTL.",
       "Given filter direction='pull', when applied, then rows narrow to pull jobs only.",
       "Given a row has 0 errors, when expanded, then 'Clean run' state is shown."
     ],
-    "test_strategy": ["RED tests for parity + filter behavior.", "Run: pnpm vitest run tests/ui/tec-072-d365-log.test.tsx"],
-    "risk_red_lines": ["Do not surface payload details containing secrets."],
-    "skills": ["test-driven-development", "requesting-code-review"],
-    "checkpoint_policy": {"required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"], "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]},
-    "routing_hints": {"red": "hermes_gpt55", "implementation": "hermes_gpt55", "review": "opus_if_high_risk_or_ui_or_architecture", "close": "spark_low_risk_else_opus"}
+    "test_strategy": [
+      "RED tests for parity + filter behavior.",
+      "Run: pnpm vitest run tests/ui/tec-072-d365-log.test.tsx"
+    ],
+    "risk_red_lines": [
+      "Do not surface payload details containing secrets.",
+      "Prototype naming red-line: translate any legacy prototype/domain labels `fa`/`FA5100`/Factory Article to canonical `fg`/FG, any `PR-code` wording to WIP/intermediate, and any `process_stage`/`process_code` to `manufacturing_operation_name`; do not introduce legacy field names in final code, labels, tests or schemas.",
+      "D365 UI must present optional integration/export/import from Monopilot-owned data; any import/overwrite action must be authorized and audited, never silent or canonical-by-default.",
+      "D365 work must be optional integration/export/import from Monopilot-owned data; no strategic dependency or silent canonical overwrite."
+    ],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
   }
 }

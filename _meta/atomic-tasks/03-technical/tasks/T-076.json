@@ -1,0 +1,87 @@
+{
+  "title": "T-076 — PO actuals Technical review/non-conformance trigger contract",
+  "prompt": "# T-076 — PO actuals trigger Technical review/non-conformance\n\nWire the Technical-side contract for Purchase Order receipt actuals: when receiving records actual supplier, actual price/cost, actual spec version/document, actual allergens or declared attrs that differ from approved Technical master data, create a Technical review/non-conformance event and do not update supplier_specs or items.cost_per_kg directly. Provide an idempotent handler for cross-module event `po.receipt_actual_recorded` with typed variance reasons: SUPPLIER_MISMATCH, PRICE_VARIANCE, SPEC_VERSION_MISMATCH, ALLERGEN_MISMATCH, DECLARED_ATTR_MISMATCH. RED first: event processing creates review rows and leaves master data unchanged.",
+  "labels": [
+    "prd",
+    "integration",
+    "po-actuals",
+    "non-conformance",
+    "T4-wiring-test"
+  ],
+  "priority": 60,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "source_prd": "03-TECHNICAL-PRD.md",
+    "category": "docs",
+    "context_budget": "30k",
+    "estimated_effort": "2-3h",
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prd_task_id": "T-076",
+    "prd_refs": [
+      "§0",
+      "§5.0",
+      "§11.2"
+    ],
+    "subcategory": "po-non-conformance",
+    "task_type": "T4-wiring-test",
+    "parent_feature": "03-TECHNICAL Cross-module Receiving",
+    "details": "This is a cross-module wiring contract; implement only Technical-side handler/tests if the event bus exists, or a typed service plus integration test seam if purchasing module is not present. Review approval can later call supplier_specs or cost history explicit approval actions. Non-conformance can be an outbox event if 09-QUALITY tables are not present yet. No UI in this task. Non-conformance emission must use the shared contract from T-082 when present; until 09-QUALITY exists, persist/emit the exact outbox event shape defined there.",
+    "scope_files": [
+      "apps/web/lib/technical/po-actuals-review.ts",
+      "apps/web/events/handlers/po-receipt-actual-recorded.ts",
+      "tests/integration/technical/po-actuals-review.test.ts"
+    ],
+    "acceptance_criteria": [
+      "Given PO actual price exceeds tolerance, when event is processed, then a Technical review/non-conformance is emitted and items.cost_per_kg is unchanged.",
+      "Given PO actual supplier differs from approved supplier_spec supplier, then SUPPLIER_MISMATCH is recorded and supplier_specs is unchanged.",
+      "Given the same PO event is processed twice, then only one review/non-conformance exists for the idempotency key.",
+      "Given review is approved later, then master data changes only through explicit supplier_spec/cost approval action, not inside the event handler.",
+      "Given a variance is classified from po.receipt_actual_recorded, then emitted non_conformance.requested payload conforms to T-082 and includes source_event_id, idempotency_key, source_module, entity refs, reason codes and severity."
+    ],
+    "test_strategy": [
+      "RED integration test with fixture item, supplier_spec and item_cost_history before handler code.",
+      "Run: pnpm vitest run tests/integration/technical/po-actuals-review.test.ts"
+    ],
+    "risk_red_lines": [
+      "Do not implement purchasing UI or PO module.",
+      "Do not update supplier_specs or cost_per_kg inside receipt handler.",
+      "Do not emit duplicate non-conformance on event retry.",
+      "Do not invent a PO/TO-specific NCR payload that diverges from T-082."
+    ],
+    "dependencies": [
+      "T-003",
+      "T-075",
+      "T-082"
+    ],
+    "parallel_safe_with": [
+      "T-077"
+    ],
+    "description": "Technical-side PO actuals review/non-conformance event handler contract without master-data mutation."
+  }
+}

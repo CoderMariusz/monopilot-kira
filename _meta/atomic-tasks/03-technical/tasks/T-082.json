@@ -1,0 +1,87 @@
+{
+  "title": "T-082 — NonConformance event contract for Technical PO/TO triggers",
+  "prompt": "# T-082 — NonConformance event contract for Technical PO/TO triggers\n\nDefine the shared event contract emitted by Technical when PO receipt actuals or TO transfer actuals need non-conformance handling. Event name: `non_conformance.requested` unless an existing platform convention is found and documented. Payload must include source_module, source_event_name, source_event_id, idempotency_key, org_id, item_id, lot_id when present, supplier_id when present, purchase_order_id/transfer_order_id when present, reason_codes, severity, observed_values, expected_values, detected_at, detected_by, and recommended_owner `technical|quality|warehouse|procurement`. Provide schema validation and outbox/idempotency tests. RED first: T-076/T-077 payloads validate against this contract and retries do not duplicate NCR requests.",
+  "labels": [
+    "prd",
+    "integration",
+    "non-conformance",
+    "event-contract",
+    "T2-api"
+  ],
+  "priority": 55,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "source_prd": "03-TECHNICAL-PRD.md",
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prd_task_id": "T-082",
+    "prd_refs": [
+      "§0",
+      "§5.0",
+      "§9.4",
+      "§11.2"
+    ],
+    "category": "api",
+    "subcategory": "non-conformance-event-contract",
+    "task_type": "T2-api",
+    "parent_feature": "03-TECHNICAL Cross-module NCR",
+    "context_budget": "30k",
+    "estimated_effort": "2-3h",
+    "description": "Shared NCR request event schema used by Technical PO and TO actual variance triggers.",
+    "details": "This task does not implement 09-QUALITY investigation workflow. It creates the contract, schema validator and Technical outbox helper so PO/TO triggers can request NCR consistently. If 09-QUALITY tables/events already exist, map to that canonical contract and document the mapping. PO and TO triggers remain Technical-side producers; Quality may be consumer/owner.",
+    "scope_files": [
+      "apps/web/events/contracts/non-conformance-requested.ts",
+      "apps/web/lib/technical/non-conformance-outbox.ts",
+      "tests/events/non-conformance-requested.contract.test.ts",
+      "tests/integration/technical/non-conformance-idempotency.test.ts"
+    ],
+    "acceptance_criteria": [
+      "Given T-076 emits PO price/spec/allergen variance, then payload validates with source_event_name=po.receipt_actual_recorded and reason_codes from the PO variance set.",
+      "Given T-077 emits TO shelf-life/location/temperature variance, then payload validates with source_event_name=to.transfer_actual_recorded and reason_codes from the TO variance set.",
+      "Given the same idempotency_key is emitted twice, then one outbox/NCR request exists and duplicate attempt returns existing reference.",
+      "Given 09-QUALITY contract exists, then this task maps to it without creating a divergent Technical-only payload.",
+      "Given D365 is disabled, then NCR request still emits from local PO/TO events without D365 identifiers."
+    ],
+    "test_strategy": [
+      "RED contract tests with valid and invalid PO/TO payload fixtures.",
+      "RED idempotency test around outbox helper.",
+      "Run: pnpm vitest run tests/events/non-conformance-requested.contract.test.ts tests/integration/technical/non-conformance-idempotency.test.ts"
+    ],
+    "risk_red_lines": [
+      "Do not implement Quality NCR workflow screens.",
+      "Do not mutate master data while emitting NCR requests.",
+      "Do not require D365 identifiers in the contract."
+    ],
+    "dependencies": [],
+    "parallel_safe_with": [
+      "T-080",
+      "T-081",
+      "T-083"
+    ]
+  }
+}

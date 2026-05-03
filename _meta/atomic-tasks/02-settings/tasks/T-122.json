@@ -1,0 +1,116 @@
+{
+  "title": "T-122 — Per-org authorization policies for NPD post-release edits and Technical approval gates",
+  "prompt": "# T-122 — Per-org authorization policies for NPD post-release edits and Technical approval gates\n\n## Goal\nImplement Settings/Auth foundation for per-org authorization policies consumed by NPD post-release edit requests and Technical product-spec approval gates. This task does not implement NPD or Technical application workflows; it only creates Settings-owned policy storage, Server Actions, permission checks, seed defaults, and the SET-011b Authorization Policies screen.\n\n## Files in scope\n- apps/web/db/schema/settings-auth-policies.ts [create/modify]\n- apps/web/db/migrations/*authorization_policies*.sql [create]\n- apps/web/lib/rbac/permissions.enum.ts [modify if T-002 not already covers]\n- apps/web/lib/settings/authorization-policies.ts [create]\n- apps/web/app/(admin)/settings/authorization/page.tsx [create]\n- apps/web/app/(admin)/settings/authorization/page.test.tsx [create]\n- apps/web/lib/settings/authorization-policies.test.ts [create]\n\n## Acceptance criteria (all must hold)\n- Given migrations run for a new org, then `org_authorization_policies` has seeded rows for `npd_post_release_edit` (disabled, `requires_new_version=true`) and `technical_product_spec_approval` (enabled when Technical module is enabled, gate `technical_product_spec_approval_gate_v1`).\n- Given `npd.post_release_edit.enabled` is turned on, when policy lacks authorizer roles/permissions or has `requires_new_version=false`, then V-SET-43 fails and the flag remains off.\n- Given a user has `npd.released_product_edit.request` but not `npd.released_product_edit.authorize`, when `canAuthorizePostReleaseEdit()` is called, then it returns false and includes a machine-readable reason.\n- Given a user has `technical.product_spec.approve` and matches configured approver role(s), when `canApplyTechnicalApprovalGate()` is called, then it returns true only if policy is enabled and min-approver/segregation settings are satisfiable.\n- Given /settings/authorization renders, then it follows UX SET-011b: two policy cards, locked new-version invariant, role multi-selects, min approver controls, validation/misconfigured states, read-only permission strings, and audit-log link.\n- Given a policy is saved, then audit_log receives `authorization_policy_update` with old/new JSON diff and reason.\n\n## Test strategy (RED first)\n- RED: add unit tests for policy seed, V-SET-43/V-SET-44, `canAuthorizePostReleaseEdit`, and `canApplyTechnicalApprovalGate`; add RTL page test for SET-011b cards and misconfigured state.\n- GREEN: add schema/migration, helper functions, Server Actions, and screen.\n- Run `pnpm --filter @monopilot/web vitest run apps/web/lib/settings/authorization-policies.test.ts apps/web/app/(admin)/settings/authorization/page.test.tsx`, `pnpm typecheck`, and `pnpm lint`.\n\n## Risk red lines\n- Do not implement NPD or Technical app workflows in this task; expose policy/helper contracts only.\n- Do not allow in-place mutation of approved factory BOM/product-spec versions; `requires_new_version` is locked true for NPD post-release edits.\n- Do not grant self-authorization to `npd_manager` by default; distinguish request vs authorize.\n- Do not bypass the read-only Rule Registry authoring decision; gate rule code is selected from deployed rules, not edited here.\n\n## Depth patch — auth/settings enforcement blockers (2026-05-03)\nThis task is the Settings-owned enforcement foundation, not a placeholder. It must implement all of the following within Settings/Auth scope:\n\n### Schema / seed contract\n- `org_authorization_policies` must include the PRD columns: `org_id`, `policy_code`, `is_enabled`, `request_permissions`, `authorize_permissions`, `approver_role_codes`, `min_approvers`, `require_segregation_of_duties`, `requires_new_version`, `approval_gate_rule_code`, `settings_json`, `version`, `updated_by`, `updated_at`.\n- Constraints: primary key `(org_id, policy_code)`, allowed policy codes only, `min_approvers >= 1`, and `npd_post_release_edit` cannot set `requires_new_version=false`.\n- New org seed rows:\n  - `npd_post_release_edit`: disabled, request permission `npd.released_product_edit.request`, authorize permission `npd.released_product_edit.authorize`, `requires_new_version=true`, segregation required.\n  - `technical_product_spec_approval`: enabled when Technical module is enabled, authorize/approve permission `technical.product_spec.approve`, `approval_gate_rule_code='technical_product_spec_approval_gate_v1'`, `min_approvers=1`, segregation required.\n\n### Server Actions / helpers\n- Implement read/update/dry-run helpers with typed results: `getAuthorizationPolicies()`, `upsertAuthorizationPolicy()`, `validateAuthorizationPolicyPreflight()`, `canRequestPostReleaseEdit()`, `canAuthorizePostReleaseEdit()`, `canApplyTechnicalApprovalGate()`.\n- Helpers must return machine-readable blocker codes for missing policy, disabled policy, missing request permission, missing authorize/approve permission, self-authorization blocked, min approver unsatisfied, wrong/missing gate rule, and `requires_new_version=false`.\n- `validateAuthorizationPolicyPreflight()` must be callable from T-020 `setCoreFlag` for V-SET-43/V-SET-44.\n- All mutations require `settings.authorization.edit`, increment `version`, write audit action `authorization_policy_update`, and emit a Settings outbox event.\n\n### UI contract — `/settings/authorization` (SET-011b)\n- Render two cards: NPD Post-Release Edit Authorization and Technical Product-Spec Approval Gate.\n- Show status summary, request/authorize/approve permissions, approver roles, min approvers, segregation-of-duties, requires-new-version lock, gate rule code, and preflight blockers.\n- Users with `settings.authorization.view` can read; only `settings.authorization.edit` can save. Unauthorized users see disabled controls and a clear permission message.\n- CTA links: Roles & Permissions (`/settings/roles`) for role assignment and Rule Variant Selector (`/settings/tenant/rules`) for read-only gate visibility; neither can bypass policy invariants.\n\n### Tests\n- Unit tests must cover schema constraints/seed shape, helper happy paths and blocker codes, V-SET-43/V-SET-44 preflight results, audit/outbox, and segregation-of-duties.\n- RTL tests must cover read-only vs editable UI, blocker display, policy save, and links to Roles & Permissions / Rule Variant Selector.\n",
+  "labels": [
+    "prd",
+    "auth",
+    "settings",
+    "authorization",
+    "T2-api",
+    "T3-ui"
+  ],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-122",
+    "source_prd": "02-SETTINGS-PRD.md",
+    "prd_refs": [
+      "§3 PO decision 2026-05-03",
+      "§5.1 org_authorization_policies",
+      "§9.1 authorization policy flags",
+      "§10.2 V-SET-43/V-SET-44",
+      "UX SET-011b"
+    ],
+    "category": "auth",
+    "subcategory": "authorization-policies",
+    "task_type": "T2-api+T3-ui",
+    "parent_feature": "02-settings-a-auth",
+    "context_budget": "40k",
+    "estimated_effort": "3-5h",
+    "description": "Settings-owned per-org authorization policies for NPD post-release edit requests and Technical approval gates.",
+    "details": "Create policy storage/helpers/actions/screen only. NPD/Technical consume these helpers later; do not edit their modules. Canonical invariant: authorized NPD post-release edit creates a new BOM/product-spec version and must pass Technical approval gate before factory use. Depth patch: must include concrete org_authorization_policies schema constraints, new-org seeds, Server Actions/helpers, V-SET-43/V-SET-44 preflight integration points, SET-011b UI states, audit/outbox, and unit/RTL tests.",
+    "scope_files": [
+      "apps/web/db/schema/settings-auth-policies.ts [create/modify]",
+      "apps/web/db/migrations/*authorization_policies*.sql [create]",
+      "apps/web/lib/rbac/permissions.enum.ts [modify if T-002 not already covers]",
+      "apps/web/lib/settings/authorization-policies.ts [create]",
+      "apps/web/app/(admin)/settings/authorization/page.tsx [create]",
+      "apps/web/app/(admin)/settings/authorization/page.test.tsx [create]",
+      "apps/web/lib/settings/authorization-policies.test.ts [create]",
+      "apps/web/db/seeds/authorization-policies.ts [create/modify]",
+      "apps/web/actions/settings/authorization-policies.ts [create]",
+      "apps/web/actions/settings/authorization-policies.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "edit 01-NPD files",
+      "edit 03-TECHNICAL files",
+      "implement product/BOM versioning workflow",
+      "author rule DSL in UI"
+    ],
+    "dependencies": [
+      "T-001",
+      "T-002",
+      "T-010",
+      "T-014",
+      "T-016",
+      "T-020",
+      "T-026"
+    ],
+    "parallel_safe_with": [],
+    "acceptance_criteria": [
+      "Seeded org_authorization_policies rows for npd_post_release_edit and technical_product_spec_approval.",
+      "V-SET-43/V-SET-44 enforced by flag/policy helper.",
+      "Request vs authorize vs Technical approve permissions resolved separately.",
+      "SET-011b Authorization Policies screen follows UX and audits saves.",
+      "Schema constraints prevent invalid policy codes, min_approvers<1, and npd_post_release_edit.requires_new_version=false.",
+      "New org seed creates concrete npd_post_release_edit and technical_product_spec_approval rows with technical_product_spec_approval_gate_v1.",
+      "Server Actions/helpers expose typed preflight blocker codes consumed by T-020 setCoreFlag.",
+      "SET-011b supports read-only view, edit/save, blocker summaries, and audit/outbox on save.",
+      "Unit and RTL tests cover seed, helper decisions, V-SET-43/V-SET-44 preflight, permissions, audit/outbox, and segregation-of-duties."
+    ],
+    "test_strategy": [
+      "RED unit + RTL tests for policy helpers and screen.",
+      "GREEN schema/actions/screen.",
+      "Run targeted vitest, typecheck, lint.",
+      "RED tests for schema/seed constraints and helper blocker codes before implementation.",
+      "RED RTL tests for read-only vs edit mode and blocker display.",
+      "GREEN includes T-020-compatible preflight helpers; do not rely on UI-only validation."
+    ],
+    "risk_red_lines": [
+      "No NPD/Technical application implementation.",
+      "No in-place mutation path for released factory spec/BOM.",
+      "No self-authorization default for npd_manager.",
+      "Do not leave org_authorization_policies as unvalidated JSON-only storage; explicit columns/constraints are required.",
+      "Do not make technical_product_spec_approval_gate_v1 optional when technical.product_spec_approval.required=true.",
+      "Do not allow policy UI to bypass requires_new_version=true or segregation-of-duties."
+    ],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": false
+  }
+}

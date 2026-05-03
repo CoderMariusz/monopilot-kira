@@ -6,7 +6,7 @@ REST endpoints the backend must expose. Maps directly to the `window.NPD_*` help
 >
 > **Errors:** standard envelope `{error: {code, message, details}}`. `details` may include field-level errors (`{field_key: "message"}`).
 >
-> **Idempotency:** mutations that map to D365 push (build, allergen recalc) require `Idempotency-Key` header; service de-dups within 24h.
+> **Idempotency:** mutations that create Monopilot release artifacts or integration exports require `Idempotency-Key` header; service de-dups within 24h. D365 push/export is optional integration only and never the canonical state transition.
 
 ---
 
@@ -219,7 +219,9 @@ Admin / NPD Manager only. Reverses gate close.
 Soft-delete (MODAL-08). **`fa.delete` required.** Body: `{"confirmation_text": "FG2401"}` — must match exactly.
 
 ### `POST /api/npd/fgs/{fg_code}/build-d365`
-MODAL-05 / MODAL-10. **`fa.build_d365` required.** Pre-conditions: `status_overall = Complete` (all 7 depts closed), MFA verified within last 5 min.
+MODAL-05 / MODAL-10. Compatibility endpoint name for the Builder/export flow. **`fa.build_d365` required.** Pre-conditions: `status_overall = Complete` (all required depts closed), project approval satisfied, MFA verified within last 5 min.
+
+2026-05-03 final contract: NPD Builder first creates/validates Monopilot-owned WIP/intermediates + FG + initial shared BOM/product-spec version. D365 output is optional integration/export from that Monopilot-owned release data; D365 is not source of truth.
 
 **Body:**
 ```json

@@ -1,0 +1,82 @@
+{
+  "title": "T-072 — Docs gap: supplier_specs Phase 1 API/UI upload-view-review brief",
+  "prompt": "Write a concise engineering brief for supplier_specs Phase 1 per 03-TECHNICAL-PRD §5.5 + §15A.3. Output design/specs/TEC-supplier-specs-phase1.md covering minimum API/UI contract for upload/view/review of supplier-provided raw material/component parameters, certificates, allergens, cost/quality constraints and approved supplier facts. Include taxonomy distinction from customer_spec and factory_spec, PO deviation review behavior, and BOM raw-material usability validation hooks. Do not implement app code.",
+  "labels": [
+    "prd",
+    "docs",
+    "supplier-specs",
+    "docs"
+  ],
+  "priority": 130,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-072",
+    "source_prd": "03-TECHNICAL-PRD.md",
+    "prd_refs": [
+      "§5.5",
+      "§15A.3",
+      "§15A.5"
+    ],
+    "category": "docs",
+    "subcategory": "supplier-specs-phase1",
+    "task_type": "docs",
+    "parent_feature": "03-TECHNICAL-b Supplier Specs",
+    "context_budget": "10k",
+    "estimated_effort": "1h",
+    "description": "Docs gap brief for supplier_specs Phase 1 API/UI upload-view-review scope.",
+    "details": "Keep this as a brief/gap closure, not app implementation. Specify likely endpoints and UI tabs only at contract level; mark unresolved details explicitly.",
+    "scope_files": [
+      "design/specs/TEC-supplier-specs-phase1.md"
+    ],
+    "out_of_scope": [
+      "Implementing API routes",
+      "Implementing UI components",
+      "Supplier portal Phase 2"
+    ],
+    "dependencies": [
+      "T-005"
+    ],
+    "parallel_safe_with": [
+      "T-060",
+      "T-067"
+    ],
+    "acceptance_criteria": [
+      "Given the brief is written, when reviewed, then it states supplier_specs is Phase 1 and distinct from customer_spec/factory_spec.",
+      "Given PO price/spec deviations are discussed, then the brief says they create review tasks/events and do not silently overwrite approved supplier_specs or BOM cost_per_kg.",
+      "Given BOM raw-material usability is discussed, then validation hooks include approved supplier, active supplier_spec, allergen compatibility, active item and QC/release status where configured."
+    ],
+    "test_strategy": [
+      "Manual docs review.",
+      "No automated tests for docs."
+    ],
+    "risk_red_lines": [
+      "Do not invent a supplier portal implementation for Phase 1.",
+      "Do not implement app code in this docs task."
+    ],
+    "skills": [
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

@@ -3,6 +3,8 @@
 Props contracts for every screen + modal in the prototype. Maps `<Component>` to expected `props` and `openModal(name, data)` payloads.
 
 > **Goal:** a backend dev can scan this and know exactly what data each screen needs, what modals it triggers, and what they emit.
+>
+> **2026-05-03 decision overlay:** prototype names such as `<FAList>`, `<FADetail>`, `fa_code`, `NPD_FAS`, route key `fa_detail`, and `/npd/fa/...` are compatibility aliases. User-facing copy and new contracts should say `FG` / Finished Good. D365 components are optional export/import integration only. Released product/BOM/spec edits must create a new version and require Technical approval.
 
 ---
 

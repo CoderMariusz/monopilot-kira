@@ -1,0 +1,92 @@
+{
+  "title": "T-073 — Shared BOM SSOT + released edit clone-on-write enforcement",
+  "prompt": "# T-073 — Shared BOM SSOT and released edit clone-on-write\n\nRefactor/extend BOM services so `bom_headers`, `bom_lines`, and `bom_co_products` are the single shared BOM SSOT consumed by NPD, Technical, Planning, Production, Warehouse and Finance. NPD Builder creates initial BOM versions in this same model with source metadata; no shadow BOM model is introduced. Enforce released edit rule: editing `active` or `approved` BOM creates next draft version and never mutates the released row. Approval requires Technical permission and a passing RM usability report. RED first: tests for clone-on-write, no duplicate BOM tables/models, and factory-use rejection until Technical approval.",
+  "labels": [
+    "prd",
+    "api",
+    "bom-ssot",
+    "approval",
+    "T2-api"
+  ],
+  "priority": 60,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "source_prd": "03-TECHNICAL-PRD.md",
+    "category": "api",
+    "context_budget": "30k",
+    "estimated_effort": "2-3h",
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prd_task_id": "T-073",
+    "prd_refs": [
+      "§0",
+      "§5.0",
+      "§7.1",
+      "§7.4",
+      "§7.6"
+    ],
+    "subcategory": "bom-ssot",
+    "task_type": "T2-api",
+    "parent_feature": "03-TECHNICAL-a BOM",
+    "details": "Use existing BOM tables from T-002 if present; add source/review metadata through a safe migration only if missing. Approval flow is draft -> in_review -> approved -> active -> superseded. Production snapshots continue to use ADR-002 immutable snapshots. The service must expose typed decisions so UI can show exact blocking reason. This task is backend/API only. Use the shared release state contract from T-081 where available; otherwise implement a local adapter that can be replaced by T-081. BOM approval must be bundle-aware with factory_spec approval: callers must be able to request a combined FactorySpec+BOM release decision and receive atomic approve/reject semantics.",
+    "scope_files": [
+      "db/migrations/0xxx_bom_ssot_metadata.sql",
+      "apps/web/actions/technical/boms/*.ts",
+      "apps/web/lib/technical/bom-service.ts",
+      "tests/actions/technical/bom-ssot.test.ts",
+      "tests/db/bom-ssot-metadata.test.ts"
+    ],
+    "acceptance_criteria": [
+      "Given NPD Builder creates an initial BOM, when it is saved, then it is stored in bom_headers/bom_lines with source npd_builder and status draft.",
+      "Given an active BOM v4, when a user edits header or lines, then BOM v5 draft is created and v4 remains byte-for-byte unchanged.",
+      "Given a BOM approval request with failing RM usability, then approval is rejected with the failing checks listed.",
+      "Given repository search for new BOM tables, then no module-specific NPD/Production BOM table is added by this task.",
+      "Given a FactorySpec+BOM bundle approval is requested, then BOM and factory_spec release decisions are evaluated together and partial release is rejected unless explicitly split by a Technical approver.",
+      "Given shared release status model exists, then BOM status mapping uses it without inventing a conflicting enum."
+    ],
+    "test_strategy": [
+      "RED tests for active BOM immutability and NPD initial draft path.",
+      "Run: pnpm vitest run tests/actions/technical/bom-ssot.test.ts tests/db/bom-ssot-metadata.test.ts"
+    ],
+    "risk_red_lines": [
+      "Do not create a second BOM model.",
+      "Do not update active BOM rows in place.",
+      "Do not bypass ADR-002 snapshots.",
+      "Do not approve a BOM for factory use when the paired factory_spec is not approved_for_factory/released."
+    ],
+    "dependencies": [
+      "T-002",
+      "T-074",
+      "T-081"
+    ],
+    "parallel_safe_with": [
+      "T-072"
+    ],
+    "description": "Shared BOM SSOT backend contract with released edit clone-on-write and Technical approval guards."
+  }
+}

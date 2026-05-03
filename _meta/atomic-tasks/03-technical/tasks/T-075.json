@@ -1,0 +1,85 @@
+{
+  "title": "T-075 — supplier_specs Phase 1 governance and review states",
+  "prompt": "# T-075 — supplier_specs Phase 1 governance\n\nExtend supplier_specs Phase 1 so it can support RM usability and PO review without becoming a supplier portal. Required fields if absent: supplier_status, spec_version not null, effective_from, expiry_date, lifecycle_status `draft|active|expired|superseded|blocked`, review_status `pending|approved|rejected|blocked`, cost_review_blocked, spec_review_blocked, approved_by, approved_at, declared_allergens, declared_attrs. Enforce at most one active approved non-expired spec per org,item,supplier through a partial unique index or equivalent safe constraint. RED first: tests prove expired/blocked specs cannot satisfy RM usability.",
+  "labels": [
+    "prd",
+    "data",
+    "supplier-specs",
+    "T1-schema"
+  ],
+  "priority": 60,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "source_prd": "03-TECHNICAL-PRD.md",
+    "category": "data",
+    "context_budget": "30k",
+    "estimated_effort": "2-3h",
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prd_task_id": "T-075",
+    "prd_refs": [
+      "§0",
+      "§5.0",
+      "§5.5"
+    ],
+    "subcategory": "supplier-specs-phase1",
+    "task_type": "T1-schema",
+    "parent_feature": "03-TECHNICAL-b Supplier Specs",
+    "details": "Phase 1 is Technical-maintained master data. Supplier portal upload, supplier negotiation and external document workflow are out of scope. PO actuals may reference observed spec data and create review/non-conformance but cannot mutate supplier_specs without explicit Technical approval path. Keep document URL optional.",
+    "scope_files": [
+      "db/migrations/0xxx_supplier_specs_phase1.sql",
+      "db/schema/supplier-specs.ts",
+      "apps/web/actions/technical/supplier-specs/*.ts",
+      "tests/db/supplier-specs-phase1.test.ts",
+      "tests/actions/technical/supplier-specs.test.ts"
+    ],
+    "acceptance_criteria": [
+      "Given two active approved supplier_specs for same org,item,supplier overlap, then the database or service rejects the second active record.",
+      "Given expiry_date is in the past, then lifecycle_status resolves expired and RM usability cannot pass.",
+      "Given PO review proposes supplier spec change, then supplier_specs remains unchanged until approveSupplierSpecReview is called by Technical role.",
+      "Given supplier_status is blocked, then RM usability returns SUPPLIER_NOT_APPROVED."
+    ],
+    "test_strategy": [
+      "Add RED migration tests for status enums and active uniqueness.",
+      "Run: pnpm vitest run tests/db/supplier-specs-phase1.test.ts tests/actions/technical/supplier-specs.test.ts"
+    ],
+    "risk_red_lines": [
+      "Do not build supplier portal.",
+      "Do not automatically overwrite supplier_specs from PO actuals.",
+      "Do not remove declared_allergens compatibility with existing allergen cascade."
+    ],
+    "dependencies": [
+      "T-005"
+    ],
+    "parallel_safe_with": [
+      "T-074",
+      "T-076"
+    ],
+    "description": "supplier_specs Phase 1 governance fields, review states and uniqueness constraints."
+  }
+}

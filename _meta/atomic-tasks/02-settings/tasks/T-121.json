@@ -1,0 +1,92 @@
+{
+  "title": "T-121 — Global Import / Export screen (SET-029)",
+  "prompt": "# T-121 — Global Import / Export screen (SET-029)\n\n## Goal\nSET-029 global Import / Export production screen, in scope per PO 2026-05-03.\n\nCanonical Settings prototype source of truth is `design/Monopilot Design System/settings/*.jsx`. If an exact screen prototype is missing, implement spec-driven from `design/02-SETTINGS-UX.md` and reuse available prototype elements/patterns only where they match the UX contract. No exact canonical prototype exists under `design/Monopilot Design System/settings/*.jsx`; UX SET-029 is authoritative. Root legacy `settings/import-export.jsx` may be used only as non-canonical pattern reference if helpful. This is global Settings Import/Export, not only reference table CSV T-096.\n\n## Files in scope\n- apps/web/app/(admin)/settings/import-export/page.tsx [create]\n- apps/web/app/(admin)/settings/import-export/page.test.tsx [create]\n\n## Acceptance criteria (all must hold)\n- Given /settings/import-export renders, then it follows UX SET-029: Import card, Export card, entity selector, upload/dropzone, template download, export format choices, recent jobs/status area, loading/empty/error states.\n- Given a supported entity is selected for import, when a CSV is uploaded, then the user is routed into the relevant preview/commit flow or sees a clear unsupported-entity message; Reference entity reuses T-096/T-022.\n- Given export is requested, then the UI calls server export action for the selected entity/format and shows download/error status; do not conflate this with per-reference-table CSV only.\n\n## Test strategy (RED first)\n- RED: RTL test for two-card layout, entity selection, reference import route handoff, export action call.\n- GREEN: build screen and wire existing import/export actions where available.\n- Run page test, typecheck, lint.\n\n## Risk red lines\n- Global Import/Export is Phase 1 scope per PO 2026-05-03; do not mark it out-of-scope or Phase 3.\n- Do not claim 1:1 canonical prototype parity; exact design-system prototype is missing.\n\n## Depth patch — Global Import/Export permission and entity depth\n- This is the global Settings Import/Export hub, not only Reference CSV. Entity selector must include users, roles, invitations, reference tables, infrastructure, feature flags, and authorization policies.\n- Each entity declares import/export support, required permission(s), template availability, sync vs async behavior, and audit requirements.\n- Imports that mutate authorization policies require `settings.authorization.edit`, an explicit audit reason, dry-run validation through T-122, and must never bypass V-SET-43/V-SET-44 invariants.\n- Export is read-only and permission-filtered; unsupported imports are clearly marked export-only/unsupported instead of silently reusing reference CSV.\n- Tests must cover permission-filtered entity list, reference handoff to T-096/T-022, unsupported import messaging, authorization-policy dry-run blocker, and recent job statuses.\n",
+  "labels": [
+    "prd",
+    "ui",
+    "set-029",
+    "T3-ui"
+  ],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "prd_refs": [
+      "§4.1 PO amendment 2026-05-03",
+      "UX SET-029"
+    ],
+    "category": "ui",
+    "subcategory": "set-029",
+    "task_type": "T3-ui",
+    "parent_feature": "02-settings-system-ui",
+    "description": "SET-029 global Import / Export production screen, in scope per PO 2026-05-03.",
+    "details": "Canonical Settings prototype source of truth is `design/Monopilot Design System/settings/*.jsx`. If an exact screen prototype is missing, implement spec-driven from `design/02-SETTINGS-UX.md` and reuse available prototype elements/patterns only where they match the UX contract. No exact canonical prototype exists under `design/Monopilot Design System/settings/*.jsx`; UX SET-029 is authoritative. Root legacy `settings/import-export.jsx` may be used only as non-canonical pattern reference if helpful. This is global Settings Import/Export, not only reference table CSV T-096. Depth patch 2026-05-03: ## Depth patch — Global Import/Export permission and entity depth - This is the global Settings Import/Export hub, not only Reference CSV. Entity selector must include users, roles, invitations, reference tables, infrastructure, feature flags, and authorization policies. - Each entity declares import/export support, required permission(s), template availability, sync vs async behavior, and audit requirements. - Imports that mutate authorization policies require `settings.authorization.edit`, an explicit audit reason, dry-run validation through T-122, and must never bypass V-SET-43/V-SET-44 invariants. - Export is read-only and permission-filtered; unsupported imports are clearly marked export-only/unsupported instead of silently reusing reference CSV. - Tests must cover permission-filtered entity list, reference handoff to T-096/T-022, unsupported import messaging, authorization-policy dry-run blocker, and recent job statuses.",
+    "scope_files": [
+      "apps/web/app/(admin)/settings/import-export/page.tsx [create]",
+      "apps/web/app/(admin)/settings/import-export/page.test.tsx [create]"
+    ],
+    "dependencies": [
+      "T-022",
+      "T-096",
+      "T-122"
+    ],
+    "acceptance_criteria": [
+      "Given /settings/import-export renders, then it follows UX SET-029: Import card, Export card, entity selector, upload/dropzone, template download, export format choices, recent jobs/status area, loading/empty/error states.",
+      "Given a supported entity is selected for import, when a CSV is uploaded, then the user is routed into the relevant preview/commit flow or sees a clear unsupported-entity message; Reference entity reuses T-096/T-022.",
+      "Given export is requested, then the UI calls server export action for the selected entity/format and shows download/error status; do not conflate this with per-reference-table CSV only.",
+      "Entity selector explicitly distinguishes Settings entities (users, roles, reference tables, feature flags, authorization policies) and marks unsupported imports as read-only/export-only instead of silently routing to reference CSV.",
+      "Entity selector includes users, roles, invitations, reference tables, infrastructure, feature flags, and authorization policies with per-entity import/export capability labels.",
+      "Authorization policy import requires settings.authorization.edit, audit reason, and T-122 dry-run/preflight; V-SET-43/V-SET-44 cannot be bypassed by CSV import.",
+      "RTL tests cover permission-filtered entities, unsupported import states, reference handoff, authorization-policy blocker, and recent jobs/status area."
+    ],
+    "test_strategy": [
+      "RED: RTL test for two-card layout, entity selection, reference import route handoff, export action call.",
+      "GREEN: build screen and wire existing import/export actions where available.",
+      "Run page test, typecheck, lint.",
+      "Add RTL tests for per-entity permission filtering, authorization-policy import dry-run blocker, unsupported import message, and recent job statuses."
+    ],
+    "risk_red_lines": [
+      "Global Import/Export is Phase 1 scope per PO 2026-05-03; do not mark it out-of-scope or Phase 3.",
+      "Do not claim 1:1 canonical prototype parity; exact design-system prototype is missing.",
+      "Do not allow import to mutate authorization policies without `settings.authorization.edit` and audit reason.",
+      "Do not implement global import as a thin alias for reference CSV only.",
+      "Do not allow CSV import to mutate authorization policies without policy permissions, audit reason, and preflight validation."
+    ],
+    "prototype_match": false,
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-121",
+    "source_prd": "02-SETTINGS-PRD.md",
+    "context_budget": "40k",
+    "estimated_effort": "1-3h",
+    "out_of_scope": [
+      "broaden scope beyond listed files",
+      "implement future-phase features"
+    ],
+    "parallel_safe_with": [],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

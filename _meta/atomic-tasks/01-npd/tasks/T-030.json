@@ -1,7 +1,14 @@
 {
-  "title": "T-030 — brief + brief_lines tables (NPD-b schema)",
-  "prompt": "# T-030 — brief + brief_lines schema\n\nPRD: 01-NPD-PRD.md §4.4, §9.1, §9.2\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nCreate brief and brief_lines tables per §4.4 supporting both single_component and multi_component templates with 13 Section A + 24 Section B cols.\n\n## Implementation contract\nMigration 0030 emits brief (37+ cols), brief_lines (line_type, line_index, Section A + B cols + packaging_ext JSONB). FK brief_lines.brief_id → brief ON DELETE CASCADE. RLS. Drizzle schema entries.\n\n## Files\n- packages/db/migrations/0030_brief_and_lines.sql [create]\n- packages/db/src/schema/brief.ts [create]\n- packages/db/__tests__/brief-schema.test.ts [create]\n\n## Acceptance criteria\n1. Given migration 0030 ran, when describing schema, then brief and brief_lines exist with FK CASCADE and RLS on both\n2. Given a brief with 3 component lines, when DELETE brief, then all 3 brief_lines rows are deleted\n3. Given two tenants, when querying brief, then RLS isolates rows per tenant\n\n## Test strategy\n- RED: tests for cascade and RLS\n- Run 'pnpm --filter db migrate && pnpm --filter db test brief-schema'\n\n## Risk red lines\n- Do not skip cascade delete\n- Do not skip RLS\n- Do not commit C21-C37 placeholder labels (open item; use packaging_ext JSONB)",
-  "labels": ["prd", "data", "schema", "T1-schema"],
+  "title": "T-030 — brief + brief_lines tables (NPD-b schema) [PATCH: Brief→Project spine]",
+  "prompt": "# T-030 — brief + brief_lines schema\n\nPRD: 01-NPD-PRD.md §4.4, §9.1, §9.2\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nCreate brief and brief_lines tables per §4.4 supporting both single_component and multi_component templates with 13 Section A + 24 Section B cols.\n\n## Implementation contract\nMigration 0030 emits brief (37+ cols), brief_lines (line_type, line_index, Section A + B cols + packaging_ext JSONB). FK brief_lines.brief_id → brief ON DELETE CASCADE. RLS. Drizzle schema entries.\n\n## Files\n- packages/db/migrations/0030_brief_and_lines.sql [create]\n- packages/db/src/schema/brief.ts [create]\n- packages/db/__tests__/brief-schema.test.ts [create]\n\n## Acceptance criteria\n1. Given migration 0030 ran, when describing schema, then brief and brief_lines exist with FK CASCADE and RLS on both\n2. Given a brief with 3 component lines, when DELETE brief, then all 3 brief_lines rows are deleted\n3. Given two tenants, when querying brief, then RLS isolates rows per tenant\n\n## Test strategy\n- RED: tests for cascade and RLS\n- Run 'pnpm --filter db migrate && pnpm --filter db test brief-schema'\n\n## Risk red lines\n- Do not skip cascade delete\n- Do not skip RLS\n- Do not commit C21-C37 placeholder labels (open item; use packaging_ext JSONB)\n\n## 2026-05-03 E2E spine patch — Brief must link to NPD project\nThis task must make Brief the first artefact of the Stage-Gate spine, not a standalone FA/FG precursor. Add the minimum schema needed to link `brief` to `npd_projects` as canonical project record (`npd_project_id` FK or equivalent discovered relationship) and preserve compatibility aliases only where existing code requires them.\n\nFinal decisions:\n- Canonical term is FG / Finished Good; FA may appear only as legacy alias.\n- Brief creates/owns an NPD project such as `DEV-123` before any FG is created.\n- FG creation/mapping happens at G3, not during initial brief creation.\n- D365 is optional export/import only and not part of the Brief→Project contract.",
+  "labels": [
+    "prd",
+    "data",
+    "schema",
+    "T1-schema",
+    "e2e-spine",
+    "brief-project"
+  ],
   "priority": 80,
   "max_attempts": 3,
   "pipeline_name": "kira_dev",
@@ -9,7 +16,11 @@
     "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
     "prd_task_id": "T-030",
     "source_prd": "01-NPD-PRD.md",
-    "prd_refs": ["§4.4", "§9.1", "§9.2"],
+    "prd_refs": [
+      "§4.4",
+      "§9.1",
+      "§9.2"
+    ],
     "category": "data",
     "subcategory": "brief-schema",
     "task_type": "T1-schema",
@@ -27,12 +38,19 @@
       "Do not implement Convert action here (T-033)",
       "Do not implement UI here (T-034)"
     ],
-    "dependencies": ["T-001"],
-    "parallel_safe_with": ["T-035"],
+    "dependencies": [
+      "T-001"
+    ],
+    "parallel_safe_with": [
+      "T-035"
+    ],
     "acceptance_criteria": [
       "Given migration 0030 ran, when describing schema, then brief and brief_lines exist with FK CASCADE and RLS on both",
       "Given a brief with 3 component lines, when DELETE brief runs, then all 3 brief_lines rows are deleted",
-      "Given two tenants, when querying brief, then RLS isolates rows per tenant"
+      "Given two tenants, when querying brief, then RLS isolates rows per tenant",
+      "Given a brief row exists, when queried, then it can be joined to exactly one canonical npd_project via npd_project_id or an equivalent non-null project link once created by T-031.",
+      "Given only a draft brief exists, when schema constraints are inspected, then no FG/product row is required before G3 mapping.",
+      "Given legacy FA fields/routes still exist, when schema comments or docs are generated, then they are marked compatibility aliases and not canonical release state."
     ],
     "test_strategy": [
       "RED: tests for cascade and RLS before migration exists",
@@ -41,12 +59,28 @@
     "risk_red_lines": [
       "Do not skip cascade delete",
       "Do not skip RLS",
-      "Do not commit C21-C37 placeholder column names"
+      "Do not commit C21-C37 placeholder column names",
+      "Do not create or require FG/Product rows in the brief schema before G3.",
+      "Do not model D365 built/export state as the brief conversion target."
     ],
-    "skills": ["test-driven-development", "requesting-code-review"],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
     "checkpoint_policy": {
-      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
-      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
     },
     "routing_hints": {
       "red": "hermes_gpt55",

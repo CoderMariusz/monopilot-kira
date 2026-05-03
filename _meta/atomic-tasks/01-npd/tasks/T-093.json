@@ -1,48 +1,66 @@
 {
-  "title": "T-093 — API: NPD writes draft BOM into bom_headers/bom_lines + back-fill migration",
-  "prompt": "Switch NPD from the legacy computed BOM view to writing real `bom_headers/bom_lines` rows (status='draft', origin_module='npd') at FA creation, and back-fill existing FA records.\n\nDeliverables:\n1. Server Action `createDraftBomForFa(faId)` in `apps/web/app/(npd)/fa/_actions/create-draft-bom.ts`:\n   - Inserts `bom_headers` row (status='draft', origin_module='npd', fa_id, version='0.1.0').\n   - Inserts `bom_lines` rows by reading the FA's `prod_detail` components (the same dataset the legacy computed view used).\n   - Idempotent: if an active draft exists for fa_id, returns existing header_id without insert.\n   - Wrapped in withOrgContext + outbox emits `bom.draft_created`.\n2. Hook the action into the existing FA-creation Server Action (called immediately after FA insert).\n3. Update existing NPD readers (e.g. `getFaBom(faId)`) to query `bom_headers` directly via fa_id (or product_id once promoted), removing reads from the legacy computed view.\n4. Promotion helper `promoteBomToProduct(faId, productId)` — when an FA graduates to FG, sets `bom_headers.product_id` (keeps fa_id for traceability) and transitions status as appropriate (draft remains draft until Technical approves).\n5. Back-fill migration `0093_bom_npd_backfill.sql` — for every FA with no existing draft bom_header, insert one via SQL using prod_detail rows. Wrap in idempotent INSERT ... ON CONFLICT DO NOTHING using the partial index from T-092.\n6. After back-fill verified, DROP the legacy NPD computed view in the same migration (with comment explaining replacement) — only AFTER all FA rows have a header.\n\nRED tests:\n- Unit: createDraftBomForFa idempotency (calling twice yields one header).\n- Unit: prod_detail with N components → N bom_lines rows with correct qty/uom.\n- Integration: getFaBom returns rows from bom_headers (no view dependency); fail if it still hits the legacy view (grep guard).\n- Migration test: dry-run on a fixture with 5 FAs, 3 already with manual bom_headers → back-fill produces exactly 2 new headers.\n\nDo NOT alter bom_lines schema. Do NOT change Technical's approval flow. Do NOT promote draft → approved automatically (Technical owns that transition).\n\nClose-out: paste vitest output + migration filename + grep guard output confirming legacy view dropped + outbox event names.",
-  "labels": ["prd", "api", "bom-ssot", "T2-api"],
-  "priority": 95,
+  "title": "T-093 — API/backfill: NPD Builder writes initial shared BOM version and switches readers to BOM SSOT [PATCH: release orchestrator handoff]",
+  "prompt": "# T-093 — NPD Builder writes initial shared BOM version into shared BOM SSOT\n\nPRD: 01-NPD-PRD.md 2026-05-03 FINAL Amendment + _meta/decisions/2026-05-03-flow-d365-settings-technical-decisions.md\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Final decisions this task must implement\n- NPD Builder is the Monopilot-owned release action that creates WIP/intermediate items, the FG and the initial shared BOM/product-spec version after required departments close and approval passes.\n- Shared `bom_headers`/`bom_lines` are SSOT across NPD, Technical, Planning, Production and integrations.\n- D365 is optional/export/import integration only; it must not be source of truth and must not drive canonical NPD Builder state.\n- Released product/BOM/spec edits from NPD must create a new version and route to Technical approval.\n\n## Goal\nSwitch NPD Builder and NPD BOM readers from legacy computed BOM behavior to the shared BOM SSOT introduced/verified by T-092. This task is ACTIONABLE after T-092; it is blocked only if T-092 has not landed.\n\n## Implementation contract\n1. Discover current NPD Builder/release actions, FA/FG creation actions, BOM readers and legacy computed view names before editing.\n2. Add/replace a server action/domain service such as `createInitialSharedBomVersionForNpdProject(projectId)` or equivalent naming used by the codebase. It must run inside the NPD Builder release transaction that creates/maps WIP/intermediate items and FG.\n3. Inputs: NPD project (`DEV-123`), compatibility FA/product code if still present, prod_detail/components, packaging/MRP components, quantities/UOMs, route/process references and approval context.\n4. Outputs:\n   - exactly one initial `bom_headers` row per released FG/project/version (idempotent on retry);\n   - corresponding `bom_lines` rows from the same component set previously shown by the computed BOM preview;\n   - version metadata (`version='1.0.0'` or project-configured initial version), `origin_module='npd'`, status not factory-active until configured release/Technical rules are satisfied;\n   - outbox event such as `bom.initial_version_created` and release event linking project → FG → BOM version.\n5. Update NPD BOM readers/previews to read from shared `bom_headers/bom_lines` by project/FG/product id. The UI may still display a computed preview before release, but canonical post-release reads must use shared BOM rows.\n6. Add an explicit post-release edit path guard: any NPD edit to released product/BOM/factory-spec data must call/create a new version and submit it to Technical approval; direct in-place update of active approved version must fail. If the full edit UI is elsewhere, add the domain guard/tests here and document downstream call contract.\n7. Backfill migration `0093_shared_bom_npd_backfill.sql` (or next available sequence): for existing released/built FGs without shared BOM headers, create initial shared BOM versions from legacy computed data. Do not import D365 as authority.\n8. After backfill and reader switch are verified, drop or fully de-canonicalize the legacy NPD computed BOM view. If dropping is unsafe due to compatibility, leave a compatibility view that reads from shared BOM and is labelled non-canonical.\n\n## Acceptance criteria\n- Given NPD Builder releases a project with 3 components, when the transaction commits, then WIP/intermediate items + FG + exactly one initial shared BOM version and 3+ shared bom_lines exist.\n- Given the release action is retried after a transient error, when rerun for the same project/version, then no duplicate BOM header or lines are created.\n- Given NPD BOM reader is called for a released FG, when traced/grepped, then it reads shared BOM SSOT and not the old computed view as canonical.\n- Given a released FG active BOM exists, when NPD requests a BOM/product-spec edit, then a new version is created and marked pending Technical approval; the active approved version is not mutated.\n- Given Technical rejects/pends a new version, when factory/Planning reads active BOM, then the prior approved active version remains in use.\n- Given D365 import/cache/export data differs from Monopilot shared BOM, when NPD Builder/release/readers run, then Monopilot shared BOM remains canonical and D365 data is not silently applied.\n- Given backfill runs against existing released/built FGs, when complete, then every released/built FG has a shared BOM header and no duplicates.\n\n## Test strategy\n- RED unit tests for idempotent initial BOM creation and N-components → N-lines.\n- RED integration test for NPD Builder release transaction creating WIP + FG + BOM version atomically.\n- RED reader test/grep guard proving released BOM reads do not depend on old computed view.\n- RED post-release edit test proving new version + Technical approval pending state and no in-place active mutation.\n- Migration dry-run fixture with released/built FGs and D365 mismatch fixture.\n\n## Risk red lines\n- Do not run before T-092 schema/lifecycle lands.\n- Do not create a separate NPD-only BOM authority.\n- Do not auto-promote a post-release edited version to active without Technical approval.\n- Do not use D365 import/cache as canonical source or silently overwrite Monopilot shared BOM from D365.\n- Do not duplicate BOM lines on retries/backfill.\n- Do not mix this with broad FA→FG route/DB/event rename.\n\n\n## 2026-05-03 E2E spine patch — scope boundary with release orchestrator\nT-093 remains the shared BOM SSOT write/backfill task, but it must be called by the canonical NPD Builder release orchestrator in T-096. It must not independently decide that an FG is factory-usable. Factory usability requires Technical approval of the initial factory_spec/BOM bundle and release status transition from T-097.\n\nAdditional constraints:\n- Use FG canonical terminology; FA only as compatibility alias.\n- NPD Builder writes initial shared BOM from Monopilot-owned data, not D365.\n- The active factory-consumable BOM/spec pair must require Technical approval before factory/Planning use.\n- D365 optional export may consume released data but must never set release state.",
+  "labels": [
+    "prd",
+    "api",
+    "bom-ssot",
+    "T2-api",
+    "shared-bom-ssot",
+    "bom-version-approval",
+    "technical-approval",
+    "fg-canonical",
+    "d365-integration-only",
+    "e2e-spine",
+    "release-orchestrator",
+    "release-status"
+  ],
+  "priority": 20,
   "max_attempts": 3,
   "pipeline_name": "kira_dev",
   "pipeline_inputs": {
     "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
     "prd_task_id": "T-093",
     "source_prd": "01-NPD-PRD.md",
-    "prd_refs": ["§bom-ssot-architecture"],
+    "prd_refs": [
+      "2026-05-03 PO Amendment",
+      "_meta/decisions/2026-05-03-flow-d365-settings-technical-decisions.md"
+    ],
     "category": "api",
-    "subcategory": "npd-bom-write",
+    "subcategory": "npd-builder-shared-bom-write",
     "task_type": "T2-api",
     "parent_feature": "bom-single-source-of-truth",
     "context_budget": "50k",
     "estimated_effort": "4-5h",
-    "description": "NPD creates draft bom_headers/lines on FA creation; back-fill existing FAs; drop legacy view; switch readers.",
-    "details": "Idempotent Server Action wired into FA creation; promotion helper sets product_id when FA → FG; back-fill migration covers existing data BEFORE the view is dropped; readers retargeted to bom_headers; outbox emits bom.draft_created.",
+    "description": "ACTIONABLE after T-092: NPD Builder writes initial shared BOM version with WIP/FG release, switches readers/backfill to shared BOM SSOT, and enforces new version + Technical approval for post-release edits.",
+    "details": "Use shared bom_headers/bom_lines as SSOT. Release creates WIP/intermediates + FG + initial BOM/product-spec version. D365 is optional integration/export only. Post-release edits create new version pending Technical approval.",
     "scope_files": [
-      "apps/web/app/(npd)/fa/_actions/create-draft-bom.ts [create]",
-      "apps/web/app/(npd)/fa/_actions/promote-bom-to-product.ts [create]",
-      "apps/web/app/(npd)/fa/_actions/__tests__/create-draft-bom.test.ts [create]",
-      "apps/web/app/(npd)/fa/_actions/create-fa.ts [edit — call createDraftBomForFa]",
-      "packages/domain/src/npd/bom/get-fa-bom.ts [edit — switch from view to bom_headers]",
-      "src/db/migrations/0093_bom_npd_backfill.sql [create]",
-      "apps/web/__tests__/integration/bom-backfill.test.ts [create]"
+      "Existing NPD Builder/release actions/readers/migrations/tests; exact paths must be discovered before editing",
+      "Legacy computed BOM view migration or compatibility view after backfill"
     ],
     "out_of_scope": [
-      "Schema changes (T-092)",
-      "Technical approval flow",
-      "FA → FG rename (T-094)",
-      "bom_lines schema changes"
+      "Schema lifecycle additions from T-092",
+      "Broad FA→FG DB/route/event rename (T-094)",
+      "D365 export workbook generation internals",
+      "Technical approval UI beyond required pending-status/domain guard"
     ],
-    "dependencies": ["T-092"],
-    "parallel_safe_with": ["T-094"],
+    "dependencies": [
+      "T-092",
+      "_meta/decisions/2026-05-03-flow-d365-settings-technical-decisions.md",
+      "01-NPD-PRD.md 2026-05-03 FINAL Amendment"
+    ],
+    "parallel_safe_with": [],
     "acceptance_criteria": [
-      "Given an FA is created with 3 components in prod_detail, when create-fa action commits, then exactly 1 bom_headers row (status='draft', origin_module='npd', fa_id=...) and 3 bom_lines rows exist.",
-      "Given createDraftBomForFa is called twice for the same FA, when committed, then only 1 bom_headers row exists (idempotency).",
-      "Given an FA graduates to FG, when promoteBomToProduct(faId, productId) runs, then bom_headers.product_id is set and fa_id remains.",
-      "Given the back-fill migration runs against 5 FAs (3 already with manual headers), when committed, then exactly 2 new headers exist.",
-      "Given a grep of the codebase, when run, then no reader references the legacy computed NPD BOM view.",
-      "Given the legacy NPD computed view, when migration completes, then the view is DROPPED.",
-      "Given `pnpm vitest run` for new tests, then 0 failures."
+      "Given NPD Builder releases a project with 3 components, when committed, then WIP/intermediate items + FG + exactly one initial shared BOM version and shared bom_lines exist.",
+      "Given the release action is retried, when rerun for the same project/version, then no duplicate BOM header or lines are created.",
+      "Given NPD BOM reader is called for a released FG, when traced/grepped, then it reads shared BOM SSOT and not the old computed view as canonical.",
+      "Given a released FG active BOM exists, when NPD requests a BOM/product-spec edit, then a new version is created and marked pending Technical approval; active approved version is not mutated.",
+      "Given Technical has not approved the new version, when factory/Planning reads active BOM, then the prior approved active version remains in use.",
+      "Given D365 data differs from Monopilot shared BOM, when release/readers run, then Monopilot shared BOM remains canonical and D365 is not silently applied.",
+      "Given backfill runs against existing released/built FGs, when complete, then every released/built FG has one shared BOM header/version and no duplicates.",
+      "Given T-096 invokes T-093 as part of release, then T-093 returns BOM identifiers/status to the orchestrator without marking the product factory-usable by itself.",
+      "Given the initial shared BOM is created, then its factory-use status remains pending Technical approval until T-097 observes Technical approval.",
+      "Given D365 export code exists, when T-093 tests run, then export is not required to create the BOM and cannot mark it active for factory use."
     ],
     "test_strategy": [
       "RED unit tests for idempotency and N-components → N-lines.",
@@ -52,15 +70,33 @@
       "Run `pnpm vitest run` + `pnpm drizzle-kit generate`."
     ],
     "risk_red_lines": [
-      "Do not drop the legacy view BEFORE back-fill is verified — same migration must do back-fill first then DROP VIEW.",
-      "Do not auto-promote draft → approved (Technical's responsibility).",
-      "Do not bypass withOrgContext or skip outbox.",
-      "Do not duplicate BOM lines on re-runs."
+      "Do not run before T-092 lands.",
+      "Do not create a separate NPD-only BOM authority.",
+      "Do not auto-promote post-release edits to active without Technical approval.",
+      "Do not treat D365 as source of truth or silently overwrite Monopilot shared BOM from D365.",
+      "Do not duplicate BOM lines on retries/backfill.",
+      "Do not mix with broad FA→FG route/DB/event rename.",
+      "Do not duplicate release orchestration logic here; T-096 owns transaction ordering.",
+      "Do not mark shared BOM active for factory use before Technical approval."
     ],
-    "skills": ["test-driven-development", "requesting-code-review"],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
     "checkpoint_policy": {
-      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
-      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
     },
     "routing_hints": {
       "red": "hermes_gpt55",

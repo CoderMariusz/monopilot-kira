@@ -1,0 +1,97 @@
+{
+  "title": "T-123 — Seed technical_product_spec_approval_gate_v1 rule definition",
+  "prompt": "# T-123 — Seed technical_product_spec_approval_gate_v1 rule definition\n\n## Goal\nAdd the missing concrete rule seed for `technical_product_spec_approval_gate_v1` so Settings/Auth policy preflights and Rule Variant UI can reference an actual deployed gate record.\n\nThis is a Settings rules seed/backlog task only. It does not implement NPD or Technical approval workflows.\n\n## Files in scope\n- rules/technical_product_spec_approval_gate_v1.json [create]\n- rules/_schemas/gate.schema.json [create/modify if missing]\n- scripts/rules-deploy.test.ts [modify]\n- apps/web/lib/settings/rules/technical-product-spec-approval-gate.test.ts [create if needed]\n\n## Acceptance criteria (all must hold)\n- Given T-026 rules deploy runs, then `rule_definitions` contains `rule_code='technical_product_spec_approval_gate_v1'`, `rule_type='gate'`, `status='active'`, `priority='P1'`, and PRD refs `02-SETTINGS §3/§5.1`, `01-NPD post-release edit`, `03-TECHNICAL product-spec approval`.\n- Given the seeded rule is loaded, then its condition/action metadata states: authorized NPD post-release edits must create a new BOM/product-spec version; factory use requires Technical approval; approval uses org_authorization_policies policy `technical_product_spec_approval`; self-approval is blocked when segregation-of-duties is required.\n- Given T-122 validates V-SET-44, then it can resolve `approval_gate_rule_code='technical_product_spec_approval_gate_v1'` to an active gate rule; missing/inactive/wrong type returns a typed blocker.\n- Given SET-062 Rule Variant Selector renders, then the gate appears read-only and linked to Authorization Policies; variant selection cannot disable the gate or bypass `requires_new_version`.\n- Seed is idempotent: re-running deploy with unchanged JSON is a no-op and does not bump version.\n\n## Test strategy (RED first)\n- RED: deploy fixture/test fails because the rule seed is missing.\n- GREEN: add rule JSON/schema metadata and idempotent deploy coverage.\n- Run rules deploy tests and any targeted Settings rule tests.\n\n## Risk red lines\n- Do not author a UI rule editor; this is a seed/deploy task.\n- Do not implement 01-NPD or 03-TECHNICAL workflows.\n- Do not allow org variants to turn off the factory-use Technical approval invariant when `technical.product_spec_approval.required=true`.\n- Do not seed the rule as P2/stub; it is P1 active per PRD table rule 32.",
+  "labels": [
+    "prd",
+    "rules",
+    "seed",
+    "authorization",
+    "T5-seed"
+  ],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-123",
+    "source_prd": "02-SETTINGS-PRD.md",
+    "prd_refs": [
+      "§7.2 rule registry",
+      "§7.3 rules deploy",
+      "§3 PO decision 2026-05-03",
+      "§5.1 org_authorization_policies",
+      "Rule table #32",
+      "V-SET-44"
+    ],
+    "category": "data",
+    "subcategory": "seed-rule-technical-product-spec-approval-gate",
+    "task_type": "T5-seed",
+    "parent_feature": "02-settings-auth-rules",
+    "context_budget": "40k",
+    "estimated_effort": "1-2h",
+    "description": "Seed active P1 technical_product_spec_approval_gate_v1 rule definition used by authorization-policy preflights and read-only rule views.",
+    "details": "Create an idempotent rules deploy seed for technical_product_spec_approval_gate_v1. It is the concrete rule_definitions row referenced by org_authorization_policies.approval_gate_rule_code and V-SET-44. The rule states that authorized NPD post-release edits create new BOM/product-spec versions and require Technical approval before factory use.",
+    "scope_files": [
+      "rules/technical_product_spec_approval_gate_v1.json [create]",
+      "rules/_schemas/gate.schema.json [create/modify if missing]",
+      "scripts/rules-deploy.test.ts [modify]",
+      "apps/web/lib/settings/rules/technical-product-spec-approval-gate.test.ts [create if needed]"
+    ],
+    "out_of_scope": [
+      "edit 01-NPD files",
+      "edit 03-TECHNICAL files",
+      "implement approval workflow UI",
+      "author rule DSL UI"
+    ],
+    "dependencies": [
+      "T-006",
+      "T-026",
+      "T-122"
+    ],
+    "parallel_safe_with": [],
+    "acceptance_criteria": [
+      "Active P1 gate rule technical_product_spec_approval_gate_v1 is seeded into rule_definitions by T-026 deploy.",
+      "Rule metadata encodes new-version, Technical approval, org_authorization_policies, and segregation-of-duties invariants.",
+      "T-122 V-SET-44 preflight can resolve the active gate rule and returns typed blockers for missing/inactive/wrong type.",
+      "SET-062 can render the gate read-only and cannot bypass factory-use approval invariants.",
+      "Deploy is idempotent and unchanged JSON does not bump version."
+    ],
+    "test_strategy": [
+      "RED: deploy fixture/test fails because rule seed is missing.",
+      "GREEN: add rule JSON/schema metadata and deploy/idempotency coverage.",
+      "Run rules deploy tests and targeted Settings rule tests."
+    ],
+    "risk_red_lines": [
+      "Do not author a UI rule editor.",
+      "Do not implement NPD or Technical workflows.",
+      "Do not allow variants/imports to disable the gate when technical.product_spec_approval.required=true.",
+      "Do not seed this as P2/stub."
+    ],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": false
+  }
+}

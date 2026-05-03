@@ -1,0 +1,96 @@
+{
+  "title": "T-097 — Shared factory release status/read model and events",
+  "prompt": "# T-097 — shared factory release status/read model and events\n\nPRD: 01-NPD-PRD.md final decisions + 2026-05-03 E2E release spike\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nDefine and implement the canonical release status/read model consumed by NPD, Technical, Planning and factory views so `Built`/D365 export is never confused with factory availability.\n\n## Status model\nMinimum canonical states:\n- `pending_npd_release`\n- `pending_technical_approval`\n- `approved_for_factory`\n- `released_to_factory`\n- `blocked`\n\nRequired fields include `factory_available_at`, `factory_approved_by`, `release_event_id`, `active_bom_header_id`, `active_factory_spec_id`, `release_blockers`, and project/FG references.\n\nEvents:\n`npd.project.release_requested`, `npd.builder.released_records_created`, `technical.factory_spec.approved`, `fg.released_to_factory`, `fg.release_blocked`.\n\nTechnical approval is required before factory_spec/BOM can be used by factory/Planning. D365 export never sets this state.",
+  "labels": [
+    "prd",
+    "schema",
+    "api",
+    "release-status",
+    "read-model",
+    "e2e-spine",
+    "technical-approval",
+    "T1-schema",
+    "T2-api"
+  ],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-097",
+    "source_prd": "01-NPD-PRD.md",
+    "prd_refs": [
+      "2026-05-03 E2E release spike BL-E2E-06",
+      "_meta/decisions/2026-05-03-flow-d365-settings-technical-decisions.md"
+    ],
+    "category": "data-api",
+    "subcategory": "factory-release-status-read-model",
+    "task_type": "T1-schema+T2-api",
+    "parent_feature": "npd-builder-release-to-factory",
+    "context_budget": "60k",
+    "estimated_effort": "5-6h",
+    "description": "Canonical factory release status/read model and event transitions for NPD/Technical/Planning/factory consumers.",
+    "details": "Adds release state separate from D365 Built/export and transitions based on NPD Builder release plus Technical factory_spec/BOM approval.",
+    "scope_files": [
+      "packages/db/migrations/00xx_factory_release_status.sql [create]",
+      "packages/db/src/schema/factory-release-status.ts [create]",
+      "apps/web/app/(npd)/builder/_lib/factory-release-status.ts [create]",
+      "apps/web/app/(npd)/builder/_lib/__tests__/factory-release-status.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Technical approval UI implementation",
+      "D365 export internals",
+      "Planning/factory UI beyond read-model contract/tests"
+    ],
+    "dependencies": [
+      "T-092",
+      "T-093",
+      "03-TECH-T-079"
+    ],
+    "parallel_safe_with": [],
+    "acceptance_criteria": [
+      "Given NPD Builder release creates records but Technical has not approved the factory_spec/BOM bundle, when release status is read, then it is pending_technical_approval with active_bom_header_id and active_factory_spec_id populated but factory_available_at null.",
+      "Given Technical approval event is consumed for the active factory_spec/BOM bundle, when transition runs, then status becomes approved_for_factory or released_to_factory and factory_available_at is set.",
+      "Given D365 export completes, when release status is read, then no status transition occurs unless a valid Technical approval/release event already occurred.",
+      "Given Planning/factory consumers query the read model, then only approved_for_factory/released_to_factory rows are factory-usable; pending/blocked rows expose typed blockers.",
+      "Given a release is blocked, then fg.release_blocked event includes typed blockers and remediation links."
+    ],
+    "test_strategy": [
+      "RED migration/schema tests for status enum/fields/FKs/RLS.",
+      "RED transition tests for pending → approved/released and blocked.",
+      "RED D365 no-op transition test.",
+      "Run 'pnpm --filter db migrate && pnpm --filter web test factory-release-status'."
+    ],
+    "risk_red_lines": [
+      "Do not reuse Status_Overall='Built' as canonical factory release status.",
+      "Do not let D365 export set approved_for_factory/released_to_factory.",
+      "Do not expose pending_technical_approval as factory-usable.",
+      "Do not allow factory use without Technical-approved factory_spec/BOM."
+    ],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

@@ -12,7 +12,7 @@ revised: 2026-04-20 (v3.1 bundled C4 Sesja 3 close), 2026-04-20 (v3.2 bundled C5
 
 # PRD 02-SETTINGS — MonoPilot MES
 
-**Admin foundation module.** Dostarcza organizacji, użytkowników, RBAC, module toggles, schema admin wizard (ADR-028), read-only rule registry (ADR-029), 24 Reference tables CRUD (including Manufacturing Operations §8.9), multi-tenant L2 config (ADR-031), feature flags, audit log viewer, D365 constants admin (INTEGRATIONS stage 1 inline), infrastructure (warehouses/locations/machines/lines), security + i18n + onboarding wizard.
+**Admin foundation module.** Dostarcza organizacji, użytkowników, RBAC, per-org authorization policies for cross-module approval gates, module toggles, schema admin wizard (ADR-028), read-only rule registry (ADR-029), 24 Reference tables CRUD (including Manufacturing Operations §8.9), multi-tenant L2 config (ADR-031), feature flags, audit log viewer, D365 constants admin (INTEGRATIONS stage 1 inline), infrastructure (warehouses/locations/machines/lines), security + i18n + onboarding wizard.
 
 ---
 
@@ -144,6 +144,21 @@ Permission = `module_code + action + scope` (flat dot-namespaced strings, single
 - `npd.fa.edit`, `npd.d365_builder.execute` (tylko `npd_manager`)
 - `settings.schema.edit` — hard-lock: **L2/L3 tak, L1 promotion wymaga Owner + approval workflow** (Q1 decision)
 - `settings.rules.view` (read-only); `settings.rules.edit` — **deferred / not granted w UI** (rule authoring przez dev PR, Q2)
+- `npd.released_product_edit.request` — allows NPD to request post-release edits to FG/BOM/product-spec data only if the org-level authorization policy enables the workflow.
+- `npd.released_product_edit.authorize` — authorizes the request for this organization; must be assigned explicitly (default: `owner`, optional `admin`/configured role) and cannot be inferred from `npd_manager` alone.
+- `technical.product_spec.approve` — Technical approval gate for the new BOM/product-spec version created by an authorized post-release edit; default grant: Technical approver / quality lead equivalent, not `npd_manager`.
+
+### Per-org authorization for NPD post-release edits and Technical approval gates [PO decision 2026-05-03]
+
+After NPD Builder has generated the WIP/FG/product/BOM records, NPD may request edits to released FG/BOM/product-spec data only when the organization has explicitly enabled and configured this workflow in Settings. Settings is the single admin surface for these authorization rules; NPD and Technical consume them but do not own their configuration.
+
+Required Settings responsibilities:
+- Store the org-level workflow policy (`npd_post_release_edit`) and expose it through RBAC/authorization helpers.
+- Distinguish **request permission** (`npd.released_product_edit.request`) from **authorization permission** (`npd.released_product_edit.authorize`). An `npd_manager` may request only if granted, but cannot self-authorize unless the org has explicitly assigned that permission and segregation-of-duties validation permits it.
+- Store Technical approval gate policy (`technical_product_spec_approval`) defining approver roles, minimum approver count, segregation-of-duties behavior, and whether QA/Technical dual sign-off is required for the org.
+- Require every authorized post-release edit to create a **new BOM/product-spec version**. Settings policy must never allow in-place mutation of the currently approved factory version.
+- Surface the relevant permission strings and policy summary in Roles & Permissions and Rule Variant/Authorization views so Admin/Owner can understand who may request, authorize, and approve.
+- Audit every policy change and every authorization decision (`audit_log.action` values: `authorization_policy_update`, `npd_post_release_edit_authorize`, `technical_spec_approval_gate_apply`).
 
 **Rejected:** 4-level permission matrix UI per (module × role) cell with admin (◉) / rw (✎) / r (◎) / none (–) (D2 decision 2026-04-30). The flat permission model is canonical; the Permissions UI MUST render checkboxes per permission grouped by module — see T-02SETa-009. A derived `module_permission_levels` view is NOT introduced.
 
@@ -151,9 +166,21 @@ Permission = `module_code + action + scope` (flat dot-namespaced strings, single
 
 ## §4 — Scope
 
+### 4.0 PO amendment — 2026-05-03 Settings scope lock
+
+This amendment supersedes older ambiguity in the readiness report and task backlog:
+
+- Canonical Settings prototype source of truth is `design/Monopilot Design System/settings/*.jsx`.
+- Global **Import / Export** (`/settings/import-export`, UX SET-029) is Phase 1 scope. If no exact canonical prototype exists, implement spec-driven from `design/02-SETTINGS-UX.md` and reuse available prototype elements/patterns only where they match the UX contract.
+- **Roles & Permissions** (`/settings/roles`, UX SET-011) is Phase 1 scope as a dedicated screen; it is not covered by the Users list alone.
+- **Pending Invitations** (`/settings/invitations`, UX SET-010) is Phase 1 scope as a dedicated screen; it may reuse Invite User modal/actions but must have its own route/screen.
+- **Per-org authorization policies** for NPD post-release edits and Technical approval gates are Phase 1 Settings/Auth scope. Settings must configure who can request, authorize, and approve; NPD/Technical must only consume the resulting policy.
+- Schema/Tenant UI may be spec-driven where exact prototype is missing, but adjacent/wrong prototype screens must not be treated as 1:1 sources.
+- T-117/T-118 quality flag placeholders remain in Settings.
+
 ### 4.1 In Scope — Phase 1 MVP (build subset)
 
-- E01.1 Organization + Users + RBAC (10 system roles, ADR-012, ADR-013)
+- E01.1 Organization + Users + RBAC (10 system roles, ADR-012, ADR-013), including dedicated Users, Roles & Permissions, Pending Invitations screens, and per-org authorization policies for NPD post-release edit / Technical approval gates
 - E01.2 Onboarding wizard (6-step, <15min)
 - E01.3 Infrastructure: warehouses (5 typów), locations (4-level tree), machines, production_lines
 - E01.4 Master data: allergens EU-14 (global) + org_allergens extensions, tax_codes, audit_log (ADR-008)
@@ -163,6 +190,7 @@ Permission = `module_code + action + scope` (flat dot-namespaced strings, single
 - **Reference CRUD (§8)** — generic metadata-driven UI dla 11 tabel
 - **Module toggles (§10)** — 15 modułów, dependency warnings, PostHog self-host + built-in fallback
 - **D365 Constants admin (§11)** — 5 Apex consts editable, `integration.d365.enabled` toggle
+- **Global Import / Export (UX SET-029)** — Settings-level import/export hub; reference CSV import remains covered separately by §8.5/SET-053
 
 ### 4.2 In Scope — Phase 2 (post-MVP, pre-C5)
 
@@ -248,6 +276,27 @@ CREATE TABLE roles (
   is_system BOOLEAN NOT NULL DEFAULT false,
   display_order INT DEFAULT 0,
   UNIQUE(org_id, code)
+);
+
+CREATE TABLE org_authorization_policies (
+  org_id UUID NOT NULL REFERENCES organizations(id),
+  policy_code TEXT NOT NULL,                     -- 'npd_post_release_edit' | 'technical_product_spec_approval'
+  is_enabled BOOLEAN NOT NULL DEFAULT false,
+  request_permissions TEXT[] NOT NULL DEFAULT '{}',   -- e.g. npd.released_product_edit.request
+  authorize_permissions TEXT[] NOT NULL DEFAULT '{}', -- e.g. npd.released_product_edit.authorize
+  approver_role_codes TEXT[] NOT NULL DEFAULT '{}',   -- org/system role codes allowed to approve
+  min_approvers INT NOT NULL DEFAULT 1,
+  require_segregation_of_duties BOOLEAN NOT NULL DEFAULT true,
+  requires_new_version BOOLEAN NOT NULL DEFAULT true,  -- hard true for NPD post-release edits
+  approval_gate_rule_code TEXT,                  -- e.g. 'technical_product_spec_approval_gate_v1'
+  settings_json JSONB NOT NULL DEFAULT '{}',     -- org-specific rule flags (dual sign-off, QA co-approval, etc.)
+  version INT NOT NULL DEFAULT 1,
+  updated_by UUID REFERENCES users(id),
+  updated_at TIMESTAMPTZ DEFAULT now(),
+  PRIMARY KEY (org_id, policy_code),
+  CHECK (policy_code IN ('npd_post_release_edit','technical_product_spec_approval')),
+  CHECK (min_approvers >= 1),
+  CHECK (policy_code <> 'npd_post_release_edit' OR requires_new_version = true)
 );
 
 CREATE TABLE modules (
@@ -744,15 +793,16 @@ Decyzja defer do 02-SETTINGS build sub-module d (kiedy rule registry UI faktyczn
 | 29 | **`site_access_policy_v1`** (v3.3) | gate | P1 | 14-MULTI §8 | 14-MULTI RLS policy builder + migration lint | Per-table decision operational (site-scoped) vs master (org-scoped); admin read-only registry |
 | 30 | **`cross_site_to_approval_v1`** (v3.3) | gate | P1 | 14-MULTI §8 | 14-MULTI inter-site TO workflow | Inter-site TO (from_site != to_site) → requires from_site manager approval before shipped + to_site manager approval before received (dual-gate) |
 | 31 | **`per_site_residency_gate_v1`** (v3.3) | gate | **P2 stub** | 14-MULTI §8 | 14-MULTI P2 data residency enforcement | Enforce data landing on correct region per site (EU-West-2 Apex UK vs EU-Central-1 EDGE DE) |
+| 32 | **`technical_product_spec_approval_gate_v1`** (2026-05-03 Settings/Auth) | gate | P1 | 02-SETTINGS §3/§5.1 | 01-NPD post-release edit request, 03-TECHNICAL product-spec approval workflow | Per-org authorization gate: NPD released FG/BOM/product-spec edits require explicit org authorization, create a new BOM/product-spec version, then require Technical approval before factory use. |
 
-**P1 active rules (v3.3):** 24 (rules 1-4, 6-11, 13-14, 16, 18, 20, **23-30**) — all deployed z corresponding modules
+**P1 active rules (v3.3 + 2026-05-03):** 25 (rules 1-4, 6-11, 13-14, 16, 18, 20, **23-30**, **32**) — all deployed z corresponding modules
 **P2 stub rules (v3.3):** 7 (rules 5, 12, 15, 17, 19, 21, 22, **31**) — schema registered, implementation deferred
 
 Note: `to_state_machine_v1` (05-WH base) extended by 14-MULTI z IN_TRANSIT state per D-MS-3 (§8 14-MULTI). Extension documented w owner PRD (05-WH), nie re-registered jako osobny rule.
 
 **lp_state_machine_v1** z 05-WH §6.1 jest workflow-as-data rule **w** 05-WH schema (nie w 02-SETTINGS registry) per decision 2026-04-20 (05-WH ownership). Rule registry tu = dev-authored rules requiring runtime engine execution; LP state machine = DB enum + service logic (no runtime engine).
 
-**Total rules registered post-C5 Sesja 2:** 31 rules (24 P1 active + 7 P2 stub) across 11 producer modules (03-TECH, 05-WH, 07-EXT, 08-PROD, 09-QA, 10-FIN, 11-SHIP, 12-REPORTING, 15-OEE, **13-MAINTENANCE, 14-MULTI-SITE**). Consumer mapping tracked w `rule_consumers` metadata JSONB.
+**Total rules registered post-2026-05-03 Settings/Auth decision:** 32 rules (25 P1 active + 7 P2 stub) across 12 producer modules (02-SETTINGS, 03-TECH, 05-WH, 07-EXT, 08-PROD, 09-QA, 10-FIN, 11-SHIP, 12-REPORTING, 15-OEE, **13-MAINTENANCE, 14-MULTI-SITE**). Consumer mapping tracked w `rule_consumers` metadata JSONB.
 
 **V-SET-14 (new v3.1):** All rules registered w §7.8 MUST have corresponding JSON schema w `/rules/<type>/<rule_code>.schema.json` deployed w repo. Registry rejects rule save if schema not present.
 
@@ -1179,6 +1229,7 @@ Admin może konfigurować (w ramach L2 scope):
 2. **Rule variant selection** — wybór v1 vs v2 dla określonej reguły (np. `allergen_gate.v1` vs `v2`)
 3. **Feature flags local** — per-tenant toggle dla Phase 2/3 capabilities
 4. **Schema extensions count** (informational) — L3 cols metadata
+5. **Authorization policy flags** — per-org `npd_post_release_edit` and `technical_product_spec_approval` policies, including request/authorize/approve permissions, segregation-of-duties, min approvers, and hard `requires_new_version=true` for post-release NPD edits
 
 ### 9.2 Dept taxonomy variation (§9 00-FOUNDATION + ADR-030)
 
@@ -1330,6 +1381,10 @@ Core flags (fallback scope):
 - `integration.d365.enabled` (INTEGRATIONS stage 1)
 - `scanner.pwa.enabled`
 - `npd.d365_builder.execute`
+- `npd.post_release_edit.enabled` — org-level feature switch for authorized NPD requests against released FG/BOM/product-spec data; requires org_authorization_policies policy `npd_post_release_edit` enabled.
+- `technical.product_spec_approval.required` — enforces Technical approval before a new BOM/product-spec version from a post-release edit becomes approved for factory use.
+
+These two workflow flags are not sufficient by themselves: authorization still resolves through `org_authorization_policies` + flat permissions. Default for new orgs: `npd.post_release_edit.enabled=false`, `technical.product_spec_approval.required=true` when Technical module is enabled.
 
 Non-core flags (PostHog):
 - A/B tests, feature previews, per-tenant rollout, UI experiments
@@ -1347,6 +1402,8 @@ Non-core flags (PostHog):
 - **V-SET-40**: Cannot disable module if downstream `organization_modules.enabled=true` without explicit disable-chain confirmation
 - **V-SET-41**: `maintenance_mode=true` blocks non-superadmin writes app-wide (middleware enforces)
 - **V-SET-42**: `integration.d365.enabled=true` wymaga `d365_constants` rows (5 wymaganych) populated (validation runs on flag flip)
+- **V-SET-43**: `npd.post_release_edit.enabled=true` requires enabled `org_authorization_policies.policy_code='npd_post_release_edit'`, at least one authorize permission/role, and `requires_new_version=true`.
+- **V-SET-44**: `technical.product_spec_approval.required=true` requires enabled `org_authorization_policies.policy_code='technical_product_spec_approval'`, `approval_gate_rule_code='technical_product_spec_approval_gate_v1'`, and `min_approvers>=1`.
 
 ---
 

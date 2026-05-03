@@ -1,7 +1,13 @@
 {
   "title": "T-087 — E2E: V18 built-blocker (high-risk → cannot build) (NPD-i)",
-  "prompt": "# T-087 — V18 built-blocker E2E\n\nPRD: 01-NPD-PRD.md §18 V18 built-blocker rule\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nPlaywright E2E + integration test verifying V18 enforcement: with one Open High-bucket risk, both single-click buildD365 and the builder wizard step 1 reject the build attempt; mitigating the risk unblocks the path.\n\n## Implementation contract\n1. apps/web/e2e/npd/v18-built-blocker.spec.ts: NPD Manager logs in → adds risk likelihood=3 impact=3 (bucket=High) → attempts buildD365 single-click → asserts error 'V18_HIGH_RISK_OPEN' + fa.built remains FALSE.\n2. Same test continues: opens RiskRegisterScreen → mitigates risk with reason ≥10 chars → re-attempts buildD365 → asserts success + fa.built=TRUE.\n3. Integration test apps/web/__tests__/integration/v18-trigger.test.ts: verifies DB trigger raises exception when product.built UPDATE happens with Open High risk present.\n\n## Files\n- apps/web/e2e/npd/v18-built-blocker.spec.ts [create]\n- apps/web/__tests__/integration/v18-trigger.test.ts [create]\n- apps/web/e2e/npd/fixtures/v18-seed.ts [create]\n\n## Acceptance criteria\n1. Given an FA with one Open High-bucket risk and built=FALSE, when buildD365 single-click is invoked, then it fails with 'V18_HIGH_RISK_OPEN' and fa.built remains FALSE per §18 V18 contract\n2. Given the same scenario, when the wizard step 1 V18 check runs, then it lists the risk in blockers and the Next button is disabled per §18 V18 + §10.6.1 wizard\n3. Given the risk is mitigated to state='Mitigated' (no longer Open) with reason ≥10 chars, when buildD365 is re-invoked, then it succeeds and fa.built=TRUE\n\n## Test strategy\n- RED: 3 specs above before final wiring; run against isolated test container\n- Run 'pnpm --filter web test:e2e v18-built-blocker && pnpm --filter web test v18-trigger'\n\n## Risk red lines\n- Do not stub the V18 trigger — must hit real DB\n- Do not run against shared/staging DB\n- Do not skip post-mitigation success path",
-  "labels": ["prd", "test", "v18-built-blocker", "T4-wiring-test"],
+  "prompt": "# T-087 — V18 built-blocker E2E\n\nPRD: 01-NPD-PRD.md §18 V18 built-blocker rule\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nPlaywright E2E + integration test verifying V18 enforcement: with one Open High-bucket risk, both single-click buildD365 and the builder wizard step 1 reject the build attempt; mitigating the risk unblocks the path.\n\n## Implementation contract\n1. apps/web/e2e/npd/v18-built-blocker.spec.ts: NPD Manager logs in → adds risk likelihood=3 impact=3 (bucket=High) → attempts buildD365 single-click → asserts error 'V18_HIGH_RISK_OPEN' + fa.built remains FALSE.\n2. Same test continues: opens RiskRegisterScreen → mitigates risk with reason ≥10 chars → re-attempts buildD365 → asserts success + fa.built=TRUE.\n3. Integration test apps/web/__tests__/integration/v18-trigger.test.ts: verifies DB trigger raises exception when product.built UPDATE happens with Open High risk present.\n\n## Files\n- apps/web/e2e/npd/v18-built-blocker.spec.ts [create]\n- apps/web/__tests__/integration/v18-trigger.test.ts [create]\n- apps/web/e2e/npd/fixtures/v18-seed.ts [create]\n\n## Acceptance criteria\n1. Given an FA with one Open High-bucket risk and built=FALSE, when buildD365 single-click is invoked, then it fails with 'V18_HIGH_RISK_OPEN' and fa.built remains FALSE per §18 V18 contract\n2. Given the same scenario, when the wizard step 1 V18 check runs, then it lists the risk in blockers and the Next button is disabled per §18 V18 + §10.6.1 wizard\n3. Given the risk is mitigated to state='Mitigated' (no longer Open) with reason ≥10 chars, when buildD365 is re-invoked, then it succeeds and fa.built=TRUE\n\n## Test strategy\n- RED: 3 specs above before final wiring; run against isolated test container\n- Run 'pnpm --filter web test:e2e v18-built-blocker && pnpm --filter web test v18-trigger'\n\n## Risk red lines\n- Do not stub the V18 trigger — must hit real DB\n- Do not run against shared/staging DB\n- Do not skip post-mitigation success path\n\n2026-05-03 override: D365 is optional integration/export/import only. V18 Open High risk must block both optional D365 export and the canonical NPD Builder built transition.\n",
+  "labels": [
+    "prd",
+    "test",
+    "v18-built-blocker",
+    "T4-wiring-test",
+    "d365-optional-integration"
+  ],
   "priority": 100,
   "max_attempts": 3,
   "pipeline_name": "kira_dev",
@@ -9,7 +15,12 @@
     "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
     "prd_task_id": "T-087",
     "source_prd": "01-NPD-PRD.md",
-    "prd_refs": ["§18", "§10.6.1"],
+    "prd_refs": [
+      "§18",
+      "§10.6.1",
+      "2026-05-03 PO Amendment",
+      "_meta/decisions/2026-05-03-flow-d365-settings-technical-decisions.md"
+    ],
     "category": "test",
     "subcategory": "v18-built-blocker-e2e",
     "task_type": "T4-wiring-test",
@@ -17,7 +28,7 @@
     "context_budget": "55k",
     "estimated_effort": "2-3h",
     "description": "Playwright E2E + integration test asserting V18 built-blocker via single-click + wizard + post-mitigation success.",
-    "details": "End-to-end exercises both build paths plus the DB trigger directly. Fixtures seed the high-risk scenario.",
+    "details": "End-to-end exercises both build paths plus the DB trigger directly. Fixtures seed the high-risk scenario. D365 output is optional integration/export/import only; Monopilot/NPD Builder remains canonical for WIP + FG + validated BOM/product records. V18 open High risk is a hard build/export blocker. This test protects both optional D365 export paths and the canonical NPD Builder built transition.",
     "scope_files": [
       "apps/web/e2e/npd/v18-built-blocker.spec.ts [create]",
       "apps/web/__tests__/integration/v18-trigger.test.ts [create]",
@@ -27,10 +38,16 @@
       "Do not implement risks UI/actions here (T-081, T-082)",
       "Do not test compliance expiry (T-088)"
     ],
-    "dependencies": ["T-080", "T-081", "T-082"],
-    "parallel_safe_with": ["T-088"],
+    "dependencies": [
+      "T-080",
+      "T-081",
+      "T-082"
+    ],
+    "parallel_safe_with": [
+      "T-088"
+    ],
     "acceptance_criteria": [
-      "Given an FA with one Open High-bucket risk and built=FALSE, when buildD365 single-click is invoked, then it fails with 'V18_HIGH_RISK_OPEN' and fa.built remains FALSE per §18 V18 contract",
+      "Given an FA with one Open High-bucket risk and built=FALSE, when buildD365 single-click is invoked, then it fails with 'V18_HIGH_RISK_OPEN' and fa.built remains FALSE per §18 V18 contract This applies to optional D365 export and any built transition from NPD Builder.",
       "Given the same scenario, when the wizard step 1 V18 check runs, then it lists the risk in blockers and the Next button is disabled per §18 V18 + §10.6.1 wizard",
       "Given the risk is mitigated to state='Mitigated' (no longer Open) with reason ≥10 chars, when buildD365 is re-invoked, then it succeeds and fa.built=TRUE"
     ],
@@ -41,12 +58,29 @@
     "risk_red_lines": [
       "Do not stub the V18 trigger",
       "Do not run against shared/staging DB",
-      "Do not skip post-mitigation success path"
+      "Do not skip post-mitigation success path",
+      "Do not treat D365 as source of truth; it is optional integration/export/import only.",
+      "Do not allow any build/export path when V18 has an Open High risk; V18 is a hard built-blocker.",
+      "Do not scope the blocker only to D365 export; it also guards canonical NPD Builder built transition."
     ],
-    "skills": ["test-driven-development", "requesting-code-review"],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
     "checkpoint_policy": {
-      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
-      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
     },
     "routing_hints": {
       "red": "hermes_gpt55",

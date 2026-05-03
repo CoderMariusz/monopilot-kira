@@ -1,0 +1,87 @@
+{
+  "title": "T-077 — TO actuals inventory/location/shelf-life non-conformance trigger contract",
+  "prompt": "# T-077 — TO actuals trigger inventory/location/shelf-life non-conformance only\n\nWire the Technical-side contract for Transfer Order actuals: transfer events may update or review inventory/location/lot/shelf-life status in owning modules and may emit Technical/Quality non-conformance for shelf-life, temperature, location eligibility or lot status issues. They must never update factory_specs, BOM, supplier_specs or cost_per_kg. Provide idempotent handler/service for `to.transfer_actual_recorded` with typed reasons LOCATION_NOT_ALLOWED, LOT_STATUS_HOLD, SHELF_LIFE_TOO_SHORT, TEMPERATURE_EXCURSION. RED first: tests prove spec/BOM/cost tables remain unchanged.",
+  "labels": [
+    "prd",
+    "integration",
+    "to-actuals",
+    "non-conformance",
+    "T4-wiring-test"
+  ],
+  "priority": 60,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "source_prd": "03-TECHNICAL-PRD.md",
+    "category": "docs",
+    "context_budget": "30k",
+    "estimated_effort": "2-3h",
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prd_task_id": "T-077",
+    "prd_refs": [
+      "§0",
+      "§5.0",
+      "§9.4"
+    ],
+    "subcategory": "to-non-conformance",
+    "task_type": "T4-wiring-test",
+    "parent_feature": "03-TECHNICAL Cross-module Inventory",
+    "details": "This task documents and enforces the boundary. If warehouse/inventory tables are absent, use event/outbox assertions and immutable master-data fixtures. Non-conformance ownership can be Quality event until 09-QUALITY schema exists. No app UI in this task. Non-conformance emission must use the shared contract from T-082 when present; until 09-QUALITY exists, persist/emit the exact outbox event shape defined there.",
+    "scope_files": [
+      "apps/web/lib/technical/to-actuals-review.ts",
+      "apps/web/events/handlers/to-transfer-actual-recorded.ts",
+      "tests/integration/technical/to-actuals-review.test.ts"
+    ],
+    "acceptance_criteria": [
+      "Given transfer actual has shelf-life below FG requirement, then SHELF_LIFE_TOO_SHORT non-conformance is emitted and factory_specs/BOM/supplier_specs/cost are unchanged.",
+      "Given transfer actual has location not allowed for allergen segregation, then LOCATION_NOT_ALLOWED is emitted with lot/location references.",
+      "Given event retries with same idempotency key, then no duplicate non-conformance is created.",
+      "Given transfer actual proposes spec-like attributes, then handler ignores them and records boundary violation for review.",
+      "Given a variance is classified from to.transfer_actual_recorded, then emitted non_conformance.requested payload conforms to T-082 and includes source_event_id, idempotency_key, source_module, entity refs, reason codes and severity."
+    ],
+    "test_strategy": [
+      "RED integration test with immutable master-data snapshots around handler.",
+      "Run: pnpm vitest run tests/integration/technical/to-actuals-review.test.ts"
+    ],
+    "risk_red_lines": [
+      "Do not implement warehouse transfer logic.",
+      "Do not mutate Technical master data from TO actuals.",
+      "Do not own Quality investigation workflow.",
+      "Do not invent a PO/TO-specific NCR payload that diverges from T-082."
+    ],
+    "dependencies": [
+      "T-072",
+      "T-073",
+      "T-082"
+    ],
+    "parallel_safe_with": [
+      "T-076"
+    ],
+    "description": "Technical-side TO actuals non-conformance boundary contract without spec/BOM/cost mutation."
+  }
+}

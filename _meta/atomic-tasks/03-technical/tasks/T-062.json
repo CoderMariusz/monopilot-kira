@@ -1,7 +1,12 @@
 {
   "title": "T-062 — UI: TEC-094 Recipe Costing preview (cross-tagged → 10-FINANCE)",
-  "prompt": "Build per-FG cost preview combining material + routing + overhead per §11A TEC-094. Audit CC-5 dual-owned with 10-FINANCE — Tech-side aggregation only; financial roll-up canonical in 10-FINANCE. Match `costing_screen` design/Monopilot Design System/technical/other-screens.jsx:664-712. RED tests/ui/tec-094-costing.test.tsx. Run: `pnpm vitest run tests/ui/tec-094-costing.test.tsx`.",
-  "labels": ["prd", "ui", "ui-costing", "T3-ui"],
+  "prompt": "Build per-FG cost preview combining material + routing + overhead per §11A TEC-094. Audit CC-5 dual-owned with 10-FINANCE — Tech-side aggregation only; financial roll-up canonical in 10-FINANCE. Match `costing_screen` design/Monopilot Design System/technical/other-screens.jsx:664-712. RED tests/ui/tec-094-costing.test.tsx. Run: `pnpm vitest run tests/ui/tec-094-costing.test.tsx`. Prototype naming red-line: translate any legacy prototype/domain labels `fa`/`FA5100`/Factory Article to canonical `fg`/FG, any `PR-code` wording to WIP/intermediate, and any `process_stage`/`process_code` to `manufacturing_operation_name`; do not introduce legacy field names in final code, labels, tests or schemas.",
+  "labels": [
+    "prd",
+    "ui",
+    "ui-costing",
+    "T3-ui"
+  ],
   "priority": 120,
   "max_attempts": 3,
   "pipeline_name": "kira_dev",
@@ -9,7 +14,10 @@
     "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
     "prd_task_id": "T-062",
     "source_prd": "03-TECHNICAL-PRD.md",
-    "prd_refs": ["§11A TEC-094", "§11.4"],
+    "prd_refs": [
+      "§11A TEC-094",
+      "§11.4"
+    ],
     "category": "ui",
     "subcategory": "costing-preview",
     "task_type": "T3-ui",
@@ -18,19 +26,59 @@
     "estimated_effort": "1-2h",
     "description": "Per-FG cost preview using BOM + routing data; defers full roll-up to 10-FINANCE.",
     "details": "Sums (component.cost_per_kg × quantity × (1+scrap)) plus routing op cost. Overhead pulled from 10-FINANCE if available, else shown as 'pending'.",
-    "scope_files": ["app/(app)/technical/items/[item_code]/_tabs/costing-tab.tsx", "tests/ui/tec-094-costing.test.tsx"],
-    "out_of_scope": ["Variance roll-forward (10-FINANCE)"],
-    "dependencies": ["T-021", "T-023", "T-034"],
-    "parallel_safe_with": ["T-060", "T-061"],
+    "scope_files": [
+      "app/(app)/technical/items/[item_code]/_tabs/costing-tab.tsx",
+      "tests/ui/tec-094-costing.test.tsx"
+    ],
+    "out_of_scope": [
+      "Variance roll-forward (10-FINANCE)"
+    ],
+    "dependencies": [
+      "T-021",
+      "T-023",
+      "T-034"
+    ],
+    "parallel_safe_with": [
+      "T-060",
+      "T-061"
+    ],
     "acceptance_criteria": [
       "Given the preview renders, when compared to design/Monopilot Design System/technical/other-screens.jsx:664-712, then sections (Material / Routing / Overhead / Total) and primitives match — structural + visual + interaction parity verified by RTL.",
       "Given overhead unavailable, when rendered, then row shows 'pending (10-FINANCE)' badge.",
       "Given BOM missing, when rendered, then preview shows empty-state CTA."
     ],
-    "test_strategy": ["RED tests for parity + missing-data states.", "Run: pnpm vitest run tests/ui/tec-094-costing.test.tsx"],
-    "risk_red_lines": ["Do not call 10-FINANCE write paths."],
-    "skills": ["test-driven-development", "requesting-code-review"],
-    "checkpoint_policy": {"required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"], "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]},
-    "routing_hints": {"red": "hermes_gpt55", "implementation": "hermes_gpt55", "review": "opus_if_high_risk_or_ui_or_architecture", "close": "spark_low_risk_else_opus"}
+    "test_strategy": [
+      "RED tests for parity + missing-data states.",
+      "Run: pnpm vitest run tests/ui/tec-094-costing.test.tsx"
+    ],
+    "risk_red_lines": [
+      "Do not call 10-FINANCE write paths.",
+      "Prototype naming red-line: translate any legacy prototype/domain labels `fa`/`FA5100`/Factory Article to canonical `fg`/FG, any `PR-code` wording to WIP/intermediate, and any `process_stage`/`process_code` to `manufacturing_operation_name`; do not introduce legacy field names in final code, labels, tests or schemas."
+    ],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
   }
 }

@@ -1,0 +1,97 @@
+{
+  "title": "T-095 — G3 create/map FG candidate for NPD project",
+  "prompt": "# T-095 — G3 create/map FG candidate\n\nPRD: 01-NPD-PRD.md §17 + 2026-05-03 E2E release spike\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nAdd the explicit G3 action `createOrMapFgCandidateAtG3(projectId, mode=create|map, productCode?)` so a Brief-created NPD project maps to exactly one canonical FG candidate before G3 approval.\n\n## Implementation contract\n- Add server action/domain service and tests for create/map/remap policy discovered from existing product schema.\n- Enforce one active project → one FG candidate, and one FG candidate cannot be linked to another active project.\n- Update `npd_projects.product_code` or equivalent canonical field and link Brief/Product compatibility aliases.\n- Add GateApproval/G3 modal UI for create/map with availability/conflict feedback.\n- Emit `npd.fg_candidate_mapped` and audit old/new mapping.\n- Do not create D365 output and do not mark factory release status.\n\n## Final decisions\nFG / Finished Good is canonical; FA is a legacy alias only. G3 owns FG candidate mapping. D365 is optional export/import only.\n",
+  "labels": [
+    "prd",
+    "api",
+    "ui",
+    "stage-gate",
+    "fg-canonical",
+    "e2e-spine",
+    "T2-api",
+    "T3-ui",
+    "T4-wiring-test"
+  ],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-095",
+    "source_prd": "01-NPD-PRD.md",
+    "prd_refs": [
+      "§17",
+      "2026-05-03 E2E release spike BL-E2E-02"
+    ],
+    "category": "api-ui",
+    "subcategory": "g3-fg-mapping",
+    "task_type": "T2-api+T3-ui+T4-wiring-test",
+    "parent_feature": "01-NPD-f Stage-Gate Pipeline",
+    "context_budget": "55k",
+    "estimated_effort": "4-5h",
+    "description": "G3 Create/Map FG candidate action and UI gate for NPD projects.",
+    "details": "Adds createOrMapFgCandidateAtG3, uniqueness/idempotency, audit/event, and G3 modal. Blocks G3 approval until FG candidate exists.",
+    "scope_files": [
+      "apps/web/app/(npd)/pipeline/_actions/create-or-map-fg-candidate-at-g3.ts [create]",
+      "apps/web/app/(npd)/pipeline/_components/g3-fg-mapping-modal.tsx [create]",
+      "apps/web/app/(npd)/pipeline/_actions/__tests__/g3-fg-mapping.test.ts [create]",
+      "apps/web/app/(npd)/pipeline/_components/__tests__/g3-fg-mapping-modal.test.tsx [create]"
+    ],
+    "out_of_scope": [
+      "Do not implement full NPD Builder release transaction (T-096)",
+      "Do not perform D365 export",
+      "Do not broad-rename legacy FA DB/routes"
+    ],
+    "dependencies": [
+      "T-031",
+      "T-054",
+      "T-057"
+    ],
+    "parallel_safe_with": [
+      "T-096"
+    ],
+    "acceptance_criteria": [
+      "Given a project at G2/G3 with no FG candidate, when approveProjectGate for G3 is called, then it is blocked with FG_CANDIDATE_REQUIRED.",
+      "Given create mode with an available productCode, when createOrMapFgCandidateAtG3 runs, then the project has exactly one FG candidate and event npd.fg_candidate_mapped is emitted.",
+      "Given map mode with an existing FG already linked to another active project, when called, then it rejects with FG_ALREADY_LINKED.",
+      "Given the mapping is retried idempotently for the same project/productCode, then no duplicate FG/Product link or event is created.",
+      "Given UI renders, then user-facing labels say FG/Finished Good and any FA text is explicitly legacy alias."
+    ],
+    "test_strategy": [
+      "RED unit tests for uniqueness, idempotency, and blocker integration.",
+      "RED RTL test for G3 mapping modal conflict and success states.",
+      "Run 'pnpm --filter web test g3-fg-mapping gate-actions'."
+    ],
+    "risk_red_lines": [
+      "Do not create/map FG before G3.",
+      "Do not allow one FG to be linked to two active NPD projects.",
+      "Do not set released_to_factory or Built from this task.",
+      "Do not use D365 as source of FG truth."
+    ],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

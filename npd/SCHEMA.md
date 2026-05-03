@@ -4,7 +4,9 @@ Implementation contract for backend devs. Every entity used by the prototype map
 
 > **Tenant scoping:** every NPD table has `tenant_id BIGINT NOT NULL`. Indexes and FK constraints assume `(tenant_id, ...)` composite uniqueness unless stated otherwise.
 
-> **Naming reality check:** the prototype still uses `fa_code` / `NPD_FAS` in some places as a deprecated alias — **`fg_code` is canonical**. Rename pass to follow.
+> **Naming reality check (2026-05-03 final):** `FG` / Finished Good is canonical. Prototype/code-era aliases such as `fa_code`, `NPD_FAS`, `Factory Article`, and `/npd/fa/...` may remain only as compatibility names until a safe refactor lands. Do not design new user-facing language around FA.
+>
+> **BOM/versioning reality check (2026-05-03 final):** one shared BOM table/model is SSOT across NPD, Technical, Planning, Production and integrations. NPD Builder creates WIP/intermediates + FG + initial shared BOM/product-spec version. Released edits create a new version and require Technical approval; D365 is export/import integration only.
 
 ---
 
@@ -160,7 +162,7 @@ Finished goods — the main entity. One row per FG, lives in dept gate flow.
 | `number_of_cases` | INTEGER | |
 | `status_overall` | VARCHAR(20) | `Pending` / `InProgress` / `Alert` / `Complete` / `Built` |
 | `launch_date` | DATE | nullable |
-| `built` | BOOLEAN | true after D365 build executed |
+| `built` | BOOLEAN | true after NPD Builder release succeeds (WIP/intermediates + FG + initial shared BOM/product-spec version); optional D365 export may run afterwards |
 | `finish_wip` | VARCHAR(200) | comma-separated WIP codes (multi-component) |
 | `rm_code` | VARCHAR(200) | comma-separated RM codes |
 | `template_label` | VARCHAR(120) | "Single-component · Sliced bread" etc — references config template |
@@ -315,10 +317,10 @@ Immutable event stream — every mutation through the NPD module gets a row.
 
 ---
 
-## 6. D365 build output
+## 6. D365 export output
 
 ### `npd_d365_build_runs`
-Each "Build D365" execution captured here. Idempotent on `(fg_id, run_id)`.
+Each optional D365 export execution captured here. Idempotent on `(fg_id, run_id)`. This table is an integration/export audit artifact only; shared FG/product + BOM records remain the source of truth.
 
 | col | type | notes |
 |---|---|---|
@@ -332,7 +334,7 @@ Each "Build D365" execution captured here. Idempotent on `(fg_id, run_id)`.
 | `error_summary` | TEXT | nullable |
 
 ### `npd_d365_products`
-The N+1 records produced per build (intermediate WIP rows + final FG record).
+The N+1 integration rows exported per run (intermediate WIP rows + final FG record), derived from Monopilot-owned release data.
 
 | col | type | notes |
 |---|---|---|
@@ -379,5 +381,5 @@ config.read, config.edit, config.activate, config.request_changes
 - **`fa_*` → `fg_*` rename pass:** prototype has aliases (`window.NPD_FAS = NPD_FGS.map(...)`). Backend should emit `fg_*` everywhere; UI rename pass tracked in [BACKLOG.md].
 - **Field types vs columns:** `npd_fg_field_values` is EAV-shaped. Acceptable for v1 (write-rare, read-per-FG). If perf becomes an issue, add a `npd_fg_field_values_search` materialised view keyed by hot fields.
 - **Multi-tenant isolation:** every read MUST filter by `tenant_id`. Row-level security recommended (`USING (tenant_id = current_tenant())`).
-- **D365 push:** prototype simulates output. Real impl: outbound queue + retry policy + reconciliation job.
+- **D365 export:** prototype simulates output. Real impl: outbound queue + retry policy + reconciliation job. D365 remains integration/export/import only and must never overwrite shared FG/BOM SSOT without an authorized workflow.
 - **Formulation `pct` validation:** sum must equal 100 ± 0.05 — enforce in service layer, not DB constraint (admin override needed).

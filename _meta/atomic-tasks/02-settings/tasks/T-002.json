@@ -1,6 +1,6 @@
 {
-  "title": "T-002 — Extend settings permission enum (schema/rules/ref/infra/d365/email/onboarding/security)",
-  "prompt": "# T-002 — Extend settings permission enum\n\n## Goal\nAppend the second SETTINGS_EXT permission group covering schema admin, rule registry, reference CRUD, infrastructure, D365, email, onboarding, security policy, SSO, SCIM, IP allowlist, and feature flags. Export `ALL_SETTINGS_EXT_PERMISSIONS`.\n\n## Files in scope\n- apps/web/lib/rbac/permissions.enum.ts [modify]\n- apps/web/lib/rbac/permissions.test.ts [modify]\n\n## Acceptance criteria (all must hold)\n- Given the enum file is read, when imported, then it exposes settings.schema.{view,edit,promote_l1}; settings.rules.view; settings.reference.{view,edit,import}; settings.infra.{view,edit}; settings.d365.{view,edit,toggle}; settings.email.{view,edit}; settings.onboarding.complete; settings.security.edit; settings.sso.{view,edit}; settings.scim.{view,edit}; settings.ip_allowlist.{view,edit}; settings.flags.{view,edit}.\n- Given the file is parsed, when checked, then all new strings match `^settings\\.[a-z_]+\\.[a-z_0-9]+$` and zero duplicates exist.\n- Given vitest runs `apps/web/lib/rbac/permissions.test.ts`, when executed, then ALL_SETTINGS_EXT_PERMISSIONS array length equals exactly the count of new strings declared.\n\n## Test strategy (RED first)\n1. Add a failing test that exercises the acceptance criteria above. The RED command is:\n   `pnpm --filter @monopilot/web vitest run apps/web/lib/rbac/permissions.test.ts`\n2. Run RED — it must fail before any production code is written.\n3. Implement the smallest change needed for GREEN.\n4. Re-run RED command — must pass.\n5. Run `pnpm typecheck` and `pnpm lint` in the changed package; both must pass.\n\n## Risk red lines\n- Do not edit files outside the listed scope without documenting why in CLOSEOUT.\n- Do not weaken existing acceptance criteria from prior tasks.\n- Do not introduce REST endpoints; use Server Actions per stack contract.\n- Do not commit secrets or vault keys.\n\n## Closeout evidence required\n- changed_files (with line counts)\n- exact test commands and outputs (RED→GREEN, typecheck, lint)\n- acceptance_criteria_status (one row per AC: pass/fail)\n- deviations_from_prd (or \"none\")\n- git_status\n\nStack: TS + Next.js App Router + Drizzle + pnpm + vitest + Playwright + Server Actions. Primitives in `packages/ui`. PRD: `02-SETTINGS-PRD.md` v3.5.\n",
+  "title": "T-002 — Extend settings-owned flat permission enum (Settings + NPD/Technical workflow gates)",
+  "prompt": "# T-002 — Extend settings-owned flat permission enum\n\n## Goal\nAppend the second SETTINGS_EXT permission group covering schema admin, rule registry, reference CRUD, infrastructure, D365, email, onboarding, security policy, SSO, SCIM, IP allowlist, feature flags, and Settings-owned cross-module workflow permissions.\n\nSettings/Auth owns the permission enum, but not every permission string must start with `settings.`. Cross-module workflow permissions are intentionally namespaced to their consuming domain while remaining Settings/Auth-owned: `npd.released_product_edit.{request,authorize}` and `technical.product_spec.approve`. Export `ALL_SETTINGS_EXT_PERMISSIONS`.\n\n## Files in scope\n- apps/web/lib/rbac/permissions.enum.ts [modify]\n- apps/web/lib/rbac/permissions.test.ts [modify]\n\n## Acceptance criteria (all must hold)\n- Given the enum file is read, when imported, then it exposes settings.schema.{view,edit,promote_l1}; settings.rules.view; settings.reference.{view,edit,import}; settings.infra.{view,edit}; settings.d365.{view,edit,toggle}; settings.email.{view,edit}; settings.onboarding.complete; settings.security.edit; settings.sso.{view,edit}; settings.scim.{view,edit}; settings.ip_allowlist.{view,edit}; settings.flags.{view,edit}; settings.authorization.{view,edit}; npd.released_product_edit.{request,authorize}; technical.product_spec.approve.\n- Given the file is parsed, when checked, then all new permission strings match the allowed flat namespace regex `^(settings\\.[a-z_]+\\.[a-z_0-9]+|npd\\.released_product_edit\\.(request|authorize)|technical\\.product_spec\\.approve)$` and zero duplicates exist.\n- Given vitest runs `apps/web/lib/rbac/permissions.test.ts`, when executed, then ALL_SETTINGS_EXT_PERMISSIONS array length equals exactly the count of new strings declared.\n- Cross-module workflow permission strings are present and grouped in a Settings/Auth Workflow Authorization section; no rejected 4-level matrix or derived `module_permission_levels` view is introduced.\n\n## Test strategy (RED first)\n1. Add a failing test that exercises the acceptance criteria above, including the mixed namespace regex and duplicate detection. The RED command is:\n   `pnpm --filter @monopilot/web vitest run apps/web/lib/rbac/permissions.test.ts`\n2. Run RED — it must fail before any production code is written.\n3. Implement the smallest change needed for GREEN.\n4. Re-run RED command — must pass.\n5. Run `pnpm typecheck` and `pnpm lint` in the changed package; both must pass.\n\n## Risk red lines\n- Do not require every permission to start with `settings.`; the explicit NPD/Technical workflow permission namespaces are valid and Settings/Auth-owned.\n- Do not introduce permissions outside the listed Settings-owned namespaces without a PRD amendment.\n- Do not couple enum strings to specific UI components.\n- Do not grant `npd.released_product_edit.authorize` to `npd_manager` by default; authorization is org-policy controlled.\n- Do not weaken existing acceptance criteria from prior tasks.\n- Do not introduce REST endpoints; use Server Actions per stack contract.",
   "labels": [
     "prd",
     "auth",
@@ -24,7 +24,8 @@
       "§11",
       "§12",
       "§13",
-      "§14"
+      "§14",
+      "§3 PO decision 2026-05-03"
     ],
     "category": "auth",
     "subcategory": "permissions-enum",
@@ -32,8 +33,8 @@
     "parent_feature": "02-settings-a",
     "context_budget": "40k",
     "estimated_effort": "1-3h",
-    "description": "Extend settings permission enum with all submodule (b/c/d/e) strings.",
-    "details": "Same conventions as T-001. Group with delimiter comments (Schema, Rules, Reference, Infra, D365, Email, Onboarding, Security, SSO, SCIM, IP Allowlist, Flags). Include JSDoc per group with PRD section refs.",
+    "description": "Extend settings-owned flat permission enum with Settings submodule strings plus explicit NPD/Technical workflow authorization permissions.",
+    "details": "Same conventions as T-001. Group with delimiter comments (Schema, Rules, Reference, Infra, D365, Email, Onboarding, Security, SSO, SCIM, IP Allowlist, Flags, Workflow Authorization). Include JSDoc per group with PRD section refs. Workflow Authorization contains settings.authorization.view/edit, npd.released_product_edit.request, npd.released_product_edit.authorize, and technical.product_spec.approve. These are Settings/Auth-owned permission strings even when consumed by 01-NPD and 03-TECHNICAL. Valid regex is mixed-namespace and must allow these explicit non-settings prefixes; keep the flat dot-namespaced model.",
     "scope_files": [
       "apps/web/lib/rbac/permissions.enum.ts",
       "apps/web/lib/rbac/permissions.test.ts"
@@ -47,18 +48,21 @@
     ],
     "parallel_safe_with": [],
     "acceptance_criteria": [
-      "All listed strings present; regex passes; uniqueness verified.",
+      "All listed strings present; mixed-namespace regex passes; uniqueness verified.",
       "`ALL_SETTINGS_EXT_PERMISSIONS` array exported, typed Permission[].",
-      "vitest suite green."
+      "vitest suite green.",
+      "Cross-module workflow permission strings are present and grouped: settings.authorization.view/edit, npd.released_product_edit.request/authorize, technical.product_spec.approve; no 4-level matrix introduced."
     ],
     "test_strategy": [
-      "RED: extend permissions.test.ts.",
+      "RED: extend permissions.test.ts for presence, duplicate detection, and mixed-namespace regex.",
       "GREEN: append strings.",
       "Run `pnpm typecheck`."
     ],
     "risk_red_lines": [
-      "Do not introduce permissions outside settings namespace.",
-      "Do not couple enum strings to specific UI components."
+      "Do not require every permission to start with settings.; explicit npd.released_product_edit.* and technical.product_spec.approve strings are valid Settings/Auth-owned workflow permissions.",
+      "Do not introduce permissions outside the listed Settings-owned namespaces without a PRD amendment.",
+      "Do not couple enum strings to specific UI components.",
+      "Do not grant npd.released_product_edit.authorize to npd_manager by default; authorization is org-policy controlled."
     ],
     "skills": [
       "test-driven-development"

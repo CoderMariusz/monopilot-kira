@@ -1,10 +1,10 @@
 {
   "source_prd": "01-NPD-PRD.md",
   "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
-  "generated_at": "2026-05-01T00:00:00Z",
+  "generated_at": "2026-05-03T00:00:00Z",
   "generator": "prd-decompose-hybrid",
   "pipeline_name": "kira_dev",
-  "task_count": 94,
+  "task_count": 98,
   "tasks": [
     "tasks/T-001.json",
     "tasks/T-002.json",
@@ -99,7 +99,11 @@
     "tasks/T-091.json",
     "tasks/T-092.json",
     "tasks/T-093.json",
-    "tasks/T-094.json"
+    "tasks/T-094.json",
+    "tasks/T-095.json",
+    "tasks/T-096.json",
+    "tasks/T-097.json",
+    "tasks/T-098.json"
   ],
   "coverage_file": "coverage.md"
 }

@@ -1,54 +1,77 @@
 {
-  "title": "T-076 — UI: SensoryScreen (SensoryScreen prototype) — radar chart + attribute bars + comments (NPD-h)",
-  "prompt": "# T-076 — Sensory screen UI\n\nPRD: 01-NPD-PRD.md §17.11.4 + UX 01-NPD-UX.md sensory_screen\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\nPrototype: design/Monopilot Design System/npd/other-stages.jsx:260-352 (SensoryScreen)\n\n## Goal\nClient component SensoryScreen at /(npd)/pipeline/[projectId]?stage=sensory rendering SVG radar chart over N attributes (texture/aroma/flavor/appearance/mouthfeel default), attribute mini-bars, panelist comments list, V08 mean overall ≥ 7.0 indicator.\n\n## Implementation contract\n1. apps/web/app/(npd)/pipeline/[projectId]/sensory/page.tsx (RSC) reads sensory_panels + attribute_scores + panelist_comments via Drizzle.\n2. SensoryScreen component renders SVG radar (custom polygon over N attributes) + horizontal mini-bars per attribute + comments list.\n3. V08 indicator: green badge if mean_overall >= 7.0 else red.\n4. RTL parity test against prototype + V08 indicator branching.\n\n## Files\n- apps/web/app/(npd)/pipeline/[projectId]/sensory/page.tsx [create]\n- apps/web/app/(npd)/pipeline/[projectId]/sensory/_components/sensory-screen.tsx [create]\n- apps/web/app/(npd)/pipeline/[projectId]/sensory/_components/radar-chart.tsx [create]\n- apps/web/app/(npd)/pipeline/[projectId]/sensory/_components/__tests__/sensory-screen.test.tsx [create]\n- design/Monopilot Design System/npd/other-stages.jsx [ref]\n\n## Acceptance criteria\n1. Given the production SensoryScreen renders, when compared to design/Monopilot Design System/npd/other-stages.jsx:260-352 (SensoryScreen), then it has the same SVG radar + attribute mini-bars + comments list using shadcn Card + Badge primitives — verified by RTL snapshot + parity checklist\n2. Given mean_overall=7.5, when the screen renders, then a green 'V08 PASS' Badge appears per §17.11.4 V08 rule\n3. Given mean_overall=6.5, when the screen renders, then a red 'V08 FAIL' Badge appears per §17.11.4 V08 rule\n\n## Test strategy\n- RED: __tests__/sensory-screen.test.tsx asserting parity + V08 PASS/FAIL branching before component exists\n- Run 'pnpm --filter web test sensory-screen'\n\n## Risk red lines\n- Do not paste prototype JSX verbatim\n- Do not bypass V08 indicator branching (must read mean_overall from DB)\n- Do not hardcode attribute set (must read from sensory_attribute_scores rows)",
-  "labels": ["prd", "ui", "sensory-screen", "T3-ui"],
-  "priority": 100,
+  "title": "T-076 — DEFERRED/CROSS-MODULE: Sensory UI is Technical-owned (do not BUILD in NPD)",
+  "prompt": "# T-076 — DEFERRED/CROSS-MODULE Sensory UI\n\nDo not implement this as an NPD UI build task. Per 2026-05-03 PO decision, Sensory belongs under Technical. This task is retained only as a backlog guard so agents do not build the older standalone NPD SensoryScreen.\n\nRequired handling: route any sensory UI/data work to Technical. NPD may later consume a Technical-owned sensory status/read-model for approval/gating visibility.\n",
+  "labels": [
+    "prd",
+    "ui",
+    "sensory-screen",
+    "technical-owned",
+    "deferred",
+    "cross-module",
+    "blocked"
+  ],
+  "priority": 10,
   "max_attempts": 3,
   "pipeline_name": "kira_dev",
   "pipeline_inputs": {
     "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
     "prd_task_id": "T-076",
     "source_prd": "01-NPD-PRD.md",
-    "prd_refs": ["§17.11.4"],
-    "category": "ui",
-    "subcategory": "sensory-screen",
+    "prd_refs": [
+      "2026-05-03 PO Amendment",
+      "_meta/decisions/2026-05-03-flow-d365-settings-technical-decisions.md"
+    ],
+    "category": "cross-module",
+    "subcategory": "sensory-ui-technical-owned-deferred",
     "task_type": "T3-ui",
     "parent_feature": "01-NPD-h Nutrition+Costing+Sensory",
     "context_budget": "45k",
     "estimated_effort": "2-3h",
-    "description": "Sensory screen with SVG radar + attribute mini-bars + comments + V08 PASS/FAIL indicator (mean ≥ 7.0).",
-    "details": "Parity checklist: SVG radar polygon, mini-bars per attribute, comments list, V08 indicator badge. Note §17.11.4 D4 reduction is downstream decision; impl follows BUILD path.",
+    "description": "Deferred guard task: do not build standalone NPD SensoryScreen; Sensory is Technical-owned per 2026-05-03 PO decision.",
+    "details": "DO NOT IMPLEMENT the old NPD SensoryScreen BUILD path. Use future Technical-owned sensory screen/status contract if NPD needs read-only gate visibility. Decision: _meta/decisions/2026-05-03-flow-d365-settings-technical-decisions.md.",
     "scope_files": [
-      "apps/web/app/(npd)/pipeline/[projectId]/sensory/page.tsx [create]",
-      "apps/web/app/(npd)/pipeline/[projectId]/sensory/_components/sensory-screen.tsx [create]",
-      "apps/web/app/(npd)/pipeline/[projectId]/sensory/_components/radar-chart.tsx [create]",
-      "apps/web/app/(npd)/pipeline/[projectId]/sensory/_components/__tests__/sensory-screen.test.tsx [create]",
-      "design/Monopilot Design System/npd/other-stages.jsx [ref]"
+      "No application files — task is blocked/deferred pending Technical-owned sensory UI/contract"
     ],
     "out_of_scope": [
-      "Do not build panel-creation modal (out of scope this phase)",
-      "Do not enforce D4 reduction (separate decision)"
+      "Do not create apps/web NPD sensory route or components from this task",
+      "Do not implement radar chart / attribute bars / panel comments as standalone NPD UI",
+      "Do not enforce V08 sensory gate in NPD without Technical-owned contract"
     ],
-    "dependencies": ["T-071"],
-    "parallel_safe_with": ["T-074", "T-075"],
+    "dependencies": [
+      "Technical-owned sensory UI/read-model contract / future Technical task"
+    ],
+    "parallel_safe_with": [],
     "acceptance_criteria": [
-      "Given the production SensoryScreen renders, when compared to design/Monopilot Design System/npd/other-stages.jsx:260-352 (SensoryScreen), then it has the same SVG radar + attribute mini-bars + comments list using shadcn Card + Badge — verified by RTL snapshot + parity checklist",
-      "Given mean_overall=7.5, when the screen renders, then a green 'V08 PASS' Badge appears per §17.11.4 V08 rule",
-      "Given mean_overall=6.5, when the screen renders, then a red 'V08 FAIL' Badge appears per §17.11.4 V08 rule"
+      "Given this task is selected for implementation, when read, then it is treated as BLOCKED/DEFERRED and no NPD application files are changed.",
+      "Given sensory UI is needed, when planning starts, then ownership is routed to Technical per _meta/decisions/2026-05-03-flow-d365-settings-technical-decisions.md.",
+      "Given NPD needs sensory gate visibility later, when implemented, then it displays Technical-owned status/read-model only."
     ],
     "test_strategy": [
-      "RED: __tests__/sensory-screen.test.tsx asserting parity + V08 PASS/FAIL branching before component exists",
-      "Run 'pnpm --filter web test sensory-screen'"
+      "No implementation tests in NPD; validate by backlog/PR review that no standalone NPD SensoryScreen is built from this task."
     ],
     "risk_red_lines": [
-      "Do not paste prototype JSX verbatim",
-      "Do not bypass V08 indicator branching",
-      "Do not hardcode attribute set"
+      "Do not build standalone NPD SensoryScreen.",
+      "Do not paste or port old sensory prototype into NPD as active scope.",
+      "Do not contradict Technical ownership of Sensory."
     ],
-    "skills": ["test-driven-development", "requesting-code-review"],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
     "checkpoint_policy": {
-      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
-      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
     },
     "routing_hints": {
       "red": "hermes_gpt55",
@@ -56,7 +79,6 @@
       "review": "opus_if_high_risk_or_ui_or_architecture",
       "close": "spark_low_risk_else_opus"
     },
-    "prototype_match": true,
-    "prototype_index_entry": "sensory_screen"
+    "prototype_index_entry": "sensory_screen (reference only; not NPD build scope)"
   }
 }

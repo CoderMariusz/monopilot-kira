@@ -1,0 +1,86 @@
+{
+  "title": "T-079 — Migration/API contract: factory_specs Technical-owned version approval",
+  "prompt": "# T-079 — factory_specs Technical-owned version approval\n\nImplement the data/API foundation for Technical-owned `factory_specs` per PRD §0 and §5.0. Create `factory_specs` with org RLS, unique `(org_id,item_id,version)`, statuses `draft|in_review|approved_for_factory|superseded|blocked`, source `technical|npd_builder|d365_import|migration`, immutable approved versions, approval metadata, effective dates, and JSON spec body. Add service/API operations: create draft, get versions, submit for review, approve for factory use, block, and edit released spec by cloning to next draft version. Active factory use requires `approved_for_factory`. RED first: tests prove approved version cannot be updated in place and edit creates version+1 draft. Do not build UI.",
+  "labels": [
+    "prd",
+    "data",
+    "factory-spec",
+    "approval",
+    "T1-schema"
+  ],
+  "priority": 60,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "source_prd": "03-TECHNICAL-PRD.md",
+    "category": "data",
+    "context_budget": "30k",
+    "estimated_effort": "2-3h",
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prd_task_id": "T-079",
+    "prd_refs": [
+      "§0",
+      "§5.0",
+      "§7.4"
+    ],
+    "subcategory": "factory-spec",
+    "task_type": "T1-schema",
+    "parent_feature": "03-TECHNICAL-a Factory Spec",
+    "details": "This task establishes factory_spec as Technical-owned SSOT for production instructions. NPD Builder is allowed to call create draft with source npd_builder, but it cannot approve for factory use. Product-facing aliases may say internal_product_spec; table/API naming is factory_specs unless existing code conventions demand a thin alias. Approval must write audit_log entries. D365 imports may create draft or review records only. No application UI in this task.",
+    "scope_files": [
+      "db/migrations/0xxx_factory_specs.sql",
+      "db/schema/factory-specs.ts",
+      "apps/web/actions/technical/factory-specs/*.ts",
+      "tests/db/factory-specs.migration.test.ts",
+      "tests/actions/technical/factory-specs.test.ts"
+    ],
+    "acceptance_criteria": [
+      "Given an approved_for_factory factory_spec exists, when update-in-place is attempted, then the operation is rejected and audit_log records the rejection.",
+      "Given an approved_for_factory version v2 exists, when editReleasedFactorySpec is called, then version v3 is created with status draft and v2 remains unchanged.",
+      "Given NPD Builder creates an initial spec, when source=npd_builder, then status is draft and approval fields are empty.",
+      "Given a factory use check runs, when no approved_for_factory spec exists for FG/intermediate, then factory use is blocked with a typed reason."
+    ],
+    "test_strategy": [
+      "Add RED tests for immutable approved rows and clone-on-edit before migration/service code.",
+      "Run: pnpm vitest run tests/db/factory-specs.migration.test.ts tests/actions/technical/factory-specs.test.ts"
+    ],
+    "risk_red_lines": [
+      "Do not merge factory_specs into items.ext_jsonb.",
+      "Do not allow NPD roles to approve factory use.",
+      "Do not make D365 authoritative for approved specs."
+    ],
+    "dependencies": [
+      "T-001"
+    ],
+    "parallel_safe_with": [
+      "T-073",
+      "T-074"
+    ],
+    "description": "Implement/document Migration/API contract: factory_specs Technical-owned version approval for 03-TECHNICAL final-decision workflow."
+  }
+}

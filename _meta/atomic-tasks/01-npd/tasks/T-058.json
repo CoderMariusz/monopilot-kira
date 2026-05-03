@@ -1,7 +1,14 @@
 {
-  "title": "T-058 — advanceProjectGate + approveProjectGate (e-sig) + revertGate Server Actions (NPD-f)",
-  "prompt": "# T-058 — Gate advancement + approval Server Actions\n\nPRD: 01-NPD-PRD.md §17.6, §17.7, §17.12 (adjacency guard)\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nThree Server Actions enforcing gate advancement: advanceProjectGate (G0-G2 self-advance with blocker check), approveProjectGate (G3/G4 with bcrypt-verified password + e-signature SHA-256 hash + audit immutability), revertGate (admin-only audit-logged reverse).\n\n## Implementation contract\n1. apps/web/app/(npd)/pipeline/_actions/advance-project-gate.ts: RBAC npd.gate.advance; calls getBlockers helper; applies adjacency guard nextGate(current) only; updates current_gate; emits 'npd.gate.advanced'.\n2. apps/web/app/(npd)/pipeline/_actions/approve-project-gate.ts: RBAC npd.gate.approve; takes {decision, notes, password}; verifies password via bcrypt against current user; on approve writes gate_approvals row with esigned_at + esign_hash=SHA-256(user_id+project_id+gate+timestamp); advances current_gate; emits 'npd.gate.approved'.\n3. apps/web/app/(npd)/pipeline/_actions/revert-gate.ts: RBAC admin only; writes audit_events; emits 'npd.gate.reverted'.\n4. Vitest covers blocker-rejection, adjacency violation (422 ADJACENCY_VIOLATION), password mismatch reject, hash determinism, and audit-event emission.\n\n## Files\n- apps/web/app/(npd)/pipeline/_actions/advance-project-gate.ts [create]\n- apps/web/app/(npd)/pipeline/_actions/approve-project-gate.ts [create]\n- apps/web/app/(npd)/pipeline/_actions/revert-gate.ts [create]\n- apps/web/app/(npd)/pipeline/_actions/_lib/gate-helpers.ts [create]\n- apps/web/app/(npd)/pipeline/_actions/__tests__/gate-actions.test.ts [create]\n\n## Acceptance criteria\n1. Given a project at G2 with one required checklist item not done, when advanceProjectGate to G3 is called, then it rejects with BLOCKERS_PRESENT and current_gate stays G2 per §17.6 blocker rule\n2. Given a project at G2, when advanceProjectGate to G4 (non-adjacent) is called, then it rejects 422 ADJACENCY_VIOLATION per §17.12 adjacency guard\n3. Given approveProjectGate is called with correct password, when commit succeeds, then gate_approvals row contains esign_hash matching SHA-256(user_id + project_id + gate_code + esigned_at) per §17.5 + §17.6 e-sig contract\n\n## Test strategy\n- RED: __tests__/gate-actions.test.ts with 4 cases (blocker reject, adjacency reject, password reject, hash determinism + audit emit) before actions exist\n- Run 'pnpm --filter web test gate-actions'\n\n## Risk red lines\n- Do not skip blocker check\n- Do not allow non-adjacent advance (per §17.12)\n- Do not store the password in any column or log\n- Do not skip audit_events emission on revertGate",
-  "labels": ["prd", "api", "stage-gate", "T2-api"],
+  "title": "T-058 — advanceProjectGate + approveProjectGate (e-sig) + revertGate Server Actions (NPD-f) [PATCH: G3/G4 blockers]",
+  "prompt": "# T-058 — Gate advancement + approval Server Actions\n\nPRD: 01-NPD-PRD.md §17.6, §17.7, §17.12 (adjacency guard)\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nThree Server Actions enforcing gate advancement: advanceProjectGate (G0-G2 self-advance with blocker check), approveProjectGate (G3/G4 with bcrypt-verified password + e-signature SHA-256 hash + audit immutability), revertGate (admin-only audit-logged reverse).\n\n## Implementation contract\n1. apps/web/app/(npd)/pipeline/_actions/advance-project-gate.ts: RBAC npd.gate.advance; calls getBlockers helper; applies adjacency guard nextGate(current) only; updates current_gate; emits 'npd.gate.advanced'.\n2. apps/web/app/(npd)/pipeline/_actions/approve-project-gate.ts: RBAC npd.gate.approve; takes {decision, notes, password}; verifies password via bcrypt against current user; on approve writes gate_approvals row with esigned_at + esign_hash=SHA-256(user_id+project_id+gate+timestamp); advances current_gate; emits 'npd.gate.approved'.\n3. apps/web/app/(npd)/pipeline/_actions/revert-gate.ts: RBAC admin only; writes audit_events; emits 'npd.gate.reverted'.\n4. Vitest covers blocker-rejection, adjacency violation (422 ADJACENCY_VIOLATION), password mismatch reject, hash determinism, and audit-event emission.\n\n## Files\n- apps/web/app/(npd)/pipeline/_actions/advance-project-gate.ts [create]\n- apps/web/app/(npd)/pipeline/_actions/approve-project-gate.ts [create]\n- apps/web/app/(npd)/pipeline/_actions/revert-gate.ts [create]\n- apps/web/app/(npd)/pipeline/_actions/_lib/gate-helpers.ts [create]\n- apps/web/app/(npd)/pipeline/_actions/__tests__/gate-actions.test.ts [create]\n\n## Acceptance criteria\n1. Given a project at G2 with one required checklist item not done, when advanceProjectGate to G3 is called, then it rejects with BLOCKERS_PRESENT and current_gate stays G2 per §17.6 blocker rule\n2. Given a project at G2, when advanceProjectGate to G4 (non-adjacent) is called, then it rejects 422 ADJACENCY_VIOLATION per §17.12 adjacency guard\n3. Given approveProjectGate is called with correct password, when commit succeeds, then gate_approvals row contains esign_hash matching SHA-256(user_id + project_id + gate_code + esigned_at) per §17.5 + §17.6 e-sig contract\n\n## Test strategy\n- RED: __tests__/gate-actions.test.ts with 4 cases (blocker reject, adjacency reject, password reject, hash determinism + audit emit) before actions exist\n- Run 'pnpm --filter web test gate-actions'\n\n## Risk red lines\n- Do not skip blocker check\n- Do not allow non-adjacent advance (per §17.12)\n- Do not store the password in any column or log\n- Do not skip audit_events emission on revertGate\n\n## 2026-05-03 E2E spine patch — G3/G4 advancement blockers\nGate actions must call the E2E blocker helpers added by T-095/T-096/T-097:\n- G3 approval/advance is blocked unless an FG candidate is created or mapped (`npd_projects.product_code` or equivalent) and is unique to this active project.\n- G4 approval is blocked unless required department closures are Done, release preflight passes, RM usability has no blocking FAIL, shared BOM/factory_spec handoff is ready, and Settings policy approvals are satisfied.\n- G4 approval may close NPD, but factory use remains blocked until Technical approval sets the release status/read model to approved/released per T-097.\n- D365 export must not satisfy or mutate any gate blocker.",
+  "labels": [
+    "prd",
+    "api",
+    "stage-gate",
+    "T2-api",
+    "e2e-spine",
+    "gate-blockers"
+  ],
   "priority": 80,
   "max_attempts": 3,
   "pipeline_name": "kira_dev",
@@ -9,7 +16,11 @@
     "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
     "prd_task_id": "T-058",
     "source_prd": "01-NPD-PRD.md",
-    "prd_refs": ["§17.6", "§17.7", "§17.12"],
+    "prd_refs": [
+      "§17.6",
+      "§17.7",
+      "§17.12"
+    ],
     "category": "api",
     "subcategory": "gate-advancement-actions",
     "task_type": "T2-api",
@@ -29,12 +40,23 @@
       "Do not build modal UI here (T-061)",
       "Do not implement V18 risk blocker (T-080+, T-087)"
     ],
-    "dependencies": ["T-054", "T-057"],
-    "parallel_safe_with": ["T-059", "T-060", "T-061"],
+    "dependencies": [
+      "T-054",
+      "T-057",
+      "T-095"
+    ],
+    "parallel_safe_with": [
+      "T-059",
+      "T-060",
+      "T-061"
+    ],
     "acceptance_criteria": [
       "Given a project at G2 with one required checklist item not done, when advanceProjectGate to G3 is called, then it rejects with BLOCKERS_PRESENT and current_gate stays G2 per §17.6 blocker rule",
       "Given a project at G2, when advanceProjectGate to G4 (non-adjacent) is called, then it rejects 422 ADJACENCY_VIOLATION per §17.12 adjacency guard",
-      "Given approveProjectGate is called with correct password, when commit succeeds, then gate_approvals row contains esign_hash matching SHA-256(user_id + project_id + gate_code + esigned_at) per §17.5 + §17.6"
+      "Given approveProjectGate is called with correct password, when commit succeeds, then gate_approvals row contains esign_hash matching SHA-256(user_id + project_id + gate_code + esigned_at) per §17.5 + §17.6",
+      "Given a project at G2 with no FG candidate, when approve/advance to G3 is called, then it rejects with FG_CANDIDATE_REQUIRED.",
+      "Given a project at G3 with any required department not Done, when approveProjectGate for G4 is called, then it rejects with DEPARTMENT_CLOSURE_REQUIRED and typed blockers.",
+      "Given D365 export exists but Technical approval is missing, when factory release blockers are evaluated, then the project is not released_to_factory."
     ],
     "test_strategy": [
       "RED: __tests__/gate-actions.test.ts with 4 cases (blocker, adjacency, password, hash + audit) before actions exist",
@@ -44,12 +66,28 @@
       "Do not skip blocker check",
       "Do not allow non-adjacent advance",
       "Do not store the password in any column or log",
-      "Do not skip audit_events emission on revertGate"
+      "Do not skip audit_events emission on revertGate",
+      "Do not let Built/D365 export bypass G4 release blockers.",
+      "Do not conflate G4 NPD approval with Technical approved_for_factory."
     ],
-    "skills": ["test-driven-development", "requesting-code-review"],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
     "checkpoint_policy": {
-      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
-      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
     },
     "routing_hints": {
       "red": "hermes_gpt55",

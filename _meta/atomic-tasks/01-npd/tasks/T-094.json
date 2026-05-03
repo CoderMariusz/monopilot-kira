@@ -1,66 +1,93 @@
 {
-  "title": "T-094 — Refactor: Rename FA (Factory Article) → FG (Finished Goods) across NPD",
-  "prompt": "Rename the user-facing concept 'FA' (Factory Article) → 'FG' (Finished Goods) across the entire NPD module: UI labels, routes, i18n strings, Server Action names, and the underlying database table. This is a coordinated refactor — must land atomically across DB + code + URLs.\n\nDeliverables (single PR):\n\n1. Database rename:\n   - Rename `fa` table → `fg`. Rename FK columns referencing it from `fa_id` → `fg_id` across ALL referencing tables (e.g. bom_headers.fa_id from T-092 → fg_id, prod_detail.fa_id → fg_id, etc.). Use pg_catalog-driven discovery in the migration to be exhaustive.\n   - Rename related sequences / indexes / constraints to use `fg_*` naming.\n   - Migration `0094_rename_fa_to_fg.sql` is reversible (DOWN renames back).\n   - Provide a temporary backwards-compatible SQL VIEW `fa AS SELECT * FROM fg` for one release window — JSDoc says 'DEPRECATED, remove in T-09X next release'.\n\n2. Drizzle schema:\n   - Rename schema files `src/db/schema/npd/fa.ts` → `src/db/schema/npd/fg.ts`; export `fg` table; remove `fa` symbol.\n   - Update every Drizzle reference repo-wide.\n\n3. Routes:\n   - Move `apps/web/app/(npd)/fa/...` → `apps/web/app/(npd)/fg/...` (rename directory).\n   - Add a Next.js redirect rule `/npd/fa/:path*` → `/npd/fg/:path*` (308) in `next.config.ts` for one release window.\n\n4. UI labels + i18n:\n   - Replace user-facing 'FA' / 'Factory Article' strings with 'FG' / 'Finished Goods' in EN and PL bundles (`messages/en/01-npd.json`, `messages/pl/01-npd.json`). Verify no PL translation says 'Artykul Fabryczny' anywhere — replace with 'Wyrob Gotowy'.\n\n5. Code identifiers:\n   - Rename TypeScript types `Fa` → `Fg`, `FaId` → `FgId`, hooks `useFa*` → `useFg*`, Server Actions `createFa` → `createFg`, etc. Use codemod (ts-morph or scripted ripgrep+sed in a single commit) to keep diff reviewable.\n   - Keep abbreviation `fg` lowercase in code and `FG` in UI labels.\n\n6. Tests:\n   - Existing tests must be renamed and continue to pass.\n   - Add an integration test asserting that `/npd/fa/123` returns 308 to `/npd/fg/123`.\n   - Add a guard test (rg-based) ensuring no UI string contains 'Factory Article' or 'FA0' in non-test files (allow exceptions list for test fixtures).\n\nDo NOT skip the back-compat view + redirect (other modules may still import `fa`). Do NOT split this into multiple PRs — DB + code rename must land atomically. Do NOT touch unrelated NPD logic (this is a pure rename).\n\nClose-out: paste migration filename, redirect rule snippet, count of files changed, vitest output, screenshot of updated UI breadcrumb showing 'FG' label.",
-  "labels": ["prd", "refactor", "fa-to-fg-rename", "T-refactor"],
-  "priority": 85,
+  "title": "T-094 — FG canonical terminology compatibility pass (UI/i18n/docs, no risky DB/route mass rename)",
+  "prompt": "# T-094 — FG canonical terminology compatibility pass\n\nPRD: 01-NPD-PRD.md 2026-05-03 FINAL Amendment + _meta/decisions/2026-05-03-flow-d365-settings-technical-decisions.md\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Final decisions this task must implement\n- `FG` / Finished Good is the canonical user-facing and domain term.\n- `FA` / Factory Article is compatibility alias only.\n- Do not perform a risky broad DB/route/event/code mass rename in this task. Existing `fa_code`, `/npd/fa/...`, `fa.*` events or compatibility views may remain if required for stability.\n- NPD Builder creates WIP/intermediates + FG + initial shared BOM/product-spec version. D365 is integration/export only.\n\n## Goal\nMake the product surface consistently present `FG` terminology while preserving backwards-compatible code/routes/schema aliases. This task is ACTIONABLE now because the naming decision is final; the only blocked part is any broad physical DB/route/event mass rename, which remains out of scope.\n\n## Implementation contract\n1. Inventory user-facing strings in 01-NPD UI/i18n/prototype references and task-owned docs that say Factory Article/FA where the user should see Finished Good/FG.\n2. Add or update a central terminology mapping/helper if the codebase has i18n/labels, e.g. `legacy FA code -> FG Code (legacy FA code)` and `FA Projects -> FG Projects`.\n3. Update EN and PL translations/user-facing labels for NPD screens, modals, empty states, buttons and validation messages so new UI says FG.\n4. Preserve technical identifiers and compatibility routes unless a safe alias already exists. If routes stay `/npd/fa/[productCode]`, add breadcrumb/helper copy that displays FG and do not rename route files.\n5. Update prototype/documentation red-lines if any implementation task reads prototype labels directly: `fa_code`, `NPD_FAS`, and old FA labels are compatibility aliases.\n6. Ensure D365 copy says optional export/import integration and never implies D365 is source of truth.\n7. Ensure post-release edit copy says new BOM/product-spec version + Technical approval, not in-place edit/built flag reset.\n\n## Acceptance criteria\n- Given NPD list/detail/create/brief-convert/builder screens render, when user-facing text is inspected, then canonical labels say FG/Finished Good rather than Factory Article/FA except explicit compatibility notes.\n- Given a compatibility field is displayed, when labelled, then it is clear as `FG Code` or `FG Code (legacy FA code)` rather than canonical FA.\n- Given existing routes/schema/events use `fa` identifiers, when tests run, then backwards compatibility remains and no DB/route/event mass rename occurred.\n- Given D365 copy appears, when inspected, then it says export/import integration only and not source of truth.\n- Given post-release edit copy appears, when inspected, then it requires new BOM/product-spec version and Technical approval before factory use.\n- Given PL translations exist, when inspected, then they use FG / wyrób gotowy consistently and do not introduce FA as final term.\n\n## Test strategy\n- Snapshot/RTL tests for key NPD screens asserting FG labels.\n- Grep guard for user-facing `Factory Article`/`FA Projects` strings outside allowlisted compatibility comments/tests.\n- Route compatibility test proving existing `/npd/fa/...` still works if route rename is not performed.\n- i18n smoke test for EN+PL keys.\n\n## Risk red lines\n- Do not rename physical DB tables/columns, route segments, event names or external integrations in this task unless they already have compatibility aliases and tests.\n- Do not remove compatibility aliases/views.\n- Do not rename external D365/customer item codes that contain FA/PR by business convention.\n- Do not combine with T-092/T-093 BOM schema/backfill.\n- Do not treat FA as final user-facing term; it is alias only.\n",
+  "labels": [
+    "prd",
+    "refactor",
+    "fa-to-fg-rename",
+    "T-refactor",
+    "fg-canonical",
+    "compatibility-alias",
+    "i18n",
+    "no-mass-rename",
+    "d365-integration-only",
+    "bom-version-approval"
+  ],
+  "priority": 20,
   "max_attempts": 3,
   "pipeline_name": "kira_dev",
   "pipeline_inputs": {
     "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
     "prd_task_id": "T-094",
     "source_prd": "01-NPD-PRD.md",
-    "prd_refs": ["§terminology-fg"],
+    "prd_refs": [
+      "2026-05-03 PO Amendment",
+      "_meta/decisions/2026-05-03-flow-d365-settings-technical-decisions.md"
+    ],
     "category": "refactor",
-    "subcategory": "rename-fa-fg",
-    "task_type": "T-refactor",
-    "parent_feature": "fa-to-fg-rename",
+    "subcategory": "fg-terminology-compatibility",
+    "task_type": "T3-ui-i18n",
+    "parent_feature": "fg-canonical-terminology",
     "context_budget": "80k",
-    "estimated_effort": "1 day",
-    "description": "Rename FA → FG across DB, routes, schemas, types, i18n, and UI labels in a single atomic refactor.",
-    "details": "DB rename + back-compat view; route move + 308 redirect; codemod for TS identifiers; i18n EN+PL replacement; integration tests for redirect + UI labels.",
+    "estimated_effort": "3-5h",
+    "description": "ACTIONABLE final-decision terminology pass: user-facing NPD labels use FG/Finished Good while preserving FA compatibility aliases and avoiding risky DB/route/event mass rename.",
+    "details": "FG is canonical. FA is compatibility alias only. Update UI/i18n/docs/prototype-read red-lines; keep existing code/schema/routes/events compatible. D365 copy must say integration/export only; post-release edit copy must require new version + Technical approval.",
     "scope_files": [
-      "src/db/migrations/0094_rename_fa_to_fg.sql [create]",
-      "src/db/schema/npd/fg.ts [rename from fa.ts]",
-      "apps/web/app/(npd)/fg/** [rename from apps/web/app/(npd)/fa/**]",
-      "apps/web/next.config.ts [edit — add /npd/fa redirect]",
-      "apps/web/messages/en/01-npd.json [edit]",
-      "apps/web/messages/pl/01-npd.json [edit]",
-      "apps/web/__tests__/integration/fa-fg-redirect.test.ts [create]",
-      "apps/web/__tests__/guards/no-factory-article-string.test.ts [create]"
+      "NPD UI/i18n label files discovered by grep",
+      "NPD prototype/documentation label notes where implementation tasks read prototypes",
+      "Compatibility tests for existing routes/aliases"
     ],
     "out_of_scope": [
-      "Removing the back-compat fa VIEW (next release task)",
-      "Renaming non-NPD references that are intentionally semantic (e.g. external D365 codes — see PRD)",
-      "Behavioural changes — pure rename only"
+      "Physical DB/table/column mass rename",
+      "Route segment mass rename without compatibility redirects",
+      "Event-name mass rename",
+      "T-092/T-093 shared BOM schema/backfill",
+      "Renaming external D365/customer codes"
     ],
-    "dependencies": ["T-092"],
+    "dependencies": [
+      "_meta/decisions/2026-05-03-flow-d365-settings-technical-decisions.md",
+      "01-NPD-PRD.md 2026-05-03 FINAL Amendment"
+    ],
     "parallel_safe_with": [],
     "acceptance_criteria": [
-      "Given the migration applies, when introspected, then table `fg` exists, table `fa` is replaced by a VIEW `fa AS SELECT * FROM fg`, and all FK columns are renamed to `fg_id`.",
-      "Given a request to `/npd/fa/123/details`, when handled, then it returns HTTP 308 to `/npd/fg/123/details`.",
-      "Given the EN/PL i18n bundles, when grepped, then no 'Factory Article' / 'Artykul Fabryczny' strings remain.",
-      "Given the codebase, when ripgrep searches for symbol `fa[A-Z]` or `Fa[a-z]` in non-test files, then results are zero (excluding back-compat layer).",
-      "Given the existing NPD test suite, when run after rename, then 0 failures (renamed in same commit).",
-      "Given `pnpm tsc --noEmit && pnpm lint`, when run, then 0 errors.",
-      "Given the migration's DOWN runs, when applied, then table fa is restored and code-only callers still work."
+      "Given key NPD screens render, when user-facing text is inspected, then canonical labels say FG/Finished Good rather than Factory Article/FA except explicit compatibility notes.",
+      "Given a compatibility field is displayed, when labelled, then it is clear as FG Code or FG Code (legacy FA code).",
+      "Given existing routes/schema/events use fa identifiers, when tests run, then backwards compatibility remains and no DB/route/event mass rename occurred.",
+      "Given D365 copy appears, when inspected, then it says export/import integration only and not source of truth.",
+      "Given post-release edit copy appears, when inspected, then it requires new BOM/product-spec version and Technical approval before factory use.",
+      "Given PL translations exist, when inspected, then they use FG / wyrób gotowy consistently and do not introduce FA as final term."
     ],
     "test_strategy": [
-      "RED integration test asserting /npd/fa/* → 308 /npd/fg/*.",
-      "RED guard test asserting no 'Factory Article' string in non-test files.",
-      "Run `pnpm vitest run` for the entire NPD test suite to ensure renamed tests still pass.",
-      "Run `pnpm drizzle-kit generate` and `pnpm tsc --noEmit && pnpm lint`."
+      "Snapshot/RTL tests for key NPD screens asserting FG labels.",
+      "Grep guard for user-facing Factory Article/FA Projects outside allowlisted compatibility comments/tests.",
+      "Route compatibility test proving existing /npd/fa/... still works if route rename is not performed.",
+      "i18n smoke test for EN+PL keys."
     ],
     "risk_red_lines": [
-      "Do not split DB rename and code rename across PRs — they must land atomically.",
-      "Do not delete the back-compat VIEW in this task (next release removes).",
-      "Do not introduce behavioural changes — pure rename only.",
-      "Do not rename external D365 supplier_codes / item_codes that follow customer naming.",
-      "Do not skip i18n PL translation update."
+      "Do not rename physical DB tables/columns, route segments, event names or external integrations in this task unless compatibility aliases and tests already exist.",
+      "Do not remove compatibility aliases/views.",
+      "Do not rename external D365/customer item codes by business convention.",
+      "Do not combine with T-092/T-093 BOM schema/backfill.",
+      "Do not treat FA as final user-facing term; it is alias only."
     ],
-    "skills": ["test-driven-development", "requesting-code-review"],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
     "checkpoint_policy": {
-      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
-      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
     },
     "routing_hints": {
       "red": "hermes_gpt55",

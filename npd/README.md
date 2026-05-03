@@ -6,6 +6,20 @@ The prototype is a working browser app — open `npd.html`. State is in-memory (
 
 ---
 
+## 2026-05-03 canonical decision overlay
+
+This prototype intentionally keeps some legacy `FA` identifiers (`fa_code`, `NPD_FAS`, `/npd/fa/...`) to avoid a risky broad JSX rewrite. Treat them as compatibility aliases only:
+
+- User-facing canonical term: `FG` / Finished Good.
+- Brief creates NPD project `DEV-123`; Stage-Gate `G0-G4` is canonical MVP; at `G3` project creates/maps FG.
+- NPD Builder creates WIP/intermediates + FG + initial shared BOM/product-spec version.
+- Shared BOM model/table is SSOT across NPD/Technical/Planning/Production/integrations.
+- D365 buttons/export screens are integration/export only, never source of truth.
+- Post-release product/BOM/spec edits create a new version and require Technical approval.
+- Trial/Pilot/Handoff/Packaging remain NPD; Sensory belongs Technical.
+
+---
+
 ## Documentation
 
 | file | purpose |

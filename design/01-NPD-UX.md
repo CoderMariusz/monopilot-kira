@@ -1,6 +1,18 @@
 # 01-NPD — UX Specification (for prototype generation)
 
-> **Authoritative source**: PRD 01-NPD v3.0 (2026-04-19). This document is self-contained — a designer with zero prior context can build HTML prototypes from it alone.
+> **Authoritative source**: PRD 01-NPD v3.3 plus 2026-05-03 FINAL Amendment (FG / Stage-Gate / shared BOM SSOT / BOM version approval). This document is self-contained, but the amendment below supersedes older FA/D365 wording that remains for prototype compatibility.
+
+## 2026-05-03 prototype red-lines (authoritative)
+
+Do not perform a risky mass JSX rewrite just to rename legacy prototype internals. Instead, apply this translation contract when using the UX spec or `npd/*.jsx` prototypes:
+
+1. Canonical user-facing term is `FG` / Finished Good. `FA` / Factory Article is compatibility alias only. Prototype identifiers such as `fa_code`, `NPD_FAS`, `/npd/fa/...`, or old labels like "FA Projects" mean `FG` / `FG Code` / `FG Projects` unless explicitly marked as a legacy compatibility field.
+2. Brief creates an NPD project (`DEV-123`). The project moves through Stage-Gate `G0-G4`; at `G3` it creates/maps the FG candidate.
+3. NPD Builder creates WIP/intermediate items + FG + the initial shared BOM/product-spec version. It does not merely create a D365 paste file.
+4. One shared BOM table/model is SSOT across NPD, Technical, Planning, Production and integrations. Any prototype phrase "computed BOM view" means a preview/read model over the shared BOM, not a separate canonical BOM.
+5. D365 is integration/export/import only. Buttons labelled "Build D365" should be read as optional D365 export after Monopilot-owned NPD Builder release; D365 must not be treated as source of truth.
+6. Released product/BOM/factory-spec edits from NPD create a new BOM/product-spec version and require Technical approval before factory use. Do not model post-release edits as in-place mutation or simple built-flag reset.
+7. Trial / Pilot / Handoff / Packaging stay in NPD Stage-Gate flow. Sensory belongs to Technical; NPD may show only Technical-owned sensory status/read-model.
 
 ---
 
