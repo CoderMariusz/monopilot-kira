@@ -12,9 +12,10 @@ const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 describe('packages/db integration contract', () => {
   runIntegrationTest('connects via drizzle and returns 1', async () => {
     const { db, closeDb } = await import('../lib/client');
-    const [row] = await db.execute(sql`SELECT 1 AS one`);
+    const result = await db.execute(sql`SELECT 1 AS one`);
+    const row = (result as { rows: { one: string | number }[] }).rows[0];
 
-    expect(Number((row as { one: string | number }).one)).toBe(1);
+    expect(Number(row.one)).toBe(1);
 
     await closeDb();
   });
