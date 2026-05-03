@@ -79,7 +79,7 @@ const BulkImportCsvScreen = ({ onBack }) => {
   return (
     <div data-prototype-label="bulk_import_csv_screen">
       <PageHeader title="Bulk import (CSV)" breadcrumb={<><a onClick={onBack} style={{ cursor: "pointer" }}>Technical</a> › Items › Import</>}
-        sub="Spec-driven Wave0 surface (TEC-014). Org-scoped wizard for FG / WIP / RM / supplier_specs rows. Source of truth: 03-TECHNICAL-PRD §6.5 and design/03-TECHNICAL-UX.md."
+        sub="Spec-driven Wave0 surface (TEC-014). Org-scoped wizard for FG / WIP / RM / supplier_specs rows. Source of truth: 03-TECHNICAL-PRD §6.5 and prototypes/design/03-TECHNICAL-UX.md."
         actions={<button className="btn btn-secondary btn-sm" onClick={onBack}>← Back to items</button>} />
 
       <Stepper steps={steps} current={step} completed={completed} />

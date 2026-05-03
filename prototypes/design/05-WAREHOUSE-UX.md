@@ -1622,4 +1622,4 @@ The following questions do not have definitive answers in PRD v3.0 and may requi
 
 *End of 05-WAREHOUSE UX Specification*
 
-*This document is authoritative for prototype generation. PRD v3.0 (05-WAREHOUSE-PRD.md) is the authoritative source for all business rules, validation codes (V-WH-*), and data model definitions referenced herein.*
+*This document is authoritative for prototype generation. PRD v3.0 (docs/prd/05-WAREHOUSE-PRD.md) is the authoritative source for all business rules, validation codes (V-WH-*), and data model definitions referenced herein.*

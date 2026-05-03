@@ -1,6 +1,6 @@
 {
   "title": "T-052 — UI: PLN-021 WO Create wizard (parity with wo_create_wizard)",
-  "prompt": "Implement UI: PLN-021 WO Create wizard (parity with wo_create_wizard) for 04-PLANNING-BASIC.\n\nPrototype: `_meta/prototype-labels/prototype-index-planning.json` label `wo_create_wizard` -> `design/Monopilot Design System/planning/modals.jsx:399-500`. Read PRD refs §8.1, §8.4, §8.11 and UX refs before coding. Match the prototype structurally and visually using shadcn/Radix primitives, Next.js App Router, Server Components for initial data, Server Actions for writes, next-intl for all copy, and existing repository conventions.\n\nBusiness rules: Product select consumes canonical release read model; blocked/pending rows are context only and cannot create/release normal WOs.\n\nCloseout must include changed files, test commands/results, AC status, screenshot/artifact paths, Playwright trace paths, deviations, and git status. Do not implement out-of-scope modules; use cross-module contracts listed in pipeline_inputs.cross_module_dependencies.",
+  "prompt": "Implement UI: PLN-021 WO Create wizard (parity with wo_create_wizard) for 04-PLANNING-BASIC.\n\nPrototype: `_meta/prototype-labels/prototype-index-planning.json` label `wo_create_wizard` -> `prototypes/design/Monopilot Design System/planning/modals.jsx:399-500`. Read PRD refs §8.1, §8.4, §8.11 and UX refs before coding. Match the prototype structurally and visually using shadcn/Radix primitives, Next.js App Router, Server Components for initial data, Server Actions for writes, next-intl for all copy, and existing repository conventions.\n\nBusiness rules: Product select consumes canonical release read model; blocked/pending rows are context only and cannot create/release normal WOs.\n\nCloseout must include changed files, test commands/results, AC status, screenshot/artifact paths, Playwright trace paths, deviations, and git status. Do not implement out-of-scope modules; use cross-module contracts listed in pipeline_inputs.cross_module_dependencies.",
   "labels": [
     "prd",
     "ui",
@@ -13,7 +13,7 @@
   "pipeline_inputs": {
     "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
     "prd_task_id": "T-052",
-    "source_prd": "04-PLANNING-BASIC-PRD.md",
+    "source_prd": "docs/prd/04-PLANNING-BASIC-PRD.md",
     "prd_refs": [
       "§8.1",
       "§8.4",
@@ -28,10 +28,10 @@
     "prototype_match": true,
     "prototype_label": "wo_create_wizard",
     "description": "WO create wizard with product/BOM/spec selection, cascade detection, and release blockers.",
-    "details": "Prototype reference: design/Monopilot Design System/planning/modals.jsx:399-500. Product select consumes canonical release read model; blocked/pending rows are context only and cannot create/release normal WOs.",
+    "details": "Prototype reference: prototypes/design/Monopilot Design System/planning/modals.jsx:399-500. Product select consumes canonical release read model; blocked/pending rows are context only and cannot create/release normal WOs.",
     "scope_files": [
       "src/components/planning/wo/WOCreateDialog.tsx [create]",
-      "design/Monopilot Design System/planning/modals.jsx:399-500 [ref]"
+      "prototypes/design/Monopilot Design System/planning/modals.jsx:399-500 [ref]"
     ],
     "out_of_scope": [
       "Changing canonical NPD/Technical/Warehouse/Scanner contracts",
@@ -55,7 +55,7 @@
       }
     ],
     "acceptance_criteria": [
-      "Given the surface is implemented, when compared to `design/Monopilot Design System/planning/modals.jsx:399-500`, then layout, copy hierarchy, components, interactions, empty/loading/error states, and accessibility affordances have prototype parity for `wo_create_wizard`.",
+      "Given the surface is implemented, when compared to `prototypes/design/Monopilot Design System/planning/modals.jsx:399-500`, then layout, copy hierarchy, components, interactions, empty/loading/error states, and accessibility affordances have prototype parity for `wo_create_wizard`.",
       "Given server data or validation returns blocked/empty/error cases, then the UI surfaces the exact PRD validation/status messages without client-invented business state.",
       "Given closeout is prepared, then it includes desktop screenshots/artifacts for all material states plus Playwright trace artifacts for happy path and blocked/error path.",
       "Given tests run, then targeted RTL/component tests and Playwright e2e for the route/modal pass with 0 failures. Follow parity evidence requirements in `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`."

@@ -13,7 +13,7 @@
   "pipeline_inputs": {
     "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
     "prd_task_id": "T-014",
-    "source_prd": "04-PLANNING-BASIC-PRD.md",
+    "source_prd": "docs/prd/04-PLANNING-BASIC-PRD.md",
     "prd_refs": [
       "§7.1",
       "§7.2",

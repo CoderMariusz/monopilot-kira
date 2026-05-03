@@ -287,7 +287,7 @@ def normalize_dep(dep, host_module=None):
         if "/" not in file_:
             # bare filename — try to qualify with host module
             if host_module:
-                file_norm = f"design/Monopilot Design System/{host_module}/{file_}"
+                file_norm = f"prototypes/design/Monopilot Design System/{host_module}/{file_}"
             else:
                 # leave bare; consumer will need to resolve
                 file_norm = file_
@@ -299,7 +299,7 @@ def normalize_dep(dep, host_module=None):
         file_, comp = m.group(1), m.group(2)
         if "/" not in file_:
             if host_module:
-                file_ = f"design/Monopilot Design System/{host_module}/{file_}"
+                file_ = f"prototypes/design/Monopilot Design System/{host_module}/{file_}"
         return [f"{file_}#{comp}"]
 
     # Bare primitive name
@@ -537,7 +537,7 @@ This directory contains prototype-labeling artifacts produced by the
 After audit-fix-2026-04-30, every entry uses one of these forms:
 
 - `<file-path>#<componentExport>` — canonical reference to a component in a
-  specific JSX file (e.g. `design/Monopilot Design System/finance/modals.jsx#StdCostCreateModal`).
+  specific JSX file (e.g. `prototypes/design/Monopilot Design System/finance/modals.jsx#StdCostCreateModal`).
 - `<bare-or-prefixed-label>` — reference to another entry's master `label`.
 - `primitive:<ComponentName>` — reference to a shadcn/Radix primitive
   (Modal, Field, Btn, Topbar, …); not a project prototype.

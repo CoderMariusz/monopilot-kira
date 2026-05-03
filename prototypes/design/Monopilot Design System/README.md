@@ -1,6 +1,6 @@
 # MonoPilot Design System
 
-A complete design system for **MonoPilot MES** — a multi-tenant Manufacturing Execution System for food-production companies (Apex Dairy, Kobe Dairy, etc.). Extracted from the UX specs in `design/` and the two prototype HTML files in `source/`.
+A complete design system for **MonoPilot MES** — a multi-tenant Manufacturing Execution System for food-production companies (Apex Dairy, Kobe Dairy, etc.). Extracted from the UX specs in `prototypes/design/` and the two prototype HTML files in `source/`.
 
 ---
 
@@ -85,10 +85,10 @@ For smaller UI affordances (caret, close, chevron) use text glyphs: `›  ←  �
 - `example-screen.html` — full Planning · Work Orders screen composed from the kit
 
 ### Source material (do not edit)
-- `design/01-NPD-UX.md` — NPD module UX spec
-- `design/02-SETTINGS-UX.md` — Settings module UX spec
-- `design/03-TECHNICAL-UX.md` — Technical module UX spec
-- `design/04-PLANNING-BASIC-UX.md` — Planning module UX spec
+- `prototypes/design/01-NPD-UX.md` — NPD module UX spec
+- `prototypes/design/02-SETTINGS-UX.md` — Settings module UX spec
+- `prototypes/design/03-TECHNICAL-UX.md` — Technical module UX spec
+- `prototypes/design/04-PLANNING-BASIC-UX.md` — Planning module UX spec
 - `source/MONOPILOT-SITEMAP.html` — complete sitemap prototype (every screen, every modal)
 - `source/SCANNER-PROTOTYPE.html` — scanner mobile prototype (every flow, every screen)
 

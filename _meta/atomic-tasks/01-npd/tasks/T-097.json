@@ -1,6 +1,6 @@
 {
   "title": "T-097 — Shared factory release status/read model and events",
-  "prompt": "# T-097 — shared factory release status/read model and events\n\nPRD: 01-NPD-PRD.md final decisions + 2026-05-03 E2E release spike\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nDefine and implement the canonical release status/read model consumed by NPD, Technical, Planning and factory views so `Built`/D365 export is never confused with factory availability.\n\n## Status model\nMinimum canonical states:\n- `pending_npd_release`\n- `pending_technical_approval`\n- `approved_for_factory`\n- `released_to_factory`\n- `blocked`\n\nRequired fields include `factory_available_at`, `factory_approved_by`, `release_event_id`, `active_bom_header_id`, `active_factory_spec_id`, `release_blockers`, and project/FG references.\n\nEvents:\n`npd.project.release_requested`, `npd.builder.released_records_created`, `technical.factory_spec.approved`, `fg.released_to_factory`, `fg.release_blocked`.\n\nTechnical approval is required before factory_spec/BOM can be used by factory/Planning. D365 export never sets this state.",
+  "prompt": "# T-097 — shared factory release status/read model and events\n\nPRD: docs/prd/01-NPD-PRD.md final decisions + 2026-05-03 E2E release spike\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nDefine and implement the canonical release status/read model consumed by NPD, Technical, Planning and factory views so `Built`/D365 export is never confused with factory availability.\n\n## Status model\nMinimum canonical states:\n- `pending_npd_release`\n- `pending_technical_approval`\n- `approved_for_factory`\n- `released_to_factory`\n- `blocked`\n\nRequired fields include `factory_available_at`, `factory_approved_by`, `release_event_id`, `active_bom_header_id`, `active_factory_spec_id`, `release_blockers`, and project/FG references.\n\nEvents:\n`npd.project.release_requested`, `npd.builder.released_records_created`, `technical.factory_spec.approved`, `fg.released_to_factory`, `fg.release_blocked`.\n\nTechnical approval is required before factory_spec/BOM can be used by factory/Planning. D365 export never sets this state.",
   "labels": [
     "prd",
     "schema",
@@ -18,7 +18,7 @@
   "pipeline_inputs": {
     "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
     "prd_task_id": "T-097",
-    "source_prd": "01-NPD-PRD.md",
+    "source_prd": "docs/prd/01-NPD-PRD.md",
     "prd_refs": [
       "2026-05-03 E2E release spike BL-E2E-06",
       "_meta/decisions/2026-05-03-flow-d365-settings-technical-decisions.md"

@@ -584,14 +584,14 @@ Consumers: D365 adapter push (P2 for PO confirmations to D365), analytics, dashb
 
 ### 6.6 Frontend/UX
 
-> **Screen-code scheme:** PLN-NNN canonical IDs (added 2026-04-30, audit fix per `_meta/audits/2026-04-30-design-prd-coverage.md`). Each PRD UI surface is anchored to UX SCREEN-NN (in `design/04-PLANNING-BASIC-UX.md`) + prototype label (in `_meta/prototype-labels/prototype-index-planning.json`). ADR-034 universal naming applies (FG/WIP/Manufacturing_Operation_N).
+> **Screen-code scheme:** PLN-NNN canonical IDs (added 2026-04-30, audit fix per `_meta/audits/2026-04-30-design-prd-coverage.md`). Each PRD UI surface is anchored to UX SCREEN-NN (in `prototypes/design/04-PLANNING-BASIC-UX.md`) + prototype label (in `_meta/prototype-labels/prototype-index-planning.json`). ADR-034 universal naming applies (FG/WIP/Manufacturing_Operation_N).
 
 | Screen ID | Komponent | Opis | UX anchor | Prototype |
 |---|-----------|------|-----------|-----------|
 | PLN-040 | SupplierTable | Lista, search, filter active/inactive, D365 sync badge | dedicated supplier prototype (Wave Next-3) | `plan_supplier_list` (`planning/suppliers.jsx:25-151`) |
 | PLN-041 | SupplierForm | Modal create/edit z Zod validation | dedicated supplier prototype (Wave Next-3) | `supplier_form_modal` (`planning/suppliers.jsx:403-512`) |
 | PLN-042 | SupplierDetail | Page z product assignments, PO history | dedicated supplier prototype (Wave Next-3) | `plan_supplier_detail` (`planning/suppliers.jsx:153-401`) |
-| **PLN-002** | POTable / PO List | Lista PO, badge status (rendered z rule registry status names/colors), filter | UX SCREEN-02 PO List (`design/04-PLANNING-BASIC-UX.md:271`) | `plan_po_list` (`planning/po-screens.jsx:3-139`) |
+| **PLN-002** | POTable / PO List | Lista PO, badge status (rendered z rule registry status names/colors), filter | UX SCREEN-02 PO List (`prototypes/design/04-PLANNING-BASIC-UX.md:271`) | `plan_po_list` (`planning/po-screens.jsx:3-139`) |
 | **PLN-014** | POFastFlow | 3-step wizard: supplier → products → review | UX §4 `PO Fast-Flow — 3-Step Wizard` (`:1123`) | `po_fast_flow_wizard` (`planning/modals.jsx:21-179`) |
 | **PLN-003** | PODetail | Page z liniami, status history, approval actions, GRN progress | UX SCREEN-03 PO Detail (`:330`) | `plan_po_detail` (`planning/po-screens.jsx:143-353`) |
 | **PLN-015** | AddPOLineModal | Add line modal (per FR-PLAN-009) | UX §4 `Add PO Line` (`:1164`) | `add_po_line_modal` (`planning/modals.jsx:182-225`) |
@@ -1427,7 +1427,7 @@ Integration disabled by default:
 **PLN-013 — D365 SO Queue + Draft WO Review page**
 
 - **Purpose:** Planner browses pulled SOs, reviews draft WOs (auto-generated per §15.2), approves or rejects per WO before release. Disabled-state surface when feature flag `integration.d365.so_trigger.enabled = false`.
-- **UX anchor:** UX §3 `D365 SO Queue and Draft WO Review` (`design/04-PLANNING-BASIC-UX.md:1072`).
+- **UX anchor:** UX §3 `D365 SO Queue and Draft WO Review` (`prototypes/design/04-PLANNING-BASIC-UX.md:1072`).
 - **Prototype:** `plan_d365_queue` (`planning/other-screens.jsx:510-648`).
 - **Key elements:** D365 pull history strip (last_run, so_count, draft_wo_count, errors), draft WO table z expandable cascade chain rows, pull errors collapsible (retry → Server Action), manual trigger button, filter bar (SO ref search, SO status, WO status, time range).
 - **RBAC:** read for all `planning.dashboard.view`, write/trigger gated by `integration.d365.so_trigger.run`.
@@ -1531,7 +1531,7 @@ Per 00-FOUNDATION §4.2 build rozbicie:
 ### 16.5 References
 
 **Foundation:**
-- `00-FOUNDATION-PRD.md` v3.0 §4 Module Map, §5 Tech Stack, §7 Rule Engine DSL
+- `docs/prd/00-FOUNDATION-PRD.md` v3.0 §4 Module Map, §5 Tech Stack, §7 Rule Engine DSL
 - `_foundation/META-MODEL.md`
 - `_foundation/decisions/MONOPILOT-V2-ARCHITECTURE.md` (Phase D 23 decisions + #14 Meat_Pct + #19 N+1 Builder)
 - `_foundation/research/MES-TRENDS-2026.md` §3 food-mfg best practices + §9 04-PLANNING section
@@ -1551,15 +1551,15 @@ Per 00-FOUNDATION §4.2 build rozbicie:
 - ADR-031 — Multi-tenant L1-L4
 
 **Sibling PRDs:**
-- `01-NPD-PRD.md` v3.0 — source_of_demand flow, Built flag reset pattern
-- `02-SETTINGS-PRD.md` v3.0 — §6 Schema admin wizard, §7 Rule registry, §9 L2 dept config, §11 D365 Constants admin, §12 infrastructure
-- `03-TECHNICAL-PRD.md` v3.0 — §5-§6 items + product master, §7 BOM + co-products, §8 catch weight, §10 allergens + §10.5 contamination matrix, §13 D365 Integration stage 1
+- `docs/prd/01-NPD-PRD.md` v3.0 — source_of_demand flow, Built flag reset pattern
+- `docs/prd/02-SETTINGS-PRD.md` v3.0 — §6 Schema admin wizard, §7 Rule registry, §9 L2 dept config, §11 D365 Constants admin, §12 infrastructure
+- `docs/prd/03-TECHNICAL-PRD.md` v3.0 — §5-§6 items + product master, §7 BOM + co-products, §8 catch weight, §10 allergens + §10.5 contamination matrix, §13 D365 Integration stage 1
 
 **Downstream (PRDs generated w C2+):**
-- `05-WAREHOUSE-PRD.md` (C2 session 2) — LP lifecycle, FEFO, GRN, put-away, locations (dependency)
-- `06-SCANNER-P1-PRD.md` (C2 session 3) — PWA, pick workflow reads released_to_warehouse flag
-- `07-PLANNING-EXT-PRD.md` (C3) — full allergen optimizer, finite-capacity engine, demand forecasting
-- `08-PRODUCTION-PRD.md` (C3) — WO execution, changeover gate, output recording
+- `docs/prd/05-WAREHOUSE-PRD.md` (C2 session 2) — LP lifecycle, FEFO, GRN, put-away, locations (dependency)
+- `docs/prd/06-SCANNER-P1-PRD.md` (C2 session 3) — PWA, pick workflow reads released_to_warehouse flag
+- `docs/prd/07-PLANNING-EXT-PRD.md` (C3) — full allergen optimizer, finite-capacity engine, demand forecasting
+- `docs/prd/08-PRODUCTION-PRD.md` (C3) — WO execution, changeover gate, output recording
 
 **External references (reality sources):**
 - `_meta/reality-sources/pld-v7-excel/EVOLVING.md` — intermediate cascade planned (Builder_FA5101 N+1 pattern)
@@ -1707,7 +1707,7 @@ P1 supplier and receive-TO surfaces are now covered by indexed prototypes and AC
 - **§16.8 (NEW; Wave Next-3 amended)** — UI surfaces canonical mapping table (PLN-NNN ↔ UX section/line ↔ prototype path ↔ status). Planning Basic now has 95%+ docs/meta/prototype/task readiness; only explicit non-P1 diagnostics remain deferred.
 - **§9.5** — added PLN-029 Hard-Lock Release Confirm row (was orphan).
 - **§10.7** — added PLN-030 Allergen Override on Sequencing row + PLN-032 Sequencing Preview Before/After tracking the Direction-C contradiction (delta widget missing per §11 spec).
-- **No PRD content deleted; only added or re-ordered.** UX file `design/04-PLANNING-BASIC-UX.md` was NOT modified.
+- **No PRD content deleted; only added or re-ordered.** UX file `prototypes/design/04-PLANNING-BASIC-UX.md` was NOT modified.
 - **Cross-references updated:** v3.2 revision note `§16.6` → `§16.9` (changelog now lives at §16.9 since §16.6/16.7/16.8 are new audit-fix subsections).
 - **ADR-034 (Generic Product Lifecycle Naming) markers** applied to all new PLN-NNN entries — confirms multi-industry universality.
 

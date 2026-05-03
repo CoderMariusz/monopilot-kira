@@ -2,12 +2,12 @@
 
 ## PO amendment coverage note — 2026-05-03
 
-- Canonical Settings prototype source of truth is `design/Monopilot Design System/settings/*.jsx`.
+- Canonical Settings prototype source of truth is `prototypes/design/Monopilot Design System/settings/*.jsx`.
 - Global Import / Export is in scope and covered by T-121 (SET-029); reference-table CSV remains covered by T-022/T-096/T-085.
 - Roles & Permissions is in scope as a dedicated screen and covered by T-120 (SET-011); Users list remains T-059.
 - Pending Invitations is in scope as a dedicated screen and covered by T-119 (SET-010); Invite modal/actions remain T-052/T-017.
-- Schema/Tenant UI without exact prototype is spec-driven from `design/02-SETTINGS-UX.md`, with prototype element reuse only where matching; T-096..T-102 must not cite adjacent/wrong prototypes as 1:1 sources.
-- Onboarding T-041..T-046 use `design/Monopilot Design System/settings/onboarding-screens.jsx` as the canonical onboarding-flow source; org/data screens may only be reused for field/pattern styling.
+- Schema/Tenant UI without exact prototype is spec-driven from `prototypes/design/02-SETTINGS-UX.md`, with prototype element reuse only where matching; T-096..T-102 must not cite adjacent/wrong prototypes as 1:1 sources.
+- Onboarding T-041..T-046 use `prototypes/design/Monopilot Design System/settings/onboarding-screens.jsx` as the canonical onboarding-flow source; org/data screens may only be reused for field/pattern styling.
 - T-117/T-118 quality flag placeholders remain in Settings per PO decision.
 - Per-org authorization policies for NPD post-release edits and Technical approval gates are covered by T-122, with supporting permission/flag updates in T-002/T-020/T-065/T-120/T-102 and active gate rule seed T-123.
 
@@ -17,12 +17,12 @@
 |---|---|---|---|
 | ADR-008 | Partitioned audit_log | tasks/T-010.json | covered |
 | ADR-008 | Generic audit trigger framework | tasks/T-014.json | covered |
-| ADR-008 | SET-013 UI (prototype: none (UX 02-SETTINGS-UX.md §audit log)) | tasks/T-079.json | covered |
+| ADR-008 | SET-013 UI (prototype: none (UX prototypes/design/02-SETTINGS-UX.md §audit log)) | tasks/T-079.json | covered |
 | ADR-008 | Audit partition lifecycle | tasks/T-089.json | covered |
 | ADR-012 | createOrganization + 10 system role seed | tasks/T-016.json | covered |
 | ADR-013 | RLS contract test + withOrgContext helper | tasks/T-015.json | covered |
 | ADR-028 | Schema wizard Server Actions | tasks/T-023.json | covered |
-| ADR-030 | SET-061 UI (prototype: none (UX 02-SETTINGS-UX.md §dept-taxonomy)) | tasks/T-101.json | covered |
+| ADR-030 | SET-061 UI (prototype: none (UX prototypes/design/02-SETTINGS-UX.md §dept-taxonomy)) | tasks/T-101.json | covered |
 | ADR-034 | ManufacturingOperations docs | tasks/T-094.json | covered |
 | Changelog v3.5 | Decisions log D1..D8 | tasks/T-095.json | covered |
 | S-A1 | SSO config + SAML routes | tasks/T-033.json | covered |
@@ -110,8 +110,8 @@
 | §14.3 step 2 | SET-002 UI (warehouses_screen) | tasks/T-042.json | covered |
 | §14.3 step 3 | SET-003 UI (warehouses_screen) | tasks/T-043.json | covered |
 | §14.3 step 4 | SET-004 UI (products_screen (legacy proxy)) | tasks/T-044.json | covered |
-| §14.3 step 5 | SET-005 UI (prototype: none (UX 02-SETTINGS-UX.md §wizard step 5)) | tasks/T-045.json | covered |
-| §14.3 step 6 | SET-006 UI (prototype: none (UX 02-SETTINGS-UX.md §wizard completion)) | tasks/T-046.json | covered |
+| §14.3 step 5 | SET-005 UI (prototype: none (UX prototypes/design/02-SETTINGS-UX.md §wizard step 5)) | tasks/T-045.json | covered |
+| §14.3 step 6 | SET-006 UI (prototype: none (UX prototypes/design/02-SETTINGS-UX.md §wizard completion)) | tasks/T-046.json | covered |
 | §14.5 | SSO/SCIM/IP allowlist storage | tasks/T-012.json | covered |
 | §14.5 | SSO config + SAML routes | tasks/T-033.json | covered |
 | §14.5 | SET-012 UI (security_screen) | tasks/T-060.json | covered |
@@ -155,7 +155,7 @@
 | §5.6 | Infrastructure + master allergens + tax_codes schema | tasks/T-009.json | covered |
 | §5.6 | Partitioned audit_log | tasks/T-010.json | covered |
 | §5.6 | Generic audit trigger framework | tasks/T-014.json | covered |
-| §5.6 | SET-013 UI (prototype: none (UX 02-SETTINGS-UX.md §audit log)) | tasks/T-079.json | covered |
+| §5.6 | SET-013 UI (prototype: none (UX prototypes/design/02-SETTINGS-UX.md §audit log)) | tasks/T-079.json | covered |
 | §5.6 | Audit partition lifecycle | tasks/T-089.json | covered |
 | §5.7 | org_security_policies with S-U5 fields | tasks/T-011.json | covered |
 | §5.7 | Security policy upsert + MFA force | tasks/T-032.json | covered |
@@ -163,14 +163,14 @@
 | §6 | Permission enum for schema/rules/ref/infra/d365/email/onboarding/security | tasks/T-002.json | covered |
 | §6 | Schema wizard Server Actions | tasks/T-023.json | covered |
 | §6 | E2E schema wizard add column | tasks/T-084.json | covered |
-| §6.1 | SET-031 UI (prototype: none (UX 02-SETTINGS-UX.md §schema-column-wizard, BL-SET-01 backlog)) | tasks/T-097.json | covered |
-| §6.3 | SET-033 UI (prototype: none (UX 02-SETTINGS-UX.md §schema-migrations)) | tasks/T-099.json | covered |
+| §6.1 | SET-031 UI (prototype: none (UX prototypes/design/02-SETTINGS-UX.md §schema-column-wizard, BL-SET-01 backlog)) | tasks/T-097.json | covered |
+| §6.3 | SET-033 UI (prototype: none (UX prototypes/design/02-SETTINGS-UX.md §schema-migrations)) | tasks/T-099.json | covered |
 | §6.5 | Zod runtime generator + cache | tasks/T-024.json | covered |
 | §6.6 | SM-03 UI (schema_view_modal) | tasks/T-049.json | covered |
 | §6.6 | SET-030 UI (schema_browser_screen) | tasks/T-066.json | covered |
-| §6.6 | SET-031 UI (prototype: none (UX 02-SETTINGS-UX.md §schema-column-wizard, BL-SET-01 backlog)) | tasks/T-097.json | covered |
-| §6.6 | SET-032 UI (prototype: none (UX 02-SETTINGS-UX.md §schema-diff, BL-SET-02 backlog)) | tasks/T-098.json | covered |
-| §6.6 | SET-033 UI (prototype: none (UX 02-SETTINGS-UX.md §schema-migrations)) | tasks/T-099.json | covered |
+| §6.6 | SET-031 UI (prototype: none (UX prototypes/design/02-SETTINGS-UX.md §schema-column-wizard, BL-SET-01 backlog)) | tasks/T-097.json | covered |
+| §6.6 | SET-032 UI (prototype: none (UX prototypes/design/02-SETTINGS-UX.md §schema-diff, BL-SET-02 backlog)) | tasks/T-098.json | covered |
+| §6.6 | SET-033 UI (prototype: none (UX prototypes/design/02-SETTINGS-UX.md §schema-migrations)) | tasks/T-099.json | covered |
 | §7 | Permission enum for schema/rules/ref/infra/d365/email/onboarding/security | tasks/T-002.json | covered |
 | §7 | rule_definitions + rule_dry_runs schema | tasks/T-006.json | covered |
 | §7.2 | Rule registry read-only Server Actions | tasks/T-025.json | covered |
@@ -192,28 +192,28 @@
 | §8.5 | Reference CSV import/export | tasks/T-022.json | covered |
 | §8.5 | E2E CSV import | tasks/T-085.json | covered |
 | §8.6 | SET-050 UI (reference_data_screen) | tasks/T-067.json | covered |
-| §8.6 | SET-053 UI (prototype: none (UX 02-SETTINGS-UX.md §reference-import)) | tasks/T-096.json | covered |
+| §8.6 | SET-053 UI (prototype: none (UX prototypes/design/02-SETTINGS-UX.md §reference-import)) | tasks/T-096.json | covered |
 | §8.9 | Manufacturing operations CRUD | tasks/T-038.json | covered |
 | §8.9 | ManufacturingOperations docs | tasks/T-094.json | covered |
 | §8.9.2 | ManufacturingOperations table + per-industry seed | tasks/T-039.json | covered |
-| §8.9.4 | SET-055 UI (prototype: none (UX 02-SETTINGS-UX.md §8.9 reference)) | tasks/T-077.json | covered |
-| §8.9.4 | SET-056 UI (prototype: none (UX 02-SETTINGS-UX.md §8.9 form)) | tasks/T-078.json | covered |
+| §8.9.4 | SET-055 UI (prototype: none (UX prototypes/design/02-SETTINGS-UX.md §8.9 reference)) | tasks/T-077.json | covered |
+| §8.9.4 | SET-056 UI (prototype: none (UX prototypes/design/02-SETTINGS-UX.md §8.9 form)) | tasks/T-078.json | covered |
 | §8.9.7 | ManufacturingOperations table + per-industry seed | tasks/T-039.json | covered |
 | §8.9.8 | Manufacturing ops cascade lookup | tasks/T-040.json | covered |
 | §9 | tenant_variations + tenant_migrations storage | tasks/T-007.json | covered |
 | §9.1 | tenant_variations CRUD | tasks/T-027.json | covered |
 | §9.2 | tenant_variations CRUD | tasks/T-027.json | covered |
 | §9.2 | dept_resolver runtime | tasks/T-090.json | covered |
-| §9.2 | SET-061 UI (prototype: none (UX 02-SETTINGS-UX.md §dept-taxonomy)) | tasks/T-101.json | covered |
+| §9.2 | SET-061 UI (prototype: none (UX prototypes/design/02-SETTINGS-UX.md §dept-taxonomy)) | tasks/T-101.json | covered |
 | §9.3 | tenant_variations CRUD | tasks/T-027.json | covered |
-| §9.3 | SET-062 UI (prototype: none (UX 02-SETTINGS-UX.md §rule-variant)) | tasks/T-102.json | covered |
+| §9.3 | SET-062 UI (prototype: none (UX prototypes/design/02-SETTINGS-UX.md §rule-variant)) | tasks/T-102.json | covered |
 | §9.4 | tenant_migrations orchestration | tasks/T-028.json | covered |
 | §9.4 | SM-05 UI (promote_to_l2_modal) | tasks/T-051.json | covered |
 | §9.4 | SET-063 UI (promotions_screen) | tasks/T-070.json | covered |
 | §9.5 | tenant_migrations orchestration | tasks/T-028.json | covered |
-| §9.7 | SET-060 UI (prototype: none (UX 02-SETTINGS-UX.md §tenant-variations)) | tasks/T-100.json | covered |
-| §9.7 | SET-061 UI (prototype: none (UX 02-SETTINGS-UX.md §dept-taxonomy)) | tasks/T-101.json | covered |
-| §9.7 | SET-062 UI (prototype: none (UX 02-SETTINGS-UX.md §rule-variant)) | tasks/T-102.json | covered |
+| §9.7 | SET-060 UI (prototype: none (UX prototypes/design/02-SETTINGS-UX.md §tenant-variations)) | tasks/T-100.json | covered |
+| §9.7 | SET-061 UI (prototype: none (UX prototypes/design/02-SETTINGS-UX.md §dept-taxonomy)) | tasks/T-101.json | covered |
+| §9.7 | SET-062 UI (prototype: none (UX prototypes/design/02-SETTINGS-UX.md §rule-variant)) | tasks/T-102.json | covered |
 | §9.1 PO decision 2026-05-03 | Authorization policy flags in Tenant Variations summary | tasks/T-100.json; tasks/T-122.json | covered |
 | §10.2 PO decision 2026-05-03 | NPD post-release edit / Technical approval core flags and preflight | tasks/T-065.json; tasks/T-122.json | covered |
 | §4.1 amendment 2026-05-03 | Global Import / Export SET-029 | tasks/T-121.json | covered |
@@ -398,8 +398,8 @@
 - Reference table #25 `changeover_target_duration_min` (§8.1/§8.8 v3.4 delta) is covered implicitly by T-093 (asserts "25 distinct table codes" in §8.1) — no dedicated migration task required because storage uses generic `reference_tables` row keyed `{line_id}:{fa_code}`.
 - `oee_alert_thresholds.oee_target_pct=70` default (§8.8 v3.4 delta) is covered by T-093 AC#3 ("oee_target_pct default reflects 70 (v3.4)") — no separate seed task required.
 - 6 mistagged prototypes from prototype-index-settings.json (sites/shifts/devices/products/boms/partners) are documented as moved to other modules per D8 in T-095 decisions log; those are NOT covered here.
-- Schema column edit wizard (SET-031), schema diff viewer (SET-032), schema migrations queue (SET-033), CSV import wizard (SET-053), Tenant Variations (SET-060), Dept Taxonomy (SET-061), and Rule Variant Selector (SET-062) are spec-driven from `design/02-SETTINGS-UX.md`; UX spec replaces prototype parity where exact canonical prototype is missing.
-- PO 2026-05-03 scope additions are covered by T-119/T-120/T-121. Root `settings/import-export.jsx` is not canonical under the new prototype-source decision, but may be treated as non-canonical pattern reference for T-121 if useful.
+- Schema column edit wizard (SET-031), schema diff viewer (SET-032), schema migrations queue (SET-033), CSV import wizard (SET-053), Tenant Variations (SET-060), Dept Taxonomy (SET-061), and Rule Variant Selector (SET-062) are spec-driven from `prototypes/design/02-SETTINGS-UX.md`; UX spec replaces prototype parity where exact canonical prototype is missing.
+- PO 2026-05-03 scope additions are covered by T-119/T-120/T-121. Root `prototypes/settings/import-export.jsx` is not canonical under the new prototype-source decision, but may be treated as non-canonical pattern reference for T-121 if useful.
 - Depth review completed for T-119/T-120/T-121 and T-096..T-102: shallow/mismatched items were tightened with permission-denied cases, explicit UX step coverage, org-policy summaries, global import/export entity capabilities, and route corrections to UX canonical routes (`/settings/schema/diff/:id`, `/settings/tenant/depts`, `/settings/tenant/rules`).
 - Auth/settings enforcement blocker patch 2026-05-03: T-002 mixed-namespace permission regex fixed; T-020 now owns server-side V-SET-43/V-SET-44 flag enforcement; T-122 deepened for schema/actions/UI/tests; T-123 added as the active `technical_product_spec_approval_gate_v1` rule seed.
 - Wave0 readiness patch: added T-124/T-125/T-126/T-127, split T-122, removed T-020 cycle and tightened onboarding parity/settings.flags.edit policy.

@@ -13,7 +13,7 @@ Standard checks:
   - dependencies use T-XXX form
   - acceptance_criteria <= 4 (atomicity gate)
   - T3-ui (or T4-wiring-test on UI flow) — at least one AC mentions
-    'design/Monopilot Design System/' with a line range (parity AC gate)
+    'prototypes/design/Monopilot Design System/' with a line range (parity AC gate)
   - manifest.json references all task files
   - coverage.md has no '❌ GAP' rows
 """
@@ -40,7 +40,7 @@ REQUIRED_PI = {"root_path", "description", "details", "scope_files",
 PLACEHOLDERS = ("TBD", "TODO", "fill in", "appropriate", "similar to previous")
 T_ID_RE = re.compile(r"^T-\d{3}$")
 TITLE_RE = re.compile(r"^T-\d{3} — .+")
-PARITY_PATH_RE = re.compile(r"design/Monopilot Design System/[^\s`'\"]+:\d+-?\d*")
+PARITY_PATH_RE = re.compile(r"prototypes/design/Monopilot Design System/[^\s`'\"]+:\d+-?\d*")
 
 
 def fail(msgs: list[str], path: Path, msg: str) -> None:
@@ -101,7 +101,7 @@ def validate_task(p: Path) -> list[str]:
     if is_ui and isinstance(ac, list):
         has_parity = any(PARITY_PATH_RE.search(str(a)) for a in ac)
         if not has_parity:
-            fail(errs, p, "UI task missing prototype parity AC (must reference 'design/Monopilot Design System/...:lines')")
+            fail(errs, p, "UI task missing prototype parity AC (must reference 'prototypes/design/Monopilot Design System/...:lines')")
 
     body = json.dumps(data, ensure_ascii=False)
     for ph in PLACEHOLDERS:

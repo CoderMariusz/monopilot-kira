@@ -1,6 +1,6 @@
 {
   "title": "T-050 — Sequencing v2 preview and commit overlay",
-  "prompt": "# T-050 — Sequencing v2 preview and commit overlay\n\nPRD: `07-PLANNING-EXT-PRD.md` §17.1 PLE-007, §10.2, §16.2 OQ-EXT-09.\nUX/prototype refs are listed in `pipeline_inputs.scope_files`.\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`.\n\n## Goal\nImplement the 07-EXT overlay that demonstrates and commits allergen optimizer v2 results.\n\n## Implementation contract\nFeature-gate the overlay; use scheduler_runs as the dry-run persistence model; compare v1 vs v2 without writing live schedule until commit.\n\nACP shape reminder: keep this task as one atomic implementation. Do not add ACP-owned fields. Keep local dependencies in `dependencies`; cross-module contracts in `cross_module_dependencies` are blockers/inputs, not ACP local task IDs.",
+  "prompt": "# T-050 — Sequencing v2 preview and commit overlay\n\nPRD: `docs/prd/07-PLANNING-EXT-PRD.md` §17.1 PLE-007, §10.2, §16.2 OQ-EXT-09.\nUX/prototype refs are listed in `pipeline_inputs.scope_files`.\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`.\n\n## Goal\nImplement the 07-EXT overlay that demonstrates and commits allergen optimizer v2 results.\n\n## Implementation contract\nFeature-gate the overlay; use scheduler_runs as the dry-run persistence model; compare v1 vs v2 without writing live schedule until commit.\n\nACP shape reminder: keep this task as one atomic implementation. Do not add ACP-owned fields. Keep local dependencies in `dependencies`; cross-module contracts in `cross_module_dependencies` are blockers/inputs, not ACP local task IDs.",
   "labels": [
     "prd",
     "ui",
@@ -12,7 +12,7 @@
   "pipeline_name": "kira_dev",
   "pipeline_inputs": {
     "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
-    "source_prd": "07-PLANNING-EXT-PRD.md",
+    "source_prd": "docs/prd/07-PLANNING-EXT-PRD.md",
     "context_budget": "40k",
     "skills": [
       "test-driven-development",
@@ -55,7 +55,7 @@
       "apps/web/src/app/scheduler/sequencing/page.tsx [create or integrate overlay]",
       "apps/web/src/components/scheduler/SequencingV2Overlay.tsx [create]",
       "apps/web/src/lib/scheduler/sequencing-actions.ts [create]",
-      "design/Monopilot Design System/planning-ext/sequencing-screens.jsx:3-179 [ref]"
+      "prototypes/design/Monopilot Design System/planning-ext/sequencing-screens.jsx:3-179 [ref]"
     ],
     "dependencies": [
       "T-001",

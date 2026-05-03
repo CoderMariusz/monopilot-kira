@@ -2,9 +2,9 @@
 
 **Date:** 2026-04-30
 **Source audit:** `_meta/audits/2026-04-30-design-prd-coverage.md §Module 03-TECHNICAL`
-**Target file:** `03-TECHNICAL-PRD.md` (bumped v3.1 → v3.2)
+**Target file:** `docs/prd/03-TECHNICAL-PRD.md` (bumped v3.1 → v3.2)
 **Companion files (read-only this run):**
-- `design/03-TECHNICAL-UX.md` (out-of-scope for edits — separate UX workstream)
+- `prototypes/design/03-TECHNICAL-UX.md` (out-of-scope for edits — separate UX workstream)
 - `_meta/prototype-labels/prototype-index-technical.json`
 - `_foundation/decisions/ADR-034-generic-product-lifecycle-naming-and-industry-configuration.md`
 
@@ -44,7 +44,7 @@ Each TODO sentence is exactly: `**TODO Prototype creation needed before T3-ui ta
 
 ## 2. Numbering reconciliation table
 
-Full canonical map appears in `03-TECHNICAL-PRD.md §4A` and `§17`. Summary counts:
+Full canonical map appears in `docs/prd/03-TECHNICAL-PRD.md §4A` and `§17`. Summary counts:
 
 | Bucket | Count |
 |---|---|
@@ -110,7 +110,7 @@ This matches the audit's "Spec-only effort ~2.5 pd" estimate for 03-TECHNICAL: t
 
 ## 6. Files modified
 
-- `/Users/mariuszkrawczyk/Projects/monopilot-kira/03-TECHNICAL-PRD.md` (v3.1 → v3.2)
+- `/Users/mariuszkrawczyk/Projects/monopilot-kira/docs/prd/03-TECHNICAL-PRD.md` (v3.1 → v3.2)
 - `/Users/mariuszkrawczyk/Projects/monopilot-kira/_meta/audits/2026-04-30-prd-amendments-03-technical.md` (this report, new)
 
 No other files touched. UX file deliberately untouched per task constraints.

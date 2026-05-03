@@ -1,6 +1,6 @@
 {
   "title": "T-049 — Warehouse GRN desktop UI surfaces",
-  "prompt": "# T-049 — Warehouse GRN desktop UI surfaces\n\nPRD: `05-WAREHOUSE-PRD.md`.\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`.\n\n## Goal\nImplement GRN from PO wizard, GRN from TO modal, GRN list, and GRN detail with prototype parity.\n\n## Implementation contract\nBuild the multi-LP per PO line workflow exactly as the UX specifies: manual row entry, GS1 scan auto-fill cues, per-row batch/expiry/location, review and complete, success/error states, and TO transit-to-destination receiving.\n\n## Files (scope)\n- apps/web/app/(app)/warehouse/grn/** [create]\n- apps/web/components/warehouse/grn/** [create]\n- design/Monopilot Design System/warehouse/grn-screens.jsx\n- design/Monopilot Design System/warehouse/modals.jsx\n\n## Acceptance criteria\n1. Given Receive from PO opens, when compared to design/Monopilot Design System/warehouse/modals.jsx label grn_from_po_wizard, then the 3-step flow and multi-LP row table match prototype structure and copy.\n2. Given a TO receive modal opens, when an LP is checked as received, then Destination Location is required and visible inline as in grn_from_to_modal.\n3. Given GRN list/detail render, then routes, filters, LP created links, export controls, and empty/error states match design/Monopilot Design System/warehouse/grn-screens.jsx.\n4. Given components are inspected, then data-prototype-label markers exist for grn_from_po_wizard, grn_from_to_modal, grn_list_page, and grn_detail_page.\n\n## Test strategy\n- RED: Playwright tests for PO wizard step transitions and required field failures.\n- GREEN: component tests for multi-row add/remove, over/under-receipt warnings, and GS1 parsed badges.\n- Run pnpm playwright test --grep @warehouse-grn-ui and pnpm test.\n\n## Risk red lines\n- Do not auto-split a PO line; operator-entered rows are authoritative.\n- Do not auto-complete GRNs without explicit Complete Receipt.\n- Do not create new LPs for normal TO receive when source LPs already exist.",
+  "prompt": "# T-049 — Warehouse GRN desktop UI surfaces\n\nPRD: `docs/prd/05-WAREHOUSE-PRD.md`.\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`.\n\n## Goal\nImplement GRN from PO wizard, GRN from TO modal, GRN list, and GRN detail with prototype parity.\n\n## Implementation contract\nBuild the multi-LP per PO line workflow exactly as the UX specifies: manual row entry, GS1 scan auto-fill cues, per-row batch/expiry/location, review and complete, success/error states, and TO transit-to-destination receiving.\n\n## Files (scope)\n- apps/web/app/(app)/warehouse/grn/** [create]\n- apps/web/components/warehouse/grn/** [create]\n- prototypes/design/Monopilot Design System/warehouse/grn-screens.jsx\n- prototypes/design/Monopilot Design System/warehouse/modals.jsx\n\n## Acceptance criteria\n1. Given Receive from PO opens, when compared to prototypes/design/Monopilot Design System/warehouse/modals.jsx label grn_from_po_wizard, then the 3-step flow and multi-LP row table match prototype structure and copy.\n2. Given a TO receive modal opens, when an LP is checked as received, then Destination Location is required and visible inline as in grn_from_to_modal.\n3. Given GRN list/detail render, then routes, filters, LP created links, export controls, and empty/error states match prototypes/design/Monopilot Design System/warehouse/grn-screens.jsx.\n4. Given components are inspected, then data-prototype-label markers exist for grn_from_po_wizard, grn_from_to_modal, grn_list_page, and grn_detail_page.\n\n## Test strategy\n- RED: Playwright tests for PO wizard step transitions and required field failures.\n- GREEN: component tests for multi-row add/remove, over/under-receipt warnings, and GS1 parsed badges.\n- Run pnpm playwright test --grep @warehouse-grn-ui and pnpm test.\n\n## Risk red lines\n- Do not auto-split a PO line; operator-entered rows are authoritative.\n- Do not auto-complete GRNs without explicit Complete Receipt.\n- Do not create new LPs for normal TO receive when source LPs already exist.",
   "labels": [
     "prd",
     "ui",
@@ -12,7 +12,7 @@
   "pipeline_name": "kira_dev",
   "pipeline_inputs": {
     "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
-    "source_prd": "05-WAREHOUSE-PRD.md",
+    "source_prd": "docs/prd/05-WAREHOUSE-PRD.md",
     "context_budget": "35k",
     "skills": [
       "test-driven-development",
@@ -88,8 +88,8 @@
     "scope_files": [
       "apps/web/app/(app)/warehouse/grn/** [create]",
       "apps/web/components/warehouse/grn/** [create]",
-      "design/Monopilot Design System/warehouse/grn-screens.jsx",
-      "design/Monopilot Design System/warehouse/modals.jsx"
+      "prototypes/design/Monopilot Design System/warehouse/grn-screens.jsx",
+      "prototypes/design/Monopilot Design System/warehouse/modals.jsx"
     ],
     "out_of_scope": [
       "No scanner mobile receive flow",
@@ -107,9 +107,9 @@
       "T-050"
     ],
     "acceptance_criteria": [
-      "Given Receive from PO opens, when compared to design/Monopilot Design System/warehouse/modals.jsx label grn_from_po_wizard, then the 3-step flow and multi-LP row table match prototype structure and copy.",
+      "Given Receive from PO opens, when compared to prototypes/design/Monopilot Design System/warehouse/modals.jsx label grn_from_po_wizard, then the 3-step flow and multi-LP row table match prototype structure and copy.",
       "Given a TO receive modal opens, when an LP is checked as received, then Destination Location is required and visible inline as in grn_from_to_modal.",
-      "Given GRN list/detail render, then routes, filters, LP created links, export controls, and empty/error states match design/Monopilot Design System/warehouse/grn-screens.jsx.",
+      "Given GRN list/detail render, then routes, filters, LP created links, export controls, and empty/error states match prototypes/design/Monopilot Design System/warehouse/grn-screens.jsx.",
       "Given components are inspected, then data-prototype-label markers exist for grn_from_po_wizard, grn_from_to_modal, grn_list_page, and grn_detail_page."
     ],
     "test_strategy": [

@@ -10,13 +10,13 @@
 
 ### Deliverables primary (2 PRDs)
 
-**`12-REPORTING-PRD.md` v3.0** — ~930 linii, 19 sekcji (Phase D convention), **10 P1 dashboards** + 20 P2 dashboards/features. Rewrite baseline v1.0 (554 linii, 6 epics) → Phase D full convention. **10 D-RPT decisions** (D-RPT-1..8 retained + D-RPT-9 OEE Consumer Integration NEW + D-RPT-10 Feature Flag Rollout NEW). 2 DSL rules registered w 02-SET §7.8: `report_access_gate_v1` (P1 active), `scheduled_report_distribution_v1` (P2 stub). 25 V-RPT validation rules (access/query/export/refresh/schedule/site/metadata). 5 sub-modules build 12-a..e (17-22 sesji impl P1) + 11 P2 sub-modules 12-F..12-O (33-43 sesji impl). BRCGS 7y retention, 21 CFR Part 11 e-sig P2, FSMA 204 P2, EU 1169/2011 P2, GDPR anonymize toggle, R7 data residency enforced.
+**`docs/prd/12-REPORTING-PRD.md` v3.0** — ~930 linii, 19 sekcji (Phase D convention), **10 P1 dashboards** + 20 P2 dashboards/features. Rewrite baseline v1.0 (554 linii, 6 epics) → Phase D full convention. **10 D-RPT decisions** (D-RPT-1..8 retained + D-RPT-9 OEE Consumer Integration NEW + D-RPT-10 Feature Flag Rollout NEW). 2 DSL rules registered w 02-SET §7.8: `report_access_gate_v1` (P1 active), `scheduled_report_distribution_v1` (P2 stub). 25 V-RPT validation rules (access/query/export/refresh/schedule/site/metadata). 5 sub-modules build 12-a..e (17-22 sesji impl P1) + 11 P2 sub-modules 12-F..12-O (33-43 sesji impl). BRCGS 7y retention, 21 CFR Part 11 e-sig P2, FSMA 204 P2, EU 1169/2011 P2, GDPR anonymize toggle, R7 data residency enforced.
 
-**`15-OEE-PRD.md` v3.0** — ~1020 linii, 19 sekcji (Phase D convention), **new PRD from scratch** (baseline: brak, tylko placeholder w 00-FOUNDATION §4.2 + 08-PROD §13 D7 per-minute aggregation spec). **3 P1 dashboards** (Per-line 24h Trend, Per-shift Heatmap, Per-day Summary) + 10 P2 dashboards scoped. **7 D-OEE decisions** (D-OEE-1..7). 3 DSL rules registered w 02-SET §7.8: `shift_aggregator_v1` (P1 active), `oee_anomaly_detector_v1` (P2 stub), `oee_maintenance_trigger_v1` (P2 stub — 13-MAINT consumer link). 20 V-OEE validation rules. 3 sub-modules build 15-a..c (9-12 sesji impl P1) + 10 P2 sub-modules 15-D..15-M (18-24 sesji impl). 2 materialized views P1: `oee_shift_metrics`, `oee_daily_summary`. 3 P2 tables: `oee_anomalies`, `oee_ewma_state`, `oee_maintenance_triggers`. 1 outbox table `oee_outbox_events`. 2 reference tables extracted do 02-SET §8.1.
+**`docs/prd/15-OEE-PRD.md` v3.0** — ~1020 linii, 19 sekcji (Phase D convention), **new PRD from scratch** (baseline: brak, tylko placeholder w 00-FOUNDATION §4.2 + 08-PROD §13 D7 per-minute aggregation spec). **3 P1 dashboards** (Per-line 24h Trend, Per-shift Heatmap, Per-day Summary) + 10 P2 dashboards scoped. **7 D-OEE decisions** (D-OEE-1..7). 3 DSL rules registered w 02-SET §7.8: `shift_aggregator_v1` (P1 active), `oee_anomaly_detector_v1` (P2 stub), `oee_maintenance_trigger_v1` (P2 stub — 13-MAINT consumer link). 20 V-OEE validation rules. 3 sub-modules build 15-a..c (9-12 sesji impl P1) + 10 P2 sub-modules 15-D..15-M (18-24 sesji impl). 2 materialized views P1: `oee_shift_metrics`, `oee_daily_summary`. 3 P2 tables: `oee_anomalies`, `oee_ewma_state`, `oee_maintenance_triggers`. 1 outbox table `oee_outbox_events`. 2 reference tables extracted do 02-SET §8.1.
 
 ### Deliverable secondary (bundled)
 
-**`02-SETTINGS-PRD.md` v3.2 delta** — frontmatter bump v3.1 → v3.2 + 5 nowych rules w §7.8 (tabela 17→22) + 3 nowe reference tables w §8.1 (tabela 17→20) + Changelog v3.2 entry. Zmiany:
+**`docs/prd/02-SETTINGS-PRD.md` v3.2 delta** — frontmatter bump v3.1 → v3.2 + 5 nowych rules w §7.8 (tabela 17→22) + 3 nowe reference tables w §8.1 (tabela 17→20) + Changelog v3.2 entry. Zmiany:
 - **§7.8 Rules Registry:** 17 rules → **22 rules** (16 P1 active + 6 P2 stub). Dodane: `report_access_gate_v1` (12-REP P1), `scheduled_report_distribution_v1` (12-REP P2), `shift_aggregator_v1` (15-OEE P1), `oee_anomaly_detector_v1` (15-OEE P2), `oee_maintenance_trigger_v1` (15-OEE P2). Producer modules: 7 → **9** (dodane 12-REPORTING, 15-OEE).
 - **§8.1 Reference Tables:** 17 → **20 tabel**. Dodane: `dashboards_catalog` (12-REP metadata-driven access), `shift_configs` (15-OEE L2 ADR-030), `oee_alert_thresholds` (15-OEE per-line L2 ADR-031).
 - **§11.8 INTEGRATIONS stages summary:** bez zmian (12-REPORTING = read-only consumer, 15-OEE = internal outbox only, brak new D365 stages).
@@ -175,8 +175,8 @@
 ### Scope C5 Sesja 2 (2 moduly, est. 1-2 sesji)
 
 **Primary deliverables:**
-- `13-MAINTENANCE-PRD.md` v3.0 — equipment calibration (09-QA §6 Q6 FK stub consumer), preventive maintenance, work requests, parts inventory, TPM (Total Productive Maintenance), MTBF/MTTR (15-OEE `oee_shift_metrics` consumer), IoT sensor integration P2 (cold chain BRCGS), `oee_maintenance_trigger_v1` rule consumer (P2), calibration_equipment reference table addition
-- `14-MULTI-SITE-PRD.md` v3.0 — multi-site orchestration, inter-site transfers (05-WH TO), cross-site sales/production scheduling, hierarchy site→plant→line, multi-tenant L2 variation per site (ADR-030/031 consumer), `site_id` column activation across wszystkich modules (audit addition strategy), per-site OEE rollup (15-OEE consumer), per-tenant data residency (R7) consolidation
+- `docs/prd/13-MAINTENANCE-PRD.md` v3.0 — equipment calibration (09-QA §6 Q6 FK stub consumer), preventive maintenance, work requests, parts inventory, TPM (Total Productive Maintenance), MTBF/MTTR (15-OEE `oee_shift_metrics` consumer), IoT sensor integration P2 (cold chain BRCGS), `oee_maintenance_trigger_v1` rule consumer (P2), calibration_equipment reference table addition
+- `docs/prd/14-MULTI-SITE-PRD.md` v3.0 — multi-site orchestration, inter-site transfers (05-WH TO), cross-site sales/production scheduling, hierarchy site→plant→line, multi-tenant L2 variation per site (ADR-030/031 consumer), `site_id` column activation across wszystkich modules (audit addition strategy), per-site OEE rollup (15-OEE consumer), per-tenant data residency (R7) consolidation
 
 **Secondary deliverable:** Potentially 02-SETTINGS v3.3 bundled delta (if C5 Sesja 2 modules rejestrują new rules / reference tables — likely 13-MAINT `calibration_equipment` + `maintenance_priority_levels` + 14-MULTI-SITE `sites_hierarchy_config`).
 
@@ -185,14 +185,14 @@
 ### Bootstrap C5 Sesja 2 (13-MAINT + 14-MULTI-SITE)
 
 1. Read `_meta/handoffs/2026-04-20-c5-sesja1-close.md` (this file)
-2. Read baseline `13-MAINTENANCE-PRD.md` pre-Phase-D (if exists, check size + structure)
-3. Read baseline `14-MULTI-SITE-PRD.md` pre-Phase-D (if exists)
-4. Read `15-OEE-PRD.md` v3.0 §7.3 `oee_maintenance_trigger_v1` (13-MAINT consumer) + §9.2 `oee_shift_metrics` MTBF/MTTR (13-MAINT consumer)
-5. Read `09-QUALITY-PRD.md` v3.0 §6 Q6 equipment_calibration FK stub
-6. Read `05-WAREHOUSE-PRD.md` v3.0 §6-10 (TO logic + LP lifecycle) — 14-MULTI-SITE consumer dla inter-site transfers
-7. Read `00-FOUNDATION-PRD.md` v3.0 §4 module map positions 13/14
+2. Read baseline `docs/prd/13-MAINTENANCE-PRD.md` pre-Phase-D (if exists, check size + structure)
+3. Read baseline `docs/prd/14-MULTI-SITE-PRD.md` pre-Phase-D (if exists)
+4. Read `docs/prd/15-OEE-PRD.md` v3.0 §7.3 `oee_maintenance_trigger_v1` (13-MAINT consumer) + §9.2 `oee_shift_metrics` MTBF/MTTR (13-MAINT consumer)
+5. Read `docs/prd/09-QUALITY-PRD.md` v3.0 §6 Q6 equipment_calibration FK stub
+6. Read `docs/prd/05-WAREHOUSE-PRD.md` v3.0 §6-10 (TO logic + LP lifecycle) — 14-MULTI-SITE consumer dla inter-site transfers
+7. Read `docs/prd/00-FOUNDATION-PRD.md` v3.0 §4 module map positions 13/14
 8. Read `_foundation/research/MES-TRENDS-2026.md` §9 "13-MAINTENANCE" + "14-MULTI-SITE" (R-decisions + regulatory)
-9. Read `02-SETTINGS-PRD.md` v3.2 §9 (multi-tenant L2 config ADR-030/031 — 14-MULTI-SITE foundation)
+9. Read `docs/prd/02-SETTINGS-PRD.md` v3.2 §9 (multi-tenant L2 config ADR-030/031 — 14-MULTI-SITE foundation)
 10. Propose outlines per PRD → user Q&A → full write bundled (per C3 Sesja 1 pattern)
 11. Apply potential 02-SETTINGS v3.3 delta (any new rules / ref tables)
 12. Update memory + close HANDOFF → Phase C6 lock OR Phase E Build bootstrap (no C5 Sesja 3 if unneeded)
@@ -286,10 +286,10 @@ Kluczowe czynniki sukcesu C5 Sesja 1:
 
 ## Related
 
-- [`12-REPORTING-PRD.md`](../../12-REPORTING-PRD.md) v3.0 — primary deliverable (~930 linii)
-- [`15-OEE-PRD.md`](../../15-OEE-PRD.md) v3.0 — primary deliverable (~1020 linii, new from scratch)
-- [`02-SETTINGS-PRD.md`](../../02-SETTINGS-PRD.md) v3.2 — secondary deliverable (bundled delta, +5 rules, +3 ref tables, +changelog)
+- [`docs/prd/12-REPORTING-PRD.md`](../../docs/prd/12-REPORTING-PRD.md) v3.0 — primary deliverable (~930 linii)
+- [`docs/prd/15-OEE-PRD.md`](../../docs/prd/15-OEE-PRD.md) v3.0 — primary deliverable (~1020 linii, new from scratch)
+- [`docs/prd/02-SETTINGS-PRD.md`](../../docs/prd/02-SETTINGS-PRD.md) v3.2 — secondary deliverable (bundled delta, +5 rules, +3 ref tables, +changelog)
 - [`2026-04-20-c4-sesja3-close.md`](./2026-04-20-c4-sesja3-close.md) — input HANDOFF (C4 Sesja 3 close)
-- [`08-PRODUCTION-PRD.md`](../../08-PRODUCTION-PRD.md) v3.0 §13 D7 per-minute aggregation (PRIMARY source for 15-OEE consumer)
-- [`00-FOUNDATION-PRD.md`](../../00-FOUNDATION-PRD.md) v3.0 — R6 PostHog, R12 ML roadmap, R7 data residency (all consumed by 12-REP + 15-OEE)
+- [`docs/prd/08-PRODUCTION-PRD.md`](../../docs/prd/08-PRODUCTION-PRD.md) v3.0 §13 D7 per-minute aggregation (PRIMARY source for 15-OEE consumer)
+- [`docs/prd/00-FOUNDATION-PRD.md`](../../docs/prd/00-FOUNDATION-PRD.md) v3.0 — R6 PostHog, R12 ML roadmap, R7 data residency (all consumed by 12-REP + 15-OEE)
 - [`_foundation/research/MES-TRENDS-2026.md`](../../_foundation/research/MES-TRENDS-2026.md) — §9 12-REPORTING + 15-OEE R-decisions

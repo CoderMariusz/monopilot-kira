@@ -1,6 +1,6 @@
 {
   "title": "T-040 — UI: PLN-016 PO Approval modal (parity with po_approval_modal)",
-  "prompt": "Build PLN-016 PO Approval modal at `src/components/planning/po/POApprovalModal.tsx` matching prototype `design/Monopilot Design System/planning/modals.jsx:228-264` 1:1.\n\nMode toggle (Approve / Reject) via ToggleGroup. ReasonInput (Textarea, minLength=10, required). PO summary rows (po_number, supplier, total). Dual-path footer renders Approve or Reject based on mode.\n\nRBAC: only callers with planning.po.approve role can submit. onConfirm calls T-013 endpoints. Outbox emits per side-effect contract.\n\nRED RTL test asserts mode toggle, minLength=10 enforcement, RBAC denial path, dual-path footer.",
+  "prompt": "Build PLN-016 PO Approval modal at `src/components/planning/po/POApprovalModal.tsx` matching prototype `prototypes/design/Monopilot Design System/planning/modals.jsx:228-264` 1:1.\n\nMode toggle (Approve / Reject) via ToggleGroup. ReasonInput (Textarea, minLength=10, required). PO summary rows (po_number, supplier, total). Dual-path footer renders Approve or Reject based on mode.\n\nRBAC: only callers with planning.po.approve role can submit. onConfirm calls T-013 endpoints. Outbox emits per side-effect contract.\n\nRED RTL test asserts mode toggle, minLength=10 enforcement, RBAC denial path, dual-path footer.",
   "labels": [
     "prd",
     "ui",
@@ -13,7 +13,7 @@
   "pipeline_inputs": {
     "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
     "prd_task_id": "T-040",
-    "source_prd": "04-PLANNING-BASIC-PRD.md",
+    "source_prd": "docs/prd/04-PLANNING-BASIC-PRD.md",
     "prd_refs": [
       "§6.2",
       "§6.6"
@@ -30,7 +30,7 @@
     "scope_files": [
       "src/components/planning/po/POApprovalModal.tsx [create]",
       "src/components/planning/po/__tests__/POApprovalModal.test.tsx [create]",
-      "design/Monopilot Design System/planning/modals.jsx:228-264 [ref]"
+      "prototypes/design/Monopilot Design System/planning/modals.jsx:228-264 [ref]"
     ],
     "out_of_scope": [
       "Bulk approval (P2)"
@@ -40,7 +40,7 @@
       "T-036"
     ],
     "acceptance_criteria": [
-      "Given the modal opens, when compared to `design/Monopilot Design System/planning/modals.jsx:228-264`, then mode toggle pills, ReasonInput, summary rows, and footer match prototype — parity verified by RTL test.",
+      "Given the modal opens, when compared to `prototypes/design/Monopilot Design System/planning/modals.jsx:228-264`, then mode toggle pills, ReasonInput, summary rows, and footer match prototype — parity verified by RTL test.",
       "Given mode='Reject' and reason='ok' (2 chars), when Submit clicked, then Zod error renders inline and no API call fires.",
       "Given a caller without planning.po.approve, when modal renders, then submit button is disabled with tooltip 'You do not have approval rights'.",
       "Given `pnpm vitest run src/components/planning/po/__tests__/POApprovalModal.test.tsx`, when run, then 0 failures. Given the UI task is closed, then CLOSEOUT includes Playwright trace artifacts plus screenshots/artifacts for prototype parity and error/empty/blocked states. Follow parity evidence requirements in `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`."

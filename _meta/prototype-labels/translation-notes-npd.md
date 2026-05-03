@@ -1,8 +1,8 @@
 # NPD Module — Prototype Translation Notes
 
-Generated: 2026-04-23  
-Source files: `design/Monopilot Design System/npd/` (10 JSX files + BACKLOG.md)  
-Total entries indexed: 43  
+Generated: 2026-04-23
+Source files: `prototypes/design/Monopilot Design System/npd/` (10 JSX files + BACKLOG.md)
+Total entries indexed: 43
 Total estimated effort: ~3,605 minutes (~60 developer-hours)
 
 ---

@@ -1,6 +1,6 @@
 {
   "title": "T-042 — Forecast Upload screen and manual forecast management UI",
-  "prompt": "# T-042 — Forecast Upload screen and manual forecast management UI\n\nPRD: `07-PLANNING-EXT-PRD.md` §8.1 SCR-07-03, §17.1 PLE forecast coverage, §15.4 V-SCHED-09.\nUX/prototype refs are listed in `pipeline_inputs.scope_files`.\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`.\n\n## Goal\nBuild the first-class forecast management surface for P1 manual demand inputs and P2-gated Prophet display.\n\n## Implementation contract\nServer-load forecast rows from T-020, post uploads through T-019, and preserve prototype layout/interaction parity including upload/preview stages, source badges, and stale/health gated card. Use i18n keys for hardcoded strings.\n\nACP shape reminder: keep this task as one atomic implementation. Do not add ACP-owned fields. Keep local dependencies in `dependencies`; cross-module contracts in `cross_module_dependencies` are blockers/inputs, not ACP local task IDs.",
+  "prompt": "# T-042 — Forecast Upload screen and manual forecast management UI\n\nPRD: `docs/prd/07-PLANNING-EXT-PRD.md` §8.1 SCR-07-03, §17.1 PLE forecast coverage, §15.4 V-SCHED-09.\nUX/prototype refs are listed in `pipeline_inputs.scope_files`.\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`.\n\n## Goal\nBuild the first-class forecast management surface for P1 manual demand inputs and P2-gated Prophet display.\n\n## Implementation contract\nServer-load forecast rows from T-020, post uploads through T-019, and preserve prototype layout/interaction parity including upload/preview stages, source badges, and stale/health gated card. Use i18n keys for hardcoded strings.\n\nACP shape reminder: keep this task as one atomic implementation. Do not add ACP-owned fields. Keep local dependencies in `dependencies`; cross-module contracts in `cross_module_dependencies` are blockers/inputs, not ACP local task IDs.",
   "labels": [
     "prd",
     "ui",
@@ -12,7 +12,7 @@
   "pipeline_name": "kira_dev",
   "pipeline_inputs": {
     "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
-    "source_prd": "07-PLANNING-EXT-PRD.md",
+    "source_prd": "docs/prd/07-PLANNING-EXT-PRD.md",
     "context_budget": "40k",
     "skills": [
       "test-driven-development",
@@ -55,8 +55,8 @@
       "apps/web/src/app/scheduler/forecasts/page.tsx [create]",
       "apps/web/src/components/scheduler/ForecastUploadModal.tsx [create]",
       "apps/web/src/lib/scheduler/forecast-actions.ts",
-      "design/Monopilot Design System/planning-ext/forecast-screens.jsx:3-155 [ref]",
-      "design/Monopilot Design System/planning-ext/modals.jsx:498-560 [ref]"
+      "prototypes/design/Monopilot Design System/planning-ext/forecast-screens.jsx:3-155 [ref]",
+      "prototypes/design/Monopilot Design System/planning-ext/modals.jsx:498-560 [ref]"
     ],
     "dependencies": [
       "T-019",

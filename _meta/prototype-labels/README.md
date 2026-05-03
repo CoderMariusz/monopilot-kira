@@ -34,7 +34,7 @@ This directory contains prototype-labeling artifacts produced by the
 After audit-fix-2026-04-30, every entry uses one of these forms:
 
 - `<file-path>#<componentExport>` — canonical reference to a component in a
-  specific JSX file (e.g. `design/Monopilot Design System/finance/modals.jsx#StdCostCreateModal`).
+  specific JSX file (e.g. `prototypes/design/Monopilot Design System/finance/modals.jsx#StdCostCreateModal`).
 - `<bare-or-prefixed-label>` — reference to another entry's master `label`.
 - `primitive:<ComponentName>` — reference to a shadcn/Radix primitive
   (Modal, Field, Btn, Topbar, …); not a project prototype.

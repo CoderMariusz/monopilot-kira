@@ -2,11 +2,11 @@
 **Agent**: Audit-5a (solo, deep scope)
 **Date**: 2026-04-23
 **Sources**:
-- `05-WAREHOUSE-PRD.md` v3.0 (2026-04-20)
-- `00-FOUNDATION-PRD.md` v3.0 (2026-04-18)
-- `design/05-WAREHOUSE-UX.md` v1.0
-- `design/Monopilot Design System/warehouse/modals.jsx` (1,269 LOC)
-- `design/Monopilot Design System/_shared/MODAL-SCHEMA.md`
+- `docs/prd/05-WAREHOUSE-PRD.md` v3.0 (2026-04-20)
+- `docs/prd/00-FOUNDATION-PRD.md` v3.0 (2026-04-18)
+- `prototypes/design/05-WAREHOUSE-UX.md` v1.0
+- `prototypes/design/Monopilot Design System/warehouse/modals.jsx` (1,269 LOC)
+- `prototypes/design/Monopilot Design System/_shared/MODAL-SCHEMA.md`
 
 ---
 

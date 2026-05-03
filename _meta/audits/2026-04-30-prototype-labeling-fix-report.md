@@ -35,7 +35,7 @@ by `audit-fix-2026-04-30` (Claude Opus, automated).
 | `boms_screen` | settings → technical | settings → technical | boms_screen → technical_boms_screen |
 | `partners_screen` | settings → technical | settings → technical | partners_screen → technical_partners_screen |
 
-Note: file paths in entries (`design/Monopilot Design System/settings/...`) were
+Note: file paths in entries (`prototypes/design/Monopilot Design System/settings/...`) were
 **not** modified — only the `module` tag was reclassified per gap-backlog §D8.
 Physical JSX file moves are out of scope for this fix and would cascade into
 BACKLOG.md / MODAL-SCHEMA.md.
@@ -45,7 +45,7 @@ BACKLOG.md / MODAL-SCHEMA.md.
 Normalization rules applied (in priority order):
 
 1. `<file>#<comp>` (already canonical) — preserved
-2. `<file>.jsx (A, B, C)` paren-list form → split into `<file>#A`, `<file>#B`, `<file>#C`; bare filenames qualified with host module path under `design/Monopilot Design System/`
+2. `<file>.jsx (A, B, C)` paren-list form → split into `<file>#A`, `<file>#B`, `<file>#C`; bare filenames qualified with host module path under `prototypes/design/Monopilot Design System/`
 3. `<file>.jsx → <Comp>` arrow form → `<file>#<Comp>`
 4. `_shared/(A, B)` → `primitive:A`, `primitive:B`
 5. `_shared/<Comp>` → `primitive:<Comp>`
@@ -58,7 +58,7 @@ Normalization rules applied (in priority order):
 
 Special remediations for 2 distinct patterns post-pass:
 
-- `bom-list.jsx → KPI (KpiTile)` (5+5 occurrences) → `design/Monopilot Design System/technical/bom-list.jsx#KpiTile`
+- `bom-list.jsx → KPI (KpiTile)` (5+5 occurrences) → `prototypes/design/Monopilot Design System/technical/bom-list.jsx#KpiTile`
 - `bol_sign_modal` (typo; closest match in master is `bol_sign_upload_modal`) → resolved to `bol_sign_upload_modal`
 
 ---

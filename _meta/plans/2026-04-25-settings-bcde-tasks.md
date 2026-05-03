@@ -1,7 +1,7 @@
 # Settings b/c/d/e — Atomic Task Decomposition
 
 Generated: 2026-04-25
-PRD source: `/Users/mariuszkrawczyk/Projects/monopilot-kira/02-SETTINGS-PRD.md` v3.4
+PRD source: `/Users/mariuszkrawczyk/Projects/monopilot-kira/docs/prd/02-SETTINGS-PRD.md` v3.4
 Prerequisite: `2026-04-23-e1-settings-a-v2.md` (30 tasks, validated HARD FAIL=0)
 Covers: 02SETb (§9 Tenant L2), 02SETc (§6 Schema Wizard), 02SETd (§7 Rules + §8 Ref CRUD), 02SETe (§12 Infra + §11 D365 + §13 Email + §14 Security + Onboarding)
 
@@ -131,7 +131,7 @@ Also export `ALL_SETTINGS_BE_PERMISSIONS: Permission[]` array with all 18 string
 # Task T-02SETb-001 — tenant_variations + tenant_migrations schema
 
 ## Context
-- `/Users/mariuszkrawczyk/Projects/monopilot-kira/02-SETTINGS-PRD.md` → znajdź sekcję `## §9` — Multi-tenant L2 Config spec
+- `/Users/mariuszkrawczyk/Projects/monopilot-kira/docs/prd/02-SETTINGS-PRD.md` → znajdź sekcję `## §9` — Multi-tenant L2 Config spec
 - `/Users/mariuszkrawczyk/Projects/monopilot-kira/apps/web/drizzle/schema/` → existing schema files for patterns
 
 ## Twoje zadanie
@@ -230,7 +230,7 @@ export const tenantMigrations = pgTable('tenant_migrations', {
 # Task T-02SETb-002 — updateTenantVariations + dept resolver
 
 ## Context
-- `/Users/mariuszkrawczyk/Projects/monopilot-kira/02-SETTINGS-PRD.md` → sekcja `## §9` — dept_overrides schema, rule_variant_overrides format
+- `/Users/mariuszkrawczyk/Projects/monopilot-kira/docs/prd/02-SETTINGS-PRD.md` → sekcja `## §9` — dept_overrides schema, rule_variant_overrides format
 - `apps/web/drizzle/schema/settings-tenant-l2.ts` → tenantVariations schema
 
 ## Twoje zadanie
@@ -301,7 +301,7 @@ Create Server Actions and utility for tenant L2 variation management.
 # Task T-02SETb-003 — upgrade orchestration actions
 
 ## Context
-- `/Users/mariuszkrawczyk/Projects/monopilot-kira/02-SETTINGS-PRD.md` → sekcja `## §9.4` — upgrade orchestration flow
+- `/Users/mariuszkrawczyk/Projects/monopilot-kira/docs/prd/02-SETTINGS-PRD.md` → sekcja `## §9.4` — upgrade orchestration flow
 - `apps/web/drizzle/schema/settings-tenant-l2.ts` → tenantMigrations schema
 
 ## Twoje zadanie
@@ -372,7 +372,7 @@ const VALID_TRANSITIONS: Record<string, string[]> = {
 # Task T-02SETb-004 — TenantVariationsDashboard + DeptTaxonomyEditor
 
 ## Context
-- `/Users/mariuszkrawczyk/Projects/monopilot-kira/02-SETTINGS-PRD.md` → sekcja `## §9.1`, `## §9.2`, `## §9.7`
+- `/Users/mariuszkrawczyk/Projects/monopilot-kira/docs/prd/02-SETTINGS-PRD.md` → sekcja `## §9.1`, `## §9.2`, `## §9.7`
 
 ## Twoje zadanie
 Build SET-060 (Tenant Variations Dashboard) and SET-061 (Dept Taxonomy Editor) React components.
@@ -449,7 +449,7 @@ Translation checklist:
 # Task T-02SETb-005 — RuleVariantSelector + UpgradeOrchestration UI
 
 ## Context
-- `/Users/mariuszkrawczyk/Projects/monopilot-kira/02-SETTINGS-PRD.md` → sekcja `## §9.3`, `## §9.4`, `## §9.7`
+- `/Users/mariuszkrawczyk/Projects/monopilot-kira/docs/prd/02-SETTINGS-PRD.md` → sekcja `## §9.3`, `## §9.4`, `## §9.7`
 - `apps/web/lib/settings/tenant-migrations.actions.ts` → advanceMigration, getMigrationPreview
 
 ## Twoje zadanie
@@ -591,7 +591,7 @@ Integration tests against real Supabase local DB (zero mocks). Tests cover dept 
 # Task T-02SETc-001 — reference_schemas + schema_migrations schema
 
 ## Context
-- `/Users/mariuszkrawczyk/Projects/monopilot-kira/02-SETTINGS-PRD.md` → sekcja `## §5.2` — exact column specs
+- `/Users/mariuszkrawczyk/Projects/monopilot-kira/docs/prd/02-SETTINGS-PRD.md` → sekcja `## §5.2` — exact column specs
 
 ## Twoje zadanie
 Create Drizzle schema for schema wizard tables.
@@ -697,7 +697,7 @@ export const schemaMigrations = pgTable('schema_migrations', {
 # Task T-02SETc-002 — column CRUD + draft/publish Server Actions
 
 ## Context
-- `/Users/mariuszkrawczyk/Projects/monopilot-kira/02-SETTINGS-PRD.md` → sekcja `## §6.1`, `## §6.4` — 8-step flow + draft/publish model
+- `/Users/mariuszkrawczyk/Projects/monopilot-kira/docs/prd/02-SETTINGS-PRD.md` → sekcja `## §6.1`, `## §6.4` — 8-step flow + draft/publish model
 - `apps/web/drizzle/schema/settings-schema-wizard.ts`
 
 ## Twoje zadanie
@@ -777,7 +777,7 @@ const ColumnInputSchema = z.object({
 # Task T-02SETc-003 — L1 promotion + Zod runtime gen endpoint
 
 ## Context
-- `/Users/mariuszkrawczyk/Projects/monopilot-kira/02-SETTINGS-PRD.md` → sekcja `## §6.3`, `## §6.5` — L1 promotion flow + Zod gen endpoint
+- `/Users/mariuszkrawczyk/Projects/monopilot-kira/docs/prd/02-SETTINGS-PRD.md` → sekcja `## §6.3`, `## §6.5` — L1 promotion flow + Zod gen endpoint
 
 ## Twoje zadanie
 L1 promotion Server Action and Zod runtime generation API endpoint.
@@ -850,7 +850,7 @@ L1 promotion Server Action and Zod runtime generation API endpoint.
 # Task T-02SETc-004 — SchemaBrowser + SchemaDiffViewer
 
 ## Context
-- `/Users/mariuszkrawczyk/Projects/monopilot-kira/02-SETTINGS-PRD.md` → sekcja `## §6.6` — SET-030, SET-032, SET-033 specs
+- `/Users/mariuszkrawczyk/Projects/monopilot-kira/docs/prd/02-SETTINGS-PRD.md` → sekcja `## §6.6` — SET-030, SET-032, SET-033 specs
 
 ## Twoje zadanie
 Build Schema Browser (SET-030) listing all columns per table with tier badges and version diff.
@@ -931,7 +931,7 @@ Translation checklist:
 # Task T-02SETc-005 — ColumnEditWizard 8-step + PreviewShadow
 
 ## Context
-- `/Users/mariuszkrawczyk/Projects/monopilot-kira/02-SETTINGS-PRD.md` → sekcja `## §6.1` — 8-step flow spec, `## §6.4` — draft/publish model
+- `/Users/mariuszkrawczyk/Projects/monopilot-kira/docs/prd/02-SETTINGS-PRD.md` → sekcja `## §6.1` — 8-step flow spec, `## §6.4` — draft/publish model
 
 ## Twoje zadanie
 8-step wizard for adding/editing a schema column, plus shadow preview.
@@ -1089,7 +1089,7 @@ Integration test (real DB) + Playwright E2E for schema wizard complete flow.
 # Task T-02SETd-001 — rule_definitions + rule_dry_runs + reference_tables schema
 
 ## Context
-- `/Users/mariuszkrawczyk/Projects/monopilot-kira/02-SETTINGS-PRD.md` → sekcja `## §5.3`, `## §5.5` — exact column specs
+- `/Users/mariuszkrawczyk/Projects/monopilot-kira/docs/prd/02-SETTINGS-PRD.md` → sekcja `## §5.3`, `## §5.5` — exact column specs
 
 ## Twoje zadanie
 Create Drizzle schema for rule registry tables and generic reference_tables storage.
@@ -1195,7 +1195,7 @@ export const referenceTables = pgTable('reference_tables', {
 # Task T-02SETd-002 — deployRule + rule registry queries
 
 ## Context
-- `/Users/mariuszkrawczyk/Projects/monopilot-kira/02-SETTINGS-PRD.md` → sekcja `## §7.2`, `## §7.3` — dev deploy workflow + admin capabilities
+- `/Users/mariuszkrawczyk/Projects/monopilot-kira/docs/prd/02-SETTINGS-PRD.md` → sekcja `## §7.2`, `## §7.3` — dev deploy workflow + admin capabilities
 
 ## Twoje zadanie
 Server Actions for rule deployment (CI/CD use) and rule registry read operations.
@@ -1258,7 +1258,7 @@ Server Actions for rule deployment (CI/CD use) and rule registry read operations
 # Task T-02SETd-003 — reference_tables generic CRUD + CSV import/export
 
 ## Context
-- `/Users/mariuszkrawczyk/Projects/monopilot-kira/02-SETTINGS-PRD.md` → sekcja `## §8.3`, `## §8.4`, `## §8.5` — CRUD ops, version+audit, CSV import/export
+- `/Users/mariuszkrawczyk/Projects/monopilot-kira/docs/prd/02-SETTINGS-PRD.md` → sekcja `## §8.3`, `## §8.4`, `## §8.5` — CRUD ops, version+audit, CSV import/export
 
 ## Twoje zadanie
 Generic Server Actions for reference_tables CRUD and CSV bulk operations.
@@ -1323,7 +1323,7 @@ Generic Server Actions for reference_tables CRUD and CSV bulk operations.
 # Task T-02SETd-004 — Rules Registry UI (SET-040, SET-041, SET-042)
 
 ## Context
-- `/Users/mariuszkrawczyk/Projects/monopilot-kira/02-SETTINGS-PRD.md` → sekcja `## §7.2`, `## §7.6` — admin capabilities + UI surfaces
+- `/Users/mariuszkrawczyk/Projects/monopilot-kira/docs/prd/02-SETTINGS-PRD.md` → sekcja `## §7.2`, `## §7.6` — admin capabilities + UI surfaces
 
 ## Twoje zadanie
 Read-only Rule Registry UI (admin cannot edit, only view + audit).
@@ -1403,7 +1403,7 @@ Translation checklist:
 # Task T-02SETd-005 — Reference Tables UI (SET-050..054)
 
 ## Context
-- `/Users/mariuszkrawczyk/Projects/monopilot-kira/02-SETTINGS-PRD.md` → sekcja `## §8.1`, `## §8.6` — 25 tables list + UI surfaces
+- `/Users/mariuszkrawczyk/Projects/monopilot-kira/docs/prd/02-SETTINGS-PRD.md` → sekcja `## §8.1`, `## §8.6` — 25 tables list + UI surfaces
 
 ## Twoje zadanie
 Generic Reference Tables admin UI driven by reference_schemas metadata.
@@ -1625,7 +1625,7 @@ Playwright E2E covering Reference Tables full CRUD and CSV import flow.
 # Task T-02SETd-008 — seed: 25 Reference tables Apex baseline
 
 ## Context
-- `/Users/mariuszkrawczyk/Projects/monopilot-kira/02-SETTINGS-PRD.md` → sekcja `## §8.1` — 25 tables with Apex row counts
+- `/Users/mariuszkrawczyk/Projects/monopilot-kira/docs/prd/02-SETTINGS-PRD.md` → sekcja `## §8.1` — 25 tables with Apex row counts
 - `apps/web/drizzle/schema/settings-rules-reference.ts` → referenceTables schema
 
 ## Twoje zadanie
@@ -1733,7 +1733,7 @@ export const createReferenceRow = (overrides?: Partial<typeof referenceTables.$i
 # Task T-02SETe-001 — infrastructure schema
 
 ## Context
-- `/Users/mariuszkrawczyk/Projects/monopilot-kira/02-SETTINGS-PRD.md` → sekcja `## §5.6` — exact SQL schemas
+- `/Users/mariuszkrawczyk/Projects/monopilot-kira/docs/prd/02-SETTINGS-PRD.md` → sekcja `## §5.6` — exact SQL schemas
 
 ## Twoje zadanie
 Drizzle schema for infrastructure: warehouses, locations (with ltree path), machines, production_lines, line_machines.
@@ -1856,7 +1856,7 @@ export const lineMachines = pgTable('line_machines', {
 # Task T-02SETe-002 — security + notification schema
 
 ## Context
-- `/Users/mariuszkrawczyk/Projects/monopilot-kira/02-SETTINGS-PRD.md` → sekcja `## §5.7`, `## §13.3` — exact SQL schemas
+- `/Users/mariuszkrawczyk/Projects/monopilot-kira/docs/prd/02-SETTINGS-PRD.md` → sekcja `## §5.7`, `## §13.3` — exact SQL schemas
 
 ## Twoje zadanie
 Drizzle schema for security policies and notification preferences tables.
@@ -1952,7 +1952,7 @@ export const notificationPreferences = pgTable('notification_preferences', {
 # Task T-02SETe-003 — Warehouse + Location CRUD actions
 
 ## Context
-- `/Users/mariuszkrawczyk/Projects/monopilot-kira/02-SETTINGS-PRD.md` → sekcja `## §12.2`, `## §12.3` — CRUD UI + V-SET-60..63 validations
+- `/Users/mariuszkrawczyk/Projects/monopilot-kira/docs/prd/02-SETTINGS-PRD.md` → sekcja `## §12.2`, `## §12.3` — CRUD UI + V-SET-60..63 validations
 
 ## Twoje zadanie
 Server Actions for warehouse and location management with path computation and validation.
@@ -2018,7 +2018,7 @@ Server Actions for warehouse and location management with path computation and v
 # Task T-02SETe-004 — Machine + ProductionLine + D365 + Onboarding actions
 
 ## Context
-- `/Users/mariuszkrawczyk/Projects/monopilot-kira/02-SETTINGS-PRD.md` → sekcja `## §11.1`, `## §11.4`, `## §12`, `## §14.3`
+- `/Users/mariuszkrawczyk/Projects/monopilot-kira/docs/prd/02-SETTINGS-PRD.md` → sekcja `## §11.1`, `## §11.4`, `## §12`, `## §14.3`
 
 ## Twoje zadanie
 Server Actions for machines, production lines, D365 config, and onboarding wizard state.
@@ -2090,7 +2090,7 @@ Server Actions for machines, production lines, D365 config, and onboarding wizar
 # Task T-02SETe-005 — security policies + MFA actions
 
 ## Context
-- `/Users/mariuszkrawczyk/Projects/monopilot-kira/02-SETTINGS-PRD.md` → sekcja `## §14.1`, `## §14.5` — policies + V-SET-80..V-SET-84
+- `/Users/mariuszkrawczyk/Projects/monopilot-kira/docs/prd/02-SETTINGS-PRD.md` → sekcja `## §14.1`, `## §14.5` — policies + V-SET-80..V-SET-84
 
 ## Twoje zadanie
 Server Actions for security policy management and MFA enrollment.
@@ -2155,7 +2155,7 @@ Server Actions for security policy management and MFA enrollment.
 # Task T-02SETe-006 — Infrastructure CRUD UI (SET-012..019)
 
 ## Context
-- `/Users/mariuszkrawczyk/Projects/monopilot-kira/02-SETTINGS-PRD.md` → sekcja `## §12.2` — SET-012..019 screen list
+- `/Users/mariuszkrawczyk/Projects/monopilot-kira/docs/prd/02-SETTINGS-PRD.md` → sekcja `## §12.2` — SET-012..019 screen list
 
 ## Twoje zadanie
 Infrastructure management UI: Warehouse, Location, Machine, Production Line CRUD.
@@ -2238,7 +2238,7 @@ Translation checklist:
 # Task T-02SETe-007 — OnboardingWizard 6-step
 
 ## Context
-- `/Users/mariuszkrawczyk/Projects/monopilot-kira/02-SETTINGS-PRD.md` → sekcja `## §14.3` — 6-step spec, onboarding_state JSONB format
+- `/Users/mariuszkrawczyk/Projects/monopilot-kira/docs/prd/02-SETTINGS-PRD.md` → sekcja `## §14.3` — 6-step spec, onboarding_state JSONB format
 
 ## Twoje zadanie
 6-step onboarding wizard with resume capability. Target: <15min P50.
@@ -2320,7 +2320,7 @@ Translation checklist:
 # Task T-02SETe-008 — D365 Admin + Security + EmailConfig UI
 
 ## Context
-- `/Users/mariuszkrawczyk/Projects/monopilot-kira/02-SETTINGS-PRD.md` → sekcja `## §11.3`, `## §13.4`, `## §14.1`, `## §14.4`
+- `/Users/mariuszkrawczyk/Projects/monopilot-kira/docs/prd/02-SETTINGS-PRD.md` → sekcja `## §11.3`, `## §13.4`, `## §14.1`, `## §14.4`
 
 ## Twoje zadanie
 D365 integration admin UI (SET-080..083), Security policies UI (SET-100, SET-101), EmailConfig editor (SET-090..093).

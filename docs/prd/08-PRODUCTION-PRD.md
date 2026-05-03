@@ -1,4 +1,4 @@
-# 08-PRODUCTION-PRD.md
+# docs/prd/08-PRODUCTION-PRD.md
 
 **Module:** 08-PRODUCTION — WO Execution Engine, Shop Floor Control, Allergen Changeover Gate, INTEGRATIONS stage 2 (D365 WO push)
 **Version:** 3.1.1 (Phase C3 Sesja 1, 2026-04-30 + PRD↔UX reconciliation pass 2026-04-30)
@@ -748,13 +748,13 @@ E7 ← 07-EXT §9.4 (changeover_matrix), 09-QUALITY (ATP integration P2)
 
 15-OEE owns this screen; 08-PROD owns data layer (`oee_snapshots`). Cross-link in nav.
 
-> **Boundary clarification (added 2026-04-30 reconciliation):** UX `design/08-PRODUCTION-UX.md:562-611` (PROD-006) describes a P1 OEE *foundation* dashboard inside the production module backed by `oee_snapshots`, with a "Go to 15-OEE" link for advanced analytics, EWMA anomaly detection, and benchmarking. Prototypes `oee_screen` (`other-screens.jsx:4-121`) and `oee_target_edit_modal` (`modals.jsx:560-635`) implement this foundation view. 08-PROD therefore owns: `oee_snapshots` ingestion (job + table), the read-only OEE summary inside `/production/oee`, and OEE-target admin (PROD-011 §6). 15-OEE owns: cross-shift trend analytics, anomaly detection, equipment health, six-big-losses Pareto, TV mode (P2). Both surfaces share the same `oee_snapshots` source per §9.9.
+> **Boundary clarification (added 2026-04-30 reconciliation):** UX `prototypes/design/08-PRODUCTION-UX.md:562-611` (PROD-006) describes a P1 OEE *foundation* dashboard inside the production module backed by `oee_snapshots`, with a "Go to 15-OEE" link for advanced analytics, EWMA anomaly detection, and benchmarking. Prototypes `oee_screen` (`other-screens.jsx:4-121`) and `oee_target_edit_modal` (`modals.jsx:560-635`) implement this foundation view. 08-PROD therefore owns: `oee_snapshots` ingestion (job + table), the read-only OEE summary inside `/production/oee`, and OEE-target admin (PROD-011 §6). 15-OEE owns: cross-shift trend analytics, anomaly detection, equipment health, six-big-losses Pareto, TV mode (P2). Both surfaces share the same `oee_snapshots` source per §9.9.
 
 #### SCR-08-08: Shift Management (Crew + Handover) [PROD-008]
 
 **Route:** `/production/shifts`
 **Roles:** Operator (read self), Shift Lead (write crew + handover + sign-off), Prod Manager (read all)
-**UX evidence:** `design/08-PRODUCTION-UX.md:658-700` (PROD-008)
+**UX evidence:** `prototypes/design/08-PRODUCTION-UX.md:658-700` (PROD-008)
 **Prototype evidence:** `shifts_screen` (`other-screens.jsx:215-291`), `shift_start_modal` (`modals.jsx:438-497`), `shift_end_modal` (`modals.jsx:500-557`), `assign_crew_modal` (`modals.jsx:366-386`)
 
 **Layout:**
@@ -777,7 +777,7 @@ E7 ← 07-EXT §9.4 (changeover_matrix), 09-QUALITY (ATP integration P2)
 
 **Route:** `/production/analytics`
 **Roles:** Shift Lead, Prod Manager (full); Operator (own KPIs only)
-**UX evidence:** `design/08-PRODUCTION-UX.md:703-742` (PROD-009)
+**UX evidence:** `prototypes/design/08-PRODUCTION-UX.md:703-742` (PROD-009)
 **Prototype evidence:** `analytics_screen` (`other-screens.jsx:393-496`)
 
 **Layout:**
@@ -796,7 +796,7 @@ E7 ← 07-EXT §9.4 (changeover_matrix), 09-QUALITY (ATP integration P2)
 
 **Route:** `/production/settings`
 **Roles:** Prod Manager (RBAC guard via 02-SETTINGS §14); other roles see read-only.
-**UX evidence:** `design/08-PRODUCTION-UX.md:770-832` (PROD-011)
+**UX evidence:** `prototypes/design/08-PRODUCTION-UX.md:770-832` (PROD-011)
 **Prototype evidence:** `settings_screen` (`other-screens.jsx:560-649`), `oee_target_edit_modal` (`modals.jsx:560-635`)
 
 **Layout (8 collapsible sections, sticky [Save] / [Discard] footer, "• Unsaved changes" indicator):**
@@ -818,7 +818,7 @@ E7 ← 07-EXT §9.4 (changeover_matrix), 09-QUALITY (ATP integration P2)
 
 **Route:** `/production/lines/:line_id`
 **Roles:** Operator (own line), Shift Lead, Prod Manager
-**UX evidence:** `design/08-PRODUCTION-UX.md:872-890` (PROD-013)
+**UX evidence:** `prototypes/design/08-PRODUCTION-UX.md:872-890` (PROD-013)
 **Prototype evidence:** `line_detail` (`new-screens.jsx:212-478`)
 
 **Layout:**
@@ -839,7 +839,7 @@ E7 ← 07-EXT §9.4 (changeover_matrix), 09-QUALITY (ATP integration P2)
 
 **Route:** Embedded within SCR-08-02 (WO detail) tabs Consumption / Output / Waste, and within SCR-08-11 (Line Detail) header.
 **Roles:** Shift Lead, Prod Manager (deep-link generators).
-**UX evidence:** `design/08-PRODUCTION-UX.md:894-908` (PROD-014)
+**UX evidence:** `prototypes/design/08-PRODUCTION-UX.md:894-908` (PROD-014)
 **Prototype evidence:** No dedicated JSX label — pattern realised inline within `consumption_tab` and `output_tab` via `scanner_modal` (`modals.jsx:246-278`); represented in PROD-002 prototype as "Open on Scanner" buttons.
 
 **Purpose:** Desktop reference cards for scanner-executed flows. The actual operator UX lives in 06-SCANNER-P1; these cards give the supervisor visibility + a deep-link mechanism so a paused operator can resume on a handheld without re-authentication friction.
@@ -2150,14 +2150,14 @@ Consistency rules:
 
 ### 16.8 References
 
-- **04-PLANNING-BASIC-PRD.md** v3.1 — parent definition layer
-- **05-WAREHOUSE-PRD.md** v3.0 §10, §13, §11 — intermediate LPs, scanner contract, genealogy
-- **06-SCANNER-P1-PRD.md** v3.0 §8.4, §8.5, §14 — SCN-080 + SCN-082/083/084 + API catalog
-- **03-TECHNICAL-PRD.md** v3.0 §7, §8, §10 — BOM, routing, allergen cascade
-- **02-SETTINGS-PRD.md** v3.4 §8.9 — Reference.ManufacturingOperations (2-letter process_suffix lookup), rule registry, reference tables, D365 constants, feature flags
-- **07-PLANNING-EXT-PRD.md** v3.0 §9.4, §10.2 — changeover_matrix, allergen_sequencing_optimizer (keyed by manufacturing_operation suffix)
-- **00-FOUNDATION-PRD.md** v4.0 §9.1 — Manufacturing Operations configuration, module map, event-first, AI-ready, idempotency, GS1
-- **01-NPD-PRD.md** v3.2 §6 — Cascading Rules Chain 2/4 (manufacturing_operation cascade to intermediate codes)
+- **docs/prd/04-PLANNING-BASIC-PRD.md** v3.1 — parent definition layer
+- **docs/prd/05-WAREHOUSE-PRD.md** v3.0 §10, §13, §11 — intermediate LPs, scanner contract, genealogy
+- **docs/prd/06-SCANNER-P1-PRD.md** v3.0 §8.4, §8.5, §14 — SCN-080 + SCN-082/083/084 + API catalog
+- **docs/prd/03-TECHNICAL-PRD.md** v3.0 §7, §8, §10 — BOM, routing, allergen cascade
+- **docs/prd/02-SETTINGS-PRD.md** v3.4 §8.9 — Reference.ManufacturingOperations (2-letter process_suffix lookup), rule registry, reference tables, D365 constants, feature flags
+- **docs/prd/07-PLANNING-EXT-PRD.md** v3.0 §9.4, §10.2 — changeover_matrix, allergen_sequencing_optimizer (keyed by manufacturing_operation suffix)
+- **docs/prd/00-FOUNDATION-PRD.md** v4.0 §9.1 — Manufacturing Operations configuration, module map, event-first, AI-ready, idempotency, GS1
+- **docs/prd/01-NPD-PRD.md** v3.2 §6 — Cascading Rules Chain 2/4 (manufacturing_operation cascade to intermediate codes)
 - **_foundation/research/MES-TRENDS-2026.md** §2, §3, §9 — food-mfg research, scheduling research, per-module rollups
 - **_foundation/decisions/MONOPILOT-V2-ARCHITECTURE.md** Phase D decision #17 (closed_production_strict)
 - **_foundation/META-MODEL.md** — schema-driven primitives
@@ -2273,4 +2273,4 @@ All stages share:
 
 ---
 
-**End of 08-PRODUCTION-PRD.md v3.1**
+**End of docs/prd/08-PRODUCTION-PRD.md v3.1**

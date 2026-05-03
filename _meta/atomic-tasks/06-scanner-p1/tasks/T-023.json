@@ -1,6 +1,6 @@
 {
   "title": "T-023 — SCN-home workflow launcher menu (06-a)",
-  "prompt": "# T-023 — SCN-home menu\n\nPRD: 06-SCANNER-P1-PRD.md §8.1 FR-SC-FE-005\nUX: design/06-SCANNER-P1-UX.md:290-323 §3.6\nPrototype: design/Monopilot Design System/scanner/home.jsx:7-61 (label home_screen)\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nDeliver SCN-home as a 3-section grid (Produkcja / Magazyn / Jakość) where each tile is role-filtered via T-016 and shows an icon 46dp + 14px label + 11px subtitle. WO and QC tiles carry a counter badge.\n\n## Implementation contract\n1. `apps/scanner/src/app/scanner/page.tsx` (Server Component) reads session, computes visible tiles per role.\n2. Tile data table keyed to permission map (T-016) — Produkcja: Work Order (badge=active WO count), Pick dla WO; Magazyn: Przyjęcie PO, Przyjęcie TO, Putaway, Przesuń LP, Split LP, Part Movement P2; Jakość: Inspekcja QC (badge=pending count), Inwentaryzacja P2.\n3. Reads counters from `/api/production/scanner/active-wos` (count only) and `/api/quality/scanner/pending-inspections` (count only).\n\n## Files\n- apps/scanner/src/app/scanner/page.tsx [create]\n- apps/scanner/src/app/scanner/home-grid.client.tsx [create]\n- apps/scanner/__tests__/scn-home.test.tsx [create]\n\n## Acceptance criteria\n1. Given the page renders, when compared to `design/Monopilot Design System/scanner/home.jsx:7-61`, then it has the 3 sections in order Produkcja / Magazyn / Jakość with the same tile order, the same icon-label-subtitle layout, and the same counter badge placement on Work Order + Inspekcja QC — RTL snapshot + manual checklist (structural + visual + interaction parity)\n2. Given a session with only warehouse.operator role, when the page renders, then production tiles and quality tiles are hidden but the Magazyn section still shows all six warehouse tiles\n3. Given a 'denied=warehouse.receive' query param is present, when the page renders, then an amber warn banner is shown above the grid with the workflow name\n\n## Test strategy\n- RED: write scn-home.test.tsx asserting parity + role-filter + denial banner before implementation\n- Run 'pnpm --filter scanner test scn-home'\n\n## Risk red lines\n- Do not show Phase-2 tiles as active (must remain disabled with 'P2' badge)\n- Do not block render if counter API calls fail (degrade tiles to no-badge)\n- Do not display tiles outside the user's role set",
+  "prompt": "# T-023 — SCN-home menu\n\nPRD: docs/prd/06-SCANNER-P1-PRD.md §8.1 FR-SC-FE-005\nUX: prototypes/design/06-SCANNER-P1-UX.md:290-323 §3.6\nPrototype: prototypes/design/Monopilot Design System/scanner/home.jsx:7-61 (label home_screen)\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nDeliver SCN-home as a 3-section grid (Produkcja / Magazyn / Jakość) where each tile is role-filtered via T-016 and shows an icon 46dp + 14px label + 11px subtitle. WO and QC tiles carry a counter badge.\n\n## Implementation contract\n1. `apps/scanner/src/app/scanner/page.tsx` (Server Component) reads session, computes visible tiles per role.\n2. Tile data table keyed to permission map (T-016) — Produkcja: Work Order (badge=active WO count), Pick dla WO; Magazyn: Przyjęcie PO, Przyjęcie TO, Putaway, Przesuń LP, Split LP, Part Movement P2; Jakość: Inspekcja QC (badge=pending count), Inwentaryzacja P2.\n3. Reads counters from `/api/production/scanner/active-wos` (count only) and `/api/quality/scanner/pending-inspections` (count only).\n\n## Files\n- apps/scanner/src/app/scanner/page.tsx [create]\n- apps/scanner/src/app/scanner/home-grid.client.tsx [create]\n- apps/scanner/__tests__/scn-home.test.tsx [create]\n\n## Acceptance criteria\n1. Given the page renders, when compared to `prototypes/design/Monopilot Design System/scanner/home.jsx:7-61`, then it has the 3 sections in order Produkcja / Magazyn / Jakość with the same tile order, the same icon-label-subtitle layout, and the same counter badge placement on Work Order + Inspekcja QC — RTL snapshot + manual checklist (structural + visual + interaction parity)\n2. Given a session with only warehouse.operator role, when the page renders, then production tiles and quality tiles are hidden but the Magazyn section still shows all six warehouse tiles\n3. Given a 'denied=warehouse.receive' query param is present, when the page renders, then an amber warn banner is shown above the grid with the workflow name\n\n## Test strategy\n- RED: write scn-home.test.tsx asserting parity + role-filter + denial banner before implementation\n- Run 'pnpm --filter scanner test scn-home'\n\n## Risk red lines\n- Do not show Phase-2 tiles as active (must remain disabled with 'P2' badge)\n- Do not block render if counter API calls fail (degrade tiles to no-badge)\n- Do not display tiles outside the user's role set",
   "labels": [
     "prd",
     "ui",
@@ -13,7 +13,7 @@
   "pipeline_inputs": {
     "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
     "prd_task_id": "T-023",
-    "source_prd": "06-SCANNER-P1-PRD.md",
+    "source_prd": "docs/prd/06-SCANNER-P1-PRD.md",
     "prd_refs": [
       "§8.1 FR-SC-FE-005"
     ],
@@ -29,7 +29,7 @@
       "apps/scanner/src/app/scanner/page.tsx [create]",
       "apps/scanner/src/app/scanner/home-grid.client.tsx [create]",
       "apps/scanner/__tests__/scn-home.test.tsx [create]",
-      "design/Monopilot Design System/scanner/home.jsx:7-61 [ref]"
+      "prototypes/design/Monopilot Design System/scanner/home.jsx:7-61 [ref]"
     ],
     "out_of_scope": [
       "Do not implement counter endpoints here (T-038 active-WOs, T-045 QA pending)",
@@ -46,7 +46,7 @@
       "T-024"
     ],
     "acceptance_criteria": [
-      "Given the page renders, when compared to design/Monopilot Design System/scanner/home.jsx:7-61, then it has 3 sections in order Produkcja/Magazyn/Jakość, the same tile order, the same icon-label-subtitle layout, and counter badges on Work Order + Inspekcja QC — RTL snapshot + manual checklist",
+      "Given the page renders, when compared to prototypes/design/Monopilot Design System/scanner/home.jsx:7-61, then it has 3 sections in order Produkcja/Magazyn/Jakość, the same tile order, the same icon-label-subtitle layout, and counter badges on Work Order + Inspekcja QC — RTL snapshot + manual checklist",
       "Given a session with only warehouse.operator role, when the page renders, then production and quality tiles are hidden but Magazyn shows all six warehouse tiles",
       "Given 'denied=warehouse.receive' query param, when the page renders, then an amber warn banner is shown above the grid naming the workflow. Follow parity evidence requirements in `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`."
     ],

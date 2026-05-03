@@ -6,7 +6,7 @@
   "entries": [
     {
       "label": "customer_create_modal",
-      "file": "design/Monopilot Design System/shipping/modals.jsx",
+      "file": "prototypes/design/Monopilot Design System/shipping/modals.jsx",
       "lines": "27-67",
       "component_type": "modal",
       "ui_pattern": "crud-form-with-validation",
@@ -39,7 +39,7 @@
     },
     {
       "label": "address_modal",
-      "file": "design/Monopilot Design System/shipping/modals.jsx",
+      "file": "prototypes/design/Monopilot Design System/shipping/modals.jsx",
       "lines": "69-94",
       "component_type": "modal",
       "ui_pattern": "crud-form-with-validation",
@@ -75,7 +75,7 @@
     },
     {
       "label": "allergen_restriction_modal",
-      "file": "design/Monopilot Design System/shipping/modals.jsx",
+      "file": "prototypes/design/Monopilot Design System/shipping/modals.jsx",
       "lines": "96-113",
       "component_type": "modal",
       "ui_pattern": "crud-form-with-validation",
@@ -106,7 +106,7 @@
     },
     {
       "label": "so_create_wizard_modal",
-      "file": "design/Monopilot Design System/shipping/modals.jsx",
+      "file": "prototypes/design/Monopilot Design System/shipping/modals.jsx",
       "lines": "115-271",
       "component_type": "modal",
       "ui_pattern": "multi-step-wizard",
@@ -152,7 +152,7 @@
     },
     {
       "label": "so_line_add_modal",
-      "file": "design/Monopilot Design System/shipping/modals.jsx",
+      "file": "prototypes/design/Monopilot Design System/shipping/modals.jsx",
       "lines": "273-290",
       "component_type": "modal",
       "ui_pattern": "crud-form-with-validation",
@@ -182,7 +182,7 @@
     },
     {
       "label": "allocation_override_modal",
-      "file": "design/Monopilot Design System/shipping/modals.jsx",
+      "file": "prototypes/design/Monopilot Design System/shipping/modals.jsx",
       "lines": "292-340",
       "component_type": "modal",
       "ui_pattern": "crud-form-with-validation",
@@ -216,7 +216,7 @@
     },
     {
       "label": "hold_place_modal",
-      "file": "design/Monopilot Design System/shipping/modals.jsx",
+      "file": "prototypes/design/Monopilot Design System/shipping/modals.jsx",
       "lines": "342-378",
       "component_type": "modal",
       "ui_pattern": "crud-form-with-validation",
@@ -248,7 +248,7 @@
     },
     {
       "label": "hold_release_modal",
-      "file": "design/Monopilot Design System/shipping/modals.jsx",
+      "file": "prototypes/design/Monopilot Design System/shipping/modals.jsx",
       "lines": "380-410",
       "component_type": "modal",
       "ui_pattern": "crud-form-with-validation",
@@ -279,7 +279,7 @@
     },
     {
       "label": "partial_fulfillment_modal",
-      "file": "design/Monopilot Design System/shipping/modals.jsx",
+      "file": "prototypes/design/Monopilot Design System/shipping/modals.jsx",
       "lines": "412-453",
       "component_type": "modal",
       "ui_pattern": "crud-form-with-validation",
@@ -313,7 +313,7 @@
     },
     {
       "label": "short_pick_resolve_modal",
-      "file": "design/Monopilot Design System/shipping/modals.jsx",
+      "file": "prototypes/design/Monopilot Design System/shipping/modals.jsx",
       "lines": "455-502",
       "component_type": "modal",
       "ui_pattern": "crud-form-with-validation",
@@ -349,7 +349,7 @@
     },
     {
       "label": "so_cancel_modal",
-      "file": "design/Monopilot Design System/shipping/modals.jsx",
+      "file": "prototypes/design/Monopilot Design System/shipping/modals.jsx",
       "lines": "504-536",
       "component_type": "modal",
       "ui_pattern": "crud-form-with-validation",
@@ -382,7 +382,7 @@
     },
     {
       "label": "wave_release_modal",
-      "file": "design/Monopilot Design System/shipping/modals.jsx",
+      "file": "prototypes/design/Monopilot Design System/shipping/modals.jsx",
       "lines": "538-562",
       "component_type": "modal",
       "ui_pattern": "bulk-action",
@@ -416,7 +416,7 @@
     },
     {
       "label": "pick_reassign_modal",
-      "file": "design/Monopilot Design System/shipping/modals.jsx",
+      "file": "prototypes/design/Monopilot Design System/shipping/modals.jsx",
       "lines": "564-575",
       "component_type": "modal",
       "ui_pattern": "crud-form-with-validation",
@@ -446,7 +446,7 @@
     },
     {
       "label": "pack_close_carton_modal",
-      "file": "design/Monopilot Design System/shipping/modals.jsx",
+      "file": "prototypes/design/Monopilot Design System/shipping/modals.jsx",
       "lines": "577-607",
       "component_type": "modal",
       "ui_pattern": "crud-form-with-validation",
@@ -478,7 +478,7 @@
     },
     {
       "label": "ship_confirm_modal",
-      "file": "design/Monopilot Design System/shipping/modals.jsx",
+      "file": "prototypes/design/Monopilot Design System/shipping/modals.jsx",
       "lines": "609-700",
       "component_type": "modal",
       "ui_pattern": "crud-form-with-validation",
@@ -518,7 +518,7 @@
     },
     {
       "label": "sscc_preview_reprint_modal",
-      "file": "design/Monopilot Design System/shipping/modals.jsx",
+      "file": "prototypes/design/Monopilot Design System/shipping/modals.jsx",
       "lines": "702-739",
       "component_type": "modal",
       "ui_pattern": "detail-view",
@@ -552,7 +552,7 @@
     },
     {
       "label": "packing_slip_regen_modal",
-      "file": "design/Monopilot Design System/shipping/modals.jsx",
+      "file": "prototypes/design/Monopilot Design System/shipping/modals.jsx",
       "lines": "741-757",
       "component_type": "modal",
       "ui_pattern": "bulk-action",
@@ -580,7 +580,7 @@
     },
     {
       "label": "bol_sign_upload_modal",
-      "file": "design/Monopilot Design System/shipping/modals.jsx",
+      "file": "prototypes/design/Monopilot Design System/shipping/modals.jsx",
       "lines": "759-790",
       "component_type": "modal",
       "ui_pattern": "import-export",
@@ -613,7 +613,7 @@
     },
     {
       "label": "carrier_create_edit_modal",
-      "file": "design/Monopilot Design System/shipping/modals.jsx",
+      "file": "prototypes/design/Monopilot Design System/shipping/modals.jsx",
       "lines": "792-807",
       "component_type": "modal",
       "ui_pattern": "crud-form-with-validation",
@@ -644,7 +644,7 @@
     },
     {
       "label": "release_allocation_modal",
-      "file": "design/Monopilot Design System/shipping/modals.jsx",
+      "file": "prototypes/design/Monopilot Design System/shipping/modals.jsx",
       "lines": "809-835",
       "component_type": "modal",
       "ui_pattern": "crud-form-with-validation",
@@ -673,7 +673,7 @@
     },
     {
       "label": "allergen_override_modal",
-      "file": "design/Monopilot Design System/shipping/modals.jsx",
+      "file": "prototypes/design/Monopilot Design System/shipping/modals.jsx",
       "lines": "837-871",
       "component_type": "modal",
       "ui_pattern": "crud-form-with-validation",
@@ -707,7 +707,7 @@
     },
     {
       "label": "shipping_dashboard",
-      "file": "design/Monopilot Design System/shipping/dashboard.jsx",
+      "file": "prototypes/design/Monopilot Design System/shipping/dashboard.jsx",
       "lines": "1-224",
       "component_type": "page-layout",
       "ui_pattern": "dashboard-tile",
@@ -744,7 +744,7 @@
     },
     {
       "label": "so_list_page",
-      "file": "design/Monopilot Design System/shipping/so-screens.jsx",
+      "file": "prototypes/design/Monopilot Design System/shipping/so-screens.jsx",
       "lines": "1-139",
       "component_type": "page-layout",
       "ui_pattern": "search-filter-list",
@@ -785,7 +785,7 @@
     },
     {
       "label": "so_detail_page",
-      "file": "design/Monopilot Design System/shipping/so-screens.jsx",
+      "file": "prototypes/design/Monopilot Design System/shipping/so-screens.jsx",
       "lines": "141-366",
       "component_type": "page-layout",
       "ui_pattern": "detail-view",
@@ -829,7 +829,7 @@
     },
     {
       "label": "allocation_global_page",
-      "file": "design/Monopilot Design System/shipping/so-screens.jsx",
+      "file": "prototypes/design/Monopilot Design System/shipping/so-screens.jsx",
       "lines": "370-519",
       "component_type": "page-layout",
       "ui_pattern": "list-with-actions",
@@ -868,7 +868,7 @@
     },
     {
       "label": "pick_list_page",
-      "file": "design/Monopilot Design System/shipping/pick-screens.jsx",
+      "file": "prototypes/design/Monopilot Design System/shipping/pick-screens.jsx",
       "lines": "1-94",
       "component_type": "page-layout",
       "ui_pattern": "search-filter-list",
@@ -906,7 +906,7 @@
     },
     {
       "label": "wave_builder_page",
-      "file": "design/Monopilot Design System/shipping/pick-screens.jsx",
+      "file": "prototypes/design/Monopilot Design System/shipping/pick-screens.jsx",
       "lines": "98-184",
       "component_type": "page-layout",
       "ui_pattern": "bulk-action",
@@ -947,7 +947,7 @@
     },
     {
       "label": "pick_detail_supervisor_page",
-      "file": "design/Monopilot Design System/shipping/pick-screens.jsx",
+      "file": "prototypes/design/Monopilot Design System/shipping/pick-screens.jsx",
       "lines": "217-330",
       "component_type": "page-layout",
       "ui_pattern": "detail-view",
@@ -984,7 +984,7 @@
     },
     {
       "label": "packing_stations_selector_page",
-      "file": "design/Monopilot Design System/shipping/pack-screens.jsx",
+      "file": "prototypes/design/Monopilot Design System/shipping/pack-screens.jsx",
       "lines": "4-45",
       "component_type": "page-layout",
       "ui_pattern": "list-with-actions",
@@ -1013,7 +1013,7 @@
     },
     {
       "label": "packing_station_workbench_page",
-      "file": "design/Monopilot Design System/shipping/pack-screens.jsx",
+      "file": "prototypes/design/Monopilot Design System/shipping/pack-screens.jsx",
       "lines": "47-220",
       "component_type": "page-layout",
       "ui_pattern": "detail-view",
@@ -1055,7 +1055,7 @@
     },
     {
       "label": "sscc_labels_queue_page",
-      "file": "design/Monopilot Design System/shipping/pack-screens.jsx",
+      "file": "prototypes/design/Monopilot Design System/shipping/pack-screens.jsx",
       "lines": "224-314",
       "component_type": "page-layout",
       "ui_pattern": "list-with-actions",
@@ -1094,7 +1094,7 @@
     },
     {
       "label": "sscc_label_preview_component",
-      "file": "design/Monopilot Design System/shipping/pack-screens.jsx",
+      "file": "prototypes/design/Monopilot Design System/shipping/pack-screens.jsx",
       "lines": "317-336",
       "component_type": "dashboard-tile",
       "ui_pattern": "detail-view",
@@ -1116,7 +1116,7 @@
     },
     {
       "label": "documents_hub_page",
-      "file": "design/Monopilot Design System/shipping/doc-screens.jsx",
+      "file": "prototypes/design/Monopilot Design System/shipping/doc-screens.jsx",
       "lines": "4-104",
       "component_type": "page-layout",
       "ui_pattern": "search-filter-list",
@@ -1159,7 +1159,7 @@
     },
     {
       "label": "packing_slip_preview_page",
-      "file": "design/Monopilot Design System/shipping/doc-screens.jsx",
+      "file": "prototypes/design/Monopilot Design System/shipping/doc-screens.jsx",
       "lines": "107-215",
       "component_type": "page-layout",
       "ui_pattern": "detail-view",
@@ -1197,7 +1197,7 @@
     },
     {
       "label": "bol_preview_page",
-      "file": "design/Monopilot Design System/shipping/doc-screens.jsx",
+      "file": "prototypes/design/Monopilot Design System/shipping/doc-screens.jsx",
       "lines": "217-308",
       "component_type": "page-layout",
       "ui_pattern": "detail-view",
@@ -1235,7 +1235,7 @@
     },
     {
       "label": "shipments_delivery_tracker_page",
-      "file": "design/Monopilot Design System/shipping/doc-screens.jsx",
+      "file": "prototypes/design/Monopilot Design System/shipping/doc-screens.jsx",
       "lines": "310-422",
       "component_type": "page-layout",
       "ui_pattern": "list-with-actions",
@@ -1275,7 +1275,7 @@
     },
     {
       "label": "carriers_list_page",
-      "file": "design/Monopilot Design System/shipping/doc-screens.jsx",
+      "file": "prototypes/design/Monopilot Design System/shipping/doc-screens.jsx",
       "lines": "424-466",
       "component_type": "page-layout",
       "ui_pattern": "list-with-actions",
@@ -1308,7 +1308,7 @@
     },
     {
       "label": "rma_list_page",
-      "file": "design/Monopilot Design System/shipping/doc-screens.jsx",
+      "file": "prototypes/design/Monopilot Design System/shipping/doc-screens.jsx",
       "lines": "468-534",
       "component_type": "page-layout",
       "ui_pattern": "list-with-actions",
@@ -1344,7 +1344,7 @@
     },
     {
       "label": "shipping_settings_page",
-      "file": "design/Monopilot Design System/shipping/doc-screens.jsx",
+      "file": "prototypes/design/Monopilot Design System/shipping/doc-screens.jsx",
       "lines": "536-648",
       "component_type": "page-layout",
       "ui_pattern": "crud-form-with-validation",
@@ -1387,7 +1387,7 @@
     },
     {
       "label": "customer_list_page",
-      "file": "design/Monopilot Design System/shipping/customer-screens.jsx",
+      "file": "prototypes/design/Monopilot Design System/shipping/customer-screens.jsx",
       "lines": "1-129",
       "component_type": "page-layout",
       "ui_pattern": "search-filter-list",
@@ -1429,7 +1429,7 @@
     },
     {
       "label": "customer_detail_page",
-      "file": "design/Monopilot Design System/shipping/customer-screens.jsx",
+      "file": "prototypes/design/Monopilot Design System/shipping/customer-screens.jsx",
       "lines": "132-363",
       "component_type": "page-layout",
       "ui_pattern": "detail-view",

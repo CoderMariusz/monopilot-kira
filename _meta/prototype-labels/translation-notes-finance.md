@@ -470,7 +470,7 @@ Before translating individual screens, build these shared components first to av
 
 The following entries were missing per-component sections at audit time.
 
-## cost_center_gl_mapping_modal — `design/Monopilot Design System/finance/modals.jsx:649-681`
+## cost_center_gl_mapping_modal — `prototypes/design/Monopilot Design System/finance/modals.jsx:649-681`
 
 - **shadcn equivalent:** Dialog, DialogContent, DialogFooter, Form, FormField, Select, SelectItem, Input, Checkbox, Button
 - **known bugs:** _none recorded_

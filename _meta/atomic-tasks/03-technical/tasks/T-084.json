@@ -12,7 +12,7 @@
   "pipeline_name": "kira_dev",
   "pipeline_inputs": {
     "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
-    "source_prd": "03-TECHNICAL-PRD.md",
+    "source_prd": "docs/prd/03-TECHNICAL-PRD.md",
     "skills": [
       "test-driven-development",
       "requesting-code-review"
@@ -43,7 +43,7 @@
       "§0",
       "§5",
       "§17",
-      "design/03-TECHNICAL-UX.md"
+      "prototypes/design/03-TECHNICAL-UX.md"
     ],
     "category": "api",
     "subcategory": "sensory-contract",

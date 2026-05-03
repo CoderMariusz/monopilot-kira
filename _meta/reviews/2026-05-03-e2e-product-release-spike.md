@@ -20,15 +20,15 @@ W praktyce można zbudować duże fragmenty: Brief, dept closure, Stage-Gate, sh
 
 Wymagane źródła:
 - `_meta/decisions/2026-05-03-flow-d365-settings-technical-decisions.md`
-- `01-NPD-PRD.md`
-- `02-SETTINGS-PRD.md`
-- `03-TECHNICAL-PRD.md`
+- `docs/prd/01-NPD-PRD.md`
+- `docs/prd/02-SETTINGS-PRD.md`
+- `docs/prd/03-TECHNICAL-PRD.md`
 - `_meta/atomic-tasks/01-npd/coverage.md`, `manifest.json`, lista/taski kluczowe
 - `_meta/atomic-tasks/02-settings/coverage.md`, `manifest.json`, lista/taski kluczowe
 - `_meta/atomic-tasks/03-technical/coverage.md`, `manifest.json`, lista/taski kluczowe
-- `design/01-NPD-UX.md`
-- `design/02-SETTINGS-UX.md`
-- `design/03-TECHNICAL-UX.md`
+- `prototypes/design/01-NPD-UX.md`
+- `prototypes/design/02-SETTINGS-UX.md`
+- `prototypes/design/03-TECHNICAL-UX.md`
 
 Nie edytowałem PRD/tasków/prototypów.
 

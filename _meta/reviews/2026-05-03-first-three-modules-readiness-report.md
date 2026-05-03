@@ -19,19 +19,19 @@ Wniosek główny: dokumentacja i atomic taski są bardzo rozbudowane, ale nie wo
 Największe blokery cross-module:
 
 1. Naming FA / Product / FG nie jest spójny.
-   - `01-NPD-PRD.md` mówi fizycznie `product` + view alias `fa`.
-   - `design/01-NPD-UX.md` nadal mówi niemal wszędzie FA.
+   - `docs/prd/01-NPD-PRD.md` mówi fizycznie `product` + view alias `fa`.
+   - `prototypes/design/01-NPD-UX.md` nadal mówi niemal wszędzie FA.
    - `npd/API.md` i `npd/SCHEMA.md` mówią canonical FG.
    - `03-TECHNICAL` taski są już po FG/WIP rename, ale UX/prototypy Technical nadal mówią FA/PR/process_stage.
 
 2. BOM SSOT nie jest domknięty.
-   - `01-NPD-PRD.md` nadal opisuje `fa_bom_view` computed view.
+   - `docs/prd/01-NPD-PRD.md` nadal opisuje `fa_bom_view` computed view.
    - `01-NPD` T-092/T-093 chcą przejść na `bom_headers/bom_lines` jako Single Source of Truth i drop legacy view.
    - `03-TECHNICAL` zakłada własny BOM model jako core.
    - Brakuje jednej decyzji: źródło prawdy dla BOM = NPD Builder, Technical BOM, D365, czy Monopilot local SSOT z D365 sync?
 
 3. Prototyp parity jest nierówne.
-   - 01-NPD: 29 tasków referuje `design/Monopilot Design System/npd/...`, a realne pliki są w `npd/...`.
+   - 01-NPD: 29 tasków referuje `prototypes/design/Monopilot Design System/npd/...`, a realne pliki są w `npd/...`.
    - 02-SETTINGS: część tasków UI wskazuje ekrany zastępcze/wrong prototype zamiast właściwego ekranu UX.
    - 03-TECHNICAL: PRD/taski są po rename, ale prototypy nie; jest ryzyko, że implementacja będzie wizualnie 1:1, lecz domenowo legacy.
 
@@ -53,7 +53,7 @@ Zweryfikowane skryptem:
   - T4-wiring-test: 6
   - T5-seed: 4
   - T-refactor: 1
-  - 29 tasków ma referencje do `design/Monopilot Design System/npd/...`
+  - 29 tasków ma referencje do `prototypes/design/Monopilot Design System/npd/...`
 
 - `02-settings`: 118 tasków
   - T1-schema: 17
@@ -61,7 +61,7 @@ Zweryfikowane skryptem:
   - T3-ui: 59
   - T4-wiring-test: 11
   - T5-seed: 5
-  - 47 tasków ma referencje do `design/Monopilot Design System/settings/...`
+  - 47 tasków ma referencje do `prototypes/design/Monopilot Design System/settings/...`
 
 - `03-technical`: 71 tasków
   - T1-schema: 7
@@ -74,7 +74,7 @@ Zweryfikowane skryptem:
 
 ## 3. 01-NPD — readiness i luki
 
-Źródła: `01-NPD-PRD.md`, `design/01-NPD-UX.md`, `npd/*.jsx`, `npd/README.md`, `npd/API.md`, `npd/SCHEMA.md`, `_meta/atomic-tasks/01-npd/tasks/*.json`, `coverage.md`, audyt 2026-04-30.
+Źródła: `docs/prd/01-NPD-PRD.md`, `prototypes/design/01-NPD-UX.md`, `npd/*.jsx`, `npd/README.md`, `npd/API.md`, `npd/SCHEMA.md`, `_meta/atomic-tasks/01-npd/tasks/*.json`, `coverage.md`, audyt 2026-04-30.
 
 ### Status
 
@@ -152,7 +152,7 @@ Krytyczne:
 - T-071/T-076/T-079: zablokować od D4 Sensory decision.
 - T-025: błędne references do T-066/T-064; poprawić numerację zależności.
 - T-046: D365 wizard — poprawić prototype path i zależność do T-047/mock interface.
-- Wszystkie 29 tasków z path `design/Monopilot Design System/npd/...`: poprawić na repo-relative `npd/...` albo jawnie wskazać source-of-truth.
+- Wszystkie 29 tasków z path `prototypes/design/Monopilot Design System/npd/...`: poprawić na repo-relative `npd/...` albo jawnie wskazać source-of-truth.
 
 ### NPD — dev-ready po polishu
 
@@ -170,7 +170,7 @@ Nie gotowe bez rewrite:
 
 ## 4. 02-SETTINGS — readiness i luki
 
-Źródła: `02-SETTINGS-PRD.md`, `design/02-SETTINGS-UX.md`, `settings/*.jsx`, `_meta/atomic-tasks/02-settings/tasks/*.json`, coverage, audyt, settings plans.
+Źródła: `docs/prd/02-SETTINGS-PRD.md`, `prototypes/design/02-SETTINGS-UX.md`, `settings/*.jsx`, `_meta/atomic-tasks/02-settings/tasks/*.json`, coverage, audyt, settings plans.
 
 ### Status
 
@@ -257,7 +257,7 @@ Rewrite przed dev:
 
 ## 5. 03-TECHNICAL — readiness i luki
 
-Źródła: `03-TECHNICAL-PRD.md`, `design/03-TECHNICAL-UX.md`, `technical/*.jsx`, `_meta/atomic-tasks/03-technical/tasks/*.json`, audyt 2026-04-30.
+Źródła: `docs/prd/03-TECHNICAL-PRD.md`, `prototypes/design/03-TECHNICAL-UX.md`, `technical/*.jsx`, `_meta/atomic-tasks/03-technical/tasks/*.json`, audyt 2026-04-30.
 
 ### Status
 
@@ -404,7 +404,7 @@ Hold/rewrite:
 
 ### E. Settings scope
 
-25. Czy source of truth dla Settings prototype to `settings/*.jsx`, czy `design/Monopilot Design System/settings/*.jsx`?
+25. Czy source of truth dla Settings prototype to `settings/*.jsx`, czy `prototypes/design/Monopilot Design System/settings/*.jsx`?
 26. Czy global Import/Export (`settings/import-export.jsx`, SET-029) jest w scope Phase 1?
 27. Czy Roles & Permissions screen ma być osobnym ekranem w Phase 1?
 28. Czy Pending Invitations jest osobnym screenem, czy częścią Users screen?

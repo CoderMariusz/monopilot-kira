@@ -1,7 +1,7 @@
 # Translation Notes — Production Module (Prototype → Production Stack)
 
 Generated: 2026-04-23; hardened: 2026-05-03 Wave Next
-Source files: `design/Monopilot Design System/production/`
+Source files: `prototypes/design/Monopilot Design System/production/`
 Components indexed: 33 in prototype index (31 active + deprecated `release_wo_modal` trace + internal `tweaks_panel`)
 Total estimated translation time: ~2 395 min (~40 hours)
 
@@ -79,7 +79,7 @@ Additional bugs from other BACKLOG sections affecting Production components:
 
 ### release_wo_modal (modals.jsx:3-8) — DEPRECATED / DO NOT IMPLEMENT
 
-This is a stale historical trace only. `design/Monopilot Design System/production/modals.jsx` removed ReleaseWoModal because WO release/readying is not Production scope.
+This is a stale historical trace only. `prototypes/design/Monopilot Design System/production/modals.jsx` removed ReleaseWoModal because WO release/readying is not Production scope.
 
 - Do not build a Production DRAFT→READY release modal.
 - Release/readying belongs to 04-PLANNING and must consume the canonical factory release read model.

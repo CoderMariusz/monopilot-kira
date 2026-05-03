@@ -2,7 +2,7 @@
 // NPD module · tweaks.jsx — Tweaks panel (persona switch, active config, mock states)
 // ----------------------------------------------------------------------------
 // Implementation contract: see ./SCHEMA.md · ./API.md · ./COMPONENT-INTERFACES.md
-// Spec: design/01-NPD-UX.md
+// Spec: prototypes/design/01-NPD-UX.md
 // ============================================================================
 
 // ============ Tweaks panel ============

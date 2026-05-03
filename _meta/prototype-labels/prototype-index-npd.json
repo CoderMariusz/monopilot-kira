@@ -6,7 +6,7 @@
   "entries": [
     {
       "label": "fa_create_modal",
-      "file": "design/Monopilot Design System/npd/modals.jsx",
+      "file": "prototypes/design/Monopilot Design System/npd/modals.jsx",
       "lines": "9-43",
       "component_type": "modal",
       "ui_pattern": "crud-form-with-validation",
@@ -37,7 +37,7 @@
     },
     {
       "label": "brief_create_modal",
-      "file": "design/Monopilot Design System/npd/modals.jsx",
+      "file": "prototypes/design/Monopilot Design System/npd/modals.jsx",
       "lines": "46-86",
       "component_type": "modal",
       "ui_pattern": "crud-form-with-validation",
@@ -68,7 +68,7 @@
     },
     {
       "label": "brief_convert_modal",
-      "file": "design/Monopilot Design System/npd/modals.jsx",
+      "file": "prototypes/design/Monopilot Design System/npd/modals.jsx",
       "lines": "89-140",
       "component_type": "modal",
       "ui_pattern": "detail-view",
@@ -100,7 +100,7 @@
     },
     {
       "label": "dept_close_modal",
-      "file": "design/Monopilot Design System/npd/modals.jsx",
+      "file": "prototypes/design/Monopilot Design System/npd/modals.jsx",
       "lines": "143-191",
       "component_type": "modal",
       "ui_pattern": "crud-form-with-validation",
@@ -128,7 +128,7 @@
     },
     {
       "label": "d365_build_modal",
-      "file": "design/Monopilot Design System/npd/modals.jsx",
+      "file": "prototypes/design/Monopilot Design System/npd/modals.jsx",
       "lines": "194-241",
       "component_type": "modal",
       "ui_pattern": "crud-form-with-validation",
@@ -156,7 +156,7 @@
     },
     {
       "label": "version_compare_modal",
-      "file": "design/Monopilot Design System/npd/modals.jsx",
+      "file": "prototypes/design/Monopilot Design System/npd/modals.jsx",
       "lines": "244-295",
       "component_type": "modal",
       "ui_pattern": "detail-view",
@@ -184,7 +184,7 @@
     },
     {
       "label": "risk_add_modal",
-      "file": "design/Monopilot Design System/npd/modals.jsx",
+      "file": "prototypes/design/Monopilot Design System/npd/modals.jsx",
       "lines": "298-346",
       "component_type": "modal",
       "ui_pattern": "crud-form-with-validation",
@@ -215,7 +215,7 @@
     },
     {
       "label": "fa_delete_modal",
-      "file": "design/Monopilot Design System/npd/modals.jsx",
+      "file": "prototypes/design/Monopilot Design System/npd/modals.jsx",
       "lines": "349-386",
       "component_type": "modal",
       "ui_pattern": "crud-form-with-validation",
@@ -245,7 +245,7 @@
     },
     {
       "label": "allergen_override_modal",
-      "file": "design/Monopilot Design System/npd/modals.jsx",
+      "file": "prototypes/design/Monopilot Design System/npd/modals.jsx",
       "lines": "389-428",
       "component_type": "modal",
       "ui_pattern": "crud-form-with-validation",
@@ -275,7 +275,7 @@
     },
     {
       "label": "d365_wizard_modal",
-      "file": "design/Monopilot Design System/npd/modals.jsx",
+      "file": "prototypes/design/Monopilot Design System/npd/modals.jsx",
       "lines": "431-594",
       "component_type": "modal",
       "ui_pattern": "multi-step-wizard",
@@ -311,7 +311,7 @@
     },
     {
       "label": "version_save_modal",
-      "file": "design/Monopilot Design System/npd/modals.jsx",
+      "file": "prototypes/design/Monopilot Design System/npd/modals.jsx",
       "lines": "597-613",
       "component_type": "modal",
       "ui_pattern": "crud-form-with-validation",
@@ -338,7 +338,7 @@
     },
     {
       "label": "formulation_lock_modal",
-      "file": "design/Monopilot Design System/npd/modals.jsx",
+      "file": "prototypes/design/Monopilot Design System/npd/modals.jsx",
       "lines": "615-642",
       "component_type": "modal",
       "ui_pattern": "crud-form-with-validation",
@@ -366,7 +366,7 @@
     },
     {
       "label": "doc_upload_modal",
-      "file": "design/Monopilot Design System/npd/modals.jsx",
+      "file": "prototypes/design/Monopilot Design System/npd/modals.jsx",
       "lines": "667-689",
       "component_type": "modal",
       "ui_pattern": "import-export",
@@ -394,7 +394,7 @@
     },
     {
       "label": "npd_dashboard",
-      "file": "design/Monopilot Design System/npd/fa-screens.jsx",
+      "file": "prototypes/design/Monopilot Design System/npd/fa-screens.jsx",
       "lines": "32-174",
       "component_type": "page-layout",
       "ui_pattern": "dashboard-tile",
@@ -427,7 +427,7 @@
     },
     {
       "label": "fa_list",
-      "file": "design/Monopilot Design System/npd/fa-screens.jsx",
+      "file": "prototypes/design/Monopilot Design System/npd/fa-screens.jsx",
       "lines": "177-297",
       "component_type": "page-layout",
       "ui_pattern": "search-filter-list",
@@ -459,7 +459,7 @@
     },
     {
       "label": "fa_detail",
-      "file": "design/Monopilot Design System/npd/fa-screens.jsx",
+      "file": "prototypes/design/Monopilot Design System/npd/fa-screens.jsx",
       "lines": "300-401",
       "component_type": "tabs",
       "ui_pattern": "detail-view",
@@ -500,7 +500,7 @@
     },
     {
       "label": "fa_right_panel",
-      "file": "design/Monopilot Design System/npd/fa-screens.jsx",
+      "file": "prototypes/design/Monopilot Design System/npd/fa-screens.jsx",
       "lines": "404-452",
       "component_type": "sidebar",
       "ui_pattern": "detail-view",
@@ -529,7 +529,7 @@
     },
     {
       "label": "fa_core_tab",
-      "file": "design/Monopilot Design System/npd/fa-screens.jsx",
+      "file": "prototypes/design/Monopilot Design System/npd/fa-screens.jsx",
       "lines": "455-517",
       "component_type": "form",
       "ui_pattern": "crud-form-with-validation",
@@ -559,7 +559,7 @@
     },
     {
       "label": "fa_production_tab",
-      "file": "design/Monopilot Design System/npd/fa-screens.jsx",
+      "file": "prototypes/design/Monopilot Design System/npd/fa-screens.jsx",
       "lines": "571-653",
       "component_type": "form",
       "ui_pattern": "crud-form-with-validation",
@@ -589,7 +589,7 @@
     },
     {
       "label": "fa_technical_tab",
-      "file": "design/Monopilot Design System/npd/fa-screens.jsx",
+      "file": "prototypes/design/Monopilot Design System/npd/fa-screens.jsx",
       "lines": "656-743",
       "component_type": "form",
       "ui_pattern": "crud-form-with-validation",
@@ -622,7 +622,7 @@
     },
     {
       "label": "fa_mrp_tab",
-      "file": "design/Monopilot Design System/npd/fa-screens.jsx",
+      "file": "prototypes/design/Monopilot Design System/npd/fa-screens.jsx",
       "lines": "746-786",
       "component_type": "form",
       "ui_pattern": "crud-form-with-validation",
@@ -652,7 +652,7 @@
     },
     {
       "label": "fa_procurement_tab",
-      "file": "design/Monopilot Design System/npd/fa-screens.jsx",
+      "file": "prototypes/design/Monopilot Design System/npd/fa-screens.jsx",
       "lines": "789-820",
       "component_type": "form",
       "ui_pattern": "crud-form-with-validation",
@@ -681,7 +681,7 @@
     },
     {
       "label": "fa_bom_tab",
-      "file": "design/Monopilot Design System/npd/fa-screens.jsx",
+      "file": "prototypes/design/Monopilot Design System/npd/fa-screens.jsx",
       "lines": "823-868",
       "component_type": "table",
       "ui_pattern": "detail-view",
@@ -710,7 +710,7 @@
     },
     {
       "label": "fa_formulations_tab",
-      "file": "design/Monopilot Design System/npd/fa-screens.jsx",
+      "file": "prototypes/design/Monopilot Design System/npd/fa-screens.jsx",
       "lines": "871-918",
       "component_type": "tabs",
       "ui_pattern": "list-with-actions",
@@ -742,7 +742,7 @@
     },
     {
       "label": "fa_history_tab",
-      "file": "design/Monopilot Design System/npd/fa-screens.jsx",
+      "file": "prototypes/design/Monopilot Design System/npd/fa-screens.jsx",
       "lines": "921-950",
       "component_type": "table",
       "ui_pattern": "list-with-actions",
@@ -770,7 +770,7 @@
     },
     {
       "label": "brief_list",
-      "file": "design/Monopilot Design System/npd/brief-screens.jsx",
+      "file": "prototypes/design/Monopilot Design System/npd/brief-screens.jsx",
       "lines": "7-82",
       "component_type": "page-layout",
       "ui_pattern": "search-filter-list",
@@ -801,7 +801,7 @@
     },
     {
       "label": "brief_detail",
-      "file": "design/Monopilot Design System/npd/brief-screens.jsx",
+      "file": "prototypes/design/Monopilot Design System/npd/brief-screens.jsx",
       "lines": "84-231",
       "component_type": "page-layout",
       "ui_pattern": "crud-form-with-validation",
@@ -839,7 +839,7 @@
     },
     {
       "label": "formulation_list",
-      "file": "design/Monopilot Design System/npd/formulation-screens.jsx",
+      "file": "prototypes/design/Monopilot Design System/npd/formulation-screens.jsx",
       "lines": "7-76",
       "component_type": "page-layout",
       "ui_pattern": "search-filter-list",
@@ -867,7 +867,7 @@
     },
     {
       "label": "formulation_editor",
-      "file": "design/Monopilot Design System/npd/formulation-screens.jsx",
+      "file": "prototypes/design/Monopilot Design System/npd/formulation-screens.jsx",
       "lines": "79-153",
       "component_type": "page-layout",
       "ui_pattern": "crud-form-with-validation",
@@ -898,7 +898,7 @@
     },
     {
       "label": "pipeline",
-      "file": "design/Monopilot Design System/npd/pipeline.jsx",
+      "file": "prototypes/design/Monopilot Design System/npd/pipeline.jsx",
       "lines": "133-208",
       "component_type": "page-layout",
       "ui_pattern": "dashboard-tile",
@@ -928,7 +928,7 @@
     },
     {
       "label": "kanban_view",
-      "file": "design/Monopilot Design System/npd/pipeline.jsx",
+      "file": "prototypes/design/Monopilot Design System/npd/pipeline.jsx",
       "lines": "35-51",
       "component_type": "page-layout",
       "ui_pattern": "list-with-actions",
@@ -958,7 +958,7 @@
     },
     {
       "label": "split_view",
-      "file": "design/Monopilot Design System/npd/pipeline.jsx",
+      "file": "prototypes/design/Monopilot Design System/npd/pipeline.jsx",
       "lines": "89-131",
       "component_type": "page-layout",
       "ui_pattern": "detail-view",
@@ -990,7 +990,7 @@
     },
     {
       "label": "create_project_wizard",
-      "file": "design/Monopilot Design System/npd/project.jsx",
+      "file": "prototypes/design/Monopilot Design System/npd/project.jsx",
       "lines": "107-263",
       "component_type": "wizard",
       "ui_pattern": "multi-step-wizard",
@@ -1024,7 +1024,7 @@
     },
     {
       "label": "brief_screen",
-      "file": "design/Monopilot Design System/npd/project.jsx",
+      "file": "prototypes/design/Monopilot Design System/npd/project.jsx",
       "lines": "45-104",
       "component_type": "form",
       "ui_pattern": "crud-form-with-validation",
@@ -1058,7 +1058,7 @@
     },
     {
       "label": "recipe_screen",
-      "file": "design/Monopilot Design System/npd/recipe.jsx",
+      "file": "prototypes/design/Monopilot Design System/npd/recipe.jsx",
       "lines": "141-262",
       "component_type": "page-layout",
       "ui_pattern": "crud-form-with-validation",
@@ -1088,7 +1088,7 @@
     },
     {
       "label": "nutrition_panel",
-      "file": "design/Monopilot Design System/npd/recipe.jsx",
+      "file": "prototypes/design/Monopilot Design System/npd/recipe.jsx",
       "lines": "26-65",
       "component_type": "dashboard-tile",
       "ui_pattern": "detail-view",
@@ -1117,7 +1117,7 @@
     },
     {
       "label": "cost_panel",
-      "file": "design/Monopilot Design System/npd/recipe.jsx",
+      "file": "prototypes/design/Monopilot Design System/npd/recipe.jsx",
       "lines": "67-101",
       "component_type": "dashboard-tile",
       "ui_pattern": "detail-view",
@@ -1145,7 +1145,7 @@
     },
     {
       "label": "allergen_cascade",
-      "file": "design/Monopilot Design System/npd/allergen-screens.jsx",
+      "file": "prototypes/design/Monopilot Design System/npd/allergen-screens.jsx",
       "lines": "5-118",
       "component_type": "page-layout",
       "ui_pattern": "detail-view",
@@ -1175,7 +1175,7 @@
     },
     {
       "label": "compliance_docs_screen",
-      "file": "design/Monopilot Design System/npd/docs-screens.jsx",
+      "file": "prototypes/design/Monopilot Design System/npd/docs-screens.jsx",
       "lines": "6-43",
       "component_type": "table",
       "ui_pattern": "list-with-actions",
@@ -1206,7 +1206,7 @@
     },
     {
       "label": "risk_register_screen",
-      "file": "design/Monopilot Design System/npd/docs-screens.jsx",
+      "file": "prototypes/design/Monopilot Design System/npd/docs-screens.jsx",
       "lines": "46-88",
       "component_type": "table",
       "ui_pattern": "list-with-actions",
@@ -1236,7 +1236,7 @@
     },
     {
       "label": "nutrition_screen",
-      "file": "design/Monopilot Design System/npd/other-stages.jsx",
+      "file": "prototypes/design/Monopilot Design System/npd/other-stages.jsx",
       "lines": "4-80",
       "component_type": "page-layout",
       "ui_pattern": "detail-view",
@@ -1264,7 +1264,7 @@
     },
     {
       "label": "costing_screen",
-      "file": "design/Monopilot Design System/npd/other-stages.jsx",
+      "file": "prototypes/design/Monopilot Design System/npd/other-stages.jsx",
       "lines": "83-163",
       "component_type": "page-layout",
       "ui_pattern": "detail-view",
@@ -1293,7 +1293,7 @@
     },
     {
       "label": "trial_screen",
-      "file": "design/Monopilot Design System/npd/other-stages.jsx",
+      "file": "prototypes/design/Monopilot Design System/npd/other-stages.jsx",
       "lines": "215-243",
       "component_type": "page-layout",
       "ui_pattern": "list-with-actions",
@@ -1322,7 +1322,7 @@
     },
     {
       "label": "sensory_screen",
-      "file": "design/Monopilot Design System/npd/other-stages.jsx",
+      "file": "prototypes/design/Monopilot Design System/npd/other-stages.jsx",
       "lines": "246-336",
       "component_type": "page-layout",
       "ui_pattern": "detail-view",
@@ -1350,7 +1350,7 @@
     },
     {
       "label": "approval_screen",
-      "file": "design/Monopilot Design System/npd/other-stages.jsx",
+      "file": "prototypes/design/Monopilot Design System/npd/other-stages.jsx",
       "lines": "391-451",
       "component_type": "page-layout",
       "ui_pattern": "wizard-step",
@@ -1377,7 +1377,7 @@
     },
     {
       "label": "pilot_screen",
-      "file": "design/Monopilot Design System/npd/other-stages.jsx",
+      "file": "prototypes/design/Monopilot Design System/npd/other-stages.jsx",
       "lines": "339-388",
       "component_type": "page-layout",
       "ui_pattern": "detail-view",
@@ -1406,7 +1406,7 @@
     },
     {
       "label": "handoff_screen",
-      "file": "design/Monopilot Design System/npd/other-stages.jsx",
+      "file": "prototypes/design/Monopilot Design System/npd/other-stages.jsx",
       "lines": "455-507",
       "component_type": "page-layout",
       "ui_pattern": "wizard-step",
@@ -1432,7 +1432,7 @@
     },
     {
       "label": "gate_checklist_panel",
-      "file": "design/Monopilot Design System/npd/gate-screens.jsx",
+      "file": "prototypes/design/Monopilot Design System/npd/gate-screens.jsx",
       "lines": "106-258",
       "component_type": "page-layout",
       "ui_pattern": "dashboard-tile",
@@ -1468,7 +1468,7 @@
     },
     {
       "label": "advance_gate_modal",
-      "file": "design/Monopilot Design System/npd/gate-screens.jsx",
+      "file": "prototypes/design/Monopilot Design System/npd/gate-screens.jsx",
       "lines": "261-377",
       "component_type": "modal",
       "ui_pattern": "crud-form-with-validation",
@@ -1503,7 +1503,7 @@
     },
     {
       "label": "gate_approval_modal",
-      "file": "design/Monopilot Design System/npd/gate-screens.jsx",
+      "file": "prototypes/design/Monopilot Design System/npd/gate-screens.jsx",
       "lines": "378-522",
       "component_type": "modal",
       "ui_pattern": "crud-form-with-validation",
@@ -1541,7 +1541,7 @@
     },
     {
       "label": "approval_history_timeline",
-      "file": "design/Monopilot Design System/npd/gate-screens.jsx",
+      "file": "prototypes/design/Monopilot Design System/npd/gate-screens.jsx",
       "lines": "525-616",
       "component_type": "page-layout",
       "ui_pattern": "detail-view",
@@ -1571,7 +1571,7 @@
     },
     {
       "label": "npd_allergen_override_modal",
-      "file": "design/Monopilot Design System/npd/modals.jsx",
+      "file": "prototypes/design/Monopilot Design System/npd/modals.jsx",
       "lines": "389-428",
       "component_type": "modal",
       "ui_pattern": "crud-form-with-validation",
@@ -1579,9 +1579,9 @@
       "interaction": "edit",
       "complexity": "composite",
       "depends_on_prototypes": [
-        "design/Monopilot Design System/_shared/modals.jsx#Modal",
-        "design/Monopilot Design System/_shared/modals.jsx#Field",
-        "design/Monopilot Design System/_shared/modals.jsx#ReasonInput"
+        "prototypes/design/Monopilot Design System/_shared/modals.jsx#Modal",
+        "prototypes/design/Monopilot Design System/_shared/modals.jsx#Field",
+        "prototypes/design/Monopilot Design System/_shared/modals.jsx#ReasonInput"
       ],
       "translation_notes": [
         "window.Modal → @radix-ui/react-dialog Dialog with size='default'; allergen + FA code come from parent server component query, not window.NPD_FAS global",
@@ -1607,7 +1607,7 @@
     },
     {
       "label": "npd_nutrition_screen",
-      "file": "design/Monopilot Design System/npd/other-stages.jsx",
+      "file": "prototypes/design/Monopilot Design System/npd/other-stages.jsx",
       "lines": "4-80",
       "component_type": "page-layout",
       "ui_pattern": "detail-view",
@@ -1639,7 +1639,7 @@
     },
     {
       "label": "npd_costing_screen",
-      "file": "design/Monopilot Design System/npd/other-stages.jsx",
+      "file": "prototypes/design/Monopilot Design System/npd/other-stages.jsx",
       "lines": "83-163",
       "component_type": "page-layout",
       "ui_pattern": "detail-view",

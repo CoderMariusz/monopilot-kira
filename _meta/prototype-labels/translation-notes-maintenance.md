@@ -1,7 +1,7 @@
 # Prototype Translation Notes — Maintenance Module
 
 Generated: 2026-04-23
-Source files: `design/Monopilot Design System/maintenance/`
+Source files: `prototypes/design/Monopilot Design System/maintenance/`
 Covers: modals.jsx, dashboard.jsx, assets.jsx, work-orders.jsx, pm-schedules.jsx, spares.jsx, other-screens.jsx
 Backlog cross-reference: BACKLOG.md § Maintenance (BL-MAINT-01..07)
 

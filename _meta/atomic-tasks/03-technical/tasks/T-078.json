@@ -12,7 +12,7 @@
   "pipeline_name": "kira_dev",
   "pipeline_inputs": {
     "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
-    "source_prd": "03-TECHNICAL-PRD.md",
+    "source_prd": "docs/prd/03-TECHNICAL-PRD.md",
     "category": "ui",
     "context_budget": "30k",
     "estimated_effort": "2-3h",
@@ -46,21 +46,21 @@
       "§0",
       "§5.0",
       "§7.4",
-      "design/03-TECHNICAL-UX.md §0A"
+      "prototypes/design/03-TECHNICAL-UX.md §0A"
     ],
     "subcategory": "ux-red-lines",
     "task_type": "T3-ui",
     "parent_feature": "03-TECHNICAL UI Governance",
-    "details": "Use this as a UI governance task for ACP agents. Existing prototype labels may contain FA/PR or D365-first assumptions; agents must preserve layout and interactions while correcting domain copy and blocking states per PRD v3.3. For BOM detail, prototype path `design/Monopilot Design System/technical/bom-detail.jsx:650-930` is the visual anchor; for modals, use `design/Monopilot Design System/technical/modals.jsx:94-180` and `design/Monopilot Design System/technical/modals.jsx:371-475` where relevant. T-083 provides the local production copy/guard red-line overlay and must be treated as the concrete checklist for UI closeout copy assertions.",
+    "details": "Use this as a UI governance task for ACP agents. Existing prototype labels may contain FA/PR or D365-first assumptions; agents must preserve layout and interactions while correcting domain copy and blocking states per PRD v3.3. For BOM detail, prototype path `prototypes/design/Monopilot Design System/technical/bom-detail.jsx:650-930` is the visual anchor; for modals, use `prototypes/design/Monopilot Design System/technical/modals.jsx:94-180` and `prototypes/design/Monopilot Design System/technical/modals.jsx:371-475` where relevant. T-083 provides the local production copy/guard red-line overlay and must be treated as the concrete checklist for UI closeout copy assertions.",
     "scope_files": [
-      "design/03-TECHNICAL-UX.md",
+      "prototypes/design/03-TECHNICAL-UX.md",
       "_meta/atomic-tasks/03-technical/tasks/T-032..T-063.json",
       "_meta/atomic-tasks/03-technical/tasks/T-083.json"
     ],
     "acceptance_criteria": [
-      "Given a UI implementation references `design/Monopilot Design System/technical/bom-detail.jsx:650-930`, then it preserves structural, visual and interaction parity while showing FG/WIP naming and the active-edit creates new draft approval banner.",
-      "Given a BOM component modal references `design/Monopilot Design System/technical/modals.jsx:133-170`, then it preserves structural, visual and interaction parity while adding the RM usability check rows.",
-      "Given D365 UI references `design/Monopilot Design System/technical/modals.jsx:475-540`, then it preserves structural, visual and interaction parity and includes a disabled optional-integration state.",
+      "Given a UI implementation references `prototypes/design/Monopilot Design System/technical/bom-detail.jsx:650-930`, then it preserves structural, visual and interaction parity while showing FG/WIP naming and the active-edit creates new draft approval banner.",
+      "Given a BOM component modal references `prototypes/design/Monopilot Design System/technical/modals.jsx:133-170`, then it preserves structural, visual and interaction parity while adding the RM usability check rows.",
+      "Given D365 UI references `prototypes/design/Monopilot Design System/technical/modals.jsx:475-540`, then it preserves structural, visual and interaction parity and includes a disabled optional-integration state.",
       "Given any Supplier Specs or Lab Results tab is implemented, then copy states supplier_specs are Technical Phase 1 master data and lab status is Quality-owned read-only.",
       "Given T-083 red-line overlay exists, then UI task closeout references it and proves legacy copy/D365-first wording was not carried from prototypes into production UI.",
       "UI closeout includes screenshot/artifact evidence and Playwright trace/artifacts where applicable per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`; if Playwright is unavailable, document the blocker and provide RTL/snapshot fallback evidence."

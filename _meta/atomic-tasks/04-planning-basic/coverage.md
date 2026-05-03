@@ -1,6 +1,6 @@
 # PRD Coverage — 04-PLANNING-BASIC full module readiness
 
-Source PRD: `04-PLANNING-BASIC-PRD.md` v3.3 + Wave0 / Wave Next-3 decisions dated 2026-05-03.
+Source PRD: `docs/prd/04-PLANNING-BASIC-PRD.md` v3.3 + Wave0 / Wave Next-3 decisions dated 2026-05-03.
 Target: 95%+ docs/meta/prototype/task readiness for ACP import and autonomous implementation. This coverage file covers the full Planning Basic module, not only the accepted release read-model contract slice.
 
 ## Readiness verdict

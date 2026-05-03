@@ -1,6 +1,6 @@
 {
   "title": "T-049 — UI parity: OEE, downtime and waste analytics screens",
-  "prompt": "# T-049 — UI parity: OEE, downtime and waste analytics screens\n\nPRD/UX refs: SCR-08-04, SCR-08-05, SCR-08-07, prototype labels waste_analytics_screen,downtime_screen,oee_screen,waste_modal,pause_line_modal,resume_line_modal\n\nGoal: Build analytics screens for waste, downtime and OEE with forms/modals matching prototypes.\n\nImplementation details:\nUse Next.js App Router Server Components by default, shadcn/ui components, next-intl keys, org-scoped data access, loading/empty/error states, and literal data-prototype-label markers matching _meta/prototype-labels/prototype-index-production.json. Closeout must include desktop screenshots and Playwright traces. Match new-screens.jsx:4-209, other-screens.jsx:4-212, modals.jsx:69-117,185-204,328-342. Data comes from T-036/T-037/T-044 and taxonomy T-035/T-045. Charts must have accessible table fallbacks and filter state in URL params.\n\nScope files:\n- apps/web/app/production/oee/page.tsx [create]\n- apps/web/app/production/downtime/page.tsx [create]\n- apps/web/app/production/waste/page.tsx [create]\n- apps/web/components/production/downtime-modals.tsx [create]\n- design/Monopilot Design System/production/new-screens.jsx:4-209\n- design/Monopilot Design System/production/other-screens.jsx:4-212\n\nAcceptance criteria:\n1. OEE/downtime/waste pages match prototype labels and support filters\n2. Pause/resume/log waste modals validate required taxonomy fields\n3. Closeout includes screenshots for all three screens and a Playwright trace\n\nEvidence: include screenshots/artifacts and Playwright traces/artifacts for UI/E2E tasks; include API test output for backend tasks.",
+  "prompt": "# T-049 — UI parity: OEE, downtime and waste analytics screens\n\nPRD/UX refs: SCR-08-04, SCR-08-05, SCR-08-07, prototype labels waste_analytics_screen,downtime_screen,oee_screen,waste_modal,pause_line_modal,resume_line_modal\n\nGoal: Build analytics screens for waste, downtime and OEE with forms/modals matching prototypes.\n\nImplementation details:\nUse Next.js App Router Server Components by default, shadcn/ui components, next-intl keys, org-scoped data access, loading/empty/error states, and literal data-prototype-label markers matching _meta/prototype-labels/prototype-index-production.json. Closeout must include desktop screenshots and Playwright traces. Match new-screens.jsx:4-209, other-screens.jsx:4-212, modals.jsx:69-117,185-204,328-342. Data comes from T-036/T-037/T-044 and taxonomy T-035/T-045. Charts must have accessible table fallbacks and filter state in URL params.\n\nScope files:\n- apps/web/app/production/oee/page.tsx [create]\n- apps/web/app/production/downtime/page.tsx [create]\n- apps/web/app/production/waste/page.tsx [create]\n- apps/web/components/production/downtime-modals.tsx [create]\n- prototypes/design/Monopilot Design System/production/new-screens.jsx:4-209\n- prototypes/design/Monopilot Design System/production/other-screens.jsx:4-212\n\nAcceptance criteria:\n1. OEE/downtime/waste pages match prototype labels and support filters\n2. Pause/resume/log waste modals validate required taxonomy fields\n3. Closeout includes screenshots for all three screens and a Playwright trace\n\nEvidence: include screenshots/artifacts and Playwright traces/artifacts for UI/E2E tasks; include API test output for backend tasks.",
   "labels": [
     "prd",
     "T3-ui",
@@ -12,7 +12,7 @@
   "pipeline_inputs": {
     "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
     "prd_task_id": "T-049",
-    "source_prd": "08-PRODUCTION-PRD.md",
+    "source_prd": "docs/prd/08-PRODUCTION-PRD.md",
     "prd_refs": [
       "SCR-08-04",
       "SCR-08-05",
@@ -26,14 +26,14 @@
     "context_budget": "40k",
     "estimated_effort": "2-4h",
     "description": "Build analytics screens for waste, downtime and OEE with forms/modals matching prototypes.",
-    "details": "Use Next.js App Router Server Components by default, shadcn/ui components, next-intl keys, org-scoped data access, loading/empty/error states, and literal data-prototype-label markers matching _meta/prototype-labels/prototype-index-production.json. Closeout must include desktop screenshots and Playwright traces. Match new-screens.jsx:4-209, other-screens.jsx:4-212, modals.jsx:69-117,185-204,328-342. Data comes from T-036/T-037/T-044 and taxonomy T-035/T-045. Charts must have accessible table fallbacks and filter state in URL params.",
+    "details": "Use Next.js App Router Server Components by default, shadcn/ui components, next-intl keys, org-scoped data access, loading/empty/error states, and literal data-prototype-label markers matching _meta/prototype-labels/prototype-index-production.json. Closeout must include desktop screenshots and Playwright traces. Match prototypes/design/Monopilot Design System/production/new-screens.jsx:4-209, prototypes/design/Monopilot Design System/production/other-screens.jsx:4-212, prototypes/design/Monopilot Design System/production/modals.jsx:69-117,185-204,328-342. Data comes from T-036/T-037/T-044 and taxonomy T-035/T-045. Charts must have accessible table fallbacks and filter state in URL params.",
     "scope_files": [
       "apps/web/app/production/oee/page.tsx [create]",
       "apps/web/app/production/downtime/page.tsx [create]",
       "apps/web/app/production/waste/page.tsx [create]",
       "apps/web/components/production/downtime-modals.tsx [create]",
-      "design/Monopilot Design System/production/new-screens.jsx:4-209",
-      "design/Monopilot Design System/production/other-screens.jsx:4-212"
+      "prototypes/design/Monopilot Design System/production/new-screens.jsx:4-209",
+      "prototypes/design/Monopilot Design System/production/other-screens.jsx:4-212"
     ],
     "dependencies": [
       "T-036",

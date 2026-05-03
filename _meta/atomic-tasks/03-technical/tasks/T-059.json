@@ -1,6 +1,6 @@
 {
   "title": "T-059 — UI: TEC-091 D365 Drift Resolution table",
-  "prompt": "Build D365 drift resolution per §13A. Table of items where local.updated_at > d365_last_sync_at AND content diffs (V-TEC-73). Bulk accept/reject. Match `d365_drift_screen` design/Monopilot Design System/technical/other-screens.jsx:981-1022 and `d365_drift_resolve_modal` design/Monopilot Design System/technical/modals.jsx:562-598. RED tests/ui/tec-091-drift.test.tsx. Run: `pnpm vitest run tests/ui/tec-091-drift.test.tsx`. Prototype naming red-line: translate any legacy prototype/domain labels `fa`/`FA5100`/Factory Article to canonical `fg`/FG, any `PR-code` wording to WIP/intermediate, and any `process_stage`/`process_code` to `manufacturing_operation_name`; do not introduce legacy field names in final code, labels, tests or schemas.",
+  "prompt": "Build D365 drift resolution per §13A. Table of items where local.updated_at > d365_last_sync_at AND content diffs (V-TEC-73). Bulk accept/reject. Match `d365_drift_screen` prototypes/design/Monopilot Design System/technical/other-screens.jsx:981-1022 and `d365_drift_resolve_modal` prototypes/design/Monopilot Design System/technical/modals.jsx:562-598. RED tests/ui/tec-091-drift.test.tsx. Run: `pnpm vitest run tests/ui/tec-091-drift.test.tsx`. Prototype naming red-line: translate any legacy prototype/domain labels `fa`/`FA5100`/Factory Article to canonical `fg`/FG, any `PR-code` wording to WIP/intermediate, and any `process_stage`/`process_code` to `manufacturing_operation_name`; do not introduce legacy field names in final code, labels, tests or schemas.",
   "labels": [
     "prd",
     "ui",
@@ -13,7 +13,7 @@
   "pipeline_inputs": {
     "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
     "prd_task_id": "T-059",
-    "source_prd": "03-TECHNICAL-PRD.md",
+    "source_prd": "docs/prd/03-TECHNICAL-PRD.md",
     "prd_refs": [
       "§13A TEC-091"
     ],
@@ -42,7 +42,7 @@
       "T-058"
     ],
     "acceptance_criteria": [
-      "Given the drift page renders, when compared to design/Monopilot Design System/technical/other-screens.jsx:981-1022 and design/Monopilot Design System/technical/modals.jsx:562-598, then table columns, modal field set, and bulk-action buttons match — structural + visual + interaction parity verified by RTL.",
+      "Given the drift page renders, when compared to prototypes/design/Monopilot Design System/technical/other-screens.jsx:981-1022 and prototypes/design/Monopilot Design System/technical/modals.jsx:562-598, then table columns, modal field set, and bulk-action buttons match — structural + visual + interaction parity verified by RTL.",
       "Given authorized user selects 3 rows + Accept bulk, when submitted, then authorized overwrite/import actions are audited and table refreshes; without authorization bulk actions are disabled/403.",
       "Given user lacks technical.d365.sync.trigger, when on page, then bulk actions are disabled.",
       "UI closeout includes screenshot/artifact evidence and Playwright trace/artifacts where applicable per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`; if Playwright is unavailable, document the blocker and provide RTL/snapshot fallback evidence."

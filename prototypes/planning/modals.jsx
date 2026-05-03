@@ -1514,7 +1514,7 @@ const ModalGallery = ({ onNav }) => {
         <span>ⓘ</span>
         <div>
           <b>Click any card to open the modal.</b> All modals share the same primitives (<span className="mono">Modal</span>, <span className="mono">Stepper</span>, <span className="mono">Field</span>, <span className="mono">ReasonInput</span>, <span className="mono">Summary</span>).
-          <br/>Schema doc: <span className="mono">design/Monopilot Design System/planning/MODAL-SCHEMA.md</span> — read before adding new modals.
+          <br/>Schema doc: <span className="mono">prototypes/design/Monopilot Design System/planning/MODAL-SCHEMA.md</span> — read before adding new modals.
         </div>
       </div>
 

@@ -1,8 +1,8 @@
 # 06-SCANNER-P1 PRD Amendments — 2026-04-30 Reconciliation Pass
 
 **Source audit:** `_meta/audits/2026-04-30-design-prd-coverage.md` §06-SCANNER-P1 (Module already at ~95%, "best-aligned module"; only minor polish items called out: SCN-011b/c PIN setup variants UX-only, `inquiry_screen` orphan, plus the post-labeling-fix `devices_screen` moved into the scanner prototype index)
-**Target file:** `06-SCANNER-P1-PRD.md` (now v3.1.1)
-**Scope discipline:** Strictly within 06-SCANNER-P1. UX file (`design/06-SCANNER-P1-UX.md`) untouched. Only ADD or RE-ORDER inside the PRD; no deletions.
+**Target file:** `docs/prd/06-SCANNER-P1-PRD.md` (now v3.1.1)
+**Scope discipline:** Strictly within 06-SCANNER-P1. UX file (`prototypes/design/06-SCANNER-P1-UX.md`) untouched. Only ADD or RE-ORDER inside the PRD; no deletions.
 
 ---
 
@@ -23,14 +23,14 @@ The `devices_screen` migration matters: during the 2026-04-30 labeling fix it mo
 
 ## 2. Sections added / amended
 
-All inside `06-SCANNER-P1-PRD.md` v3.1.1; no sections removed.
+All inside `docs/prd/06-SCANNER-P1-PRD.md` v3.1.1; no sections removed.
 
 | New PRD ID / locator | Title | UX source line | Source prototype path | ~Words |
 |---|---|---|---|---|
-| FR-SC-FE-003b (§8.1) | SCN-011b PIN First-time Setup (forced 2-step Set/Confirm) | `design/06-SCANNER-P1-UX.md:240-249` §3.3 | `design/Monopilot Design System/scanner/login.jsx:58-112` (`pin_screen` reused) | ~110 |
-| FR-SC-FE-003c (§8.1) | SCN-011c PIN Change Self-service (3-step Old/New/Confirm) | `design/06-SCANNER-P1-UX.md:253-258` §3.4 | `design/Monopilot Design System/scanner/login.jsx:58-112` (`pin_screen` reused) | ~80 |
-| FR-SC-FE-004b (§8.1) | SCN-013 Devices fleet management (org admin entry) | (no dedicated UX section — covered via 02-SETTINGS Org Admin entry-point + scanner-side rendering) | `design/Monopilot Design System/settings/ops-screens.jsx:4-95` (`devices_screen`, moved from settings index 2026-04-30) | ~140 |
-| FR-SC-FE-074 + FR-SC-BE-072 (§8.6) | SCN-095 LP Inquiry (P2 with P1 shell) | `design/06-SCANNER-P1-UX.md:1057-1063` §5.7 | `design/Monopilot Design System/scanner/flow-other.jsx:391-438` (`inquiry_screen`) | ~140 |
+| FR-SC-FE-003b (§8.1) | SCN-011b PIN First-time Setup (forced 2-step Set/Confirm) | `prototypes/design/06-SCANNER-P1-UX.md:240-249` §3.3 | `prototypes/design/Monopilot Design System/scanner/login.jsx:58-112` (`pin_screen` reused) | ~110 |
+| FR-SC-FE-003c (§8.1) | SCN-011c PIN Change Self-service (3-step Old/New/Confirm) | `prototypes/design/06-SCANNER-P1-UX.md:253-258` §3.4 | `prototypes/design/Monopilot Design System/scanner/login.jsx:58-112` (`pin_screen` reused) | ~80 |
+| FR-SC-FE-004b (§8.1) | SCN-013 Devices fleet management (org admin entry) | (no dedicated UX section — covered via 02-SETTINGS Org Admin entry-point + scanner-side rendering) | `prototypes/design/Monopilot Design System/settings/ops-screens.jsx:4-95` (`devices_screen`, moved from settings index 2026-04-30) | ~140 |
+| FR-SC-FE-074 + FR-SC-BE-072 (§8.6) | SCN-095 LP Inquiry (P2 with P1 shell) | `prototypes/design/06-SCANNER-P1-UX.md:1057-1063` §5.7 | `prototypes/design/Monopilot Design System/scanner/flow-other.jsx:391-438` (`inquiry_screen`) | ~140 |
 | §8.8 (new) | UI Surfaces Traceability Matrix (bidirectional PRD ↔ UX line ↔ prototype label) | n/a (matrix consolidates all §3.x UX refs) | n/a (matrix references all `prototype-index-scanner.json` labels) | 24 screen rows + 11 modal rows |
 | §7.3 update | Screen catalog table extended with SCN-011b, SCN-011c, SCN-013, SCN-095 | n/a | n/a | 4 new rows |
 | Related ADRs | Added ADR-034 reference (generic naming convention applies to "Devices"/"LP"/"WO" labels) | n/a | n/a | 1 line |
@@ -61,7 +61,7 @@ None blocking. Two soft follow-ups for Phase E:
 
 | Tag | Description | Owner |
 |---|---|---|
-| SCN-PRD-AMEND-01 | If/when SCN-013 Devices gets a dedicated `design/06-SCANNER-P1-UX.md` section (rather than the current cross-anchor via 02-SETTINGS Org Admin), update the §8.8 matrix UX-line column from "(no dedicated section …)" to the actual `:NNN` line. | UX writer |
+| SCN-PRD-AMEND-01 | If/when SCN-013 Devices gets a dedicated `prototypes/design/06-SCANNER-P1-UX.md` section (rather than the current cross-anchor via 02-SETTINGS Org Admin), update the §8.8 matrix UX-line column from "(no dedicated section …)" to the actual `:NNN` line. | UX writer |
 | SCN-PRD-AMEND-02 | When P2 lands, FR-SC-FE-074 SCN-095 should drop the `flags.scanner_lp_inquiry` feature flag and the prototype's "P2 preview" Banner; the Inquiry tile in SCN-home Magazyn section flips from P2 placeholder to active. | Phase E impl |
 
 ---
@@ -76,8 +76,8 @@ None blocking. Two soft follow-ups for Phase E:
 - [x] Direction A: 0 blockers — every SCN-NNN cites a UX line (SCN-013 cross-anchors via 02-SETTINGS Org Admin until UX writer adds a dedicated section; SCN-090 explicitly `[NO-PROTOTYPE-YET]` P2-deferred).
 - [x] Direction B: 0 orphans — `pin_screen` multi-anchored (SCN-011/011b/011c), `block_fullscreen` multi-anchored (SCN-error + Use-by Hard Block), `devices_screen` anchored to SCN-013, `inquiry_screen` anchored to SCN-095.
 - [x] ADR-034 markers present in new content (§7.3 footer note, FR-SC-FE-003b/004b/074, §8.8 preamble, Appendix B Related ADRs).
-- [x] No content deleted from `06-SCANNER-P1-PRD.md`.
-- [x] UX file `design/06-SCANNER-P1-UX.md` not touched.
+- [x] No content deleted from `docs/prd/06-SCANNER-P1-PRD.md`.
+- [x] UX file `prototypes/design/06-SCANNER-P1-UX.md` not touched.
 
 ---
 

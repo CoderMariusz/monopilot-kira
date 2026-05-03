@@ -3,7 +3,7 @@
 **Date:** 2026-04-30
 **Generator model:** claude-opus-4-7
 **Skill:** prd-decompose-hybrid
-**Slice:** 02-SETTINGS-PRD.md §14.3 Onboarding Wizard + §14.4 UI surfaces (lines 1516-1547, ~30 lines of PRD)
+**Slice:** docs/prd/02-SETTINGS-PRD.md §14.3 Onboarding Wizard + §14.4 UI surfaces (lines 1516-1547, ~30 lines of PRD)
 
 ## Result: ✅ PASS
 

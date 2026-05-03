@@ -254,7 +254,7 @@ Bardziej realistic niż 588. Zgodne z twoim 47 output.
 1. `_meta/plans/2026-04-22-phase-e-kickoff-plan.md` (the plan — what, why, when)
 2. `_foundation/decisions/ADR-032-settings-minimum-carveout-for-npd-unlock.md` (helper A — architectural decision)
 3. `_meta/plans/atomic-task-decomposition-guide.md` (helper B — this doc, HOW to decompose)
-4. PRD źródłowe: `00-FOUNDATION-PRD.md`, `01-NPD-PRD.md`, `02-SETTINGS-PRD.md` (filtered sections only — skill decyduje jakie)
+4. PRD źródłowe: `docs/prd/00-FOUNDATION-PRD.md`, `docs/prd/01-NPD-PRD.md`, `docs/prd/02-SETTINGS-PRD.md` (filtered sections only — skill decyduje jakie)
 5. User's existing 47 tasks (jeśli feature-level — skill je expanduje; jeśli atomic — skill je valiuje + dopełnia)
 
 **Output:**
@@ -365,7 +365,7 @@ Skill-creator (user's next step) powinien embeddować §11.3 test JAKO CORE VALI
 
 ### §12.1 Context
 
-`design/Monopilot Design System/` zawiera **~48k linii JSX prototypów** (15 modułów, ~200 modals + formy + tabele) — reference dla production UI. Naiwne podejście "Opus czyta prototype + pisze production" = context overflow + drogie.
+`prototypes/design/Monopilot Design System/` zawiera **~48k linii JSX prototypów** (15 modułów, ~200 modals + formy + tabele) — reference dla production UI. Naiwne podejście "Opus czyta prototype + pisze production" = context overflow + drogie.
 
 Lepsza strategia: **Haiku pre-pass labeluje + indeksuje prototypy**, potem T3 UI atomic tasks dostają pre-loaded snippet + translation notes. Haiku ~60x tańszy niż Opus dla rote extraction.
 
@@ -408,7 +408,7 @@ Per entry (one per identifiable reusable component):
 ```json
 {
   "label": "crud_modal_create_fa",
-  "file": "design/Monopilot Design System/npd/modals.jsx",
+  "file": "prototypes/design/Monopilot Design System/npd/modals.jsx",
   "lines": "100-220",
   "component_type": "modal",
   "ui_pattern": "crud-form-with-validation",
@@ -502,7 +502,7 @@ Context budget audit: snippet ~3-8k + translation notes ~1-2k + task spec ~3-5k 
 **Prompt template dla Haiku per module:**
 
 ```
-You are scanning prototype JSX in design/Monopilot Design System/<module>/.
+You are scanning prototype JSX in prototypes/design/Monopilot Design System/<module>/.
 
 For each distinct reusable component (modal, form, table, wizard step, etc.):
 1. Extract exact file + line range
@@ -528,7 +528,7 @@ Do NOT write production code. Only extract + classify + describe translations.
 
 ### §12.9 Known bugs integration
 
-Cross-reference **`design/Monopilot Design System/BACKLOG.md`** per module:
+Cross-reference **`prototypes/design/Monopilot Design System/BACKLOG.md`** per module:
 - BL-SHARED-01 (resolved 2026-04-21) — hook ordering fix
 - BL-SCN-01..08 scanner follow-ups
 - BL-WH-01..06 warehouse (cycle count, ZPL render)

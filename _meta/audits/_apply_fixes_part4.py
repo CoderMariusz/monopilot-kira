@@ -9,7 +9,7 @@ PL_DIR = Path("/Users/mariuszkrawczyk/Projects/monopilot-kira/_meta/prototype-la
 # Custom remediations
 SPECIAL_REMEDIATIONS = {
     # bom-list.jsx → KPI (KpiTile) — file has KpiTile export
-    "unresolved:bom-list.jsx → KPI (KpiTile)": "design/Monopilot Design System/technical/bom-list.jsx#KpiTile",
+    "unresolved:bom-list.jsx → KPI (KpiTile)": "prototypes/design/Monopilot Design System/technical/bom-list.jsx#KpiTile",
     # bol_sign_modal — typo? closest master match is bol_sign_upload_modal
     "unresolved:bol_sign_modal": "bol_sign_upload_modal",
     # bare _shared/ — keep as unresolved (no info to resolve)

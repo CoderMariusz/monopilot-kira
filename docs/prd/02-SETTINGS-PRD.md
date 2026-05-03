@@ -170,8 +170,8 @@ Required Settings responsibilities:
 
 This amendment supersedes older ambiguity in the readiness report and task backlog:
 
-- Canonical Settings prototype source of truth is `design/Monopilot Design System/settings/*.jsx`.
-- Global **Import / Export** (`/settings/import-export`, UX SET-029) is Phase 1 scope. If no exact canonical prototype exists, implement spec-driven from `design/02-SETTINGS-UX.md` and reuse available prototype elements/patterns only where they match the UX contract.
+- Canonical Settings prototype source of truth is `prototypes/design/Monopilot Design System/settings/*.jsx`.
+- Global **Import / Export** (`/settings/import-export`, UX SET-029) is Phase 1 scope. If no exact canonical prototype exists, implement spec-driven from `prototypes/design/02-SETTINGS-UX.md` and reuse available prototype elements/patterns only where they match the UX contract.
 - **Roles & Permissions** (`/settings/roles`, UX SET-011) is Phase 1 scope as a dedicated screen; it is not covered by the Users list alone.
 - **Pending Invitations** (`/settings/invitations`, UX SET-010) is Phase 1 scope as a dedicated screen; it may reuse Invite User modal/actions but must have its own route/screen.
 - **Per-org authorization policies** for NPD post-release edits and Technical approval gates are Phase 1 Settings/Auth scope. Settings must configure who can request, authorize, and approve; NPD/Technical must only consume the resulting policy.
@@ -1965,9 +1965,9 @@ Gate: onboarding < 15min ready for customer beta.
 ### 16.4 References
 
 **Phase B/C dependencies:**
-- [`00-FOUNDATION-PRD.md`](./00-FOUNDATION-PRD.md) v3.0 — §1 principles, §4 Module Map, §5 Tech Stack, §6-10 foundations
-- [`01-NPD-PRD.md`](./01-NPD-PRD.md) v3.0 — §6 cascading, §7 workflow, §8 allergens, §10 D365 Builder (consumer 02-SETTINGS provisioning)
-- [`03-TECHNICAL-PRD.md`](./03-TECHNICAL-PRD.md) v3.0 — sibling (Phase C1 writing)
+- [`docs/prd/00-FOUNDATION-PRD.md`](./docs/prd/00-FOUNDATION-PRD.md) v3.0 — §1 principles, §4 Module Map, §5 Tech Stack, §6-10 foundations
+- [`docs/prd/01-NPD-PRD.md`](./docs/prd/01-NPD-PRD.md) v3.0 — §6 cascading, §7 workflow, §8 allergens, §10 D365 Builder (consumer 02-SETTINGS provisioning)
+- [`docs/prd/03-TECHNICAL-PRD.md`](./docs/prd/03-TECHNICAL-PRD.md) v3.0 — sibling (Phase C1 writing)
 
 **Reality sources:**
 - [`_meta/reality-sources/pld-v7-excel/REFERENCE-TABLES.md`](./_meta/reality-sources/pld-v7-excel/REFERENCE-TABLES.md) — 8 tabel baseline

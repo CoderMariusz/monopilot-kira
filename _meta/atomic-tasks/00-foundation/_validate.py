@@ -88,7 +88,7 @@ def main():
         if tt == "T3-ui":
             has_parity = False
             for c in ac:
-                if ("design/Monopilot Design System/" in c or "prototype" in c.lower()) and LINE_RANGE_RE.search(c):
+                if ("prototypes/design/Monopilot Design System/" in c or "prototype" in c.lower()) and LINE_RANGE_RE.search(c):
                     has_parity = True
                     break
             check(has_parity, f"{tid}: T3-ui task lacks parity AC with prototype path + line-range", errors)

@@ -68,7 +68,7 @@ Results:
 - Master index: no Planning labels missing.
 - Duplicate Planning labels: none.
 - `git diff --check`: OK.
-- PRD stale blocker search for `NO-PROTOTYPE-YET|NO-UX-YET|PROTO-GAP|TODO`: 0 matches in `04-PLANNING-BASIC-PRD.md`.
+- PRD stale blocker search for `NO-PROTOTYPE-YET|NO-UX-YET|PROTO-GAP|TODO`: 0 matches in `docs/prd/04-PLANNING-BASIC-PRD.md`.
 
 ## Remaining questions / non-blockers
 

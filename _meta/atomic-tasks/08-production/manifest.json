@@ -1,5 +1,5 @@
 {
-  "source_prd": "08-PRODUCTION-PRD.md",
+  "source_prd": "docs/prd/08-PRODUCTION-PRD.md",
   "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
   "generated_at": "2026-05-03T12:00:00Z",
   "generator": "wave-next-production-full-readiness-hardening",

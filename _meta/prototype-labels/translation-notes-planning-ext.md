@@ -1,6 +1,6 @@
 # Translation Notes — Planning Extended (planning-ext)
 
-Prototype module: `design/Monopilot Design System/planning-ext/`
+Prototype module: `prototypes/design/Monopilot Design System/planning-ext/`
 Generated: 2026-04-23
 Components indexed: 23
 

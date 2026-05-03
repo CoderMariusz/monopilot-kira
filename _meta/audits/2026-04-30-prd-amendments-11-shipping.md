@@ -2,7 +2,7 @@
 
 **Date:** 2026-04-30
 **Source audit:** `_meta/audits/2026-04-30-design-prd-coverage.md` §11-SHIPPING (40% coverage, ~12 orphan UX/prototype screens)
-**Target file:** `/Users/mariuszkrawczyk/Projects/monopilot-kira/11-SHIPPING-PRD.md`
+**Target file:** `/Users/mariuszkrawczyk/Projects/monopilot-kira/docs/prd/11-SHIPPING-PRD.md`
 **Version bump:** v3.1 → v3.2
 **Scope:** Strictly within 11-SHIPPING module. No other PRD/UX touched.
 

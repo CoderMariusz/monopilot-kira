@@ -13,7 +13,7 @@
   "pipeline_inputs": {
     "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
     "prd_task_id": "T-060",
-    "source_prd": "03-TECHNICAL-PRD.md",
+    "source_prd": "docs/prd/03-TECHNICAL-PRD.md",
     "prd_refs": [
       "§0",
       "§5.0",
@@ -52,7 +52,7 @@
       "T-062"
     ],
     "acceptance_criteria": [
-      "Given list and modal render, when compared to design/Monopilot Design System/technical/modals.jsx:460-483 and design/Monopilot Design System/technical/other-screens.jsx:74-108, then list columns and modal field set match — structural + visual + interaction parity verified by RTL.",
+      "Given list and modal render, when compared to prototypes/design/Monopilot Design System/technical/modals.jsx:460-483 and prototypes/design/Monopilot Design System/technical/other-screens.jsx:74-108, then list columns and modal field set match — structural + visual + interaction parity verified by RTL.",
       "Given a Technical approver clicks Approve for factory, when API returns 200, then modal closes, shared release status changes to approved_for_factory/released, and audit evidence is visible.",
       "Given user lacks technical.spec.approve or technical.factory_spec.approve, when on page, then approve/sign-off actions are disabled with a Technical permission explanation.",
       "Given RM usability or release blockers exist, when modal opens, then approve is disabled and each blocker code/remediation from validateRmUsability/shared release guard is shown.",

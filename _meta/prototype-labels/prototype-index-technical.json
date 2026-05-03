@@ -6,7 +6,7 @@
   "entries": [
     {
       "label": "product_create_modal",
-      "file": "design/Monopilot Design System/technical/modals.jsx",
+      "file": "prototypes/design/Monopilot Design System/technical/modals.jsx",
       "lines": "22-136",
       "component_type": "wizard",
       "ui_pattern": "multi-step-wizard",
@@ -14,10 +14,10 @@
       "interaction": "create",
       "complexity": "composite",
       "depends_on_prototypes": [
-        "design/Monopilot Design System/_shared/modals.jsx#Modal",
-        "design/Monopilot Design System/_shared/modals.jsx#Stepper",
-        "design/Monopilot Design System/_shared/modals.jsx#Field",
-        "design/Monopilot Design System/_shared/modals.jsx#Summary"
+        "prototypes/design/Monopilot Design System/_shared/modals.jsx#Modal",
+        "prototypes/design/Monopilot Design System/_shared/modals.jsx#Stepper",
+        "prototypes/design/Monopilot Design System/_shared/modals.jsx#Field",
+        "prototypes/design/Monopilot Design System/_shared/modals.jsx#Summary"
       ],
       "translation_notes": [
         "window.Modal → @radix-ui/react-dialog Dialog with controlled open state via Server Action mutation",
@@ -53,7 +53,7 @@
     },
     {
       "label": "archive_product_modal",
-      "file": "design/Monopilot Design System/technical/modals.jsx",
+      "file": "prototypes/design/Monopilot Design System/technical/modals.jsx",
       "lines": "138-163",
       "component_type": "modal",
       "ui_pattern": "crud-form-with-validation",
@@ -61,9 +61,9 @@
       "interaction": "delete",
       "complexity": "composite",
       "depends_on_prototypes": [
-        "design/Monopilot Design System/_shared/modals.jsx#Modal",
-        "design/Monopilot Design System/_shared/modals.jsx#Field",
-        "design/Monopilot Design System/_shared/modals.jsx#ReasonInput"
+        "prototypes/design/Monopilot Design System/_shared/modals.jsx#Modal",
+        "prototypes/design/Monopilot Design System/_shared/modals.jsx#Field",
+        "prototypes/design/Monopilot Design System/_shared/modals.jsx#ReasonInput"
       ],
       "translation_notes": [
         "window.Modal → @radix-ui/react-dialog Dialog; use variant='destructive' styling on the confirm Button",
@@ -92,7 +92,7 @@
     },
     {
       "label": "bom_version_save_modal",
-      "file": "design/Monopilot Design System/technical/modals.jsx",
+      "file": "prototypes/design/Monopilot Design System/technical/modals.jsx",
       "lines": "168-190",
       "component_type": "modal",
       "ui_pattern": "crud-form-with-validation",
@@ -100,9 +100,9 @@
       "interaction": "create",
       "complexity": "composite",
       "depends_on_prototypes": [
-        "design/Monopilot Design System/_shared/modals.jsx#Modal",
-        "design/Monopilot Design System/_shared/modals.jsx#Field",
-        "design/Monopilot Design System/_shared/modals.jsx#ReasonInput"
+        "prototypes/design/Monopilot Design System/_shared/modals.jsx#Modal",
+        "prototypes/design/Monopilot Design System/_shared/modals.jsx#Field",
+        "prototypes/design/Monopilot Design System/_shared/modals.jsx#ReasonInput"
       ],
       "translation_notes": [
         "window.Modal → @radix-ui/react-dialog Dialog; title and subtitle come from parent BOM detail server component props",
@@ -131,7 +131,7 @@
     },
     {
       "label": "bom_component_add_modal",
-      "file": "design/Monopilot Design System/technical/modals.jsx",
+      "file": "prototypes/design/Monopilot Design System/technical/modals.jsx",
       "lines": "192-243",
       "component_type": "modal",
       "ui_pattern": "search-filter-list",
@@ -139,8 +139,8 @@
       "interaction": "create",
       "complexity": "composite",
       "depends_on_prototypes": [
-        "design/Monopilot Design System/_shared/modals.jsx#Modal",
-        "design/Monopilot Design System/_shared/modals.jsx#Field"
+        "prototypes/design/Monopilot Design System/_shared/modals.jsx#Modal",
+        "prototypes/design/Monopilot Design System/_shared/modals.jsx#Field"
       ],
       "translation_notes": [
         "window.MATERIALS global array with .filter() → server-side search endpoint `/api/materials?q=` or a Drizzle ilike query, debounced with useDebouncedValue; results paginated (20 items shown in prototype)",
@@ -170,7 +170,7 @@
     },
     {
       "label": "delete_bom_version_modal",
-      "file": "design/Monopilot Design System/technical/modals.jsx",
+      "file": "prototypes/design/Monopilot Design System/technical/modals.jsx",
       "lines": "245-266",
       "component_type": "modal",
       "ui_pattern": "crud-form-with-validation",
@@ -178,8 +178,8 @@
       "interaction": "delete",
       "complexity": "primitive",
       "depends_on_prototypes": [
-        "design/Monopilot Design System/_shared/modals.jsx#Modal",
-        "design/Monopilot Design System/_shared/modals.jsx#Field"
+        "prototypes/design/Monopilot Design System/_shared/modals.jsx#Modal",
+        "prototypes/design/Monopilot Design System/_shared/modals.jsx#Field"
       ],
       "translation_notes": [
         "window.Modal with dismissible={false} → @radix-ui/react-dialog Dialog with onInteractOutside={e => e.preventDefault()} and no esc close",
@@ -206,7 +206,7 @@
     },
     {
       "label": "routing_step_add_modal",
-      "file": "design/Monopilot Design System/technical/modals.jsx",
+      "file": "prototypes/design/Monopilot Design System/technical/modals.jsx",
       "lines": "271-304",
       "component_type": "modal",
       "ui_pattern": "crud-form-with-validation",
@@ -214,8 +214,8 @@
       "interaction": "create",
       "complexity": "primitive",
       "depends_on_prototypes": [
-        "design/Monopilot Design System/_shared/modals.jsx#Modal",
-        "design/Monopilot Design System/_shared/modals.jsx#Field"
+        "prototypes/design/Monopilot Design System/_shared/modals.jsx#Modal",
+        "prototypes/design/Monopilot Design System/_shared/modals.jsx#Field"
       ],
       "translation_notes": [
         "window.WORK_CENTERS global → Drizzle query from `work_centers` table fetched in parent Server Component and passed as `workCenters` prop to the modal",
@@ -246,7 +246,7 @@
     },
     {
       "label": "allergen_declaration_modal",
-      "file": "design/Monopilot Design System/technical/modals.jsx",
+      "file": "prototypes/design/Monopilot Design System/technical/modals.jsx",
       "lines": "309-347",
       "component_type": "modal",
       "ui_pattern": "crud-form-with-validation",
@@ -254,7 +254,7 @@
       "interaction": "edit",
       "complexity": "composite",
       "depends_on_prototypes": [
-        "design/Monopilot Design System/_shared/modals.jsx#Modal"
+        "prototypes/design/Monopilot Design System/_shared/modals.jsx#Modal"
       ],
       "translation_notes": [
         "Hardcoded allergen list array → Drizzle query from `allergen_types` reference table; list is ordered by EU Regulation 1169/2011 Annex II",
@@ -285,7 +285,7 @@
     },
     {
       "label": "eco_change_request_modal",
-      "file": "design/Monopilot Design System/technical/modals.jsx",
+      "file": "prototypes/design/Monopilot Design System/technical/modals.jsx",
       "lines": "352-414",
       "component_type": "wizard",
       "ui_pattern": "multi-step-wizard",
@@ -293,10 +293,10 @@
       "interaction": "create",
       "complexity": "composite",
       "depends_on_prototypes": [
-        "design/Monopilot Design System/_shared/modals.jsx#Modal",
-        "design/Monopilot Design System/_shared/modals.jsx#Stepper",
-        "design/Monopilot Design System/_shared/modals.jsx#Field",
-        "design/Monopilot Design System/_shared/modals.jsx#ReasonInput"
+        "prototypes/design/Monopilot Design System/_shared/modals.jsx#Modal",
+        "prototypes/design/Monopilot Design System/_shared/modals.jsx#Stepper",
+        "prototypes/design/Monopilot Design System/_shared/modals.jsx#Field",
+        "prototypes/design/Monopilot Design System/_shared/modals.jsx#ReasonInput"
       ],
       "translation_notes": [
         "window.Modal + Stepper → @radix-ui/react-dialog Dialog; implement Stepper as a shadcn custom component using StepIndicator pattern with aria-current='step'",
@@ -330,7 +330,7 @@
     },
     {
       "label": "eco_approval_modal",
-      "file": "design/Monopilot Design System/technical/modals.jsx",
+      "file": "prototypes/design/Monopilot Design System/technical/modals.jsx",
       "lines": "417-455",
       "component_type": "modal",
       "ui_pattern": "crud-form-with-validation",
@@ -338,9 +338,9 @@
       "interaction": "approve",
       "complexity": "composite",
       "depends_on_prototypes": [
-        "design/Monopilot Design System/_shared/modals.jsx#Modal",
-        "design/Monopilot Design System/_shared/modals.jsx#Field",
-        "design/Monopilot Design System/_shared/modals.jsx#ReasonInput"
+        "prototypes/design/Monopilot Design System/_shared/modals.jsx#Modal",
+        "prototypes/design/Monopilot Design System/_shared/modals.jsx#Field",
+        "prototypes/design/Monopilot Design System/_shared/modals.jsx#ReasonInput"
       ],
       "translation_notes": [
         "Dual-path radio (approve/reject) → shadcn RadioGroup with RadioGroupItem; bind to react-hook-form Controller; apply conditional bg color via cn() utility",
@@ -369,7 +369,7 @@
     },
     {
       "label": "spec_review_modal",
-      "file": "design/Monopilot Design System/technical/modals.jsx",
+      "file": "prototypes/design/Monopilot Design System/technical/modals.jsx",
       "lines": "460-483",
       "component_type": "modal",
       "ui_pattern": "detail-view",
@@ -377,8 +377,8 @@
       "interaction": "approve",
       "complexity": "primitive",
       "depends_on_prototypes": [
-        "design/Monopilot Design System/_shared/modals.jsx#Modal",
-        "design/Monopilot Design System/_shared/modals.jsx#Summary"
+        "prototypes/design/Monopilot Design System/_shared/modals.jsx#Modal",
+        "prototypes/design/Monopilot Design System/_shared/modals.jsx#Summary"
       ],
       "translation_notes": [
         "window.Modal read-only detail → @radix-ui/react-dialog Dialog; no form needed, only a 'Mark reviewed' action button that fires a Server Action",
@@ -401,7 +401,7 @@
     },
     {
       "label": "shelf_life_override_modal",
-      "file": "design/Monopilot Design System/technical/modals.jsx",
+      "file": "prototypes/design/Monopilot Design System/technical/modals.jsx",
       "lines": "486-513",
       "component_type": "modal",
       "ui_pattern": "crud-form-with-validation",
@@ -409,9 +409,9 @@
       "interaction": "edit",
       "complexity": "composite",
       "depends_on_prototypes": [
-        "design/Monopilot Design System/_shared/modals.jsx#Modal",
-        "design/Monopilot Design System/_shared/modals.jsx#Field",
-        "design/Monopilot Design System/_shared/modals.jsx#ReasonInput"
+        "prototypes/design/Monopilot Design System/_shared/modals.jsx#Modal",
+        "prototypes/design/Monopilot Design System/_shared/modals.jsx#Field",
+        "prototypes/design/Monopilot Design System/_shared/modals.jsx#ReasonInput"
       ],
       "translation_notes": [
         "window.Modal → @radix-ui/react-dialog Dialog; BL-TEC-04 notes this override must trigger ECO — wire onSuccess to open EcoChangeRequestModal or pre-create a draft ECO automatically",
@@ -442,7 +442,7 @@
     },
     {
       "label": "cost_rollup_recompute_modal",
-      "file": "design/Monopilot Design System/technical/modals.jsx",
+      "file": "prototypes/design/Monopilot Design System/technical/modals.jsx",
       "lines": "518-537",
       "component_type": "modal",
       "ui_pattern": "detail-view",
@@ -450,8 +450,8 @@
       "interaction": "approve",
       "complexity": "primitive",
       "depends_on_prototypes": [
-        "design/Monopilot Design System/_shared/modals.jsx#Modal",
-        "design/Monopilot Design System/_shared/modals.jsx#Summary"
+        "prototypes/design/Monopilot Design System/_shared/modals.jsx#Modal",
+        "prototypes/design/Monopilot Design System/_shared/modals.jsx#Summary"
       ],
       "translation_notes": [
         "window.Modal non-destructive confirm → @radix-ui/react-dialog Dialog; no form, single action button triggers Server Action",
@@ -473,7 +473,7 @@
     },
     {
       "label": "d365_item_sync_confirm_modal",
-      "file": "design/Monopilot Design System/technical/modals.jsx",
+      "file": "prototypes/design/Monopilot Design System/technical/modals.jsx",
       "lines": "542-559",
       "component_type": "modal",
       "ui_pattern": "detail-view",
@@ -481,8 +481,8 @@
       "interaction": "approve",
       "complexity": "primitive",
       "depends_on_prototypes": [
-        "design/Monopilot Design System/_shared/modals.jsx#Modal",
-        "design/Monopilot Design System/_shared/modals.jsx#Summary"
+        "prototypes/design/Monopilot Design System/_shared/modals.jsx#Modal",
+        "prototypes/design/Monopilot Design System/_shared/modals.jsx#Summary"
       ],
       "translation_notes": [
         "window.D365_STATUS global → typed `D365StatusRecord` fetched from `/api/d365/status` server-side before opening the modal; pass as prop",
@@ -505,7 +505,7 @@
     },
     {
       "label": "d365_drift_resolve_modal",
-      "file": "design/Monopilot Design System/technical/modals.jsx",
+      "file": "prototypes/design/Monopilot Design System/technical/modals.jsx",
       "lines": "562-598",
       "component_type": "modal",
       "ui_pattern": "crud-form-with-validation",
@@ -513,10 +513,10 @@
       "interaction": "edit",
       "complexity": "composite",
       "depends_on_prototypes": [
-        "design/Monopilot Design System/_shared/modals.jsx#Modal",
-        "design/Monopilot Design System/_shared/modals.jsx#Field",
-        "design/Monopilot Design System/_shared/modals.jsx#ReasonInput",
-        "design/Monopilot Design System/_shared/modals.jsx#Summary"
+        "prototypes/design/Monopilot Design System/_shared/modals.jsx#Modal",
+        "prototypes/design/Monopilot Design System/_shared/modals.jsx#Field",
+        "prototypes/design/Monopilot Design System/_shared/modals.jsx#ReasonInput",
+        "prototypes/design/Monopilot Design System/_shared/modals.jsx#Summary"
       ],
       "translation_notes": [
         "Dual radio direction (mp_wins / d365_wins) → shadcn RadioGroup; apply conditional card background using cn('border p-2 rounded', direction==='mp_wins' && 'bg-blue-50')",
@@ -548,7 +548,7 @@
     },
     {
       "label": "tech_modal_gallery",
-      "file": "design/Monopilot Design System/technical/modals.jsx",
+      "file": "prototypes/design/Monopilot Design System/technical/modals.jsx",
       "lines": "619-655",
       "component_type": "page-layout",
       "ui_pattern": "list-with-actions",
@@ -556,20 +556,20 @@
       "interaction": "read-only",
       "complexity": "page-level",
       "depends_on_prototypes": [
-        "design/Monopilot Design System/technical/modals.jsx#ProductCreateModal",
-        "design/Monopilot Design System/technical/modals.jsx#ArchiveProductModal",
-        "design/Monopilot Design System/technical/modals.jsx#BomVersionSaveModal",
-        "design/Monopilot Design System/technical/modals.jsx#BomComponentAddModal",
-        "design/Monopilot Design System/technical/modals.jsx#DeleteBomVersionModal",
-        "design/Monopilot Design System/technical/modals.jsx#RoutingStepAddModal",
-        "design/Monopilot Design System/technical/modals.jsx#AllergenDeclarationModal",
-        "design/Monopilot Design System/technical/modals.jsx#EcoChangeRequestModal",
-        "design/Monopilot Design System/technical/modals.jsx#EcoApprovalModal",
-        "design/Monopilot Design System/technical/modals.jsx#SpecReviewModal",
-        "design/Monopilot Design System/technical/modals.jsx#ShelfLifeOverrideModal",
-        "design/Monopilot Design System/technical/modals.jsx#CostRollupRecomputeModal",
-        "design/Monopilot Design System/technical/modals.jsx#D365ItemSyncConfirmModal",
-        "design/Monopilot Design System/technical/modals.jsx#D365DriftResolveModal"
+        "prototypes/design/Monopilot Design System/technical/modals.jsx#ProductCreateModal",
+        "prototypes/design/Monopilot Design System/technical/modals.jsx#ArchiveProductModal",
+        "prototypes/design/Monopilot Design System/technical/modals.jsx#BomVersionSaveModal",
+        "prototypes/design/Monopilot Design System/technical/modals.jsx#BomComponentAddModal",
+        "prototypes/design/Monopilot Design System/technical/modals.jsx#DeleteBomVersionModal",
+        "prototypes/design/Monopilot Design System/technical/modals.jsx#RoutingStepAddModal",
+        "prototypes/design/Monopilot Design System/technical/modals.jsx#AllergenDeclarationModal",
+        "prototypes/design/Monopilot Design System/technical/modals.jsx#EcoChangeRequestModal",
+        "prototypes/design/Monopilot Design System/technical/modals.jsx#EcoApprovalModal",
+        "prototypes/design/Monopilot Design System/technical/modals.jsx#SpecReviewModal",
+        "prototypes/design/Monopilot Design System/technical/modals.jsx#ShelfLifeOverrideModal",
+        "prototypes/design/Monopilot Design System/technical/modals.jsx#CostRollupRecomputeModal",
+        "prototypes/design/Monopilot Design System/technical/modals.jsx#D365ItemSyncConfirmModal",
+        "prototypes/design/Monopilot Design System/technical/modals.jsx#D365DriftResolveModal"
       ],
       "translation_notes": [
         "TechModalGallery is a QA/development-only screen — do not include in production navigation; gate behind `NEXT_PUBLIC_STORYBOOK_MODE=true` or place in a separate Storybook story",
@@ -591,7 +591,7 @@
     },
     {
       "label": "bom_list",
-      "file": "design/Monopilot Design System/technical/bom-list.jsx",
+      "file": "prototypes/design/Monopilot Design System/technical/bom-list.jsx",
       "lines": "3-95",
       "component_type": "table",
       "ui_pattern": "search-filter-list",
@@ -625,7 +625,7 @@
     },
     {
       "label": "kpi_tile",
-      "file": "design/Monopilot Design System/technical/bom-list.jsx",
+      "file": "prototypes/design/Monopilot Design System/technical/bom-list.jsx",
       "lines": "97-106",
       "component_type": "dashboard-tile",
       "ui_pattern": "dashboard-tile",
@@ -648,7 +648,7 @@
     },
     {
       "label": "bom_detail_page",
-      "file": "design/Monopilot Design System/technical/bom-detail.jsx",
+      "file": "prototypes/design/Monopilot Design System/technical/bom-detail.jsx",
       "lines": "3-60",
       "component_type": "tabs",
       "ui_pattern": "detail-view",
@@ -656,13 +656,13 @@
       "interaction": "read-only",
       "complexity": "page-level",
       "depends_on_prototypes": [
-        "design/Monopilot Design System/technical/bom-detail.jsx#TreeTab",
-        "design/Monopilot Design System/technical/bom-detail.jsx#RoutingTab",
-        "design/Monopilot Design System/technical/bom-detail.jsx#ParamsTab",
-        "design/Monopilot Design System/technical/bom-detail.jsx#CostsTab",
-        "design/Monopilot Design System/technical/bom-detail.jsx#VersionsTab",
-        "design/Monopilot Design System/technical/bom-detail.jsx#GraphTab",
-        "design/Monopilot Design System/technical/bom-detail.jsx#SheetTab"
+        "prototypes/design/Monopilot Design System/technical/bom-detail.jsx#TreeTab",
+        "prototypes/design/Monopilot Design System/technical/bom-detail.jsx#RoutingTab",
+        "prototypes/design/Monopilot Design System/technical/bom-detail.jsx#ParamsTab",
+        "prototypes/design/Monopilot Design System/technical/bom-detail.jsx#CostsTab",
+        "prototypes/design/Monopilot Design System/technical/bom-detail.jsx#VersionsTab",
+        "prototypes/design/Monopilot Design System/technical/bom-detail.jsx#GraphTab",
+        "prototypes/design/Monopilot Design System/technical/bom-detail.jsx#SheetTab"
       ],
       "translation_notes": [
         "7-tab layout (tree/routing/params/costs/versions/graph/sheet) → shadcn Tabs with TabsList + TabsTrigger + TabsContent; use URL hash or searchParam `?tab=tree` so tab is bookmarkable",
@@ -686,7 +686,7 @@
     },
     {
       "label": "bom_ingredients_tree_tab",
-      "file": "design/Monopilot Design System/technical/bom-detail.jsx",
+      "file": "prototypes/design/Monopilot Design System/technical/bom-detail.jsx",
       "lines": "63-152",
       "component_type": "table",
       "ui_pattern": "detail-view",
@@ -694,7 +694,7 @@
       "interaction": "read-only",
       "complexity": "composite",
       "depends_on_prototypes": [
-        "design/Monopilot Design System/technical/bom-detail.jsx#CostPanel"
+        "prototypes/design/Monopilot Design System/technical/bom-detail.jsx#CostPanel"
       ],
       "translation_notes": [
         "Recursive renderRow function with openKeys Set → use TanStack Table with `getExpandedRowModel()` and `getSubRows()` for production-grade collapsible tree; openKeys become table expansion state",
@@ -721,7 +721,7 @@
     },
     {
       "label": "bom_cost_panel",
-      "file": "design/Monopilot Design System/technical/bom-detail.jsx",
+      "file": "prototypes/design/Monopilot Design System/technical/bom-detail.jsx",
       "lines": "154-206",
       "component_type": "sidebar",
       "ui_pattern": "detail-view",
@@ -750,7 +750,7 @@
     },
     {
       "label": "bom_routing_tab",
-      "file": "design/Monopilot Design System/technical/bom-detail.jsx",
+      "file": "prototypes/design/Monopilot Design System/technical/bom-detail.jsx",
       "lines": "209-249",
       "component_type": "table",
       "ui_pattern": "list-with-actions",
@@ -784,7 +784,7 @@
     },
     {
       "label": "bom_process_params_tab",
-      "file": "design/Monopilot Design System/technical/bom-detail.jsx",
+      "file": "prototypes/design/Monopilot Design System/technical/bom-detail.jsx",
       "lines": "252-307",
       "component_type": "table",
       "ui_pattern": "detail-view",
@@ -792,7 +792,7 @@
       "interaction": "read-only",
       "complexity": "composite",
       "depends_on_prototypes": [
-        "design/Monopilot Design System/technical/bom-detail.jsx#ParamRangeBar"
+        "prototypes/design/Monopilot Design System/technical/bom-detail.jsx#ParamRangeBar"
       ],
       "translation_notes": [
         "PROCESS_PARAMS global → typed `ProcessParam[]` from Drizzle query on `process_parameters` joined with `routing_steps`; CCP flag is a boolean column",
@@ -817,7 +817,7 @@
     },
     {
       "label": "bom_costs_tab",
-      "file": "design/Monopilot Design System/technical/bom-detail.jsx",
+      "file": "prototypes/design/Monopilot Design System/technical/bom-detail.jsx",
       "lines": "310-370",
       "component_type": "tabs",
       "ui_pattern": "detail-view",
@@ -845,7 +845,7 @@
     },
     {
       "label": "bom_versions_tab",
-      "file": "design/Monopilot Design System/technical/bom-detail.jsx",
+      "file": "prototypes/design/Monopilot Design System/technical/bom-detail.jsx",
       "lines": "373-468",
       "component_type": "tabs",
       "ui_pattern": "detail-view",
@@ -879,7 +879,7 @@
     },
     {
       "label": "bom_graph_tab",
-      "file": "design/Monopilot Design System/technical/bom-detail.jsx",
+      "file": "prototypes/design/Monopilot Design System/technical/bom-detail.jsx",
       "lines": "471-544",
       "component_type": "dashboard-tile",
       "ui_pattern": "detail-view",
@@ -904,7 +904,7 @@
     },
     {
       "label": "bom_recipe_sheet_tab",
-      "file": "design/Monopilot Design System/technical/bom-detail.jsx",
+      "file": "prototypes/design/Monopilot Design System/technical/bom-detail.jsx",
       "lines": "551-603",
       "component_type": "page-layout",
       "ui_pattern": "detail-view",
@@ -935,7 +935,7 @@
     },
     {
       "label": "routings_screen",
-      "file": "design/Monopilot Design System/technical/other-screens.jsx",
+      "file": "prototypes/design/Monopilot Design System/technical/other-screens.jsx",
       "lines": "4-34",
       "component_type": "table",
       "ui_pattern": "list-with-actions",
@@ -943,7 +943,7 @@
       "interaction": "read-only",
       "complexity": "page-level",
       "depends_on_prototypes": [
-        "design/Monopilot Design System/technical/other-screens.jsx#PageHeader"
+        "prototypes/design/Monopilot Design System/technical/other-screens.jsx#PageHeader"
       ],
       "translation_notes": [
         "ROUTINGS_LIST global → Drizzle query from `routings` table with COUNT of linked products and routing steps; order by last-updated DESC",
@@ -968,7 +968,7 @@
     },
     {
       "label": "work_centers_screen",
-      "file": "design/Monopilot Design System/technical/other-screens.jsx",
+      "file": "prototypes/design/Monopilot Design System/technical/other-screens.jsx",
       "lines": "37-71",
       "component_type": "dashboard-tile",
       "ui_pattern": "list-with-actions",
@@ -976,7 +976,7 @@
       "interaction": "read-only",
       "complexity": "page-level",
       "depends_on_prototypes": [
-        "design/Monopilot Design System/technical/other-screens.jsx#PageHeader"
+        "prototypes/design/Monopilot Design System/technical/other-screens.jsx#PageHeader"
       ],
       "translation_notes": [
         "WORK_CENTERS global → Drizzle query from `work_centers` table; include `oee` from latest `oee_snapshots` row via a lateral join",
@@ -999,7 +999,7 @@
     },
     {
       "label": "specs_screen",
-      "file": "design/Monopilot Design System/technical/other-screens.jsx",
+      "file": "prototypes/design/Monopilot Design System/technical/other-screens.jsx",
       "lines": "74-108",
       "component_type": "table",
       "ui_pattern": "list-with-actions",
@@ -1007,7 +1007,7 @@
       "interaction": "read-only",
       "complexity": "page-level",
       "depends_on_prototypes": [
-        "design/Monopilot Design System/technical/other-screens.jsx#PageHeader"
+        "prototypes/design/Monopilot Design System/technical/other-screens.jsx#PageHeader"
       ],
       "translation_notes": [
         "SPECS global → Drizzle query from `specs` joined with `spec_versions`, `customers`, `shelf_life_rules`; filter by status; paginate with cursor",
@@ -1032,7 +1032,7 @@
     },
     {
       "label": "allergen_matrix_screen",
-      "file": "design/Monopilot Design System/technical/other-screens.jsx",
+      "file": "prototypes/design/Monopilot Design System/technical/other-screens.jsx",
       "lines": "111-159",
       "component_type": "table",
       "ui_pattern": "bulk-action",
@@ -1040,7 +1040,7 @@
       "interaction": "read-only",
       "complexity": "page-level",
       "depends_on_prototypes": [
-        "design/Monopilot Design System/technical/other-screens.jsx#PageHeader"
+        "prototypes/design/Monopilot Design System/technical/other-screens.jsx#PageHeader"
       ],
       "translation_notes": [
         "Hardcoded allergen list and product rows → Drizzle query joining `bom_allergens` with `finished_articles` and `allergen_types`; pivot the result to a matrix server-side",
@@ -1066,7 +1066,7 @@
     },
     {
       "label": "eco_screen",
-      "file": "design/Monopilot Design System/technical/other-screens.jsx",
+      "file": "prototypes/design/Monopilot Design System/technical/other-screens.jsx",
       "lines": "180-227",
       "component_type": "table",
       "ui_pattern": "list-with-actions",
@@ -1074,7 +1074,7 @@
       "interaction": "read-only",
       "complexity": "page-level",
       "depends_on_prototypes": [
-        "design/Monopilot Design System/technical/other-screens.jsx#PageHeader"
+        "prototypes/design/Monopilot Design System/technical/other-screens.jsx#PageHeader"
       ],
       "translation_notes": [
         "ECO_LIST global → Drizzle query from `eco_requests` table joined with `finished_articles`, `users`; filter by status via searchParam `?status=open`",
@@ -1099,7 +1099,7 @@
     },
     {
       "label": "history_screen",
-      "file": "design/Monopilot Design System/technical/other-screens.jsx",
+      "file": "prototypes/design/Monopilot Design System/technical/other-screens.jsx",
       "lines": "230-263",
       "component_type": "table",
       "ui_pattern": "list-with-actions",
@@ -1107,7 +1107,7 @@
       "interaction": "read-only",
       "complexity": "page-level",
       "depends_on_prototypes": [
-        "design/Monopilot Design System/technical/other-screens.jsx#PageHeader"
+        "prototypes/design/Monopilot Design System/technical/other-screens.jsx#PageHeader"
       ],
       "translation_notes": [
         "Hardcoded events array → Drizzle query from an `audit_events` table ordered by timestamp DESC; cursor-paginated with infinite scroll or pagination controls",
@@ -1132,7 +1132,7 @@
     },
     {
       "label": "maintenance_screen",
-      "file": "design/Monopilot Design System/technical/other-screens.jsx",
+      "file": "prototypes/design/Monopilot Design System/technical/other-screens.jsx",
       "lines": "266-311",
       "component_type": "table",
       "ui_pattern": "list-with-actions",
@@ -1140,8 +1140,8 @@
       "interaction": "read-only",
       "complexity": "page-level",
       "depends_on_prototypes": [
-        "design/Monopilot Design System/technical/other-screens.jsx#PageHeader",
-        "design/Monopilot Design System/technical/bom-list.jsx#KpiTile"
+        "prototypes/design/Monopilot Design System/technical/other-screens.jsx#PageHeader",
+        "prototypes/design/Monopilot Design System/technical/bom-list.jsx#KpiTile"
       ],
       "translation_notes": [
         "MAINT_PLANS global → Drizzle query from `maintenance_plans` joined with `work_centers`; compute `days_until_due` as server-side diff from `next_due` date",
@@ -1170,7 +1170,7 @@
     },
     {
       "label": "tooling_screen",
-      "file": "design/Monopilot Design System/technical/other-screens.jsx",
+      "file": "prototypes/design/Monopilot Design System/technical/other-screens.jsx",
       "lines": "314-352",
       "component_type": "table",
       "ui_pattern": "list-with-actions",
@@ -1178,7 +1178,7 @@
       "interaction": "read-only",
       "complexity": "page-level",
       "depends_on_prototypes": [
-        "design/Monopilot Design System/technical/other-screens.jsx#PageHeader"
+        "prototypes/design/Monopilot Design System/technical/other-screens.jsx#PageHeader"
       ],
       "translation_notes": [
         "TOOLING global → Drizzle query from `tooling_items` joined with `work_centers`; `stock < min` triggers Reorder status",
@@ -1203,7 +1203,7 @@
     },
     {
       "label": "tech_dashboard_screen",
-      "file": "design/Monopilot Design System/technical/other-screens.jsx",
+      "file": "prototypes/design/Monopilot Design System/technical/other-screens.jsx",
       "lines": "370-429",
       "component_type": "page-layout",
       "ui_pattern": "dashboard-tile",
@@ -1211,8 +1211,8 @@
       "interaction": "read-only",
       "complexity": "page-level",
       "depends_on_prototypes": [
-        "design/Monopilot Design System/technical/other-screens.jsx#PageHeader",
-        "design/Monopilot Design System/technical/bom-list.jsx#KpiTile"
+        "prototypes/design/Monopilot Design System/technical/other-screens.jsx#PageHeader",
+        "prototypes/design/Monopilot Design System/technical/bom-list.jsx#KpiTile"
       ],
       "translation_notes": [
         "6-KPI strip (TEC_DASH_KPIS) → six Drizzle aggregate queries (active BOMs, open ECOs, cost variance, D365 queue, etc.); each KPI a separate Server Component with Suspense",
@@ -1241,7 +1241,7 @@
     },
     {
       "label": "materials_list_screen",
-      "file": "design/Monopilot Design System/technical/other-screens.jsx",
+      "file": "prototypes/design/Monopilot Design System/technical/other-screens.jsx",
       "lines": "432-480",
       "component_type": "table",
       "ui_pattern": "search-filter-list",
@@ -1249,7 +1249,7 @@
       "interaction": "read-only",
       "complexity": "page-level",
       "depends_on_prototypes": [
-        "design/Monopilot Design System/technical/other-screens.jsx#PageHeader"
+        "prototypes/design/Monopilot Design System/technical/other-screens.jsx#PageHeader"
       ],
       "translation_notes": [
         "MATERIALS global with client-side filter by type → Drizzle query with searchParam `?type=RM|intermediate|packaging` and cursor pagination; move filter to URL",
@@ -1275,7 +1275,7 @@
     },
     {
       "label": "material_detail_screen",
-      "file": "design/Monopilot Design System/technical/other-screens.jsx",
+      "file": "prototypes/design/Monopilot Design System/technical/other-screens.jsx",
       "lines": "483-605",
       "component_type": "tabs",
       "ui_pattern": "detail-view",
@@ -1283,8 +1283,8 @@
       "interaction": "read-only",
       "complexity": "page-level",
       "depends_on_prototypes": [
-        "design/Monopilot Design System/technical/other-screens.jsx#PageHeader",
-        "design/Monopilot Design System/_shared/modals.jsx#Summary"
+        "prototypes/design/Monopilot Design System/technical/other-screens.jsx#PageHeader",
+        "prototypes/design/Monopilot Design System/_shared/modals.jsx#Summary"
       ],
       "translation_notes": [
         "5-tab layout (overview/spec/suppliers/substitutes/cost) → shadcn Tabs with URL searchParam `?tab=overview` for bookmarkability",
@@ -1318,7 +1318,7 @@
     },
     {
       "label": "nutrition_screen",
-      "file": "design/Monopilot Design System/technical/other-screens.jsx",
+      "file": "prototypes/design/Monopilot Design System/technical/other-screens.jsx",
       "lines": "608-661",
       "component_type": "table",
       "ui_pattern": "detail-view",
@@ -1326,7 +1326,7 @@
       "interaction": "read-only",
       "complexity": "page-level",
       "depends_on_prototypes": [
-        "design/Monopilot Design System/technical/other-screens.jsx#PageHeader"
+        "prototypes/design/Monopilot Design System/technical/other-screens.jsx#PageHeader"
       ],
       "translation_notes": [
         "NUTRITION global → typed `NutritionRecord` from `spec_nutrition` joined with `spec_versions`; include `macros[]` and `allergens[]` arrays",
@@ -1354,7 +1354,7 @@
     },
     {
       "label": "costing_screen",
-      "file": "design/Monopilot Design System/technical/other-screens.jsx",
+      "file": "prototypes/design/Monopilot Design System/technical/other-screens.jsx",
       "lines": "664-712",
       "component_type": "dashboard-tile",
       "ui_pattern": "detail-view",
@@ -1362,9 +1362,9 @@
       "interaction": "read-only",
       "complexity": "page-level",
       "depends_on_prototypes": [
-        "design/Monopilot Design System/technical/other-screens.jsx#PageHeader",
-        "design/Monopilot Design System/technical/bom-list.jsx#KpiTile",
-        "design/Monopilot Design System/technical/modals.jsx#CostRollupRecomputeModal"
+        "prototypes/design/Monopilot Design System/technical/other-screens.jsx#PageHeader",
+        "prototypes/design/Monopilot Design System/technical/bom-list.jsx#KpiTile",
+        "prototypes/design/Monopilot Design System/technical/modals.jsx#CostRollupRecomputeModal"
       ],
       "translation_notes": [
         "4-KPI strip (Std cost, Target cost, Selling price, Margin) → four values from `bom_cost_snapshots` and `pricing_agreements` tables; margin computed as (sell - std) / sell",
@@ -1388,7 +1388,7 @@
     },
     {
       "label": "shelf_life_screen",
-      "file": "design/Monopilot Design System/technical/other-screens.jsx",
+      "file": "prototypes/design/Monopilot Design System/technical/other-screens.jsx",
       "lines": "715-758",
       "component_type": "table",
       "ui_pattern": "list-with-actions",
@@ -1396,9 +1396,9 @@
       "interaction": "edit",
       "complexity": "page-level",
       "depends_on_prototypes": [
-        "design/Monopilot Design System/technical/other-screens.jsx#PageHeader",
-        "design/Monopilot Design System/technical/bom-list.jsx#KpiTile",
-        "design/Monopilot Design System/technical/modals.jsx#ShelfLifeOverrideModal"
+        "prototypes/design/Monopilot Design System/technical/other-screens.jsx#PageHeader",
+        "prototypes/design/Monopilot Design System/technical/bom-list.jsx#KpiTile",
+        "prototypes/design/Monopilot Design System/technical/modals.jsx#ShelfLifeOverrideModal"
       ],
       "translation_notes": [
         "SHELF_LIFE global → Drizzle query from `shelf_life_rules` joined with `finished_articles` and `regulatory_presets`; filter and sort by product",
@@ -1426,7 +1426,7 @@
     },
     {
       "label": "cost_history_screen",
-      "file": "design/Monopilot Design System/technical/other-screens.jsx",
+      "file": "prototypes/design/Monopilot Design System/technical/other-screens.jsx",
       "lines": "761-820",
       "component_type": "table",
       "ui_pattern": "detail-view",
@@ -1434,7 +1434,7 @@
       "interaction": "read-only",
       "complexity": "page-level",
       "depends_on_prototypes": [
-        "design/Monopilot Design System/technical/other-screens.jsx#PageHeader"
+        "prototypes/design/Monopilot Design System/technical/other-screens.jsx#PageHeader"
       ],
       "translation_notes": [
         "COST_HISTORY global → Drizzle query from `bom_cost_snapshots` ordered by date DESC for this BOM ID; include version, delta%, and reason",
@@ -1459,7 +1459,7 @@
     },
     {
       "label": "traceability_screen",
-      "file": "design/Monopilot Design System/technical/other-screens.jsx",
+      "file": "prototypes/design/Monopilot Design System/technical/other-screens.jsx",
       "lines": "823-901",
       "component_type": "page-layout",
       "ui_pattern": "search-filter-list",
@@ -1467,7 +1467,7 @@
       "interaction": "read-only",
       "complexity": "page-level",
       "depends_on_prototypes": [
-        "design/Monopilot Design System/technical/other-screens.jsx#PageHeader"
+        "prototypes/design/Monopilot Design System/technical/other-screens.jsx#PageHeader"
       ],
       "translation_notes": [
         "Static TRACE_SAMPLE mock → real query handler that accepts LP/batch/lot/WO identifiers; uses GS1 AI(00) SSCC decoder on scan input; BL-TEC-02 notes this is static and needs wiring to WO_LIST",
@@ -1496,7 +1496,7 @@
     },
     {
       "label": "d365_status_screen",
-      "file": "design/Monopilot Design System/technical/other-screens.jsx",
+      "file": "prototypes/design/Monopilot Design System/technical/other-screens.jsx",
       "lines": "904-935",
       "component_type": "dashboard-tile",
       "ui_pattern": "detail-view",
@@ -1504,10 +1504,10 @@
       "interaction": "read-only",
       "complexity": "page-level",
       "depends_on_prototypes": [
-        "design/Monopilot Design System/technical/other-screens.jsx#PageHeader",
-        "design/Monopilot Design System/technical/bom-list.jsx#KpiTile",
-        "design/Monopilot Design System/technical/modals.jsx#D365ItemSyncConfirmModal",
-        "design/Monopilot Design System/technical/modals.jsx#D365DriftResolveModal"
+        "prototypes/design/Monopilot Design System/technical/other-screens.jsx#PageHeader",
+        "prototypes/design/Monopilot Design System/technical/bom-list.jsx#KpiTile",
+        "prototypes/design/Monopilot Design System/technical/modals.jsx#D365ItemSyncConfirmModal",
+        "prototypes/design/Monopilot Design System/technical/modals.jsx#D365DriftResolveModal"
       ],
       "translation_notes": [
         "D365_STATUS global → typed `D365StatusRecord` fetched from D365 connector health endpoint; poll every 30s using SWR or React Query with revalidation",
@@ -1529,7 +1529,7 @@
     },
     {
       "label": "d365_mapping_screen",
-      "file": "design/Monopilot Design System/technical/other-screens.jsx",
+      "file": "prototypes/design/Monopilot Design System/technical/other-screens.jsx",
       "lines": "938-978",
       "component_type": "table",
       "ui_pattern": "detail-view",
@@ -1537,7 +1537,7 @@
       "interaction": "read-only",
       "complexity": "page-level",
       "depends_on_prototypes": [
-        "design/Monopilot Design System/technical/other-screens.jsx#PageHeader"
+        "prototypes/design/Monopilot Design System/technical/other-screens.jsx#PageHeader"
       ],
       "translation_notes": [
         "D365_FIELDS global → typed `D365FieldMapping[]` from `d365_field_mappings` table in DB; direction (push/pull) and transform from stored config",
@@ -1565,7 +1565,7 @@
     },
     {
       "label": "d365_drift_screen",
-      "file": "design/Monopilot Design System/technical/other-screens.jsx",
+      "file": "prototypes/design/Monopilot Design System/technical/other-screens.jsx",
       "lines": "981-1022",
       "component_type": "table",
       "ui_pattern": "bulk-action",
@@ -1573,8 +1573,8 @@
       "interaction": "edit",
       "complexity": "page-level",
       "depends_on_prototypes": [
-        "design/Monopilot Design System/technical/other-screens.jsx#PageHeader",
-        "design/Monopilot Design System/technical/modals.jsx#D365DriftResolveModal"
+        "prototypes/design/Monopilot Design System/technical/other-screens.jsx#PageHeader",
+        "prototypes/design/Monopilot Design System/technical/modals.jsx#D365DriftResolveModal"
       ],
       "translation_notes": [
         "D365_DRIFT global → typed `D365DriftRecord[]` from `d365_drift_items` table filtered to unresolved; include severity computed from delta magnitude",
@@ -1602,7 +1602,7 @@
     },
     {
       "label": "d365_log_screen",
-      "file": "design/Monopilot Design System/technical/other-screens.jsx",
+      "file": "prototypes/design/Monopilot Design System/technical/other-screens.jsx",
       "lines": "1025-1051",
       "component_type": "table",
       "ui_pattern": "list-with-actions",
@@ -1610,7 +1610,7 @@
       "interaction": "read-only",
       "complexity": "page-level",
       "depends_on_prototypes": [
-        "design/Monopilot Design System/technical/other-screens.jsx#PageHeader"
+        "prototypes/design/Monopilot Design System/technical/other-screens.jsx#PageHeader"
       ],
       "translation_notes": [
         "D365_LOG global → typed `D365SyncLogEntry[]` from `d365_sync_logs` table ordered by timestamp DESC; cursor-paginated",
@@ -1637,7 +1637,7 @@
     },
     {
       "label": "page_header",
-      "file": "design/Monopilot Design System/technical/other-screens.jsx",
+      "file": "prototypes/design/Monopilot Design System/technical/other-screens.jsx",
       "lines": "354-363",
       "component_type": "page-layout",
       "ui_pattern": "list-with-actions",
@@ -1664,7 +1664,7 @@
     },
     {
       "label": "products_screen",
-      "file": "design/Monopilot Design System/settings/data-screens.jsx",
+      "file": "prototypes/design/Monopilot Design System/settings/data-screens.jsx",
       "lines": "4-52",
       "component_type": "table",
       "ui_pattern": "search-filter-list",
@@ -1693,7 +1693,7 @@
     },
     {
       "label": "boms_screen",
-      "file": "design/Monopilot Design System/settings/data-screens.jsx",
+      "file": "prototypes/design/Monopilot Design System/settings/data-screens.jsx",
       "lines": "55-103",
       "component_type": "page-layout",
       "ui_pattern": "list-with-actions",
@@ -1725,7 +1725,7 @@
     },
     {
       "label": "partners_screen",
-      "file": "design/Monopilot Design System/settings/data-screens.jsx",
+      "file": "prototypes/design/Monopilot Design System/settings/data-screens.jsx",
       "lines": "106-148",
       "component_type": "table",
       "ui_pattern": "search-filter-list",
@@ -1753,7 +1753,7 @@
     },
     {
       "label": "technical_products_screen",
-      "file": "design/Monopilot Design System/settings/data-screens.jsx",
+      "file": "prototypes/design/Monopilot Design System/settings/data-screens.jsx",
       "lines": "4-52",
       "component_type": "table",
       "ui_pattern": "search-filter-list",
@@ -1783,7 +1783,7 @@
     },
     {
       "label": "technical_boms_screen",
-      "file": "design/Monopilot Design System/settings/data-screens.jsx",
+      "file": "prototypes/design/Monopilot Design System/settings/data-screens.jsx",
       "lines": "55-103",
       "component_type": "page-layout",
       "ui_pattern": "list-with-actions",
@@ -1812,7 +1812,7 @@
     },
     {
       "label": "technical_partners_screen",
-      "file": "design/Monopilot Design System/settings/data-screens.jsx",
+      "file": "prototypes/design/Monopilot Design System/settings/data-screens.jsx",
       "lines": "106-148",
       "component_type": "table",
       "ui_pattern": "search-filter-list",
@@ -1841,7 +1841,7 @@
     },
     {
       "label": "technical_nutrition_screen",
-      "file": "design/Monopilot Design System/technical/other-screens.jsx",
+      "file": "prototypes/design/Monopilot Design System/technical/other-screens.jsx",
       "lines": "608-661",
       "component_type": "table",
       "ui_pattern": "detail-view",
@@ -1872,7 +1872,7 @@
     },
     {
       "label": "technical_costing_screen",
-      "file": "design/Monopilot Design System/technical/other-screens.jsx",
+      "file": "prototypes/design/Monopilot Design System/technical/other-screens.jsx",
       "lines": "664-712",
       "component_type": "dashboard-tile",
       "ui_pattern": "detail-view",
@@ -1898,7 +1898,7 @@
     },
     {
       "label": "technical_d365_mapping_screen",
-      "file": "design/Monopilot Design System/technical/other-screens.jsx",
+      "file": "prototypes/design/Monopilot Design System/technical/other-screens.jsx",
       "lines": "938-978",
       "component_type": "table",
       "ui_pattern": "detail-view",
@@ -1927,7 +1927,7 @@
     },
     {
       "label": "bulk_import_csv_screen",
-      "file": "design/Monopilot Design System/technical/spec-driven-screens.jsx",
+      "file": "prototypes/design/Monopilot Design System/technical/spec-driven-screens.jsx",
       "lines": "25-218",
       "component_type": "wizard",
       "ui_pattern": "import-export",
@@ -1935,12 +1935,12 @@
       "interaction": "import",
       "complexity": "page-level",
       "depends_on_prototypes": [
-        "design/Monopilot Design System/_shared/modals.jsx#Stepper",
-        "design/Monopilot Design System/_shared/modals.jsx#Field",
-        "design/Monopilot Design System/_shared/modals.jsx#ReasonInput",
-        "design/Monopilot Design System/_shared/modals.jsx#Summary",
-        "design/Monopilot Design System/_shared/primitives.jsx#KPI",
-        "design/Monopilot Design System/technical/other-screens.jsx#PageHeader"
+        "prototypes/design/Monopilot Design System/_shared/modals.jsx#Stepper",
+        "prototypes/design/Monopilot Design System/_shared/modals.jsx#Field",
+        "prototypes/design/Monopilot Design System/_shared/modals.jsx#ReasonInput",
+        "prototypes/design/Monopilot Design System/_shared/modals.jsx#Summary",
+        "prototypes/design/Monopilot Design System/_shared/primitives.jsx#KPI",
+        "prototypes/design/Monopilot Design System/technical/other-screens.jsx#PageHeader"
       ],
       "translation_notes": [
         "Local useState step machine (upload→validate→diff→confirm) → server-paginated wizard route segments under /technical/items/import with state in URL search params + useTransition pending UI",
@@ -1949,7 +1949,7 @@
         "Apply import button → Server Action applyBulkImport({ scope, fileId, reason }) wrapped in DB transaction; emit outbox event tech.bulk_import.applied with actor + diff summary",
         "Hardcoded Polish placeholders → next-intl t('tech.bulk_import.*') keys including the audit reason example",
         "Reversible undo-import note → real cron worker tech.import.undo with 24h TTL backed by import_audit table",
-        "Spec-driven Wave0 surface (TEC-014) — PRD §6.5 + design/03-TECHNICAL-UX.md remain canonical; this prototype illustrates layout/flow only",
+        "Spec-driven Wave0 surface (TEC-014) — PRD §6.5 + prototypes/design/03-TECHNICAL-UX.md remain canonical; this prototype illustrates layout/flow only",
         "Production must expose data-prototype-label='bulk_import_csv_screen' on the page-level wrapper"
       ],
       "shadcn_equivalent": [
@@ -1971,7 +1971,7 @@
     },
     {
       "label": "bom_snapshots_viewer_screen",
-      "file": "design/Monopilot Design System/technical/spec-driven-screens.jsx",
+      "file": "prototypes/design/Monopilot Design System/technical/spec-driven-screens.jsx",
       "lines": "223-303",
       "component_type": "page-layout",
       "ui_pattern": "search-filter-list",
@@ -1979,7 +1979,7 @@
       "interaction": "read-only",
       "complexity": "page-level",
       "depends_on_prototypes": [
-        "design/Monopilot Design System/technical/other-screens.jsx#PageHeader"
+        "prototypes/design/Monopilot Design System/technical/other-screens.jsx#PageHeader"
       ],
       "translation_notes": [
         "Static snapshots[] array → Drizzle query against bom_snapshots WHERE org_id = ? ORDER BY taken_at DESC; Server Component pagination",
@@ -2008,7 +2008,7 @@
     },
     {
       "label": "bom_snapshot_diff_modal",
-      "file": "design/Monopilot Design System/technical/spec-driven-screens.jsx",
+      "file": "prototypes/design/Monopilot Design System/technical/spec-driven-screens.jsx",
       "lines": "307-354",
       "component_type": "modal",
       "ui_pattern": "detail-view",
@@ -2016,8 +2016,8 @@
       "interaction": "read-only",
       "complexity": "composite",
       "depends_on_prototypes": [
-        "design/Monopilot Design System/_shared/modals.jsx#Modal",
-        "design/Monopilot Design System/_shared/modals.jsx#Summary"
+        "prototypes/design/Monopilot Design System/_shared/modals.jsx#Modal",
+        "prototypes/design/Monopilot Design System/_shared/modals.jsx#Summary"
       ],
       "translation_notes": [
         "window.Modal → Radix Dialog; force size='wide' to fit JSON-flatten diff table",
@@ -2042,7 +2042,7 @@
     },
     {
       "label": "regulatory_compliance_dashboard_screen",
-      "file": "design/Monopilot Design System/technical/spec-driven-screens.jsx",
+      "file": "prototypes/design/Monopilot Design System/technical/spec-driven-screens.jsx",
       "lines": "359-446",
       "component_type": "dashboard-tile",
       "ui_pattern": "dashboard-tile",
@@ -2050,8 +2050,8 @@
       "interaction": "read-only",
       "complexity": "page-level",
       "depends_on_prototypes": [
-        "design/Monopilot Design System/_shared/primitives.jsx#KPI",
-        "design/Monopilot Design System/technical/other-screens.jsx#PageHeader"
+        "prototypes/design/Monopilot Design System/_shared/primitives.jsx#KPI",
+        "prototypes/design/Monopilot Design System/technical/other-screens.jsx#PageHeader"
       ],
       "translation_notes": [
         "Static regs[] coverage % → SQL view regulatory_coverage_v aggregating per-FG checks per regulation; refreshed by cron, surfaced via Server Component",
@@ -2079,7 +2079,7 @@
     },
     {
       "label": "lab_results_log_screen",
-      "file": "design/Monopilot Design System/technical/spec-driven-screens.jsx",
+      "file": "prototypes/design/Monopilot Design System/technical/spec-driven-screens.jsx",
       "lines": "451-546",
       "component_type": "page-layout",
       "ui_pattern": "search-filter-list",
@@ -2087,7 +2087,7 @@
       "interaction": "read-only",
       "complexity": "page-level",
       "depends_on_prototypes": [
-        "design/Monopilot Design System/technical/other-screens.jsx#PageHeader"
+        "prototypes/design/Monopilot Design System/technical/other-screens.jsx#PageHeader"
       ],
       "translation_notes": [
         "Static results[] → projection from quality.lab_results joined to specs by spec_id; expose only as Server Component prop, never via Technical Server Action",
@@ -2116,7 +2116,7 @@
     },
     {
       "label": "cost_import_d365_screen",
-      "file": "design/Monopilot Design System/technical/spec-driven-screens.jsx",
+      "file": "prototypes/design/Monopilot Design System/technical/spec-driven-screens.jsx",
       "lines": "551-648",
       "component_type": "page-layout",
       "ui_pattern": "import-export",
@@ -2124,10 +2124,10 @@
       "interaction": "import",
       "complexity": "page-level",
       "depends_on_prototypes": [
-        "design/Monopilot Design System/_shared/modals.jsx#Field",
-        "design/Monopilot Design System/_shared/modals.jsx#ReasonInput",
-        "design/Monopilot Design System/_shared/primitives.jsx#KPI",
-        "design/Monopilot Design System/technical/other-screens.jsx#PageHeader"
+        "prototypes/design/Monopilot Design System/_shared/modals.jsx#Field",
+        "prototypes/design/Monopilot Design System/_shared/modals.jsx#ReasonInput",
+        "prototypes/design/Monopilot Design System/_shared/primitives.jsx#KPI",
+        "prototypes/design/Monopilot Design System/technical/other-screens.jsx#PageHeader"
       ],
       "translation_notes": [
         "useState d365Enabled toggle (prototype demo) → server-side feature flag from settings.integrations.d365.enabled per org; never user-toggleable from this screen in production",
@@ -2159,7 +2159,7 @@
     },
     {
       "label": "factory_spec_bom_bundle_approval_modal",
-      "file": "design/Monopilot Design System/technical/spec-driven-screens.jsx",
+      "file": "prototypes/design/Monopilot Design System/technical/spec-driven-screens.jsx",
       "lines": "653-781",
       "component_type": "modal",
       "ui_pattern": "crud-form-with-validation",
@@ -2167,10 +2167,10 @@
       "interaction": "approve",
       "complexity": "composite",
       "depends_on_prototypes": [
-        "design/Monopilot Design System/_shared/modals.jsx#Modal",
-        "design/Monopilot Design System/_shared/modals.jsx#Field",
-        "design/Monopilot Design System/_shared/modals.jsx#ReasonInput",
-        "design/Monopilot Design System/_shared/modals.jsx#Summary"
+        "prototypes/design/Monopilot Design System/_shared/modals.jsx#Modal",
+        "prototypes/design/Monopilot Design System/_shared/modals.jsx#Field",
+        "prototypes/design/Monopilot Design System/_shared/modals.jsx#ReasonInput",
+        "prototypes/design/Monopilot Design System/_shared/modals.jsx#Summary"
       ],
       "translation_notes": [
         "window.Modal → Radix Dialog with size='wide'; render inside both /technical/boms/[id] and /technical/factory-specs/[id] page trees",

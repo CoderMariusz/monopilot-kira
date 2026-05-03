@@ -1,6 +1,6 @@
 {
   "title": "T-051 — UI: PLN-007 WO Detail shell and tabs (parity with plan_wo_detail + tabs)",
-  "prompt": "Implement UI: PLN-007 WO Detail shell and tabs (parity with plan_wo_detail + tabs) for 04-PLANNING-BASIC.\n\nPrototype: `_meta/prototype-labels/prototype-index-planning.json` label `plan_wo_detail` -> `design/Monopilot Design System/planning/wo-detail.jsx:3-526`. Read PRD refs §8.10, §9.5, §10.7 and UX refs before coding. Match the prototype structurally and visually using shadcn/Radix primitives, Next.js App Router, Server Components for initial data, Server Actions for writes, next-intl for all copy, and existing repository conventions.\n\nBusiness rules: Show captured active_bom_header_id, active_factory_spec_id, release event/status/blocker metadata; no ad-hoc latest BOM/spec lookups.\n\nCloseout must include changed files, test commands/results, AC status, screenshot/artifact paths, Playwright trace paths, deviations, and git status. Do not implement out-of-scope modules; use cross-module contracts listed in pipeline_inputs.cross_module_dependencies.",
+  "prompt": "Implement UI: PLN-007 WO Detail shell and tabs (parity with plan_wo_detail + tabs) for 04-PLANNING-BASIC.\n\nPrototype: `_meta/prototype-labels/prototype-index-planning.json` label `plan_wo_detail` -> `prototypes/design/Monopilot Design System/planning/wo-detail.jsx:3-526`. Read PRD refs §8.10, §9.5, §10.7 and UX refs before coding. Match the prototype structurally and visually using shadcn/Radix primitives, Next.js App Router, Server Components for initial data, Server Actions for writes, next-intl for all copy, and existing repository conventions.\n\nBusiness rules: Show captured active_bom_header_id, active_factory_spec_id, release event/status/blocker metadata; no ad-hoc latest BOM/spec lookups.\n\nCloseout must include changed files, test commands/results, AC status, screenshot/artifact paths, Playwright trace paths, deviations, and git status. Do not implement out-of-scope modules; use cross-module contracts listed in pipeline_inputs.cross_module_dependencies.",
   "labels": [
     "prd",
     "ui",
@@ -13,7 +13,7 @@
   "pipeline_inputs": {
     "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
     "prd_task_id": "T-051",
-    "source_prd": "04-PLANNING-BASIC-PRD.md",
+    "source_prd": "docs/prd/04-PLANNING-BASIC-PRD.md",
     "prd_refs": [
       "§8.10",
       "§9.5",
@@ -28,11 +28,11 @@
     "prototype_match": true,
     "prototype_label": "plan_wo_detail",
     "description": "WO detail shell with overview, outputs/dependencies/reservations/sequencing/history/D365 tabs.",
-    "details": "Prototype reference: design/Monopilot Design System/planning/wo-detail.jsx:3-526. Show captured active_bom_header_id, active_factory_spec_id, release event/status/blocker metadata; no ad-hoc latest BOM/spec lookups.",
+    "details": "Prototype reference: prototypes/design/Monopilot Design System/planning/wo-detail.jsx:3-526. Show captured active_bom_header_id, active_factory_spec_id, release event/status/blocker metadata; no ad-hoc latest BOM/spec lookups.",
     "scope_files": [
       "src/app/(planning)/planning/work-orders/[id]/page.tsx [create]",
       "src/components/planning/wo/WODetailTabs.tsx [create]",
-      "design/Monopilot Design System/planning/wo-detail.jsx:3-526 [ref]"
+      "prototypes/design/Monopilot Design System/planning/wo-detail.jsx:3-526 [ref]"
     ],
     "out_of_scope": [
       "Changing canonical NPD/Technical/Warehouse/Scanner contracts",
@@ -66,7 +66,7 @@
       }
     ],
     "acceptance_criteria": [
-      "Given the surface is implemented, when compared to `design/Monopilot Design System/planning/wo-detail.jsx:3-526`, then layout, copy hierarchy, components, interactions, empty/loading/error states, and accessibility affordances have prototype parity for `plan_wo_detail`.",
+      "Given the surface is implemented, when compared to `prototypes/design/Monopilot Design System/planning/wo-detail.jsx:3-526`, then layout, copy hierarchy, components, interactions, empty/loading/error states, and accessibility affordances have prototype parity for `plan_wo_detail`.",
       "Given server data or validation returns blocked/empty/error cases, then the UI surfaces the exact PRD validation/status messages without client-invented business state.",
       "Given closeout is prepared, then it includes desktop screenshots/artifacts for all material states plus Playwright trace artifacts for happy path and blocked/error path.",
       "Given tests run, then targeted RTL/component tests and Playwright e2e for the route/modal pass with 0 failures. Follow parity evidence requirements in `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`."

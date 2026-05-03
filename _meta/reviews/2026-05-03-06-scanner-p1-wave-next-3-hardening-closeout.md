@@ -14,8 +14,8 @@ Scope: docs/meta/prototype-index/task readiness only; no application implementat
 
 ## Files hardened
 
-- `06-SCANNER-P1-PRD.md`
-- `design/06-SCANNER-P1-UX.md`
+- `docs/prd/06-SCANNER-P1-PRD.md`
+- `prototypes/design/06-SCANNER-P1-UX.md`
 - `_meta/prototype-labels/prototype-index-scanner.json`
 - `_meta/prototype-labels/master-index.json`
 - `_meta/prototype-labels/translation-notes-scanner.md`

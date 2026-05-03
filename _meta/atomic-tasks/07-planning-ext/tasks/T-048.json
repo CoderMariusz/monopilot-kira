@@ -1,6 +1,6 @@
 {
   "title": "T-048 — Scheduler Settings screen",
-  "prompt": "# T-048 — Scheduler Settings screen\n\nPRD: `07-PLANNING-EXT-PRD.md` §17.1 PLE-005, Appendix B feature flags.\nUX/prototype refs are listed in `pipeline_inputs.scope_files`.\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`.\n\n## Goal\nCreate a scheduler-specific settings surface for operational defaults and alerts.\n\n## Implementation contract\nPersist only user-editable config fields to T-008 schema; read flags/entitlements from Settings; use i18n keys for all labels.\n\nACP shape reminder: keep this task as one atomic implementation. Do not add ACP-owned fields. Keep local dependencies in `dependencies`; cross-module contracts in `cross_module_dependencies` are blockers/inputs, not ACP local task IDs.",
+  "prompt": "# T-048 — Scheduler Settings screen\n\nPRD: `docs/prd/07-PLANNING-EXT-PRD.md` §17.1 PLE-005, Appendix B feature flags.\nUX/prototype refs are listed in `pipeline_inputs.scope_files`.\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`.\n\n## Goal\nCreate a scheduler-specific settings surface for operational defaults and alerts.\n\n## Implementation contract\nPersist only user-editable config fields to T-008 schema; read flags/entitlements from Settings; use i18n keys for all labels.\n\nACP shape reminder: keep this task as one atomic implementation. Do not add ACP-owned fields. Keep local dependencies in `dependencies`; cross-module contracts in `cross_module_dependencies` are blockers/inputs, not ACP local task IDs.",
   "labels": [
     "prd",
     "ui",
@@ -12,7 +12,7 @@
   "pipeline_name": "kira_dev",
   "pipeline_inputs": {
     "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
-    "source_prd": "07-PLANNING-EXT-PRD.md",
+    "source_prd": "docs/prd/07-PLANNING-EXT-PRD.md",
     "context_budget": "40k",
     "skills": [
       "test-driven-development",
@@ -54,7 +54,7 @@
       "apps/web/src/app/scheduler/settings/page.tsx [create]",
       "apps/web/src/components/scheduler/SchedulerSettingsScreen.tsx [create]",
       "apps/web/src/lib/scheduler/settings-actions.ts [create]",
-      "design/Monopilot Design System/planning-ext/other-screens.jsx:79-133 [ref]"
+      "prototypes/design/Monopilot Design System/planning-ext/other-screens.jsx:79-133 [ref]"
     ],
     "dependencies": [
       "T-008"

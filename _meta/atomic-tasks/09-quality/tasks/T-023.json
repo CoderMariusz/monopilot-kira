@@ -1,6 +1,6 @@
 {
   "title": "T-023 — QA-003b spec detail page (read-only, parity)",
-  "prompt": "# T-023 — QA-003b spec detail page\n\nPRD: 09-QUALITY-PRD.md §8.3 QUA-102, §8.5 prototype spec_detail\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nBuild `/quality/specs/:id` Server Component showing read-only spec view: header, allergen profile snapshot, parameters table, regulation tags, signed banner (when active), Clone button, Approve action entry-point (under_review only).\n\n## Implementation contract\n1. `apps/web/src/app/quality/specs/[id]/page.tsx` reads getSpecDetail(id) returning header + parameters + allergen_profile.\n2. Renders sections per prototype design/Monopilot Design System/quality/specs-screens.jsx:305-420 (spec_detail).\n3. SignedBanner Card visible when status='active' showing approved_by, approved_at, signature_hash truncated to 16 chars.\n4. Action buttons: Clone to new version (visible all roles), Approve (visible only when status='under_review' and role=quality_lead).\n\n## Files\n- apps/web/src/app/quality/specs/[id]/page.tsx [create]\n- apps/web/src/server/quality/getSpecDetail.ts [create]\n- apps/web/src/components/quality/specs/SpecDetailView.tsx [create]\n- apps/web/src/components/quality/specs/__tests__/SpecDetailView.test.tsx [create]\n- design/Monopilot Design System/quality/specs-screens.jsx [ref]\n\n## Acceptance criteria\n1. Given the page renders, when compared to design/Monopilot Design System/quality/specs-screens.jsx:305-420, then it has parity with the prototype on structure (header card + allergen profile card + parameters table + regulation tags row + signed banner + footer action buttons in same order), visuals (shadcn Card/Table/Badge/Button only, signature_hash truncated to 16 chars in the banner), and interaction (Clone always visible, Approve visible only when status='under_review' and role=quality_lead) — verified by RTL plus parity checklist in pipeline_inputs.details\n2. Given a spec with status='active', when the page renders, then all parameter inputs render as read-only (no editable Inputs in the parameter table)\n3. Given a spec with status='under_review' and caller role=quality_lead, when the user clicks Approve, then the spec_sign_modal opens (T-024 dialog mounting)",
+  "prompt": "# T-023 — QA-003b spec detail page\n\nPRD: docs/prd/09-QUALITY-PRD.md §8.3 QUA-102, §8.5 prototype spec_detail\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nBuild `/quality/specs/:id` Server Component showing read-only spec view: header, allergen profile snapshot, parameters table, regulation tags, signed banner (when active), Clone button, Approve action entry-point (under_review only).\n\n## Implementation contract\n1. `apps/web/src/app/quality/specs/[id]/page.tsx` reads getSpecDetail(id) returning header + parameters + allergen_profile.\n2. Renders sections per prototype prototypes/design/Monopilot Design System/quality/specs-screens.jsx:305-420 (spec_detail).\n3. SignedBanner Card visible when status='active' showing approved_by, approved_at, signature_hash truncated to 16 chars.\n4. Action buttons: Clone to new version (visible all roles), Approve (visible only when status='under_review' and role=quality_lead).\n\n## Files\n- apps/web/src/app/quality/specs/[id]/page.tsx [create]\n- apps/web/src/server/quality/getSpecDetail.ts [create]\n- apps/web/src/components/quality/specs/SpecDetailView.tsx [create]\n- apps/web/src/components/quality/specs/__tests__/SpecDetailView.test.tsx [create]\n- prototypes/design/Monopilot Design System/quality/specs-screens.jsx [ref]\n\n## Acceptance criteria\n1. Given the page renders, when compared to prototypes/design/Monopilot Design System/quality/specs-screens.jsx:305-420, then it has parity with the prototype on structure (header card + allergen profile card + parameters table + regulation tags row + signed banner + footer action buttons in same order), visuals (shadcn Card/Table/Badge/Button only, signature_hash truncated to 16 chars in the banner), and interaction (Clone always visible, Approve visible only when status='under_review' and role=quality_lead) — verified by RTL plus parity checklist in pipeline_inputs.details\n2. Given a spec with status='active', when the page renders, then all parameter inputs render as read-only (no editable Inputs in the parameter table)\n3. Given a spec with status='under_review' and caller role=quality_lead, when the user clicks Approve, then the spec_sign_modal opens (T-024 dialog mounting)",
   "labels": ["prd", "ui", "qa-spec-detail", "T3-ui"],
   "priority": 100,
   "max_attempts": 3,
@@ -8,7 +8,7 @@
   "pipeline_inputs": {
     "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
     "prd_task_id": "T-023",
-    "source_prd": "09-QUALITY-PRD.md",
+    "source_prd": "docs/prd/09-QUALITY-PRD.md",
     "prd_refs": ["§8.3 QUA-102", "§8.5"],
     "category": "ui",
     "subcategory": "qa-spec-detail",
@@ -24,7 +24,7 @@
       "apps/web/src/server/quality/getSpecDetail.ts [create]",
       "apps/web/src/components/quality/specs/SpecDetailView.tsx [create]",
       "apps/web/src/components/quality/specs/__tests__/SpecDetailView.test.tsx [create]",
-      "design/Monopilot Design System/quality/specs-screens.jsx [ref]"
+      "prototypes/design/Monopilot Design System/quality/specs-screens.jsx [ref]"
     ],
     "out_of_scope": [
       "Do not implement spec wizard (T-022)",
@@ -34,7 +34,7 @@
     "dependencies": ["T-017"],
     "parallel_safe_with": ["T-021", "T-022"],
     "acceptance_criteria": [
-      "Given the page renders, when compared to design/Monopilot Design System/quality/specs-screens.jsx:305-420, then it has parity on structure (header card + allergen profile card + parameters table + regulation tags + signed banner + footer actions in same order), visuals (shadcn Card/Table/Badge/Button only, signature_hash truncated to 16 chars), and interaction (Clone always visible, Approve visible only when status='under_review' AND role=quality_lead) — verified by RTL plus parity checklist in pipeline_inputs.details",
+      "Given the page renders, when compared to prototypes/design/Monopilot Design System/quality/specs-screens.jsx:305-420, then it has parity on structure (header card + allergen profile card + parameters table + regulation tags + signed banner + footer actions in same order), visuals (shadcn Card/Table/Badge/Button only, signature_hash truncated to 16 chars), and interaction (Clone always visible, Approve visible only when status='under_review' AND role=quality_lead) — verified by RTL plus parity checklist in pipeline_inputs.details",
       "Given a spec with status='active', when the page renders, then all parameter inputs are read-only (no editable Inputs)",
       "Given a spec with status='under_review' and role=quality_lead, when the user clicks Approve, then the spec_sign_modal opens"
     ],

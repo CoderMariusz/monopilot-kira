@@ -1,6 +1,6 @@
 {
   "title": "T-051 — Warehouse FEFO reservations picker and WO panel UI surfaces",
-  "prompt": "# T-051 — Warehouse FEFO reservations picker and WO panel UI surfaces\n\nPRD: `05-WAREHOUSE-PRD.md`.\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`.\n\n## Goal\nImplement FEFO picker, reservation modal, reservations list, first-class WO reservations panel, release modal, and FEFO deviation modal.\n\n## Implementation contract\nMake WH-015 available_lp_picker and WH-017 wo_reservations_panel first-class exported/client surfaces rather than only indirect list references. FEFO deviation remains warning plus audit reason, never hard block after confirmation. Reservations remain RM root only.\n\n## Files (scope)\n- apps/web/components/warehouse/reservations/** [create]\n- apps/web/app/(app)/warehouse/reservations/** [create]\n- apps/web/app/(app)/planning/work-orders/[id]/reservations-panel.tsx [create]\n- design/Monopilot Design System/warehouse/movement-screens.jsx\n- design/Monopilot Design System/warehouse/modals.jsx\n\n## Acceptance criteria\n1. Given available_lp_picker renders inside a WO material context, when LPs load, then they are FEFO-ordered with rank #1 highlighted and selecting a non-rank-1 LP opens fefo_deviation_modal.\n2. Given wo_reservations_panel renders in WO detail, then it shows active/released reservations, release actions, and the intermediate no-reservation info note exactly as design/05-WAREHOUSE-UX.md WH-017 requires. Reference path: design/Monopilot Design System/warehouse/movement-screens.jsx composed with design/05-WAREHOUSE-UX.md WH-017.\n3. Given reserve_lp_modal receives an intermediate LP, then it displays the red RM-root-only restriction and prevents reservation submit.\n4. Given components are inspected, then data-prototype-label markers exist for available_lp_picker, reserve_lp_modal, reservations_list_page, wo_reservations_panel, release_reservation_modal, and fefo_deviation_modal.\n\n## Test strategy\n- RED: Playwright test non-FEFO select opens deviation reason modal and cancel falls back to suggested LP.\n- GREEN: component tests for RM-root-only guard, release reason validation, and first-class marker presence.\n- Run pnpm playwright test --grep @warehouse-reservations-ui and pnpm test.\n\n## Risk red lines\n- Do not reserve intermediate LPs.\n- Do not hard-block FEFO deviations after reason confirmation.\n- Do not expose reservation release without mandatory audit reason.",
+  "prompt": "# T-051 — Warehouse FEFO reservations picker and WO panel UI surfaces\n\nPRD: `docs/prd/05-WAREHOUSE-PRD.md`.\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`.\n\n## Goal\nImplement FEFO picker, reservation modal, reservations list, first-class WO reservations panel, release modal, and FEFO deviation modal.\n\n## Implementation contract\nMake WH-015 available_lp_picker and WH-017 wo_reservations_panel first-class exported/client surfaces rather than only indirect list references. FEFO deviation remains warning plus audit reason, never hard block after confirmation. Reservations remain RM root only.\n\n## Files (scope)\n- apps/web/components/warehouse/reservations/** [create]\n- apps/web/app/(app)/warehouse/reservations/** [create]\n- apps/web/app/(app)/planning/work-orders/[id]/reservations-panel.tsx [create]\n- prototypes/design/Monopilot Design System/warehouse/movement-screens.jsx\n- prototypes/design/Monopilot Design System/warehouse/modals.jsx\n\n## Acceptance criteria\n1. Given available_lp_picker renders inside a WO material context, when LPs load, then they are FEFO-ordered with rank #1 highlighted and selecting a non-rank-1 LP opens fefo_deviation_modal.\n2. Given wo_reservations_panel renders in WO detail, then it shows active/released reservations, release actions, and the intermediate no-reservation info note exactly as prototypes/design/05-WAREHOUSE-UX.md WH-017 requires. Reference path: prototypes/design/Monopilot Design System/warehouse/movement-screens.jsx composed with prototypes/design/05-WAREHOUSE-UX.md WH-017.\n3. Given reserve_lp_modal receives an intermediate LP, then it displays the red RM-root-only restriction and prevents reservation submit.\n4. Given components are inspected, then data-prototype-label markers exist for available_lp_picker, reserve_lp_modal, reservations_list_page, wo_reservations_panel, release_reservation_modal, and fefo_deviation_modal.\n\n## Test strategy\n- RED: Playwright test non-FEFO select opens deviation reason modal and cancel falls back to suggested LP.\n- GREEN: component tests for RM-root-only guard, release reason validation, and first-class marker presence.\n- Run pnpm playwright test --grep @warehouse-reservations-ui and pnpm test.\n\n## Risk red lines\n- Do not reserve intermediate LPs.\n- Do not hard-block FEFO deviations after reason confirmation.\n- Do not expose reservation release without mandatory audit reason.",
   "labels": [
     "prd",
     "ui",
@@ -12,7 +12,7 @@
   "pipeline_name": "kira_dev",
   "pipeline_inputs": {
     "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
-    "source_prd": "05-WAREHOUSE-PRD.md",
+    "source_prd": "docs/prd/05-WAREHOUSE-PRD.md",
     "context_budget": "35k",
     "skills": [
       "test-driven-development",
@@ -88,8 +88,8 @@
       "apps/web/components/warehouse/reservations/** [create]",
       "apps/web/app/(app)/warehouse/reservations/** [create]",
       "apps/web/app/(app)/planning/work-orders/[id]/reservations-panel.tsx [create]",
-      "design/Monopilot Design System/warehouse/movement-screens.jsx",
-      "design/Monopilot Design System/warehouse/modals.jsx"
+      "prototypes/design/Monopilot Design System/warehouse/movement-screens.jsx",
+      "prototypes/design/Monopilot Design System/warehouse/modals.jsx"
     ],
     "out_of_scope": [
       "No intermediate LP reservations",
@@ -106,7 +106,7 @@
     ],
     "acceptance_criteria": [
       "Given available_lp_picker renders inside a WO material context, when LPs load, then they are FEFO-ordered with rank #1 highlighted and selecting a non-rank-1 LP opens fefo_deviation_modal.",
-      "Given wo_reservations_panel renders in WO detail, then it shows active/released reservations, release actions, and the intermediate no-reservation info note exactly as design/05-WAREHOUSE-UX.md WH-017 requires. Reference path: design/Monopilot Design System/warehouse/movement-screens.jsx composed with design/05-WAREHOUSE-UX.md WH-017.",
+      "Given wo_reservations_panel renders in WO detail, then it shows active/released reservations, release actions, and the intermediate no-reservation info note exactly as prototypes/design/05-WAREHOUSE-UX.md WH-017 requires. Reference path: prototypes/design/Monopilot Design System/warehouse/movement-screens.jsx composed with prototypes/design/05-WAREHOUSE-UX.md WH-017.",
       "Given reserve_lp_modal receives an intermediate LP, then it displays the red RM-root-only restriction and prevents reservation submit.",
       "Given components are inspected, then data-prototype-label markers exist for available_lp_picker, reserve_lp_modal, reservations_list_page, wo_reservations_panel, release_reservation_modal, and fefo_deviation_modal."
     ],

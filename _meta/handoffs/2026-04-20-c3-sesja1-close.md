@@ -10,8 +10,8 @@
 
 ### Deliverables (dual PRD, 1 sesja!)
 
-**1. `07-PLANNING-EXT-PRD.md` v3.0** — **1368 linii, 16 sekcji**, 5 D-decisions, 4 sub-modules build 07-a..d (14-18 sesji impl est.)
-**2. `08-PRODUCTION-PRD.md` v3.0** — **2088 linii, 16 sekcji**, 15 D-decisions, 7 sub-modules P1 (08-a..g, 20-25 sesji impl est.) + 5 P2 (08-h..l, 13-19 sesji impl)
+**1. `docs/prd/07-PLANNING-EXT-PRD.md` v3.0** — **1368 linii, 16 sekcji**, 5 D-decisions, 4 sub-modules build 07-a..d (14-18 sesji impl est.)
+**2. `docs/prd/08-PRODUCTION-PRD.md` v3.0** — **2088 linii, 16 sekcji**, 15 D-decisions, 7 sub-modules P1 (08-a..g, 20-25 sesji impl est.) + 5 P2 (08-h..l, 13-19 sesji impl)
 
 **Total Sesja 1:** 3456 linii PRD, 20 D-decisions, 11 sub-modules Phase 1 + P2 overview. Bundled w 1 sesji (est. C3 było 2-3 sesje — **under budget**).
 
@@ -126,22 +126,22 @@
 
 **3 PRDy + INTEGRATIONS stage 3 + 5 (inline):**
 
-1. **09-QUALITY-PRD.md** — CCP monitoring, ATP device integration, QA workflows, lab results, 09-QUALITY handoff from 08-PROD allergen gate (ATP swab flow), hold/release workflows, inspector dashboards
-2. **10-FINANCE-PRD.md** — WIP costing, yield variance, waste cost allocation, BOM cost rollup, INTEGRATIONS stage 5 (cost posting to D365 ledger), material cost ingestion from supplier invoices
-3. **11-SHIPPING-PRD.md** — SO fulfillment, pick wave, SSCC generation (R15), Delivery Note, customs docs, INTEGRATIONS stage 3 (D365 SO pull + delivery confirmations push)
+1. **docs/prd/09-QUALITY-PRD.md** — CCP monitoring, ATP device integration, QA workflows, lab results, 09-QUALITY handoff from 08-PROD allergen gate (ATP swab flow), hold/release workflows, inspector dashboards
+2. **docs/prd/10-FINANCE-PRD.md** — WIP costing, yield variance, waste cost allocation, BOM cost rollup, INTEGRATIONS stage 5 (cost posting to D365 ledger), material cost ingestion from supplier invoices
+3. **docs/prd/11-SHIPPING-PRD.md** — SO fulfillment, pick wave, SSCC generation (R15), Delivery Note, customs docs, INTEGRATIONS stage 3 (D365 SO pull + delivery confirmations push)
 
 **Est.** 3-4 sesje (3 PRDy + 2 INTEGRATIONS stages inline).
 
 ### Bootstrap C4 Sesja 1 (09-QUALITY)
 
 1. Read `_meta/handoffs/2026-04-20-c3-sesja1-close.md` (this file)
-2. Read `08-PRODUCTION-PRD.md` v3.0 §7 E7 Allergen Changeover Gate + §9.8 allergen_changeover_validations + §12 INTEGRATIONS stage 2 (09-QUALITY consumer pattern)
-3. Read `05-WAREHOUSE-PRD.md` v3.0 §12 use_by/best_before gating + §11 lot genealogy (QA hold/release flows)
-4. Read `03-TECHNICAL-PRD.md` v3.0 §10 Allergens cascade (ATP swab lab results, contamination risk matrix → QA lab integration)
-5. Read `06-SCANNER-P1-PRD.md` v3.0 §8 SCN-071..073 QA workflows
-6. Read `02-SETTINGS-PRD.md` v3.0 §7 rule registry + §8 reference tables (QA test types, lab method taxonomy)
+2. Read `docs/prd/08-PRODUCTION-PRD.md` v3.0 §7 E7 Allergen Changeover Gate + §9.8 allergen_changeover_validations + §12 INTEGRATIONS stage 2 (09-QUALITY consumer pattern)
+3. Read `docs/prd/05-WAREHOUSE-PRD.md` v3.0 §12 use_by/best_before gating + §11 lot genealogy (QA hold/release flows)
+4. Read `docs/prd/03-TECHNICAL-PRD.md` v3.0 §10 Allergens cascade (ATP swab lab results, contamination risk matrix → QA lab integration)
+5. Read `docs/prd/06-SCANNER-P1-PRD.md` v3.0 §8 SCN-071..073 QA workflows
+6. Read `docs/prd/02-SETTINGS-PRD.md` v3.0 §7 rule registry + §8 reference tables (QA test types, lab method taxonomy)
 7. Read `_foundation/research/MES-TRENDS-2026.md` §9 "09-QUALITY" + §3 regulatory (BRCGS v9 CCP runtime, FSMA 204 trace, 21 CFR Part 11 e-signatures)
-8. Read baseline `09-QUALITY-PRD.md` pre-Phase-D (check `monopilot-kira-main/09-QUALITY-PRD.md`)
+8. Read baseline `docs/prd/09-QUALITY-PRD.md` pre-Phase-D (check `monopilot-kira-main/docs/prd/09-QUALITY-PRD.md`)
 9. Propose outline → user Q&A → full write
 10. Update memory + close HANDOFF → C4 Sesja 2 bootstrap
 
@@ -248,13 +248,13 @@ Ready dla C4 (09-QUALITY + 10-FINANCE + 11-SHIPPING) z pełnym production-ready 
 
 ## Related
 
-- [`07-PLANNING-EXT-PRD.md`](../../07-PLANNING-EXT-PRD.md) v3.0 — primary deliverable 1/2
-- [`08-PRODUCTION-PRD.md`](../../08-PRODUCTION-PRD.md) v3.0 — primary deliverable 2/2 (+ INTEGRATIONS stage 2 inline §12)
+- [`docs/prd/07-PLANNING-EXT-PRD.md`](../../docs/prd/07-PLANNING-EXT-PRD.md) v3.0 — primary deliverable 1/2
+- [`docs/prd/08-PRODUCTION-PRD.md`](../../docs/prd/08-PRODUCTION-PRD.md) v3.0 — primary deliverable 2/2 (+ INTEGRATIONS stage 2 inline §12)
 - [`2026-04-20-c2-sesja3-close.md`](./2026-04-20-c2-sesja3-close.md) — C2 Sesja 3 close HANDOFF (input do C3)
-- [`04-PLANNING-BASIC-PRD.md`](../../04-PLANNING-BASIC-PRD.md) v3.1 §10/§11 — carry-forward items
-- [`05-WAREHOUSE-PRD.md`](../../05-WAREHOUSE-PRD.md) v3.0 §10/§13 — 08-PROD consumer contract
-- [`06-SCANNER-P1-PRD.md`](../../06-SCANNER-P1-PRD.md) v3.0 §14 — API contract 08-PROD dostarcza
-- [`03-TECHNICAL-PRD.md`](../../03-TECHNICAL-PRD.md) v3.0 §7/§10 — BOM + allergen cascade inputs
-- [`02-SETTINGS-PRD.md`](../../02-SETTINGS-PRD.md) v3.0 §7/§11 — rules registry + D365 constants
-- [`00-FOUNDATION-PRD.md`](../../00-FOUNDATION-PRD.md) v3.0 — R14 idempotency, R15 anti-corruption, principles
+- [`docs/prd/04-PLANNING-BASIC-PRD.md`](../../docs/prd/04-PLANNING-BASIC-PRD.md) v3.1 §10/§11 — carry-forward items
+- [`docs/prd/05-WAREHOUSE-PRD.md`](../../docs/prd/05-WAREHOUSE-PRD.md) v3.0 §10/§13 — 08-PROD consumer contract
+- [`docs/prd/06-SCANNER-P1-PRD.md`](../../docs/prd/06-SCANNER-P1-PRD.md) v3.0 §14 — API contract 08-PROD dostarcza
+- [`docs/prd/03-TECHNICAL-PRD.md`](../../docs/prd/03-TECHNICAL-PRD.md) v3.0 §7/§10 — BOM + allergen cascade inputs
+- [`docs/prd/02-SETTINGS-PRD.md`](../../docs/prd/02-SETTINGS-PRD.md) v3.0 §7/§11 — rules registry + D365 constants
+- [`docs/prd/00-FOUNDATION-PRD.md`](../../docs/prd/00-FOUNDATION-PRD.md) v3.0 — R14 idempotency, R15 anti-corruption, principles
 - [`_foundation/research/MES-TRENDS-2026.md`](../../_foundation/research/MES-TRENDS-2026.md) — §9 07-EXT + 08-PROD recommendations

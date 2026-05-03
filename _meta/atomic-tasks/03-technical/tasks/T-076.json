@@ -13,7 +13,7 @@
   "pipeline_name": "kira_dev",
   "pipeline_inputs": {
     "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
-    "source_prd": "03-TECHNICAL-PRD.md",
+    "source_prd": "docs/prd/03-TECHNICAL-PRD.md",
     "category": "docs",
     "context_budget": "30k",
     "estimated_effort": "2-3h",

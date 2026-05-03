@@ -7,7 +7,7 @@ status: Draft v3.3 — Phase E-0 prep (table-naming aligned with 00-FOUNDATION �
 supersedes: v1.1 (2026-02-18, was numbered 09-NPD Premium Add-on)
 build_sequence: 01-NPD-a → 01-NPD-b → 01-NPD-c → 01-NPD-d → 01-NPD-e (see §13 + 00-FOUNDATION §4.2)
 references:
-  - 00-FOUNDATION-PRD.md
+  - docs/prd/00-FOUNDATION-PRD.md
   - _foundation/decisions/MONOPILOT-V2-ARCHITECTURE.md
   - _foundation/research/MES-TRENDS-2026.md
   - _foundation/META-MODEL.md
@@ -1657,7 +1657,7 @@ Każdy sub-module end-to-end (stories → QA → regression → done) przed nast
 
 ### Phase B context
 
-- [`00-FOUNDATION-PRD.md`](00-FOUNDATION-PRD.md) v3.0 — 6 principles + markers + tech stack + R1-R15 + ADR-028/029/030/031
+- [`docs/prd/00-FOUNDATION-PRD.md`](docs/prd/00-FOUNDATION-PRD.md) v3.0 — 6 principles + markers + tech stack + R1-R15 + ADR-028/029/030/031
 - [`_foundation/decisions/MONOPILOT-V2-ARCHITECTURE.md`](_foundation/decisions/MONOPILOT-V2-ARCHITECTURE.md) — Phase D 6 principles + 23 decisions + 15 modules renumbering
 - [`_foundation/research/MES-TRENDS-2026.md`](_foundation/research/MES-TRENDS-2026.md) — §9 01-NPD rollup + §2 food-mfg + §3 D365 + §6 AI/LLM
 
@@ -1692,14 +1692,14 @@ Każdy sub-module end-to-end (stories → QA → regression → done) przed nast
 
 ### Sibling modules (downstream PRDs — post Phase B.2)
 
-- [`02-SETTINGS-PRD.md`](02-SETTINGS-PRD.md) — pre-Phase-D, pending Phase C1 rewrite (admin UI wizard for schema/rules + Reference.* editing)
-- [`03-TECHNICAL-PRD.md`](03-TECHNICAL-PRD.md) — pre-Phase-D, Phase C1 (product master / BOM / co-products — extends 01-NPD FA core)
-- [`05-WAREHOUSE-PRD.md`](05-WAREHOUSE-PRD.md) — Phase C2 (LP lifecycle — consumes FA spec)
-- [`08-PRODUCTION-PRD.md`](08-PRODUCTION-PRD.md) — Phase C3 (WO execution, allergen-aware changeover gate)
-- [`09-QUALITY-PRD.md`](09-QUALITY-PRD.md) — Phase C4 (CCP/HACCP — extends Technical Allergens)
-- [`11-SHIPPING-PRD.md`](11-SHIPPING-PRD.md) — Phase C4 (GS1 Digital Link, EPCIS, Peppol — uses FA allergens + labelling)
-- [`12-REPORTING-PRD.md`](12-REPORTING-PRD.md) — Phase C5 (extends Dashboard)
-- [`14-MULTI-SITE-PRD.md`](14-MULTI-SITE-PRD.md) — Phase C5 (site_id activation, tenant variation)
+- [`docs/prd/02-SETTINGS-PRD.md`](docs/prd/02-SETTINGS-PRD.md) — pre-Phase-D, pending Phase C1 rewrite (admin UI wizard for schema/rules + Reference.* editing)
+- [`docs/prd/03-TECHNICAL-PRD.md`](docs/prd/03-TECHNICAL-PRD.md) — pre-Phase-D, Phase C1 (product master / BOM / co-products — extends 01-NPD FA core)
+- [`docs/prd/05-WAREHOUSE-PRD.md`](docs/prd/05-WAREHOUSE-PRD.md) — Phase C2 (LP lifecycle — consumes FA spec)
+- [`docs/prd/08-PRODUCTION-PRD.md`](docs/prd/08-PRODUCTION-PRD.md) — Phase C3 (WO execution, allergen-aware changeover gate)
+- [`docs/prd/09-QUALITY-PRD.md`](docs/prd/09-QUALITY-PRD.md) — Phase C4 (CCP/HACCP — extends Technical Allergens)
+- [`docs/prd/11-SHIPPING-PRD.md`](docs/prd/11-SHIPPING-PRD.md) — Phase C4 (GS1 Digital Link, EPCIS, Peppol — uses FA allergens + labelling)
+- [`docs/prd/12-REPORTING-PRD.md`](docs/prd/12-REPORTING-PRD.md) — Phase C5 (extends Dashboard)
+- [`docs/prd/14-MULTI-SITE-PRD.md`](docs/prd/14-MULTI-SITE-PRD.md) — Phase C5 (site_id activation, tenant variation)
 
 ### HANDOFFs (chronological context)
 

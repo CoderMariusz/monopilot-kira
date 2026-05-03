@@ -45,8 +45,8 @@
 ### Module 03-TECHNICAL
 
 **Evidence:**
-- PRD UI surfaces tables: `03-TECHNICAL-PRD.md:459-468` (TEC-010..014, 042); `:535-540` (TEC-020..025); `:661-662` (TEC-030/031); `:761-766` (TEC-040..045); `:808-810` (TEC-050..052); `:852-855` (TEC-060..063); `:943-946` (TEC-070..073). **Total 33 PRD screen IDs**.
-- UX file: `design/03-TECHNICAL-UX.md:132-1051` lists `TEC-001..017` + `TEC-070..073`. **Numbering schema differs.**
+- PRD UI surfaces tables: `docs/prd/03-TECHNICAL-PRD.md:459-468` (TEC-010..014, 042); `:535-540` (TEC-020..025); `:661-662` (TEC-030/031); `:761-766` (TEC-040..045); `:808-810` (TEC-050..052); `:852-855` (TEC-060..063); `:943-946` (TEC-070..073). **Total 33 PRD screen IDs**.
+- UX file: `prototypes/design/03-TECHNICAL-UX.md:132-1051` lists `TEC-001..017` + `TEC-070..073`. **Numbering schema differs.**
 - Prototype index: `_meta/prototype-labels/prototype-index-technical.json` — 47 entries, including 15 modals.
 
 **Direction A (PRD → design) gaps — HIGH severity:**
@@ -88,8 +88,8 @@
 ### Module 04-PLANNING-BASIC
 
 **Evidence:**
-- PRD: `04-PLANNING-BASIC-PRD.md` — **zero screen-ID column** in any table. Components named only by descriptive name (e.g., `:570 SupplierForm`, `:851 WOForm`, `:860 CascadePreviewModal`).
-- UX: `design/04-PLANNING-BASIC-UX.md:191-928` — 12 SCREEN-01..12.
+- PRD: `docs/prd/04-PLANNING-BASIC-PRD.md` — **zero screen-ID column** in any table. Components named only by descriptive name (e.g., `:570 SupplierForm`, `:851 WOForm`, `:860 CascadePreviewModal`).
+- UX: `prototypes/design/04-PLANNING-BASIC-UX.md:191-928` — 12 SCREEN-01..12.
 - Prototype index: 33 entries.
 
 **Direction A gaps — MED:**
@@ -122,8 +122,8 @@
 ### Module 05-WAREHOUSE
 
 **Evidence:**
-- PRD: `05-WAREHOUSE-PRD.md` — uses **`FR-WH-001..030+`** (functional requirements), **NOT screen IDs**. UX surfaces named: `:557 LPSplitModal`, `:668 GRNFromPOWizard`, etc.
-- UX: `design/05-WAREHOUSE-UX.md:132-1156` — `WH-001..020`.
+- PRD: `docs/prd/05-WAREHOUSE-PRD.md` — uses **`FR-WH-001..030+`** (functional requirements), **NOT screen IDs**. UX surfaces named: `:557 LPSplitModal`, `:668 GRNFromPOWizard`, etc.
+- UX: `prototypes/design/05-WAREHOUSE-UX.md:132-1156` — `WH-001..020`.
 - Prototype index: 32 entries (haiku variant). `prototype-index-warehouse-sonnet.json` is parallel re-translation of same prototypes.
 
 **Direction A gaps — MED:**
@@ -155,8 +155,8 @@
 ### Module 06-SCANNER-P1
 
 **Evidence:**
-- PRD: `06-SCANNER-P1-PRD.md:518-548` — explicit screen catalog (SCN-010..090). 14 IDs.
-- UX: `design/06-SCANNER-P1-UX.md:181-690` — fully aligned schema (SCN-010..084 + sub-screens).
+- PRD: `docs/prd/06-SCANNER-P1-PRD.md:518-548` — explicit screen catalog (SCN-010..090). 14 IDs.
+- UX: `prototypes/design/06-SCANNER-P1-UX.md:181-690` — fully aligned schema (SCN-010..084 + sub-screens).
 - Prototype index: 41 entries — `flow-receive`, `flow-pick`, `flow-consume`, `flow-register`, `flow-other`, etc.
 
 **Direction A — best-aligned module. Minimal gaps:**
@@ -188,8 +188,8 @@
 ### Module 07-PLANNING-EXT
 
 **Evidence:**
-- PRD: `07-PLANNING-EXT-PRD.md` — no screen IDs. References modals: `MODAL-07-01..07-04` (`:543`, `:1295`). Sections: `:248 SCR-07-01 Scheduler Dashboard`.
-- UX: `design/07-PLANNING-EXT-UX.md:248-700+` — uses SCR-07-NN.
+- PRD: `docs/prd/07-PLANNING-EXT-PRD.md` — no screen IDs. References modals: `MODAL-07-01..07-04` (`:543`, `:1295`). Sections: `:248 SCR-07-01 Scheduler Dashboard`.
+- UX: `prototypes/design/07-PLANNING-EXT-UX.md:248-700+` — uses SCR-07-NN.
 - Prototype index: 25 entries.
 
 **Direction A gaps — HIGH:**
@@ -223,8 +223,8 @@
 ### Module 08-PRODUCTION
 
 **Evidence:**
-- PRD: `08-PRODUCTION-PRD.md:639-735` — explicit `SCR-08-01..07` (7 screens).
-- UX: `design/08-PRODUCTION-UX.md:144-906` — `PROD-001..014` (14 screens).
+- PRD: `docs/prd/08-PRODUCTION-PRD.md:639-735` — explicit `SCR-08-01..07` (7 screens).
+- UX: `prototypes/design/08-PRODUCTION-UX.md:144-906` — `PROD-001..014` (14 screens).
 - Prototype index: 33 entries.
 
 **Direction A gaps — HIGH (UX over-built vs PRD):**
@@ -261,8 +261,8 @@
 ### Module 09-QUALITY
 
 **Evidence:**
-- PRD: `09-QUALITY-PRD.md:947-974` — 16 screen IDs (QA-001..070 + bridges to SCN-070..073, SCN-081).
-- UX: `design/09-QUALITY-UX.md:160-738` — QA-001..014.
+- PRD: `docs/prd/09-QUALITY-PRD.md:947-974` — 16 screen IDs (QA-001..070 + bridges to SCN-070..073, SCN-081).
+- UX: `prototypes/design/09-QUALITY-UX.md:160-738` — QA-001..014.
 - Prototype index: 32 entries.
 
 **Direction A gaps — LOW:**
@@ -292,8 +292,8 @@
 ### Module 10-FINANCE
 
 **Evidence:**
-- PRD: `10-FINANCE-PRD.md:510-525` — explicit FIN-001..008 (8 P1 screens).
-- UX: `design/10-FINANCE-UX.md:162-757` — FIN-001..016 + Settings (17 screens, FIN-009..016 marked P2 placeholders).
+- PRD: `docs/prd/10-FINANCE-PRD.md:510-525` — explicit FIN-001..008 (8 P1 screens).
+- UX: `prototypes/design/10-FINANCE-UX.md:162-757` — FIN-001..016 + Settings (17 screens, FIN-009..016 marked P2 placeholders).
 - Prototype index: 25 entries.
 
 **Direction A gaps — MED (mostly P2 ahead):**
@@ -329,8 +329,8 @@
 ### Module 11-SHIPPING
 
 **Evidence:**
-- PRD: `11-SHIPPING-PRD.md:971-1001` — 14 SHP-001..014 + 2 admin (ADMIN-SHP-01/02).
-- UX: `design/11-SHIPPING-UX.md:166-820+` — 25+ SHIP-NNN screens.
+- PRD: `docs/prd/11-SHIPPING-PRD.md:971-1001` — 14 SHP-001..014 + 2 admin (ADMIN-SHP-01/02).
+- UX: `prototypes/design/11-SHIPPING-UX.md:166-820+` — 25+ SHIP-NNN screens.
 - Prototype index: 41 entries (largest after NPD).
 
 **Direction A gaps — HIGH (numbering schema mismatch + over-build):**
@@ -372,8 +372,8 @@ PRD `:973` SHP-003 "bulk actions"; UX SHIP-005 has bulk actions; prototypes show
 ### Module 12-REPORTING
 
 **Evidence:**
-- PRD: `12-REPORTING-PRD.md:872-883` — 10 P1 dashboards (RPT-001..010) + RPT-EXPORTS, RPT-SAVED, RPT-SETTINGS.
-- UX: `design/12-REPORTING-UX.md:184-784` — full coverage including RPT-HOME catalog screen.
+- PRD: `docs/prd/12-REPORTING-PRD.md:872-883` — 10 P1 dashboards (RPT-001..010) + RPT-EXPORTS, RPT-SAVED, RPT-SETTINGS.
+- UX: `prototypes/design/12-REPORTING-UX.md:184-784` — full coverage including RPT-HOME catalog screen.
 - Prototype index: 28 entries.
 
 **Direction A gaps — LOW:**
@@ -405,8 +405,8 @@ PRD `:973` SHP-003 "bulk actions"; UX SHIP-005 has bulk actions; prototypes show
 ### Module 13-MAINTENANCE
 
 **Evidence:**
-- PRD: `13-MAINTENANCE-PRD.md:609-627` — **dashboards only** (MNT-001..014). **Zero mentions of MAINT-NNN screen IDs.**
-- UX: `design/13-MAINTENANCE-UX.md:167-740+` — full screen set MAINT-001..017 (asset list, asset detail, WR, mWO, PM, calibration, spares, technicians, LOTO).
+- PRD: `docs/prd/13-MAINTENANCE-PRD.md:609-627` — **dashboards only** (MNT-001..014). **Zero mentions of MAINT-NNN screen IDs.**
+- UX: `prototypes/design/13-MAINTENANCE-UX.md:167-740+` — full screen set MAINT-001..017 (asset list, asset detail, WR, mWO, PM, calibration, spares, technicians, LOTO).
 - Prototype index: 37 entries.
 
 **Direction A gaps — HIGH (PRD only enumerates dashboards):**
@@ -450,8 +450,8 @@ PRD `:973` SHP-003 "bulk actions"; UX SHIP-005 has bulk actions; prototypes show
 ### Module 14-MULTI-SITE
 
 **Evidence:**
-- PRD: `14-MULTI-SITE-PRD.md:545-563` — 10 dashboards MS-001..010.
-- UX: `design/14-MULTI-SITE-UX.md:213-1266` — 14 named screens with 3-letter slugs (MS-NET, MS-SIT, MS-IST, MS-LANE, MS-REP, MS-PRM, MS-ANA, MS-CFG, MS-ACT).
+- PRD: `docs/prd/14-MULTI-SITE-PRD.md:545-563` — 10 dashboards MS-001..010.
+- UX: `prototypes/design/14-MULTI-SITE-UX.md:213-1266` — 14 named screens with 3-letter slugs (MS-NET, MS-SIT, MS-IST, MS-LANE, MS-REP, MS-PRM, MS-ANA, MS-CFG, MS-ACT).
 - Prototype index: 27 entries.
 
 **Direction A gaps — HIGH (schema mismatch + lanes/rate-cards orphan):**
@@ -482,8 +482,8 @@ PRD `:973` SHP-003 "bulk actions"; UX SHIP-005 has bulk actions; prototypes show
 ### Module 15-OEE
 
 **Evidence:**
-- PRD: `15-OEE-PRD.md:948-966` — 3 P1 screens (OEE-001..003) + 2 admin support routes + 7 P2 routes.
-- UX: `design/15-OEE-UX.md:250-1011` — OEE-001..003, OEE-ADM-001/002, OEE-M-001/002, OEE-P2-A..D placeholders.
+- PRD: `docs/prd/15-OEE-PRD.md:948-966` — 3 P1 screens (OEE-001..003) + 2 admin support routes + 7 P2 routes.
+- UX: `prototypes/design/15-OEE-UX.md:250-1011` — OEE-001..003, OEE-ADM-001/002, OEE-M-001/002, OEE-P2-A..D placeholders.
 - Prototype index: 27 entries.
 
 **Direction A — well aligned:**
@@ -549,26 +549,26 @@ Bulk Import CSV (TEC-014), BOM Snapshots Viewer (TEC-025), Cost Import from D365
 
 | # | Severity | Module | Issue | Evidence |
 |---|---|---|---|---|
-| 1 | BLOCKER | 13-MAINTENANCE | PRD has zero screen-level IDs (only dashboards MNT-001..014). 9+ MAINT-NNN screens (asset, WR, mWO, calibration, spares, technicians, LOTO) prototyped without PRD anchor | `13-MAINTENANCE-PRD.md:605-627` vs `design/13-MAINTENANCE-UX.md:167-740` |
-| 2 | BLOCKER | 14-MULTI-SITE | Transport Lanes + Rate Cards fully prototyped (4 entities) — zero PRD coverage | `prototype-index-multi-site.json` lines `lane_*`, `rate_card_*`; `14-MULTI-SITE-PRD.md` no lane mention |
-| 3 | BLOCKER | 11-SHIPPING | UX/prototype carries 12+ screens beyond PRD §15 catalog: SHIP-003 Addresses, SHIP-010 Partial Fulfillment, SHIP-011 SO Cancel, SHIP-014 Pick Desktop, SHIP-016 Short Pick, SHIP-018 Pack Scanner, Carriers CRUD, Shipments Tracker | `11-SHIPPING-PRD.md:971-1001` (14 IDs) vs `design/11-SHIPPING-UX.md:166-820` (25+) |
-| 4 | BLOCKER | 03-TECHNICAL | TEC-014 Bulk Import CSV, TEC-025 BOM Snapshots, TEC-031 Regulatory Compliance Dashboard, TEC-045 Lab Results Log, TEC-052 D365 Cost Import — all in PRD, no UX, no prototype | `03-TECHNICAL-PRD.md:468,540,662,766,810` |
-| 5 | BLOCKER | 03-TECHNICAL | Numbering schema diverges: PRD `TEC-010..073` vs UX `TEC-001..017+070..073`. No bidirectional traceability | `03-TECHNICAL-PRD.md:463-946` vs `design/03-TECHNICAL-UX.md:132-1051` |
-| 6 | HIGH | 08-PRODUCTION | Shift Mgmt (PROD-008), Analytics (PROD-009), Settings (PROD-011), Line Detail (PROD-013) prototyped + UX-spec'd, no PRD SCR-08-NN ID | `design/08-PRODUCTION-UX.md:658-906` vs `08-PRODUCTION-PRD.md:639-735` (only SCR-08-01..07) |
-| 7 | HIGH | 08-PRODUCTION | SCR-08-03 Allergen Changeover Gate PRD specs full dual sign-off + ATP + checklist; prototype `changeover_gate_modal` is 20-line stub | `08-PRODUCTION-PRD.md:680-697` vs `production/modals.jsx:344-364` |
-| 8 | HIGH | 04-PLANNING-BASIC | PRD has zero screen IDs at all; 12 SCREEN-01..12 in UX with no PRD code mapping | `design/04-PLANNING-BASIC-UX.md:191-928`; PRD uses descriptive component names only |
-| 9 | HIGH | 07-PLANNING-EXT | `pext_run_history` + `pext_run_detail` orphan — OQ-EXT-09 says runs persist as `scheduler_run` row, but PRD never specs the run-history browser UI | `prototype-index-planning-ext.json` lines `pext_run_*`; `07-PLANNING-EXT-PRD.md:1295-1297` |
-| 10 | HIGH | 03-TECHNICAL | `eco_change_request_modal` + `eco_approval_modal` prototyped despite PRD §4.4 line 108 declaring ECO out-of-scope Phase 2 | `prototype-index-technical.json`; `03-TECHNICAL-PRD.md:108` |
+| 1 | BLOCKER | 13-MAINTENANCE | PRD has zero screen-level IDs (only dashboards MNT-001..014). 9+ MAINT-NNN screens (asset, WR, mWO, calibration, spares, technicians, LOTO) prototyped without PRD anchor | `docs/prd/13-MAINTENANCE-PRD.md:605-627` vs `prototypes/design/13-MAINTENANCE-UX.md:167-740` |
+| 2 | BLOCKER | 14-MULTI-SITE | Transport Lanes + Rate Cards fully prototyped (4 entities) — zero PRD coverage | `prototype-index-multi-site.json` lines `lane_*`, `rate_card_*`; `docs/prd/14-MULTI-SITE-PRD.md` no lane mention |
+| 3 | BLOCKER | 11-SHIPPING | UX/prototype carries 12+ screens beyond PRD §15 catalog: SHIP-003 Addresses, SHIP-010 Partial Fulfillment, SHIP-011 SO Cancel, SHIP-014 Pick Desktop, SHIP-016 Short Pick, SHIP-018 Pack Scanner, Carriers CRUD, Shipments Tracker | `docs/prd/11-SHIPPING-PRD.md:971-1001` (14 IDs) vs `prototypes/design/11-SHIPPING-UX.md:166-820` (25+) |
+| 4 | BLOCKER | 03-TECHNICAL | TEC-014 Bulk Import CSV, TEC-025 BOM Snapshots, TEC-031 Regulatory Compliance Dashboard, TEC-045 Lab Results Log, TEC-052 D365 Cost Import — all in PRD, no UX, no prototype | `docs/prd/03-TECHNICAL-PRD.md:468,540,662,766,810` |
+| 5 | BLOCKER | 03-TECHNICAL | Numbering schema diverges: PRD `TEC-010..073` vs UX `TEC-001..017+070..073`. No bidirectional traceability | `docs/prd/03-TECHNICAL-PRD.md:463-946` vs `prototypes/design/03-TECHNICAL-UX.md:132-1051` |
+| 6 | HIGH | 08-PRODUCTION | Shift Mgmt (PROD-008), Analytics (PROD-009), Settings (PROD-011), Line Detail (PROD-013) prototyped + UX-spec'd, no PRD SCR-08-NN ID | `prototypes/design/08-PRODUCTION-UX.md:658-906` vs `docs/prd/08-PRODUCTION-PRD.md:639-735` (only SCR-08-01..07) |
+| 7 | HIGH | 08-PRODUCTION | SCR-08-03 Allergen Changeover Gate PRD specs full dual sign-off + ATP + checklist; prototype `changeover_gate_modal` is 20-line stub | `docs/prd/08-PRODUCTION-PRD.md:680-697` vs `production/modals.jsx:344-364` |
+| 8 | HIGH | 04-PLANNING-BASIC | PRD has zero screen IDs at all; 12 SCREEN-01..12 in UX with no PRD code mapping | `prototypes/design/04-PLANNING-BASIC-UX.md:191-928`; PRD uses descriptive component names only |
+| 9 | HIGH | 07-PLANNING-EXT | `pext_run_history` + `pext_run_detail` orphan — OQ-EXT-09 says runs persist as `scheduler_run` row, but PRD never specs the run-history browser UI | `prototype-index-planning-ext.json` lines `pext_run_*`; `docs/prd/07-PLANNING-EXT-PRD.md:1295-1297` |
+| 10 | HIGH | 03-TECHNICAL | `eco_change_request_modal` + `eco_approval_modal` prototyped despite PRD §4.4 line 108 declaring ECO out-of-scope Phase 2 | `prototype-index-technical.json`; `docs/prd/03-TECHNICAL-PRD.md:108` |
 | 11 | HIGH | 14-MULTI-SITE | `promote_env_modal`, `permission_bulk_assign_modal`, `site_config_override_modal`, `conflict_resolve_modal`, `site_decommission_modal` all orphans vs PRD | `prototype-index-multi-site.json:472-688` |
-| 12 | HIGH | 10-FINANCE | `period_lock_modal` orphan — period-locking concept missing entirely from PRD | `finance/modals.jsx:615-647`; absent from `10-FINANCE-PRD.md` |
+| 12 | HIGH | 10-FINANCE | `period_lock_modal` orphan — period-locking concept missing entirely from PRD | `finance/modals.jsx:615-647`; absent from `docs/prd/10-FINANCE-PRD.md` |
 | 13 | HIGH | 03-TECHNICAL | `tooling_screen` orphan — tooling concept absent from PRD | `prototype-index-technical.json` `tooling_screen`; PRD never mentions tooling |
 | 14 | HIGH | 13-MAINTENANCE | `pm_occurrence_skip_modal` orphan — PM skip flow not in PRD §9.4 | `prototype-index-maintenance.json` `pm_occurrence_skip_modal` |
-| 15 | MED | 05-WAREHOUSE | `lp_split_modal` requires destination but PRD `FR-WH-002` says destination optional | `05-WAREHOUSE-PRD.md:495` vs `warehouse/modals.jsx:447-506` |
-| 16 | MED | 08-PRODUCTION | UX builds OEE locally (PROD-006 + `oee_screen` + `oee_target_edit_modal`) while PRD §SCR-08-07 defers to 15-OEE | `08-PRODUCTION-PRD.md:733-735` vs `design/08-PRODUCTION-UX.md:562-611` |
-| 17 | MED | 04-PLANNING-BASIC | `sequencing_apply_confirm_modal` lacks before/after delta widget specified in PRD §11 | `04-PLANNING-BASIC-PRD.md:998` vs `planning/modals.jsx:1053-1100` |
+| 15 | MED | 05-WAREHOUSE | `lp_split_modal` requires destination but PRD `FR-WH-002` says destination optional | `docs/prd/05-WAREHOUSE-PRD.md:495` vs `warehouse/modals.jsx:447-506` |
+| 16 | MED | 08-PRODUCTION | UX builds OEE locally (PROD-006 + `oee_screen` + `oee_target_edit_modal`) while PRD §SCR-08-07 defers to 15-OEE | `docs/prd/08-PRODUCTION-PRD.md:733-735` vs `prototypes/design/08-PRODUCTION-UX.md:562-611` |
+| 17 | MED | 04-PLANNING-BASIC | `sequencing_apply_confirm_modal` lacks before/after delta widget specified in PRD §11 | `docs/prd/04-PLANNING-BASIC-PRD.md:998` vs `planning/modals.jsx:1053-1100` |
 | 18 | MED | 12-REPORTING | `regulatory_signoff_modal` + `share_report_modal` orphan vs PRD | `reporting/modals.jsx:332-378, 258-282`; PRD never mentions regulatory sign-off |
 | 19 | MED | 03-TECHNICAL | `traceability_screen`, `nutrition_screen`, `costing_screen` mis-tagged in `prototype-index-technical.json` | belongs to 05-WH/01-NPD/10-FIN respectively |
-| 20 | LOW | 15-OEE | Pareto loss chart appears in P1 dashboard tab `six_big_losses_tab` while PRD lists `/oee/pareto` as P2 only | `15-OEE-PRD.md:962` vs `oee/dashboard.jsx:200-306` |
+| 20 | LOW | 15-OEE | Pareto loss chart appears in P1 dashboard tab `six_big_losses_tab` while PRD lists `/oee/pareto` as P2 only | `docs/prd/15-OEE-PRD.md:962` vs `oee/dashboard.jsx:200-306` |
 
 ---
 
@@ -614,7 +614,7 @@ Bulk Import CSV (TEC-014), BOM Snapshots Viewer (TEC-025), Cost Import from D365
 ## 7. Verification of pre-existing 00/01/02 findings
 
 Sample-checked claims from `_meta/plans/2026-04-30-ux-prd-plan-gap-backlog.md`:
-- D8 mis-tag claim (`sites_screen` in settings index) — confirmed via `prototype-index-settings.json` line `sites_screen | design/Monopilot Design System/settings/org-screens.jsx | 103-189` — also belongs to 14-MULTI-SITE.
+- D8 mis-tag claim (`sites_screen` in settings index) — confirmed via `prototype-index-settings.json` line `sites_screen | prototypes/design/Monopilot Design System/settings/org-screens.jsx | 103-189` — also belongs to 14-MULTI-SITE.
 - N-A2 claim that NPD `recipe.jsx`, `other-stages.jsx`, `docs-screens.jsx` are unanchored — confirmed via `prototype-index-npd.json`. Findings consistent.
 - F-A3 claim about 5+5 primitives — confirmed via `_shared/MODAL-SCHEMA.md`.
 

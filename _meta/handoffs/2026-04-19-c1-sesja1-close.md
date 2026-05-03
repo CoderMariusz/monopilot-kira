@@ -8,7 +8,7 @@
 
 ## 🏁 Sesja 1 — Deliverable
 
-✅ **`02-SETTINGS-PRD.md` v3.0** — 1343 linii, 16 sekcji, full rewrite baseline (652l, 8 epics pre-Phase-D → Phase D architecture).
+✅ **`docs/prd/02-SETTINGS-PRD.md` v3.0** — 1343 linii, 16 sekcji, full rewrite baseline (652l, 8 epics pre-Phase-D → Phase D architecture).
 
 ### Core sekcje
 
@@ -65,7 +65,7 @@ Total **22-27 sesji impl est.**
 
 ### Scope
 
-`03-TECHNICAL-PRD.md` v3.0 full rewrite (baseline 828 linii pre-Phase-D).
+`docs/prd/03-TECHNICAL-PRD.md` v3.0 full rewrite (baseline 828 linii pre-Phase-D).
 
 **Core content:**
 - Product master CRUD (extending FA z 01-NPD — item master universal schema)
@@ -80,20 +80,20 @@ Total **22-27 sesji impl est.**
 ### Bootstrap steps
 
 1. Read ten HANDOFF
-2. Read `02-SETTINGS-PRD.md` v3.0 — zwłaszcza:
+2. Read `docs/prd/02-SETTINGS-PRD.md` v3.0 — zwłaszcza:
    - §5.2 `reference_schemas` + `schema_migrations` (ADR-028 SQL)
    - §5.3 `rule_definitions` + `rule_dry_runs`
    - §5.5 `reference_tables` generic storage (03-TECHNICAL używa tego dla BOM + specs)
    - §8 Reference tables CRUD (allergens_reference row schema)
    - §11 D365 Constants admin (stage 1 overlap)
-3. Read `01-NPD-PRD.md` v3.0 — zwłaszcza:
+3. Read `docs/prd/01-NPD-PRD.md` v3.0 — zwłaszcza:
    - §4 Entity model (FA → item master extension path)
    - §6 Cascading rules (BOM AutoGen rule spec)
    - §8 Allergens multi-level cascade (foundation dla 03-TECHNICAL extension)
    - §10 D365 Builder N+1 (item per intermediate PR — 03-TECHNICAL item master wspiera intermediate)
-4. Read `00-FOUNDATION-PRD.md` v3.0 — §5 Tech Stack, §6-8 schema/rule/tenant
+4. Read `docs/prd/00-FOUNDATION-PRD.md` v3.0 — §5 Tech Stack, §6-8 schema/rule/tenant
 5. Read `MES-TRENDS-2026.md` §9 "03-TECHNICAL" (Digital SOPs + LLM copilot) + §2 food-mfg (allergens + catch weight + regulatory)
-6. Read pre-Phase-D baseline `03-TECHNICAL-PRD.md` (828 linii)
+6. Read pre-Phase-D baseline `docs/prd/03-TECHNICAL-PRD.md` (828 linii)
 7. Read reality:
    - `_meta/reality-sources/pld-v7-excel/D365-INTEGRATION.md` §7 BOM AutoGen (M06)
    - `_meta/reality-sources/pld-v7-excel/EVOLVING.md` §4 Allergens cascade full + §10 D365 Builder + §11 BOM Generator
@@ -141,9 +141,9 @@ Total **22-27 sesji impl est.**
 
 ## Related
 
-- [`02-SETTINGS-PRD.md`](../../02-SETTINGS-PRD.md) v3.0 — Sesja 1 primary deliverable
-- [`00-FOUNDATION-PRD.md`](../../00-FOUNDATION-PRD.md) v3.0
-- [`01-NPD-PRD.md`](../../01-NPD-PRD.md) v3.0
+- [`docs/prd/02-SETTINGS-PRD.md`](../../docs/prd/02-SETTINGS-PRD.md) v3.0 — Sesja 1 primary deliverable
+- [`docs/prd/00-FOUNDATION-PRD.md`](../../docs/prd/00-FOUNDATION-PRD.md) v3.0
+- [`docs/prd/01-NPD-PRD.md`](../../docs/prd/01-NPD-PRD.md) v3.0
 - [`2026-04-19-phase-b-close.md`](./2026-04-19-phase-b-close.md) — Phase B close HANDOFF (predecessor)
 - [`_foundation/research/MES-TRENDS-2026.md`](../../_foundation/research/MES-TRENDS-2026.md) §9
 

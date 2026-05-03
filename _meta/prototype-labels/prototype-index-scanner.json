@@ -6,7 +6,7 @@
   "entries": [
     {
       "label": "reason_picker_sheet",
-      "file": "design/Monopilot Design System/scanner/modals.jsx",
+      "file": "prototypes/design/Monopilot Design System/scanner/modals.jsx",
       "lines": "21-53",
       "component_type": "modal",
       "ui_pattern": "wizard-step",
@@ -40,7 +40,7 @@
     },
     {
       "label": "fefo_deviation_sheet",
-      "file": "design/Monopilot Design System/scanner/modals.jsx",
+      "file": "prototypes/design/Monopilot Design System/scanner/modals.jsx",
       "lines": "55-98",
       "component_type": "modal",
       "ui_pattern": "wizard-step",
@@ -76,7 +76,7 @@
     },
     {
       "label": "best_before_sheet",
-      "file": "design/Monopilot Design System/scanner/modals.jsx",
+      "file": "prototypes/design/Monopilot Design System/scanner/modals.jsx",
       "lines": "100-124",
       "component_type": "modal",
       "ui_pattern": "wizard-step",
@@ -110,7 +110,7 @@
     },
     {
       "label": "partial_consume_sheet",
-      "file": "design/Monopilot Design System/scanner/modals.jsx",
+      "file": "prototypes/design/Monopilot Design System/scanner/modals.jsx",
       "lines": "126-155",
       "component_type": "modal",
       "ui_pattern": "wizard-step",
@@ -147,7 +147,7 @@
     },
     {
       "label": "printer_picker_sheet",
-      "file": "design/Monopilot Design System/scanner/modals.jsx",
+      "file": "prototypes/design/Monopilot Design System/scanner/modals.jsx",
       "lines": "157-180",
       "component_type": "modal",
       "ui_pattern": "detail-view",
@@ -178,7 +178,7 @@
     },
     {
       "label": "language_sheet",
-      "file": "design/Monopilot Design System/scanner/modals.jsx",
+      "file": "prototypes/design/Monopilot Design System/scanner/modals.jsx",
       "lines": "182-212",
       "component_type": "modal",
       "ui_pattern": "list-with-actions",
@@ -210,7 +210,7 @@
     },
     {
       "label": "logout_sheet",
-      "file": "design/Monopilot Design System/scanner/modals.jsx",
+      "file": "prototypes/design/Monopilot Design System/scanner/modals.jsx",
       "lines": "214-228",
       "component_type": "modal",
       "ui_pattern": "detail-view",
@@ -239,7 +239,7 @@
     },
     {
       "label": "scan_error_sheet",
-      "file": "design/Monopilot Design System/scanner/modals.jsx",
+      "file": "prototypes/design/Monopilot Design System/scanner/modals.jsx",
       "lines": "230-249",
       "component_type": "modal",
       "ui_pattern": "detail-view",
@@ -269,7 +269,7 @@
     },
     {
       "label": "qty_keypad_sheet",
-      "file": "design/Monopilot Design System/scanner/modals.jsx",
+      "file": "prototypes/design/Monopilot Design System/scanner/modals.jsx",
       "lines": "251-275",
       "component_type": "modal",
       "ui_pattern": "wizard-step",
@@ -298,7 +298,7 @@
     },
     {
       "label": "block_fullscreen",
-      "file": "design/Monopilot Design System/scanner/modals.jsx",
+      "file": "prototypes/design/Monopilot Design System/scanner/modals.jsx",
       "lines": "277-298",
       "component_type": "modal",
       "ui_pattern": "detail-view",
@@ -327,7 +327,7 @@
     },
     {
       "label": "lp_locked_sheet",
-      "file": "design/Monopilot Design System/scanner/modals.jsx",
+      "file": "prototypes/design/Monopilot Design System/scanner/modals.jsx",
       "lines": "300-310",
       "component_type": "modal",
       "ui_pattern": "detail-view",
@@ -355,7 +355,7 @@
     },
     {
       "label": "home_screen",
-      "file": "design/Monopilot Design System/scanner/home.jsx",
+      "file": "prototypes/design/Monopilot Design System/scanner/home.jsx",
       "lines": "7-61",
       "component_type": "page-layout",
       "ui_pattern": "dashboard-tile",
@@ -387,7 +387,7 @@
     },
     {
       "label": "scanner_settings_screen",
-      "file": "design/Monopilot Design System/scanner/home.jsx",
+      "file": "prototypes/design/Monopilot Design System/scanner/home.jsx",
       "lines": "63-136",
       "component_type": "page-layout",
       "ui_pattern": "crud-form-with-validation",
@@ -424,7 +424,7 @@
     },
     {
       "label": "login_screen",
-      "file": "design/Monopilot Design System/scanner/login.jsx",
+      "file": "prototypes/design/Monopilot Design System/scanner/login.jsx",
       "lines": "5-70",
       "component_type": "form",
       "ui_pattern": "crud-form-with-validation",
@@ -463,7 +463,7 @@
     },
     {
       "label": "pin_screen",
-      "file": "design/Monopilot Design System/scanner/login.jsx",
+      "file": "prototypes/design/Monopilot Design System/scanner/login.jsx",
       "lines": "72-126",
       "component_type": "form",
       "ui_pattern": "crud-form-with-validation",
@@ -496,7 +496,7 @@
     },
     {
       "label": "site_select_screen",
-      "file": "design/Monopilot Design System/scanner/login.jsx",
+      "file": "prototypes/design/Monopilot Design System/scanner/login.jsx",
       "lines": "128-199",
       "component_type": "wizard",
       "ui_pattern": "multi-step-wizard",
@@ -531,7 +531,7 @@
     },
     {
       "label": "po_list_screen",
-      "file": "design/Monopilot Design System/scanner/flow-receive.jsx",
+      "file": "prototypes/design/Monopilot Design System/scanner/flow-receive.jsx",
       "lines": "7-43",
       "component_type": "page-layout",
       "ui_pattern": "search-filter-list",
@@ -562,7 +562,7 @@
     },
     {
       "label": "po_lines_screen",
-      "file": "design/Monopilot Design System/scanner/flow-receive.jsx",
+      "file": "prototypes/design/Monopilot Design System/scanner/flow-receive.jsx",
       "lines": "45-92",
       "component_type": "page-layout",
       "ui_pattern": "detail-view",
@@ -597,7 +597,7 @@
     },
     {
       "label": "po_item_screen",
-      "file": "design/Monopilot Design System/scanner/flow-receive.jsx",
+      "file": "prototypes/design/Monopilot Design System/scanner/flow-receive.jsx",
       "lines": "94-239",
       "component_type": "wizard",
       "ui_pattern": "multi-step-wizard",
@@ -638,7 +638,7 @@
     },
     {
       "label": "po_done_screen",
-      "file": "design/Monopilot Design System/scanner/flow-receive.jsx",
+      "file": "prototypes/design/Monopilot Design System/scanner/flow-receive.jsx",
       "lines": "241-270",
       "component_type": "page-layout",
       "ui_pattern": "detail-view",
@@ -673,7 +673,7 @@
     },
     {
       "label": "to_list_screen",
-      "file": "design/Monopilot Design System/scanner/flow-receive.jsx",
+      "file": "prototypes/design/Monopilot Design System/scanner/flow-receive.jsx",
       "lines": "272-304",
       "component_type": "page-layout",
       "ui_pattern": "search-filter-list",
@@ -703,7 +703,7 @@
     },
     {
       "label": "to_scan_screen",
-      "file": "design/Monopilot Design System/scanner/flow-receive.jsx",
+      "file": "prototypes/design/Monopilot Design System/scanner/flow-receive.jsx",
       "lines": "306-394",
       "component_type": "wizard",
       "ui_pattern": "bulk-action",
@@ -739,7 +739,7 @@
     },
     {
       "label": "putaway_scan_screen",
-      "file": "design/Monopilot Design System/scanner/flow-putaway.jsx",
+      "file": "prototypes/design/Monopilot Design System/scanner/flow-putaway.jsx",
       "lines": "5-63",
       "component_type": "wizard",
       "ui_pattern": "wizard-step",
@@ -772,7 +772,7 @@
     },
     {
       "label": "putaway_suggest_screen",
-      "file": "design/Monopilot Design System/scanner/flow-putaway.jsx",
+      "file": "prototypes/design/Monopilot Design System/scanner/flow-putaway.jsx",
       "lines": "65-144",
       "component_type": "wizard",
       "ui_pattern": "wizard-step",
@@ -805,7 +805,7 @@
     },
     {
       "label": "pick_wo_list_screen",
-      "file": "design/Monopilot Design System/scanner/flow-pick.jsx",
+      "file": "prototypes/design/Monopilot Design System/scanner/flow-pick.jsx",
       "lines": "5-44",
       "component_type": "page-layout",
       "ui_pattern": "search-filter-list",
@@ -835,7 +835,7 @@
     },
     {
       "label": "pick_list_screen",
-      "file": "design/Monopilot Design System/scanner/flow-pick.jsx",
+      "file": "prototypes/design/Monopilot Design System/scanner/flow-pick.jsx",
       "lines": "46-98",
       "component_type": "page-layout",
       "ui_pattern": "detail-view",
@@ -868,7 +868,7 @@
     },
     {
       "label": "pick_scan_screen",
-      "file": "design/Monopilot Design System/scanner/flow-pick.jsx",
+      "file": "prototypes/design/Monopilot Design System/scanner/flow-pick.jsx",
       "lines": "100-242",
       "component_type": "wizard",
       "ui_pattern": "multi-step-wizard",
@@ -909,7 +909,7 @@
     },
     {
       "label": "wo_list_screen",
-      "file": "design/Monopilot Design System/scanner/flow-consume.jsx",
+      "file": "prototypes/design/Monopilot Design System/scanner/flow-consume.jsx",
       "lines": "8-53",
       "component_type": "page-layout",
       "ui_pattern": "search-filter-list",
@@ -945,7 +945,7 @@
     },
     {
       "label": "wo_detail_screen",
-      "file": "design/Monopilot Design System/scanner/flow-consume.jsx",
+      "file": "prototypes/design/Monopilot Design System/scanner/flow-consume.jsx",
       "lines": "55-120",
       "component_type": "page-layout",
       "ui_pattern": "detail-view",
@@ -983,7 +983,7 @@
     },
     {
       "label": "wo_execute_screen",
-      "file": "design/Monopilot Design System/scanner/flow-consume.jsx",
+      "file": "prototypes/design/Monopilot Design System/scanner/flow-consume.jsx",
       "lines": "122-213",
       "component_type": "page-layout",
       "ui_pattern": "list-with-actions",
@@ -1022,7 +1022,7 @@
     },
     {
       "label": "consume_scan_screen",
-      "file": "design/Monopilot Design System/scanner/flow-consume.jsx",
+      "file": "prototypes/design/Monopilot Design System/scanner/flow-consume.jsx",
       "lines": "215-423",
       "component_type": "wizard",
       "ui_pattern": "multi-step-wizard",
@@ -1067,7 +1067,7 @@
     },
     {
       "label": "output_screen",
-      "file": "design/Monopilot Design System/scanner/flow-register.jsx",
+      "file": "prototypes/design/Monopilot Design System/scanner/flow-register.jsx",
       "lines": "6-121",
       "component_type": "wizard",
       "ui_pattern": "multi-step-wizard",
@@ -1112,7 +1112,7 @@
     },
     {
       "label": "coproduct_screen",
-      "file": "design/Monopilot Design System/scanner/flow-register.jsx",
+      "file": "prototypes/design/Monopilot Design System/scanner/flow-register.jsx",
       "lines": "152-202",
       "component_type": "form",
       "ui_pattern": "crud-form-with-validation",
@@ -1150,7 +1150,7 @@
     },
     {
       "label": "waste_screen",
-      "file": "design/Monopilot Design System/scanner/flow-register.jsx",
+      "file": "prototypes/design/Monopilot Design System/scanner/flow-register.jsx",
       "lines": "226-285",
       "component_type": "form",
       "ui_pattern": "crud-form-with-validation",
@@ -1190,7 +1190,7 @@
     },
     {
       "label": "move_screen",
-      "file": "design/Monopilot Design System/scanner/flow-other.jsx",
+      "file": "prototypes/design/Monopilot Design System/scanner/flow-other.jsx",
       "lines": "26-121",
       "component_type": "wizard",
       "ui_pattern": "wizard-step",
@@ -1226,7 +1226,7 @@
     },
     {
       "label": "split_scan_screen",
-      "file": "design/Monopilot Design System/scanner/flow-other.jsx",
+      "file": "prototypes/design/Monopilot Design System/scanner/flow-other.jsx",
       "lines": "148-207",
       "component_type": "wizard",
       "ui_pattern": "wizard-step",
@@ -1261,7 +1261,7 @@
     },
     {
       "label": "split_qty_screen",
-      "file": "design/Monopilot Design System/scanner/flow-other.jsx",
+      "file": "prototypes/design/Monopilot Design System/scanner/flow-other.jsx",
       "lines": "209-250",
       "component_type": "form",
       "ui_pattern": "crud-form-with-validation",
@@ -1298,7 +1298,7 @@
     },
     {
       "label": "qa_list_screen",
-      "file": "design/Monopilot Design System/scanner/flow-other.jsx",
+      "file": "prototypes/design/Monopilot Design System/scanner/flow-other.jsx",
       "lines": "284-317",
       "component_type": "page-layout",
       "ui_pattern": "search-filter-list",
@@ -1328,7 +1328,7 @@
     },
     {
       "label": "qa_inspect_screen",
-      "file": "design/Monopilot Design System/scanner/flow-other.jsx",
+      "file": "prototypes/design/Monopilot Design System/scanner/flow-other.jsx",
       "lines": "319-351",
       "component_type": "page-layout",
       "ui_pattern": "detail-view",
@@ -1361,7 +1361,7 @@
     },
     {
       "label": "qa_fail_reason_screen",
-      "file": "design/Monopilot Design System/scanner/flow-other.jsx",
+      "file": "prototypes/design/Monopilot Design System/scanner/flow-other.jsx",
       "lines": "353-393",
       "component_type": "form",
       "ui_pattern": "crud-form-with-validation",
@@ -1397,7 +1397,7 @@
     },
     {
       "label": "inquiry_screen",
-      "file": "design/Monopilot Design System/scanner/flow-other.jsx",
+      "file": "prototypes/design/Monopilot Design System/scanner/flow-other.jsx",
       "lines": "448-503",
       "component_type": "page-layout",
       "ui_pattern": "detail-view",
@@ -1435,7 +1435,7 @@
     },
     {
       "label": "scanner_devices_screen",
-      "file": "design/Monopilot Design System/settings/ops-screens.jsx",
+      "file": "prototypes/design/Monopilot Design System/settings/ops-screens.jsx",
       "lines": "4-95",
       "component_type": "page-layout",
       "ui_pattern": "list-with-actions",
@@ -1466,7 +1466,7 @@
     },
     {
       "label": "pin_setup_screen",
-      "file": "design/Monopilot Design System/scanner/login.jsx",
+      "file": "prototypes/design/Monopilot Design System/scanner/login.jsx",
       "lines": "201-299",
       "component_type": "wizard",
       "ui_pattern": "multi-step-wizard",
@@ -1493,7 +1493,7 @@
     },
     {
       "label": "pin_change_screen",
-      "file": "design/Monopilot Design System/scanner/login.jsx",
+      "file": "prototypes/design/Monopilot Design System/scanner/login.jsx",
       "lines": "301-426",
       "component_type": "wizard",
       "ui_pattern": "multi-step-wizard",
@@ -1520,7 +1520,7 @@
     },
     {
       "label": "camera_scanner",
-      "file": "design/Monopilot Design System/scanner/modals.jsx",
+      "file": "prototypes/design/Monopilot Design System/scanner/modals.jsx",
       "lines": "326-391",
       "component_type": "modal",
       "ui_pattern": "wizard-step",
@@ -1546,7 +1546,7 @@
     },
     {
       "label": "to_done_screen",
-      "file": "design/Monopilot Design System/scanner/flow-receive.jsx",
+      "file": "prototypes/design/Monopilot Design System/scanner/flow-receive.jsx",
       "lines": "396-431",
       "component_type": "page-layout",
       "ui_pattern": "detail-view",
@@ -1572,7 +1572,7 @@
     },
     {
       "label": "putaway_done_screen",
-      "file": "design/Monopilot Design System/scanner/flow-putaway.jsx",
+      "file": "prototypes/design/Monopilot Design System/scanner/flow-putaway.jsx",
       "lines": "146-180",
       "component_type": "page-layout",
       "ui_pattern": "detail-view",
@@ -1598,7 +1598,7 @@
     },
     {
       "label": "move_done_screen",
-      "file": "design/Monopilot Design System/scanner/flow-other.jsx",
+      "file": "prototypes/design/Monopilot Design System/scanner/flow-other.jsx",
       "lines": "123-143",
       "component_type": "page-layout",
       "ui_pattern": "detail-view",
@@ -1624,7 +1624,7 @@
     },
     {
       "label": "split_done_screen",
-      "file": "design/Monopilot Design System/scanner/flow-other.jsx",
+      "file": "prototypes/design/Monopilot Design System/scanner/flow-other.jsx",
       "lines": "252-281",
       "component_type": "page-layout",
       "ui_pattern": "detail-view",
@@ -1650,7 +1650,7 @@
     },
     {
       "label": "pick_done_screen",
-      "file": "design/Monopilot Design System/scanner/flow-pick.jsx",
+      "file": "prototypes/design/Monopilot Design System/scanner/flow-pick.jsx",
       "lines": "244-280",
       "component_type": "page-layout",
       "ui_pattern": "detail-view",
@@ -1676,7 +1676,7 @@
     },
     {
       "label": "consume_done_screen",
-      "file": "design/Monopilot Design System/scanner/flow-consume.jsx",
+      "file": "prototypes/design/Monopilot Design System/scanner/flow-consume.jsx",
       "lines": "425-445",
       "component_type": "page-layout",
       "ui_pattern": "detail-view",
@@ -1702,7 +1702,7 @@
     },
     {
       "label": "output_done_screen",
-      "file": "design/Monopilot Design System/scanner/flow-register.jsx",
+      "file": "prototypes/design/Monopilot Design System/scanner/flow-register.jsx",
       "lines": "123-150",
       "component_type": "page-layout",
       "ui_pattern": "detail-view",
@@ -1728,7 +1728,7 @@
     },
     {
       "label": "coproduct_done_screen",
-      "file": "design/Monopilot Design System/scanner/flow-register.jsx",
+      "file": "prototypes/design/Monopilot Design System/scanner/flow-register.jsx",
       "lines": "204-224",
       "component_type": "page-layout",
       "ui_pattern": "detail-view",
@@ -1754,7 +1754,7 @@
     },
     {
       "label": "waste_done_screen",
-      "file": "design/Monopilot Design System/scanner/flow-register.jsx",
+      "file": "prototypes/design/Monopilot Design System/scanner/flow-register.jsx",
       "lines": "287-315",
       "component_type": "page-layout",
       "ui_pattern": "detail-view",
@@ -1780,7 +1780,7 @@
     },
     {
       "label": "qa_done_screen",
-      "file": "design/Monopilot Design System/scanner/flow-other.jsx",
+      "file": "prototypes/design/Monopilot Design System/scanner/flow-other.jsx",
       "lines": "395-445",
       "component_type": "page-layout",
       "ui_pattern": "detail-view",

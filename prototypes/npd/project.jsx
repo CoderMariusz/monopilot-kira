@@ -2,7 +2,7 @@
 // NPD module · project.jsx — Legacy R&D project shell (stage rail)
 // ----------------------------------------------------------------------------
 // Implementation contract: see ./SCHEMA.md · ./API.md · ./COMPONENT-INTERFACES.md
-// Spec: design/01-NPD-UX.md
+// Spec: prototypes/design/01-NPD-UX.md
 // ============================================================================
 
 // @deprecated BL-NPD-02 — Legacy R&D pipeline. NOT in production scope. Use fa-screens.jsx / brief-screens.jsx instead.

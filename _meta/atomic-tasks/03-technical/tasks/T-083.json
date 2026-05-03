@@ -13,7 +13,7 @@
   "pipeline_name": "kira_dev",
   "pipeline_inputs": {
     "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
-    "source_prd": "03-TECHNICAL-PRD.md",
+    "source_prd": "docs/prd/03-TECHNICAL-PRD.md",
     "skills": [
       "test-driven-development",
       "requesting-code-review"
@@ -44,7 +44,7 @@
       "§0",
       "§5.0",
       "§7.4",
-      "design/03-TECHNICAL-UX.md §0A"
+      "prototypes/design/03-TECHNICAL-UX.md §0A"
     ],
     "category": "ui",
     "subcategory": "ux-red-lines-local-copy",
@@ -55,7 +55,7 @@
     "description": "Local copy/guard red-line source for Technical UI tasks, keeping prototypes as visual anchors but correcting production semantics.",
     "details": "This is not app feature implementation. It creates a local copy contract or checklist in allowed PRD/UX/coverage/manifest/tasks scope and task acceptance criteria that implementation agents must follow. Prototype JSX remains an anchor; production UI copy must apply this overlay. Include forbidden legacy terms and allowed exceptions for imported source values/audit history. It complements T-078 rather than depending on it, to avoid a circular implementation dependency.",
     "scope_files": [
-      "design/03-TECHNICAL-UX.md",
+      "prototypes/design/03-TECHNICAL-UX.md",
       "_meta/atomic-tasks/03-technical/tasks/T-038.json",
       "_meta/atomic-tasks/03-technical/tasks/T-039.json",
       "_meta/atomic-tasks/03-technical/tasks/T-060.json",
@@ -63,7 +63,7 @@
       "_meta/atomic-tasks/03-technical/tasks/T-080.json"
     ],
     "acceptance_criteria": [
-      "Given UI task uses design/Monopilot Design System/technical/bom-detail.jsx:3-60 or design/Monopilot Design System/technical/modals.jsx:168-243, then structural, visual and interaction parity remains required while production copy applies this red-line overlay.",
+      "Given UI task uses prototypes/design/Monopilot Design System/technical/bom-detail.jsx:3-60 or prototypes/design/Monopilot Design System/technical/modals.jsx:168-243, then structural, visual and interaction parity remains required while production copy applies this red-line overlay.",
       "Given production UI copy is reviewed, then FA/PR/D365-first wording is absent except explicit legacy imported-source/audit labels.",
       "Given a released BOM/spec edit UI is implemented, then clone-on-write banner copy is present and in-place edit copy is absent.",
       "Given RM component selection UI is implemented, then approved supplier, active supplier_spec, allergens, item active, cost/spec review and QC/release checks are listed with typed server codes.",

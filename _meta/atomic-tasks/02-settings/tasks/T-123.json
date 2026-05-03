@@ -14,7 +14,7 @@
   "pipeline_inputs": {
     "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
     "prd_task_id": "T-123",
-    "source_prd": "02-SETTINGS-PRD.md",
+    "source_prd": "docs/prd/02-SETTINGS-PRD.md",
     "prd_refs": [
       "§7.2 rule registry",
       "§7.3 rules deploy",

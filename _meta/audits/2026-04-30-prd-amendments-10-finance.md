@@ -3,10 +3,10 @@
 **Date:** 2026-04-30
 **Module:** 10-FINANCE
 **PRD baseline:** v3.1 (2026-04-30, multi-industry standardization, 1381 lines pre-amendment)
-**UX source:** `design/10-FINANCE-UX.md` (1456 lines, 17 screens + 13 modals + Settings)
+**UX source:** `prototypes/design/10-FINANCE-UX.md` (1456 lines, 17 screens + 13 modals + Settings)
 **Prototype index:** `_meta/prototype-labels/prototype-index-finance.json` (25 entries)
 **Audit predecessor:** `_meta/audits/2026-04-30-design-prd-coverage.md` §2 module 10-FINANCE (~50% coverage finding)
-**Result file:** `10-FINANCE-PRD.md` v3.1 + §8.4 / §8.5 / §8.6 amendments (Direction A + B + matrix)
+**Result file:** `docs/prd/10-FINANCE-PRD.md` v3.1 + §8.4 / §8.5 / §8.6 amendments (Direction A + B + matrix)
 
 ---
 
@@ -27,7 +27,7 @@
 
 ### Direction B (orphan UX/prototype → new PRD subsection w §8.4)
 
-13 new subsections w `10-FINANCE-PRD.md` §8.4 "Extended desktop screens":
+13 new subsections w `docs/prd/10-FINANCE-PRD.md` §8.4 "Extended desktop screens":
 
 1. **FIN-002b Standard Cost Detail Drawer** [UNIVERSAL] — UX:121, prototype `cost_history_modal` + `fin_standard_costs_list` row expansion
 2. **FIN-003a WO Costs List** [UNIVERSAL] — UX:122/300, prototype `fin_wo_list`
@@ -124,11 +124,11 @@ Per ADR-034 generic naming requirement. Markers stamped w §8.4 amendments:
 
 | Step | File | Lines added | Lines deleted | Lines re-ordered |
 |---|---|---|---|---|
-| §8.4 Extended desktop screens | `10-FINANCE-PRD.md` | ~145 | 0 | 0 |
-| §8.5 Modal contracts table | `10-FINANCE-PRD.md` | ~18 | 0 | 0 |
-| §8.6 §UI surfaces matrix | `10-FINANCE-PRD.md` | ~35 | 0 | 0 |
-| §16.1 OQ-FIN-13 | `10-FINANCE-PRD.md` | 1 | 0 | 0 |
-| §18 metadata FIN-* count | `10-FINANCE-PRD.md` | 0 | 0 | 1 (in-place edit) |
+| §8.4 Extended desktop screens | `docs/prd/10-FINANCE-PRD.md` | ~145 | 0 | 0 |
+| §8.5 Modal contracts table | `docs/prd/10-FINANCE-PRD.md` | ~18 | 0 | 0 |
+| §8.6 §UI surfaces matrix | `docs/prd/10-FINANCE-PRD.md` | ~35 | 0 | 0 |
+| §16.1 OQ-FIN-13 | `docs/prd/10-FINANCE-PRD.md` | 1 | 0 | 0 |
+| §18 metadata FIN-* count | `docs/prd/10-FINANCE-PRD.md` | 0 | 0 | 1 (in-place edit) |
 | Audit amendment report | `_meta/audits/2026-04-30-prd-amendments-10-finance.md` | NEW (this file) | — | — |
 
 **Total PRD net add:** ~199 lines (no deletions; module v3.1 → v3.1+amendment, no version bump per ADD-only rule).

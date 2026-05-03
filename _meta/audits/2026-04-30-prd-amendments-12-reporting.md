@@ -1,8 +1,8 @@
 # 12-REPORTING PRD Amendments — 2026-04-30 Reconciliation Pass
 
 **Source audit:** `_meta/audits/2026-04-30-design-prd-coverage.md` §Module 12-REPORTING (~80% coverage; 5 Direction-B orphan modals + 2 unanchored P2 list/edit screens)
-**Target file:** `12-REPORTING-PRD.md` (now v3.2)
-**Scope discipline:** Strictly within 12-REPORTING. UX file (`design/12-REPORTING-UX.md`) untouched. Only ADD or RE-ORDER inside the PRD; no deletions. Inline citations of UX line numbers and prototype labels per audit fix protocol. ADR-034 markers applied to all new content ([UNIVERSAL] default).
+**Target file:** `docs/prd/12-REPORTING-PRD.md` (now v3.2)
+**Scope discipline:** Strictly within 12-REPORTING. UX file (`prototypes/design/12-REPORTING-UX.md`) untouched. Only ADD or RE-ORDER inside the PRD; no deletions. Inline citations of UX line numbers and prototype labels per audit fix protocol. ADR-034 markers applied to all new content ([UNIVERSAL] default).
 
 ---
 
@@ -23,22 +23,22 @@ The translation-notes labeling fix (referenced in the calling brief: "10 missing
 
 ## 2. Sections added
 
-All inserted inside `12-REPORTING-PRD.md` §15 Screens (between existing §15.1/§15.2/§15.3 and §16 Build Roadmap). No content deleted.
+All inserted inside `docs/prd/12-REPORTING-PRD.md` §15 Screens (between existing §15.1/§15.2/§15.3 and §16 Build Roadmap). No content deleted.
 
 | New PRD ID | Title | UX source line(s) | Source prototype | Phase |
 |---|---|---|---|---|
-| RPT-011 | Share Report Link Modal | `design/12-REPORTING-UX.md:863-878` (MOD-SHARE) | `share_report_modal` (`reporting/modals.jsx:258-282`) | P1 |
-| RPT-012 | Regulatory Sign-off Modal | `design/12-REPORTING-UX.md:911-928` (MOD-REGULATORY-SIGNOFF) | `regulatory_signoff_modal` (`reporting/modals.jsx:332-378`) | P2 |
-| RPT-013 | Recipient Group Modal | `design/12-REPORTING-UX.md:944-955` (MOD-RECIPIENT-GROUP) | `recipient_group_modal` (`reporting/modals.jsx:403-435`) | P2 |
-| RPT-014 | Export Error Log Modal | `design/12-REPORTING-UX.md:893-908` (MOD-ERROR-LOG) | `error_log_modal` (`reporting/modals.jsx:306-329`) | P1 |
-| RPT-015 | Force Refresh Confirm Modal | `design/12-REPORTING-UX.md:931-940` (MOD-REFRESH-CONFIRM) | `refresh_confirm_modal` (`reporting/modals.jsx:381-400`) | P1 |
-| RPT-016 | Run Now Confirm Modal | `design/12-REPORTING-UX.md:1319` (RPT-SCHED inline confirm) | `run_now_confirm_modal` (`reporting/modals.jsx:438-450`) | P2 |
-| RPT-017 | Delete / Deactivate Confirm Modal | `design/12-REPORTING-UX.md:880-889` (MOD-DELETE-CONFIRM) | `delete_confirm_modal` (`reporting/modals.jsx:285-303`) | P1 |
-| RPT-018 | Save Filter Preset Modal | `design/12-REPORTING-UX.md:812-827` (MOD-SAVE-PRESET) | `save_preset_modal` (`reporting/modals.jsx:115-148`) | P1 |
-| RPT-019 | P2 Feature Toast Modal | `design/12-REPORTING-UX.md:1171-1173` (P2 placeholder section banner) | `p2_toast_modal` (`reporting/modals.jsx:453-464`) | P1 |
-| RPT-020 | Access Denied Modal | `design/12-REPORTING-UX.md:1117` (toast row "Access denied" inline pattern) | `access_denied_modal` (`reporting/modals.jsx:467-481`) | P1 |
-| RPT-SCHED | Scheduled Reports List | `design/12-REPORTING-UX.md:1290-1329` | `rpt_scheduled_list` (`reporting/other-screens.jsx:159-242`) | P2 |
-| RPT-SCHED-EDIT | Scheduled Report Create / Edit | `design/12-REPORTING-UX.md:1331-1389` | `rpt_scheduled_edit` (`reporting/other-screens.jsx:245-432`) | P2 |
+| RPT-011 | Share Report Link Modal | `prototypes/design/12-REPORTING-UX.md:863-878` (MOD-SHARE) | `share_report_modal` (`reporting/modals.jsx:258-282`) | P1 |
+| RPT-012 | Regulatory Sign-off Modal | `prototypes/design/12-REPORTING-UX.md:911-928` (MOD-REGULATORY-SIGNOFF) | `regulatory_signoff_modal` (`reporting/modals.jsx:332-378`) | P2 |
+| RPT-013 | Recipient Group Modal | `prototypes/design/12-REPORTING-UX.md:944-955` (MOD-RECIPIENT-GROUP) | `recipient_group_modal` (`reporting/modals.jsx:403-435`) | P2 |
+| RPT-014 | Export Error Log Modal | `prototypes/design/12-REPORTING-UX.md:893-908` (MOD-ERROR-LOG) | `error_log_modal` (`reporting/modals.jsx:306-329`) | P1 |
+| RPT-015 | Force Refresh Confirm Modal | `prototypes/design/12-REPORTING-UX.md:931-940` (MOD-REFRESH-CONFIRM) | `refresh_confirm_modal` (`reporting/modals.jsx:381-400`) | P1 |
+| RPT-016 | Run Now Confirm Modal | `prototypes/design/12-REPORTING-UX.md:1319` (RPT-SCHED inline confirm) | `run_now_confirm_modal` (`reporting/modals.jsx:438-450`) | P2 |
+| RPT-017 | Delete / Deactivate Confirm Modal | `prototypes/design/12-REPORTING-UX.md:880-889` (MOD-DELETE-CONFIRM) | `delete_confirm_modal` (`reporting/modals.jsx:285-303`) | P1 |
+| RPT-018 | Save Filter Preset Modal | `prototypes/design/12-REPORTING-UX.md:812-827` (MOD-SAVE-PRESET) | `save_preset_modal` (`reporting/modals.jsx:115-148`) | P1 |
+| RPT-019 | P2 Feature Toast Modal | `prototypes/design/12-REPORTING-UX.md:1171-1173` (P2 placeholder section banner) | `p2_toast_modal` (`reporting/modals.jsx:453-464`) | P1 |
+| RPT-020 | Access Denied Modal | `prototypes/design/12-REPORTING-UX.md:1117` (toast row "Access denied" inline pattern) | `access_denied_modal` (`reporting/modals.jsx:467-481`) | P1 |
+| RPT-SCHED | Scheduled Reports List | `prototypes/design/12-REPORTING-UX.md:1290-1329` | `rpt_scheduled_list` (`reporting/other-screens.jsx:159-242`) | P2 |
+| RPT-SCHED-EDIT | Scheduled Report Create / Edit | `prototypes/design/12-REPORTING-UX.md:1331-1389` | `rpt_scheduled_edit` (`reporting/other-screens.jsx:245-432`) | P2 |
 | §15.4 | UI surfaces traceability matrix (bidirectional PRD ↔ UX ↔ prototype ↔ status) | n/a | n/a (matrix, 50 rows) | n/a |
 
 Also amended (no deletions):
@@ -88,7 +88,7 @@ No content deleted from §1–§14, §16 Build Roadmap, §17 Open Questions (OQ-
 - [x] All P1 + P2 PRD entries cite UX line numbers (or `[NO-UX-YET]` marker).
 - [x] All new PRD content carries ADR-034 marker (`[UNIVERSAL]` for universal contracts; legacy `[APEX-CONFIG]`/`[LEGACY-D365]` markers preserved untouched in pre-existing sections).
 - [x] No content deleted from PRD.
-- [x] UX file `design/12-REPORTING-UX.md` not modified (per constraints).
+- [x] UX file `prototypes/design/12-REPORTING-UX.md` not modified (per constraints).
 - [x] Header version bumped to v3.2.
 - [x] Changelog entry added at top of §18.
 - [x] Schema additions for RPT-013 + RPT-018 are scoped to §9.3 reference (consistent with existing P2 schema location).

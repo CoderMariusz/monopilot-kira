@@ -10,7 +10,7 @@ source: _meta/plans/2026-04-22-foundation-merged-plan.md (95 tasks)
 
 Every row has a status: PLANNED (covered by a task), DEFERRED (out of scope with explicit pointer), or SPLIT (covered by multiple atomic tasks). Zero GAP rows.
 
-## A. 00-FOUNDATION-PRD.md sections → merged coverage
+## A. docs/prd/00-FOUNDATION-PRD.md sections → merged coverage
 
 ### A.1 PRD §2 Markers
 

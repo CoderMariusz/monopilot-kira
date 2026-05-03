@@ -1,6 +1,6 @@
 {
   "title": "T-032 — QA-030 incoming inspection list (prototype parity)",
-  "prompt": "# T-032 — QA-030 incoming inspection list\n\nPRD: 09-QUALITY-PRD.md §8.2 QA-030, §8.5 prototype incoming_inspection_list\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nBuild `/quality/inspections/incoming` Server Component listing pending/assigned/in_progress incoming inspections with filter toolbar, urgent overdue strip, and row click → detail.\n\n## Implementation contract\n1. `apps/web/src/app/quality/inspections/incoming/page.tsx` Server Component reads from v_inspection_backlog (created in T-035) limited to inspection_type='incoming'.\n2. Top toolbar: type Select (incoming/scanner_quick/allergen_changeover/all), status, priority, inspector Select, date range.\n3. Urgent overdue strip at top showing 'N inspections overdue — expand'.\n4. 1:1 parity vs `design/Monopilot Design System/quality/inspection-screens.jsx:3-97`.\n\n## Files\n- apps/web/src/app/quality/inspections/incoming/page.tsx [create]\n- apps/web/src/components/quality/inspections/InspectionListTable.tsx [create]\n- apps/web/src/components/quality/inspections/__tests__/incomingList.test.tsx [create]\n- design/Monopilot Design System/quality/inspection-screens.jsx [ref]\n\n## Acceptance criteria\n1. Given the page renders, when compared to design/Monopilot Design System/quality/inspection-screens.jsx:3-97, then it has parity with the prototype on structure (urgent strip + filter toolbar + 9-col Table in declared order Inspection#/Type/Reference/Product/Priority/Status/Assigned/Scheduled/Action), visuals (shadcn Table/Select/Badge/Alert/Button only), and interaction (urgent strip click expands the table to overdue-only filter, row click → /quality/inspections/incoming/:id) — verified by RTL plus parity checklist in pipeline_inputs.details\n2. Given v_inspection_backlog returns 0 pending rows, when the page renders, then the empty-state copy 'No pending inspections.' is shown and the urgent strip is hidden\n3. Given 3 overdue inspections exist, when the page loads, then the urgent strip shows '3 inspections overdue — expand' and clicking it filters the table to urgency=overdue",
+  "prompt": "# T-032 — QA-030 incoming inspection list\n\nPRD: docs/prd/09-QUALITY-PRD.md §8.2 QA-030, §8.5 prototype incoming_inspection_list\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nBuild `/quality/inspections/incoming` Server Component listing pending/assigned/in_progress incoming inspections with filter toolbar, urgent overdue strip, and row click → detail.\n\n## Implementation contract\n1. `apps/web/src/app/quality/inspections/incoming/page.tsx` Server Component reads from v_inspection_backlog (created in T-035) limited to inspection_type='incoming'.\n2. Top toolbar: type Select (incoming/scanner_quick/allergen_changeover/all), status, priority, inspector Select, date range.\n3. Urgent overdue strip at top showing 'N inspections overdue — expand'.\n4. 1:1 parity vs `prototypes/design/Monopilot Design System/quality/inspection-screens.jsx:3-97`.\n\n## Files\n- apps/web/src/app/quality/inspections/incoming/page.tsx [create]\n- apps/web/src/components/quality/inspections/InspectionListTable.tsx [create]\n- apps/web/src/components/quality/inspections/__tests__/incomingList.test.tsx [create]\n- prototypes/design/Monopilot Design System/quality/inspection-screens.jsx [ref]\n\n## Acceptance criteria\n1. Given the page renders, when compared to prototypes/design/Monopilot Design System/quality/inspection-screens.jsx:3-97, then it has parity with the prototype on structure (urgent strip + filter toolbar + 9-col Table in declared order Inspection#/Type/Reference/Product/Priority/Status/Assigned/Scheduled/Action), visuals (shadcn Table/Select/Badge/Alert/Button only), and interaction (urgent strip click expands the table to overdue-only filter, row click → /quality/inspections/incoming/:id) — verified by RTL plus parity checklist in pipeline_inputs.details\n2. Given v_inspection_backlog returns 0 pending rows, when the page renders, then the empty-state copy 'No pending inspections.' is shown and the urgent strip is hidden\n3. Given 3 overdue inspections exist, when the page loads, then the urgent strip shows '3 inspections overdue — expand' and clicking it filters the table to urgency=overdue",
   "labels": ["prd", "ui", "qa-inspection-list", "T3-ui"],
   "priority": 100,
   "max_attempts": 3,
@@ -8,7 +8,7 @@
   "pipeline_inputs": {
     "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
     "prd_task_id": "T-032",
-    "source_prd": "09-QUALITY-PRD.md",
+    "source_prd": "docs/prd/09-QUALITY-PRD.md",
     "prd_refs": ["§8.2 QA-030", "§8.5"],
     "category": "ui",
     "subcategory": "qa-inspection-list",
@@ -23,7 +23,7 @@
       "apps/web/src/app/quality/inspections/incoming/page.tsx [create]",
       "apps/web/src/components/quality/inspections/InspectionListTable.tsx [create]",
       "apps/web/src/components/quality/inspections/__tests__/incomingList.test.tsx [create]",
-      "design/Monopilot Design System/quality/inspection-screens.jsx [ref]"
+      "prototypes/design/Monopilot Design System/quality/inspection-screens.jsx [ref]"
     ],
     "out_of_scope": [
       "Do not implement detail page (T-033)",
@@ -33,7 +33,7 @@
     "dependencies": ["T-025", "T-035"],
     "parallel_safe_with": ["T-033", "T-034", "T-035", "T-036"],
     "acceptance_criteria": [
-      "Given the page renders, when compared to design/Monopilot Design System/quality/inspection-screens.jsx:3-97, then it has parity on structure (urgent strip + filter toolbar + 9-col Table in declared order), visuals (shadcn primitives only), and interaction (urgent strip click filters to overdue, row click → /quality/inspections/incoming/:id) — verified by RTL plus parity checklist in pipeline_inputs.details",
+      "Given the page renders, when compared to prototypes/design/Monopilot Design System/quality/inspection-screens.jsx:3-97, then it has parity on structure (urgent strip + filter toolbar + 9-col Table in declared order), visuals (shadcn primitives only), and interaction (urgent strip click filters to overdue, row click → /quality/inspections/incoming/:id) — verified by RTL plus parity checklist in pipeline_inputs.details",
       "Given v_inspection_backlog returns 0 pending rows, when the page renders, then empty-state copy 'No pending inspections.' is shown and the urgent strip is hidden",
       "Given 3 overdue rows exist, when the page loads, then the urgent strip shows '3 inspections overdue — expand' and clicking it filters the table to urgency=overdue"
     ],

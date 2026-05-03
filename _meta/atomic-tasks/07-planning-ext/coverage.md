@@ -1,6 +1,6 @@
 # PRD Coverage — 07-PLANNING-EXT full readiness hardening
 
-Source PRD: `07-PLANNING-EXT-PRD.md` v3.2 + Wave Next decisions 2026-05-03.
+Source PRD: `docs/prd/07-PLANNING-EXT-PRD.md` v3.2 + Wave Next decisions 2026-05-03.
 Prototype index: `_meta/prototype-labels/prototype-index-planning-ext.json`.
 Task manifest: `_meta/atomic-tasks/07-planning-ext/manifest.json`.
 Validator: `python3 _meta/atomic-tasks/07-planning-ext/_validate.py`.
@@ -61,7 +61,7 @@ The module index currently contains 25 first-class planning-ext labels:
 - Modals: `run_scheduler_modal`, `override_assignment_modal`, `reschedule_wo_modal`, `approve_all_modal`, `matrix_cell_edit_modal`, `matrix_publish_modal`, `matrix_import_modal`, `matrix_diff_modal`, `forecast_upload_modal`, `disposition_decision_modal`, `rerun_confirm_modal`, `disable_v2_modal`, `request_review_modal`.
 - Pages/panels: `pext_dashboard_gantt`, `assignment_side_panel`, `pext_forecasts_screen`, `pext_matrix_editor`, `pext_pending_full_page`, `pext_capacity_projection`, `pext_run_history`, `pext_run_detail`, `pext_scenarios`, `pext_sequencing`, `pext_rules_screen`, `pext_settings_screen`.
 
-All labels have concrete JSX file paths and line ranges in `design/Monopilot Design System/planning-ext/*.jsx`; the same planning-ext entries are present in `_meta/prototype-labels/master-index.json`. T-056 requires implementation-time marker evidence using `data-prototype-label` or an explicit P2/locked exception.
+All labels have concrete JSX file paths and line ranges in `prototypes/design/Monopilot Design System/planning-ext/*.jsx`; the same planning-ext entries are present in `_meta/prototype-labels/master-index.json`. T-056 requires implementation-time marker evidence using `data-prototype-label` or an explicit P2/locked exception.
 
 ## Remaining intentional gaps / non-blockers
 

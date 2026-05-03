@@ -11,7 +11,7 @@
   "pipeline_inputs": {
     "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
     "prd_task_id": "T-041",
-    "source_prd": "08-PRODUCTION-PRD.md",
+    "source_prd": "docs/prd/08-PRODUCTION-PRD.md",
     "prd_refs": [
       "§8.2.7",
       "§11.7",

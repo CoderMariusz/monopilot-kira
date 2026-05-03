@@ -14,7 +14,7 @@
   "pipeline_name": "kira_dev",
   "pipeline_inputs": {
     "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
-    "source_prd": "03-TECHNICAL-PRD.md",
+    "source_prd": "docs/prd/03-TECHNICAL-PRD.md",
     "skills": [
       "test-driven-development",
       "requesting-code-review"
@@ -46,7 +46,7 @@
       "§5.0",
       "§7.4",
       "§7.6",
-      "design/03-TECHNICAL-UX.md §0A"
+      "prototypes/design/03-TECHNICAL-UX.md §0A"
     ],
     "category": "api",
     "subcategory": "factory-spec-bom-bundle-api",

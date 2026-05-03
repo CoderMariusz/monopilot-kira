@@ -6,7 +6,7 @@
   "entries": [
     {
       "label": "run_scheduler_modal",
-      "file": "design/Monopilot Design System/planning-ext/modals.jsx",
+      "file": "prototypes/design/Monopilot Design System/planning-ext/modals.jsx",
       "lines": "21-95",
       "component_type": "modal",
       "ui_pattern": "crud-form-with-validation",
@@ -38,7 +38,7 @@
     },
     {
       "label": "override_assignment_modal",
-      "file": "design/Monopilot Design System/planning-ext/modals.jsx",
+      "file": "prototypes/design/Monopilot Design System/planning-ext/modals.jsx",
       "lines": "98-212",
       "component_type": "modal",
       "ui_pattern": "crud-form-with-validation",
@@ -72,7 +72,7 @@
     },
     {
       "label": "reschedule_wo_modal",
-      "file": "design/Monopilot Design System/planning-ext/modals.jsx",
+      "file": "prototypes/design/Monopilot Design System/planning-ext/modals.jsx",
       "lines": "214-287",
       "component_type": "modal",
       "ui_pattern": "crud-form-with-validation",
@@ -106,7 +106,7 @@
     },
     {
       "label": "approve_all_modal",
-      "file": "design/Monopilot Design System/planning-ext/modals.jsx",
+      "file": "prototypes/design/Monopilot Design System/planning-ext/modals.jsx",
       "lines": "289-320",
       "component_type": "modal",
       "ui_pattern": "bulk-action",
@@ -135,7 +135,7 @@
     },
     {
       "label": "matrix_cell_edit_modal",
-      "file": "design/Monopilot Design System/planning-ext/modals.jsx",
+      "file": "prototypes/design/Monopilot Design System/planning-ext/modals.jsx",
       "lines": "322-378",
       "component_type": "modal",
       "ui_pattern": "crud-form-with-validation",
@@ -167,7 +167,7 @@
     },
     {
       "label": "matrix_publish_modal",
-      "file": "design/Monopilot Design System/planning-ext/modals.jsx",
+      "file": "prototypes/design/Monopilot Design System/planning-ext/modals.jsx",
       "lines": "380-412",
       "component_type": "modal",
       "ui_pattern": "crud-form-with-validation",
@@ -199,7 +199,7 @@
     },
     {
       "label": "matrix_import_modal",
-      "file": "design/Monopilot Design System/planning-ext/modals.jsx",
+      "file": "prototypes/design/Monopilot Design System/planning-ext/modals.jsx",
       "lines": "414-470",
       "component_type": "modal",
       "ui_pattern": "import-export",
@@ -236,7 +236,7 @@
     },
     {
       "label": "matrix_diff_modal",
-      "file": "design/Monopilot Design System/planning-ext/modals.jsx",
+      "file": "prototypes/design/Monopilot Design System/planning-ext/modals.jsx",
       "lines": "472-496",
       "component_type": "modal",
       "ui_pattern": "detail-view",
@@ -273,7 +273,7 @@
     },
     {
       "label": "forecast_upload_modal",
-      "file": "design/Monopilot Design System/planning-ext/modals.jsx",
+      "file": "prototypes/design/Monopilot Design System/planning-ext/modals.jsx",
       "lines": "498-560",
       "component_type": "modal",
       "ui_pattern": "import-export",
@@ -308,7 +308,7 @@
     },
     {
       "label": "disposition_decision_modal",
-      "file": "design/Monopilot Design System/planning-ext/modals.jsx",
+      "file": "prototypes/design/Monopilot Design System/planning-ext/modals.jsx",
       "lines": "562-629",
       "component_type": "modal",
       "ui_pattern": "crud-form-with-validation",
@@ -342,7 +342,7 @@
     },
     {
       "label": "rerun_confirm_modal",
-      "file": "design/Monopilot Design System/planning-ext/modals.jsx",
+      "file": "prototypes/design/Monopilot Design System/planning-ext/modals.jsx",
       "lines": "631-648",
       "component_type": "modal",
       "ui_pattern": "bulk-action",
@@ -371,7 +371,7 @@
     },
     {
       "label": "disable_v2_modal",
-      "file": "design/Monopilot Design System/planning-ext/modals.jsx",
+      "file": "prototypes/design/Monopilot Design System/planning-ext/modals.jsx",
       "lines": "650-675",
       "component_type": "modal",
       "ui_pattern": "crud-form-with-validation",
@@ -405,7 +405,7 @@
     },
     {
       "label": "request_review_modal",
-      "file": "design/Monopilot Design System/planning-ext/modals.jsx",
+      "file": "prototypes/design/Monopilot Design System/planning-ext/modals.jsx",
       "lines": "677-696",
       "component_type": "modal",
       "ui_pattern": "crud-form-with-validation",
@@ -437,7 +437,7 @@
     },
     {
       "label": "pext_dashboard_gantt",
-      "file": "design/Monopilot Design System/planning-ext/dashboard.jsx",
+      "file": "prototypes/design/Monopilot Design System/planning-ext/dashboard.jsx",
       "lines": "9-363",
       "component_type": "page-layout",
       "ui_pattern": "detail-view",
@@ -477,7 +477,7 @@
     },
     {
       "label": "assignment_side_panel",
-      "file": "design/Monopilot Design System/planning-ext/dashboard.jsx",
+      "file": "prototypes/design/Monopilot Design System/planning-ext/dashboard.jsx",
       "lines": "365-451",
       "component_type": "sidebar",
       "ui_pattern": "detail-view",
@@ -514,7 +514,7 @@
     },
     {
       "label": "pext_forecasts_screen",
-      "file": "design/Monopilot Design System/planning-ext/forecast-screens.jsx",
+      "file": "prototypes/design/Monopilot Design System/planning-ext/forecast-screens.jsx",
       "lines": "3-155",
       "component_type": "page-layout",
       "ui_pattern": "search-filter-list",
@@ -552,7 +552,7 @@
     },
     {
       "label": "pext_matrix_editor",
-      "file": "design/Monopilot Design System/planning-ext/matrix-screens.jsx",
+      "file": "prototypes/design/Monopilot Design System/planning-ext/matrix-screens.jsx",
       "lines": "12-245",
       "component_type": "page-layout",
       "ui_pattern": "crud-form-with-validation",
@@ -595,7 +595,7 @@
     },
     {
       "label": "pext_pending_full_page",
-      "file": "design/Monopilot Design System/planning-ext/optimizer-screens.jsx",
+      "file": "prototypes/design/Monopilot Design System/planning-ext/optimizer-screens.jsx",
       "lines": "4-110",
       "component_type": "page-layout",
       "ui_pattern": "list-with-actions",
@@ -631,7 +631,7 @@
     },
     {
       "label": "pext_capacity_projection",
-      "file": "design/Monopilot Design System/planning-ext/optimizer-screens.jsx",
+      "file": "prototypes/design/Monopilot Design System/planning-ext/optimizer-screens.jsx",
       "lines": "113-206",
       "component_type": "page-layout",
       "ui_pattern": "detail-view",
@@ -662,7 +662,7 @@
     },
     {
       "label": "pext_run_history",
-      "file": "design/Monopilot Design System/planning-ext/runhistory-screens.jsx",
+      "file": "prototypes/design/Monopilot Design System/planning-ext/runhistory-screens.jsx",
       "lines": "3-115",
       "component_type": "page-layout",
       "ui_pattern": "search-filter-list",
@@ -697,7 +697,7 @@
     },
     {
       "label": "pext_run_detail",
-      "file": "design/Monopilot Design System/planning-ext/runhistory-screens.jsx",
+      "file": "prototypes/design/Monopilot Design System/planning-ext/runhistory-screens.jsx",
       "lines": "119-260",
       "component_type": "page-layout",
       "ui_pattern": "detail-view",
@@ -733,7 +733,7 @@
     },
     {
       "label": "pext_scenarios",
-      "file": "design/Monopilot Design System/planning-ext/scenario-screens.jsx",
+      "file": "prototypes/design/Monopilot Design System/planning-ext/scenario-screens.jsx",
       "lines": "3-211",
       "component_type": "page-layout",
       "ui_pattern": "multi-step-wizard",
@@ -772,7 +772,7 @@
     },
     {
       "label": "pext_sequencing",
-      "file": "design/Monopilot Design System/planning-ext/sequencing-screens.jsx",
+      "file": "prototypes/design/Monopilot Design System/planning-ext/sequencing-screens.jsx",
       "lines": "3-179",
       "component_type": "page-layout",
       "ui_pattern": "detail-view",
@@ -808,7 +808,7 @@
     },
     {
       "label": "pext_rules_screen",
-      "file": "design/Monopilot Design System/planning-ext/other-screens.jsx",
+      "file": "prototypes/design/Monopilot Design System/planning-ext/other-screens.jsx",
       "lines": "4-76",
       "component_type": "page-layout",
       "ui_pattern": "list-with-actions",
@@ -840,7 +840,7 @@
     },
     {
       "label": "pext_settings_screen",
-      "file": "design/Monopilot Design System/planning-ext/other-screens.jsx",
+      "file": "prototypes/design/Monopilot Design System/planning-ext/other-screens.jsx",
       "lines": "79-133",
       "component_type": "page-layout",
       "ui_pattern": "crud-form-with-validation",

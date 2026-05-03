@@ -1,6 +1,6 @@
 {
   "title": "T-098 — Full Brief→Project→G3 FG→G4 release→Technical approval E2E",
-  "prompt": "# T-098 — Full E2E G4 release spine\n\nPRD: 01-NPD-PRD.md final decisions + 2026-05-03 E2E release spike\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nAdd a full Playwright/integration E2E proving one product can travel from Brief to factory-usable release through the canonical spine:\nBrief → NPD project G0 → G1/G2 → G3 FG mapping → department closure → G4 approval → NPD Builder release → Technical approval → release status/read model → factory/Planning visibility.\n\n## Required assertions\n- Brief creation creates/links NPD project before FG exists.\n- G3 blocks until FG candidate is created/mapped.\n- G4 blocks until required departments are Done, RM usability passes, and release preflight is clean.\n- NPD Builder creates/links WIP/intermediates, FG, initial shared BOM and factory_spec in one idempotent release.\n- Technical approval is required before factory/Planning can consume factory_spec/BOM.\n- Release status transitions to pending_technical_approval then approved_for_factory/released_to_factory.\n- D365 disabled does not block release; optional D365 export does not set release state.",
+  "prompt": "# T-098 — Full E2E G4 release spine\n\nPRD: docs/prd/01-NPD-PRD.md final decisions + 2026-05-03 E2E release spike\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nAdd a full Playwright/integration E2E proving one product can travel from Brief to factory-usable release through the canonical spine:\nBrief → NPD project G0 → G1/G2 → G3 FG mapping → department closure → G4 approval → NPD Builder release → Technical approval → release status/read model → factory/Planning visibility.\n\n## Required assertions\n- Brief creation creates/links NPD project before FG exists.\n- G3 blocks until FG candidate is created/mapped.\n- G4 blocks until required departments are Done, RM usability passes, and release preflight is clean.\n- NPD Builder creates/links WIP/intermediates, FG, initial shared BOM and factory_spec in one idempotent release.\n- Technical approval is required before factory/Planning can consume factory_spec/BOM.\n- Release status transitions to pending_technical_approval then approved_for_factory/released_to_factory.\n- D365 disabled does not block release; optional D365 export does not set release state.",
   "labels": [
     "prd",
     "test",
@@ -17,7 +17,7 @@
   "pipeline_inputs": {
     "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
     "prd_task_id": "T-098",
-    "source_prd": "01-NPD-PRD.md",
+    "source_prd": "docs/prd/01-NPD-PRD.md",
     "prd_refs": [
       "2026-05-03 E2E release spike",
       "_meta/decisions/2026-05-03-flow-d365-settings-technical-decisions.md"

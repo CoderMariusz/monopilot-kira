@@ -1,6 +1,6 @@
 {
   "title": "T-042 — Scanner FEFO suggest endpoint",
-  "prompt": "# T-042 — Scanner FEFO suggest endpoint\n\nPRD: `05-WAREHOUSE-PRD.md` §13.5 (FR-WH-028).\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`.\n\n## Goal\n`POST /api/warehouse/scanner/suggest-lp` returning top-5 ranked LP suggestions per fefo_strategy_v1.\n\n## Implementation contract\n`apps/web/app/api/warehouse/scanner/suggest-lp/route.ts`. Body: {wo_id, wo_material_id, qty_needed, warehouse_id}. Delegate to T-030 with limit 5. Validate session token (T-041). Tenant RLS.\n\n## Files (scope)\n- apps/web/app/api/warehouse/scanner/suggest-lp/route.ts [create]\n- apps/web/app/api/warehouse/scanner/suggest-lp/__tests__/route.test.ts [create]\n\n## Acceptance criteria\n1. Given a valid request with 10 candidate LPs, when endpoint is hit, then exactly 5 ranked suggestions return.\n2. Given an invalid session token, when endpoint is hit, then 401 returns per V-WH-SCAN-001.\n3. Given the WO is in DRAFT status, when endpoint is hit, then 422 returns with explanation that WO must be RELEASED/IN_PROGRESS.\n\n## Test strategy\n- RED: route.test.ts covers ranking, auth failure, WO status guard.\n- Run `pnpm --filter web test suggest-lp`.\n\n## Risk red lines\n- Do not return >5 rows.\n- Do not bypass scanner session validation.\n- Do not include LPs with disallowed qa_status.",
+  "prompt": "# T-042 — Scanner FEFO suggest endpoint\n\nPRD: `docs/prd/05-WAREHOUSE-PRD.md` §13.5 (FR-WH-028).\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`.\n\n## Goal\n`POST /api/warehouse/scanner/suggest-lp` returning top-5 ranked LP suggestions per fefo_strategy_v1.\n\n## Implementation contract\n`apps/web/app/api/warehouse/scanner/suggest-lp/route.ts`. Body: {wo_id, wo_material_id, qty_needed, warehouse_id}. Delegate to T-030 with limit 5. Validate session token (T-041). Tenant RLS.\n\n## Files (scope)\n- apps/web/app/api/warehouse/scanner/suggest-lp/route.ts [create]\n- apps/web/app/api/warehouse/scanner/suggest-lp/__tests__/route.test.ts [create]\n\n## Acceptance criteria\n1. Given a valid request with 10 candidate LPs, when endpoint is hit, then exactly 5 ranked suggestions return.\n2. Given an invalid session token, when endpoint is hit, then 401 returns per V-WH-SCAN-001.\n3. Given the WO is in DRAFT status, when endpoint is hit, then 422 returns with explanation that WO must be RELEASED/IN_PROGRESS.\n\n## Test strategy\n- RED: route.test.ts covers ranking, auth failure, WO status guard.\n- Run `pnpm --filter web test suggest-lp`.\n\n## Risk red lines\n- Do not return >5 rows.\n- Do not bypass scanner session validation.\n- Do not include LPs with disallowed qa_status.",
   "labels": [
     "prd",
     "api",
@@ -13,7 +13,7 @@
   "pipeline_inputs": {
     "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
     "prd_task_id": "T-042",
-    "source_prd": "05-WAREHOUSE-PRD.md",
+    "source_prd": "docs/prd/05-WAREHOUSE-PRD.md",
     "prd_refs": [
       "§13.5"
     ],

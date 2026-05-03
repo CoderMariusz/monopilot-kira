@@ -70,16 +70,16 @@ def normalize_dep(dep, host_module=None):
         comps = [c.strip() for c in complist.split(",")]
         # qualify file path
         if file_.startswith("_shared/"):
-            file_norm = f"design/Monopilot Design System/{file_}"
+            file_norm = f"prototypes/design/Monopilot Design System/{file_}"
         elif "/" not in file_:
             if host_module:
-                file_norm = f"design/Monopilot Design System/{host_module}/{file_}"
+                file_norm = f"prototypes/design/Monopilot Design System/{host_module}/{file_}"
             else:
                 file_norm = file_
         else:
             # already has module prefix like "planning/modals.jsx"
             if not file_.startswith("design/"):
-                file_norm = f"design/Monopilot Design System/{file_}"
+                file_norm = f"prototypes/design/Monopilot Design System/{file_}"
             else:
                 file_norm = file_
         return [f"{file_norm}#{c}" for c in comps if c]
@@ -89,14 +89,14 @@ def normalize_dep(dep, host_module=None):
     if m:
         file_, comp = m.group(1).strip(), m.group(2).strip()
         if file_.startswith("_shared/"):
-            file_norm = f"design/Monopilot Design System/{file_}"
+            file_norm = f"prototypes/design/Monopilot Design System/{file_}"
         elif "/" not in file_:
             if host_module:
-                file_norm = f"design/Monopilot Design System/{host_module}/{file_}"
+                file_norm = f"prototypes/design/Monopilot Design System/{host_module}/{file_}"
             else:
                 file_norm = file_
         elif not file_.startswith("design/"):
-            file_norm = f"design/Monopilot Design System/{file_}"
+            file_norm = f"prototypes/design/Monopilot Design System/{file_}"
         else:
             file_norm = file_
         return [f"{file_norm}#{comp}"]

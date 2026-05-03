@@ -29,7 +29,7 @@ Report:
 
 Main changes:
 
-- `03-TECHNICAL-PRD.md`
+- `docs/prd/03-TECHNICAL-PRD.md`
   - added §17A Spec-driven UI anchor map for T-085..T-090;
   - added §17B recommended staged ACP wave order for Technical;
   - normalized stale `BLOCKER` wording into `SPEC-DRIVEN` for Wave0 surfaces;

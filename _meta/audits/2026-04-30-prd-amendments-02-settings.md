@@ -56,7 +56,7 @@
 
 ## ADR-034 hygiene
 
-Verified `02-SETTINGS-PRD.md` does **not** contain industry-specific terms (`Finish_Meat`, `Meat_Pct`, `kielbasa`, `pork`, `sausage`). Generic naming already in place pre-amendment. No ADR-034 leftovers to fix.
+Verified `docs/prd/02-SETTINGS-PRD.md` does **not** contain industry-specific terms (`Finish_Meat`, `Meat_Pct`, `kielbasa`, `pork`, `sausage`). Generic naming already in place pre-amendment. No ADR-034 leftovers to fix.
 
 ---
 

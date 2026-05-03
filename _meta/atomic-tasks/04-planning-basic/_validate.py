@@ -38,7 +38,7 @@ PLACEHOLDER_PATTERNS = [
     r"\bappropriate\b", r"\bsimilar to previous\b",
 ]
 PROTOTYPE_PARITY_RE = re.compile(
-    r"design/Monopilot Design System/[^:`]+:\d+(?:-\d+)?",
+    r"prototypes/design/Monopilot Design System/[^:`]+:\d+(?:-\d+)?",
 )
 
 
@@ -108,7 +108,7 @@ def validate_task(path: pathlib.Path, failures: list[str]) -> None:
     if is_ui and has_prototype_match:
         joined_ac = "\n".join(str(a) for a in acs)
         if not PROTOTYPE_PARITY_RE.search(joined_ac):
-            fail(failures, f"{path.name}: T3-ui with prototype_match=true lacks parity AC naming 'design/Monopilot Design System/<path>:<lines>'")
+            fail(failures, f"{path.name}: T3-ui with prototype_match=true lacks parity AC naming 'prototypes/design/Monopilot Design System/<path>:<lines>'")
         if "parity" not in joined_ac.lower():
             fail(failures, f"{path.name}: T3-ui parity AC must reference 'parity' explicitly")
 

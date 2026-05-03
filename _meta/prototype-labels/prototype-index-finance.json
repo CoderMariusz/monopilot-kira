@@ -6,7 +6,7 @@
   "entries": [
     {
       "label": "std_cost_create_modal",
-      "file": "design/Monopilot Design System/finance/modals.jsx",
+      "file": "prototypes/design/Monopilot Design System/finance/modals.jsx",
       "lines": "21-101",
       "component_type": "modal",
       "ui_pattern": "crud-form-with-validation",
@@ -43,7 +43,7 @@
     },
     {
       "label": "approve_std_cost_modal",
-      "file": "design/Monopilot Design System/finance/modals.jsx",
+      "file": "prototypes/design/Monopilot Design System/finance/modals.jsx",
       "lines": "103-175",
       "component_type": "modal",
       "ui_pattern": "crud-form-with-validation",
@@ -80,7 +80,7 @@
     },
     {
       "label": "cost_history_modal",
-      "file": "design/Monopilot Design System/finance/modals.jsx",
+      "file": "prototypes/design/Monopilot Design System/finance/modals.jsx",
       "lines": "177-245",
       "component_type": "modal",
       "ui_pattern": "detail-view",
@@ -114,7 +114,7 @@
     },
     {
       "label": "bulk_import_csv_modal",
-      "file": "design/Monopilot Design System/finance/modals.jsx",
+      "file": "prototypes/design/Monopilot Design System/finance/modals.jsx",
       "lines": "247-340",
       "component_type": "wizard",
       "ui_pattern": "import-export",
@@ -150,7 +150,7 @@
     },
     {
       "label": "fx_rate_override_modal",
-      "file": "design/Monopilot Design System/finance/modals.jsx",
+      "file": "prototypes/design/Monopilot Design System/finance/modals.jsx",
       "lines": "342-383",
       "component_type": "modal",
       "ui_pattern": "crud-form-with-validation",
@@ -185,7 +185,7 @@
     },
     {
       "label": "fifo_layers_modal",
-      "file": "design/Monopilot Design System/finance/modals.jsx",
+      "file": "prototypes/design/Monopilot Design System/finance/modals.jsx",
       "lines": "385-428",
       "component_type": "modal",
       "ui_pattern": "detail-view",
@@ -219,7 +219,7 @@
     },
     {
       "label": "variance_note_modal",
-      "file": "design/Monopilot Design System/finance/modals.jsx",
+      "file": "prototypes/design/Monopilot Design System/finance/modals.jsx",
       "lines": "430-463",
       "component_type": "modal",
       "ui_pattern": "crud-form-with-validation",
@@ -252,7 +252,7 @@
     },
     {
       "label": "dlq_replay_modal",
-      "file": "design/Monopilot Design System/finance/modals.jsx",
+      "file": "prototypes/design/Monopilot Design System/finance/modals.jsx",
       "lines": "465-505",
       "component_type": "modal",
       "ui_pattern": "crud-form-with-validation",
@@ -287,7 +287,7 @@
     },
     {
       "label": "dlq_resolve_modal",
-      "file": "design/Monopilot Design System/finance/modals.jsx",
+      "file": "prototypes/design/Monopilot Design System/finance/modals.jsx",
       "lines": "507-537",
       "component_type": "modal",
       "ui_pattern": "crud-form-with-validation",
@@ -320,7 +320,7 @@
     },
     {
       "label": "export_report_modal",
-      "file": "design/Monopilot Design System/finance/modals.jsx",
+      "file": "prototypes/design/Monopilot Design System/finance/modals.jsx",
       "lines": "539-584",
       "component_type": "modal",
       "ui_pattern": "import-export",
@@ -358,7 +358,7 @@
     },
     {
       "label": "supersede_std_cost_modal",
-      "file": "design/Monopilot Design System/finance/modals.jsx",
+      "file": "prototypes/design/Monopilot Design System/finance/modals.jsx",
       "lines": "586-613",
       "component_type": "modal",
       "ui_pattern": "crud-form-with-validation",
@@ -392,7 +392,7 @@
     },
     {
       "label": "period_lock_modal",
-      "file": "design/Monopilot Design System/finance/modals.jsx",
+      "file": "prototypes/design/Monopilot Design System/finance/modals.jsx",
       "lines": "615-647",
       "component_type": "modal",
       "ui_pattern": "crud-form-with-validation",
@@ -427,7 +427,7 @@
     },
     {
       "label": "cost_center_gl_mapping_modal",
-      "file": "design/Monopilot Design System/finance/modals.jsx",
+      "file": "prototypes/design/Monopilot Design System/finance/modals.jsx",
       "lines": "649-681",
       "component_type": "modal",
       "ui_pattern": "crud-form-with-validation",
@@ -461,7 +461,7 @@
     },
     {
       "label": "fin_dashboard",
-      "file": "design/Monopilot Design System/finance/dashboard.jsx",
+      "file": "prototypes/design/Monopilot Design System/finance/dashboard.jsx",
       "lines": "1-215",
       "component_type": "page-layout",
       "ui_pattern": "dashboard-tile",
@@ -503,7 +503,7 @@
     },
     {
       "label": "fin_standard_costs_list",
-      "file": "design/Monopilot Design System/finance/standard-screens.jsx",
+      "file": "prototypes/design/Monopilot Design System/finance/standard-screens.jsx",
       "lines": "1-208",
       "component_type": "page-layout",
       "ui_pattern": "search-filter-list",
@@ -548,7 +548,7 @@
     },
     {
       "label": "fin_inventory_valuation",
-      "file": "design/Monopilot Design System/finance/variance-screens.jsx",
+      "file": "prototypes/design/Monopilot Design System/finance/variance-screens.jsx",
       "lines": "1-117",
       "component_type": "page-layout",
       "ui_pattern": "search-filter-list",
@@ -587,7 +587,7 @@
     },
     {
       "label": "fin_fx_rates",
-      "file": "design/Monopilot Design System/finance/variance-screens.jsx",
+      "file": "prototypes/design/Monopilot Design System/finance/variance-screens.jsx",
       "lines": "119-250",
       "component_type": "page-layout",
       "ui_pattern": "list-with-actions",
@@ -623,7 +623,7 @@
     },
     {
       "label": "fin_material_variance",
-      "file": "design/Monopilot Design System/finance/variance-screens.jsx",
+      "file": "prototypes/design/Monopilot Design System/finance/variance-screens.jsx",
       "lines": "252-357",
       "component_type": "page-layout",
       "ui_pattern": "search-filter-list",
@@ -663,7 +663,7 @@
     },
     {
       "label": "fin_labor_variance",
-      "file": "design/Monopilot Design System/finance/variance-screens.jsx",
+      "file": "prototypes/design/Monopilot Design System/finance/variance-screens.jsx",
       "lines": "359-452",
       "component_type": "page-layout",
       "ui_pattern": "search-filter-list",
@@ -701,7 +701,7 @@
     },
     {
       "label": "fin_variance_drilldown",
-      "file": "design/Monopilot Design System/finance/variance-screens.jsx",
+      "file": "prototypes/design/Monopilot Design System/finance/variance-screens.jsx",
       "lines": "454-621",
       "component_type": "page-layout",
       "ui_pattern": "detail-view",
@@ -738,7 +738,7 @@
     },
     {
       "label": "fin_wo_list",
-      "file": "design/Monopilot Design System/finance/wo-screens.jsx",
+      "file": "prototypes/design/Monopilot Design System/finance/wo-screens.jsx",
       "lines": "1-122",
       "component_type": "page-layout",
       "ui_pattern": "search-filter-list",
@@ -776,7 +776,7 @@
     },
     {
       "label": "fin_wo_detail",
-      "file": "design/Monopilot Design System/finance/wo-screens.jsx",
+      "file": "prototypes/design/Monopilot Design System/finance/wo-screens.jsx",
       "lines": "124-366",
       "component_type": "page-layout",
       "ui_pattern": "detail-view",
@@ -817,7 +817,7 @@
     },
     {
       "label": "fin_reports",
-      "file": "design/Monopilot Design System/finance/other-screens.jsx",
+      "file": "prototypes/design/Monopilot Design System/finance/other-screens.jsx",
       "lines": "1-142",
       "component_type": "page-layout",
       "ui_pattern": "list-with-actions",
@@ -859,7 +859,7 @@
     },
     {
       "label": "fin_d365_integration",
-      "file": "design/Monopilot Design System/finance/other-screens.jsx",
+      "file": "prototypes/design/Monopilot Design System/finance/other-screens.jsx",
       "lines": "144-360",
       "component_type": "page-layout",
       "ui_pattern": "list-with-actions",
@@ -902,7 +902,7 @@
     },
     {
       "label": "fin_settings",
-      "file": "design/Monopilot Design System/finance/other-screens.jsx",
+      "file": "prototypes/design/Monopilot Design System/finance/other-screens.jsx",
       "lines": "362-458",
       "component_type": "page-layout",
       "ui_pattern": "crud-form-with-validation",

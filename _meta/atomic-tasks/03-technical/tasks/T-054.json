@@ -1,6 +1,6 @@
 {
   "title": "T-054 — UI: TEC-088 Maintenance Cross-Link Panel",
-  "prompt": "Build maintenance cross-link panel embedded in item/routing detail per §12A. Read-only summary linking to 13-MAINTENANCE asset health. Match `maintenance_screen` design/Monopilot Design System/technical/other-screens.jsx:266-311. RED tests/ui/tec-088-maintenance.test.tsx. Run: `pnpm vitest run tests/ui/tec-088-maintenance.test.tsx`. Prototype naming red-line: translate any legacy prototype/domain labels `fa`/`FA5100`/Factory Article to canonical `fg`/FG, any `PR-code` wording to WIP/intermediate, and any `process_stage`/`process_code` to `manufacturing_operation_name`; do not introduce legacy field names in final code, labels, tests or schemas.",
+  "prompt": "Build maintenance cross-link panel embedded in item/routing detail per §12A. Read-only summary linking to 13-MAINTENANCE asset health. Match `maintenance_screen` prototypes/design/Monopilot Design System/technical/other-screens.jsx:266-311. RED tests/ui/tec-088-maintenance.test.tsx. Run: `pnpm vitest run tests/ui/tec-088-maintenance.test.tsx`. Prototype naming red-line: translate any legacy prototype/domain labels `fa`/`FA5100`/Factory Article to canonical `fg`/FG, any `PR-code` wording to WIP/intermediate, and any `process_stage`/`process_code` to `manufacturing_operation_name`; do not introduce legacy field names in final code, labels, tests or schemas.",
   "labels": [
     "prd",
     "ui",
@@ -13,7 +13,7 @@
   "pipeline_inputs": {
     "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
     "prd_task_id": "T-054",
-    "source_prd": "03-TECHNICAL-PRD.md",
+    "source_prd": "docs/prd/03-TECHNICAL-PRD.md",
     "prd_refs": [
       "§12A TEC-088"
     ],
@@ -40,7 +40,7 @@
       "T-053"
     ],
     "acceptance_criteria": [
-      "Given the panel renders, when compared to design/Monopilot Design System/technical/other-screens.jsx:266-311, then card layout, status badges, and link styling match — structural + visual + interaction parity verified by RTL.",
+      "Given the panel renders, when compared to prototypes/design/Monopilot Design System/technical/other-screens.jsx:266-311, then card layout, status badges, and link styling match — structural + visual + interaction parity verified by RTL.",
       "Given asset has no maintenance data, when rendered, then empty card with 'No maintenance data' copy appears.",
       "Given clicking a row, when fired, then router navigates to /maintenance/[asset_id].",
       "UI closeout includes screenshot/artifact evidence and Playwright trace/artifacts where applicable per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`; if Playwright is unavailable, document the blocker and provide RTL/snapshot fallback evidence."

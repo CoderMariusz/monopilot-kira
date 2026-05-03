@@ -1,6 +1,6 @@
 {
   "title": "T-048 — UI parity: allergen changeover screen and full gate modal",
-  "prompt": "# T-048 — UI parity: allergen changeover screen and full gate modal\n\nPRD/UX refs: SCR-08-03, MODAL-08-11, prototype labels changeover_screen,changeover_gate_modal\n\nGoal: Replace changeover stub with full cleaning checklist, ATP capture, risk badges and dual sign-off UI.\n\nImplementation details:\nUse Next.js App Router Server Components by default, shadcn/ui components, next-intl keys, org-scoped data access, loading/empty/error states, and literal data-prototype-label markers matching _meta/prototype-labels/prototype-index-production.json. Closeout must include desktop screenshots and Playwright traces. Match design/Monopilot Design System/production/other-screens.jsx:294-390 and expand modals.jsx:344-364 to PRD/UX requirements: risk-level banner, cleaning steps with photo evidence, ATP grid for high risk, shift lead + quality lead PIN sign-off, segregated hard-block state.\n\nScope files:\n- apps/web/app/production/changeover/[event_id]/page.tsx [create]\n- apps/web/components/production/changeover-gate-modal.tsx [create]\n- design/Monopilot Design System/production/other-screens.jsx:294-390\n- design/Monopilot Design System/production/modals.jsx:344-364\n\nAcceptance criteria:\n1. Changeover screen shows medium/high/segregated states and required evidence\n2. Dual sign-off UI remains disabled until cleaning/ATP requirements pass\n3. Closeout includes screenshots for incomplete, ATP fail, and completed gate plus trace\n\nEvidence: include screenshots/artifacts and Playwright traces/artifacts for UI/E2E tasks; include API test output for backend tasks.",
+  "prompt": "# T-048 — UI parity: allergen changeover screen and full gate modal\n\nPRD/UX refs: SCR-08-03, MODAL-08-11, prototype labels changeover_screen,changeover_gate_modal\n\nGoal: Replace changeover stub with full cleaning checklist, ATP capture, risk badges and dual sign-off UI.\n\nImplementation details:\nUse Next.js App Router Server Components by default, shadcn/ui components, next-intl keys, org-scoped data access, loading/empty/error states, and literal data-prototype-label markers matching _meta/prototype-labels/prototype-index-production.json. Closeout must include desktop screenshots and Playwright traces. Match prototypes/design/Monopilot Design System/production/other-screens.jsx:294-390 and expand modals.jsx:344-364 to PRD/UX requirements: risk-level banner, cleaning steps with photo evidence, ATP grid for high risk, shift lead + quality lead PIN sign-off, segregated hard-block state.\n\nScope files:\n- apps/web/app/production/changeover/[event_id]/page.tsx [create]\n- apps/web/components/production/changeover-gate-modal.tsx [create]\n- prototypes/design/Monopilot Design System/production/other-screens.jsx:294-390\n- prototypes/design/Monopilot Design System/production/modals.jsx:344-364\n\nAcceptance criteria:\n1. Changeover screen shows medium/high/segregated states and required evidence\n2. Dual sign-off UI remains disabled until cleaning/ATP requirements pass\n3. Closeout includes screenshots for incomplete, ATP fail, and completed gate plus trace\n\nEvidence: include screenshots/artifacts and Playwright traces/artifacts for UI/E2E tasks; include API test output for backend tasks.",
   "labels": [
     "prd",
     "T3-ui",
@@ -12,7 +12,7 @@
   "pipeline_inputs": {
     "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
     "prd_task_id": "T-048",
-    "source_prd": "08-PRODUCTION-PRD.md",
+    "source_prd": "docs/prd/08-PRODUCTION-PRD.md",
     "prd_refs": [
       "SCR-08-03",
       "MODAL-08-11",
@@ -25,12 +25,12 @@
     "context_budget": "40k",
     "estimated_effort": "2-4h",
     "description": "Replace changeover stub with full cleaning checklist, ATP capture, risk badges and dual sign-off UI.",
-    "details": "Use Next.js App Router Server Components by default, shadcn/ui components, next-intl keys, org-scoped data access, loading/empty/error states, and literal data-prototype-label markers matching _meta/prototype-labels/prototype-index-production.json. Closeout must include desktop screenshots and Playwright traces. Match design/Monopilot Design System/production/other-screens.jsx:294-390 and expand modals.jsx:344-364 to PRD/UX requirements: risk-level banner, cleaning steps with photo evidence, ATP grid for high risk, shift lead + quality lead PIN sign-off, segregated hard-block state.",
+    "details": "Use Next.js App Router Server Components by default, shadcn/ui components, next-intl keys, org-scoped data access, loading/empty/error states, and literal data-prototype-label markers matching _meta/prototype-labels/prototype-index-production.json. Closeout must include desktop screenshots and Playwright traces. Match prototypes/design/Monopilot Design System/production/other-screens.jsx:294-390 and expand prototypes/design/Monopilot Design System/production/modals.jsx:344-364 to PRD/UX requirements: risk-level banner, cleaning steps with photo evidence, ATP grid for high risk, shift lead + quality lead PIN sign-off, segregated hard-block state.",
     "scope_files": [
       "apps/web/app/production/changeover/[event_id]/page.tsx [create]",
       "apps/web/components/production/changeover-gate-modal.tsx [create]",
-      "design/Monopilot Design System/production/other-screens.jsx:294-390",
-      "design/Monopilot Design System/production/modals.jsx:344-364"
+      "prototypes/design/Monopilot Design System/production/other-screens.jsx:294-390",
+      "prototypes/design/Monopilot Design System/production/modals.jsx:344-364"
     ],
     "dependencies": [
       "T-043"

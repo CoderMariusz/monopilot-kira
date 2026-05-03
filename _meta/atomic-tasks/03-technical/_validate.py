@@ -42,7 +42,7 @@ REQUIRED_PI = {
 PLACEHOLDERS = ["TBD", "TODO", "fill in", "appropriate", "similar to previous"]
 PLACEHOLDER_RE = re.compile(r"\b(?:" + "|".join(re.escape(p) for p in PLACEHOLDERS) + r")\b", re.IGNORECASE)
 
-PROTOTYPE_PATH_RE = re.compile(r"design/Monopilot Design System/[^\s`\"]+:\d+(?:-\d+)?")
+PROTOTYPE_PATH_RE = re.compile(r"prototypes/design/Monopilot Design System/[^\s`\"]+:\d+(?:-\d+)?")
 
 
 def fail(task: str, msg: str, errors: list) -> None:

@@ -1,6 +1,6 @@
 # Implementation Plan — 00-FOUNDATION (monopilot-kira)
 
-**Source PRD:** `/Users/mariuszkrawczyk/Projects/monopilot-kira/00-FOUNDATION-PRD.md` (v3.0, Phase B.1, 744 lines)
+**Source PRD:** `/Users/mariuszkrawczyk/Projects/monopilot-kira/docs/prd/00-FOUNDATION-PRD.md` (v3.0, Phase B.1, 744 lines)
 **Mode:** Single-PRD. FOUNDATION is the root meta-PRD; every module 01-15 will depend on the tasks below.
 **Decomposition date:** 2026-04-21
 **Skill:** `prd-decompose-hybrid`

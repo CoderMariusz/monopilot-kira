@@ -975,8 +975,8 @@ The audit `_meta/audits/2026-04-30-design-prd-coverage.md` §Module 15-OEE flagg
 
 **Screen ID:** OEE-ADM-003
 **Route:** `/oee/shifts` (alias `/settings/shifts` redirect for legacy bookmarks)
-**UX source:** `design/15-OEE-UX.md:805-834` (cross-link from OEE-ADM-002 Shift Config Viewer; the shifts management surface itself was previously laid out in 02-SETTINGS UX and is being absorbed by 15-OEE per the 2026-04-30 prototype labeling fix).
-**Prototype:** `settings_shifts_screen` (`design/Monopilot Design System/settings/org-screens.jsx:255-306`) — **moved from `prototype-index-settings.json` to `prototype-index-oee.json` 2026-04-30** during the prototype labeling correction pass (the screen edits operational `shift_patterns` rows and the org-level non-production calendar consumed by `shift_aggregator_v1`, not generic tenant settings).
+**UX source:** `prototypes/design/15-OEE-UX.md:805-834` (cross-link from OEE-ADM-002 Shift Config Viewer; the shifts management surface itself was previously laid out in 02-SETTINGS UX and is being absorbed by 15-OEE per the 2026-04-30 prototype labeling fix).
+**Prototype:** `settings_shifts_screen` (`prototypes/design/Monopilot Design System/settings/org-screens.jsx:255-306`) — **moved from `prototype-index-settings.json` to `prototype-index-oee.json` 2026-04-30** during the prototype labeling correction pass (the screen edits operational `shift_patterns` rows and the org-level non-production calendar consumed by `shift_aggregator_v1`, not generic tenant settings).
 **Role:** `oee_admin` (extends existing `oee_admin` matrix in §3); read-only `oee_supervisor`.
 **Purpose:** CRUD UI for `shift_patterns` (per-line / per-tenant shift definitions) and inline calendar editor for `org_non_production_days` (factory-wide closures, public holidays, planned shutdowns). Both feed the `shift_aggregator_v1` rule (§7.1) so a missing shift pattern or an un-marked closure produces incorrect `oee_shift_metrics` rows. **This screen is the single place where ops-admins curate the shift universe consumed by every OEE rollup.**
 **Data model dependencies:**
@@ -1000,8 +1000,8 @@ The audit `_meta/audits/2026-04-30-design-prd-coverage.md` §Module 15-OEE flagg
 
 **Screen ID:** OEE-001a (sub-route under OEE-001 family)
 **Route:** `/oee/availability?date=YYYY-MM-DD` (drill-down — entered from any OEE-001/002/003 KPI tile labelled "A").
-**UX source:** the OEE-001 §15.3 spec describes A/P/Q drill-down in §15.4 PRD bullets but does not enumerate the dedicated page; UX file `design/15-OEE-UX.md` references the drilldown via OEE-001 cross-links (lines 1025, 1054).
-**Prototype:** `oee_availability_drilldown_page` (`design/Monopilot Design System/oee/screens.jsx:471-543`).
+**UX source:** the OEE-001 §15.3 spec describes A/P/Q drill-down in §15.4 PRD bullets but does not enumerate the dedicated page; UX file `prototypes/design/15-OEE-UX.md` references the drilldown via OEE-001 cross-links (lines 1025, 1054).
+**Prototype:** `oee_availability_drilldown_page` (`prototypes/design/Monopilot Design System/oee/screens.jsx:471-543`).
 **Purpose:** Decompose factory-level availability% into per-line breakdown + 7-day trend + availability-only loss categories + cross-link to 13-MAINT equipment health (P2). Renders as a focused detail view rather than a multi-tab dashboard.
 **Layout:** Factory A% header card → per-line table with sparklines (data: `oee_snapshots` rolling 7-day) → loss categories table filtered to `impact_dimension = 'A'` → 7-day multi-line trend chart.
 **Permissions:** `oee_viewer+` read; same RLS as OEE-001.
@@ -1011,7 +1011,7 @@ The audit `_meta/audits/2026-04-30-design-prd-coverage.md` §Module 15-OEE flagg
 **Screen ID:** OEE-001b
 **Route:** `/oee/performance?date=YYYY-MM-DD`
 **UX source:** mirrored to OEE-001a; UX file does not yet enumerate as standalone screen.
-**Prototype:** `oee_performance_drilldown_page` (`design/Monopilot Design System/oee/screens.jsx:546-598`).
+**Prototype:** `oee_performance_drilldown_page` (`prototypes/design/Monopilot Design System/oee/screens.jsx:546-598`).
 **Purpose:** Per-line micro-stops, ideal cycle time deviation, P-only loss categories, P-dimension 7-day sparklines.
 **Layout & Permissions:** mirrors OEE-001a, parameterised by `factor='P'`. The prototype translation note explicitly calls out a shared `<OeeFactorDrillPage>` layout component (parameter A|P|Q).
 
@@ -1020,7 +1020,7 @@ The audit `_meta/audits/2026-04-30-design-prd-coverage.md` §Module 15-OEE flagg
 **Screen ID:** OEE-001c
 **Route:** `/oee/quality?date=YYYY-MM-DD`
 **UX source:** mirrored; cross-link from OEE-003 Q column.
-**Prototype:** `oee_quality_drilldown_page` (`design/Monopilot Design System/oee/screens.jsx:600-655`).
+**Prototype:** `oee_quality_drilldown_page` (`prototypes/design/Monopilot Design System/oee/screens.jsx:600-655`).
 **Purpose:** Per-line rejects (`reject_kg`/`reject_units` from `production_output_events`), Q-only loss categories, optional 09-QUALITY holds cross-link.
 **Layout & Permissions:** identical to OEE-001a/b with `factor='Q'`.
 
@@ -1302,16 +1302,16 @@ OEE-P2-A..D placeholders share a generic `<P2Placeholder>` shell (prototype `p2_
 
 ### Dependencies (upstream PRDs)
 
-- [`00-FOUNDATION-PRD.md`](./00-FOUNDATION-PRD.md) v3.0 — R1 event-first, R4 Zod, R6 PostHog, R7 data residency, R12 ML roadmap
-- [`02-SETTINGS-PRD.md`](./02-SETTINGS-PRD.md) v3.1 (→v3.2 post-this-session) — §7.8 rules registry (shift_aggregator_v1, oee_anomaly_detector_v1, oee_maintenance_trigger_v1), §8.1 reference tables (shift_configs, oee_alert_thresholds, downtime_categories, target_kpis), §10 feature flags (`oee.anomaly_detection_enabled`, `oee.tv_dashboard_enabled`), §13 EmailConfig (Resend dla alerts)
-- [`08-PRODUCTION-PRD.md`](./08-PRODUCTION-PRD.md) v3.0 — §9.9 oee_snapshots (PRIMARY source), §9.6 downtime_events, §9.7 changeover_events, §13 D7 per-minute aggregation, §9.12 operator_kpis_monthly, D6 downtime taxonomy, D15 EWMA anomaly spec
-- [`12-REPORTING-PRD.md`](./12-REPORTING-PRD.md) v3.0 — D-RPT-9 OEE consumer integration, report_access_gate_v1 reuse, export engine reuse
+- [`docs/prd/00-FOUNDATION-PRD.md`](./docs/prd/00-FOUNDATION-PRD.md) v3.0 — R1 event-first, R4 Zod, R6 PostHog, R7 data residency, R12 ML roadmap
+- [`docs/prd/02-SETTINGS-PRD.md`](./docs/prd/02-SETTINGS-PRD.md) v3.1 (→v3.2 post-this-session) — §7.8 rules registry (shift_aggregator_v1, oee_anomaly_detector_v1, oee_maintenance_trigger_v1), §8.1 reference tables (shift_configs, oee_alert_thresholds, downtime_categories, target_kpis), §10 feature flags (`oee.anomaly_detection_enabled`, `oee.tv_dashboard_enabled`), §13 EmailConfig (Resend dla alerts)
+- [`docs/prd/08-PRODUCTION-PRD.md`](./docs/prd/08-PRODUCTION-PRD.md) v3.0 — §9.9 oee_snapshots (PRIMARY source), §9.6 downtime_events, §9.7 changeover_events, §13 D7 per-minute aggregation, §9.12 operator_kpis_monthly, D6 downtime taxonomy, D15 EWMA anomaly spec
+- [`docs/prd/12-REPORTING-PRD.md`](./docs/prd/12-REPORTING-PRD.md) v3.0 — D-RPT-9 OEE consumer integration, report_access_gate_v1 reuse, export engine reuse
 
 ### Downstream consumers
 
-- [`12-REPORTING-PRD.md`](./12-REPORTING-PRD.md) v3.0 — reads `oee_daily_summary` dla Factory Overview card (dashboard #1) + OEE Summary dashboard (#5 P1)
-- [`13-MAINTENANCE-PRD.md`](./13-MAINTENANCE-PRD.md) (Phase C5 Sesja 2 deliverable, not yet written) — P2 consumer `oee_shift_metrics` dla MTBF/MTTR + `oee_maintenance_trigger_v1` rule creates PM WOs
-- [`14-MULTI-SITE-PRD.md`](./14-MULTI-SITE-PRD.md) (Phase C5 Sesja 2 deliverable) — P2 per-site OEE rollup consumer
+- [`docs/prd/12-REPORTING-PRD.md`](./docs/prd/12-REPORTING-PRD.md) v3.0 — reads `oee_daily_summary` dla Factory Overview card (dashboard #1) + OEE Summary dashboard (#5 P1)
+- [`docs/prd/13-MAINTENANCE-PRD.md`](./docs/prd/13-MAINTENANCE-PRD.md) (Phase C5 Sesja 2 deliverable, not yet written) — P2 consumer `oee_shift_metrics` dla MTBF/MTTR + `oee_maintenance_trigger_v1` rule creates PM WOs
+- [`docs/prd/14-MULTI-SITE-PRD.md`](./docs/prd/14-MULTI-SITE-PRD.md) (Phase C5 Sesja 2 deliverable) — P2 per-site OEE rollup consumer
 
 ### ADRs
 

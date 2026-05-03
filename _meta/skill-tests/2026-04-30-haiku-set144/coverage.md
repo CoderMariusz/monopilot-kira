@@ -1,4 +1,4 @@
-# PRD Coverage — Onboarding Wizard (§14.3–14.4, 02-SETTINGS-PRD.md)
+# PRD Coverage — Onboarding Wizard (§14.3–14.4, docs/prd/02-SETTINGS-PRD.md)
 
 ## Coverage by PRD section
 

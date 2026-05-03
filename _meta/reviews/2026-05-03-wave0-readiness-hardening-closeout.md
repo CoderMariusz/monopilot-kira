@@ -41,7 +41,7 @@ Scope: docs/meta/atomic-task hardening only; no application implementation.
 Task count: 46 -> 52.
 
 Key changes:
-- `00-FOUNDATION-PRD.md` updated to v4.3 Wave0 posture.
+- `docs/prd/00-FOUNDATION-PRD.md` updated to v4.3 Wave0 posture.
 - Coverage/manifest updated.
 - Rewrote/hardened T-003, T-004, T-005, T-006, T-007, T-014, T-032, T-040.
 - Added:
@@ -97,8 +97,8 @@ Key changes:
 Task count: 83 -> 90.
 
 Key changes:
-- `03-TECHNICAL-PRD.md` hardened around factory_specs, supplier_specs, NCR/outbox, Quality-owned lab read model, Technical adapter semantics.
-- `design/03-TECHNICAL-UX.md` updated for Wave0 UI readiness/no-prototype treatment.
+- `docs/prd/03-TECHNICAL-PRD.md` hardened around factory_specs, supplier_specs, NCR/outbox, Quality-owned lab read model, Technical adapter semantics.
+- `prototypes/design/03-TECHNICAL-UX.md` updated for Wave0 UI readiness/no-prototype treatment.
 - T-020 lab results bridge clarified toward Quality-owned read model / write bridge only through Quality permission/service.
 - T-060 aligned to factory_specs instead of generic reference_tables.specifications.
 - T-072/T-075 supplier_specs Phase 1 strengthened.

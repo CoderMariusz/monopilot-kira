@@ -1,6 +1,6 @@
 {
   "title": "T-050 — UI parity: shifts, line detail, analytics hub and production settings",
-  "prompt": "# T-050 — UI parity: shifts, line detail, analytics hub and production settings\n\nPRD/UX refs: SCR-08-08, SCR-08-09, SCR-08-10, SCR-08-11, MODAL-08-12..15\n\nGoal: Build shift management, line detail, analytics hub and production settings surfaces.\n\nImplementation details:\nUse Next.js App Router Server Components by default, shadcn/ui components, next-intl keys, org-scoped data access, loading/empty/error states, and literal data-prototype-label markers matching _meta/prototype-labels/prototype-index-production.json. Closeout must include desktop screenshots and Playwright traces. Match other-screens.jsx:215-291,393-496,560-649; new-screens.jsx:212-478; modals.jsx:366-386,438-557,560-635. Shift actions use T-039/T-040; settings use T-045; line detail uses T-044 SSE and OEE snapshots.\n\nScope files:\n- apps/web/app/production/shifts/page.tsx [create]\n- apps/web/app/production/analytics/page.tsx [create]\n- apps/web/app/production/settings/page.tsx [create]\n- apps/web/app/production/lines/[id]/page.tsx [create]\n- design/Monopilot Design System/production/other-screens.jsx:215-649\n- design/Monopilot Design System/production/new-screens.jsx:212-478\n\nAcceptance criteria:\n1. Shift/settings/line/analytics screens render with prototype labels and URL-driven tabs\n2. Shift end blocks unresolved gates and settings forms audit changes\n3. Closeout includes screenshots for shifts, line detail, settings, analytics and trace\n\nEvidence: include screenshots/artifacts and Playwright traces/artifacts for UI/E2E tasks; include API test output for backend tasks.",
+  "prompt": "# T-050 — UI parity: shifts, line detail, analytics hub and production settings\n\nPRD/UX refs: SCR-08-08, SCR-08-09, SCR-08-10, SCR-08-11, MODAL-08-12..15\n\nGoal: Build shift management, line detail, analytics hub and production settings surfaces.\n\nImplementation details:\nUse Next.js App Router Server Components by default, shadcn/ui components, next-intl keys, org-scoped data access, loading/empty/error states, and literal data-prototype-label markers matching _meta/prototype-labels/prototype-index-production.json. Closeout must include desktop screenshots and Playwright traces. Match other-screens.jsx:215-291,393-496,560-649; new-screens.jsx:212-478; modals.jsx:366-386,438-557,560-635. Shift actions use T-039/T-040; settings use T-045; line detail uses T-044 SSE and OEE snapshots.\n\nScope files:\n- apps/web/app/production/shifts/page.tsx [create]\n- apps/web/app/production/analytics/page.tsx [create]\n- apps/web/app/production/settings/page.tsx [create]\n- apps/web/app/production/lines/[id]/page.tsx [create]\n- prototypes/design/Monopilot Design System/production/other-screens.jsx:215-649\n- prototypes/design/Monopilot Design System/production/new-screens.jsx:212-478\n\nAcceptance criteria:\n1. Shift/settings/line/analytics screens render with prototype labels and URL-driven tabs\n2. Shift end blocks unresolved gates and settings forms audit changes\n3. Closeout includes screenshots for shifts, line detail, settings, analytics and trace\n\nEvidence: include screenshots/artifacts and Playwright traces/artifacts for UI/E2E tasks; include API test output for backend tasks.",
   "labels": [
     "prd",
     "T3-ui",
@@ -12,7 +12,7 @@
   "pipeline_inputs": {
     "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
     "prd_task_id": "T-050",
-    "source_prd": "08-PRODUCTION-PRD.md",
+    "source_prd": "docs/prd/08-PRODUCTION-PRD.md",
     "prd_refs": [
       "SCR-08-08",
       "SCR-08-09",
@@ -27,14 +27,14 @@
     "context_budget": "40k",
     "estimated_effort": "2-4h",
     "description": "Build shift management, line detail, analytics hub and production settings surfaces.",
-    "details": "Use Next.js App Router Server Components by default, shadcn/ui components, next-intl keys, org-scoped data access, loading/empty/error states, and literal data-prototype-label markers matching _meta/prototype-labels/prototype-index-production.json. Closeout must include desktop screenshots and Playwright traces. Match other-screens.jsx:215-291,393-496,560-649; new-screens.jsx:212-478; modals.jsx:366-386,438-557,560-635. Shift actions use T-039/T-040; settings use T-045; line detail uses T-044 SSE and OEE snapshots.",
+    "details": "Use Next.js App Router Server Components by default, shadcn/ui components, next-intl keys, org-scoped data access, loading/empty/error states, and literal data-prototype-label markers matching _meta/prototype-labels/prototype-index-production.json. Closeout must include desktop screenshots and Playwright traces. Match prototypes/design/Monopilot Design System/production/other-screens.jsx:215-291,393-496,560-649; prototypes/design/Monopilot Design System/production/new-screens.jsx:212-478; prototypes/design/Monopilot Design System/production/modals.jsx:366-386,438-557,560-635. Shift actions use T-039/T-040; settings use T-045; line detail uses T-044 SSE and OEE snapshots.",
     "scope_files": [
       "apps/web/app/production/shifts/page.tsx [create]",
       "apps/web/app/production/analytics/page.tsx [create]",
       "apps/web/app/production/settings/page.tsx [create]",
       "apps/web/app/production/lines/[id]/page.tsx [create]",
-      "design/Monopilot Design System/production/other-screens.jsx:215-649",
-      "design/Monopilot Design System/production/new-screens.jsx:212-478"
+      "prototypes/design/Monopilot Design System/production/other-screens.jsx:215-649",
+      "prototypes/design/Monopilot Design System/production/new-screens.jsx:212-478"
     ],
     "dependencies": [
       "T-039",

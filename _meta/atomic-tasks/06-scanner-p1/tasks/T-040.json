@@ -1,6 +1,6 @@
 {
   "title": "T-040 — SCN-050 Pick for WO 5-step UI (06-d)",
-  "prompt": "# T-040 — SCN-050 Pick for WO\n\nPRD: 06-SCANNER-P1-PRD.md §8.4 FR-SC-FE-040/041/042\nUX: design/06-SCANNER-P1-UX.md:507-544 §3.12\nPrototype: design/Monopilot Design System/scanner/flow-pick.jsx:5-40 (pick_wo_list_screen), :42-94 (pick_list_screen), :96-238 (pick_scan_screen)\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nDeliver SCN-050 5-step Pick — wo-list → list (BOM lines sorted by location, FIFO/FEFO highlighted) → scan (location → ✓ → LP → validate → qty) → override (FEFO deviation amber + reason_code) → done.\n\n## Implementation contract\n1. Routes /scanner/pick, /scanner/pick/[woId], /scanner/pick/[woId]/scan, /scanner/pick/done.\n2. List sorted by location_path; suggested LP highlighted with green 2px border.\n3. Override flow per §8.4 FR-SC-FE-041 reasons: expiry_close, location_closer, different_batch, damaged_suggested, other.\n4. Wires to T-037.\n\n## Files\n- apps/scanner/src/app/scanner/pick/page.tsx [create]\n- apps/scanner/src/app/scanner/pick/[woId]/page.tsx [create]\n- apps/scanner/src/app/scanner/pick/[woId]/scan/page.tsx [create]\n- apps/scanner/src/app/scanner/pick/done/page.tsx [create]\n- apps/scanner/__tests__/scn-050-pick.test.tsx [create]\n\n## Acceptance criteria\n1. Given the 5 steps render, when compared to `design/Monopilot Design System/scanner/flow-pick.jsx:5-40,42-94,96-238`, then they show the same WO list with progress N/M, the same BOM list sorted by location with FEFO blue border, the same scan order location→LP→qty, and the same override amber banner with the 5 reason_codes — RTL snapshot + manual checklist\n2. Given a non-suggested LP scanned (FEFO deviation), when ScanInput emits, then the override amber banner is shown and submit is disabled until a reason_code is selected\n3. Given a successful pick, when /pick returns 200, then the done step shows progress N+1/M and a 'Następna: <material> w lokalizacji <loc>' chip\n\n## Test strategy\n- RED: write scn-050-pick.test.tsx asserting parity + FEFO override gating + done progress before implementation\n- Run 'pnpm --filter scanner test scn-050-pick'\n\n## Risk red lines\n- Do not allow pick submission with FEFO deviation but no reason_code\n- Do not skip the location→LP→qty scan order\n- Do not display picked items outside the BOM list",
+  "prompt": "# T-040 — SCN-050 Pick for WO\n\nPRD: docs/prd/06-SCANNER-P1-PRD.md §8.4 FR-SC-FE-040/041/042\nUX: prototypes/design/06-SCANNER-P1-UX.md:507-544 §3.12\nPrototype: prototypes/design/Monopilot Design System/scanner/flow-pick.jsx:5-40 (pick_wo_list_screen), :42-94 (pick_list_screen), :96-238 (pick_scan_screen)\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nDeliver SCN-050 5-step Pick — wo-list → list (BOM lines sorted by location, FIFO/FEFO highlighted) → scan (location → ✓ → LP → validate → qty) → override (FEFO deviation amber + reason_code) → done.\n\n## Implementation contract\n1. Routes /scanner/pick, /scanner/pick/[woId], /scanner/pick/[woId]/scan, /scanner/pick/done.\n2. List sorted by location_path; suggested LP highlighted with green 2px border.\n3. Override flow per §8.4 FR-SC-FE-041 reasons: expiry_close, location_closer, different_batch, damaged_suggested, other.\n4. Wires to T-037.\n\n## Files\n- apps/scanner/src/app/scanner/pick/page.tsx [create]\n- apps/scanner/src/app/scanner/pick/[woId]/page.tsx [create]\n- apps/scanner/src/app/scanner/pick/[woId]/scan/page.tsx [create]\n- apps/scanner/src/app/scanner/pick/done/page.tsx [create]\n- apps/scanner/__tests__/scn-050-pick.test.tsx [create]\n\n## Acceptance criteria\n1. Given the 5 steps render, when compared to `prototypes/design/Monopilot Design System/scanner/flow-pick.jsx:5-40,42-94,96-238`, then they show the same WO list with progress N/M, the same BOM list sorted by location with FEFO blue border, the same scan order location→LP→qty, and the same override amber banner with the 5 reason_codes — RTL snapshot + manual checklist\n2. Given a non-suggested LP scanned (FEFO deviation), when ScanInput emits, then the override amber banner is shown and submit is disabled until a reason_code is selected\n3. Given a successful pick, when /pick returns 200, then the done step shows progress N+1/M and a 'Następna: <material> w lokalizacji <loc>' chip\n\n## Test strategy\n- RED: write scn-050-pick.test.tsx asserting parity + FEFO override gating + done progress before implementation\n- Run 'pnpm --filter scanner test scn-050-pick'\n\n## Risk red lines\n- Do not allow pick submission with FEFO deviation but no reason_code\n- Do not skip the location→LP→qty scan order\n- Do not display picked items outside the BOM list",
   "labels": [
     "prd",
     "ui",
@@ -13,7 +13,7 @@
   "pipeline_inputs": {
     "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
     "prd_task_id": "T-040",
-    "source_prd": "06-SCANNER-P1-PRD.md",
+    "source_prd": "docs/prd/06-SCANNER-P1-PRD.md",
     "prd_refs": [
       "§8.4 FR-SC-FE-040..042"
     ],
@@ -31,9 +31,9 @@
       "apps/scanner/src/app/scanner/pick/[woId]/scan/page.tsx [create]",
       "apps/scanner/src/app/scanner/pick/done/page.tsx [create]",
       "apps/scanner/__tests__/scn-050-pick.test.tsx [create]",
-      "design/Monopilot Design System/scanner/flow-pick.jsx:5-40 [ref]",
-      "design/Monopilot Design System/scanner/flow-pick.jsx:42-94 [ref]",
-      "design/Monopilot Design System/scanner/flow-pick.jsx:96-238 [ref]"
+      "prototypes/design/Monopilot Design System/scanner/flow-pick.jsx:5-40 [ref]",
+      "prototypes/design/Monopilot Design System/scanner/flow-pick.jsx:42-94 [ref]",
+      "prototypes/design/Monopilot Design System/scanner/flow-pick.jsx:96-238 [ref]"
     ],
     "out_of_scope": [
       "Do not implement consume here (T-041)",
@@ -50,7 +50,7 @@
       "T-041"
     ],
     "acceptance_criteria": [
-      "Given the 5 steps render, when compared to design/Monopilot Design System/scanner/flow-pick.jsx:5-40, :42-94, :96-238, then they show the same WO list with progress, BOM list sorted by location with FEFO blue border, scan order location→LP→qty, and override amber banner with 5 reason_codes — RTL snapshot + manual checklist",
+      "Given the 5 steps render, when compared to prototypes/design/Monopilot Design System/scanner/flow-pick.jsx:5-40, :42-94, :96-238, then they show the same WO list with progress, BOM list sorted by location with FEFO blue border, scan order location→LP→qty, and override amber banner with 5 reason_codes — RTL snapshot + manual checklist",
       "Given a non-suggested LP scanned (FEFO deviation), when ScanInput emits, then the override amber banner is shown and submit is disabled until a reason_code is selected",
       "Given a successful pick, when /pick returns 200, then done shows progress N+1/M and 'Następna: <material> w lokalizacji <loc>' chip. Follow parity evidence requirements in `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`."
     ],

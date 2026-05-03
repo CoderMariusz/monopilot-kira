@@ -15,18 +15,18 @@ Zakres: 01-NPD, 02-SETTINGS, 03-TECHNICAL; odczyt PRD/UX/prototype indexes/maste
 ## Źródła sprawdzone
 
 - PRD/UX:
-  - `01-NPD-PRD.md`, `design/01-NPD-UX.md`
-  - `02-SETTINGS-PRD.md`, `design/02-SETTINGS-UX.md`
-  - `03-TECHNICAL-PRD.md`, `design/03-TECHNICAL-UX.md`
+  - `docs/prd/01-NPD-PRD.md`, `prototypes/design/01-NPD-UX.md`
+  - `docs/prd/02-SETTINGS-PRD.md`, `prototypes/design/02-SETTINGS-UX.md`
+  - `docs/prd/03-TECHNICAL-PRD.md`, `prototypes/design/03-TECHNICAL-UX.md`
 - Prototype indexes:
   - `_meta/prototype-labels/prototype-index-npd.json`
   - `_meta/prototype-labels/prototype-index-settings.json`
   - `_meta/prototype-labels/prototype-index-technical.json`
   - `_meta/prototype-labels/master-index.json`
 - Design folders:
-  - `design/Monopilot Design System/npd/*.jsx`
-  - `design/Monopilot Design System/settings/*.jsx`
-  - `design/Monopilot Design System/technical/*.jsx`
+  - `prototypes/design/Monopilot Design System/npd/*.jsx`
+  - `prototypes/design/Monopilot Design System/settings/*.jsx`
+  - `prototypes/design/Monopilot Design System/technical/*.jsx`
 - Coverage/tasks:
   - `_meta/atomic-tasks/01-npd/coverage.md`, `tasks/T-*.json`
   - `_meta/atomic-tasks/02-settings/coverage.md`, `tasks/T-*.json`
@@ -84,7 +84,7 @@ Wniosek: obecne labeling jest prawie wyłącznie external mapping only. Jeśli a
 
 ### Ważne red-lines
 
-`design/01-NPD-UX.md` ma autorytatywne red-lines z 2026-05-03:
+`prototypes/design/01-NPD-UX.md` ma autorytatywne red-lines z 2026-05-03:
 - FG/Finished Good jest kanoniczne; FA jest compat alias only.
 - Brief tworzy NPD project; G3 tworzy/mapuje FG.
 - NPD Builder tworzy WIP/intermediate + FG + initial shared BOM/product-spec; D365 jest tylko optional export/import.
@@ -134,7 +134,7 @@ Wniosek: obecne labeling jest prawie wyłącznie external mapping only. Jeśli a
 
 ### Ważne source authority
 
-`design/02-SETTINGS-UX.md` line 5 mówi, że canonical Settings prototype source is `settings/*.jsx`, ale when exact screen prototype is missing, UX spec is authoritative and prototype elements may be reused only as primitives/patterns.
+`prototypes/design/02-SETTINGS-UX.md` line 5 mówi, że canonical Settings prototype source is `settings/*.jsx`, ale when exact screen prototype is missing, UX spec is authoritative and prototype elements may be reused only as primitives/patterns.
 
 Coverage note potwierdza:
 - Schema/Tenant UI without exact prototype is spec-driven from UX.
@@ -180,7 +180,7 @@ Decyzja zależy od kryterium:
 
 ### PRD evidence
 
-`03-TECHNICAL-PRD.md` still records:
+`docs/prd/03-TECHNICAL-PRD.md` still records:
 - `TEC-014 Bulk Import CSV`: `[NO-PROTOTYPE-YET]`, TODO Prototype creation needed before T3-ui task can be drafted.
 - `TEC-025 BOM Snapshots Viewer`: `[NO-PROTOTYPE-YET]`.
 - `TEC-031 Regulatory Compliance Dashboard`: `[NO-PROTOTYPE-YET]`.
@@ -249,7 +249,7 @@ Yes. Minimum Sonnet task:
 2. Czy UX-spec-driven screens są akceptowalne do implementacji bez Opus prototype-build, jeśli closeout ma screenshot/trace/axe evidence?
 3. Czy chcemy source-level labels in JSX, czy external `_meta/prototype-labels/*.json` mapping wystarcza?
 4. Dla 02-SETTINGS: czy budujemy prototypy dla wszystkich spec-driven screens, czy tylko dla high-risk flows (`SET-031/032/033/053/060/061/062/011/029`)?
-5. Dla 03-TECHNICAL: czy Opus ma aktualizować też `03-TECHNICAL-PRD.md` rows, które nadal mówią “TODO Prototype creation needed before T3-ui task can be drafted”, skoro Wave0 już stworzył T3-ui spec-driven tasks?
+5. Dla 03-TECHNICAL: czy Opus ma aktualizować też `docs/prd/03-TECHNICAL-PRD.md` rows, które nadal mówią “TODO Prototype creation needed before T3-ui task can be drafted”, skoro Wave0 już stworzył T3-ui spec-driven tasks?
 
 ## Final decision recommendation
 

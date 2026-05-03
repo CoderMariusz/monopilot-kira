@@ -2,9 +2,9 @@
 **Audit agent:** Audit-3 (READ-ONLY)
 **Date:** 2026-04-23
 **Sources:**
-- PRD: `11-SHIPPING-PRD.md` v3.0, `02-SETTINGS-PRD.md` v3.3, `00-FOUNDATION-PRD.md` v3.0
-- UX: `design/11-SHIPPING-UX.md`, `design/02-SETTINGS-UX.md`
-- Prototype: `design/Monopilot Design System/shipping/` (11 files), `design/Monopilot Design System/settings/` (13 files)
+- PRD: `docs/prd/11-SHIPPING-PRD.md` v3.0, `docs/prd/02-SETTINGS-PRD.md` v3.3, `docs/prd/00-FOUNDATION-PRD.md` v3.0
+- UX: `prototypes/design/11-SHIPPING-UX.md`, `prototypes/design/02-SETTINGS-UX.md`
+- Prototype: `prototypes/design/Monopilot Design System/shipping/` (11 files), `prototypes/design/Monopilot Design System/settings/` (13 files)
 
 ---
 

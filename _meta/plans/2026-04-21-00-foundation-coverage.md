@@ -1,6 +1,6 @@
 # Coverage Audit — 00-FOUNDATION PRD v3.0
 
-**PRD:** `00-FOUNDATION-PRD.md` (744 lines, Phase B.1)
+**PRD:** `docs/prd/00-FOUNDATION-PRD.md` (744 lines, Phase B.1)
 **Plan:** `_meta/plans/2026-04-21-00-foundation-plan.md`
 **Total tasks:** 47 (IDs 1..47 in Taskmaster `master` tag)
 **Skill:** `prd-decompose-hybrid`

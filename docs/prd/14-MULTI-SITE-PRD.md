@@ -576,7 +576,7 @@ Dashboards rejestrowane w 12-REPORTING `dashboards_catalog` z per-dashboard `req
 
 ## 10A. Transport Lanes + Rate Cards [UNIVERSAL]
 
-> Status: P1. Added 2026-04-30 to close PRD↔UX coverage gap (audit BLOCKER #2). Anchors UX `MS-LANE` (`design/14-MULTI-SITE-UX.md:808-846`), `MS-LANE-D` (`UX:849-906`), `MODAL-LANE-CREATE / MODAL-LANE-EDIT` (`UX:1351-1373`), `MODAL-RATE-CARD-UPLOAD` (`UX:1377-1383`), and prototypes `ms_lanes_list` (`prototype-index-multi-site.json:680-712`), `ms_lane_detail` (`:714-748`), `lane_create_modal` (`:180-213`), `rate_card_upload_modal` (`:215-247`).
+> Status: P1. Added 2026-04-30 to close PRD↔UX coverage gap (audit BLOCKER #2). Anchors UX `MS-LANE` (`prototypes/design/14-MULTI-SITE-UX.md:808-846`), `MS-LANE-D` (`UX:849-906`), `MODAL-LANE-CREATE / MODAL-LANE-EDIT` (`UX:1351-1373`), `MODAL-RATE-CARD-UPLOAD` (`UX:1377-1383`), and prototypes `ms_lanes_list` (`prototype-index-multi-site.json:680-712`), `ms_lane_detail` (`:714-748`), `lane_create_modal` (`:180-213`), `rate_card_upload_modal` (`:215-247`).
 
 ### 10A.1 Purpose & rationale
 
@@ -736,7 +736,7 @@ Added to §3.3 metrics tracking via lane analytics MV (deferred P2):
 
 ## 10B. Other UX-only screens (Direction B reconciliation) [UNIVERSAL]
 
-> Status: P1 unless marked. Added 2026-04-30 to close PRD↔UX coverage gap. Each subsection anchors a previously orphan UX screen / modal to PRD-side intent, RBAC, and validation requirements. Scoped narrowly — full screen specs remain in `design/14-MULTI-SITE-UX.md`.
+> Status: P1 unless marked. Added 2026-04-30 to close PRD↔UX coverage gap. Each subsection anchors a previously orphan UX screen / modal to PRD-side intent, RBAC, and validation requirements. Scoped narrowly — full screen specs remain in `prototypes/design/14-MULTI-SITE-UX.md`.
 
 ### MS-101 Site Permissions Matrix
 
@@ -880,7 +880,7 @@ Added to §3.3 metrics tracking via lane analytics MV (deferred P2):
 | MS-116 | IST Detail | `MS-IST-D` (UX:575) | `ms_ist_detail` (`:605-639`) | OK (P1) |
 | MS-117 | IST Create | `MS-IST-N` (UX:489) | `ms_ist_create` (`:641-678`) | OK (P1) |
 
-ADR-034 / generic-naming hygiene note: the `prototype-index-multi-site.json` entry `sites_screen` (`:976-1004`) is index-mis-tagged and originates from `design/Monopilot Design System/settings/org-screens.jsx` (02-SETTINGS surface). Anchored by 02-SET; not double-counted here. **Tracking:** §17 OQ-MS-13.
+ADR-034 / generic-naming hygiene note: the `prototype-index-multi-site.json` entry `sites_screen` (`:976-1004`) is index-mis-tagged and originates from `prototypes/design/Monopilot Design System/settings/org-screens.jsx` (02-SETTINGS surface). Anchored by 02-SET; not double-counted here. **Tracking:** §17 OQ-MS-13.
 
 ---
 
@@ -1165,20 +1165,20 @@ State machine stored w `organizations.multi_site_state`:
 
 ## 19. Related Documents
 
-- [`00-FOUNDATION-PRD.md`](./00-FOUNDATION-PRD.md) v3.0 — §4 module map, §4.2 build sequence, §5 tech stack (R3 RLS default, R7 data residency), REC-L1 site_id nullable pattern, REC-L5 per-site shifts
-- [`02-SETTINGS-PRD.md`](./02-SETTINGS-PRD.md) v3.3 — §7.8 rules registry (23+ rules post-C5 Sesja 2 delta), §8.1 ref tables (23+ tables) including Reference.ManufacturingOperations (§8.9, multi-industry operations pattern), §9 multi-tenant L2 config (ADR-030/031 orchestration), §11 D365 Constants per-site override (potential P2)
-- [`05-WAREHOUSE-PRD.md`](./05-WAREHOUSE-PRD.md) v3.0 — TO base state machine (extended with IN_TRANSIT), lp_genealogy multi-site trail, grn/picks site-scoped
-- [`08-PRODUCTION-PRD.md`](./08-PRODUCTION-PRD.md) v3.0 — production_shifts site-scoping (D-MS-9 REC-L5), work_orders site_id activation
-- [`09-QUALITY-PRD.md`](./09-QUALITY-PRD.md) v3.0 — quality_holds/inspections/ncr site-scoped, cross-site QA reports
-- [`10-FINANCE-PRD.md`](./10-FINANCE-PRD.md) v3.0 — inventory_cost_layers + wip_balances site-scoped; multi-entity P2 foundation
-- [`11-SHIPPING-PRD.md`](./11-SHIPPING-PRD.md) v3.0 — shipments + sales_orders site-scoped (originating site), cross-site drop-ship P2
-- [`12-REPORTING-PRD.md`](./12-REPORTING-PRD.md) v3.0 — per-site filter + factory aggregate consumer, dashboards_catalog per-site metadata
-- [`13-MAINTENANCE-PRD.md`](./13-MAINTENANCE-PRD.md) v3.0 — MWO + spare_parts_stock + calibration_instruments site-scoped, cross-site maintenance benchmark P2 (MNT-009)
-- [`15-OEE-PRD.md`](./15-OEE-PRD.md) v3.0 — oee_snapshots site_id activation (15-a ALTER DDL), shift_aggregator_v1 per-site consumer
-- [`06-SCANNER-P1-PRD.md`](./06-SCANNER-P1-PRD.md) v3.0 — SCN-012 Site/Line/Shift multi-tenant L2 prep (already multi-site aware)
+- [`docs/prd/00-FOUNDATION-PRD.md`](./docs/prd/00-FOUNDATION-PRD.md) v3.0 — §4 module map, §4.2 build sequence, §5 tech stack (R3 RLS default, R7 data residency), REC-L1 site_id nullable pattern, REC-L5 per-site shifts
+- [`docs/prd/02-SETTINGS-PRD.md`](./docs/prd/02-SETTINGS-PRD.md) v3.3 — §7.8 rules registry (23+ rules post-C5 Sesja 2 delta), §8.1 ref tables (23+ tables) including Reference.ManufacturingOperations (§8.9, multi-industry operations pattern), §9 multi-tenant L2 config (ADR-030/031 orchestration), §11 D365 Constants per-site override (potential P2)
+- [`docs/prd/05-WAREHOUSE-PRD.md`](./docs/prd/05-WAREHOUSE-PRD.md) v3.0 — TO base state machine (extended with IN_TRANSIT), lp_genealogy multi-site trail, grn/picks site-scoped
+- [`docs/prd/08-PRODUCTION-PRD.md`](./docs/prd/08-PRODUCTION-PRD.md) v3.0 — production_shifts site-scoping (D-MS-9 REC-L5), work_orders site_id activation
+- [`docs/prd/09-QUALITY-PRD.md`](./docs/prd/09-QUALITY-PRD.md) v3.0 — quality_holds/inspections/ncr site-scoped, cross-site QA reports
+- [`docs/prd/10-FINANCE-PRD.md`](./docs/prd/10-FINANCE-PRD.md) v3.0 — inventory_cost_layers + wip_balances site-scoped; multi-entity P2 foundation
+- [`docs/prd/11-SHIPPING-PRD.md`](./docs/prd/11-SHIPPING-PRD.md) v3.0 — shipments + sales_orders site-scoped (originating site), cross-site drop-ship P2
+- [`docs/prd/12-REPORTING-PRD.md`](./docs/prd/12-REPORTING-PRD.md) v3.0 — per-site filter + factory aggregate consumer, dashboards_catalog per-site metadata
+- [`docs/prd/13-MAINTENANCE-PRD.md`](./docs/prd/13-MAINTENANCE-PRD.md) v3.0 — MWO + spare_parts_stock + calibration_instruments site-scoped, cross-site maintenance benchmark P2 (MNT-009)
+- [`docs/prd/15-OEE-PRD.md`](./docs/prd/15-OEE-PRD.md) v3.0 — oee_snapshots site_id activation (15-a ALTER DDL), shift_aggregator_v1 per-site consumer
+- [`docs/prd/06-SCANNER-P1-PRD.md`](./docs/prd/06-SCANNER-P1-PRD.md) v3.0 — SCN-012 Site/Line/Shift multi-tenant L2 prep (already multi-site aware)
 - [`_foundation/research/MES-TRENDS-2026.md`](./_foundation/research/MES-TRENDS-2026.md) — R7 data residency, §9 14-MULTI-SITE competitive analysis (AVEVA/Plex/Aptean/CSB multi-site support)
 - ADR-028 (schema-driven L1-L4), ADR-030 (configurable depts — hierarchy pattern reuse), ADR-031 (schema variation per org — feature flag orchestration)
 
 ---
 
-**Phase C5 Sesja 2 deliverable 2/2 — 14-MULTI-SITE-PRD.md v3.1 COMPLETE (multi-industry manufacturing operations pattern standardized).**
+**Phase C5 Sesja 2 deliverable 2/2 — docs/prd/14-MULTI-SITE-PRD.md v3.1 COMPLETE (multi-industry manufacturing operations pattern standardized).**

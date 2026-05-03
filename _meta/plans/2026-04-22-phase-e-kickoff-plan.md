@@ -6,9 +6,9 @@ status: Draft for GPT consultation + prd-decomposition-hybrid skill input
 authors: Claude (Opus 4.7) + Explore agent analysis
 related:
   - _foundation/decisions/ADR-032-settings-minimum-carveout-for-npd-unlock.md
-  - 00-FOUNDATION-PRD.md (§4.2 amendment target)
-  - 02-SETTINGS-PRD.md v3.3 (§16.2 addendum target)
-  - 01-NPD-PRD.md v3.0 (consumer, unchanged)
+  - docs/prd/00-FOUNDATION-PRD.md (§4.2 amendment target)
+  - docs/prd/02-SETTINGS-PRD.md v3.3 (§16.2 addendum target)
+  - docs/prd/01-NPD-PRD.md v3.0 (consumer, unchanged)
 ---
 
 # Phase E Kickoff Plan
@@ -136,7 +136,7 @@ Explore agent original proposal wrzucił **Outbox + RLS + Audit triggers + Mater
 
 ### §3.3 Amendment mechanism
 
-Nie przepisujemy całego PRD. W `00-FOUNDATION-PRD.md` **dodajemy addendum** po §4.2:
+Nie przepisujemy całego PRD. W `docs/prd/00-FOUNDATION-PRD.md` **dodajemy addendum** po §4.2:
 
 > **§4.2-AMENDMENT (2026-04-22, per ADR-032):** build order row 2 dependency "Foundation infra w minimum scope" zastępujemy explicit Phase E-0 = `00-FOUNDATION-impl-a..i` (spec w `_meta/specs/00-FOUNDATION-impl-spec.md`). Row 3 prerequisite "01-NPD done" zmieniamy na "02-SETTINGS-a minimum carveout done" z parallel Track A/B. Pełna tabela patrz `_meta/plans/2026-04-22-phase-e-kickoff-plan.md` §3.2.
 
@@ -450,7 +450,7 @@ To jest **jedna atomic task**. Agent dostaje ~40k context (ten task + drizzle co
 |---|---|---|---|
 | 1 | User reviews plan + ADR-032 + atomic-task guide z GPT (async, druga maszyna) | User + GPT | async |
 | 2 | User porównuje swoje 47 tasków Foundation z atomic-task-guide pattern. Jeśli 47 = feature-level → skill generuje ~188 atomic z nich. Jeśli 47 = już atomic → ok. | User + skill | async |
-| 3 | Add §4.2-AMENDMENT line to `00-FOUNDATION-PRD.md` + §16.2 addendum to `02-SETTINGS-PRD.md` (tylko linki do ADR-032, bez kopiowania treści) | Claude session | 0.25 sesja |
+| 3 | Add §4.2-AMENDMENT line to `docs/prd/00-FOUNDATION-PRD.md` + §16.2 addendum to `docs/prd/02-SETTINGS-PRD.md` (tylko linki do ADR-032, bez kopiowania treści) | Claude session | 0.25 sesja |
 | 4 | Brainstorming session locking D1-D12 stack decisions | User + Claude | 1 sesja |
 | 5 | Run `prd-decomposition-hybrid` na 3 plikach (plan + ADR-032 + atomic-task-guide) + źródłowe PRD → atomic backlog w `pipeline.log.md` | User na drugiej maszynie | async |
 | 6 | Setup worktrees (superpowers `using-git-worktrees`) dla 3 parallel tracks | Claude | 0.5 sesja |

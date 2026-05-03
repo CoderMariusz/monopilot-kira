@@ -114,7 +114,7 @@ def validate_task(p: pathlib.Path, errors: list[str]) -> None:
         details = pi.get("details", "")
         joined = " ".join(scope_files) + " " + details
         if "design/Monopilot Design System" not in joined:
-            fail(f"{p.name}: T3-ui task must reference 'design/Monopilot Design System/<path>:<lines>' in details/scope_files", errors)
+            fail(f"{p.name}: T3-ui task must reference 'prototypes/design/Monopilot Design System/<path>:<lines>' in details/scope_files", errors)
 
     # 10. placeholders
     text = json.dumps(data)

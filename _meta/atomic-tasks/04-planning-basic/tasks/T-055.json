@@ -1,6 +1,6 @@
 {
   "title": "T-055 — UI: PLN-009 Cascade DAG View (parity with plan_cascade_dag)",
-  "prompt": "Implement UI: PLN-009 Cascade DAG View (parity with plan_cascade_dag) for 04-PLANNING-BASIC.\n\nPrototype: `_meta/prototype-labels/prototype-index-planning.json` label `plan_cascade_dag` -> `design/Monopilot Design System/planning/cascade.jsx:3-239`. Read PRD refs §8.4, §8.10 and UX refs before coding. Match the prototype structurally and visually using shadcn/Radix primitives, Next.js App Router, Server Components for initial data, Server Actions for writes, next-intl for all copy, and existing repository conventions.\n\nBusiness rules: P1 accepts layered canvas; react-flow/SVG edge labels are P2 unless existing deps permit. Cycle check results are server-derived.\n\nCloseout must include changed files, test commands/results, AC status, screenshot/artifact paths, Playwright trace paths, deviations, and git status. Do not implement out-of-scope modules; use cross-module contracts listed in pipeline_inputs.cross_module_dependencies.",
+  "prompt": "Implement UI: PLN-009 Cascade DAG View (parity with plan_cascade_dag) for 04-PLANNING-BASIC.\n\nPrototype: `_meta/prototype-labels/prototype-index-planning.json` label `plan_cascade_dag` -> `prototypes/design/Monopilot Design System/planning/cascade.jsx:3-239`. Read PRD refs §8.4, §8.10 and UX refs before coding. Match the prototype structurally and visually using shadcn/Radix primitives, Next.js App Router, Server Components for initial data, Server Actions for writes, next-intl for all copy, and existing repository conventions.\n\nBusiness rules: P1 accepts layered canvas; react-flow/SVG edge labels are P2 unless existing deps permit. Cycle check results are server-derived.\n\nCloseout must include changed files, test commands/results, AC status, screenshot/artifact paths, Playwright trace paths, deviations, and git status. Do not implement out-of-scope modules; use cross-module contracts listed in pipeline_inputs.cross_module_dependencies.",
   "labels": [
     "prd",
     "ui",
@@ -13,7 +13,7 @@
   "pipeline_inputs": {
     "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
     "prd_task_id": "T-055",
-    "source_prd": "04-PLANNING-BASIC-PRD.md",
+    "source_prd": "docs/prd/04-PLANNING-BASIC-PRD.md",
     "prd_refs": [
       "§8.4",
       "§8.10"
@@ -27,11 +27,11 @@
     "prototype_match": true,
     "prototype_label": "plan_cascade_dag",
     "description": "Cascade DAG page with chain sidebar, layered canvas, side panel, materials/outputs/deps tabs.",
-    "details": "Prototype reference: design/Monopilot Design System/planning/cascade.jsx:3-239. P1 accepts layered canvas; react-flow/SVG edge labels are P2 unless existing deps permit. Cycle check results are server-derived.",
+    "details": "Prototype reference: prototypes/design/Monopilot Design System/planning/cascade.jsx:3-239. P1 accepts layered canvas; react-flow/SVG edge labels are P2 unless existing deps permit. Cycle check results are server-derived.",
     "scope_files": [
       "src/app/(planning)/planning/cascade/page.tsx [create]",
       "src/components/planning/cascade/CascadeDagPage.tsx [create]",
-      "design/Monopilot Design System/planning/cascade.jsx:3-239 [ref]"
+      "prototypes/design/Monopilot Design System/planning/cascade.jsx:3-239 [ref]"
     ],
     "out_of_scope": [
       "Changing canonical NPD/Technical/Warehouse/Scanner contracts",
@@ -54,7 +54,7 @@
       }
     ],
     "acceptance_criteria": [
-      "Given the surface is implemented, when compared to `design/Monopilot Design System/planning/cascade.jsx:3-239`, then layout, copy hierarchy, components, interactions, empty/loading/error states, and accessibility affordances have prototype parity for `plan_cascade_dag`.",
+      "Given the surface is implemented, when compared to `prototypes/design/Monopilot Design System/planning/cascade.jsx:3-239`, then layout, copy hierarchy, components, interactions, empty/loading/error states, and accessibility affordances have prototype parity for `plan_cascade_dag`.",
       "Given server data or validation returns blocked/empty/error cases, then the UI surfaces the exact PRD validation/status messages without client-invented business state.",
       "Given closeout is prepared, then it includes desktop screenshots/artifacts for all material states plus Playwright trace artifacts for happy path and blocked/error path.",
       "Given tests run, then targeted RTL/component tests and Playwright e2e for the route/modal pass with 0 failures. Follow parity evidence requirements in `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`."

@@ -1,6 +1,6 @@
 {
   "title": "T-056 — UI: PLN-010 Reservation Panel (parity with plan_reservations)",
-  "prompt": "Implement UI: PLN-010 Reservation Panel (parity with plan_reservations) for 04-PLANNING-BASIC.\n\nPrototype: `_meta/prototype-labels/prototype-index-planning.json` label `plan_reservations` -> `design/Monopilot Design System/planning/other-screens.jsx:3-120`. Read PRD refs §9.1, §9.5 and UX refs before coding. Match the prototype structurally and visually using shadcn/Radix primitives, Next.js App Router, Server Components for initial data, Server Actions for writes, next-intl for all copy, and existing repository conventions.\n\nBusiness rules: Consumes Warehouse LP/reservation state; admin override requires RBAC, reason, audit, and transactionally releases locks.\n\nCloseout must include changed files, test commands/results, AC status, screenshot/artifact paths, Playwright trace paths, deviations, and git status. Do not implement out-of-scope modules; use cross-module contracts listed in pipeline_inputs.cross_module_dependencies.",
+  "prompt": "Implement UI: PLN-010 Reservation Panel (parity with plan_reservations) for 04-PLANNING-BASIC.\n\nPrototype: `_meta/prototype-labels/prototype-index-planning.json` label `plan_reservations` -> `prototypes/design/Monopilot Design System/planning/other-screens.jsx:3-120`. Read PRD refs §9.1, §9.5 and UX refs before coding. Match the prototype structurally and visually using shadcn/Radix primitives, Next.js App Router, Server Components for initial data, Server Actions for writes, next-intl for all copy, and existing repository conventions.\n\nBusiness rules: Consumes Warehouse LP/reservation state; admin override requires RBAC, reason, audit, and transactionally releases locks.\n\nCloseout must include changed files, test commands/results, AC status, screenshot/artifact paths, Playwright trace paths, deviations, and git status. Do not implement out-of-scope modules; use cross-module contracts listed in pipeline_inputs.cross_module_dependencies.",
   "labels": [
     "prd",
     "ui",
@@ -13,7 +13,7 @@
   "pipeline_inputs": {
     "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
     "prd_task_id": "T-056",
-    "source_prd": "04-PLANNING-BASIC-PRD.md",
+    "source_prd": "docs/prd/04-PLANNING-BASIC-PRD.md",
     "prd_refs": [
       "§9.1",
       "§9.5"
@@ -27,11 +27,11 @@
     "prototype_match": true,
     "prototype_label": "plan_reservations",
     "description": "Global reservation panel with filters, active locks, availability side panel, admin release action.",
-    "details": "Prototype reference: design/Monopilot Design System/planning/other-screens.jsx:3-120. Consumes Warehouse LP/reservation state; admin override requires RBAC, reason, audit, and transactionally releases locks.",
+    "details": "Prototype reference: prototypes/design/Monopilot Design System/planning/other-screens.jsx:3-120. Consumes Warehouse LP/reservation state; admin override requires RBAC, reason, audit, and transactionally releases locks.",
     "scope_files": [
       "src/app/(planning)/planning/reservations/page.tsx [create]",
       "src/components/planning/reservations/ReservationsPage.tsx [create]",
-      "design/Monopilot Design System/planning/other-screens.jsx:3-120 [ref]"
+      "prototypes/design/Monopilot Design System/planning/other-screens.jsx:3-120 [ref]"
     ],
     "out_of_scope": [
       "Changing canonical NPD/Technical/Warehouse/Scanner contracts",
@@ -49,7 +49,7 @@
       }
     ],
     "acceptance_criteria": [
-      "Given the surface is implemented, when compared to `design/Monopilot Design System/planning/other-screens.jsx:3-120`, then layout, copy hierarchy, components, interactions, empty/loading/error states, and accessibility affordances have prototype parity for `plan_reservations`.",
+      "Given the surface is implemented, when compared to `prototypes/design/Monopilot Design System/planning/other-screens.jsx:3-120`, then layout, copy hierarchy, components, interactions, empty/loading/error states, and accessibility affordances have prototype parity for `plan_reservations`.",
       "Given server data or validation returns blocked/empty/error cases, then the UI surfaces the exact PRD validation/status messages without client-invented business state.",
       "Given closeout is prepared, then it includes desktop screenshots/artifacts for all material states plus Playwright trace artifacts for happy path and blocked/error path.",
       "Given tests run, then targeted RTL/component tests and Playwright e2e for the route/modal pass with 0 failures. Follow parity evidence requirements in `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`."

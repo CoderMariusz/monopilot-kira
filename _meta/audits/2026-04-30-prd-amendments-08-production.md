@@ -1,8 +1,8 @@
 # 08-PRODUCTION PRD Amendments — 2026-04-30 Reconciliation Pass
 
 **Source audit:** `_meta/audits/2026-04-30-design-prd-coverage.md` §08-PRODUCTION (rows 6-7 of severity-ranked top-20)
-**Target file:** `08-PRODUCTION-PRD.md` (now v3.1.1)
-**Scope discipline:** Strictly within 08-PRODUCTION. UX file (`design/08-PRODUCTION-UX.md`) untouched. Only ADD or RE-ORDER inside the PRD; no deletions.
+**Target file:** `docs/prd/08-PRODUCTION-PRD.md` (now v3.1.1)
+**Scope discipline:** Strictly within 08-PRODUCTION. UX file (`prototypes/design/08-PRODUCTION-UX.md`) untouched. Only ADD or RE-ORDER inside the PRD; no deletions.
 
 ---
 
@@ -24,16 +24,16 @@ The single residual gap (`tweaks_panel`) is now explicit + tracked, so the *blin
 
 ## 2. Sections added
 
-All inserted between existing SCR-08-07 and §8.2 APIs in `08-PRODUCTION-PRD.md` (search anchor: "SCR-08-07: OEE Dashboard").
+All inserted between existing SCR-08-07 and §8.2 APIs in `docs/prd/08-PRODUCTION-PRD.md` (search anchor: "SCR-08-07: OEE Dashboard").
 
 | New PRD ID | Title | UX source line | Source prototype path | ~Words |
 |---|---|---|---|---|
-| (none — note added under SCR-08-07) | OEE boundary clarification 08-PROD ↔ 15-OEE | `design/08-PRODUCTION-UX.md:562-611` | `design/Monopilot Design System/production/other-screens.jsx:4-121` (`oee_screen`); `…/modals.jsx:560-635` (`oee_target_edit_modal`) | ~150 |
-| SCR-08-08 | Shift Management (Crew + Handover) | `design/08-PRODUCTION-UX.md:658-700` | `…/production/other-screens.jsx:215-291` (`shifts_screen`); `…/modals.jsx:438-497` (`shift_start_modal`); `…/modals.jsx:500-557` (`shift_end_modal`); `…/modals.jsx:366-386` (`assign_crew_modal`) | ~290 |
-| SCR-08-09 | Production Analytics Hub | `design/08-PRODUCTION-UX.md:703-742` | `…/production/other-screens.jsx:393-496` (`analytics_screen`) | ~250 |
-| SCR-08-10 | Production Settings | `design/08-PRODUCTION-UX.md:770-832` | `…/production/other-screens.jsx:560-649` (`settings_screen`); `…/modals.jsx:560-635` (`oee_target_edit_modal`) | ~290 |
-| SCR-08-11 | Line Detail | `design/08-PRODUCTION-UX.md:872-890` | `…/production/new-screens.jsx:212-478` (`line_detail`) | ~210 |
-| SCR-08-12 | Scanner-Linked Reference Cards | `design/08-PRODUCTION-UX.md:894-908` | `…/production/modals.jsx:246-278` (`scanner_modal`) — pattern realised inline | ~210 |
+| (none — note added under SCR-08-07) | OEE boundary clarification 08-PROD ↔ 15-OEE | `prototypes/design/08-PRODUCTION-UX.md:562-611` | `prototypes/design/Monopilot Design System/production/other-screens.jsx:4-121` (`oee_screen`); `…/modals.jsx:560-635` (`oee_target_edit_modal`) | ~150 |
+| SCR-08-08 | Shift Management (Crew + Handover) | `prototypes/design/08-PRODUCTION-UX.md:658-700` | `…/production/other-screens.jsx:215-291` (`shifts_screen`); `…/modals.jsx:438-497` (`shift_start_modal`); `…/modals.jsx:500-557` (`shift_end_modal`); `…/modals.jsx:366-386` (`assign_crew_modal`) | ~290 |
+| SCR-08-09 | Production Analytics Hub | `prototypes/design/08-PRODUCTION-UX.md:703-742` | `…/production/other-screens.jsx:393-496` (`analytics_screen`) | ~250 |
+| SCR-08-10 | Production Settings | `prototypes/design/08-PRODUCTION-UX.md:770-832` | `…/production/other-screens.jsx:560-649` (`settings_screen`); `…/modals.jsx:560-635` (`oee_target_edit_modal`) | ~290 |
+| SCR-08-11 | Line Detail | `prototypes/design/08-PRODUCTION-UX.md:872-890` | `…/production/new-screens.jsx:212-478` (`line_detail`) | ~210 |
+| SCR-08-12 | Scanner-Linked Reference Cards | `prototypes/design/08-PRODUCTION-UX.md:894-908` | `…/production/modals.jsx:246-278` (`scanner_modal`) — pattern realised inline | ~210 |
 | SCR-08-13 | Operator Tweaks Panel (devtools) | (none — orphan, `NO-UX-YET`) | `…/production/modals.jsx:389-428` (`tweaks_panel`) | ~80 |
 | §8.1.X | UI surfaces traceability matrix (bidirectional PRD ↔ UX ↔ prototype) | n/a (matrix) | n/a (matrix) | ~30 rows |
 
@@ -88,8 +88,8 @@ External cross-PRD dependencies referenced but not modified:
 
 | File | Change |
 |---|---|
-| `08-PRODUCTION-PRD.md` | +6 SCR sub-sections (SCR-08-08..13), +1 boundary note under SCR-08-07, +1 §8.1.X traceability matrix (~30 rows), +1 changelog entry, +2 markers in §1.5, version bump 3.1 → 3.1.1. Net additions: ~530 lines. Zero deletions. |
-| `design/08-PRODUCTION-UX.md` | **No change** (per audit constraint). |
+| `docs/prd/08-PRODUCTION-PRD.md` | +6 SCR sub-sections (SCR-08-08..13), +1 boundary note under SCR-08-07, +1 §8.1.X traceability matrix (~30 rows), +1 changelog entry, +2 markers in §1.5, version bump 3.1 → 3.1.1. Net additions: ~530 lines. Zero deletions. |
+| `prototypes/design/08-PRODUCTION-UX.md` | **No change** (per audit constraint). |
 | `_meta/prototype-labels/prototype-index-production.json` | **No change** (per audit constraint — labels untouched). |
 | `_meta/audits/2026-04-30-prd-amendments-08-production.md` | **New** (this file). |
 

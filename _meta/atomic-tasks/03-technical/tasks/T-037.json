@@ -1,6 +1,6 @@
 {
   "title": "T-037 — UI: TEC-020 BOM List screen",
-  "prompt": "Build /technical/boms page (TEC-020, §7.5) listing BOMs across items with version timeline. Filter by item, status. Match prototype `bom_list` design/Monopilot Design System/technical/bom-list.jsx:3-95 and `boms_screen` design/Monopilot Design System/settings/data-screens.jsx:55-103. RED tests/ui/tec-020-bom-list.test.tsx. Run: `pnpm vitest run tests/ui/tec-020-bom-list.test.tsx`. Prototype naming red-line: translate any legacy prototype/domain labels `fa`/`FA5100`/Factory Article to canonical `fg`/FG, any `PR-code` wording to WIP/intermediate, and any `process_stage`/`process_code` to `manufacturing_operation_name`; do not introduce legacy field names in final code, labels, tests or schemas.",
+  "prompt": "Build /technical/boms page (TEC-020, §7.5) listing BOMs across items with version timeline. Filter by item, status. Match prototype `bom_list` prototypes/design/Monopilot Design System/technical/bom-list.jsx:3-95 and `boms_screen` prototypes/design/Monopilot Design System/settings/data-screens.jsx:55-103. RED tests/ui/tec-020-bom-list.test.tsx. Run: `pnpm vitest run tests/ui/tec-020-bom-list.test.tsx`. Prototype naming red-line: translate any legacy prototype/domain labels `fa`/`FA5100`/Factory Article to canonical `fg`/FG, any `PR-code` wording to WIP/intermediate, and any `process_stage`/`process_code` to `manufacturing_operation_name`; do not introduce legacy field names in final code, labels, tests or schemas.",
   "labels": [
     "prd",
     "ui",
@@ -13,7 +13,7 @@
   "pipeline_inputs": {
     "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
     "prd_task_id": "T-037",
-    "source_prd": "03-TECHNICAL-PRD.md",
+    "source_prd": "docs/prd/03-TECHNICAL-PRD.md",
     "prd_refs": [
       "§7.5"
     ],
@@ -41,7 +41,7 @@
       "T-039"
     ],
     "acceptance_criteria": [
-      "Given the BOM list renders, when compared to design/Monopilot Design System/technical/bom-list.jsx:3-95 and design/Monopilot Design System/settings/data-screens.jsx:55-103, then column order, filter chips, and Generate BOMs CTA position match — structural + visual + interaction parity confirmed via RTL.",
+      "Given the BOM list renders, when compared to prototypes/design/Monopilot Design System/technical/bom-list.jsx:3-95 and prototypes/design/Monopilot Design System/settings/data-screens.jsx:55-103, then column order, filter chips, and Generate BOMs CTA position match — structural + visual + interaction parity confirmed via RTL.",
       "Given filter status='active', when applied, then table reloads with only active BOMs.",
       "Given user clicks Generate BOMs, when fired, then TEC-024 modal opens.",
       "UI closeout includes screenshot/artifact evidence and Playwright trace/artifacts where applicable per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`; if Playwright is unavailable, document the blocker and provide RTL/snapshot fallback evidence."

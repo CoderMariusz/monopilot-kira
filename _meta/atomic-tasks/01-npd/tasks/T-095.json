@@ -1,6 +1,6 @@
 {
   "title": "T-095 — G3 create/map FG candidate for NPD project",
-  "prompt": "# T-095 — G3 create/map FG candidate\n\nPRD: 01-NPD-PRD.md §17 + 2026-05-03 E2E release spike\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nAdd the explicit G3 action `createOrMapFgCandidateAtG3(projectId, mode=create|map, productCode?)` so a Brief-created NPD project maps to exactly one canonical FG candidate before G3 approval.\n\n## Implementation contract\n- Add server action/domain service and tests for create/map/remap policy discovered from existing product schema.\n- Enforce one active project → one FG candidate, and one FG candidate cannot be linked to another active project.\n- Update `npd_projects.product_code` or equivalent canonical field and link Brief/Product compatibility aliases.\n- Add GateApproval/G3 modal UI for create/map with availability/conflict feedback.\n- Emit `npd.fg_candidate_mapped` and audit old/new mapping.\n- Do not create D365 output and do not mark factory release status.\n\n## Final decisions\nFG / Finished Good is canonical; FA is a legacy alias only. G3 owns FG candidate mapping. D365 is optional export/import only.\n",
+  "prompt": "# T-095 — G3 create/map FG candidate\n\nPRD: docs/prd/01-NPD-PRD.md §17 + 2026-05-03 E2E release spike\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nAdd the explicit G3 action `createOrMapFgCandidateAtG3(projectId, mode=create|map, productCode?)` so a Brief-created NPD project maps to exactly one canonical FG candidate before G3 approval.\n\n## Implementation contract\n- Add server action/domain service and tests for create/map/remap policy discovered from existing product schema.\n- Enforce one active project → one FG candidate, and one FG candidate cannot be linked to another active project.\n- Update `npd_projects.product_code` or equivalent canonical field and link Brief/Product compatibility aliases.\n- Add GateApproval/G3 modal UI for create/map with availability/conflict feedback.\n- Emit `npd.fg_candidate_mapped` and audit old/new mapping.\n- Do not create D365 output and do not mark factory release status.\n\n## Final decisions\nFG / Finished Good is canonical; FA is a legacy alias only. G3 owns FG candidate mapping. D365 is optional export/import only.\n",
   "labels": [
     "prd",
     "api",
@@ -18,7 +18,7 @@
   "pipeline_inputs": {
     "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
     "prd_task_id": "T-095",
-    "source_prd": "01-NPD-PRD.md",
+    "source_prd": "docs/prd/01-NPD-PRD.md",
     "prd_refs": [
       "§17",
       "2026-05-03 E2E release spike BL-E2E-02"
@@ -52,7 +52,7 @@
       "T-096"
     ],
     "acceptance_criteria": [
-      "Project at G2/G3 without FG shows FG_CANDIDATE_REQUIRED and opens create/map modal with parity reference design/Monopilot Design System/npd/modals.jsx:89-140.",
+      "Project at G2/G3 without FG shows FG_CANDIDATE_REQUIRED and opens create/map modal with parity reference prototypes/design/Monopilot Design System/npd/modals.jsx:89-140.",
       "Create/map links exactly one FG candidate and labels say FG/Finished Good with FA only legacy alias.",
       "Already-linked FG rejects FG_ALREADY_LINKED; retries are idempotent without duplicate links/events.",
       "Given the task is closed out, when reviewers inspect the task evidence, then these additional requirements are proven together: UI/RTL evidence covers permission denial, blocker copy and modal behavior.; UI closeout includes screenshot/artifact evidence and Playwright trace/artifacts where applicable per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`; if Playwright is unavailable, document the blocker and provide RTL/snapshot fallback evidence."

@@ -14,7 +14,7 @@
   "pipeline_inputs": {
     "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
     "prd_task_id": "T-064",
-    "source_prd": "04-PLANNING-BASIC-PRD.md",
+    "source_prd": "docs/prd/04-PLANNING-BASIC-PRD.md",
     "prd_refs": [
       "§10.5",
       "§10.7",
@@ -31,7 +31,7 @@
     "details": "Inline modal launched from sequencing rows. Requires override reason, before/after allergen/changeover impact, RBAC guard, audit event, and clear badge on affected WO rows. It is composed inside the PLN-011 sequencing page rather than a standalone prototype label.",
     "scope_files": [
       "src/components/planning/sequencing/AllergenOverrideDialog.tsx [create]",
-      "design/04-PLANNING-BASIC-UX.md:1366-1382 [ref]"
+      "prototypes/design/04-PLANNING-BASIC-UX.md:1366-1382 [ref]"
     ],
     "out_of_scope": [
       "Building unrelated Settings/Warehouse/Scanner surfaces"

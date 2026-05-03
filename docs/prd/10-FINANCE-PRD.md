@@ -575,9 +575,9 @@ CREATE TABLE d365_finance_dlq (
 | Top 10 WO variance | `ORDER BY ABS(total_variance) DESC LIMIT 10` | 5min |
 | Cost per KG trend (top 5 FG products) | `standard_costs` history per item | Daily |
 
-### 8.4 Extended desktop screens (reconciliation w UX `design/10-FINANCE-UX.md`)
+### 8.4 Extended desktop screens (reconciliation w UX `prototypes/design/10-FINANCE-UX.md`)
 
-> **Schema-ID drift note (audit 2026-04-30):** PRD §8.1 enumeruje 8 screens (FIN-001..008), podczas gdy UX `design/10-FINANCE-UX.md:118-138` operuje 17-screen route map (FIN-001..016 + Finance Settings) z innym numerowaniem. Sekcja §8.4 dodaje brakujące FIN-NNN (źródło: UX + `_meta/prototype-labels/prototype-index-finance.json`), zachowuje istniejące FIN-001..008 z §8.1, i mapuje cross-numbering w macierzy §8.6. **Polityka:** UX numeracja staje się canonical (FIN-001..021); PRD §8.1 numbers retained as functional groupings (FIN-001 PRD = FIN-001 UX = "Finance Dashboard"; PRD FIN-004 Inventory Valuation = UX FIN-005; PRD FIN-006 D365 Queue = UX FIN-016 — tabular matrix §8.6 rozstrzyga).
+> **Schema-ID drift note (audit 2026-04-30):** PRD §8.1 enumeruje 8 screens (FIN-001..008), podczas gdy UX `prototypes/design/10-FINANCE-UX.md:118-138` operuje 17-screen route map (FIN-001..016 + Finance Settings) z innym numerowaniem. Sekcja §8.4 dodaje brakujące FIN-NNN (źródło: UX + `_meta/prototype-labels/prototype-index-finance.json`), zachowuje istniejące FIN-001..008 z §8.1, i mapuje cross-numbering w macierzy §8.6. **Polityka:** UX numeracja staje się canonical (FIN-001..021); PRD §8.1 numbers retained as functional groupings (FIN-001 PRD = FIN-001 UX = "Finance Dashboard"; PRD FIN-004 Inventory Valuation = UX FIN-005; PRD FIN-006 D365 Queue = UX FIN-016 — tabular matrix §8.6 rozstrzyga).
 
 #### FIN-002b Standard Cost Detail Drawer [UNIVERSAL]
 
@@ -1410,19 +1410,19 @@ W 02-SETTINGS v3.1 (revision) zaktualizować:
 
 ### Dokumenty źródłowe (primary, wczytywane w Sesja 2)
 
-- [`08-PRODUCTION-PRD.md`](./08-PRODUCTION-PRD.md) v3.0 §12 INTEGRATIONS stage 2 — outbox pattern template (SOURCE OF TRUTH dla stage 5)
-- [`03-TECHNICAL-PRD.md`](./03-TECHNICAL-PRD.md) v3.0 §11 cost_per_kg + §7 BOM + §6 items
-- [`09-QUALITY-PRD.md`](./09-QUALITY-PRD.md) v3.0 §6 ncr_reports yield_issue + quality_holds
-- [`05-WAREHOUSE-PRD.md`](./05-WAREHOUSE-PRD.md) v3.0 §8/§10/§13 LP lifecycle + consume
-- [`04-PLANNING-BASIC-PRD.md`](./04-PLANNING-BASIC-PRD.md) v3.1 §8.5 wo_dependencies DAG
-- [`02-SETTINGS-PRD.md`](./02-SETTINGS-PRD.md) v3.0 §7 rules + §11 D365_Constants + §8 reference
-- [`00-FOUNDATION-PRD.md`](./00-FOUNDATION-PRD.md) v3.0 R14 (UUID v7 idempotency) + R15 (anti-corruption)
+- [`docs/prd/08-PRODUCTION-PRD.md`](./docs/prd/08-PRODUCTION-PRD.md) v3.0 §12 INTEGRATIONS stage 2 — outbox pattern template (SOURCE OF TRUTH dla stage 5)
+- [`docs/prd/03-TECHNICAL-PRD.md`](./docs/prd/03-TECHNICAL-PRD.md) v3.0 §11 cost_per_kg + §7 BOM + §6 items
+- [`docs/prd/09-QUALITY-PRD.md`](./docs/prd/09-QUALITY-PRD.md) v3.0 §6 ncr_reports yield_issue + quality_holds
+- [`docs/prd/05-WAREHOUSE-PRD.md`](./docs/prd/05-WAREHOUSE-PRD.md) v3.0 §8/§10/§13 LP lifecycle + consume
+- [`docs/prd/04-PLANNING-BASIC-PRD.md`](./docs/prd/04-PLANNING-BASIC-PRD.md) v3.1 §8.5 wo_dependencies DAG
+- [`docs/prd/02-SETTINGS-PRD.md`](./docs/prd/02-SETTINGS-PRD.md) v3.0 §7 rules + §11 D365_Constants + §8 reference
+- [`docs/prd/00-FOUNDATION-PRD.md`](./docs/prd/00-FOUNDATION-PRD.md) v3.0 R14 (UUID v7 idempotency) + R15 (anti-corruption)
 - [`_foundation/research/MES-TRENDS-2026.md`](./_foundation/research/MES-TRENDS-2026.md) §9 10-FINANCE R-decisions + §3 regulatory
 - [`_foundation/decisions/MONOPILOT-V2-ARCHITECTURE.md`](./_foundation/decisions/MONOPILOT-V2-ARCHITECTURE.md) — 6 principles + 23 decisions
 
 ### Baseline przewidziane do archive
 
-- `10-FINANCE-PRD.md` v1.0 (2026-02-18, 663 linii) — **superseded by v3.0**. Retained as git history.
+- `docs/prd/10-FINANCE-PRD.md` v1.0 (2026-02-18, 663 linii) — **superseded by v3.0**. Retained as git history.
 
 ### ADR references
 

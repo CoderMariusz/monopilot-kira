@@ -92,7 +92,7 @@ Pre-Phase-B Industry Research zamknięty w 1 sesji. Wszystkie deliverables z Pha
 ### Phase B.1 — 00-FOUNDATION rewrite (1 sesja)
 
 **Scope:**
-- Full rewrite current `00-FOUNDATION-PRD.md` (453 lines, pre-Phase-D, stare numerowanie)
+- Full rewrite current `docs/prd/00-FOUNDATION-PRD.md` (453 lines, pre-Phase-D, stare numerowanie)
 - Zaktualizować numerowanie M00-M15 → **Phase D renumbering** (00-FOUNDATION, 01-NPD primary, 02-SETTINGS, 03-TECHNICAL, 04-PLANNING-BASIC, 05-WAREHOUSE, 06-SCANNER-P1, 07-PLANNING-EXT, 08-PRODUCTION, 09-QUALITY, 10-FINANCE, 11-SHIPPING, 12-REPORTING, 13-MAINTENANCE, 14-MULTI-SITE, 15-OEE)
 - Wbudować 6 Phase D principles (Easy extension / Two-systems / Schema-driven + DSL / Reality fidelity / Multi-tenant / Marker discipline)
 - Wbudować R1-R15 research decisions jako ADRs/decisions list
@@ -101,14 +101,14 @@ Pre-Phase-B Industry Research zamknięty w 1 sesji. Wszystkie deliverables z Pha
 - Usunąć pre-Phase-D decisions (złe metryki sukcesu, złe role mapping, itd.)
 - Dodać: META-MODEL ref, rule engine DSL ref, L1-L4 multi-tenant, outbox pattern od MVP
 
-**Keeping:** nazwa pliku `00-FOUNDATION-PRD.md` (numer 00 pozostaje zgodny z Phase D renumbering).
+**Keeping:** nazwa pliku `docs/prd/00-FOUNDATION-PRD.md` (numer 00 pozostaje zgodny z Phase D renumbering).
 
 **NIE w B.1 scope:** rename innych plików (01-SETTINGS, 02-TECHNICAL, itd.) — pozostają stare nazwy do odpowiednich Phase C batches.
 
 ### Phase B.2 — 01-NPD full rewrite (2-3 sesje)
 
 **Scope:**
-- Rename `09-NPD-PRD.md` → `01-NPD-PRD.md`
+- Rename `09-NPD-PRD.md` → `docs/prd/01-NPD-PRD.md`
 - Full rewrite z reality sources (8 pld-v7-excel docs + 2 brief-excels docs)
 - 7 dept columns (Core + Technical + Packaging + MRP + Planning + Production + Price) + workflow + cascade + Dashboard
 - Brief import tool (Excel → PLD row) — pre-PLD NPD stage
@@ -128,14 +128,14 @@ Pre-Phase-B Industry Research zamknięty w 1 sesji. Wszystkie deliverables z Pha
 2. Read `_foundation/research/MES-TRENDS-2026.md` — szczególnie §9 "00-FOUNDATION" + §10 R1-R15 + regulatory roadmap
 3. Read `_foundation/decisions/MONOPILOT-V2-ARCHITECTURE.md` — 6 principles + 23 decisions + 15 modules
 4. Read `_foundation/META-MODEL.md` + 4 ADRs (028/029/030/031)
-5. Read current baseline `00-FOUNDATION-PRD.md` (453 lines)
+5. Read current baseline `docs/prd/00-FOUNDATION-PRD.md` (453 lines)
 6. Propose rewrite outline do user (10-15 sekcji skeleton)
 7. User approve scope → full rewrite (~1000-1500 linii docelowo)
 8. Post-rewrite: update memory + HANDOFF do Phase B.2
 
 ## Bootstrap Phase B.2 session (post B.1)
 
-1. Rename `09-NPD-PRD.md` → `01-NPD-PRD.md`
+1. Rename `09-NPD-PRD.md` → `docs/prd/01-NPD-PRD.md`
 2. Read MES-TRENDS-2026.md §9 "01-NPD" + §2 (allergens/labelling) + §6.1 (LLM SOP) + §3 (D365 Builder)
 3. Read 8 pld-v7-excel reality docs + 2 brief-excels reality docs
 4. Propose 01-NPD rewrite outline

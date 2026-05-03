@@ -6,7 +6,7 @@ Applies to T3-ui tasks and UI-flow T4-wiring-test tasks across MonoPilot Kira.
 
 Every UI task must declare one of:
 
-1. Exact prototype source: `design/Monopilot Design System/<module>/<file>.jsx:<start>-<end>`; or
+1. Exact prototype source: `prototypes/design/Monopilot Design System/<module>/<file>.jsx:<start>-<end>`; or
 2. Spec-driven source: UX/PRD section plus the nearest reusable prototype pattern.
 
 ## Required parity evidence

@@ -1,6 +1,6 @@
 ---
 name: prototype-labeling
-description: Label prototype JSX components with 5-dimensional taxonomy + translation notes for production reuse. Use when Haiku agent is dispatched to scan a Monopilot design system module (design/Monopilot Design System/<module>/) and produce prototype-index JSON + translation-notes markdown. Produces consumable input for T3 UI atomic task pre-hooks.
+description: Label prototype JSX components with 5-dimensional taxonomy + translation notes for production reuse. Use when Haiku agent is dispatched to scan a Monopilot design system module (prototypes/design/Monopilot Design System/<module>/) and produce prototype-index JSON + translation-notes markdown. Produces consumable input for T3 UI atomic task pre-hooks.
 version: 1.0.0
 model: haiku
 canonical_spec: _meta/plans/atomic-task-decomposition-guide.md §12
@@ -14,7 +14,7 @@ canonical_spec: _meta/plans/atomic-task-decomposition-guide.md §12
 
 ## When to use
 
-- Haiku agent is dispatched with a target module path (e.g., `design/Monopilot Design System/warehouse/`)
+- Haiku agent is dispatched with a target module path (e.g., `prototypes/design/Monopilot Design System/warehouse/`)
 - Goal is to produce labeled index of reusable components
 - Output will be consumed by T3 UI atomic task pre-hooks OR operator review (pilot phase)
 - First-pass labeling OR re-labeling after prototype changes (maintenance mode)
@@ -27,8 +27,8 @@ canonical_spec: _meta/plans/atomic-task-decomposition-guide.md §12
 ## Required reading (load in this order, be selective)
 
 1. `_meta/plans/atomic-task-decomposition-guide.md` §12 — canonical spec (this skill is a Haiku-optimised adapter of §12)
-2. `design/Monopilot Design System/BACKLOG.md` — known bug list; needed for `known_bugs` field cross-reference. Filter by `BL-<target-module-abbrev>-*` entries.
-3. `design/Monopilot Design System/_shared/MODAL-SCHEMA.md` (if present) — production porting contract, informs translation notes
+2. `prototypes/design/Monopilot Design System/BACKLOG.md` — known bug list; needed for `known_bugs` field cross-reference. Filter by `BL-<target-module-abbrev>-*` entries.
+3. `prototypes/design/Monopilot Design System/_shared/MODAL-SCHEMA.md` (if present) — production porting contract, informs translation notes
 4. Target module's JSX files — ONLY these, not other modules. Prefer `modals.jsx` as primary source (most components live there).
 
 **Do NOT read:**
@@ -232,7 +232,7 @@ Typical mappings (not exhaustive — use your judgement):
 
 ## Known bugs cross-reference
 
-For each entry, grep `design/Monopilot Design System/BACKLOG.md` for module-prefixed bugs (`BL-NPD-*`, `BL-WH-*`, etc.) that affect this specific component. Add bug ID to `known_bugs` array. If bug is resolved (per BACKLOG line annotation), still include with note or omit — prefer omit for clean labels.
+For each entry, grep `prototypes/design/Monopilot Design System/BACKLOG.md` for module-prefixed bugs (`BL-NPD-*`, `BL-WH-*`, etc.) that affect this specific component. Add bug ID to `known_bugs` array. If bug is resolved (per BACKLOG line annotation), still include with note or omit — prefer omit for clean labels.
 
 ## Execution workflow
 

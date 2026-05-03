@@ -9,8 +9,8 @@ Scope: docs/meta/prototype/task readiness for full `08-PRODUCTION`, beyond the e
 - `_meta/decisions/2026-05-03-next-modules-warehouse-scanner-planning-production-decisions.md`
 - `_meta/reviews/2026-05-03-next-modules-04-05-06-08-readiness-report.md`
 - `_meta/reviews/2026-05-03-04-08-factory-release-contract-audit.md`
-- `08-PRODUCTION-PRD.md`
-- `design/08-PRODUCTION-UX.md`
+- `docs/prd/08-PRODUCTION-PRD.md`
+- `prototypes/design/08-PRODUCTION-UX.md`
 - `_meta/prototype-labels/prototype-index-production.json`
 - `_meta/prototype-labels/master-index.json`
 - `_meta/prototype-labels/translation-notes-production.md`

@@ -1436,7 +1436,7 @@ Wszystkie OQ są P2 / post-launch / future sessions. Nie blokują C4 Sesja 3 clo
 ## 18. Changelog
 
 **v3.2 (2026-04-30, PRD ↔ UX coverage gap close):**
-- Added §15.4 "Extended desktop screen catalog (Direction-B coverage)" with 14 SHIP-NNN sub-sections (SHIP-003, 004, 009, 010, 011, 014, 014b, 015, 016, 017 expansion, 018, 019, 020, 021, 023, 024, 025, 026, 027, 028, 029, 030) sourced bidirectionally from `design/11-SHIPPING-UX.md` + `_meta/prototype-labels/prototype-index-shipping.json`.
+- Added §15.4 "Extended desktop screen catalog (Direction-B coverage)" with 14 SHIP-NNN sub-sections (SHIP-003, 004, 009, 010, 011, 014, 014b, 015, 016, 017 expansion, 018, 019, 020, 021, 023, 024, 025, 026, 027, 028, 029, 030) sourced bidirectionally from `prototypes/design/11-SHIPPING-UX.md` + `_meta/prototype-labels/prototype-index-shipping.json`.
 - Added §15.5 Direction-A status (PRD bullets without prototype) — 2 [NO-PROTOTYPE-YET] TODOs flagged: SHP-SCN-04 Pallet Loading + ADMIN-SHP-01 generic admin UI confirm.
 - Added §20 UI Surfaces Traceability Matrix — bidirectional content index (desktop + scanner + modals catalogs) closing audit gap `_meta/audits/2026-04-30-design-prd-coverage.md` §11-SHIPPING.
 - Coverage estimate: Dir B 52% → 96%; aggregate ~40% → ~95% (exceeds ≥85% target).
@@ -1474,15 +1474,15 @@ Wszystkie OQ są P2 / post-launch / future sessions. Nie blokują C4 Sesja 3 clo
 
 ### Cross-PRD consumed
 
-- [00-FOUNDATION-PRD.md](00-FOUNDATION-PRD.md) v3.0 — R14 UUID v7 idempotency, R15 anti-corruption adapter, 6 principles, 4 ADRs
-- [02-SETTINGS-PRD.md](02-SETTINGS-PRD.md) v3.0 (v3.1 pending) — §7 rule registry, §8 reference tables, §11 D365_Constants
-- [03-TECHNICAL-PRD.md](03-TECHNICAL-PRD.md) v3.0 — §8 catch weight + GS1 AI, §10 allergen cascade, §11 items cost/price
-- [04-PLANNING-BASIC-PRD.md](04-PLANNING-BASIC-PRD.md) v3.1 — §7 customer_orders + D365 SO trigger
-- [05-WAREHOUSE-PRD.md](05-WAREHOUSE-PRD.md) v3.0 — §6-7 LP lifecycle, §9 FEFO, §10 intermediate cascade, §11 genealogy FSMA 204, §13.7 EPCIS P2
-- [06-SCANNER-P1-PRD.md](06-SCANNER-P1-PRD.md) v3.0 — §8.5 scanner backend contract, §9 offline queue
-- [08-PRODUCTION-PRD.md](08-PRODUCTION-PRD.md) v3.0 — §9.10-9.11 outbox schema template, §12 stage 2 integration pattern
-- [09-QUALITY-PRD.md](09-QUALITY-PRD.md) v3.0 — §6 quality_holds + batch_release_gate_v1 P2
-- [10-FINANCE-PRD.md](10-FINANCE-PRD.md) v3.0 — §6 inventory_cost_layers (P2 COGS consumer)
+- [docs/prd/00-FOUNDATION-PRD.md](docs/prd/00-FOUNDATION-PRD.md) v3.0 — R14 UUID v7 idempotency, R15 anti-corruption adapter, 6 principles, 4 ADRs
+- [docs/prd/02-SETTINGS-PRD.md](docs/prd/02-SETTINGS-PRD.md) v3.0 (v3.1 pending) — §7 rule registry, §8 reference tables, §11 D365_Constants
+- [docs/prd/03-TECHNICAL-PRD.md](docs/prd/03-TECHNICAL-PRD.md) v3.0 — §8 catch weight + GS1 AI, §10 allergen cascade, §11 items cost/price
+- [docs/prd/04-PLANNING-BASIC-PRD.md](docs/prd/04-PLANNING-BASIC-PRD.md) v3.1 — §7 customer_orders + D365 SO trigger
+- [docs/prd/05-WAREHOUSE-PRD.md](docs/prd/05-WAREHOUSE-PRD.md) v3.0 — §6-7 LP lifecycle, §9 FEFO, §10 intermediate cascade, §11 genealogy FSMA 204, §13.7 EPCIS P2
+- [docs/prd/06-SCANNER-P1-PRD.md](docs/prd/06-SCANNER-P1-PRD.md) v3.0 — §8.5 scanner backend contract, §9 offline queue
+- [docs/prd/08-PRODUCTION-PRD.md](docs/prd/08-PRODUCTION-PRD.md) v3.0 — §9.10-9.11 outbox schema template, §12 stage 2 integration pattern
+- [docs/prd/09-QUALITY-PRD.md](docs/prd/09-QUALITY-PRD.md) v3.0 — §6 quality_holds + batch_release_gate_v1 P2
+- [docs/prd/10-FINANCE-PRD.md](docs/prd/10-FINANCE-PRD.md) v3.0 — §6 inventory_cost_layers (P2 COGS consumer)
 
 ### Foundation
 
@@ -1511,9 +1511,9 @@ Wszystkie OQ są P2 / post-launch / future sessions. Nie blokują C4 Sesja 3 clo
 
 ## 20. UI Surfaces Traceability Matrix [UNIVERSAL]
 
-> **Purpose:** Bidirectional content index PRD §15 ↔ UX `design/11-SHIPPING-UX.md` ↔ `_meta/prototype-labels/prototype-index-shipping.json`. Closes audit gap `_meta/audits/2026-04-30-design-prd-coverage.md` §11-SHIPPING (40% → ≥85% coverage estimate).
+> **Purpose:** Bidirectional content index PRD §15 ↔ UX `prototypes/design/11-SHIPPING-UX.md` ↔ `_meta/prototype-labels/prototype-index-shipping.json`. Closes audit gap `_meta/audits/2026-04-30-design-prd-coverage.md` §11-SHIPPING (40% → ≥85% coverage estimate).
 >
-> **Schema-ID drift policy (per audit CC-1):** UX SHIP-NNN scheme przyjety jako **canonical**. Legacy SHP-NNN z §15.1 zachowane jako alias dla v3.0 sub-module impl roadmap (11-a..e). Numeracja SHIP-NNN sources `design/11-SHIPPING-UX.md`.
+> **Schema-ID drift policy (per audit CC-1):** UX SHIP-NNN scheme przyjety jako **canonical**. Legacy SHP-NNN z §15.1 zachowane jako alias dla v3.0 sub-module impl roadmap (11-a..e). Numeracja SHIP-NNN sources `prototypes/design/11-SHIPPING-UX.md`.
 
 ### 20.1 Desktop screens
 

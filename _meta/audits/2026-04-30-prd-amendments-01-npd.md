@@ -2,7 +2,7 @@
 
 **Date:** 2026-04-30
 **Source backlog:** `_meta/plans/2026-04-30-ux-prd-plan-gap-backlog.md` (MODULE 01-NPD)
-**Target file:** `01-NPD-PRD.md` (v3.3 → v3.4)
+**Target file:** `docs/prd/01-NPD-PRD.md` (v3.3 → v3.4)
 **Branch context:** post-`claude/review-npd-prd-fzqem` (ADR-034 generic naming already in place from prior merge)
 
 ---
@@ -75,7 +75,7 @@ Other "Apex" / "APEX-CONFIG" / "Apex Foods" references retained — these are co
 
 | File | Before | After | Δ |
 |---|---|---|---|
-| `01-NPD-PRD.md` | 1806 lines | 2132 lines | **+326 lines** |
+| `docs/prd/01-NPD-PRD.md` | 1806 lines | 2132 lines | **+326 lines** |
 
 Most growth in §17.11 stage-screen specs (5 sub-sections × ~30 lines) + §18 + §19 (~80 lines DDL each).
 
@@ -85,19 +85,19 @@ Most growth in §17.11 stage-screen specs (5 sub-sections × ~30 lines) + §18 +
 
 ```bash
 # All gap-backlog citations present
-grep -c "per gap-backlog 2026-04-30" 01-NPD-PRD.md
+grep -c "per gap-backlog 2026-04-30" docs/prd/01-NPD-PRD.md
 # Expected: ≥ 14 (10 N-U + 4 N-A markers + cross-refs)
 
 # Stage screen sub-sections exist
-grep -c "^#### 17.11" 01-NPD-PRD.md
+grep -c "^#### 17.11" docs/prd/01-NPD-PRD.md
 # Expected: 6 (.1 Recipe, .2 Nutrition, .3 Costing, .4 Sensory, .5 Approval, .6 LEGACY)
 
 # New top-level sections
-grep -c "^## §1[89]" 01-NPD-PRD.md
+grep -c "^## §1[89]" docs/prd/01-NPD-PRD.md
 # Expected: 2 (§18 Risk + §19 Compliance)
 
 # Allergen override schema present
-grep -c "fa_allergen_overrides" 01-NPD-PRD.md
+grep -c "fa_allergen_overrides" docs/prd/01-NPD-PRD.md
 # Expected: ≥ 4 (DDL + cross-refs + index + audit_events ref)
 ```
 
@@ -109,6 +109,6 @@ grep -c "fa_allergen_overrides" 01-NPD-PRD.md
 - [x] All N-A1..N-A4 sections added with content per gap-backlog sketch
 - [x] Inline `[N-U#/N-A# per gap-backlog 2026-04-30]` citations on every change
 - [x] ADR-034 hygiene completed (meat-specific copy → generic)
-- [x] UX file (`design/01-NPD-UX.md`) NOT modified
+- [x] UX file (`prototypes/design/01-NPD-UX.md`) NOT modified
 - [x] Changelog v3.4 entry appended; footer version bumped
 - [x] Coverage 50 % → ~88 %

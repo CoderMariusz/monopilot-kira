@@ -66,4 +66,4 @@ monopilot-kira/
 
 ## PRD-y
 
-Wszystkie Product Requirements Documents w `docs/prd/` — od `00-FOUNDATION-PRD.md` do `15-OEE-PRD.md`.
+Wszystkie Product Requirements Documents w `docs/prd/` — od `docs/prd/00-FOUNDATION-PRD.md` do `docs/prd/15-OEE-PRD.md`.

@@ -8,7 +8,7 @@
   "pipeline_inputs": {
     "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
     "prd_task_id": "T-011",
-    "source_prd": "02-SETTINGS-PRD.md",
+    "source_prd": "docs/prd/02-SETTINGS-PRD.md",
     "prd_refs": ["§14.3 (lines 1516-1532)", "§14.4 (lines 1534-1547)", "KPI line 57 (Onboarding time <15min P50)"],
     "category": "test",
     "subcategory": "e2e-playwright-happy-path",

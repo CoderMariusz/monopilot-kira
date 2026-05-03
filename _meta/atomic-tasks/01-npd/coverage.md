@@ -1,6 +1,6 @@
 # 01-NPD Atomic Task Coverage
 
-PRD: `01-NPD-PRD.md` (v3.3 + N-* gap-backlog amendments 2026-04-30)
+PRD: `docs/prd/01-NPD-PRD.md` (v3.3 + N-* gap-backlog amendments 2026-04-30)
 
 ## Sub-module map
 

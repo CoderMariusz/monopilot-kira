@@ -16,7 +16,7 @@ TASK_DIR = ROOT / "tasks"
 TASK_DIR.mkdir(parents=True, exist_ok=True)
 
 ROOT_PATH = "/Users/mariuszkrawczyk/Projects/monopilot-kira"
-PRD = "02-SETTINGS-PRD.md"
+PRD = "docs/prd/02-SETTINGS-PRD.md"
 NOW = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 # Tracks for coverage table
@@ -135,7 +135,7 @@ def std_prompt(task_id: str, title: str, body: str, ac: list[str], red_cmd: str,
 - deviations_from_prd (or "none")
 - git_status
 
-Stack: TS + Next.js App Router + Drizzle + pnpm + vitest + Playwright + Server Actions. Primitives in `packages/ui`. PRD: `02-SETTINGS-PRD.md` v3.5.
+Stack: TS + Next.js App Router + Drizzle + pnpm + vitest + Playwright + Server Actions. Primitives in `packages/ui`. PRD: `docs/prd/02-SETTINGS-PRD.md` v3.5.
 """
 
 
@@ -2517,7 +2517,7 @@ def ui_task(
 ):
     parity_ac = (
         f"Given the production page renders, when compared to "
-        f"`design/Monopilot Design System/{proto_path}:{proto_lines}` ({proto_label}), "
+        f"`prototypes/design/Monopilot Design System/{proto_path}:{proto_lines}` ({proto_label}), "
         f"then it has structural parity ({parity_features}), visual parity (same shadcn/Radix primitives — no drift to plain HTML, same density tokens), "
         f"and interaction parity (same enable/disable rules, same loading/empty/error states, same keyboard focus order) — verified by an RTL snapshot test plus the parity checklist embedded in `pipeline_inputs.details`."
     )
@@ -2530,7 +2530,7 @@ def ui_task(
             f"T-{num:03d}", title,
             body=(
                 f"Build {screen_code} ({proto_label}) following prototype "
-                f"`design/Monopilot Design System/{proto_path}:{proto_lines}` 1:1 plus the production "
+                f"`prototypes/design/Monopilot Design System/{proto_path}:{proto_lines}` 1:1 plus the production "
                 f"contract notes below.\n\n"
                 f"{body_extra}"
             ),
@@ -2547,7 +2547,7 @@ def ui_task(
         prd_refs=[prd_section],
         description=f"{screen_code} {proto_label} production component (prototype-parity).",
         details=(
-            f"Prototype: design/Monopilot Design System/{proto_path}:{proto_lines}. "
+            f"Prototype: prototypes/design/Monopilot Design System/{proto_path}:{proto_lines}. "
             "Translation notes (canonical from prototype-index-settings.json): "
             "see `_meta/prototype-labels/translation-notes-settings.md` and the entry's `translation_notes` array. "
             "Production contract: data via Server Components (Drizzle); mutations via Server Actions; "
@@ -2590,7 +2590,7 @@ ui_task(
     parent_feature="02-settings-e-onboarding",
     prd_section="§14.3 step 1",
     proto_label="company_profile_screen",
-    proto_path="settings/org-screens.jsx",
+    proto_path="prototypes/design/Monopilot Design System/settings/org-screens.jsx",
     proto_lines="4-100",
     body_extra=(
         "Step 1 of the 6-step onboarding wizard. Fields: name, timezone, locale, currency, "
@@ -2615,7 +2615,7 @@ ui_task(
     parent_feature="02-settings-e-onboarding",
     prd_section="§14.3 step 2",
     proto_label="warehouses_screen",
-    proto_path="settings/org-screens.jsx",
+    proto_path="prototypes/design/Monopilot Design System/settings/org-screens.jsx",
     proto_lines="192-252",
     body_extra="Wizard step 2: create the first warehouse (name/type/code). Type defaults to 'finished'.",
     ac_extra=[
@@ -2636,7 +2636,7 @@ ui_task(
     parent_feature="02-settings-e-onboarding",
     prd_section="§14.3 step 3",
     proto_label="warehouses_screen",
-    proto_path="settings/org-screens.jsx",
+    proto_path="prototypes/design/Monopilot Design System/settings/org-screens.jsx",
     proto_lines="192-252",
     body_extra=(
         "Step 3: create first location with ltree path (e.g., `FG › Zone A › Rack 1 › Bin 1`), zone "
@@ -2660,7 +2660,7 @@ ui_task(
     parent_feature="02-settings-e-onboarding",
     prd_section="§14.3 step 4",
     proto_label="products_screen (legacy proxy)",
-    proto_path="settings/data-screens.jsx",
+    proto_path="prototypes/settings/data-screens.jsx",
     proto_lines="4-52",
     body_extra=(
         "Step 4 is a soft redirect to 03-TECHNICAL create-product flow. Skippable. Skip pushes step "
@@ -2683,8 +2683,8 @@ ui_task(
     screen_code="SET-005",
     parent_feature="02-settings-e-onboarding",
     prd_section="§14.3 step 5",
-    proto_label="prototype: none (UX 02-SETTINGS-UX.md §wizard step 5)",
-    proto_path="settings/org-screens.jsx",
+    proto_label="prototype: none (UX prototypes/design/02-SETTINGS-UX.md §wizard step 5)",
+    proto_path="prototypes/design/Monopilot Design System/settings/org-screens.jsx",
     proto_lines="192-252",
     body_extra=(
         "Step 5: redirect to 04-PLANNING-BASIC create-WO flow. On WO create success callback, "
@@ -2707,8 +2707,8 @@ ui_task(
     screen_code="SET-006",
     parent_feature="02-settings-e-onboarding",
     prd_section="§14.3 step 6",
-    proto_label="prototype: none (UX 02-SETTINGS-UX.md §wizard completion)",
-    proto_path="settings/org-screens.jsx",
+    proto_label="prototype: none (UX prototypes/design/02-SETTINGS-UX.md §wizard completion)",
+    proto_path="prototypes/design/Monopilot Design System/settings/org-screens.jsx",
     proto_lines="4-100",
     body_extra=(
         "Final step: confetti + 3 next-step cards linking to /admin/features, /admin/schema, "
@@ -2733,7 +2733,7 @@ ui_task(
     parent_feature="02-settings-d-modals",
     prd_section="§0, §7.6",
     proto_label="rule_dry_run_modal",
-    proto_path="settings/modals.jsx",
+    proto_path="prototypes/settings/modals.jsx",
     proto_lines="18-69",
     body_extra=(
         "Read-only preview/compare modal (Pattern-10). Two-column grid (input JSON / result JSON). "
@@ -2757,7 +2757,7 @@ ui_task(
     parent_feature="02-settings-b-modals",
     prd_section="§0, §10.2",
     proto_label="flag_edit_modal",
-    proto_path="settings/modals.jsx",
+    proto_path="prototypes/settings/modals.jsx",
     proto_lines="72-108",
     body_extra=(
         "Pattern-05 override-with-reason. Uses ReasonInput primitive (min 10 chars). Wires to "
@@ -2781,7 +2781,7 @@ ui_task(
     parent_feature="02-settings-c-modals",
     prd_section="§0, §6.6",
     proto_label="schema_view_modal",
-    proto_path="settings/modals.jsx",
+    proto_path="prototypes/settings/modals.jsx",
     proto_lines="111-138",
     body_extra=(
         "Read-only summary of one reference_schemas row. Tier badge derived server-side; for L1 "
@@ -2805,7 +2805,7 @@ ui_task(
     parent_feature="02-settings-e-modals",
     prd_section="§0, §13.1",
     proto_label="email_template_edit_modal",
-    proto_path="settings/modals.jsx",
+    proto_path="prototypes/settings/modals.jsx",
     proto_lines="141-259",
     body_extra=(
         "3-step wizard: 1) trigger + recipients, 2) subject + body (variable picker), 3) preview + save. "
@@ -2829,7 +2829,7 @@ ui_task(
     parent_feature="02-settings-b-modals",
     prd_section="§0, §9.4",
     proto_label="promote_to_l2_modal",
-    proto_path="settings/modals.jsx",
+    proto_path="prototypes/settings/modals.jsx",
     proto_lines="262-375",
     body_extra=(
         "3-step wizard: 1) artefact + target, 2) preview diff (calls previewUpgrade T-028), "
@@ -2853,7 +2853,7 @@ ui_task(
     parent_feature="02-settings-a-modals",
     prd_section="§0, §5.1",
     proto_label="user_invite_modal",
-    proto_path="settings/modals.jsx",
+    proto_path="prototypes/settings/modals.jsx",
     proto_lines="378-407",
     body_extra=(
         "Simple form modal. Email + role + optional personal message textarea. Calls T-017 inviteUser. "
@@ -2877,7 +2877,7 @@ ui_task(
     parent_feature="02-settings-a-modals",
     prd_section="§0, §3",
     proto_label="role_assign_modal",
-    proto_path="settings/modals.jsx",
+    proto_path="prototypes/settings/modals.jsx",
     proto_lines="410-447",
     body_extra=(
         "Picker pattern. Async user lookup via shadcn Command (cmdk) with debounced search. Calls "
@@ -2901,7 +2901,7 @@ ui_task(
     parent_feature="02-settings-e-modals",
     prd_section="§0, §11.3",
     proto_label="d365_test_connection_modal",
-    proto_path="settings/modals.jsx",
+    proto_path="prototypes/settings/modals.jsx",
     proto_lines="450-489",
     body_extra=(
         "Confirm non-destructive + async submit. State machine: idle → pending → success | error. "
@@ -2925,7 +2925,7 @@ ui_task(
     parent_feature="02-settings-a-modals",
     prd_section="§0, §5.7",
     proto_label="password_reset_modal",
-    proto_path="settings/modals.jsx",
+    proto_path="prototypes/settings/modals.jsx",
     proto_lines="492-510",
     body_extra=(
         "Destructive + ack checkbox + dismissible=false. Confirm copy: 'Any active sessions will be revoked'. "
@@ -2949,7 +2949,7 @@ ui_task(
     parent_feature="02-settings-d-modals",
     prd_section="§0, §8",
     proto_label="delete_reference_data_modal",
-    proto_path="settings/modals.jsx",
+    proto_path="prototypes/settings/modals.jsx",
     proto_lines="513-532",
     body_extra=(
         "Destructive type-to-confirm 'DELETE'. Pre-check via Server Action returns affected_count for "
@@ -2973,7 +2973,7 @@ ui_task(
     parent_feature="02-settings-d-modals",
     prd_section="§0, §8",
     proto_label="ref_row_edit_modal",
-    proto_path="settings/modals.jsx",
+    proto_path="prototypes/settings/modals.jsx",
     proto_lines="535-572",
     body_extra=(
         "Simple form, schema-driven. Field list comes from reference_tables.columns metadata via "
@@ -2999,7 +2999,7 @@ ui_task(
     parent_feature="02-settings-a-ui",
     prd_section="§5.1, §12",
     proto_label="company_profile_screen",
-    proto_path="settings/org-screens.jsx",
+    proto_path="prototypes/design/Monopilot Design System/settings/org-screens.jsx",
     proto_lines="4-100",
     body_extra=(
         "Org profile editor. Fields: name/timezone/locale/currency/gs1_prefix/region (read-only "
@@ -3023,7 +3023,7 @@ ui_task(
     parent_feature="02-settings-a-ui",
     prd_section="§3, §5.1",
     proto_label="users_screen",
-    proto_path="settings/access-screens.jsx",
+    proto_path="prototypes/settings/access-screens.jsx",
     proto_lines="4-151",
     body_extra=(
         "Users page with: KPI tiles (Active/Invited/Disabled/Seats used), Card vs Table view toggle "
@@ -3048,7 +3048,7 @@ ui_task(
     parent_feature="02-settings-e-ui",
     prd_section="§14.1, §14.5, §14.6, §14.7",
     proto_label="security_screen",
-    proto_path="settings/access-screens.jsx",
+    proto_path="prototypes/settings/access-screens.jsx",
     proto_lines="154-239",
     body_extra=(
         "Security policy page. Sections: password policy / session timeouts / 2FA settings / SSO / "
@@ -3073,7 +3073,7 @@ ui_task(
     parent_feature="02-settings-e-ui",
     prd_section="§11.3",
     proto_label="d365_connection_screen",
-    proto_path="settings/admin-screens.jsx",
+    proto_path="prototypes/settings/admin-screens.jsx",
     proto_lines="27-103",
     body_extra=(
         "D365 OAuth + connection config. Test connection invokes SM-08. Toggle for "
@@ -3097,7 +3097,7 @@ ui_task(
     parent_feature="02-settings-e-ui",
     prd_section="§11.3",
     proto_label="d365_mapping_screen",
-    proto_path="settings/admin-screens.jsx",
+    proto_path="prototypes/settings/admin-screens.jsx",
     proto_lines="109-146",
     body_extra=(
         "Read-only mapping table. Direction filter (incoming/outgoing/both). Export CSV via Server "
@@ -3121,7 +3121,7 @@ ui_task(
     parent_feature="02-settings-d-ui",
     prd_section="§7.6",
     proto_label="rules_registry_screen",
-    proto_path="settings/admin-screens.jsx",
+    proto_path="prototypes/settings/admin-screens.jsx",
     proto_lines="152-210",
     body_extra=(
         "List + filter (type/coverage). Coverage badge: rule.last_dry_run_at < now() - interval '30 days' → "
@@ -3145,7 +3145,7 @@ ui_task(
     parent_feature="02-settings-d-ui",
     prd_section="§7.6",
     proto_label="rule_detail_screen",
-    proto_path="settings/admin-screens.jsx",
+    proto_path="prototypes/settings/admin-screens.jsx",
     proto_lines="216-344",
     body_extra=(
         "Tabs: Definition / Versions / Dry-runs / Consumers / Audit. DSL JSON via CodeMirror "
@@ -3169,7 +3169,7 @@ ui_task(
     parent_feature="02-settings-b-ui",
     prd_section="§10.2, §10.3",
     proto_label="flags_admin_screen",
-    proto_path="settings/admin-screens.jsx",
+    proto_path="prototypes/settings/admin-screens.jsx",
     proto_lines="350-408",
     body_extra=(
         "Tier-tabbed flags list (L1/L2/L3). Inline rollout progress. Edit opens SM-02 (Pattern-05 "
@@ -3193,7 +3193,7 @@ ui_task(
     parent_feature="02-settings-c-ui",
     prd_section="§6.6",
     proto_label="schema_browser_screen",
-    proto_path="settings/admin-screens.jsx",
+    proto_path="prototypes/settings/admin-screens.jsx",
     proto_lines="414-469",
     body_extra=(
         "Schema columns list with table/tier/search filters. Row 'View' opens SM-03. L2/L3 'Edit' "
@@ -3217,7 +3217,7 @@ ui_task(
     parent_feature="02-settings-d-ui",
     prd_section="§8.6",
     proto_label="reference_data_screen",
-    proto_path="settings/admin-screens.jsx",
+    proto_path="prototypes/settings/admin-screens.jsx",
     proto_lines="475-535",
     body_extra=(
         "Card grid of 25 reference tables. Selecting a card switches URL ?table=<code>; data grid "
@@ -3243,7 +3243,7 @@ ui_task(
     parent_feature="02-settings-e-ui",
     prd_section="§13.4",
     proto_label="email_templates_screen",
-    proto_path="settings/admin-screens.jsx",
+    proto_path="prototypes/settings/admin-screens.jsx",
     proto_lines="540-581",
     body_extra=(
         "Provider config + template list. Edit row opens SM-04. Test send button calls T-031 "
@@ -3267,7 +3267,7 @@ ui_task(
     parent_feature="02-settings-e-ui",
     prd_section="§13.4",
     proto_label="email_variables_screen",
-    proto_path="settings/admin-screens.jsx",
+    proto_path="prototypes/settings/admin-screens.jsx",
     proto_lines="586-624",
     body_extra=(
         "Read-only grouped variables list. Group sections via shadcn Accordion. Copy-name button "
@@ -3291,7 +3291,7 @@ ui_task(
     parent_feature="02-settings-b-ui",
     prd_section="§9.4",
     proto_label="promotions_screen",
-    proto_path="settings/admin-screens.jsx",
+    proto_path="prototypes/settings/admin-screens.jsx",
     proto_lines="630-688",
     body_extra=(
         "Active vs History tabs (URL ?tab). Stage info cards from promotion_stages. RBAC Admin only. "
@@ -3315,7 +3315,7 @@ ui_task(
     parent_feature="02-settings-e-ui",
     prd_section="§13.3",
     proto_label="notifications_screen",
-    proto_path="settings/ops-screens.jsx",
+    proto_path="prototypes/design/Monopilot Design System/settings/ops-screens.jsx",
     proto_lines="98-163",
     body_extra=(
         "Per-channel notification rule toggles. Slack 'Configure' deep-links to /settings/integrations?highlight=slack. "
@@ -3339,7 +3339,7 @@ ui_task(
     parent_feature="02-settings-b-ui",
     prd_section="§10.1, §10.3",
     proto_label="features_screen",
-    proto_path="settings/ops-screens.jsx",
+    proto_path="prototypes/design/Monopilot Design System/settings/ops-screens.jsx",
     proto_lines="166-198",
     body_extra=(
         "Module/feature toggles list. Premium/Beta badges from plan_tier. Toggle calls T-019 toggleModule. "
@@ -3363,7 +3363,7 @@ ui_task(
     parent_feature="02-settings-d-ui",
     prd_section="§8",
     proto_label="units_screen",
-    proto_path="settings/data-screens.jsx",
+    proto_path="prototypes/settings/data-screens.jsx",
     proto_lines="151-187",
     body_extra=(
         "Per-category UoM list with base unit derivation. Custom conversions section. Add via "
@@ -3387,7 +3387,7 @@ ui_task(
     parent_feature="02-settings-account",
     prd_section="§14.2",
     proto_label="my_profile_screen",
-    proto_path="settings/account-screens.jsx",
+    proto_path="prototypes/settings/account-screens.jsx",
     proto_lines="3-75",
     body_extra=(
         "User profile page: avatar, name, email (disabled), language, timezone, password change "
@@ -3411,7 +3411,7 @@ ui_task(
     parent_feature="02-settings-account",
     prd_section="§13.3",
     proto_label="my_notifications_screen",
-    proto_path="settings/account-screens.jsx",
+    proto_path="prototypes/settings/account-screens.jsx",
     proto_lines="77-124",
     body_extra=(
         "Per-event notification preference toggles + browser push subscription + quiet hours. One "
@@ -3435,7 +3435,7 @@ ui_task(
     parent_feature="02-settings-e-ui",
     prd_section="§11.8",
     proto_label="integrations_screen",
-    proto_path="settings/integrations.jsx",
+    proto_path="prototypes/settings/integrations.jsx",
     proto_lines="7-107",
     body_extra=(
         "Catalog grid + connected apps list. KPI tiles (connected/categories/sync 24h/failed). "
@@ -3458,8 +3458,8 @@ ui_task(
     screen_code="SET-055",
     parent_feature="02-settings-d-ui",
     prd_section="§8.9.4",
-    proto_label="prototype: none (UX 02-SETTINGS-UX.md §8.9 reference)",
-    proto_path="settings/admin-screens.jsx",
+    proto_label="prototype: none (UX prototypes/design/02-SETTINGS-UX.md §8.9 reference)",
+    proto_path="prototypes/settings/admin-screens.jsx",
     proto_lines="475-535",  # parity vs reference_data_screen as parent pattern
     body_extra=(
         "Operations data grid. Reorder via drag-to-reorder (auto-save per drag → T-038 reorderOperations). "
@@ -3482,8 +3482,8 @@ ui_task(
     screen_code="SET-056",
     parent_feature="02-settings-d-ui",
     prd_section="§8.9.4",
-    proto_label="prototype: none (UX 02-SETTINGS-UX.md §8.9 form)",
-    proto_path="settings/modals.jsx",
+    proto_label="prototype: none (UX prototypes/design/02-SETTINGS-UX.md §8.9 form)",
+    proto_path="prototypes/settings/modals.jsx",
     proto_lines="535-572",  # parity vs ref_row_edit_modal as parent pattern
     body_extra=(
         "Add/Edit form modal. Edit mode shows operation_name + process_suffix as read-only (per "
@@ -3507,8 +3507,8 @@ ui_task(
     screen_code="SET-013",
     parent_feature="02-settings-a-ui",
     prd_section="§5.6, ADR-008",
-    proto_label="prototype: none (UX 02-SETTINGS-UX.md §audit log)",
-    proto_path="settings/access-screens.jsx",
+    proto_label="prototype: none (UX prototypes/design/02-SETTINGS-UX.md §audit log)",
+    proto_path="prototypes/settings/access-screens.jsx",
     proto_lines="154-239",  # security_screen audit preview as parity ref
     body_extra=(
         "Full audit log viewer with filters: table_name, action, user_id, date range. "
@@ -4271,8 +4271,8 @@ ui_task(
     screen_code="SET-053",
     parent_feature="02-settings-d-ui",
     prd_section="§8.6",
-    proto_label="prototype: none (UX 02-SETTINGS-UX.md §reference-import)",
-    proto_path="settings/admin-screens.jsx",
+    proto_label="prototype: none (UX prototypes/design/02-SETTINGS-UX.md §reference-import)",
+    proto_path="prototypes/settings/admin-screens.jsx",
     proto_lines="475-535",  # parity vs reference_data_screen as parent pattern
     body_extra=(
         "3-step wizard: Upload → Preview (counts insert/update/skip/error) → Commit. Uses Stepper "
@@ -4296,8 +4296,8 @@ ui_task(
     screen_code="SET-031",
     parent_feature="02-settings-c-ui",
     prd_section="§6.1, §6.6",
-    proto_label="prototype: none (UX 02-SETTINGS-UX.md §schema-column-wizard, BL-SET-01 backlog)",
-    proto_path="settings/modals.jsx",
+    proto_label="prototype: none (UX prototypes/design/02-SETTINGS-UX.md §schema-column-wizard, BL-SET-01 backlog)",
+    proto_path="prototypes/settings/modals.jsx",
     proto_lines="262-375",  # parity vs promote_to_l2_modal Stepper pattern
     body_extra=(
         "8-step wizard per §6.1: Pick table → dept → data_type → validation → blocking_rule → "
@@ -4321,8 +4321,8 @@ ui_task(
     screen_code="SET-032",
     parent_feature="02-settings-c-ui",
     prd_section="§6.6",
-    proto_label="prototype: none (UX 02-SETTINGS-UX.md §schema-diff, BL-SET-02 backlog)",
-    proto_path="settings/admin-screens.jsx",
+    proto_label="prototype: none (UX prototypes/design/02-SETTINGS-UX.md §schema-diff, BL-SET-02 backlog)",
+    proto_path="prototypes/settings/admin-screens.jsx",
     proto_lines="216-344",  # parity vs rule_detail_screen tabs as parent pattern
     body_extra=(
         "Side-by-side diff for reference_schemas N vs N-1 per column. Uses Tabs (current/diff) and "
@@ -4346,8 +4346,8 @@ ui_task(
     screen_code="SET-033",
     parent_feature="02-settings-c-ui",
     prd_section="§6.3, §6.6",
-    proto_label="prototype: none (UX 02-SETTINGS-UX.md §schema-migrations)",
-    proto_path="settings/admin-screens.jsx",
+    proto_label="prototype: none (UX prototypes/design/02-SETTINGS-UX.md §schema-migrations)",
+    proto_path="prototypes/settings/admin-screens.jsx",
     proto_lines="630-688",  # parity vs promotions_screen tabs+table as parent pattern
     body_extra=(
         "List schema_migrations with status filter (pending/approved/running/completed/failed/rolled_back). "
@@ -4371,8 +4371,8 @@ ui_task(
     screen_code="SET-060",
     parent_feature="02-settings-b-ui",
     prd_section="§9.7",
-    proto_label="prototype: none (UX 02-SETTINGS-UX.md §tenant-variations)",
-    proto_path="settings/admin-screens.jsx",
+    proto_label="prototype: none (UX prototypes/design/02-SETTINGS-UX.md §tenant-variations)",
+    proto_path="prototypes/settings/admin-screens.jsx",
     proto_lines="350-408",  # parity vs flags_admin_screen list-with-actions
     body_extra=(
         "Lists active L2 overrides: dept_overrides + rule_variant_overrides + feature_flags. "
@@ -4396,8 +4396,8 @@ ui_task(
     screen_code="SET-061",
     parent_feature="02-settings-b-ui",
     prd_section="§9.2, §9.7, ADR-030",
-    proto_label="prototype: none (UX 02-SETTINGS-UX.md §dept-taxonomy)",
-    proto_path="settings/modals.jsx",
+    proto_label="prototype: none (UX prototypes/design/02-SETTINGS-UX.md §dept-taxonomy)",
+    proto_path="prototypes/settings/modals.jsx",
     proto_lines="262-375",  # parity vs promote_to_l2_modal Stepper pattern
     body_extra=(
         "Wizard for split/merge/add dept actions. Includes column_mapping picker for split. Calls "
@@ -4421,8 +4421,8 @@ ui_task(
     screen_code="SET-062",
     parent_feature="02-settings-b-ui",
     prd_section="§9.3, §9.7",
-    proto_label="prototype: none (UX 02-SETTINGS-UX.md §rule-variant)",
-    proto_path="settings/admin-screens.jsx",
+    proto_label="prototype: none (UX prototypes/design/02-SETTINGS-UX.md §rule-variant)",
+    proto_path="prototypes/settings/admin-screens.jsx",
     proto_lines="152-210",  # parity vs rules_registry_screen
     body_extra=(
         "Per-rule variant picker (v1/v2/...). Reads available versions from rule_definitions. "
@@ -4447,7 +4447,7 @@ ui_task(
     parent_feature="02-settings-b-ui",
     prd_section="§10.3",
     proto_label="features_screen (parity)",
-    proto_path="settings/ops-screens.jsx",
+    proto_path="prototypes/design/Monopilot Design System/settings/ops-screens.jsx",
     proto_lines="166-198",
     body_extra=(
         "15-module grid view with phase badge + dependency warnings. Distinct from per-tenant Features "

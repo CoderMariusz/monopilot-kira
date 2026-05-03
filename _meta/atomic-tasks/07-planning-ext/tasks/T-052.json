@@ -1,6 +1,6 @@
 {
   "title": "T-052 — What-If Simulation screen (P2 gated)",
-  "prompt": "# T-052 — What-If Simulation screen (P2 gated)\n\nPRD: `07-PLANNING-EXT-PRD.md` §8.1 SCR-07-05, §17.1 PLE-008, §9.7.\nUX/prototype refs are listed in `pipeline_inputs.scope_files`.\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`.\n\n## Goal\nPrepare the P2 what-if prototype as a feature-gated implementation task.\n\n## Implementation contract\nUse existing solver queue with dry_run semantics, persist scenario params/result_summary, and render locked mode cleanly for P1 tenants.\n\nACP shape reminder: keep this task as one atomic implementation. Do not add ACP-owned fields. Keep local dependencies in `dependencies`; cross-module contracts in `cross_module_dependencies` are blockers/inputs, not ACP local task IDs.",
+  "prompt": "# T-052 — What-If Simulation screen (P2 gated)\n\nPRD: `docs/prd/07-PLANNING-EXT-PRD.md` §8.1 SCR-07-05, §17.1 PLE-008, §9.7.\nUX/prototype refs are listed in `pipeline_inputs.scope_files`.\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`.\n\n## Goal\nPrepare the P2 what-if prototype as a feature-gated implementation task.\n\n## Implementation contract\nUse existing solver queue with dry_run semantics, persist scenario params/result_summary, and render locked mode cleanly for P1 tenants.\n\nACP shape reminder: keep this task as one atomic implementation. Do not add ACP-owned fields. Keep local dependencies in `dependencies`; cross-module contracts in `cross_module_dependencies` are blockers/inputs, not ACP local task IDs.",
   "labels": [
     "prd",
     "ui",
@@ -12,7 +12,7 @@
   "pipeline_name": "kira_dev",
   "pipeline_inputs": {
     "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
-    "source_prd": "07-PLANNING-EXT-PRD.md",
+    "source_prd": "docs/prd/07-PLANNING-EXT-PRD.md",
     "context_budget": "40k",
     "skills": [
       "test-driven-development",
@@ -55,7 +55,7 @@
       "apps/web/src/app/scheduler/simulate/page.tsx [create]",
       "apps/web/src/components/scheduler/ScenarioSimulationScreen.tsx [create]",
       "apps/web/src/lib/scheduler/scenario-actions.ts [create]",
-      "design/Monopilot Design System/planning-ext/scenario-screens.jsx:3-211 [ref]"
+      "prototypes/design/Monopilot Design System/planning-ext/scenario-screens.jsx:3-211 [ref]"
     ],
     "dependencies": [
       "T-006",

@@ -14,7 +14,7 @@
   "pipeline_name": "kira_dev",
   "pipeline_inputs": {
     "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
-    "source_prd": "08-PRODUCTION-PRD.md",
+    "source_prd": "docs/prd/08-PRODUCTION-PRD.md",
     "skills": [
       "test-driven-development",
       "requesting-code-review"

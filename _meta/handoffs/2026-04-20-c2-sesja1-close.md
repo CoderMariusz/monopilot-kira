@@ -10,7 +10,7 @@
 
 ### Deliverable
 
-✅ `04-PLANNING-BASIC-PRD.md` v3.0 — **1528 linii, 16 sekcji, 40+ FRs, 13 tabel (3 new), 37 validation rules**
+✅ `docs/prd/04-PLANNING-BASIC-PRD.md` v3.0 — **1528 linii, 16 sekcji, 40+ FRs, 13 tabel (3 new), 37 validation rules**
 
 ### Kluczowe decyzje Sesji 1
 
@@ -51,7 +51,7 @@
 
 ### Scope
 
-**05-WAREHOUSE-PRD.md** — LP (License Plate) lifecycle, location hierarchy, put-away, pick, move, count, FEFO enforcement, lot genealogy (FSMA 204 foundation), GRN receiving (PO consumer), TO ship/receive transit, intermediate LP handling (cascade output from 04-PLANNING §8).
+**docs/prd/05-WAREHOUSE-PRD.md** — LP (License Plate) lifecycle, location hierarchy, put-away, pick, move, count, FEFO enforcement, lot genealogy (FSMA 204 foundation), GRN receiving (PO consumer), TO ship/receive transit, intermediate LP handling (cascade output from 04-PLANNING §8).
 
 **Key dependencies (z C2 Sesja 1 output):**
 
@@ -67,11 +67,11 @@
 ### Bootstrap C2 Sesja 2
 
 1. Read `_meta/handoffs/2026-04-20-c2-sesja1-close.md` (this file)
-2. Read `04-PLANNING-BASIC-PRD.md` v3.0 (dependency) — especially §5.10 reservations, §6.4 GRN, §7.5 TO handoff, §8.3-§8.5 wo_outputs, §12 release-to-warehouse
-3. Read `03-TECHNICAL-PRD.md` v3.0 §6 item types (intermediate LP handling), §8 catch weight (LP qty tracking), §9 shelf life (FEFO driver)
-4. Read `02-SETTINGS-PRD.md` v3.0 §12 infrastructure (warehouses, locations hierarchy), §10 feature flags (warehouse features)
+2. Read `docs/prd/04-PLANNING-BASIC-PRD.md` v3.0 (dependency) — especially §5.10 reservations, §6.4 GRN, §7.5 TO handoff, §8.3-§8.5 wo_outputs, §12 release-to-warehouse
+3. Read `docs/prd/03-TECHNICAL-PRD.md` v3.0 §6 item types (intermediate LP handling), §8 catch weight (LP qty tracking), §9 shelf life (FEFO driver)
+4. Read `docs/prd/02-SETTINGS-PRD.md` v3.0 §12 infrastructure (warehouses, locations hierarchy), §10 feature flags (warehouse features)
 5. Read `_foundation/research/MES-TRENDS-2026.md` §2 food-mfg (FEFO + lot genealogy + batch tracking), §9 05-WAREHOUSE specifics
-6. Read baseline `05-WAREHOUSE-PRD.md` (pre-Phase-D)
+6. Read baseline `docs/prd/05-WAREHOUSE-PRD.md` (pre-Phase-D)
 7. Propose outline → user Q1-Q? → full write
 
 ### Key questions do rozstrzygnięcia w Sesji 2
@@ -111,12 +111,12 @@ Z §16.3 OQ1-OQ8, relevantne dla 05-WAREHOUSE:
 
 ## Related
 
-- [`04-PLANNING-BASIC-PRD.md`](../../04-PLANNING-BASIC-PRD.md) v3.0 — primary deliverable
+- [`docs/prd/04-PLANNING-BASIC-PRD.md`](../../docs/prd/04-PLANNING-BASIC-PRD.md) v3.0 — primary deliverable
 - [`2026-04-20-c1-close.md`](./2026-04-20-c1-close.md) — Phase C1 close HANDOFF
-- [`00-FOUNDATION-PRD.md`](../../00-FOUNDATION-PRD.md) v3.0
-- [`01-NPD-PRD.md`](../../01-NPD-PRD.md) v3.0
-- [`02-SETTINGS-PRD.md`](../../02-SETTINGS-PRD.md) v3.0
-- [`03-TECHNICAL-PRD.md`](../../03-TECHNICAL-PRD.md) v3.0
+- [`docs/prd/00-FOUNDATION-PRD.md`](../../docs/prd/00-FOUNDATION-PRD.md) v3.0
+- [`docs/prd/01-NPD-PRD.md`](../../docs/prd/01-NPD-PRD.md) v3.0
+- [`docs/prd/02-SETTINGS-PRD.md`](../../docs/prd/02-SETTINGS-PRD.md) v3.0
+- [`docs/prd/03-TECHNICAL-PRD.md`](../../docs/prd/03-TECHNICAL-PRD.md) v3.0
 
 ---
 

@@ -10,7 +10,7 @@
 
 ### Deliverable
 
-**`10-FINANCE-PRD.md` v3.0** — **1318 linii, 18 sekcji**, 10 D-decisions (Q1-Q10), 5 sub-modules build 10-a..e (18-23 sesji impl est. P1), 11 P2 epics (10-F..10-P, +14-20 sesji impl).
+**`docs/prd/10-FINANCE-PRD.md` v3.0** — **1318 linii, 18 sekcji**, 10 D-decisions (Q1-Q10), 5 sub-modules build 10-a..e (18-23 sesji impl est. P1), 11 P2 epics (10-F..10-P, +14-20 sesji impl).
 
 Baseline v1.0 (663 linii, 2026-02-18, 19 tabel, 26 stories) w pełni przepisany do v3.0 convention. D-FIN-1..10 decyzje zachowane + rozszerzone o cross-PRD integracje (08-PROD outbox reuse, 09-QA yield consumer, 04-PLAN DAG cascade).
 
@@ -124,7 +124,7 @@ Baseline v1.0 (663 linii, 2026-02-18, 19 tabel, 26 stories) w pełni przepisany 
 
 ### Scope C4 Sesja 3
 
-**Primary deliverable:** `11-SHIPPING-PRD.md` v3.0 — outbound shipment management + dispatch notes + batch release gate (09-QA consumer) + INTEGRATIONS stage 3 (D365 SalesOrder confirm push, shipment confirmations, reuse outbox pattern).
+**Primary deliverable:** `docs/prd/11-SHIPPING-PRD.md` v3.0 — outbound shipment management + dispatch notes + batch release gate (09-QA consumer) + INTEGRATIONS stage 3 (D365 SalesOrder confirm push, shipment confirmations, reuse outbox pattern).
 
 **Secondary deliverable:** Cross-PRD revision **02-SETTINGS v3.1 bundled delta apply** (3 rules z 10-FIN + potentially new rules/ref tables z 11-SHIPPING — full bundle w jednej revision pass).
 
@@ -133,15 +133,15 @@ Baseline v1.0 (663 linii, 2026-02-18, 19 tabel, 26 stories) w pełni przepisany 
 ### Bootstrap C4 Sesja 3 (11-SHIPPING)
 
 1. Read `_meta/handoffs/2026-04-20-c4-sesja2-close.md` (this file)
-2. Read `05-WAREHOUSE-PRD.md` v3.0 §6-7 LP lifecycle + §13.7 EPCIS P2 stub (cross-reference shipping LP state transitions)
-3. Read `09-QUALITY-PRD.md` v3.0 §6 quality_holds + batch_release_gate_v1 (P2) — shipping blocks on released status
-4. Read `08-PRODUCTION-PRD.md` v3.0 §12 INTEGRATIONS stage 2 (outbox template reference — same as 10-FIN used)
-5. Read `04-PLANNING-BASIC-PRD.md` v3.1 §7 customer_orders + SO trigger (D365 SO pull → WO gen)
-6. Read `03-TECHNICAL-PRD.md` v3.0 §8 catch weight + GS1 (SSCC for pallet shipment)
-7. Read `02-SETTINGS-PRD.md` v3.0 §11 D365_Constants (shipment config reuse) + §7 rules (potential new rules from 11-SHIP)
-8. Read `10-FINANCE-PRD.md` v3.0 §6 `inventory_cost_layers` (COGS per shipment P2)
+2. Read `docs/prd/05-WAREHOUSE-PRD.md` v3.0 §6-7 LP lifecycle + §13.7 EPCIS P2 stub (cross-reference shipping LP state transitions)
+3. Read `docs/prd/09-QUALITY-PRD.md` v3.0 §6 quality_holds + batch_release_gate_v1 (P2) — shipping blocks on released status
+4. Read `docs/prd/08-PRODUCTION-PRD.md` v3.0 §12 INTEGRATIONS stage 2 (outbox template reference — same as 10-FIN used)
+5. Read `docs/prd/04-PLANNING-BASIC-PRD.md` v3.1 §7 customer_orders + SO trigger (D365 SO pull → WO gen)
+6. Read `docs/prd/03-TECHNICAL-PRD.md` v3.0 §8 catch weight + GS1 (SSCC for pallet shipment)
+7. Read `docs/prd/02-SETTINGS-PRD.md` v3.0 §11 D365_Constants (shipment config reuse) + §7 rules (potential new rules from 11-SHIP)
+8. Read `docs/prd/10-FINANCE-PRD.md` v3.0 §6 `inventory_cost_layers` (COGS per shipment P2)
 9. Read `_foundation/research/MES-TRENDS-2026.md` §9 11-SHIPPING R-decisions
-10. Read baseline `11-SHIPPING-PRD.md` pre-Phase-D
+10. Read baseline `docs/prd/11-SHIPPING-PRD.md` pre-Phase-D
 11. Propose outline → user Q&A → full write
 12. Apply **bundled 02-SETTINGS v3.1 delta** (10-FIN + 11-SHIP changes in single revision pass)
 13. Update memory + close HANDOFF → C5 bootstrap
@@ -238,13 +238,13 @@ Phase C4 Sesja 2 **COMPLETE**. Finance cost layer zdefiniowana — core operatio
 
 ## Related
 
-- [`10-FINANCE-PRD.md`](../../10-FINANCE-PRD.md) v3.0 — primary deliverable
+- [`docs/prd/10-FINANCE-PRD.md`](../../docs/prd/10-FINANCE-PRD.md) v3.0 — primary deliverable
 - [`2026-04-20-c4-sesja1-close.md`](./2026-04-20-c4-sesja1-close.md) — input HANDOFF (C4 Sesja 1 close)
-- [`08-PRODUCTION-PRD.md`](../../08-PRODUCTION-PRD.md) v3.0 §12 — INTEGRATIONS stage 2 template (source of truth dla stage 5)
-- [`03-TECHNICAL-PRD.md`](../../03-TECHNICAL-PRD.md) v3.0 §11 — cost_per_kg dual ownership partner
-- [`09-QUALITY-PRD.md`](../../09-QUALITY-PRD.md) v3.0 §6 — ncr yield_issue + quality_holds consumer
-- [`05-WAREHOUSE-PRD.md`](../../05-WAREHOUSE-PRD.md) v3.0 §8/§10/§13 — LP lifecycle events consumer
-- [`04-PLANNING-BASIC-PRD.md`](../../04-PLANNING-BASIC-PRD.md) v3.1 §8.5 — wo_dependencies DAG
-- [`02-SETTINGS-PRD.md`](../../02-SETTINGS-PRD.md) v3.0 §7 + §11 — rules registry (pending v3.1 delta) + D365_Constants
-- [`00-FOUNDATION-PRD.md`](../../00-FOUNDATION-PRD.md) v3.0 — R14 UUID v7 idempotency, R15 anti-corruption adapter
+- [`docs/prd/08-PRODUCTION-PRD.md`](../../docs/prd/08-PRODUCTION-PRD.md) v3.0 §12 — INTEGRATIONS stage 2 template (source of truth dla stage 5)
+- [`docs/prd/03-TECHNICAL-PRD.md`](../../docs/prd/03-TECHNICAL-PRD.md) v3.0 §11 — cost_per_kg dual ownership partner
+- [`docs/prd/09-QUALITY-PRD.md`](../../docs/prd/09-QUALITY-PRD.md) v3.0 §6 — ncr yield_issue + quality_holds consumer
+- [`docs/prd/05-WAREHOUSE-PRD.md`](../../docs/prd/05-WAREHOUSE-PRD.md) v3.0 §8/§10/§13 — LP lifecycle events consumer
+- [`docs/prd/04-PLANNING-BASIC-PRD.md`](../../docs/prd/04-PLANNING-BASIC-PRD.md) v3.1 §8.5 — wo_dependencies DAG
+- [`docs/prd/02-SETTINGS-PRD.md`](../../docs/prd/02-SETTINGS-PRD.md) v3.0 §7 + §11 — rules registry (pending v3.1 delta) + D365_Constants
+- [`docs/prd/00-FOUNDATION-PRD.md`](../../docs/prd/00-FOUNDATION-PRD.md) v3.0 — R14 UUID v7 idempotency, R15 anti-corruption adapter
 - [`_foundation/research/MES-TRENDS-2026.md`](../../_foundation/research/MES-TRENDS-2026.md) — §9 10-FINANCE R-decisions + §3 regulatory

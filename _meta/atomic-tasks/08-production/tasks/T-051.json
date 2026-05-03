@@ -1,6 +1,6 @@
 {
   "title": "T-051 — UI parity: D365 DLQ admin screen and inspect/replay modals",
-  "prompt": "# T-051 — UI parity: D365 DLQ admin screen and inspect/replay modals\n\nPRD/UX refs: SCR-08-06, MODAL-08-10, PROD-012, prototype labels dlq_screen,dlq_inspect_modal\n\nGoal: Build D365 DLQ admin screen with payload inspect, replay and mark-resolved flows.\n\nImplementation details:\nUse Next.js App Router Server Components by default, shadcn/ui components, next-intl keys, org-scoped data access, loading/empty/error states, and literal data-prototype-label markers matching _meta/prototype-labels/prototype-index-production.json. Closeout must include desktop screenshots and Playwright traces. Match design/Monopilot Design System/production/other-screens.jsx:499-557 and modals.jsx:280-326. The screen lives under /admin/integrations/d365/dlq and may be linked from Production sidebar for Prod Manager/Admin. Payload views are read-only; replay/resolve call T-042 actions.\n\nScope files:\n- apps/web/app/admin/integrations/d365/dlq/page.tsx [create]\n- apps/web/components/production/dlq-inspect-modal.tsx [create]\n- design/Monopilot Design System/production/other-screens.jsx:499-557\n- design/Monopilot Design System/production/modals.jsx:280-326\n\nAcceptance criteria:\n1. DLQ screen matches prototype with empty/loading/error/open states\n2. Replay and mark-resolved require confirmation/notes and show audit result\n3. Closeout includes screenshots for empty and open DLQ plus inspect modal trace\n\nEvidence: include screenshots/artifacts and Playwright traces/artifacts for UI/E2E tasks; include API test output for backend tasks.",
+  "prompt": "# T-051 — UI parity: D365 DLQ admin screen and inspect/replay modals\n\nPRD/UX refs: SCR-08-06, MODAL-08-10, PROD-012, prototype labels dlq_screen,dlq_inspect_modal\n\nGoal: Build D365 DLQ admin screen with payload inspect, replay and mark-resolved flows.\n\nImplementation details:\nUse Next.js App Router Server Components by default, shadcn/ui components, next-intl keys, org-scoped data access, loading/empty/error states, and literal data-prototype-label markers matching _meta/prototype-labels/prototype-index-production.json. Closeout must include desktop screenshots and Playwright traces. Match prototypes/design/Monopilot Design System/production/other-screens.jsx:499-557 and modals.jsx:280-326. The screen lives under /admin/integrations/d365/dlq and may be linked from Production sidebar for Prod Manager/Admin. Payload views are read-only; replay/resolve call T-042 actions.\n\nScope files:\n- apps/web/app/admin/integrations/d365/dlq/page.tsx [create]\n- apps/web/components/production/dlq-inspect-modal.tsx [create]\n- prototypes/design/Monopilot Design System/production/other-screens.jsx:499-557\n- prototypes/design/Monopilot Design System/production/modals.jsx:280-326\n\nAcceptance criteria:\n1. DLQ screen matches prototype with empty/loading/error/open states\n2. Replay and mark-resolved require confirmation/notes and show audit result\n3. Closeout includes screenshots for empty and open DLQ plus inspect modal trace\n\nEvidence: include screenshots/artifacts and Playwright traces/artifacts for UI/E2E tasks; include API test output for backend tasks.",
   "labels": [
     "prd",
     "T3-ui",
@@ -12,7 +12,7 @@
   "pipeline_inputs": {
     "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
     "prd_task_id": "T-051",
-    "source_prd": "08-PRODUCTION-PRD.md",
+    "source_prd": "docs/prd/08-PRODUCTION-PRD.md",
     "prd_refs": [
       "SCR-08-06",
       "MODAL-08-10",
@@ -26,12 +26,12 @@
     "context_budget": "40k",
     "estimated_effort": "2-4h",
     "description": "Build D365 DLQ admin screen with payload inspect, replay and mark-resolved flows.",
-    "details": "Use Next.js App Router Server Components by default, shadcn/ui components, next-intl keys, org-scoped data access, loading/empty/error states, and literal data-prototype-label markers matching _meta/prototype-labels/prototype-index-production.json. Closeout must include desktop screenshots and Playwright traces. Match design/Monopilot Design System/production/other-screens.jsx:499-557 and modals.jsx:280-326. The screen lives under /admin/integrations/d365/dlq and may be linked from Production sidebar for Prod Manager/Admin. Payload views are read-only; replay/resolve call T-042 actions.",
+    "details": "Use Next.js App Router Server Components by default, shadcn/ui components, next-intl keys, org-scoped data access, loading/empty/error states, and literal data-prototype-label markers matching _meta/prototype-labels/prototype-index-production.json. Closeout must include desktop screenshots and Playwright traces. Match prototypes/design/Monopilot Design System/production/other-screens.jsx:499-557 and prototypes/design/Monopilot Design System/production/modals.jsx:280-326. The screen lives under /admin/integrations/d365/dlq and may be linked from Production sidebar for Prod Manager/Admin. Payload views are read-only; replay/resolve call T-042 actions.",
     "scope_files": [
       "apps/web/app/admin/integrations/d365/dlq/page.tsx [create]",
       "apps/web/components/production/dlq-inspect-modal.tsx [create]",
-      "design/Monopilot Design System/production/other-screens.jsx:499-557",
-      "design/Monopilot Design System/production/modals.jsx:280-326"
+      "prototypes/design/Monopilot Design System/production/other-screens.jsx:499-557",
+      "prototypes/design/Monopilot Design System/production/modals.jsx:280-326"
     ],
     "dependencies": [
       "T-042"

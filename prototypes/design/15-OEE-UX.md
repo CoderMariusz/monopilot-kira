@@ -1307,16 +1307,16 @@ All P2 routes (`/oee/anomalies`, `/oee/equipment-health`, `/oee/pareto`, `/oee/t
 
 | Document | Version | Relationship |
 |---|---|---|
-| `00-FOUNDATION-PRD.md` | v3.0 | R1 event-first, R4 Zod validation, R6 PostHog, R7 data residency |
-| `02-SETTINGS-PRD.md` | v3.2 | `shift_configs`, `oee_alert_thresholds`, `downtime_categories`, rule registry §7.8 |
-| `08-PRODUCTION-PRD.md` | v3.0 | `oee_snapshots` (primary source), `downtime_events`, `changeover_events`, D7 aggregation |
+| `docs/prd/00-FOUNDATION-PRD.md` | v3.0 | R1 event-first, R4 Zod validation, R6 PostHog, R7 data residency |
+| `docs/prd/02-SETTINGS-PRD.md` | v3.2 | `shift_configs`, `oee_alert_thresholds`, `downtime_categories`, rule registry §7.8 |
+| `docs/prd/08-PRODUCTION-PRD.md` | v3.0 | `oee_snapshots` (primary source), `downtime_events`, `changeover_events`, D7 aggregation |
 | `08-PRODUCTION-UX.md` | v1.0 | Design system inherited; PROD-006 is the inline OEE screen; 15 is the historical/analytical layer |
-| `09-QUALITY-PRD.md` | v3.0 | Quality factor (Q) context: quality holds affect Q component |
+| `docs/prd/09-QUALITY-PRD.md` | v3.0 | Quality factor (Q) context: quality holds affect Q component |
 | `09-QUALITY-UX.md` | v1.0 | Cross-reference for Q-factor badge styling |
-| `12-REPORTING-PRD.md` | v3.0 | D-RPT-9 consumer integration; `oee_daily_summary` MV consumer |
+| `docs/prd/12-REPORTING-PRD.md` | v3.0 | D-RPT-9 consumer integration; `oee_daily_summary` MV consumer |
 | `12-REPORTING-UX.md` | v1.0 | RPT-005 OEE Summary screen; design system §1 inherited |
-| `13-MAINTENANCE-PRD.md` | TBD (C5 Sesja 2) | P2 consumer: MTBF/MTTR, maintenance trigger |
-| `14-MULTI-SITE-PRD.md` | TBD (C5 Sesja 2) | P2 consumer: per-site OEE rollup |
+| `docs/prd/13-MAINTENANCE-PRD.md` | TBD (C5 Sesja 2) | P2 consumer: MTBF/MTTR, maintenance trigger |
+| `docs/prd/14-MULTI-SITE-PRD.md` | TBD (C5 Sesja 2) | P2 consumer: per-site OEE rollup |
 | `MONOPILOT-SITEMAP.html` | Current | Design token source of truth |
 
 **ADR references:**

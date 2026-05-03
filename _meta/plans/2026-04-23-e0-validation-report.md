@@ -2,7 +2,7 @@
 title: E-0 Validation Report — 2026-04-22-foundation-merged-plan.md
 date: 2026-04-23
 validator: Claude Sonnet 4.6 (subagent)
-prd_source: /Users/mariuszkrawczyk/Projects/monopilot-kira/00-FOUNDATION-PRD.md
+prd_source: /Users/mariuszkrawczyk/Projects/monopilot-kira/docs/prd/00-FOUNDATION-PRD.md
 plan_source: /Users/mariuszkrawczyk/Projects/monopilot-kira/_meta/plans/2026-04-22-foundation-merged-plan.md
 ---
 
@@ -135,7 +135,7 @@ T-00b-000 ✅ | T-00b-E01 ✅ | T-00b-E02 ✅ | T-00b-E03 ✅ | T-00a-001 ✅ | 
 
 ## PRD coverage
 
-Based on reading `00-FOUNDATION-PRD.md` sections against the 95-task plan:
+Based on reading `docs/prd/00-FOUNDATION-PRD.md` sections against the 95-task plan:
 
 ✅ **§1 — Six Architectural Principles** → Covered through cross-cutting enforcement: P1 (schema-driven) → T-00h-*, P2 (two-systems) → implicit via T-00b-005 drift detection, P3 (schema-driven + rule engine) → T-00g-* + T-00h-*, P4 (reality fidelity) → T-00b-M01 (69 cols), P5 (multi-tenant) → T-00d-*, P6 (marker discipline) → T-GOV-005 + T-GOV-006
 

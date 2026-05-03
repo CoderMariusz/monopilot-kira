@@ -1,6 +1,6 @@
 {
   "title": "T-046 — UI: PLN-004 TO List page (parity with plan_to_list)",
-  "prompt": "Implement UI: PLN-004 TO List page (parity with plan_to_list) for 04-PLANNING-BASIC.\n\nPrototype: `_meta/prototype-labels/prototype-index-planning.json` label `plan_to_list` -> `design/Monopilot Design System/planning/to-screens.jsx:3-99`. Read PRD refs §7.1, §7.2, §7.7 and UX refs before coding. Match the prototype structurally and visually using shadcn/Radix primitives, Next.js App Router, Server Components for initial data, Server Actions for writes, next-intl for all copy, and existing repository conventions.\n\nBusiness rules: Use T-014 services for data/actions; status tabs/counts are server-derived; Warehouse handoff badges are read-only context.\n\nCloseout must include changed files, test commands/results, AC status, screenshot/artifact paths, Playwright trace paths, deviations, and git status. Do not implement out-of-scope modules; use cross-module contracts listed in pipeline_inputs.cross_module_dependencies.",
+  "prompt": "Implement UI: PLN-004 TO List page (parity with plan_to_list) for 04-PLANNING-BASIC.\n\nPrototype: `_meta/prototype-labels/prototype-index-planning.json` label `plan_to_list` -> `prototypes/design/Monopilot Design System/planning/to-screens.jsx:3-99`. Read PRD refs §7.1, §7.2, §7.7 and UX refs before coding. Match the prototype structurally and visually using shadcn/Radix primitives, Next.js App Router, Server Components for initial data, Server Actions for writes, next-intl for all copy, and existing repository conventions.\n\nBusiness rules: Use T-014 services for data/actions; status tabs/counts are server-derived; Warehouse handoff badges are read-only context.\n\nCloseout must include changed files, test commands/results, AC status, screenshot/artifact paths, Playwright trace paths, deviations, and git status. Do not implement out-of-scope modules; use cross-module contracts listed in pipeline_inputs.cross_module_dependencies.",
   "labels": [
     "prd",
     "ui",
@@ -13,7 +13,7 @@
   "pipeline_inputs": {
     "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
     "prd_task_id": "T-046",
-    "source_prd": "04-PLANNING-BASIC-PRD.md",
+    "source_prd": "docs/prd/04-PLANNING-BASIC-PRD.md",
     "prd_refs": [
       "§7.1",
       "§7.2",
@@ -28,11 +28,11 @@
     "prototype_match": true,
     "prototype_label": "plan_to_list",
     "description": "TO list with filters, KPI strip, overdue rows, row navigation, Create TO opener.",
-    "details": "Prototype reference: design/Monopilot Design System/planning/to-screens.jsx:3-99. Use T-014 services for data/actions; status tabs/counts are server-derived; Warehouse handoff badges are read-only context.",
+    "details": "Prototype reference: prototypes/design/Monopilot Design System/planning/to-screens.jsx:3-99. Use T-014 services for data/actions; status tabs/counts are server-derived; Warehouse handoff badges are read-only context.",
     "scope_files": [
       "src/app/(planning)/planning/transfer-orders/page.tsx [create]",
       "src/components/planning/to/TOList.tsx [create]",
-      "design/Monopilot Design System/planning/to-screens.jsx:3-99 [ref]"
+      "prototypes/design/Monopilot Design System/planning/to-screens.jsx:3-99 [ref]"
     ],
     "out_of_scope": [
       "Changing canonical NPD/Technical/Warehouse/Scanner contracts",
@@ -49,7 +49,7 @@
       }
     ],
     "acceptance_criteria": [
-      "Given the surface is implemented, when compared to `design/Monopilot Design System/planning/to-screens.jsx:3-99`, then layout, copy hierarchy, components, interactions, empty/loading/error states, and accessibility affordances have prototype parity for `plan_to_list`.",
+      "Given the surface is implemented, when compared to `prototypes/design/Monopilot Design System/planning/to-screens.jsx:3-99`, then layout, copy hierarchy, components, interactions, empty/loading/error states, and accessibility affordances have prototype parity for `plan_to_list`.",
       "Given server data or validation returns blocked/empty/error cases, then the UI surfaces the exact PRD validation/status messages without client-invented business state.",
       "Given closeout is prepared, then it includes desktop screenshots/artifacts for all material states plus Playwright trace artifacts for happy path and blocked/error path.",
       "Given tests run, then targeted RTL/component tests and Playwright e2e for the route/modal pass with 0 failures. Follow parity evidence requirements in `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`."

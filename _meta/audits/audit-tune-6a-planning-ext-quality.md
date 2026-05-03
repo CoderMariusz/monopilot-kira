@@ -1,7 +1,7 @@
 # Audit: tune-6a — Planning-EXT + Quality
 **Auditor:** Audit-6a (READ-ONLY)  
 **Date:** 2026-04-23  
-**Sources:** 07-PLANNING-EXT-PRD.md v3.1, 09-QUALITY-PRD.md v3.0, 00-FOUNDATION-PRD.md v3.0, design/07-PLANNING-EXT-UX.md v1.1, design/09-QUALITY-UX.md v1.0, Monopilot Design System/planning-ext/*, Monopilot Design System/quality/*, TUNING-PLAN.md
+**Sources:** docs/prd/07-PLANNING-EXT-PRD.md v3.1, docs/prd/09-QUALITY-PRD.md v3.0, docs/prd/00-FOUNDATION-PRD.md v3.0, prototypes/design/07-PLANNING-EXT-UX.md v1.1, prototypes/design/09-QUALITY-UX.md v1.0, Monopilot Design System/planning-ext/*, Monopilot Design System/quality/*, TUNING-PLAN.md
 
 ---
 

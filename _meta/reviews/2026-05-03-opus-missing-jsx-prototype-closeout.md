@@ -14,7 +14,7 @@ Praca wyłącznie w warstwie design-system / PRD / tasków / indeksów — żadn
 
 ### 1. Nowy plik prototypu
 
-`design/Monopilot Design System/technical/spec-driven-screens.jsx` (793 linie, dołączony do `technical.html` loadera między `modals.jsx` a `app.jsx`).
+`prototypes/design/Monopilot Design System/technical/spec-driven-screens.jsx` (793 linie, dołączony do `technical.html` loadera między `modals.jsx` a `app.jsx`).
 
 Komponenty (każdy z `data-prototype-label="…"` markerem na korzeniu):
 
@@ -37,7 +37,7 @@ Wszystkie używają wyłącznie istniejących prymitywów (`Modal`, `Stepper`, `
 
 Każdy zakres `lines` zweryfikowany skryptem (`const <Name>` na linii startowej, end ≤ EOF).
 
-### 3. PRD `03-TECHNICAL-PRD.md`
+### 3. PRD `docs/prd/03-TECHNICAL-PRD.md`
 
 - §17 master-table — pięć wpisów spec-driven (TEC-014/025/031/045/052) zmieniło Status z `SPEC-DRIVEN (Wave0 task; not a T3-ui drafting blocker)` na `READY (Wave0 dedicated prototype)` z literalnym `path:lines (label)` zamiast tokena `[SPEC-DRIVEN-WAVE0]`.
 - §17 legenda — przepisana, by spec-driven Wave0 były opisane jako mające teraz dedykowane prototypy (PRD/UX wciąż canonical na semantyce; prototyp daje layout/flow).
@@ -59,22 +59,22 @@ W każdym zaktualizowano pierwsze (kanoniczne parity) AC: zamiana adjacent ancho
 
 Etykiety `available_lp_picker` i `wo_reservations_panel` z 05-Warehouse:
 
-- `available_lp_picker` jest już oznaczony w `design/Monopilot Design System/warehouse/lp-screens.jsx:49` jako `data-prototype-label="lp_list_page available_lp_picker"`.
-- `wo_reservations_panel` jest oznaczony w `design/Monopilot Design System/warehouse/movement-screens.jsx:218` jako `data-prototype-label="reservations_list_page wo_reservations_panel"`.
+- `available_lp_picker` jest już oznaczony w `prototypes/design/Monopilot Design System/warehouse/lp-screens.jsx:49` jako `data-prototype-label="lp_list_page available_lp_picker"`.
+- `wo_reservations_panel` jest oznaczony w `prototypes/design/Monopilot Design System/warehouse/movement-screens.jsx:218` jako `data-prototype-label="reservations_list_page wo_reservations_panel"`.
 
 Oba mają wpisy first-class w `prototype-index-warehouse.json` (T-051 wymaga, by produkcja eksponowała te markery). Powierzchnie istnieją skomponowane wewnątrz parent screens — fala 2026-05-03 hardening świadomie przyjęła ten kompozycyjny model. Tworzenie dedykowanego picker/panel JSX duplikowałoby istniejący JSX i wymagałoby przesuwania zakresów linii w istniejących wpisach indeksu warehouse — bez wartości dla parity AC, bo T-051/T-057 już cytują prawidłowe surface'y. Pozostawiam stan jak jest; warehouse `_validate.py` nie był uruchamiany, bo żaden plik warehouse / indeks warehouse nie został tknięty.
 
 ## Pliki zmienione / dodane
 
 Dodane:
-- `design/Monopilot Design System/technical/spec-driven-screens.jsx`
+- `prototypes/design/Monopilot Design System/technical/spec-driven-screens.jsx`
 - `_meta/reviews/2026-05-03-opus-missing-jsx-prototype-closeout.md` (ten raport)
 
 Zmienione:
-- `design/Monopilot Design System/technical/technical.html` (dołączony nowy script)
+- `prototypes/design/Monopilot Design System/technical/technical.html` (dołączony nowy script)
 - `_meta/prototype-labels/prototype-index-technical.json` (+7 entries, plik 1928 → ~2150 linii)
 - `_meta/prototype-labels/master-index.json` (+7 entries, 547 → 554)
-- `03-TECHNICAL-PRD.md` (§17 5 wierszy + legenda + §17A całość + changelog v3.3.2)
+- `docs/prd/03-TECHNICAL-PRD.md` (§17 5 wierszy + legenda + §17A całość + changelog v3.3.2)
 - `_meta/atomic-tasks/03-technical/tasks/T-085.json` — parity AC anchor
 - `_meta/atomic-tasks/03-technical/tasks/T-086.json` — parity AC anchor
 - `_meta/atomic-tasks/03-technical/tasks/T-087.json` — parity AC anchor

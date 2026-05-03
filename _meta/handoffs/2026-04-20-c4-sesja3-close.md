@@ -10,13 +10,13 @@
 
 ### Deliverable primary
 
-**`11-SHIPPING-PRD.md` v3.0** — **1143 linii, 19 sekcji**, 20 D-SHP decisions (D-SHP-1..12 retained + D-SHP-13..20 extended), 10 Q-decisions (Q1-Q10 user approved), 33 V-SHIP validation rules, 5 sub-modules build 11-a..e (P1 19-24 sesji impl est.), 10 P2 EPICs 11-F..11-O (24-34 sesji impl).
+**`docs/prd/11-SHIPPING-PRD.md` v3.0** — **1143 linii, 19 sekcji**, 20 D-SHP decisions (D-SHP-1..12 retained + D-SHP-13..20 extended), 10 Q-decisions (Q1-Q10 user approved), 33 V-SHIP validation rules, 5 sub-modules build 11-a..e (P1 19-24 sesji impl est.), 10 P2 EPICs 11-F..11-O (24-34 sesji impl).
 
 Baseline v3.1 (552 linii, 2026-02-18, pre-Phase-D) w pełni przepisany do v3.0 convention. D-SHP-1..12 decisions retained (LP alloc, FEFO, SSCC, allergen validation, scanner-first, RLS, SO state machine, pricing, backorder, audit, business). D-SHP-13..20 added: quality hold soft gate, INTEGRATIONS stage 3, allergen labelling EU 1169/2011, GS1 Digital Link QR P2, catch weight carve-out, D365 Constants reuse, manual dispatch + carrier API P2, EUDR supplier DDS gate P2.
 
 ### Deliverable secondary (bundled)
 
-**`02-SETTINGS-PRD.md` v3.1 delta** — +83 linii (1343 → 1426). Zmiany:
+**`docs/prd/02-SETTINGS-PRD.md` v3.1 delta** — +83 linii (1343 → 1426). Zmiany:
 - **§7.8 Registered Rules Registry** (new) — 17 rules tabela cumulative across C1-C4 Sesja 3 (13 P1 active + 4 P2 stub). +V-SET-14 (JSON schema file required).
 - **§8.1 Reference Tables** — rozszerzono z 11 do 17 tabel (+6 z 08-PROD/09-QA/10-FIN/11-SHIP consumers).
 - **§11.7 D365 Constants P2 Extensions** (new) — 6 P2 stub constants (shipping_warehouse, customer_account_id_map, courier_default_carrier, courier_api_vault_key, finance_cost_posting_account, eudr_dds_endpoint). Shared `@monopilot/d365-*-adapter` family documentation.
@@ -186,10 +186,10 @@ Baseline v3.1 (552 linii, 2026-02-18, pre-Phase-D) w pełni przepisany do v3.0 c
 ### Scope C5 (4 moduły, est. 3-4 sesje)
 
 **Primary deliverables:**
-- `12-REPORTING-PRD.md` v3.0 — universal reports + metadata-driven templates (per Strategic Decision #6 "Custom reports = universal templates + metadata-driven"), KPI materialized views, OEE reporting consumer (15-OEE), multi-tenant per-org dashboards (ADR-031 consumer)
-- `13-MAINTENANCE-PRD.md` v3.0 — equipment calibration (09-QA §6 Q6 FK stub consumer), preventive maintenance, work requests, parts inventory, TPM (Total Productive Maintenance), IoT sensor integration P2 (cold chain BRCGS)
-- `14-MULTI-SITE-PRD.md` v3.0 — multi-site orchestration, inter-site transfers (05-WH TO), cross-site sales/production scheduling, hierarchy site→plant→line, multi-tenant L2 variation per site (ADR-030/031 consumer), `site_id` column activation across wszystkich modules
-- `15-OEE-PRD.md` v3.0 — OEE calculation engine (Availability × Performance × Quality), per-minute aggregation consumer 08-PROD §13.3 Q4, downtime analysis (08-PROD §8 `downtime_reason_codes`), Pareto charts, shift comparison, real-time dashboards, historical trends
+- `docs/prd/12-REPORTING-PRD.md` v3.0 — universal reports + metadata-driven templates (per Strategic Decision #6 "Custom reports = universal templates + metadata-driven"), KPI materialized views, OEE reporting consumer (15-OEE), multi-tenant per-org dashboards (ADR-031 consumer)
+- `docs/prd/13-MAINTENANCE-PRD.md` v3.0 — equipment calibration (09-QA §6 Q6 FK stub consumer), preventive maintenance, work requests, parts inventory, TPM (Total Productive Maintenance), IoT sensor integration P2 (cold chain BRCGS)
+- `docs/prd/14-MULTI-SITE-PRD.md` v3.0 — multi-site orchestration, inter-site transfers (05-WH TO), cross-site sales/production scheduling, hierarchy site→plant→line, multi-tenant L2 variation per site (ADR-030/031 consumer), `site_id` column activation across wszystkich modules
+- `docs/prd/15-OEE-PRD.md` v3.0 — OEE calculation engine (Availability × Performance × Quality), per-minute aggregation consumer 08-PROD §13.3 Q4, downtime analysis (08-PROD §8 `downtime_reason_codes`), Pareto charts, shift comparison, real-time dashboards, historical trends
 
 **Secondary deliverable:** Potentially 02-SETTINGS v3.2 bundled delta (if C5 modules rejestrują new rules / reference tables — likely 13-MAINT calibration_equipment + 15-OEE downtime_reason_codes).
 
@@ -201,12 +201,12 @@ Baseline v3.1 (552 linii, 2026-02-18, pre-Phase-D) w pełni przepisany do v3.0 c
 ### Bootstrap C5 Sesja 1 (12-REPORTING + 15-OEE)
 
 1. Read `_meta/handoffs/2026-04-20-c4-sesja3-close.md` (this file)
-2. Read `08-PRODUCTION-PRD.md` v3.0 §13 (per-minute OEE Q4), §9.12 (operator_kpis_monthly materialized view) — OEE primary source
-3. Read `00-FOUNDATION-PRD.md` v3.0 §4 (module map), §6 (metadata-driven principle) — reports universal template foundation
-4. Read `07-PLANNING-EXT-PRD.md` v3.0 §10 (GanttView dashboard) — reporting pattern precedent
+2. Read `docs/prd/08-PRODUCTION-PRD.md` v3.0 §13 (per-minute OEE Q4), §9.12 (operator_kpis_monthly materialized view) — OEE primary source
+3. Read `docs/prd/00-FOUNDATION-PRD.md` v3.0 §4 (module map), §6 (metadata-driven principle) — reports universal template foundation
+4. Read `docs/prd/07-PLANNING-EXT-PRD.md` v3.0 §10 (GanttView dashboard) — reporting pattern precedent
 5. Read `_foundation/research/MES-TRENDS-2026.md` §9 "12-REPORTING" + "15-OEE" R-decisions + §6 analytics stack
-6. Read baseline `12-REPORTING-PRD.md` pre-Phase-D (if exists)
-7. Read baseline `15-OEE-PRD.md` pre-Phase-D (if exists)
+6. Read baseline `docs/prd/12-REPORTING-PRD.md` pre-Phase-D (if exists)
+7. Read baseline `docs/prd/15-OEE-PRD.md` pre-Phase-D (if exists)
 8. Propose outline per PRD → user Q&A → full write bundled (per C3 Sesja 1 pattern)
 9. Apply potential 02-SETTINGS v3.2 delta (any new rules / ref tables)
 10. Update memory + close HANDOFF → C5 Sesja 2 bootstrap
@@ -288,15 +288,15 @@ Phase C4 Sesja 3 **COMPLETE**. Shipping layer ready do build. 11-SHIPPING = 12. 
 
 ## Related
 
-- [`11-SHIPPING-PRD.md`](../../11-SHIPPING-PRD.md) v3.0 — primary deliverable (1143 linii)
-- [`02-SETTINGS-PRD.md`](../../02-SETTINGS-PRD.md) v3.1 — secondary deliverable (bundled delta, +83 linii)
+- [`docs/prd/11-SHIPPING-PRD.md`](../../docs/prd/11-SHIPPING-PRD.md) v3.0 — primary deliverable (1143 linii)
+- [`docs/prd/02-SETTINGS-PRD.md`](../../docs/prd/02-SETTINGS-PRD.md) v3.1 — secondary deliverable (bundled delta, +83 linii)
 - [`2026-04-20-c4-sesja2-close.md`](./2026-04-20-c4-sesja2-close.md) — input HANDOFF (C4 Sesja 2 close)
-- [`08-PRODUCTION-PRD.md`](../../08-PRODUCTION-PRD.md) v3.0 §9.10-9.11 + §12 — INTEGRATIONS stage 2 template (source dla stage 3 clone)
-- [`09-QUALITY-PRD.md`](../../09-QUALITY-PRD.md) v3.0 §6 — quality_holds + batch_release_gate_v1 consumer
-- [`05-WAREHOUSE-PRD.md`](../../05-WAREHOUSE-PRD.md) v3.0 §6-11 — LP lifecycle + FEFO + genealogy
-- [`10-FINANCE-PRD.md`](../../10-FINANCE-PRD.md) v3.0 §6 + §12 stage 5 — COGS layers (P2 consumer) + D365 template reuse
-- [`04-PLANNING-BASIC-PRD.md`](../../04-PLANNING-BASIC-PRD.md) v3.1 §7 — customer_orders + D365 SO trigger
-- [`03-TECHNICAL-PRD.md`](../../03-TECHNICAL-PRD.md) v3.0 §8 + §10 — GS1 AI + allergen cascade consumer
-- [`06-SCANNER-P1-PRD.md`](../../06-SCANNER-P1-PRD.md) v3.0 §8.5 — scanner backend contract (pick/pack/return)
-- [`00-FOUNDATION-PRD.md`](../../00-FOUNDATION-PRD.md) v3.0 — R14 UUID v7 idempotency, R15 anti-corruption adapter
+- [`docs/prd/08-PRODUCTION-PRD.md`](../../docs/prd/08-PRODUCTION-PRD.md) v3.0 §9.10-9.11 + §12 — INTEGRATIONS stage 2 template (source dla stage 3 clone)
+- [`docs/prd/09-QUALITY-PRD.md`](../../docs/prd/09-QUALITY-PRD.md) v3.0 §6 — quality_holds + batch_release_gate_v1 consumer
+- [`docs/prd/05-WAREHOUSE-PRD.md`](../../docs/prd/05-WAREHOUSE-PRD.md) v3.0 §6-11 — LP lifecycle + FEFO + genealogy
+- [`docs/prd/10-FINANCE-PRD.md`](../../docs/prd/10-FINANCE-PRD.md) v3.0 §6 + §12 stage 5 — COGS layers (P2 consumer) + D365 template reuse
+- [`docs/prd/04-PLANNING-BASIC-PRD.md`](../../docs/prd/04-PLANNING-BASIC-PRD.md) v3.1 §7 — customer_orders + D365 SO trigger
+- [`docs/prd/03-TECHNICAL-PRD.md`](../../docs/prd/03-TECHNICAL-PRD.md) v3.0 §8 + §10 — GS1 AI + allergen cascade consumer
+- [`docs/prd/06-SCANNER-P1-PRD.md`](../../docs/prd/06-SCANNER-P1-PRD.md) v3.0 §8.5 — scanner backend contract (pick/pack/return)
+- [`docs/prd/00-FOUNDATION-PRD.md`](../../docs/prd/00-FOUNDATION-PRD.md) v3.0 — R14 UUID v7 idempotency, R15 anti-corruption adapter
 - [`_foundation/research/MES-TRENDS-2026.md`](../../_foundation/research/MES-TRENDS-2026.md) — §9 11-SHIPPING + §2 regulatory (FSMA 204, EU 1169/2011, EUDR, BRCGS, GS1)

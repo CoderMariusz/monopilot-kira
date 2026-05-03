@@ -1,6 +1,6 @@
 {
   "module": "07-planning-ext",
-  "source_prd": "07-PLANNING-EXT-PRD.md",
+  "source_prd": "docs/prd/07-PLANNING-EXT-PRD.md",
   "generated_at": "2026-05-03T17:23:00Z",
   "generator": "wave-next-07-readiness-hardening",
   "readiness_target": ">=95% docs/meta/prototype/task readiness",

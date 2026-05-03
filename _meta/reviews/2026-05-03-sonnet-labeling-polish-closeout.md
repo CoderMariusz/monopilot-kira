@@ -94,7 +94,7 @@ Added `{/* data-prototype-label: <label> */}` (or `// data-prototype-label: <lab
 
 Note: `use_by_override_modal` (warehouse/modals.jsx:1050) already had `data-prototype-label="use_by_override_modal"` as a JSX prop — no change needed.
 
-Note: `available_lp_picker` and `wo_reservations_panel` reference `design/05-WAREHOUSE-UX.md` (spec-driven, no JSX file yet). Source anchors will be added when production UI is built.
+Note: `available_lp_picker` and `wo_reservations_panel` reference `prototypes/design/05-WAREHOUSE-UX.md` (spec-driven, no JSX file yet). Source anchors will be added when production UI is built.
 
 ### 5. Parity policy references in UI tasks
 
@@ -164,14 +164,14 @@ Result: `CUSTOM_PROTO_VALIDATION: OK` — 0 issues.
 - `_meta/prototype-labels/master-index.json`
 
 ### JSX prototype source files (anchor additions only, no visual changes)
-- `design/Monopilot Design System/scanner/flow-other.jsx`
-- `design/Monopilot Design System/scanner/flow-register.jsx`
-- `design/Monopilot Design System/scanner/flow-consume.jsx`
-- `design/Monopilot Design System/scanner/flow-pick.jsx`
-- `design/Monopilot Design System/scanner/flow-receive.jsx`
-- `design/Monopilot Design System/scanner/login.jsx`
-- `design/Monopilot Design System/scanner/modals.jsx`
-- `design/Monopilot Design System/production/modals.jsx`
+- `prototypes/design/Monopilot Design System/scanner/flow-other.jsx`
+- `prototypes/design/Monopilot Design System/scanner/flow-register.jsx`
+- `prototypes/design/Monopilot Design System/scanner/flow-consume.jsx`
+- `prototypes/design/Monopilot Design System/scanner/flow-pick.jsx`
+- `prototypes/design/Monopilot Design System/scanner/flow-receive.jsx`
+- `prototypes/design/Monopilot Design System/scanner/login.jsx`
+- `prototypes/design/Monopilot Design System/scanner/modals.jsx`
+- `prototypes/design/Monopilot Design System/production/modals.jsx`
 
 ### Task files (parity policy reference additions)
 - `_meta/atomic-tasks/04-planning-basic/tasks/T-034.json` through `T-065.json` (30 UI tasks)

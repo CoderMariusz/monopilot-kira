@@ -1,5 +1,5 @@
 {
-  "source_prd": "02-SETTINGS-PRD.md",
+  "source_prd": "docs/prd/02-SETTINGS-PRD.md",
   "source_prd_slice": "§14.3 Onboarding Wizard + §14.4 UI surfaces (lines 1516-1547)",
   "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
   "generated_at": "2026-04-30T00:00:00Z",

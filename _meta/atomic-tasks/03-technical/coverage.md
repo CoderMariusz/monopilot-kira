@@ -1,6 +1,6 @@
 # PRD Coverage — 03-TECHNICAL final decision rebuild
 
-Source PRD: `03-TECHNICAL-PRD.md` v3.3 + 2026-05-03 PO decisions.
+Source PRD: `docs/prd/03-TECHNICAL-PRD.md` v3.3 + 2026-05-03 PO decisions.
 
 ## Final decision coverage
 

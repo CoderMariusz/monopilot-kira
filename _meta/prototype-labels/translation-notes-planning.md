@@ -2,7 +2,7 @@
 
 Generated: 2026-04-23
 Source files scanned: modals.jsx, wo-list.jsx, wo-detail.jsx, po-screens.jsx, to-screens.jsx, dashboard.jsx, gantt.jsx, other-screens.jsx, cascade.jsx
-BACKLOG cross-reference: design/Monopilot Design System/BACKLOG.md
+BACKLOG cross-reference: prototypes/design/Monopilot Design System/BACKLOG.md
 
 ---
 

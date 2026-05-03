@@ -2,7 +2,7 @@
 // NPD module · app.jsx — Root app — routing + Pattern A modal mount
 // ----------------------------------------------------------------------------
 // Implementation contract: see ./SCHEMA.md · ./API.md · ./COMPONENT-INTERFACES.md
-// Spec: design/01-NPD-UX.md
+// Spec: prototypes/design/01-NPD-UX.md
 // ============================================================================
 
 // ============ Main App — router + Pattern A modal state (MODAL-SCHEMA §3) ============

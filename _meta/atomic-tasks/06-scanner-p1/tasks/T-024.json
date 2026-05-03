@@ -1,6 +1,6 @@
 {
   "title": "T-024 — SCN-settings page (beep / vibration / camera / language / PIN change) (06-a)",
-  "prompt": "# T-024 — SCN-settings\n\nPRD: 06-SCANNER-P1-PRD.md §8.1 FR-SC-FE-010\nUX: design/06-SCANNER-P1-UX.md:778-813 §3.22\nPrototype: design/Monopilot Design System/scanner/home.jsx:63-136 (label settings_screen)\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nDeliver per-user scanner settings: beep on/off, vibration on/off, auto-advance on/off, camera selection (when multi), scan timeout (s), session timeout preview (read-only), language selector (pl/en/uk/ro), 'Zmień PIN' button → /scanner/pin/change. Persist to localStorage and sync to user profile on logout.\n\n## Implementation contract\n1. `apps/scanner/src/app/scanner/settings/page.tsx`.\n2. Form fields backed by RHF + zod; localStorage keys reused from T-005.\n3. 'Zmień PIN' button uses next-link to /scanner/pin/change.\n4. Language picker matches §4.10 language_sheet prototype reused inline.\n\n## Files\n- apps/scanner/src/app/scanner/settings/page.tsx [create]\n- apps/scanner/src/app/scanner/settings/settings-form.client.tsx [create]\n- apps/scanner/__tests__/scn-settings.test.tsx [create]\n\n## Acceptance criteria\n1. Given the page renders, when compared to `design/Monopilot Design System/scanner/home.jsx:63-136`, then it has the same six settings rows in order beep / vibration / auto-advance / camera / scan timeout / language plus the 'Zmień PIN' button at the bottom — RTL snapshot + manual checklist (structural + visual + interaction parity)\n2. Given the user toggles vibration off and reloads, when the page reloads, then localStorage scanner.feedback.vibration='false' and the toggle reflects off\n3. Given the user clicks 'Zmień PIN', when the click is handled, then navigation occurs to /scanner/pin/change\n\n## Test strategy\n- RED: write scn-settings.test.tsx asserting parity + persistence + change-PIN navigation before implementation\n- Run 'pnpm --filter scanner test scn-settings'\n\n## Risk red lines\n- Do not store any PII in localStorage\n- Do not let session timeout preview be editable (must be read-only admin-set)\n- Do not omit language selector",
+  "prompt": "# T-024 — SCN-settings\n\nPRD: docs/prd/06-SCANNER-P1-PRD.md §8.1 FR-SC-FE-010\nUX: prototypes/design/06-SCANNER-P1-UX.md:778-813 §3.22\nPrototype: prototypes/design/Monopilot Design System/scanner/home.jsx:63-136 (label settings_screen)\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nDeliver per-user scanner settings: beep on/off, vibration on/off, auto-advance on/off, camera selection (when multi), scan timeout (s), session timeout preview (read-only), language selector (pl/en/uk/ro), 'Zmień PIN' button → /scanner/pin/change. Persist to localStorage and sync to user profile on logout.\n\n## Implementation contract\n1. `apps/scanner/src/app/scanner/settings/page.tsx`.\n2. Form fields backed by RHF + zod; localStorage keys reused from T-005.\n3. 'Zmień PIN' button uses next-link to /scanner/pin/change.\n4. Language picker matches §4.10 language_sheet prototype reused inline.\n\n## Files\n- apps/scanner/src/app/scanner/settings/page.tsx [create]\n- apps/scanner/src/app/scanner/settings/settings-form.client.tsx [create]\n- apps/scanner/__tests__/scn-settings.test.tsx [create]\n\n## Acceptance criteria\n1. Given the page renders, when compared to `prototypes/design/Monopilot Design System/scanner/home.jsx:63-136`, then it has the same six settings rows in order beep / vibration / auto-advance / camera / scan timeout / language plus the 'Zmień PIN' button at the bottom — RTL snapshot + manual checklist (structural + visual + interaction parity)\n2. Given the user toggles vibration off and reloads, when the page reloads, then localStorage scanner.feedback.vibration='false' and the toggle reflects off\n3. Given the user clicks 'Zmień PIN', when the click is handled, then navigation occurs to /scanner/pin/change\n\n## Test strategy\n- RED: write scn-settings.test.tsx asserting parity + persistence + change-PIN navigation before implementation\n- Run 'pnpm --filter scanner test scn-settings'\n\n## Risk red lines\n- Do not store any PII in localStorage\n- Do not let session timeout preview be editable (must be read-only admin-set)\n- Do not omit language selector",
   "labels": [
     "prd",
     "ui",
@@ -13,7 +13,7 @@
   "pipeline_inputs": {
     "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
     "prd_task_id": "T-024",
-    "source_prd": "06-SCANNER-P1-PRD.md",
+    "source_prd": "docs/prd/06-SCANNER-P1-PRD.md",
     "prd_refs": [
       "§8.1 FR-SC-FE-010"
     ],
@@ -29,7 +29,7 @@
       "apps/scanner/src/app/scanner/settings/page.tsx [create]",
       "apps/scanner/src/app/scanner/settings/settings-form.client.tsx [create]",
       "apps/scanner/__tests__/scn-settings.test.tsx [create]",
-      "design/Monopilot Design System/scanner/home.jsx:63-136 [ref]"
+      "prototypes/design/Monopilot Design System/scanner/home.jsx:63-136 [ref]"
     ],
     "out_of_scope": [
       "Do not implement language sheet primitive here (consume existing inline)",
@@ -47,7 +47,7 @@
       "T-026"
     ],
     "acceptance_criteria": [
-      "Given the page renders, when compared to design/Monopilot Design System/scanner/home.jsx:63-136, then it has the same six setting rows in the same order plus 'Zmień PIN' button — RTL snapshot + manual checklist",
+      "Given the page renders, when compared to prototypes/design/Monopilot Design System/scanner/home.jsx:63-136, then it has the same six setting rows in the same order plus 'Zmień PIN' button — RTL snapshot + manual checklist",
       "Given the user toggles vibration off and reloads, when the page reloads, then localStorage scanner.feedback.vibration='false' and the toggle reflects off",
       "Given the user clicks 'Zmień PIN', when the click is handled, then navigation occurs to /scanner/pin/change. Follow parity evidence requirements in `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`."
     ],

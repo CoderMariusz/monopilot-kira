@@ -78,7 +78,7 @@ Zastępuje i rozszerza koncepcję `prd-decomposition-hybrid`. Nazwa ASP = Atomic
 T3 tasks muszą zawierać po `**Type:** T3-ui`:
 
 ```markdown
-**Prototype ref:** `<label>` (`design/Monopilot Design System/<module>/`)
+**Prototype ref:** `<label>` (`prototypes/design/Monopilot Design System/<module>/`)
   - component_type: <value from master-index>
   - ui_pattern: <value>
   - shadcn_equivalent: <value>
@@ -140,7 +140,7 @@ Skill przy wywołaniu z flagą `--validate` sprawdza te taski przeciw checkliśc
 ## Przykład wywołania
 
 User: "zrób taski dla 02-SETTINGS-a orgs/users CRUD"
-→ Skill czyta 02-SETTINGS-PRD.md §3 (orgs) + §5.1 (users)
+→ Skill czyta docs/prd/02-SETTINGS-PRD.md §3 (orgs) + §5.1 (users)
 → Czyta master-index.json dla labels z modułu `settings`
 → Generuje T-02SETa-001 (T1-schema), T-02SETa-002 (T2-api create), T-02SETa-003 (T2-api update/delete), T-02SETa-004 (T3-ui z prototype_ref), T-02SETa-005 (T4-wiring+test)
 → Każdy ma pełny §4 schema

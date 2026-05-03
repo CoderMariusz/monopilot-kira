@@ -13,7 +13,7 @@
   "pipeline_inputs": {
     "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
     "prd_task_id": "T-117",
-    "source_prd": "02-SETTINGS-PRD.md",
+    "source_prd": "docs/prd/02-SETTINGS-PRD.md",
     "prd_refs": [
       "§grn-qc-gap",
       "09-QUALITY-link"

@@ -1,6 +1,6 @@
 {
   "title": "T-054 — Warehouse labels and genealogy export UI surfaces",
-  "prompt": "# T-054 — Warehouse labels and genealogy export UI surfaces\n\nPRD: `05-WAREHOUSE-PRD.md`.\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`.\n\n## Goal\nImplement label print modal and genealogy traceability page with prototype parity and export hooks.\n\n## Implementation contract\nBuild the label print/reprint UI and full genealogy trace query page. The label preview may remain HTML preview but must call the backend ZPL print endpoint. Genealogy export must expose CSV/PDF action hooks and depth warnings.\n\n## Files (scope)\n- apps/web/components/warehouse/labels/** [create]\n- apps/web/app/(app)/warehouse/genealogy/** [create]\n- design/Monopilot Design System/warehouse/modals.jsx\n- design/Monopilot Design System/warehouse/other-screens.jsx\n\n## Acceptance criteria\n1. Given label_print_modal renders, when compared to design/Monopilot Design System/warehouse/modals.jsx, then template/printer/copies/queue/reprint fields and expired use_by stamp behavior match.\n2. Given genealogy_traceability_page renders, then search, forward/backward/full toggle, depth 1-10, loading copy, tree/list results, and FSMA export buttons match prototype.\n3. Given genealogy query is run by a user from another tenant, then RLS/server guard blocks cross-tenant LP visibility.\n4. Given components are inspected, then data-prototype-label markers exist for label_print_modal and genealogy_traceability_page.\n\n## Test strategy\n- RED: component tests for label form validation and printer offline branch.\n- GREEN: Playwright tests for genealogy mode/depth controls and export disabled state before results.\n- Run pnpm test and pnpm playwright test --grep @warehouse-labels-genealogy-ui.\n\n## Risk red lines\n- Do not represent HTML preview as actual ZPL rendering.\n- Do not allow cross-tenant genealogy traversal.\n- Do not build EPCIS P2 here.",
+  "prompt": "# T-054 — Warehouse labels and genealogy export UI surfaces\n\nPRD: `docs/prd/05-WAREHOUSE-PRD.md`.\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`.\n\n## Goal\nImplement label print modal and genealogy traceability page with prototype parity and export hooks.\n\n## Implementation contract\nBuild the label print/reprint UI and full genealogy trace query page. The label preview may remain HTML preview but must call the backend ZPL print endpoint. Genealogy export must expose CSV/PDF action hooks and depth warnings.\n\n## Files (scope)\n- apps/web/components/warehouse/labels/** [create]\n- apps/web/app/(app)/warehouse/genealogy/** [create]\n- prototypes/design/Monopilot Design System/warehouse/modals.jsx\n- prototypes/design/Monopilot Design System/warehouse/other-screens.jsx\n\n## Acceptance criteria\n1. Given label_print_modal renders, when compared to prototypes/design/Monopilot Design System/warehouse/modals.jsx, then template/printer/copies/queue/reprint fields and expired use_by stamp behavior match.\n2. Given genealogy_traceability_page renders, then search, forward/backward/full toggle, depth 1-10, loading copy, tree/list results, and FSMA export buttons match prototype.\n3. Given genealogy query is run by a user from another tenant, then RLS/server guard blocks cross-tenant LP visibility.\n4. Given components are inspected, then data-prototype-label markers exist for label_print_modal and genealogy_traceability_page.\n\n## Test strategy\n- RED: component tests for label form validation and printer offline branch.\n- GREEN: Playwright tests for genealogy mode/depth controls and export disabled state before results.\n- Run pnpm test and pnpm playwright test --grep @warehouse-labels-genealogy-ui.\n\n## Risk red lines\n- Do not represent HTML preview as actual ZPL rendering.\n- Do not allow cross-tenant genealogy traversal.\n- Do not build EPCIS P2 here.",
   "labels": [
     "prd",
     "ui",
@@ -12,7 +12,7 @@
   "pipeline_name": "kira_dev",
   "pipeline_inputs": {
     "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
-    "source_prd": "05-WAREHOUSE-PRD.md",
+    "source_prd": "docs/prd/05-WAREHOUSE-PRD.md",
     "context_budget": "35k",
     "skills": [
       "test-driven-development",
@@ -87,8 +87,8 @@
     "scope_files": [
       "apps/web/components/warehouse/labels/** [create]",
       "apps/web/app/(app)/warehouse/genealogy/** [create]",
-      "design/Monopilot Design System/warehouse/modals.jsx",
-      "design/Monopilot Design System/warehouse/other-screens.jsx"
+      "prototypes/design/Monopilot Design System/warehouse/modals.jsx",
+      "prototypes/design/Monopilot Design System/warehouse/other-screens.jsx"
     ],
     "out_of_scope": [
       "No EPCIS P2 consumer",
@@ -102,7 +102,7 @@
       "T-053"
     ],
     "acceptance_criteria": [
-      "Given label_print_modal renders, when compared to design/Monopilot Design System/warehouse/modals.jsx, then template/printer/copies/queue/reprint fields and expired use_by stamp behavior match.",
+      "Given label_print_modal renders, when compared to prototypes/design/Monopilot Design System/warehouse/modals.jsx, then template/printer/copies/queue/reprint fields and expired use_by stamp behavior match.",
       "Given genealogy_traceability_page renders, then search, forward/backward/full toggle, depth 1-10, loading copy, tree/list results, and FSMA export buttons match prototype.",
       "Given genealogy query is run by a user from another tenant, then RLS/server guard blocks cross-tenant LP visibility.",
       "Given components are inspected, then data-prototype-label markers exist for label_print_modal and genealogy_traceability_page."

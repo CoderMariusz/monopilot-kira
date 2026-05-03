@@ -630,98 +630,98 @@ Dashboards rejestrowane w 12-REPORTING `dashboards_catalog` (02-SET §8.1 metada
 
 ### 10.3 Screen-Level UI Catalog (MNT-015..MNT-035) [UNIVERSAL]
 
-**Scope note (v3.1 amendment, 2026-04-30):** Sections 10.1/10.2 enumerate dashboards (read-only KPI surfaces). The CMMS lifecycle (asset registry, work request intake, mWO execution, calibration, spares, technicians, LOTO) requires full CRUD/workflow screens. v3.0 PRD scoped these implicitly via §9 schema + §11 validation rules but did not enumerate UI surfaces. **MNT-015..MNT-035 below cover the screen catalog**, anchoring prototypes already labeled in `_meta/prototype-labels/prototype-index-maintenance.json` and UX-spec'd in `design/13-MAINTENANCE-UX.md`. Numbering continues from dashboard catalog (MNT-014). Cross-references to UX line and prototype label are inline.
+**Scope note (v3.1 amendment, 2026-04-30):** Sections 10.1/10.2 enumerate dashboards (read-only KPI surfaces). The CMMS lifecycle (asset registry, work request intake, mWO execution, calibration, spares, technicians, LOTO) requires full CRUD/workflow screens. v3.0 PRD scoped these implicitly via §9 schema + §11 validation rules but did not enumerate UI surfaces. **MNT-015..MNT-035 below cover the screen catalog**, anchoring prototypes already labeled in `_meta/prototype-labels/prototype-index-maintenance.json` and UX-spec'd in `prototypes/design/13-MAINTENANCE-UX.md`. Numbering continues from dashboard catalog (MNT-014). Cross-references to UX line and prototype label are inline.
 
 MNT-numbering policy: dashboards MNT-001..014 (read-only KPI), screen catalog MNT-015..035 (CRUD + workflow), modal contracts MNT-M-NN (see §10.5). UX file uses parallel MAINT-NNN slugs — both kept until schema-ID drift policy is resolved per audit CC-1.
 
 #### MNT-015 Asset Registry — List [UNIVERSAL]
-**UX:** `design/13-MAINTENANCE-UX.md:209-262` (MAINT-002 Asset List). **Prototype:** `asset_list_page` (`design/Monopilot Design System/maintenance/assets.jsx:1-183`). **Route:** `/maintenance/assets`.
+**UX:** `prototypes/design/13-MAINTENANCE-UX.md:209-262` (MAINT-002 Asset List). **Prototype:** `asset_list_page` (`prototypes/design/Monopilot Design System/maintenance/assets.jsx:1-183`). **Route:** `/maintenance/assets`.
 
 Master registry of all `equipment` rows under maintenance management. Manager/admin perform CRUD; technicians read filtered subset. Filters: type (mixer/oven/packer/scale/thermometer/pH meter/CIP unit/conveyor/other — sourced from `settings_equipment_types` ref), location (ltree autocomplete), production line (FK 02-SET production_lines), criticality (Critical/High/Medium/Low — see §11 V-MNT-asset-criticality), status (Operational/Scheduled/Due/Overdue/In Work/LOTO Active — derived from current PM next_due_date + active mWO + active loto_procedures), `requires_loto` toggle, `requires_calibration` toggle. Bulk actions: bulk-assign PM template, export CSV. Row state styling: overdue PM = left red border, LOTO active = yellow row background, inactive = muted text + "Inactive" badge. Availability % column read-only from 15-OEE `oee_shift_metrics` (30-day rolling). Sidebar shows `asset_hierarchy` ltree tree (280px column) for hierarchical navigation. RBAC: "+ Add Asset" hidden for non-manager.
 
 **Out of scope P1:** Photo gallery on row, geo-coordinates, asset map view → P2.
 
 #### MNT-016 Asset Registry — Detail [UNIVERSAL]
-**UX:** `design/13-MAINTENANCE-UX.md:265-300` (MAINT-003 Asset Detail). **Prototype:** `asset_detail_page` (`assets.jsx:185-518`). **Route:** `/maintenance/assets/:id`.
+**UX:** `prototypes/design/13-MAINTENANCE-UX.md:265-300` (MAINT-003 Asset Detail). **Prototype:** `asset_detail_page` (`assets.jsx:185-518`). **Route:** `/maintenance/assets/:id`.
 
 Single-asset detail with 8 tabs: Overview (nameplate + current status + active alerts), Service History (timeline of completed mWOs joined from `maintenance_work_orders`), PM Schedule (active `maintenance_schedules` for this asset + "+ Add PM Schedule"), Calibration (conditional on `requires_calibration=true`; lists linked `calibration_instruments` + latest records + CCP-block banner if any overdue instrument is CCP-linked per §9), Spares BOM (linked `spare_parts` join via asset_spares_bom table), Documents (S3-hosted PDFs/SOPs), Downtime Events (read-only consumer of 08-PROD `downtime_events` filtered by asset_id, with "Link mWO" action for unlinked events), Sensors (P2 placeholder, gated by `iot.sensors.enabled` flag — see §13.2). Header actions: Create mWO, Edit Asset (manager), Deactivate (manager + soft-delete via active=false). Conditional banners: active LOTO (red), overdue calibration (red), critical-priority open mWO (amber). MTBF/MTTR/Availability gauges sourced read-only from `oee_shift_metrics` per D-MNT-3.
 
 #### MNT-017 Work Request — List [UNIVERSAL]
-**UX:** `design/13-MAINTENANCE-UX.md:302-333` (MAINT-004 Work Request List). **Prototype:** `wr_list_page` (`work-orders.jsx:1-132`). **Route:** `/maintenance/wr`.
+**UX:** `prototypes/design/13-MAINTENANCE-UX.md:302-333` (MAINT-004 Work Request List). **Prototype:** `wr_list_page` (`work-orders.jsx:1-132`). **Route:** `/maintenance/wr`.
 
 WR-state filtered view of `maintenance_work_orders` WHERE state='requested' (post-Q6B unification: WR is just an mWO in `requested` state, no separate `work_requests` table). Two views toggleable via URL `?view=table|kanban`: Table (default for operator) and Kanban (default for manager — columns Submitted / Triaged / Scheduled / Rejected; click-to-triage action; drag-and-drop deferred per BL-MAINT-DnD). Filters: status, priority, date range, reporter, asset. Operator scope: own-submissions only. Manager scope: all. Triage action button visible only to `maintenance_manager` on rows with state=requested. Linked-mWO column displays the same row's number once state advances past `requested`. Empty state: "No work requests. Operators can submit requests from the shop floor or via the Scanner app."
 
 #### MNT-018 Work Request — Create [UNIVERSAL]
-**UX:** `design/13-MAINTENANCE-UX.md:336-364` (MAINT-005 Shop-floor Create Modal). **Prototype:** `wr_create_modal` (`modals.jsx:81-121`). **Trigger:** "+ Submit Work Request" on MNT-017; 06-SCN deep-link; 08-PROD downtime auto-fill.
+**UX:** `prototypes/design/13-MAINTENANCE-UX.md:336-364` (MAINT-005 Shop-floor Create Modal). **Prototype:** `wr_create_modal` (`modals.jsx:81-121`). **Trigger:** "+ Submit Work Request" on MNT-017; 06-SCN deep-link; 08-PROD downtime auto-fill.
 
-Three-field shop-floor optimized form (Asset searchable select + "Scan Asset QR", Problem Description textarea min 10 / max 1000 chars, Severity radio 4-button grid → maps to mWO `priority`). Optional: Photos multi-upload (S3 presigned URL via Server Action; max 5 × 10MB), Additional Notes (max 500). Auto-fill source: 08-PROD `downtime_events.id` query param pre-populates Asset + Problem Description with banner. On submit: INSERT into `maintenance_work_orders` (state='requested', source='manual' or 'auto_downtime' if from PROD, requester_user_id=session.user). Emit outbox `mwo.requested` per §12.3. Toast with WR# hyperlink. Tablet (06-SCN context): full-screen variant with large touch targets per `06-SCANNER-P1-PRD.md` §D5 input-parity contract.
+Three-field shop-floor optimized form (Asset searchable select + "Scan Asset QR", Problem Description textarea min 10 / max 1000 chars, Severity radio 4-button grid → maps to mWO `priority`). Optional: Photos multi-upload (S3 presigned URL via Server Action; max 5 × 10MB), Additional Notes (max 500). Auto-fill source: 08-PROD `downtime_events.id` query param pre-populates Asset + Problem Description with banner. On submit: INSERT into `maintenance_work_orders` (state='requested', source='manual' or 'auto_downtime' if from PROD, requester_user_id=session.user). Emit outbox `mwo.requested` per §12.3. Toast with WR# hyperlink. Tablet (06-SCN context): full-screen variant with large touch targets per `docs/prd/06-SCANNER-P1-PRD.md` §D5 input-parity contract.
 
 **RBAC:** All authenticated users (no role gate — operators can submit).
 
 #### MNT-019 Work Request — Triage Modal [UNIVERSAL]
-**UX:** `design/13-MAINTENANCE-UX.md:367-393` (MAINT-006 Triage). **Prototype:** `wr_triage_modal` (`modals.jsx:123-183`). **Trigger:** "Triage" button on MNT-017 row.
+**UX:** `prototypes/design/13-MAINTENANCE-UX.md:367-393` (MAINT-006 Triage). **Prototype:** `wr_triage_modal` (`modals.jsx:123-183`). **Trigger:** "Triage" button on MNT-017 row.
 
 Manager decides outcome: Approve & Create mWO / Reject / Mark as Duplicate. Read-only summary: asset + reporter + reported-at + problem + photos thumbstrip. On Approve: required Priority, mWO Type (reactive/preventive/calibration/sanitation/inspection), optional Estimated Start + Assigned Technician. On Reject: Rejection Reason textarea (min 10 chars, visible to reporter via notification). On Duplicate: search `maintenance_work_orders` by # for `Duplicate Of` field. Server Action transitions state requested → approved (or open if technician assigned), or → rejected, or → cancelled (duplicate w/ link). Enforces V-MNT-02: approver_user_id != requester_user_id (block + advisory alert: "You cannot approve your own work request"). Emits outbox `mwo.approved` / `mwo.rejected` / `mwo.duplicate_resolved`.
 
 #### MNT-020 mWO List [UNIVERSAL]
-**UX:** `design/13-MAINTENANCE-UX.md:396-434` (MAINT-007 mWO List). **Prototype:** `mwo_list_page` (`work-orders.jsx:134-259`). **Route:** `/maintenance/mwos`.
+**UX:** `prototypes/design/13-MAINTENANCE-UX.md:396-434` (MAINT-007 mWO List). **Prototype:** `mwo_list_page` (`work-orders.jsx:134-259`). **Route:** `/maintenance/mwos`.
 
 Master list of `maintenance_work_orders`. View tabs: All / My mWOs (technician-scoped via session.user_id) / Open / In Progress / Overdue / Completed — each with COUNT badge fetched in parallel. Filters: type, priority, technician, scheduled-start range, source enum (Manual / Auto-Downtime / PM Schedule / OEE Trigger / Calibration Alert per §9 `mwo.source` column). Row actions are state-dependent and respect §11 state-machine (V-MNT-01): requested→Triage, approved→Assign & Open, open→Start Work, in_progress→Log Work / Complete, terminal→View only. Technician scope hides manager-only actions and forces `assigned_to_user_id=session.user_id` filter. Downtime Impact column = boolean join on `downtime_events`. CSV export Server Action streams full mwo join result.
 
 #### MNT-021 mWO Detail [UNIVERSAL]
-**UX:** `design/13-MAINTENANCE-UX.md:437-503` (MAINT-008 mWO Detail). **Prototype:** `mwo_detail_page` (`work-orders.jsx:261-584`). **Route:** `/maintenance/mwos/:id`.
+**UX:** `prototypes/design/13-MAINTENANCE-UX.md:437-503` (MAINT-008 mWO Detail). **Prototype:** `mwo_detail_page` (`work-orders.jsx:261-584`). **Route:** `/maintenance/mwos/:id`.
 
 Technician's primary execution workspace. Header: state machine stepper (requested → approved → open → in_progress → completed; cancelled terminal alt) + state-transition primary button driven by current state per V-MNT-01. Conditional banners: LOTO required (amber, blocks transition to in_progress until `mwo_loto_checklists.verified_at` set per V-MNT-07), Allergen sanitation (red, dual sign-off + ATP required per V-MNT-15..17). Seven tabs: Overview (Problem & Plan + Schedule & Cost), Tasks (`mwo_checklists` checklist; step types check/measure/photo/sign-off; locked unless state=in_progress), Parts (planned from `mwo_spare_parts` + unplanned add via spare picker → consumes via §11.5 V-MNT-18..20 with row lock), Labor (`mwo_labor_entries` time entries + computed cost from `technician_profiles.hourly_rate`), Downtime Link (08-PROD `downtime_events` linkage modal — see MNT-M-04), Sign-off (technician/supervisor/safety officer slots; PIN re-verify on critical steps per 06-SCN auth pattern P2), History (audit timeline from outbox emit log). State-dependent UI: each state controls which tabs are editable. Server Action emits outbox `mwo.in_progress`, `mwo.completed`, `mwo.cancelled` per §12.3.
 
 #### MNT-022 PM Schedule List [UNIVERSAL]
-**UX:** `design/13-MAINTENANCE-UX.md:505-534` (MAINT-009 PM Schedule List). **Prototype:** `pm_schedules_list_page`, `pm_month_calendar`, `pm_week_calendar` (`pm-schedules.jsx:1-275`). **Route:** `/maintenance/pm` (with `?view=list|week|month`).
+**UX:** `prototypes/design/13-MAINTENANCE-UX.md:505-534` (MAINT-009 PM Schedule List). **Prototype:** `pm_schedules_list_page`, `pm_month_calendar`, `pm_week_calendar` (`pm-schedules.jsx:1-275`). **Route:** `/maintenance/pm` (with `?view=list|week|month`).
 
 Three views over `maintenance_schedules`: list (table), week calendar (asset × day grid), month calendar (7-col grid with up to 4 event chips per day + overflow). KPI summary strip: Schedules Active / Due This Week / Overdue. Filter bar: schedule type (preventive/calibration/sanitation/inspection per §9.4 `maintenance_schedules.schedule_type`), asset, technician, status, overdue toggle. Row actions: Edit (opens MNT-023), Skip (opens MNT-M-02 PM Skip), Deactivate (active=false; soft delete). Auto-Generate toggle inline reflects `auto_generate_mwo` boolean read-only. Calendar event color encodes schedule_type. Engine `pm_schedule_due_engine_v1` (DSL rule registered in §7.8) creates mWO at `next_due_date - lead_time_days` per §9.4.
 
 #### MNT-023 PM Schedule Create / Edit Wizard [UNIVERSAL]
-**UX:** `design/13-MAINTENANCE-UX.md:537-580` (MAINT-010). **Prototype:** `pm_schedule_edit_wizard` (`modals.jsx:357-472`). **Route:** `/maintenance/pm/:id` or modal from MNT-022.
+**UX:** `prototypes/design/13-MAINTENANCE-UX.md:537-580` (MAINT-010). **Prototype:** `pm_schedule_edit_wizard` (`modals.jsx:357-472`). **Route:** `/maintenance/pm/:id` or modal from MNT-022.
 
 Four-step stepper: Asset & Type (asset select + schedule_type radio + name + sanitation `allergen_change_flag` toggle with V-MNT-15 advisory), Frequency (interval_basis enum: calendar_days / usage_hours / usage_cycles per §9.4 — usage-based is P2, calendar P1; interval_value, warning_days default 7, lead_time_days), Assignment (technician picker, task template select from `task_templates`, auto-generate toggle), Review (read-only summary + Next 12 Scheduled Occurrences computed server-side). "Save" creates `maintenance_schedules` row with active=false; "Save & Activate" sets active=true and emits outbox `pm_schedule.created`. Edit mode loads existing row + shows "Delete" (admin only, soft delete).
 
 #### MNT-024 Calibration List [UNIVERSAL]
-**UX:** `design/13-MAINTENANCE-UX.md:583-612` (MAINT-011 Calibration List). **Prototype:** `calibration_list_page` (`other-screens.jsx:1-127`). **Route:** `/maintenance/calibration`.
+**UX:** `prototypes/design/13-MAINTENANCE-UX.md:583-612` (MAINT-011 Calibration List). **Prototype:** `calibration_list_page` (`other-screens.jsx:1-127`). **Route:** `/maintenance/calibration`.
 
-Master list of `calibration_instruments`. Summary strip with three counts: Current (green), Due Within 30 Days (amber per V-MNT-13 staged alerts), Overdue (red — also propagates to sidebar nav badge). Filters: type (Scale/Thermometer/pH Meter/Other), standard (ISO 9001 / NIST / Internal / Other per D-MNT-5), status, CCP Linked toggle. Critical UX feature: CCP block indication — when `calibration_instruments.ccp_block=true` (set when overdue AND linked to 09-QA CCP via D-MNT-10 FK bridge), row gets full red left border + inline alert "Production use of this instrument is blocked in Quality until re-calibrated." This state is consumed cross-module by 09-QA monitoring (read-only here, write-side belongs to 09-QA per `09-QUALITY-PRD.md`). "Export for Audit" button streams CSV with all `calibration_records` + `retention_until` (BRCGS 7-year per §14.1) + SHA-256 hashes (21 CFR Part 11 prep per §14.3).
+Master list of `calibration_instruments`. Summary strip with three counts: Current (green), Due Within 30 Days (amber per V-MNT-13 staged alerts), Overdue (red — also propagates to sidebar nav badge). Filters: type (Scale/Thermometer/pH Meter/Other), standard (ISO 9001 / NIST / Internal / Other per D-MNT-5), status, CCP Linked toggle. Critical UX feature: CCP block indication — when `calibration_instruments.ccp_block=true` (set when overdue AND linked to 09-QA CCP via D-MNT-10 FK bridge), row gets full red left border + inline alert "Production use of this instrument is blocked in Quality until re-calibrated." This state is consumed cross-module by 09-QA monitoring (read-only here, write-side belongs to 09-QA per `docs/prd/09-QUALITY-PRD.md`). "Export for Audit" button streams CSV with all `calibration_records` + `retention_until` (BRCGS 7-year per §14.1) + SHA-256 hashes (21 CFR Part 11 prep per §14.3).
 
 #### MNT-025 Calibration Record Detail [UNIVERSAL]
-**UX:** `design/13-MAINTENANCE-UX.md:615-633` (MAINT-012 Calibration Record Detail). **Prototype:** `calibration_detail_page` (`other-screens.jsx:129-264`). **Route:** `/maintenance/calibration/:id`.
+**UX:** `prototypes/design/13-MAINTENANCE-UX.md:615-633` (MAINT-012 Calibration Record Detail). **Prototype:** `calibration_detail_page` (`other-screens.jsx:129-264`). **Route:** `/maintenance/calibration/:id`.
 
 Single-instrument calibration history. Header: instrument code/name/type/standard/linked asset/interval + CCP-block banner if active. Latest Result banner (full-width, color-coded green/red/amber per result enum PASS/FAIL/OUT_OF_SPEC). Test Points table (read-only: reference, measured, tolerance %, in-spec ✓/✗ derived per V-MNT-14). Two tabs: History (reverse-chronological `calibration_records` rows; expand for full test points; `retention_until` displayed per BRCGS 7-year), Certificate (PDF preview iframe; SHA-256 truncated hash with copy button per 21 CFR Part 11 P2; "Upload New Certificate" only on latest record — opens MNT-M-05). Trigger MNT-M-06 "Record Calibration" via header button.
 
 #### MNT-026 Spare Parts List [UNIVERSAL]
-**UX:** `design/13-MAINTENANCE-UX.md:636-668` (MAINT-013 Spares List). **Prototype:** `spares_list_page` (`spares.jsx:1-115`). **Route:** `/maintenance/spares`.
+**UX:** `prototypes/design/13-MAINTENANCE-UX.md:636-668` (MAINT-013 Spares List). **Prototype:** `spares_list_page` (`spares.jsx:1-115`). **Route:** `/maintenance/spares`.
 
 Spare parts catalog over `spare_parts` + `spare_parts_stock`. Architecture note (UX-flagged): spare parts are a separate catalog from 03-TECH product items per D-MNT-6 (Q3A). **No LP picker, no FEFO logic, no warehouse-LP join** — only `qty_on_hand` simple tracking. Stock location reference is `warehouses` table for location label only. Summary strip: Total Parts, Below Reorder Point (V-MNT-20), Critical Parts. Filters: category, supplier, critical-parts toggle, below-reorder toggle, warehouse/location. Below-reorder rows get red-50 background + inline "Reorder" action. Inline actions: Consume (links to mWO via V-MNT-18 — must be mwo-scoped), Adjust (opens MNT-M-08 with audit-logged delta + V-MNT-21 manager-approval gate >10% delta), Reorder (opens MNT-M-07 — emits internal notification only in P1 per BL-MAINT-07; D365 PO integration P2 per §12.2 stage X).
 
 #### MNT-027 Spare Part Detail [UNIVERSAL]
-**UX:** `design/13-MAINTENANCE-UX.md:671-687` (MAINT-014 Spare Part Detail). **Prototype:** `spare_detail_page` (`spares.jsx:117-261`). **Route:** `/maintenance/spares/:id`.
+**UX:** `prototypes/design/13-MAINTENANCE-UX.md:671-687` (MAINT-014 Spare Part Detail). **Prototype:** `spare_detail_page` (`spares.jsx:117-261`). **Route:** `/maintenance/spares/:id`.
 
 Two-column page. Left (60%): stock cards per warehouse/location row (`spare_parts_stock` per location), plus consumption history table over `spare_parts_transactions` (Receipt / Consume / Adjust / Return — per §9.10 schema). Right (40%): master data (Part Code, Name, Category, Supplier link, UoM, Unit Cost, Shelf Life Days, Critical Part badge, L3 ext fields per §13.3), Linked Assets mini-list (asset_spares_bom join). Edit Part button → manager-only CRUD form. Audit trail per V-MNT-18 enforced (every consume row immutable, mwo_id NOT NULL).
 
 #### MNT-028 Technicians List [UNIVERSAL]
-**UX:** `design/13-MAINTENANCE-UX.md:689-715` (MAINT-015 Technicians List). **Prototype:** `technicians_list_page` (`other-screens.jsx:266-374`). **Route:** `/maintenance/technicians`.
+**UX:** `prototypes/design/13-MAINTENANCE-UX.md:689-715` (MAINT-015 Technicians List). **Prototype:** `technicians_list_page` (`other-screens.jsx:266-374`). **Route:** `/maintenance/technicians`.
 
 Manage `technician_profiles` + skills + certifications. Two views toggleable: List (table) and Skills Matrix (technicians × skill areas grid sourced from 02-SET §8.1 `technician_skills` ref table). List columns: technician (avatar+name), skill_level enum (basic/advanced/specialist per OQ-MNT-01), certifications truncated, cert. expiry (Red if expired / Amber if <30d), on-shift status, assigned mWO count link, hourly_rate (manager-only column per §14.4 GDPR — server-side RBAC, field excluded from query for non-manager). Filters: skill level, on-shift, certification expiry (Expiring 30d / Expired). PDF Skills Matrix export (audit) — currently stub per BL-MAINT-05.
 
 **RBAC + GDPR:** Technicians cannot see other technicians' personal data beyond name + skill level (§14.4 personal data minimization).
 
 #### MNT-029 Technician Detail [UNIVERSAL]
-**UX:** `design/13-MAINTENANCE-UX.md:717-727` (MAINT-016 Technician Detail). **Prototype:** `technician_detail_page` (`other-screens.jsx:376-486`). **Route:** `/maintenance/technicians/:id`.
+**UX:** `prototypes/design/13-MAINTENANCE-UX.md:717-727` (MAINT-016 Technician Detail). **Prototype:** `technician_detail_page` (`other-screens.jsx:376-486`). **Route:** `/maintenance/technicians/:id`.
 
 Header: avatar, name, email, skill level badge, on-shift status. Two tabs: Profile (certifications list — name/issuer/issue date/expiry+badge — Edit Certifications button manager-only via MNT-M-09; skills checklist from `technician_skills` ref; hourly_rate manager/admin only) and Assignment History (mWOs filtered by `assigned_to_user_id`, columns mWO#/asset/type/dates/duration/status, filterable by date range). GDPR notice: "This profile contains personal data retained per GDPR and 7-year regulatory requirements" per §14.4. On user delete: pseudonymize (scrub certs, hourly_rate→NULL, user_id→hash) per §14.4 GDPR-vs-regulatory conflict resolution.
 
 #### MNT-030 LOTO Procedures List [UNIVERSAL]
-**UX:** `design/13-MAINTENANCE-UX.md:730-762` (MAINT-017 LOTO List). **Prototype:** `loto_list_page` (`other-screens.jsx:488-598`). **Route:** `/maintenance/loto`.
+**UX:** `prototypes/design/13-MAINTENANCE-UX.md:730-762` (MAINT-017 LOTO List). **Prototype:** `loto_list_page` (`other-screens.jsx:488-598`). **Route:** `/maintenance/loto`.
 
 Safety-critical screen for `loto_procedures`. Default filter: `?activeOnly=true`. Active LOTO alert strip: "⚠ [N] LOTO procedure(s) currently active." Real-time updates via SSE on `loto_procedures` table changes or 30s polling. Columns: procedure#, asset (always with 🔒 lock icon), linked mWO, energy sources count (tooltip lists each — sourced from `loto_procedures.energy_sources` JSONB), lock count, status (Active yellow-striped / Cleared gray), applied-by, applied-at, expected-clear (red if past without clearing — feeds OQ LOTO timeout warning per §13.2 settings), verified-by (safety officer per V-MNT-08), cleared-by. Active row click expands inline detail card (energy sources list + tags table + verified-by info). Apply LOTO action opens MNT-M-10; Clear action opens MNT-M-11. Two-person verification per V-MNT-08/09 enforced server-side; remote-confirmation flow not yet prototyped (BL-MAINT-04).
 
 #### MNT-031 Maintenance Analytics Hub [UNIVERSAL]
-**UX:** `design/13-MAINTENANCE-UX.md:832-867` (MAINT-020 Maintenance Analytics). **Prototype:** `maintenance_analytics_page` (`other-screens.jsx:601-803`). **Route:** `/maintenance/analytics`.
+**UX:** `prototypes/design/13-MAINTENANCE-UX.md:832-867` (MAINT-020 Maintenance Analytics). **Prototype:** `maintenance_analytics_page` (`other-screens.jsx:601-803`). **Route:** `/maintenance/analytics`.
 
 Management-level analytics hub powered by `maintenance_kpis` MV (§9.16) + 15-OEE `oee_shift_metrics` consumer (§9.17, D-MNT-3). Date-range selector (7d / 30d / 90d / 12m / custom) + asset filter + line filter + Export. Six tabs:
 - **Overview** — 6 KPI cards (MTBF, MTTR, PM Compliance %, Planned vs Unplanned ratio, Total mWO Cost YTD, Spare Parts Cost YTD) + Top 5 Problem Assets bar list + Recent Completed mWOs.
@@ -736,7 +736,7 @@ Refresh cadence: KPI MV refresh daily 02:30 (§9.16). Print Report button render
 **Boundary clarification:** This screen is an aggregation/reporting surface; raw MTBF/MTTR is computed in 15-OEE per D-MNT-3 (NOT recomputed here). Pareto data is joined cross-module (downtime cause → mWO) but the source-of-truth for downtime classification stays in 08-PROD.
 
 #### MNT-032 Maintenance Settings [UNIVERSAL]
-**UX:** `design/13-MAINTENANCE-UX.md:871-922` (MAINT-021 Maintenance Settings). **Prototype:** `maintenance_settings_page` (`other-screens.jsx:805-964`). **Route:** `/maintenance/settings`.
+**UX:** `prototypes/design/13-MAINTENANCE-UX.md:871-922` (MAINT-021 Maintenance Settings). **Prototype:** `maintenance_settings_page` (`other-screens.jsx:805-964`). **Route:** `/maintenance/settings`.
 
 Module-level configuration restricted to `maintenance_manager` + `admin`. Two-column page (left nav + right form). Sections map to §13 L1/L2/L3/L4 hierarchy:
 - **General Defaults** — PM Lead Time Default Days (default 7), Calibration Warning Window (30/14/7 staged per V-MNT-13), MTBF Target, Availability Breach Threshold % (default 80, used by `oee_maintenance_trigger_v1` per §10.2 P2), Requires LOTO default for new assets.
@@ -746,7 +746,7 @@ Module-level configuration restricted to `maintenance_manager` + `admin`. Two-co
 - **LOTO Policy** — Two-person LOTO required for critical assets (default On per V-MNT-08), LOTO Timeout Warning hours (default 8), Photo Evidence (Required/Recommended/Optional, default Recommended for critical — pre-condition for full BL-MAINT-02 photo gate).
 - **OEE Trigger (P2 feature flag)** — `maintenance_triggers_enabled` toggle (default Off, opt-in per §13.2; activates `oee_maintenance_trigger_v1` per D-MNT-11).
 - **Technician Skill Catalog** — read-only link to 02-SET → Reference Tables → `technician_skills`.
-- **Notification Preferences** — per-event toggles (PM overdue / calibration overdue / WR SLA breach / mWO scheduled today / LOTO timeout / spare below min / MTBF declining trend) routed via Resend per `00-FOUNDATION-PRD.md` notification stack.
+- **Notification Preferences** — per-event toggles (PM overdue / calibration overdue / WR SLA breach / mWO scheduled today / LOTO timeout / spare below min / MTBF declining trend) routed via Resend per `docs/prd/00-FOUNDATION-PRD.md` notification stack.
 
 Persisted to `maintenance_settings` keyed-config table (added to §13.2 v3.1 amendment scope) + `criticality_taxonomy` reorder column. Reset to Defaults button (admin only) reseeds rows.
 
@@ -1015,7 +1015,7 @@ Write scopes: `maintenance_manager` full, `maintenance_technician` own assigned 
 ## 18. Changelog
 
 ### v3.1 (2026-04-30) — Manufacturing Operations standardization + UI surface catalog amendment
-- **UI surface catalog amendment (audit 2026-04-30 BLOCKER fix)**: Added §10.3 Screen-Level UI Catalog enumerating MNT-015..MNT-035 (21 screen-level surfaces, ~5400 words). Anchors prototypes already labeled in `_meta/prototype-labels/prototype-index-maintenance.json` and UX-spec'd in `design/13-MAINTENANCE-UX.md:167-922`. Added §10.4 Modal Contracts (MNT-M-01..MNT-M-15), §10.5 UI Surfaces Map, §10.6 ADR-034 hygiene note.
+- **UI surface catalog amendment (audit 2026-04-30 BLOCKER fix)**: Added §10.3 Screen-Level UI Catalog enumerating MNT-015..MNT-035 (21 screen-level surfaces, ~5400 words). Anchors prototypes already labeled in `_meta/prototype-labels/prototype-index-maintenance.json` and UX-spec'd in `prototypes/design/13-MAINTENANCE-UX.md:167-922`. Added §10.4 Modal Contracts (MNT-M-01..MNT-M-15), §10.5 UI Surfaces Map, §10.6 ADR-034 hygiene note.
 - Pre-amendment coverage: ~60% (PRD enumerated dashboards only, MNT-001..014; orphan: 9+ screen-level surfaces). Post-amendment coverage: ~95% (all UX-spec'd screens anchored; 3 remaining `[NO-PROTOTYPE-YET]` TODO entries MNT-033/034/035 deferred to P2).
 - Added 3 OQs: OQ-MNT-11 (Outbox/DLQ screen P1 vs P2), OQ-MNT-12 (Sanitation audit drilldown), OQ-MNT-13 (schema-ID drift MNT- vs MAINT-).
 - No changes to existing PRD content (§1-9, §11-19, dashboards §10.1/10.2 preserved).
@@ -1056,19 +1056,19 @@ Write scopes: `maintenance_manager` full, `maintenance_technician` own assigned 
 
 ## 19. Related Documents
 
-- [`00-FOUNDATION-PRD.md`](./00-FOUNDATION-PRD.md) v3.0 — §4 module map, §4.2 build sequence, §5 tech stack, REC-L1 site_id
-- [`02-SETTINGS-PRD.md`](./02-SETTINGS-PRD.md) v3.4 — §7.8 rules registry (23 rules cumul post-C5 Sesja 2 delta), §8.1 ref tables (23 tables), **§8.9 Reference.ManufacturingOperations** (configurable operations per tenant with industry-specific seed data: Bakery, Pharmacy, FMCG), §9 multi-tenant L2
-- [`05-WAREHOUSE-PRD.md`](./05-WAREHOUSE-PRD.md) v3.0 — TO lifecycle baseline (spare parts TO pattern reference)
-- [`06-SCANNER-P1-PRD.md`](./06-SCANNER-P1-PRD.md) v3.0 — SCN-090 Maintenance scanner tab P2
-- [`08-PRODUCTION-PRD.md`](./08-PRODUCTION-PRD.md) v3.0 — §9.6 downtime_events producer, §12 outbox stage 2 pattern reference, `allergen_changeover_gate_v1` consumer, production_lines entity for equipment scoping, manufacturing operation sequencing for changeover coordination
-- [`09-QUALITY-PRD.md`](./09-QUALITY-PRD.md) v3.0 — §6 Q6 equipment FK stub (D-MNT-10 target), HACCP CCP verification trail
-- [`10-FINANCE-PRD.md`](./10-FINANCE-PRD.md) v3.0 — §9 cascade cost rollup (spare parts consumption cost propagation)
-- [`12-REPORTING-PRD.md`](./12-REPORTING-PRD.md) v3.0 — `dashboards_catalog` metadata-driven registration
-- [`14-MULTI-SITE-PRD.md`](./14-MULTI-SITE-PRD.md) v3.0 — site_user_access pattern, per-site scoping
-- [`15-OEE-PRD.md`](./15-OEE-PRD.md) v3.0 — §7.3 `oee_maintenance_trigger_v1` rule (D-MNT-11 consumer), §9.2 `oee_shift_metrics` MTBF/MTTR producer (D-MNT-3 consumer)
+- [`docs/prd/00-FOUNDATION-PRD.md`](./docs/prd/00-FOUNDATION-PRD.md) v3.0 — §4 module map, §4.2 build sequence, §5 tech stack, REC-L1 site_id
+- [`docs/prd/02-SETTINGS-PRD.md`](./docs/prd/02-SETTINGS-PRD.md) v3.4 — §7.8 rules registry (23 rules cumul post-C5 Sesja 2 delta), §8.1 ref tables (23 tables), **§8.9 Reference.ManufacturingOperations** (configurable operations per tenant with industry-specific seed data: Bakery, Pharmacy, FMCG), §9 multi-tenant L2
+- [`docs/prd/05-WAREHOUSE-PRD.md`](./docs/prd/05-WAREHOUSE-PRD.md) v3.0 — TO lifecycle baseline (spare parts TO pattern reference)
+- [`docs/prd/06-SCANNER-P1-PRD.md`](./docs/prd/06-SCANNER-P1-PRD.md) v3.0 — SCN-090 Maintenance scanner tab P2
+- [`docs/prd/08-PRODUCTION-PRD.md`](./docs/prd/08-PRODUCTION-PRD.md) v3.0 — §9.6 downtime_events producer, §12 outbox stage 2 pattern reference, `allergen_changeover_gate_v1` consumer, production_lines entity for equipment scoping, manufacturing operation sequencing for changeover coordination
+- [`docs/prd/09-QUALITY-PRD.md`](./docs/prd/09-QUALITY-PRD.md) v3.0 — §6 Q6 equipment FK stub (D-MNT-10 target), HACCP CCP verification trail
+- [`docs/prd/10-FINANCE-PRD.md`](./docs/prd/10-FINANCE-PRD.md) v3.0 — §9 cascade cost rollup (spare parts consumption cost propagation)
+- [`docs/prd/12-REPORTING-PRD.md`](./docs/prd/12-REPORTING-PRD.md) v3.0 — `dashboards_catalog` metadata-driven registration
+- [`docs/prd/14-MULTI-SITE-PRD.md`](./docs/prd/14-MULTI-SITE-PRD.md) v3.0 — site_user_access pattern, per-site scoping
+- [`docs/prd/15-OEE-PRD.md`](./docs/prd/15-OEE-PRD.md) v3.0 — §7.3 `oee_maintenance_trigger_v1` rule (D-MNT-11 consumer), §9.2 `oee_shift_metrics` MTBF/MTTR producer (D-MNT-3 consumer)
 - [`_foundation/research/MES-TRENDS-2026.md`](./_foundation/research/MES-TRENDS-2026.md) — R12 ML maintenance roadmap, §9 13-MAINTENANCE buy vs build (Fiix/Hippo competitors)
 - ADR-028 (schema-driven L1-L4), ADR-029 (rule engine DSL), ADR-030 (configurable depts), ADR-031 (schema variation per org)
 
 ---
 
-**Phase C5 Sesja 2 deliverable 1/2 — 13-MAINTENANCE-PRD.md v3.1 COMPLETE. (v3.1 Manufacturing Operations standardization, 2026-04-30)**
+**Phase C5 Sesja 2 deliverable 1/2 — docs/prd/13-MAINTENANCE-PRD.md v3.1 COMPLETE. (v3.1 Manufacturing Operations standardization, 2026-04-30)**

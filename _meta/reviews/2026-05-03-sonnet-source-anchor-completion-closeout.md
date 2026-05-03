@@ -13,7 +13,7 @@ Dodanie komentarzy `// data-prototype-label: <etykieta>` bezpośrednio przed dek
 
 ## 2. Wykonane zmiany w plikach JSX
 
-### Moduł 04 — Planning (`design/Monopilot Design System/planning/`)
+### Moduł 04 — Planning (`prototypes/design/Monopilot Design System/planning/`)
 
 | Plik | Dodane kotwice | Etykiety |
 |------|---------------|---------|
@@ -26,7 +26,7 @@ Dodanie komentarzy `// data-prototype-label: <etykieta>` bezpośrednio przed dek
 | `suppliers.jsx` | 4 | `plan_supplier_list`, `plan_supplier_detail`, `supplier_form_modal`, `deactivate_supplier_modal` |
 | **Łącznie** | **33** | |
 
-### Moduł 08 — Production (`design/Monopilot Design System/production/`)
+### Moduł 08 — Production (`prototypes/design/Monopilot Design System/production/`)
 
 | Plik | Dodane kotwice | Etykiety |
 |------|---------------|---------|
@@ -40,7 +40,7 @@ Dodanie komentarzy `// data-prototype-label: <etykieta>` bezpośrednio przed dek
 
 \* Etykiety z podwójnym identyfikatorem (oddzielone spacją) — ten sam komponent jest referencjonowany przez dwa wpisy indeksu pod różnymi etykietami.
 
-### Moduł 05 — Warehouse (`design/Monopilot Design System/warehouse/`)
+### Moduł 05 — Warehouse (`prototypes/design/Monopilot Design System/warehouse/`)
 
 | Plik | Dodane kotwice | Etykiety |
 |------|---------------|---------|
@@ -51,7 +51,7 @@ Dodanie komentarzy `// data-prototype-label: <etykieta>` bezpośrednio przed dek
 | `lp-screens.jsx` | 1 | (pre-existing lub uzupełniony w sesji) |
 | **Łącznie** | **~11** | |
 
-### Moduł 06 — Scanner (`design/Monopilot Design System/scanner/`)
+### Moduł 06 — Scanner (`prototypes/design/Monopilot Design System/scanner/`)
 
 Pliki skanera zawierają preistniejące lub nowo dodane kotwice (wcześniejszy etap sesji). Łączna liczba kotwic per plik: `flow-consume.jsx` (1), `flow-other.jsx` (4), `flow-pick.jsx` (1), `flow-receive.jsx` (1), `flow-register.jsx` (3), `login.jsx` (3), `modals.jsx` (1).
 
@@ -139,32 +139,32 @@ Uruchomić uzupełnienie kotwic dla NPD (`npd/modals.jsx`, `npd/fa-screens.jsx` 
 ## 6. Pliki zmienione w sesji (JSX + indeksy)
 
 ```
-design/Monopilot Design System/planning/dashboard.jsx
-design/Monopilot Design System/planning/modals.jsx
-design/Monopilot Design System/planning/po-screens.jsx
-design/Monopilot Design System/planning/to-screens.jsx
-design/Monopilot Design System/planning/wo-detail.jsx
-design/Monopilot Design System/planning/wo-list.jsx
-design/Monopilot Design System/planning/suppliers.jsx
-design/Monopilot Design System/production/dashboard.jsx
-design/Monopilot Design System/production/modals.jsx
-design/Monopilot Design System/production/new-screens.jsx
-design/Monopilot Design System/production/other-screens.jsx
-design/Monopilot Design System/production/wo-detail.jsx
-design/Monopilot Design System/production/wo-list.jsx
-design/Monopilot Design System/warehouse/dashboard.jsx
-design/Monopilot Design System/warehouse/lp-screens.jsx
-design/Monopilot Design System/warehouse/modals.jsx
-design/Monopilot Design System/warehouse/movement-screens.jsx
-design/Monopilot Design System/warehouse/other-screens.jsx
-design/Monopilot Design System/warehouse/shell.jsx
-design/Monopilot Design System/scanner/flow-consume.jsx
-design/Monopilot Design System/scanner/flow-other.jsx
-design/Monopilot Design System/scanner/flow-pick.jsx
-design/Monopilot Design System/scanner/flow-receive.jsx
-design/Monopilot Design System/scanner/flow-register.jsx
-design/Monopilot Design System/scanner/login.jsx
-design/Monopilot Design System/scanner/modals.jsx
+prototypes/design/Monopilot Design System/planning/dashboard.jsx
+prototypes/design/Monopilot Design System/planning/modals.jsx
+prototypes/design/Monopilot Design System/planning/po-screens.jsx
+prototypes/design/Monopilot Design System/planning/to-screens.jsx
+prototypes/design/Monopilot Design System/planning/wo-detail.jsx
+prototypes/design/Monopilot Design System/planning/wo-list.jsx
+prototypes/design/Monopilot Design System/planning/suppliers.jsx
+prototypes/design/Monopilot Design System/production/dashboard.jsx
+prototypes/design/Monopilot Design System/production/modals.jsx
+prototypes/design/Monopilot Design System/production/new-screens.jsx
+prototypes/design/Monopilot Design System/production/other-screens.jsx
+prototypes/design/Monopilot Design System/production/wo-detail.jsx
+prototypes/design/Monopilot Design System/production/wo-list.jsx
+prototypes/design/Monopilot Design System/warehouse/dashboard.jsx
+prototypes/design/Monopilot Design System/warehouse/lp-screens.jsx
+prototypes/design/Monopilot Design System/warehouse/modals.jsx
+prototypes/design/Monopilot Design System/warehouse/movement-screens.jsx
+prototypes/design/Monopilot Design System/warehouse/other-screens.jsx
+prototypes/design/Monopilot Design System/warehouse/shell.jsx
+prototypes/design/Monopilot Design System/scanner/flow-consume.jsx
+prototypes/design/Monopilot Design System/scanner/flow-other.jsx
+prototypes/design/Monopilot Design System/scanner/flow-pick.jsx
+prototypes/design/Monopilot Design System/scanner/flow-receive.jsx
+prototypes/design/Monopilot Design System/scanner/flow-register.jsx
+prototypes/design/Monopilot Design System/scanner/login.jsx
+prototypes/design/Monopilot Design System/scanner/modals.jsx
 _meta/prototype-labels/prototype-index-production.json
 _meta/prototype-labels/master-index.json
 ```

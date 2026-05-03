@@ -2,7 +2,7 @@
 // NPD module · modals.jsx — All 18 modals · MODAL-SCHEMA.md compliant
 // ----------------------------------------------------------------------------
 // Implementation contract: see ./SCHEMA.md · ./API.md · ./COMPONENT-INTERFACES.md
-// Spec: design/01-NPD-UX.md
+// Spec: prototypes/design/01-NPD-UX.md
 // ============================================================================
 
 // ============================================================================

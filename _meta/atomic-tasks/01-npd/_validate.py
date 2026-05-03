@@ -8,7 +8,7 @@ Checks:
 3. 1 <= len(acceptance_criteria) <= 4; 50 <= priority <= 150.
 4. task_type in allowed set.
 5. No placeholders (TBD, TODO, fill in, appropriate, similar to previous).
-6. T3-ui tasks: at least one AC contains 'design/Monopilot Design System/' or
+6. T3-ui tasks: at least one AC contains 'prototypes/design/Monopilot Design System/' or
    'prototype' AND a line-range pattern (NN-NN or NN:NN).
 7. coverage.md: no rows containing GAP marker (unless explicitly out-of-scope).
 """
@@ -45,7 +45,7 @@ PLACEHOLDERS = [
     "TBD", "TODO", "fill in", "appropriate", "similar to previous",
 ]
 LINE_RANGE_RX = re.compile(r":\d+(?:-\d+)?\b")
-PROTO_RX = re.compile(r"design/Monopilot Design System/|prototype", re.I)
+PROTO_RX = re.compile(r"prototypes/design/Monopilot Design System/|prototype", re.I)
 
 
 def fail(path: pathlib.Path, msg: str, errors: list[str]) -> None:

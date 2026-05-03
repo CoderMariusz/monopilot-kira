@@ -2,7 +2,7 @@
 // NPD module · gate-screens.jsx — Department gate strip + advance/close UI
 // ----------------------------------------------------------------------------
 // Implementation contract: see ./SCHEMA.md · ./API.md · ./COMPONENT-INTERFACES.md
-// Spec: design/01-NPD-UX.md
+// Spec: prototypes/design/01-NPD-UX.md
 // ============================================================================
 
 // gate-screens.jsx — NPD-004 · NPD-005 · NPD-010 · NPD-011

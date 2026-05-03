@@ -1,6 +1,6 @@
 {
   "title": "T-058 — UI: TEC-073 DLQ Manager (PARTIAL — drift resolve modal anchor)",
-  "prompt": "Build TEC-073 DLQ manager per §13.8. Lists d365_sync_dlq rows with retry / mark-resolved actions. Reuses retry endpoint from T-029. Partial prototype warning: this is not a full DLQ prototype. Visual reference: `d365_drift_resolve_modal` design/Monopilot Design System/technical/modals.jsx:562-598 (PARTIAL — drift, not DLQ). Use that prototype as the parity anchor for the row-action modal pattern, but render distinct DLQ table layout. RED tests/ui/tec-073-dlq.test.tsx. Run: `pnpm vitest run tests/ui/tec-073-dlq.test.tsx`. Prototype naming red-line: translate any legacy prototype/domain labels `fa`/`FA5100`/Factory Article to canonical `fg`/FG, any `PR-code` wording to WIP/intermediate, and any `process_stage`/`process_code` to `manufacturing_operation_name`; do not introduce legacy field names in final code, labels, tests or schemas.",
+  "prompt": "Build TEC-073 DLQ manager per §13.8. Lists d365_sync_dlq rows with retry / mark-resolved actions. Reuses retry endpoint from T-029. Partial prototype warning: this is not a full DLQ prototype. Visual reference: `d365_drift_resolve_modal` prototypes/design/Monopilot Design System/technical/modals.jsx:562-598 (PARTIAL — drift, not DLQ). Use that prototype as the parity anchor for the row-action modal pattern, but render distinct DLQ table layout. RED tests/ui/tec-073-dlq.test.tsx. Run: `pnpm vitest run tests/ui/tec-073-dlq.test.tsx`. Prototype naming red-line: translate any legacy prototype/domain labels `fa`/`FA5100`/Factory Article to canonical `fg`/FG, any `PR-code` wording to WIP/intermediate, and any `process_stage`/`process_code` to `manufacturing_operation_name`; do not introduce legacy field names in final code, labels, tests or schemas.",
   "labels": [
     "prd",
     "ui",
@@ -13,7 +13,7 @@
   "pipeline_inputs": {
     "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
     "prd_task_id": "T-058",
-    "source_prd": "03-TECHNICAL-PRD.md",
+    "source_prd": "docs/prd/03-TECHNICAL-PRD.md",
     "prd_refs": [
       "§13.7",
       "§13.8 TEC-073"
@@ -43,7 +43,7 @@
       "T-059"
     ],
     "acceptance_criteria": [
-      "Given the DLQ page renders, when compared to design/Monopilot Design System/technical/modals.jsx:562-598 (drift resolve modal as row-action anchor) and the UX contract at UX:1280, then table columns, row action modal layout, and Retry/Resolve buttons match — structural + visual + interaction parity verified by RTL with parity checklist in details.",
+      "Given the DLQ page renders, when compared to prototypes/design/Monopilot Design System/technical/modals.jsx:562-598 (drift resolve modal as row-action anchor) and the UX contract at UX:1280, then table columns, row action modal layout, and Retry/Resolve buttons match — structural + visual + interaction parity verified by RTL with parity checklist in details.",
       "Given DLQ depth > 50, when rendered, then warning banner appears.",
       "Given user lacks technical.d365.sync.trigger, when on page, then row actions are disabled.",
       "UI closeout includes screenshot/artifact evidence and Playwright trace/artifacts where applicable per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`; if Playwright is unavailable, document the blocker and provide RTL/snapshot fallback evidence."

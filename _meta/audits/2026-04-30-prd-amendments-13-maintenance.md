@@ -2,7 +2,7 @@
 
 **Date:** 2026-04-30
 **Predecessor audit:** `_meta/audits/2026-04-30-design-prd-coverage.md` §13-MAINTENANCE (BLOCKER row #1, top-20 §4)
-**PRD modified:** `13-MAINTENANCE-PRD.md` (v3.1, footer changelog updated)
+**PRD modified:** `docs/prd/13-MAINTENANCE-PRD.md` (v3.1, footer changelog updated)
 **UX touched:** none (read-only per task constraints)
 **ADR touched:** none (ADR-034 hygiene note added inline to PRD §10.6)
 
@@ -14,7 +14,7 @@
 
 | MNT-NNN | Screen | Source UX line | Source prototype label |
 |---|---|---|---|
-| MNT-015 | Asset Registry — List | `design/13-MAINTENANCE-UX.md:209-262` (MAINT-002) | `asset_list_page` (assets.jsx:1-183) |
+| MNT-015 | Asset Registry — List | `prototypes/design/13-MAINTENANCE-UX.md:209-262` (MAINT-002) | `asset_list_page` (assets.jsx:1-183) |
 | MNT-016 | Asset Registry — Detail | UX:265-300 (MAINT-003) | `asset_detail_page` (assets.jsx:185-518) |
 | MNT-017 | Work Request — List | UX:302-333 (MAINT-004) | `wr_list_page` (work-orders.jsx:1-132) |
 | MNT-018 | Work Request — Create (shop-floor) | UX:336-364 (MAINT-005) | `wr_create_modal` (modals.jsx:81-121) |
@@ -94,7 +94,7 @@ Target was ≥85%. Achieved ~95% (3 remaining gaps explicitly P2-deferred with T
 
 | File | Lines before | Lines after | Δ |
 |---|---|---|---|
-| `13-MAINTENANCE-PRD.md` | 870 | ~1090 (estimated post-edit) | +220 |
+| `docs/prd/13-MAINTENANCE-PRD.md` | 870 | ~1090 (estimated post-edit) | +220 |
 | `_meta/audits/2026-04-30-prd-amendments-13-maintenance.md` | (new) | this file | new |
 
-No deletions. No edits to UX file (`design/13-MAINTENANCE-UX.md` untouched per task constraint). No edits to ADR-034 (hygiene note added inline to PRD §10.6 instead).
+No deletions. No edits to UX file (`prototypes/design/13-MAINTENANCE-UX.md` untouched per task constraint). No edits to ADR-034 (hygiene note added inline to PRD §10.6 instead).

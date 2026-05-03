@@ -18,11 +18,11 @@ Source: `_meta/decisions/2026-05-03-next-modules-warehouse-scanner-planning-prod
 
 ## Files hardened
 
-- `05-WAREHOUSE-PRD.md`
-- `design/05-WAREHOUSE-UX.md`
-- `design/Monopilot Design System/warehouse/lp-screens.jsx`
-- `design/Monopilot Design System/warehouse/movement-screens.jsx`
-- `design/Monopilot Design System/warehouse/modals.jsx`
+- `docs/prd/05-WAREHOUSE-PRD.md`
+- `prototypes/design/05-WAREHOUSE-UX.md`
+- `prototypes/design/Monopilot Design System/warehouse/lp-screens.jsx`
+- `prototypes/design/Monopilot Design System/warehouse/movement-screens.jsx`
+- `prototypes/design/Monopilot Design System/warehouse/modals.jsx`
 - `_meta/prototype-labels/prototype-index-warehouse.json`
 - `_meta/prototype-labels/master-index.json`
 - `_meta/atomic-tasks/05-warehouse/manifest.json`

@@ -1,6 +1,6 @@
 {
   "title": "T-035 — UI: PLN-002 PO List page (parity with plan_po_list)",
-  "prompt": "Build PLN-002 PO List at `src/app/(planning)/planning/purchase-orders/page.tsx` matching prototype `design/Monopilot Design System/planning/po-screens.jsx:3-139` 1:1.\n\nFeatures: filterable table (status badge from rule registry display config, supplier, total, expected delivery), search, status filter, supplier filter, date filter, sort by columns, pagination. Status badges colored per planning_settings.status_display.po (T-029 seed).\n\nServer Component reads list via getPurchaseOrders(filters). RED RTL test asserts table columns + filter controls match prototype.",
+  "prompt": "Build PLN-002 PO List at `src/app/(planning)/planning/purchase-orders/page.tsx` matching prototype `prototypes/design/Monopilot Design System/planning/po-screens.jsx:3-139` 1:1.\n\nFeatures: filterable table (status badge from rule registry display config, supplier, total, expected delivery), search, status filter, supplier filter, date filter, sort by columns, pagination. Status badges colored per planning_settings.status_display.po (T-029 seed).\n\nServer Component reads list via getPurchaseOrders(filters). RED RTL test asserts table columns + filter controls match prototype.",
   "labels": [
     "prd",
     "ui",
@@ -13,7 +13,7 @@
   "pipeline_inputs": {
     "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
     "prd_task_id": "T-035",
-    "source_prd": "04-PLANNING-BASIC-PRD.md",
+    "source_prd": "docs/prd/04-PLANNING-BASIC-PRD.md",
     "prd_refs": [
       "§6.6"
     ],
@@ -31,7 +31,7 @@
       "src/components/planning/po/POTable.tsx [create]",
       "src/components/planning/po/POStatusBadge.tsx [create]",
       "src/components/planning/po/__tests__/POTable.test.tsx [create]",
-      "design/Monopilot Design System/planning/po-screens.jsx:3-139 [ref]"
+      "prototypes/design/Monopilot Design System/planning/po-screens.jsx:3-139 [ref]"
     ],
     "out_of_scope": [
       "PO Detail (T-036)",
@@ -42,7 +42,7 @@
       "T-029"
     ],
     "acceptance_criteria": [
-      "Given the page renders, when compared to `design/Monopilot Design System/planning/po-screens.jsx:3-139`, then the production component has the same column order, same toolbar filters, same status badge primitive, and same action menu items — parity verified by RTL snapshot per the checklist in `pipeline_inputs.details`.",
+      "Given the page renders, when compared to `prototypes/design/Monopilot Design System/planning/po-screens.jsx:3-139`, then the production component has the same column order, same toolbar filters, same status badge primitive, and same action menu items — parity verified by RTL snapshot per the checklist in `pipeline_inputs.details`.",
       "Given a status_display.po.confirmed.color override in settings, when a confirmed PO renders, then its badge uses the override color.",
       "Given the filter 'status=draft' is selected, when the URL updates, then only draft POs render and pagination is preserved.",
       "Given `pnpm vitest run src/components/planning/po/__tests__/POTable.test.tsx`, when run, then 0 failures. Given the UI task is closed, then CLOSEOUT includes Playwright trace artifacts plus screenshots/artifacts for prototype parity and error/empty/blocked states. Follow parity evidence requirements in `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`."

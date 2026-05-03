@@ -1,6 +1,6 @@
 # Prototype Labeling Integrity Audit — 2026-04-30
 
-Scope: `_meta/prototype-labels/` (1 master + 17 per-module indexes + 16 translation-notes) cross-checked against `design/Monopilot Design System/` JSX and the canonical taxonomy in `.claude/skills/prototype-labeling/SKILL.md`.
+Scope: `_meta/prototype-labels/` (1 master + 17 per-module indexes + 16 translation-notes) cross-checked against `prototypes/design/Monopilot Design System/` JSX and the canonical taxonomy in `.claude/skills/prototype-labeling/SKILL.md`.
 
 ---
 
@@ -43,15 +43,15 @@ Scope: `_meta/prototype-labels/` (1 master + 17 per-module indexes + 16 translat
 
 - Master `file` paths: **0 broken** (all 514 resolve).
 - Per-module `file` paths: **0 broken** across 17 indexes.
-- Total `.jsx` under `design/Monopilot Design System/`: **160 files**.
+- Total `.jsx` under `prototypes/design/Monopilot Design System/`: **160 files**.
 - Files referenced by master: **106 distinct files**. **54 jsx files are orphan** (no entry references them):
   - **49 are infrastructure**: `app.jsx`, `data.jsx`, `shell.jsx` per module, plus `chrome.jsx`, `tweaks.jsx`, `editor-tweaks.jsx`, `rules-data.jsx`, `_shared/placeholders.jsx`, `_shared/primitives.jsx`. Expected — these are Vite/preview shells.
   - **5 content orphans (real gaps):**
-    - `design/Monopilot Design System/_shared/modals.jsx` — referenced by 14+ entries via `depends_on_prototypes` but never indexed itself
-    - `design/Monopilot Design System/maintenance/sanitation.jsx`
-    - `design/Monopilot Design System/npd/d365-screens.jsx`
-    - `design/Monopilot Design System/planning/suppliers.jsx`
-    - `design/Monopilot Design System/settings/onboarding-screens.jsx`
+    - `prototypes/design/Monopilot Design System/_shared/modals.jsx` — referenced by 14+ entries via `depends_on_prototypes` but never indexed itself
+    - `prototypes/design/Monopilot Design System/maintenance/sanitation.jsx`
+    - `prototypes/design/Monopilot Design System/npd/d365-screens.jsx`
+    - `prototypes/design/Monopilot Design System/planning/suppliers.jsx`
+    - `prototypes/design/Monopilot Design System/settings/onboarding-screens.jsx`
 
 ### 2.3 Schema drift (Q3)
 
@@ -64,14 +64,14 @@ Scope: `_meta/prototype-labels/` (1 master + 17 per-module indexes + 16 translat
 ### 2.4 Taxonomy consistency (Q4)
 
 - `component_type` (8 unique values, all canonical): modal=199, page-layout=175, table=51, wizard=27, tabs=23, form=22, dashboard-tile=9, sidebar=8. `stepper` from skill is unused (always rolled into `wizard`).
-- `ui_pattern` (10 unique, **1 off-canon**): crud-form-with-validation=172, detail-view=115, list-with-actions=80, search-filter-list=59, dashboard-tile=26, multi-step-wizard=24, bulk-action=16, wizard-step=12, import-export=9, **`dashboard`=1 (OFF-CANON, should be `dashboard-tile`)** — at `gate_checklist_panel` (`design/Monopilot Design System/npd/gate-screens.jsx:106-258`).
+- `ui_pattern` (10 unique, **1 off-canon**): crud-form-with-validation=172, detail-view=115, list-with-actions=80, search-filter-list=59, dashboard-tile=26, multi-step-wizard=24, bulk-action=16, wizard-step=12, import-export=9, **`dashboard`=1 (OFF-CANON, should be `dashboard-tile`)** — at `gate_checklist_panel` (`prototypes/design/Monopilot Design System/npd/gate-screens.jsx:106-258`).
 - `data_domain` (54 unique values, free-text by skill): no canonicalization issues spotted (all PascalCase entity names like `WO`, `LP`, `FA`, `BOM`, `OEE`, `Recipe`, `Allergen`, `StandardCost`, …). No casing variants ("modal" vs "Modal") in this dimension.
-- `interaction` (10 unique, **1 off-canon**): read-only=207, edit=110, create=75, approve=61, delete=22, sign-off=13, bulk=12, export=7, import=6, **`view`=1 (OFF-CANON, should be `read-only`)** — at `approval_history_timeline` (`design/Monopilot Design System/npd/gate-screens.jsx:525-616`).
+- `interaction` (10 unique, **1 off-canon**): read-only=207, edit=110, create=75, approve=61, delete=22, sign-off=13, bulk=12, export=7, import=6, **`view`=1 (OFF-CANON, should be `read-only`)** — at `approval_history_timeline` (`prototypes/design/Monopilot Design System/npd/gate-screens.jsx:525-616`).
 - `complexity` (3 unique, all canonical): page-level=241, composite=199, primitive=74.
 
 ### 2.5 Mis-tagged prototypes (Q5)
 
-- **Path-based mis-tagging: zero.** Every master entry's declared `module` matches the second path segment of its `file` (`design/Monopilot Design System/<module>/...`).
+- **Path-based mis-tagging: zero.** Every master entry's declared `module` matches the second path segment of its `file` (`prototypes/design/Monopilot Design System/<module>/...`).
 - **Domain-based mis-tagging in `prototype-index-settings.json` (gap-backlog §D8 finding still stands):** these 6 prototypes physically live in settings JSX (`org-screens.jsx`, `ops-screens.jsx`, `data-screens.jsx`) but functionally belong to other modules:
   | Label | File | Functional module |
   |---|---|---|
@@ -137,9 +137,9 @@ Scope: `_meta/prototype-labels/` (1 master + 17 per-module indexes + 16 translat
 
 ### HIGH
 
-4. **`gate_checklist_panel` has off-canon `ui_pattern: "dashboard"`** at `design/Monopilot Design System/npd/gate-screens.jsx:106-258`. **Fix:** change to `dashboard-tile` (closest match) or revisit classification (likely should be `detail-view`).
+4. **`gate_checklist_panel` has off-canon `ui_pattern: "dashboard"`** at `prototypes/design/Monopilot Design System/npd/gate-screens.jsx:106-258`. **Fix:** change to `dashboard-tile` (closest match) or revisit classification (likely should be `detail-view`).
 
-5. **`approval_history_timeline` has off-canon `interaction: "view"`** at `design/Monopilot Design System/npd/gate-screens.jsx:525-616`. **Fix:** change to `read-only`.
+5. **`approval_history_timeline` has off-canon `interaction: "view"`** at `prototypes/design/Monopilot Design System/npd/gate-screens.jsx:525-616`. **Fix:** change to `read-only`.
 
 6. **6 settings entries are domain-mistagged** (gap backlog §D8 confirmed): `sites_screen`, `settings_shifts_screen`, `devices_screen`, `products_screen`, `boms_screen`, `partners_screen` are physically in `settings/*.jsx` but functionally belong to multi-site / oee / scanner / technical. **Fix:** either move JSX into the right module folder (preferred — files become navigable), or add a `functional_module` field that diverges from `module`.
 
@@ -260,7 +260,7 @@ WO=71, LP=37, FA=21, BOM=21, OEE=20, Report=20, Recipe=19, Allergen=17, Standard
 
 ### 5.7 Filesystem scan
 
-- Total `.jsx` files in `design/Monopilot Design System/`: **160**
+- Total `.jsx` files in `prototypes/design/Monopilot Design System/`: **160**
 - Files referenced by ≥1 master entry: **106**
 - Orphan files: **54** (49 infrastructure shells; **5 content orphans**: `_shared/modals.jsx`, `maintenance/sanitation.jsx`, `npd/d365-screens.jsx`, `planning/suppliers.jsx`, `settings/onboarding-screens.jsx`)
 

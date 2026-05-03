@@ -2,7 +2,7 @@
 
 **Auditor:** Audit-6b (read-only agent)
 **Date:** 2026-04-23
-**Sources:** PRD v3.0 (12 + 14), UX v1.0 (12 + 14), prototype JSX/CSS in `design/Monopilot Design System/reporting/` + `multi-site/`
+**Sources:** PRD v3.0 (12 + 14), UX v1.0 (12 + 14), prototype JSX/CSS in `prototypes/design/Monopilot Design System/reporting/` + `multi-site/`
 **Base path:** `C:/Users/MaKrawczyk/PLD/_tune-dispatch/tune-6b-reporting-multisite/`
 
 ---

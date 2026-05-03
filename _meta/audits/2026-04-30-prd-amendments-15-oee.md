@@ -1,8 +1,8 @@
 # 15-OEE PRD Amendments — 2026-04-30 Reconciliation Pass
 
 **Source audit:** `_meta/audits/2026-04-30-design-prd-coverage.md` §Module 15-OEE (~75% coverage; 4 Direction-B orphans + several unanchored modals)
-**Target file:** `15-OEE-PRD.md` (now v3.2.1)
-**Scope discipline:** Strictly within 15-OEE. UX file (`design/15-OEE-UX.md`) untouched. Only ADD or RE-ORDER inside the PRD; no deletions. Inline citations of UX line numbers and prototype labels per audit fix protocol.
+**Target file:** `docs/prd/15-OEE-PRD.md` (now v3.2.1)
+**Scope discipline:** Strictly within 15-OEE. UX file (`prototypes/design/15-OEE-UX.md`) untouched. Only ADD or RE-ORDER inside the PRD; no deletions. Inline citations of UX line numbers and prototype labels per audit fix protocol.
 
 ---
 
@@ -24,11 +24,11 @@ The single notable behavioural change is structural: `settings_shifts_screen` (n
 
 ## 2. Sections added
 
-All inserted inside `15-OEE-PRD.md` §15 Screens (between existing §15.1/§15.2 and §16 Build Roadmap). No content deleted.
+All inserted inside `docs/prd/15-OEE-PRD.md` §15 Screens (between existing §15.1/§15.2 and §16 Build Roadmap). No content deleted.
 
 | New PRD ID | Title | UX source line(s) | Source prototype | Anchored modal/tab? |
 |---|---|---|---|---|
-| OEE-ADM-003 | Shift Patterns + Non-Production Calendar | `design/15-OEE-UX.md:805-834` (cross-link from OEE-ADM-002; dedicated UX section pending — TODO OEE-PRD-AMEND-01) | `settings_shifts_screen` → `shifts_screen` (`design/Monopilot Design System/settings/org-screens.jsx:255-306`) **moved 2026-04-30** to `prototype-index-oee.json` | — |
+| OEE-ADM-003 | Shift Patterns + Non-Production Calendar | `prototypes/design/15-OEE-UX.md:805-834` (cross-link from OEE-ADM-002; dedicated UX section pending — TODO OEE-PRD-AMEND-01) | `settings_shifts_screen` → `shifts_screen` (`prototypes/design/Monopilot Design System/settings/org-screens.jsx:255-306`) **moved 2026-04-30** to `prototype-index-oee.json` | — |
 | OEE-001a | Availability Drill-down (A factor) | `[NO-UX-YET]` (TODO add to UX §3) | `oee_availability_drilldown_page` (`oee/screens.jsx:471-543`) | — |
 | OEE-001b | Performance Drill-down (P factor) | `[NO-UX-YET]` | `oee_performance_drilldown_page` (`oee/screens.jsx:546-598`) | — |
 | OEE-001c | Quality Drill-down (Q factor) | `[NO-UX-YET]` | `oee_quality_drilldown_page` (`oee/screens.jsx:600-655`) | — |

@@ -3,7 +3,7 @@
 **Version:** 1.1
 **Date:** 2026-04-21
 **Updated:** 2026-04-21 — 10 open questions resolved; Gantt drag-drop descoped to read-only view
-**Source PRD:** 07-PLANNING-EXT-PRD.md v3.1 (2026-04-21)
+**Source PRD:** docs/prd/07-PLANNING-EXT-PRD.md v3.1 (2026-04-21)
 **Target:** Claude Design — interactive HTML prototypes
 **Status:** Complete — self-contained, no designer questions required
 

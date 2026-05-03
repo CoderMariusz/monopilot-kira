@@ -2,7 +2,7 @@
 
 **Date:** 2026-04-30
 **Source gap-backlog:** `_meta/plans/2026-04-30-ux-prd-plan-gap-backlog.md` §MODULE 00-FOUNDATION
-**Target PRD:** `00-FOUNDATION-PRD.md`
+**Target PRD:** `docs/prd/00-FOUNDATION-PRD.md`
 **Version bump:** v4.1 → v4.2
 **Coverage target:** 60% → ≥85%
 

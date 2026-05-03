@@ -10,8 +10,8 @@
 
 ### Deliverables
 
-1. ✅ **`05-WAREHOUSE-PRD.md` v3.0** — **~1700 linii, 16 sekcji, 37 FRs, 11 tabel core, 37 validation rules**
-2. ✅ **`04-PLANNING-BASIC-PRD.md` v3.1** — rewizja §5.10, §8.5, §8.6, §9.2, §9.4 + changelog entry (cross-PRD consistency z 05 Q6 revised)
+1. ✅ **`docs/prd/05-WAREHOUSE-PRD.md` v3.0** — **~1700 linii, 16 sekcji, 37 FRs, 11 tabel core, 37 validation rules**
+2. ✅ **`docs/prd/04-PLANNING-BASIC-PRD.md` v3.1** — rewizja §5.10, §8.5, §8.6, §9.2, §9.4 + changelog entry (cross-PRD consistency z 05 Q6 revised)
 
 ### Kluczowe decyzje Sesji 2
 
@@ -71,7 +71,7 @@
 
 ### Scope
 
-**06-SCANNER-P1-PRD.md** — Scanner mobile app workflows (PWA, React Native lub hybrid — TBD w sesji), 9 screens (SCN-010..090), dedicated `/scanner/*` routes, username+PIN auth, touch ≥48px, audio/vibration feedback, consumer dla 05-WAREHOUSE APIs (LP inventory, barcode lookup, FEFO suggest, consume-to-WO, GS1-128 parse).
+**docs/prd/06-SCANNER-P1-PRD.md** — Scanner mobile app workflows (PWA, React Native lub hybrid — TBD w sesji), 9 screens (SCN-010..090), dedicated `/scanner/*` routes, username+PIN auth, touch ≥48px, audio/vibration feedback, consumer dla 05-WAREHOUSE APIs (LP inventory, barcode lookup, FEFO suggest, consume-to-WO, GS1-128 parse).
 
 **Key dependencies (z C2 Sesja 2 output):**
 
@@ -91,12 +91,12 @@
 ### Bootstrap C2 Sesja 3
 
 1. Read `_meta/handoffs/2026-04-20-c2-sesja2-close.md` (this file)
-2. Read `05-WAREHOUSE-PRD.md` v3.0 §13 Scanner Integration (full contract), §6 LP Core, §7 Receiving, §9 FEFO, §10 Intermediate LP Handling (scan-to-consume)
-3. Read `04-PLANNING-BASIC-PRD.md` v3.1 §12 Release-to-warehouse (scanner visibility trigger), §8 WO + cascade context
-4. Read `03-TECHNICAL-PRD.md` v3.0 §8 catch weight (scanner CW entry UX), §9 date code rendering
-5. Read `02-SETTINGS-PRD.md` v3.0 §14 security/PIN policy (scanner_idle_timeout_sec, scanner_lock_timeout_sec)
+2. Read `docs/prd/05-WAREHOUSE-PRD.md` v3.0 §13 Scanner Integration (full contract), §6 LP Core, §7 Receiving, §9 FEFO, §10 Intermediate LP Handling (scan-to-consume)
+3. Read `docs/prd/04-PLANNING-BASIC-PRD.md` v3.1 §12 Release-to-warehouse (scanner visibility trigger), §8 WO + cascade context
+4. Read `docs/prd/03-TECHNICAL-PRD.md` v3.0 §8 catch weight (scanner CW entry UX), §9 date code rendering
+5. Read `docs/prd/02-SETTINGS-PRD.md` v3.0 §14 security/PIN policy (scanner_idle_timeout_sec, scanner_lock_timeout_sec)
 6. Read `_foundation/research/MES-TRENDS-2026.md` §9 "06-SCANNER-P1" + §2 food-mfg scanner UX patterns
-7. Read baseline `06-SCANNER-P1-PRD.md` (pre-Phase-D)
+7. Read baseline `docs/prd/06-SCANNER-P1-PRD.md` (pre-Phase-D)
 8. Read `SCANNER-PROTOTYPE (2).html` + `SCANNER-SCREEN-INDEX (1).md` (UX reference z pre-Phase-D)
 9. Propose outline → user Q1-Q? → full write
 
@@ -137,12 +137,12 @@ Z OQ1-OQ8 w 05-WAREHOUSE v3.0 §16.3:
 
 ## Related
 
-- [`05-WAREHOUSE-PRD.md`](../../05-WAREHOUSE-PRD.md) v3.0 — primary deliverable Sesji 2
-- [`04-PLANNING-BASIC-PRD.md`](../../04-PLANNING-BASIC-PRD.md) v3.1 — cross-PRD revision
+- [`docs/prd/05-WAREHOUSE-PRD.md`](../../docs/prd/05-WAREHOUSE-PRD.md) v3.0 — primary deliverable Sesji 2
+- [`docs/prd/04-PLANNING-BASIC-PRD.md`](../../docs/prd/04-PLANNING-BASIC-PRD.md) v3.1 — cross-PRD revision
 - [`2026-04-20-c2-sesja1-close.md`](./2026-04-20-c2-sesja1-close.md) — C2 Sesja 1 close HANDOFF
 - [`2026-04-20-c1-close.md`](./2026-04-20-c1-close.md) — Phase C1 close HANDOFF
-- [`00-FOUNDATION-PRD.md`](../../00-FOUNDATION-PRD.md) v3.0
-- [`03-TECHNICAL-PRD.md`](../../03-TECHNICAL-PRD.md) v3.0
+- [`docs/prd/00-FOUNDATION-PRD.md`](../../docs/prd/00-FOUNDATION-PRD.md) v3.0
+- [`docs/prd/03-TECHNICAL-PRD.md`](../../docs/prd/03-TECHNICAL-PRD.md) v3.0
 
 ---
 

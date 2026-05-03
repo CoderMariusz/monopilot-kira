@@ -14,12 +14,12 @@ Planning and Production must consume the canonical factory release read model ow
 
 ## Files patched
 
-- `04-PLANNING-BASIC-PRD.md`
+- `docs/prd/04-PLANNING-BASIC-PRD.md`
   - Added Planning consumer contract.
   - Added WO snapshot fields for active BOM/spec/release metadata.
   - Replaced ad-hoc latest active BOM selection with canonical read-model selection.
   - Patched cascade pseudocode to resolve every node through active release rows.
-- `08-PRODUCTION-PRD.md`
+- `docs/prd/08-PRODUCTION-PRD.md`
   - Added Production runtime consumer contract.
   - Added START preflight requirement and consumption validation reference.
   - Clarified that Production does not release/select BOM/spec and D365 push is a side effect only.

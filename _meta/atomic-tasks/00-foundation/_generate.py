@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generator: emits manifest.json + coverage.md + tasks/T-NNN.json for 00-FOUNDATION-PRD.md."""
+"""Generator: emits manifest.json + coverage.md + tasks/T-NNN.json for docs/prd/00-FOUNDATION-PRD.md."""
 import json
 import pathlib
 from datetime import datetime, timezone
@@ -8,7 +8,7 @@ ROOT = "/Users/mariuszkrawczyk/Projects/monopilot-kira"
 OUT = pathlib.Path(ROOT) / "_meta" / "atomic-tasks" / "00-foundation"
 TASKS_DIR = OUT / "tasks"
 TASKS_DIR.mkdir(parents=True, exist_ok=True)
-SOURCE_PRD = "00-FOUNDATION-PRD.md"
+SOURCE_PRD = "docs/prd/00-FOUNDATION-PRD.md"
 
 CHECKPOINT = {
     "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
@@ -1192,13 +1192,13 @@ task(
         "packages/ui/test/assertModalA11y.ts [create]",
         "packages/ui/src/__tests__/Modal.test.tsx [create]",
         ".eslintrc.js [modify]",
-        "design/Monopilot Design System/settings/access-screens.jsx:131-154 [ref]",
+        "prototypes/design/Monopilot Design System/settings/access-screens.jsx:131-154 [ref]",
     ],
     out_of_scope=OOS_GENERIC + ["No Stepper/Field/ReasonInput/Summary in this task — those are T-026 to T-029"],
     dependencies=["T-001"],
     parallel_safe_with=["T-022", "T-024"],
     acceptance_criteria=[
-        "Given the Modal primitive renders, when compared to the invite-modal pattern in design/Monopilot Design System/settings/access-screens.jsx:131-154, then it matches structurally (header with title + close button, body with form-grid-2, footer with Cancel + primary action right-aligned), visually (uses Radix Dialog primitive — not native <dialog> — and reads sizes from tokens.css), and interactionally (ESC closes, focus is trapped inside the dialog while open, focus returns to the invoking trigger on close) — verified by Modal.test.tsx and the Storybook a11y addon",
+        "Given the Modal primitive renders, when compared to the invite-modal pattern in prototypes/design/Monopilot Design System/settings/access-screens.jsx:131-154, then it matches structurally (header with title + close button, body with form-grid-2, footer with Cancel + primary action right-aligned), visually (uses Radix Dialog primitive — not native <dialog> — and reads sizes from tokens.css), and interactionally (ESC closes, focus is trapped inside the dialog while open, focus returns to the invoking trigger on close) — verified by Modal.test.tsx and the Storybook a11y addon",
         "Given an external file outside packages/ui imports '@radix-ui/react-dialog', when ESLint runs, then it fails with no-restricted-imports",
         "Given a Storybook build runs in CI with @axe-core/playwright, when the four size stories (sm/md/lg/xl) are scanned, then zero serious or critical a11y violations are reported",
         "Given assertModalA11y(container) is called in any modal RTL test, when invoked, then it asserts role='dialog', aria-modal='true', aria-labelledby is set, and focus is trapped",
@@ -1236,13 +1236,13 @@ task(
         "packages/ui/src/stepper-store.ts [create]",
         "packages/ui/.storybook/Stepper.stories.tsx [create]",
         "packages/ui/src/__tests__/Stepper.test.tsx [create]",
-        "design/Monopilot Design System/settings/modals.jsx:141-259 [ref]",
+        "prototypes/design/Monopilot Design System/settings/modals.jsx:141-259 [ref]",
     ],
     out_of_scope=OOS_GENERIC + ["No business-logic step transitions in this task"],
     dependencies=["T-025"],
     parallel_safe_with=["T-027", "T-028", "T-029"],
     acceptance_criteria=[
-        "Given the Stepper renders, when compared to the email_template_edit_modal in design/Monopilot Design System/settings/modals.jsx:141-259, then it matches structurally (top nav with N step labels, body slot, footer with Back + Next + a Cancel slot), visually (uses Radix Tabs underlying primitive — not raw divs — with same density tokens from tokens.css), and interactionally (Back disabled on step 0, Next disabled when current step has validation errors, ESC behaviour follows Modal contract) — verified by Stepper.test.tsx counting buttons + asserting disabled states",
+        "Given the Stepper renders, when compared to the email_template_edit_modal in prototypes/design/Monopilot Design System/settings/modals.jsx:141-259, then it matches structurally (top nav with N step labels, body slot, footer with Back + Next + a Cancel slot), visually (uses Radix Tabs underlying primitive — not raw divs — with same density tokens from tokens.css), and interactionally (Back disabled on step 0, Next disabled when current step has validation errors, ESC behaviour follows Modal contract) — verified by Stepper.test.tsx counting buttons + asserting disabled states",
         "Given the user navigates Back/Next, when stepperStore is inspected, then current_step is persisted across re-renders without prop drilling",
         "Given canEnter(step3) returns false, when the user clicks Jump-to-step-3, then the click is rejected and currentStep does not change",
     ],
@@ -1278,13 +1278,13 @@ task(
         "packages/ui/src/Field.tsx [create]",
         "packages/ui/.storybook/Field.stories.tsx [create]",
         "packages/ui/src/__tests__/Field.test.tsx [create]",
-        "design/Monopilot Design System/settings/access-screens.jsx:139-145 [ref]",
+        "prototypes/design/Monopilot Design System/settings/access-screens.jsx:139-145 [ref]",
     ],
     out_of_scope=OOS_GENERIC + ["No business validation rules in this task"],
     dependencies=["T-025"],
     parallel_safe_with=["T-026", "T-028", "T-029"],
     acceptance_criteria=[
-        "Given the Field primitive renders, when compared to the invite-modal field block in design/Monopilot Design System/settings/access-screens.jsx:139-145, then it matches structurally (label on top, input below, optional hint/error below), visually (uses shadcn Input as the inner primitive — no raw <input>), and interactionally (validation runs on blur and on submit, error message replaces hint when present, aria-invalid='true' is set on error) — verified by Field.test.tsx",
+        "Given the Field primitive renders, when compared to the invite-modal field block in prototypes/design/Monopilot Design System/settings/access-screens.jsx:139-145, then it matches structurally (label on top, input below, optional hint/error below), visually (uses shadcn Input as the inner primitive — no raw <input>), and interactionally (validation runs on blur and on submit, error message replaces hint when present, aria-invalid='true' is set on error) — verified by Field.test.tsx",
         "Given a Zod schema rejects the value, when the user blurs the field, then aria-invalid='true' is set and the resolver error message renders below the input",
         "Given required=true, when the field renders, then a visible asterisk is present with aria-label='required'",
     ],
@@ -1319,13 +1319,13 @@ task(
         "packages/ui/src/ReasonInput.tsx [create]",
         "packages/ui/.storybook/ReasonInput.stories.tsx [create]",
         "packages/ui/src/__tests__/ReasonInput.test.tsx [create]",
-        "design/Monopilot Design System/settings/modals.jsx:72-108 [ref]",
+        "prototypes/design/Monopilot Design System/settings/modals.jsx:72-108 [ref]",
     ],
     out_of_scope=OOS_GENERIC + ["No outbox event emission — that is the calling component's responsibility"],
     dependencies=["T-025"],
     parallel_safe_with=["T-026", "T-027", "T-029"],
     acceptance_criteria=[
-        "Given the ReasonInput renders, when compared to the flag_edit_modal reason block in design/Monopilot Design System/settings/modals.jsx:72-108, then it matches structurally (textarea + counter + submit-disabled when below min), visually (uses shadcn Textarea — not raw <textarea>), and interactionally (counter updates on every keystroke, aria-describedby points to the counter, parent submit button is disabled while length<minLength) — verified by ReasonInput.test.tsx",
+        "Given the ReasonInput renders, when compared to the flag_edit_modal reason block in prototypes/design/Monopilot Design System/settings/modals.jsx:72-108, then it matches structurally (textarea + counter + submit-disabled when below min), visually (uses shadcn Textarea — not raw <textarea>), and interactionally (counter updates on every keystroke, aria-describedby points to the counter, parent submit button is disabled while length<minLength) — verified by ReasonInput.test.tsx",
         "Given minLength=10 and the user types 9 chars, when reading the parent form's submit button, then it is disabled with aria-disabled='true'",
         "Given the user types 11 chars, when reading the same button, then it is enabled",
     ],
@@ -1360,13 +1360,13 @@ task(
         "packages/ui/src/Summary.tsx [create]",
         "packages/ui/.storybook/Summary.stories.tsx [create]",
         "packages/ui/src/__tests__/Summary.test.tsx [create]",
-        "design/Monopilot Design System/settings/modals.jsx:111-138 [ref]",
+        "prototypes/design/Monopilot Design System/settings/modals.jsx:111-138 [ref]",
     ],
     out_of_scope=OOS_GENERIC + ["No data fetching in this task — caller passes rows"],
     dependencies=["T-025"],
     parallel_safe_with=["T-026", "T-027", "T-028"],
     acceptance_criteria=[
-        "Given the Summary renders rows in unchanged mode, when compared to the schema_view_modal key/value block in design/Monopilot Design System/settings/modals.jsx:111-138, then it matches structurally (dl with dt/dd pairs in the same order as the rows prop), visually (uses tokens.css for spacing — no inline styles), and interactionally (no interactive controls; entirely read-only with role='term'/'definition') — verified by Summary.test.tsx",
+        "Given the Summary renders rows in unchanged mode, when compared to the schema_view_modal key/value block in prototypes/design/Monopilot Design System/settings/modals.jsx:111-138, then it matches structurally (dl with dt/dd pairs in the same order as the rows prop), visually (uses tokens.css for spacing — no inline styles), and interactionally (no interactive controls; entirely read-only with role='term'/'definition') — verified by Summary.test.tsx",
         "Given a row has status='changed', when rendered, then a coloured left-border (via the design token --color-warning) is applied and the row's accessible name includes 'changed'",
         "Given an empty rows array, when rendered, then the component renders an EmptyState fallback (T-030 dependency satisfied via prop fallback) without crashing",
     ],
@@ -1407,13 +1407,13 @@ task(
         "packages/ui/src/run-history.ts [create]",
         "packages/ui/.storybook/Tuning.stories.tsx [create]",
         "packages/ui/src/__tests__/tuning.test.tsx [create]",
-        "design/Monopilot Design System/settings/access-screens.jsx:39-43 [ref]",
+        "prototypes/design/Monopilot Design System/settings/access-screens.jsx:39-43 [ref]",
     ],
     out_of_scope=OOS_GENERIC + ["No business data wiring — primitives only"],
     dependencies=["T-025"],
     parallel_safe_with=["T-026", "T-027", "T-028", "T-029"],
     acceptance_criteria=[
-        "Given the EmptyState primitive renders with icon + title + body + action, when compared to the EmptyState usage in design/Monopilot Design System/settings/access-screens.jsx:39-43, then it matches structurally (icon emoji slot, title text, body text, single action button), visually (uses tokens.css padding and uses shadcn Button — not raw <button>), and interactionally (action onClick fires on Enter and Space) — verified by tuning.test.tsx",
+        "Given the EmptyState primitive renders with icon + title + body + action, when compared to the EmptyState usage in prototypes/design/Monopilot Design System/settings/access-screens.jsx:39-43, then it matches structurally (icon emoji slot, title text, body text, single action button), visually (uses tokens.css padding and uses shadcn Button — not raw <button>), and interactionally (action onClick fires on Enter and Space) — verified by tuning.test.tsx",
         "Given a list of outbox events grouped by aggregate_id, when deriveRunHistory(events) runs, then it returns one RunHistoryRow per aggregate_id with newest-first ordering and a count of events",
         "Given DryRunButton is rendered with role='button', when inspected, then it carries the 'dry-run' variant class and a tooltip 'Preview only — no changes saved' (matches the rule_dry_run_modal pattern)",
     ],
@@ -1443,7 +1443,7 @@ task(
     details=(
         "Add packages/ui/.storybook/patterns/{P1..P10}.stories.tsx, each composing the Modal/Stepper/Field/ReasonInput/Summary primitives + tuning primitives where applicable. Reference _shared/MODAL-SCHEMA.md for the exact contract per pattern. "
         "Each story file includes an axe-core scan via @axe-core/playwright. Each pattern test in packages/ui/src/__tests__/patterns.test.tsx invokes assertModalA11y(container) (T-025 helper). "
-        "P1 Wizard parity: design/Monopilot Design System/settings/modals.jsx:141-259 (email_template_edit_modal). P5/P9 reason parity: modals.jsx:72-108 (flag_edit_modal). P10 Preview-compare parity: modals.jsx:18-69 (rule_dry_run_modal)."
+        "P1 Wizard parity: prototypes/design/Monopilot Design System/settings/modals.jsx:141-259 (email_template_edit_modal). P5/P9 reason parity: modals.jsx:72-108 (flag_edit_modal). P10 Preview-compare parity: modals.jsx:18-69 (rule_dry_run_modal)."
     ),
     scope_files=[
         "packages/ui/.storybook/patterns/P1-Wizard.stories.tsx [create]",
@@ -1458,16 +1458,16 @@ task(
         "packages/ui/.storybook/patterns/P10-PreviewCompare.stories.tsx [create]",
         "packages/ui/src/__tests__/patterns.test.tsx [create]",
         "_shared/MODAL-SCHEMA.md [ref]",
-        "design/Monopilot Design System/settings/modals.jsx:18-69 [ref]",
-        "design/Monopilot Design System/settings/modals.jsx:72-108 [ref]",
-        "design/Monopilot Design System/settings/modals.jsx:141-259 [ref]",
+        "prototypes/design/Monopilot Design System/settings/modals.jsx:18-69 [ref]",
+        "prototypes/design/Monopilot Design System/settings/modals.jsx:72-108 [ref]",
+        "prototypes/design/Monopilot Design System/settings/modals.jsx:141-259 [ref]",
     ],
     out_of_scope=OOS_GENERIC + ["No real data — all stories use mock data"],
     dependencies=["T-025", "T-026", "T-027", "T-028", "T-029", "T-030"],
     parallel_safe_with=[],
     acceptance_criteria=[
-        "Given the P1 Wizard story renders, when compared to design/Monopilot Design System/settings/modals.jsx:141-259 (email_template_edit_modal, 8-step wizard), then it matches structurally (8 step labels, Stepper composes inside Modal), visually (Radix Dialog + tokens.css), and interactionally (Back disabled at step 0, Next disabled when step has validation errors, ESC dismisses only when dismissible=true) — verified by patterns.test.tsx",
-        "Given the P10 Preview-compare story renders, when compared to design/Monopilot Design System/settings/modals.jsx:18-69 (rule_dry_run_modal), then it matches structurally (left/right panels with Summary primitive on the right, DryRunButton in footer), visually (tokens.css spacing), and interactionally (DryRunButton click triggers a mocked async with loading/result/error states) — verified by patterns.test.tsx",
+        "Given the P1 Wizard story renders, when compared to prototypes/design/Monopilot Design System/settings/modals.jsx:141-259 (email_template_edit_modal, 8-step wizard), then it matches structurally (8 step labels, Stepper composes inside Modal), visually (Radix Dialog + tokens.css), and interactionally (Back disabled at step 0, Next disabled when step has validation errors, ESC dismisses only when dismissible=true) — verified by patterns.test.tsx",
+        "Given the P10 Preview-compare story renders, when compared to prototypes/design/Monopilot Design System/settings/modals.jsx:18-69 (rule_dry_run_modal), then it matches structurally (left/right panels with Summary primitive on the right, DryRunButton in footer), visually (tokens.css spacing), and interactionally (DryRunButton click triggers a mocked async with loading/result/error states) — verified by patterns.test.tsx",
         "Given assertModalA11y(container) is invoked for each of the 10 patterns, when the test suite runs, then all 10 patterns pass with zero serious or critical axe-core violations",
     ],
     test_strategy=[
@@ -1653,7 +1653,7 @@ coverage_rows = [
 ]
 
 cov_lines = [
-    "# PRD Coverage — 00-FOUNDATION-PRD.md (v4.2)",
+    "# PRD Coverage — docs/prd/00-FOUNDATION-PRD.md (v4.2)",
     "",
     "## Coverage by PRD section",
     "",

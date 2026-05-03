@@ -565,13 +565,13 @@ Przykłady Apex L3:
 
 **FR-WH-035 (NEW v3.1, anchors UX M-15 + proto `state_transition_confirm_modal`):** Generic confirmation modal pattern dla każdej LP state-machine transition triggered z desktop (Block / Unblock / Destroy / inne side-effect transitions). Modal renderuje aktualny + nowy state, side-effect summary (np. "Blocking this LP will prevent all picking and movement operations."), oraz reason_code dropdown filtered per `lp_state_machine_v1` allowed reasons dla transition pair (from_state, to_state). Reason_text required jeśli reason_code = `other`.
 
-Rationale: PRD §6.1 enumeruje transition guards na poziomie reguły; user-facing confirm UI był dotychczas niejawny. UX M-15 (`design/05-WAREHOUSE-UX.md:1344`) materializuje wzorzec; prototyp `state_transition_confirm_modal` (`warehouse/modals.jsx:1106-1138`) implementuje. ADR-029 wymaga, by allowed reasons były server-driven z `lp_state_transitions` config, nie hardcoded w client.
+Rationale: PRD §6.1 enumeruje transition guards na poziomie reguły; user-facing confirm UI był dotychczas niejawny. UX M-15 (`prototypes/design/05-WAREHOUSE-UX.md:1344`) materializuje wzorzec; prototyp `state_transition_confirm_modal` (`warehouse/modals.jsx:1106-1138`) implementuje. ADR-029 wymaga, by allowed reasons były server-driven z `lp_state_transitions` config, nie hardcoded w client.
 
 V-WH-LP-010 (added): destructive transitions (block/destroy) MUSZĄ mieć reason_code; UI MUSI używać `.btn-danger` styling (BL-PROD-05 unblock — ensure shared design token import).
 
 ### 6.11 Force-unlock scanner lock (WH-102) [ADR-006 / ADR-008 [UNIVERSAL]]
 
-**FR-WH-036 (NEW v3.1, anchors UX WH-001 alert "Scanner lock stuck" + proto `force_unlock_scanner_modal`):** Admin-only override dla LP-level scanner lock (§6.6) gdy auto-release 5min nie zwolnił locku (np. operator session crash). Source surface: WH-001 dashboard alert "Scanner lock stuck" (`design/05-WAREHOUSE-UX.md:169`) + WH-003 LP detail "Force release" w lock banner (`UX:416`). Modal pokazuje LP, locked-by user, lock duration, fizyczna lokalizacja. Submit → DELETE z `scanner_locks` + insert audit event `scanner_lock_force_released` (admin_user_id, target_lp, original_holder, reason). RBAC: Admin only.
+**FR-WH-036 (NEW v3.1, anchors UX WH-001 alert "Scanner lock stuck" + proto `force_unlock_scanner_modal`):** Admin-only override dla LP-level scanner lock (§6.6) gdy auto-release 5min nie zwolnił locku (np. operator session crash). Source surface: WH-001 dashboard alert "Scanner lock stuck" (`prototypes/design/05-WAREHOUSE-UX.md:169`) + WH-003 LP detail "Force release" w lock banner (`UX:416`). Modal pokazuje LP, locked-by user, lock duration, fizyczna lokalizacja. Submit → DELETE z `scanner_locks` + insert audit event `scanner_lock_force_released` (admin_user_id, target_lp, original_holder, reason). RBAC: Admin only.
 
 V-WH-LP-011 (added): force-unlock requires Admin role (server-side enforcement) + audit row mandatory.
 
@@ -781,7 +781,7 @@ Dashboard roll-ups (inventory per warehouse/zone) używają tego pattern.
 
 ### 8.8 Cycle-count quick adjustment (P1 stub) [WH-103, ADR-008 [APEX-CONFIG→UNIVERSAL]]
 
-**FR-WH-037 (NEW v3.1, anchors UX M-14 + proto `cycle_count_quick_adjustment_modal`):** Lightweight P1 quantity-adjustment surface dla one-off counting corrections — full cycle count workflow (WH-E14) deferred → P2 (BL-WH-01). UX surface: `design/05-WAREHOUSE-UX.md:1329` (M-14 "Quick Stock Adjustment (Cycle Count)"). Pattern:
+**FR-WH-037 (NEW v3.1, anchors UX M-14 + proto `cycle_count_quick_adjustment_modal`):** Lightweight P1 quantity-adjustment surface dla one-off counting corrections — full cycle count workflow (WH-E14) deferred → P2 (BL-WH-01). UX surface: `prototypes/design/05-WAREHOUSE-UX.md:1329` (M-14 "Quick Stock Adjustment (Cycle Count)"). Pattern:
 - Trigger: LP list / Inventory Browser context menu, manager only.
 - Fields: LP (pre-filled), Current Qty (read-only), Actual Qty (numeric), Delta (auto-computed), Reason Code (`counting_error`/`damage`/`other`), Reason Text.
 - Threshold gate (re-uses §8.5): |delta| > 10% → submit changes do `[Submit for Approval]`, insert do `movement_approvals`.
@@ -1194,7 +1194,7 @@ P1: schema + API + Admin/Manager CRUD UI in Warehouse Settings. Full pick/ship e
 
 **FR-WH-039 (NEW v3.1, anchors UX WH-019 + proto `expiry_management_page`):** Dedicated `/warehouse/expiry` dashboard surface (poza dashboard widget WH-001) dla manualnych akcji wokół expired/expiring LP.
 
-UX anchor: `design/05-WAREHOUSE-UX.md:1021` (WH-019). Prototyp: `expiry_management_page` (`other-screens.jsx:363-480`).
+UX anchor: `prototypes/design/05-WAREHOUSE-UX.md:1021` (WH-019). Prototyp: `expiry_management_page` (`other-screens.jsx:363-480`).
 
 Page-level features:
 - Header: last cron run timestamp + next 3 scheduled runs + `[Run Cron Now]` (Admin)
@@ -1388,7 +1388,7 @@ Katalog screen codes dla 06-SCANNER-P1 (detail tam):
 
 **FR-WH-040 (NEW v3.1, anchors UX WH-012 + proto `inventory_browser_page`):** Aggregated read-only inventory view na `/warehouse/inventory`, complementing WH-002 LP list (LP-level) z aggregated grupowaniem.
 
-UX anchor: `design/05-WAREHOUSE-UX.md:770` (WH-012). Prototyp: `inventory_browser_page` (`other-screens.jsx:3-152`, BL-WH-05 — by-location P1 flat L2 only, full ltree hierarchy P2).
+UX anchor: `prototypes/design/05-WAREHOUSE-UX.md:770` (WH-012). Prototyp: `inventory_browser_page` (`other-screens.jsx:3-152`, BL-WH-05 — by-location P1 flat L2 only, full ltree hierarchy P2).
 
 Three-view toggle (URL param `?view=product|location|batch`):
 - **By Product**: row per product z Total Qty / Reserved / Available / QC Hold / Total LPs / Earliest Expiry / Locations count / Picking Strategy / Inventory Value (RBAC-gated). Row expand → LP list inline.
@@ -1403,7 +1403,7 @@ V-WH-DASH-001 (added): inventory value column MUSI być server-side RBAC-gated (
 
 **FR-WH-041 (NEW v3.1, anchors UX WH-018 + proto `locations_hierarchy_page`):** Read-only/admin location hierarchy management surface na `/warehouse/locations`. Operator/Manager browse hierarchy + LPs per location; Admin CRUD via M-13 modal.
 
-UX anchor: `design/05-WAREHOUSE-UX.md:988` (WH-018). Prototyp: `locations_hierarchy_page` (`other-screens.jsx:156-264`) + `location_edit_modal` (`modals.jsx:1010-1048`).
+UX anchor: `prototypes/design/05-WAREHOUSE-UX.md:988` (WH-018). Prototyp: `locations_hierarchy_page` (`other-screens.jsx:156-264`) + `location_edit_modal` (`modals.jsx:1010-1048`).
 
 Layout: master-detail (lewa kolumna location tree z `.tree-item.l0..l3` + LP count badges per node, prawa LP table filtered by zaznaczonej location ltree path).
 
@@ -1520,7 +1520,7 @@ Dual UoM label (baseline D21): "120 BOX / 184 KG" — operator enters primary, s
 
 **FR-WH-042 (NEW v3.1, anchors UX WH-020 + proto `warehouse_settings_page`):** Tenant-level warehouse settings surface na `/warehouse/settings`, Admin-edit / Manager-read.
 
-UX anchor: `design/05-WAREHOUSE-UX.md:1071` (WH-020). Prototyp: `warehouse_settings_page` (`other-screens.jsx:484-631`, BL-WH-02 — Locations + Integrations tabs są P1 placeholders).
+UX anchor: `prototypes/design/05-WAREHOUSE-UX.md:1071` (WH-020). Prototyp: `warehouse_settings_page` (`other-screens.jsx:484-631`, BL-WH-02 — Locations + Integrations tabs są P1 placeholders).
 
 Layout: left-nav (sticky, 200px) z 9 setting categories (URL param `?cat=`). Każda kategoria = osobny react-hook-form, osobny `[Save Changes]` button — nie jeden giant form.
 

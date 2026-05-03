@@ -1,6 +1,6 @@
 {
   "title": "T-042 — UI: TEC-082 BOM Version Delete modal (type-to-confirm)",
-  "prompt": "Build the type-to-confirm BOM version delete modal per §7A. Guards against deletion when active bom_snapshots reference the version. Match prototype `delete_bom_version_modal` design/Monopilot Design System/technical/modals.jsx:245-266. RED tests/ui/tec-082-delete-version.test.tsx. Run: `pnpm vitest run tests/ui/tec-082-delete-version.test.tsx`. Prototype naming red-line: translate any legacy prototype/domain labels `fa`/`FA5100`/Factory Article to canonical `fg`/FG, any `PR-code` wording to WIP/intermediate, and any `process_stage`/`process_code` to `manufacturing_operation_name`; do not introduce legacy field names in final code, labels, tests or schemas.",
+  "prompt": "Build the type-to-confirm BOM version delete modal per §7A. Guards against deletion when active bom_snapshots reference the version. Match prototype `delete_bom_version_modal` prototypes/design/Monopilot Design System/technical/modals.jsx:245-266. RED tests/ui/tec-082-delete-version.test.tsx. Run: `pnpm vitest run tests/ui/tec-082-delete-version.test.tsx`. Prototype naming red-line: translate any legacy prototype/domain labels `fa`/`FA5100`/Factory Article to canonical `fg`/FG, any `PR-code` wording to WIP/intermediate, and any `process_stage`/`process_code` to `manufacturing_operation_name`; do not introduce legacy field names in final code, labels, tests or schemas.",
   "labels": [
     "prd",
     "ui",
@@ -13,7 +13,7 @@
   "pipeline_inputs": {
     "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
     "prd_task_id": "T-042",
-    "source_prd": "03-TECHNICAL-PRD.md",
+    "source_prd": "docs/prd/03-TECHNICAL-PRD.md",
     "prd_refs": [
       "§7A TEC-082"
     ],
@@ -40,7 +40,7 @@
       "T-043"
     ],
     "acceptance_criteria": [
-      "Given the modal opens, when compared to design/Monopilot Design System/technical/modals.jsx:245-266, then it shows the same warning copy, type-to-confirm input, and destructive Delete button — structural + visual + interaction parity verified by RTL.",
+      "Given the modal opens, when compared to prototypes/design/Monopilot Design System/technical/modals.jsx:245-266, then it shows the same warning copy, type-to-confirm input, and destructive Delete button — structural + visual + interaction parity verified by RTL.",
       "Given snapshot count > 0, when modal opens, then Delete button is disabled and a blocking notice appears.",
       "Given user types matching version label, when confirmed, then DELETE request is fired.",
       "UI closeout includes screenshot/artifact evidence and Playwright trace/artifacts where applicable per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`; if Playwright is unavailable, document the blocker and provide RTL/snapshot fallback evidence."

@@ -6,7 +6,7 @@
   "entries": [
     {
       "label": "export_report_modal",
-      "file": "design/Monopilot Design System/reporting/modals.jsx",
+      "file": "prototypes/design/Monopilot Design System/reporting/modals.jsx",
       "lines": "20-112",
       "component_type": "modal",
       "ui_pattern": "crud-form-with-validation",
@@ -43,7 +43,7 @@
     },
     {
       "label": "save_preset_modal",
-      "file": "design/Monopilot Design System/reporting/modals.jsx",
+      "file": "prototypes/design/Monopilot Design System/reporting/modals.jsx",
       "lines": "115-148",
       "component_type": "modal",
       "ui_pattern": "crud-form-with-validation",
@@ -76,7 +76,7 @@
     },
     {
       "label": "schedule_report_modal",
-      "file": "design/Monopilot Design System/reporting/modals.jsx",
+      "file": "prototypes/design/Monopilot Design System/reporting/modals.jsx",
       "lines": "151-255",
       "component_type": "wizard",
       "ui_pattern": "multi-step-wizard",
@@ -117,7 +117,7 @@
     },
     {
       "label": "share_report_modal",
-      "file": "design/Monopilot Design System/reporting/modals.jsx",
+      "file": "prototypes/design/Monopilot Design System/reporting/modals.jsx",
       "lines": "258-282",
       "component_type": "modal",
       "ui_pattern": "detail-view",
@@ -150,7 +150,7 @@
     },
     {
       "label": "delete_confirm_modal",
-      "file": "design/Monopilot Design System/reporting/modals.jsx",
+      "file": "prototypes/design/Monopilot Design System/reporting/modals.jsx",
       "lines": "285-303",
       "component_type": "modal",
       "ui_pattern": "crud-form-with-validation",
@@ -180,7 +180,7 @@
     },
     {
       "label": "error_log_modal",
-      "file": "design/Monopilot Design System/reporting/modals.jsx",
+      "file": "prototypes/design/Monopilot Design System/reporting/modals.jsx",
       "lines": "306-329",
       "component_type": "modal",
       "ui_pattern": "detail-view",
@@ -209,7 +209,7 @@
     },
     {
       "label": "regulatory_signoff_modal",
-      "file": "design/Monopilot Design System/reporting/modals.jsx",
+      "file": "prototypes/design/Monopilot Design System/reporting/modals.jsx",
       "lines": "332-378",
       "component_type": "modal",
       "ui_pattern": "crud-form-with-validation",
@@ -245,7 +245,7 @@
     },
     {
       "label": "refresh_confirm_modal",
-      "file": "design/Monopilot Design System/reporting/modals.jsx",
+      "file": "prototypes/design/Monopilot Design System/reporting/modals.jsx",
       "lines": "381-400",
       "component_type": "modal",
       "ui_pattern": "crud-form-with-validation",
@@ -271,7 +271,7 @@
     },
     {
       "label": "recipient_group_modal",
-      "file": "design/Monopilot Design System/reporting/modals.jsx",
+      "file": "prototypes/design/Monopilot Design System/reporting/modals.jsx",
       "lines": "403-435",
       "component_type": "modal",
       "ui_pattern": "crud-form-with-validation",
@@ -306,7 +306,7 @@
     },
     {
       "label": "run_now_confirm_modal",
-      "file": "design/Monopilot Design System/reporting/modals.jsx",
+      "file": "prototypes/design/Monopilot Design System/reporting/modals.jsx",
       "lines": "438-450",
       "component_type": "modal",
       "ui_pattern": "crud-form-with-validation",
@@ -332,7 +332,7 @@
     },
     {
       "label": "p2_toast_modal",
-      "file": "design/Monopilot Design System/reporting/modals.jsx",
+      "file": "prototypes/design/Monopilot Design System/reporting/modals.jsx",
       "lines": "453-464",
       "component_type": "modal",
       "ui_pattern": "detail-view",
@@ -359,7 +359,7 @@
     },
     {
       "label": "access_denied_modal",
-      "file": "design/Monopilot Design System/reporting/modals.jsx",
+      "file": "prototypes/design/Monopilot Design System/reporting/modals.jsx",
       "lines": "467-481",
       "component_type": "modal",
       "ui_pattern": "detail-view",
@@ -387,7 +387,7 @@
     },
     {
       "label": "rpt_home_dashboard_catalog",
-      "file": "design/Monopilot Design System/reporting/dashboard.jsx",
+      "file": "prototypes/design/Monopilot Design System/reporting/dashboard.jsx",
       "lines": "3-112",
       "component_type": "page-layout",
       "ui_pattern": "search-filter-list",
@@ -427,7 +427,7 @@
     },
     {
       "label": "rpt_factory_overview",
-      "file": "design/Monopilot Design System/reporting/catalog-screens.jsx",
+      "file": "prototypes/design/Monopilot Design System/reporting/catalog-screens.jsx",
       "lines": "251-398",
       "component_type": "page-layout",
       "ui_pattern": "dashboard-tile",
@@ -475,7 +475,7 @@
     },
     {
       "label": "rpt_yield_by_line",
-      "file": "design/Monopilot Design System/reporting/catalog-screens.jsx",
+      "file": "prototypes/design/Monopilot Design System/reporting/catalog-screens.jsx",
       "lines": "402-492",
       "component_type": "page-layout",
       "ui_pattern": "list-with-actions",
@@ -515,7 +515,7 @@
     },
     {
       "label": "rpt_yield_by_sku",
-      "file": "design/Monopilot Design System/reporting/catalog-screens.jsx",
+      "file": "prototypes/design/Monopilot Design System/reporting/catalog-screens.jsx",
       "lines": "496-617",
       "component_type": "page-layout",
       "ui_pattern": "list-with-actions",
@@ -559,7 +559,7 @@
     },
     {
       "label": "rpt_qc_holds",
-      "file": "design/Monopilot Design System/reporting/kpi-screens.jsx",
+      "file": "prototypes/design/Monopilot Design System/reporting/kpi-screens.jsx",
       "lines": "5-166",
       "component_type": "page-layout",
       "ui_pattern": "list-with-actions",
@@ -602,7 +602,7 @@
     },
     {
       "label": "rpt_oee_summary",
-      "file": "design/Monopilot Design System/reporting/kpi-screens.jsx",
+      "file": "prototypes/design/Monopilot Design System/reporting/kpi-screens.jsx",
       "lines": "169-310",
       "component_type": "page-layout",
       "ui_pattern": "dashboard-tile",
@@ -643,7 +643,7 @@
     },
     {
       "label": "rpt_inventory_aging",
-      "file": "design/Monopilot Design System/reporting/kpi-screens.jsx",
+      "file": "prototypes/design/Monopilot Design System/reporting/kpi-screens.jsx",
       "lines": "313-466",
       "component_type": "page-layout",
       "ui_pattern": "list-with-actions",
@@ -684,7 +684,7 @@
     },
     {
       "label": "rpt_wo_status",
-      "file": "design/Monopilot Design System/reporting/kpi-screens.jsx",
+      "file": "prototypes/design/Monopilot Design System/reporting/kpi-screens.jsx",
       "lines": "470-585",
       "component_type": "page-layout",
       "ui_pattern": "list-with-actions",
@@ -724,7 +724,7 @@
     },
     {
       "label": "rpt_shipment_otd",
-      "file": "design/Monopilot Design System/reporting/kpi-screens.jsx",
+      "file": "prototypes/design/Monopilot Design System/reporting/kpi-screens.jsx",
       "lines": "588-706",
       "component_type": "page-layout",
       "ui_pattern": "list-with-actions",
@@ -765,7 +765,7 @@
     },
     {
       "label": "rpt_integration_health",
-      "file": "design/Monopilot Design System/reporting/admin-screens.jsx",
+      "file": "prototypes/design/Monopilot Design System/reporting/admin-screens.jsx",
       "lines": "4-144",
       "component_type": "page-layout",
       "ui_pattern": "list-with-actions",
@@ -804,7 +804,7 @@
     },
     {
       "label": "rpt_rules_usage",
-      "file": "design/Monopilot Design System/reporting/admin-screens.jsx",
+      "file": "prototypes/design/Monopilot Design System/reporting/admin-screens.jsx",
       "lines": "147-283",
       "component_type": "page-layout",
       "ui_pattern": "list-with-actions",
@@ -848,7 +848,7 @@
     },
     {
       "label": "rpt_settings_tabbed",
-      "file": "design/Monopilot Design System/reporting/admin-screens.jsx",
+      "file": "prototypes/design/Monopilot Design System/reporting/admin-screens.jsx",
       "lines": "287-466",
       "component_type": "tabs",
       "ui_pattern": "crud-form-with-validation",
@@ -896,7 +896,7 @@
     },
     {
       "label": "rpt_exports_history",
-      "file": "design/Monopilot Design System/reporting/other-screens.jsx",
+      "file": "prototypes/design/Monopilot Design System/reporting/other-screens.jsx",
       "lines": "4-86",
       "component_type": "page-layout",
       "ui_pattern": "list-with-actions",
@@ -935,7 +935,7 @@
     },
     {
       "label": "rpt_saved_filters",
-      "file": "design/Monopilot Design System/reporting/other-screens.jsx",
+      "file": "prototypes/design/Monopilot Design System/reporting/other-screens.jsx",
       "lines": "89-156",
       "component_type": "page-layout",
       "ui_pattern": "list-with-actions",
@@ -972,7 +972,7 @@
     },
     {
       "label": "rpt_scheduled_list",
-      "file": "design/Monopilot Design System/reporting/other-screens.jsx",
+      "file": "prototypes/design/Monopilot Design System/reporting/other-screens.jsx",
       "lines": "159-242",
       "component_type": "page-layout",
       "ui_pattern": "list-with-actions",
@@ -1012,7 +1012,7 @@
     },
     {
       "label": "rpt_scheduled_edit",
-      "file": "design/Monopilot Design System/reporting/other-screens.jsx",
+      "file": "prototypes/design/Monopilot Design System/reporting/other-screens.jsx",
       "lines": "245-432",
       "component_type": "form",
       "ui_pattern": "crud-form-with-validation",

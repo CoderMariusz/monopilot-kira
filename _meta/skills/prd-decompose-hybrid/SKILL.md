@@ -89,7 +89,7 @@ Do not use it for a trivial one-paragraph PRD unless the user explicitly wants A
 
 ```json
 {
-  "source_prd": "prd/master-prd.md",
+  "source_prd": "docs/prd/master-prd.md",
   "root_path": "/ABSOLUTE/PATH/TO/PROJECT",
   "generated_at": "2026-04-30T00:00:00Z",
   "generator": "prd-decompose-hybrid",
@@ -152,7 +152,7 @@ Top-level shape (only these keys; ACP `TaskCreate` schema accepts no others):
   "pipeline_inputs": {
     "root_path": "/ABSOLUTE/PATH/TO/PROJECT",
     "prd_task_id": "T-001",
-    "source_prd": "prd/master-prd.md",
+    "source_prd": "docs/prd/master-prd.md",
     "prd_refs": ["§2.1", "§2.2"],
 
     "category": "api|ui|data|infra|auth|docs|test|integration",
@@ -350,7 +350,7 @@ The parity AC must name the prototype file + line range and assert that the prod
 
 Phrase the AC concretely so it is testable. Examples:
 
-> "Given the production page renders, when compared to `design/Monopilot Design System/settings/access-screens.jsx:162-244`, then it has the same 9 form fields in the same order, the same 3 action buttons, and uses the same shadcn primitives (Input, Select, Switch) — verified by RTL snapshot + manual review checklist in `pipeline_inputs.details`."
+> "Given the production page renders, when compared to `prototypes/design/Monopilot Design System/settings/access-screens.jsx:162-244`, then it has the same 9 form fields in the same order, the same 3 action buttons, and uses the same shadcn primitives (Input, Select, Switch) — verified by RTL snapshot + manual review checklist in `pipeline_inputs.details`."
 
 > "Given the modal opens, when compared to `modals.jsx:431-594` (D365 wizard, 8 steps), then it renders all 8 step labels, the same Next/Back/Cancel buttons, and the dismissible=false guard during execute step — verified by RTL test counting steps and asserting button states."
 

@@ -1,6 +1,6 @@
 {
   "title": "T-021 — QA-020 specs_list page (prototype parity)",
-  "prompt": "# T-021 — QA-020 specs_list page\n\nPRD: 09-QUALITY-PRD.md §8.2 QA-020, §8.5 prototype specs_list\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nBuild `/quality/specs` Server Component listing specs with filters (product, status, applies_to, version), columns SpecCode | Product | Version | Status badge | AppliesTo | EffectiveFrom | ApprovedBy | Actions; New Spec button.\n\n## Implementation contract\n1. `apps/web/src/app/quality/specs/page.tsx` Server Component reads listSpecs(filters).\n2. shadcn Table + Filter bar (Select for product, status, applies_to).\n3. Status Badge mapping: draft=secondary, under_review=warning, active=success, expired=destructive, superseded=outline.\n4. 1:1 parity vs `design/Monopilot Design System/quality/specs-screens.jsx:3-79`.\n\n## Files\n- apps/web/src/app/quality/specs/page.tsx [create]\n- apps/web/src/server/quality/listSpecs.ts [create]\n- apps/web/src/components/quality/specs/SpecsListTable.tsx [create]\n- apps/web/src/components/quality/specs/__tests__/specsList.test.tsx [create]\n- design/Monopilot Design System/quality/specs-screens.jsx [ref]\n\n## Acceptance criteria\n1. Given the page renders, when compared to design/Monopilot Design System/quality/specs-screens.jsx:3-79, then it has parity with the prototype on structure (filter bar with product/status/applies_to Selects + New Spec button, 8-column Table in declared order), visuals (shadcn Table/Select/Badge/Button only, status Badge variant maps per checklist), and interaction parity (row click → /quality/specs/:id, New Spec → /quality/specs/new) — verified by RTL plus parity checklist in pipeline_inputs.details\n2. Given listSpecs returns 0 rows, when the page renders, then the empty-state copy 'No specifications yet — click New Spec to define one.' is shown\n3. Given filter status=active applied via search params, when the page renders, then only active specs are listed and the URL params persist",
+  "prompt": "# T-021 — QA-020 specs_list page\n\nPRD: docs/prd/09-QUALITY-PRD.md §8.2 QA-020, §8.5 prototype specs_list\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nBuild `/quality/specs` Server Component listing specs with filters (product, status, applies_to, version), columns SpecCode | Product | Version | Status badge | AppliesTo | EffectiveFrom | ApprovedBy | Actions; New Spec button.\n\n## Implementation contract\n1. `apps/web/src/app/quality/specs/page.tsx` Server Component reads listSpecs(filters).\n2. shadcn Table + Filter bar (Select for product, status, applies_to).\n3. Status Badge mapping: draft=secondary, under_review=warning, active=success, expired=destructive, superseded=outline.\n4. 1:1 parity vs `prototypes/design/Monopilot Design System/quality/specs-screens.jsx:3-79`.\n\n## Files\n- apps/web/src/app/quality/specs/page.tsx [create]\n- apps/web/src/server/quality/listSpecs.ts [create]\n- apps/web/src/components/quality/specs/SpecsListTable.tsx [create]\n- apps/web/src/components/quality/specs/__tests__/specsList.test.tsx [create]\n- prototypes/design/Monopilot Design System/quality/specs-screens.jsx [ref]\n\n## Acceptance criteria\n1. Given the page renders, when compared to prototypes/design/Monopilot Design System/quality/specs-screens.jsx:3-79, then it has parity with the prototype on structure (filter bar with product/status/applies_to Selects + New Spec button, 8-column Table in declared order), visuals (shadcn Table/Select/Badge/Button only, status Badge variant maps per checklist), and interaction parity (row click → /quality/specs/:id, New Spec → /quality/specs/new) — verified by RTL plus parity checklist in pipeline_inputs.details\n2. Given listSpecs returns 0 rows, when the page renders, then the empty-state copy 'No specifications yet — click New Spec to define one.' is shown\n3. Given filter status=active applied via search params, when the page renders, then only active specs are listed and the URL params persist",
   "labels": ["prd", "ui", "qa-specs-list", "T3-ui"],
   "priority": 100,
   "max_attempts": 3,
@@ -8,7 +8,7 @@
   "pipeline_inputs": {
     "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
     "prd_task_id": "T-021",
-    "source_prd": "09-QUALITY-PRD.md",
+    "source_prd": "docs/prd/09-QUALITY-PRD.md",
     "prd_refs": ["§8.2 QA-020", "§8.5"],
     "category": "ui",
     "subcategory": "qa-specs-list",
@@ -24,7 +24,7 @@
       "apps/web/src/server/quality/listSpecs.ts [create]",
       "apps/web/src/components/quality/specs/SpecsListTable.tsx [create]",
       "apps/web/src/components/quality/specs/__tests__/specsList.test.tsx [create]",
-      "design/Monopilot Design System/quality/specs-screens.jsx [ref]"
+      "prototypes/design/Monopilot Design System/quality/specs-screens.jsx [ref]"
     ],
     "out_of_scope": [
       "Do not implement spec wizard (T-022)",
@@ -34,7 +34,7 @@
     "dependencies": ["T-017"],
     "parallel_safe_with": ["T-013", "T-014", "T-022", "T-023"],
     "acceptance_criteria": [
-      "Given the page renders, when compared to design/Monopilot Design System/quality/specs-screens.jsx:3-79, then it has parity with the prototype on structure (filter bar with product/status/applies_to Selects + New Spec button, 8-column Table in declared order), visuals (shadcn primitives only, status Badge variant per checklist), and interaction (row click → /quality/specs/:id, New Spec → /quality/specs/new) — verified by RTL plus parity checklist in pipeline_inputs.details",
+      "Given the page renders, when compared to prototypes/design/Monopilot Design System/quality/specs-screens.jsx:3-79, then it has parity with the prototype on structure (filter bar with product/status/applies_to Selects + New Spec button, 8-column Table in declared order), visuals (shadcn primitives only, status Badge variant per checklist), and interaction (row click → /quality/specs/:id, New Spec → /quality/specs/new) — verified by RTL plus parity checklist in pipeline_inputs.details",
       "Given listSpecs returns 0 rows, when the page renders, then the empty-state copy 'No specifications yet — click New Spec to define one.' is shown",
       "Given filter status=active in search params, when the page renders, then only active specs are listed and params persist on reload"
     ],

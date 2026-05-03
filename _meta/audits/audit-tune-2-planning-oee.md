@@ -1,8 +1,8 @@
 # Audit: tune-2-planning-oee
-**Auditor:** Audit-2 (read-only)  
-**Date:** 2026-04-23  
-**Sources:** `04-PLANNING-BASIC-PRD.md` v3.1, `15-OEE-PRD.md` v3.1, `00-FOUNDATION-PRD.md` v3.0, `design/04-PLANNING-BASIC-UX.md` v1.0, `design/Monopilot Design System/planning/` (14 files), `design/Monopilot Design System/oee/` (8 files)  
-**Note:** `design/15-OEE-UX.md` does NOT exist (Glob confirmed). OEE prototype generated directly from PRD.
+**Auditor:** Audit-2 (read-only)
+**Date:** 2026-04-23
+**Sources:** `docs/prd/04-PLANNING-BASIC-PRD.md` v3.1, `docs/prd/15-OEE-PRD.md` v3.1, `docs/prd/00-FOUNDATION-PRD.md` v3.0, `prototypes/design/04-PLANNING-BASIC-UX.md` v1.0, `prototypes/design/Monopilot Design System/planning/` (14 files), `prototypes/design/Monopilot Design System/oee/` (8 files)
+**Note:** `prototypes/design/15-OEE-UX.md` does NOT exist (Glob confirmed). OEE prototype generated directly from PRD.
 
 ---
 

@@ -47,8 +47,8 @@ total_tasks: 95
 # Task T-00b-000 — Baseline migration 001-baseline.sql
 
 ## Context — przeczytaj przed implementacją
-- `/Users/mariuszkrawczyk/Projects/monopilot-kira/00-FOUNDATION-PRD.md` → znajdź sekcję `## §8` — multi-tenant model L1-L4, tenant schema requirements
-- `/Users/mariuszkrawczyk/Projects/monopilot-kira/00-FOUNDATION-PRD.md` → znajdź sekcję `## §10` — R13 identity columns spec
+- `/Users/mariuszkrawczyk/Projects/monopilot-kira/docs/prd/00-FOUNDATION-PRD.md` → znajdź sekcję `## §8` — multi-tenant model L1-L4, tenant schema requirements
+- `/Users/mariuszkrawczyk/Projects/monopilot-kira/docs/prd/00-FOUNDATION-PRD.md` → znajdź sekcję `## §10` — R13 identity columns spec
 
 ## Twoje zadanie
 Stwórz baseline Drizzle migration dla 7 tabel: `tenants`, `users`, `user_tenants`, `roles`, `user_roles`, `modules`, `organization_modules`. Każda tabela biznesowa musi mieć R13 columns: `id UUID DEFAULT gen_random_uuid() PRIMARY KEY`, `tenant_id UUID NOT NULL REFERENCES tenants(id)`, `created_at TIMESTAMPTZ DEFAULT now()`, `created_by_user UUID`, `created_by_device UUID`, `app_version TEXT`, `model_prediction_id UUID`, `epcis_event_id UUID`, `external_id TEXT`, `schema_version INT NOT NULL DEFAULT 1`.
@@ -1242,7 +1242,7 @@ Utwórz `packages/db/rls-context.ts` z funkcjami `setCurrentOrgId` i `withOrgCon
 # Task T-00b-M01 — Main Table migration 69 typed Apex cols
 
 ## Context — przeczytaj przed implementacją
-- `/Users/mariuszkrawczyk/Projects/monopilot-kira/_foundation/01-NPD-PRD.md` → znajdź sekcję `## §5` — Main Table 69 columns spec z pełnymi typami
+- `/Users/mariuszkrawczyk/Projects/monopilot-kira/_foundation/docs/prd/01-NPD-PRD.md` → znajdź sekcję `## §5` — Main Table 69 columns spec z pełnymi typami
 - Sprawdź aktualny stan migrations: `ls drizzle/migrations/` — użyj najwyższego numeru + 1
 
 ## Twoje zadanie
@@ -2663,7 +2663,7 @@ Utwórz reference_rules table z CHECK constraint na rule_type + GIN index na def
 # Task T-00g-002 — DSL interpreter: cascading rule type
 
 ## Context — przeczytaj przed implementacją
-- /Users/mariuszkrawczyk/Projects/monopilot-kira/00-FOUNDATION-PRD.md → znajdź sekcję ## §7 — Rule Engine DSL spec i przykłady
+- /Users/mariuszkrawczyk/Projects/monopilot-kira/docs/prd/00-FOUNDATION-PRD.md → znajdź sekcję ## §7 — Rule Engine DSL spec i przykłady
 
 ## Twoje zadanie
 Utwórz packages/rule-engine/interpreters/cascading.ts — pure function evaluate(rule, input) → { downstream fields }.
@@ -2780,7 +2780,7 @@ Utwórz packages/rule-engine/interpreters/conditional-required.ts — returns re
 # Task T-00g-004 — DSL interpreter: gate rule type
 
 ## Context — przeczytaj przed implementacją
-- /Users/mariuszkrawczyk/Projects/monopilot-kira/00-FOUNDATION-PRD.md → znajdź sekcję ## §7 — allergen changeover gate example
+- /Users/mariuszkrawczyk/Projects/monopilot-kira/docs/prd/00-FOUNDATION-PRD.md → znajdź sekcję ## §7 — allergen changeover gate example
 
 ## Twoje zadanie
 Utwórz packages/rule-engine/interpreters/gate.ts — returns { ok, missing_actions, notify }.
@@ -4138,7 +4138,7 @@ Rozdziel connection strings: DATABASE_URL (app_role, no DDL) vs DATABASE_URL_MIG
 # Task T-GOV-001 — ADR-028 Schema-driven column definition
 
 ## Context
-- /Users/mariuszkrawczyk/Projects/monopilot-kira/00-FOUNDATION-PRD.md → §6 Schema-driven Foundation [ADR-028]
+- /Users/mariuszkrawczyk/Projects/monopilot-kira/docs/prd/00-FOUNDATION-PRD.md → §6 Schema-driven Foundation [ADR-028]
 
 ## Twoje zadanie
 Utwórz docs/adr/ADR-028-schema-driven-column-definition.md per §6 PRD.
@@ -4196,7 +4196,7 @@ Utwórz docs/adr/ADR-028-schema-driven-column-definition.md per §6 PRD.
 # Task T-GOV-002 — ADR-029 Rule engine DSL
 
 ## Context
-- /Users/mariuszkrawczyk/Projects/monopilot-kira/00-FOUNDATION-PRD.md → §7 Rule Engine DSL
+- /Users/mariuszkrawczyk/Projects/monopilot-kira/docs/prd/00-FOUNDATION-PRD.md → §7 Rule Engine DSL
 
 ## Twoje zadanie
 Utwórz docs/adr/ADR-029-rule-engine-dsl-workflow-as-data.md per §7 PRD.
@@ -4248,7 +4248,7 @@ Utwórz docs/adr/ADR-029-rule-engine-dsl-workflow-as-data.md per §7 PRD.
 # Task T-GOV-003 — ADR-030 Configurable department taxonomy
 
 ## Context
-- /Users/mariuszkrawczyk/Projects/monopilot-kira/00-FOUNDATION-PRD.md → §9 Configurable Department Taxonomy
+- /Users/mariuszkrawczyk/Projects/monopilot-kira/docs/prd/00-FOUNDATION-PRD.md → §9 Configurable Department Taxonomy
 
 ## Files
 **Create:** `docs/adr/ADR-030-configurable-department-taxonomy.md`
@@ -4297,7 +4297,7 @@ Utwórz docs/adr/ADR-029-rule-engine-dsl-workflow-as-data.md per §7 PRD.
 # Task T-GOV-004 — ADR-031 Schema variation per org L1-L4
 
 ## Context
-- /Users/mariuszkrawczyk/Projects/monopilot-kira/00-FOUNDATION-PRD.md → §8 Multi-tenant Model L1-L4
+- /Users/mariuszkrawczyk/Projects/monopilot-kira/docs/prd/00-FOUNDATION-PRD.md → §8 Multi-tenant Model L1-L4
 
 ## Files
 **Create:** `docs/adr/ADR-031-schema-variation-per-org-L1-L4.md`
@@ -4346,7 +4346,7 @@ Utwórz docs/adr/ADR-029-rule-engine-dsl-workflow-as-data.md per §7 PRD.
 # Task T-GOV-005 — Marker discipline reference doc
 
 ## Context
-- /Users/mariuszkrawczyk/Projects/monopilot-kira/00-FOUNDATION-PRD.md → §2 Marker Discipline
+- /Users/mariuszkrawczyk/Projects/monopilot-kira/docs/prd/00-FOUNDATION-PRD.md → §2 Marker Discipline
 
 ## Files
 **Create:** `docs/MARKER-DISCIPLINE.md`
@@ -4454,7 +4454,7 @@ Remove from .husky/pre-commit
 # Task T-GOV-007 — Personas and module map reference docs
 
 ## Context
-- /Users/mariuszkrawczyk/Projects/monopilot-kira/00-FOUNDATION-PRD.md → §3 Personas, §4 Module Map
+- /Users/mariuszkrawczyk/Projects/monopilot-kira/docs/prd/00-FOUNDATION-PRD.md → §3 Personas, §4 Module Map
 
 ## Files
 **Create:** `docs/PERSONAS.md`, `docs/MODULE-MAP.md`
@@ -4504,7 +4504,7 @@ Remove from .husky/pre-commit
 # Task T-GOV-008 — Regulatory roadmap artifact
 
 ## Context
-- /Users/mariuszkrawczyk/Projects/monopilot-kira/00-FOUNDATION-PRD.md → §11 Cross-cutting Requirements (regulatory refs)
+- /Users/mariuszkrawczyk/Projects/monopilot-kira/docs/prd/00-FOUNDATION-PRD.md → §11 Cross-cutting Requirements (regulatory refs)
 
 ## Files
 **Create:** `docs/regulatory/FSMA.md`, `docs/regulatory/EUDR.md`, `docs/regulatory/PEPPOL.md`, `docs/regulatory/VIDA.md`, `docs/regulatory/BRCGS.md`, `docs/regulatory/FIC-1169.md`, `docs/regulatory/KSEF.md`
@@ -4553,7 +4553,7 @@ Remove from .husky/pre-commit
 # Task T-GOV-009 — Out-of-scope policy doc
 
 ## Context
-- /Users/mariuszkrawczyk/Projects/monopilot-kira/00-FOUNDATION-PRD.md → §11 [R8] out-of-scope items
+- /Users/mariuszkrawczyk/Projects/monopilot-kira/docs/prd/00-FOUNDATION-PRD.md → §11 [R8] out-of-scope items
 
 ## Files
 **Create:** `docs/OUT-OF-SCOPE.md`
@@ -4695,7 +4695,7 @@ Remove from .husky/pre-commit
 # Task T-GOV-012 — Open items register
 
 ## Context
-- /Users/mariuszkrawczyk/Projects/monopilot-kira/00-FOUNDATION-PRD.md → §14 Open Items (carry-forward)
+- /Users/mariuszkrawczyk/Projects/monopilot-kira/docs/prd/00-FOUNDATION-PRD.md → §14 Open Items (carry-forward)
 
 ## Files
 **Create:** `docs/conventions/OPEN-ITEMS.md`

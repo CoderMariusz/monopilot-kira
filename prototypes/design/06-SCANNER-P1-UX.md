@@ -3,8 +3,8 @@
 **Version:** 1.1
 **Date:** 2026-05-03
 **Status:** Final — Wave Next-3 hardening applied
-**Source PRD:** 06-SCANNER-P1-PRD.md v3.1.2
-**Primary prototype reference:** `design/Monopilot Design System/scanner/*.jsx` plus `_meta/prototype-labels/prototype-index-scanner.json` (55 canonical labels after hardening)
+**Source PRD:** docs/prd/06-SCANNER-P1-PRD.md v3.1.2
+**Primary prototype reference:** `prototypes/design/Monopilot Design System/scanner/*.jsx` plus `_meta/prototype-labels/prototype-index-scanner.json` (55 canonical labels after hardening)
 **Consumer of:** 05-WAREHOUSE v3.0 §13, 04-PLANNING-BASIC WO/reservation contracts, 08-PRODUCTION output/execute contracts, 09-QUALITY QA/NCR contracts
 **Target output:** Implementation tasks with 390x844 mobile screenshot and Playwright trace evidence
 

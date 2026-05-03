@@ -1,6 +1,6 @@
 {
   "title": "T-056 — Scheduler end-to-end flow and prototype label marker tests",
-  "prompt": "# T-056 — Scheduler end-to-end flow and prototype label marker tests\n\nPRD: `07-PLANNING-EXT-PRD.md` §13.1 P1 checklist, §18 UI matrix, prototype-index-planning-ext.json.\nUX/prototype refs are listed in `pipeline_inputs.scope_files`.\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`.\n\n## Goal\nAdd cross-surface E2E and label marker proof for 95%+ readiness.\n\n## Implementation contract\nTests should be data-driven from prototype-index-planning-ext.json and confirm P1 surfaces expose stable markers; P2 surfaces may be locked but must be intentionally represented.\n\nACP shape reminder: keep this task as one atomic implementation. Do not add ACP-owned fields. Keep local dependencies in `dependencies`; cross-module contracts in `cross_module_dependencies` are blockers/inputs, not ACP local task IDs.",
+  "prompt": "# T-056 — Scheduler end-to-end flow and prototype label marker tests\n\nPRD: `docs/prd/07-PLANNING-EXT-PRD.md` §13.1 P1 checklist, §18 UI matrix, prototype-index-planning-ext.json.\nUX/prototype refs are listed in `pipeline_inputs.scope_files`.\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`.\n\n## Goal\nAdd cross-surface E2E and label marker proof for 95%+ readiness.\n\n## Implementation contract\nTests should be data-driven from prototype-index-planning-ext.json and confirm P1 surfaces expose stable markers; P2 surfaces may be locked but must be intentionally represented.\n\nACP shape reminder: keep this task as one atomic implementation. Do not add ACP-owned fields. Keep local dependencies in `dependencies`; cross-module contracts in `cross_module_dependencies` are blockers/inputs, not ACP local task IDs.",
   "labels": [
     "prd",
     "test",
@@ -12,7 +12,7 @@
   "pipeline_name": "kira_dev",
   "pipeline_inputs": {
     "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
-    "source_prd": "07-PLANNING-EXT-PRD.md",
+    "source_prd": "docs/prd/07-PLANNING-EXT-PRD.md",
     "context_budget": "40k",
     "skills": [
       "test-driven-development",

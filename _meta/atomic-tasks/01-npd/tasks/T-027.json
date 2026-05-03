@@ -1,6 +1,6 @@
 {
   "title": "T-027 — UI: FA History tab + audit_events read-only timeline",
-  "prompt": "# T-027 — FA History tab UI\n\nPRD: 01-NPD-PRD.md §3.1 events list + UX fa_history_tab\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\nPrototype: design/Monopilot Design System/npd/fa-screens.jsx:921-950 (fa_history_tab)\n\n## Goal\nHistory tab rendering audit_events + outbox_events read-only timeline for the current FA: dept closes, built/reset transitions, allergen overrides, brief conversion.\n\n## Implementation contract\nNew apps/web/app/(npd)/fa/[productCode]/_tabs/history-tab.tsx (RSC). Reads packages/queries listFaHistory(productCode) returning union of audit_events + outbox_events ordered DESC. Render shadcn Timeline pattern: Avatar + actor + dt + event_type Badge + payload summary.\n\n## Files\n- apps/web/app/(npd)/fa/[productCode]/_tabs/history-tab.tsx [create]\n- apps/web/app/(npd)/fa/[productCode]/_tabs/__tests__/history-tab.test.tsx [create]\n- packages/queries/src/list-fa-history.ts [create]\n- design/Monopilot Design System/npd/fa-screens.jsx [ref]\n\n## Acceptance criteria\n1. Given the tab renders, when compared to design/Monopilot Design System/npd/fa-screens.jsx:921-950 (fa_history_tab), then it shows the same timeline structure (avatar + actor + dt + event_type badge + summary), and uses shadcn Card+Avatar+Badge primitives — verified by RTL parity checklist (structural+visual+interaction)\n2. Given fa with one fa.created and one fa.dept_closed event, when listFaHistory runs, then both rows appear ordered DESC by created_at\n3. Given an event payload contains diff JSON, when rendered, then it renders a Collapsible 'Details' button revealing pretty JSON\n\n## Test strategy\n- RED: 3 RTL tests for parity, ordering, collapsible details\n- Run 'pnpm --filter web test history-tab && pnpm --filter queries test list-fa-history'\n\n## Risk red lines\n- Do not allow editing of history entries\n- Do not bypass tenant RLS\n- Do not include other FAs",
+  "prompt": "# T-027 — FA History tab UI\n\nPRD: docs/prd/01-NPD-PRD.md §3.1 events list + UX fa_history_tab\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\nPrototype: prototypes/design/Monopilot Design System/npd/fa-screens.jsx:921-950 (fa_history_tab)\n\n## Goal\nHistory tab rendering audit_events + outbox_events read-only timeline for the current FA: dept closes, built/reset transitions, allergen overrides, brief conversion.\n\n## Implementation contract\nNew apps/web/app/(npd)/fa/[productCode]/_tabs/history-tab.tsx (RSC). Reads packages/queries listFaHistory(productCode) returning union of audit_events + outbox_events ordered DESC. Render shadcn Timeline pattern: Avatar + actor + dt + event_type Badge + payload summary.\n\n## Files\n- apps/web/app/(npd)/fa/[productCode]/_tabs/history-tab.tsx [create]\n- apps/web/app/(npd)/fa/[productCode]/_tabs/__tests__/history-tab.test.tsx [create]\n- packages/queries/src/list-fa-history.ts [create]\n- prototypes/design/Monopilot Design System/npd/fa-screens.jsx [ref]\n\n## Acceptance criteria\n1. Given the tab renders, when compared to prototypes/design/Monopilot Design System/npd/fa-screens.jsx:921-950 (fa_history_tab), then it shows the same timeline structure (avatar + actor + dt + event_type badge + summary), and uses shadcn Card+Avatar+Badge primitives — verified by RTL parity checklist (structural+visual+interaction)\n2. Given fa with one fa.created and one fa.dept_closed event, when listFaHistory runs, then both rows appear ordered DESC by created_at\n3. Given an event payload contains diff JSON, when rendered, then it renders a Collapsible 'Details' button revealing pretty JSON\n\n## Test strategy\n- RED: 3 RTL tests for parity, ordering, collapsible details\n- Run 'pnpm --filter web test history-tab && pnpm --filter queries test list-fa-history'\n\n## Risk red lines\n- Do not allow editing of history entries\n- Do not bypass tenant RLS\n- Do not include other FAs",
   "labels": [
     "prd",
     "ui",
@@ -13,7 +13,7 @@
   "pipeline_inputs": {
     "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
     "prd_task_id": "T-027",
-    "source_prd": "01-NPD-PRD.md",
+    "source_prd": "docs/prd/01-NPD-PRD.md",
     "prd_refs": [
       "§3.1",
       "§15"
@@ -30,7 +30,7 @@
       "apps/web/app/(npd)/fa/[productCode]/_tabs/history-tab.tsx [create]",
       "apps/web/app/(npd)/fa/[productCode]/_tabs/__tests__/history-tab.test.tsx [create]",
       "packages/queries/src/list-fa-history.ts [create]",
-      "design/Monopilot Design System/npd/fa-screens.jsx [ref]"
+      "prototypes/design/Monopilot Design System/npd/fa-screens.jsx [ref]"
     ],
     "out_of_scope": [
       "Do not include export to CSV here",
@@ -46,7 +46,7 @@
       "T-028"
     ],
     "acceptance_criteria": [
-      "Given the tab renders, when compared to design/Monopilot Design System/npd/fa-screens.jsx:921-950, then it shows same timeline structure (avatar + actor + dt + event_type badge + summary), and uses shadcn Card+Avatar+Badge primitives — verified by RTL parity checklist (structural + visual + interaction parity)",
+      "Given the tab renders, when compared to prototypes/design/Monopilot Design System/npd/fa-screens.jsx:921-950, then it shows same timeline structure (avatar + actor + dt + event_type badge + summary), and uses shadcn Card+Avatar+Badge primitives — verified by RTL parity checklist (structural + visual + interaction parity)",
       "Given fa with one fa.created and one fa.dept_closed event, when listFaHistory runs, then both rows appear ordered DESC by created_at",
       "Given an event payload contains diff JSON, when rendered, then a Collapsible 'Details' button reveals pretty JSON",
       "UI closeout includes screenshot/artifact evidence and Playwright trace/artifacts where applicable per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`; if Playwright is unavailable, document the blocker and provide RTL/snapshot fallback evidence."

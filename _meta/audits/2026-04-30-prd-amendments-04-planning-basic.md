@@ -3,7 +3,7 @@
 **Source audit:** `_meta/audits/2026-04-30-design-prd-coverage.md` §2 Module 04-PLANNING-BASIC (severity: HIGH; row 8 of top-20 issues).
 **Headline finding fixed:** "PRD has zero screen IDs at all; 12 SCREEN-01..12 in UX with no PRD code mapping."
 **Coverage:** ~70% → ~92%.
-**Files modified:** `04-PLANNING-BASIC-PRD.md` only. UX file (`design/04-PLANNING-BASIC-UX.md`) NOT touched per audit constraint. Prototype index NOT touched.
+**Files modified:** `docs/prd/04-PLANNING-BASIC-PRD.md` only. UX file (`prototypes/design/04-PLANNING-BASIC-UX.md`) NOT touched per audit constraint. Prototype index NOT touched.
 **ADR markers:** ADR-034 (Generic Product Lifecycle Naming & Industry Configuration) applied throughout — every PLN-NNN entry is multi-industry / universal naming.
 
 ---
@@ -137,7 +137,7 @@ PRD bullets without UX/prototype now tagged for Phase E backlog:
 
 - ✅ **Stayed strictly within 04-PLANNING-BASIC** — no edits outside this PRD module.
 - ✅ **Did NOT delete PRD content** — all original tables/text preserved; new columns added in-place; new subsections appended.
-- ✅ **Did NOT edit UX file** — `design/04-PLANNING-BASIC-UX.md` untouched.
+- ✅ **Did NOT edit UX file** — `prototypes/design/04-PLANNING-BASIC-UX.md` untouched.
 - ✅ **UX line citations + prototype labels inline** in every new mapping row.
 - ✅ **ADR-034 markers** applied to every new PLN-NNN row.
 - ✅ **Re-ordering only** for §16 numbering: 16.6 Changelog → 16.9 (3 new subsections inserted as 16.6/16.7/16.8).

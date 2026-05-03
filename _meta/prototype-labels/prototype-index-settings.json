@@ -6,7 +6,7 @@
   "entries": [
     {
       "label": "rule_dry_run_modal",
-      "file": "design/Monopilot Design System/settings/modals.jsx",
+      "file": "prototypes/design/Monopilot Design System/settings/modals.jsx",
       "lines": "18-69",
       "component_type": "modal",
       "ui_pattern": "detail-view",
@@ -34,7 +34,7 @@
     },
     {
       "label": "flag_edit_modal",
-      "file": "design/Monopilot Design System/settings/modals.jsx",
+      "file": "prototypes/design/Monopilot Design System/settings/modals.jsx",
       "lines": "72-108",
       "component_type": "modal",
       "ui_pattern": "crud-form-with-validation",
@@ -64,7 +64,7 @@
     },
     {
       "label": "schema_view_modal",
-      "file": "design/Monopilot Design System/settings/modals.jsx",
+      "file": "prototypes/design/Monopilot Design System/settings/modals.jsx",
       "lines": "111-138",
       "component_type": "modal",
       "ui_pattern": "detail-view",
@@ -90,7 +90,7 @@
     },
     {
       "label": "email_template_edit_modal",
-      "file": "design/Monopilot Design System/settings/modals.jsx",
+      "file": "prototypes/design/Monopilot Design System/settings/modals.jsx",
       "lines": "141-259",
       "component_type": "wizard",
       "ui_pattern": "multi-step-wizard",
@@ -123,7 +123,7 @@
     },
     {
       "label": "promote_to_l2_modal",
-      "file": "design/Monopilot Design System/settings/modals.jsx",
+      "file": "prototypes/design/Monopilot Design System/settings/modals.jsx",
       "lines": "262-375",
       "component_type": "wizard",
       "ui_pattern": "multi-step-wizard",
@@ -156,7 +156,7 @@
     },
     {
       "label": "user_invite_modal",
-      "file": "design/Monopilot Design System/settings/modals.jsx",
+      "file": "prototypes/design/Monopilot Design System/settings/modals.jsx",
       "lines": "378-407",
       "component_type": "modal",
       "ui_pattern": "crud-form-with-validation",
@@ -185,7 +185,7 @@
     },
     {
       "label": "role_assign_modal",
-      "file": "design/Monopilot Design System/settings/modals.jsx",
+      "file": "prototypes/design/Monopilot Design System/settings/modals.jsx",
       "lines": "410-447",
       "component_type": "modal",
       "ui_pattern": "crud-form-with-validation",
@@ -216,7 +216,7 @@
     },
     {
       "label": "d365_test_connection_modal",
-      "file": "design/Monopilot Design System/settings/modals.jsx",
+      "file": "prototypes/design/Monopilot Design System/settings/modals.jsx",
       "lines": "450-489",
       "component_type": "modal",
       "ui_pattern": "detail-view",
@@ -242,7 +242,7 @@
     },
     {
       "label": "password_reset_modal",
-      "file": "design/Monopilot Design System/settings/modals.jsx",
+      "file": "prototypes/design/Monopilot Design System/settings/modals.jsx",
       "lines": "492-510",
       "component_type": "modal",
       "ui_pattern": "bulk-action",
@@ -268,7 +268,7 @@
     },
     {
       "label": "delete_reference_data_modal",
-      "file": "design/Monopilot Design System/settings/modals.jsx",
+      "file": "prototypes/design/Monopilot Design System/settings/modals.jsx",
       "lines": "513-532",
       "component_type": "modal",
       "ui_pattern": "bulk-action",
@@ -295,7 +295,7 @@
     },
     {
       "label": "ref_row_edit_modal",
-      "file": "design/Monopilot Design System/settings/modals.jsx",
+      "file": "prototypes/design/Monopilot Design System/settings/modals.jsx",
       "lines": "535-572",
       "component_type": "modal",
       "ui_pattern": "crud-form-with-validation",
@@ -323,7 +323,7 @@
     },
     {
       "label": "company_profile_screen",
-      "file": "design/Monopilot Design System/settings/org-screens.jsx",
+      "file": "prototypes/design/Monopilot Design System/settings/org-screens.jsx",
       "lines": "4-100",
       "component_type": "form",
       "ui_pattern": "crud-form-with-validation",
@@ -353,7 +353,7 @@
     },
     {
       "label": "warehouses_screen",
-      "file": "design/Monopilot Design System/settings/org-screens.jsx",
+      "file": "prototypes/design/Monopilot Design System/settings/org-screens.jsx",
       "lines": "192-252",
       "component_type": "page-layout",
       "ui_pattern": "list-with-actions",
@@ -383,7 +383,7 @@
     },
     {
       "label": "users_screen",
-      "file": "design/Monopilot Design System/settings/access-screens.jsx",
+      "file": "prototypes/design/Monopilot Design System/settings/access-screens.jsx",
       "lines": "4-151",
       "component_type": "page-layout",
       "ui_pattern": "list-with-actions",
@@ -419,7 +419,7 @@
     },
     {
       "label": "security_screen",
-      "file": "design/Monopilot Design System/settings/access-screens.jsx",
+      "file": "prototypes/design/Monopilot Design System/settings/access-screens.jsx",
       "lines": "154-239",
       "component_type": "form",
       "ui_pattern": "crud-form-with-validation",
@@ -452,7 +452,7 @@
     },
     {
       "label": "d365_connection_screen",
-      "file": "design/Monopilot Design System/settings/admin-screens.jsx",
+      "file": "prototypes/design/Monopilot Design System/settings/admin-screens.jsx",
       "lines": "27-103",
       "component_type": "form",
       "ui_pattern": "crud-form-with-validation",
@@ -488,7 +488,7 @@
     },
     {
       "label": "d365_mapping_screen",
-      "file": "design/Monopilot Design System/settings/admin-screens.jsx",
+      "file": "prototypes/design/Monopilot Design System/settings/admin-screens.jsx",
       "lines": "109-146",
       "component_type": "table",
       "ui_pattern": "search-filter-list",
@@ -518,7 +518,7 @@
     },
     {
       "label": "rules_registry_screen",
-      "file": "design/Monopilot Design System/settings/admin-screens.jsx",
+      "file": "prototypes/design/Monopilot Design System/settings/admin-screens.jsx",
       "lines": "152-210",
       "component_type": "table",
       "ui_pattern": "search-filter-list",
@@ -548,7 +548,7 @@
     },
     {
       "label": "rule_detail_screen",
-      "file": "design/Monopilot Design System/settings/admin-screens.jsx",
+      "file": "prototypes/design/Monopilot Design System/settings/admin-screens.jsx",
       "lines": "216-344",
       "component_type": "tabs",
       "ui_pattern": "detail-view",
@@ -584,7 +584,7 @@
     },
     {
       "label": "flags_admin_screen",
-      "file": "design/Monopilot Design System/settings/admin-screens.jsx",
+      "file": "prototypes/design/Monopilot Design System/settings/admin-screens.jsx",
       "lines": "350-408",
       "component_type": "table",
       "ui_pattern": "search-filter-list",
@@ -618,7 +618,7 @@
     },
     {
       "label": "schema_browser_screen",
-      "file": "design/Monopilot Design System/settings/admin-screens.jsx",
+      "file": "prototypes/design/Monopilot Design System/settings/admin-screens.jsx",
       "lines": "414-469",
       "component_type": "table",
       "ui_pattern": "search-filter-list",
@@ -652,7 +652,7 @@
     },
     {
       "label": "reference_data_screen",
-      "file": "design/Monopilot Design System/settings/admin-screens.jsx",
+      "file": "prototypes/design/Monopilot Design System/settings/admin-screens.jsx",
       "lines": "475-535",
       "component_type": "page-layout",
       "ui_pattern": "list-with-actions",
@@ -686,7 +686,7 @@
     },
     {
       "label": "email_templates_screen",
-      "file": "design/Monopilot Design System/settings/admin-screens.jsx",
+      "file": "prototypes/design/Monopilot Design System/settings/admin-screens.jsx",
       "lines": "540-581",
       "component_type": "page-layout",
       "ui_pattern": "list-with-actions",
@@ -719,7 +719,7 @@
     },
     {
       "label": "email_variables_screen",
-      "file": "design/Monopilot Design System/settings/admin-screens.jsx",
+      "file": "prototypes/design/Monopilot Design System/settings/admin-screens.jsx",
       "lines": "586-624",
       "component_type": "table",
       "ui_pattern": "search-filter-list",
@@ -747,7 +747,7 @@
     },
     {
       "label": "promotions_screen",
-      "file": "design/Monopilot Design System/settings/admin-screens.jsx",
+      "file": "prototypes/design/Monopilot Design System/settings/admin-screens.jsx",
       "lines": "630-688",
       "component_type": "page-layout",
       "ui_pattern": "list-with-actions",
@@ -779,7 +779,7 @@
     },
     {
       "label": "notifications_screen",
-      "file": "design/Monopilot Design System/settings/ops-screens.jsx",
+      "file": "prototypes/design/Monopilot Design System/settings/ops-screens.jsx",
       "lines": "98-163",
       "component_type": "form",
       "ui_pattern": "crud-form-with-validation",
@@ -808,7 +808,7 @@
     },
     {
       "label": "features_screen",
-      "file": "design/Monopilot Design System/settings/ops-screens.jsx",
+      "file": "prototypes/design/Monopilot Design System/settings/ops-screens.jsx",
       "lines": "166-198",
       "component_type": "form",
       "ui_pattern": "crud-form-with-validation",
@@ -835,7 +835,7 @@
     },
     {
       "label": "units_screen",
-      "file": "design/Monopilot Design System/settings/data-screens.jsx",
+      "file": "prototypes/design/Monopilot Design System/settings/data-screens.jsx",
       "lines": "151-187",
       "component_type": "page-layout",
       "ui_pattern": "list-with-actions",
@@ -862,7 +862,7 @@
     },
     {
       "label": "my_profile_screen",
-      "file": "design/Monopilot Design System/settings/account-screens.jsx",
+      "file": "prototypes/design/Monopilot Design System/settings/account-screens.jsx",
       "lines": "3-75",
       "component_type": "form",
       "ui_pattern": "crud-form-with-validation",
@@ -897,7 +897,7 @@
     },
     {
       "label": "my_notifications_screen",
-      "file": "design/Monopilot Design System/settings/account-screens.jsx",
+      "file": "prototypes/design/Monopilot Design System/settings/account-screens.jsx",
       "lines": "77-124",
       "component_type": "form",
       "ui_pattern": "crud-form-with-validation",
@@ -924,7 +924,7 @@
     },
     {
       "label": "integrations_screen",
-      "file": "design/Monopilot Design System/settings/integrations.jsx",
+      "file": "prototypes/design/Monopilot Design System/settings/integrations.jsx",
       "lines": "7-107",
       "component_type": "page-layout",
       "ui_pattern": "list-with-actions",
@@ -956,7 +956,7 @@
     },
     {
       "label": "settings_d365_mapping_screen",
-      "file": "design/Monopilot Design System/settings/admin-screens.jsx",
+      "file": "prototypes/design/Monopilot Design System/settings/admin-screens.jsx",
       "lines": "109-146",
       "component_type": "table",
       "ui_pattern": "search-filter-list",

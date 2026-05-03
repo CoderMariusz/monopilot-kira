@@ -10,7 +10,7 @@
 
 ### Deliverable
 
-**`06-SCANNER-P1-PRD.md` v3.0** — **1504 linii, 16 sekcji**, 9 major SCN codes + ~34 sub-screens, ~70 FR P1, 9 D-decisions, 21 validation rules, 5 sub-modules build 06-a..e (22-28 sesji impl est.).
+**`docs/prd/06-SCANNER-P1-PRD.md` v3.0** — **1504 linii, 16 sekcji**, 9 major SCN codes + ~34 sub-screens, ~70 FR P1, 9 D-decisions, 21 validation rules, 5 sub-modules build 06-a..e (22-28 sesji impl est.).
 
 ### Kluczowe decyzje Sesji 3
 
@@ -84,8 +84,8 @@ Prototype `SCANNER-PROTOTYPE (2).html` (~1826 linii, 34 sub-screens, 11 workflow
 
 **2 PRDy + 1 INTEGRATIONS batch:**
 
-1. **07-PLANNING-EXT-PRD.md** — advanced scheduling (finite capacity engine, full allergen sequencing optimizer, genetic algorithm scheduling, ML forecasting integration, disposition direct_continue + planner_decides P2 deferral)
-2. **08-PRODUCTION-PRD.md** — WO execution engine (shop floor control, machine interlocks, OEE real-time, catch weight confirmation, barcode label printing ZPL trigger, downtime events, changeover tracking, operator performance KPIs)
+1. **docs/prd/07-PLANNING-EXT-PRD.md** — advanced scheduling (finite capacity engine, full allergen sequencing optimizer, genetic algorithm scheduling, ML forecasting integration, disposition direct_continue + planner_decides P2 deferral)
+2. **docs/prd/08-PRODUCTION-PRD.md** — WO execution engine (shop floor control, machine interlocks, OEE real-time, catch weight confirmation, barcode label printing ZPL trigger, downtime events, changeover tracking, operator performance KPIs)
 3. **INTEGRATIONS stage 2** — D365 WO confirmations push + outbox dispatcher + DLQ + idempotency R14 full implementation (inline w 08-PRODUCTION §13)
 
 **Est.** 2-3 sesje (2 PRDy + inline INTEGRATIONS stage 2).
@@ -93,13 +93,13 @@ Prototype `SCANNER-PROTOTYPE (2).html` (~1826 linii, 34 sub-screens, 11 workflow
 ### Bootstrap C3 Sesja 1
 
 1. Read `_meta/handoffs/2026-04-20-c2-sesja3-close.md` (this file)
-2. Read `04-PLANNING-BASIC-PRD.md` v3.1 §7 Planning engine scope + §16 deferred items list → 07-EXT scope
-3. Read `05-WAREHOUSE-PRD.md` v3.0 §13 Scanner Integration + §10 Intermediate LP Handling (08-PROD consumes SCN-080 output + registers new LP via FR-SC-BE-050)
-4. Read `06-SCANNER-P1-PRD.md` v3.0 §8.5 Production Output + §14.1 API catalog (08-PROD backend side)
-5. Read `03-TECHNICAL-PRD.md` v3.0 §7 BOM + co-products + routing + §10 Allergens cascade
-6. Read `02-SETTINGS-PRD.md` v3.0 §11 D365 Constants [LEGACY-D365] + §7 rules registry (workflow DSL)
+2. Read `docs/prd/04-PLANNING-BASIC-PRD.md` v3.1 §7 Planning engine scope + §16 deferred items list → 07-EXT scope
+3. Read `docs/prd/05-WAREHOUSE-PRD.md` v3.0 §13 Scanner Integration + §10 Intermediate LP Handling (08-PROD consumes SCN-080 output + registers new LP via FR-SC-BE-050)
+4. Read `docs/prd/06-SCANNER-P1-PRD.md` v3.0 §8.5 Production Output + §14.1 API catalog (08-PROD backend side)
+5. Read `docs/prd/03-TECHNICAL-PRD.md` v3.0 §7 BOM + co-products + routing + §10 Allergens cascade
+6. Read `docs/prd/02-SETTINGS-PRD.md` v3.0 §11 D365 Constants [LEGACY-D365] + §7 rules registry (workflow DSL)
 7. Read `_foundation/research/MES-TRENDS-2026.md` §9 "07-PLANNING-EXT" + §9 "08-PRODUCTION" + §4 schema-driven + §3 regulatory (BRCGS v9 + FSMA 204 for production)
-8. Read baseline `07-PLANNING-EXT-PRD.md` + `08-PRODUCTION-PRD.md` (pre-Phase-D)
+8. Read baseline `docs/prd/07-PLANNING-EXT-PRD.md` + `docs/prd/08-PRODUCTION-PRD.md` (pre-Phase-D)
 9. Propose outline per PRD → user Q&A → full write
 10. Update memory + close HANDOFF → C4 bootstrap
 
@@ -192,14 +192,14 @@ Phase C2 **COMPLETE** — 3 fundamentowe PRDy (planning + warehouse + scanner) s
 
 ## Related
 
-- [`06-SCANNER-P1-PRD.md`](../../06-SCANNER-P1-PRD.md) v3.0 — primary deliverable Sesji 3
+- [`docs/prd/06-SCANNER-P1-PRD.md`](../../docs/prd/06-SCANNER-P1-PRD.md) v3.0 — primary deliverable Sesji 3
 - [`2026-04-20-c2-sesja2-close.md`](./2026-04-20-c2-sesja2-close.md) — C2 Sesja 2 close HANDOFF
 - [`2026-04-20-c2-sesja1-close.md`](./2026-04-20-c2-sesja1-close.md) — C2 Sesja 1 close HANDOFF
 - [`2026-04-20-c1-close.md`](./2026-04-20-c1-close.md) — Phase C1 close HANDOFF
-- [`05-WAREHOUSE-PRD.md`](../../05-WAREHOUSE-PRD.md) v3.0 §13 Scanner Integration (primary consumer contract)
-- [`04-PLANNING-BASIC-PRD.md`](../../04-PLANNING-BASIC-PRD.md) v3.1
-- [`03-TECHNICAL-PRD.md`](../../03-TECHNICAL-PRD.md) v3.0
-- [`02-SETTINGS-PRD.md`](../../02-SETTINGS-PRD.md) v3.0
-- [`00-FOUNDATION-PRD.md`](../../00-FOUNDATION-PRD.md) v3.0
+- [`docs/prd/05-WAREHOUSE-PRD.md`](../../docs/prd/05-WAREHOUSE-PRD.md) v3.0 §13 Scanner Integration (primary consumer contract)
+- [`docs/prd/04-PLANNING-BASIC-PRD.md`](../../docs/prd/04-PLANNING-BASIC-PRD.md) v3.1
+- [`docs/prd/03-TECHNICAL-PRD.md`](../../docs/prd/03-TECHNICAL-PRD.md) v3.0
+- [`docs/prd/02-SETTINGS-PRD.md`](../../docs/prd/02-SETTINGS-PRD.md) v3.0
+- [`docs/prd/00-FOUNDATION-PRD.md`](../../docs/prd/00-FOUNDATION-PRD.md) v3.0
 - [`SCANNER-PROTOTYPE (2).html`](../../SCANNER-PROTOTYPE%20(2).html) — UX reference
 - [`SCANNER-SCREEN-INDEX (1).md`](../../SCANNER-SCREEN-INDEX%20(1).md) — screen lookup table

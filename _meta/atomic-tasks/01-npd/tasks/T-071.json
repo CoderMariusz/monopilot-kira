@@ -17,7 +17,7 @@
   "pipeline_inputs": {
     "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
     "prd_task_id": "T-071",
-    "source_prd": "01-NPD-PRD.md",
+    "source_prd": "docs/prd/01-NPD-PRD.md",
     "prd_refs": [
       "2026-05-03 PO Amendment",
       "_meta/decisions/2026-05-03-flow-d365-settings-technical-decisions.md"

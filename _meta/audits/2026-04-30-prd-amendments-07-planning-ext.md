@@ -2,7 +2,7 @@
 
 **Date:** 2026-04-30
 **Source audit:** `_meta/audits/2026-04-30-design-prd-coverage.md` §07-PLANNING-EXT (~65% baseline coverage, audit row 9 / row 17 in §4 top-20)
-**Target file:** `07-PLANNING-EXT-PRD.md` v3.2 (sections §17 + §18 added)
+**Target file:** `docs/prd/07-PLANNING-EXT-PRD.md` v3.2 (sections §17 + §18 added)
 **ADR alignment:** ADR-034 (Generic Product Lifecycle Naming & Industry Configuration)
 
 ---
@@ -11,11 +11,11 @@
 
 ### Direction B (UX/prototype orphans → new PRD subsections)
 
-13 new PLE-NNN entries added under §17.1 of `07-PLANNING-EXT-PRD.md`:
+13 new PLE-NNN entries added under §17.1 of `docs/prd/07-PLANNING-EXT-PRD.md`:
 
 | ID | Title | Phase | UX line(s) | Prototype label |
 |---|---|---|---|---|
-| PLE-001 | Scheduler Run History Browser (SCR-07-04 Index) | P1 | `design/07-PLANNING-EXT-UX.md:758-806` | `pext_run_history` |
+| PLE-001 | Scheduler Run History Browser (SCR-07-04 Index) | P1 | `prototypes/design/07-PLANNING-EXT-UX.md:758-806` | `pext_run_history` |
 | PLE-002 | Scheduler Run Detail (SCR-07-04-DETAIL) | P1 | `:808-864` | `pext_run_detail` |
 | PLE-003 | Capacity Projection Screen | P1 | `:285-287` (implicit) | `pext_capacity_projection` |
 | PLE-004 | Pending Review Full Page (Assignment Queue) | P1 | `:324-338` (Zone D) | `pext_pending_full_page` |
@@ -108,11 +108,11 @@ Listed 4 tables that §17 PLE entries reference but require formal §9 DDL in ne
 
 ## 5. Files modified
 
-- **Modified:** `/Users/mariuszkrawczyk/Projects/monopilot-kira/07-PLANNING-EXT-PRD.md`
+- **Modified:** `/Users/mariuszkrawczyk/Projects/monopilot-kira/docs/prd/07-PLANNING-EXT-PRD.md`
   - Added §17 (UX/Prototype Coverage Additions) — 13 PLE-NNN entries + §17.2 Direction-A list + §17.3 backlog DDL list.
   - Added §18 (UI Surfaces Bidirectional Matrix) — 30-row table.
   - No content deleted; existing §16 closing position preserved (kept "End of …" sentinel after §18).
 
 - **Created:** `/Users/mariuszkrawczyk/Projects/monopilot-kira/_meta/audits/2026-04-30-prd-amendments-07-planning-ext.md` (this file).
 
-- **Not modified:** `design/07-PLANNING-EXT-UX.md` (per task constraint).
+- **Not modified:** `prototypes/design/07-PLANNING-EXT-UX.md` (per task constraint).

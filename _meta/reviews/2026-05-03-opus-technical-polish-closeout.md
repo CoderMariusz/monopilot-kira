@@ -15,7 +15,7 @@ Nie modyfikowałem kodu aplikacji ani innych modułów (poza brakiem ingerencji 
 
 ### 1. Tasks T-085..T-090 — parity AC anchors
 
-Wszystkie sześć spec-driven UI tasków miało skopiowaną boilerplate'ową linię AC odsyłającą do `design/Monopilot Design System/technical/other-screens.jsx:1-200` jako "spec-driven prototype substitute". Linia 1–200 tego pliku to nagłówki/setup, więc ten zakres był pusty semantycznie i powtórzony w sześciu różnych zadaniach.
+Wszystkie sześć spec-driven UI tasków miało skopiowaną boilerplate'ową linię AC odsyłającą do `prototypes/design/Monopilot Design System/technical/other-screens.jsx:1-200` jako "spec-driven prototype substitute". Linia 1–200 tego pliku to nagłówki/setup, więc ten zakres był pusty semantycznie i powtórzony w sześciu różnych zadaniach.
 
 Teraz każdy task wskazuje **właściwy adjacent layout-primitive anchor** z `_meta/prototype-labels/prototype-index-technical.json` (zakresy zweryfikowane w aktualnym JSX):
 
@@ -65,7 +65,7 @@ Dopisano wpis v3.3.1 streszczający tę falę polishu.
 
 ## Pliki zmienione
 
-- `03-TECHNICAL-PRD.md` — §17 master-table BLOCKER→SPEC-DRIVEN, §17 legenda, nowe §17A i §17B, changelog v3.3.1.
+- `docs/prd/03-TECHNICAL-PRD.md` — §17 master-table BLOCKER→SPEC-DRIVEN, §17 legenda, nowe §17A i §17B, changelog v3.3.1.
 - `_meta/atomic-tasks/03-technical/tasks/T-085.json` — parity AC anchor.
 - `_meta/atomic-tasks/03-technical/tasks/T-086.json` — parity AC anchor.
 - `_meta/atomic-tasks/03-technical/tasks/T-087.json` — parity AC anchor.

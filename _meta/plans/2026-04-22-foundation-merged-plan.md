@@ -3138,7 +3138,7 @@ Each stub lives at `docs/adr/candidates/ADR-R<N>-<slug>.md` with: Title, Marker,
 **Track:** α
 **Status:** pending
 
-> `[data/migration]` — ported from existing T-21; Apex baseline per 00-FOUNDATION-PRD.md and MAIN-TABLE-SCHEMA.md. Expect churn.
+> `[data/migration]` — ported from existing T-21; Apex baseline per docs/prd/00-FOUNDATION-PRD.md and MAIN-TABLE-SCHEMA.md. Expect churn.
 
 #### Dependencies
 - **Upstream:** [T-00b-000, T-00h-001]
@@ -3305,7 +3305,7 @@ Remove queue wrapper; fetches fail loud when offline.
 **Track:** δ
 **Status:** pending
 
-> `[infra/ci]` — ported from existing T-14; cap = 40000 (per user decision, NOT 18000). Hook comment MUST link to `00-FOUNDATION-PRD.md §11.3 context budget`.
+> `[infra/ci]` — ported from existing T-14; cap = 40000 (per user decision, NOT 18000). Hook comment MUST link to `docs/prd/00-FOUNDATION-PRD.md §11.3 context budget`.
 
 #### Dependencies
 - **Upstream:** [T-00a-006]
@@ -3314,13 +3314,13 @@ Remove queue wrapper; fetches fail loud when offline.
 #### GIVEN / WHEN / THEN
 **GIVEN** Husky pre-commit is installed and working
 **WHEN** a developer attempts to commit a diff exceeding 40000 tokens
-**THEN** the hook rejects the commit with a pointer to `00-FOUNDATION-PRD.md §11.3` and a suggestion to split the PR
+**THEN** the hook rejects the commit with a pointer to `docs/prd/00-FOUNDATION-PRD.md §11.3` and a suggestion to split the PR
 
 #### Implementation
 1. Author `scripts/token-cap.ts` using `@dqbd/tiktoken` (or equivalent) tokenizer
 2. Count staged diff tokens (git diff --cached | tokenize)
 3. Compare against hard-coded cap = 40000; exit 1 if exceeded
-4. Add comment header in `.husky/pre-commit` pointing to §11.3 of 00-FOUNDATION-PRD.md
+4. Add comment header in `.husky/pre-commit` pointing to §11.3 of docs/prd/00-FOUNDATION-PRD.md
 5. Test with fixture (small diff passes; inflated diff fails)
 
 #### Files

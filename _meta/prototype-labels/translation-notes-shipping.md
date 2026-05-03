@@ -1,8 +1,8 @@
 # Shipping Module — Prototype Translation Notes
 
-Scanned: 2026-04-23  
-Source files: `design/Monopilot Design System/shipping/` (7 files)  
-Total indexed components: 38  
+Scanned: 2026-04-23
+Source files: `prototypes/design/Monopilot Design System/shipping/` (7 files)
+Total indexed components: 38
 BACKLOG cross-reference: `BACKLOG.md §Shipping (BL-SHIP-01..14)`
 
 ---

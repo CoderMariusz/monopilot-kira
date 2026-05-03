@@ -897,7 +897,7 @@ The 10 dashboards above interoperate with a dedicated modal/auxiliary surface se
 - Regulatory dashboards (RPT-004 QC Holds, RPT-006 Inventory Aging) MUST force `requires_auth=true` — toggle disabled with explanatory note
 - On confirm: insert row into `shared_report_links(id, url, requires_auth, expires_at, created_by, dashboard_id)` (P2 table — P1 ships ephemeral signed URL only, persistence deferred)
 
-**Design anchor:** UX `design/12-REPORTING-UX.md:863-878` (MOD-SHARE) ↔ prototype `share_report_modal` at `design/Monopilot Design System/reporting/modals.jsx:258-282`.
+**Design anchor:** UX `prototypes/design/12-REPORTING-UX.md:863-878` (MOD-SHARE) ↔ prototype `share_report_modal` at `prototypes/design/Monopilot Design System/reporting/modals.jsx:258-282`.
 
 **Open questions:** OQ-RPT-07 (sharing of custom reports w/ external emails) — unchanged; this section formalises P1 behaviour for stock dashboards only.
 
@@ -913,7 +913,7 @@ The 10 dashboards above interoperate with a dedicated modal/auxiliary surface se
 - On success: Server Action inserts `regulatory_signoffs(user_id, export_id, regulation_ref, sha256, signed_at)` + triggers PDF generation with signature block embedded in footer
 - Declaration text immutable post-sign-off (loaded from `regulatory_requirements.declaration_template`)
 
-**Design anchor:** UX `design/12-REPORTING-UX.md:911-928` (MOD-REGULATORY-SIGNOFF) ↔ prototype `regulatory_signoff_modal` at `design/Monopilot Design System/reporting/modals.jsx:332-378`.
+**Design anchor:** UX `prototypes/design/12-REPORTING-UX.md:911-928` (MOD-REGULATORY-SIGNOFF) ↔ prototype `regulatory_signoff_modal` at `prototypes/design/Monopilot Design System/reporting/modals.jsx:332-378`.
 
 **Cross-ref:** §10.3 Regulatory Export Package, §14.4 21 CFR Part 11, 09-QUALITY §5.3 PIN reverify pattern. Resolves audit item "regulatory_signoff_modal NOT IN PRD" from `_meta/audits/2026-04-30-design-prd-coverage.md` §2 module 12-REPORTING (Direction B orphans).
 
@@ -947,7 +947,7 @@ CREATE TABLE recipient_group_members (
 );
 ```
 
-**Design anchor:** UX `design/12-REPORTING-UX.md:944-955` (MOD-RECIPIENT-GROUP) ↔ prototype `recipient_group_modal` at `design/Monopilot Design System/reporting/modals.jsx:403-435`.
+**Design anchor:** UX `prototypes/design/12-REPORTING-UX.md:944-955` (MOD-RECIPIENT-GROUP) ↔ prototype `recipient_group_modal` at `prototypes/design/Monopilot Design System/reporting/modals.jsx:403-435`.
 
 #### RPT-014 Export Error Log Modal [UNIVERSAL]
 
@@ -958,7 +958,7 @@ CREATE TABLE recipient_group_members (
 - "Retry Export" CTA — closes modal and reopens RPT-EXPORTS export wizard pre-filled with original parameters; passes idempotency key to avoid duplicate jobs
 - Error code enum exposed via `export_error_codes(code, severity, suggested_action_template)` reference (e.g., `PDF_TIMEOUT` → V-RPT-EXPORT-7)
 
-**Design anchor:** UX `design/12-REPORTING-UX.md:893-908` (MOD-ERROR-LOG) ↔ prototype `error_log_modal` at `design/Monopilot Design System/reporting/modals.jsx:306-329`.
+**Design anchor:** UX `prototypes/design/12-REPORTING-UX.md:893-908` (MOD-ERROR-LOG) ↔ prototype `error_log_modal` at `prototypes/design/Monopilot Design System/reporting/modals.jsx:306-329`.
 
 **Cross-ref:** §11 V-RPT-EXPORT-7 PDF timeout. Resolves audit item "error_log_modal — implicit RPT-009 only" by promoting modal to first-class PRD surface.
 
@@ -971,7 +971,7 @@ CREATE TABLE recipient_group_members (
 - On confirm: Server Action calls validated MV name (enum-bound, never string-interpolated) → updates `mv_refresh_log` row → success toast with elapsed ms
 - Both buttons disabled during pending (useTransition / Server Action pending)
 
-**Design anchor:** UX `design/12-REPORTING-UX.md:931-940` (MOD-REFRESH-CONFIRM) ↔ prototype `refresh_confirm_modal` at `design/Monopilot Design System/reporting/modals.jsx:381-400`.
+**Design anchor:** UX `prototypes/design/12-REPORTING-UX.md:931-940` (MOD-REFRESH-CONFIRM) ↔ prototype `refresh_confirm_modal` at `prototypes/design/Monopilot Design System/reporting/modals.jsx:381-400`.
 
 **Cross-ref:** §9.4 refresh cron jobs, §11 V-RPT-REFRESH-1.
 
@@ -984,7 +984,7 @@ CREATE TABLE recipient_group_members (
 - On confirm: Server Action enqueues one-shot job (Trigger.dev or pg_cron one-shot row); returns `job_id` for status polling
 - Does NOT alter `scheduled_reports.next_run_at` (regular cadence preserved)
 
-**Design anchor:** UX `design/12-REPORTING-UX.md:1319` (RPT-SCHED inline confirm popover) ↔ prototype `run_now_confirm_modal` at `design/Monopilot Design System/reporting/modals.jsx:438-450`.
+**Design anchor:** UX `prototypes/design/12-REPORTING-UX.md:1319` (RPT-SCHED inline confirm popover) ↔ prototype `run_now_confirm_modal` at `prototypes/design/Monopilot Design System/reporting/modals.jsx:438-450`.
 
 **Cross-ref:** §7.2 `scheduled_report_distribution_v1`.
 
@@ -997,7 +997,7 @@ CREATE TABLE recipient_group_members (
 - "Delete" button MUST use `Button variant='destructive'` (BL-PROD-05 backlog: ensure shared CSS exposes danger token; tracked separately)
 - On confirm: Server Action soft-deletes (sets `deactivated_at`) for scheduled reports + recipient groups (preserves audit), hard-deletes for presets and unshared custom reports — and writes `audit_log` row with user + timestamp + entity_kind + entity_id
 
-**Design anchor:** UX `design/12-REPORTING-UX.md:880-889` (MOD-DELETE-CONFIRM) ↔ prototype `delete_confirm_modal` at `design/Monopilot Design System/reporting/modals.jsx:285-303`.
+**Design anchor:** UX `prototypes/design/12-REPORTING-UX.md:880-889` (MOD-DELETE-CONFIRM) ↔ prototype `delete_confirm_modal` at `prototypes/design/Monopilot Design System/reporting/modals.jsx:285-303`.
 
 #### RPT-018 Save Filter Preset Modal [UNIVERSAL]
 
@@ -1025,7 +1025,7 @@ CREATE TABLE saved_filter_presets (
 );
 ```
 
-**Design anchor:** UX `design/12-REPORTING-UX.md:812-827` (MOD-SAVE-PRESET) ↔ prototype `save_preset_modal` at `design/Monopilot Design System/reporting/modals.jsx:115-148`.
+**Design anchor:** UX `prototypes/design/12-REPORTING-UX.md:812-827` (MOD-SAVE-PRESET) ↔ prototype `save_preset_modal` at `prototypes/design/Monopilot Design System/reporting/modals.jsx:115-148`.
 
 #### RPT-019 P2 Feature Toast Modal [UNIVERSAL]
 
@@ -1036,7 +1036,7 @@ CREATE TABLE saved_filter_presets (
 - Body driven by `dashboards_catalog.name` + `dashboards_catalog.feature_flag` (server-evaluated; if flag is ON, render real component instead)
 - Single CTA "Got it" — closes modal
 
-**Design anchor:** UX `design/12-REPORTING-UX.md:1171-1218` (P2 placeholder section) ↔ prototype `p2_toast_modal` at `design/Monopilot Design System/reporting/modals.jsx:453-464`.
+**Design anchor:** UX `prototypes/design/12-REPORTING-UX.md:1171-1218` (P2 placeholder section) ↔ prototype `p2_toast_modal` at `prototypes/design/Monopilot Design System/reporting/modals.jsx:453-464`.
 
 **Cross-ref:** D-RPT-10 Feature Flag Rollout, §9.3 `dashboards_catalog`.
 
@@ -1050,7 +1050,7 @@ CREATE TABLE saved_filter_presets (
 - Logs deny to `report_access_audits` (unique action `inline_denied`, distinct from page-level deny which is logged in middleware)
 - Single CTA "Close" (no retry — server has authoritative deny)
 
-**Design anchor:** UX (implicit — Permission-denied alerts in §7 toasts at line 1117) ↔ prototype `access_denied_modal` at `design/Monopilot Design System/reporting/modals.jsx:467-481`.
+**Design anchor:** UX (implicit — Permission-denied alerts in §7 toasts at line 1117) ↔ prototype `access_denied_modal` at `prototypes/design/Monopilot Design System/reporting/modals.jsx:467-481`.
 
 **Cross-ref:** §7.1 `report_access_gate_v1`, §11 V-RPT-ACCESS-2.
 
@@ -1073,7 +1073,7 @@ CREATE TABLE saved_filter_presets (
 - Retry intervals: 5min → 30min → 2h → 12h → 24h → DLQ (per V-RPT-SCHEDULE-4)
 - Conditional Send ("only if data changed") flagged P2 (`[NO-PROTOTYPE-YET]` for the conditional logic itself; UI surface stubbed)
 
-**Design anchor:** UX `design/12-REPORTING-UX.md:1290-1389` (RPT-SCHED + RPT-SCHED-EDIT) ↔ prototypes `rpt_scheduled_list` (`other-screens.jsx:159-242`) + `rpt_scheduled_edit` (`other-screens.jsx:245-432`) + `schedule_report_modal` (`modals.jsx:151-255`).
+**Design anchor:** UX `prototypes/design/12-REPORTING-UX.md:1290-1389` (RPT-SCHED + RPT-SCHED-EDIT) ↔ prototypes `rpt_scheduled_list` (`other-screens.jsx:159-242`) + `rpt_scheduled_edit` (`other-screens.jsx:245-432`) + `schedule_report_modal` (`modals.jsx:151-255`).
 
 **Cross-ref:** §7.2 `scheduled_report_distribution_v1`, §9.3 `scheduled_reports` + `report_deliveries`, §11 V-RPT-SCHEDULE-*.
 
@@ -1088,17 +1088,17 @@ CREATE TABLE saved_filter_presets (
 ### 15.2 P1 Support screens
 
 - **RPT-HOME** — `/reporting` — dashboard catalog landing (search by name + filter by domain/phase, freshness badges, P2 cards gated by `reporting.v2_dashboards` flag).
-  Design anchor: UX `design/12-REPORTING-UX.md:188-222` (SCREEN RPT-HOME) ↔ prototype `rpt_home_dashboard_catalog` (`design/Monopilot Design System/reporting/dashboard.jsx:3-112`).
+  Design anchor: UX `prototypes/design/12-REPORTING-UX.md:188-222` (SCREEN RPT-HOME) ↔ prototype `rpt_home_dashboard_catalog` (`prototypes/design/Monopilot Design System/reporting/dashboard.jsx:3-112`).
 - **RPT-EXPORTS** — `/reporting/exports` — user's export history (z `report_exports` table) + download links dla not-yet-archived exports + per-row "Error details" → RPT-014.
-  Design anchor: UX `design/12-REPORTING-UX.md:627-664` (SCREEN RPT-EXPORTS) ↔ prototype `rpt_exports_history` (`design/Monopilot Design System/reporting/other-screens.jsx:4-86`).
+  Design anchor: UX `prototypes/design/12-REPORTING-UX.md:627-664` (SCREEN RPT-EXPORTS) ↔ prototype `rpt_exports_history` (`prototypes/design/Monopilot Design System/reporting/other-screens.jsx:4-86`).
 - **RPT-SAVED** — `/reporting/saved-views` — P1 simple: saved filter presets per user (lightweight, przed full custom builder P2). Apply / Edit / Delete actions; create flow via RPT-018 modal.
-  Design anchor: UX `design/12-REPORTING-UX.md:666-692` (SCREEN RPT-SAVED) ↔ prototype `rpt_saved_filters` (`design/Monopilot Design System/reporting/other-screens.jsx:89-156`).
+  Design anchor: UX `prototypes/design/12-REPORTING-UX.md:666-692` (SCREEN RPT-SAVED) ↔ prototype `rpt_saved_filters` (`prototypes/design/Monopilot Design System/reporting/other-screens.jsx:89-156`).
 - **RPT-SETTINGS** — `/reporting/settings` — tabbed: General (cache thresholds, refresh policy), Data Sources (force refresh + last refresh log), Schedules (P2 link to RPT-SCHED), Exports (retention + branding), Permissions (read-only RBAC matrix).
-  Design anchor: UX `design/12-REPORTING-UX.md:693-783` (SCREEN RPT-SETTINGS) ↔ prototype `rpt_settings_tabbed` (`design/Monopilot Design System/reporting/admin-screens.jsx:287-466`).
+  Design anchor: UX `prototypes/design/12-REPORTING-UX.md:693-783` (SCREEN RPT-SETTINGS) ↔ prototype `rpt_settings_tabbed` (`prototypes/design/Monopilot Design System/reporting/admin-screens.jsx:287-466`).
 
 ### 15.3 P2 Dashboards + Admin (15+ screens)
 
-- E3 Advanced Analytics: **Giveaway** (RPT-P2-001 — UX `design/12-REPORTING-UX.md:1175`), **Leader Scorecard** (RPT-P2-002 — UX `:1177`), **Daily Issues** (RPT-P2-003 — UX `:1179`), **Shift Performance** (RPT-P2-004 — UX `:1181`). Prototype placeholders: gated by `reporting.v2_dashboards` flag, currently routed through `p2_toast_modal` (RPT-019).
+- E3 Advanced Analytics: **Giveaway** (RPT-P2-001 — UX `prototypes/design/12-REPORTING-UX.md:1175`), **Leader Scorecard** (RPT-P2-002 — UX `:1177`), **Daily Issues** (RPT-P2-003 — UX `:1179`), **Shift Performance** (RPT-P2-004 — UX `:1181`). Prototype placeholders: gated by `reporting.v2_dashboards` flag, currently routed through `p2_toast_modal` (RPT-019).
 - E4 Period & Comparison: **Supervisor Comparison** (RPT-P2-005 — UX `:1183`), **Period Reports 4-4-5** (RPT-P2-006 — UX `:1185`), Multi-granularity time selector — `[NO-PROTOTYPE-YET]` (D-RPT-4 P2; UX line 1392 OQ §11 not in scope yet).
 - **NCR Trend** (RPT-P2-007 — UX `:1187`), **Lot Genealogy** (RPT-P2-008 — UX `:1189`, FSMA 204), **WIP Dashboard** (RPT-P2-009 — UX `:1191`, consumer 10-FIN), **Cost Variance** (RPT-P2-010 — UX `:1193`), **Customer Fulfillment** (RPT-P2-011 — UX `:1195`), **Operator Leaderboard** (RPT-P2-012 — UX `:1197`, consumer 08-PROD `operator_kpis_monthly`), **Regulatory Export Package** (RPT-P2-013 — UX `:1199-1218` w/ MOD-REGULATORY-SIGNOFF integration → RPT-012).
 - Admin screens: **Custom Report Builder DSL** — `[NO-PROTOTYPE-YET]` (gated by `reporting.custom_dsl_builder` flag; OQ-RPT-06), **Scheduled Reports config** → RPT-SCHED + RPT-SCHED-EDIT (see §15.1b), **External BI Embed config** — `[NO-PROTOTYPE-YET]` (P2 escape hatch, gated by `reporting.external_bi_embed`).
@@ -1109,48 +1109,48 @@ Per ADR-034 the table below provides bidirectional traceability between PRD IDs,
 
 | PRD ID | UX file & line | Prototype label | Phase | Status |
 |---|---|---|---|---|
-| RPT-001 Factory Overview | `design/12-REPORTING-UX.md:223-263` | `rpt_factory_overview` (`catalog-screens.jsx:251-398`) | P1 | OK |
-| RPT-002 Yield by Line | `design/12-REPORTING-UX.md:264-305` | `rpt_yield_by_line` (`catalog-screens.jsx:402-492`) | P1 | OK |
-| RPT-003 Yield by SKU | `design/12-REPORTING-UX.md:306-342` | `rpt_yield_by_sku` (`catalog-screens.jsx:496-617`) | P1 | OK |
-| RPT-004 QC Holds | `design/12-REPORTING-UX.md:343-386` | `rpt_qc_holds` (`kpi-screens.jsx:5-166`) | P1 | OK |
-| RPT-005 OEE Summary (consumer 15-OEE) | `design/12-REPORTING-UX.md:387-419` | `rpt_oee_summary` (`kpi-screens.jsx:169-310`) | P1 | OK |
-| RPT-006 Inventory Aging | `design/12-REPORTING-UX.md:420-462` | `rpt_inventory_aging` (`kpi-screens.jsx:313-466`) | P1 | OK |
-| RPT-007 WO Status | `design/12-REPORTING-UX.md:463-501` | `rpt_wo_status` (`kpi-screens.jsx:470-585`) | P1 | OK |
-| RPT-008 Shipment OTD | `design/12-REPORTING-UX.md:502-542` | `rpt_shipment_otd` (`kpi-screens.jsx:588-706`) | P1 | OK |
-| RPT-009 Integration Health | `design/12-REPORTING-UX.md:543-585` | `rpt_integration_health` (`admin-screens.jsx:4-144`) | P1 | OK |
-| RPT-010 Rules Usage Analytics | `design/12-REPORTING-UX.md:586-626` | `rpt_rules_usage` (`admin-screens.jsx:147-283`) | P1 | OK |
-| RPT-011 Share Report Link Modal | `design/12-REPORTING-UX.md:863-878` | `share_report_modal` (`modals.jsx:258-282`) | P1 | TODO-PRD (this revision) |
-| RPT-012 Regulatory Sign-off Modal | `design/12-REPORTING-UX.md:911-928` | `regulatory_signoff_modal` (`modals.jsx:332-378`) | P2 | TODO-PRD (this revision) |
-| RPT-013 Recipient Group Modal | `design/12-REPORTING-UX.md:944-955` | `recipient_group_modal` (`modals.jsx:403-435`) | P2 | TODO-PRD (this revision) |
-| RPT-014 Export Error Log Modal | `design/12-REPORTING-UX.md:893-908` | `error_log_modal` (`modals.jsx:306-329`) | P1 | TODO-PRD (this revision) |
-| RPT-015 Force Refresh Confirm Modal | `design/12-REPORTING-UX.md:931-940` | `refresh_confirm_modal` (`modals.jsx:381-400`) | P1 | TODO-PRD (this revision) |
-| RPT-016 Run Now Confirm Modal | `design/12-REPORTING-UX.md:1319` | `run_now_confirm_modal` (`modals.jsx:438-450`) | P2 | TODO-PRD (this revision) |
-| RPT-017 Delete Confirm Modal | `design/12-REPORTING-UX.md:880-889` | `delete_confirm_modal` (`modals.jsx:285-303`) | P1 | TODO-PRD (this revision) |
-| RPT-018 Save Filter Preset Modal | `design/12-REPORTING-UX.md:812-827` | `save_preset_modal` (`modals.jsx:115-148`) | P1 | TODO-PRD (this revision) |
-| RPT-019 P2 Feature Toast Modal | `design/12-REPORTING-UX.md:1171-1173` | `p2_toast_modal` (`modals.jsx:453-464`) | P1 | TODO-PRD (this revision) |
-| RPT-020 Access Denied Modal | `design/12-REPORTING-UX.md:1117` (toast section, inline pattern) | `access_denied_modal` (`modals.jsx:467-481`) | P1 | TODO-PRD (this revision) |
-| RPT-HOME Dashboard Catalog | `design/12-REPORTING-UX.md:188-222` | `rpt_home_dashboard_catalog` (`dashboard.jsx:3-112`) | P1 | OK |
-| RPT-EXPORTS Export History | `design/12-REPORTING-UX.md:627-664` | `rpt_exports_history` (`other-screens.jsx:4-86`) | P1 | OK |
-| RPT-SAVED Saved Filter Presets | `design/12-REPORTING-UX.md:666-692` | `rpt_saved_filters` (`other-screens.jsx:89-156`) | P1 | OK |
-| RPT-SETTINGS Reporting Settings | `design/12-REPORTING-UX.md:693-783` | `rpt_settings_tabbed` (`admin-screens.jsx:287-466`) | P1 | OK |
-| RPT-SCHED Scheduled Reports List | `design/12-REPORTING-UX.md:1290-1329` | `rpt_scheduled_list` (`other-screens.jsx:159-242`) | P2 | TODO-PRD (this revision) |
-| RPT-SCHED-EDIT Scheduled Report Edit | `design/12-REPORTING-UX.md:1331-1389` | `rpt_scheduled_edit` (`other-screens.jsx:245-432`) | P2 | TODO-PRD (this revision) |
-| MOD-SCHEDULE wizard inside RPT-SCHED-EDIT | `design/12-REPORTING-UX.md:831-860` | `schedule_report_modal` (`modals.jsx:151-255`) | P2 | OK-P2 (referenced from §7.2) |
-| RPT-P2-001 Giveaway Analysis | `design/12-REPORTING-UX.md:1175` | `[NO-PROTOTYPE-YET]` (P2 placeholder via RPT-019) | P2 | STUB |
-| RPT-P2-002 Leader Scorecard | `design/12-REPORTING-UX.md:1177` | `[NO-PROTOTYPE-YET]` | P2 | STUB |
-| RPT-P2-003 Daily Issues | `design/12-REPORTING-UX.md:1179` | `[NO-PROTOTYPE-YET]` | P2 | STUB |
-| RPT-P2-004 Shift Performance | `design/12-REPORTING-UX.md:1181` | `[NO-PROTOTYPE-YET]` | P2 | STUB |
-| RPT-P2-005 Supervisor Comparison | `design/12-REPORTING-UX.md:1183` | `[NO-PROTOTYPE-YET]` | P2 | STUB |
-| RPT-P2-006 Period Reports 4-4-5 | `design/12-REPORTING-UX.md:1185` | `[NO-PROTOTYPE-YET]` | P2 | STUB |
-| RPT-P2-007 NCR Trend | `design/12-REPORTING-UX.md:1187` | `[NO-PROTOTYPE-YET]` | P2 | STUB |
-| RPT-P2-008 Lot Genealogy | `design/12-REPORTING-UX.md:1189` | `[NO-PROTOTYPE-YET]` | P2 | STUB |
-| RPT-P2-009 WIP Dashboard | `design/12-REPORTING-UX.md:1191` | `[NO-PROTOTYPE-YET]` | P2 | STUB |
-| RPT-P2-010 Cost Variance | `design/12-REPORTING-UX.md:1193` | `[NO-PROTOTYPE-YET]` | P2 | STUB |
-| RPT-P2-011 Customer Fulfillment | `design/12-REPORTING-UX.md:1195` | `[NO-PROTOTYPE-YET]` | P2 | STUB |
-| RPT-P2-012 Operator Leaderboard | `design/12-REPORTING-UX.md:1197` | `[NO-PROTOTYPE-YET]` | P2 | STUB |
-| RPT-P2-013 Regulatory Export Package | `design/12-REPORTING-UX.md:1199-1218` | `[NO-PROTOTYPE-YET]` (sign-off via RPT-012) | P2 | STUB |
-| Multi-granularity time selector (D-RPT-4) | `design/12-REPORTING-UX.md` (not yet specced in detail) | `[NO-PROTOTYPE-YET]` | P2 | TODO-DESIGN |
-| Custom Report Builder DSL (P2) | UX `design/12-REPORTING-UX.md:1396` (OQ #2 only) | `[NO-PROTOTYPE-YET]` | P2 | TODO-DESIGN |
+| RPT-001 Factory Overview | `prototypes/design/12-REPORTING-UX.md:223-263` | `rpt_factory_overview` (`catalog-screens.jsx:251-398`) | P1 | OK |
+| RPT-002 Yield by Line | `prototypes/design/12-REPORTING-UX.md:264-305` | `rpt_yield_by_line` (`catalog-screens.jsx:402-492`) | P1 | OK |
+| RPT-003 Yield by SKU | `prototypes/design/12-REPORTING-UX.md:306-342` | `rpt_yield_by_sku` (`catalog-screens.jsx:496-617`) | P1 | OK |
+| RPT-004 QC Holds | `prototypes/design/12-REPORTING-UX.md:343-386` | `rpt_qc_holds` (`kpi-screens.jsx:5-166`) | P1 | OK |
+| RPT-005 OEE Summary (consumer 15-OEE) | `prototypes/design/12-REPORTING-UX.md:387-419` | `rpt_oee_summary` (`kpi-screens.jsx:169-310`) | P1 | OK |
+| RPT-006 Inventory Aging | `prototypes/design/12-REPORTING-UX.md:420-462` | `rpt_inventory_aging` (`kpi-screens.jsx:313-466`) | P1 | OK |
+| RPT-007 WO Status | `prototypes/design/12-REPORTING-UX.md:463-501` | `rpt_wo_status` (`kpi-screens.jsx:470-585`) | P1 | OK |
+| RPT-008 Shipment OTD | `prototypes/design/12-REPORTING-UX.md:502-542` | `rpt_shipment_otd` (`kpi-screens.jsx:588-706`) | P1 | OK |
+| RPT-009 Integration Health | `prototypes/design/12-REPORTING-UX.md:543-585` | `rpt_integration_health` (`admin-screens.jsx:4-144`) | P1 | OK |
+| RPT-010 Rules Usage Analytics | `prototypes/design/12-REPORTING-UX.md:586-626` | `rpt_rules_usage` (`admin-screens.jsx:147-283`) | P1 | OK |
+| RPT-011 Share Report Link Modal | `prototypes/design/12-REPORTING-UX.md:863-878` | `share_report_modal` (`modals.jsx:258-282`) | P1 | TODO-PRD (this revision) |
+| RPT-012 Regulatory Sign-off Modal | `prototypes/design/12-REPORTING-UX.md:911-928` | `regulatory_signoff_modal` (`modals.jsx:332-378`) | P2 | TODO-PRD (this revision) |
+| RPT-013 Recipient Group Modal | `prototypes/design/12-REPORTING-UX.md:944-955` | `recipient_group_modal` (`modals.jsx:403-435`) | P2 | TODO-PRD (this revision) |
+| RPT-014 Export Error Log Modal | `prototypes/design/12-REPORTING-UX.md:893-908` | `error_log_modal` (`modals.jsx:306-329`) | P1 | TODO-PRD (this revision) |
+| RPT-015 Force Refresh Confirm Modal | `prototypes/design/12-REPORTING-UX.md:931-940` | `refresh_confirm_modal` (`modals.jsx:381-400`) | P1 | TODO-PRD (this revision) |
+| RPT-016 Run Now Confirm Modal | `prototypes/design/12-REPORTING-UX.md:1319` | `run_now_confirm_modal` (`modals.jsx:438-450`) | P2 | TODO-PRD (this revision) |
+| RPT-017 Delete Confirm Modal | `prototypes/design/12-REPORTING-UX.md:880-889` | `delete_confirm_modal` (`modals.jsx:285-303`) | P1 | TODO-PRD (this revision) |
+| RPT-018 Save Filter Preset Modal | `prototypes/design/12-REPORTING-UX.md:812-827` | `save_preset_modal` (`modals.jsx:115-148`) | P1 | TODO-PRD (this revision) |
+| RPT-019 P2 Feature Toast Modal | `prototypes/design/12-REPORTING-UX.md:1171-1173` | `p2_toast_modal` (`modals.jsx:453-464`) | P1 | TODO-PRD (this revision) |
+| RPT-020 Access Denied Modal | `prototypes/design/12-REPORTING-UX.md:1117` (toast section, inline pattern) | `access_denied_modal` (`modals.jsx:467-481`) | P1 | TODO-PRD (this revision) |
+| RPT-HOME Dashboard Catalog | `prototypes/design/12-REPORTING-UX.md:188-222` | `rpt_home_dashboard_catalog` (`dashboard.jsx:3-112`) | P1 | OK |
+| RPT-EXPORTS Export History | `prototypes/design/12-REPORTING-UX.md:627-664` | `rpt_exports_history` (`other-screens.jsx:4-86`) | P1 | OK |
+| RPT-SAVED Saved Filter Presets | `prototypes/design/12-REPORTING-UX.md:666-692` | `rpt_saved_filters` (`other-screens.jsx:89-156`) | P1 | OK |
+| RPT-SETTINGS Reporting Settings | `prototypes/design/12-REPORTING-UX.md:693-783` | `rpt_settings_tabbed` (`admin-screens.jsx:287-466`) | P1 | OK |
+| RPT-SCHED Scheduled Reports List | `prototypes/design/12-REPORTING-UX.md:1290-1329` | `rpt_scheduled_list` (`other-screens.jsx:159-242`) | P2 | TODO-PRD (this revision) |
+| RPT-SCHED-EDIT Scheduled Report Edit | `prototypes/design/12-REPORTING-UX.md:1331-1389` | `rpt_scheduled_edit` (`other-screens.jsx:245-432`) | P2 | TODO-PRD (this revision) |
+| MOD-SCHEDULE wizard inside RPT-SCHED-EDIT | `prototypes/design/12-REPORTING-UX.md:831-860` | `schedule_report_modal` (`modals.jsx:151-255`) | P2 | OK-P2 (referenced from §7.2) |
+| RPT-P2-001 Giveaway Analysis | `prototypes/design/12-REPORTING-UX.md:1175` | `[NO-PROTOTYPE-YET]` (P2 placeholder via RPT-019) | P2 | STUB |
+| RPT-P2-002 Leader Scorecard | `prototypes/design/12-REPORTING-UX.md:1177` | `[NO-PROTOTYPE-YET]` | P2 | STUB |
+| RPT-P2-003 Daily Issues | `prototypes/design/12-REPORTING-UX.md:1179` | `[NO-PROTOTYPE-YET]` | P2 | STUB |
+| RPT-P2-004 Shift Performance | `prototypes/design/12-REPORTING-UX.md:1181` | `[NO-PROTOTYPE-YET]` | P2 | STUB |
+| RPT-P2-005 Supervisor Comparison | `prototypes/design/12-REPORTING-UX.md:1183` | `[NO-PROTOTYPE-YET]` | P2 | STUB |
+| RPT-P2-006 Period Reports 4-4-5 | `prototypes/design/12-REPORTING-UX.md:1185` | `[NO-PROTOTYPE-YET]` | P2 | STUB |
+| RPT-P2-007 NCR Trend | `prototypes/design/12-REPORTING-UX.md:1187` | `[NO-PROTOTYPE-YET]` | P2 | STUB |
+| RPT-P2-008 Lot Genealogy | `prototypes/design/12-REPORTING-UX.md:1189` | `[NO-PROTOTYPE-YET]` | P2 | STUB |
+| RPT-P2-009 WIP Dashboard | `prototypes/design/12-REPORTING-UX.md:1191` | `[NO-PROTOTYPE-YET]` | P2 | STUB |
+| RPT-P2-010 Cost Variance | `prototypes/design/12-REPORTING-UX.md:1193` | `[NO-PROTOTYPE-YET]` | P2 | STUB |
+| RPT-P2-011 Customer Fulfillment | `prototypes/design/12-REPORTING-UX.md:1195` | `[NO-PROTOTYPE-YET]` | P2 | STUB |
+| RPT-P2-012 Operator Leaderboard | `prototypes/design/12-REPORTING-UX.md:1197` | `[NO-PROTOTYPE-YET]` | P2 | STUB |
+| RPT-P2-013 Regulatory Export Package | `prototypes/design/12-REPORTING-UX.md:1199-1218` | `[NO-PROTOTYPE-YET]` (sign-off via RPT-012) | P2 | STUB |
+| Multi-granularity time selector (D-RPT-4) | `prototypes/design/12-REPORTING-UX.md` (not yet specced in detail) | `[NO-PROTOTYPE-YET]` | P2 | TODO-DESIGN |
+| Custom Report Builder DSL (P2) | UX `prototypes/design/12-REPORTING-UX.md:1396` (OQ #2 only) | `[NO-PROTOTYPE-YET]` | P2 | TODO-DESIGN |
 | External BI Embed (Metabase/Grafana) | `[NO-UX-YET]` | `[NO-PROTOTYPE-YET]` | P2 | TODO-DESIGN |
 | Excel (XLSX) export | `[NO-UX-YET]` (referenced as gated option in MOD-EXPORT) | `[NO-PROTOTYPE-YET]` (UX `:794` shows grayed XLSX option) | P2 | TODO-DESIGN |
 | JSON / Parquet export | `[NO-UX-YET]` | `[NO-PROTOTYPE-YET]` | P2 | TODO-DESIGN |
@@ -1353,15 +1353,15 @@ Wszystkie OQ — P2/P3 / post-launch / nie blokuja P1.
 
 ### Dependencies (upstream PRDs)
 
-- [`00-FOUNDATION-PRD.md`](./00-FOUNDATION-PRD.md) v4.0 — 6 principles, R4 Zod validation, R6 PostHog, R12 ML roadmap, R14 idempotency, §9.1 Manufacturing Operations dynamic configuration
-- [`01-NPD-PRD.md`](./01-NPD-PRD.md) v3.2 — Manufacturing Operations (replaces hardcoded Process_1..4), WIP-<suffix>-<seq> code pattern, FG/Product standardization (multi-industry framework)
-- [`02-SETTINGS-PRD.md`](./02-SETTINGS-PRD.md) v3.1 — §7.8 rules registry, §8.1 reference tables (`fiscal_periods`, `grade_thresholds`, `target_kpis`, `downtime_categories`, `dashboards_catalog`), §10 feature flags, §11.8 INTEGRATIONS stages summary, §13 EmailConfig (Resend)
-- [`08-PRODUCTION-PRD.md`](./08-PRODUCTION-PRD.md) v3.0 — §9.1-9.4 wo_outputs/wo_consumptions, §9.6 downtime_events, §9.9 oee_snapshots (consumer via 15-OEE), §9.10 production_outbox_events, §9.12 operator_kpis_monthly MV
-- [`09-QUALITY-PRD.md`](./09-QUALITY-PRD.md) v3.0 — §6 quality_holds + hold_items, §8 ncr_reports (P2 trend), §10 batch_release_gate_v1 rule (P2 consumer)
-- [`05-WAREHOUSE-PRD.md`](./05-WAREHOUSE-PRD.md) v3.0 — §6 license_plates (inventory aging), §11 lot_genealogy FSMA 204 (P2 lot genealogy report)
-- [`11-SHIPPING-PRD.md`](./11-SHIPPING-PRD.md) v3.0 — §9 shipments + sales_orders (OTD dashboard), §12 shipping_outbox_events (integration health)
-- [`10-FINANCE-PRD.md`](./10-FINANCE-PRD.md) v3.0 — §6 wip_balances (P2 WIP dashboard), §9 inventory_cost_layers (P2 cost variance)
-- [`15-OEE-PRD.md`](./15-OEE-PRD.md) v3.0 — `oee_daily_summary` MV (primary consumer Factory Overview card), D-OEE-* decisions, OEE metrics by manufacturing operation
+- [`docs/prd/00-FOUNDATION-PRD.md`](./docs/prd/00-FOUNDATION-PRD.md) v4.0 — 6 principles, R4 Zod validation, R6 PostHog, R12 ML roadmap, R14 idempotency, §9.1 Manufacturing Operations dynamic configuration
+- [`docs/prd/01-NPD-PRD.md`](./docs/prd/01-NPD-PRD.md) v3.2 — Manufacturing Operations (replaces hardcoded Process_1..4), WIP-<suffix>-<seq> code pattern, FG/Product standardization (multi-industry framework)
+- [`docs/prd/02-SETTINGS-PRD.md`](./docs/prd/02-SETTINGS-PRD.md) v3.1 — §7.8 rules registry, §8.1 reference tables (`fiscal_periods`, `grade_thresholds`, `target_kpis`, `downtime_categories`, `dashboards_catalog`), §10 feature flags, §11.8 INTEGRATIONS stages summary, §13 EmailConfig (Resend)
+- [`docs/prd/08-PRODUCTION-PRD.md`](./docs/prd/08-PRODUCTION-PRD.md) v3.0 — §9.1-9.4 wo_outputs/wo_consumptions, §9.6 downtime_events, §9.9 oee_snapshots (consumer via 15-OEE), §9.10 production_outbox_events, §9.12 operator_kpis_monthly MV
+- [`docs/prd/09-QUALITY-PRD.md`](./docs/prd/09-QUALITY-PRD.md) v3.0 — §6 quality_holds + hold_items, §8 ncr_reports (P2 trend), §10 batch_release_gate_v1 rule (P2 consumer)
+- [`docs/prd/05-WAREHOUSE-PRD.md`](./docs/prd/05-WAREHOUSE-PRD.md) v3.0 — §6 license_plates (inventory aging), §11 lot_genealogy FSMA 204 (P2 lot genealogy report)
+- [`docs/prd/11-SHIPPING-PRD.md`](./docs/prd/11-SHIPPING-PRD.md) v3.0 — §9 shipments + sales_orders (OTD dashboard), §12 shipping_outbox_events (integration health)
+- [`docs/prd/10-FINANCE-PRD.md`](./docs/prd/10-FINANCE-PRD.md) v3.0 — §6 wip_balances (P2 WIP dashboard), §9 inventory_cost_layers (P2 cost variance)
+- [`docs/prd/15-OEE-PRD.md`](./docs/prd/15-OEE-PRD.md) v3.0 — `oee_daily_summary` MV (primary consumer Factory Overview card), D-OEE-* decisions, OEE metrics by manufacturing operation
 
 ### ADRs
 

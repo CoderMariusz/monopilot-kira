@@ -1,4 +1,4 @@
-# 07-PLANNING-EXT-PRD.md
+# docs/prd/07-PLANNING-EXT-PRD.md
 
 **Module:** 07-PLANNING-EXT — Advanced Scheduling, Allergen Optimizer, ML Forecasting, Disposition Bridge
 **Version:** 3.2 (2026-04-30 — standardized product code nomenclature FA→FG per multi-industry pattern)
@@ -1320,11 +1320,11 @@ Prior to Phase D, planning content was consolidated in single PRD `04-PLANNING-P
 
 ### 16.6 References
 
-- **04-PLANNING-BASIC-PRD.md** v3.1 (parent PRD, §7/§8/§10/§11 carry-forward points)
-- **03-TECHNICAL-PRD.md** v3.0 §5.2 (allergen profiles), §10 (cascade rule)
-- **02-SETTINGS-PRD.md** v3.0 §7 (rule registry), §8 (reference tables), §14 (feature flags)
-- **05-WAREHOUSE-PRD.md** v3.0 §10 (intermediate LP flow — consumer of 07-d output)
-- **00-FOUNDATION-PRD.md** v3.0 §4 (module map), R14 (idempotency), R15 (GS1)
+- **docs/prd/04-PLANNING-BASIC-PRD.md** v3.1 (parent PRD, §7/§8/§10/§11 carry-forward points)
+- **docs/prd/03-TECHNICAL-PRD.md** v3.0 §5.2 (allergen profiles), §10 (cascade rule)
+- **docs/prd/02-SETTINGS-PRD.md** v3.0 §7 (rule registry), §8 (reference tables), §14 (feature flags)
+- **docs/prd/05-WAREHOUSE-PRD.md** v3.0 §10 (intermediate LP flow — consumer of 07-d output)
+- **docs/prd/00-FOUNDATION-PRD.md** v3.0 §4 (module map), R14 (idempotency), R15 (GS1)
 - **_foundation/research/MES-TRENDS-2026.md** §3 (scheduling research), §9 (per-module rollups), R1 (event-first), R12 (AI/ML), R13 (schema AI-ready)
 - **ADR-028** (schema-driven columns L3), **ADR-029** (rule engine DSL), **ADR-031** (schema variation per org)
 - **SCANNER-PROTOTYPE (2).html** — referenced for UI consistency (shared design tokens)
@@ -1385,7 +1385,7 @@ Prior to Phase D, planning content was consolidated in single PRD `04-PLANNING-P
 
 #### PLE-001 — Scheduler Run History Browser (SCR-07-04 Index Page) [UNIVERSAL]
 
-**Anchors:** UX `design/07-PLANNING-EXT-UX.md:758-806` (SCR-07-04). Prototype `pext_run_history` (`runhistory-screens.jsx:3-115`).
+**Anchors:** UX `prototypes/design/07-PLANNING-EXT-UX.md:758-806` (SCR-07-04). Prototype `pext_run_history` (`runhistory-screens.jsx:3-115`).
 
 **Status:** P1. Audit row 9 (HIGH) — UX/prototype existed; PRD only mentioned the run lifecycle (§4.1.6) without enumerating a dedicated browser UI.
 
@@ -1411,7 +1411,7 @@ Prior to Phase D, planning content was consolidated in single PRD `04-PLANNING-P
 
 #### PLE-002 — Scheduler Run Detail (SCR-07-04-DETAIL) [UNIVERSAL]
 
-**Anchors:** UX `design/07-PLANNING-EXT-UX.md:808-864` (SCR-07-04-DETAIL). Prototype `pext_run_detail` (`runhistory-screens.jsx:119-260`).
+**Anchors:** UX `prototypes/design/07-PLANNING-EXT-UX.md:808-864` (SCR-07-04-DETAIL). Prototype `pext_run_detail` (`runhistory-screens.jsx:119-260`).
 
 **Status:** P1. Audit row 9.
 
@@ -1432,7 +1432,7 @@ Prior to Phase D, planning content was consolidated in single PRD `04-PLANNING-P
 
 #### PLE-003 — Capacity Projection Screen [UNIVERSAL]
 
-**Anchors:** UX referenced implicitly at `design/07-PLANNING-EXT-UX.md:285-287` (Zone B utilization KPI) and 04-PLAN cross-link. Prototype `pext_capacity_projection` (`optimizer-screens.jsx:113-206`). **No dedicated UX screen** — existed only as prototype. PRD reference §1.4 line capacity hint and §11.1 utilization KPI.
+**Anchors:** UX referenced implicitly at `prototypes/design/07-PLANNING-EXT-UX.md:285-287` (Zone B utilization KPI) and 04-PLAN cross-link. Prototype `pext_capacity_projection` (`optimizer-screens.jsx:113-206`). **No dedicated UX screen** — existed only as prototype. PRD reference §1.4 line capacity hint and §11.1 utilization KPI.
 
 **Status:** P1 advisory; promotes the prototype to a first-class auxiliary screen.
 
@@ -1456,7 +1456,7 @@ Prior to Phase D, planning content was consolidated in single PRD `04-PLANNING-P
 
 #### PLE-004 — Pending Review Full Page (Assignment Queue) [UNIVERSAL]
 
-**Anchors:** UX `design/07-PLANNING-EXT-UX.md:324-338` (Zone D Pending Review Panel, embedded in SCR-07-01). Prototype `pext_pending_full_page` (`optimizer-screens.jsx:4-110`) provides full-page deep-link variant.
+**Anchors:** UX `prototypes/design/07-PLANNING-EXT-UX.md:324-338` (Zone D Pending Review Panel, embedded in SCR-07-01). Prototype `pext_pending_full_page` (`optimizer-screens.jsx:4-110`) provides full-page deep-link variant.
 
 **Status:** P1. The PRD §4.1.6 already covers approve/reject/override; this section anchors the standalone full-page deep-link variant used from KPI tile drill-downs.
 
@@ -1480,7 +1480,7 @@ Prior to Phase D, planning content was consolidated in single PRD `04-PLANNING-P
 
 #### PLE-005 — Scheduler Settings (Default Run Parameters & Alerts) [UNIVERSAL]
 
-**Anchors:** UX implicit in Run Scheduler Modal defaults (`design/07-PLANNING-EXT-UX.md:434-440`). Prototype `pext_settings_screen` (`other-screens.jsx:79-133`). **No dedicated UX section** — orphan.
+**Anchors:** UX implicit in Run Scheduler Modal defaults (`prototypes/design/07-PLANNING-EXT-UX.md:434-440`). Prototype `pext_settings_screen` (`other-screens.jsx:79-133`). **No dedicated UX section** — orphan.
 
 **Status:** P1.
 
@@ -1542,7 +1542,7 @@ CREATE TABLE scheduler_config (
 
 #### PLE-007 — Sequencing Preview & Commit (SCR-07-06 Allergen Sequencing) [UNIVERSAL]
 
-**Anchors:** UX `design/07-PLANNING-EXT-UX.md:1060-1107` (SCR-07-06, extends 04-PLAN §2.8). Prototype `pext_sequencing` (`sequencing-screens.jsx:3-179`). PRD references §10.2 v2 rule + §16.2 OQ-EXT-09 dry-run persistence.
+**Anchors:** UX `prototypes/design/07-PLANNING-EXT-UX.md:1060-1107` (SCR-07-06, extends 04-PLAN §2.8). Prototype `pext_sequencing` (`sequencing-screens.jsx:3-179`). PRD references §10.2 v2 rule + §16.2 OQ-EXT-09 dry-run persistence.
 
 **Status:** P1. Audit row: boundary blur with 04-PLANNING-BASIC sequencing — this PLE clarifies the 07-EXT overlay contract.
 
@@ -1565,7 +1565,7 @@ CREATE TABLE scheduler_config (
 
 #### PLE-008 — Scenarios / What-If Simulation Catalog (P2 lift) [P2, EVOLVING]
 
-**Anchors:** UX `design/07-PLANNING-EXT-UX.md:874-944` (SCR-07-05). Prototype `pext_scenarios` (`scenario-screens.jsx:3-211`). PRD §4.2 P2 scope §2 mentions what-if; SCR-07-05 already specced.
+**Anchors:** UX `prototypes/design/07-PLANNING-EXT-UX.md:874-944` (SCR-07-05). Prototype `pext_scenarios` (`scenario-screens.jsx:3-211`). PRD §4.2 P2 scope §2 mentions what-if; SCR-07-05 already specced.
 
 **Status:** P2. Audit row 9 (LOW) — PRD did not enumerate the scenario *catalog* (saved scenarios list, scenario builder modifications types, KPI compare table). PLE-008 codifies these.
 
@@ -1589,7 +1589,7 @@ CREATE TABLE scheduler_config (
 
 #### PLE-009 — Re-run Confirmation Modal (MODAL-07-RERUN) [UNIVERSAL]
 
-**Anchors:** UX `design/07-PLANNING-EXT-UX.md:802` (Run History `[Re-run]` confirmation). Prototype `rerun_confirm_modal` (`modals.jsx:631-648`). PRD §4.1.6 covered run lifecycle but not the confirmation contract.
+**Anchors:** UX `prototypes/design/07-PLANNING-EXT-UX.md:802` (Run History `[Re-run]` confirmation). Prototype `rerun_confirm_modal` (`modals.jsx:631-648`). PRD §4.1.6 covered run lifecycle but not the confirmation contract.
 
 **Status:** P1.
 
@@ -1608,7 +1608,7 @@ CREATE TABLE scheduler_config (
 
 #### PLE-010 — Matrix Review Request Workflow (`matrix_review_request` table) [UNIVERSAL]
 
-**Anchors:** UX `design/07-PLANNING-EXT-UX.md:522` (BLOCKED cell `[Request Review]` button). Prototype `request_review_modal` (`modals.jsx:677-696`). OQ-EXT-04 explicitly flagged "PRD to define table" — this PLE closes that gap.
+**Anchors:** UX `prototypes/design/07-PLANNING-EXT-UX.md:522` (BLOCKED cell `[Request Review]` button). Prototype `request_review_modal` (`modals.jsx:677-696`). OQ-EXT-04 explicitly flagged "PRD to define table" — this PLE closes that gap.
 
 **Status:** P1.
 
@@ -1651,7 +1651,7 @@ CREATE UNIQUE INDEX idx_matrix_review_one_pending
 
 #### PLE-011 — Matrix Diff Viewer (Cross-Version) [UNIVERSAL]
 
-**Anchors:** UX `design/07-PLANNING-EXT-UX.md:611` (`[View Diff]` from Version History Panel). Prototype `matrix_diff_modal` (`modals.jsx:472-496`). PRD §16.2 OQ-EXT-04 closed; diff *modal* contract was implicit.
+**Anchors:** UX `prototypes/design/07-PLANNING-EXT-UX.md:611` (`[View Diff]` from Version History Panel). Prototype `matrix_diff_modal` (`modals.jsx:472-496`). PRD §16.2 OQ-EXT-04 closed; diff *modal* contract was implicit.
 
 **Status:** P1.
 
@@ -1672,7 +1672,7 @@ CREATE UNIQUE INDEX idx_matrix_review_one_pending
 
 #### PLE-012 — Matrix CSV Import Workflow [UNIVERSAL]
 
-**Anchors:** UX `design/07-PLANNING-EXT-UX.md:625-635` (`[Import CSV]` button + V-CM-01..04). Prototype `matrix_import_modal` (`modals.jsx:414-470`). PRD FR-07-E2-002 mentions bulk CSV but doesn't enumerate the 3-stage state machine UI.
+**Anchors:** UX `prototypes/design/07-PLANNING-EXT-UX.md:625-635` (`[Import CSV]` button + V-CM-01..04). Prototype `matrix_import_modal` (`modals.jsx:414-470`). PRD FR-07-E2-002 mentions bulk CSV but doesn't enumerate the 3-stage state machine UI.
 
 **Status:** P1.
 
@@ -1694,7 +1694,7 @@ CREATE UNIQUE INDEX idx_matrix_review_one_pending
 
 #### PLE-013 — Matrix Publish & Disable v2 Confirmation Contracts [UNIVERSAL]
 
-**Anchors:** UX `design/07-PLANNING-EXT-UX.md:582-592` (Save & Publish flow); `:1078` (`[Disable v2]`). Prototypes `matrix_publish_modal` (`modals.jsx:380-412`), `disable_v2_modal` (`modals.jsx:650-675`), `matrix_cell_edit_modal` (`modals.jsx:322-378`).
+**Anchors:** UX `prototypes/design/07-PLANNING-EXT-UX.md:582-592` (Save & Publish flow); `:1078` (`[Disable v2]`). Prototypes `matrix_publish_modal` (`modals.jsx:380-412`), `disable_v2_modal` (`modals.jsx:650-675`), `matrix_cell_edit_modal` (`modals.jsx:322-378`).
 
 **Status:** P1.
 
@@ -1720,7 +1720,7 @@ These PRD bullets have **no current UX section or prototype**. Each is tagged `[
 |---|---|---|
 | §4.1.4 Manual forecast retain-until-superseded semantics | Forecast supersession audit trail UI | `[NO-PROTOTYPE-YET]` — `pext_forecasts_screen` shows live row only |
 | §4.2 P2 #4 Auto-approval policy | Per-tenant config: confidence threshold below which auto-approve | `[NO-PROTOTYPE-YET]` — referenced in §17.1 PLE-005 Settings card stub but not specified |
-| §13.1 Solver service unavailable — circuit breaker UX | Banner + degraded state visualization | UX `design/07-PLANNING-EXT-UX.md:1193-1202` defines state; `[NO-DEDICATED-PROTOTYPE]` — relies on inline `.alert-red` in dashboard |
+| §13.1 Solver service unavailable — circuit breaker UX | Banner + degraded state visualization | UX `prototypes/design/07-PLANNING-EXT-UX.md:1193-1202` defines state; `[NO-DEDICATED-PROTOTYPE]` — relies on inline `.alert-red` in dashboard |
 | §13.6 Forecast stale flag (P2) | Stale-flag badge + retrain status card | `[NO-PROTOTYPE-YET]` — Forecaster Health card UX defined `:726-732`, prototype lacks the alert variant |
 | §15.4 V-SCHED-01 duration ±5% mismatch warning | Inline assignment-detail warning surface | `[NO-DEDICATED-PROTOTYPE]` — covered generically by side panel allergen/CO section |
 | §11.4 alert "Changeover matrix not updated 180d" | Reminder UI | `[NO-PROTOTYPE-YET]` |
@@ -1787,4 +1787,4 @@ This table replaces the implicit screen-ID mapping with an explicit bidirectiona
 
 ---
 
-**End of 07-PLANNING-EXT-PRD.md v3.2**
+**End of docs/prd/07-PLANNING-EXT-PRD.md v3.2**

@@ -1,7 +1,7 @@
 # 09-QUALITY PRD Amendments — Bidirectional Reconciliation
 
 **Date:** 2026-04-30
-**Scope:** `09-QUALITY-PRD.md` only (UX + prototype index untouched).
+**Scope:** `docs/prd/09-QUALITY-PRD.md` only (UX + prototype index untouched).
 **Predecessor:** `_meta/audits/2026-04-30-design-prd-coverage.md` §2 / Module 09-QUALITY (~85% coverage finding).
 **Goal:** lift 09-QUALITY PRD↔UX coverage from ~85% to ≥90% via labeling-only edits (no deletions, no UX edits).
 
@@ -9,8 +9,8 @@
 
 ## 1. Inputs
 
-- PRD: `/Users/mariuszkrawczyk/Projects/monopilot-kira/09-QUALITY-PRD.md` (1748 lines pre-edit, §8 UX Screens at lines 939-1050).
-- UX spec: `/Users/mariuszkrawczyk/Projects/monopilot-kira/design/09-QUALITY-UX.md` (1404 lines; route table at lines 107-135).
+- PRD: `/Users/mariuszkrawczyk/Projects/monopilot-kira/docs/prd/09-QUALITY-PRD.md` (1748 lines pre-edit, §8 UX Screens at lines 939-1050).
+- UX spec: `/Users/mariuszkrawczyk/Projects/monopilot-kira/prototypes/design/09-QUALITY-UX.md` (1404 lines; route table at lines 107-135).
 - Prototype index: `/Users/mariuszkrawczyk/Projects/monopilot-kira/_meta/prototype-labels/prototype-index-quality.json` (32 entries).
 - ADR-034: `/Users/mariuszkrawczyk/Projects/monopilot-kira/_foundation/decisions/ADR-034-generic-product-lifecycle-naming-and-industry-configuration.md` (Generic Product Lifecycle Naming & Industry Configuration — applied as cross-cutting marker on all spec/product/recipe references).
 
@@ -43,7 +43,7 @@ Additional Direction-B orphans observed during this reconciliation (not flagged 
 
 ---
 
-## 3. Edits applied to `09-QUALITY-PRD.md`
+## 3. Edits applied to `docs/prd/09-QUALITY-PRD.md`
 
 All edits scoped to a new `§8.3` + `§8.4` + `§8.5` block, inserted between §8.2 and §9. **No PRD content removed; UX file untouched.**
 
@@ -51,7 +51,7 @@ All edits scoped to a new `§8.3` + `§8.4` + `§8.5` block, inserted between §
 
 | New ID | Capability | Source UX | Source prototype | Notes |
 |---|---|---|---|---|
-| QUA-101 | Hold Detail | UX QA-002a (`design/09-QUALITY-UX.md:265-291`) | `hold_detail` (`holds-screens.jsx:164-286`) | Alias for §8.1 QA-011 — labeling only. ADR-034 marker. |
+| QUA-101 | Hold Detail | UX QA-002a (`prototypes/design/09-QUALITY-UX.md:265-291`) | `hold_detail` (`holds-screens.jsx:164-286`) | Alias for §8.1 QA-011 — labeling only. ADR-034 marker. |
 | QUA-102 | Specification Detail | UX QA-003b (`:398-419`) | `spec_detail` (`specs-screens.jsx:305-420`) | New screen-level subsection. ADR-034 marker on regulation tags. |
 | QUA-103 | Edit Specification (draft only) | UX QA-003c (`:117`) | `spec_wizard` edit-mode | New. Tied to V-QA-SPEC-001 draft-only constraint. |
 | QUA-104 | Incoming Inspection Detail | UX QA-005a (`:489-538`) | `inspection_detail` (`inspection-screens.jsx:100-297`) | Alias for §8.1 QA-031. |
@@ -96,8 +96,8 @@ Added: full PRD §8.1 ↔ UX QA code ↔ UX route ↔ prototype label cross-walk
 
 ## 5. Constraints honored
 
-- No content deleted from `09-QUALITY-PRD.md` (only insertions between §8.2 and §9).
-- No edits to `design/09-QUALITY-UX.md`.
+- No content deleted from `docs/prd/09-QUALITY-PRD.md` (only insertions between §8.2 and §9).
+- No edits to `prototypes/design/09-QUALITY-UX.md`.
 - All citations include UX line numbers and prototype labels inline.
 - ADR-034 markers added in: §8.3 preamble, QUA-101, QUA-102, QUA-103, QUA-105, QUA-108, QUA-109, §8.4 row QA-052, §8.5 preamble.
 

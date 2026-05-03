@@ -1,9 +1,9 @@
 # Translation Notes — Multi-Site Module (14)
 
 Scanned: 2026-04-23
-Source files: `design/Monopilot Design System/multi-site/` (6 files)
+Source files: `prototypes/design/Monopilot Design System/multi-site/` (6 files)
 Total components indexed: 25
-Known bugs cross-referenced from: `design/Monopilot Design System/BACKLOG.md` §Multi-Site (BL-MS-01..07)
+Known bugs cross-referenced from: `prototypes/design/Monopilot Design System/BACKLOG.md` §Multi-Site (BL-MS-01..07)
 
 ---
 

@@ -2,7 +2,7 @@
 **Audit agent:** Audit-1 (READ-ONLY)
 **Date:** 2026-04-23
 **Sources audited:**
-- PRD: `13-MAINTENANCE-PRD.md` (full read), `01-NPD-PRD.md` (full read — §1-§11+)
+- PRD: `docs/prd/13-MAINTENANCE-PRD.md` (full read), `docs/prd/01-NPD-PRD.md` (full read — §1-§11+)
 - UX: `01-NPD-UX.md` (full read), `13-MAINTENANCE-UX.md` (partial — first 200 lines, §0-§2.3 only)
 - Prototype files read:
   - maintenance: `dashboard.jsx`, `work-orders.jsx`, `pm-schedules.jsx`, `spares.jsx`, `other-screens.jsx`, `modals.jsx`, `assets.jsx`
@@ -195,11 +195,11 @@ Similar to risks. Not in PRD main scope for Phase B.2. Acceptable as stub placeh
 
 **B4. `NutritionScreen` with Nutri-Score calculation — HALLUCINATION**
 Classification: **(B) Hallucination**
-`other-stages.jsx` contains `NutritionScreen` with Nutri-Score preview (A/B/C/D/E scale) and "Run what-if" capability. This feature is not specified anywhere in the `01-NPD-PRD.md`. Nutri-Score calculation is a Phase C4+ feature belonging to 09-QUALITY or 03-TECHNICAL. It appears in the NPD prototype with no PRD anchor.
+`other-stages.jsx` contains `NutritionScreen` with Nutri-Score preview (A/B/C/D/E scale) and "Run what-if" capability. This feature is not specified anywhere in the `docs/prd/01-NPD-PRD.md`. Nutri-Score calculation is a Phase C4+ feature belonging to 09-QUALITY or 03-TECHNICAL. It appears in the NPD prototype with no PRD anchor.
 
 **B5. `CostingScreen` with waterfall + margin scenarios + what-if sliders — HALLUCINATION**
 Classification: **(B) Hallucination**
-`other-stages.jsx` contains a full costing waterfall chart with RM breakdown, yield loss calculation, packaging cost, margin vs target scenarios, and interactive what-if sliders. This is not in `01-NPD-PRD.md`. Cost roll is explicitly out-of-scope for Phase B.2 (§1.2 out-of-scope: "Cost roll + variance + landed cost → 10-FINANCE Phase C4"). This is a significant feature (multiple components) with no PRD anchor in this module.
+`other-stages.jsx` contains a full costing waterfall chart with RM breakdown, yield loss calculation, packaging cost, margin vs target scenarios, and interactive what-if sliders. This is not in `docs/prd/01-NPD-PRD.md`. Cost roll is explicitly out-of-scope for Phase B.2 (§1.2 out-of-scope: "Cost roll + variance + landed cost → 10-FINANCE Phase C4"). This is a significant feature (multiple components) with no PRD anchor in this module.
 
 **B6. `PackagingScreen` with supplier/material/spec/status table — HALLUCINATION (partial)**
 Classification: **(B) Hallucination**

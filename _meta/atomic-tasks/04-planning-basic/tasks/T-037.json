@@ -1,6 +1,6 @@
 {
   "title": "T-037 — UI: PLN-013 D365 SO Queue + Draft WO Review (parity with plan_d365_queue)",
-  "prompt": "Build PLN-013 D365 SO Queue page at `src/app/(planning)/planning/d365/page.tsx` matching prototype `design/Monopilot Design System/planning/other-screens.jsx:510-648` 1:1. Per PRD §15.7.\n\nLayout: pull history strip (last_run, so_count, draft_wo_count, errors), draft WO table with expandable cascade chain rows, pull errors collapsible (retry button → Server Action), manual trigger button (PLN-025 modal), filter bar (SO ref search, SO status, WO status, time range).\n\nDisabled-state surface when feature flag integration.d365.so_trigger.enabled = false. RBAC: read=planning.dashboard.view; trigger=integration.d365.so_trigger.run.\n\nRED RTL test asserts disabled-state, error retry, expand row reveals cascade.",
+  "prompt": "Build PLN-013 D365 SO Queue page at `src/app/(planning)/planning/d365/page.tsx` matching prototype `prototypes/design/Monopilot Design System/planning/other-screens.jsx:510-648` 1:1. Per PRD §15.7.\n\nLayout: pull history strip (last_run, so_count, draft_wo_count, errors), draft WO table with expandable cascade chain rows, pull errors collapsible (retry button → Server Action), manual trigger button (PLN-025 modal), filter bar (SO ref search, SO status, WO status, time range).\n\nDisabled-state surface when feature flag integration.d365.so_trigger.enabled = false. RBAC: read=planning.dashboard.view; trigger=integration.d365.so_trigger.run.\n\nRED RTL test asserts disabled-state, error retry, expand row reveals cascade.",
   "labels": [
     "prd",
     "ui",
@@ -13,7 +13,7 @@
   "pipeline_inputs": {
     "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
     "prd_task_id": "T-037",
-    "source_prd": "04-PLANNING-BASIC-PRD.md",
+    "source_prd": "docs/prd/04-PLANNING-BASIC-PRD.md",
     "prd_refs": [
       "§15.7"
     ],
@@ -32,7 +32,7 @@
       "src/components/planning/d365/DraftWOTable.tsx [create]",
       "src/components/planning/d365/PullErrorsList.tsx [create]",
       "src/components/planning/d365/__tests__/D365Queue.test.tsx [create]",
-      "design/Monopilot Design System/planning/other-screens.jsx:510-648 [ref]"
+      "prototypes/design/Monopilot Design System/planning/other-screens.jsx:510-648 [ref]"
     ],
     "out_of_scope": [
       "D365 Trigger modal (T-051)",
@@ -42,7 +42,7 @@
       "T-030"
     ],
     "acceptance_criteria": [
-      "Given the page renders, when compared to `design/Monopilot Design System/planning/other-screens.jsx:510-648`, then it has the same pull history strip metrics order, the same filter bar layout, the same draft WO table columns, and the same retry affordance — parity verified by RTL snapshot per the checklist.",
+      "Given the page renders, when compared to `prototypes/design/Monopilot Design System/planning/other-screens.jsx:510-648`, then it has the same pull history strip metrics order, the same filter bar layout, the same draft WO table columns, and the same retry affordance — parity verified by RTL snapshot per the checklist.",
       "Given d365_so_trigger_enabled=false, when the page renders, then the trigger button is disabled with tooltip 'Enable in Planning Settings'.",
       "Given an error row is rendered, when the retry button is clicked, then a Server Action is invoked and a toast confirms enqueue.",
       "Given `pnpm vitest run src/components/planning/d365/__tests__/D365Queue.test.tsx`, when run, then 0 failures. Given the UI task is closed, then CLOSEOUT includes Playwright trace artifacts plus screenshots/artifacts for prototype parity and error/empty/blocked states. Follow parity evidence requirements in `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`."

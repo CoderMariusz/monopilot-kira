@@ -6,7 +6,7 @@
   "entries": [
     {
       "label": "grn_from_po_wizard",
-      "file": "design/Monopilot Design System/warehouse/modals.jsx",
+      "file": "prototypes/design/Monopilot Design System/warehouse/modals.jsx",
       "lines": "24-280",
       "component_type": "wizard",
       "ui_pattern": "multi-step-wizard",
@@ -14,12 +14,12 @@
       "interaction": "create",
       "complexity": "page-level",
       "depends_on_prototypes": [
-        "warehouse/shell.jsx#Modal",
-        "warehouse/shell.jsx#Stepper",
-        "warehouse/shell.jsx#Field",
-        "warehouse/shell.jsx#Summary",
-        "warehouse/shell.jsx#QAStatus",
-        "warehouse/shell.jsx#ExpiryCell"
+        "prototypes/design/Monopilot Design System/warehouse/shell.jsx#Modal",
+        "prototypes/design/Monopilot Design System/warehouse/shell.jsx#Stepper",
+        "prototypes/design/Monopilot Design System/warehouse/shell.jsx#Field",
+        "prototypes/design/Monopilot Design System/warehouse/shell.jsx#Summary",
+        "prototypes/design/Monopilot Design System/warehouse/shell.jsx#QAStatus",
+        "prototypes/design/Monopilot Design System/warehouse/shell.jsx#ExpiryCell"
       ],
       "translation_notes": [
         "window.Modal + Stepper → @radix-ui/react-dialog Dialog with custom StepIndicator built from shadcn Steps or a plain ol ordered list of badges",
@@ -63,7 +63,7 @@
     },
     {
       "label": "grn_from_to_modal",
-      "file": "design/Monopilot Design System/warehouse/modals.jsx",
+      "file": "prototypes/design/Monopilot Design System/warehouse/modals.jsx",
       "lines": "283-331",
       "component_type": "modal",
       "ui_pattern": "list-with-actions",
@@ -71,9 +71,9 @@
       "interaction": "create",
       "complexity": "composite",
       "depends_on_prototypes": [
-        "warehouse/shell.jsx#Modal",
-        "warehouse/shell.jsx#Field",
-        "warehouse/shell.jsx#ExpiryCell"
+        "prototypes/design/Monopilot Design System/warehouse/shell.jsx#Modal",
+        "prototypes/design/Monopilot Design System/warehouse/shell.jsx#Field",
+        "prototypes/design/Monopilot Design System/warehouse/shell.jsx#ExpiryCell"
       ],
       "translation_notes": [
         "window.Modal → @radix-ui/react-dialog Dialog; mark as size='wide' via DialogContent className override",
@@ -107,7 +107,7 @@
     },
     {
       "label": "stock_move_modal",
-      "file": "design/Monopilot Design System/warehouse/modals.jsx",
+      "file": "prototypes/design/Monopilot Design System/warehouse/modals.jsx",
       "lines": "334-445",
       "component_type": "modal",
       "ui_pattern": "crud-form-with-validation",
@@ -115,11 +115,11 @@
       "interaction": "create",
       "complexity": "composite",
       "depends_on_prototypes": [
-        "warehouse/shell.jsx#Modal",
-        "warehouse/shell.jsx#Field",
-        "warehouse/shell.jsx#LPStatus",
-        "warehouse/shell.jsx#Ltree",
-        "warehouse/modals.jsx#ReasonInput"
+        "prototypes/design/Monopilot Design System/warehouse/shell.jsx#Modal",
+        "prototypes/design/Monopilot Design System/warehouse/shell.jsx#Field",
+        "prototypes/design/Monopilot Design System/warehouse/shell.jsx#LPStatus",
+        "prototypes/design/Monopilot Design System/warehouse/shell.jsx#Ltree",
+        "prototypes/design/Monopilot Design System/warehouse/modals.jsx#ReasonInput"
       ],
       "translation_notes": [
         "window.Modal → Dialog; form state with single useState object → useForm + zodResolver with discriminated union schema per moveType",
@@ -150,7 +150,7 @@
     },
     {
       "label": "lp_split_modal",
-      "file": "design/Monopilot Design System/warehouse/modals.jsx",
+      "file": "prototypes/design/Monopilot Design System/warehouse/modals.jsx",
       "lines": "448-506",
       "component_type": "modal",
       "ui_pattern": "crud-form-with-validation",
@@ -158,8 +158,8 @@
       "interaction": "edit",
       "complexity": "composite",
       "depends_on_prototypes": [
-        "warehouse/shell.jsx#Modal",
-        "warehouse/shell.jsx#Ltree"
+        "prototypes/design/Monopilot Design System/warehouse/shell.jsx#Modal",
+        "prototypes/design/Monopilot Design System/warehouse/shell.jsx#Ltree"
       ],
       "translation_notes": [
         "window.Modal → Dialog; rows array state → useFieldArray in react-hook-form; each row typed with qty (number), dest (string), label (boolean)",
@@ -197,7 +197,7 @@
     },
     {
       "label": "lp_merge_modal",
-      "file": "design/Monopilot Design System/warehouse/modals.jsx",
+      "file": "prototypes/design/Monopilot Design System/warehouse/modals.jsx",
       "lines": "509-586",
       "component_type": "wizard",
       "ui_pattern": "multi-step-wizard",
@@ -205,11 +205,11 @@
       "interaction": "edit",
       "complexity": "composite",
       "depends_on_prototypes": [
-        "warehouse/shell.jsx#Modal",
-        "warehouse/shell.jsx#Stepper",
-        "warehouse/shell.jsx#Field",
-        "warehouse/shell.jsx#Summary",
-        "warehouse/shell.jsx#LPStatus"
+        "prototypes/design/Monopilot Design System/warehouse/shell.jsx#Modal",
+        "prototypes/design/Monopilot Design System/warehouse/shell.jsx#Stepper",
+        "prototypes/design/Monopilot Design System/warehouse/shell.jsx#Field",
+        "prototypes/design/Monopilot Design System/warehouse/shell.jsx#Summary",
+        "prototypes/design/Monopilot Design System/warehouse/shell.jsx#LPStatus"
       ],
       "translation_notes": [
         "2-step wizard with Stepper → Dialog with internal step state; Stepper is a custom primitive; in production use a shadcn Steps pattern or Radix Tabs with disabled navigation",
@@ -242,7 +242,7 @@
     },
     {
       "label": "qa_status_change_modal",
-      "file": "design/Monopilot Design System/warehouse/modals.jsx",
+      "file": "prototypes/design/Monopilot Design System/warehouse/modals.jsx",
       "lines": "589-664",
       "component_type": "modal",
       "ui_pattern": "crud-form-with-validation",
@@ -250,10 +250,10 @@
       "interaction": "approve",
       "complexity": "composite",
       "depends_on_prototypes": [
-        "warehouse/shell.jsx#Modal",
-        "warehouse/shell.jsx#Field",
-        "warehouse/shell.jsx#QAStatus",
-        "warehouse/modals.jsx#ReasonInput"
+        "prototypes/design/Monopilot Design System/warehouse/shell.jsx#Modal",
+        "prototypes/design/Monopilot Design System/warehouse/shell.jsx#Field",
+        "prototypes/design/Monopilot Design System/warehouse/shell.jsx#QAStatus",
+        "prototypes/design/Monopilot Design System/warehouse/modals.jsx#ReasonInput"
       ],
       "translation_notes": [
         "window.Modal → Dialog; transitions map (PASSED→[HOLD], etc.) → fetched from qa_state_machine config table or hardcoded enum in Zod schema if immutable",
@@ -283,7 +283,7 @@
     },
     {
       "label": "label_print_modal",
-      "file": "design/Monopilot Design System/warehouse/modals.jsx",
+      "file": "prototypes/design/Monopilot Design System/warehouse/modals.jsx",
       "lines": "667-745",
       "component_type": "modal",
       "ui_pattern": "crud-form-with-validation",
@@ -291,8 +291,8 @@
       "interaction": "export",
       "complexity": "composite",
       "depends_on_prototypes": [
-        "warehouse/shell.jsx#Modal",
-        "warehouse/shell.jsx#Field"
+        "prototypes/design/Monopilot Design System/warehouse/shell.jsx#Modal",
+        "prototypes/design/Monopilot Design System/warehouse/shell.jsx#Field"
       ],
       "translation_notes": [
         "HTML label preview (.label-preview div) → real ZPL/EPL rendering is a backend concern (BL-WH-04); in production render a React-based preview using the same field layout, but actual print job is sent as ZPL to the label service",
@@ -332,7 +332,7 @@
     },
     {
       "label": "reserve_lp_modal",
-      "file": "design/Monopilot Design System/warehouse/modals.jsx",
+      "file": "prototypes/design/Monopilot Design System/warehouse/modals.jsx",
       "lines": "748-805",
       "component_type": "modal",
       "ui_pattern": "crud-form-with-validation",
@@ -340,10 +340,10 @@
       "interaction": "create",
       "complexity": "composite",
       "depends_on_prototypes": [
-        "warehouse/shell.jsx#Modal",
-        "warehouse/shell.jsx#Field",
-        "warehouse/shell.jsx#LPStatus",
-        "warehouse/shell.jsx#Ltree"
+        "prototypes/design/Monopilot Design System/warehouse/shell.jsx#Modal",
+        "prototypes/design/Monopilot Design System/warehouse/shell.jsx#Field",
+        "prototypes/design/Monopilot Design System/warehouse/shell.jsx#LPStatus",
+        "prototypes/design/Monopilot Design System/warehouse/shell.jsx#Ltree"
       ],
       "translation_notes": [
         "window.Modal → Dialog; form with LP picker and qty → useForm + zodResolver; LP field is a ComboboxAsync or scanner input",
@@ -371,7 +371,7 @@
     },
     {
       "label": "release_reservation_modal",
-      "file": "design/Monopilot Design System/warehouse/modals.jsx",
+      "file": "prototypes/design/Monopilot Design System/warehouse/modals.jsx",
       "lines": "808-852",
       "component_type": "modal",
       "ui_pattern": "crud-form-with-validation",
@@ -379,10 +379,10 @@
       "interaction": "delete",
       "complexity": "composite",
       "depends_on_prototypes": [
-        "warehouse/shell.jsx#Modal",
-        "warehouse/shell.jsx#Field",
-        "warehouse/shell.jsx#Summary",
-        "warehouse/modals.jsx#ReasonInput"
+        "prototypes/design/Monopilot Design System/warehouse/shell.jsx#Modal",
+        "prototypes/design/Monopilot Design System/warehouse/shell.jsx#Field",
+        "prototypes/design/Monopilot Design System/warehouse/shell.jsx#Summary",
+        "prototypes/design/Monopilot Design System/warehouse/modals.jsx#ReasonInput"
       ],
       "translation_notes": [
         "window.Modal → Dialog with destructive variant styling on footer button",
@@ -410,7 +410,7 @@
     },
     {
       "label": "fefo_deviation_modal",
-      "file": "design/Monopilot Design System/warehouse/modals.jsx",
+      "file": "prototypes/design/Monopilot Design System/warehouse/modals.jsx",
       "lines": "855-913",
       "component_type": "modal",
       "ui_pattern": "crud-form-with-validation",
@@ -418,10 +418,10 @@
       "interaction": "approve",
       "complexity": "composite",
       "depends_on_prototypes": [
-        "warehouse/shell.jsx#Modal",
-        "warehouse/shell.jsx#Field",
-        "warehouse/shell.jsx#Ltree",
-        "warehouse/modals.jsx#ReasonInput"
+        "prototypes/design/Monopilot Design System/warehouse/shell.jsx#Modal",
+        "prototypes/design/Monopilot Design System/warehouse/shell.jsx#Field",
+        "prototypes/design/Monopilot Design System/warehouse/shell.jsx#Ltree",
+        "prototypes/design/Monopilot Design System/warehouse/modals.jsx#ReasonInput"
       ],
       "translation_notes": [
         "window.Modal → Dialog; both LP comparison cards (.fefo-compare) → a 2-column grid with Card components side by side; 'suggested' vs 'selected' styling via border/accent classes",
@@ -452,7 +452,7 @@
     },
     {
       "label": "destroy_scrap_lp_modal",
-      "file": "design/Monopilot Design System/warehouse/modals.jsx",
+      "file": "prototypes/design/Monopilot Design System/warehouse/modals.jsx",
       "lines": "916-963",
       "component_type": "modal",
       "ui_pattern": "crud-form-with-validation",
@@ -460,10 +460,10 @@
       "interaction": "delete",
       "complexity": "composite",
       "depends_on_prototypes": [
-        "warehouse/shell.jsx#Modal",
-        "warehouse/shell.jsx#Field",
-        "warehouse/shell.jsx#Summary",
-        "warehouse/modals.jsx#ReasonInput"
+        "prototypes/design/Monopilot Design System/warehouse/shell.jsx#Modal",
+        "prototypes/design/Monopilot Design System/warehouse/shell.jsx#Field",
+        "prototypes/design/Monopilot Design System/warehouse/shell.jsx#Summary",
+        "prototypes/design/Monopilot Design System/warehouse/modals.jsx#ReasonInput"
       ],
       "translation_notes": [
         "window.Modal → Dialog with btn-danger confirm button; irreversible action pattern — require explicit checkbox confirmation before enabling submit",
@@ -497,7 +497,7 @@
     },
     {
       "label": "use_by_override_modal",
-      "file": "design/Monopilot Design System/warehouse/modals.jsx",
+      "file": "prototypes/design/Monopilot Design System/warehouse/modals.jsx",
       "lines": "966-1007",
       "component_type": "modal",
       "ui_pattern": "crud-form-with-validation",
@@ -505,9 +505,9 @@
       "interaction": "approve",
       "complexity": "composite",
       "depends_on_prototypes": [
-        "warehouse/shell.jsx#Modal",
-        "warehouse/shell.jsx#Field",
-        "warehouse/modals.jsx#ReasonInput"
+        "prototypes/design/Monopilot Design System/warehouse/shell.jsx#Modal",
+        "prototypes/design/Monopilot Design System/warehouse/shell.jsx#Field",
+        "prototypes/design/Monopilot Design System/warehouse/modals.jsx#ReasonInput"
       ],
       "translation_notes": [
         "window.Modal → Dialog; isManager prop → derive from session RBAC; if not Manager, render read-only message with no form and no override button",
@@ -540,7 +540,7 @@
     },
     {
       "label": "location_edit_modal",
-      "file": "design/Monopilot Design System/warehouse/modals.jsx",
+      "file": "prototypes/design/Monopilot Design System/warehouse/modals.jsx",
       "lines": "1010-1048",
       "component_type": "modal",
       "ui_pattern": "crud-form-with-validation",
@@ -548,8 +548,8 @@
       "interaction": "create",
       "complexity": "composite",
       "depends_on_prototypes": [
-        "warehouse/shell.jsx#Modal",
-        "warehouse/shell.jsx#Field"
+        "prototypes/design/Monopilot Design System/warehouse/shell.jsx#Modal",
+        "prototypes/design/Monopilot Design System/warehouse/shell.jsx#Field"
       ],
       "translation_notes": [
         "window.Modal → Dialog; create/edit duality via editing boolean (data prop present or not) → same modal, Server Action upserts via id presence",
@@ -579,7 +579,7 @@
     },
     {
       "label": "cycle_count_adjustment_modal",
-      "file": "design/Monopilot Design System/warehouse/modals.jsx",
+      "file": "prototypes/design/Monopilot Design System/warehouse/modals.jsx",
       "lines": "1051-1103",
       "component_type": "modal",
       "ui_pattern": "crud-form-with-validation",
@@ -587,9 +587,9 @@
       "interaction": "edit",
       "complexity": "composite",
       "depends_on_prototypes": [
-        "warehouse/shell.jsx#Modal",
-        "warehouse/shell.jsx#Field",
-        "warehouse/modals.jsx#ReasonInput"
+        "prototypes/design/Monopilot Design System/warehouse/shell.jsx#Modal",
+        "prototypes/design/Monopilot Design System/warehouse/shell.jsx#Field",
+        "prototypes/design/Monopilot Design System/warehouse/modals.jsx#ReasonInput"
       ],
       "translation_notes": [
         "window.Modal → Dialog; P1 stub warning banner → shadcn Alert variant='default'; note in translation that full cycle count (BL-WH-01) is a separate Phase 2 feature",
@@ -621,7 +621,7 @@
     },
     {
       "label": "state_transition_confirm_modal",
-      "file": "design/Monopilot Design System/warehouse/modals.jsx",
+      "file": "prototypes/design/Monopilot Design System/warehouse/modals.jsx",
       "lines": "1106-1138",
       "component_type": "modal",
       "ui_pattern": "crud-form-with-validation",
@@ -629,10 +629,10 @@
       "interaction": "edit",
       "complexity": "composite",
       "depends_on_prototypes": [
-        "warehouse/shell.jsx#Modal",
-        "warehouse/shell.jsx#Field",
-        "warehouse/shell.jsx#LPStatus",
-        "warehouse/modals.jsx#ReasonInput"
+        "prototypes/design/Monopilot Design System/warehouse/shell.jsx#Modal",
+        "prototypes/design/Monopilot Design System/warehouse/shell.jsx#Field",
+        "prototypes/design/Monopilot Design System/warehouse/shell.jsx#LPStatus",
+        "prototypes/design/Monopilot Design System/warehouse/modals.jsx#ReasonInput"
       ],
       "translation_notes": [
         "window.Modal → Dialog; isDestructive → pass transition direction as prop; destructive transitions use btn-danger variant (fix BL-PROD-05 first)",
@@ -663,7 +663,7 @@
     },
     {
       "label": "force_unlock_scanner_modal",
-      "file": "design/Monopilot Design System/warehouse/modals.jsx",
+      "file": "prototypes/design/Monopilot Design System/warehouse/modals.jsx",
       "lines": "1141-1159",
       "component_type": "modal",
       "ui_pattern": "detail-view",
@@ -671,8 +671,8 @@
       "interaction": "delete",
       "complexity": "composite",
       "depends_on_prototypes": [
-        "warehouse/shell.jsx#Modal",
-        "warehouse/shell.jsx#Summary"
+        "prototypes/design/Monopilot Design System/warehouse/shell.jsx#Modal",
+        "prototypes/design/Monopilot Design System/warehouse/shell.jsx#Summary"
       ],
       "translation_notes": [
         "window.Modal size='sm' → Dialog with smaller max-w override via className on DialogContent",
@@ -694,7 +694,7 @@
     },
     {
       "label": "warehouse_dashboard",
-      "file": "design/Monopilot Design System/warehouse/dashboard.jsx",
+      "file": "prototypes/design/Monopilot Design System/warehouse/dashboard.jsx",
       "lines": "1-213",
       "component_type": "page-layout",
       "ui_pattern": "dashboard-tile",
@@ -702,9 +702,9 @@
       "interaction": "read-only",
       "complexity": "page-level",
       "depends_on_prototypes": [
-        "warehouse/shell.jsx#ExpiryCell",
-        "warehouse/shell.jsx#LPStatus",
-        "warehouse/shell.jsx#Ltree"
+        "prototypes/design/Monopilot Design System/warehouse/shell.jsx#ExpiryCell",
+        "prototypes/design/Monopilot Design System/warehouse/shell.jsx#LPStatus",
+        "prototypes/design/Monopilot Design System/warehouse/shell.jsx#Ltree"
       ],
       "translation_notes": [
         "WhDashboard React.useState for dismissed alerts and feedFilter → Server Component for initial data; client component only for dismiss state (use useOptimistic) and feed filter (URL search param via nuqs)",
@@ -740,7 +740,7 @@
     },
     {
       "label": "lp_list_page",
-      "file": "design/Monopilot Design System/warehouse/lp-screens.jsx",
+      "file": "prototypes/design/Monopilot Design System/warehouse/lp-screens.jsx",
       "lines": "3-198",
       "component_type": "page-layout",
       "ui_pattern": "search-filter-list",
@@ -748,12 +748,12 @@
       "interaction": "bulk",
       "complexity": "page-level",
       "depends_on_prototypes": [
-        "warehouse/shell.jsx#ExpiryCell",
-        "warehouse/shell.jsx#LPStatus",
-        "warehouse/shell.jsx#QAStatus",
-        "warehouse/shell.jsx#Ltree",
-        "warehouse/shell.jsx#SourceChip",
-        "warehouse/shell.jsx#ItemTypeBadge"
+        "prototypes/design/Monopilot Design System/warehouse/shell.jsx#ExpiryCell",
+        "prototypes/design/Monopilot Design System/warehouse/shell.jsx#LPStatus",
+        "prototypes/design/Monopilot Design System/warehouse/shell.jsx#QAStatus",
+        "prototypes/design/Monopilot Design System/warehouse/shell.jsx#Ltree",
+        "prototypes/design/Monopilot Design System/warehouse/shell.jsx#SourceChip",
+        "prototypes/design/Monopilot Design System/warehouse/shell.jsx#ItemTypeBadge"
       ],
       "translation_notes": [
         "WhLPList client-side filtering → Next.js page with URL search params (nuqs) for tab, search, status, QA, warehouse, location, itemType, expiry range, strategy; Server Component fetches filtered data via Drizzle with WHERE clauses",
@@ -794,7 +794,7 @@
     },
     {
       "label": "lp_detail_page",
-      "file": "design/Monopilot Design System/warehouse/lp-screens.jsx",
+      "file": "prototypes/design/Monopilot Design System/warehouse/lp-screens.jsx",
       "lines": "205-558",
       "component_type": "page-layout",
       "ui_pattern": "detail-view",
@@ -802,14 +802,14 @@
       "interaction": "read-only",
       "complexity": "page-level",
       "depends_on_prototypes": [
-        "warehouse/shell.jsx#ExpiryCell",
-        "warehouse/shell.jsx#LPStatus",
-        "warehouse/shell.jsx#QAStatus",
-        "warehouse/shell.jsx#Ltree",
-        "warehouse/shell.jsx#SourceChip",
-        "warehouse/shell.jsx#ItemTypeBadge",
-        "warehouse/shell.jsx#MoveType",
-        "warehouse/shell.jsx#Summary"
+        "prototypes/design/Monopilot Design System/warehouse/shell.jsx#ExpiryCell",
+        "prototypes/design/Monopilot Design System/warehouse/shell.jsx#LPStatus",
+        "prototypes/design/Monopilot Design System/warehouse/shell.jsx#QAStatus",
+        "prototypes/design/Monopilot Design System/warehouse/shell.jsx#Ltree",
+        "prototypes/design/Monopilot Design System/warehouse/shell.jsx#SourceChip",
+        "prototypes/design/Monopilot Design System/warehouse/shell.jsx#ItemTypeBadge",
+        "prototypes/design/Monopilot Design System/warehouse/shell.jsx#MoveType",
+        "prototypes/design/Monopilot Design System/warehouse/shell.jsx#Summary"
       ],
       "translation_notes": [
         "WhLPDetail with WH_LP_DETAIL mock → Server Component fetches LP by id via Drizzle with all relations (movements, genealogy, reservations, stateHistory, qaHistory, labels, audit) as parallel queries",
@@ -848,7 +848,7 @@
     },
     {
       "label": "grn_list_page",
-      "file": "design/Monopilot Design System/warehouse/grn-screens.jsx",
+      "file": "prototypes/design/Monopilot Design System/warehouse/grn-screens.jsx",
       "lines": "3-77",
       "component_type": "page-layout",
       "ui_pattern": "search-filter-list",
@@ -856,7 +856,7 @@
       "interaction": "read-only",
       "complexity": "page-level",
       "depends_on_prototypes": [
-        "warehouse/shell.jsx#GRNStatus"
+        "prototypes/design/Monopilot Design System/warehouse/shell.jsx#GRNStatus"
       ],
       "translation_notes": [
         "WhGRNList client-side filter → URL search params for tab (status), search text, srcType, warehouse, date range, supplier; Server Component fetches filtered GRNs via Drizzle",
@@ -887,7 +887,7 @@
     },
     {
       "label": "grn_detail_page",
-      "file": "design/Monopilot Design System/warehouse/grn-screens.jsx",
+      "file": "prototypes/design/Monopilot Design System/warehouse/grn-screens.jsx",
       "lines": "83-157",
       "component_type": "page-layout",
       "ui_pattern": "detail-view",
@@ -895,10 +895,10 @@
       "interaction": "read-only",
       "complexity": "page-level",
       "depends_on_prototypes": [
-        "warehouse/shell.jsx#GRNStatus",
-        "warehouse/shell.jsx#ExpiryCell",
-        "warehouse/shell.jsx#Ltree",
-        "warehouse/shell.jsx#QAStatus"
+        "prototypes/design/Monopilot Design System/warehouse/shell.jsx#GRNStatus",
+        "prototypes/design/Monopilot Design System/warehouse/shell.jsx#ExpiryCell",
+        "prototypes/design/Monopilot Design System/warehouse/shell.jsx#Ltree",
+        "prototypes/design/Monopilot Design System/warehouse/shell.jsx#QAStatus"
       ],
       "translation_notes": [
         "WhGRNDetail with WH_GRN_DETAIL mock → Server Component fetches GRN by id with items relation (created LPs) and statusHistory; no client state needed for read-only detail",
@@ -928,7 +928,7 @@
     },
     {
       "label": "stock_movement_list_page",
-      "file": "design/Monopilot Design System/warehouse/movement-screens.jsx",
+      "file": "prototypes/design/Monopilot Design System/warehouse/movement-screens.jsx",
       "lines": "3-136",
       "component_type": "page-layout",
       "ui_pattern": "search-filter-list",
@@ -936,9 +936,9 @@
       "interaction": "read-only",
       "complexity": "page-level",
       "depends_on_prototypes": [
-        "warehouse/shell.jsx#MoveType",
-        "warehouse/shell.jsx#Ltree",
-        "warehouse/shell.jsx#Summary"
+        "prototypes/design/Monopilot Design System/warehouse/shell.jsx#MoveType",
+        "prototypes/design/Monopilot Design System/warehouse/shell.jsx#Ltree",
+        "prototypes/design/Monopilot Design System/warehouse/shell.jsx#Summary"
       ],
       "translation_notes": [
         "WhMovementList client-side filter → URL search params for tab, search, moveType, dateFrom, dateTo, location, lp, wo, user; Server Component fetches with Drizzle WHERE clauses",
@@ -975,7 +975,7 @@
     },
     {
       "label": "reservations_list_page",
-      "file": "design/Monopilot Design System/warehouse/movement-screens.jsx",
+      "file": "prototypes/design/Monopilot Design System/warehouse/movement-screens.jsx",
       "lines": "140-221",
       "component_type": "page-layout",
       "ui_pattern": "list-with-actions",
@@ -983,8 +983,8 @@
       "interaction": "read-only",
       "complexity": "page-level",
       "depends_on_prototypes": [
-        "warehouse/shell.jsx#ExpiryCell",
-        "warehouse/shell.jsx#Ltree"
+        "prototypes/design/Monopilot Design System/warehouse/shell.jsx#ExpiryCell",
+        "prototypes/design/Monopilot Design System/warehouse/shell.jsx#Ltree"
       ],
       "translation_notes": [
         "WhReservations → Server Component fetches lp_reservations with lp and wo relations; tab filter (active/consumed/cancelled/all) via URL param",
@@ -1012,7 +1012,7 @@
     },
     {
       "label": "inventory_browser_page",
-      "file": "design/Monopilot Design System/warehouse/other-screens.jsx",
+      "file": "prototypes/design/Monopilot Design System/warehouse/other-screens.jsx",
       "lines": "3-152",
       "component_type": "page-layout",
       "ui_pattern": "search-filter-list",
@@ -1020,11 +1020,11 @@
       "interaction": "read-only",
       "complexity": "page-level",
       "depends_on_prototypes": [
-        "warehouse/shell.jsx#ExpiryCell",
-        "warehouse/shell.jsx#LPStatus",
-        "warehouse/shell.jsx#QAStatus",
-        "warehouse/shell.jsx#Ltree",
-        "warehouse/shell.jsx#ItemTypeBadge"
+        "prototypes/design/Monopilot Design System/warehouse/shell.jsx#ExpiryCell",
+        "prototypes/design/Monopilot Design System/warehouse/shell.jsx#LPStatus",
+        "prototypes/design/Monopilot Design System/warehouse/shell.jsx#QAStatus",
+        "prototypes/design/Monopilot Design System/warehouse/shell.jsx#Ltree",
+        "prototypes/design/Monopilot Design System/warehouse/shell.jsx#ItemTypeBadge"
       ],
       "translation_notes": [
         "WhInventory with 3-view toggle (By product / By location / By batch) → URL param ?view=product|location|batch; each view is a separate Server Component rendering; all share the same filter bar",
@@ -1058,7 +1058,7 @@
     },
     {
       "label": "locations_hierarchy_page",
-      "file": "design/Monopilot Design System/warehouse/other-screens.jsx",
+      "file": "prototypes/design/Monopilot Design System/warehouse/other-screens.jsx",
       "lines": "156-264",
       "component_type": "page-layout",
       "ui_pattern": "detail-view",
@@ -1066,10 +1066,10 @@
       "interaction": "read-only",
       "complexity": "page-level",
       "depends_on_prototypes": [
-        "warehouse/shell.jsx#ExpiryCell",
-        "warehouse/shell.jsx#LPStatus",
-        "warehouse/shell.jsx#QAStatus",
-        "warehouse/shell.jsx#Ltree"
+        "prototypes/design/Monopilot Design System/warehouse/shell.jsx#ExpiryCell",
+        "prototypes/design/Monopilot Design System/warehouse/shell.jsx#LPStatus",
+        "prototypes/design/Monopilot Design System/warehouse/shell.jsx#QAStatus",
+        "prototypes/design/Monopilot Design System/warehouse/shell.jsx#Ltree"
       ],
       "translation_notes": [
         "WhLocations master-detail layout (tree left, detail right) → two-column grid; left side is a client island for tree selection state; right side re-renders on selection change via URL param ?loc=WH-Factory-A.Cold.B3",
@@ -1099,7 +1099,7 @@
     },
     {
       "label": "genealogy_traceability_page",
-      "file": "design/Monopilot Design System/warehouse/other-screens.jsx",
+      "file": "prototypes/design/Monopilot Design System/warehouse/other-screens.jsx",
       "lines": "268-359",
       "component_type": "page-layout",
       "ui_pattern": "detail-view",
@@ -1107,7 +1107,7 @@
       "interaction": "read-only",
       "complexity": "page-level",
       "depends_on_prototypes": [
-        "warehouse/shell.jsx#Ltree"
+        "prototypes/design/Monopilot Design System/warehouse/shell.jsx#Ltree"
       ],
       "translation_notes": [
         "WhGenealogy search + trace → URL param ?lp=&mode=backward|forward|full&depth=10; Server Component executes recursive CTE query on submit; Suspense boundary while querying",
@@ -1132,7 +1132,7 @@
     },
     {
       "label": "expiry_management_page",
-      "file": "design/Monopilot Design System/warehouse/other-screens.jsx",
+      "file": "prototypes/design/Monopilot Design System/warehouse/other-screens.jsx",
       "lines": "363-480",
       "component_type": "page-layout",
       "ui_pattern": "list-with-actions",
@@ -1140,10 +1140,10 @@
       "interaction": "bulk",
       "complexity": "page-level",
       "depends_on_prototypes": [
-        "warehouse/shell.jsx#ExpiryCell",
-        "warehouse/shell.jsx#LPStatus",
-        "warehouse/shell.jsx#ShelfMode",
-        "warehouse/shell.jsx#Ltree"
+        "prototypes/design/Monopilot Design System/warehouse/shell.jsx#ExpiryCell",
+        "prototypes/design/Monopilot Design System/warehouse/shell.jsx#LPStatus",
+        "prototypes/design/Monopilot Design System/warehouse/shell.jsx#ShelfMode",
+        "prototypes/design/Monopilot Design System/warehouse/shell.jsx#Ltree"
       ],
       "translation_notes": [
         "WhExpiry tab toggle (Expired / Expiring soon) → URL param ?tab=expired|expiring; Server Component fetches expired LPs (expiry_date < now()) or expiring soon (expiry_date < now()+7d / +30d) with mode filter",
@@ -1174,7 +1174,7 @@
     },
     {
       "label": "warehouse_settings_page",
-      "file": "design/Monopilot Design System/warehouse/other-screens.jsx",
+      "file": "prototypes/design/Monopilot Design System/warehouse/other-screens.jsx",
       "lines": "484-631",
       "component_type": "page-layout",
       "ui_pattern": "crud-form-with-validation",
@@ -1182,7 +1182,7 @@
       "interaction": "edit",
       "complexity": "page-level",
       "depends_on_prototypes": [
-        "warehouse/shell.jsx#Field"
+        "prototypes/design/Monopilot Design System/warehouse/shell.jsx#Field"
       ],
       "translation_notes": [
         "WhSettings left-nav sidebar + content area → two-column layout matching prototype; sidebar uses a vertical nav list; active category highlighted; sticky sidebar via position:sticky",
@@ -1222,7 +1222,7 @@
     },
     {
       "label": "app_sidebar",
-      "file": "design/Monopilot Design System/warehouse/shell.jsx",
+      "file": "prototypes/design/Monopilot Design System/warehouse/shell.jsx",
       "lines": "3-22",
       "component_type": "sidebar",
       "ui_pattern": "list-with-actions",
@@ -1251,7 +1251,7 @@
     },
     {
       "label": "app_topbar",
-      "file": "design/Monopilot Design System/warehouse/shell.jsx",
+      "file": "prototypes/design/Monopilot Design System/warehouse/shell.jsx",
       "lines": "24-41",
       "component_type": "sidebar",
       "ui_pattern": "list-with-actions",
@@ -1284,7 +1284,7 @@
     },
     {
       "label": "warehouse_sub_nav",
-      "file": "design/Monopilot Design System/warehouse/shell.jsx",
+      "file": "prototypes/design/Monopilot Design System/warehouse/shell.jsx",
       "lines": "43-67",
       "component_type": "sidebar",
       "ui_pattern": "list-with-actions",
@@ -1312,7 +1312,7 @@
     },
     {
       "label": "available_lp_picker",
-      "file": "design/05-WAREHOUSE-UX.md",
+      "file": "prototypes/design/05-WAREHOUSE-UX.md",
       "lines": "897-927",
       "component_type": "form",
       "ui_pattern": "search-filter-list",
@@ -1322,8 +1322,8 @@
       "prototype_status": "planned_first_class_marker",
       "decision_source": "_meta/decisions/2026-05-03-next-modules-warehouse-scanner-planning-production-decisions.md",
       "depends_on_prototypes": [
-        "warehouse/lp-screens.jsx#WhLPList",
-        "warehouse/modals.jsx#FEFODeviationModal"
+        "prototypes/design/Monopilot Design System/warehouse/lp-screens.jsx#WhLPList",
+        "prototypes/design/Monopilot Design System/warehouse/modals.jsx#FEFODeviationModal"
       ],
       "translation_notes": [
         "First-class WH-015 label per 2026-05-03 decision; may compose LP list table primitives but production must expose data-prototype-label='available_lp_picker'.",
@@ -1348,7 +1348,7 @@
     },
     {
       "label": "wo_reservations_panel",
-      "file": "design/05-WAREHOUSE-UX.md",
+      "file": "prototypes/design/05-WAREHOUSE-UX.md",
       "lines": "956-986",
       "component_type": "sidebar",
       "ui_pattern": "list-with-actions",
@@ -1358,8 +1358,8 @@
       "prototype_status": "planned_first_class_marker",
       "decision_source": "_meta/decisions/2026-05-03-next-modules-warehouse-scanner-planning-production-decisions.md",
       "depends_on_prototypes": [
-        "warehouse/movement-screens.jsx#WhReservations",
-        "warehouse/modals.jsx#ReleaseReservationModal"
+        "prototypes/design/Monopilot Design System/warehouse/movement-screens.jsx#WhReservations",
+        "prototypes/design/Monopilot Design System/warehouse/modals.jsx#ReleaseReservationModal"
       ],
       "translation_notes": [
         "First-class WH-017 label per 2026-05-03 decision; renders inside 04 Planning WO Detail and can share table primitives with reservations_list_page.",
@@ -1384,7 +1384,7 @@
     },
     {
       "label": "shelf_life_rules_admin_page",
-      "file": "design/05-WAREHOUSE-UX.md",
+      "file": "prototypes/design/05-WAREHOUSE-UX.md",
       "lines": "WH-109",
       "component_type": "page-layout",
       "ui_pattern": "crud-form-with-validation",
@@ -1394,8 +1394,8 @@
       "prototype_status": "planned_phase_1",
       "decision_source": "_meta/decisions/2026-05-03-next-modules-warehouse-scanner-planning-production-decisions.md",
       "depends_on_prototypes": [
-        "warehouse/other-screens.jsx#WhSettings",
-        "warehouse/modals.jsx#ShelfLifeRuleEditModal (planned)"
+        "prototypes/design/Monopilot Design System/warehouse/other-screens.jsx#WhSettings",
+        "prototypes/design/Monopilot Design System/warehouse/modals.jsx#ShelfLifeRuleEditModal (planned)"
       ],
       "translation_notes": [
         "WH-109 Shelf Life Rules CRUD is Phase 1. Route /warehouse/settings/shelf-life-rules under Warehouse Settings.",
@@ -1420,7 +1420,7 @@
     },
     {
       "label": "shelf_life_rule_edit_modal",
-      "file": "design/05-WAREHOUSE-UX.md",
+      "file": "prototypes/design/05-WAREHOUSE-UX.md",
       "lines": "WH-109",
       "component_type": "modal",
       "ui_pattern": "crud-form-with-validation",
@@ -1430,8 +1430,8 @@
       "prototype_status": "planned_phase_1",
       "decision_source": "_meta/decisions/2026-05-03-next-modules-warehouse-scanner-planning-production-decisions.md",
       "depends_on_prototypes": [
-        "warehouse/shell.jsx#Modal",
-        "warehouse/shell.jsx#Field"
+        "prototypes/design/Monopilot Design System/warehouse/shell.jsx#Modal",
+        "prototypes/design/Monopilot Design System/warehouse/shell.jsx#Field"
       ],
       "translation_notes": [
         "Modal fields: Customer, Product, Min Shelf Life Days, Enforced, Reason, Notes.",

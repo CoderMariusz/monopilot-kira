@@ -1,7 +1,7 @@
 # Scanner Module — Prototype Translation Notes
 
 Generated: 2026-05-03
-Source files scanned: `design/Monopilot Design System/scanner/*.jsx` plus shared Settings device surface
+Source files scanned: `prototypes/design/Monopilot Design System/scanner/*.jsx` plus shared Settings device surface
 Components indexed: 55 canonical labels
 Total estimated translation time: ~3,360 min (~56 h)
 Hardening context: Wave Next-3 Scanner P1 readiness, user decisions applied.

@@ -1,6 +1,6 @@
 {
   "title": "T-045 — Re-run Confirmation Modal",
-  "prompt": "# T-045 — Re-run Confirmation Modal\n\nPRD: `07-PLANNING-EXT-PRD.md` §17.1 PLE-009, §16.2 OQ-EXT-09, R14.\nUX/prototype refs are listed in `pipeline_inputs.scope_files`.\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`.\n\n## Goal\nAdd the safe re-run confirmation step used from run history and run detail.\n\n## Implementation contract\nClone only allowed input params/snapshot references; enqueue via the same T-012 path; existing run and approved schedule remain unchanged until new assignments are approved.\n\nACP shape reminder: keep this task as one atomic implementation. Do not add ACP-owned fields. Keep local dependencies in `dependencies`; cross-module contracts in `cross_module_dependencies` are blockers/inputs, not ACP local task IDs.",
+  "prompt": "# T-045 — Re-run Confirmation Modal\n\nPRD: `docs/prd/07-PLANNING-EXT-PRD.md` §17.1 PLE-009, §16.2 OQ-EXT-09, R14.\nUX/prototype refs are listed in `pipeline_inputs.scope_files`.\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`.\n\n## Goal\nAdd the safe re-run confirmation step used from run history and run detail.\n\n## Implementation contract\nClone only allowed input params/snapshot references; enqueue via the same T-012 path; existing run and approved schedule remain unchanged until new assignments are approved.\n\nACP shape reminder: keep this task as one atomic implementation. Do not add ACP-owned fields. Keep local dependencies in `dependencies`; cross-module contracts in `cross_module_dependencies` are blockers/inputs, not ACP local task IDs.",
   "labels": [
     "prd",
     "ui",
@@ -12,7 +12,7 @@
   "pipeline_name": "kira_dev",
   "pipeline_inputs": {
     "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
-    "source_prd": "07-PLANNING-EXT-PRD.md",
+    "source_prd": "docs/prd/07-PLANNING-EXT-PRD.md",
     "context_budget": "40k",
     "skills": [
       "test-driven-development",
@@ -54,7 +54,7 @@
     "scope_files": [
       "apps/web/src/components/scheduler/RerunConfirmModal.tsx [create]",
       "apps/web/src/lib/scheduler/rerun-action.ts [create]",
-      "design/Monopilot Design System/planning-ext/modals.jsx:631-648 [ref]"
+      "prototypes/design/Monopilot Design System/planning-ext/modals.jsx:631-648 [ref]"
     ],
     "dependencies": [
       "T-012",

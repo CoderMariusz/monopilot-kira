@@ -197,7 +197,7 @@ These 4 must be added to the merged backlog as **hard upstream blockers** for al
    Decision: canary is only needed when tenant #2 ships (post-E-2). **Defer with explicit pointer** rather than port.
 
 4. **T-37/38/39 D365/Peppol/GS1 stubs (47 E-0) vs. alt missing.**  
-   Decision: these are integration stubs. If PRD says they're E-0 scope, port minimal stubs as `integration/stub` tasks. If not, defer. **Needs PRD verification** — recommend re-reading `00-FOUNDATION-PRD.md` §integration.
+   Decision: these are integration stubs. If PRD says they're E-0 scope, port minimal stubs as `integration/stub` tasks. If not, defer. **Needs PRD verification** — recommend re-reading `docs/prd/00-FOUNDATION-PRD.md` §integration.
 
 ## E. Recommended merged backlog shape
 

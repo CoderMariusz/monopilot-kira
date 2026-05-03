@@ -10,7 +10,7 @@
 
 ### Deliverable
 
-**`09-QUALITY-PRD.md` v3.0** — **1739 linii, 16 sekcji**, 7 D-decisions (Q1-Q7), 5 sub-modules build 09-a..e (45-54 sesji impl est. P1), 7 P2 epics (8F-8L, +72-96 sesji impl).
+**`docs/prd/09-QUALITY-PRD.md` v3.0** — **1739 linii, 16 sekcji**, 7 D-decisions (Q1-Q7), 5 sub-modules build 09-a..e (45-54 sesji impl est. P1), 7 P2 epics (8F-8L, +72-96 sesji impl).
 
 Baseline v2.0 (558 linii, 2026-02-17) w pełni przepisany do v3.0 convention. D1-D14 decyzje zachowane.
 
@@ -97,7 +97,7 @@ Baseline v2.0 (558 linii, 2026-02-17) w pełni przepisany do v3.0 convention. D1
 
 ### Scope C4 Sesja 2
 
-**Primary deliverable:** `10-FINANCE-PRD.md` v3.0 — WIP costing + yield variance + waste cost allocation + BOM cost rollup + material cost ingestion + INTEGRATIONS stage 5 (D365 cost posting, reusing 08-PROD outbox pattern).
+**Primary deliverable:** `docs/prd/10-FINANCE-PRD.md` v3.0 — WIP costing + yield variance + waste cost allocation + BOM cost rollup + material cost ingestion + INTEGRATIONS stage 5 (D365 cost posting, reusing 08-PROD outbox pattern).
 
 **Secondary deliverable:** Cross-PRD revision 02-SETTINGS v3.1 apply 09-QA deltas (3 DSL rules + 3 reference tables registered).
 
@@ -106,14 +106,14 @@ Baseline v2.0 (558 linii, 2026-02-17) w pełni przepisany do v3.0 convention. D1
 ### Bootstrap C4 Sesja 2 (10-FINANCE)
 
 1. Read `_meta/handoffs/2026-04-20-c4-sesja1-close.md` (this file)
-2. Read `08-PRODUCTION-PRD.md` v3.0 §12 INTEGRATIONS stage 2 (outbox pattern template — **reuse for stage 5**), §9.5 `wo_waste_log` (cost category rollup), §9.4 `wo_outputs` (yield calc)
-3. Read `04-PLANNING-BASIC-PRD.md` v3.1 + `07-PLANNING-EXT-PRD.md` v3.0 (MRP consumer + forecast bridge P2 for finance planning)
-4. Read `03-TECHNICAL-PRD.md` v3.0 §11 `cost_per_kg` per-item z history (material cost source)
-5. Read `05-WAREHOUSE-PRD.md` v3.0 §13 (LP cost snapshot, material cost rollup at consume)
-6. Read `09-QUALITY-PRD.md` v3.0 §6 `ncr_reports.claim_value_eur` (yield claim integration), §6 `wo_waste_log` consumer
-7. Read `02-SETTINGS-PRD.md` v3.0 §11 D365 Constants (dataAreaId FNOR, ApexDG warehouse, FinGoods account — stage 5 refs)
+2. Read `docs/prd/08-PRODUCTION-PRD.md` v3.0 §12 INTEGRATIONS stage 2 (outbox pattern template — **reuse for stage 5**), §9.5 `wo_waste_log` (cost category rollup), §9.4 `wo_outputs` (yield calc)
+3. Read `docs/prd/04-PLANNING-BASIC-PRD.md` v3.1 + `docs/prd/07-PLANNING-EXT-PRD.md` v3.0 (MRP consumer + forecast bridge P2 for finance planning)
+4. Read `docs/prd/03-TECHNICAL-PRD.md` v3.0 §11 `cost_per_kg` per-item z history (material cost source)
+5. Read `docs/prd/05-WAREHOUSE-PRD.md` v3.0 §13 (LP cost snapshot, material cost rollup at consume)
+6. Read `docs/prd/09-QUALITY-PRD.md` v3.0 §6 `ncr_reports.claim_value_eur` (yield claim integration), §6 `wo_waste_log` consumer
+7. Read `docs/prd/02-SETTINGS-PRD.md` v3.0 §11 D365 Constants (dataAreaId FNOR, ApexDG warehouse, FinGoods account — stage 5 refs)
 8. Read `_foundation/research/MES-TRENDS-2026.md` §9 "10-FINANCE" + R-decisions cost allocation
-9. Read baseline `10-FINANCE-PRD.md` pre-Phase-D
+9. Read baseline `docs/prd/10-FINANCE-PRD.md` pre-Phase-D
 10. Propose outline → user Q&A → full write
 11. Apply cross-PRD 02-SETTINGS v3.1 delta (inline or separate) — 3 rules + 3 ref tables from 09-QA
 12. Update memory + close HANDOFF → C4 Sesja 3 bootstrap (11-SHIPPING)
@@ -219,12 +219,12 @@ Phase C4 Sesja 1 **COMPLETE**. Regulatory evidence layer zdefiniowana — qualit
 
 ## Related
 
-- [`09-QUALITY-PRD.md`](../../09-QUALITY-PRD.md) v3.0 — primary deliverable
+- [`docs/prd/09-QUALITY-PRD.md`](../../docs/prd/09-QUALITY-PRD.md) v3.0 — primary deliverable
 - [`2026-04-20-c3-sesja1-close.md`](./2026-04-20-c3-sesja1-close.md) — input HANDOFF (C3 close)
-- [`08-PRODUCTION-PRD.md`](../../08-PRODUCTION-PRD.md) v3.0 §7 E7 + §9.8 + §12 — allergen gate + INTEGRATIONS stage 2 template
-- [`05-WAREHOUSE-PRD.md`](../../05-WAREHOUSE-PRD.md) v3.0 §11 + §12 — FSMA 204 genealogy + use_by gating
-- [`06-SCANNER-P1-PRD.md`](../../06-SCANNER-P1-PRD.md) v3.0 §8.5 + §14 — SCN-070..073 contract
-- [`03-TECHNICAL-PRD.md`](../../03-TECHNICAL-PRD.md) v3.0 §10 — allergen cascade + lab_results
-- [`02-SETTINGS-PRD.md`](../../02-SETTINGS-PRD.md) v3.0 §7 + §8 + §11 — rules registry + reference tables + D365 constants (pending v3.1 delta)
-- [`00-FOUNDATION-PRD.md`](../../00-FOUNDATION-PRD.md) v3.0 — R14 idempotency, R15 anti-corruption, principles
+- [`docs/prd/08-PRODUCTION-PRD.md`](../../docs/prd/08-PRODUCTION-PRD.md) v3.0 §7 E7 + §9.8 + §12 — allergen gate + INTEGRATIONS stage 2 template
+- [`docs/prd/05-WAREHOUSE-PRD.md`](../../docs/prd/05-WAREHOUSE-PRD.md) v3.0 §11 + §12 — FSMA 204 genealogy + use_by gating
+- [`docs/prd/06-SCANNER-P1-PRD.md`](../../docs/prd/06-SCANNER-P1-PRD.md) v3.0 §8.5 + §14 — SCN-070..073 contract
+- [`docs/prd/03-TECHNICAL-PRD.md`](../../docs/prd/03-TECHNICAL-PRD.md) v3.0 §10 — allergen cascade + lab_results
+- [`docs/prd/02-SETTINGS-PRD.md`](../../docs/prd/02-SETTINGS-PRD.md) v3.0 §7 + §8 + §11 — rules registry + reference tables + D365 constants (pending v3.1 delta)
+- [`docs/prd/00-FOUNDATION-PRD.md`](../../docs/prd/00-FOUNDATION-PRD.md) v3.0 — R14 idempotency, R15 anti-corruption, principles
 - [`_foundation/research/MES-TRENDS-2026.md`](../../_foundation/research/MES-TRENDS-2026.md) — §9 09-QUALITY + §3 regulatory

@@ -84,7 +84,7 @@
 
 ## Recommended update approach
 
-1. **PRD first:** Update `00-FOUNDATION-PRD.md` §5 tech stack versions (single source of truth)
+1. **PRD first:** Update `docs/prd/00-FOUNDATION-PRD.md` §5 tech stack versions (single source of truth)
 2. **T-001 first:** Update monorepo bootstrap task — it sets the baseline for all other tasks
 3. **Propagate:** Re-run `prd-decompose-hybrid` skill on affected sections OR do targeted find-replace across task prompts
 4. **Do NOT update taskmaster** — it's legacy (`_legacy: true`)

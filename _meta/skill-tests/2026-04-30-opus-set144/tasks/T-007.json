@@ -8,7 +8,7 @@
   "pipeline_inputs": {
     "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
     "prd_task_id": "T-007",
-    "source_prd": "02-SETTINGS-PRD.md",
+    "source_prd": "docs/prd/02-SETTINGS-PRD.md",
     "prd_refs": ["§14.3 step 3 (line 1522)", "§14.4 SET-004 (line 1541)"],
     "category": "ui",
     "subcategory": "wizard-step-form",

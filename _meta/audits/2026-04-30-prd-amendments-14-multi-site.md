@@ -3,7 +3,7 @@
 **Date:** 2026-04-30
 **PRD version:** v3.1 → v3.2
 **Closes:** audit BLOCKER #2 from `_meta/audits/2026-04-30-design-prd-coverage.md` (14-MULTI-SITE row)
-**Source files referenced:** `14-MULTI-SITE-PRD.md`, `design/14-MULTI-SITE-UX.md`, `_meta/prototype-labels/prototype-index-multi-site.json`, `_foundation/decisions/ADR-034-generic-product-lifecycle-naming-and-industry-configuration.md`
+**Source files referenced:** `docs/prd/14-MULTI-SITE-PRD.md`, `prototypes/design/14-MULTI-SITE-UX.md`, `_meta/prototype-labels/prototype-index-multi-site.json`, `_foundation/decisions/ADR-034-generic-product-lifecycle-naming-and-industry-configuration.md`
 **Constraint:** stayed strictly within 14-MULTI-SITE; UX file untouched; no PRD deletions.
 
 ---
@@ -38,7 +38,7 @@ Full new top-level PRD section. Components:
 - **§10A.6 Validation rule pointer** — defers to §11.6 V-MS-24..V-MS-29
 - **§10A.7 Telemetry** — lane-coverage ratio, rate-card freshness, auto-suggestion acceptance rate (P2 analytics MV)
 
-Anchors: UX `MS-LANE` (`design/14-MULTI-SITE-UX.md:808-846`), `MS-LANE-D` (`UX:849-906`), `MODAL-LANE-CREATE/EDIT` (`UX:1351-1373`), `MODAL-RATE-CARD-UPLOAD` (`UX:1377-1383`), prototypes `ms_lanes_list`/`ms_lane_detail`/`lane_create_modal`/`rate_card_upload_modal`.
+Anchors: UX `MS-LANE` (`prototypes/design/14-MULTI-SITE-UX.md:808-846`), `MS-LANE-D` (`UX:849-906`), `MODAL-LANE-CREATE/EDIT` (`UX:1351-1373`), `MODAL-RATE-CARD-UPLOAD` (`UX:1377-1383`), prototypes `ms_lanes_list`/`ms_lane_detail`/`lane_create_modal`/`rate_card_upload_modal`.
 
 ### §10B. Other UX-only screens (Direction B) — 111 lines
 

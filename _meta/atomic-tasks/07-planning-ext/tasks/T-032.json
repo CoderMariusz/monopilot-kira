@@ -1,6 +1,6 @@
 {
   "title": "T-032 — MODAL-07-01 Run Scheduler modal (run_scheduler_modal)",
-  "prompt": "# T-032 — MODAL-07-01 Run Scheduler modal\n\nPRD: 07-PLANNING-EXT-PRD.md §4.1.6, §8.1 §6 [Run Scheduler] action\nPrototype: design/Monopilot Design System/planning-ext/modals.jsx:21-95 (`run_scheduler_modal`)\nUX: design/07-PLANNING-EXT-UX.md:428-449\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nImplement Dialog modal collecting horizon (7d|14d), line_ids[] (≥1), include_forecast bool, optimizer_version → invokes Server Action runOptimizerAction → POST /api/scheduler/run.\n\n## Implementation contract\n1. New `apps/web/src/components/scheduler/RunSchedulerModal.tsx` using shadcn Dialog + react-hook-form + zodResolver.\n2. Zod schema requires line_ids min 1; optimizer_version reads from feature_flags table key 'allergen_sequencing_optimizer_v2'.\n3. Server Action `apps/web/src/lib/scheduler/run-action.ts`: RBAC guard (Planner Advanced or Admin), calls POST /api/scheduler/run with client-generated UUID v7.\n4. Emits outbox via API; success → toast + close + revalidate Gantt.\n\n## Files\n- apps/web/src/components/scheduler/RunSchedulerModal.tsx [create]\n- apps/web/src/lib/scheduler/run-action.ts [create]\n- apps/web/src/components/scheduler/__tests__/RunSchedulerModal.test.tsx [create]\n- design/Monopilot Design System/planning-ext/modals.jsx [ref]\n\n## Acceptance criteria\n1. Given Planner Advanced role + valid form (horizon=7, lines=[LINE-01]), when [Run] clicked, then Server Action posts to /api/scheduler/run with new UUID v7 and toast 'Run queued' shows\n2. Given the rendered modal, when compared to prototype design/Monopilot Design System/planning-ext/modals.jsx:21-95, then it has the same horizon radio group, same line checkbox list, same [Run]/[Cancel] buttons, and uses the same shadcn primitives (Dialog, Checkbox, Button, Label, Badge) — parity verified by RTL snapshot + checklist (structural + visual + interaction)\n3. Given Operator role, when modal mounts, then it raises RBAC guard error (caller should not even open)\n\n## Test strategy\n- RED: write apps/web/src/components/scheduler/__tests__/RunSchedulerModal.test.tsx covering form submit + parity + RBAC\n- Run 'pnpm --filter web test scheduler/RunSchedulerModal'\n\n## Risk red lines\n- Do not generate UUID v7 server-side (PRD R14 says client-supplied)\n- Do not allow line_ids empty (Zod min 1)\n- Do not bypass RBAC guard in Server Action",
+  "prompt": "# T-032 — MODAL-07-01 Run Scheduler modal\n\nPRD: docs/prd/07-PLANNING-EXT-PRD.md §4.1.6, §8.1 §6 [Run Scheduler] action\nPrototype: prototypes/design/Monopilot Design System/planning-ext/modals.jsx:21-95 (`run_scheduler_modal`)\nUX: prototypes/design/07-PLANNING-EXT-UX.md:428-449\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nImplement Dialog modal collecting horizon (7d|14d), line_ids[] (≥1), include_forecast bool, optimizer_version → invokes Server Action runOptimizerAction → POST /api/scheduler/run.\n\n## Implementation contract\n1. New `apps/web/src/components/scheduler/RunSchedulerModal.tsx` using shadcn Dialog + react-hook-form + zodResolver.\n2. Zod schema requires line_ids min 1; optimizer_version reads from feature_flags table key 'allergen_sequencing_optimizer_v2'.\n3. Server Action `apps/web/src/lib/scheduler/run-action.ts`: RBAC guard (Planner Advanced or Admin), calls POST /api/scheduler/run with client-generated UUID v7.\n4. Emits outbox via API; success → toast + close + revalidate Gantt.\n\n## Files\n- apps/web/src/components/scheduler/RunSchedulerModal.tsx [create]\n- apps/web/src/lib/scheduler/run-action.ts [create]\n- apps/web/src/components/scheduler/__tests__/RunSchedulerModal.test.tsx [create]\n- prototypes/design/Monopilot Design System/planning-ext/modals.jsx [ref]\n\n## Acceptance criteria\n1. Given Planner Advanced role + valid form (horizon=7, lines=[LINE-01]), when [Run] clicked, then Server Action posts to /api/scheduler/run with new UUID v7 and toast 'Run queued' shows\n2. Given the rendered modal, when compared to prototype prototypes/design/Monopilot Design System/planning-ext/modals.jsx:21-95, then it has the same horizon radio group, same line checkbox list, same [Run]/[Cancel] buttons, and uses the same shadcn primitives (Dialog, Checkbox, Button, Label, Badge) — parity verified by RTL snapshot + checklist (structural + visual + interaction)\n3. Given Operator role, when modal mounts, then it raises RBAC guard error (caller should not even open)\n\n## Test strategy\n- RED: write apps/web/src/components/scheduler/__tests__/RunSchedulerModal.test.tsx covering form submit + parity + RBAC\n- Run 'pnpm --filter web test scheduler/RunSchedulerModal'\n\n## Risk red lines\n- Do not generate UUID v7 server-side (PRD R14 says client-supplied)\n- Do not allow line_ids empty (Zod min 1)\n- Do not bypass RBAC guard in Server Action",
   "labels": [
     "prd",
     "ui",
@@ -13,7 +13,7 @@
   "pipeline_inputs": {
     "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
     "prd_task_id": "T-032",
-    "source_prd": "07-PLANNING-EXT-PRD.md",
+    "source_prd": "docs/prd/07-PLANNING-EXT-PRD.md",
     "prd_refs": [
       "§4.1.6",
       "§8.1"
@@ -30,7 +30,7 @@
       "apps/web/src/components/scheduler/RunSchedulerModal.tsx [create]",
       "apps/web/src/lib/scheduler/run-action.ts [create]",
       "apps/web/src/components/scheduler/__tests__/RunSchedulerModal.test.tsx [create]",
-      "design/Monopilot Design System/planning-ext/modals.jsx:21-95 [ref]"
+      "prototypes/design/Monopilot Design System/planning-ext/modals.jsx:21-95 [ref]"
     ],
     "out_of_scope": [
       "Do not implement /api/scheduler/run here (T-012)",
@@ -43,7 +43,7 @@
     ],
     "acceptance_criteria": [
       "Given Planner Advanced + valid form, when [Run] clicked, then Server Action posts to /api/scheduler/run with new UUID v7 and toast 'Run queued' shows",
-      "Given the rendered modal, when compared to prototype design/Monopilot Design System/planning-ext/modals.jsx:21-95, then it has the same horizon radio group, same line checkbox list, same [Run]/[Cancel] buttons, and same shadcn primitives (Dialog, Checkbox, Button, Label, Badge) — parity verified by RTL snapshot + checklist",
+      "Given the rendered modal, when compared to prototype prototypes/design/Monopilot Design System/planning-ext/modals.jsx:21-95, then it has the same horizon radio group, same line checkbox list, same [Run]/[Cancel] buttons, and same shadcn primitives (Dialog, Checkbox, Button, Label, Badge) — parity verified by RTL snapshot + checklist",
       "Given Operator role, when modal opens, then Server Action raises RBAC error (parent should block before render)"
     ],
     "test_strategy": [

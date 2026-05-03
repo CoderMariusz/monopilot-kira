@@ -2,7 +2,7 @@
 // NPD module · other-stages.jsx — Legacy R&D stage screens (cost/nutrition/packaging) — Phase 2 deprecation
 // ----------------------------------------------------------------------------
 // Implementation contract: see ./SCHEMA.md · ./API.md · ./COMPONENT-INTERFACES.md
-// Spec: design/01-NPD-UX.md
+// Spec: prototypes/design/01-NPD-UX.md
 // ============================================================================
 
 // ============ Other stage screens (R&D Pipeline) ============

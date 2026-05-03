@@ -14,7 +14,7 @@
   "pipeline_inputs": {
     "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
     "prd_task_id": "T-065",
-    "source_prd": "04-PLANNING-BASIC-PRD.md",
+    "source_prd": "docs/prd/04-PLANNING-BASIC-PRD.md",
     "prd_refs": [
       "§16.1",
       "§16.7",
@@ -31,7 +31,7 @@
     "details": "Admin-only dry-run modal for PO/TO/WO state machines, cascade rule, and sequencing rule. Displays proposed transitions, side effects, rule version, diff, and audit context without committing. Opened from Planning Settings and/or Settings Rule Registry.",
     "scope_files": [
       "src/components/planning/settings/WorkflowRuleDryRunDialog.tsx [create]",
-      "design/04-PLANNING-BASIC-UX.md:1415-1425 [ref]"
+      "prototypes/design/04-PLANNING-BASIC-UX.md:1415-1425 [ref]"
     ],
     "out_of_scope": [
       "Building unrelated Settings/Warehouse/Scanner surfaces"

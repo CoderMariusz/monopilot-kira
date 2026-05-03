@@ -1,6 +1,6 @@
 # PRD Coverage — 08-PRODUCTION full module readiness hardening
 
-Source PRD: `08-PRODUCTION-PRD.md` v3.1.1 + Wave0/Wave Next 2026-05-03 decisions.
+Source PRD: `docs/prd/08-PRODUCTION-PRD.md` v3.1.1 + Wave0/Wave Next 2026-05-03 decisions.
 
 Readiness target: >95% docs/meta/prototype/task readiness before ACP import/execution. This coverage file supersedes the earlier release-contract-only slice and covers the whole Production module: schema, APIs, state/rule gates, D365 side effects, UI parity, prototype labels, screenshot/trace evidence, local dependencies, and cross-module contracts.
 
@@ -11,7 +11,7 @@ Readiness target: >95% docs/meta/prototype/task readiness before ACP import/exec
 - `pending_npd_release`, `pending_technical_approval`, `blocked`, missing active IDs, or stale release rows are typed blockers and do not mutate runtime state.
 - D365 SO/Built/export/sync/push is optional integration metadata/side effect only; it never unlocks factory use and never replaces the canonical release read model.
 - `release_wo_modal` is deprecated/stale and must not be implemented in Production; any release/readying UI belongs to Planning.
-- UI tasks require parity against `design/Monopilot Design System/production/*`, literal `data-prototype-label`/equivalent markers, screenshots/artifacts, and Playwright traces/artifacts.
+- UI tasks require parity against `prototypes/design/Monopilot Design System/production/*`, literal `data-prototype-label`/equivalent markers, screenshots/artifacts, and Playwright traces/artifacts.
 
 ## Task coverage table
 

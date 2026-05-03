@@ -6,7 +6,7 @@
   "entries": [
     {
       "label": "hold_create_modal",
-      "file": "design/Monopilot Design System/quality/modals.jsx",
+      "file": "prototypes/design/Monopilot Design System/quality/modals.jsx",
       "lines": "22-96",
       "component_type": "modal",
       "ui_pattern": "crud-form-with-validation",
@@ -41,7 +41,7 @@
     },
     {
       "label": "hold_release_modal",
-      "file": "design/Monopilot Design System/quality/modals.jsx",
+      "file": "prototypes/design/Monopilot Design System/quality/modals.jsx",
       "lines": "99-156",
       "component_type": "modal",
       "ui_pattern": "crud-form-with-validation",
@@ -77,7 +77,7 @@
     },
     {
       "label": "spec_sign_modal",
-      "file": "design/Monopilot Design System/quality/modals.jsx",
+      "file": "prototypes/design/Monopilot Design System/quality/modals.jsx",
       "lines": "159-206",
       "component_type": "modal",
       "ui_pattern": "crud-form-with-validation",
@@ -107,7 +107,7 @@
     },
     {
       "label": "template_create_modal",
-      "file": "design/Monopilot Design System/quality/modals.jsx",
+      "file": "prototypes/design/Monopilot Design System/quality/modals.jsx",
       "lines": "209-245",
       "component_type": "modal",
       "ui_pattern": "crud-form-with-validation",
@@ -137,7 +137,7 @@
     },
     {
       "label": "sample_draw_modal",
-      "file": "design/Monopilot Design System/quality/modals.jsx",
+      "file": "prototypes/design/Monopilot Design System/quality/modals.jsx",
       "lines": "248-297",
       "component_type": "modal",
       "ui_pattern": "crud-form-with-validation",
@@ -167,7 +167,7 @@
     },
     {
       "label": "ncr_create_modal",
-      "file": "design/Monopilot Design System/quality/modals.jsx",
+      "file": "prototypes/design/Monopilot Design System/quality/modals.jsx",
       "lines": "300-382",
       "component_type": "modal",
       "ui_pattern": "crud-form-with-validation",
@@ -200,7 +200,7 @@
     },
     {
       "label": "ncr_close_modal",
-      "file": "design/Monopilot Design System/quality/modals.jsx",
+      "file": "prototypes/design/Monopilot Design System/quality/modals.jsx",
       "lines": "385-466",
       "component_type": "modal",
       "ui_pattern": "crud-form-with-validation",
@@ -235,7 +235,7 @@
     },
     {
       "label": "ccp_reading_modal",
-      "file": "design/Monopilot Design System/quality/modals.jsx",
+      "file": "prototypes/design/Monopilot Design System/quality/modals.jsx",
       "lines": "469-551",
       "component_type": "modal",
       "ui_pattern": "crud-form-with-validation",
@@ -268,7 +268,7 @@
     },
     {
       "label": "ccp_deviation_log_modal",
-      "file": "design/Monopilot Design System/quality/modals.jsx",
+      "file": "prototypes/design/Monopilot Design System/quality/modals.jsx",
       "lines": "554-594",
       "component_type": "modal",
       "ui_pattern": "crud-form-with-validation",
@@ -302,7 +302,7 @@
     },
     {
       "label": "esign_modal",
-      "file": "design/Monopilot Design System/quality/modals.jsx",
+      "file": "prototypes/design/Monopilot Design System/quality/modals.jsx",
       "lines": "597-634",
       "component_type": "modal",
       "ui_pattern": "crud-form-with-validation",
@@ -332,7 +332,7 @@
     },
     {
       "label": "allergen_dual_sign_modal",
-      "file": "design/Monopilot Design System/quality/modals.jsx",
+      "file": "prototypes/design/Monopilot Design System/quality/modals.jsx",
       "lines": "637-697",
       "component_type": "modal",
       "ui_pattern": "crud-form-with-validation",
@@ -367,7 +367,7 @@
     },
     {
       "label": "audit_export_modal",
-      "file": "design/Monopilot Design System/quality/modals.jsx",
+      "file": "prototypes/design/Monopilot Design System/quality/modals.jsx",
       "lines": "700-756",
       "component_type": "modal",
       "ui_pattern": "import-export",
@@ -398,7 +398,7 @@
     },
     {
       "label": "delete_with_reason_modal",
-      "file": "design/Monopilot Design System/quality/modals.jsx",
+      "file": "prototypes/design/Monopilot Design System/quality/modals.jsx",
       "lines": "759-780",
       "component_type": "modal",
       "ui_pattern": "crud-form-with-validation",
@@ -425,7 +425,7 @@
     },
     {
       "label": "inspection_assign_modal",
-      "file": "design/Monopilot Design System/quality/modals.jsx",
+      "file": "prototypes/design/Monopilot Design System/quality/modals.jsx",
       "lines": "783-816",
       "component_type": "modal",
       "ui_pattern": "crud-form-with-validation",
@@ -453,7 +453,7 @@
     },
     {
       "label": "qa_dashboard",
-      "file": "design/Monopilot Design System/quality/dashboard.jsx",
+      "file": "prototypes/design/Monopilot Design System/quality/dashboard.jsx",
       "lines": "3-147",
       "component_type": "page-layout",
       "ui_pattern": "dashboard-tile",
@@ -489,7 +489,7 @@
     },
     {
       "label": "ncr_list",
-      "file": "design/Monopilot Design System/quality/ncr-screens.jsx",
+      "file": "prototypes/design/Monopilot Design System/quality/ncr-screens.jsx",
       "lines": "3-123",
       "component_type": "table",
       "ui_pattern": "search-filter-list",
@@ -524,7 +524,7 @@
     },
     {
       "label": "ncr_detail",
-      "file": "design/Monopilot Design System/quality/ncr-screens.jsx",
+      "file": "prototypes/design/Monopilot Design System/quality/ncr-screens.jsx",
       "lines": "126-283",
       "component_type": "page-layout",
       "ui_pattern": "detail-view",
@@ -558,7 +558,7 @@
     },
     {
       "label": "incoming_inspection_list",
-      "file": "design/Monopilot Design System/quality/inspection-screens.jsx",
+      "file": "prototypes/design/Monopilot Design System/quality/inspection-screens.jsx",
       "lines": "3-97",
       "component_type": "table",
       "ui_pattern": "search-filter-list",
@@ -593,7 +593,7 @@
     },
     {
       "label": "inspection_detail",
-      "file": "design/Monopilot Design System/quality/inspection-screens.jsx",
+      "file": "prototypes/design/Monopilot Design System/quality/inspection-screens.jsx",
       "lines": "100-297",
       "component_type": "form",
       "ui_pattern": "crud-form-with-validation",
@@ -630,7 +630,7 @@
     },
     {
       "label": "holds_list",
-      "file": "design/Monopilot Design System/quality/holds-screens.jsx",
+      "file": "prototypes/design/Monopilot Design System/quality/holds-screens.jsx",
       "lines": "3-161",
       "component_type": "table",
       "ui_pattern": "search-filter-list",
@@ -666,7 +666,7 @@
     },
     {
       "label": "hold_detail",
-      "file": "design/Monopilot Design System/quality/holds-screens.jsx",
+      "file": "prototypes/design/Monopilot Design System/quality/holds-screens.jsx",
       "lines": "164-286",
       "component_type": "page-layout",
       "ui_pattern": "detail-view",
@@ -699,7 +699,7 @@
     },
     {
       "label": "specs_list",
-      "file": "design/Monopilot Design System/quality/specs-screens.jsx",
+      "file": "prototypes/design/Monopilot Design System/quality/specs-screens.jsx",
       "lines": "3-79",
       "component_type": "table",
       "ui_pattern": "search-filter-list",
@@ -729,7 +729,7 @@
     },
     {
       "label": "spec_wizard",
-      "file": "design/Monopilot Design System/quality/specs-screens.jsx",
+      "file": "prototypes/design/Monopilot Design System/quality/specs-screens.jsx",
       "lines": "82-302",
       "component_type": "wizard",
       "ui_pattern": "multi-step-wizard",
@@ -766,7 +766,7 @@
     },
     {
       "label": "spec_detail",
-      "file": "design/Monopilot Design System/quality/specs-screens.jsx",
+      "file": "prototypes/design/Monopilot Design System/quality/specs-screens.jsx",
       "lines": "305-420",
       "component_type": "page-layout",
       "ui_pattern": "detail-view",
@@ -798,7 +798,7 @@
     },
     {
       "label": "haccp_plans",
-      "file": "design/Monopilot Design System/quality/haccp-screens.jsx",
+      "file": "prototypes/design/Monopilot Design System/quality/haccp-screens.jsx",
       "lines": "3-106",
       "component_type": "sidebar",
       "ui_pattern": "detail-view",
@@ -831,7 +831,7 @@
     },
     {
       "label": "ccp_monitoring",
-      "file": "design/Monopilot Design System/quality/haccp-screens.jsx",
+      "file": "prototypes/design/Monopilot Design System/quality/haccp-screens.jsx",
       "lines": "109-226",
       "component_type": "table",
       "ui_pattern": "search-filter-list",
@@ -865,7 +865,7 @@
     },
     {
       "label": "ccp_deviations",
-      "file": "design/Monopilot Design System/quality/haccp-screens.jsx",
+      "file": "prototypes/design/Monopilot Design System/quality/haccp-screens.jsx",
       "lines": "229-299",
       "component_type": "table",
       "ui_pattern": "list-with-actions",
@@ -900,7 +900,7 @@
     },
     {
       "label": "allergen_gates",
-      "file": "design/Monopilot Design System/quality/haccp-screens.jsx",
+      "file": "prototypes/design/Monopilot Design System/quality/haccp-screens.jsx",
       "lines": "302-422",
       "component_type": "table",
       "ui_pattern": "list-with-actions",
@@ -936,7 +936,7 @@
     },
     {
       "label": "qa_templates",
-      "file": "design/Monopilot Design System/quality/other-screens.jsx",
+      "file": "prototypes/design/Monopilot Design System/quality/other-screens.jsx",
       "lines": "3-54",
       "component_type": "table",
       "ui_pattern": "search-filter-list",
@@ -966,7 +966,7 @@
     },
     {
       "label": "sampling_plans",
-      "file": "design/Monopilot Design System/quality/other-screens.jsx",
+      "file": "prototypes/design/Monopilot Design System/quality/other-screens.jsx",
       "lines": "57-114",
       "component_type": "table",
       "ui_pattern": "search-filter-list",
@@ -994,7 +994,7 @@
     },
     {
       "label": "audit_trail",
-      "file": "design/Monopilot Design System/quality/other-screens.jsx",
+      "file": "prototypes/design/Monopilot Design System/quality/other-screens.jsx",
       "lines": "117-229",
       "component_type": "table",
       "ui_pattern": "search-filter-list",
@@ -1030,7 +1030,7 @@
     },
     {
       "label": "qa_settings",
-      "file": "design/Monopilot Design System/quality/other-screens.jsx",
+      "file": "prototypes/design/Monopilot Design System/quality/other-screens.jsx",
       "lines": "272-395",
       "component_type": "tabs",
       "ui_pattern": "crud-form-with-validation",

@@ -27,7 +27,7 @@ It records:
 - D365 is optional integration/export/import, not canonical or superior system.
 - Trial/Pilot/Handoff/Packaging are part of NPD, not deprecated.
 - Sensory belongs to Technical.
-- Settings canonical prototype path is `design/Monopilot Design System/settings/*.jsx`.
+- Settings canonical prototype path is `prototypes/design/Monopilot Design System/settings/*.jsx`.
 - Global Import/Export, Roles & Permissions and Pending Invitations are in Settings scope.
 - Supplier specs are Phase 1.
 - Lab results are Quality-owned read model for Technical.
@@ -36,7 +36,7 @@ It records:
 
 Updated:
 
-- `01-NPD-PRD.md`
+- `docs/prd/01-NPD-PRD.md`
 - `_meta/atomic-tasks/01-npd/coverage.md`
 - `_meta/atomic-tasks/01-npd/tasks/T-044.json`
 - `_meta/atomic-tasks/01-npd/tasks/T-047.json`
@@ -61,8 +61,8 @@ Key changes:
 
 Updated/created:
 
-- `02-SETTINGS-PRD.md`
-- `design/02-SETTINGS-UX.md`
+- `docs/prd/02-SETTINGS-PRD.md`
+- `prototypes/design/02-SETTINGS-UX.md`
 - `_meta/atomic-tasks/02-settings/coverage.md`
 - `_meta/atomic-tasks/02-settings/manifest.json`
 - `_meta/atomic-tasks/02-settings/tasks/T-020.json`
@@ -96,8 +96,8 @@ Key changes:
 
 Updated/created:
 
-- `03-TECHNICAL-PRD.md`
-- `design/03-TECHNICAL-UX.md`
+- `docs/prd/03-TECHNICAL-PRD.md`
+- `prototypes/design/03-TECHNICAL-UX.md`
 - `_meta/atomic-tasks/03-technical/tasks/T-001.json`
 - `_meta/atomic-tasks/03-technical/tasks/T-016.json`
 - `_meta/atomic-tasks/03-technical/tasks/T-020.json`

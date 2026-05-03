@@ -2,7 +2,7 @@
 // NPD module · chrome.jsx — Sidebar + topbar + breadcrumbs
 // ----------------------------------------------------------------------------
 // Implementation contract: see ./SCHEMA.md · ./API.md · ./COMPONENT-INTERFACES.md
-// Spec: design/01-NPD-UX.md
+// Spec: prototypes/design/01-NPD-UX.md
 // ============================================================================
 
 // ============ Chrome: sidebar, topbar, subnav ============

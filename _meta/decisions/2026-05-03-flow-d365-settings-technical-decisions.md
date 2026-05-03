@@ -62,7 +62,7 @@ D365 item/BOM/product export/publish is required, but must be modelled as option
 
 Settings prototype source of truth is:
 
-- `design/Monopilot Design System/settings/*.jsx`
+- `prototypes/design/Monopilot Design System/settings/*.jsx`
 
 Global Import/Export is in scope.
 Roles & Permissions screen is in scope.

@@ -2,7 +2,7 @@
 
 **Date:** 2026-04-30
 **Generator model:** claude-haiku-4-5 (general-purpose subagent)
-**Same slice:** 02-SETTINGS-PRD.md §14.3 + §14.4 (lines 1516-1547)
+**Same slice:** docs/prd/02-SETTINGS-PRD.md §14.3 + §14.4 (lines 1516-1547)
 **Comparison baseline:** `_meta/skill-tests/2026-04-30-opus-set144/`
 
 ## Result: ⚠️ SOFT FAIL — passes formal validator (164/164) but fails quality gates

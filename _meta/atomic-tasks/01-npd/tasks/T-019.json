@@ -1,6 +1,6 @@
 {
   "title": "T-019 — UI: FA list page (fa_list prototype) — page + table + filters",
-  "prompt": "# T-019 — FA list page UI\n\nPRD: 01-NPD-PRD.md §7.5 + UX 01-NPD-UX.md fa_list\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\nPrototype: design/Monopilot Design System/npd/fa-screens.jsx:177-297 (fa_list)\n\n## Goal\nServer Component page /(npd)/fa rendering the FA list table with shadcn primitives matching prototype 1:1: dept filter chips, show-closed toggle, status_overall pill, sortable columns, row click → /(npd)/fa/[productCode].\n\n## Implementation contract\nNew apps/web/app/(npd)/fa/page.tsx (RSC) reads listFaByDept via Drizzle. Renders DataTable (shadcn Table primitives) with columns (Product_Code, Product_Name, Pack_Size, Status_Overall pill, Days_To_Launch, Built indicator). Filters URL-persisted (?dept, ?showClosed, ?sort). Empty/loading/error states. Translation notes: window.NPD_FAS replaced by Drizzle query; openModal pattern replaced by URL search params.\n\n## Files\n- apps/web/app/(npd)/fa/page.tsx [create]\n- apps/web/app/(npd)/fa/_components/fa-list-table.tsx [create]\n- apps/web/app/(npd)/fa/_components/__tests__/fa-list-table.test.tsx [create]\n- design/Monopilot Design System/npd/fa-screens.jsx [ref]\n\n## Acceptance criteria\n1. Given the production page renders, when compared to design/Monopilot Design System/npd/fa-screens.jsx:177-297 (fa_list), then it has the same column order (Product_Code, Product_Name, Pack_Size, Status, Days_To_Launch, Built), the same dept filter chips region above the table, and uses shadcn Table+Badge+Button primitives — verified by RTL snapshot + checklist in pipeline_inputs.details (structural+visual+interaction parity)\n2. Given URL ?dept=mrp, when page renders, then list filters to FAs where MRP dept has missing data\n3. Given URL ?showClosed=true, when page renders, then closed FAs are included\n\n## Test strategy\n- RED: RTL test asserting column count + dept chips region + shadcn primitive presence per parity AC\n- Run 'pnpm --filter web test fa-list-table'\n\n## Risk red lines\n- Do not use HTML <select> instead of shadcn Select\n- Do not paste prototype JSX verbatim\n- Do not bypass listFaByDept (no direct DB query in component)",
+  "prompt": "# T-019 — FA list page UI\n\nPRD: docs/prd/01-NPD-PRD.md §7.5 + UX prototypes/design/01-NPD-UX.md fa_list\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\nPrototype: prototypes/design/Monopilot Design System/npd/fa-screens.jsx:177-297 (fa_list)\n\n## Goal\nServer Component page /(npd)/fa rendering the FA list table with shadcn primitives matching prototype 1:1: dept filter chips, show-closed toggle, status_overall pill, sortable columns, row click → /(npd)/fa/[productCode].\n\n## Implementation contract\nNew apps/web/app/(npd)/fa/page.tsx (RSC) reads listFaByDept via Drizzle. Renders DataTable (shadcn Table primitives) with columns (Product_Code, Product_Name, Pack_Size, Status_Overall pill, Days_To_Launch, Built indicator). Filters URL-persisted (?dept, ?showClosed, ?sort). Empty/loading/error states. Translation notes: window.NPD_FAS replaced by Drizzle query; openModal pattern replaced by URL search params.\n\n## Files\n- apps/web/app/(npd)/fa/page.tsx [create]\n- apps/web/app/(npd)/fa/_components/fa-list-table.tsx [create]\n- apps/web/app/(npd)/fa/_components/__tests__/fa-list-table.test.tsx [create]\n- prototypes/design/Monopilot Design System/npd/fa-screens.jsx [ref]\n\n## Acceptance criteria\n1. Given the production page renders, when compared to prototypes/design/Monopilot Design System/npd/fa-screens.jsx:177-297 (fa_list), then it has the same column order (Product_Code, Product_Name, Pack_Size, Status, Days_To_Launch, Built), the same dept filter chips region above the table, and uses shadcn Table+Badge+Button primitives — verified by RTL snapshot + checklist in pipeline_inputs.details (structural+visual+interaction parity)\n2. Given URL ?dept=mrp, when page renders, then list filters to FAs where MRP dept has missing data\n3. Given URL ?showClosed=true, when page renders, then closed FAs are included\n\n## Test strategy\n- RED: RTL test asserting column count + dept chips region + shadcn primitive presence per parity AC\n- Run 'pnpm --filter web test fa-list-table'\n\n## Risk red lines\n- Do not use HTML <select> instead of shadcn Select\n- Do not paste prototype JSX verbatim\n- Do not bypass listFaByDept (no direct DB query in component)",
   "labels": [
     "prd",
     "ui",
@@ -13,7 +13,7 @@
   "pipeline_inputs": {
     "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
     "prd_task_id": "T-019",
-    "source_prd": "01-NPD-PRD.md",
+    "source_prd": "docs/prd/01-NPD-PRD.md",
     "prd_refs": [
       "§7.5"
     ],
@@ -29,7 +29,7 @@
       "apps/web/app/(npd)/fa/page.tsx [create]",
       "apps/web/app/(npd)/fa/_components/fa-list-table.tsx [create]",
       "apps/web/app/(npd)/fa/_components/__tests__/fa-list-table.test.tsx [create]",
-      "design/Monopilot Design System/npd/fa-screens.jsx [ref]"
+      "prototypes/design/Monopilot Design System/npd/fa-screens.jsx [ref]"
     ],
     "out_of_scope": [
       "Do not implement FA detail tabs here (T-020)",
@@ -43,7 +43,7 @@
       "T-020"
     ],
     "acceptance_criteria": [
-      "Given the production page renders, when compared to design/Monopilot Design System/npd/fa-screens.jsx:177-297, then it has the same 6 columns in same order, the same dept filter chip region, and uses shadcn Table+Badge+Button primitives — verified by RTL snapshot + parity checklist in details (structural + visual + interaction parity)",
+      "Given the production page renders, when compared to prototypes/design/Monopilot Design System/npd/fa-screens.jsx:177-297, then it has the same 6 columns in same order, the same dept filter chip region, and uses shadcn Table+Badge+Button primitives — verified by RTL snapshot + parity checklist in details (structural + visual + interaction parity)",
       "Given URL ?dept=mrp, when page renders, then list filters to FAs where MRP dept has missing data",
       "Given URL ?showClosed=true, when page renders, then closed FAs are included",
       "UI closeout includes screenshot/artifact evidence and Playwright trace/artifacts where applicable per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`; if Playwright is unavailable, document the blocker and provide RTL/snapshot fallback evidence."

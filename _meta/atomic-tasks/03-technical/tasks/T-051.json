@@ -1,6 +1,6 @@
 {
   "title": "T-051 — UI: TEC-060 Routing List + TEC-061 Routing Edit modal",
-  "prompt": "Build routing list at /technical/routings (TEC-060) and the routing step add/edit modal (TEC-061). Match `routings_screen` design/Monopilot Design System/technical/other-screens.jsx:4-34 and `routing_step_add_modal` design/Monopilot Design System/technical/modals.jsx:271-304. Drag-sort op order via dnd-kit. Uses T-022 endpoints. RED tests/ui/tec-060-routing.test.tsx. Run: `pnpm vitest run tests/ui/tec-060-routing.test.tsx`. Prototype naming red-line: translate any legacy prototype/domain labels `fa`/`FA5100`/Factory Article to canonical `fg`/FG, any `PR-code` wording to WIP/intermediate, and any `process_stage`/`process_code` to `manufacturing_operation_name`; do not introduce legacy field names in final code, labels, tests or schemas.",
+  "prompt": "Build routing list at /technical/routings (TEC-060) and the routing step add/edit modal (TEC-061). Match `routings_screen` prototypes/design/Monopilot Design System/technical/other-screens.jsx:4-34 and `routing_step_add_modal` prototypes/design/Monopilot Design System/technical/modals.jsx:271-304. Drag-sort op order via dnd-kit. Uses T-022 endpoints. RED tests/ui/tec-060-routing.test.tsx. Run: `pnpm vitest run tests/ui/tec-060-routing.test.tsx`. Prototype naming red-line: translate any legacy prototype/domain labels `fa`/`FA5100`/Factory Article to canonical `fg`/FG, any `PR-code` wording to WIP/intermediate, and any `process_stage`/`process_code` to `manufacturing_operation_name`; do not introduce legacy field names in final code, labels, tests or schemas.",
   "labels": [
     "prd",
     "ui",
@@ -13,7 +13,7 @@
   "pipeline_inputs": {
     "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
     "prd_task_id": "T-051",
-    "source_prd": "03-TECHNICAL-PRD.md",
+    "source_prd": "docs/prd/03-TECHNICAL-PRD.md",
     "prd_refs": [
       "§12.4 TEC-060",
       "§12.4 TEC-061"
@@ -42,7 +42,7 @@
       "T-053"
     ],
     "acceptance_criteria": [
-      "Given the screen and modal render, when compared to design/Monopilot Design System/technical/other-screens.jsx:4-34 and design/Monopilot Design System/technical/modals.jsx:271-304, then list columns, modal field set, and Cancel/Confirm button order match — structural + visual + interaction parity verified by RTL.",
+      "Given the screen and modal render, when compared to prototypes/design/Monopilot Design System/technical/other-screens.jsx:4-34 and prototypes/design/Monopilot Design System/technical/modals.jsx:271-304, then list columns, modal field set, and Cancel/Confirm button order match — structural + visual + interaction parity verified by RTL.",
       "Given user reorders ops via drag, when saved, then op_no resequenced contiguous starting at 1.",
       "Given op without line_id and machine_id, when Save clicked, then validation error V-TEC-61.",
       "UI closeout includes screenshot/artifact evidence and Playwright trace/artifacts where applicable per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`; if Playwright is unavailable, document the blocker and provide RTL/snapshot fallback evidence."

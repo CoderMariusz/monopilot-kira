@@ -1,7 +1,7 @@
 # PRD Coverage — 05-warehouse
 
-Source PRD: `05-WAREHOUSE-PRD.md`.
-UX source: `design/05-WAREHOUSE-UX.md`.
+Source PRD: `docs/prd/05-WAREHOUSE-PRD.md`.
+UX source: `prototypes/design/05-WAREHOUSE-UX.md`.
 Prototype index: `_meta/prototype-labels/prototype-index-warehouse.json`.
 Status: Wave Next-3 hardening, 2026-05-03 decisions applied.
 

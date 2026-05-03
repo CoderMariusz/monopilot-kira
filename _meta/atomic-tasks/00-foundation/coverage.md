@@ -1,4 +1,4 @@
-# PRD Coverage — 00-FOUNDATION-PRD.md (v4.3 Wave0 readiness)
+# PRD Coverage — docs/prd/00-FOUNDATION-PRD.md (v4.3 Wave0 readiness)
 
 
 ## Wave0 v4.3 readiness patch (2026-05-03)

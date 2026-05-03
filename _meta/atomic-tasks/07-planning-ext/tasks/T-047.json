@@ -1,6 +1,6 @@
 {
   "title": "T-047 — Pending Assignment Queue full page",
-  "prompt": "# T-047 — Pending Assignment Queue full page\n\nPRD: `07-PLANNING-EXT-PRD.md` §17.1 PLE-004, §8.1 Zone D, §16.2 OQ-EXT-06.\nUX/prototype refs are listed in `pipeline_inputs.scope_files`.\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`.\n\n## Goal\nAdd the full-page deep-link version of the assignment review queue.\n\n## Implementation contract\nUse existing assignment actions, preserve run grouping, and ensure bulk operations emit the batched outbox event from T-017/T-029.\n\nACP shape reminder: keep this task as one atomic implementation. Do not add ACP-owned fields. Keep local dependencies in `dependencies`; cross-module contracts in `cross_module_dependencies` are blockers/inputs, not ACP local task IDs.",
+  "prompt": "# T-047 — Pending Assignment Queue full page\n\nPRD: `docs/prd/07-PLANNING-EXT-PRD.md` §17.1 PLE-004, §8.1 Zone D, §16.2 OQ-EXT-06.\nUX/prototype refs are listed in `pipeline_inputs.scope_files`.\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`.\n\n## Goal\nAdd the full-page deep-link version of the assignment review queue.\n\n## Implementation contract\nUse existing assignment actions, preserve run grouping, and ensure bulk operations emit the batched outbox event from T-017/T-029.\n\nACP shape reminder: keep this task as one atomic implementation. Do not add ACP-owned fields. Keep local dependencies in `dependencies`; cross-module contracts in `cross_module_dependencies` are blockers/inputs, not ACP local task IDs.",
   "labels": [
     "prd",
     "ui",
@@ -12,7 +12,7 @@
   "pipeline_name": "kira_dev",
   "pipeline_inputs": {
     "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
-    "source_prd": "07-PLANNING-EXT-PRD.md",
+    "source_prd": "docs/prd/07-PLANNING-EXT-PRD.md",
     "context_budget": "40k",
     "skills": [
       "test-driven-development",
@@ -54,7 +54,7 @@
     "scope_files": [
       "apps/web/src/app/scheduler/pending/page.tsx [create]",
       "apps/web/src/components/scheduler/PendingAssignmentsPage.tsx [create]",
-      "design/Monopilot Design System/planning-ext/optimizer-screens.jsx:4-110 [ref]"
+      "prototypes/design/Monopilot Design System/planning-ext/optimizer-screens.jsx:4-110 [ref]"
     ],
     "dependencies": [
       "T-014",

@@ -6,7 +6,7 @@
   "entries": [
     {
       "label": "annotate_downtime_modal",
-      "file": "design/Monopilot Design System/oee/modals.jsx",
+      "file": "prototypes/design/Monopilot Design System/oee/modals.jsx",
       "lines": "19-93",
       "component_type": "modal",
       "ui_pattern": "crud-form-with-validation",
@@ -42,7 +42,7 @@
     },
     {
       "label": "export_oee_modal",
-      "file": "design/Monopilot Design System/oee/modals.jsx",
+      "file": "prototypes/design/Monopilot Design System/oee/modals.jsx",
       "lines": "95-161",
       "component_type": "modal",
       "ui_pattern": "import-export",
@@ -77,7 +77,7 @@
     },
     {
       "label": "line_override_modal",
-      "file": "design/Monopilot Design System/oee/modals.jsx",
+      "file": "prototypes/design/Monopilot Design System/oee/modals.jsx",
       "lines": "163-204",
       "component_type": "modal",
       "ui_pattern": "crud-form-with-validation",
@@ -112,7 +112,7 @@
     },
     {
       "label": "big_loss_mapping_modal",
-      "file": "design/Monopilot Design System/oee/modals.jsx",
+      "file": "prototypes/design/Monopilot Design System/oee/modals.jsx",
       "lines": "206-259",
       "component_type": "modal",
       "ui_pattern": "bulk-action",
@@ -151,7 +151,7 @@
     },
     {
       "label": "changeover_detail_modal",
-      "file": "design/Monopilot Design System/oee/modals.jsx",
+      "file": "prototypes/design/Monopilot Design System/oee/modals.jsx",
       "lines": "261-298",
       "component_type": "modal",
       "ui_pattern": "detail-view",
@@ -182,7 +182,7 @@
     },
     {
       "label": "cell_drill_modal",
-      "file": "design/Monopilot Design System/oee/modals.jsx",
+      "file": "prototypes/design/Monopilot Design System/oee/modals.jsx",
       "lines": "300-326",
       "component_type": "modal",
       "ui_pattern": "detail-view",
@@ -211,7 +211,7 @@
     },
     {
       "label": "request_edit_modal",
-      "file": "design/Monopilot Design System/oee/modals.jsx",
+      "file": "prototypes/design/Monopilot Design System/oee/modals.jsx",
       "lines": "328-348",
       "component_type": "modal",
       "ui_pattern": "crud-form-with-validation",
@@ -245,7 +245,7 @@
     },
     {
       "label": "delete_override_modal",
-      "file": "design/Monopilot Design System/oee/modals.jsx",
+      "file": "prototypes/design/Monopilot Design System/oee/modals.jsx",
       "lines": "350-370",
       "component_type": "modal",
       "ui_pattern": "crud-form-with-validation",
@@ -279,7 +279,7 @@
     },
     {
       "label": "copy_clipboard_modal",
-      "file": "design/Monopilot Design System/oee/modals.jsx",
+      "file": "prototypes/design/Monopilot Design System/oee/modals.jsx",
       "lines": "372-408",
       "component_type": "modal",
       "ui_pattern": "detail-view",
@@ -308,7 +308,7 @@
     },
     {
       "label": "compare_weeks_modal",
-      "file": "design/Monopilot Design System/oee/modals.jsx",
+      "file": "prototypes/design/Monopilot Design System/oee/modals.jsx",
       "lines": "410-446",
       "component_type": "modal",
       "ui_pattern": "detail-view",
@@ -339,7 +339,7 @@
     },
     {
       "label": "acknowledge_anomaly_modal",
-      "file": "design/Monopilot Design System/oee/modals.jsx",
+      "file": "prototypes/design/Monopilot Design System/oee/modals.jsx",
       "lines": "448-484",
       "component_type": "modal",
       "ui_pattern": "crud-form-with-validation",
@@ -372,7 +372,7 @@
     },
     {
       "label": "auto_refresh_pause_modal",
-      "file": "design/Monopilot Design System/oee/modals.jsx",
+      "file": "prototypes/design/Monopilot Design System/oee/modals.jsx",
       "lines": "486-509",
       "component_type": "modal",
       "ui_pattern": "crud-form-with-validation",
@@ -403,7 +403,7 @@
     },
     {
       "label": "oee_daily_summary_page",
-      "file": "design/Monopilot Design System/oee/dashboard.jsx",
+      "file": "prototypes/design/Monopilot Design System/oee/dashboard.jsx",
       "lines": "1-198",
       "component_type": "page-layout",
       "ui_pattern": "dashboard-tile",
@@ -454,7 +454,7 @@
     },
     {
       "label": "six_big_losses_tab",
-      "file": "design/Monopilot Design System/oee/dashboard.jsx",
+      "file": "prototypes/design/Monopilot Design System/oee/dashboard.jsx",
       "lines": "200-306",
       "component_type": "tabs",
       "ui_pattern": "dashboard-tile",
@@ -494,7 +494,7 @@
     },
     {
       "label": "changeover_tab",
-      "file": "design/Monopilot Design System/oee/dashboard.jsx",
+      "file": "prototypes/design/Monopilot Design System/oee/dashboard.jsx",
       "lines": "308-390",
       "component_type": "tabs",
       "ui_pattern": "list-with-actions",
@@ -532,7 +532,7 @@
     },
     {
       "label": "oee_line_trend_page",
-      "file": "design/Monopilot Design System/oee/screens.jsx",
+      "file": "prototypes/design/Monopilot Design System/oee/screens.jsx",
       "lines": "3-209",
       "component_type": "page-layout",
       "ui_pattern": "detail-view",
@@ -575,7 +575,7 @@
     },
     {
       "label": "oee_shift_heatmap_page",
-      "file": "design/Monopilot Design System/oee/screens.jsx",
+      "file": "prototypes/design/Monopilot Design System/oee/screens.jsx",
       "lines": "211-377",
       "component_type": "page-layout",
       "ui_pattern": "dashboard-tile",
@@ -617,7 +617,7 @@
     },
     {
       "label": "oee_downtime_pareto_page",
-      "file": "design/Monopilot Design System/oee/screens.jsx",
+      "file": "prototypes/design/Monopilot Design System/oee/screens.jsx",
       "lines": "379-469",
       "component_type": "page-layout",
       "ui_pattern": "dashboard-tile",
@@ -651,7 +651,7 @@
     },
     {
       "label": "oee_availability_drilldown_page",
-      "file": "design/Monopilot Design System/oee/screens.jsx",
+      "file": "prototypes/design/Monopilot Design System/oee/screens.jsx",
       "lines": "471-543",
       "component_type": "page-layout",
       "ui_pattern": "detail-view",
@@ -688,7 +688,7 @@
     },
     {
       "label": "oee_performance_drilldown_page",
-      "file": "design/Monopilot Design System/oee/screens.jsx",
+      "file": "prototypes/design/Monopilot Design System/oee/screens.jsx",
       "lines": "546-598",
       "component_type": "page-layout",
       "ui_pattern": "detail-view",
@@ -724,7 +724,7 @@
     },
     {
       "label": "oee_quality_drilldown_page",
-      "file": "design/Monopilot Design System/oee/screens.jsx",
+      "file": "prototypes/design/Monopilot Design System/oee/screens.jsx",
       "lines": "600-655",
       "component_type": "page-layout",
       "ui_pattern": "detail-view",
@@ -761,7 +761,7 @@
     },
     {
       "label": "oee_settings_page",
-      "file": "design/Monopilot Design System/oee/screens.jsx",
+      "file": "prototypes/design/Monopilot Design System/oee/screens.jsx",
       "lines": "698-833",
       "component_type": "page-layout",
       "ui_pattern": "crud-form-with-validation",
@@ -805,7 +805,7 @@
     },
     {
       "label": "oee_shift_configs_page",
-      "file": "design/Monopilot Design System/oee/screens.jsx",
+      "file": "prototypes/design/Monopilot Design System/oee/screens.jsx",
       "lines": "836-900",
       "component_type": "page-layout",
       "ui_pattern": "detail-view",
@@ -840,7 +840,7 @@
     },
     {
       "label": "oee_anomaly_detection_page",
-      "file": "design/Monopilot Design System/oee/screens.jsx",
+      "file": "prototypes/design/Monopilot Design System/oee/screens.jsx",
       "lines": "950-995",
       "component_type": "page-layout",
       "ui_pattern": "list-with-actions",
@@ -878,7 +878,7 @@
     },
     {
       "label": "oee_equipment_health_page",
-      "file": "design/Monopilot Design System/oee/screens.jsx",
+      "file": "prototypes/design/Monopilot Design System/oee/screens.jsx",
       "lines": "997-1036",
       "component_type": "page-layout",
       "ui_pattern": "list-with-actions",
@@ -914,7 +914,7 @@
     },
     {
       "label": "oee_tv_dashboard_page",
-      "file": "design/Monopilot Design System/oee/screens.jsx",
+      "file": "prototypes/design/Monopilot Design System/oee/screens.jsx",
       "lines": "1038-1080",
       "component_type": "page-layout",
       "ui_pattern": "detail-view",
@@ -941,7 +941,7 @@
     },
     {
       "label": "p2_placeholder_shell",
-      "file": "design/Monopilot Design System/oee/screens.jsx",
+      "file": "prototypes/design/Monopilot Design System/oee/screens.jsx",
       "lines": "902-948",
       "component_type": "page-layout",
       "ui_pattern": "detail-view",
@@ -974,7 +974,7 @@
     },
     {
       "label": "shifts_screen",
-      "file": "design/Monopilot Design System/settings/org-screens.jsx",
+      "file": "prototypes/design/Monopilot Design System/settings/org-screens.jsx",
       "lines": "255-306",
       "component_type": "page-layout",
       "ui_pattern": "list-with-actions",

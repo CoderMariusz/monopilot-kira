@@ -1,6 +1,6 @@
 {
   "title": "T-046 — Capacity Projection screen",
-  "prompt": "# T-046 — Capacity Projection screen\n\nPRD: `07-PLANNING-EXT-PRD.md` §17.1 PLE-003, §11.1, §15.4 V-SCHED-04.\nUX/prototype refs are listed in `pipeline_inputs.scope_files`.\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`.\n\n## Goal\nPromote the capacity projection prototype to a first-class advisory screen.\n\n## Implementation contract\nServer computes the utilization matrix; UI renders color thresholds consistently with design tokens and keeps export based on the same filtered dataset.\n\nACP shape reminder: keep this task as one atomic implementation. Do not add ACP-owned fields. Keep local dependencies in `dependencies`; cross-module contracts in `cross_module_dependencies` are blockers/inputs, not ACP local task IDs.",
+  "prompt": "# T-046 — Capacity Projection screen\n\nPRD: `docs/prd/07-PLANNING-EXT-PRD.md` §17.1 PLE-003, §11.1, §15.4 V-SCHED-04.\nUX/prototype refs are listed in `pipeline_inputs.scope_files`.\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`.\n\n## Goal\nPromote the capacity projection prototype to a first-class advisory screen.\n\n## Implementation contract\nServer computes the utilization matrix; UI renders color thresholds consistently with design tokens and keeps export based on the same filtered dataset.\n\nACP shape reminder: keep this task as one atomic implementation. Do not add ACP-owned fields. Keep local dependencies in `dependencies`; cross-module contracts in `cross_module_dependencies` are blockers/inputs, not ACP local task IDs.",
   "labels": [
     "prd",
     "ui",
@@ -12,7 +12,7 @@
   "pipeline_name": "kira_dev",
   "pipeline_inputs": {
     "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
-    "source_prd": "07-PLANNING-EXT-PRD.md",
+    "source_prd": "docs/prd/07-PLANNING-EXT-PRD.md",
     "context_budget": "40k",
     "skills": [
       "test-driven-development",
@@ -55,7 +55,7 @@
       "apps/web/src/app/scheduler/capacity/page.tsx [create]",
       "apps/web/src/components/scheduler/CapacityProjection.tsx [create]",
       "apps/web/src/lib/scheduler/capacity-loader.ts [create]",
-      "design/Monopilot Design System/planning-ext/optimizer-screens.jsx:113-206 [ref]"
+      "prototypes/design/Monopilot Design System/planning-ext/optimizer-screens.jsx:113-206 [ref]"
     ],
     "dependencies": [
       "T-002",

@@ -342,7 +342,7 @@ Delete `lib/rbac/middleware.ts`.
 **Agent:** frontend-specialist
 **Status:** pending
 
-**Prototype ref:** `company_profile_screen` — `design/Monopilot Design System/settings/`
+**Prototype ref:** `company_profile_screen` — `prototypes/design/Monopilot Design System/settings/`
   - component_type: form
   - ui_pattern: crud-form-with-validation
   - shadcn_equivalent: Form, Input, Select, Button, Avatar, Card, Separator
@@ -388,7 +388,7 @@ Delete `components/settings/orgs/`; revert message files.
 **Agent:** frontend-specialist
 **Status:** pending
 
-**Prototype ref:** `users_screen` — `design/Monopilot Design System/settings/`
+**Prototype ref:** `users_screen` — `prototypes/design/Monopilot Design System/settings/`
   - component_type: page-layout
   - ui_pattern: list-with-actions
   - shadcn_equivalent: Table, Tabs, ToggleGroup, Input, Select, Badge, Avatar, Card, Button
@@ -434,7 +434,7 @@ Delete `components/settings/users/`; revert message files.
 **Agent:** frontend-specialist
 **Status:** pending
 
-**Prototype ref:** `role_assign_modal` — `design/Monopilot Design System/settings/`
+**Prototype ref:** `role_assign_modal` — `prototypes/design/Monopilot Design System/settings/`
   - component_type: modal
   - ui_pattern: crud-form-with-validation
   - shadcn_equivalent: Dialog, Command, Input, Select, Button, Badge, Alert, Avatar
@@ -480,7 +480,7 @@ Delete `components/settings/roles/`; revert message files.
 **Agent:** frontend-specialist
 **Status:** pending
 
-**Prototype ref:** `security_screen` — `design/Monopilot Design System/settings/`
+**Prototype ref:** `security_screen` — `prototypes/design/Monopilot Design System/settings/`
   - component_type: form
   - ui_pattern: crud-form-with-validation
   - shadcn_equivalent: Switch, Checkbox, Select, Input, Table, Button, Badge, Card
@@ -728,7 +728,7 @@ Delete `app/actions/settings/reference.ts`, `lib/reference/zod-builder.ts`.
 **Agent:** frontend-specialist
 **Status:** pending
 
-**Prototype ref:** `reference_data_screen` — `design/Monopilot Design System/settings/`
+**Prototype ref:** `reference_data_screen` — `prototypes/design/Monopilot Design System/settings/`
   - component_type: page-layout
   - ui_pattern: list-with-actions
   - shadcn_equivalent: Card, Table, Badge, Button
@@ -1096,7 +1096,7 @@ Remove next-intl plugin from `next.config.ts`; delete message files.
 **Agent:** frontend-specialist
 **Status:** pending
 
-**Prototype ref:** `ref_row_edit_modal` — `design/Monopilot Design System/settings/`
+**Prototype ref:** `ref_row_edit_modal` — `prototypes/design/Monopilot Design System/settings/`
   - component_type: modal
   - ui_pattern: crud-form-with-validation
   - shadcn_equivalent: Dialog, Form, Input, Switch, Button
@@ -1344,7 +1344,7 @@ Sequential after T-02SETa-003 + T-02SETa-020:
 ## PRD coverage
 
 ```
-PRD coverage (02-SETTINGS-PRD.md v3.3):
+PRD coverage (docs/prd/02-SETTINGS-PRD.md v3.3):
 
 ✅ §3 Personas & RBAC Overview → T-02SETa-E01, T-02SETa-001, T-02SETa-004, T-02SETa-006, T-02SETa-009
 ✅ §5.1 Core identity (organizations, users, roles, org_modules) → T-02SETa-001..006, T-02SETa-027

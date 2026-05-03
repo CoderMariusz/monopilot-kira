@@ -6,7 +6,7 @@
   "entries": [
     {
       "label": "asset_edit_modal",
-      "file": "design/Monopilot Design System/maintenance/modals.jsx",
+      "file": "prototypes/design/Monopilot Design System/maintenance/modals.jsx",
       "lines": "29-79",
       "component_type": "modal",
       "ui_pattern": "crud-form-with-validation",
@@ -39,7 +39,7 @@
     },
     {
       "label": "wr_create_modal",
-      "file": "design/Monopilot Design System/maintenance/modals.jsx",
+      "file": "prototypes/design/Monopilot Design System/maintenance/modals.jsx",
       "lines": "81-121",
       "component_type": "modal",
       "ui_pattern": "crud-form-with-validation",
@@ -72,7 +72,7 @@
     },
     {
       "label": "wr_triage_modal",
-      "file": "design/Monopilot Design System/maintenance/modals.jsx",
+      "file": "prototypes/design/Monopilot Design System/maintenance/modals.jsx",
       "lines": "123-183",
       "component_type": "modal",
       "ui_pattern": "detail-view",
@@ -107,7 +107,7 @@
     },
     {
       "label": "mwo_create_modal",
-      "file": "design/Monopilot Design System/maintenance/modals.jsx",
+      "file": "prototypes/design/Monopilot Design System/maintenance/modals.jsx",
       "lines": "185-234",
       "component_type": "modal",
       "ui_pattern": "crud-form-with-validation",
@@ -141,7 +141,7 @@
     },
     {
       "label": "task_checkoff_modal",
-      "file": "design/Monopilot Design System/maintenance/modals.jsx",
+      "file": "prototypes/design/Monopilot Design System/maintenance/modals.jsx",
       "lines": "236-294",
       "component_type": "modal",
       "ui_pattern": "crud-form-with-validation",
@@ -175,7 +175,7 @@
     },
     {
       "label": "mwo_complete_signoff_modal",
-      "file": "design/Monopilot Design System/maintenance/modals.jsx",
+      "file": "prototypes/design/Monopilot Design System/maintenance/modals.jsx",
       "lines": "296-355",
       "component_type": "modal",
       "ui_pattern": "crud-form-with-validation",
@@ -212,7 +212,7 @@
     },
     {
       "label": "pm_schedule_edit_wizard",
-      "file": "design/Monopilot Design System/maintenance/modals.jsx",
+      "file": "prototypes/design/Monopilot Design System/maintenance/modals.jsx",
       "lines": "357-472",
       "component_type": "wizard",
       "ui_pattern": "multi-step-wizard",
@@ -247,7 +247,7 @@
     },
     {
       "label": "pm_occurrence_skip_modal",
-      "file": "design/Monopilot Design System/maintenance/modals.jsx",
+      "file": "prototypes/design/Monopilot Design System/maintenance/modals.jsx",
       "lines": "474-498",
       "component_type": "modal",
       "ui_pattern": "crud-form-with-validation",
@@ -280,7 +280,7 @@
     },
     {
       "label": "calibration_reading_modal",
-      "file": "design/Monopilot Design System/maintenance/modals.jsx",
+      "file": "prototypes/design/Monopilot Design System/maintenance/modals.jsx",
       "lines": "500-568",
       "component_type": "modal",
       "ui_pattern": "crud-form-with-validation",
@@ -315,7 +315,7 @@
     },
     {
       "label": "calibration_cert_upload_modal",
-      "file": "design/Monopilot Design System/maintenance/modals.jsx",
+      "file": "prototypes/design/Monopilot Design System/maintenance/modals.jsx",
       "lines": "570-593",
       "component_type": "modal",
       "ui_pattern": "crud-form-with-validation",
@@ -346,7 +346,7 @@
     },
     {
       "label": "spare_reorder_modal",
-      "file": "design/Monopilot Design System/maintenance/modals.jsx",
+      "file": "prototypes/design/Monopilot Design System/maintenance/modals.jsx",
       "lines": "595-619",
       "component_type": "modal",
       "ui_pattern": "crud-form-with-validation",
@@ -378,7 +378,7 @@
     },
     {
       "label": "technician_skill_edit_modal",
-      "file": "design/Monopilot Design System/maintenance/modals.jsx",
+      "file": "prototypes/design/Monopilot Design System/maintenance/modals.jsx",
       "lines": "621-657",
       "component_type": "modal",
       "ui_pattern": "crud-form-with-validation",
@@ -411,7 +411,7 @@
     },
     {
       "label": "loto_apply_modal",
-      "file": "design/Monopilot Design System/maintenance/modals.jsx",
+      "file": "prototypes/design/Monopilot Design System/maintenance/modals.jsx",
       "lines": "659-731",
       "component_type": "wizard",
       "ui_pattern": "wizard-step",
@@ -447,7 +447,7 @@
     },
     {
       "label": "loto_clear_modal",
-      "file": "design/Monopilot Design System/maintenance/modals.jsx",
+      "file": "prototypes/design/Monopilot Design System/maintenance/modals.jsx",
       "lines": "733-802",
       "component_type": "modal",
       "ui_pattern": "crud-form-with-validation",
@@ -483,7 +483,7 @@
     },
     {
       "label": "delete_confirm_modal",
-      "file": "design/Monopilot Design System/maintenance/modals.jsx",
+      "file": "prototypes/design/Monopilot Design System/maintenance/modals.jsx",
       "lines": "804-822",
       "component_type": "modal",
       "ui_pattern": "crud-form-with-validation",
@@ -512,7 +512,7 @@
     },
     {
       "label": "criticality_override_modal",
-      "file": "design/Monopilot Design System/maintenance/modals.jsx",
+      "file": "prototypes/design/Monopilot Design System/maintenance/modals.jsx",
       "lines": "824-844",
       "component_type": "modal",
       "ui_pattern": "crud-form-with-validation",
@@ -543,7 +543,7 @@
     },
     {
       "label": "downtime_linkage_modal",
-      "file": "design/Monopilot Design System/maintenance/modals.jsx",
+      "file": "prototypes/design/Monopilot Design System/maintenance/modals.jsx",
       "lines": "846-879",
       "component_type": "modal",
       "ui_pattern": "list-with-actions",
@@ -573,7 +573,7 @@
     },
     {
       "label": "spare_adjust_modal",
-      "file": "design/Monopilot Design System/maintenance/modals.jsx",
+      "file": "prototypes/design/Monopilot Design System/maintenance/modals.jsx",
       "lines": "902-925",
       "component_type": "modal",
       "ui_pattern": "crud-form-with-validation",
@@ -604,7 +604,7 @@
     },
     {
       "label": "maintenance_dashboard",
-      "file": "design/Monopilot Design System/maintenance/dashboard.jsx",
+      "file": "prototypes/design/Monopilot Design System/maintenance/dashboard.jsx",
       "lines": "1-257",
       "component_type": "page-layout",
       "ui_pattern": "dashboard-tile",
@@ -641,7 +641,7 @@
     },
     {
       "label": "asset_list_page",
-      "file": "design/Monopilot Design System/maintenance/assets.jsx",
+      "file": "prototypes/design/Monopilot Design System/maintenance/assets.jsx",
       "lines": "1-183",
       "component_type": "page-layout",
       "ui_pattern": "search-filter-list",
@@ -676,7 +676,7 @@
     },
     {
       "label": "asset_detail_page",
-      "file": "design/Monopilot Design System/maintenance/assets.jsx",
+      "file": "prototypes/design/Monopilot Design System/maintenance/assets.jsx",
       "lines": "185-518",
       "component_type": "page-layout",
       "ui_pattern": "detail-view",
@@ -718,7 +718,7 @@
     },
     {
       "label": "wr_list_page",
-      "file": "design/Monopilot Design System/maintenance/work-orders.jsx",
+      "file": "prototypes/design/Monopilot Design System/maintenance/work-orders.jsx",
       "lines": "1-132",
       "component_type": "page-layout",
       "ui_pattern": "list-with-actions",
@@ -753,7 +753,7 @@
     },
     {
       "label": "mwo_list_page",
-      "file": "design/Monopilot Design System/maintenance/work-orders.jsx",
+      "file": "prototypes/design/Monopilot Design System/maintenance/work-orders.jsx",
       "lines": "134-259",
       "component_type": "page-layout",
       "ui_pattern": "search-filter-list",
@@ -788,7 +788,7 @@
     },
     {
       "label": "mwo_detail_page",
-      "file": "design/Monopilot Design System/maintenance/work-orders.jsx",
+      "file": "prototypes/design/Monopilot Design System/maintenance/work-orders.jsx",
       "lines": "261-564",
       "component_type": "page-layout",
       "ui_pattern": "detail-view",
@@ -829,7 +829,7 @@
     },
     {
       "label": "pm_schedules_list_page",
-      "file": "design/Monopilot Design System/maintenance/pm-schedules.jsx",
+      "file": "prototypes/design/Monopilot Design System/maintenance/pm-schedules.jsx",
       "lines": "1-138",
       "component_type": "page-layout",
       "ui_pattern": "search-filter-list",
@@ -864,7 +864,7 @@
     },
     {
       "label": "pm_month_calendar",
-      "file": "design/Monopilot Design System/maintenance/pm-schedules.jsx",
+      "file": "prototypes/design/Monopilot Design System/maintenance/pm-schedules.jsx",
       "lines": "140-216",
       "component_type": "page-layout",
       "ui_pattern": "dashboard-tile",
@@ -893,7 +893,7 @@
     },
     {
       "label": "pm_week_calendar",
-      "file": "design/Monopilot Design System/maintenance/pm-schedules.jsx",
+      "file": "prototypes/design/Monopilot Design System/maintenance/pm-schedules.jsx",
       "lines": "218-275",
       "component_type": "page-layout",
       "ui_pattern": "dashboard-tile",
@@ -922,7 +922,7 @@
     },
     {
       "label": "spares_list_page",
-      "file": "design/Monopilot Design System/maintenance/spares.jsx",
+      "file": "prototypes/design/Monopilot Design System/maintenance/spares.jsx",
       "lines": "1-115",
       "component_type": "page-layout",
       "ui_pattern": "search-filter-list",
@@ -957,7 +957,7 @@
     },
     {
       "label": "spare_detail_page",
-      "file": "design/Monopilot Design System/maintenance/spares.jsx",
+      "file": "prototypes/design/Monopilot Design System/maintenance/spares.jsx",
       "lines": "117-261",
       "component_type": "page-layout",
       "ui_pattern": "detail-view",
@@ -990,7 +990,7 @@
     },
     {
       "label": "calibration_list_page",
-      "file": "design/Monopilot Design System/maintenance/other-screens.jsx",
+      "file": "prototypes/design/Monopilot Design System/maintenance/other-screens.jsx",
       "lines": "1-127",
       "component_type": "page-layout",
       "ui_pattern": "search-filter-list",
@@ -1025,7 +1025,7 @@
     },
     {
       "label": "calibration_detail_page",
-      "file": "design/Monopilot Design System/maintenance/other-screens.jsx",
+      "file": "prototypes/design/Monopilot Design System/maintenance/other-screens.jsx",
       "lines": "129-264",
       "component_type": "page-layout",
       "ui_pattern": "detail-view",
@@ -1061,7 +1061,7 @@
     },
     {
       "label": "technicians_list_page",
-      "file": "design/Monopilot Design System/maintenance/other-screens.jsx",
+      "file": "prototypes/design/Monopilot Design System/maintenance/other-screens.jsx",
       "lines": "266-374",
       "component_type": "page-layout",
       "ui_pattern": "list-with-actions",
@@ -1096,7 +1096,7 @@
     },
     {
       "label": "technician_detail_page",
-      "file": "design/Monopilot Design System/maintenance/other-screens.jsx",
+      "file": "prototypes/design/Monopilot Design System/maintenance/other-screens.jsx",
       "lines": "376-486",
       "component_type": "page-layout",
       "ui_pattern": "detail-view",
@@ -1132,7 +1132,7 @@
     },
     {
       "label": "loto_list_page",
-      "file": "design/Monopilot Design System/maintenance/other-screens.jsx",
+      "file": "prototypes/design/Monopilot Design System/maintenance/other-screens.jsx",
       "lines": "488-598",
       "component_type": "page-layout",
       "ui_pattern": "list-with-actions",
@@ -1168,7 +1168,7 @@
     },
     {
       "label": "maintenance_analytics_page",
-      "file": "design/Monopilot Design System/maintenance/other-screens.jsx",
+      "file": "prototypes/design/Monopilot Design System/maintenance/other-screens.jsx",
       "lines": "601-803",
       "component_type": "page-layout",
       "ui_pattern": "dashboard-tile",
@@ -1202,7 +1202,7 @@
     },
     {
       "label": "maintenance_settings_page",
-      "file": "design/Monopilot Design System/maintenance/other-screens.jsx",
+      "file": "prototypes/design/Monopilot Design System/maintenance/other-screens.jsx",
       "lines": "805-964",
       "component_type": "page-layout",
       "ui_pattern": "crud-form-with-validation",

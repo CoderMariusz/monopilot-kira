@@ -3,12 +3,12 @@
 **Date:** 2026-04-30
 **Source audit:** `_meta/audits/2026-04-30-design-prd-coverage.md` §2 (05-WAREHOUSE row)
 **Inputs:**
-- `05-WAREHOUSE-PRD.md` v3.1 (pre-amendment)
-- `design/05-WAREHOUSE-UX.md` v1.0 (read-only, NOT edited per audit constraint)
+- `docs/prd/05-WAREHOUSE-PRD.md` v3.1 (pre-amendment)
+- `prototypes/design/05-WAREHOUSE-UX.md` v1.0 (read-only, NOT edited per audit constraint)
 - `_meta/prototype-labels/prototype-index-warehouse.json` (canonical, haiku/sonnet split resolved)
 - `_foundation/decisions/ADR-034-generic-product-lifecycle-naming-and-industry-configuration.md`
 
-**Output:** `05-WAREHOUSE-PRD.md` v3.2 + this audit log.
+**Output:** `docs/prd/05-WAREHOUSE-PRD.md` v3.2 + this audit log.
 
 **Constraints honoured:**
 - Stayed strictly within 05-WAREHOUSE module.
@@ -37,7 +37,7 @@
 All inserted as ADD-only modifications within existing § structure. Original numbering preserved; new subsections appended to end of relevant § or inserted at logical position with old §X.N renumbered to §X.N+1 (only validation tables shifted, no content deleted).
 
 ### §6.10 — LP State-Transition Confirm Modal [WH-101]
-- **Anchors:** UX M-15 (`design/05-WAREHOUSE-UX.md:1344`) + proto `state_transition_confirm_modal` (`warehouse/modals.jsx:1106-1138`)
+- **Anchors:** UX M-15 (`prototypes/design/05-WAREHOUSE-UX.md:1344`) + proto `state_transition_confirm_modal` (`warehouse/modals.jsx:1106-1138`)
 - **New FR:** FR-WH-035
 - **New validation:** V-WH-LP-010 (destructive transitions reason_code mandatory + server-driven allowed reasons)
 - **ADR markers:** ADR-029 (rule DSL — server-driven, nie hardcoded), ADR-008 (audit), ADR-034 [UNIVERSAL]
@@ -166,7 +166,7 @@ ADR-034 explicit reference w §16.6 matrix top-line.
 
 - All 8 new FRs cross-referenced w §16.6 matrix.
 - All new validation rules (V-WH-LP-010/011, V-WH-MOV-007, V-WH-EXP-006, V-WH-TRACE-005, V-WH-DASH-001/002, V-WH-SET-001) appear w respective §X.N validation tables AND w §16.4 index.
-- All UX line citations point to actual lines (verified during edit against `design/05-WAREHOUSE-UX.md`).
+- All UX line citations point to actual lines (verified during edit against `prototypes/design/05-WAREHOUSE-UX.md`).
 - All prototype label citations match `_meta/prototype-labels/prototype-index-warehouse.json`.
 - No content deleted from PRD (verified via diff strategy: ADD-only edits + table appends).
 - UX file NOT modified (constraint).

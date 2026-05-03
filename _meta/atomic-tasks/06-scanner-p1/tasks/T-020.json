@@ -1,6 +1,6 @@
 {
   "title": "T-020 — SCN-011c PIN Change Self-service wizard (3-step) (06-a)",
-  "prompt": "# T-020 — SCN-011c PIN Change\n\nPRD: 06-SCANNER-P1-PRD.md §8.1 FR-SC-FE-003c, §6 D8\nUX: design/06-SCANNER-P1-UX.md:253-258 §3.4\nPrototype: design/Monopilot Design System/scanner/login.jsx:58-112 (label pin_screen, reused)\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nDeliver the 3-step self-service PIN change wizard (Wpisz obecny PIN → Wpisz nowy PIN → Potwierdź nowy PIN), invoked from SCN-settings 'Zmień PIN'. Calls POST /api/scanner/pin/change (T-008).\n\n## Implementation contract\n1. `apps/scanner/src/app/scanner/pin/change/page.tsx` 3-step indicator + reused numpad pattern.\n2. Server Action posts { old_pin, new_pin } to /api/scanner/pin/change; success ⇒ green success banner 'PIN zmieniony pomyślnie.' + router.push('/scanner/settings').\n3. Inline policy-violation handling identical to SCN-011b.\n\n## Files\n- apps/scanner/src/app/scanner/pin/change/page.tsx [create]\n- apps/scanner/src/app/scanner/pin/change/change-form.client.tsx [create]\n- apps/scanner/src/app/scanner/pin/change/change.action.ts [create]\n- apps/scanner/__tests__/scn-011c-pin-change.test.tsx [create]\n\n## Acceptance criteria\n1. Given the wizard renders, when compared to `design/Monopilot Design System/scanner/login.jsx:58-112` (pin_screen reused) + UX §3.4, then it has a 3-step indicator above the same 6-dot+numpad pattern with 'Wróć' button — RTL snapshot + manual checklist\n2. Given step 1 captures the wrong old PIN and the server returns 401, when the response arrives, then the wizard shows inline error 'Niepoprawny obecny PIN' and stays on step 1 with cleared dots\n3. Given all three steps succeed, when the API responds 200, then a success banner 'PIN zmieniony pomyślnie.' is shown and the user is redirected to /scanner/settings\n\n## Test strategy\n- RED: write scn-011c-pin-change.test.tsx asserting parity + wrong-old-pin error + success path before implementation\n- Run 'pnpm --filter scanner test scn-011c-pin-change'\n\n## Risk red lines\n- Do not skip old-PIN verification\n- Do not log entered PIN values\n- Do not redirect away from /scanner/settings on success without showing the success banner",
+  "prompt": "# T-020 — SCN-011c PIN Change\n\nPRD: docs/prd/06-SCANNER-P1-PRD.md §8.1 FR-SC-FE-003c, §6 D8\nUX: prototypes/design/06-SCANNER-P1-UX.md:253-258 §3.4\nPrototype: prototypes/design/Monopilot Design System/scanner/login.jsx:58-112 (label pin_screen, reused)\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nDeliver the 3-step self-service PIN change wizard (Wpisz obecny PIN → Wpisz nowy PIN → Potwierdź nowy PIN), invoked from SCN-settings 'Zmień PIN'. Calls POST /api/scanner/pin/change (T-008).\n\n## Implementation contract\n1. `apps/scanner/src/app/scanner/pin/change/page.tsx` 3-step indicator + reused numpad pattern.\n2. Server Action posts { old_pin, new_pin } to /api/scanner/pin/change; success ⇒ green success banner 'PIN zmieniony pomyślnie.' + router.push('/scanner/settings').\n3. Inline policy-violation handling identical to SCN-011b.\n\n## Files\n- apps/scanner/src/app/scanner/pin/change/page.tsx [create]\n- apps/scanner/src/app/scanner/pin/change/change-form.client.tsx [create]\n- apps/scanner/src/app/scanner/pin/change/change.action.ts [create]\n- apps/scanner/__tests__/scn-011c-pin-change.test.tsx [create]\n\n## Acceptance criteria\n1. Given the wizard renders, when compared to `prototypes/design/Monopilot Design System/scanner/login.jsx:58-112` (pin_screen reused) + UX §3.4, then it has a 3-step indicator above the same 6-dot+numpad pattern with 'Wróć' button — RTL snapshot + manual checklist\n2. Given step 1 captures the wrong old PIN and the server returns 401, when the response arrives, then the wizard shows inline error 'Niepoprawny obecny PIN' and stays on step 1 with cleared dots\n3. Given all three steps succeed, when the API responds 200, then a success banner 'PIN zmieniony pomyślnie.' is shown and the user is redirected to /scanner/settings\n\n## Test strategy\n- RED: write scn-011c-pin-change.test.tsx asserting parity + wrong-old-pin error + success path before implementation\n- Run 'pnpm --filter scanner test scn-011c-pin-change'\n\n## Risk red lines\n- Do not skip old-PIN verification\n- Do not log entered PIN values\n- Do not redirect away from /scanner/settings on success without showing the success banner",
   "labels": [
     "prd",
     "ui",
@@ -13,7 +13,7 @@
   "pipeline_inputs": {
     "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
     "prd_task_id": "T-020",
-    "source_prd": "06-SCANNER-P1-PRD.md",
+    "source_prd": "docs/prd/06-SCANNER-P1-PRD.md",
     "prd_refs": [
       "§8.1 FR-SC-FE-003c",
       "§6 D8"
@@ -31,7 +31,7 @@
       "apps/scanner/src/app/scanner/pin/change/change-form.client.tsx [create]",
       "apps/scanner/src/app/scanner/pin/change/change.action.ts [create]",
       "apps/scanner/__tests__/scn-011c-pin-change.test.tsx [create]",
-      "design/Monopilot Design System/scanner/login.jsx:58-112 [ref]"
+      "prototypes/design/Monopilot Design System/scanner/login.jsx:58-112 [ref]"
     ],
     "out_of_scope": [
       "Do not implement first-time setup here (T-019)",
@@ -47,7 +47,7 @@
       "T-024"
     ],
     "acceptance_criteria": [
-      "Given the wizard renders, when compared to design/Monopilot Design System/scanner/login.jsx:58-112 reused + UX §3.4, then it has the 3-step indicator, same 6-dot+numpad pattern and 'Wróć' button — RTL snapshot + manual checklist",
+      "Given the wizard renders, when compared to prototypes/design/Monopilot Design System/scanner/login.jsx:58-112 reused + UX §3.4, then it has the 3-step indicator, same 6-dot+numpad pattern and 'Wróć' button — RTL snapshot + manual checklist",
       "Given step 1 captures the wrong old PIN and server returns 401, when the response arrives, then inline error 'Niepoprawny obecny PIN' is shown and the wizard stays on step 1 with cleared dots",
       "Given all three steps succeed and API responds 200, when redirect happens, then a 'PIN zmieniony pomyślnie.' banner is shown and the user is sent to /scanner/settings. Follow parity evidence requirements in `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`."
     ],

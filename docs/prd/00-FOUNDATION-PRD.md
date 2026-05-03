@@ -194,21 +194,21 @@ Build = **per module albo jego części, po kolei, z rozbiciem na stories/tasks*
 
 | # | Moduł | PRD Writing | Build order | File | Dependencies |
 |---|---|---|---|---|---|
-| 00 | FOUNDATION | B.1 ✅ | — (meta) | `00-FOUNDATION-PRD.md` (this) | — |
-| 01 | NPD | B.2 | 1 (primary) | `01-NPD-PRD.md` | 00 |
-| 02 | SETTINGS | C1 | 2 | `02-SETTINGS-PRD.md` | 00, 01 (schema introspection) |
-| 03 | TECHNICAL | C1 | 3 | `03-TECHNICAL-PRD.md` | 00, 01, 02 |
-| 04 | PLANNING-BASIC | C2 | 4 | `04-PLANNING-BASIC-PRD.md` | 01, 02, 03 |
-| 05 | WAREHOUSE | C2 | 5 | `05-WAREHOUSE-PRD.md` | 01, 02, 03 |
-| 06 | SCANNER-P1 | C2 | 6 | `06-SCANNER-P1-PRD.md` | 05 (base), 04 |
+| 00 | FOUNDATION | B.1 ✅ | — (meta) | `docs/prd/00-FOUNDATION-PRD.md` (this) | — |
+| 01 | NPD | B.2 | 1 (primary) | `docs/prd/01-NPD-PRD.md` | 00 |
+| 02 | SETTINGS | C1 | 2 | `docs/prd/02-SETTINGS-PRD.md` | 00, 01 (schema introspection) |
+| 03 | TECHNICAL | C1 | 3 | `docs/prd/03-TECHNICAL-PRD.md` | 00, 01, 02 |
+| 04 | PLANNING-BASIC | C2 | 4 | `docs/prd/04-PLANNING-BASIC-PRD.md` | 01, 02, 03 |
+| 05 | WAREHOUSE | C2 | 5 | `docs/prd/05-WAREHOUSE-PRD.md` | 01, 02, 03 |
+| 06 | SCANNER-P1 | C2 | 6 | `docs/prd/06-SCANNER-P1-PRD.md` | 05 (base), 04 |
 | 07 | PLANNING-EXT | C3 | 7 | (new, C3) | 04, 05 |
-| 08 | PRODUCTION | C3 | 8 | `08-PRODUCTION-PRD.md` | 01, 04, 05 |
-| 09 | QUALITY | C4 | 9 | `09-QUALITY-PRD.md` | 05, 08 |
-| 10 | FINANCE | C4 | 10 | `10-FINANCE-PRD.md` | 08, 05 |
-| 11 | SHIPPING | C4 | 11 | `11-SHIPPING-PRD.md` | 05, 09 |
-| 12 | REPORTING | C5 | 12 | `12-REPORTING-PRD.md` | 08, 05, 09 |
-| 13 | MAINTENANCE | C5 | 13 | `13-MAINTENANCE-PRD.md` | 02, 08, 15 |
-| 14 | MULTI-SITE | C5 | 14 | `14-MULTI-SITE-PRD.md` | 02, 05 |
+| 08 | PRODUCTION | C3 | 8 | `docs/prd/08-PRODUCTION-PRD.md` | 01, 04, 05 |
+| 09 | QUALITY | C4 | 9 | `docs/prd/09-QUALITY-PRD.md` | 05, 08 |
+| 10 | FINANCE | C4 | 10 | `docs/prd/10-FINANCE-PRD.md` | 08, 05 |
+| 11 | SHIPPING | C4 | 11 | `docs/prd/11-SHIPPING-PRD.md` | 05, 09 |
+| 12 | REPORTING | C5 | 12 | `docs/prd/12-REPORTING-PRD.md` | 08, 05, 09 |
+| 13 | MAINTENANCE | C5 | 13 | `docs/prd/13-MAINTENANCE-PRD.md` | 02, 08, 15 |
+| 14 | MULTI-SITE | C5 | 14 | `docs/prd/14-MULTI-SITE-PRD.md` | 02, 05 |
 | 15 | OEE | C5 | 15 | (new, C5) | 08 |
 
 > **§4.3-AMENDMENT — Table Naming Decision (2026-04-30, per ADR-034 finalisation):** the physical table for the NPD finished-article aggregate is **`product`** (singular, generic). This is **Option B** (chosen over Option A "keep `fa` as physical name" and Option C "dual-table `fa` + `product`"). Rationale: (1) generic naming aligns with multi-industry generalisation in ADR-034 (Bakery / Pharma / FMCG / meat all use the same physical schema), (2) avoids confusion with the `fa.*` event aggregate which is a domain-language label, not a table reference, (3) gives a clean target name for D365 item-master sync long-term. **Backward-compat for D365 Builder + legacy SQL:** create a SQL view `CREATE VIEW fa AS SELECT * FROM product;` (read-only, Phase E-0 → C1 deprecation window) so existing `Builder_FA<code>.xlsx` queries and any external integration referring to `fa` continue to resolve. The view is dropped at end of Phase C1 once D365 adapter migration completes. **Event aggregate prefix stays `fa.*`** (decoupled from storage — see §10 + `_meta/specs/event-naming-convention.md`). Acceptance-criteria impact: 01-NPD-a DDL emits `CREATE TABLE product (...)` + `CREATE VIEW fa AS SELECT * FROM product;`; 01-NPD §15 success criteria updated to reference `product` table for RLS coverage with `fa` listed as compat view.
@@ -268,7 +268,7 @@ Stare dokumenty opisywały "Scanner M05" z 5 epikami. Phase D: 06-SCANNER-P1 to 
 
 ### §5.x — Auth & Identity Stack [UNIVERSAL] [F-A1 per gap-backlog 2026-04-30]
 
-> **Source for new requirement:** UX evidence in `design/Monopilot Design System/settings/access-screens.jsx:162-244` (TOTP/SMS/WebAuthn checkbox row, SAML Entra ID connector, SCIM token panel, password policy strong/standard/custom, idle timeout, max session, IP allowlist, audit log preview). Prior PRD §5 mentioned Supabase only as a Postgres host; the auth subsystem was invisible. **F-U1 update + F-A1 addition** make it explicit and lock 6 OSS libraries.
+> **Source for new requirement:** UX evidence in `prototypes/design/Monopilot Design System/settings/access-screens.jsx:162-244` (TOTP/SMS/WebAuthn checkbox row, SAML Entra ID connector, SCIM token panel, password policy strong/standard/custom, idle timeout, max session, IP allowlist, audit log preview). Prior PRD §5 mentioned Supabase only as a Postgres host; the auth subsystem was invisible. **F-U1 update + F-A1 addition** make it explicit and lock 6 OSS libraries.
 
 **Primary IdP:** **GoTrue / Supabase Auth** as the canonical first-party identity provider for all tenants on the EU and US clusters. Email+password, magic-link, OAuth social (deferred), and admin-issued invitations all flow through GoTrue. Sessions are JWT-based; the access token TTL is **15 minutes** with rotating refresh tokens; refresh enforces an **idle timeout of 60 minutes** (org-tunable per §8.x) and an **absolute session max of 8 hours** (org-tunable). Magic-link invitation tokens are signed, single-use, and carry a **7-day TTL** (codified, not Supabase-default).
 
@@ -1149,21 +1149,21 @@ Dodane do §13 open items.
 
 ### Module PRDs (Phase D renumbering — siblings)
 
-- [`01-NPD-PRD.md`](01-NPD-PRD.md) — Phase B.2 primary (rewrite pending)
-- [`02-SETTINGS-PRD.md`](02-SETTINGS-PRD.md) — Phase C1 (pre-Phase-D, pending rewrite)
-- [`03-TECHNICAL-PRD.md`](03-TECHNICAL-PRD.md) — Phase C1
-- [`04-PLANNING-BASIC-PRD.md`](04-PLANNING-BASIC-PRD.md) — Phase C2
-- [`05-WAREHOUSE-PRD.md`](05-WAREHOUSE-PRD.md) — Phase C2
-- [`06-SCANNER-P1-PRD.md`](06-SCANNER-P1-PRD.md) — Phase C2
-- `07-PLANNING-EXT-PRD.md` — Phase C3 (new file, to be created)
-- [`08-PRODUCTION-PRD.md`](08-PRODUCTION-PRD.md) — Phase C3
-- [`09-QUALITY-PRD.md`](09-QUALITY-PRD.md) — Phase C4
-- [`10-FINANCE-PRD.md`](10-FINANCE-PRD.md) — Phase C4
-- [`11-SHIPPING-PRD.md`](11-SHIPPING-PRD.md) — Phase C4
-- [`12-REPORTING-PRD.md`](12-REPORTING-PRD.md) — Phase C5
-- [`13-MAINTENANCE-PRD.md`](13-MAINTENANCE-PRD.md) — Phase C5
-- [`14-MULTI-SITE-PRD.md`](14-MULTI-SITE-PRD.md) — Phase C5
-- `15-OEE-PRD.md` — Phase C5 (new file, to be created)
+- [`docs/prd/01-NPD-PRD.md`](docs/prd/01-NPD-PRD.md) — Phase B.2 primary (rewrite pending)
+- [`docs/prd/02-SETTINGS-PRD.md`](docs/prd/02-SETTINGS-PRD.md) — Phase C1 (pre-Phase-D, pending rewrite)
+- [`docs/prd/03-TECHNICAL-PRD.md`](docs/prd/03-TECHNICAL-PRD.md) — Phase C1
+- [`docs/prd/04-PLANNING-BASIC-PRD.md`](docs/prd/04-PLANNING-BASIC-PRD.md) — Phase C2
+- [`docs/prd/05-WAREHOUSE-PRD.md`](docs/prd/05-WAREHOUSE-PRD.md) — Phase C2
+- [`docs/prd/06-SCANNER-P1-PRD.md`](docs/prd/06-SCANNER-P1-PRD.md) — Phase C2
+- `docs/prd/07-PLANNING-EXT-PRD.md` — Phase C3 (new file, to be created)
+- [`docs/prd/08-PRODUCTION-PRD.md`](docs/prd/08-PRODUCTION-PRD.md) — Phase C3
+- [`docs/prd/09-QUALITY-PRD.md`](docs/prd/09-QUALITY-PRD.md) — Phase C4
+- [`docs/prd/10-FINANCE-PRD.md`](docs/prd/10-FINANCE-PRD.md) — Phase C4
+- [`docs/prd/11-SHIPPING-PRD.md`](docs/prd/11-SHIPPING-PRD.md) — Phase C4
+- [`docs/prd/12-REPORTING-PRD.md`](docs/prd/12-REPORTING-PRD.md) — Phase C5
+- [`docs/prd/13-MAINTENANCE-PRD.md`](docs/prd/13-MAINTENANCE-PRD.md) — Phase C5
+- [`docs/prd/14-MULTI-SITE-PRD.md`](docs/prd/14-MULTI-SITE-PRD.md) — Phase C5
+- `docs/prd/15-OEE-PRD.md` — Phase C5 (new file, to be created)
 
 ### Archived
 

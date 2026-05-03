@@ -1,6 +1,6 @@
 {
   "title": "T-034 — UI: PLN-001 Planning Dashboard page (parity with prototype)",
-  "prompt": "Build PLN-001 PlanningDashboard page (Next.js App Router server component) at `src/app/(planning)/planning/page.tsx` matching the prototype `design/Monopilot Design System/planning/dashboard.jsx:3-261` 1:1.\n\nLayout (3 bands): Band 1 PLN-001a stat tiles (open POs, pending approval, overdue, open TOs, scheduled today, in_progress, on_hold>24h). Band 2 PLN-001b grouped alerts (per §13.1). Band 3 includes PLN-001c QuickActions strip (Create PO, TO, WO, Bulk Import, Run Sequencing) and PLN-001d CascadeChainView tab.\n\nUse shadcn primitives only. Server Component fetches data via T-027 dashboard service. Loading + empty + error states match prototype.\n\nRED test: RTL snapshot test asserts component hierarchy matches prototype regions; Playwright e2e test loads /planning and verifies KPI tiles render.",
+  "prompt": "Build PLN-001 PlanningDashboard page (Next.js App Router server component) at `src/app/(planning)/planning/page.tsx` matching the prototype `prototypes/design/Monopilot Design System/planning/dashboard.jsx:3-261` 1:1.\n\nLayout (3 bands): Band 1 PLN-001a stat tiles (open POs, pending approval, overdue, open TOs, scheduled today, in_progress, on_hold>24h). Band 2 PLN-001b grouped alerts (per §13.1). Band 3 includes PLN-001c QuickActions strip (Create PO, TO, WO, Bulk Import, Run Sequencing) and PLN-001d CascadeChainView tab.\n\nUse shadcn primitives only. Server Component fetches data via T-027 dashboard service. Loading + empty + error states match prototype.\n\nRED test: RTL snapshot test asserts component hierarchy matches prototype regions; Playwright e2e test loads /planning and verifies KPI tiles render.",
   "labels": [
     "prd",
     "ui",
@@ -13,7 +13,7 @@
   "pipeline_inputs": {
     "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
     "prd_task_id": "T-034",
-    "source_prd": "04-PLANNING-BASIC-PRD.md",
+    "source_prd": "docs/prd/04-PLANNING-BASIC-PRD.md",
     "prd_refs": [
       "§13.1",
       "§13.2",
@@ -35,7 +35,7 @@
       "src/components/planning/dashboard/QuickActions.tsx [create]",
       "src/components/planning/dashboard/CascadeChainView.tsx [create]",
       "src/components/planning/dashboard/__tests__/PlanningDashboard.test.tsx [create]",
-      "design/Monopilot Design System/planning/dashboard.jsx:3-261 [ref]"
+      "prototypes/design/Monopilot Design System/planning/dashboard.jsx:3-261 [ref]"
     ],
     "out_of_scope": [
       "Cascade DAG view page (T-046)",
@@ -45,7 +45,7 @@
       "T-027"
     ],
     "acceptance_criteria": [
-      "Given the production page renders, when compared to `design/Monopilot Design System/planning/dashboard.jsx:3-261`, then it has the same 3 bands in the same order, the same 7 KPI tiles in Band 1, the same alert categories in Band 2, and the same 5 Quick Action buttons — verified by RTL snapshot, with the parity checklist in `pipeline_inputs.details`.",
+      "Given the production page renders, when compared to `prototypes/design/Monopilot Design System/planning/dashboard.jsx:3-261`, then it has the same 3 bands in the same order, the same 7 KPI tiles in Band 1, the same alert categories in Band 2, and the same 5 Quick Action buttons — verified by RTL snapshot, with the parity checklist in `pipeline_inputs.details`.",
       "Given the dashboard endpoint returns empty arrays, when the page renders, then empty-state copy matches the prototype empty state.",
       "Given the API returns an error, when the page renders, then the error boundary shows the same red banner copy as the prototype.",
       "Given `pnpm vitest run src/components/planning/dashboard/__tests__/PlanningDashboard.test.tsx` and `pnpm playwright test e2e/planning/dashboard.spec.ts`, when run, then 0 failures. Given the UI task is closed, then CLOSEOUT includes Playwright trace artifacts plus screenshots/artifacts for prototype parity and error/empty/blocked states. Follow parity evidence requirements in `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`."

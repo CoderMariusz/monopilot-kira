@@ -2,7 +2,7 @@
 
 > **Purpose:** Self-contained design brief for Claude Design to generate interactive HTML prototypes. Every screen, modal, state, field, column, button, and flow is described in enough detail that a designer needs no additional input.
 >
-> **Source authority:** PRD 02-SETTINGS v3.5 plus PO amendment 2026-05-03. Canonical Settings prototype source of truth is `design/Monopilot Design System/settings/*.jsx`; when an exact screen prototype is missing, this UX spec is authoritative and prototype elements may be reused only as matching primitives/patterns.
+> **Source authority:** PRD 02-SETTINGS v3.5 plus PO amendment 2026-05-03. Canonical Settings prototype source of truth is `prototypes/design/Monopilot Design System/settings/*.jsx`; when an exact screen prototype is missing, this UX spec is authoritative and prototype elements may be reused only as matching primitives/patterns.
 
 ---
 

@@ -1,6 +1,6 @@
 {
   "title": "T-049 — UI: PLN-019 LP Picker modal (parity with lp_picker_modal)",
-  "prompt": "Implement UI: PLN-019 LP Picker modal (parity with lp_picker_modal) for 04-PLANNING-BASIC.\n\nPrototype: `_meta/prototype-labels/prototype-index-planning.json` label `lp_picker_modal` -> `design/Monopilot Design System/planning/modals.jsx:269-341`. Read PRD refs §7.3, §9.3, §12.3 and UX refs before coding. Match the prototype structurally and visually using shadcn/Radix primitives, Next.js App Router, Server Components for initial data, Server Actions for writes, next-intl for all copy, and existing repository conventions.\n\nBusiness rules: Consumes Warehouse LP read model; only available/reservable LPs are selectable; hard_lock/quarantine are visible but disabled.\n\nCloseout must include changed files, test commands/results, AC status, screenshot/artifact paths, Playwright trace paths, deviations, and git status. Do not implement out-of-scope modules; use cross-module contracts listed in pipeline_inputs.cross_module_dependencies.",
+  "prompt": "Implement UI: PLN-019 LP Picker modal (parity with lp_picker_modal) for 04-PLANNING-BASIC.\n\nPrototype: `_meta/prototype-labels/prototype-index-planning.json` label `lp_picker_modal` -> `prototypes/design/Monopilot Design System/planning/modals.jsx:269-341`. Read PRD refs §7.3, §9.3, §12.3 and UX refs before coding. Match the prototype structurally and visually using shadcn/Radix primitives, Next.js App Router, Server Components for initial data, Server Actions for writes, next-intl for all copy, and existing repository conventions.\n\nBusiness rules: Consumes Warehouse LP read model; only available/reservable LPs are selectable; hard_lock/quarantine are visible but disabled.\n\nCloseout must include changed files, test commands/results, AC status, screenshot/artifact paths, Playwright trace paths, deviations, and git status. Do not implement out-of-scope modules; use cross-module contracts listed in pipeline_inputs.cross_module_dependencies.",
   "labels": [
     "prd",
     "ui",
@@ -13,7 +13,7 @@
   "pipeline_inputs": {
     "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
     "prd_task_id": "T-049",
-    "source_prd": "04-PLANNING-BASIC-PRD.md",
+    "source_prd": "docs/prd/04-PLANNING-BASIC-PRD.md",
     "prd_refs": [
       "§7.3",
       "§9.3",
@@ -28,10 +28,10 @@
     "prototype_match": true,
     "prototype_label": "lp_picker_modal",
     "description": "LP picker modal with FEFO/FIFO/search/status badges and selected quantity gate.",
-    "details": "Prototype reference: design/Monopilot Design System/planning/modals.jsx:269-341. Consumes Warehouse LP read model; only available/reservable LPs are selectable; hard_lock/quarantine are visible but disabled.",
+    "details": "Prototype reference: prototypes/design/Monopilot Design System/planning/modals.jsx:269-341. Consumes Warehouse LP read model; only available/reservable LPs are selectable; hard_lock/quarantine are visible but disabled.",
     "scope_files": [
       "src/components/planning/reservations/LPPickerDialog.tsx [create]",
-      "design/Monopilot Design System/planning/modals.jsx:269-341 [ref]"
+      "prototypes/design/Monopilot Design System/planning/modals.jsx:269-341 [ref]"
     ],
     "out_of_scope": [
       "Changing canonical NPD/Technical/Warehouse/Scanner contracts",
@@ -48,7 +48,7 @@
       }
     ],
     "acceptance_criteria": [
-      "Given the surface is implemented, when compared to `design/Monopilot Design System/planning/modals.jsx:269-341`, then layout, copy hierarchy, components, interactions, empty/loading/error states, and accessibility affordances have prototype parity for `lp_picker_modal`.",
+      "Given the surface is implemented, when compared to `prototypes/design/Monopilot Design System/planning/modals.jsx:269-341`, then layout, copy hierarchy, components, interactions, empty/loading/error states, and accessibility affordances have prototype parity for `lp_picker_modal`.",
       "Given server data or validation returns blocked/empty/error cases, then the UI surfaces the exact PRD validation/status messages without client-invented business state.",
       "Given closeout is prepared, then it includes desktop screenshots/artifacts for all material states plus Playwright trace artifacts for happy path and blocked/error path.",
       "Given tests run, then targeted RTL/component tests and Playwright e2e for the route/modal pass with 0 failures. Follow parity evidence requirements in `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`."

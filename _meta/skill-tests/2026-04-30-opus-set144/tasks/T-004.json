@@ -8,7 +8,7 @@
   "pipeline_inputs": {
     "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
     "prd_task_id": "T-004",
-    "source_prd": "02-SETTINGS-PRD.md",
+    "source_prd": "docs/prd/02-SETTINGS-PRD.md",
     "prd_refs": ["§14.4 SET-001 (line 1538)"],
     "category": "ui",
     "subcategory": "route-guard-launcher",

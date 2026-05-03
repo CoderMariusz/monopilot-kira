@@ -1,6 +1,6 @@
 {
   "title": "T-026 — Offline detection indicator stub (P1) (06-a)",
-  "prompt": "# T-026 — offline indicator stub\n\nPRD: 06-SCANNER-P1-PRD.md §8.6 FR-SC-FE-070 (P1 stub), §8.1 FR-SC-FE-015\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nDeliver online/offline detection — `navigator.onLine` + 15s ping `/api/health` — surfaced in the topbar SyncStatus dot (green/amber/red). P1 includes only detection + visual; queue UI is P2.\n\n## Implementation contract\n1. `apps/scanner/src/lib/scanner/online-detector.ts` exporting a singleton subscribe API.\n2. Tap into the SyncStatus slot of the topbar (T-012): green when online, amber while ping pending, red on offline ≥1 ping miss.\n3. Disabled (no queue badge) — placeholder click opens a 'Tryb offline P2' modal.\n\n## Files\n- apps/scanner/src/lib/scanner/online-detector.ts [create]\n- apps/scanner/src/components/sync-status.tsx [create]\n- apps/scanner/__tests__/online-detector.test.ts [create]\n\n## Acceptance criteria\n1. Given navigator.onLine becomes false, when the detector subscribers fire, then the SyncStatus dot transitions to red within one tick\n2. Given /api/health returns 200, when the 15s ping cycle runs, then the dot stays green and the next tick stays scheduled\n3. Given the user taps the disabled SyncStatus dot, when the click handler runs, then a 'Tryb offline P2' modal opens with link to docs\n\n## Test strategy\n- RED: write online-detector.test.ts asserting offline transition + ping cycle + P2 modal before implementation\n- Run 'pnpm --filter scanner test online-detector'\n\n## Risk red lines\n- Do not run the ping cycle while no scanner page is mounted\n- Do not block render if /api/health is unreachable (degrade to red dot)\n- Do not enable queue UI in P1",
+  "prompt": "# T-026 — offline indicator stub\n\nPRD: docs/prd/06-SCANNER-P1-PRD.md §8.6 FR-SC-FE-070 (P1 stub), §8.1 FR-SC-FE-015\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nDeliver online/offline detection — `navigator.onLine` + 15s ping `/api/health` — surfaced in the topbar SyncStatus dot (green/amber/red). P1 includes only detection + visual; queue UI is P2.\n\n## Implementation contract\n1. `apps/scanner/src/lib/scanner/online-detector.ts` exporting a singleton subscribe API.\n2. Tap into the SyncStatus slot of the topbar (T-012): green when online, amber while ping pending, red on offline ≥1 ping miss.\n3. Disabled (no queue badge) — placeholder click opens a 'Tryb offline P2' modal.\n\n## Files\n- apps/scanner/src/lib/scanner/online-detector.ts [create]\n- apps/scanner/src/components/sync-status.tsx [create]\n- apps/scanner/__tests__/online-detector.test.ts [create]\n\n## Acceptance criteria\n1. Given navigator.onLine becomes false, when the detector subscribers fire, then the SyncStatus dot transitions to red within one tick\n2. Given /api/health returns 200, when the 15s ping cycle runs, then the dot stays green and the next tick stays scheduled\n3. Given the user taps the disabled SyncStatus dot, when the click handler runs, then a 'Tryb offline P2' modal opens with link to docs\n\n## Test strategy\n- RED: write online-detector.test.ts asserting offline transition + ping cycle + P2 modal before implementation\n- Run 'pnpm --filter scanner test online-detector'\n\n## Risk red lines\n- Do not run the ping cycle while no scanner page is mounted\n- Do not block render if /api/health is unreachable (degrade to red dot)\n- Do not enable queue UI in P1",
   "labels": [
     "prd",
     "ui",
@@ -13,7 +13,7 @@
   "pipeline_inputs": {
     "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
     "prd_task_id": "T-026",
-    "source_prd": "06-SCANNER-P1-PRD.md",
+    "source_prd": "docs/prd/06-SCANNER-P1-PRD.md",
     "prd_refs": [
       "§8.6 FR-SC-FE-070 (P1 stub)",
       "§8.1 FR-SC-FE-015"
@@ -25,7 +25,7 @@
     "context_budget": "20k",
     "estimated_effort": "1h",
     "description": "P1 detection-only online/offline indicator surfaced in topbar; opens 'Tryb offline P2' modal on tap.",
-    "details": "Detector polls /api/health every 15s plus listens to navigator.onLine events. SyncStatus component renders dot color and disabled-tap modal. P2 queue UI is explicitly deferred.\n\nWave0 scanner parity note: use `design/Monopilot Design System/scanner/move-screens.jsx:1-260` as prototype reference and include mobile viewport 390x844 screenshot + Playwright trace artifacts in closeout.",
+    "details": "Detector polls /api/health every 15s plus listens to navigator.onLine events. SyncStatus component renders dot color and disabled-tap modal. P2 queue UI is explicitly deferred.\n\nWave0 scanner parity note: use `prototypes/design/Monopilot Design System/scanner/flow-putaway.jsx:1-180` as prototype reference and include mobile viewport 390x844 screenshot + Playwright trace artifacts in closeout.",
     "scope_files": [
       "apps/scanner/src/lib/scanner/online-detector.ts [create]",
       "apps/scanner/src/components/sync-status.tsx [create]",
@@ -44,7 +44,7 @@
       "T-025"
     ],
     "acceptance_criteria": [
-      "Given the scanner UI is implemented, when compared with `design/Monopilot Design System/scanner/move-screens.jsx:1-260`, then it preserves mobile structural parity, visual parity, and interaction parity for the screen/flow at viewport 390x844, captures screenshot and Playwright trace artifacts, and documents any intentional divergence from PRD/UX. Follow parity evidence requirements in `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`.",
+      "Given the scanner UI is implemented, when compared with `prototypes/design/Monopilot Design System/scanner/flow-putaway.jsx:1-180`, then it preserves mobile structural parity, visual parity, and interaction parity for the screen/flow at viewport 390x844, captures screenshot and Playwright trace artifacts, and documents any intentional divergence from PRD/UX. Follow parity evidence requirements in `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`.",
       "Given navigator.onLine becomes false, when subscribers fire, then the SyncStatus dot transitions to red within one tick",
       "Given /api/health returns 200, when the 15s ping cycle runs, then the dot stays green and the next tick is scheduled",
       "Given the user taps the disabled SyncStatus dot, when the click handler runs, then a 'Tryb offline P2' modal opens with a docs link"

@@ -1,8 +1,8 @@
 # Quality Module — Prototype Translation Notes
 
-Scanned: 2026-04-23  
-Source files: `design/Monopilot Design System/quality/` (8 JSX files + BACKLOG.md)  
-Components indexed: 30  
+Scanned: 2026-04-23
+Source files: `prototypes/design/Monopilot Design System/quality/` (8 JSX files + BACKLOG.md)
+Components indexed: 30
 Total estimated translation time: ~2,715 min (~45 dev-hours)
 
 ---
@@ -40,7 +40,7 @@ Total estimated translation time: ~2,715 min (~45 dev-hours)
 
 ### M-01 — `hold_create_modal` (lines 22–96)
 
-**Pattern:** CRUD form with conditional validation + SoD warning  
+**Pattern:** CRUD form with conditional validation + SoD warning
 **Key rules:** V-QA-HOLD-002 (reference FK check), V-QA-HOLD-005 (disposition before release), V-QA-HOLD-006 (SoD)
 
 | Prototype pattern | Production equivalent |
@@ -60,7 +60,7 @@ Total estimated translation time: ~2,715 min (~45 dev-hours)
 
 ### M-02 — `hold_release_modal` (lines 99–156)
 
-**Pattern:** Destructive action + e-sign + SoD enforcement  
+**Pattern:** Destructive action + e-sign + SoD enforcement
 **Key rules:** V-QA-HOLD-005, V-QA-HOLD-006
 
 | Prototype pattern | Production equivalent |
@@ -78,7 +78,7 @@ Total estimated translation time: ~2,715 min (~45 dev-hours)
 
 ### M-03 — `spec_sign_modal` (lines 159–206)
 
-**Pattern:** Pre-approval checklist + e-sign  
+**Pattern:** Pre-approval checklist + e-sign
 **Key rules:** V-QA-SPEC-002, V-QA-SPEC-003, V-QA-SPEC-005
 
 | Prototype pattern | Production equivalent |
@@ -93,7 +93,7 @@ Total estimated translation time: ~2,715 min (~45 dev-hours)
 
 ### M-04 — `template_create_modal` (lines 209–245)
 
-**Pattern:** CRUD form + dynamic parameter list  
+**Pattern:** CRUD form + dynamic parameter list
 
 | Prototype pattern | Production equivalent |
 |---|---|
@@ -107,7 +107,7 @@ Total estimated translation time: ~2,715 min (~45 dev-hours)
 
 ### M-05 — `sample_draw_modal` (lines 248–297)
 
-**Pattern:** AQL form + live auto-decision  
+**Pattern:** AQL form + live auto-decision
 
 | Prototype pattern | Production equivalent |
 |---|---|
@@ -121,7 +121,7 @@ Total estimated translation time: ~2,715 min (~45 dev-hours)
 
 ### M-06 — `ncr_create_modal` (lines 300–382)
 
-**Pattern:** Multi-path form (3 NCR types) + conditional validation  
+**Pattern:** Multi-path form (3 NCR types) + conditional validation
 **Key rules:** V-QA-NCR-003 (yield), V-QA-NCR-004 (allergen)
 
 | Prototype pattern | Production equivalent |
@@ -137,7 +137,7 @@ Total estimated translation time: ~2,715 min (~45 dev-hours)
 
 ### M-07 — `ncr_close_modal` (lines 385–466)
 
-**Pattern:** Pre-close checklist + conditional dual-sign  
+**Pattern:** Pre-close checklist + conditional dual-sign
 **Key rules:** V-QA-NCR-005 (root cause required), V-QA-NCR-006 (dual sign for critical)
 
 | Prototype pattern | Production equivalent |
@@ -152,7 +152,7 @@ Total estimated translation time: ~2,715 min (~45 dev-hours)
 
 ### M-08 — `ccp_reading_modal` (lines 469–551)
 
-**Pattern:** CCP entry form + live limit check + conditional e-sign  
+**Pattern:** CCP entry form + live limit check + conditional e-sign
 **Key rules:** V-QA-CCP-005 (sign required for biological/allergen hazards)
 
 | Prototype pattern | Production equivalent |
@@ -196,7 +196,7 @@ Total estimated translation time: ~2,715 min (~45 dev-hours)
 
 ### M-11 — `allergen_dual_sign_modal` (lines 637–697)
 
-**Pattern:** ATP-gated dual-sign with override  
+**Pattern:** ATP-gated dual-sign with override
 **Key rules:** V-QA-ALLERGEN-001, V-QA-ALLERGEN-002
 
 | Prototype pattern | Production equivalent |
@@ -212,7 +212,7 @@ Total estimated translation time: ~2,715 min (~45 dev-hours)
 
 ### M-12 — `audit_export_modal` (lines 700–756)
 
-**Pattern:** Async export with prepare + download  
+**Pattern:** Async export with prepare + download
 
 | Prototype pattern | Production equivalent |
 |---|---|
@@ -226,7 +226,7 @@ Total estimated translation time: ~2,715 min (~45 dev-hours)
 
 ### M-13 — `delete_with_reason_modal` (lines 759–780)
 
-**Pattern:** Destructive delete with audit reason  
+**Pattern:** Destructive delete with audit reason
 
 | Prototype pattern | Production equivalent |
 |---|---|
@@ -255,7 +255,7 @@ Total estimated translation time: ~2,715 min (~45 dev-hours)
 
 ### QA-001 — `qa_dashboard` (lines 3–147)
 
-**Pattern:** Multi-KPI dashboard with tabbed recent records  
+**Pattern:** Multi-KPI dashboard with tabbed recent records
 
 | Prototype pattern | Production equivalent |
 |---|---|

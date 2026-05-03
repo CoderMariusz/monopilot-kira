@@ -3,9 +3,9 @@
 **Auditor:** Audit-4 (READ-ONLY)
 **Date:** 2026-04-23
 **Sources:**
-- PRD: `06-SCANNER-P1-PRD.md` v3.0, `10-FINANCE-PRD.md` v3.0, `00-FOUNDATION-PRD.md`
-- UX Spec: `design/06-SCANNER-P1-UX.md` v1.0, `design/10-FINANCE-UX.md` v1.0
-- Prototype: `design/Monopilot Design System/scanner/` (14 files), `design/Monopilot Design System/finance/` (10 files)
+- PRD: `docs/prd/06-SCANNER-P1-PRD.md` v3.0, `docs/prd/10-FINANCE-PRD.md` v3.0, `docs/prd/00-FOUNDATION-PRD.md`
+- UX Spec: `prototypes/design/06-SCANNER-P1-UX.md` v1.0, `prototypes/design/10-FINANCE-UX.md` v1.0
+- Prototype: `prototypes/design/Monopilot Design System/scanner/` (14 files), `prototypes/design/Monopilot Design System/finance/` (10 files)
 
 ---
 

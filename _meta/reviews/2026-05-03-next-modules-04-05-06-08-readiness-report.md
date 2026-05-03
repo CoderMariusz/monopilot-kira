@@ -17,8 +17,8 @@ Three specialist agents were used:
 ## 04 Planning Basic + 08 Production patch
 
 Files modified/created by the agent:
-- `04-PLANNING-BASIC-PRD.md`
-- `08-PRODUCTION-PRD.md`
+- `docs/prd/04-PLANNING-BASIC-PRD.md`
+- `docs/prd/08-PRODUCTION-PRD.md`
 - `_meta/prototype-labels/prototype-index-planning.json`
 - `_meta/prototype-labels/prototype-index-production.json`
 - `_meta/atomic-tasks/04-planning-basic/manifest.json`
@@ -80,9 +80,9 @@ Report created:
 - `_meta/reviews/2026-05-03-05-warehouse-readiness-audit.md`
 
 Files inspected:
-- `05-WAREHOUSE-PRD.md`
-- `design/05-WAREHOUSE-UX.md`
-- `design/Monopilot Design System/warehouse/*.jsx`
+- `docs/prd/05-WAREHOUSE-PRD.md`
+- `prototypes/design/05-WAREHOUSE-UX.md`
+- `prototypes/design/Monopilot Design System/warehouse/*.jsx`
 - `_meta/prototype-labels/prototype-index-warehouse.json`
 - `_meta/prototype-labels/master-index.json`
 - `_meta/atomic-tasks/05-warehouse/tasks/T-001..T-047.json`
@@ -132,9 +132,9 @@ Report created:
 - `_meta/reviews/2026-05-03-06-scanner-p1-readiness-audit.md`
 
 Files inspected:
-- `06-SCANNER-P1-PRD.md`
-- `design/06-SCANNER-P1-UX.md`
-- `design/Monopilot Design System/scanner/*.jsx`
+- `docs/prd/06-SCANNER-P1-PRD.md`
+- `prototypes/design/06-SCANNER-P1-UX.md`
+- `prototypes/design/Monopilot Design System/scanner/*.jsx`
 - `_meta/prototype-labels/prototype-index-scanner.json`
 - `_meta/prototype-labels/master-index.json`
 - `_meta/prototype-labels/translation-notes-scanner.md`

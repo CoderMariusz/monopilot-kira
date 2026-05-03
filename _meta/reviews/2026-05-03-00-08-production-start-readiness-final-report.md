@@ -85,7 +85,7 @@ I fixed the issues found by the read-only review agents:
    - Normalized 04/05/06/07/08 task priorities into ACP convention bands: 50, 80, 100, 120, 150.
    - Lower number remains earlier/faster.
 
-6. `03-TECHNICAL-PRD.md`
+6. `docs/prd/03-TECHNICAL-PRD.md`
    - Reworded stale `[NO-PROTOTYPE-YET] BLOCKER` wording into `[SPEC-DRIVEN-WAVE0]` language.
    - Reason: T-085..T-089 now provide spec-driven ACP-ready UI tasks; dedicated prototype build is optional/future, not a T3 drafting blocker.
 

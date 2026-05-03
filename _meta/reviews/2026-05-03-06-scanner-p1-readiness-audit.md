@@ -6,10 +6,10 @@ Zakres: read-only audit PRD/UX/prototype-label/atomic-task readiness; bez implem
 
 ## Pliki sprawdzone
 
-- `06-SCANNER-P1-PRD.md`
-- `design/06-SCANNER-P1-UX.md`
-- `design/Monopilot Design System/scanner/*.jsx`
-- `design/Monopilot Design System/settings/ops-screens.jsx` przez wpis `devices_screen`
+- `docs/prd/06-SCANNER-P1-PRD.md`
+- `prototypes/design/06-SCANNER-P1-UX.md`
+- `prototypes/design/Monopilot Design System/scanner/*.jsx`
+- `prototypes/design/Monopilot Design System/settings/ops-screens.jsx` przez wpis `devices_screen`
 - `_meta/prototype-labels/prototype-index-scanner.json`
 - `_meta/prototype-labels/master-index.json`
 - `_meta/prototype-labels/translation-notes-scanner.md`
@@ -45,8 +45,8 @@ Gaps / ryzyka:
 
 Mocne strony:
 
-- `design/06-SCANNER-P1-UX.md` ma route map, role-based visibility, szczegółowe screen specs, modals/bottom sheets, scan sequences, empty states, notifications, responsive/device notes, scan contract, LP state machine i CSS class reference.
-- Prototype source exists under `design/Monopilot Design System/scanner/` and covers major P1 flows:
+- `prototypes/design/06-SCANNER-P1-UX.md` ma route map, role-based visibility, szczegółowe screen specs, modals/bottom sheets, scan sequences, empty states, notifications, responsive/device notes, scan contract, LP state machine i CSS class reference.
+- Prototype source exists under `prototypes/design/Monopilot Design System/scanner/` and covers major P1 flows:
   - auth/login/site context/home/settings
   - PO receive, TO receive
   - putaway

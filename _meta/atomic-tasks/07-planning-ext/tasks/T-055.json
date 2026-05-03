@@ -1,6 +1,6 @@
 {
   "title": "T-055 — Factory release and D365 posture guard for scheduler inputs",
-  "prompt": "# T-055 — Factory release and D365 posture guard for scheduler inputs\n\nPRD: `07-PLANNING-EXT-PRD.md` §5.5 input data, §15 dependencies, Wave0 factory release decisions.\nUX/prototype refs are listed in `pipeline_inputs.scope_files`.\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`.\n\n## Goal\nHarden 07-EXT against release-model drift before solver execution.\n\n## Implementation contract\nThe scheduler input loader must read the same canonical factory release read model used by 04/08 and return explicit blockers for non-usable WOs. No D365 path can unlock factory scheduling.\n\nACP shape reminder: keep this task as one atomic implementation. Do not add ACP-owned fields. Keep local dependencies in `dependencies`; cross-module contracts in `cross_module_dependencies` are blockers/inputs, not ACP local task IDs.",
+  "prompt": "# T-055 — Factory release and D365 posture guard for scheduler inputs\n\nPRD: `docs/prd/07-PLANNING-EXT-PRD.md` §5.5 input data, §15 dependencies, Wave0 factory release decisions.\nUX/prototype refs are listed in `pipeline_inputs.scope_files`.\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`.\n\n## Goal\nHarden 07-EXT against release-model drift before solver execution.\n\n## Implementation contract\nThe scheduler input loader must read the same canonical factory release read model used by 04/08 and return explicit blockers for non-usable WOs. No D365 path can unlock factory scheduling.\n\nACP shape reminder: keep this task as one atomic implementation. Do not add ACP-owned fields. Keep local dependencies in `dependencies`; cross-module contracts in `cross_module_dependencies` are blockers/inputs, not ACP local task IDs.",
   "labels": [
     "prd",
     "api",
@@ -12,7 +12,7 @@
   "pipeline_name": "kira_dev",
   "pipeline_inputs": {
     "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
-    "source_prd": "07-PLANNING-EXT-PRD.md",
+    "source_prd": "docs/prd/07-PLANNING-EXT-PRD.md",
     "context_budget": "40k",
     "skills": [
       "test-driven-development",

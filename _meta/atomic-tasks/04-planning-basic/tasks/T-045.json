@@ -13,7 +13,7 @@
   "pipeline_inputs": {
     "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
     "prd_task_id": "T-045",
-    "source_prd": "04-PLANNING-BASIC-PRD.md",
+    "source_prd": "docs/prd/04-PLANNING-BASIC-PRD.md",
     "prd_refs": [
       "§MRP-gap",
       "PLN-014"
@@ -25,7 +25,7 @@
     "context_budget": "60k",
     "estimated_effort": "5-6h",
     "description": "Read-only Material Demand dashboard with netting + reorder thresholds + Create PO quick action.",
-    "details": "Schema for reorder_thresholds, aggregator action joining stock/po/wo, Server Component page, Create PO opens existing PO wizard prefilled, threshold dialog upserts. No MRP pegging beyond simple sum.\n\nAdditional acceptance detail preserved during validation hardening:\n- Given the user submits Set Threshold for an existing product, when committed, then reorder_thresholds upserts (UNIQUE(tenant,product) holds).\n- Given the user lacks planning.thresholds.write, when on the page, then Set threshold buttons are disabled with tooltips.\n- Given `pnpm vitest run` for the new tests, then 0 failures.\n\nPrototype hardening: cite `plan_dashboard` via `design/Monopilot Design System/planning/dashboard.jsx:3-261` for parity or composed dashboard parity where material demand is exposed as a dashboard/quick-action surface.",
+    "details": "Schema for reorder_thresholds, aggregator action joining stock/po/wo, Server Component page, Create PO opens existing PO wizard prefilled, threshold dialog upserts. No MRP pegging beyond simple sum.\n\nAdditional acceptance detail preserved during validation hardening:\n- Given the user submits Set Threshold for an existing product, when committed, then reorder_thresholds upserts (UNIQUE(tenant,product) holds).\n- Given the user lacks planning.thresholds.write, when on the page, then Set threshold buttons are disabled with tooltips.\n- Given `pnpm vitest run` for the new tests, then 0 failures.\n\nPrototype hardening: cite `plan_dashboard` via `prototypes/design/Monopilot Design System/planning/dashboard.jsx:3-261` for parity or composed dashboard parity where material demand is exposed as a dashboard/quick-action surface.",
     "scope_files": [
       "src/db/schema/planning/reorder-thresholds.ts [create]",
       "src/db/migrations/0045_planning_reorder_thresholds.sql [create via drizzle-kit]",
@@ -36,7 +36,7 @@
       "src/app/(planning)/material-demand/_components/SetThresholdDialog.tsx [create]",
       "src/app/(planning)/material-demand/_components/__tests__/MaterialDemandTable.test.tsx [create]",
       "src/app/(planning)/material-demand/_actions/__tests__/listMaterialDemand.test.ts [create]",
-      "design/Monopilot Design System/planning/dashboard.jsx:3-261 [ref]"
+      "prototypes/design/Monopilot Design System/planning/dashboard.jsx:3-261 [ref]"
     ],
     "out_of_scope": [
       "Full MRP run / multi-level pegging",
@@ -49,7 +49,7 @@
       "T-038"
     ],
     "acceptance_criteria": [
-      "Given the UI renders, when compared to `design/Monopilot Design System/planning/dashboard.jsx:3-261`, then structural/visual/interaction parity for `plan_dashboard` is verified. Follow parity evidence requirements in `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`.",
+      "Given the UI renders, when compared to `prototypes/design/Monopilot Design System/planning/dashboard.jsx:3-261`, then structural/visual/interaction parity for `plan_dashboard` is verified. Follow parity evidence requirements in `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`.",
       "Given a product with on_hand=10, open PO=5, WO reservation=8, min=10, when listMaterialDemand runs, then net=7 and status='LOW'.",
       "Given a product with on_hand=2, open PO=0, WO reservation=5, min=10, when listMaterialDemand runs, then status='CRITICAL'.",
       "Given the user clicks Create PO on a row, when the wizard opens, then product, qty=reorder_qty, supplier=preferred_supplier_id are prefilled."

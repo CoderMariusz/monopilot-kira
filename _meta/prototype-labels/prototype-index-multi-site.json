@@ -6,7 +6,7 @@
   "entries": [
     {
       "label": "site_create_modal",
-      "file": "design/Monopilot Design System/multi-site/modals.jsx",
+      "file": "prototypes/design/Monopilot Design System/multi-site/modals.jsx",
       "lines": "21-175",
       "component_type": "wizard",
       "ui_pattern": "multi-step-wizard",
@@ -44,7 +44,7 @@
     },
     {
       "label": "ist_cancel_modal",
-      "file": "design/Monopilot Design System/multi-site/modals.jsx",
+      "file": "prototypes/design/Monopilot Design System/multi-site/modals.jsx",
       "lines": "177-208",
       "component_type": "modal",
       "ui_pattern": "crud-form-with-validation",
@@ -76,7 +76,7 @@
     },
     {
       "label": "ist_amend_modal",
-      "file": "design/Monopilot Design System/multi-site/modals.jsx",
+      "file": "prototypes/design/Monopilot Design System/multi-site/modals.jsx",
       "lines": "210-239",
       "component_type": "modal",
       "ui_pattern": "crud-form-with-validation",
@@ -109,7 +109,7 @@
     },
     {
       "label": "replication_retry_modal",
-      "file": "design/Monopilot Design System/multi-site/modals.jsx",
+      "file": "prototypes/design/Monopilot Design System/multi-site/modals.jsx",
       "lines": "241-270",
       "component_type": "modal",
       "ui_pattern": "bulk-action",
@@ -141,7 +141,7 @@
     },
     {
       "label": "conflict_resolve_modal",
-      "file": "design/Monopilot Design System/multi-site/modals.jsx",
+      "file": "prototypes/design/Monopilot Design System/multi-site/modals.jsx",
       "lines": "272-354",
       "component_type": "modal",
       "ui_pattern": "detail-view",
@@ -179,7 +179,7 @@
     },
     {
       "label": "lane_create_modal",
-      "file": "design/Monopilot Design System/multi-site/modals.jsx",
+      "file": "prototypes/design/Monopilot Design System/multi-site/modals.jsx",
       "lines": "356-388",
       "component_type": "modal",
       "ui_pattern": "crud-form-with-validation",
@@ -214,7 +214,7 @@
     },
     {
       "label": "rate_card_upload_modal",
-      "file": "design/Monopilot Design System/multi-site/modals.jsx",
+      "file": "prototypes/design/Monopilot Design System/multi-site/modals.jsx",
       "lines": "390-470",
       "component_type": "wizard",
       "ui_pattern": "import-export",
@@ -248,7 +248,7 @@
     },
     {
       "label": "site_config_override_modal",
-      "file": "design/Monopilot Design System/multi-site/modals.jsx",
+      "file": "prototypes/design/Monopilot Design System/multi-site/modals.jsx",
       "lines": "472-512",
       "component_type": "modal",
       "ui_pattern": "crud-form-with-validation",
@@ -282,7 +282,7 @@
     },
     {
       "label": "permission_bulk_assign_modal",
-      "file": "design/Monopilot Design System/multi-site/modals.jsx",
+      "file": "prototypes/design/Monopilot Design System/multi-site/modals.jsx",
       "lines": "514-575",
       "component_type": "modal",
       "ui_pattern": "bulk-action",
@@ -316,7 +316,7 @@
     },
     {
       "label": "site_decommission_modal",
-      "file": "design/Monopilot Design System/multi-site/modals.jsx",
+      "file": "prototypes/design/Monopilot Design System/multi-site/modals.jsx",
       "lines": "577-633",
       "component_type": "modal",
       "ui_pattern": "crud-form-with-validation",
@@ -349,7 +349,7 @@
     },
     {
       "label": "activation_confirm_modal",
-      "file": "design/Monopilot Design System/multi-site/modals.jsx",
+      "file": "prototypes/design/Monopilot Design System/multi-site/modals.jsx",
       "lines": "635-662",
       "component_type": "modal",
       "ui_pattern": "detail-view",
@@ -382,7 +382,7 @@
     },
     {
       "label": "rollback_confirm_modal",
-      "file": "design/Monopilot Design System/multi-site/modals.jsx",
+      "file": "prototypes/design/Monopilot Design System/multi-site/modals.jsx",
       "lines": "664-686",
       "component_type": "modal",
       "ui_pattern": "crud-form-with-validation",
@@ -413,7 +413,7 @@
     },
     {
       "label": "promote_env_modal",
-      "file": "design/Monopilot Design System/multi-site/modals.jsx",
+      "file": "prototypes/design/Monopilot Design System/multi-site/modals.jsx",
       "lines": "688-730",
       "component_type": "modal",
       "ui_pattern": "crud-form-with-validation",
@@ -449,7 +449,7 @@
     },
     {
       "label": "ms_dashboard",
-      "file": "design/Monopilot Design System/multi-site/dashboard.jsx",
+      "file": "prototypes/design/Monopilot Design System/multi-site/dashboard.jsx",
       "lines": "6-227",
       "component_type": "page-layout",
       "ui_pattern": "dashboard-tile",
@@ -492,7 +492,7 @@
     },
     {
       "label": "ms_sites_list",
-      "file": "design/Monopilot Design System/multi-site/sites-screens.jsx",
+      "file": "prototypes/design/Monopilot Design System/multi-site/sites-screens.jsx",
       "lines": "4-100",
       "component_type": "table",
       "ui_pattern": "search-filter-list",
@@ -527,7 +527,7 @@
     },
     {
       "label": "ms_site_detail",
-      "file": "design/Monopilot Design System/multi-site/sites-screens.jsx",
+      "file": "prototypes/design/Monopilot Design System/multi-site/sites-screens.jsx",
       "lines": "102-410",
       "component_type": "tabs",
       "ui_pattern": "detail-view",
@@ -568,7 +568,7 @@
     },
     {
       "label": "ms_ist_list",
-      "file": "design/Monopilot Design System/multi-site/ist-screens.jsx",
+      "file": "prototypes/design/Monopilot Design System/multi-site/ist-screens.jsx",
       "lines": "6-120",
       "component_type": "table",
       "ui_pattern": "search-filter-list",
@@ -604,7 +604,7 @@
     },
     {
       "label": "ms_ist_detail",
-      "file": "design/Monopilot Design System/multi-site/ist-screens.jsx",
+      "file": "prototypes/design/Monopilot Design System/multi-site/ist-screens.jsx",
       "lines": "122-341",
       "component_type": "tabs",
       "ui_pattern": "detail-view",
@@ -640,7 +640,7 @@
     },
     {
       "label": "ms_ist_create",
-      "file": "design/Monopilot Design System/multi-site/ist-screens.jsx",
+      "file": "prototypes/design/Monopilot Design System/multi-site/ist-screens.jsx",
       "lines": "343-490",
       "component_type": "form",
       "ui_pattern": "crud-form-with-validation",
@@ -679,7 +679,7 @@
     },
     {
       "label": "ms_lanes_list",
-      "file": "design/Monopilot Design System/multi-site/ist-screens.jsx",
+      "file": "prototypes/design/Monopilot Design System/multi-site/ist-screens.jsx",
       "lines": "492-548",
       "component_type": "table",
       "ui_pattern": "search-filter-list",
@@ -713,7 +713,7 @@
     },
     {
       "label": "ms_lane_detail",
-      "file": "design/Monopilot Design System/multi-site/ist-screens.jsx",
+      "file": "prototypes/design/Monopilot Design System/multi-site/ist-screens.jsx",
       "lines": "551-672",
       "component_type": "tabs",
       "ui_pattern": "detail-view",
@@ -749,7 +749,7 @@
     },
     {
       "label": "ms_master_data_sync",
-      "file": "design/Monopilot Design System/multi-site/replication-screens.jsx",
+      "file": "prototypes/design/Monopilot Design System/multi-site/replication-screens.jsx",
       "lines": "4-132",
       "component_type": "table",
       "ui_pattern": "list-with-actions",
@@ -784,7 +784,7 @@
     },
     {
       "label": "ms_replication_queue",
-      "file": "design/Monopilot Design System/multi-site/replication-screens.jsx",
+      "file": "prototypes/design/Monopilot Design System/multi-site/replication-screens.jsx",
       "lines": "134-292",
       "component_type": "tabs",
       "ui_pattern": "list-with-actions",
@@ -820,7 +820,7 @@
     },
     {
       "label": "ms_permissions",
-      "file": "design/Monopilot Design System/multi-site/admin-screens.jsx",
+      "file": "prototypes/design/Monopilot Design System/multi-site/admin-screens.jsx",
       "lines": "4-138",
       "component_type": "table",
       "ui_pattern": "list-with-actions",
@@ -855,7 +855,7 @@
     },
     {
       "label": "ms_analytics",
-      "file": "design/Monopilot Design System/multi-site/admin-screens.jsx",
+      "file": "prototypes/design/Monopilot Design System/multi-site/admin-screens.jsx",
       "lines": "140-333",
       "component_type": "tabs",
       "ui_pattern": "dashboard-tile",
@@ -894,7 +894,7 @@
     },
     {
       "label": "ms_settings",
-      "file": "design/Monopilot Design System/multi-site/admin-screens.jsx",
+      "file": "prototypes/design/Monopilot Design System/multi-site/admin-screens.jsx",
       "lines": "335-488",
       "component_type": "page-layout",
       "ui_pattern": "crud-form-with-validation",
@@ -937,7 +937,7 @@
     },
     {
       "label": "ms_activation_wizard",
-      "file": "design/Monopilot Design System/multi-site/admin-screens.jsx",
+      "file": "prototypes/design/Monopilot Design System/multi-site/admin-screens.jsx",
       "lines": "495-488",
       "component_type": "wizard",
       "ui_pattern": "multi-step-wizard",
@@ -977,7 +977,7 @@
     },
     {
       "label": "sites_screen",
-      "file": "design/Monopilot Design System/settings/org-screens.jsx",
+      "file": "prototypes/design/Monopilot Design System/settings/org-screens.jsx",
       "lines": "103-189",
       "component_type": "page-layout",
       "ui_pattern": "list-with-actions",

@@ -13,8 +13,8 @@ Phase B (B.1 + B.2) zamknięta w 1 sesji (~8h ciągłej pracy). Dostarczone wszy
 ### Deliverables
 
 **Primary:**
-- ✅ `00-FOUNDATION-PRD.md` v3.0 — 744 linii, 15 sekcji
-- ✅ `01-NPD-PRD.md` v3.0 — 1520 linii, 16 sekcji (primary module, 5 sub-modules build sequence)
+- ✅ `docs/prd/00-FOUNDATION-PRD.md` v3.0 — 744 linii, 15 sekcji
+- ✅ `docs/prd/01-NPD-PRD.md` v3.0 — 1520 linii, 16 sekcji (primary module, 5 sub-modules build sequence)
 - ✅ 13-plik rename (old numerowanie → Phase D numerowanie)
 - ✅ `_archive/pre-phase-d-prds/13-INTEGRATIONS-PRD.md` (multi-stage distribution C1-C5)
 - ✅ Ten HANDOFF
@@ -24,7 +24,7 @@ Phase B (B.1 + B.2) zamknięta w 1 sesji (~8h ciągłej pracy). Dostarczone wszy
 
 ---
 
-## 00-FOUNDATION-PRD.md v3.0 — quick summary
+## docs/prd/00-FOUNDATION-PRD.md v3.0 — quick summary
 
 15 sekcji, 744 linii. Kluczowe:
 
@@ -51,7 +51,7 @@ Phase B (B.1 + B.2) zamknięta w 1 sesji (~8h ciągłej pracy). Dostarczone wszy
 
 ---
 
-## 01-NPD-PRD.md v3.0 — quick summary
+## docs/prd/01-NPD-PRD.md v3.0 — quick summary
 
 16 sekcji, 1520 linii. Primary module — full v7 PLD equivalent + Brief upstream + D365 Builder.
 
@@ -84,22 +84,22 @@ Wykonano (kolejność avoided conflicts):
 
 | Old | New |
 |---|---|
-| 09-NPD-PRD.md | 01-NPD-PRD.md |
-| 01-SETTINGS-PRD.md | 02-SETTINGS-PRD.md |
-| 02-TECHNICAL-PRD.md | 03-TECHNICAL-PRD.md |
-| 04-PLANNING-PRD.md | 04-PLANNING-BASIC-PRD.md |
-| 03-WAREHOUSE-PRD.md | 05-WAREHOUSE-PRD.md |
-| 05-SCANNER-PRD.md | 06-SCANNER-P1-PRD.md |
-| 06-PRODUCTION-PRD.md | 08-PRODUCTION-PRD.md |
-| 08-QUALITY-PRD.md | 09-QUALITY-PRD.md |
-| 10-FINANCE-PRD.md | 10-FINANCE-PRD.md (same) |
-| 07-SHIPPING-PRD.md | 11-SHIPPING-PRD.md |
-| 15-REPORTING-PRD.md | 12-REPORTING-PRD.md |
-| 14-MAINTENANCE-PRD.md | 13-MAINTENANCE-PRD.md |
-| 11-MULTI-SITE-PRD.md | 14-MULTI-SITE-PRD.md |
+| 09-NPD-PRD.md | docs/prd/01-NPD-PRD.md |
+| 01-SETTINGS-PRD.md | docs/prd/02-SETTINGS-PRD.md |
+| 02-TECHNICAL-PRD.md | docs/prd/03-TECHNICAL-PRD.md |
+| 04-PLANNING-PRD.md | docs/prd/04-PLANNING-BASIC-PRD.md |
+| 03-WAREHOUSE-PRD.md | docs/prd/05-WAREHOUSE-PRD.md |
+| 05-SCANNER-PRD.md | docs/prd/06-SCANNER-P1-PRD.md |
+| 06-PRODUCTION-PRD.md | docs/prd/08-PRODUCTION-PRD.md |
+| 08-QUALITY-PRD.md | docs/prd/09-QUALITY-PRD.md |
+| docs/prd/10-FINANCE-PRD.md | docs/prd/10-FINANCE-PRD.md (same) |
+| 07-SHIPPING-PRD.md | docs/prd/11-SHIPPING-PRD.md |
+| 15-REPORTING-PRD.md | docs/prd/12-REPORTING-PRD.md |
+| 14-MAINTENANCE-PRD.md | docs/prd/13-MAINTENANCE-PRD.md |
+| 11-MULTI-SITE-PRD.md | docs/prd/14-MULTI-SITE-PRD.md |
 | 13-INTEGRATIONS-PRD.md | `_archive/pre-phase-d-prds/13-INTEGRATIONS-PRD.md` |
 
-**Missing (create w C3/C5):** 07-PLANNING-EXT-PRD.md, 15-OEE-PRD.md.
+**Missing (create w C3/C5):** docs/prd/07-PLANNING-EXT-PRD.md, docs/prd/15-OEE-PRD.md.
 
 **Status:** 14 PRDów w Phase D numerowaniu. 2 PRDs do utworzenia w późniejszych fazach.
 
@@ -124,19 +124,19 @@ Per 00-FOUNDATION §4.1 i MONOPILOT-V2-ARCHITECTURE §9:
 ## Bootstrap Phase C1 session (next)
 
 1. Read ten HANDOFF
-2. Read `00-FOUNDATION-PRD.md` v3.0 — zwłaszcza §4 Module Map + §5 Tech Stack + §6-10 foundations
-3. Read `01-NPD-PRD.md` v3.0 — dla dependencies (SETTINGS pod admin wizard dla NPD's Reference.*; TECHNICAL rozszerza item master/BOM podstaw z NPD)
+2. Read `docs/prd/00-FOUNDATION-PRD.md` v3.0 — zwłaszcza §4 Module Map + §5 Tech Stack + §6-10 foundations
+3. Read `docs/prd/01-NPD-PRD.md` v3.0 — dla dependencies (SETTINGS pod admin wizard dla NPD's Reference.*; TECHNICAL rozszerza item master/BOM podstaw z NPD)
 4. Read `_foundation/research/MES-TRENDS-2026.md` §9 "02-SETTINGS" + §9 "03-TECHNICAL" + §4 schema-driven SaaS + §2 food-mfg (allergens full)
 5. Read current baselines:
-   - `02-SETTINGS-PRD.md` (652 linii, pre-Phase-D)
-   - `03-TECHNICAL-PRD.md` (828 linii, pre-Phase-D)
+   - `docs/prd/02-SETTINGS-PRD.md` (652 linii, pre-Phase-D)
+   - `docs/prd/03-TECHNICAL-PRD.md` (828 linii, pre-Phase-D)
 6. Read reality sources niezbędne dla SETTINGS/TECHNICAL:
    - `_meta/reality-sources/pld-v7-excel/REFERENCE-TABLES.md` (8 config tables + EmailConfig)
    - `_meta/reality-sources/pld-v7-excel/D365-INTEGRATION.md` §7 BOM AutoGen (M06) — reference dla 03-TECHNICAL BOM scope
    - `_meta/reality-sources/pld-v7-excel/EVOLVING.md` — areas w zmianach potrzebne dla Admin wizard scope
 7. Propose outline per PRD (3 PRDs, każdy osobno):
-   - **02-SETTINGS-PRD.md v3.0:** Admin UI wizard dla schema/rules/Reference tables/D365 constants, tenant config L2, permission matrix, feature flags admin, rule engine DSL editor z dry-run, audit log viewer
-   - **03-TECHNICAL-PRD.md v3.0:** Product master CRUD (extending FA z 01-NPD), BOM versioning + co-products, catch weight, shelf_life regulatory, allergens full (building na 01-NPD §8), material cost_per_kg, routing costs
+   - **docs/prd/02-SETTINGS-PRD.md v3.0:** Admin UI wizard dla schema/rules/Reference tables/D365 constants, tenant config L2, permission matrix, feature flags admin, rule engine DSL editor z dry-run, audit log viewer
+   - **docs/prd/03-TECHNICAL-PRD.md v3.0:** Product master CRUD (extending FA z 01-NPD), BOM versioning + co-products, catch weight, shelf_life regulatory, allergens full (building na 01-NPD §8), material cost_per_kg, routing costs
    - **INTEGRATIONS stage 1:** Inline w 02-SETTINGS (D365 Constants admin) + 03-TECHNICAL (D365 item/BOM one-way sync — Items + BOM/formula from D365 as read-mostly cache; production confirmations push to D365)
 8. User approve scope per PRD → full rewrite (każdy PRD ~700-1200 linii zależnie od complexity)
 9. Post-writing: update memory + HANDOFF → Phase C2 bootstrap
@@ -165,7 +165,7 @@ Per 00-FOUNDATION §4.1 i MONOPILOT-V2-ARCHITECTURE §9:
 
 ### Z Phase B.2 discovery
 
-- 20 open items w 01-NPD-PRD.md §14 (kluczowe dla C1: Brief C21-C37 full rescan, supplier per-FA vs per-component, allergens lokalizacja w brief)
+- 20 open items w docs/prd/01-NPD-PRD.md §14 (kluczowe dla C1: Brief C21-C37 full rescan, supplier per-FA vs per-component, allergens lokalizacja w brief)
 - Pre-Phase-D ADRs 001-019 deep review (osobna sesja, preferably C1 start lub osobno)
 
 ---
@@ -201,8 +201,8 @@ Per 00-FOUNDATION §4.1 i MONOPILOT-V2-ARCHITECTURE §9:
 
 ## Related
 
-- [`00-FOUNDATION-PRD.md`](../../00-FOUNDATION-PRD.md) v3.0 — Phase B.1 primary
-- [`01-NPD-PRD.md`](../../01-NPD-PRD.md) v3.0 — Phase B.2 primary
+- [`docs/prd/00-FOUNDATION-PRD.md`](../../docs/prd/00-FOUNDATION-PRD.md) v3.0 — Phase B.1 primary
+- [`docs/prd/01-NPD-PRD.md`](../../docs/prd/01-NPD-PRD.md) v3.0 — Phase B.2 primary
 - [`_foundation/decisions/MONOPILOT-V2-ARCHITECTURE.md`](../../_foundation/decisions/MONOPILOT-V2-ARCHITECTURE.md) — Phase D architecture
 - [`_foundation/research/MES-TRENDS-2026.md`](../../_foundation/research/MES-TRENDS-2026.md) — research 810 lines
 - [`2026-04-18-phase-d-close.md`](2026-04-18-phase-d-close.md) — Phase D HANDOFF

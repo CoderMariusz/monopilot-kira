@@ -1,6 +1,6 @@
 # PRD Coverage — 06-scanner-p1
 
-Source PRD: `06-SCANNER-P1-PRD.md`.
+Source PRD: `docs/prd/06-SCANNER-P1-PRD.md`.
 Hardening date: 2026-05-03.
 Readiness target: Wave Next-3 docs/meta/prototype/task readiness >=95% before ACP execution.
 
@@ -12,7 +12,7 @@ The prior structural placeholder has been replaced with a PRD/UX/prototype/task 
 
 - All UI tasks require mobile viewport evidence at `390x844`.
 - UI closeout requires screenshot and Playwright trace artifacts.
-- UI parity acceptance criteria must cite the relevant `design/Monopilot Design System/scanner/*.jsx:line-range` prototype.
+- UI parity acceptance criteria must cite the relevant `prototypes/design/Monopilot Design System/scanner/*.jsx:line-range` prototype.
 - Scanner-prefixed ambiguous labels are canonical: `scanner_settings_screen`, `scanner_devices_screen`.
 - `PinSetupScreen`, `PinChangeScreen`, and `CameraScanner` are first-class MVP prototype labels.
 - User-visible done screens are first-class prototype labels.

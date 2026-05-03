@@ -1,7 +1,7 @@
 # ADR-032 — Settings-minimum carveout for NPD unlock + Foundation/Settings infra split
 
 **Status:** Proposed (2026-04-22)
-**Supersedes:** §4.2 of `00-FOUNDATION-PRD.md` v3.0 (build order row 2 dependency "Foundation infra w minimum scope" is under-specified)
+**Supersedes:** §4.2 of `docs/prd/00-FOUNDATION-PRD.md` v3.0 (build order row 2 dependency "Foundation infra w minimum scope" is under-specified)
 **Related:** ADR-028 (schema-driven), ADR-029 (rule engine), ADR-030 (dept taxonomy), ADR-031 (multi-tenant L1-L4)
 **Context docs:** `_meta/plans/2026-04-22-phase-e-kickoff-plan.md` (full analysis + dependency matrix)
 
@@ -9,7 +9,7 @@
 
 ## Context
 
-Current `00-FOUNDATION-PRD.md` §4.2 build order says:
+Current `docs/prd/00-FOUNDATION-PRD.md` §4.2 build order says:
 
 ```
 1. 00-FOUNDATION (meta, no build)
@@ -108,8 +108,8 @@ Foundation sub-module 00-i delivers:
 
 1. Create `_meta/specs/00-FOUNDATION-impl-spec.md` describing sub-modules 00-a..i with ACs, dependencies, seed data needs (1 session, next step).
 2. Create `_meta/specs/02-SETTINGS-a-carveout-spec.md` defining narrow scope + deferred features pointer to -b..e (1 session, same Phase E kickoff).
-3. Update `00-FOUNDATION-PRD.md` §4.2 build order table per Phase E kickoff plan diff (bundled with point 1, tiny PRD amendment).
-4. Update `02-SETTINGS-PRD.md` §16.2 with addendum note "sub-module -a narrowed per ADR-032; deferred features land in -b..e" (no rewrite).
+3. Update `docs/prd/00-FOUNDATION-PRD.md` §4.2 build order table per Phase E kickoff plan diff (bundled with point 1, tiny PRD amendment).
+4. Update `docs/prd/02-SETTINGS-PRD.md` §16.2 with addendum note "sub-module -a narrowed per ADR-032; deferred features land in -b..e" (no rewrite).
 5. Run `epic-writing` skill on 00-FOUNDATION-impl-spec → ~9 epics → `story-writing` per epic → ~50-60 stories in pipeline.log.md.
 6. Run `epic-writing` on 02-SETTINGS-a-carveout-spec → ~5-7 epics → ~25-35 stories.
 7. Phase E session 1 executes 00-a (scaffold) after action items 1-6 complete.
@@ -117,9 +117,9 @@ Foundation sub-module 00-i delivers:
 ## References
 
 - `_meta/plans/2026-04-22-phase-e-kickoff-plan.md` — full NPD-a dependency matrix (10 hard + 5 soft blockers), parallel execution plan, test milestones, agent dispatch strategy.
-- `00-FOUNDATION-PRD.md` v3.0 §4.2 (current build order, to be amended).
-- `02-SETTINGS-PRD.md` v3.3 §16.2 (current sub-module breakdown, addendum needed).
-- `01-NPD-PRD.md` v3.0 §6.1 cascades (5 cascade chains drive Reference table carveout).
+- `docs/prd/00-FOUNDATION-PRD.md` v3.0 §4.2 (current build order, to be amended).
+- `docs/prd/02-SETTINGS-PRD.md` v3.3 §16.2 (current sub-module breakdown, addendum needed).
+- `docs/prd/01-NPD-PRD.md` v3.0 §6.1 cascades (5 cascade chains drive Reference table carveout).
 
 ## Amendment 2026-04-23 — PWA + IndexedDB in Phase E-0 scope
 

@@ -6,10 +6,10 @@ Zakres: tylko audyt/read-only; utworzono ten raport w `_meta/reviews`.
 
 ## Źródła sprawdzone
 
-- `05-WAREHOUSE-PRD.md` v3.2
-- `design/05-WAREHOUSE-UX.md`
-- `design/Monopilot Design System/warehouse/*.jsx`
-- `warehouse/warehouse.html` oraz `design/Monopilot Design System/warehouse/warehouse.html` pod kątem literalnych labeli
+- `docs/prd/05-WAREHOUSE-PRD.md` v3.2
+- `prototypes/design/05-WAREHOUSE-UX.md`
+- `prototypes/design/Monopilot Design System/warehouse/*.jsx`
+- `warehouse/warehouse.html` oraz `prototypes/design/Monopilot Design System/warehouse/warehouse.html` pod kątem literalnych labeli
 - `_meta/prototype-labels/prototype-index-warehouse.json`
 - `_meta/prototype-labels/master-index.json`
 - `_meta/atomic-tasks/05-warehouse/tasks/T-001..T-047.json`
@@ -63,8 +63,8 @@ Stan indexów:
 
 Stan w JSX/HTML:
 
-- Literalne sprawdzenie labeli z indexu w `design/Monopilot Design System/warehouse/*.jsx` zwróciło 0 wystąpień dla wszystkich 31 labeli.
-- Literalne sprawdzenie wybranych labeli w `warehouse/warehouse.html` i `design/Monopilot Design System/warehouse/warehouse.html` również zwróciło 0.
+- Literalne sprawdzenie labeli z indexu w `prototypes/design/Monopilot Design System/warehouse/*.jsx` zwróciło 0 wystąpień dla wszystkich 31 labeli.
+- Literalne sprawdzenie wybranych labeli w `warehouse/warehouse.html` i `prototypes/design/Monopilot Design System/warehouse/warehouse.html` również zwróciło 0.
 
 Wniosek: etykiety są przypisane w indexie do plików/linii, ale nie są osadzone w samym prototypie/JSX. Do 95%+ potrzebny jest „dual anchor”: index + literalny znacznik w kodzie prototypu, np. `data-prototype-label="lp_list_page"` na root elementach albo komentarz/stała tuż przy definicji komponentu.
 

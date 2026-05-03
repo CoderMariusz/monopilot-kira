@@ -1,6 +1,6 @@
 {
   "title": "T-043 — Scheduler Run History index UI",
-  "prompt": "# T-043 — Scheduler Run History index UI\n\nPRD: `07-PLANNING-EXT-PRD.md` §8.1 SCR-07-04, §17.1 PLE-001, §18 matrix.\nUX/prototype refs are listed in `pipeline_inputs.scope_files`.\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`.\n\n## Goal\nCreate the run history browser that planners use to audit solver runs and start a safe re-run flow.\n\n## Implementation contract\nUse T-013 API/loader data, display 50/page, surface errors/fallbacks, and deep-link to run detail. Re-run opens T-045 modal, never directly commits.\n\nACP shape reminder: keep this task as one atomic implementation. Do not add ACP-owned fields. Keep local dependencies in `dependencies`; cross-module contracts in `cross_module_dependencies` are blockers/inputs, not ACP local task IDs.",
+  "prompt": "# T-043 — Scheduler Run History index UI\n\nPRD: `docs/prd/07-PLANNING-EXT-PRD.md` §8.1 SCR-07-04, §17.1 PLE-001, §18 matrix.\nUX/prototype refs are listed in `pipeline_inputs.scope_files`.\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`.\n\n## Goal\nCreate the run history browser that planners use to audit solver runs and start a safe re-run flow.\n\n## Implementation contract\nUse T-013 API/loader data, display 50/page, surface errors/fallbacks, and deep-link to run detail. Re-run opens T-045 modal, never directly commits.\n\nACP shape reminder: keep this task as one atomic implementation. Do not add ACP-owned fields. Keep local dependencies in `dependencies`; cross-module contracts in `cross_module_dependencies` are blockers/inputs, not ACP local task IDs.",
   "labels": [
     "prd",
     "ui",
@@ -12,7 +12,7 @@
   "pipeline_name": "kira_dev",
   "pipeline_inputs": {
     "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
-    "source_prd": "07-PLANNING-EXT-PRD.md",
+    "source_prd": "docs/prd/07-PLANNING-EXT-PRD.md",
     "context_budget": "40k",
     "skills": [
       "test-driven-development",
@@ -55,7 +55,7 @@
       "apps/web/src/app/scheduler/runs/page.tsx [create]",
       "apps/web/src/components/scheduler/RunHistoryTable.tsx [create]",
       "apps/web/src/lib/scheduler/run-history-loader.ts [create]",
-      "design/Monopilot Design System/planning-ext/runhistory-screens.jsx:3-115 [ref]"
+      "prototypes/design/Monopilot Design System/planning-ext/runhistory-screens.jsx:3-115 [ref]"
     ],
     "dependencies": [
       "T-013"

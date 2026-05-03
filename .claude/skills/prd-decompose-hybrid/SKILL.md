@@ -25,7 +25,7 @@ canonical_spec: _meta/plans/atomic-task-decomposition-guide.md
 ## Required reading (load in this order)
 
 1. `_meta/plans/atomic-task-decomposition-guide.md` — full spec (T1-T5 types, JSON shape, atomicity gate, dependency conventions)
-2. The target PRD file (e.g., `01-NPD-PRD.md`) — read ONLY the sections relevant to the gap being filled
+2. The target PRD file (e.g., `docs/prd/01-NPD-PRD.md`) — read ONLY the sections relevant to the gap being filled
 3. Existing tasks in target module (`_meta/atomic-tasks/{module}/tasks/`) — read ALL to avoid duplicates and understand numbering
 4. `_meta/atomic-tasks/{module}/manifest.json` — to know current task_count and file list
 5. One example task JSON from same module — to match exact field conventions

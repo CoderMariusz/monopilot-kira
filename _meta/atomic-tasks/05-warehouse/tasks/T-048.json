@@ -1,6 +1,6 @@
 {
   "title": "T-048 — Warehouse LP core desktop UI surfaces",
-  "prompt": "# T-048 — Warehouse LP core desktop UI surfaces\n\nPRD: `05-WAREHOUSE-PRD.md`.\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`.\n\n## Goal\nImplement LP list/detail and LP core modals with exact warehouse prototype parity and explicit data-prototype-label hooks.\n\n## Implementation contract\nBuild desktop LP management UI for lp_list_page, lp_detail_page, lp_split_modal with destination required, lp_merge_modal, destroy_scrap_lp_modal, state_transition_confirm_modal, and force_unlock_scanner_modal. Use server-derived transition and RBAC data; do not hardcode unsafe state transitions in client.\n\n## Files (scope)\n- apps/web/app/(app)/warehouse/lps/** [create]\n- apps/web/components/warehouse/lp/** [create]\n- design/Monopilot Design System/warehouse/lp-screens.jsx\n- design/Monopilot Design System/warehouse/modals.jsx\n\n## Acceptance criteria\n1. Given /warehouse/lps renders, when compared to design/Monopilot Design System/warehouse/lp-screens.jsx labels lp_list_page and lp_detail_page, then layout, filters, tabs, row actions, and state banners match the indexed prototype.\n2. Given LP split opens, when an output row has no destination, then the submit action is disabled because WH-008 destination is required.\n3. Given state/destroy/force-unlock modals render, when user lacks the required role, then the destructive action is hidden or disabled and server-side RBAC still blocks submit.\n4. Given components are inspected, then root elements include data-prototype-label values for lp_list_page, lp_detail_page, lp_split_modal, lp_merge_modal, destroy_scrap_lp_modal, state_transition_confirm_modal, and force_unlock_scanner_modal.\n\n## Test strategy\n- RED: Playwright screenshots for each prototype label at desktop viewport comparing required selectors and copy.\n- GREEN: component tests for RBAC guards, destination required validation, and data-prototype-label presence.\n- Run pnpm test and pnpm playwright test --project=chromium --grep @warehouse-lp-ui.\n\n## Risk red lines\n- Do not make split destination optional.\n- Do not hardcode state transitions; consume server/rule-registry output.\n- Do not expose inventory value fields in this slice.",
+  "prompt": "# T-048 — Warehouse LP core desktop UI surfaces\n\nPRD: `docs/prd/05-WAREHOUSE-PRD.md`.\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`.\n\n## Goal\nImplement LP list/detail and LP core modals with exact warehouse prototype parity and explicit data-prototype-label hooks.\n\n## Implementation contract\nBuild desktop LP management UI for lp_list_page, lp_detail_page, lp_split_modal with destination required, lp_merge_modal, destroy_scrap_lp_modal, state_transition_confirm_modal, and force_unlock_scanner_modal. Use server-derived transition and RBAC data; do not hardcode unsafe state transitions in client.\n\n## Files (scope)\n- apps/web/app/(app)/warehouse/lps/** [create]\n- apps/web/components/warehouse/lp/** [create]\n- prototypes/design/Monopilot Design System/warehouse/lp-screens.jsx\n- prototypes/design/Monopilot Design System/warehouse/modals.jsx\n\n## Acceptance criteria\n1. Given /warehouse/lps renders, when compared to prototypes/design/Monopilot Design System/warehouse/lp-screens.jsx labels lp_list_page and lp_detail_page, then layout, filters, tabs, row actions, and state banners match the indexed prototype.\n2. Given LP split opens, when an output row has no destination, then the submit action is disabled because WH-008 destination is required.\n3. Given state/destroy/force-unlock modals render, when user lacks the required role, then the destructive action is hidden or disabled and server-side RBAC still blocks submit.\n4. Given components are inspected, then root elements include data-prototype-label values for lp_list_page, lp_detail_page, lp_split_modal, lp_merge_modal, destroy_scrap_lp_modal, state_transition_confirm_modal, and force_unlock_scanner_modal.\n\n## Test strategy\n- RED: Playwright screenshots for each prototype label at desktop viewport comparing required selectors and copy.\n- GREEN: component tests for RBAC guards, destination required validation, and data-prototype-label presence.\n- Run pnpm test and pnpm playwright test --project=chromium --grep @warehouse-lp-ui.\n\n## Risk red lines\n- Do not make split destination optional.\n- Do not hardcode state transitions; consume server/rule-registry output.\n- Do not expose inventory value fields in this slice.",
   "labels": [
     "prd",
     "ui",
@@ -12,7 +12,7 @@
   "pipeline_name": "kira_dev",
   "pipeline_inputs": {
     "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
-    "source_prd": "05-WAREHOUSE-PRD.md",
+    "source_prd": "docs/prd/05-WAREHOUSE-PRD.md",
     "context_budget": "35k",
     "skills": [
       "test-driven-development",
@@ -88,8 +88,8 @@
     "scope_files": [
       "apps/web/app/(app)/warehouse/lps/** [create]",
       "apps/web/components/warehouse/lp/** [create]",
-      "design/Monopilot Design System/warehouse/lp-screens.jsx",
-      "design/Monopilot Design System/warehouse/modals.jsx"
+      "prototypes/design/Monopilot Design System/warehouse/lp-screens.jsx",
+      "prototypes/design/Monopilot Design System/warehouse/modals.jsx"
     ],
     "out_of_scope": [
       "No scanner mobile screens",
@@ -108,7 +108,7 @@
       "T-050"
     ],
     "acceptance_criteria": [
-      "Given /warehouse/lps renders, when compared to design/Monopilot Design System/warehouse/lp-screens.jsx labels lp_list_page and lp_detail_page, then layout, filters, tabs, row actions, and state banners match the indexed prototype.",
+      "Given /warehouse/lps renders, when compared to prototypes/design/Monopilot Design System/warehouse/lp-screens.jsx labels lp_list_page and lp_detail_page, then layout, filters, tabs, row actions, and state banners match the indexed prototype.",
       "Given LP split opens, when an output row has no destination, then the submit action is disabled because WH-008 destination is required.",
       "Given state/destroy/force-unlock modals render, when user lacks the required role, then the destructive action is hidden or disabled and server-side RBAC still blocks submit.",
       "Given components are inspected, then root elements include data-prototype-label values for lp_list_page, lp_detail_page, lp_split_modal, lp_merge_modal, destroy_scrap_lp_modal, state_transition_confirm_modal, and force_unlock_scanner_modal."
