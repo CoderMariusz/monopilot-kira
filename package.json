@@ -1,0 +1,19 @@
+{
+  "name": "@monopilot/monopilot-kira",
+  "private": true,
+  "scripts": {
+    "build": "pnpm --filter web build",
+    "test:smoke": "pnpm --filter web test:smoke",
+    "lint": "pnpm --filter web lint",
+    "typecheck": "pnpm --filter web typecheck"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4.0.0",
+    "@types/node": "^20.17.0",
+    "playwright": "^1.58.0",
+    "postcss": "^8.4.47",
+    "tailwindcss": "^4.0.0",
+    "typescript": "^5.8.0",
+    "vitest": "^4.0.0"
+  }
+}

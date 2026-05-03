@@ -1,0 +1,12 @@
+import { defineConfig } from '@playwright/test';
+
+export default defineConfig({
+  testDir: './apps/web/tests',
+  testMatch: ['**/*.spec.{js,ts}'],
+  use: {
+    baseURL: 'http://127.0.0.1:3000'
+  },
+  projects: [{
+    name: 'chromium'
+  }]
+});
