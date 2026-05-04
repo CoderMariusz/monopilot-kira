@@ -6,7 +6,15 @@
     "test:smoke": "pnpm --filter web test:smoke",
     "lint": "pnpm --filter web lint",
     "typecheck": "pnpm --filter web typecheck",
-    "ci": "pnpm build && pnpm test:smoke && pnpm lint"
+    "ci": "pnpm build && pnpm test:smoke && pnpm lint",
+    "db:up": "docker compose up -d postgres",
+    "db:down": "docker compose down",
+    "db:test": "pnpm --filter @monopilot/db test",
+    "db:migrate": "pnpm --filter @monopilot/db migrate",
+    "db:verify": "pnpm db:test && pnpm db:migrate",
+    "db:test:local": "DATABASE_URL=postgres://monopilot:monopilot@127.0.0.1:5432/monopilot pnpm db:test",
+    "db:migrate:local": "DATABASE_URL=postgres://monopilot:monopilot@127.0.0.1:5432/monopilot pnpm db:migrate",
+    "db:verify:local": "DATABASE_URL=postgres://monopilot:monopilot@127.0.0.1:5432/monopilot pnpm db:verify"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4.0.0",
