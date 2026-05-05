@@ -1,0 +1,146 @@
+[
+  {
+    "id": "00",
+    "slug": "foundation",
+    "phase": "B.1",
+    "build_order": null,
+    "file": "docs/prd/00-FOUNDATION-PRD.md",
+    "dependencies": [],
+    "business_scope_column": "org_id"
+  },
+  {
+    "id": "01",
+    "slug": "npd",
+    "phase": "B.2",
+    "build_order": 1,
+    "file": "docs/prd/01-NPD-PRD.md",
+    "dependencies": ["00"],
+    "business_scope_column": "org_id"
+  },
+  {
+    "id": "02",
+    "slug": "settings",
+    "phase": "C1",
+    "build_order": 2,
+    "file": "docs/prd/02-SETTINGS-PRD.md",
+    "dependencies": ["00", "01"],
+    "business_scope_column": "org_id"
+  },
+  {
+    "id": "03",
+    "slug": "technical",
+    "phase": "C1",
+    "build_order": 3,
+    "file": "docs/prd/03-TECHNICAL-PRD.md",
+    "dependencies": ["00", "01", "02"],
+    "business_scope_column": "org_id"
+  },
+  {
+    "id": "04",
+    "slug": "planning-basic",
+    "phase": "C2",
+    "build_order": 4,
+    "file": "docs/prd/04-PLANNING-BASIC-PRD.md",
+    "dependencies": ["01", "02", "03"],
+    "business_scope_column": "org_id"
+  },
+  {
+    "id": "05",
+    "slug": "warehouse",
+    "phase": "C2",
+    "build_order": 5,
+    "file": "docs/prd/05-WAREHOUSE-PRD.md",
+    "dependencies": ["01", "02", "03"],
+    "business_scope_column": "org_id"
+  },
+  {
+    "id": "06",
+    "slug": "scanner-p1",
+    "phase": "C2",
+    "build_order": 6,
+    "file": "docs/prd/06-SCANNER-P1-PRD.md",
+    "dependencies": ["05", "04"],
+    "business_scope_column": "org_id"
+  },
+  {
+    "id": "07",
+    "slug": "planning-ext",
+    "phase": "C3",
+    "build_order": 7,
+    "file": "docs/prd/07-PLANNING-EXT-PRD.md",
+    "dependencies": ["04", "05"],
+    "business_scope_column": "org_id"
+  },
+  {
+    "id": "08",
+    "slug": "production",
+    "phase": "C3",
+    "build_order": 8,
+    "file": "docs/prd/08-PRODUCTION-PRD.md",
+    "dependencies": ["01", "04", "05"],
+    "business_scope_column": "org_id"
+  },
+  {
+    "id": "09",
+    "slug": "quality",
+    "phase": "C4",
+    "build_order": 9,
+    "file": "docs/prd/09-QUALITY-PRD.md",
+    "dependencies": ["05", "08"],
+    "business_scope_column": "org_id"
+  },
+  {
+    "id": "10",
+    "slug": "finance",
+    "phase": "C4",
+    "build_order": 10,
+    "file": "docs/prd/10-FINANCE-PRD.md",
+    "dependencies": ["08", "05"],
+    "business_scope_column": "org_id"
+  },
+  {
+    "id": "11",
+    "slug": "shipping",
+    "phase": "C4",
+    "build_order": 11,
+    "file": "docs/prd/11-SHIPPING-PRD.md",
+    "dependencies": ["05", "09"],
+    "business_scope_column": "org_id"
+  },
+  {
+    "id": "12",
+    "slug": "reporting",
+    "phase": "C5",
+    "build_order": 12,
+    "file": "docs/prd/12-REPORTING-PRD.md",
+    "dependencies": ["08", "05", "09"],
+    "business_scope_column": "org_id"
+  },
+  {
+    "id": "13",
+    "slug": "maintenance",
+    "phase": "C5",
+    "build_order": 13,
+    "file": "docs/prd/13-MAINTENANCE-PRD.md",
+    "dependencies": ["02", "08", "15"],
+    "business_scope_column": "org_id"
+  },
+  {
+    "id": "14",
+    "slug": "multi-site",
+    "phase": "C5",
+    "build_order": 14,
+    "file": "docs/prd/14-MULTI-SITE-PRD.md",
+    "dependencies": ["02", "05"],
+    "business_scope_column": "org_id"
+  },
+  {
+    "id": "15",
+    "slug": "oee",
+    "phase": "C5",
+    "build_order": 15,
+    "file": "docs/prd/15-OEE-PRD.md",
+    "dependencies": ["08"],
+    "business_scope_column": "org_id"
+  }
+]
