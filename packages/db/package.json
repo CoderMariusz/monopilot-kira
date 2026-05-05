@@ -6,6 +6,7 @@
   "main": "./lib/client.ts",
   "scripts": {
     "test": "vitest run",
+    "test:integration": "vitest run",
     "migrate": "tsx scripts/migrate.ts"
   },
   "dependencies": {
