@@ -1,8 +1,14 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { sql } from 'drizzle-orm';
+import { readFileSync } from 'node:fs';
+import { randomUUID } from 'node:crypto';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import pg from 'pg';
 
 const hasDatabaseUrl = Boolean(process.env.DATABASE_URL);
 const runIntegrationTest = hasDatabaseUrl ? it : it.skip;
+const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+const baselineMigrationPath = resolve(packageRoot, 'migrations/001-baseline.sql');
 
 type InformationSchemaColumn = {
   table_name: string;
@@ -19,40 +25,67 @@ type ConstraintRow = {
   definition: string;
 };
 
-let db: typeof import('../lib/client').db;
-let closeDb: typeof import('../lib/client').closeDb;
+let dbClient: pg.PoolClient;
+let schemaName = 'public';
+let closePool: () => Promise<void>;
+
+function quoteIdentifier(identifier: string): string {
+  return `"${identifier.replace(/"/g, '""')}"`;
+}
 
 beforeAll(async () => {
   if (!hasDatabaseUrl) {
     return;
   }
 
-  const client = await import('../lib/client');
-  db = client.db;
-  closeDb = client.closeDb;
+  const databaseUrl = process.env.DATABASE_URL;
+  if (!databaseUrl) {
+    return;
+  }
+
+  const pool = new pg.Pool({ connectionString: databaseUrl });
+  closePool = async () => {
+    await pool.end();
+  };
+
+  dbClient = await pool.connect();
+  schemaName = `ci_baseline_${randomUUID().split('-').join('_')}`;
+  await dbClient.query(`create schema ${quoteIdentifier(schemaName)};`);
+
+  const migration = readFileSync(baselineMigrationPath, 'utf8').split('public.').join(`${schemaName}.`);
+  await dbClient.query(migration);
 });
 
 afterAll(async () => {
-  if (closeDb) {
-    await closeDb();
+  if (dbClient) {
+    try {
+      await dbClient.query(`drop schema if exists ${quoteIdentifier(schemaName)} cascade;`);
+    } finally {
+      dbClient.release();
+    }
+  }
+
+  if (closePool) {
+    await closePool();
   }
 });
 
 async function listBaselineColumns() {
-  const result = await db.execute(sql`
-    SELECT table_name, column_name, data_type, udt_name, is_nullable
-    FROM information_schema.columns
-    WHERE table_schema = 'public'
-      AND table_name IN ('tenants', 'organizations', 'users')
-    ORDER BY table_name, ordinal_position
-  `);
+  const result = await dbClient.query<InformationSchemaColumn>(
+    `SELECT table_name, column_name, data_type, udt_name, is_nullable
+     FROM information_schema.columns
+     WHERE table_schema = $1
+       AND table_name IN ('tenants', 'organizations', 'users')
+     ORDER BY table_name, ordinal_position`,
+    [schemaName],
+  );
 
-  return (result as { rows: InformationSchemaColumn[] }).rows;
+  return result.rows;
 }
 
 async function listBaselineConstraints() {
-  const result = await db.execute(sql`
-    SELECT
+  const result = await dbClient.query<ConstraintRow>(
+    `SELECT
       cls.relname AS table_name,
       con.conname AS constraint_name,
       CASE con.contype
@@ -66,12 +99,13 @@ async function listBaselineConstraints() {
     FROM pg_constraint con
     JOIN pg_class cls ON cls.oid = con.conrelid
     JOIN pg_namespace nsp ON nsp.oid = cls.relnamespace
-    WHERE nsp.nspname = 'public'
+    WHERE nsp.nspname = $1
       AND cls.relname IN ('tenants', 'organizations', 'users')
-    ORDER BY cls.relname, con.conname
-  `);
+    ORDER BY cls.relname, con.conname`,
+    [schemaName],
+  );
 
-  return (result as { rows: ConstraintRow[] }).rows;
+  return result.rows;
 }
 
 function columnsFor(columns: InformationSchemaColumn[], tableName: string) {
