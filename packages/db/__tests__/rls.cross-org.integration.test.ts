@@ -92,7 +92,18 @@ async function seedBaselineData(adminPool: pg.Pool) {
 }
 
 async function cleanupContextState(adminPool: pg.Pool) {
-  await adminPool.query('truncate table if exists app.session_org_contexts, app.active_org_contexts cascade');
+  await adminPool.query(`
+    do $$
+    begin
+      if to_regclass('app.session_org_contexts') is not null then
+        truncate table app.session_org_contexts cascade;
+      end if;
+      if to_regclass('app.active_org_contexts') is not null then
+        truncate table app.active_org_contexts cascade;
+      end if;
+    end
+    $$;
+  `);
 }
 
 async function seedTrustedOrgContext(adminPool: pg.Pool, sessionToken: string, orgId: string) {
