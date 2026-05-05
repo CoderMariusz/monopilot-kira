@@ -12,6 +12,7 @@ const runIntegrationTest = databaseUrl ? describe : describe.skip;
 
 const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const migrationPath = resolve(packageRoot, 'migrations/002-rls-baseline.sql');
+const baselineMigrationPath = resolve(packageRoot, 'migrations/001-baseline.sql');
 
 const orgA = '11111111-1111-4111-8111-111111111111';
 const orgB = '22222222-2222-4222-8222-222222222222';
@@ -31,11 +32,26 @@ function appUserDatabaseUrl() {
   return url.toString();
 }
 
-async function resetBaselineSchema(adminPool: pg.Pool) {
-  await adminPool.query('drop schema if exists app cascade');
-  await adminPool.query('drop table if exists public.users cascade');
-  await adminPool.query('drop table if exists public.organizations cascade');
-  await adminPool.query('drop table if exists public.tenants cascade');
+async function assertRequiredColumns(adminPool: pg.Pool) {
+  const expectedColumns = [
+    ['tenants', 'region_cluster'],
+    ['tenants', 'data_plane_url'],
+    ['organizations', 'tenant_id'],
+    ['organizations', 'industry_code'],
+    ['users', 'org_id'],
+  ] as const;
+
+  const rows = await adminPool.query('select table_name, column_name from information_schema.columns where table_schema = $1', ['public']);
+  const seen = new Set(rows.rows.map((row: { table_name: string; column_name: string }) => `${row.table_name}.${row.column_name}`));
+
+  for (const [tableName, columnName] of expectedColumns) {
+    if (!seen.has(`${tableName}.${columnName}`)) {
+      throw new Error(`Expected baseline schema column missing: public.${tableName}.${columnName}`);
+    }
+  }
+}
+
+async function seedBaselineData(adminPool: pg.Pool) {
   await adminPool.query(`
     do $$
     begin
@@ -47,44 +63,36 @@ async function resetBaselineSchema(adminPool: pg.Pool) {
     end
     $$;
   `);
-  await adminPool.query(`
-    create table public.tenants (
-      id uuid primary key,
-      name text not null
-    )
-  `);
-  await adminPool.query(`
-    create table public.organizations (
-      id uuid primary key,
-      tenant_id uuid not null references public.tenants(id),
-      name text not null
-    )
-  `);
-  await adminPool.query(`
-    create table public.users (
-      id uuid primary key,
-      org_id uuid not null references public.organizations(id),
-      email text not null unique
-    )
-  `);
+
+  await adminPool.query('truncate table public.users, public.organizations, public.tenants cascade');
+  await adminPool.query('insert into public.tenants (id, name, region_cluster, data_plane_url) values ($1, $2, $3, $4)', [
+    tenantId,
+    'Tenant A',
+    'eu',
+    'https://tenant-a.example.test',
+  ]);
+  await adminPool.query(
+    'insert into public.organizations (id, tenant_id, name, industry_code) values ($1, $2, $3, $4), ($5, $2, $6, $7)',
+    [orgA, tenantId, 'Org A', 'bakery', orgB, tenantId, 'pharma'],
+  );
+  await adminPool.query(
+    'insert into public.users (id, org_id, email) values ($1, $2, $3), ($4, $5, $6)',
+    [
+      orgAUser,
+      orgA,
+      'user-a@example.test',
+      orgBUser,
+      orgB,
+      'user-b@example.test',
+    ],
+  );
+
   await adminPool.query('grant usage on schema public to app_user');
   await adminPool.query('grant select, insert, update, delete on public.organizations, public.users to app_user');
-  await adminPool.query('insert into public.tenants (id, name) values ($1, $2)', [tenantId, 'Tenant A']);
-  await adminPool.query('insert into public.organizations (id, tenant_id, name) values ($1, $2, $3), ($4, $2, $5)', [
-    orgA,
-    tenantId,
-    'Org A',
-    orgB,
-    'Org B',
-  ]);
-  await adminPool.query('insert into public.users (id, org_id, email) values ($1, $2, $3), ($4, $5, $6)', [
-    orgAUser,
-    orgA,
-    'user-a@example.test',
-    orgBUser,
-    orgB,
-    'user-b@example.test',
-  ]);
+}
+
+async function cleanupContextState(adminPool: pg.Pool) {
+  await adminPool.query('truncate table if exists app.session_org_contexts, app.active_org_contexts cascade');
 }
 
 async function seedTrustedOrgContext(adminPool: pg.Pool, sessionToken: string, orgId: string) {
@@ -113,10 +121,12 @@ runIntegrationTest('002 RLS baseline app-role behavior', () => {
     adminPool = new Pool({ connectionString: databaseUrl });
     appPool = new Pool({ connectionString: appUserDatabaseUrl() });
 
-    await resetBaselineSchema(adminPool);
+    await adminPool.query(readFileSync(baselineMigrationPath, 'utf8'));
+    await assertRequiredColumns(adminPool);
+    await seedBaselineData(adminPool);
     await adminPool.query(readFileSync(migrationPath, 'utf8'));
+    await cleanupContextState(adminPool);
   });
-
   afterAll(async () => {
     await appPool?.end();
     await adminPool?.end();
