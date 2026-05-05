@@ -1,4 +1,8 @@
-create extension if not exists citext;
+do $$
+begin
+  perform pg_advisory_xact_lock(hashtext('monopilot:baseline:citext'));
+  create extension if not exists citext;
+end $$;
 
 create table if not exists public.tenants (
   id uuid primary key,
