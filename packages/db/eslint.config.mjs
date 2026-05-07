@@ -75,6 +75,8 @@ export default [
 
   // Pre-existing: db integration tests create pg.Pool directly (pre-T-058 pattern).
   // T-058 will migrate these to use the managed pool. Do not add new pg.Pool() calls here.
+  // IMPORTANT: Only the pg.Pool selector is suppressed here. The Reference.* drift
+  // gate (T-046) remains active in test files — pg.Pool selector intentionally omitted.
   {
     files: [
       '__tests__/**/*.ts',
@@ -83,7 +85,15 @@ export default [
       '**/*.test.ts',
     ],
     rules: {
-      'no-restricted-syntax': 'off',
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector: "Literal[value=/^Reference\\.[A-Z][A-Za-z]+$/]",
+          message:
+            "Do not hardcode Reference.* table-name strings. Import RefTables from 'lib/reference'.",
+        },
+        // pg.Pool selector intentionally omitted in test override (legacy debt; T-058 will migrate)
+      ],
     },
   },
 
