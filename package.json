@@ -4,7 +4,7 @@
   "scripts": {
     "build": "pnpm --filter web build",
     "test:smoke": "pnpm --filter web test:smoke",
-    "lint": "pnpm --filter web lint",
+    "lint": "pnpm --filter web lint && pnpm --filter @monopilot/db lint",
     "typecheck": "pnpm --filter web typecheck",
     "ci": "pnpm build && pnpm test:smoke && pnpm lint",
     "db:up": "docker compose up -d postgres",

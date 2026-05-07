@@ -8,6 +8,14 @@ const { Pool } = pg;
  * Exported from index.ts for general consumption.
  */
 export function getAppConnection(): pg.Pool {
+  // Production guard: DATABASE_URL_APP must be explicitly set outside test/dev environments.
+  // The fallback (DATABASE_URL + username rewrite) is intentionally test-only; if we are
+  // running in production without DATABASE_URL_APP, fail loudly rather than silently
+  // connecting with a hardcoded test password that will not match the production role.
+  if (process.env.NODE_ENV === 'production' && !process.env.DATABASE_URL_APP) {
+    throw new Error('DATABASE_URL_APP must be set in production');
+  }
+
   const connectionString = process.env.DATABASE_URL_APP ?? process.env.DATABASE_URL;
   if (!connectionString) {
     throw new Error(
@@ -17,6 +25,7 @@ export function getAppConnection(): pg.Pool {
 
   // Override the user in the connection string to app_user when using the
   // DATABASE_URL fallback so that integration tests connect as the app role.
+  // NOTE: the hardcoded password is intentionally test-only (see production guard above).
   const url = new URL(connectionString);
   if (!process.env.DATABASE_URL_APP) {
     url.username = 'app_user';
