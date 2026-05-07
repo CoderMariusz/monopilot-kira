@@ -1,10 +1,37 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import pg from 'pg';
 import { withIdempotency } from '../idempotent.js';
+
+/**
+ * Local mirror of canonicalStringify from idempotent.ts — used in pure unit
+ * tests that verify hash properties without touching the database.
+ */
+function canonicalStringify(value: unknown): string {
+  if (value === null || typeof value !== 'object') return JSON.stringify(value);
+  if (Array.isArray(value))
+    return '[' + (value as unknown[]).map(canonicalStringify).join(',') + ']';
+  const keys = Object.keys(value as Record<string, unknown>).sort();
+  return (
+    '{' +
+    keys
+      .map(
+        (k) =>
+          JSON.stringify(k) +
+          ':' +
+          canonicalStringify((value as Record<string, unknown>)[k]),
+      )
+      .join(',') +
+    '}'
+  );
+}
+
+function testHash(payload: Record<string, unknown>): string {
+  return createHash('sha256').update(canonicalStringify(payload)).digest('hex');
+}
 
 const hasDatabaseUrl = Boolean(process.env.DATABASE_URL);
 const runIntegrationTest = hasDatabaseUrl ? it : it.skip;
@@ -245,6 +272,68 @@ describe('withIdempotency — idempotent mutation helper', () => {
         expect(result.rows).toHaveLength(1);
         expect(result.rows[0].request_hash).toBe(initialHash);
         expect(result.rows[0].response_json).toEqual(initialResponse);
+      },
+    );
+  });
+
+  describe('Nested-payload hash correctness', () => {
+    it('should produce the same hash regardless of key insertion order (key-order invariance)', () => {
+      const payloadAB = { a: 1, b: { c: 2, d: 3 } };
+      const payloadBA = { b: { d: 3, c: 2 }, a: 1 };
+      expect(testHash(payloadAB)).toBe(testHash(payloadBA));
+    });
+
+    it('should produce different hashes when nested values differ (original bug regression)', () => {
+      const original = { action: 'insert', data: { name: 'original' } };
+      const modified = { action: 'insert', data: { name: 'modified' } };
+      expect(testHash(original)).not.toBe(testHash(modified));
+    });
+
+    runIntegrationTest(
+      'should throw idempotency_conflict for nested payload with different nested values (bug regression)',
+      async () => {
+        const orgId = randomUUID();
+        const transactionId = '01950000-0000-7000-8000-000000000007'; // Valid UUID v7
+        const firstPayload = { action: 'insert', data: { name: 'original' } };
+        const secondPayload = { action: 'insert', data: { name: 'modified' } };
+
+        const handler = async () => {
+          return { id: randomUUID(), status: 'inserted' };
+        };
+
+        // First call stores the row
+        await withIdempotency(transactionId, firstPayload, handler, orgId, dbClient);
+
+        // Second call with different nested value MUST throw idempotency_conflict
+        await expect(
+          withIdempotency(transactionId, secondPayload, handler, orgId, dbClient),
+        ).rejects.toThrow('idempotency_conflict');
+      },
+    );
+
+    runIntegrationTest(
+      'should NOT throw when nested payload keys are in different insertion order (same data)',
+      async () => {
+        const orgId = randomUUID();
+        const transactionId = '01950000-0000-7000-8000-000000000008'; // Valid UUID v7
+        // Same data, different key order at nested level
+        const firstPayload = { a: 1, b: { c: 2, d: 3 } };
+        const secondPayload = { b: { d: 3, c: 2 }, a: 1 };
+
+        let handlerCount = 0;
+        const handler = async () => {
+          handlerCount++;
+          return { status: 'ok' };
+        };
+
+        await withIdempotency(transactionId, firstPayload, handler, orgId, dbClient);
+        // Must NOT throw — same logical payload, different key order
+        await expect(
+          withIdempotency(transactionId, secondPayload, handler, orgId, dbClient),
+        ).resolves.toEqual({ status: 'ok' });
+
+        // Handler invoked only once (replay path)
+        expect(handlerCount).toBe(1);
       },
     );
   });
