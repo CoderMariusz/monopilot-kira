@@ -66,7 +66,7 @@ Updated by orchestrator after every PASS review.
 | T-052 | Manifest/coverage readiness patch | ⬜ PENDING | |
 | T-053 | packages/db layout consolidation | ✅ DONE | RED+GREEN+REVIEW PASS; 106/106 tests; src/schema/ removed, schema/ canonical with 9-table barrel; symlink relative; FK added on R13 org_id |
 | T-054 | Migration runner + filename normalization | ✅ DONE | GREEN PASS; raw-SQL runner in scripts/migrate.ts; 0014_→014- rename; schema_migrations table; idempotent; --dry-run; checksum guard; 8/8 tests |
-| T-055 | Workspace-wide ESLint coverage | ⬜ PENDING | P0 Wave-B blocker; GREEN in flight |
+| T-055 | Workspace-wide ESLint coverage | ✅ DONE | RED+GREEN+REVIEW+REWORK+RE-REVIEW PASS; tooling/eslint/base.mjs shared; 8 packages get drift rules; pg.Pool override per-test only; 7/7 fixture tests + root pnpm lint exit 0 |
 | T-056 | Reference.Departments RLS hotfix follow-up | ⬜ PENDING | |
 | T-057 | schema-runtime VITEST env-var elimination | ⬜ PENDING | |
 | T-058 | Migrate integration tests to getAppConnection | ⬜ PENDING | P0 Wave-B blocker; deps T-053+T-054+T-055 |
