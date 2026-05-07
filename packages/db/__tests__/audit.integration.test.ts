@@ -390,16 +390,20 @@ describe('audit_events 13-field append-only table with retention_class CHECK', (
     const requestId = randomUUID();
     const userId = randomUUID();
 
-    // This should fail per the impersonation guard trigger
+    // 8 columns ↔ 8 $N placeholders ↔ 8 params.
+    // occurred_at is omitted from the column list so it uses DEFAULT now() — no $N slot consumed.
+    // impersonator_id is omitted so it remains NULL (trigger condition: actor_type='impersonation' AND impersonator_id IS NULL).
+    // actor_type='impersonation' is $3 — the trigger must fire and raise P0001.
     const insertPromise = dbClient.query<AuditEventRow>(
       `INSERT INTO ${quoteIdentifier(schemaName)}.audit_events
-       (org_id, occurred_at, actor_user_id, actor_type, action, resource_type, resource_id, request_id, retention_class)
-       VALUES ($1, now(), $2, $3, $4, $5, $6, $7, $8)`,
-      [orgId, userId, 'user', 'impersonation', 'update', 'User', 'user-abc', requestId, 'standard'],
+       (org_id, actor_user_id, actor_type, action, resource_type, resource_id, request_id, retention_class)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+      [orgId, userId, 'impersonation', 'update', 'User', 'user-abc', requestId, 'standard'],
     );
 
-    // Will fail when migration is implemented; for RED we expect the test to fail
-    await expect(insertPromise).rejects.toThrow();
+    // Must reject specifically with P0001 — the trigger's errcode — not 08P01 (protocol_violation).
+    // If this assertion passes with the trigger disabled, the test is vacuously true.
+    await expect(insertPromise).rejects.toMatchObject({ code: 'P0001' });
   });
 
   runIntegrationTest('allows INSERT with actor_type=impersonation and impersonator_id provided', async () => {

@@ -35,7 +35,7 @@ Updated by orchestrator after every PASS review.
 | T-021 | Cascading rule (mfg_op → intermediate code) | ⬜ PENDING | |
 | T-022 | i18n scaffold (next-intl) | ✅ DONE | RED+GREEN+REVIEW PASS; 32/32 tests; 4 locales (pl/en/uk/ro) with CLDR plural rules; middleware.ts + routing.ts deviations accepted |
 | T-023 | GS1 identifier helpers | ✅ DONE | RED+GREEN+REVIEW PASS; 43/43 tests; mod-10 + 5 parsers (GTIN/SSCC/GLN/GRAI/GDTI); review spot-checked check-digit arithmetic |
-| T-024 | Idempotent mutation helper | ⬜ PENDING | |
+| T-024 | Idempotent mutation helper | ✅ DONE | RED+GREEN+REVIEW+REWORK+RE-REVIEW PASS; 17/17 tests; canonicalStringify (key-order invariant, no nested-object drop); 015-idempotency.sql + GRANT to app_user |
 | T-025 | packages/ui + Modal primitive | ✅ DONE | RED+GREEN+REVIEW+REWORK+RE-REVIEW PASS; 18/18 tests; ESLint no-restricted-imports for radix-dialog (jest-axe fallback for axe scan documented) |
 | T-026 | Stepper primitive | ⬜ PENDING | |
 | T-027 | Field primitive | ⬜ PENDING | |

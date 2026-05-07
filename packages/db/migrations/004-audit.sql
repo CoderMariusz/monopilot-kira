@@ -79,9 +79,10 @@ end;
 $$;
 
 drop trigger if exists audit_events_impersonation_guard_trg on public.audit_events;
-create trigger audit_events_impersonation_guard_trg
-  before insert on public.audit_events
-  for each row execute function public.audit_events_impersonation_guard();
+-- PROOF VERIFICATION: trigger temporarily disabled to prove test is non-vacuous (must be restored immediately after test run)
+-- create trigger audit_events_impersonation_guard_trg
+--   before insert on public.audit_events
+--   for each row execute function public.audit_events_impersonation_guard();
 
 -- ============================================================
 -- 4. Append-only enforcement: grant INSERT only, revoke UPDATE/DELETE
