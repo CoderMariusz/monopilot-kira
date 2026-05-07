@@ -162,13 +162,15 @@ describe('AC1 — SoD: org.access.admin holder cannot receive org.schema.admin w
     await seedBaselineAndMigrations(owner);
     await seedTestOrg(owner);
 
-    // Give actor the access.admin role
+    // Give TARGET (not actor) the access.admin role — AC1 is target-centric:
+    // "a user holding org.access.admin cannot RECEIVE org.schema.admin".
+    // The actor is a neutral admin with no conflicting role.
     const sessionToken = randomUUID();
     await seedOrgContext(owner, sessionToken, orgId);
     const adminClient = await owner.connect();
     try {
       await adminClient.query('begin');
-      // Insert system roles and assign org.access.admin to actor via owner (bypasses RLS)
+      // Insert system roles and assign org.access.admin to TARGET via owner (bypasses RLS)
       await adminClient.query(
         `insert into public.roles (org_id, slug, system) values ($1, 'org.access.admin', true), ($1, 'org.schema.admin', true)
          on conflict (org_id, slug) do nothing`,
@@ -179,10 +181,11 @@ describe('AC1 — SoD: org.access.admin holder cannot receive org.schema.admin w
         [orgId],
       );
       const accessAdminRoleId = rows[0]!.id;
+      // TARGET holds org.access.admin — trying to receive org.schema.admin is the SoD violation
       await adminClient.query(
         `insert into public.user_roles (user_id, role_id, org_id) values ($1, $2, $3)
          on conflict do nothing`,
-        [actorId, accessAdminRoleId, orgId],
+        [targetId, accessAdminRoleId, orgId],
       );
       // Enable dual_control_required for this org
       await adminClient.query(
@@ -208,7 +211,7 @@ describe('AC1 — SoD: org.access.admin holder cannot receive org.schema.admin w
       targetUserId: targetId,
       orgId,
       roleSlug: 'org.schema.admin',
-      // No approvalToken — actor already holds org.access.admin → SoD violation
+      // No approvalToken — TARGET already holds org.access.admin → SoD violation (target-centric)
     });
 
     expect(result.success).toBe(false);
@@ -234,8 +237,8 @@ describe('AC1 — SoD: org.access.admin holder cannot receive org.schema.admin w
     )).toBe(true);
   });
 
-  runIntegration('AC1 integration — SoD check via DB confirms actor holds conflicting role', () => {
-    it('confirms actor has org.access.admin in DB before asserting sod_violation', async () => {
+  runIntegration('AC1 integration — SoD check via DB confirms TARGET holds conflicting role', () => {
+    it('confirms target has org.access.admin in DB before asserting sod_violation', async () => {
       const sessionToken = randomUUID();
       await seedOrgContext(owner, sessionToken, orgId);
 
@@ -248,11 +251,11 @@ describe('AC1 — SoD: org.access.admin holder cannot receive org.schema.admin w
           `select r.slug from public.user_roles ur
            join public.roles r on r.id = ur.role_id
            where ur.user_id = $1 and ur.org_id = $2`,
-          [actorId, orgId],
+          [targetId, orgId],
         );
 
         const slugs = rows.map((r) => r.slug);
-        // Specific pin: actor MUST hold exactly 'org.access.admin'
+        // Specific pin: TARGET MUST hold exactly 'org.access.admin' (not actor)
         expect(slugs).toContain('org.access.admin');
         expect(slugs).not.toContain('org.schema.admin');
       } finally {
@@ -260,7 +263,7 @@ describe('AC1 — SoD: org.access.admin holder cannot receive org.schema.admin w
         client.release();
       }
 
-      // SoD rejection must follow from that state
+      // SoD rejection must follow from that state (target-centric check)
       const result = await grantRole({
         actorUserId: actorId,
         targetUserId: targetId,
@@ -653,5 +656,214 @@ describe('AC4 — Legacy alias permission/role is rejected or normalized before 
         client.release();
       }
     });
+  });
+});
+
+// ─── REWORK P0 fix tests ──────────────────────────────────────────────────────
+
+// Fix 1 — HMAC fail-open: production guard throws when env var unset
+describe('P0-Fix1 — HMAC key production guard', () => {
+  it('generateApprovalToken throws when NODE_ENV=production and RBAC_APPROVAL_HMAC_KEY is unset', async () => {
+    // Snapshot env state
+    const origKey = process.env.RBAC_APPROVAL_HMAC_KEY;
+    const origNodeEnv = process.env.NODE_ENV;
+    const origVitest = process.env.VITEST;
+
+    try {
+      delete process.env.RBAC_APPROVAL_HMAC_KEY;
+      process.env.NODE_ENV = 'production';
+      delete process.env.VITEST;
+
+      // Must throw — not silently use hardcoded fallback
+      await expect(
+        generateApprovalToken({
+          actorUserId: actorId,
+          approverUserId: approverId,
+          orgId,
+          targetUserId: targetId,
+          roleSlug: 'org.schema.admin',
+        }),
+      ).rejects.toThrow(/RBAC_APPROVAL_HMAC_KEY.*required.*production/i);
+    } finally {
+      // Restore env exactly
+      if (origKey !== undefined) process.env.RBAC_APPROVAL_HMAC_KEY = origKey;
+      else delete process.env.RBAC_APPROVAL_HMAC_KEY;
+      if (origNodeEnv !== undefined) process.env.NODE_ENV = origNodeEnv;
+      else delete process.env.NODE_ENV;
+      if (origVitest !== undefined) process.env.VITEST = origVitest;
+      else delete process.env.VITEST;
+    }
+  });
+});
+
+// Fix 2 — Horizontal privilege escalation: cross-org grant rejected
+// orgB and actor/target in orgB used to test isolation
+const orgBId   = '22222222-2222-4222-8222-222222222222';
+const orgBActorId  = '33333333-3333-4333-8333-333333333333';
+const orgBTargetId = '44444444-4444-4444-8444-444444444444';
+
+runIntegration('P0-Fix2 — Cross-org grant rejected (actor belongs to org A, passes orgId=B)', () => {
+  let ownerXorg: pg.Pool;
+
+  beforeAll(async () => {
+    if (!databaseUrl) return;
+    ownerXorg = getOwnerConnection();
+    await seedBaselineAndMigrations(ownerXorg);
+    // Seed main org with actor
+    await seedTestOrg(ownerXorg);
+
+    // Seed org B: clean ALL users belonging to org B before deleting org (FK ordering)
+    await ownerXorg.query(`delete from public.users where org_id = $1::uuid`, [orgBId]);
+    // Delete user_roles referencing org B, then roles, then the org itself
+    if ((await ownerXorg.query(`select to_regclass('public.user_roles') as t`)).rows[0]?.t) {
+      await ownerXorg.query(`delete from public.user_roles where org_id = $1::uuid`, [orgBId]);
+    }
+    if ((await ownerXorg.query(`select to_regclass('public.roles') as t`)).rows[0]?.t) {
+      await ownerXorg.query(`delete from public.roles where org_id = $1::uuid`, [orgBId]);
+    }
+    if ((await ownerXorg.query(`select to_regclass('public.org_security_policies') as t`)).rows[0]?.t) {
+      await ownerXorg.query(`delete from public.org_security_policies where org_id = $1::uuid`, [orgBId]);
+    }
+    await ownerXorg.query(`delete from public.organizations where id = $1::uuid`, [orgBId]);
+    await ownerXorg.query(
+      `insert into public.organizations (id, tenant_id, name, industry_code)
+         values ($1, $2, 'Org B', 'generic')`,
+      [orgBId, tenantId],
+    );
+    await ownerXorg.query(
+      `insert into public.users (id, org_id, email) values
+         ($1, $2, 'orgb-actor@rbac-test.example'),
+         ($3, $2, 'orgb-target@rbac-test.example')
+       on conflict (id) do nothing`,
+      [orgBActorId, orgBId, orgBTargetId],
+    );
+  });
+
+  afterAll(async () => {
+    if (!databaseUrl) return;
+    await ownerXorg?.end();
+  });
+
+  it('actor from org A with orgId=B throws — actor does not belong to specified orgId', async () => {
+    // actorId belongs to orgId (org A), NOT orgBId (org B)
+    // Passing orgBId should be rejected before any DB writes
+    await expect(
+      grantRole({
+        actorUserId: actorId,   // org A user
+        targetUserId: orgBTargetId, // org B user
+        orgId: orgBId,          // org B — actor does NOT belong here
+        roleSlug: 'org.schema.admin',
+      }),
+    ).rejects.toThrow(/actor does not belong/i);
+  });
+});
+
+// Fix 3 — SoD checks TARGET, not actor
+// Neutral actor (no admin roles), target already holds org.access.admin → SoD fires
+runIntegration('P0-Fix3 — SoD check is on TARGET (not actor): neutral actor + target with conflicting role', () => {
+  let ownerSod: pg.Pool;
+  // A fresh org so we control exactly who holds what
+  const sodOrgId    = '55555555-5555-4555-8555-555555555555';
+  const neutralActorId  = '66666666-6666-4666-8666-666666666666';
+  const sodTargetId     = '77777777-7777-4777-8777-777777777777';
+  const sodApproverId   = '88888888-8888-4888-8888-888888888888';
+  const sodSessionToken = randomUUID();
+
+  beforeAll(async () => {
+    if (!databaseUrl) return;
+    ownerSod = getOwnerConnection();
+    await seedBaselineAndMigrations(ownerSod);
+
+    // Setup: fresh org — clean existing users/roles/org before recreating (FK ordering)
+    await ownerSod.query(`delete from public.users where id in ($1::uuid, $2::uuid, $3::uuid)`, [neutralActorId, sodTargetId, sodApproverId]);
+    if ((await ownerSod.query(`select to_regclass('public.user_roles') as t`)).rows[0]?.t) {
+      await ownerSod.query(`delete from public.user_roles where org_id = $1::uuid`, [sodOrgId]);
+    }
+    if ((await ownerSod.query(`select to_regclass('public.roles') as t`)).rows[0]?.t) {
+      await ownerSod.query(`delete from public.roles where org_id = $1::uuid`, [sodOrgId]);
+    }
+    if ((await ownerSod.query(`select to_regclass('public.org_security_policies') as t`)).rows[0]?.t) {
+      await ownerSod.query(`delete from public.org_security_policies where org_id = $1::uuid`, [sodOrgId]);
+    }
+    await ownerSod.query(`delete from public.organizations where id = $1::uuid`, [sodOrgId]);
+    await ownerSod.query(
+      `insert into public.organizations (id, tenant_id, name, industry_code)
+         values ($1, $2, 'SoD Test Org', 'generic')`,
+      [sodOrgId, tenantId],
+    );
+    await ownerSod.query(
+      `insert into public.users (id, org_id, email) values
+         ($1, $2, 'neutral@sod-test.example'),
+         ($3, $2, 'target@sod-test.example'),
+         ($4, $2, 'approver@sod-test.example')
+       on conflict (id) do nothing`,
+      [neutralActorId, sodOrgId, sodTargetId, sodApproverId],
+    );
+
+    // Give TARGET (not neutral actor) org.access.admin
+    await ownerSod.query(
+      `insert into public.roles (org_id, slug, system) values ($1, 'org.access.admin', true), ($1, 'org.schema.admin', true)
+         on conflict (org_id, slug) do nothing`,
+      [sodOrgId],
+    );
+    const { rows } = await ownerSod.query<{ id: string }>(
+      `select id from public.roles where org_id = $1 and slug = 'org.access.admin'`,
+      [sodOrgId],
+    );
+    const accessAdminRoleId = rows[0]!.id;
+    // Target holds org.access.admin; neutral actor holds NO admin roles
+    await ownerSod.query(
+      `insert into public.user_roles (user_id, role_id, org_id) values ($1, $2, $3) on conflict do nothing`,
+      [sodTargetId, accessAdminRoleId, sodOrgId],
+    );
+    // dual_control_required = true
+    await ownerSod.query(
+      `insert into public.org_security_policies (org_id, dual_control_required) values ($1, true)
+         on conflict (org_id) do update set dual_control_required = true`,
+      [sodOrgId],
+    );
+
+    await seedOrgContext(ownerSod, sodSessionToken, sodOrgId);
+  });
+
+  afterAll(async () => {
+    if (!databaseUrl) return;
+    await ownerSod?.end();
+  });
+
+  it('neutral actor granting org.schema.admin to a target who holds org.access.admin → sod_violation (no token)', async () => {
+    // MUTATION: if SoD checked actorSlugs (neutral has no roles), no violation would fire → success:true
+    // With the fix (targetSlugs), target holds org.access.admin → sod_violation fires
+    const result = await grantRole({
+      actorUserId: neutralActorId,  // no admin roles
+      targetUserId: sodTargetId,    // holds org.access.admin
+      orgId: sodOrgId,
+      roleSlug: 'org.schema.admin', // conflicts with target's org.access.admin
+    });
+
+    expect(result.success).toBe(false);
+    expect(result.error).toBe('sod_violation');
+  });
+
+  it('neutral actor granting org.schema.admin to target WITH valid approval token → succeeds', async () => {
+    // With a valid approval token, the SoD violation is overridden (dual-control approval)
+    const token = await generateApprovalToken({
+      actorUserId: neutralActorId,
+      approverUserId: sodApproverId, // different user → valid
+      orgId: sodOrgId,
+      targetUserId: sodTargetId,
+      roleSlug: 'org.schema.admin',
+    });
+
+    const result = await grantRole({
+      actorUserId: neutralActorId,
+      targetUserId: sodTargetId,
+      orgId: sodOrgId,
+      roleSlug: 'org.schema.admin',
+      approvalToken: token,
+    });
+
+    expect(result.success).toBe(true);
+    expect(result.error).toBeUndefined();
   });
 });

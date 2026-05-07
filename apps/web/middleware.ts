@@ -24,14 +24,42 @@ import createIntlMiddleware from 'next-intl/middleware';
 import { routing } from './i18n/routing';
 import { checkIdleTimeout } from './lib/auth/session-check';
 
-/** Paths that do not require an authenticated session. */
-const PUBLIC_PATHS = [
+/**
+ * Exact-match set of public paths that require no authenticated session.
+ * Use EXACT for bare paths (no trailing slash variant needed).
+ * Use PUBLIC_PREFIXES for path trees (must end with '/').
+ *
+ * SECURITY: Do NOT use bare startsWith() here — it matches path extensions.
+ * e.g. '/login' must NOT match '/login-as-other-user'.
+ * e.g. '/auth/' prefix must NOT match '/auth/admin-only' (unlisted route).
+ * All auth sub-routes are enumerated explicitly in EXACT_PUBLIC_PATHS.
+ */
+const EXACT_PUBLIC_PATHS = new Set([
   '/login',
-  '/auth/',  // auth callback and related routes
   '/en/login',
   '/pl/login',
   '/uk/login',
   '/ro/login',
+  '/auth/callback',
+  '/auth/error',
+  '/en/auth/callback',
+  '/en/auth/error',
+  '/pl/auth/callback',
+  '/pl/auth/error',
+  '/uk/auth/callback',
+  '/uk/auth/error',
+  '/ro/auth/callback',
+  '/ro/auth/error',
+]);
+
+/**
+ * Prefix-based public paths — only paths that START with one of these exact
+ * prefixes (including the trailing slash) are considered public.
+ * Each entry MUST end with '/' to prevent prefix-extension attacks.
+ */
+const PUBLIC_PREFIXES = [
+  '/_next/',
+  '/api/health/',
 ];
 
 /** Extract the Supabase access token from the request cookies or Authorization header. */
@@ -66,7 +94,11 @@ function getAccessToken(req: NextRequest): string | null {
 
 /** Check whether the path is public (no auth required). */
 function isPublicPath(pathname: string): boolean {
-  return PUBLIC_PATHS.some((p) => pathname.startsWith(p));
+  // Exact match first (covers /login, /auth/callback, locale-prefixed variants, etc.)
+  if (EXACT_PUBLIC_PATHS.has(pathname)) return true;
+  // Prefix match — only allowed for paths whose prefix ends with '/' (tree-rooted)
+  if (PUBLIC_PREFIXES.some((prefix) => pathname.startsWith(prefix))) return true;
+  return false;
 }
 
 const intlHandler = createIntlMiddleware(routing);

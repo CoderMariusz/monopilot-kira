@@ -22,7 +22,10 @@ import { createServerClient } from '@supabase/ssr';
  * key is subject to RLS). For service-role operations (e.g. registering
  * session_org_contexts) use a separate service-role client.
  */
-export function createServerSupabaseClient() {
+// MUST be async per Next 16 cookies() API — cookies() returns Promise<ReadonlyRequestCookies>
+// in Next 16+. Calling it synchronously and using the result as a cookie store would call
+// .getAll() on a Promise, which throws at runtime in production.
+export async function createServerSupabaseClient() {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL ?? '';
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? '';
 
@@ -39,12 +42,14 @@ export function createServerSupabaseClient() {
     // (e.g. Vitest running in Node without a Next.js server context).
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     const { cookies } = require('next/headers') as {
-      cookies: () => {
+      cookies: () => Promise<{
         getAll: () => { name: string; value: string }[];
         set: (name: string, value: string, options?: Record<string, unknown>) => void;
-      };
+      }>;
     };
-    const cookieStore = cookies();
+    // MUST be awaited — Next 16 cookies() is async. Synchronous use would return a
+    // Promise object, causing .getAll() to throw "not a function" at runtime.
+    const cookieStore = await cookies();
     cookieAdapter = {
       getAll() {
         return cookieStore.getAll();

@@ -4,17 +4,19 @@
  * Security design decisions (per notes/T-014.md GREEN section):
  * - Legacy aliases (fa.*, brief.convert_to_fa) are REJECTED outright with 'legacy_alias'
  *   (not normalized-and-persisted) — fail-safe over convenience.
- * - SoD check: if ACTOR holds a role in a SOD_EXCLUSIVE_PAIR with the requested roleSlug,
- *   dual-control approval is required. This prevents a single org.access.admin from
- *   granting org.schema.admin without a second administrator's sign-off.
+ * - SoD check: if TARGET holds a role in a SOD_EXCLUSIVE_PAIR with the requested roleSlug,
+ *   dual-control approval is required. This checks whether the TARGET would hold conflicting
+ *   roles (AC1: "a user holding org.access.admin cannot receive org.schema.admin").
  * - Self-approval: approverUserId === actorUserId is hard-rejected at token generation AND
  *   at grant time (even if a forged token slips through, the decoded approver is checked).
  * - All DB operations are in a single transaction (rollback on any failure).
- * - HMAC key falls back to a test-only sentinel when RBAC_APPROVAL_HMAC_KEY is absent.
- *   In production the env var must be set.
+ * - HMAC key is REQUIRED in production (NODE_ENV==='production' && !VITEST). Falls back to a
+ *   test-only sentinel in non-production environments only.
  * - Uses owner connection (BYPASSRLS) because grantRole is a privileged operation that
  *   manages org roles and must write audit_events across org contexts. The app_user role
  *   cannot access app.session_org_contexts directly.
+ * - Actor and target org membership are validated before any DB writes to prevent
+ *   horizontal privilege escalation (cross-org grant attacks).
  */
 
 import { createHmac, randomUUID } from 'node:crypto';
@@ -51,7 +53,16 @@ export interface GenerateApprovalTokenInput {
 const TOKEN_TTL_MS = 5 * 60 * 1000; // 5 minutes
 
 function getHmacKey(): string {
-  return process.env.RBAC_APPROVAL_HMAC_KEY ?? 'test-only-hmac-key-DO-NOT-USE-IN-PROD';
+  const key = process.env.RBAC_APPROVAL_HMAC_KEY;
+  if (!key) {
+    // Production guard: mirrors getAppConnection() env-guard pattern in packages/db/src/clients.ts.
+    // VITEST guard allows CI test runs that set NODE_ENV=production.
+    if (process.env.NODE_ENV === 'production' && !process.env.VITEST) {
+      throw new Error('RBAC_APPROVAL_HMAC_KEY env var is required in production');
+    }
+    return 'test-only-hmac-key-DO-NOT-USE-IN-PROD';
+  }
+  return key;
 }
 
 function computeHmac(payload: string): string {
@@ -131,6 +142,28 @@ function verifyApprovalToken(
   }
 }
 
+// ─── Org membership guards ────────────────────────────────────────────────────
+
+/**
+ * Asserts that userId belongs to orgId by checking the users table.
+ * Must be called BEFORE any DB writes to prevent horizontal privilege escalation.
+ * (T-066 carry-forward: also enforce via RLS in T-067)
+ */
+async function assertUserBelongsToOrg(
+  client: import('pg').PoolClient,
+  userId: string,
+  orgId: string,
+  role: 'actor' | 'target',
+): Promise<void> {
+  const r = await client.query(
+    'SELECT 1 FROM public.users WHERE id = $1 AND org_id = $2 LIMIT 1',
+    [userId, orgId],
+  );
+  if (r.rowCount === 0) {
+    throw new Error(`${role} does not belong to specified orgId`);
+  }
+}
+
 // ─── grantRole ────────────────────────────────────────────────────────────────
 
 export async function grantRole(input: GrantRoleInput): Promise<GrantRoleResult> {
@@ -161,6 +194,12 @@ export async function grantRole(input: GrantRoleInput): Promise<GrantRoleResult>
   try {
     await client.query('BEGIN');
 
+    // Step 1c: Org membership validation — BEFORE any other DB work.
+    // Prevents horizontal privilege escalation: caller in org A cannot pass orgId=B
+    // and write roles/audit rows in org B.
+    await assertUserBelongsToOrg(client, actorUserId, orgId, 'actor');
+    await assertUserBelongsToOrg(client, targetUserId, orgId, 'target');
+
     // Step 2: Load org_security_policies
     const { rows: policyRows } = await client.query<{ dual_control_required: boolean }>(
       `SELECT dual_control_required FROM public.org_security_policies WHERE org_id = $1`,
@@ -168,22 +207,27 @@ export async function grantRole(input: GrantRoleInput): Promise<GrantRoleResult>
     );
     const dualControlRequired = policyRows.length > 0 ? policyRows[0]!.dual_control_required : true;
 
-    // Step 3: Load actor's existing roles in this org
-    const { rows: actorRoleRows } = await client.query<{ slug: string }>(
+    // Step 3: Load TARGET's existing roles in this org (SoD checks the recipient, not the actor)
+    // AC1: "A user holding org.access.admin cannot RECEIVE org.schema.admin" — target-centric.
+    const { rows: targetRoleRows } = await client.query<{ slug: string }>(
       `SELECT r.slug FROM public.user_roles ur
        JOIN public.roles r ON r.id = ur.role_id
        WHERE ur.user_id = $1 AND ur.org_id = $2`,
-      [actorUserId, orgId],
+      [targetUserId, orgId],
     );
-    const actorSlugs = actorRoleRows.map((r) => r.slug);
+    const targetSlugs = targetRoleRows.map((r) => r.slug);
 
-    // Step 4: SoD check — if actor holds the sibling of the requested role, dual control required
+    // Step 4: SoD check — if TARGET already holds the sibling of the requested role,
+    // dual-control approval is required. AC1 is target-centric: "a user holding
+    // org.access.admin cannot RECEIVE org.schema.admin".
+    // MUTATION: swapping targetSlugs back to actorSlugs breaks the new test
+    // "neutral actor grants schema.admin to a target who already holds access.admin → sod_violation".
     let sodViolation = false;
     for (const pair of SOD_EXCLUSIVE_PAIRS) {
       const [a, b] = pair;
       if (
-        (roleSlug === b && actorSlugs.includes(a)) ||
-        (roleSlug === a && actorSlugs.includes(b))
+        (roleSlug === b && targetSlugs.includes(a)) ||
+        (roleSlug === a && targetSlugs.includes(b))
       ) {
         sodViolation = true;
         break;

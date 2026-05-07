@@ -35,7 +35,7 @@ export interface MagicLinkResult {
  * Returns `{ error: null }` on success or `{ error: string }` on failure.
  */
 export async function signInWithMagicLink(email: string): Promise<MagicLinkResult> {
-  const supabase = createServerSupabaseClient();
+  const supabase = await createServerSupabaseClient();
 
   // Determine the redirect URL for the magic-link callback.
   // In production this should be derived from the request origin or env var.

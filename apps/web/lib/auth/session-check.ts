@@ -15,6 +15,14 @@
  * the tenant idle_timeout_min setting.
  */
 
+// CARRY-FORWARD T-062: app.set_org_context wiring is currently the responsibility of every
+// Server Action / Route Handler. Until the withOrgContext() HOF lands, callers MUST manually
+// invoke `select app.set_tenant($1)` with the authenticated user's org_id from JWT.
+// T-062 is a P0 carry-forward blocker — it MUST land before any Server Action that does
+// data-plane work, because RLS policies enforce `app.current_org_id()` being non-NULL
+// for all tenant-scoped queries. An unwrapped Server Action will silently return 0 rows
+// (or be denied) under RLS if set_org_context was not called first.
+
 export interface IdleCheckOptions {
   /** Raw JWT access token string. Null/empty → 401 immediately. */
   accessToken: string | null;
