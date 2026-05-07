@@ -7,7 +7,7 @@
     "build": "next build",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run --config ../../vitest.config.ts app/__tests__/i18n.test.ts app/__tests__/manifest.test.ts app/__tests__/sw.test.ts app/_components/__tests__/RegisterSW.test.tsx lib/i18n/__tests__/format.test.ts __tests__/feature-flags.test.ts __tests__/scim/users.integration.test.ts __tests__/auth/saml.integration.test.ts && vitest run --config vitest.ui.config.ts \"app/(admin)/schema/_components/__tests__/SchemaColumnWizard.test.tsx\"",
+    "test": "vitest run --config ../../vitest.config.ts app/__tests__/i18n.test.ts app/__tests__/manifest.test.ts app/__tests__/sw.test.ts app/_components/__tests__/RegisterSW.test.tsx lib/i18n/__tests__/format.test.ts __tests__/feature-flags.test.ts __tests__/scim/users.integration.test.ts __tests__/auth/saml.integration.test.ts __tests__/pwa/install-offline.e2e.test.ts && vitest run --config vitest.ui.config.ts \"app/(admin)/schema/_components/__tests__/SchemaColumnWizard.test.tsx\"",
     "test:ui": "vitest run --config vitest.ui.config.ts \"app/(admin)/schema/_components/__tests__/SchemaColumnWizard.test.tsx\"",
     "test:smoke": "vitest run --config ../../vitest.config.ts app/__tests__/smoke.test.ts"
   },

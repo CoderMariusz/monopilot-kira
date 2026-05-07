@@ -21,7 +21,7 @@ create table if not exists "Reference"."ManufacturingOperations" (
   is_active       boolean     not null default true,
   marker          text        not null default 'APEX-CONFIG',
   created_at      timestamptz not null default now(),
-  constraint mfg_ops_org_suffix_unique unique (org_id, process_suffix)
+  constraint mfg_ops_org_industry_suffix_unique unique (org_id, industry_code, process_suffix)
 );
 
 -- Add any missing columns idempotently (for re-entrant runs)

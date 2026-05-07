@@ -5,15 +5,17 @@
  * Acceptance criteria:
  *  AC1: Given four industry seeds run for one org, SELECT industry_code, count(*)
  *       returns bakery=4, pharma=4, fmcg=4, generic=4.
- *  AC2: INSERT process_suffix='MX' for an org that already has 'MX' rejects with
- *       SQLSTATE 23505 (unique violation on UNIQUE(org_id, process_suffix)).
+ *  AC2: INSERT process_suffix='MX' for an org that already has 'MX' in the same
+ *       industry_code rejects with SQLSTATE 23505 (unique violation on
+ *       UNIQUE(org_id, industry_code, process_suffix)). Same org + same suffix but
+ *       different industry_code must succeed (cross-industry countercheck).
  *  AC3: INSERT process_suffix='!!' rejects with SQLSTATE 23514 (CHECK violation
  *       on CHECK(process_suffix ~ '^[A-Z0-9]{2,4}$')).
  *
  * Mutation resistance:
  *  AC1 mutation: seeding only 3 ops per industry → count assertion fails (expects 4).
- *  AC2 mutation: UNIQUE constraint dropped → duplicate MX insert succeeds → test
- *               catches because it expected an error and got none.
+ *  AC2 mutation: UNIQUE constraint dropped → duplicate (org,industry,suffix) insert
+ *               succeeds → test catches because it expected an error and got none.
  *  AC3 mutation: regex weakened to '^.+$' → '!!' accepted → test catches because
  *               it expected a CHECK error and got none.
  *
@@ -73,10 +75,10 @@ describe('012 manufacturing-ops migration — static shape contract', () => {
     expect(sql).toMatch(/\bmarker\b/);
   });
 
-  it('migration includes UNIQUE(org_id, process_suffix) constraint', () => {
+  it('migration includes UNIQUE(org_id, industry_code, process_suffix) constraint', () => {
     const sql = readFileSync(mfgOpsMigrationPath, 'utf8');
-    // Constraint must reference both columns in any order
-    expect(sql).toMatch(/unique\s*\(\s*org_id\s*,\s*process_suffix\s*\)/i);
+    // Constraint must reference all three columns in order
+    expect(sql).toMatch(/unique\s*\(\s*org_id\s*,\s*industry_code\s*,\s*process_suffix\s*\)/i);
   });
 
   it('migration includes CHECK constraint matching ^[A-Z0-9]{2,4}$', () => {
@@ -341,7 +343,7 @@ runIntegrationSuite('012 manufacturing-ops AC1 — four industry seeds', () => {
 // AC2 — UNIQUE(org_id, process_suffix) rejects duplicate suffix (SQLSTATE 23505)
 // ─────────────────────────────────────────────────────────────────────────────
 
-runIntegrationSuite('012 manufacturing-ops AC2 — unique constraint on (org_id, process_suffix)', () => {
+runIntegrationSuite('012 manufacturing-ops AC2 — unique constraint on (org_id, industry_code, process_suffix)', () => {
   let ownerPool: pg.Pool;
 
   const tenantId = randomUUID();
@@ -401,7 +403,7 @@ runIntegrationSuite('012 manufacturing-ops AC2 — unique constraint on (org_id,
   });
 
   runIntegrationTest(
-    'AC2: second INSERT with same org_id + process_suffix=MX throws SQLSTATE 23505',
+    'AC2: second INSERT with same (org_id, industry_code, process_suffix) triple throws SQLSTATE 23505',
     async () => {
       let caughtError: unknown;
 
@@ -420,7 +422,7 @@ runIntegrationSuite('012 manufacturing-ops AC2 — unique constraint on (org_id,
       expect(
         caughtError,
         'expected a unique-violation error (SQLSTATE 23505) but no error was thrown — ' +
-        'UNIQUE(org_id, process_suffix) constraint may be missing',
+        'UNIQUE(org_id, industry_code, process_suffix) constraint may be missing',
       ).toBeDefined();
 
       // Pin the exact SQLSTATE: 23505 unique_violation
@@ -465,6 +467,43 @@ runIntegrationSuite('012 manufacturing-ops AC2 — unique constraint on (org_id,
         .catch(() => undefined);
       await ownerPool
         .query(`delete from public.organizations where id = $1`, [otherOrgId])
+        .catch(() => undefined);
+    },
+  );
+
+  runIntegrationTest(
+    'AC2 countercheck: same (org_id, process_suffix=MX) with different industry_code succeeds (cross-industry MX allowed)',
+    async () => {
+      // Same org, same suffix 'MX', but industry_code='fmcg' (not 'bakery').
+      // The new 3-column unique constraint must allow this — no 23505 should be thrown.
+      await ownerPool.query(
+        `insert into "Reference"."ManufacturingOperations"
+           (id, org_id, operation_name, process_suffix, industry_code, marker)
+         values
+           ($1, $2, 'Mix FMCG', 'MX', 'fmcg', 'APEX-CONFIG')`,
+        [randomUUID(), orgId],
+      );
+
+      const result = await ownerPool.query<{ cnt: string }>(
+        `select count(*) as cnt
+         from "Reference"."ManufacturingOperations"
+         where org_id = $1 and process_suffix = 'MX'`,
+        [orgId],
+      );
+
+      // One bakery-MX (from beforeAll) + one fmcg-MX (just inserted) = 2
+      expect(
+        Number(result.rows[0]?.cnt),
+        'same org with MX in different industry_code must both be present (cross-industry allowed)',
+      ).toBe(2);
+
+      // Clean up fmcg-MX row so afterAll cleanup stays consistent
+      await ownerPool
+        .query(
+          `delete from "Reference"."ManufacturingOperations"
+           where org_id = $1 and industry_code = 'fmcg' and process_suffix = 'MX'`,
+          [orgId],
+        )
         .catch(() => undefined);
     },
   );
