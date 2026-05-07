@@ -89,32 +89,30 @@ async function seedBaselineAndMigrations(owner: pg.Pool): Promise<void> {
 }
 
 async function seedTestOrg(owner: pg.Pool): Promise<void> {
-  // Clean prior test data
-  await owner.query(`
-    do $$
-    begin
-      if to_regclass('public.user_roles') is not null then
-        delete from public.user_roles where org_id = $1::uuid;
-      end if;
-      if to_regclass('public.role_permissions') is not null then
-        delete from public.role_permissions
-          where role_id in (select id from public.roles where org_id = $1::uuid);
-      end if;
-      if to_regclass('public.roles') is not null then
-        delete from public.roles where org_id = $1::uuid;
-      end if;
-      if to_regclass('public.org_security_policies') is not null then
-        delete from public.org_security_policies where org_id = $1::uuid;
-      end if;
-    end
-    $$;
-  `, [orgId]);
+  // Clean prior test data — use separate parameterized statements (pg doesn't support
+  // $1 substitution inside DO $$ blocks or multi-command parameterized queries).
+  if ((await owner.query(`select to_regclass('public.user_roles') as t`)).rows[0]?.t) {
+    await owner.query(`delete from public.user_roles where org_id = $1::uuid`, [orgId]);
+  }
+  if ((await owner.query(`select to_regclass('public.role_permissions') as t`)).rows[0]?.t) {
+    await owner.query(
+      `delete from public.role_permissions
+         where role_id in (select id from public.roles where org_id = $1::uuid)`,
+      [orgId],
+    );
+  }
+  if ((await owner.query(`select to_regclass('public.roles') as t`)).rows[0]?.t) {
+    await owner.query(`delete from public.roles where org_id = $1::uuid`, [orgId]);
+  }
+  if ((await owner.query(`select to_regclass('public.org_security_policies') as t`)).rows[0]?.t) {
+    await owner.query(`delete from public.org_security_policies where org_id = $1::uuid`, [orgId]);
+  }
 
-  await owner.query(`
-    delete from public.users        where id in ($1::uuid, $2::uuid, $3::uuid);
-    delete from public.organizations where id = $4::uuid;
-    delete from public.tenants       where id = $5::uuid;
-  `, [actorId, approverId, targetId, orgId, tenantId]);
+  await owner.query(`delete from public.users where id in ($1::uuid, $2::uuid, $3::uuid)`,
+    [actorId, approverId, targetId]);
+  await owner.query(`delete from public.organizations where id = $1::uuid`, [orgId]);
+  // Tenant deletion is skipped: other test suites may reference the same tenantId.
+  // The INSERT below uses ON CONFLICT DO NOTHING so an existing tenant row is fine.
 
   await owner.query(
     `insert into public.tenants (id, name, region_cluster, data_plane_url)
@@ -125,7 +123,7 @@ async function seedTestOrg(owner: pg.Pool): Promise<void> {
 
   await owner.query(
     `insert into public.organizations (id, tenant_id, name, industry_code)
-     values ($1, $2, 'RBAC Test Org', 'test')
+     values ($1, $2, 'RBAC Test Org', 'generic')
      on conflict (id) do nothing`,
     [orgId, tenantId],
   );
@@ -451,14 +449,19 @@ describe('AC3 — Fresh org seed creates BOTH system roles, no tenant-scoped row
     await seedBaselineAndMigrations(owner);
 
     // Seed fresh org (trigger on organizations insert should create both system roles)
-    await owner.query(`
-      delete from public.organizations where id = $1::uuid;
-      insert into public.tenants (id, name, region_cluster, data_plane_url)
-        values ($2, 'Fresh Seed Tenant', 'eu', 'https://fresh.example.test')
-        on conflict (id) do nothing;
-      insert into public.organizations (id, tenant_id, name, industry_code)
-        values ($1, $2, 'Fresh Org', 'test');
-    `, [freshOrgId, tenantId]);
+    // pg does not support multi-command parameterized queries — use separate statements.
+    await owner.query(`delete from public.organizations where id = $1::uuid`, [freshOrgId]);
+    await owner.query(
+      `insert into public.tenants (id, name, region_cluster, data_plane_url)
+         values ($1, 'Fresh Seed Tenant', 'eu', 'https://fresh.example.test')
+         on conflict (id) do nothing`,
+      [tenantId],
+    );
+    await owner.query(
+      `insert into public.organizations (id, tenant_id, name, industry_code)
+         values ($1, $2, 'Fresh Org', 'generic')`,
+      [freshOrgId, tenantId],
+    );
 
     await seedOrgContext(owner, sessionToken, freshOrgId);
   });

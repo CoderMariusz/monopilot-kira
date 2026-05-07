@@ -43,6 +43,25 @@ import { afterAll, beforeAll, describe, expect, it, vi, beforeEach, afterEach } 
 import type { SupabaseClient, Session, AuthResponse } from '@supabase/supabase-js';
 import type { signInWithMagicLink } from '../../app/(auth)/actions';
 
+// ─── Top-level vi.mock (GREEN fix: moved from beforeEach to avoid hoisting TDZ) ─
+// vi.mock is hoisted by Vitest to before module imports. When the factory is
+// defined inside beforeEach, Vitest hoists it to the file top — but then the
+// factory references describe-scope consts that are in TDZ, causing ReferenceError.
+// Fix: mock at top level with vi.fn() stubs; set implementations in beforeEach.
+const _mockVerifyOtp = vi.fn();
+const _mockRefreshSession = vi.fn();
+const _mockSignInWithOtp = vi.fn();
+
+vi.mock('../../lib/auth/supabase-server', () => ({
+  createServerSupabaseClient: vi.fn(() => ({
+    auth: {
+      verifyOtp: _mockVerifyOtp,
+      refreshSession: _mockRefreshSession,
+      signInWithOtp: _mockSignInWithOtp,
+    },
+  })),
+}));
+
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 /** Decode a JWT payload without verifying the signature. */
 function decodeJwtPayload(token: string): Record<string, unknown> {
@@ -128,22 +147,15 @@ describe('AC1: magic-link 15-min access token', () => {
     error: null,
   };
 
-  // We mock the module that does not exist yet — this mock itself will not resolve
-  // until GREEN creates apps/web/lib/auth/supabase-server.ts.
+  // Set mock implementations using top-level vi.fn() stubs (GREEN fix for hoisting).
   beforeEach(() => {
-    vi.mock('../../lib/auth/supabase-server', () => ({
-      createServerSupabaseClient: vi.fn(() => ({
-        auth: {
-          verifyOtp: vi.fn().mockResolvedValue(mockVerifyOtpResponse),
-          refreshSession: vi.fn().mockResolvedValue(mockRefreshResponse),
-          signInWithOtp: vi.fn().mockResolvedValue({ data: {}, error: null }),
-        },
-      })),
-    }));
+    _mockVerifyOtp.mockResolvedValue(mockVerifyOtpResponse);
+    _mockRefreshSession.mockResolvedValue(mockRefreshResponse);
+    _mockSignInWithOtp.mockResolvedValue({ data: {}, error: null });
   });
 
   afterEach(() => {
-    vi.restoreAllMocks();
+    vi.clearAllMocks();
   });
 
   it('should establish a session when OTP token is consumed within 7-day window', async () => {
@@ -415,13 +427,13 @@ describe('AC3: server action context → current_setting(app.current_org_id) == 
     // Uses INSERT ... ON CONFLICT DO NOTHING for idempotency.
     await ownerPool.query(`
       insert into public.tenants (id, name, region_cluster, data_plane_url)
-      values ($1, 'T-011 Test Tenant', 'eu-west-1', 'https://test.example.com')
+      values ($1, 'T-011 Test Tenant', 'eu', 'https://test.example.com')
       on conflict (id) do nothing
     `, [TEST_TENANT_UUID]);
 
     await ownerPool.query(`
       insert into public.organizations (id, tenant_id, name, industry_code)
-      values ($1, $2, 'T-011 Test Org', 'TEST')
+      values ($1, $2, 'T-011 Test Org', 'generic')
       on conflict (id) do nothing
     `, [TEST_ORG_UUID, TEST_TENANT_UUID]);
 
@@ -437,14 +449,23 @@ describe('AC3: server action context → current_setting(app.current_org_id) == 
   afterAll(async () => {
     if (!databaseUrl) return;
 
-    // Cleanup: remove test fixtures (delete cascades handle related rows)
+    // Cleanup: remove test fixtures in FK-safe order.
+    // Delete session_org_contexts first (references org), then users, then orgs,
+    // then tenant. Broad tenant-scoped deletes guard against stale rows from
+    // prior failed runs.
     await ownerPool.query(
       `delete from app.session_org_contexts where session_token = $1`,
       [TEST_SESSION_TOKEN],
     );
+    // Delete users referencing orgs owned by this tenant (FK: users.org_id → organizations.id)
     await ownerPool.query(
-      `delete from public.organizations where id = $1`,
-      [TEST_ORG_UUID],
+      `delete from public.users where org_id in (select id from public.organizations where tenant_id = $1)`,
+      [TEST_TENANT_UUID],
+    );
+    // Delete ALL orgs for this test tenant (guards against stale rows from prior runs)
+    await ownerPool.query(
+      `delete from public.organizations where tenant_id = $1`,
+      [TEST_TENANT_UUID],
     );
     await ownerPool.query(
       `delete from public.tenants where id = $1`,
