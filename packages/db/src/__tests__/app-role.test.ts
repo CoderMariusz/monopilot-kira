@@ -21,7 +21,7 @@ function appUserDatabaseUrl() {
   return url.toString();
 }
 
-describe('T-045 app-role connection split (RED)', () => {
+describe('T-045 app-role connection split', () => {
   describe('AC1: app_user role exists with no SUPERUSER, no BYPASSRLS, FORCE RLS on tenants/organizations/users', () => {
     it('clients.ts exports getAppConnection() and getOwnerConnection()', async () => {
       // AC1 assertion: This test expects both clients to exist
@@ -100,6 +100,33 @@ describe('T-045 app-role connection split (RED)', () => {
     it('verifies that app_user connects and introspects its current_user', async () => {
       const result = await appPool.query<{ current_user: string }>('select current_user');
       expect(result.rows[0].current_user).toBe('app_user');
+    });
+
+    it('SELECT-0-rows: RLS hides all tenants rows when no org context is set (AC2 core)', async () => {
+      // Insert a known tenant row via owner connection so there is at least 1 row to hide
+      const tenantId = randomUUID();
+      await adminPool.query(
+        'INSERT INTO public.tenants (id, name, region_cluster, data_plane_url) VALUES ($1, $2, $3, $4)',
+        [tenantId, 'RLS-test-tenant', 'eu', 'https://rls-test.example.test'],
+      );
+
+      // Owner must see the row (owner bypasses RLS because the table owner is not subject to FORCE RLS
+      // when connecting as the superuser/table-owner)
+      const ownerResult = await adminPool.query<{ count: string }>(
+        'SELECT count(*)::text AS count FROM public.tenants WHERE id = $1',
+        [tenantId],
+      );
+      expect(Number(ownerResult.rows[0].count)).toBeGreaterThanOrEqual(1);
+
+      // app_user connecting WITHOUT setting app.current_org_id must see 0 rows
+      // (FORCE ROW LEVEL SECURITY + no matching policy = default deny)
+      const appResult = await appPool.query<{ count: string }>(
+        'SELECT count(*)::text AS count FROM public.tenants',
+      );
+      expect(Number(appResult.rows[0].count)).toBe(0);
+
+      // Cleanup
+      await adminPool.query('DELETE FROM public.tenants WHERE id = $1', [tenantId]);
     });
   });
 
