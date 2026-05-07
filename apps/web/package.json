@@ -7,7 +7,7 @@
     "build": "next build",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run --config ../../vitest.config.ts app/__tests__/i18n.test.ts app/__tests__/manifest.test.ts app/__tests__/sw.test.ts app/_components/__tests__/RegisterSW.test.tsx lib/i18n/__tests__/format.test.ts __tests__/feature-flags.test.ts __tests__/scim/users.integration.test.ts",
+    "test": "vitest run --config ../../vitest.config.ts app/__tests__/i18n.test.ts app/__tests__/manifest.test.ts app/__tests__/sw.test.ts app/_components/__tests__/RegisterSW.test.tsx lib/i18n/__tests__/format.test.ts __tests__/feature-flags.test.ts __tests__/scim/users.integration.test.ts __tests__/auth/saml.integration.test.ts",
     "test:smoke": "vitest run --config ../../vitest.config.ts app/__tests__/smoke.test.ts"
   },
   "dependencies": {
@@ -18,6 +18,7 @@
     "argon2": "^0.31.2",
     "next": "^16.0.0",
     "next-intl": "^4.11.0",
+    "pg": "8.16.0",
     "posthog-node": "^5.33.3",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
@@ -26,6 +27,7 @@
   "devDependencies": {
     "@eslint/js": "^9.39.0",
     "@types/node": "^20.17.0",
+    "@types/pg": "^8.11.10",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "@typescript-eslint/eslint-plugin": "^8.35.0",
