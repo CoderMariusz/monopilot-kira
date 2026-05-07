@@ -52,7 +52,7 @@ Updated by orchestrator after every PASS review.
 | T-038 | tenant_migrations table | ✅ DONE | RED+GREEN+REVIEW PASS; 11/11 tests pass; 013-tenant-migrations.sql idempotent; no FK (app-layer carry-forward to T-039); dual schema dir + symlink carry-forward |
 | T-039 | Canary upgrade orchestration | ⬜ PENDING | |
 | T-040 | R13 columns on placeholder tables | ✅ DONE | RED+GREEN+REVIEW PASS; 33/33 tests; 0014_r13-placeholder-tables.sql; 5 tables (lot/work_order/quality_event/shipment/bom_item) with R13 cols + org_id RLS via app.current_org_id() |
-| T-041 | PWA scaffold | ⬜ PENDING | |
+| T-041 | PWA scaffold | ✅ DONE | RED+GREEN+REVIEW PASS; 54/54 tests; manifest.ts+sw.ts+RegisterSW.tsx; withNextIntl(withSerwist()); carry-forward to T-042: navigationPreload, AC3 offline E2E, 10s vs 5s timeout |
 | T-042 | PWA install + offline-shell E2E | ⬜ PENDING | |
 | T-043 | IndexedDB sync queue primitive | ⬜ PENDING | |
 | T-044 | Sync queue flusher | ⬜ PENDING | |
