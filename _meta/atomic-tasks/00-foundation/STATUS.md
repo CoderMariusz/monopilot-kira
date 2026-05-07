@@ -42,27 +42,27 @@ Updated by orchestrator after every PASS review.
 | T-028 | ReasonInput primitive | ✅ DONE | RED+GREEN+REVIEW PASS; 8/8 tests; Textarea.tsx wrapper (data-slot); counter via useId; aria-describedby resolves to counter; sibling [type=submit] disable via parentElement walk + bidirectional useEffect (re-disable on backspace) |
 | T-029 | Summary primitive | ✅ DONE | RED+GREEN+REVIEW+REWORK+RE-REVIEW PASS; 20/20 tests; <dl>/<dt>/<dd>; CSS module with var(--color-warning); REWORK fixed inline-styles on VisuallyHidden span (red-line violation) + added [style] full-subtree mutation-proof assertion |
 | T-030 | Tuning primitives | ✅ DONE | RED+GREEN+REVIEW PASS; 22/22 tests (5 prim + deriveRunHistory + Button); EmptyState uses cloneElement to avoid nested button (AC1 marker satisfied via data-slot); RunStrip prop narrowed to RunStatus[]; data-domain-agnostic verified (no outbox imports) |
-| T-031 | 10 MODAL-SCHEMA pattern templates | ⬜ PENDING | |
+| T-031 | 10 MODAL-SCHEMA pattern templates | 🔄 IN PROGRESS | RED done (opus, 17 tests / 3 describes; 7 mutation experiments); 123/123 pre-existing UI tests dalej zielone; Storybook config absent (T-056 carry-forward); jest-axe RTL fallback per T-025 precedent; GREEN tworzy 10 story files |
 | T-032 | Regulatory roadmap artifact | ⬜ PENDING | |
-| T-033 | PostHog feature flags | ⬜ PENDING | |
+| T-033 | PostHog feature flags | 🔄 IN PROGRESS | RED done (sonnet, 7 tests / 3 describes); fail-closed undefined→false; org.access.admin guard; GREEN install posthog-node + lib/feature-flags + route handler |
 | T-034 | Schema drift detection job | ⬜ PENDING | |
 | T-035 | Workflow-as-data executor | ⬜ PENDING | |
-| T-036 | Schema-driven column draft/publish | ⬜ PENDING | |
+| T-036 | Schema-driven column draft/publish | 🔄 IN PROGRESS | RED done (opus, 9 tests / 5 describes; 12 mutation experiments); migration locked 022-dept-column-drafts.sql; T-036 internal table renamed schema_migrations → dept_column_migrations (collision z T-054 runner); packages/schema-driven bootstrapped; flag: dept_id (uuid) vs dept_code (text) lookup do rozwiązania w GREEN |
 | T-037 | Schema-driven column wizard UI | ⬜ PENDING | |
 | T-038 | tenant_migrations table | ✅ DONE | RED+GREEN+REVIEW PASS; 11/11 tests pass; 013-tenant-migrations.sql idempotent; no FK (app-layer carry-forward to T-039); dual schema dir + symlink carry-forward |
-| T-039 | Canary upgrade orchestration | ⬜ PENDING | |
+| T-039 | Canary upgrade orchestration | 🔄 IN PROGRESS | RED done (opus, 17 tests / 4 describes; 13 mutation experiments); **P0 BLOCKER**: 3 nowe outbox events (tenant.migration.run, tenant.migration.run.failed, tenant.cohort.advanced) NIE są w events.enum.ts ALL_EVENTS ani w 003-outbox.sql 12-event CHECK; GREEN musi extend events.enum + create 023-outbox-events-extension.sql migration |
 | T-040 | R13 columns on placeholder tables | ✅ DONE | RED+GREEN+REVIEW PASS; 33/33 tests; 014-r13-placeholder-tables.sql (renamed from 0014_ by T-054); 5 tables (lot/work_order/quality_event/shipment/bom_item) with R13 cols + org_id RLS via app.current_org_id() |
 | T-041 | PWA scaffold | ✅ DONE | RED+GREEN+REVIEW PASS; 54/54 tests; manifest.ts+sw.ts+RegisterSW.tsx; withNextIntl(withSerwist()); carry-forward to T-042: navigationPreload, AC3 offline E2E, 10s vs 5s timeout |
 | T-042 | PWA install + offline-shell E2E | ⬜ PENDING | |
 | T-043 | IndexedDB sync queue primitive | ✅ DONE | RED+GREEN+REVIEW PASS; 19/19 tests; raw IDB (idb-keyval deleted-db fix); inline UUID v7 (jsdom/uuid esm-node crypto fix); all 4 ACs satisfied |
-| T-044 | Sync queue flusher | ⬜ PENDING | |
+| T-044 | Sync queue flusher | 🔄 IN PROGRESS | RED done (sonnet, 12 tests / 4 describes); FIFO + 409 dedup + 503 retry + idempotent start; mutation traps na każde AC; T-043 19 testów dalej zielone |
 | T-045 | Postgres app-role connection split | ✅ DONE | RED+GREEN+REVIEW+REWORK+RE-REVIEW PASS; 10/10 tests; 006-app-role.sql; eslint.config.mjs flat config; SELECT-0-rows RLS test; production guard |
 | T-046 | ref-tables.enum.ts source-of-truth lock | ✅ DONE | Full pipeline + 1 rework cycle (ESLint drift gate added to apps/web flat-config); workspace-wide lint coverage flagged as pre-existing infra debt |
 | T-047 | Wave0 PRD v4.3 domain amendment | ✅ DONE | docs (RED skipped); GREEN+REVIEW PASS; 6 surgical amendments (fg.* canonical, org_id business scope, [LEGACY-D365] qualification on fa.*); 87 unmarked headings = pre-existing debt |
 | T-048 | Domain glossary lock | ✅ DONE | T0-docs full cycle PASS; 13 canonical terms + checker; negative test verified (factory_spec removal → exit 1 with MISSING name); §W0-v4.3 lock honoured |
-| T-049 | Shared BOM SSOT skeleton | ⬜ PENDING | |
+| T-049 | Shared BOM SSOT skeleton | ✅ DONE | T1-schema docs full cycle PASS (opus); _foundation/contracts/shared-bom-ssot.md + .schema.json (draft 2020-12); 4/4 ACs evidence; jsonschema 4.26.0 valid+invalid roundtrip; 35 grep hits; ownership matrix Foundation/Technical/NPD; D365 NEVER source of truth; status enum draft|in_review|approved|superseded |
 | T-050 | Authorization policy foundation | ⬜ PENDING | |
-| T-051 | D365 posture contract | ⬜ PENDING | |
+| T-051 | D365 posture contract | ✅ DONE | T0-docs full cycle PASS; _foundation/contracts/d365-posture.md (8 sekcji, ~320 LOC); 4/4 ACs evidence-quoted; D365 capability registry entry; non-usable preload override; 41 grep hits; cytuje §W0-v4.3 §6 + §9 |
 | T-052 | Manifest/coverage readiness patch | ⬜ PENDING | |
 | T-053 | packages/db layout consolidation | ✅ DONE | RED+GREEN+REVIEW PASS; 106/106 tests; src/schema/ removed, schema/ canonical with 9-table barrel; symlink relative; FK added on R13 org_id |
 | T-054 | Migration runner + filename normalization | ✅ DONE | GREEN PASS; raw-SQL runner in scripts/migrate.ts; 0014_→014- rename; schema_migrations table; idempotent; --dry-run; checksum guard; 8/8 tests |

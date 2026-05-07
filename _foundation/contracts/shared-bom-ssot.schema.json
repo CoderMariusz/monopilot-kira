@@ -1,0 +1,110 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://monopilot-kira/_foundation/contracts/shared-bom-ssot.schema.json",
+  "title": "Shared BOM SSOT Revision",
+  "description": "Foundation-level skeleton contract for a shared BOM revision. Org-scoped via org_id (NEVER tenant_id). D365 external IDs are optional only; D365 is not source of truth (§W0-v4.3 §6).",
+  "type": "object",
+  "required": ["org_id", "fg_id", "revision", "status", "lines"],
+  "additionalProperties": false,
+  "properties": {
+    "org_id": {
+      "type": "string",
+      "format": "uuid",
+      "description": "Business-data scope (§W0-v4.3 §1). NOT tenant_id."
+    },
+    "fg_id": {
+      "type": "string",
+      "format": "uuid",
+      "description": "Canonical finished-good identifier (glossary FG / finished_good)."
+    },
+    "revision": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Monotonic revision number per (org_id, fg_id)."
+    },
+    "status": {
+      "type": "string",
+      "enum": ["draft", "in_review", "approved", "superseded"],
+      "description": "Revision lifecycle status. NPD Builder initial output is in_review (§W0-v4.3 §4)."
+    },
+    "factory_spec_id": {
+      "type": ["string", "null"],
+      "format": "uuid",
+      "description": "Optional link to Technical factory_spec artefact."
+    },
+    "effective_from": {
+      "type": "string",
+      "format": "date",
+      "description": "First date this revision is valid for production planning."
+    },
+    "effective_to": {
+      "type": ["string", "null"],
+      "format": "date",
+      "description": "Optional close date when superseded."
+    },
+    "allergens_carry_forward": {
+      "type": "boolean",
+      "description": "Allergens carry-forward flag for downstream propagation."
+    },
+    "source_module": {
+      "type": "string",
+      "description": "Module that authored this revision (e.g. 01-NPD, 03-TECHNICAL)."
+    },
+    "d365_external_ids": {
+      "type": "object",
+      "description": "Optional D365 external IDs. D365 is NEVER source of truth (§W0-v4.3 §6).",
+      "additionalProperties": false,
+      "properties": {
+        "bom_id": {
+          "type": ["string", "null"],
+          "description": "D365 BOM RecId (optional)."
+        },
+        "version_id": {
+          "type": ["string", "null"],
+          "description": "D365 BOM version RecId (optional)."
+        }
+      }
+    },
+    "lines": {
+      "type": "array",
+      "minItems": 1,
+      "description": "shared_bom_line entries: one per material.",
+      "items": {
+        "type": "object",
+        "required": ["material_id", "qty", "uom", "effective_from"],
+        "additionalProperties": false,
+        "properties": {
+          "material_id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Material identifier."
+          },
+          "qty": {
+            "type": "number",
+            "exclusiveMinimum": 0,
+            "description": "Quantity per finished-good unit (positive)."
+          },
+          "uom": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Unit of measure (kg, g, ea, L, ...)."
+          },
+          "effective_from": {
+            "type": "string",
+            "format": "date",
+            "description": "First date this line is valid."
+          },
+          "effective_to": {
+            "type": ["string", "null"],
+            "format": "date",
+            "description": "Optional close date for this line."
+          },
+          "notes": {
+            "type": ["string", "null"],
+            "description": "Optional free-text annotation."
+          }
+        }
+      }
+    }
+  }
+}
