@@ -230,12 +230,10 @@ describe('withIdempotency — idempotent mutation helper', () => {
         const initialHash = result.rows[0].request_hash;
         const initialResponse = result.rows[0].response_json;
 
-        // Second call with different payload
-        try {
-          await withIdempotency(transactionId, secondPayload, handler, orgId, dbClient);
-        } catch (error) {
-          // Expected to throw
-        }
+        // Second call with different payload — must throw idempotency_conflict
+        await expect(
+          withIdempotency(transactionId, secondPayload, handler, orgId, dbClient),
+        ).rejects.toThrow('idempotency_conflict');
 
         // Verify row was NOT mutated
         result = await dbClient.query<IdempotencyKeyRow>(

@@ -30,3 +30,7 @@ create policy idempotency_keys_org_context
   to app_user
   using (org_id = app.current_org_id())
   with check (org_id = app.current_org_id());
+
+-- Grant table-level privileges so app_user can access rows (RLS policies alone are
+-- not sufficient without a matching GRANT on the table).
+grant select, insert, update, delete on public.idempotency_keys to app_user;

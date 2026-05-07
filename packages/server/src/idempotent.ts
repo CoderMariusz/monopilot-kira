@@ -17,11 +17,35 @@ function isUUIDv7(id: string): boolean {
 }
 
 /**
+ * Produces a deterministic JSON string regardless of key insertion order.
+ * Recursively sorts object keys at every nesting level.
+ * Arrays preserve element order (order is significant for arrays).
+ */
+function canonicalStringify(value: unknown): string {
+  if (value === null || typeof value !== 'object') return JSON.stringify(value);
+  if (Array.isArray(value)) return '[' + value.map(canonicalStringify).join(',') + ']';
+  const keys = Object.keys(value as Record<string, unknown>).sort();
+  return (
+    '{' +
+    keys
+      .map(
+        (k) =>
+          JSON.stringify(k) +
+          ':' +
+          canonicalStringify((value as Record<string, unknown>)[k]),
+      )
+      .join(',') +
+    '}'
+  );
+}
+
+/**
  * Deterministically hash a request payload to a hex string (SHA-256).
- * Keys are sorted before serialisation to ensure stability.
+ * Uses canonicalStringify to ensure stable output regardless of key insertion
+ * order at any nesting depth.
  */
 function hashPayload(payload: Record<string, unknown>): string {
-  const canonical = JSON.stringify(payload, Object.keys(payload).sort());
+  const canonical = canonicalStringify(payload);
   return createHash('sha256').update(canonical).digest('hex');
 }
 
