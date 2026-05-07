@@ -1,0 +1,38 @@
+{
+  "name": "@monopilot/ui",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./Modal": "./src/Modal.tsx",
+    "./tokens": "./tokens.css"
+  },
+  "scripts": {
+    "test": "vitest run",
+    "storybook:dev": "storybook dev",
+    "storybook:build": "storybook build",
+    "test:a11y": "vitest run --include '**/*.a11y.test.ts*'"
+  },
+  "dependencies": {
+    "@radix-ui/react-dialog": "^1.1.2",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@axe-core/playwright": "^4.8.0",
+    "@storybook/addon-a11y": "^8.0.0",
+    "@storybook/react": "^8.0.0",
+    "@testing-library/jest-dom": "^6.1.5",
+    "@testing-library/react": "^14.1.2",
+    "@testing-library/user-event": "^14.5.1",
+    "@types/node": "^20.17.0",
+    "@types/react": "^18.3.3",
+    "@types/react-dom": "^18.3.0",
+    "axe-core": "^4.8.0",
+    "jest-axe": "^8.0.0",
+    "storybook": "^8.0.0",
+    "typescript": "^5.8.2",
+    "vitest": "^2.1.8",
+    "jsdom": "^24.0.0"
+  }
+}
