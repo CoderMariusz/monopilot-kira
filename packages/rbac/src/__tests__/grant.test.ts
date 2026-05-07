@@ -331,26 +331,29 @@ describe('AC2 — Valid second-admin approval token → grant succeeds + audit_e
     await owner?.end();
   });
 
-  it('grant succeeds when a valid second-admin approval token is provided', async () => {
-    // approver (different user) generates the token
-    const token = await generateApprovalToken({
-      actorUserId: actorId,
-      approverUserId: approverId,  // actor !== approver → valid
-      orgId,
-      targetUserId: targetId,
-      roleSlug: 'org.schema.admin',
-    });
+  // Requires DB: grantRole returns sod_violation when DATABASE_URL is unset (no-DB early-return guard)
+  runIntegration('grant succeeds when a valid second-admin approval token is provided', () => {
+    it('grant succeeds', async () => {
+      // approver (different user) generates the token
+      const token = await generateApprovalToken({
+        actorUserId: actorId,
+        approverUserId: approverId,  // actor !== approver → valid
+        orgId,
+        targetUserId: targetId,
+        roleSlug: 'org.schema.admin',
+      });
 
-    const result = await grantRole({
-      actorUserId: actorId,
-      targetUserId: targetId,
-      orgId,
-      roleSlug: 'org.schema.admin',
-      approvalToken: token,
-    });
+      const result = await grantRole({
+        actorUserId: actorId,
+        targetUserId: targetId,
+        orgId,
+        roleSlug: 'org.schema.admin',
+        approvalToken: token,
+      });
 
-    expect(result.success).toBe(true);
-    expect(result.error).toBeUndefined();
+      expect(result.success).toBe(true);
+      expect(result.error).toBeUndefined();
+    });
   });
 
   runIntegration('AC2 integration — audit_events row written with exact field values', () => {

@@ -1,4 +1,37 @@
 /**
+ * ADR (P2.13): direct `pg.Pool` instantiation
+ *
+ * This module deliberately violates the repo-wide "use the managed pools from
+ * @monopilot/db" convention because:
+ *
+ *   1. It needs to manage TWO connections per call:
+ *        - an OWNER pool (BYPASSRLS) for the privileged INSERT into
+ *          `app.session_org_contexts` before the app-role transaction, and
+ *        - an APP pool (RLS-enforcing app_user) for the action body bound to
+ *          the same `session_token`.
+ *      The packaged `@monopilot/db` deliberately does not export the owner
+ *      pool (and lints forbid importing it from app code), and it doesn't
+ *      surface a paired-credential helper for this two-role flow.
+ *
+ *   2. The app pool's connection-string env (`DATABASE_URL_APP`) and
+ *      credentials differ from the global manage-pool config; sharing pool
+ *      instances would either leak `app_user` credentials into the BYPASSRLS
+ *      code paths, or downgrade BYPASSRLS code paths to RLS-enforcing ones.
+ *
+ *   3. The owner pool is request-scoped in spirit — connections are acquired
+ *      and released per-call so a single mis-set context can't leak across
+ *      unrelated requests on the same pooled connection.
+ *
+ * If the no-pg-pool lint rule fires here, suppress with:
+ *   // eslint-disable-next-line no-restricted-syntax -- intentional per ADR above
+ *
+ * Sibling exception: `apps/web/lib/scim/middleware.ts` instantiates `pg.Pool`
+ * for the same reason (privileged SCIM token verification path that needs the
+ * owner pool the SDK does not export). Treat both modules as the canonical
+ * exceptions and prefer the @monopilot/db pools everywhere else.
+ */
+
+/**
  * T-062 — `withOrgContext` HOF for Server Actions and Route Handlers.
  *
  * MUST wrap every Server Action that touches the data plane. Replaces the

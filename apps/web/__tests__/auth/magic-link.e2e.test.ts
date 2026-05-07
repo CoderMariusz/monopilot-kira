@@ -41,7 +41,7 @@ import { afterAll, beforeAll, describe, expect, it, vi, beforeEach, afterEach } 
 // These import paths match the scope_files listed in T-011.json.
 // They are intentionally unresolvable in RED phase.
 import type { SupabaseClient, Session, AuthResponse } from '@supabase/supabase-js';
-import type { signInWithMagicLink } from '../../app/(auth)/actions';
+import type { signInWithMagicLink } from '../../app/(auth)/actions.js';
 
 // ─── Top-level vi.mock (GREEN fix: moved from beforeEach to avoid hoisting TDZ) ─
 // vi.mock is hoisted by Vitest to before module imports. When the factory is
@@ -52,7 +52,7 @@ const _mockVerifyOtp = vi.fn();
 const _mockRefreshSession = vi.fn();
 const _mockSignInWithOtp = vi.fn();
 
-vi.mock('../../lib/auth/supabase-server', () => ({
+vi.mock('../../lib/auth/supabase-server.js', () => ({
   createServerSupabaseClient: vi.fn(() => ({
     auth: {
       verifyOtp: _mockVerifyOtp,
@@ -160,8 +160,8 @@ describe('AC1: magic-link 15-min access token', () => {
 
   it('should establish a session when OTP token is consumed within 7-day window', async () => {
     // Arrange: import the action (will fail until GREEN creates it)
-    const { signInWithMagicLink: action } = await import('../../app/(auth)/actions');
-    const { createServerSupabaseClient } = await import('../../lib/auth/supabase-server');
+    const { signInWithMagicLink: action } = await import('../../app/(auth)/actions.js');
+    const { createServerSupabaseClient } = await import('../../lib/auth/supabase-server.js');
 
     const supabase = createServerSupabaseClient() as unknown as SupabaseClient;
 
@@ -179,7 +179,7 @@ describe('AC1: magic-link 15-min access token', () => {
   });
 
   it('should issue access token with exp - iat === 900 seconds (15 minutes exactly)', async () => {
-    const { createServerSupabaseClient } = await import('../../lib/auth/supabase-server');
+    const { createServerSupabaseClient } = await import('../../lib/auth/supabase-server.js');
     const supabase = createServerSupabaseClient() as unknown as SupabaseClient;
 
     const result = await supabase.auth.verifyOtp({
@@ -202,7 +202,7 @@ describe('AC1: magic-link 15-min access token', () => {
   });
 
   it('should return session.expires_in === 900 (15 minutes)', async () => {
-    const { createServerSupabaseClient } = await import('../../lib/auth/supabase-server');
+    const { createServerSupabaseClient } = await import('../../lib/auth/supabase-server.js');
     const supabase = createServerSupabaseClient() as unknown as SupabaseClient;
 
     const result = await supabase.auth.verifyOtp({
@@ -217,7 +217,7 @@ describe('AC1: magic-link 15-min access token', () => {
   it('should rotate refresh token on session refresh (new !== prior)', async () => {
     // Mutation-proof: proves refresh rotation is enabled.
     // If rotation is disabled, the same token is returned — this test catches that.
-    const { createServerSupabaseClient } = await import('../../lib/auth/supabase-server');
+    const { createServerSupabaseClient } = await import('../../lib/auth/supabase-server.js');
     const supabase = createServerSupabaseClient() as unknown as SupabaseClient;
 
     // First: establish session (get initial refresh token)
@@ -243,7 +243,7 @@ describe('AC1: magic-link 15-min access token', () => {
   it('signInWithMagicLink server action should call supabase.auth.signInWithOtp with 7-day TTL', async () => {
     // This asserts the server action exists and invokes OTP generation.
     // Will fail in RED because app/(auth)/actions.ts does not exist.
-    const { signInWithMagicLink: action } = await import('../../app/(auth)/actions');
+    const { signInWithMagicLink: action } = await import('../../app/(auth)/actions.js');
 
     const result = await action('user@example.com');
 
@@ -294,7 +294,7 @@ describe('AC2: idle-timeout 61-min → 401 + re-auth', () => {
     path: string = '/en/dashboard',
   ): Promise<Response> {
     // Import the middleware's session-checker (does not exist yet)
-    const { checkIdleTimeout } = await import('../../lib/auth/session-check');
+    const { checkIdleTimeout } = await import('../../lib/auth/session-check.js');
     return checkIdleTimeout({ accessToken, path, idleTimeoutMin: 60 });
   }
 
@@ -354,7 +354,7 @@ describe('AC2: idle-timeout 61-min → 401 + re-auth', () => {
       role: 'authenticated',
     });
 
-    const { checkIdleTimeout } = await import('../../lib/auth/session-check');
+    const { checkIdleTimeout } = await import('../../lib/auth/session-check.js');
 
     const atBoundaryResponse = await checkIdleTimeout({
       accessToken: atBoundaryToken,
@@ -404,7 +404,7 @@ describe('AC3: server action context → current_setting(app.current_org_id) == 
     // getOwnerConnection is NOT re-exported from @monopilot/db public API (by design).
     // We import directly from the internal test-utils path.
     const { getOwnerConnection, getAppConnection } = await import(
-      '../../../../packages/db/test-utils/test-pool'
+      '../../../../packages/db/test-utils/test-pool.js'
     );
     ownerPool = getOwnerConnection();
     appPool = getAppConnection();

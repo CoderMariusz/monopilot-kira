@@ -35,6 +35,12 @@ import type pg from 'pg';
 import { setPin, verifyPin } from '../verify-pin.js';
 
 // ---------------------------------------------------------------------------
+// DB guard — skip all integration tests when no DATABASE_URL is configured
+// ---------------------------------------------------------------------------
+const databaseUrl = process.env.DATABASE_URL_OWNER ?? process.env.DATABASE_URL;
+const skipIfNoDb = databaseUrl ? describe : describe.skip;
+
+// ---------------------------------------------------------------------------
 // Fixtures
 // ---------------------------------------------------------------------------
 
@@ -50,6 +56,7 @@ let ownerConn: pg.Pool;
 let appConn: pg.Pool;
 
 beforeAll(async () => {
+  if (!databaseUrl) return;
   ownerConn = await getOwnerConnection();
   appConn = await getAppConnection();
 
@@ -89,6 +96,7 @@ beforeAll(async () => {
 
 afterAll(async () => {
   vi.useRealTimers();
+  if (!ownerConn) return;
   // Clean up test data via owner connection
   await ownerConn.query(
     `DELETE FROM public.user_pins WHERE user_id = $1`,
@@ -102,6 +110,7 @@ afterAll(async () => {
 
 beforeEach(async () => {
   vi.useRealTimers();
+  if (!ownerConn) return;
   // Reset pin state between tests
   await ownerConn.query(
     `DELETE FROM public.user_pins WHERE user_id = $1`,
@@ -113,7 +122,7 @@ beforeEach(async () => {
 // AC1 — setPin / verifyPin round-trip + argon2id hash stored (no plaintext)
 // ---------------------------------------------------------------------------
 
-describe('AC1: setPin stores argon2id hash; verifyPin returns true for correct PIN', () => {
+skipIfNoDb('AC1: setPin stores argon2id hash; verifyPin returns true for correct PIN', () => {
   it('verifyPin returns true when called with the same plaintext PIN used in setPin', async () => {
     await setPin(TEST_USER_ID, VALID_PIN);
     const result = await verifyPin(TEST_USER_ID, VALID_PIN);
@@ -156,7 +165,7 @@ describe('AC1: setPin stores argon2id hash; verifyPin returns true for correct P
 // AC2 — Lockout policy: 5 wrong attempts in 10 min → 6th returns 'locked'
 // ---------------------------------------------------------------------------
 
-describe('AC2: 5 wrong attempts in 10-minute window → 6th attempt returns locked with locked_until +15 min', () => {
+skipIfNoDb('AC2: 5 wrong attempts in 10-minute window → 6th attempt returns locked with locked_until +15 min', () => {
   beforeEach(async () => {
     vi.useFakeTimers();
     // Set PIN fresh for each lockout test
@@ -253,7 +262,7 @@ describe('AC2: 5 wrong attempts in 10-minute window → 6th attempt returns lock
 // AC3 — argon2id hash parameters: m=65536, t=3, p=1
 // ---------------------------------------------------------------------------
 
-describe('AC3: argon2id hash parameters m=65536 (64MiB), t=3, p=1', () => {
+skipIfNoDb('AC3: argon2id hash parameters m=65536 (64MiB), t=3, p=1', () => {
   it('stored hash encodes $argon2id$ variant, v=19, m=65536, t=3, p=1', async () => {
     await setPin(TEST_USER_ID, VALID_PIN);
 
@@ -317,7 +326,7 @@ describe('AC3: argon2id hash parameters m=65536 (64MiB), t=3, p=1', () => {
 // Implicit AC4 — Lockout recovery: after 15 min, lock expires + valid PIN works
 // ---------------------------------------------------------------------------
 
-describe('lockout unlock after 15 min', () => {
+skipIfNoDb('lockout unlock after 15 min', () => {
   beforeEach(async () => {
     vi.useFakeTimers();
     await setPin(TEST_USER_ID, VALID_PIN);

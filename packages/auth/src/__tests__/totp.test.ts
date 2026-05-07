@@ -52,6 +52,12 @@ import { setRecoveryCodes, verifyRecoveryCode } from '../recovery.js';
 import { enrollWebAuthn } from '../totp.js';
 
 // ---------------------------------------------------------------------------
+// DB guard — skip all integration tests when no DATABASE_URL is configured
+// ---------------------------------------------------------------------------
+const databaseUrl = process.env.DATABASE_URL_OWNER ?? process.env.DATABASE_URL;
+const skipIfNoDb = databaseUrl ? describe : describe.skip;
+
+// ---------------------------------------------------------------------------
 // Fixtures
 // ---------------------------------------------------------------------------
 
@@ -60,12 +66,13 @@ const MASTER_KEY = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 const TENANT_ID = '00000000-0000-4000-b000-000000000001';
 
 // ---------------------------------------------------------------------------
-// DB seed / teardown
+// DB seed / teardown (only runs when databaseUrl is set)
 // ---------------------------------------------------------------------------
 
 let ownerConn: pg.Pool;
 
 beforeAll(async () => {
+  if (!databaseUrl) return;
   ownerConn = getOwnerConnection();
 
   // Seed prerequisite rows so FK constraints on mfa_secrets and recovery_codes pass.
@@ -99,6 +106,7 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
+  if (!ownerConn) return;
   // Clean up in FK-safe order
   await ownerConn.query(`DELETE FROM public.recovery_codes WHERE user_id = '${TEST_USER_ID}'`);
   await ownerConn.query(`DELETE FROM public.mfa_secrets WHERE user_id = '${TEST_USER_ID}'`);
@@ -112,7 +120,7 @@ afterAll(async () => {
 // AC1: TOTP 30-second window, 6 digits, encrypted storage
 // ---------------------------------------------------------------------------
 
-describe('AC1: TOTP 30-second window and 6-digit code', () => {
+skipIfNoDb('AC1: TOTP 30-second window and 6-digit code', () => {
   it('verifyTotp returns true when code is verified within the 30-second window (T=0)', async () => {
     vi.useFakeTimers();
     vi.setSystemTime(0);
@@ -217,7 +225,7 @@ describe('AC1: TOTP 30-second window and 6-digit code', () => {
 // AC2: Recovery code one-time use + audit_events replay attempt
 // ---------------------------------------------------------------------------
 
-describe('AC2: Recovery code one-time use enforced with audit trail', () => {
+skipIfNoDb('AC2: Recovery code one-time use enforced with audit trail', () => {
   it('first use of a recovery code returns true', async () => {
     const codes = await setRecoveryCodes(TEST_USER_ID);
     expect(codes.length).toBe(10);
@@ -327,7 +335,7 @@ describe('AC2: Recovery code one-time use enforced with audit trail', () => {
 // argon2id parameter assertions for recovery codes
 // ---------------------------------------------------------------------------
 
-describe('argon2id parameters for recovery code hashes', () => {
+skipIfNoDb('argon2id parameters for recovery code hashes', () => {
   it('recovery code hash encodes $argon2id$v=19$m=65536,t=3,p=1$ prefix', async () => {
     // Mutation: m=4096 → regex fails
     const codes = await setRecoveryCodes(TEST_USER_ID);
@@ -448,7 +456,7 @@ describe('AC3: WebAuthn stub returns deferred response without external API cont
 // T-062 hardening: TOTP replay protection within the same 30s window
 // ---------------------------------------------------------------------------
 
-describe('T-062 hardening: TOTP code cannot be replayed within the same window', () => {
+skipIfNoDb('T-062 hardening: TOTP code cannot be replayed within the same window', () => {
   it('verifyTotp(token) twice within the same 30s epoch — second call returns {ok:false, reason:"replay"}', async () => {
     // Mutation proof: WITHOUT the atomic claim on last_otp_window, the second
     // call would re-enter otplib.verifySync (still valid in the same epoch)
@@ -487,7 +495,7 @@ describe('T-062 hardening: TOTP code cannot be replayed within the same window',
 // AC2 race condition regression: concurrent verifyRecoveryCode calls
 // ---------------------------------------------------------------------------
 
-describe('AC2 race condition: concurrent verifyRecoveryCode calls with same code', () => {
+skipIfNoDb('AC2 race condition: concurrent verifyRecoveryCode calls with same code', () => {
   it('only ONE of two concurrent calls with the same valid code returns true', async () => {
     // Mutation proof: WITHOUT the FOR UPDATE lock, both calls read used_at IS NULL,
     // both pass argon2.verify, and both UPDATE — returning [true, true].

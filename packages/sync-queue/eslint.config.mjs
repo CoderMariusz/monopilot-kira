@@ -28,6 +28,15 @@ export default [
         // Browser globals used alongside IndexedDB
         navigator: 'readonly',
         window: 'readonly',
+        // Web fetch API globals (used by browser flusher)
+        fetch: 'readonly',
+        Request: 'readonly',
+        Response: 'readonly',
+        Headers: 'readonly',
+        FormData: 'readonly',
+        RequestInit: 'readonly',
+        HeadersInit: 'readonly',
+        Event: 'readonly',
       },
     },
   },

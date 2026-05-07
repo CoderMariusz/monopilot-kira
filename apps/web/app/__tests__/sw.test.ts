@@ -11,7 +11,7 @@ describe('sw.ts (Service Worker)', () => {
   it('should export a valid service worker module', async () => {
     // Guard is in sw.ts: new Serwist() is only called inside a ServiceWorkerGlobalScope
     // check, so importing in Node/Vitest is safe.
-    const sw = await import('../sw');
+    const sw = await import('../sw.js');
     expect(sw).toBeDefined();
   });
 

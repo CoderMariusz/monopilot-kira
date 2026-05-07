@@ -390,18 +390,20 @@ export async function enforceSamlPolicy(
       await pool.end();
     }
   } catch (err) {
-    // T-062 hardening: fail-CLOSED in production. A DB failure used to return
-    // {allowed:true} silently — that meant a transient outage downgraded the
-    // SAML policy enforcement and let non-admins sign in with passwords. In
-    // production we now return 503 with a fail-closed denial; in development
-    // we keep the legacy fail-open behaviour with an explicit warning so
-    // local DB-less runs of the dev server still work.
+    // P2.12 — fail-CLOSED everywhere by default (production AND non-prod).
+    // The previous behaviour fail-opened in non-production, which meant a
+    // dev/staging DB outage silently downgraded SAML policy enforcement
+    // (non-admins could sign in with passwords). Operators who genuinely
+    // need fail-open for local DB-less dev must opt in explicitly via
+    //   ALLOW_SAML_POLICY_FAIL_OPEN_IN_DEV=true
+    // and only outside production — that env is ignored when NODE_ENV=production.
     const isProd = process.env.NODE_ENV === 'production';
+    const errMsg = err instanceof Error ? err.message : String(err);
     if (isProd) {
       // eslint-disable-next-line no-console
       console.error(
         '[enforceSamlPolicy] policy lookup failed in production — failing closed',
-        { tenantId, err: err instanceof Error ? err.message : String(err) },
+        { tenantId, err: errMsg },
       );
       return {
         allowed: false,
@@ -409,14 +411,26 @@ export async function enforceSamlPolicy(
         reason: 'policy_lookup_failed',
       };
     }
+    if (process.env.ALLOW_SAML_POLICY_FAIL_OPEN_IN_DEV === 'true') {
+      // eslint-disable-next-line no-console
+      console.warn(
+        '[enforceSamlPolicy] policy lookup failed; fail-open due to ALLOW_SAML_POLICY_FAIL_OPEN_IN_DEV=true',
+        { tenantId, err: errMsg },
+      );
+      return {
+        allowed: true,
+        statusCode: 200,
+      };
+    }
     // eslint-disable-next-line no-console
-    console.warn(
-      '[enforceSamlPolicy] policy lookup failed in non-production — allowing (dev fallback)',
-      { tenantId, err: err instanceof Error ? err.message : String(err) },
+    console.error(
+      '[enforceSamlPolicy] policy lookup failed; failing closed (set ALLOW_SAML_POLICY_FAIL_OPEN_IN_DEV=true to override in dev)',
+      { tenantId, err: errMsg },
     );
     return {
-      allowed: true,
-      statusCode: 200,
+      allowed: false,
+      statusCode: 503,
+      reason: 'policy_lookup_failed',
     };
   }
 

@@ -1,5 +1,3 @@
-// @ts-ignore -- @types/pg lives in apps/web/node_modules; pnpm hoist doesn't expose it to packages/db
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment
 import pg from 'pg';
 
 const { Pool } = pg;

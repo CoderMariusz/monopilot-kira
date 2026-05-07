@@ -6,11 +6,9 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
  * These tests will fail until RegisterSW.tsx is implemented
  */
 describe('RegisterSW component', () => {
-  let originalEnv: string | undefined;
   let registerSpy: ReturnType<typeof vi.fn>;
 
   beforeEach(() => {
-    originalEnv = process.env.NODE_ENV;
     registerSpy = vi.fn().mockResolvedValue({ installing: null });
 
     // Mock navigator.serviceWorker
@@ -28,19 +26,19 @@ describe('RegisterSW component', () => {
   });
 
   afterEach(() => {
-    process.env.NODE_ENV = originalEnv;
+    vi.unstubAllEnvs();
     vi.clearAllMocks();
   });
 
   it('should export RegisterSW component', async () => {
-    const RegisterSW = (await import('../RegisterSW')).default;
+    const RegisterSW = (await import('../RegisterSW.jsx')).default;
     expect(RegisterSW).toBeDefined();
   });
 
   it('should register service worker with correct path in production', async () => {
-    process.env.NODE_ENV = 'production';
+    vi.stubEnv('NODE_ENV', 'production');
 
-    const RegisterSW = (await import('../RegisterSW')).default;
+    const RegisterSW = (await import('../RegisterSW.jsx')).default;
 
     // Import and call the component's registration logic
     // The component should call navigator.serviceWorker.register('/sw.js')
@@ -49,16 +47,16 @@ describe('RegisterSW component', () => {
   });
 
   it('should NOT register service worker in development mode', async () => {
-    process.env.NODE_ENV = 'development';
+    vi.stubEnv('NODE_ENV', 'development');
 
-    const RegisterSW = (await import('../RegisterSW')).default;
+    const RegisterSW = (await import('../RegisterSW.jsx')).default;
     expect(RegisterSW).toBeDefined();
     // Dev safety: component must check NODE_ENV before registering
   });
 
   it('should handle missing navigator.serviceWorker gracefully', async () => {
     // Test documents expected error handling
-    const RegisterSW = (await import('../RegisterSW')).default;
+    const RegisterSW = (await import('../RegisterSW.jsx')).default;
     expect(RegisterSW).toBeDefined();
   });
 });

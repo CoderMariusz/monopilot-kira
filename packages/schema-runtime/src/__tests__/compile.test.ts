@@ -106,11 +106,13 @@ describe('Reference.DeptColumns + Reference.FieldTypes schema compilation', () =
     // This test uses Node fs to read the compile.ts source as text and asserts
     // that no VITEST reference remains. This will fail in RED phase (VITEST is
     // still in the code) and pass after GREEN refactor removes it.
-    const fs = require('fs');
-    const path = require('path');
+    const { readFileSync } = await import('node:fs');
+    const { resolve, dirname } = await import('node:path');
+    const { fileURLToPath } = await import('node:url');
 
-    const compileSourcePath = path.resolve(__dirname, '../compile.ts');
-    const sourceCode = fs.readFileSync(compileSourcePath, 'utf-8');
+    const here = dirname(fileURLToPath(import.meta.url));
+    const compileSourcePath = resolve(here, '../compile.ts');
+    const sourceCode = readFileSync(compileSourcePath, 'utf-8');
 
     // Assert that process.env.VITEST does not appear in the source
     expect(sourceCode).not.toMatch(/process\.env\.VITEST/);

@@ -33,7 +33,7 @@ import { randomUUID } from 'node:crypto';
 // ─── Modules that WILL FAIL until GREEN creates them ─────────────────────────
 // These imports reference scope_files from T-012.json. They are unresolvable
 // in RED phase. Any test that imports from them will fail with MODULE_NOT_FOUND.
-import type { handleSamlLogin, handleSamlCallback, enforceSamlPolicy } from '../../lib/auth/saml';
+import type { handleSamlLogin, handleSamlCallback, enforceSamlPolicy } from '../../lib/auth/saml.js';
 
 // ─── Top-level mocks (vi.mock hoisted before imports) ─────────────────────────
 // Mock the Supabase server client so we can assert on auth.signInWithPassword calls
@@ -161,7 +161,7 @@ describe('AC1: SAML login initiates signed AuthnRequest redirect to IdP SSO URL'
 
   it('returns a redirect response when tenant has provider_type=saml and valid metadata', async () => {
     // This import will fail (MODULE_NOT_FOUND) until GREEN creates saml.ts
-    const { handleSamlLogin } = await import('../../lib/auth/saml');
+    const { handleSamlLogin } = await import('../../lib/auth/saml.js');
 
     const mockTenantConfig = {
       tenant_id: TENANT_ID,
@@ -183,7 +183,7 @@ describe('AC1: SAML login initiates signed AuthnRequest redirect to IdP SSO URL'
   });
 
   it('redirect URL contains SAMLRequest query parameter (AuthnRequest is present)', async () => {
-    const { handleSamlLogin } = await import('../../lib/auth/saml');
+    const { handleSamlLogin } = await import('../../lib/auth/saml.js');
 
     const mockTenantConfig = {
       tenant_id: TENANT_ID,
@@ -207,7 +207,7 @@ describe('AC1: SAML login initiates signed AuthnRequest redirect to IdP SSO URL'
   });
 
   it('redirect URL contains RelayState carrying the org_id for cross-tenant verification', async () => {
-    const { handleSamlLogin } = await import('../../lib/auth/saml');
+    const { handleSamlLogin } = await import('../../lib/auth/saml.js');
 
     const mockTenantConfig = {
       tenant_id: TENANT_ID,
@@ -235,7 +235,7 @@ describe('AC1: SAML login initiates signed AuthnRequest redirect to IdP SSO URL'
   });
 
   it('redirect URL points to the IdP SSO endpoint (from metadata_url), not a local path', async () => {
-    const { handleSamlLogin } = await import('../../lib/auth/saml');
+    const { handleSamlLogin } = await import('../../lib/auth/saml.js');
 
     const mockTenantConfig = {
       tenant_id: TENANT_ID,
@@ -257,7 +257,7 @@ describe('AC1: SAML login initiates signed AuthnRequest redirect to IdP SSO URL'
   });
 
   it('AuthnRequest is signed: redirect URL contains Signature (or SAMLRequest encodes signed XML)', async () => {
-    const { handleSamlLogin } = await import('../../lib/auth/saml');
+    const { handleSamlLogin } = await import('../../lib/auth/saml.js');
 
     const mockTenantConfig = {
       tenant_id: TENANT_ID,
@@ -351,7 +351,7 @@ describe('AC2: SAML callback JIT-provisions user and verifies RelayState tenant 
 
   it('creates a users row with org_default_role when jit_provisioning=true and email is unknown', async () => {
     // This import will fail (MODULE_NOT_FOUND) until GREEN creates saml.ts
-    const { handleSamlCallback } = await import('../../lib/auth/saml');
+    const { handleSamlCallback } = await import('../../lib/auth/saml.js');
 
     const payload = buildSamlResponsePayload({
       email: NEW_USER_EMAIL,
@@ -378,7 +378,7 @@ describe('AC2: SAML callback JIT-provisions user and verifies RelayState tenant 
   });
 
   it('MUTATION: skip JIT provisioning (jit_provisioning=false) → user NOT created', async () => {
-    const { handleSamlCallback } = await import('../../lib/auth/saml');
+    const { handleSamlCallback } = await import('../../lib/auth/saml.js');
 
     const configNoJit = { ...TENANT_A_CONFIG, jit_provisioning: false };
     const payload = buildSamlResponsePayload({
@@ -408,7 +408,7 @@ describe('AC2: SAML callback JIT-provisions user and verifies RelayState tenant 
     // but the SAML response contains a valid assertion issued for org A's connection.
     // If the implementation trusts RelayState alone WITHOUT verifying it matches the
     // tenant that initiated the flow, the attacker gets provisioned into org B.
-    const { handleSamlCallback } = await import('../../lib/auth/saml');
+    const { handleSamlCallback } = await import('../../lib/auth/saml.js');
 
     const ATTACKER_EMAIL = `attacker-${randomUUID().split('-')[0]}@attacker.com`;
 
@@ -451,7 +451,7 @@ describe('AC2: SAML callback JIT-provisions user and verifies RelayState tenant 
     // Red line: "Do not skip x509 signature validation"
     // If implementer passes wrong/empty cert to Jackson, signature validation is skipped
     // and any response is accepted. This test catches that mutation.
-    const { handleSamlCallback } = await import('../../lib/auth/saml');
+    const { handleSamlCallback } = await import('../../lib/auth/saml.js');
 
     const configInvalidCert = {
       ...TENANT_A_CONFIG,
@@ -485,7 +485,7 @@ describe('AC2: SAML callback JIT-provisions user and verifies RelayState tenant 
   });
 
   it('established Supabase session after successful JIT provisioning', async () => {
-    const { handleSamlCallback } = await import('../../lib/auth/saml');
+    const { handleSamlCallback } = await import('../../lib/auth/saml.js');
 
     const payload = buildSamlResponsePayload({
       email: NEW_USER_EMAIL,
@@ -509,7 +509,7 @@ describe('AC2: SAML callback JIT-provisions user and verifies RelayState tenant 
     // Verifies that the handler uses the tenant_id from RelayState, not any server-side
     // default. If the implementer skips RelayState decode and always provisions into a
     // hardcoded or request-supplied org_id, this catches it.
-    const { handleSamlCallback } = await import('../../lib/auth/saml');
+    const { handleSamlCallback } = await import('../../lib/auth/saml.js');
 
     // RelayState encodes a DIFFERENT org than the tenantConfig.org_id
     const WRONG_ORG_ID = 'org-dead-beef-dead-beef-deadbeefdeaf';
@@ -556,7 +556,7 @@ describe('AC3: enforce_for_non_admins blocks non-admin password sign-in with 403
     if (!databaseUrl) return;
 
     const { getOwnerConnection, getAppConnection } = await import(
-      '../../../../packages/db/test-utils/test-pool'
+      '../../../../packages/db/test-utils/test-pool.js'
     );
     ownerPool = getOwnerConnection();
     appPool = getAppConnection();
@@ -632,7 +632,7 @@ describe('AC3: enforce_for_non_admins blocks non-admin password sign-in with 403
     'CONTROL: enforce_for_non_admins=false → non-admin CAN password sign-in (baseline)',
     async () => {
       // This import will fail (MODULE_NOT_FOUND) until GREEN creates saml.ts
-      const { enforceSamlPolicy } = await import('../../lib/auth/saml');
+      const { enforceSamlPolicy } = await import('../../lib/auth/saml.js');
 
       // Fetch the actual config row to confirm enforce_for_non_admins=false
       const configRow = await appPool.query(
@@ -665,7 +665,7 @@ describe('AC3: enforce_for_non_admins blocks non-admin password sign-in with 403
         where tenant_id = $1
       `, [SAML_TENANT_ID]);
 
-      const { enforceSamlPolicy } = await import('../../lib/auth/saml');
+      const { enforceSamlPolicy } = await import('../../lib/auth/saml.js');
 
       const result = await enforceSamlPolicy({
         tenantId: SAML_TENANT_ID,
@@ -699,7 +699,7 @@ describe('AC3: enforce_for_non_admins blocks non-admin password sign-in with 403
         where tenant_id = $1
       `, [SAML_TENANT_ID]);
 
-      const { enforceSamlPolicy } = await import('../../lib/auth/saml');
+      const { enforceSamlPolicy } = await import('../../lib/auth/saml.js');
 
       // Admin user attempting password sign-in — must NOT be blocked
       const result = await enforceSamlPolicy({
@@ -736,7 +736,7 @@ describe('AC3: enforce_for_non_admins blocks non-admin password sign-in with 403
         where tenant_id = $1
       `, [SAML_TENANT_ID]);
 
-      const { enforceSamlPolicy } = await import('../../lib/auth/saml');
+      const { enforceSamlPolicy } = await import('../../lib/auth/saml.js');
 
       // Passing enforce_for_non_admins=false as a parameter — the DB value is true.
       // The function must use the DB value (true), NOT the parameter (false).

@@ -10,6 +10,7 @@
 //   T-058: raw new pg.Pool(...) restriction
 import js from '@eslint/js';
 import tsParser from '@typescript-eslint/parser';
+import tsPlugin from '@typescript-eslint/eslint-plugin';
 
 /** @type {import('eslint').Linter.Config[]} */
 const base = [
@@ -21,13 +22,29 @@ const base = [
   // JS recommended baseline.
   js.configs.recommended,
 
-  // For TypeScript files, turn off no-unused-vars (TypeScript tsc handles this;
-  // the JS rule produces false positives on exported enum members, type-only imports, etc.).
-  // Packages that want @typescript-eslint/no-unused-vars can add it in their local config.
+  // For TypeScript files, turn off rules that TypeScript itself enforces correctly
+  // but the JS-level ESLint rules misreport (declaration merging, type-only imports,
+  // exported enum members, etc.). Also load @typescript-eslint plugin globally
+  // (rules off) so that eslint-disable directives referencing @typescript-eslint/*
+  // rules don't fail with "rule not found". Packages that want stricter
+  // @typescript-eslint variants can add them in their local config.
   {
     files: ['**/*.{ts,tsx,mts,cts}'],
+    plugins: {
+      '@typescript-eslint': tsPlugin,
+    },
     rules: {
       'no-unused-vars': 'off',
+      'no-redeclare': 'off',
+      'no-undef': 'off',
+      // Plugin rules — kept off; presence prevents "rule not found" errors when
+      // pre-existing eslint-disable directives reference them.
+      '@typescript-eslint/no-unused-vars': 'off',
+      '@typescript-eslint/no-explicit-any': 'off',
+      '@typescript-eslint/no-unused-expressions': 'off',
+      '@typescript-eslint/ban-ts-comment': 'off',
+      '@typescript-eslint/no-require-imports': 'off',
+      '@typescript-eslint/no-implied-eval': 'off',
     },
   },
 

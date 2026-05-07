@@ -21,15 +21,20 @@ export default [
 
   // Add browser globals for all UI source files (DOM APIs used in Modal.tsx).
   {
-    files: ['src/**/*.{ts,tsx}', 'test/**/*.{ts,tsx}'],
+    files: ['src/**/*.{ts,tsx}', 'test/**/*.{ts,tsx}', '.storybook/**/*.{ts,tsx}'],
     languageOptions: {
       globals: {
         // Browser globals used in Modal.tsx and test helpers.
         document: 'readonly',
         window: 'readonly',
+        alert: 'readonly',
+        Node: 'readonly',
+        Element: 'readonly',
         HTMLElement: 'readonly',
         HTMLButtonElement: 'readonly',
         HTMLDivElement: 'readonly',
+        HTMLInputElement: 'readonly',
+        HTMLTextAreaElement: 'readonly',
         Event: 'readonly',
         KeyboardEvent: 'readonly',
         MouseEvent: 'readonly',
@@ -38,6 +43,7 @@ export default [
         requestAnimationFrame: 'readonly',
         cancelAnimationFrame: 'readonly',
         getComputedStyle: 'readonly',
+        JSX: 'readonly',
       },
     },
   },
@@ -65,19 +71,19 @@ export default [
     },
   },
 
-  // Declaration files: load @typescript-eslint plugin to satisfy eslint-disable-next-line
-  // comments that reference @typescript-eslint/no-explicit-any in pre-written .d.ts files.
-  // The rule is kept 'off' so it doesn't introduce new errors; the plugin presence
-  // prevents ESLint from complaining "rule not found".
-  // Pre-existing: these files pre-date the workspace ESLint wiring.
+  // Load @typescript-eslint plugin globally with rules off so eslint-disable
+  // directives that reference @typescript-eslint/* rules don't trigger
+  // "rule not found" errors. Rules stay off — we don't enforce them here.
   {
-    files: ['**/*.d.ts'],
+    files: ['**/*.{ts,tsx,d.ts}'],
     plugins: {
       '@typescript-eslint': tsPlugin,
     },
     rules: {
       'no-unused-vars': 'off',
       '@typescript-eslint/no-explicit-any': 'off',
+      '@typescript-eslint/no-unused-expressions': 'off',
+      '@typescript-eslint/ban-ts-comment': 'off',
     },
   },
 

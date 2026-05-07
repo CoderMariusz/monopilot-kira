@@ -70,7 +70,7 @@ beforeAll(async () => {
   if (!databaseUrl) return;
 
   const { getOwnerConnection, getAppConnection } = await import(
-    '../../../../packages/db/test-utils/test-pool'
+    '../../../../packages/db/test-utils/test-pool.js'
   );
   ownerPool = getOwnerConnection();
   appPool = getAppConnection();

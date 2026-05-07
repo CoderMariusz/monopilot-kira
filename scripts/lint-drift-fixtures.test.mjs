@@ -2,9 +2,10 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { existsSync, writeFileSync, unlinkSync, mkdirSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 
-const ROOT = '/home/user/monopilot-kira';
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
 /**
  * RED phase test for T-055: workspace-wide ESLint coverage

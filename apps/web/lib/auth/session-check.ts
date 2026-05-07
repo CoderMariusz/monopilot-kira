@@ -76,6 +76,24 @@ async function verifyAndExtractIat(token: string): Promise<number | null> {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
+  // P1.7 — fail-closed in production when Supabase env is missing.
+  // The fallback decode-only path (no JWKS verification) is acceptable in
+  // dev/test where Supabase isn't always running, but in production missing
+  // env means we'd silently accept an unverified `iat` from any JWT-shaped
+  // token — defeating the idle-timeout enforcement. Treat as 401 idle so
+  // operators see the breakage immediately rather than a quiet downgrade.
+  if (!supabaseUrl || !supabaseAnonKey) {
+    if (process.env.NODE_ENV === 'production') {
+      // eslint-disable-next-line no-console
+      console.error(
+        '[session-check] NEXT_PUBLIC_SUPABASE_URL/ANON_KEY missing in production — failing closed (idle=expired)',
+      );
+      return null;
+    }
+    // Non-production: keep legacy decode-only path so local dev / unit tests
+    // that run without a Supabase instance continue to work.
+  }
+
   if (supabaseUrl && supabaseAnonKey) {
     try {
       // No cookie reads/writes — we pass the bearer explicitly so this is

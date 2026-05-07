@@ -53,7 +53,6 @@ const introspectionMeta = {
 
 type TableWithMeta = typeof _table & { _: typeof introspectionMeta };
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 (_table as unknown as Record<string, unknown>)._ = introspectionMeta;
 
 export const tenantMigrations: TableWithMeta = _table as TableWithMeta;

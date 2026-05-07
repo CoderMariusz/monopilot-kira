@@ -243,14 +243,6 @@ describe('Modal (Radix Dialog wrapper)', () => {
     });
   });
 
-  describe('AC2: ESLint no-restricted-imports enforcement', () => {
-    it('Modal.tsx should be the only file importing @radix-ui/react-dialog', () => {
-      // This is verified by .eslintrc.js configuration
-      // The test documents the requirement
-      expect(true).toBe(true);
-    });
-  });
-
   describe('AC3: Modal size variants (sm/md/lg/xl)', () => {
     it.each(['sm', 'md', 'lg', 'xl'])('renders Modal with size variant: %s', (size) => {
       const { container } = render(

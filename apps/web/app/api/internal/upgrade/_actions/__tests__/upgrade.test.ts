@@ -68,6 +68,7 @@ async function applyMigrations(owner: pg.Pool): Promise<void> {
     end $$;
   `);
 
+  // @ts-expect-error -- vitest runs ESM; tsconfig CJS-target is harness-level, import.meta.url is valid at runtime
   const here = dirname(fileURLToPath(import.meta.url));
   const migrationsDir = resolve(here, '../../../../../../../../packages/db/migrations');
 

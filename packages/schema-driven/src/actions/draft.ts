@@ -45,6 +45,17 @@ export interface UpsertDeptColumnDraftInput {
   fieldType: FieldType;
   validationJson: unknown;
   presentationJson?: unknown;
+  /**
+   * P1.6 — Optional in-transaction client (typically supplied by
+   * `withOrgContext`). When provided:
+   *   - the function uses this client directly instead of acquiring its own
+   *     owner pool connection,
+   *   - it does NOT release the client (caller owns lifecycle), and
+   *   - it does NOT open or commit a transaction (caller owns boundary).
+   * When omitted, behaviour is unchanged: a fresh owner pool connection is
+   * acquired, used, and released per-call.
+   */
+  client?: pg.PoolClient;
 }
 
 export type UpsertDeptColumnDraftResult =
@@ -55,6 +66,15 @@ export interface PublishDeptColumnDraftInput {
   actorUserId: string;
   orgId: string;
   draftId: string;
+  /**
+   * P1.6 — Optional in-transaction client (typically supplied by
+   * `withOrgContext`). When provided the function uses it directly and does
+   * NOT open its own BEGIN/COMMIT — the caller owns the transaction
+   * boundary and will COMMIT/ROLLBACK around this call. When omitted, the
+   * function preserves its original behaviour (own owner connection + own
+   * BEGIN/COMMIT spanning steps 1..6).
+   */
+  client?: pg.PoolClient;
 }
 
 export type PublishDeptColumnDraftResult =
@@ -125,10 +145,16 @@ export async function upsertDeptColumnDraft(
     fieldType,
     validationJson,
     presentationJson,
+    client: passedClient,
   } = input;
 
-  const pool = getOwnerConnection();
-  const client = await pool.connect();
+  // P1.6 — when a client is passed (e.g. by `withOrgContext`), use it
+  // directly so RLS context (`app.current_org_id()`) set on the outer
+  // transaction is preserved. Otherwise fall back to the original owner-pool
+  // path so existing call sites and the integration test suite are unchanged.
+  const usingPassedClient = passedClient !== undefined;
+  const pool = usingPassedClient ? null : getOwnerConnection();
+  const client = passedClient ?? (await pool!.connect());
 
   try {
     // RBAC guard
@@ -163,7 +189,11 @@ export async function upsertDeptColumnDraft(
 
     return { success: true, draftId: rows[0]!.id };
   } finally {
-    client.release();
+    // Only release if we acquired the client ourselves; otherwise the caller
+    // (withOrgContext) owns the connection lifecycle.
+    if (!usingPassedClient) {
+      client.release();
+    }
   }
 }
 
@@ -172,10 +202,28 @@ export async function upsertDeptColumnDraft(
 export async function publishDeptColumnDraft(
   input: PublishDeptColumnDraftInput,
 ): Promise<PublishDeptColumnDraftResult> {
-  const { actorUserId, orgId, draftId } = input;
+  const { actorUserId, orgId, draftId, client: passedClient } = input;
 
-  const pool = getOwnerConnection();
-  const client = await pool.connect();
+  // P1.6 — when a client is passed (e.g. by `withOrgContext`), the OUTER
+  // transaction owns the BEGIN/COMMIT boundary. We skip our own BEGIN, COMMIT
+  // and ROLLBACK calls in that case so we don't break out of the caller's txn
+  // (a nested COMMIT would silently end the outer txn; a ROLLBACK would
+  // discard pre-publish work). On error we re-throw so the caller's
+  // try/catch around `withOrgContext` can ROLLBACK.
+  const usingPassedClient = passedClient !== undefined;
+  const pool = usingPassedClient ? null : getOwnerConnection();
+  const client = passedClient ?? (await pool!.connect());
+
+  // Helpers gated on whether we own the txn boundary.
+  const tBegin = async () => {
+    if (!usingPassedClient) await client.query('BEGIN');
+  };
+  const tCommit = async () => {
+    if (!usingPassedClient) await client.query('COMMIT');
+  };
+  const tRollback = async () => {
+    if (!usingPassedClient) await client.query('ROLLBACK');
+  };
 
   try {
     // RBAC guard FIRST — outside any transaction so the audit row commits
@@ -192,7 +240,7 @@ export async function publishDeptColumnDraft(
     }
 
     // ── Atomic publish: BEGIN ... COMMIT spans steps 1..6 ────────────────
-    await client.query('BEGIN');
+    await tBegin();
     try {
       // Step 1: SELECT draft FOR UPDATE
       const { rows: draftRows } = await client.query<{
@@ -214,13 +262,13 @@ export async function publishDeptColumnDraft(
       );
 
       if (draftRows.length === 0) {
-        await client.query('ROLLBACK');
+        await tRollback();
         return { success: false, error: 'not_found', status: 404 };
       }
 
       const draft = draftRows[0]!;
       if (draft.org_id !== orgId) {
-        await client.query('ROLLBACK');
+        await tRollback();
         return { success: false, error: 'not_found', status: 404 };
       }
 
@@ -235,7 +283,7 @@ export async function publishDeptColumnDraft(
         [draft.dept_id, orgId],
       );
       if (deptRows.length === 0) {
-        await client.query('ROLLBACK');
+        await tRollback();
         return { success: false, error: 'dept_not_found' };
       }
       const deptCode = deptRows[0]!.code;
@@ -253,10 +301,10 @@ export async function publishDeptColumnDraft(
         if (dcRows.length === 0) {
           // Inconsistent state — draft says 'published' but no DeptColumns row.
           // Treat as not_found rather than silently re-publishing.
-          await client.query('ROLLBACK');
+          await tRollback();
           return { success: false, error: 'not_found', status: 404 };
         }
-        await client.query('COMMIT');
+        await tCommit();
         return {
           success: true,
           deptColumnId: dcRows[0]!.id,
@@ -303,7 +351,7 @@ export async function publishDeptColumnDraft(
 
       if (bumpRows.length === 0) {
         // Should never happen — UPSERT just ran. Defensive rollback.
-        await client.query('ROLLBACK');
+        await tRollback();
         return { success: false, error: 'not_found', status: 404 };
       }
 
@@ -357,7 +405,7 @@ export async function publishDeptColumnDraft(
         ],
       );
 
-      await client.query('COMMIT');
+      await tCommit();
 
       return {
         success: true,
@@ -366,10 +414,18 @@ export async function publishDeptColumnDraft(
         idempotent: false,
       };
     } catch (err) {
-      await client.query('ROLLBACK').catch(() => undefined);
+      // Only attempt our own ROLLBACK when we own the txn boundary; if a
+      // client was passed in, the outer caller (withOrgContext) will ROLLBACK
+      // when this throws.
+      if (!usingPassedClient) {
+        await client.query('ROLLBACK').catch(() => undefined);
+      }
       throw err;
     }
   } finally {
-    client.release();
+    // Only release if we acquired the client ourselves.
+    if (!usingPassedClient) {
+      client.release();
+    }
   }
 }

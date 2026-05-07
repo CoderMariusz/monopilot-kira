@@ -52,7 +52,11 @@ export async function upsertDeptColumnDraft(
       ? JSON.parse(presentationRaw)
       : {};
 
-  return withOrgContext(async ({ userId, orgId }) =>
+  return withOrgContext(async ({ userId, orgId, client }) =>
+    // P1.6 — pass the in-transaction client from withOrgContext so the
+    // schema-driven action runs inside the org-context txn (RLS sees the
+    // correct `app.current_org_id()`). Without this the lib opens its own
+    // owner-pool connection where the org context is unset.
     _upsertDeptColumnDraft({
       actorUserId: userId,
       orgId,
@@ -61,6 +65,7 @@ export async function upsertDeptColumnDraft(
       fieldType,
       validationJson,
       presentationJson,
+      client,
     }),
   );
 }
@@ -70,7 +75,10 @@ export async function upsertDeptColumnDraft(
 export async function publishDeptColumnDraft(
   draftId: string,
 ): Promise<PublishDeptColumnDraftResult> {
-  return withOrgContext(async ({ userId, orgId }) =>
-    _publishDeptColumnDraft({ actorUserId: userId, orgId, draftId }),
+  return withOrgContext(async ({ userId, orgId, client }) =>
+    // P1.6 — pass the in-transaction client so the publish steps run inside
+    // the org-context txn (RLS preservation). The lib detects the passed
+    // client and skips its own BEGIN/COMMIT — the outer txn owns the boundary.
+    _publishDeptColumnDraft({ actorUserId: userId, orgId, draftId, client }),
   );
 }
