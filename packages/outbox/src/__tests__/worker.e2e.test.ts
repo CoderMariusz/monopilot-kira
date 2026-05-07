@@ -116,8 +116,9 @@ describe('outbox_events table and worker (integration tests)', () => {
     expect(insertedId).toBeDefined();
     expect(insertResult.rows[0].consumed_at).toBeNull();
 
-    // Run the worker once
-    await runOnce(dbClient, queue);
+    // Run the worker once — pass schemaName so the worker polls the isolated test schema
+    // (objectively-wrong omission in RED: without schema the worker polls "public" and misses the row)
+    await runOnce(dbClient, queue, schemaName);
 
     // Verify the queue received exactly one message
     expect(queue.messages).toHaveLength(1);
@@ -185,8 +186,9 @@ describe('outbox_events table and worker (integration tests)', () => {
     }
 
     // If insert succeeded, the worker must reject it during publishing
+    // Pass schemaName for isolated test schema (same fix as AC1 — objectively-wrong RED omission)
     if (insertedId) {
-      await expect(runOnce(dbClient, queue)).rejects.toThrow(/invalid|unknown|event.type/i);
+      await expect(runOnce(dbClient, queue, schemaName)).rejects.toThrow(/invalid|unknown|event.type/i);
     }
   });
 

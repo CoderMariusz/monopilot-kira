@@ -30,7 +30,7 @@ Updated by orchestrator after every PASS review.
 | T-016 | Verify-PIN step-up | ⬜ PENDING | |
 | T-017 | Reference.DeptColumns + json-schema-to-zod | ⬜ PENDING | |
 | T-018 | Reference.Rules + DSL executor stub | ✅ DONE | RED+GREEN+REVIEW pipeline complete; 14/14 tests pass; 010-rules.sql with R13+RLS |
-| T-019 | Department taxonomy seed | ⬜ PENDING | |
+| T-019 | Department taxonomy seed | ✅ DONE | T5-seed (RED skipped); GREEN+REVIEW PASS; 7 Apex depts + dept_overrides JSONB |
 | T-020 | ManufacturingOperations + seeds | ⬜ PENDING | |
 | T-021 | Cascading rule (mfg_op → intermediate code) | ⬜ PENDING | |
 | T-022 | i18n scaffold (next-intl) | ⬜ PENDING | |

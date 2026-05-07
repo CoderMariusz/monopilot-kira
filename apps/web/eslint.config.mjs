@@ -23,6 +23,17 @@ export default [
         setTimeout: 'readonly'
       }
     },
-    rules: {}
+    rules: {
+      // T-046: drift gate — prevent hardcoded Reference.* string literals outside lib/reference/**.
+      // All Reference table names must be imported from lib/reference (RefTables enum).
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector: "Literal[value=/^Reference\\.[A-Z][A-Za-z]+$/]",
+          message:
+            "Do not hardcode Reference.* table-name strings. Import RefTables from 'lib/reference' instead.",
+        },
+      ],
+    }
   }
 ];
