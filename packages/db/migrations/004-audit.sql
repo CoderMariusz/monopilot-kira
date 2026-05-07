@@ -66,6 +66,8 @@ create index if not exists audit_events_resource_idx
 create or replace function public.audit_events_impersonation_guard()
 returns trigger
 language plpgsql
+security definer
+set search_path = pg_catalog
 as $$
 begin
   if new.actor_type = 'impersonation' and new.impersonator_id is null then

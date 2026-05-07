@@ -33,7 +33,7 @@ Updated by orchestrator after every PASS review.
 | T-019 | Department taxonomy seed | ✅ DONE | T5-seed (RED skipped); GREEN+REVIEW PASS; 7 Apex depts + dept_overrides JSONB |
 | T-020 | ManufacturingOperations + seeds | ⬜ PENDING | |
 | T-021 | Cascading rule (mfg_op → intermediate code) | ⬜ PENDING | |
-| T-022 | i18n scaffold (next-intl) | ⬜ PENDING | |
+| T-022 | i18n scaffold (next-intl) | ✅ DONE | RED+GREEN+REVIEW PASS; 32/32 tests; 4 locales (pl/en/uk/ro) with CLDR plural rules; middleware.ts + routing.ts deviations accepted |
 | T-023 | GS1 identifier helpers | ✅ DONE | RED+GREEN+REVIEW PASS; 43/43 tests; mod-10 + 5 parsers (GTIN/SSCC/GLN/GRAI/GDTI); review spot-checked check-digit arithmetic |
 | T-024 | Idempotent mutation helper | ⬜ PENDING | |
 | T-025 | packages/ui + Modal primitive | ✅ DONE | RED+GREEN+REVIEW+REWORK+RE-REVIEW PASS; 18/18 tests; ESLint no-restricted-imports for radix-dialog (jest-axe fallback for axe scan documented) |
