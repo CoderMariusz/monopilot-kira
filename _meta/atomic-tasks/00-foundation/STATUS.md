@@ -19,7 +19,7 @@ Updated by orchestrator after every PASS review.
 | T-005 | Marker discipline ADR + 15-module registry | ✅ DONE | pre-existing |
 | T-006 | Baseline schema migration | ✅ DONE | pre-existing |
 | T-007 | RLS baseline | ✅ DONE | pre-existing |
-| T-008 | outbox_events table + worker stub | ⬜ PENDING | |
+| T-008 | outbox_events table + worker stub | ✅ DONE | 003-outbox.sql R13+RLS+12-event CHECK; worker runOnce at-least-once; InMemoryQueue; 9 pass + 3 skip (no DB) |
 | T-009 | audit_events 13-field table | ⬜ PENDING | |
 | T-010 | tenant_idp_config table | ⬜ PENDING | |
 | T-011 | Supabase Auth wiring | ⬜ PENDING | |

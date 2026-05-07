@@ -1,0 +1,7 @@
+{
+  "version": 3,
+  "sources": [],
+  "sections": [
+    {"offset": {"line": 4, "column": 0}, "map": {"version":3,"sources":["file:///home/user/monopilot-kira/apps/web/app/layout.tsx"],"sourcesContent":["import type { ReactNode } from 'react';\nimport './globals.css';\n\nexport const metadata = {\n  title: 'Monopilot Kira'\n};\n\nexport default function RootLayout({ children }: { children: ReactNode }) {\n  return (\n    <html lang=\"en\">\n      <body>{children}</body>\n    </html>\n  );\n}\n"],"names":["metadata","title","RootLayout","children","lang"],"mappings":";;;;;;;;;AAGO,MAAMA,WAAW;IACtBC,OAAO;AACT;AAEe,SAASC,WAAW,EAAEC,QAAQ,EAA2B;IACtE,qBACE,+YAAC;QAAKC,MAAK;kBACT,cAAA,+YAAC;sBAAMD;;;;;;;;;;;AAGb"}},
+    {"offset": {"line": 40, "column": 0}, "map": {"version":3,"sources":["file:///home/user/monopilot-kira/node_modules/.pnpm/next%4016.2.4_%40babel%2Bcore%407.29.0_react-dom%4019.2.5_react%4019.2.5__react%4019.2.5/node_modules/next/src/server/route-modules/app-page/vendored/rsc/react-jsx-dev-runtime.ts"],"sourcesContent":["module.exports = (\n  require('../../module.compiled') as typeof import('../../module.compiled')\n).vendored['react-rsc']!.ReactJsxDevRuntime\n"],"names":["module","exports","require","vendored","ReactJsxDevRuntime"],"mappings":"AAAAA,OAAOC,OAAO,GACZC,QAAQ,0NACRC,QAAQ,CAAC,YAAY,CAAEC,kBAAkB","ignoreList":[0]}}]
+}

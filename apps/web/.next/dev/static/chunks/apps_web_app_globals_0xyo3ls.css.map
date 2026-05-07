@@ -1,0 +1,6 @@
+{
+  "version": 3,
+  "sources": [],
+  "sections": [
+    {"offset": {"line": 1, "column": 0}, "map": {"version":3,"sources":["file:///home/user/monopilot-kira/apps/web/app/globals.css"],"sourcesContent":["@import \"tailwindcss\";\n\n@theme {\n  --color-background: #ffffff;\n  --color-foreground: #0f172a;\n}\n"],"names":[],"mappings":"AAEA"}}]
+}
