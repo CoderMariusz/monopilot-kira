@@ -598,10 +598,10 @@ The prefix is retrieved from `Reference.CodePrefixes` (existing table, [UNIVERSA
   "rule_id": "manufacturing_operation_to_intermediate_code_cascade",
   "rule_type": "cascading",
   "triggers": [
-    "fa.manufacturing_operation_1.changed",
-    "fa.manufacturing_operation_2.changed",
-    "fa.manufacturing_operation_3.changed",
-    "fa.manufacturing_operation_4.changed"
+    "fg.manufacturing_operation_1.changed",
+    "fg.manufacturing_operation_2.changed",
+    "fg.manufacturing_operation_3.changed",
+    "fg.manufacturing_operation_4.changed"
   ],
   "actions": [
     {
@@ -612,10 +612,11 @@ The prefix is retrieved from `Reference.CodePrefixes` (existing table, [UNIVERSA
       "format": "{prefix}-{process_suffix}-{sequence}"
     },
     {
-      "emit_event": "fa.intermediate_code_changed",
+      "emit_event": "fg.intermediate_code_changed",
       "payload_fields": ["manufacturing_operation_N", "intermediate_code_pN", "process_suffix"]
     }
   ]
+  // [LEGACY-D365] fa.manufacturing_operation_N.changed and fa.intermediate_code_changed are legacy aliases; canonical prefix is fg.* per §W0-v4.3 §2
 }
 ```
 
@@ -635,7 +636,7 @@ Template definition:
   operation_4: "Bake"
 ```
 
-**On apply to FA (Final Assembly):**
+**On apply to FG (Finished Good; [LEGACY-D365] alias: FA / Final Assembly):**
 1. `manufacturing_operation_1` ← "Mix" → lookup "Mix" in Reference.ManufacturingOperations → `process_suffix` = "MX" → `intermediate_code_p1` = "WIP-MX-..."
 2. `manufacturing_operation_2` ← "Knead" → lookup → `process_suffix` = "KN" → `intermediate_code_p2` = "WIP-KN-..."
 3. `manufacturing_operation_3` ← "Proof" → lookup → `process_suffix` = "PR" → `intermediate_code_p3` = "WIP-PR-..."
@@ -860,7 +861,7 @@ Przykłady:
 - `apex/uk-site/warehouse/lp-8823/moved`
 - `apex/uk-site/shipping/shipment-1234/epcis-commissioning`
 
-**`event_type` aggregate prefixes (canonical):** `fa.*` (NPD 01 finished-article lifecycle — `fa.created`, `fa.core_closed`, `fa.dept_closed`, `fa.built`, `fa.built_reset`, `fa.allergens_changed`), `brief.*` (NPD brief), `org.*` / `user.*` / `role.*` / `audit.*` (foundation/settings), `lp.*` (warehouse), `wo.*` (production), `quality.*`, `shipment.*`. **`fa.*` is canonical for the NPD finished-article aggregate even after the ADR-034 physical rename of the underlying `fa` table to `product`** — event names are a domain contract, decoupled from storage. `product.*` is reserved for future product-master/reference-data events (D365 item master, BOM revisions) and is NOT a synonym for `fa.*`. Full aggregate registry + add-prefix process: `_meta/specs/event-naming-convention.md`. Source-of-truth enum: `lib/outbox/events.enum.ts`.
+**`event_type` aggregate prefixes (canonical, v4.3 correction):** `fg.*` (NPD finished-good lifecycle — `fg.created`, `fg.allergens_changed`, `fg.intermediate_code_changed`; see `packages/outbox/src/events.enum.ts`), `brief.*` (NPD brief), `org.*` / `user.*` / `role.*` / `audit.*` (foundation/settings), `lp.*` (warehouse), `wo.*` (production), `quality.*`, `shipment.*`. **[LEGACY-D365] `fa.*` aliases** (`fa.created`, `fa.allergens_changed`, `fa.intermediate_code_changed`) are legacy compatibility aliases only during D365/legacy migration; they are NOT canonical for new contracts — see `packages/outbox/src/events.enum.ts` `LegacyEventAlias` and §W0-v4.3 §2. `product.*` is reserved for future product-master/reference-data events (D365 item master, BOM revisions) and is NOT a synonym for `fg.*`. Full aggregate registry + add-prefix process: `_meta/specs/event-naming-convention.md`. Source-of-truth enum: `packages/outbox/src/events.enum.ts`.
 
 ### Schema "AI-ready + traceability-ready" od dnia 1 [R13]
 
@@ -870,7 +871,7 @@ Każda kluczowa encja (`lot`, `work_order`, `quality_event`, `maintenance_event`
 |---|---|
 | `id UUID` (v7 time-ordered preferred) | Stabilny identyfikator |
 | `external_id TEXT` | Integration key (D365 RecId, GS1 GTIN, etc.) |
-| `tenant_id UUID NOT NULL` | RLS enforcement |
+| `org_id UUID NOT NULL` | RLS enforcement (business/app scope; §W0-v4.3 §1) |
 | `created_at TIMESTAMPTZ` (monotonic) | Event ordering |
 | `created_by_user UUID` | Audit |
 | `created_by_device TEXT` | Scanner telemetry (device_id) |

@@ -20,7 +20,7 @@ Updated by orchestrator after every PASS review.
 | T-006 | Baseline schema migration | ✅ DONE | pre-existing |
 | T-007 | RLS baseline | ✅ DONE | pre-existing |
 | T-008 | outbox_events table + worker stub | ✅ DONE | 003-outbox.sql R13+RLS+12-event CHECK; worker runOnce at-least-once; InMemoryQueue; 9 pass + 3 skip (no DB) |
-| T-009 | audit_events 13-field table | ⬜ PENDING | |
+| T-009 | audit_events 13-field table | ✅ DONE | RED+GREEN+REVIEW+REWORK×2+RE-REVIEW×2 PASS; 15/15 tests; trigger SECURITY DEFINER; UPDATE/DELETE assert real 42501; impersonation guard non-vacuous (proven by trigger-disable experiment) |
 | T-010 | tenant_idp_config table | ✅ DONE | RED+GREEN+REVIEW PASS; 11/11 tests; 005 migration with F-U5 defaults + both admin roles in MFA + control-plane app_user revoke |
 | T-011 | Supabase Auth wiring | ⬜ PENDING | |
 | T-012 | SAML 2.0 SP | ⬜ PENDING | |

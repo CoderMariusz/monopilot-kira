@@ -1,0 +1,27 @@
+{
+  "name": "@monopilot/sync-queue",
+  "version": "0.0.1",
+  "description": "IndexedDB sync queue primitive for offline mutations",
+  "type": "module",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "scripts": {
+    "test": "vitest",
+    "build": "tsc --noEmit"
+  },
+  "dependencies": {
+    "idb-keyval": "^6.2.1",
+    "uuid": "^10.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20",
+    "@vitest/ui": "^1.6.0",
+    "fake-indexeddb": "^6.0.0",
+    "typescript": "^5.4.5",
+    "vitest": "^1.6.0"
+  }
+}
