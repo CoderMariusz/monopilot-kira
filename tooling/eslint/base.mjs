@@ -21,6 +21,16 @@ const base = [
   // JS recommended baseline.
   js.configs.recommended,
 
+  // For TypeScript files, turn off no-unused-vars (TypeScript tsc handles this;
+  // the JS rule produces false positives on exported enum members, type-only imports, etc.).
+  // Packages that want @typescript-eslint/no-unused-vars can add it in their local config.
+  {
+    files: ['**/*.{ts,tsx,mts,cts}'],
+    rules: {
+      'no-unused-vars': 'off',
+    },
+  },
+
   // TypeScript + all shared drift rules for all source files.
   {
     files: ['**/*.{js,jsx,ts,tsx,mjs,mts,cjs,cts}'],

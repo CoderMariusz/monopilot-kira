@@ -65,19 +65,18 @@ export default [
     },
   },
 
-  // Declaration files: suppress false-positive plugin-rule errors and unused type params.
-  // The eslint-disable-next-line comments reference @typescript-eslint/no-explicit-any
-  // but the plugin isn't loaded in base config; the rule-not-found error is suppressed here.
+  // Declaration files: load @typescript-eslint plugin to satisfy eslint-disable-next-line
+  // comments that reference @typescript-eslint/no-explicit-any in pre-written .d.ts files.
+  // The rule is kept 'off' so it doesn't introduce new errors; the plugin presence
+  // prevents ESLint from complaining "rule not found".
   // Pre-existing: these files pre-date the workspace ESLint wiring.
   {
     files: ['**/*.d.ts'],
-    linterOptions: {
-      reportUnusedDisableDirectives: false,
+    plugins: {
+      '@typescript-eslint': tsPlugin,
     },
     rules: {
       'no-unused-vars': 'off',
-      // Suppress "rule not found" for @typescript-eslint/* inline disable comments
-      // that exist in pre-written .d.ts files without the plugin loaded.
       '@typescript-eslint/no-explicit-any': 'off',
     },
   },
