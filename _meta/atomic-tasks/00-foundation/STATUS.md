@@ -67,12 +67,12 @@ Updated by orchestrator after every PASS review.
 | T-053 | packages/db layout consolidation | ✅ DONE | RED+GREEN+REVIEW PASS; 106/106 tests; src/schema/ removed, schema/ canonical with 9-table barrel; symlink relative; FK added on R13 org_id |
 | T-054 | Migration runner + filename normalization | ✅ DONE | GREEN PASS; raw-SQL runner in scripts/migrate.ts; 0014_→014- rename; schema_migrations table; idempotent; --dry-run; checksum guard; 8/8 tests |
 | T-055 | Workspace-wide ESLint coverage | ✅ DONE | RED+GREEN+REVIEW+REWORK+RE-REVIEW PASS; tooling/eslint/base.mjs shared; 8 packages get drift rules; pg.Pool override per-test only; 7/7 fixture tests + root pnpm lint exit 0 |
-| T-056 | Reference.Departments RLS hotfix follow-up | ⬜ PENDING | |
-| T-057 | schema-runtime VITEST env-var elimination | ⬜ PENDING | |
-| T-058 | Migrate integration tests to getAppConnection | ⬜ PENDING | P0 Wave-B blocker; deps T-053+T-054+T-055 |
-| T-059 | PRD marker discipline sweep | ⬜ PENDING | |
+| T-056 | Reference.Departments RLS hotfix follow-up | ✅ DONE | GREEN+REVIEW PASS; Option A (no 017, hot-fix in 011 sufficient); 9 dedicated RLS tests; AC4 pins SQLSTATE 42501 (non-vacuous) |
+| T-057 | schema-runtime VITEST env-var elimination | ✅ DONE | RED+GREEN+REVIEW PASS; _setPool/_clearPool exported test seams; isTestMode derived from injected pool; 7/7 (3 pass + 4 skip) |
+| T-058 | Migrate integration tests to getAppConnection | ✅ DONE | RED+GREEN+REVIEW PASS; 7 files migrated to getOwner/getAppConnection; lib/client.ts deleted; test-utils/test-pool.ts helper; 128/130 tests pass (2 pre-existing migrate-runner failures, out-of-scope) |
+| T-059 | PRD marker discipline sweep | ✅ DONE | GREEN+REVIEW PASS; 75 heading lines marked + 10 allowlisted + leading-dash fix; exit 0 on 00-FOUNDATION-PRD.md; 55/56 web tests pass; T-047 amendments intact |
 | T-060 | ALTER tenant_idp_config: 11 missing F-A2 cols | ✅ DONE | RED+GREEN PASS; 16/16 FA2 tests + 11/11 existing tests; 016 migration with 11 cols + updated_at trigger |
-| T-061 | Password policy enforcement library | ⬜ PENDING | |
+| T-061 | Password policy enforcement library | ✅ DONE | RED+GREEN+REVIEW+REWORK+RE-REVIEW PASS; 19/19 tests (mutation-proven non-vacuous); whitespace_only guard; 018-password-history.sql; HIBP injectable + fail-open |
 
 ## Migration ordering lock
 
@@ -93,5 +93,6 @@ For reference, current assignments per task JSONs:
 - 014 r13-placeholder-tables (T-040) — renamed from 0014_r13-placeholder-tables.sql to match NNN- convention (T-054)
 - 015 idempotency (T-024)
 - 016 tenant-idp-config-fa2-columns (T-060)
+- 018 password-history (T-061)
 
 If your task is not in the list above and is not a migration task, do not create migration files.

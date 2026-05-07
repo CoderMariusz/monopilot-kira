@@ -1,5 +1,5 @@
-import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
-import { compile, clearCache } from '../compile';
+import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from 'vitest';
+import { compile, clearCache, _setPool, _clearPool } from '../compile';
 import pg from 'pg';
 
 const hasDatabaseUrl = Boolean(process.env.DATABASE_URL);
@@ -23,9 +23,16 @@ beforeAll(async () => {
 
   // Create schema for testing if it doesn't exist
   await dbClient.query('CREATE SCHEMA IF NOT EXISTS schema_runtime_test;');
+
+  // Inject the test pool and schema so compile() routes to the test schema
+  // instead of attempting to use DATABASE_URL with the production "Reference" schema.
+  _setPool(dbPool, 'schema_runtime_test');
 });
 
 afterAll(async () => {
+  // Clear the test seam before tearing down connections.
+  _clearPool();
+
   if (dbClient) {
     try {
       await dbClient.query('DROP SCHEMA IF EXISTS schema_runtime_test CASCADE;');
@@ -77,6 +84,14 @@ beforeEach(async () => {
 });
 
 describe('Reference.DeptColumns + Reference.FieldTypes schema compilation', () => {
+  it('RED: _setPool() and _clearPool() test seams are exported and accessible', () => {
+    // GREEN phase: _setPool and _clearPool are now genuine named exports from compile.ts.
+    // Underscore prefix is a convention marking them as test-only seams; they are NOT
+    // hidden behind process.env.VITEST or any env-var detection.
+    expect(typeof _setPool).toBe('function');
+    expect(typeof _clearPool).toBe('function');
+  });
+
   it('GREEN: compile() and clearCache() functions are implemented and exported', () => {
     // GREEN phase: functions are implemented — compile is async, clearCache is sync no-op
     // Fix: original RED test used .rejects on a function wrapper (not a Promise) which is
@@ -85,6 +100,20 @@ describe('Reference.DeptColumns + Reference.FieldTypes schema compilation', () =
     expect(typeof clearCache).toBe('function');
     // clearCache must not throw
     expect(() => clearCache()).not.toThrow();
+  });
+
+  it('RED/GREEN: compile.ts contains no process.env.VITEST reference', async () => {
+    // This test uses Node fs to read the compile.ts source as text and asserts
+    // that no VITEST reference remains. This will fail in RED phase (VITEST is
+    // still in the code) and pass after GREEN refactor removes it.
+    const fs = require('fs');
+    const path = require('path');
+
+    const compileSourcePath = path.resolve(__dirname, '../compile.ts');
+    const sourceCode = fs.readFileSync(compileSourcePath, 'utf-8');
+
+    // Assert that process.env.VITEST does not appear in the source
+    expect(sourceCode).not.toMatch(/process\.env\.VITEST/);
   });
 
   runDatabaseTest(

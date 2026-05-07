@@ -37,31 +37,31 @@ references:
 
 ---
 
-## §1 — Six Architectural Principles [Phase D]
+## §1 — Six Architectural Principles [Phase D] [UNIVERSAL]
 
 Six principles stanowią architectural contract Monopilot. Każdy PRD modułu MUSI być zgodny; każdy ADR MUSI explicite odnosić się do relevantych principles.
 
-### P1 — Easy extension contract
+### P1 — Easy extension contract [UNIVERSAL]
 Nowe kolumny / dept / workflows / rules dodawane przez **schema-driven Admin UI wizard** (ADR-028), nie przez code changes ani migration per-org. Marker [APEX-CONFIG] ≠ hard-coded exception; to konfiguracja w UI lub metadata. Source: Phase D decision #17 ("easy extension = architectural contract").
 
-### P2 — Two-systems principle
+### P2 — Two-systems principle [UNIVERSAL]
 V7 Excel i Monopilot są **dwoma UX layers tego samego logicznego systemu** przez 12 miesięcy transition. Reality fidelity PRD = 1:1 v7, speculation deferred. REALITY-SYNC pattern (obowiązkowy): zmiana v7 → update `_meta/reality-sources/pld-v7-excel/*` w tej samej sesji (Session A), propagacja do PRDów osobna sesja (Session B). Source: Phase D §4 + MES-TRENDS-2026.md §3 (strangler fig).
 
-### P3 — Schema-driven + Rule engine DSL
+### P3 — Schema-driven + Rule engine DSL [UNIVERSAL]
 Main Table 69 cols definiowany w `Reference.DeptColumns` (ADR-028). Rules (cascading / conditional required / gate / workflow) w DSL stored as data (ADR-029), **nie w kodzie**. Admin UI wizard jako blocker dla P1. Runtime engine generuje forms/validators/views/flows z metadata. Source: ADR-028, ADR-029, META-MODEL §4-6.
 
-### P4 — Reality fidelity
+### P4 — Reality fidelity [UNIVERSAL]
 Phase B PRDs replikują v7 1:1 (7 depts z fixed names, 69 cols Main Table, cascading rules zgodne z obecnymi). Speculation (Multi-site, OEE advanced, AI features) deferred do Phase C/D. Source: Phase D §5-6.
 
-### P5 — Multi-tenant from day 1
+### P5 — Multi-tenant from day 1 [UNIVERSAL]
 4-warstwowy model L1-L4 (ADR-031): L1 core universal, L2 org config, L3 tenant extensions, L4 org-private. RLS baseline, EU data residency cluster default, schema variation per org. Source: ADR-031, MES-TRENDS-2026.md §5.
 
-### P6 — Marker discipline
+### P6 — Marker discipline [UNIVERSAL]
 Każdy fragment PRD / ADR / skill oznaczony jednym z 4 markerów (patrz §2). Marker kategoryzuje co jest universal vs per-tenant-config vs evolving vs legacy. Nie ma fragmentu "bez markera". Source: Phase D decision #9.
 
 ---
 
-## §2 — Marker Discipline
+## §2 — Marker Discipline [UNIVERSAL]
 
 Cztery markery obowiązkowe w każdym PRD / ADR / skill / code comment dotyczącym behawioru biznesowego:
 
@@ -108,7 +108,7 @@ Cztery markery obowiązkowe w każdym PRD / ADR / skill / code comment dotycząc
 
 ## §3 — Personas [UNIVERSAL z [APEX-CONFIG] nazwiskami]
 
-### Primary (z reality sources)
+### Primary (z reality sources) [APEX-CONFIG]
 
 | Persona | Opis | Modules primary | Markery |
 |---|---|---|---|
@@ -119,7 +119,7 @@ Cztery markery obowiązkowe w każdym PRD / ADR / skill / code comment dotycząc
 | **Warehouse Operator** | GRN, LP moves, FEFO picking | 05-WAREHOUSE, 06-SCANNER-P1 | [UNIVERSAL] |
 | **Shipping Lead** | SO, pack, EDI/EPCIS events, Peppol invoicing | 11-SHIPPING | [UNIVERSAL] |
 
-### Secondary
+### Secondary [APEX-CONFIG]
 
 | Persona | Modules | Pillar |
 |---|---|---|
@@ -136,11 +136,11 @@ Cztery markery obowiązkowe w każdym PRD / ADR / skill / code comment dotycząc
 
 ---
 
-## §4 — Module Map (15 modules, Phase D renumbering)
+## §4 — Module Map (15 modules, Phase D renumbering) [UNIVERSAL]
 
 Two tracks — **PRD writing** i **Build/Implementation** — mają różne tempo i granularność.
 
-### §4.1 PRD Writing Phases
+### §4.1 PRD Writing Phases [EVOLVING]
 
 PRD writing = **fazami (batch-based)** bo moduły w batchu dzielą common context (reality sources, dependencies, research insights) — efektywność tokenów + consistency.
 
@@ -159,7 +159,7 @@ PRD writing = **fazami (batch-based)** bo moduły w batchu dzielą common contex
 - W batch PRDy piszemy **równolegle lub w krótkiej sekwencji w tej samej sesji** (common context reuse)
 - Post-batch close handoff → following batch bootstrap
 
-### §4.2 Build / Implementation Sequence
+### §4.2 Build / Implementation Sequence [EVOLVING]
 
 Build = **per module albo jego części, po kolei, z rozbiciem na stories/tasks**. Żadnych "batch implementations" — moduł lub submodule implementowany end-to-end (stories→QA→regression→done) zanim zaczyna się następny.
 
@@ -190,7 +190,7 @@ Build = **per module albo jego części, po kolei, z rozbiciem na stories/tasks*
 
 > **§4.2-AMENDMENT addendum (2026-04-30) [F-A4 per gap-backlog 2026-04-30]:** the Phase E-0 Foundation set is extended with **`00-FOUNDATION-impl-j` (UI primitives + design-token package)** covering `packages/ui` bootstrap, the 5 modal/form primitives, the 5 tuning primitives, the 10 MODAL-SCHEMA pattern templates, design tokens, Storybook 8 + axe-core CI, and the `assertModalA11y()` helper (per §5.y / F-A3). Atomic tasks: `T-00j-001..007` in `_meta/plans/2026-04-30-ux-prd-plan-gap-backlog.md` §00-FOUNDATION ADD list. **Critical-path:** `impl-j` MUST complete **in parallel with `impl-d/e/f/g/h`** and **before any 01-NPD-a or 02-SETTINGS T3-ui task starts** (12 downstream modules consume the primitives — letting any T3-ui task ship first guarantees drift from MODAL-SCHEMA.md and forces re-work). The build sequence in `_meta/plans/2026-04-22-phase-e-kickoff-plan.md` §3.2 is updated to add `impl-j` to the Foundation set; row 3 prerequisite becomes **"02-SETTINGS-a minimum carveout done AND `impl-j` complete"**.
 
-### §4.3 Tabela 15 modułów
+### §4.3 Tabela 15 modułów [UNIVERSAL]
 
 | # | Moduł | PRD Writing | Build order | File | Dependencies |
 |---|---|---|---|---|---|
@@ -213,7 +213,7 @@ Build = **per module albo jego części, po kolei, z rozbiciem na stories/tasks*
 
 > **§4.3-AMENDMENT — Table Naming Decision (2026-04-30, per ADR-034 finalisation):** the physical table for the NPD finished-article aggregate is **`product`** (singular, generic). This is **Option B** (chosen over Option A "keep `fa` as physical name" and Option C "dual-table `fa` + `product`"). Rationale: (1) generic naming aligns with multi-industry generalisation in ADR-034 (Bakery / Pharma / FMCG / meat all use the same physical schema), (2) avoids confusion with the `fa.*` event aggregate which is a domain-language label, not a table reference, (3) gives a clean target name for D365 item-master sync long-term. **Backward-compat for D365 Builder + legacy SQL:** create a SQL view `CREATE VIEW fa AS SELECT * FROM product;` (read-only, Phase E-0 → C1 deprecation window) so existing `Builder_FA<code>.xlsx` queries and any external integration referring to `fa` continue to resolve. The view is dropped at end of Phase C1 once D365 adapter migration completes. **[v4.3 correction per §W0-v4.3 §2]** Event aggregate prefix moves to `fg.*` canonical; `fa.*` is a [LEGACY-D365] alias only (see `packages/outbox/src/events.enum.ts` `LegacyEventAlias`). The v4.1 statement "Event aggregate prefix stays `fa.*`" is superseded. Acceptance-criteria impact: 01-NPD-a DDL emits `CREATE TABLE product (...)` + `CREATE VIEW fa AS SELECT * FROM product;`; 01-NPD §15 success criteria updated to reference `product` table for RLS coverage with `fa` listed as compat view.
 
-### INTEGRATIONS — distributed, not a single module
+### INTEGRATIONS — distributed, not a single module [UNIVERSAL]
 
 Phase D decision: INTEGRATIONS nie jest osobnym modułem. **Multi-stage, rozproszone C1-C5**:
 
@@ -227,7 +227,7 @@ Phase D decision: INTEGRATIONS nie jest osobnym modułem. **Multi-stage, rozpros
 
 **Odrzucony:** stary `13-INTEGRATIONS-PRD.md` (pre-Phase-D). Zarchiwizowany do `_archive/pre-phase-d-prds/`. Content cherry-pick per stage.
 
-### Scanner (06-SCANNER-P1) — inkrementalny
+### Scanner (06-SCANNER-P1) — inkrementalny [UNIVERSAL]
 
 Stare dokumenty opisywały "Scanner M05" z 5 epikami. Phase D: 06-SCANNER-P1 to **P1 slice** (Receive/Move/Pick/Count), dalsze zakresy (Offline deep, Split/Merge, Pack&Ship) = post-P1. Patrz §9 MES-TRENDS-2026.md + MES-TRENDS-2026 §7.
 
@@ -235,7 +235,7 @@ Stare dokumenty opisywały "Scanner M05" z 5 epikami. Phase D: 06-SCANNER-P1 to 
 
 ## §5 — Tech Stack [UNIVERSAL]
 
-### Runtime + Frontend
+### Runtime + Frontend [UNIVERSAL]
 
 - **Next.js 16 App Router + RSC** [R1 MES-TRENDS-2026 §1]: multi-tenant `/app/[tenant]/...` + middleware. Server Actions > większość REST endpointów w admin panelach. `cacheLife`/`cacheTag` stable (no `unstable_` prefix).
 - **TypeScript 5+** strict mode.
@@ -243,7 +243,7 @@ Stare dokumenty opisywały "Scanner M05" z 5 epikami. Phase D: 06-SCANNER-P1 to 
 - **Tailwind CSS v4** + minimal design system (CSS-first config: `@import "tailwindcss"` + `@theme {}` — no `tailwind.config.ts`; per-tenant theming via L2 config).
 - **PWA (Workbox)** dla 06-SCANNER-P1 [R5 MES-TRENDS-2026 §7]: Service Worker + IndexedDB sync queue + DataWedge keyboard-wedge. Capacitor wrapper jako P2 fallback.
 
-### Backend
+### Backend [UNIVERSAL]
 
 - **Postgres 16+** (Supabase lub self-host — nie vendor lock-in, standard SQL).
 - **Storage pattern [R2]** (MES-TRENDS-2026 §4): hybrid core-typed + JSONB. Main Table = 69 typed cols + `ext_jsonb` (L3) + `private_jsonb` (L4) + `schema_version INT`. Composite indexes `(tenant_id, dept_id, status, created_at)`, GIN on `ext_jsonb`.
@@ -251,7 +251,7 @@ Stare dokumenty opisywały "Scanner M05" z 5 epikami. Phase D: 06-SCANNER-P1 to 
 - **Zod + json-schema-to-zod runtime** [R4] (MES-TRENDS-2026 §4.3): `Reference.DeptColumns` → JSON Schema → Zod runtime → RHF resolver. Cache LRU per `schema_version`.
 - **Outbox pattern od MVP** [R1] (MES-TRENDS-2026 §3, §10): domain events w tabeli `outbox_events`, worker publikujący do queue. Event shape ISA-95-compatible. Hook dla D365 / MQTT / feature store / EPCIS.
 
-### Cross-cutting infra
+### Cross-cutting infra [UNIVERSAL]
 
 - **Feature flags**: PostHog self-host [R6] (MES-TRENDS-2026 §5.4).
 - **Observability**: Sentry + Datadog / OpenTelemetry (MES-TRENDS-2026 §9 cross-cutting).
@@ -260,7 +260,7 @@ Stare dokumenty opisywały "Scanner M05" z 5 epikami. Phase D: 06-SCANNER-P1 to 
 - **Testing**: Vitest v4 (Phase D decision #10; browser import: `import { page } from 'vitest/browser'`) + Playwright v1.58 (E2E per module).
 - **i18n** [R11] (MES-TRENDS-2026 §7.2): pl/en/uk/ro baseline od dnia 1. ICU MessageFormat, nie string concat.
 
-### Integration stack
+### Integration stack [UNIVERSAL]
 
 - **D365 adapter** [R8] (`@monopilot/d365-adapter`): DMF client + retry/DLQ + schema mapping. One-way pull (items/BOM/customers/suppliers/locations/UoM nightly + on-demand); one-way push (production confirmations/inventory movements/shipments/quality holds near-real-time via Azure Service Bus).
 - **Peppol access point (open question)** (MES-TRENDS-2026 §8): Storecove / Pagero / Tradeshift SaaS P1; on-prem Phase 2.
@@ -303,9 +303,9 @@ Stare dokumenty opisywały "Scanner M05" z 5 epikami. Phase D: 06-SCANNER-P1 to 
 
 ---
 
-## §6 — Schema-driven Foundation [ADR-028]
+## §6 — Schema-driven Foundation [ADR-028] [UNIVERSAL]
 
-### Koncepcja
+### Koncepcja [UNIVERSAL]
 
 Główne encje biznesowe (Main Table 69 cols, BOM, Reference tables) definiowane w **metadata tabelach** (`Reference.DeptColumns`, `Reference.FieldTypes`, `Reference.Formulas`). Runtime engine generuje:
 
@@ -315,7 +315,7 @@ Główne encje biznesowe (Main Table 69 cols, BOM, Reference tables) definiowane
 - **List/detail views** (column visibility per role, per tenant)
 - **REST/GraphQL API** (Directus-pattern, MES-TRENDS-2026 §4.1)
 
-### Admin UI wizard (blocker dla P1 "easy extension")
+### Admin UI wizard (blocker dla P1 "easy extension") [UNIVERSAL]
 
 UI flow do add/edit column:
 1. User picks field type (string / number / date / enum / formula / relation) — enum-based, nie free-form
@@ -324,7 +324,7 @@ UI flow do add/edit column:
 4. Preview w sample data
 5. Save → metadata upsert + schema_version bump + migration record
 
-### Storage tiers
+### Storage tiers [UNIVERSAL]
 
 | Tier | Storage | When |
 |---|---|---|
@@ -333,14 +333,14 @@ UI flow do add/edit column:
 | L3 custom cols | `ext_jsonb` + expression indexes | Per-tenant extensions |
 | L4 org-private | `private_jsonb` | Tenant-owned, zero Monopilot visibility |
 
-### Schema versioning
+### Schema versioning [UNIVERSAL]
 
 - Każda zmiana DeptColumns produkuje `schema_migration` record
 - Stare rekordy noszą `schema_version INT` — backward compat guaranteed do N-2 major
 - Migration idempotent: add column z defaultem, never drop w-locie (deprecate → wait N releases → remove)
 - Drift detection daily job: compare `information_schema` vs `Reference.DeptColumns`
 
-### Reject patterns (z MES-TRENDS-2026 §4.6)
+### Reject patterns (z MES-TRENDS-2026 §4.6) [UNIVERSAL]
 
 - Pure EAV (Salesforce Value1..ValueN hack) — JSONB lepszy dziś
 - Notion block monolith — za mało structural dla 69-col Main Table
@@ -349,9 +349,9 @@ UI flow do add/edit column:
 
 ---
 
-## §7 — Rule Engine DSL [ADR-029]
+## §7 — Rule Engine DSL [ADR-029] [UNIVERSAL]
 
-### 4 obszary rule engine
+### 4 obszary rule engine [UNIVERSAL]
 
 | Obszar | Description | Przykłady Apex |
 |---|---|---|
@@ -360,7 +360,7 @@ UI flow do add/edit column:
 | **Gate rules** | Block transitions przed spełnieniem warunków | Price blocking → Core + Production done; Allergen changeover gate → cleaning validation + ATP swab + dual sign-off |
 | **Workflow-as-data** | State machines definiowane metadata, nie kodem | WO state machine, TO lifecycle, Release-to-warehouse flow |
 
-### Format (hybrid)
+### Format (hybrid) [UNIVERSAL]
 
 - **JSON runtime** — engine-executable format (stored w `Reference.Rules` z `tenant_id`, `rule_type`, `definition_json`, `version`, `active_from`, `active_to`)
 - **Mermaid docs** — human-readable workflow diagrams auto-generated z JSON
@@ -385,7 +385,7 @@ UI flow do add/edit column:
 }
 ```
 
-### Open items rule engine
+### Open items rule engine [EVOLVING]
 
 - Rule engine versioning (ADR-029 open): v1 active vs v2 draft — Phase D+ implementation
 - Hard-lock semantyka ADR-028 open: rules dla schema changes "developer only" vs "superadmin only"
@@ -393,9 +393,9 @@ UI flow do add/edit column:
 
 ---
 
-## §8 — Multi-tenant Model L1-L4 [ADR-031]
+## §8 — Multi-tenant Model L1-L4 [ADR-031] [UNIVERSAL]
 
-### 4 warstwy schema
+### 4 warstwy schema [UNIVERSAL]
 
 | Layer | Scope | Storage | Upgrade model |
 |---|---|---|---|
@@ -404,26 +404,26 @@ UI flow do add/edit column:
 | **L3 — Tenant extensions** | Custom cols (JSONB), custom rules (DSL) | `ext_jsonb` + Reference.Rules filtered by tenant | Tenant-initiated, CLI + migration runner |
 | **L4 — Org-private** | Completely private schemas/tables, zero Monopilot visibility | `private_jsonb` or per-tenant schema | Tenant-owned, zero Monopilot touch |
 
-### Isolation default [R3, R7]
+### Isolation default [R3, R7] [UNIVERSAL]
 
 - **Shared DB + shared schema + tenant_id + RLS** (MES-TRENDS-2026 §5.1) — Apex Day 1
 - **Silo opt-in dla enterprise** — per-tenant DB cluster później (data residency / white-label / compliance)
 - **NIE** "shared DB + separate schemas" default — łączy wady (per Bytebase 2025)
 
-### Data residency [R7] (APEX-CONFIG→UNIVERSAL)
+### Data residency [R7] (APEX-CONFIG→UNIVERSAL) [APEX-CONFIG]
 
 - EU cluster default dla Apex + wszystkich EU klientów
 - US cluster gdy pojawi się USA customer
 - Global control plane + regional data planes
 
-### Upgrade orchestration [MES-TRENDS-2026 §5.4]
+### Upgrade orchestration [MES-TRENDS-2026 §5.4] [UNIVERSAL]
 
 - **Canary tenants** (5-10%) → monitor 15-30min → progressive
 - **Tenant migrations table**: `(tenant_id, component, current_version, target_version, last_run_at)`
 - **Feature flags per-tenant targeting** (PostHog)
 - Opt-in, max 2-3 major versions back supported (no permanent opt-out)
 
-### Admin tooling
+### Admin tooling [UNIVERSAL]
 
 - **Impersonation**: explicit `impersonating_as` flag w session + audit log każdej operacji. Nigdy silent RLS bypass.
 - **Tenant switcher**: superadmin-only, MFA, SIEM logged.
@@ -469,16 +469,16 @@ CREATE TABLE tenant_idp_config (
 
 **UI:** the editor lives in **02-SETTINGS ACCESS pillar** (Org Admin only); see 02-SETTINGS-PRD §14.5 (SSO) / §14.6 (SCIM) / §14.7 (IP Allowlist).
 
-### Open items multi-tenant
+### Open items multi-tenant [EVOLVING]
 
 - Upgrade strategy L2/L3/L4 opt-in granularity (Phase D §10 carry-forward; research §5.4 daje framework)
 - Storage partition strategy (open question R10.3: partition by tenant_id od MVP czy później?) — rekomendacja wstępna: start bez partitioningu, monitor EXPLAIN
 
 ---
 
-## §9 — Configurable Department Taxonomy [ADR-030]
+## §9 — Configurable Department Taxonomy [ADR-030] [UNIVERSAL]
 
-### Koncepcja
+### Koncepcja [APEX-CONFIG]
 
 Dept structure = L2 config per tenant. Apex = baseline 7 depts fixed names:
 
@@ -500,7 +500,7 @@ Dept structure = L2 config per tenant. Apex = baseline 7 depts fixed names:
 
 Implementacja: L2 config `tenant.dept_overrides` JSONB, run-time re-mapping cascade/gate rules.
 
-### Phase D decision #15 — role naming fix
+### Phase D decision #15 — role naming fix [APEX-CONFIG]
 
 - Core = **NPD team** (nie "Development")
 - Technical = Quality (QA)
@@ -508,9 +508,9 @@ Implementacja: L2 config `tenant.dept_overrides` JSONB, run-time re-mapping casc
 
 ---
 
-## §9.1 — Manufacturing Operations (Process) Configuration Pattern [ADR-028 extension]
+## §9.1 — Manufacturing Operations (Process) Configuration Pattern [ADR-028 extension] [UNIVERSAL]
 
-### Pattern Overview
+### Pattern Overview [UNIVERSAL]
 
 Manufacturing operations (processes) use a configurable suffix-based naming scheme instead of hardcoded Process_A/B/C/D naming. This aligns with **P1 (Easy extension contract)** and **ADR-028 (schema-driven column definition)** by allowing per-tenant, per-industry process configuration through metadata lookup rather than code-level constants.
 
@@ -530,7 +530,7 @@ Pharmacy scenario:
 - `manufacturing_operation_1 = "Synthesis"` → lookup → retrieve `process_suffix = "SY"`
 - `intermediate_code_p1` generated as: `"BATCH-SY-0000001"`
 
-### Reference.ManufacturingOperations Table [UNIVERSAL pattern, ORG-CONFIG values]
+### Reference.ManufacturingOperations Table [UNIVERSAL pattern, ORG-CONFIG values] [UNIVERSAL]
 
 **Table structure [UNIVERSAL]:**
 
@@ -556,7 +556,7 @@ CREATE UNIQUE INDEX idx_manufacturing_operations_tenant_suffix
 - `[UNIVERSAL]`: Table structure, configuration concept, cascade logic, constraint enforcement
 - `[ORG-CONFIG]`: `operation_name`, `process_suffix` values (differ per tenant and industry)
 
-### Intermediate Code Generation Formula
+### Intermediate Code Generation Formula [UNIVERSAL]
 
 **Generic pattern:**
 ```
@@ -579,7 +579,7 @@ FMCG (Reference.CodePrefixes[intermediate].prefix = "SKU"):
 
 The prefix is retrieved from `Reference.CodePrefixes` (existing table, [UNIVERSAL] structure with [ORG-CONFIG] values); the suffix is retrieved from `Reference.ManufacturingOperations` per-tenant lookup; the sequence number is auto-incremented per manufacturing operation per lots/work orders.
 
-### Cascading Rule Integration — Chain 2 (Manufacturing_Operation_N → Intermediate_Code_P*)
+### Cascading Rule Integration — Chain 2 (Manufacturing_Operation_N → Intermediate_Code_P*) [UNIVERSAL]
 
 **Rule type:** Cascading (ADR-029, [UNIVERSAL] logic with [ORG-CONFIG] suffix values)
 
@@ -622,7 +622,7 @@ The prefix is retrieved from `Reference.CodePrefixes` (existing table, [UNIVERSA
 
 This rule is **[UNIVERSAL]** in logic (lookup + cascade structure) but **[ORG-CONFIG]** in suffix values (each tenant defines their own operation_name→process_suffix mappings).
 
-### Template Application
+### Template Application [APEX-CONFIG]
 
 Templates reference `operation_name` values (not hardcoded positions):
 
@@ -644,7 +644,7 @@ Template definition:
 
 Cascade rule fires for each operation_N assignment, emitting intermediate_code_pN updates + events.
 
-### Industry Seed Data [ORG-CONFIG]
+### Industry Seed Data [ORG-CONFIG] [APEX-CONFIG]
 
 **Bakery (Reference.ManufacturingOperations seed for industry_code='bakery')**
 
@@ -753,7 +753,7 @@ Cascade rule fires for each operation_N assignment, emitting intermediate_code_p
 
 Seed data is applied **per new tenant** (Phase B.2 or Phase C.1 tenant onboarding flow), based on tenant's selected `industry_code`. Post-seed, tenant admins can edit operations via 02-SETTINGS Admin UI (Phase C.1).
 
-### Phase Implementation
+### Phase Implementation [EVOLVING]
 
 **Phase B.2 (01-NPD cascade engine):**
 - Implement lookup from manufacturing_operation_N → Reference.ManufacturingOperations.process_suffix (seed hardcoded per industry initially)
@@ -773,7 +773,7 @@ Seed data is applied **per new tenant** (Phase B.2 or Phase C.1 tenant onboardin
 - Industry-specific variations (e.g., Bakery subtype "Artisanal" vs "Industrial" with different operations)
 - Template library per operation set (Phase B.2 / C.1)
 
-### Phase B.2 Migration (Existing Tenants)
+### Phase B.2 Migration (Existing Tenants) [LEGACY-D365]
 
 **For tenants with existing hardcoded Process_1..4 (from v7 or earlier phases):**
 
@@ -810,7 +810,7 @@ Seed data is applied **per new tenant** (Phase B.2 or Phase C.1 tenant onboardin
 - **ADR-030**: Configurable department taxonomy; manufacturing operations are cross-dept (01-NPD + 08-PRODUCTION consumers)
 - **P1**: Easy extension contract — operations configurable via UI, not hardcoded
 
-### Validation & Constraints
+### Validation & Constraints [UNIVERSAL]
 
 - `process_suffix` must be **unique per tenant** (UNIQUE index enforced, ADR-028 constraint pattern)
 - `process_suffix` must be **2-4 alphanumeric characters** (regex validation in Admin UI + DB check constraint)
@@ -829,9 +829,9 @@ Seed data is applied **per new tenant** (Phase B.2 or Phase C.1 tenant onboardin
 
 ---
 
-## §10 — Event-first + AI/Trace-ready Schema [R1, R13]
+## §10 — Event-first + AI/Trace-ready Schema [R1, R13] [UNIVERSAL]
 
-### Outbox pattern od MVP
+### Outbox pattern od MVP [UNIVERSAL]
 
 Wszystkie state changes emitują event do `outbox_events`:
 
@@ -852,7 +852,7 @@ CREATE INDEX ON outbox_events (tenant_id, created_at) WHERE consumed_at IS NULL;
 
 Worker publikuje do queue (Azure Service Bus / SQS / RabbitMQ). Hook za darmo dla: D365 adapter, MQTT bridge (future UNS), feature store (ML), EPCIS event stream (traceability).
 
-### Event naming ISA-95-compatible
+### Event naming ISA-95-compatible [UNIVERSAL]
 
 Format (queue routing key): `<tenant>/<site>/<area>/<line>/<event_type>`
 
@@ -863,7 +863,7 @@ Przykłady:
 
 **`event_type` aggregate prefixes (canonical, v4.3 correction):** `fg.*` (NPD finished-good lifecycle — `fg.created`, `fg.allergens_changed`, `fg.intermediate_code_changed`; see `packages/outbox/src/events.enum.ts`), `brief.*` (NPD brief), `org.*` / `user.*` / `role.*` / `audit.*` (foundation/settings), `lp.*` (warehouse), `wo.*` (production), `quality.*`, `shipment.*`. **[LEGACY-D365] `fa.*` aliases** (`fa.created`, `fa.allergens_changed`, `fa.intermediate_code_changed`) are legacy compatibility aliases only during D365/legacy migration; they are NOT canonical for new contracts — see `packages/outbox/src/events.enum.ts` `LegacyEventAlias` and §W0-v4.3 §2. `product.*` is reserved for future product-master/reference-data events (D365 item master, BOM revisions) and is NOT a synonym for `fg.*`. Full aggregate registry + add-prefix process: `_meta/specs/event-naming-convention.md`. Source-of-truth enum: `packages/outbox/src/events.enum.ts`.
 
-### Schema "AI-ready + traceability-ready" od dnia 1 [R13]
+### Schema "AI-ready + traceability-ready" od dnia 1 [R13] [UNIVERSAL]
 
 Każda kluczowa encja (`lot`, `work_order`, `quality_event`, `maintenance_event`, `shipment`, `bom_item`) MUSI mieć pola:
 
@@ -881,7 +881,7 @@ Każda kluczowa encja (`lot`, `work_order`, `quality_event`, `maintenance_event`
 
 Dodanie tych pól później = migration hell; koszt dodania teraz = ~0.
 
-### GS1-first identifiers [R15]
+### GS1-first identifiers [R15] [UNIVERSAL]
 
 - **GTIN** (produkt) — preferred zamiast własnego `sku`
 - **SSCC** (pallet) — preferred zamiast własnego `pallet_code`
@@ -891,18 +891,18 @@ Dodanie tych pól później = migration hell; koszt dodania teraz = ~0.
 
 Internal ID może żyć obok, ale GS1 ID = paszport produktu dla retailer interop + traceability.
 
-### Idempotent mutations [R14]
+### Idempotent mutations [R14] [UNIVERSAL]
 
 Wszystkie scanner-originated mutations (06-SCANNER) MUSZĄ akceptować client-generated `transaction_id` (UUID v7 preferred — time-ordered). Server zwraca deterministic response na replay.
 
 ---
 
-## §11 — Cross-cutting Requirements
+## §11 — Cross-cutting Requirements [UNIVERSAL]
 
-### i18n [R11] — UNIVERSAL od dnia 1
+### i18n [R11] — UNIVERSAL od dnia 1 [UNIVERSAL]
 Minimum **pl, en, uk, ro** baseline (Apex realnie ma UA+RO workers). ICU MessageFormat. Locale-aware date/number parsing. RTL-ready structure. Nie string concat.
 
-### Audit log [F-U3 per gap-backlog 2026-04-30, UNIVERSAL]
+### Audit log [F-U3 per gap-backlog 2026-04-30, UNIVERSAL] [UNIVERSAL]
 
 Append-only `audit_events` table; triggers on business tables + event-sourced integration with the rule engine (ADR-029). Append-only is enforced at the DB level (no UPDATE / DELETE policy for any non-superadmin role; superadmin DELETE is itself logged to a separate immutable WORM bucket).
 
@@ -944,7 +944,7 @@ CREATE INDEX ON audit_events (tenant_id, actor_user_id, occurred_at DESC) WHERE 
 
 **Compliance scope:** SOC 2 CC6.1/CC6.3/CC7.2; GDPR Art. 30 (processing records) + Art. 32 (security of processing); FDA 21 CFR Part 11 (electronic records — when a US tenant requires it, `retention_class='security'` extends to **10 years**); FSMA 204 traceability records (handled via `aggregate_type IN ('lot','shipment')` rows). The `before_state` / `after_state` JSONB columns make every change reversible at the audit level (Part 11 §11.10(e) "secure, computer-generated, time-stamped audit trails"). Impersonation flows MUST write a paired `impersonation.start` + `impersonation.end` row with `actor_type='impersonation'` and `impersonator_id` populated; the `org.access.admin` UI surfaces this as a yellow banner.
 
-### Regulatory roadmap — first-class artifact
+### Regulatory roadmap — first-class artifact [UNIVERSAL]
 Proponowane utrzymanie w `_foundation/regulatory/` (Phase C task). Deadliny:
 
 | Regulacja | Enforcement | Modules |
@@ -959,7 +959,7 @@ Proponowane utrzymanie w `_foundation/regulatory/` (Phase C task). Deadliny:
 
 Review kwartalny (FDA/KE zmieniają terminy).
 
-### Out-of-scope Monopilot [R8 strip-down]
+### Out-of-scope Monopilot [R8 strip-down] [UNIVERSAL]
 
 - **GL / AP / AR / Cash management** — zostaje D365 / Xero / Comarch
 - **HR / Payroll** — osobna domena
@@ -969,7 +969,7 @@ Review kwartalny (FDA/KE zmieniają terminy).
 - **Blockchain traceability** — GS1 Digital Link + EPCIS 2.0 wystarczą (MES-TRENDS-2026 §2)
 - **Autonomous LLM agents executing MES actions** — Phase 4+, po 12-18 mies. production data + audit infra [R12]
 
-### Build posture
+### Build posture [UNIVERSAL]
 
 - Nigdy DDL w-locie w request path (schema changes = jobs z approval)
 - Testy zawsze z app-role connection (nigdy superuser)
@@ -979,9 +979,9 @@ Review kwartalny (FDA/KE zmieniają terminy).
 
 ---
 
-## §12 — ADRs (Active + Candidate)
+## §12 — ADRs (Active + Candidate) [UNIVERSAL]
 
-### Active Phase 0 ADRs
+### Active Phase 0 ADRs [UNIVERSAL]
 
 | ADR | Title | Status |
 |---|---|---|
@@ -990,7 +990,7 @@ Review kwartalny (FDA/KE zmieniają terminy).
 | **ADR-030** | Configurable department taxonomy | Active (foundation) |
 | **ADR-031** | Schema variation per org (L1-L4 multi-tenant) | Active (foundation) |
 
-### Candidate ADRs z Research (R1-R15) — do opisu w Phase B/C
+### Candidate ADRs z Research (R1-R15) — do opisu w Phase B/C [EVOLVING]
 
 | # | Title | Marker | Source § |
 |---|---|---|---|
@@ -1010,7 +1010,7 @@ Review kwartalny (FDA/KE zmieniają terminy).
 | R14 | Idempotent scanner mutations (UUID v7 transaction_id) | [UNIVERSAL] | MES-TRENDS §7, §8 |
 | R15 | GS1-first identifiers (GTIN/SSCC/GLN/GRAI) | [UNIVERSAL] | MES-TRENDS §8 |
 
-### Pre-Phase-D ADRs (001-019) — DEFERRED REVIEW
+### Pre-Phase-D ADRs (001-019) — DEFERRED REVIEW [EVOLVING]
 
 Stare ADRs (ADR-001 LP / ADR-002 BOM Snapshot / ADR-003 Multi-Tenancy / ADR-004 GS1 / ADR-005 FIFO/FEFO / ADR-006 Scanner-First / ADR-007 WO State Machine / ADR-008 Audit Trail / ADR-009 Routing Costs / ADR-010 Product Procurement / ADR-011 Module Toggle / ADR-012 Role Permissions / ADR-013 RLS Pattern / ADR-015 Constants / ADR-016 CSV Parser / ADR-017 React.memo / ADR-018 API Errors / ADR-019 TO State Machine) **nie są zreviewane w Phase B.1**.
 
@@ -1024,16 +1024,16 @@ Dodane do §13 open items.
 
 ---
 
-## §13 — Success Criteria
+## §13 — Success Criteria [UNIVERSAL]
 
-### Architektoniczne (Phase B close criteria)
+### Architektoniczne (Phase B close criteria) [UNIVERSAL]
 
 - [ ] 00-FOUNDATION PRD aligned z 6 principles + R1-R15 + ADR-028/029/030/031
 - [ ] 01-NPD PRD covers full v7 equivalent (7 depts + workflow + cascade + Dashboard) + Brief import + D365 Builder + allergens multi-level cascade
 - [ ] Marker discipline w 100% fragmentów PRD
 - [ ] Cross-refs do reality docs (pld-v7-excel + brief-excels) w 100% fragmentów zawierających reality
 
-### Funkcjonalne (MVP — post Phase C)
+### Funkcjonalne (MVP — post Phase C) [UNIVERSAL]
 
 - [ ] 15 modułów rewriteowanych (Phase B + C complete)
 - [ ] Schema-driven admin UI wizard działa (ADR-028)
@@ -1044,7 +1044,7 @@ Dodane do §13 open items.
 - [ ] Traceability forward+backward <30s (reality fidelity v7 + BRCGS <4h requirement)
 - [ ] Outbox events emitowane dla każdej business mutacji (R1)
 
-### Niefunkcjonalne
+### Niefunkcjonalne [UNIVERSAL]
 
 - [ ] Uptime ≥ 99.5% / 30 dni
 - [ ] Page load P95 < 2s
@@ -1058,7 +1058,7 @@ Dodane do §13 open items.
 - [ ] **SSO baseline = SAML 2.0 + Microsoft Entra ID connector** available to every tenant from day 1 (no upsell gating); SCIM 2.0 endpoints exposed when `tenant_idp_config.scim_token_hash IS NOT NULL` [F-U5]
 - [ ] **Magic-link invitation TTL = 7 days, single-use, signed**; codified, not Supabase-default; expiry shown to inviter and a self-service "resend" path is available [F-U5]
 
-### Compliance
+### Compliance [UNIVERSAL]
 
 - [ ] SOC 2 controls baseline implementowane
 - [ ] GDPR right-to-erasure function działa
@@ -1068,9 +1068,9 @@ Dodane do §13 open items.
 
 ---
 
-## §14 — Open Items (carry-forward)
+## §14 — Open Items (carry-forward) [EVOLVING]
 
-### Z Phase D EVOLVING §19 (deferred, research nie zamyka)
+### Z Phase D EVOLVING §19 (deferred, research nie zamyka) [EVOLVING]
 
 1. **Brief allergens lokalizacja** — rescan brief pełny schema (C21-C37) w Phase B.2 start
 2. **Multi-component Volume w brief 2** — clarify z user (sample miał empty — typowe czy pomyłka?)
@@ -1081,14 +1081,14 @@ Dodane do §13 open items.
 7. **Commercial upstream od briefu** (pkt 13 deferred) — Commercial vs NPD-internal brief source — future
 8. **MRP split** — nieaktualne (pozostaje 1 dept)
 
-### Z Research §10.3 (open research items)
+### Z Research §10.3 (open research items) [EVOLVING]
 
 9. **Storage partition strategy** — partition by tenant_id od MVP vs gdy >10k tenants? Rekomendacja wstępna: start bez partitioningu, monitor EXPLAIN
 10. **Event bus MVP consumer** — Azure Service Bus (D365 ekosystem fit) vs SQS/RabbitMQ/NATS? Rekomendacja wstępna: Azure Service Bus. Weryfikacja Phase C1
 11. **LLM platform** — Claude API direct vs Azure OpenAI vs Modal dla custom. Rekomendacja wstępna: Claude API direct + Modal dla custom models
 12. **Peppol access point vendor** — Storecove (developer-friendly) vs Pagero (mid-market) vs Tradeshift (enterprise). Deferred do Phase C4 (11-SHIPPING)
 
-### Nowe (z Phase B.1 writeup)
+### Nowe (z Phase B.1 writeup) [EVOLVING]
 
 13. **Pre-Phase-D ADRs deep review (001-019)** — osobna sesja (Phase C start preferably). Każdy ADR do oceny: Active / Superseded / Renumber / Deprecate
 14. **Regulatory roadmap artifact** — utworzenie `_foundation/regulatory/` z deadlinami + review process (Phase C1)

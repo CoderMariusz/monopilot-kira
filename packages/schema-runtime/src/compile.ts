@@ -21,22 +21,60 @@ interface DeptColumnRow {
 }
 
 // ---------------------------------------------------------------------------
+// Test seams — underscore prefix signals "test-only" by convention.
+//
+// _setPool(pool, schema) — inject a pg.Pool and optional schema name for tests.
+// _clearPool()           — clear the injected pool/schema; reverts to production defaults.
+//
+// Production paths never call these. They are genuine exports (not hidden via
+// env-var detection) so that consumers can call them explicitly in beforeAll /
+// afterAll hooks without relying on env-var side-effects.
+// ---------------------------------------------------------------------------
+
+let _injectedPool: pg.Pool | null = null;
+let _injectedSchema: string | null = null;
+
+/**
+ * Inject a pg.Pool and optional schema name for use in tests.
+ * Call this in beforeAll; pair with _clearPool() in afterAll.
+ *
+ * @param pool   - A pg.Pool instance pointing at the test database.
+ * @param schema - Schema name to route queries to (default: 'Reference').
+ */
+export function _setPool(pool: pg.Pool, schema?: string): void {
+  _injectedPool = pool;
+  _injectedSchema = schema ?? null;
+}
+
+/**
+ * Clear the injected pool and schema, reverting to production defaults.
+ * Call this in afterAll to avoid leaking test state between suites.
+ */
+export function _clearPool(): void {
+  _injectedPool = null;
+  _injectedSchema = null;
+}
+
+// ---------------------------------------------------------------------------
 // Schema / table resolution
 //
-// Production:   schema = "Reference", tables are "Reference"."DeptColumns"
-// Test (Vitest): tables are created in schema_runtime_test as
-//                schema_runtime_test."Reference.DeptColumns"
-//                The VITEST env flag set by Vitest allows auto-detection.
+// Production default: schema = "Reference", tables are "Reference"."DeptColumns"
+//                     and "Reference"."FieldTypes".
+// Injected (test):    uses _injectedSchema / _injectedPool when set via _setPool().
+//                     Test tables are named "Reference.DeptColumns" / "Reference.FieldTypes"
+//                     (i.e. the RefTables enum values as quoted identifiers) to allow
+//                     the same table-name constants to resolve correctly.
 // ---------------------------------------------------------------------------
 
 function getSchemaConfig(): { schemaName: string; isTestMode: boolean } {
-  const isTestMode = Boolean(process.env.VITEST);
-  return { schemaName: isTestMode ? 'schema_runtime_test' : 'Reference', isTestMode };
+  const isTestMode = _injectedPool !== null;
+  const schemaName = _injectedSchema ?? 'Reference';
+  return { schemaName, isTestMode };
 }
 
 function deptColumnsTable(schemaName: string, isTestMode: boolean): string {
   if (isTestMode) {
-    // test schema uses table literally named "Reference.DeptColumns"
+    // test schema uses a table literally named "Reference.DeptColumns"
     return `"${schemaName}"."${RefTables.DeptColumns}"`;
   }
   return `"${schemaName}"."DeptColumns"`;
@@ -134,6 +172,10 @@ function jsonSchemaToZodType(jsonSchema: Record<string, unknown>): ZodTypeAny {
 let _pool: pg.Pool | null = null;
 
 function getPool(): pg.Pool {
+  // Use the injected pool when a test seam is active.
+  if (_injectedPool !== null) {
+    return _injectedPool;
+  }
   if (!_pool) {
     const connectionString = process.env.DATABASE_URL;
     if (!connectionString) {

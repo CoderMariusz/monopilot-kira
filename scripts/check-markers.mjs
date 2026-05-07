@@ -16,6 +16,27 @@ const EXECUTIVE_FRONT_MATTER = new Set([
   'changelog',
 ]);
 
+// Pure reference / navigation sub-sections that contain only links, file paths, or
+// pointer lists — no business requirements — and are legitimately unmarked.
+// Each entry is the normalized heading text (lower-case, §-prefix stripped,
+// dash/colon tail stripped) as produced by stripMarker + the two .replace() calls
+// in isAllowedUnmarkedHeading.
+const REFERENCE_SUBSECTIONS = new Set([
+  // §15 sub-headings: reference lists only, no requirements content
+  'phase d primary',           // §15 — list of Phase D source docs
+  'research primary',          // §15 — list of research source docs
+  'phase 0 foundation',        // §15 — list of ADRs and foundation docs
+  'phase a reality sources',   // §15 — list of reality-source files
+  'handoffs chain (chronological)', // §15 — list of handoff docs
+  'design artifacts',          // §15 — list of UX prototype files
+  'module prds (phase d renumbering', // §15 — list of sibling PRD files (tail stripped at '—')
+  'archived',                  // §15 — list of archived superseded PRDs
+  'external standards & regulations', // §15 — list of external regulation URLs
+  // §9.1 structural cross-reference headings (no requirements, only pointers)
+  'related architecture decisions', // §9.1 — pointer list to ADRs
+  'cross',                     // §9.1 "Cross-references (to be added in sibling PRDs)" — tail stripped at '-'
+]);
+
 function usage() {
   return [
     'Usage: node scripts/check-markers.mjs [file-or-directory ...]',
@@ -54,11 +75,15 @@ function stripMarker(text) {
 function isAllowedUnmarkedHeading(level, text, headingIndex) {
   const normalized = stripMarker(text)
     .replace(/^§[\w.-]+\s+/, '')
+    .replace(/^[—\-–]\s*/, '')   // strip leading dash/em-dash separator left after §-prefix removal
     .replace(/[—:-].*$/, '')
     .trim();
 
   if (level === 1 && headingIndex === 0) return true;
   if (level === 2 && EXECUTIVE_FRONT_MATTER.has(normalized)) return true;
+  // Allow navigation/reference sub-sections (level 2 or 3) that contain only
+  // links or pointers — no business requirements — per T-059 allowlist extension.
+  if (REFERENCE_SUBSECTIONS.has(normalized)) return true;
   return false;
 }
 
