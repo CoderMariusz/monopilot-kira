@@ -93,6 +93,8 @@ For reference, current assignments per task JSONs:
 - 014 r13-placeholder-tables (T-040) — renamed from 0014_r13-placeholder-tables.sql to match NNN- convention (T-054)
 - 015 idempotency (T-024)
 - 016 tenant-idp-config-fa2-columns (T-060)
+- 017 rbac (T-014) — REASSIGNED from JSON's "006-rbac.sql" because 006 is taken by T-045 app-role per T-054 lock
 - 018 password-history (T-061)
+- 019 pins (T-016) — REASSIGNED from JSON's "008-pins.sql" because 008 is reserved for T-013 SCIM (Wave C)
 
 If your task is not in the list above and is not a migration task, do not create migration files.
