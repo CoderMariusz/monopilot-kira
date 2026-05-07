@@ -62,40 +62,72 @@ export async function setRecoveryCodes(userId: string): Promise<string[]> {
  *   true  — code matches an unused row; marks it used
  *   false — code is wrong OR already used (replay attempt writes audit row on replay)
  *
- * Logic:
- * 1. SELECT unused codes (used_at IS NULL) and verify argon2id hash
- * 2. First match: mark used_at = now(), return true
- * 3. No match in unused: check used codes for replay detection
- *    - If a USED code matches → write audit_events (action='mfa.recovery_replay_attempt'); return false
- *    - Otherwise (no match at all): return false (no audit — brute-force attempt vs replay differs)
+ * Logic (atomic — race-condition safe):
+ * 1. BEGIN transaction
+ * 2. SELECT unused codes FOR UPDATE (row-level lock prevents concurrent redemption)
+ * 3. Verify argon2id hash against each locked row
+ * 4. First match: UPDATE used_at=now() WHERE id=$1 AND used_at IS NULL
+ *    - rowCount === 0 → another concurrent call already used it → return false
+ *    - rowCount === 1 → COMMIT, return true
+ * 5. No match in unused: check used codes for replay detection (outside transaction)
+ *    - If a USED code matches → write audit_events; return false
+ *    - Otherwise (no match at all): return false (brute-force — no audit)
  */
 export async function verifyRecoveryCode(
   userId: string,
   code: string,
   conn: pg.Pool,
 ): Promise<boolean> {
-  // Step 1: Fetch all unused codes
-  const unusedResult = await conn.query<{ id: string; code_hash: string }>(
-    `SELECT id, code_hash FROM public.recovery_codes
-     WHERE user_id = $1 AND used_at IS NULL
-     ORDER BY id`,
-    [userId],
-  );
+  // Acquire a dedicated client so we can run BEGIN/COMMIT/ROLLBACK
+  const client = await conn.connect();
+  try {
+    await client.query('BEGIN');
 
-  // Step 2: Check each unused code
-  for (const row of unusedResult.rows) {
-    const matches = await argon2.verify(row.code_hash, code);
-    if (matches) {
-      // Mark as used
-      await conn.query(
-        `UPDATE public.recovery_codes SET used_at = now() WHERE id = $1`,
-        [row.id],
-      );
-      return true;
+    // Step 1: SELECT unused codes with FOR UPDATE — locks rows until transaction ends,
+    // preventing concurrent callers from also reading them as unused.
+    const unusedResult = await client.query<{ id: string; code_hash: string }>(
+      `SELECT id, code_hash FROM public.recovery_codes
+       WHERE user_id = $1 AND used_at IS NULL
+       ORDER BY id
+       FOR UPDATE`,
+      [userId],
+    );
+
+    // Step 2: Check each locked unused code
+    for (const row of unusedResult.rows) {
+      const matches = await argon2.verify(row.code_hash, code);
+      if (matches) {
+        // Re-check used_at IS NULL in the UPDATE predicate (defense-in-depth).
+        // If a concurrent path somehow marked it used between the SELECT and here,
+        // rowCount will be 0 and we treat it as a replay (fail closed).
+        const updateResult = await client.query(
+          `UPDATE public.recovery_codes
+           SET used_at = now()
+           WHERE id = $1 AND used_at IS NULL`,
+          [row.id],
+        );
+
+        if (updateResult.rowCount === 0) {
+          // Another concurrent call won the race — treat as already-used
+          await client.query('ROLLBACK');
+          return false;
+        }
+
+        await client.query('COMMIT');
+        return true;
+      }
     }
+
+    // No match in unused codes — release the lock
+    await client.query('COMMIT');
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
   }
 
-  // Step 3: No match in unused — check used codes for replay detection
+  // Step 3: No match in unused — check used codes for replay detection (read-only, outside tx)
   const usedResult = await conn.query<{ id: string; code_hash: string }>(
     `SELECT id, code_hash FROM public.recovery_codes
      WHERE user_id = $1 AND used_at IS NOT NULL

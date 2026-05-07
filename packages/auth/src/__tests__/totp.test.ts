@@ -436,3 +436,27 @@ describe('AC3: WebAuthn stub returns deferred response without external API cont
     expect(keys).toContain('reason');
   });
 });
+
+// ---------------------------------------------------------------------------
+// AC2 race condition regression: concurrent verifyRecoveryCode calls
+// ---------------------------------------------------------------------------
+
+describe('AC2 race condition: concurrent verifyRecoveryCode calls with same code', () => {
+  it('only ONE of two concurrent calls with the same valid code returns true', async () => {
+    // Mutation proof: WITHOUT the FOR UPDATE lock, both calls read used_at IS NULL,
+    // both pass argon2.verify, and both UPDATE — returning [true, true].
+    // WITH the lock, the second caller blocks until the first commits, then finds
+    // used_at IS NOT NULL in its own UPDATE predicate (rowCount === 0) → returns false.
+    const codes = await setRecoveryCodes(TEST_USER_ID);
+    const targetCode = codes[0]; // pick one valid code
+
+    const [r1, r2] = await Promise.all([
+      verifyRecoveryCode(TEST_USER_ID, targetCode, ownerConn),
+      verifyRecoveryCode(TEST_USER_ID, targetCode, ownerConn),
+    ]);
+
+    // Exactly ONE true, exactly ONE false — one-time guarantee upheld under concurrency
+    expect([r1, r2].filter((x) => x === true)).toHaveLength(1);
+    expect([r1, r2].filter((x) => x === false)).toHaveLength(1);
+  });
+});
