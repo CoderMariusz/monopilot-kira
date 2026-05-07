@@ -58,7 +58,7 @@ Updated by orchestrator after every PASS review.
 | T-044 | Sync queue flusher | ⬜ PENDING | |
 | T-045 | Postgres app-role connection split | ⬜ PENDING | |
 | T-046 | ref-tables.enum.ts source-of-truth lock | ✅ DONE | Full pipeline + 1 rework cycle (ESLint drift gate added to apps/web flat-config); workspace-wide lint coverage flagged as pre-existing infra debt |
-| T-047 | Wave0 PRD v4.3 domain amendment | ⬜ PENDING | |
+| T-047 | Wave0 PRD v4.3 domain amendment | ✅ DONE | docs (RED skipped); GREEN+REVIEW PASS; 6 surgical amendments (fg.* canonical, org_id business scope, [LEGACY-D365] qualification on fa.*); 87 unmarked headings = pre-existing debt |
 | T-048 | Domain glossary lock | ⬜ PENDING | |
 | T-049 | Shared BOM SSOT skeleton | ⬜ PENDING | |
 | T-050 | Authorization policy foundation | ⬜ PENDING | |

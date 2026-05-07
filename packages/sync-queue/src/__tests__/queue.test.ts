@@ -282,7 +282,7 @@ describe('IndexedDB sync queue (T-043)', () => {
       const id = generateTransactionId();
 
       expect(typeof id).toBe('string');
-      expect(id).toMatch(/^[0-9a-f]{26}$/i);
+      expect(id).toMatch(/^[0-9a-f]{32}$/i);
     });
 
     it('should generate unique transaction IDs', () => {
