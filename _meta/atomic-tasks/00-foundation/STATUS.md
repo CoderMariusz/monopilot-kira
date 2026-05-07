@@ -37,11 +37,11 @@ Updated by orchestrator after every PASS review.
 | T-023 | GS1 identifier helpers | ✅ DONE | RED+GREEN+REVIEW PASS; 43/43 tests; mod-10 + 5 parsers (GTIN/SSCC/GLN/GRAI/GDTI); review spot-checked check-digit arithmetic |
 | T-024 | Idempotent mutation helper | ✅ DONE | RED+GREEN+REVIEW+REWORK+RE-REVIEW PASS; 17/17 tests; canonicalStringify (key-order invariant, no nested-object drop); 015-idempotency.sql + GRANT to app_user |
 | T-025 | packages/ui + Modal primitive | ✅ DONE | RED+GREEN+REVIEW+REWORK+RE-REVIEW PASS; 18/18 tests; ESLint no-restricted-imports for radix-dialog (jest-axe fallback for axe scan documented) |
-| T-026 | Stepper primitive | ⬜ PENDING | |
-| T-027 | Field primitive | ⬜ PENDING | |
-| T-028 | ReasonInput primitive | ⬜ PENDING | |
-| T-029 | Summary primitive | ⬜ PENDING | |
-| T-030 | Tuning primitives | ⬜ PENDING | |
+| T-026 | Stepper primitive | 🔄 IN PROGRESS | RED done (25 tests / 4 describes; deps: zustand + @radix-ui/react-tabs) |
+| T-027 | Field primitive | 🔄 IN PROGRESS | RED done (16 tests / 3 describes; deps: react-hook-form + zod + @hookform/resolvers) |
+| T-028 | ReasonInput primitive | 🔄 IN PROGRESS | RED done (8 tests / 3 describes; counter mutation-proof) |
+| T-029 | Summary primitive | 🔄 IN PROGRESS | RED done (19 tests / 3 describes; flag: add --color-warning to tokens.css) |
+| T-030 | Tuning primitives | 🔄 IN PROGRESS | RED done (tuning.test.tsx 382 LOC; 5 prim + deriveRunHistory + Button wrapper) |
 | T-031 | 10 MODAL-SCHEMA pattern templates | ⬜ PENDING | |
 | T-032 | Regulatory roadmap artifact | ⬜ PENDING | |
 | T-033 | PostHog feature flags | ⬜ PENDING | |
@@ -59,7 +59,7 @@ Updated by orchestrator after every PASS review.
 | T-045 | Postgres app-role connection split | ✅ DONE | RED+GREEN+REVIEW+REWORK+RE-REVIEW PASS; 10/10 tests; 006-app-role.sql; eslint.config.mjs flat config; SELECT-0-rows RLS test; production guard |
 | T-046 | ref-tables.enum.ts source-of-truth lock | ✅ DONE | Full pipeline + 1 rework cycle (ESLint drift gate added to apps/web flat-config); workspace-wide lint coverage flagged as pre-existing infra debt |
 | T-047 | Wave0 PRD v4.3 domain amendment | ✅ DONE | docs (RED skipped); GREEN+REVIEW PASS; 6 surgical amendments (fg.* canonical, org_id business scope, [LEGACY-D365] qualification on fa.*); 87 unmarked headings = pre-existing debt |
-| T-048 | Domain glossary lock | ⬜ PENDING | |
+| T-048 | Domain glossary lock | ✅ DONE | T0-docs full cycle PASS; 13 canonical terms + checker; negative test verified (factory_spec removal → exit 1 with MISSING name); §W0-v4.3 lock honoured |
 | T-049 | Shared BOM SSOT skeleton | ⬜ PENDING | |
 | T-050 | Authorization policy foundation | ⬜ PENDING | |
 | T-051 | D365 posture contract | ⬜ PENDING | |
