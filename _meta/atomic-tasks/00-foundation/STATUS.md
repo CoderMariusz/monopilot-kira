@@ -64,6 +64,15 @@ Updated by orchestrator after every PASS review.
 | T-050 | Authorization policy foundation | ⬜ PENDING | |
 | T-051 | D365 posture contract | ⬜ PENDING | |
 | T-052 | Manifest/coverage readiness patch | ⬜ PENDING | |
+| T-053 | packages/db layout consolidation | ✅ DONE | RED+GREEN+REVIEW PASS; 106/106 tests; src/schema/ removed, schema/ canonical with 9-table barrel; symlink relative; FK added on R13 org_id |
+| T-054 | Migration runner + filename normalization | ⬜ PENDING | P0 Wave-B blocker; deps T-053 |
+| T-055 | Workspace-wide ESLint coverage | ⬜ PENDING | P0 Wave-B blocker; GREEN in flight |
+| T-056 | Reference.Departments RLS hotfix follow-up | ⬜ PENDING | |
+| T-057 | schema-runtime VITEST env-var elimination | ⬜ PENDING | |
+| T-058 | Migrate integration tests to getAppConnection | ⬜ PENDING | P0 Wave-B blocker; deps T-053+T-054+T-055 |
+| T-059 | PRD marker discipline sweep | ⬜ PENDING | |
+| T-060 | ALTER tenant_idp_config: 11 missing F-A2 cols | ⬜ PENDING | P0 Wave-B blocker; deps T-054 |
+| T-061 | Password policy enforcement library | ⬜ PENDING | |
 
 ## Migration ordering lock
 

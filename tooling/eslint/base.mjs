@@ -30,6 +30,27 @@ const base = [
         sourceType: 'module',
         ecmaVersion: 2024,
       },
+      globals: {
+        // Node.js globals available in all monorepo packages.
+        process: 'readonly',
+        console: 'readonly',
+        Buffer: 'readonly',
+        __dirname: 'readonly',
+        __filename: 'readonly',
+        setTimeout: 'readonly',
+        clearTimeout: 'readonly',
+        setInterval: 'readonly',
+        clearInterval: 'readonly',
+        setImmediate: 'readonly',
+        clearImmediate: 'readonly',
+        fetch: 'readonly',
+        performance: 'readonly',
+        URL: 'readonly',
+        URLSearchParams: 'readonly',
+        TextEncoder: 'readonly',
+        TextDecoder: 'readonly',
+        crypto: 'readonly',
+      },
     },
     rules: {
       // T-046: drift gate — prevent hardcoded Reference.* string literals.
