@@ -6,15 +6,17 @@ import { fileURLToPath } from 'node:url';
 import pg from 'pg';
 import { EventType } from '../events.enum';
 
-const hasDatabaseUrl = Boolean(process.env.DATABASE_URL);
-const runIntegrationTest = hasDatabaseUrl ? it : it.skip;
+// Always run for RED phase to show missing implementation
+const runIntegrationTest = it;
 const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const dbPackageRoot = resolve(packageRoot, '../../db');
 const outboxMigrationPath = resolve(dbPackageRoot, 'migrations/003-outbox.sql');
 
-let dbClient: pg.PoolClient;
+let dbClient: pg.PoolClient | null = null;
 let schemaName = 'public';
-let closePool: () => Promise<void>;
+let closePool: (() => Promise<void>) | null = null;
+const hasDatabaseUrl = Boolean(process.env.DATABASE_URL);
+const runWithDb = hasDatabaseUrl ? it : it.skip;
 
 function quoteIdentifier(identifier: string): string {
   return `"${identifier.replace(/"/g, '""')}"`;
@@ -65,8 +67,18 @@ afterAll(async () => {
   }
 });
 
+describe('outbox module imports', () => {
+  it('RED: worker.ts should exist with runOnce export', async () => {
+    await import('../worker');
+  });
+
+  it('RED: queue.ts should exist with InMemoryQueue export', async () => {
+    await import('../queue');
+  });
+});
+
 describe('outbox_events table and worker', () => {
-  runIntegrationTest('AC1: given outbox_events exists and a row is inserted with event_type=audit.recorded, when worker.runOnce() executes, then the in-memory queue contains exactly one message and the row\'s consumed_at is set', async () => {
+  runWithDb('AC1: given outbox_events exists and a row is inserted with event_type=audit.recorded, when worker.runOnce() executes, then the in-memory queue contains exactly one message and the row\'s consumed_at is set', async () => {
     // Import the worker and queue modules
     const { runOnce } = await import('../worker');
     const { InMemoryQueue } = await import('../queue');
@@ -118,7 +130,7 @@ describe('outbox_events table and worker', () => {
     expect(checkResult.rows[0].consumed_at).toBeInstanceOf(Date);
   });
 
-  runIntegrationTest('AC2: given event_type is constrained to EventType members, when an insertion uses invalid.event (not in EventType), then the worker rejects publishing and the test fails fast', async () => {
+  runWithDb('AC2: given event_type is constrained to EventType members, when an insertion uses invalid.event (not in EventType), then the worker rejects publishing and the test fails fast', async () => {
     const { runOnce } = await import('../worker');
     const { InMemoryQueue } = await import('../queue');
 
@@ -159,7 +171,7 @@ describe('outbox_events table and worker', () => {
     }
   });
 
-  runIntegrationTest('AC3: given the partial index on (org_id, created_at) WHERE consumed_at IS NULL exists, when EXPLAIN runs the unconsumed query, then it uses the index', async () => {
+  runWithDb('AC3: given the partial index on (org_id, created_at) WHERE consumed_at IS NULL exists, when EXPLAIN runs the unconsumed query, then it uses the index', async () => {
     const indexQuery = `
       SELECT indexname
       FROM pg_indexes

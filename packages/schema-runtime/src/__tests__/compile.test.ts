@@ -77,6 +77,17 @@ beforeEach(async () => {
 });
 
 describe('Reference.DeptColumns + Reference.FieldTypes schema compilation', () => {
+  it('RED: compile() and clearCache() functions are not yet implemented', async () => {
+    // This test demonstrates the RED phase: functions exist but throw NotImplementedError
+    expect(() => {
+      compile('test-org', 'test-dept');
+    }).rejects.toThrow('compile() not yet implemented');
+
+    expect(() => {
+      clearCache();
+    }).toThrow('clearCache() not yet implemented');
+  });
+
   runDatabaseTest(
     'AC1: Given DeptColumns rows for dept_code="core" with 5 fields (string, number, date, enum, formula), when compile("core") runs, then it returns a Zod schema that accepts a valid payload and rejects a payload missing a required field with a structured error',
     async () => {
