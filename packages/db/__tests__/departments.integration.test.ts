@@ -236,3 +236,152 @@ runIntegrationSuite('011 departments integration — Postgres', () => {
     },
   );
 });
+
+// ── RLS cross-org isolation (HOTFIX T-019) ────────────────────────────────────
+
+runIntegrationSuite('011 departments RLS — cross-org isolation', () => {
+  let adminPool: pg.Pool;
+  let appPool: pg.Pool;
+
+  const tenantId  = randomUUID();
+  const orgAId    = randomUUID();
+  const orgBId    = randomUUID();
+  const deptId    = randomUUID();
+  const sessionTokenA = randomUUID();
+  const sessionTokenB = randomUUID();
+
+  beforeAll(async () => {
+    if (!databaseUrl) return;
+
+    adminPool = new pg.Pool({ connectionString: databaseUrl });
+    appPool   = new pg.Pool({ connectionString: appUserDatabaseUrl(databaseUrl) });
+
+    // Apply required migrations in dependency order
+    await adminPool.query(readFileSync(baselineMigrationPath, 'utf8'));
+    await adminPool.query(readFileSync(rlsBaselineMigrationPath, 'utf8'));
+    await adminPool.query(readFileSync(departmentsMigrationPath, 'utf8'));
+
+    // Ensure app_user role exists with the test password
+    await adminPool.query(`
+      do $$
+      begin
+        if not exists (select 1 from pg_roles where rolname = 'app_user') then
+          create role app_user login password '${appUserPassword}';
+        else
+          alter role app_user login password '${appUserPassword}';
+        end if;
+      end
+      $$;
+    `);
+
+    // Grant Reference schema access (HOTFIX policy grants to PUBLIC; also need schema usage)
+    await adminPool.query(`grant usage on schema "Reference" to app_user`);
+
+    // Seed tenant and two orgs
+    await adminPool.query(
+      `insert into public.tenants (id, name, region_cluster, data_plane_url)
+       values ($1, 'RLS Test Tenant', 'eu', 'https://rls-test.example')
+       on conflict (id) do nothing`,
+      [tenantId],
+    );
+    await adminPool.query(
+      `insert into public.organizations (id, tenant_id, name, industry_code)
+       values ($1, $2, 'Org A (RLS Test)', 'fmcg'),
+              ($3, $2, 'Org B (RLS Test)', 'bakery')
+       on conflict (id) do nothing`,
+      [orgAId, tenantId, orgBId],
+    );
+
+    // Insert a department row belonging to Org A (as superuser / owner)
+    await adminPool.query(
+      `insert into "Reference"."Departments" (id, org_id, code, display_name, role_description)
+       values ($1, $2, 'rls-test-dept', 'RLS Test Dept', 'Created for RLS isolation test')
+       on conflict (org_id, code) do nothing`,
+      [deptId, orgAId],
+    );
+
+    // Register trusted session tokens for both orgs in app.session_org_contexts
+    await adminPool.query(
+      `insert into app.session_org_contexts (session_token, org_id)
+       values ($1, $2), ($3, $4)
+       on conflict (session_token) do nothing`,
+      [sessionTokenA, orgAId, sessionTokenB, orgBId],
+    );
+  });
+
+  afterAll(async () => {
+    if (!adminPool) return;
+
+    await adminPool.query(
+      `delete from app.session_org_contexts where session_token in ($1, $2)`,
+      [sessionTokenA, sessionTokenB],
+    ).catch(() => undefined);
+
+    await adminPool.query(
+      `delete from "Reference"."Departments" where org_id = $1`,
+      [orgAId],
+    ).catch(() => undefined);
+
+    await adminPool.query(
+      `delete from public.organizations where id in ($1, $2)`,
+      [orgAId, orgBId],
+    ).catch(() => undefined);
+
+    await adminPool.query(
+      `delete from public.tenants where id = $1`,
+      [tenantId],
+    ).catch(() => undefined);
+
+    await appPool?.end();
+    await adminPool?.end();
+  });
+
+  runIntegrationTest(
+    'RLS isolation: app_user with Org B context sees 0 rows from Org A departments',
+    async () => {
+      // app.current_org_id() is transaction-scoped — wrap set + select in one txn
+      const client = await appPool.connect();
+      try {
+        await client.query('begin');
+        await client.query('select app.set_org_context($1, $2)', [sessionTokenB, orgBId]);
+
+        const result = await client.query<{ id: string }>(
+          `select id from "Reference"."Departments" where org_id = $1`,
+          [orgAId],
+        );
+
+        await client.query('rollback');
+        expect(result.rows).toHaveLength(0);
+      } catch (err) {
+        await client.query('rollback').catch(() => undefined);
+        throw err;
+      } finally {
+        client.release();
+      }
+    },
+  );
+
+  runIntegrationTest(
+    'RLS isolation: app_user with Org A context can see Org A department',
+    async () => {
+      const client = await appPool.connect();
+      try {
+        await client.query('begin');
+        await client.query('select app.set_org_context($1, $2)', [sessionTokenA, orgAId]);
+
+        const result = await client.query<{ id: string }>(
+          `select id from "Reference"."Departments" where id = $1`,
+          [deptId],
+        );
+
+        await client.query('rollback');
+        expect(result.rows).toHaveLength(1);
+      } catch (err) {
+        await client.query('rollback').catch(() => undefined);
+        throw err;
+      } finally {
+        client.release();
+      }
+    },
+  );
+});

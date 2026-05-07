@@ -203,6 +203,7 @@ describe('r13-business-tables.ts schema — drizzle contract', () => {
 
 runIntegrationSuite('0014 r13-placeholder-tables integration — Postgres', () => {
   let pool: pg.Pool;
+  let appPool: pg.Pool;
   let dbClient: pg.PoolClient;
   let schemaName = 'public';
   let apexOrgId: string;
@@ -225,6 +226,28 @@ runIntegrationSuite('0014 r13-placeholder-tables integration — Postgres', () =
     await dbClient.query(baseline);
     await dbClient.query(rlsBaseline);
     await dbClient.query(r13Tables);
+
+    // Ensure app_user role exists with known password (idempotent)
+    await dbClient.query(`
+      do $$
+      begin
+        if not exists (select 1 from pg_roles where rolname = 'app_user') then
+          create role app_user login password '${appUserPassword}';
+        else
+          alter role app_user login password '${appUserPassword}';
+        end if;
+      end
+      $$;
+    `);
+
+    // Grant app_user SELECT/INSERT/UPDATE/DELETE on the 5 placeholder tables
+    // (RLS policies further filter what rows are visible — this is the expected setup)
+    await dbClient.query(`
+      grant usage on schema public to app_user;
+      grant select, insert, update, delete
+        on public.lot, public.work_order, public.quality_event, public.shipment, public.bom_item
+        to app_user;
+    `);
 
     // Insert test tenant
     await dbClient.query(
@@ -250,6 +273,9 @@ runIntegrationSuite('0014 r13-placeholder-tables integration — Postgres', () =
        on conflict (id) do nothing`,
       [secondOrgId, tenantId],
     );
+
+    // Open the app_user pool now that the role credentials are known
+    appPool = new pg.Pool({ connectionString: appUserDatabaseUrl() });
   });
 
   afterAll(async () => {
@@ -260,6 +286,8 @@ runIntegrationSuite('0014 r13-placeholder-tables integration — Postgres', () =
         dbClient.release();
       }
     }
+
+    await appPool?.end();
 
     if (pool) {
       await pool.end();
@@ -471,81 +499,224 @@ runIntegrationSuite('0014 r13-placeholder-tables integration — Postgres', () =
   });
 
   // ──────────────────────────────────────────────────────────────────────────────
-  // AC3: Verify RLS isolation per org (app-role scoped to org A cannot see org B rows)
+  // AC3: Genuine cross-org RLS isolation — connects as app_user, sets org context,
+  //      asserts SELECT count per table reflects only the org in context.
+  //
+  // Pattern mirrors rls.cross-org.integration.test.ts (the T-007 gold-standard):
+  //   1. Superuser INSERTs 1 row for orgA and 1 row for orgB into each table.
+  //   2. Open transaction as app_user; call app.set_org_context(token, orgA).
+  //   3. Assert SELECT count(*) = 1  (only the orgA row is visible).
+  //   4. Repeat for orgB context — same assertion, different org.
+  //
+  // This test would FAIL if the RLS policy were dropped from the migration because
+  // FORCE ROW LEVEL SECURITY means app_user sees 0 rows with no policy, and
+  // the metadata-path (relrowsecurity=true + pg_policies.length>0) would remain
+  // "passing" while data isolation had silently broken.
   // ──────────────────────────────────────────────────────────────────────────────
 
-  runIntegrationTest('AC3.1: RLS is enabled on lot table', async () => {
-    const result = await dbClient.query<{ relname: string; relrowsecurity: boolean }>(
-      `select relname, relrowsecurity from pg_class where relname = 'lot'`,
-    );
-    expect(result.rows.length).toBeGreaterThan(0);
-    expect(result.rows[0].relrowsecurity).toBe(true);
+  // AC3 sanity layer: metadata confirms RLS is wired (kept as a secondary guard)
+  runIntegrationTest('AC3.sanity: RLS enabled and policies present on all 5 placeholder tables', async () => {
+    const tables = ['lot', 'work_order', 'quality_event', 'shipment', 'bom_item'];
+
+    for (const table of tables) {
+      const rlsRow = await dbClient.query<{ relrowsecurity: boolean }>(
+        `select relrowsecurity from pg_class where relname = $1`,
+        [table],
+      );
+      expect(rlsRow.rows.length, `${table} must appear in pg_class`).toBeGreaterThan(0);
+      expect(rlsRow.rows[0].relrowsecurity, `${table} must have RLS enabled`).toBe(true);
+
+      const policyRows = await dbClient.query<{ policyname: string }>(
+        `select policyname from pg_policies where tablename = $1`,
+        [table],
+      );
+      expect(policyRows.rows.length, `${table} must have at least one RLS policy`).toBeGreaterThan(0);
+    }
   });
 
-  runIntegrationTest('AC3.2: RLS is enabled on work_order table', async () => {
-    const result = await dbClient.query<{ relname: string; relrowsecurity: boolean }>(
-      `select relname, relrowsecurity from pg_class where relname = 'work_order'`,
+  // AC3 genuine cross-org SELECT tests — one per table
+
+  runIntegrationTest('AC3.1: lot — app_user sees only own-org rows under RLS', async () => {
+    // Seed: 1 row per org (as superuser, bypasses RLS)
+    const lotA = randomUUID();
+    const lotB = randomUUID();
+    await dbClient.query(
+      `insert into public.lot (id, org_id, schema_version) values ($1, $2, 1), ($3, $4, 1)`,
+      [lotA, apexOrgId, lotB, secondOrgId],
     );
-    expect(result.rows.length).toBeGreaterThan(0);
-    expect(result.rows[0].relrowsecurity).toBe(true);
+
+    const tokenA = randomUUID();
+    const tokenB = randomUUID();
+    await dbClient.query(
+      `insert into app.session_org_contexts (session_token, org_id) values ($1, $2), ($3, $4)`,
+      [tokenA, apexOrgId, tokenB, secondOrgId],
+    );
+
+    const client = await appPool.connect();
+    try {
+      // org A context: must see exactly 1 row (lotA)
+      await client.query('begin');
+      await client.query('select app.set_org_context($1::uuid, $2::uuid)', [tokenA, apexOrgId]);
+      const resA = await client.query<{ count: string }>(`select count(*)::int as count from public.lot where id in ($1, $2)`, [lotA, lotB]);
+      expect(resA.rows[0].count, 'app_user with org A context must see exactly 1 lot row').toBe(1);
+      await client.query('rollback');
+
+      // org B context: must see exactly 1 row (lotB)
+      await client.query('begin');
+      await client.query('select app.set_org_context($1::uuid, $2::uuid)', [tokenB, secondOrgId]);
+      const resB = await client.query<{ count: string }>(`select count(*)::int as count from public.lot where id in ($1, $2)`, [lotA, lotB]);
+      expect(resB.rows[0].count, 'app_user with org B context must see exactly 1 lot row').toBe(1);
+      await client.query('rollback');
+    } finally {
+      await client.query('rollback').catch(() => undefined);
+      client.release();
+      // Clean up seeded rows
+      await dbClient.query(`delete from public.lot where id in ($1, $2)`, [lotA, lotB]);
+      await dbClient.query(`delete from app.session_org_contexts where session_token in ($1, $2)`, [tokenA, tokenB]);
+    }
   });
 
-  runIntegrationTest('AC3.3: RLS is enabled on quality_event table', async () => {
-    const result = await dbClient.query<{ relname: string; relrowsecurity: boolean }>(
-      `select relname, relrowsecurity from pg_class where relname = 'quality_event'`,
+  runIntegrationTest('AC3.2: work_order — app_user sees only own-org rows under RLS', async () => {
+    const rowA = randomUUID();
+    const rowB = randomUUID();
+    await dbClient.query(
+      `insert into public.work_order (id, org_id, schema_version) values ($1, $2, 1), ($3, $4, 1)`,
+      [rowA, apexOrgId, rowB, secondOrgId],
     );
-    expect(result.rows.length).toBeGreaterThan(0);
-    expect(result.rows[0].relrowsecurity).toBe(true);
+
+    const tokenA = randomUUID();
+    const tokenB = randomUUID();
+    await dbClient.query(
+      `insert into app.session_org_contexts (session_token, org_id) values ($1, $2), ($3, $4)`,
+      [tokenA, apexOrgId, tokenB, secondOrgId],
+    );
+
+    const client = await appPool.connect();
+    try {
+      await client.query('begin');
+      await client.query('select app.set_org_context($1::uuid, $2::uuid)', [tokenA, apexOrgId]);
+      const resA = await client.query<{ count: string }>(`select count(*)::int as count from public.work_order where id in ($1, $2)`, [rowA, rowB]);
+      expect(resA.rows[0].count, 'app_user with org A context must see exactly 1 work_order row').toBe(1);
+      await client.query('rollback');
+
+      await client.query('begin');
+      await client.query('select app.set_org_context($1::uuid, $2::uuid)', [tokenB, secondOrgId]);
+      const resB = await client.query<{ count: string }>(`select count(*)::int as count from public.work_order where id in ($1, $2)`, [rowA, rowB]);
+      expect(resB.rows[0].count, 'app_user with org B context must see exactly 1 work_order row').toBe(1);
+      await client.query('rollback');
+    } finally {
+      await client.query('rollback').catch(() => undefined);
+      client.release();
+      await dbClient.query(`delete from public.work_order where id in ($1, $2)`, [rowA, rowB]);
+      await dbClient.query(`delete from app.session_org_contexts where session_token in ($1, $2)`, [tokenA, tokenB]);
+    }
   });
 
-  runIntegrationTest('AC3.4: RLS is enabled on shipment table', async () => {
-    const result = await dbClient.query<{ relname: string; relrowsecurity: boolean }>(
-      `select relname, relrowsecurity from pg_class where relname = 'shipment'`,
+  runIntegrationTest('AC3.3: quality_event — app_user sees only own-org rows under RLS', async () => {
+    const rowA = randomUUID();
+    const rowB = randomUUID();
+    await dbClient.query(
+      `insert into public.quality_event (id, org_id, schema_version) values ($1, $2, 1), ($3, $4, 1)`,
+      [rowA, apexOrgId, rowB, secondOrgId],
     );
-    expect(result.rows.length).toBeGreaterThan(0);
-    expect(result.rows[0].relrowsecurity).toBe(true);
+
+    const tokenA = randomUUID();
+    const tokenB = randomUUID();
+    await dbClient.query(
+      `insert into app.session_org_contexts (session_token, org_id) values ($1, $2), ($3, $4)`,
+      [tokenA, apexOrgId, tokenB, secondOrgId],
+    );
+
+    const client = await appPool.connect();
+    try {
+      await client.query('begin');
+      await client.query('select app.set_org_context($1::uuid, $2::uuid)', [tokenA, apexOrgId]);
+      const resA = await client.query<{ count: string }>(`select count(*)::int as count from public.quality_event where id in ($1, $2)`, [rowA, rowB]);
+      expect(resA.rows[0].count, 'app_user with org A context must see exactly 1 quality_event row').toBe(1);
+      await client.query('rollback');
+
+      await client.query('begin');
+      await client.query('select app.set_org_context($1::uuid, $2::uuid)', [tokenB, secondOrgId]);
+      const resB = await client.query<{ count: string }>(`select count(*)::int as count from public.quality_event where id in ($1, $2)`, [rowA, rowB]);
+      expect(resB.rows[0].count, 'app_user with org B context must see exactly 1 quality_event row').toBe(1);
+      await client.query('rollback');
+    } finally {
+      await client.query('rollback').catch(() => undefined);
+      client.release();
+      await dbClient.query(`delete from public.quality_event where id in ($1, $2)`, [rowA, rowB]);
+      await dbClient.query(`delete from app.session_org_contexts where session_token in ($1, $2)`, [tokenA, tokenB]);
+    }
   });
 
-  runIntegrationTest('AC3.5: RLS is enabled on bom_item table', async () => {
-    const result = await dbClient.query<{ relname: string; relrowsecurity: boolean }>(
-      `select relname, relrowsecurity from pg_class where relname = 'bom_item'`,
+  runIntegrationTest('AC3.4: shipment — app_user sees only own-org rows under RLS', async () => {
+    const rowA = randomUUID();
+    const rowB = randomUUID();
+    await dbClient.query(
+      `insert into public.shipment (id, org_id, schema_version) values ($1, $2, 1), ($3, $4, 1)`,
+      [rowA, apexOrgId, rowB, secondOrgId],
     );
-    expect(result.rows.length).toBeGreaterThan(0);
-    expect(result.rows[0].relrowsecurity).toBe(true);
+
+    const tokenA = randomUUID();
+    const tokenB = randomUUID();
+    await dbClient.query(
+      `insert into app.session_org_contexts (session_token, org_id) values ($1, $2), ($3, $4)`,
+      [tokenA, apexOrgId, tokenB, secondOrgId],
+    );
+
+    const client = await appPool.connect();
+    try {
+      await client.query('begin');
+      await client.query('select app.set_org_context($1::uuid, $2::uuid)', [tokenA, apexOrgId]);
+      const resA = await client.query<{ count: string }>(`select count(*)::int as count from public.shipment where id in ($1, $2)`, [rowA, rowB]);
+      expect(resA.rows[0].count, 'app_user with org A context must see exactly 1 shipment row').toBe(1);
+      await client.query('rollback');
+
+      await client.query('begin');
+      await client.query('select app.set_org_context($1::uuid, $2::uuid)', [tokenB, secondOrgId]);
+      const resB = await client.query<{ count: string }>(`select count(*)::int as count from public.shipment where id in ($1, $2)`, [rowA, rowB]);
+      expect(resB.rows[0].count, 'app_user with org B context must see exactly 1 shipment row').toBe(1);
+      await client.query('rollback');
+    } finally {
+      await client.query('rollback').catch(() => undefined);
+      client.release();
+      await dbClient.query(`delete from public.shipment where id in ($1, $2)`, [rowA, rowB]);
+      await dbClient.query(`delete from app.session_org_contexts where session_token in ($1, $2)`, [tokenA, tokenB]);
+    }
   });
 
-  runIntegrationTest('AC3.6: RLS policies exist for lot table', async () => {
-    const result = await dbClient.query<{ policyname: string }>(
-      `select policyname from pg_policies where tablename = 'lot'`,
+  runIntegrationTest('AC3.5: bom_item — app_user sees only own-org rows under RLS', async () => {
+    const rowA = randomUUID();
+    const rowB = randomUUID();
+    await dbClient.query(
+      `insert into public.bom_item (id, org_id, schema_version) values ($1, $2, 1), ($3, $4, 1)`,
+      [rowA, apexOrgId, rowB, secondOrgId],
     );
-    expect(result.rows.length).toBeGreaterThan(0);
-  });
 
-  runIntegrationTest('AC3.7: RLS policies exist for work_order table', async () => {
-    const result = await dbClient.query<{ policyname: string }>(
-      `select policyname from pg_policies where tablename = 'work_order'`,
+    const tokenA = randomUUID();
+    const tokenB = randomUUID();
+    await dbClient.query(
+      `insert into app.session_org_contexts (session_token, org_id) values ($1, $2), ($3, $4)`,
+      [tokenA, apexOrgId, tokenB, secondOrgId],
     );
-    expect(result.rows.length).toBeGreaterThan(0);
-  });
 
-  runIntegrationTest('AC3.8: RLS policies exist for quality_event table', async () => {
-    const result = await dbClient.query<{ policyname: string }>(
-      `select policyname from pg_policies where tablename = 'quality_event'`,
-    );
-    expect(result.rows.length).toBeGreaterThan(0);
-  });
+    const client = await appPool.connect();
+    try {
+      await client.query('begin');
+      await client.query('select app.set_org_context($1::uuid, $2::uuid)', [tokenA, apexOrgId]);
+      const resA = await client.query<{ count: string }>(`select count(*)::int as count from public.bom_item where id in ($1, $2)`, [rowA, rowB]);
+      expect(resA.rows[0].count, 'app_user with org A context must see exactly 1 bom_item row').toBe(1);
+      await client.query('rollback');
 
-  runIntegrationTest('AC3.9: RLS policies exist for shipment table', async () => {
-    const result = await dbClient.query<{ policyname: string }>(
-      `select policyname from pg_policies where tablename = 'shipment'`,
-    );
-    expect(result.rows.length).toBeGreaterThan(0);
-  });
-
-  runIntegrationTest('AC3.10: RLS policies exist for bom_item table', async () => {
-    const result = await dbClient.query<{ policyname: string }>(
-      `select policyname from pg_policies where tablename = 'bom_item'`,
-    );
-    expect(result.rows.length).toBeGreaterThan(0);
+      await client.query('begin');
+      await client.query('select app.set_org_context($1::uuid, $2::uuid)', [tokenB, secondOrgId]);
+      const resB = await client.query<{ count: string }>(`select count(*)::int as count from public.bom_item where id in ($1, $2)`, [rowA, rowB]);
+      expect(resB.rows[0].count, 'app_user with org B context must see exactly 1 bom_item row').toBe(1);
+      await client.query('rollback');
+    } finally {
+      await client.query('rollback').catch(() => undefined);
+      client.release();
+      await dbClient.query(`delete from public.bom_item where id in ($1, $2)`, [rowA, rowB]);
+      await dbClient.query(`delete from app.session_org_contexts where session_token in ($1, $2)`, [tokenA, tokenB]);
+    }
   });
 });

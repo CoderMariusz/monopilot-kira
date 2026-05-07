@@ -1,6 +1,6 @@
 import { z, ZodSchema, ZodTypeAny } from 'zod';
 import pg from 'pg';
-import { RefTables } from '../../../lib/reference/index.ts';
+import { RefTables } from '@monopilot/reference';
 
 // ---------------------------------------------------------------------------
 // Types

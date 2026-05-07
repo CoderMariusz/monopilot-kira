@@ -56,7 +56,7 @@ Updated by orchestrator after every PASS review.
 | T-042 | PWA install + offline-shell E2E | ⬜ PENDING | |
 | T-043 | IndexedDB sync queue primitive | ✅ DONE | RED+GREEN+REVIEW PASS; 19/19 tests; raw IDB (idb-keyval deleted-db fix); inline UUID v7 (jsdom/uuid esm-node crypto fix); all 4 ACs satisfied |
 | T-044 | Sync queue flusher | ⬜ PENDING | |
-| T-045 | Postgres app-role connection split | ⏸ BLOCKED | REWORK applied; pending re-review |
+| T-045 | Postgres app-role connection split | ✅ DONE | RED+GREEN+REVIEW+REWORK+RE-REVIEW PASS; 10/10 tests; 006-app-role.sql; eslint.config.mjs flat config; SELECT-0-rows RLS test; production guard |
 | T-046 | ref-tables.enum.ts source-of-truth lock | ✅ DONE | Full pipeline + 1 rework cycle (ESLint drift gate added to apps/web flat-config); workspace-wide lint coverage flagged as pre-existing infra debt |
 | T-047 | Wave0 PRD v4.3 domain amendment | ✅ DONE | docs (RED skipped); GREEN+REVIEW PASS; 6 surgical amendments (fg.* canonical, org_id business scope, [LEGACY-D365] qualification on fa.*); 87 unmarked headings = pre-existing debt |
 | T-048 | Domain glossary lock | ⬜ PENDING | |

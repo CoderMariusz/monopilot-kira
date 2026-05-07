@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **[HOTFIX T-019] RLS on `Reference.Departments`** (`packages/db/migrations/011-departments.sql`): Added `ENABLE ROW LEVEL SECURITY`, `FORCE ROW LEVEL SECURITY`, and `Departments_org_isolation` policy (`org_id = app.current_org_id()`) — the only Wave A business table missing RLS, identified by the 2026-05-07 Foundation Wave A consistency audit (finding D). Cross-org isolation verified by two new integration tests in `departments.integration.test.ts`.
+
 ### Added
 
 - **Baseline DB schema migration** (`packages/db/migrations/001-baseline.sql`, `packages/db/schema/baseline.ts`): Establishes the three-table control-plane/business-scope foundation. `tenants` is the control-plane root (id UUID PK, name, region_cluster CHECK `eu|us`, data_plane_url, created_at). `organizations` is the canonical business scope root (id UUID PK used as `org_id` everywhere, tenant_id nullable FK to tenants, name, industry_code CHECK `bakery|pharma|fmcg|generic`, external_id, plus full R13 identity columns: created_at, created_by_user, created_by_device, app_version, model_prediction_id, epcis_event_id, schema_version). `users` is org-scoped (id UUID PK, org_id UUID NOT NULL FK to organizations, email CITEXT unique per org, display_name, external_id, full R13 columns). Business-facing indexes use `org_id`; `tenant_id` is not propagated to `users`. No RLS policies (owned by T-007). Integration tests verify R13 column presence and DB-level industry_code rejection via information_schema (T-006 / TASK-000210).
