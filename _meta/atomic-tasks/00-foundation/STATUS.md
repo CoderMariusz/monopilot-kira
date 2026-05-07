@@ -71,7 +71,7 @@ Updated by orchestrator after every PASS review.
 | T-057 | schema-runtime VITEST env-var elimination | ⬜ PENDING | |
 | T-058 | Migrate integration tests to getAppConnection | ⬜ PENDING | P0 Wave-B blocker; deps T-053+T-054+T-055 |
 | T-059 | PRD marker discipline sweep | ⬜ PENDING | |
-| T-060 | ALTER tenant_idp_config: 11 missing F-A2 cols | ⬜ PENDING | P0 Wave-B blocker; deps T-054 |
+| T-060 | ALTER tenant_idp_config: 11 missing F-A2 cols | ✅ DONE | RED+GREEN PASS; 16/16 FA2 tests + 11/11 existing tests; 016 migration with 11 cols + updated_at trigger |
 | T-061 | Password policy enforcement library | ⬜ PENDING | |
 
 ## Migration ordering lock
@@ -91,5 +91,7 @@ For reference, current assignments per task JSONs:
 - 012 manufacturing-operations (T-020)
 - 013 tenant-migrations (T-038)
 - 014 r13-placeholder-tables (T-040) — renamed from 0014_r13-placeholder-tables.sql to match NNN- convention (T-054)
+- 015 idempotency (T-024)
+- 016 tenant-idp-config-fa2-columns (T-060)
 
 If your task is not in the list above and is not a migration task, do not create migration files.

@@ -11,10 +11,20 @@ export default [
 
   // Pre-existing: integration tests use new pg.Pool() directly (pre-T-058 pattern).
   // This is tracked debt; do not add new pg.Pool() calls in outbox source files.
+  // IMPORTANT: Only the pg.Pool selector is suppressed here. The Reference.* drift
+  // gate (T-046) remains active in test files — pg.Pool selector intentionally omitted.
   {
     files: ['src/**/__tests__/**/*.ts', '**/*.e2e.test.ts', '**/*.test.ts'],
     rules: {
-      'no-restricted-syntax': 'off',
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector: "Literal[value=/^Reference\\.[A-Z][A-Za-z]+$/]",
+          message:
+            "Do not hardcode Reference.* table-name strings. Import RefTables from 'lib/reference'.",
+        },
+        // pg.Pool selector intentionally omitted in test override (legacy debt; T-058 will migrate)
+      ],
     },
   },
 ];
