@@ -28,7 +28,7 @@ Updated by orchestrator after every PASS review.
 | T-014 | RBAC enforcement library | ⬜ PENDING | |
 | T-015 | TOTP MFA enrolment | ⬜ PENDING | |
 | T-016 | Verify-PIN step-up | ⬜ PENDING | |
-| T-017 | Reference.DeptColumns + json-schema-to-zod | ⬜ PENDING | |
+| T-017 | Reference.DeptColumns + json-schema-to-zod | ✅ DONE | GREEN+REVIEW PASS; 009-schema-driven.sql R13+RLS+8 seeds; compile.ts LRU cache; 1 pass + 4 skip |
 | T-018 | Reference.Rules + DSL executor stub | ✅ DONE | RED+GREEN+REVIEW pipeline complete; 14/14 tests pass; 010-rules.sql with R13+RLS |
 | T-019 | Department taxonomy seed | ✅ DONE | T5-seed (RED skipped); GREEN+REVIEW PASS; 7 Apex depts + dept_overrides JSONB |
 | T-020 | ManufacturingOperations + seeds | ⬜ PENDING | |
@@ -57,7 +57,7 @@ Updated by orchestrator after every PASS review.
 | T-043 | IndexedDB sync queue primitive | ⬜ PENDING | |
 | T-044 | Sync queue flusher | ⬜ PENDING | |
 | T-045 | Postgres app-role connection split | ⬜ PENDING | |
-| T-046 | ref-tables.enum.ts source-of-truth lock | ⬜ PENDING | |
+| T-046 | ref-tables.enum.ts source-of-truth lock | ✅ DONE | Full pipeline + 1 rework cycle (ESLint drift gate added to apps/web flat-config); workspace-wide lint coverage flagged as pre-existing infra debt |
 | T-047 | Wave0 PRD v4.3 domain amendment | ⬜ PENDING | |
 | T-048 | Domain glossary lock | ⬜ PENDING | |
 | T-049 | Shared BOM SSOT skeleton | ⬜ PENDING | |
