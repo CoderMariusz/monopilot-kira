@@ -7,6 +7,7 @@ const manifest: MetadataRoute.Manifest = {
   display: 'standalone',
   theme_color: '#ffffff',
   background_color: '#ffffff',
+  categories: ['productivity', 'business'],
   icons: [
     {
       src: '/icons/icon-192x192.png',
@@ -17,6 +18,12 @@ const manifest: MetadataRoute.Manifest = {
       src: '/icons/icon-512x512.png',
       sizes: '512x512',
       type: 'image/png'
+    },
+    {
+      src: '/icons/icon-512x512-maskable.png',
+      sizes: '512x512',
+      type: 'image/png',
+      purpose: 'maskable'
     }
   ]
 };

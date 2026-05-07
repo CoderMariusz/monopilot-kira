@@ -16,10 +16,18 @@
  * Each test is written to FAIL against the current implementation so the implementer
  * can turn them green. Mutation experiments are described in comments.
  *
- * DO NOT modify sw.ts or manifest.ts — this is the RED phase.
+ * GREEN phase:
+ * - fake-indexeddb/auto polyfills globalThis.indexedDB in node environment
+ * - A minimal EventTarget-based window polyfill is installed before AC3 tests so that
+ *   startFlusher() (which calls window.addEventListener) and window.dispatchEvent work
+ *   in the node/vitest environment without switching to a browser-only jsdom runner
+ *   (jsdom runner externalizes node:fs / node:path, breaking AC1/AC2/AC4 source-parse tests)
  */
 
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+// Polyfill IndexedDB for node environment (fake-indexeddb auto-installs globalThis.indexedDB)
+import 'fake-indexeddb/auto';
+
+import { describe, it, expect, beforeEach, afterEach, beforeAll, vi } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
@@ -138,6 +146,24 @@ describe('AC3 — Offline mutation queue + flusher drain', () => {
   // Note: these tests import from the source path used in workspace tests.
   // The web app itself would import from '@monopilot/sync-queue'.
 
+  // GREEN: Install a minimal window polyfill so startFlusher() (which calls
+  // window.addEventListener / window.removeEventListener) works in node env.
+  // The test runs under the root node environment (not jsdom) to avoid vite
+  // externalizing node:fs / node:path and breaking AC1/AC2/AC4.
+  beforeAll(() => {
+    if (typeof globalThis.window === 'undefined') {
+      const et = new EventTarget();
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (globalThis as any).window = {
+        addEventListener: (type: string, handler: EventListenerOrEventListenerObject) =>
+          et.addEventListener(type, handler),
+        removeEventListener: (type: string, handler: EventListenerOrEventListenerObject) =>
+          et.removeEventListener(type, handler),
+        dispatchEvent: (event: Event) => et.dispatchEvent(event),
+      };
+    }
+  });
+
   it('enqueue() grows the queue by 1 when a mutation is submitted offline', async () => {
     // Dynamic import to avoid top-level IDB side-effects in non-jsdom environments.
     // This test intentionally imports the package directly to assert the queue contract.
@@ -150,7 +176,7 @@ describe('AC3 — Offline mutation queue + flusher drain', () => {
     //
     // Mutation experiment: remove enqueue() call → listPending().length stays 0 → FAIL.
     const { enqueue, listPending, remove } = await import(
-      '../../../packages/sync-queue/src/index.js'
+      '../../../../packages/sync-queue/src/index'
     );
 
     const mutation = {
@@ -178,7 +204,7 @@ describe('AC3 — Offline mutation queue + flusher drain', () => {
     //
     // Mutation experiment: remove 'online' event listener in flusher → queue never drains → FAIL.
     const { enqueue, listPending, startFlusher, stopFlusher } = await import(
-      '../../../packages/sync-queue/src/index.js'
+      '../../../../packages/sync-queue/src/index'
     );
 
     const fetchMock = vi.fn().mockResolvedValue({ status: 200, ok: true } as Response);
@@ -200,7 +226,8 @@ describe('AC3 — Offline mutation queue + flusher drain', () => {
     startFlusher();
 
     // Trigger the online event to invoke flushOnce()
-    window.dispatchEvent(new Event('online'));
+    // Use globalThis.window since bare `window` is not available in node environment.
+    (globalThis as any).window.dispatchEvent(new Event('online'));
 
     // Allow the flush microtasks to settle
     await new Promise<void>((res) => setTimeout(res, 50));

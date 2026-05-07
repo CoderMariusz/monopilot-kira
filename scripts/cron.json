@@ -1,0 +1,9 @@
+{
+  "$comment": "T-034 — Vercel cron schedule for the schema drift detection job. Daily 06:00 UTC sweep over Reference.DeptColumns vs information_schema.columns. See packages/ops/src/drift-detect.ts and apps/web/app/api/internal/cron/drift/route.ts.",
+  "crons": [
+    {
+      "path": "/api/internal/cron/drift",
+      "schedule": "0 6 * * *"
+    }
+  ]
+}

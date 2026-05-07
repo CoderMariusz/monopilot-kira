@@ -21,7 +21,10 @@ describe('sw.ts (Service Worker)', () => {
   });
 
   it('should pass defaultCache as runtimeCaching to Serwist constructor', () => {
-    expect(swSource).toContain('runtimeCaching: defaultCache');
+    // After T-042: runtimeCaching is an array that spreads defaultCache (to add the /api/ override);
+    // confirm defaultCache is still wired into the runtime cache configuration.
+    expect(swSource).toContain('defaultCache');
+    expect(swSource).toMatch(/runtimeCaching\s*:/);
   });
 
   it('should configure skipWaiting: true (AC2 — SW activates immediately)', () => {
