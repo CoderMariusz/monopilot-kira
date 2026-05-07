@@ -1,36 +1,33 @@
 // packages/db/eslint.config.mjs
 // ESLint v9 flat config for @monopilot/db.
-// Enforces that getOwnerConnection is only importable from migration code
-// and the migrate script — all other callers must use getAppConnection().
-import js from '@eslint/js';
-import tsPlugin from '@typescript-eslint/eslint-plugin';
-import tsParser from '@typescript-eslint/parser';
-import globals from 'globals';
+// Extends the shared workspace base and adds T-045 getOwnerConnection restriction
+// with relative-import paths that apply within this package's source tree.
+import base from '../../tooling/eslint/base.mjs';
 
 export default [
+  ...base,
+
+  // T-045 drift gate: getOwnerConnection must never be imported outside migrations/scripts.
+  // This extends the base rule (which gates the @monopilot/db named import) with
+  // relative-path variants used internally within packages/db itself.
   {
-    // Global rule: block getOwnerConnection import from all source files
     files: ['src/**/*.{js,ts,mjs,mts}'],
-    plugins: {
-      '@typescript-eslint': tsPlugin,
-    },
-    languageOptions: {
-      parser: tsParser,
-      parserOptions: {
-        sourceType: 'module',
-        ecmaVersion: 2024,
-      },
-      globals: {
-        ...globals.node,
-        ...globals.es2021,
-      },
-    },
     rules: {
-      // T-045 drift gate: getOwnerConnection must never be imported outside migrations/scripts.
       'no-restricted-imports': [
         'error',
         {
           paths: [
+            {
+              name: '@radix-ui/react-dialog',
+              message:
+                'Import Modal from @monopilot/ui instead of using @radix-ui/react-dialog directly.',
+            },
+            {
+              name: '@monopilot/db',
+              importNames: ['getOwnerConnection'],
+              message:
+                'getOwnerConnection is restricted to packages/db migration paths. Use getAppConnection() instead.',
+            },
             {
               name: './clients',
               importNames: ['getOwnerConnection'],
@@ -58,13 +55,12 @@ export default [
           ],
         },
       ],
-      // Declare @typescript-eslint rules as off so eslint-disable comments in
-      // pre-existing source files don't trigger "unknown rule" errors.
       '@typescript-eslint/no-explicit-any': 'off',
     },
   },
+
+  // Allow getOwnerConnection in migration files and the migrate script.
   {
-    // Allow getOwnerConnection in migration files and the migrate script
     files: ['src/migrations/**/*.{js,ts}', 'scripts/migrate.ts', 'scripts/migrate.js'],
     rules: {
       'no-restricted-imports': 'off',

@@ -5,9 +5,13 @@
   "type": "module",
   "main": "./src/executor.ts",
   "scripts": {
-    "test": "vitest run"
+    "test": "vitest run",
+    "lint": "eslint ."
   },
   "devDependencies": {
+    "@eslint/js": "^9.39.4",
+    "@typescript-eslint/parser": "^8.59.1",
+    "eslint": "^9.39.4",
     "typescript": "^5.8.2",
     "vitest": "^2.1.8"
   }

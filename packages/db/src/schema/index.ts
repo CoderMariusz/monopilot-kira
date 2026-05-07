@@ -1,2 +1,0 @@
-export { tenantMigrations } from './tenant-migrations.js';
-export { lot, workOrder, qualityEvent, shipment, bomItem } from './r13-business-tables.js';

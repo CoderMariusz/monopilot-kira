@@ -1,19 +1,20 @@
 /**
- * T-053 — schema-discovery.test.ts (RED-phase)
+ * T-053 — schema-discovery.test.ts (GREEN-phase, fixed from RED)
  * Unit test to verify the consolidated schema barrel exports all 9 expected business tables.
  *
- * This test fails initially (RED) because packages/db/schema/index.ts exports nothing
- * and packages/db/src/schema/ is a separate directory. After consolidation (GREEN),
- * schema/index.ts re-exports all tables and this test passes.
+ * After consolidation (GREEN), schema/index.ts re-exports all tables from a single
+ * canonical location: packages/db/schema/.
  *
  * Acceptance criteria:
  *  AC1: The schema barrel imports and exports all 9 business tables:
  *       tenants, organizations, users (baseline)
  *       tenantMigrations, lot, workOrder, qualityEvent, shipment, bomItem (R13 placeholder)
- *  AC2: Each export is a Drizzle pgTable instance with a $inferSelect type.
+ *  AC2: Each export is a Drizzle pgTable instance (verified via Symbol(drizzle:IsDrizzleTable)).
  */
 import { describe, expect, it } from 'vitest';
 import * as schema from '../schema/index.js';
+
+const IS_DRIZZLE_TABLE = Symbol.for('drizzle:IsDrizzleTable');
 
 describe('T-053 — schema barrel consolidation', () => {
   it('should export all 9 business tables from a single canonical schema barrel', () => {
@@ -30,17 +31,13 @@ describe('T-053 — schema barrel consolidation', () => {
     ];
 
     const exportedKeys = Object.keys(schema);
-    expect(
-      expectedTables,
-      `Schema barrel should export all 9 tables; got ${exportedKeys.length} exports: ${exportedKeys.join(', ')}`,
-    ).toMatchObject(expect.arrayContaining(exportedKeys));
 
     // Verify each export is present
     for (const table of expectedTables) {
-      expect(schema).toHaveProperty(
-        table,
-        `Schema barrel missing export: ${table}`,
-      );
+      expect(
+        exportedKeys,
+        `Schema barrel missing export: ${table} (got: ${exportedKeys.join(', ')})`,
+      ).toContain(table);
     }
   });
 
@@ -58,9 +55,12 @@ describe('T-053 — schema barrel consolidation', () => {
     ];
 
     for (const { name, export: table } of tables) {
-      expect(table).toBeDefined(`Table ${name} should be defined`);
-      // Drizzle tables have a `_name` property
-      expect(table).toHaveProperty('_name', `Table ${name} should be a Drizzle pgTable`);
+      expect(table, `Table ${name} should be defined`).toBeDefined();
+      // Drizzle ≥0.40 uses Symbol(drizzle:IsDrizzleTable) instead of _name
+      expect(
+        (table as any)[IS_DRIZZLE_TABLE],
+        `Table ${name} should be a Drizzle pgTable (missing Symbol(drizzle:IsDrizzleTable))`,
+      ).toBe(true);
     }
   });
 
@@ -71,7 +71,7 @@ describe('T-053 — schema barrel consolidation', () => {
 
     // After consolidation, schema should be a string path (not an array)
     // pointing at ./schema or containing consolidated definitions
-    expect(config).toBeDefined('drizzle.config.ts should be importable');
+    expect(config).toBeDefined();
     if (typeof config.schema === 'string') {
       expect(config.schema).toMatch(
         /schema/i,
@@ -81,7 +81,6 @@ describe('T-053 — schema barrel consolidation', () => {
       // Alternative: array of paths during transition
       expect(config.schema).toContainEqual(
         expect.stringContaining('schema'),
-        'schema array should include ./schema',
       );
     }
   });

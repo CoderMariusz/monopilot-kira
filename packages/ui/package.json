@@ -11,7 +11,8 @@
     "test": "vitest run",
     "storybook:dev": "storybook dev",
     "storybook:build": "storybook build",
-    "test:a11y": "vitest run --include '**/*.a11y.test.ts*'"
+    "test:a11y": "vitest run --include '**/*.a11y.test.ts*'",
+    "lint": "eslint ."
   },
   "dependencies": {
     "@radix-ui/react-dialog": "^1.1.2",
@@ -34,6 +35,9 @@
     "storybook": "^8.0.0",
     "typescript": "^5.8.2",
     "vitest": "^2.1.8",
-    "jsdom": "^24.0.0"
+    "jsdom": "^24.0.0",
+    "@eslint/js": "^9.39.4",
+    "@typescript-eslint/parser": "^8.59.1",
+    "eslint": "^9.39.4"
   }
 }

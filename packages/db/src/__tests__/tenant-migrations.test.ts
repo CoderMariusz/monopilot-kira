@@ -334,14 +334,14 @@ describe('tenant_migrations table (canary upgrade orchestration baseline)', () =
 
 describe('tenant_migrations drizzle schema', () => {
   it('exports tenantMigrations table with correct column types', async () => {
-    const { tenantMigrations } = await import('../schema/tenant-migrations.js');
+    const { tenantMigrations } = await import('../../schema/tenant-migrations.js');
 
     expect(tenantMigrations).toBeDefined();
     expect(tenantMigrations._ as any).toBeDefined();
   });
 
   it('tenant_id column is inferred as UUID string type', async () => {
-    const { tenantMigrations } = await import('../schema/tenant-migrations.js');
+    const { tenantMigrations } = await import('../../schema/tenant-migrations.js');
     const tableConfig = tenantMigrations._ as any;
 
     expect(tableConfig.columns.tenant_id).toBeDefined();
@@ -350,7 +350,7 @@ describe('tenant_migrations drizzle schema', () => {
   });
 
   it('cohort column has enum literal union (canary | early | general)', async () => {
-    const { tenantMigrations } = await import('../schema/tenant-migrations.js');
+    const { tenantMigrations } = await import('../../schema/tenant-migrations.js');
     const tableConfig = tenantMigrations._ as any;
 
     expect(tableConfig.columns.cohort).toBeDefined();
@@ -360,7 +360,7 @@ describe('tenant_migrations drizzle schema', () => {
   });
 
   it('status column has enum literal union (idle | pending | running | succeeded | failed | rolled_back)', async () => {
-    const { tenantMigrations } = await import('../schema/tenant-migrations.js');
+    const { tenantMigrations } = await import('../../schema/tenant-migrations.js');
     const tableConfig = tenantMigrations._ as any;
 
     expect(tableConfig.columns.status).toBeDefined();
@@ -369,7 +369,7 @@ describe('tenant_migrations drizzle schema', () => {
   });
 
   it('schema is exported from packages/db/src/schema/index.ts', async () => {
-    const schemaIndex = await import('../schema/index.js');
+    const schemaIndex = await import('../../schema/index.js');
 
     expect(schemaIndex.tenantMigrations).toBeDefined();
   });

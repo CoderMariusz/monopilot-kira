@@ -39,7 +39,7 @@ const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const baselineMigrationPath = resolve(packageRoot, 'migrations/001-baseline.sql');
 const rlsBaslineMigrationPath = resolve(packageRoot, 'migrations/002-rls-baseline.sql');
 const r13TablesMigrationPath = resolve(packageRoot, 'migrations/0014_r13-placeholder-tables.sql');
-const r13TablesSchemaPath = resolve(packageRoot, 'src/schema/r13-business-tables.ts');
+const r13TablesSchemaPath = resolve(packageRoot, 'schema/r13-business-tables.ts');
 
 type InformationSchemaColumn = {
   table_name: string;
@@ -102,7 +102,7 @@ describe('0014 r13-placeholder-tables migration — static shape contract', () =
   });
 
   it('schema file exists at the required path', () => {
-    expect(existsSync(r13TablesSchemaPath), 'expected packages/db/src/schema/r13-business-tables.ts to exist').toBe(true);
+    expect(existsSync(r13TablesSchemaPath), 'expected packages/db/schema/r13-business-tables.ts to exist').toBe(true);
   });
 });
 

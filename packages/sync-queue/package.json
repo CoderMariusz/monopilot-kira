@@ -11,15 +11,19 @@
   },
   "scripts": {
     "test": "vitest",
-    "build": "tsc --noEmit"
+    "build": "tsc --noEmit",
+    "lint": "eslint ."
   },
   "dependencies": {
     "idb-keyval": "^6.2.1",
     "uuid": "^10.0.0"
   },
   "devDependencies": {
+    "@eslint/js": "^9.39.4",
+    "@typescript-eslint/parser": "^8.59.1",
     "@types/node": "^20",
     "@vitest/ui": "^1.6.0",
+    "eslint": "^9.39.4",
     "fake-indexeddb": "^6.0.0",
     "typescript": "^5.4.5",
     "vitest": "^1.6.0"

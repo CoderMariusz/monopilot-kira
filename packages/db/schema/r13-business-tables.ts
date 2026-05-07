@@ -5,13 +5,7 @@
  * Each has only the R13 identity columns + org_id FK. No domain columns.
  */
 import { index, integer, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
-
-const r13Columns = (table: {
-  orgId: ReturnType<typeof uuid>;
-  createdAt: ReturnType<typeof timestamp>;
-}) => ({
-  createdAt: table.createdAt,
-});
+import { organizations } from './baseline.js';
 
 // Shared column factory — returns the full R13 column set for a table definition.
 function makeR13Table(tableName: string) {
@@ -20,7 +14,7 @@ function makeR13Table(tableName: string) {
     {
       id: uuid('id').notNull().defaultRandom().primaryKey(),
       externalId: text('external_id'),
-      orgId: uuid('org_id').notNull(),
+      orgId: uuid('org_id').notNull().references(() => organizations.id),
       createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
       createdByUser: uuid('created_by_user'),
       createdByDevice: text('created_by_device'),
