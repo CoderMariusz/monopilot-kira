@@ -62,6 +62,8 @@ beforeAll(async () => {
   }
   schemaName = `ci_idempotency_${randomUUID().split('-').join('_')}`;
   await dbClient.query(`create schema ${quoteIdentifier(schemaName)};`);
+  // Set search_path so unqualified table references in withIdempotency resolve to the test schema.
+  await dbClient.query(`SET search_path TO ${quoteIdentifier(schemaName)}, public`);
 
   // Load baseline migrations
   const baselineMigration = readFileSync(
@@ -125,6 +127,7 @@ describe('withIdempotency — idempotent mutation helper', () => {
           requestPayload,
           handler,
           orgId,
+          dbClient,
         );
 
         expect(handlerInvocationCount).toBe(1);
@@ -136,6 +139,7 @@ describe('withIdempotency — idempotent mutation helper', () => {
           requestPayload,
           handler,
           orgId,
+          dbClient,
         );
 
         // Handler should NOT be invoked again
@@ -158,7 +162,7 @@ describe('withIdempotency — idempotent mutation helper', () => {
           return expectedResponse;
         };
 
-        await withIdempotency(transactionId, requestPayload, handler, orgId);
+        await withIdempotency(transactionId, requestPayload, handler, orgId, dbClient);
 
         // Verify row exists in idempotency_keys table
         const result = await dbClient.query<IdempotencyKeyRow>(
@@ -193,11 +197,11 @@ describe('withIdempotency — idempotent mutation helper', () => {
         };
 
         // First call with firstPayload
-        await withIdempotency(transactionId, firstPayload, handler, orgId);
+        await withIdempotency(transactionId, firstPayload, handler, orgId, dbClient);
 
         // Second call with different payload should throw
         await expect(
-          withIdempotency(transactionId, secondPayload, handler, orgId),
+          withIdempotency(transactionId, secondPayload, handler, orgId, dbClient),
         ).rejects.toThrow('idempotency_conflict');
       },
     );
@@ -215,7 +219,7 @@ describe('withIdempotency — idempotent mutation helper', () => {
         };
 
         // First call
-        await withIdempotency(transactionId, firstPayload, handler, orgId);
+        await withIdempotency(transactionId, firstPayload, handler, orgId, dbClient);
 
         // Get initial row
         let result = await dbClient.query<IdempotencyKeyRow>(
@@ -228,7 +232,7 @@ describe('withIdempotency — idempotent mutation helper', () => {
 
         // Second call with different payload
         try {
-          await withIdempotency(transactionId, secondPayload, handler, orgId);
+          await withIdempotency(transactionId, secondPayload, handler, orgId, dbClient);
         } catch (error) {
           // Expected to throw
         }
@@ -297,7 +301,7 @@ describe('withIdempotency — idempotent mutation helper', () => {
         return { status: 'ok' };
       };
 
-      await withIdempotency(validV7, {}, handler, orgId);
+      await withIdempotency(validV7, {}, handler, orgId, dbClient);
       expect(handlerCalled).toBe(true);
     });
   });
@@ -377,8 +381,8 @@ describe('withIdempotency — idempotent mutation helper', () => {
 
         // Simulate two concurrent calls with same transaction_id
         const promises = [
-          withIdempotency(transactionId, requestPayload, handler, orgId),
-          withIdempotency(transactionId, requestPayload, handler, orgId),
+          withIdempotency(transactionId, requestPayload, handler, orgId, dbClient),
+          withIdempotency(transactionId, requestPayload, handler, orgId, dbClient),
         ];
 
         const [result1, result2] = await Promise.all(promises);
@@ -394,7 +398,7 @@ describe('withIdempotency — idempotent mutation helper', () => {
           [transactionId],
         );
 
-        expect(result.rows[0].count).toBe(1);
+        expect(result.rows[0].count).toBe('1'); // pg returns COUNT(*) as a string
       },
     );
   });

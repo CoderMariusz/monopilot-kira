@@ -56,10 +56,13 @@ describe('GS1 parsers - mod-10 check-digit validation', () => {
         expect(result.error).toBe('length');
       });
 
-      it('rejects GTIN-13 if too long (14 digits)', () => {
+      it('rejects GTIN-14 with wrong check digit when 14-digit input given', () => {
+        // RED-phase placed a 14-digit input in the GTIN-13 block and expected error='length'.
+        // parseGTIN accepts both 13 and 14 digits per spec, so 14 digits is never a length error.
+        // '59012341234570' has an incorrect check digit (expected 6, not 0) → check_digit_mismatch.
         const result = parseGTIN('59012341234570');
         expect(result.valid).toBe(false);
-        expect(result.error).toBe('length');
+        expect(result.error).toBe('check_digit_mismatch');
       });
 
       it('rejects GTIN-13 with non-digit characters', () => {

@@ -379,16 +379,19 @@ describe('audit_events 13-field append-only table with retention_class CHECK', (
     const userId = randomUUID();
     const impersonatorId = randomUUID();
 
-    // NOTE: Fixed objectively-wrong param count — the original query listed 10 columns with
+    // NOTE: Fixed objectively-wrong param count — the original query had 10 columns with
     // occurred_at inline as now() (9 $N slots) but the values array had 10 items, causing
-    // "bind message supplies 10 parameters, but prepared statement requires 9". Fix: removed
-    // the extra 'standard' trailing value; retention_class uses its DEFAULT 'standard'.
+    // "bind message supplies 10 parameters, but prepared statement requires 9". Additionally
+    // the values array contained a spurious 'user' entry before 'impersonation', which would
+    // have bound actor_type='user' (contradicting the test intent of actor_type='impersonation').
+    // Fix: removed occurred_at from the column list (uses DEFAULT now()) and corrected the
+    // values array to 9 items with actor_type correctly set to 'impersonation'.
     const result = await dbClient.query<AuditEventRow>(
       `INSERT INTO ${quoteIdentifier(schemaName)}.audit_events
-       (org_id, occurred_at, actor_user_id, actor_type, impersonator_id, action, resource_type, resource_id, request_id, retention_class)
-       VALUES ($1, now(), $2, $3, $4, $5, $6, $7, $8, $9)
+       (org_id, actor_user_id, actor_type, impersonator_id, action, resource_type, resource_id, request_id, retention_class)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
        RETURNING *`,
-      [orgId, userId, 'user', 'impersonation', impersonatorId, 'update', 'User', 'user-def', requestId],
+      [orgId, userId, 'impersonation', impersonatorId, 'update', 'User', 'user-def', requestId, 'standard'],
     );
 
     expect(result.rows).toHaveLength(1);
@@ -418,9 +421,12 @@ describe('audit_events 13-field append-only table with retention_class CHECK', (
       [org2Id, 'system', 'create', 'Organization', 'org-2', requestId2, 'standard'],
     );
 
-    // Query both — RLS will be enforced when migration is present
+    // NOTE: Fixed objectively-wrong assertion — original COUNT(*) on the full table counted
+    // rows from all prior tests in the same schema, not just the 2 inserted here. Fix: filter
+    // by the two org_ids created in this test to isolate the count to exactly 2 rows.
     const allResults = await dbClient.query(
-      `SELECT COUNT(*) as cnt FROM ${quoteIdentifier(schemaName)}.audit_events`,
+      `SELECT COUNT(*) as cnt FROM ${quoteIdentifier(schemaName)}.audit_events WHERE org_id IN ($1, $2)`,
+      [org1Id, org2Id],
     );
 
     expect(allResults.rows[0].cnt).toBe('2');

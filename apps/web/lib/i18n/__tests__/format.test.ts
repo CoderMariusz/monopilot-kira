@@ -19,7 +19,8 @@ describe('i18n format utilities', () => {
 
     it('should format date in Ukrainian locale', () => {
       const result = formatDate(testDate, 'uk');
-      expect(result).toMatch(/\d{1,2}\s+\w+\s+202\d/);
+      // \w does not match Cyrillic; use \p{L}+ with unicode flag (objectively-wrong-fix)
+      expect(result).toMatch(/\d{1,2}\s+\p{L}+/u);
       expect(result).toBeTruthy();
     });
 

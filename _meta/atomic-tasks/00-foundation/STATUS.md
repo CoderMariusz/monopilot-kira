@@ -49,7 +49,7 @@ Updated by orchestrator after every PASS review.
 | T-035 | Workflow-as-data executor | ⬜ PENDING | |
 | T-036 | Schema-driven column draft/publish | ⬜ PENDING | |
 | T-037 | Schema-driven column wizard UI | ⬜ PENDING | |
-| T-038 | tenant_migrations table | ⬜ PENDING | |
+| T-038 | tenant_migrations table | ✅ DONE | RED+GREEN+REVIEW PASS; 11/11 tests pass; 013-tenant-migrations.sql idempotent; no FK (app-layer carry-forward to T-039); dual schema dir + symlink carry-forward |
 | T-039 | Canary upgrade orchestration | ⬜ PENDING | |
 | T-040 | R13 columns on placeholder tables | ⬜ PENDING | |
 | T-041 | PWA scaffold | ⬜ PENDING | |

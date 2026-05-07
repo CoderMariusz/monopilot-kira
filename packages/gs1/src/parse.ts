@@ -3,7 +3,7 @@
  * Per GS1 General Specs 24.0
  */
 
-import { computeMod10 } from './check-digit';
+import { computeMod10 } from './check-digit.js';
 
 export interface ParseResult {
   valid: boolean;
