@@ -3,9 +3,8 @@ import { existsSync, readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { randomUUID } from 'node:crypto';
-import pg from 'pg';
-
-const { Pool } = pg;
+import type pg from 'pg';
+import { getOwnerConnection, getAppConnection } from '../test-utils/test-pool.js';
 
 const databaseUrl = process.env.DATABASE_URL;
 const runIntegrationTest = databaseUrl ? describe : describe.skip;
@@ -20,17 +19,6 @@ const tenantId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 const orgAUser = 'aaaaaaaa-1111-4111-8111-111111111111';
 const orgBUser = 'bbbbbbbb-2222-4222-8222-222222222222';
 const appUserPassword = ['app', 'user', 'test', 'password'].join('_');
-
-function appUserDatabaseUrl() {
-  if (!databaseUrl) {
-    throw new Error('DATABASE_URL must be set for RLS integration tests');
-  }
-
-  const url = new URL(databaseUrl);
-  url.username = 'app_user';
-  url.password = appUserPassword;
-  return url.toString();
-}
 
 async function assertRequiredColumns(adminPool: pg.Pool) {
   const expectedColumns = [
@@ -129,8 +117,8 @@ runIntegrationTest('002 RLS baseline app-role behavior', () => {
   let appPool: pg.Pool;
 
   beforeAll(async () => {
-    adminPool = new Pool({ connectionString: databaseUrl });
-    appPool = new Pool({ connectionString: appUserDatabaseUrl() });
+    adminPool = getOwnerConnection();
+    appPool = getAppConnection();
 
     await adminPool.query(readFileSync(baselineMigrationPath, 'utf8'));
     await assertRequiredColumns(adminPool);

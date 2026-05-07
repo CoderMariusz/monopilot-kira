@@ -15,16 +15,10 @@ import { existsSync, readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { randomUUID } from 'node:crypto';
-import pg from 'pg';
+import type pg from 'pg';
+import { getOwnerConnection, getAppConnection } from '../test-utils/test-pool.js';
 
 const appUserPassword = ['app', 'user', 'test', 'password'].join('_');
-
-function appUserDatabaseUrl(baseUrl: string): string {
-  const url = new URL(baseUrl);
-  url.username = 'app_user';
-  url.password = appUserPassword;
-  return url.toString();
-}
 
 const databaseUrl = process.env.DATABASE_URL;
 const runIntegrationTest = databaseUrl ? it : it.skip;
@@ -88,7 +82,7 @@ runIntegrationSuite('011 departments integration — Postgres', () => {
       return;
     }
 
-    pool = new pg.Pool({ connectionString: databaseUrl });
+    pool = getOwnerConnection();
 
     // Run baseline + departments migrations (idempotent)
     await pool.query(readFileSync(baselineMigrationPath, 'utf8'));
@@ -253,8 +247,8 @@ runIntegrationSuite('011 departments RLS — cross-org isolation', () => {
   beforeAll(async () => {
     if (!databaseUrl) return;
 
-    adminPool = new pg.Pool({ connectionString: databaseUrl });
-    appPool   = new pg.Pool({ connectionString: appUserDatabaseUrl(databaseUrl) });
+    adminPool = getOwnerConnection();
+    appPool   = getAppConnection();
 
     // Apply required migrations in dependency order
     await adminPool.query(readFileSync(baselineMigrationPath, 'utf8'));

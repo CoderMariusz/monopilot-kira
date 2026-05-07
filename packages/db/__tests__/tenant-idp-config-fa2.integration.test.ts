@@ -53,6 +53,7 @@ beforeAll(async () => {
     return;
   }
 
+  // eslint-disable-next-line no-restricted-syntax -- FA2 extension tests; migration to getOwnerConnection tracked outside T-058
   const pool = new pg.Pool({ connectionString: databaseUrl });
   closePool = async () => {
     await pool.end();

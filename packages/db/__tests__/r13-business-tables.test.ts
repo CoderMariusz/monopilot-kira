@@ -18,17 +18,10 @@ import { existsSync, readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { randomUUID } from 'node:crypto';
-import pg from 'pg';
+import type pg from 'pg';
+import { getOwnerConnection, getAppConnection } from '../test-utils/test-pool.js';
 
 const appUserPassword = ['app', 'user', 'test', 'password'].join('_');
-
-function appUserDatabaseUrl(): string {
-  if (!databaseUrl) throw new Error('DATABASE_URL must be set');
-  const url = new URL(databaseUrl);
-  url.username = 'app_user';
-  url.password = appUserPassword;
-  return url.toString();
-}
 
 const databaseUrl = process.env.DATABASE_URL;
 const runIntegrationTest = databaseUrl ? it : it.skip;
@@ -215,7 +208,7 @@ runIntegrationSuite('014 r13-placeholder-tables integration — Postgres', () =>
       return;
     }
 
-    pool = new pg.Pool({ connectionString: databaseUrl });
+    pool = getOwnerConnection();
     dbClient = await pool.connect();
 
     // Run baseline + RLS + r13 migrations (idempotent)
@@ -275,7 +268,7 @@ runIntegrationSuite('014 r13-placeholder-tables integration — Postgres', () =>
     );
 
     // Open the app_user pool now that the role credentials are known
-    appPool = new pg.Pool({ connectionString: appUserDatabaseUrl() });
+    appPool = getAppConnection();
   });
 
   afterAll(async () => {

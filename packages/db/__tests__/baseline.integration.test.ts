@@ -3,7 +3,8 @@ import { readFileSync } from 'node:fs';
 import { randomUUID } from 'node:crypto';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import pg from 'pg';
+import type pg from 'pg';
+import { getOwnerConnection } from '../test-utils/test-pool.js';
 
 const hasDatabaseUrl = Boolean(process.env.DATABASE_URL);
 const runIntegrationTest = hasDatabaseUrl ? it : it.skip;
@@ -43,7 +44,7 @@ beforeAll(async () => {
     return;
   }
 
-  const pool = new pg.Pool({ connectionString: databaseUrl });
+  const pool = getOwnerConnection();
   closePool = async () => {
     await pool.end();
   };

@@ -3,9 +3,13 @@
 // Extends the shared workspace base and adds T-045 getOwnerConnection restriction
 // with relative-import paths that apply within this package's source tree.
 //
-// Pre-existing deviations (documented, do not fix without T-058 coordination):
-//   - __tests__/**/*.ts, src/__tests__/**/*.ts: new pg.Pool() — integration tests use
-//     direct pool connections; migration to managed pool tracked in T-058.
+// Pre-existing deviations (documented):
+//   - __tests__/migrate-runner.integration.test.ts: narrow eslint-disable-next-line suppression
+//     (tests the raw runner itself; migration tracked outside T-058).
+//   - __tests__/tenant-idp-config-fa2.integration.test.ts: narrow eslint-disable-next-line
+//     suppression (FA2 extension; migration tracked outside T-058).
+//   - src/__tests__/app-role.test.ts: narrow eslint-disable-next-line suppression
+//     (tests the connection split itself; T-058 out-of-scope).
 //   - schema/tenant-migrations.ts: eslint-disable-next-line @typescript-eslint/no-explicit-any
 //     comment references the plugin without it being loaded; suppressed in schema files.
 import base from '../../tooling/eslint/base.mjs';
@@ -70,30 +74,6 @@ export default [
     files: ['src/migrations/**/*.{js,ts}', 'scripts/migrate.ts', 'scripts/migrate.js'],
     rules: {
       'no-restricted-imports': 'off',
-    },
-  },
-
-  // Pre-existing: db integration tests create pg.Pool directly (pre-T-058 pattern).
-  // T-058 will migrate these to use the managed pool. Do not add new pg.Pool() calls here.
-  // IMPORTANT: Only the pg.Pool selector is suppressed here. The Reference.* drift
-  // gate (T-046) remains active in test files — pg.Pool selector intentionally omitted.
-  {
-    files: [
-      '__tests__/**/*.ts',
-      'src/__tests__/**/*.ts',
-      '**/*.integration.test.ts',
-      '**/*.test.ts',
-    ],
-    rules: {
-      'no-restricted-syntax': [
-        'error',
-        {
-          selector: "Literal[value=/^Reference\\.[A-Z][A-Za-z]+$/]",
-          message:
-            "Do not hardcode Reference.* table-name strings. Import RefTables from 'lib/reference'.",
-        },
-        // pg.Pool selector intentionally omitted in test override (legacy debt; T-058 will migrate)
-      ],
     },
   },
 

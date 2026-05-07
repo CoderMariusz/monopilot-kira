@@ -43,6 +43,7 @@ beforeAll(async () => {
     return;
   }
 
+  // eslint-disable-next-line no-restricted-syntax -- migrate-runner tests the raw runner; T-058 out-of-scope
   dbPool = new pg.Pool({ connectionString: databaseUrl });
   closePool = async () => {
     await dbPool.end();
