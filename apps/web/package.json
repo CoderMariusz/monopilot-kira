@@ -11,6 +11,7 @@
     "test:smoke": "vitest run --config ../../vitest.config.ts app/__tests__/smoke.test.ts"
   },
   "dependencies": {
+    "@boxyhq/saml-jackson": "^26.2.0",
     "@serwist/next": "^9.5.11",
     "@supabase/ssr": "^0.10.2",
     "@supabase/supabase-js": "^2.105.3",

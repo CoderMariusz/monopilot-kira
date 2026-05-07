@@ -98,6 +98,7 @@ For reference, current assignments per task JSONs:
 - 019 pins (T-016) — REASSIGNED from JSON's "008-pins.sql" because 008 is reserved for T-013 SCIM (Wave C)
 - 020/021 — REVERTED (T-016 REWORK γ: production schema bandage; deleted from filesystem AND from schema_migrations; test seed fixed at correct layer)
 - 022 dept-column-drafts (T-036) — REASSIGNED from JSON's "011-dept-column-drafts.sql" because 011 is taken by T-019 departments. Also: T-036 internal table `schema_migrations` collides with T-054's runner table — agent must rename to `dept_column_migrations`
-- 023 outbox-events-extension (T-039) — RESERVED. T-039 GREEN must add 3 events to `outbox_events_event_type_check` (`tenant.migration.run`, `tenant.migration.run.failed`, `tenant.cohort.advanced`) AND extend `packages/outbox/src/events.enum.ts` ALL_EVENTS in same atomic step
+- 023 outbox-events-extension (T-039) — RESERVED. T-039 GREEN must add 3 events to `outbox_events_event_type_check` (`tenant.migration.run`, `tenant.migration.run.failed`, `tenant.cohort.advanced`) AND extend `packages/outbox/src/events.enum.ts` ALL_EVENTS in same atomic step (DONE)
+- 007 mfa (T-015) — slot 007 was reserved for T-012 SAML but T-012 has no migration; reassigned to T-015 MFA (mfa_secrets + recovery_codes + RLS+GRANT)
 
 If your task is not in the list above and is not a migration task, do not create migration files.
