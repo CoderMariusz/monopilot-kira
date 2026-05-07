@@ -1,22 +1,145 @@
-import { spawnSync } from 'node:child_process';
+/**
+ * T-054 — Raw-SQL migration runner
+ *
+ * Reads migrations/*.sql, validates filenames match /^(\d{3})-[a-z0-9-]+\.sql$/,
+ * sorts by the numeric prefix, applies each pending migration inside a transaction,
+ * and records state in public.schema_migrations(filename, applied_at, checksum).
+ *
+ * Idempotent: a second run is a no-op (already-applied rows are skipped).
+ * Checksum mismatch on a previously-applied file is a hard error.
+ * --dry-run flag lists pending without applying.
+ *
+ * Uses getOwnerConnection() (DATABASE_URL or DATABASE_URL_OWNER) — never superuser
+ * beyond what the owner role already is; no drizzle-kit involvement.
+ */
+import { createHash } from 'node:crypto';
+import { readFileSync, readdirSync } from 'node:fs';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import pg from 'pg';
+import { getOwnerConnection } from '../src/clients.js';
 
-const databaseUrl = process.env.DATABASE_URL;
-if (!databaseUrl) {
-  throw new Error('DATABASE_URL environment variable must be set before running migrate');
+const VALID_FILENAME = /^(\d{3})-[a-z0-9-]+\.sql$/;
+
+const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+const migrationsDir = resolve(packageRoot, 'migrations');
+
+const isDryRun = process.argv.includes('--dry-run');
+
+function sha256(content: string): string {
+  return createHash('sha256').update(content, 'utf8').digest('hex');
 }
 
-const result = spawnSync('drizzle-kit', ['push'], {
-  stdio: 'inherit',
-  env: {
-    ...process.env,
-    DATABASE_URL: databaseUrl,
-  },
+function numericPrefix(filename: string): number {
+  const match = filename.match(/^(\d+)/);
+  if (!match) throw new Error(`Cannot extract numeric prefix from: ${filename}`);
+  return parseInt(match[1], 10);
+}
+
+async function run(): Promise<void> {
+  // 1. Discover and validate migration files
+  const allFiles = readdirSync(migrationsDir).filter((f) => f.endsWith('.sql'));
+
+  const invalid = allFiles.filter((f) => !VALID_FILENAME.test(f));
+  if (invalid.length > 0) {
+    throw new Error(
+      `Migration runner startup error: the following migration files do not match the ` +
+        `required NNN-name.sql convention (3-digit numeric prefix, lowercase dash-separated name):\n` +
+        invalid.map((f) => `  - ${f}`).join('\n') +
+        `\n\nRename these files before running the migration runner.`,
+    );
+  }
+
+  // 2. Sort by numeric prefix (not lex order)
+  const migrationFiles = allFiles.slice().sort((a, b) => numericPrefix(a) - numericPrefix(b));
+
+  // 3. Connect to the database
+  const pool: pg.Pool = getOwnerConnection();
+  const client = await pool.connect();
+
+  try {
+    // 4. Create schema_migrations table if absent
+    await client.query(`
+      create table if not exists public.schema_migrations (
+        filename   text        primary key,
+        applied_at timestamptz not null default now(),
+        checksum   text        not null
+      );
+    `);
+
+    // 5. Load already-applied migrations
+    const { rows: appliedRows } = await client.query<{ filename: string; checksum: string }>(
+      `select filename, checksum from public.schema_migrations order by filename`,
+    );
+    const applied = new Map<string, string>(appliedRows.map((r) => [r.filename, r.checksum]));
+
+    // 6. Process each migration
+    let pendingCount = 0;
+    let appliedCount = 0;
+
+    for (const file of migrationFiles) {
+      const filePath = resolve(migrationsDir, file);
+      const sql = readFileSync(filePath, 'utf8');
+      const checksum = sha256(sql);
+
+      if (applied.has(file)) {
+        // Checksum mismatch detection — editing an applied migration is a hard error
+        const storedChecksum = applied.get(file)!;
+        if (storedChecksum !== checksum) {
+          throw new Error(
+            `CHECKSUM MISMATCH on already-applied migration: ${file}\n` +
+              `  Stored checksum : ${storedChecksum}\n` +
+              `  Current checksum: ${checksum}\n` +
+              `Applied migrations must never be edited. Create a new migration instead.`,
+          );
+        }
+        console.log(`  already applied: ${file}`);
+        appliedCount++;
+        continue;
+      }
+
+      pendingCount++;
+
+      if (isDryRun) {
+        console.log(`  [dry-run] pending : ${file}`);
+        continue;
+      }
+
+      // Apply inside a transaction
+      await client.query('begin');
+      try {
+        await client.query(sql);
+        await client.query(
+          `insert into public.schema_migrations (filename, checksum) values ($1, $2)`,
+          [file, checksum],
+        );
+        await client.query('commit');
+        console.log(`  applied          : ${file}`);
+      } catch (err) {
+        await client.query('rollback');
+        throw new Error(
+          `Migration failed: ${file}\n${err instanceof Error ? err.message : String(err)}`,
+        );
+      }
+    }
+
+    // 7. Summary
+    if (isDryRun) {
+      console.log(
+        `\n[dry-run] ${pendingCount} pending, ${appliedCount} already applied. No changes made.`,
+      );
+    } else {
+      console.log(
+        `\nDone: ${pendingCount} applied, ${appliedCount} already applied (skipped).`,
+      );
+    }
+  } finally {
+    client.release();
+    await pool.end();
+  }
+}
+
+run().catch((err) => {
+  console.error('Migration runner error:', err instanceof Error ? err.message : err);
+  process.exit(1);
 });
-
-if (result.error) {
-  throw result.error;
-}
-
-if (result.status === null || result.status !== 0) {
-  process.exit(result.status ?? 1);
-}

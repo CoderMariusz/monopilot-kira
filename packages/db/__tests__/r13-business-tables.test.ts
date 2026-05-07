@@ -38,7 +38,7 @@ const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 
 const baselineMigrationPath = resolve(packageRoot, 'migrations/001-baseline.sql');
 const rlsBaslineMigrationPath = resolve(packageRoot, 'migrations/002-rls-baseline.sql');
-const r13TablesMigrationPath = resolve(packageRoot, 'migrations/0014_r13-placeholder-tables.sql');
+const r13TablesMigrationPath = resolve(packageRoot, 'migrations/014-r13-placeholder-tables.sql');
 const r13TablesSchemaPath = resolve(packageRoot, 'schema/r13-business-tables.ts');
 
 type InformationSchemaColumn = {
@@ -57,9 +57,9 @@ type IndexRow = {
 
 // ── static shape contract (no DB required) ────────────────────────────────────
 
-describe('0014 r13-placeholder-tables migration — static shape contract', () => {
+describe('014 r13-placeholder-tables migration — static shape contract', () => {
   it('migration file exists at the required path', () => {
-    expect(existsSync(r13TablesMigrationPath), 'expected packages/db/migrations/0014_r13-placeholder-tables.sql to exist').toBe(true);
+    expect(existsSync(r13TablesMigrationPath), 'expected packages/db/migrations/014-r13-placeholder-tables.sql to exist').toBe(true);
   });
 
   it('migration creates all 5 placeholder tables', () => {
@@ -201,7 +201,7 @@ describe('r13-business-tables.ts schema — drizzle contract', () => {
 
 // ── integration tests (require DATABASE_URL) ──────────────────────────────────
 
-runIntegrationSuite('0014 r13-placeholder-tables integration — Postgres', () => {
+runIntegrationSuite('014 r13-placeholder-tables integration — Postgres', () => {
   let pool: pg.Pool;
   let appPool: pg.Pool;
   let dbClient: pg.PoolClient;

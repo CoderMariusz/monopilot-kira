@@ -2,7 +2,14 @@
 // ESLint v9 flat config for @monopilot/db.
 // Extends the shared workspace base and adds T-045 getOwnerConnection restriction
 // with relative-import paths that apply within this package's source tree.
+//
+// Pre-existing deviations (documented, do not fix without T-058 coordination):
+//   - __tests__/**/*.ts, src/__tests__/**/*.ts: new pg.Pool() — integration tests use
+//     direct pool connections; migration to managed pool tracked in T-058.
+//   - schema/tenant-migrations.ts: eslint-disable-next-line @typescript-eslint/no-explicit-any
+//     comment references the plugin without it being loaded; suppressed in schema files.
 import base from '../../tooling/eslint/base.mjs';
+import tsPlugin from '@typescript-eslint/eslint-plugin';
 
 export default [
   ...base,
@@ -55,7 +62,6 @@ export default [
           ],
         },
       ],
-      '@typescript-eslint/no-explicit-any': 'off',
     },
   },
 
@@ -64,6 +70,32 @@ export default [
     files: ['src/migrations/**/*.{js,ts}', 'scripts/migrate.ts', 'scripts/migrate.js'],
     rules: {
       'no-restricted-imports': 'off',
+    },
+  },
+
+  // Pre-existing: db integration tests create pg.Pool directly (pre-T-058 pattern).
+  // T-058 will migrate these to use the managed pool. Do not add new pg.Pool() calls here.
+  {
+    files: [
+      '__tests__/**/*.ts',
+      'src/__tests__/**/*.ts',
+      '**/*.integration.test.ts',
+      '**/*.test.ts',
+    ],
+    rules: {
+      'no-restricted-syntax': 'off',
+    },
+  },
+
+  // schema/tenant-migrations.ts contains an eslint-disable comment referencing
+  // @typescript-eslint/no-explicit-any; load the plugin (off) to suppress "rule not found".
+  {
+    files: ['schema/**/*.ts'],
+    plugins: {
+      '@typescript-eslint': tsPlugin,
+    },
+    rules: {
+      '@typescript-eslint/no-explicit-any': 'off',
     },
   },
 ];

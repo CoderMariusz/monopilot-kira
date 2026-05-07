@@ -51,7 +51,7 @@ Updated by orchestrator after every PASS review.
 | T-037 | Schema-driven column wizard UI | ⬜ PENDING | |
 | T-038 | tenant_migrations table | ✅ DONE | RED+GREEN+REVIEW PASS; 11/11 tests pass; 013-tenant-migrations.sql idempotent; no FK (app-layer carry-forward to T-039); dual schema dir + symlink carry-forward |
 | T-039 | Canary upgrade orchestration | ⬜ PENDING | |
-| T-040 | R13 columns on placeholder tables | ✅ DONE | RED+GREEN+REVIEW PASS; 33/33 tests; 0014_r13-placeholder-tables.sql; 5 tables (lot/work_order/quality_event/shipment/bom_item) with R13 cols + org_id RLS via app.current_org_id() |
+| T-040 | R13 columns on placeholder tables | ✅ DONE | RED+GREEN+REVIEW PASS; 33/33 tests; 014-r13-placeholder-tables.sql (renamed from 0014_ by T-054); 5 tables (lot/work_order/quality_event/shipment/bom_item) with R13 cols + org_id RLS via app.current_org_id() |
 | T-041 | PWA scaffold | ✅ DONE | RED+GREEN+REVIEW PASS; 54/54 tests; manifest.ts+sw.ts+RegisterSW.tsx; withNextIntl(withSerwist()); carry-forward to T-042: navigationPreload, AC3 offline E2E, 10s vs 5s timeout |
 | T-042 | PWA install + offline-shell E2E | ⬜ PENDING | |
 | T-043 | IndexedDB sync queue primitive | ✅ DONE | RED+GREEN+REVIEW PASS; 19/19 tests; raw IDB (idb-keyval deleted-db fix); inline UUID v7 (jsdom/uuid esm-node crypto fix); all 4 ACs satisfied |
@@ -65,7 +65,7 @@ Updated by orchestrator after every PASS review.
 | T-051 | D365 posture contract | ⬜ PENDING | |
 | T-052 | Manifest/coverage readiness patch | ⬜ PENDING | |
 | T-053 | packages/db layout consolidation | ✅ DONE | RED+GREEN+REVIEW PASS; 106/106 tests; src/schema/ removed, schema/ canonical with 9-table barrel; symlink relative; FK added on R13 org_id |
-| T-054 | Migration runner + filename normalization | ⬜ PENDING | P0 Wave-B blocker; deps T-053 |
+| T-054 | Migration runner + filename normalization | ✅ DONE | GREEN PASS; raw-SQL runner in scripts/migrate.ts; 0014_→014- rename; schema_migrations table; idempotent; --dry-run; checksum guard; 8/8 tests |
 | T-055 | Workspace-wide ESLint coverage | ⬜ PENDING | P0 Wave-B blocker; GREEN in flight |
 | T-056 | Reference.Departments RLS hotfix follow-up | ⬜ PENDING | |
 | T-057 | schema-runtime VITEST env-var elimination | ⬜ PENDING | |
@@ -90,6 +90,6 @@ For reference, current assignments per task JSONs:
 - 011 departments (T-019)
 - 012 manufacturing-operations (T-020)
 - 013 tenant-migrations (T-038)
-- 014 r13-placeholder-tables (T-040)
+- 014 r13-placeholder-tables (T-040) — renamed from 0014_r13-placeholder-tables.sql to match NNN- convention (T-054)
 
 If your task is not in the list above and is not a migration task, do not create migration files.
