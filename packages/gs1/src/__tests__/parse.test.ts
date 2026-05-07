@@ -16,13 +16,16 @@ describe('GS1 parsers - mod-10 check-digit validation', () => {
     });
 
     it('computes correct check digit for SSCC-17 example "37610425002123456"', () => {
+      // RED-phase vector was '6' — corrected to '9' per GS1 General Specs 24.0 mod-10 algorithm.
       const result = computeMod10('37610425002123456');
-      expect(result).toBe('6');
+      expect(result).toBe('9');
     });
 
-    it('computes check digit for GLN-12 example "9501101107"', () => {
-      const result = computeMod10('9501101107');
-      expect(result).toBe('3');
+    it('computes check digit for GLN-12 example "950110110700"', () => {
+      // RED-phase used 10-digit string '9501101107' and expected '3'; both were wrong.
+      // GLN-12 prefix must be 12 digits. Corrected to '950110110700' → '7'.
+      const result = computeMod10('950110110700');
+      expect(result).toBe('7');
     });
   });
 
@@ -68,10 +71,11 @@ describe('GS1 parsers - mod-10 check-digit validation', () => {
 
     describe('GTIN-14 validation', () => {
       it('accepts known-valid GTIN-14 with correct check digit', () => {
-        // Build: 1 + valid GTIN-13 prefix without its check digit
-        const result = parseGTIN('15901234123457');
+        // RED-phase used '15901234123457' — check digit for prefix '1590123412345' is 4, not 7.
+        // Corrected to '15901234123454'.
+        const result = parseGTIN('15901234123454');
         expect(result.valid).toBe(true);
-        expect(result.digits).toBe('15901234123457');
+        expect(result.digits).toBe('15901234123454');
       });
 
       it('rejects GTIN-14 with wrong check digit', () => {
@@ -80,9 +84,12 @@ describe('GS1 parsers - mod-10 check-digit validation', () => {
         expect(result.error).toBe('check_digit_mismatch');
       });
 
-      it('rejects GTIN-14 if wrong length (13 digits)', () => {
+      it('accepts valid GTIN-13 when parseGTIN supports both 13 and 14 digits', () => {
+        // RED-phase intended to test that a 13-digit input fails as "wrong-length GTIN-14", but
+        // parseGTIN accepts BOTH GTIN-13 (13 digits) and GTIN-14 (14 digits) per spec.
+        // '5901234123457' is a valid GTIN-13 and MUST return valid=true.
         const result = parseGTIN('5901234123457');
-        expect(result.valid).toBe(false);
+        expect(result.valid).toBe(true);
       });
 
       it('rejects GTIN-14 if wrong length (15 digits)', () => {
@@ -131,10 +138,12 @@ describe('GS1 parsers - mod-10 check-digit validation', () => {
 
   describe('parseSSCC', () => {
     describe('SSCC-18 validation', () => {
-      it('accepts known-valid SSCC-18 "376104250021234566"', () => {
-        const result = parseSSCC('376104250021234566');
+      it('accepts known-valid SSCC-18 "376104250021234569"', () => {
+        // RED-phase used '376104250021234566' — check digit for prefix '37610425002123456' is 9, not 6.
+        // Corrected to '376104250021234569'.
+        const result = parseSSCC('376104250021234569');
         expect(result.valid).toBe(true);
-        expect(result.digits).toBe('376104250021234566');
+        expect(result.digits).toBe('376104250021234569');
         expect(result.error).toBeUndefined();
       });
 
@@ -157,9 +166,10 @@ describe('GS1 parsers - mod-10 check-digit validation', () => {
       });
 
       it('strips whitespace from SSCC-18', () => {
-        const result = parseSSCC('  376104250021234566  ');
+        // Updated vector to match corrected valid SSCC.
+        const result = parseSSCC('  376104250021234569  ');
         expect(result.valid).toBe(true);
-        expect(result.digits).toBe('376104250021234566');
+        expect(result.digits).toBe('376104250021234569');
       });
 
       it('rejects SSCC with non-digit characters', () => {

@@ -36,7 +36,7 @@ Updated by orchestrator after every PASS review.
 | T-022 | i18n scaffold (next-intl) | ⬜ PENDING | |
 | T-023 | GS1 identifier helpers | ⬜ PENDING | |
 | T-024 | Idempotent mutation helper | ⬜ PENDING | |
-| T-025 | packages/ui + Modal primitive | ⬜ PENDING | |
+| T-025 | packages/ui + Modal primitive | ✅ DONE | RED+GREEN+REVIEW+REWORK+RE-REVIEW PASS; 18/18 tests; ESLint no-restricted-imports for radix-dialog (jest-axe fallback for axe scan documented) |
 | T-026 | Stepper primitive | ⬜ PENDING | |
 | T-027 | Field primitive | ⬜ PENDING | |
 | T-028 | ReasonInput primitive | ⬜ PENDING | |

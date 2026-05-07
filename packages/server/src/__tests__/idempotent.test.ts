@@ -4,13 +4,16 @@ import { randomUUID } from 'node:crypto';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import pg from 'pg';
+import { withIdempotency } from '../idempotent.js';
 
 const hasDatabaseUrl = Boolean(process.env.DATABASE_URL);
 const runIntegrationTest = hasDatabaseUrl ? it : it.skip;
+// import.meta.url points at packages/server/src/__tests__/idempotent.test.ts
+// '../..' resolves to packages/server (the package root)
 const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 
-// We'll construct paths to db migrations manually
-const dbMigrationsRoot = resolve(packageRoot, '../../db/migrations');
+// packages/server/../../db/migrations would be wrong (skips packages/); use ../db/migrations
+const dbMigrationsRoot = resolve(packageRoot, '../db/migrations');
 
 type IdempotencyKeyRow = {
   transaction_id: string;
@@ -35,15 +38,6 @@ function isValidUUIDv7(uuid: string): boolean {
   return uuidRegex.test(uuid);
 }
 
-// Mock withIdempotency function (will fail because it doesn't exist)
-async function withIdempotency<T>(
-  transactionId: string,
-  requestPayload: Record<string, unknown>,
-  handler: () => Promise<T>,
-  orgId: string,
-): Promise<T> {
-  throw new Error('withIdempotency is not yet implemented');
-}
 
 beforeAll(async () => {
   if (!hasDatabaseUrl) {
@@ -82,15 +76,15 @@ beforeAll(async () => {
   ).split('public.').join(`${schemaName}.`);
   await dbClient.query(rlsMigration);
 
-  // Load idempotency migration (will fail if 013-idempotency.sql doesn't exist)
+  // Load idempotency migration (013 was taken by T-038; T-024 uses 015-idempotency.sql)
   try {
     const idempotencyMigration = readFileSync(
-      resolve(dbMigrationsRoot, '013-idempotency.sql'),
+      resolve(dbMigrationsRoot, '015-idempotency.sql'),
       'utf8',
     ).split('public.').join(`${schemaName}.`);
     await dbClient.query(idempotencyMigration);
   } catch (error) {
-    console.warn('013-idempotency.sql not found, test will verify schema is created');
+    console.warn('015-idempotency.sql not found, test will verify schema is created');
   }
 });
 

@@ -48,6 +48,9 @@ beforeAll(async () => {
   await dbClient.query(`create schema ${quoteIdentifier(schemaName)};`);
 
   // Load baseline migrations (001 + 002 + 003 + 004 + 005)
+  // NOTE: app. schema is NOT substituted — PostgreSQL does not support three-part
+  // identifiers (database.schema.table). The `app` schema (functions, context tables)
+  // remains a shared global schema; only `public.` tables are isolated per test run.
   const baseline001Path = resolve(packageRoot, 'migrations/001-baseline.sql');
   const baseline002Path = resolve(packageRoot, 'migrations/002-rls-baseline.sql');
   const baseline003Path = resolve(packageRoot, 'migrations/003-outbox.sql');
@@ -55,17 +58,10 @@ beforeAll(async () => {
   const migration005Path = resolve(packageRoot, 'migrations/005-tenant-idp-config.sql');
 
   const baselineRLS001 = readFileSync(baseline001Path, 'utf8').split('public.').join(`${schemaName}.`);
-  const baselineRLS002 = readFileSync(baseline002Path, 'utf8')
-    .split('public.').join(`${schemaName}.`)
-    .split('app.').join(`${schemaName}.app.`);
-  const baselineRLS003 = readFileSync(baseline003Path, 'utf8')
-    .split('public.').join(`${schemaName}.`)
-    .split('app.').join(`${schemaName}.app.`);
-  const baselineRLS004 = readFileSync(baseline004Path, 'utf8')
-    .split('public.').join(`${schemaName}.`)
-    .split('app.').join(`${schemaName}.app.`);
-  const migration005 = readFileSync(migration005Path, 'utf8')
-    .split('public.').join(`${schemaName}.`);
+  const baselineRLS002 = readFileSync(baseline002Path, 'utf8').split('public.').join(`${schemaName}.`);
+  const baselineRLS003 = readFileSync(baseline003Path, 'utf8').split('public.').join(`${schemaName}.`);
+  const baselineRLS004 = readFileSync(baseline004Path, 'utf8').split('public.').join(`${schemaName}.`);
+  const migration005 = readFileSync(migration005Path, 'utf8').split('public.').join(`${schemaName}.`);
 
   await dbClient.query(baselineRLS001);
   await dbClient.query(baselineRLS002);
@@ -254,7 +250,7 @@ describe('tenant_idp_config table and automatic seeding per F-U5', () => {
         [tenantId],
       );
 
-      expect(result.rows[0].count).toBe(1);
+      expect(Number(result.rows[0].count)).toBe(1);
     },
   );
 

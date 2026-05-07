@@ -7,10 +7,12 @@
     "build": "next build",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
+    "test": "vitest run --config ../../vitest.config.ts",
     "test:smoke": "vitest run --config ../../vitest.config.ts app/__tests__/smoke.test.ts"
   },
   "dependencies": {
     "next": "^16.0.0",
+    "next-intl": "^4.11.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0"
   },

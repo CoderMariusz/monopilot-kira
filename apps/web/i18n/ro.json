@@ -1,0 +1,18 @@
+{
+  "auth": {
+    "signin": {
+      "title": "Autentificare",
+      "email": "Adresă de e-mail"
+    }
+  },
+  "common": {
+    "cancel": "Anulare",
+    "save": "Salvare",
+    "error": {
+      "generic": "A apărut o eroare. Vă rugăm să încercați din nou."
+    }
+  },
+  "items": {
+    "count": "{count, plural, one {# element} few {# elemente} other {# de elemente}}"
+  }
+}

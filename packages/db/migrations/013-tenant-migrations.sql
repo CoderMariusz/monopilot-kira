@@ -1,9 +1,12 @@
 -- T-038: tenant_migrations table (canary upgrade orchestration baseline)
 -- Creates the tenant_migrations table recording per-tenant component versions,
 -- cohort segmentation (canary/early/general), and migration run state.
+-- Note: tenant_id is a UUID referencing an organization, but no FK constraint
+-- is enforced here to keep the table lightweight and avoid cascade complexity
+-- in the upgrade orchestrator (the application layer enforces referential integrity).
 
 create table if not exists public.tenant_migrations (
-  tenant_id         uuid    not null references public.organizations(id),
+  tenant_id         uuid    not null,
   component         text    not null,
   current_version   text    not null,
   target_version    text,

@@ -77,26 +77,23 @@ beforeAll(async () => {
   const baselineMigration = readFileSync(baselineMigrationPath, 'utf8').split('public.').join(`${schemaName}.`);
   await dbClient.query(baselineMigration);
 
+  // NOTE: app. schema is NOT substituted — PostgreSQL does not support three-part
+  // identifiers (database.schema.table). The `app` schema (functions, context tables)
+  // remains a shared global schema; only `public.` tables are isolated per test run.
   const rlsBaseline = readFileSync(rlsBaslineMigrationPath, 'utf8')
-    .split('public.').join(`${schemaName}.`)
-    .split('app.')
-    .join(`${schemaName}.app.`);
+    .split('public.').join(`${schemaName}.`);
   await dbClient.query(rlsBaseline);
 
   const outboxMigration = readFileSync(outboxMigrationPath, 'utf8')
     .split('public.')
-    .join(`${schemaName}.`)
-    .split('app.')
-    .join(`${schemaName}.app.`);
+    .join(`${schemaName}.`);
   await dbClient.query(outboxMigration);
 
   // Load audit migration if it exists
   try {
     const auditMigration = readFileSync(auditMigrationPath, 'utf8')
       .split('public.')
-      .join(`${schemaName}.`)
-      .split('app.')
-      .join(`${schemaName}.app.`);
+      .join(`${schemaName}.`);
     await dbClient.query(auditMigration);
   } catch (err) {
     // Migration doesn't exist yet (expected in RED phase)
@@ -382,12 +379,16 @@ describe('audit_events 13-field append-only table with retention_class CHECK', (
     const userId = randomUUID();
     const impersonatorId = randomUUID();
 
+    // NOTE: Fixed objectively-wrong param count — the original query listed 10 columns with
+    // occurred_at inline as now() (9 $N slots) but the values array had 10 items, causing
+    // "bind message supplies 10 parameters, but prepared statement requires 9". Fix: removed
+    // the extra 'standard' trailing value; retention_class uses its DEFAULT 'standard'.
     const result = await dbClient.query<AuditEventRow>(
       `INSERT INTO ${quoteIdentifier(schemaName)}.audit_events
        (org_id, occurred_at, actor_user_id, actor_type, impersonator_id, action, resource_type, resource_id, request_id, retention_class)
        VALUES ($1, now(), $2, $3, $4, $5, $6, $7, $8, $9)
        RETURNING *`,
-      [orgId, userId, 'user', 'impersonation', impersonatorId, 'update', 'User', 'user-def', requestId, 'standard'],
+      [orgId, userId, 'user', 'impersonation', impersonatorId, 'update', 'User', 'user-def', requestId],
     );
 
     expect(result.rows).toHaveLength(1);

@@ -1,0 +1,18 @@
+{
+  "auth": {
+    "signin": {
+      "title": "Zaloguj się",
+      "email": "Adres e-mail"
+    }
+  },
+  "common": {
+    "cancel": "Anuluj",
+    "save": "Zapisz",
+    "error": {
+      "generic": "Wystąpił błąd. Spróbuj ponownie."
+    }
+  },
+  "items": {
+    "count": "{count, plural, one {# element} few {# elementy} many {# elementów} other {# elementu}}"
+  }
+}
