@@ -11,10 +11,12 @@
     "test:smoke": "vitest run --config ../../vitest.config.ts app/__tests__/smoke.test.ts"
   },
   "dependencies": {
+    "@serwist/next": "^9.5.11",
     "next": "^16.0.0",
     "next-intl": "^4.11.0",
     "react": "^19.2.0",
-    "react-dom": "^19.2.0"
+    "react-dom": "^19.2.0",
+    "serwist": "^9.5.11"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.0",

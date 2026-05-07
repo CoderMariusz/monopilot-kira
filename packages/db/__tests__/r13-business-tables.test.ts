@@ -462,43 +462,43 @@ runIntegrationSuite('0014 r13-placeholder-tables integration — Postgres', () =
   // ──────────────────────────────────────────────────────────────────────────────
 
   runIntegrationTest('AC3.1: RLS is enabled on lot table', async () => {
-    const result = await dbClient.query<{ relname: string; rowsecurity: boolean }>(
-      `select relname, rowsecurity from pg_class where relname = 'lot'`,
+    const result = await dbClient.query<{ relname: string; relrowsecurity: boolean }>(
+      `select relname, relrowsecurity from pg_class where relname = 'lot'`,
     );
     expect(result.rows.length).toBeGreaterThan(0);
-    expect(result.rows[0].rowsecurity).toBe(true);
+    expect(result.rows[0].relrowsecurity).toBe(true);
   });
 
   runIntegrationTest('AC3.2: RLS is enabled on work_order table', async () => {
-    const result = await dbClient.query<{ relname: string; rowsecurity: boolean }>(
-      `select relname, rowsecurity from pg_class where relname = 'work_order'`,
+    const result = await dbClient.query<{ relname: string; relrowsecurity: boolean }>(
+      `select relname, relrowsecurity from pg_class where relname = 'work_order'`,
     );
     expect(result.rows.length).toBeGreaterThan(0);
-    expect(result.rows[0].rowsecurity).toBe(true);
+    expect(result.rows[0].relrowsecurity).toBe(true);
   });
 
   runIntegrationTest('AC3.3: RLS is enabled on quality_event table', async () => {
-    const result = await dbClient.query<{ relname: string; rowsecurity: boolean }>(
-      `select relname, rowsecurity from pg_class where relname = 'quality_event'`,
+    const result = await dbClient.query<{ relname: string; relrowsecurity: boolean }>(
+      `select relname, relrowsecurity from pg_class where relname = 'quality_event'`,
     );
     expect(result.rows.length).toBeGreaterThan(0);
-    expect(result.rows[0].rowsecurity).toBe(true);
+    expect(result.rows[0].relrowsecurity).toBe(true);
   });
 
   runIntegrationTest('AC3.4: RLS is enabled on shipment table', async () => {
-    const result = await dbClient.query<{ relname: string; rowsecurity: boolean }>(
-      `select relname, rowsecurity from pg_class where relname = 'shipment'`,
+    const result = await dbClient.query<{ relname: string; relrowsecurity: boolean }>(
+      `select relname, relrowsecurity from pg_class where relname = 'shipment'`,
     );
     expect(result.rows.length).toBeGreaterThan(0);
-    expect(result.rows[0].rowsecurity).toBe(true);
+    expect(result.rows[0].relrowsecurity).toBe(true);
   });
 
   runIntegrationTest('AC3.5: RLS is enabled on bom_item table', async () => {
-    const result = await dbClient.query<{ relname: string; rowsecurity: boolean }>(
-      `select relname, rowsecurity from pg_class where relname = 'bom_item'`,
+    const result = await dbClient.query<{ relname: string; relrowsecurity: boolean }>(
+      `select relname, relrowsecurity from pg_class where relname = 'bom_item'`,
     );
     expect(result.rows.length).toBeGreaterThan(0);
-    expect(result.rows[0].rowsecurity).toBe(true);
+    expect(result.rows[0].relrowsecurity).toBe(true);
   });
 
   runIntegrationTest('AC3.6: RLS policies exist for lot table', async () => {

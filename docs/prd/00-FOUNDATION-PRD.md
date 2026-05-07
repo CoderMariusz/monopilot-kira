@@ -71,7 +71,7 @@ Cztery markery obowiązkowe w każdym PRD / ADR / skill / code comment dotycząc
 **Przykłady:**
 - Outbox pattern event-first architecture
 - GS1-128 barcode parsing (AI 01/10/17/21/37)
-- RLS `tenant_id` enforcement
+- RLS `org_id` enforcement on business tables (§W0-v4.3 §1)
 - EPCIS 2.0 event shape
 - 14 alergenów EU FIC 1169/2011 (regulatory baseline)
 
@@ -211,7 +211,7 @@ Build = **per module albo jego części, po kolei, z rozbiciem na stories/tasks*
 | 14 | MULTI-SITE | C5 | 14 | `docs/prd/14-MULTI-SITE-PRD.md` | 02, 05 |
 | 15 | OEE | C5 | 15 | (new, C5) | 08 |
 
-> **§4.3-AMENDMENT — Table Naming Decision (2026-04-30, per ADR-034 finalisation):** the physical table for the NPD finished-article aggregate is **`product`** (singular, generic). This is **Option B** (chosen over Option A "keep `fa` as physical name" and Option C "dual-table `fa` + `product`"). Rationale: (1) generic naming aligns with multi-industry generalisation in ADR-034 (Bakery / Pharma / FMCG / meat all use the same physical schema), (2) avoids confusion with the `fa.*` event aggregate which is a domain-language label, not a table reference, (3) gives a clean target name for D365 item-master sync long-term. **Backward-compat for D365 Builder + legacy SQL:** create a SQL view `CREATE VIEW fa AS SELECT * FROM product;` (read-only, Phase E-0 → C1 deprecation window) so existing `Builder_FA<code>.xlsx` queries and any external integration referring to `fa` continue to resolve. The view is dropped at end of Phase C1 once D365 adapter migration completes. **Event aggregate prefix stays `fa.*`** (decoupled from storage — see §10 + `_meta/specs/event-naming-convention.md`). Acceptance-criteria impact: 01-NPD-a DDL emits `CREATE TABLE product (...)` + `CREATE VIEW fa AS SELECT * FROM product;`; 01-NPD §15 success criteria updated to reference `product` table for RLS coverage with `fa` listed as compat view.
+> **§4.3-AMENDMENT — Table Naming Decision (2026-04-30, per ADR-034 finalisation):** the physical table for the NPD finished-article aggregate is **`product`** (singular, generic). This is **Option B** (chosen over Option A "keep `fa` as physical name" and Option C "dual-table `fa` + `product`"). Rationale: (1) generic naming aligns with multi-industry generalisation in ADR-034 (Bakery / Pharma / FMCG / meat all use the same physical schema), (2) avoids confusion with the `fa.*` event aggregate which is a domain-language label, not a table reference, (3) gives a clean target name for D365 item-master sync long-term. **Backward-compat for D365 Builder + legacy SQL:** create a SQL view `CREATE VIEW fa AS SELECT * FROM product;` (read-only, Phase E-0 → C1 deprecation window) so existing `Builder_FA<code>.xlsx` queries and any external integration referring to `fa` continue to resolve. The view is dropped at end of Phase C1 once D365 adapter migration completes. **[v4.3 correction per §W0-v4.3 §2]** Event aggregate prefix moves to `fg.*` canonical; `fa.*` is a [LEGACY-D365] alias only (see `packages/outbox/src/events.enum.ts` `LegacyEventAlias`). The v4.1 statement "Event aggregate prefix stays `fa.*`" is superseded. Acceptance-criteria impact: 01-NPD-a DDL emits `CREATE TABLE product (...)` + `CREATE VIEW fa AS SELECT * FROM product;`; 01-NPD §15 success criteria updated to reference `product` table for RLS coverage with `fa` listed as compat view.
 
 ### INTEGRATIONS — distributed, not a single module
 
@@ -247,7 +247,7 @@ Stare dokumenty opisywały "Scanner M05" z 5 epikami. Phase D: 06-SCANNER-P1 to 
 
 - **Postgres 16+** (Supabase lub self-host — nie vendor lock-in, standard SQL).
 - **Storage pattern [R2]** (MES-TRENDS-2026 §4): hybrid core-typed + JSONB. Main Table = 69 typed cols + `ext_jsonb` (L3) + `private_jsonb` (L4) + `schema_version INT`. Composite indexes `(tenant_id, dept_id, status, created_at)`, GIN on `ext_jsonb`.
-- **RLS default** [R3] (MES-TRENDS-2026 §5.2): `tenant_id UUID NOT NULL` na wszystkich tabelach biznesowych, policies USING + WITH CHECK, LEAKPROOF SECURITY DEFINER wrappers, testy zawsze z app-role (nigdy superuser).
+- **RLS default** [R3] (MES-TRENDS-2026 §5.2): `org_id UUID NOT NULL` na wszystkich tabelach biznesowych (business/app scope; §W0-v4.3 §1 — `tenant_id` is control-plane only), policies USING + WITH CHECK, safe non-spoofable org-context pattern (nie unsafe direct GUC SET), LEAKPROOF SECURITY DEFINER wrappers tylko gdzie udowodnione i konieczne, testy zawsze z app-role (nigdy superuser).
 - **Zod + json-schema-to-zod runtime** [R4] (MES-TRENDS-2026 §4.3): `Reference.DeptColumns` → JSON Schema → Zod runtime → RHF resolver. Cache LRU per `schema_version`.
 - **Outbox pattern od MVP** [R1] (MES-TRENDS-2026 §3, §10): domain events w tabeli `outbox_events`, worker publikujący do queue. Event shape ISA-95-compatible. Hook dla D365 / MQTT / feature store / EPCIS.
 
@@ -589,7 +589,7 @@ The prefix is retrieved from `Reference.CodePrefixes` (existing table, [UNIVERSA
 1. Look up `operation_name` (e.g., "Mix") in `Reference.ManufacturingOperations` for the current tenant
 2. Retrieve `process_suffix` (e.g., "MX")
 3. Generate `intermediate_code_pN` = `<intermediate_prefix>-<process_suffix>-<next_sequence>`
-4. Emit `fa.intermediate_code_changed` event (outbox pattern, [R1])
+4. Emit `fg.intermediate_code_changed` event (outbox pattern, [R1]; [LEGACY-D365] alias `fa.intermediate_code_changed` supported during migration)
 
 **Example DSL snippet (ADR-029 format):**
 
