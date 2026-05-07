@@ -314,7 +314,7 @@ describe('audit_events 13-field append-only table with retention_class CHECK', (
     const requestId = randomUUID();
     const userId = randomUUID();
 
-    // First, insert an event
+    // Insert a row as superuser so there is something to attempt updating
     const insertResult = await dbClient.query<AuditEventRow>(
       `INSERT INTO ${quoteIdentifier(schemaName)}.audit_events
        (org_id, occurred_at, actor_user_id, actor_type, action, resource_type, resource_id, request_id, retention_class)
@@ -325,13 +325,27 @@ describe('audit_events 13-field append-only table with retention_class CHECK', (
 
     const eventId = insertResult.rows[0].id;
 
-    // Attempt UPDATE as app_user (should fail)
-    // Note: This test requires proper session setup; for now we test the constraint exists
-    const constraints = await listAuditConstraints();
-    const hasUpdateRestriction = constraints.some(
-      (c) => c.constraint_type === 'CHECK' || c.constraint_name.includes('append'),
-    );
-    expect(hasUpdateRestriction || true).toBe(true); // Will pass until migration enforces it
+    // Attempt UPDATE as app_user — must be rejected with insufficient_privilege (42501).
+    // We use SET LOCAL ROLE inside a transaction so the privilege downgrade is scoped
+    // to this block and the connection is restored to superuser on ROLLBACK.
+    let caughtError: Error & { code?: string } | undefined;
+    try {
+      await dbClient.query('BEGIN');
+      await dbClient.query('SET LOCAL ROLE app_user');
+      await dbClient.query(
+        `UPDATE ${quoteIdentifier(schemaName)}.audit_events SET action = 'tampered' WHERE id = $1`,
+        [eventId],
+      );
+      // If we reach here the REVOKE is not effective — fail explicitly
+      await dbClient.query('ROLLBACK');
+    } catch (err) {
+      caughtError = err as Error & { code?: string };
+      await dbClient.query('ROLLBACK');
+    }
+
+    expect(caughtError, 'UPDATE as app_user must throw an error').toBeDefined();
+    // PostgreSQL error code 42501 = insufficient_privilege
+    expect(caughtError?.code).toBe('42501');
   });
 
   runIntegrationTest('rejects DELETE on audit_events table for app_user role', async () => {
@@ -339,7 +353,7 @@ describe('audit_events 13-field append-only table with retention_class CHECK', (
     const requestId = randomUUID();
     const userId = randomUUID();
 
-    // First, insert an event
+    // Insert a row as superuser so there is something to attempt deleting
     const insertResult = await dbClient.query<AuditEventRow>(
       `INSERT INTO ${quoteIdentifier(schemaName)}.audit_events
        (org_id, occurred_at, actor_user_id, actor_type, action, resource_type, resource_id, request_id, retention_class)
@@ -350,10 +364,25 @@ describe('audit_events 13-field append-only table with retention_class CHECK', (
 
     const eventId = insertResult.rows[0].id;
 
-    // Attempt DELETE as app_user (should fail when migration is implemented)
-    // For RED phase, just verify the constraint infrastructure exists
-    const constraints = await listAuditConstraints();
-    expect(constraints.length).toBeGreaterThan(0);
+    // Attempt DELETE as app_user — must be rejected with insufficient_privilege (42501).
+    let caughtError: Error & { code?: string } | undefined;
+    try {
+      await dbClient.query('BEGIN');
+      await dbClient.query('SET LOCAL ROLE app_user');
+      await dbClient.query(
+        `DELETE FROM ${quoteIdentifier(schemaName)}.audit_events WHERE id = $1`,
+        [eventId],
+      );
+      // If we reach here the REVOKE is not effective — fail explicitly
+      await dbClient.query('ROLLBACK');
+    } catch (err) {
+      caughtError = err as Error & { code?: string };
+      await dbClient.query('ROLLBACK');
+    }
+
+    expect(caughtError, 'DELETE as app_user must throw an error').toBeDefined();
+    // PostgreSQL error code 42501 = insufficient_privilege
+    expect(caughtError?.code).toBe('42501');
   });
 
   runIntegrationTest('enforces impersonation guard: INSERT with actor_type=impersonation and impersonator_id=null must fail', async () => {
@@ -404,32 +433,94 @@ describe('audit_events 13-field append-only table with retention_class CHECK', (
     const org2Id = randomUUID();
     const requestId1 = randomUUID();
     const requestId2 = randomUUID();
+    // Session tokens used to set org context via app.set_org_context()
+    const sessionToken1 = randomUUID();
+    const sessionToken2 = randomUUID();
 
-    // Insert into org1
+    // The RLS policy depends on app.current_org_id() which reads from app.session_org_contexts
+    // and app.active_org_contexts (populated by app.set_org_context). We must seed
+    // app.session_org_contexts with entries for both orgs so set_org_context validates them.
+    // Organizations referenced by session_org_contexts must exist in public.organizations;
+    // insert minimal org rows to satisfy the FK constraint.
+    const tenantId = randomUUID();
+    await dbClient.query(
+      `INSERT INTO ${quoteIdentifier(schemaName)}.tenants (id, name, region_cluster, data_plane_url)
+       VALUES ($1, 'RLS Test Tenant', 'us', 'https://rls-test.example') ON CONFLICT DO NOTHING`,
+      [tenantId],
+    );
+    await dbClient.query(
+      `INSERT INTO ${quoteIdentifier(schemaName)}.organizations (id, tenant_id, name, industry_code)
+       VALUES ($1, $2, 'RLS Org 1', 'generic'), ($3, $2, 'RLS Org 2', 'generic')
+       ON CONFLICT DO NOTHING`,
+      [org1Id, tenantId, org2Id],
+    );
+
+    // Seed session tokens into app.session_org_contexts (shared app schema, not test schema)
+    await dbClient.query(
+      `INSERT INTO app.session_org_contexts (session_token, org_id)
+       VALUES ($1, $2), ($3, $4)
+       ON CONFLICT DO NOTHING`,
+      [sessionToken1, org1Id, sessionToken2, org2Id],
+    );
+
+    // Insert one audit event per org as superuser (FORCE RLS does not apply to superuser INSERT)
     await dbClient.query(
       `INSERT INTO ${quoteIdentifier(schemaName)}.audit_events
        (org_id, occurred_at, actor_type, action, resource_type, resource_id, request_id, retention_class)
        VALUES ($1, now(), $2, $3, $4, $5, $6, $7)`,
-      [org1Id, 'system', 'create', 'Organization', 'org-1', requestId1, 'standard'],
+      [org1Id, 'system', 'create', 'Organization', 'rls-org-1', requestId1, 'standard'],
     );
-
-    // Insert into org2
     await dbClient.query(
       `INSERT INTO ${quoteIdentifier(schemaName)}.audit_events
        (org_id, occurred_at, actor_type, action, resource_type, resource_id, request_id, retention_class)
        VALUES ($1, now(), $2, $3, $4, $5, $6, $7)`,
-      [org2Id, 'system', 'create', 'Organization', 'org-2', requestId2, 'standard'],
+      [org2Id, 'system', 'create', 'Organization', 'rls-org-2', requestId2, 'standard'],
     );
 
-    // NOTE: Fixed objectively-wrong assertion — original COUNT(*) on the full table counted
-    // rows from all prior tests in the same schema, not just the 2 inserted here. Fix: filter
-    // by the two org_ids created in this test to isolate the count to exactly 2 rows.
-    const allResults = await dbClient.query(
-      `SELECT COUNT(*) as cnt FROM ${quoteIdentifier(schemaName)}.audit_events WHERE org_id IN ($1, $2)`,
-      [org1Id, org2Id],
-    );
+    // Grant app_user access to the test-isolated schema so it can query the table
+    // (the migration GRANT SELECT, INSERT applies to the schema-substituted table,
+    // but USAGE on the schema itself must be granted explicitly for the test schema)
+    await dbClient.query(`GRANT USAGE ON SCHEMA ${quoteIdentifier(schemaName)} TO app_user`);
 
-    expect(allResults.rows[0].cnt).toBe('2');
+    // As app_user with org1 context: should see exactly the org1 row (RLS filters org2 out)
+    let org1VisibleCount = '0';
+    try {
+      await dbClient.query('BEGIN');
+      await dbClient.query('SET LOCAL ROLE app_user');
+      // Activate org1 context — set_org_context validates the session token against
+      // app.session_org_contexts so the token must exist (seeded above)
+      await dbClient.query('SELECT app.set_org_context($1, $2)', [sessionToken1, org1Id]);
+      const result = await dbClient.query(
+        `SELECT COUNT(*) as cnt FROM ${quoteIdentifier(schemaName)}.audit_events
+         WHERE resource_id IN ('rls-org-1', 'rls-org-2')`,
+      );
+      org1VisibleCount = result.rows[0].cnt;
+      await dbClient.query('ROLLBACK');
+    } catch (err) {
+      await dbClient.query('ROLLBACK');
+      throw err;
+    }
+
+    // As app_user with org2 context: should see exactly the org2 row
+    let org2VisibleCount = '0';
+    try {
+      await dbClient.query('BEGIN');
+      await dbClient.query('SET LOCAL ROLE app_user');
+      await dbClient.query('SELECT app.set_org_context($1, $2)', [sessionToken2, org2Id]);
+      const result = await dbClient.query(
+        `SELECT COUNT(*) as cnt FROM ${quoteIdentifier(schemaName)}.audit_events
+         WHERE resource_id IN ('rls-org-1', 'rls-org-2')`,
+      );
+      org2VisibleCount = result.rows[0].cnt;
+      await dbClient.query('ROLLBACK');
+    } catch (err) {
+      await dbClient.query('ROLLBACK');
+      throw err;
+    }
+
+    // Each org context sees only its own row — RLS is exercised, not just row filtering
+    expect(org1VisibleCount).toBe('1');
+    expect(org2VisibleCount).toBe('1');
   });
 
   runIntegrationTest('sets occurred_at default to now() when not provided', async () => {
