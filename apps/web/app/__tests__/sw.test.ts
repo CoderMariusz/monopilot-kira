@@ -51,7 +51,7 @@ describe('sw.ts (Service Worker)', () => {
     // defaultCache entries differ by env; in non-production (test) it collapses to
     // a single NetworkOnly catch-all. Import the production list from the package source.
     const workerSrc = readFileSync(
-      resolve(__dirname, '../../../../node_modules/@serwist/next/dist/index.worker.mjs'),
+      resolve(__dirname, '../../node_modules/@serwist/next/dist/index.worker.mjs'),
       'utf8'
     );
     // Assert: a NetworkFirst entry targeting /api/ exists and carries networkTimeoutSeconds: 10
@@ -62,11 +62,12 @@ describe('sw.ts (Service Worker)', () => {
 
   it('should include a CacheFirst handler for _next/static JS assets in defaultCache', () => {
     const workerSrc = readFileSync(
-      resolve(__dirname, '../../../../node_modules/@serwist/next/dist/index.worker.mjs'),
+      resolve(__dirname, '../../node_modules/@serwist/next/dist/index.worker.mjs'),
       'utf8'
     );
     // CacheFirst for /_next/static JS is the long-lived immutable asset strategy.
-    expect(workerSrc).toMatch(/\/_next\/static.+\.js/);
+    // The .mjs source has regex literals serialised with escaped slashes.
+    expect(workerSrc).toContain('next-static-js-assets');
     expect(workerSrc).toMatch(/new CacheFirst\(/);
   });
 
