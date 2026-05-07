@@ -23,10 +23,10 @@ Updated by orchestrator after every PASS review.
 | T-009 | audit_events 13-field table | ✅ DONE | RED+GREEN+REVIEW+REWORK×2+RE-REVIEW×2 PASS; 15/15 tests; trigger SECURITY DEFINER; UPDATE/DELETE assert real 42501; impersonation guard non-vacuous (proven by trigger-disable experiment) |
 | T-010 | tenant_idp_config table | ✅ DONE | RED+GREEN+REVIEW PASS; 11/11 tests; 005 migration with F-U5 defaults + both admin roles in MFA + control-plane app_user revoke |
 | T-011 | Supabase Auth wiring | ✅ DONE | RED+GREEN+OPUS-REVIEW+REWORK PASS; 13/13 + 55 web regression OK; @supabase/ssr server+browser clients; (auth)/actions.ts magic-link 7d; middleware chain (Supabase idle-check → next-intl); REWORK fixed: cookies() async per Next 16, anchored PUBLIC_PATHS; carry-forward T-062 withOrgContext HOF (P0 blocker for Server Action data-plane work); T-063 deploy runbook; T-064 8h absolute; T-065 tenant-scoped sign-up |
-| T-012 | SAML 2.0 SP | ⬜ PENDING | |
-| T-013 | SCIM 2.0 endpoints | ⬜ PENDING | |
+| T-012 | SAML 2.0 SP | 🔄 IN PROGRESS | RED done (sonnet, 15 tests / 3 describes); cross-tenant attack mutation; RelayState verify; x509 cert validation; spoof-rejection; carry-forward T-062 (withOrgContext) |
+| T-013 | SCIM 2.0 endpoints | 🔄 IN PROGRESS | RED done (opus, 10 tests / 3 describes; 12 mutation experiments); cross-tenant RLS isolation; argon2id token verify <10ms; soft-delete audit; GREEN must add users.deleted_at column + scim_token_last_four index migration |
 | T-014 | RBAC enforcement library | ✅ DONE | RED+GREEN+OPUS-REVIEW+REWORK PASS; 26/26 tests (was 22 + 3 new + AC1 fixture corrected); 017-rbac.sql with seed_system_roles trigger + audit CHECK NOT VALID; REWORK fixed 3 P0: HMAC fail-closed in prod, assertUserBelongsToOrg actor+target guard, SoD on TARGET roles (not actor); carry-forward T-064 jti replay, T-065 pool.end fix, T-067 BYPASSRLS refactor, T-068 SoD-on-target test |
-| T-015 | TOTP MFA enrolment | ⬜ PENDING | |
+| T-015 | TOTP MFA enrolment | 🔄 IN PROGRESS | RED done (sonnet, 22 tests / 4 describes; 9 mutation experiments); TOTP 30s window + 6-digit; recovery codes argon2id one-time; WebAuthn stub deferred; GREEN creates 007-mfa.sql + libsodium secretbox encryption |
 | T-016 | Verify-PIN step-up | ✅ DONE | RED+GREEN+OPUS-REVIEW+REWORK PASS; 37/37 verify-pin+password tests; 019-pins.sql; argon2id m=65536/t=3/p=1; lockout 15min after 5 failures in 10min window; 5 mutation experiments confirmed; REWORK γ: REVERTED migrations 020+021 (production schema bandage); fixed verify-pin.test.ts seed instead (industry_code='generic', data_plane_url, region_cluster='eu'); carry-forward T-062 RLS USING(true) restore, T-063 caller-contract docs |
 | T-017 | Reference.DeptColumns + json-schema-to-zod | ✅ DONE | GREEN+REVIEW PASS; 009-schema-driven.sql R13+RLS+8 seeds; compile.ts LRU cache; 1 pass + 4 skip |
 | T-018 | Reference.Rules + DSL executor stub | ✅ DONE | RED+GREEN+REVIEW pipeline complete; 14/14 tests pass; 010-rules.sql with R13+RLS |
@@ -61,7 +61,7 @@ Updated by orchestrator after every PASS review.
 | T-047 | Wave0 PRD v4.3 domain amendment | ✅ DONE | docs (RED skipped); GREEN+REVIEW PASS; 6 surgical amendments (fg.* canonical, org_id business scope, [LEGACY-D365] qualification on fa.*); 87 unmarked headings = pre-existing debt |
 | T-048 | Domain glossary lock | ✅ DONE | T0-docs full cycle PASS; 13 canonical terms + checker; negative test verified (factory_spec removal → exit 1 with MISSING name); §W0-v4.3 lock honoured |
 | T-049 | Shared BOM SSOT skeleton | ✅ DONE | T1-schema docs full cycle PASS (opus); _foundation/contracts/shared-bom-ssot.md + .schema.json (draft 2020-12); 4/4 ACs evidence; jsonschema 4.26.0 valid+invalid roundtrip; 35 grep hits; ownership matrix Foundation/Technical/NPD; D365 NEVER source of truth; status enum draft|in_review|approved|superseded |
-| T-050 | Authorization policy foundation | ⬜ PENDING | |
+| T-050 | Authorization policy foundation | ✅ DONE | T1-schema docs full cycle PASS (opus); _foundation/contracts/authorization-policy.md (10 sekcji); 4/4 ACs evidence; grep 33 hits (≥8); settings.quality.* 4× w red-line context; cytuje T-004 + T-014 + T-039 + T-062 carry-forwards; helper contracts (requireOrgPermission, preflightAction, assertSodGrantAllowed, withAuditContext) defined as signatures only |
 | T-051 | D365 posture contract | ✅ DONE | T0-docs full cycle PASS; _foundation/contracts/d365-posture.md (8 sekcji, ~320 LOC); 4/4 ACs evidence-quoted; D365 capability registry entry; non-usable preload override; 41 grep hits; cytuje §W0-v4.3 §6 + §9 |
 | T-052 | Manifest/coverage readiness patch | ⬜ PENDING | |
 | T-053 | packages/db layout consolidation | ✅ DONE | RED+GREEN+REVIEW PASS; 106/106 tests; src/schema/ removed, schema/ canonical with 9-table barrel; symlink relative; FK added on R13 org_id |
@@ -100,5 +100,6 @@ For reference, current assignments per task JSONs:
 - 022 dept-column-drafts (T-036) — REASSIGNED from JSON's "011-dept-column-drafts.sql" because 011 is taken by T-019 departments. Also: T-036 internal table `schema_migrations` collides with T-054's runner table — agent must rename to `dept_column_migrations`
 - 023 outbox-events-extension (T-039) — RESERVED. T-039 GREEN must add 3 events to `outbox_events_event_type_check` (`tenant.migration.run`, `tenant.migration.run.failed`, `tenant.cohort.advanced`) AND extend `packages/outbox/src/events.enum.ts` ALL_EVENTS in same atomic step (DONE)
 - 007 mfa (T-015) — slot 007 was reserved for T-012 SAML but T-012 has no migration; reassigned to T-015 MFA (mfa_secrets + recovery_codes + RLS+GRANT)
+- 024 scim-extras (T-013) — RESERVED. T-013 GREEN needs to ALTER users ADD COLUMN deleted_at timestamptz + CREATE INDEX tenant_idp_config_scim_last_four_idx ON tenant_idp_config(scim_token_last_four)
 
 If your task is not in the list above and is not a migration task, do not create migration files.
