@@ -1,2 +1,3 @@
 /packages/outbox/src/events.enum.ts @monopilot/architect
 /packages/rbac/src/permissions.enum.ts @monopilot/architect
+/lib/reference/ref-tables.enum.ts @monopilot/architect

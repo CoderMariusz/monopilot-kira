@@ -6,8 +6,6 @@ import { fileURLToPath } from 'node:url';
 import pg from 'pg';
 import { EventType } from '../events.enum';
 
-// Always run for RED phase to show missing implementation
-const runIntegrationTest = it;
 const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const dbPackageRoot = resolve(packageRoot, '../../db');
 const outboxMigrationPath = resolve(dbPackageRoot, 'migrations/003-outbox.sql');
@@ -22,66 +20,78 @@ function quoteIdentifier(identifier: string): string {
   return `"${identifier.replace(/"/g, '""')}"`;
 }
 
-beforeAll(async () => {
-  if (!hasDatabaseUrl) {
-    return;
-  }
+describe('outbox module imports (RED phase)', () => {
+  it('should have worker.ts module with runOnce export', async () => {
+    const worker = await import('../worker');
+    expect(worker.runOnce).toBeDefined();
+    expect(typeof worker.runOnce).toBe('function');
+  });
 
-  const databaseUrl = process.env.DATABASE_URL;
-  if (!databaseUrl) {
-    return;
-  }
+  it('should have queue.ts module with InMemoryQueue class', async () => {
+    const queue = await import('../queue');
+    expect(queue.InMemoryQueue).toBeDefined();
+  });
 
-  const pool = new pg.Pool({ connectionString: databaseUrl });
-  closePool = async () => {
-    await pool.end();
-  };
-
-  dbClient = await pool.connect();
-  schemaName = `ci_outbox_${randomUUID().split('-').join('_')}`;
-  await dbClient.query(`create schema ${quoteIdentifier(schemaName)};`);
-
-  // Load baseline and RLS migrations first
-  const baselineMigration = readFileSync(resolve(dbPackageRoot, 'migrations/001-baseline.sql'), 'utf8').split('public.').join(`${schemaName}.`);
-  const rlsMigration = readFileSync(resolve(dbPackageRoot, 'migrations/002-rls-baseline.sql'), 'utf8').split('public.').join(`${schemaName}.`);
-
-  await dbClient.query(baselineMigration);
-  await dbClient.query(rlsMigration);
-
-  // Load outbox migration
-  const outboxMigration = readFileSync(outboxMigrationPath, 'utf8').split('public.').join(`${schemaName}.`);
-  await dbClient.query(outboxMigration);
+  it('should have Queue interface defined', async () => {
+    const queue = await import('../queue');
+    expect(queue.Queue || queue.default).toBeDefined();
+  });
 });
 
-afterAll(async () => {
-  if (dbClient) {
-    try {
-      await dbClient.query(`drop schema if exists ${quoteIdentifier(schemaName)} cascade;`);
-    } finally {
-      dbClient.release();
+describe('outbox_events table and worker (integration tests)', () => {
+  beforeAll(async () => {
+    if (!hasDatabaseUrl) {
+      return;
     }
-  }
 
-  if (closePool) {
-    await closePool();
-  }
-});
+    const databaseUrl = process.env.DATABASE_URL;
+    if (!databaseUrl) {
+      return;
+    }
 
-describe('outbox module imports', () => {
-  it('RED: worker.ts should exist with runOnce export', async () => {
-    await import('../worker');
+    const pool = new pg.Pool({ connectionString: databaseUrl });
+    closePool = async () => {
+      await pool.end();
+    };
+
+    dbClient = await pool.connect();
+    schemaName = `ci_outbox_${randomUUID().split('-').join('_')}`;
+    await dbClient.query(`create schema ${quoteIdentifier(schemaName)};`);
+
+    // Load baseline and RLS migrations first
+    const baselineMigration = readFileSync(resolve(dbPackageRoot, 'migrations/001-baseline.sql'), 'utf8').split('public.').join(`${schemaName}.`);
+    const rlsMigration = readFileSync(resolve(dbPackageRoot, 'migrations/002-rls-baseline.sql'), 'utf8').split('public.').join(`${schemaName}.`);
+
+    await dbClient.query(baselineMigration);
+    await dbClient.query(rlsMigration);
+
+    // Load outbox migration
+    const outboxMigration = readFileSync(outboxMigrationPath, 'utf8').split('public.').join(`${schemaName}.`);
+    await dbClient.query(outboxMigration);
   });
 
-  it('RED: queue.ts should exist with InMemoryQueue export', async () => {
-    await import('../queue');
-  });
-});
+  afterAll(async () => {
+    if (dbClient) {
+      try {
+        await dbClient.query(`drop schema if exists ${quoteIdentifier(schemaName)} cascade;`);
+      } finally {
+        dbClient.release();
+      }
+    }
 
-describe('outbox_events table and worker', () => {
+    if (closePool) {
+      await closePool();
+    }
+  });
+
   runWithDb('AC1: given outbox_events exists and a row is inserted with event_type=audit.recorded, when worker.runOnce() executes, then the in-memory queue contains exactly one message and the row\'s consumed_at is set', async () => {
     // Import the worker and queue modules
     const { runOnce } = await import('../worker');
     const { InMemoryQueue } = await import('../queue');
+
+    if (!dbClient) {
+      throw new Error('Database client not initialized');
+    }
 
     const queue = new InMemoryQueue();
     const orgId = randomUUID();
@@ -134,6 +144,10 @@ describe('outbox_events table and worker', () => {
     const { runOnce } = await import('../worker');
     const { InMemoryQueue } = await import('../queue');
 
+    if (!dbClient) {
+      throw new Error('Database client not initialized');
+    }
+
     const queue = new InMemoryQueue();
     const orgId = randomUUID();
     const aggregateId = randomUUID();
@@ -142,10 +156,12 @@ describe('outbox_events table and worker', () => {
     // This should fail at the database constraint level or be caught by the worker
     const invalidEventType = 'invalid.event';
 
+    let insertedId: string | null = null;
     try {
-      await dbClient.query(
+      const result = await dbClient.query(
         `INSERT INTO ${schemaName}.outbox_events (org_id, event_type, aggregate_type, aggregate_id, payload, app_version)
-         VALUES ($1, $2, $3, $4, $5, $6)`,
+         VALUES ($1, $2, $3, $4, $5, $6)
+         RETURNING id`,
         [
           orgId,
           invalidEventType,
@@ -155,23 +171,30 @@ describe('outbox_events table and worker', () => {
           '1.0.0',
         ],
       );
-      // If insert succeeds, the worker must reject it during publishing
-      await runOnce(dbClient, queue);
-      throw new Error('Worker should have rejected invalid event type');
-    } catch (error) {
-      // Expected: either DB constraint or worker validation should reject this
-      expect(error).toBeDefined();
-      const errorMsg = String(error);
+      insertedId = result.rows[0].id;
+    } catch (insertError) {
+      // Expected: DB constraint should reject invalid event type
+      expect(insertError).toBeDefined();
+      const errorMsg = String(insertError);
       expect(
         errorMsg.includes('invalid') ||
         errorMsg.includes('constraint') ||
-        errorMsg.includes('Unknown event type') ||
-        errorMsg.includes('event_type')
+        errorMsg.includes('check')
       ).toBe(true);
+      return;
+    }
+
+    // If insert succeeded, the worker must reject it during publishing
+    if (insertedId) {
+      await expect(runOnce(dbClient, queue)).rejects.toThrow(/invalid|unknown|event.type/i);
     }
   });
 
   runWithDb('AC3: given the partial index on (org_id, created_at) WHERE consumed_at IS NULL exists, when EXPLAIN runs the unconsumed query, then it uses the index', async () => {
+    if (!dbClient) {
+      throw new Error('Database client not initialized');
+    }
+
     const indexQuery = `
       SELECT indexname
       FROM pg_indexes
