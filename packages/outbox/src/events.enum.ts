@@ -11,6 +11,10 @@ export enum EventType {
   WO_READY = 'wo.ready',
   QUALITY_RECORDED = 'quality.recorded',
   SHIPMENT_CREATED = 'shipment.created',
+  // T-039 — canary upgrade orchestration
+  TENANT_MIGRATION_RUN = 'tenant.migration.run',
+  TENANT_MIGRATION_RUN_FAILED = 'tenant.migration.run.failed',
+  TENANT_COHORT_ADVANCED = 'tenant.cohort.advanced',
 }
 
 export const LegacyEventAlias = {

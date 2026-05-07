@@ -278,7 +278,7 @@ runIntegration('AC2 — publishDeptColumnDraft transactional atomicity', () => {
     await owner.query(
       `insert into "Reference"."DeptColumns"
          (id, org_id, dept_code, column_key, field_type, is_required, validation_dsl, schema_version)
-       values ($1, $2, 'production', 'lot_size', 'number', false, '{}'::jsonb, 7)
+       values ($1, $2, $3, 'lot_size', 'number', false, '{}'::jsonb, 7)
        on conflict (org_id, dept_code, column_key) do update set schema_version = excluded.schema_version`,
       [randomUUID(), orgId, 'production'],
     );
@@ -344,7 +344,7 @@ runIntegration('AC2 — publishDeptColumnDraft transactional atomicity', () => {
     await owner.query(
       `insert into "Reference"."DeptColumns"
          (id, org_id, dept_code, column_key, field_type, is_required, validation_dsl, schema_version)
-       values ($1, $2, 'production', 'broken_col', 'number', false, '{}'::jsonb, 3)
+       values ($1, $2, $3, 'broken_col', 'number', false, '{}'::jsonb, 3)
        on conflict (org_id, dept_code, column_key) do update set schema_version = excluded.schema_version`,
       [dcId, orgId, 'production'],
     );
@@ -434,7 +434,7 @@ runIntegration('AC3 — publishDeptColumnDraft idempotency', () => {
     await owner.query(
       `insert into "Reference"."DeptColumns"
          (id, org_id, dept_code, column_key, field_type, is_required, validation_dsl, schema_version)
-       values ($1, $2, 'production', 'idem_col', 'string', false, '{}'::jsonb, 4)
+       values ($1, $2, $3, 'idem_col', 'string', false, '{}'::jsonb, 4)
        on conflict (org_id, dept_code, column_key) do update set schema_version = excluded.schema_version`,
       [randomUUID(), orgId, 'production'],
     );

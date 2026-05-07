@@ -134,6 +134,9 @@ export async function remove(transaction_id: string): Promise<void> {
   });
 }
 
+// Re-export flusher lifecycle functions (T-044).
+export { startFlusher, stopFlusher, flushOnce } from './flusher.js';
+
 // Monotonic counter state for UUID v7 (RFC 9562 §6.2 Method 1).
 let _v7LastMs = 0;
 let _v7Seq = 0; // 31-bit monotonic counter

@@ -18,6 +18,10 @@ const expectedCanonicalEvents = [
   'wo.ready',
   'quality.recorded',
   'shipment.created',
+  // T-039 — canary upgrade orchestration (extends the foundation 12-event list)
+  'tenant.migration.run',
+  'tenant.migration.run.failed',
+  'tenant.cohort.advanced',
 ] as const;
 
 type EventsModule = {
