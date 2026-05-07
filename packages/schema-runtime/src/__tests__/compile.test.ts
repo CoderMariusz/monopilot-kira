@@ -77,15 +77,14 @@ beforeEach(async () => {
 });
 
 describe('Reference.DeptColumns + Reference.FieldTypes schema compilation', () => {
-  it('RED: compile() and clearCache() functions are not yet implemented', async () => {
-    // This test demonstrates the RED phase: functions exist but throw NotImplementedError
-    expect(() => {
-      compile('test-org', 'test-dept');
-    }).rejects.toThrow('compile() not yet implemented');
-
-    expect(() => {
-      clearCache();
-    }).toThrow('clearCache() not yet implemented');
+  it('GREEN: compile() and clearCache() functions are implemented and exported', () => {
+    // GREEN phase: functions are implemented — compile is async, clearCache is sync no-op
+    // Fix: original RED test used .rejects on a function wrapper (not a Promise) which is
+    // a syntactically incorrect Vitest assertion; clearCache() no longer throws after implementation.
+    expect(typeof compile).toBe('function');
+    expect(typeof clearCache).toBe('function');
+    // clearCache must not throw
+    expect(() => clearCache()).not.toThrow();
   });
 
   runDatabaseTest(

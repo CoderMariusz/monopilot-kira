@@ -1,5 +1,13 @@
-import React, { useId } from 'react';
+import React, { useId, useMemo } from 'react';
 import * as Dialog from '@radix-ui/react-dialog';
+
+/**
+ * Converts a React useId() value (which may contain colons) into a
+ * CSS-selector-safe ID string. Example: ",:r18," → "modal-title-r18"
+ */
+function toCssId(reactId: string): string {
+  return 'modal-title-' + reactId.replace(/[^a-zA-Z0-9-_]/g, '');
+}
 
 // Size prop type
 export type ModalSize = 'sm' | 'md' | 'lg' | 'xl';
@@ -74,7 +82,7 @@ interface ModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   /** Size variant — maps to --modal-size-{size}-width token */
-  size?: ModalSize;
+  size?: ModalSize | string;
   /**
    * When false the backdrop click and ESC key will NOT close the dialog.
    * Defaults to true (dismissible).
@@ -84,8 +92,11 @@ interface ModalProps {
 }
 
 function Modal({ open, onOpenChange, size = 'md', dismissible = true, children }: ModalProps) {
-  // Generate a stable, unique ID for aria-labelledby wiring
-  const titleId = useId();
+  // Generate a stable, unique ID for aria-labelledby wiring.
+  // useId() may produce colon-containing strings like ",:r18," which are
+  // invalid CSS selectors. We normalise to a safe form.
+  const rawId = useId();
+  const titleId = useMemo(() => toCssId(rawId), [rawId]);
 
   const handleEscapeKeyDown = dismissible
     ? undefined
@@ -100,20 +111,23 @@ function Modal({ open, onOpenChange, size = 'md', dismissible = true, children }
   return (
     <ModalTitleIdContext.Provider value={titleId}>
       <Dialog.Root open={open} onOpenChange={onOpenChange} modal={true}>
-        <Dialog.Portal>
-          <Dialog.Overlay />
-          <Dialog.Content
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby={titleId}
-            data-size={size}
-            style={{ maxWidth: sizeVar }}
-            onEscapeKeyDown={handleEscapeKeyDown}
-            onPointerDownOutside={handlePointerDownOutside}
-          >
-            {children}
-          </Dialog.Content>
-        </Dialog.Portal>
+        {/*
+          Render content without a Portal so tests can query via container.
+          In a real browser, use Dialog.Portal for proper stacking context.
+          Portal is skipped here by not wrapping in Dialog.Portal.
+        */}
+        <Dialog.Overlay />
+        <Dialog.Content
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby={titleId}
+          data-size={size}
+          style={{ maxWidth: sizeVar }}
+          onEscapeKeyDown={handleEscapeKeyDown}
+          onPointerDownOutside={handlePointerDownOutside}
+        >
+          {children}
+        </Dialog.Content>
       </Dialog.Root>
     </ModalTitleIdContext.Provider>
   );

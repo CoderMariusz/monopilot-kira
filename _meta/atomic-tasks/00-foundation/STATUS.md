@@ -29,7 +29,7 @@ Updated by orchestrator after every PASS review.
 | T-015 | TOTP MFA enrolment | ⬜ PENDING | |
 | T-016 | Verify-PIN step-up | ⬜ PENDING | |
 | T-017 | Reference.DeptColumns + json-schema-to-zod | ⬜ PENDING | |
-| T-018 | Reference.Rules + DSL executor stub | ⬜ PENDING | |
+| T-018 | Reference.Rules + DSL executor stub | ✅ DONE | RED+GREEN+REVIEW pipeline complete; 14/14 tests pass; 010-rules.sql with R13+RLS |
 | T-019 | Department taxonomy seed | ⬜ PENDING | |
 | T-020 | ManufacturingOperations + seeds | ⬜ PENDING | |
 | T-021 | Cascading rule (mfg_op → intermediate code) | ⬜ PENDING | |
