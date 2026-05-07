@@ -5,30 +5,72 @@
  *
  * Created for T-037 SchemaColumnWizard test suite.
  * Uses vitest v4 (same as the web package) but targets the jsdom environment.
+ *
+ * JSX transform note: vite 8 / rolldown requires JSX to be pre-transformed
+ * before ssrTransformScript runs. We use a custom plugin to ensure JSX is
+ * transformed via vite's oxc transform before the SSR parse step.
  */
 import { defineConfig } from 'vitest/config';
 import react from '@vitejs/plugin-react';
 import path from 'node:path';
+import { transformWithOxc } from 'vite';
+
+/**
+ * Pre-transform plugin: transforms TSX/JSX files using oxc before the SSR
+ * module parse step. Must run with `enforce: 'pre'` so it runs before the
+ * vite:react-babel plugin that may skip babel and leave JSX untransformed.
+ */
+function jsxPreTransformPlugin() {
+  const jsxRE = /\.[jt]sx$/;
+  return {
+    name: 'jsx-pre-transform',
+    enforce: 'pre' as const,
+    async transform(code: string, id: string) {
+      const [filepath] = id.split('?');
+      if (!jsxRE.test(filepath)) return null;
+      // Transform JSX using oxc (vite's built-in oxc transform)
+      const result = await transformWithOxc(code, id, {
+        jsx: { runtime: 'automatic', importSource: 'react' },
+      });
+      return { code: result.code, map: result.map };
+    },
+  };
+}
 
 export default defineConfig({
   plugins: [
-    react({
-      // Force Babel JSX transform (not oxc) to ensure JSX in test files is
-      // processed before rolldown's SSR parse pass.
-      babel: {
-        plugins: [],
-      },
-    }),
+    jsxPreTransformPlugin(),
+    react(),
   ],
   define: {
     'process.env.NODE_ENV': JSON.stringify('development'),
   },
+  resolve: {
+    dedupe: ['react', 'react-dom'],
+    alias: {
+      '@monopilot/ui': path.resolve(__dirname, '../../packages/ui/src'),
+      // Force all packages to use the web app's React 19 so there's only one React
+      'react': path.resolve(__dirname, 'node_modules/react'),
+      'react-dom': path.resolve(__dirname, 'node_modules/react-dom'),
+      // Resolve packages that are in packages/ui/node_modules (pnpm workspace)
+      'react-hook-form': path.resolve(__dirname, '../../packages/ui/node_modules/react-hook-form'),
+      'zustand': path.resolve(__dirname, '../../packages/ui/node_modules/zustand'),
+      '@radix-ui/react-tabs': path.resolve(__dirname, '../../packages/ui/node_modules/@radix-ui/react-tabs'),
+    },
+  },
   test: {
     environment: 'jsdom',
     globals: true,
-    setupFiles: ['../../packages/ui/test/setup.ts'],
+    setupFiles: ['../../packages/ui/test/setup.ts', './test-setup.ui.ts'],
     alias: {
       '@monopilot/ui': path.resolve(__dirname, '../../packages/ui/src'),
+      // Force all packages to use the web app's React 19 so there's only one React
+      'react': path.resolve(__dirname, 'node_modules/react'),
+      'react-dom': path.resolve(__dirname, 'node_modules/react-dom'),
+      // Resolve packages that are in packages/ui/node_modules (pnpm workspace)
+      'react-hook-form': path.resolve(__dirname, '../../packages/ui/node_modules/react-hook-form'),
+      'zustand': path.resolve(__dirname, '../../packages/ui/node_modules/zustand'),
+      '@radix-ui/react-tabs': path.resolve(__dirname, '../../packages/ui/node_modules/@radix-ui/react-tabs'),
     },
   },
 });

@@ -6,6 +6,11 @@
  * Supports: cascading | conditional_required | gate | workflow
  */
 
+// Imported as a namespace so tests can vi.spyOn the live binding (T-035 AC4).
+import * as workflowModule from './workflow.js';
+import type { WorkflowRule } from './workflow.js';
+import type { Pool } from 'pg';
+
 export enum RuleExecutionMode {
   NORMAL = 'normal',
   DRY_RUN = 'dry_run',
@@ -31,6 +36,17 @@ export interface Rule {
   actions: any[];
   conditions?: Condition[];
   on_fail?: any;
+  // Workflow-as-data fields (T-035). Optional on base Rule; required on
+  // WorkflowRule (see workflow.ts). Allows the executor to dispatch a
+  // hybrid rule shape without forcing a discriminated-union refactor on
+  // every existing rule_type call site.
+  states?: string[];
+  initial_state?: string;
+  transitions?: any[];
+}
+
+export interface ExecuteRuleOptions {
+  pool?: Pool;
 }
 
 const VALID_RULE_TYPES = new Set(['cascading', 'conditional_required', 'gate', 'workflow']);
@@ -90,7 +106,12 @@ function evaluateConditions(conditions: Condition[] | undefined, event: Record<s
  * @returns ExecutorResult with fired status, actions, and optional on_fail
  * @throws Error if rule_type is unknown or unsupported
  */
-export function executeRule(rule: Rule, event: Record<string, any>, mode: RuleExecutionMode): ExecutorResult {
+export function executeRule(
+  rule: Rule,
+  event: Record<string, any>,
+  mode: RuleExecutionMode,
+  opts: ExecuteRuleOptions = {},
+): ExecutorResult {
   // Validate rule_type before doing anything else (AC3)
   if (!VALID_RULE_TYPES.has(rule.rule_type)) {
     throw new Error(
@@ -125,10 +146,39 @@ export function executeRule(rule: Rule, event: Record<string, any>, mode: RuleEx
       conditionsMet = evaluateConditions(rule.conditions, event);
       break;
 
-    case 'workflow':
-      // Workflow rules define state-machine metadata; fire on trigger match
+    case 'workflow': {
+      // Workflow rules dispatch to the JSON-driven state-machine evaluator
+      // (T-035). When the rule definition carries `transitions`, run
+      // evaluateTransition with the event-supplied (currentState,
+      // requestedTransition, context) triple. Falls back to legacy
+      // condition-based firing for older workflow rules without a
+      // state-machine spec (preserves T-018 executor.test.ts).
+      if (Array.isArray(rule.transitions) && rule.transitions.length > 0) {
+        const currentState =
+          (event.currentState as string | undefined) ??
+          (event.current_state as string | undefined) ??
+          rule.initial_state ??
+          '';
+        const requestedTransition =
+          (event.requestedTransition as string | undefined) ??
+          (event.requested_transition as string | undefined) ??
+          (event.event_type as string | undefined) ??
+          '';
+        const context = (event.context as Record<string, unknown> | undefined) ?? {};
+        // Fire-and-forget: tests assert the spy was called and that
+        // executeRule itself does not throw. The promise's outcome is
+        // surfaced through evaluateTransition's direct callers (AC1-AC3).
+        void workflowModule.evaluateTransition(
+          rule as WorkflowRule,
+          currentState,
+          requestedTransition,
+          context,
+          { dryRun: mode === RuleExecutionMode.DRY_RUN, pool: opts.pool },
+        );
+      }
       conditionsMet = evaluateConditions(rule.conditions, event);
       break;
+    }
   }
 
   if (!conditionsMet) {

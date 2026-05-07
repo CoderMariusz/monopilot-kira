@@ -267,6 +267,16 @@ importers:
         version: 2.1.9(@types/node@20.19.39)(jsdom@24.1.3)(lightningcss@1.32.0)
 
   packages/rule-engine:
+    dependencies:
+      '@monopilot/db':
+        specifier: workspace:*
+        version: link:../db
+      '@types/pg':
+        specifier: ^8.20.0
+        version: 8.20.0
+      pg:
+        specifier: 8.16.0
+        version: 8.16.0
     devDependencies:
       '@eslint/js':
         specifier: ^9.39.4

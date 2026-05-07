@@ -14,5 +14,10 @@
     "eslint": "^9.39.4",
     "typescript": "^5.8.2",
     "vitest": "^2.1.8"
+  },
+  "dependencies": {
+    "@monopilot/db": "workspace:*",
+    "@types/pg": "^8.20.0",
+    "pg": "8.16.0"
   }
 }
