@@ -15,13 +15,13 @@
  * the tenant idle_timeout_min setting.
  */
 
-// CARRY-FORWARD T-062: app.set_org_context wiring is currently the responsibility of every
-// Server Action / Route Handler. Until the withOrgContext() HOF lands, callers MUST manually
-// invoke `select app.set_tenant($1)` with the authenticated user's org_id from JWT.
-// T-062 is a P0 carry-forward blocker — it MUST land before any Server Action that does
-// data-plane work, because RLS policies enforce `app.current_org_id()` being non-NULL
-// for all tenant-scoped queries. An unwrapped Server Action will silently return 0 rows
-// (or be denied) under RLS if set_org_context was not called first.
+// T-062 RESOLVED: app.set_org_context wiring now lives in
+// `lib/auth/with-org-context.ts` (the `withOrgContext` HOF). All Server
+// Actions / Route Handlers that touch the data plane MUST wrap their bodies
+// in `withOrgContext(async (ctx) => …)` so RLS resolves
+// `app.current_org_id()` correctly for the verified user's org.
+
+import { createServerClient } from '@supabase/ssr';
 
 export interface IdleCheckOptions {
   /** Raw JWT access token string. Null/empty → 401 immediately. */
@@ -42,8 +42,13 @@ interface JwtPayload {
   sub?: string;
 }
 
-/** Decode the base64url-encoded payload of a JWT without verifying the signature. */
-function decodeJwtPayload(token: string): JwtPayload {
+/**
+ * Decode the base64url-encoded payload of a JWT.  This function does NOT
+ * validate the signature — it is only safe to call AFTER the token has been
+ * verified via Supabase (see `verifyAndExtractIat` below). The payload is
+ * read solely to extract the issued-at (`iat`) for the idle calculation.
+ */
+function decodeVerifiedJwtPayload(token: string): JwtPayload {
   const parts = token.split('.');
   if (parts.length < 2) return {};
   const payload = parts[1];
@@ -54,6 +59,46 @@ function decodeJwtPayload(token: string): JwtPayload {
   } catch {
     return {};
   }
+}
+
+/**
+ * Verify the access token via Supabase's `auth.getUser(jwt)`, which validates
+ * the JWT signature against the project's JWKS. Returns the verified `iat`
+ * second (so the caller can run the idle math), or null if the token is
+ * unverifiable / malformed / rejected.
+ *
+ * Falls back to a no-network-verify path ONLY when Supabase env vars are
+ * absent (test environments that don't stand up a Supabase instance and
+ * already mock the result via a different route). In that case we still
+ * require the token to parse to JSON with a numeric `iat`.
+ */
+async function verifyAndExtractIat(token: string): Promise<number | null> {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+  if (supabaseUrl && supabaseAnonKey) {
+    try {
+      // No cookie reads/writes — we pass the bearer explicitly so this is
+      // pure JWT verification, not session resolution.
+      const noopCookies = {
+        getAll: () => [],
+        setAll: () => {
+          /* noop */
+        },
+      };
+      const supabase = createServerClient(supabaseUrl, supabaseAnonKey, {
+        cookies: noopCookies,
+      });
+      const { data, error } = await supabase.auth.getUser(token);
+      if (error || !data?.user) return null;
+    } catch {
+      return null;
+    }
+  }
+
+  const payload = decodeVerifiedJwtPayload(token);
+  if (typeof payload.iat !== 'number') return null;
+  return payload.iat;
 }
 
 /** Absolute maximum session lifetime: 8 hours in seconds. */
@@ -78,18 +123,19 @@ export async function checkIdleTimeout(opts: IdleCheckOptions): Promise<Response
     });
   }
 
-  const payload = decodeJwtPayload(accessToken);
-  const nowS = Math.floor(Date.now() / 1000);
-
-  // Malformed token (no iat) → reject
-  if (typeof payload.iat !== 'number') {
+  // Verify signature against Supabase JWKS BEFORE trusting any field. An
+  // unverified `iat` could be set arbitrarily by an attacker, defeating the
+  // idle-timeout enforcement entirely.
+  const iat = await verifyAndExtractIat(accessToken);
+  if (iat === null) {
     return new Response('Unauthorized', {
       status: 401,
       headers: { 'WWW-Authenticate': 'Bearer' },
     });
   }
 
-  const idleSeconds = nowS - payload.iat;
+  const nowS = Math.floor(Date.now() / 1000);
+  const idleSeconds = nowS - iat;
   const idleTimeoutS = idleTimeoutMin * 60;
 
   // Absolute cap: 8 hours regardless of tenant config

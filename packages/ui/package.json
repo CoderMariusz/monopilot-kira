@@ -8,6 +8,15 @@
     "./Summary": "./src/Summary.tsx",
     "./Field": "./src/Field.tsx",
     "./Input": "./src/Input.tsx",
+    "./Stepper": "./src/Stepper.tsx",
+    "./ReasonInput": "./src/ReasonInput.tsx",
+    "./Button": "./src/Button.tsx",
+    "./TabsCounted": "./src/TabsCounted.tsx",
+    "./EmptyState": "./src/EmptyState.tsx",
+    "./DryRunButton": "./src/DryRunButton.tsx",
+    "./CompactActivity": "./src/CompactActivity.tsx",
+    "./RunStrip": "./src/RunStrip.tsx",
+    "./Textarea": "./src/Textarea.tsx",
     "./tokens": "./tokens.css"
   },
   "scripts": {
@@ -21,11 +30,18 @@
     "@hookform/resolvers": "^5.2.2",
     "@radix-ui/react-dialog": "^1.1.2",
     "@radix-ui/react-tabs": "^1.1.13",
-    "react": "^18.3.1",
-    "react-dom": "^18.3.1",
     "react-hook-form": "^7.75.0",
     "zod": "^3.25.76",
     "zustand": "^5.0.13"
+  },
+  "peerDependencies": {
+    "react": "^18 || ^19",
+    "react-dom": "^18 || ^19"
+  },
+  "peerDependenciesMeta": {
+    "react-dom": {
+      "optional": false
+    }
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.8.0",
@@ -38,6 +54,8 @@
     "@types/node": "^20.17.0",
     "@types/react": "^18.3.3",
     "@types/react-dom": "^18.3.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
     "@typescript-eslint/eslint-plugin": "^8.59.1",
     "@typescript-eslint/parser": "^8.59.1",
     "@vitejs/plugin-react": "^4.2.1",

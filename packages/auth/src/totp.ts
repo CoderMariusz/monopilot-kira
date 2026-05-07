@@ -89,44 +89,75 @@ export async function enrollTotp(
   return { secret: rawSecret, provisioningUri };
 }
 
+export type VerifyTotpResult =
+  | { ok: true }
+  | { ok: false; reason: 'no_enrolment' | 'invalid_code' | 'replay' };
+
 /**
  * Verify a TOTP token for the given user.
  * Decrypts the stored secret and verifies the token against the current 30-second window.
+ *
+ * Replay protection (T-062 hardening): after otplib confirms the code is valid,
+ * we atomically claim the current TOTP epoch by writing it into
+ * `mfa_secrets.last_otp_window`. The UPDATE predicate
+ * `(last_otp_window IS NULL OR last_otp_window <> $window)` rejects a second
+ * call in the same window — rowCount === 0 → replay detected.
  */
 export async function verifyTotp(
   userId: string,
   token: string,
   opts: { masterKey: string; tenantId: string },
-): Promise<boolean> {
+): Promise<VerifyTotpResult> {
   await sodium.ready;
 
   const pool = getOwnerConnection();
-  let secretEncrypted: string;
   try {
     const result = await pool.query<{ secret_encrypted: string }>(
       `SELECT secret_encrypted FROM public.mfa_secrets WHERE user_id = $1`,
       [userId],
     );
-    if (result.rows.length === 0) return false;
-    secretEncrypted = result.rows[0].secret_encrypted;
+    if (result.rows.length === 0) {
+      return { ok: false, reason: 'no_enrolment' };
+    }
+    const secretEncrypted = result.rows[0].secret_encrypted;
+
+    const key = await deriveKey(opts.masterKey, opts.tenantId);
+    const buf = Buffer.from(secretEncrypted, 'base64');
+    const nonce = new Uint8Array(buf.buffer, buf.byteOffset, sodium.crypto_secretbox_NONCEBYTES);
+    const ct = new Uint8Array(
+      buf.buffer,
+      buf.byteOffset + sodium.crypto_secretbox_NONCEBYTES,
+      buf.length - sodium.crypto_secretbox_NONCEBYTES,
+    );
+
+    const rawSecretBytes = sodium.crypto_secretbox_open_easy(ct, nonce, key);
+    const rawSecret = sodium.to_string(rawSecretBytes);
+
+    const verified = verifySync({ token, secret: rawSecret, period: TOTP_PERIOD, digits: TOTP_DIGITS });
+    if (!verified.valid) {
+      return { ok: false, reason: 'invalid_code' };
+    }
+
+    // Replay protection: atomically claim the current TOTP step. The current
+    // epoch number = floor(now / period). A second call within the same epoch
+    // matches 0 rows (predicate fails) and is reported as a replay.
+    const currentWindow = Math.floor(Date.now() / 1000 / TOTP_PERIOD);
+    const claim = await pool.query(
+      `UPDATE public.mfa_secrets
+          SET last_otp_used_at = now(),
+              last_otp_window  = $2
+        WHERE user_id = $1
+          AND (last_otp_window IS NULL OR last_otp_window <> $2)`,
+      [userId, currentWindow],
+    );
+    if ((claim.rowCount ?? 0) === 0) {
+      return { ok: false, reason: 'replay' };
+    }
+
+    return { ok: true };
   } finally {
     await pool.end();
   }
-
-  const key = await deriveKey(opts.masterKey, opts.tenantId);
-  const buf = Buffer.from(secretEncrypted, 'base64');
-  const nonce = new Uint8Array(buf.buffer, buf.byteOffset, sodium.crypto_secretbox_NONCEBYTES);
-  const ct = new Uint8Array(
-    buf.buffer,
-    buf.byteOffset + sodium.crypto_secretbox_NONCEBYTES,
-    buf.length - sodium.crypto_secretbox_NONCEBYTES,
-  );
-
-  const rawSecretBytes = sodium.crypto_secretbox_open_easy(ct, nonce, key);
-  const rawSecret = sodium.to_string(rawSecretBytes);
-
-  const result = verifySync({ token, secret: rawSecret, period: TOTP_PERIOD, digits: TOTP_DIGITS });
-  return result.valid;
 }
 
 /**

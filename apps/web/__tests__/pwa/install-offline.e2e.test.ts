@@ -43,35 +43,41 @@ const MANIFEST_PATH = resolve(WEB_ROOT, 'app/manifest.ts');
 // ---------------------------------------------------------------------------
 describe('AC1 — PWA manifest installability', () => {
   it('manifest.ts exports an object with name equal to "Monopilot"', async () => {
-    const { default: manifest } = await import('../../app/manifest');
+    const { default: getManifest } = await import('../../app/manifest');
+    const manifest = getManifest();
     expect(manifest.name).toBe('Monopilot');
   });
 
   it('manifest.ts has start_url equal to "/"', async () => {
-    const { default: manifest } = await import('../../app/manifest');
+    const { default: getManifest } = await import('../../app/manifest');
+    const manifest = getManifest();
     expect(manifest.start_url).toBe('/');
   });
 
   it('manifest.ts has display equal to "standalone" (required for installability)', async () => {
-    const { default: manifest } = await import('../../app/manifest');
+    const { default: getManifest } = await import('../../app/manifest');
+    const manifest = getManifest();
     expect(manifest.display).toBe('standalone');
   });
 
   it('manifest.ts has icons with both 192x192 and 512x512 sizes', async () => {
-    const { default: manifest } = await import('../../app/manifest');
+    const { default: getManifest } = await import('../../app/manifest');
+    const manifest = getManifest();
     const sizes = (manifest.icons ?? []).map((i: { sizes: string }) => i.sizes);
     expect(sizes).toContain('192x192');
     expect(sizes).toContain('512x512');
   });
 
   it('manifest.ts has theme_color field', async () => {
-    const { default: manifest } = await import('../../app/manifest');
+    const { default: getManifest } = await import('../../app/manifest');
+    const manifest = getManifest();
     expect(manifest).toHaveProperty('theme_color');
     expect(typeof manifest.theme_color).toBe('string');
   });
 
   it('manifest.ts has background_color field', async () => {
-    const { default: manifest } = await import('../../app/manifest');
+    const { default: getManifest } = await import('../../app/manifest');
+    const manifest = getManifest();
     expect(manifest).toHaveProperty('background_color');
     expect(typeof manifest.background_color).toBe('string');
   });
@@ -301,7 +307,7 @@ describe('AC4 — navigationPreload enabled + 5s NetworkFirst timeout', () => {
 // Playwright availability note (documented per T-042 mission requirement)
 // ---------------------------------------------------------------------------
 describe('Playwright availability', () => {
-  it('documents that Playwright binary is present but not configured for this project', () => {
+  it('documents that Playwright binary is present but not configured for this project', async () => {
     // pnpm exec playwright --version returns v1.59.1 (globally available).
     // However: @playwright/test is NOT in apps/web/package.json devDependencies.
     // There is no playwright.config.ts in apps/web/.
@@ -312,6 +318,14 @@ describe('Playwright availability', () => {
     // This test always passes — it is a documentation assertion, not a behaviour check.
     // The implementer must add @playwright/test to devDependencies + playwright.config.ts
     // before the Playwright-based AC2/AC3 E2E (apps/web/e2e/pwa.spec.ts) can run.
-    expect(true).toBe(true); // Playwright blocked — vitest fallback active
+    //
+    // Verify that @playwright/test is NOT yet in this package's devDependencies
+    // (confirming the blocked state documented above).
+    const { readFileSync } = await import('node:fs');
+    const { resolve } = await import('node:path');
+    const pkgJson = JSON.parse(readFileSync(resolve(__dirname, '../../package.json'), 'utf8')) as {
+      devDependencies?: Record<string, string>;
+    };
+    expect(pkgJson.devDependencies?.['@playwright/test']).toBeUndefined();
   });
 });

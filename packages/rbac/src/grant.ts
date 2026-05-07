@@ -19,7 +19,7 @@
  *   horizontal privilege escalation (cross-org grant attacks).
  */
 
-import { createHmac, randomUUID } from 'node:crypto';
+import { createHmac, randomUUID, timingSafeEqual } from 'node:crypto';
 import { getOwnerConnection } from '../../db/src/clients.js';
 import { LegacyPermissionAlias, SOD_EXCLUSIVE_PAIRS } from './permissions.enum.js';
 
@@ -124,7 +124,14 @@ function verifyApprovalToken(
     const signature = token.slice(dotIdx + 1);
 
     const expectedSig = computeHmac(payloadB64);
-    if (signature !== expectedSig) return { valid: false, error: 'invalid_token' };
+    // T-062 hardening: constant-time comparison to defeat timing oracles.
+    // crypto.timingSafeEqual requires equal-length buffers — check first to
+    // avoid the RangeError it throws on length mismatch.
+    const presented = Buffer.from(signature, 'hex');
+    const expected = Buffer.from(expectedSig, 'hex');
+    if (presented.length !== expected.length || !timingSafeEqual(presented, expected)) {
+      return { valid: false, error: 'invalid_token' };
+    }
 
     const payload = JSON.parse(Buffer.from(payloadB64, 'base64url').toString('utf8')) as TokenPayload;
 

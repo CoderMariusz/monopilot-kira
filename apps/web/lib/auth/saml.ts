@@ -369,6 +369,12 @@ export async function enforceSamlPolicy(
   // Always read enforce_for_non_admins from the DB. The function deliberately
   // discards `_spoofEnforceForNonAdmins` — even if a caller passes it, the DB
   // value wins (red line: non-spoofable).
+  //
+  // T-062 hardening: use the RLS-safe SECURITY DEFINER function
+  // `app.get_my_tenant_idp_config()` (migration 027) so secrets like
+  // x509_cert / scim_token_hash are never SELECTable from this code path.
+  // The function returns ONLY the policy fields the SAML enforcement step
+  // actually needs.
   let enforce = false;
   try {
     // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -376,7 +382,7 @@ export async function enforceSamlPolicy(
     const pool = new Pool({ connectionString: process.env.DATABASE_URL });
     try {
       const res = await pool.query(
-        `select enforce_for_non_admins from public.tenant_idp_config where tenant_id = $1`,
+        `select enforce_for_non_admins from app.get_my_tenant_idp_config($1)`,
         [tenantId],
       );
       enforce = res.rows[0]?.enforce_for_non_admins === true;
@@ -384,9 +390,30 @@ export async function enforceSamlPolicy(
       await pool.end();
     }
   } catch (err) {
-    // If we cannot read the DB, fail closed only if we have evidence enforcement
-    // is intended. With no signal, allow (preserves baseline UX in non-DB envs).
-    void err;
+    // T-062 hardening: fail-CLOSED in production. A DB failure used to return
+    // {allowed:true} silently — that meant a transient outage downgraded the
+    // SAML policy enforcement and let non-admins sign in with passwords. In
+    // production we now return 503 with a fail-closed denial; in development
+    // we keep the legacy fail-open behaviour with an explicit warning so
+    // local DB-less runs of the dev server still work.
+    const isProd = process.env.NODE_ENV === 'production';
+    if (isProd) {
+      // eslint-disable-next-line no-console
+      console.error(
+        '[enforceSamlPolicy] policy lookup failed in production — failing closed',
+        { tenantId, err: err instanceof Error ? err.message : String(err) },
+      );
+      return {
+        allowed: false,
+        statusCode: 503,
+        reason: 'policy_lookup_failed',
+      };
+    }
+    // eslint-disable-next-line no-console
+    console.warn(
+      '[enforceSamlPolicy] policy lookup failed in non-production — allowing (dev fallback)',
+      { tenantId, err: err instanceof Error ? err.message : String(err) },
+    );
     return {
       allowed: true,
       statusCode: 200,

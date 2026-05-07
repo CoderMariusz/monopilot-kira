@@ -16,11 +16,12 @@ const withSerwist = withSerwistInit({
 
 // withNextIntl wraps last (outermost) so it can see the fully resolved config.
 // Plugin wrap order: withNextIntl( withSerwist( nextConfig ) )
-const withNextIntl = createNextIntlPlugin();
+const withNextIntl = createNextIntlPlugin('./i18n/request.ts');
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  reactStrictMode: true
+  reactStrictMode: true,
+  transpilePackages: ['@monopilot/ui']
 };
 
 export default withNextIntl(withSerwist(nextConfig));

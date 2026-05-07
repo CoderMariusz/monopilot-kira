@@ -85,7 +85,7 @@ function renderWizard(step = 1) {
     return null;
   });
 
-  return render(<SchemaColumnWizard sampleRow={FIXTURE_SAMPLE_ROW} />);
+  return render(<SchemaColumnWizard sampleRow={FIXTURE_SAMPLE_ROW} deptId="test-dept-001" />);
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -337,7 +337,7 @@ describe('AC3: step 4 Summary preview — Summary displays field_type + validati
   it('mutation: Summary is NOT rendered at step 2 (wrong-step mutation guard)', () => {
     // If implementer puts Summary on step 2 instead of step 4, this test catches it.
     mockGet.mockImplementation((key: string) => (key === 'step' ? '2' : null));
-    render(<SchemaColumnWizard sampleRow={FIXTURE_SAMPLE_ROW} />);
+    render(<SchemaColumnWizard sampleRow={FIXTURE_SAMPLE_ROW} deptId="test-dept-001" />);
 
     // No <dl> should be present on step 2 (validation step)
     const dl = document.querySelector('dl');
@@ -449,9 +449,7 @@ describe('AC4: Save chain — upsertDeptColumnDraft AND publishDeptColumnDraft b
     await user.click(saveButton);
 
     await waitFor(() => {
-      expect(mockPublishDeptColumnDraft).toHaveBeenCalledWith(
-        expect.objectContaining({ draftId: 'draft-uuid-specific' }),
-      );
+      expect(mockPublishDeptColumnDraft).toHaveBeenCalledWith('draft-uuid-specific');
     });
   });
 

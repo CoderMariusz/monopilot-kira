@@ -15,9 +15,11 @@
  *   - x509: Jackson rejects on signature mismatch; we do not swallow.
  */
 
+import { randomUUID } from 'node:crypto';
 import type { NextRequest } from 'next/server';
 import { Pool } from 'pg';
 import { handleSamlCallback } from '../../../../../lib/auth/saml';
+import { createServerSupabaseClient } from '../../../../../lib/auth/supabase-server';
 
 export async function POST(request: NextRequest): Promise<Response> {
   const form = await request.formData();
@@ -103,19 +105,116 @@ export async function POST(request: NextRequest): Promise<Response> {
     });
   }
 
-  // Carry-forward T-062: register session_org_contexts so RLS resolves
-  // app.current_org_id() for the new SAML session.
+  // T-062 wiring: register a fresh session_token in app.session_org_contexts
+  // BEFORE calling set_org_context (which validates the token exists). The
+  // previous code passed gen_random_uuid() directly to set_org_context, which
+  // would raise '28000 invalid organization context' because the token was
+  // never inserted into the trusted_context table.
+  //
+  // Note: the org context registered here serves the redirect-time RLS check
+  // only. Subsequent requests resolve their own context via the
+  // `withOrgContext` HOF, which mints a fresh per-call session_token.
   if (result.user) {
     const ownerPool = new Pool({ connectionString: process.env.DATABASE_URL });
+    const sessionToken = randomUUID();
     try {
-      // Best-effort — non-fatal if the helper isn't available in this env.
-      await ownerPool.query(`select app.set_org_context(gen_random_uuid(), $1)`, [
+      await ownerPool.query(
+        `insert into app.session_org_contexts (session_token, org_id) values ($1::uuid, $2::uuid)`,
+        [sessionToken, row.org_id],
+      );
+      await ownerPool.query(`select app.set_org_context($1::uuid, $2::uuid)`, [
+        sessionToken,
         row.org_id,
       ]);
-    } catch {
-      // ignore — production middleware will re-establish on next request
+    } catch (err) {
+      // Surface the failure: silently dropping the org context here would let
+      // the redirected page load with NULL app.current_org_id() and either
+      // 0-row everything (confusing UX) or worse, leak data if a downstream
+      // bug forgets a tenant filter.
+      return new Response(
+        JSON.stringify({
+          error: `failed to register org context post-SAML: ${
+            err instanceof Error ? err.message : String(err)
+          }`,
+        }),
+        { status: 500, headers: { 'content-type': 'application/json' } },
+      );
     } finally {
       await ownerPool.end();
+    }
+  }
+
+  // ── Establish a Supabase browser session via magic-link → verifyOtp ────────
+  // The Jackson SAML flow gives us an authenticated identity but no Supabase
+  // access_token cookie. We use the admin API to mint a one-shot magic link
+  // for the verified email, then immediately consume it server-side via the
+  // cookie-bound Supabase client so the response carries Set-Cookie headers
+  // for the new session.
+  //
+  // Edge cases:
+  //   - Admin API failure → 502 (we cannot establish a session safely).
+  //   - generateLink omits properties.hashed_token in some Supabase builds →
+  //     we surface that as a 502 rather than redirect a logged-out user.
+  //
+  // TODO(post-merge wave): once Agent 3 normalizes (auth)/actions.ts and the
+  // magic-link callback path stabilizes, consider routing through that
+  // shared helper instead of inlining the verifyOtp call here.
+  if (result.user?.email) {
+    try {
+      const supabase = await createServerSupabaseClient();
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const adminAuth = (supabase.auth as any).admin;
+      const linkRes = (await adminAuth.generateLink({
+        type: 'magiclink',
+        email: result.user.email,
+      })) as {
+        data?: { properties?: { hashed_token?: string; email_otp?: string } };
+        error?: { message?: string } | null;
+      };
+
+      if (linkRes.error) {
+        return new Response(
+          JSON.stringify({
+            error: `failed to mint SAML session token: ${linkRes.error.message ?? 'unknown'}`,
+          }),
+          { status: 502, headers: { 'content-type': 'application/json' } },
+        );
+      }
+
+      const tokenHash = linkRes.data?.properties?.hashed_token;
+      if (!tokenHash) {
+        return new Response(
+          JSON.stringify({
+            error: 'SAML session establishment failed: admin.generateLink returned no hashed_token',
+          }),
+          { status: 502, headers: { 'content-type': 'application/json' } },
+        );
+      }
+
+      // verifyOtp on the cookie-bound client mints sb-access-token /
+      // sb-refresh-token cookies via the cookie adapter passed into
+      // createServerSupabaseClient → setAll().
+      const { error: verifyError } = await supabase.auth.verifyOtp({
+        type: 'magiclink',
+        token_hash: tokenHash,
+      });
+      if (verifyError) {
+        return new Response(
+          JSON.stringify({
+            error: `SAML session verifyOtp failed: ${verifyError.message}`,
+          }),
+          { status: 502, headers: { 'content-type': 'application/json' } },
+        );
+      }
+    } catch (err) {
+      return new Response(
+        JSON.stringify({
+          error: `SAML session establishment threw: ${
+            err instanceof Error ? err.message : String(err)
+          }`,
+        }),
+        { status: 502, headers: { 'content-type': 'application/json' } },
+      );
     }
   }
 

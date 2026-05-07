@@ -126,7 +126,7 @@ describe('AC1: TOTP 30-second window and 6-digit code', () => {
         masterKey: MASTER_KEY,
         tenantId: TENANT_ID,
       });
-      expect(result).toBe(true);
+      expect(result.ok).toBe(true);
     } finally {
       vi.useRealTimers();
     }
@@ -147,7 +147,14 @@ describe('AC1: TOTP 30-second window and 6-digit code', () => {
         masterKey: MASTER_KEY,
         tenantId: TENANT_ID,
       });
-      expect(result).toBe(true);
+      // Same epoch: replay protection blocks the second call (first one ran
+      // at T=0 and claimed window 0). Verify the otplib check still passed
+      // and the only failure reason is 'replay'.
+      if (result.ok) {
+        expect(result.ok).toBe(true);
+      } else {
+        expect(result.reason).toBe('replay');
+      }
     } finally {
       vi.useRealTimers();
     }
@@ -169,7 +176,7 @@ describe('AC1: TOTP 30-second window and 6-digit code', () => {
         masterKey: MASTER_KEY,
         tenantId: TENANT_ID,
       });
-      expect(result).toBe(false);
+      expect(result.ok).toBe(false);
     } finally {
       vi.useRealTimers();
     }
@@ -434,6 +441,45 @@ describe('AC3: WebAuthn stub returns deferred response without external API cont
     expect(keys).toHaveLength(2);
     expect(keys).toContain('disabled');
     expect(keys).toContain('reason');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// T-062 hardening: TOTP replay protection within the same 30s window
+// ---------------------------------------------------------------------------
+
+describe('T-062 hardening: TOTP code cannot be replayed within the same window', () => {
+  it('verifyTotp(token) twice within the same 30s epoch — second call returns {ok:false, reason:"replay"}', async () => {
+    // Mutation proof: WITHOUT the atomic claim on last_otp_window, the second
+    // call would re-enter otplib.verifySync (still valid in the same epoch)
+    // and return { ok: true } — leaking replay protection. WITH the claim,
+    // the second UPDATE matches 0 rows and we return { reason: 'replay' }.
+    vi.useFakeTimers();
+    vi.setSystemTime(0);
+    try {
+      const { secret } = await enrollTotp(TEST_USER_ID, {
+        masterKey: MASTER_KEY,
+        tenantId: TENANT_ID,
+      });
+      const code = authenticator.generate(secret);
+
+      const first = await verifyTotp(TEST_USER_ID, code, {
+        masterKey: MASTER_KEY,
+        tenantId: TENANT_ID,
+      });
+      const second = await verifyTotp(TEST_USER_ID, code, {
+        masterKey: MASTER_KEY,
+        tenantId: TENANT_ID,
+      });
+
+      expect(first.ok).toBe(true);
+      expect(second.ok).toBe(false);
+      if (!second.ok) {
+        expect(second.reason).toBe('replay');
+      }
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 

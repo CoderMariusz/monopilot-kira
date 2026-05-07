@@ -22,8 +22,23 @@
 
 import { detectDrift } from '../../../../../../../packages/ops/src/drift-detect';
 import pg from 'pg';
+import { timingSafeEqual } from 'node:crypto';
 
 const VERCEL_CRON_HEADER = 'x-vercel-cron';
+
+/**
+ * Constant-time string compare. timingSafeEqual requires equal-length buffers,
+ * so we short-circuit on length mismatch BEFORE the cryptographic compare.
+ * The length check itself is not constant-time, but length is a low-entropy
+ * attribute (CRON_SECRET length is fixed at deploy time) so a length oracle
+ * is not a meaningful leak here.
+ */
+function safeCompare(a: string, b: string): boolean {
+  const ab = Buffer.from(a, 'utf8');
+  const bb = Buffer.from(b, 'utf8');
+  if (ab.length !== bb.length) return false;
+  return timingSafeEqual(ab, bb);
+}
 
 interface AuthDecision {
   ok: boolean;
@@ -32,7 +47,6 @@ interface AuthDecision {
 
 /** Fail-closed cron auth: accept Vercel platform cron OR Bearer CRON_SECRET. */
 function authorizeCron(req: Request): AuthDecision {
-  const isProd = process.env.NODE_ENV === 'production';
   const cronSecret = process.env.CRON_SECRET;
 
   // Vercel platform cron — header is set by Vercel and stripped from
@@ -45,12 +59,18 @@ function authorizeCron(req: Request): AuthDecision {
   const authHeader = req.headers.get('authorization') ?? req.headers.get('Authorization');
   if (authHeader && authHeader.toLowerCase().startsWith('bearer ')) {
     const presented = authHeader.slice(7).trim();
-    if (cronSecret && presented === cronSecret) {
+    // T-062 hardening: constant-time comparison to defeat timing oracles
+    // (a `===` compare on long secrets leaks a few bits per request).
+    if (cronSecret && safeCompare(presented, cronSecret)) {
       return { ok: true };
     }
-    if (!cronSecret && !isProd) {
-      // Dev/test fallback: accept any non-empty bearer to make local cron
-      // smoke tests possible without polluting production env vars.
+    // T-062 hardening: tighten the fallback so it ONLY fires on a developer
+    // laptop. NODE_ENV='development' alone was permissive — Vercel preview
+    // and staging deployments often run with NODE_ENV !== 'production' but
+    // ARE internet-reachable. The extra `!process.env.VERCEL_ENV` guard
+    // ensures preview / staging on Vercel still requires CRON_SECRET.
+    if (!cronSecret && process.env.NODE_ENV === 'development' && !process.env.VERCEL_ENV) {
+      // Dev-only fallback: accept any non-empty bearer for local smoke tests.
       if (presented.length > 0) return { ok: true };
     }
     return { ok: false, reason: 'invalid_bearer' };

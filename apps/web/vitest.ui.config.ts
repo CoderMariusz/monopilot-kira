@@ -28,7 +28,6 @@ function jsxPreTransformPlugin() {
     async transform(code: string, id: string) {
       const [filepath] = id.split('?');
       if (!jsxRE.test(filepath)) return null;
-      // Transform JSX using oxc (vite's built-in oxc transform)
       const result = await transformWithOxc(code, id, {
         jsx: { runtime: 'automatic', importSource: 'react' },
       });

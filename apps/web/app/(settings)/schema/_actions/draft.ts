@@ -20,29 +20,23 @@ import {
   type UpsertDeptColumnDraftResult,
   type PublishDeptColumnDraftResult,
 } from '../../../../../../packages/schema-driven/src/actions/draft.js';
+import { withOrgContext } from '../../../../lib/auth/with-org-context';
 
-// ─── Session resolver ─────────────────────────────────────────────────────────
-// Resolves (actorUserId, orgId) from the current request session. Replace the
-// stub below with the real Supabase session adapter once the auth wiring lands.
-
-async function resolveSessionContext(): Promise<{ actorUserId: string; orgId: string }> {
-  const actorUserId = process.env.NEXT_SERVER_ACTION_ACTOR_USER_ID;
-  const orgId = process.env.NEXT_SERVER_ACTION_ORG_ID;
-  if (!actorUserId || !orgId) {
-    throw new Error(
-      'session context unavailable: actorUserId/orgId not resolved (T-036 wrapper)',
-    );
-  }
-  return { actorUserId, orgId };
-}
+// ─── Session resolution (T-062) ───────────────────────────────────────────────
+// All actor/org resolution is now delegated to `withOrgContext`, which:
+//   1. Verifies the Supabase JWT (NOT just cookies),
+//   2. Resolves org_id from public.users for the verified user, and
+//   3. Wraps the action body in an app-role txn with app.set_org_context set.
+//
+// The previous env-stub path (NEXT_SERVER_ACTION_ACTOR_USER_ID / ORG_ID) is
+// preserved ONLY in the test fallback inside withOrgContext (NODE_ENV=test
+// AND VITEST set). Production never reads those envs.
 
 // ─── upsertDeptColumnDraft (form-data wrapper) ────────────────────────────────
 
 export async function upsertDeptColumnDraft(
   formData: FormData,
 ): Promise<UpsertDeptColumnDraftResult> {
-  const { actorUserId, orgId } = await resolveSessionContext();
-
   const deptId = String(formData.get('deptId') ?? '');
   const columnKey = String(formData.get('columnKey') ?? '');
   const fieldType = String(formData.get('fieldType') ?? '') as FieldType;
@@ -58,15 +52,17 @@ export async function upsertDeptColumnDraft(
       ? JSON.parse(presentationRaw)
       : {};
 
-  return _upsertDeptColumnDraft({
-    actorUserId,
-    orgId,
-    deptId,
-    columnKey,
-    fieldType,
-    validationJson,
-    presentationJson,
-  });
+  return withOrgContext(async ({ userId, orgId }) =>
+    _upsertDeptColumnDraft({
+      actorUserId: userId,
+      orgId,
+      deptId,
+      columnKey,
+      fieldType,
+      validationJson,
+      presentationJson,
+    }),
+  );
 }
 
 // ─── publishDeptColumnDraft (typed wrapper) ───────────────────────────────────
@@ -74,6 +70,7 @@ export async function upsertDeptColumnDraft(
 export async function publishDeptColumnDraft(
   draftId: string,
 ): Promise<PublishDeptColumnDraftResult> {
-  const { actorUserId, orgId } = await resolveSessionContext();
-  return _publishDeptColumnDraft({ actorUserId, orgId, draftId });
+  return withOrgContext(async ({ userId, orgId }) =>
+    _publishDeptColumnDraft({ actorUserId: userId, orgId, draftId }),
+  );
 }

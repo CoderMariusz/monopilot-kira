@@ -867,3 +867,63 @@ runIntegration('P0-Fix3 — SoD check is on TARGET (not actor): neutral actor + 
     expect(result.error).toBeUndefined();
   });
 });
+
+// ─── T-062 hardening — HMAC timing-safe compare path ─────────────────────────
+describe('T-062 hardening — verifyApprovalToken uses timingSafeEqual on the signature', () => {
+  it('rejects a token whose signature has the right length but wrong bytes', async () => {
+    // Generate a real token then mutate the last hex byte to keep the same
+    // length. timingSafeEqual will compare full length and report mismatch
+    // without short-circuiting (the goal of the hardening). The function
+    // surface still reports invalid_token for security.
+    const goodToken = await generateApprovalToken({
+      actorUserId: actorId,
+      approverUserId: approverId,
+      orgId,
+      targetUserId: targetId,
+      roleSlug: 'org.schema.admin',
+    });
+
+    const dotIdx = goodToken.lastIndexOf('.');
+    const sig = goodToken.slice(dotIdx + 1);
+    // Flip one hex char so the buffer length is preserved
+    const flipped = sig.slice(0, -1) + (sig.endsWith('0') ? '1' : '0');
+    const tamperedToken = goodToken.slice(0, dotIdx + 1) + flipped;
+
+    const result = await grantRole({
+      actorUserId: actorId,
+      targetUserId: targetId,
+      orgId,
+      roleSlug: 'org.schema.admin',
+      approvalToken: tamperedToken,
+    });
+
+    expect(result.success).toBe(false);
+    expect(result.error).toBe('invalid_token');
+  });
+
+  it('rejects a token whose signature is shorter than the expected hex length', async () => {
+    // Length-mismatch path: must NOT throw RangeError from timingSafeEqual,
+    // must return invalid_token cleanly.
+    const goodToken = await generateApprovalToken({
+      actorUserId: actorId,
+      approverUserId: approverId,
+      orgId,
+      targetUserId: targetId,
+      roleSlug: 'org.schema.admin',
+    });
+
+    const dotIdx = goodToken.lastIndexOf('.');
+    const tamperedToken = goodToken.slice(0, dotIdx + 1) + 'deadbeef'; // way too short
+
+    const result = await grantRole({
+      actorUserId: actorId,
+      targetUserId: targetId,
+      orgId,
+      roleSlug: 'org.schema.admin',
+      approvalToken: tamperedToken,
+    });
+
+    expect(result.success).toBe(false);
+    expect(result.error).toBe('invalid_token');
+  });
+});

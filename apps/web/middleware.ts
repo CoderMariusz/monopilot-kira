@@ -76,15 +76,16 @@ function getAccessToken(req: NextRequest): string | null {
 
   // @supabase/ssr uses 'sb-<projectRef>-auth-token' naming.
   // Also check the generic pattern for local dev / unknown project refs.
-  for (const [name, value] of cookies) {
+  for (const [name, cookie] of cookies) {
     if (name.startsWith('sb-') && name.endsWith('-auth-token')) {
+      const rawValue = cookie.value;
       try {
         // The cookie value is a JSON object: { access_token, refresh_token, ... }
-        const parsed = JSON.parse(value) as { access_token?: string };
+        const parsed = JSON.parse(rawValue) as { access_token?: string };
         if (parsed.access_token) return parsed.access_token;
       } catch {
         // Not JSON — might be the raw token for older Supabase versions
-        return value;
+        return rawValue;
       }
     }
   }

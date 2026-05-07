@@ -38,11 +38,12 @@ export async function GET(req: Request): Promise<Response> {
     }
 
     // Check whether any returned row has the org.access.admin slug.
+    // Supabase returns joined roles as an array when using select('roles(slug)').
     const isAdmin =
       Array.isArray(roleRows) &&
       roleRows.some(
-        (row: { roles: { slug: string } | null } | null) =>
-          row?.roles?.slug === ORG_ACCESS_ADMIN,
+        (row: { roles: { slug: string }[] } | null) =>
+          Array.isArray(row?.roles) && row.roles.some((r) => r.slug === ORG_ACCESS_ADMIN),
       );
 
     if (!isAdmin) {

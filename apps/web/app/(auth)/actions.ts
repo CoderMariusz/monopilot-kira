@@ -60,7 +60,20 @@ export async function signInWithMagicLink(email: string): Promise<MagicLinkResul
   });
 
   if (error) {
-    return { error: error.message };
+    // T-062 hardening: do NOT echo the upstream Supabase error message back
+    // to the client — `error.message` can leak whether an account exists
+    // (e.g. "User already registered", "Invalid email", rate-limit details).
+    // We log the real error server-side for ops visibility and return a
+    // constant, neutral string. Reveals nothing whether the email is known.
+    // eslint-disable-next-line no-console
+    console.error('[signInWithMagicLink] supabase.auth.signInWithOtp failed', {
+      code: (error as { code?: string }).code,
+      status: (error as { status?: number }).status,
+      message: error.message,
+    });
+    return {
+      error: 'If an account with that email exists, a sign-in link has been sent.',
+    };
   }
 
   return { error: null };

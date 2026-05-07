@@ -64,6 +64,7 @@ async function tryReadAndExec(client: pg.PoolClient, path: string): Promise<void
 
 beforeAll(async () => {
   if (!hasDatabaseUrl) return;
+  // eslint-disable-next-line no-restricted-syntax -- reason: e2e test owns pool lifecycle; managed pool from @monopilot/db is inappropriate here (needs raw connectionString + per-test teardown)
   dbPool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
   dbClient = await dbPool.connect();
   await tryReadAndExec(dbClient, baselineMigrationPath);

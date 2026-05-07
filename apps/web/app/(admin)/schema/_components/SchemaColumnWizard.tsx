@@ -41,6 +41,14 @@ interface PresentationFlags {
 }
 
 interface SchemaColumnWizardProps {
+  /**
+   * Department whose schema is being edited. The Server Action will reject a
+   * blank deptId, so this MUST be provided by the parent route once the
+   * department picker / route param is wired. Defaults to '' so existing
+   * tests + the placeholder /admin/schema/wizard route compile; the runtime
+   * `handleSave` guard throws if it's still blank at submit time.
+   */
+  deptId?: string;
   sampleRow?: Record<string, unknown>;
 }
 
@@ -70,10 +78,10 @@ const FIELD_TYPES: FieldType[] = [
 
 // ─── Server action loader (dynamic import avoids static TDZ in tests) ─────────
 
-type DraftActions = typeof import('../../../../app/(settings)/schema/_actions/draft');
+type DraftActions = typeof import('../../../../app/(settings)/schema/_actions/draft.js');
 
 async function getDraftActions(): Promise<DraftActions> {
-  return import('../../../../app/(settings)/schema/_actions/draft');
+  return import('../../../../app/(settings)/schema/_actions/draft.js');
 }
 
 // ─── Inline Stepper (React-19-compatible, no zustand dependency) ──────────────
@@ -161,9 +169,12 @@ function InlineStepper({
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-export default function SchemaColumnWizard({ sampleRow }: SchemaColumnWizardProps) {
+export default function SchemaColumnWizard({ deptId: deptIdProp, sampleRow }: SchemaColumnWizardProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
+
+  // deptId resolution: prop wins, then URL ?deptId=, else empty (handleSave guard catches).
+  const deptId = deptIdProp ?? searchParams.get('deptId') ?? '';
 
   // URL ?step=1..5 (1-based) → internal 0-based index
   const stepParam = searchParams.get('step');
@@ -223,10 +234,17 @@ export default function SchemaColumnWizard({ sampleRow }: SchemaColumnWizardProp
     setIsSaving(true);
 
     try {
+      if (!deptId) {
+        // Defensive: never silently submit a blank deptId (the upstream Server
+        // Action requires a real uuid; an empty string would either FK-fail or
+        // worse, succeed with cross-tenant context after RLS coercion).
+        throw new Error('SchemaColumnWizard: missing required prop `deptId`');
+      }
+
       const { upsertDeptColumnDraft, publishDeptColumnDraft } = await getDraftActions();
 
       const formData = new FormData();
-      formData.set('deptId', '');
+      formData.set('deptId', deptId);
       formData.set('columnKey', selectedFieldType);
       formData.set('fieldType', selectedFieldType);
       formData.set('validationJson', JSON.stringify({
@@ -240,8 +258,14 @@ export default function SchemaColumnWizard({ sampleRow }: SchemaColumnWizardProp
 
       const upsertResult = await upsertDeptColumnDraft(formData);
       const draftId = (upsertResult as { draftId?: string }).draftId ?? '';
+      if (!draftId) {
+        throw new Error('SchemaColumnWizard: upsertDeptColumnDraft returned no draftId');
+      }
 
-      await publishDeptColumnDraft({ draftId } as unknown as string);
+      // publishDeptColumnDraft signature is (draftId: string) — was previously
+      // mis-called as `({ draftId } as unknown as string)`, which silently
+      // passed an object the Server Action would reject at runtime.
+      await publishDeptColumnDraft(draftId);
 
       setSaveSuccess(true);
       router.push('/admin/schema');

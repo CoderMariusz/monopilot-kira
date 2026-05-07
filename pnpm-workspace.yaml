@@ -1,4 +1,12 @@
 packages:
-  - "apps/*"
-  - "packages/*"
-  - "tooling/*"
+  - apps/*
+  - packages/*
+  - tooling/*
+
+onlyBuiltDependencies:
+  - argon2
+  - better-sqlite3
+  - esbuild
+  - sharp
+  - "@swc/core"
+  - "@parcel/watcher"

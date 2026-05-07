@@ -3,13 +3,15 @@
  * Server component that renders the SchemaColumnWizard client component.
  */
 
-import React from 'react';
+import React, { Suspense } from 'react';
 import SchemaColumnWizard from '../_components/SchemaColumnWizard';
 
 export default function SchemaWizardPage() {
   return (
     <main>
-      <SchemaColumnWizard />
+      <Suspense fallback={null}>
+        <SchemaColumnWizard />
+      </Suspense>
     </main>
   );
 }
