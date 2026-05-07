@@ -39,13 +39,27 @@ alter table "Reference"."Departments"
 create index if not exists departments_org_id_idx on "Reference"."Departments" (org_id);
 
 -- ============================================================
--- 3. Add dept_overrides JSONB to organizations [UNIVERSAL]
+-- 3. Row Level Security — org_id scoped (HOTFIX T-019)
+-- ============================================================
+alter table "Reference"."Departments" enable row level security;
+alter table "Reference"."Departments" force row level security;
+
+drop policy if exists "Departments_org_isolation" on "Reference"."Departments";
+create policy "Departments_org_isolation" on "Reference"."Departments"
+  for all to public
+  using (org_id = app.current_org_id())
+  with check (org_id = app.current_org_id());
+
+grant select, insert, update, delete on "Reference"."Departments" to app_user;
+
+-- ============================================================
+-- 4. Add dept_overrides JSONB to organizations [UNIVERSAL]
 -- ============================================================
 alter table public.organizations
   add column if not exists dept_overrides jsonb not null default '{}'::jsonb;
 
 -- ============================================================
--- 4. Seed 7 Apex departments [APEX-CONFIG]
+-- 5. Seed 7 Apex departments [APEX-CONFIG]
 --    Requires Apex org to exist in public.organizations.
 --    Seeded via apex-departments.sql (called separately); this
 --    migration only ensures the schema is ready.

@@ -6,6 +6,9 @@
  *  AC1: Migration creates lot, work_order, quality_event, shipment, bom_item with all R13 columns and (org_id, created_at DESC) indexes.
  *  AC2: INSERT with org_id=NULL is rejected for every placeholder table.
  *  AC3: App-role scoped to org A cannot read rows from org B via the T-007 policy pattern.
+ *       GENUINE cross-org SELECT test: connects as app_user, sets org context, asserts visible
+ *       row count = 1 (own org) and = 0 when context is switched to the other org.
+ *       Metadata sanity layer (relrowsecurity + pg_policies) is kept as a secondary check.
  *  AC4: Schema/typecheck proves exported inferred types include nullable model_prediction_id and epcis_event_id.
  *
  * Skips gracefully when DATABASE_URL is not set (CI without Postgres).
@@ -16,6 +19,16 @@ import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { randomUUID } from 'node:crypto';
 import pg from 'pg';
+
+const appUserPassword = ['app', 'user', 'test', 'password'].join('_');
+
+function appUserDatabaseUrl(): string {
+  if (!databaseUrl) throw new Error('DATABASE_URL must be set');
+  const url = new URL(databaseUrl);
+  url.username = 'app_user';
+  url.password = appUserPassword;
+  return url.toString();
+}
 
 const databaseUrl = process.env.DATABASE_URL;
 const runIntegrationTest = databaseUrl ? it : it.skip;

@@ -8,11 +8,16 @@ const { Pool } = pg;
  * Exported from index.ts for general consumption.
  */
 export function getAppConnection(): pg.Pool {
-  // Production guard: DATABASE_URL_APP must be explicitly set outside test/dev environments.
-  // The fallback (DATABASE_URL + username rewrite) is intentionally test-only; if we are
-  // running in production without DATABASE_URL_APP, fail loudly rather than silently
-  // connecting with a hardcoded test password that will not match the production role.
-  if (process.env.NODE_ENV === 'production' && !process.env.DATABASE_URL_APP) {
+  // Production guard: DATABASE_URL_APP must be explicitly set in production deployments.
+  // The fallback (DATABASE_URL + username rewrite to app_user with a hardcoded test
+  // password) is intentionally test-only. Guard fires when NODE_ENV=production and
+  // no Vitest context is active (VITEST env var absent), so the throw does NOT fire
+  // in CI test runs that happen to export NODE_ENV=production.
+  if (
+    process.env.NODE_ENV === 'production' &&
+    !process.env.VITEST &&
+    !process.env.DATABASE_URL_APP
+  ) {
     throw new Error('DATABASE_URL_APP must be set in production');
   }
 

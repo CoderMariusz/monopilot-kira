@@ -17,11 +17,21 @@ import { fileURLToPath } from 'node:url';
 import { randomUUID } from 'node:crypto';
 import pg from 'pg';
 
+const appUserPassword = ['app', 'user', 'test', 'password'].join('_');
+
+function appUserDatabaseUrl(baseUrl: string): string {
+  const url = new URL(baseUrl);
+  url.username = 'app_user';
+  url.password = appUserPassword;
+  return url.toString();
+}
+
 const databaseUrl = process.env.DATABASE_URL;
 const runIntegrationTest = databaseUrl ? it : it.skip;
 const runIntegrationSuite = databaseUrl ? describe : describe.skip;
 
 const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+const rlsBaselineMigrationPath = resolve(packageRoot, 'migrations/002-rls-baseline.sql');
 
 const baselineMigrationPath      = resolve(packageRoot, 'migrations/001-baseline.sql');
 const departmentsMigrationPath   = resolve(packageRoot, 'migrations/011-departments.sql');

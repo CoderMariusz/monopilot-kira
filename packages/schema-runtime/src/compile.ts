@@ -1,5 +1,6 @@
 import { z, ZodSchema, ZodTypeAny } from 'zod';
 import pg from 'pg';
+import { RefTables } from '../../../lib/reference/index.ts';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -36,14 +37,14 @@ function getSchemaConfig(): { schemaName: string; isTestMode: boolean } {
 function deptColumnsTable(schemaName: string, isTestMode: boolean): string {
   if (isTestMode) {
     // test schema uses table literally named "Reference.DeptColumns"
-    return `"${schemaName}"."Reference.DeptColumns"`;
+    return `"${schemaName}"."${RefTables.DeptColumns}"`;
   }
   return `"${schemaName}"."DeptColumns"`;
 }
 
 function fieldTypesTable(schemaName: string, isTestMode: boolean): string {
   if (isTestMode) {
-    return `"${schemaName}"."Reference.FieldTypes"`;
+    return `"${schemaName}"."${RefTables.FieldTypes}"`;
   }
   return `"${schemaName}"."FieldTypes"`;
 }
