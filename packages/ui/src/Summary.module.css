@@ -1,0 +1,27 @@
+/* Summary primitive — diff-highlighting classes via design tokens */
+
+.summary-row--unchanged {
+  border-left: 3px solid transparent;
+}
+
+.summary-row--added {
+  border-left: 3px solid var(--color-primary);
+}
+
+.summary-row--changed {
+  border-left: 3px solid var(--color-warning);
+}
+
+.summary-row--removed {
+  border-left: 3px solid var(--color-danger);
+}
+
+.summary-status-label {
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  height: 1px;
+  overflow: hidden;
+  position: absolute;
+  white-space: nowrap;
+  width: 1px;
+}
