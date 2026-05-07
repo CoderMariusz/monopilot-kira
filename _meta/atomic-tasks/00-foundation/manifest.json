@@ -68,5 +68,6 @@
     "tasks/T-060.json",
     "tasks/T-061.json"
   ],
-  "coverage_file": "coverage.md"
+  "coverage_file": "coverage.md",
+  "business_scope_column": "org_id"
 }

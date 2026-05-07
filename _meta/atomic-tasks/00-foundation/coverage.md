@@ -177,6 +177,46 @@ Readiness assessment: **96%+ ACP implementation readiness** for 00-FOUNDATION af
 | Missing D365 optional integration posture contract | T-051 |
 | Missing ACP real-shape/readiness manifest patch | T-052 |
 
+## Wave0 v4.3 Readiness
+
+Foundation Wave0 v4.3 readiness ≥ 95% (per T-052 lock). All 61 tasks are DONE as of 2026-05-07.
+
+### Locked decision → enforcing tasks
+
+| Wave0 locked decision | Enforcing task(s) | Status |
+|---|---|---|
+| `org_id` business scope (not `tenant_id`) | T-001, T-002, T-007, T-014, T-017, T-019, T-020, T-040, T-049, T-050 (+ T-006, T-013, T-048) | covered |
+| `tenant_id` control-plane only (tenant_idp_config) | T-010 | covered |
+| `fg.*` canonical event prefix | T-003 (events.enum), T-008 (outbox), T-021 (cascade) | covered |
+| `fa.*` legacy alias only | T-003 LegacyEventAlias + T-048 glossary | covered |
+| Non-spoofable RLS pattern (app.set_org_context) | T-007 (app.set_org_context), T-045 (app-role split) | covered |
+| LEAKPROOF discipline | none declared (per Wave0 lock; no task introduces LEAKPROOF without proof) | covered |
+| Lower-priority-is-sooner + local T-XXX deps | all 61 task JSONs validated; cross-module blockers in pipeline_inputs.cross_module_dependencies | covered |
+| Shared BOM SSOT skeleton/contract | T-049 | covered |
+| factory_spec / internal_product_spec terminology | T-047, T-048, T-049 | covered |
+| Authorization policy + Settings flag permission | T-004, T-014, T-050 | covered |
+| D365 optional integration posture (never source of truth) | T-047, T-051 | covered |
+| Manifest/coverage readiness patch + JSON validity | T-052 | covered |
+
+### ACP import shape requirements
+
+ACP tasks use top-level TaskCreate fields ONLY:
+- `title` — required
+- `prompt` — required
+- `labels` — required
+- `priority` — required (lower numeric value = picked sooner)
+- `max_attempts` — required
+- `pipeline_name` — required
+- `pipeline_inputs` — required; `pipeline_inputs.root_path` is MANDATORY
+
+Do NOT add generated ACP fields in task JSON (`task_id`, `status`, `project_id`). These are injected by ACP at import time.
+
+### Dependency rules
+
+- Dependencies are LOCAL `T-XXX` IDs (numeric references within 00-foundation module).
+- Cross-module blockers belong in `pipeline_inputs.cross_module_dependencies`, NOT in the top-level `dependencies` list.
+- All task JSONs in tasks/T-001.json through tasks/T-061.json have been validated against this rule.
+
 ## Wave A Consolidation (post-audit, 2026-05-07)
 
 Tasks T-053..T-061 were generated from 4 audit reports (consistency, PRD-drift, test-quality, carry-forward backlog) following the 21-DONE-task Wave A milestone. Four are P0 Wave-B blockers; the rest are parallel-safe cleanup that should land before Wave-D documentation freeze.

@@ -63,7 +63,7 @@ Updated by orchestrator after every PASS review.
 | T-049 | Shared BOM SSOT skeleton | ✅ DONE | T1-schema docs full cycle PASS (opus); _foundation/contracts/shared-bom-ssot.md + .schema.json (draft 2020-12); 4/4 ACs evidence; jsonschema 4.26.0 valid+invalid roundtrip; 35 grep hits; ownership matrix Foundation/Technical/NPD; D365 NEVER source of truth; status enum draft|in_review|approved|superseded |
 | T-050 | Authorization policy foundation | ✅ DONE | T1-schema docs full cycle PASS (opus); _foundation/contracts/authorization-policy.md (10 sekcji); 4/4 ACs evidence; grep 33 hits (≥8); settings.quality.* 4× w red-line context; cytuje T-004 + T-014 + T-039 + T-062 carry-forwards; helper contracts (requireOrgPermission, preflightAction, assertSodGrantAllowed, withAuditContext) defined as signatures only |
 | T-051 | D365 posture contract | ✅ DONE | T0-docs full cycle PASS; _foundation/contracts/d365-posture.md (8 sekcji, ~320 LOC); 4/4 ACs evidence-quoted; D365 capability registry entry; non-usable preload override; 41 grep hits; cytuje §W0-v4.3 §6 + §9 |
-| T-052 | Manifest/coverage readiness patch | ⬜ PENDING | |
+| T-052 | Manifest/coverage readiness patch | ✅ DONE | T0-docs (RED skipped); GREEN+REVIEW PASS; manifest business_scope_column added; coverage Wave0 v4.3 Readiness section + ACP shape + dep rules documented |
 | T-053 | packages/db layout consolidation | ✅ DONE | RED+GREEN+REVIEW PASS; 106/106 tests; src/schema/ removed, schema/ canonical with 9-table barrel; symlink relative; FK added on R13 org_id |
 | T-054 | Migration runner + filename normalization | ✅ DONE | GREEN PASS; raw-SQL runner in scripts/migrate.ts; 0014_→014- rename; schema_migrations table; idempotent; --dry-run; checksum guard; 8/8 tests |
 | T-055 | Workspace-wide ESLint coverage | ✅ DONE | RED+GREEN+REVIEW+REWORK+RE-REVIEW PASS; tooling/eslint/base.mjs shared; 8 packages get drift rules; pg.Pool override per-test only; 7/7 fixture tests + root pnpm lint exit 0 |
@@ -73,6 +73,8 @@ Updated by orchestrator after every PASS review.
 | T-059 | PRD marker discipline sweep | ✅ DONE | GREEN+REVIEW PASS; 75 heading lines marked + 10 allowlisted + leading-dash fix; exit 0 on 00-FOUNDATION-PRD.md; 55/56 web tests pass; T-047 amendments intact |
 | T-060 | ALTER tenant_idp_config: 11 missing F-A2 cols | ✅ DONE | RED+GREEN PASS; 16/16 FA2 tests + 11/11 existing tests; 016 migration with 11 cols + updated_at trigger |
 | T-061 | Password policy enforcement library | ✅ DONE | RED+GREEN+REVIEW+REWORK+RE-REVIEW PASS; 19/19 tests (mutation-proven non-vacuous); whitespace_only guard; 018-password-history.sql; HIBP injectable + fail-open |
+
+**🎉 00-FOUNDATION 61/61 DONE — Wave0 v4.3 readiness ≥95% achieved**
 
 ## Migration ordering lock
 
