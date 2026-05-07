@@ -163,6 +163,9 @@ importers:
       '@types/node':
         specifier: ^20.17.0
         version: 20.19.39
+      '@types/pg':
+        specifier: ^8.20.0
+        version: 8.20.0
       typescript:
         specifier: ^5.8.2
         version: 5.9.3
