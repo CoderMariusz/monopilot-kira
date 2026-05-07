@@ -47,14 +47,31 @@ beforeAll(async () => {
   schemaName = `ci_tenant_idp_${randomUUID().split('-').join('_')}`;
   await dbClient.query(`create schema ${quoteIdentifier(schemaName)};`);
 
-  // Load baseline migrations (001 + 002)
+  // Load baseline migrations (001 + 002 + 003 + 004 + 005)
   const baseline001Path = resolve(packageRoot, 'migrations/001-baseline.sql');
   const baseline002Path = resolve(packageRoot, 'migrations/002-rls-baseline.sql');
+  const baseline003Path = resolve(packageRoot, 'migrations/003-outbox.sql');
+  const baseline004Path = resolve(packageRoot, 'migrations/004-audit.sql');
+  const migration005Path = resolve(packageRoot, 'migrations/005-tenant-idp-config.sql');
+
   const baselineRLS001 = readFileSync(baseline001Path, 'utf8').split('public.').join(`${schemaName}.`);
-  const baselineRLS002 = readFileSync(baseline002Path, 'utf8').split('public.').join(`${schemaName}.`);
+  const baselineRLS002 = readFileSync(baseline002Path, 'utf8')
+    .split('public.').join(`${schemaName}.`)
+    .split('app.').join(`${schemaName}.app.`);
+  const baselineRLS003 = readFileSync(baseline003Path, 'utf8')
+    .split('public.').join(`${schemaName}.`)
+    .split('app.').join(`${schemaName}.app.`);
+  const baselineRLS004 = readFileSync(baseline004Path, 'utf8')
+    .split('public.').join(`${schemaName}.`)
+    .split('app.').join(`${schemaName}.app.`);
+  const migration005 = readFileSync(migration005Path, 'utf8')
+    .split('public.').join(`${schemaName}.`);
 
   await dbClient.query(baselineRLS001);
   await dbClient.query(baselineRLS002);
+  await dbClient.query(baselineRLS003);
+  await dbClient.query(baselineRLS004);
+  await dbClient.query(migration005);
 });
 
 afterAll(async () => {

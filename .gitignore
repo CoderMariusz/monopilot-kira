@@ -1,4 +1,8 @@
 node_modules/
+.next/
+.turbo/
+dist/
+build/
 .DS_Store
 Thumbs.db
 *.log

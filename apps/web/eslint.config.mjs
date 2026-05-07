@@ -35,5 +35,25 @@ export default [
         },
       ],
     }
-  }
+  },
+  // T-025: drift gate — prevent direct imports of @radix-ui/react-dialog outside packages/ui.
+  // All dialog usage must go through the Modal primitive in @monopilot/ui.
+  {
+    files: ['**/*.{js,jsx,ts,tsx}'],
+    ignores: ['packages/ui/**'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          paths: [
+            {
+              name: '@radix-ui/react-dialog',
+              message:
+                'Import Modal from @monopilot/ui instead of using @radix-ui/react-dialog directly.',
+            },
+          ],
+        },
+      ],
+    },
+  },
 ];
