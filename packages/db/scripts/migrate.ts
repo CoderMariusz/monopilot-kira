@@ -6,11 +6,37 @@
  * and records state in public.schema_migrations(filename, applied_at, checksum).
  *
  * Idempotent: a second run is a no-op (already-applied rows are skipped).
- * Checksum mismatch on a previously-applied file is a hard error.
+ * Checksum mismatch on a previously-applied file is a hard error by default.
  * --dry-run flag lists pending without applying.
  *
  * Uses getOwnerConnection() (DATABASE_URL or DATABASE_URL_OWNER) — never superuser
  * beyond what the owner role already is; no drizzle-kit involvement.
+ *
+ * --------------------------------------------------------------------
+ * CHECKSUM DRIFT BYPASS — MIGRATE_ALLOW_CHECKSUM_DRIFT_FOR
+ * --------------------------------------------------------------------
+ * Some environments (e.g. existing DBs that went through drizzle-kit push)
+ * may have recorded a checksum for an already-applied migration that no
+ * longer matches the file on disk (e.g. 017-rbac.sql). By default the
+ * runner treats this as a hard error to prevent accidental edits.
+ *
+ * To acknowledge a known drift and allow the runner to update the stored
+ * checksum to the current file hash, set:
+ *
+ *   MIGRATE_ALLOW_CHECKSUM_DRIFT_FOR=017-rbac.sql
+ *
+ * Multiple filenames are comma-separated:
+ *
+ *   MIGRATE_ALLOW_CHECKSUM_DRIFT_FOR=017-rbac.sql,018-password-history.sql
+ *
+ * When a filename appears in this list:
+ *   1. A warning is emitted (never silent).
+ *   2. The stored checksum in schema_migrations is updated to the current
+ *      file hash so subsequent runs are clean.
+ *   3. The migration is NOT re-applied — the SQL is NOT executed again.
+ *
+ * Remove the env var once all target environments have been updated.
+ * --------------------------------------------------------------------
  */
 import { createHash } from 'node:crypto';
 import { readFileSync, readdirSync } from 'node:fs';
@@ -25,6 +51,15 @@ const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const migrationsDir = resolve(packageRoot, 'migrations');
 
 const isDryRun = process.argv.includes('--dry-run');
+
+// Filenames for which a checksum drift is acknowledged via env var.
+// Set MIGRATE_ALLOW_CHECKSUM_DRIFT_FOR=017-rbac.sql (comma-separated) to enable.
+const allowChecksumDriftFor = new Set<string>(
+  (process.env['MIGRATE_ALLOW_CHECKSUM_DRIFT_FOR'] ?? '')
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean),
+);
 
 function sha256(content: string): string {
   return createHash('sha256').update(content, 'utf8').digest('hex');
@@ -86,14 +121,33 @@ async function run(): Promise<void> {
         // Checksum mismatch detection — editing an applied migration is a hard error
         const storedChecksum = applied.get(file)!;
         if (storedChecksum !== checksum) {
-          throw new Error(
-            `CHECKSUM MISMATCH on already-applied migration: ${file}\n` +
-              `  Stored checksum : ${storedChecksum}\n` +
-              `  Current checksum: ${checksum}\n` +
-              `Applied migrations must never be edited. Create a new migration instead.`,
-          );
+          if (allowChecksumDriftFor.has(file)) {
+            // Env-gated bypass: update stored checksum and continue without re-applying.
+            console.warn(
+              `[migrate] checksum drift acknowledged for: ${file}\n` +
+                `  Stored checksum : ${storedChecksum}\n` +
+                `  Current checksum: ${checksum}\n` +
+                `  Updating schema_migrations record. The migration will NOT be re-applied.`,
+            );
+            if (!isDryRun) {
+              await client.query(
+                `update public.schema_migrations set checksum = $1 where filename = $2`,
+                [checksum, file],
+              );
+            }
+          } else {
+            throw new Error(
+              `CHECKSUM MISMATCH on already-applied migration: ${file}\n` +
+                `  Stored checksum : ${storedChecksum}\n` +
+                `  Current checksum: ${checksum}\n` +
+                `Applied migrations must never be edited. Create a new migration instead.\n` +
+                `If this drift is intentional (e.g. drizzle-kit push on an existing DB), set:\n` +
+                `  MIGRATE_ALLOW_CHECKSUM_DRIFT_FOR=${file}`,
+            );
+          }
+        } else {
+          console.log(`  already applied: ${file}`);
         }
-        console.log(`  already applied: ${file}`);
         appliedCount++;
         continue;
       }

@@ -37,7 +37,18 @@ export async function POST(request: NextRequest): Promise<Response> {
   // lookup to find the matching tenant_idp_config row by org_id; this is the
   // authoritative source of truth for the cross-tenant check inside
   // handleSamlCallback.
-  const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+  //
+  // CONTROL PLANE: pre-session SAML routing requires a raw lookup by org_id
+  // from RelayState. Uses the owner connection string (DATABASE_URL_OWNER ??
+  // DATABASE_URL) because app.current_org_id() is not yet set — the Supabase
+  // session is established later in this same handler via verifyOtp. Read is
+  // bounded to {tenant_id, org_id, provider_type, metadata_url, entity_id,
+  // x509_cert, jit_provisioning, enforce_for_non_admins, org_default_role}
+  // — never returned to the client; consumed locally for Jackson SAML parsing
+  // and JIT provisioning policy.
+  const pool = new Pool({
+    connectionString: process.env.DATABASE_URL_OWNER ?? process.env.DATABASE_URL,
+  });
   let row: {
     tenant_id: string;
     org_id: string;
@@ -115,7 +126,9 @@ export async function POST(request: NextRequest): Promise<Response> {
   // only. Subsequent requests resolve their own context via the
   // `withOrgContext` HOF, which mints a fresh per-call session_token.
   if (result.user) {
-    const ownerPool = new Pool({ connectionString: process.env.DATABASE_URL });
+    const ownerPool = new Pool({
+      connectionString: process.env.DATABASE_URL_OWNER ?? process.env.DATABASE_URL,
+    });
     const sessionToken = randomUUID();
     try {
       await ownerPool.query(

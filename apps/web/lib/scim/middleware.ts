@@ -124,6 +124,15 @@ export async function verifyScimBearer(request: Request): Promise<ScimContext | 
   const lastFour = token.slice(-4);
   const owner = getOwnerPool();
 
+  // CONTROL PLANE: pre-session SCIM bearer auth requires a raw lookup by
+  // scim_token_last_four to find the candidate tenant(s). Uses the owner pool
+  // because app.current_org_id() is not yet set — the SCIM caller is
+  // authenticated by the bearer itself, and the org context is established
+  // immediately after a successful argon2 verify (set_org_context inside an
+  // app_user txn — see withScimOrgContext below). Read is bounded to
+  // {tenant_id, scim_token_hash}; the cross-tenant ambiguity guard at L160-167
+  // ensures a colliding last_four cannot leak a tenant identity.
+  //
   // Index lookup on tenant_idp_config_scim_last_four_idx — typically 0 or 1
   // rows. argon2.verify only runs against this filtered set, preserving the
   // <10ms budget for invalid tokens.

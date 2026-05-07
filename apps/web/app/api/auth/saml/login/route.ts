@@ -31,7 +31,16 @@ export async function GET(request: NextRequest): Promise<Response> {
     );
   }
 
-  const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+  // CONTROL PLANE: pre-session SAML routing requires a raw lookup by tenant_id
+  // before any Supabase session exists. Uses the owner connection string
+  // (DATABASE_URL_OWNER ?? DATABASE_URL) because app.current_org_id() is not
+  // set during the AuthnRequest construction — there is no user yet. Read is
+  // bounded to {tenant_id, provider_type, metadata_url, entity_id, x509_cert,
+  // jit_provisioning, enforce_for_non_admins} — never returned to the client;
+  // consumed locally to build the Jackson AuthnRequest redirect.
+  const pool = new Pool({
+    connectionString: process.env.DATABASE_URL_OWNER ?? process.env.DATABASE_URL,
+  });
   let row: {
     tenant_id: string;
     provider_type: string;

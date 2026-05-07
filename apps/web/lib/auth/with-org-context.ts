@@ -215,6 +215,12 @@ export async function withOrgContext<T>(
   } finally {
     client.release();
     // Best-effort cleanup so app.session_org_contexts doesn't accumulate.
+    // If this delete fails (network blip, owner-pool exhaustion, process
+    // crash) the row is leaked. GC for those orphans is handled by
+    // `app.gc_session_org_contexts(p_max_age_seconds)` — see migration
+    // packages/db/migrations/031-session-org-contexts-janitor.sql. The
+    // operator wires that function to a 5-minute cron with a default
+    // 10-minute TTL so leaks are cleaned up out-of-band.
     try {
       await owner.query(
         `delete from app.session_org_contexts where session_token = $1::uuid`,

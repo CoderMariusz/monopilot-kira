@@ -54,8 +54,27 @@ jobs:
 
   test:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: monopilot
+          POSTGRES_PASSWORD: monopilot
+          POSTGRES_DB: monopilot
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U monopilot"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
     env:
-      DATABASE_URL: ""
+      CI: true
+      NODE_ENV: test
+      DATABASE_URL: postgres://monopilot:monopilot@localhost:5432/monopilot
+      DATABASE_URL_OWNER: postgres://monopilot:monopilot@localhost:5432/monopilot
+      APP_USER_PASSWORD: app-user-test-password
+      DATABASE_URL_APP: postgres://app_user:app-user-test-password@localhost:5432/monopilot
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -66,4 +85,5 @@ jobs:
           node-version: 20
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @monopilot/db migrate
       - run: pnpm -r test

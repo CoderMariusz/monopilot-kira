@@ -13,6 +13,7 @@
 
 import { hkdf } from 'node:crypto';
 import { promisify } from 'node:util';
+import type pg from 'pg';
 import { generateSecret, generateSync, generateURI, verifySync } from 'otplib';
 import sodium from 'libsodium-wrappers';
 import { getOwnerConnection } from '@monopilot/db/test-utils/test-pool.js';
@@ -22,6 +23,29 @@ const TOTP_PERIOD = 30;
 const TOTP_DIGITS = 6 as const;
 
 const hkdfAsync = promisify(hkdf);
+
+// ─── Module-singleton owner pool ─────────────────────────────────────────────
+// FT-038 fix: previous implementation called `pool.end()` after every TOTP
+// enrol/verify, which destroys the pool on every request and defeats the
+// purpose of connection pooling (each request now incurs a TCP connect +
+// auth handshake, and a hot path will exhaust file descriptors / leave
+// half-closed sockets piling up under load).
+//
+// We follow the same lazy-singleton pattern used in
+// apps/web/lib/auth/with-org-context.ts: cache the pool at module scope on
+// first access, hand out clients via .query() (or .connect() + .release()),
+// and never call .end() on it during request handling. The pool is
+// implicitly torn down at process exit.
+//
+// Test seam preserved: getOwnerConnection() from @monopilot/db/test-utils
+// is still the factory — the singleton just memoises its first result.
+let cachedPool: pg.Pool | null = null;
+
+function getPool(): pg.Pool {
+  if (cachedPool) return cachedPool;
+  cachedPool = getOwnerConnection();
+  return cachedPool;
+}
 
 /**
  * Derive a 32-byte per-tenant key from the master key using HKDF-SHA256.
@@ -64,19 +88,15 @@ export async function enrollTotp(
   combined.set(ciphertext, nonce.length);
   const secretEncrypted = Buffer.from(combined).toString('base64');
 
-  const pool = getOwnerConnection();
-  try {
-    await pool.query(
-      `INSERT INTO public.mfa_secrets (user_id, secret_encrypted, enrolled_at)
-       VALUES ($1, $2, now())
-       ON CONFLICT (user_id) DO UPDATE
-         SET secret_encrypted = EXCLUDED.secret_encrypted,
-             enrolled_at = now()`,
-      [userId, secretEncrypted],
-    );
-  } finally {
-    await pool.end();
-  }
+  const pool = getPool();
+  await pool.query(
+    `INSERT INTO public.mfa_secrets (user_id, secret_encrypted, enrolled_at)
+     VALUES ($1, $2, now())
+     ON CONFLICT (user_id) DO UPDATE
+       SET secret_encrypted = EXCLUDED.secret_encrypted,
+           enrolled_at = now()`,
+    [userId, secretEncrypted],
+  );
 
   const provisioningUri = generateURI({
     issuer: 'Monopilot',
@@ -110,54 +130,50 @@ export async function verifyTotp(
 ): Promise<VerifyTotpResult> {
   await sodium.ready;
 
-  const pool = getOwnerConnection();
-  try {
-    const result = await pool.query<{ secret_encrypted: string }>(
-      `SELECT secret_encrypted FROM public.mfa_secrets WHERE user_id = $1`,
-      [userId],
-    );
-    if (result.rows.length === 0) {
-      return { ok: false, reason: 'no_enrolment' };
-    }
-    const secretEncrypted = result.rows[0].secret_encrypted;
-
-    const key = await deriveKey(opts.masterKey, opts.tenantId);
-    const buf = Buffer.from(secretEncrypted, 'base64');
-    const nonce = new Uint8Array(buf.buffer, buf.byteOffset, sodium.crypto_secretbox_NONCEBYTES);
-    const ct = new Uint8Array(
-      buf.buffer,
-      buf.byteOffset + sodium.crypto_secretbox_NONCEBYTES,
-      buf.length - sodium.crypto_secretbox_NONCEBYTES,
-    );
-
-    const rawSecretBytes = sodium.crypto_secretbox_open_easy(ct, nonce, key);
-    const rawSecret = sodium.to_string(rawSecretBytes);
-
-    const verified = verifySync({ token, secret: rawSecret, period: TOTP_PERIOD, digits: TOTP_DIGITS });
-    if (!verified.valid) {
-      return { ok: false, reason: 'invalid_code' };
-    }
-
-    // Replay protection: atomically claim the current TOTP step. The current
-    // epoch number = floor(now / period). A second call within the same epoch
-    // matches 0 rows (predicate fails) and is reported as a replay.
-    const currentWindow = Math.floor(Date.now() / 1000 / TOTP_PERIOD);
-    const claim = await pool.query(
-      `UPDATE public.mfa_secrets
-          SET last_otp_used_at = now(),
-              last_otp_window  = $2
-        WHERE user_id = $1
-          AND (last_otp_window IS NULL OR last_otp_window <> $2)`,
-      [userId, currentWindow],
-    );
-    if ((claim.rowCount ?? 0) === 0) {
-      return { ok: false, reason: 'replay' };
-    }
-
-    return { ok: true };
-  } finally {
-    await pool.end();
+  const pool = getPool();
+  const result = await pool.query<{ secret_encrypted: string }>(
+    `SELECT secret_encrypted FROM public.mfa_secrets WHERE user_id = $1`,
+    [userId],
+  );
+  if (result.rows.length === 0) {
+    return { ok: false, reason: 'no_enrolment' };
   }
+  const secretEncrypted = result.rows[0].secret_encrypted;
+
+  const key = await deriveKey(opts.masterKey, opts.tenantId);
+  const buf = Buffer.from(secretEncrypted, 'base64');
+  const nonce = new Uint8Array(buf.buffer, buf.byteOffset, sodium.crypto_secretbox_NONCEBYTES);
+  const ct = new Uint8Array(
+    buf.buffer,
+    buf.byteOffset + sodium.crypto_secretbox_NONCEBYTES,
+    buf.length - sodium.crypto_secretbox_NONCEBYTES,
+  );
+
+  const rawSecretBytes = sodium.crypto_secretbox_open_easy(ct, nonce, key);
+  const rawSecret = sodium.to_string(rawSecretBytes);
+
+  const verified = verifySync({ token, secret: rawSecret, period: TOTP_PERIOD, digits: TOTP_DIGITS });
+  if (!verified.valid) {
+    return { ok: false, reason: 'invalid_code' };
+  }
+
+  // Replay protection: atomically claim the current TOTP step. The current
+  // epoch number = floor(now / period). A second call within the same epoch
+  // matches 0 rows (predicate fails) and is reported as a replay.
+  const currentWindow = Math.floor(Date.now() / 1000 / TOTP_PERIOD);
+  const claim = await pool.query(
+    `UPDATE public.mfa_secrets
+        SET last_otp_used_at = now(),
+            last_otp_window  = $2
+      WHERE user_id = $1
+        AND (last_otp_window IS NULL OR last_otp_window <> $2)`,
+    [userId, currentWindow],
+  );
+  if ((claim.rowCount ?? 0) === 0) {
+    return { ok: false, reason: 'replay' };
+  }
+
+  return { ok: true };
 }
 
 /**
