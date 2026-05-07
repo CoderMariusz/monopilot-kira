@@ -143,6 +143,14 @@ async function seedFixture(owner: pg.Pool): Promise<void> {
      on conflict do nothing`,
     [adminId, orgId],
   );
+
+  // Seed Reference.Departments so publishDeptColumnDraft can resolve dept_code for deptId.
+  await owner.query(
+    `INSERT INTO "Reference"."Departments" (id, org_id, code, display_name, role_description)
+     VALUES ($1, $2, $3, $4, $5)
+     ON CONFLICT (org_id, code) DO NOTHING`,
+    [deptId, orgId, 'production', 'Production', 'Production department'],
+  );
 }
 
 async function cleanDraftTables(owner: pg.Pool): Promise<void> {
@@ -336,6 +344,38 @@ runIntegration('AC2 — publishDeptColumnDraft transactional atomicity', () => {
     // Mutation: skip status flip → still 'draft'.
     const draftAfter = await fetchDraft(owner, drafted.draftId);
     expect(draftAfter.status).toBe('published');
+  });
+
+  it('publishDeptColumnDraft with non-existent dept_id → returns dept_not_found, no version bump', async () => {
+    // Mutation proof for the REWORK fix: before fix, a missing Reference.Departments row
+    // silently fell back to dept_code='production'; now it must return dept_not_found.
+    const missingDeptId = randomUUID(); // not seeded in Reference.Departments
+
+    const drafted = await upsertDeptColumnDraft({
+      actorUserId: adminId,
+      orgId,
+      deptId: missingDeptId, // unknown dept — no Reference.Departments row
+      columnKey: 'orphan_col',
+      fieldType: 'string',
+      validationJson: {},
+    });
+    expect(drafted.success).toBe(true);
+    if (!drafted.success) throw new Error('unreachable');
+
+    const result = await publishDeptColumnDraft({
+      actorUserId: adminId,
+      orgId,
+      draftId: drafted.draftId,
+    });
+
+    // Must NOT silently fall back to 'production'; must return explicit error.
+    expect(result.success).toBe(false);
+    if (result.success) throw new Error('unreachable');
+    expect(result.error).toBe('dept_not_found');
+
+    // Draft must remain unpublished.
+    const draftAfter = await fetchDraft(owner, drafted.draftId);
+    expect(draftAfter.status).toBe('draft');
   });
 
   it('atomicity: simulated mid-publish failure rolls back ALL writes (no version bump, no mig row, draft stays draft)', async () => {

@@ -64,7 +64,7 @@ export type PublishDeptColumnDraftResult =
       newSchemaVersion: number;
       idempotent: boolean;
     }
-  | { success: false; error: 'forbidden' | 'not_found'; status?: number };
+  | { success: false; error: 'forbidden' | 'not_found' | 'dept_not_found'; status?: number };
 
 // ─── RBAC helper ──────────────────────────────────────────────────────────────
 
@@ -224,18 +224,21 @@ export async function publishDeptColumnDraft(
         return { success: false, error: 'not_found', status: 404 };
       }
 
-      // Resolve dept_code from dept_id via Reference.Departments
+      // Resolve dept_code from dept_id via Reference.Departments.
+      // Error choice: throw typed error so the transaction catches it and rolls
+      // back cleanly; callers receive { success: false, error: 'dept_not_found' }
+      // via the catch block below.
       const { rows: deptRows } = await client.query<{ code: string }>(
         `SELECT code FROM "Reference"."Departments"
           WHERE id = $1 AND org_id = $2
           LIMIT 1`,
         [draft.dept_id, orgId],
       );
-      // Fallback: if no Reference.Departments row exists (RED tests don't
-      // pre-seed it, they pre-seed DeptColumns with dept_code='production'
-      // directly), use 'production' so happy-path / atomicity / idempotency
-      // assertions resolve against the seeded DeptColumns row.
-      const deptCode = deptRows.length > 0 ? deptRows[0]!.code : 'production';
+      if (deptRows.length === 0) {
+        await client.query('ROLLBACK');
+        return { success: false, error: 'dept_not_found' };
+      }
+      const deptCode = deptRows[0]!.code;
 
       // Idempotent fast-path: draft already published → re-derive state, no writes.
       if (draft.status === 'published') {
