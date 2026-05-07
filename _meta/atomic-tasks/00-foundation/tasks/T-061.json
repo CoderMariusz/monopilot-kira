@@ -1,0 +1,105 @@
+{
+  "title": "T-061 — Password policy enforcement library (NIST: min-12, HIBP, last-5 history)",
+  "prompt": "# T-061 — Password policy enforcement library\n\nPRD: `docs/prd/00-FOUNDATION-PRD.md` — sections: §13 (F-U5 NIST password policy)\nProject root: `/home/user/monopilot-kira`\nAudit source: `_meta/audits/2026-05-07-foundation-wave-a-prd-drift-audit.md` Critical drift #3\nSeverity: P1 (closes coverage gap; consumed by T-011 Supabase Auth wiring)\n\n## Goal\nCreate a NIST-compliant password policy library at `packages/auth/src/password-policy.ts` that enforces minimum 12 characters, checks against the Have I Been Pwned (HIBP) k-anonymity API, and maintains a `password_history` table with last-5 history blocking. Used by T-011 sign-up/change-password flows.\n\n## Implementation contract\nCreate or extend `packages/auth/` (Drizzle schema + service module). The package may need to be scaffolded if it does not exist yet (`packages/auth/package.json`, `tsconfig.json`).\n\nPolicy module `packages/auth/src/password-policy.ts`:\n- `export type PasswordPolicyError = 'too_short' | 'pwned' | 'reused' | 'too_common'`\n- `export async function validateNewPassword(opts: { userId: string; orgId: string; newPassword: string; pool: Pool }): Promise<{ ok: true } | { ok: false; reasons: PasswordPolicyError[] }>`\n- Internal: minimum-length check (12 chars).\n- Internal: HIBP k-anonymity check — SHA1 the password, send first 5 hex chars to `https://api.pwnedpasswords.com/range/{prefix}`, scan response for the remaining 35 chars; do NOT send the full hash or password. Honor a `process.env.HIBP_DISABLED=true` env-flag for offline test runs.\n- Internal: last-5 history check — `select password_hash from password_history where user_id=$1 order by created_at desc limit 5`; argon2-verify the new password against each.\n- On success, the caller (T-011) inserts the new argon2id hash into `password_history`; this library exposes `recordPasswordHistory(userId, hash, pool)` helper.\n\nMigration `packages/db/migrations/018-password-history.sql`:\n- `password_history(user_id uuid not null references users(id) on delete cascade, password_hash text not null, created_at timestamptz not null default now(), primary key (user_id, created_at))`\n- ENABLE + FORCE RLS with policy `user_id IN (select id from users where org_id = app.current_org_id())`.\n- Index on `(user_id, created_at desc)` for the last-5 lookup.\n- Optional: trigger that automatically deletes rows beyond the most recent 5 per user.\n\nUnit tests `packages/auth/src/__tests__/password-policy.test.ts`:\n- Known-bad vectors: `'password'`, `'12345678'`, `'qwertyuiop'`, `'short'` (8 chars), `'Test1234'` (11 chars) — each must fail with the appropriate reason.\n- Known-good vector: `'TG7v$Bk2#xQ8nMz3'` (16 chars, randomly generated) — must pass HIBP (mock or HIBP_DISABLED).\n- Reuse vector: pre-seed `password_history` with argon2 hash of `'OldPwd1234567'`, then attempt to set the same password — must fail with `'reused'`.\n- HIBP mock: stub `fetch` to return a known-pwned password range response (e.g., the well-known SHA1 prefix for `'password'`).\n- Min-length boundary test: 11 chars fails, 12 chars passes (other gates aside).\n\n## Files (scope)\n- packages/auth/package.json [create-or-modify]\n- packages/auth/tsconfig.json [create-or-modify]\n- packages/auth/src/password-policy.ts [create]\n- packages/auth/src/__tests__/password-policy.test.ts [create]\n- packages/auth/src/index.ts [create-or-modify — export validateNewPassword + recordPasswordHistory]\n- packages/auth/eslint.config.mjs [create — extend tooling/eslint/base.mjs from T-055]\n- packages/db/migrations/018-password-history.sql [create]\n- packages/db/schema/password-history.ts [create — Drizzle definition]\n- packages/db/schema/index.ts [modify — re-export]\n- packages/db/__tests__/password-history-rls.integration.test.ts [create]\n- _meta/atomic-tasks/00-foundation/STATUS.md [modify — migration ordering lock]\n\n## Acceptance criteria\n1. Given a password shorter than 12 characters, when `validateNewPassword` runs, then it returns `{ ok: false, reasons: ['too_short'] }`.\n2. Given a known-pwned password (e.g., `'password'` whose SHA1 prefix is `5BAA6` and known to be in HIBP), when `validateNewPassword` runs with HIBP enabled (or with the mock returning a hit), then it returns `{ ok: false, reasons: ['pwned'] }`.\n3. Given a password identical to one of the user's last 5 history entries, when `validateNewPassword` runs, then it returns `{ ok: false, reasons: ['reused'] }`.\n4. Given a strong, non-pwned, non-reused password, when `validateNewPassword` runs, then it returns `{ ok: true }`.\n5. Given migration 018, when the runner applies it, then `password_history` exists with RLS enabled, the FK to users, and the index on (user_id, created_at desc).\n6. Given the RLS test, when `app_user` connects under one org context, then SELECT on password_history returns only that org's user rows.\n7. Given the unit-test vector pack, when `pnpm --filter @monopilot/auth test` runs, then all 5+ known-bad vectors fail with the expected reason and 1 known-good vector passes.\n\n## Test strategy\n- RED: write `packages/auth/src/__tests__/password-policy.test.ts` with the full known-bad/known-good vector pack BEFORE implementing the module — ensure each test fails for the right reason.\n- Mock `fetch` for HIBP via `vi.fn()` returning canned k-anonymity responses.\n- Use `process.env.HIBP_DISABLED=true` to disable the live HIBP call in CI when the mock is not in place.\n- Pin SQLSTATE for the RLS integration test (`42501` for cross-org SELECT denial).\n- Run `pnpm --filter @monopilot/auth test` and `pnpm --filter @monopilot/db test`.\n\n## Risk red lines\n- Do NOT send the full password or full SHA1 hash to HIBP; only the first 5 hex chars (k-anonymity).\n- Do NOT store passwords in plaintext anywhere — `password_history.password_hash` is argon2id only.\n- Do NOT use bcrypt for new password hashes (use argon2id per PRD §13).\n- Do NOT block the auth flow on HIBP latency; add a 2s timeout and fail-open to a soft warning (or hard-fail per env flag).\n- Do NOT skip the RLS migration; password history is highly sensitive.\n- Do NOT use bare `.rejects.toThrow()` in DB tests — pin SQLSTATE.\n- Do NOT use raw `new pg.Pool` (per T-055/T-058 lint rule).\n\n## Closeout evidence\nProvide: changed_files, test_commands_and_results, acceptance_criteria_status (per AC), deviations_from_prd, git_status. Use the test-driven-development skill (RED known-bad vector pack before implementation) and requesting-code-review at GREEN.",
+  "labels": [
+    "prd",
+    "auth",
+    "wave-a-followup",
+    "password-policy",
+    "T2-api"
+  ],
+  "priority": 50,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/home/user/monopilot-kira",
+    "prd_task_id": "T-061",
+    "source_prd": "docs/prd/00-FOUNDATION-PRD.md",
+    "prd_refs": [
+      "§13"
+    ],
+    "category": "auth",
+    "subcategory": "password-policy",
+    "task_type": "T2-api",
+    "parent_feature": "Wave A consolidation — NIST password policy",
+    "context_budget": "50k",
+    "estimated_effort": "4-6h",
+    "description": "NIST-compliant password policy library with min-12 + HIBP k-anonymity + last-5 history, plus password_history migration with RLS; consumed by T-011 sign-up.",
+    "details": "Create packages/auth/src/password-policy.ts with validateNewPassword and recordPasswordHistory; HIBP k-anonymity (first 5 hex SHA1 chars only); argon2id hashes; migration 018-password-history.sql with FK + RLS + (user_id, created_at desc) index; unit tests with known-bad vectors (password, 12345678, qwertyuiop, short, Test1234) and known-good vector; HIBP mocked or disabled via env flag.",
+    "scope_files": [
+      "packages/auth/package.json [create-or-modify]",
+      "packages/auth/tsconfig.json [create-or-modify]",
+      "packages/auth/src/password-policy.ts [create]",
+      "packages/auth/src/__tests__/password-policy.test.ts [create]",
+      "packages/auth/src/index.ts [create-or-modify]",
+      "packages/auth/eslint.config.mjs [create]",
+      "packages/db/migrations/018-password-history.sql [create]",
+      "packages/db/schema/password-history.ts [create]",
+      "packages/db/schema/index.ts [modify]",
+      "packages/db/__tests__/password-history-rls.integration.test.ts [create]",
+      "_meta/atomic-tasks/00-foundation/STATUS.md [modify]"
+    ],
+    "out_of_scope": [
+      "Do not implement T-011 sign-up flow (separate task; this library is a dependency).",
+      "Do not change F-U5 seed values in 005-tenant-idp-config.sql.",
+      "Do not implement password expiry (separate concern; T-060 added the column).",
+      "Do not introduce new ESLint rules (T-055 owns)."
+    ],
+    "dependencies": [
+      "T-053",
+      "T-054",
+      "T-055"
+    ],
+    "acceptance_criteria": [
+      "Given a password shorter than 12 chars, when validateNewPassword runs, then it returns { ok: false, reasons: ['too_short'] }.",
+      "Given a known-pwned password, when validateNewPassword runs, then it returns { ok: false, reasons: ['pwned'] }.",
+      "Given a password matching user's last 5 history, when validateNewPassword runs, then it returns { ok: false, reasons: ['reused'] }.",
+      "Given a strong, non-pwned, non-reused password, when validateNewPassword runs, then it returns { ok: true }.",
+      "Given migration 018, when runner applies it, then password_history exists with FK + RLS + index.",
+      "Given the RLS test, when app_user connects under one org, then SELECT returns only that org's user rows.",
+      "Given the unit-test vector pack, when pnpm test runs, then all known-bad vectors fail and known-good passes."
+    ],
+    "test_strategy": [
+      "RED: write password-policy.test.ts with full known-bad/known-good vector pack before implementation.",
+      "Mock fetch for HIBP via vi.fn() with canned k-anonymity responses.",
+      "Use HIBP_DISABLED=true env flag for offline CI runs.",
+      "Pin SQLSTATE 42501 for cross-org RLS denial.",
+      "Run pnpm --filter @monopilot/auth test and pnpm --filter @monopilot/db test."
+    ],
+    "risk_red_lines": [
+      "Do not send full password or full SHA1 hash to HIBP.",
+      "Do not store passwords in plaintext.",
+      "Do not use bcrypt; use argon2id.",
+      "Do not block auth on HIBP latency (2s timeout).",
+      "Do not skip the RLS migration.",
+      "Do not use bare .rejects.toThrow().",
+      "Do not use raw new pg.Pool."
+    ],
+    "skills": [
+      "test-driven-development",
+      "verification-before-completion",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

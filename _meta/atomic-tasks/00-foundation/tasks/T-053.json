@@ -1,0 +1,100 @@
+{
+  "title": "T-053 — packages/db layout consolidation (single schema dir, relative symlink)",
+  "prompt": "# T-053 — packages/db layout consolidation\n\nPRD: `docs/prd/00-FOUNDATION-PRD.md` — sections: §5 (Postgres+RLS), §8 (multi-tenant), §10 (R13 placeholder tables)\nProject root: `/home/user/monopilot-kira`\nAudit source: `_meta/audits/2026-05-07-foundation-wave-a-consistency-audit.md` §B; carry-forward CF-2/CF-3/CF-6/CF-7\nSeverity: P0 (Wave-B blocker)\n\n## Goal\nConsolidate the dual Drizzle schema directories (`packages/db/schema/` and `packages/db/src/schema/`) into one canonical location so drizzle-kit diff/push sees every business table (tenants, organizations, users, tenantMigrations, lot, workOrder, qualityEvent, shipment, bomItem). Replace the absolute-path symlink at `packages/db/src/migrations` with either a relative symlink or an updated `packageRoot` resolution. All existing tests must continue to pass.\n\n## Implementation contract\nChoose one of two convergence paths and implement it consistently:\n- (preferred) Move `packages/db/src/schema/*.ts` files into `packages/db/schema/` and delete `packages/db/src/schema/` entirely. Update `packages/db/schema/index.ts` to re-export the moved tables alongside `baseline.ts`. Keep `drizzle.config.ts` schema path at `./schema`.\n- (alternative) Update `drizzle.config.ts` to accept an array `schema: ['./schema', './src/schema']` (drizzle-kit ≥0.20) AND make `packages/db/lib/client.ts` import from a barrel that aggregates both directories.\n\nReplace the absolute-path symlink `packages/db/src/migrations -> /home/user/monopilot-kira/packages/db/migrations` with a relative symlink (`../migrations`) OR remove the symlink entirely by adjusting test `packageRoot` resolution to `path.resolve(__dirname, '../../migrations')`.\n\nDelete the dead `r13Columns` helper in `packages/db/src/schema/r13-business-tables.ts` if unreferenced. Add `.references(() => organizations.id)` annotations to every `orgId` column in the consolidated Drizzle schema (so drizzle-kit emits the FK in generated SQL diffs even though DB-level FKs already exist via the migration files).\n\n## Files (scope)\n- packages/db/schema/index.ts [modify — re-export tenantMigrations, lot, workOrder, qualityEvent, shipment, bomItem]\n- packages/db/schema/tenant-migrations.ts [create — moved from src/schema]\n- packages/db/schema/r13-business-tables.ts [create — moved from src/schema]\n- packages/db/schema/baseline.ts [modify — add .references() to org_id columns where applicable]\n- packages/db/src/schema/ [delete directory after move]\n- packages/db/src/migrations [delete absolute symlink, replace with relative or eliminate]\n- packages/db/drizzle.config.ts [modify — verify schema path discovers all tables]\n- packages/db/lib/client.ts [modify — ensure import * as schema captures all exports]\n- packages/db/__tests__/r13-business-tables.test.ts [modify — update import paths]\n- packages/db/src/__tests__/tenant-migrations.test.ts [modify — update import paths]\n\n## Acceptance criteria\n1. Given the consolidated layout, when `pnpm --filter @monopilot/db drizzle-kit generate` runs against an empty diff, then it discovers all 9 business tables (tenants, organizations, users, tenantMigrations, lot, workOrder, qualityEvent, shipment, bomItem) without warnings.\n2. Given the symlink fix, when the repo is cloned to a path other than `/home/user/monopilot-kira`, then `pnpm --filter @monopilot/db test` still resolves migrations correctly.\n3. Given consolidated imports, when `pnpm --filter @monopilot/db test` runs, then all pre-existing tests pass with zero regressions.\n4. Given the dead-code cleanup, when `grep -r r13Columns packages/db` runs, then either zero matches or only meaningful references remain.\n5. Given `.references()` annotations, when `pnpm --filter @monopilot/db drizzle-kit generate --dry-run` runs, then the generated SQL includes FK clauses for each `org_id` column.\n\n## Test strategy\n- RED: add a unit test in `packages/db/__tests__/schema-discovery.test.ts` that imports the schema barrel and asserts `Object.keys(schema)` includes all 9 expected exports.\n- Run `pnpm --filter @monopilot/db drizzle-kit generate --dry-run` and capture stdout to confirm no \"unknown table\" warnings.\n- Run full `pnpm --filter @monopilot/db test` after consolidation; capture pass/fail counts.\n- Verify symlink target with `ls -la packages/db/src/migrations` (if kept) shows relative path, not absolute.\n\n## Risk red lines\n- Do NOT modify any `packages/db/migrations/*.sql` file content (T-054 owns renames).\n- Do NOT change `packages/db/package.json:main` in this task (T-058 owns lib/client.ts deprecation).\n- Do NOT delete `baseline.ts` — it is the only place tenants/organizations/users are defined.\n- Do NOT introduce new tables; this is a pure refactor.\n- Do NOT break the legacy `db` export from `lib/client.ts` — Wave B code still imports it.\n\n## Closeout evidence\nProvide: changed_files, test_commands_and_results, acceptance_criteria_status (per AC), deviations_from_prd, git_status. Use the test-driven-development skill (RED schema-discovery test before move) and requesting-code-review at GREEN.",
+  "labels": [
+    "prd",
+    "infra",
+    "wave-a-followup",
+    "wave-b-blocker",
+    "db-layout",
+    "T4-wiring-test"
+  ],
+  "priority": 50,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/home/user/monopilot-kira",
+    "prd_task_id": "T-053",
+    "source_prd": "docs/prd/00-FOUNDATION-PRD.md",
+    "prd_refs": [
+      "§5",
+      "§8",
+      "§10"
+    ],
+    "category": "infra",
+    "subcategory": "db-layout",
+    "task_type": "T4-wiring-test",
+    "parent_feature": "Wave A consolidation — db package layout",
+    "context_budget": "40k",
+    "estimated_effort": "2-4h",
+    "description": "Consolidate dual Drizzle schema directories so drizzle-kit sees every business table; replace absolute-path symlink with relative or eliminate; add .references() to org_id columns; remove dead r13Columns helper.",
+    "details": "Move packages/db/src/schema/*.ts into packages/db/schema/ and delete the src/schema directory; update schema/index.ts barrel; update test imports; replace absolute symlink at packages/db/src/migrations with relative ../migrations or eliminate via packageRoot resolution; add .references(() => organizations.id) on every orgId column.",
+    "scope_files": [
+      "packages/db/schema/index.ts [modify]",
+      "packages/db/schema/tenant-migrations.ts [create]",
+      "packages/db/schema/r13-business-tables.ts [create]",
+      "packages/db/schema/baseline.ts [modify]",
+      "packages/db/src/schema/ [delete directory]",
+      "packages/db/src/migrations [delete absolute symlink]",
+      "packages/db/drizzle.config.ts [modify]",
+      "packages/db/lib/client.ts [modify]",
+      "packages/db/__tests__/r13-business-tables.test.ts [modify]",
+      "packages/db/src/__tests__/tenant-migrations.test.ts [modify]",
+      "packages/db/__tests__/schema-discovery.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not rename or modify any migration SQL file content (T-054 owns it).",
+      "Do not deprecate packages/db/lib/client.ts in this task (T-058 owns).",
+      "Do not change package.json:main (T-058 owns).",
+      "Do not introduce new business tables.",
+      "Do not modify schema-runtime, outbox, ui, server packages."
+    ],
+    "dependencies": [],
+    "acceptance_criteria": [
+      "Given the consolidated layout, when drizzle-kit generate runs, then all 9 business tables are discovered without warnings.",
+      "Given the symlink fix, when the repo is cloned to a different path, then tests still resolve migrations correctly.",
+      "Given consolidated imports, when pnpm --filter @monopilot/db test runs, then all pre-existing tests pass with zero regressions.",
+      "Given the dead-code cleanup, when grep r13Columns runs, then no unreferenced declaration remains.",
+      "Given .references() annotations, when drizzle-kit generate --dry-run runs, then the generated SQL includes FK clauses for every org_id column."
+    ],
+    "test_strategy": [
+      "RED: write packages/db/__tests__/schema-discovery.test.ts asserting the schema barrel exports all 9 tables before move.",
+      "Run pnpm --filter @monopilot/db drizzle-kit generate --dry-run; capture output for AC1.",
+      "Run pnpm --filter @monopilot/db test; capture pass/fail counts.",
+      "Run ls -la packages/db/src/migrations (if kept) to verify relative path."
+    ],
+    "risk_red_lines": [
+      "Do not modify migration SQL files (T-054 owns renames).",
+      "Do not change package.json:main.",
+      "Do not delete baseline.ts.",
+      "Do not break the legacy db export.",
+      "Do not introduce new tables."
+    ],
+    "skills": [
+      "test-driven-development",
+      "verification-before-completion",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

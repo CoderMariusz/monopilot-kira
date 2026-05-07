@@ -176,3 +176,31 @@ Readiness assessment: **96%+ ACP implementation readiness** for 00-FOUNDATION af
 | Missing authorization policy foundation / Settings flag permission lock | T-050 |
 | Missing D365 optional integration posture contract | T-051 |
 | Missing ACP real-shape/readiness manifest patch | T-052 |
+
+## Wave A Consolidation (post-audit, 2026-05-07)
+
+Tasks T-053..T-061 were generated from 4 audit reports (consistency, PRD-drift, test-quality, carry-forward backlog) following the 21-DONE-task Wave A milestone. Four are P0 Wave-B blockers; the rest are parallel-safe cleanup that should land before Wave-D documentation freeze.
+
+| Task | Title | Severity | Audit source |
+|---|---|---|---|
+| T-053 | packages/db layout consolidation (single schema dir, relative symlink) | P0 (Wave-B blocker) | consistency §B; carry-forward CF-2/CF-3/CF-6/CF-7 |
+| T-054 | Raw-SQL migration runner + filename normalization (NNN-name.sql) | P0 (Wave-B blocker) | consistency §A; carry-forward CF-4/CF-5/CF-23/CF-24 |
+| T-055 | Workspace-wide ESLint coverage (drift gates fire on every package) | P0 (Wave-B blocker) | consistency §E; carry-forward CF-11/CF-20 |
+| T-056 | Reference.Departments RLS hotfix follow-up + test contract | P1 | consistency §D |
+| T-057 | schema-runtime VITEST env-var elimination (pool injection) | P1 | carry-forward CF-17 |
+| T-058 | Migrate integration tests to getAppConnection() (T-045 AC4 truthing) | P0 (Wave-B blocker) | consistency §C; carry-forward CF-22 |
+| T-059 | PRD marker discipline sweep (87 unmarked headings in 00-FOUNDATION-PRD.md) | P2 | carry-forward CF-25 |
+| T-060 | ALTER tenant_idp_config: add 11 missing F-A2 columns | P0 (Wave-B blocker) | PRD-drift Critical drift #2 |
+| T-061 | Password policy enforcement library (NIST: min-12, HIBP, last-5 history) | P1 | PRD-drift Critical drift #3 |
+
+### Sequencing
+- Pre-Wave-B blockers (must land before T-020/T-021/T-035/T-039 start): T-053 → T-054 → T-058; T-055 parallel-safe; T-060 parallel-safe.
+- Wave-B-concurrent: T-056, T-057, T-061.
+- Deferrable (post-Wave-B): T-059.
+
+### Dependency edges
+- T-054 depends on T-053 (consolidated layout).
+- T-056 depends on T-054 (runner can apply 017 if needed).
+- T-058 depends on T-053 + T-054 + T-055 (layout, runner, and lint rule).
+- T-060 depends on T-054 (runner applies 016).
+- T-061 depends on T-053 + T-054 + T-055 (uses migration runner, schema barrel, and lint config).

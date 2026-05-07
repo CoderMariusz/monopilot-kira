@@ -1,0 +1,108 @@
+{
+  "title": "T-055 — Workspace-wide ESLint coverage (drift gates fire on every package)",
+  "prompt": "# T-055 — Workspace-wide ESLint coverage\n\nPRD: `docs/prd/00-FOUNDATION-PRD.md` — sections: §5 (tech stack), Decomp guide §5 (ref-tables.enum.ts source-of-truth lock)\nProject root: `/home/user/monopilot-kira`\nAudit source: `_meta/audits/2026-05-07-foundation-wave-a-consistency-audit.md` §E; carry-forward CF-11/CF-20\nSeverity: P0 (Wave-B blocker)\n\n## Goal\nPort the T-046 `Reference.*` literal-drift rule, the T-025 `@radix-ui/react-dialog` import restriction, and the T-045 `getOwnerConnection` import restriction to every package in the monorepo so that drift gates actually fire across `packages/{ui,outbox,server,sync-queue,gs1,rule-engine,schema-runtime,db}` (currently they only fire in `apps/web`). Real drift already exists in `packages/schema-runtime/src/compile.ts:39,46` (hardcoded `\"Reference.DeptColumns\"` literal); this task must surface it as a lint error.\n\n## Implementation contract\nCreate a shared base config at `tooling/eslint/base.mjs` (or a root `eslint.config.mjs` that exports the shared rules) containing:\n- `no-restricted-syntax` rule for `Literal[value=/^Reference\\./]` with appropriate `Reference.*` enum-only override paths.\n- `no-restricted-imports` rule for `@radix-ui/react-dialog` (allowed only in `packages/ui/src/Modal.tsx`).\n- `no-restricted-imports` rule for `@monopilot/db` `getOwnerConnection` (allowed only in `packages/db/src/migrations/**`, `packages/db/scripts/migrate.ts`, and `packages/db/__tests__/**` setup blocks).\n- `no-restricted-syntax` rule for `NewExpression[callee.object.name='pg'][callee.property.name='Pool']` blocking raw `new pg.Pool(...)` outside `packages/db/src/clients.ts` and migration scripts (folds in T-058 ESLint requirement).\n\nAdd `eslint.config.mjs` to each of these packages, each importing from the shared base and adding package-specific overrides:\n- packages/ui — keep T-025 Modal.tsx allowance for radix-dialog.\n- packages/outbox — base only.\n- packages/server — base + RefTables drift rule active in __tests__.\n- packages/sync-queue — base only.\n- packages/gs1 — base only.\n- packages/rule-engine — base only.\n- packages/schema-runtime — base + RefTables drift rule active (this is where existing drift lives).\n- packages/db — convert legacy `.eslintrc.cjs` to flat config, fold in T-045 `getOwnerConnection` rule.\n\nAdd `\"lint\": \"eslint .\"` script to every package's `package.json` (and add `eslint` as devDependency where missing).\n\nUpdate root `package.json:lint` to `pnpm -r lint` (fan-out across workspace) instead of `pnpm --filter web lint`.\n\nBefore landing, fix the existing schema-runtime drift: replace the two hardcoded `\"Reference.DeptColumns\"`/`\"Reference.FieldTypes\"` literals in `packages/schema-runtime/src/compile.ts` with imports from `@monopilot/db/src/ref-tables.enum.ts` (or wherever T-046 placed the SoT enum).\n\n## Files (scope)\n- tooling/eslint/base.mjs [create]\n- packages/ui/eslint.config.mjs [create]\n- packages/outbox/eslint.config.mjs [create]\n- packages/server/eslint.config.mjs [create]\n- packages/sync-queue/eslint.config.mjs [create]\n- packages/gs1/eslint.config.mjs [create]\n- packages/rule-engine/eslint.config.mjs [create]\n- packages/schema-runtime/eslint.config.mjs [create]\n- packages/db/eslint.config.mjs [create — replaces .eslintrc.cjs]\n- packages/db/.eslintrc.cjs [delete]\n- packages/{ui,outbox,server,sync-queue,gs1,rule-engine,schema-runtime,db}/package.json [modify — add lint script + eslint devDep]\n- apps/web/eslint.config.mjs [modify — extend tooling/eslint/base.mjs to remove duplication]\n- package.json [modify — change root lint script to pnpm -r lint]\n- packages/schema-runtime/src/compile.ts [modify — eliminate hardcoded Reference.* literals]\n\n## Acceptance criteria\n1. Given the workspace-wide config, when `pnpm lint` runs at the root, then ESLint executes against every package (ui, outbox, server, sync-queue, gs1, rule-engine, schema-runtime, db, web) and exits 0.\n2. Given a deliberately-introduced `\"Reference.DeptColumns\"` literal in any of `packages/{outbox,server,sync-queue,schema-runtime,db}/src/**`, when `pnpm lint` runs, then it fails with the RefTables drift error.\n3. Given a deliberate `import * from '@radix-ui/react-dialog'` in `packages/server/src/test.ts`, when `pnpm lint` runs, then it fails with the radix-dialog restriction error.\n4. Given a deliberate `import { getOwnerConnection } from '@monopilot/db'` in `packages/server/src/test.ts`, when `pnpm lint` runs, then it fails with the getOwnerConnection restriction error.\n5. Given a deliberate `new pg.Pool({connectionString: process.env.DATABASE_URL})` in any `packages/db/__tests__/*.test.ts`, when `pnpm lint` runs, then it fails with the new-Pool restriction error.\n6. Given the existing schema-runtime drift fix, when `pnpm lint` runs without any deliberate violations, then `packages/schema-runtime/src/compile.ts` no longer contains hardcoded `Reference.*` literals and lint passes clean.\n\n## Test strategy\n- RED: write a small script `scripts/lint-drift-fixtures.test.mjs` that materializes each of the 4 deliberate violations into a temp file under each package and runs `pnpm --filter @monopilot/<pkg> lint -- <tempfile>`, asserting non-zero exit + expected error code.\n- After GREEN, delete the fixture script (or keep behind `--check-drift-gates` flag).\n- Run `pnpm lint` at the root to confirm clean state across the workspace.\n- Confirm `packages/schema-runtime/src/compile.ts` lines 39, 46 no longer contain hardcoded literals (grep gate).\n\n## Risk red lines\n- Do NOT remove the existing `apps/web/eslint.config.mjs` rules; refactor to extend the shared base.\n- Do NOT skip the schema-runtime drift fix — it is the canonical evidence the gates work.\n- Do NOT use legacy `.eslintrc.*` format (workspace is on ESLint v9 flat config).\n- Do NOT introduce package-specific rules in the shared base — overrides go in each package's local config.\n- Do NOT lint `node_modules` or `dist`; ignore patterns must be set per-package.\n\n## Closeout evidence\nProvide: changed_files, test_commands_and_results, acceptance_criteria_status (per AC), deviations_from_prd, git_status. Use the test-driven-development skill (RED drift-fixture script before adding rules) and requesting-code-review at GREEN.",
+  "labels": [
+    "prd",
+    "infra",
+    "wave-a-followup",
+    "wave-b-blocker",
+    "lint",
+    "T4-wiring-test"
+  ],
+  "priority": 50,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/home/user/monopilot-kira",
+    "prd_task_id": "T-055",
+    "source_prd": "docs/prd/00-FOUNDATION-PRD.md",
+    "prd_refs": [
+      "§5",
+      "Decomp guide §5"
+    ],
+    "category": "infra",
+    "subcategory": "lint",
+    "task_type": "T4-wiring-test",
+    "parent_feature": "Wave A consolidation — workspace lint",
+    "context_budget": "40k",
+    "estimated_effort": "3-5h",
+    "description": "Add eslint.config.mjs to every package; share Reference.* drift rule, radix-dialog rule, getOwnerConnection rule, and raw-pg.Pool rule via tooling/eslint/base.mjs; fix existing schema-runtime drift; root lint runs all packages.",
+    "details": "Create tooling/eslint/base.mjs with the shared rules; create eslint.config.mjs per package (ui, outbox, server, sync-queue, gs1, rule-engine, schema-runtime, db); convert packages/db/.eslintrc.cjs to flat config; add lint script to each package.json; change root lint to pnpm -r lint; fix the existing schema-runtime hardcoded Reference.* literals.",
+    "scope_files": [
+      "tooling/eslint/base.mjs [create]",
+      "packages/ui/eslint.config.mjs [create]",
+      "packages/outbox/eslint.config.mjs [create]",
+      "packages/server/eslint.config.mjs [create]",
+      "packages/sync-queue/eslint.config.mjs [create]",
+      "packages/gs1/eslint.config.mjs [create]",
+      "packages/rule-engine/eslint.config.mjs [create]",
+      "packages/schema-runtime/eslint.config.mjs [create]",
+      "packages/db/eslint.config.mjs [create]",
+      "packages/db/.eslintrc.cjs [delete]",
+      "packages/ui/package.json [modify]",
+      "packages/outbox/package.json [modify]",
+      "packages/server/package.json [modify]",
+      "packages/sync-queue/package.json [modify]",
+      "packages/gs1/package.json [modify]",
+      "packages/rule-engine/package.json [modify]",
+      "packages/schema-runtime/package.json [modify]",
+      "packages/db/package.json [modify]",
+      "apps/web/eslint.config.mjs [modify]",
+      "package.json [modify]",
+      "packages/schema-runtime/src/compile.ts [modify]"
+    ],
+    "out_of_scope": [
+      "Do not modify ESLint rules behavior (port T-025, T-045, T-046 rules verbatim).",
+      "Do not delete apps/web rules; refactor to extend.",
+      "Do not introduce new lint rules outside the four named.",
+      "Do not migrate tests to getAppConnection (T-058 owns)."
+    ],
+    "dependencies": [],
+    "acceptance_criteria": [
+      "Given workspace lint, when pnpm lint runs at root, then ESLint runs across every package and exits 0.",
+      "Given a Reference.* literal violation in any package, when pnpm lint runs, then it fails with the RefTables drift error.",
+      "Given a radix-dialog import outside Modal.tsx, when pnpm lint runs, then it fails with the radix-dialog restriction.",
+      "Given a getOwnerConnection import outside allowed paths, when pnpm lint runs, then it fails with the getOwnerConnection restriction.",
+      "Given new pg.Pool in test files, when pnpm lint runs, then it fails with the new-Pool restriction.",
+      "Given the schema-runtime drift fix, when pnpm lint runs without deliberate violations, then compile.ts has no hardcoded Reference.* literals."
+    ],
+    "test_strategy": [
+      "RED: write scripts/lint-drift-fixtures.test.mjs materializing 4 deliberate violations and asserting non-zero exit.",
+      "Run pnpm lint at root; capture pass/fail.",
+      "Grep packages/schema-runtime/src/compile.ts for hardcoded Reference.* literals; assert zero matches."
+    ],
+    "risk_red_lines": [
+      "Do not remove existing apps/web rules.",
+      "Do not skip the schema-runtime drift fix.",
+      "Do not use legacy .eslintrc format.",
+      "Do not introduce package-specific rules in the shared base.",
+      "Do not lint node_modules or dist."
+    ],
+    "skills": [
+      "test-driven-development",
+      "verification-before-completion",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

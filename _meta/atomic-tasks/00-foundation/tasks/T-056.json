@@ -1,0 +1,89 @@
+{
+  "title": "T-056 — Reference.Departments RLS hotfix follow-up + test contract",
+  "prompt": "# T-056 — Reference.Departments RLS hotfix follow-up\n\nPRD: `docs/prd/00-FOUNDATION-PRD.md` — sections: §5 (RLS), §9 (Configurable dept taxonomy)\nProject root: `/home/user/monopilot-kira`\nAudit source: `_meta/audits/2026-05-07-foundation-wave-a-consistency-audit.md` §D\nSeverity: P1 (cleanup; not a Wave-B blocker — already hot-fixed inline per audit)\n\n## Goal\nFormalize the Reference.Departments RLS contract that was hot-fixed inline during the audit, by adding an integration test that proves cross-org isolation works as specified in `011-departments.sql`. If the inline hot-fix did not actually land in `011-departments.sql`, this task also adds the missing `ENABLE/FORCE ROW LEVEL SECURITY` + `CREATE POLICY` clauses.\n\n## Implementation contract\nFirst verify whether `packages/db/migrations/011-departments.sql` currently contains:\n- `alter table \"Reference\".\"Departments\" enable row level security;`\n- `alter table \"Reference\".\"Departments\" force row level security;`\n- `create policy departments_org_context on \"Reference\".\"Departments\" for all to app_user using (org_id = app.current_org_id()) with check (org_id = app.current_org_id());`\n\nIf any of those are missing, add them via a follow-up migration `017-departments-rls-hardening.sql` (do NOT mutate 011 in-place because earlier-applied DBs would not pick up the change). If they are all present, skip the migration step.\n\nRegardless, add an integration test `packages/db/__tests__/departments-rls.integration.test.ts` that:\n1. Connects as `app_user` via `getAppConnection()`.\n2. Sets org context to a fake org_id.\n3. Asserts `SELECT * FROM \"Reference\".\"Departments\"` returns 0 rows (the seed is for Apex's org_id only).\n4. Sets org context to the Apex org_id (looked up via `getOwnerConnection()` from `organizations`).\n5. Asserts `SELECT * FROM \"Reference\".\"Departments\"` returns exactly 7 Apex department rows.\n6. Attempts `INSERT INTO \"Reference\".\"Departments\" (org_id, code, display_name) VALUES (<other-org-id>, 'X', 'Y')` and asserts a 42501 (insufficient_privilege) or RLS-violation error.\n\nIf the audit's recommendation was to skip this task because the hot-fix is sufficient, document that decision in the closeout under `deviations_from_prd` and reduce scope to the integration test only.\n\n## Files (scope)\n- packages/db/migrations/017-departments-rls-hardening.sql [create — only if 011 is missing the RLS clauses]\n- packages/db/__tests__/departments-rls.integration.test.ts [create]\n- packages/db/__tests__/departments.integration.test.ts [modify — possibly remove duplicate metadata-only RLS check]\n- _meta/atomic-tasks/00-foundation/STATUS.md [modify — add 017 to migration ordering lock if created]\n\n## Acceptance criteria\n1. Given `packages/db/migrations/011-departments.sql` (or 017 follow-up), when the migration runner applies it, then `pg_class.relrowsecurity=true` AND `pg_class.relforcerowsecurity=true` for `\"Reference\".\"Departments\"` AND at least one policy exists in `pg_policies`.\n2. Given `app_user` connected via `getAppConnection()` with org context set to a non-Apex UUID, when SELECT runs against `Reference.Departments`, then it returns 0 rows.\n3. Given `app_user` with org context set to the Apex org_id, when SELECT runs, then it returns exactly 7 rows (the Apex seed).\n4. Given `app_user` attempting INSERT with mismatched org_id, when the INSERT runs, then it fails with SQLSTATE `42501` or an RLS-violation message (`new row violates row-level security policy`).\n5. Given the integration test, when `pnpm --filter @monopilot/db test` runs with DATABASE_URL set, then the new test passes.\n\n## Test strategy\n- RED: `packages/db/__tests__/departments-rls.integration.test.ts` written before any potential 017 migration; if 011 already has RLS, the test passes immediately and confirms the hot-fix.\n- Use the rls.cross-org.integration.test.ts harness as the reference pattern (per audit gold-standard).\n- Pin the SQLSTATE for the INSERT failure rather than using bare `.rejects.toThrow()`.\n\n## Risk red lines\n- Do NOT modify `011-departments.sql` in-place (idempotency / migration history).\n- Do NOT use bare `.rejects.toThrow()` — pin SQLSTATE.\n- Do NOT use raw `new pg.Pool` in the test; use `getAppConnection()` and `getOwnerConnection()` (per T-055 lint rule).\n- Do NOT skip the test if DATABASE_URL is unset; document the skip with a `// SKIP: requires DATABASE_URL` comment per T-058 convention.\n\n## Closeout evidence\nProvide: changed_files, test_commands_and_results, acceptance_criteria_status (per AC), deviations_from_prd, git_status. Use the test-driven-development skill (RED RLS test before any migration change) and requesting-code-review at GREEN.",
+  "labels": [
+    "prd",
+    "data",
+    "wave-a-followup",
+    "rls",
+    "T4-wiring-test"
+  ],
+  "priority": 50,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/home/user/monopilot-kira",
+    "prd_task_id": "T-056",
+    "source_prd": "docs/prd/00-FOUNDATION-PRD.md",
+    "prd_refs": [
+      "§5",
+      "§9"
+    ],
+    "category": "data",
+    "subcategory": "rls",
+    "task_type": "T4-wiring-test",
+    "parent_feature": "Wave A consolidation — Reference.Departments RLS",
+    "context_budget": "30k",
+    "estimated_effort": "1-2h",
+    "description": "Formalize Reference.Departments RLS via integration test; add 017 follow-up migration only if 011 is missing the RLS clauses.",
+    "details": "Verify 011-departments.sql currently has ENABLE/FORCE/CREATE POLICY for Reference.Departments. If yes, skip migration step and add integration test only. If no, add 017-departments-rls-hardening.sql with the missing clauses. Integration test mirrors rls.cross-org pattern with cross-org SELECT/INSERT and pinned SQLSTATE.",
+    "scope_files": [
+      "packages/db/migrations/017-departments-rls-hardening.sql [create-conditional]",
+      "packages/db/__tests__/departments-rls.integration.test.ts [create]",
+      "packages/db/__tests__/departments.integration.test.ts [modify]",
+      "_meta/atomic-tasks/00-foundation/STATUS.md [modify-conditional]"
+    ],
+    "out_of_scope": [
+      "Do not modify 011-departments.sql in place.",
+      "Do not change Apex seed.",
+      "Do not modify other Reference.* tables."
+    ],
+    "dependencies": [
+      "T-054"
+    ],
+    "acceptance_criteria": [
+      "Given the migration, when runner applies it, then relrowsecurity=true AND relforcerowsecurity=true AND at least one policy exists.",
+      "Given app_user with non-Apex org context, when SELECT runs, then 0 rows return.",
+      "Given app_user with Apex org context, when SELECT runs, then exactly 7 rows return.",
+      "Given app_user INSERT with mismatched org_id, when INSERT runs, then it fails with SQLSTATE 42501 or RLS violation.",
+      "Given the integration test, when pnpm test runs, then it passes."
+    ],
+    "test_strategy": [
+      "RED: write departments-rls.integration.test.ts using rls.cross-org pattern.",
+      "Pin SQLSTATE in INSERT-failure assertion.",
+      "Run pnpm --filter @monopilot/db test."
+    ],
+    "risk_red_lines": [
+      "Do not modify 011 in place.",
+      "Do not use bare .rejects.toThrow().",
+      "Do not use raw new pg.Pool.",
+      "Do not silently skip without comment."
+    ],
+    "skills": [
+      "test-driven-development",
+      "verification-before-completion",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

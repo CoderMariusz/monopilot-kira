@@ -1,0 +1,95 @@
+{
+  "title": "T-060 — ALTER tenant_idp_config: add 11 missing F-A2 columns",
+  "prompt": "# T-060 — ALTER tenant_idp_config: add 11 missing F-A2 columns\n\nPRD: `docs/prd/00-FOUNDATION-PRD.md` — sections: §8.x (Multi-tenant + tenant_idp_config F-A2), §13 (F-U5 password lifecycle)\nProject root: `/home/user/monopilot-kira`\nAudit source: `_meta/audits/2026-05-07-foundation-wave-a-prd-drift-audit.md` Critical drift #2\nSeverity: P0 (Wave-B blocker — T-011/T-012/T-013 cannot land cleanly without these columns)\n\n## Goal\nAdd the 11 missing F-A2 columns to `tenant_idp_config` via a follow-up migration `016-tenant-idp-config-fa2-columns.sql`. Specifically: SAML cols (`metadata_url`, `entity_id`, `x509_cert`, `provider_label`), SCIM cols (`scim_token_hash`, `scim_token_last_four`), JIT col (`jit_provisioning`), enforcement col (`enforce_for_non_admins`), and password-lifecycle cols (`password_expiry_days`, plus `created_at` and `updated_at` if absent, with an `updated_at` trigger).\n\n## Implementation contract\nCreate `packages/db/migrations/016-tenant-idp-config-fa2-columns.sql` with `ALTER TABLE \"public\".\"tenant_idp_config\"` statements:\n\nSAML columns:\n- `add column metadata_url text` (URL to SAML metadata XML)\n- `add column entity_id text` (SAML entity ID)\n- `add column x509_cert text` (PEM-encoded X.509 certificate)\n- `add column provider_label text` (display label, e.g., \"Acme SSO\")\n\nSCIM columns:\n- `add column scim_token_hash text` (bcrypt or argon2 hash of SCIM bearer token)\n- `add column scim_token_last_four text` (last 4 chars for UI display)\n\nJIT/enforcement columns:\n- `add column jit_provisioning boolean not null default false`\n- `add column enforce_for_non_admins boolean not null default false`\n\nPassword lifecycle:\n- `add column password_expiry_days integer not null default 0` (0 = never, per NIST)\n- `add column if not exists created_at timestamptz not null default now()` (only if missing)\n- `add column if not exists updated_at timestamptz not null default now()` (only if missing)\n\nAdd a trigger on UPDATE that sets `updated_at = now()` (use `BEFORE UPDATE FOR EACH ROW EXECUTE FUNCTION app.touch_updated_at()` if `app.touch_updated_at()` exists; otherwise create a one-line trigger function in the same migration).\n\nPreserve all existing columns and existing F-U5 seed defaults.\n\nUpdate STATUS.md migration ordering lock to include 016.\n\n## Files (scope)\n- packages/db/migrations/016-tenant-idp-config-fa2-columns.sql [create]\n- packages/db/__tests__/tenant-idp-config-fa2.integration.test.ts [create]\n- packages/db/__tests__/tenant-idp-config.integration.test.ts [modify — extend assertions for new columns if applicable]\n- packages/db/schema/tenant-idp-config.ts [modify if Drizzle TS schema needs to mirror — verify if the Drizzle schema for this table exists]\n- _meta/atomic-tasks/00-foundation/STATUS.md [modify — migration ordering lock]\n\n## Acceptance criteria\n1. Given the new migration, when the migration runner applies 016, then `information_schema.columns` for `tenant_idp_config` lists all 11 added columns with correct types and defaults.\n2. Given the JIT/enforcement defaults, when a fresh row is inserted with only required fields, then `jit_provisioning=false` AND `enforce_for_non_admins=false` AND `password_expiry_days=0`.\n3. Given the updated_at trigger, when an UPDATE statement modifies any column, then `updated_at` advances to the new `now()` automatically (test by `select updated_at` before/after).\n4. Given the SCIM token columns, when a SCIM token is provisioned by T-013 (future), then `scim_token_hash` accepts a bcrypt-style hash (60+ chars) and `scim_token_last_four` accepts a 4-char string.\n5. Given existing rows seeded by 005-tenant-idp-config.sql, when 016 is applied, then those rows receive the new column defaults without data loss to existing columns (`mfa_required_for_roles` array preserved, etc.).\n6. Given the integration test, when `pnpm --filter @monopilot/db test` runs, then it passes.\n\n## Test strategy\n- RED: `packages/db/__tests__/tenant-idp-config-fa2.integration.test.ts` asserts each of the 11 columns exists in `information_schema.columns` and that defaults match; asserts `updated_at` advances on UPDATE.\n- Pin SQLSTATE on any expected-failure cases (`23502` NOT NULL, `23503` FK, `23514` CHECK).\n- Run `pnpm --filter @monopilot/db test` after GREEN.\n\n## Risk red lines\n- Do NOT modify `005-tenant-idp-config.sql` in-place; this is an additive ALTER migration.\n- Do NOT change defaults of pre-existing columns (`mfa_required`, `mfa_required_for_roles`, `idle_timeout_min`, `session_max_h`, `password_complexity`).\n- Do NOT use bare `.rejects.toThrow()` in tests — pin SQLSTATE.\n- Do NOT skip the updated_at trigger (PRD §8.x requires it).\n- Do NOT add CHECK constraints on `password_expiry_days` that would reject 0 (0 = never, per NIST).\n- Do NOT bypass the migration runner from T-054.\n\n## Closeout evidence\nProvide: changed_files, test_commands_and_results, acceptance_criteria_status (per AC), deviations_from_prd, git_status. Use the test-driven-development skill (RED column-existence + trigger test before migration) and requesting-code-review at GREEN.",
+  "labels": [
+    "prd",
+    "data",
+    "wave-a-followup",
+    "wave-b-blocker",
+    "auth",
+    "T1-schema"
+  ],
+  "priority": 50,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/home/user/monopilot-kira",
+    "prd_task_id": "T-060",
+    "source_prd": "docs/prd/00-FOUNDATION-PRD.md",
+    "prd_refs": [
+      "§8.x",
+      "§13"
+    ],
+    "category": "data",
+    "subcategory": "auth",
+    "task_type": "T1-schema",
+    "parent_feature": "Wave A consolidation — F-A2 column completion",
+    "context_budget": "40k",
+    "estimated_effort": "2-3h",
+    "description": "Add 11 missing F-A2 columns to tenant_idp_config via 016-tenant-idp-config-fa2-columns.sql: SAML, SCIM, JIT, enforcement, password lifecycle, plus updated_at trigger.",
+    "details": "Create migration 016 with ALTER TABLE statements adding metadata_url, entity_id, x509_cert, provider_label, scim_token_hash, scim_token_last_four, jit_provisioning (default false), enforce_for_non_admins (default false), password_expiry_days (default 0), created_at and updated_at if absent, plus a BEFORE UPDATE trigger setting updated_at=now(). Do not modify 005 in place.",
+    "scope_files": [
+      "packages/db/migrations/016-tenant-idp-config-fa2-columns.sql [create]",
+      "packages/db/__tests__/tenant-idp-config-fa2.integration.test.ts [create]",
+      "packages/db/__tests__/tenant-idp-config.integration.test.ts [modify]",
+      "packages/db/schema/tenant-idp-config.ts [modify-conditional]",
+      "_meta/atomic-tasks/00-foundation/STATUS.md [modify]"
+    ],
+    "out_of_scope": [
+      "Do not modify 005-tenant-idp-config.sql in place.",
+      "Do not change defaults of pre-existing columns.",
+      "Do not implement T-011/T-012/T-013 endpoints (separate tasks).",
+      "Do not implement password-policy enforcement (T-061 owns)."
+    ],
+    "dependencies": [
+      "T-054"
+    ],
+    "acceptance_criteria": [
+      "Given migration 016, when runner applies it, then information_schema.columns lists all 11 added columns.",
+      "Given JIT/enforcement defaults, when a fresh row is inserted, then jit_provisioning=false AND enforce_for_non_admins=false AND password_expiry_days=0.",
+      "Given updated_at trigger, when UPDATE modifies any column, then updated_at advances automatically.",
+      "Given SCIM columns, when a token is provisioned, then scim_token_hash accepts bcrypt-style hash and scim_token_last_four accepts 4 chars.",
+      "Given existing rows, when 016 applies, then existing column data is preserved.",
+      "Given the integration test, when pnpm test runs, then it passes."
+    ],
+    "test_strategy": [
+      "RED: write tenant-idp-config-fa2.integration.test.ts asserting each new column exists with correct type/default and updated_at advances on UPDATE.",
+      "Pin SQLSTATE on any expected-failure cases.",
+      "Run pnpm --filter @monopilot/db test."
+    ],
+    "risk_red_lines": [
+      "Do not modify 005 in place.",
+      "Do not change pre-existing defaults.",
+      "Do not use bare .rejects.toThrow().",
+      "Do not skip the updated_at trigger.",
+      "Do not reject password_expiry_days=0.",
+      "Do not bypass the T-054 migration runner."
+    ],
+    "skills": [
+      "test-driven-development",
+      "verification-before-completion",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}
