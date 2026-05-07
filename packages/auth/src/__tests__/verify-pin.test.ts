@@ -63,24 +63,23 @@ beforeAll(async () => {
     DO $$
     BEGIN
       -- Minimal seed: insert test tenant, org, user if not present
-      INSERT INTO public.tenants (id, name, slug)
-        VALUES ('00000000-0000-4000-b000-000000000016', 't016-tenant', 't016')
+      INSERT INTO public.tenants (id, name, region_cluster, data_plane_url)
+        VALUES ('00000000-0000-4000-b000-000000000016', 't016-tenant', 'eu', 'https://t016.test.invalid')
         ON CONFLICT (id) DO NOTHING;
 
-      INSERT INTO public.organizations (id, tenant_id, name, slug)
+      INSERT INTO public.organizations (id, tenant_id, name, industry_code)
         VALUES (
           '00000000-0000-4000-c000-000000000016',
           '00000000-0000-4000-b000-000000000016',
-          'T016 Org', 't016-org'
+          'T016 Org', 'generic'
         )
         ON CONFLICT (id) DO NOTHING;
 
-      INSERT INTO public.users (id, org_id, email, role)
+      INSERT INTO public.users (id, org_id, email)
         VALUES (
           '00000000-0000-4000-a000-000000000016',
           '00000000-0000-4000-c000-000000000016',
-          'pin-test-user@t016.test',
-          'admin'
+          'pin-test-user@t016.test'
         )
         ON CONFLICT (id) DO NOTHING;
     END

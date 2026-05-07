@@ -22,12 +22,12 @@ Updated by orchestrator after every PASS review.
 | T-008 | outbox_events table + worker stub | ✅ DONE | 003-outbox.sql R13+RLS+12-event CHECK; worker runOnce at-least-once; InMemoryQueue; 9 pass + 3 skip (no DB) |
 | T-009 | audit_events 13-field table | ✅ DONE | RED+GREEN+REVIEW+REWORK×2+RE-REVIEW×2 PASS; 15/15 tests; trigger SECURITY DEFINER; UPDATE/DELETE assert real 42501; impersonation guard non-vacuous (proven by trigger-disable experiment) |
 | T-010 | tenant_idp_config table | ✅ DONE | RED+GREEN+REVIEW PASS; 11/11 tests; 005 migration with F-U5 defaults + both admin roles in MFA + control-plane app_user revoke |
-| T-011 | Supabase Auth wiring | ⬜ PENDING | |
+| T-011 | Supabase Auth wiring | ✅ DONE | RED+GREEN+OPUS-REVIEW+REWORK PASS; 13/13 + 55 web regression OK; @supabase/ssr server+browser clients; (auth)/actions.ts magic-link 7d; middleware chain (Supabase idle-check → next-intl); REWORK fixed: cookies() async per Next 16, anchored PUBLIC_PATHS; carry-forward T-062 withOrgContext HOF (P0 blocker for Server Action data-plane work); T-063 deploy runbook; T-064 8h absolute; T-065 tenant-scoped sign-up |
 | T-012 | SAML 2.0 SP | ⬜ PENDING | |
 | T-013 | SCIM 2.0 endpoints | ⬜ PENDING | |
-| T-014 | RBAC enforcement library | ⬜ PENDING | |
+| T-014 | RBAC enforcement library | ✅ DONE | RED+GREEN+OPUS-REVIEW+REWORK PASS; 26/26 tests (was 22 + 3 new + AC1 fixture corrected); 017-rbac.sql with seed_system_roles trigger + audit CHECK NOT VALID; REWORK fixed 3 P0: HMAC fail-closed in prod, assertUserBelongsToOrg actor+target guard, SoD on TARGET roles (not actor); carry-forward T-064 jti replay, T-065 pool.end fix, T-067 BYPASSRLS refactor, T-068 SoD-on-target test |
 | T-015 | TOTP MFA enrolment | ⬜ PENDING | |
-| T-016 | Verify-PIN step-up | ⬜ PENDING | |
+| T-016 | Verify-PIN step-up | ✅ DONE | RED+GREEN+OPUS-REVIEW+REWORK PASS; 37/37 verify-pin+password tests; 019-pins.sql; argon2id m=65536/t=3/p=1; lockout 15min after 5 failures in 10min window; 5 mutation experiments confirmed; REWORK γ: REVERTED migrations 020+021 (production schema bandage); fixed verify-pin.test.ts seed instead (industry_code='generic', data_plane_url, region_cluster='eu'); carry-forward T-062 RLS USING(true) restore, T-063 caller-contract docs |
 | T-017 | Reference.DeptColumns + json-schema-to-zod | ✅ DONE | GREEN+REVIEW PASS; 009-schema-driven.sql R13+RLS+8 seeds; compile.ts LRU cache; 1 pass + 4 skip |
 | T-018 | Reference.Rules + DSL executor stub | ✅ DONE | RED+GREEN+REVIEW pipeline complete; 14/14 tests pass; 010-rules.sql with R13+RLS |
 | T-019 | Department taxonomy seed | ✅ DONE | T5-seed (RED skipped); GREEN+REVIEW PASS; 7 Apex depts + dept_overrides JSONB |
@@ -96,5 +96,7 @@ For reference, current assignments per task JSONs:
 - 017 rbac (T-014) — REASSIGNED from JSON's "006-rbac.sql" because 006 is taken by T-045 app-role per T-054 lock
 - 018 password-history (T-061)
 - 019 pins (T-016) — REASSIGNED from JSON's "008-pins.sql" because 008 is reserved for T-013 SCIM (Wave C)
+- 020/021 — REVERTED (T-016 REWORK γ: production schema bandage; deleted from filesystem AND from schema_migrations; test seed fixed at correct layer)
+- 022 dept-column-drafts (T-036) — REASSIGNED from JSON's "011-dept-column-drafts.sql" because 011 is taken by T-019 departments. Also: T-036 internal table `schema_migrations` collides with T-054's runner table — agent must rename to `dept_column_migrations`
 
 If your task is not in the list above and is not a migration task, do not create migration files.
