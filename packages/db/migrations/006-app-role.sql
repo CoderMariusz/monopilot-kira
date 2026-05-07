@@ -1,4 +1,4 @@
--- Migration: 0010_app_role.sql
+-- Migration: 006-app-role.sql
 -- Purpose: Create monopilot_app (NOLOGIN template) and monopilot_app_local (LOGIN per-env)
 --          roles; ensure app_user exists as test login role; apply FORCE ROW LEVEL SECURITY.
 -- Idempotent: all role creation uses DO $$ ... EXCEPTION WHEN duplicate_object THEN NULL $$
