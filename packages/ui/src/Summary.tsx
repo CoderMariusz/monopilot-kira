@@ -19,17 +19,7 @@ export interface SummaryProps {
 /** Visually hidden span so screen readers hear the status word. */
 function VisuallyHidden({ children }: { children: React.ReactNode }) {
   return (
-    <span
-      style={{
-        clip: 'rect(0 0 0 0)',
-        clipPath: 'inset(50%)',
-        height: '1px',
-        overflow: 'hidden',
-        position: 'absolute',
-        whiteSpace: 'nowrap',
-        width: '1px',
-      }}
-    >
+    <span className="summary-status-label">
       {children}
     </span>
   );

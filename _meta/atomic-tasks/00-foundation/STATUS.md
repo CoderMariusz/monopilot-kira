@@ -37,11 +37,11 @@ Updated by orchestrator after every PASS review.
 | T-023 | GS1 identifier helpers | ✅ DONE | RED+GREEN+REVIEW PASS; 43/43 tests; mod-10 + 5 parsers (GTIN/SSCC/GLN/GRAI/GDTI); review spot-checked check-digit arithmetic |
 | T-024 | Idempotent mutation helper | ✅ DONE | RED+GREEN+REVIEW+REWORK+RE-REVIEW PASS; 17/17 tests; canonicalStringify (key-order invariant, no nested-object drop); 015-idempotency.sql + GRANT to app_user |
 | T-025 | packages/ui + Modal primitive | ✅ DONE | RED+GREEN+REVIEW+REWORK+RE-REVIEW PASS; 18/18 tests; ESLint no-restricted-imports for radix-dialog (jest-axe fallback for axe scan documented) |
-| T-026 | Stepper primitive | 🔄 IN PROGRESS | RED done (25 tests / 4 describes; deps: zustand + @radix-ui/react-tabs) |
-| T-027 | Field primitive | 🔄 IN PROGRESS | RED done (16 tests / 3 describes; deps: react-hook-form + zod + @hookform/resolvers) |
-| T-028 | ReasonInput primitive | 🔄 IN PROGRESS | RED done (8 tests / 3 describes; counter mutation-proof) |
-| T-029 | Summary primitive | 🔄 IN PROGRESS | RED done (19 tests / 3 describes; flag: add --color-warning to tokens.css) |
-| T-030 | Tuning primitives | 🔄 IN PROGRESS | RED done (tuning.test.tsx 382 LOC; 5 prim + deriveRunHistory + Button wrapper) |
+| T-026 | Stepper primitive | ✅ DONE | RED+GREEN+REVIEW+REWORK+RE-REVIEW PASS; 31/31 tests; @radix-ui/react-tabs (manual activation) + Zustand store keyed by wizardId; AC4 density made non-vacuous (`toHaveAttribute('data-density','default')`); canEnter dual-guard hardened (preventDefault + stopPropagation) |
+| T-027 | Field primitive | ✅ DONE | RED+GREEN+REVIEW PASS; 16/16 tests; RHF Controller + useFormContext; Input.tsx wrapper (data-slot); aria-invalid + aria-describedby; required asterisk with aria-label="required"; UI-evidence carry-forward (Storybook screenshots policy gap, deferred to T-056) |
+| T-028 | ReasonInput primitive | ✅ DONE | RED+GREEN+REVIEW PASS; 8/8 tests; Textarea.tsx wrapper (data-slot); counter via useId; aria-describedby resolves to counter; sibling [type=submit] disable via parentElement walk + bidirectional useEffect (re-disable on backspace) |
+| T-029 | Summary primitive | ✅ DONE | RED+GREEN+REVIEW+REWORK+RE-REVIEW PASS; 20/20 tests; <dl>/<dt>/<dd>; CSS module with var(--color-warning); REWORK fixed inline-styles on VisuallyHidden span (red-line violation) + added [style] full-subtree mutation-proof assertion |
+| T-030 | Tuning primitives | ✅ DONE | RED+GREEN+REVIEW PASS; 22/22 tests (5 prim + deriveRunHistory + Button); EmptyState uses cloneElement to avoid nested button (AC1 marker satisfied via data-slot); RunStrip prop narrowed to RunStatus[]; data-domain-agnostic verified (no outbox imports) |
 | T-031 | 10 MODAL-SCHEMA pattern templates | ⬜ PENDING | |
 | T-032 | Regulatory roadmap artifact | ⬜ PENDING | |
 | T-033 | PostHog feature flags | ⬜ PENDING | |

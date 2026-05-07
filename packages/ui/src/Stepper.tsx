@@ -98,6 +98,7 @@ function Stepper({
                 onClick={(e) => {
                   if (isLocked) {
                     e.preventDefault();
+                    e.stopPropagation();
                   }
                 }}
                 style={{ cursor: isLocked ? 'not-allowed' : 'pointer' }}

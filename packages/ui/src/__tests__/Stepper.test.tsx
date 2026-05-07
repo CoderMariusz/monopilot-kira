@@ -671,6 +671,6 @@ describe('AC4: parity evidence — RTL fallback (Playwright unavailable)', () =>
     expect(root).not.toBeNull();
     // Implementer must set data-density or apply --space-* tokens via className
     // This assertion verifies the root node exists and is identifiable for visual review
-    expect(root).toBeInTheDocument();
+    expect(root).toHaveAttribute('data-density', 'default');
   });
 });

@@ -118,6 +118,22 @@ describe('AC1: structural/visual parity with schema_view_modal key/value block',
     rows.forEach((row) => {
       expect((row as HTMLElement).style.length).toBe(0);
     });
+    // Full-subtree check on rows without status (no VisuallyHidden spans rendered).
+    expect(container.querySelectorAll('[style]').length).toBe(0);
+  });
+
+  it('NO inline styles: full subtree (including visually-hidden spans) carries no inline style', () => {
+    // Render rows WITH status so VisuallyHidden spans are present in the DOM.
+    // This assertion catches any inline style on <dt> > <span> and any future regressions.
+    const { container } = render(
+      <Summary
+        rows={[
+          { label: 'X', after: 'foo', status: 'changed' },
+          { label: 'Y', after: 'bar', status: 'added' },
+        ]}
+      />
+    );
+    expect(container.querySelectorAll('[style]').length).toBe(0);
   });
 
   it('is read-only: contains no interactive controls', () => {
