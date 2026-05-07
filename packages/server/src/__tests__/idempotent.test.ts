@@ -392,7 +392,7 @@ describe('withIdempotency — idempotent mutation helper', () => {
         expect(result2).toEqual(expectedResponse);
 
         // Verify only one row exists in idempotency_keys
-        const result = await dbClient.query<IdempotencyKeyRow>(
+        const result = await dbClient.query<{ count: string }>(
           `SELECT COUNT(*) as count FROM ${quoteIdentifier(schemaName)}.idempotency_keys
            WHERE transaction_id = $1`,
           [transactionId],
