@@ -1,5 +1,7 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { executeRule, RuleExecutionMode } from '../executor';
+import * as cascadeHandlerModule from '../cascade-handler';
+import type { Pool } from 'pg';
 
 /**
  * Test suite for ADR-029 DSL executor stub
@@ -426,6 +428,124 @@ describe('Rule Engine Executor (ADR-029)', () => {
       expect(wrongResult.fired).toBe(false);
       // Rule should evaluate if trigger matches
       expect(rightResult.fired).toBeDefined();
+    });
+  });
+
+  /**
+   * FT-040 — cascading rule_type dispatches to runCascade when (pool, orgId)
+   * are supplied and conditions hold. The dispatch is fire-and-forget so the
+   * executor stays synchronous; tests assert the spy call.
+   */
+  describe('FT-040: cascading rule dispatches runCascade', () => {
+    const fakePool = {} as unknown as Pool;
+    let runCascadeSpy: ReturnType<typeof vi.spyOn>;
+
+    beforeEach(() => {
+      runCascadeSpy = vi
+        .spyOn(cascadeHandlerModule, 'runCascade')
+        .mockResolvedValue(undefined);
+    });
+
+    afterEach(() => {
+      runCascadeSpy.mockRestore();
+    });
+
+    it('cascading: dispatches runCascade when pool + orgId provided and conditions met', () => {
+      const rule = {
+        rule_id: 'mfg_op_to_intermediate_code',
+        rule_type: 'cascading' as const,
+        triggers: ['fg.manufacturing_operation_changed'],
+        actions: [{ cascade: 'intermediate_code' }],
+      };
+
+      const event = {
+        event_type: 'fg.manufacturing_operation_changed',
+        fg_id: '00000000-0000-0000-0000-0000000000aa',
+        operation_field_index: 1,
+        operation_name: 'Mix',
+      };
+
+      executeRule(rule, event, RuleExecutionMode.NORMAL, {
+        pool: fakePool,
+        orgId: '00000000-0000-0000-0000-000000000002',
+      });
+
+      expect(runCascadeSpy).toHaveBeenCalledTimes(1);
+      const args = runCascadeSpy.mock.calls[0]?.[0] as
+        | cascadeHandlerModule.RunCascadeArgs
+        | undefined;
+      expect(args).toBeDefined();
+      expect(args!.orgId).toBe('00000000-0000-0000-0000-000000000002');
+      expect(args!.fgId).toBe('00000000-0000-0000-0000-0000000000aa');
+      expect(args!.operationFieldIndex).toBe(1);
+      expect(args!.operationName).toBe('Mix');
+      expect(args!.dryRun).toBe(false);
+    });
+
+    it('cascading: skips runCascade in DRY_RUN mode even when pool provided', () => {
+      const rule = {
+        rule_id: 'mfg_op_to_intermediate_code',
+        rule_type: 'cascading' as const,
+        triggers: ['fg.manufacturing_operation_changed'],
+        actions: [{ cascade: 'intermediate_code' }],
+      };
+
+      const event = {
+        event_type: 'fg.manufacturing_operation_changed',
+        fg_id: '00000000-0000-0000-0000-0000000000aa',
+        operation_field_index: 1,
+        operation_name: 'Mix',
+      };
+
+      const result = executeRule(rule, event, RuleExecutionMode.DRY_RUN, {
+        pool: fakePool,
+        orgId: '00000000-0000-0000-0000-000000000002',
+      });
+
+      expect(result.fired).toBe(true);
+      expect(result.dry_run).toBe(true);
+      expect(runCascadeSpy).not.toHaveBeenCalled();
+    });
+
+    it('cascading: skips runCascade when no pool provided (backward-compat)', () => {
+      const rule = {
+        rule_id: 'mfg_op_to_intermediate_code',
+        rule_type: 'cascading' as const,
+        triggers: ['fg.manufacturing_operation_changed'],
+        actions: [{ cascade: 'intermediate_code' }],
+      };
+
+      const event = {
+        event_type: 'fg.manufacturing_operation_changed',
+        fg_id: '00000000-0000-0000-0000-0000000000aa',
+        operation_field_index: 1,
+        operation_name: 'Mix',
+      };
+
+      // No opts at all — legacy unit-test invocation path
+      executeRule(rule, event, RuleExecutionMode.NORMAL);
+
+      expect(runCascadeSpy).not.toHaveBeenCalled();
+    });
+
+    it('cascading: skips runCascade when orgId missing even with pool', () => {
+      const rule = {
+        rule_id: 'mfg_op_to_intermediate_code',
+        rule_type: 'cascading' as const,
+        triggers: ['fg.manufacturing_operation_changed'],
+        actions: [{ cascade: 'intermediate_code' }],
+      };
+
+      const event = {
+        event_type: 'fg.manufacturing_operation_changed',
+        fg_id: '00000000-0000-0000-0000-0000000000aa',
+        operation_field_index: 1,
+        operation_name: 'Mix',
+      };
+
+      executeRule(rule, event, RuleExecutionMode.NORMAL, { pool: fakePool });
+
+      expect(runCascadeSpy).not.toHaveBeenCalled();
     });
   });
 });

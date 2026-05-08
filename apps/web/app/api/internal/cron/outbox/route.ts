@@ -30,13 +30,13 @@
  *     T-034 drift cron.
  *
  * Queue:
- *   - InMemoryQueue today; messages are persisted in the queue object's
- *     in-process array and dropped at request end. This is deliberate for
- *     Sprint A.7 — Wave 1 NPD module needs the worker to drain
- *     `outbox_events` so consumed_at advances; an external queue is added in
- *     a follow-up wave.
- *   - TODO(post-A.7): swap to a real queue (e.g. Azure Service Bus) selected
- *     by an env var once the consumer side is in place.
+ *   - LocalDispatchQueue: runs registered handlers synchronously at publish()
+ *     time, BEFORE the worker stamps consumed_at. A handler throw aborts the
+ *     stamp so the row stays in `outbox_events` for the next tick (at-least-
+ *     once retry). Replaces the prior InMemoryQueue, which dropped events on
+ *     request end and left cascade work undone (Slot F-1 fix).
+ *   - TODO(post-A.7): swap to a real external queue (e.g. Azure Service Bus)
+ *     selected by an env var once a remote consumer side is in place.
  *
  * Env vars used:
  *   - CRON_SECRET (auth)
@@ -47,10 +47,13 @@
 import pg from 'pg';
 import { timingSafeEqual } from 'node:crypto';
 import {
-  InMemoryQueue,
   type OutboxMessage,
   type Queue,
 } from '../../../../../../../packages/outbox/src/queue';
+import {
+  LocalDispatchQueue,
+  type MessageHandler,
+} from '../../../../../../../packages/outbox/src/dispatch-queue';
 import { normalizeEventType } from '../../../../../../../packages/outbox/src/events.enum';
 
 /**
@@ -177,11 +180,28 @@ export async function POST(req: Request): Promise<Response> {
   // eslint-disable-next-line no-restricted-syntax
   const pool = new pg.Pool({ connectionString });
 
-  // TODO(post-A.7): swap InMemoryQueue for the real queue per env config
-  // (Azure Service Bus or equivalent). Until the consumer is in place the
-  // in-memory adapter still drains `outbox_events.consumed_at`, which is the
-  // primary contract for unblocking Wave 1 NPD cascade events.
-  const queue = new InMemoryQueue();
+  // TODO(post-A.7): swap LocalDispatchQueue for a real remote queue per env
+  // config (Azure Service Bus or equivalent). Until then, in-process handlers
+  // run synchronously at publish() time so cascade events are not dropped.
+  // Cascade handler stub: cascade rule wiring (FT-040) lives in the rule
+  // engine; here we observe the message at the dispatch boundary so the
+  // worker tick reports cascade traffic. A real cascade dispatch (calling
+  // runCascade with org_id + fg_id from payload) lands in the next slot —
+  // this slot only ensures the message is not dropped by the queue layer.
+  const cascadeHandler: MessageHandler = async (msg) => {
+    if (
+      msg.eventType.includes('manufacturing_operation') ||
+      msg.eventType.includes('cascade') ||
+      msg.eventType === 'fg.intermediate_code_changed'
+    ) {
+      console.info('[cron/outbox] cascade event observed', {
+        eventType: msg.eventType,
+        orgId: msg.orgId,
+        aggregateId: msg.aggregateId,
+      });
+    }
+  };
+  const queue = new LocalDispatchQueue([cascadeHandler]);
 
   const client = await pool.connect();
   try {
@@ -211,8 +231,15 @@ export async function POST(req: Request): Promise<Response> {
     }
 
     const processed = Math.max(0, before - after);
+    // `errors` exposes handler-level failures recorded by LocalDispatchQueue.
+    // A non-zero count here means at least one row was NOT stamped consumed_at
+    // (the loop re-threw); however the run made it past the catch only if the
+    // failures were observation-only. In the current wiring a thrown handler
+    // takes the 503 branch instead — this field is reserved for future
+    // continue-on-error variants.
+    const errors = queue.errors.length;
 
-    return new Response(JSON.stringify({ ok: true, processed }), {
+    return new Response(JSON.stringify({ ok: true, processed, errors }), {
       status: 200,
       headers: { 'Content-Type': 'application/json' },
     });
