@@ -34,26 +34,31 @@ describe('i18n format utilities', () => {
   describe('formatNumber', () => {
     it('should format number in Polish locale with proper decimal separator', () => {
       const result = formatNumber(1234.56, 'pl');
-      expect(result).toContain('1');
-      expect(result).toBeTruthy();
+      // Polish uses comma as decimal separator: "1234,56"
+      expect(result).toContain('1234,56');
+      expect(result).not.toContain('.');
     });
 
     it('should format number in English locale with comma separator', () => {
       const result = formatNumber(1234.56, 'en');
-      expect(result).toContain('1');
-      expect(result).toBeTruthy();
+      // en-US uses comma as thousands grouping and period as decimal: "1,234.56"
+      expect(result).toContain('1,234');
+      expect(result).toContain('.56');
     });
 
     it('should format number in Ukrainian locale', () => {
       const result = formatNumber(1234.56, 'uk');
-      expect(result).toContain('1');
-      expect(result).toBeTruthy();
+      // uk-UA uses non-breaking space as grouping separator and comma as decimal: "1 234,56"
+      // Use a substring that pins the locale-specific decimal: "234,56"
+      expect(result).toContain('234,56');
+      expect(result).not.toContain('.');
     });
 
     it('should format number in Romanian locale', () => {
       const result = formatNumber(1234.56, 'ro');
-      expect(result).toContain('1');
-      expect(result).toBeTruthy();
+      // ro-RO uses period as thousands grouping and comma as decimal: "1.234,56"
+      expect(result).toContain('1.234');
+      expect(result).toContain(',56');
     });
   });
 

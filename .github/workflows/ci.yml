@@ -52,6 +52,46 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm build
 
+  storybook-build:
+    needs: lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      # Ensure Storybook configuration does not silently drift.
+      - run: pnpm --filter @monopilot/ui build-storybook
+        # Do not block CI if optional Storybook deps cannot be installed in
+        # constrained environments (Slot F-3 wires the config; full enablement
+        # comes in a later slot once @storybook/react-vite lands in lockfile).
+        continue-on-error: true
+
+  playwright:
+    needs: lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec playwright install --with-deps chromium
+        continue-on-error: true
+      - run: pnpm exec playwright test --project=chromium
+        # Dev server / E2E suite is not yet provisioned in CI; the spec files
+        # exist for future enablement. Keep the job non-blocking until then.
+        continue-on-error: true
+
   test:
     runs-on: ubuntu-latest
     services:

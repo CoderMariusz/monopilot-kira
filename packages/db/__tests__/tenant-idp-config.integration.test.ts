@@ -207,7 +207,9 @@ describe('tenant_idp_config table and automatic seeding per F-U5', () => {
         [tenantId, 'ldap', 60, 8, true, ['org.access.admin'], ['totp'], 'strong'],
       );
 
-      await expect(invalidInsert).rejects.toThrow();
+      // SQLSTATE 23514 = check_violation. Pin it so this assertion only passes
+      // for the actual CHECK constraint failure (not, say, FK or syntax errors).
+      await expect(invalidInsert).rejects.toMatchObject({ code: '23514' });
     },
   );
 
@@ -267,7 +269,9 @@ describe('tenant_idp_config table and automatic seeding per F-U5', () => {
         [invalidTenantId, 'password', 60, 8, true, ['org.access.admin', 'org.schema.admin'], ['totp'], 'strong'],
       );
 
-      await expect(invalidInsert).rejects.toThrow();
+      // SQLSTATE 23503 = foreign_key_violation. Pin it so we only accept that
+      // specific failure mode and not, e.g., a CHECK or NOT NULL violation.
+      await expect(invalidInsert).rejects.toMatchObject({ code: '23503' });
     },
   );
 
@@ -308,7 +312,9 @@ describe('tenant_idp_config table and automatic seeding per F-U5', () => {
         ['ldap', tenantId],
       );
 
-      await expect(invalidUpdate).rejects.toThrow();
+      // SQLSTATE 23514 = check_violation. Pin it so only the specific CHECK
+      // constraint failure (provider_type IN (...)) satisfies the assertion.
+      await expect(invalidUpdate).rejects.toMatchObject({ code: '23514' });
     },
   );
 

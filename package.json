@@ -17,6 +17,7 @@
     "db:verify:local": "DATABASE_URL=postgres://monopilot:monopilot@127.0.0.1:5432/monopilot pnpm db:verify"
   },
   "devDependencies": {
+    "@playwright/test": "^1.58.0",
     "@tailwindcss/postcss": "^4.0.0",
     "@types/node": "^20.17.0",
     "playwright": "^1.58.0",
