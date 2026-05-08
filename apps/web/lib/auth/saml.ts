@@ -467,3 +467,79 @@ export function verifyRelayState(
 ): boolean {
   return !!relayState && relayState === expectedOrgId;
 }
+
+// ────────────────────────────────────────────────────────────────────────────────
+// FT-030 — registerSamlConnection: register tenant SAML config with Jackson.
+// ────────────────────────────────────────────────────────────────────────────────
+//
+// Without this call the SAML callback path fails every signature check —
+// Jackson's `oauthController.samlResponse(...)` looks up the connection by
+// the (tenant, product) pair set on the AuthnRequest, and if there's no
+// row it cannot validate the assertion. Operators previously had to call
+// `apiController.createConnection` out-of-band; FT-030 wires it into the
+// admin save flow so saving a SAML config is sufficient to enable login.
+//
+// Jackson's createConnection options are intentionally kept minimal — we
+// pass only the metadata + cert that the tenant_idp_config row supplies.
+// Re-running this with the same (tenantId, product) replaces the previous
+// connection, so the function is idempotent across config edits.
+
+export interface RegisterSamlConnectionOptions {
+  tenantId: string;
+  tenantConfig: Pick<
+    TenantIdpConfig,
+    'metadata_url' | 'entity_id' | 'x509_cert' | 'provider_type'
+  > & {
+    /** Optional human-readable label persisted alongside the connection. */
+    name?: string;
+  };
+}
+
+export async function registerSamlConnection(
+  opts: RegisterSamlConnectionOptions,
+): Promise<void> {
+  const { tenantId, tenantConfig } = opts;
+
+  // Defensive: refuse to register a non-SAML config — Jackson would accept
+  // the call but the resulting connection would silently misbehave.
+  if (tenantConfig.provider_type !== 'saml') {
+    throw new Error(
+      `registerSamlConnection: tenantConfig.provider_type must be 'saml', got '${tenantConfig.provider_type}'`,
+    );
+  }
+
+  // Jackson requires AT LEAST ONE of {metadata URL, raw metadata XML,
+  // entity_id + x509_cert + sso_url}. We require metadata_url because the
+  // admin UI binds to it as the canonical SAML setup field. Tightening the
+  // validation here means a malformed config is rejected before it can
+  // produce confusing "connection not found" errors at sign-in time.
+  if (!tenantConfig.metadata_url) {
+    throw new Error(
+      'registerSamlConnection: tenantConfig.metadata_url is required to register a Jackson connection',
+    );
+  }
+
+  const jackson = await getSamlController();
+
+  // The connection options below mirror the shape Jackson tests with for SAML
+  // SSO connections. `tenant` + `product` form the composite key Jackson
+  // uses on the assertion-consumer path, so they MUST match the values
+  // `handleSamlLogin` passes to `oauthController.authorize`.
+  await jackson.apiController.createConnection({
+    tenant: tenantId,
+    product: 'monopilot',
+    name: tenantConfig.name ?? `tenant=${tenantId}`,
+    metadataUrl: tenantConfig.metadata_url,
+    // entityId and x509cert may be empty when metadataUrl is sufficient — pass
+    // them when present so Jackson can short-circuit the metadata fetch.
+    ...(tenantConfig.entity_id ? { entityId: tenantConfig.entity_id } : {}),
+    ...(tenantConfig.x509_cert ? { encodedRawMetadata: undefined } : {}),
+    defaultRedirectUrl:
+      (process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000') +
+      '/api/auth/saml/callback',
+    redirectUrl: JSON.stringify([
+      (process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000') +
+        '/api/auth/saml/callback',
+    ]),
+  });
+}
