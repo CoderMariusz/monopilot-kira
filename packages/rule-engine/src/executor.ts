@@ -9,6 +9,9 @@
 // Imported as a namespace so tests can vi.spyOn the live binding (T-035 AC4).
 import * as workflowModule from './workflow.js';
 import type { WorkflowRule } from './workflow.js';
+// Same namespace-import shape for cascade so tests can vi.spyOn(runCascade)
+// without coupling to the module's export shape.
+import * as cascadeHandlerModule from './cascade-handler.js';
 import type { Pool } from 'pg';
 
 export enum RuleExecutionMode {
@@ -47,6 +50,8 @@ export interface Rule {
 
 export interface ExecuteRuleOptions {
   pool?: Pool;
+  /** Tenant org scope for cascade dispatch (required by runCascade). */
+  orgId?: string;
 }
 
 const VALID_RULE_TYPES = new Set(['cascading', 'conditional_required', 'gate', 'workflow']);
@@ -131,10 +136,37 @@ export function executeRule(
   let conditionsMet: boolean;
 
   switch (rule.rule_type) {
-    case 'cascading':
+    case 'cascading': {
       // Cascading rules fire whenever the trigger matches (conditions optional)
       conditionsMet = evaluateConditions(rule.conditions, event);
+
+      // FT-040 — when conditions hold and the caller supplied a real DB pool +
+      // orgId, dispatch to the cascade handler. Without (pool, orgId) we treat
+      // the call as a side-effect-free unit-test invocation. DRY_RUN is
+      // honoured: runCascade is not invoked at all (the handler also has its
+      // own dryRun flag, but skipping the call keeps the executor's dry-run
+      // contract air-tight).
+      if (
+        conditionsMet &&
+        opts.pool &&
+        opts.orgId &&
+        mode !== RuleExecutionMode.DRY_RUN
+      ) {
+        const cascadeArgs: cascadeHandlerModule.RunCascadeArgs = {
+          orgId: opts.orgId,
+          fgId: ((event.fg_id ?? event.aggregate_id) as string | undefined) ?? '',
+          operationFieldIndex: ((event.operation_field_index ?? 1) as 1 | 2 | 3 | 4),
+          operationName: ((event.operation_name ?? '') as string),
+          pool: opts.pool,
+          dryRun: false,
+        };
+        // Fire-and-forget — mirrors the workflow branch dispatch so executeRule
+        // stays synchronous. Errors propagate via the returned promise; tests
+        // that await runCascade directly will observe them.
+        void cascadeHandlerModule.runCascade(cascadeArgs);
+      }
       break;
+    }
 
     case 'conditional_required':
       // Field requirements depend on other field values (conditions drive firing)

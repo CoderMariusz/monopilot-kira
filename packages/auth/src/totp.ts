@@ -22,6 +22,44 @@ import { getOwnerConnection } from '@monopilot/db/test-utils/test-pool.js';
 const TOTP_PERIOD = 30;
 const TOTP_DIGITS = 6 as const;
 
+// ─── Slot F-4: MFA_MASTER_KEY production guard ────────────────────────────────
+// `enrollTotp` / `verifyTotp` accept the master key as a parameter (so the
+// caller controls key rotation / multi-tenant key sourcing), but the
+// canonical source is the `MFA_MASTER_KEY` env var. In production we MUST NOT
+// boot with this unset — losing the master key means every TOTP secret in
+// `mfa_secrets` becomes undecryptable. Fail loudly and early rather than
+// silently degrading at first MFA enrolment.
+//
+// The guard is exposed as a helper so callers (route handlers) can read the
+// master key from env via the same checked path. The module-level call below
+// performs the production fail-fast on import.
+export function getMfaMasterKeyFromEnv(): string {
+  const key = process.env.MFA_MASTER_KEY;
+  if (!key) {
+    if (process.env.NODE_ENV === 'production') {
+      throw new Error(
+        'MFA_MASTER_KEY must be set in production — TOTP secret encryption requires a stable master key. Aborting to prevent silent key loss.',
+      );
+    }
+    // Non-prod: warn loudly so devs notice, but do not throw — local/CI
+    // workflows may run without MFA configured.
+    // eslint-disable-next-line no-console
+    console.warn(
+      '[mfa] MFA_MASTER_KEY is unset — TOTP enrol/verify will fail until it is provided. (Allowed only outside production.)',
+    );
+    return '';
+  }
+  return key;
+}
+
+// Side-effect import-time check: fail-fast on module load in production if
+// MFA_MASTER_KEY is missing. Test runs (NODE_ENV=test) and dev are unaffected.
+if (process.env.NODE_ENV === 'production' && !process.env.MFA_MASTER_KEY) {
+  throw new Error(
+    'MFA_MASTER_KEY must be set in production (packages/auth/totp.ts loaded with no master key).',
+  );
+}
+
 const hkdfAsync = promisify(hkdf);
 
 // ─── Module-singleton owner pool ─────────────────────────────────────────────

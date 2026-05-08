@@ -78,6 +78,11 @@ async function seedBaselineAndMigrations(owner: pg.Pool): Promise<void> {
     '005-tenant-idp-config.sql',
     '006-app-role.sql',
     '017-rbac.sql',
+    // FT-011 — required by the replay-protection block below; the table is
+    // referenced from grantRole's transaction whenever an approval token is
+    // presented, so any integration test that exercises that path needs the
+    // migration applied.
+    '033-consumed-approval-tokens.sql',
   ] as const;
 
   for (const filename of migrations) {
@@ -928,5 +933,219 @@ describe('T-062 hardening — verifyApprovalToken uses timingSafeEqual on the si
 
     expect(result.success).toBe(false);
     expect(result.error).toBe('invalid_token');
+  });
+});
+
+// ─── FT-011 — Approval-token jti replay protection ───────────────────────────
+//
+// Even a HMAC-valid token must be rejected the second time it's presented to
+// grantRole. The first call records the token's `jti` in
+// public.consumed_approval_tokens; the second call sees the row and short-
+// circuits with `invalid_token`. Without this guard an attacker who intercepts
+// a valid token can replay it indefinitely (within its 5-minute TTL) to grant
+// the same role to the same target as many times as they like.
+
+runIntegration('FT-011 — approval-token jti replay protection', () => {
+  let ownerReplay: pg.Pool;
+  // Fresh org so we don't collide with the AC1/AC2/AC3 fixtures above.
+  const replayOrgId      = 'aaaaaaaa-1111-4111-8111-aaaaaaaaaaaa';
+  const replayActorId    = 'aaaaaaaa-2222-4222-8222-aaaaaaaaaaaa';
+  const replayApproverId = 'aaaaaaaa-3333-4333-8333-aaaaaaaaaaaa';
+  const replayTargetId   = 'aaaaaaaa-4444-4444-8444-aaaaaaaaaaaa';
+
+  beforeAll(async () => {
+    if (!databaseUrl) return;
+    ownerReplay = getOwnerConnection();
+    await seedBaselineAndMigrations(ownerReplay);
+
+    // FK-safe cleanup of any prior run, then fresh seed.
+    await ownerReplay.query(
+      `delete from public.users where id in ($1::uuid, $2::uuid, $3::uuid)`,
+      [replayActorId, replayApproverId, replayTargetId],
+    );
+    if ((await ownerReplay.query(`select to_regclass('public.user_roles') as t`)).rows[0]?.t) {
+      await ownerReplay.query(`delete from public.user_roles where org_id = $1::uuid`, [replayOrgId]);
+    }
+    if ((await ownerReplay.query(`select to_regclass('public.consumed_approval_tokens') as t`)).rows[0]?.t) {
+      await ownerReplay.query(
+        `delete from public.consumed_approval_tokens where org_id = $1::uuid`,
+        [replayOrgId],
+      );
+    }
+    if ((await ownerReplay.query(`select to_regclass('public.roles') as t`)).rows[0]?.t) {
+      await ownerReplay.query(`delete from public.roles where org_id = $1::uuid`, [replayOrgId]);
+    }
+    if ((await ownerReplay.query(`select to_regclass('public.org_security_policies') as t`)).rows[0]?.t) {
+      await ownerReplay.query(
+        `delete from public.org_security_policies where org_id = $1::uuid`,
+        [replayOrgId],
+      );
+    }
+    await ownerReplay.query(`delete from public.organizations where id = $1::uuid`, [replayOrgId]);
+    await ownerReplay.query(
+      `insert into public.tenants (id, name, region_cluster, data_plane_url)
+         values ($1, 'Replay Test Tenant', 'eu', 'https://replay-test.example.test')
+         on conflict (id) do nothing`,
+      [tenantId],
+    );
+    await ownerReplay.query(
+      `insert into public.organizations (id, tenant_id, name, industry_code)
+         values ($1, $2, 'Replay Test Org', 'generic')`,
+      [replayOrgId, tenantId],
+    );
+    await ownerReplay.query(
+      `insert into public.users (id, org_id, email) values
+         ($1, $2, 'replay-actor@rbac-test.example'),
+         ($3, $2, 'replay-approver@rbac-test.example'),
+         ($4, $2, 'replay-target@rbac-test.example')
+       on conflict (id) do nothing`,
+      [replayActorId, replayOrgId, replayApproverId, replayTargetId],
+    );
+    // Seed both system roles + dual_control policy. The replay scenario uses
+    // a dual-control-required path (which is what forces an approval token in
+    // the first place) — without dual_control_required, no token is required
+    // and the replay branch is never entered.
+    await ownerReplay.query(
+      `insert into public.roles (org_id, slug, system) values
+         ($1, 'org.access.admin', true),
+         ($1, 'org.schema.admin', true)
+       on conflict (org_id, slug) do nothing`,
+      [replayOrgId],
+    );
+    await ownerReplay.query(
+      `insert into public.org_security_policies (org_id, dual_control_required)
+         values ($1, true)
+       on conflict (org_id) do update set dual_control_required = true`,
+      [replayOrgId],
+    );
+  });
+
+  afterAll(async () => {
+    if (!databaseUrl) return;
+    await ownerReplay?.end();
+  });
+
+  it('first use of token succeeds; replay of the SAME token returns invalid_token', async () => {
+    const token = await generateApprovalToken({
+      actorUserId: replayActorId,
+      approverUserId: replayApproverId,
+      orgId: replayOrgId,
+      targetUserId: replayTargetId,
+      roleSlug: 'org.schema.admin',
+    });
+
+    // First use — must succeed and burn the jti.
+    const first = await grantRole({
+      actorUserId: replayActorId,
+      targetUserId: replayTargetId,
+      orgId: replayOrgId,
+      roleSlug: 'org.schema.admin',
+      approvalToken: token,
+    });
+    expect(first.success).toBe(true);
+    expect(first.error).toBeUndefined();
+
+    // Replay — same token, same actor/target/role/org. HMAC still valid, TTL
+    // not yet expired, but the jti is now in consumed_approval_tokens →
+    // grantRole MUST reject with invalid_token.
+    // MUTATION-PROOF: if the jti check is removed, the second call would
+    // also return success:true (idempotent ON CONFLICT DO NOTHING on
+    // user_roles), and this assertion would catch the regression.
+    const replay = await grantRole({
+      actorUserId: replayActorId,
+      targetUserId: replayTargetId,
+      orgId: replayOrgId,
+      roleSlug: 'org.schema.admin',
+      approvalToken: token,
+    });
+    expect(replay.success).toBe(false);
+    expect(replay.error).toBe('invalid_token');
+  });
+
+  it('the consumed jti row is recorded with the token-issuing org_id', async () => {
+    // Mutation-proof: writing the jti against the wrong org would let a
+    // replay against a DIFFERENT org slip through. Pin org_id explicitly.
+    const token = await generateApprovalToken({
+      actorUserId: replayActorId,
+      approverUserId: replayApproverId,
+      orgId: replayOrgId,
+      targetUserId: replayTargetId,
+      roleSlug: 'org.schema.admin',
+    });
+
+    // Decode the jti from the token payload (base64url first segment).
+    const payloadB64 = token.slice(0, token.lastIndexOf('.'));
+    const payload = JSON.parse(
+      Buffer.from(payloadB64, 'base64url').toString('utf8'),
+    ) as { jti: string };
+    expect(payload.jti).toMatch(/^[0-9a-f-]{36}$/i);
+
+    await grantRole({
+      actorUserId: replayActorId,
+      targetUserId: replayTargetId,
+      orgId: replayOrgId,
+      roleSlug: 'org.schema.admin',
+      approvalToken: token,
+    });
+
+    const { rows } = await ownerReplay.query<{ org_id: string; jti: string }>(
+      `select jti, org_id from public.consumed_approval_tokens where jti = $1`,
+      [payload.jti],
+    );
+    expect(rows).toHaveLength(1);
+    expect(rows[0]!.org_id).toBe(replayOrgId);
+  });
+});
+
+// ─── FT-011 — pure unit test (no DB) for jti shape on token issuance ─────────
+describe('FT-011 — generateApprovalToken embeds a jti UUID in the payload', () => {
+  it('issued token contains a uuid jti field in its base64url-encoded payload', async () => {
+    const token = await generateApprovalToken({
+      actorUserId: actorId,
+      approverUserId: approverId,
+      orgId,
+      targetUserId: targetId,
+      roleSlug: 'org.schema.admin',
+    });
+
+    const dotIdx = token.lastIndexOf('.');
+    expect(dotIdx).toBeGreaterThan(0);
+    const payloadB64 = token.slice(0, dotIdx);
+    const payload = JSON.parse(
+      Buffer.from(payloadB64, 'base64url').toString('utf8'),
+    ) as Record<string, unknown>;
+
+    // Mutation-proof: pin both presence and shape — a missing jti or a
+    // non-UUID would let the replay-check key off undefined and silently
+    // pass every replay.
+    expect(payload['jti']).toBeDefined();
+    expect(typeof payload['jti']).toBe('string');
+    expect(payload['jti']).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i);
+  });
+
+  it('two tokens issued back-to-back have DIFFERENT jti values', async () => {
+    // Mutation-proof: a constant jti would let attacker replay across
+    // independent grants. Each issuance must mint a fresh UUID.
+    const t1 = await generateApprovalToken({
+      actorUserId: actorId,
+      approverUserId: approverId,
+      orgId,
+      targetUserId: targetId,
+      roleSlug: 'org.schema.admin',
+    });
+    const t2 = await generateApprovalToken({
+      actorUserId: actorId,
+      approverUserId: approverId,
+      orgId,
+      targetUserId: targetId,
+      roleSlug: 'org.schema.admin',
+    });
+
+    const decode = (tok: string) =>
+      JSON.parse(
+        Buffer.from(tok.slice(0, tok.lastIndexOf('.')), 'base64url').toString('utf8'),
+      ) as { jti: string };
+
+    expect(decode(t1).jti).not.toBe(decode(t2).jti);
   });
 });

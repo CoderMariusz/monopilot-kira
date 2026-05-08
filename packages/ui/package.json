@@ -21,7 +21,9 @@
   },
   "scripts": {
     "test": "vitest run",
+    "storybook": "storybook dev -p 6006",
     "storybook:dev": "storybook dev",
+    "build-storybook": "storybook build",
     "storybook:build": "storybook build",
     "test:a11y": "vitest run --include '**/*.a11y.test.ts*'",
     "lint": "eslint ."
@@ -47,7 +49,9 @@
     "@axe-core/playwright": "^4.8.0",
     "@eslint/js": "^9.39.4",
     "@storybook/addon-a11y": "^8.0.0",
+    "@storybook/addon-essentials": "^8.0.0",
     "@storybook/react": "^8.0.0",
+    "@storybook/react-vite": "^8.0.0",
     "@testing-library/jest-dom": "^6.1.5",
     "@testing-library/react": "^14.1.2",
     "@testing-library/user-event": "^14.5.1",

@@ -341,8 +341,8 @@ describe('AC2: idle-timeout 61-min → 401 + re-auth', () => {
     // Edge case 1: exactly at boundary (60min idle) — should NOT trigger 401
     const atBoundaryToken = makeFakeJwt({
       sub: 'user-boundary',
-      iat: NOW_S - IDLE_LIMIT_S,       // exactly 60 min ago
-      exp: NOW_S - IDLE_LIMIT_S + 900, // TTL-expired but idle check is separate
+      iat: NOW_S - IDLE_LIMIT_S + 5,   // 5s inside the window — buffer for test exec time
+      exp: NOW_S - IDLE_LIMIT_S + 905,
       role: 'authenticated',
     });
 

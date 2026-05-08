@@ -76,6 +76,13 @@ interface TokenPayload {
   targetUserId: string;
   roleSlug: string;
   exp: number;
+  /**
+   * FT-011 — single-use token id. Generated at issuance and recorded in
+   * public.consumed_approval_tokens on first successful verification inside
+   * grantRole's transaction. Subsequent attempts to replay the same token
+   * fail with `invalid_token` even though the HMAC signature still matches.
+   */
+  jti: string;
 }
 
 // ─── generateApprovalToken ────────────────────────────────────────────────────
@@ -97,6 +104,9 @@ export async function generateApprovalToken(input: GenerateApprovalTokenInput): 
     targetUserId,
     roleSlug,
     exp: Date.now() + TOKEN_TTL_MS,
+    // FT-011 — fresh UUID per token; recorded in consumed_approval_tokens
+    // on first use to prevent replay even within the 5-minute TTL window.
+    jti: randomUUID(),
   };
 
   const payloadJson = JSON.stringify(payload);
@@ -258,6 +268,29 @@ export async function grantRole(input: GrantRoleInput): Promise<GrantRoleResult>
         await client.query('ROLLBACK');
         return { success: false, error: verification.error };
       }
+
+      // FT-011 — jti replay check (must run inside the transaction so the
+      // INSERT into consumed_approval_tokens and the role grant either both
+      // commit or both roll back). If the token's jti has already been seen,
+      // the HMAC is valid but this is a replay → reject with invalid_token.
+      const { rowCount: alreadyConsumed } = await client.query(
+        `SELECT 1 FROM public.consumed_approval_tokens WHERE jti = $1`,
+        [verification.payload.jti],
+      );
+      if ((alreadyConsumed ?? 0) > 0) {
+        await client.query('ROLLBACK');
+        return { success: false, error: 'invalid_token' };
+      }
+
+      // Mark the token consumed BEFORE we do the actual grant. If the grant
+      // INSERT fails downstream the ROLLBACK will also clear the consumed-row
+      // (single transaction) — but a successful grant guarantees the jti is
+      // permanently burnt, so a replay of the same token cannot grant the
+      // role a second time.
+      await client.query(
+        `INSERT INTO public.consumed_approval_tokens (jti, org_id) VALUES ($1, $2)`,
+        [verification.payload.jti, orgId],
+      );
     }
 
     // Step 6: Find or create the role row for this slug in the org

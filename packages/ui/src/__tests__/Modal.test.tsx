@@ -20,13 +20,16 @@ describe('Modal (Radix Dialog wrapper)', () => {
       );
 
       const header = container.querySelector('[data-testid="modal-header"]');
-      expect(header).toBeDefined();
+      expect(header).not.toBeNull();
 
       const title = screen.queryByText('Invite user');
-      expect(title).toBeDefined();
+      expect(title).not.toBeNull();
+      expect(title).toHaveTextContent('Invite user');
 
       const closeButton = container.querySelector('[data-testid="modal-close-button"]');
-      expect(closeButton).toBeDefined();
+      expect(closeButton).not.toBeNull();
+      expect(closeButton).toHaveAttribute('aria-label', 'Close');
+      expect(closeButton).toHaveAttribute('type', 'button');
     });
 
     it('renders body with form-grid-2 structure support', () => {
@@ -43,7 +46,9 @@ describe('Modal (Radix Dialog wrapper)', () => {
       );
 
       const formGrid = container.querySelector('.form-grid-2');
-      expect(formGrid).toBeDefined();
+      expect(formGrid).not.toBeNull();
+      expect(formGrid).toHaveClass('form-grid-2');
+      expect(formGrid?.querySelectorAll('input[type="text"]')).toHaveLength(2);
     });
 
     it('renders footer with Cancel and primary action right-aligned', () => {
@@ -59,13 +64,17 @@ describe('Modal (Radix Dialog wrapper)', () => {
       );
 
       const footer = container.querySelector('[data-testid="modal-footer"]');
-      expect(footer).toBeDefined();
+      expect(footer).not.toBeNull();
 
       const cancelBtn = screen.queryByText('Cancel');
-      expect(cancelBtn).toBeDefined();
+      expect(cancelBtn).not.toBeNull();
+      expect(cancelBtn).toHaveTextContent('Cancel');
+      expect(cancelBtn).toHaveClass('btn', 'btn-secondary');
 
       const actionBtn = screen.queryByText('Action');
-      expect(actionBtn).toBeDefined();
+      expect(actionBtn).not.toBeNull();
+      expect(actionBtn).toHaveTextContent('Action');
+      expect(actionBtn).toHaveClass('btn', 'btn-primary');
     });
 
     it('uses Radix Dialog primitive (not native <dialog>)', () => {
@@ -78,7 +87,8 @@ describe('Modal (Radix Dialog wrapper)', () => {
 
       // Radix Dialog renders with role="dialog"
       const dialogElement = container.querySelector('[role="dialog"]');
-      expect(dialogElement).toBeDefined();
+      expect(dialogElement).not.toBeNull();
+      expect(dialogElement).toHaveAttribute('role', 'dialog');
 
       // Native <dialog> should not be present
       const nativeDialog = container.querySelector('dialog');
@@ -97,7 +107,7 @@ describe('Modal (Radix Dialog wrapper)', () => {
         );
 
         const dialogContent = container.querySelector('[role="dialog"]');
-        expect(dialogContent).toBeDefined();
+        expect(dialogContent).not.toBeNull();
         expect(dialogContent).toHaveAttribute('data-size', size);
 
         unmount();
@@ -118,7 +128,7 @@ describe('Modal (Radix Dialog wrapper)', () => {
       );
 
       const dialogElement = container.querySelector('[role="dialog"]');
-      expect(dialogElement).toBeDefined();
+      expect(dialogElement).not.toBeNull();
 
       fireEvent.keyDown(dialogElement || document, { key: 'Escape' });
 
@@ -148,17 +158,20 @@ describe('Modal (Radix Dialog wrapper)', () => {
       const btnCancel = screen.getByTestId('btn-cancel');
       const btnPrimary = screen.getByTestId('btn-primary');
 
-      // All interactive elements should exist
-      expect(closeButton).toBeDefined();
-      expect(input1).toBeDefined();
-      expect(input2).toBeDefined();
-      expect(btnCancel).toBeDefined();
-      expect(btnPrimary).toBeDefined();
+      // All interactive elements should exist with the right semantics
+      expect(closeButton).not.toBeNull();
+      expect(closeButton).toHaveAttribute('aria-label', 'Close');
+      expect(input1).toHaveAttribute('type', 'text');
+      expect(input2).toHaveAttribute('type', 'text');
+      expect(btnCancel).toHaveTextContent('Cancel');
+      expect(btnPrimary).toHaveTextContent('Confirm');
 
       // Focus should be trapped (Radix Dialog handles this automatically)
       // Verify focus is within the dialog
       const dialogElement = container.querySelector('[role="dialog"]');
-      expect(dialogElement).toBeDefined();
+      expect(dialogElement).not.toBeNull();
+      expect(dialogElement?.contains(input1)).toBe(true);
+      expect(dialogElement?.contains(btnPrimary)).toBe(true);
     });
 
     it('returns focus to the triggering element on close', async () => {
@@ -184,7 +197,8 @@ describe('Modal (Radix Dialog wrapper)', () => {
       const { rerender } = render(<TestComponent />);
 
       const trigger = triggerRef.current;
-      expect(trigger).toBeDefined();
+      expect(trigger).not.toBeNull();
+      expect(trigger).toHaveTextContent('Open Modal');
 
       // This is tested via Radix Dialog's built-in behavior
       // A real integration test would verify focus restoration
@@ -238,7 +252,7 @@ describe('Modal (Radix Dialog wrapper)', () => {
       expect(labelledById).toBeTruthy();
 
       const titleElement = container.querySelector(`#${labelledById}`);
-      expect(titleElement).toBeDefined();
+      expect(titleElement).not.toBeNull();
       expect(titleElement?.textContent).toContain('Modal Title');
     });
   });
@@ -257,7 +271,8 @@ describe('Modal (Radix Dialog wrapper)', () => {
 
       const computedStyle = window.getComputedStyle(dialogElement!);
       // Width should be set from tokens (will be checked when tokens.css is properly loaded)
-      expect(dialogElement).toBeDefined();
+      expect(dialogElement).not.toBeNull();
+      expect(computedStyle).toBeDefined();
     });
   });
 
@@ -274,7 +289,8 @@ describe('Modal (Radix Dialog wrapper)', () => {
 
       // Radix Dialog closes on outside click by default when dismissible=true
       const overlay = container.querySelector('[data-state="open"]');
-      expect(overlay).toBeDefined();
+      expect(overlay).not.toBeNull();
+      expect(overlay).toHaveAttribute('data-state', 'open');
     });
 
     it('does not close on backdrop click when dismissible=false', () => {
@@ -288,7 +304,8 @@ describe('Modal (Radix Dialog wrapper)', () => {
       );
 
       const dialogElement = container.querySelector('[role="dialog"]');
-      expect(dialogElement).toBeDefined();
+      expect(dialogElement).not.toBeNull();
+      expect(dialogElement).toHaveAttribute('role', 'dialog');
     });
   });
 });
