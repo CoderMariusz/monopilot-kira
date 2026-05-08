@@ -19,7 +19,28 @@
  */
 
 import type { JacksonOption, IOAuthController } from '@boxyhq/saml-jackson';
+import type pg from 'pg';
+import { Pool } from 'pg';
 import { createServerSupabaseClient } from './supabase-server';
+
+// ─── Slot F-4: memoised owner pool for enforceSamlPolicy DB lookups ─────────
+// ADR P2.13: `@monopilot/db` intentionally does NOT export the owner pool
+// (lint-forbidden), so call sites that need cross-org reads instantiate one
+// directly. Previously `enforceSamlPolicy` created a fresh Pool per call and
+// called `.end()` in a finally — that pattern defeats pooling entirely. We
+// now hold a single lazily-initialised pool at module scope and reuse it
+// across calls; it is implicitly torn down at process exit (same pattern as
+// packages/auth/src/totp.ts).
+let _enforcePolicyPool: pg.Pool | null = null;
+function getEnforcePolicyPool(): pg.Pool {
+  if (!_enforcePolicyPool) {
+    _enforcePolicyPool = new Pool({
+      connectionString:
+        process.env.DATABASE_URL_OWNER ?? process.env.DATABASE_URL,
+    });
+  }
+  return _enforcePolicyPool;
+}
 
 // ────────────────────────────────────────────────────────────────────────────────
 // Types — match the contract that callers (route handlers, tests) supply.
@@ -377,18 +398,19 @@ export async function enforceSamlPolicy(
   // actually needs.
   let enforce = false;
   try {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const { Pool } = require('pg') as typeof import('pg');
-    const pool = new Pool({ connectionString: process.env.DATABASE_URL });
-    try {
-      const res = await pool.query(
-        `select enforce_for_non_admins from app.get_my_tenant_idp_config($1)`,
-        [tenantId],
-      );
-      enforce = res.rows[0]?.enforce_for_non_admins === true;
-    } finally {
-      await pool.end();
-    }
+    // Slot F-4: memoised module-singleton owner pool. The previous code
+    // created a fresh `pg.Pool` per call and called `.end()` in a finally —
+    // that pattern makes connection pooling pointless (every request pays a
+    // TCP connect + auth handshake) and on hot paths leaks half-closed
+    // sockets / file descriptors. We now lazily initialise a single pool at
+    // module scope and reuse it across calls; it is implicitly torn down at
+    // process exit. Same pattern as packages/auth/src/totp.ts.
+    const pool = getEnforcePolicyPool();
+    const res = await pool.query(
+      `select enforce_for_non_admins from app.get_my_tenant_idp_config($1)`,
+      [tenantId],
+    );
+    enforce = res.rows[0]?.enforce_for_non_admins === true;
   } catch (err) {
     // P2.12 — fail-CLOSED everywhere by default (production AND non-prod).
     // The previous behaviour fail-opened in non-production, which meant a

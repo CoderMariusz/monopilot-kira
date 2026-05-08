@@ -26,8 +26,27 @@
 
 import { createHash } from 'node:crypto';
 import { Pool } from 'pg';
+import type pg from 'pg';
 import { createServerSupabaseClient } from '../../lib/auth/supabase-server';
 import { enforceSamlPolicy } from '../../lib/auth/saml';
+
+// ─── Slot F-4: memoised owner pool for tenant-by-email lookup ───────────────
+// Previously `lookupTenantForEmail` created a fresh Pool per call and called
+// `.end()` in its finally — every magic-link request paid a fresh TCP +
+// auth handshake and risked half-closed-socket pile-up under load. We now
+// lazily initialise a single module-scope pool and reuse it across calls.
+// It is implicitly torn down at process exit. ADR P2.13 (the owner pool is
+// intentionally not exported by `@monopilot/db`).
+let _ownerPool: pg.Pool | null = null;
+function getOwnerPool(): pg.Pool {
+  if (!_ownerPool) {
+    _ownerPool = new Pool({
+      connectionString:
+        process.env.DATABASE_URL_OWNER ?? process.env.DATABASE_URL,
+    });
+  }
+  return _ownerPool;
+}
 
 // ADR P2.13 (see lib/auth/with-org-context.ts): the magic-link path runs
 // pre-session, so app.current_org_id() is unset and `@monopilot/db`'s
@@ -72,9 +91,12 @@ interface TenantLookupRow {
  * secrets are returned.
  */
 async function lookupTenantForEmail(email: string): Promise<TenantLookupRow | null> {
-  const pool = new Pool({
-    connectionString: process.env.DATABASE_URL_OWNER ?? process.env.DATABASE_URL,
-  });
+  // Slot F-4: pool is memoised at module scope (see getOwnerPool above) — we
+  // no longer create a fresh Pool per call. The try/finally is retained for
+  // structural symmetry, but we MUST NOT call `pool.end()` here: the pool
+  // is long-lived and shared across all magic-link sign-ins for the
+  // process.
+  const pool = getOwnerPool();
   try {
     const res = await pool.query<TenantLookupRow>(
       `select t.id as tenant_id,
@@ -95,9 +117,7 @@ async function lookupTenantForEmail(email: string): Promise<TenantLookupRow | nu
     );
     return res.rows[0] ?? null;
   } finally {
-    // Fresh per-call pool — close it so we don't leak handles. Same pattern
-    // as the SAML callback route's owner-pool usage.
-    await pool.end();
+    // Intentionally no pool.end() — see getOwnerPool() comment.
   }
 }
 
