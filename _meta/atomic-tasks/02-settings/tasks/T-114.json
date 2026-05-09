@@ -27,8 +27,8 @@
     "description": "Reference Audit Trail (SET-054): per-row history viewer with diff between consecutive versions.",
     "details": "PRD §8.6 SET-054: `Per-row history z diff viewer`. Distinct from SET-013 (T-079) which is the global audit log filtered by date partition; this screen drills into a single (table_code, row_key) tuple. Diff helper may import from T-108 if exposed as shared util in `packages/ui` or `apps/web/lib`.\n\nAdditional acceptance detail preserved from compressed AC list:\n- Given the caller lacks `settings.audit.read`, when the page is requested, then a 403 page renders.\n- UI closeout includes screenshot/artifact evidence and Playwright trace/artifacts where applicable per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`; if Playwright is unavailable, document the blocker and provide RTL/snapshot fallback evidence.",
     "scope_files": [
-      "apps/web/app/(admin)/settings/reference/[table_code]/[row_key]/history/page.tsx [create]",
-      "apps/web/app/(admin)/settings/reference/[table_code]/[row_key]/history/page.test.tsx [create]"
+      "apps/web/app/(admin)/settings/reference/[table_code]/[row_key]/history/page.tsx",
+      "apps/web/app/(admin)/settings/reference/[table_code]/[row_key]/history/page.test.tsx"
     ],
     "out_of_scope": [
       "Global audit log (covered by SET-013 / T-079)",

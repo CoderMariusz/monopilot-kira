@@ -28,8 +28,8 @@
     "description": "Warehouse List screen (SET-012-warehouse): sort/filter/bulk activate-deactivate with V-SET-63 soft-warning flow.",
     "details": "PRD §12.2 lists SET-012 (Warehouse List) with capability `sort, filter, bulk activate/deactivate`. Note: numbering in §12.2 reuses SET-012 from §14.1 (security_screen, T-060); we disambiguate by the subcategory `set-012-warehouse`. UI consumes T-029 Server Actions; bulk-deactivate must surface SOFT_WARNING_ACTIVE_WO from V-SET-63 and re-call with `force=true` after confirm.\n\nAdditional acceptance detail preserved from compressed AC list:\n- Given the caller lacks `settings.infra.update`, when they click Bulk Deactivate, then the action button is disabled and an aria-label explains insufficient permissions.\n- UI closeout includes screenshot/artifact evidence and Playwright trace/artifacts where applicable per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`; if Playwright is unavailable, document the blocker and provide RTL/snapshot fallback evidence.",
     "scope_files": [
-      "apps/web/app/(admin)/settings/infra/warehouses/page.tsx [create]",
-      "apps/web/app/(admin)/settings/infra/warehouses/page.test.tsx [create]"
+      "apps/web/app/(admin)/settings/infra/warehouses/page.tsx",
+      "apps/web/app/(admin)/settings/infra/warehouses/page.test.tsx"
     ],
     "out_of_scope": [
       "Warehouse Edit form (separate SET-013-warehouse screen, not in this task)",

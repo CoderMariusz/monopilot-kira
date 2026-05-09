@@ -27,8 +27,8 @@
     "description": "Email Delivery Log (SET-093): last N email outbox runs viewer + filters + payload modal + recipient masking.",
     "details": "PRD §13.4 SET-093: `Last N sent + failed + retry status`. Underlying email_delivery_log table is populated by the email outbox worker per §13.2; this UI is purely read-only. Recipient masking guards admin viewers from inadvertently exposing PII at-a-glance — full address visible only in payload modal.\n\nAdditional acceptance detail preserved from compressed AC list:\n- Given the caller lacks `settings.email.read`, when the page is requested, then a 403 page renders.\n- UI closeout includes screenshot/artifact evidence and Playwright trace/artifacts where applicable per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`; if Playwright is unavailable, document the blocker and provide RTL/snapshot fallback evidence.",
     "scope_files": [
-      "apps/web/app/(admin)/settings/notifications/email-log/page.tsx [create]",
-      "apps/web/app/(admin)/settings/notifications/email-log/page.test.tsx [create]"
+      "apps/web/app/(admin)/settings/notifications/email-log/page.tsx",
+      "apps/web/app/(admin)/settings/notifications/email-log/page.test.tsx"
     ],
     "out_of_scope": [
       "Re-send / retry from UI (DLQ worker owns retries)",

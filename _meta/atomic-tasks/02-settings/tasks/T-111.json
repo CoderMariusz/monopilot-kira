@@ -28,8 +28,8 @@
     "description": "D365 Sync Config (SET-082): cron pull schedule + push queue + retry policy form, owner-only RBAC.",
     "details": "PRD §11.3 SET-082: `Pull schedule (cron), push queue, retry policy, dead-letter queue view`. DLQ deep view itself is out of scope — only a link is rendered (admin DLQ tooling lives in worker package). Cron string validated client-side with cron-parser style Zod refinement; next-run preview rendered using a small in-repo cron evaluator.\n\nAdditional acceptance detail preserved from compressed AC list:\n- Given a sync config exists with last_applied_at set, when the page renders, then header strip shows that timestamp and the applied_by_user.\n- UI closeout includes screenshot/artifact evidence and Playwright trace/artifacts where applicable per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`; if Playwright is unavailable, document the blocker and provide RTL/snapshot fallback evidence.",
     "scope_files": [
-      "apps/web/app/(admin)/settings/integrations/d365/sync/page.tsx [create]",
-      "apps/web/app/(admin)/settings/integrations/d365/sync/page.test.tsx [create]"
+      "apps/web/app/(admin)/settings/integrations/d365/sync/page.tsx",
+      "apps/web/app/(admin)/settings/integrations/d365/sync/page.test.tsx"
     ],
     "out_of_scope": [
       "DLQ inspect/replay tooling (worker package)",

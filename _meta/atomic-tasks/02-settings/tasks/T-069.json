@@ -26,8 +26,8 @@
     "description": "SET-091 email_variables_screen production component (prototype-parity).",
     "details": "Prototype: prototypes/design/Monopilot Design System/settings/admin-screens.jsx:586-624. Translation notes (canonical from prototype-index-settings.json): see `_meta/prototype-labels/translation-notes-settings.md` and the entry's `translation_notes` array. Production contract: data via Server Components (Drizzle); mutations via Server Actions; primitives from `packages/ui` only (no @radix-ui/react-dialog import outside packages/ui per §0). Parity checklist (verify item-by-item before GREEN):\n1. Section/region count + order matches prototype.\n2. Field labels + types match prototype.\n3. shadcn/Radix primitives match (Input, Select, Switch, Dialog etc).\n4. Action buttons present in same order with same enable/disable rules.\n5. Loading/empty/error states render per prototype.\n6. Modal triggers open the correct modal id (SM-NN).\n7. Keyboard focus order matches prototype.\n8. assertModalA11y() passes for any modals invoked.",
     "scope_files": [
-      "apps/web/app/(admin)/settings/email/variables/page.tsx [create]",
-      "apps/web/app/(admin)/settings/email/variables/page.test.tsx [create]"
+      "apps/web/app/(admin)/settings/email/variables/page.tsx",
+      "apps/web/app/(admin)/settings/email/variables/page.test.tsx"
     ],
     "out_of_scope": [
       "broaden scope beyond listed files",

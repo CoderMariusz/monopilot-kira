@@ -26,8 +26,8 @@
     "description": "SET-033 Schema Migrations Queue production component (spec-driven; no exact prototype).",
     "details": "Spec-driven UI: no exact canonical prototype exists under `prototypes/design/Monopilot Design System/settings/*.jsx` for this screen. `prototypes/design/02-SETTINGS-UX.md SET-033 / schema-migrations` replaces prototype parity as the authoritative UI contract. Reuse table/status/timeline patterns from admin screens where available; do not implement Promotions screen as the schema migrations queue. Any prototype snippets are element/pattern references only, not 1:1 screen sources. Production contract: data via Server Components (Drizzle); mutations via Server Actions; primitives from `packages/ui` only.",
     "scope_files": [
-      "apps/web/app/(admin)/settings/schema/migrations/page.tsx [create]",
-      "apps/web/app/(admin)/settings/schema/migrations/page.test.tsx [create]"
+      "apps/web/app/(admin)/settings/schema/migrations/page.tsx",
+      "apps/web/app/(admin)/settings/schema/migrations/page.test.tsx"
     ],
     "out_of_scope": [
       "broaden scope beyond listed files",

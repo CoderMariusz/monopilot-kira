@@ -27,8 +27,8 @@
     "description": "D365 Sync Audit (SET-083): last N sync runs viewer + filters + per-row error modal + owner-gated manual trigger.",
     "details": "PRD §11.3 SET-083: `Last N sync results + errors + manual trigger`. The 'Run sync now' button must be disabled for non-owner roles per §11.4 (flag flip + ops both require owner). Error JSON modal renders raw payload — no parsing/categorization in scope.\n\nAdditional acceptance detail preserved from compressed AC list:\n- Given the caller lacks `owner` role, when they view the page, then the 'Run sync now' button is disabled with an aria-label explaining insufficient permissions.\n- UI closeout includes screenshot/artifact evidence and Playwright trace/artifacts where applicable per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`; if Playwright is unavailable, document the blocker and provide RTL/snapshot fallback evidence.",
     "scope_files": [
-      "apps/web/app/(admin)/settings/integrations/d365/audit/page.tsx [create]",
-      "apps/web/app/(admin)/settings/integrations/d365/audit/page.test.tsx [create]"
+      "apps/web/app/(admin)/settings/integrations/d365/audit/page.tsx",
+      "apps/web/app/(admin)/settings/integrations/d365/audit/page.test.tsx"
     ],
     "out_of_scope": [
       "Re-queue / retry from UI (worker handles)",

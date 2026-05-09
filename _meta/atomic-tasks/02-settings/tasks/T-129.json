@@ -1,0 +1,90 @@
+{
+  "title": "T-129 — User Menu Language Picker (SET-100)",
+  "prompt": "# T-129 — User Menu Language Picker (SET-100)\n\n## Goal\nBuild SET-100 User Menu Language Picker so users can switch the UI language from the global header without a page reload, persisting Phase 1 language choices to `users.language` and respecting next-intl runtime switching.\n\nImplement spec-driven from `prototypes/design/02-SETTINGS-UX.md SET-100` and PRD §14.2/§14.4. Phase 2 languages appear disabled/coming-soon unless the app already supports them.\n\n## Files in scope\n- apps/web/app/_components/user-menu-language-picker.tsx [create/modify]\n- apps/web/app/_components/__tests__/user-menu-language-picker.test.tsx [create/modify]\n- apps/web/lib/i18n/user-language.ts [create/modify]\n- apps/web/lib/i18n/__tests__/user-language.test.ts [create/modify]\n\n## Acceptance criteria (all must hold)\n- Given the user menu opens, then active language is marked with a check and Phase 1 choices PL/EN are selectable; Phase 2 UK/RO choices are disabled or clearly marked unavailable unless supported.\n- Given PL or EN is selected, when the action succeeds, then `users.language` is updated for the current user/org, next-intl switches without a full reload, and a success/error state is shown.\n- Given a user attempts to force an unsupported locale, when the server action runs, then it returns a typed blocker and leaves the existing language unchanged.\n- Given organizations have a locale fallback, when `users.language` is null, then the picker displays the effective fallback while still allowing user override.\n\n## Test strategy (RED first)\n- RED: RTL/unit tests for menu options, active checkmark, disabled Phase 2 entries, update success/error, unsupported locale blocker, and fallback display.\n- GREEN: build picker/action using existing next-intl and user profile primitives.\n- Run targeted i18n/component tests plus typecheck/lint for changed package.\n\n## Risk red lines\n- Do not implement Phase 2 language content as part of this task.\n- Do not require full page reload for PL/EN switching.\n- Do not update organization locale when only user preference is changed.\n- Do not hard-code language state outside the app i18n primitives.\n## Closeout evidence required\n- changed_files (with line counts)\n- exact test commands and outputs (RED -> GREEN, typecheck, lint)\n- acceptance_criteria_status (one row per AC: pass/fail)\n- deviations_from_prd (or \"none\")\n- git_status\n",
+  "labels": [
+    "prd",
+    "ui",
+    "i18n",
+    "set-100",
+    "T3-ui"
+  ],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-129",
+    "source_prd": "docs/prd/02-SETTINGS-PRD.md",
+    "prd_refs": [
+      "§14.2 i18n Phase 1 PL + EN and user preference override",
+      "§14.4 UI surfaces SET-100 User Menu Language Picker",
+      "UX SET-100 Language Picker"
+    ],
+    "category": "ui",
+    "subcategory": "set-100",
+    "task_type": "T3-ui",
+    "parent_feature": "02-settings-security-i18n-ui",
+    "context_budget": "40k",
+    "estimated_effort": "1-2h",
+    "description": "SET-100 User Menu Language Picker with user-level language persistence and next-intl hot switching.",
+    "details": "Spec-driven UI from `prototypes/design/02-SETTINGS-UX.md SET-100` and PRD §14.2/§14.4. Phase 1 supports PL and EN. UK/RO are Phase 2 and should not be enabled unless the app already provides those locales.",
+    "scope_files": [
+      "apps/web/app/_components/user-menu-language-picker.tsx [create/modify]",
+      "apps/web/app/_components/__tests__/user-menu-language-picker.test.tsx [create/modify]",
+      "apps/web/lib/i18n/user-language.ts [create/modify]",
+      "apps/web/lib/i18n/__tests__/user-language.test.ts [create/modify]"
+    ],
+    "out_of_scope": [
+      "broaden scope beyond listed files",
+      "implement Phase 2 language catalogs",
+      "change organization locale settings"
+    ],
+    "dependencies": [
+      "T-004",
+      "T-116"
+    ],
+    "acceptance_criteria": [
+      "User menu language picker shows active checkmark, selectable PL/EN and disabled/unavailable Phase 2 choices unless supported.",
+      "Selecting PL/EN updates users.language for the current user/org and switches next-intl without full reload.",
+      "Unsupported forced locales return typed blockers without changing existing language.",
+      "Null users.language displays the effective organization/EN fallback while allowing user override."
+    ],
+    "test_strategy": [
+      "RED: RTL/unit tests for options, active state, disabled Phase 2 entries, success/error, unsupported locale and fallback display.",
+      "GREEN: build picker/action using existing next-intl and user profile primitives.",
+      "Run targeted i18n/component tests plus typecheck/lint for changed package."
+    ],
+    "risk_red_lines": [
+      "Do not implement Phase 2 language content as part of this task.",
+      "Do not require full page reload for PL/EN switching.",
+      "Do not update organization locale when only user preference is changed.",
+      "Do not hard-code language state outside the app i18n primitives."
+    ],
+    "prototype_match": false,
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

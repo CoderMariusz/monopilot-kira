@@ -27,8 +27,8 @@
     "description": "Machine List screen (SET-016): status indicator + location breadcrumb + filters + bulk activate/deactivate.",
     "details": "PRD §12.2 SET-016: Machine List with `status indicator, location breadcrumb` capability. Status comes from `machines.specs.status` JSONB field per §5.6 + §12.1. Breadcrumb derived from joined `locations.path` ltree; helper `pathToBreadcrumb(path)` maps each path segment to a labeled crumb.\n\nAdditional acceptance detail preserved from compressed AC list:\n- Given the caller lacks `settings.infra.update`, when they view the list, then bulk action buttons are disabled with an aria-label explaining insufficient permissions.\n- UI closeout includes screenshot/artifact evidence and Playwright trace/artifacts where applicable per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`; if Playwright is unavailable, document the blocker and provide RTL/snapshot fallback evidence.",
     "scope_files": [
-      "apps/web/app/(admin)/settings/infra/machines/page.tsx [create]",
-      "apps/web/app/(admin)/settings/infra/machines/page.test.tsx [create]"
+      "apps/web/app/(admin)/settings/infra/machines/page.tsx",
+      "apps/web/app/(admin)/settings/infra/machines/page.test.tsx"
     ],
     "out_of_scope": [
       "SET-017 Machine Edit form (specs JSONB editor) — separate screen",
