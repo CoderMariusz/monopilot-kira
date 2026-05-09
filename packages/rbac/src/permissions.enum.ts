@@ -9,9 +9,36 @@ export const Permission = {
   AUDIT_READ: 'audit.read',
   OUTBOX_ADMIN: 'outbox.admin',
   IMPERSONATE_ORG: 'impersonate.org',
+  /** Settings org read access; PRD 02-SETTINGS §3 lines 140-143. */
+  SETTINGS_ORG_READ: 'settings.org.read',
+  /** Settings org update access; PRD 02-SETTINGS §3 lines 140-143. */
+  SETTINGS_ORG_UPDATE: 'settings.org.update',
+  /** Settings user creation access; PRD 02-SETTINGS §3 lines 140-143. */
+  SETTINGS_USERS_CREATE: 'settings.users.create',
+  /** Settings user deactivation access; PRD 02-SETTINGS §3 lines 140-143. */
+  SETTINGS_USERS_DEACTIVATE: 'settings.users.deactivate',
+  /** Settings user invitation access; PRD 02-SETTINGS §3 lines 116-123. */
+  SETTINGS_USERS_INVITE: 'settings.users.invite',
+  /** Settings role assignment access; PRD 02-SETTINGS §3 lines 121-125. */
+  SETTINGS_ROLES_ASSIGN: 'settings.roles.assign',
+  /** Settings audit read access; PRD 02-SETTINGS §3 lines 118-119. */
+  SETTINGS_AUDIT_READ: 'settings.audit.read',
+  /** Settings tenant impersonation access; PRD 02-SETTINGS §3 lines 119-120. */
+  SETTINGS_IMPERSONATE_TENANT: 'settings.impersonate.tenant',
 } as const;
 
 export type Permission = (typeof Permission)[keyof typeof Permission];
+
+export const ALL_SETTINGS_CORE_PERMISSIONS = [
+  Permission.SETTINGS_ORG_READ,
+  Permission.SETTINGS_ORG_UPDATE,
+  Permission.SETTINGS_USERS_CREATE,
+  Permission.SETTINGS_USERS_DEACTIVATE,
+  Permission.SETTINGS_USERS_INVITE,
+  Permission.SETTINGS_ROLES_ASSIGN,
+  Permission.SETTINGS_AUDIT_READ,
+  Permission.SETTINGS_IMPERSONATE_TENANT,
+] as readonly Permission[];
 
 export const LegacyPermissionAlias = {
   'fa.create': Permission.FG_CREATE,
