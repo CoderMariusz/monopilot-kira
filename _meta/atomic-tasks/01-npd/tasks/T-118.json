@@ -1,0 +1,93 @@
+{
+  "title": "T-118 — PARITY: FormulationEditor panels — browser screenshot parity vs recipe.jsx prototype",
+  "prompt": "# T-118 — PARITY: Playwright screenshot + a11y parity\n\nPRD: docs/prd/01-NPD-PRD.md §17.11.1\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\nPrototype: prototypes/design/Monopilot Design System/npd/recipe.jsx (entire RecipeScreen)\nPrototype-index entry: recipe_screen\nUI evidence policy: _meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md\n\n## Goal\nEnd-to-end browser parity proof for the wired formulation editor sidebar (T-117). Capture Playwright screenshots vs the prototype recipe.jsx renderer; verify panel layout, live value updates on ingredient edits, and 0 axe accessibility violations on the editor page.\n\n## Implementation contract\n- Add Playwright spec apps/web/tests/e2e/formulation-editor-panels.spec.ts covering:\n  1. Editor page loads with seeded formulation fixture; full-page screenshot saved as artifact.\n  2. Edit one ingredient pct via the table; assert NutritionPanel + CostPanel + CompositionBar values changed (text-based assertions on key fields).\n  3. Toggle a row that introduces a gluten allergen; assert AllergenPanel renders 'gluten' as present with role='alert' below.\n  4. Run @axe-core/playwright on the editor page; assert violations.length === 0.\n- Use existing test fixtures / seeding pattern; do not modify component source.\n\n## Files\n- apps/web/tests/e2e/formulation-editor-panels.spec.ts [create]\n- apps/web/tests/e2e/__snapshots__/formulation-editor-panels/* [create — Playwright snapshots]\n\n## Acceptance criteria\n1. Given Playwright runs against a seeded editor page, when the screenshot is captured, then panel layout matches the prototype recipe.jsx (sidebar order Nutrition → Cost → Allergen, CompositionBar below table) — verified by visual diff (toMatchSnapshot)\n2. Given the user edits an ingredient pct, when the action completes, then NutritionPanel, CostPanel, and CompositionBar reflect new values live in the same page (no reload) — verified by Playwright text/role assertions\n3. Given the user adds an ingredient with allergen='gluten', when AllergenPanel re-renders, then 'gluten' badge is in 'present' state and the declared-on-label Alert appears — verified by Playwright role='alert' assertion\n4. Given the editor page is open, when @axe-core/playwright runs, then violations.length === 0 — verified by spec assertion\n\n## Test strategy\n- RED: Playwright spec written first asserting screenshots + live updates + axe; expected to fail until T-113..T-117 land\n- Run 'pnpm --filter web exec playwright test formulation-editor-panels'\n- Attach screenshots, traces, and axe report as closeout artifacts\n\n## Risk red lines\n- Do not modify panel source code from this task (parity-only)\n- If Playwright is unavailable in the environment, document the blocker and provide an RTL integration-test + manual screenshot fallback per UI-PROTOTYPE-PARITY-POLICY.md\n- Do not weaken axe assertions — 0 violations is non-negotiable for this slice cluster",
+  "labels": [
+    "prd",
+    "ui",
+    "formulation-panels",
+    "T4-wiring-test",
+    "parity",
+    "e2e"
+  ],
+  "priority": 90,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-118",
+    "source_prd": "docs/prd/01-NPD-PRD.md",
+    "prd_refs": [
+      "§17.11.1"
+    ],
+    "category": "ui",
+    "subcategory": "formulation-panels",
+    "task_type": "T4-wiring-test",
+    "parent_feature": "01-NPD-g Recipe Formulation Editor",
+    "parent_task": "T-067",
+    "context_budget": "30k",
+    "estimated_effort": "1-2h",
+    "description": "End-to-end browser parity: Playwright screenshots vs recipe.jsx prototype + live value updates + 0 axe violations on editor page.",
+    "details": "Playwright spec covers full-page screenshot, ingredient-edit propagation across NutritionPanel/CostPanel/CompositionBar, allergen toggle → present badge + Alert, and @axe-core/playwright pass.",
+    "scope_files": [
+      "apps/web/tests/e2e/formulation-editor-panels.spec.ts [create]",
+      "apps/web/tests/e2e/__snapshots__/formulation-editor-panels/* [create]"
+    ],
+    "out_of_scope": [
+      "Do not modify panel component source (T-113..T-116)",
+      "Do not modify wiring (T-117)",
+      "Do not build ingredient table internals (T-066)"
+    ],
+    "dependencies": [
+      "T-113",
+      "T-114",
+      "T-115",
+      "T-116",
+      "T-117"
+    ],
+    "acceptance_criteria": [
+      "Given Playwright runs against the seeded editor page, when screenshot is captured, then panel layout matches recipe.jsx prototype — verified by toMatchSnapshot",
+      "Given the user edits an ingredient pct, when the action completes, then Nutrition/Cost/CompositionBar reflect new values live — verified by Playwright assertions",
+      "Given the user adds an ingredient with allergen='gluten', when AllergenPanel re-renders, then 'gluten' badge is 'present' and the declared-on-label Alert appears — verified by Playwright role='alert'",
+      "Given the editor page is open, when @axe-core/playwright runs, then violations.length === 0 — verified by spec assertion",
+      "Closeout includes Playwright trace/video/artifacts + axe report per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`; if Playwright is unavailable, document blocker and provide RTL fallback evidence."
+    ],
+    "test_strategy": [
+      "RED: Playwright spec asserting screenshots + live updates + axe before slices land",
+      "Run 'pnpm --filter web exec playwright test formulation-editor-panels'",
+      "Attach screenshots, traces, axe report for closeout."
+    ],
+    "risk_red_lines": [
+      "Do not modify panel source from this parity task",
+      "Do not weaken axe assertions — 0 violations required",
+      "If Playwright unavailable, document blocker and provide RTL fallback per policy"
+    ],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": true,
+    "prototype_index_entry": "recipe_screen",
+    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md"
+  }
+}
