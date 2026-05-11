@@ -1,0 +1,54 @@
+{
+  "title": "T-149 — PARITY: Rules/Reference Data screens Playwright + axe parity vs admin-screens.jsx:152-210,216-344,475-535 — 02-settings-d-ui",
+  "prompt": "# T-149 — Rules/Reference Data screens browser parity\n\nPRD: docs/prd/02-Settings-PRD.md\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\nPrototype: prototypes/design/Monopilot Design System/settings/admin-screens.jsx:152-210,216-344,475-535 + data-screens.jsx:151-187 + rules-data.jsx\nParent tasks: T-063, T-064, T-067, T-073, T-077, T-078, T-096, T-108, T-114, T-115\n\n## Goal\nPlaywright screenshot parity + axe-violations check for all 10 screens/modals in this group against the settings prototype. 0 critical/serious axe violations on each screen.\n\n## Screens in scope\nRules Registry, Rule Detail, Reference Data, Units/UoM, MfgOps List, MfgOps Edit, Ref CSV Import Wizard, Rule Version Diff, Reference Audit Trail, MfgOps Audit Trail\n\n## Implementation contract\n- Playwright spec at apps/web/e2e/settings/d-ui-parity.spec.ts\n- Seeds appropriate fixture data for each screen\n- Visits each screen/modal URL, captures full-page screenshot vs prototype region\n- Runs axe-core on each view; asserts 0 critical and 0 serious violations\n- Attaches traces/screenshots per _meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md\n\n## Files in scope\n- apps/web/e2e/settings/d-ui-parity.spec.ts [create]\n- apps/web/e2e/settings/fixtures/d-ui-seed.ts [create]\n\n## Acceptance criteria\n1. Given Playwright runs the parity spec for each screen, when compared to prototypes/design/Monopilot Design System/settings/admin-screens.jsx:152-210,216-344,475-535 + data-screens.jsx:151-187 + rules-data.jsx, then screenshots match within tolerance per _meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md\n2. Given each screen is mounted, when axe-core runs, then 0 critical and 0 serious violations\n3. Closeout attaches Playwright traces/screenshots OR documents blocker + RTL/snapshot fallback\n\n## Risk red lines\n- Do not modify implementation code\n- Do not relax axe threshold\n- Do not run against shared/staging DB\n",
+  "labels": [
+    "settings",
+    "ui",
+    "settings-d-ui-parity",
+    "T4-wiring-test"
+  ],
+  "priority": 80,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-149",
+    "source_prd": "docs/prd/02-Settings-PRD.md",
+    "category": "test",
+    "subcategory": "d-ui-parity",
+    "task_type": "T4-wiring-test",
+    "parent_feature": "02-settings-d-ui",
+    "context_budget": "30k",
+    "estimated_effort": "2h",
+    "description": "Playwright screenshot parity + axe for 10 rules and reference-data screens vs admin-screens.jsx, data-screens.jsx, rules-data.jsx prototypes.",
+    "scope_files": [
+      "apps/web/e2e/settings/d-ui-parity.spec.ts [create]",
+      "apps/web/e2e/settings/fixtures/d-ui-seed.ts [create]"
+    ],
+    "dependencies": [
+      "T-063",
+      "T-064",
+      "T-067",
+      "T-073",
+      "T-077",
+      "T-078",
+      "T-096",
+      "T-108",
+      "T-114",
+      "T-115"
+    ],
+    "acceptance_criteria": [
+      "Given Playwright runs parity spec, when compared to prototypes/design/Monopilot Design System/settings/admin-screens.jsx:152-210,216-344,475-535 + data-screens.jsx:151-187 + rules-data.jsx, then screenshots match within tolerance per _meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md",
+      "Given each screen is mounted, when axe-core runs, then 0 critical and 0 serious violations",
+      "Closeout attaches Playwright traces/screenshots OR documents blocker + RTL/snapshot fallback evidence per parity policy"
+    ],
+    "risk_red_lines": [
+      "Do not modify implementation code",
+      "Do not relax axe threshold",
+      "Do not run against shared/staging DB"
+    ],
+    "prototype_match": true,
+    "prototype_index_entry": "rules_registry_screen, rule_detail_screen, reference_data_screen, units_screen",
+    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md"
+  }
+}

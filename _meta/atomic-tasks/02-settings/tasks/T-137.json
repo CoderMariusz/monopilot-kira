@@ -1,0 +1,25 @@
+{
+  "title": "T-137 — ROOT: My Profile / My Notifications (02-settings-account) [T0-root]",
+  "prompt": "# T-137 — [GROUP] root descriptor for 02-settings-account\n\nThis is a T0-root non-executable descriptor. Do not implement. The ACP pipeline skips this task at execution time; its only role is navigation context for agents.\n\n## Group\nMy Profile / My Notifications\n\n## Description\nUser-account self-service screens: My Profile and My Notifications + parity.\n\n## Child tasks (3)\n- T-074\n- T-075\n- T-145\n\n## Execution order\nDefault to the numerical order shown above; specific dependencies are encoded on each child task. Wiring/test tasks (T4) within this group should run after their parent T1/T2/T3 dependencies complete.\n\n## Completion signal\nThis root is complete when all child tasks listed above have status=done.\n",
+  "labels": [
+    "settings",
+    "T0-root",
+    "02-settings-account"
+  ],
+  "priority": 0,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-137",
+    "source_prd": "docs/prd/02-Settings-PRD.md",
+    "task_type": "T0-root",
+    "parent_feature": "02-settings-account",
+    "description": "User-account self-service screens: My Profile and My Notifications + parity.",
+    "child_tasks": [
+      "T-074",
+      "T-075",
+      "T-145"
+    ],
+    "executable": false
+  }
+}

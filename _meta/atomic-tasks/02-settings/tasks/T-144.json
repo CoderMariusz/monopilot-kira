@@ -1,0 +1,47 @@
+{
+  "title": "T-144 — PARITY: RBAC modals Playwright + axe parity vs modals.jsx:378-407,410-447,492-510 — 02-settings-a-modals",
+  "prompt": "# T-144 — RBAC modals browser parity\n\nPRD: docs/prd/02-Settings-PRD.md\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\nPrototype: prototypes/design/Monopilot Design System/settings/modals.jsx:378-407,410-447,492-510\nParent tasks: T-052, T-053, T-055\n\n## Goal\nPlaywright screenshot parity + axe-violations check for all 3 screens/modals in this group against the settings prototype. 0 critical/serious axe violations on each screen.\n\n## Screens in scope\nUserInviteModal, RoleAssignModal, PasswordResetModal\n\n## Implementation contract\n- Playwright spec at apps/web/e2e/settings/a-modals-parity.spec.ts\n- Seeds appropriate fixture data for each screen\n- Visits each screen/modal URL, captures full-page screenshot vs prototype region\n- Runs axe-core on each view; asserts 0 critical and 0 serious violations\n- Attaches traces/screenshots per _meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md\n\n## Files in scope\n- apps/web/e2e/settings/a-modals-parity.spec.ts [create]\n- apps/web/e2e/settings/fixtures/a-modals-seed.ts [create]\n\n## Acceptance criteria\n1. Given Playwright runs the parity spec for each screen, when compared to prototypes/design/Monopilot Design System/settings/modals.jsx:378-407,410-447,492-510, then screenshots match within tolerance per _meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md\n2. Given each screen is mounted, when axe-core runs, then 0 critical and 0 serious violations\n3. Closeout attaches Playwright traces/screenshots OR documents blocker + RTL/snapshot fallback\n\n## Risk red lines\n- Do not modify implementation code\n- Do not relax axe threshold\n- Do not run against shared/staging DB\n",
+  "labels": [
+    "settings",
+    "ui",
+    "settings-a-modals-parity",
+    "T4-wiring-test"
+  ],
+  "priority": 80,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-144",
+    "source_prd": "docs/prd/02-Settings-PRD.md",
+    "category": "test",
+    "subcategory": "a-modals-parity",
+    "task_type": "T4-wiring-test",
+    "parent_feature": "02-settings-a-modals",
+    "context_budget": "30k",
+    "estimated_effort": "2h",
+    "description": "Playwright screenshot parity + axe for 3 RBAC modals vs modals.jsx prototype.",
+    "scope_files": [
+      "apps/web/e2e/settings/a-modals-parity.spec.ts [create]",
+      "apps/web/e2e/settings/fixtures/a-modals-seed.ts [create]"
+    ],
+    "dependencies": [
+      "T-052",
+      "T-053",
+      "T-055"
+    ],
+    "acceptance_criteria": [
+      "Given Playwright runs parity spec, when compared to prototypes/design/Monopilot Design System/settings/modals.jsx:378-407,410-447,492-510, then screenshots match within tolerance per _meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md",
+      "Given each screen is mounted, when axe-core runs, then 0 critical and 0 serious violations",
+      "Closeout attaches Playwright traces/screenshots OR documents blocker + RTL/snapshot fallback evidence per parity policy"
+    ],
+    "risk_red_lines": [
+      "Do not modify implementation code",
+      "Do not relax axe threshold",
+      "Do not run against shared/staging DB"
+    ],
+    "prototype_match": true,
+    "prototype_index_entry": "user_invite_modal, role_assign_modal, password_reset_modal",
+    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md"
+  }
+}

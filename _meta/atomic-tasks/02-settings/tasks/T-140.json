@@ -1,0 +1,37 @@
+{
+  "title": "T-140 — ROOT: Rules/Reference Data UI (02-settings-d-ui) [T0-root]",
+  "prompt": "# T-140 — [GROUP] root descriptor for 02-settings-d-ui\n\nThis is a T0-root non-executable descriptor. Do not implement. The ACP pipeline skips this task at execution time; its only role is navigation context for agents.\n\n## Group\nRules/Reference Data UI\n\n## Description\nRules and reference data UI: Rules Registry, Rule Detail, Reference Data, Units/UoM, MfgOps List/Edit, Ref CSV Import Wizard, Rule Version Diff, Reference and MfgOps Audit Trails + modals + parity.\n\n## Child tasks (15)\n- T-047\n- T-056\n- T-057\n- T-063\n- T-064\n- T-067\n- T-073\n- T-077\n- T-078\n- T-096\n- T-108\n- T-114\n- T-115\n- T-149\n- T-150\n\n## Execution order\nDefault to the numerical order shown above; specific dependencies are encoded on each child task. Wiring/test tasks (T4) within this group should run after their parent T1/T2/T3 dependencies complete.\n\n## Completion signal\nThis root is complete when all child tasks listed above have status=done.\n",
+  "labels": [
+    "settings",
+    "T0-root",
+    "02-settings-d-ui"
+  ],
+  "priority": 0,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-140",
+    "source_prd": "docs/prd/02-Settings-PRD.md",
+    "task_type": "T0-root",
+    "parent_feature": "02-settings-d-ui",
+    "description": "Rules and reference data UI: Rules Registry, Rule Detail, Reference Data, Units/UoM, MfgOps List/Edit, Ref CSV Import Wizard, Rule Version Diff, Reference and MfgOps Audit Trails + modals + parity.",
+    "child_tasks": [
+      "T-047",
+      "T-056",
+      "T-057",
+      "T-063",
+      "T-064",
+      "T-067",
+      "T-073",
+      "T-077",
+      "T-078",
+      "T-096",
+      "T-108",
+      "T-114",
+      "T-115",
+      "T-149",
+      "T-150"
+    ],
+    "executable": false
+  }
+}

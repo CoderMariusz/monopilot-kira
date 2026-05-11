@@ -1,0 +1,34 @@
+{
+  "title": "T-133 — ROOT: Rules/Reference Data backend (02-settings-d) [T0-root]",
+  "prompt": "# T-133 — [GROUP] root descriptor for 02-settings-d\n\nThis is a T0-root non-executable descriptor. Do not implement. The ACP pipeline skips this task at execution time; its only role is navigation context for agents.\n\n## Group\nRules/Reference Data backend\n\n## Description\nRules registry and reference data backend: dry-run, versions, CSV import, allergens, UoM, MfgOps, audit trails.\n\n## Child tasks (12)\n- T-006\n- T-008\n- T-021\n- T-022\n- T-025\n- T-026\n- T-038\n- T-039\n- T-040\n- T-085\n- T-093\n- T-094\n\n## Execution order\nDefault to the numerical order shown above; specific dependencies are encoded on each child task. Wiring/test tasks (T4) within this group should run after their parent T1/T2/T3 dependencies complete.\n\n## Completion signal\nThis root is complete when all child tasks listed above have status=done.\n",
+  "labels": [
+    "settings",
+    "T0-root",
+    "02-settings-d"
+  ],
+  "priority": 0,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-133",
+    "source_prd": "docs/prd/02-Settings-PRD.md",
+    "task_type": "T0-root",
+    "parent_feature": "02-settings-d",
+    "description": "Rules registry and reference data backend: dry-run, versions, CSV import, allergens, UoM, MfgOps, audit trails.",
+    "child_tasks": [
+      "T-006",
+      "T-008",
+      "T-021",
+      "T-022",
+      "T-025",
+      "T-026",
+      "T-038",
+      "T-039",
+      "T-040",
+      "T-085",
+      "T-093",
+      "T-094"
+    ],
+    "executable": false
+  }
+}
