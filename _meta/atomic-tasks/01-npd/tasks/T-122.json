@@ -1,0 +1,88 @@
+{
+  "title": "T-122 — PARITY: Brief list + detail Playwright screenshot parity vs brief-screens.jsx — slice of T-034",
+  "prompt": "# T-122 — Brief module Playwright parity (slice of T-034)\n\nPRD: docs/prd/01-NPD-PRD.md §9.2\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\nParent root: T-034\nDepends on: T-119, T-120, T-121\n\n## Goal\nProduce Playwright browser screenshot parity for Brief list and Brief detail vs the prototype `prototypes/design/Monopilot Design System/npd/brief-screens.jsx` (list 7-82, detail 84-231). Run axe accessibility scan with 0 violations.\n\n## Implementation contract\n- Playwright spec under `apps/web/e2e/(npd)/briefs.parity.spec.ts` that:\n  - boots app with seeded brief data,\n  - visits `/(npd)/briefs` and captures a screenshot diff vs prototype reference (or baseline screenshot),\n  - visits `/(npd)/briefs/<id>` and captures detail screenshot,\n  - runs `@axe-core/playwright` on both pages and asserts 0 violations.\n- Attach traces/videos/screenshots to closeout per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`.\n- If Playwright is unavailable in the harness, document the blocker and provide RTL/snapshot fallback evidence.\n\n## Files in scope\n- `apps/web/e2e/(npd)/briefs.parity.spec.ts [create]`\n- `apps/web/e2e/(npd)/__fixtures__/briefs.ts [create-or-modify]`\n\n## Acceptance criteria\n1. Given Playwright runs the parity spec, when compared to brief-screens.jsx:7-82, then the brief list screenshot matches within tolerance.\n2. Given Playwright runs the parity spec, when compared to brief-screens.jsx:84-231, then the brief detail screenshot matches within tolerance.\n3. Given axe runs on both pages, when complete, then there are 0 violations on both.\n4. Closeout attaches Playwright traces/screenshots/videos OR documents a blocker + RTL/snapshot fallback evidence per the parity policy.\n\n## Test strategy\n- Run: `pnpm --filter web e2e -- briefs.parity`.\n- If headless browser missing, fall back to RTL snapshots and document deviation.\n\n## Risk red lines\n- Do not modify implementation code (T-119/T-120/T-121).\n- Do not lower axe threshold above 0.\n- Do not skip closeout artifact attachment.",
+  "labels": [
+    "prd",
+    "ui",
+    "brief-parity",
+    "T4-wiring-test",
+    "slice-of-T-034"
+  ],
+  "priority": 80,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-122",
+    "parent_task_id": "T-034",
+    "source_prd": "docs/prd/01-NPD-PRD.md",
+    "prd_refs": [
+      "§9.2"
+    ],
+    "category": "ui",
+    "subcategory": "brief-parity",
+    "task_type": "T4-wiring-test",
+    "parent_feature": "01-NPD-b brief UI",
+    "context_budget": "20k",
+    "estimated_effort": "1-2h",
+    "description": "Playwright screenshot parity + axe for brief list + detail vs brief-screens.jsx; 0 axe violations.",
+    "details": "Parity task. No implementation changes — only Playwright spec, fixtures, and parity artifacts.",
+    "scope_files": [
+      "apps/web/e2e/(npd)/briefs.parity.spec.ts [create]",
+      "apps/web/e2e/(npd)/__fixtures__/briefs.ts [create-or-modify]"
+    ],
+    "out_of_scope": [
+      "Do not modify implementation code (T-119/T-120/T-121)",
+      "Do not edit prototypes"
+    ],
+    "dependencies": [
+      "T-119",
+      "T-120",
+      "T-121"
+    ],
+    "parallel_safe_with": [],
+    "acceptance_criteria": [
+      "Given Playwright runs the parity spec, when compared to brief-screens.jsx:7-82, then the brief list screenshot matches within tolerance.",
+      "Given Playwright runs the parity spec, when compared to brief-screens.jsx:84-231, then the brief detail screenshot matches within tolerance.",
+      "Given axe runs on both pages, when complete, then 0 violations on both.",
+      "Closeout attaches Playwright traces/screenshots/videos OR documents a blocker + RTL/snapshot fallback evidence per parity policy."
+    ],
+    "test_strategy": [
+      "Run 'pnpm --filter web e2e -- briefs.parity'.",
+      "If headless browser missing, document blocker + fallback to RTL snapshots."
+    ],
+    "risk_red_lines": [
+      "Do not modify implementation code",
+      "Do not lower axe threshold above 0",
+      "Do not skip closeout artifact attachment"
+    ],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": true,
+    "prototype_index_entry": "brief_list",
+    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md"
+  }
+}
