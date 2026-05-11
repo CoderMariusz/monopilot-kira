@@ -1,0 +1,91 @@
+{
+  "title": "T-135 — PARITY: NPD Dashboard Playwright + axe parity (vs fa-screens.jsx:32-174) NPD-e slice of T-052",
+  "prompt": "# T-135 — Dashboard parity check\n\nPRD: docs/prd/01-NPD-PRD.md §11.1, §11.7 + `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\nPrototype: prototypes/design/Monopilot Design System/npd/fa-screens.jsx:32-174 (NpdDashboard)\nParent root: T-052\n\n## Goal\nPlaywright screenshot parity + axe-violations check for the assembled NPD Dashboard page against the NpdDashboard prototype region. Validates layout, all regions mount, and 0 critical/serious axe violations.\n\n## Implementation contract\n1. apps/web/e2e/npd/dashboard-parity.spec.ts: seeds dashboard summary + recent-projects fixture; visits /(npd) — captures full-page screenshot.\n2. Screenshot compared against the prototype snapshot region with the prototype-parity tolerance configured in repo Playwright config.\n3. axe-core run after mount; assert 0 critical and 0 serious violations.\n\n## Files\n- apps/web/e2e/npd/dashboard-parity.spec.ts [create]\n- apps/web/e2e/npd/fixtures/dashboard-seed.ts [create]\n\n## Acceptance criteria\n1. Given the /(npd) dashboard route renders, when Playwright captures a full-page screenshot, then it matches the fa-screens.jsx:32-174 prototype region within the configured parity tolerance per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`\n2. Given the dashboard page is mounted, when axe-core runs, then 0 critical and 0 serious violations are reported per the parity policy\n3. Given the seeded fixture is loaded, when the page renders, then DashboardCounters + DashboardPipelinePreview regions both appear in the expected layout order\n\n## Test strategy\n- RED: dashboard-parity.spec.ts before T-134 wiring closes; ensures wiring keeps the dashboard in parity\n- Run 'pnpm --filter web test:e2e dashboard-parity'\n\n## Risk red lines\n- Do not run against shared/staging DB — use isolated test container\n- Do not relax tolerance to make tests pass\n- Do not skip axe checks",
+  "labels": [
+    "prd",
+    "ui",
+    "dashboard-parity",
+    "T4-wiring-test",
+    "slice-of-T-052"
+  ],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-135",
+    "parent_task_id": "T-052",
+    "source_prd": "docs/prd/01-NPD-PRD.md",
+    "prd_refs": [
+      "§11.1",
+      "§11.7"
+    ],
+    "category": "test",
+    "subcategory": "dashboard-parity",
+    "task_type": "T4-wiring-test",
+    "parent_feature": "01-NPD-e Dashboard",
+    "parent_task": "T-052",
+    "context_budget": "30k",
+    "estimated_effort": "1h",
+    "description": "Playwright parity + axe for assembled /(npd) dashboard page vs fa-screens.jsx:32-174 prototype region.",
+    "details": "Seeds dashboard summary + recent-projects fixture; captures full-page screenshot; runs axe-core; asserts region order.",
+    "scope_files": [
+      "apps/web/e2e/npd/dashboard-parity.spec.ts [create]",
+      "apps/web/e2e/npd/fixtures/dashboard-seed.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not implement region components (T-132/T-133)",
+      "Do not implement the wiring (T-134)"
+    ],
+    "dependencies": [
+      "T-132",
+      "T-133",
+      "T-134"
+    ],
+    "parallel_safe_with": [],
+    "acceptance_criteria": [
+      "Given the /(npd) dashboard route renders, when Playwright captures a full-page screenshot, then it matches the fa-screens.jsx:32-174 prototype region within tolerance per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`",
+      "Given the dashboard page is mounted, when axe-core runs, then 0 critical and 0 serious violations are reported per the parity policy",
+      "Given the seeded fixture is loaded, when the page renders, then DashboardCounters + DashboardPipelinePreview regions both appear in the expected layout order",
+      "UI closeout includes screenshot/artifact evidence and Playwright trace/artifacts per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`."
+    ],
+    "test_strategy": [
+      "RED: dashboard-parity.spec.ts before T-134 wiring closes",
+      "Run 'pnpm --filter web test:e2e dashboard-parity'",
+      "Attach Playwright trace/video + axe reports to closeout."
+    ],
+    "risk_red_lines": [
+      "Do not run against shared/staging DB",
+      "Do not relax tolerance to pass tests",
+      "Do not skip axe checks"
+    ],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": true,
+    "prototype_index_entry": "npd_dashboard",
+    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md"
+  }
+}
