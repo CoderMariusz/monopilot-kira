@@ -1,0 +1,94 @@
+{
+  "title": "T-134 — WIRING: NPD Dashboard page assembly NPD-e slice of T-052",
+  "prompt": "# T-134 — NPD Dashboard page wiring\n\nPRD: docs/prd/01-NPD-PRD.md §11.1, §11.5, §11.7\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\nPrototype: prototypes/design/Monopilot Design System/npd/fa-screens.jsx:32-174 (NpdDashboard)\nParent root: T-052\n\n## Goal\nAssemble dashboard regions (T-132 KPI counters + T-133 Pipeline preview) into the /(npd) page (RSC) with data wiring (getDashboardSummary + recent projects query) and navigation links to /(npd)/pipeline and FA detail routes.\n\n## Implementation contract\n1. apps/web/app/(npd)/page.tsx (RSC) calls getDashboardSummary + getRecentNpdProjects in parallel; passes data to a Client wrapper.\n2. The Client wrapper renders DashboardCounters (from T-132) above DashboardPipelinePreview (from T-133); both consume the RSC-provided data via props.\n3. Navigation links in the preview region route to /(npd)/fa/[productCode] and /(npd)/pipeline correctly.\n4. RTL integration test verifies all regions mount and data flows from the page.tsx to the regions.\n\n## Files\n- apps/web/app/(npd)/page.tsx [modify]\n- apps/web/app/(npd)/_components/dashboard-client.tsx [create]\n- apps/web/app/(npd)/_components/__tests__/dashboard-client.test.tsx [create]\n\n## Acceptance criteria\n1. Given the /(npd) page renders, when both regions mount, then DashboardCounters + DashboardPipelinePreview appear in the documented layout order with data provided from the RSC page — verified by RTL integration test\n2. Given getDashboardSummary returns a summary, when the page renders, then summary values appear in DashboardCounters tiles — verified by RTL with mocked RSC data\n3. Given a user clicks the view-all pipeline link or a project row, when navigation triggers, then it routes to /(npd)/pipeline or /(npd)/fa/[productCode] respectively — verified by RTL link assertion\n\n## Test strategy\n- RED: dashboard-client.test.tsx asserting regions render, data flows from page, links route correctly before wiring exists\n- Run 'pnpm --filter web test dashboard-client'\n\n## Risk red lines\n- Do not duplicate region components here (use T-132 and T-133 outputs)\n- Do not call getDashboardSummary from a Client Component (RSC fetches it)\n- Do not break navigation contracts to FA detail or pipeline routes",
+  "labels": [
+    "prd",
+    "ui",
+    "dashboard-wiring",
+    "T4-wiring-test",
+    "slice-of-T-052"
+  ],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-134",
+    "parent_task_id": "T-052",
+    "source_prd": "docs/prd/01-NPD-PRD.md",
+    "prd_refs": [
+      "§11.1",
+      "§11.5",
+      "§11.7"
+    ],
+    "category": "ui",
+    "subcategory": "dashboard-wiring",
+    "task_type": "T4-wiring-test",
+    "parent_feature": "01-NPD-e Dashboard",
+    "parent_task": "T-052",
+    "context_budget": "35k",
+    "estimated_effort": "1.5h",
+    "description": "Wire DashboardCounters (T-132) + DashboardPipelinePreview (T-133) into /(npd) RSC page with data and navigation.",
+    "details": "RSC page.tsx fetches summary + recent projects in parallel; Client wrapper composes counters + preview regions; preview links route to /(npd)/fa/[productCode] and /(npd)/pipeline.",
+    "scope_files": [
+      "apps/web/app/(npd)/page.tsx [modify]",
+      "apps/web/app/(npd)/_components/dashboard-client.tsx [create]",
+      "apps/web/app/(npd)/_components/__tests__/dashboard-client.test.tsx [create]"
+    ],
+    "out_of_scope": [
+      "Do not implement DashboardCounters region (T-132)",
+      "Do not implement DashboardPipelinePreview region (T-133)",
+      "Do not run Playwright parity (T-135)",
+      "Do not implement Server Actions (T-051)"
+    ],
+    "dependencies": [
+      "T-132",
+      "T-133"
+    ],
+    "parallel_safe_with": [],
+    "acceptance_criteria": [
+      "Given the /(npd) page renders, when both regions mount, then DashboardCounters + DashboardPipelinePreview appear in the documented layout order with data from the RSC page — verified by RTL integration test",
+      "Given getDashboardSummary returns a summary, when the page renders, then summary values appear in DashboardCounters tiles — verified by RTL with mocked RSC data",
+      "Given a user clicks the view-all pipeline link or a project row, when navigation triggers, then it routes to /(npd)/pipeline or /(npd)/fa/[productCode] respectively — verified by RTL link assertion",
+      "UI closeout includes screenshot/artifact evidence per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`; if Playwright is unavailable, document the blocker and provide RTL/snapshot fallback."
+    ],
+    "test_strategy": [
+      "RED: dashboard-client.test.tsx asserting region composition + data flow + link routing before wiring exists",
+      "Run 'pnpm --filter web test dashboard-client'",
+      "Capture RTL snapshot artifact for closeout."
+    ],
+    "risk_red_lines": [
+      "Do not duplicate region components here",
+      "Do not call getDashboardSummary from a Client Component",
+      "Do not break navigation contracts"
+    ],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": true,
+    "prototype_index_entry": "npd_dashboard",
+    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md"
+  }
+}

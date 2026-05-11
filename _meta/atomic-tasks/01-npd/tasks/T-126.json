@@ -1,0 +1,90 @@
+{
+  "title": "T-126 — WIRING: D365 modals wire into FA detail + Build/Wizard launch + SSE — slice of T-046",
+  "prompt": "# T-126 — D365 modal wiring (slice of T-046)\n\nPRD: docs/prd/01-NPD-PRD.md §10.6, §10.6.1\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\nParent root: T-046\nDepends on: T-123 (Build modal), T-124 (Wizard 1-4), T-125 (Wizard 5-8 + SSE)\n\n## Goal\nWire D365 Build modal and 8-step Wizard modal into the FA detail page so the Build button opens D365BuildModal, the wizard launches from the Build modal (or its own entry), and SSE connects end-to-end. No console errors during the flow.\n\n## Implementation contract\n- Add Build entry point in FA detail (the appropriate D365 tab) that opens `D365BuildModal` via URL param `?modal=d365Build`.\n- Add path from Build modal to Wizard launch (`?modal=d365Wizard`) and ensure both reuse the SSE route from T-125.\n- Ensure RSC pre-fetches BOM preview / allergen / constants and passes as props to the modals.\n- Wiring test covers: open Build modal from FA detail, transition to Wizard, SSE connection established, no console errors.\n\n## Files in scope\n- `apps/web/app/(npd)/fa/[id]/_tabs/<d365-tab>.tsx [modify]` (Build button → modal trigger)\n- `apps/web/app/(npd)/fa/[id]/page.tsx [modify]` (modal URL param parsing if needed)\n- `apps/web/app/(npd)/_modals/__tests__/d365-wiring.test.tsx [create]`\n\n## Acceptance criteria\n1. Given the user is on FA detail, when they click Build, then `D365BuildModal` opens (URL contains `?modal=d365Build`).\n2. Given the Build modal exposes a Launch Wizard control (or the FA exposes a wizard entry), when activated, then `D365WizardModal` opens and the SSE connection to `/(npd)/fa/d365-progress-stream` is established.\n3. Given the flow completes from FA → Build modal → Wizard, when observed, then no console errors occur and modals close cleanly.\n4. UI closeout includes wiring test results and any Playwright traces produced.\n\n## Test strategy (RED first)\n- RED: `d365-wiring.test.tsx` covering FA → Build modal, Build → Wizard, SSE connection assertion.\n- Run: `pnpm --filter web test d365-wiring`.\n\n## Risk red lines\n- Do not modify modal component internals beyond minimal hooks (changes belong in T-123/T-124/T-125)\n- Do not bypass MFA before invoking execute phase\n- Do not run Playwright parity here (T-127)",
+  "labels": [
+    "prd",
+    "ui",
+    "d365-wiring",
+    "T4-wiring-test",
+    "slice-of-T-046"
+  ],
+  "priority": 90,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-126",
+    "parent_task_id": "T-046",
+    "source_prd": "docs/prd/01-NPD-PRD.md",
+    "prd_refs": [
+      "§10.6",
+      "§10.6.1"
+    ],
+    "category": "ui",
+    "subcategory": "d365-wiring",
+    "task_type": "T4-wiring-test",
+    "parent_feature": "01-NPD-d UI",
+    "context_budget": "25k",
+    "estimated_effort": "1-2h",
+    "description": "Wire D365 Build + Wizard modals into FA detail; SSE connects end-to-end; no console errors.",
+    "details": "Wiring task. Connects T-123/T-124/T-125 into the FA detail page. URL-param modal opens; RSC pre-fetches inputs.",
+    "scope_files": [
+      "apps/web/app/(npd)/fa/[id]/_tabs/ [modify relevant D365 tab]",
+      "apps/web/app/(npd)/fa/[id]/page.tsx [modify]",
+      "apps/web/app/(npd)/_modals/__tests__/d365-wiring.test.tsx [create]"
+    ],
+    "out_of_scope": [
+      "Do not modify modal component internals beyond minimal hooks",
+      "Do not run Playwright parity (T-127)"
+    ],
+    "dependencies": [
+      "T-123",
+      "T-124",
+      "T-125"
+    ],
+    "parallel_safe_with": [],
+    "acceptance_criteria": [
+      "Given the user is on FA detail, when they click Build, then D365BuildModal opens (URL contains ?modal=d365Build).",
+      "Given the Build modal exposes Launch Wizard (or FA exposes wizard entry), when activated, then D365WizardModal opens and SSE connection to /(npd)/fa/d365-progress-stream is established.",
+      "Given the flow completes from FA → Build → Wizard, when observed, then no console errors and modals close cleanly.",
+      "UI closeout includes wiring test results and any Playwright traces produced."
+    ],
+    "test_strategy": [
+      "RED: d365-wiring.test.tsx covering FA → Build, Build → Wizard, SSE connection.",
+      "Run 'pnpm --filter web test d365-wiring'."
+    ],
+    "risk_red_lines": [
+      "Do not modify modal internals beyond minimal hooks",
+      "Do not bypass MFA before invoking execute phase",
+      "Do not run Playwright parity here"
+    ],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": false,
+    "prototype_index_entry": "d365_build_modal",
+    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md"
+  }
+}
