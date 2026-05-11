@@ -1,0 +1,94 @@
+{
+  "title": "T-116 — UI: CompositionBar (horizontal stacked %-by-ingredient bar) (NPD-g)",
+  "prompt": "# T-116 — CompositionBar slice\n\nPRD: docs/prd/01-NPD-PRD.md §17.11.1\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\nPrototype: prototypes/design/Monopilot Design System/npd/recipe.jsx:230-250 (composition stacked bar inside RecipeScreen)\nPrototype-index entry: recipe_screen (parent screen containing the inline composition bar)\n\n## Goal\nSingle-component slice extracting the horizontal stacked composition bar from the prototype into a standalone Client Component. Each segment represents one ingredient (or ingredient category), width proportional to pct/totalPct, color-cycled from a 10-color palette. Below the bar a legend renders a swatch + 'name pct%' chip for each ingredient with pct > 0.5. Fully accessible (aria-label per segment + aria-live polite on the bar).\n\n## Implementation contract\n- apps/web/app/(npd)/formulations/[id]/editor/_components/composition-bar.tsx ('use client'). Props: { segments: CompositionSegment[] } where CompositionSegment = { id: string, name: string, pct: number, categoryColor?: string }.\n- Render a 24px-tall flex container with border + rounded; each segment a div with style.width = `${(pct / totalPct) * 100}%` and background from segment.categoryColor or fallback palette by index.\n- Legend below: flex flex-wrap gap-2 chips with 8px swatch + 'name pct%' text. Only segments with pct > 0.5 appear in the legend (prototype rule).\n- Accessibility: each bar segment has aria-label='{name}: {pct}%'; container has role='img' aria-label='Ingredient composition'.\n\n## Files (≤ 3)\n- apps/web/app/(npd)/formulations/[id]/editor/_components/composition-bar.tsx [create]\n- apps/web/app/(npd)/formulations/[id]/editor/_components/__tests__/composition-bar.test.tsx [create]\n\n## Acceptance criteria\n1. Given the bar renders with N segments summing to 100%, when compared to prototypes/design/Monopilot Design System/npd/recipe.jsx:230-250 (composition bar), then segment widths match each segment's pct/totalPct ratio and colors cycle through the 10-color palette — verified by RTL inline style assertion\n2. Given the parent formulation state changes (new segments prop), when the bar re-renders, then segment widths and legend update reactively — verified by RTL rerender test\n3. Given the bar renders, then each segment has an aria-label '{name}: {pct}%' and the container has role='img' aria-label='Ingredient composition' — verified by jest-axe (0 violations) + RTL attribute assertion\n4. Given the legend renders, then only segments with pct > 0.5 appear as chips, and each chip shows a colored swatch + 'name pct%' text — verified by RTL\n\n## Test strategy\n- RED: composition-bar.test.tsx asserting segment widths, palette cycling, reactive rerender, a11y aria-label, legend threshold — before component exists\n- Run 'pnpm --filter web test composition-bar'\n\n## Risk red lines\n- Do not rely on color alone — aria-label per segment is mandatory\n- Do not own composition state — controlled via props\n- Do not paste prototype JSX verbatim",
+  "labels": [
+    "prd",
+    "ui",
+    "formulation-panels",
+    "T3-ui"
+  ],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-116",
+    "source_prd": "docs/prd/01-NPD-PRD.md",
+    "prd_refs": [
+      "§17.11.1"
+    ],
+    "category": "ui",
+    "subcategory": "formulation-panels",
+    "task_type": "T3-ui",
+    "parent_feature": "01-NPD-g Recipe Formulation Editor",
+    "parent_task": "T-067",
+    "context_budget": "30k",
+    "estimated_effort": "1h",
+    "description": "CompositionBar slice: horizontal stacked %-by-ingredient bar + legend, reactive to formulation, fully accessible.",
+    "details": "Translate inline composition bar (recipe.jsx:230-250) into standalone Client Component. 24px tall, segment widths proportional to pct/totalPct, 10-color palette cycle. Legend shows only segments with pct > 0.5. aria-label per segment + role='img' on container.",
+    "scope_files": [
+      "apps/web/app/(npd)/formulations/[id]/editor/_components/composition-bar.tsx [create]",
+      "apps/web/app/(npd)/formulations/[id]/editor/_components/__tests__/composition-bar.test.tsx [create]"
+    ],
+    "out_of_scope": [
+      "Do not implement NutritionPanel (T-113)",
+      "Do not implement CostPanel (T-114)",
+      "Do not implement AllergenPanel (T-115)",
+      "Do not wire into editor page (T-117)",
+      "Do not run Playwright parity (T-118)"
+    ],
+    "dependencies": [
+      "T-065"
+    ],
+    "parallel_safe_with": [
+      "T-113",
+      "T-114",
+      "T-115"
+    ],
+    "acceptance_criteria": [
+      "Given the bar renders with N segments, when compared to prototypes/design/Monopilot Design System/npd/recipe.jsx:230-250, then segment widths match pct/totalPct ratios with palette colors cycled — verified by RTL inline style assertion",
+      "Given the parent formulation state changes, when the bar re-renders, then segment widths and legend update reactively — verified by RTL rerender",
+      "Given the bar renders, then each segment has aria-label '{name}: {pct}%' and container has role='img' aria-label='Ingredient composition' — verified by jest-axe (0 violations)",
+      "Given the legend renders, then only segments with pct > 0.5 appear with swatch + 'name pct%' text — verified by RTL",
+      "UI closeout includes screenshot/artifact evidence per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`; if Playwright is unavailable, document the blocker and provide RTL/snapshot fallback."
+    ],
+    "test_strategy": [
+      "RED: composition-bar.test.tsx asserting widths + palette + reactive rerender + a11y + legend threshold",
+      "Run 'pnpm --filter web test composition-bar'",
+      "Run jest-axe assertion; capture RTL snapshot artifact for parity closeout."
+    ],
+    "risk_red_lines": [
+      "Do not rely on color alone — aria-label per segment mandatory",
+      "Do not own composition state — controlled via props",
+      "Do not paste prototype JSX verbatim"
+    ],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": true,
+    "prototype_index_entry": "recipe_screen",
+    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md"
+  }
+}

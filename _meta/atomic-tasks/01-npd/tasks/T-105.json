@@ -1,0 +1,94 @@
+{
+  "title": "T-105 — WIRING: FA planning/commercial tabs — wire MRP + Procurement + Commercial + Planning tabs into FA detail",
+  "prompt": "# T-105 — WIRING: FA planning/commercial tabs into FA detail page (slice of T-025)\n\nPRD: docs/prd/01-NPD-PRD.md §5.4-§5.9\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\nPrototype: prototypes/design/Monopilot Design System/npd/fa-screens.jsx:537-838 (covers Planning 537-557, Commercial 559-586, MRP 763-804, Procurement 806-838) — tab nav at 314-403\nParent root: T-025\n\n## Goal\nWire the 4 tab slices (T-101 MRP, T-102 Procurement, T-103 Commercial, T-104 Planning) into the FA detail page. Add tab triggers in the FA tabs nav (in correct order from prototype 314-315: planning → commercial → mrp → procurement, after core/production), pass shared FA data via props, and ensure Core-close gate locks Planning + Commercial tabs when `!coreDone`.\n\n## Implementation contract\nModify `apps/web/app/(npd)/fa/[id]/page.tsx` to import and render each tab component based on the active tab. Modify `apps/web/app/(npd)/fa/[id]/_tabs/fa-tabs.tsx` (tab nav) to add TabsTrigger for planning, commercial, mrp, procurement in the correct order, with locked state from coreDone (planning + commercial) per prototype 314-315. Shared FA entity, closed_* flags, brief_id, suppliers reference, D365 cache data flow from page server component into each tab via props. No console errors on tab switching.\n\n## Files in scope\n- `apps/web/app/(npd)/fa/[id]/page.tsx [modify]`\n- `apps/web/app/(npd)/fa/[id]/_tabs/fa-tabs.tsx [modify]`\n- `apps/web/app/(npd)/fa/[id]/_tabs/__tests__/fa-tabs-wiring.test.tsx [create]`\n- `prototypes/design/Monopilot Design System/npd/fa-screens.jsx [ref]`\n\n## Acceptance criteria\n1. Given the FA detail page renders, when navigating tabs, then all 4 tabs (Planning, Commercial, MRP, Procurement) render in correct order matching prototype tabs array (lines 314-315), tab switching works without console errors, and the active tab content matches the active tab key.\n2. Given Core is not closed (coreDone=false), when rendering the tab nav, then Planning and Commercial tab triggers are locked (disabled with lock indicator) per prototype 314-315; MRP and Procurement remain selectable.\n3. Given a tab is active, when the page server component loads, then the shared FA data (fa entity, closed_* flags, brief_id, suppliers, d365 cache) is passed to the tab component via props.\n4. Wiring test asserts each tab component is rendered with the correct props for its active key; no missing imports; no console.error during tab switching.\n\n## Test strategy (RED first)\n- RED: RTL/integration test that mounts page with mocked FA data, asserts tab order + locked state under !coreDone, switches tabs and verifies each tab component receives expected props with no console errors.\n- Run: `pnpm --filter web test fa-tabs-wiring`.\n\n## Risk red lines\n- Do not modify the individual tab components (T-101..T-104 own them)\n- Do not bypass Core-close gate on Planning + Commercial\n- Do not duplicate shared data fetching across tabs (single server-component query in page.tsx)",
+  "labels": [
+    "prd",
+    "ui",
+    "fa-tabs",
+    "wiring",
+    "T4-wiring-test"
+  ],
+  "priority": 50,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-105",
+    "parent_task_id": "T-025",
+    "source_prd": "docs/prd/01-NPD-PRD.md",
+    "prd_refs": [
+      "§5.4",
+      "§5.5",
+      "§5.8",
+      "§5.9"
+    ],
+    "category": "ui",
+    "subcategory": "fa-tabs-wiring",
+    "task_type": "T4-wiring-test",
+    "parent_feature": "01-npd-fa",
+    "context_budget": "30k",
+    "estimated_effort": "1-2h",
+    "description": "Wire 4 tab slices (T-101..T-104) into FA detail page + tabs nav with correct order and Core-close gate on Planning/Commercial.",
+    "details": "Modify page.tsx and fa-tabs.tsx only. Each tab component is imported from its slice file. Single server-side data fetch in page.tsx; props flow down.",
+    "scope_files": [
+      "apps/web/app/(npd)/fa/[id]/page.tsx [modify]",
+      "apps/web/app/(npd)/fa/[id]/_tabs/fa-tabs.tsx [modify]",
+      "apps/web/app/(npd)/fa/[id]/_tabs/__tests__/fa-tabs-wiring.test.tsx [create]",
+      "prototypes/design/Monopilot Design System/npd/fa-screens.jsx [ref]"
+    ],
+    "out_of_scope": [
+      "Do not modify tab component files (T-101..T-104)",
+      "Do not run Playwright parity (T-106)"
+    ],
+    "dependencies": [
+      "T-101",
+      "T-102",
+      "T-103",
+      "T-104"
+    ],
+    "parallel_safe_with": [],
+    "acceptance_criteria": [
+      "Given the FA detail page renders, when navigating tabs, then all 4 tabs render in correct order matching prototype 314-315 with no console errors.",
+      "Given coreDone=false, when rendering tab nav, then Planning and Commercial triggers are locked; MRP and Procurement remain selectable.",
+      "Given a tab is active, when server component loads, then shared FA data is passed to the tab via props (single fetch, no duplicate queries).",
+      "Wiring test asserts each tab gets correct props with no console.error during switching."
+    ],
+    "test_strategy": [
+      "RED: integration test for tab order, locked state, prop passing, no console errors.",
+      "Run 'pnpm --filter web test fa-tabs-wiring'."
+    ],
+    "risk_red_lines": [
+      "Do not modify individual tab components",
+      "Do not bypass Core-close gate",
+      "Do not duplicate shared data fetching"
+    ],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": true,
+    "prototype_index_entry": "fa_mrp_tab",
+    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md"
+  }
+}

@@ -1,0 +1,97 @@
+{
+  "title": "T-103 — UI: FA Commercial tab (fa_commercial_tab) — schema-driven form with V08 launch date rule",
+  "prompt": "# T-103 — FA Commercial tab UI (slice of T-025)\n\nPRD: docs/prd/01-NPD-PRD.md §5.5 + UX fa_commercial_tab\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\nPrototype: prototypes/design/Monopilot Design System/npd/fa-screens.jsx:559-586 (FACommercialTab)\nParent root: T-025\n\n## Goal\nClient component for FA Commercial dept rendering 7 fields (Launch Date, Department number, Article number, Bar codes GS1, Cases/week W1/W2/W3) with V08 rule: when `fa.brief_id` is present, Launch Date must be ≥ 24 weeks from Brief handoff and the earliest allowed date is shown. Uses buildDeptZod('Commercial') + updateFaCell per dirty field.\n\n## Prototype reference\n**Source:** `prototypes/design/Monopilot Design System/npd/fa-screens.jsx:559-586`\n- closed_commercial badge in card-head (Yes → green Closed badge, else gray Open)\n- When `fa.brief_id` present: blue Alert 'V08 · Launch Date must be ≥ 24 weeks from Brief handoff. Earliest: {earliest}'\n- 7 fields in form-grid: Launch Date (date input), Department number, Article number, Bar codes GS1 (mono), Cases/week W1, W2, W3 (number)\n- Save Commercial + Close Commercial section buttons\n\n## Implementation contract\nNew `apps/web/app/(npd)/fa/[id]/_tabs/commercial-tab.tsx` 'use client'. RHF + zodResolver(buildDeptZod('Commercial')). `earliest` computed in server component from brief handoff date + 24 weeks; passed as prop. Save calls `updateFaCell` per dirty field; Server Action validates launch_date >= earliest if brief_id present. shadcn Form/FormField/Input/Button/Alert primitives; Bar codes uses mono font (font-mono).\n\n## Files in scope\n- `apps/web/app/(npd)/fa/[id]/_tabs/commercial-tab.tsx [create]`\n- `apps/web/app/(npd)/fa/[id]/_tabs/__tests__/commercial-tab.test.tsx [create]`\n- `prototypes/design/Monopilot Design System/npd/fa-screens.jsx [ref]`\n\n## Acceptance criteria\n1. Given the Commercial tab renders, when compared to fa-screens.jsx:559-586 (FACommercialTab), then it shows the 7 fields (Launch Date, Department number, Article number, Bar codes GS1, Cases W1/W2/W3) in correct order with closed_commercial badge, and uses shadcn Form/FormField/Input/Alert primitives — verified by RTL parity checklist (structural + visual + interaction).\n2. Given `fa.brief_id` is present and the user enters a Launch Date earlier than `earliest`, when validating, then V08 alert is shown and the Server Action `updateFaCell` rejects the launch_date change with an explanatory error.\n3. Given user edits Cases/week W1 and saves, when Server Action runs, then `updateFaCell` is called for `cases_week_1` only and the closed_commercial badge state is unchanged.\n4. UI closeout includes screenshot/artifact evidence and Playwright trace/artifacts where applicable per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`.\n\n## Test strategy (RED first)\n- RED: 3 RTL tests for 7-field parity, V08 launch-date rejection with brief_id, single-field save.\n- Run: `pnpm --filter web test commercial-tab`.\n- For UI parity, capture screenshots/artifacts and Playwright trace/video/artifacts where applicable; attach artifact paths in closeout.\n\n## Risk red lines\n- Do not implement other tabs in this slice\n- Do not bypass V08 (must validate launch_date >= earliest when brief_id present)\n- Do not hardcode earliest date (derive from brief handoff + 24 weeks)",
+  "labels": [
+    "prd",
+    "ui",
+    "fa-commercial-tab",
+    "T3-ui"
+  ],
+  "priority": 50,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-103",
+    "parent_task_id": "T-025",
+    "source_prd": "docs/prd/01-NPD-PRD.md",
+    "prd_refs": [
+      "§5.5"
+    ],
+    "category": "ui",
+    "subcategory": "fa-commercial-tab",
+    "task_type": "T3-ui",
+    "parent_feature": "01-npd-fa",
+    "context_budget": "40k",
+    "estimated_effort": "1-3h",
+    "description": "FA Commercial tab slice: 7 fields with V08 (Launch Date ≥ 24 weeks from Brief handoff) rule.",
+    "details": "One tab, one file. Parity vs fa-screens.jsx:559-586. earliest computed server-side from brief handoff; V08 enforced both client + server-side.",
+    "scope_files": [
+      "apps/web/app/(npd)/fa/[id]/_tabs/commercial-tab.tsx [create]",
+      "apps/web/app/(npd)/fa/[id]/_tabs/__tests__/commercial-tab.test.tsx [create]",
+      "prototypes/design/Monopilot Design System/npd/fa-screens.jsx [ref]"
+    ],
+    "out_of_scope": [
+      "Do not implement MRP tab (T-101)",
+      "Do not implement Procurement tab (T-102)",
+      "Do not implement Planning tab (T-104)",
+      "Do not wire into FA detail page (T-105)",
+      "Do not run Playwright parity (T-106)"
+    ],
+    "dependencies": [
+      "T-009",
+      "T-014",
+      "T-016",
+      "T-020"
+    ],
+    "parallel_safe_with": [
+      "T-101",
+      "T-102",
+      "T-104"
+    ],
+    "acceptance_criteria": [
+      "Given the Commercial tab renders, when compared to fa-screens.jsx:559-586, then it shows 7 fields in correct order with closed_commercial badge and uses shadcn primitives — verified by RTL parity checklist (structural + visual + interaction).",
+      "Given fa.brief_id is present and Launch Date < earliest, when validating, then V08 alert shows and updateFaCell rejects the launch_date change.",
+      "Given user edits Cases/week W1 and saves, when Server Action runs, then updateFaCell is called for cases_week_1 only.",
+      "UI closeout includes screenshot/artifact evidence and Playwright trace/artifacts where applicable per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`."
+    ],
+    "test_strategy": [
+      "RED: 3 RTL tests for 7-field parity, V08 launch-date rejection, single-field save.",
+      "Run 'pnpm --filter web test commercial-tab'.",
+      "Capture screenshots/Playwright artifacts in closeout."
+    ],
+    "risk_red_lines": [
+      "Do not implement other tabs in this slice",
+      "Do not bypass V08 launch-date rule",
+      "Do not hardcode earliest date"
+    ],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": true,
+    "prototype_index_entry": "fa_commercial_tab",
+    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md"
+  }
+}

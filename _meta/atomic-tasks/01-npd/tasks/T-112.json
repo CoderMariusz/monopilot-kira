@@ -1,0 +1,89 @@
+{
+  "title": "T-112 — PARITY: Gate screen components — browser screenshot parity vs prototype gate-screens.jsx:106-616",
+  "prompt": "# T-112 — Browser parity for the Gate screen components\n\nPRD: docs/prd/01-NPD-PRD.md §17.6, §17.7\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\nParent root: T-061\nDepends on: T-111 (wiring)\nPrototype reference: prototypes/design/Monopilot Design System/npd/gate-screens.jsx:106-616\n\n## Goal\nRun Playwright screenshots of the production gate route and compare structurally/visually/interactively to the prototype gate-screens.jsx:106-616 covering all four components (GateChecklistPanel, AdvanceGateModal, GateApprovalModal, ApprovalHistoryTimeline). Run axe-core on the route and on each modal-open state; expect 0 violations.\n\n## Implementation contract\n1. apps/web/tests/e2e/npd-gate-screens.spec.ts (Playwright) navigates to /projects/[id]/gate/[gateId]; takes screenshots for: panel default, panel with blockers, AdvanceGateModal open, GateApprovalModal open (approve step), GateApprovalModal open (e-sig overlay), ApprovalHistoryTimeline with eSigned expanded.\n2. Each screenshot is checked into _meta/parity-artifacts/01-npd/gate-screens/.\n3. axe-core run against the loaded route and again after opening each modal; expect 0 violations.\n4. Parity checklist file _meta/parity-artifacts/01-npd/gate-screens/PARITY-CHECKLIST.md ticks structural/visual/interaction/data parity rows against prototype lines.\n\n## Files\n- apps/web/tests/e2e/npd-gate-screens.spec.ts [create]\n- _meta/parity-artifacts/01-npd/gate-screens/PARITY-CHECKLIST.md [create]\n- _meta/parity-artifacts/01-npd/gate-screens/*.png [create]\n\n## Acceptance criteria\n1. Given Playwright executes npd-gate-screens.spec.ts, when each screenshot is captured (panel default, panel-with-blockers, AdvanceGateModal, GateApprovalModal-decision, GateApprovalModal-esig, ApprovalHistoryTimeline-expanded), then artifacts are saved under _meta/parity-artifacts/01-npd/gate-screens/ and committed.\n2. Given the parity checklist runs against prototype gate-screens.jsx:106-616, when structural/visual/interaction/data parity rows are evaluated, then all rows are ticked or have a recorded deviation note with PRD justification.\n3. Given axe-core runs against the loaded route + each modal-open state, when results are collected, then there are 0 violations on the route and 0 violations on each modal open state.\n\n## Test strategy\n- Run 'pnpm --filter web exec playwright test npd-gate-screens'\n- Run axe via @axe-core/playwright integrated in the spec.\n\n## Risk red lines\n- Do not change component or wiring files under this task (T-107..T-111 own those).\n- Do not skip axe checks on modal-open states.",
+  "labels": [
+    "prd",
+    "parity",
+    "gate-screen",
+    "T4-wiring-test",
+    "slice-of-T-061"
+  ],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-112",
+    "parent_task_id": "T-061",
+    "source_prd": "docs/prd/01-NPD-PRD.md",
+    "prd_refs": [
+      "§17.6",
+      "§17.7"
+    ],
+    "category": "parity",
+    "subcategory": "gate-screen-browser-parity",
+    "task_type": "T4-wiring-test",
+    "parent_feature": "01-NPD-f Stage-Gate Pipeline",
+    "context_budget": "25k",
+    "estimated_effort": "2h",
+    "description": "Playwright screenshot parity vs gate-screens.jsx:106-616 plus axe-core on the route and on each modal-open state (0 violations expected).",
+    "details": "Captures screenshots for: panel default + blockers, AdvanceGateModal open, GateApprovalModal decision + e-sig overlay, ApprovalHistoryTimeline eSigned expanded. Saves artifacts to _meta/parity-artifacts/01-npd/gate-screens/. Runs axe on route and each modal.",
+    "scope_files": [
+      "apps/web/tests/e2e/npd-gate-screens.spec.ts [create]",
+      "_meta/parity-artifacts/01-npd/gate-screens/PARITY-CHECKLIST.md [create]",
+      "_meta/parity-artifacts/01-npd/gate-screens/ [artifacts]"
+    ],
+    "out_of_scope": [
+      "Do not modify component files (T-107..T-110)",
+      "Do not modify the wiring page (T-111)",
+      "Do not implement Server Actions (T-058)"
+    ],
+    "dependencies": [
+      "T-111"
+    ],
+    "parallel_safe_with": [],
+    "acceptance_criteria": [
+      "Given Playwright executes npd-gate-screens.spec.ts, when each screenshot is captured (panel default, panel-with-blockers, AdvanceGateModal, GateApprovalModal-decision, GateApprovalModal-esig, ApprovalHistoryTimeline-expanded), then artifacts are saved under _meta/parity-artifacts/01-npd/gate-screens/ and committed",
+      "Given the parity checklist runs against prototype gate-screens.jsx:106-616, when structural/visual/interaction/data parity rows are evaluated, then all rows are ticked or have a recorded deviation note with PRD justification",
+      "Given axe-core runs against the loaded route + each modal-open state, when results are collected, then there are 0 violations on the route and 0 violations on each modal open state",
+      "UI closeout includes screenshot/artifact evidence and Playwright trace/artifacts where applicable per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`; if Playwright is unavailable, document the blocker and provide RTL/snapshot fallback evidence."
+    ],
+    "test_strategy": [
+      "Run 'pnpm --filter web exec playwright test npd-gate-screens'",
+      "Run axe via @axe-core/playwright integrated in the spec",
+      "For UI parity, capture screenshots/artifacts and Playwright trace/video/artifacts where applicable; attach artifact paths in closeout."
+    ],
+    "risk_red_lines": [
+      "Do not change component or wiring files under this task",
+      "Do not skip axe checks on modal-open states"
+    ],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": true,
+    "prototype_index_entry": "gate_checklist_panel",
+    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md"
+  }
+}

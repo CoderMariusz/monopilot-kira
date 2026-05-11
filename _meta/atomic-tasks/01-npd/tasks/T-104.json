@@ -1,0 +1,97 @@
+{
+  "title": "T-104 — UI: FA Planning tab (fa_planning_tab) — schema-driven form",
+  "prompt": "# T-104 — FA Planning tab UI (slice of T-025)\n\nPRD: docs/prd/01-NPD-PRD.md §5.4 + UX fa_planning_tab\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\nPrototype: prototypes/design/Monopilot Design System/npd/fa-screens.jsx:537-557 (FAPlanningTab)\nParent root: T-025\n\n## Goal\nClient component for FA Planning dept rendering 3 fields (Meat %, Runs per week, Date codes per week) plus the Technical BOM v1 transition note. Tab is gated behind Core close (coreDone) — when Core not closed, tab is locked at the parent level (handled by T-105 wiring). Uses buildDeptZod('Planning') + updateFaCell per dirty field.\n\n## Prototype reference\n**Source:** `prototypes/design/Monopilot Design System/npd/fa-screens.jsx:537-557`\n- closed_planning badge in card-head (Yes → green Closed badge, else gray Open)\n- 3 fields in form-grid: Meat % (number, defaultValue fa.meat_pct), Runs per week (number), Date codes per week (text, e.g. 'Mon,Wed,Fri')\n- Blue alert: 'When FA is launched it transitions to Technical BOM v1 adopted by the Planning module (see Planning / Products)'\n- Save Planning + Close Planning section buttons\n\n## Implementation contract\nNew `apps/web/app/(npd)/fa/[id]/_tabs/planning-tab.tsx` 'use client'. RHF + zodResolver(buildDeptZod('Planning')). Save calls `updateFaCell` per dirty field. Close Planning triggers deptClose modal via URL param. Tab assumes Core closed (parent gate is in T-105 wiring). shadcn Form/FormField/Input/Button/Alert primitives.\n\n## Files in scope\n- `apps/web/app/(npd)/fa/[id]/_tabs/planning-tab.tsx [create]`\n- `apps/web/app/(npd)/fa/[id]/_tabs/__tests__/planning-tab.test.tsx [create]`\n- `prototypes/design/Monopilot Design System/npd/fa-screens.jsx [ref]`\n\n## Acceptance criteria\n1. Given the Planning tab renders, when compared to fa-screens.jsx:537-557 (FAPlanningTab), then it shows the 3 fields (Meat %, Runs per week, Date codes per week) in correct order with closed_planning badge, the Technical BOM v1 blue Alert, and uses shadcn Form/FormField/Input/Alert primitives — verified by RTL parity checklist (structural + visual + interaction).\n2. Given user changes Meat % and saves, when Server Action runs, then `updateFaCell` is called for `meat_pct` only and the DB row updates.\n3. Given closed_planning='Yes', when rendered, then the closed badge shows in green and Save/Close buttons are still rendered (close gate is enforced by parent wiring not by this tab).\n4. UI closeout includes screenshot/artifact evidence and Playwright trace/artifacts where applicable per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`.\n\n## Test strategy (RED first)\n- RED: 3 RTL tests for 3-field parity, single-field save (meat_pct), closed badge rendering.\n- Run: `pnpm --filter web test planning-tab`.\n- For UI parity, capture screenshots/artifacts and Playwright trace/video/artifacts where applicable; attach artifact paths in closeout.\n\n## Risk red lines\n- Do not implement other tabs in this slice\n- Do not duplicate the field definitions (use buildDeptZod + DeptColumns)\n- Do not implement the Core-close gate inside this tab (parent wiring handles it)",
+  "labels": [
+    "prd",
+    "ui",
+    "fa-planning-tab",
+    "T3-ui"
+  ],
+  "priority": 50,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-104",
+    "parent_task_id": "T-025",
+    "source_prd": "docs/prd/01-NPD-PRD.md",
+    "prd_refs": [
+      "§5.4"
+    ],
+    "category": "ui",
+    "subcategory": "fa-planning-tab",
+    "task_type": "T3-ui",
+    "parent_feature": "01-npd-fa",
+    "context_budget": "40k",
+    "estimated_effort": "1-3h",
+    "description": "FA Planning tab slice: 3 fields (Meat %, Runs/week, Date codes/week) + Technical BOM v1 transition note.",
+    "details": "One tab, one file. Parity vs fa-screens.jsx:537-557. Core-close gate is handled by parent wiring (T-105), not this tab.",
+    "scope_files": [
+      "apps/web/app/(npd)/fa/[id]/_tabs/planning-tab.tsx [create]",
+      "apps/web/app/(npd)/fa/[id]/_tabs/__tests__/planning-tab.test.tsx [create]",
+      "prototypes/design/Monopilot Design System/npd/fa-screens.jsx [ref]"
+    ],
+    "out_of_scope": [
+      "Do not implement MRP tab (T-101)",
+      "Do not implement Procurement tab (T-102)",
+      "Do not implement Commercial tab (T-103)",
+      "Do not wire into FA detail page (T-105)",
+      "Do not run Playwright parity (T-106)"
+    ],
+    "dependencies": [
+      "T-009",
+      "T-014",
+      "T-016",
+      "T-020"
+    ],
+    "parallel_safe_with": [
+      "T-101",
+      "T-102",
+      "T-103"
+    ],
+    "acceptance_criteria": [
+      "Given the Planning tab renders, when compared to fa-screens.jsx:537-557, then it shows 3 fields in correct order with closed_planning badge and Technical BOM v1 blue Alert, using shadcn primitives — verified by RTL parity checklist (structural + visual + interaction).",
+      "Given user changes Meat % and saves, when Server Action runs, then updateFaCell is called for meat_pct only.",
+      "Given closed_planning='Yes', when rendered, then closed badge shows green.",
+      "UI closeout includes screenshot/artifact evidence and Playwright trace/artifacts where applicable per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`."
+    ],
+    "test_strategy": [
+      "RED: 3 RTL tests for 3-field parity, single-field save, closed badge rendering.",
+      "Run 'pnpm --filter web test planning-tab'.",
+      "Capture screenshots/Playwright artifacts in closeout."
+    ],
+    "risk_red_lines": [
+      "Do not implement other tabs in this slice",
+      "Do not duplicate field definitions",
+      "Do not implement Core-close gate inside this tab"
+    ],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": true,
+    "prototype_index_entry": "fa_planning_tab",
+    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md"
+  }
+}

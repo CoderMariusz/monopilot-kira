@@ -1,11 +1,11 @@
 {
-  "title": "T-046 — UI: D365 Build modal + D365 Wizard modal (8 steps + SSE) (N-A1)",
-  "prompt": "# T-046 — D365 Build + Wizard modals\n\nPRD: docs/prd/01-NPD-PRD.md §10.6, §10.6.1 + UX d365_build_modal + d365_wizard_modal\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\nPrototype: prototypes/design/Monopilot Design System/npd/modals.jsx:194-241 (d365_build_modal) + 431-594 (d365_wizard_modal)\n\n## Goal\nClient modals for both single-click Build and 8-step Guided Wizard. Wizard subscribes via EventSource to /(npd)/fa/d365-progress-stream and renders linear progress + dismissible=false during execute.\n\n## Implementation contract\nNew apps/web/app/(npd)/_modals/d365-build-modal.tsx (single click + MFA prompt) and d365-wizard-modal.tsx (Stepper with 8 steps mapped to wizard server actions; EventSource for progress; dismissible toggled on Execute). Server route apps/web/app/(npd)/fa/d365-progress-stream/route.ts streams SSE events keyed by phase.\n\n## Files\n- apps/web/app/(npd)/_modals/d365-build-modal.tsx [create]\n- apps/web/app/(npd)/_modals/d365-wizard-modal.tsx [create]\n- apps/web/app/(npd)/fa/d365-progress-stream/route.ts [create]\n- apps/web/app/(npd)/_modals/__tests__/d365-build-modal.test.tsx [create]\n- apps/web/app/(npd)/_modals/__tests__/d365-wizard-modal.test.tsx [create]\n- prototypes/design/Monopilot Design System/npd/modals.jsx [ref]\n\n## Acceptance criteria\n1. Given the wizard modal renders, when compared to prototypes/design/Monopilot Design System/npd/modals.jsx:431-594 (d365_wizard_modal, 8 steps), then it renders all 8 step labels, the same Next/Back/Cancel buttons, and applies dismissible=false guard during the execute step — verified by RTL test counting steps and asserting button states (structural+visual+interaction parity)\n2. Given the build modal renders, when compared to prototypes/design/Monopilot Design System/npd/modals.jsx:194-241 (d365_build_modal), then it shows MFA Input + Build button + warning Alert with shadcn Dialog+Input+Button+Alert primitives — verified by RTL parity checklist\n3. Given the wizard subscribes to SSE and progress events arrive, when each event arrives, then the matching phase row toggles to 'done' and progress bar advances\n\n## Test strategy\n- RED: 3 RTL tests covering wizard parity (8 steps + dismissible), build parity, SSE phase update\n- Run 'pnpm --filter web test d365-build-modal d365-wizard-modal'\n\n## Risk red lines\n- Do not allow dismiss during execute phase\n- Do not invoke buildD365 from client (must be wizardExecute)\n- Do not render plain HTML <input> for MFA (use shadcn Input)",
+  "title": "T-046 — ROOT: D365 integration UI group (Build modal + 8-step Wizard modal + SSE)",
+  "prompt": "# T-046 — D365 integration UI group (root/workflow descriptor)\n\nPRD: docs/prd/01-NPD-PRD.md §10.6, §10.6.1 + UX d365_build_modal + d365_wizard_modal\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\nPrototype: prototypes/design/Monopilot Design System/npd/modals.jsx (d365_build_modal 194-241, d365_wizard_modal 431-594)\n\n## Goal (root)\nThis is a ROOT/WORKFLOW descriptor — it is NOT executable on its own. It describes the D365 integration UI group: single-click Build modal and 8-step Guided Wizard modal with SSE progress, launched from FA detail. It enumerates the atomic slice tasks that implement each modal/half plus wiring and parity tasks.\n\n## Shared route\n- `apps/web/app/(npd)/_modals/d365-build-modal.tsx` — single-click + MFA build modal\n- `apps/web/app/(npd)/_modals/d365-wizard-modal-steps-1-4.tsx` — wizard steps 1-4 (validation, BOM, allergen, constants)\n- `apps/web/app/(npd)/_modals/d365-wizard-modal-steps-5-8.tsx` — wizard steps 5-8 + SSE execute stream\n- `apps/web/app/(npd)/fa/d365-progress-stream/route.ts` — SSE route streaming D365 build phases\n- Both modals open from FA detail; the wizard reuses MFA validation hook from the Build modal.\n\n## Slices under this root\n- **T-123** — D365 Build modal (`d365_build_modal`, modals.jsx:194-241): single-click Build, MFA prompt, async SSE progress, BOM validation summary\n- **T-124** — D365 Wizard steps 1-4 (`d365_wizard_modal`, modals.jsx:431-512, first half): wizard scaffold + step navigation (back/next), steps 1-4 (validate, bom_preview, allergen_check, constants_check) with per-step validation\n- **T-125** — D365 Wizard steps 5-8 + SSE (`d365_wizard_modal`, modals.jsx:512-594, second half): steps 5-8 (n1_preview, mfa, execute_compute/xlsx/persist/emit) + EventSource client + dismissible=false guard during execute\n\n## Wiring & parity\n- **T-126** — WIRING: wire both modals into FA detail; Build button in FA opens D365BuildModal, wizard launches from modal; SSE route connects\n- **T-127** — PARITY: Playwright screenshot parity vs modals.jsx for both modals; SSE events visible in network tab; 0 axe violations\n\n## How to use this root\nDo not implement code from this task. Dispatch slices T-123 (Build modal) and T-124 (Wizard 1-4) in parallel; T-125 (Wizard 5-8 + SSE) depends on T-124. Then T-126 (wiring), then T-127 (parity).\n\n## Risk red lines\n- Do not implement any modal UI in this root task\n- Do not allow dismiss during execute phase (enforced in T-125)\n- Do not invoke buildD365 directly from client during wizard (must be wizardExecute)\n- Do not render plain HTML <input> for MFA (use shadcn Input)",
   "labels": [
     "prd",
     "ui",
     "d365-modals",
-    "T3-ui"
+    "T0-root"
   ],
   "priority": 100,
   "max_attempts": 3,
@@ -21,23 +21,28 @@
     ],
     "category": "ui",
     "subcategory": "d365-modals",
-    "task_type": "T3-ui",
+    "task_type": "T0-root",
     "parent_feature": "01-NPD-d UI",
-    "context_budget": "55k",
-    "estimated_effort": "4-5h",
-    "description": "Two client modals (single-click Build + 8-step Wizard with SSE progress) calling Server Actions; dismissible guard during execute.",
-    "details": "Wizard parity: 8 step labels in same order, Next/Back/Cancel buttons in same positions, dismissible=false during execute (per AC quote in skill). Build modal parity: MFA Input + Alert + Build button. SSE route streams phases: validate, bom_preview, allergen_check, constants_check, n1_preview, mfa, execute_compute, execute_xlsx, execute_persist, execute_emit.",
+    "context_budget": "20k",
+    "estimated_effort": "root-descriptor",
+    "description": "Root/workflow descriptor for the D365 integration UI group. Enumerates 3 slice tasks (T-123 Build, T-124 Wizard 1-4, T-125 Wizard 5-8+SSE) + wiring (T-126) + parity (T-127).",
+    "details": "ROOT task — not executable. Describes Build modal, 8-step Wizard split into 1-4 / 5-8+SSE halves, SSE route, and FA wiring. Phases: validate, bom_preview, allergen_check, constants_check, n1_preview, mfa, execute_compute, execute_xlsx, execute_persist, execute_emit.",
+    "child_tasks": [
+      "T-123",
+      "T-124",
+      "T-125",
+      "T-126",
+      "T-127"
+    ],
     "scope_files": [
-      "apps/web/app/(npd)/_modals/d365-build-modal.tsx [create]",
-      "apps/web/app/(npd)/_modals/d365-wizard-modal.tsx [create]",
-      "apps/web/app/(npd)/fa/d365-progress-stream/route.ts [create]",
-      "apps/web/app/(npd)/_modals/__tests__/d365-build-modal.test.tsx [create]",
-      "apps/web/app/(npd)/_modals/__tests__/d365-wizard-modal.test.tsx [create]",
+      "apps/web/app/(npd)/_modals/ [ref]",
+      "apps/web/app/(npd)/fa/d365-progress-stream/ [ref]",
       "prototypes/design/Monopilot Design System/npd/modals.jsx [ref]"
     ],
     "out_of_scope": [
       "Do not implement wizard step Server Actions here beyond integration (T-047)",
-      "Do not implement Build action core (T-044)"
+      "Do not implement Build action core (T-044)",
+      "Do not implement any modal UI in this root task"
     ],
     "dependencies": [
       "T-044"
@@ -46,43 +51,32 @@
       "T-047"
     ],
     "acceptance_criteria": [
-      "Given the wizard modal renders, when compared to prototypes/design/Monopilot Design System/npd/modals.jsx:431-594, then it renders all 8 step labels, same Next/Back/Cancel buttons, and dismissible=false guard during execute step — verified by RTL test counting steps + asserting button states (structural + visual + interaction parity)",
-      "Given the build modal renders, when compared to prototypes/design/Monopilot Design System/npd/modals.jsx:194-241, then it shows MFA Input + Build button + warning Alert using shadcn Dialog+Input+Button+Alert primitives — verified by RTL parity checklist",
-      "Given the wizard subscribes to SSE and progress events arrive, when each event arrives, then the matching phase row toggles to 'done' and progress bar advances",
-      "UI closeout includes screenshot/artifact evidence and Playwright trace/artifacts where applicable per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`; if Playwright is unavailable, document the blocker and provide RTL/snapshot fallback evidence."
+      "This task is a root/workflow descriptor and is closed when all child slices T-123..T-127 are closed with their own ACs satisfied.",
+      "Both modals (Build, 8-step Wizard) render and are reachable from FA detail with working SSE — verified by T-126 wiring task.",
+      "Browser screenshot parity vs modals.jsx is recorded by T-127 parity task with 0 axe violations and SSE events observed."
     ],
     "test_strategy": [
-      "RED: 3 RTL tests covering wizard parity (8 steps + dismissible), build parity, SSE phase update before components exist",
-      "Run 'pnpm --filter web test d365-build-modal d365-wizard-modal'",
-      "For UI parity, capture screenshots/artifacts and Playwright trace/video/artifacts where applicable; attach artifact paths in closeout."
+      "No tests at root level — each slice (T-123, T-124, T-125) has its own RTL tests; T-126 has wiring tests; T-127 runs Playwright parity."
     ],
     "risk_red_lines": [
+      "Do not implement any modal UI in this root task",
       "Do not allow dismiss during execute phase",
       "Do not invoke buildD365 directly from client during wizard",
       "Do not render plain HTML <input> for MFA"
     ],
-    "skills": [
-      "test-driven-development",
-      "requesting-code-review"
-    ],
+    "skills": [],
     "checkpoint_policy": {
       "required_checkpoints": [
-        "RED",
-        "GREEN",
-        "REVIEW",
         "CLOSEOUT"
       ],
       "closeout_requires": [
-        "changed_files",
-        "test_commands_and_results",
-        "acceptance_criteria_status",
-        "deviations_from_prd",
+        "child_task_status",
         "git_status"
       ]
     },
     "routing_hints": {
-      "red": "hermes_gpt55",
-      "implementation": "hermes_gpt55",
+      "red": "n/a-root",
+      "implementation": "n/a-root",
       "review": "opus_if_high_risk_or_ui_or_architecture",
       "close": "spark_low_risk_else_opus"
     },

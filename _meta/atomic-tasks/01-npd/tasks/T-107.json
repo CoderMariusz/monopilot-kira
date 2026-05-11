@@ -1,0 +1,94 @@
+{
+  "title": "T-107 — UI: GateChecklistPanel (gate_checklist_panel prototype) NPD-f slice of T-061",
+  "prompt": "# T-107 — GateChecklistPanel UI\n\nPRD: docs/prd/01-NPD-PRD.md §17.6 + UX prototypes/design/01-NPD-UX.md gate_checklist\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\nPrototype: prototypes/design/Monopilot Design System/npd/gate-screens.jsx:106-258 (GateChecklistPanel)\nParent root: T-061\n\n## Goal\nSingle Client Component GateChecklistPanel: per-gate Collapsible with category sub-headers and per-item Checkbox + Required/Optional/Blocking badges, overall progress bar, footer advance/approval CTA gated by blockers. RSC reads gate_checklist_items from DB; client toggles call toggleGateChecklistItem.\n\n## Implementation contract\n1. apps/web/app/(npd)/pipeline/[projectId]/_components/gate-checklist-panel.tsx ('use client') accepts { project, gates: [{ key, label, items: [{id, text, required, done, by, at, file}], pct, blockers, isCurrent }] }; renders shadcn Collapsible per gate; per-item Checkbox toggles call toggleGateChecklistItem(itemId, done) Server Action; per category renders TECHNICAL/BUSINESS/COMPLIANCE sub-header.\n2. Overall progress bar (top card) computed from all items across all gates.\n3. Footer Alert: red blocker list or green ready alert; primary advance button disabled when blockers > 0; button label switches to 'Request Approval' when info.requiresApproval is true (calls openModal prop).\n\n## Files\n- apps/web/app/(npd)/pipeline/[projectId]/_components/gate-checklist-panel.tsx [create]\n- apps/web/app/(npd)/pipeline/[projectId]/_components/__tests__/gate-checklist-panel.test.tsx [create]\n\n## Acceptance criteria\n1. Given GateChecklistPanel renders with sample gates, when compared to prototypes/design/Monopilot Design System/npd/gate-screens.jsx:106-258, then it shows the same per-gate Collapsible structure, category sub-headers (TECHNICAL/BUSINESS/COMPLIANCE), per-item Checkbox + Required/Optional/Blocking badges, and the overall progress bar — verified by RTL parity checklist using shadcn Collapsible+Checkbox+Badge+Progress+Alert primitives.\n2. Given a gate with blockers > 0, when the panel renders, then the footer advance button is disabled and a red Alert lists blocker item texts.\n3. Given a gate flagged requiresApproval, when the panel renders, then the primary footer button label is 'Request Approval' and clicking it invokes openModal('gateApproval', { project }).\n\n## Test strategy\n- RED: __tests__/gate-checklist-panel.test.tsx asserting parity (Collapsible + Checkbox + categories), blocker disabled state, requiresApproval label switch before component exists.\n- Run 'pnpm --filter web test gate-checklist-panel'\n\n## Risk red lines\n- Do not call DB from the client component (RSC parent provides props).\n- Do not paste prototype JSX verbatim.\n- Do not enable advance button when blockers > 0.",
+  "labels": [
+    "prd",
+    "ui",
+    "gate-checklist-panel",
+    "T3-ui",
+    "slice-of-T-061"
+  ],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-107",
+    "parent_task_id": "T-061",
+    "source_prd": "docs/prd/01-NPD-PRD.md",
+    "prd_refs": [
+      "§17.6"
+    ],
+    "category": "ui",
+    "subcategory": "gate-checklist-panel",
+    "task_type": "T3-ui",
+    "parent_feature": "01-NPD-f Stage-Gate Pipeline",
+    "context_budget": "35k",
+    "estimated_effort": "2h",
+    "description": "GateChecklistPanel: per-gate Collapsible with category sub-headers, per-item Checkbox, blocker-gated footer advance button. Matches gate-screens.jsx:106-258.",
+    "details": "Parity items: shadcn Collapsible per gate, category sub-headers (TECHNICAL/BUSINESS/COMPLIANCE), per-item Checkbox + Required/Optional/Blocking badges, overall Progress bar (top), blocker Alert + disabled advance button in footer, requiresApproval label switch.",
+    "scope_files": [
+      "apps/web/app/(npd)/pipeline/[projectId]/_components/gate-checklist-panel.tsx [create]",
+      "apps/web/app/(npd)/pipeline/[projectId]/_components/__tests__/gate-checklist-panel.test.tsx [create]"
+    ],
+    "out_of_scope": [
+      "Do not implement Server Actions (T-058)",
+      "Do not wire the route page (T-111)",
+      "Do not run Playwright parity (T-112)",
+      "Do not build AdvanceGateModal/GateApprovalModal/ApprovalHistoryTimeline (T-108/T-109/T-110)"
+    ],
+    "dependencies": [
+      "T-057",
+      "T-058"
+    ],
+    "parallel_safe_with": [
+      "T-108",
+      "T-109",
+      "T-110"
+    ],
+    "acceptance_criteria": [
+      "Given GateChecklistPanel renders with sample gates, when compared to prototypes/design/Monopilot Design System/npd/gate-screens.jsx:106-258, then it shows the same per-gate Collapsible structure, category sub-headers, per-item Checkbox + Required/Optional/Blocking badges, and the overall progress bar — verified by RTL parity checklist using shadcn Collapsible+Checkbox+Badge+Progress+Alert primitives",
+      "Given a gate with blockers > 0, when the panel renders, then the footer advance button is disabled and a red Alert lists blocker item texts",
+      "Given a gate flagged requiresApproval, when the panel renders, then the primary footer button label is 'Request Approval' and clicking it invokes openModal('gateApproval', { project })",
+      "UI closeout includes screenshot/artifact evidence and Playwright trace/artifacts where applicable per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`; if Playwright is unavailable, document the blocker and provide RTL/snapshot fallback evidence."
+    ],
+    "test_strategy": [
+      "RED: __tests__/gate-checklist-panel.test.tsx asserting parity (Collapsible + Checkbox + categories), blocker disabled state, requiresApproval label switch before component exists",
+      "Run 'pnpm --filter web test gate-checklist-panel'",
+      "For UI parity, capture screenshots/artifacts and Playwright trace/video/artifacts where applicable; attach artifact paths in closeout."
+    ],
+    "risk_red_lines": [
+      "Do not call DB from the client component",
+      "Do not paste prototype JSX verbatim",
+      "Do not enable advance button when blockers > 0"
+    ],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": true,
+    "prototype_index_entry": "gate_checklist_panel",
+    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md"
+  }
+}

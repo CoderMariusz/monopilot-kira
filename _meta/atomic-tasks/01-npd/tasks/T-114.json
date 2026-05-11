@@ -1,0 +1,94 @@
+{
+  "title": "T-114 — UI: CostPanel (material + labour + overhead + margin) (NPD-g)",
+  "prompt": "# T-114 — CostPanel slice\n\nPRD: docs/prd/01-NPD-PRD.md §17.11.1\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\nPrototype: prototypes/design/Monopilot Design System/npd/recipe.jsx:67-101 (CostPanel)\nPrototype-index entry: cost_panel\n\n## Goal\nSingle-component slice for the live cost breakdown panel. Displays raw material, after-yield, processing, packaging, and total cost per kg; revenue/kg, margin €/kg, margin %; plus target-price and yield % inputs that propagate to parent state. All values currency-formatted and reactive to ingredient changes.\n\n## Implementation contract\n- apps/web/app/(npd)/formulations/[id]/editor/_components/cost-panel.tsx ('use client'). Props: { calc: CostBreakdown, targetPrice: string, onTargetPriceChange: (v: string) => void, yieldPct: number, onYieldChange: (n: number) => void }.\n- Use shadcn Card + Input + Label per prototype_index translation_notes. Cost lines use Tailwind flex justify-between with monospace numerics.\n- Currency format via Intl.NumberFormat ('en-GB', currency: 'EUR') for production; expose currency from project context in wiring task (T-117) — for this slice accept currency prop with default 'EUR'.\n- Margin box background tinted red/amber/green by marginPct thresholds (< 0, < 15, ≥ 15) per prototype.\n\n## Files (≤ 3)\n- apps/web/app/(npd)/formulations/[id]/editor/_components/cost-panel.tsx [create]\n- apps/web/app/(npd)/formulations/[id]/editor/_components/__tests__/cost-panel.test.tsx [create]\n\n## Acceptance criteria\n1. Given the panel renders with a fixed calc prop, when compared to prototypes/design/Monopilot Design System/npd/recipe.jsx:67-101 (CostPanel), then it shows raw material / after-yield / processing / packaging / total cost lines plus margin box with revenue, €/kg margin and margin % — verified by RTL parity\n2. Given the user types in the target-price or yield input, when onChange fires, then the controlled value reaches the parent via onTargetPriceChange/onYieldChange callbacks — verified by RTL fireEvent + spy\n3. Given calc.marginPct is < 0, < 15, or ≥ 15, when rendered, then the margin box uses red / amber / green tint respectively per prototype thresholds — verified by RTL class assertion\n4. Given any monetary value is rendered, then it is currency-formatted (e.g. '€3.98') — verified by RTL text-match\n\n## Test strategy\n- RED: cost-panel.test.tsx asserting structural parity, controlled-input callbacks, margin-tint thresholds, currency formatting — before component exists\n- Run 'pnpm --filter web test cost-panel'\n\n## Risk red lines\n- Do not hardcode currency symbol — accept from prop with default 'EUR'\n- Do not own targetPrice/yieldPct state inside the panel (controlled component)\n- Do not paste prototype JSX verbatim",
+  "labels": [
+    "prd",
+    "ui",
+    "formulation-panels",
+    "T3-ui"
+  ],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-114",
+    "source_prd": "docs/prd/01-NPD-PRD.md",
+    "prd_refs": [
+      "§17.11.1"
+    ],
+    "category": "ui",
+    "subcategory": "formulation-panels",
+    "task_type": "T3-ui",
+    "parent_feature": "01-NPD-g Recipe Formulation Editor",
+    "parent_task": "T-067",
+    "context_budget": "30k",
+    "estimated_effort": "1-1.5h",
+    "description": "CostPanel slice: live material + overhead + total cost breakdown, target-price/yield controlled inputs, margin tint by threshold.",
+    "details": "Translate prototype CostPanel (recipe.jsx:67-101) to production React Client Component. shadcn Card + Input + Label per translation notes. Controlled inputs only — parent owns targetPrice and yieldPct state. Margin box conditional bg-red-50/bg-amber-50/bg-green-50 per marginPct.",
+    "scope_files": [
+      "apps/web/app/(npd)/formulations/[id]/editor/_components/cost-panel.tsx [create]",
+      "apps/web/app/(npd)/formulations/[id]/editor/_components/__tests__/cost-panel.test.tsx [create]"
+    ],
+    "out_of_scope": [
+      "Do not implement NutritionPanel (T-113)",
+      "Do not implement AllergenPanel (T-115)",
+      "Do not implement CompositionBar (T-116)",
+      "Do not wire into editor page (T-117)",
+      "Do not run Playwright parity (T-118)"
+    ],
+    "dependencies": [
+      "T-065"
+    ],
+    "parallel_safe_with": [
+      "T-113",
+      "T-115",
+      "T-116"
+    ],
+    "acceptance_criteria": [
+      "Given the panel renders with a fixed calc prop, when compared to prototypes/design/Monopilot Design System/npd/recipe.jsx:67-101, then it shows material/after-yield/processing/packaging/total lines plus revenue/margin/marginPct box — verified by RTL parity",
+      "Given the user types in target-price or yield input, when onChange fires, then the controlled value reaches the parent via callbacks — verified by RTL fireEvent",
+      "Given calc.marginPct ∈ {<0, <15, ≥15}, when rendered, then margin box uses red/amber/green tint — verified by class assertion",
+      "Given a monetary value is rendered, then it is currency-formatted (Intl.NumberFormat) — verified by RTL text-match",
+      "UI closeout includes screenshot/artifact evidence per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`; if Playwright is unavailable, document the blocker and provide RTL/snapshot fallback."
+    ],
+    "test_strategy": [
+      "RED: cost-panel.test.tsx asserting parity + controlled inputs + tint thresholds + currency format before component exists",
+      "Run 'pnpm --filter web test cost-panel'",
+      "Capture RTL snapshot artifact for parity closeout."
+    ],
+    "risk_red_lines": [
+      "Do not hardcode currency symbol",
+      "Do not own targetPrice/yieldPct state inside the panel (controlled)",
+      "Do not paste prototype JSX verbatim"
+    ],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": true,
+    "prototype_index_entry": "cost_panel",
+    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md"
+  }
+}
