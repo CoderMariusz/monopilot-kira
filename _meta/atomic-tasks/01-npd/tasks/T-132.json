@@ -1,0 +1,93 @@
+{
+  "title": "T-132 — UI: Dashboard KPI counters region (npd_dashboard prototype) NPD-e slice of T-052",
+  "prompt": "# T-132 — Dashboard KPI counters slice\n\nPRD: docs/prd/01-NPD-PRD.md §11.1, §11.7 + UX prototypes/design/01-NPD-UX.md NpdDashboard\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\nPrototype: prototypes/design/Monopilot Design System/npd/fa-screens.jsx:32-174 (NpdDashboard top counters/stats region)\nPrototype-index entry: npd_dashboard\nParent root: T-052\n\n## Goal\nSingle Client Component DashboardCounters: top dashboard region with KPI tiles (Total FAs, by-status counts Done/Pending/Blocked, Overdue alerts count). Renders as a row of shadcn Card tiles with Badge variants for status counts. Consumes summary prop from parent; no DB call.\n\n## Implementation contract\n- apps/web/app/(npd)/_components/dashboard-counters.tsx ('use client'). Props: { summary: DashboardSummary } where DashboardSummary = { totalFas, byStatus: { done, pending, blocked }, overdueAlerts }.\n- Render a row of shadcn Card tiles (KpiCard pattern), each with title + value + optional Badge variant (default/secondary/destructive) for the count.\n- Overdue alerts tile uses destructive Badge variant if overdueAlerts > 0.\n- No DB call inside the component (parent RSC provides summary).\n\n## Files (≤ 2)\n- apps/web/app/(npd)/_components/dashboard-counters.tsx [create]\n- apps/web/app/(npd)/_components/__tests__/dashboard-counters.test.tsx [create]\n\n## Acceptance criteria\n1. Given DashboardCounters renders with a fixed summary prop, when compared to prototypes/design/Monopilot Design System/npd/fa-screens.jsx:32-174 (top counters region), then it shows Total FAs tile + by-status tiles (Done/Pending/Blocked) + Overdue alerts tile using shadcn Card + Badge primitives — verified by RTL parity checklist\n2. Given overdueAlerts > 0, when the panel renders, then the Overdue tile uses the destructive Badge variant and shows the count — verified by RTL\n3. Given the parent passes a new summary prop, when the component re-renders, then values update reactively — verified by RTL rerender test\n\n## Test strategy\n- RED: dashboard-counters.test.tsx asserting tile structure, badge variants, reactive rerender before component exists\n- Run 'pnpm --filter web test dashboard-counters'\n\n## Risk red lines\n- Do not call DB or Server Actions from the client component\n- Do not paste prototype JSX verbatim\n- Do not exceed scope (1 component + 1 test)",
+  "labels": [
+    "prd",
+    "ui",
+    "dashboard-counters",
+    "T3-ui",
+    "slice-of-T-052"
+  ],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-132",
+    "parent_task_id": "T-052",
+    "source_prd": "docs/prd/01-NPD-PRD.md",
+    "prd_refs": [
+      "§11.1",
+      "§11.7"
+    ],
+    "category": "ui",
+    "subcategory": "dashboard-counters",
+    "task_type": "T3-ui",
+    "parent_feature": "01-NPD-e Dashboard",
+    "parent_task": "T-052",
+    "context_budget": "30k",
+    "estimated_effort": "1-1.5h",
+    "description": "DashboardCounters slice: KPI tiles row (Total FAs + by-status + overdue alerts) using shadcn Card + Badge. Matches fa-screens.jsx:32-174 top region.",
+    "details": "Parity: row of shadcn Card tiles with title + value + Badge variant; destructive variant on overdue tile when count > 0; reactive to summary prop change.",
+    "scope_files": [
+      "apps/web/app/(npd)/_components/dashboard-counters.tsx [create]",
+      "apps/web/app/(npd)/_components/__tests__/dashboard-counters.test.tsx [create]"
+    ],
+    "out_of_scope": [
+      "Do not build Pipeline preview region (T-133)",
+      "Do not wire dashboard page (T-134)",
+      "Do not run Playwright parity (T-135)",
+      "Do not implement Server Actions (T-051)"
+    ],
+    "dependencies": [
+      "T-051"
+    ],
+    "parallel_safe_with": [
+      "T-133"
+    ],
+    "acceptance_criteria": [
+      "Given DashboardCounters renders with a fixed summary prop, when compared to prototypes/design/Monopilot Design System/npd/fa-screens.jsx:32-174 top counters region, then it shows Total FAs + by-status (Done/Pending/Blocked) + Overdue tiles using shadcn Card + Badge primitives — verified by RTL parity checklist",
+      "Given overdueAlerts > 0, when the panel renders, then the Overdue tile uses the destructive Badge variant and shows the count — verified by RTL",
+      "Given the parent passes a new summary prop, when the component re-renders, then values update reactively — verified by RTL rerender test",
+      "UI closeout includes screenshot/artifact evidence per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`; if Playwright is unavailable, document the blocker and provide RTL/snapshot fallback."
+    ],
+    "test_strategy": [
+      "RED: dashboard-counters.test.tsx asserting tile structure + badge variants + reactive rerender before component exists",
+      "Run 'pnpm --filter web test dashboard-counters'",
+      "Capture RTL snapshot artifact for closeout."
+    ],
+    "risk_red_lines": [
+      "Do not call DB or Server Actions from the client component",
+      "Do not paste prototype JSX verbatim",
+      "Do not exceed scope (1 component + 1 test)"
+    ],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": true,
+    "prototype_index_entry": "npd_dashboard",
+    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md"
+  }
+}

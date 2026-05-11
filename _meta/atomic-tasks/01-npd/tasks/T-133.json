@@ -1,0 +1,93 @@
+{
+  "title": "T-133 — UI: Dashboard Pipeline preview region (npd_dashboard prototype) NPD-e slice of T-052",
+  "prompt": "# T-133 — Dashboard pipeline preview slice\n\nPRD: docs/prd/01-NPD-PRD.md §11.1, §11.7 + UX prototypes/design/01-NPD-UX.md NpdDashboard\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\nPrototype: prototypes/design/Monopilot Design System/npd/fa-screens.jsx:32-174 (NpdDashboard pipeline mini-view region)\nPrototype-index entry: npd_dashboard\nParent root: T-052\n\n## Goal\nSingle Client Component DashboardPipelinePreview: a compact recent-projects list (top 5-10) with current-gate status indicators (Badge dots) and a link to the full pipeline page. Consumes a recent-projects prop from parent; no DB call.\n\n## Implementation contract\n- apps/web/app/(npd)/_components/dashboard-pipeline-preview.tsx ('use client'). Props: { recentProjects: NpdProjectRow[] }.\n- Render shadcn Card with header 'Pipeline (recent)' + view-all link to /(npd)/pipeline; body lists rows of project code, name, owner, and a gate-status Badge dot (todo/in-progress/blocked/done variants).\n- Each row links to /(npd)/fa/[productCode] (or /pipeline/[projectId]).\n- Empty state Card body when recentProjects.length === 0.\n- No DB call inside the component (parent RSC provides projects).\n\n## Files (≤ 2)\n- apps/web/app/(npd)/_components/dashboard-pipeline-preview.tsx [create]\n- apps/web/app/(npd)/_components/__tests__/dashboard-pipeline-preview.test.tsx [create]\n\n## Acceptance criteria\n1. Given DashboardPipelinePreview renders with a sample recentProjects list, when compared to prototypes/design/Monopilot Design System/npd/fa-screens.jsx:32-174 (pipeline preview region), then it shows a Card with header + view-all link + list of project rows with gate-status Badge dots using shadcn Card + Badge primitives — verified by RTL parity checklist\n2. Given recentProjects.length === 0, when the panel renders, then an empty state Card body is shown — verified by RTL\n3. Given a user clicks a row, when navigation triggers, then it routes to the correct FA detail (or pipeline) page — verified by RTL link assertion\n\n## Test strategy\n- RED: dashboard-pipeline-preview.test.tsx asserting Card structure + Badge dots + empty state + link target before component exists\n- Run 'pnpm --filter web test dashboard-pipeline-preview'\n\n## Risk red lines\n- Do not call DB or Server Actions from the client component\n- Do not paste prototype JSX verbatim\n- Do not exceed scope (1 component + 1 test)",
+  "labels": [
+    "prd",
+    "ui",
+    "dashboard-pipeline-preview",
+    "T3-ui",
+    "slice-of-T-052"
+  ],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-133",
+    "parent_task_id": "T-052",
+    "source_prd": "docs/prd/01-NPD-PRD.md",
+    "prd_refs": [
+      "§11.1",
+      "§11.7"
+    ],
+    "category": "ui",
+    "subcategory": "dashboard-pipeline-preview",
+    "task_type": "T3-ui",
+    "parent_feature": "01-NPD-e Dashboard",
+    "parent_task": "T-052",
+    "context_budget": "30k",
+    "estimated_effort": "1-1.5h",
+    "description": "DashboardPipelinePreview slice: recent-projects mini-view with gate-status Badge dots + view-all link. Matches fa-screens.jsx:32-174 pipeline preview region.",
+    "details": "Parity: shadcn Card header with view-all link to /(npd)/pipeline; row list with code/name/owner/gate Badge dots; empty state body; row click routes to FA detail.",
+    "scope_files": [
+      "apps/web/app/(npd)/_components/dashboard-pipeline-preview.tsx [create]",
+      "apps/web/app/(npd)/_components/__tests__/dashboard-pipeline-preview.test.tsx [create]"
+    ],
+    "out_of_scope": [
+      "Do not build KPI counters region (T-132)",
+      "Do not wire dashboard page (T-134)",
+      "Do not run Playwright parity (T-135)",
+      "Do not implement Server Actions (T-051)"
+    ],
+    "dependencies": [
+      "T-051"
+    ],
+    "parallel_safe_with": [
+      "T-132"
+    ],
+    "acceptance_criteria": [
+      "Given DashboardPipelinePreview renders with a sample recentProjects list, when compared to prototypes/design/Monopilot Design System/npd/fa-screens.jsx:32-174 pipeline preview region, then it shows a Card with header + view-all link + project row list with gate-status Badge dots using shadcn Card + Badge primitives — verified by RTL parity checklist",
+      "Given recentProjects.length === 0, when the panel renders, then an empty state Card body is shown — verified by RTL",
+      "Given a user clicks a row, when navigation triggers, then it routes to the correct FA detail (or pipeline) page — verified by RTL link assertion",
+      "UI closeout includes screenshot/artifact evidence per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`; if Playwright is unavailable, document the blocker and provide RTL/snapshot fallback."
+    ],
+    "test_strategy": [
+      "RED: dashboard-pipeline-preview.test.tsx asserting Card structure + Badge dots + empty state + link target before component exists",
+      "Run 'pnpm --filter web test dashboard-pipeline-preview'",
+      "Capture RTL snapshot artifact for closeout."
+    ],
+    "risk_red_lines": [
+      "Do not call DB or Server Actions from the client component",
+      "Do not paste prototype JSX verbatim",
+      "Do not exceed scope (1 component + 1 test)"
+    ],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": true,
+    "prototype_index_entry": "npd_dashboard",
+    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md"
+  }
+}
