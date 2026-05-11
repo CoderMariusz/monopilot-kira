@@ -1,0 +1,91 @@
+{
+  "title": "T-117 — WIRING: FormulationEditor panels — wire Nutrition + Cost + Allergen + CompositionBar into formulation editor layout",
+  "prompt": "# T-117 — WIRING: mount panels into formulation editor\n\nPRD: docs/prd/01-NPD-PRD.md §17.11.1\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\nPrototype: prototypes/design/Monopilot Design System/npd/recipe.jsx:141-262 (RecipeScreen layout)\nPrototype-index entry: recipe_screen\n\n## Goal\nWire the four panel slices (T-113 NutritionPanel, T-114 CostPanel, T-115 AllergenPanel, T-116 CompositionBar) into the formulation editor page. The page owns formulation state (ingredients, targetPrice, yieldPct, batchKg) and feeds derived recomputeCalc output into each panel via props. State updates from the ingredient table (T-066) propagate to the panels in the same React render cycle.\n\n## Implementation contract\n- apps/web/app/(npd)/formulations/[id]/editor/page.tsx ('use client' boundary at editor container). Owns useReducer or useState for ingredients, targetPrice, yieldPct, batchKg.\n- Calls recomputeCalc (T-065) inside useMemo, passing dependency [ingredients, batchKg, targetPrice, yieldPct].\n- Layout: 2-column grid — left column hosts ingredient table (T-066) + CompositionBar (T-116) below it; right column stacks NutritionPanel → CostPanel → AllergenPanel.\n- Prop wiring: NutritionPanel { nutrition: calc.nutrition }; CostPanel { calc, targetPrice, onTargetPriceChange, yieldPct, onYieldChange }; AllergenPanel { allergens: calc.allergens }; CompositionBar { segments: ingredients.map(...) }.\n\n## Files\n- apps/web/app/(npd)/formulations/[id]/editor/page.tsx [modify]\n\n## Acceptance criteria\n1. Given the editor page renders for a valid formulation id, when the user inspects the layout, then all 4 panels (NutritionPanel, CostPanel, AllergenPanel, CompositionBar) render in their prescribed positions — verified by Playwright or RTL integration test\n2. Given the user changes one ingredient row (% or cost), when the table dispatches the change, then all 4 panels re-render with updated derived values in the same render cycle (no full page reload) — verified by integration test\n3. Given the user types in CostPanel target-price or yield input, when onChange fires, then page-level state updates and CostPanel re-renders with new margin values — verified by integration test\n4. Given the page mounts, then recomputeCalc is invoked at most once per render via useMemo (no re-compute on unrelated state changes) — verified by spy/profiler test\n\n## Test strategy\n- RED: editor page integration test (RTL or Playwright component test) asserting all 4 panels mount, ingredient change propagates, target-price input updates margin, useMemo memoisation\n- Run 'pnpm --filter web test editor-page' (or appropriate Playwright spec)\n\n## Risk red lines\n- Do not re-implement panel internals — import from T-113..T-116 slices\n- Do not invoke recomputeCalc on every render (useMemo)\n- Do not duplicate state across panels — single source of truth at page level",
+  "labels": [
+    "prd",
+    "ui",
+    "formulation-panels",
+    "T4-wiring-test",
+    "wiring"
+  ],
+  "priority": 90,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-117",
+    "source_prd": "docs/prd/01-NPD-PRD.md",
+    "prd_refs": [
+      "§17.11.1"
+    ],
+    "category": "ui",
+    "subcategory": "formulation-panels",
+    "task_type": "T4-wiring-test",
+    "parent_feature": "01-NPD-g Recipe Formulation Editor",
+    "parent_task": "T-067",
+    "context_budget": "35k",
+    "estimated_effort": "1-2h",
+    "description": "Wire NutritionPanel + CostPanel + AllergenPanel + CompositionBar into editor page sidebar, single source of truth for formulation state.",
+    "details": "Editor page owns ingredients + targetPrice + yieldPct + batchKg state. recomputeCalc memoised. 2-column grid: left = ingredient table + CompositionBar; right = NutritionPanel → CostPanel → AllergenPanel.",
+    "scope_files": [
+      "apps/web/app/(npd)/formulations/[id]/editor/page.tsx [modify]"
+    ],
+    "out_of_scope": [
+      "Do not re-implement panel internals (use T-113..T-116 components)",
+      "Do not build ingredient table internals (T-066)",
+      "Do not run browser screenshot parity (T-118)"
+    ],
+    "dependencies": [
+      "T-066",
+      "T-113",
+      "T-114",
+      "T-115",
+      "T-116"
+    ],
+    "acceptance_criteria": [
+      "Given the editor page renders for a valid formulation id, then all 4 panels render in their prescribed sidebar layout — verified by integration test",
+      "Given the user changes one ingredient row, then all 4 panels re-render with updated values in the same render cycle — verified by integration test",
+      "Given the user types in CostPanel target-price or yield input, then page-level state updates and margin recomputes — verified by integration test",
+      "Given the page mounts, then recomputeCalc runs at most once per render via useMemo — verified by spy/profiler",
+      "UI closeout includes screenshot/artifact evidence per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`; if Playwright is unavailable, document the blocker and provide RTL/snapshot fallback."
+    ],
+    "test_strategy": [
+      "RED: editor page integration test asserting panels mount + ingredient propagation + cost input + useMemo before wiring",
+      "Run 'pnpm --filter web test editor-page'",
+      "Capture artifact evidence for closeout."
+    ],
+    "risk_red_lines": [
+      "Do not re-implement panel internals",
+      "Do not invoke recomputeCalc on every render",
+      "Do not duplicate state across panels"
+    ],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": true,
+    "prototype_index_entry": "recipe_screen",
+    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md"
+  }
+}
