@@ -1,0 +1,94 @@
+{
+  "title": "T-110 — UI: ApprovalHistoryTimeline (approval_history_timeline prototype) NPD-f slice of T-061",
+  "prompt": "# T-110 — ApprovalHistoryTimeline UI\n\nPRD: docs/prd/01-NPD-PRD.md §17.7 + UX prototypes/design/01-NPD-UX.md approval_history\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\nPrototype: prototypes/design/Monopilot Design System/npd/gate-screens.jsx:525-616 (ApprovalHistoryTimeline)\nParent root: T-061\n\n## Goal\nServer Component (read-only) ApprovalHistoryTimeline rendering reverse-chronological gate_approvals timeline: green/red circle per entry, vertical connector line, per-entry Card with approver + role + comment + date, and an expandable Collapsible 'View signature details' panel showing signer/role/timestamp/SHA-256 hash for e-signed entries.\n\n## Implementation contract\n1. apps/web/app/(npd)/pipeline/[projectId]/_components/approval-history-timeline.tsx (RSC) accepts { entries: [{ id, gate, gateLabel, result, approver, role, notes, date, eSigned, eSignHash? }] }.\n2. Reverse chronological order is producer-side; component renders entries as-given.\n3. Empty state: shadcn Alert with AlertDescription 'No approvals recorded yet for this project'.\n4. Each entry renders: circle (green ✓ for approved, red ✗ for rejected), gate label + status Badge (APPROVED/REJECTED), approver line, comment, date (mono).\n5. eSigned entries: expandable Collapsible (Client subcomponent if needed) with signer/role/timestamp/cert-id/verification rows.\n\n## Files\n- apps/web/app/(npd)/pipeline/[projectId]/_components/approval-history-timeline.tsx [create]\n- apps/web/app/(npd)/pipeline/[projectId]/_components/__tests__/approval-history-timeline.test.tsx [create]\n\n## Acceptance criteria\n1. Given ApprovalHistoryTimeline renders with sample entries, when compared to prototypes/design/Monopilot Design System/npd/gate-screens.jsx:525-616, then it shows the same vertical timeline with green/red circles, gate label + APPROVED/REJECTED Badge, approver+role line, comment and date using shadcn Card+Badge+Alert primitives.\n2. Given an entry with eSigned=true, when the 'View signature details' control is toggled, then a Collapsible panel reveals signer, role, timestamp, certificate id, and verification rows (Server Component data; Collapsible may be a Client subcomponent).\n3. Given entries.length === 0, when the component renders, then an empty-state Alert with text 'No approvals recorded yet for this project' is shown and no timeline list is rendered.\n\n## Test strategy\n- RED: __tests__/approval-history-timeline.test.tsx asserting parity, eSigned expandable rows, empty-state Alert before component exists.\n- Run 'pnpm --filter web test approval-history-timeline'\n\n## Risk red lines\n- Do not paste prototype JSX verbatim.\n- Do not fetch data inside the component (parent passes entries prop).\n- Do not render e-signature details for non-eSigned entries.",
+  "labels": [
+    "prd",
+    "ui",
+    "approval-history-timeline",
+    "T3-ui",
+    "slice-of-T-061"
+  ],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-110",
+    "parent_task_id": "T-061",
+    "source_prd": "docs/prd/01-NPD-PRD.md",
+    "prd_refs": [
+      "§17.7"
+    ],
+    "category": "ui",
+    "subcategory": "approval-history-timeline",
+    "task_type": "T3-ui",
+    "parent_feature": "01-NPD-f Stage-Gate Pipeline",
+    "context_budget": "25k",
+    "estimated_effort": "1.5h",
+    "description": "ApprovalHistoryTimeline: reverse-chronological vertical timeline of gate_approvals with green/red circle, approver/role/date/comment per entry, and expandable e-signature details Collapsible. Matches gate-screens.jsx:525-616.",
+    "details": "Parity items: vertical connector line + per-entry circle (green ✓ approved / red ✗ rejected), gate label + APPROVED/REJECTED Badge, approver+role+comment+date layout, eSigned Collapsible with signer/role/timestamp/cert-id/verification rows, empty-state Alert when entries empty.",
+    "scope_files": [
+      "apps/web/app/(npd)/pipeline/[projectId]/_components/approval-history-timeline.tsx [create]",
+      "apps/web/app/(npd)/pipeline/[projectId]/_components/__tests__/approval-history-timeline.test.tsx [create]"
+    ],
+    "out_of_scope": [
+      "Do not implement Server Actions (T-058)",
+      "Do not wire the route page (T-111)",
+      "Do not run Playwright parity (T-112)",
+      "Do not build GateChecklistPanel/AdvanceGateModal/GateApprovalModal (T-107/T-108/T-109)"
+    ],
+    "dependencies": [
+      "T-057",
+      "T-058"
+    ],
+    "parallel_safe_with": [
+      "T-107",
+      "T-108",
+      "T-109"
+    ],
+    "acceptance_criteria": [
+      "Given ApprovalHistoryTimeline renders with sample entries, when compared to prototypes/design/Monopilot Design System/npd/gate-screens.jsx:525-616, then it shows the same vertical timeline with green/red circles, gate label + APPROVED/REJECTED Badge, approver+role line, comment and date using shadcn Card+Badge+Alert primitives",
+      "Given an entry with eSigned=true, when the 'View signature details' control is toggled, then a Collapsible panel reveals signer, role, timestamp, certificate id, and verification rows",
+      "Given entries.length === 0, when the component renders, then an empty-state Alert with text 'No approvals recorded yet for this project' is shown and no timeline list is rendered",
+      "UI closeout includes screenshot/artifact evidence and Playwright trace/artifacts where applicable per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`; if Playwright is unavailable, document the blocker and provide RTL/snapshot fallback evidence."
+    ],
+    "test_strategy": [
+      "RED: __tests__/approval-history-timeline.test.tsx asserting parity, eSigned expandable rows, empty-state Alert before component exists",
+      "Run 'pnpm --filter web test approval-history-timeline'",
+      "For UI parity, capture screenshots/artifacts and Playwright trace/video/artifacts where applicable; attach artifact paths in closeout."
+    ],
+    "risk_red_lines": [
+      "Do not paste prototype JSX verbatim",
+      "Do not fetch data inside the component (parent passes entries prop)",
+      "Do not render e-signature details for non-eSigned entries"
+    ],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": true,
+    "prototype_index_entry": "approval_history_timeline",
+    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md"
+  }
+}

@@ -1,0 +1,91 @@
+{
+  "title": "T-131 — PARITY: Pipeline views Playwright + axe parity (vs pipeline.jsx) NPD-f slice of T-060",
+  "prompt": "# T-131 — Pipeline views parity check\n\nPRD: docs/prd/01-NPD-PRD.md §17.8, §17.12 + `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\nPrototype: prototypes/design/Monopilot Design System/npd/pipeline.jsx:35-208 (Kanban + Table + Split)\nParent root: T-060\n\n## Goal\nPlaywright screenshot parity + axe-violations check for all three pipeline view modes (Kanban, Table, Split) against the prototype. Validates tab switching, shared filter/sort state, and 0 critical/serious axe violations on each view.\n\n## Implementation contract\n1. apps/web/e2e/npd/pipeline-views-parity.spec.ts: seeds a small project fixture; visits /(npd)/pipeline?view=kanban — captures full-page screenshot — switches to ?view=table — captures — switches to ?view=split with ?selected=PRJ-1 — captures.\n2. Each screenshot compared against the corresponding prototype snapshot region with the prototype-parity tolerance configured in repo Playwright config.\n3. axe-core run on each view after mount; assert 0 critical and 0 serious violations.\n4. Tab switching tested in-spec: switching does not full-reload, shared ?filter=mine persists across all three views.\n\n## Files\n- apps/web/e2e/npd/pipeline-views-parity.spec.ts [create]\n- apps/web/e2e/npd/fixtures/pipeline-views-seed.ts [create]\n\n## Acceptance criteria\n1. Given the pipeline route renders all three view modes, when Playwright captures full-page screenshots, then each view matches the corresponding prototype region within the configured parity tolerance per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`\n2. Given each view is mounted, when axe-core runs, then 0 critical and 0 serious violations are reported per the parity policy\n3. Given a user toggles ?filter=mine and switches tabs, when each view renders, then the filter persists and the displayed project list matches across all three views\n\n## Test strategy\n- RED: pipeline-views-parity.spec.ts before T-130 wiring closes; ensures wiring keeps all three views in parity\n- Run 'pnpm --filter web test:e2e pipeline-views-parity'\n\n## Risk red lines\n- Do not run against shared/staging DB — use isolated test container\n- Do not relax tolerance to make tests pass\n- Do not skip axe checks on any view",
+  "labels": [
+    "prd",
+    "ui",
+    "pipeline-parity",
+    "T4-wiring-test",
+    "slice-of-T-060"
+  ],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-131",
+    "parent_task_id": "T-060",
+    "source_prd": "docs/prd/01-NPD-PRD.md",
+    "prd_refs": [
+      "§17.8",
+      "§17.12"
+    ],
+    "category": "test",
+    "subcategory": "pipeline-views-parity",
+    "task_type": "T4-wiring-test",
+    "parent_feature": "01-NPD-f Stage-Gate Pipeline",
+    "parent_task": "T-060",
+    "context_budget": "30k",
+    "estimated_effort": "1.5h",
+    "description": "Playwright parity + axe for Kanban/Table/Split views vs pipeline.jsx prototype; verifies shared filter persistence across views.",
+    "details": "Seeds project fixture; visits each view via ?view= param; captures screenshots; runs axe-core; asserts shared filter persists across all views.",
+    "scope_files": [
+      "apps/web/e2e/npd/pipeline-views-parity.spec.ts [create]",
+      "apps/web/e2e/npd/fixtures/pipeline-views-seed.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not implement view components (T-059/T-128/T-129)",
+      "Do not implement the wiring (T-130)"
+    ],
+    "dependencies": [
+      "T-128",
+      "T-129",
+      "T-130"
+    ],
+    "parallel_safe_with": [],
+    "acceptance_criteria": [
+      "Given the pipeline route renders all three view modes, when Playwright captures full-page screenshots, then each view matches the corresponding prototype region within tolerance per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`",
+      "Given each view is mounted, when axe-core runs, then 0 critical and 0 serious violations are reported per the parity policy",
+      "Given a user toggles ?filter=mine and switches tabs, when each view renders, then the filter persists and the displayed project list matches across all three views",
+      "UI closeout includes screenshot/artifact evidence and Playwright trace/artifacts per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`."
+    ],
+    "test_strategy": [
+      "RED: pipeline-views-parity.spec.ts before wiring closes; ensures wiring keeps all three views in parity",
+      "Run 'pnpm --filter web test:e2e pipeline-views-parity'",
+      "Attach Playwright trace/video + axe reports to closeout."
+    ],
+    "risk_red_lines": [
+      "Do not run against shared/staging DB",
+      "Do not relax tolerance to pass tests",
+      "Do not skip axe checks on any view"
+    ],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": true,
+    "prototype_index_entry": "pipeline",
+    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md"
+  }
+}

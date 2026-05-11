@@ -1,0 +1,94 @@
+{
+  "title": "T-130 — WIRING: Pipeline page tabbed view switcher (Kanban + Table + Split) NPD-f slice of T-060",
+  "prompt": "# T-130 — Pipeline page view wiring\n\nPRD: docs/prd/01-NPD-PRD.md §17.8, §17.12\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\nPrototype: prototypes/design/Monopilot Design System/npd/pipeline.jsx:133-208 (Pipeline page wrapper)\nParent root: T-060\n\n## Goal\nWire the three pipeline view modes (Kanban from T-059, TableView from T-128, SplitView from T-129) into a single tabbed pipeline route page driven by URL ?view=kanban|table|split. Filter and sort state is shared across all view modes via URL search params (?filter=, ?sort=, ?dir=).\n\n## Implementation contract\n1. apps/web/app/(npd)/pipeline/page.tsx (RSC) reads ?view, ?filter, ?sort, ?dir, ?selected — fetches projects (with filter applied) — passes data to a Client wrapper.\n2. The Client wrapper renders shadcn Tabs (Kanban | Table | Split); active tab driven by URL ?view= (default kanban); switching tabs preserves ?filter/?sort/?dir/?selected.\n3. Shared filter chips + search input rendered above tabs by the wrapper; updates URL search params; all three views consume the same filtered project list.\n\n## Files\n- apps/web/app/(npd)/pipeline/page.tsx [modify]\n- apps/web/app/(npd)/pipeline/_components/pipeline-tabs.tsx [create]\n- apps/web/app/(npd)/pipeline/_components/__tests__/pipeline-tabs.test.tsx [create]\n\n## Acceptance criteria\n1. Given the pipeline page mounts at /(npd)/pipeline, when ?view=kanban|table|split is in the URL, then the matching view renders inside shadcn Tabs (no page reload on switch) — verified by RTL routing test\n2. Given a user changes filter or sort, when the change settles, then URL search params update and all three views consume the same filtered/sorted list — verified by RTL\n3. Given a user switches view modes, when the new tab activates, then ?filter, ?sort, ?dir, and ?selected (where applicable) persist across the switch — verified by RTL\n\n## Test strategy\n- RED: pipeline-tabs.test.tsx asserting tab switching, URL persistence, shared state before wiring exists\n- Run 'pnpm --filter web test pipeline-tabs'\n\n## Risk red lines\n- Do not duplicate filter/sort state per view — must be shared via URL\n- Do not implement view components here (use T-059/T-128/T-129 outputs)\n- Do not break URL persistence contract from §17.12",
+  "labels": [
+    "prd",
+    "ui",
+    "pipeline-wiring",
+    "T4-wiring-test",
+    "slice-of-T-060"
+  ],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-130",
+    "parent_task_id": "T-060",
+    "source_prd": "docs/prd/01-NPD-PRD.md",
+    "prd_refs": [
+      "§17.8",
+      "§17.12"
+    ],
+    "category": "ui",
+    "subcategory": "pipeline-wiring",
+    "task_type": "T4-wiring-test",
+    "parent_feature": "01-NPD-f Stage-Gate Pipeline",
+    "parent_task": "T-060",
+    "context_budget": "35k",
+    "estimated_effort": "1.5h",
+    "description": "Wire Kanban/Table/Split into tabbed pipeline page with shared filter/sort state via URL search params.",
+    "details": "RSC page.tsx reads URL params and fetches filtered projects; Client wrapper renders shadcn Tabs (Kanban/Table/Split); shared filter chips + search input above tabs; ?view, ?filter, ?sort, ?dir, ?selected persisted across switches.",
+    "scope_files": [
+      "apps/web/app/(npd)/pipeline/page.tsx [modify]",
+      "apps/web/app/(npd)/pipeline/_components/pipeline-tabs.tsx [create]",
+      "apps/web/app/(npd)/pipeline/_components/__tests__/pipeline-tabs.test.tsx [create]"
+    ],
+    "out_of_scope": [
+      "Do not implement TableView (T-128)",
+      "Do not implement SplitView (T-129)",
+      "Do not implement KanbanView (T-059)",
+      "Do not run Playwright parity (T-131)"
+    ],
+    "dependencies": [
+      "T-059",
+      "T-128",
+      "T-129"
+    ],
+    "parallel_safe_with": [],
+    "acceptance_criteria": [
+      "Given the pipeline page mounts, when ?view=kanban|table|split is in the URL, then the matching view renders inside shadcn Tabs without page reload on switch — verified by RTL routing test",
+      "Given a user changes filter or sort, when the change settles, then URL search params update and all three views consume the same filtered/sorted list — verified by RTL",
+      "Given a user switches view modes, when the new tab activates, then ?filter, ?sort, ?dir, and ?selected persist across the switch — verified by RTL",
+      "UI closeout includes screenshot/artifact evidence per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`; if Playwright is unavailable, document the blocker and provide RTL/snapshot fallback."
+    ],
+    "test_strategy": [
+      "RED: pipeline-tabs.test.tsx asserting tab switching + URL persistence + shared state before wiring exists",
+      "Run 'pnpm --filter web test pipeline-tabs'",
+      "Capture RTL snapshot artifact for closeout."
+    ],
+    "risk_red_lines": [
+      "Do not duplicate filter/sort state per view",
+      "Do not implement view components here",
+      "Do not break URL persistence contract"
+    ],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": true,
+    "prototype_index_entry": "pipeline",
+    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md"
+  }
+}

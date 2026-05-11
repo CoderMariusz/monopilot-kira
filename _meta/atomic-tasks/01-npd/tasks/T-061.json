@@ -1,14 +1,14 @@
 {
-  "title": "T-061 — UI: GateChecklistPanel + AdvanceGateModal + GateApprovalModal (gate-screens prototype) (NPD-f)",
-  "prompt": "# T-061 — Gate panels + modals UI\n\nPRD: docs/prd/01-NPD-PRD.md §17.6, §17.7 + UX prototypes/design/01-NPD-UX.md gate_checklist + advance_modal + approval_modal\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\nPrototype: prototypes/design/Monopilot Design System/npd/gate-screens.jsx:106-260 (GateChecklistPanel), :261-377 (AdvanceGateModal), :378-524 (GateApprovalModal), :525-616 (ApprovalHistoryTimeline)\n\n## Goal\nFour client components: GateChecklistPanel (per-gate accordion + per-item toggle), AdvanceGateModal (G0-G2 self-advance with blockers), GateApprovalModal (G3-G4 approve/reject + e-signature overlay), ApprovalHistoryTimeline (chronological gate_approvals view).\n\n## Implementation contract\n1. apps/web/app/(npd)/pipeline/[projectId]/_components/gate-checklist-panel.tsx ('use client') reads project + items via getProject; per-gate accordion (shadcn Accordion); per-item Checkbox; calls toggleChecklistItem action.\n2. apps/web/app/(npd)/pipeline/[projectId]/_components/advance-gate-modal.tsx ('use client') shadcn Dialog; shows blocker list + notes textarea (disabled when blockers); calls advanceProjectGate.\n3. apps/web/app/(npd)/pipeline/[projectId]/_components/gate-approval-modal.tsx ('use client') shadcn Dialog; approve/reject radio + notes; on approve shows e-signature overlay (password input + confirmation Checkbox); calls approveProjectGate.\n4. apps/web/app/(npd)/pipeline/[projectId]/_components/approval-history-timeline.tsx (RSC) renders gate_approvals reverse chronological with expandable hash.\n\n## Files\n- apps/web/app/(npd)/pipeline/[projectId]/_components/gate-checklist-panel.tsx [create]\n- apps/web/app/(npd)/pipeline/[projectId]/_components/advance-gate-modal.tsx [create]\n- apps/web/app/(npd)/pipeline/[projectId]/_components/gate-approval-modal.tsx [create]\n- apps/web/app/(npd)/pipeline/[projectId]/_components/approval-history-timeline.tsx [create]\n- apps/web/app/(npd)/pipeline/[projectId]/_components/__tests__/gate-modals.test.tsx [create]\n- prototypes/design/Monopilot Design System/npd/gate-screens.jsx [ref]\n\n## Acceptance criteria\n1. Given the production GateChecklistPanel renders, when compared to prototypes/design/Monopilot Design System/npd/gate-screens.jsx:106-260 (GateChecklistPanel), then it has the same per-gate accordion structure with category sub-headers and per-item Checkbox + done/blocked badges — verified by RTL snapshot + parity checklist using shadcn Accordion + Checkbox + Badge primitives\n2. Given a project at G3 with blockers, when AdvanceGateModal opens (prototypes/design/Monopilot Design System/npd/gate-screens.jsx:261-377), then the notes textarea is disabled and a blocker list displays per §17.6 modal contract — verified against prototype\n3. Given GateApprovalModal renders (prototypes/design/Monopilot Design System/npd/gate-screens.jsx:378-524) and approve is clicked, when the e-signature overlay shows, then it requires a password input + confirmation Checkbox before submit — both fields validated client-side per §17.6 e-sig flow\n\n## Test strategy\n- RED: __tests__/gate-modals.test.tsx asserting parity + blocker disabling + e-sig overlay before components exist\n- Run 'pnpm --filter web test gate-modals'\n\n## Risk red lines\n- Do not allow notes submit when blockers present\n- Do not show password value in DOM (must be type=password + masked)\n- Do not paste prototype JSX verbatim",
+  "title": "T-061 — ROOT: Gate screen components group (gate-screens prototype) (NPD-f)",
+  "prompt": "# T-061 — ROOT: Gate screen components group\n\nPRD: docs/prd/01-NPD-PRD.md §17.6, §17.7 + UX prototypes/design/01-NPD-UX.md gate_checklist + advance_modal + approval_modal\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\nPrototype: prototypes/design/Monopilot Design System/npd/gate-screens.jsx:106-616\n\n## Type\nT0-root — workflow descriptor only. NOT executable. Defines the group of slice tasks that together translate the Gate screen prototype components into production.\n\n## Scope (this descriptor)\nThis task describes the Gate screen components group and points to atomic slice tasks. Do not implement any code under this task — implementation occurs in the slices listed below.\n\n## Slice tasks under this root\n- T-107: UI slice — GateChecklistPanel (gate-screens.jsx:106-258)\n- T-108: UI slice — AdvanceGateModal (gate-screens.jsx:261-377)\n- T-109: UI slice — GateApprovalModal (gate-screens.jsx:378-522)\n- T-110: UI slice — ApprovalHistoryTimeline (gate-screens.jsx:525-616)\n- T-111: WIRING — wire all four components into gate route page\n- T-112: PARITY — browser screenshot parity vs prototype gate-screens.jsx:106-616\n\n## Workflow contract\n1. Slices T-107..T-110 execute in parallel; each ships its own RTL tests + component file.\n2. T-111 executes after slices T-107..T-110 complete; integrates components into the gate route.\n3. T-112 executes after T-111; runs Playwright parity vs the prototype and axe-violations check on modal open.\n\n## Out of scope (root level)\n- No production code lives at the root.\n- Server actions, schema, and data-fetching contracts are defined in their own tasks (T-057, T-058).\n\n## Acceptance (root)\n- All listed slices closed.\n- T-111 wiring task closed with all four components rendered in the route.\n- T-112 parity task closed with Playwright screenshot + axe artifacts attached.",
   "labels": [
     "prd",
     "ui",
-    "gate-modals",
-    "T3-ui"
+    "gate-screens",
+    "T0-root"
   ],
   "priority": 100,
-  "max_attempts": 3,
+  "max_attempts": 1,
   "pipeline_name": "kira_dev",
   "pipeline_inputs": {
     "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
@@ -19,73 +19,58 @@
       "§17.7"
     ],
     "category": "ui",
-    "subcategory": "gate-panels-modals",
-    "task_type": "T3-ui",
+    "subcategory": "gate-screens-root",
+    "task_type": "T0-root",
     "parent_feature": "01-NPD-f Stage-Gate Pipeline",
-    "context_budget": "60k",
-    "estimated_effort": "3-4h",
-    "description": "GateChecklistPanel + AdvanceGateModal + GateApprovalModal + ApprovalHistoryTimeline matching gate-screens prototype.",
-    "details": "Parity checklist per component: shadcn Accordion + Checkbox for panel; shadcn Dialog for modals; e-sig overlay with masked password + confirmation; reverse chronological timeline with expandable hash.",
+    "context_budget": "10k",
+    "estimated_effort": "0h",
+    "description": "Root/workflow descriptor for the Gate screen components group. Slices: T-107..T-110 (UI), T-111 (wiring), T-112 (parity).",
+    "details": "Not executable. Lists slice tasks and workflow ordering for translating gate-screens.jsx:106-616 into production.",
     "scope_files": [
-      "apps/web/app/(npd)/pipeline/[projectId]/_components/gate-checklist-panel.tsx [create]",
-      "apps/web/app/(npd)/pipeline/[projectId]/_components/advance-gate-modal.tsx [create]",
-      "apps/web/app/(npd)/pipeline/[projectId]/_components/gate-approval-modal.tsx [create]",
-      "apps/web/app/(npd)/pipeline/[projectId]/_components/approval-history-timeline.tsx [create]",
-      "apps/web/app/(npd)/pipeline/[projectId]/_components/__tests__/gate-modals.test.tsx [create]",
       "prototypes/design/Monopilot Design System/npd/gate-screens.jsx [ref]"
     ],
+    "slice_tasks": [
+      "T-107",
+      "T-108",
+      "T-109",
+      "T-110",
+      "T-111",
+      "T-112"
+    ],
     "out_of_scope": [
-      "Do not implement Server Actions (T-058)",
-      "Do not build E2E test (T-062)"
+      "No implementation at root level",
+      "No tests at root level",
+      "Server actions handled in T-057/T-058"
     ],
     "dependencies": [
       "T-057",
       "T-058"
     ],
-    "parallel_safe_with": [
-      "T-059",
-      "T-060"
-    ],
+    "parallel_safe_with": [],
     "acceptance_criteria": [
-      "Given the production GateChecklistPanel renders, when compared to prototypes/design/Monopilot Design System/npd/gate-screens.jsx:106-260 (GateChecklistPanel), then it has the same per-gate accordion structure with category sub-headers and per-item Checkbox + done/blocked badges — verified by RTL snapshot + parity checklist using shadcn primitives",
-      "Given a project at G3 with blockers, when AdvanceGateModal opens (prototypes/design/Monopilot Design System/npd/gate-screens.jsx:261-377), then the notes textarea is disabled and a blocker list displays per §17.6",
-      "Given GateApprovalModal renders (prototypes/design/Monopilot Design System/npd/gate-screens.jsx:378-524) and approve is clicked, when the e-signature overlay shows, then it requires a masked password + confirmation Checkbox before submit per §17.6",
-      "UI closeout includes screenshot/artifact evidence and Playwright trace/artifacts where applicable per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`; if Playwright is unavailable, document the blocker and provide RTL/snapshot fallback evidence."
+      "All slice tasks T-107..T-110 closed with passing RTL tests and component files created",
+      "T-111 wiring task closed with all four components rendering in the gate route",
+      "T-112 parity task closed with Playwright screenshot + axe artifacts attached per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`"
     ],
     "test_strategy": [
-      "RED: __tests__/gate-modals.test.tsx asserting parity + blocker disabling + e-sig overlay before components exist",
-      "Run 'pnpm --filter web test gate-modals'",
-      "For UI parity, capture screenshots/artifacts and Playwright trace/video/artifacts where applicable; attach artifact paths in closeout."
+      "Root has no tests; tests live in slice tasks."
     ],
     "risk_red_lines": [
-      "Do not allow notes submit when blockers present",
-      "Do not show password value in DOM (must be type=password)",
-      "Do not paste prototype JSX verbatim"
+      "Do not implement code under this root task",
+      "Do not paste prototype JSX verbatim in any slice"
     ],
-    "skills": [
-      "test-driven-development",
-      "requesting-code-review"
-    ],
+    "skills": [],
     "checkpoint_policy": {
-      "required_checkpoints": [
-        "RED",
-        "GREEN",
-        "REVIEW",
-        "CLOSEOUT"
-      ],
+      "required_checkpoints": [],
       "closeout_requires": [
-        "changed_files",
-        "test_commands_and_results",
-        "acceptance_criteria_status",
-        "deviations_from_prd",
-        "git_status"
+        "slice_task_ids_closed"
       ]
     },
     "routing_hints": {
-      "red": "hermes_gpt55",
-      "implementation": "hermes_gpt55",
-      "review": "opus_if_high_risk_or_ui_or_architecture",
-      "close": "spark_low_risk_else_opus"
+      "red": "n/a",
+      "implementation": "n/a",
+      "review": "n/a",
+      "close": "n/a"
     },
     "prototype_match": true,
     "prototype_index_entry": "gate_checklist_panel",

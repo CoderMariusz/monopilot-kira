@@ -1,14 +1,14 @@
 {
-  "title": "T-067 — UI: Live Cost + Nutrition + Allergen panels + composition bar (NutritionPanel/CostPanel/AllergenPanel prototype) (NPD-g)",
-  "prompt": "# T-067 — Live cost/nutrition/allergen panels UI\n\nPRD: docs/prd/01-NPD-PRD.md §17.11.1 (live <50 ms recompute) + UX prototypes/design/01-NPD-UX.md recipe_screen\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\nPrototype: prototypes/design/Monopilot Design System/npd/recipe.jsx:26-122 (NutritionPanel + CostPanel + AllergenPanel) + prototypes/design/Monopilot Design System/npd/recipe.jsx:141-264 (RecipeScreen container)\n\n## Goal\nThree side panels rendering live recomputeCalc output: NutritionPanel (per-100g traffic-light bars), CostPanel (raw cost / margin / target-price slider), AllergenPanel (badges per RM), Composition stacked bar — recompute fires inside React on ingredient change in <50 ms.\n\n## Implementation contract\n1. apps/web/app/(npd)/pipeline/[projectId]/formulation/_components/nutrition-panel.tsx ('use client') uses recomputeCalc result; renders 7-row table + traffic-light bars (CSS).\n2. apps/web/app/(npd)/pipeline/[projectId]/formulation/_components/cost-panel.tsx ('use client') renders cost + margin + target-price Slider (shadcn Slider).\n3. apps/web/app/(npd)/pipeline/[projectId]/formulation/_components/allergen-panel.tsx ('use client') renders Badge per Reference.Allergens with allergen-set membership.\n4. apps/web/app/(npd)/pipeline/[projectId]/formulation/_components/composition-bar.tsx (composition stacked bar SVG/CSS).\n\n## Files\n- apps/web/app/(npd)/pipeline/[projectId]/formulation/_components/nutrition-panel.tsx [create]\n- apps/web/app/(npd)/pipeline/[projectId]/formulation/_components/cost-panel.tsx [create]\n- apps/web/app/(npd)/pipeline/[projectId]/formulation/_components/allergen-panel.tsx [create]\n- apps/web/app/(npd)/pipeline/[projectId]/formulation/_components/composition-bar.tsx [create]\n- apps/web/app/(npd)/pipeline/[projectId]/formulation/_components/__tests__/panels.test.tsx [create]\n- prototypes/design/Monopilot Design System/npd/recipe.jsx [ref]\n\n## Acceptance criteria\n1. Given the production panels render, when compared to prototypes/design/Monopilot Design System/npd/recipe.jsx:26-122 (NutritionPanel + CostPanel + AllergenPanel), then NutritionPanel has 7 rows + traffic-light bars, CostPanel has raw cost + margin + Slider, AllergenPanel renders Badge per allergen — verified by RTL snapshot + parity checklist using shadcn primitives\n2. Given the user changes one ingredient pct in the parent editor, when the panel re-renders, then the recomputeCalc-driven values update within 50 ms p95 per §17.11.1 perf contract — measured via React Profiler in test\n3. Given an ingredient with allergen='gluten' is added, when AllergenPanel re-renders, then a 'gluten' Badge appears highlighted per §17.11.1 + §8.5 cascade\n\n## Test strategy\n- RED: __tests__/panels.test.tsx asserting parity + 50 ms recompute latency + allergen badge update before components exist\n- Run 'pnpm --filter web test panels'\n\n## Risk red lines\n- Do not call recomputeCalc on every render (memoise via useMemo)\n- Do not paste prototype JSX verbatim\n- Do not exceed 50 ms p95 recompute on 50 ingredients",
+  "title": "T-067 — ROOT: FormulationEditor live panels (NutritionPanel + CostPanel + AllergenPanel + CompositionBar) (NPD-g)",
+  "prompt": "# T-067 — ROOT/WORKFLOW: FormulationEditor live panels\n\nPRD: docs/prd/01-NPD-PRD.md §17.11.1 (live <50 ms recompute) + UX prototypes/design/01-NPD-UX.md recipe_screen\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\nPrototype: prototypes/design/Monopilot Design System/npd/recipe.jsx:26-264 (RecipeScreen + side panels)\n\n## Status: ROOT / WORKFLOW descriptor — NOT executable\n\nThis task is the umbrella for the live side-panel cluster of the formulation editor. It is decomposed into atomic slice tasks plus wiring + parity. Do NOT implement code under T-067 directly.\n\n## Decomposition\n- T-113 — NutritionPanel slice (recipe.jsx:26-65) — per-100g traffic-light bars\n- T-114 — CostPanel slice (recipe.jsx:67-101) — cost breakdown + margin + target-price/yield inputs\n- T-115 — AllergenPanel slice (recipe.jsx:103-122) — EU14 allergen presence badges\n- T-116 — CompositionBar slice (recipe.jsx:230-250) — horizontal stacked composition bar\n- T-117 — WIRING: mount all 4 panels into the formulation editor sidebar, share formulation state\n- T-118 — PARITY: Playwright screenshot parity vs recipe.jsx prototype + axe accessibility\n\n## Workflow\n1. Slices T-113..T-116 run in parallel (independent components, each its own scope).\n2. T-117 wires the slices into apps/web/app/(npd)/formulations/[id]/editor/page.tsx after all four slices land.\n3. T-118 validates end-to-end parity + accessibility in browser.\n\n## Out of scope here\n- Ingredient editor table (T-066)\n- E2E user journey (T-068)\n- recomputeCalc engine internals (T-065)\n\n## Risk red lines\n- Do not implement code under T-067 — it is a root descriptor only.\n- Each slice must keep scope_files ≤ 3 (one component + one test, optional CSS).\n- Do not paste prototype JSX verbatim — translate to shadcn primitives per prototype_index translation_notes.",
   "labels": [
     "prd",
     "ui",
     "formulation-panels",
-    "T3-ui"
+    "T0-root"
   ],
   "priority": 100,
-  "max_attempts": 3,
+  "max_attempts": 1,
   "pipeline_name": "kira_dev",
   "pipeline_inputs": {
     "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
@@ -20,68 +20,53 @@
     ],
     "category": "ui",
     "subcategory": "formulation-panels",
-    "task_type": "T3-ui",
+    "task_type": "T0-root",
     "parent_feature": "01-NPD-g Recipe Formulation Editor",
-    "context_budget": "55k",
-    "estimated_effort": "3-4h",
-    "description": "Live cost/nutrition/allergen panels + composition bar driven by recomputeCalc with <50 ms p95 update.",
-    "details": "Each panel consumes recomputeCalc result via useMemo. Traffic-light bars CSS-driven. Slider via shadcn. Allergen badges via shadcn Badge.",
-    "scope_files": [
-      "apps/web/app/(npd)/pipeline/[projectId]/formulation/_components/nutrition-panel.tsx [create]",
-      "apps/web/app/(npd)/pipeline/[projectId]/formulation/_components/cost-panel.tsx [create]",
-      "apps/web/app/(npd)/pipeline/[projectId]/formulation/_components/allergen-panel.tsx [create]",
-      "apps/web/app/(npd)/pipeline/[projectId]/formulation/_components/composition-bar.tsx [create]",
-      "apps/web/app/(npd)/pipeline/[projectId]/formulation/_components/__tests__/panels.test.tsx [create]",
-      "prototypes/design/Monopilot Design System/npd/recipe.jsx [ref]"
-    ],
+    "context_budget": "10k",
+    "estimated_effort": "root descriptor — no direct effort",
+    "description": "ROOT/WORKFLOW for FormulationEditor live side panels. Decomposed into T-113 (Nutrition), T-114 (Cost), T-115 (Allergen), T-116 (CompositionBar), T-117 (wiring), T-118 (parity).",
+    "details": "Not executable. Use as group anchor for the panel cluster. Slices target apps/web/app/(npd)/formulations/[id]/editor/_components/.",
+    "scope_files": [],
     "out_of_scope": [
+      "Do not implement code under T-067 (root only)",
       "Do not implement editor table (T-066)",
-      "Do not build E2E (T-068)"
+      "Do not build E2E user journey (T-068)"
     ],
     "dependencies": [
       "T-065",
       "T-066"
     ],
+    "children": [
+      "T-113",
+      "T-114",
+      "T-115",
+      "T-116",
+      "T-117",
+      "T-118"
+    ],
     "acceptance_criteria": [
-      "Given the production panels render, when compared to prototypes/design/Monopilot Design System/npd/recipe.jsx:26-122 (NutritionPanel + CostPanel + AllergenPanel), then NutritionPanel has 7 rows + traffic-light bars, CostPanel has raw cost + margin + Slider, AllergenPanel renders Badge per allergen — verified by RTL snapshot + parity checklist",
-      "Given the user changes one ingredient pct in the parent editor, when the panel re-renders, then the recomputeCalc-driven values update within 50 ms p95 per §17.11.1 perf contract",
-      "Given an ingredient with allergen='gluten' is added, when AllergenPanel re-renders, then a 'gluten' Badge appears highlighted per §17.11.1 + §8.5 cascade",
-      "UI closeout includes screenshot/artifact evidence and Playwright trace/artifacts where applicable per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`; if Playwright is unavailable, document the blocker and provide RTL/snapshot fallback evidence."
+      "All child slices (T-113..T-116) closed with prototype parity evidence",
+      "Wiring task T-117 closed with all 4 panels rendering in editor sidebar sharing formulation state",
+      "Parity task T-118 closed with Playwright screenshots + 0 axe violations vs recipe.jsx prototype"
     ],
     "test_strategy": [
-      "RED: __tests__/panels.test.tsx asserting parity + 50 ms recompute latency + allergen badge update before components exist",
-      "Run 'pnpm --filter web test panels'",
-      "For UI parity, capture screenshots/artifacts and Playwright trace/video/artifacts where applicable; attach artifact paths in closeout."
+      "Verified transitively through child slice + wiring + parity closeouts"
     ],
     "risk_red_lines": [
-      "Do not call recomputeCalc on every render (memoise)",
-      "Do not paste prototype JSX verbatim",
-      "Do not exceed 50 ms p95 on 50 ingredients"
+      "Do not implement code under T-067 — root only",
+      "Each slice must keep scope_files ≤ 3",
+      "Do not paste prototype JSX verbatim"
     ],
-    "skills": [
-      "test-driven-development",
-      "requesting-code-review"
-    ],
+    "skills": [],
     "checkpoint_policy": {
-      "required_checkpoints": [
-        "RED",
-        "GREEN",
-        "REVIEW",
-        "CLOSEOUT"
-      ],
-      "closeout_requires": [
-        "changed_files",
-        "test_commands_and_results",
-        "acceptance_criteria_status",
-        "deviations_from_prd",
-        "git_status"
-      ]
+      "required_checkpoints": [],
+      "closeout_requires": []
     },
     "routing_hints": {
-      "red": "hermes_gpt55",
-      "implementation": "hermes_gpt55",
-      "review": "opus_if_high_risk_or_ui_or_architecture",
-      "close": "spark_low_risk_else_opus"
+      "red": "n/a",
+      "implementation": "n/a",
+      "review": "n/a",
+      "close": "n/a"
     },
     "prototype_match": true,
     "prototype_index_entry": "nutrition_panel",

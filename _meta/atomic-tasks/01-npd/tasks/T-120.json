@@ -1,0 +1,97 @@
+{
+  "title": "T-120 — UI: Brief detail page (brief_detail) — slice of T-034",
+  "prompt": "# T-120 — Brief detail page UI (slice of T-034)\n\nPRD: docs/prd/01-NPD-PRD.md §9.2 + UX brief_detail\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\nPrototype: prototypes/design/Monopilot Design System/npd/brief-screens.jsx:84-231 (brief_detail)\nParent root: T-034\n\n## Goal\nServer Component page `apps/web/app/(npd)/briefs/[id]/page.tsx` rendering `brief-detail-form.tsx` (Client) — RHF form with all PRD fields (Section A 13 fields + Section B 7 explicit fields + packaging_ext KeyValue list), save/submit actions wired to `saveBriefDraft` Server Action, plus a status timeline sidebar.\n\n## Prototype reference\n**Source:** `prototypes/design/Monopilot Design System/npd/brief-screens.jsx:84-231`\n- Two-section tabs (Product details / Packaging) → shadcn Tabs\n- Converted brief read-only state → derive disabled prop from brief.status='converted'; show Alert variant='success' with link to project\n- Multi-component table with inline editing → useFieldArray; weight total computed via watch()\n- weightMismatch validation (totalWeight vs 220g target ±5g) → Zod .superRefine on components array; surface as array-level error → destructive Badge 'Weight mismatch'\n- C14-C19 packaging fields with fa field mapping hints → shadcn FormDescription below each FormField\n- C21-C37 placeholder fields → render as disabled Input with badge 'TBD'\n- Mark complete CTA: per e2e-spine patch use 'Complete brief for project' copy and route to project detail (not FA Core)\n\n## Implementation contract\nNew `apps/web/app/(npd)/briefs/[id]/page.tsx` (RSC) loads brief, renders `brief-detail-form.tsx` 'use client'. RHF + zodResolver(briefDetailSchema). Save = `saveBriefDraft`; Mark complete runs V-NPD-BRF-001 weight check server-side before status change and routes to the linked project. Status timeline sidebar shows status transitions. shadcn Tabs+Form+FormField+Input+Textarea+Select+Table+Button+Alert+Badge.\n\n## Files in scope\n- `apps/web/app/(npd)/briefs/[id]/page.tsx [create]`\n- `apps/web/app/(npd)/briefs/[id]/_components/brief-detail-form.tsx [create]`\n- `apps/web/app/(npd)/briefs/[id]/_components/__tests__/brief-detail-form.test.tsx [create]`\n- `prototypes/design/Monopilot Design System/npd/brief-screens.jsx [ref]`\n\n## Acceptance criteria\n1. Given the brief detail renders, when compared to brief-screens.jsx:84-231 (brief_detail), then Section A has 13 fields and Section B has 7 explicit fields + packaging_ext rendered as KeyValue list, using shadcn Tabs+Form+FormField+Input — verified by RTL parity checklist (structural + visual + interaction).\n2. Given a user adds a component row whose summary weight delta exceeds tolerance, when rendered, then a destructive Badge 'Weight mismatch' is shown inline.\n3. Given Mark complete is clicked on a complete brief, when the action succeeds, then the CTA copy reads 'Complete brief for project' and the user is routed to the linked Stage-Gate project (not FA Core).\n4. UI closeout includes screenshot/artifact evidence and Playwright trace/artifacts where applicable per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`.\n\n## Test strategy (RED first)\n- RED: 3 RTL tests covering: (a) Section A 13 + Section B 7 + packaging_ext KeyValue parity, (b) weight mismatch destructive Badge, (c) Mark complete CTA copy + project navigation.\n- Run: `pnpm --filter web test brief-detail-form`.\n- Capture screenshots/Playwright trace/artifacts in closeout.\n\n## Risk red lines\n- Do not implement the list page here (T-119)\n- Do not wire navigation glue here (T-121)\n- Do not implement Brief Convert modal\n- Do not bypass saveBriefDraft\n- Do not paste prototype JSX verbatim\n- Do not route Mark complete directly to FA Core",
+  "labels": [
+    "prd",
+    "ui",
+    "brief-detail",
+    "T3-ui",
+    "slice-of-T-034",
+    "e2e-spine",
+    "ux-redline"
+  ],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-120",
+    "parent_task_id": "T-034",
+    "source_prd": "docs/prd/01-NPD-PRD.md",
+    "prd_refs": [
+      "§9.2"
+    ],
+    "category": "ui",
+    "subcategory": "brief-detail",
+    "task_type": "T3-ui",
+    "parent_feature": "01-NPD-b brief UI",
+    "context_budget": "45k",
+    "estimated_effort": "3h",
+    "description": "Brief detail slice: RHF form with Section A (13 fields) + Section B (7 fields + packaging_ext KeyValue), saveBriefDraft action, status timeline. Matches brief-screens.jsx:84-231.",
+    "details": "One page, one form component. Parity vs brief-screens.jsx:84-231. Tabs (Product/Packaging). Multi-component useFieldArray with weight mismatch destructive Badge. Mark complete CTA per e2e-spine patch routes to project.",
+    "scope_files": [
+      "apps/web/app/(npd)/briefs/[id]/page.tsx [create]",
+      "apps/web/app/(npd)/briefs/[id]/_components/brief-detail-form.tsx [create]",
+      "apps/web/app/(npd)/briefs/[id]/_components/__tests__/brief-detail-form.test.tsx [create]",
+      "prototypes/design/Monopilot Design System/npd/brief-screens.jsx [ref]"
+    ],
+    "out_of_scope": [
+      "Do not implement list page (T-119)",
+      "Do not wire navigation/data flow (T-121)",
+      "Do not run Playwright parity (T-122)",
+      "Do not implement Brief Convert modal (T-035)"
+    ],
+    "dependencies": [
+      "T-030",
+      "T-031"
+    ],
+    "parallel_safe_with": [
+      "T-119"
+    ],
+    "acceptance_criteria": [
+      "Given brief detail renders, when compared to brief-screens.jsx:84-231, then Section A has 13 fields and Section B has 7 explicit fields + packaging_ext KeyValue list, using shadcn Tabs+Form+FormField+Input — verified by RTL parity checklist.",
+      "Given a component row weight delta exceeds tolerance, when rendered, then destructive Badge 'Weight mismatch' is shown inline.",
+      "Given Mark complete succeeds, when triggered, then the CTA reads 'Complete brief for project' and routing goes to the Stage-Gate project (not FA Core).",
+      "UI closeout includes screenshot/artifact evidence and Playwright trace/artifacts where applicable per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`."
+    ],
+    "test_strategy": [
+      "RED: 3 RTL tests for Section A/B + packaging_ext parity, weight mismatch badge, Mark complete project-routing.",
+      "Run 'pnpm --filter web test brief-detail-form'.",
+      "Capture screenshots/Playwright artifacts in closeout."
+    ],
+    "risk_red_lines": [
+      "Do not implement list page in this slice",
+      "Do not bypass saveBriefDraft",
+      "Do not paste prototype JSX verbatim",
+      "Do not route Mark complete directly to FA Core"
+    ],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": true,
+    "prototype_index_entry": "brief_detail",
+    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md"
+  }
+}

@@ -1,14 +1,14 @@
 {
-  "title": "T-060 — UI: Pipeline Table + Split views (TableView + SplitView prototypes) (NPD-f)",
-  "prompt": "# T-060 — Pipeline Table + Split views UI\n\nPRD: docs/prd/01-NPD-PRD.md §17.8, §17.12 + UX prototypes/design/01-NPD-UX.md pipeline_table + pipeline_split\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\nPrototype: prototypes/design/Monopilot Design System/npd/pipeline.jsx:54-132 (TableView + SplitView)\n\n## Goal\nTwo additional pipeline view modes: TableView (sortable cols Code/Name/Type/CurrentGate/Priority/Owner/TargetLaunch/Progress with URL persistence ?sort&dir) and SplitView (left compact table + right ProjectDetail panel + URL ?selected=) — switched via ?view=table|split.\n\n## Implementation contract\n1. apps/web/app/(npd)/pipeline/_components/table-view.tsx ('use client') uses shadcn Table + Badge + sortable headers; URL query persistence via Next.js router.\n2. apps/web/app/(npd)/pipeline/_components/split-view.tsx ('use client') two-pane layout (left list, right ProjectDetail panel sticky); selection via ?selected=projectId; min-width 1280 px breakpoint falls back to table.\n3. apps/web/app/(npd)/pipeline/page.tsx switches between Kanban/Table/Split based on ?view= search param (default kanban).\n4. RTL tests for both views: column rendering + sort + URL persistence + selection.\n\n## Files\n- apps/web/app/(npd)/pipeline/_components/table-view.tsx [create]\n- apps/web/app/(npd)/pipeline/_components/split-view.tsx [create]\n- apps/web/app/(npd)/pipeline/_components/project-detail-panel.tsx [create]\n- apps/web/app/(npd)/pipeline/_components/__tests__/table-view.test.tsx [create]\n- apps/web/app/(npd)/pipeline/_components/__tests__/split-view.test.tsx [create]\n- apps/web/app/(npd)/pipeline/page.tsx [modify]\n- prototypes/design/Monopilot Design System/npd/pipeline.jsx [ref]\n\n## Acceptance criteria\n1. Given the production TableView renders, when compared to prototypes/design/Monopilot Design System/npd/pipeline.jsx:54-88 (TableView), then it has the same 8 columns (Code, Name, Type, Current Gate, Priority, Owner, Target Launch, Progress) using shadcn Table + Badge primitives — verified by RTL snapshot + parity checklist\n2. Given the production SplitView renders, when compared to prototypes/design/Monopilot Design System/npd/pipeline.jsx:90-132 (SplitView), then it shows a left compact list + right ProjectDetail sticky panel with selection persisted via URL ?selected= per §17.12 split mode contract\n3. Given URL ?view=split&selected=PRJ-123, when the page loads, then SplitView mounts with PRJ-123 pre-selected and the right panel shows its detail per §17.12 URL persistence\n\n## Test strategy\n- RED: RTL tests for both views asserting parity + sort + selection persistence before components exist\n- Run 'pnpm --filter web test table-view split-view'\n\n## Risk red lines\n- Do not use HTML <table> sort attributes — use shadcn Table primitives\n- Do not paste prototype JSX verbatim\n- Do not break the responsive 1280 px breakpoint contract",
+  "title": "T-060 — ROOT: Pipeline views group (TableView + SplitView prototypes) (NPD-f)",
+  "prompt": "# T-060 — ROOT: Pipeline views group\n\nPRD: docs/prd/01-NPD-PRD.md §17.8, §17.12 + UX prototypes/design/01-NPD-UX.md pipeline_table + pipeline_split\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\nPrototype: prototypes/design/Monopilot Design System/npd/pipeline.jsx:54-132 (TableView + SplitView)\n\n## Type\nT0-root — workflow descriptor only. NOT executable. Defines the group of slice tasks that together translate the Pipeline Table + Split view prototypes into production and unify them with the existing Kanban view (T-059) under one tabbed page.\n\n## Scope (this descriptor)\nThis task describes the Pipeline views group and points to atomic slice tasks. Do not implement any code under this task — implementation occurs in the slices listed below.\n\n## Slice tasks under this root\n- T-128: UI slice — Pipeline TableView (pipeline.jsx:54-88)\n- T-129: UI slice — Pipeline SplitView + ProjectDetailPanel (pipeline.jsx:89-131)\n- T-130: WIRING — wire Kanban (T-059) + Table (T-128) + Split (T-129) into tabbed pipeline page with shared filter/sort state\n- T-131: PARITY — Playwright screenshot parity for all 3 views vs prototype + axe checks\n\n## Workflow contract\n1. Slices T-128 and T-129 execute in parallel; each ships its own RTL tests + component files.\n2. T-130 executes after T-128 + T-129 complete; integrates all view modes into the pipeline route with shared state.\n3. T-131 executes after T-130; runs Playwright parity vs the prototype and axe-violations check.\n\n## Out of scope (root level)\n- No production code lives at the root.\n- Kanban view itself is handled in T-059.\n- Gate modals are handled in T-061.\n\n## Acceptance (root)\n- All listed slices closed.\n- T-130 wiring task closed with Kanban/Table/Split tabs switching correctly and shared filter/sort state persisted across views.\n- T-131 parity task closed with Playwright screenshots + axe artifacts attached.",
   "labels": [
     "prd",
     "ui",
-    "pipeline-table-split",
-    "T3-ui"
+    "pipeline-views",
+    "T0-root"
   ],
   "priority": 100,
-  "max_attempts": 3,
+  "max_attempts": 1,
   "pipeline_name": "kira_dev",
   "pipeline_inputs": {
     "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
@@ -19,25 +19,27 @@
       "§17.12"
     ],
     "category": "ui",
-    "subcategory": "pipeline-table-split-views",
-    "task_type": "T3-ui",
+    "subcategory": "pipeline-views-root",
+    "task_type": "T0-root",
     "parent_feature": "01-NPD-f Stage-Gate Pipeline",
-    "context_budget": "55k",
-    "estimated_effort": "3-4h",
-    "description": "Pipeline TableView + SplitView with sortable cols + URL selection persistence + 1280 px responsive fallback.",
-    "details": "Parity checklist: (1) 8 sortable columns, (2) shadcn Table + Badge, (3) ?sort/dir URL persistence, (4) SplitView left list + right ProjectDetail sticky, (5) ?selected= URL persistence, (6) ≥1280 px breakpoint else fallback to table.",
+    "context_budget": "10k",
+    "estimated_effort": "0h",
+    "description": "Root/workflow descriptor for the Pipeline views group (Kanban + Table + Split). Slices: T-128, T-129 (UI), T-130 (wiring), T-131 (parity).",
+    "details": "Not executable. Lists slice tasks and workflow ordering for translating pipeline.jsx:54-132 into production view modes and unifying them with Kanban (T-059) under one tabbed page.",
     "scope_files": [
-      "apps/web/app/(npd)/pipeline/_components/table-view.tsx [create]",
-      "apps/web/app/(npd)/pipeline/_components/split-view.tsx [create]",
-      "apps/web/app/(npd)/pipeline/_components/project-detail-panel.tsx [create]",
-      "apps/web/app/(npd)/pipeline/_components/__tests__/table-view.test.tsx [create]",
-      "apps/web/app/(npd)/pipeline/_components/__tests__/split-view.test.tsx [create]",
-      "apps/web/app/(npd)/pipeline/page.tsx [modify]",
       "prototypes/design/Monopilot Design System/npd/pipeline.jsx [ref]"
     ],
+    "slice_tasks": [
+      "T-128",
+      "T-129",
+      "T-130",
+      "T-131"
+    ],
     "out_of_scope": [
-      "Do not build kanban view here (T-059)",
-      "Do not build gate modals (T-061)"
+      "No implementation at root level",
+      "No tests at root level",
+      "Kanban view itself implemented in T-059",
+      "Gate modals handled in T-061"
     ],
     "dependencies": [
       "T-057",
@@ -47,48 +49,32 @@
       "T-061"
     ],
     "acceptance_criteria": [
-      "Given the production TableView renders, when compared to prototypes/design/Monopilot Design System/npd/pipeline.jsx:54-88 (TableView), then it has the same 8 columns (Code, Name, Type, Current Gate, Priority, Owner, Target Launch, Progress) using shadcn Table + Badge — verified by RTL snapshot + parity checklist",
-      "Given the production SplitView renders, when compared to prototypes/design/Monopilot Design System/npd/pipeline.jsx:90-132 (SplitView), then it shows a left compact list + right ProjectDetail sticky panel with selection persisted via URL ?selected= per §17.12",
-      "Given URL ?view=split&selected=PRJ-123, when the page loads, then SplitView mounts with PRJ-123 pre-selected and the right panel shows its detail per §17.12",
-      "UI closeout includes screenshot/artifact evidence and Playwright trace/artifacts where applicable per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`; if Playwright is unavailable, document the blocker and provide RTL/snapshot fallback evidence."
+      "All slice tasks T-128 and T-129 closed with passing RTL tests and component files created",
+      "T-130 wiring task closed with Kanban/Table/Split tabs switching correctly and shared filter/sort state persisting across views",
+      "T-131 parity task closed with Playwright screenshots for all 3 views + axe artifacts attached per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`"
     ],
     "test_strategy": [
-      "RED: RTL tests for both views asserting parity + sort + selection persistence before components exist",
-      "Run 'pnpm --filter web test table-view split-view'",
-      "For UI parity, capture screenshots/artifacts and Playwright trace/video/artifacts where applicable; attach artifact paths in closeout."
+      "Root has no tests; tests live in slice tasks."
     ],
     "risk_red_lines": [
-      "Do not use HTML <table> sort attributes",
-      "Do not paste prototype JSX verbatim",
-      "Do not break the responsive 1280 px breakpoint"
+      "Do not implement code under this root task",
+      "Do not paste prototype JSX verbatim in any slice"
     ],
-    "skills": [
-      "test-driven-development",
-      "requesting-code-review"
-    ],
+    "skills": [],
     "checkpoint_policy": {
-      "required_checkpoints": [
-        "RED",
-        "GREEN",
-        "REVIEW",
-        "CLOSEOUT"
-      ],
+      "required_checkpoints": [],
       "closeout_requires": [
-        "changed_files",
-        "test_commands_and_results",
-        "acceptance_criteria_status",
-        "deviations_from_prd",
-        "git_status"
+        "slice_task_ids_closed"
       ]
     },
     "routing_hints": {
-      "red": "hermes_gpt55",
-      "implementation": "hermes_gpt55",
-      "review": "opus_if_high_risk_or_ui_or_architecture",
-      "close": "spark_low_risk_else_opus"
+      "red": "n/a",
+      "implementation": "n/a",
+      "review": "n/a",
+      "close": "n/a"
     },
     "prototype_match": true,
-    "prototype_index_entry": "split_view",
+    "prototype_index_entry": "pipeline",
     "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md"
   }
 }

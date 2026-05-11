@@ -1,0 +1,97 @@
+{
+  "title": "T-101 — UI: FA MRP tab (fa_mrp_tab) — schema-driven form with D365 status badges",
+  "prompt": "# T-101 — FA MRP tab UI (slice of T-025)\n\nPRD: docs/prd/01-NPD-PRD.md §5.8 + UX fa_mrp_tab\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\nPrototype: prototypes/design/Monopilot Design System/npd/fa-screens.jsx:763-804 (fa_mrp_tab)\nParent root: T-025\n\n## Goal\nClient component for FA MRP dept rendering 12 material/packaging fields (Box, Top Label, Bottom Label, Web, MRP Box/Labels/Films/Sleeves/Cartons, Tara weight, Pallet stacking plan, Box dimensions) with D365 status badges (found/nocost/missing). Uses buildDeptZod('MRP') + updateFaCell per dirty field.\n\n## Prototype reference\n**Source:** `prototypes/design/Monopilot Design System/npd/fa-screens.jsx:763-804`\n- `cell(val, status)` helper → extract `D365StatusInput` component (Input + Badge side-by-side)\n- Colors: found=#DCFCE7 (green), nocost=#FEF3C7 (amber), missing=#FEE2E2 (red); labels Found / No cost / Missing\n- V04 alert at top: 'Each material validated against D365 master data. Green=Found+costed · Amber=No cost · Red=Missing'\n- Refresh D365 cache button (Server Action refreshD365Cache)\n- 12 fields rendered in form-grid; Save MRP + Close MRP section buttons\n\n## Implementation contract\nNew `apps/web/app/(npd)/fa/[id]/_tabs/mrp-tab.tsx` 'use client'. RHF + zodResolver(buildDeptZod('MRP')). Each material field uses D365StatusInput (Input + Badge), status derived from `d365_import_cache` join (passed in via props from server component). Save calls `updateFaCell` per dirty field; Close MRP triggers deptClose modal via URL param. shadcn Form/FormField/Input/Badge/Button/Alert primitives.\n\n## Files in scope\n- `apps/web/app/(npd)/fa/[id]/_tabs/mrp-tab.tsx [create]`\n- `apps/web/app/(npd)/fa/[id]/_tabs/__tests__/mrp-tab.test.tsx [create]`\n- `prototypes/design/Monopilot Design System/npd/fa-screens.jsx [ref]`\n\n## Acceptance criteria\n1. Given the MRP tab renders, when compared to fa-screens.jsx:763-804 (fa_mrp_tab), then it shows the same 12 MRP fields in DeptColumns display_order, each material field renders D365StatusInput with Badge colored per status enum (found/nocost/missing), and uses shadcn Form/FormField/Input/Badge primitives — verified by RTL parity checklist (structural + visual + interaction).\n2. Given a material has status='missing', when rendered, then the Input has red background and the Badge says 'Missing' with tooltip 'Material not in D365 — request creation'.\n3. Given a user edits Tara weight and saves, when Server Action runs, then `updateFaCell` is called for `tara_weight` only and the V04 status legend stays visible.\n4. UI closeout includes screenshot/artifact evidence and Playwright trace/artifacts where applicable per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`.\n\n## Test strategy (RED first)\n- RED: 3 RTL tests covering: (a) 12 fields in correct order with correct D365 status badges, (b) missing status rendering, (c) updateFaCell call with single dirty field.\n- Run: `pnpm --filter web test mrp-tab`.\n- For UI parity, capture screenshots/artifacts and Playwright trace/video/artifacts where applicable; attach artifact paths in closeout.\n\n## Risk red lines\n- Do not implement other tabs in this slice\n- Do not hardcode field list (use buildDeptZod + DeptColumns reference)\n- Do not skip D365 status badge rendering\n- Do not duplicate D365StatusInput (extract once, reuse)",
+  "labels": [
+    "prd",
+    "ui",
+    "fa-mrp-tab",
+    "T3-ui"
+  ],
+  "priority": 50,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-101",
+    "parent_task_id": "T-025",
+    "source_prd": "docs/prd/01-NPD-PRD.md",
+    "prd_refs": [
+      "§5.8"
+    ],
+    "category": "ui",
+    "subcategory": "fa-mrp-tab",
+    "task_type": "T3-ui",
+    "parent_feature": "01-npd-fa",
+    "context_budget": "40k",
+    "estimated_effort": "1-3h",
+    "description": "FA MRP tab slice: 12 material fields with D365 found/nocost/missing status badges, schema-driven via buildDeptZod('MRP').",
+    "details": "One tab, one file. Parity vs fa-screens.jsx:763-804. Extract D365StatusInput component (Input + Badge). Save via updateFaCell per dirty field.",
+    "scope_files": [
+      "apps/web/app/(npd)/fa/[id]/_tabs/mrp-tab.tsx [create]",
+      "apps/web/app/(npd)/fa/[id]/_tabs/__tests__/mrp-tab.test.tsx [create]",
+      "prototypes/design/Monopilot Design System/npd/fa-screens.jsx [ref]"
+    ],
+    "out_of_scope": [
+      "Do not implement Procurement tab (T-102)",
+      "Do not implement Commercial tab (T-103)",
+      "Do not implement Planning tab (T-104)",
+      "Do not wire into FA detail page (T-105)",
+      "Do not run Playwright parity (T-106)"
+    ],
+    "dependencies": [
+      "T-009",
+      "T-014",
+      "T-016",
+      "T-020"
+    ],
+    "parallel_safe_with": [
+      "T-102",
+      "T-103",
+      "T-104"
+    ],
+    "acceptance_criteria": [
+      "Given the MRP tab renders, when compared to fa-screens.jsx:763-804, then it shows same 12 MRP fields in DeptColumns display_order, each with D365StatusInput (Input + Badge), and uses shadcn primitives — verified by RTL parity checklist (structural + visual + interaction).",
+      "Given a material has status='missing', when rendered, then Input has red background and Badge says 'Missing' with tooltip.",
+      "Given user edits Tara weight and saves, when Server Action runs, then updateFaCell is called for tara_weight only.",
+      "UI closeout includes screenshot/artifact evidence and Playwright trace/artifacts where applicable per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`."
+    ],
+    "test_strategy": [
+      "RED: 3 RTL tests for 12-field parity, missing-status rendering, single-field save.",
+      "Run 'pnpm --filter web test mrp-tab'.",
+      "Capture screenshots/Playwright artifacts in closeout."
+    ],
+    "risk_red_lines": [
+      "Do not implement other tabs in this slice",
+      "Do not hardcode field list (use buildDeptZod)",
+      "Do not skip D365 status badge rendering"
+    ],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": true,
+    "prototype_index_entry": "fa_mrp_tab",
+    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md"
+  }
+}

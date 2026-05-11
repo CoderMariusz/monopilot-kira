@@ -1,0 +1,94 @@
+{
+  "title": "T-128 — UI: Pipeline TableView (pipeline_table prototype) NPD-f slice of T-060",
+  "prompt": "# T-128 — Pipeline TableView slice\n\nPRD: docs/prd/01-NPD-PRD.md §17.8 + UX prototypes/design/01-NPD-UX.md pipeline_table\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\nPrototype: prototypes/design/Monopilot Design System/npd/pipeline.jsx:54-88 (TableView)\nPrototype-index entry: pipeline (TableView region)\nParent root: T-060\n\n## Goal\nSingle Client Component TableView translating the prototype TableView region into a production React Client Component. Renders a dense sortable table of NPD projects with 8 columns (Code, Name, Type, Current Gate, Priority, Owner, Target Launch, Progress), status badges, bulk-action toolbar, and URL persistence of sort state (?sort=&dir=). Consumes the project list from parent props; does not query the DB.\n\n## Implementation contract\n- apps/web/app/(npd)/pipeline/_components/table-view.tsx ('use client'). Props: { projects: NpdProjectRow[], onSelect?: (id: string) => void }.\n- Use shadcn Table + Badge + Button primitives; sortable column headers with chevron icons; bulk-actions toolbar rendered above the table when rows are selected (Checkbox primitive).\n- URL persistence via Next.js useSearchParams + useRouter — sort + dir; do not mutate parent state directly.\n- Status badge variants map to gate state (todo/in-progress/blocked/done) and priority badges (high/med/low) per prototype.\n- No DB calls inside the component (parent RSC provides projects).\n\n## Files (≤ 2)\n- apps/web/app/(npd)/pipeline/_components/table-view.tsx [create]\n- apps/web/app/(npd)/pipeline/_components/__tests__/table-view.test.tsx [create]\n\n## Acceptance criteria\n1. Given TableView renders with a sample project list, when compared to prototypes/design/Monopilot Design System/npd/pipeline.jsx:54-88 (TableView), then it has the same 8 columns (Code, Name, Type, Current Gate, Priority, Owner, Target Launch, Progress), status + priority Badges, and uses shadcn Table primitives (no HTML <table> sort attributes) — verified by RTL parity checklist\n2. Given a user clicks a sortable header, when the click settles, then URL ?sort=<col>&dir=<asc|desc> updates and the rows re-render in the new order — verified by RTL router test\n3. Given one or more rows are checked, when the toolbar renders, then bulk-action buttons (Assign Owner, Set Priority, Move Gate) appear via shadcn Button primitives — verified by RTL\n\n## Test strategy\n- RED: table-view.test.tsx asserting 8 columns, badge variants, sortable header URL update, bulk-actions toolbar visibility — before component exists\n- Run 'pnpm --filter web test table-view'\n\n## Risk red lines\n- Do not use HTML <table> sort attributes — use shadcn Table primitives\n- Do not paste prototype JSX verbatim\n- Do not query DB from this Client Component (parent provides projects)",
+  "labels": [
+    "prd",
+    "ui",
+    "pipeline-table-view",
+    "T3-ui",
+    "slice-of-T-060"
+  ],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-128",
+    "parent_task_id": "T-060",
+    "source_prd": "docs/prd/01-NPD-PRD.md",
+    "prd_refs": [
+      "§17.8"
+    ],
+    "category": "ui",
+    "subcategory": "pipeline-table-view",
+    "task_type": "T3-ui",
+    "parent_feature": "01-NPD-f Stage-Gate Pipeline",
+    "parent_task": "T-060",
+    "context_budget": "35k",
+    "estimated_effort": "1.5-2h",
+    "description": "Pipeline TableView slice: 8 sortable columns + status/priority Badges + bulk-actions toolbar with URL sort persistence. Matches pipeline.jsx:54-88.",
+    "details": "Parity: 8 columns (Code, Name, Type, Current Gate, Priority, Owner, Target Launch, Progress); shadcn Table + Badge + Button + Checkbox primitives; URL ?sort=&dir= persistence; bulk-actions toolbar appears when rows are checked.",
+    "scope_files": [
+      "apps/web/app/(npd)/pipeline/_components/table-view.tsx [create]",
+      "apps/web/app/(npd)/pipeline/_components/__tests__/table-view.test.tsx [create]"
+    ],
+    "out_of_scope": [
+      "Do not build SplitView (T-129)",
+      "Do not wire view tabs into pipeline page (T-130)",
+      "Do not run Playwright parity (T-131)",
+      "Do not build Kanban view (T-059)",
+      "Do not build gate modals (T-061)"
+    ],
+    "dependencies": [
+      "T-057",
+      "T-059"
+    ],
+    "parallel_safe_with": [
+      "T-129"
+    ],
+    "acceptance_criteria": [
+      "Given TableView renders with a sample project list, when compared to prototypes/design/Monopilot Design System/npd/pipeline.jsx:54-88, then it has the same 8 columns and status/priority Badges using shadcn Table primitives — verified by RTL parity checklist",
+      "Given a user clicks a sortable header, when the click settles, then URL ?sort=<col>&dir=<asc|desc> updates and rows re-render in the new order — verified by RTL router test",
+      "Given one or more rows are checked, when the toolbar renders, then bulk-action buttons (Assign Owner, Set Priority, Move Gate) appear via shadcn Button — verified by RTL",
+      "UI closeout includes screenshot/artifact evidence per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`; if Playwright is unavailable, document the blocker and provide RTL/snapshot fallback."
+    ],
+    "test_strategy": [
+      "RED: table-view.test.tsx asserting 8 columns + badge variants + sortable header URL update + bulk-actions toolbar before component exists",
+      "Run 'pnpm --filter web test table-view'",
+      "Capture RTL snapshot artifact for parity closeout."
+    ],
+    "risk_red_lines": [
+      "Do not use HTML <table> sort attributes",
+      "Do not paste prototype JSX verbatim",
+      "Do not query DB from this Client Component"
+    ],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": true,
+    "prototype_index_entry": "pipeline",
+    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md"
+  }
+}

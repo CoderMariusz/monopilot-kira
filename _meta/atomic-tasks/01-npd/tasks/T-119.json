@@ -1,0 +1,97 @@
+{
+  "title": "T-119 — UI: Brief list page (brief_list) — slice of T-034",
+  "prompt": "# T-119 — Brief list page UI (slice of T-034)\n\nPRD: docs/prd/01-NPD-PRD.md §9.2 + UX brief_list\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\nPrototype: prototypes/design/Monopilot Design System/npd/brief-screens.jsx:7-82 (brief_list)\nParent root: T-034\n\n## Goal\nServer Component page `apps/web/app/(npd)/briefs/page.tsx` rendering a list of briefs via `brief-list-table.tsx` (Client) using shadcn primitives matching the brief_list prototype 1:1. Status filter chips, search input, 5 columns (dev_code, status, template, created_at, owner) with linked-project spine info. Create button triggers BriefCreateModal via URL param.\n\n## Prototype reference\n**Source:** `prototypes/design/Monopilot Design System/npd/brief-screens.jsx:7-82`\n- `window.NPD_BRIEFS` in-memory filter → Drizzle query with WHERE status=? AND template=? AND (dev_code ILIKE ? OR product_name ILIKE ?); use nuqs for URL-synced filters\n- `statusBadge` helper → extract `BriefStatusBadge` component; map status to shadcn Badge variant\n- Table row click → `router.push('/npd/briefs/[briefId]')`; stop-propagation on action buttons\n- Convert button (status='complete' only) → opens brief_convert_modal via URL param `?modal=briefConvert&brief=BR-0106`\n- Empty state → full-width TableRow with EmptyState component (shadcn pattern)\n- Linked project column shows DEV-NNN + current_gate (e2e-spine patch: project is canonical next artefact, not FA)\n\n## Implementation contract\nNew `apps/web/app/(npd)/briefs/page.tsx` (RSC) fetches briefs and renders `brief-list-table.tsx` 'use client'. Table uses shadcn Table+Badge+Input+Select+Button. Row click navigates to detail; Convert CTA only visible for complete briefs. Per e2e-spine patch, the linked-project column links to Stage-Gate project detail.\n\n## Files in scope\n- `apps/web/app/(npd)/briefs/page.tsx [create]`\n- `apps/web/app/(npd)/briefs/_components/brief-list-table.tsx [create]`\n- `apps/web/app/(npd)/briefs/_components/__tests__/brief-list-table.test.tsx [create]`\n- `prototypes/design/Monopilot Design System/npd/brief-screens.jsx [ref]`\n\n## Acceptance criteria\n1. Given the brief list renders, when compared to brief-screens.jsx:7-82 (brief_list), then it has the same 5 columns in the same order, the status filter chips region, the search input, and the Create button — using shadcn Table+Badge+Input+Select+Button primitives — verified by RTL parity checklist (structural + visual + interaction).\n2. Given a brief row links to a project, when rendered, then the linked-project cell shows DEV-NNN + current_gate and clicking it navigates to the Stage-Gate project detail (not FA).\n3. Given the Create button is clicked, when activated, then the URL is updated with ?modal=briefCreate and BriefCreateModal opens.\n4. UI closeout includes screenshot/artifact evidence and Playwright trace/artifacts where applicable per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`.\n\n## Test strategy (RED first)\n- RED: 3 RTL tests covering: (a) 5-column parity + status chips, (b) project-spine linked-project cell, (c) Create button URL transition.\n- Run: `pnpm --filter web test brief-list-table`.\n- For UI parity, capture screenshots/artifacts and Playwright trace/video/artifacts where applicable; attach artifact paths in closeout.\n\n## Risk red lines\n- Do not implement the detail page in this slice (T-120)\n- Do not wire navigation glue here (T-121)\n- Do not implement Brief Convert modal here\n- Do not paste prototype JSX verbatim\n- Do not use FA as primary user-facing term",
+  "labels": [
+    "prd",
+    "ui",
+    "brief-list",
+    "T3-ui",
+    "slice-of-T-034",
+    "e2e-spine",
+    "ux-redline"
+  ],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-119",
+    "parent_task_id": "T-034",
+    "source_prd": "docs/prd/01-NPD-PRD.md",
+    "prd_refs": [
+      "§9.2"
+    ],
+    "category": "ui",
+    "subcategory": "brief-list",
+    "task_type": "T3-ui",
+    "parent_feature": "01-NPD-b brief UI",
+    "context_budget": "35k",
+    "estimated_effort": "2h",
+    "description": "Brief list slice: 5-column table with status chips, search, Create button, project-spine linked column. Matches brief-screens.jsx:7-82.",
+    "details": "One page, one client table component. Parity vs brief-screens.jsx:7-82. nuqs URL-synced filters; BriefStatusBadge extracted; row click→detail. Linked project column displays DEV-NNN + current_gate (e2e-spine).",
+    "scope_files": [
+      "apps/web/app/(npd)/briefs/page.tsx [create]",
+      "apps/web/app/(npd)/briefs/_components/brief-list-table.tsx [create]",
+      "apps/web/app/(npd)/briefs/_components/__tests__/brief-list-table.test.tsx [create]",
+      "prototypes/design/Monopilot Design System/npd/brief-screens.jsx [ref]"
+    ],
+    "out_of_scope": [
+      "Do not implement detail page (T-120)",
+      "Do not wire navigation/data flow (T-121)",
+      "Do not run Playwright parity (T-122)",
+      "Do not implement Brief Convert modal (T-035)"
+    ],
+    "dependencies": [
+      "T-030",
+      "T-031"
+    ],
+    "parallel_safe_with": [
+      "T-120"
+    ],
+    "acceptance_criteria": [
+      "Given the brief list renders, when compared to brief-screens.jsx:7-82, then it has same 5 columns in same order, status filter chips region, search input, and Create button — using shadcn Table+Badge+Input+Select+Button — verified by RTL parity checklist (structural + visual + interaction).",
+      "Given a brief row links to a project, when rendered, then the linked-project cell shows DEV-NNN + current_gate and clicking it navigates to the Stage-Gate project detail.",
+      "Given the Create button is clicked, when activated, then the URL is updated with ?modal=briefCreate.",
+      "UI closeout includes screenshot/artifact evidence and Playwright trace/artifacts where applicable per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`."
+    ],
+    "test_strategy": [
+      "RED: 3 RTL tests for 5-column parity, project-spine cell, Create URL transition.",
+      "Run 'pnpm --filter web test brief-list-table'.",
+      "Capture screenshots/Playwright artifacts in closeout."
+    ],
+    "risk_red_lines": [
+      "Do not implement detail page in this slice",
+      "Do not wire navigation glue here",
+      "Do not paste prototype JSX verbatim",
+      "Do not use FA as primary user-facing term"
+    ],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": true,
+    "prototype_index_entry": "brief_list",
+    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md"
+  }
+}
