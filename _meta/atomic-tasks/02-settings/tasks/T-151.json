@@ -1,0 +1,58 @@
+{
+  "title": "T-151 — PARITY: Infra/Security/Integrations screens Playwright + axe parity vs access-screens.jsx:154-239 — 02-settings-e-ui",
+  "prompt": "# T-151 — Infra/Security/Integrations screens browser parity\n\nPRD: docs/prd/02-Settings-PRD.md\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\nPrototype: prototypes/design/Monopilot Design System/settings/access-screens.jsx:154-239 + admin-screens.jsx:27-103,109-146,540-581,586-624 + ops-screens.jsx:98-163 + integrations.jsx:7-107 + org-screens.jsx:192-252\nParent tasks: T-060, T-061, T-062, T-068, T-069, T-071, T-076, T-104, T-105, T-106, T-107, T-111, T-112, T-113\n\n## Goal\nPlaywright screenshot parity + axe-violations check for all 14 screens/modals in this group against the settings prototype. 0 critical/serious axe violations on each screen.\n\n## Screens in scope\nSecurity, D365 Connection, D365 Mapping, Email Templates, Email Variables, Notifications, Integrations catalog, Warehouse List, Location Tree, Machine List, Line List, D365 Sync Config, D365 Sync Audit, Email Delivery Log\n\n## Implementation contract\n- Playwright spec at apps/web/e2e/settings/e-ui-parity.spec.ts\n- Seeds appropriate fixture data for each screen\n- Visits each screen/modal URL, captures full-page screenshot vs prototype region\n- Runs axe-core on each view; asserts 0 critical and 0 serious violations\n- Attaches traces/screenshots per _meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md\n\n## Files in scope\n- apps/web/e2e/settings/e-ui-parity.spec.ts [create]\n- apps/web/e2e/settings/fixtures/e-ui-seed.ts [create]\n\n## Acceptance criteria\n1. Given Playwright runs the parity spec for each screen, when compared to prototypes/design/Monopilot Design System/settings/access-screens.jsx:154-239 + admin-screens.jsx:27-103,109-146,540-581,586-624 + ops-screens.jsx:98-163 + integrations.jsx:7-107 + org-screens.jsx:192-252, then screenshots match within tolerance per _meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md\n2. Given each screen is mounted, when axe-core runs, then 0 critical and 0 serious violations\n3. Closeout attaches Playwright traces/screenshots OR documents blocker + RTL/snapshot fallback\n\n## Risk red lines\n- Do not modify implementation code\n- Do not relax axe threshold\n- Do not run against shared/staging DB\n",
+  "labels": [
+    "settings",
+    "ui",
+    "settings-e-ui-parity",
+    "T4-wiring-test"
+  ],
+  "priority": 80,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-151",
+    "source_prd": "docs/prd/02-Settings-PRD.md",
+    "category": "test",
+    "subcategory": "e-ui-parity",
+    "task_type": "T4-wiring-test",
+    "parent_feature": "02-settings-e-ui",
+    "context_budget": "30k",
+    "estimated_effort": "2h",
+    "description": "Playwright screenshot parity + axe for 14 infra/security/integrations screens vs access-screens.jsx, admin-screens.jsx, ops-screens.jsx, integrations.jsx, org-screens.jsx prototypes.",
+    "scope_files": [
+      "apps/web/e2e/settings/e-ui-parity.spec.ts [create]",
+      "apps/web/e2e/settings/fixtures/e-ui-seed.ts [create]"
+    ],
+    "dependencies": [
+      "T-060",
+      "T-061",
+      "T-062",
+      "T-068",
+      "T-069",
+      "T-071",
+      "T-076",
+      "T-104",
+      "T-105",
+      "T-106",
+      "T-107",
+      "T-111",
+      "T-112",
+      "T-113"
+    ],
+    "acceptance_criteria": [
+      "Given Playwright runs parity spec, when compared to prototypes/design/Monopilot Design System/settings/access-screens.jsx:154-239 + admin-screens.jsx:27-103,109-146,540-581,586-624 + ops-screens.jsx:98-163 + integrations.jsx:7-107 + org-screens.jsx:192-252, then screenshots match within tolerance per _meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md",
+      "Given each screen is mounted, when axe-core runs, then 0 critical and 0 serious violations",
+      "Closeout attaches Playwright traces/screenshots OR documents blocker + RTL/snapshot fallback evidence per parity policy"
+    ],
+    "risk_red_lines": [
+      "Do not modify implementation code",
+      "Do not relax axe threshold",
+      "Do not run against shared/staging DB"
+    ],
+    "prototype_match": true,
+    "prototype_index_entry": "security_screen, d365_connection_screen, d365_mapping_screen, email_templates_screen, email_variables_screen, notifications_screen, integrations_screen, warehouses_screen",
+    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md"
+  }
+}

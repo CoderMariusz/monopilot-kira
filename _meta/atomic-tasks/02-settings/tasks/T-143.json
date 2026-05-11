@@ -1,0 +1,50 @@
+{
+  "title": "T-143 — PARITY: RBAC screens Playwright + axe parity vs org-screens.jsx:4-100 — 02-settings-a-ui",
+  "prompt": "# T-143 — RBAC screens browser parity\n\nPRD: docs/prd/02-Settings-PRD.md\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\nPrototype: prototypes/design/Monopilot Design System/settings/org-screens.jsx:4-100 + access-screens.jsx:4-151\nParent tasks: T-058, T-059, T-079, T-119, T-120, T-127\n\n## Goal\nPlaywright screenshot parity + axe-violations check for all 6 screens/modals in this group against the settings prototype. 0 critical/serious axe violations on each screen.\n\n## Screens in scope\nCompany Profile, Users, Audit Log, Pending Invitations, Roles&Permissions, Auth Policies\n\n## Implementation contract\n- Playwright spec at apps/web/e2e/settings/a-ui-parity.spec.ts\n- Seeds appropriate fixture data for each screen\n- Visits each screen/modal URL, captures full-page screenshot vs prototype region\n- Runs axe-core on each view; asserts 0 critical and 0 serious violations\n- Attaches traces/screenshots per _meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md\n\n## Files in scope\n- apps/web/e2e/settings/a-ui-parity.spec.ts [create]\n- apps/web/e2e/settings/fixtures/a-ui-seed.ts [create]\n\n## Acceptance criteria\n1. Given Playwright runs the parity spec for each screen, when compared to prototypes/design/Monopilot Design System/settings/org-screens.jsx:4-100 + access-screens.jsx:4-151, then screenshots match within tolerance per _meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md\n2. Given each screen is mounted, when axe-core runs, then 0 critical and 0 serious violations\n3. Closeout attaches Playwright traces/screenshots OR documents blocker + RTL/snapshot fallback\n\n## Risk red lines\n- Do not modify implementation code\n- Do not relax axe threshold\n- Do not run against shared/staging DB\n",
+  "labels": [
+    "settings",
+    "ui",
+    "settings-a-ui-parity",
+    "T4-wiring-test"
+  ],
+  "priority": 80,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-143",
+    "source_prd": "docs/prd/02-Settings-PRD.md",
+    "category": "test",
+    "subcategory": "a-ui-parity",
+    "task_type": "T4-wiring-test",
+    "parent_feature": "02-settings-a-ui",
+    "context_budget": "30k",
+    "estimated_effort": "2h",
+    "description": "Playwright screenshot parity + axe for 6 RBAC screens vs org-screens.jsx and access-screens.jsx prototypes.",
+    "scope_files": [
+      "apps/web/e2e/settings/a-ui-parity.spec.ts [create]",
+      "apps/web/e2e/settings/fixtures/a-ui-seed.ts [create]"
+    ],
+    "dependencies": [
+      "T-058",
+      "T-059",
+      "T-079",
+      "T-119",
+      "T-120",
+      "T-127"
+    ],
+    "acceptance_criteria": [
+      "Given Playwright runs parity spec, when compared to prototypes/design/Monopilot Design System/settings/org-screens.jsx:4-100 + access-screens.jsx:4-151, then screenshots match within tolerance per _meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md",
+      "Given each screen is mounted, when axe-core runs, then 0 critical and 0 serious violations",
+      "Closeout attaches Playwright traces/screenshots OR documents blocker + RTL/snapshot fallback evidence per parity policy"
+    ],
+    "risk_red_lines": [
+      "Do not modify implementation code",
+      "Do not relax axe threshold",
+      "Do not run against shared/staging DB"
+    ],
+    "prototype_match": true,
+    "prototype_index_entry": "company_profile_screen, users_screen",
+    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md"
+  }
+}
