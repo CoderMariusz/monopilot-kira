@@ -23,8 +23,8 @@
     "description": "SET-010 Pending Invitations production screen, in scope per PO 2026-05-03.",
     "details": "Canonical Settings prototype source of truth is `prototypes/design/Monopilot Design System/settings/*.jsx`. If an exact screen prototype is missing, implement spec-driven from `prototypes/design/02-SETTINGS-UX.md` and reuse available prototype elements/patterns only where they match the UX contract. Exact prototype for SET-010 is not confirmed; use UX SET-010 as authoritative and reuse user/invite table plus modal patterns from `prototypes/settings/access-screens.jsx` and `prototypes/settings/modals.jsx`. Depth patch 2026-05-03: ## Depth patch — UI permissions and invitation lifecycle - Add route/nav visibility checks: `/settings/invitations` is visible only to users who can view users/invitations; write controls require invite/admin permissions. - Distinguish actions by state: Pending supports Resend/Revoke; Expired supports Resend and optional cleanup; Accepted is read-only and must never revoke a real user. - Show resend/revoke pending, success, error, and audit result states; include confirmation copy with invite email and expiry. - Tests must cover permission-denied/read-only, all three statuses, loading/empty/error, and that accepted invitations cannot be revoked.\nPreserved acceptance requirements: Screen enforces `settings.users.invite`/`settings.roles.assign` permissions: users without invite permission see read-only table and no Invite/Resend/Revoke write controls.; Navigation/route access and write controls are permission-filtered; missing write permission renders a read-only table with no Invite/Resend/Revoke controls.; Accepted invitations are immutable/read-only; revoke never affects accepted users.; RTL tests cover pending, expired, accepted, loading, empty, error, and permission-denied states.\n\nAdditional acceptance detail preserved from compressed AC list:\n- RTL covers pending, expired, accepted, loading, empty, error and permission-denied states.\n- UI closeout includes screenshot/artifact evidence and Playwright trace/artifacts where applicable per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`; if Playwright is unavailable, document the blocker and provide RTL/snapshot fallback evidence.",
     "scope_files": [
-      "apps/web/app/(admin)/settings/invitations/page.tsx [create]",
-      "apps/web/app/(admin)/settings/invitations/page.test.tsx [create]"
+      "apps/web/app/(admin)/settings/invitations/page.tsx",
+      "apps/web/app/(admin)/settings/invitations/page.test.tsx"
     ],
     "dependencies": [
       "T-017",
@@ -52,6 +52,8 @@
       "Do not allow revoke to mutate accepted users."
     ],
     "prototype_match": false,
+    "prototype_index_entry": "users_screen (closest pattern — invited-users status column)",
+    "prototype_closest_path": "prototypes/design/Monopilot Design System/settings/access-screens.jsx:4-152",
     "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
     "prd_task_id": "T-119",
     "source_prd": "docs/prd/02-SETTINGS-PRD.md",
