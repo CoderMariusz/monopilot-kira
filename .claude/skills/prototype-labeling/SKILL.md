@@ -1,28 +1,42 @@
 ---
 name: prototype-labeling
-description: Label prototype JSX components with 5-dimensional taxonomy + translation notes for production reuse. Use when Haiku agent is dispatched to scan a Monopilot design system module (prototypes/design/Monopilot Design System/<module>/) and produce prototype-index JSON + translation-notes markdown. Produces consumable input for T3 UI atomic task pre-hooks.
-version: 1.0.0
+description: Two-phase Haiku workflow for prototype-driven task development. Phase 1 = label prototype JSX components with 5-dimensional taxonomy + translation notes. Phase 2 = batch-link atomic task JSONs to index entries so ACP agents read 20-line entries instead of 800-line JSX files. Use after prototypes change, after PRD decomposition adds new tasks, or as the standard close-out for any module-level UI work.
+version: 1.1.0
 model: haiku
 canonical_spec: _meta/plans/atomic-task-decomposition-guide.md §12
 ---
 
-# Prototype Labeling Skill (Haiku)
+# Prototype Labeling Skill (Haiku) — two-phase workflow
 
-**Purpose:** produce a standardized label-index + translation-notes for one prototype module so future T3 UI atomic tasks receive pre-loaded JSX snippets + translation checklist + shadcn equivalents instead of writing components from blank.
+**Purpose:** keep task JSONs and prototype label index in sync, so every ACP agent executing a T3-ui task can read a pre-built 20-line JSON entry (lines, ui_pattern, shadcn primitives, translation notes, known bugs) instead of opening 800 lines of raw JSX.
 
-**Why Haiku (not Opus):** this is rote extraction + classification work — pattern-match on JSX structure, apply taxonomy, write structured JSON. ~60x cheaper than Opus. Opus's architectural thinking is wasted here; saved for the T3 translation step that USES this output.
+**Two phases, run in this order:**
+- **Phase 1: Label** — scan prototype JSX, produce/refresh `prototype-index-<module>.json` + `translation-notes-<module>.md` (this skill's original job)
+- **Phase 2: Link** — batch-update every task JSON in the same module's `atomic-tasks/<module>/tasks/` directory to add `pipeline_inputs.prototype_index_ref` pointing into the index
 
-## When to use
+Both phases run as Haiku — rote extraction + JSON manipulation, no architectural thinking. Opus tokens are saved for the actual T3 implementation work that consumes both outputs.
 
+**When to run:**
+- Prototype JSX was modified (new component added, lines shifted, screen removed) → run both phases
+- PRD decomposition added new task JSONs → run Phase 2 only (index still current)
+- Index is missing entirely for a module → run Phase 1 only first, then Phase 2
+- Settings/NPD-style audit shows `prototype_index_ref` coverage below 80% of T3-ui → run Phase 2
+
+**Why Haiku (not Opus):** this is rote extraction + classification + string-matching work. ~60x cheaper than Opus. Architectural thinking is wasted here — save it for T3 translation.
+
+## Phase 1: Label (produce index)
+
+**When to use Phase 1:**
 - Haiku agent is dispatched with a target module path (e.g., `prototypes/design/Monopilot Design System/warehouse/`)
 - Goal is to produce labeled index of reusable components
-- Output will be consumed by T3 UI atomic task pre-hooks OR operator review (pilot phase)
-- First-pass labeling OR re-labeling after prototype changes (maintenance mode)
+- Prototype JSX changed (lines shifted, new components, removed components)
+- Initial labeling for a module that has no index yet
 
-**Do NOT use this skill when:**
-- Writing production code (translation happens in T3 tasks, not here — skill produces notes for that)
+**Do NOT run Phase 1 when:**
+- Writing production code (translation happens in T3 tasks, not here)
 - Labeling backend-only prototypes (this skill is for visual UI prototypes)
 - Full 15-module rollout BEFORE pilot has validated taxonomy + schema
+- Just adding new tasks that reference an already-current index → skip to Phase 2
 
 ## Required reading (load in this order, be selective)
 
@@ -290,15 +304,107 @@ on T3 task dispatch:
 
 Context budget impact: snippet ~3-8k + notes ~1-2k + task spec ~3-5k = ~7-15k overhead, leaving ~85k for agent implementation work. Safe margin.
 
+## Phase 2: Link (wire tasks to index)
+
+**Goal:** for every task JSON in `_meta/atomic-tasks/<module>/tasks/T-*.json` that builds a real UI screen, add `pipeline_inputs.prototype_index_ref` pointing at its matching index entry. This is the field consumed by the ACP pre-hook; without it the agent falls back to reading raw JSX.
+
+**Why this is a separate Haiku phase:** Phase 1 produces the index, Phase 2 wires it into the consumer surface (task JSONs). Doing it manually leaks tokens; doing it with Opus is overkill — it's string-matching plus careful JSON edits.
+
+**Input:**
+- Index from Phase 1: `_meta/prototype-labels/prototype-index-<module>.json`
+- Tasks: `_meta/atomic-tasks/<module>/tasks/T-*.json`
+
+**Output:** each eligible task JSON has new field
+```json
+"pipeline_inputs": {
+  ...,
+  "prototype_index_ref": "_meta/prototype-labels/prototype-index-<module>.json#<label>",
+  "prototype_index_entry": "<label>"
+}
+```
+
+### Eligibility rules — skip these tasks
+
+A task does NOT get a `prototype_index_ref` if any of these match:
+
+- `task_type` ∈ {`T0-root`, `T1-data`, `T1-schema`, `T2-server`, `T2-api`, `T2-rpc`}
+- `category` ∈ {`data`, `backend`, `server`, `parity`, `auth`, `docs`, `infra`, `test`}
+- `prototype_match` is `false` AND no closest path can be inferred from prompt body
+
+Eligible: `task_type == "T3-ui"` OR `category == "ui"`.
+
+### Mapping algorithm (apply in order)
+
+For each eligible task, find the matching index entry by trying these in priority:
+
+1. **Direct path match** — task already has `prototype_path` (e.g., `"ops-screens.jsx:247-383"`). Parse file + line range. Find index entry whose `file` matches and whose `lines` overlap. Confidence: HIGH.
+
+2. **Label match on entry field** — task has `prototype_index_entry` already (as a string like `"global_import_export_screen"` or with suffix like `"users_screen (closest pattern …)"`). Extract base label before any `(` or whitespace. Lookup directly in index by `label` field. Confidence: HIGH if exact, MEDIUM if suffix-stripped.
+
+3. **JSX reference in prompt** — prompt body contains `<file>.jsx:NNN-NNN`. Same overlap check as (1). Confidence: HIGH.
+
+4. **Screen name from title/subcategory** — task title or subcategory like `SET-029 Global Import / Export` or `Schema Shadow Preview`. Convert to snake_case (`global_import_export_screen`, `schema_shadow_preview_screen`) and look up. Confidence: MEDIUM. Verify with one keyword match against the entry's translation_notes / spec hint.
+
+5. **Unmapped** — none of the above. Leave task untouched, list in final report.
+
+### Edit rules
+
+- Use the `Edit` tool, one task = one Edit when possible. Do NOT use `Write` (would lose original formatting).
+- ONLY add/modify `prototype_index_ref` and `prototype_index_entry` inside `pipeline_inputs`. Do NOT touch `prompt`, `details`, `acceptance_criteria`, or any other field.
+- If `prototype_index_entry` already had a free-form suffix (e.g., `"users_screen (closest pattern — invited-users status column)"`), normalise it to the bare label if confidence is HIGH; preserve suffix if confidence is MEDIUM.
+- Preserve JSON `indent=2, ensure_ascii=False` style — match existing file formatting.
+- DO NOT commit. Operator commits after reviewing the report.
+
+### Report format (Phase 2)
+
+Under 300 words. Include:
+
+1. **Counts:**
+   - Total tasks scanned
+   - T3-ui tasks
+   - T3-ui now with `prototype_index_ref` (numerator / denominator)
+   - Tasks skipped by type/category (with breakdown by skip reason)
+   - Tasks unmapped (needs human review)
+
+2. **Unmapped list:** one line per task — `T-NNN | <reason>` (e.g., `T-041 | onboarding-screens.jsx has no top-level components in index`)
+
+3. **Confidence breakdown:** how many mappings used rule 1 / 2 / 3 / 4 above
+
+4. **Coverage target:** if T3-ui mapped coverage is below 80%, recommend Phase 1 re-scan to fill gaps
+
+### Common gotchas
+
+- **Stale lines in index** — if Phase 1 wasn't re-run after prototype lines shifted, Phase 2 still maps correctly by label, but ACP pre-hook will read wrong lines. Always run Phase 1 first if prototypes were modified.
+- **Free-form entry suffixes** — tasks created via PRD decomposition often have `prototype_index_entry` with explanatory text. Strip parens-delimited suffixes when looking up; preserve them in the field if no exact label exists.
+- **Closest-pattern tasks** — task has `prototype_match: false` but `prototype_closest_path` is set. Still map it — write `prototype_index_ref` pointing to the closest entry. Pre-hook displays it with a "closest pattern" hint.
+- **Index entry not found for a known screen** — means Phase 1 missed it. Flag in report, run Phase 1 re-scan, then re-run Phase 2.
+
+## Two-phase orchestration template
+
+When operator says "run prototype-labeling for `<module>`" without phase qualifier, default to running both phases sequentially:
+
+1. Dispatch Haiku agent for Phase 1 → produces `prototype-index-<module>.json` + `translation-notes-<module>.md`
+2. Wait for Phase 1 completion. Review entry count, line accuracy, taxonomy distribution.
+3. Dispatch Haiku agent for Phase 2 → updates task JSONs.
+4. Wait for Phase 2 completion. Review unmapped count.
+5. Operator reviews + commits + creates PR.
+
+If operator says "phase 1 only" or "label only" → run Phase 1, stop. If operator says "phase 2 only" or "link only" or "wire tasks" → run Phase 2, stop.
+
 ## Maintenance workflow
 
 When prototype for a module changes:
-1. Re-invoke this skill for that 1 module (~30 min wall-clock for Haiku)
-2. Merge updated module index into `master-index.json`
-3. Flag T3 tasks whose `prototype_ref` references entries with changed labels/lines — these tasks need re-review before dispatch
+1. Re-invoke Phase 1 for that 1 module (~30 min wall-clock for Haiku)
+2. Re-invoke Phase 2 for the same module — captures new entries and corrected line numbers in task refs
+3. Flag T3 tasks whose `prototype_index_ref` references entries with changed labels — these tasks need re-review before dispatch
+
+When PRD decomposition adds new tasks to a module:
+1. Phase 1 stays (no prototype change)
+2. Run Phase 2 only — links the new tasks to existing index
 
 Do NOT delete historical entries — future replay may need them.
 
 ## Version history
 
-- v1.0.0 (2026-04-23) — initial, canonical Haiku labeling adapter of `_meta/plans/atomic-task-decomposition-guide.md` §12. Supports pilot + full modes, 5-dim taxonomy, output contract aligned with pre-hook consumer pattern.
+- v1.1.0 (2026-05-13) — added Phase 2 (task linking) as a first-class part of this skill. Two-phase orchestration template + eligibility rules + 4-priority mapping algorithm + common gotchas. Drives `prototype_index_ref` coverage on T3-ui task JSONs from ~0% to ~80%+ per module.
+- v1.0.0 (2026-04-23) — initial Phase 1 only, canonical Haiku labeling adapter of `_meta/plans/atomic-task-decomposition-guide.md` §12. Supports pilot + full modes, 5-dim taxonomy, output contract aligned with pre-hook consumer pattern.
