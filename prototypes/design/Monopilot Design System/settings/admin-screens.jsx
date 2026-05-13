@@ -476,6 +476,85 @@ const SchemaBrowserScreen = ({ openModal }) => {
 };
 
 // ============================================================
+// SCREEN 6b — SET-034 Schema Shadow Preview
+// spec: § SET-034 "Schema Shadow Preview — dry-run draft column in sample form, no production writes"
+// ============================================================
+const SHADOW_DRAFT_COLS = [
+  { col: "batch_allergen_override", label: "Batch allergen override", table: "production_batch",  type: "text",   tier: "L2", dept: "QC",          req: false },
+  { col: "supplier_cert_expiry",    label: "Supplier cert expiry",    table: "partners",           type: "date",   tier: "L3", dept: "Procurement", req: true  },
+  { col: "line_throughput_target",  label: "Line throughput target",  table: "production_lines",   type: "number", tier: "L2", dept: "Operations",  req: false },
+];
+const SchemaShadowPreviewScreen = () => {
+  const [selCol, setSelCol] = React.useState(SHADOW_DRAFT_COLS[0].col);
+  const col = SHADOW_DRAFT_COLS.find(c => c.col === selCol);
+  return (
+    <>
+      <PageHead title="Schema shadow preview" sub="Dry-run a draft column in a simulated sample form. No production writes." />
+      <div className="alert alert-blue" style={{ fontSize: 12, marginBottom: 14 }}>
+        <strong>Preview only.</strong> This screen renders a draft column using generated sample data. No schema, migration or reference data is written. To publish, use the Column Edit Wizard (SET-031).
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "2fr 3fr", gap: 16, alignItems: "start" }}>
+
+        {/* Left: draft column selector + metadata */}
+        <div>
+          <Section title="Draft columns">
+            <SRow label="Select draft">
+              <select value={selCol} onChange={e => setSelCol(e.target.value)}>
+                {SHADOW_DRAFT_COLS.map(c => (
+                  <option key={c.col} value={c.col}>{c.label}</option>
+                ))}
+              </select>
+            </SRow>
+          </Section>
+          {col && (
+            <Section title="Column metadata">
+              <SRow label="Code"><code style={{ fontSize: 12 }}>{col.col}</code></SRow>
+              <SRow label="Label">{col.label}</SRow>
+              <SRow label="Table"><span className="badge badge-gray" style={{ fontSize: 10 }}>{col.table}</span></SRow>
+              <SRow label="Type"><span className="badge badge-gray" style={{ fontSize: 10 }}>{col.type}</span></SRow>
+              <SRow label="Tier"><TierBadge tier={col.tier} /></SRow>
+              <SRow label="Dept"><span className="muted">{col.dept}</span></SRow>
+              <SRow label="Required">{col.req ? <span style={{ color: "var(--green-700)" }}>✓ Yes</span> : <span className="muted">No</span>}</SRow>
+              <SRow label="Status"><span className="badge badge-amber" style={{ fontSize: 10 }}>draft</span></SRow>
+            </Section>
+          )}
+        </div>
+
+        {/* Right: rendered sample form preview */}
+        <div>
+          <Section title="Sample form preview" sub="Generated from sample data. Values are synthetic and not stored.">
+            {col && (
+              <div style={{ border: "1px solid var(--border)", borderRadius: 8, padding: 20, background: "#fff" }}>
+                <div className="field">
+                  <label style={{ fontWeight: 600 }}>
+                    {col.label}
+                    {col.req && <span style={{ color: "var(--red)", marginLeft: 3 }}>*</span>}
+                  </label>
+                  {col.type === "text"   && <input type="text"   placeholder={`Sample ${col.label.toLowerCase()}`} />}
+                  {col.type === "date"   && <input type="date"   defaultValue="2026-06-15" />}
+                  {col.type === "number" && <input type="number" defaultValue="1250" />}
+                  <div className="muted" style={{ fontSize: 11, marginTop: 4 }}>
+                    Preview · Tier {col.tier} · <code style={{ fontSize: 10 }}>{col.table}.{col.col}</code>
+                  </div>
+                </div>
+                <div className="alert alert-amber" style={{ fontSize: 11, marginTop: 16 }}>
+                  This field is in <strong>draft</strong> status. Not visible in production until published via Column Edit Wizard.
+                </div>
+              </div>
+            )}
+          </Section>
+          <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 4 }}>
+            <button className="btn btn-secondary">← Back to schema browser</button>
+            <button className="btn btn-primary">Publish this column →</button>
+          </div>
+        </div>
+
+      </div>
+    </>
+  );
+};
+
+// ============================================================
 // SCREEN 7 — SET-080 Reference data (allergens, UoM, currency, country ISO)
 // spec: § SET-050 "Reference Tables Index"
 // ============================================================

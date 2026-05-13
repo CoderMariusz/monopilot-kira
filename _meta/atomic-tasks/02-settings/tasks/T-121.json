@@ -51,7 +51,7 @@
       "Do not implement global import as a thin alias for reference CSV only.",
       "Do not allow CSV import to mutate authorization policies without policy permissions, audit reason, and preflight validation."
     ],
-    "prototype_match": false,
+    "prototype_match": true,
     "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
     "prd_task_id": "T-121",
     "source_prd": "docs/prd/02-SETTINGS-PRD.md",
@@ -86,6 +86,8 @@
       "review": "opus_if_high_risk_or_ui_or_architecture",
       "close": "spark_low_risk_else_opus"
     },
-    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md"
+    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md",
+    "prototype_index_entry": "global_import_export_screen",
+    "prototype_path": "prototypes/design/Monopilot Design System/settings/ops-screens.jsx:247-383"
   }
 }
