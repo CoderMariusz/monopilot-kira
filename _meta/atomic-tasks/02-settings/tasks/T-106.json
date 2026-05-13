@@ -94,6 +94,8 @@
       "label": "warehouses_screen",
       "component_type": "page-layout",
       "is_exact_match": false
-    }
+    },
+    "prototype_index_ref": "_meta/prototype-labels/prototype-index-settings.json#warehouses_screen",
+    "prototype_index_entry": "warehouses_screen"
   }
 }

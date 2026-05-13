@@ -79,6 +79,8 @@
       "close": "spark_low_risk_else_opus"
     },
     "prototype_match": true,
-    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md"
+    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md",
+    "prototype_index_ref": "_meta/prototype-labels/prototype-index-settings.json#role_assign_modal",
+    "prototype_index_entry": "role_assign_modal"
   }
 }

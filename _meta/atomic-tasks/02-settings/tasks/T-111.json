@@ -92,6 +92,8 @@
       "label": "d365_connection_screen",
       "component_type": "form",
       "is_exact_match": false
-    }
+    },
+    "prototype_index_ref": "_meta/prototype-labels/prototype-index-settings.json#d365_connection_screen",
+    "prototype_index_entry": "d365_connection_screen"
   }
 }
