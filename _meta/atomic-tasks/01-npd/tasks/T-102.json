@@ -92,6 +92,7 @@
     },
     "prototype_match": true,
     "prototype_index_entry": "fa_procurement_tab",
-    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md"
+    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md",
+    "prototype_index_ref": "_meta/prototype-labels/prototype-index-npd.json#fa_procurement_tab"
   }
 }

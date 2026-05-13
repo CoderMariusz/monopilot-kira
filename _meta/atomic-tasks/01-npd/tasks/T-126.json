@@ -85,6 +85,7 @@
     },
     "prototype_match": false,
     "prototype_index_entry": "d365_build_modal",
-    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md"
+    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md",
+    "prototype_index_ref": "_meta/prototype-labels/prototype-index-npd.json#d365_build_modal"
   }
 }
