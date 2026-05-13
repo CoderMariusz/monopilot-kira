@@ -243,4 +243,142 @@ const FeaturesScreen = () => {
   );
 };
 
-Object.assign(window, { DevicesScreen, NotificationsScreen, FeaturesScreen });
+// ============================================================
+// SCREEN 4 — SET-029 Global Import / Export
+// spec: § SET-029 "Global Import/Export hub — bulk Settings entity operations"
+// ============================================================
+const IMPORT_EXPORT_ENTITIES = [
+  { key: "users",       label: "Users",               import: true,  export: true,  perm: "settings.users.invite",       async: false },
+  { key: "roles",       label: "Roles & permissions", import: true,  export: true,  perm: "settings.roles.assign",       async: false },
+  { key: "invitations", label: "Pending invitations", import: false, export: true,  perm: "settings.users.invite",       async: false },
+  { key: "reference",   label: "Reference tables",    import: true,  export: true,  perm: "settings.reference.edit",     async: false },
+  { key: "flags",       label: "Feature flags",       import: true,  export: true,  perm: "settings.flags.edit",         async: true  },
+  { key: "auth_policy", label: "Auth policies",       import: true,  export: true,  perm: "settings.authorization.edit", async: true  },
+];
+const RECENT_IMPORT_EXPORT_JOBS = [
+  { id: "IMP-0042", entity: "Reference tables", type: "import", status: "completed", rows: 48,   by: "K. Nowak",    at: "2026-05-10 14:33" },
+  { id: "EXP-0041", entity: "Users",            type: "export", status: "completed", rows: 10,   by: "K. Nowak",    at: "2026-05-09 09:12" },
+  { id: "IMP-0040", entity: "Auth policies",    type: "import", status: "failed",    rows: null, by: "T. Kowalski", at: "2026-05-08 17:05" },
+];
+const GlobalImportExportScreen = () => {
+  const [tab, setTab] = React.useState("import");
+  const [entity, setEntity] = React.useState(IMPORT_EXPORT_ENTITIES[0].key);
+  const [file, setFile] = React.useState(null);
+  const sel = IMPORT_EXPORT_ENTITIES.find(e => e.key === entity);
+  const isAuthPolicy = entity === "auth_policy";
+  return (
+    <>
+      <PageHead title="Import / Export" sub="Bulk import and export for Settings entities. All mutations are audited." />
+
+      <div className="pills" style={{ marginBottom: 14 }}>
+        <button className={`pill ${tab === "import" ? "on" : ""}`} onClick={() => setTab("import")}>⬆ Import</button>
+        <button className={`pill ${tab === "export" ? "on" : ""}`} onClick={() => setTab("export")}>⬇ Export</button>
+      </div>
+
+      {tab === "import" && (
+        <>
+          {isAuthPolicy && (
+            <div className="alert alert-amber" style={{ fontSize: 12, marginBottom: 12 }}>
+              <strong>Authorization policy import</strong> requires <code>settings.authorization.edit</code>, an audit reason, and a successful dry-run before committing. V-SET-43 / V-SET-44 cannot be bypassed.
+            </div>
+          )}
+          <Section title="Select entity to import">
+            <SRow label="Entity">
+              <select value={entity} onChange={e => setEntity(e.target.value)}>
+                {IMPORT_EXPORT_ENTITIES.filter(e => e.import).map(e => (
+                  <option key={e.key} value={e.key}>{e.label}</option>
+                ))}
+              </select>
+            </SRow>
+            <SRow label="Required permission" hint="You must hold this permission to complete the import.">
+              <code style={{ fontSize: 12, background: "var(--gray-100)", padding: "2px 6px", borderRadius: 4 }}>{sel.perm}</code>
+            </SRow>
+            <SRow label="Processing">
+              <span className={`badge ${sel.async ? "badge-amber" : "badge-green"}`} style={{ fontSize: 11 }}>
+                {sel.async ? "⏳ Async job — you will be notified" : "⚡ Synchronous"}
+              </span>
+            </SRow>
+            <SRow label="Template">
+              <button className="btn btn-secondary btn-sm">⬇ Download CSV template</button>
+            </SRow>
+          </Section>
+
+          <Section title="Upload file">
+            <div style={{ border: "2px dashed var(--border)", borderRadius: 8, padding: 32, textAlign: "center", background: file ? "var(--green-050)" : "var(--gray-050)", cursor: "pointer" }}
+                 onClick={() => setFile(file ? null : "entities.csv")}>
+              {file ? (
+                <>
+                  <div style={{ fontSize: 22, marginBottom: 6 }}>✓</div>
+                  <div style={{ fontWeight: 600 }}>{file}</div>
+                  <div className="muted" style={{ fontSize: 12, marginTop: 4 }}>Click to remove</div>
+                </>
+              ) : (
+                <>
+                  <div style={{ fontSize: 22, marginBottom: 6 }}>📄</div>
+                  <div style={{ fontWeight: 500 }}>Drag & drop CSV or click to browse</div>
+                  <div className="muted" style={{ fontSize: 12, marginTop: 4 }}>Max 10 MB · UTF-8 CSV only</div>
+                </>
+              )}
+            </div>
+            {file && (
+              <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 12 }}>
+                {isAuthPolicy && <button className="btn btn-secondary">Run dry-run preflight</button>}
+                <button className="btn btn-primary">Start import →</button>
+              </div>
+            )}
+          </Section>
+        </>
+      )}
+
+      {tab === "export" && (
+        <Section title="Export entity">
+          <SRow label="Entity">
+            <select value={entity} onChange={e => setEntity(e.target.value)}>
+              {IMPORT_EXPORT_ENTITIES.filter(e => e.export).map(e => (
+                <option key={e.key} value={e.key}>{e.label}</option>
+              ))}
+            </select>
+          </SRow>
+          <SRow label="Format">
+            <div style={{ display: "flex", gap: 12 }}>
+              <label style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer" }}>
+                <input type="radio" name="fmt" defaultChecked /> CSV
+              </label>
+              <label style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer" }}>
+                <input type="radio" name="fmt" /> XLSX
+              </label>
+            </div>
+          </SRow>
+          <SRow label="">
+            <button className="btn btn-primary">⬇ Export now</button>
+          </SRow>
+        </Section>
+      )}
+
+      <Section title="Recent jobs" sub="Last 30 days. Click a job for the full audit log.">
+        <table>
+          <thead><tr><th>Job ID</th><th>Entity</th><th>Type</th><th>Status</th><th>Rows</th><th>By</th><th>Started at</th></tr></thead>
+          <tbody>
+            {RECENT_IMPORT_EXPORT_JOBS.map(j => (
+              <tr key={j.id}>
+                <td className="mono" style={{ fontWeight: 600 }}>{j.id}</td>
+                <td>{j.entity}</td>
+                <td><span className={`badge ${j.type === "import" ? "badge-blue" : "badge-gray"}`} style={{ fontSize: 10 }}>{j.type}</span></td>
+                <td>
+                  {j.status === "completed" && <span className="badge badge-green" style={{ fontSize: 10 }}>✓ completed</span>}
+                  {j.status === "failed"    && <span className="badge badge-red"   style={{ fontSize: 10 }}>✕ failed</span>}
+                  {j.status === "running"   && <span className="badge badge-blue"  style={{ fontSize: 10 }}>⟳ running</span>}
+                </td>
+                <td className="mono num">{j.rows ?? "—"}</td>
+                <td>{j.by}</td>
+                <td className="mono muted" style={{ fontSize: 11 }}>{j.at}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </Section>
+    </>
+  );
+};
+
+Object.assign(window, { DevicesScreen, NotificationsScreen, FeaturesScreen, GlobalImportExportScreen });

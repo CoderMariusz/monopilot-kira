@@ -60,7 +60,7 @@
       "Do not update organization locale when only user preference is changed.",
       "Do not hard-code language state outside the app i18n primitives."
     ],
-    "prototype_match": false,
+    "prototype_match": true,
     "skills": [
       "test-driven-development",
       "requesting-code-review"
@@ -85,6 +85,8 @@
       "implementation": "hermes_gpt55",
       "review": "opus_if_high_risk_or_ui_or_architecture",
       "close": "spark_low_risk_else_opus"
-    }
+    },
+    "prototype_index_entry": "my_profile_screen (language select field)",
+    "prototype_path": "prototypes/design/Monopilot Design System/settings/account-screens.jsx:3-75"
   }
 }
