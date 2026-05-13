@@ -90,6 +90,7 @@
     },
     "prototype_match": true,
     "prototype_index_entry": "gate_approval_modal",
-    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md"
+    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md",
+    "prototype_index_ref": "_meta/prototype-labels/prototype-index-npd.json#gate_approval_modal"
   }
 }

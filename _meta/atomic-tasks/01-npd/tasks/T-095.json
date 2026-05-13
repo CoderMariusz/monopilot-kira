@@ -118,6 +118,10 @@
         "role": "content/availability-check pattern"
       },
       "note": "No exact prototype for G3 create/map FG candidate — hybrid of gate-decision shell + brief-convert content. Build per Section 5 (No exact prototype) of docs/acp-ui-task-schema.md."
-    }
+    },
+    "prototype_index_refs": [
+      "_meta/prototype-labels/prototype-index-npd.json#gate_approval_modal",
+      "_meta/prototype-labels/prototype-index-npd.json#brief_convert_modal"
+    ]
   }
 }
