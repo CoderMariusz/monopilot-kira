@@ -79,7 +79,10 @@
       "review": "opus_if_high_risk_or_ui_or_architecture",
       "close": "spark_low_risk_else_opus"
     },
-    "prototype_match": false,
-    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md"
+    "prototype_match": true,
+    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md",
+    "prototype_index_entry": "schema_migrations_screen",
+    "prototype_index_ref": "_meta/prototype-labels/prototype-index-settings.json#schema_migrations_screen",
+    "prototype_path": "prototypes/design/Monopilot Design System/settings/schema-migrations.jsx:103-213"
   }
 }

@@ -92,6 +92,10 @@
       "label": "features_screen",
       "component_type": "form",
       "is_exact_match": false
-    }
+    },
+    "prototype_match": false,
+    "prototype_index_entry": "flags_admin_screen (closest pattern — per-tenant boolean toggle; SET settings.flags.edit)",
+    "prototype_index_ref": "_meta/prototype-labels/prototype-index-settings.json#flags_admin_screen",
+    "prototype_closest_path": "prototypes/design/Monopilot Design System/settings/admin-screens.jsx:355-413"
   }
 }

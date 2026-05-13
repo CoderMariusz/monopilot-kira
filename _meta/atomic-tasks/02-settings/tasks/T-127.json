@@ -79,13 +79,16 @@
     "source_prd": "docs/prd/02-SETTINGS-PRD.md",
     "context_budget": "40k",
     "estimated_effort": "2-4h",
-    "prototype_match": true,
+    "prototype_match": false,
     "prototype_reference": {
       "source_file": "prototypes/design/Monopilot Design System/settings/access-screens.jsx",
       "lines": "154-239",
       "label": "security_screen",
       "component_type": "form",
       "is_exact_match": false
-    }
+    },
+    "prototype_index_entry": "tenant_variations_screen (closest pattern — has Authorization Policies card; no full SET-011b screen prototype)",
+    "prototype_index_ref": "_meta/prototype-labels/prototype-index-settings.json#tenant_variations_screen",
+    "prototype_closest_path": "prototypes/design/Monopilot Design System/settings/tenant-variations.jsx:34-161"
   }
 }

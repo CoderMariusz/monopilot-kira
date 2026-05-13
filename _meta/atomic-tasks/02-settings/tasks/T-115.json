@@ -94,6 +94,9 @@
       "label": "rule_detail_screen",
       "component_type": "tabs",
       "is_exact_match": false
-    }
+    },
+    "prototype_index_entry": "manufacturing_op_history_screen",
+    "prototype_index_ref": "_meta/prototype-labels/prototype-index-settings.json#manufacturing_op_history_screen",
+    "prototype_path": "prototypes/design/Monopilot Design System/settings/manufacturing-ops.jsx:271-404"
   }
 }
