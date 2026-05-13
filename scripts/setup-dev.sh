@@ -14,7 +14,7 @@
 #
 set -euo pipefail
 
-DB_URL="postgresql://postgres.khjvkhzwfzuwzrusgobp:MM2022mm%21%21%21@aws-0-eu-central-1.pooler.supabase.com:5432/postgres"
+DB_URL="postgresql://postgres.khjvkhzwfzuwzrusgobp:MM2022mm%21%21%21@aws-0-eu-central-2.pooler.supabase.com:5432/postgres"
 APP_USER_PASS="NExVJJZlP5JZPeHDY_LC5ilYQJ4pomMb"
 SUPABASE_URL="https://khjvkhzwfzuwzrusgobp.supabase.co"
 SUPABASE_SERVICE_KEY="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtoanZraHp3Znp1d3pydXNnb2JwIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3Njc3MzcyNCwiZXhwIjoyMDkyMzQ5NzI0fQ.-SbUXq_GWMjL7g9Xe-rKrqwNt3ujGLuwGnk-M_Z4L-I"
@@ -28,7 +28,7 @@ echo "✅ Migrations done"
 echo ""
 echo "🔧 Step 2: Set app_user password..."
 PGPASSWORD="MM2022mm!!!" psql \
-  -h aws-0-eu-central-1.pooler.supabase.com -p 5432 \
+  -h aws-0-eu-central-2.pooler.supabase.com -p 5432 \
   -U "postgres.khjvkhzwfzuwzrusgobp" -d postgres \
   -c "ALTER ROLE app_user WITH PASSWORD '$APP_USER_PASS';"
 echo "✅ app_user password set"
@@ -36,7 +36,7 @@ echo "✅ app_user password set"
 echo ""
 echo "🔧 Step 3: Run seed files..."
 PGPASSWORD="MM2022mm!!!" psql \
-  -h aws-0-eu-central-1.pooler.supabase.com -p 5432 \
+  -h aws-0-eu-central-2.pooler.supabase.com -p 5432 \
   -U "postgres.khjvkhzwfzuwzrusgobp" -d postgres \
   -f packages/db/seeds/apex-departments.sql \
   -f packages/db/seeds/cascade-rules.sql \
