@@ -1,9 +1,12 @@
 {
   "title": "T-126 — Authorization policy helpers, actions and preflight blockers",
-  "prompt": "T-126 — Authorization policy helpers, actions and preflight blockers\nWave0 Settings task. Discover existing files, implement exact scope, keep one atomic type, local dependencies only.",
+  "prompt": "# T-126 — Authorization policy helpers, actions and preflight blockers\n\n## Goal\nImplement the typed helpers, server actions, and preflight blockers for Settings-owned per-org authorization policies. T-122 owns schema/seed; this task owns runtime validation used by feature flags, import/export, Roles & Permissions, and the Authorization Policies screen.\n\nThis is backend/API scope only. Do not implement the T-127 screen here.\n\n## Files in scope\n- packages/auth/src/authorization-policies.ts [create/modify]\n- packages/auth/src/__tests__/authorization-policies.test.ts [create/modify]\n- packages/server/src/settings/authorization-policy-actions.ts [create/modify]\n- packages/server/src/__tests__/authorization-policy-actions.test.ts [create/modify]\n\n## Acceptance criteria (all must hold)\n- Given helpers evaluate `npd_post_release_edit`, when policy/flag state is missing or invalid, then typed blockers cover disabled policy, missing request/authorize permission, missing authorizer role, self-authorization, and `requires_new_version=false`.\n- Given helpers evaluate `technical_product_spec_approval`, when policy/flag state is missing or invalid, then typed blockers cover missing active `technical_product_spec_approval_gate_v1`, min_approvers < 1, missing approver role, and disabled approval policy.\n- Given a policy update action is called, when permissions and validation pass, then the action writes an audit reason, increments policy version, preserves org isolation, and returns policy summary for UI consumption.\n- Given dry-run/preflight is called by feature flags or import/export, when blockers exist, then no feature flag/import mutation is committed.\n\n## Test strategy (RED first)\n- RED: add helper/action tests for every V-SET-43/V-SET-44 blocker, permission-denied, audit reason required, version increment, and org isolation.\n- GREEN: implement typed helpers/actions and make them consumable by T-020, T-121/T-125 and T-127 without UI-only validation.\n- Run targeted auth/server tests plus typecheck/lint for changed packages.\n\n## Risk red lines\n- Do not implement NPD or Technical application workflows; Settings only publishes policy decisions.\n- Do not allow in-place mutation of released factory specs/BOMs; `requires_new_version=true` is invariant.\n- Do not let CSV import, feature flag toggle, or UI save bypass helper preflights.\n- Do not implement T-127 UI in this backend task.\n## Closeout evidence required\n- changed_files (with line counts)\n- exact test commands and outputs (RED -> GREEN, typecheck, lint)\n- acceptance_criteria_status (one row per AC: pass/fail)\n- deviations_from_prd (or \"none\")\n- git_status\n",
   "labels": [
-    "monopilot-kira",
-    "02-settings",
+    "prd",
+    "auth",
+    "api",
+    "authorization",
+    "T2-api",
     "wave0-hardening"
   ],
   "priority": 80,
@@ -18,34 +21,59 @@
       "Targeted tests beside implementation"
     ],
     "acceptance_criteria": [
-      "Required backend/UI capability is implemented for the named SET scope.",
-      "Permissions, org_id isolation, audit/outbox and typed blockers are enforced where applicable.",
-      "Unsupported/bypass paths are rejected without partial mutation.",
-      "Targeted tests and closeout evidence are provided."
+      "NPD post-release edit preflight returns typed blockers for disabled/missing policy, missing permissions, missing authorizer role, self-authorization and requires_new_version violations.",
+      "Technical approval preflight returns typed blockers for missing active gate rule, invalid min_approvers, missing approver role and disabled approval policy.",
+      "Policy update actions enforce settings.authorization.edit, audit reason, version increment and org isolation.",
+      "Feature-flag/import dry-runs can call the helpers and blockers prevent partial mutation."
     ],
     "test_strategy": [
-      "Run targeted tests"
+      "RED: helper/action tests for V-SET-43/V-SET-44 blockers, permission-denied, audit reason, versioning and org isolation.",
+      "GREEN: implement typed helpers/actions consumable by T-020, T-125 and T-127.",
+      "Run targeted auth/server tests plus typecheck/lint for changed packages."
     ],
     "risk_red_lines": [
-      "No settings.quality.* permissions",
-      "No import/export bypass of authorization policies",
-      "Dependencies local T-XXX only"
+      "Do not implement NPD or Technical application workflows.",
+      "Do not allow in-place mutation of released factory specs/BOMs; requires_new_version=true is invariant.",
+      "Do not let CSV import, feature flag toggle or UI save bypass helper preflights.",
+      "Do not implement T-127 UI in this backend task."
     ],
     "skills": [
-      "repo-navigation",
-      "testing"
+      "test-driven-development",
+      "requesting-code-review"
     ],
     "checkpoint_policy": {
       "required_checkpoints": [
-        "discover",
-        "test",
-        "closeout"
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
       ]
     },
     "task_type": "T2-api",
     "dependencies": [
       "T-122",
       "T-123"
-    ]
+    ],
+    "prd_refs": [
+      "§3 Per-org authorization for NPD post-release edits and Technical approval gates",
+      "§5.1 org_authorization_policies",
+      "§10.2 workflow flags",
+      "§10.4 V-SET-43/V-SET-44",
+      "UX SET-011b Authorization Policies"
+    ],
+    "category": "auth",
+    "subcategory": "authorization-policy-actions",
+    "parent_feature": "02-settings-a-auth",
+    "prd_task_id": "T-126",
+    "source_prd": "docs/prd/02-SETTINGS-PRD.md",
+    "context_budget": "40k",
+    "estimated_effort": "3-5h"
   }
 }

@@ -69,8 +69,11 @@
 | §11.3 | SET-083 D365 Sync Audit screen | tasks/T-112.json | covered |
 | §12.2 | SET-012-warehouse Warehouse List screen | tasks/T-104.json | covered |
 | §12.2 | SET-014 Location Tree screen | tasks/T-105.json | covered |
+| §12.2 | SET-015 Location Edit screen | none | deferred; T-105 explicitly covers Location Tree/list scope and defers edit screen atomization |
 | §12.2 | SET-016 Machine List screen | tasks/T-106.json | covered |
+| §12.2 | SET-017 Machine Edit screen | none | deferred; T-106 explicitly covers Machine List scope and defers edit screen atomization |
 | §12.2 | SET-018 Line List screen | tasks/T-107.json | covered |
+| §12.2 | SET-019 Line Edit screen | none | deferred; T-107 explicitly covers Line List scope and defers edit screen atomization |
 | §13.4 | SET-093 Email Delivery Log screen | tasks/T-113.json | covered |
 | §7.6 | SET-042 Rule Version Diff screen | tasks/T-108.json | covered |
 | §8.6 | SET-054 Reference Audit Trail screen | tasks/T-114.json | covered |
@@ -78,6 +81,7 @@
 | §8.9.12 | SET-057 Manufacturing Operation Audit Trail screen | tasks/T-115.json | covered |
 | §9.7 | SET-064 Migration History screen | tasks/T-109.json | covered |
 | §14.2 | i18n namespace 02-settings.json (PL+EN) seed | tasks/T-116.json | covered |
+| §14.2 / §14.4 | SET-100 User Menu Language Picker | tasks/T-129.json | covered |
 | §11 | Permission enum for schema/rules/ref/infra/d365/email/onboarding/security | tasks/T-002.json | covered |
 | §11 | D365 constants + test connection actions | tasks/T-030.json | covered |
 | §11.3 | SM-08 UI (d365_test_connection_modal) | tasks/T-054.json | covered |
@@ -171,6 +175,7 @@
 | §6.6 | SET-031 UI (prototype: none (UX prototypes/design/02-SETTINGS-UX.md §schema-column-wizard, BL-SET-01 backlog)) | tasks/T-097.json | covered |
 | §6.6 | SET-032 UI (prototype: none (UX prototypes/design/02-SETTINGS-UX.md §schema-diff, BL-SET-02 backlog)) | tasks/T-098.json | covered |
 | §6.6 | SET-033 UI (prototype: none (UX prototypes/design/02-SETTINGS-UX.md §schema-migrations)) | tasks/T-099.json | covered |
+| §6.6 | SET-034 UI Schema Shadow Preview | tasks/T-128.json | covered |
 | §7 | Permission enum for schema/rules/ref/infra/d365/email/onboarding/security | tasks/T-002.json | covered |
 | §7 | rule_definitions + rule_dry_runs schema | tasks/T-006.json | covered |
 | §7.2 | Rule registry read-only Server Actions | tasks/T-025.json | covered |
@@ -192,6 +197,7 @@
 | §8.5 | Reference CSV import/export | tasks/T-022.json | covered |
 | §8.5 | E2E CSV import | tasks/T-085.json | covered |
 | §8.6 | SET-050 UI (reference_data_screen) | tasks/T-067.json | covered |
+| §8.6 / UX SET-051 | SET-051 Reference Table Detail | tasks/T-067.json | covered as the `/settings/reference/[code]` detail route within generic Reference Data |
 | §8.6 | SET-053 UI (prototype: none (UX prototypes/design/02-SETTINGS-UX.md §reference-import)) | tasks/T-096.json | covered |
 | §8.9 | Manufacturing operations CRUD | tasks/T-038.json | covered |
 | §8.9 | ManufacturingOperations docs | tasks/T-094.json | covered |
@@ -225,12 +231,12 @@
 | §4.4 | Rule authoring UI; ad-hoc DDL via UI; tenant switching for non-superadmin; cross-tenant bulk ops | none | out-of-scope per §4.4 (exclusions) |
 | §7.5 | Hard-lock semantyka rule registry approval | none | out-of-scope per §7.5 (EVOLVING; deferred to 02-SETTINGS-d kickoff) |
 | §9.4 background canary worker | Canary routing background job | none | out-of-scope per §9.4 (background worker; T-028 Server Action only) |
-| §14.2 Phase 2/3 i18n | DE/FR/UK/RO i18n | none | out-of-scope per §4.2/§14.2 (Phase 2/3) |
+| §14.2 Phase 2/3 i18n | DE/FR/UK/RO i18n content beyond disabled picker entries | none | out-of-scope per §4.2/§14.2 (Phase 2/3); T-129 covers Phase 1 PL/EN picker behavior |
 | §16.3 Open items | Email provider Postmark; PostHog self-host infra spec; rollback time-window lock; reference MV refresh strategy bench | none | out-of-scope per §16.3 (open items, deferred to sub-module kickoffs) |
 
 ## Coverage by category
 
-### api (19 tasks)
+### api (20 tasks)
 
 | Task | Subcategory | Type |
 |---|---|---|
@@ -253,8 +259,9 @@
 | T-038 | manufacturing-ops | T2-api |
 | T-040 | cascade-engine | T2-api |
 | T-110 | posthog-proxy | T2-api |
+| T-125 | set-029-import-export-backend | T2-api |
 
-### auth (11 tasks)
+### auth (13 tasks)
 
 | Task | Subcategory | Type |
 |---|---|---|
@@ -269,6 +276,8 @@
 | T-035 | edge-middleware | T2-api |
 | T-036 | ip-allowlist | T2-api |
 | T-122 | authorization-policies | T2-api+T3-ui |
+| T-124 | set-010-invitations-lifecycle | T2-api |
+| T-126 | authorization-policy-actions | T2-api |
 
 ### data (16 tasks)
 
@@ -320,7 +329,7 @@
 | T-089 | integration-audit | T4-wiring-test |
 | T-090 | integration-l2 | T4-wiring-test |
 
-### ui (61 tasks)
+### ui (64 tasks)
 
 | Task | Subcategory | Type |
 |---|---|---|
@@ -385,6 +394,9 @@
 | T-119 | set-010 | T3-ui |
 | T-120 | set-011 | T3-ui |
 | T-121 | set-029 | T3-ui |
+| T-127 | set-011b-authorization-policies | T3-ui |
+| T-128 | set-034 | T3-ui |
+| T-129 | set-100 | T3-ui |
 
 ## Gaps
 
@@ -403,3 +415,4 @@
 - Depth review completed for T-119/T-120/T-121 and T-096..T-102: shallow/mismatched items were tightened with permission-denied cases, explicit UX step coverage, org-policy summaries, global import/export entity capabilities, and route corrections to UX canonical routes (`/settings/schema/diff/:id`, `/settings/tenant/depts`, `/settings/tenant/rules`).
 - Auth/settings enforcement blocker patch 2026-05-03: T-002 mixed-namespace permission regex fixed; T-020 now owns server-side V-SET-43/V-SET-44 flag enforcement; T-122 deepened for schema/actions/UI/tests; T-123 added as the active `technical_product_spec_approval_gate_v1` rule seed.
 - Wave0 readiness patch: added T-124/T-125/T-126/T-127, split T-122, removed T-020 cycle and tightened onboarding parity/settings.flags.edit policy.
+- Gap polish 2026-05-09: SET-034 Schema Shadow Preview is now tracked by T-128; SET-100 Language Picker is now tracked by T-129. SET-015/017/019 edit screens are explicitly deferred because T-105/T-106/T-107 cover the corresponding infrastructure list/tree surfaces and intentionally defer edit-screen atomization. SET-051 Reference Table Detail is covered by T-067's `/settings/reference/[code]` route, while SET-050 remains the reference table index/list surface.

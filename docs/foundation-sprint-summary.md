@@ -15,7 +15,8 @@ module after the deep audit.
 
 ## Migration count
 
-Migrations 001–036 present; sequence verified, no gaps in 032–036
+Migrations 001–036 present; sequence verified with intentional reassignment
+holes at 008, 020, 021 (see STATUS.md migration ordering lock), and no gaps in 032–036
 (`032-reference-seed-on-org-insert`, `033-consumed-approval-tokens`,
 `034-approval-token-prune-cron`, `035-tenant-idp-grants`,
 `036-audit-log-retention`).

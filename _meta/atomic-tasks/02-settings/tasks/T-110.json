@@ -27,8 +27,8 @@
     "description": "Read-through Next.js Route Handler proxying PostHog decide API per-org with 60s LRU cache and audit on upstream error.",
     "details": "PRD §10.3 SET-072 `Read-through view PostHog flags per org`. The proxy is the prerequisite backend for the future SET-072 view component (UI deferred). API key is server-only — never imported in `'use client'` modules. Cache is per-process LRU; 60s TTL acceptable for admin viewer use case. Upstream errors logged via tenant audit so SRE can alert.",
     "scope_files": [
-      "apps/web/app/api/posthog/flags/route.ts [create]",
-      "apps/web/app/api/posthog/flags/route.test.ts [create]"
+      "apps/web/app/api/posthog/flags/route.ts",
+      "apps/web/app/api/posthog/flags/route.test.ts"
     ],
     "out_of_scope": [
       "SET-072 client component (separate T3 task, deferred)",

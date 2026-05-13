@@ -1,6 +1,6 @@
 {
   "title": "T-128 — Schema Shadow Preview screen (SET-034)",
-  "prompt": "# T-128 — Schema Shadow Preview screen (SET-034)\n\n## Goal\nBuild SET-034 Schema Shadow Preview — a non-mutating dry-run screen that lets users preview a draft schema column in a simulated form with sample data before publishing.\n\nCanonical Settings prototype: `prototypes/design/Monopilot Design System/settings/admin-screens.jsx:479-556` (SchemaShadowPreviewScreen). Implement the production screen to match this prototype — 2/3-split layout, draft column selector + metadata panel on the left, sample form renderer on the right, preview-only notice, publish handoff button.\n\n## Files in scope\n- apps/web/app/(admin)/settings/schema/preview/page.tsx [create]\n- apps/web/app/(admin)/settings/schema/preview/page.test.tsx [create]\n\n## Acceptance criteria (all must hold)\n- Given `/settings/schema/preview` renders, then it matches prototype admin-screens.jsx:479-556: 2/3-split, draft column selector on the left (with metadata: code/label/table/type/tier/dept/req/status), rendered sample React form on the right, and a persistent preview-only notice.\n- Given a draft column is selected, when preview renders, then it uses generated runtime schema/sample data without writing to production schema, reference tables, or tenant migrations.\n- Given Publish this Column is clicked, when the user has permission, then it routes/calls the same Step 8 publish path used by SET-031/T-097 and preserves concurrent-edit handling.\n- Given no drafts, loading, permission-denied, or schema-generation error states occur, then the screen renders clear non-mutating states.\n\n## Test strategy (RED first)\n- RED: RTL page tests for split layout, draft selection, sample form render, preview-only notice, publish handoff, no-draft/loading/error/permission states.\n- GREEN: build page wired to existing schema draft/runtime helpers.\n- Run page test, typecheck, lint, and capture UI evidence per policy.\n\n## Risk red lines\n- Do not create an ad-hoc schema editor or duplicate SET-031 publish logic.\n- Do not write production schema, migrations, or reference data from preview render.\n- Implement to match prototype admin-screens.jsx:479-556 exactly.\n- Do not bypass L1/L2/L3 promotion and concurrent-edit rules.\n## Closeout evidence required\n- changed_files (with line counts)\n- exact test commands and outputs (RED -> GREEN, typecheck, lint)\n- acceptance_criteria_status (one row per AC: pass/fail)\n- deviations_from_prd (or \"none\")\n- git_status\n",
+  "prompt": "# T-128 — Schema Shadow Preview screen (SET-034)\n\n## Goal\nBuild SET-034 Schema Shadow Preview as a spec-driven Settings screen for dry-running a draft schema column in a simulated form with sample data and no production writes.\n\nCanonical Settings prototype source of truth is `prototypes/design/Monopilot Design System/settings/*.jsx`. No exact canonical prototype exists for SET-034, so implement from `prototypes/design/02-SETTINGS-UX.md SET-034` and PRD §6.6.\n\n## Files in scope\n- apps/web/app/(admin)/settings/schema/preview/page.tsx [create]\n- apps/web/app/(admin)/settings/schema/preview/page.test.tsx [create]\n\n## Acceptance criteria (all must hold)\n- Given `/settings/schema/preview` renders, then it follows UX SET-034: 40/60 split, draft column selector on the left, rendered sample React form on the right, and a persistent preview-only notice.\n- Given a draft column is selected, when preview renders, then it uses generated runtime schema/sample data without writing to production schema, reference tables, or tenant migrations.\n- Given Publish this Column is clicked, when the user has permission, then it routes/calls the same Step 8 publish path used by SET-031/T-097 and preserves concurrent-edit handling.\n- Given no drafts, loading, permission-denied, or schema-generation error states occur, then the screen renders clear non-mutating states.\n\n## Test strategy (RED first)\n- RED: RTL page tests for split layout, draft selection, sample form render, preview-only notice, publish handoff, no-draft/loading/error/permission states.\n- GREEN: build page wired to existing schema draft/runtime helpers.\n- Run page test, typecheck, lint, and capture UI evidence per policy.\n\n## Risk red lines\n- Do not create an ad-hoc schema editor or duplicate SET-031 publish logic.\n- Do not write production schema, migrations, or reference data from preview render.\n- Do not claim 1:1 prototype parity; exact canonical prototype is missing and UX SET-034 is authoritative.\n- Do not bypass L1/L2/L3 promotion and concurrent-edit rules.\n## Closeout evidence required\n- changed_files (with line counts)\n- exact test commands and outputs (RED -> GREEN, typecheck, lint)\n- acceptance_criteria_status (one row per AC: pass/fail)\n- deviations_from_prd (or \"none\")\n- git_status\n",
   "labels": [
     "prd",
     "ui",
@@ -25,8 +25,8 @@
     "parent_feature": "02-settings-c-ui",
     "context_budget": "40k",
     "estimated_effort": "1-3h",
-    "description": "SET-034 Schema Shadow Preview production screen matching prototype admin-screens.jsx:479-556.",
-    "details": "Canonical prototype: `prototypes/design/Monopilot Design System/settings/admin-screens.jsx:479-556` (SchemaShadowPreviewScreen). 2/3-split layout: left panel = draft column selector + metadata (code/label/table/type/tier/dept/req/status), right panel = sample form renderer (text/date/number inputs) + preview-only notice + publish handoff. Preview is non-mutating and reuses existing schema draft/runtime/publish helpers rather than duplicating the column wizard.",
+    "description": "SET-034 Schema Shadow Preview production screen (spec-driven; no exact prototype).",
+    "details": "Spec-driven UI: no exact canonical prototype exists under `prototypes/design/Monopilot Design System/settings/*.jsx` for SET-034. `prototypes/design/02-SETTINGS-UX.md SET-034` and PRD §6.4/§6.6 are authoritative. Preview is non-mutating and reuses existing schema draft/runtime/publish helpers rather than duplicating the column wizard.",
     "scope_files": [
       "apps/web/app/(admin)/settings/schema/preview/page.tsx",
       "apps/web/app/(admin)/settings/schema/preview/page.test.tsx"
@@ -42,7 +42,7 @@
       "T-097"
     ],
     "acceptance_criteria": [
-      "Schema Shadow Preview matches prototype admin-screens.jsx:479-556: 2/3-split with draft selector, column metadata panel, rendered sample form and preview-only notice.",
+      "Schema Shadow Preview renders UX SET-034 split layout with draft selector, rendered sample form and preview-only notice.",
       "Selecting a draft column renders generated runtime schema/sample data without production writes.",
       "Publish this Column hands off to the existing SET-031/T-097 Step 8 publish path with concurrent-edit handling.",
       "No-draft, loading, permission-denied and schema-generation error states are non-mutating and covered by tests.",
@@ -57,12 +57,10 @@
     "risk_red_lines": [
       "Do not create an ad-hoc schema editor or duplicate SET-031 publish logic.",
       "Do not write production schema, migrations or reference data from preview render.",
-      "Implement to match prototype admin-screens.jsx:479-556 exactly.",
+      "Do not claim 1:1 prototype parity; exact canonical prototype is missing and UX SET-034 is authoritative.",
       "Do not bypass L1/L2/L3 promotion and concurrent-edit rules."
     ],
     "prototype_match": true,
-    "prototype_index_entry": "schema_shadow_preview_screen",
-    "prototype_path": "prototypes/design/Monopilot Design System/settings/admin-screens.jsx:479-556",
     "skills": [
       "test-driven-development",
       "requesting-code-review"
@@ -88,6 +86,9 @@
       "review": "opus_if_high_risk_or_ui_or_architecture",
       "close": "spark_low_risk_else_opus"
     },
-    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md"
+    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md",
+    "prototype_index_entry": "schema_shadow_preview_screen",
+    "prototype_path": "prototypes/design/Monopilot Design System/settings/admin-screens.jsx:479-556",
+    "prototype_index_ref": "_meta/prototype-labels/prototype-index-settings.json#schema_shadow_preview_screen"
   }
 }

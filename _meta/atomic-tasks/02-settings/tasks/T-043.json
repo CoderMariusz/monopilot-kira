@@ -26,8 +26,8 @@
     "description": "SET-003 onboarding first-location step production component (onboarding-flow parity).",
     "details": "Canonical Settings prototype source of truth is `prototypes/design/Monopilot Design System/settings/*.jsx`. For onboarding, DO NOT use org-screens/data-screens as 1:1 source. Use `prototypes/design/Monopilot Design System/settings/onboarding-screens.jsx:7-238` as the canonical onboarding flow prototype and implement only current step `first_location` / SET-003 location fields. Reuse shared Settings shell/design tokens where applicable, but onboarding parity must preserve the wizard stepper, saved-state/resume semantics, skippable redirect cards, and completion pattern from `onboarding-screens.jsx`. Production contract: data via Server Components (Drizzle); mutations via Server Actions; primitives from `packages/ui` only.",
     "scope_files": [
-      "apps/web/app/onboarding/location/page.tsx [create]",
-      "apps/web/app/onboarding/location/page.test.tsx [create]"
+      "apps/web/app/onboarding/location/page.tsx",
+      "apps/web/app/onboarding/location/page.test.tsx"
     ],
     "out_of_scope": [
       "broaden scope beyond listed files",
@@ -81,6 +81,8 @@
       "close": "spark_low_risk_else_opus"
     },
     "prototype_match": true,
-    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md"
+    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md",
+    "prototype_index_ref": "_meta/prototype-labels/prototype-index-settings.json#onboarding_wizard_screen",
+    "prototype_index_entry": "onboarding_wizard_screen"
   }
 }

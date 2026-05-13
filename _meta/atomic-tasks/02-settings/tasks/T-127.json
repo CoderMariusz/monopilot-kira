@@ -1,9 +1,12 @@
 {
   "title": "T-127 — Authorization Policies screen (SET-011b)",
-  "prompt": "T-127 — Authorization Policies screen (SET-011b)\nWave0 Settings task. Discover existing files, implement exact scope, keep one atomic type, local dependencies only.",
+  "prompt": "# T-127 — Authorization Policies screen (SET-011b)\n\n## Goal\nBuild UX SET-011b Authorization Policies as the Settings screen for configuring per-org authorization policies that gate NPD post-release edits and Technical product-spec approval.\n\nCanonical Settings prototype source of truth is `prototypes/design/Monopilot Design System/settings/*.jsx`. No exact canonical prototype exists for SET-011b, so implement spec-driven from `prototypes/design/02-SETTINGS-UX.md SET-011b` and reuse available card/form patterns only where they match the UX contract.\n\n## Files in scope\n- apps/web/app/(admin)/settings/authorization/page.tsx [create]\n- apps/web/app/(admin)/settings/authorization/page.test.tsx [create]\n\n## Acceptance criteria (all must hold)\n- Given `/settings/authorization` renders, then it follows UX SET-011b: two policy cards, NPD post-release edit authorization and Technical product-spec approval gate, with read-only permission strings, role selectors, status badges, invariant banners, loading, missing-seed, misconfigured, and permission-denied states.\n- Given a user without `settings.authorization.edit` views the screen, then write controls are hidden/disabled and the policy summary remains readable.\n- Given policies are saved, when validation passes, then T-126 actions are called with an audit reason and the UI shows updated version/status; blockers are displayed without local-only bypass.\n- Given Technical approval is required, then the gate rule code `technical_product_spec_approval_gate_v1` is visible/read-only and factory-use blocking remains locked on.\n\n## Test strategy (RED first)\n- RED: RTL page tests for the two policy cards, read-only vs edit permissions, missing seed, misconfigured blockers, audit reason required, save/discard, and audit-log link.\n- GREEN: build screen wired to T-126 actions and policy summaries.\n- Run page test, typecheck, lint, and capture UI evidence per policy.\n\n## Risk red lines\n- Do not implement NPD or Technical application workflows in this Settings screen.\n- Do not allow UI-only validation to bypass T-126 helper blockers.\n- Do not allow `requires_new_version=false`, self-authorization defaults, or unlocked factory-use approval.\n- Do not claim 1:1 prototype parity; exact canonical prototype is missing and UX SET-011b is authoritative.\n## Closeout evidence required\n- changed_files (with line counts)\n- exact test commands and outputs (RED -> GREEN, typecheck, lint)\n- acceptance_criteria_status (one row per AC: pass/fail)\n- deviations_from_prd (or \"none\")\n- git_status\n\n## Prototype reference\n**Source:** `prototypes/design/Monopilot Design System/settings/access-screens.jsx:154-239`\n**Label:** `security_screen`\n**Component type:** form\n\n> **No exact prototype** — closest visual pattern: `security_screen` at `prototypes/design/Monopilot Design System/settings/access-screens.jsx:154-239`. Build in the same structural style as this screen. Re-use the Security screen's Section + SRow form pattern; render Authorization Policy rules as a list of toggles/selects with the same density and hint-text styling as 'Enforce 2FA' / 'Allowed methods' rows.\n\n### Parity requirements (mandatory ACs)\nThe production implementation MUST match the prototype on three dimensions — add these as explicit ACs:\n1. **Structural parity** — same sections, same field labels, same shadcn primitives invoked, same modals triggered from same actions.\n2. **Visual parity** — same density tokens, same shadcn/Radix primitives (no drift to plain HTML), same layout proportions.\n3. **Interaction parity** — same enable/disable rules, same loading/empty/error states, same keyboard focus order.\n\n### Translation notes (from prototype-labels index)\n- Section + SRow primitives → shadcn Card sections with label/hint pattern using FormDescription\n- Toggle (2FA, SSO, SCIM) → shadcn Switch; each toggle triggers Server Action for security_settings upsert with RBAC Admin guard\n- Checkbox group for allowed 2FA methods → shadcn Checkbox with useForm + zodResolver\n- Password policy selects and number inputs → useForm with zod schema; Server Action for password_policy upsert\n- Session settings selects → Server Action for session_policy upsert; values stored in security_config table\n- Audit log table → Drizzle query on audit_log table with pagination; full log link routes to dedicated audit-log screen\n- Hardcoded log entries → real audit_log rows from DB\n- Hardcoded labels → next-intl keys\n\n### shadcn primitives to use\n`Switch`, `Checkbox`, `Select`, `Input`, `Table`, `Button`, `Badge`, `Card`\n\n",
   "labels": [
-    "monopilot-kira",
-    "02-settings",
+    "prd",
+    "auth",
+    "ui",
+    "set-011b",
+    "T3-ui",
     "wave0-hardening"
   ],
   "priority": 80,
@@ -18,29 +21,41 @@
       "Targeted tests beside implementation"
     ],
     "acceptance_criteria": [
-      "Required backend/UI capability is implemented for the named SET scope.",
-      "Permissions, org_id isolation, audit/outbox and typed blockers are enforced where applicable.",
-      "Unsupported/bypass paths are rejected without partial mutation.",
-      "Given the task is closed out, when reviewers inspect the task evidence, then these additional requirements are proven together: Targeted tests and closeout evidence are provided.; UI closeout includes screenshot/artifact evidence and Playwright trace/artifacts where applicable per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`; if Playwright is unavailable, document the blocker and provide RTL/snapshot fallback evidence."
+      "Authorization Policies screen renders UX SET-011b two-card layout with NPD and Technical policy summaries, status badges, invariant banners and required states.",
+      "Users without settings.authorization.edit get a readable read-only screen with no save controls.",
+      "Save calls T-126 actions with audit reason; typed blockers render inline and cannot be bypassed client-side.",
+      "technical_product_spec_approval_gate_v1 is visible/read-only and factory-use blocking remains locked on.",
+      "UI closeout includes screenshot/artifact evidence and Playwright trace/artifacts where applicable per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`; if Playwright is unavailable, document the blocker and provide RTL/snapshot fallback evidence."
     ],
     "test_strategy": [
-      "Run targeted tests",
+      "RED: RTL tests for two policy cards, read-only/edit permissions, missing seed, misconfigured blockers, audit reason, save/discard and audit-log link.",
+      "GREEN: build screen wired to T-126 actions and policy summaries.",
+      "Run page test, typecheck and lint.",
       "For UI parity, capture screenshots/artifacts and Playwright trace/video/artifacts where applicable; attach artifact paths in closeout."
     ],
     "risk_red_lines": [
-      "No settings.quality.* permissions",
-      "No import/export bypass of authorization policies",
-      "Dependencies local T-XXX only"
+      "Do not implement NPD or Technical application workflows in this Settings screen.",
+      "Do not allow UI-only validation to bypass T-126 helper blockers.",
+      "Do not allow requires_new_version=false, self-authorization defaults or unlocked factory-use approval.",
+      "Do not claim 1:1 prototype parity; exact canonical prototype is missing and UX SET-011b is authoritative."
     ],
     "skills": [
-      "repo-navigation",
-      "testing"
+      "test-driven-development",
+      "requesting-code-review"
     ],
     "checkpoint_policy": {
       "required_checkpoints": [
-        "discover",
-        "test",
-        "closeout"
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
       ]
     },
     "task_type": "T3-ui",
@@ -49,6 +64,28 @@
       "T-120",
       "T-126"
     ],
-    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md"
+    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md",
+    "prd_refs": [
+      "§3 Per-org authorization for NPD post-release edits and Technical approval gates",
+      "§5.1 org_authorization_policies",
+      "§10.2 workflow flags",
+      "§10.4 V-SET-43/V-SET-44",
+      "UX SET-011b Authorization Policies"
+    ],
+    "category": "ui",
+    "subcategory": "set-011b-authorization-policies",
+    "parent_feature": "02-settings-a-ui",
+    "prd_task_id": "T-127",
+    "source_prd": "docs/prd/02-SETTINGS-PRD.md",
+    "context_budget": "40k",
+    "estimated_effort": "2-4h",
+    "prototype_match": true,
+    "prototype_reference": {
+      "source_file": "prototypes/design/Monopilot Design System/settings/access-screens.jsx",
+      "lines": "154-239",
+      "label": "security_screen",
+      "component_type": "form",
+      "is_exact_match": false
+    }
   }
 }

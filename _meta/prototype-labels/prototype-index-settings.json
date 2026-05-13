@@ -1,9 +1,703 @@
 {
   "module": "settings",
-  "generated_at": "2026-04-30T18:27:34Z",
-  "generator": "audit-fix-2026-04-30",
+  "generated_at": "2026-05-13T00:00:00Z",
+  "generator": "audit-refresh-2026-05-13+manual-line-corrections+phase1-gap-fix-2026-05-13",
   "mode": "labeling",
   "entries": [
+    {
+      "label": "users_screen",
+      "file": "prototypes/design/Monopilot Design System/settings/access-screens.jsx",
+      "lines": "4-157",
+      "component_type": "page-layout",
+      "ui_pattern": "list-with-actions",
+      "data_domain": "User",
+      "interaction": "edit",
+      "complexity": "page-level",
+      "depends_on_prototypes": [
+        "user_invite_modal",
+        "role_assign_modal"
+      ],
+      "translation_notes": [
+        "window.SETTINGS_USERS filter by role → Drizzle query with optional role WHERE clause + ILIKE search; paginated with TanStack Table",
+        "KPI tiles (active/invited/disabled/seats) → aggregate query in Server Component; seats from org_plan table",
+        "Cards view vs table view toggle → URL search param ?view=cards|table; no client state needed (RSC re-render)",
+        "Permission matrix (window.SETTINGS_MODULES + window.SETTINGS_PERMS) → Drizzle query joining roles_permissions and modules tables; inline select for role change → Server Action",
+        "Inline invite modal (custom overlay) → replace with shared UserInviteModal (SM-06) via Dialog",
+        "Pills filter for roles → shadcn Tabs or ToggleGroup; role list from server",
+        "Hardcoded labels → next-intl keys"
+      ],
+      "shadcn_equivalent": [
+        "Table",
+        "Tabs",
+        "ToggleGroup",
+        "Input",
+        "Select",
+        "Badge",
+        "Avatar",
+        "Card",
+        "Button"
+      ],
+      "known_bugs": [],
+      "estimated_translation_time_min": 150
+    },
+    {
+      "label": "security_screen",
+      "file": "prototypes/design/Monopilot Design System/settings/access-screens.jsx",
+      "lines": "160-245",
+      "component_type": "form",
+      "ui_pattern": "crud-form-with-validation",
+      "data_domain": "Permission",
+      "interaction": "edit",
+      "complexity": "page-level",
+      "depends_on_prototypes": [],
+      "translation_notes": [
+        "Section + SRow primitives → shadcn Card sections with label/hint pattern using FormDescription",
+        "Toggle (2FA, SSO, SCIM) → shadcn Switch; each toggle triggers Server Action for security_settings upsert with RBAC Admin guard",
+        "Checkbox group for allowed 2FA methods → shadcn Checkbox with useForm + zodResolver",
+        "Password policy selects and number inputs → useForm with zod schema; Server Action for password_policy upsert",
+        "Session settings selects → Server Action for session_policy upsert; values stored in security_config table",
+        "Audit log table → Drizzle query on audit_log table with pagination; full log link routes to dedicated audit-log screen",
+        "Hardcoded log entries → real audit_log rows from DB",
+        "Hardcoded labels → next-intl keys"
+      ],
+      "shadcn_equivalent": [
+        "Switch",
+        "Checkbox",
+        "Select",
+        "Input",
+        "Table",
+        "Button",
+        "Badge",
+        "Card"
+      ],
+      "known_bugs": [],
+      "estimated_translation_time_min": 120
+    },
+    {
+      "label": "my_profile_screen",
+      "file": "prototypes/design/Monopilot Design System/settings/account-screens.jsx",
+      "lines": "3-75",
+      "component_type": "form",
+      "ui_pattern": "crud-form-with-validation",
+      "data_domain": "User",
+      "interaction": "edit",
+      "complexity": "page-level",
+      "depends_on_prototypes": [],
+      "translation_notes": [
+        "Section + SRow primitives → shadcn Card sections with FormField / FormLabel / FormDescription pattern",
+        "Avatar upload → shadcn Avatar + react-dropzone; Server Action uploading to Vercel Blob or S3 with 2MB limit enforced server-side",
+        "Email field disabled → server-side only; email change requires separate verification flow not in prototype",
+        "Language/Timezone selects → useForm; Server Action for user_preferences upsert; next-intl locale cookie set on save",
+        "Password section → separate useForm with current/new/confirm zod schema (.refine confirm matches new); Server Action calls auth provider password change API",
+        "Active sessions table → query on user_sessions table; Revoke → Server Action deleting session token and invalidating JWT",
+        "2FA section → MODAL-MFA-ENROLL flow (BL-SET-09, not yet built); backup codes from auth provider",
+        "Hardcoded labels → next-intl keys"
+      ],
+      "shadcn_equivalent": [
+        "Form",
+        "Input",
+        "Select",
+        "Avatar",
+        "Table",
+        "Button",
+        "Badge",
+        "Card"
+      ],
+      "known_bugs": [
+        "BL-SET-09: MFA enrollment flow (MODAL-MFA-ENROLL) not yet built — stubbed in prototype"
+      ],
+      "estimated_translation_time_min": 120
+    },
+    {
+      "label": "my_notifications_screen",
+      "file": "prototypes/design/Monopilot Design System/settings/account-screens.jsx",
+      "lines": "77-124",
+      "component_type": "form",
+      "ui_pattern": "crud-form-with-validation",
+      "data_domain": "User",
+      "interaction": "edit",
+      "complexity": "page-level",
+      "depends_on_prototypes": [],
+      "translation_notes": [
+        "Section + SRow with Toggle → shadcn Switch per preference row; useForm at page level",
+        "All toggles → Server Action for user_notification_preferences upsert; one action handles all preference keys",
+        "Browser push notification toggle → navigator.serviceWorker + PushManager.subscribe(); permission prompt triggered on toggle ON",
+        "Quiet hours time inputs → shadcn TimePicker or plain Input type='time'; stored as quiet_hours_from/to in user_preferences",
+        "Email preference toggles → stored in user_notification_preferences table per event_type key",
+        "Hardcoded labels → next-intl keys"
+      ],
+      "shadcn_equivalent": [
+        "Switch",
+        "Input",
+        "Card",
+        "Button"
+      ],
+      "known_bugs": [],
+      "estimated_translation_time_min": 60
+    },
+    {
+      "label": "d365_connection_screen",
+      "file": "prototypes/design/Monopilot Design System/settings/admin-screens.jsx",
+      "lines": "27-107",
+      "component_type": "form",
+      "ui_pattern": "crud-form-with-validation",
+      "data_domain": "Integration",
+      "interaction": "edit",
+      "complexity": "page-level",
+      "depends_on_prototypes": [
+        "d365_test_connection_modal"
+      ],
+      "translation_notes": [
+        "Local useState per credential field → useForm + zodResolver; URL validated with z.string().url().includes('dynamics.com'), tenantId with z.string().uuid()",
+        "window.SETTINGS_D365 mock → Drizzle query on d365_config table (single-row config)",
+        "Password field 'Rotate secret' → separate Server Action calling Azure Key Vault rotation API; never expose secret client-side",
+        "Toggle for integration enabled → Server Action that first calls test-connection (SM-08 pattern) then persists flag",
+        "Client-side URL/cron/UUID validation → mirror with zod .superRefine() for server-side; cron validated with cron-parser",
+        "Hardcoded LEGACY banner → feature flag check integration.d365.legacy_mode from flags table",
+        "Hardcoded labels → next-intl keys"
+      ],
+      "shadcn_equivalent": [
+        "Form",
+        "Input",
+        "Select",
+        "Switch",
+        "Button",
+        "Alert",
+        "Badge"
+      ],
+      "known_bugs": [
+        "BL-SET-06: D365 constants inline editor (SET-081) not yet built",
+        "BL-SET-07: D365 sync config (SET-082) not yet built"
+      ],
+      "estimated_translation_time_min": 120
+    },
+    {
+      "label": "d365_mapping_screen",
+      "file": "prototypes/design/Monopilot Design System/settings/admin-screens.jsx",
+      "lines": "109-146",
+      "component_type": "table",
+      "ui_pattern": "search-filter-list",
+      "data_domain": "Integration",
+      "interaction": "read-only",
+      "complexity": "page-level",
+      "depends_on_prototypes": [
+        "d365_test_connection_modal"
+      ],
+      "translation_notes": [
+        "window.SETTINGS_D365_MAPPING mock array → Drizzle query on d365_field_mapping table deployed via CI/CD migrations",
+        "Direction filter buttons → shadcn ToggleGroup or Tabs; filter applied server-side via URL search params",
+        "Export mapping CSV button → Server Action streaming CSV from d365_field_mapping table with Content-Disposition header",
+        "Read-only table with no edit actions → TanStack Table in read-only mode; edit instructions link to monopilot/integrations-d365 GitHub PR",
+        "Hardcoded labels → next-intl keys"
+      ],
+      "shadcn_equivalent": [
+        "Table",
+        "ToggleGroup",
+        "Button",
+        "Badge"
+      ],
+      "known_bugs": [
+        "BL-TEC-01: Item.allergens[] unmapped to D365 — surfaces red banner in mapping screen"
+      ],
+      "estimated_translation_time_min": 60
+    },
+    {
+      "label": "rules_registry_screen",
+      "file": "prototypes/design/Monopilot Design System/settings/admin-screens.jsx",
+      "lines": "152-217",
+      "component_type": "table",
+      "ui_pattern": "search-filter-list",
+      "data_domain": "WO",
+      "interaction": "read-only",
+      "complexity": "page-level",
+      "depends_on_prototypes": [
+        "rule_dry_run_modal"
+      ],
+      "translation_notes": [
+        "window.SETTINGS_RULES mock array → Drizzle query on rules_registry table with type and coverage filters",
+        "Type and coverage selects → URL search params; Server Component re-renders filtered list",
+        "Coverage badge logic (missing 30d) → computed field: last_dry_run_at < now() - interval '30 days'",
+        "Export JSON button → Server Action streaming JSON from rules_registry table",
+        "onOpenRule(r.code) → Next.js router.push('/settings/rules/[code]') for rule detail screen",
+        "Row highlight for missing coverage (background:#fffbeb) → TanStack Table row className callback",
+        "Hardcoded labels → next-intl keys"
+      ],
+      "shadcn_equivalent": [
+        "Table",
+        "Select",
+        "Badge",
+        "Button"
+      ],
+      "known_bugs": [],
+      "estimated_translation_time_min": 75
+    },
+    {
+      "label": "rule_detail_screen",
+      "file": "prototypes/design/Monopilot Design System/settings/admin-screens.jsx",
+      "lines": "223-351",
+      "component_type": "tabs",
+      "ui_pattern": "detail-view",
+      "data_domain": "WO",
+      "interaction": "read-only",
+      "complexity": "page-level",
+      "depends_on_prototypes": [
+        "rule_dry_run_modal"
+      ],
+      "translation_notes": [
+        "Tab state (def/ver/dry/cons/aud) with local useState → shadcn Tabs component; tab id from URL hash for deep-linking",
+        "window.SETTINGS_RULE_DSL / window.SETTINGS_DRY_RUNS → Drizzle queries on rules_dsl and rule_dry_run_results tables",
+        "DSL <pre> read-only display → CodeMirror or Monaco in read-only mode with JSON syntax highlighting",
+        "Version history table (Array.from loop) → real version rows from rules_registry_versions table",
+        "'Diff vs current' button → Server Action calling /api/rules/:code/diff/:version returning JSON deep-diff",
+        "Dry-run results table → paginated query on rule_dry_run_results; 'View I/O' opens RuleDryRunModal with preloaded result",
+        "openModal('ruleDryRun') → shared Dialog trigger; pass rule and preload props",
+        "Hardcoded labels → next-intl keys"
+      ],
+      "shadcn_equivalent": [
+        "Tabs",
+        "TabsList",
+        "TabsTrigger",
+        "TabsContent",
+        "Table",
+        "Badge",
+        "Button"
+      ],
+      "known_bugs": [
+        "BL-SET-03: Rule version diff button disabled for non-current versions (SET-042)"
+      ],
+      "estimated_translation_time_min": 120
+    },
+    {
+      "label": "flags_admin_screen",
+      "file": "prototypes/design/Monopilot Design System/settings/admin-screens.jsx",
+      "lines": "357-415",
+      "component_type": "table",
+      "ui_pattern": "search-filter-list",
+      "data_domain": "Permission",
+      "interaction": "edit",
+      "complexity": "page-level",
+      "depends_on_prototypes": [
+        "flag_edit_modal"
+      ],
+      "translation_notes": [
+        "window.SETTINGS_FLAGS filtered by tenant tier → Drizzle query on feature_flags table with tier WHERE clause and ILIKE search",
+        "Tab buttons (L1/L2/L3) → shadcn Tabs; tier filter via URL search params for RSC re-render",
+        "Rollout % inline progress bar → shadcn Progress",
+        "Edit button → opens FlagEditModal (SM-02) via Dialog; on save Server Action upserts feature_flags with audit_reason",
+        "L1 flags must route to PromoteToL2Modal instead of direct edit — enforce via server-side tier check",
+        "PostHog external link → environment variable NEXT_PUBLIC_POSTHOG_URL",
+        "Hardcoded labels → next-intl keys"
+      ],
+      "shadcn_equivalent": [
+        "Tabs",
+        "Table",
+        "Progress",
+        "Badge",
+        "Input",
+        "Button"
+      ],
+      "known_bugs": [
+        "BL-SET-11: PostHog read-through panel not yet built (P2)"
+      ],
+      "estimated_translation_time_min": 90
+    },
+    {
+      "label": "schema_browser_screen",
+      "file": "prototypes/design/Monopilot Design System/settings/admin-screens.jsx",
+      "lines": "421-476",
+      "component_type": "table",
+      "ui_pattern": "search-filter-list",
+      "data_domain": "Spec",
+      "interaction": "read-only",
+      "complexity": "page-level",
+      "depends_on_prototypes": [
+        "schema_view_modal"
+      ],
+      "translation_notes": [
+        "window.SETTINGS_SCHEMA mock array → Drizzle query on schema_columns table with table/tier/search filters",
+        "Dynamic table list for select → distinct(table) query from schema_columns",
+        "Multi-filter (table + tier + search) → URL search params; Server Component re-renders filtered results",
+        "View button → opens SchemaViewModal (SM-03) via Dialog with selected column data",
+        "Export CSV button → Server Action streaming schema_columns as CSV",
+        "L1 edit restriction → server-side tier check; L2/L3 edit routes to column edit wizard (BL-SET-01 not yet built)",
+        "Hardcoded labels → next-intl keys"
+      ],
+      "shadcn_equivalent": [
+        "Table",
+        "Select",
+        "Input",
+        "Badge",
+        "Button"
+      ],
+      "known_bugs": [
+        "BL-SET-01: Column edit wizard (SET-031, 8 steps) not yet built",
+        "BL-SET-02: Schema diff viewer (SET-032) not yet built"
+      ],
+      "estimated_translation_time_min": 75
+    },
+    {
+      "label": "schema_shadow_preview_screen",
+      "file": "prototypes/design/Monopilot Design System/settings/admin-screens.jsx",
+      "lines": "479-556",
+      "component_type": "screen",
+      "ui_pattern": "split-pane",
+      "data_domain": "Schema",
+      "interaction": "read-only",
+      "complexity": "composite",
+      "depends_on_prototypes": [
+        "schema_browser_screen"
+      ],
+      "translation_notes": [
+        "SHADOW_DRAFT_COLS hardcoded mock → server action listing draft columns from schema_drafts table",
+        "Inline conditional input rendering by type → renderer factory using shadcn primitives keyed by column type (text/date/number/select/...)",
+        "CSS Grid 2fr 3fr → shadcn ResizablePanelGroup or simple Grid with Card containers",
+        "Preview-only alert → persistent Alert variant='info' rendered above the form (cannot be dismissed)",
+        "Publish button → mutation that hands off to SET-031/T-097 Step 8 publish path (not a new endpoint)",
+        "TierBadge reuse → keep shared Badge component already used in schema_browser_screen"
+      ],
+      "shadcn_equivalent": [
+        "Card",
+        "Select",
+        "Alert",
+        "Input",
+        "Label",
+        "Badge",
+        "Button"
+      ],
+      "known_bugs": [],
+      "estimated_translation_time_min": 90
+    },
+    {
+      "label": "reference_data_screen",
+      "file": "prototypes/design/Monopilot Design System/settings/admin-screens.jsx",
+      "lines": "561-621",
+      "component_type": "page-layout",
+      "ui_pattern": "list-with-actions",
+      "data_domain": "Allergen",
+      "interaction": "edit",
+      "complexity": "page-level",
+      "depends_on_prototypes": [
+        "ref_row_edit_modal",
+        "delete_reference_data_modal"
+      ],
+      "translation_notes": [
+        "window.SETTINGS_REF_TABLES card grid → Drizzle query on reference_tables metadata; card grid via shadcn Card",
+        "window.SETTINGS_ALLERGENS → Drizzle query on allergens_reference with active filter; schema-driven columns for other tables",
+        "Active table card selection → URL search param ?table=allergens_reference; RSC fetches selected table data",
+        "Import/Export CSV buttons → Server Actions for streaming CSV import (with preview wizard BL-SET-04) and export",
+        "Add row → opens RefRowEditModal (SM-11); Edit → same modal in edit mode; Delete → opens DeleteReferenceDataModal (SM-10)",
+        "isAllergen branch → generic schema-driven column config from reference_tables.columns JSONB field",
+        "Hardcoded labels → next-intl keys"
+      ],
+      "shadcn_equivalent": [
+        "Card",
+        "Table",
+        "Badge",
+        "Button"
+      ],
+      "known_bugs": [
+        "BL-SET-04: CSV import wizard (3-step, SET-053) not yet built",
+        "BL-SET-10: Reference table grids beyond allergens not fully implemented"
+      ],
+      "estimated_translation_time_min": 90
+    },
+    {
+      "label": "email_templates_screen",
+      "file": "prototypes/design/Monopilot Design System/settings/admin-screens.jsx",
+      "lines": "626-673",
+      "component_type": "page-layout",
+      "ui_pattern": "list-with-actions",
+      "data_domain": "Integration",
+      "interaction": "edit",
+      "complexity": "page-level",
+      "depends_on_prototypes": [
+        "email_template_edit_modal"
+      ],
+      "translation_notes": [
+        "window.SETTINGS_EMAIL_TEMPLATES → Drizzle query on email_templates table",
+        "Provider section (Resend/Postmark/SES) → useForm with Server Action for email_provider_config upsert; API key stored in secrets manager, not DB",
+        "API key password field → never rendered from server; placeholder only; Rotate → Server Action calling secrets rotation",
+        "Table with Edit button → opens EmailTemplateEditModal (SM-04) via Dialog",
+        "Test send button → Server Action calling email provider test endpoint with sample data",
+        "Hardcoded labels → next-intl keys"
+      ],
+      "shadcn_equivalent": [
+        "Table",
+        "Form",
+        "Input",
+        "Select",
+        "Badge",
+        "Button"
+      ],
+      "known_bugs": [
+        "BL-SET-08: Email delivery log (SET-093) not yet built"
+      ],
+      "estimated_translation_time_min": 90
+    },
+    {
+      "label": "email_variables_screen",
+      "file": "prototypes/design/Monopilot Design System/settings/admin-screens.jsx",
+      "lines": "678-717",
+      "component_type": "table",
+      "ui_pattern": "search-filter-list",
+      "data_domain": "Integration",
+      "interaction": "read-only",
+      "complexity": "page-level",
+      "depends_on_prototypes": [],
+      "translation_notes": [
+        "window.SETTINGS_EMAIL_VARIABLES grouped structure → Drizzle query on email_template_variables grouped by variable_group",
+        "Client-side search filter → URL search param for RSC; or client-side useTransition for instant feel",
+        "Copy button → navigator.clipboard.writeText(v.name) in a Client Component; show toast on success",
+        "Group section headers → shadcn AccordionItem or simple Card per group",
+        "Example value column → sourced from email_template_variables.example_value field",
+        "Hardcoded labels → next-intl keys"
+      ],
+      "shadcn_equivalent": [
+        "Table",
+        "Input",
+        "Button",
+        "Badge",
+        "Card"
+      ],
+      "known_bugs": [],
+      "estimated_translation_time_min": 45
+    },
+    {
+      "label": "shipping_override_reasons_screen",
+      "file": "prototypes/design/Monopilot Design System/settings/admin-screens.jsx",
+      "lines": "722-801",
+      "component_type": "page-layout",
+      "ui_pattern": "list-with-actions",
+      "data_domain": "Shipping",
+      "interaction": "edit",
+      "complexity": "page-level",
+      "depends_on_prototypes": [],
+      "translation_notes": [
+        "window.SETTINGS_SHIPPING_REASONS list → Drizzle query on shipping_override_reasons table",
+        "Add reason button → opens form modal (not yet built) for shipping_override_reasons insert",
+        "Edit button → opens form modal in edit mode",
+        "Delete button → soft delete with confirmation",
+        "Active toggle → Server Action to update active flag per row",
+        "Reason code validation → z.string().regex(/^[A-Z_]{2,}$/) for uppercase alphanumeric",
+        "Hardcoded labels → next-intl keys"
+      ],
+      "shadcn_equivalent": [
+        "Table",
+        "Badge",
+        "Button",
+        "Card",
+        "Input"
+      ],
+      "known_bugs": [],
+      "estimated_translation_time_min": 60
+    },
+    {
+      "label": "d365_dlq_shipping_screen",
+      "file": "prototypes/design/Monopilot Design System/settings/admin-screens.jsx",
+      "lines": "808-867",
+      "component_type": "page-layout",
+      "ui_pattern": "list-with-actions",
+      "data_domain": "Integration",
+      "interaction": "edit",
+      "complexity": "page-level",
+      "depends_on_prototypes": [],
+      "translation_notes": [
+        "window.SETTINGS_D365_DLQ_SHIPPING → Drizzle query on d365_dlq_shipping table with pagination",
+        "Dead letter queue for failed D365 shipment exports — retry logic on Server Action call",
+        "Status badge (pending/retrying/failed) → derived from dlq_status and retry_count fields",
+        "Retry button → Server Action calling /api/d365/dlq/:id/retry with exponential backoff",
+        "View details button → modal showing error trace and D365 response payload",
+        "Auto-retry toggle → Server Action for dlq_config.auto_retry setting",
+        "Hardcoded labels → next-intl keys"
+      ],
+      "shadcn_equivalent": [
+        "Table",
+        "Badge",
+        "Button",
+        "Card",
+        "Alert"
+      ],
+      "known_bugs": [],
+      "estimated_translation_time_min": 75
+    },
+    {
+      "label": "audit_log_screen",
+      "file": "prototypes/design/Monopilot Design System/settings/app.jsx",
+      "lines": "20-37",
+      "component_type": "table",
+      "ui_pattern": "list-with-actions",
+      "data_domain": "AuditEvent",
+      "interaction": "read-only",
+      "complexity": "page-level",
+      "depends_on_prototypes": [],
+      "translation_notes": [
+        "Hardcoded <tr> rows → server-fetched audit_events query with partition-aware pagination (T-079 requirement)",
+        "Plain <table> → shadcn DataTable with sortable columns + filters (when/user/action/target)",
+        "No filtering UI → add date range picker, user multiselect, action-type filter row above the table",
+        "No row click → row click → expand row showing payload diff (before/after JSON)",
+        "No CSV export → 'Export filtered audit log' button calling server export with permission check",
+        "Hardcoded labels → next-intl keys for column headers"
+      ],
+      "shadcn_equivalent": [
+        "Table",
+        "DataTable",
+        "Input",
+        "Select",
+        "Calendar",
+        "Popover",
+        "Button",
+        "Badge"
+      ],
+      "known_bugs": [],
+      "estimated_translation_time_min": 120
+    },
+    {
+      "label": "products_screen",
+      "file": "prototypes/design/Monopilot Design System/settings/data-screens.jsx",
+      "lines": "4-52",
+      "component_type": "page-layout",
+      "ui_pattern": "list-with-actions",
+      "data_domain": "Product",
+      "interaction": "edit",
+      "complexity": "page-level",
+      "depends_on_prototypes": [],
+      "translation_notes": [
+        "window.SETTINGS_PRODUCTS filtered by category → Drizzle query on products table with ILIKE search on sku/name",
+        "Category pills filter → URL search param ?cat=; Server Component re-renders filtered list",
+        "Table with SKU/name/category/unit/weight/BOM/line columns → TanStack Table with row click detail navigation",
+        "Import CSV button → Server Action with preview step (BL-SET-04 not yet built)",
+        "Add product button → opens product create form modal (not yet built)",
+        "Edit button → opens form modal in edit mode; Server Action for products upsert",
+        "Hardcoded labels → next-intl keys"
+      ],
+      "shadcn_equivalent": [
+        "Table",
+        "Badge",
+        "Button",
+        "Input",
+        "Tabs"
+      ],
+      "known_bugs": [],
+      "estimated_translation_time_min": 80
+    },
+    {
+      "label": "boms_screen",
+      "file": "prototypes/design/Monopilot Design System/settings/data-screens.jsx",
+      "lines": "55-103",
+      "component_type": "page-layout",
+      "ui_pattern": "list-with-actions",
+      "data_domain": "Product",
+      "interaction": "read-only",
+      "complexity": "page-level",
+      "depends_on_prototypes": [],
+      "translation_notes": [
+        "window.SETTINGS_BOMS → Drizzle query on boms table with product and version info",
+        "KPI cards (active/draft/archived) → aggregate counts from boms.status",
+        "BOM settings section → useForm with Server Action for bom_config upsert (auto-calculate, allergen review, version retention)",
+        "BOM table with columns: id/product/version/ingredients/updated/status → TanStack Table read-only",
+        "Compare versions button → routes to /settings/data/boms/:id/compare (detail screen, not yet built)",
+        "Add BOM button → opens BOM create wizard (not yet built)",
+        "Hardcoded labels → next-intl keys"
+      ],
+      "shadcn_equivalent": [
+        "Table",
+        "Badge",
+        "Button",
+        "Switch",
+        "Select",
+        "Card"
+      ],
+      "known_bugs": [],
+      "estimated_translation_time_min": 75
+    },
+    {
+      "label": "partners_screen",
+      "file": "prototypes/design/Monopilot Design System/settings/data-screens.jsx",
+      "lines": "106-148",
+      "component_type": "page-layout",
+      "ui_pattern": "list-with-actions",
+      "data_domain": "Partner",
+      "interaction": "read-only",
+      "complexity": "page-level",
+      "depends_on_prototypes": [],
+      "translation_notes": [
+        "window.SETTINGS_PARTNERS filtered by type (all/supplier/customer) → Drizzle query on partners table with ILIKE search",
+        "Tab pills (all/supplier/customer) → URL search param ?type=; Server Component re-renders filtered list",
+        "Partners table with columns: id/type/name/contact/email/country/since/status → TanStack Table read-only",
+        "Import button → Server Action with preview wizard for partner CSV import",
+        "Add partner button → opens partner create form modal (not yet built)",
+        "Edit button → opens form modal in edit mode; Server Action for partners upsert",
+        "Hardcoded labels → next-intl keys"
+      ],
+      "shadcn_equivalent": [
+        "Table",
+        "Badge",
+        "Button",
+        "Input",
+        "Tabs"
+      ],
+      "known_bugs": [],
+      "estimated_translation_time_min": 70
+    },
+    {
+      "label": "units_screen",
+      "file": "prototypes/design/Monopilot Design System/settings/data-screens.jsx",
+      "lines": "151-187",
+      "component_type": "page-layout",
+      "ui_pattern": "list-with-actions",
+      "data_domain": "Org",
+      "interaction": "edit",
+      "complexity": "page-level",
+      "depends_on_prototypes": [],
+      "translation_notes": [
+        "window.SETTINGS_UOM grouped by category → Drizzle query on unit_of_measure table; GROUP BY category in Server Component",
+        "One Section per category with base unit derived from units.find(u => u.base) → server-computed field",
+        "Base badge → shadcn Badge; edit via row-level action menu (not yet built)",
+        "Custom conversions section → query on uom_custom_conversions table; empty state with add link",
+        "Add unit button → PartialModal or drawer for UoM create (not yet built); Server Action for uom insert",
+        "Hardcoded labels → next-intl keys"
+      ],
+      "shadcn_equivalent": [
+        "Table",
+        "Badge",
+        "Button",
+        "Card"
+      ],
+      "known_bugs": [],
+      "estimated_translation_time_min": 60
+    },
+    {
+      "label": "integrations_screen",
+      "file": "prototypes/design/Monopilot Design System/settings/integrations.jsx",
+      "lines": "7-118",
+      "component_type": "page-layout",
+      "ui_pattern": "list-with-actions",
+      "data_domain": "Integration",
+      "interaction": "edit",
+      "complexity": "page-level",
+      "depends_on_prototypes": [],
+      "translation_notes": [
+        "Two render modes (list vs grid) via style prop → separate route /settings/integrations?view=grid|list; RSC picks layout component",
+        "window.SETTINGS_INTEGRATIONS category structure → Drizzle query on integration_catalog joined with org_integrations for connected status",
+        "KPI tiles (connected/categories/sync count/failed) → aggregate queries; failed syncs from integration_sync_log WHERE status='error' AND created_at > now()-interval '24h'",
+        "Accordion expand/collapse per category → shadcn Accordion; expanded state in URL param or localStorage",
+        "Connect/Configure button → route to /settings/integrations/:slug/configure; Server Action for integration OAuth flow initiation",
+        "Recent sync activity table → Drizzle query on integration_sync_log with pagination; refresh via Server Component revalidation",
+        "IntLogo component → shadcn Avatar with integration color/logo from integration_catalog.metadata JSONB",
+        "Hardcoded labels → next-intl keys"
+      ],
+      "shadcn_equivalent": [
+        "Accordion",
+        "Table",
+        "Input",
+        "Badge",
+        "Button",
+        "Avatar",
+        "Card"
+      ],
+      "known_bugs": [],
+      "estimated_translation_time_min": 120
+    },
     {
       "label": "rule_dry_run_modal",
       "file": "prototypes/design/Monopilot Design System/settings/modals.jsx",
@@ -322,460 +1016,65 @@
       "estimated_translation_time_min": 45
     },
     {
-      "label": "company_profile_screen",
-      "file": "prototypes/design/Monopilot Design System/settings/org-screens.jsx",
-      "lines": "4-100",
-      "component_type": "form",
-      "ui_pattern": "crud-form-with-validation",
+      "label": "onboarding_wizard_screen",
+      "file": "prototypes/design/Monopilot Design System/settings/onboarding-screens.jsx",
+      "lines": "7-238",
+      "component_type": "wizard",
+      "ui_pattern": "multi-step-wizard",
       "data_domain": "Org",
-      "interaction": "edit",
+      "interaction": "create",
       "complexity": "page-level",
       "depends_on_prototypes": [],
       "translation_notes": [
-        "Local useState flat object + 'u' updater helper → useForm + zodResolver with Org schema; react-hook-form register per field",
-        "Section + SRow primitives → shadcn Card or custom fieldset sections with label/hint pattern",
-        "Logo upload button placeholder → shadcn Avatar + react-dropzone with server-side S3/Blob upload action",
-        "onClick 'Save changes' → Server Action for orgs upsert guarded by Admin RBAC; emit outbox event org.profile.updated",
-        "Hardcoded country/currency/timezone options → fetched from reference_data (country_iso, currencies, timezones tables)",
-        "Hardcoded labels → next-intl keys"
+        "ONBOARDING_STEPS hardcoded array → server-fetched onboarding_state.steps from organizations.onboarding_state JSONB",
+        "useState form/current/completed/skipped → useReducer or zustand store with persistence to onboarding_state on each step",
+        "OnboardingStepper inline-styled buttons → shadcn navigation component or custom Stepper using Button + Badge primitives",
+        "next/skip/back handlers calling local state → Server Actions that PATCH organizations.onboarding_state and audit each transition",
+        "Soft redirects (SET-004 to 03-TECHNICAL, SET-005 to 04-PLANNING) → Next.js redirect() in Server Actions with onboarding_state preserved",
+        "Hardcoded form defaults (Apex Foods…) → wipe to empty defaults; use Zod schema validation per step",
+        "Confetti completion → real confetti library only on SET-006 success path"
       ],
       "shadcn_equivalent": [
-        "Form",
+        "Card",
+        "Button",
         "Input",
         "Select",
-        "Button",
-        "Avatar",
-        "Card",
-        "Separator"
-      ],
-      "known_bugs": [],
-      "estimated_translation_time_min": 90
-    },
-    {
-      "label": "warehouses_screen",
-      "file": "prototypes/design/Monopilot Design System/settings/org-screens.jsx",
-      "lines": "192-252",
-      "component_type": "page-layout",
-      "ui_pattern": "list-with-actions",
-      "data_domain": "Org",
-      "interaction": "edit",
-      "complexity": "page-level",
-      "depends_on_prototypes": [],
-      "translation_notes": [
-        "Hardcoded warehouse rows → Drizzle query on warehouses table joined with zones and bin_locations for counts",
-        "Inline capacity bar (width % style) → shadcn Progress component; color threshold logic (>80% amber, >95% red) in server-computed field",
-        "Storage rules section → useForm with zodResolver; Server Action for warehouse_settings upsert",
-        "Toggle primitives (mixed lots, block expired) → shadcn Switch",
-        "Expiry threshold number input → shadcn Input type='number' with min/max constraints from config",
-        "Hardcoded labels → next-intl keys"
-      ],
-      "shadcn_equivalent": [
-        "Table",
+        "Label",
         "Progress",
-        "Switch",
-        "Input",
-        "Select",
-        "Button",
-        "Badge"
+        "Badge",
+        "Alert"
       ],
       "known_bugs": [],
-      "estimated_translation_time_min": 90
+      "estimated_translation_time_min": 180
     },
     {
-      "label": "users_screen",
-      "file": "prototypes/design/Monopilot Design System/settings/access-screens.jsx",
-      "lines": "4-151",
+      "label": "devices_screen",
+      "file": "prototypes/design/Monopilot Design System/settings/ops-screens.jsx",
+      "lines": "4-95",
       "component_type": "page-layout",
       "ui_pattern": "list-with-actions",
-      "data_domain": "User",
-      "interaction": "edit",
-      "complexity": "page-level",
-      "depends_on_prototypes": [
-        "user_invite_modal",
-        "role_assign_modal"
-      ],
-      "translation_notes": [
-        "window.SETTINGS_USERS filter by role → Drizzle query with optional role WHERE clause + ILIKE search; paginated with TanStack Table",
-        "KPI tiles (active/invited/disabled/seats) → aggregate query in Server Component; seats from org_plan table",
-        "Cards view vs table view toggle → URL search param ?view=cards|table; no client state needed (RSC re-render)",
-        "Permission matrix (window.SETTINGS_MODULES + window.SETTINGS_PERMS) → Drizzle query joining roles_permissions and modules tables; inline select for role change → Server Action",
-        "Inline invite modal (custom overlay) → replace with shared UserInviteModal (SM-06) via Dialog",
-        "Pills filter for roles → shadcn Tabs or ToggleGroup; role list from server",
-        "Hardcoded labels → next-intl keys"
-      ],
-      "shadcn_equivalent": [
-        "Table",
-        "Tabs",
-        "ToggleGroup",
-        "Input",
-        "Select",
-        "Badge",
-        "Avatar",
-        "Card",
-        "Button"
-      ],
-      "known_bugs": [],
-      "estimated_translation_time_min": 150
-    },
-    {
-      "label": "security_screen",
-      "file": "prototypes/design/Monopilot Design System/settings/access-screens.jsx",
-      "lines": "154-239",
-      "component_type": "form",
-      "ui_pattern": "crud-form-with-validation",
-      "data_domain": "Permission",
+      "data_domain": "Org",
       "interaction": "edit",
       "complexity": "page-level",
       "depends_on_prototypes": [],
       "translation_notes": [
-        "Section + SRow primitives → shadcn Card sections with label/hint pattern using FormDescription",
-        "Toggle (2FA, SSO, SCIM) → shadcn Switch; each toggle triggers Server Action for security_settings upsert with RBAC Admin guard",
-        "Checkbox group for allowed 2FA methods → shadcn Checkbox with useForm + zodResolver",
-        "Password policy selects and number inputs → useForm with zod schema; Server Action for password_policy upsert",
-        "Session settings selects → Server Action for session_policy upsert; values stored in security_config table",
-        "Audit log table → Drizzle query on audit_log table with pagination; full log link routes to dedicated audit-log screen",
-        "Hardcoded log entries → real audit_log rows from DB",
+        "Warehouse device inventory (Zebra TC22, tally pins, scales) → Drizzle query on warehouse_devices table",
+        "Device status badges (active/offline/error) → computed from device_health.last_heartbeat timestamp",
+        "Pairing/Unpairing button → Server Action calling device provisioning API with confirmation",
+        "Device firmware version display → server-fetched from device_manifest table",
+        "Add device button → opens pairing wizard (not yet built) with QR code scanner or bluetooth",
+        "Offline threshold alert → feature flag devices.offline_alert_hours from flags table",
         "Hardcoded labels → next-intl keys"
       ],
       "shadcn_equivalent": [
-        "Switch",
-        "Checkbox",
-        "Select",
-        "Input",
         "Table",
-        "Button",
         "Badge",
-        "Card"
-      ],
-      "known_bugs": [],
-      "estimated_translation_time_min": 120
-    },
-    {
-      "label": "d365_connection_screen",
-      "file": "prototypes/design/Monopilot Design System/settings/admin-screens.jsx",
-      "lines": "27-103",
-      "component_type": "form",
-      "ui_pattern": "crud-form-with-validation",
-      "data_domain": "Integration",
-      "interaction": "edit",
-      "complexity": "page-level",
-      "depends_on_prototypes": [
-        "d365_test_connection_modal"
-      ],
-      "translation_notes": [
-        "Local useState per credential field → useForm + zodResolver; URL validated with z.string().url().includes('dynamics.com'), tenantId with z.string().uuid()",
-        "window.SETTINGS_D365 mock → Drizzle query on d365_config table (single-row config)",
-        "Password field 'Rotate secret' → separate Server Action calling Azure Key Vault rotation API; never expose secret client-side",
-        "Toggle for integration enabled → Server Action that first calls test-connection (SM-08 pattern) then persists flag",
-        "Client-side URL/cron/UUID validation → mirror with zod .superRefine() for server-side; cron validated with cron-parser",
-        "Hardcoded LEGACY banner → feature flag check integration.d365.legacy_mode from flags table",
-        "Hardcoded labels → next-intl keys"
-      ],
-      "shadcn_equivalent": [
-        "Form",
-        "Input",
-        "Select",
-        "Switch",
         "Button",
         "Alert",
-        "Badge"
-      ],
-      "known_bugs": [
-        "BL-SET-06: D365 constants inline editor (SET-081) not yet built",
-        "BL-SET-07: D365 sync config (SET-082) not yet built"
-      ],
-      "estimated_translation_time_min": 120
-    },
-    {
-      "label": "d365_mapping_screen",
-      "file": "prototypes/design/Monopilot Design System/settings/admin-screens.jsx",
-      "lines": "109-146",
-      "component_type": "table",
-      "ui_pattern": "search-filter-list",
-      "data_domain": "Integration",
-      "interaction": "read-only",
-      "complexity": "page-level",
-      "depends_on_prototypes": [
-        "d365_test_connection_modal"
-      ],
-      "translation_notes": [
-        "window.SETTINGS_D365_MAPPING mock array → Drizzle query on d365_field_mapping table deployed via CI/CD migrations",
-        "Direction filter buttons → shadcn ToggleGroup or Tabs; filter applied server-side via URL search params",
-        "Export mapping CSV button → Server Action streaming CSV from d365_field_mapping table with Content-Disposition header",
-        "Read-only table with no edit actions → TanStack Table in read-only mode; edit instructions link to monopilot/integrations-d365 GitHub PR",
-        "Hardcoded labels → next-intl keys"
-      ],
-      "shadcn_equivalent": [
-        "Table",
-        "ToggleGroup",
-        "Button",
-        "Badge"
-      ],
-      "known_bugs": [
-        "BL-TEC-01: Item.allergens[] unmapped to D365 — surfaces red banner in mapping screen"
-      ],
-      "estimated_translation_time_min": 60
-    },
-    {
-      "label": "rules_registry_screen",
-      "file": "prototypes/design/Monopilot Design System/settings/admin-screens.jsx",
-      "lines": "152-210",
-      "component_type": "table",
-      "ui_pattern": "search-filter-list",
-      "data_domain": "WO",
-      "interaction": "read-only",
-      "complexity": "page-level",
-      "depends_on_prototypes": [
-        "rule_dry_run_modal"
-      ],
-      "translation_notes": [
-        "window.SETTINGS_RULES mock array → Drizzle query on rules_registry table with type and coverage filters",
-        "Type and coverage selects → URL search params; Server Component re-renders filtered list",
-        "Coverage badge logic (missing 30d) → computed field: last_dry_run_at < now() - interval '30 days'",
-        "Export JSON button → Server Action streaming JSON from rules_registry table",
-        "onOpenRule(r.code) → Next.js router.push('/settings/rules/[code]') for rule detail screen",
-        "Row highlight for missing coverage (background:#fffbeb) → TanStack Table row className callback",
-        "Hardcoded labels → next-intl keys"
-      ],
-      "shadcn_equivalent": [
-        "Table",
-        "Select",
-        "Badge",
-        "Button"
-      ],
-      "known_bugs": [],
-      "estimated_translation_time_min": 75
-    },
-    {
-      "label": "rule_detail_screen",
-      "file": "prototypes/design/Monopilot Design System/settings/admin-screens.jsx",
-      "lines": "216-344",
-      "component_type": "tabs",
-      "ui_pattern": "detail-view",
-      "data_domain": "WO",
-      "interaction": "read-only",
-      "complexity": "page-level",
-      "depends_on_prototypes": [
-        "rule_dry_run_modal"
-      ],
-      "translation_notes": [
-        "Tab state (def/ver/dry/cons/aud) with local useState → shadcn Tabs component; tab id from URL hash for deep-linking",
-        "window.SETTINGS_RULE_DSL / window.SETTINGS_DRY_RUNS → Drizzle queries on rules_dsl and rule_dry_run_results tables",
-        "DSL <pre> read-only display → CodeMirror or Monaco in read-only mode with JSON syntax highlighting",
-        "Version history table (Array.from loop) → real version rows from rules_registry_versions table",
-        "'Diff vs current' button → Server Action calling /api/rules/:code/diff/:version returning JSON deep-diff",
-        "Dry-run results table → paginated query on rule_dry_run_results; 'View I/O' opens RuleDryRunModal with preloaded result",
-        "openModal('ruleDryRun') → shared Dialog trigger; pass rule and preload props",
-        "Hardcoded labels → next-intl keys"
-      ],
-      "shadcn_equivalent": [
-        "Tabs",
-        "TabsList",
-        "TabsTrigger",
-        "TabsContent",
-        "Table",
-        "Badge",
-        "Button"
-      ],
-      "known_bugs": [
-        "BL-SET-03: Rule version diff button disabled for non-current versions (SET-042)"
-      ],
-      "estimated_translation_time_min": 120
-    },
-    {
-      "label": "flags_admin_screen",
-      "file": "prototypes/design/Monopilot Design System/settings/admin-screens.jsx",
-      "lines": "350-408",
-      "component_type": "table",
-      "ui_pattern": "search-filter-list",
-      "data_domain": "Permission",
-      "interaction": "edit",
-      "complexity": "page-level",
-      "depends_on_prototypes": [
-        "flag_edit_modal"
-      ],
-      "translation_notes": [
-        "window.SETTINGS_FLAGS filtered by tenant tier → Drizzle query on feature_flags table with tier WHERE clause and ILIKE search",
-        "Tab buttons (L1/L2/L3) → shadcn Tabs; tier filter via URL search params for RSC re-render",
-        "Rollout % inline progress bar → shadcn Progress",
-        "Edit button → opens FlagEditModal (SM-02) via Dialog; on save Server Action upserts feature_flags with audit_reason",
-        "L1 flags must route to PromoteToL2Modal instead of direct edit — enforce via server-side tier check",
-        "PostHog external link → environment variable NEXT_PUBLIC_POSTHOG_URL",
-        "Hardcoded labels → next-intl keys"
-      ],
-      "shadcn_equivalent": [
-        "Tabs",
-        "Table",
-        "Progress",
-        "Badge",
-        "Input",
-        "Button"
-      ],
-      "known_bugs": [
-        "BL-SET-11: PostHog read-through panel not yet built (P2)"
-      ],
-      "estimated_translation_time_min": 90
-    },
-    {
-      "label": "schema_browser_screen",
-      "file": "prototypes/design/Monopilot Design System/settings/admin-screens.jsx",
-      "lines": "414-469",
-      "component_type": "table",
-      "ui_pattern": "search-filter-list",
-      "data_domain": "Spec",
-      "interaction": "read-only",
-      "complexity": "page-level",
-      "depends_on_prototypes": [
-        "schema_view_modal"
-      ],
-      "translation_notes": [
-        "window.SETTINGS_SCHEMA mock array → Drizzle query on schema_columns table with table/tier/search filters",
-        "Dynamic table list for select → distinct(table) query from schema_columns",
-        "Multi-filter (table + tier + search) → URL search params; Server Component re-renders filtered results",
-        "View button → opens SchemaViewModal (SM-03) via Dialog with selected column data",
-        "Export CSV button → Server Action streaming schema_columns as CSV",
-        "L1 edit restriction → server-side tier check; L2/L3 edit routes to column edit wizard (BL-SET-01 not yet built)",
-        "Hardcoded labels → next-intl keys"
-      ],
-      "shadcn_equivalent": [
-        "Table",
-        "Select",
-        "Input",
-        "Badge",
-        "Button"
-      ],
-      "known_bugs": [
-        "BL-SET-01: Column edit wizard (SET-031, 8 steps) not yet built",
-        "BL-SET-02: Schema diff viewer (SET-032) not yet built"
-      ],
-      "estimated_translation_time_min": 75
-    },
-    {
-      "label": "reference_data_screen",
-      "file": "prototypes/design/Monopilot Design System/settings/admin-screens.jsx",
-      "lines": "475-535",
-      "component_type": "page-layout",
-      "ui_pattern": "list-with-actions",
-      "data_domain": "Allergen",
-      "interaction": "edit",
-      "complexity": "page-level",
-      "depends_on_prototypes": [
-        "ref_row_edit_modal",
-        "delete_reference_data_modal"
-      ],
-      "translation_notes": [
-        "window.SETTINGS_REF_TABLES card grid → Drizzle query on reference_tables metadata; card grid via shadcn Card",
-        "window.SETTINGS_ALLERGENS → Drizzle query on allergens_reference with active filter; schema-driven columns for other tables",
-        "Active table card selection → URL search param ?table=allergens_reference; RSC fetches selected table data",
-        "Import/Export CSV buttons → Server Actions for streaming CSV import (with preview wizard BL-SET-04) and export",
-        "Add row → opens RefRowEditModal (SM-11); Edit → same modal in edit mode; Delete → opens DeleteReferenceDataModal (SM-10)",
-        "isAllergen branch → generic schema-driven column config from reference_tables.columns JSONB field",
-        "Hardcoded labels → next-intl keys"
-      ],
-      "shadcn_equivalent": [
-        "Card",
-        "Table",
-        "Badge",
-        "Button"
-      ],
-      "known_bugs": [
-        "BL-SET-04: CSV import wizard (3-step, SET-053) not yet built",
-        "BL-SET-10: Reference table grids beyond allergens not fully implemented"
-      ],
-      "estimated_translation_time_min": 90
-    },
-    {
-      "label": "email_templates_screen",
-      "file": "prototypes/design/Monopilot Design System/settings/admin-screens.jsx",
-      "lines": "540-581",
-      "component_type": "page-layout",
-      "ui_pattern": "list-with-actions",
-      "data_domain": "Integration",
-      "interaction": "edit",
-      "complexity": "page-level",
-      "depends_on_prototypes": [
-        "email_template_edit_modal"
-      ],
-      "translation_notes": [
-        "window.SETTINGS_EMAIL_TEMPLATES → Drizzle query on email_templates table",
-        "Provider section (Resend/Postmark/SES) → useForm with Server Action for email_provider_config upsert; API key stored in secrets manager, not DB",
-        "API key password field → never rendered from server; placeholder only; Rotate → Server Action calling secrets rotation",
-        "Table with Edit button → opens EmailTemplateEditModal (SM-04) via Dialog",
-        "Test send button → Server Action calling email provider test endpoint with sample data",
-        "Hardcoded labels → next-intl keys"
-      ],
-      "shadcn_equivalent": [
-        "Table",
-        "Form",
-        "Input",
-        "Select",
-        "Badge",
-        "Button"
-      ],
-      "known_bugs": [
-        "BL-SET-08: Email delivery log (SET-093) not yet built"
-      ],
-      "estimated_translation_time_min": 90
-    },
-    {
-      "label": "email_variables_screen",
-      "file": "prototypes/design/Monopilot Design System/settings/admin-screens.jsx",
-      "lines": "586-624",
-      "component_type": "table",
-      "ui_pattern": "search-filter-list",
-      "data_domain": "Integration",
-      "interaction": "read-only",
-      "complexity": "page-level",
-      "depends_on_prototypes": [],
-      "translation_notes": [
-        "window.SETTINGS_EMAIL_VARIABLES grouped structure → Drizzle query on email_template_variables grouped by variable_group",
-        "Client-side search filter → URL search param for RSC; or client-side useTransition for instant feel",
-        "Copy button → navigator.clipboard.writeText(v.name) in a Client Component; show toast on success",
-        "Group section headers → shadcn AccordionItem or simple Card per group",
-        "Example value column → sourced from email_template_variables.example_value field",
-        "Hardcoded labels → next-intl keys"
-      ],
-      "shadcn_equivalent": [
-        "Table",
-        "Input",
-        "Button",
-        "Badge",
         "Card"
       ],
       "known_bugs": [],
-      "estimated_translation_time_min": 45
-    },
-    {
-      "label": "promotions_screen",
-      "file": "prototypes/design/Monopilot Design System/settings/admin-screens.jsx",
-      "lines": "630-688",
-      "component_type": "page-layout",
-      "ui_pattern": "list-with-actions",
-      "data_domain": "Permission",
-      "interaction": "approve",
-      "complexity": "page-level",
-      "depends_on_prototypes": [
-        "promote_to_l2_modal"
-      ],
-      "translation_notes": [
-        "window.SETTINGS_PROMOTIONS + window.SETTINGS_PROMOTION_STAGES → Drizzle queries on promotions and promotion_stages tables",
-        "Active vs history tab → shadcn Tabs with URL search param ?tab=active|history for RSC",
-        "Stage info cards (TierBadge grid) → shadcn Card grid; data from promotion_stages table",
-        "StatusPill component → shadcn Badge with variant mapping from promotion status enum",
-        "'View diff' button → opens PromoteToL2Modal (SM-05) with promotion record prefilled",
-        "'Start promotion' button → opens PromoteToL2Modal (SM-05) in create mode",
-        "Add RBAC guard — only Admin role can view and start promotions",
-        "Hardcoded labels → next-intl keys"
-      ],
-      "shadcn_equivalent": [
-        "Tabs",
-        "Table",
-        "Card",
-        "Badge",
-        "Button"
-      ],
-      "known_bugs": [],
-      "estimated_translation_time_min": 90
+      "estimated_translation_time_min": 70
     },
     {
       "label": "notifications_screen",
@@ -809,7 +1108,7 @@
     {
       "label": "features_screen",
       "file": "prototypes/design/Monopilot Design System/settings/ops-screens.jsx",
-      "lines": "166-198",
+      "lines": "166-244",
       "component_type": "form",
       "ui_pattern": "crud-form-with-validation",
       "data_domain": "Permission",
@@ -834,9 +1133,71 @@
       "estimated_translation_time_min": 45
     },
     {
-      "label": "units_screen",
-      "file": "prototypes/design/Monopilot Design System/settings/data-screens.jsx",
-      "lines": "151-187",
+      "label": "global_import_export_screen",
+      "file": "prototypes/design/Monopilot Design System/settings/ops-screens.jsx",
+      "lines": "247-383",
+      "component_type": "screen",
+      "ui_pattern": "tabs",
+      "data_domain": "Settings",
+      "interaction": "edit",
+      "complexity": "composite",
+      "depends_on_prototypes": [],
+      "translation_notes": [
+        "Plain pills divs → shadcn Tabs (TabsList/TabsTrigger/TabsContent) for Import/Export",
+        "<select> entity picker → shadcn Select with form-managed value; entities array becomes server-fetched capability matrix",
+        "useState file mock → React Hook Form + react-dropzone for real CSV upload with validation",
+        "RECENT_IMPORT_EXPORT_JOBS hardcoded array → server action listing recent jobs from import_export_jobs table",
+        "auth_policy dry-run alert → conditional render gated on settings.authorization.edit permission + T-122 dry-run call",
+        "Hardcoded badge text (sync/async/completed/failed) → next-intl keys + Badge variant prop"
+      ],
+      "shadcn_equivalent": [
+        "Tabs",
+        "Select",
+        "Card",
+        "Alert",
+        "Button",
+        "Table",
+        "Input",
+        "Label",
+        "Badge"
+      ],
+      "known_bugs": [],
+      "estimated_translation_time_min": 120
+    },
+    {
+      "label": "company_profile_screen",
+      "file": "prototypes/design/Monopilot Design System/settings/org-screens.jsx",
+      "lines": "4-100",
+      "component_type": "form",
+      "ui_pattern": "crud-form-with-validation",
+      "data_domain": "Org",
+      "interaction": "edit",
+      "complexity": "page-level",
+      "depends_on_prototypes": [],
+      "translation_notes": [
+        "Local useState flat object + 'u' updater helper → useForm + zodResolver with Org schema; react-hook-form register per field",
+        "Section + SRow primitives → shadcn Card or custom fieldset sections with label/hint pattern",
+        "Logo upload button placeholder → shadcn Avatar + react-dropzone with server-side S3/Blob upload action",
+        "onClick 'Save changes' → Server Action for orgs upsert guarded by Admin RBAC; emit outbox event org.profile.updated",
+        "Hardcoded country/currency/timezone options → fetched from reference_data (country_iso, currencies, timezones tables)",
+        "Hardcoded labels → next-intl keys"
+      ],
+      "shadcn_equivalent": [
+        "Form",
+        "Input",
+        "Select",
+        "Button",
+        "Avatar",
+        "Card",
+        "Separator"
+      ],
+      "known_bugs": [],
+      "estimated_translation_time_min": 90
+    },
+    {
+      "label": "sites_screen",
+      "file": "prototypes/design/Monopilot Design System/settings/org-screens.jsx",
+      "lines": "103-189",
       "component_type": "page-layout",
       "ui_pattern": "list-with-actions",
       "data_domain": "Org",
@@ -844,145 +1205,83 @@
       "complexity": "page-level",
       "depends_on_prototypes": [],
       "translation_notes": [
-        "window.SETTINGS_UOM grouped by cat → Drizzle query on unit_of_measure table; GROUP BY category in Server Component",
-        "One Section per category with base unit derived from units.find(u => u.base) → server-computed field",
-        "Base badge → shadcn Badge; edit via row-level action menu (not yet built)",
-        "Custom conversions section → query on uom_custom_conversions table; empty state with add link",
-        "Add unit button → PartialModal or drawer for UoM create (not yet built); Server Action for uom insert",
+        "window.SETTINGS_SITES → Drizzle query on sites table with location geometry (lat/lng)",
+        "Map widget → next/image with static map tile (Mapbox or equivalent); click to detail drawer",
+        "Add site button → opens site create form modal (not yet built)",
+        "Edit button → opens form modal in edit mode; Server Action for sites upsert",
+        "Delete button → soft delete with confirmation",
+        "Status badges (active/archived) → shadcn Badge with variant map",
         "Hardcoded labels → next-intl keys"
       ],
       "shadcn_equivalent": [
         "Table",
         "Badge",
         "Button",
-        "Card"
-      ],
-      "known_bugs": [],
-      "estimated_translation_time_min": 60
-    },
-    {
-      "label": "my_profile_screen",
-      "file": "prototypes/design/Monopilot Design System/settings/account-screens.jsx",
-      "lines": "3-75",
-      "component_type": "form",
-      "ui_pattern": "crud-form-with-validation",
-      "data_domain": "User",
-      "interaction": "edit",
-      "complexity": "page-level",
-      "depends_on_prototypes": [],
-      "translation_notes": [
-        "Section + SRow primitives → shadcn Card sections with FormField / FormLabel / FormDescription pattern",
-        "Avatar upload → shadcn Avatar + react-dropzone; Server Action uploading to Vercel Blob or S3 with 2MB limit enforced server-side",
-        "Email field disabled → server-side only; email change requires separate verification flow not in prototype",
-        "Language/Timezone selects → useForm; Server Action for user_preferences upsert; next-intl locale cookie set on save",
-        "Password section → separate useForm with current/new/confirm zod schema (.refine confirm matches new); Server Action calls auth provider password change API",
-        "Active sessions table → query on user_sessions table; Revoke → Server Action deleting session token and invalidating JWT",
-        "2FA section → MODAL-MFA-ENROLL flow (BL-SET-09, not yet built); backup codes from auth provider",
-        "Hardcoded labels → next-intl keys"
-      ],
-      "shadcn_equivalent": [
-        "Form",
-        "Input",
-        "Select",
-        "Avatar",
-        "Table",
-        "Button",
-        "Badge",
-        "Card"
-      ],
-      "known_bugs": [
-        "BL-SET-09: MFA enrollment flow (MODAL-MFA-ENROLL) not yet built — stubbed in prototype"
-      ],
-      "estimated_translation_time_min": 120
-    },
-    {
-      "label": "my_notifications_screen",
-      "file": "prototypes/design/Monopilot Design System/settings/account-screens.jsx",
-      "lines": "77-124",
-      "component_type": "form",
-      "ui_pattern": "crud-form-with-validation",
-      "data_domain": "User",
-      "interaction": "edit",
-      "complexity": "page-level",
-      "depends_on_prototypes": [],
-      "translation_notes": [
-        "Section + SRow with Toggle → shadcn Switch per preference row; useForm at page level",
-        "All toggles → Server Action for user_notification_preferences upsert; one action handles all preference keys",
-        "Browser push notification toggle → navigator.serviceWorker + PushManager.subscribe(); permission prompt triggered on toggle ON",
-        "Quiet hours time inputs → shadcn TimePicker or plain Input type='time'; stored as quiet_hours_from/to in user_preferences",
-        "Email preference toggles → stored in user_notification_preferences table per event_type key",
-        "Hardcoded labels → next-intl keys"
-      ],
-      "shadcn_equivalent": [
-        "Switch",
-        "Input",
         "Card",
-        "Button"
+        "Input"
       ],
       "known_bugs": [],
-      "estimated_translation_time_min": 60
+      "estimated_translation_time_min": 75
     },
     {
-      "label": "integrations_screen",
-      "file": "prototypes/design/Monopilot Design System/settings/integrations.jsx",
-      "lines": "7-107",
+      "label": "warehouses_screen",
+      "file": "prototypes/design/Monopilot Design System/settings/org-screens.jsx",
+      "lines": "192-252",
       "component_type": "page-layout",
       "ui_pattern": "list-with-actions",
-      "data_domain": "Integration",
+      "data_domain": "Org",
       "interaction": "edit",
       "complexity": "page-level",
       "depends_on_prototypes": [],
       "translation_notes": [
-        "Two render modes (list vs grid) via style prop → separate route /settings/integrations?view=grid|list; RSC picks layout component",
-        "window.SETTINGS_INTEGRATIONS category structure → Drizzle query on integration_catalog joined with org_integrations for connected status",
-        "KPI tiles (connected/categories/sync count/failed) → aggregate queries; failed syncs from integration_sync_log WHERE status='error' AND created_at > now()-interval '24h'",
-        "Accordion expand/collapse per category → shadcn Accordion; expanded state in URL param or localStorage",
-        "Connect/Configure button → route to /settings/integrations/:slug/configure; Server Action for integration OAuth flow initiation",
-        "Recent sync activity table → Drizzle query on integration_sync_log with pagination; refresh via Server Component revalidation",
-        "IntLogo component → shadcn Avatar with integration color/logo from integration_catalog.metadata JSONB",
+        "Hardcoded warehouse rows → Drizzle query on warehouses table joined with zones and bin_locations for counts",
+        "Inline capacity bar (width % style) → shadcn Progress component; color threshold logic (>80% amber, >95% red) in server-computed field",
+        "Storage rules section → useForm with zodResolver; Server Action for warehouse_settings upsert",
+        "Toggle primitives (mixed lots, block expired) → shadcn Switch",
+        "Expiry threshold number input → shadcn Input type='number' with min/max constraints from config",
         "Hardcoded labels → next-intl keys"
       ],
       "shadcn_equivalent": [
-        "Accordion",
         "Table",
+        "Progress",
+        "Switch",
         "Input",
-        "Badge",
+        "Select",
         "Button",
-        "Avatar",
-        "Card"
+        "Badge"
       ],
       "known_bugs": [],
-      "estimated_translation_time_min": 120
+      "estimated_translation_time_min": 90
     },
     {
-      "label": "settings_d365_mapping_screen",
-      "file": "prototypes/design/Monopilot Design System/settings/admin-screens.jsx",
-      "lines": "109-146",
-      "component_type": "table",
-      "ui_pattern": "search-filter-list",
-      "data_domain": "Integration",
+      "label": "shifts_screen",
+      "file": "prototypes/design/Monopilot Design System/settings/org-screens.jsx",
+      "lines": "255-342",
+      "component_type": "page-layout",
+      "ui_pattern": "list-with-actions",
+      "data_domain": "Org",
       "interaction": "edit",
       "complexity": "page-level",
       "depends_on_prototypes": [],
       "translation_notes": [
-        "Mock D365_MAPPINGS array → Server Component fetching d365_mappings table with JOIN to items/locations/cost_centres; paginate with searchParam ?q=",
-        "Inline edit cells (combobox for D365 id) → on-row edit mode using react-hook-form per-row; or shadcn Popover with combobox for D365 entity lookup",
-        "Sync status badge (synced/pending/error) → Badge variant mapped from d365_mappings.sync_status; live-updated via SSE or SWR polling /api/d365/sync-status",
-        "Save mapping → Server Action updateD365Mapping(localId, d365Id) with RBAC guard (Admin only); emit d365.mapping_updated outbox event; logs to integration_audit table"
+        "window.SETTINGS_SHIFTS → Drizzle query on shift_patterns and shift_assignments tables",
+        "Add shift button → opens shift create form modal (not yet built)",
+        "Edit button → opens form modal in edit mode; Server Action for shift_patterns upsert",
+        "Calendar widget → shadcn calendar or react-big-calendar; highlight holidays and weekends from holiday_calendar table",
+        "Holiday management section → separate form for holiday_calendar upsert",
+        "Worker assignment inline select → TanStack Table cell with combobox for worker lookup",
+        "Hardcoded labels → next-intl keys"
       ],
       "shadcn_equivalent": [
         "Table",
-        "TableHeader",
-        "TableBody",
-        "TableRow",
-        "TableCell",
         "Badge",
-        "Input",
         "Button",
-        "Popover"
+        "Card",
+        "Select",
+        "Input"
       ],
       "known_bugs": [],
-      "estimated_translation_time_min": 60
+      "estimated_translation_time_min": 90
     }
   ]
 }

@@ -64,6 +64,12 @@ monopilot-kira/
 
 ---
 
+## Local Development
+
+If stale Supabase cookies or bearer headers block local pages while no local Supabase JWKS endpoint is running, set `DEV_AUTH_BYPASS=true` in `.env.local` and restart the Next.js dev server. The flag only accepts the literal string `true`, is ignored when `NODE_ENV=production`, and bypasses only page-routing middleware auth; next-intl routing and Server Action/API authorization still run normally.
+
+---
+
 ## PRD-y
 
 Wszystkie Product Requirements Documents w `docs/prd/` — od `docs/prd/00-FOUNDATION-PRD.md` do `docs/prd/15-OEE-PRD.md`.

@@ -26,8 +26,8 @@
     "description": "SET-053 Reference CSV Import Wizard production component (spec-driven; no exact prototype).",
     "details": "Spec-driven UI: no exact canonical prototype exists under `prototypes/design/Monopilot Design System/settings/*.jsx` for this screen. `prototypes/design/02-SETTINGS-UX.md SET-053 / reference-import` replaces prototype parity as the authoritative UI contract. Reuse import-export/wizard primitives from `prototypes/settings/data-screens.jsx`, `prototypes/settings/admin-screens.jsx`, `prototypes/settings/modals.jsx`, or root legacy `prototypes/settings/import-export.jsx` only as visual/pattern references; UX spec is authoritative. Any prototype snippets are element/pattern references only, not 1:1 screen sources. Production contract: data via Server Components (Drizzle); mutations via Server Actions; primitives from `packages/ui` only.\n\nAdditional acceptance detail preserved from compressed AC list:\n- Wizard renders all three UX SET-053 steps explicitly: Upload with template download and max-size/type validation, Preview with insert/update/skip/error counts, Commit with progress and downloadable error rows.\n- UI closeout includes screenshot/artifact evidence and Playwright trace/artifacts where applicable per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`; if Playwright is unavailable, document the blocker and provide RTL/snapshot fallback evidence.",
     "scope_files": [
-      "apps/web/app/(admin)/settings/reference/[code]/import/page.tsx [create]",
-      "apps/web/app/(admin)/settings/reference/[code]/import/page.test.tsx [create]"
+      "apps/web/app/(admin)/settings/reference/[code]/import/page.tsx",
+      "apps/web/app/(admin)/settings/reference/[code]/import/page.test.tsx"
     ],
     "out_of_scope": [
       "broaden scope beyond listed files",

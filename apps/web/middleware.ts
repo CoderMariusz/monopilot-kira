@@ -104,11 +104,34 @@ function isPublicPath(pathname: string): boolean {
 
 const intlHandler = createIntlMiddleware(routing);
 
+let hasWarnedDevAuthBypass = false;
+
+function isDevAuthBypassEnabled(): boolean {
+  if (process.env.DEV_AUTH_BYPASS !== 'true') return false;
+
+  if (process.env.NODE_ENV === 'production') {
+    if (!hasWarnedDevAuthBypass) {
+      console.warn(
+        '[DEV_AUTH_BYPASS] Ignored because NODE_ENV=production. Auth middleware remains enabled.',
+      );
+      hasWarnedDevAuthBypass = true;
+    }
+    return false;
+  }
+
+  if (!hasWarnedDevAuthBypass) {
+    console.warn('[DEV_AUTH_BYPASS] Auth middleware disabled. NEVER set this in production.');
+    hasWarnedDevAuthBypass = true;
+  }
+
+  return true;
+}
+
 export default async function middleware(req: NextRequest): Promise<NextResponse> {
   const pathname = req.nextUrl.pathname;
 
   // Skip auth check for public paths
-  if (!isPublicPath(pathname)) {
+  if (!isDevAuthBypassEnabled() && !isPublicPath(pathname)) {
     const accessToken = getAccessToken(req);
 
     // Only enforce idle timeout when a token is present.

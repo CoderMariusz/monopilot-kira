@@ -88,6 +88,9 @@
       "review": "opus_if_high_risk_or_ui_or_architecture",
       "close": "spark_low_risk_else_opus"
     },
-    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md"
+    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md",
+    "prototype_index_entry": "users_screen (closest pattern — invited-users status column)",
+    "prototype_closest_path": "prototypes/design/Monopilot Design System/settings/access-screens.jsx:4-152",
+    "prototype_index_ref": "_meta/prototype-labels/prototype-index-settings.json#users_screen"
   }
 }

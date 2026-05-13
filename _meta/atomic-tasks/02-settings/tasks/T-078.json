@@ -1,6 +1,6 @@
 {
   "title": "T-078 — Manufacturing Operation Edit modal (SET-056)",
-  "prompt": "# T-078 — Manufacturing Operation Edit modal (SET-056)\n\n## Goal\nBuild SET-056 (prototype: none (UX prototypes/design/02-SETTINGS-UX.md §8.9 form)) following prototype `prototypes/design/Monopilot Design System/settings/modals.jsx:535-572` 1:1 plus the production contract notes below.\n\nAdd/Edit form modal. Edit mode shows operation_name + process_suffix as read-only (per §8.9.4 Edit mode rules). Validation V-SET-MFG-01..05.\n\n## Files in scope\n- apps/web/components/settings/modals/manufacturing-operation-edit-modal.tsx [create]\n- apps/web/components/settings/modals/manufacturing-operation-edit-modal.test.tsx [create]\n\n## Acceptance criteria (all must hold)\n- Given the production page renders, when compared to `prototypes/design/Monopilot Design System/settings/modals.jsx:535-572` (prototype: none (UX prototypes/design/02-SETTINGS-UX.md §8.9 form)), then it has structural parity (the same form sections, same field labels, same shadcn primitives, same modals invoked from same triggers), visual parity (same shadcn/Radix primitives — no drift to plain HTML, same density tokens), and interaction parity (same enable/disable rules, same loading/empty/error states, same keyboard focus order) — verified by an RTL snapshot test plus the parity checklist embedded in `pipeline_inputs.details`.\n- Given Edit mode opens for an existing op, when fields render, then operation_name and process_suffix are read-only text — not inputs.\n- Given user enters process_suffix='M1@', when validated, then Zod rejects (uppercase alphanumeric only, V-SET-MFG-01).\n\n## Test strategy (RED first)\n1. Add a failing test that exercises the acceptance criteria above. The RED command is:\n   `pnpm --filter @monopilot/web vitest run apps/web/components/settings/modals/manufacturing-operation-edit-modal.test.tsx [create]`\n2. Run RED — it must fail before any production code is written.\n3. Implement the smallest change needed for GREEN.\n4. Re-run RED command — must pass.\n5. Run `pnpm typecheck` and `pnpm lint` in the changed package; both must pass.\n\n## Risk red lines\n- Do not edit files outside the listed scope without documenting why in CLOSEOUT.\n- Do not weaken existing acceptance criteria from prior tasks.\n- Do not introduce REST endpoints; use Server Actions per stack contract.\n- Do not commit secrets or vault keys.\n\n## Closeout evidence required\n- changed_files (with line counts)\n- exact test commands and outputs (RED→GREEN, typecheck, lint)\n- acceptance_criteria_status (one row per AC: pass/fail)\n- deviations_from_prd (or \"none\")\n- git_status\n\nStack: TS + Next.js App Router + Drizzle + pnpm + vitest + Playwright + Server Actions. Primitives in `packages/ui`. PRD: `docs/prd/02-SETTINGS-PRD.md` v3.5.\n",
+  "prompt": "# T-078 — Manufacturing Operation Edit modal (SET-056)\n\n## Goal\nBuild SET-056 spec-driven from `prototypes/design/02-SETTINGS-UX.md` §8.9 / UX SET-056 plus the production contract notes below. The adjacent modal prototype `prototypes/design/Monopilot Design System/settings/modals.jsx:535-572` is pattern-only reference for dialog density and primitives, not a 1:1 screen source.\n\nAdd/Edit form modal. Edit mode shows operation_name + process_suffix as read-only (per §8.9.4 Edit mode rules). Validation V-SET-MFG-01..05.\n\n## Files in scope\n- apps/web/components/settings/modals/manufacturing-operation-edit-modal.tsx [create]\n- apps/web/components/settings/modals/manufacturing-operation-edit-modal.test.tsx [create]\n\n## Acceptance criteria (all must hold)\n- Given the production component renders, then it satisfies UX SET-056 Manufacturing Operation Edit Modal / PRD §8.9.4 as the source of truth. Adjacent prototype snippets may be reused only as pattern references for matching primitives/density; they must not override UX route, fields, states, validation, or Manufacturing Operations semantics.\n- Given Edit mode opens for an existing op, when fields render, then operation_name and process_suffix are read-only text — not inputs.\n- Given user enters process_suffix='M1@', when validated, then Zod rejects (uppercase alphanumeric only, V-SET-MFG-01).\n\n## Test strategy (RED first)\n1. Add a failing test that exercises the acceptance criteria above. The RED command is:\n   `pnpm --filter @monopilot/web vitest run apps/web/components/settings/modals/manufacturing-operation-edit-modal.test.tsx [create]`\n2. Run RED — it must fail before any production code is written.\n3. Implement the smallest change needed for GREEN.\n4. Re-run RED command — must pass.\n5. Run `pnpm typecheck` and `pnpm lint` in the changed package; both must pass.\n\n## Risk red lines\n- Do not edit files outside the listed scope without documenting why in CLOSEOUT.\n- Do not weaken existing acceptance criteria from prior tasks.\n- Do not introduce REST endpoints; use Server Actions per stack contract.\n- Do not commit secrets or vault keys.\n\n## Closeout evidence required\n- changed_files (with line counts)\n- exact test commands and outputs (RED→GREEN, typecheck, lint)\n- acceptance_criteria_status (one row per AC: pass/fail)\n- deviations_from_prd (or \"none\")\n- git_status\n\nStack: TS + Next.js App Router + Drizzle + pnpm + vitest + Playwright + Server Actions. Primitives in `packages/ui`. PRD: `docs/prd/02-SETTINGS-PRD.md` v3.5.\n",
   "labels": [
     "prd",
     "ui",
@@ -23,11 +23,11 @@
     "parent_feature": "02-settings-d-ui",
     "context_budget": "40k",
     "estimated_effort": "1-3h",
-    "description": "SET-056 prototype: none (UX prototypes/design/02-SETTINGS-UX.md §8.9 form) production component (prototype-parity).",
-    "details": "Prototype: prototypes/design/Monopilot Design System/settings/modals.jsx:535-572. Translation notes (canonical from prototype-index-settings.json): see `_meta/prototype-labels/translation-notes-settings.md` and the entry's `translation_notes` array. Production contract: data via Server Components (Drizzle); mutations via Server Actions; primitives from `packages/ui` only (no @radix-ui/react-dialog import outside packages/ui per §0). Parity checklist (verify item-by-item before GREEN):\n1. Section/region count + order matches prototype.\n2. Field labels + types match prototype.\n3. shadcn/Radix primitives match (Input, Select, Switch, Dialog etc).\n4. Action buttons present in same order with same enable/disable rules.\n5. Loading/empty/error states render per prototype.\n6. Modal triggers open the correct modal id (SM-NN).\n7. Keyboard focus order matches prototype.\n8. assertModalA11y() passes for any modals invoked.",
+    "description": "SET-056 Manufacturing Operation Edit Modal production component (spec-driven; no exact prototype).",
+    "details": "Spec-driven UI: no exact canonical prototype exists under `prototypes/design/Monopilot Design System/settings/*.jsx` for SET-056 Manufacturing Operation Edit Modal. `prototypes/design/02-SETTINGS-UX.md` §8.9 and PRD §8.9.4 replace prototype parity as the authoritative contract. prototypes/design/Monopilot Design System/settings/modals.jsx:535-572 is adjacent/pattern-only reference for matching primitives, density, and interaction conventions; it is not a 1:1 source and must not change Manufacturing Operations fields, states, validation, route, or semantics. Production contract: data via Server Components (Drizzle); mutations via Server Actions; primitives from `packages/ui` only (no @radix-ui/react-dialog import outside packages/ui per §0).",
     "scope_files": [
-      "apps/web/components/settings/modals/manufacturing-operation-edit-modal.tsx [create]",
-      "apps/web/components/settings/modals/manufacturing-operation-edit-modal.test.tsx [create]"
+      "apps/web/components/settings/modals/manufacturing-operation-edit-modal.tsx",
+      "apps/web/components/settings/modals/manufacturing-operation-edit-modal.test.tsx"
     ],
     "out_of_scope": [
       "broaden scope beyond listed files",
@@ -37,7 +37,7 @@
       "T-038"
     ],
     "acceptance_criteria": [
-      "Given the production page renders, when compared to `prototypes/design/Monopilot Design System/settings/modals.jsx:535-572` (prototype: none (UX prototypes/design/02-SETTINGS-UX.md §8.9 form)), then it has structural parity (the same form sections, same field labels, same shadcn primitives, same modals invoked from same triggers), visual parity (same shadcn/Radix primitives — no drift to plain HTML, same density tokens), and interaction parity (same enable/disable rules, same loading/empty/error states, same keyboard focus order) — verified by an RTL snapshot test plus the parity checklist embedded in `pipeline_inputs.details`.",
+      "Given the production component renders, then it satisfies UX SET-056 Manufacturing Operation Edit Modal / PRD §8.9.4 as the source of truth. Adjacent prototype snippets may be reused only as pattern references for matching primitives/density; they must not override UX route, fields, states, validation, or Manufacturing Operations semantics.",
       "Given Edit mode opens for an existing op, when fields render, then operation_name and process_suffix are read-only text — not inputs.",
       "Given user enters process_suffix='M1@', when validated, then Zod rejects (uppercase alphanumeric only, V-SET-MFG-01).",
       "UI closeout includes screenshot/artifact evidence and Playwright trace/artifacts where applicable per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`; if Playwright is unavailable, document the blocker and provide RTL/snapshot fallback evidence."
@@ -50,8 +50,9 @@
     ],
     "risk_red_lines": [
       "Do not import @radix-ui/react-dialog outside packages/ui (§0 ESLint rule).",
-      "Do not paste prototype JSX wholesale — translate to production contract.",
-      "Do not regress accessibility (axe violations = fail)."
+      "Do not paste prototype JSX wholesale or treat adjacent prototypes as 1:1 sources — translate UX §8.9 to the production contract.",
+      "Do not regress accessibility (axe violations = fail).",
+      "Do not claim 1:1 prototype parity for this screen; UX §8.9 is authoritative."
     ],
     "skills": [
       "test-driven-development",
@@ -78,7 +79,7 @@
       "review": "opus_if_high_risk_or_ui_or_architecture",
       "close": "spark_low_risk_else_opus"
     },
-    "prototype_match": true,
+    "prototype_match": false,
     "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md"
   }
 }

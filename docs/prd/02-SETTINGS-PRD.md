@@ -141,7 +141,7 @@ A `role_categories` reference (read-only) maps `role_code → ui_category`. The 
 
 Permission = `module_code + action + scope` (flat dot-namespaced strings, single source-of-truth in `permissions.enum.ts`):
 - `settings.users.create`, `settings.users.deactivate`
-- `npd.fa.edit`, `npd.d365_builder.execute` (tylko `npd_manager`)
+- `npd.fa.edit` [LEGACY-FA; TODO: retire in favor of `npd.released_product_edit.*` vocabulary], `npd.d365_builder.execute` (tylko `npd_manager`)
 - `settings.schema.edit` — hard-lock: **L2/L3 tak, L1 promotion wymaga Owner + approval workflow** (Q1 decision)
 - `settings.rules.view` (read-only); `settings.rules.edit` — **deferred / not granted w UI** (rule authoring przez dev PR, Q2)
 - `npd.released_product_edit.request` — allows NPD to request post-release edits to FG/BOM/product-spec data only if the org-level authorization policy enables the workflow.
@@ -1038,19 +1038,19 @@ Form fields (RHF + Zod):
 - **V-SET-MFG-02**: Operation Name must be ≤50 chars, alphanumeric + spaces, unique per (tenant_id, operation_name)
 - **V-SET-MFG-03**: Sequence Order must be 1–99; at least one operation must have seq 1
 - **V-SET-MFG-04**: Cannot delete/deactivate operation if referenced in:
-  - Active FA rows: `manufacturing_operation_1..4` match operation_name
+  - Active FA rows [LEGACY-FA; TODO: replace with released FG/product reference terminology]: `manufacturing_operation_1..4` match operation_name
   - Active Template rows: `template_operation_1..4` match operation_name
-  - Confirmation dialog: "Are you sure you want to remove [Operation Name]? This operation is used in [N] templates and [M] active FAs. Deactivating will prevent new FAs from using it."
+  - Confirmation dialog: "Are you sure you want to remove [Operation Name]? This operation is used in [N] templates and [M] active FAs [LEGACY-FA]. Deactivating will prevent new FAs [LEGACY-FA] from using it."
 - **V-SET-MFG-05**: Industry Code must be one of: {bakery, pharma, fmcg, generic, custom}
-- **V-SET-MFG-06**: On deactivate, warn user: "This operation will no longer be available for new FA assignments. Existing FAs using this operation will continue to function."
+- **V-SET-MFG-06**: On deactivate, warn user: "This operation will no longer be available for new FA assignments [LEGACY-FA]. Existing FAs [LEGACY-FA] using this operation will continue to function."
 
 #### 8.9.6 Confirmation Dialogs
 
 **Delete Operation (soft delete):**
 ```
 Title: "Remove [Operation Name]?"
-Body: "This operation is used in [N] active FAs and [M] templates. 
-       Deactivating will prevent new FAs from using it, but existing FAs will continue.
+Body: "This operation is used in [N] active FAs [LEGACY-FA] and [M] templates. 
+       Deactivating will prevent new FAs [LEGACY-FA] from using it, but existing FAs [LEGACY-FA] will continue.
        Are you sure?"
 Buttons: "Cancel" | "Deactivate"
 ```
@@ -1058,8 +1058,8 @@ Buttons: "Cancel" | "Deactivate"
 **Deactivate Only (without delete):**
 ```
 Title: "Deactivate [Operation Name]?"
-Body: "This will prevent new FAs from being assigned to this operation. 
-       [N] existing FAs will continue to use it."
+Body: "This will prevent new FAs [LEGACY-FA] from being assigned to this operation. 
+       [N] existing FAs [LEGACY-FA] will continue to use it."
 Buttons: "Cancel" | "Deactivate"
 ```
 
@@ -1067,7 +1067,7 @@ Buttons: "Cancel" | "Deactivate"
 ```
 Title: "Reset to Industry Seed Data?"
 Body: "This will replace all current operations with the [Industry] baseline:
-       [Bakery | Pharmacy | FMCG] seed list. Existing FAs will be unaffected.
+       [Bakery | Pharmacy | FMCG] seed list. Existing FAs [LEGACY-FA] will be unaffected.
        Are you sure?"
 Buttons: "Cancel" | "Reset"
 ```
@@ -1112,16 +1112,16 @@ Migration script populates seed data on first tenant creation; admin can reset t
 
 #### 8.9.8 Integration with Cascading Rules
 
-When a FA's manufacturing_operation_1..4 columns change (01-NPD §13 "Cascading Rules Chain 2/4"):
+When a FA's [LEGACY-FA; TODO: align with released FG/product terminology] manufacturing_operation_1..4 columns change (01-NPD §13 "Cascading Rules Chain 2/4"):
 
-1. Cascade engine receives FA update event: `manufacturing_operation_1 = "Mix"`
+1. Cascade engine receives FA [LEGACY-FA] update event: `manufacturing_operation_1 = "Mix"`
 2. Lookup in Reference.ManufacturingOperations: `SELECT process_suffix WHERE tenant_id=X AND operation_name='Mix'` → "MX"
 3. Retrieve sequence: operation_seq (e.g., 1)
 4. Generate Intermediate_Code_P1 using pattern: `WIP-<process_suffix>-<zero_padded_seq>`
 
 **Example cascade:**
 ```
-FA: FA-BRD-0001 (tenant: Apex Bakery)
+FA [LEGACY-FA]: FA-BRD-0001 (tenant: Apex Bakery)
 manufacturing_operation_1 = "Mix" 
   → lookup: process_suffix="MX", operation_seq=1
   → intermediate_code_p1 = "WIP-MX-00001"

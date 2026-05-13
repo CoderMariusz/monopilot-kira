@@ -1,0 +1,98 @@
+{
+  "title": "T-106 — PARITY: FA planning/commercial tabs — browser screenshot parity vs prototype",
+  "prompt": "# T-106 — PARITY: FA planning/commercial tabs browser parity (slice of T-025)\n\nPRD: docs/prd/01-NPD-PRD.md §5.4-§5.9\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\nPrototype: prototypes/design/Monopilot Design System/npd/fa-screens.jsx:537-868 (Planning 537-557, Commercial 559-586, MRP 763-804, Procurement 806-838)\nParent root: T-025\n\n## Goal\nRun Playwright browser-level parity for all 4 wired tabs (MRP, Procurement, Commercial, Planning) against the prototype. Capture screenshots, compare structural / visual / interaction / data parity against the prototype JSX, and run axe accessibility checks (0 violations).\n\n## Prototype reference\n**Source:** `prototypes/design/Monopilot Design System/npd/fa-screens.jsx:537-868`\n- Planning tab: lines 537-557\n- Commercial tab: lines 559-586\n- MRP tab: lines 763-804\n- Procurement tab: lines 806-838\n- Tabs nav: lines 314-315 (planning, commercial, mrp, procurement)\n\n## Implementation contract\nNew Playwright e2e test file `apps/web/e2e/npd/fa-planning-commercial-tabs.spec.ts` that:\n- Navigates to `/fa/[id]` with a seeded FA fixture\n- For each of the 4 tabs: activates it, captures screenshot, runs axe (`@axe-core/playwright`), asserts no violations\n- Compares screenshot vs prototype reference (visual parity)\n- Asserts structural parity: field count + field labels + field order match prototype\n- Asserts interaction parity: save buttons fire updateFaCell, gated fields locked correctly (V-NPD-PROC-001, V08, Core gate)\n- Asserts data parity: rendered values match seeded fixture\n\n## Files in scope\n- `apps/web/e2e/npd/fa-planning-commercial-tabs.spec.ts [create]`\n- `apps/web/e2e/fixtures/fa-planning-commercial.fixture.ts [create]`\n- `prototypes/design/Monopilot Design System/npd/fa-screens.jsx [ref]`\n\n## Acceptance criteria\n1. Given Playwright spec runs, when each of the 4 tabs (Planning, Commercial, MRP, Procurement) is activated, then a screenshot is captured and saved to `apps/web/e2e/__screenshots__/fa-planning-commercial-tabs/`.\n2. Given a screenshot is captured, when compared against prototype reference range (537-557 / 559-586 / 763-804 / 806-838), then structural parity passes (field count + labels + order), visual parity passes (layout matches), and interaction parity passes (gates + save).\n3. Given axe accessibility check runs on each tab, when results are inspected, then there are 0 violations across all 4 tabs.\n4. Given seeded FA fixture has known values, when each tab renders, then data parity passes (rendered field values equal fixture values).\n5. UI closeout attaches screenshot paths, Playwright trace/video paths, and axe report; if Playwright is unavailable, document the blocker and provide RTL/snapshot fallback evidence per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`.\n\n## Test strategy (RED first)\n- RED: Playwright spec fails before T-101..T-105 are complete (tabs do not yet exist on page).\n- Run: `pnpm --filter web exec playwright test e2e/npd/fa-planning-commercial-tabs.spec.ts`.\n- Attach Playwright trace.zip, video.webm, and axe JSON report in closeout.\n\n## Risk red lines\n- Do not modify tab components or wiring (T-101..T-105 own them) — if parity fails, file a defect and reopen the relevant slice\n- Do not skip axe checks\n- Do not accept screenshot diff over noise threshold without manual review",
+  "labels": [
+    "prd",
+    "ui",
+    "fa-tabs",
+    "parity",
+    "playwright",
+    "T4-wiring-test"
+  ],
+  "priority": 50,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-106",
+    "parent_task_id": "T-025",
+    "source_prd": "docs/prd/01-NPD-PRD.md",
+    "prd_refs": [
+      "§5.4",
+      "§5.5",
+      "§5.8",
+      "§5.9"
+    ],
+    "category": "ui",
+    "subcategory": "fa-tabs-parity",
+    "task_type": "T4-wiring-test",
+    "parent_feature": "01-npd-fa",
+    "context_budget": "30k",
+    "estimated_effort": "1-2h",
+    "description": "Playwright browser screenshot parity for 4 wired FA tabs (MRP, Procurement, Commercial, Planning) vs prototype 537-868. Includes axe (0 violations).",
+    "details": "One Playwright spec file. For each tab: activate, screenshot, axe, parity assertions (structural + visual + interaction + data). Does not modify tab components.",
+    "scope_files": [
+      "apps/web/e2e/npd/fa-planning-commercial-tabs.spec.ts [create]",
+      "apps/web/e2e/fixtures/fa-planning-commercial.fixture.ts [create]",
+      "prototypes/design/Monopilot Design System/npd/fa-screens.jsx [ref]"
+    ],
+    "out_of_scope": [
+      "Do not modify tab components (T-101..T-104)",
+      "Do not modify wiring (T-105)"
+    ],
+    "dependencies": [
+      "T-101",
+      "T-102",
+      "T-103",
+      "T-104",
+      "T-105"
+    ],
+    "parallel_safe_with": [],
+    "acceptance_criteria": [
+      "Given Playwright spec runs, when each tab is activated, then screenshots are captured for all 4 tabs.",
+      "Given screenshots are captured, when compared against prototype reference (537-557 / 559-586 / 763-804 / 806-838), then structural + visual + interaction parity all pass.",
+      "Given axe runs on each tab, when results are inspected, then 0 violations across all 4 tabs.",
+      "Given seeded FA fixture, when each tab renders, then data parity passes (rendered values equal fixture values).",
+      "UI closeout attaches screenshots, Playwright trace/video, and axe report per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`; if Playwright unavailable, document blocker and provide RTL/snapshot fallback evidence."
+    ],
+    "test_strategy": [
+      "RED: Playwright spec fails before slices + wiring exist.",
+      "Run 'pnpm --filter web exec playwright test e2e/npd/fa-planning-commercial-tabs.spec.ts'.",
+      "Attach trace.zip, video.webm, axe JSON in closeout."
+    ],
+    "risk_red_lines": [
+      "Do not modify tab components or wiring — file a defect if parity fails",
+      "Do not skip axe checks",
+      "Do not accept screenshot diff above noise threshold without manual review"
+    ],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": true,
+    "prototype_index_entry": "fa_mrp_tab",
+    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md",
+    "prototype_index_ref": "_meta/prototype-labels/prototype-index-npd.json#fa_mrp_tab"
+  }
+}

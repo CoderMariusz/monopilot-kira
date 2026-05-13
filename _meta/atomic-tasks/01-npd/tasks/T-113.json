@@ -1,0 +1,94 @@
+{
+  "title": "T-113 — UI: NutritionPanel (per-100g traffic-light bars) (NPD-g)",
+  "prompt": "# T-113 — NutritionPanel slice\n\nPRD: docs/prd/01-NPD-PRD.md §17.11.1 (live <50 ms recompute)\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\nPrototype: prototypes/design/Monopilot Design System/npd/recipe.jsx:26-65 (NutritionPanel)\nPrototype-index entry: nutrition_panel\n\n## Goal\nSingle-component slice translating the prototype NutritionPanel into a production React Client Component. Renders per-100g values for 7 nutrients (Energy, Fat, Saturates, Carbs, Sugars, Protein, Salt) with traffic-light progress bars (green ≤ target, amber > target ≤ max, red > max). Subscribes to formulation state from parent and re-renders reactively.\n\n## Implementation contract\n- apps/web/app/(npd)/formulations/[id]/editor/_components/nutrition-panel.tsx ('use client'). Props: { nutrition: NutritionSummary } where NutritionSummary is the per-100g output of recomputeCalc.\n- Use shadcn Card + Progress (or Tailwind div progress fill) + CardFooter for targets note per prototype_index translation_notes.\n- Memoise rendering — do not call recomputeCalc inside the panel; consume value from parent props.\n- 'Export label' button stub renders but is no-op for this slice (label export handled elsewhere).\n\n## Files (≤ 3)\n- apps/web/app/(npd)/formulations/[id]/editor/_components/nutrition-panel.tsx [create]\n- apps/web/app/(npd)/formulations/[id]/editor/_components/__tests__/nutrition-panel.test.tsx [create]\n\n## Acceptance criteria\n1. Given the panel renders with a fixed nutrition prop, when compared to prototypes/design/Monopilot Design System/npd/recipe.jsx:26-65 (NutritionPanel), then it displays 7 rows (Energy/Fat/Saturates/Carbs/Sugars/Protein/Salt) with per-100g values, units, and traffic-light bars (green/amber/red) — verified by RTL structural parity\n2. Given the parent formulation state changes (new nutrition prop), when the panel re-renders, then values update reactively in the same render cycle — verified by RTL act/rerender test\n3. Given the panel renders, then layout matches prototype dashboard-tile (Card + header + 7 progress rows + footer targets note) — verified by snapshot + shadcn Card primitives used\n\n## Test strategy\n- RED: nutrition-panel.test.tsx asserting 7 nutrient rows, traffic-light class assignment per value, reactive rerender on prop change — before component exists\n- Run 'pnpm --filter web test nutrition-panel'\n\n## Risk red lines\n- Do not call recomputeCalc inside the panel (parent owns state)\n- Do not paste prototype JSX verbatim\n- Do not exceed scope_files (1 component + 1 test)",
+  "labels": [
+    "prd",
+    "ui",
+    "formulation-panels",
+    "T3-ui"
+  ],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-113",
+    "source_prd": "docs/prd/01-NPD-PRD.md",
+    "prd_refs": [
+      "§17.11.1"
+    ],
+    "category": "ui",
+    "subcategory": "formulation-panels",
+    "task_type": "T3-ui",
+    "parent_feature": "01-NPD-g Recipe Formulation Editor",
+    "parent_task": "T-067",
+    "context_budget": "30k",
+    "estimated_effort": "1-1.5h",
+    "description": "NutritionPanel slice: per-100g traffic-light bars for 7 nutrients, reactive to parent formulation state.",
+    "details": "Translate prototype NutritionPanel (recipe.jsx:26-65) to production React Client Component. Use shadcn Card + Progress; traffic-light via conditional bg-green-500/bg-amber-500/bg-red-500. Consume nutrition prop from parent — do not recompute inside the panel.",
+    "scope_files": [
+      "apps/web/app/(npd)/formulations/[id]/editor/_components/nutrition-panel.tsx [create]",
+      "apps/web/app/(npd)/formulations/[id]/editor/_components/__tests__/nutrition-panel.test.tsx [create]"
+    ],
+    "out_of_scope": [
+      "Do not implement CostPanel (T-114)",
+      "Do not implement AllergenPanel (T-115)",
+      "Do not implement CompositionBar (T-116)",
+      "Do not wire into editor page (T-117)",
+      "Do not run Playwright parity (T-118)"
+    ],
+    "dependencies": [
+      "T-065"
+    ],
+    "parallel_safe_with": [
+      "T-114",
+      "T-115",
+      "T-116"
+    ],
+    "acceptance_criteria": [
+      "Given the panel renders with a fixed nutrition prop, when compared to prototypes/design/Monopilot Design System/npd/recipe.jsx:26-65, then it shows 7 nutrient rows with per-100g values, units and traffic-light bars — verified by RTL parity",
+      "Given the parent formulation state changes, when the panel re-renders, then values update reactively — verified by RTL rerender test",
+      "Given the panel renders, then layout uses shadcn Card primitives matching prototype dashboard-tile (header + 7 progress rows + footer targets note) — verified by snapshot",
+      "UI closeout includes screenshot/artifact evidence per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`; if Playwright is unavailable, document the blocker and provide RTL/snapshot fallback."
+    ],
+    "test_strategy": [
+      "RED: nutrition-panel.test.tsx asserting 7 nutrient rows + traffic-light class + reactive rerender before component exists",
+      "Run 'pnpm --filter web test nutrition-panel'",
+      "Capture RTL snapshot artifact for parity closeout."
+    ],
+    "risk_red_lines": [
+      "Do not call recomputeCalc inside the panel",
+      "Do not paste prototype JSX verbatim",
+      "Do not exceed scope (1 component + 1 test)"
+    ],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": true,
+    "prototype_index_entry": "nutrition_panel",
+    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md",
+    "prototype_index_ref": "_meta/prototype-labels/prototype-index-npd.json#nutrition_panel"
+  }
+}

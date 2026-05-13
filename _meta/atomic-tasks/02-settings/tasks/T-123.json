@@ -32,9 +32,9 @@
     "description": "Seed active P1 technical_product_spec_approval_gate_v1 rule definition used by authorization-policy preflights and read-only rule views.",
     "details": "Create an idempotent rules deploy seed for technical_product_spec_approval_gate_v1. It is the concrete rule_definitions row referenced by org_authorization_policies.approval_gate_rule_code and V-SET-44. The rule states that authorized NPD post-release edits create new BOM/product-spec versions and require Technical approval before factory use.\nPreserved acceptance requirements: SET-062 can render the gate read-only and cannot bypass factory-use approval invariants.; Deploy is idempotent and unchanged JSON does not bump version.",
     "scope_files": [
-      "rules/technical_product_spec_approval_gate_v1.json [create]",
+      "rules/technical_product_spec_approval_gate_v1.json",
       "rules/_schemas/gate.schema.json [create/modify if missing]",
-      "scripts/rules-deploy.test.ts [modify]",
+      "scripts/rules-deploy.test.ts",
       "apps/web/lib/settings/rules/technical-product-spec-approval-gate.test.ts [create if needed]"
     ],
     "out_of_scope": [

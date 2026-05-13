@@ -1,0 +1,98 @@
+{
+  "title": "T-102 — UI: FA Procurement tab (fa_procurement_tab) — schema-driven form with price gating",
+  "prompt": "# T-102 — FA Procurement tab UI (slice of T-025)\n\nPRD: docs/prd/01-NPD-PRD.md §5.9 + UX fa_procurement_tab\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\nPrototype: prototypes/design/Monopilot Design System/npd/fa-screens.jsx:806-838 (fa_procurement_tab)\nParent root: T-025\n\n## Goal\nClient component for FA Procurement dept rendering 4 fields (Price €/kg, Lead time days, Supplier, Proc. shelf life days). Price input is gated behind V-NPD-PROC-001: locked when `closed_core !== 'Yes' || closed_production !== 'Yes'`. Uses buildDeptZod('Procurement') + updateFaCell per dirty field.\n\n## Prototype reference\n**Source:** `prototypes/design/Monopilot Design System/npd/fa-screens.jsx:806-838`\n- `priceBlocked = fa.closed_core !== 'Yes' || fa.closed_production !== 'Yes'`\n- When blocked: Alert amber 'V-NPD-PROC-001: Price entry unlocks after Core AND Production are both closed'; Price input disabled with gray background\n- Supplier Select bound to `window.NPD_REF.suppliers` reference table\n- Save Procurement + Close Procurement section buttons; closed_procurement badge in card-head\n\n## Implementation contract\nNew `apps/web/app/(npd)/fa/[id]/_tabs/procurement-tab.tsx` 'use client'. RHF + zodResolver(buildDeptZod('Procurement')). priceBlocked derived from props (fa.closed_core/closed_production). Server Action `updateFaCell` enforces gate server-side too (reject if blocked). Supplier Select reads suppliers reference table via prop. shadcn Form/FormField/Input/Select/Button/Alert primitives.\n\n## Files in scope\n- `apps/web/app/(npd)/fa/[id]/_tabs/procurement-tab.tsx [create]`\n- `apps/web/app/(npd)/fa/[id]/_tabs/__tests__/procurement-tab.test.tsx [create]`\n- `prototypes/design/Monopilot Design System/npd/fa-screens.jsx [ref]`\n\n## Acceptance criteria\n1. Given the Procurement tab renders, when compared to fa-screens.jsx:806-838 (fa_procurement_tab), then it shows the 4 fields (Price, Lead time, Supplier, Shelf life) in correct order with closed_procurement badge, and uses shadcn Form/FormField/Input/Select/Alert primitives — verified by RTL parity checklist (structural + visual + interaction).\n2. Given `closed_core !== 'Yes' || closed_production !== 'Yes'`, when rendered, then the V-NPD-PROC-001 amber Alert is shown and Price input is disabled with gray (#D0D0D0) background and tooltip explaining the gate.\n3. Given both Core and Production are closed, when rendered, then Price input is enabled and saving calls `updateFaCell` with the price field.\n4. UI closeout includes screenshot/artifact evidence and Playwright trace/artifacts where applicable per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`.\n\n## Test strategy (RED first)\n- RED: 3 RTL tests covering: (a) 4-field parity, (b) priceBlocked=true → disabled price + amber alert, (c) priceBlocked=false → save calls updateFaCell.\n- Run: `pnpm --filter web test procurement-tab`.\n- For UI parity, capture screenshots/artifacts and Playwright trace/video/artifacts where applicable; attach artifact paths in closeout.\n\n## Risk red lines\n- Do not implement other tabs in this slice\n- Do not bypass V-NPD-PROC-001 (must enforce both client + server-side)\n- Do not hardcode supplier list (use reference table)",
+  "labels": [
+    "prd",
+    "ui",
+    "fa-procurement-tab",
+    "T3-ui"
+  ],
+  "priority": 50,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-102",
+    "parent_task_id": "T-025",
+    "source_prd": "docs/prd/01-NPD-PRD.md",
+    "prd_refs": [
+      "§5.9"
+    ],
+    "category": "ui",
+    "subcategory": "fa-procurement-tab",
+    "task_type": "T3-ui",
+    "parent_feature": "01-npd-fa",
+    "context_budget": "40k",
+    "estimated_effort": "1-3h",
+    "description": "FA Procurement tab slice: 4 fields with V-NPD-PROC-001 price gating when Core/Production not closed.",
+    "details": "One tab, one file. Parity vs fa-screens.jsx:806-838. priceBlocked gating both client + server-side. Supplier Select from reference table.",
+    "scope_files": [
+      "apps/web/app/(npd)/fa/[id]/_tabs/procurement-tab.tsx [create]",
+      "apps/web/app/(npd)/fa/[id]/_tabs/__tests__/procurement-tab.test.tsx [create]",
+      "prototypes/design/Monopilot Design System/npd/fa-screens.jsx [ref]"
+    ],
+    "out_of_scope": [
+      "Do not implement MRP tab (T-101)",
+      "Do not implement Commercial tab (T-103)",
+      "Do not implement Planning tab (T-104)",
+      "Do not wire into FA detail page (T-105)",
+      "Do not run Playwright parity (T-106)"
+    ],
+    "dependencies": [
+      "T-009",
+      "T-014",
+      "T-016",
+      "T-020"
+    ],
+    "parallel_safe_with": [
+      "T-101",
+      "T-103",
+      "T-104"
+    ],
+    "acceptance_criteria": [
+      "Given the Procurement tab renders, when compared to fa-screens.jsx:806-838, then it shows 4 fields in correct order with closed_procurement badge and uses shadcn primitives — verified by RTL parity checklist (structural + visual + interaction).",
+      "Given closed_core or closed_production != 'Yes', when rendered, then V-NPD-PROC-001 amber Alert shows and Price input is disabled with gray background.",
+      "Given both closed_core and closed_production = 'Yes', when user saves price, then updateFaCell is called for price only.",
+      "UI closeout includes screenshot/artifact evidence and Playwright trace/artifacts where applicable per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`."
+    ],
+    "test_strategy": [
+      "RED: 3 RTL tests for 4-field parity, price-blocked rendering, price-unblocked save.",
+      "Run 'pnpm --filter web test procurement-tab'.",
+      "Capture screenshots/Playwright artifacts in closeout."
+    ],
+    "risk_red_lines": [
+      "Do not implement other tabs in this slice",
+      "Do not bypass V-NPD-PROC-001",
+      "Do not hardcode supplier list"
+    ],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": true,
+    "prototype_index_entry": "fa_procurement_tab",
+    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md",
+    "prototype_index_ref": "_meta/prototype-labels/prototype-index-npd.json#fa_procurement_tab"
+  }
+}

@@ -32,10 +32,10 @@
     "description": "Settings-owned per-org authorization policies for NPD post-release edit requests and Technical approval gates.",
     "details": "Schema and seed only for org_authorization_policies.",
     "scope_files": [
-      "apps/web/db/schema/settings-auth-policies.ts [create/modify]",
-      "apps/web/db/migrations/*authorization_policies*.sql [create]",
-      "apps/web/db/seeds/authorization-policies.ts [create/modify]",
-      "apps/web/db/schema/settings-auth-policies.test.ts [create]"
+      "packages/db/schema/settings-auth-policies.ts [create/modify]",
+      "packages/db/migrations/*authorization_policies*.sql",
+      "packages/db/seeds/authorization-policies.ts [create/modify]",
+      "packages/db/__tests__/settings-auth-policies.test.ts"
     ],
     "out_of_scope": [
       "edit 01-NPD files",

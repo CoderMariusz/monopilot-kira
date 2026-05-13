@@ -29,8 +29,8 @@
     "scope_files": [
       "src/db/schema/settings/flags.ts [edit or create]",
       "src/db/migrations/0117_settings_require_grn_qc_inspection.sql [create via drizzle-kit]",
-      "packages/domain/src/settings/grn-qc.ts [create]",
-      "packages/domain/src/settings/__tests__/grn-qc.test.ts [create]"
+      "packages/domain/src/settings/grn-qc.ts",
+      "packages/domain/src/settings/__tests__/grn-qc.test.ts"
     ],
     "out_of_scope": [
       "GRN-side enforcement (09-QUALITY)",

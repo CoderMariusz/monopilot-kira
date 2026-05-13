@@ -1,0 +1,98 @@
+{
+  "title": "T-136 — UI: FA detail page shell + tabs container (fa_detail prototype) NPD-a slice of T-020",
+  "prompt": "# T-136 — FA detail shell + tabs slice\n\nPRD: docs/prd/01-NPD-PRD.md §3, §5 + UX prototypes/design/01-NPD-UX.md fa_detail\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\nPrototype: prototypes/design/Monopilot Design System/npd/fa-screens.jsx:300-401 (fa_detail)\nPrototype-index entry: fa_detail\nParent root: T-020\n\n## Goal\nFA detail page shell at /(npd)/fa/[productCode] with a shadcn Tabs container exposing the 8 dept tab labels (Core/Planning/Commercial/Production/Technical/MRP/Procurement/History) in the prototype order. Active tab is URL-driven via ?tab=<slug>; each tab body is a placeholder shell (header + 'deferred-empty' state) — tab content lives in T-023..T-028. Browser back/forward restores the previously active tab.\n\n## Implementation contract\n1. apps/web/app/(npd)/fa/[productCode]/page.tsx (RSC) fetches FA core row + passes to the Client tabs container.\n2. apps/web/app/(npd)/fa/[productCode]/_components/fa-tabs.tsx ('use client') renders shadcn Tabs with 8 TabsTrigger entries (Core/Planning/Commercial/Production/Technical/MRP/Procurement/History) in order; active tab is read from useSearchParams ?tab=<slug>; switching pushes new URL via router.\n3. Each TabsContent is a placeholder Card with header label + 'Tab content deferred' state — actual content is filled in T-023..T-028.\n4. No HTML role='tablist' — use shadcn Tabs primitives only.\n\n## Files\n- apps/web/app/(npd)/fa/[productCode]/page.tsx [create]\n- apps/web/app/(npd)/fa/[productCode]/_components/fa-tabs.tsx [create]\n- apps/web/app/(npd)/fa/[productCode]/_components/__tests__/fa-tabs.test.tsx [create]\n\n## Acceptance criteria\n1. Given the FA detail page renders, when compared to prototypes/design/Monopilot Design System/npd/fa-screens.jsx:300-401 (fa_detail), then it shows the same 8 tab labels in the same order (Core/Planning/Commercial/Production/Technical/MRP/Procurement/History) using shadcn Tabs+Card primitives (no HTML role='tablist') — verified by RTL counting tabs + parity checklist\n2. Given ?tab=technical is in the URL, when the page renders, then the Technical TabsTrigger is active and the Technical placeholder body is shown — verified by RTL\n3. Given a user switches tabs and uses browser back, when navigation occurs, then the previous tab is restored — verified by RTL router test\n\n## Test strategy\n- RED: fa-tabs.test.tsx asserting 8 tab labels + URL persistence + back-restore + primitive parity before component exists\n- Run 'pnpm --filter web test fa-tabs'\n\n## Risk red lines\n- Do not use HTML role='tablist' — use shadcn Tabs primitives\n- Do not include tab content (deferred to T-023..T-028)\n- Do not skip URL persistence for ?tab=",
+  "labels": [
+    "prd",
+    "ui",
+    "fa-detail-shell",
+    "T3-ui",
+    "slice-of-T-020"
+  ],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-136",
+    "parent_task_id": "T-020",
+    "source_prd": "docs/prd/01-NPD-PRD.md",
+    "prd_refs": [
+      "§3",
+      "§5"
+    ],
+    "category": "ui",
+    "subcategory": "fa-detail-shell",
+    "task_type": "T3-ui",
+    "parent_feature": "01-NPD-a fa CRUD UI",
+    "parent_task": "T-020",
+    "context_budget": "35k",
+    "estimated_effort": "1.5h",
+    "description": "FA detail shell + tabs container: 8 dept tabs in fa_detail prototype order with URL ?tab= persistence and placeholder bodies. Matches fa-screens.jsx:300-401.",
+    "details": "Parity: 8 tabs Core/Planning/Commercial/Production/Technical/MRP/Procurement/History in same order; shadcn Tabs+Card primitives; ?tab=<slug> URL persistence; browser back/forward restores tab; tab bodies are placeholders ('deferred-empty' state).",
+    "scope_files": [
+      "apps/web/app/(npd)/fa/[productCode]/page.tsx [create]",
+      "apps/web/app/(npd)/fa/[productCode]/_components/fa-tabs.tsx [create]",
+      "apps/web/app/(npd)/fa/[productCode]/_components/__tests__/fa-tabs.test.tsx [create]"
+    ],
+    "out_of_scope": [
+      "Do not build right panel (T-137)",
+      "Do not wire shell + right panel + layout (T-138)",
+      "Do not run Playwright parity (T-139)",
+      "Do not fill tab content (T-023..T-028)",
+      "Do not implement modals (T-021/T-022)"
+    ],
+    "dependencies": [
+      "T-001",
+      "T-015"
+    ],
+    "parallel_safe_with": [
+      "T-137",
+      "T-019"
+    ],
+    "acceptance_criteria": [
+      "Given the FA detail page renders, when compared to prototypes/design/Monopilot Design System/npd/fa-screens.jsx:300-401, then it shows the same 8 tab labels in same order using shadcn Tabs+Card primitives (no HTML role='tablist') — verified by RTL counting tabs + parity checklist",
+      "Given ?tab=technical is in the URL, when the page renders, then the Technical TabsTrigger is active and the Technical placeholder body is shown — verified by RTL",
+      "Given a user switches tabs and uses browser back, when navigation occurs, then the previous tab is restored — verified by RTL router test",
+      "UI closeout includes screenshot/artifact evidence per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`; if Playwright is unavailable, document the blocker and provide RTL/snapshot fallback."
+    ],
+    "test_strategy": [
+      "RED: fa-tabs.test.tsx asserting 8 tab labels + URL persistence + back-restore + primitive parity before component exists",
+      "Run 'pnpm --filter web test fa-tabs'",
+      "Capture RTL snapshot artifact for closeout."
+    ],
+    "risk_red_lines": [
+      "Do not use HTML role='tablist'",
+      "Do not include tab content",
+      "Do not skip URL persistence"
+    ],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": true,
+    "prototype_index_entry": "fa_detail",
+    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md",
+    "prototype_index_ref": "_meta/prototype-labels/prototype-index-npd.json#fa_detail"
+  }
+}

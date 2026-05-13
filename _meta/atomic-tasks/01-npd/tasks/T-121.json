@@ -1,0 +1,89 @@
+{
+  "title": "T-121 — WIRING: Brief list→detail navigation + data flow — slice of T-034",
+  "prompt": "# T-121 — Brief module wiring (slice of T-034)\n\nPRD: docs/prd/01-NPD-PRD.md §9.2\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\nParent root: T-034\nDepends on: T-119 (list), T-120 (detail)\n\n## Goal\nWire the Brief list and Brief detail pages into a working route group under `apps/web/app/(npd)/briefs/`. Clicking a row navigates to detail, the back button returns, breadcrumbs render correctly, and shared Brief data flows from page (RSC) to client components without console errors.\n\n## Implementation contract\n- Ensure `apps/web/app/(npd)/briefs/page.tsx` and `apps/web/app/(npd)/briefs/[id]/page.tsx` are wired into the (npd) route group layout (breadcrumbs + nav).\n- Row click in `brief-list-table.tsx` calls `router.push('/(npd)/briefs/<id>')`.\n- Detail page exposes a back link to the list and renders the breadcrumb 'Briefs > <dev_code>'.\n- No console errors during navigation.\n\n## Files in scope\n- `apps/web/app/(npd)/briefs/layout.tsx [create-or-modify]` (breadcrumbs nav)\n- `apps/web/app/(npd)/briefs/page.tsx [modify]` (ensure server data flows)\n- `apps/web/app/(npd)/briefs/[id]/page.tsx [modify]` (back link + breadcrumb)\n- `apps/web/app/(npd)/briefs/__tests__/wiring.test.tsx [create]`\n\n## Acceptance criteria\n1. Given the user clicks a row in the brief list, when activated, then the router navigates to `/(npd)/briefs/<id>` and the detail page renders.\n2. Given the user is on the detail page, when they click back/breadcrumb, then they return to the list with previous filters preserved (nuqs URL state).\n3. Given navigation between list and detail occurs, when observed, then there are no console errors and breadcrumbs correctly read 'Briefs > <dev_code>'.\n4. UI closeout includes wiring test results and any Playwright traces produced.\n\n## Test strategy (RED first)\n- RED: `apps/web/app/(npd)/briefs/__tests__/wiring.test.tsx` covering row→detail navigation, back→list, breadcrumb labels.\n- Run: `pnpm --filter web test briefs/wiring`.\n\n## Risk red lines\n- Do not modify list-table or detail-form components beyond minimal hooks (changes belong in T-119/T-120).\n- Do not change route-group layout beyond breadcrumbs/nav.\n- Do not run Playwright parity here (T-122).",
+  "labels": [
+    "prd",
+    "ui",
+    "brief-wiring",
+    "T4-wiring-test",
+    "slice-of-T-034"
+  ],
+  "priority": 90,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-121",
+    "parent_task_id": "T-034",
+    "source_prd": "docs/prd/01-NPD-PRD.md",
+    "prd_refs": [
+      "§9.2"
+    ],
+    "category": "ui",
+    "subcategory": "brief-wiring",
+    "task_type": "T4-wiring-test",
+    "parent_feature": "01-NPD-b brief UI",
+    "context_budget": "20k",
+    "estimated_effort": "1h",
+    "description": "Wire list→detail navigation, back button, breadcrumbs, and shared data flow under (npd)/briefs.",
+    "details": "Wiring task. Connects T-119 list and T-120 detail into a working route group. Breadcrumbs 'Briefs > <dev_code>'. nuqs URL state preserved on back.",
+    "scope_files": [
+      "apps/web/app/(npd)/briefs/layout.tsx [create-or-modify]",
+      "apps/web/app/(npd)/briefs/page.tsx [modify]",
+      "apps/web/app/(npd)/briefs/[id]/page.tsx [modify]",
+      "apps/web/app/(npd)/briefs/__tests__/wiring.test.tsx [create]"
+    ],
+    "out_of_scope": [
+      "Do not modify list-table or detail-form components beyond minimal hooks",
+      "Do not run Playwright parity (T-122)"
+    ],
+    "dependencies": [
+      "T-119",
+      "T-120"
+    ],
+    "parallel_safe_with": [],
+    "acceptance_criteria": [
+      "Given the user clicks a row in the brief list, when activated, then router navigates to /(npd)/briefs/<id> and detail renders.",
+      "Given the user is on the detail page, when they click back/breadcrumb, then they return to the list with previous filters preserved.",
+      "Given navigation occurs, when observed, then no console errors and breadcrumbs read 'Briefs > <dev_code>'.",
+      "UI closeout includes wiring test results and any Playwright traces produced."
+    ],
+    "test_strategy": [
+      "RED: wiring.test.tsx covering row→detail, back→list, breadcrumb labels.",
+      "Run 'pnpm --filter web test briefs/wiring'."
+    ],
+    "risk_red_lines": [
+      "Do not modify list-table or detail-form beyond minimal hooks",
+      "Do not run Playwright parity here"
+    ],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": false,
+    "prototype_index_entry": "brief_list",
+    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md",
+    "prototype_index_ref": "_meta/prototype-labels/prototype-index-npd.json#brief_list"
+  }
+}

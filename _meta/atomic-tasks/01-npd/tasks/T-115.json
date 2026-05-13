@@ -1,0 +1,96 @@
+{
+  "title": "T-115 — UI: AllergenPanel (EU14 presence badges) (NPD-g)",
+  "prompt": "# T-115 — AllergenPanel slice\n\nPRD: docs/prd/01-NPD-PRD.md §17.11.1 + §8.5 (allergen cascade)\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\nPrototype: prototypes/design/Monopilot Design System/npd/recipe.jsx:103-122 (AllergenPanel)\nPrototype-index entry: allergen_cascade (closest catalogued entry; the inline AllergenPanel at recipe.jsx:103-122 is the visual reference for this slice)\n\n## Goal\nSingle-component slice rendering the EU14 allergen presence panel from the formulation editor. Each of the EU14 allergens shows a presence badge (absent / trace / present) color-coded green/amber/red. When any allergen is detected, an Alert at the bottom warns 'Must be declared on label'. Reactive to formulation state changes.\n\n## Implementation contract\n- apps/web/app/(npd)/formulations/[id]/editor/_components/allergen-panel.tsx ('use client'). Props: { allergens: AllergenStatus[] } where AllergenStatus = { code: EU14Code, name: string, status: 'absent' | 'trace' | 'present' }.\n- Use shadcn Card + Badge + Alert per translation_notes for allergen_cascade.\n- Color tokens: absent → muted/outline, trace → amber, present → red. Use accessible Badge variants with text labels (not color alone — aria attributes too).\n- EU14 list source: const EU14_ALLERGENS (cereals/gluten, crustaceans, eggs, fish, peanuts, soybeans, milk, nuts, celery, mustard, sesame, sulphites, lupin, molluscs) — declare inside the component file as a constant; production data plumbing happens in T-117 wiring.\n\n## Files (≤ 3)\n- apps/web/app/(npd)/formulations/[id]/editor/_components/allergen-panel.tsx [create]\n- apps/web/app/(npd)/formulations/[id]/editor/_components/__tests__/allergen-panel.test.tsx [create]\n\n## Acceptance criteria\n1. Given the panel renders with a mix of absent/trace/present statuses, when compared to prototypes/design/Monopilot Design System/npd/recipe.jsx:103-122 (AllergenPanel), then it displays all 14 EU allergens as badges with status-specific color tokens (present=red, trace=amber, absent=muted) — verified by RTL parity\n2. Given at least one allergen has status 'present' or 'trace', when the panel renders, then a shadcn Alert below the badges lists detected allergens and reads 'Must be declared on label' — verified by RTL text + role='alert'\n3. Given the parent formulation state changes (new allergens prop), when the panel re-renders, then badge statuses update reactively — verified by RTL rerender test\n4. Given the panel renders, then each badge exposes an accessible name via aria-label combining allergen name + status (color is not sole signal) — verified by axe-core/jest-axe\n\n## Test strategy\n- RED: allergen-panel.test.tsx asserting 14 badges + status color classes + Alert visibility + reactive rerender + a11y aria-label — before component exists\n- Run 'pnpm --filter web test allergen-panel'\n\n## Risk red lines\n- Do not rely on color alone (a11y) — every badge must have aria-label / sr-only text describing status\n- Do not own allergen state — controlled via props from parent\n- Do not paste prototype JSX verbatim",
+  "labels": [
+    "prd",
+    "ui",
+    "formulation-panels",
+    "T3-ui"
+  ],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-115",
+    "source_prd": "docs/prd/01-NPD-PRD.md",
+    "prd_refs": [
+      "§17.11.1",
+      "§8.5"
+    ],
+    "category": "ui",
+    "subcategory": "formulation-panels",
+    "task_type": "T3-ui",
+    "parent_feature": "01-NPD-g Recipe Formulation Editor",
+    "parent_task": "T-067",
+    "context_budget": "30k",
+    "estimated_effort": "1-1.5h",
+    "description": "AllergenPanel slice: EU14 presence badges (absent/trace/present) + declared-on-label Alert, reactive to formulation.",
+    "details": "Translate prototype AllergenPanel (recipe.jsx:103-122) to production React Client Component. shadcn Card + Badge + Alert. Color-coded statuses with aria-label for a11y (color not sole signal).",
+    "scope_files": [
+      "apps/web/app/(npd)/formulations/[id]/editor/_components/allergen-panel.tsx [create]",
+      "apps/web/app/(npd)/formulations/[id]/editor/_components/__tests__/allergen-panel.test.tsx [create]"
+    ],
+    "out_of_scope": [
+      "Do not implement NutritionPanel (T-113)",
+      "Do not implement CostPanel (T-114)",
+      "Do not implement CompositionBar (T-116)",
+      "Do not wire into editor page (T-117)",
+      "Do not run Playwright parity (T-118)"
+    ],
+    "dependencies": [
+      "T-065"
+    ],
+    "parallel_safe_with": [
+      "T-113",
+      "T-114",
+      "T-116"
+    ],
+    "acceptance_criteria": [
+      "Given the panel renders with mixed allergen statuses, when compared to prototypes/design/Monopilot Design System/npd/recipe.jsx:103-122, then 14 EU allergen badges render with status-specific color tokens — verified by RTL parity",
+      "Given at least one allergen is present/trace, when rendered, then a shadcn Alert lists detected allergens with 'Must be declared on label' text — verified by RTL role='alert'",
+      "Given the parent formulation state changes, when the panel re-renders, then badge statuses update reactively — verified by RTL rerender test",
+      "Given the panel renders, then every badge exposes accessible name via aria-label / sr-only — verified by jest-axe (0 violations)",
+      "UI closeout includes screenshot/artifact evidence per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`; if Playwright is unavailable, document the blocker and provide RTL/snapshot fallback."
+    ],
+    "test_strategy": [
+      "RED: allergen-panel.test.tsx asserting 14 badges + status colors + Alert + reactive rerender + a11y aria-label",
+      "Run 'pnpm --filter web test allergen-panel'",
+      "Run jest-axe accessibility assertion; capture RTL snapshot artifact for parity closeout."
+    ],
+    "risk_red_lines": [
+      "Do not rely on color alone — every badge must carry aria-label / sr-only status text",
+      "Do not own allergen state — controlled via props",
+      "Do not paste prototype JSX verbatim"
+    ],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": true,
+    "prototype_index_entry": "allergen_cascade",
+    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md",
+    "prototype_index_ref": "_meta/prototype-labels/prototype-index-npd.json#allergen_cascade"
+  }
+}

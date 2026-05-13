@@ -1,0 +1,96 @@
+{
+  "title": "T-109 — UI: GateApprovalModal (gate_approval_modal prototype) NPD-f slice of T-061",
+  "prompt": "# T-109 — GateApprovalModal UI\n\nPRD: docs/prd/01-NPD-PRD.md §17.6, §17.7 + UX prototypes/design/01-NPD-UX.md approval_modal\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\nPrototype: prototypes/design/Monopilot Design System/npd/gate-screens.jsx:378-522 (GateApprovalModal)\nParent root: T-061\n\n## Goal\nSingle Client Component GateApprovalModal (shadcn Dialog): renders project header, gate-transition visual, checklist completion Progress, approve/reject RadioGroup, notes Textarea (min 10 chars), and an e-signature overlay (password Input + confirmation Checkbox) shown only on approve before submit. Calls approveProjectGate or rejectProjectGate Server Action.\n\n## Implementation contract\n1. apps/web/app/(npd)/pipeline/[projectId]/_components/gate-approval-modal.tsx ('use client') uses shadcn Dialog/RadioGroup/RadioGroupItem/Form/Input/Textarea/Checkbox/Button/Badge.\n2. Step state machine: 'decision' → (if approve) 'esign' → 'submitted'; (if reject) → 'submitted'.\n3. Notes Textarea required (min 10 trimmed chars); decision RadioGroup default 'approve'; on reject decision the gate-transition card shows red dashed arrow.\n4. E-signature overlay: type=password Input + confirmation Checkbox; Confirm&Sign disabled until both filled. On confirm calls approveProjectGate({ projectId, gate, decision, password }).\n5. Reject path: calls rejectProjectGate({ projectId, gate, reason: notes }).\n\n## Files\n- apps/web/app/(npd)/pipeline/[projectId]/_components/gate-approval-modal.tsx [create]\n- apps/web/app/(npd)/pipeline/[projectId]/_components/__tests__/gate-approval-modal.test.tsx [create]\n\n## Acceptance criteria\n1. Given GateApprovalModal renders, when compared to prototypes/design/Monopilot Design System/npd/gate-screens.jsx:378-522, then it shows the same project header, gate-transition card, checklist Progress, approve/reject RadioGroup and notes Textarea — using shadcn Dialog+RadioGroup+Input+Textarea+Checkbox+Button+Badge primitives.\n2. Given decision='approve' and notes.trim().length >= 10, when Submit Approval is clicked, then the e-signature overlay renders with a type=password Input and a confirmation Checkbox; Confirm&Sign is disabled until both are filled and on confirm invokes approveProjectGate.\n3. Given decision='reject' and notes.trim().length >= 10, when Submit Rejection is clicked, then rejectProjectGate({ reason: notes }) is invoked exactly once and the password field is NEVER rendered for the reject path.\n\n## Test strategy\n- RED: __tests__/gate-approval-modal.test.tsx asserting parity, e-sig overlay gating (approve only), reject-no-password, decision/notes validation before component exists.\n- Run 'pnpm --filter web test gate-approval-modal'\n\n## Risk red lines\n- Do not show password value in DOM (Input must be type=password).\n- Do not call approveProjectGate without both password and confirmation Checkbox.\n- Do not paste prototype JSX verbatim.",
+  "labels": [
+    "prd",
+    "ui",
+    "gate-approval-modal",
+    "T3-ui",
+    "slice-of-T-061"
+  ],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-109",
+    "parent_task_id": "T-061",
+    "source_prd": "docs/prd/01-NPD-PRD.md",
+    "prd_refs": [
+      "§17.6",
+      "§17.7"
+    ],
+    "category": "ui",
+    "subcategory": "gate-approval-modal",
+    "task_type": "T3-ui",
+    "parent_feature": "01-NPD-f Stage-Gate Pipeline",
+    "context_budget": "35k",
+    "estimated_effort": "2h",
+    "description": "GateApprovalModal: approve/reject RadioGroup + notes Textarea + e-signature overlay (password + confirmation) on approve. Matches gate-screens.jsx:378-522.",
+    "details": "Parity items: shadcn Dialog + project header card + gate-transition card (red dashed on reject) + Progress bar + decision RadioGroup + notes Textarea (>=10 chars) + e-signature overlay (type=password Input + confirmation Checkbox + Confirm&Sign button). Step state machine: decision → esign (approve only) → submitted.",
+    "scope_files": [
+      "apps/web/app/(npd)/pipeline/[projectId]/_components/gate-approval-modal.tsx [create]",
+      "apps/web/app/(npd)/pipeline/[projectId]/_components/__tests__/gate-approval-modal.test.tsx [create]"
+    ],
+    "out_of_scope": [
+      "Do not implement Server Actions (T-058)",
+      "Do not wire the route page (T-111)",
+      "Do not run Playwright parity (T-112)",
+      "Do not build GateChecklistPanel/AdvanceGateModal/ApprovalHistoryTimeline (T-107/T-108/T-110)"
+    ],
+    "dependencies": [
+      "T-057",
+      "T-058"
+    ],
+    "parallel_safe_with": [
+      "T-107",
+      "T-108",
+      "T-110"
+    ],
+    "acceptance_criteria": [
+      "Given GateApprovalModal renders, when compared to prototypes/design/Monopilot Design System/npd/gate-screens.jsx:378-522, then it shows the same project header, gate-transition card, checklist Progress, approve/reject RadioGroup and notes Textarea using shadcn Dialog+RadioGroup+Input+Textarea+Checkbox+Button+Badge primitives",
+      "Given decision='approve' and notes.trim().length >= 10, when Submit Approval is clicked, then the e-signature overlay renders with a type=password Input and a confirmation Checkbox; Confirm&Sign is disabled until both are filled and on confirm invokes approveProjectGate",
+      "Given decision='reject' and notes.trim().length >= 10, when Submit Rejection is clicked, then rejectProjectGate({ reason: notes }) is invoked exactly once and the password field is NEVER rendered for the reject path",
+      "UI closeout includes screenshot/artifact evidence and Playwright trace/artifacts where applicable per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`; if Playwright is unavailable, document the blocker and provide RTL/snapshot fallback evidence."
+    ],
+    "test_strategy": [
+      "RED: __tests__/gate-approval-modal.test.tsx asserting parity, e-sig overlay gating (approve only), reject-no-password, decision/notes validation before component exists",
+      "Run 'pnpm --filter web test gate-approval-modal'",
+      "For UI parity, capture screenshots/artifacts and Playwright trace/video/artifacts where applicable; attach artifact paths in closeout."
+    ],
+    "risk_red_lines": [
+      "Do not show password value in DOM (must be type=password)",
+      "Do not call approveProjectGate without both password and confirmation Checkbox",
+      "Do not paste prototype JSX verbatim"
+    ],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": true,
+    "prototype_index_entry": "gate_approval_modal",
+    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md",
+    "prototype_index_ref": "_meta/prototype-labels/prototype-index-npd.json#gate_approval_modal"
+  }
+}

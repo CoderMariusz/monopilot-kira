@@ -1,0 +1,90 @@
+{
+  "title": "T-111 — WIRING: Gate screen — wire GateChecklistPanel + AdvanceGateModal + GateApprovalModal + ApprovalHistoryTimeline into gate route",
+  "prompt": "# T-111 — Wire Gate screen components into the gate route\n\nPRD: docs/prd/01-NPD-PRD.md §17.6, §17.7\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\nParent root: T-061\nDepends on slices: T-107 (GateChecklistPanel), T-108 (AdvanceGateModal), T-109 (GateApprovalModal), T-110 (ApprovalHistoryTimeline)\n\n## Goal\nIntegrate the four slice components into the gate route page. RSC page fetches project, gate items, and approval history; passes props into Client components; openModal handler dispatches between AdvanceGateModal and GateApprovalModal based on requiresApproval flag.\n\n## Implementation contract\n1. apps/web/app/(npd)/projects/[id]/gate/[gateId]/page.tsx (RSC) fetches: getProject(id), getGateChecklist(id), getApprovalHistory(id).\n2. Renders GateChecklistPanel + ApprovalHistoryTimeline; mounts AdvanceGateModal + GateApprovalModal as siblings; route-level state (or modal store) controls open/close + which modal.\n3. openModal('advanceGate' | 'gateApproval', { project }) wired from GateChecklistPanel footer button.\n4. After advanceProjectGate or approveProjectGate completes, router.refresh() updates the timeline.\n\n## Files\n- apps/web/app/(npd)/projects/[id]/gate/[gateId]/page.tsx [modify]\n\n## Acceptance criteria\n1. Given the gate route renders for a valid project, when the page mounts, then GateChecklistPanel and ApprovalHistoryTimeline are rendered and AdvanceGateModal + GateApprovalModal are mounted (initially closed).\n2. Given GateChecklistPanel's advance button is clicked on a non-requiresApproval gate, when openModal fires, then AdvanceGateModal opens; on a requiresApproval gate the GateApprovalModal opens instead.\n3. Given an approval or advancement Server Action completes, when the page revalidates, then ApprovalHistoryTimeline reflects the new entry (router.refresh or revalidateTag).\n\n## Test strategy\n- Integration RTL test for the route page covering modal dispatch + post-action revalidation.\n- Run 'pnpm --filter web test gate-page'\n\n## Risk red lines\n- Do not change any slice component file under this task (T-107..T-110 own those files).\n- Do not call DB outside the RSC page.",
+  "labels": [
+    "prd",
+    "wiring",
+    "gate-screen",
+    "T4-wiring-test",
+    "slice-of-T-061"
+  ],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-111",
+    "parent_task_id": "T-061",
+    "source_prd": "docs/prd/01-NPD-PRD.md",
+    "prd_refs": [
+      "§17.6",
+      "§17.7"
+    ],
+    "category": "wiring",
+    "subcategory": "gate-route",
+    "task_type": "T4-wiring-test",
+    "parent_feature": "01-NPD-f Stage-Gate Pipeline",
+    "context_budget": "25k",
+    "estimated_effort": "1.5h",
+    "description": "Wire GateChecklistPanel + AdvanceGateModal + GateApprovalModal + ApprovalHistoryTimeline into the gate route page; modal dispatch from checklist panel; revalidate timeline after approval action.",
+    "details": "RSC page fetches project/items/history, renders panels, mounts modals, wires openModal handler keyed by requiresApproval flag, calls router.refresh after Server Action completes.",
+    "scope_files": [
+      "apps/web/app/(npd)/projects/[id]/gate/[gateId]/page.tsx [modify]"
+    ],
+    "out_of_scope": [
+      "Do not modify component files owned by T-107..T-110",
+      "Do not implement Server Actions (T-058)",
+      "Do not run Playwright parity (T-112)"
+    ],
+    "dependencies": [
+      "T-107",
+      "T-108",
+      "T-109",
+      "T-110"
+    ],
+    "parallel_safe_with": [],
+    "acceptance_criteria": [
+      "Given the gate route renders for a valid project, when the page mounts, then GateChecklistPanel and ApprovalHistoryTimeline are rendered and AdvanceGateModal + GateApprovalModal are mounted (initially closed)",
+      "Given GateChecklistPanel's advance button is clicked on a non-requiresApproval gate, when openModal fires, then AdvanceGateModal opens; on a requiresApproval gate the GateApprovalModal opens instead",
+      "Given an approval or advancement Server Action completes, when the page revalidates, then ApprovalHistoryTimeline reflects the new entry (router.refresh or revalidateTag)",
+      "UI closeout includes screenshot/artifact evidence and Playwright trace/artifacts where applicable per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`; if Playwright is unavailable, document the blocker and provide RTL/snapshot fallback evidence."
+    ],
+    "test_strategy": [
+      "Integration RTL test for the route page covering modal dispatch + post-action revalidation",
+      "Run 'pnpm --filter web test gate-page'",
+      "For UI parity, capture screenshots/artifacts and Playwright trace/video/artifacts where applicable; attach artifact paths in closeout."
+    ],
+    "risk_red_lines": [
+      "Do not change any slice component file under this task",
+      "Do not call DB outside the RSC page"
+    ],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": true,
+    "prototype_index_entry": "gate_checklist_panel",
+    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md"
+  }
+}

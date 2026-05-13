@@ -1,9 +1,12 @@
 {
   "title": "T-124 — Pending Invitations lifecycle backend list/resend/revoke",
-  "prompt": "T-124 — Pending Invitations lifecycle backend list/resend/revoke\nWave0 Settings task. Discover existing files, implement exact scope, keep one atomic type, local dependencies only.",
+  "prompt": "# T-124 — Pending Invitations lifecycle backend list/resend/revoke\n\n## Goal\nImplement the backend lifecycle behind UX SET-010 Pending Invitations: list outstanding invitations, resend pending/expired invitations, and revoke pending invitations with permissions, org isolation, audit, and typed blockers.\n\nThis task supports T-119 UI and reuses the invitation creation contract from T-017. It is backend/API scope only; do not implement the screen here.\n\n## Files in scope\n- packages/auth/src/invitations.ts [create/modify]\n- packages/auth/src/__tests__/invitations.test.ts [create/modify]\n- packages/db/schema/invitations.ts [modify if missing lifecycle fields]\n- packages/db/migrations/NNN-invitations-lifecycle.sql [create only if schema fields are missing]\n\n## Acceptance criteria (all must hold)\n- Given an authenticated admin with invitation view permission, when invitations are listed, then results are scoped to the current org and include email, role, invited_by, invited_at, expires_at, status, and action eligibility for Pending/Expired/Accepted states.\n- Given a Pending or Expired invitation is resent, when seat-limit and role-assignment preflights pass, then a new single-use invite token/email is issued, expiry is refreshed, audit/outbox records are written, and the response distinguishes pending vs expired resend.\n- Given a Pending invitation is revoked, when the actor has invite-management permission, then the invite is marked revoked/audited and cannot later be accepted; Accepted invitations are immutable and cannot be revoked through this lifecycle.\n- Given cross-org ids, stale tokens, seat-limit failures, missing permissions, or invalid state transitions, when lifecycle actions run, then typed blockers are returned without partial mutation.\n\n## Test strategy (RED first)\n- RED: add targeted tests for org-scoped list, resend Pending/Expired, revoke Pending, Accepted immutable, and typed blockers for permission/seat-limit/cross-org/stale-token cases.\n- GREEN: implement lifecycle helpers/actions using existing auth, outbox, and audit primitives.\n- Run targeted auth/db tests plus typecheck/lint for changed packages.\n\n## Risk red lines\n- Do not duplicate invite creation semantics outside T-017; lifecycle actions must reuse its seat-limit, TTL, role, and token contracts.\n- Do not allow resend/revoke across org boundaries or without invitation-management permission.\n- Do not revoke or mutate accepted users through invitation lifecycle code.\n- Do not implement T-119 UI in this backend task.\n## Closeout evidence required\n- changed_files (with line counts)\n- exact test commands and outputs (RED -> GREEN, typecheck, lint)\n- acceptance_criteria_status (one row per AC: pass/fail)\n- deviations_from_prd (or \"none\")\n- git_status\n",
   "labels": [
-    "monopilot-kira",
-    "02-settings",
+    "prd",
+    "auth",
+    "api",
+    "set-010",
+    "T2-api",
     "wave0-hardening"
   ],
   "priority": 80,
@@ -18,28 +21,39 @@
       "Targeted tests beside implementation"
     ],
     "acceptance_criteria": [
-      "Required backend/UI capability is implemented for the named SET scope.",
-      "Permissions, org_id isolation, audit/outbox and typed blockers are enforced where applicable.",
-      "Unsupported/bypass paths are rejected without partial mutation.",
-      "Targeted tests and closeout evidence are provided."
+      "List invitations is org-scoped and returns SET-010 fields plus state-derived action eligibility for Pending, Expired and Accepted invitations.",
+      "Resend supports Pending and Expired invitations, refreshes expiry/token/email through existing invite contracts, and writes audit/outbox records.",
+      "Revoke supports Pending invitations only; Accepted invitations are immutable/read-only and cannot be revoked through this lifecycle.",
+      "Permission, seat-limit, stale-token, invalid-state and cross-org failures return typed blockers without partial mutation."
     ],
     "test_strategy": [
-      "Run targeted tests"
+      "RED: targeted tests for org-scoped list, resend Pending/Expired, revoke Pending, Accepted immutable, and typed blockers.",
+      "GREEN: implement lifecycle helpers/actions against existing auth/db/audit/outbox primitives.",
+      "Run targeted auth/db tests plus typecheck/lint for changed packages."
     ],
     "risk_red_lines": [
-      "No settings.quality.* permissions",
-      "No import/export bypass of authorization policies",
-      "Dependencies local T-XXX only"
+      "Do not duplicate invite creation semantics outside T-017.",
+      "Do not allow resend/revoke across org boundaries or without invitation-management permission.",
+      "Do not revoke or mutate accepted users through invitation lifecycle code.",
+      "Do not implement T-119 UI in this backend task."
     ],
     "skills": [
-      "repo-navigation",
-      "testing"
+      "test-driven-development",
+      "requesting-code-review"
     ],
     "checkpoint_policy": {
       "required_checkpoints": [
-        "discover",
-        "test",
-        "closeout"
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
       ]
     },
     "task_type": "T2-api",
@@ -48,6 +62,19 @@
       "T-010",
       "T-014",
       "T-017"
-    ]
+    ],
+    "prd_refs": [
+      "§4.0 Pending Invitations Phase 1 scope",
+      "§5.1 S-U7 invite TTL and core identity schema",
+      "§5.1 S-U8 inviteUser seat-limit preflight",
+      "UX SET-010 Pending Invitations"
+    ],
+    "category": "auth",
+    "subcategory": "set-010-invitations-lifecycle",
+    "parent_feature": "02-settings-a-auth",
+    "prd_task_id": "T-124",
+    "source_prd": "docs/prd/02-SETTINGS-PRD.md",
+    "context_budget": "40k",
+    "estimated_effort": "2-4h"
   }
 }

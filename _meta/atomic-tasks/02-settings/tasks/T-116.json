@@ -26,9 +26,9 @@
     "description": "Seed next-intl namespace `02-settings.json` for PL + EN with full key parity for all SETTINGS screens.",
     "details": "PRD §14.2 mandates next-intl with namespace per moduł, Phase 1 MVP = PL+EN, EN fallback always available. The bundle aggregates all static UI strings referenced by T-041..T-115. Per-row dynamic field labels stay in `reference_schemas.presentation_json.label_<lang>` (NOT here). Phase 2/3 languages (UK/RO/DE/FR) explicitly out of scope per coverage.md gap row §14.2 Phase 2/3 i18n.",
     "scope_files": [
-      "apps/web/messages/en/02-settings.json [create]",
-      "apps/web/messages/pl/02-settings.json [create]",
-      "apps/web/messages/__tests__/02-settings.namespace.test.ts [create]"
+      "apps/web/messages/en/02-settings.json",
+      "apps/web/messages/pl/02-settings.json",
+      "apps/web/messages/__tests__/02-settings.namespace.test.ts"
     ],
     "out_of_scope": [
       "UK / RO / DE / FR translations (Phase 2/3 per §14.2)",

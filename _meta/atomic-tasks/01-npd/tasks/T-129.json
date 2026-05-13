@@ -1,0 +1,96 @@
+{
+  "title": "T-129 — UI: Pipeline SplitView + ProjectDetailPanel (split_view prototype) NPD-f slice of T-060",
+  "prompt": "# T-129 — Pipeline SplitView slice\n\nPRD: docs/prd/01-NPD-PRD.md §17.12 + UX prototypes/design/01-NPD-UX.md split_view\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\nPrototype: prototypes/design/Monopilot Design System/npd/pipeline.jsx:89-131 (SplitView)\nPrototype-index entry: split_view\nParent root: T-060\n\n## Goal\nTwo-component slice translating the SplitView prototype region into production: a left compact list + a right sticky ProjectDetail panel. Selecting a row updates the detail panel and URL ?selected=<projectId>; supports keyboard navigation (ArrowUp/Down/Enter); falls back to TableView below 1280 px breakpoint.\n\n## Implementation contract\n- apps/web/app/(npd)/pipeline/_components/split-view.tsx ('use client'). Props: { projects: NpdProjectRow[] }. Renders shadcn ResizablePanelGroup (or grid) with left compact list (Card list, sticky) + right ProjectDetailPanel sticky aside; uses useSearchParams for ?selected= persistence; keyboard handler on the list updates selection.\n- apps/web/app/(npd)/pipeline/_components/project-detail-panel.tsx ('use client'). Props: { project: NpdProjectRow | null }. Renders shadcn Card with project summary (code, name, type, owner, gate, priority, target launch, progress, recent activity); empty state when project is null.\n- Below 1280 px width the SplitView falls back to TableView (matchMedia or container query).\n- No DB calls in either Client Component (parent RSC provides projects).\n\n## Files (≤ 3)\n- apps/web/app/(npd)/pipeline/_components/split-view.tsx [create]\n- apps/web/app/(npd)/pipeline/_components/project-detail-panel.tsx [create]\n- apps/web/app/(npd)/pipeline/_components/__tests__/split-view.test.tsx [create]\n\n## Acceptance criteria\n1. Given SplitView renders with a sample project list, when compared to prototypes/design/Monopilot Design System/npd/pipeline.jsx:89-131 (SplitView), then it shows a left compact list + right sticky ProjectDetailPanel using shadcn Card + ResizablePanelGroup primitives — verified by RTL parity checklist\n2. Given a user clicks or keyboard-navigates (ArrowDown/Enter) to a row, when the selection settles, then URL ?selected=<projectId> updates and ProjectDetailPanel renders that project's detail — verified by RTL router test\n3. Given the viewport is < 1280 px wide, when SplitView mounts, then it falls back to TableView per §17.12 breakpoint contract — verified by RTL matchMedia test\n\n## Test strategy\n- RED: split-view.test.tsx asserting list + panel structure, ?selected= URL persistence, keyboard nav, 1280 px fallback — before components exist\n- Run 'pnpm --filter web test split-view'\n\n## Risk red lines\n- Do not paste prototype JSX verbatim\n- Do not break the 1280 px responsive breakpoint contract\n- Do not query DB from these Client Components",
+  "labels": [
+    "prd",
+    "ui",
+    "pipeline-split-view",
+    "T3-ui",
+    "slice-of-T-060"
+  ],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-129",
+    "parent_task_id": "T-060",
+    "source_prd": "docs/prd/01-NPD-PRD.md",
+    "prd_refs": [
+      "§17.12"
+    ],
+    "category": "ui",
+    "subcategory": "pipeline-split-view",
+    "task_type": "T3-ui",
+    "parent_feature": "01-NPD-f Stage-Gate Pipeline",
+    "parent_task": "T-060",
+    "context_budget": "35k",
+    "estimated_effort": "2h",
+    "description": "Pipeline SplitView slice: left compact list + right sticky ProjectDetailPanel with URL ?selected= persistence, keyboard nav, 1280 px fallback. Matches pipeline.jsx:89-131.",
+    "details": "Parity: ResizablePanelGroup or grid; left Card list; right sticky ProjectDetailPanel Card; ?selected= URL persistence; ArrowUp/Down/Enter keyboard nav; <1280 px falls back to TableView.",
+    "scope_files": [
+      "apps/web/app/(npd)/pipeline/_components/split-view.tsx [create]",
+      "apps/web/app/(npd)/pipeline/_components/project-detail-panel.tsx [create]",
+      "apps/web/app/(npd)/pipeline/_components/__tests__/split-view.test.tsx [create]"
+    ],
+    "out_of_scope": [
+      "Do not build TableView (T-128)",
+      "Do not wire view tabs into pipeline page (T-130)",
+      "Do not run Playwright parity (T-131)",
+      "Do not build Kanban view (T-059)",
+      "Do not build gate modals (T-061)"
+    ],
+    "dependencies": [
+      "T-057",
+      "T-059"
+    ],
+    "parallel_safe_with": [
+      "T-128"
+    ],
+    "acceptance_criteria": [
+      "Given SplitView renders with a sample project list, when compared to prototypes/design/Monopilot Design System/npd/pipeline.jsx:89-131, then it shows a left compact list + right sticky ProjectDetailPanel using shadcn Card + ResizablePanelGroup primitives — verified by RTL parity checklist",
+      "Given a user clicks or keyboard-navigates to a row, when the selection settles, then URL ?selected=<projectId> updates and ProjectDetailPanel renders that project's detail — verified by RTL router test",
+      "Given the viewport is < 1280 px wide, when SplitView mounts, then it falls back to TableView per §17.12 breakpoint contract — verified by RTL matchMedia test",
+      "UI closeout includes screenshot/artifact evidence per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`; if Playwright is unavailable, document the blocker and provide RTL/snapshot fallback."
+    ],
+    "test_strategy": [
+      "RED: split-view.test.tsx asserting list + panel + ?selected= URL persistence + keyboard nav + 1280 px fallback before components exist",
+      "Run 'pnpm --filter web test split-view'",
+      "Capture RTL snapshot artifact for parity closeout."
+    ],
+    "risk_red_lines": [
+      "Do not paste prototype JSX verbatim",
+      "Do not break the 1280 px breakpoint contract",
+      "Do not query DB from these Client Components"
+    ],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": true,
+    "prototype_index_entry": "split_view",
+    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md",
+    "prototype_index_ref": "_meta/prototype-labels/prototype-index-npd.json#split_view"
+  }
+}

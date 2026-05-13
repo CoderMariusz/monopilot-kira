@@ -6,6 +6,17 @@ const repoRoot = resolve(__dirname, '../../../..');
 const permissionsModulePath = resolve(repoRoot, 'packages/rbac/src/permissions.enum.ts');
 const codeownersPath = resolve(repoRoot, 'CODEOWNERS');
 
+const expectedSettingsCorePermissions = [
+  'settings.org.read',
+  'settings.org.update',
+  'settings.users.create',
+  'settings.users.deactivate',
+  'settings.users.invite',
+  'settings.roles.assign',
+  'settings.audit.read',
+  'settings.impersonate.tenant',
+] as const;
+
 const expectedCanonicalPermissions = [
   'org.access.admin',
   'org.schema.admin',
@@ -17,12 +28,14 @@ const expectedCanonicalPermissions = [
   'audit.read',
   'outbox.admin',
   'impersonate.org',
+  ...expectedSettingsCorePermissions,
 ] as const;
 
 type PermissionsModule = {
   Permission: Record<string, string>;
   LegacyPermissionAlias: Record<string, string>;
   ALL_PERMISSIONS: readonly string[];
+  ALL_SETTINGS_CORE_PERMISSIONS: readonly string[];
   SOD_EXCLUSIVE_PAIRS: readonly (readonly [string, string])[];
   normalizePermission: (input: string) => string;
 };
@@ -43,6 +56,24 @@ describe('rbac permission source of truth', () => {
     expect(ALL_PERMISSIONS).toEqual(expectedCanonicalPermissions);
     expect(Object.values(Permission)).toEqual(expectedCanonicalPermissions);
     expect(new Set(ALL_PERMISSIONS).size).toBe(ALL_PERMISSIONS.length);
+  });
+
+  it('exports the settings core permission group as a typed Permission array literal', async () => {
+    const { ALL_PERMISSIONS, ALL_SETTINGS_CORE_PERMISSIONS } = await loadPermissionsModule();
+
+    expect(ALL_SETTINGS_CORE_PERMISSIONS).toEqual(expectedSettingsCorePermissions);
+    expect(new Set(ALL_SETTINGS_CORE_PERMISSIONS).size).toBe(ALL_SETTINGS_CORE_PERMISSIONS.length);
+
+    for (const permission of ALL_SETTINGS_CORE_PERMISSIONS) {
+      expect(ALL_PERMISSIONS).toContain(permission);
+      expect(permission).toMatch(/^settings\.[a-z_]+\.[a-z_]+$/);
+    }
+
+    const source = readFileSync(permissionsModulePath, 'utf8');
+    const settingsCoreExport = source.match(
+      /export\s+const\s+ALL_SETTINGS_CORE_PERMISSIONS\s*=\s*\[[\s\S]*?\]\s*(?:satisfies|as)\s+readonly\s+Permission\[\]/,
+    );
+    expect(settingsCoreExport?.[0]).toContain('ALL_SETTINGS_CORE_PERMISSIONS');
   });
 
   it('keeps every canonical permission in the locked lowercase dotted format', async () => {

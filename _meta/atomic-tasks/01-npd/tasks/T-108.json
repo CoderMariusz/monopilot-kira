@@ -1,0 +1,95 @@
+{
+  "title": "T-108 — UI: AdvanceGateModal (advance_gate_modal prototype) NPD-f slice of T-061",
+  "prompt": "# T-108 — AdvanceGateModal UI\n\nPRD: docs/prd/01-NPD-PRD.md §17.6 + UX prototypes/design/01-NPD-UX.md advance_modal\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\nPrototype: prototypes/design/Monopilot Design System/npd/gate-screens.jsx:261-377 (AdvanceGateModal)\nParent root: T-061\n\n## Goal\nSingle Client Component AdvanceGateModal (shadcn Dialog): renders gate-transition visual (current → next), checklist summary (Progress + items), blockers list (red Alert) OR ready Alert, notes Textarea (disabled when blockers > 0), Cancel/Advance footer. Advance button disabled until all required ACs checked AND notes.trim().length > 0. Calls advanceProjectGate Server Action.\n\n## Implementation contract\n1. apps/web/app/(npd)/pipeline/[projectId]/_components/advance-gate-modal.tsx ('use client') uses shadcn Dialog/DialogContent/DialogHeader/DialogFooter; accepts { open, onClose, project, gateInfo, items: [{id,text,required,done}] }.\n2. Computes blockers = items.filter(required && !done); renders gate-transition card (current code + next code with arrow that switches to dashed when blockers > 0).\n3. Notes Textarea disabled when blockers.length > 0; Advance button disabled when (blockers.length > 0 || notes.trim().length === 0); on click calls advanceProjectGate(projectId).\n4. Shows success Alert after submission.\n\n## Files\n- apps/web/app/(npd)/pipeline/[projectId]/_components/advance-gate-modal.tsx [create]\n- apps/web/app/(npd)/pipeline/[projectId]/_components/__tests__/advance-gate-modal.test.tsx [create]\n\n## Acceptance criteria\n1. Given AdvanceGateModal renders with sample data, when compared to prototypes/design/Monopilot Design System/npd/gate-screens.jsx:261-377, then it shows the same gate-transition visual, checklist summary Progress, blockers/ready Alert and notes Textarea using shadcn Dialog+Textarea+Alert+Progress+Badge primitives.\n2. Given items with required && !done (blockers > 0), when the modal renders, then the notes Textarea is disabled, a red blocker Alert lists each blocker text, and the Advance button is disabled.\n3. Given blockers.length === 0 and notes.trim().length > 0, when Advance is clicked, then advanceProjectGate(projectId) is invoked exactly once and a success Alert renders.\n\n## Test strategy\n- RED: __tests__/advance-gate-modal.test.tsx asserting parity, blocker disabled state, advance enabled + action invocation before component exists.\n- Run 'pnpm --filter web test advance-gate-modal'\n\n## Risk red lines\n- Do not submit when blockers > 0.\n- Do not paste prototype JSX verbatim.\n- Do not call DB from client component.",
+  "labels": [
+    "prd",
+    "ui",
+    "advance-gate-modal",
+    "T3-ui",
+    "slice-of-T-061"
+  ],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-108",
+    "parent_task_id": "T-061",
+    "source_prd": "docs/prd/01-NPD-PRD.md",
+    "prd_refs": [
+      "§17.6"
+    ],
+    "category": "ui",
+    "subcategory": "advance-gate-modal",
+    "task_type": "T3-ui",
+    "parent_feature": "01-NPD-f Stage-Gate Pipeline",
+    "context_budget": "30k",
+    "estimated_effort": "1.5h",
+    "description": "AdvanceGateModal: confirm dialog with gate-transition visual, checklist summary, blocker list, notes Textarea; Advance disabled until all required ACs checked + notes present. Matches gate-screens.jsx:261-377.",
+    "details": "Parity items: shadcn Dialog + DialogHeader + DialogFooter; gate transition card with current/next code + dashed-when-blocked arrow; Progress bar + per-item rows with Required/Blocking/Done badges; red blocker Alert OR green ready Alert; disabled notes Textarea when blockers > 0; advance button disabled until canAdvance.",
+    "scope_files": [
+      "apps/web/app/(npd)/pipeline/[projectId]/_components/advance-gate-modal.tsx [create]",
+      "apps/web/app/(npd)/pipeline/[projectId]/_components/__tests__/advance-gate-modal.test.tsx [create]"
+    ],
+    "out_of_scope": [
+      "Do not implement Server Actions (T-058)",
+      "Do not wire the route page (T-111)",
+      "Do not run Playwright parity (T-112)",
+      "Do not build GateChecklistPanel/GateApprovalModal/ApprovalHistoryTimeline (T-107/T-109/T-110)"
+    ],
+    "dependencies": [
+      "T-057",
+      "T-058"
+    ],
+    "parallel_safe_with": [
+      "T-107",
+      "T-109",
+      "T-110"
+    ],
+    "acceptance_criteria": [
+      "Given AdvanceGateModal renders with sample data, when compared to prototypes/design/Monopilot Design System/npd/gate-screens.jsx:261-377, then it shows the same gate-transition visual, checklist summary Progress, blockers/ready Alert and notes Textarea using shadcn Dialog+Textarea+Alert+Progress+Badge primitives",
+      "Given items with required && !done (blockers > 0), when the modal renders, then the notes Textarea is disabled, a red blocker Alert lists each blocker text, and the Advance button is disabled",
+      "Given blockers.length === 0 and notes.trim().length > 0, when Advance is clicked, then advanceProjectGate(projectId) is invoked exactly once and a success Alert renders",
+      "UI closeout includes screenshot/artifact evidence and Playwright trace/artifacts where applicable per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`; if Playwright is unavailable, document the blocker and provide RTL/snapshot fallback evidence."
+    ],
+    "test_strategy": [
+      "RED: __tests__/advance-gate-modal.test.tsx asserting parity, blocker disabled state, advance enabled + action invocation before component exists",
+      "Run 'pnpm --filter web test advance-gate-modal'",
+      "For UI parity, capture screenshots/artifacts and Playwright trace/video/artifacts where applicable; attach artifact paths in closeout."
+    ],
+    "risk_red_lines": [
+      "Do not submit when blockers > 0",
+      "Do not paste prototype JSX verbatim",
+      "Do not call DB from client component"
+    ],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": true,
+    "prototype_index_entry": "advance_gate_modal",
+    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md",
+    "prototype_index_ref": "_meta/prototype-labels/prototype-index-npd.json#advance_gate_modal"
+  }
+}

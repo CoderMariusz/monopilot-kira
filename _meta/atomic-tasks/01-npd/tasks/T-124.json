@@ -1,0 +1,93 @@
+{
+  "title": "T-124 — UI: D365 Wizard modal — steps 1-4 (d365_wizard_modal first half) — slice of T-046",
+  "prompt": "# T-124 — D365 Wizard modal steps 1-4 (slice of T-046)\n\nPRD: docs/prd/01-NPD-PRD.md §10.6.1 + UX d365_wizard_modal\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\nPrototype: prototypes/design/Monopilot Design System/npd/modals.jsx:431-512 (first half of d365_wizard_modal)\nParent root: T-046\n\n## Goal\nClient Component scaffolding the 8-step D365 Wizard modal with step navigation (Back/Next/Cancel) and rendering steps 1-4: validate, bom_preview, allergen_check, constants_check. Per-step validation gates Next. Matches the first half of the d365_wizard_modal prototype 1:1.\n\n## Prototype reference\n**Source:** `prototypes/design/Monopilot Design System/npd/modals.jsx:431-512`\n- `window.Modal + Stepper` → Dialog max-w-4xl; Stepper → custom StepIndicator on shadcn primitives\n- 8-step state machine with step/done Set → useReducer with step FSM; each step renders a separate sub-component for testability (this slice implements 1-4)\n- BOM preview, allergen, N+1 tables → pre-fetched in parallel via Promise.all in RSC before modal opens; passed as props\n- D365 constants table → query d365_constants in RSC; render read-only in step 5 (note: step 5 lives in T-125)\n\n## Implementation contract\nNew `apps/web/app/(npd)/_modals/d365-wizard-modal-steps-1-4.tsx` 'use client'. Exposes the wizard shell (Stepper + Back/Next/Cancel) and renders sub-components for steps 1-4. Each step calls its server action for validation; Next is disabled until the step is validated. Steps 5-8 will be implemented by T-125 and rendered by the same parent shell or composed via a shared StepFSM.\n\n## Files in scope\n- `apps/web/app/(npd)/_modals/d365-wizard-modal-steps-1-4.tsx [create]`\n- `apps/web/app/(npd)/_modals/__tests__/d365-wizard-steps-1-4.test.tsx [create]`\n- `prototypes/design/Monopilot Design System/npd/modals.jsx [ref]`\n\n## Acceptance criteria\n1. Given the wizard renders, when compared to modals.jsx:431-512, then it shows the same Stepper (8 step labels visible) with Back/Next/Cancel buttons in same positions, and steps 1-4 render their sub-components matching the prototype — verified by RTL parity checklist.\n2. Given the user is on step N (N∈1..4), when validation for that step fails, then Next is disabled and an inline error explains why.\n3. Given the user is on step N (N∈1..4), when Next is pressed after successful validation, then the wizard advances to step N+1 and the previous step is marked done in the Stepper.\n4. UI closeout includes screenshot/artifact evidence and Playwright trace/artifacts where applicable per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`.\n\n## Test strategy (RED first)\n- RED: 3 RTL tests covering: (a) parity (8 step labels + Back/Next/Cancel + steps 1-4 sub-components), (b) Next disabled on invalid step, (c) advance + done mark on valid step.\n- Run: `pnpm --filter web test d365-wizard-steps-1-4`.\n\n## Risk red lines\n- Do not implement steps 5-8 here (T-125)\n- Do not implement SSE / execute phase here (T-125)\n- Do not implement the Build modal in this slice (T-123)\n- Do not wire into FA detail here (T-126)\n- Do not render plain HTML <input> in any step",
+  "labels": [
+    "prd",
+    "ui",
+    "d365-wizard",
+    "T3-ui",
+    "slice-of-T-046"
+  ],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-124",
+    "parent_task_id": "T-046",
+    "source_prd": "docs/prd/01-NPD-PRD.md",
+    "prd_refs": [
+      "§10.6.1"
+    ],
+    "category": "ui",
+    "subcategory": "d365-wizard-1-4",
+    "task_type": "T3-ui",
+    "parent_feature": "01-NPD-d UI",
+    "context_budget": "40k",
+    "estimated_effort": "2-3h",
+    "description": "D365 Wizard slice covering shell + steps 1-4 (validate, bom_preview, allergen_check, constants_check). Matches modals.jsx:431-512.",
+    "details": "Shell + steps 1-4. Stepper, Back/Next/Cancel. Per-step validation gates Next. Sub-components per step for testability. Steps 5-8 + SSE belong to T-125.",
+    "scope_files": [
+      "apps/web/app/(npd)/_modals/d365-wizard-modal-steps-1-4.tsx [create]",
+      "apps/web/app/(npd)/_modals/__tests__/d365-wizard-steps-1-4.test.tsx [create]",
+      "prototypes/design/Monopilot Design System/npd/modals.jsx [ref]"
+    ],
+    "out_of_scope": [
+      "Do not implement steps 5-8 + SSE (T-125)",
+      "Do not implement Build modal (T-123)",
+      "Do not wire into FA detail (T-126)",
+      "Do not run Playwright parity (T-127)"
+    ],
+    "dependencies": [
+      "T-044"
+    ],
+    "parallel_safe_with": [
+      "T-123"
+    ],
+    "acceptance_criteria": [
+      "Given the wizard renders, when compared to modals.jsx:431-512, then it shows the same Stepper (8 step labels visible) with Back/Next/Cancel buttons in same positions, and steps 1-4 sub-components match the prototype — verified by RTL parity checklist.",
+      "Given the user is on step N (1..4), when validation fails, then Next is disabled and an inline error explains why.",
+      "Given the user is on step N (1..4), when Next is pressed after valid input, then the wizard advances and the previous step is marked done.",
+      "UI closeout includes screenshot/artifact evidence and Playwright trace/artifacts where applicable per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`."
+    ],
+    "test_strategy": [
+      "RED: 3 RTL tests for parity, Next disabled, advance + done mark.",
+      "Run 'pnpm --filter web test d365-wizard-steps-1-4'.",
+      "Capture screenshots/Playwright artifacts in closeout."
+    ],
+    "risk_red_lines": [
+      "Do not implement steps 5-8 or SSE here",
+      "Do not implement Build modal in this slice",
+      "Do not render plain HTML <input> in any step"
+    ],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": true,
+    "prototype_index_entry": "d365_wizard_modal",
+    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md",
+    "prototype_index_ref": "_meta/prototype-labels/prototype-index-npd.json#d365_wizard_modal"
+  }
+}

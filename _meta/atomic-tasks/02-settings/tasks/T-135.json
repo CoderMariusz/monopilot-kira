@@ -1,0 +1,29 @@
+{
+  "title": "T-135 — ROOT: 6-step Onboarding Wizard (02-settings-e-onboarding) [T0-root]",
+  "prompt": "# T-135 — [GROUP] root descriptor for 02-settings-e-onboarding\n\nThis is a T0-root non-executable descriptor. Do not implement. The ACP pipeline skips this task at execution time; its only role is navigation context for agents.\n\n## Group\n6-step Onboarding Wizard\n\n## Description\nSix-step tenant onboarding wizard: each step backend + plus completion E2E.\n\n## Child tasks (7)\n- T-041\n- T-042\n- T-043\n- T-044\n- T-045\n- T-046\n- T-080\n\n## Execution order\nDefault to the numerical order shown above; specific dependencies are encoded on each child task. Wiring/test tasks (T4) within this group should run after their parent T1/T2/T3 dependencies complete.\n\n## Completion signal\nThis root is complete when all child tasks listed above have status=done.\n",
+  "labels": [
+    "settings",
+    "T0-root",
+    "02-settings-e-onboarding"
+  ],
+  "priority": 0,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-135",
+    "source_prd": "docs/prd/02-Settings-PRD.md",
+    "task_type": "T0-root",
+    "parent_feature": "02-settings-e-onboarding",
+    "description": "Six-step tenant onboarding wizard: each step backend + plus completion E2E.",
+    "child_tasks": [
+      "T-041",
+      "T-042",
+      "T-043",
+      "T-044",
+      "T-045",
+      "T-046",
+      "T-080"
+    ],
+    "executable": false
+  }
+}

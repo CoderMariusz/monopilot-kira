@@ -1,6 +1,6 @@
 {
   "title": "T-095 — G3 create/map FG candidate for NPD project",
-  "prompt": "# T-095 — G3 create/map FG candidate\n\nPRD: docs/prd/01-NPD-PRD.md §17 + 2026-05-03 E2E release spike\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nAdd the explicit G3 action `createOrMapFgCandidateAtG3(projectId, mode=create|map, productCode?)` so a Brief-created NPD project maps to exactly one canonical FG candidate before G3 approval.\n\n## Implementation contract\n- Add server action/domain service and tests for create/map/remap policy discovered from existing product schema.\n- Enforce one active project → one FG candidate, and one FG candidate cannot be linked to another active project.\n- Update `npd_projects.product_code` or equivalent canonical field and link Brief/Product compatibility aliases.\n- Add GateApproval/G3 modal UI for create/map with availability/conflict feedback.\n- Emit `npd.fg_candidate_mapped` and audit old/new mapping.\n- Do not create D365 output and do not mark factory release status.\n\n## Final decisions\nFG / Finished Good is canonical; FA is a legacy alias only. G3 owns FG candidate mapping. D365 is optional export/import only.\n",
+  "prompt": "# T-095 — G3 create/map FG candidate\n\nPRD: docs/prd/01-NPD-PRD.md §17 + 2026-05-03 E2E release spike\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nAdd the explicit G3 action `createOrMapFgCandidateAtG3(projectId, mode=create|map, productCode?)` so a Brief-created NPD project maps to exactly one canonical FG candidate before G3 approval.\n\n## Implementation contract\n- Add server action/domain service and tests for create/map/remap policy discovered from existing product schema.\n- Enforce one active project → one FG candidate, and one FG candidate cannot be linked to another active project.\n- Update `npd_projects.product_code` or equivalent canonical field and link Brief/Product compatibility aliases.\n- Add GateApproval/G3 modal UI for create/map with availability/conflict feedback.\n- Emit `npd.fg_candidate_mapped` and audit old/new mapping.\n- Do not create D365 output and do not mark factory release status.\n\n## Final decisions\nFG / Finished Good is canonical; FA is a legacy alias only. G3 owns FG candidate mapping. D365 is optional export/import only.\n\n## Prototype reference\n\n**Source (primary):** `prototypes/design/Monopilot Design System/npd/gate-screens.jsx:378-522`\n**Label:** `gate_approval_modal`\n**Component type:** modal (crud-form-with-validation, gate-decision shell)\n\n**Source (secondary, content pattern):** `prototypes/design/Monopilot Design System/npd/modals.jsx:89-140`\n**Label:** `brief_convert_modal`\n**Component type:** modal (detail-view, FG-selection content)\n\n**No exact prototype** — this G3 create/map FG modal does not exist in the prototype set. It MUST be built as a hybrid:\n- Structural shell of `gate_approval_modal` (gate header, decision/confirm flow, notes textarea, audit copy, e-sign optionality where required by gate policy).\n- Content body adapted from `brief_convert_modal` (pre-populated FG candidate summary + create-vs-map RadioGroup + debounced FG-code availability/conflict check via Server Action).\n\n### Parity requirements (mandatory ACs)\n1. **Structural parity** — same sections as `gate_approval_modal` (project header, gate-transition visual, decision section, notes textarea), with the FG selection/preview block from `brief_convert_modal` substituted in place of the gate-checklist block; same shadcn primitives invoked; modal opens from the G3 `Advance Gate` action when no FG is linked.\n2. **Visual parity** — same density tokens, same shadcn/Radix primitives (Dialog, RadioGroup, Form, Input, Textarea, Alert, Badge), same layout proportions as gate-screens modals; conflict feedback uses same Alert variants as `brief_convert_modal` duplicate-FA-code check.\n3. **Interaction parity** — same enable/disable rules (Submit disabled until FG candidate selected/created AND notes ≥ 10 chars); same loading/empty/error states; debounced availability check mirrors `checkFaCodeAvailable`; FG_ALREADY_LINKED conflict surfaces as inline FormMessage; FG_CANDIDATE_REQUIRED blocker mirrors `gate_approval_modal` blockers list when present.\n\n### Translation notes (combined from prototype-labels index)\nFrom `gate_approval_modal`:\n- Decision flow → RadioGroup + RadioGroupItem; reject decision unused here (mapping is approve-only at G3 confirmation), but keep RadioGroup primitive for create-vs-map choice.\n- E-signature overlay → reuse only if gate policy requires e-sign for FG mapping; bind password via useForm + zod `min(6)`.\n- Project header (product name, code, stage badge) → joined in Server Component; pass as prop.\n- Notes textarea required → zod `.min(10)`; renamed to \"Mapping rationale\" or \"FG selection notes\" for this flow.\n\nFrom `brief_convert_modal`:\n- Pre-populated FG summary → read-only Summary rendered from Server Component join (npd_projects + fg_candidate_pool query).\n- Duplicate code check on input → debounced Server Action `checkFgCandidateAvailable`; show FormMessage on conflict (FG_ALREADY_LINKED).\n- Convert/map action → Server Action `createOrMapFgCandidateAtG3(projectId, mode, productCode?)` wrapped in DB transaction.\n- Alert-amber locking note → shadcn Alert variant='warning' explaining 1-project↔1-FG uniqueness.\n- RBAC guard (role: npd_manager only); emit `npd.fg_candidate_mapped` outbox event on success; audit old/new mapping.\n\n### shadcn primitives to use\n`Dialog`, `DialogContent`, `DialogHeader`, `DialogFooter`, `RadioGroup`, `RadioGroupItem`, `Form`, `FormField`, `FormMessage`, `Input`, `Textarea`, `Button`, `Alert`, `AlertDescription`, `Badge`\n",
   "labels": [
     "prd",
     "api",
@@ -55,7 +55,10 @@
       "Project at G2/G3 without FG shows FG_CANDIDATE_REQUIRED and opens create/map modal with parity reference prototypes/design/Monopilot Design System/npd/modals.jsx:89-140.",
       "Create/map links exactly one FG candidate and labels say FG/Finished Good with FA only legacy alias.",
       "Already-linked FG rejects FG_ALREADY_LINKED; retries are idempotent without duplicate links/events.",
-      "Given the task is closed out, when reviewers inspect the task evidence, then these additional requirements are proven together: UI/RTL evidence covers permission denial, blocker copy and modal behavior.; UI closeout includes screenshot/artifact evidence and Playwright trace/artifacts where applicable per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`; if Playwright is unavailable, document the blocker and provide RTL/snapshot fallback evidence."
+      "Given the task is closed out, when reviewers inspect the task evidence, then these additional requirements are proven together: UI/RTL evidence covers permission denial, blocker copy and modal behavior.; UI closeout includes screenshot/artifact evidence and Playwright trace/artifacts where applicable per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`; if Playwright is unavailable, document the blocker and provide RTL/snapshot fallback evidence.",
+      "Structural parity — Given the G3 create/map FG modal renders, when compared to gate-screens.jsx:378-522 (gate_approval_modal) shell + modals.jsx:89-140 (brief_convert_modal) content body, then it has same sections (project header, gate-transition visual, FG-selection block in place of checklist, mapping notes textarea) and same shadcn primitives (Dialog, RadioGroup, Form, Input, Textarea, Alert, Badge).",
+      "Visual parity — Given the modal renders, when inspected, then it uses same density tokens, same shadcn/Radix primitives (no plain HTML inputs), same layout proportions as gate-screens modals; FG conflict feedback uses same Alert variants as brief_convert duplicate-code check.",
+      "Interaction parity — Given the modal renders, when interacted with, then Submit is disabled until FG candidate selected/created AND notes ≥ 10 chars; FG_ALREADY_LINKED surfaces as inline FormMessage with debounced check; FG_CANDIDATE_REQUIRED blocker mirrors gate_approval_modal blockers list copy; keyboard focus order matches gate-screens modals."
     ],
     "test_strategy": [
       "RED unit tests for uniqueness, idempotency, and blocker integration.",
@@ -94,6 +97,31 @@
       "review": "opus_if_high_risk_or_ui_or_architecture",
       "close": "spark_low_risk_else_opus"
     },
-    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md"
+    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md",
+    "prototype_match": true,
+    "prototype_index_entry": "gate_approval_modal+brief_convert_modal (hybrid)",
+    "prototype_reference": {
+      "is_exact_match": false,
+      "is_hybrid": true,
+      "primary": {
+        "label": "gate_approval_modal",
+        "file": "prototypes/design/Monopilot Design System/npd/gate-screens.jsx",
+        "lines": "378-522",
+        "component_type": "modal",
+        "role": "structural shell"
+      },
+      "secondary": {
+        "label": "brief_convert_modal",
+        "file": "prototypes/design/Monopilot Design System/npd/modals.jsx",
+        "lines": "89-140",
+        "component_type": "modal",
+        "role": "content/availability-check pattern"
+      },
+      "note": "No exact prototype for G3 create/map FG candidate — hybrid of gate-decision shell + brief-convert content. Build per Section 5 (No exact prototype) of docs/acp-ui-task-schema.md."
+    },
+    "prototype_index_refs": [
+      "_meta/prototype-labels/prototype-index-npd.json#gate_approval_modal",
+      "_meta/prototype-labels/prototype-index-npd.json#brief_convert_modal"
+    ]
   }
 }

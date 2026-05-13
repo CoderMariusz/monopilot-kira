@@ -1,0 +1,101 @@
+# 02-settings task path polish
+
+## Counts
+- Tasks scanned: 127
+- Tasks modified: 85
+- Scope_files entries rewritten: 138
+- Annotations stripped from scope_files: 138
+- Literal path replacements across JSON fields: 127
+
+## File-by-file delta
+- T-001: 9 paths fixed, 0 annotations stripped
+- T-002: 6 paths fixed, 0 annotations stripped
+- T-004: 7 paths fixed, 0 annotations stripped
+- T-005: 7 paths fixed, 0 annotations stripped
+- T-006: 7 paths fixed, 0 annotations stripped
+- T-007: 7 paths fixed, 0 annotations stripped
+- T-008: 7 paths fixed, 0 annotations stripped
+- T-009: 9 paths fixed, 0 annotations stripped
+- T-010: 7 paths fixed, 0 annotations stripped
+- T-011: 7 paths fixed, 0 annotations stripped
+- T-012: 7 paths fixed, 0 annotations stripped
+- T-013: 9 paths fixed, 0 annotations stripped
+- T-014: 5 paths fixed, 0 annotations stripped
+- T-039: 9 paths fixed, 0 annotations stripped
+- T-041: 0 paths fixed, 2 annotations stripped
+- T-042: 0 paths fixed, 2 annotations stripped
+- T-043: 0 paths fixed, 2 annotations stripped
+- T-044: 0 paths fixed, 2 annotations stripped
+- T-045: 0 paths fixed, 2 annotations stripped
+- T-046: 0 paths fixed, 2 annotations stripped
+- T-047: 0 paths fixed, 2 annotations stripped
+- T-048: 0 paths fixed, 2 annotations stripped
+- T-049: 0 paths fixed, 2 annotations stripped
+- T-050: 0 paths fixed, 2 annotations stripped
+- T-051: 0 paths fixed, 2 annotations stripped
+- T-052: 0 paths fixed, 2 annotations stripped
+- T-053: 0 paths fixed, 2 annotations stripped
+- T-054: 0 paths fixed, 2 annotations stripped
+- T-055: 0 paths fixed, 2 annotations stripped
+- T-056: 0 paths fixed, 2 annotations stripped
+- T-057: 0 paths fixed, 2 annotations stripped
+- T-058: 0 paths fixed, 2 annotations stripped
+- T-059: 0 paths fixed, 2 annotations stripped
+- T-060: 0 paths fixed, 2 annotations stripped
+- T-061: 0 paths fixed, 2 annotations stripped
+- T-062: 0 paths fixed, 2 annotations stripped
+- T-063: 0 paths fixed, 2 annotations stripped
+- T-064: 0 paths fixed, 2 annotations stripped
+- T-065: 0 paths fixed, 2 annotations stripped
+- T-066: 0 paths fixed, 2 annotations stripped
+- T-067: 0 paths fixed, 3 annotations stripped
+- T-068: 0 paths fixed, 2 annotations stripped
+- T-069: 0 paths fixed, 2 annotations stripped
+- T-070: 0 paths fixed, 2 annotations stripped
+- T-071: 0 paths fixed, 2 annotations stripped
+- T-072: 0 paths fixed, 2 annotations stripped
+- T-073: 0 paths fixed, 2 annotations stripped
+- T-074: 0 paths fixed, 2 annotations stripped
+- T-075: 0 paths fixed, 2 annotations stripped
+- T-076: 0 paths fixed, 2 annotations stripped
+- T-077: 0 paths fixed, 2 annotations stripped
+- T-078: 0 paths fixed, 2 annotations stripped
+- T-079: 0 paths fixed, 2 annotations stripped
+- T-089: 3 paths fixed, 0 annotations stripped
+- T-091: 7 paths fixed, 0 annotations stripped
+- T-092: 5 paths fixed, 0 annotations stripped
+- T-093: 5 paths fixed, 0 annotations stripped
+- T-096: 0 paths fixed, 2 annotations stripped
+- T-097: 0 paths fixed, 2 annotations stripped
+- T-098: 0 paths fixed, 2 annotations stripped
+- T-099: 0 paths fixed, 2 annotations stripped
+- T-100: 0 paths fixed, 2 annotations stripped
+- T-101: 0 paths fixed, 2 annotations stripped
+- T-102: 0 paths fixed, 2 annotations stripped
+- T-103: 0 paths fixed, 2 annotations stripped
+- T-104: 0 paths fixed, 2 annotations stripped
+- T-105: 0 paths fixed, 2 annotations stripped
+- T-106: 0 paths fixed, 2 annotations stripped
+- T-107: 0 paths fixed, 2 annotations stripped
+- T-108: 0 paths fixed, 2 annotations stripped
+- T-109: 0 paths fixed, 2 annotations stripped
+- T-110: 0 paths fixed, 2 annotations stripped
+- T-111: 0 paths fixed, 2 annotations stripped
+- T-112: 0 paths fixed, 2 annotations stripped
+- T-113: 0 paths fixed, 2 annotations stripped
+- T-114: 0 paths fixed, 2 annotations stripped
+- T-115: 0 paths fixed, 2 annotations stripped
+- T-116: 0 paths fixed, 3 annotations stripped
+- T-117: 0 paths fixed, 2 annotations stripped
+- T-118: 0 paths fixed, 4 annotations stripped
+- T-119: 0 paths fixed, 2 annotations stripped
+- T-120: 0 paths fixed, 2 annotations stripped
+- T-121: 0 paths fixed, 2 annotations stripped
+- T-122: 4 paths fixed, 2 annotations stripped
+- T-123: 0 paths fixed, 2 annotations stripped
+
+## Ambiguous mappings
+- apps/web/lib/rbac/role-seed.ts -> packages/rbac/src/role-seed.ts: left unchanged because target exists check did not confirm a real file
+
+## Final grep
+- `grep -rn "apps/web/db" _meta/atomic-tasks/02-settings/tasks/ | wc -l`: 0

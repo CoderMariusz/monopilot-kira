@@ -1,0 +1,46 @@
+{
+  "title": "T-145 — PARITY: Account self-service Playwright + axe parity vs account-screens.jsx:3-75,77-124 — 02-settings-account",
+  "prompt": "# T-145 — Account self-service browser parity\n\nPRD: docs/prd/02-Settings-PRD.md\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\nPrototype: prototypes/design/Monopilot Design System/settings/account-screens.jsx:3-75,77-124\nParent tasks: T-074, T-075\n\n## Goal\nPlaywright screenshot parity + axe-violations check for all 2 screens/modals in this group against the settings prototype. 0 critical/serious axe violations on each screen.\n\n## Screens in scope\nMy Profile, My Notifications\n\n## Implementation contract\n- Playwright spec at apps/web/e2e/settings/account-parity.spec.ts\n- Seeds appropriate fixture data for each screen\n- Visits each screen/modal URL, captures full-page screenshot vs prototype region\n- Runs axe-core on each view; asserts 0 critical and 0 serious violations\n- Attaches traces/screenshots per _meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md\n\n## Files in scope\n- apps/web/e2e/settings/account-parity.spec.ts [create]\n- apps/web/e2e/settings/fixtures/account-seed.ts [create]\n\n## Acceptance criteria\n1. Given Playwright runs the parity spec for each screen, when compared to prototypes/design/Monopilot Design System/settings/account-screens.jsx:3-75,77-124, then screenshots match within tolerance per _meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md\n2. Given each screen is mounted, when axe-core runs, then 0 critical and 0 serious violations\n3. Closeout attaches Playwright traces/screenshots OR documents blocker + RTL/snapshot fallback\n\n## Risk red lines\n- Do not modify implementation code\n- Do not relax axe threshold\n- Do not run against shared/staging DB\n",
+  "labels": [
+    "settings",
+    "ui",
+    "settings-account-parity",
+    "T4-wiring-test"
+  ],
+  "priority": 80,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-145",
+    "source_prd": "docs/prd/02-Settings-PRD.md",
+    "category": "test",
+    "subcategory": "account-parity",
+    "task_type": "T4-wiring-test",
+    "parent_feature": "02-settings-account",
+    "context_budget": "30k",
+    "estimated_effort": "2h",
+    "description": "Playwright screenshot parity + axe for 2 account self-service screens vs account-screens.jsx prototype.",
+    "scope_files": [
+      "apps/web/e2e/settings/account-parity.spec.ts [create]",
+      "apps/web/e2e/settings/fixtures/account-seed.ts [create]"
+    ],
+    "dependencies": [
+      "T-074",
+      "T-075"
+    ],
+    "acceptance_criteria": [
+      "Given Playwright runs parity spec, when compared to prototypes/design/Monopilot Design System/settings/account-screens.jsx:3-75,77-124, then screenshots match within tolerance per _meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md",
+      "Given each screen is mounted, when axe-core runs, then 0 critical and 0 serious violations",
+      "Closeout attaches Playwright traces/screenshots OR documents blocker + RTL/snapshot fallback evidence per parity policy"
+    ],
+    "risk_red_lines": [
+      "Do not modify implementation code",
+      "Do not relax axe threshold",
+      "Do not run against shared/staging DB"
+    ],
+    "prototype_match": true,
+    "prototype_index_entry": "my_profile_screen, my_notifications_screen",
+    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md"
+  }
+}

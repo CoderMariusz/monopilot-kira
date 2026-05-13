@@ -26,8 +26,8 @@
     "description": "SET-031 Schema Column Edit Wizard production component (spec-driven; no exact prototype).",
     "details": "Spec-driven UI: no exact canonical prototype exists under `prototypes/design/Monopilot Design System/settings/*.jsx` for this screen. `prototypes/design/02-SETTINGS-UX.md SET-031 / schema-column-wizard` replaces prototype parity as the authoritative UI contract. Reuse Stepper/Field/Summary primitives and modal wizard patterns from `prototypes/settings/modals.jsx`; do not implement PromoteToL2Modal as the screen. Any prototype snippets are element/pattern references only, not 1:1 screen sources. Production contract: data via Server Components (Drizzle); mutations via Server Actions; primitives from `packages/ui` only.",
     "scope_files": [
-      "apps/web/app/(admin)/settings/schema/new/page.tsx [create]",
-      "apps/web/app/(admin)/settings/schema/new/page.test.tsx [create]"
+      "apps/web/app/(admin)/settings/schema/new/page.tsx",
+      "apps/web/app/(admin)/settings/schema/new/page.test.tsx"
     ],
     "out_of_scope": [
       "broaden scope beyond listed files",

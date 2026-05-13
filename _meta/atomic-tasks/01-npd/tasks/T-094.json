@@ -1,6 +1,6 @@
 {
   "title": "T-094 — FG canonical terminology compatibility pass (UI/i18n/docs, no risky DB/route mass rename)",
-  "prompt": "# T-094 — FG canonical terminology compatibility pass\n\nPRD: docs/prd/01-NPD-PRD.md 2026-05-03 FINAL Amendment + _meta/decisions/2026-05-03-flow-d365-settings-technical-decisions.md\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Final decisions this task must implement\n- `FG` / Finished Good is the canonical user-facing and domain term.\n- `FA` / Factory Article is compatibility alias only.\n- Do not perform a risky broad DB/route/event/code mass rename in this task. Existing `fa_code`, `/npd/fa/...`, `fa.*` events or compatibility views may remain if required for stability.\n- NPD Builder creates WIP/intermediates + FG + initial shared BOM/product-spec version. D365 is integration/export only.\n\n## Goal\nMake the product surface consistently present `FG` terminology while preserving backwards-compatible code/routes/schema aliases. This task is ACTIONABLE now because the naming decision is final; the only blocked part is any broad physical DB/route/event mass rename, which remains out of scope.\n\n## Implementation contract\n1. Inventory user-facing strings in 01-NPD UI/i18n/prototype references and task-owned docs that say Factory Article/FA where the user should see Finished Good/FG.\n2. Add or update a central terminology mapping/helper if the codebase has i18n/labels, e.g. `legacy FA code -> FG Code (legacy FA code)` and `FA Projects -> FG Projects`.\n3. Update EN and PL translations/user-facing labels for NPD screens, modals, empty states, buttons and validation messages so new UI says FG.\n4. Preserve technical identifiers and compatibility routes unless a safe alias already exists. If routes stay `/npd/fa/[productCode]`, add breadcrumb/helper copy that displays FG and do not rename route files.\n5. Update prototype/documentation red-lines if any implementation task reads prototype labels directly: `fa_code`, `NPD_FAS`, and old FA labels are compatibility aliases.\n6. Ensure D365 copy says optional export/import integration and never implies D365 is source of truth.\n7. Ensure post-release edit copy says new BOM/product-spec version + Technical approval, not in-place edit/built flag reset.\n\n## Acceptance criteria\n- Given NPD list/detail/create/brief-convert/builder screens render, when user-facing text is inspected, then canonical labels say FG/Finished Good rather than Factory Article/FA except explicit compatibility notes.\n- Given a compatibility field is displayed, when labelled, then it is clear as `FG Code` or `FG Code (legacy FA code)` rather than canonical FA.\n- Given existing routes/schema/events use `fa` identifiers, when tests run, then backwards compatibility remains and no DB/route/event mass rename occurred.\n- Given D365 copy appears, when inspected, then it says export/import integration only and not source of truth.\n- Given post-release edit copy appears, when inspected, then it requires new BOM/product-spec version and Technical approval before factory use.\n- Given PL translations exist, when inspected, then they use FG / wyrób gotowy consistently and do not introduce FA as final term.\n\n## Test strategy\n- Snapshot/RTL tests for key NPD screens asserting FG labels.\n- Grep guard for user-facing `Factory Article`/`FA Projects` strings outside allowlisted compatibility comments/tests.\n- Route compatibility test proving existing `/npd/fa/...` still works if route rename is not performed.\n- i18n smoke test for EN+PL keys.\n\n## Risk red lines\n- Do not rename physical DB tables/columns, route segments, event names or external integrations in this task unless they already have compatibility aliases and tests.\n- Do not remove compatibility aliases/views.\n- Do not rename external D365/customer item codes that contain FA/PR by business convention.\n- Do not combine with T-092/T-093 BOM schema/backfill.\n- Do not treat FA as final user-facing term; it is alias only.\n",
+  "prompt": "# T-094 — FG canonical terminology compatibility pass\n\nPRD: docs/prd/01-NPD-PRD.md 2026-05-03 FINAL Amendment + _meta/decisions/2026-05-03-flow-d365-settings-technical-decisions.md\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Final decisions this task must implement\n- `FG` / Finished Good is the canonical user-facing and domain term.\n- `FA` / Factory Article is compatibility alias only.\n- Do not perform a risky broad DB/route/event/code mass rename in this task. Existing `fa_code`, `/npd/fa/...`, `fa.*` events or compatibility views may remain if required for stability.\n- NPD Builder creates WIP/intermediates + FG + initial shared BOM/product-spec version. D365 is integration/export only.\n\n## Goal\nMake the product surface consistently present `FG` terminology while preserving backwards-compatible code/routes/schema aliases. This task is ACTIONABLE now because the naming decision is final; the only blocked part is any broad physical DB/route/event mass rename, which remains out of scope.\n\n## Implementation contract\n1. Inventory user-facing strings in 01-NPD UI/i18n/prototype references and task-owned docs that say Factory Article/FA where the user should see Finished Good/FG.\n2. Add or update a central terminology mapping/helper if the codebase has i18n/labels, e.g. `legacy FA code -> FG Code (legacy FA code)` and `FA Projects -> FG Projects`.\n3. Update EN and PL translations/user-facing labels for NPD screens, modals, empty states, buttons and validation messages so new UI says FG.\n4. Preserve technical identifiers and compatibility routes unless a safe alias already exists. If routes stay `/npd/fa/[productCode]`, add breadcrumb/helper copy that displays FG and do not rename route files.\n5. Update prototype/documentation red-lines if any implementation task reads prototype labels directly: `fa_code`, `NPD_FAS`, and old FA labels are compatibility aliases.\n6. Ensure D365 copy says optional export/import integration and never implies D365 is source of truth.\n7. Ensure post-release edit copy says new BOM/product-spec version + Technical approval, not in-place edit/built flag reset.\n\n## Acceptance criteria\n- Given NPD list/detail/create/brief-convert/builder screens render, when user-facing text is inspected, then canonical labels say FG/Finished Good rather than Factory Article/FA except explicit compatibility notes.\n- Given a compatibility field is displayed, when labelled, then it is clear as `FG Code` or `FG Code (legacy FA code)` rather than canonical FA.\n- Given existing routes/schema/events use `fa` identifiers, when tests run, then backwards compatibility remains and no DB/route/event mass rename occurred.\n- Given D365 copy appears, when inspected, then it says export/import integration only and not source of truth.\n- Given post-release edit copy appears, when inspected, then it requires new BOM/product-spec version and Technical approval before factory use.\n- Given PL translations exist, when inspected, then they use FG / wyrób gotowy consistently and do not introduce FA as final term.\n\n## Test strategy\n- Snapshot/RTL tests for key NPD screens asserting FG labels.\n- Grep guard for user-facing `Factory Article`/`FA Projects` strings outside allowlisted compatibility comments/tests.\n- Route compatibility test proving existing `/npd/fa/...` still works if route rename is not performed.\n- i18n smoke test for EN+PL keys.\n\n## Risk red lines\n- Do not rename physical DB tables/columns, route segments, event names or external integrations in this task unless they already have compatibility aliases and tests.\n- Do not remove compatibility aliases/views.\n- Do not rename external D365/customer item codes that contain FA/PR by business convention.\n- Do not combine with T-092/T-093 BOM schema/backfill.\n- Do not treat FA as final user-facing term; it is alias only.\n\n## Prototype reference\n\n**CROSS-CUTTING REFACTOR** — this task does not introduce a new component but modifies user-facing copy across multiple existing NPD screens. The parity baseline is the *combined set* of all touched prototypes.\n\n### Affected screens and prototype refs (from `_meta/prototype-labels/prototype-index-npd.json`)\n- `fa_list` → `prototypes/design/Monopilot Design System/npd/fa-screens.jsx:177-297` (page-layout / search-filter-list)\n- `fa_detail` → `prototypes/design/Monopilot Design System/npd/fa-screens.jsx:300-401` (tabs / detail-view)\n- `fa_core_tab` → `prototypes/design/Monopilot Design System/npd/fa-screens.jsx:455-517` (form / crud-form-with-validation)\n- `npd_dashboard` → `prototypes/design/Monopilot Design System/npd/fa-screens.jsx:32-174` (page-layout / dashboard-tile)\n- `brief_list` → `prototypes/design/Monopilot Design System/npd/brief-screens.jsx:7-82` (page-layout / search-filter-list)\n- `brief_detail` → `prototypes/design/Monopilot Design System/npd/brief-screens.jsx:84-231` (page-layout / crud-form-with-validation)\n- `fa_create_modal` → `prototypes/design/Monopilot Design System/npd/modals.jsx:9-43` (modal / crud-form-with-validation)\n- `brief_convert_modal` → `prototypes/design/Monopilot Design System/npd/modals.jsx:89-140` (modal / detail-view)\n- `d365_build_modal` → `prototypes/design/Monopilot Design System/npd/modals.jsx:194-241` (modal / approve)\n- `d365_wizard_modal` → `prototypes/design/Monopilot Design System/npd/modals.jsx:431-594` (modal / multi-step-wizard)\n\n### Parity requirements (mandatory ACs)\n1. **Structural parity** — same sections, same field labels (with FG copy substitution where canonical), same shadcn primitives, same modals from same triggers; no structural reorg in this pass.\n2. **Visual parity** — same density tokens, same shadcn/Radix primitives, same layout proportions; only text content changes.\n3. **Interaction parity** — same enable/disable rules, same loading/empty/error states, same keyboard focus order; new copy must not change validation/AC behavior.\n4. **Cross-cutting parity AC** — Given any screen modified in this pass, when compared to the corresponding prototype entry in `_meta/prototype-labels/prototype-index-npd.json`, then it maintains structural/visual/interaction parity per the three dimensions above and only the user-facing text strings change.\n\n### Translation notes (cross-cutting)\n- Copy substitution must preserve all `translation_notes[]` directives in each affected entry (Drizzle queries, Server Actions, RBAC guards, Zod schemas, outbox events) — only the surface labels change.\n- Display rule: `FG Code` (canonical) with optional parenthetical `(legacy FA code)` when the underlying field is `fa_code`; never invent a new domain term.\n- Polish (PL) translations: `FG / wyrób gotowy`. Never introduce `FA` as a final PL user-facing term.\n- D365 copy: must say `optional export/import integration`; never `source of truth`.\n- Post-release edit copy: must say `new BOM/product-spec version + Technical approval`; never `in-place edit / built-flag reset`.\n\n### shadcn primitives to use\nNo new primitives introduced. Re-use the primitives already declared by each affected prototype entry in `prototype-index-npd.json`.\n",
   "labels": [
     "prd",
     "refactor",
@@ -53,7 +53,8 @@
       "NPD screens follow FG/Finished Good terminology with compatibility parity checked against prototypes/design/Monopilot Design System/npd/fa-screens.jsx:300-452.",
       "Existing fa routes/schema/events remain backward compatible; no mass rename.",
       "D365 copy says export/import only and post-release edits require new BOM/spec version plus Technical approval.",
-      "Given the task is closed out, when reviewers inspect the task evidence, then these additional requirements are proven together: PL translations use FG / wyrób gotowy consistently.; UI closeout includes screenshot/artifact evidence and Playwright trace/artifacts where applicable per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`; if Playwright is unavailable, document the blocker and provide RTL/snapshot fallback evidence."
+      "Given the task is closed out, when reviewers inspect the task evidence, then these additional requirements are proven together: PL translations use FG / wyrób gotowy consistently.; UI closeout includes screenshot/artifact evidence and Playwright trace/artifacts where applicable per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`; if Playwright is unavailable, document the blocker and provide RTL/snapshot fallback evidence.",
+      "Given any NPD screen modified in this pass (fa_list, fa_detail, fa_core_tab, npd_dashboard, brief_list, brief_detail, fa_create_modal, brief_convert_modal, d365_build_modal, d365_wizard_modal), when compared to its corresponding entry in _meta/prototype-labels/prototype-index-npd.json, then it maintains structural / visual / interaction parity and only user-facing text strings change."
     ],
     "test_strategy": [
       "Snapshot/RTL tests for key NPD screens asserting FG labels.",
@@ -94,6 +95,74 @@
       "review": "opus_if_high_risk_or_ui_or_architecture",
       "close": "spark_low_risk_else_opus"
     },
-    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md"
+    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md",
+    "prototype_match": true,
+    "prototype_reference": {
+      "is_cross_cutting": true,
+      "is_exact_match": false,
+      "affected_entries": [
+        {
+          "label": "fa_list",
+          "file": "prototypes/design/Monopilot Design System/npd/fa-screens.jsx",
+          "lines": "177-297",
+          "component_type": "page-layout"
+        },
+        {
+          "label": "fa_detail",
+          "file": "prototypes/design/Monopilot Design System/npd/fa-screens.jsx",
+          "lines": "300-401",
+          "component_type": "tabs"
+        },
+        {
+          "label": "fa_core_tab",
+          "file": "prototypes/design/Monopilot Design System/npd/fa-screens.jsx",
+          "lines": "455-517",
+          "component_type": "form"
+        },
+        {
+          "label": "npd_dashboard",
+          "file": "prototypes/design/Monopilot Design System/npd/fa-screens.jsx",
+          "lines": "32-174",
+          "component_type": "page-layout"
+        },
+        {
+          "label": "brief_list",
+          "file": "prototypes/design/Monopilot Design System/npd/brief-screens.jsx",
+          "lines": "7-82",
+          "component_type": "page-layout"
+        },
+        {
+          "label": "brief_detail",
+          "file": "prototypes/design/Monopilot Design System/npd/brief-screens.jsx",
+          "lines": "84-231",
+          "component_type": "page-layout"
+        },
+        {
+          "label": "fa_create_modal",
+          "file": "prototypes/design/Monopilot Design System/npd/modals.jsx",
+          "lines": "9-43",
+          "component_type": "modal"
+        },
+        {
+          "label": "brief_convert_modal",
+          "file": "prototypes/design/Monopilot Design System/npd/modals.jsx",
+          "lines": "89-140",
+          "component_type": "modal"
+        },
+        {
+          "label": "d365_build_modal",
+          "file": "prototypes/design/Monopilot Design System/npd/modals.jsx",
+          "lines": "194-241",
+          "component_type": "modal"
+        },
+        {
+          "label": "d365_wizard_modal",
+          "file": "prototypes/design/Monopilot Design System/npd/modals.jsx",
+          "lines": "431-594",
+          "component_type": "modal"
+        }
+      ],
+      "note": "Cross-cutting terminology refactor — parity is preserved across all listed entries; no new component."
+    }
   }
 }

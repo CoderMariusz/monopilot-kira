@@ -1,0 +1,93 @@
+{
+  "title": "T-127 — PARITY: D365 modals Playwright screenshot parity vs modals.jsx + SSE network check — slice of T-046",
+  "prompt": "# T-127 — D365 modals Playwright parity (slice of T-046)\n\nPRD: docs/prd/01-NPD-PRD.md §10.6, §10.6.1\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\nParent root: T-046\nDepends on: T-123, T-124, T-125, T-126\n\n## Goal\nProduce Playwright browser screenshot parity for D365 Build modal and 8-step Wizard modal vs the prototype `prototypes/design/Monopilot Design System/npd/modals.jsx` (Build 194-241, Wizard 431-594). Confirm SSE events are visible in the network tab during execute. Run axe accessibility scan with 0 violations.\n\n## Implementation contract\n- Playwright spec under `apps/web/e2e/(npd)/d365-modals.parity.spec.ts` that:\n  - boots app with seeded FA data,\n  - opens D365 Build modal from FA detail and captures screenshot vs modals.jsx:194-241,\n  - opens D365 Wizard modal and captures screenshots across all 8 step states vs modals.jsx:431-594,\n  - inspects network tab to confirm SSE connection to `/(npd)/fa/d365-progress-stream` and that events arrive,\n  - runs `@axe-core/playwright` on both modals and asserts 0 violations.\n- Attach traces/videos/screenshots in closeout per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`.\n- If Playwright is unavailable, document the blocker and provide RTL/snapshot fallback evidence.\n\n## Files in scope\n- `apps/web/e2e/(npd)/d365-modals.parity.spec.ts [create]`\n- `apps/web/e2e/(npd)/__fixtures__/d365.ts [create-or-modify]`\n\n## Acceptance criteria\n1. Given Playwright runs the parity spec, when compared to modals.jsx:194-241, then the D365 Build modal screenshot matches within tolerance.\n2. Given Playwright runs the parity spec, when compared to modals.jsx:431-594, then the 8-step Wizard screenshots match within tolerance for each step.\n3. Given SSE events are observed in the network tab during the execute phase, when measured, then progress events arrive and the wizard advances per event.\n4. Given axe runs on both modals, when complete, then there are 0 violations on both.\n5. Closeout attaches Playwright traces/screenshots/videos OR documents a blocker + RTL/snapshot fallback evidence per the parity policy.\n\n## Test strategy\n- Run: `pnpm --filter web e2e -- d365-modals.parity`.\n- If headless browser missing, fall back to RTL snapshots and document deviation.\n\n## Risk red lines\n- Do not modify implementation code (T-123/T-124/T-125/T-126)\n- Do not lower axe threshold above 0\n- Do not skip SSE network assertion\n- Do not skip closeout artifact attachment",
+  "labels": [
+    "prd",
+    "ui",
+    "d365-parity",
+    "T4-wiring-test",
+    "slice-of-T-046"
+  ],
+  "priority": 80,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-127",
+    "parent_task_id": "T-046",
+    "source_prd": "docs/prd/01-NPD-PRD.md",
+    "prd_refs": [
+      "§10.6",
+      "§10.6.1"
+    ],
+    "category": "ui",
+    "subcategory": "d365-parity",
+    "task_type": "T4-wiring-test",
+    "parent_feature": "01-NPD-d UI",
+    "context_budget": "25k",
+    "estimated_effort": "2h",
+    "description": "Playwright screenshot parity + axe for D365 Build modal + 8-step Wizard modal; SSE events observable in network tab; 0 axe violations.",
+    "details": "Parity task. No implementation changes — only Playwright spec, fixtures, and parity artifacts. Inspects SSE network connection during execute phase.",
+    "scope_files": [
+      "apps/web/e2e/(npd)/d365-modals.parity.spec.ts [create]",
+      "apps/web/e2e/(npd)/__fixtures__/d365.ts [create-or-modify]"
+    ],
+    "out_of_scope": [
+      "Do not modify implementation code (T-123/T-124/T-125/T-126)",
+      "Do not edit prototypes"
+    ],
+    "dependencies": [
+      "T-123",
+      "T-124",
+      "T-125",
+      "T-126"
+    ],
+    "parallel_safe_with": [],
+    "acceptance_criteria": [
+      "Given Playwright runs the parity spec, when compared to modals.jsx:194-241, then the Build modal screenshot matches within tolerance.",
+      "Given Playwright runs the parity spec, when compared to modals.jsx:431-594, then the 8-step Wizard screenshots match within tolerance for each step.",
+      "Given SSE events are observed in the network tab during execute, when measured, then progress events arrive and the wizard advances per event.",
+      "Given axe runs on both modals, when complete, then 0 violations on both.",
+      "Closeout attaches Playwright traces/screenshots/videos OR documents a blocker + RTL/snapshot fallback evidence per parity policy."
+    ],
+    "test_strategy": [
+      "Run 'pnpm --filter web e2e -- d365-modals.parity'.",
+      "If headless browser missing, document blocker + fallback to RTL snapshots."
+    ],
+    "risk_red_lines": [
+      "Do not modify implementation code",
+      "Do not lower axe threshold above 0",
+      "Do not skip SSE network assertion",
+      "Do not skip closeout artifact attachment"
+    ],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": true,
+    "prototype_index_entry": "d365_wizard_modal",
+    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md",
+    "prototype_index_ref": "_meta/prototype-labels/prototype-index-npd.json#d365_wizard_modal"
+  }
+}
