@@ -1,7 +1,7 @@
 {
   "module": "settings",
   "generated_at": "2026-05-13T00:00:00Z",
-  "generator": "audit-refresh-2026-05-13+manual-line-corrections",
+  "generator": "audit-refresh-2026-05-13+manual-line-corrections+phase1-gap-fix-2026-05-13",
   "mode": "labeling",
   "entries": [
     {
@@ -521,6 +521,37 @@
       "estimated_translation_time_min": 75
     },
     {
+      "label": "audit_log_screen",
+      "file": "prototypes/design/Monopilot Design System/settings/app.jsx",
+      "lines": "20-37",
+      "component_type": "table",
+      "ui_pattern": "list-with-actions",
+      "data_domain": "AuditEvent",
+      "interaction": "read-only",
+      "complexity": "page-level",
+      "depends_on_prototypes": [],
+      "translation_notes": [
+        "Hardcoded <tr> rows → server-fetched audit_events query with partition-aware pagination (T-079 requirement)",
+        "Plain <table> → shadcn DataTable with sortable columns + filters (when/user/action/target)",
+        "No filtering UI → add date range picker, user multiselect, action-type filter row above the table",
+        "No row click → row click → expand row showing payload diff (before/after JSON)",
+        "No CSV export → 'Export filtered audit log' button calling server export with permission check",
+        "Hardcoded labels → next-intl keys for column headers"
+      ],
+      "shadcn_equivalent": [
+        "Table",
+        "DataTable",
+        "Input",
+        "Select",
+        "Calendar",
+        "Popover",
+        "Button",
+        "Badge"
+      ],
+      "known_bugs": [],
+      "estimated_translation_time_min": 120
+    },
+    {
       "label": "products_screen",
       "file": "prototypes/design/Monopilot Design System/settings/data-screens.jsx",
       "lines": "4-52",
@@ -983,6 +1014,38 @@
       ],
       "known_bugs": [],
       "estimated_translation_time_min": 45
+    },
+    {
+      "label": "onboarding_wizard_screen",
+      "file": "prototypes/design/Monopilot Design System/settings/onboarding-screens.jsx",
+      "lines": "7-238",
+      "component_type": "wizard",
+      "ui_pattern": "multi-step-wizard",
+      "data_domain": "Org",
+      "interaction": "create",
+      "complexity": "page-level",
+      "depends_on_prototypes": [],
+      "translation_notes": [
+        "ONBOARDING_STEPS hardcoded array → server-fetched onboarding_state.steps from organizations.onboarding_state JSONB",
+        "useState form/current/completed/skipped → useReducer or zustand store with persistence to onboarding_state on each step",
+        "OnboardingStepper inline-styled buttons → shadcn navigation component or custom Stepper using Button + Badge primitives",
+        "next/skip/back handlers calling local state → Server Actions that PATCH organizations.onboarding_state and audit each transition",
+        "Soft redirects (SET-004 to 03-TECHNICAL, SET-005 to 04-PLANNING) → Next.js redirect() in Server Actions with onboarding_state preserved",
+        "Hardcoded form defaults (Apex Foods…) → wipe to empty defaults; use Zod schema validation per step",
+        "Confetti completion → real confetti library only on SET-006 success path"
+      ],
+      "shadcn_equivalent": [
+        "Card",
+        "Button",
+        "Input",
+        "Select",
+        "Label",
+        "Progress",
+        "Badge",
+        "Alert"
+      ],
+      "known_bugs": [],
+      "estimated_translation_time_min": 180
     },
     {
       "label": "devices_screen",

@@ -88,6 +88,7 @@
     },
     "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md",
     "prototype_index_entry": "users_screen (closest pattern — invited-users status column)",
-    "prototype_closest_path": "prototypes/design/Monopilot Design System/settings/access-screens.jsx:4-152"
+    "prototype_closest_path": "prototypes/design/Monopilot Design System/settings/access-screens.jsx:4-152",
+    "prototype_index_ref": "_meta/prototype-labels/prototype-index-settings.json#users_screen"
   }
 }
