@@ -1,6 +1,6 @@
 {
   "installCommand": "cd ../.. && pnpm install --frozen-lockfile",
-  "buildCommand": "pnpm build",
+  "buildCommand": "cd ../.. && pnpm --filter @monopilot/db migrate && cd apps/web && pnpm build",
   "framework": "nextjs",
   "crons": [
     {
