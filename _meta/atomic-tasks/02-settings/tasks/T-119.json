@@ -52,6 +52,8 @@
       "Do not allow revoke to mutate accepted users."
     ],
     "prototype_match": false,
+    "prototype_index_entry": "users_screen (closest pattern — invited-users status column)",
+    "prototype_closest_path": "prototypes/design/Monopilot Design System/settings/access-screens.jsx:4-152",
     "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
     "prd_task_id": "T-119",
     "source_prd": "docs/prd/02-SETTINGS-PRD.md",

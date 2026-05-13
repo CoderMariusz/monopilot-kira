@@ -1,7 +1,7 @@
 {
   "module": "settings",
-  "generated_at": "2026-05-13T00:00:00Z",
-  "generator": "audit-refresh-2026-05-13+manual-line-corrections+phase1-gap-fix-2026-05-13",
+  "generated_at": "2026-05-13",
+  "generator": "audit-refresh-2026-05-13+manual-line-corrections+phase1-gap-fix-2026-05-13+new-screens-2026-05-13",
   "mode": "labeling",
   "entries": [
     {
@@ -1282,6 +1282,231 @@
       ],
       "known_bugs": [],
       "estimated_translation_time_min": 90
+    },
+    {
+      "label": "schema_column_wizard_screen",
+      "file": "prototypes/design/Monopilot Design System/settings/schema-wizard.jsx",
+      "lines": "542-801",
+      "component_type": "wizard",
+      "ui_pattern": "multi-step-form",
+      "data_domain": "Schema",
+      "interaction": "create-edit",
+      "complexity": "high",
+      "depends_on_prototypes": [
+        "schema_diff_viewer_screen"
+      ],
+      "translation_notes": [
+        "SchemaColumnWizard orchestrates 8 steps; sub-components Step1Table..Step8Preview live at lines 126-541 in the same file",
+        "Step 2 auto-skips for reference tables; dept list sourced from SETTINGS_DEPT_RESOLVED → Drizzle query on tenant_variations.dept_overrides",
+        "Step 8 tier auto-compute (L1/L2/L3) → server-side tier-assignment logic via schema schema_columns.tier",
+        "Concurrent-edit conflict banner (amber, 'View diff' + 'Reload latest') → router.push('/settings/schema/diff/' + migrationId) for SET-032",
+        "WIZ_STEPS constant → i18n keys from next-intl; TYPE_OPTIONS, BLOCKING_OPTIONS, ROLE_OPTIONS → DB enum lookup tables",
+        "Sample form in Step 8 → existing runtime schema renderer; no production writes during preview",
+        "window globals (SETTINGS_DEPT_RESOLVED, SETTINGS_WIZ_TABLES, SETTINGS_REF_CODES) → Server Component props via withOrgContext"
+      ],
+      "shadcn_equivalent": [
+        "Stepper (custom horizontal + vertical)",
+        "RadioGroup",
+        "Select",
+        "Input",
+        "Checkbox",
+        "Button",
+        "Badge",
+        "Card",
+        "Dialog",
+        "Alert"
+      ],
+      "known_bugs": [],
+      "estimated_translation_time_min": 240
+    },
+    {
+      "label": "schema_diff_viewer_screen",
+      "file": "prototypes/design/Monopilot Design System/settings/schema-diff.jsx",
+      "lines": "107-265",
+      "component_type": "viewer",
+      "ui_pattern": "side-by-side-diff",
+      "data_domain": "Schema",
+      "interaction": "view",
+      "complexity": "medium",
+      "depends_on_prototypes": [
+        "schema_migrations_screen"
+      ],
+      "translation_notes": [
+        "SchemaDiffViewer accepts migrationId + columnId; migrationId maps to columnId via SETTINGS_DIFF_BY_MIGRATION → DB lookup on schema_migrations table",
+        "Two-column panels with version selectors → shadcn Select; version list from SETTINGS_SCHEMA_VERSIONS[columnId].versions",
+        "Diff badges (+/-/~) → computed by _settingsDiffJson(a, b); replace with microdiff library in production",
+        "NoPriorEmptyState (v1 → no prior version) → conditional render on versions.length === 1",
+        "DiffSide renders left/right panels; DiffBadge at lines 38-45 → shadcn Badge with color variant",
+        "Hardcoded labels → next-intl keys; dates → date-fns formatDistanceToNow"
+      ],
+      "shadcn_equivalent": [
+        "Select",
+        "Badge",
+        "Card",
+        "Button",
+        "ScrollArea"
+      ],
+      "known_bugs": [],
+      "estimated_translation_time_min": 90
+    },
+    {
+      "label": "schema_migrations_screen",
+      "file": "prototypes/design/Monopilot Design System/settings/schema-migrations.jsx",
+      "lines": "103-213",
+      "component_type": "page-layout",
+      "ui_pattern": "filterable-list-with-expand",
+      "data_domain": "Schema",
+      "interaction": "view-approve-cancel",
+      "complexity": "medium",
+      "depends_on_prototypes": [
+        "schema_diff_viewer_screen"
+      ],
+      "translation_notes": [
+        "SchemaMigrationsScreen filter pills (All/pending/approved/running/completed/failed/rolled_back) → controlled state; filter Drizzle query on schema_migrations.status",
+        "Row click expands MigrationDetailPanel with read-only SQL; replace regex highlighter with CodeMirror in read-only mode (per AC #3 T-099)",
+        "Pending row × Cancel → Server Action to set migration status='cancelled' with concurrent-edit guard",
+        "TimelineDot at line 48 → CSS dot with status-color variant; replace with shadcn Timeline if available",
+        "SETTINGS_MIGRATIONS window global → Drizzle query joining schema_migrations + schema_columns + users tables",
+        "requested_by, approved_by → user display name lookup; dates → date-fns format"
+      ],
+      "shadcn_equivalent": [
+        "Table",
+        "Badge",
+        "Button",
+        "Collapsible",
+        "Select",
+        "Input"
+      ],
+      "known_bugs": [],
+      "estimated_translation_time_min": 90
+    },
+    {
+      "label": "tenant_variations_screen",
+      "file": "prototypes/design/Monopilot Design System/settings/tenant-variations.jsx",
+      "lines": "34-161",
+      "component_type": "page-layout",
+      "ui_pattern": "kpi-cards-with-list",
+      "data_domain": "Tenant",
+      "interaction": "view-navigate",
+      "complexity": "medium",
+      "depends_on_prototypes": [],
+      "translation_notes": [
+        "TenantVariationsScreen 4 KPI cards → server-computed counts from SETTINGS_TENANT; Drizzle query on tenant_variations table",
+        "Dept overrides section → list from tenant_variations.dept_overrides; Edit button → onNav('tenant-depts') = router.push('/settings/depts')",
+        "Rule variants section → tenant_variations.rule_variants; expand/edit navigates to rule editor screen",
+        "Schema extensions L3 → tenant_variations.schema_extensions_l3; count from schema_columns where tier='L3'",
+        "Authorization Policies card → 2 policies with status badges (Enabled/Misconfigured amber); source from authorization_policies table",
+        "DeptActionBadge/AuthPolicyStatusBadge → shadcn Badge with conditional color; DEPT_LABELS → i18n keys",
+        "KpiCard → shadcn Card with accent color via CSS variable; Last upgrade date → date-fns format"
+      ],
+      "shadcn_equivalent": [
+        "Card",
+        "Badge",
+        "Button",
+        "Table",
+        "Alert"
+      ],
+      "known_bugs": [],
+      "estimated_translation_time_min": 90
+    },
+    {
+      "label": "manufacturing_ops_screen",
+      "file": "prototypes/design/Monopilot Design System/settings/manufacturing-ops.jsx",
+      "lines": "54-270",
+      "component_type": "page-layout",
+      "ui_pattern": "list-with-modal-edit",
+      "data_domain": "Manufacturing",
+      "interaction": "create-edit",
+      "complexity": "medium",
+      "depends_on_prototypes": [],
+      "translation_notes": [
+        "ManufacturingOpsScreen (187-270) lists SETTINGS_MANUFACTURING_OPS; ManufacturingOpEditModal (54-186) handles create/edit; both are in scope for T-078",
+        "AC #2: Edit mode locks operation_name + process_suffix as read-only text (NOT inputs); create mode allows entry",
+        "AC #3: process_suffix validation V-SET-MFG-01 (uppercase alphanumeric only) implemented in validateMfgOp(); use zod schema in production",
+        "Full validation contract V-SET-MFG-01..05 in validateMfgOp() → move to shared zod schema with Server Action",
+        "MFG_DEPTS (line 15) → Drizzle query on departments table filtered to manufacturing dept_type",
+        "capacity_per_hour, cycle_time_sec number inputs → shadcn Input type='number' with zod .nonnegative() refinement",
+        "is_active toggle → shadcn Switch; dept Select → shadcn Select with combobox for large dept lists"
+      ],
+      "shadcn_equivalent": [
+        "Dialog",
+        "Input",
+        "Select",
+        "Switch",
+        "Button",
+        "Table",
+        "Badge",
+        "Alert"
+      ],
+      "known_bugs": [],
+      "estimated_translation_time_min": 120
+    },
+    {
+      "label": "manufacturing_op_history_screen",
+      "file": "prototypes/design/Monopilot Design System/settings/manufacturing-ops.jsx",
+      "lines": "271-404",
+      "component_type": "page-layout",
+      "ui_pattern": "filterable-audit-trail",
+      "data_domain": "Manufacturing",
+      "interaction": "view",
+      "complexity": "medium",
+      "depends_on_prototypes": [
+        "manufacturing_ops_screen"
+      ],
+      "translation_notes": [
+        "ManufacturingOpHistoryScreen renders audit trail for a single operationId; AC #1: 3 entries in DESC order with action badges",
+        "AC #2: row expand → FieldDiff (252-265) renders old→new diff per changed field; same pattern as SET-032/SchemaDiffViewer",
+        "AC #3: date filter, user filter, name search → controlled state; replace with Drizzle WHERE clauses in Server Action",
+        "AC #4: RBAC 403 page when role !== 'admin' → move prop-based mock to server-side RLS check via withOrgContext middleware",
+        "MfgActionBadge (266-270) → shadcn Badge with action-type color variant",
+        "SETTINGS_MFG_AUDIT window global → Drizzle query on mfg_audit_log table filtered by entity_id=operationId ORDER BY at DESC",
+        "operationId prop → route param from /settings/manufacturing-ops/[id]/history"
+      ],
+      "shadcn_equivalent": [
+        "Table",
+        "Badge",
+        "Collapsible",
+        "Input",
+        "Select",
+        "Button",
+        "Alert"
+      ],
+      "known_bugs": [],
+      "estimated_translation_time_min": 90
+    },
+    {
+      "label": "audit_log_full_screen",
+      "file": "prototypes/design/Monopilot Design System/settings/audit-log-full.jsx",
+      "lines": "54-251",
+      "component_type": "page-layout",
+      "ui_pattern": "filterable-audit-trail",
+      "data_domain": "Audit",
+      "interaction": "view",
+      "complexity": "medium",
+      "depends_on_prototypes": [],
+      "translation_notes": [
+        "AuditLogFullScreen is the full audit log viewer (T-079 SET-013/SET-025); replaces basic audit_log_screen in app.jsx shell",
+        "Date presets (Today/7d/30d/90d/Custom) → shadcn DateRangePicker; >30-day range triggers partition warning banner (ADR-008)",
+        "Filter bar: user, action, table, search → controlled state; replace with Drizzle WHERE clauses with partition-aware query (ADR-008)",
+        "Row expand → RowDiffPanel (20-53) renders side-by-side JSON diff; replace naive diffJson with microdiff library",
+        "Pagination 50/page → TanStack Table with server-side pagination; LIMIT/OFFSET via Drizzle cursor pagination",
+        "AUDIT_ACTION_BADGE (8-18) → shadcn Badge with action-type color variant (create=green, update=amber, delete=red, login=blue)",
+        "SETTINGS_AUDIT_FULL window global → Drizzle query on audit_log table joining users for display name; ip, impersonating fields from auth context",
+        "Hardcoded labels → next-intl keys; timestamps → date-fns formatDistanceToNow and format"
+      ],
+      "shadcn_equivalent": [
+        "Table",
+        "Badge",
+        "Collapsible",
+        "Input",
+        "Select",
+        "Button",
+        "DateRangePicker",
+        "Alert",
+        "Pagination"
+      ],
+      "known_bugs": [],
+      "estimated_translation_time_min": 120
     }
   ]
 }

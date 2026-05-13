@@ -1,0 +1,11 @@
+{
+  "installCommand": "cd ../.. && pnpm install --frozen-lockfile",
+  "buildCommand": "pnpm build",
+  "framework": "nextjs",
+  "crons": [
+    {
+      "path": "/api/internal/cron/drift",
+      "schedule": "0 2 * * *"
+    }
+  ]
+}

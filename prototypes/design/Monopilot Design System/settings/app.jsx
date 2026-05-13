@@ -69,13 +69,14 @@ const App = () => {
   const content = (() => {
     const s = route.screen;
     // admin-only guard: if role=user and admin-only screen, show profile
-    const adminOnly = ["profile", "sites", "warehouses", "shifts", "products", "boms", "partners", "units",
+    const adminOnly = ["profile", "sites", "warehouses", "shifts", "products", "boms", "processes", "partners", "units", "import-export",
                        "users", "security", "devices", "notifications", "features", "integrations",
                        "labels", "label-editor", "audit",
                        // Onboarding (admin-only new-org setup)
                        "onboarding",
                        // Admin group
-                       "d365-conn", "d365-mapping", "d365-dlq", "rules", "rule-detail", "flags", "schema",
+                       "d365-conn", "d365-mapping", "d365-dlq", "rules", "rule-detail", "flags", "schema", "schema-wizard",
+                       "schema-migrations", "schema-diff", "tenant", "manufacturing-ops", "manufacturing-ops-history", "audit-logs",
                        "reference", "email-config", "email-vars", "ship-override-reasons", "gallery"];
     if (role === "user" && adminOnly.includes(s) && s !== "my-profile" && s !== "my-notifications") {
       return (
@@ -93,6 +94,7 @@ const App = () => {
       case "shifts":         return <ShiftsScreen />;
       case "products":       return <ProductsScreen />;
       case "boms":           return <BomsScreen />;
+      case "processes":      return <ProcessesScreen />;
       case "partners":       return <PartnersScreen />;
       case "units":          return <UnitsScreen />;
       case "users":          return <UsersScreen viewMode={tweaks.usersView} />;
@@ -104,6 +106,7 @@ const App = () => {
       case "labels":         return <LabelTemplatesScreen openEditor={openEditor} />;
       case "label-editor":   return <LabelEditor onBack={() => setRoute({ screen: "labels" })} />;
       case "audit":          return <AuditLogScreen />;
+      case "import-export":  return <ImportExportScreen />;
       // ---- Admin / cross-module group ----
       case "d365-conn":      return <D365ConnectionScreen openModal={openModal} />;
       case "d365-mapping":   return <D365MappingScreen openModal={openModal} />;
@@ -111,6 +114,13 @@ const App = () => {
       case "rule-detail":    return <RuleDetailScreen ruleCode={route.ruleCode} onBack={() => setRoute({ screen: "rules" })} openModal={openModal} />;
       case "flags":          return <FlagsAdminScreen openModal={openModal} />;
       case "schema":         return <SchemaBrowserScreen openModal={openModal} />;
+      case "schema-wizard":  return <SchemaColumnWizard openModal={openModal} onExit={() => setRoute({ screen: "schema" })} />;
+      case "schema-diff":    return <SchemaDiffViewer migrationId={route.migrationId} columnId={route.columnId} openModal={openModal} onExit={() => setRoute({ screen: "schema-migrations" })} />;
+      case "schema-migrations": return <SchemaMigrationsScreen openModal={openModal} onOpenDiff={(id) => setRoute({ screen: "schema-diff", migrationId: id })} />;
+      case "tenant":         return <TenantVariationsScreen openModal={openModal} onNav={nav} />;
+      case "manufacturing-ops": return <ManufacturingOpsScreen openModal={openModal} onOpenHistory={(id) => setRoute({ screen: "manufacturing-ops-history", operationId: id })} />;
+      case "manufacturing-ops-history": return <ManufacturingOpHistoryScreen operationId={route.operationId} onExit={() => setRoute({ screen: "manufacturing-ops" })} role={role} />;
+      case "audit-logs":     return <AuditLogFullScreen />;
       case "reference":      return <ReferenceDataScreen openModal={openModal} />;
       case "email-config":   return <EmailTemplatesScreen openModal={openModal} />;
       case "email-vars":     return <EmailVariablesScreen />;

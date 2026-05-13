@@ -81,7 +81,8 @@
     },
     "prototype_match": true,
     "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md",
-    "prototype_index_ref": "_meta/prototype-labels/prototype-index-settings.json#audit_log_screen",
-    "prototype_index_entry": "audit_log_screen"
+    "prototype_index_ref": "_meta/prototype-labels/prototype-index-settings.json#audit_log_full_screen",
+    "prototype_index_entry": "audit_log_full_screen",
+    "prototype_path": "prototypes/design/Monopilot Design System/settings/audit-log-full.jsx:54-251"
   }
 }

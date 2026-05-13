@@ -160,8 +160,6 @@ const RulesRegistryScreen = ({ onOpenRule, openModal }) => {
     <>
       <PageHead title="Rules registry" sub="Read-only browser of deployed business rules (DSL-driven)."
         actions={<>
-          {/* TUNING-PATTERN §3.6 — dry-run fan-out preview before activating a rule batch
-              across the whole registry. Opens the shared ruleDryRun modal scoped to "all rules". */}
           <DryRunButton label="Dry-run all rules"
             title="Preview affected objects across all rules before activation"
             onClick={()=>openModal("ruleDryRun")} />
@@ -870,7 +868,7 @@ Object.assign(window, {
   TierBadge, TypeBadge, StatusPill,
   D365ConnectionScreen, D365MappingScreen,
   RulesRegistryScreen, RuleDetailScreen,
-  FlagsAdminScreen, SchemaBrowserScreen,
+  FlagsAdminScreen, SchemaBrowserScreen, SchemaShadowPreviewScreen,
   ReferenceDataScreen, EmailTemplatesScreen, EmailVariablesScreen,
   ShippingOverrideReasonsScreen, D365DlqShippingScreen
 });
