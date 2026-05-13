@@ -90,6 +90,8 @@
       "label": "rule_detail_screen",
       "component_type": "tabs",
       "is_exact_match": false
-    }
+    },
+    "prototype_index_ref": "_meta/prototype-labels/prototype-index-settings.json#rule_detail_screen",
+    "prototype_index_entry": "rule_detail_screen"
   }
 }

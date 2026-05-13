@@ -88,6 +88,7 @@
     },
     "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md",
     "prototype_index_entry": "global_import_export_screen",
-    "prototype_path": "prototypes/design/Monopilot Design System/settings/ops-screens.jsx:247-383"
+    "prototype_path": "prototypes/design/Monopilot Design System/settings/ops-screens.jsx:247-383",
+    "prototype_index_ref": "_meta/prototype-labels/prototype-index-settings.json#global_import_export_screen"
   }
 }

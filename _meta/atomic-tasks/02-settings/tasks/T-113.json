@@ -92,6 +92,8 @@
       "label": "rules_registry_screen",
       "component_type": "table",
       "is_exact_match": false
-    }
+    },
+    "prototype_index_ref": "_meta/prototype-labels/prototype-index-settings.json#rules_registry_screen",
+    "prototype_index_entry": "rules_registry_screen"
   }
 }
