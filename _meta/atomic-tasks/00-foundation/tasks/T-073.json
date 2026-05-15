@@ -1,0 +1,79 @@
+{
+  "title": "T-073 — tenant-scoped JIT provisioning flag wired to signInWithMagicLink.shouldCreateUser (FT-013)",
+  "prompt": "# T-073 — tenant-scoped JIT provisioning flag wired to signInWithMagicLink.shouldCreateUser (FT-013)\n\nPRD: `docs/prd/00-FOUNDATION-PRD.md` — sections: §5.x, §8.x\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`\nOriginal carry-forward ID: **FT-013** (from `_meta/audits/2026-05-07-foundation-final-carry-forward-backlog.md`)\nSeverity: **P2** (S effort)\n\n## Goal\nWire jit_provisioning per-tenant flag to Supabase signInWithMagicLink.shouldCreateUser.\n\n## Implementation contract\n1. magic-link.ts reads tenant_idp_config.jit_provisioning for the org bound to the email's domain (or explicit org).\n2. Calls supabase.auth.signInWithMagicLink({ ..., options: { shouldCreateUser: !!jitFlag } }).\n3. Default when no tenant_idp_config row: false (deny-by-default).\n4. Test asserts both branches.\n\n## Files (scope)\n- packages/auth/src/magic-link.ts [modify]\n- packages/auth/src/__tests__/magic-link-jit.test.ts [create]\n\n## Acceptance criteria\n1. Given tenant_idp_config.jit_provisioning=true, when signInWithMagicLink is invoked, then shouldCreateUser=true is passed.\n2. Given tenant_idp_config.jit_provisioning=false (or no row), when signInWithMagicLink is invoked, then shouldCreateUser=false is passed.\n\n## Test strategy\n- RED: write magic-link-jit.test.ts asserting both branches before refactor.\n- Mock supabase admin client via vi.fn().\n- Run `pnpm --filter @monopilot/auth test magic-link-jit`.\n\n## Risk red lines\n- Do not default to shouldCreateUser=true when org has no tenant_idp_config row.\n- Do not skip cross-tenant binding (email belongs to one org).\n\n## Closeout evidence\nProvide: changed_files, test_commands_and_results, acceptance_criteria_status (per AC), deviations_from_prd, git_status. Use the test-driven-development skill (RED-first) and requesting-code-review at GREEN.",
+  "labels": [
+    "prd",
+    "auth",
+    "wave-d-carry-forward",
+    "jit-provisioning",
+    "T2-api"
+  ],
+  "priority": 50,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-073",
+    "source_prd": "docs/prd/00-FOUNDATION-PRD.md",
+    "prd_refs": [
+      "§5.x",
+      "§8.x"
+    ],
+    "original_carry_forward_id": "FT-013",
+    "category": "auth",
+    "subcategory": "jit-provisioning",
+    "task_type": "T2-api",
+    "parent_feature": "00-FOUNDATION-i",
+    "context_budget": "50k",
+    "estimated_effort": "1-4h",
+    "description": "Honor tenant_idp_config.jit_provisioning when calling signInWithMagicLink so the shouldCreateUser flag reflects per-tenant policy.",
+    "details": "signInWithMagicLink currently hardcodes shouldCreateUser:true. Read tenant_idp_config.jit_provisioning for the relevant org and pass it through.",
+    "scope_files": [
+      "packages/auth/src/magic-link.ts [modify]",
+      "packages/auth/src/__tests__/magic-link-jit.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not change SAML JIT logic in this task."
+    ],
+    "dependencies": [],
+    "parallel_safe_with": [],
+    "acceptance_criteria": [
+      "Given tenant_idp_config.jit_provisioning=true, when signInWithMagicLink is invoked, then shouldCreateUser=true is passed.",
+      "Given tenant_idp_config.jit_provisioning=false (or no row), when signInWithMagicLink is invoked, then shouldCreateUser=false is passed."
+    ],
+    "test_strategy": [
+      "RED: write magic-link-jit.test.ts asserting both branches before refactor.",
+      "Mock supabase admin client via vi.fn().",
+      "Run `pnpm --filter @monopilot/auth test magic-link-jit`."
+    ],
+    "risk_red_lines": [
+      "Do not default to shouldCreateUser=true when org has no tenant_idp_config row.",
+      "Do not skip cross-tenant binding (email belongs to one org)."
+    ],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

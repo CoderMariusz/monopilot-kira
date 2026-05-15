@@ -1,0 +1,95 @@
+{
+  "title": "T-017 \u2014 Co-product / by-product allocation on wo_output.registered (\u00a79.3, \u00a711.3 V-FIN-WO-07)",
+  "prompt": "# T-017 \u2014 Co-product/by-product allocation handler\n\nPRD: docs/prd/10-FINANCE-PRD.md \u00a79.3 co-product/by-product allocation; \u00a711.3 V-FIN-WO-07 (sum allocation_pct \u2264 100%, FG-*/WIP- code formats); \u00a713.1 wo_output.registered handler.\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nServer Action `allocateCoProductCosts(woId)` that reads `bom_co_products` from 03-TECHNICAL and `wo_outputs` from 08-PROD, then writes `output_attribution_item_id` + `allocated_cost` to `material_consumption_costs` rows for the WO. Validate V-FIN-WO-07: allocation_pct sum \u2264 100% (block); product code format matches FG-* for finished goods or WIP-<2letter>-<7digits> for WIP (warn).\n\n## Implementation contract\n1. `apps/web/app/finance/work-order-costs/_actions/allocate-coproducts.ts`:\n   - Read bom_co_products WHERE bom_id = wo.bom_id (cross-module from 03-TECHNICAL).\n   - Read wo_outputs WHERE wo_id = $1 \u2014 sum by output_type.\n   - Compute per \u00a79.3:\n     - `primary_qty = SUM(wo_outputs.qty_kg WHERE output_type='primary')`\n     - `co_products_pct = SUM(bom_co_products.allocation_pct WHERE is_primary=false)`\n     - V-FIN-WO-07 BLOCK if `co_products_pct > 100`.\n     - `primary_allocated_cost = wo.total_cost_actual \u00d7 (1 - co_products_pct/100)`\n     - Per co-product: `co_product_cost = wo.total_cost_actual \u00d7 bom.allocation_pct/100`\n     - By-products (output_type='byproduct'): allocation_pct=0 (zero cost absorbed). P2 reserves recovery_value credit per `waste_categories.recovery_value_per_kg`.\n   - INSERT `material_consumption_costs` 'attribution rows' OR UPDATE existing consume rows with output_attribution_item_id + allocated_cost (depends on schema choice \u2014 pick UPDATE existing per PRD \u00a79.3 line 800-803 example).\n   - V-FIN-WO-07 WARN: check item codes against `^FG-` or `^WIP-[A-Z]{2}-\\d{7}$` regex; non-conforming codes emit a structured warn log + audit row tagged `code_format_drift`.\n2. SECURITY DEFINER fn `app.allocate_coproducts(wo_id uuid)` callable from worker.\n3. Audit row on every allocation (audit_events with action='wo_coproduct_alloc').\n\n## Files\n- apps/web/app/finance/work-order-costs/_actions/allocate-coproducts.ts [create]\n- packages/db/migrations/0057_allocate_coproducts_fn.sql [create]\n- apps/web/app/finance/_lib/__tests__/allocate-coproducts.test.ts [create]\n\n## Acceptance criteria (Given-When-Then)\n- Given BOM with primary + co-product allocation_pct=20, when run and wo.total_cost_actual=1000, then primary=800 and co_product=200.\n- Given bom_co_products sum allocation_pct=105, when run, then raises 'allocation_pct sum exceeds 100' (V-FIN-WO-07 BLOCK) and no UPDATE.\n- Given by-product output_type='byproduct', when run, then allocated_cost=0.\n- Given item code 'PROD-12345' (non-conforming), when run, then warn log + audit row 'code_format_drift', but allocation commits (warn). AND given action commits, when material_consumption_costs queried, then every row has output_attribution_item_id and SUM(allocated_cost) = wo.total_cost_actual.\n_(AC count consolidated from 5\u21924 by Fixer F13 2026-05-14 (no coverage lost))_\n\n## Test strategy (RED first)\n- RED: allocate-coproducts.test.ts seeds BOM + WO outputs + consume rows; asserts each AC scenario including rounding tolerance.\n- Run `pnpm --filter @monopilot/web vitest run apps/web/app/finance/_lib/__tests__/allocate-coproducts.test.ts`.\n\n## Risk red lines\n- Do not divide by zero \u2014 guard primary_qty=0 case (raise error or skip allocation).\n- Do not allow allocation_pct sum > 100 \u2014 V-FIN-WO-07 is hard.\n- Do not use floating-point arithmetic for the split \u2014 use NUMERIC(15,4) consistently.\n- Do not skip the code-format warn log \u2014 multi-industry standardization \u00a71.2 expects format compliance.\n- Do not modify wo_outputs from this action \u2014 read-only consumer.\n- Do not run outside a transaction.\n",
+  "labels": [
+    "prd",
+    "api",
+    "allocation",
+    "T2-api"
+  ],
+  "priority": 70,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-017",
+    "source_prd": "docs/prd/10-FINANCE-PRD.md",
+    "prd_refs": [
+      "\u00a79.3",
+      "\u00a711.3",
+      "\u00a713.1"
+    ],
+    "category": "api",
+    "subcategory": "coproduct-allocation",
+    "task_type": "T2-api",
+    "parent_feature": "10-FINANCE-c",
+    "context_budget": "50k",
+    "estimated_effort": "3-4h",
+    "description": "Co-product/by-product cost allocation per bom_co_products.allocation_pct on wo_output.registered; V-FIN-WO-07 enforcement (block sum>100% + warn on code format drift).",
+    "details": "Consumer of 03-TECHNICAL bom_co_products and 08-PROD wo_outputs. Writes output_attribution_item_id + allocated_cost to material_consumption_costs. NUMERIC(15,4) throughout. By-products get 0 cost in P1 (recovery_value credit deferred to P2 EPIC 10-K). [AC count consolidated from 5\u21924 by Fixer F13 2026-05-14 (no coverage lost)]",
+    "scope_files": [
+      "apps/web/app/finance/work-order-costs/_actions/allocate-coproducts.ts [create]",
+      "packages/db/migrations/0057_allocate_coproducts_fn.sql [create]",
+      "apps/web/app/finance/_lib/__tests__/allocate-coproducts.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "By-product recovery credit (P2 EPIC 10-K)",
+      "Worker handler entry point (T-018)"
+    ],
+    "dependencies": [
+      "T-015"
+    ],
+    "cross_module_dependencies": [
+      "03-technical:bom_co_products + items",
+      "08-production:wo_outputs"
+    ],
+    "parallel_safe_with": [
+      "T-016"
+    ],
+    "acceptance_criteria": [
+      "Given BOM with primary + co-product allocation_pct=20, when run and wo.total_cost_actual=1000, then primary=800 and co_product=200.",
+      "Given bom_co_products sum allocation_pct=105, when run, then raises 'allocation_pct sum exceeds 100' (V-FIN-WO-07 BLOCK) and no UPDATE.",
+      "Given by-product output_type='byproduct', when run, then allocated_cost=0.",
+      "Given item code 'PROD-12345' (non-conforming), when run, then warn log + audit row 'code_format_drift', but allocation commits (warn). AND given action commits, when material_consumption_costs queried, then every row has output_attribution_item_id and SUM(allocated_cost) = wo.total_cost_actual."
+    ],
+    "test_strategy": [
+      "RED: allocate-coproducts.test.ts seeds BOM + WO outputs + consume rows; asserts each AC.",
+      "Run pnpm --filter @monopilot/web vitest run apps/web/app/finance/_lib/__tests__/allocate-coproducts.test.ts."
+    ],
+    "risk_red_lines": [
+      "Do not divide by zero.",
+      "Do not allow allocation_pct sum > 100.",
+      "Do not use floating-point arithmetic.",
+      "Do not skip code-format warn log.",
+      "Do not modify wo_outputs.",
+      "Do not run outside a transaction."
+    ],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review",
+      "systematic-debugging"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": false
+  }
+}

@@ -1,0 +1,108 @@
+{
+  "title": "T-025 — UI + Server Actions: shipments_delivery_tracker_page (POD) (SHIP-028) (11-shipping-f)",
+  "prompt": "# T-025 — Shipment Delivery Tracker + Proof-of-Delivery upload\n\nPRD: docs/prd/11-SHIPPING-PRD.md §15.4 SHIP-028 Shipment Delivery Tracker (POD), §8.4, §14.4\nPrototype: prototypes/design/Monopilot Design System/shipping/doc-screens.jsx:310-422 (shipments_delivery_tracker_page)\nUX: prototypes/design/11-SHIPPING-UX.md §3 SHIP-028 (implied)\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nServer Component page tracking shipments through 'manifested'→'shipped'→'delivered' with POD upload modal (BL-SHIP-01 fix: POD upload modal SEPARATE from BOL sign-off).\n\n## Implementation contract\n1. `/(shipping)/shipments/page.tsx` (RSC) renders shipments_delivery_tracker_page (doc-screens.jsx:310-422): table cols (shipment_number, customer, carrier, status, shipped_at, ETA, delivered_at, POD chip).\n2. Status timeline component per row showing manifested → shipped → in_transit → delivered (status transitions via carrier feed Phase 2; manual update P1).\n3. POD upload modal (NEW per BL-SHIP-01 fix — not in prototype yet): file upload + recipient_name + delivery_date + signature_image; calls new `uploadPOD(shipmentId, file, ...)` Server Action in this task.\n4. Server Action `apps/web/lib/server-actions/shipping/pod.ts.uploadPOD()`:\n   - Validates shipment.status='shipped' (cannot upload POD before ship_confirm).\n   - Computes SHA-256 server-side; uploads to Supabase Storage `shipping-docs/pod/<org>/<shipmentId>.<ext>` with `x-upsert: false`.\n   - UPDATEs shipments.status='delivered', delivered_at, pod_url, pod_hash, recipient_name, recipient_signature_at — in same tx — outbox `shipping.shipment.delivered`.\n   - Permission `ship.bol.sign` (POD audit trail parallel to BOL retention).\n5. Migration adds shipments POD columns (pod_url, pod_hash, recipient_name, recipient_signature_at).\n6. Four states + i18n.\n\n## Prototype parity\nReference: `prototypes/design/Monopilot Design System/shipping/doc-screens.jsx:310-422`. Verify table layout + timeline component + status badges.\n\n## Files\n- apps/web/app/(shipping)/shipments/page.tsx [create]\n- apps/web/app/(shipping)/shipments/_components/delivery-tracker-table.tsx [create]\n- apps/web/app/(shipping)/_modals/pod-upload-modal.tsx [create]\n- apps/web/lib/server-actions/shipping/pod.ts [create]\n- apps/web/lib/server-actions/shipping/__tests__/pod.test.ts [create]\n- apps/web/app/(shipping)/shipments/__tests__/delivery-tracker-table.test.tsx [create]\n- packages/db/migrations/00XX_shipping_pod_columns.sql [create]\n- packages/events/src/shipping.ts [modify — ShippingShipmentDelivered]\n- apps/web/messages/en/shipping.json [modify]\n- apps/web/messages/pl/shipping.json [modify]\n- prototypes/design/Monopilot Design System/shipping/doc-screens.jsx [ref]\n\n## Acceptance criteria\n1. Given shipments_delivery_tracker_page renders, when compared to doc-screens.jsx:310-422, then table + status timeline + POD chip match — RTL + Playwright screenshot.\n2. Given uploadPOD is called for a shipment with status='packed' (not yet shipped), when validator runs, then throws `ShipmentNotShippedError` and no DB write (POD requires ship_confirm done).\n3. Given uploadPOD succeeds, when shipments inspected, then status='delivered', pod_url + pod_hash + recipient_name + delivered_at + recipient_signature_at set in same tx, and outbox shipping.shipment.delivered emitted.\n4. Given user lacks ship.bol.sign, when page renders, then POD upload modal trigger is hidden.\n5. Given POD object stored in Supabase Storage, when DELETE is attempted, then it is blocked by retention RLS (7y per §14.4).\n6. UI closeout includes Playwright trace + screenshots per UI-PROTOTYPE-PARITY-POLICY; Playwright fallback documented if unavailable.\n\n## Test strategy\n- RED: vitest (server action) + RTL (UI) asserting AC 1-6.\n- Run `pnpm --filter @monopilot/web vitest run pod.test.ts delivery-tracker-table.test.tsx && pnpm typecheck`.\n- Playwright `apps/web/e2e/shipping-pod.spec.ts`.\n\n## Risk red lines\n- Do not allow POD upload before ship_confirm done.\n- Do not skip SHA-256 hash on POD (parallel to V-SHIP-LBL-04 BOL pattern).\n- Do not allow DELETE of POD files (7y retention).\n- Do not bypass ship.bol.sign permission.\n- Do not import @radix-ui/react-dialog outside packages/ui.\n- Do not paste prototype JSX verbatim.",
+  "labels": [
+    "prd",
+    "ui",
+    "ship-028",
+    "T3-ui"
+  ],
+  "priority": 70,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-025",
+    "source_prd": "docs/prd/11-SHIPPING-PRD.md",
+    "prd_refs": [
+      "§15.4 SHIP-028",
+      "§8.4",
+      "§14.4"
+    ],
+    "category": "ui",
+    "subcategory": "delivery-tracker-pod",
+    "task_type": "T3-ui",
+    "parent_feature": "11-shipping-f",
+    "context_budget": "55k",
+    "estimated_effort": "4-5h",
+    "description": "SHIP-028 Delivery Tracker page + POD upload modal (BL-SHIP-01 fix) + uploadPOD Server Action with SHA-256 + 7y retention.",
+    "details": "POD upload modal is NEW (BL-SHIP-01 fix) — not in prototype yet. Server-side gates ship_confirm before allowing POD upload. SHA-256 + storage retention parallel to BOL pattern.",
+    "scope_files": [
+      "apps/web/app/(shipping)/shipments/page.tsx [create]",
+      "apps/web/app/(shipping)/shipments/_components/delivery-tracker-table.tsx [create]",
+      "apps/web/app/(shipping)/_modals/pod-upload-modal.tsx [create]",
+      "apps/web/lib/server-actions/shipping/pod.ts [create]",
+      "apps/web/lib/server-actions/shipping/__tests__/pod.test.ts [create]",
+      "apps/web/app/(shipping)/shipments/__tests__/delivery-tracker-table.test.tsx [create]",
+      "packages/db/migrations/00XX_shipping_pod_columns.sql [create]",
+      "packages/events/src/shipping.ts [modify]",
+      "apps/web/messages/en/shipping.json [modify]",
+      "apps/web/messages/pl/shipping.json [modify]",
+      "prototypes/design/Monopilot Design System/shipping/doc-screens.jsx [ref]"
+    ],
+    "out_of_scope": [
+      "Do not implement carrier API integration (Phase 2).",
+      "Do not implement tracking_number polling."
+    ],
+    "dependencies": [
+      "T-020",
+      "T-023",
+      "T-031"
+    ],
+    "parallel_safe_with": [
+      "T-024"
+    ],
+    "cross_module_dependencies": [
+      "00-foundation/T-123 (Playwright)",
+      "02-settings (Supabase Storage POD bucket config)"
+    ],
+    "acceptance_criteria": [
+      "Given shipments_delivery_tracker_page renders, when compared to prototypes/design/Monopilot Design System/shipping/doc-screens.jsx:310-422, then table + status timeline + POD upload trigger match prototype (structural parity checklist).",
+      "Given uploadPOD called for shipment with status='packed', when validator runs, then throws ShipmentNotShippedError; AND given uploadPOD succeeds, then status='delivered', pod_url + pod_hash (SHA-256) + recipient_name + delivery_at set; retention_until = delivery_at + 7 years (BRCGS Issue 9 §3.5 / §14.4).",
+      "Given user lacks ship.bol.sign, when page renders, then POD upload modal trigger hidden; AND given POD object stored, when DELETE attempted within retention period, then blocked by Storage RLS (7-year retention, BRCGS §14.4).",
+      "UI closeout includes Playwright trace + screenshots per UI-PROTOTYPE-PARITY-POLICY; Playwright fallback documented if unavailable."
+    ],
+    "test_strategy": [
+      "RED: vitest (server action) + RTL (UI) asserting AC 1-6.",
+      "Run `pnpm --filter @monopilot/web vitest run pod.test.ts delivery-tracker-table.test.tsx && pnpm typecheck`.",
+      "Playwright apps/web/e2e/shipping-pod.spec.ts."
+    ],
+    "risk_red_lines": [
+      "Do not allow POD upload before ship_confirm.",
+      "Do not skip SHA-256 hash.",
+      "Do not allow DELETE of POD files.",
+      "Do not bypass ship.bol.sign permission.",
+      "Do not import @radix-ui/react-dialog outside packages/ui.",
+      "Do not paste prototype JSX verbatim."
+    ],
+    "skills": [
+      "test-driven-development",
+      "frontend-design",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": true,
+    "prototype_index_entry": "shipments_delivery_tracker_page",
+    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md"
+  }
+}

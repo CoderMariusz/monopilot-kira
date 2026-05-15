@@ -1,0 +1,105 @@
+{
+  "title": "T-008 \u2014 transfer_orders ALTER COLUMN extensions for inter-site (\u00a79.6, D-MS-3)",
+  "prompt": "# T-008 \u2014 transfer_orders ALTER COLUMN extensions for inter-site\n\nPRD: docs/prd/14-MULTI-SITE-PRD.md \u00a79.6, \u00a79.9 (composite indexes), D-MS-3\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nExtend the 05-WH-owned `transfer_orders` table with the 8 inter-site columns + dual cross-site approval FKs + composite index for D-MS-13 RLS efficiency.\n\n## Implementation contract\n1. Migration `packages/db/migrations/0046_transfer_orders_inter_site.sql` per \u00a79.6 DDL:\n   - ALTER TABLE transfer_orders ADD COLUMN from_site_id UUID NULL REFERENCES sites(id).\n   - ADD COLUMN to_site_id UUID NULL REFERENCES sites(id).\n   - ADD COLUMN transfer_cost NUMERIC(12,2).\n   - ADD COLUMN cost_allocation_method TEXT CHECK (cost_allocation_method IN ('sender','receiver','split','none')) DEFAULT 'receiver'.\n   - ADD COLUMN expected_arrival_at TIMESTAMPTZ.\n   - ADD COLUMN shipped_at TIMESTAMPTZ.\n   - ADD COLUMN actual_arrival_at TIMESTAMPTZ.\n   - ADD COLUMN from_site_manager_approval_id UUID.\n   - ADD COLUMN to_site_manager_approval_id UUID.\n   - CREATE INDEX CONCURRENTLY idx_to_org_site ON transfer_orders(org_id, site_id) \u2014 D-MS-13 composite (site_id activated by T-030 ALTER pass; this migration is forward-compatible).\n2. Drizzle schema patch `packages/db/src/schema/transfer-orders.ts` (modify existing entry) \u2014 add the new cols typed.\n3. Zod schema delta \u2014 cost_allocation_method enum + CHECK (effective_to >= effective_from-style date ordering for shipped_at vs expected_arrival_at vs actual_arrival_at) at zod refinement layer (DB constraint avoided to allow back-dated corrections).\n4. Tests assert: cost_allocation_method CHECK violation on bad value, FK constraint on from_site_id/to_site_id (must reference real site), default 'receiver' on insert.\n\n## Files\n- packages/db/migrations/0046_transfer_orders_inter_site.sql [create]\n- packages/db/src/schema/transfer-orders.ts [modify]\n- packages/db/src/schema/transfer-orders.zod.ts [modify]\n- packages/db/__tests__/transfer-orders-inter-site.test.ts [create]\n\n## Acceptance criteria\n<!-- AC count consolidated from 5\u21924 by Fixer F14a 2026-05-14 (no coverage lost) -->\n1. Given migration 0046 applied, when \\d transfer_orders inspected, then all 9 new cols are present + cost_allocation_method CHECK constraint present with the 4 allowed values + DEFAULT 'receiver'.\n2. Given an insert with cost_allocation_method='unknown', when committed, then DB raises check_violation.\n3. Given an insert with from_site_id pointing to a non-existent sites.id, when committed, then DB raises foreign_key_violation.\n4. Given idx_to_org_site is checked via pg_indexes, when listed, then a composite index on (org_id, site_id) exists for transfer_orders (D-MS-13).\n5. Given an insert with cost_allocation_method omitted, when committed, then the row has cost_allocation_method='receiver' (DEFAULT applied).\n\n## Test strategy\n- RED: integration test asserting CHECK + FK + DEFAULT + composite index presence before migration applied.\n- Run 'pnpm --filter @monopilot/db test:integration -- transfer-orders-inter-site'.\n\n## Risk red lines\n- Do not drop or rename existing transfer_orders columns \u2014 05-WH owns the table; this task is an additive ALTER only.\n- Do not add NOT NULL on from_site_id/to_site_id \u2014 backward compat: legacy same-site TOs leave both NULL (V-MS-12 same-site skip-IN_TRANSIT path).\n- Do not enforce shipped_at < actual_arrival_at at DB level \u2014 allow back-dated corrections; validation at app layer in T-009.\n- Do not skip CONCURRENTLY on the composite index \u2014 large transfer_orders tables would lock writes.\n- Do not couple this migration to the site_id ALTER of transfer_orders (T-030 activation owns the site_id column itself).\n- RLS on transfer_orders will use app.current_site_id() (never raw GUC) once T-030 applies site-scoped policy via buildSiteScopedPolicySql (T-006).",
+  "labels": [
+    "prd",
+    "data",
+    "schema",
+    "T1-schema"
+  ],
+  "priority": 50,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-008",
+    "source_prd": "docs/prd/14-MULTI-SITE-PRD.md",
+    "prd_refs": [
+      "\u00a79.6",
+      "\u00a77 D-MS-3",
+      "\u00a79.9"
+    ],
+    "category": "data",
+    "subcategory": "schema-to-extension",
+    "task_type": "T1-schema",
+    "parent_feature": "14-MULTI-SITE-b inter-site TO",
+    "context_budget": "50k",
+    "estimated_effort": "2-3h",
+    "description": "ALTER transfer_orders (owned by 05-WH baseline) adding from_site_id/to_site_id/transfer_cost/cost_allocation_method CHECK + expected_arrival_at/shipped_at/actual_arrival_at + from_site_manager_approval_id/to_site_manager_approval_id dual-approval cols (D-MS-11) + composite index on (org_id, site_id) per D-MS-13.",
+    "details": "ALTER transfer_orders (owned by 05-WH baseline) adding from_site_id/to_site_id/transfer_cost/cost_allocation_method CHECK + expected_arrival_at/shipped_at/actual_arrival_at + from_site_manager_approval_id/to_site_manager_approval_id dual-approval cols (D-MS-11) + composite index on (org_id, site_id) per D-MS-13. Scope: Extend the 05-WH-owned `transfer_orders` table with the 8 inter-site columns + dual cross-site approval FKs + composite index for D-MS-13 RLS efficiency. Touches: packages/db/migrations/0046_transfer_orders_inter_site.sql, packages/db/src/schema/transfer-orders.ts, packages/db/src/schema/transfer-orders.zod.ts, packages/db/__tests__/transfer-orders-inter-site.test.ts. Constraints: 1. Migration `packages/db/migrations/0046_transfer_orders_inter_site.sql` per \u00a79.6 DDL: - ALTER TABLE transfer_orders ADD COLUMN from_site_id UUID NULL REFERENCES sites(id). - ADD COLUMN to_site_id UUID NULL REFERENCES sites(id). - ADD COLUMN transfer_cost NUMERIC(12,2). - ADD COLUMN cost_allocation_method TEXT CHECK (cost_allocation_method IN ('se. Distinguished from sibling 14-multi-site tasks by its narrow schema-to-extension focus against PRD \u00a79.6, \u00a77 D-MS-3, \u00a79.9. AC count consolidated from 5\u21924 by Fixer F14a 2026-05-14 (no coverage lost)",
+    "scope_files": [
+      "packages/db/migrations/0046_transfer_orders_inter_site.sql [create]",
+      "packages/db/src/schema/transfer-orders.ts [modify]",
+      "packages/db/src/schema/transfer-orders.zod.ts [modify]",
+      "packages/db/__tests__/transfer-orders-inter-site.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not implement state machine guards here (T-009).",
+      "Do not implement approval workflow here (T-010).",
+      "Do not implement cost allocation 10-FIN consumer (T-011).",
+      "Do not implement IST UI (handled by 05-WH or separate task scope)."
+    ],
+    "dependencies": [
+      "T-002"
+    ],
+    "cross_module_dependencies": [
+      {
+        "module": "05-warehouse",
+        "task_id": "transfer_orders base",
+        "reason": "transfer_orders table is owned by 05-WH; this ALTER extends it for inter-site D-MS-3."
+      },
+      {
+        "module": "00-foundation",
+        "task_id": "T-125",
+        "reason": "Cross-mod dep to 00-foundation T-125 declared (withOrgContext + app.current_org_id() per F11 rule). withSiteContext composes on top of T-125; all site-scoped tasks must carry this cross-module dep."
+      }
+    ],
+    "parallel_safe_with": [
+      "T-012"
+    ],
+    "acceptance_criteria": [
+      "Given migration 0046 applied, when \\\\d transfer_orders inspected, then all 9 new cols present + cost_allocation_method CHECK constraint with 4 allowed values + DEFAULT 'receiver'.",
+      "Given an insert with cost_allocation_method='unknown', when committed, then DB raises check_violation; AND Given an insert with from_site_id pointing to a non-existent sites.id, when committed, then DB raises foreign_key_violation.",
+      "Given idx_to_org_site checked via pg_indexes, when listed, then composite (org_id, site_id) index exists.",
+      "Given an insert with cost_allocation_method omitted, when committed, then row has cost_allocation_method='receiver' (DEFAULT applied)."
+    ],
+    "test_strategy": [
+      "RED: integration test asserting CHECK + FK + DEFAULT + composite index presence before migration applied.",
+      "Run 'pnpm --filter @monopilot/db test:integration -- transfer-orders-inter-site'."
+    ],
+    "risk_red_lines": [
+      "Do not drop or rename existing transfer_orders columns \u2014 additive ALTER only.",
+      "Do not NOT NULL from_site_id/to_site_id \u2014 legacy same-site TOs need NULL (V-MS-12).",
+      "Do not DB-enforce shipped_at < actual_arrival_at \u2014 back-dated corrections allowed.",
+      "Do not skip CONCURRENTLY on composite index.",
+      "Do not couple to site_id activation (T-030 owns)."
+    ],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review",
+      "systematic-debugging"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": false
+  }
+}

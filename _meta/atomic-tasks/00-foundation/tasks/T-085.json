@@ -1,0 +1,80 @@
+{
+  "title": "T-085 — dept_column_drafts partial unique (org_id, dept_id, column_key) WHERE status='draft' (FT-025)",
+  "prompt": "# T-085 — dept_column_drafts partial unique (org_id, dept_id, column_key) WHERE status='draft' (FT-025)\n\nPRD: `docs/prd/00-FOUNDATION-PRD.md` — sections: §6\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`\nOriginal carry-forward ID: **FT-025** (from `_meta/audits/2026-05-07-foundation-final-carry-forward-backlog.md`)\nSeverity: **P2** (S effort)\n\n## Goal\nAdd partial unique index restricted to status='draft' rows.\n\n## Implementation contract\n1. Migration 033 CREATE UNIQUE INDEX dept_column_drafts_active_draft_uq ON dept_column_drafts (org_id, dept_id, column_key) WHERE status = 'draft'.\n2. Test inserts two drafts with same triple → second raises SQLSTATE 23505.\n3. Test inserts one draft + one approved with same triple → both succeed.\n\n## Files (scope)\n- packages/db/migrations/033-dept-column-drafts-unique.sql [create]\n- packages/db/__tests__/dept-column-drafts-unique.test.ts [create]\n\n## Acceptance criteria\n1. Given migration 033 applied, when two drafts with the same (org_id, dept_id, column_key) are inserted, then the second raises SQLSTATE 23505.\n2. Given one draft and one approved (or rejected) with the same triple, when inserted, then both succeed.\n\n## Test strategy\n- RED: write dept-column-drafts-unique.test.ts before migration.\n- Pin SQLSTATE 23505.\n- Run `pnpm --filter @monopilot/db migrate && pnpm --filter @monopilot/db test dept-column-drafts-unique`.\n\n## Risk red lines\n- Do not make the index non-partial (would break post-draft rows).\n- Do not change column_key uniqueness semantics elsewhere.\n\n## Closeout evidence\nProvide: changed_files, test_commands_and_results, acceptance_criteria_status (per AC), deviations_from_prd, git_status. Use the test-driven-development skill (RED-first) and requesting-code-review at GREEN.",
+  "labels": [
+    "prd",
+    "data",
+    "wave-d-carry-forward",
+    "wave-d-followup",
+    "constraints",
+    "T1-schema"
+  ],
+  "priority": 50,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-085",
+    "source_prd": "docs/prd/00-FOUNDATION-PRD.md",
+    "prd_refs": [
+      "§6"
+    ],
+    "original_carry_forward_id": "FT-025",
+    "category": "data",
+    "subcategory": "constraints",
+    "task_type": "T1-schema",
+    "parent_feature": "00-FOUNDATION-d",
+    "context_budget": "50k",
+    "estimated_effort": "1-4h",
+    "description": "Add partial unique index on dept_column_drafts (org_id, dept_id, column_key) WHERE status='draft' to prevent duplicate drafts.",
+    "details": "T-036 left dept_column_drafts open to duplicate (org_id, dept_id, column_key) draft rows. Add the partial unique to enforce at most one active draft per key.",
+    "scope_files": [
+      "packages/db/migrations/033-dept-column-drafts-unique.sql [create]",
+      "packages/db/__tests__/dept-column-drafts-unique.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not refactor dept_column_drafts schema beyond the index."
+    ],
+    "dependencies": [],
+    "parallel_safe_with": [],
+    "acceptance_criteria": [
+      "Given migration 033 applied, when two drafts with the same (org_id, dept_id, column_key) are inserted, then the second raises SQLSTATE 23505.",
+      "Given one draft and one approved (or rejected) with the same triple, when inserted, then both succeed."
+    ],
+    "test_strategy": [
+      "RED: write dept-column-drafts-unique.test.ts before migration.",
+      "Pin SQLSTATE 23505.",
+      "Run `pnpm --filter @monopilot/db migrate && pnpm --filter @monopilot/db test dept-column-drafts-unique`."
+    ],
+    "risk_red_lines": [
+      "Do not make the index non-partial (would break post-draft rows).",
+      "Do not change column_key uniqueness semantics elsewhere."
+    ],
+    "skills": [
+      "test-driven-development",
+      "systematic-debugging",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

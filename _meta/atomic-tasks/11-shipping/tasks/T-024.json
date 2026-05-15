@@ -1,0 +1,111 @@
+{
+  "title": "T-024 — UI: documents_hub_page + packing_slip_preview + bol_preview + modals (SHIP-020/021/025) (11-shipping-f)",
+  "prompt": "# T-024 — Documents Hub UI\n\nPRD: docs/prd/11-SHIPPING-PRD.md §15.4 SHIP-020 Packing Slip Preview, §15.4 SHIP-021 BOL Preview & Sign-off, §15.4 SHIP-025 Documents Hub, §13.5\nUX: prototypes/design/11-SHIPPING-UX.md §3 SHIP-020/021\nPrototypes:\n- prototypes/design/Monopilot Design System/shipping/doc-screens.jsx:4-104 (documents_hub_page)\n- prototypes/design/Monopilot Design System/shipping/doc-screens.jsx:107-215 (packing_slip_preview_page)\n- prototypes/design/Monopilot Design System/shipping/doc-screens.jsx:217-308 (bol_preview_page)\n- prototypes/design/Monopilot Design System/shipping/modals.jsx:741-757 (packing_slip_regen_modal)\n- prototypes/design/Monopilot Design System/shipping/modals.jsx:759-790 (bol_sign_upload_modal)\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nServer Component pages for documents hub + packing slip preview + BOL preview/sign + 2 modals.\n\n## Implementation contract\n1. `/(shipping)/documents/page.tsx` — documents_hub_page (doc-screens.jsx:4-104) — tabbed list (Packing Slips / BOLs / Signed BOLs) with status filter, search, and quick-actions per row.\n2. `/(shipping)/documents/packing-slip/[shipmentId]/page.tsx` — packing_slip_preview_page (107-215) — server-rendered preview from generated PDF + Regenerate button + Download button.\n3. `/(shipping)/documents/bol/[shipmentId]/page.tsx` — bol_preview_page (217-308) — preview + Sign-off CTA (opens bol_sign_upload_modal) + Download.\n4. Modals:\n   - `packing-slip-regen-modal.tsx` (modals.jsx:741-757) — confirms regen reason; calls T-023 regeneratePackingSlip.\n   - `bol-sign-upload-modal.tsx` (modals.jsx:759-790) — file upload (PDF/JPG/PNG ≤10 MB) + driver_name + signature_date fields; optional PIN field (P2 e-sign); calls T-023 uploadSignedBOL.\n5. Permission: `ship.pack.close` for regen; `ship.bol.sign` for upload; `ship.dashboard.view` for read.\n6. BL-SHIP-10 fix: D365 DLQ dashboard link with event preview inline (consumer of T-029 DLQ).\n7. Four states + i18n `shipping.docs.*`.\n\n## Prototype parity\nVerify against doc-screens.jsx:4-104 / :107-215 / :217-308 and modals.jsx:741-757 / :759-790. Do not paste JSX wholesale.\n\n## Files\n- apps/web/app/(shipping)/documents/page.tsx [create]\n- apps/web/app/(shipping)/documents/_components/documents-hub-tabs.tsx [create]\n- apps/web/app/(shipping)/documents/packing-slip/[shipmentId]/page.tsx [create]\n- apps/web/app/(shipping)/documents/bol/[shipmentId]/page.tsx [create]\n- apps/web/app/(shipping)/_modals/packing-slip-regen-modal.tsx [create]\n- apps/web/app/(shipping)/_modals/bol-sign-upload-modal.tsx [create]\n- apps/web/app/(shipping)/documents/__tests__/documents-hub-tabs.test.tsx [create]\n- apps/web/messages/en/shipping.json [modify]\n- apps/web/messages/pl/shipping.json [modify]\n- prototypes/design/Monopilot Design System/shipping/doc-screens.jsx [ref]\n- prototypes/design/Monopilot Design System/shipping/modals.jsx [ref]\n\n## Acceptance criteria\n1. Given documents_hub_page renders, when compared to doc-screens.jsx:4-104, then tab list + filter row + quick-actions match — RTL + Playwright screenshot.\n2. Given packing_slip_preview_page renders for a shipment with generated PDF, when compared to doc-screens.jsx:107-215, then preview viewer + Regenerate + Download buttons match.\n3. Given bol-sign-upload-modal submits an >10MB file, when client validation runs, then it shows a warning and disables submit (server also re-validates).\n4. Given user lacks ship.bol.sign, when bol_preview_page renders, then Sign-off CTA is hidden.\n5. Given a row has a D365 DLQ entry, when documents_hub_page renders, then a clickable DLQ chip appears with inline event preview (BL-SHIP-10 fix).\n6. UI closeout includes Playwright trace + screenshots per UI-PROTOTYPE-PARITY-POLICY; Playwright fallback documented if unavailable.\n\n## Test strategy\n- RED: RTL asserting parity + tab routing + file-size validation + permission gate + DLQ chip + four states.\n- Run `pnpm --filter @monopilot/web vitest run documents-hub-tabs.test.tsx`.\n- Playwright `apps/web/e2e/shipping-documents-hub.spec.ts`.\n\n## Risk red lines\n- Do not import @radix-ui/react-dialog outside packages/ui.\n- Do not paste prototype JSX verbatim.\n- Do not perpetuate BL-SHIP-10.\n- Do not allow Sign-off CTA without ship.bol.sign.\n- Do not implement multi-language dropdown (P2 per BL-SHIP-12).\n- Do not regress accessibility (axe).\n\n## BRCGS audit trail\nBOL and POD document uploads store SHA-256 hash of the file + retention_until = uploaded_at + 7 years (BRCGS Issue 9 §3.5 / §14.4). Do not allow truncation.\n",
+  "labels": [
+    "prd",
+    "ui",
+    "ship-025",
+    "T3-ui"
+  ],
+  "priority": 70,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-024",
+    "source_prd": "docs/prd/11-SHIPPING-PRD.md",
+    "prd_refs": [
+      "§15.4 SHIP-020",
+      "§15.4 SHIP-021",
+      "§15.4 SHIP-025",
+      "§13.5"
+    ],
+    "category": "ui",
+    "subcategory": "documents-hub",
+    "task_type": "T3-ui",
+    "parent_feature": "11-shipping-f",
+    "context_budget": "55k",
+    "estimated_effort": "4-5h",
+    "description": "Documents hub + packing slip preview + BOL preview/sign UI + 2 modals + BL-SHIP-10 DLQ inline preview.",
+    "details": "PDF preview via react-pdf viewer or iframe. Server-side file size re-validation. Multi-language dropdown disabled (P2).",
+    "scope_files": [
+      "apps/web/app/(shipping)/documents/page.tsx [create]",
+      "apps/web/app/(shipping)/documents/_components/documents-hub-tabs.tsx [create]",
+      "apps/web/app/(shipping)/documents/packing-slip/[shipmentId]/page.tsx [create]",
+      "apps/web/app/(shipping)/documents/bol/[shipmentId]/page.tsx [create]",
+      "apps/web/app/(shipping)/_modals/packing-slip-regen-modal.tsx [create]",
+      "apps/web/app/(shipping)/_modals/bol-sign-upload-modal.tsx [create]",
+      "apps/web/app/(shipping)/documents/__tests__/documents-hub-tabs.test.tsx [create]",
+      "apps/web/messages/en/shipping.json [modify]",
+      "apps/web/messages/pl/shipping.json [modify]",
+      "prototypes/design/Monopilot Design System/shipping/doc-screens.jsx [ref]",
+      "prototypes/design/Monopilot Design System/shipping/modals.jsx [ref]"
+    ],
+    "out_of_scope": [
+      "Do not implement Server Actions (T-023).",
+      "Do not implement multi-language packing slip dropdown."
+    ],
+    "dependencies": [
+      "T-023",
+      "T-031"
+    ],
+    "parallel_safe_with": [
+      "T-021",
+      "T-022",
+      "T-025"
+    ],
+    "cross_module_dependencies": [
+      "00-foundation/T-123 (Playwright)",
+      "00-foundation/T-124 (@monopilot/e-sign for PIN)"
+    ],
+    "acceptance_criteria": [
+      "Given documents_hub_page renders, when compared to prototypes/design/Monopilot Design System/shipping/doc-screens.jsx:4-104, then tab list + filter row + quick-actions match prototype (parity checklist); AND given packing_slip_preview_page renders, when compared to prototypes/design/Monopilot Design System/shipping/doc-screens.jsx:107-215, then preview viewer + Regenerate + Download match.",
+      "Given bol-sign-upload-modal submits >10MB file, when client validation runs, then warning shown and submit disabled (server-side FileTooLargeError also enforced).",
+      "Given user lacks ship.bol.sign, when bol_preview_page renders, then Sign-off CTA hidden; AND given a row has D365 DLQ entry, when documents_hub_page renders, then clickable DLQ chip with inline preview appears; AND BOL/POD records store SHA-256 hash + retention_until = uploaded_at + 7y (BRCGS §3.5).",
+      "UI closeout includes Playwright trace + screenshots per UI-PROTOTYPE-PARITY-POLICY; Playwright fallback documented if unavailable."
+    ],
+    "test_strategy": [
+      "RED: RTL parity + tab routing + file-size validation + permission gate + DLQ chip + four states.",
+      "Run `pnpm --filter @monopilot/web vitest run documents-hub-tabs.test.tsx`.",
+      "Playwright apps/web/e2e/shipping-documents-hub.spec.ts."
+    ],
+    "risk_red_lines": [
+      "Do not import @radix-ui/react-dialog outside packages/ui.",
+      "Do not paste prototype JSX verbatim.",
+      "Do not perpetuate BL-SHIP-10.",
+      "Do not allow Sign-off CTA without ship.bol.sign.",
+      "Do not implement multi-language dropdown.",
+      "Do not regress accessibility.",
+      "POD audit trail uses SHA-256 hash + 7-year retention (BRCGS Issue 9 §3.5) — do not allow truncation or premature deletion of signed BOL/POD records."
+    ],
+    "skills": [
+      "test-driven-development",
+      "frontend-design",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": true,
+    "prototype_index_entry": "documents_hub_page,packing_slip_preview_page,bol_preview_page,packing_slip_regen_modal,bol_sign_upload_modal",
+    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md"
+  }
+}

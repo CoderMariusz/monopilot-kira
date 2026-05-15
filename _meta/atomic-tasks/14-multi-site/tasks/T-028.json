@@ -1,0 +1,107 @@
+{
+  "title": "T-028 \u2014 MS-001 Site Overview dashboard page (ms_dashboard) \u00a710.1 MS-001",
+  "prompt": "# T-028 \u2014 MS-001 Site Overview dashboard page\n\nPRD: docs/prd/14-MULTI-SITE-PRD.md \u00a710.1 MS-001, \u00a710C MS-001\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\nPrototype: prototypes/design/Monopilot Design System/multi-site/dashboard.jsx:6-227 (ms_dashboard)\nTranslation notes: _meta/prototype-labels/translation-notes-multi-site.md \u00a7ms_dashboard (BL-MS-01, BL-MS-06)\n\n## Goal\nServer Component page /(multi-site)/dashboard rendering 5-card KPI strip + collapsible network tree + active transfers feed + replication health mini-panel + site status widget. SWR 60s refresh on client.\n\n## Implementation contract\n1. apps/web/app/(multi-site)/dashboard/page.tsx (RSC) \u2014 parallel queries: cross_site_summary MV (T-027), active TOs (transfer_orders WHERE state IN ('shipped','in_transit')), replication_jobs counts by status, sites + buildings + lines joined for tree.\n2. apps/web/app/(multi-site)/dashboard/_components/dashboard-client.tsx ('use client') \u2014 SWR refreshInterval=60000.\n3. Network tree: shadcn Collapsible per node. Map View: placeholder stub per BL-MS-01 (library decision pending \u2014 explicit comment).\n4. KPI cards role-gated: restricted KPI values omitted from server response (not just hidden client-side) for non-admin.\n5. Alert strip with dismiss persistence via dismissAlert Server Action writing user_alert_dismissals.\n6. Tests: RTL parity + role-gated KPI omission + SWR 60s + tree collapse/expand + BL-MS-01 placeholder rendering + dismiss persistence.\n\n## Files\n- apps/web/app/(multi-site)/dashboard/page.tsx [create]\n- apps/web/app/(multi-site)/dashboard/_components/dashboard-client.tsx [create]\n- apps/web/app/(multi-site)/dashboard/_components/kpi-strip.tsx [create]\n- apps/web/app/(multi-site)/dashboard/_components/site-tree.tsx [create]\n- apps/web/app/(multi-site)/dashboard/_components/active-transfers-feed.tsx [create]\n- apps/web/app/(multi-site)/dashboard/_actions/dismiss-alert.ts [create]\n- apps/web/app/(multi-site)/dashboard/_components/__tests__/dashboard-client.test.tsx [create]\n- prototypes/design/Monopilot Design System/multi-site/dashboard.jsx [ref]\n\n## Acceptance criteria\n<!-- AC count consolidated from 7\u21924 by Fixer F14a 2026-05-14 (no coverage lost) -->\n1. Given page renders, when compared to dashboard.jsx:6-227 (ms_dashboard), then 5-KPI strip + network tree + active transfers feed + replication health panel + site status widget all match \u2014 RTL parity + Playwright trace.\n2. Given user role=warehouse_operator and KPI inventory_value is restricted, when page renders, then the value is absent from the server response (not just CSS hidden) and the card shows 'Restricted' placeholder.\n3. Given SWR loop is mounted for 61s, when network log inspected, then a /api/dashboard/multi-site-summary refresh fires at ~60s.\n4. Given alert is dismissed via dismissAlert action, when page reloads next session, then that alert is not shown again (persisted in user_alert_dismissals).\n5. Given the Map View card renders, when inspected, then it shows the BL-MS-01 placeholder (text 'Map view pending library decision') \u2014 no map library imported.\n6. Given the page is in withSiteContext(siteId=null) for super_admin, when KPI cards render, then aggregate across all sites is shown; given withSiteContext(siteId=X), only site_X KPIs appear.\n\n## Test strategy\n- RED: RTL parity + role-gated KPI omission + 60s SWR + dismiss persistence + BL-MS-01 placeholder + super_admin aggregate vs single-site before page exists.\n- Run 'pnpm --filter @monopilot/web vitest run dashboard-client' + Playwright dashboard.spec.ts.\n\n## Prototype parity\nReference prototype: prototypes/design/Monopilot Design System/multi-site/dashboard.jsx:6-227 (ms_dashboard).\nImplement matching the canonical layout 1:1 per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`. Capture RTL parity snapshot + Playwright trace as closeout evidence.\n\n## Risk red lines\n- Do not paste prototype JSX wholesale.\n- Do not render restricted KPI values from server response \u2014 server omits them based on role.\n- Do not implement map library (BL-MS-01 placeholder per Auditor A status note + translation-notes).\n- Do not skip SWR 60s refreshInterval \u2014 UX contract.\n- Do not bypass cross_site_summary MV (T-027) \u2014 direct table queries here would re-implement the aggregation.",
+  "labels": [
+    "prd",
+    "ui",
+    "dashboard",
+    "T3-ui"
+  ],
+  "priority": 80,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-028",
+    "source_prd": "docs/prd/14-MULTI-SITE-PRD.md",
+    "prd_refs": [
+      "\u00a710.1 MS-001",
+      "\u00a710C MS-001"
+    ],
+    "category": "ui",
+    "subcategory": "site-overview-dashboard",
+    "task_type": "T3-ui",
+    "parent_feature": "14-MULTI-SITE-f cross-site dashboards",
+    "context_budget": "50k",
+    "estimated_effort": "2-3h",
+    "description": "Server Component dashboard page reading from cross_site_summary MV (T-027) \u2014 KPI strip + site tree + active transfers feed + replication health \u2014 60s SWR refresh + role-gated KPIs + BL-MS-01 map placeholder.",
+    "details": "Server Component dashboard page reading from cross_site_summary MV (T-027) \u2014 KPI strip + site tree + active transfers feed + replication health \u2014 60s SWR refresh + role-gated KPIs + BL-MS-01 map placeholder. Scope: Server Component page /(multi-site)/dashboard rendering 5-card KPI strip + collapsible network tree + active transfers feed + replication health mini-panel + site status widget. Touches: apps/web/app/(multi-site)/dashboard/page.tsx, apps/web/app/(multi-site)/dashboard/_components/dashboard-client.tsx, apps/web/app/(multi-site)/dashboard/_components/kpi-strip.tsx, apps/web/app/(multi-site)/dashboard/_components/site-tree.tsx. Constraints: 1. apps/web/app/(multi-site)/dashboard/page.tsx (RSC) \u2014 parallel queries: cross_site_summary MV (T-027), active TOs (transfer_orders WHERE state IN ('shipped','in_transit')), replication_jobs counts by status, sites + buildings + lines joined for tree. 2. apps/web/app/(multi-site)/dashboard/_components/dashboard-client.tsx ('use client') \u2014 SWR refr. Distinguished from sibling 14-multi-site tasks by its narrow site-overview-dashboard focus against PRD \u00a710.1 MS-001, \u00a710C MS-001. AC count consolidated from 7\u21924 by Fixer F14a 2026-05-14 (no coverage lost)",
+    "scope_files": [
+      "apps/web/app/(multi-site)/dashboard/page.tsx [create]",
+      "apps/web/app/(multi-site)/dashboard/_components/dashboard-client.tsx [create]",
+      "apps/web/app/(multi-site)/dashboard/_components/kpi-strip.tsx [create]",
+      "apps/web/app/(multi-site)/dashboard/_components/site-tree.tsx [create]",
+      "apps/web/app/(multi-site)/dashboard/_components/active-transfers-feed.tsx [create]",
+      "apps/web/app/(multi-site)/dashboard/_actions/dismiss-alert.ts [create]",
+      "apps/web/app/(multi-site)/dashboard/_components/__tests__/dashboard-client.test.tsx [create]",
+      "prototypes/design/Monopilot Design System/multi-site/dashboard.jsx [modify]"
+    ],
+    "out_of_scope": [
+      "Do not implement IST Tracker dashboard here (T-029).",
+      "Do not implement Map library (BL-MS-01 deferred).",
+      "Do not implement heartbeat pinger (BL-MS-06 is P2)."
+    ],
+    "dependencies": [
+      "T-027",
+      "T-020"
+    ],
+    "cross_module_dependencies": [
+      {
+        "module": "12-reporting",
+        "task_id": "dashboards_catalog",
+        "reason": "Registers MS-001 in dashboards_catalog with required_role."
+      }
+    ],
+    "parallel_safe_with": [
+      "T-029"
+    ],
+    "acceptance_criteria": [
+      "Given page renders, when compared to prototypes/design/Monopilot Design System/multi-site/dashboard.jsx:6-227, then 5-KPI strip + tree + transfers feed + replication panel + status widget match \u2014 RTL parity + Playwright trace; AND given user role=warehouse_operator when page renders then restricted KPI absent.",
+      "Given SWR loop mounted 61s, when network log inspected, then refresh fired at ~60s; AND given alert dismissed when page reloads next session then alert not shown.",
+      "Given Map View card renders, when inspected, then BL-MS-01 placeholder text 'Map view pending library decision' \u2014 no map library imported; AND given super_admin (siteId=null) when KPI cards render then aggregate across all sites.",
+      "Given user role=warehouse_operator and KPI inventory_value restricted, when page renders, then value absent from server response (not CSS-hidden) + card shows 'Restricted' placeholder."
+    ],
+    "test_strategy": [
+      "RED: RTL parity + role-gated KPI omission + 60s SWR + dismiss persistence + BL-MS-01 placeholder + super_admin aggregate vs single-site before page exists.",
+      "Run 'pnpm --filter @monopilot/web vitest run dashboard-client' + Playwright dashboard.spec.ts.",
+      "For UI parity, capture screenshots/artifacts and Playwright trace/video where applicable; attach artifact paths in closeout."
+    ],
+    "risk_red_lines": [
+      "Do not paste prototype JSX wholesale.",
+      "Do not render restricted KPI values from server \u2014 omit server-side.",
+      "Do not implement map library (BL-MS-01 placeholder).",
+      "Do not skip SWR 60s.",
+      "Do not bypass cross_site_summary MV."
+    ],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review",
+      "frontend-design"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status",
+        "screenshot_and_playwright_trace_evidence"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": true,
+    "prototype_index_entry": "ms_dashboard",
+    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md"
+  }
+}

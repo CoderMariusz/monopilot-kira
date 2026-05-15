@@ -1,0 +1,76 @@
+{
+  "title": "T-072 — shouldFail=true click-driven error-transition test in patterns.test.tsx (FT-012)",
+  "prompt": "# T-072 — shouldFail=true click-driven error-transition test in patterns.test.tsx (FT-012)\n\nPRD: `docs/prd/00-FOUNDATION-PRD.md` — sections: §5.y\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`\nOriginal carry-forward ID: **FT-012** (from `_meta/audits/2026-05-07-foundation-final-carry-forward-backlog.md`)\nSeverity: **P3** (XS effort)\n\n## Goal\nExtend patterns.test.tsx with a click-driven shouldFail=true scenario asserting the error transition.\n\n## Implementation contract\n1. Add a new `it('transitions to error state when shouldFail=true', ...)` block.\n2. Use userEvent.click on the submit button.\n3. Assert the error banner is visible and submit button re-enables for retry.\n\n## Files (scope)\n- packages/ui/src/__tests__/patterns.test.tsx [modify]\n\n## Acceptance criteria\n1. Given the pattern fixture has shouldFail=true, when userEvent.click submits, then the error banner is visible.\n2. Given the error banner is visible, when the user clicks submit again, then a retry attempt is dispatched.\n\n## Test strategy\n- RED: add the new it() block asserting error transition first; it must fail.\n- Run `pnpm --filter @monopilot/ui test patterns`.\n\n## Risk red lines\n- Do not change the pattern implementation — test-only.\n\n## Closeout evidence\nProvide: changed_files, test_commands_and_results, acceptance_criteria_status (per AC), deviations_from_prd, git_status. Use the test-driven-development skill (RED-first) and requesting-code-review at GREEN.",
+  "labels": [
+    "prd",
+    "ui",
+    "wave-d-carry-forward",
+    "test-debt",
+    "T4-wiring-test"
+  ],
+  "priority": 70,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-072",
+    "source_prd": "docs/prd/00-FOUNDATION-PRD.md",
+    "prd_refs": [
+      "§5.y"
+    ],
+    "original_carry_forward_id": "FT-012",
+    "category": "ui",
+    "subcategory": "testing",
+    "task_type": "T4-wiring-test",
+    "parent_feature": "00-FOUNDATION-j",
+    "context_budget": "50k",
+    "estimated_effort": "≤1h",
+    "description": "Add a `shouldFail=true` click-driven test in patterns.test.tsx that exercises the MODAL-SCHEMA error state transition.",
+    "details": "Current patterns.test.tsx only covers the happy path. Add one test that clicks a submit button with `shouldFail=true` in the test fixture and asserts the error state renders correctly.",
+    "scope_files": [
+      "packages/ui/src/__tests__/patterns.test.tsx [modify]"
+    ],
+    "out_of_scope": [
+      "Do not add new patterns."
+    ],
+    "dependencies": [],
+    "parallel_safe_with": [],
+    "acceptance_criteria": [
+      "Given the pattern fixture has shouldFail=true, when userEvent.click submits, then the error banner is visible.",
+      "Given the error banner is visible, when the user clicks submit again, then a retry attempt is dispatched."
+    ],
+    "test_strategy": [
+      "RED: add the new it() block asserting error transition first; it must fail.",
+      "Run `pnpm --filter @monopilot/ui test patterns`."
+    ],
+    "risk_red_lines": [
+      "Do not change the pattern implementation — test-only.",
+      "Do not skip the pre-existing tests when refactoring — RED → GREEN must show zero regression on the prior suite"
+    ],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

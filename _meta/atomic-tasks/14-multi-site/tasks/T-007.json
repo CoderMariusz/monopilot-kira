@@ -1,0 +1,113 @@
+{
+  "title": "T-007 \u2014 x-site-id Next.js middleware + JWT claim wiring (\u00a711.4 V-MS-15..17, \u00a76.2)",
+  "prompt": "# T-007 \u2014 x-site-id middleware + JWT claim wiring\n\nPRD: docs/prd/14-MULTI-SITE-PRD.md \u00a76.2 data flow, \u00a711.4 V-MS-15..17\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nWire the request-side surface for site context. Every authenticated request goes through Next.js middleware that determines `site_id`, validates it against `site_user_access`, writes (or refreshes) the `app.session_site_contexts` row, and surfaces V-MS-15/16/17 error codes deterministically.\n\n## Implementation contract\n1. New file `apps/web/middleware.ts` (or append to existing) \u2014 middleware step `siteContextMiddleware` that:\n   - Reads `x-site-id` header; if absent, falls back to httpOnly cookie `ms_site_id` (set by T-020 site switcher).\n   - If user has exactly one active `site_user_access` row \u2192 auto-select that site (V-MS-17), skip header check.\n   - If user is super_admin \u2192 ALL-sites mode allowed (write session_site_contexts row with site_id NULL).\n   - If user has multiple sites and header missing \u2192 return 400 SITE_CONTEXT_REQUIRED (V-MS-15).\n   - If header references a site not in caller's site_user_access \u2192 return 403 SITE_ACCESS_DENIED (V-MS-16); audit log entry written.\n   - On success, upsert `app.session_site_contexts(session_token, user_id, org_id, site_id, created_at=now())` and pass site_id forward via Next.js request headers for Server Components to read. Server Actions downstream use app.current_site_id() (never raw GUC) to read site context from the session.\n2. Helper `apps/web/lib/auth/get-site-context.ts` \u2014 Server Component-side reader returning typed `{ sessionToken, orgId, siteId, userId }` for use in withSiteContext calls.\n3. JWT claim wiring: Supabase session callback adds `accessible_site_ids: string[]` claim from `site_user_access WHERE user_id = $1 AND active = true` to avoid a DB hit per request \u2014 middleware compares header against claim before doing DB upsert.\n4. Tests (vitest): all 5 paths \u2014 auto-select single-site, super_admin ALL, multi-site missing-header 400, multi-site mismatch 403, multi-site valid header 200 + cookie written.\n\n## Files\n- apps/web/middleware.ts [modify]\n- apps/web/lib/auth/site-context-middleware.ts [create]\n- apps/web/lib/auth/get-site-context.ts [create]\n- apps/web/lib/auth/__tests__/site-context-middleware.test.ts [create]\n- apps/web/lib/supabase/server.ts [modify]\n\n## Acceptance criteria\n<!-- AC count consolidated from 6\u21924 by Fixer F14a 2026-05-14 (no coverage lost) -->\n1. Given user has 1 active site_user_access row, when GET /any-page is invoked without x-site-id header, then middleware auto-selects that site (V-MS-17) and writes app.session_site_contexts; response is 200.\n2. Given user has 3 active site_user_access rows and request has no x-site-id and no cookie, when middleware runs, then 400 SITE_CONTEXT_REQUIRED is returned (V-MS-15) and no app.session_site_contexts row is written.\n3. Given user has site_user_access at site_X only, when request includes x-site-id=site_Y, then 403 SITE_ACCESS_DENIED is returned (V-MS-16); audit_log gets a row with action='site_access_denied', actor=user_id, ref=site_Y.\n4. Given super_admin requests without x-site-id, when middleware runs, then app.session_site_contexts row is written with site_id NULL (ALL-sites) and response is 200.\n5. Given a valid request 200, when Server Component calls getSiteContext(), then it returns the same site_id middleware decided (proven by integration test reading from request headers).\n6. Given JWT lacks accessible_site_ids claim, when middleware runs, then it falls back to a single DB read of site_user_access and surfaces claim staleness in observability (T-117).\n\n## Test strategy\n- RED: vitest assert all 5 routing paths (auto-select, super_admin, missing-header 400, mismatch 403, valid 200) + JWT claim fallback path before middleware exists.\n- Run 'pnpm --filter @monopilot/web vitest run apps/web/lib/auth/__tests__/site-context-middleware.test.ts'.\n\n## Risk red lines\n- Do not trust x-site-id without comparing to accessible_site_ids \u2014 header is attacker-controlled.\n- Do not hit the DB on every request to read site_user_access \u2014 use JWT claim primed by Supabase session callback; only fall back on claim-miss.\n- Do not write app.session_site_contexts on the 403 path \u2014 that would silently widen the access window.\n- Do not block super_admin without an explicit allow \u2014 V-MS-07 documented bypass.\n- Do not log session_token in plaintext \u2014 re-use observability redact allowlist (T-117).",
+  "labels": [
+    "prd",
+    "auth",
+    "middleware",
+    "T2-api"
+  ],
+  "priority": 40,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-007",
+    "source_prd": "docs/prd/14-MULTI-SITE-PRD.md",
+    "prd_refs": [
+      "\u00a711.4 V-MS-15",
+      "\u00a711.4 V-MS-16",
+      "\u00a711.4 V-MS-17",
+      "\u00a76.2"
+    ],
+    "category": "auth",
+    "subcategory": "site-context-middleware",
+    "task_type": "T2-api",
+    "parent_feature": "14-MULTI-SITE-a core schema",
+    "context_budget": "50k",
+    "estimated_effort": "2-3h",
+    "description": "Next.js middleware reads x-site-id header (cookie fallback), validates against caller's site_user_access, writes app.session_site_contexts row, and surfaces SITE_CONTEXT_REQUIRED / SITE_ACCESS_DENIED per V-MS-15/16; auto-selects primary_site for single-site users per V-MS-17.",
+    "details": "Next.js middleware reads x-site-id header (cookie fallback), validates against caller's site_user_access, writes app.session_site_contexts row, and surfaces SITE_CONTEXT_REQUIRED / SITE_ACCESS_DENIED per V-MS-15/16; auto-selects primary_site for single-site users per V-MS-17. Scope: Wire the request-side surface for site context. Touches: apps/web/middleware.ts, apps/web/lib/auth/site-context-middleware.ts, apps/web/lib/auth/get-site-context.ts, apps/web/lib/auth/__tests__/site-context-middleware.test.ts. Constraints: 1. New file `apps/web/middleware.ts` (or append to existing) \u2014 middleware step `siteContextMiddleware` that: - Reads `x-site-id` header; if absent, falls back to httpOnly cookie `ms_site_id` (set by T-020 site switcher). - If user has exactly one active `site_user_access` row \u2192 auto-select that site (V-MS-17), skip header check. - If user is super_. Distinguished from sibling 14-multi-site tasks by its narrow site-context-middleware focus against PRD \u00a711.4 V-MS-15, \u00a711.4 V-MS-16, \u00a711.4 V-MS-17, \u00a76.2. AC count consolidated from 6\u21924 by Fixer F14a 2026-05-14 (no coverage lost)",
+    "scope_files": [
+      "apps/web/middleware.ts [modify]",
+      "apps/web/lib/auth/site-context-middleware.ts [create]",
+      "apps/web/lib/auth/get-site-context.ts [create]",
+      "apps/web/lib/auth/__tests__/site-context-middleware.test.ts [create]",
+      "apps/web/lib/supabase/server.ts [modify]"
+    ],
+    "out_of_scope": [
+      "Do not implement the site switcher UI (T-020).",
+      "Do not implement the cookie write side (T-020 site switcher writes the cookie).",
+      "Do not implement audit table \u2014 re-use audit_events from foundation."
+    ],
+    "dependencies": [
+      "T-001",
+      "T-003"
+    ],
+    "cross_module_dependencies": [
+      {
+        "module": "00-foundation",
+        "task_id": "T-011",
+        "reason": "Re-uses Supabase auth session callback established by foundation T-011."
+      },
+      {
+        "module": "00-foundation",
+        "task_id": "T-117",
+        "reason": "Observability redact allowlist; never log session_token plaintext."
+      },
+      {
+        "module": "00-foundation",
+        "task_id": "T-125",
+        "reason": "Cross-mod dep to 00-foundation T-125 declared (withOrgContext + app.current_org_id() per F11 rule). withSiteContext HOF composes on top of T-125; middleware writes session_site_contexts using withSiteContext."
+      }
+    ],
+    "parallel_safe_with": [
+      "T-006"
+    ],
+    "acceptance_criteria": [
+      "Given user has 1 active site_user_access row, when GET /any-page invoked without x-site-id header, then middleware auto-selects that site (V-MS-17) and writes app.session_site_contexts; response is 200.",
+      "Given user has 3 active site_user_access rows and request has no x-site-id and no cookie, when middleware runs, then 400 SITE_CONTEXT_REQUIRED returned (V-MS-15); no session_site_contexts row written; AND given super_admin requests without x-site-id header, when middleware runs, then app.session_site_contexts records NULL (ALL-sites); getSiteContext() returns same site_id in every Server Component for the request.",
+      "Given user has site_user_access at site_X only, when request includes x-site-id=site_Y, then 403 SITE_ACCESS_DENIED returned (V-MS-16); audit_events row written.",
+      "Given JWT lacks accessible_site_ids claim, when middleware runs, then falls back to a single DB read and surfaces claim staleness in observability."
+    ],
+    "test_strategy": [
+      "RED: vitest all 5 routing paths + JWT claim fallback before middleware exists.",
+      "Run 'pnpm --filter @monopilot/web vitest run apps/web/lib/auth/__tests__/site-context-middleware.test.ts'.",
+      "Verify: 403 SITE_ACCESS_DENIED when request includes x-site-id for a site not in user's site_user_access (original AC3); super_admin NULL site context recorded (original AC4)."
+    ],
+    "risk_red_lines": [
+      "Do not trust x-site-id without comparing to accessible_site_ids JWT claim.",
+      "Do not hit DB on every request \u2014 use JWT claim with claim-miss fallback.",
+      "Do not write session_site_contexts on 403 path.",
+      "Do not block super_admin (V-MS-07 documented bypass).",
+      "Do not log session_token plaintext \u2014 re-use T-117 redact allowlist."
+    ],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review",
+      "systematic-debugging"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": false
+  }
+}

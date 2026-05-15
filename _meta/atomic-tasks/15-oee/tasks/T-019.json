@@ -1,0 +1,108 @@
+{
+  "title": "T-019 — UI: P1 modal suite (OEE-M-001/002/006/008/009/012) + annotate downtime Server Action (15-OEE-d)",
+  "prompt": "# T-019 — P1 modal suite\n\nPRD: docs/prd/15-OEE-PRD.md §15.4 modal contracts (OEE-M-001, M-002, M-006, M-008, M-009, M-012), §11 V-OEE-DATA (annotate window)\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\nPrototypes: prototypes/design/Monopilot Design System/oee/modals.jsx:19-93 (annotate_downtime_modal), :95-161 (export_oee_modal), :261-298 (changeover_detail_modal), :328-348 (request_edit_modal), :372-408 (copy_clipboard_modal), :486-509 (auto_refresh_pause_modal)\n\n## Goal\nShip the 6 P1 modals consumed by OEE-001/002/003: Annotate Downtime (OEE-M-001) + Export (OEE-M-002) + Changeover Detail (OEE-M-006) + Request Edit Escalation (OEE-M-008) + Copy Clipboard (OEE-M-009) + Auto-refresh Pause (OEE-M-012). Each matches its prototype 1:1; OEE-M-001 + OEE-M-008 ship a Server Action (annotate downtime; escalate). Heavy admin modals (OEE-M-003/004/005) deferred to T-021.\n\n## Implementation contract\n1. Six modal client components under `apps/web/app/(oee)/_components/modals/`:\n   - `annotate-downtime-modal.tsx` (OEE-M-001) — Dialog + RHF+Zod {notes z.string().min(1).max(500), catOverride z.string()}; submit → Server Action `annotateDowntime` (RBAC `oee.downtime.annotate`); writes outbox event via T-010 pattern after success; computed `editWindowClosed` (event.ended_at + 3600s < now()).\n   - `export-oee-modal.tsx` (OEE-M-002) — Dialog + RHF+Zod {format z.enum(['csv','pdf']), sections z.object({...})}; submit → calls T-013 export action; XLSX option feature-flag gated (`oee.export.xlsx_enabled`).\n   - `changeover-detail-modal.tsx` (OEE-M-006) — Dialog max-w-3xl read-only with summary grid + cross-link Next.js `<Link href=\"/production/changeover/${id}\">`.\n   - `request-edit-modal.tsx` (OEE-M-008) — Dialog dismissible=false + RHF reason min(10); submit → Server Action `escalateDowntimeEdit` (RBAC `oee.downtime.escalate`); writes audit log + in-app notification to nearest oee_supervisor.\n   - `copy-clipboard-modal.tsx` (OEE-M-009) — Dialog with KPI <pre> + client-side useClipboard hook + Sonner toast; data from oee_daily_summary for requested date.\n   - `auto-refresh-pause-modal.tsx` (OEE-M-012) — Dialog max-w-sm + ToggleGroup minutes selector; persists pauseUntil in zustand atom; polling hook in OEE-001/002/003 reads atom.\n2. Server Actions `apps/web/app/(oee)/_actions/annotate-downtime.ts` and `escalate-downtime-edit.ts` per RBAC + outbox + audit log contract; permission strings from T-001 enum.\n3. RTL tests per modal asserting Dialog primitive + parity vs prototype line range + form Zod validation + Server Action gates (permission denied → 403 thrown).\n\n## Files\n- apps/web/app/(oee)/_components/modals/annotate-downtime-modal.tsx [create]\n- apps/web/app/(oee)/_components/modals/export-oee-modal.tsx [create]\n- apps/web/app/(oee)/_components/modals/changeover-detail-modal.tsx [create]\n- apps/web/app/(oee)/_components/modals/request-edit-modal.tsx [create]\n- apps/web/app/(oee)/_components/modals/copy-clipboard-modal.tsx [create]\n- apps/web/app/(oee)/_components/modals/auto-refresh-pause-modal.tsx [create]\n- apps/web/app/(oee)/_actions/annotate-downtime.ts [create]\n- apps/web/app/(oee)/_actions/escalate-downtime-edit.ts [create]\n- apps/web/app/(oee)/_components/modals/__tests__/annotate-downtime-modal.test.tsx [create]\n- apps/web/app/(oee)/_components/modals/__tests__/modal-suite-parity.test.tsx [create]\n- prototypes/design/Monopilot Design System/oee/modals.jsx [ref]\n\n## Acceptance criteria\n1. Given each modal renders, when compared to its prototype line range in prototypes/design/Monopilot Design System/oee/modals.jsx (OEE-M-001 lines 19-93, OEE-M-002 lines 95-161, OEE-M-006 lines 261-298, OEE-M-008 lines 328-348, OEE-M-009 lines 372-408, OEE-M-012 lines 486-509), then primitives, fields, and footer match per RTL parity checklist (Dialog vs window.Modal mapping per translation note: size='sm'→max-w-sm, 'wide'→max-w-3xl).\n2. Given annotate-downtime form submitted with empty notes, when validated, then Zod rejects with min(1) error; given a user without oee.downtime.annotate permission submits valid form, when Server Action runs, then it throws 403 and no outbox row is written.\n3. Given a downtime event with ended_at older than 1h, when annotate-downtime-modal is rendered for it, then editWindowClosed=true and the [Save note] CTA is disabled with `[Request edit →]` shortcut to OEE-M-008.\n4. Given the task is closed out, when reviewers inspect evidence, then UI closeout includes screenshot/artifact + Playwright trace per modal per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`.\n\n## Test strategy\n- RED: RTL test per modal + Server Action permission test asserting all four ACs.\n- Run `pnpm --filter @monopilot/web vitest run app/(oee)/_components/modals && pnpm --filter @monopilot/web vitest run app/(oee)/_actions`.\n\n## Risk red lines\n- Do not import @radix-ui/react-dialog outside packages/ui (§0 ESLint rule).\n- Do not paste prototype JSX verbatim — translate to shadcn Dialog + RHF+Zod.\n- Do not skip RBAC checks in Server Actions — permission strings from T-001 enum (oee.downtime.annotate, oee.downtime.escalate, oee.export.csv/pdf).\n- Do not bypass editWindowClosed computation — V-OEE data integrity gate (translation note).\n- Do not emit outbox events directly from the modal — Server Action writes outbox row consumed by T-010 dispatcher.\n- Do not include OEE-M-003/004/005 here (admin/override/big-loss — T-021).",
+  "labels": [
+    "prd",
+    "ui",
+    "modals",
+    "T3-ui"
+  ],
+  "priority": 95,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-019",
+    "source_prd": "docs/prd/15-OEE-PRD.md",
+    "prd_refs": [
+      "§15.4",
+      "§11"
+    ],
+    "category": "ui",
+    "subcategory": "modal-suite-p1",
+    "task_type": "T3-ui",
+    "parent_feature": "15-OEE-d",
+    "context_budget": "60k",
+    "estimated_effort": "4-6h",
+    "description": "Six P1 modals (OEE-M-001/002/006/008/009/012) + Server Actions annotateDowntime / escalateDowntimeEdit matching modals.jsx prototypes 1:1.",
+    "details": "Closes part of Auditor A OEE-004. Modal-to-shadcn mapping per translation note §3. RBAC strings from T-001 enum. OEE-M-001 + OEE-M-008 require Server Action with outbox + audit log; others are read-only or client-only ergonomics. OEE-M-010 (Compare Weeks, P1.5 BL-OEE-05) deferred — amendment OEE-PRD-AMEND-03.\n\nAdditional acceptance detail: UI closeout includes screenshot/artifact + Playwright trace per modal per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`.",
+    "scope_files": [
+      "apps/web/app/(oee)/_components/modals/annotate-downtime-modal.tsx [create]",
+      "apps/web/app/(oee)/_components/modals/export-oee-modal.tsx [create]",
+      "apps/web/app/(oee)/_components/modals/changeover-detail-modal.tsx [create]",
+      "apps/web/app/(oee)/_components/modals/request-edit-modal.tsx [create]",
+      "apps/web/app/(oee)/_components/modals/copy-clipboard-modal.tsx [create]",
+      "apps/web/app/(oee)/_components/modals/auto-refresh-pause-modal.tsx [create]",
+      "apps/web/app/(oee)/_actions/annotate-downtime.ts [create]",
+      "apps/web/app/(oee)/_actions/escalate-downtime-edit.ts [create]",
+      "apps/web/app/(oee)/_components/modals/__tests__/annotate-downtime-modal.test.tsx [create]",
+      "apps/web/app/(oee)/_components/modals/__tests__/modal-suite-parity.test.tsx [create]",
+      "prototypes/design/Monopilot Design System/oee/modals.jsx [ref]"
+    ],
+    "out_of_scope": [
+      "Admin modals OEE-M-003/004/005 (T-021)",
+      "Compare Weeks OEE-M-010 P1.5 (BL-OEE-05)",
+      "Anomaly Ack OEE-M-011 P2 (T-023 stub)",
+      "Outbox dispatcher (T-010)"
+    ],
+    "dependencies": [
+      "T-001",
+      "T-010",
+      "T-013"
+    ],
+    "parallel_safe_with": [
+      "T-014",
+      "T-015",
+      "T-016",
+      "T-018"
+    ],
+    "acceptance_criteria": [
+      "Given each modal renders, when compared to its prototype line range in prototypes/design/Monopilot Design System/oee/modals.jsx (OEE-M-001 at :19-93, OEE-M-002 at :95-161, OEE-M-006 at :261-298, OEE-M-008 at :328-348, OEE-M-009 at :372-408, OEE-M-012 at :486-509), then primitives/fields/footer match per RTL parity checklist",
+      "Given annotate-downtime form submitted with empty notes, when validated, then Zod rejects with min(1); given a user without oee.downtime.annotate submits valid form, when Server Action runs, then it throws 403 and no outbox row is written",
+      "Given a downtime event with ended_at older than 1h, when annotate-downtime-modal renders, then editWindowClosed=true and [Save note] CTA is disabled with [Request edit →] shortcut to OEE-M-008",
+      "Given the task is closed out, when reviewers inspect evidence, then UI closeout includes screenshot/artifact + Playwright trace per modal per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`"
+    ],
+    "test_strategy": [
+      "RED: RTL test per modal + Server Action permission test asserting four ACs",
+      "Run `pnpm --filter @monopilot/web vitest run app/(oee)/_components/modals` and `pnpm --filter @monopilot/web vitest run app/(oee)/_actions`",
+      "Capture screenshots and Playwright trace for UI parity; attach artifact paths in closeout"
+    ],
+    "risk_red_lines": [
+      "Do not import @radix-ui/react-dialog outside packages/ui",
+      "Do not paste prototype JSX verbatim — translate to shadcn + RHF+Zod",
+      "Do not skip RBAC checks in Server Actions",
+      "Do not bypass editWindowClosed computation",
+      "Do not emit outbox events directly from modal — Server Action writes row",
+      "Do not include OEE-M-003/004/005 (T-021)"
+    ],
+    "skills": [
+      "test-driven-development",
+      "frontend-design",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": true,
+    "prototype_index_entry": "annotate_downtime_modal",
+    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md"
+  }
+}

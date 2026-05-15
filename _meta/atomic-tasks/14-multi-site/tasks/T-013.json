@@ -1,0 +1,99 @@
+{
+  "title": "T-013 \u2014 transport_lane_rate_cards + transport_lane_rate_audit + supersede chain (\u00a710A.2.2, \u00a710A.2.3, V-MS-25/27/28)",
+  "prompt": "# T-013 \u2014 transport_lane_rate_cards + audit + supersede chain\n\nPRD: docs/prd/14-MULTI-SITE-PRD.md \u00a710A.2.2, \u00a710A.2.3, \u00a710A.3.4 (supersede), \u00a711.6 V-MS-25/26/27/28\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nAdd two tables: `transport_lane_rate_cards` (versioned, with approval workflow and supersede chain) and `transport_lane_rate_audit` (full lifecycle audit independent of supersede chain \u2014 required by BRCGS+FSMA 204 \u00a75.2).\n\n## Implementation contract\n1. Migration `packages/db/migrations/0049_lane_rate_cards.sql`:\n   - CREATE TABLE transport_lane_rate_cards per \u00a710A.2.2: id, org_id, lane_id (FK transport_lanes ON DELETE CASCADE), carrier, rate_type CHECK ('per_km','per_shipment','per_kg'), rate_value NUMERIC(12,4) CHECK (>=0), currency CHAR(3), effective_from DATE, effective_to DATE NULL, approval_status CHECK ('pending','active','expired','rejected') DEFAULT 'active', approved_by, approved_at, uploaded_by NOT NULL, uploaded_at, source_file_id, superseded_by (self-ref FK), CHECK (effective_to IS NULL OR effective_to >= effective_from) \u2014 V-MS-25.\n   - V-MS-27 currency: app-layer zod refinement against ISO 4217 list (DB CHECK length=3 + uppercase only).\n   - INDEX idx_rate_cards_lane_active ON transport_lane_rate_cards(lane_id) WHERE approval_status='active' AND (effective_to IS NULL OR effective_to >= CURRENT_DATE).\n   - RLS org-scoped policy.\n2. CREATE TABLE transport_lane_rate_audit per \u00a710A.2.3: id, org_id, rate_card_id FK, action CHECK ('upload','approve','reject','expire','supersede','delete'), acted_by, acted_at, before_values JSONB, after_values JSONB, reason. RLS org-scoped.\n3. SQL function `app.assert_rate_card_chain_acyclic()` invoked nightly via pg_cron \u2014 DFS over superseded_by graph; raise notice if cycle detected (V-MS-28).\n4. Helper `packages/domain/src/transport-lanes/rate-card-supersede.ts` exports `supersedeRateCard(prevId, newRow, actor)` \u2014 transactional: previous row gets effective_to=CURRENT_DATE-1 and superseded_by=new.id; new row inserted; audit row written; supersede chain depth assertion (prevents O(N\u00b2) explosion via early loop detection).\n5. Tests: V-MS-25 effective_to < effective_from rejected; V-MS-27 zod refinement (currency must be ISO-3 uppercase); V-MS-28 chain cycle detected; supersede happy path produces correct chain; rate_audit row exists for every lifecycle action.\n\n## Files\n- packages/db/migrations/0049_lane_rate_cards.sql [create]\n- packages/db/src/schema/transport-lane-rate-cards.ts [create]\n- packages/db/src/schema/transport-lane-rate-cards.zod.ts [create]\n- packages/db/src/schema/transport-lane-rate-audit.ts [create]\n- packages/domain/src/transport-lanes/rate-card-supersede.ts [create]\n- packages/db/__tests__/lane-rate-cards.test.ts [create]\n- packages/domain/__tests__/transport-lanes/rate-card-supersede.test.ts [create]\n\n## Acceptance criteria\n<!-- AC count consolidated from 6\u21924 by Fixer F14a 2026-05-14 (no coverage lost) -->\n1. Given migration 0049 applied, when \\d transport_lane_rate_cards inspected, then all 16 cols + CHECK rate_value >= 0 + CHECK rate_type in 3 values + CHECK approval_status in 4 values + CHECK effective_to >= effective_from + partial index for active rates + RLS+FORCE RLS.\n2. Given insert with effective_from='2026-05-01' effective_to='2026-04-01', when committed, then DB raises check_violation (V-MS-25).\n3. Given zod input currency='usd', when parsed, then refinement rejects (V-MS-27 requires ISO 4217 uppercase 3-letter).\n4. Given a supersede chain rate1 \u2192 rate2 \u2192 rate1 inserted by malicious update, when app.assert_rate_card_chain_acyclic runs, then notice 'cycle detected' raised (V-MS-28).\n5. Given supersedeRateCard(prev, new) called, when tx commits, then prev.effective_to == CURRENT_DATE-1, prev.superseded_by == new.id, new row inserted, and transport_lane_rate_audit has 1 row action='supersede'.\n6. Given rate is uploaded with approval_status='pending', when partial index is queried for active rates, then this row is NOT returned (V-MS-26 enforced at index level for cost suggestion).\n\n## Test strategy\n- RED: integration tests asserting V-MS-25 CHECK + V-MS-27 zod + V-MS-28 cycle detection + supersede helper transactionality + V-MS-26 partial-index exclusion + audit row per action before migration applied.\n- Run 'pnpm --filter @monopilot/db test:integration -- lane-rate-cards' + 'pnpm --filter @monopilot/domain test transport-lanes/rate-card-supersede'.\n\n## Risk red lines\n- Do not allow effective_to < effective_from \u2014 V-MS-25 CHECK at DB.\n- Do not allow lowercase currency \u2014 V-MS-27 zod refinement strict.\n- Do not skip the cycle detection job \u2014 V-MS-28 critical (audit chain integrity).\n- Do not let supersede operation run outside a tx \u2014 partial supersede leaves chain corrupt.\n- Do not include pending rates in the active partial index \u2014 V-MS-26 explicit at index level (defense-in-depth vs query bugs).",
+  "labels": [
+    "prd",
+    "data",
+    "schema",
+    "T1-schema"
+  ],
+  "priority": 60,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-013",
+    "source_prd": "docs/prd/14-MULTI-SITE-PRD.md",
+    "prd_refs": [
+      "\u00a710A.2.2",
+      "\u00a710A.2.3",
+      "\u00a710A.3.4",
+      "\u00a711.6 V-MS-25",
+      "\u00a711.6 V-MS-27",
+      "\u00a711.6 V-MS-28"
+    ],
+    "category": "data",
+    "subcategory": "schema-rate-cards",
+    "task_type": "T1-schema",
+    "parent_feature": "14-MULTI-SITE-c transport lanes",
+    "context_budget": "50k",
+    "estimated_effort": "2-3h",
+    "description": "Create transport_lane_rate_cards (versioned via superseded_by) + transport_lane_rate_audit + supersede chain integrity job \u2014 V-MS-25 (effective_to >= effective_from) + V-MS-27 (ISO 4217 currency) + V-MS-28 (acyclic supersede chain) + V-MS-26 pending-rate exclusion logic primitive.",
+    "details": "Create transport_lane_rate_cards (versioned via superseded_by) + transport_lane_rate_audit + supersede chain integrity job \u2014 V-MS-25 (effective_to >= effective_from) + V-MS-27 (ISO 4217 currency) + V-MS-28 (acyclic supersede chain) + V-MS-26 pending-rate exclusion logic primitive. Scope: Add two tables: `transport_lane_rate_cards` (versioned, with approval workflow and supersede chain) and `transport_lane_rate_audit` (full lifecycle audit independent of supersede chain \u2014 required by BRCGS+FSMA 204 \u00a75. Touches: packages/db/migrations/0049_lane_rate_cards.sql, packages/db/src/schema/transport-lane-rate-cards.ts, packages/db/src/schema/transport-lane-rate-cards.zod.ts, packages/db/src/schema/transport-lane-rate-audit.ts. Constraints: 1. Migration `packages/db/migrations/0049_lane_rate_cards.sql`: - CREATE TABLE transport_lane_rate_cards per \u00a710A.2.2: id, org_id, lane_id (FK transport_lanes ON DELETE CASCADE), carrier, rate_type CHECK ('per_km','per_shipment','per_kg'), rate_value NUMERIC(12,4) CHECK (>=0), currency CHAR(3), effective_from DATE, effective_to DATE NULL, approval_. Distinguished from sibling 14-multi-site tasks by its narrow schema-rate-cards focus against PRD \u00a710A.2.2, \u00a710A.2.3, \u00a710A.3.4, \u00a711.6 V-MS-25. AC count consolidated from 6\u21924 by Fixer F14a 2026-05-14 (no coverage lost)",
+    "scope_files": [
+      "packages/db/migrations/0049_lane_rate_cards.sql [create]",
+      "packages/db/src/schema/transport-lane-rate-cards.ts [create]",
+      "packages/db/src/schema/transport-lane-rate-cards.zod.ts [create]",
+      "packages/db/src/schema/transport-lane-rate-audit.ts [create]",
+      "packages/domain/src/transport-lanes/rate-card-supersede.ts [create]",
+      "packages/db/__tests__/lane-rate-cards.test.ts [create]",
+      "packages/domain/__tests__/transport-lanes/rate-card-supersede.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not implement upload wizard UI (T-016).",
+      "Do not implement lane suggestion API (T-014).",
+      "Do not implement approval workflow UI (T-015 lane detail tab 2 covers)."
+    ],
+    "dependencies": [
+      "T-012"
+    ],
+    "cross_module_dependencies": [],
+    "parallel_safe_with": [
+      "T-014"
+    ],
+    "acceptance_criteria": [
+      "Given migration 0049 applied, when \\\\d transport_lane_rate_cards inspected, then all 16 cols + CHECK rate_value>=0 + CHECK rate_type in 3 vals + CHECK approval_status in 4 vals + CHECK effective_to>=effective_from + partial index for active rates + RLS+FORCE RLS; AND given insert effective_from='2026-05-01' effective_to='2026-04-01' when committed then DB raises check_violation.",
+      "Given zod currency='usd', when parsed, then refinement rejects (V-MS-27 ISO 4217 uppercase); AND given supersede chain rate1\u2192rate2\u2192rate1 when app.assert_rate_card_chain_acyclic runs then notice 'cycle detected'.",
+      "Given supersedeRateCard(prev, new) called, when tx commits, then prev.effective_to=CURRENT_DATE-1, prev.superseded_by=new.id, new row inserted, transport_lane_rate_audit has 1 row action='supersede'.",
+      "Given rate uploaded with approval_status='pending', when partial index queried for active rates, then this row NOT returned (V-MS-26 index-level)."
+    ],
+    "test_strategy": [
+      "RED: V-MS-25 CHECK + V-MS-27 zod + V-MS-28 cycle + supersede tx + V-MS-26 partial-index + audit row per action before migration.",
+      "Run 'pnpm --filter @monopilot/db test:integration -- lane-rate-cards' + 'pnpm --filter @monopilot/domain test transport-lanes/rate-card-supersede'."
+    ],
+    "risk_red_lines": [
+      "Do not allow effective_to < effective_from (V-MS-25).",
+      "Do not allow lowercase currency (V-MS-27 strict).",
+      "Do not skip cycle detection (V-MS-28).",
+      "Do not run supersede outside a tx \u2014 partial supersede corrupts chain.",
+      "Do not include pending rates in active partial index (V-MS-26 defense-in-depth)."
+    ],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review",
+      "systematic-debugging"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": false
+  }
+}

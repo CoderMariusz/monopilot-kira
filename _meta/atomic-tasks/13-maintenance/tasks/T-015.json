@@ -1,0 +1,98 @@
+{
+  "title": "T-015 — Calibration record + cert upload Server Actions + SHA-256 immutability (V-MNT-10..14, §14.3)",
+  "prompt": "# T-015 — Calibration recording + cert upload\n\nPRD: docs/prd/13-MAINTENANCE-PRD.md §11.3 (V-MNT-10..14), §14.3 (21 CFR Part 11), §9.13 calibration_records, §5.1 BRCGS 7y\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nImplement `recordCalibration` and `uploadCalibrationCertificate` Server Actions. Recording emits `calibration.recorded` (or `calibration.failed` if result=FAIL → V-MNT-10 cross-module to 09-quality). Certificate upload computes SHA-256 server-side via `crypto.subtle.digest`, stores hash immutably in `calibration_records.certificate_sha256`, and writes to S3 via presigned URL flow.\n\n## Pre-flight\nVerify T-006 (calibration tables), T-001 (mnt.calib.record / mnt.calib.upload_cert perms), S3 / Supabase Storage primitive from Foundation. Verify Wave1 T-124 e-sign for §14.3 P2 path (cert signer immutability).\n\n## Implementation contract\n1. `apps/web/app/maintenance/_actions/calibration.ts`:\n   - `recordCalibration({instrumentId, mwoId?, calibratedAt, calibratedBy, standardApplied, testPoints[{reference, measured, tolerancePct}], result, nextDueDate, notes})`:\n     - V-MNT-11: nextDueDate > calibratedAt → block `CAL_NEXT_DUE_BEFORE_CALIBRATED`.\n     - V-MNT-14: each test_points[].measured BETWEEN range_min AND range_max from calibration_instruments → warn (not block) with code `CAL_MEASURED_OUT_OF_RANGE`.\n     - Inserts `calibration_records` row; if result='FAIL' emits outbox `calibration.failed` (cross-module to 09-quality lab_results hold candidate per V-MNT-10); else `calibration.recorded`.\n   - `uploadCalibrationCertificate({recordId, fileBuffer, fileName})`:\n     - Computes SHA-256 via `crypto.subtle.digest('SHA-256', fileBuffer)` (Node 20+ Web Crypto).\n     - Uploads to S3 / Supabase Storage at `calibration-certs/<org>/<record>/<sha256>.pdf`.\n     - UPDATE calibration_records SET certificate_file_url=<url>, certificate_sha256=<hash>; the column is set ONCE — subsequent updates blocked by Server Action policy (check `certificate_sha256 IS NULL` precondition).\n2. RBAC: recordCalibration requires `mnt.calib.record`; uploadCalibrationCertificate requires `mnt.calib.upload_cert`.\n3. Vitest covering: V-MNT-11 next_due before calibrated_at blocked; V-MNT-14 out-of-range warn but accepted; result=FAIL emits calibration.failed; SHA-256 hash matches `crypto.createHash('sha256').update(buffer).digest('hex')`; cert immutability — second upload on same recordId fails `CAL_CERT_IMMUTABLE`.\n\n## Files\n- apps/web/app/maintenance/_actions/calibration.ts [create]\n- apps/web/app/maintenance/_actions/calibration.schema.ts [create]\n- apps/web/app/maintenance/_actions/__tests__/calibration.test.ts [create]\n\n## Acceptance criteria\n1. Given recordCalibration with nextDueDate <= calibratedAt, when called, then fails `CAL_NEXT_DUE_BEFORE_CALIBRATED` (V-MNT-11).\n2. Given recordCalibration with a test_point measured > range_max, when called, then succeeds but returns `warnings: ['V-MNT-14: measured out of range for point N']`.\n3. Given recordCalibration with result='FAIL', when settled, then outbox row event_type='calibration.failed' payload includes {instrument_id, result, calibrated_at, next_due_date} (V-MNT-10 cross-module to 09-quality).\n4. Given uploadCalibrationCertificate(fileBuffer), when SHA-256 is computed, then it matches Node `crypto.createHash('sha256').update(buffer).digest('hex')` reference.\n5. Given a record already has certificate_sha256 set, when uploadCalibrationCertificate runs again on the same recordId, then fails `CAL_CERT_IMMUTABLE`.\n\n## Test strategy\n- RED: vitest asserting all five ACs with Testcontainers + S3 mock.\n- Run `pnpm --filter @monopilot/web vitest run apps/web/app/maintenance/_actions/__tests__/calibration.test.ts`.\n\n## Risk red lines\n- Do not compute SHA-256 client-side — server-side only (21 CFR Part 11 evidence chain).\n- Do not allow cert mutation after upload — `CAL_CERT_IMMUTABLE` is BRCGS audit requirement.\n- Do not block on V-MNT-14 — it is warn-only per PRD §11.3 (severity=warn).\n- Do not skip cross-module `calibration.failed` outbox event — V-MNT-10 is a CIG (cross-module integration gap) per Auditor A.\n- Do not store cert outside `org_id` scope — bucket path includes org.",
+  "labels": [
+    "prd",
+    "api",
+    "server-action",
+    "compliance",
+    "T2-api"
+  ],
+  "priority": 60,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-015",
+    "source_prd": "docs/prd/13-MAINTENANCE-PRD.md",
+    "prd_refs": [
+      "§11.3",
+      "§14.3",
+      "§9.13",
+      "§5.1"
+    ],
+    "category": "api",
+    "subcategory": "calibration-actions",
+    "task_type": "T2-api",
+    "parent_feature": "13-MAINTENANCE-e",
+    "context_budget": "45k",
+    "estimated_effort": "3-4h",
+    "description": "recordCalibration + uploadCalibrationCertificate Server Actions with V-MNT-10..14 + SHA-256 immutability + cross-module calibration.failed outbox event.",
+    "details": "BRCGS 7y retention via GENERATED retention_until (T-006). 21 CFR Part 11 SHA-256 immutability per §14.3.",
+    "scope_files": [
+      "apps/web/app/maintenance/_actions/calibration.ts [create]",
+      "apps/web/app/maintenance/_actions/calibration.schema.ts [create]",
+      "apps/web/app/maintenance/_actions/__tests__/calibration.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "21 CFR Part 11 full e-sign (P2)",
+      "09-quality consumer of calibration.failed (09-quality task)",
+      "UI (T-024)",
+      "External accreditation API (P2 stage Z)"
+    ],
+    "dependencies": [
+      "T-001",
+      "T-006",
+      "T-012"
+    ],
+    "parallel_safe_with": [
+      "T-014",
+      "T-016",
+      "T-017"
+    ],
+    "acceptance_criteria": [
+      "Given nextDueDate <= calibratedAt, when recordCalibration called, then fails CAL_NEXT_DUE_BEFORE_CALIBRATED (V-MNT-11); given measured > range_max, then succeeds with warnings array (V-MNT-14 warn-only)",
+      "Given result='FAIL', when settled, then outbox calibration.failed payload includes {instrument_id, result, calibrated_at, next_due_date} (cross-module to 09-quality per V-MNT-10)",
+      "Given uploadCalibrationCertificate(fileBuffer), when SHA-256 computed server-side, then matches Node crypto.createHash reference (21 CFR Part 11 evidence chain)",
+      "Given record already has certificate_sha256 set, when upload re-runs, then fails CAL_CERT_IMMUTABLE (BRCGS immutability requirement)"
+    ],
+    "test_strategy": [
+      "RED: vitest with Testcontainers + S3 mock asserting all five ACs",
+      "Run `pnpm --filter @monopilot/web vitest run apps/web/app/maintenance/_actions/__tests__/calibration.test.ts`"
+    ],
+    "risk_red_lines": [
+      "Do not compute SHA-256 client-side (Part 11 chain)",
+      "Do not allow cert mutation after upload (BRCGS audit)",
+      "Do not block on V-MNT-14 (warn-only)",
+      "Do not skip calibration.failed cross-module event",
+      "Do not store cert outside org_id-scoped bucket path"
+    ],
+    "skills": [
+      "test-driven-development",
+      "systematic-debugging",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": false
+  }
+}

@@ -1,0 +1,99 @@
+{
+  "title": "T-062 — E2E pipeline test: HACCP plan → CCP tick → deviation → auto-NCR → auto-hold + allergen-gate consume-block",
+  "prompt": "# T-062 — E2E HACCP→NCR pipeline + allergen-gate consume-block\n\nPRD: §10.2 ccp_deviation_escalation_v1, §11.5 V-QA-CCP-003, §11.6 V-QA-ALLERGEN-001/002, §12.1 outbox\n\n## Goal\nIntegration test verifying the full 09-e wiring: HACCP plan active → CCP tick out-of-limits → ccp_deviation_escalation_v1 fires → autoCreate NCR draft + auto-hold WO. Separately: allergen-gate active hold blocks any consumption attempt against the affected WO (cross-module 08-PROD WO consume guard).\n\n## Implementation contract\n1. apps/web/__tests__/integration/quality-e-pipeline.test.ts — pnpm-vitest integration test using a clean test DB.\n2. Setup: activate a HACCP plan (T-051), create a biological CCP with limit_min=72 deviation_threshold_seconds=0.\n3. Action 1: monitorCcpTick with measured_value=68 (out-of-limits) AND linked wo_id.\n4. Assert chain: haccp_monitoring_records row with within_limits=false → ccp_deviation_escalation_v1 fires → 1 new ncr_reports row with severity='critical' reference_type='ccp_deviation' reference_id=monitoring_record.id → quality.ncr.created event emitted → 1 quality_holds row created via auto_hold with reason='ccp_deviation_escalation' priority='critical' reference_type='wo' reference_id=wo_id → quality.hold.created event emitted.\n5. Allergen gate test: create an allergen_changeover_validations row first_signed_by=A status='pending_second_sign' atp_pass=false risk_level='high'; assert T-055 signSecondAllergenGate fails with V-QA-ALLERGEN-002 AND the linked WO consumption (via 08-PROD WO consume Server Action stub or 05-WH consume guard) is blocked because v_active_holds view contains the gate-blocked WO (T-064 cross-module contract).\n\n## Files\n- apps/web/__tests__/integration/quality-e-pipeline.test.ts [create]\n- apps/web/__tests__/integration/fixtures/quality-e-pipeline-fixtures.ts [create]\n\n## Acceptance criteria\n1. Given the HACCP plan + biological CCP fixture, when monitorCcpTick(measured_value=68, wo_id=W1) runs, then within 1 transaction the test asserts: haccp_monitoring_records row with within_limits=false exists; 1 ncr_reports row with severity='critical' reference_type='ccp_deviation' exists; quality.ncr.created event row exists in outbox; 1 quality_holds row with reference_type='wo' reference_id=W1 reason='ccp_deviation_escalation' priority='critical' exists; quality.hold.created event row exists\n2. Given an allergen gate with atp_pass=false AND risk_level='high', when T-055 signSecondAllergenGate runs, then it returns 422 error.code='V-QA-ALLERGEN-002' and validation_result is NOT 'approved'\n3. Given the gate above with status='pending_second_sign' on WO=W2 AND a quality_holds row for W2 reference_type='wo' priority='critical' status='open' exists, when 05-WH/08-PROD consume Server Action (T-064 stub) attempts to consume an LP linked to W2, then it returns 409 error.code='QA_HOLD_ACTIVE' citing the WO hold (consumption-gate contract)\n4. Given full pipeline replay (idempotency), when the same CCP tick is replayed with the same monitoring_record_id, then no duplicate NCR or hold rows are created (idempotency keys from T-040+T-041)\n\n## Test strategy (RED first)\n- RED: quality-e-pipeline.test.ts asserting all 4 ACs as integration before code dependencies are wired\n- Run 'pnpm --filter web test integration/quality-e-pipeline'\n\n## Risk red lines\n- Use a clean integration DB (txn-rollback or test schema reset) — never run against demo seed\n- Set app.current_org_id() before any DB write (Wave0 v4.3 RLS contract)\n- Do not skip outbox event assertions (cross-module event contract per audit A §1)\n- WO consume guard test stubs the 05-WH/08-PROD Server Action — the actual consumption gate is owned by 05-WH (T-064 cross-module contract pin in this batch)",
+  "labels": [
+    "prd",
+    "integration",
+    "e2e",
+    "T4-wiring-test"
+  ],
+  "priority": 85,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-062",
+    "source_prd": "docs/prd/09-QUALITY-PRD.md",
+    "prd_refs": [
+      "§10.2",
+      "§11.5",
+      "§11.6",
+      "§12.1"
+    ],
+    "category": "integration",
+    "subcategory": "e2e-haccp-ncr-hold",
+    "task_type": "T4-wiring-test",
+    "parent_feature": "09-QUALITY-e cross-cut",
+    "context_budget": "50k",
+    "estimated_effort": "3-4h",
+    "description": "E2E integration test: HACCP plan → CCP tick out-of-limits → ccp_deviation_escalation_v1 → auto-NCR + auto-hold; allergen-gate ATP fail blocks consumption via v_active_holds.",
+    "details": "Vitest integration test on clean DB. Fixtures: HACCP plan + biological CCP (limit_min=72, threshold_seconds=0). monitorCcpTick(68, wo_id=W1) → assert full chain (haccp_monitoring_records + ncr_reports + quality_holds + outbox events). Allergen gate fixture: pending_second_sign + atp_pass=false + risk_level='high' → signSecondAllergenGate rejects (V-QA-ALLERGEN-002). Cross-module: a quality_holds row on WO blocks the 05-WH/08-PROD consume Server Action (T-064 contract stub). Idempotency: replayed events do not duplicate rows.",
+    "scope_files": [
+      "apps/web/__tests__/integration/quality-e-pipeline.test.ts [create]",
+      "apps/web/__tests__/integration/fixtures/quality-e-pipeline-fixtures.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not implement 05-WH consume guard (T-064 stub)",
+      "Do not modify NCR/hold Server Actions or rule handler",
+      "Do not run against production/demo data"
+    ],
+    "dependencies": [
+      "T-041",
+      "T-051",
+      "T-052",
+      "T-055",
+      "T-064"
+    ],
+    "parallel_safe_with": [],
+    "acceptance_criteria": [
+      "Given HACCP plan + biological CCP fixture, when monitorCcpTick(68, wo_id=W1) runs, then haccp_monitoring_records (within_limits=false) + 1 ncr_reports (severity=critical, reference_type=ccp_deviation) + 1 quality_holds (wo, ccp_deviation_escalation, critical) + outbox events quality.ncr.created + quality.hold.created all exist",
+      "Given allergen gate atp_pass=false risk_level='high', when T-055 signSecondAllergenGate runs, then 422 error.code='V-QA-ALLERGEN-002' and validation_result is not 'approved'",
+      "Given a quality_holds row on WO W2 (reference_type=wo, priority=critical, status=open), when the 05-WH/08-PROD consume Server Action stub attempts consumption of an LP linked to W2, then 409 error.code='QA_HOLD_ACTIVE' citing the WO hold",
+      "Given full pipeline replay with same monitoring_record_id, when ccp_deviation_escalation_v1 fires twice, then no duplicate NCR or hold rows are created (idempotency keys from T-040 + T-041)"
+    ],
+    "test_strategy": [
+      "RED: quality-e-pipeline.test.ts asserting all 4 ACs as integration before code dependencies are wired",
+      "Run 'pnpm --filter web test integration/quality-e-pipeline'"
+    ],
+    "risk_red_lines": [
+      "Use clean integration DB (txn-rollback or test schema reset) — never run against demo seed",
+      "Set app.current_org_id() before any DB write (Wave0 v4.3 RLS)",
+      "Do not skip outbox event assertions (audit A §1 cross-module contract)",
+      "WO consume guard test stubs the 05-WH/08-PROD Server Action (T-064 is the contract pin)"
+    ],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "cross_module_dependencies": [
+      "00-foundation:T-111",
+      "00-foundation:T-112",
+      "05-warehouse:T-005",
+      "08-production:T-003",
+      "09-quality:T-041",
+      "09-quality:T-051",
+      "09-quality:T-052"
+    ]
+  }
+}

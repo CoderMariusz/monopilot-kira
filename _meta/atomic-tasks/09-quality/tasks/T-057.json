@@ -1,0 +1,92 @@
+{
+  "title": "T-057 — Seed: ccp_hazard_classifications reference + sample HACCP plan (P1 onboarding)",
+  "prompt": "# T-057 — Seed CCP hazard taxonomy + sample HACCP plan\n\nPRD: §16.3 reference tables, §7.1 09-e-01, ADR-034\n\n## Goal\nRegister ccp_hazard_classifications reference table (industry-configurable) with 4 baseline hazard types per §6.3 enum + sample HACCP plan with 3 CCPs (1 biological, 1 chemical, 1 physical) seeded into the demo tenant for onboarding verification.\n\n## Implementation contract\n1. Migration 0146 registers reference_tables row code='ccp_hazard_classifications' with schema_json {code,label,severity_default,category,i18n jsonb}. Seeds 4 baseline rows: biological (severity_default=critical), chemical (major), physical (major), allergen (critical).\n2. Migration 0147 seeds a sample HACCP plan for the demo tenant: plan_code='HACCP-DEMO-COOKED-MEAT', 3 CCPs: CCP-01 'Cooking' (biological, min=72, max=NULL, unit='°C'), CCP-02 'Metal Detection' (physical, no numeric limits, observational), CCP-03 'Allergen Cleaning' (allergen, ATP RLU max=10). Plan status='draft' so demo doesn't carry an auto-active plan.\n3. Server helper apps/web/src/server/quality/ccp/hazardClassifications.ts exporting getHazardClassifications(orgId).\n\n## Files\n- packages/db/migrations/0146_ccp_hazard_classifications_reftable.sql [create]\n- packages/db/migrations/0147_haccp_demo_seed.sql [create]\n- apps/web/src/server/quality/ccp/hazardClassifications.ts [create]\n- apps/web/src/server/quality/ccp/__tests__/hazardClassifications.test.ts [create]\n\n## Acceptance criteria\n1. Given migration 0146 applied, when SELECT FROM reference_tables_rows WHERE table_code='ccp_hazard_classifications' runs, then 4 seed rows exist matching the hazard_type CHECK enum in §6.3 (biological, chemical, physical, allergen) with severity_default values\n2. Given migration 0147 applied with the demo tenant, when SELECT from haccp_plans + haccp_ccps for the demo plan runs, then the plan exists with status='draft' and exactly 3 CCPs (biological CCP-01 with limit_min=72, physical CCP-02 observational, allergen CCP-03 with limit_max=10)\n3. Given a multi-tenant test (tenant A and tenant B), when migration 0147 runs, then the demo seed is scoped to the demo tenant only — tenant A and B see 0 haccp_plans (assert via RLS)\n\n## Test strategy (RED first)\n- RED: hazardClassifications.test.ts asserting all 3 ACs before migrations\n- Run 'pnpm --filter db migrate && pnpm --filter web test hazardClassifications'\n\n## Risk red lines\n- Demo seed must be scoped to demo tenant only — multi-tenant isolation required\n- Hazard type values must match §6.3 hazard_type CHECK enum verbatim\n- Default plan status='draft' — never auto-activate (avoid demo data accidentally affecting other tenants' compliance KPIs)",
+  "labels": [
+    "prd",
+    "data",
+    "seed",
+    "T5-seed"
+  ],
+  "priority": 55,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-057",
+    "source_prd": "docs/prd/09-QUALITY-PRD.md",
+    "prd_refs": [
+      "§16.3",
+      "§7.1",
+      "§6.3"
+    ],
+    "category": "data",
+    "subcategory": "seed-haccp",
+    "task_type": "T5-seed",
+    "parent_feature": "09-QUALITY-e HACCP",
+    "context_budget": "25k",
+    "estimated_effort": "1-2h",
+    "description": "ccp_hazard_classifications reference table (4 seeds) + demo HACCP plan with 3 CCPs (biological/physical/allergen) for onboarding verification.",
+    "details": "Migration 0146 registers ccp_hazard_classifications reference table with 4 seed rows (biological/chemical/physical/allergen) matching §6.3 hazard_type CHECK enum verbatim. Migration 0147 seeds a sample HACCP plan + 3 CCPs scoped to the demo tenant only — status='draft' to avoid affecting compliance KPIs. Server helper exposes getHazardClassifications. Multi-tenant isolation verified.",
+    "scope_files": [
+      "packages/db/migrations/0146_ccp_hazard_classifications_reftable.sql [create]",
+      "packages/db/migrations/0147_haccp_demo_seed.sql [create]",
+      "apps/web/src/server/quality/ccp/hazardClassifications.ts [create]",
+      "apps/web/src/server/quality/ccp/__tests__/hazardClassifications.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not seed monitoring records (would inflate KPIs)",
+      "Do not auto-activate the demo plan",
+      "Do not seed plans for non-demo tenants"
+    ],
+    "dependencies": [
+      "T-047"
+    ],
+    "parallel_safe_with": [
+      "T-051",
+      "T-052",
+      "T-053",
+      "T-054",
+      "T-055",
+      "T-056"
+    ],
+    "acceptance_criteria": [
+      "Given migration 0146 applied, when SELECT FROM reference_tables_rows WHERE table_code='ccp_hazard_classifications' runs, then 4 seed rows exist matching §6.3 hazard_type enum (biological/chemical/physical/allergen) with severity_default values",
+      "Given migration 0147 applied with demo tenant, when SELECT from haccp_plans + haccp_ccps for the demo plan runs, then the plan exists with status='draft' and exactly 3 CCPs (biological limit_min=72, physical observational, allergen limit_max=10)",
+      "Given multi-tenant test, when 0127 runs, then demo seed is scoped to demo tenant only — tenants A and B see 0 haccp_plans (RLS isolation)"
+    ],
+    "test_strategy": [
+      "RED: hazardClassifications.test.ts asserting all 3 ACs before migrations",
+      "Run 'pnpm --filter db migrate && pnpm --filter web test hazardClassifications'"
+    ],
+    "risk_red_lines": [
+      "Demo seed scoped to demo tenant only (RLS isolation)",
+      "Hazard type values verbatim per §6.3 CHECK enum",
+      "Plan status='draft' — never auto-activate"
+    ],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

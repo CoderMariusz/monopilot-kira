@@ -1,0 +1,125 @@
+{
+  "title": "T-066 — Add planning-basic permission strings to enum (§3)",
+  "prompt": "# T-066 — Add planning-basic permission strings to enum\n\n## Goal\nAppend a delimited `PLANNING_BASIC` permission group to `packages/rbac/src/permissions.enum.ts` covering the 15 canonical RBAC strings declared by PRD `docs/prd/04-PLANNING-BASIC-PRD.md` (§3). Settings/Auth owns the enum file; this task only contributes a new namespaced section under the `planning.*` prefix. Export `ALL_PLANNING_BASIC_PERMISSIONS` so the ESLint enum-lock guard (02-settings T-130) recognizes the module group.\n\n## Implementation contract\n- File: `packages/rbac/src/permissions.enum.ts` — append entries to `Permission` const object with JSDoc citing the PRD anchor. Do NOT remove or rename any existing string.\n- File: `packages/rbac/src/__tests__/permissions.test.ts` — extend the suite to assert presence, regex `^[a-z_]+\\.[a-z_]+\\.[a-z_]+$`, uniqueness, and `ALL_PLANNING_BASIC_PERMISSIONS` typed `readonly Permission[]` with length === 15.\n- File: `CODEOWNERS` — verify `/packages/rbac/src/permissions.enum.ts @monopilot/architect` line exists; if missing, add it (already present today).\n\n## Permission strings (15)\n- `planning.supplier.create`\n- `planning.supplier.delete`\n- `planning.po.create`\n- `planning.po.approve`\n- `planning.po.close`\n- `planning.to.create`\n- `planning.to.ship`\n- `planning.to.receive`\n- `planning.wo.create`\n- `planning.wo.release`\n- `planning.wo.override`\n- `planning.wo.release_to_warehouse`\n- `planning.dashboard.view`\n- `planning.settings.edit`\n- `planning.d365.so_trigger_run`\n\n## Files in scope\n- `packages/rbac/src/permissions.enum.ts` [modify]\n- `packages/rbac/src/__tests__/permissions.test.ts` [modify]\n- `CODEOWNERS` [modify if missing entry]\n\n## Acceptance criteria (Given-When-Then)\n- AC1 — Given the enum file is imported, when the consumer reads the new keys, then all 15 strings listed above are present exactly once.\n- AC2 — Given each new permission string is matched against regex `^[a-z_]+\\.[a-z_]+\\.[a-z_]+$`, when tested, then every string passes and zero duplicates exist across the union of `Object.values(Permission)`.\n- AC3 — Given the module export, when imported, then `ALL_PLANNING_BASIC_PERMISSIONS` is exported as typed `readonly Permission[]` with length === 15.\n- AC4 — Given `CODEOWNERS` is read, when checked, then `packages/rbac/src/permissions.enum.ts` is architect-only (line `/packages/rbac/src/permissions.enum.ts @monopilot/architect` present).\n\n## Test strategy (RED first, vitest)\n1. Extend `packages/rbac/src/__tests__/permissions.test.ts` with the four ACs above. Run RED:\n   `pnpm --filter @monopilot/web vitest run packages/rbac/src/__tests__/permissions.test.ts`\n   — must fail before any enum change.\n2. Implement minimum changes in `permissions.enum.ts`.\n3. Re-run vitest — must pass.\n4. Run `pnpm typecheck` and `pnpm lint` in the changed package; both must pass.\n\n## Risk red lines\n- Do not weaken the regex `^[a-z_]+\\.[a-z_]+\\.[a-z_]+$` or introduce a 4-segment / matrix permission model.\n- Do not introduce a parallel permission model (no per-module `*PermissionEnum` in another file).\n- Do not remove or rename existing strings (Settings/Foundation strings stay intact).\n- Do not edit permission strings owned by other modules.\n- Do not commit secrets or vault keys.\n\n## Closeout evidence required\n- changed_files (with line counts)\n- exact RED→GREEN test commands and outputs\n- acceptance_criteria_status (one row per AC)\n- deviations_from_prd (or \"none\")\n- git_status\n",
+  "labels": [
+    "prd",
+    "auth",
+    "permissions",
+    "T1-schema",
+    "p0-blocker"
+  ],
+  "priority": 90,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-066",
+    "source_prd": "docs/prd/04-PLANNING-BASIC-PRD.md",
+    "prd_refs": [
+      "§3"
+    ],
+    "category": "auth",
+    "subcategory": "permissions-enum",
+    "task_type": "T1-schema",
+    "parent_feature": "04-planning-basic-rbac-enum-addition",
+    "context_budget": "30k",
+    "estimated_effort": "1-2h",
+    "description": "Add 15 `planning.*` permission strings to packages/rbac/src/permissions.enum.ts and export ALL_PLANNING_BASIC_PERMISSIONS; closes RBAC enum-lock gap flagged in _meta/audits/2026-05-14-prd-vs-tasks-coverage-gaps.md for module 04-planning-basic.",
+    "details": "Strings (count=15): ['planning.supplier.create', 'planning.supplier.delete', 'planning.po.create', 'planning.po.approve', 'planning.po.close', 'planning.to.create', 'planning.to.ship', 'planning.to.receive', 'planning.wo.create', 'planning.wo.release', 'planning.wo.override', 'planning.wo.release_to_warehouse', 'planning.dashboard.view', 'planning.settings.edit', 'planning.d365.so_trigger_run']. Rationale: 15 permission strings from PRD §3 Permission surface lines 130-142. Wildcards `planning.supplier.*` / `planning.po.*` etc. are expanded to explicit verbs per ESLint enum-lock guard contract (no glob keys). Same conventions as 02-settings T-001/T-002: const object with JSDoc per entry citing the PRD anchor, typed `Permission` union via `(typeof Permission)[keyof typeof Permission]`, and `ALL_PLANNING_BASIC_PERMISSIONS` declared `as readonly Permission[]`.",
+    "permission_strings": [
+      "planning.supplier.create",
+      "planning.supplier.delete",
+      "planning.po.create",
+      "planning.po.approve",
+      "planning.po.close",
+      "planning.to.create",
+      "planning.to.ship",
+      "planning.to.receive",
+      "planning.wo.create",
+      "planning.wo.release",
+      "planning.wo.override",
+      "planning.wo.release_to_warehouse",
+      "planning.dashboard.view",
+      "planning.settings.edit",
+      "planning.d365.so_trigger_run"
+    ],
+    "scope_files": [
+      "packages/rbac/src/permissions.enum.ts [modify]",
+      "packages/rbac/src/__tests__/permissions.test.ts [modify]",
+      "CODEOWNERS [modify if missing entry]"
+    ],
+    "out_of_scope": [
+      "Do not introduce a 4-level matrix permission model.",
+      "Do not edit other modules' permission strings.",
+      "Do not move permissions into Reference.RolePermissions table (enum is authoritative; the table is only the role→permission assignment mapping).",
+      "Do not couple enum strings to specific UI components."
+    ],
+    "dependencies": [],
+    "cross_module_dependencies": [
+      {
+        "module": "02-settings",
+        "task_id": "T-001",
+        "reason": "Settings owns the enum file; this task appends a delimited namespaced group following the T-001 pattern."
+      },
+      {
+        "module": "02-settings",
+        "task_id": "T-130",
+        "reason": "ESLint enum-lock guard (`no-direct-permissions-enum-edit`) registered in packages/rbac/.eslintrc.cjs recognises module groups via ALL_<MODULE>_PERMISSIONS exports — this task adds the corresponding ALL_<MODULE>_PERMISSIONS export. (Previously mis-anchored to T-046, which is SET-006 Onboarding Completion; corrected to T-130 per fixer F4.)"
+      }
+    ],
+    "parallel_safe_with": [
+      "01-npd permission-enum addition task",
+      "03-technical permission-enum addition task",
+      "04-planning-basic permission-enum addition task",
+      "05-warehouse permission-enum addition task",
+      "06-scanner-p1 permission-enum addition task",
+      "07-planning-ext permission-enum addition task",
+      "08-production permission-enum addition task",
+      "09-quality permission-enum addition task"
+    ],
+    "acceptance_criteria": [
+      "All 15 permission strings listed in pipeline_inputs.permission_strings are present in packages/rbac/src/permissions.enum.ts, with JSDoc citing the PRD anchor.",
+      "Every new string matches regex ^[a-z_]+\\.[a-z_]+\\.[a-z_]+$ and no duplicates exist across Object.values(Permission); vitest assertion enforces both.",
+      "ALL_PLANNING_BASIC_PERMISSIONS is exported from packages/rbac/src/permissions.enum.ts as `readonly Permission[]` with length === 15; type-check passes.",
+      "CODEOWNERS keeps packages/rbac/src/permissions.enum.ts architect-only (`@monopilot/architect`)."
+    ],
+    "test_strategy": [
+      "RED: extend packages/rbac/src/__tests__/permissions.test.ts with presence + regex + uniqueness + array-length assertions for the 15 new strings. Run `pnpm --filter @monopilot/web vitest run packages/rbac/src/__tests__/permissions.test.ts`; expect failure.",
+      "GREEN: append the strings + ALL_PLANNING_BASIC_PERMISSIONS export; re-run vitest; expect pass.",
+      "Run `pnpm typecheck` and `pnpm lint` after the change; both must pass."
+    ],
+    "risk_red_lines": [
+      "Do not weaken the regex ^[a-z_]+\\.[a-z_]+\\.[a-z_]+$.",
+      "Do not introduce a parallel permission model (no per-module *PermissionEnum file).",
+      "Do not remove or rename existing strings.",
+      "Do not edit permission strings owned by other modules.",
+      "Do not couple enum strings to specific UI components or table rows."
+    ],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": false
+  }
+}

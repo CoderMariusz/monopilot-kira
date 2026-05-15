@@ -1,0 +1,94 @@
+{
+  "title": "T-006 — oee_shift_metrics materialized view + MTBF/MTTR stubs (OEE §9.2)",
+  "prompt": "# T-006 — oee_shift_metrics materialized view\n\nPRD: docs/prd/15-OEE-PRD.md §9.2 (`oee_shift_metrics` DDL verbatim), §11 V-OEE-AGG-2..5, D-OEE-1\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nCreate `oee_shift_metrics` MATERIALIZED VIEW per PRD §9.2 verbatim, exposing per-shift A/P/Q/OEE averages, output/downtime/waste totals, snapshot counts, and MTBF/MTTR stub columns (NULL when `downtime_event_count=0` per V-OEE-AGG-4). The MV is refreshed by T-008 shift_aggregator_v1 rule and by ad-hoc admin trigger (no synchronous compute in request path per D-OEE-1).\n\n## Pre-flight schema check\nRead `packages/db/migrations/` for: latest migration number; `oee_snapshots` (08-PRODUCTION owner) — if absent, fail fast with a clear error citing 08-PRODUCTION as the missing dependency; `shift_configs` from T-003; `downtime_events` from 08-PRODUCTION (08-PROD §13). If `downtime_events` is not yet present, the LEFT JOIN remains in the DDL but the MV is created with `WITH NO DATA` and a clear test-time skip note; the cross-module dependency is tracked in coverage.md.\n\n## Implementation contract\n1. Migration `packages/db/migrations/NNNN_oee_b_shift_metrics_mv.sql` containing the §9.2 SELECT verbatim: SUM/AVG over oee_snapshots LEFT JOIN downtime_events LEFT JOIN shift_configs, grouped by (tenant→ORG_ID, site_id, line_id, shift_date AT TIME ZONE sc.timezone, shift_id, sc.shift_label).\n2. `CREATE UNIQUE INDEX idx_oee_shift_pk ON oee_shift_metrics(org_id, site_id, line_id, shift_date, shift_id)` (required for CONCURRENTLY refresh per V-OEE-AGG-5).\n3. `CREATE INDEX idx_oee_shift_date ON oee_shift_metrics(shift_date DESC)`.\n4. Map PRD's `tenant_id` literal in the §9.2 DDL to `org_id` per Wave0 v4.3 lock.\n5. Drizzle schema `packages/db/src/schema/oee/shift-metrics.ts` (read-only).\n6. Vitest: (a) MV exists post-migration, (b) refresh with CONCURRENTLY succeeds (requires unique index), (c) MTBF/MTTR columns return NULL when `downtime_event_count=0` (V-OEE-AGG-4), (d) RLS on the underlying tables propagates (manual filter test: org A cannot see org B rows via MV after `app.set_org_context`).\n\n## Files\n- packages/db/migrations/NNNN_oee_b_shift_metrics_mv.sql [create]\n- packages/db/src/schema/oee/shift-metrics.ts [create]\n- packages/db/src/schema/index.ts [modify]\n- packages/db/__tests__/oee-b-shift-metrics-mv.test.ts [create]\n\n## Acceptance criteria\n1. Given the migration runs, when `\\d+ oee_shift_metrics` is read, then it is a MATERIALIZED VIEW with the §9.2 column shape (A/P/Q/OEE averages, totals, snapshot_count, mttr_min, mtbf_min, last_snapshot_at) and `idx_oee_shift_pk` UNIQUE + `idx_oee_shift_date` indexes exist.\n2. Given the unique index exists, when `REFRESH MATERIALIZED VIEW CONCURRENTLY oee_shift_metrics` runs, then it succeeds without locking readers (V-OEE-AGG-5).\n3. Given inserted oee_snapshots rows with no joined downtime_events, when the MV is refreshed and queried, then `mttr_min` and `mtbf_min` are NULL for those (line, shift, date) rows (V-OEE-AGG-4).\n4. Given two orgs each with snapshots, when `app.set_org_context(token, orgA)` then `SELECT FROM oee_shift_metrics`, then only orgA rows are returned (RLS propagates from oee_snapshots).\n\n## Test strategy\n- RED: vitest oee-b-shift-metrics-mv asserting four ACs.\n- Run `pnpm --filter db migrate && pnpm --filter db test oee-b-shift-metrics-mv`.\n\n## Risk red lines\n- Do not refresh non-CONCURRENTLY in production paths — V-OEE-AGG-5.\n- Do not compute synchronously in the request path — refresh is driven by T-008 rule + ad-hoc admin trigger (D-OEE-1).\n- Do not write to oee_snapshots from this task — read-only consumer (08-PRODUCTION owns).\n- Do not name business column tenant_id; use org_id per Wave0 v4.3.\n- Do not omit the UNIQUE index — CONCURRENTLY requires it.",
+  "labels": [
+    "prd",
+    "data",
+    "mv",
+    "T1-schema"
+  ],
+  "priority": 60,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-006",
+    "source_prd": "docs/prd/15-OEE-PRD.md",
+    "prd_refs": [
+      "§9.2",
+      "§11",
+      "D-OEE-1"
+    ],
+    "category": "data",
+    "subcategory": "mv-shift-metrics",
+    "task_type": "T1-schema",
+    "parent_feature": "15-OEE-b",
+    "context_budget": "45k",
+    "estimated_effort": "2-3h",
+    "description": "Create oee_shift_metrics MV per §9.2 verbatim with unique index for CONCURRENTLY refresh + MTBF/MTTR NULL safety + RLS propagation tests.",
+    "details": "MV is the per-shift rollup consumed by OEE-002 heatmap (T-015) and OEE-003 summary (T-016). Refresh is driven by T-008 shift_aggregator_v1 rule firing 5 min after shift_end_time (V-OEE-AGG-1) and by an admin Server Action for backfill (out-of-scope here). MTBF/MTTR are stubs feeding 13-MAINTENANCE consumer (D-MNT-3 cross-module) and PRD §15.7 OEE-P2-B Equipment Health. The §9.2 DDL uses `tenant_id` literal — this task maps it to `org_id` per Wave0 v4.3 lock.",
+    "scope_files": [
+      "packages/db/migrations/NNNN_oee_b_shift_metrics_mv.sql [create]",
+      "packages/db/src/schema/oee/shift-metrics.ts [create]",
+      "packages/db/src/schema/index.ts [modify]",
+      "packages/db/__tests__/oee-b-shift-metrics-mv.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "shift_aggregator_v1 DSL rule (T-008)",
+      "Cron registration (T-009)",
+      "oee_daily_summary MV (T-007)",
+      "API layer (T-010..T-013)"
+    ],
+    "dependencies": [
+      "T-002",
+      "T-003"
+    ],
+    "parallel_safe_with": [
+      "T-007"
+    ],
+    "acceptance_criteria": [
+      "Given migration runs, when \\d+ oee_shift_metrics is read, then it is a MATERIALIZED VIEW with the §9.2 column shape and idx_oee_shift_pk UNIQUE + idx_oee_shift_date indexes exist",
+      "Given the UNIQUE index exists, when REFRESH MATERIALIZED VIEW CONCURRENTLY oee_shift_metrics runs, then it succeeds without locking readers (V-OEE-AGG-5)",
+      "Given inserted oee_snapshots with no joined downtime_events, when the MV is refreshed, then mttr_min and mtbf_min are NULL for those rows (V-OEE-AGG-4)",
+      "Given two orgs each with snapshots, when app.set_org_context(token, orgA) then SELECT FROM oee_shift_metrics, then only orgA rows are returned"
+    ],
+    "test_strategy": [
+      "RED: vitest oee-b-shift-metrics-mv asserting four ACs",
+      "Run `pnpm --filter db migrate && pnpm --filter db test oee-b-shift-metrics-mv`"
+    ],
+    "risk_red_lines": [
+      "Do not refresh non-CONCURRENTLY in production paths (V-OEE-AGG-5)",
+      "Do not compute synchronously in the request path (D-OEE-1)",
+      "Do not write to oee_snapshots from 15-OEE",
+      "Do not name business column tenant_id; use org_id",
+      "Do not omit the UNIQUE index"
+    ],
+    "skills": [
+      "test-driven-development",
+      "systematic-debugging",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": false
+  }
+}

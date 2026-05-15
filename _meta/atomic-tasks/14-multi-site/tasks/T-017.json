@@ -1,0 +1,112 @@
+{
+  "title": "T-017 \u2014 Outbox event extensions + replication queue schema (\u00a712.3, \u00a710A.4, D-MS-12)",
+  "prompt": "# T-017 \u2014 Outbox event extensions + replication queue schema\n\nPRD: docs/prd/14-MULTI-SITE-PRD.md \u00a712.3 (TO outbox events), \u00a710A.4 (lane outbox events), D-MS-12\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nRegister the multi-site outbox event types in the central event_catalog (owned by foundation T-111 baseline) and create the operational tables backing the replication queue UI (MS-106 modal, MS-111 master data sync, MS-112 replication queue).\n\n## Implementation contract\n1. Migration `packages/db/migrations/0050_ms_outbox_and_replication.sql`:\n   - INSERT INTO event_catalog 5 event types with JSON schema per \u00a712.3 + \u00a710A.4: `transfer_order.shipped`, `transfer_order.in_transit`, `transfer_order.received`, `transport_lane.created`, `transport_lane_rate_card.activated`. Each row has payload_schema JSONB describing required keys.\n   - CREATE TABLE replication_jobs(id, org_id, scope CHECK ('all','failed','single'), entity_type, entity_id NULL, status CHECK ('pending','running','completed','failed','retrying'), priority CHECK ('normal','high') DEFAULT 'normal', error_message, attempts INT DEFAULT 0, max_attempts INT DEFAULT 5, scheduled_at, started_at, completed_at, created_by). RLS org-scoped.\n   - CREATE TABLE replication_schedules(id, org_id, entity_type, cadence_cron, last_run_at, next_run_at, active). RLS org-scoped.\n   - CREATE TABLE replication_conflicts(id, org_id, site_id, entity_type, entity_id, field_diffs JSONB, detected_at, resolved_at NULL, resolved_by NULL). RLS site-scoped via app.current_site_id().\n   - Indexes: idx_jobs_active ON replication_jobs(org_id, status) WHERE status IN ('pending','running','retrying'); idx_conflicts_unresolved ON replication_conflicts(org_id, site_id) WHERE resolved_at IS NULL.\n2. Drizzle schemas + zod for all 3 tables; event_catalog modifications via SQL only (table owned by foundation).\n3. Tests: payload_schema parse-and-validate each new event type via zod-from-jsonschema; replication_jobs CHECK constraint; replication_conflicts RLS site-scoped isolation.\n\n## Files\n- packages/db/migrations/0050_ms_outbox_and_replication.sql [create]\n- packages/db/src/schema/replication-jobs.ts [create]\n- packages/db/src/schema/replication-schedules.ts [create]\n- packages/db/src/schema/replication-conflicts.ts [create]\n- packages/db/src/schema/index.ts [modify]\n- packages/db/__tests__/ms-replication.test.ts [create]\n\n## Acceptance criteria\n<!-- AC count consolidated from 5\u21924 by Fixer F14a 2026-05-14 (no coverage lost) -->\n1. Given migration 0050 applied, when event_catalog queried, then 5 new rows exist with the 5 event types and each has non-empty payload_schema JSONB.\n2. Given a transfer_order.shipped payload missing 'from_site_id' is validated against payload_schema, when validate runs, then it rejects with required-key error.\n3. Given replication_jobs status='unknown' is inserted, when committed, then DB raises check_violation.\n4. Given two sites X and Y each have an unresolved replication_conflict, when app_user under withSiteContext(siteId=X) queries replication_conflicts WHERE resolved_at IS NULL, then only X's row returned (RLS site-scoped).\n5. Given idx_jobs_active is inspected via pg_indexes, when listed, then partial WHERE clause references the 3 active statuses.\n\n## Test strategy\n- RED: assert 5 event_catalog rows + payload_schema validation + replication_jobs CHECK + RLS site-scoped isolation + partial-index WHERE before migration applied.\n- Run 'pnpm --filter @monopilot/db test:integration -- ms-replication'.\n\n## Risk red lines\n- Do not modify event_catalog rows for events owned by other modules.\n- Do not let replication_conflicts be org-scoped \u2014 conflicts are inherently per-site.\n- Do not allow status='completed' to remain in active-job partial index (would never be reaped).\n- Do not skip RLS+FORCE RLS on any of the 3 tables.\n- Do not let payload_schema be free-form text \u2014 JSON Schema validates payloads downstream.",
+  "labels": [
+    "prd",
+    "data",
+    "outbox",
+    "T1-schema"
+  ],
+  "priority": 50,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-017",
+    "source_prd": "docs/prd/14-MULTI-SITE-PRD.md",
+    "prd_refs": [
+      "\u00a712.3",
+      "\u00a710A.4",
+      "\u00a77 D-MS-12"
+    ],
+    "category": "data",
+    "subcategory": "replication-schema",
+    "task_type": "T1-schema",
+    "parent_feature": "14-MULTI-SITE-d master data sync",
+    "context_budget": "50k",
+    "estimated_effort": "2-3h",
+    "description": "Register 5 outbox event types in event_catalog (transport_lane.created, transport_lane_rate_card.activated, transfer_order.shipped/.in_transit/.received) + create replication_jobs + replication_schedules tables backing MS-106/MS-111/MS-112 UI.",
+    "details": "Register 5 outbox event types in event_catalog (transport_lane.created, transport_lane_rate_card.activated, transfer_order.shipped/.in_transit/.received) + create replication_jobs + replication_schedules tables backing MS-106/MS-111/MS-112 UI. Scope: Register the multi-site outbox event types in the central event_catalog (owned by foundation T-111 baseline) and create the operational tables backing the replication queue UI (MS-106 modal, MS-111 master data sync, MS-112 replication queue). Touches: packages/db/migrations/0050_ms_outbox_and_replication.sql, packages/db/src/schema/replication-jobs.ts, packages/db/src/schema/replication-schedules.ts, packages/db/src/schema/replication-conflicts.ts. Constraints: 1. Migration `packages/db/migrations/0050_ms_outbox_and_replication.sql`: - INSERT INTO event_catalog 5 event types with JSON schema per \u00a712.3 + \u00a710A.4: `transfer_order.shipped`, `transfer_order.in_transit`, `transfer_order.received`, `transport_lane.created`, `transport_lane_rate_card.activated`. Each row has payload_schema JSONB describing requir. Distinguished from sibling 14-multi-site tasks by its narrow replication-schema focus against PRD \u00a712.3, \u00a710A.4, \u00a77 D-MS-12. AC count consolidated from 5\u21924 by Fixer F14a 2026-05-14 (no coverage lost)",
+    "scope_files": [
+      "packages/db/migrations/0050_ms_outbox_and_replication.sql [create]",
+      "packages/db/src/schema/replication-jobs.ts [create]",
+      "packages/db/src/schema/replication-schedules.ts [create]",
+      "packages/db/src/schema/replication-conflicts.ts [create]",
+      "packages/db/src/schema/index.ts [modify]",
+      "packages/db/__tests__/ms-replication.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not implement worker handlers for these events (consumers live in 10-FIN/12-REP/05-WH per their consumer specs).",
+      "Do not implement retry/run-sync UI here (T-019).",
+      "Do not implement conflict resolution UI (T-018)."
+    ],
+    "dependencies": [
+      "T-002",
+      "T-004"
+    ],
+    "cross_module_dependencies": [
+      {
+        "module": "00-foundation",
+        "task_id": "T-111",
+        "reason": "event_catalog table is owned by foundation outbox baseline; this task inserts rows."
+      },
+      {
+        "module": "00-foundation",
+        "task_id": "T-112",
+        "reason": "Worker dispatcher consumes from replication_jobs."
+      },
+      {
+        "module": "00-foundation",
+        "task_id": "T-125",
+        "reason": "Cross-mod dep to 00-foundation T-125 declared (withOrgContext + app.current_org_id() per F11 rule). withSiteContext composes on top of T-125; replication_conflicts uses app.current_site_id() site-scoped RLS."
+      }
+    ],
+    "parallel_safe_with": [
+      "T-018"
+    ],
+    "acceptance_criteria": [
+      "Given migration 0050 applied, when event_catalog queried, then 5 new rows exist with the 5 event types and each has non-empty payload_schema JSONB.",
+      "Given a transfer_order.shipped payload missing 'from_site_id' validated against payload_schema, when validate runs, then rejects with required-key error.",
+      "Given replication_jobs status='unknown' inserted, when committed, then DB raises check_violation; AND given idx_jobs_active inspected when listed then partial WHERE clause references 3 active statuses.",
+      "Given two sites X and Y each have unresolved replication_conflict, when app_user under withSiteContext(siteId=X) queries WHERE resolved_at IS NULL, then only X's row returned (RLS site-scoped)."
+    ],
+    "test_strategy": [
+      "RED: assert event_catalog rows + payload_schema validation + replication_jobs CHECK + RLS site-scoped + partial-index WHERE before migration applied.",
+      "Run 'pnpm --filter @monopilot/db test:integration -- ms-replication'."
+    ],
+    "risk_red_lines": [
+      "Do not modify event_catalog rows owned by other modules.",
+      "Do not org-scope replication_conflicts \u2014 inherently per-site.",
+      "Do not let 'completed' remain in active-job partial index.",
+      "Do not skip RLS+FORCE RLS on any of 3 tables.",
+      "Do not let payload_schema be free-form text \u2014 JSON Schema validates."
+    ],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review",
+      "systematic-debugging"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": false
+  }
+}

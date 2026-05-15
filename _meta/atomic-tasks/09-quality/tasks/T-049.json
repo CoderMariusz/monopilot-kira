@@ -1,0 +1,88 @@
+{
+  "title": "T-049 — quality_complaints schema + RLS (P1 stub, 09-e-01)",
+  "prompt": "# T-049 — quality_complaints schema + RLS (P1 stub)\n\nPRD: §6.3 quality_complaints DDL (stub P1, full P2 EPIC 8M), §9.1 RLS, §11.6 V-QA-COMPLAINT-001/002\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nCreate quality_complaints stub table (CRUD + link to NCR) per §6.3 with received_via channel taxonomy, severity-driven response_due_at, 7y retention, RLS function-form. Full RCA/CAPA workflow is P2 EPIC 8M.\n\n## Implementation contract\nMigration 0142 emits CREATE SEQUENCE quality_complaint_seq + CREATE TABLE quality_complaints per §6.3 verbatim (complaint_number GENERATED, received_via CHECK in {email,phone,portal,retailer_system,other}, severity CHECK, status CHECK 6 values, linked_ncr_id FK, retention_until 7y GENERATED). idx_complaint_open partial. RLS function-form. Drizzle schema export. response_due_at logic: if severity='critical', received + 2 business days; otherwise NULL (server-side enforcement of V-QA-COMPLAINT-002 in T-053 Server Action).\n\n## Files\n- packages/db/migrations/0142_quality_complaints.sql [create]\n- packages/db/src/schema/qualityComplaints.ts [create]\n- packages/db/src/schema/index.ts [modify]\n- packages/db/__tests__/quality-complaints-schema.test.ts [create]\n\n## Acceptance criteria\n1. Given migration 0142 applied, when \\d quality_complaints runs, then all §6.3 columns exist (received_via CHECK 5 values, status CHECK 6 values, retention_until 7y GENERATED) and RLS function-form is enabled\n2. Given the partial idx_complaint_open index, when EXPLAIN ANALYZE the open-complaints query runs, then the partial index is selected\n3. Given two tenants with app.current_org_id() each, when each inserts and SELECTs, then each sees only its own rows\n\n## Test strategy (RED first)\n- RED: quality-complaints-schema.test.ts before migration\n- Run 'pnpm --filter db migrate && pnpm --filter db test quality-complaints-schema'\n\n## Risk red lines\n- P1 is STUB (CRUD + NCR link). Do not build full RCA/CAPA — P2 EPIC 8M.\n- Use app.current_org_id() function (Wave0)\n- 7y retention required (BRCGS §3.11.1)\n- received_via CHECK must include all 5 channels per §6.3",
+  "labels": [
+    "prd",
+    "data",
+    "schema-complaint",
+    "T1-schema"
+  ],
+  "priority": 65,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-049",
+    "source_prd": "docs/prd/09-QUALITY-PRD.md",
+    "prd_refs": [
+      "§6.3",
+      "§9.1",
+      "§11.6"
+    ],
+    "category": "data",
+    "subcategory": "schema-complaint",
+    "task_type": "T1-schema",
+    "parent_feature": "09-QUALITY-e Complaints",
+    "context_budget": "30k",
+    "estimated_effort": "1-2h",
+    "description": "quality_complaints stub schema (CRUD + NCR link) + RLS function-form + 7y retention + idx_complaint_open partial. Full workflow P2 EPIC 8M.",
+    "details": "Migration 0142 + Drizzle schema per §6.3 verbatim. complaint_number GENERATED via sequence. received_via CHECK in 5 channels {email, phone, portal, retailer_system, other} — channels are tenant-configurable per ADR-034 (label only; the underlying enum stays). status CHECK 6 values {received, under_review, investigating, resolved, closed, rejected}. retention_until 7y GENERATED per BRCGS §3.11.1. idx_complaint_open partial WHERE status NOT IN ('resolved','closed','rejected'). RLS function-form. PRD anchors verified: §6.3 source DDL; §9.1 RLS pattern; §11.6 V-QA-COMPLAINT-001/002 (received_at validation + critical 2-day response — deferred to T-053 Server Action).",
+    "scope_files": [
+      "packages/db/migrations/0142_quality_complaints.sql [create]",
+      "packages/db/src/schema/qualityComplaints.ts [create]",
+      "packages/db/src/schema/index.ts [modify]",
+      "packages/db/__tests__/quality-complaints-schema.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not implement complaint Server Actions (T-053)",
+      "Do not implement RCA/CAPA workflow (P2 EPIC 8M)",
+      "Do not implement complaint_categories reference table (deferred)"
+    ],
+    "dependencies": [],
+    "parallel_safe_with": [
+      "T-047",
+      "T-048",
+      "T-050"
+    ],
+    "acceptance_criteria": [
+      "Given migration 0142 applied, when \\d quality_complaints runs, then all §6.3 columns exist (received_via CHECK 5 values, status CHECK 6 values, retention_until 7y GENERATED) and RLS function-form is enabled",
+      "Given the partial idx_complaint_open index, when EXPLAIN ANALYZE the open-complaints query runs, then the partial index is selected",
+      "Given two tenants with app.current_org_id() each, when each inserts and SELECTs, then each sees only its own rows"
+    ],
+    "test_strategy": [
+      "RED: quality-complaints-schema.test.ts before migration",
+      "Run 'pnpm --filter db migrate && pnpm --filter db test quality-complaints-schema'"
+    ],
+    "risk_red_lines": [
+      "P1 is STUB only — do not implement full RCA/CAPA workflow (P2 EPIC 8M scope)",
+      "Use app.current_org_id() function (Wave0 v4.3)",
+      "7y retention required (BRCGS §3.11.1)",
+      "received_via CHECK must include all 5 channels per §6.3"
+    ],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

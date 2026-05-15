@@ -1,0 +1,95 @@
+{
+  "title": "T-003 \u2014 cost_centers (hierarchy) + gl_account_mappings schema (\u00a76.1 rows 2/5, \u00a711.1 V-FIN-SETUP-04/05)",
+  "prompt": "# T-003 \u2014 cost_centers hierarchy + gl_account_mappings schema\n\nPRD: docs/prd/10-FINANCE-PRD.md \u00a76.1 rows 2 and 5; \u00a711.1 V-FIN-SETUP-04 (no parent_id cycle), V-FIN-SETUP-05 (mapping required per cost_category); \u00a712.4 R15 adapter mapping; \u00a714.1 L2 per-tenant variation.\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nCreate Drizzle migration + ORM entries for `cost_centers` (self-referencing hierarchy via parent_id) and `gl_account_mappings` (cost_category \u2192 D365 GL account). Enforce cycle prevention via SQL function + BEFORE INSERT/UPDATE trigger (V-FIN-SETUP-04) and 1:1 uniqueness per (org_id, cost_category) for GL mappings.\n\n## Implementation contract\n1. Migration `packages/db/migrations/0051_cost_centers_gl_mappings.sql`:\n   - `CREATE TABLE cost_centers` (id, org_id, code TEXT, name TEXT, parent_id UUID NULL FK\u2192cost_centers(id) ON DELETE RESTRICT, production_line_id UUID NULL, allocation_basis TEXT CHECK IN ('labor_hours','machine_hours','units'), d365_dimension_code TEXT, is_active BOOLEAN DEFAULT true, ext_jsonb JSONB DEFAULT '{}', created_at, updated_at; UNIQUE(org_id, code)).\n   - `CREATE TABLE gl_account_mappings` (id, org_id, cost_category TEXT CHECK IN ('material','labor','overhead','waste','freight'), d365_account_code TEXT NOT NULL CHECK (d365_account_code ~ '^\\d{4}-[A-Z][a-zA-Z0-9]+-[A-Z]+$'), offset_account_code TEXT, d365_journal_name TEXT, is_active BOOLEAN DEFAULT true, updated_by UUID FK\u2192users(id), updated_at; UNIQUE(org_id, cost_category) WHERE is_active=true).\n   - Cycle-prevention function `prevent_cost_center_cycle()` + BEFORE INSERT/UPDATE trigger on cost_centers: WITH RECURSIVE walks parent_id chain; RAISE EXCEPTION if NEW.id appears in ancestor chain (V-FIN-SETUP-04).\n   - Both tables: ENABLE + FORCE ROW LEVEL SECURITY; policy `<table>_org_context` uses `app.current_org_id()`.\n   - Index `idx_cost_centers_parent ON cost_centers(org_id, parent_id)`.\n2. Drizzle ORM entries `packages/db/src/schema/cost-centers.ts`, `gl-account-mappings.ts` + register in index.ts.\n\n## Files\n- packages/db/migrations/0051_cost_centers_gl_mappings.sql [create]\n- packages/db/src/schema/cost-centers.ts [create]\n- packages/db/src/schema/gl-account-mappings.ts [create]\n- packages/db/src/schema/index.ts [modify]\n- packages/db/__tests__/cost-centers-cycle.test.ts [create]\n- packages/db/__tests__/gl-mappings.test.ts [create]\n\n## Acceptance criteria (Given-When-Then)\n- Given migration 0051 ran, when \\d cost_centers inspected, then parent_id FK ON DELETE RESTRICT exists and trigger prevent_cost_center_cycle is registered.\n- Given cost_centers A(parent=NULL) and B(parent=A), when UPDATE sets A.parent_id=B.id, then it fails with raised exception (V-FIN-SETUP-04). AND given a deeper chain A\u2192B\u2192C\u2192D, when UPDATE sets A.parent_id=D, then trigger also detects cycle and raises exception.\n- Given gl_account_mappings with d365_account_code='INVALID', when INSERT runs, then it fails CHECK regex.\n- Given two active gl_account_mappings for same (org_id, cost_category), when second INSERT runs, then it fails partial unique index. AND given pg_policies on both tables, when listed, then qual/withcheck reference app.current_org_id() (no GUC reads).\n_(AC count consolidated from 6\u21924 by Fixer F13 2026-05-14 (no coverage lost))_\n\n## Test strategy (RED first)\n- RED: write two test files asserting cycle prevention (3 scenarios) + GL regex + partial unique on active mapping + RLS policy text inspection.\n- Run `pnpm --filter db migrate && pnpm --filter db test cost-centers-cycle gl-mappings`.\n\n## Risk red lines\n- Do not implement cycle detection in application code only \u2014 the trigger is the SoT (UI could be bypassed via direct SQL).\n- Do not use ON DELETE CASCADE on parent_id \u2014 cost center hierarchy survives parent deletion only via RESTRICT (operator must re-parent first).\n- Do not loosen the d365_account_code regex \u2014 the format `\\d{4}-[A-Z][a-zA-Z0-9]+-[A-Z]+` is fixed by D365 chart of accounts per \u00a712.4 + Apex `[ORG-CONFIG]`.\n- Do not allow more than one active mapping per (org_id, cost_category) \u2014 V-FIN-SETUP-05 is hard.\n- Do not skip RLS / FORCE ROW LEVEL SECURITY.\n",
+  "labels": [
+    "prd",
+    "data",
+    "schema",
+    "T1-schema"
+  ],
+  "priority": 70,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-003",
+    "source_prd": "docs/prd/10-FINANCE-PRD.md",
+    "prd_refs": [
+      "\u00a76.1",
+      "\u00a711.1",
+      "\u00a712.4",
+      "\u00a714.1"
+    ],
+    "category": "data",
+    "subcategory": "cost-centers-gl",
+    "task_type": "T1-schema",
+    "parent_feature": "10-FINANCE-a",
+    "context_budget": "45k",
+    "estimated_effort": "2-3h",
+    "description": "cost_centers self-ref hierarchy with cycle-prevention trigger + gl_account_mappings with 1-active-per-category constraint.",
+    "details": "cost_centers has self-FK parent_id ON DELETE RESTRICT; BEFORE INSERT/UPDATE trigger walks ancestor chain via WITH RECURSIVE and raises exception on cycle (V-FIN-SETUP-04). gl_account_mappings has cost_category enum + d365 account regex matching Apex chart of accounts format + partial unique index ensures at most one is_active=true row per (org_id, cost_category) (V-FIN-SETUP-05). Both tables use foundation app.current_org_id() RLS pattern. [AC count consolidated from 6\u21924 by Fixer F13 2026-05-14 (no coverage lost)]",
+    "scope_files": [
+      "packages/db/migrations/0051_cost_centers_gl_mappings.sql [create]",
+      "packages/db/src/schema/cost-centers.ts [create]",
+      "packages/db/src/schema/gl-account-mappings.ts [create]",
+      "packages/db/src/schema/index.ts [modify]",
+      "packages/db/__tests__/cost-centers-cycle.test.ts [create]",
+      "packages/db/__tests__/gl-mappings.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Server actions (T-004)",
+      "Cost Centers admin UI (T-006)",
+      "GL Mapping modal UI (T-006 / FIN-021 lives with cost center admin)"
+    ],
+    "dependencies": [
+      "T-002"
+    ],
+    "parallel_safe_with": [
+      "T-001"
+    ],
+    "acceptance_criteria": [
+      "Given migration 0051 ran, when \\d cost_centers inspected, then parent_id FK ON DELETE RESTRICT exists and trigger prevent_cost_center_cycle is registered.",
+      "Given cost_centers A(parent=NULL) and B(parent=A), when UPDATE sets A.parent_id=B.id, then it fails with raised exception (V-FIN-SETUP-04). AND given a deeper chain A\u2192B\u2192C\u2192D, when UPDATE sets A.parent_id=D, then trigger also detects cycle and raises exception.",
+      "Given gl_account_mappings with d365_account_code='INVALID', when INSERT runs, then it fails CHECK regex.",
+      "Given two active gl_account_mappings for same (org_id, cost_category), when second INSERT runs, then it fails partial unique index. AND given pg_policies on both tables, when listed, then qual/withcheck reference app.current_org_id() (no GUC reads)."
+    ],
+    "test_strategy": [
+      "RED: cost-centers-cycle.test.ts asserts 3 cycle scenarios (direct, transitive, deep) + RLS policy text. gl-mappings.test.ts asserts regex CHECK + partial unique + RLS.",
+      "Run 'pnpm --filter db migrate && pnpm --filter db test cost-centers-cycle gl-mappings'."
+    ],
+    "risk_red_lines": [
+      "Do not implement cycle detection only in application code \u2014 trigger is SoT.",
+      "Do not use ON DELETE CASCADE on parent_id (RESTRICT required).",
+      "Do not loosen d365_account_code regex.",
+      "Do not allow more than one active GL mapping per (org_id, cost_category).",
+      "Do not skip RLS / FORCE ROW LEVEL SECURITY."
+    ],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review",
+      "systematic-debugging"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": false
+  }
+}

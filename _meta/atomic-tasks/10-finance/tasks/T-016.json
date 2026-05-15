@@ -1,0 +1,100 @@
+{
+  "title": "T-016 \u2014 Cascade rollup recursive CTE Server Action (\u00a79.1, \u00a79.2, \u00a711.3 V-FIN-WO-04)",
+  "prompt": "# T-016 \u2014 Cascade WO cost rollup recursive CTE\n\nPRD: docs/prd/10-FINANCE-PRD.md \u00a79.1 rollup model; \u00a79.2 recursive CTE (Postgres) lines 745-783; \u00a711.3 V-FIN-WO-04 (no cycle) + V-FIN-WO-06 warn; \u00a713.1 wo.completed handler; \u00a715.1 NFR 5-level BOM <10s P95.\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nServer Action `recalculateWoCost(woId)` that runs the \u00a79.2 recursive CTE over `wo_dependencies` (04-PLANNING-BASIC) to compute `cascade_total_actual` per WO + variance recompute + audit emission. Includes cycle-detection guard (V-FIN-WO-04) and performance budget enforcement.\n\n## Implementation contract\n1. `apps/web/app/finance/work-order-costs/_actions/recalculate.ts`:\n   - Server Action `recalculateWoCost(woId: string)` \u2014 requires `fin.wo_cost.recalculate` permission.\n   - Wraps a single DB transaction:\n     1. Pre-flight: detect cycle in `wo_dependencies` for the WO's subtree using a smaller recursive CTE with cycle visited array (`UNION ALL` and `WHERE NOT EXISTS \u2026 visited` pattern). If cycle found, raise error citing V-FIN-WO-04 (this should NEVER occur because 04-PLAN V-PLAN-WO-CYCLE prevents it, but defensive check.)\n     2. Run the \u00a79.2 cascade CTE pinned to the WO's tree (anchor = leaf WOs reachable from this WO; recursive = parent = own + sum(children.cascade_sum)).\n     3. UPDATE `work_order_costs` SET cascade_total_actual = c.cascade_sum, updated_at = now() for all WOs in the tree.\n     4. Recompute variance columns (no-op if GENERATED, but cascade_total_actual is not GENERATED \u2014 variance still relies on actual columns).\n     5. Insert `audit_events` row with cascade payload.\n   - Performance: measure execution time; if >10s P95 over last N=20 runs, log warning to observability (Sentry/Logger from foundation T-117/T-118).\n2. SQL view `v_wo_cost_with_cascade` joining work_order_costs + child counts for FIN-003 cascade table display.\n3. Companion: SECURITY DEFINER function `app.recalculate_wo_cost(wo_id uuid)` callable from the worker handler T-018 (which doesn't have a user session).\n\n## Files\n- apps/web/app/finance/work-order-costs/_actions/recalculate.ts [create]\n- packages/db/migrations/0056_wo_cost_recalc_function.sql [create] (SECURITY DEFINER fn + view)\n- apps/web/app/finance/_lib/__tests__/recalculate.test.ts [create]\n- packages/db/__tests__/cascade-cte-cycle.test.ts [create]\n\n## Acceptance criteria (Given-When-Then)\n- Given a tree P\u2192{A,B}, A\u2192{A1,A2}, when recalculateWoCost(P) runs, then P.cascade_total_actual = sum of all 5 WOs' total_cost_actual.\n- Given a leaf WO X, when recalculateWoCost(X) runs, then X.cascade_total_actual = X.total_cost_actual.\n- Given a forged cycle (test-only), when recalculateWoCost runs, then pre-flight cycle detection raises V-FIN-WO-04 error and no UPDATE.\n- Given a 5-level BOM (32 WOs), when recalculateWoCost runs on root, then execution completes <10s P95. AND Given user lacks fin.wo_cost.recalculate, when action invoked, then ForbiddenError. AND given action commits, when audit_events queried, then a row exists with cascade payload.\n_(AC count consolidated from 6\u21924 by Fixer F13 2026-05-14 (no coverage lost))_\n\n## Test strategy (RED first)\n- RED: recalculate.test.ts seeds a 5-level tree fixture; asserts cascade sum matches expected; asserts cycle detection; asserts <10s. cascade-cte-cycle.test.ts seeds a forged cycle and asserts trigger raises.\n- Run `pnpm --filter @monopilot/web vitest run apps/web/app/finance/_lib/__tests__/recalculate.test.ts && pnpm --filter db test cascade-cte-cycle`.\n\n## Risk red lines\n- Do not bypass cycle detection \u2014 even though 04-PLAN guards upstream, finance must defensively check.\n- Do not run the cascade UPDATE outside a transaction (concurrent updates risk).\n- Do not call this synchronously from the wo.completed worker (T-018) \u2014 instead, register the recompute via SECURITY DEFINER fn that runs under finance_worker role.\n- Do not skip the performance warning logging \u2014 NFR \u00a715.1 must be observable.\n- Do not store partial results \u2014 UPDATE only after the CTE completes.\n- Do not query work_orders or wo_dependencies WITHOUT the org_id filter (multi-tenant correctness).\n",
+  "labels": [
+    "prd",
+    "api",
+    "compute",
+    "T2-api"
+  ],
+  "priority": 70,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-016",
+    "source_prd": "docs/prd/10-FINANCE-PRD.md",
+    "prd_refs": [
+      "\u00a79.1",
+      "\u00a79.2",
+      "\u00a711.3",
+      "\u00a713.1",
+      "\u00a715.1"
+    ],
+    "category": "api",
+    "subcategory": "cascade-rollup",
+    "task_type": "T2-api",
+    "parent_feature": "10-FINANCE-c",
+    "context_budget": "55k",
+    "estimated_effort": "4-5h",
+    "description": "Server Action + SECURITY DEFINER fn to compute cascade_total_actual via recursive CTE over wo_dependencies; cycle-detection defensive check; performance budget enforcement.",
+    "details": "Implements \u00a79.2 verbatim; pre-flight cycle check (defense in depth even though 04-PLAN guards upstream); transactional UPDATE on all WOs in the tree; observability hook for >10s warning. SECURITY DEFINER companion fn for worker invocation under finance_worker role (T-014 pattern). [AC count consolidated from 6\u21924 by Fixer F13 2026-05-14 (no coverage lost)]",
+    "scope_files": [
+      "apps/web/app/finance/work-order-costs/_actions/recalculate.ts [create]",
+      "packages/db/migrations/0056_wo_cost_recalc_function.sql [create]",
+      "apps/web/app/finance/_lib/__tests__/recalculate.test.ts [create]",
+      "packages/db/__tests__/cascade-cte-cycle.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Co-product allocation (T-017)",
+      "Worker entry point (T-018)",
+      "UI display (T-020 FIN-003)"
+    ],
+    "dependencies": [
+      "T-015"
+    ],
+    "cross_module_dependencies": [
+      "04-planning-basic:wo_dependencies + V-PLAN-WO-CYCLE",
+      "08-production:work_orders"
+    ],
+    "parallel_safe_with": [
+      "T-017",
+      "T-021"
+    ],
+    "acceptance_criteria": [
+      "Given a tree P\u2192{A,B}, A\u2192{A1,A2}, when recalculateWoCost(P) runs, then P.cascade_total_actual = sum of all 5 WOs' total_cost_actual.",
+      "Given a leaf WO X, when recalculateWoCost(X) runs, then X.cascade_total_actual = X.total_cost_actual.",
+      "Given a forged cycle (test-only), when recalculateWoCost runs, then pre-flight cycle detection raises V-FIN-WO-04 error and no UPDATE.",
+      "Given a 5-level BOM (32 WOs), when recalculateWoCost runs on root, then execution completes <10s P95. AND Given user lacks fin.wo_cost.recalculate, when action invoked, then ForbiddenError. AND given action commits, when audit_events queried, then a row exists with cascade payload."
+    ],
+    "test_strategy": [
+      "RED: recalculate.test.ts seeds 5-level tree; asserts cascade math + cycle + perf budget. cascade-cte-cycle.test.ts seeds forged cycle + asserts raise.",
+      "Run pnpm --filter @monopilot/web vitest run apps/web/app/finance/_lib/__tests__/recalculate.test.ts && pnpm --filter db test cascade-cte-cycle."
+    ],
+    "risk_red_lines": [
+      "Do not bypass cycle detection.",
+      "Do not run cascade UPDATE outside a transaction.",
+      "Do not call synchronously from wo.completed worker \u2014 use SECURITY DEFINER fn.",
+      "Do not skip performance warning logging.",
+      "Do not store partial results.",
+      "Do not query work_orders/wo_dependencies WITHOUT org_id filter."
+    ],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review",
+      "systematic-debugging"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": false
+  }
+}

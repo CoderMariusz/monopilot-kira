@@ -1,0 +1,91 @@
+{
+  "title": "T-009 — apps/worker job registration: 15-min oee_daily_summary refresh + observability (OEE §9.5)",
+  "prompt": "# T-009 — apps/worker job registration\n\nPRD: docs/prd/15-OEE-PRD.md §9.5 (refresh cron jobs), §11 V-OEE-AGG-5, D-OEE-1\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nRegister the every-15-min `REFRESH MATERIALIZED VIEW CONCURRENTLY oee_daily_summary` job with the Wave1 T-111 worker primitive (NOT pg_cron), tagged per-tenant via T-112 loop. Wire trace (T-117) + structured log (T-116) + metrics (T-118) for every run.\n\n## Pre-flight\nRead: `apps/worker/src/registry.ts` pattern (T-008 just landed); `apps/worker/src/scheduler.ts` (Wave1 T-111). T-007 MV must exist.\n\n## Implementation contract\n1. `apps/worker/src/oee/daily-summary-refresh.ts` exports a handler that runs `REFRESH MATERIALIZED VIEW CONCURRENTLY oee_daily_summary` scoped per-org via the T-112 per-tenant loop wrapper (the MV is global but the worker tick is per-org for fair scheduling and observability tagging).\n2. Register the job in `apps/worker/src/registry.ts` with cadence `every 15 min` (`schedule_kind='interval_minutes', interval_value=15`) and unique job_id `oee.daily_summary_refresh.v1`.\n3. Emit a Wave1 T-117 trace span per run with attributes (job_id, org_id, refresh_ms, mv_size_bytes). Structured log per Wave1 T-116. Counter+histogram metrics per Wave1 T-118 (`oee_daily_summary_refresh_count`, `oee_daily_summary_refresh_duration_ms`).\n4. Failure handling: on REFRESH error, log structured error, increment failure metric, do NOT retry within the same tick (worker retries on next interval) — fail fast, no DLQ.\n5. Vitest covering: (a) job is registered (registry has the row), (b) handler completes successfully against a populated MV, (c) trace span + log + metric emitted per Wave1 harness fakes, (d) failure path logs+increments failure metric without throwing past the handler boundary.\n\n## Files\n- apps/worker/src/oee/daily-summary-refresh.ts [create]\n- apps/worker/src/oee/__tests__/daily-summary-refresh.test.ts [create]\n- apps/worker/src/registry.ts [modify]\n\n## Acceptance criteria\n1. Given the registry is read, when filtered for job_id='oee.daily_summary_refresh.v1', then exactly one row with interval=15 min and active=TRUE exists.\n2. Given a populated oee_daily_summary, when the handler runs, then REFRESH MATERIALIZED VIEW CONCURRENTLY completes and a trace span (Wave1 T-117 harness) + structured log (T-116) + metric (T-118) are emitted with job_id and org_id attributes.\n3. Given REFRESH errors (e.g., temporary lock), when the handler runs, then the failure metric increments and the structured error log is emitted and the handler does NOT throw past its boundary (worker continues).\n4. Given two concurrent worker ticks attempt the same MV refresh, when both run, then PostgreSQL's serialisation of REFRESH CONCURRENTLY is honoured and both runs complete without deadlock (V-OEE-AGG-5).\n\n## Test strategy\n- RED: vitest oee-daily-summary-refresh asserting four ACs.\n- Run `pnpm --filter @monopilot/worker vitest run oee/daily-summary-refresh`.\n\n## Risk red lines\n- Do not register pg_cron — Wave1 T-111 worker is the only scheduler (R1 contract).\n- Do not refresh non-CONCURRENTLY in production.\n- Do not omit Wave1 observability (T-116/T-117/T-118) — required per the prompt non-negotiables.\n- Do not retry inside the handler — worker re-fires on next interval.",
+  "labels": [
+    "prd",
+    "worker",
+    "observability",
+    "T2-api"
+  ],
+  "priority": 60,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-009",
+    "source_prd": "docs/prd/15-OEE-PRD.md",
+    "prd_refs": [
+      "§9.5",
+      "§11",
+      "D-OEE-1"
+    ],
+    "category": "worker",
+    "subcategory": "mv-refresh-job",
+    "task_type": "T2-api",
+    "parent_feature": "15-OEE-b",
+    "context_budget": "35k",
+    "estimated_effort": "1-2h",
+    "description": "Register oee_daily_summary 15-min CONCURRENTLY refresh as Wave1 worker job + trace/log/metric instrumentation.",
+    "details": "Wave1 T-111 worker primitive replaces pg_cron (R1). Job uses T-112 per-tenant loop wrapper for fairness + observability tagging. Fast-fail on REFRESH error (no DLQ; next tick retries). Metrics exposed via Wave1 T-118 registry surface for 12-REPORTING dashboards.",
+    "scope_files": [
+      "apps/worker/src/oee/daily-summary-refresh.ts [create]",
+      "apps/worker/src/oee/__tests__/daily-summary-refresh.test.ts [create]",
+      "apps/worker/src/registry.ts [modify]"
+    ],
+    "out_of_scope": [
+      "shift_aggregator_v1 handler (T-008)",
+      "Anomaly/maintenance trigger registration (T-023 stubs)",
+      "API endpoints (T-010..T-013)"
+    ],
+    "dependencies": [
+      "T-007"
+    ],
+    "parallel_safe_with": [
+      "T-008",
+      "T-010"
+    ],
+    "acceptance_criteria": [
+      "Given the registry is read, when filtered for job_id='oee.daily_summary_refresh.v1', then exactly one row with interval=15 min and active=TRUE exists",
+      "Given a populated oee_daily_summary, when the handler runs, then REFRESH CONCURRENTLY completes and a trace span + structured log + metric are emitted with job_id and org_id attributes",
+      "Given REFRESH errors, when the handler runs, then the failure metric increments, structured error log is emitted, and the handler does NOT throw past its boundary",
+      "Given two concurrent worker ticks attempt the same MV refresh, when both run, then both complete without deadlock (V-OEE-AGG-5 serialisation)"
+    ],
+    "test_strategy": [
+      "RED: vitest oee-daily-summary-refresh asserting four ACs",
+      "Run `pnpm --filter @monopilot/worker vitest run oee/daily-summary-refresh`"
+    ],
+    "risk_red_lines": [
+      "Do not register pg_cron — Wave1 T-111 worker is the only scheduler",
+      "Do not refresh non-CONCURRENTLY in production",
+      "Do not omit Wave1 T-116/T-117/T-118 observability",
+      "Do not retry inside the handler"
+    ],
+    "skills": [
+      "test-driven-development",
+      "systematic-debugging",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": false
+  }
+}

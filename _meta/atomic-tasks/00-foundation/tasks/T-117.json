@@ -1,0 +1,99 @@
+{
+  "title": "T-117 — Structured logger (pino) with secret redaction re-exported from @monopilot/observability",
+  "prompt": "# T-117 — Structured logger (pino) with secret redaction\n\nPRD: docs/prd/00-FOUNDATION-PRD.md §5 Cross-cutting infra (Observability), §11 Audit log (security/standard/operational/ephemeral retention), §13 Niefunkcjonalne\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nAdd a pino-based structured logger to `@monopilot/observability` (T-116) that redacts a curated allowlist of secret-bearing keys before any line is written. Today every module assumes `logger.*` exists; auditor B Top-10 Gap #3 and §4.10 confirm no logger/metrics/tracing package exists. This task delivers the JSON logger half of the observability triple; OTel was T-116; Sentry is T-118.\n\n## Implementation contract\n1. Extend `packages/observability` with `src/logger.ts` exporting `createLogger(opts?: { name?: string; level?: string; redactKeys?: string[] }): Logger` returning a pino instance configured with:\n   - default level `process.env.LOG_LEVEL ?? 'info'`,\n   - default redact paths covering: `password`, `pin`, `token`, `access_token`, `refresh_token`, `mfa_secret`, `scim_token_hash`, `recovery_codes`, `private_jsonb`, `authorization`, `cookie`, `set-cookie`, `database_url` (passwords inside URLs — pino's `*.password` glob), `subject_id` (GDPR PII guard from T-114), `actor_user_id` (mask to first 8 chars).\n   - `process.env.NODE_ENV === 'test'` → pretty pino-pretty transport.\n2. Re-export from `packages/observability/src/index.ts`: `export { createLogger, type Logger } from './logger'`.\n3. Replace the shim logger in `apps/worker/src/logger.ts` (T-111) with `import { createLogger } from '@monopilot/observability'; export const logger = createLogger({ name: 'worker' });`. The shim's exported shape is preserved.\n4. Add `packages/observability/src/__tests__/logger.test.ts`:\n   - Capture pino output to an in-memory destination (`pino.destination` with `pino.streams.send`-like custom write).\n   - Log `logger.info({ password: 'p4ss', token: 'tok', database_url: 'postgres://u:secret@h/db', user: { actor_user_id: 'abc-123-very-long' }, payload: 'ok' }, 'msg')`.\n   - Assert the emitted line contains `\"password\":\"[Redacted]\"`, `\"token\":\"[Redacted]\"`, the database_url password section masked, the actor_user_id either masked or replaced with the short prefix, and `\"payload\":\"ok\"` and `\"msg\":\"msg\"` intact.\n   - Assert level filtering works (level=warn drops .info).\n5. Document the redact-keys allowlist in `packages/observability/README.md` (create) and add a note in `_foundation/contracts/gdpr.md` (T-113) that the logger MUST be used for any code path touching `subject_id` (avoid `console.log` of erasure rows).\n\n## Files in scope\n- packages/observability/src/logger.ts [create]\n- packages/observability/src/index.ts [modify]\n- packages/observability/src/__tests__/logger.test.ts [create]\n- packages/observability/README.md [create]\n- packages/observability/package.json [modify — add pino, pino-pretty deps]\n- apps/worker/src/logger.ts [modify — replace shim with re-export]\n- _foundation/contracts/gdpr.md [modify — append redaction note]\n\n## Acceptance criteria\n1. Given logger created via createLogger({name:'test'}), when logger.info({password:'p4ss', token:'tok', payload:'ok'}, 'msg') called, then captured output contains \"password\":\"[Redacted]\", \"token\":\"[Redacted]\", \"payload\":\"ok\", \"msg\":\"msg\".\n2. Given logger with redactKeys containing database_url, when value matching postgres://user:secret@host/db logged, then password section masked while rest of URL visible.\n3. Given actor_user_id in redact allowlist, when logged, then emitted value is either [Redacted] or first-8-char prefix (document the choice).\n4. Given LOG_LEVEL=warn, when logger.info('skip') called, then nothing written to destination; AND Given apps/worker/src/logger.ts re-imported by JobRegistry, when worker logs, then output is JSON lines with name='worker' and redact allowlist applied.\n## Test strategy\n- RED: write `logger.test.ts` with 5 scenarios before implementation. Capture pino output via a custom Writable. RED command: `pnpm --filter @monopilot/observability test`.\n- GREEN: implement logger + redact paths + re-export + worker shim swap.\n- Run: `pnpm --filter @monopilot/observability test && pnpm --filter @monopilot/worker test`.\n\n## Risk red lines\n- Do not use `console.log` anywhere in production code paths once this lands — replace with the logger; ESLint rule additions to `tooling/eslint/base.mjs` are P1 follow-up (out-of-scope this task, but called out in CLOSEOUT).\n- Do not redact the entire payload — redact only the allowlisted keys; over-redaction destroys debuggability.\n- Do not log the entire `req.headers` — `authorization` and `cookie` MUST be redacted; the redact list covers this.\n- Do not log the `subject_id` of a GDPR erasure request — the redact list covers it; the contract note in `_foundation/contracts/gdpr.md` is normative.\n- Do not synchronous-flush in production hot paths — pino is async by default, do not change.\n- Do not introduce a second logger package — single source-of-truth in `@monopilot/observability`.",
+  "labels": [
+    "prd",
+    "observability",
+    "logger",
+    "T2-api"
+  ],
+  "priority": 70,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-117",
+    "source_prd": "docs/prd/00-FOUNDATION-PRD.md",
+    "prd_refs": [
+      "§5",
+      "§11",
+      "§13"
+    ],
+    "category": "observability",
+    "subcategory": "logger",
+    "task_type": "T2-api",
+    "parent_feature": "00-foundation-observability",
+    "context_budget": "30k",
+    "estimated_effort": "2-3h",
+    "description": "Add pino logger to @monopilot/observability with curated redact allowlist (password/pin/token/subject_id/actor_user_id/database_url credentials/etc). Replace apps/worker shim. Vitest asserts redaction round-trip + level filtering.",
+    "details": "pino default level via LOG_LEVEL env. Redact paths: password, pin, token, access_token, refresh_token, mfa_secret, scim_token_hash, recovery_codes, private_jsonb, authorization, cookie, set-cookie, database_url password section, subject_id, actor_user_id (masked to 8-char prefix). NODE_ENV=test uses pino-pretty. createLogger accepts redactKeys to extend allowlist per-package. Test captures via custom Writable destination.\n\nAC count consolidated from 5→4 by Fixer F7 2026-05-14 (no coverage lost).",
+    "scope_files": [
+      "packages/observability/src/logger.ts [create]",
+      "packages/observability/src/index.ts [modify]",
+      "packages/observability/src/__tests__/logger.test.ts [create]",
+      "packages/observability/README.md [create]",
+      "packages/observability/package.json [modify]",
+      "apps/worker/src/logger.ts [modify]",
+      "_foundation/contracts/gdpr.md [modify]"
+    ],
+    "out_of_scope": [
+      "ESLint rule banning console.log (P1 follow-up)",
+      "Per-module redact-list extensions",
+      "Log shipping to Datadog/CloudWatch (env-driven transport)"
+    ],
+    "dependencies": [
+      "T-116"
+    ],
+    "parallel_safe_with": [
+      "T-113",
+      "T-118",
+      "T-121",
+      "T-122"
+    ],
+    "acceptance_criteria": [
+      "Given logger created via createLogger({name:'test'}), when logger.info({password:'p4ss', token:'tok', payload:'ok'}, 'msg') called, then captured output contains \"password\":\"[Redacted]\", \"token\":\"[Redacted]\", \"payload\":\"ok\", \"msg\":\"msg\".",
+      "Given logger with redactKeys containing database_url, when value matching postgres://user:secret@host/db logged, then password section masked while rest of URL visible.",
+      "Given actor_user_id in redact allowlist, when logged, then emitted value is either [Redacted] or first-8-char prefix (document the choice).",
+      "Given LOG_LEVEL=warn, when logger.info('skip') called, then nothing written to destination; AND Given apps/worker/src/logger.ts re-imported by JobRegistry, when worker logs, then output is JSON lines with name='worker' and redact allowlist applied."
+    ],
+    "test_strategy": [
+      "RED: write logger.test.ts with 5 scenarios before implementation; capture pino output via custom Writable; RED command: pnpm --filter @monopilot/observability test.",
+      "GREEN: implement logger + redact paths + re-export + worker shim swap.",
+      "Run: pnpm --filter @monopilot/observability test && pnpm --filter @monopilot/worker test."
+    ],
+    "risk_red_lines": [
+      "Do not use console.log anywhere in production code paths once this lands — ESLint rule is P1 follow-up.",
+      "Do not redact the entire payload — only allowlisted keys.",
+      "Do not log req.headers without redact — authorization and cookie covered by allowlist.",
+      "Do not log subject_id of GDPR erasure request — covered by allowlist; contract note is normative.",
+      "Do not synchronous-flush in production hot paths — keep pino async default.",
+      "Do not introduce a second logger package — single source-of-truth in @monopilot/observability."
+    ],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "cross_module_dependencies": []
+  }
+}

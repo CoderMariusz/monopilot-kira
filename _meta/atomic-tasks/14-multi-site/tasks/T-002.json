@@ -1,0 +1,106 @@
+{
+  "title": "T-002 \u2014 sites table + RLS + indexes (\u00a79.1, V-MS-01, V-MS-04)",
+  "prompt": "# T-002 \u2014 sites table + RLS + indexes\n\nPRD: docs/prd/14-MULTI-SITE-PRD.md \u00a79.1, \u00a79.9, \u00a711.1 V-MS-01/V-MS-04\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nIntroduce the physical `sites` table (master data, org-scoped \u2014 NOT site-scoped per \u00a76.4 REC-L1 rule: master tables stay org_scoped). Enforce exactly-one-default-site-per-org via unique partial index (V-MS-01). Timezone column constrained at app layer to valid IANA TZ (V-MS-04).\n\n## Implementation contract\n1. New Drizzle migration `packages/db/migrations/0041_sites.sql`:\n   - CREATE TABLE sites per \u00a79.1 DDL: id, org_id, site_code, name, is_default, legal_entity, timezone (default 'UTC'), country, data_residency_region, hierarchy_config_id, parent_site_id (self-ref FK), l3_ext_cols JSONB, active, activated_at, created_at, UNIQUE(org_id, site_code).\n   - ENABLE ROW LEVEL SECURITY + FORCE ROW LEVEL SECURITY.\n   - Policy `sites_org_context` USING (org_id = app.current_org_id()) WITH CHECK (org_id = app.current_org_id()).\n   - CREATE INDEX idx_sites_org ON sites(org_id) WHERE active.\n   - CREATE UNIQUE INDEX idx_sites_default ON sites(org_id) WHERE is_default = true.\n   - NOTE: sites is org master data (\u00a76.4 REC-L1) \u2014 no site_id scoping or app.current_site_id() call here; the composite (org_id, site_id) index pattern applies only to operational tables (\u00a79.8). This table uses app.current_org_id() exclusively.\n2. Drizzle schema entry `packages/db/src/schema/sites.ts` mirroring columns; export typed Insert/Select.\n3. Zod schema `packages/db/src/schema/sites.zod.ts` with IANA timezone refinement via `Intl.supportedValuesOf('timeZone').includes(tz)`.\n4. Tests assert: RLS isolation across two orgs, double-default insertion blocked, invalid IANA timezone rejected by zod, FK self-ref parent_site_id with same-org constraint (parent.org_id = child.org_id).\n\n## Files\n- packages/db/migrations/0041_sites.sql [create]\n- packages/db/src/schema/sites.ts [create]\n- packages/db/src/schema/sites.zod.ts [create]\n- packages/db/src/schema/index.ts [modify]\n- packages/db/__tests__/sites.test.ts [create]\n\n## Acceptance criteria\n<!-- AC count consolidated from 5\u21924 by Fixer F14a 2026-05-14 (no coverage lost) -->\n1. Given migration 0041 is applied, when \\d sites is inspected, then all 14 cols are present per \u00a79.1, RLS + FORCE ROW LEVEL SECURITY enabled, and unique partial index idx_sites_default exists with WHERE is_default = true.\n2. Given two orgs each insert a row with is_default=true, when query is run as app_user under each org, then each sees only its own org row.\n3. Given org_A already has is_default=true row, when a second insert with is_default=true and same org_id runs, then DB raises unique_violation (V-MS-01 enforced at DB level).\n4. Given a row with timezone='Foo/Bar', when the zod schema parses it, then validation fails with 'invalid IANA timezone' (V-MS-04).\n5. Given pg_policies for sites, when inspected, then qual/withcheck reference app.current_org_id() and not current_setting('app.tenant_id'|'app.current_org_id') GUC reads.\n\n## Test strategy\n- RED: write packages/db/__tests__/sites.test.ts asserting RLS isolation, V-MS-01 unique-violation, V-MS-04 zod refinement, pg_policies grep before migration runs.\n- Run 'pnpm --filter @monopilot/db test:integration -- sites'.\n\n## Risk red lines\n- Do not read current_setting('app.tenant_id') or current_setting('app.current_org_id') directly \u2014 use app.current_org_id() function.\n- Do not add CASCADE DELETE on parent_site_id self-ref (D-MS-3: sites cannot be deleted while data exists; archive only).\n- Do not site-scope this table (sites is org master data per \u00a76.4 REC-L1; site_id column would be circular).\n- Do not skip FORCE ROW LEVEL SECURITY.\n- Do not put validation of IANA timezone solely in app layer \u2014 also document the CHECK constraint deferral in 14-e if/when added.",
+  "labels": [
+    "prd",
+    "data",
+    "schema",
+    "T1-schema"
+  ],
+  "priority": 40,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-002",
+    "source_prd": "docs/prd/14-MULTI-SITE-PRD.md",
+    "prd_refs": [
+      "\u00a79.1",
+      "\u00a711.1 V-MS-01",
+      "\u00a711.1 V-MS-04",
+      "\u00a79.9"
+    ],
+    "category": "data",
+    "subcategory": "schema-sites",
+    "task_type": "T1-schema",
+    "parent_feature": "14-MULTI-SITE-a core schema",
+    "context_budget": "50k",
+    "estimated_effort": "2-3h",
+    "description": "Create sites table (12 cols + l3_ext_cols JSONB + active flag) + composite index idx_sites_org partial WHERE active + unique partial idx_sites_default per V-MS-01 + RLS org-scoped policy using app.current_org_id().",
+    "details": "Create sites table (12 cols + l3_ext_cols JSONB + active flag) + composite index idx_sites_org partial WHERE active + unique partial idx_sites_default per V-MS-01 + RLS org-scoped policy using app.current_org_id(). Scope: Introduce the physical `sites` table (master data, org-scoped \u2014 NOT site-scoped per \u00a76. Touches: packages/db/migrations/0041_sites.sql, packages/db/src/schema/sites.ts, packages/db/src/schema/sites.zod.ts, packages/db/src/schema/index.ts. Constraints: 1. New Drizzle migration `packages/db/migrations/0041_sites.sql`: - CREATE TABLE sites per \u00a79.1 DDL: id, org_id, site_code, name, is_default, legal_entity, timezone (default 'UTC'), country, data_residency_region, hierarchy_config_id, parent_site_id (self-ref FK), l3_ext_cols JSONB, active, activated_at, created_at, UNIQUE(org_id, site_code). - ENA. Distinguished from sibling 14-multi-site tasks by its narrow schema-sites focus against PRD \u00a79.1, \u00a711.1 V-MS-01, \u00a711.1 V-MS-04, \u00a79.9. AC count consolidated from 5\u21924 by Fixer F14a 2026-05-14 (no coverage lost)",
+    "scope_files": [
+      "packages/db/migrations/0041_sites.sql [create]",
+      "packages/db/src/schema/sites.ts [create]",
+      "packages/db/src/schema/sites.zod.ts [create]",
+      "packages/db/src/schema/index.ts [modify]",
+      "packages/db/__tests__/sites.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not seed Apex/EDGE sample sites (T-005 covers seeds for hierarchy_config; activation wizard T-023 seeds the per-tenant default).",
+      "Do not create site_user_access here (T-003).",
+      "Do not create transport_lanes here (T-012)."
+    ],
+    "dependencies": [],
+    "cross_module_dependencies": [
+      {
+        "module": "00-foundation",
+        "task_id": "T-007",
+        "reason": "RLS depends on app.current_org_id() helper from foundation 002-rls-baseline.sql"
+      },
+      {
+        "module": "00-foundation",
+        "task_id": "T-125",
+        "reason": "Cross-mod dep to 00-foundation T-125 declared (withOrgContext + app.current_org_id() per F11 rule). withSiteContext composes on top of T-125; all site-scoped tasks must carry this cross-module dep."
+      }
+    ],
+    "parallel_safe_with": [
+      "T-003",
+      "T-004",
+      "T-005"
+    ],
+    "acceptance_criteria": [
+      "Given migration 0041 is applied, when \\\\d sites is inspected, then all 14 cols are present per \u00a79.1, RLS + FORCE ROW LEVEL SECURITY enabled, and unique partial index idx_sites_default exists with WHERE is_default = true.",
+      "Given two orgs each insert a row with is_default=true, when query is run as app_user under each org, then each sees only its own org row; AND given pg_policies for sites when inspected then qual/withcheck reference app.current_org_id() and contain no current_setting('app.*') GUC reads.",
+      "Given org_A already has is_default=true row, when a second insert with is_default=true and same org_id runs, then DB raises unique_violation (V-MS-01 enforced at DB level).",
+      "Given a row with timezone='Foo/Bar', when the zod schema parses it, then validation fails with 'invalid IANA timezone' (V-MS-04)."
+    ],
+    "test_strategy": [
+      "RED: write packages/db/__tests__/sites.test.ts asserting RLS isolation + V-MS-01 unique-violation + V-MS-04 zod refinement + pg_policies grep before migration runs.",
+      "Run 'pnpm --filter @monopilot/db test:integration -- sites'."
+    ],
+    "risk_red_lines": [
+      "Do not read current_setting('app.tenant_id') or current_setting('app.current_org_id') directly \u2014 use app.current_org_id().",
+      "Do not add CASCADE DELETE on parent_site_id self-ref (D-MS-3 archive-only).",
+      "Do not site-scope sites table (master data per \u00a76.4 REC-L1).",
+      "Do not skip FORCE ROW LEVEL SECURITY.",
+      "Do not couple zod IANA validation to a hardcoded list \u2014 use Intl.supportedValuesOf('timeZone')."
+    ],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review",
+      "systematic-debugging"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": false
+  }
+}

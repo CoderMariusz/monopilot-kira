@@ -1,0 +1,100 @@
+{
+  "title": "T-010 — Fiscal calendar engine (generate_fiscal_periods function + fiscal_periods table consumer) (12-REPORTING §6 D-RPT-2)",
+  "prompt": "# T-010 — Fiscal calendar engine\n\nPRD: docs/prd/12-REPORTING-PRD.md §6 D-RPT-2 (4-4-5 / 4-5-4 / 5-4-4 / calendar_months), §5 Biznesowe (fiscal calendar config required pre-E4), §11 V-RPT-QUERY-4 (week_ending Saturday)\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nImplement `app.generate_fiscal_periods(org_id, year)` Postgres function that materialises P1-P13 rows into `fiscal_periods` reference table (owned by 02-SETTINGS §8 per D-RPT-2). Reads `organization_settings.fiscal_calendar_type`; defaults to calendar_months if unset. Service helper to look up the current period for a given (org, date). Used by P2 Period Reports (RPT-P2-006) and by V-RPT-QUERY-5 validation; scaffolded in P1 so consumer dashboards can read fiscal context.\n\n## Implementation contract\n1. Migration `packages/db/migrations/0087_reporting_fiscal_calendar.sql` — creates `app.generate_fiscal_periods(org_id uuid, year int) RETURNS void` SECURITY DEFINER function that:\n   - Reads `organization_settings.fiscal_calendar_type` (FK to 02-SETTINGS).\n   - Computes period boundaries per type (4-4-5, 4-5-4, 5-4-4, or calendar_months).\n   - INSERTs P1..P12 (or P13 for 4-4-5 fiscal year) rows into `fiscal_periods` (org_id, year, period_no, start_date, end_date).\n   - Idempotent: `ON CONFLICT (org_id, year, period_no) DO NOTHING`.\n2. If `fiscal_periods` table is not yet owned by 02-SETTINGS, verify schema via `information_schema` before creating; if missing, scope is to create it here with org_id + RLS (cite 02-SETTINGS §8 dependency in coverage.md note).\n3. Service helper `packages/reporting/src/queries/fiscal-period.ts` — `getCurrentFiscalPeriod(orgId, date)` returns `{year, period_no, start_date, end_date}`; throws `FiscalCalendarNotConfiguredError` if no rows exist (per V-RPT-QUERY-5).\n4. Vitest contract test: (a) 4-4-5 generates 13 periods totalling 364/365 days correctly, (b) calendar_months fallback generates 12 periods (Jan..Dec), (c) ON CONFLICT idempotency, (d) RLS isolation on fiscal_periods, (e) FiscalCalendarNotConfiguredError thrown when no rows.\n\n## Files\n- packages/db/migrations/0087_reporting_fiscal_calendar.sql [create]\n- packages/reporting/src/queries/fiscal-period.ts [create]\n- packages/reporting/__tests__/fiscal-calendar.test.ts [create]\n\n## Acceptance criteria\n1. Given migration 0087 runs and a 2026 4-4-5 config exists for org_A, when `app.generate_fiscal_periods(org_A_id, 2026)` runs, then 13 rows are inserted into fiscal_periods with consecutive start/end dates totalling 364 or 365 days; period_no ∈ [1..13]; week_ending is Saturday per V-RPT-QUERY-4.\n2. Given an org with no fiscal_calendar_type set, when generate_fiscal_periods runs, then calendar_months fallback inserts 12 rows (Jan..Dec) per D-RPT-2.\n3. Given generate_fiscal_periods runs twice for the same (org, year), when the second call completes, then the row count is unchanged (ON CONFLICT idempotency).\n4. Given `getCurrentFiscalPeriod(org_A, '2026-03-15')` is called, when periods exist, then it returns the period whose range contains that date; when no periods, throws FiscalCalendarNotConfiguredError.\n5. Given fiscal_periods is queried under cross-org session, when rows are returned, then RLS isolation passes (zero leaks).\n\n## Test strategy (RED first)\n- RED: `packages/reporting/__tests__/fiscal-calendar.test.ts` covers 5 ACs with testcontainers Postgres + seeded organization_settings rows.\n- Run `pnpm --filter @monopilot/reporting test fiscal-calendar`.\n- GREEN: write migration + Postgres function + service helper.\n\n## Risk red lines\n- Do not skip the schema verification step — `fiscal_periods` ownership is declared in 02-SETTINGS §8 reference tables; verify presence before writing migration body (per kira_hq_red_prompt_verify_schema memory).\n- Do not hardcode period boundaries — derive from fiscal_calendar_type config per org per D-RPT-2.\n- Do not generate P13 for non-4-4-5 calendars — 4-5-4 / 5-4-4 / calendar_months produce 12 periods only.\n- Do not let function fail silently on missing config — use calendar_months fallback (D-RPT-2 \"jesli org nie skonfigurowal → domyslnie calendar_months\").\n- Do not let week_ending dates fall on non-Saturday per V-RPT-QUERY-4 (ISO 8601 convention).\n- Do not run generate_fiscal_periods in a hot request path — long-running; call from worker (T-005-style cron) on org-creation event or admin trigger.",
+  "labels": [
+    "prd",
+    "data",
+    "fiscal",
+    "T1-schema"
+  ],
+  "priority": 60,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-010",
+    "source_prd": "docs/prd/12-REPORTING-PRD.md",
+    "prd_refs": [
+      "§6 D-RPT-2",
+      "§5 Biznesowe",
+      "§11 V-RPT-QUERY-4",
+      "§11 V-RPT-QUERY-5"
+    ],
+    "category": "data",
+    "subcategory": "fiscal-engine",
+    "task_type": "T1-schema",
+    "parent_feature": "12-REPORTING-a",
+    "context_budget": "35k",
+    "estimated_effort": "2-3h",
+    "description": "generate_fiscal_periods Postgres function + fiscal_periods consumer helper supporting 4-4-5 / 4-5-4 / 5-4-4 / calendar_months. P1 scaffold for P2 Period Reports.",
+    "details": "Function reads organization_settings.fiscal_calendar_type. ON CONFLICT idempotent. Service helper enforces RLS + throws on missing config. Verify fiscal_periods ownership in 02-SETTINGS §8 before creating table.",
+    "scope_files": [
+      "packages/db/migrations/0087_reporting_fiscal_calendar.sql [create]",
+      "packages/reporting/src/queries/fiscal-period.ts [create]",
+      "packages/reporting/__tests__/fiscal-calendar.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not implement Period Reports 4-4-5 dashboard (P2 RPT-P2-006)",
+      "Do not implement Multi-granularity time selector (P2 D-RPT-4)"
+    ],
+    "dependencies": [
+      "T-003"
+    ],
+    "parallel_safe_with": [
+      "T-006",
+      "T-007",
+      "T-009",
+      "T-011"
+    ],
+    "cross_module_dependencies": [
+      "02-SETTINGS organization_settings.fiscal_calendar_type",
+      "02-SETTINGS §8 fiscal_periods reference table",
+      "00-FOUNDATION T-125 app.current_org_id()"
+    ],
+    "acceptance_criteria": [
+      "Given migration 0087 runs and a 2026 4-4-5 config exists for org_A, when app.generate_fiscal_periods runs, then 13 rows inserted with consecutive start/end totaling 364 or 365 days; period_no ∈ [1..13]; week_ending is Saturday (V-RPT-QUERY-4)",
+      "Given an org with no fiscal_calendar_type set, when generate_fiscal_periods runs, then calendar_months fallback inserts 12 rows (Jan..Dec)",
+      "Given fiscal_periods is queried under cross-org session, when rows are returned, then RLS isolation passes (zero leaks)",
+      "Given edge and compliance cases are exercised, when each condition is triggered, then it returns the period whose range contains the date; when no periods, throws FiscalCalendarNotConfiguredError and row count is unchanged."
+    ],
+    "test_strategy": [
+      "RED: packages/reporting/__tests__/fiscal-calendar.test.ts covers 5 ACs with testcontainers Postgres + seeded organization_settings rows",
+      "Run `pnpm --filter @monopilot/reporting test fiscal-calendar`",
+      "GREEN: write migration + Postgres function + service helper"
+    ],
+    "risk_red_lines": [
+      "Do not skip schema verification — fiscal_periods ownership is declared in 02-SETTINGS §8; verify presence before writing migration",
+      "Do not hardcode period boundaries — derive from fiscal_calendar_type per org (D-RPT-2)",
+      "Do not generate P13 for non-4-4-5 calendars — 4-5-4 / 5-4-4 / calendar_months are 12 periods only",
+      "Do not let function fail silently on missing config — use calendar_months fallback (D-RPT-2)",
+      "Do not let week_ending fall on non-Saturday (V-RPT-QUERY-4)",
+      "Do not run generate_fiscal_periods in hot request path — worker only"
+    ],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": false
+  }
+}

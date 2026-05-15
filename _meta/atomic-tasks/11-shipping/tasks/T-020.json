@@ -1,0 +1,115 @@
+{
+  "title": "T-020 — Pack + Ship Server Actions: closeBox, confirmShipment, reprintSscc, carrierUpsert (11-shipping-e)",
+  "prompt": "# T-020 — Pack/Ship Server Actions\n\nPRD: docs/prd/11-SHIPPING-PRD.md §6 D-SHP-13, §6 D-SHP-14 D365 SalesOrder Confirm Push, §8.4 Flow Pack + SSCC + BOL, §11 V-SHIP-PACK-01..05, V-SHIP-SHIP-01..06\nPrototype refs: prototypes/design/Monopilot Design System/shipping/modals.jsx:577-607 (pack_close_carton_modal), :609-700 (ship_confirm_modal), :702-739 (sscc_preview_reprint_modal), :792-807 (carrier_create_edit_modal)\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nServer Actions for pack station + shipment confirm with strict V-SHIP-SHIP-* enforcement and atomic outbox enqueue.\n\n## GS1 prefix source\nAll SSCC generation reads `organizations.gs1_company_prefix` from the organizations table (02-settings). Do not hardcode or store in environment config — always read from DB.\n\n## Implementation contract\n1. `apps/web/lib/server-actions/shipping/pack-ship.ts` exports:\n   - `closeBox({ shipmentId, boxNumber, actual_weight_kg, contents[] })` — V-SHIP-PACK-01 (≥1 content row), V-SHIP-PACK-04 (actual_weight_kg within product.variance_tolerance_pct from products NPD); calls `generateSsccForBox` (T-019) so sscc is assigned atomically; outbox `shipping.box.closed`. Permission `ship.pack.close`.\n   - `confirmShipment({ shipmentId })` — runs all V-SHIP-SHIP-* in tx: V-SHIP-SHIP-01 (all boxes have sscc), V-SHIP-SHIP-02 (BOL generated — check bol_pdf_url IS NOT NULL), V-SHIP-SHIP-03 (no critical quality_holds across all box LPs — call T-013 evaluateLpForShipping per LP), V-SHIP-SHIP-04 (outbox enqueue in same tx — atomic D-SHP-14), V-SHIP-SHIP-05 (LP state reserved→shipped atomic via 05-WH). Then UPDATE shipments.status='shipped', shipped_at, shipped_by; UPDATE sales_orders.status='shipped' if all lines fully shipped; outbox `shipment.confirmed` per §12.1 payload schema (D365 dispatch consumer is T-029). Permission `ship.ship.confirm`.\n   - `reprintSscc({ ssccId, reason })` — delegates to T-019 reprintSscc; audit; outbox.\n   - `upsertCarrier({ carrier })` — carriers table (created by T-027). Permission `ship.so.create` (carriers admin OR shipping_manager).\n2. Atomic outbox: `shipment.confirmed` event MUST be enqueued in the same DB transaction as the `shipments.status='shipped'` UPDATE (V-SHIP-SHIP-04, D-SHP-14 R14 idempotency `ship::<shipment_id>::v<version>` key).\n3. Quality hold check loops through all shipment_box_contents.license_plate_id → calls T-013 evaluateLpForShipping; any `critical` returns `blocker_code='qa.critical_hold'` and aborts.\n4. All mutations under `withOrgContext`. PII redact. Rate-limit 30/min/user.\n5. On `confirmShipment` success: invoke 05-WH `transition_lp(lpId, 'shipped')` for each LP atomically (consumer of 05-WH T-013 LP DSL).\n\n## Files\n- apps/web/lib/server-actions/shipping/pack-ship.ts [create]\n- apps/web/lib/server-actions/shipping/__tests__/pack-ship.test.ts [create]\n- packages/events/src/shipping.ts [modify — ShippingBoxClosed, ShipmentConfirmed (D365 payload schema per §12.1)]\n\n## Acceptance criteria\n1. Given closeBox is called for a box with 0 contents, when validator runs, then throws V-SHIP-PACK-01 and no DB write.\n2. Given closeBox is called with actual_weight_kg outside product.variance_tolerance_pct, when validator runs, then throws V-SHIP-PACK-04 and no DB write.\n3. Given confirmShipment is called for a shipment whose 1+ box LPs has critical quality_hold (T-013 returns ok=false), when it runs, then throws blocker_code='qa.critical_hold' (V-SHIP-SHIP-03) and no state change.\n4. Given confirmShipment succeeds, when DB is inspected post-call, then: shipments.status='shipped', shipping_outbox_events row with event_type='shipment.confirmed', idempotency_key='ship::<id>::v1', payload schema matching §12.1, and 05-WH license_plates.status='shipped' for all box LPs — all in same tx.\n5. Given confirmShipment is called twice for the same shipmentId, when the second call runs, then the outbox idempotency_key collision triggers a no-op replay (returns same response, no double-enqueue) per R14.\n6. Given grep current_setting('app.tenant_id'|'app.current_org_id') on pack-ship.ts, when run, then zero matches.\n\n## Test strategy\n- RED: vitest with testcontainers Postgres asserting AC 1-6 + atomic-tx assertions (rollback on failure).\n- Run `pnpm --filter @monopilot/web vitest run pack-ship.test.ts && pnpm typecheck`.\n\n## Risk red lines\n- Do not enqueue `shipment.confirmed` outbox event outside the DB transaction that UPDATEs status='shipped'.\n- Do not skip T-013 quality-hold check.\n- Do not bypass V-SHIP-PACK-04 catch-weight variance.\n- Do not call mutations outside withOrgContext.\n- Do not allow duplicate idempotency_key (R14 enforcement).\n- Do not write directly to license_plates.status — call 05-WH transition_lp DSL.\n\n## BRCGS audit trail\nconfirmShipment stores SHA-256 hash of the POD/signed-BOL document + retention_until = confirmed_at + 7 years (BRCGS Issue 9 §3.5 / §14.4). Do not allow truncation or premature deletion.\n",
+  "labels": [
+    "prd",
+    "backend",
+    "server-actions",
+    "T2-api"
+  ],
+  "priority": 70,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-020",
+    "source_prd": "docs/prd/11-SHIPPING-PRD.md",
+    "prd_refs": [
+      "§6 D-SHP-13",
+      "§6 D-SHP-14",
+      "§8.4",
+      "§11 V-SHIP-PACK-01",
+      "§11 V-SHIP-PACK-04",
+      "§11 V-SHIP-PACK-05",
+      "§11 V-SHIP-SHIP-01",
+      "§11 V-SHIP-SHIP-02",
+      "§11 V-SHIP-SHIP-03",
+      "§11 V-SHIP-SHIP-04",
+      "§11 V-SHIP-SHIP-05",
+      "§12.1"
+    ],
+    "category": "backend",
+    "subcategory": "server-actions-pack-ship",
+    "task_type": "T2-api",
+    "parent_feature": "11-shipping-e",
+    "context_budget": "55k",
+    "estimated_effort": "4-5h",
+    "description": "Pack closeBox + confirmShipment Server Actions enforcing V-SHIP-PACK-*/V-SHIP-SHIP-* and atomic outbox enqueue (D-SHP-14).",
+    "details": "Atomic outbox in same tx (V-SHIP-SHIP-04, R14 idempotency key). T-013 quality-hold gate (HARD BLOCK on critical). 05-WH transition_lp DSL invoked for shipped state. Catch-weight variance from product.variance_tolerance_pct (NPD/Technical).",
+    "scope_files": [
+      "apps/web/lib/server-actions/shipping/pack-ship.ts [create]",
+      "apps/web/lib/server-actions/shipping/__tests__/pack-ship.test.ts [create]",
+      "packages/events/src/shipping.ts [modify]"
+    ],
+    "out_of_scope": [
+      "Do not implement D365 dispatcher (T-029).",
+      "Do not implement BOL/packing slip generation (T-023).",
+      "Do not build UI (T-021)."
+    ],
+    "dependencies": [
+      "T-018",
+      "T-019",
+      "T-013",
+      "T-031",
+      "00-foundation/T-125",
+      "00-foundation/T-112"
+    ],
+    "parallel_safe_with": [
+      "T-016",
+      "T-023"
+    ],
+    "cross_module_dependencies": [
+      "05-warehouse/T-013 (transition_lp DSL — reserved→shipped)",
+      "01-npd/T-001 (product.variance_tolerance_pct for V-SHIP-PACK-04)",
+      "09-quality/T-010 (v_active_holds via T-013)",
+      "09-quality/T-064 (consume gate — confirmShipment calls holdsGuard before shipping LP; per 2026-05-14 audit)"
+    ],
+    "acceptance_criteria": [
+      "Given closeBox called for box with 0 contents, when validator runs, then throws V-SHIP-PACK-01; AND given actual_weight_kg outside product.variance_tolerance_pct, then throws V-SHIP-PACK-04.",
+      "Given confirmShipment with a critical-hold LP (v_active_holds via 09-quality T-064, holdsGuard called before mutation), when it runs, then throws blocker_code='qa.critical_hold' (V-SHIP-SHIP-03).",
+      "Given confirmShipment succeeds, when DB inspected, then shipments.status='shipped' + shipping_outbox_events row (event_type='shipping.shipment.confirmed') + SHA-256 hash stored + retention_until = now + 7 years (BRCGS §3.5); GS1 prefix read from organizations.gs1_company_prefix (02-settings).",
+      "Given confirmShipment called twice for same shipmentId, when second runs, then idempotency_key collision returns no-op response; AND grep current_setting('app.tenant_id'|'app.current_org_id') on pack-ship.ts returns zero matches."
+    ],
+    "test_strategy": [
+      "RED: vitest with testcontainers Postgres asserting AC 1-6 + tx rollback on failure.",
+      "Run `pnpm --filter @monopilot/web vitest run pack-ship.test.ts && pnpm typecheck`."
+    ],
+    "risk_red_lines": [
+      "Do not enqueue shipment.confirmed outbox outside DB tx.",
+      "Do not skip T-013 quality-hold check.",
+      "Do not bypass V-SHIP-PACK-04 variance.",
+      "Do not call mutations outside withOrgContext.",
+      "Do not allow duplicate idempotency_key.",
+      "Do not write directly to license_plates.status — call 05-WH DSL.",
+      "D365 dispatcher is export-only — must not mutate canonical Monopilot state via D365 callback; R15 anti-corruption contract: Monopilot is the system of record.",
+      "POD audit trail uses SHA-256 hash + 7-year retention (BRCGS Issue 9 §3.5) — do not allow truncation or premature deletion of signed document records."
+    ],
+    "skills": [
+      "test-driven-development",
+      "systematic-debugging",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": false
+  }
+}

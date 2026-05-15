@@ -1,0 +1,105 @@
+{
+  "title": "T-006 — mv_qc_holds_summary + mv_downtime_by_line MVs DDL (12-REPORTING §9.1, §10.1)",
+  "prompt": "# T-006 — QC Holds + Downtime materialized views\n\nPRD: docs/prd/12-REPORTING-PRD.md §9.1, §10.1 (QC Holds dashboard), §6 D-RPT-7 (downtime categories consumer)\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nCreate `mv_qc_holds_summary` (consumer of 09-QUALITY `quality_holds` + `hold_items`) and `mv_downtime_by_line` (consumer of 08-PRODUCTION `downtime_events`). Both org-scoped + REC-L1 site_id + unique index for REFRESH CONCURRENTLY + RLS-via-service.\n\n## Implementation contract\n1. Migration `packages/db/migrations/0083_reporting_mv_qc_downtime.sql`:\n   - `mv_qc_holds_summary (org_id, site_id, date, line_id, product_id, reason_code, boxes_held, boxes_rejected, labour_hours, am_pm)` — selects from 09-QA quality_holds JOIN hold_items.\n   - `mv_downtime_by_line (org_id, site_id, line_id, date, shift_id, people_mins, process_mins, plant_mins, total_mins)` — selects from 08-PROD downtime_events; categories from 02-SET `downtime_categories` ref table (D-RPT-7 People/Process/Plant baseline).\n   - Unique indexes per MV (CONCURRENTLY prerequisite).\n   - REVOKE PUBLIC + GRANT app_reporting_role only.\n2. Drizzle entries in `packages/db/src/schema/reporting-views.ts` (extend T-003's file).\n3. Service helpers `packages/reporting/src/queries/qc-holds.ts` + `downtime.ts` always emit `WHERE org_id = app.current_org_id() AND (site_id = $current OR site_id IS NULL)`.\n4. Register both view names in `packages/reporting/src/mv-registry.ts` enum (from T-005).\n5. Vitest contract test: (a) MVs + unique indexes exist, (b) cross-org leak test for both, (c) refresh-concurrently works on both, (d) service helper guardrail + org context check, (e) AM/PM split derived from hold_items.shift_id or time-of-day rule per §10.1 (verified with seeded data).\n\n## Files\n- packages/db/migrations/0083_reporting_mv_qc_downtime.sql [create]\n- packages/db/src/schema/reporting-views.ts [modify — extend]\n- packages/reporting/src/queries/qc-holds.ts [create]\n- packages/reporting/src/queries/downtime.ts [create]\n- packages/reporting/src/mv-registry.ts [modify]\n- packages/reporting/__tests__/mv-qc-downtime.test.ts [create]\n\n## Acceptance criteria\n1. Given migration 0083 runs, when `\\d mv_qc_holds_summary` and `\\d mv_downtime_by_line` are inspected, then declared columns + unique indexes exist; REVOKE PUBLIC applied.\n2. Given two orgs have seeded 09-QA holds and 08-PROD downtime rows, when service helpers query under each org session, then cross-org leak test passes (zero leaks).\n3. Given a hold row with shift_id mapped to AM and another to PM, when mv_qc_holds_summary is refreshed, then am_pm column reflects the shift mapping rule (NOT a client-side derivation).\n4. Given downtime_events seeded with one row in 'People' category and one in 'Plant', when mv_downtime_by_line is refreshed, then people_mins and plant_mins reflect SUM grouped by category — using 02-SET `downtime_categories.classification` ref join, never a hardcoded category list.\n5. Given both view names are registered in mv-registry enum (T-005), when the refresh worker is invoked, then both are eligible for REFRESH MATERIALIZED VIEW CONCURRENTLY (5-min cadence for mv_qc_holds_summary, 2-min for mv_downtime_by_line).\n\n## Test strategy (RED first)\n- RED: `packages/reporting/__tests__/mv-qc-downtime.test.ts` mounts testcontainers Postgres, seeds 09-QA + 08-PROD rows, asserts 5 ACs incl. cross-org leak test.\n- Run `pnpm --filter @monopilot/reporting test mv-qc-downtime`.\n- GREEN: write migration + Drizzle entries + service helpers + enum update.\n\n## Risk red lines\n- Do not duplicate quality_holds aggregation logic — read 09-QUALITY tables only via MV (consumer pattern; no transactional joins on hot path per D-RPT-1).\n- Do not hardcode downtime categories list — consume 02-SET `downtime_categories.classification` ref table per D-RPT-7.\n- Do not skip unique index per MV (CONCURRENTLY refresh prerequisite).\n- Do not let MV WHERE clauses run without service-helper org+site guard.\n- Do not GRANT to PUBLIC; app_reporting_role only.\n- Do not block on 09-QUALITY epics 09-d/09-e — only Holds (09-a) feeds this MV; NCR/HACCP/complaints are P2 (separate MV tasks).",
+  "labels": [
+    "prd",
+    "data",
+    "schema",
+    "T1-schema"
+  ],
+  "priority": 70,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-006",
+    "source_prd": "docs/prd/12-REPORTING-PRD.md",
+    "prd_refs": [
+      "§9.1",
+      "§10.1",
+      "§6 D-RPT-7"
+    ],
+    "category": "data",
+    "subcategory": "materialized-view",
+    "task_type": "T1-schema",
+    "parent_feature": "12-REPORTING-b",
+    "context_budget": "40k",
+    "estimated_effort": "2-4h",
+    "description": "QC Holds summary MV (consumer 09-QA holds) + downtime-by-line MV (consumer 08-PROD downtime_events; categories from 02-SET ref).",
+    "details": "Consumer pattern: never duplicate aggregation logic, always read source MVs/tables via service helper with org+site filter. Categories come from 02-SET ref table per D-RPT-7 hierarchical taxonomy.",
+    "scope_files": [
+      "packages/db/migrations/0083_reporting_mv_qc_downtime.sql [create]",
+      "packages/db/src/schema/reporting-views.ts [modify]",
+      "packages/reporting/src/queries/qc-holds.ts [create]",
+      "packages/reporting/src/queries/downtime.ts [create]",
+      "packages/reporting/src/mv-registry.ts [modify]",
+      "packages/reporting/__tests__/mv-qc-downtime.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not implement QC Holds dashboard UI here (T-019)",
+      "Do not implement OEE summary MV here (T-011)",
+      "Do not implement NCR Trend / HACCP MVs (P2)"
+    ],
+    "dependencies": [
+      "T-003",
+      "T-005"
+    ],
+    "parallel_safe_with": [
+      "T-007",
+      "T-008",
+      "T-011",
+      "T-014"
+    ],
+    "cross_module_dependencies": [
+      "09-QUALITY quality_holds + hold_items tables (source, must exist)",
+      "08-PRODUCTION downtime_events table (source, must exist)",
+      "02-SETTINGS downtime_categories reference table + classification column",
+      "00-FOUNDATION T-125 app.current_org_id()"
+    ],
+    "acceptance_criteria": [
+      "Given migration 0083 runs, when the 2 MVs are inspected, then declared columns + unique indexes exist; REVOKE PUBLIC applied",
+      "Given downtime_events seeded with one row in People and one in Plant categories, when mv_downtime_by_line is refreshed, then people_mins and plant_mins SUM correctly using 02-SET downtime_categories.classification join",
+      "Given two orgs have seeded 09-QA holds and 08-PROD downtime rows, when service helpers query under each org session, then cross-org leak test passes",
+      "Given infrastructure and compliance are checked, when verified, then am_pm column reflects the shift mapping rule and both are eligible for REFRESH CONCURRENTLY."
+    ],
+    "test_strategy": [
+      "RED: packages/reporting/__tests__/mv-qc-downtime.test.ts mounts testcontainers Postgres, seeds source rows, asserts 5 ACs incl. cross-org leak",
+      "Run `pnpm --filter @monopilot/reporting test mv-qc-downtime`",
+      "GREEN: write migration + Drizzle + helpers + enum update"
+    ],
+    "risk_red_lines": [
+      "Do not duplicate quality_holds aggregation — consumer pattern via MV only (D-RPT-1)",
+      "Do not hardcode downtime categories — consume 02-SET downtime_categories.classification (D-RPT-7)",
+      "Do not skip unique index per MV (CONCURRENTLY refresh prerequisite)",
+      "Do not let WHERE clauses run without org+site guard from service helper",
+      "Do not GRANT to PUBLIC; app_reporting_role only",
+      "Do not block on 09-QUALITY P2 epics — Holds only here, NCR/HACCP are separate P2 MV tasks"
+    ],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": false
+  }
+}

@@ -1,0 +1,103 @@
+{
+  "title": "T-009 — UI: so_list_page (SHIP-005) (11-shipping-b)",
+  "prompt": "# T-009 — SO List page UI\n\nPRD: docs/prd/11-SHIPPING-PRD.md §15.4 SHIP-005 (referenced via §15.1 desktop screens), §6 D-SHP-8 status badges, §3 Personas\nUX: prototypes/design/11-SHIPPING-UX.md §3 SHIP-005 — Sales Order List\nPrototype: prototypes/design/Monopilot Design System/shipping/so-screens.jsx:1-139 (so_list_page)\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nServer Component page `/(shipping)/orders` rendering SO list with status filter, customer filter, date range, sort, and Create button (opens T-008 wizard).\n\n## Implementation contract\n1. `apps/web/app/(shipping)/orders/page.tsx` (RSC) calls Drizzle `listSalesOrders({ status, customerId, dateRange, search })` under `withOrgContext`.\n2. Client component renders shadcn `Table` with cols: order_number, customer, promised_ship_date, status (SOStatus badge), holds (HoldChip count), allocation %, total_gbp, last_event_at.\n3. Filter row: status multi-select chips (all 12 D-SHP-8 statuses), customer Combobox, date range picker, search input.\n4. Create SO button triggers T-008 wizard.\n5. Row click → router.push to `/(shipping)/orders/{id}` (T-010 page).\n6. Four states (empty/loading/error/permission).\n7. Permission gate: `ship.so.create` for Create button, `ship.dashboard.view` for read.\n8. i18n keys `shipping.so.list.*` PL/EN.\n\n## Prototype parity\nReference: `prototypes/design/Monopilot Design System/shipping/so-screens.jsx:1-139` (so_list_page). Verify:\n- Page header + Create SO button right-aligned\n- Filter row (status chips + customer combobox + date range + search)\n- 8-col table (per prototype)\n- Pagination footer\n- Empty/loading/error states\n\nDo not paste prototype JSX wholesale.\n\n## Files\n- apps/web/app/(shipping)/orders/page.tsx [create]\n- apps/web/app/(shipping)/orders/_components/so-list-client.tsx [create]\n- apps/web/app/(shipping)/orders/_components/__tests__/so-list-client.test.tsx [create]\n- apps/web/messages/en/shipping.json [modify]\n- apps/web/messages/pl/shipping.json [modify]\n- prototypes/design/Monopilot Design System/shipping/so-screens.jsx [ref]\n\n## Acceptance criteria\n1. Given the production page renders, when compared to prototypes/design/Monopilot Design System/shipping/so-screens.jsx:1-139, then it has the same header + Create button + filter row + 8-col table + pagination — RTL snapshot + Playwright screenshot.\n2. Given URL ?status=confirmed,allocated, when page renders, then only confirmed/allocated SOs appear.\n3. Given session has only ship.dashboard.view, when page renders, then Create button is hidden.\n4. Given row is clicked, when navigation occurs, then router.push to /(shipping)/orders/{id}.\n5. UI closeout includes Playwright trace + four-state screenshots per UI-PROTOTYPE-PARITY-POLICY; Playwright fallback documented if unavailable.\n\n## Test strategy\n- RED: RTL test asserting parity + URL filters + permission gate + row click navigation + four states.\n- Run `pnpm --filter @monopilot/web vitest run so-list-client.test.tsx`.\n- Playwright `apps/web/e2e/shipping-so-list.spec.ts` captures evidence.\n\n## Risk red lines\n- Do not use HTML <select> instead of shadcn primitives.\n- Do not paste prototype JSX verbatim.\n- Do not import @radix-ui/react-dialog outside packages/ui.\n- Do not regress accessibility.",
+  "labels": [
+    "prd",
+    "ui",
+    "ship-005",
+    "T3-ui"
+  ],
+  "priority": 70,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-009",
+    "source_prd": "docs/prd/11-SHIPPING-PRD.md",
+    "prd_refs": [
+      "§15.4 SHIP-005",
+      "§6 D-SHP-8",
+      "§3"
+    ],
+    "category": "ui",
+    "subcategory": "so-list",
+    "task_type": "T3-ui",
+    "parent_feature": "11-shipping-b",
+    "context_budget": "50k",
+    "estimated_effort": "2-3h",
+    "description": "SHIP-005 SO List page matching so_list_page prototype with 8-col table + status/customer/date filters.",
+    "details": "Server-rendered first page via Drizzle under withOrgContext. SOStatus badge using shadcn Badge variants. HoldChip count for active holds (T-013 source).",
+    "scope_files": [
+      "apps/web/app/(shipping)/orders/page.tsx [create]",
+      "apps/web/app/(shipping)/orders/_components/so-list-client.tsx [create]",
+      "apps/web/app/(shipping)/orders/_components/__tests__/so-list-client.test.tsx [create]",
+      "apps/web/messages/en/shipping.json [modify]",
+      "apps/web/messages/pl/shipping.json [modify]",
+      "prototypes/design/Monopilot Design System/shipping/so-screens.jsx [ref]"
+    ],
+    "out_of_scope": [
+      "Do not implement Server Actions here (T-007).",
+      "Do not build wizard here (T-008).",
+      "Do not build detail page (T-010)."
+    ],
+    "dependencies": [
+      "T-006",
+      "T-031"
+    ],
+    "parallel_safe_with": [
+      "T-008",
+      "T-010",
+      "T-003"
+    ],
+    "cross_module_dependencies": [
+      "00-foundation/T-123 (Playwright)",
+      "00-foundation/T-125 (withOrgContext)"
+    ],
+    "acceptance_criteria": [
+      "Given the production page renders, when compared to prototypes/design/Monopilot Design System/shipping/so-screens.jsx:1-139 (so_list_page), then it has the same header + filter chip row + table + pagination — verified by RTL snapshot + parity checklist.",
+      "Given URL ?status=confirmed,allocated, when page renders, then only confirmed/allocated SOs appear.",
+      "Given session has only ship.dashboard.view (no ship.so.create), when page renders, then Create button is hidden; AND given row click, when navigation runs, then router.push to /(shipping)/orders/{id}.",
+      "UI closeout includes Playwright trace + four-state screenshots per UI-PROTOTYPE-PARITY-POLICY; Playwright fallback documented if unavailable."
+    ],
+    "test_strategy": [
+      "RED: RTL asserting parity + URL filters + permission gate + row click + four states.",
+      "Run `pnpm --filter @monopilot/web vitest run so-list-client.test.tsx`.",
+      "Playwright apps/web/e2e/shipping-so-list.spec.ts."
+    ],
+    "risk_red_lines": [
+      "Do not use HTML <select> instead of shadcn primitives.",
+      "Do not paste prototype JSX verbatim.",
+      "Do not import @radix-ui/react-dialog outside packages/ui.",
+      "Do not regress accessibility."
+    ],
+    "skills": [
+      "test-driven-development",
+      "frontend-design",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": true,
+    "prototype_index_entry": "so_list_page",
+    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md"
+  }
+}

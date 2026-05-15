@@ -1,0 +1,98 @@
+{
+  "title": "T-053 — Complaint intake API + NCR link Server Action (V-QA-COMPLAINT-001/002)",
+  "prompt": "# T-053 — Complaint intake API + NCR link\n\nPRD: §11.6 V-QA-COMPLAINT-001/002, §7.1 09-e-04, §12.1 outbox channel\n\n## Goal\n3 complaint Server Actions: receiveComplaint, escalateToNcr, resolveComplaint. Enforces V-QA-COMPLAINT-001 (received_at <= NOW()) and V-QA-COMPLAINT-002 (critical severity requires response_due_at <= received + 2 business days). Emits quality.complaint.* outbox.\n\n## Implementation contract\n1. apps/web/src/server/quality/complaint/actions.ts — 3 Server Actions.\n2. receiveComplaint: V-QA-COMPLAINT-001 server check (reject future timestamps); V-QA-COMPLAINT-002 critical severity must come with response_due_at within 2 business days (business-day compute server-side); inserts row with status='received'.\n3. escalateToNcr: creates an NCR draft via T-038 createNcrDraft with ncr_type='complaint_related' reference_type='complaint' reference_id=complaint.id; sets linked_ncr_id on the complaint; emits quality.complaint.escalated.\n4. resolveComplaint: status→'resolved', resolved_by + resolved_at = server clock, audit-logged; emits quality.complaint.resolved.\n5. Permissions reserved (packages/rbac): quality.complaint.create, quality.complaint.read, quality.complaint.escalate, quality.complaint.resolve, quality.complaint.export.\n\n## Files\n- apps/web/src/server/quality/complaint/actions.ts [create]\n- apps/web/src/server/quality/complaint/__tests__/actions.test.ts [create]\n- apps/web/src/server/quality/complaint/zodSchemas.ts [create]\n- packages/rbac/src/permissions.enum.ts [modify]\n\n## Acceptance criteria\n1. Given receiveComplaint with received_at=NOW()+1day (future), when called, then 422 error.code='V-QA-COMPLAINT-001'\n2. Given receiveComplaint with severity='critical' AND response_due_at=received+3 business days, when called, then 422 error.code='V-QA-COMPLAINT-002'; with response_due_at=received+1 business day, then it succeeds and emits quality.complaint.created\n3. Given escalateToNcr(complaintId), when called, then a new ncr_reports row is created via T-038 with ncr_type='complaint_related' reference_id=complaintId, complaints.linked_ncr_id is set, and quality.complaint.escalated outbox event is emitted\n4. Given resolveComplaint(id, {resolutionNotes}), when called, then status='resolved', resolved_by = session.userId, resolved_at = server NOW(), audit log row exists, and quality.complaint.resolved event emits\n\n## Test strategy (RED first)\n- RED: complaint/__tests__/actions.test.ts asserting all 4 ACs before code\n- Run 'pnpm --filter web test complaint/actions'\n\n## Risk red lines\n- Do not allow future received_at (V-QA-COMPLAINT-001 is server-only)\n- Do not skip business-day compute (V-QA-COMPLAINT-002 uses business days, not calendar days)\n- Do not bypass T-038 createNcrDraft for escalation (single audit/outbox path)\n- Do not skip permissions enum registration",
+  "labels": [
+    "prd",
+    "api",
+    "complaint",
+    "T2-api"
+  ],
+  "priority": 70,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-053",
+    "source_prd": "docs/prd/09-QUALITY-PRD.md",
+    "prd_refs": [
+      "§11.6",
+      "§7.1",
+      "§12.1"
+    ],
+    "category": "api",
+    "subcategory": "complaint-server-actions",
+    "task_type": "T2-api",
+    "parent_feature": "09-QUALITY-e Complaints",
+    "context_budget": "35k",
+    "estimated_effort": "2-3h",
+    "description": "3 complaint Server Actions (receive/escalate/resolve) enforcing V-QA-COMPLAINT-001/002 + emitting quality.complaint.* outbox + permissions enum reservation.",
+    "details": "receiveComplaint enforces V-QA-COMPLAINT-001 (received_at <= NOW()) + V-QA-COMPLAINT-002 (critical severity: response_due_at <= received + 2 business days; uses bizDay compute helper). escalateToNcr invokes T-038 createNcrDraft with ncr_type='complaint_related' reference_type='complaint' reference_id=complaint.id; sets linked_ncr_id. resolveComplaint sets status='resolved' + resolved_by + resolved_at via server clock. All 3 emit quality.complaint.* outbox events. Permissions reserved: quality.complaint.create/read/escalate/resolve/export.",
+    "scope_files": [
+      "apps/web/src/server/quality/complaint/actions.ts [create]",
+      "apps/web/src/server/quality/complaint/__tests__/actions.test.ts [create]",
+      "apps/web/src/server/quality/complaint/zodSchemas.ts [create]",
+      "packages/rbac/src/permissions.enum.ts [modify]"
+    ],
+    "out_of_scope": [
+      "Do not implement full complaint RCA/CAPA workflow (P2 EPIC 8M)",
+      "Do not build complaint UI (deferred to QA-052 stub form — out of this batch)",
+      "Do not implement complaint_categories reference table"
+    ],
+    "dependencies": [
+      "T-049",
+      "T-038",
+      "T-040"
+    ],
+    "parallel_safe_with": [
+      "T-051",
+      "T-052",
+      "T-054",
+      "T-055"
+    ],
+    "acceptance_criteria": [
+      "Given receiveComplaint with future received_at, when called, then 422 error.code='V-QA-COMPLAINT-001'",
+      "Given receiveComplaint severity='critical' AND response_due_at = received + 3 business days, when called, then 422 error.code='V-QA-COMPLAINT-002'; with response_due_at = received + 1 business day, the row is inserted and quality.complaint.created emits",
+      "Given escalateToNcr(complaintId), when called, then a new ncr_reports row via T-038 with ncr_type='complaint_related' reference_id=complaintId exists, complaints.linked_ncr_id is set, and quality.complaint.escalated emits",
+      "Given resolveComplaint, when called, then status='resolved', resolved_by=session.userId, resolved_at=server NOW(), audit log row exists, quality.complaint.resolved emits"
+    ],
+    "test_strategy": [
+      "RED: complaint/__tests__/actions.test.ts asserting all 4 ACs before code",
+      "Run 'pnpm --filter web test complaint/actions'"
+    ],
+    "risk_red_lines": [
+      "Do not allow future received_at (V-QA-COMPLAINT-001)",
+      "Do not skip business-day compute helper (V-QA-COMPLAINT-002 specifies business days)",
+      "Do not bypass T-038 createNcrDraft on escalation (single audit/outbox path)",
+      "Do not skip permissions enum reservation"
+    ],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "cross_module_dependencies": [
+      "00-foundation:T-112",
+      "00-foundation:T-125"
+    ]
+  }
+}

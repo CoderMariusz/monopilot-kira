@@ -1,0 +1,111 @@
+{
+  "title": "T-014 — mv_integration_health + mv_rules_usage cross-outbox UNION MVs (12-REPORTING §12.2, §4.1 #9/#10)",
+  "prompt": "# T-014 — Integration Health + Rules Usage MVs\n\nPRD: docs/prd/12-REPORTING-PRD.md §12.1 outbox consumer pattern, §12.2 mv_integration_health UNION DDL, §9.1 mv_rules_usage, §4.1 #9 + #10\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nCreate `mv_integration_health` (cross-outbox UNION across stages 1/2/3/5 P1 plus 4/6 P2 when present) and `mv_rules_usage` (consumer of 02-SET `rule_evaluations` audit). Read-only — 12-REPORTING never writes to outbox tables (PRD §12 \"12-REPORTING NIE produkuje eventow\"). IF EXISTS guards for outbox tables that may not yet be deployed (Auditor A: 11-SHIPPING is 0-tasks, 10-FINANCE is 0-tasks).\n\n## Implementation contract\n1. Migration `packages/db/migrations/0088_reporting_mv_integration_health.sql`:\n   - `mv_integration_health (stage TEXT, target_system TEXT, org_id UUID, pending_count, dispatching_count, failed_count, dlq_depth, avg_latency_5min_sec)` per PRD §12.2 DDL but with `org_id` not `tenant_id`.\n   - UNION ALL across these outbox tables WHEN present (IF EXISTS guard each branch): items_outbox_events (stage 1), production_outbox_events (stage 2), shipping_outbox_events (stage 3, optional), warehouse_outbox_events (stage 4 P2, optional), finance_outbox_events (stage 5, optional), rma_outbox_events (stage 6 P2, optional).\n   - `mv_rules_usage (rule_id, org_id, eval_count_24h, trigger_rate_pct, avg_latency_ms)` reading from 02-SET `rule_evaluations` audit table.\n   - Unique indexes on both for REFRESH CONCURRENTLY.\n   - REVOKE PUBLIC + GRANT app_reporting_role.\n2. Drizzle entries + service helpers `packages/reporting/src/queries/{integration-health,rules-usage}.ts` with org+site guardrail.\n3. Register both view names in `packages/reporting/src/mv-registry.ts` enum.\n4. Vitest contract test: (a) MVs + unique indexes exist, (b) UNION includes only present outbox tables (gracefully degrades), (c) cross-org leak test, (d) DLQ depth correctly counts `status='in_dlq'` rows, (e) avg_latency_5min computed only over rows with delivered_at > now() - interval '5 min'.\n\n## Files\n- packages/db/migrations/0088_reporting_mv_integration_health.sql [create]\n- packages/db/src/schema/reporting-views.ts [modify]\n- packages/reporting/src/queries/integration-health.ts [create]\n- packages/reporting/src/queries/rules-usage.ts [create]\n- packages/reporting/src/mv-registry.ts [modify]\n- packages/reporting/__tests__/mv-integration-health.test.ts [create]\n\n## Acceptance criteria\n1. Given migration 0088 runs in DB where stages 1/2 outbox tables exist and stages 3/4/5/6 are absent, when mv_integration_health is inspected, then it contains UNION of stages 1+2 only — no error from absent tables.\n2. Given stage 3 (shipping) outbox table is later added, when forward-script is applied or the migration re-runs, then stage 3 rows appear in mv_integration_health without manual intervention.\n3. Given two orgs have produced outbox events, when service helper queries under each org session, then cross-org leak test passes.\n4. Given an outbox row has status='in_dlq', when mv_integration_health is refreshed, then dlq_depth for that stage increments by 1.\n5. Given REFRESH MATERIALIZED VIEW CONCURRENTLY mv_integration_health runs from the T-005 worker, when complete, then unique index lookup ensures correctness; mv_refresh_log row written.\n\n## Test strategy (RED first)\n- RED: `packages/reporting/__tests__/mv-integration-health.test.ts` covers 5 ACs with testcontainers Postgres; scenarios with subsets of outbox tables present.\n- Run `pnpm --filter @monopilot/reporting test mv-integration-health`.\n- GREEN: write migration with IF EXISTS UNION branches + Drizzle + helpers + enum.\n\n## Risk red lines\n- Do not write to outbox tables from reporting (§12.1 \"NIE produkuje eventow\").\n- Do not let migration fail when stages 3/4/5/6 outbox tables are absent — IF EXISTS guards per branch.\n- Do not use `tenant_id` column name in PRD-cited DDL — Wave0 v4.3 mandates `org_id`.\n- Do not skip unique index on the MVs.\n- Do not GRANT to PUBLIC.\n- Do not let `avg_latency_5min` window leak beyond 5 min (\"delivered_at > now() - interval '5 min'\" must be present per PRD §12.2 DDL).\n- Do not couple to 02-SET rule_evaluations internals beyond the published consumer column set.",
+  "labels": [
+    "prd",
+    "data",
+    "schema",
+    "T1-schema"
+  ],
+  "priority": 65,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-014",
+    "source_prd": "docs/prd/12-REPORTING-PRD.md",
+    "prd_refs": [
+      "§12.1",
+      "§12.2",
+      "§9.1",
+      "§4.1 #9",
+      "§4.1 #10"
+    ],
+    "category": "data",
+    "subcategory": "materialized-view",
+    "task_type": "T1-schema",
+    "parent_feature": "12-REPORTING-d",
+    "context_budget": "45k",
+    "estimated_effort": "3-4h",
+    "description": "Integration Health + Rules Usage MVs. Cross-outbox UNION with IF EXISTS guards for not-yet-deployed modules. Consumer-only pattern; never writes to outbox.",
+    "details": "UNION across stage 1/2 (P1) + 3 (optional) + 4 P2 + 5 (optional) + 6 P2 outbox tables. Wave0 org_id naming overrides PRD §12.2 tenant_id label.",
+    "scope_files": [
+      "packages/db/migrations/0088_reporting_mv_integration_health.sql [create]",
+      "packages/db/src/schema/reporting-views.ts [modify]",
+      "packages/reporting/src/queries/integration-health.ts [create]",
+      "packages/reporting/src/queries/rules-usage.ts [create]",
+      "packages/reporting/src/mv-registry.ts [modify]",
+      "packages/reporting/__tests__/mv-integration-health.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not implement RPT-009 Integration Health UI here (T-022)",
+      "Do not implement RPT-010 Rules Usage UI here (T-023)",
+      "Do not implement DLQ replay UI (separate admin task)"
+    ],
+    "dependencies": [
+      "T-003",
+      "T-005"
+    ],
+    "parallel_safe_with": [
+      "T-006",
+      "T-007",
+      "T-011",
+      "T-013"
+    ],
+    "cross_module_dependencies": [
+      "08-PRODUCTION production_outbox_events (stage 2)",
+      "03-TECHNICAL items_outbox_events (stage 1)",
+      "11-SHIPPING shipping_outbox_events (stage 3, optional, IF EXISTS)",
+      "10-FINANCE finance_outbox_events (stage 5, optional, IF EXISTS)",
+      "05-WAREHOUSE warehouse_outbox_events (stage 4 P2, optional)",
+      "02-SETTINGS rule_evaluations audit table (rules usage source)",
+      "00-FOUNDATION T-125 app.current_org_id()"
+    ],
+    "acceptance_criteria": [
+      "Given migration 0088 runs in DB where stages 1/2 outbox tables exist and 3/4/5/6 are absent, when mv_integration_health is inspected, then it contains UNION of stages 1+2 only — no error from absent tables",
+      "Given stage 3 (shipping) outbox table is later added, when forward-script is applied, then stage 3 rows appear in mv_integration_health without manual intervention",
+      "Given two orgs have produced outbox events, when service helper queries under each org session, then cross-org leak test passes",
+      "Given infrastructure and compliance are checked, when verified, then dlq_depth for that stage increments by 1 and unique index lookup ensures correctness; mv_refresh_log row written."
+    ],
+    "test_strategy": [
+      "RED: packages/reporting/__tests__/mv-integration-health.test.ts covers 5 ACs with testcontainers Postgres; scenarios with subsets of outbox tables present",
+      "Run `pnpm --filter @monopilot/reporting test mv-integration-health`",
+      "GREEN: write migration with IF EXISTS UNION branches + Drizzle + helpers + enum"
+    ],
+    "risk_red_lines": [
+      "Do not write to outbox tables from reporting (§12.1)",
+      "Do not let migration fail when stages 3/4/5/6 outbox tables are absent — IF EXISTS guards per branch",
+      "Do not use tenant_id column name — Wave0 v4.3 mandates org_id",
+      "Do not skip unique index on the MVs",
+      "Do not GRANT to PUBLIC",
+      "Do not let avg_latency_5min window leak beyond 5 min",
+      "Do not couple to 02-SET rule_evaluations internals beyond the published consumer columns"
+    ],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": false
+  }
+}

@@ -1,0 +1,98 @@
+{
+  "title": "T-054 — Incident intake API + 24h corrective-action enforcement (V-QA-INCIDENT-001)",
+  "prompt": "# T-054 — Incident intake API\n\nPRD: §11.6 V-QA-INCIDENT-001, §7.1 09-e-04, §12.1 outbox\n\n## Goal\n3 incident Server Actions: reportIncident, addCorrectiveAction, verifyIncident. Enforces V-QA-INCIDENT-001 (accident type → corrective_action within 24h, overdue→flag). Emits quality.incident.* outbox.\n\n## Implementation contract\n1. apps/web/src/server/quality/incident/actions.ts — 3 Server Actions.\n2. reportIncident: insert with reported_by + reported_at server clock; emits quality.incident.created.\n3. addCorrectiveAction: updates corrective_action; if incident_type='accident' AND corrective_action_added_at - incident_date > 24h, set overdue_flag (computed field in view or row column); emits quality.incident.corrective_action_added.\n4. verifyIncident: sets verified_by + verified_at; if severity in {critical,major} → optionally escalate to NCR via T-038; emits quality.incident.verified.\n5. Background sweep (sql cron or scheduled Server Action) flags overdue accidents nightly; out-of-scope for this task (notify-only stub).\n6. Permissions reserved: quality.incident.create, quality.incident.read, quality.incident.add_corrective_action, quality.incident.verify, quality.incident.escalate.\n\n## Files\n- apps/web/src/server/quality/incident/actions.ts [create]\n- apps/web/src/server/quality/incident/__tests__/actions.test.ts [create]\n- apps/web/src/server/quality/incident/zodSchemas.ts [create]\n- packages/rbac/src/permissions.enum.ts [modify]\n\n## Acceptance criteria\n1. Given reportIncident with incident_type='accident', when called, then row inserted with reported_at=server NOW() and quality.incident.created emits\n2. Given an existing accident incident with incident_date=NOW()-25h AND no corrective_action, when addCorrectiveAction(id, text) is called, then corrective_action is set, the overdue flag is true (corrective_action delay > 24h), and quality.incident.corrective_action_added emits with overdue=true\n3. Given verifyIncident on severity='critical' with escalateToNcr=true, when called, then verified_by/verified_at are set AND a new NCR is created via T-038 with reference_type set appropriately and linked_ncr_id is updated on the incident row\n4. Given the 24h-overdue background sweep stub exists, when run against a fixture of 3 incidents (1 within 24h, 2 overdue), then it returns 2 overdue ids (notify-only stub; actual notification dispatch is out of scope)\n\n## Test strategy (RED first)\n- RED: incident/__tests__/actions.test.ts asserting all 4 ACs before code\n- Run 'pnpm --filter web test incident/actions'\n\n## Risk red lines\n- 24h is the V-QA-INCIDENT-001 threshold; do not change\n- Use server clock for reported_at/verified_at (never client)\n- Do not bypass T-038 on escalation (single audit/outbox path)\n- Sweep job notifies only — full notification dispatch is Foundation/observability (out of this scope)",
+  "labels": [
+    "prd",
+    "api",
+    "incident",
+    "T2-api"
+  ],
+  "priority": 65,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-054",
+    "source_prd": "docs/prd/09-QUALITY-PRD.md",
+    "prd_refs": [
+      "§11.6",
+      "§7.1",
+      "§12.1"
+    ],
+    "category": "api",
+    "subcategory": "incident-server-actions",
+    "task_type": "T2-api",
+    "parent_feature": "09-QUALITY-e Incidents",
+    "context_budget": "35k",
+    "estimated_effort": "2-3h",
+    "description": "3 incident Server Actions (report/addCorrectiveAction/verify) + V-QA-INCIDENT-001 24h-overdue flag + escalateToNcr via T-038 + permissions enum.",
+    "details": "reportIncident inserts row with reported_at=server NOW(); addCorrectiveAction updates corrective_action and sets overdue_flag computed = (corrective_action_added_at - incident_date > 24h) AND incident_type='accident'; verifyIncident optionally escalates to NCR via T-038 (severity-driven). Background sweep stub flags overdue accidents (notify-only; actual dispatch is Foundation scope). Permissions: quality.incident.create, read, add_corrective_action, verify, escalate.",
+    "scope_files": [
+      "apps/web/src/server/quality/incident/actions.ts [create]",
+      "apps/web/src/server/quality/incident/__tests__/actions.test.ts [create]",
+      "apps/web/src/server/quality/incident/zodSchemas.ts [create]",
+      "packages/rbac/src/permissions.enum.ts [modify]"
+    ],
+    "out_of_scope": [
+      "Do not implement notification dispatch (Foundation observability scope)",
+      "Do not implement incident UI",
+      "Do not implement actual scheduler/cron — sweep stub returns the overdue list only"
+    ],
+    "dependencies": [
+      "T-048",
+      "T-038",
+      "T-040"
+    ],
+    "parallel_safe_with": [
+      "T-051",
+      "T-052",
+      "T-053",
+      "T-055"
+    ],
+    "acceptance_criteria": [
+      "Given reportIncident with incident_type='accident', when called, then row inserted with reported_at=server NOW() and quality.incident.created emits",
+      "Given accident incident with incident_date=NOW()-25h and no corrective_action, when addCorrectiveAction is called, then corrective_action is set, overdue flag is true, and quality.incident.corrective_action_added emits with overdue=true",
+      "Given verifyIncident on severity='critical' with escalateToNcr=true, when called, then verified_by/verified_at set + new NCR created via T-038 + linked_ncr_id updated",
+      "Given a fixture of 3 incidents (1 within 24h, 2 overdue), when sweep stub runs, then it returns 2 overdue ids"
+    ],
+    "test_strategy": [
+      "RED: incident/__tests__/actions.test.ts asserting all 4 ACs before code",
+      "Run 'pnpm --filter web test incident/actions'"
+    ],
+    "risk_red_lines": [
+      "24h is the V-QA-INCIDENT-001 threshold — do not change",
+      "Use server clock for reported_at/verified_at (never client)",
+      "Do not bypass T-038 on escalation",
+      "Sweep stub is notify-only — full dispatch out of scope"
+    ],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "cross_module_dependencies": [
+      "00-foundation:T-112",
+      "00-foundation:T-125"
+    ]
+  }
+}

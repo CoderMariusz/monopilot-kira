@@ -1,0 +1,114 @@
+{
+  "title": "T-026 — UI: export_report_modal + save_preset_modal + share_report_modal (RPT-011 + RPT-018) (12-REPORTING §15.1a, §8.4)",
+  "prompt": "# T-026 — Export + Save Preset + Share Report modals\n\nPRD: docs/prd/12-REPORTING-PRD.md §8.4 Export flow, §15.1a RPT-011 Share Report Link Modal, §15.1a RPT-018 Save Filter Preset Modal\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\nPrototypes:\n- export_report_modal: modals.jsx:20-112\n- save_preset_modal: modals.jsx:115-148\n- share_report_modal: modals.jsx:258-282\n\n## Goal\nThree dashboard-action modals wired to existing Server Actions: export_report → T-013 exportDashboard, save_preset → T-008 save-preset, share_report → ephemeral signed URL (P1) with persistence deferred to P2 (PRD §15.1a RPT-011 note).\n\n## Prototype parity\n- export_report_modal: format radio (PDF/CSV; XLSX disabled badge), delivery select (download vs email), row-estimate threshold warnings/blocks (V-RPT-EXPORT-1/4), email field conditional on delivery='email', error/loading state machine.\n- save_preset_modal: name + visibility radio + filter snapshot chips; create vs edit mode.\n- share_report_modal: signed URL input + Copy + expiry select + 'Require Login' toggle + regulatory-dashboard force-auth note.\n\n## Implementation contract\n1. Three modals in `apps/web/components/reporting/modals/{export-report,save-preset,share-report}-modal.tsx` ('use client') using shadcn Dialog from packages/ui.\n2. export-report-modal: form validates filters + format via zod; on submit calls T-013 exportDashboard Server Action; polls T-013 get-export-status; on success closes modal + Sonner toast with download link.\n3. save-preset-modal: defaultValues from URL searchParams (filter snapshot); on submit calls T-008 save-preset Server Action; duplicate triggers inline overwrite branch (per RPT-018 spec).\n4. share-report-modal: P1 generates ephemeral signed URL via Server Action (no DB row); regulatory dashboards (rpt_qc_holds, rpt_inventory_aging) force `requires_auth=true` and disable the toggle.\n5. All labels via next-intl `reporting.modals.*`.\n6. RTL test per modal + Playwright parity.\n\n## Files\n- apps/web/components/reporting/modals/export-report-modal.tsx [create]\n- apps/web/components/reporting/modals/save-preset-modal.tsx [create]\n- apps/web/components/reporting/modals/share-report-modal.tsx [create]\n- packages/reporting/src/actions/generate-share-link.ts [create]\n- apps/web/components/reporting/modals/__tests__/*.test.tsx [create per modal]\n- apps/web/messages/{en,pl}/reporting-modals.json [modify — extend T-024 file]\n\n## Acceptance criteria\n1. Given export modal opens for a dashboard with 5k rowEstimate, when user selects PDF + Download, then Server Action T-013 is invoked, modal shows pending state, and on success toast renders with download link.\n2. Given export modal opens for a dashboard with 12k rowEstimate, when user attempts to submit, then submit is blocked with inline alert per V-RPT-EXPORT-1.\n3. Given save_preset modal in create mode with name 'Weekly P1', when user submits, then Server Action saves; with a duplicate name, inline overwrite branch is offered (not an error toast).\n4. Given save_preset visibility='my_team' but user is not Manager+, when submit is attempted, then Server Action returns forbidden error + audit row written (T-008).\n5. Given share_report modal opens on /reporting/qc-holds (regulatory), when 'Require Login' toggle is inspected, then it is disabled with explanation note (forced true).\n6. Given share_report Copy is clicked, when fired, then navigator.clipboard.writeText resolves and Sonner toast 'Link copied'.\n7. UI parity per modal + next-intl wrapping + 4 states.\n\n## Test strategy (RED first)\n- RED: RTL per modal asserting parity + Server Action invocation + V-RPT-EXPORT-1 block + duplicate-overwrite branch + regulatory force-auth.\n- Playwright parity per modal triggered from a dashboard page.\n- Run `pnpm --filter @monopilot/web test export-report-modal save-preset-modal share-report-modal && pnpm --filter @monopilot/web playwright test reporting-action-modals`.\n- GREEN: build 3 modals + share-link Server Action.\n\n## Risk red lines\n- Do not bypass T-013 export Server Action — exports always enqueue worker.\n- Do not skip row-estimate cap V-RPT-EXPORT-1.\n- Do not allow save_preset visibility='my_team' for non-Manager — server-side RBAC gate.\n- Do not let share_report toggle override regulatory force-auth — domain rule.\n- Do not bypass packages/ui shadcn Dialog.\n- Do not skip next-intl wrapping.\n- Do not skip Playwright parity per modal.\n- Do not persist share link rows in P1 — ephemeral signed URL only (PRD §15.1a RPT-011 P1 behaviour).",
+  "labels": [
+    "prd",
+    "ui",
+    "modals",
+    "T3-ui"
+  ],
+  "priority": 90,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-026",
+    "source_prd": "docs/prd/12-REPORTING-PRD.md",
+    "prd_refs": [
+      "§8.4",
+      "§15.1a RPT-011",
+      "§15.1a RPT-018"
+    ],
+    "category": "ui",
+    "subcategory": "action-modals",
+    "task_type": "T3-ui",
+    "parent_feature": "12-REPORTING-d",
+    "context_budget": "55k",
+    "estimated_effort": "4-6h",
+    "description": "Three action modals: export_report + save_preset + share_report. Wired to T-013 export + T-008 preset Server Actions; share P1 is ephemeral signed URL only.",
+    "details": "Reuse packages/ui shadcn Dialog. Regulatory dashboards force share auth=true. Duplicate preset triggers inline overwrite branch per RPT-018.",
+    "scope_files": [
+      "apps/web/components/reporting/modals/export-report-modal.tsx [create]",
+      "apps/web/components/reporting/modals/save-preset-modal.tsx [create]",
+      "apps/web/components/reporting/modals/share-report-modal.tsx [create]",
+      "packages/reporting/src/actions/generate-share-link.ts [create]",
+      "apps/web/components/reporting/modals/__tests__/export-report-modal.test.tsx [create]",
+      "apps/web/components/reporting/modals/__tests__/save-preset-modal.test.tsx [create]",
+      "apps/web/components/reporting/modals/__tests__/share-report-modal.test.tsx [create]",
+      "apps/web/messages/en/reporting-modals.json [modify]",
+      "apps/web/messages/pl/reporting-modals.json [modify]",
+      "prototypes/design/Monopilot Design System/reporting/modals.jsx [ref]"
+    ],
+    "out_of_scope": [
+      "Do not implement RPT-012 regulatory_signoff (P2)",
+      "Do not implement RPT-013 recipient_group (P2)",
+      "Do not implement schedule_report_modal (P2 T-025+)",
+      "Do not persist shared_report_links rows in P1 (P2)"
+    ],
+    "dependencies": [
+      "T-008",
+      "T-013",
+      "T-024"
+    ],
+    "parallel_safe_with": [
+      "T-023",
+      "T-025"
+    ],
+    "cross_module_dependencies": [
+      "packages/ui shadcn Dialog",
+      "02-SETTINGS i18n next-intl",
+      "Vercel Blob (export download)"
+    ],
+    "acceptance_criteria": [
+      "Given the production implementation is reviewed for parity, when compared to prototypes/design/Monopilot Design System/reporting/modals.jsx:20-112; prototypes/design/Monopilot Design System/reporting/modals.jsx:115-148; prototypes/design/Monopilot Design System/reporting/modals.jsx:258-282, then visual structure, shadcn primitives, interaction states, and Tailwind tokens match; Playwright trace + screenshot artifacts attached per _meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md (export_report_modal + save_preset_modal + share_report_modal).",
+      "Given export modal opens for a dashboard with 5k rowEstimate, when user selects PDF + Download, then T-013 is invoked, modal shows pending state, success toast renders with download link",
+      "Given export modal opens for a dashboard with 12k rowEstimate, when user attempts to submit, then submit blocked with inline alert per V-RPT-EXPORT-1",
+      "Given the page/modal is exercised end-to-end, when closeout criteria are verified, then empty/loading/error/permission states are rendered per UI parity policy with Playwright trace + screenshot artifacts attached; all visible strings route through next-intl keys (no hardcoded labels)."
+    ],
+    "test_strategy": [
+      "RED: RTL per modal asserting parity + Server Action invocation + V-RPT-EXPORT-1 block + duplicate-overwrite branch + regulatory force-auth",
+      "Playwright parity per modal triggered from a dashboard page",
+      "Run `pnpm --filter @monopilot/web test export-report-modal save-preset-modal share-report-modal && pnpm --filter @monopilot/web playwright test reporting-action-modals`",
+      "Attach Playwright traces + screenshots per modal in closeout"
+    ],
+    "risk_red_lines": [
+      "Do not bypass T-013 export Server Action — exports always enqueue worker",
+      "Do not skip row-estimate cap V-RPT-EXPORT-1",
+      "Do not allow save_preset visibility='my_team' for non-Manager — server-side RBAC gate",
+      "Do not let share_report toggle override regulatory force-auth — domain rule",
+      "Do not bypass packages/ui shadcn Dialog",
+      "Do not skip next-intl wrapping",
+      "Do not skip Playwright parity per modal",
+      "Do not persist share link rows in P1 — ephemeral signed URL only",
+      "No raw PII in reports/exports — PII columns (email, phone, address, surname, dob, national_id) must be redacted, hashed, or omitted at the read-model boundary. Consult Foundation T-117 pino redact allowlist for the canonical PII column set."
+    ],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": true,
+    "prototype_index_entry": "export_report_modal + save_preset_modal + share_report_modal",
+    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md"
+  }
+}

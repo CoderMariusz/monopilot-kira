@@ -1,0 +1,80 @@
+{
+  "title": "T-068 — add `import 'server-only'` marker on PostHog flags route (FT-008)",
+  "prompt": "# T-068 — add `import 'server-only'` marker on PostHog flags route (FT-008)\n\nPRD: `docs/prd/00-FOUNDATION-PRD.md` — sections: §5\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`\nOriginal carry-forward ID: **FT-008** (from `_meta/audits/2026-05-07-foundation-final-carry-forward-backlog.md`)\nSeverity: **P1** (XS effort)\n\n## Goal\nAdd `import 'server-only'` at the top of the flags route and add a unit test that asserts importing the module from a client context throws.\n\n## Implementation contract\n1. First line of apps/web/app/api/flags/route.ts: `import 'server-only';`.\n2. Vitest test uses esbuild --conditions=browser to verify the import throws.\n\n## Files (scope)\n- apps/web/app/api/flags/route.ts [modify]\n- apps/web/app/api/flags/__tests__/server-only-guard.test.ts [create]\n\n## Acceptance criteria\n1. Given the flags route source, when scanned, then the first import statement is `import 'server-only';`.\n2. Given a vitest test importing the route under a browser-condition resolver, when run, then the import throws with 'This module cannot be imported from a Client Component module'.\n3. Given the existing flags route happy path, when called from a Server Component, then it returns the same response shape it did before.\n\n## Test strategy\n- RED: write server-only-guard.test.ts asserting the import-from-browser-conditions throws before the marker is added.\n- Run `pnpm --filter @monopilot/web vitest run server-only-guard`.\n\n## Risk red lines\n- Do not remove the marker once added.\n- Do not export anything from this route file that should remain server-only.\n\n## Closeout evidence\nProvide: changed_files, test_commands_and_results, acceptance_criteria_status (per AC), deviations_from_prd, git_status. Use the test-driven-development skill (RED-first) and requesting-code-review at GREEN.",
+  "labels": [
+    "prd",
+    "ops",
+    "wave-d-carry-forward",
+    "security",
+    "server-only",
+    "T4-wiring-test"
+  ],
+  "priority": 50,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-068",
+    "source_prd": "docs/prd/00-FOUNDATION-PRD.md",
+    "prd_refs": [
+      "§5"
+    ],
+    "original_carry_forward_id": "FT-008",
+    "category": "ops",
+    "subcategory": "server-boundary",
+    "task_type": "T4-wiring-test",
+    "parent_feature": "00-FOUNDATION-d",
+    "context_budget": "50k",
+    "estimated_effort": "≤1h",
+    "description": "Add `import 'server-only'` marker on the PostHog flags route to prevent accidental client-bundle inclusion of POSTHOG_API_KEY.",
+    "details": "T-033 shipped the flags route without the `server-only` marker. If a future commit imports something from this module into a client component, the secret will leak into the client bundle. Add the marker plus a build-time test that fails the route when imported from a client component.",
+    "scope_files": [
+      "apps/web/app/api/flags/route.ts [modify]",
+      "apps/web/app/api/flags/__tests__/server-only-guard.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not rename POSTHOG_KEY here (FT-015).",
+      "Do not change flags route response shape."
+    ],
+    "dependencies": [],
+    "parallel_safe_with": [],
+    "acceptance_criteria": [
+      "Given the flags route source, when scanned, then the first import statement is `import 'server-only';`.",
+      "Given a vitest test importing the route under a browser-condition resolver, when run, then the import throws with 'This module cannot be imported from a Client Component module'.",
+      "Given the existing flags route happy path, when called from a Server Component, then it returns the same response shape it did before."
+    ],
+    "test_strategy": [
+      "RED: write server-only-guard.test.ts asserting the import-from-browser-conditions throws before the marker is added.",
+      "Run `pnpm --filter @monopilot/web vitest run server-only-guard`."
+    ],
+    "risk_red_lines": [
+      "Do not remove the marker once added.",
+      "Do not export anything from this route file that should remain server-only."
+    ],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

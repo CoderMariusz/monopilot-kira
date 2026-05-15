@@ -1,0 +1,112 @@
+{
+  "title": "T-028 — UI: shipping_settings_page (SHIP-023) (allocation/labels/dispatch tabs) (11-shipping-h)",
+  "prompt": "# T-028 — Shipping Settings page\n\nPRD: docs/prd/11-SHIPPING-PRD.md §15.4 SHIP-023 Shipping Settings Hub, §11 V-SHIP-PACK-03 GS1 prefix 7-10 digits, §12 D365 push config, §6 D-SHP-19\nUX: prototypes/design/11-SHIPPING-UX.md §3 SHIP-023\nPrototype: prototypes/design/Monopilot Design System/shipping/doc-screens.jsx:536-648 (shipping_settings_page)\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nServer Component admin settings hub with tabs (Allocation / Labels / Dispatch / D365). Settings persist into 02-SETTINGS-owned `shipping_config` JSONB (consumer of 02-SETTINGS §9.1 tenant L2 config infra).\n\n## GS1 prefix source\nAll SSCC label settings read `organizations.gs1_company_prefix` from the organizations table (02-settings). Always read from organizations table; do not store in env config or code constants.\n\n## Implementation contract\n1. `/(shipping)/settings/page.tsx` renders shipping_settings_page (doc-screens.jsx:536-648). Tabs: Allocation, Labels, Dispatch, D365 (4 tabs).\n2. Allocation tab fields: default_pick_strategy (FEFO/FIFO), allergen_segregation_strictness ('strict'/'advisory'), reservation_ttl_hours.\n3. Labels tab fields: gs1_company_prefix (V-SHIP-PACK-03 — must be 7-10 digits; P1 enforces exactly 7), sscc_extension_digit, default_zpl_template, multi_language_packing_slip (disabled, P2 per BL-SHIP-12).\n4. Dispatch tab fields: default_carrier (Combobox sourced from T-027 carriers), variance_tolerance_pct (catch weight, V-SHIP-PACK-04 P1 fallback if product doesn't define), manual_dispatch_only (toggle defaults true per D-SHP-19).\n5. D365 tab fields: d365_shipping_push_enabled (feature flag), retry_cadence (5m/30m/2h/12h/24h), dlq_inspector deep-link (T-029).\n6. Save calls `saveShippingSettings()` Server Action — UPSERTs to `shipping_config` table (this task introduces if not yet present; owned by 02-SETTINGS §9.1 infrastructure pattern) keyed by org_id; outbox `shipping.settings.updated`. Permission `ship.so.create` (admin shorthand) OR existing 02-settings.org.update.\n7. HAZMAT + EUDR flag UIs shown disabled (BL-SHIP-13 P2).\n8. Four states + i18n `shipping.settings.*`.\n\n## Files\n- apps/web/app/(shipping)/settings/page.tsx [create]\n- apps/web/app/(shipping)/settings/_components/settings-tabs.tsx [create]\n- apps/web/lib/server-actions/shipping/settings.ts [create]\n- apps/web/lib/server-actions/shipping/__tests__/settings.test.ts [create]\n- apps/web/app/(shipping)/settings/__tests__/settings-tabs.test.tsx [create]\n- packages/db/migrations/00XX_shipping_config.sql [create — shipping_config table if not yet present in 02-SETTINGS]\n- packages/events/src/shipping.ts [modify — ShippingSettingsUpdated]\n- apps/web/messages/en/shipping.json [modify]\n- apps/web/messages/pl/shipping.json [modify]\n- prototypes/design/Monopilot Design System/shipping/doc-screens.jsx [ref]\n\n## Acceptance criteria\n1. Given the page renders, when compared to doc-screens.jsx:536-648, then 4-tab layout (Allocation / Labels / Dispatch / D365) + per-tab field set match — RTL + Playwright screenshot.\n2. Given gs1_company_prefix is entered with 6 digits, when Zod runs, then V-SHIP-PACK-03 error appears and submit disabled.\n3. Given saveShippingSettings succeeds, when DB inspected, then shipping_config row UPSERTed for org with the new values; outbox shipping.settings.updated emitted.\n4. Given user lacks ship.so.create (admin shorthand), when page renders, then settings fields are read-only.\n5. Given HAZMAT/EUDR toggles render, when state is checked, then they are disabled with P2 tooltip (BL-SHIP-13).\n6. UI closeout includes Playwright trace + screenshots per UI-PROTOTYPE-PARITY-POLICY; Playwright fallback documented if unavailable.\n\n## Test strategy\n- RED: vitest for settings Server Action + RTL for UI + Playwright; AC 1-6.\n- Run `pnpm --filter @monopilot/web vitest run shipping/settings`.\n- Playwright `apps/web/e2e/shipping-settings.spec.ts`.\n\n## Risk red lines\n- Do not bypass V-SHIP-PACK-03 gs1 prefix validation.\n- Do not implement HAZMAT/EUDR features (BL-SHIP-13 P2).\n- Do not implement multi-language packing slip toggle live (BL-SHIP-12 P2).\n- Do not allow saveShippingSettings without ship.so.create OR settings.org.update permission.\n- Do not regress accessibility.\n- Do not name business-scope column tenant_id.\n\n## Prototype parity\nReference: `prototypes/design/Monopilot Design System/shipping/doc-screens.jsx:536-648` (shipping_settings_page). Verify all 4 tabs field sets match prototype. Do not paste prototype JSX wholesale.\n",
+  "labels": [
+    "prd",
+    "ui",
+    "ship-023",
+    "T3-ui"
+  ],
+  "priority": 70,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-028",
+    "source_prd": "docs/prd/11-SHIPPING-PRD.md",
+    "prd_refs": [
+      "§15.4 SHIP-023",
+      "§11 V-SHIP-PACK-03",
+      "§12",
+      "§6 D-SHP-19"
+    ],
+    "category": "ui",
+    "subcategory": "settings-hub",
+    "task_type": "T3-ui",
+    "parent_feature": "11-shipping-h",
+    "context_budget": "55k",
+    "estimated_effort": "4-5h",
+    "description": "SHIP-023 Shipping Settings hub with 4 tabs (Allocation/Labels/Dispatch/D365) + shipping_config persistence consumer of 02-SETTINGS infrastructure.",
+    "details": "shipping_config table follows 02-SETTINGS §9.1 tenant L2 config pattern. gs1_company_prefix validated 7-10 digits (V-SHIP-PACK-03). HAZMAT/EUDR/multi-lang toggles disabled P1 (P2 per BL-SHIP-12/13).",
+    "scope_files": [
+      "apps/web/app/(shipping)/settings/page.tsx [create]",
+      "apps/web/app/(shipping)/settings/_components/settings-tabs.tsx [create]",
+      "apps/web/lib/server-actions/shipping/settings.ts [create]",
+      "apps/web/lib/server-actions/shipping/__tests__/settings.test.ts [create]",
+      "apps/web/app/(shipping)/settings/__tests__/settings-tabs.test.tsx [create]",
+      "packages/db/migrations/00XX_shipping_config.sql [create]",
+      "packages/events/src/shipping.ts [modify]",
+      "apps/web/messages/en/shipping.json [modify]",
+      "apps/web/messages/pl/shipping.json [modify]",
+      "prototypes/design/Monopilot Design System/shipping/doc-screens.jsx [ref]"
+    ],
+    "out_of_scope": [
+      "Do not implement HAZMAT/EUDR (P2 BL-SHIP-13).",
+      "Do not implement multi-language packing slip (P2 BL-SHIP-12)."
+    ],
+    "dependencies": [
+      "T-027",
+      "T-031",
+      "00-foundation/T-125",
+      "02-settings (tenant L2 config infra)"
+    ],
+    "parallel_safe_with": [
+      "T-026",
+      "T-027",
+      "T-030"
+    ],
+    "cross_module_dependencies": [
+      "02-settings/T-007 (tenant L2 config infrastructure)",
+      "00-foundation/T-123 (Playwright)",
+      "01-npd/T-001 (product FG SSOT — variance_tolerance_pct + allergen attributes; coverage hygiene per R3 audit 2026-05-14)"
+    ],
+    "acceptance_criteria": [
+      "Given the page renders, when compared to prototypes/design/Monopilot Design System/shipping/doc-screens.jsx:536-648, then 4-tab layout + per-tab field sets match prototype (structural + visual parity checklist per UI-PROTOTYPE-PARITY-POLICY).",
+      "Given gs1_company_prefix entered with 6 digits, when Zod runs, then V-SHIP-PACK-03 error appears and submit disabled; AND given saveShippingSettings succeeds, when DB inspected, then shipping_config row UPSERTed with organizations.gs1_company_prefix from 02-settings; outbox shipping.settings.updated emitted.",
+      "Given user lacks ship.so.create / settings.org.update, when page renders, then fields are read-only; AND given HAZMAT/EUDR toggles render, when state checked, then disabled with P2 tooltip (BL-SHIP-13).",
+      "UI closeout includes Playwright trace + screenshots per UI-PROTOTYPE-PARITY-POLICY; Playwright fallback documented if unavailable."
+    ],
+    "test_strategy": [
+      "RED: vitest for Server Action + RTL for UI + Playwright trace asserting AC 1-6.",
+      "Run `pnpm --filter @monopilot/web vitest run shipping/settings`.",
+      "Playwright apps/web/e2e/shipping-settings.spec.ts."
+    ],
+    "risk_red_lines": [
+      "Do not bypass V-SHIP-PACK-03 gs1 prefix validation.",
+      "Do not implement HAZMAT/EUDR.",
+      "Do not implement multi-language toggle live.",
+      "Do not allow save without admin permission.",
+      "Do not regress accessibility.",
+      "Do not name business-scope column tenant_id."
+    ],
+    "skills": [
+      "test-driven-development",
+      "frontend-design",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": true,
+    "prototype_index_entry": "shipping_settings_page",
+    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md"
+  }
+}

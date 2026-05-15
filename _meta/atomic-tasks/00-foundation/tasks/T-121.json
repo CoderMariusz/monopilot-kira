@@ -1,0 +1,104 @@
+{
+  "title": "T-121 — packages/rate-limit middleware (Next.js + Server Actions, token-bucket, Upstash/in-memory) (P0)",
+  "prompt": "# T-121 — packages/rate-limit middleware\n\nPRD: docs/prd/00-FOUNDATION-PRD.md §5.x Auth & Identity (\"PIN entry is rate-limited identically to login (see lockout policy)\"), §13 Niefunkcjonalne (uptime ≥99.5%)\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nCreate `packages/rate-limit` (`@monopilot/rate-limit`) exporting a Next.js middleware/Server-Action wrapper using a **token-bucket** algorithm backed by Upstash Redis in production and an in-memory store in tests. Pre-bind the SAML / SCIM / auth endpoints with sane defaults. Today auth, SAML, SCIM, and magic-link endpoints are unbound (auditor B §4.13 \"Two module-local hits; no foundation primitive\").\n\n## Implementation contract\n1. Create `packages/rate-limit/` workspace package. Deps: `@upstash/ratelimit`, `@upstash/redis`, `zod`. Dev: vitest.\n2. `packages/rate-limit/src/store.ts` exports `Store` interface (`incr(key, windowMs): Promise<{ remaining, resetAt }>`) and two implementations:\n   - `UpstashStore` (constructed from `UPSTASH_REDIS_REST_URL` + `UPSTASH_REDIS_REST_TOKEN` env),\n   - `InMemoryStore` (test-only).\n3. `packages/rate-limit/src/limiter.ts` exports `createRateLimiter({ store, keyFn, limits: { capacity, refillPerSec }, name }): RateLimiter`. The token-bucket implementation uses `@upstash/ratelimit`'s `tokenBucket` algorithm in prod; in tests uses an algorithm-equivalent local impl. `RateLimiter.check(req): Promise<{ allowed: boolean; remaining: number; resetAt: number }>`.\n4. `packages/rate-limit/src/next-middleware.ts` exports `withRateLimit(handler, opts): NextRequestHandler` for Route Handlers and `withRateLimitAction(action, opts): ServerActionHandler` for Server Actions. On deny: returns `429 Too Many Requests` with `Retry-After` header (route handler) or throws `RateLimitError` (server action).\n5. `packages/rate-limit/src/presets.ts` exports pre-bound limiters for `auth-login`, `auth-magic-link`, `saml-login`, `scim-create`, `pin-verify` — limits seeded to: login=5/min/ip, magic-link=3/15min/email, saml-login=20/min/ip, scim-create=60/min/org, pin-verify=5/min/user.\n6. Wire the presets into `apps/web/middleware.ts` (modify) — add a routing table that picks the right preset by URL pattern: `/api/auth/login` → auth-login, `/api/auth/magic-link` → auth-magic-link, `/api/auth/saml/*` → saml-login, `/api/scim/*` → scim-create. Other routes unaffected.\n7. `packages/rate-limit/src/__tests__/limiter.test.ts` (integration):\n   - With InMemoryStore: simulate 6 hits on a `5/min` limiter; assert first 5 allowed, 6th denied with `resetAt > now()`.\n   - Assert key-function correctness (IP-based keys for login).\n   - Assert `withRateLimit(handler)` returns 429 with Retry-After when denied.\n   - Assert `withRateLimitAction(action)` throws `RateLimitError` when denied.\n8. `apps/web/__tests__/middleware-rate-limit.test.ts`: hit `/api/auth/login` 6 times in test; assert 6th returns 429.\n\n## Files in scope\n- packages/rate-limit/package.json [create]\n- packages/rate-limit/tsconfig.json [create]\n- packages/rate-limit/eslint.config.mjs [create]\n- packages/rate-limit/src/index.ts [create]\n- packages/rate-limit/src/store.ts [create]\n- packages/rate-limit/src/limiter.ts [create]\n- packages/rate-limit/src/next-middleware.ts [create]\n- packages/rate-limit/src/presets.ts [create]\n- packages/rate-limit/src/__tests__/limiter.test.ts [create]\n- apps/web/middleware.ts [modify — bind presets]\n- apps/web/__tests__/middleware-rate-limit.test.ts [create]\n- .env.example [modify — add UPSTASH_REDIS_REST_URL, UPSTASH_REDIS_REST_TOKEN]\n\n## Acceptance criteria\n1. Given InMemoryStore-backed limiter configured 5/min/IP, when 6 requests arrive from same IP <60s, then requests 1-5 return {allowed:true} and request 6 returns {allowed:false, resetAt:future}.\n2. Given withRateLimit(handler) wrapper, when denied request hits, then route handler responds 429 with Retry-After:<seconds> header (numeric).\n3. Given withRateLimitAction(action) wrapper, when denied invocation occurs, then action throws RateLimitError carrying resetAt and name.\n4. Given apps/web/middleware.ts updated, when 6 POST requests arrive at /api/auth/login in test, then 6th returns 429; AND Given UPSTASH_REDIS_REST_URL unset in test, when createRateLimiter called without explicit store, then uses InMemoryStore and logs one warning via T-117 logger; in production missing env throws fail-closed.\n## Test strategy\n- RED: write `limiter.test.ts` + `middleware-rate-limit.test.ts` for all 5 ACs before implementation. RED: `pnpm --filter @monopilot/rate-limit test && pnpm --filter @monopilot/web vitest run __tests__/middleware-rate-limit.test.ts`.\n- GREEN: implement stores + limiter + Next middleware + presets + middleware.ts wiring.\n- Run: above + `pnpm --filter @monopilot/rate-limit typecheck`.\n\n## Risk red lines\n- Do not key by `user_id` for unauthenticated routes — IP-based; once authenticated, you may shift to user-id key.\n- Do not silently fall back to no-op limiting in production if Upstash is unreachable — fail-closed (return 503 or surface 429 to be safe); log the outage via T-117 + T-118.\n- Do not store auth tokens or PINs in the rate-limit key — only IP / email-hash / user-id.\n- Do not expose the `Retry-After` value when it leaks reservation count for security-sensitive routes (PIN verify) — use coarse `60` for those.\n- Do not bypass rate-limit for `org.platform.admin` impersonation — the limit still applies (per audit log impersonation row).\n- Do not skip the `apps/web/middleware.ts` change — the limiter is useless if not bound.",
+  "labels": [
+    "prd",
+    "infra",
+    "rate-limit",
+    "T2-api",
+    "p0-blocker"
+  ],
+  "priority": 90,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-121",
+    "source_prd": "docs/prd/00-FOUNDATION-PRD.md",
+    "prd_refs": [
+      "§5.x",
+      "§13"
+    ],
+    "category": "infra",
+    "subcategory": "rate-limit",
+    "task_type": "T2-api",
+    "parent_feature": "00-foundation-rate-limit",
+    "context_budget": "40k",
+    "estimated_effort": "3-5h",
+    "description": "@monopilot/rate-limit package with Upstash/in-memory token-bucket store + Next middleware/Server-Action wrappers + presets for auth-login/magic-link/saml/scim/pin-verify. Bound in apps/web/middleware.ts. Vitest integration on fake handler verifies allow/deny.",
+    "details": "Token-bucket via @upstash/ratelimit in prod, in-memory in tests. Pre-bound presets: login=5/min/ip, magic-link=3/15min/email, saml=20/min/ip, scim=60/min/org, pin-verify=5/min/user. withRateLimit wraps Route Handlers (429 + Retry-After); withRateLimitAction wraps Server Actions (throws RateLimitError). middleware.ts routes by URL prefix. Production fail-closed on Upstash outage.\n\nAC count consolidated from 5→4 by Fixer F7 2026-05-14 (no coverage lost).",
+    "scope_files": [
+      "packages/rate-limit/package.json [create]",
+      "packages/rate-limit/tsconfig.json [create]",
+      "packages/rate-limit/eslint.config.mjs [create]",
+      "packages/rate-limit/src/index.ts [create]",
+      "packages/rate-limit/src/store.ts [create]",
+      "packages/rate-limit/src/limiter.ts [create]",
+      "packages/rate-limit/src/next-middleware.ts [create]",
+      "packages/rate-limit/src/presets.ts [create]",
+      "packages/rate-limit/src/__tests__/limiter.test.ts [create]",
+      "apps/web/middleware.ts [modify]",
+      "apps/web/__tests__/middleware-rate-limit.test.ts [create]",
+      ".env.example [modify]"
+    ],
+    "out_of_scope": [
+      "Distributed rate-limit dashboards",
+      "Per-org custom limits UI (P2)",
+      "Geographic rate-limiting"
+    ],
+    "dependencies": [
+      "T-117"
+    ],
+    "parallel_safe_with": [
+      "T-111",
+      "T-113",
+      "T-116",
+      "T-122"
+    ],
+    "acceptance_criteria": [
+      "Given InMemoryStore-backed limiter configured 5/min/IP, when 6 requests arrive from same IP <60s, then requests 1-5 return {allowed:true} and request 6 returns {allowed:false, resetAt:future}.",
+      "Given withRateLimit(handler) wrapper, when denied request hits, then route handler responds 429 with Retry-After:<seconds> header (numeric).",
+      "Given withRateLimitAction(action) wrapper, when denied invocation occurs, then action throws RateLimitError carrying resetAt and name.",
+      "Given apps/web/middleware.ts updated, when 6 POST requests arrive at /api/auth/login in test, then 6th returns 429; AND Given UPSTASH_REDIS_REST_URL unset in test, when createRateLimiter called without explicit store, then uses InMemoryStore and logs one warning via T-117 logger; in production missing env throws fail-closed."
+    ],
+    "test_strategy": [
+      "RED: write limiter.test.ts + middleware-rate-limit.test.ts for all 5 ACs before code; RED: pnpm --filter @monopilot/rate-limit test && pnpm --filter @monopilot/web vitest run __tests__/middleware-rate-limit.test.ts.",
+      "GREEN: implement stores + limiter + Next middleware + presets + middleware.ts wiring.",
+      "Run: above + pnpm --filter @monopilot/rate-limit typecheck."
+    ],
+    "risk_red_lines": [
+      "Do not key by user_id for unauthenticated routes — IP-based; after auth, may shift to user-id.",
+      "Do not silently fall back to no-op limiting in production on Upstash outage — fail-closed (429 or 503).",
+      "Do not store auth tokens or PINs in rate-limit keys — IP / email-hash / user-id only.",
+      "Do not expose Retry-After leaking reservation count on PIN-verify — use coarse 60 for security-sensitive routes.",
+      "Do not bypass rate-limit for impersonation — same limit applies.",
+      "Do not skip apps/web/middleware.ts change — limiter is useless if unbound."
+    ],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "cross_module_dependencies": []
+  }
+}

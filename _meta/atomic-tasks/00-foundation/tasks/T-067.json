@@ -1,0 +1,86 @@
+{
+  "title": "T-067 — ReasonInput — add aria-label prop + forwardRef (FT-007)",
+  "prompt": "# T-067 — ReasonInput — add aria-label prop + forwardRef (FT-007)\n\nPRD: `docs/prd/00-FOUNDATION-PRD.md` — sections: §5.y\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`\nOriginal carry-forward ID: **FT-007** (from `_meta/audits/2026-05-07-foundation-final-carry-forward-backlog.md`)\nSeverity: **P2** (S effort)\n\n## Goal\nUpdate ReasonInput to forwardRef<HTMLInputElement> and accept an optional aria-label that, when set, overrides the internal label's visual presence semantics.\n\n## Implementation contract\n1. Wrap component in `forwardRef<HTMLInputElement, ReasonInputProps>`.\n2. Add `aria-label?: string` to props; when present and `label` is omitted, render input with the aria-label and no visible label.\n3. When both `label` and `aria-label` are set, prefer the visible label and warn in dev-only console.\n4. Test: focus restoration via ref.current?.focus() works; aria-label is exposed via getByLabelText.\n\n## Files (scope)\n- packages/ui/src/ReasonInput.tsx [modify]\n- packages/ui/src/__tests__/ReasonInput.test.tsx [modify]\n\n## Acceptance criteria\n1. Given the ReasonInput primitive renders, when compared to the prototype `prototypes/design/Monopilot Design System/_shared/modals.jsx:73-99` (ReasonInput definition), then literal prototype parity holds for label rendering, min-length counter, audit-log helper text, and error/normal states.\n2. Given a parent component captures a ref, when ref.current.focus() is called, then the underlying input receives focus; AND Given existing axe-core tests, when run after the change, then 0 new violations.\n3. Given aria-label is set and label is undefined, when rendered, then getByLabelText(aria-label) returns the input.\n4. Given both label and aria-label set, when rendered in dev mode, then console.warn fires once.\n\n## Test strategy\n- RED: extend ReasonInput.test.tsx with the three new ACs before changing the component.\n- Run `pnpm --filter @monopilot/ui test ReasonInput`.\n\n## Risk red lines\n- Do not break existing label-prop callers.\n- Do not introduce ARIA violations.\n- Do not import @radix-ui/* outside packages/ui (§0 ESLint rule).\n\n## Closeout evidence\nProvide: changed_files, test_commands_and_results, acceptance_criteria_status (per AC), deviations_from_prd, git_status. Use the test-driven-development skill (RED-first) and requesting-code-review at GREEN.",
+  "labels": [
+    "prd",
+    "ui",
+    "wave-d-carry-forward",
+    "ui-primitive",
+    "a11y",
+    "T3-ui"
+  ],
+  "priority": 50,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-067",
+    "source_prd": "docs/prd/00-FOUNDATION-PRD.md",
+    "prd_refs": [
+      "§5.y"
+    ],
+    "original_carry_forward_id": "FT-007",
+    "category": "ui",
+    "subcategory": "primitives",
+    "task_type": "T3-ui",
+    "parent_feature": "00-FOUNDATION-j",
+    "context_budget": "50k",
+    "estimated_effort": "1-4h",
+    "description": "Expose aria-label prop and forwardRef on ReasonInput so callers can wire focus management and label by external content.",
+    "details": "The current ReasonInput accepts only an internal `label` prop. Callers (FT-035 Wizard step 2 RHF, audit-trail dialogs) need both forwardRef for focus restoration and aria-label for cases where the label lives outside the component (Field primitive wrap).\n\nAC restructured to include prototype-parity AC by Fixer F7 2026-05-14 (axe-core + ref-focus assertions consolidated; no coverage lost).",
+    "scope_files": [
+      "packages/ui/src/ReasonInput.tsx [modify]",
+      "packages/ui/src/__tests__/ReasonInput.test.tsx [modify]"
+    ],
+    "out_of_scope": [
+      "Do not refactor ReasonInput styling.",
+      "Do not change underlying Field primitive."
+    ],
+    "dependencies": [
+      "T-110"
+    ],
+    "parallel_safe_with": [],
+    "acceptance_criteria": [
+      "Given the ReasonInput primitive renders, when compared to the prototype `prototypes/design/Monopilot Design System/_shared/modals.jsx:73-99` (ReasonInput definition), then literal prototype parity holds for label rendering, min-length counter, audit-log helper text, and error/normal states.",
+      "Given a parent component captures a ref, when ref.current.focus() is called, then the underlying input receives focus; AND Given existing axe-core tests, when run after the change, then 0 new violations.",
+      "Given aria-label is set and label is undefined, when rendered, then getByLabelText(aria-label) returns the input.",
+      "Given both label and aria-label set, when rendered in dev mode, then console.warn fires once."
+    ],
+    "test_strategy": [
+      "RED: extend ReasonInput.test.tsx with the three new ACs before changing the component.",
+      "Run `pnpm --filter @monopilot/ui test ReasonInput`."
+    ],
+    "risk_red_lines": [
+      "Do not break existing label-prop callers.",
+      "Do not introduce ARIA violations.",
+      "Do not import @radix-ui/* outside packages/ui (§0 ESLint rule)."
+    ],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": true,
+    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md"
+  }
+}

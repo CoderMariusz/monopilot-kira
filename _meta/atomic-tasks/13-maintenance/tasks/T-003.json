@@ -1,0 +1,94 @@
+{
+  "title": "T-003 — maintenance_schedules + mwo_checklist_templates DDL + RLS (13-b, MNT §9.4)",
+  "prompt": "# T-003 — maintenance_schedules schema (PM engine input)\n\nPRD: docs/prd/13-MAINTENANCE-PRD.md §9.4, §8.1 (`pm_schedule_due_engine_v1`), §11.7 (V-MNT-23 operation_context)\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nCreate `maintenance_schedules` table (PM/calibration/sanitation/inspection schedules) + a small `mwo_checklist_templates` ref table referenced by FK. Calendar OR usage-counter intervals supported; usage-based marked P2-allowed but column present.\n\n## Pre-flight check\nVerify (a) latest migration number in `packages/db/migrations/`, (b) `equipment` table exists (T-002), (c) `technician_profiles` exists (T-002), (d) `app.current_org_id()` function present.\n\n## Implementation contract\n1. Migration `packages/db/migrations/NNNN_maintenance_b_schedules.sql` with CREATE TABLE per PRD §9.4 DDL: `interval_basis CHECK IN ('calendar_days','usage_hours','usage_cycles')`, `schedule_type CHECK IN ('preventive','calibration','sanitation','inspection')`, `operation_context JSONB` (V-MNT-23) GIN-indexed, `next_due_date DATE`, `warning_days INT DEFAULT 7`, FK to `equipment(id)` and `technician_profiles(id)`.\n2. `mwo_checklist_templates` table for `maintenance_schedules.checklist_template_id` FK with `org_id`/`site_id`/RLS.\n3. R13 audit cols + ENABLE+FORCE RLS + policy referencing `app.current_org_id()` + `site_user_access`.\n4. Index `idx_schedules_next_due ON maintenance_schedules(next_due_date) WHERE active`.\n5. Drizzle schema in `packages/db/src/schema/maintenance/schedules.ts`.\n6. Vitest covering: schedule_type/interval_basis CHECK enforcement, RLS isolation, idx_schedules_next_due used by `EXPLAIN` of canonical PM-engine query.\n\n## Files\n- packages/db/migrations/NNNN_maintenance_b_schedules.sql [create]\n- packages/db/src/schema/maintenance/schedules.ts [create]\n- packages/db/src/schema/index.ts [modify]\n- packages/db/__tests__/maintenance-b-schedules.test.ts [create]\n\n## Acceptance criteria\n1. Given migration runs, when `\\d maintenance_schedules` is read, then schedule_type/interval_basis CHECK constraints + GIN index on operation_context + RLS+FORCE RLS are present.\n2. Given two orgs and `app.set_org_context`, when SELECT runs in each session, then RLS isolation holds and policy text references `app.current_org_id()`.\n3. Given a row with `interval_basis='usage_hours'`, when inserted, then it is accepted (column present for P2; usage-counter consumption engine deferred but schema supports it).\n4. Given `EXPLAIN SELECT * FROM maintenance_schedules WHERE next_due_date <= today AND active`, when run, then the planner uses `idx_schedules_next_due`.\n\n## Test strategy\n- RED: maintenance-b-schedules.test.ts asserting four ACs.\n- Run `pnpm --filter db migrate && pnpm --filter db test maintenance-b-schedules`.\n\n## Risk red lines\n- Do not name business column tenant_id; use org_id.\n- Do not read current_setting() GUC; use app.current_org_id().\n- Do not omit GIN index on operation_context (V-MNT-23 query speed).\n- Do not couple PM engine cron to this task — T-009 covers engine implementation.",
+  "labels": [
+    "prd",
+    "data",
+    "schema",
+    "rls",
+    "T1-schema"
+  ],
+  "priority": 50,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-003",
+    "source_prd": "docs/prd/13-MAINTENANCE-PRD.md",
+    "prd_refs": [
+      "§9.4",
+      "§8.1",
+      "§11.7"
+    ],
+    "category": "data",
+    "subcategory": "schema-pm-schedules",
+    "task_type": "T1-schema",
+    "parent_feature": "13-MAINTENANCE-b",
+    "context_budget": "40k",
+    "estimated_effort": "2-3h",
+    "description": "Create maintenance_schedules + mwo_checklist_templates with RLS, calendar+usage interval enum, operation_context JSONB GIN index, R13 audit, FK to equipment/technicians.",
+    "details": "PRD §9.4 verbatim DDL with org_id/site_id REC-L1. operation_context JSONB supports V-MNT-23 cross-ref to 02-SETTINGS manufacturing_operations §8.9 — soft reference (no FK; validated by Server Action against ref table). usage_hours/usage_cycles columns present but PM engine T-009 only honors calendar_days in P1.",
+    "scope_files": [
+      "packages/db/migrations/NNNN_maintenance_b_schedules.sql [create]",
+      "packages/db/src/schema/maintenance/schedules.ts [create]",
+      "packages/db/src/schema/index.ts [modify]",
+      "packages/db/__tests__/maintenance-b-schedules.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "PM engine cron job (T-009)",
+      "Usage-counter ingestion (P2)",
+      "UI (T-018, T-019)"
+    ],
+    "dependencies": [
+      "T-002"
+    ],
+    "parallel_safe_with": [
+      "T-004",
+      "T-005",
+      "T-006"
+    ],
+    "acceptance_criteria": [
+      "Given migration runs, when \\d maintenance_schedules is read, then schedule_type/interval_basis CHECK constraints + GIN on operation_context + RLS+FORCE RLS are present",
+      "Given two orgs and app.set_org_context, when SELECT runs in each session, then RLS isolation holds and policy text references app.current_org_id()",
+      "Given a row with interval_basis='usage_hours', when inserted, then it is accepted",
+      "Given EXPLAIN of next-due query, when run, then idx_schedules_next_due is used"
+    ],
+    "test_strategy": [
+      "RED: maintenance-b-schedules.test.ts asserting four ACs",
+      "Run `pnpm --filter db migrate && pnpm --filter db test maintenance-b-schedules`"
+    ],
+    "risk_red_lines": [
+      "Do not name business column tenant_id; use org_id",
+      "Do not read current_setting() GUC; use app.current_org_id()",
+      "Do not omit GIN on operation_context",
+      "Do not implement PM engine cron here (T-009)"
+    ],
+    "skills": [
+      "test-driven-development",
+      "systematic-debugging",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": false
+  }
+}

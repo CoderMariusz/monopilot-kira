@@ -1,0 +1,110 @@
+{
+  "title": "T-019 — UI: RPT-005 OEE Summary (/reporting/oee-summary, consumer 15-OEE) — grouped bar + gauge + trend (12-REPORTING §15.1 RPT-005, §6 D-RPT-9)",
+  "prompt": "# T-019 — RPT-005 OEE Summary UI (consumer 15-OEE)\n\nPRD: docs/prd/12-REPORTING-PRD.md §15.1 RPT-005, §4.1 #5, §6 D-RPT-9 (consumer of 15-OEE)\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\nPrototype: prototypes/design/Monopilot Design System/reporting/kpi-screens.jsx:169-310 (`rpt_oee_summary`)\nUX: prototypes/design/12-REPORTING-UX.md:387-419\n\n## Goal\nServer Component page `/reporting/oee-summary` rendering: grouped bar (A/P/Q per line w/ 85% target ReferenceLine), gauge ring (today-so-far overall OEE), OEE trend table (Spark sparkline + 7-day avg footer), Shift Comparison nested table (AM/PM rows), cross-module 'Open 15-OEE' link with 'Consumer of 15-OEE' badge per D-RPT-9. Graceful degradation if 15-OEE module not deployed.\n\n## Prototype parity\n- Source: `kpi-screens.jsx:169-310`\n- Translation: RPT_OEE_BY_LINE / RPT_OEE_TREND mock → T-011 oee-consumer getOeeDailySummary; ChartGroupedBar → Recharts BarChart grouped (A/P/Q bars) + ReferenceLine 85%; GaugeRing → Recharts RadialBarChart or custom SVG; Spark in trend table memoised; 'Consumer of 15-OEE' badge MUST remain in production UI.\n\n## Implementation contract\n1. `apps/web/app/(reporting)/oee-summary/page.tsx` (RSC) — calls T-011 getOeeDailySummary; if `available=false`, render full placeholder card with 'OEE module not deployed' message + link to /admin/modules.\n2. Client component renders grouped bar + gauge + trend table + shift comparison.\n3. 'Consumer of 15-OEE' badge MUST be visible in header (D-RPT-9 ownership communication).\n4. Cross-module 'Open 15-OEE' link → router.push('/oee') (route may not exist yet — show disabled if 15-OEE absent).\n5. Empty / loading / error / permission states; RTL + Playwright parity.\n6. All labels via next-intl `reporting.oee_summary.*`.\n\n## Files\n- apps/web/app/(reporting)/oee-summary/page.tsx [create]\n- apps/web/app/(reporting)/oee-summary/_components/oee-summary-client.tsx [create]\n- apps/web/app/(reporting)/_components/charts/gauge-ring.tsx [create]\n- apps/web/app/(reporting)/_components/charts/grouped-bar-chart.tsx [create]\n- apps/web/app/(reporting)/oee-summary/__tests__/oee-summary.test.tsx [create]\n- apps/web/messages/{en,pl}/reporting-oee-summary.json [create]\n\n## Acceptance criteria\n1. Given 15-OEE module is deployed and oee_daily_summary has seeded rows for org_A, when /reporting/oee-summary renders, then grouped bar shows A/P/Q per line, ReferenceLine at 85%, gauge ring shows overall OEE, trend table shows sparklines + 7-day footer.\n2. Given 15-OEE module is NOT deployed (T-011 returns available=false), when page renders, then full-card placeholder is shown with 'OEE module not deployed' message; no errors thrown; charts are absent.\n3. Given the page renders, when DOM is inspected, then 'Consumer of 15-OEE' badge is present in header (D-RPT-9).\n4. Given user clicks 'Open 15-OEE', when 15-OEE module is deployed, then router.push('/oee'); if not deployed, button is disabled with Tooltip.\n5. Given user without rpt.dashboard.view, when accessing /reporting/oee-summary, then middleware T-009 403s + audits.\n6. UI parity + 4 states + next-intl wrapping.\n\n## Test strategy (RED first)\n- RED: RTL covers MV-present + MV-absent paths; parity vs prototype; gauge/bar render assertions; cross-module link disabled state.\n- Playwright parity.\n- Run `pnpm --filter @monopilot/web test oee-summary && pnpm --filter @monopilot/web playwright test reporting-oee-summary`.\n- GREEN: build page + client + chart components.\n\n## Risk red lines\n- Do not query oee_daily_summary directly — use T-011 getOeeDailySummary consumer wrapper.\n- Do not omit the 'Consumer of 15-OEE' badge (D-RPT-9 ownership communication).\n- Do not crash when 15-OEE module is absent — graceful placeholder per T-011.\n- Do not duplicate OEE aggregation logic (D-RPT-9 con-clause).\n- Do not paste prototype JSX verbatim.\n- Do not skip next-intl wrapping.\n- Do not skip 4 states.",
+  "labels": [
+    "prd",
+    "ui",
+    "dashboard",
+    "consumer",
+    "T3-ui"
+  ],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-019",
+    "source_prd": "docs/prd/12-REPORTING-PRD.md",
+    "prd_refs": [
+      "§15.1 RPT-005",
+      "§4.1 #5",
+      "§6 D-RPT-9"
+    ],
+    "category": "ui",
+    "subcategory": "dashboard-page",
+    "task_type": "T3-ui",
+    "parent_feature": "12-REPORTING-b",
+    "context_budget": "55k",
+    "estimated_effort": "4-6h",
+    "description": "RPT-005 OEE Summary: grouped bar + gauge + trend + shift comparison, consumer of 15-OEE with graceful degradation.",
+    "details": "Reads T-011 getOeeDailySummary. 'Consumer of 15-OEE' badge persisted in UI. Cross-module 'Open 15-OEE' link disabled if module absent.",
+    "scope_files": [
+      "apps/web/app/(reporting)/oee-summary/page.tsx [create]",
+      "apps/web/app/(reporting)/oee-summary/_components/oee-summary-client.tsx [create]",
+      "apps/web/app/(reporting)/_components/charts/gauge-ring.tsx [create]",
+      "apps/web/app/(reporting)/_components/charts/grouped-bar-chart.tsx [create]",
+      "apps/web/app/(reporting)/oee-summary/__tests__/oee-summary.test.tsx [create]",
+      "apps/web/messages/en/reporting-oee-summary.json [create]",
+      "apps/web/messages/pl/reporting-oee-summary.json [create]",
+      "prototypes/design/Monopilot Design System/reporting/kpi-screens.jsx [ref]"
+    ],
+    "out_of_scope": [
+      "Do not implement 15-OEE module here",
+      "Do not implement Shift Performance dashboard (P2)"
+    ],
+    "dependencies": [
+      "T-009",
+      "T-011",
+      "T-016"
+    ],
+    "parallel_safe_with": [
+      "T-017",
+      "T-018",
+      "T-020"
+    ],
+    "cross_module_dependencies": [
+      "15-OEE module (consumer; 0 atomic tasks today)",
+      "15-OEE /oee route (cross-module link)",
+      "02-SETTINGS i18n next-intl"
+    ],
+    "acceptance_criteria": [
+      "Given the production implementation is reviewed for parity, when compared to prototypes/design/Monopilot Design System/reporting/kpi-screens.jsx:169-310, then visual structure, shadcn primitives, interaction states, and Tailwind tokens match; Playwright trace + screenshot artifacts attached per _meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md (rpt_oee_summary).",
+      "Given 15-OEE module is deployed and oee_daily_summary has seeded rows for org_A, when /reporting/oee-summary renders, then grouped bar shows A/P/Q per line, ReferenceLine at 85%, gauge ring shows overall OEE, trend table shows sparklines + 7-day footer",
+      "Given 15-OEE module is NOT deployed (T-011 returns available=false), when page renders, then full-card placeholder shown with 'OEE module not deployed' message; no errors thrown; charts absent",
+      "Given the page/modal is exercised end-to-end, when closeout criteria are verified, then access-control middleware T-009 gates unauthenticated/unauthorized requests with 403 + audit row; empty/loading/error/permission states are rendered per UI parity policy with Playwright trace + screenshot artifacts attached; all visible strings route through next-intl keys (no hardcoded labels)."
+    ],
+    "test_strategy": [
+      "RED: RTL covers MV-present + MV-absent paths; parity vs prototype; gauge/bar render assertions; cross-module link disabled state",
+      "Playwright parity",
+      "Run `pnpm --filter @monopilot/web test oee-summary && pnpm --filter @monopilot/web playwright test reporting-oee-summary`",
+      "Attach Playwright trace + screenshots in closeout"
+    ],
+    "risk_red_lines": [
+      "Do not query oee_daily_summary directly — use T-011 consumer wrapper",
+      "Do not omit 'Consumer of 15-OEE' badge (D-RPT-9)",
+      "Do not crash when 15-OEE module absent — graceful placeholder",
+      "Do not duplicate OEE aggregation (D-RPT-9 con-clause)",
+      "Do not paste prototype JSX verbatim",
+      "Do not skip next-intl wrapping",
+      "Do not skip 4 states"
+    ],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": true,
+    "prototype_index_entry": "rpt_oee_summary",
+    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md"
+  }
+}

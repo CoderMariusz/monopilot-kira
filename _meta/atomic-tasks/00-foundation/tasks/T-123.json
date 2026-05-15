@@ -1,0 +1,100 @@
+{
+  "title": "T-123 — Playwright harness scaffolded under apps/web/e2e/ + production-grade playwright.config.ts (P0)",
+  "prompt": "# T-123 — Playwright harness scaffolded under apps/web/e2e/\n\nPRD: docs/prd/00-FOUNDATION-PRD.md §5 Testing (\"Vitest v4 + Playwright v1.58 (E2E per module)\"); UI-PROTOTYPE-PARITY-POLICY.md (Playwright traces in closeout)\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nReplace the 12-line stub `playwright.config.ts` (auditor B §4.8) with a production-grade Playwright harness — proper `playwright.config.ts`, the `apps/web/e2e/` directory with a smoke spec, fixtures, projects (chromium + webkit + iPad scanner-emulation), trace + video + screenshot on failure, and a `pnpm --filter @monopilot/web e2e` script that runs the suite and produces traces. UI-PROTOTYPE-PARITY-POLICY mandates Playwright traces in closeout; today no module can satisfy it.\n\n## Implementation contract\n1. Rewrite root `playwright.config.ts`:\n   - `testDir: './apps/web/e2e'` (canonical) — keep secondary glob for legacy `apps/web/tests/**` only if files exist.\n   - `fullyParallel: true`, `retries: process.env.CI ? 2 : 0`, `workers: process.env.CI ? 2 : undefined`.\n   - `reporter: process.env.CI ? [['html', { open: 'never' }], ['github']] : 'list'`.\n   - `use: { baseURL, trace: 'retain-on-failure', screenshot: 'only-on-failure', video: 'retain-on-failure', viewport: { width: 1280, height: 800 } }`.\n   - Projects: `chromium` (desktop), `webkit` (Safari), `mobile-chrome` (Pixel 5), `scanner-emulation` (custom viewport 800x480, Zebra TC53 user-agent stub).\n   - `webServer`: when `PLAYWRIGHT_WEB_SERVER=1` → `command: 'pnpm --filter @monopilot/web build && pnpm --filter @monopilot/web start'`, `url: baseURL`, `reuseExistingServer: !CI`, `timeout: 180_000`.\n2. Create `apps/web/e2e/fixtures.ts` exporting a `test` extended with org-context fixtures (a logged-in `org_admin` for one test org, plus a `scanner_operator` profile). Login via Server Action stub or seeded session cookie.\n3. Create `apps/web/e2e/smoke.spec.ts` — a single smoke test that:\n   - Navigates to `/onboarding/profile` (the SET-001 prototype-parity page).\n   - Asserts the page title contains \"Onboarding\".\n   - Asserts the Stepper primitive renders.\n   - Captures a trace + screenshot artifact.\n   - Bonus: asserts no `pa11y`/`axe` violations (using `@axe-core/playwright`).\n4. Modify `apps/web/package.json` adding scripts:\n   - `e2e`: `playwright test`.\n   - `e2e:install`: `playwright install --with-deps chromium webkit`.\n   - `e2e:ui`: `playwright test --ui` (local dev).\n5. Modify `pnpm-workspace.yaml` if needed (no change expected since `apps/web` is already a workspace member).\n6. Modify `.gitignore` to add `playwright-report/`, `test-results/`.\n7. Verify the existing `apps/web/e2e/auth.spec.ts` still runs after harness rewrite — or migrate it to use the new fixtures.\n\n## Files in scope\n- playwright.config.ts [modify — full rewrite]\n- apps/web/e2e/fixtures.ts [create]\n- apps/web/e2e/smoke.spec.ts [create]\n- apps/web/e2e/auth.spec.ts [modify if needed to use new fixtures]\n- apps/web/package.json [modify — add e2e scripts]\n- .gitignore [modify — playwright-report/, test-results/]\n- packages/ui/test/axe-helper.ts [create if not present — re-export @axe-core/playwright helper]\n\n## Acceptance criteria\n1. Given pnpm --filter @monopilot/web e2e run against built Next.js, when smoke.spec.ts executes, then it passes and trace + screenshot artifact lands under test-results/.\n2. Given playwright.config.ts loaded, when projects listed, then contains exactly 4 projects: chromium, webkit, mobile-chrome, scanner-emulation with viewport 800x480.\n3. Given smoke test runs in CI with PLAYWRIGHT_WEB_SERVER=1, when it exits, then playwright-report/ produced and test-results/ uploaded as CI artifact (T-122 handles upload).\n4. Given @axe-core/playwright invoked in smoke.spec.ts, when page scanned, then 0 violations of severity 'serious' or higher reported; AND Given existing apps/web/e2e/auth.spec.ts present, when new harness runs, then it still executes without breakage from rewrite.\n## Test strategy\n- RED: write `playwright.config.test.ts` (vitest) asserting the config structure (projects array, baseURL, reporter shape) before rewriting the config. RED: `pnpm vitest run playwright.config.test.ts`.\n- GREEN: rewrite config, create fixtures + smoke spec, update scripts.\n- Run: `pnpm vitest run playwright.config.test.ts && pnpm --filter @monopilot/web e2e:install && pnpm --filter @monopilot/web build && pnpm --filter @monopilot/web e2e`.\n\n## Risk red lines\n- Do not run E2E against a dev server with hot-reload — always build + start for stability.\n- Do not commit `playwright-report/` or `test-results/` — gitignore.\n- Do not skip the `@axe-core/playwright` check — UI-PROTOTYPE-PARITY-POLICY requires a11y in closeout.\n- Do not delete the existing `auth.spec.ts` — migrate to fixtures or leave as-is.\n- Do not hardcode test-user credentials — use env or test-seeded session cookies via fixture.\n- Do not run Playwright in parallel with Vitest in CI on the same DB — separate jobs in T-122.",
+  "labels": [
+    "prd",
+    "testing",
+    "playwright",
+    "T4-wiring-test",
+    "p0-blocker"
+  ],
+  "priority": 90,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-123",
+    "source_prd": "docs/prd/00-FOUNDATION-PRD.md",
+    "prd_refs": [
+      "§5"
+    ],
+    "category": "testing",
+    "subcategory": "playwright-harness",
+    "task_type": "T4-wiring-test",
+    "parent_feature": "00-foundation-playwright",
+    "context_budget": "30k",
+    "estimated_effort": "2-4h",
+    "description": "Replace 12-line stub playwright.config.ts with production-grade harness (4 projects: chromium/webkit/mobile-chrome/scanner-emulation), apps/web/e2e/fixtures.ts (org_admin + scanner_operator fixtures), apps/web/e2e/smoke.spec.ts with @axe-core/playwright + trace artifact, e2e scripts in package.json, gitignore updates.",
+    "details": "Config testDir=apps/web/e2e canonical. retries=2 in CI, retain-on-failure trace/screenshot/video. webServer builds + starts Next.js in CI. Smoke test asserts /onboarding/profile stepper + 0 axe violations. fixtures provide pre-authenticated org_admin + scanner_operator sessions via seed cookie. Existing auth.spec.ts must continue running.\n\nAC count consolidated from 5→4 by Fixer F7 2026-05-14 (no coverage lost).",
+    "scope_files": [
+      "playwright.config.ts [modify]",
+      "apps/web/e2e/fixtures.ts [create]",
+      "apps/web/e2e/smoke.spec.ts [create]",
+      "apps/web/e2e/auth.spec.ts [modify if needed]",
+      "apps/web/package.json [modify]",
+      ".gitignore [modify]",
+      "packages/ui/test/axe-helper.ts [create if not present]"
+    ],
+    "out_of_scope": [
+      "Full per-module E2E suites (each module owns its own e2e/)",
+      "Visual-regression snapshot baseline",
+      "Cross-browser cloud grid (BrowserStack)",
+      "Mobile real-device tests"
+    ],
+    "dependencies": [],
+    "parallel_safe_with": [
+      "T-111",
+      "T-117",
+      "T-118",
+      "T-121",
+      "T-122"
+    ],
+    "acceptance_criteria": [
+      "Given pnpm --filter @monopilot/web e2e run against built Next.js, when smoke.spec.ts executes, then it passes and trace + screenshot artifact lands under test-results/.",
+      "Given playwright.config.ts loaded, when projects listed, then contains exactly 4 projects: chromium, webkit, mobile-chrome, scanner-emulation with viewport 800x480.",
+      "Given smoke test runs in CI with PLAYWRIGHT_WEB_SERVER=1, when it exits, then playwright-report/ produced and test-results/ uploaded as CI artifact (T-122 handles upload).",
+      "Given @axe-core/playwright invoked in smoke.spec.ts, when page scanned, then 0 violations of severity 'serious' or higher reported; AND Given existing apps/web/e2e/auth.spec.ts present, when new harness runs, then it still executes without breakage from rewrite."
+    ],
+    "test_strategy": [
+      "RED: write playwright.config.test.ts (vitest) asserting config structure (projects array, baseURL, reporter shape) before rewriting; RED: pnpm vitest run playwright.config.test.ts.",
+      "GREEN: rewrite config + create fixtures + smoke spec + update scripts + gitignore.",
+      "Run: pnpm vitest run playwright.config.test.ts && pnpm --filter @monopilot/web e2e:install && pnpm --filter @monopilot/web build && pnpm --filter @monopilot/web e2e."
+    ],
+    "risk_red_lines": [
+      "Do not run E2E against dev server with hot-reload — always build + start.",
+      "Do not commit playwright-report/ or test-results/ — gitignore.",
+      "Do not skip @axe-core/playwright check — UI parity policy.",
+      "Do not delete existing auth.spec.ts — migrate or leave.",
+      "Do not hardcode test-user credentials — env or fixture-seeded cookies.",
+      "Do not run Playwright in parallel with Vitest on same DB in CI — separate jobs."
+    ],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "cross_module_dependencies": [],
+    "prototype_match": false,
+    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md"
+  }
+}

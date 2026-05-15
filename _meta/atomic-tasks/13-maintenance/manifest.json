@@ -1,0 +1,107 @@
+{
+  "source_prd": "docs/prd/13-MAINTENANCE-PRD.md",
+  "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+  "generated_at": "2026-05-14T00:00:00Z",
+  "generator": "prd-decompose-13-maintenance-bootstrap",
+  "pipeline_name": "kira_dev",
+  "module": "13-maintenance",
+  "prd_version": "v3.1",
+  "audit_input": "_meta/audits/2026-05-14-prd-vs-tasks-coverage-gaps.md",
+  "task_count": 30,
+  "sub_modules": {
+    "13-MAINTENANCE-a": "Settings + equipment + technician_profiles + RLS + permissions enum + i18n + GDPR",
+    "13-MAINTENANCE-b": "maintenance_schedules + PM engine + calendar views",
+    "13-MAINTENANCE-c": "MWO core lifecycle (state machine, checklists, LOTO, approvals, downtime linkage, dashboard, analytics, E2E)",
+    "13-MAINTENANCE-d": "Spare parts (catalog + stock + transactions + reorder)",
+    "13-MAINTENANCE-e": "Calibration + sanitation + outbox publisher + cross-module integration"
+  },
+  "cross_module_dependencies": {
+    "00-foundation": [
+      "app.current_org_id() (Wave1 T-125)",
+      "outbox+worker primitive (Wave1 T-111/T-112)",
+      "GDPR erase orchestrator (Wave1 T-113/T-114)",
+      "observability primitives (Wave1 T-116..T-118)",
+      "rate-limit primitive (Wave1 T-121)",
+      "CI/CD primitive (Wave1 T-122)",
+      "Playwright primitive (Wave1 T-123)",
+      "e-sign primitive (Wave1 T-124) — used by T-014 LOTO and T-016 sanitation"
+    ],
+    "02-settings": [
+      "rule_definitions registry (Foundation T-018 / 02-Settings §7)",
+      "Reference.ManufacturingOperations (02-Settings §8.9 v3.4 delta)",
+      "reference_tables_registry pattern"
+    ],
+    "03-technical": [
+      "equipment.parent_line_id soft reference to production_lines (08-PROD)",
+      "asset hierarchy may need extension when 14-multi-site lands"
+    ],
+    "05-warehouse": [
+      "spare_parts_stock.warehouse_id soft reference (no FEFO per D-MNT-6)"
+    ],
+    "08-production": [
+      "downtime_events FK target (T-017 auto-MWO consumer)",
+      "production_lines FK target (equipment.parent_line_id)",
+      "allergen_changeover_gate_v1 consumer of sanitation.allergen_change.completed (D-MNT-14, T-016 emits)"
+    ],
+    "09-quality": [
+      "lab_results.equipment_id FK target documented (D-MNT-10 forward-compat in T-006)",
+      "calibration.failed outbox consumer for hold candidates (V-MNT-10, T-015 emits via T-012)"
+    ],
+    "12-reporting": [
+      "dashboards_catalog seed (T-029)",
+      "mwo.* outbox consumer for cache invalidate (T-012 routing)",
+      "rpt_integration_health proxy for MNT-033 P2 outbox UI"
+    ],
+    "15-oee": [
+      "oee_shift_metrics read-only consumer for MTBF/MTTR (D-MNT-3)",
+      "oee_maintenance_trigger_v1 rule registered as P2 stub (T-007), evaluated in 15-OEE"
+    ]
+  },
+  "wave1_foundation_primitives_used": [
+    "T-111 outbox+worker",
+    "T-112 worker per-tenant loop",
+    "T-113 GDPR orchestrator",
+    "T-114 GDPR erase fn",
+    "T-116 logger",
+    "T-117 tracer",
+    "T-118 metrics",
+    "T-121 rate-limit",
+    "T-122 CI/CD",
+    "T-123 Playwright",
+    "T-124 e-sign",
+    "T-125 app.current_org_id()"
+  ],
+  "tasks": [
+    "tasks/T-001.json",
+    "tasks/T-002.json",
+    "tasks/T-003.json",
+    "tasks/T-004.json",
+    "tasks/T-005.json",
+    "tasks/T-006.json",
+    "tasks/T-007.json",
+    "tasks/T-008.json",
+    "tasks/T-009.json",
+    "tasks/T-010.json",
+    "tasks/T-011.json",
+    "tasks/T-012.json",
+    "tasks/T-013.json",
+    "tasks/T-014.json",
+    "tasks/T-015.json",
+    "tasks/T-016.json",
+    "tasks/T-017.json",
+    "tasks/T-018.json",
+    "tasks/T-019.json",
+    "tasks/T-020.json",
+    "tasks/T-021.json",
+    "tasks/T-022.json",
+    "tasks/T-023.json",
+    "tasks/T-024.json",
+    "tasks/T-025.json",
+    "tasks/T-026.json",
+    "tasks/T-027.json",
+    "tasks/T-028.json",
+    "tasks/T-029.json",
+    "tasks/T-030.json"
+  ],
+  "coverage_file": "coverage.md"
+}

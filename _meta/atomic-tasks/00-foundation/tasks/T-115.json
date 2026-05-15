@@ -1,0 +1,95 @@
+{
+  "title": "T-115 — NPD erasure handler registration test (NPD T-089 wired into @monopilot/gdpr registry)",
+  "prompt": "# T-115 — NPD erasure handler registration test\n\nPRD: docs/prd/00-FOUNDATION-PRD.md §13 Compliance, §11 Audit log; 01-NPD-PRD.md §15 (Success Criteria + GDPR)\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nProve — via a tiny T4-wiring test — that NPD's existing erasure path (01-NPD T-089) is **registered** with the new `@monopilot/gdpr` dispatcher (T-113). This task does NOT modify any 01-NPD task JSON and does NOT change the NPD erasure logic. It only adds a foundation-level integration test that:\n\n1. Imports the NPD erasure module (wherever it lives — likely `apps/web/lib/npd/erasure.ts` or `packages/server/src/npd/erasure.ts`; locate via grep before writing).\n2. Confirms the module calls `registerErasureHandler('npd', npdEraseHandler)` at import time (module side-effect OR an explicit `registerNpdErasure()` exported function the test calls).\n3. Invokes `runErasure(pool, orgId, subjectId, { dryRun: true })` against a testcontainers Postgres seeded with one NPD-owned PII row (e.g. `product` row created_by=subjectId, or whichever NPD T-089 actually anonymises) and asserts the report contains a `domain: 'npd'` result with non-zero `rowsAffected` in dry-run preview.\n\nIf NPD T-089 has not been merged yet, this task creates a **stub registration** in `apps/worker/src/npd-erasure-wireup.ts` that re-exports the NPD handler once it lands, and the test is marked `it.skip` with a comment pointing to NPD T-089 as the unblocker. The wire-up file is the surface area NPD T-089 closeout updates.\n\n## Implementation contract\n1. Inspect first: `/usr/bin/grep -rln 'erasure\\|gdpr\\|rtbf' apps/web/lib/npd packages/server/src/npd 2>/dev/null` to find NPD T-089's artifact. Cite the exact path in CLOSEOUT.\n2. Create `apps/worker/src/npd-erasure-wireup.ts` that imports NPD's erasure module and calls `registerErasureHandler('npd', ...)`. If the module doesn't exist yet, scaffold a one-line `[follow-up]` import and skip the registration; tests are skipped accordingly. Document the unblocker (NPD T-089) in a code comment.\n3. Wire `import 'apps/worker/src/npd-erasure-wireup'` into `apps/worker/src/index.ts` BEFORE the GDPR cron is registered (T-114 ordering).\n4. Create `apps/worker/src/__tests__/npd-erasure-wireup.test.ts` (testcontainers Postgres):\n   - Apply foundation migrations + NPD migration (the test imports `@monopilot/db` and runs the migrate script; if NPD tables aren't there yet, skip the test with a clear `it.skip(\"unblocked by NPD T-089\")`).\n   - Seed one NPD row with a subject_id that the handler would erase.\n   - Call `runErasure(pool, orgId, subjectId, { dryRun: true })` from `@monopilot/gdpr`.\n   - Assert `report.results.some(r => r.domain === 'npd' && r.rowsAffected > 0)`.\n   - Assert no real mutation happened (re-query the seeded row by id and confirm still present unchanged).\n\n## Files in scope\n- apps/worker/src/npd-erasure-wireup.ts [create]\n- apps/worker/src/__tests__/npd-erasure-wireup.test.ts [create]\n- apps/worker/src/index.ts [modify — import wireup module]\n\n## Acceptance criteria\n1. Given getRegisteredHandlers() called after importing apps/worker/src/npd-erasure-wireup, when map inspected, then contains key 'npd' mapped to a non-stub function.\n2. Given NPD T-089 has landed, when runErasure(pool, orgId, subjectId, {dryRun:true}) runs on seeded NPD row, then report.results contains {domain:'npd', rowsAffected:>=1, tablesTouched:[...]}.\n3. Given dryRun=true, when run completes, then seeded NPD row remains unchanged (verified by re-SELECT).\n4. Given NPD T-089 has NOT landed, when test runs, then it skips with message naming NPD T-089 as unblocker (test does not fail CI); AND Given this task does not modify any NPD task JSON, when git status _meta/atomic-tasks/01-npd/ runs after task, then no diff under that subtree.\n## Test strategy\n- RED: write `npd-erasure-wireup.test.ts` with all 5 ACs before writing the wireup module. RED command: `pnpm --filter @monopilot/worker test`.\n- GREEN: implement wireup module + register call. If NPD T-089's symbol path is unknown at implementation time, leave the import as a [follow-up] and ensure the test correctly skips.\n- Run: `pnpm --filter @monopilot/worker test && pnpm --filter @monopilot/gdpr test`.\n\n## Risk red lines\n- Do not modify any file under `_meta/atomic-tasks/01-npd/` — NPD task graph is owned by the NPD module agents.\n- Do not modify NPD source erasure code — this task is a foundation-side wireup + test only.\n- Do not bypass the dispatcher — registration MUST go through `@monopilot/gdpr.registerErasureHandler`.\n- Do not write production data in dryRun=true — assert the no-mutation invariant.\n- Do not anonymise audit_events rows in this task — that is NPD T-089's responsibility.",
+  "labels": [
+    "prd",
+    "compliance",
+    "gdpr",
+    "T4-wiring-test"
+  ],
+  "priority": 70,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-115",
+    "source_prd": "docs/prd/00-FOUNDATION-PRD.md",
+    "prd_refs": [
+      "§13"
+    ],
+    "category": "compliance",
+    "subcategory": "gdpr-wireup",
+    "task_type": "T4-wiring-test",
+    "parent_feature": "00-foundation-gdpr",
+    "context_budget": "30k",
+    "estimated_effort": "1-2h",
+    "description": "Foundation-side wire-up + integration test proving NPD T-089's erasure path is registered with @monopilot/gdpr dispatcher. NPD task JSON unchanged. Test skips gracefully if NPD T-089 hasn't landed yet.",
+    "details": "Discover NPD erasure module via grep; create apps/worker/src/npd-erasure-wireup.ts that imports it and calls registerErasureHandler('npd', ...); import the wireup from apps/worker/src/index.ts before the GDPR cron registration. Test uses testcontainers Postgres + dryRun=true to assert the npd handler is invoked and rowsAffected≥1 without persisting mutations. Test skips with named unblocker if NPD T-089 not yet merged.\n\nAC count consolidated from 5→4 by Fixer F7 2026-05-14 (no coverage lost).",
+    "scope_files": [
+      "apps/worker/src/npd-erasure-wireup.ts [create]",
+      "apps/worker/src/__tests__/npd-erasure-wireup.test.ts [create]",
+      "apps/worker/src/index.ts [modify]"
+    ],
+    "out_of_scope": [
+      "Modifying any 01-NPD task JSON",
+      "Modifying NPD source erasure code (T-089 owns it)",
+      "Registering other module domains (Warehouse/Quality/Scanner/Production/Settings — separate per-module tasks)"
+    ],
+    "dependencies": [
+      "T-111",
+      "T-113",
+      "T-114"
+    ],
+    "cross_module_dependencies": [
+      "01-npd/T-089"
+    ],
+    "parallel_safe_with": [
+      "T-116",
+      "T-117",
+      "T-121"
+    ],
+    "acceptance_criteria": [
+      "Given getRegisteredHandlers() called after importing apps/worker/src/npd-erasure-wireup, when map inspected, then contains key 'npd' mapped to a non-stub function.",
+      "Given NPD T-089 has landed, when runErasure(pool, orgId, subjectId, {dryRun:true}) runs on seeded NPD row, then report.results contains {domain:'npd', rowsAffected:>=1, tablesTouched:[...]}.",
+      "Given dryRun=true, when run completes, then seeded NPD row remains unchanged (verified by re-SELECT).",
+      "Given NPD T-089 has NOT landed, when test runs, then it skips with message naming NPD T-089 as unblocker (test does not fail CI); AND Given this task does not modify any NPD task JSON, when git status _meta/atomic-tasks/01-npd/ runs after task, then no diff under that subtree."
+    ],
+    "test_strategy": [
+      "RED: write npd-erasure-wireup.test.ts with all 5 ACs before code; testcontainers Postgres; RED command: pnpm --filter @monopilot/worker test.",
+      "GREEN: implement wireup module + registerErasureHandler call.",
+      "Run: pnpm --filter @monopilot/worker test && pnpm --filter @monopilot/gdpr test."
+    ],
+    "risk_red_lines": [
+      "Do not modify any file under _meta/atomic-tasks/01-npd/.",
+      "Do not modify NPD source erasure code — T-089 owns it.",
+      "Do not bypass the dispatcher — registration goes through registerErasureHandler.",
+      "Do not write production data in dryRun=true — assert no-mutation invariant.",
+      "Do not anonymise audit_events rows in this task — NPD T-089 responsibility."
+    ],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

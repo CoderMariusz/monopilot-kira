@@ -1,0 +1,104 @@
+{
+  "title": "T-001 — Lock finance permission enum (fin.*.* baseline for 10-FINANCE, §2.3 RBAC matrix)",
+  "prompt": "# T-001 — Lock finance permission enum\n\nPRD: docs/prd/10-FINANCE-PRD.md §2.3 RBAC role matrix; §5.3 21 CFR Part 11 e-signature; §12.6 FIN-006 DLQ ops UI.\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nAppend an FINANCE_CORE permission group to `packages/rbac/src/permissions.enum.ts` covering every `fin.*.*` capability mandated by PRD §2.3 role matrix (Finance Manager, Finance Viewer, Production Manager, Plant Director, Admin, Owner, Integration Ops, Auditor) plus DLQ ops + e-signature flows. Export `ALL_FINANCE_CORE_PERMISSIONS`. Per Settings T-001 exemplar the model is flat dot-namespaced strings matching the regex `^fin\\.[a-z_]+\\.[a-z_]+$`.\n\n## Implementation contract\n1. Append, ONLY at end of the `Permission` const object (do not reorder existing entries), the 14 finance strings listed below, each with a JSDoc comment citing the PRD §2.3 row OR §12.6 action it grants.\n2. Export `ALL_FINANCE_CORE_PERMISSIONS` as a `readonly Permission[]` array literal so vitest can iterate.\n3. Do NOT touch any other module's permission set; do NOT add `fa.*` aliases.\n4. CODEOWNERS keeps `packages/rbac/src/permissions.enum.ts` architect-locked (no change needed if already present).\n\n## Permission strings to add (14)\n- `fin.standard_cost.create`     — Finance Manager + Owner draft a standard cost (§2.3 row 1)\n- `fin.standard_cost.approve`    — Finance Manager + Owner approve via SHA-256 e-signature (§2.3 row 2, §5.3)\n- `fin.standard_cost.supersede`  — Finance Manager + Owner end-date approved record (§11.2 V-FIN-STD-07)\n- `fin.standard_cost.bulk_import` — Finance Manager + Admin trigger MODAL-04 (§8.4 FIN-019)\n- `fin.wo_cost.view`             — Finance Manager + Viewer + Prod Mgr (own line) + Plant Director + Admin (§2.3 row 3)\n- `fin.wo_cost.recalculate`      — Finance Manager + Owner re-run recursive CTE (§9.2)\n- `fin.variance.note`            — Finance Manager + Prod Mgr (own WO) (§2.3 row 4, §11.5)\n- `fin.cost_center.admin`        — Finance Manager + Admin + Owner CRUD cost_centers + GL mappings (§2.3 row 5)\n- `fin.currency.admin`           — Finance Manager + Admin manage currencies + manual FX (§2.3 row 5 + row 7)\n- `fin.period.lock`              — P1 stub gated by feature flag; Finance Manager + Owner only (§8.4 FIN-020 + OQ-FIN-13)\n- `fin.dlq.replay`               — Finance Manager + Admin (integration_ops) + Owner (§2.3 row 6 + §12.6)\n- `fin.dlq.resolve`              — Finance Manager + Admin (integration_ops) + Owner (§12.6)\n- `fin.audit.export`             — Finance Manager + Viewer + Admin + Owner + auditor_readonly (§2.3 row 8, §5.2)\n- `fin.settings.write`           — Finance Manager + Admin update finance_settings (§14.1 L2 variation per-tenant config)\n\n## Files in scope\n- packages/rbac/src/permissions.enum.ts [modify]\n- packages/rbac/src/__tests__/permissions.test.ts [modify]\n\n## Acceptance criteria (Given-When-Then)\n- Given the enum file is read, when the export is parsed, then it exposes exactly these 14 new strings: `fin.standard_cost.create`, `fin.standard_cost.approve`, `fin.standard_cost.supersede`, `fin.standard_cost.bulk_import`, `fin.wo_cost.view`, `fin.wo_cost.recalculate`, `fin.variance.note`, `fin.cost_center.admin`, `fin.currency.admin`, `fin.period.lock`, `fin.dlq.replay`, `fin.dlq.resolve`, `fin.audit.export`, `fin.settings.write`.\n- Given each new permission key, when matched against the regex `^fin\\.[a-z_]+\\.[a-z_]+$`, then all match and no duplicates exist across the full `Permission` map.\n- Given `ALL_FINANCE_CORE_PERMISSIONS` is exported, when iterated, then `.length === 14` and every entry is typed `Permission`.\n- Given a pre-existing entry (e.g. `ORG_ACCESS_ADMIN`, `SETTINGS_ORG_READ`), when the file is diffed against HEAD, then no existing string is renamed, reordered, or deleted.\n\n## Test strategy (RED first)\n1. Extend `packages/rbac/src/__tests__/permissions.test.ts` with a `describe('finance permissions')` block asserting the four ACs above.\n2. RED command: `pnpm --filter @monopilot/rbac vitest run permissions.test.ts` — must fail before code change.\n3. Implement: append 14 entries + `ALL_FINANCE_CORE_PERMISSIONS` export.\n4. Re-run vitest — must pass. Then `pnpm typecheck` + `pnpm lint`.\n\n## Risk red lines\n- Do not remove or rename any existing `Permission.*` entry (ESLint enum-lock guard from Foundation T-046 will fail the build if you do).\n- Do not invent new dotted segments outside the `^fin\\.[a-z_]+\\.[a-z_]+$` regex (e.g. `fin.standardCost.create` camelCase is forbidden).\n- Do not introduce `LegacyPermissionAlias` rows for finance — finance is greenfield, no legacy alias needed.\n- Do not add `fin.report.*` here — reporting lives in 12-REPORTING module; that module owns its own enum delta.\n- Do not commit secrets / vault keys / D365 credentials.\n\n## Closeout evidence required\n- changed_files (with line counts)\n- exact test commands and outputs (RED→GREEN, typecheck, lint)\n- acceptance_criteria_status (one row per AC: pass/fail)\n- deviations_from_prd (or \"none\")\n- git_status\n\nStack: TS + Next.js App Router + Drizzle + pnpm + vitest + Server Actions. Primitives in `packages/ui`. RBAC enum is the single SoT for permissions.\n",
+  "labels": [
+    "prd",
+    "auth",
+    "permissions",
+    "T1-schema",
+    "p0-blocker"
+  ],
+  "priority": 90,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-001",
+    "source_prd": "docs/prd/10-FINANCE-PRD.md",
+    "prd_refs": [
+      "§2.3",
+      "§5.3",
+      "§8.4 FIN-019",
+      "§8.4 FIN-020",
+      "§12.6",
+      "§14.1"
+    ],
+    "category": "auth",
+    "subcategory": "permissions-enum",
+    "task_type": "T1-schema",
+    "parent_feature": "10-FINANCE-perm",
+    "context_budget": "40k",
+    "estimated_effort": "1h",
+    "description": "Lock 14 fin.*.* permission strings (P0 RBAC foundation for module 10-FINANCE per PRD §2.3 RBAC matrix).",
+    "details": "Append ONLY the 14 listed strings; preserve existing entries verbatim. Each entry has a JSDoc comment citing PRD §2.3 row or §12.6 action. Export ALL_FINANCE_CORE_PERMISSIONS readonly array. Follow Settings T-001 pattern exactly (regex check + uniqueness test + array length test). This task blocks every downstream finance task because RBAC checks reference these enum constants.",
+    "scope_files": [
+      "packages/rbac/src/permissions.enum.ts [modify]",
+      "packages/rbac/src/__tests__/permissions.test.ts [modify]"
+    ],
+    "out_of_scope": [
+      "Do not modify packages outside rbac",
+      "Do not add fin.report.* (12-REPORTING owns)",
+      "Do not create LegacyPermissionAlias rows for finance"
+    ],
+    "dependencies": [],
+    "parallel_safe_with": [
+      "T-002",
+      "T-003"
+    ],
+    "acceptance_criteria": [
+      "Given the enum file is read, when the export is parsed, then it exposes exactly the 14 listed fin.*.* strings.",
+      "Given each new key, when matched against ^fin\\.[a-z_]+\\.[a-z_]+$, then all match and no duplicates exist in the full Permission map.",
+      "Given ALL_FINANCE_CORE_PERMISSIONS is exported, when iterated, then .length === 14 and every entry is typed Permission.",
+      "Given a pre-existing entry, when the file is diffed against HEAD, then no existing string is renamed, reordered, or deleted."
+    ],
+    "test_strategy": [
+      "RED: extend permissions.test.ts with describe('finance permissions') asserting presence + regex + uniqueness + array length; run vitest; expect failure.",
+      "GREEN: append 14 entries + array export; re-run vitest.",
+      "Run pnpm typecheck + pnpm lint after change."
+    ],
+    "risk_red_lines": [
+      "Do not remove or rename any existing Permission.* entry.",
+      "Do not invent dotted segments outside ^fin\\.[a-z_]+\\.[a-z_]+$.",
+      "Do not add LegacyPermissionAlias rows for finance.",
+      "Do not add fin.report.* (12-REPORTING domain)."
+    ],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": false,
+    "cross_module_dependencies": [
+      {
+        "module": "02-settings",
+        "task_id": "T-001",
+        "reason": "02-settings T-001 locks the permissions.enum CODEOWNERS surface; finance fin.*.* strings must be appended via the same Permission registry without colliding with the SETTINGS_CORE group."
+      },
+      {
+        "module": "02-settings",
+        "task_id": "T-002",
+        "reason": "02-settings T-002 co-owns the permissions.enum extension surface (SETTINGS_DATA group); finance enum strings layer on top of the same file."
+      }
+    ]
+  }
+}

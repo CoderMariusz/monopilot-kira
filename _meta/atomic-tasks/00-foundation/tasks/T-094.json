@@ -1,0 +1,82 @@
+{
+  "title": "T-094 — SLO session-cookie clearing + Supabase session revoke (FT-034)",
+  "prompt": "# T-094 — SLO session-cookie clearing + Supabase session revoke (FT-034)\n\nPRD: `docs/prd/00-FOUNDATION-PRD.md` — sections: §5.x\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`\nOriginal carry-forward ID: **FT-034** (from `_meta/audits/2026-05-07-foundation-final-carry-forward-backlog.md`)\nSeverity: **P2** (S effort)\n\n## Goal\nSLO clears cookies + revokes Supabase session.\n\n## Implementation contract\n1. slo.ts adds `revokeLocalSession(userId, cookies)`: clears sb-access/sb-refresh cookies, calls supabase.auth.admin.signOut.\n2. SLO route invokes the helper after assertion verification.\n3. Test asserts cookies are cleared (Set-Cookie with Max-Age=0) and signOut is called once.\n\n## Files (scope)\n- packages/auth/src/saml/slo.ts [modify]\n- packages/auth/src/saml/__tests__/slo.test.ts [create]\n- apps/web/app/api/auth/saml/logout/route.ts [modify]\n\n## Acceptance criteria\n1. Given a successful SLO, when the handler completes, then sb-access and sb-refresh cookies are set with Max-Age=0.\n2. Given a successful SLO, when the handler completes, then supabase.auth.admin.signOut has been called for the user.\n3. Given a failed SLO (bad assertion), when the handler runs, then no cookie clearing happens.\n\n## Test strategy\n- RED: write slo.test.ts asserting cookie clearing + signOut call before implementation.\n- Mock supabase admin via vi.fn().\n- Run `pnpm --filter @monopilot/auth test slo`.\n\n## Risk red lines\n- Do not clear cookies on failed SLO (info-leak vector).\n- Do not call signOut without user_id resolution.\n\n## Closeout evidence\nProvide: changed_files, test_commands_and_results, acceptance_criteria_status (per AC), deviations_from_prd, git_status. Use the test-driven-development skill (RED-first) and requesting-code-review at GREEN.",
+  "labels": [
+    "prd",
+    "auth",
+    "wave-d-carry-forward",
+    "wave-d-followup",
+    "saml",
+    "slo",
+    "T2-api"
+  ],
+  "priority": 50,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-094",
+    "source_prd": "docs/prd/00-FOUNDATION-PRD.md",
+    "prd_refs": [
+      "§5.x"
+    ],
+    "original_carry_forward_id": "FT-034",
+    "category": "auth",
+    "subcategory": "slo",
+    "task_type": "T2-api",
+    "parent_feature": "00-FOUNDATION-i",
+    "context_budget": "50k",
+    "estimated_effort": "1-4h",
+    "description": "On SAML Single Logout (SLO), clear session cookies and revoke the Supabase session so the user is fully signed out.",
+    "details": "T-012 implemented the SLO request/response handlers but the local Supabase session is left intact. Clear the session cookies and call supabase.auth.admin.signOut(userId).",
+    "scope_files": [
+      "packages/auth/src/saml/slo.ts [modify]",
+      "packages/auth/src/saml/__tests__/slo.test.ts [create]",
+      "apps/web/app/api/auth/saml/logout/route.ts [modify]"
+    ],
+    "out_of_scope": [
+      "Do not modify SAML signature handling."
+    ],
+    "dependencies": [],
+    "parallel_safe_with": [],
+    "acceptance_criteria": [
+      "Given a successful SLO, when the handler completes, then sb-access and sb-refresh cookies are set with Max-Age=0.",
+      "Given a successful SLO, when the handler completes, then supabase.auth.admin.signOut has been called for the user.",
+      "Given a failed SLO (bad assertion), when the handler runs, then no cookie clearing happens."
+    ],
+    "test_strategy": [
+      "RED: write slo.test.ts asserting cookie clearing + signOut call before implementation.",
+      "Mock supabase admin via vi.fn().",
+      "Run `pnpm --filter @monopilot/auth test slo`."
+    ],
+    "risk_red_lines": [
+      "Do not clear cookies on failed SLO (info-leak vector).",
+      "Do not call signOut without user_id resolution."
+    ],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

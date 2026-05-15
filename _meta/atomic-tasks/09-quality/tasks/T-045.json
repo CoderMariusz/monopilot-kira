@@ -1,0 +1,98 @@
+{
+  "title": "T-045 — ncr_create_modal (parity, multi-path form)",
+  "prompt": "# T-045 — ncr_create_modal (parity)\n\nPRD: docs/prd/09-QUALITY-PRD.md §11.4 V-QA-NCR-003/004, §5.3 signature evidence, §8.5 traceability\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\nPrototype: prototypes/design/Monopilot Design System/quality/modals.jsx:300-382 (ncr_create_modal)\n\n## Goal\nMulti-path NCR creation modal with conditional yield_issue / allergen_deviation blocks, save-draft + submit Server Action calls (T-038), 1:1 parity vs prototype.\n\n## Implementation contract\n1. packages/ui/src/quality/NcrCreateModal.tsx (Client Component) wrapping shadcn Dialog with useForm + zodResolver + useWatch on type field for conditional FormSections.\n2. Wide variant Dialog (max-width override on DialogContent per translation-notes M-06).\n3. Conditional yield_issue block: targetYield/actualYield/claim_pct number inputs; client-computed claim_value preview but server recomputes on submit.\n4. Conditional allergen_deviation block: allergenLink Combobox FK-validated server-side.\n5. Two Server Action calls: saveNcrDraft and submitNcr (T-038); submitNcr enforces description.length>=20 server-side; client preview validation only.\n6. severity is auto-derived from rule severity_map or fail_reason_code server-side; client Select is a display preview (read-only after server response).\n7. Wired into ncr_list (T-043) Create NCR CTA via ?modal=create URL state.\n\n## Prototype parity\nAnchor: `prototypes/design/Monopilot Design System/quality/modals.jsx:300-382` (ncr_create_modal).\nParity checklist (verify all):\n- Wide Dialog\n- type Select drives conditional sections (quality / yield_issue / allergen_deviation / supplier / process)\n- yield_issue block: targetYield/actualYield/claim_pct inputs + claimValue preview\n- allergen_deviation block: allergenLink Combobox\n- Save as draft + Submit NCR buttons (two distinct Server Actions)\n- dueMap severity→hours displayed inline (severity-driven response_due_at preview)\n- Mandatory min length 20 description (server-enforced; client preview)\n\n## Files\n- packages/ui/src/quality/NcrCreateModal.tsx [create]\n- packages/ui/src/quality/__tests__/NcrCreateModal.test.tsx [create]\n- apps/web/src/app/quality/ncr/page.tsx [modify]\n\n## Acceptance criteria (Given-When-Then)\n1. Compared to prototypes/design/Monopilot Design System/quality/modals.jsx:300-382 — parity on structure (Dialog wide + dual conditional blocks + Save/Submit), visuals (shadcn Form+Input+Select+Textarea+Combobox+Alert+Button only), interaction (useWatch drives conditional sections, two distinct Server Actions, claim_value preview client + server recompute) — RTL + checklist\n2. Given type='yield_issue' AND target_yield_pct empty, when Submit clicked, then Zod superRefine returns error on target_yield_pct field and Server Action is NOT called\n3. Given type='allergen_deviation' AND allergenLink empty, when Submit clicked, then Zod superRefine returns error on allergenLink field and Server Action is NOT called; if allergenLink provided but invalid FK, then server-side rejects with V-QA-NCR-004\n4. UI closeout includes screenshot/artifact evidence and Playwright trace/artifacts where applicable per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`; if Playwright is unavailable, document the blocker and provide RTL/snapshot fallback evidence.\n\n## Test strategy (RED first)\n- RED: NcrCreateModal.test.tsx asserting parity + yield/allergen cross-field validation + two-action wiring before implementation\n- Run 'pnpm --filter ui test NcrCreateModal'\n- For UI parity, capture screenshots/artifacts and Playwright trace/video/artifacts where applicable; attach artifact paths in closeout.\n\n## Risk red lines\n- Do not let client compute final severity or response_due — server authoritative (translation-notes-quality §M-06)\n- Do not allow Submit without server-side description.length>=20\n- Do not hardcode severity→hours map in UI — read from rule registry V-QA-NCR-001\n- Do not skip allergenLink server FK validation",
+  "labels": [
+    "prd",
+    "ui",
+    "ncr",
+    "T3-ui"
+  ],
+  "priority": 80,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-045",
+    "source_prd": "docs/prd/09-QUALITY-PRD.md",
+    "prd_refs": [
+      "§11.4",
+      "§5.3",
+      "§8.5"
+    ],
+    "category": "ui",
+    "subcategory": "ncr-create-modal",
+    "task_type": "T3-ui",
+    "parent_feature": "09-QUALITY-d NCR",
+    "context_budget": "55k",
+    "estimated_effort": "3-4h",
+    "description": "Multi-path NCR creation modal with conditional yield_issue / allergen_deviation blocks + saveDraft + submitNcr Server Action calls + cross-field Zod validation. 1:1 parity vs prototype.",
+    "details": "Client Component wrapping shadcn Dialog (wide variant). useForm + zodResolver + useWatch('type') drives conditional sections. yield_issue block: targetYield/actualYield/claim_pct + client-side claim_value preview (server recomputes on submit). allergen_deviation block: allergenLink Combobox with debounced server FK validation. Two distinct Server Actions: saveNcrDraft (no validation) and submitNcr (description.length>=20 + V-QA-NCR-003 + V-QA-NCR-004 server-side). severity Select is server-driven preview only (read-only after server response). Wired into ncr_list CTA via ?modal=create URL searchParam. dueMap severity→hours displayed inline from rule registry V-QA-NCR-001 (not hardcoded). Translation-notes red-lines: useFieldArray not needed (single record); Combobox for product/assignedTo selects with debounced search; dual-action pattern (saveDraft/submit) is standard.",
+    "scope_files": [
+      "packages/ui/src/quality/NcrCreateModal.tsx [create]",
+      "packages/ui/src/quality/__tests__/NcrCreateModal.test.tsx [create]",
+      "apps/web/src/app/quality/ncr/page.tsx [modify]"
+    ],
+    "out_of_scope": [
+      "Do not modify NCR Server Actions (T-038 owns)",
+      "Do not implement ncr_detail (T-044) or ncr_close_modal (T-046)",
+      "Do not implement bulk-import flow"
+    ],
+    "dependencies": [
+      "T-038",
+      "T-043"
+    ],
+    "parallel_safe_with": [
+      "T-044",
+      "T-046"
+    ],
+    "acceptance_criteria": [
+      "Given the NCR create modal renders, when compared to prototypes/design/Monopilot Design System/quality/modals.jsx:300-382 (ncr_create_modal), then it matches on structural parity (wide Dialog + type Select + conditional yield_issue/allergen_deviation blocks + Save-draft & Submit buttons), visual parity (shadcn Form/Input/Select/Textarea/Combobox/Alert/Button only), interaction parity (useWatch drives conditional sections, two distinct Server Actions, claim_value preview client + server recompute) — verified by RTL render plus parity checklist",
+      "Given type='yield_issue' AND target_yield_pct empty, when Submit is clicked, then Zod returns error on target_yield_pct and Server Action is NOT invoked",
+      "Given type='allergen_deviation' with empty allergenLink, when Submit is clicked, then Zod returns error on allergenLink; with provided but invalid FK, server-side rejects with V-QA-NCR-004 and the row is not created",
+      "UI closeout includes screenshot/artifact evidence and Playwright trace/artifacts where applicable per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`; if Playwright is unavailable, document the blocker and provide RTL/snapshot fallback evidence."
+    ],
+    "test_strategy": [
+      "RED: NcrCreateModal.test.tsx asserting parity + cross-field validation + two-action wiring + severity-display readonly before implementation",
+      "Run 'pnpm --filter ui test NcrCreateModal'",
+      "For UI parity, capture screenshots/artifacts and Playwright trace/video/artifacts where applicable; attach artifact paths in closeout."
+    ],
+    "risk_red_lines": [
+      "Do not let client compute final severity or response_due — server authoritative (translation-notes §M-06)",
+      "Do not allow Submit without server-enforced description.length>=20",
+      "Do not hardcode severity→hours dueMap in UI — read from rule registry V-QA-NCR-001",
+      "Do not skip allergenLink server FK validation (V-QA-NCR-004)"
+    ],
+    "prototype_match": true,
+    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md",
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "cross_module_dependencies": [
+      "00-foundation:T-124",
+      "09-quality:T-038",
+      "09-quality:T-039"
+    ]
+  }
+}

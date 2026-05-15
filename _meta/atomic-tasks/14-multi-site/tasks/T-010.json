@@ -1,0 +1,115 @@
+{
+  "title": "T-010 \u2014 Cross-site dual-approval gate + 3 outbox events (\u00a79.6, \u00a711.3 V-MS-10/11, \u00a712.3, D-MS-12)",
+  "prompt": "# T-010 \u2014 Cross-site dual-approval gate + 3 outbox events\n\nPRD: docs/prd/14-MULTI-SITE-PRD.md \u00a79.6 approval cols, \u00a711.3 V-MS-10 (from_site approval before shipped), V-MS-11 (to_site approval before received), \u00a712.3 outbox events\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nEnforce the dual cross-site approval gate at Server Action layer and emit the three outbox events per D-MS-12 / \u00a712.3 lifecycle.\n\n## Implementation contract\n1. Server Action `transitionTransferOrder(id, nextState, actor)` in `packages/domain/src/transfer-orders/actions.ts`:\n   - Load TO; compute isCrossSite via from_site_id != to_site_id.\n   - For cross-site path: before allowing transition to 'shipped', assert from_site_manager_approval_id IS NOT NULL (V-MS-10) else throw `MissingFromSiteApproval`.\n   - Before allowing 'received' for cross-site, assert to_site_manager_approval_id IS NOT NULL (V-MS-11) else throw `MissingToSiteApproval`.\n   - Approval IDs reference audit_events.id rows produced via separate `approveTransferOrder({ side: 'from'|'to', actor })` Server Action \u2014 actor must have role site_manager at that side's site (RBAC enforced via withSiteContext).\n2. Outbox emission (idempotent per outbox baseline T-111/T-112) via `packages/domain/src/transfer-orders/outbox.ts`:\n   - On transition to 'shipped' \u2192 emit `transfer_order.shipped` payload {to_id, from_site_id, to_site_id, items_count, transfer_cost, cost_allocation_method, shipped_at, actor_user_id}.\n   - On transition to 'in_transit' \u2192 emit `transfer_order.in_transit` payload {to_id, eta, current_location_optional}.\n   - On transition to 'received' \u2192 emit `transfer_order.received` payload {to_id, received_at, lp_genealogy_ref, transfer_cost_settled}.\n   - All emitted to warehouse_outbox_events with event_type='inter_site_transfer'.\n3. Tests: V-MS-10/11 negative paths reject; positive paths emit exactly one row per event; idempotency proven by replay (same payload + same to_id + same event_type does not duplicate); cross-site role gate (site_manager-at-wrong-side cannot approve).\n\n## Files\n- packages/domain/src/transfer-orders/actions.ts [create]\n- packages/domain/src/transfer-orders/outbox.ts [create]\n- packages/domain/__tests__/transfer-orders/approval-gate.test.ts [create]\n- packages/domain/__tests__/transfer-orders/outbox.test.ts [create]\n\n## Acceptance criteria\n<!-- AC count consolidated from 6\u21924 by Fixer F14a 2026-05-14 (no coverage lost) -->\n1. Given a cross-site TO without from_site_manager_approval_id, when transitionTransferOrder('shipped') runs, then MissingFromSiteApproval is thrown (V-MS-10) and no state mutation occurs.\n2. Given a cross-site TO without to_site_manager_approval_id, when transitionTransferOrder('received') runs, then MissingToSiteApproval is thrown (V-MS-11).\n3. Given approveTransferOrder({side:'from', actor:user_X}) is called and user_X has role!=site_manager at from_site, then it throws UnauthorizedApproval.\n4. Given a cross-site TO transitions 'shipped', when the action settles, then exactly one warehouse_outbox_events row exists with event_type='inter_site_transfer' and payload contains keys [to_id, from_site_id, to_site_id, transfer_cost, cost_allocation_method, shipped_at].\n5. Given the same shipped transition is replayed (idempotency key reuse), when the second call runs, then no duplicate outbox row is created.\n6. Given a same-site TO transitions 'shipped' (V-MS-12 path), when the action settles, then the outbox event is still emitted but the approval gate is bypassed (no from/to approval required for same-site).\n\n## Test strategy\n- RED: assert V-MS-10/11 negative + role gate + idempotency replay + same-site bypass + payload schema before actions.ts exists.\n- Run 'pnpm --filter @monopilot/domain test transfer-orders/approval-gate' + 'pnpm --filter @monopilot/domain test transfer-orders/outbox'.\n\n## Risk red lines\n- Do not allow approval by anyone other than site_manager at that side's site \u2014 enforced via withSiteContext + role-check. The withSiteContext HOF establishes the session site context via app.current_site_id() (SECURITY DEFINER) which RLS policies on warehouse_outbox_events use as the site predicate.\n- Do not emit outbox events outside the same tx as the state mutation \u2014 outbox baseline T-111 requires same-tx for at-least-once semantics.\n- Do not bypass the approval gate via SECURITY DEFINER \u2014 actor identity must flow through.\n- Do not duplicate outbox rows on replay \u2014 use idempotency key (to_id + target_state).\n- Do not let outbox payload contain PII beyond actor_user_id \u2014 V-MS-13/\u00a714.2 audit-only fields.",
+  "labels": [
+    "prd",
+    "domain",
+    "approval",
+    "outbox",
+    "T2-api"
+  ],
+  "priority": 50,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-010",
+    "source_prd": "docs/prd/14-MULTI-SITE-PRD.md",
+    "prd_refs": [
+      "\u00a79.6",
+      "\u00a711.3 V-MS-10",
+      "\u00a711.3 V-MS-11",
+      "\u00a712.3"
+    ],
+    "category": "domain",
+    "subcategory": "approval-outbox",
+    "task_type": "T2-api",
+    "parent_feature": "14-MULTI-SITE-b inter-site TO",
+    "context_budget": "50k",
+    "estimated_effort": "2-3h",
+    "description": "Dual cross-site approval gate (from_site_manager_approval_id required before shipped per V-MS-10; to_site_manager_approval_id required before received per V-MS-11) + 3 outbox events (transfer_order.shipped, .in_transit, .received) emitted to warehouse_outbox_events with event_type='inter_site_transfer' tag.",
+    "details": "Dual cross-site approval gate (from_site_manager_approval_id required before shipped per V-MS-10; to_site_manager_approval_id required before received per V-MS-11) + 3 outbox events (transfer_order.shipped, .in_transit, .received) emitted to warehouse_outbox_events with event_type='inter_site_transfer' tag. Scope: Enforce the dual cross-site approval gate at Server Action layer and emit the three outbox events per D-MS-12 / \u00a712. Touches: packages/domain/src/transfer-orders/actions.ts, packages/domain/src/transfer-orders/outbox.ts, packages/domain/__tests__/transfer-orders/approval-gate.test.ts, packages/domain/__tests__/transfer-orders/outbox.test.ts. Constraints: 1. Server Action `transitionTransferOrder(id, nextState, actor)` in `packages/domain/src/transfer-orders/actions.ts`: - Load TO; compute isCrossSite via from_site_id != to_site_id. - For cross-site path: before allowing transition to 'shipped', assert from_site_manager_approval_id IS NOT NULL (V-MS-10) else throw `MissingFromSiteApproval`. - Before. Distinguished from sibling 14-multi-site tasks by its narrow approval-outbox focus against PRD \u00a79.6, \u00a711.3 V-MS-10, \u00a711.3 V-MS-11, \u00a712.3. AC count consolidated from 6\u21924 by Fixer F14a 2026-05-14 (no coverage lost)",
+    "scope_files": [
+      "packages/domain/src/transfer-orders/actions.ts [create]",
+      "packages/domain/src/transfer-orders/outbox.ts [create]",
+      "packages/domain/__tests__/transfer-orders/approval-gate.test.ts [create]",
+      "packages/domain/__tests__/transfer-orders/outbox.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not implement IST UI here (separate 05-WH coupled task).",
+      "Do not implement cost allocation (T-011).",
+      "Do not implement P2 logistics-tracking courier API consumer."
+    ],
+    "dependencies": [
+      "T-008",
+      "T-009"
+    ],
+    "cross_module_dependencies": [
+      {
+        "module": "00-foundation",
+        "task_id": "T-111",
+        "reason": "outbox+worker baseline; same-tx emission semantics."
+      },
+      {
+        "module": "00-foundation",
+        "task_id": "T-112",
+        "reason": "outbox dispatcher worker; consumes warehouse_outbox_events."
+      },
+      {
+        "module": "05-warehouse",
+        "task_id": "warehouse_outbox_events",
+        "reason": "outbox table owned by 05-WH per \u00a712.3."
+      },
+      {
+        "module": "00-foundation",
+        "task_id": "T-125",
+        "reason": "Cross-mod dep to 00-foundation T-125 declared (withOrgContext + app.current_org_id() per F11 rule). withSiteContext HOF composes on top of T-125; approval gate uses withSiteContext per side."
+      }
+    ],
+    "parallel_safe_with": [],
+    "acceptance_criteria": [
+      "Given cross-site TO without from_site_manager_approval_id, when transitionTransferOrder('shipped') runs, then MissingFromSiteApproval thrown (V-MS-10); no state mutation; AND given cross-site TO without to_site_manager_approval_id when transitionTransferOrder('received') runs then ManagerApprovalRequired thrown.",
+      "Given approveTransferOrder({side:'from', actor:user_X}) and user_X has role!=site_manager at from_site, then UnauthorizedApproval thrown.",
+      "Given cross-site TO transitions 'shipped', when settled, then exactly one warehouse_outbox_events row with event_type='inter_site_transfer' and payload keys [to_id, from_site_id, to_site_id, transfer_cost, cost_allocation_method, shipped_at]; AND given same shipped transition replayed (idempotency key reuse) when second call runs then no duplicate outbox row inserted.",
+      "Given same-site TO transitions 'shipped' (V-MS-12 path), when settled, then outbox emitted but approval gate bypassed."
+    ],
+    "test_strategy": [
+      "RED: assert V-MS-10/11 negative + role gate + idempotency + same-site bypass + payload schema before actions.ts exists.",
+      "Run 'pnpm --filter @monopilot/domain test transfer-orders/approval-gate' + 'pnpm --filter @monopilot/domain test transfer-orders/outbox'."
+    ],
+    "risk_red_lines": [
+      "Do not allow approval by anyone other than site_manager at that side's site.",
+      "Do not emit outbox outside the same tx \u2014 T-111 at-least-once semantics.",
+      "Do not bypass approval gate via SECURITY DEFINER \u2014 actor flows through.",
+      "Do not duplicate outbox on replay \u2014 idempotency key (to_id + target_state).",
+      "Do not put PII in payload beyond actor_user_id."
+    ],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review",
+      "systematic-debugging"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": false
+  }
+}

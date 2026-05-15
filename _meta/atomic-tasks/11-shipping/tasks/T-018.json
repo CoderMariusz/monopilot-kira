@@ -1,0 +1,110 @@
+{
+  "title": "T-018 — shipments + shipment_boxes + shipment_box_contents schema + per-org sscc_serial sequence (11-shipping-e)",
+  "prompt": "# T-018 — Shipments + SSCC sequence schema\n\nPRD: docs/prd/11-SHIPPING-PRD.md §9.1 (shipments, shipment_boxes, shipment_box_contents), §6 D-SHP-4 GS1 SSCC-18 Compliance (ADR-004), §13.1 SSCC-18 generation, §11 V-SHIP-PACK-02..04, V-SHIP-SHIP-01..05\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nIntroduce shipments + boxes + contents schema, status ENUM, RLS via app.current_org_id(), R13 audit + Drizzle, and per-org atomic `sscc_serial_seq` counter (no gaps, V-SHIP-PACK-04).\n\n## Implementation contract\n1. Migration creates:\n   - ENUM `shipment_status_enum` ('pending','packing','packed','manifested','shipped','delivered','exception').\n   - `shipments` (org_id, shipment_number text UNIQUE per org `SH-YYYY-NNNNN`, sales_order_id FK sales_orders, customer_id FK customers, shipping_address_id FK customer_addresses, status shipment_status_enum NOT NULL DEFAULT 'pending', carrier text (P2 — text only P1, FK in P2 to carriers), service_level text, tracking_number text (P2 API), total_weight_kg numeric(12,3), total_boxes int, dock_door_id uuid (P2), staged_location_id uuid, packed_at, packed_by, shipped_at, shipped_by, delivered_at, bol_pdf_url text, bol_signed_pdf_url text, R13).\n   - `shipment_boxes` (org_id, shipment_id FK CASCADE, box_number int, sscc varchar(18) UNIQUE per org, weight_kg numeric(10,3), actual_weight_kg numeric(10,3), length_cm, width_cm, height_cm, tracking_number text (P2), R13; CHECK (sscc ~ '^[0-9]{18}$')).\n   - `shipment_box_contents` (org_id, shipment_box_id FK CASCADE, sales_order_line_id FK, product_id uuid, license_plate_id uuid references license_plates (05-WH), lot_number text, quantity numeric(14,3), actual_weight_kg numeric(10,3), R13).\n2. RLS + FORCE RLS via app.current_org_id() on all 3 tables.\n3. Atomic SSCC serial counter: table `sscc_counters (org_id PK, last_serial bigint NOT NULL DEFAULT 0, updated_at timestamptz NOT NULL DEFAULT now())` with row-level lock; Postgres function `next_sscc_serial(p_org_id uuid)` returns bigint by `UPDATE sscc_counters SET last_serial=last_serial+1 WHERE org_id=p_org_id RETURNING last_serial`; row created on first call.\n4. Postgres function `sscc_mod10(sscc17 text)` computes GS1 mod-10 check digit; `generate_sscc(p_org_id uuid, p_extension int)` returns the 18-digit string: `extension(1) + gs1_prefix(7-10 from organizations.gs1_company_prefix) + serial_padded(8-N) + mod10`. P1 enforces gs1_prefix length exactly 7 (V-SHIP-PACK-03 7-10 digits — first impl P1 = 7; P2 widens).\n5. PG trigger `shipment_number_seq_v1` per-org clone of pick_list_number_seq.\n6. Drizzle schema in `packages/db/src/schema/shipping/shipments.ts`.\n\n## Files\n- packages/db/migrations/00XX_shipping_shipments.sql [create]\n- packages/db/src/schema/shipping/shipments.ts [create]\n- packages/db/src/schema/index.ts [modify]\n- packages/db/__tests__/shipping-shipments-schema.test.ts [create]\n\n## Acceptance criteria\n1. Given a fresh DB, when migration runs, then 3 tables + status ENUM + sscc_counters table + 2 functions (next_sscc_serial, sscc_mod10, generate_sscc) exist, with org_id NOT NULL + R13 + RLS + FORCE RLS.\n2. Given organizations.gs1_company_prefix is NULL for an org, when generate_sscc is called for that org, then it raises `V-SHIP-PACK-03 missing GS1 company prefix` (Postgres ASSERT or EXCEPTION).\n3. Given two concurrent calls to next_sscc_serial for the same org_id, when run, then values increment with no duplicates (UPDATE ... RETURNING lock).\n4. Given generate_sscc produces an 18-digit SSCC, when sscc_mod10 is called on the first 17 digits, then it returns the last digit (mod-10 check passes).\n5. Given two orgs each call generate_sscc, when each then INSERTs into shipment_boxes, then UNIQUE(org_id, sscc) holds (no cross-org collision but cross-org duplicates allowed since UNIQUE is scoped per org).\n6. Given pg_policies inspected, when listed, then qual/withcheck reference app.current_org_id() with no GUC reads.\n\n## Test strategy\n- RED: testcontainers Postgres concurrency test asserting AC 1-6; seed organizations.gs1_company_prefix; assert mod10 against known GS1 test vectors.\n- Run `pnpm --filter db migrate && pnpm --filter db test shipping-shipments-schema`.\n\n## Risk red lines\n- Do not use Postgres native nextval() for SSCC serial — atomic per-org counter required (V-SHIP-PACK-04 no gaps).\n- Do not compute mod-10 client-side — server-side only (V-SHIP-LBL-03).\n- Do not weaken sscc CHECK regex.\n- Do not name business-scope column tenant_id.\n- Do not read current_setting GUCs.\n- Do not omit FORCE RLS.\n- Do not cascade DELETE from sales_orders to shipments.\n\n## BRCGS audit trail\nAll BOL/POD signed documents must store a SHA-256 hash of the uploaded file + retention_until = signed_at + 7 years (BRCGS Issue 9 §3.5 / BRCGS §14.4). Do not allow truncation or premature deletion.\n",
+  "labels": [
+    "prd",
+    "data",
+    "schema",
+    "T1-schema"
+  ],
+  "priority": 50,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-018",
+    "source_prd": "docs/prd/11-SHIPPING-PRD.md",
+    "prd_refs": [
+      "§9.1",
+      "§6 D-SHP-4",
+      "§13.1",
+      "§11 V-SHIP-PACK-02",
+      "§11 V-SHIP-PACK-03",
+      "§11 V-SHIP-PACK-04",
+      "§11 V-SHIP-SHIP-01",
+      "§11 V-SHIP-SHIP-05"
+    ],
+    "category": "data",
+    "subcategory": "schema-shipment-sscc",
+    "task_type": "T1-schema",
+    "parent_feature": "11-shipping-e",
+    "context_budget": "55k",
+    "estimated_effort": "4-5h",
+    "description": "Shipments + boxes + contents schema + atomic per-org SSCC serial counter + sscc_mod10/generate_sscc Postgres functions.",
+    "details": "GS1-128 mod-10 server-side. Per-org sscc_counters row-locked UPDATE for atomicity (no gaps per V-SHIP-PACK-04). gs1_company_prefix sourced from organizations (02-SETTINGS §12.1). Pre-impl: read migrations/ for next free slot.",
+    "scope_files": [
+      "packages/db/migrations/00XX_shipping_shipments.sql [create]",
+      "packages/db/src/schema/shipping/shipments.ts [create]",
+      "packages/db/src/schema/index.ts [modify]",
+      "packages/db/__tests__/shipping-shipments-schema.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not implement Server Actions (T-020).",
+      "Do not build UI (T-021/T-022).",
+      "Do not implement carrier_configs (Phase 2)."
+    ],
+    "dependencies": [
+      "T-006",
+      "T-015",
+      "00-foundation/T-125",
+      "02-settings (organizations.gs1_company_prefix)"
+    ],
+    "parallel_safe_with": [
+      "T-011",
+      "T-015"
+    ],
+    "cross_module_dependencies": [
+      "02-settings (organizations.gs1_company_prefix)",
+      "05-warehouse/T-002 (license_plates)",
+      "00-foundation/T-125 (app.current_org_id())",
+      "01-npd/T-001 (product FG SSOT — variance_tolerance_pct + allergen attributes; coverage hygiene per R3 audit 2026-05-14)"
+    ],
+    "acceptance_criteria": [
+      "Given a fresh DB, when migration runs, then 3 tables + status ENUM + sscc_counters + functions (next_sscc_serial, sscc_mod10_check, generate_sscc) exist with org_id NOT NULL + R13 + RLS + FORCE RLS.",
+      "Given organizations.gs1_company_prefix is NULL, when generate_sscc runs, then it raises V-SHIP-PACK-03 missing GS1 company prefix error.",
+      "Given two concurrent next_sscc_serial calls for same org, when run, then values increment with no duplicates; AND given generate_sscc produces an 18-digit SSCC, when sscc_mod10 is run on first 17 digits, then last digit equals computed check digit (BRCGS SHA-256 audit hash stored alongside).",
+      "Given two orgs each call generate_sscc, when each INSERTs into shipment_boxes, then UNIQUE(org_id, sscc) holds; AND pg_policies reference app.current_org_id() with no GUC reads."
+    ],
+    "test_strategy": [
+      "RED: testcontainers Postgres concurrency test asserting AC 1-6; mod-10 against GS1 test vectors.",
+      "Run `pnpm --filter db migrate && pnpm --filter db test shipping-shipments-schema`."
+    ],
+    "risk_red_lines": [
+      "Do not use Postgres nextval() for SSCC serial.",
+      "Do not compute mod-10 client-side.",
+      "Do not weaken sscc CHECK regex.",
+      "Do not name business-scope column tenant_id.",
+      "Do not read current_setting GUCs.",
+      "Do not omit FORCE RLS.",
+      "Do not cascade DELETE from sales_orders.",
+      "POD audit trail uses SHA-256 hash + 7-year retention (BRCGS Issue 9 §3.5) — do not allow truncation or premature deletion of signed BOL/POD records."
+    ],
+    "skills": [
+      "test-driven-development",
+      "systematic-debugging",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": false
+  }
+}

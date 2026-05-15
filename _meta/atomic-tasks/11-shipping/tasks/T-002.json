@@ -1,0 +1,102 @@
+{
+  "title": "T-002 — Customer Server Actions (create/update/deactivate + contacts + addresses + allergen restrictions) (11-shipping-a)",
+  "prompt": "# T-002 — Customer Server Actions\n\nPRD: docs/prd/11-SHIPPING-PRD.md §3 Personas & Roles (shipping_manager / shipping_qa), §9.1, §11 V-SHIP-SO-02, §15.4 SHIP-001..004, §14.4 BRCGS audit trail\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\nPrototype refs (translation-notes-shipping.md §3): create_customer/update_customer/upsert_address/save_allergen_restrictions Server Actions.\n\n## Goal\nWrite Next.js Server Actions for customer/contact/address/allergen CRUD wrapped in foundation `withOrgContext` HOF (T-125) — never raw `current_setting('app.tenant_id'|'app.current_org_id')`. Each mutation must (a) check RBAC via `ship.so.create` / `ship.allergen.override` / etc. (T-031 enum), (b) run in a single Drizzle transaction, (c) emit an `audit_events` row, (d) publish an outbox event when relevant.\n\n## Implementation contract\n1. `apps/web/lib/server-actions/shipping/customers.ts` exports:\n   - `createCustomer(input: CustomerCreateInput)` — Zod-validated; INSERT customers + initial primary contact + initial default shipping address; outbox event `shipping.customer.created`; permission `ship.so.create` (proxy for customer-master writes by shipping_manager).\n   - `updateCustomer(id, patch)` — partial Zod, audit diff, no outbox unless `is_active` flips.\n   - `deactivateCustomer(id)` — soft-delete (is_active=false), refuses if open SOs exist (query sales_orders WHERE status NOT IN ('cancelled','delivered','shipped')); outbox event `shipping.customer.deactivated`.\n   - `upsertAddress(customerId, input)` — V-SHIP-SO-02: at least 1 shipping address required before SO confirm — enforced when caller is in SO-confirm flow, not here; this action only INSERTs/UPDATEs and audits.\n   - `saveAllergenRestrictions(customerId, restrictions[])` — permission `ship.allergen.override` (QA role), replaces customer_allergen_restrictions rows in a tx; outbox event `shipping.customer.allergen_updated`.\n2. Every action is invoked through `withOrgContext(sessionToken, orgId, fn)` (T-125) — assert via grep that no action reads `current_setting('app.tenant_id'|'app.current_org_id')` directly.\n3. Outbox events use `@monopilot/outbox` (T-112) with UUID v7 idempotency keys per R14; `event_type` matches `shipping.customer.*` pattern.\n4. Rate-limit each mutation via `@monopilot/rate-limit` (T-121) presets (token-bucket, 30 mut/min/user).\n5. PII redaction in pino logs uses T-117 redact allowlist (customer.email/phone never logged plain).\n\n## Files\n- apps/web/lib/server-actions/shipping/customers.ts [create]\n- apps/web/lib/server-actions/shipping/__tests__/customers.test.ts [create]\n- packages/events/src/shipping.ts [modify — add ShippingCustomerCreated, ShippingCustomerDeactivated, ShippingCustomerAllergenUpdated event schemas (Zod)]\n\n## Acceptance criteria\n1. Given shipping_manager session for org A, when createCustomer is called, then customers row INSERTed with org_id=A, audit_events row written, outbox event shipping.customer.created enqueued in same tx with UUID v7 idempotency key; AND grep `current_setting('app.(tenant_id|current_org_id)')` on customers.ts returns zero matches (org context only via withOrgContext).\n2. Given caller lacks ship.so.create, when createCustomer runs, then it throws PermissionDeniedError and no DB row written.\n3. Given deactivateCustomer is called and an open SO exists, when the action runs, then it throws CustomerHasOpenOrdersError and no row mutated.\n4. Given saveAllergenRestrictions is called by ship.allergen.override holder, when it runs, then customer_allergen_restrictions rows are replaced atomically and outbox event shipping.customer.allergen_updated is emitted; AND missing permission throws PermissionDeniedError.\n\n## Test strategy\n- RED: vitest in `apps/web/lib/server-actions/shipping/__tests__/customers.test.ts` asserting AC 1-5 using testcontainers Postgres + mock session. Include grep-assertion AC against own file.\n- Run `pnpm --filter @monopilot/web vitest run apps/web/lib/server-actions/shipping/__tests__/customers.test.ts && pnpm typecheck`.\n\n## Risk red lines\n- Do not call mutations outside `withOrgContext` HOF (T-125).\n- Do not log PII fields (email/phone/tax_id) — rely on T-117 redact allowlist.\n- Do not bypass the @monopilot/outbox transactional enqueue (R14 idempotency).\n- Do not enforce credit_limit (Phase 2 per §4.2).\n- Do not delete contacts/addresses on customer deactivate — soft-delete only.",
+  "labels": [
+    "prd",
+    "backend",
+    "server-actions",
+    "T2-api"
+  ],
+  "priority": 70,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-002",
+    "source_prd": "docs/prd/11-SHIPPING-PRD.md",
+    "prd_refs": [
+      "§3",
+      "§9.1",
+      "§11 V-SHIP-SO-02",
+      "§15.4 SHIP-001",
+      "§15.4 SHIP-003",
+      "§15.4 SHIP-004",
+      "§14.4"
+    ],
+    "category": "backend",
+    "subcategory": "server-actions-customer",
+    "task_type": "T2-api",
+    "parent_feature": "11-shipping-a",
+    "context_budget": "50k",
+    "estimated_effort": "3-4h",
+    "description": "Customer/contact/address/allergen Server Actions wrapped in withOrgContext + RBAC + outbox + rate-limit.",
+    "details": "Server Actions only (no REST). Use @monopilot/outbox transactional enqueue (T-112), @monopilot/rate-limit middleware (T-121), @monopilot/observability pino with PII redact allowlist (T-117). Permission strings from T-031 (ship.so.create, ship.allergen.override). All mutations grep-asserted to use withOrgContext (T-125).",
+    "scope_files": [
+      "apps/web/lib/server-actions/shipping/customers.ts [create]",
+      "apps/web/lib/server-actions/shipping/__tests__/customers.test.ts [create]",
+      "packages/events/src/shipping.ts [modify]"
+    ],
+    "out_of_scope": [
+      "Do not build UI here (T-003/T-004/T-005).",
+      "Do not implement SO logic (T-007).",
+      "Do not implement credit_limit enforcement (Phase 2)."
+    ],
+    "dependencies": [
+      "T-001",
+      "T-031"
+    ],
+    "parallel_safe_with": [
+      "T-007"
+    ],
+    "cross_module_dependencies": [
+      "00-foundation/T-125 (withOrgContext)",
+      "00-foundation/T-112 (outbox worker)",
+      "00-foundation/T-117 (pino redact)",
+      "00-foundation/T-121 (rate-limit)",
+      "01-npd/T-001 (product FG SSOT — variance_tolerance_pct + allergen attributes; coverage hygiene per R3 audit 2026-05-14)"
+    ],
+    "acceptance_criteria": [
+      "Given shipping_manager session for org A, when createCustomer is called, then customers row INSERTed with org_id=A, audit_events row written, outbox event shipping.customer.created enqueued in same tx with UUID v7 idempotency key; AND grep `current_setting\\('app\\.(tenant_id|current_org_id)'\\)` on customers.ts returns zero matches (org context only via withOrgContext).",
+      "Given caller lacks ship.so.create, when createCustomer runs, then it throws PermissionDeniedError and no DB row written.",
+      "Given deactivateCustomer is called and an open SO exists for that customer, when the action runs, then it throws CustomerHasOpenOrdersError and no row mutated.",
+      "Given saveAllergenRestrictions is called by ship.allergen.override holder, when it runs, then customer_allergen_restrictions rows are replaced atomically and outbox event shipping.customer.allergen_updated is emitted; AND missing ship.allergen.override throws PermissionDeniedError."
+    ],
+    "test_strategy": [
+      "RED: vitest with testcontainers Postgres + mock session asserting AC 1-5; include grep-assertion AC.",
+      "Run `pnpm --filter @monopilot/web vitest run apps/web/lib/server-actions/shipping/__tests__/customers.test.ts && pnpm typecheck`."
+    ],
+    "risk_red_lines": [
+      "Do not call mutations outside withOrgContext HOF.",
+      "Do not log PII fields plain — rely on T-117 redact allowlist.",
+      "Do not bypass @monopilot/outbox transactional enqueue.",
+      "Do not enforce credit_limit (Phase 2).",
+      "Do not hard-delete contacts/addresses on customer deactivate."
+    ],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": false
+  }
+}

@@ -1,0 +1,103 @@
+{
+  "title": "T-043 — QA-009 ncr_list page (prototype parity)",
+  "prompt": "# T-043 — QA-009 ncr_list page (parity)\n\nPRD: §8.5 traceability QA-040 ↔ UX QA-009 ↔ prototype `ncr_list`; §8.3 QUA-105 NCR P1 promotion; §7.1 Epic 8D\nPrototype: prototypes/design/Monopilot Design System/quality/ncr-screens.jsx:3-123 (ncr_list)\n\n## Goal\nServer-rendered NCR list page with KPI strip + kanban strip + filter bar + bulk-action toolbar, 1:1 parity vs prototype.\n\n## Implementation contract\n1. apps/web/src/app/quality/ncr/page.tsx (RSC) — Drizzle aggregations in parallel (Promise.all)\n2. URL searchParams: status, severity, type, search, page → server WHERE chain\n3. Kanban strip = 4 status columns, click appends ?status= via router.push\n4. Bulk select client-only UI; bulk-assign Server Action with array; bulk-export Route Handler\n5. Overdue highlight server-computed (response_due_at < now())\n6. Export Route Handler /api/quality/ncr/export streams CSV + INSERTs quality_audit_log row (audit-on-export)\n\n## Prototype parity\nAnchor: `prototypes/design/Monopilot Design System/quality/ncr-screens.jsx:3-123` (ncr_list).\nParity checklist (verify all):\n- 4-card KPI strip (open / overdue / avg resolution 30d / closed today)\n- 4-column kanban strip (draft/open/investigating/closed) with counts and click=filter\n- Filter bar: status/severity/type/search (shadcn Tabs+Select+Input)\n- Table cols: NCR#, type, severity, title, reference, assigned, response_due, status, actions\n- Overdue row highlight (red bg)\n- Bulk select checkbox column + bulk-assign + bulk-export buttons\n- Create NCR CTA top-right\n- Export CSV button (audit-logged)\n\n## Files\n- apps/web/src/app/quality/ncr/page.tsx [create]\n- apps/web/src/components/quality/ncr/NcrListClient.tsx [create]\n- apps/web/src/components/quality/ncr/NcrKpiStrip.tsx [create]\n- apps/web/src/components/quality/ncr/NcrKanbanStrip.tsx [create]\n- apps/web/src/components/quality/ncr/__tests__/NcrListClient.test.tsx [create]\n- apps/web/src/app/api/quality/ncr/export/route.ts [create]\n- prototypes/design/Monopilot Design System/quality/ncr-screens.jsx [ref]\n\n## Acceptance criteria (Given-When-Then)\n1. Compared to prototypes/design/Monopilot Design System/quality/ncr-screens.jsx:3-123 — parity on structure, visuals, interaction (RTL + checklist)\n2. ?status=open&severity=critical filters rows and updates kanban counts; avg resolution server-computed\n3. role=auditor_readonly hides bulk + Create CTA, keeps Export\n4. Export CSV inserts a quality_audit_log row with op='EXPORT' + filter params\n\n## Test strategy (RED first)\n- RED: NcrListClient.test.tsx asserting all 4 ACs + parity checklist + export audit\n- Run 'pnpm --filter web test NcrListClient'\n- For parity: capture screenshots + Playwright trace where applicable; attach paths in closeout\n\n## Risk red lines\n- No native HTML select / checkbox outside shadcn\n- No client-side avg-resolution compute\n- Export-is-itself-an-audit-event (translation-notes-quality §M-12)\n- No prototype JSX paste — RSC + shadcn translation",
+  "labels": [
+    "prd",
+    "ui",
+    "ncr",
+    "T3-ui"
+  ],
+  "priority": 80,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-043",
+    "source_prd": "docs/prd/09-QUALITY-PRD.md",
+    "prd_refs": [
+      "§8.5",
+      "§8.3 QUA-105",
+      "§7.1"
+    ],
+    "category": "ui",
+    "subcategory": "qa-ncr-list",
+    "task_type": "T3-ui",
+    "parent_feature": "09-QUALITY-d NCR",
+    "context_budget": "55k",
+    "estimated_effort": "3-4h",
+    "description": "QA-009 NCR list page server-rendered with kanban-strip + filter bar + bulk-action toolbar, 1:1 parity vs prototype `ncr_list` (quality/ncr-screens.jsx:3-123).",
+    "details": "Server Component apps/web/src/app/quality/ncr/page.tsx loads via Drizzle: status aggregation (GROUP BY status with FILTER for overdue), 4-card KPI strip (open count / overdue count / avg resolution 30d / closed today), filtered rows. URL searchParams drive WHERE clause: status, severity, type, search, page. Kanban strip = 4 columns (draft/open/investigating/closed) with counts and click = router.push appending status searchParam. Bulk select is client-only UI; bulk-export uses /api/quality/ncr/export Route Handler streaming CSV with same filter params; bulk-assign calls Server Action with array. Overdue row highlight: server-computed boolean (response_due_at < now() AND status NOT IN closed,cancelled). Translation-notes red-lines: no client-side resolution avg compute; pagination is cursor-based; export is itself audit-logged. Prototype parity AC anchored at `prototypes/design/Monopilot Design System/quality/ncr-screens.jsx:3-123`.",
+    "scope_files": [
+      "apps/web/src/app/quality/ncr/page.tsx [create]",
+      "apps/web/src/components/quality/ncr/NcrListClient.tsx [create]",
+      "apps/web/src/components/quality/ncr/NcrKpiStrip.tsx [create]",
+      "apps/web/src/components/quality/ncr/NcrKanbanStrip.tsx [create]",
+      "apps/web/src/components/quality/ncr/__tests__/NcrListClient.test.tsx [create]",
+      "apps/web/src/app/api/quality/ncr/export/route.ts [create]",
+      "prototypes/design/Monopilot Design System/quality/ncr-screens.jsx [ref]"
+    ],
+    "out_of_scope": [
+      "Do not implement ncr_detail (T-044)",
+      "Do not implement ncr_create_modal (T-045)",
+      "Do not implement CAPA workflow (P2 Epic 8G)"
+    ],
+    "dependencies": [
+      "T-037",
+      "T-038"
+    ],
+    "parallel_safe_with": [
+      "T-044",
+      "T-045",
+      "T-046"
+    ],
+    "acceptance_criteria": [
+      "Given the NCR list page renders, when compared to prototypes/design/Monopilot Design System/quality/ncr-screens.jsx:3-123 (ncr_list), then it matches on structural parity (4-card KPI strip + 4-column kanban strip + filter bar with status/severity/type/search + table with bulk select + overdue row highlight + Export button + Create NCR CTA), visual parity (shadcn Table/Tabs/Input/Select/Checkbox/Badge/Button only, no native HTML <select>), and interaction parity (URL searchParams drive filters, kanban click filters table, bulk-assign Server Action, Export CSV via Route Handler) — verified by RTL render plus the parity checklist in pipeline_inputs.details",
+      "Given URL ?status=open&severity=critical, when page renders, then only matching NCR rows appear and the kanban 'open' column shows that count; the 'avg resolution' KPI is computed server-side from rolling 30d window",
+      "Given role=auditor_readonly, when the page renders, then bulk-action toolbar is hidden, Create NCR CTA is hidden, but Export CSV remains visible (read-only export is allowed)",
+      "Given the user clicks Export CSV with filter ?status=open, when the Route Handler responds, then the CSV is streamed with the same filtered rows and a quality_audit_log row exists with op='EXPORT' and notes containing the filter params (export is itself an audit event)"
+    ],
+    "test_strategy": [
+      "RED: NcrListClient.test.tsx asserting parity (KPI + kanban + filter + bulk toolbar) + URL-driven filters + role-based toolbar hide + export audit log entry before implementation",
+      "Run 'pnpm --filter web test NcrListClient'",
+      "For UI parity, capture screenshots/artifacts and Playwright trace/video/artifacts where applicable; attach artifact paths in closeout."
+    ],
+    "risk_red_lines": [
+      "Do not use native HTML <select> or <input type=checkbox> outside shadcn primitives",
+      "Do not paste prototype JSX verbatim — translate to RSC + shadcn",
+      "Do not compute avg resolution on client — server SQL only",
+      "Do not skip the export audit log row (export-is-itself-an-audit-event per translation-notes-quality §M-12)"
+    ],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": true,
+    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md",
+    "cross_module_dependencies": [
+      "00-foundation:T-125",
+      "09-quality:T-037",
+      "09-quality:T-038"
+    ]
+  }
+}

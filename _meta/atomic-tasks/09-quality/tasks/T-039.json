@@ -1,0 +1,96 @@
+{
+  "title": "T-039 — ESignBlock shared Server Component + dual-sign session enforcement (21 CFR Part 11)",
+  "prompt": "# T-039 — ESignBlock shared Server Component + dual-sign primitive (21 CFR Part 11)\n\nPRD: §5.3 signature evidence pattern, §13.2 e-signature implementation, §13.3 audit log completeness\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nBuild the single shared ESignBlock Server Component + verifyPin Server Action + dualSign primitive used by NCR/Hold/Spec/CCP/Allergen sign flows. Lift translation-notes red-lines (audit B §3) into a single audited surface: PBKDF2 server-side PIN verify, server-computed signature_hash, dual-sign distinct session, disabled-until-verified UI.\n\n## Implementation contract\n1. packages/ui/src/quality/ESignBlock.tsx — Server Component, props from server session (userId, role, recordKind, recordId, meaning, requiresDualSign?, firstSignerUserId?). Renders Dialog with masked PIN input, Sign button disabled until verifyPin returns valid.\n2. apps/web/src/server/auth/verifyPin.ts — Server Action; PBKDF2 compare of candidate PIN vs stored pin_hash; returns {valid, userId, role}.\n3. apps/web/src/server/quality/esign/dualSign.ts — Server Action; requires distinct second signer userId AND fresh authenticated session AND allowed second-signer role; computes hash(userId||isoTimestamp||recordKind||recordId||fingerprint); INSERTs 2 esignatures rows + 2 quality_audit_log SIGN entries.\n4. packages/db/migrations/0132_esignatures_table.sql — esignatures(id, org_id, record_kind, record_id, signer_user_id, signature_hash, meaning, signed_at, sequence_no, role_at_sign).\n\n## Files\n- packages/ui/src/quality/ESignBlock.tsx [create]\n- packages/ui/src/quality/__tests__/ESignBlock.test.tsx [create]\n- apps/web/src/server/auth/verifyPin.ts [create]\n- apps/web/src/server/quality/esign/dualSign.ts [create]\n- apps/web/src/server/quality/esign/__tests__/dualSign.test.ts [create]\n- packages/db/migrations/0132_esignatures_table.sql [create]\n\n## Acceptance criteria (Given-When-Then)\n1. Given correct PIN, when verifyPin runs, then {valid:true,userId,role}; bad PIN → {valid:false}; RTL test confirms Sign button stays disabled until valid:true\n2. Given dualSign with second PIN belonging to first signer, when called, then 409 error.code='SOD_SAME_USER' and 0 esignatures rows\n3. Given happy dualSign, when settled, then 2 esignatures rows (server clock, server hash, meaning) + 2 audit log SIGN entries\n4. Given any Sign render, when inspected, then verified state is server-driven and no SHA-256 hash exists in client bundle (grep test)\n\n## Test strategy (RED first)\n- RED: ESignBlock.test.tsx + dualSign.test.ts before implementation\n- Run 'pnpm --filter ui test ESignBlock && pnpm --filter web test dualSign'\n\n## Risk red lines\n- No client-computed signature_hash (translation-notes-quality §E-Signature; audit B §3 red-line lift)\n- No same-user dual sign (V-QA-NCR-006 baseline pattern)\n- No client-trusted 'verified' state\n- BL-QA-06 (virtual keypad) is medium-prio follow-up, not in scope",
+  "labels": [
+    "prd",
+    "api",
+    "esign",
+    "T2-api"
+  ],
+  "priority": 90,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-039",
+    "source_prd": "docs/prd/09-QUALITY-PRD.md",
+    "prd_refs": [
+      "§5.3",
+      "§13.2",
+      "§13.3"
+    ],
+    "category": "api",
+    "subcategory": "esign-primitive",
+    "task_type": "T2-api",
+    "parent_feature": "09-QUALITY-cross e-signature",
+    "context_budget": "40k",
+    "estimated_effort": "2-3h",
+    "description": "Shared <ESignBlock> Server Component + verifyPin Server Action + dual-sign session enforcement primitive used by all NCR/Hold/Spec/CCP/Allergen sign flows.",
+    "details": "packages/ui/src/quality/ESignBlock.tsx is a Server Component accepting {recordKind, recordId, meaning, requiresDualSign, allowedRoles, firstSignerUserId?} props from server session — NEVER from client. apps/web/src/server/auth/verifyPin.ts is a Server Action POSTing PBKDF2(stored_pin_hash, candidate_pin) match; returns {valid:bool, userId, role}. Hash construction: server computes hash(user_id || iso_timestamp_server || record_kind || record_id || record_content_fingerprint) and stores in esignatures table (extending T-009 quality_audit_log if needed; otherwise dedicated esignatures table). Dual-sign enforcement (V-QA-NCR-006 / V-QA-ALLERGEN-001 / V-QA-HOLD-006): the dualSign Server Action wrapper requires second_signer.userId !== first_signer.userId AND second_signer.session is currently authenticated (verified by Supabase auth.getSession on server side) AND second_signer.role ∈ allowedSecondSignerRoles. signature_meaning enum values: 'approved','released','witnessed','closed','rejected','override'. The ESignBlock renders a generic Dialog with disabled Sign button until verifyPin returns valid; never trusts client-set verified state. Translation-notes red-lines lifted (audit B §3): single shared ESignBlock; PBKDF2 PIN; dual-sign separate session; never client-computed hash. PRD anchors: §5.3 signature evidence pattern (BRCGS Issue 10 §3.11.1; 21 CFR Part 11 §11.50/11.70/11.200); §13.2 e-signature implementation; §13.3 audit log completeness. BL-QA-06 (virtual numeric keypad) is a documented follow-up in details, not in scope here.",
+    "scope_files": [
+      "packages/ui/src/quality/ESignBlock.tsx [create]",
+      "packages/ui/src/quality/__tests__/ESignBlock.test.tsx [create]",
+      "apps/web/src/server/auth/verifyPin.ts [create]",
+      "apps/web/src/server/quality/esign/dualSign.ts [create]",
+      "apps/web/src/server/quality/esign/__tests__/dualSign.test.ts [create]",
+      "packages/db/migrations/0132_esignatures_table.sql [create]"
+    ],
+    "out_of_scope": [
+      "Do not build NCR-specific or Hold-specific Server Actions here (T-038, T-007 already own those; this is the shared primitive layer)",
+      "Do not implement virtual numeric keypad (BL-QA-06 — medium-prio follow-up, not in scope)",
+      "Do not change Supabase auth flow"
+    ],
+    "dependencies": [
+      "T-009"
+    ],
+    "parallel_safe_with": [
+      "T-038"
+    ],
+    "acceptance_criteria": [
+      "Given a user with stored PIN hash, when verifyPin(candidatePin) is called server-side with a correct PIN, then it returns {valid:true, userId, role}; for incorrect PIN it returns {valid:false} and a packages/ui RTL test confirms the Sign button stays disabled until valid:true is received",
+      "Given a critical NCR close calling dualSign({firstSignerUserId:A, secondSignerPin, expectedSecondSignerRole:'prod_manager'}) where secondSignerPin resolves to user A's PIN (same as first signer), when dualSign runs, then it returns 409 error.code='SOD_SAME_USER' and no esignatures row is inserted",
+      "Given a successful dualSign, when the action settles, then 2 esignatures rows exist (first + second) each with server-clock timestamp, server-computed signature_hash, meaning='closed', and quality_audit_log has 2 matching SIGN entries",
+      "Given any Sign component render, when inspected, then the verified state is server-driven (verifyPin response), the Sign button is disabled until server confirms, and no SHA-256 hash is computed in browser JS (verified by grep test asserting absence of crypto-subtle hash calls in client bundle)"
+    ],
+    "test_strategy": [
+      "RED: packages/ui/src/quality/__tests__/ESignBlock.test.tsx asserting disabled-until-verified + no-client-hash; apps/web/src/server/quality/esign/__tests__/dualSign.test.ts asserting SOD same-user reject + happy path 2 esignatures rows + audit log + meaning enum",
+      "Run 'pnpm --filter ui test ESignBlock && pnpm --filter web test dualSign'"
+    ],
+    "risk_red_lines": [
+      "Do not let client compute signature_hash — server only (translation-notes-quality §E-Signature; audit B §3)",
+      "Do not allow same-user dual sign (SoD V-QA-NCR-006/V-QA-HOLD-006/V-QA-ALLERGEN-001 baseline)",
+      "Do not trust client-set 'verified' state — server response only drives Sign button enablement",
+      "Do not skip esignatures table creation if T-009 quality_audit_log doesn't carry signature columns (decide based on T-009 actual schema; default = create dedicated esignatures table with FK to audit log)"
+    ],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "cross_module_dependencies": [
+      "00-foundation:T-124",
+      "00-foundation:T-125",
+      "02-settings:T-091"
+    ]
+  }
+}

@@ -1,0 +1,107 @@
+{
+  "title": "T-061 — QA-016 allergen_gates page + allergen_dual_sign_modal (parity)",
+  "prompt": "# T-061 — QA-016 allergen_gates page (parity)\n\nPRD: §8.5 traceability QA-070 ↔ UX QA-016 ↔ prototype `allergen_gates`; §11.6 V-QA-ALLERGEN-001/002; §10.3 consumer of 08-PROD allergen_changeover_gate_v1\nPrototype: prototypes/design/Monopilot Design System/quality/haccp-screens.jsx:302-422 (allergen_gates) + quality/modals.jsx:637-697 (allergen_dual_sign_modal)\n\n## Goal\nServer-rendered allergen changeover gates page with right-side Sheet drawer (cleaning checklist + signatures) + Sign-2nd button opening allergen_dual_sign_modal + override with risk-level gate. 1:1 parity vs prototype.\n\n## Implementation contract\n1. apps/web/src/app/quality/allergen-gates/page.tsx (RSC) loads gates via Drizzle: SELECT FROM allergen_changeover_validations JOIN work_orders (woFrom/woTo) JOIN users (first/second signer) WHERE org_id=app.current_org_id().\n2. KPI strip: pending2nd / approvedToday / rejected — server-aggregated COUNT GROUP BY status.\n3. URL searchParam filter: ?status=, ?dateFrom/dateTo, ?lineId.\n4. Right-side drawer: shadcn Sheet side='right' opens via ?gateId=; body shows cleaning checklist (from gate.cleaning_checklist JSON), allergen delta (removed/added Badge arrays), ATP RLU + threshold (highlight red if exceeds), signatures (first signer read-only + second signer ESignBlock), Reject button (T-055 rejectAllergenGate), Sign-2nd button (T-055 signSecondAllergenGate via dual-sign modal), Download evidence PDF (Route Handler).\n5. allergen_dual_sign_modal (shared via T-055): wraps T-039 ESignBlock for second signer, conditional override block (only when risk_level='low' AND atp_pass=false) with justification min 10.\n\n## Prototype parity\nAnchor: `prototypes/design/Monopilot Design System/quality/haccp-screens.jsx:302-422` (allergen_gates).\nParity checklist:\n- KPI strip (3 cards)\n- Filter bar (status/date/line)\n- Table with WO from→to + allergen delta + ATP RLU + status\n- Right-side Sheet drawer with cleaning checklist + signatures + actions\n- Sign-2nd opens allergen_dual_sign_modal\n- Override conditional block (risk_level='low' only)\n- Download evidence PDF button\n\n## Files\n- apps/web/src/app/quality/allergen-gates/page.tsx [create]\n- apps/web/src/components/quality/allergenGates/GatesTable.tsx [create]\n- apps/web/src/components/quality/allergenGates/GateDrawer.tsx [create]\n- packages/ui/src/quality/AllergenDualSignModal.tsx [create]\n- apps/web/src/app/api/quality/allergen-gates/[id]/evidence-pdf/route.ts [create]\n- apps/web/src/components/quality/allergenGates/__tests__/AllergenGates.test.tsx [create]\n- prototypes/design/Monopilot Design System/quality/haccp-screens.jsx [ref]\n\n## Acceptance criteria\n1. Compared to prototypes/design/Monopilot Design System/quality/haccp-screens.jsx:302-422 (allergen_gates) + quality/modals.jsx:637-697 (allergen_dual_sign_modal) — parity on structure (KPI strip + filter bar + table + Sheet drawer + dual-sign modal), visuals (shadcn Sheet/Table/Badge/Button + ATP red highlight if exceeds), interaction (URL ?gateId opens drawer + Sign-2nd opens dual-sign modal + override conditional block + Download PDF Route Handler) — RTL + checklist\n2. Given gate.status='pending_second_sign' AND role=quality_lead AND ATP pass_flag=true, when Sign-2nd is clicked, then dual-sign modal opens with ESignBlock for second signer (no override block); on confirm T-055 signSecondAllergenGate is called and validation_result='approved'\n3. Given gate.status='pending_second_sign' AND ATP pass_flag=false AND risk_level='low', when Sign-2nd is clicked, then dual-sign modal opens with the override block (justification Textarea min 10) visible; on confirm T-055 overrideAllergenGateBlock is called and an allergen_gate_overrides audit row is created\n4. UI closeout includes screenshot/artifact evidence and Playwright trace/artifacts where applicable per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`; if Playwright is unavailable, document the blocker and provide RTL/snapshot fallback evidence.\n\n## Test strategy (RED first)\n- RED: AllergenGates.test.tsx asserting parity + Sign-2nd happy path + override conditional rendering + Reject Server Action call before implementation\n- Run 'pnpm --filter web test AllergenGates'\n- For UI parity, capture screenshots/artifacts and Playwright trace/video/artifacts where applicable; attach artifact paths in closeout.\n\n## Risk red lines\n- ATP red-highlight from DB atp_rlu vs atp_threshold — never client recompute (translation-notes §QA-016)\n- Override block visible ONLY when risk_level='low' (T-055 enforces; UI hides for medium/high)\n- Allergen delta from gate.allergens_removed/allergens_added text[] — render Badges (translation-notes §M-11)\n- Use shadcn Sheet for right-drawer; do not custom-CSS the drawer\n- Do not paste prototype JSX verbatim\n- Sign-2nd button RBAC: quality_lead only (T-055 server-enforces; UI hides for other roles)",
+  "labels": [
+    "prd",
+    "ui",
+    "allergen-gate",
+    "T3-ui"
+  ],
+  "priority": 85,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-061",
+    "source_prd": "docs/prd/09-QUALITY-PRD.md",
+    "prd_refs": [
+      "§8.5",
+      "§11.6",
+      "§10.3",
+      "§5.3"
+    ],
+    "category": "ui",
+    "subcategory": "qa-allergen-gates",
+    "task_type": "T3-ui",
+    "parent_feature": "09-QUALITY-e Allergen Gates",
+    "context_budget": "65k",
+    "estimated_effort": "5h",
+    "description": "Allergen changeover gates page (RSC table + Sheet drawer + allergen_dual_sign_modal with override-on-low-risk + evidence PDF Route Handler). 1:1 parity vs prototype.",
+    "details": "Server Component loads allergen_changeover_validations JOIN work_orders + signers. KPI strip aggregates pending2nd/approvedToday/rejected. URL searchParams filter status/date/line; ?gateId opens shadcn Sheet side='right' drawer. Drawer body: cleaning checklist (JSON from gate row), allergen delta Badges (removed/added text[]), ATP RLU vs threshold (red highlight if exceeds — DB-driven), signatures (first read-only + second ESignBlock via T-039), action buttons (Sign-2nd → T-055 signSecondAllergenGate, Reject → T-055 rejectAllergenGate, Download evidence PDF → Route Handler). allergen_dual_sign_modal (shared in packages/ui): wraps ESignBlock; override conditional block visible only when risk_level='low' AND atp_pass=false. Anchor: prototypes/design/Monopilot Design System/quality/haccp-screens.jsx:302-422 + quality/modals.jsx:637-697.",
+    "scope_files": [
+      "apps/web/src/app/quality/allergen-gates/page.tsx [create]",
+      "apps/web/src/components/quality/allergenGates/GatesTable.tsx [create]",
+      "apps/web/src/components/quality/allergenGates/GateDrawer.tsx [create]",
+      "packages/ui/src/quality/AllergenDualSignModal.tsx [create]",
+      "apps/web/src/app/api/quality/allergen-gates/[id]/evidence-pdf/route.ts [create]",
+      "apps/web/src/components/quality/allergenGates/__tests__/AllergenGates.test.tsx [create]",
+      "prototypes/design/Monopilot Design System/quality/haccp-screens.jsx [ref]"
+    ],
+    "out_of_scope": [
+      "Do not implement first-sign flow (08-PROD owner)",
+      "Do not modify T-055 Server Actions",
+      "Do not implement ATP device integration (P2, §12.3)"
+    ],
+    "dependencies": [
+      "T-050",
+      "T-055",
+      "T-039"
+    ],
+    "parallel_safe_with": [
+      "T-058",
+      "T-059",
+      "T-060"
+    ],
+    "acceptance_criteria": [
+      "Given the allergen-gates page renders, when compared to prototypes/design/Monopilot Design System/quality/haccp-screens.jsx:302-422 (allergen_gates) and quality/modals.jsx:637-697 (allergen_dual_sign_modal), then it matches on structural parity (KPI strip + filter + table + Sheet drawer + dual-sign modal), visual parity (shadcn Sheet/Table/Badge/Button + ATP red highlight if exceeds), and interaction parity (URL ?gateId opens drawer, Sign-2nd opens dual-sign modal, override conditional block, Download PDF Route Handler) — RTL + checklist",
+      "Given gate.status='pending_second_sign' AND role=quality_lead AND ATP pass_flag=true, when Sign-2nd clicked, then dual-sign modal opens with ESignBlock (no override block); on confirm T-055 signSecondAllergenGate is called and validation_result='approved'",
+      "Given gate.status='pending_second_sign' AND ATP pass_flag=false AND risk_level='low', when Sign-2nd clicked, then the override block is visible with justification Textarea min 10; on confirm T-055 overrideAllergenGateBlock is called and an allergen_gate_overrides audit row is created",
+      "UI closeout includes screenshot/artifact evidence and Playwright trace/artifacts where applicable per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`; if Playwright is unavailable, document the blocker and provide RTL/snapshot fallback evidence."
+    ],
+    "test_strategy": [
+      "RED: AllergenGates.test.tsx asserting parity + Sign-2nd happy path + override conditional rendering + Reject Server Action call before implementation",
+      "Run 'pnpm --filter web test AllergenGates'",
+      "For UI parity, capture screenshots/artifacts and Playwright trace/video/artifacts where applicable; attach artifact paths in closeout."
+    ],
+    "risk_red_lines": [
+      "ATP red-highlight from DB atp_rlu vs atp_threshold — never client recompute (translation-notes §QA-016)",
+      "Override block ONLY for risk_level='low' (T-055 server-enforces; UI hides for medium/high)",
+      "Allergen delta from gate.allergens_removed/allergens_added text[] (translation-notes §M-11)",
+      "shadcn Sheet for the right-drawer (no custom CSS drawer)",
+      "Sign-2nd RBAC quality_lead only (UI hides for other roles)"
+    ],
+    "prototype_match": true,
+    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md",
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "cross_module_dependencies": [
+      "00-foundation:T-125",
+      "08-production:T-003",
+      "08-production:T-014",
+      "09-quality:T-055"
+    ]
+  }
+}

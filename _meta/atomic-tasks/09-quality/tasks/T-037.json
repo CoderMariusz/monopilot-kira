@@ -1,0 +1,95 @@
+{
+  "title": "T-037 — ncr_reports schema + RLS + retention (09-d-01)",
+  "prompt": "# T-037 — ncr_reports schema + RLS + retention\n\nPRD: docs/prd/09-QUALITY-PRD.md §6.3 ncr_reports DDL, §9.1 RLS, §11.4 V-QA-NCR validations, §13.3 audit retention\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nCreate the ncr_reports physical table with sequence, generated columns, indexes, RLS (function-form), Drizzle schema entries. Foundation table for the 09-d NCR sub-module.\n\n## Implementation contract\n1. Drizzle migration `packages/db/migrations/0130_ncr_reports.sql` per §6.3 verbatim DDL: ncr_seq SEQUENCE START 1000; CREATE TABLE ncr_reports with all columns (ncr_number GENERATED 'NCR-' || LPAD(seq,8,'0'), ncr_type CHECK in (quality,yield_issue,allergen_deviation,supplier,process,complaint_related), severity CHECK in (critical,major,minor), status CHECK in (draft,open,investigating,awaiting_capa,closed,reopened,cancelled), reference_type CHECK, yield columns target_yield_pct/actual_yield_pct/claim_pct/claim_value_eur, response_due_at GENERATED ALWAYS AS (severity-driven CASE), retention_until 10y GENERATED, linked_hold_id FK to quality_holds).\n2. Indexes: idx_ncr_open partial WHERE status NOT IN ('closed','cancelled'); idx_ncr_ref on (org_id, reference_type, reference_id).\n3. RLS: ENABLE ROW LEVEL SECURITY; CREATE POLICY tenant_isolation USING (org_id = app.current_org_id()) WITH CHECK (org_id = app.current_org_id()) — use function form per Wave0 v4.3 lock (audit B 4.2).\n4. Drizzle ORM schema `packages/db/src/schema/ncrReports.ts` with Insert/Select schemas, exported from schema index.\n\n## Files\n- packages/db/migrations/0130_ncr_reports.sql [create]\n- packages/db/src/schema/ncrReports.ts [create]\n- packages/db/src/schema/index.ts [modify]\n- packages/db/__tests__/ncr-reports-schema.test.ts [create]\n\n## Acceptance criteria (Given-When-Then)\n1. Given migration 0130 applied, when \\d ncr_reports runs, then all §6.3 columns exist and RLS is enabled\n2. Given two tenants with app.current_org_id() each, when each inserts and SELECTs, then each sees only its own row (function-form RLS)\n3. Given severity='critical' detected_at='2026-05-14 00:00Z', when SELECT response_due_at runs, then = '2026-05-15 00:00Z'\n4. Given a row insert with ncr_type='yield_issue' AND target_yield_pct IS NULL, then V-QA-NCR-003 enforcement rejects it (schema-level today; full Server Action in T-038)\n\n## Test strategy (RED first)\n- RED: packages/db/__tests__/ncr-reports-schema.test.ts with introspection + RLS function-form isolation + response_due_at compute + GENERATED ncr_number format\n- Run 'pnpm --filter db migrate && pnpm --filter db test ncr-reports-schema'\n\n## Risk red lines\n- Do not use GUC reads — use app.current_org_id() function (Wave0 v4.3, audit B 4.2)\n- Do not deviate from §6.3 column names\n- Do not skip retention_until 10y GENERATED column\n- Do not skip the prevent_ncr_closed_update trigger contract (T-038 owner)",
+  "labels": [
+    "prd",
+    "data",
+    "schema-ncr",
+    "T1-schema"
+  ],
+  "priority": 85,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-037",
+    "source_prd": "docs/prd/09-QUALITY-PRD.md",
+    "prd_refs": [
+      "§6.3",
+      "§9.1",
+      "§11.4",
+      "§13.3"
+    ],
+    "category": "data",
+    "subcategory": "schema-ncr",
+    "task_type": "T1-schema",
+    "parent_feature": "09-QUALITY-d NCR",
+    "context_budget": "40k",
+    "estimated_effort": "2h",
+    "description": "Create ncr_reports physical table per §6.3 verbatim DDL with severity-driven response_due_at, retention 10y, indexes, RLS, and Drizzle schema entry.",
+    "details": "Migration 0130 emits CREATE SEQUENCE ncr_seq START 1000; CREATE TABLE ncr_reports per §6.3 verbatim (all columns including ncr_number GENERATED, ncr_type CHECK, severity CHECK, status CHECK, reference_type CHECK, yield columns target_yield_pct/actual_yield_pct/claim_pct/claim_value_eur, dual-sign closure_signature_hash, response_due_at GENERATED ALWAYS AS (detected_at + CASE severity 'critical' 24h 'major' 48h 'minor' 7d), retention_until 10y, linked_hold_id, linked_inspection_id and ccp_deviation references via reference_type). idx_ncr_open partial index on (org_id, status, severity, response_due_at) WHERE status NOT IN (closed,cancelled); idx_ncr_ref(org_id, reference_type, reference_id). RLS tenant_isolation USING (org_id = app.current_org_id()) — use the function form per Wave0 v4.3 lock, not GUC. Drizzle ORM mirrors columns with Insert/Select schemas; export from packages/db/src/schema/index.ts. PRD anchor verification (gold-standard 2026-05-14): §6.3 is the DDL source; §9.1 covers RLS pattern (apply with function call instead of GUC read per Wave0); §11.4 lists V-QA-NCR-001..007 the schema must enable; §13.3 audit log completeness drives retention 10y.",
+    "scope_files": [
+      "packages/db/migrations/0130_ncr_reports.sql [create]",
+      "packages/db/src/schema/ncrReports.ts [create]",
+      "packages/db/src/schema/index.ts [modify]",
+      "packages/db/__tests__/ncr-reports-schema.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not implement Server Actions here (T-038)",
+      "Do not register DSL rule here (T-052 ccp_deviation_escalation handles auto-create)",
+      "Do not build UI here (T-043/T-044/T-045/T-046)"
+    ],
+    "dependencies": [],
+    "parallel_safe_with": [
+      "T-001",
+      "T-002",
+      "T-003"
+    ],
+    "acceptance_criteria": [
+      "Given migration 0130 applied, when \\d ncr_reports runs, then all §6.3 columns exist (ncr_number GENERATED, severity CHECK, status CHECK, response_due_at GENERATED, retention_until GENERATED 10y, yield columns) and RLS is enabled",
+      "Given two tenants A and B with app.current_org_id() set to each, when each inserts an ncr_reports row and SELECTs, then each sees only its own row (function-form RLS, not GUC)",
+      "Given an ncr_reports row with severity='critical' and detected_at='2026-05-14 00:00Z', when SELECT response_due_at runs, then the value equals '2026-05-15 00:00Z' (auto-compute 24h)",
+      "Given a row insert with ncr_type='yield_issue' AND target_yield_pct IS NULL, then the V-QA-NCR-003 enforcement (Server Action or DB CHECK) rejects it (test asserts current minimum: schema column nullability matches §6.3, with V-QA-NCR-003 deferred to T-038 Server Action layer)"
+    ],
+    "test_strategy": [
+      "RED: write packages/db/__tests__/ncr-reports-schema.test.ts asserting introspection of all §6.3 columns, RLS function-form isolation across two org contexts, response_due_at auto-compute for the 3 severity branches, and ncr_number GENERATED format",
+      "Run 'pnpm --filter db migrate && pnpm --filter db test ncr-reports-schema'"
+    ],
+    "risk_red_lines": [
+      "Do not use current_setting('app.current_org_id') GUC reads — use app.current_org_id() function per Wave0 v4.3 lock and audit B finding 4.2",
+      "Do not deviate from §6.3 column names (downstream consumers T-038/T-041/T-044 depend on names verbatim)",
+      "Do not skip retention_until 10y GENERATED column (BRCGS Issue 10 §3.11.1 7y minimum; NCR uses 10y per §6.3 source-of-truth)",
+      "Do not enable client-side update on closed_at, closure_signature_hash, signed_at fields (DB trigger prevent_ncr_closed_update is enforced in T-038)"
+    ],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "cross_module_dependencies": [
+      "00-foundation:T-007",
+      "00-foundation:T-125",
+      "02-settings:T-091"
+    ]
+  }
+}

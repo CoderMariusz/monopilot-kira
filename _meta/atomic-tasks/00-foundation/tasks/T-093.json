@@ -1,0 +1,91 @@
+{
+  "title": "T-093 — align packages/ui to React 19 peerDeps + reinstall zustand@5/react-hook-form (FT-033)",
+  "prompt": "# T-093 — align packages/ui to React 19 peerDeps + reinstall zustand@5/react-hook-form (FT-033)\n\nPRD: `docs/prd/00-FOUNDATION-PRD.md` — sections: §5.y\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`\nOriginal carry-forward ID: **FT-033** (from `_meta/audits/2026-05-07-foundation-final-carry-forward-backlog.md`)\nSeverity: **P0** (M effort)\n\n## Goal\npackages/ui peerDeps: react ^19, react-dom ^19; reinstall zustand@5 + react-hook-form; apps/web imports Stepper + Field from @monopilot/ui successfully.\n\n## Implementation contract\n1. packages/ui/package.json peerDependencies: react ^19, react-dom ^19.\n2. zustand@5 + react-hook-form@latest installed.\n3. packages/ui/peerDependencies.md documents the policy.\n4. apps/web/package.json sets matching React versions.\n5. New vitest test in packages/ui mounts Stepper + Field under React 19 with vitest's React 19 react/jsx-runtime and asserts no peer-dep warnings.\n\n## Files (scope)\n- packages/ui/package.json [modify]\n- packages/ui/peerDependencies.md [create]\n- apps/web/package.json [modify]\n- packages/ui/src/__tests__/react19-render.test.tsx [create]\n\n## Acceptance criteria\n1. Given pnpm install runs, when complete, then `pnpm why react` from packages/ui shows React 19 satisfying the peer.\n2. Given the new test, when run, then it mounts Stepper + Field without runtime errors and no React-peer warning is logged.\n3. Given apps/web, when `pnpm typecheck` runs after the change, then no type errors related to @monopilot/ui primitives.\n4. Given existing UI consumer tests, when run, then they pass after the upgrade.\n\n## Test strategy\n- RED: write react19-render.test.tsx mounting Stepper + Field under React 19 before the peerDep swap; should fail with the current React 18 peer.\n- Run `pnpm --filter @monopilot/ui test react19-render` and `pnpm typecheck`.\n\n## Risk red lines\n- P0 deploy blocker — do not merge without GREEN evidence on staging\n- Do not retain dual React 18/19 peer ranges (forces consumers to ship both).\n- Do not skip zustand@5 (React 19 compat).\n- Do not paste prototype JSX wholesale into the test.\n\n## Closeout evidence\nProvide: changed_files, test_commands_and_results, acceptance_criteria_status (per AC), deviations_from_prd, git_status. Use the test-driven-development skill (RED-first) and requesting-code-review at GREEN.",
+  "labels": [
+    "prd",
+    "ui",
+    "wave-d-carry-forward",
+    "p0-blocker",
+    "wave-d-followup",
+    "react-19",
+    "peerdeps",
+    "T4-wiring-test"
+  ],
+  "priority": 90,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-093",
+    "source_prd": "docs/prd/00-FOUNDATION-PRD.md",
+    "prd_refs": [
+      "§5.y"
+    ],
+    "original_carry_forward_id": "FT-033",
+    "category": "ui",
+    "subcategory": "peerdeps",
+    "task_type": "T4-wiring-test",
+    "parent_feature": "00-FOUNDATION-j",
+    "context_budget": "50k",
+    "estimated_effort": "4-8h",
+    "description": "Align packages/ui peerDeps to React 19; reinstall zustand@5 and react-hook-form against React 19; verify Stepper/Field render in apps/web.",
+    "details": "apps/web is on React 19 but packages/ui still declares React 18 peers, which makes every primitive (Stepper, Field, Modal, etc.) unconsumable from apps/web without workarounds. T-037 had to ship `InlineStepper` and a custom jsxPreTransformPlugin. This task fixes the peerDeps and re-installs the affected transitive deps so the primitives become usable directly.",
+    "scope_files": [
+      "packages/ui/package.json [modify]",
+      "packages/ui/peerDependencies.md [create]",
+      "apps/web/package.json [modify]",
+      "packages/ui/src/__tests__/react19-render.test.tsx [create]"
+    ],
+    "out_of_scope": [
+      "Do not refactor SchemaColumnWizard here (FT-035)."
+    ],
+    "dependencies": [],
+    "parallel_safe_with": [
+      "T-081"
+    ],
+    "acceptance_criteria": [
+      "Given pnpm install runs, when complete, then `pnpm why react` from packages/ui shows React 19 satisfying the peer.",
+      "Given the new test, when run, then it mounts Stepper + Field without runtime errors and no React-peer warning is logged.",
+      "Given apps/web, when `pnpm typecheck` runs after the change, then no type errors related to @monopilot/ui primitives.",
+      "Given existing UI consumer tests, when run, then they pass after the upgrade."
+    ],
+    "test_strategy": [
+      "RED: write react19-render.test.tsx mounting Stepper + Field under React 19 before the peerDep swap; should fail with the current React 18 peer.",
+      "Run `pnpm --filter @monopilot/ui test react19-render` and `pnpm typecheck`."
+    ],
+    "risk_red_lines": [
+      "P0 deploy blocker — do not merge without GREEN evidence on staging",
+      "Do not retain dual React 18/19 peer ranges (forces consumers to ship both).",
+      "Do not skip zustand@5 (React 19 compat).",
+      "Do not paste prototype JSX wholesale into the test."
+    ],
+    "skills": [
+      "test-driven-development",
+      "verification-before-completion",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": true,
+    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md"
+  }
+}

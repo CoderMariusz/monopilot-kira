@@ -1,0 +1,115 @@
+{
+  "title": "T-017 — UI: pick_list_page + wave_builder_page + pick_detail_supervisor_page + modals (SHIP-012/013/014/016) (11-shipping-d)",
+  "prompt": "# T-017 — Pick + Wave UI pages + 4 modals\n\nPRD: docs/prd/11-SHIPPING-PRD.md §15.4 SHIP-012 Pick List List, §15.4 SHIP-013 Wave Picking Builder, §15.4 SHIP-014 Pick Desktop (Supervisor), §15.4 SHIP-016 Short Pick Resolve\nUX: prototypes/design/11-SHIPPING-UX.md §3 SHIP-012/013/014/016\nPrototypes:\n- prototypes/design/Monopilot Design System/shipping/pick-screens.jsx:1-94 (pick_list_page)\n- prototypes/design/Monopilot Design System/shipping/pick-screens.jsx:98-184 (wave_builder_page)\n- prototypes/design/Monopilot Design System/shipping/pick-screens.jsx:217-330 (pick_detail_supervisor_page)\n- prototypes/design/Monopilot Design System/shipping/modals.jsx:455-502 (short_pick_resolve_modal)\n- prototypes/design/Monopilot Design System/shipping/modals.jsx:538-562 (wave_release_modal)\n- prototypes/design/Monopilot Design System/shipping/modals.jsx:564-575 (pick_reassign_modal)\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\n3 RSC pages + 3 modals translated to shadcn primitives with parity to prototypes. Includes BL-SHIP-03 fix (Wave edit modal stub).\n\n## Implementation contract\n1. `/(shipping)/picks/page.tsx` — pick list table per pick_list_page prototype (cols: pick_list_number, type, status, priority, assigned_to, wave, started_at, progress %).\n2. `/(shipping)/picks/waves/build/page.tsx` — wave_builder_page (kanban: available SOs / waves unreleased / released / in_pick / completed). Drag-and-drop via dnd-kit; SO chip moves between columns; calls `buildWave` / `releaseWave` Server Actions (T-016).\n3. `/(shipping)/picks/[id]/page.tsx` — pick_detail_supervisor_page with per-line progress, reassign action, supervisor override path.\n4. Modals:\n   - `wave-release-modal.tsx` (modals.jsx:538-562) — confirms release; lists impacted SO numbers.\n   - `short-pick-resolve-modal.tsx` (modals.jsx:455-502) — radio actions (backorder/partial/reallocate/cancel_line) + reason; calls T-016 resolveShortPick.\n   - `pick-reassign-modal.tsx` (modals.jsx:564-575) — picker select + reason; calls T-016 reassignPicker.\n   - BL-SHIP-03 fix: wave edit modal — backing edit modal added to unreleased kanban column.\n5. Permission gates: `ship.so.confirm` for Wave Build/Release; `ship.pick.execute` for individual picker views.\n6. Four states per page + i18n keys `shipping.picks.*`, `shipping.waves.*`.\n\n## Prototype parity\nVerify each page + modal against prototype line ranges above. Do not paste JSX wholesale.\n\n## Files\n- apps/web/app/(shipping)/picks/page.tsx [create]\n- apps/web/app/(shipping)/picks/_components/pick-list-table.tsx [create]\n- apps/web/app/(shipping)/picks/waves/build/page.tsx [create]\n- apps/web/app/(shipping)/picks/waves/build/_components/wave-builder-kanban.tsx [create]\n- apps/web/app/(shipping)/picks/[id]/page.tsx [create]\n- apps/web/app/(shipping)/picks/[id]/_components/pick-supervisor-view.tsx [create]\n- apps/web/app/(shipping)/_modals/wave-release-modal.tsx [create]\n- apps/web/app/(shipping)/_modals/wave-edit-modal.tsx [create]\n- apps/web/app/(shipping)/_modals/short-pick-resolve-modal.tsx [create]\n- apps/web/app/(shipping)/_modals/pick-reassign-modal.tsx [create]\n- apps/web/app/(shipping)/picks/__tests__/pick-list-table.test.tsx [create]\n- apps/web/app/(shipping)/picks/__tests__/wave-builder-kanban.test.tsx [create]\n- apps/web/app/(shipping)/picks/__tests__/pick-supervisor-view.test.tsx [create]\n- apps/web/messages/en/shipping.json [modify]\n- apps/web/messages/pl/shipping.json [modify]\n- prototypes/design/Monopilot Design System/shipping/pick-screens.jsx [ref]\n- prototypes/design/Monopilot Design System/shipping/modals.jsx [ref]\n\n## Acceptance criteria\n1. Given the pick_list_page renders, when compared to prototypes/design/Monopilot Design System/shipping/pick-screens.jsx:1-94, then header + filter row + 8-col table + pagination match — RTL + Playwright screenshot.\n2. Given wave_builder_page renders, when compared to pick-screens.jsx:98-184, then 4-column kanban (available SOs / waves unreleased / released / in_pick / completed — but render 4 visible at a time per prototype) + DnD chips + Edit stub on unreleased now has backing wave-edit-modal (BL-SHIP-03 fix).\n3. Given pick_detail_supervisor_page renders, when compared to pick-screens.jsx:217-330, then per-line table + supervisor reassign action + progress bar.\n4. Given short_pick_resolve_modal opens, when user selects action='backorder' and submits, then resolveShortPick (T-016) is called and the table row updates.\n5. UI closeout includes Playwright trace + screenshots per UI-PROTOTYPE-PARITY-POLICY; Playwright fallback documented if unavailable.\n\n## Test strategy\n- RED: RTL specs per page + modal interactions + Server Action invocation + permission gate.\n- Run `pnpm --filter @monopilot/web vitest run shipping/picks`.\n- Playwright `apps/web/e2e/shipping-pick-flow.spec.ts` covers list → wave-build → release → supervisor view.\n\n## Risk red lines\n- Do not import @radix-ui/react-dialog outside packages/ui.\n- Do not paste prototype JSX verbatim.\n- Do not perpetuate BL-SHIP-03 (wave edit stub).\n- Do not regress accessibility (DnD keyboard nav required per axe).\n- Do not implement scanner UI here (06-SCANNER-P1 owns SHIP-015 pick scanner per §15.2).",
+  "labels": [
+    "prd",
+    "ui",
+    "ship-013",
+    "T3-ui"
+  ],
+  "priority": 70,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-017",
+    "source_prd": "docs/prd/11-SHIPPING-PRD.md",
+    "prd_refs": [
+      "§15.4 SHIP-012",
+      "§15.4 SHIP-013",
+      "§15.4 SHIP-014",
+      "§15.4 SHIP-016"
+    ],
+    "category": "ui",
+    "subcategory": "pick-wave",
+    "task_type": "T3-ui",
+    "parent_feature": "11-shipping-d",
+    "context_budget": "60k",
+    "estimated_effort": "5-6h",
+    "description": "Pick list + wave builder + pick detail supervisor + 3 modals (wave-release, short-pick-resolve, pick-reassign) + BL-SHIP-03 wave-edit fix.",
+    "details": "DnD via dnd-kit with keyboard nav. Wave builder kanban renders 4 visible columns (unreleased / released / in_pick / completed). BL-SHIP-03 fix: add wave-edit-modal backing the Edit stub.",
+    "scope_files": [
+      "apps/web/app/(shipping)/picks/page.tsx [create]",
+      "apps/web/app/(shipping)/picks/_components/pick-list-table.tsx [create]",
+      "apps/web/app/(shipping)/picks/waves/build/page.tsx [create]",
+      "apps/web/app/(shipping)/picks/waves/build/_components/wave-builder-kanban.tsx [create]",
+      "apps/web/app/(shipping)/picks/[id]/page.tsx [create]",
+      "apps/web/app/(shipping)/picks/[id]/_components/pick-supervisor-view.tsx [create]",
+      "apps/web/app/(shipping)/_modals/wave-release-modal.tsx [create]",
+      "apps/web/app/(shipping)/_modals/wave-edit-modal.tsx [create]",
+      "apps/web/app/(shipping)/_modals/short-pick-resolve-modal.tsx [create]",
+      "apps/web/app/(shipping)/_modals/pick-reassign-modal.tsx [create]",
+      "apps/web/app/(shipping)/picks/__tests__/pick-list-table.test.tsx [create]",
+      "apps/web/app/(shipping)/picks/__tests__/wave-builder-kanban.test.tsx [create]",
+      "apps/web/app/(shipping)/picks/__tests__/pick-supervisor-view.test.tsx [create]",
+      "apps/web/messages/en/shipping.json [modify]",
+      "apps/web/messages/pl/shipping.json [modify]",
+      "prototypes/design/Monopilot Design System/shipping/pick-screens.jsx [ref]",
+      "prototypes/design/Monopilot Design System/shipping/modals.jsx [ref]"
+    ],
+    "out_of_scope": [
+      "Do not implement Server Actions (T-016).",
+      "Do not build scanner pick UI (06-SCANNER-P1 owns)."
+    ],
+    "dependencies": [
+      "T-015",
+      "T-016",
+      "T-031"
+    ],
+    "parallel_safe_with": [
+      "T-021",
+      "T-022"
+    ],
+    "cross_module_dependencies": [
+      "06-scanner-p1 (SHIP-015 pick scanner owned there)",
+      "00-foundation/T-123 (Playwright)"
+    ],
+    "acceptance_criteria": [
+      "Given pick_list_page renders, when compared to prototypes/design/Monopilot Design System/shipping/pick-screens.jsx:1-94, then header + filter row + 8-col table + pagination match prototype (structural + visual parity checklist); AND wave_builder_page renders matching prototypes/design/Monopilot Design System/shipping/pick-screens.jsx:98-184.",
+      "Given wave_builder_page renders, when compared to prototypes/design/Monopilot Design System/shipping/pick-screens.jsx:98-184, then kanban + DnD chips + Edit stub match prototype layout.",
+      "Given pick_detail_supervisor_page renders, when compared to prototypes/design/Monopilot Design System/shipping/pick-screens.jsx:217-330, then per-line table + reassign action + short_pick_resolve_modal trigger match; AND given action='backorder' submit, when resolveShortPick succeeds, then table row updates.",
+      "UI closeout includes Playwright trace + screenshots per UI-PROTOTYPE-PARITY-POLICY; Playwright fallback documented if unavailable."
+    ],
+    "test_strategy": [
+      "RED: RTL per page + modal + Server Action invocation + permission gate.",
+      "Run `pnpm --filter @monopilot/web vitest run shipping/picks`.",
+      "Playwright apps/web/e2e/shipping-pick-flow.spec.ts."
+    ],
+    "risk_red_lines": [
+      "Do not import @radix-ui/react-dialog outside packages/ui.",
+      "Do not paste prototype JSX verbatim.",
+      "Do not perpetuate BL-SHIP-03.",
+      "Do not regress accessibility (DnD keyboard nav).",
+      "Do not implement scanner UI here (06-SCANNER-P1 owns)."
+    ],
+    "skills": [
+      "test-driven-development",
+      "frontend-design",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": true,
+    "prototype_index_entry": "pick_list_page,wave_builder_page,pick_detail_supervisor_page,wave_release_modal,short_pick_resolve_modal,pick_reassign_modal",
+    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md"
+  }
+}

@@ -1,0 +1,96 @@
+{
+  "title": "T-002 \u2014 finance_settings + currencies + exchange_rates schema (\u00a76.1 rows 1/3/4)",
+  "prompt": "# T-002 \u2014 Finance setup core schema (settings + currencies + FX)\n\nPRD: docs/prd/10-FINANCE-PRD.md \u00a76.1 rows 1, 3, 4; \u00a76.4 DDL sketch (lines 274-289 finance_settings); \u00a711.1 V-FIN-SETUP-01..03; \u00a714.1 L2 per-tenant config; \u00a75.5 GBP base for Apex.\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nCreate Drizzle migration + ORM entries for `finance_settings`, `currencies`, `exchange_rates` with `org_id` business-scope (Wave0 v4.3) + RLS USING `app.current_org_id()` foundation function. Enforces V-FIN-SETUP-01 (1 finance_settings row per org), V-FIN-SETUP-02 (\u22651 currency WHERE is_base=true).\n\n## Implementation contract\n1. New migration `packages/db/migrations/0050_finance_setup.sql`:\n   - `CREATE TABLE finance_settings` per PRD \u00a76.4 DDL (id, org_id, default_valuation_method CHECK IN ('fifo','wac'), default_currency_id FK\u2192currencies(id), variance_calculation_enabled, critical_approval_pin_required, d365_integration_enabled, d365_consolidation_cutoff_time, ext_jsonb, created_at, updated_at; UNIQUE(org_id)).\n   - `CREATE TABLE currencies` (id, org_id, code TEXT NOT NULL CHECK (code ~ '^[A-Z]{3}$'), name TEXT, is_base BOOLEAN DEFAULT false, decimal_places INTEGER DEFAULT 2, is_active BOOLEAN DEFAULT true, created_at, updated_at; UNIQUE(org_id, code)).\n   - `CREATE TABLE exchange_rates` (id, org_id, currency_id FK, rate NUMERIC(15,6) NOT NULL CHECK (rate > 0), effective_date DATE NOT NULL, source_type TEXT CHECK IN ('manual','api'), source_reference TEXT, reason TEXT, created_by UUID FK\u2192users(id), created_at; UNIQUE(org_id, currency_id, effective_date)).\n   - All three tables: ENABLE ROW LEVEL SECURITY + FORCE ROW LEVEL SECURITY.\n   - Policy `<table>_org_context` USING (`org_id = app.current_org_id()`) WITH CHECK (`org_id = app.current_org_id()`) \u2014 never read `current_setting('app.current_org_id')` GUC directly.\n   - Partial unique index `idx_currencies_base_per_org ON currencies (org_id) WHERE is_base=true` \u2014 enforces V-FIN-SETUP-02.\n   - Index `idx_exchange_rates_lookup ON exchange_rates (org_id, currency_id, effective_date DESC)`.\n2. Drizzle ORM entries: `packages/db/src/schema/finance-settings.ts`, `currencies.ts`, `exchange-rates.ts` + register in `packages/db/src/schema/index.ts`.\n3. R13 audit trigger: append rows to `audit_events` on INSERT/UPDATE/DELETE for `finance_settings` (per Foundation T-040 R13 pattern; reuse existing audit infrastructure).\n\n## Files\n- packages/db/migrations/0050_finance_setup.sql [create]\n- packages/db/src/schema/finance-settings.ts [create]\n- packages/db/src/schema/currencies.ts [create]\n- packages/db/src/schema/exchange-rates.ts [create]\n- packages/db/src/schema/index.ts [modify]\n- packages/db/__tests__/finance-setup-schema.test.ts [create]\n\n## Acceptance criteria (Given-When-Then)\n- Given migration 0050 runs on a fresh DB, when \\d on finance_settings/currencies/exchange_rates is inspected, then all three tables exist with org_id NOT NULL + RLS + FORCE ROW LEVEL SECURITY enabled, and pg_policies references app.current_org_id().\n- Given two orgs A and B with set_org_context, when each inserts finance_settings(org_id=own), then SELECT under each session returns only its own row.\n- Given org A inserted a currencies row with is_base=true, when org A inserts a second is_base=true row, then it fails with unique-index violation (V-FIN-SETUP-02).\n- Given an exchange_rates row with rate <= 0, when INSERT runs, then it fails with CHECK constraint violation. AND given finance_settings.default_valuation_method='invalid', when INSERT runs, then it fails with CHECK constraint violation (only 'fifo' / 'wac' allowed).\n_(AC count consolidated from 5\u21924 by Fixer F13 2026-05-14 (no coverage lost))_\n\n## Test strategy (RED first)\n- RED: `packages/db/__tests__/finance-setup-schema.test.ts` asserts all 5 ACs (RLS, partial unique base currency, rate>0 CHECK, valuation method enum, pg_policies references foundation function); connect as `app_user`, call `app.set_org_context(...)` per org.\n- Run `pnpm --filter db migrate && pnpm --filter db test finance-setup-schema`.\n\n## Risk red lines\n- Do not read `current_setting('app.current_org_id')` directly in policies \u2014 use foundation `app.current_org_id()` function (per Wave0; foundation T-125).\n- Do not name the scope column `tenant_id`; per Wave0 v4.3 it is `org_id`.\n- Do not omit FORCE ROW LEVEL SECURITY (table-owner bypass risk).\n- Do not add cascade DELETE on the org FK (orgs are not deleted in this migration).\n- Do not hardcode `currencies.code='GBP'` in schema \u2014 base currency is seeded per-org via T-008.\n- Do not skip the partial unique index for base currency \u2014 V-FIN-SETUP-02 hinges on it.\n",
+  "labels": [
+    "prd",
+    "data",
+    "schema",
+    "T1-schema"
+  ],
+  "priority": 70,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-002",
+    "source_prd": "docs/prd/10-FINANCE-PRD.md",
+    "prd_refs": [
+      "\u00a76.1",
+      "\u00a76.4",
+      "\u00a711.1",
+      "\u00a714.1",
+      "\u00a75.5"
+    ],
+    "category": "data",
+    "subcategory": "finance-setup-schema",
+    "task_type": "T1-schema",
+    "parent_feature": "10-FINANCE-a",
+    "context_budget": "45k",
+    "estimated_effort": "2-3h",
+    "description": "finance_settings + currencies + exchange_rates schema with org-scoped RLS via foundation app.current_org_id().",
+    "details": "Three new tables per \u00a76.4 DDL sketch with strict CHECK constraints (valuation method enum, currency ISO regex, rate>0), partial unique index for is_base=true to enforce V-FIN-SETUP-02 (\u22651 base currency per org), and R13 audit trigger on finance_settings mutations. RLS uses foundation function not GUC. exchange_rates supports manual entry P1 + API source field for P2 OQ-FIN-03 ECB/XE auto-sync. [AC count consolidated from 5\u21924 by Fixer F13 2026-05-14 (no coverage lost)]",
+    "scope_files": [
+      "packages/db/migrations/0050_finance_setup.sql [create]",
+      "packages/db/src/schema/finance-settings.ts [create]",
+      "packages/db/src/schema/currencies.ts [create]",
+      "packages/db/src/schema/exchange-rates.ts [create]",
+      "packages/db/src/schema/index.ts [modify]",
+      "packages/db/__tests__/finance-setup-schema.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "cost_centers + gl_account_mappings (T-003)",
+      "Server actions / API endpoints (T-004)",
+      "UI / Settings screen (T-005)",
+      "GBP seed for Apex (T-008)"
+    ],
+    "dependencies": [],
+    "parallel_safe_with": [
+      "T-001",
+      "T-003"
+    ],
+    "acceptance_criteria": [
+      "Given migration 0050 runs on a fresh DB, when \\d on finance_settings/currencies/exchange_rates is inspected, then all three tables exist with org_id NOT NULL + RLS + FORCE ROW LEVEL SECURITY enabled, and pg_policies references app.current_org_id().",
+      "Given two orgs A and B with set_org_context, when each inserts finance_settings(org_id=own), then SELECT under each session returns only its own row.",
+      "Given org A inserted a currencies row with is_base=true, when org A inserts a second is_base=true row, then it fails with unique-index violation (V-FIN-SETUP-02).",
+      "Given an exchange_rates row with rate <= 0, when INSERT runs, then it fails with CHECK constraint violation. AND given finance_settings.default_valuation_method='invalid', when INSERT runs, then it fails with CHECK constraint violation (only 'fifo' / 'wac' allowed)."
+    ],
+    "test_strategy": [
+      "RED: write packages/db/__tests__/finance-setup-schema.test.ts asserting RLS isolation + partial unique base-currency + rate>0 CHECK + valuation method enum + pg_policies references app.current_org_id() before migration exists.",
+      "Run 'pnpm --filter db migrate && pnpm --filter db test finance-setup-schema'."
+    ],
+    "risk_red_lines": [
+      "Do not read current_setting('app.current_org_id') directly \u2014 use foundation app.current_org_id() function.",
+      "Do not name scope column tenant_id; per Wave0 v4.3 lock it is org_id.",
+      "Do not omit FORCE ROW LEVEL SECURITY.",
+      "Do not hardcode currencies.code='GBP' (seeded via T-008).",
+      "Do not skip the partial unique index for is_base=true."
+    ],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review",
+      "systematic-debugging"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": false
+  }
+}

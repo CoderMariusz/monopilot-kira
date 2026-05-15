@@ -1,0 +1,99 @@
+{
+  "title": "T-119 — Backup policy spec + stub verification job in apps/worker (RPO≤24h, RTO≤8h)",
+  "prompt": "# T-119 — Backup policy spec + stub verification job\n\nPRD: docs/prd/00-FOUNDATION-PRD.md §13 Niefunkcjonalne (\"DR documented + tested quarterly\"), §11 Audit log retention tiers, §5 Backend (Postgres 16)\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nProduce a normative `_foundation/contracts/backup-policy.md` spec documenting **RPO ≤ 24h** and **RTO ≤ 8h** per data class, defining a backup-verification cron job in `apps/worker`, and listing the Postgres roles + WAL retention assumptions. Today there is no atomic task or runbook for backup/DR — auditors A Top-10 Gap (see §1.4 \"Backups / DR runbook\") and B §4.12 (\"Zero hits across 637 task JSONs for backup|disaster|RPO|RTO\") both flag this.\n\nThis task delivers:\n- The contract markdown,\n- A **stub** backup-verification job registered in `apps/worker` (T-111) that runs daily and asserts the most-recent successful backup timestamp via a Supabase Storage HEAD or pg_stat_archiver query (depending on infra),\n- An audit-event row written via the existing audit_events API on every verification pass/fail.\n\nThe **actual** backup orchestration (pg_basebackup, WAL-G, Supabase managed backups) is operator-config: this task documents the contract and wires the verification, NOT the backup itself. The restore drill runner is T-120.\n\n## Implementation contract\n1. Create `_foundation/contracts/backup-policy.md` containing:\n   - **RPO table** per data class:\n     - Class A (security audit_events, role grants, gdpr_erasure_requests): RPO ≤ 1h (continuous WAL),\n     - Class B (business state — product/work_order/lot/shipment/quality_event): RPO ≤ 24h (daily logical + WAL),\n     - Class C (reference tables, schema metadata): RPO ≤ 24h,\n     - Class D (ephemeral audit, drafts, dry-runs): RPO ≤ 7 days.\n   - **RTO table** per data class: A ≤ 1h, B ≤ 4h, C ≤ 8h, D ≤ 24h (overall org-level RTO ≤ 8h per §13).\n   - **Backup strategy:** Supabase managed PITR for managed deploys; pg_basebackup + WAL-G to S3 for self-host. WAL retention 7 days. Logical dumps (pg_dump) nightly to S3 with object-lock.\n   - **Postgres roles in scope:** `postgres` (owner, never used by app), `app_user`, `app_readonly`, `migrations_runner`. Document who can read backups (service-role only).\n   - **Verification cron:** runs daily at 02:00 UTC; queries `pg_stat_archiver.last_archived_wal` (self-host) or the Supabase backup status API (managed); writes a `backup.verification.succeeded` or `backup.verification.failed` audit_events row with retention_class=`security`.\n   - **Quarterly restore drill:** documented in T-120 (restore drill runner).\n   - **Encryption-at-rest:** all S3 buckets must use SSE-KMS; Supabase storage encryption is platform-managed.\n   - **Out-of-scope:** GL/AP/AR/CRM backups (covered by D365/Xero/Comarch per PRD §11 Out-of-scope Monopilot).\n2. Create `apps/worker/src/jobs/backup-verification-cron.ts` exporting `registerBackupVerificationCron(registry, opts)`. Default schedule: every 24h interval (cron 02:00 UTC deferred to scheduler abstraction). Handler:\n   - If `BACKUP_VERIFICATION_MODE=supabase`, fetch backup status via Supabase Storage API (uses `SUPABASE_SERVICE_ROLE_KEY`).\n   - Else, query `SELECT last_archived_time, last_failed_time FROM pg_stat_archiver` and assert `last_archived_time > now() - interval '25 hours'`.\n   - On success: write `backup.verification.succeeded` audit row with `after_state={last_archived_at, mode}`.\n   - On failure: write `backup.verification.failed` audit row + log via T-117 logger (NOT to throw — alerts go through Sentry T-118).\n3. Register the job in `apps/worker/src/index.ts` after the GDPR cron (T-114).\n4. `apps/worker/src/jobs/__tests__/backup-verification-cron.test.ts` (testcontainers Postgres):\n   - Seed `pg_stat_archiver` shape via mocking (not strictly mock-able — substitute query function in handler via injection).\n   - Test (i) success path → audit row written with action='backup.verification.succeeded'.\n   - Test (ii) failure path (stale last_archived) → audit row with action='backup.verification.failed', NO throw.\n\n## Files in scope\n- _foundation/contracts/backup-policy.md [create]\n- apps/worker/src/jobs/backup-verification-cron.ts [create]\n- apps/worker/src/jobs/__tests__/backup-verification-cron.test.ts [create]\n- apps/worker/src/index.ts [modify — register cron]\n- apps/worker/src/env.ts [modify — add BACKUP_VERIFICATION_MODE, BACKUP_MAX_AGE_HOURS]\n\n## Acceptance criteria\n1. Given _foundation/contracts/backup-policy.md read, when content parsed, then contains RPO table (4 classes), RTO table (4 classes), backup strategy, Postgres role list, verification cron description, quarterly restore drill reference (T-120), encryption-at-rest note, out-of-scope GL/AP/AR/CRM note.\n2. Given verification job runs with BACKUP_VERIFICATION_MODE=postgres and last_archived_time = now() - 1 hour, when tick runs, then writes one audit_events row with action='backup.verification.succeeded' retention_class='security'.\n3. Given last_archived_time = now() - 25 hours 1 minute, when tick runs, then writes action='backup.verification.failed' and job does NOT throw.\n4. Given job registered, when apps/worker boots, then getRegistry().has('backup-verification') returns true; AND Given BACKUP_VERIFICATION_MODE unset, when env loaded, then defaults to 'postgres' without throwing.\n## Test strategy\n- RED: write `backup-verification-cron.test.ts` for ACs 2/3/4 + a markdown-content assertion test for AC1 (`fs.readFileSync` + regex sniff) before implementation. RED: `pnpm --filter @monopilot/worker test`.\n- GREEN: implement spec markdown + cron job + registration.\n- Run: `pnpm --filter @monopilot/worker test`.\n\n## Risk red lines\n- Do not write the actual backup orchestration here — this task documents the contract and verifies; orchestration is operator-config.\n- Do not throw on verification failure — Sentry+audit are the alerting paths; throwing in a cron crashes the worker.\n- Do not query backups with the `app_user` role — verification needs a service-role connection or pg_stat read perm.\n- Do not commit `SUPABASE_SERVICE_ROLE_KEY` or any cloud creds — env-only.\n- Do not change retention_class for backup audit rows — security (7y).\n- Do not skip RPO/RTO tables — the contract is REQUIRED to be normative for downstream module owners.",
+  "labels": [
+    "prd",
+    "docs",
+    "backup",
+    "dr",
+    "T1-schema"
+  ],
+  "priority": 70,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-119",
+    "source_prd": "docs/prd/00-FOUNDATION-PRD.md",
+    "prd_refs": [
+      "§5",
+      "§11",
+      "§13"
+    ],
+    "category": "docs",
+    "subcategory": "backup-policy",
+    "task_type": "T1-schema",
+    "parent_feature": "00-foundation-dr",
+    "context_budget": "30k",
+    "estimated_effort": "2-4h",
+    "description": "Author _foundation/contracts/backup-policy.md (RPO≤24h, RTO≤8h, 4 data classes, Postgres roles, WAL retention) + apps/worker stub verification cron that writes backup.verification.succeeded|failed audit rows. Restore drill runner is T-120.",
+    "details": "Contract markdown is normative. Verification cron queries pg_stat_archiver (self-host) or Supabase backup API (managed). Audit row retention_class=security. Cron does NOT throw on failure; Sentry catches separately. T-120 implements actual restore drill.\n\nAC count consolidated from 5→4 by Fixer F7 2026-05-14 (no coverage lost).",
+    "scope_files": [
+      "_foundation/contracts/backup-policy.md [create]",
+      "apps/worker/src/jobs/backup-verification-cron.ts [create]",
+      "apps/worker/src/jobs/__tests__/backup-verification-cron.test.ts [create]",
+      "apps/worker/src/index.ts [modify]",
+      "apps/worker/src/env.ts [modify]"
+    ],
+    "out_of_scope": [
+      "Actual backup orchestration (pg_basebackup, WAL-G config) — operator runbook",
+      "Restore drill runner (T-120)",
+      "Quarterly drill scheduling automation",
+      "GL/AP/AR/CRM backup (out-of-scope Monopilot per PRD §11)"
+    ],
+    "dependencies": [
+      "T-111",
+      "T-117"
+    ],
+    "parallel_safe_with": [
+      "T-118",
+      "T-120",
+      "T-121"
+    ],
+    "acceptance_criteria": [
+      "Given _foundation/contracts/backup-policy.md read, when content parsed, then contains RPO table (4 classes), RTO table (4 classes), backup strategy, Postgres role list, verification cron description, quarterly restore drill reference (T-120), encryption-at-rest note, out-of-scope GL/AP/AR/CRM note.",
+      "Given verification job runs with BACKUP_VERIFICATION_MODE=postgres and last_archived_time = now() - 1 hour, when tick runs, then writes one audit_events row with action='backup.verification.succeeded' retention_class='security'.",
+      "Given last_archived_time = now() - 25 hours 1 minute, when tick runs, then writes action='backup.verification.failed' and job does NOT throw.",
+      "Given job registered, when apps/worker boots, then getRegistry().has('backup-verification') returns true; AND Given BACKUP_VERIFICATION_MODE unset, when env loaded, then defaults to 'postgres' without throwing."
+    ],
+    "test_strategy": [
+      "RED: write backup-verification-cron.test.ts for ACs 2/3/4 + markdown-content regex assertion for AC1 before implementation; RED: pnpm --filter @monopilot/worker test.",
+      "GREEN: implement spec markdown + cron job + registration.",
+      "Run: pnpm --filter @monopilot/worker test."
+    ],
+    "risk_red_lines": [
+      "Do not write actual backup orchestration — contract + verification only.",
+      "Do not throw on verification failure — Sentry+audit are alerting paths.",
+      "Do not query backups with app_user role — service-role or pg_stat read perm.",
+      "Do not commit SUPABASE_SERVICE_ROLE_KEY or cloud creds.",
+      "Do not change retention_class for backup audit rows — security (7y).",
+      "Do not skip RPO/RTO tables — contract is normative for module owners."
+    ],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "cross_module_dependencies": []
+  }
+}

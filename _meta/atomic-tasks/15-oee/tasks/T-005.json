@@ -1,0 +1,92 @@
+{
+  "title": "T-005 — big_loss_categories taxonomy + role→oee.*.* permission seed (OEE §13.3, §3)",
+  "prompt": "# T-005 — big_loss_categories + role permission seed\n\nPRD: docs/prd/15-OEE-PRD.md §3 (Personas & Roles), §13.3 (Downtime category colors), §15.4 OEE-M-005 Big Loss Mapping; 02-SETTINGS reference tables registry\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nSeed two deterministic data sets used by every downstream OEE task: (a) the canonical Six Big Losses taxonomy with A/P/Q impact dimension and Plant/Process/People Lean class — feeds big_loss_mapping editor (T-021) and Six Big Losses tab (T-018); (b) role→permission mappings for oee_viewer/oee_supervisor/oee_admin per PRD §3 RBAC matrix, referencing strings locked in T-001.\n\n## Pre-flight\nRead `packages/db/migrations/` for: latest migration number; T-001 enum strings (must be merged); 02-SETTINGS role_permissions table (existing from 02-SET T-002/T-091). Read PRD §3 RBAC matrix and §13.3 category colors.\n\n## Implementation contract\n1. Migration `packages/db/migrations/NNNN_oee_a_big_loss_seed.sql`:\n   - CREATE TABLE `big_loss_categories(code TEXT PK, label TEXT, description TEXT, impact_dimension CHAR(1) CHECK (impact_dimension IN ('A','P','Q')), lean_class TEXT CHECK (lean_class IN ('Plant','Process','People')), default_color_hex TEXT, sort_order INT, is_active BOOL DEFAULT TRUE)`. This is a UNIVERSAL reference table (no org_id; cross-tenant taxonomy) — register read-only in 02-SETTINGS reference_tables_registry.\n   - INSERT 6 canonical Nakajima TPM rows: `BREAKDOWN/SETUP_ADJ/IDLING/REDUCED_SPEED/STARTUP_REJECT/PRODUCTION_REJECT` mapped to A/A/A/P/Q/Q and Plant/Process/Process/Plant/Process/Process per Nakajima + PRD §13.3 colors.\n2. Migration step: seed `role_permissions(role, permission)` rows for oee_viewer/oee_supervisor/oee_admin from PRD §3 matrix; idempotent ON CONFLICT DO NOTHING. Permission strings reference T-001 enum.\n3. Drizzle schema `packages/db/src/schema/oee/big-loss-categories.ts` (read-only typed).\n4. Vitest: (a) 6 seed rows exist with correct impact_dimension distribution (3xA, 1xP, 2xQ), (b) role_permissions populated for oee_admin (all 13 strings), oee_supervisor (read+annotate+escalate+ack subset), oee_viewer (read+export), (c) seed is idempotent (re-run yields same row count).\n\n## Files\n- packages/db/migrations/NNNN_oee_a_big_loss_seed.sql [create]\n- packages/db/src/schema/oee/big-loss-categories.ts [create]\n- packages/db/src/schema/index.ts [modify]\n- packages/db/__tests__/oee-a-big-loss-seed.test.ts [create]\n\n## Acceptance criteria\n1. Given migration runs on a fresh DB, when `SELECT count(*), impact_dimension FROM big_loss_categories GROUP BY impact_dimension` runs, then 3 rows A, 1 row P, 2 rows Q (total 6).\n2. Given migration runs, when `SELECT permission FROM role_permissions WHERE role='oee_admin'` runs, then all 13 oee.*.* strings from T-001 are returned.\n3. Given migration is re-applied on a populated DB, when complete, then row counts in big_loss_categories and role_permissions(oee_*) are unchanged (idempotent ON CONFLICT DO NOTHING).\n4. Given 02-SETTINGS reference_tables_registry is queried, when filtered for big_loss_categories, then it appears with read-only flag.\n\n## Test strategy\n- RED: vitest oee-a-big-loss-seed asserting four ACs.\n- Run `pnpm --filter db migrate && pnpm --filter db test oee-a-big-loss-seed`.\n\n## Risk red lines\n- Do not change Nakajima TPM canonical 6-category names — they are an industry standard referenced by §14 regulatory alignment + §10.3 dashboards.\n- Do not org-scope big_loss_categories — taxonomy is UNIVERSAL per ADR-034.\n- Do not skip ON CONFLICT DO NOTHING — migrations re-apply during CI tests.\n- Do not hard-code role names elsewhere; rely on 02-SETTINGS roles already seeded.",
+  "labels": [
+    "prd",
+    "data",
+    "seed",
+    "T5-seed"
+  ],
+  "priority": 55,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-005",
+    "source_prd": "docs/prd/15-OEE-PRD.md",
+    "prd_refs": [
+      "§3",
+      "§13.3",
+      "§15.4 OEE-M-005"
+    ],
+    "category": "data",
+    "subcategory": "seed-taxonomy-and-permissions",
+    "task_type": "T5-seed",
+    "parent_feature": "15-OEE-a",
+    "context_budget": "35k",
+    "estimated_effort": "1-2h",
+    "description": "Seed big_loss_categories Nakajima taxonomy + role→oee.*.* permission mappings per PRD §3 RBAC matrix. Idempotent.",
+    "details": "UNIVERSAL taxonomy (no org_id). Permission seed binds oee_admin to all 13 strings; oee_supervisor to read+annotate+escalate+ack subset; oee_viewer to read+export. Big Loss editor (T-021) writes tenant overrides via OEE-M-005 mapping table (created in T-021 if needed). Registry insert lets 02-SETTINGS reference-tables viewer surface big_loss_categories alongside shift_configs/oee_alert_thresholds.",
+    "scope_files": [
+      "packages/db/migrations/NNNN_oee_a_big_loss_seed.sql [create]",
+      "packages/db/src/schema/oee/big-loss-categories.ts [create]",
+      "packages/db/src/schema/index.ts [modify]",
+      "packages/db/__tests__/oee-a-big-loss-seed.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Per-tenant Big Loss override table (T-021)",
+      "OEE-M-005 editor UI (T-021)",
+      "DSL rule wiring (T-008)"
+    ],
+    "dependencies": [
+      "T-001"
+    ],
+    "parallel_safe_with": [
+      "T-002",
+      "T-003",
+      "T-004"
+    ],
+    "acceptance_criteria": [
+      "Given migration runs on a fresh DB, when SELECT count(*), impact_dimension FROM big_loss_categories GROUP BY impact_dimension runs, then 3 A, 1 P, 2 Q (total 6) rows are returned",
+      "Given migration runs, when SELECT permission FROM role_permissions WHERE role='oee_admin' runs, then all 13 oee.*.* strings from T-001 are returned",
+      "Given migration is re-applied on a populated DB, when complete, then row counts in big_loss_categories and role_permissions(oee_*) are unchanged",
+      "Given 02-SETTINGS reference_tables_registry is queried, when filtered for big_loss_categories, then it appears with read-only flag"
+    ],
+    "test_strategy": [
+      "RED: vitest oee-a-big-loss-seed asserting four ACs",
+      "Run `pnpm --filter db migrate && pnpm --filter db test oee-a-big-loss-seed`"
+    ],
+    "risk_red_lines": [
+      "Do not change Nakajima TPM canonical 6-category names",
+      "Do not org-scope big_loss_categories — UNIVERSAL per ADR-034",
+      "Do not skip ON CONFLICT DO NOTHING",
+      "Do not hard-code role names elsewhere; rely on 02-SETTINGS roles"
+    ],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": false
+  }
+}

@@ -1,0 +1,106 @@
+{
+  "title": "T-023 — UI: Spare Parts List + Detail + Reorder + Adjust modals (MNT-026, MNT-027, MNT-M-07/M-08)",
+  "prompt": "# T-023 — Spare Parts pages + modals\n\nPRD: docs/prd/13-MAINTENANCE-PRD.md §10.3 MNT-026, MNT-027, §10.4 MNT-M-07, MNT-M-08\nUX: prototypes/design/13-MAINTENANCE-UX.md:636-687\nPrototypes: spares.jsx:1-261 (spares_list_page, spare_detail_page); modals.jsx:595-619 (spare_reorder_modal); modals.jsx:902-925 (spare_adjust_modal)\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nRoute `/maintenance/spares` (catalog list, stock-low styling, KPI strip) and `/maintenance/spares/[id]` (2-column detail). Reorder modal (internal notification only — BL-MAINT-07 P2 D365 PO) and Adjust modal (>10% delta gate calling T-011 approval flow).\n\n## Implementation contract\n1. `apps/web/app/maintenance/spares/page.tsx` — RSC + nuqs filters; 6-KPI strip; row-stock-low Tailwind bg-red-50.\n2. `apps/web/app/maintenance/spares/[id]/page.tsx` — 2-column: left stock-by-location table + consumption history (spare_parts_transactions); right master data + linked assets.\n3. Reorder modal: read-only summary card (supplier, lead-time from spare_parts.supplier_id join); qty Input; calls reorderSparePart Server Action (T-011) emitting outbox `spare_parts.reorder_requested`.\n4. Adjust modal: new qty Input + reason Select (5 enum: damage/cycle_count/spillage/expired/other) + reason Textarea ≥10 chars; >10% delta → requires_approval=true returned by T-011; manager confirms via second-step (modal re-opens with `pending_approval` badge).\n5. RBAC: Consume requires `mnt.spare.consume` (operator+); Adjust + Reorder require `mnt.spare.adjust`/`mnt.spare.reorder` (manager-tier).\n6. Empty/loading/error/permission states + i18n keys (`maintenance.spares.list.*`, `maintenance.spares.detail.*`, `maintenance.spares.reorder.*`, `maintenance.spares.adjust.*`).\n\n## Prototype parity\n- List 6-KPI strip + filter bar + Tailwind stock-low row + Reorder/Adjust inline — RTL snapshot spares.jsx:1-115.\n- Detail 2-col with stock-by-location and consumption history — snapshot spares.jsx:117-261.\n- Reorder modal supplier info + P2 alert banner BL-MAINT-07 — snapshot modals.jsx:595-619.\n- Adjust modal 5-enum reason + >10% gate — snapshot modals.jsx:902-925.\n\n## Files\n- apps/web/app/maintenance/spares/page.tsx [create]\n- apps/web/app/maintenance/spares/[id]/page.tsx [create]\n- apps/web/app/maintenance/spares/_components/spares-list-client.tsx [create]\n- apps/web/app/maintenance/spares/_components/spare-reorder-modal.tsx [create]\n- apps/web/app/maintenance/spares/_components/spare-adjust-modal.tsx [create]\n- apps/web/app/maintenance/spares/_components/__tests__/spares.test.tsx [create]\n\n## Acceptance criteria\n1. Given list renders, when compared to spares.jsx:1-115, then KPI strip + filter bar + stock-low row styling + RBAC-gated Adjust+Reorder match by RTL parity checklist.\n2. Given detail renders, when compared to spares.jsx:117-261, then 2-column with stock-by-location + consumption history + master data + linked assets match.\n3. Given reorder submitted, when settled, then outbox spare_parts.reorder_requested emitted with bl_maint_07_note (no D365 push P1).\n4. Given adjust submitted with 15% delta, when settled, then T-011 returns requires_approval=true, modal shows pending badge, and manager second-step flips flag.\n5. Given operator session, when /maintenance/spares renders, then Adjust + Reorder buttons hidden server-side (only Consume visible).\n6. Given closeout, when reviewers inspect, then Playwright trace + screenshots attached per UI-PROTOTYPE-PARITY-POLICY.md.\n\n## Test strategy\n- RED: RTL parity + Playwright e2e for reorder+adjust flows.\n- Run `pnpm --filter @monopilot/web vitest run apps/web/app/maintenance/spares`.\n\n## Risk red lines\n- Do not add LP picker or FEFO logic — D-MNT-6 boundary (qty_on_hand simple tracking).\n- Do not push to D365 PO — BL-MAINT-07 P2.\n- Do not allow Adjust without ≥10 char reason (V-MNT-21 manager-approval gate).\n- Do not bypass RBAC server-side.\n- Do not paste prototype JSX verbatim.\n- Do not omit empty/loading/error/permission states.",
+  "labels": [
+    "prd",
+    "ui",
+    "spares",
+    "T3-ui"
+  ],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-023",
+    "source_prd": "docs/prd/13-MAINTENANCE-PRD.md",
+    "prd_refs": [
+      "§10.3 MNT-026",
+      "§10.3 MNT-027",
+      "§10.4 MNT-M-07",
+      "§10.4 MNT-M-08"
+    ],
+    "category": "ui",
+    "subcategory": "spares",
+    "task_type": "T3-ui",
+    "parent_feature": "13-MAINTENANCE-d",
+    "context_budget": "55k",
+    "estimated_effort": "4-5h",
+    "description": "Spare parts list + detail + Reorder modal + Adjust modal (>10% gate); prototype parity with spares.jsx + modals.jsx reorder/adjust.",
+    "details": "D-MNT-6 boundary: separate catalog from 03-TECH items, no LP/FEFO. BL-MAINT-07: reorder is internal notification only in P1. UI closeout includes Playwright artifacts.",
+    "scope_files": [
+      "apps/web/app/maintenance/spares/page.tsx [create]",
+      "apps/web/app/maintenance/spares/[id]/page.tsx [create]",
+      "apps/web/app/maintenance/spares/_components/spares-list-client.tsx [create]",
+      "apps/web/app/maintenance/spares/_components/spare-reorder-modal.tsx [create]",
+      "apps/web/app/maintenance/spares/_components/spare-adjust-modal.tsx [create]",
+      "apps/web/app/maintenance/spares/_components/__tests__/spares.test.tsx [create]"
+    ],
+    "out_of_scope": [
+      "D365 PO push (P2)",
+      "04-planning PO integration (P2)",
+      "LP/FEFO logic (D-MNT-6 explicit boundary)"
+    ],
+    "dependencies": [
+      "T-001",
+      "T-005",
+      "T-011",
+      "T-013"
+    ],
+    "parallel_safe_with": [
+      "T-018",
+      "T-019",
+      "T-020",
+      "T-024"
+    ],
+    "acceptance_criteria": [
+      "Given list renders, when compared to prototypes/design/Monopilot Design System/maintenance/spares.jsx:1-115, then KPI strip + filter bar + stock-low row styling + RBAC-gated Adjust+Reorder match by RTL parity checklist; given detail, then matches spares.jsx:117-261 (2-column stock-by-location + consumption history + master data + linked assets)",
+      "Given reorder submitted, when settled, then outbox spare_parts.reorder_requested emitted with bl_maint_07_note (no D365 push per BL-MAINT-07)",
+      "Given adjust submitted with 15% delta, when settled, then T-011 returns requires_approval=true and manager second-step flips flag; given operator session, then Adjust+Reorder buttons hidden server-side",
+      "Given closeout, when reviewers inspect, then Playwright trace + screenshots attached per UI-PROTOTYPE-PARITY-POLICY.md"
+    ],
+    "test_strategy": [
+      "RED: RTL parity + Playwright e2e for reorder/adjust flows",
+      "Run `pnpm --filter @monopilot/web vitest run apps/web/app/maintenance/spares`",
+      "Capture Playwright trace/video/screenshots in closeout"
+    ],
+    "risk_red_lines": [
+      "Do not add LP picker or FEFO (D-MNT-6 boundary)",
+      "Do not push to D365 PO (BL-MAINT-07 P2)",
+      "Do not allow Adjust without ≥10 char reason",
+      "Do not bypass RBAC server-side",
+      "Do not paste prototype JSX verbatim",
+      "Do not omit empty/loading/error/permission states"
+    ],
+    "skills": [
+      "test-driven-development",
+      "frontend-design",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status",
+        "playwright_artifacts"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": true,
+    "prototype_index_entry": "spares_list_page",
+    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md"
+  }
+}

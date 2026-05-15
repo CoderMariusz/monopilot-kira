@@ -1,0 +1,96 @@
+{
+  "title": "T-014 \u2014 Wiring: standard_cost.approved outbox handler writes items.cost_per_kg + emits to 12-REPORTING (\u00a713.1, \u00a713.2)",
+  "prompt": "# T-014 \u2014 standard_cost.approved outbox handler wiring\n\nPRD: docs/prd/10-FINANCE-PRD.md \u00a713.1 Event subscriptions (`standard_cost.approved` \u2192 `handle_std_cost_approved`); \u00a713.2 cost_per_kg dual ownership (10-FIN writes per D-FIN-9).\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nRegister an `apps/worker` consumer that subscribes to the `finance.standard_cost.approved` outbox event and:\n1. Updates `items.cost_per_kg` for the affected item_id to `approved.total_cost / uom_kg_factor` (with finance_worker role binding so T-010 trigger admits the write).\n2. Re-publishes a downstream event `finance.cost_per_kg.changed` for 12-REPORTING MV refresh.\n3. Idempotent: if items.cost_per_kg already equals the approved value or the event's idempotency_key has been processed, no-op.\n\n## Implementation contract\n1. `apps/worker/src/finance/std-cost-approved-handler.ts`:\n   - Consumer signature `handleStdCostApproved(event: OutboxEvent<FinanceStdCostApprovedPayload>): Promise<void>` per packages/outbox patterns.\n   - Set worker session: `app.current_role='finance_worker'` (T-010 trigger gate).\n   - Recompute kg-factor: if `uom='KG'` then factor=1; else lookup `items.uom_kg_factor` (assumes existing column from 03-TECHNICAL items master); use Drizzle.\n   - Write items.cost_per_kg = approved.total_cost / factor under withOrgContext(event.org_id).\n   - Emit downstream `finance.cost_per_kg.changed` outbox event with payload `{ item_id, old_value, new_value, source_standard_cost_id, idempotency_key: uuid v7 }`.\n   - Idempotency: check `processed_events` table (foundation T-111 contract) before write; insert tracking row on success.\n2. Worker registration `apps/worker/src/registry.ts`: register handler under event_type='finance.standard_cost.approved' with at-least-once delivery semantics.\n3. Failure handling: transient errors retry per foundation worker retry policy; schema/permission errors move to DLQ (use generic outbox DLQ table from foundation, NOT the d365_finance_dlq which is for D365-specific failures).\n\n## Files\n- apps/worker/src/finance/std-cost-approved-handler.ts [create]\n- apps/worker/src/registry.ts [modify]\n- apps/worker/src/finance/__tests__/std-cost-approved-handler.test.ts [create]\n\n## Acceptance criteria (Given-When-Then)\n- Given event {item_id, total_cost: 12.50, currency_id, uom:'KG'}, when worker runs, then items.cost_per_kg for that item equals 12.50.\n- Given event consumed twice, when second invocation runs, then no UPDATE occurs (idempotent).\n- Given worker session lacks app.current_role='finance_worker', when handler tries UPDATE, then T-010 trigger rejects with D-FIN-9 exception \u2014 handler surfaces as hard error (not retry).\n- Given write succeeds, when finance_outbox_events queried, then row with event_type='finance.cost_per_kg.changed' exists with old_value/new_value/source payload. AND given unknown item_id, when handler runs, then structured log error and DLQ-eligible mark (no infinite retry).\n_(AC count consolidated from 5\u21924 by Fixer F13 2026-05-14 (no coverage lost))_\n\n## Test strategy (RED first)\n- RED: std-cost-approved-handler.test.ts seeds items + emits a fixture event; asserts UPDATE happens, idempotent on replay, downstream event emitted, role-gating works.\n- Run `pnpm --filter @monopilot/worker vitest run finance/std-cost-approved-handler`.\n\n## Risk red lines\n- D365 integration is strictly export-only (R15 anti-corruption contract per `_foundation/contracts/`) \u2014 MUST NOT mutate `factory_release_state` or any other canonical Monopilot state.\n- Do not skip the `app.current_role='finance_worker'` binding \u2014 without it the T-010 trigger blocks the write.\n- Do not emit the downstream event before the items UPDATE commits (atomic outbox).\n- Do not retry on schema/permission errors (move to DLQ to avoid hammering the trigger).\n- Do not handle this in a synchronous Server Action \u2014 the consumer is asynchronous by design (post-commit).\n- Do not bypass the idempotency check (12-REPORTING MV would refresh redundantly).\n",
+  "labels": [
+    "prd",
+    "wiring",
+    "worker",
+    "T4-wiring-test"
+  ],
+  "priority": 70,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-014",
+    "source_prd": "docs/prd/10-FINANCE-PRD.md",
+    "prd_refs": [
+      "\u00a713.1",
+      "\u00a713.2"
+    ],
+    "category": "wiring",
+    "subcategory": "std-cost-approved-handler",
+    "task_type": "T4-wiring-test",
+    "parent_feature": "10-FINANCE-b",
+    "context_budget": "45k",
+    "estimated_effort": "2-3h",
+    "description": "Worker subscriber for finance.standard_cost.approved \u2192 write items.cost_per_kg under finance_worker role + emit downstream cost_per_kg.changed event for 12-REPORTING.",
+    "details": "Closes D-FIN-9 dual ownership: 10-FIN writes items.cost_per_kg via worker session bound to finance_worker role (T-010 trigger gate). Idempotent via processed_events tracking from foundation T-111. Downstream event consumed by 12-REPORTING MV refresh. [AC count consolidated from 5\u21924 by Fixer F13 2026-05-14 (no coverage lost)]",
+    "scope_files": [
+      "apps/worker/src/finance/std-cost-approved-handler.ts [create]",
+      "apps/worker/src/registry.ts [modify]",
+      "apps/worker/src/finance/__tests__/std-cost-approved-handler.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "D365 outbox dispatcher (T-028)",
+      "Reporting MV refresh (12-REPORTING module)"
+    ],
+    "dependencies": [
+      "T-010",
+      "T-011"
+    ],
+    "cross_module_dependencies": [
+      "00-foundation:T-111 (outbox worker + processed_events)",
+      "00-foundation:T-112 (worker registry)",
+      "12-reporting (consumer of cost_per_kg.changed)"
+    ],
+    "parallel_safe_with": [
+      "T-013"
+    ],
+    "acceptance_criteria": [
+      "Given event {item_id, total_cost: 12.50, currency_id, uom:'KG'}, when worker runs, then items.cost_per_kg for that item equals 12.50.",
+      "Given event consumed twice, when second invocation runs, then no UPDATE occurs (idempotent).",
+      "Given worker session lacks app.current_role='finance_worker', when handler tries UPDATE, then T-010 trigger rejects with D-FIN-9 exception \u2014 handler surfaces as hard error (not retry).",
+      "Given write succeeds, when finance_outbox_events queried, then row with event_type='finance.cost_per_kg.changed' exists with old_value/new_value/source payload. AND given unknown item_id, when handler runs, then structured log error and DLQ-eligible mark (no infinite retry)."
+    ],
+    "test_strategy": [
+      "RED: std-cost-approved-handler.test.ts seeds items + fixture event; asserts each AC.",
+      "Run pnpm --filter @monopilot/worker vitest run finance/std-cost-approved-handler."
+    ],
+    "risk_red_lines": [
+      "Do not skip app.current_role='finance_worker' binding.",
+      "Do not emit downstream event before items UPDATE commits.",
+      "Do not retry on schema/permission errors.",
+      "Do not handle this synchronously in a Server Action.",
+      "Do not bypass idempotency check.",
+      "D365 integration is strictly export-only (R15 anti-corruption contract per `_foundation/contracts/`) \u2014 MUST NOT mutate `factory_release_state` or any other canonical Monopilot state."
+    ],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review",
+      "systematic-debugging"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": false
+  }
+}

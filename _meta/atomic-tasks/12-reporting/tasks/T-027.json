@@ -1,0 +1,124 @@
+{
+  "title": "T-027 — E2E: P1 reporting acceptance spine — fresh org → 10 dashboards renderable → export PDF/CSV → audit trail (12-REPORTING §2 P1, §11)",
+  "prompt": "# T-027 — End-to-end P1 reporting acceptance test\n\nPRD: docs/prd/12-REPORTING-PRD.md §2 Metryki sukcesu Phase 1 (P95 < 2s, 100% accuracy vs Excel, 0 cross-tenant leaks, > 99.9% export success), §11 V-RPT-ACCESS / V-RPT-EXPORT / V-RPT-REFRESH spine\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nPlaywright E2E spec that drives the full P1 acceptance: fresh org provisioned → 08-PROD seeded with WO outputs/consumptions → MV refresh worker runs → all 10 P1 dashboards render under reporting_viewer session → admin runs Force Refresh on a data source → export PDF and CSV from Factory Overview → verify report_access_audits + report_exports + mv_refresh_log all populated. Cross-org leak test runs as final assertion.\n\n## Implementation contract\n1. `apps/web/e2e/reporting/p1-spine.spec.ts` Playwright spec:\n   - beforeAll: seed two orgs (A + B); seed 08-PROD wo_outputs + wo_consumptions for both; seed 09-QA quality_holds + hold_items for both; trigger T-005 worker for all P1 MVs.\n   - Login as org_A reporting_viewer: navigate to /reporting; assert catalog renders with 10 P1 cards + freshness badges; click each card → assert page renders without error.\n   - Switch to org_A admin: open /reporting/settings → Data Sources → Force Refresh on mv_yield_by_line_week → assert toast + mv_refresh_log row updated.\n   - Back to dashboard: open Factory Overview → click Export → PDF; assert toast + Download button; download file; verify SHA-256 matches report_exports.sha256_hash.\n   - Repeat for CSV; verify UTF-8 BOM + row count matches MV query.\n   - Cross-org leak test: login as org_B reporting_viewer → assert org_B sees its own KPIs only, NEVER org_A's data (KPI numbers must differ; same dashboard layout but different data).\n   - Negative path: login as user without rpt.dashboard.view → assert /reporting redirects to /403 + report_access_audits row.\n2. Vitest integration test `packages/reporting/__tests__/p1-spine-integration.test.ts` covers DB-level invariants: cross-org leak via service helpers + MV row counts + audit row writes.\n\n## Files\n- apps/web/e2e/reporting/p1-spine.spec.ts [create]\n- packages/reporting/__tests__/p1-spine-integration.test.ts [create]\n- apps/web/e2e/reporting/fixtures/seed-helpers.ts [create]\n\n## Acceptance criteria\n1. Given fresh DB + seeded orgs A+B + worker run, when the Playwright spec executes end-to-end, then all 10 P1 dashboard pages render under reporting_viewer for org_A without uncaught errors; navigation between pages preserves URL state.\n2. Given Force Refresh is invoked from /reporting/settings, when complete, then a new mv_refresh_log row exists with status='completed' + duration_ms > 0.\n3. Given PDF export completes, when downloaded, then SHA-256 of downloaded file equals report_exports.sha256_hash AND file has @media print CSS applied (verified by html2pdf metadata or print-css selector presence in the underlying renderer).\n4. Given CSV export completes, when downloaded, then file starts with UTF-8 BOM (0xEF 0xBB 0xBF) AND row count equals service-helper row count for the same filter.\n5. Given org_B reporting_viewer logs in, when they navigate to /reporting/factory-overview, then KPI numbers differ from org_A (cross-org leak test — both layouts identical, data different).\n6. Given a user without rpt.dashboard.view permission accesses /reporting/factory-overview, when middleware T-009 fires, then they are redirected to /403 + a report_access_audits row with result='deny' is written.\n7. P95 page load < 2s on test environment per §2 Metryki — assert via Playwright `page.evaluate(() => performance.timing)` or PerformanceObserver.\n\n## Test strategy (RED first)\n- RED: Playwright spec asserts all 7 ACs; integration test asserts DB invariants.\n- Run `pnpm --filter @monopilot/web playwright test reporting/p1-spine && pnpm --filter @monopilot/reporting test p1-spine-integration`.\n- GREEN: build seed helpers + spec + integration test. (Most production code is already built in T-001..T-026 — this task is the integration smoke.)\n\n## Risk red lines\n- Do not stub MV refresh — run actual worker job (T-005) so concurrency + advisory lock paths are exercised.\n- Do not skip cross-org leak assertion — the headline metric is '0 cross-tenant leaks' (§2).\n- Do not skip P95 < 2s assertion — fundamental P1 success criterion.\n- Do not let Playwright spec depend on production data — use isolated test DB (testcontainers or Supabase branch).\n- Do not let the spec drive 15-OEE / 11-SHIPPING / 10-FINANCE source seeding — those modules have 0 atomic tasks; assert graceful degradation paths only.\n- Do not let the spec depend on dashboards_catalog ordering — assert by id, never by index.\n- Do not let the spec write to 08-PROD / 09-QA mutation paths — read-only consumer pattern.",
+  "labels": [
+    "prd",
+    "test",
+    "e2e",
+    "T4-wiring-test"
+  ],
+  "priority": 80,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-027",
+    "source_prd": "docs/prd/12-REPORTING-PRD.md",
+    "prd_refs": [
+      "§2 Metryki Phase 1",
+      "§11 V-RPT-ACCESS",
+      "§11 V-RPT-EXPORT",
+      "§11 V-RPT-REFRESH"
+    ],
+    "category": "test",
+    "subcategory": "e2e-spine",
+    "task_type": "T4-wiring-test",
+    "parent_feature": "12-REPORTING-all",
+    "context_budget": "60k",
+    "estimated_effort": "4-6h",
+    "description": "Playwright E2E spec + integration test covering 10 P1 dashboards + Force Refresh + PDF/CSV export + cross-org leak + permission deny + P95 < 2s.",
+    "details": "Single integration spine for module acceptance. Runs MV worker, exports both formats, verifies SHA-256 + UTF-8 BOM, asserts cross-org isolation + audit writes + P95 perf.",
+    "scope_files": [
+      "apps/web/e2e/reporting/p1-spine.spec.ts [create]",
+      "packages/reporting/__tests__/p1-spine-integration.test.ts [create]",
+      "apps/web/e2e/reporting/fixtures/seed-helpers.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not implement P2 dashboards / E3 / E4 features",
+      "Do not implement scheduled reports E2E (P2)",
+      "Do not seed 15-OEE / 11-SHIPPING / 10-FINANCE source tables"
+    ],
+    "dependencies": [
+      "T-001",
+      "T-003",
+      "T-004",
+      "T-005",
+      "T-006",
+      "T-007",
+      "T-008",
+      "T-009",
+      "T-013",
+      "T-014",
+      "T-015",
+      "T-016",
+      "T-017",
+      "T-018",
+      "T-019",
+      "T-020",
+      "T-021",
+      "T-022",
+      "T-023",
+      "T-024",
+      "T-025",
+      "T-026"
+    ],
+    "parallel_safe_with": [],
+    "cross_module_dependencies": [
+      "00-FOUNDATION T-123 Playwright harness",
+      "00-FOUNDATION T-111 apps/worker scaffold (for T-005 invocation in spec)",
+      "08-PRODUCTION wo_outputs + wo_consumptions (test seed)",
+      "09-QUALITY quality_holds + hold_items (test seed)",
+      "05-WAREHOUSE license_plates (test seed)"
+    ],
+    "acceptance_criteria": [
+      "Given a report/export query targets a table with PII columns, when the result set is materialized, then no raw PII column value appears in any row (redacted, hashed, or omitted at the read-model boundary).",
+      "Given Force Refresh invoked from /reporting/settings, when complete, then new mv_refresh_log row exists with status='completed' + duration_ms > 0",
+      "Given org_B reporting_viewer logs in, when navigating to /reporting/factory-overview, then KPI numbers differ from org_A (cross-org leak test)",
+      "Given edge and compliance cases are exercised, when each condition is triggered, then all 10 P1 dashboard pages render under reporting_viewer for org_A without uncaught errors; URL state preserved and SHA-256 of downloaded file equals report_exports.sha256_hash AND file has @media print CSS applied."
+    ],
+    "test_strategy": [
+      "RED: Playwright spec asserts all 7 ACs; integration test asserts DB invariants",
+      "Run `pnpm --filter @monopilot/web playwright test reporting/p1-spine && pnpm --filter @monopilot/reporting test p1-spine-integration`",
+      "Attach Playwright trace + screenshots + downloaded export samples in closeout"
+    ],
+    "risk_red_lines": [
+      "Do not stub MV refresh — run actual T-005 worker job so concurrency + advisory lock paths are exercised",
+      "Do not skip cross-org leak assertion — headline metric is '0 cross-tenant leaks'",
+      "Do not skip P95 < 2s assertion",
+      "Do not let spec depend on production data — isolated test DB only",
+      "Do not seed 15-OEE / 11-SHIPPING / 10-FINANCE sources — assert graceful degradation paths only",
+      "Do not let spec depend on dashboards_catalog ordering — assert by id",
+      "Do not let spec mutate 08-PROD / 09-QA — read-only consumer",
+      "No raw PII in reports/exports — PII columns (email, phone, address, surname, dob, national_id) must be redacted, hashed, or omitted at the read-model boundary. Consult Foundation T-117 pino redact allowlist for the canonical PII column set.",
+      "Dispatch all bulk export and long-running report generation to apps/worker background queue (foundation T-111); synchronous compute forbidden in request path for jobs that may time out."
+    ],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review",
+      "verification-before-completion"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": false,
+    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md"
+  }
+}

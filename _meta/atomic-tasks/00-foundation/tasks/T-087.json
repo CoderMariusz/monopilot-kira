@@ -1,0 +1,82 @@
+{
+  "title": "T-087 — audit_events.org_id nullable for unauthenticated security events + sentinel backfill (FT-027)",
+  "prompt": "# T-087 — audit_events.org_id nullable for unauthenticated security events + sentinel backfill (FT-027)\n\nPRD: `docs/prd/00-FOUNDATION-PRD.md` — sections: §11\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`\nOriginal carry-forward ID: **FT-027** (from `_meta/audits/2026-05-07-foundation-final-carry-forward-backlog.md`)\nSeverity: **P2** (S effort)\n\n## Goal\nMake audit_events.org_id nullable; add `is_unauthenticated boolean not null default false` for clarity.\n\n## Implementation contract\n1. Migration 034 ALTER TABLE audit_events ALTER COLUMN org_id DROP NOT NULL.\n2. ADD COLUMN is_unauthenticated boolean not null default false.\n3. UPDATE rows where org_id matches the legacy '00000000-0000-0000-0000-000000000000' sentinel to org_id=NULL + is_unauthenticated=true.\n4. Adjust RLS policy: rows with org_id IS NULL are visible only to service-role.\n5. Test: app-role cannot SELECT NULL-org rows; service-role can.\n\n## Files (scope)\n- packages/db/migrations/034-audit-events-org-id-nullable.sql [create]\n- packages/db/__tests__/audit-events-unauth.test.ts [create]\n\n## Acceptance criteria\n1. Given migration 034 applied, when an INSERT with org_id=NULL + is_unauthenticated=true runs, then it succeeds.\n2. Given an app-role SELECT, when run against NULL-org rows, then count is 0.\n3. Given a service-role SELECT, when run against NULL-org rows, then count is correct.\n4. Given the sentinel-backfill, when applied, then no rows remain with the all-zeros UUID.\n\n## Test strategy\n- RED: write audit-events-unauth.test.ts asserting RLS-NULL behavior before migration.\n- Pin SQLSTATE for cross-row denials.\n- Run `pnpm --filter @monopilot/db migrate && pnpm --filter @monopilot/db test audit-events-unauth`.\n\n## Risk red lines\n- Do not relax RLS to expose NULL-org rows to app-role.\n- Do not lose the sentinel rows during backfill (UPDATE, not DELETE).\n\n## Closeout evidence\nProvide: changed_files, test_commands_and_results, acceptance_criteria_status (per AC), deviations_from_prd, git_status. Use the test-driven-development skill (RED-first) and requesting-code-review at GREEN.",
+  "labels": [
+    "prd",
+    "data",
+    "wave-d-carry-forward",
+    "wave-d-followup",
+    "audit-events",
+    "T1-schema"
+  ],
+  "priority": 50,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-087",
+    "source_prd": "docs/prd/00-FOUNDATION-PRD.md",
+    "prd_refs": [
+      "§11"
+    ],
+    "original_carry_forward_id": "FT-027",
+    "category": "data",
+    "subcategory": "audit-events",
+    "task_type": "T1-schema",
+    "parent_feature": "00-FOUNDATION-h",
+    "context_budget": "50k",
+    "estimated_effort": "1-4h",
+    "description": "Make audit_events.org_id nullable to allow logging unauthenticated security events (pre-login probes, SCIM unknown-tenant); backfill existing rows with a sentinel.",
+    "details": "Today audit_events.org_id is NOT NULL which forces a fake-org log shim for security events that have no org context (cross-tenant SCIM probes, SAML failed assertions before tenant resolves). Drop NOT NULL and backfill any legacy shim rows with NULL via a marker column.",
+    "scope_files": [
+      "packages/db/migrations/034-audit-events-org-id-nullable.sql [create]",
+      "packages/db/__tests__/audit-events-unauth.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not change retention tiers."
+    ],
+    "dependencies": [],
+    "parallel_safe_with": [],
+    "acceptance_criteria": [
+      "Given migration 034 applied, when an INSERT with org_id=NULL + is_unauthenticated=true runs, then it succeeds.",
+      "Given an app-role SELECT, when run against NULL-org rows, then count is 0.",
+      "Given a service-role SELECT, when run against NULL-org rows, then count is correct.",
+      "Given the sentinel-backfill, when applied, then no rows remain with the all-zeros UUID."
+    ],
+    "test_strategy": [
+      "RED: write audit-events-unauth.test.ts asserting RLS-NULL behavior before migration.",
+      "Pin SQLSTATE for cross-row denials.",
+      "Run `pnpm --filter @monopilot/db migrate && pnpm --filter @monopilot/db test audit-events-unauth`."
+    ],
+    "risk_red_lines": [
+      "Do not relax RLS to expose NULL-org rows to app-role.",
+      "Do not lose the sentinel rows during backfill (UPDATE, not DELETE)."
+    ],
+    "skills": [
+      "test-driven-development",
+      "systematic-debugging",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

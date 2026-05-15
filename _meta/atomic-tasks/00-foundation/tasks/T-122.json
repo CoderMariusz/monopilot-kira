@@ -1,0 +1,99 @@
+{
+  "title": "T-122 — CI/CD workflow at .github/workflows/ci.yml hardened (typecheck, lint, vitest, playwright, migration check) (P0)",
+  "prompt": "# T-122 — CI/CD workflow hardened\n\nPRD: docs/prd/00-FOUNDATION-PRD.md §13 Niefunkcjonalne (uptime ≥99.5%; tests in app-role; quarterly DR test), §5 Tech Stack (Vitest, Playwright)\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nHarden `.github/workflows/ci.yml` so every PR is gated on typecheck + lint + vitest + Playwright (headless) + migration check + required-label rules. Today the workflow exists but: (a) `pnpm lint` fails at root per production-readiness audit, (b) Playwright job is `continue-on-error:true`, (c) Storybook build is `continue-on-error:true`, (d) `pnpm typecheck` only covers `apps/web` not the workspace. Auditor B §4.11 confirms \"No `.github/workflows/` is in any task scope\". This task brings the workflow under the foundation task graph.\n\n## Implementation contract\n1. Rewrite `.github/workflows/ci.yml` so the following gates are **hard required** (no `continue-on-error`):\n   - `lint` — `pnpm -r lint` across the workspace.\n   - `typecheck` — `pnpm -r typecheck` across every package that defines a `typecheck` script (add scripts where missing).\n   - `vitest` — `pnpm -r test` with Postgres service container (already present) + `DATABASE_URL_APP` env.\n   - `migration-check` — `pnpm --filter @monopilot/db migrate` on a fresh DB, then `pnpm --filter @monopilot/db check:drift` (define this script if absent — wraps `pg_dump --schema-only` and diffs against committed expectation file `packages/db/__expected__/schema.sql`; if missing, generate it). The drift gate is required.\n   - `playwright` — `pnpm --filter @monopilot/web e2e` (run against a built Next.js — `pnpm --filter @monopilot/web build && pnpm --filter @monopilot/web start &` background + wait-on). Test matches `apps/web/e2e/**/*.spec.ts` (T-123 ensures the smoke test exists). HARD required.\n   - `storybook-build` — promote to hard required after T-071 lands; this task adds a `needs:` chain but keeps `continue-on-error: ${{ !steps.storybook-deps.outputs.installed }}` for now (gate becomes hard once T-071 closes).\n2. Add a `pr-labels` job using `github-pull-request-validator` or `actions/labeler` to require one of `feat|fix|chore|docs|refactor|test|ops|prd` and disallow `wip` for merge.\n3. Add `concurrency: { group: ci-${{ github.ref }}, cancel-in-progress: true }` so duplicate runs cancel.\n4. Add a Postgres `pg_isready` health check (already present) plus a `app_user` role provisioning step (use existing `pnpm --filter @monopilot/db setup:app-user` if present; otherwise add to the migrate flow).\n5. Add `RESTORE_DRILL_QUARTERLY` workflow file `.github/workflows/restore-drill.yml` (separate, scheduled cron `0 5 1 */3 *` = every 3 months) that runs T-120 `pnpm drill` against an ephemeral DB. This closes the §13 \"tested quarterly\" gate as automation, not just documentation.\n6. Add `pnpm -w typecheck` root script if missing (forwards to `pnpm -r typecheck`).\n7. Add `.github/workflows/ci.yml` tests via `act` or yamllint check (out-of-scope full simulation — but a `actionlint` check runs on the YAML file via a new `lint-workflows` job).\n\n## Files in scope\n- .github/workflows/ci.yml [modify — harden gates]\n- .github/workflows/restore-drill.yml [create]\n- package.json [modify — add scripts if missing: typecheck, drill]\n- packages/db/package.json [modify — add check:drift script if missing]\n- packages/db/__expected__/schema.sql [create — generated baseline]\n- pnpm-workspace.yaml [modify if needed for new packages]\n\n## Acceptance criteria\n1. Given a PR is opened that breaks typecheck, when CI runs, then typecheck job exits non-zero and PR cannot merge (no continue-on-error).\n2. Given a migration introduces unexpected schema drift, when check:drift runs, then exits non-zero with diff output and migration-check job fails.\n3. Given Playwright smoke spec present (T-123), when CI runs, then playwright job executes against built Next.js app and produces trace artifact uploaded via actions/upload-artifact.\n4. Given a PR is opened without an allowed label, when pr-labels job runs, then PR cannot merge until a label applied; AND Given the scheduled cron triggers, when restore-drill.yml executes quarterly, then invokes pnpm drill and JSON report uploaded as artifact.\n## Test strategy\n- RED: write `.github/workflows/__tests__/ci.test.ts` (vitest harness checking workflow YAML structure via `js-yaml`) before modifying; assert presence of hard gates and absence of `continue-on-error` on the required jobs. RED: `pnpm vitest run .github/workflows/__tests__/ci.test.ts`.\n- GREEN: rewrite the workflow YAML; add scripts; add restore-drill.yml.\n- Run: `pnpm vitest run .github/workflows/__tests__/ci.test.ts && actionlint .github/workflows/*.yml`.\n\n## Risk red lines\n- Do not set `continue-on-error: true` on the `typecheck`, `lint`, `vitest`, `migration-check`, or `playwright` jobs in this task.\n- Do not commit secrets — every env var added must be `secrets.NAME` in the workflow.\n- Do not skip the `app_user` provisioning — tests must run in app-role, never as superuser (PRD §5 RLS default).\n- Do not change CI base image without flagging it — the repo currently pins `ubuntu-latest` + `postgres:16-alpine`.\n- Do not add Storybook deploy here — that is the storybook quality gate task (separate).\n- Do not run the restore drill against production — `restore-drill.yml` must use an ephemeral DB only (the workflow injects an isolated `DRILL_DATABASE_URL`).",
+  "labels": [
+    "prd",
+    "ops",
+    "ci-cd",
+    "T4-wiring-test",
+    "p0-blocker"
+  ],
+  "priority": 90,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-122",
+    "source_prd": "docs/prd/00-FOUNDATION-PRD.md",
+    "prd_refs": [
+      "§5",
+      "§13"
+    ],
+    "category": "ops",
+    "subcategory": "ci-cd",
+    "task_type": "T4-wiring-test",
+    "parent_feature": "00-foundation-ci",
+    "context_budget": "30k",
+    "estimated_effort": "2-4h",
+    "description": "Harden .github/workflows/ci.yml — remove continue-on-error from typecheck/lint/vitest/migration-check/playwright; add migration-drift check; add PR-label gate; add concurrency cancel; create quarterly restore-drill cron workflow.",
+    "details": "Workspace-wide pnpm -r typecheck and pnpm -r lint. Migration check applies head + diffs against packages/db/__expected__/schema.sql. Playwright runs against built apps/web (build + start + wait-on). actionlint job validates workflow YAML. restore-drill.yml runs T-120 quarterly. Trace artifacts uploaded. concurrency cancels duplicate runs.\n\nAC count consolidated from 5→4 by Fixer F7 2026-05-14 (no coverage lost).",
+    "scope_files": [
+      ".github/workflows/ci.yml [modify]",
+      ".github/workflows/restore-drill.yml [create]",
+      "package.json [modify]",
+      "packages/db/package.json [modify]",
+      "packages/db/__expected__/schema.sql [create]",
+      "pnpm-workspace.yaml [modify if needed]"
+    ],
+    "out_of_scope": [
+      "Storybook deploy promotion (separate quality-gate task)",
+      "Deploy steps to Vercel/managed Supabase",
+      "Custom GitHub Apps integration"
+    ],
+    "dependencies": [
+      "T-120",
+      "T-123"
+    ],
+    "parallel_safe_with": [
+      "T-117",
+      "T-118",
+      "T-121",
+      "T-124"
+    ],
+    "acceptance_criteria": [
+      "Given a PR is opened that breaks typecheck, when CI runs, then typecheck job exits non-zero and PR cannot merge (no continue-on-error).",
+      "Given a migration introduces unexpected schema drift, when check:drift runs, then exits non-zero with diff output and migration-check job fails.",
+      "Given Playwright smoke spec present (T-123), when CI runs, then playwright job executes against built Next.js app and produces trace artifact uploaded via actions/upload-artifact.",
+      "Given a PR is opened without an allowed label, when pr-labels job runs, then PR cannot merge until a label applied; AND Given the scheduled cron triggers, when restore-drill.yml executes quarterly, then invokes pnpm drill and JSON report uploaded as artifact."
+    ],
+    "test_strategy": [
+      "RED: write .github/workflows/__tests__/ci.test.ts using js-yaml asserting hard gates + absence of continue-on-error on required jobs before modifying; RED: pnpm vitest run .github/workflows/__tests__/ci.test.ts.",
+      "GREEN: rewrite workflow YAML; add scripts; add restore-drill.yml.",
+      "Run: pnpm vitest run .github/workflows/__tests__/ci.test.ts && actionlint .github/workflows/*.yml."
+    ],
+    "risk_red_lines": [
+      "Do not set continue-on-error:true on typecheck/lint/vitest/migration-check/playwright in this task.",
+      "Do not commit secrets — every env var via secrets.NAME.",
+      "Do not skip app_user provisioning — tests run in app-role.",
+      "Do not change CI base image without flagging it.",
+      "Do not add Storybook deploy here — separate task.",
+      "Do not run restore drill against production — ephemeral DB only."
+    ],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "cross_module_dependencies": []
+  }
+}

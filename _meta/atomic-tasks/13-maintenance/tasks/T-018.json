@@ -1,0 +1,105 @@
+{
+  "title": "T-018 — UI: Maintenance Dashboard (MNT-001..006 KPIs, prototype parity, MNT §10.1)",
+  "prompt": "# T-018 — Maintenance Dashboard page UI\n\nPRD: docs/prd/13-MAINTENANCE-PRD.md §10.1 (6 P1 dashboards MNT-001..006), §10.3 cross-ref\nUX: prototypes/design/13-MAINTENANCE-UX.md:65-200 (dashboard region)\nPrototype: prototypes/design/Monopilot Design System/maintenance/dashboard.jsx:1-257 (maintenance_dashboard)\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nServer Component page `/maintenance` rendering 6 P1 dashboards inline + KPI grid + Today's MWO + PM compliance strip + Critical alerts + Active LOTO panel + MTBF sparkline (consumer of 15-OEE oee_shift_metrics).\n\n## Implementation contract\n1. `apps/web/app/maintenance/page.tsx` (RSC) calls parallel Drizzle queries: MWO counts by state, PM next-due, calibration overdue counts, spare reorder count, oee_shift_metrics MTBF (cross-module read; if 15-OEE table absent, render placeholder with empty-state banner per UI parity policy).\n2. Client component `dashboard-client.tsx` wraps SWR with refreshInterval 30000 ms (matches prototype Auto-refresh 30s comment).\n3. RBAC: Manager-only \"Create MWO\" / \"Add Asset\" / Onboarding card buttons; Operator-only visible KPIs read-only.\n4. Empty/loading/error/permission states for each card per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`.\n5. Use shadcn primitives only (Card, Badge, Table, Alert, Button) — no raw `<select>`, no Radix imports outside `packages/ui`.\n6. i18n keys from `apps/web/messages/maintenance.{pl,en}.json` (T-013) under `maintenance.dashboard.*`.\n\n## Prototype parity\nVerify all of these by RTL snapshot + structured parity checklist:\n- 8-KPI grid layout per prototype `kpi-grid-8` CSS — 4 cols on md, 8 on xl\n- Today's MWO table with priority+state badge columns\n- PM compliance strip (overdue count, due count, nearest-due table)\n- Critical alerts dismissible row with severity badges\n- Active LOTO panel (real-time SSE/polling indicator)\n- MTBF sparkline (Recharts BarChart in client component, data from oee_shift_metrics)\n- Onboarding card (Manager-only, RBAC server-side; step completion computed from DB state per translation notes §dashboard.jsx)\n- Cross-module bridge section (read-only: delayed production_wos, blocked quality_ccps) — placeholder if those tables absent\n\n## Files\n- apps/web/app/maintenance/page.tsx [create]\n- apps/web/app/maintenance/_components/dashboard-client.tsx [create]\n- apps/web/app/maintenance/_components/kpi-grid.tsx [create]\n- apps/web/app/maintenance/_components/mtbf-sparkline.tsx [create]\n- apps/web/app/maintenance/_components/__tests__/dashboard-client.test.tsx [create]\n- prototypes/design/Monopilot Design System/maintenance/dashboard.jsx [ref]\n\n## Acceptance criteria\n1. Given the production page renders, when compared to prototypes/design/Monopilot Design System/maintenance/dashboard.jsx:1-257, then it has the same 8-KPI grid + Today's MWO + PM compliance + Critical alerts + Active LOTO + MTBF sparkline + Cross-module bridge in same layout — verified by RTL snapshot + parity checklist (structural + visual + interaction).\n2. Given SWR refreshInterval=30000 has been mounted 31s, when network log inspected, then `/api/maintenance/dashboard` polled at ~30s.\n3. Given caller has no `mnt.mwo.request` perm, when page renders, then \"Submit Work Request\" button is hidden (RBAC server-side via Server Component).\n4. Given oee_shift_metrics has no rows for the org, when page renders, then MTBF sparkline shows empty-state with \"No OEE data yet — sourced from 15-OEE\" per UI parity empty-state policy.\n5. Given the task is closed out, when reviewers inspect evidence, then Playwright trace/artifacts demonstrating the dashboard interactive elements are attached per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`.\n\n## Test strategy\n- RED: RTL test asserting parity checklist + 30s SWR + RBAC + empty-state. Plus Playwright e2e capturing trace.\n- Run `pnpm --filter @monopilot/web vitest run apps/web/app/maintenance/_components/__tests__/dashboard-client.test.tsx`.\n- For UI parity, capture screenshots/Playwright artifacts in closeout.\n\n## Risk red lines\n- Do not paste prototype JSX verbatim — translate to shadcn primitives per `_meta/prototype-labels/translation-notes-maintenance.md` §Cross-Cutting Patterns.\n- Do not import @radix-ui/* outside packages/ui (Foundation ESLint rule).\n- Do not use raw HTML <select> — use shadcn Select.\n- Do not introduce websocket dependency — SSE acceptable for Active LOTO (deferred to T-025), polling acceptable on dashboard.\n- Do not bypass RBAC server-side — never trust client session for permission gates.\n- Do not omit empty/loading/error/permission states (UI parity policy mandates all four).",
+  "labels": [
+    "prd",
+    "ui",
+    "dashboard",
+    "T3-ui"
+  ],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-018",
+    "source_prd": "docs/prd/13-MAINTENANCE-PRD.md",
+    "prd_refs": [
+      "§10.1",
+      "§10.3"
+    ],
+    "category": "ui",
+    "subcategory": "dashboard-page",
+    "task_type": "T3-ui",
+    "parent_feature": "13-MAINTENANCE-c",
+    "context_budget": "60k",
+    "estimated_effort": "4-5h",
+    "description": "RSC + SWR client dashboard with 8-KPI grid + Today's MWO + PM compliance + Critical alerts + Active LOTO + MTBF sparkline. 1:1 parity with prototype dashboard.jsx.",
+    "details": "Parity checklist: 8-KPI grid (kpi-grid-8), Today's MWO table, PM compliance strip, Critical alerts dismissible, Active LOTO panel, MTBF sparkline (Recharts), Onboarding manager-only card, Cross-module bridge.\n\nUI closeout includes screenshot/Playwright trace/artifacts per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`. If Playwright unavailable, RTL snapshot + manual blocker note acceptable.",
+    "scope_files": [
+      "apps/web/app/maintenance/page.tsx [create]",
+      "apps/web/app/maintenance/_components/dashboard-client.tsx [create]",
+      "apps/web/app/maintenance/_components/kpi-grid.tsx [create]",
+      "apps/web/app/maintenance/_components/mtbf-sparkline.tsx [create]",
+      "apps/web/app/maintenance/_components/__tests__/dashboard-client.test.tsx [create]",
+      "prototypes/design/Monopilot Design System/maintenance/dashboard.jsx [ref]"
+    ],
+    "out_of_scope": [
+      "Asset list/detail (T-019, T-020)",
+      "MWO list/detail (T-021, T-022)",
+      "Analytics hub (T-026)",
+      "Settings page (T-027)"
+    ],
+    "dependencies": [
+      "T-001",
+      "T-002",
+      "T-004",
+      "T-008",
+      "T-013"
+    ],
+    "parallel_safe_with": [
+      "T-019",
+      "T-020",
+      "T-021"
+    ],
+    "acceptance_criteria": [
+      "Given the production page renders, when compared to prototypes/design/Monopilot Design System/maintenance/dashboard.jsx:1-257, then it has the same 8-KPI grid + Today's MWO + PM compliance + Critical alerts + Active LOTO + MTBF sparkline + Cross-module bridge in same layout — verified by RTL snapshot + parity checklist",
+      "Given SWR refreshInterval=30000 has been mounted 31s, when network log inspected, then /api/maintenance/dashboard polled at ~30s; given caller has no mnt.mwo.request perm, then Submit Work Request button is hidden (RBAC server-side)",
+      "Given oee_shift_metrics has no rows for the org, when page renders, then MTBF sparkline shows empty-state with 'No OEE data yet — sourced from 15-OEE'",
+      "Given the task is closed out, when reviewers inspect evidence, then Playwright trace/artifacts are attached per UI-PROTOTYPE-PARITY-POLICY.md"
+    ],
+    "test_strategy": [
+      "RED: RTL test asserting parity checklist + 30s SWR + RBAC + empty-state",
+      "Run `pnpm --filter @monopilot/web vitest run apps/web/app/maintenance/_components/__tests__/dashboard-client.test.tsx`",
+      "Capture Playwright trace/video/screenshots; attach paths in closeout"
+    ],
+    "risk_red_lines": [
+      "Do not paste prototype JSX verbatim — translate to shadcn",
+      "Do not import @radix-ui/* outside packages/ui",
+      "Do not use raw HTML <select> — shadcn Select required",
+      "Do not introduce websocket dependency — SSE/polling only",
+      "Do not bypass RBAC server-side",
+      "Do not omit empty/loading/error/permission states"
+    ],
+    "skills": [
+      "test-driven-development",
+      "frontend-design",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status",
+        "playwright_artifacts"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": true,
+    "prototype_index_entry": "maintenance_dashboard",
+    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md"
+  }
+}

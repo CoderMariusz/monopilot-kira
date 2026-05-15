@@ -1,0 +1,79 @@
+{
+  "title": "T-075 — rename POSTHOG_KEY → POSTHOG_API_KEY + .env.example (FT-015)",
+  "prompt": "# T-075 — rename POSTHOG_KEY → POSTHOG_API_KEY + .env.example (FT-015)\n\nPRD: `docs/prd/00-FOUNDATION-PRD.md` — sections: §5\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`\nOriginal carry-forward ID: **FT-015** (from `_meta/audits/2026-05-07-foundation-final-carry-forward-backlog.md`)\nSeverity: **P2** (XS effort)\n\n## Goal\nReplace all occurrences of POSTHOG_KEY with POSTHOG_API_KEY and add a regression test that scans for the old name.\n\n## Implementation contract\n1. Grep + replace POSTHOG_KEY → POSTHOG_API_KEY in apps/web and scripts.\n2. Document POSTHOG_API_KEY in apps/web/.env.example with a one-line comment.\n3. Unit test scans `apps/web/**/*.ts` and `apps/web/**/*.tsx` for `POSTHOG_KEY` (not `POSTHOG_API_KEY`); fails if any match.\n\n## Files (scope)\n- apps/web/.env.example [modify]\n- apps/web/app/api/flags/route.ts [modify]\n- scripts/__tests__/env-naming.test.ts [create]\n\n## Acceptance criteria\n1. Given the codebase, when grep runs for `\\bPOSTHOG_KEY\\b`, then zero matches.\n2. Given apps/web/.env.example, when read, then POSTHOG_API_KEY is present with a comment.\n3. Given the env-naming regression test, when run, then it passes.\n\n## Test strategy\n- RED: write env-naming.test.ts grepping for POSTHOG_KEY; should fail before rename.\n- Run `pnpm test env-naming`.\n\n## Risk red lines\n- Do not break the existing flags route during rename.\n- Do not commit a real PostHog key.\n\n## Closeout evidence\nProvide: changed_files, test_commands_and_results, acceptance_criteria_status (per AC), deviations_from_prd, git_status. Use the test-driven-development skill (RED-first) and requesting-code-review at GREEN.",
+  "labels": [
+    "prd",
+    "docs",
+    "wave-d-carry-forward",
+    "env-vars",
+    "T4-wiring-test"
+  ],
+  "priority": 50,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-075",
+    "source_prd": "docs/prd/00-FOUNDATION-PRD.md",
+    "prd_refs": [
+      "§5"
+    ],
+    "original_carry_forward_id": "FT-015",
+    "category": "docs",
+    "subcategory": "env-vars",
+    "task_type": "T4-wiring-test",
+    "parent_feature": "00-FOUNDATION-d",
+    "context_budget": "50k",
+    "estimated_effort": "≤1h",
+    "description": "Rename POSTHOG_KEY → POSTHOG_API_KEY across the codebase and document in apps/web/.env.example.",
+    "details": "Standardise on POSTHOG_API_KEY (matches PostHog official docs). Update both the route and the env example. Add a unit test that scans the repo for any remaining POSTHOG_KEY occurrence and fails.",
+    "scope_files": [
+      "apps/web/.env.example [modify]",
+      "apps/web/app/api/flags/route.ts [modify]",
+      "scripts/__tests__/env-naming.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not add the server-only marker here (FT-008)."
+    ],
+    "dependencies": [],
+    "parallel_safe_with": [],
+    "acceptance_criteria": [
+      "Given the codebase, when grep runs for `\\bPOSTHOG_KEY\\b`, then zero matches.",
+      "Given apps/web/.env.example, when read, then POSTHOG_API_KEY is present with a comment.",
+      "Given the env-naming regression test, when run, then it passes."
+    ],
+    "test_strategy": [
+      "RED: write env-naming.test.ts grepping for POSTHOG_KEY; should fail before rename.",
+      "Run `pnpm test env-naming`."
+    ],
+    "risk_red_lines": [
+      "Do not break the existing flags route during rename.",
+      "Do not commit a real PostHog key."
+    ],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

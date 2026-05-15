@@ -1,0 +1,121 @@
+{
+  "title": "T-024 — UI: P1 modals batch (RPT-014 error_log, RPT-015 refresh_confirm, RPT-017 delete_confirm, RPT-019 p2_toast, RPT-020 access_denied) (12-REPORTING §15.1a)",
+  "prompt": "# T-024 — P1 reporting modals batch\n\nPRD: docs/prd/12-REPORTING-PRD.md §15.1a RPT-014 / RPT-015 / RPT-017 / RPT-019 / RPT-020\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\nPrototypes:\n- RPT-014 error_log_modal: modals.jsx:306-329\n- RPT-015 refresh_confirm_modal: modals.jsx:381-400\n- RPT-017 delete_confirm_modal: modals.jsx:285-303\n- RPT-019 p2_toast_modal: modals.jsx:453-464\n- RPT-020 access_denied_modal: modals.jsx:467-481\n\n## Goal\nFive shadcn Dialog-based modal components for the P1 surface set. Each is a client component with controlled open/close + Server Action integration where applicable. BL-PROD-05 fix (btn-danger → Button variant='destructive') applied here.\n\n## Prototype parity (per modal)\n- **RPT-014 error_log** (read-only): export_id + dashboard + format + attempted_at + error_code + full error message in ScrollArea + 'Suggested Action' from export_error_codes ref table + Retry Export button (idempotency key).\n- **RPT-015 refresh_confirm**: non-destructive confirm; Server Action calls `app.refresh_reporting_mv(view_name)` (T-005); view name enum-bound; useTransition for pending; success toast (Sonner) with duration_ms.\n- **RPT-017 delete_confirm**: destructive variant; Button variant='destructive' (fixes BL-PROD-05); audit log INSERT on confirm (non-negotiable compliance); kind prop drives copy variant; on confirm cancels Trigger.dev job if kind='schedule'.\n- **RPT-019 p2_toast**: info dialog when P2 dashboard card clicked (RPT-HOME); body driven by dashboards_catalog.feature_flag; single CTA 'Got it'.\n- **RPT-020 access_denied**: inline action denied; logs `inline_denied` row to report_access_audits (distinct from middleware deny); single CTA 'Close'.\n\n## Implementation contract\n1. Each modal in `apps/web/components/reporting/modals/<name>-modal.tsx` ('use client') with controlled open prop + onClose callback.\n2. Use packages/ui shadcn Dialog (no @radix-ui/react-dialog import outside packages/ui per ESLint rule).\n3. RPT-015: Server Action `triggerMvRefresh(viewName)` returns `{duration_ms, status}`; uses T-005 helper; permission `rpt.mv.refresh`.\n4. RPT-017: Server Action `deleteEntity({kind, id})` performs soft-delete for scheduled_reports + recipient_groups, hard-delete for presets and unshared custom_reports; writes audit_log row.\n5. RPT-019: reads dashboard metadata from dashboards_catalog; CTA closes.\n6. RPT-020: writes report_access_audits row with action='inline_denied'.\n7. All labels via next-intl `reporting.modals.*`.\n8. RTL test per modal asserting: open/close + Server Action invocation + audit row written + destructive styling (Button variant='destructive') for delete.\n\n## Files\n- apps/web/components/reporting/modals/error-log-modal.tsx [create]\n- apps/web/components/reporting/modals/refresh-confirm-modal.tsx [create]\n- apps/web/components/reporting/modals/delete-confirm-modal.tsx [create]\n- apps/web/components/reporting/modals/p2-toast-modal.tsx [create]\n- apps/web/components/reporting/modals/access-denied-modal.tsx [create]\n- packages/reporting/src/actions/trigger-mv-refresh.ts [create]\n- packages/reporting/src/actions/delete-entity.ts [create]\n- apps/web/components/reporting/modals/__tests__/*.test.tsx [create per modal]\n- apps/web/messages/{en,pl}/reporting-modals.json [create]\n\n## Acceptance criteria\n1. Given each modal renders, when compared to its prototype line range, then visual + structural parity verified by RTL snapshot + Playwright per modal (5 separate parity checks).\n2. Given delete_confirm fires onConfirm, when Server Action runs, then audit_log row is INSERTed AND (for kind='schedule') any pending Trigger.dev job is cancelled.\n3. Given delete_confirm renders, when Button is inspected, then `Button variant='destructive'` is used (fixes BL-PROD-05; never `btn-danger` CSS class).\n4. Given refresh_confirm fires onConfirm with viewName='mv_yield_by_line_week', when Server Action runs, then it calls `app.refresh_reporting_mv` (T-005 helper) and returns duration_ms; pending state disables both buttons via useTransition.\n5. Given refresh_confirm is invoked with viewName='evil_sql', when validated, then it rejects at type level (enum) AND at runtime (helper rejects unknown name) — defense in depth.\n6. Given access_denied modal is shown, when Close is clicked, then a report_access_audits row with action='inline_denied' is written.\n7. UI parity for all 5 modals + next-intl wrapping verified.\n\n## Test strategy (RED first)\n- RED: 5 RTL test files asserting parity + Server Action invocation + audit row writes + destructive styling.\n- Playwright parity for each modal triggered from a parent page (use RPT-EXPORTS / RPT-SETTINGS / RPT-HOME as triggers).\n- Run `pnpm --filter @monopilot/web test reporting/modals && pnpm --filter @monopilot/web playwright test reporting-modals`.\n- GREEN: build 5 modals + 2 Server Actions.\n\n## Risk red lines\n- Do not bypass packages/ui shadcn Dialog — direct radix import forbidden (ESLint rule §0).\n- Do not skip audit_log INSERT in delete confirm — compliance non-negotiable.\n- Do not use `btn-danger` class — fix BL-PROD-05 by using Button variant='destructive'.\n- Do not let refresh confirm accept arbitrary view name — enum-bound, defense in depth.\n- Do not skip next-intl wrapping.\n- Do not skip Playwright parity per modal.\n- Do not allow P2 modal CTA to navigate anywhere — close only (per RPT-019 spec).",
+  "labels": [
+    "prd",
+    "ui",
+    "modals",
+    "T3-ui"
+  ],
+  "priority": 85,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-024",
+    "source_prd": "docs/prd/12-REPORTING-PRD.md",
+    "prd_refs": [
+      "§15.1a RPT-014",
+      "§15.1a RPT-015",
+      "§15.1a RPT-017",
+      "§15.1a RPT-019",
+      "§15.1a RPT-020"
+    ],
+    "category": "ui",
+    "subcategory": "modals-batch",
+    "task_type": "T3-ui",
+    "parent_feature": "12-REPORTING-e",
+    "context_budget": "55k",
+    "estimated_effort": "4-6h",
+    "description": "Five P1 reporting modals: error_log, refresh_confirm, delete_confirm, p2_toast, access_denied. BL-PROD-05 fix included. Two Server Actions wired.",
+    "details": "Each modal renders via packages/ui shadcn Dialog. Delete writes audit_log + cancels Trigger.dev job if schedule. Refresh uses T-005 enum-bound helper. Access-denied writes inline_denied audit.",
+    "scope_files": [
+      "apps/web/components/reporting/modals/error-log-modal.tsx [create]",
+      "apps/web/components/reporting/modals/refresh-confirm-modal.tsx [create]",
+      "apps/web/components/reporting/modals/delete-confirm-modal.tsx [create]",
+      "apps/web/components/reporting/modals/p2-toast-modal.tsx [create]",
+      "apps/web/components/reporting/modals/access-denied-modal.tsx [create]",
+      "packages/reporting/src/actions/trigger-mv-refresh.ts [create]",
+      "packages/reporting/src/actions/delete-entity.ts [create]",
+      "apps/web/components/reporting/modals/__tests__/error-log-modal.test.tsx [create]",
+      "apps/web/components/reporting/modals/__tests__/refresh-confirm-modal.test.tsx [create]",
+      "apps/web/components/reporting/modals/__tests__/delete-confirm-modal.test.tsx [create]",
+      "apps/web/components/reporting/modals/__tests__/p2-toast-modal.test.tsx [create]",
+      "apps/web/components/reporting/modals/__tests__/access-denied-modal.test.tsx [create]",
+      "apps/web/messages/en/reporting-modals.json [create]",
+      "apps/web/messages/pl/reporting-modals.json [create]",
+      "prototypes/design/Monopilot Design System/reporting/modals.jsx [ref]"
+    ],
+    "out_of_scope": [
+      "Do not implement RPT-011 share / RPT-018 save_preset / export_report modals (T-026)",
+      "Do not implement RPT-012 regulatory_signoff (P2)",
+      "Do not implement RPT-013 recipient_group (P2)",
+      "Do not implement RPT-016 run_now_confirm (P2)"
+    ],
+    "dependencies": [
+      "T-001",
+      "T-004",
+      "T-005",
+      "T-009"
+    ],
+    "parallel_safe_with": [
+      "T-023",
+      "T-025",
+      "T-026"
+    ],
+    "cross_module_dependencies": [
+      "packages/ui shadcn Dialog primitive",
+      "02-SETTINGS audit_log table",
+      "02-SETTINGS i18n next-intl"
+    ],
+    "acceptance_criteria": [
+      "Given the production implementation is reviewed for parity, when compared to prototypes/design/Monopilot Design System/reporting/modals.jsx:306-329; prototypes/design/Monopilot Design System/reporting/modals.jsx:381-400; prototypes/design/Monopilot Design System/reporting/modals.jsx:285-303; prototypes/design/Monopilot Design System/reporting/modals.jsx:453-464; prototypes/design/Monopilot Design System/reporting/modals.jsx:467-481, then visual structure, shadcn primitives, interaction states, and Tailwind tokens match; Playwright trace + screenshot artifacts attached per _meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md (error_log_modal + refresh_confirm_modal + delete_confirm_modal + p2_toast_modal + access_denied_modal).",
+      "Given each modal renders, when compared to its prototype line range, then visual + structural parity verified by RTL snapshot + Playwright per modal (5 separate parity checks)",
+      "Given delete_confirm fires onConfirm, when Server Action runs, then audit_log row is INSERTed AND (for kind='schedule') any pending Trigger.dev job is cancelled",
+      "Given the page/modal is exercised end-to-end, when closeout criteria are verified, then empty/loading/error/permission states are rendered per UI parity policy with Playwright trace + screenshot artifacts attached; all visible strings route through next-intl keys (no hardcoded labels)."
+    ],
+    "test_strategy": [
+      "RED: 5 RTL test files asserting parity + Server Action invocation + audit row writes + destructive styling",
+      "Playwright parity for each modal triggered from a parent page",
+      "Run `pnpm --filter @monopilot/web test reporting/modals && pnpm --filter @monopilot/web playwright test reporting-modals`",
+      "Attach Playwright traces + screenshots per modal in closeout"
+    ],
+    "risk_red_lines": [
+      "Do not bypass packages/ui shadcn Dialog — direct radix import forbidden (ESLint §0)",
+      "Do not skip audit_log INSERT in delete confirm — compliance non-negotiable",
+      "Do not use btn-danger class — fix BL-PROD-05 by using Button variant='destructive'",
+      "Do not let refresh confirm accept arbitrary view name — enum-bound, defense in depth",
+      "Do not skip next-intl wrapping",
+      "Do not skip Playwright parity per modal",
+      "Do not allow P2 modal CTA to navigate anywhere — close only (RPT-019)"
+    ],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": true,
+    "prototype_index_entry": "error_log_modal + refresh_confirm_modal + delete_confirm_modal + p2_toast_modal + access_denied_modal",
+    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md"
+  }
+}

@@ -1,0 +1,105 @@
+{
+  "title": "T-007 — mv_inventory_aging + mv_wo_status_summary + mv_shipment_otd_weekly MVs DDL (12-REPORTING §9.1)",
+  "prompt": "# T-007 — Operational MVs (Inventory Aging + WO Status + Shipment OTD)\n\nPRD: docs/prd/12-REPORTING-PRD.md §9.1 (MV definitions), §4.1 (Inventory Aging #6, WO Status #7, Shipment OTD #8 P1 musts)\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nCreate the 3 operational dashboards' source MVs. Each is org-scoped + site_id REC-L1 + unique-indexed + service-helper-gated. Consumers of 05-WAREHOUSE (license_plates), 08-PRODUCTION (work_orders + wo_executions), 11-SHIPPING (shipments + sales_orders) source tables. 11-SHIPPING module has zero atomic tasks today — guard with `IF EXISTS` check or stub-table pattern so this migration is decoupled and can be applied before shipping decomposition lands.\n\n## Implementation contract\n1. Migration `packages/db/migrations/0084_reporting_mv_operational.sql`:\n   - `mv_inventory_aging (org_id, site_id, warehouse_id, product_id, age_bucket, lp_count, total_kg, oldest_expiry)` — from 05-WH license_plates with computed `age_bucket = CASE WHEN now()-received_at < '7 days' THEN '0_7d' WHEN < '14d' '7_14d' WHEN < '30d' '14_30d' ELSE 'gt_30d' END`.\n   - `mv_wo_status_summary (org_id, site_id, line_id, status, wo_count, wip_count, avg_duration_min)` — from 08-PROD work_orders + wo_executions.\n   - `mv_shipment_otd_weekly (org_id, site_id, customer_id, week_ending, otd_pct, fulfillment_rate, avg_pack_min)` — from 11-SHIP shipments + sales_orders; guard with `IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name='shipments')` — if 11-SHIP tables absent, create MV with an empty placeholder query and log a deferred-source warning (record the deferral in mv_refresh_log row with status='deferred_source_missing').\n   - Unique indexes on each MV.\n   - REVOKE PUBLIC + GRANT app_reporting_role.\n2. Drizzle entries in `packages/db/src/schema/reporting-views.ts`.\n3. Service helpers per MV in `packages/reporting/src/queries/{inventory-aging,wo-status,shipment-otd}.ts` with org+site guardrail.\n4. Register view names in `packages/reporting/src/mv-registry.ts` enum.\n5. Vitest contract test for each MV: (a) declared columns + unique idx exist, (b) cross-org leak test, (c) age_bucket logic verified with seeded LP rows, (d) shipment MV gracefully degrades when 11-SHIP tables absent (deferred_source_missing path).\n\n## Files\n- packages/db/migrations/0084_reporting_mv_operational.sql [create]\n- packages/db/src/schema/reporting-views.ts [modify]\n- packages/reporting/src/queries/inventory-aging.ts [create]\n- packages/reporting/src/queries/wo-status.ts [create]\n- packages/reporting/src/queries/shipment-otd.ts [create]\n- packages/reporting/src/mv-registry.ts [modify]\n- packages/reporting/__tests__/mv-operational.test.ts [create]\n\n## Acceptance criteria\n1. Given migration 0084 runs in DB with 05-WH + 08-PROD source tables present (11-SHIP absent), when MVs are inspected, then mv_inventory_aging + mv_wo_status_summary populate; mv_shipment_otd_weekly is created but populated with the deferred-source-placeholder rowset (zero rows) + a deferred warning row in mv_refresh_log.\n2. Given 11-SHIP tables become available later, when migration is re-runnable as idempotent forward script (or a follow-up migration is applied), then mv_shipment_otd_weekly populates normally without manual intervention; deferred_source_missing flag clears.\n3. Given LP rows with received_at 3 days ago and 20 days ago, when mv_inventory_aging is refreshed, then age_bucket reflects '0_7d' and '14_30d' respectively.\n4. Given two orgs have seeded LPs / WOs / shipments, when service helpers query under each org session, then cross-org leak test passes.\n5. Given each MV has a unique index, when refresh worker (T-005) is invoked, then REFRESH MATERIALIZED VIEW CONCURRENTLY succeeds on all three.\n\n## Test strategy (RED first)\n- RED: `packages/reporting/__tests__/mv-operational.test.ts` covers all 5 ACs; uses testcontainers Postgres + scenarios with and without 11-SHIP tables.\n- Run `pnpm --filter @monopilot/reporting test mv-operational`.\n- GREEN: write migration with IF EXISTS guard + Drizzle + helpers + enum.\n\n## Risk red lines\n- Do not let shipment MV migration fail when 11-SHIP module is absent — IF EXISTS guard + deferred-source path (11-SHIPPING is 0-tasks today per Auditor A).\n- Do not skip the LP age_bucket computation server-side; do not derive it client-side (cross-row leak + perf risk).\n- Do not skip unique index per MV.\n- Do not GRANT to PUBLIC; app_reporting_role only.\n- Do not bypass app.current_org_id() function in service helpers.\n- Do not introduce 11-SHIP schema changes here — that is 11-SHIPPING module's job; this task is consumer-side only.",
+  "labels": [
+    "prd",
+    "data",
+    "schema",
+    "T1-schema"
+  ],
+  "priority": 70,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-007",
+    "source_prd": "docs/prd/12-REPORTING-PRD.md",
+    "prd_refs": [
+      "§9.1",
+      "§4.1"
+    ],
+    "category": "data",
+    "subcategory": "materialized-view",
+    "task_type": "T1-schema",
+    "parent_feature": "12-REPORTING-c",
+    "context_budget": "45k",
+    "estimated_effort": "3-4h",
+    "description": "Inventory Aging + WO Status + Shipment OTD MVs with consumer-pattern guards; shipment MV degrades gracefully when 11-SHIP tables absent.",
+    "details": "Consumer of 05-WH license_plates, 08-PROD work_orders + wo_executions, 11-SHIP shipments + sales_orders. age_bucket logic server-side. IF EXISTS guard for 11-SHIP path (module has 0 atomic tasks at this writing). Register in mv-registry enum.",
+    "scope_files": [
+      "packages/db/migrations/0084_reporting_mv_operational.sql [create]",
+      "packages/db/src/schema/reporting-views.ts [modify]",
+      "packages/reporting/src/queries/inventory-aging.ts [create]",
+      "packages/reporting/src/queries/wo-status.ts [create]",
+      "packages/reporting/src/queries/shipment-otd.ts [create]",
+      "packages/reporting/src/mv-registry.ts [modify]",
+      "packages/reporting/__tests__/mv-operational.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not implement Inventory Aging / WO Status / Shipment OTD dashboard UIs here (T-020, T-021, T-022)",
+      "Do not introduce 11-SHIP schema here",
+      "Do not implement archive cron for cold storage"
+    ],
+    "dependencies": [
+      "T-003",
+      "T-005"
+    ],
+    "parallel_safe_with": [
+      "T-006",
+      "T-008",
+      "T-011",
+      "T-014"
+    ],
+    "cross_module_dependencies": [
+      "05-WAREHOUSE license_plates table (source)",
+      "08-PRODUCTION work_orders + wo_executions tables (source)",
+      "11-SHIPPING shipments + sales_orders tables (source — 0 atomic tasks today, IF EXISTS guard required)",
+      "00-FOUNDATION T-125 app.current_org_id()"
+    ],
+    "acceptance_criteria": [
+      "Given migration 0084 runs with 05-WH + 08-PROD tables present and 11-SHIP absent, when MVs are inspected, then mv_inventory_aging + mv_wo_status_summary populate; mv_shipment_otd_weekly is created with zero rows + a deferred_source_missing entry in mv_refresh_log",
+      "Given LP rows with received_at 3 days ago and 20 days ago, when mv_inventory_aging is refreshed, then age_bucket reflects 0_7d and 14_30d respectively",
+      "Given two orgs have seeded LPs / WOs / shipments, when service helpers query under each org session, then cross-org leak test passes",
+      "Given infrastructure and compliance are checked, when verified, then mv_shipment_otd_weekly populates normally without manual intervention and REFRESH MATERIALIZED VIEW CONCURRENTLY succeeds on all three."
+    ],
+    "test_strategy": [
+      "RED: packages/reporting/__tests__/mv-operational.test.ts covers 5 ACs; scenarios with and without 11-SHIP tables",
+      "Run `pnpm --filter @monopilot/reporting test mv-operational`",
+      "GREEN: write migration with IF EXISTS guard + Drizzle + helpers + enum"
+    ],
+    "risk_red_lines": [
+      "Do not fail migration when 11-SHIP module is absent — IF EXISTS guard + deferred-source path",
+      "Do not derive age_bucket client-side — must be server-side computed column",
+      "Do not skip unique index per MV (REFRESH CONCURRENTLY prerequisite)",
+      "Do not GRANT to PUBLIC; app_reporting_role only",
+      "Do not bypass app.current_org_id() in service helpers",
+      "Do not introduce 11-SHIP schema changes — consumer-side only"
+    ],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": false
+  }
+}

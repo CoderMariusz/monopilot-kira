@@ -1,0 +1,94 @@
+{
+  "title": "T-007 — Register 6 P1 DSL rules in 02-Settings rules registry (MNT §8.1)",
+  "prompt": "# T-007 — Register maintenance DSL rules\n\nPRD: docs/prd/13-MAINTENANCE-PRD.md §8.1, §8.2 (mwo_state_machine_v1 definition), §11.1-§11.6 (V-MNT validations)\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nRegister the 6 P1-active maintenance DSL rules into the 02-Settings rules registry (`rule_definitions` table from Foundation T-018/T-035) so they can be enabled/disabled per tenant. The `oee_maintenance_trigger_v1` rule (P2) is registered as `status='P2_stub'` (consumer-only stub).\n\n## Pre-flight\nVerify `rule_definitions` schema exists in `packages/db/src/schema/settings/rules.ts` (Foundation T-018 / 02-Settings §7); read its column shape (rule_id, rule_type, definition_yaml, status, active, owner_module).\n\n## Implementation contract\n1. Seed migration `packages/db/migrations/NNNN_maintenance_rules_seed.sql` INSERTing 7 rows into `rule_definitions` (6 P1 active + 1 P2 stub):\n   - `mwo_state_machine_v1` (workflow_as_data, status=P1_active) — paste the §8.2 YAML verbatim into `definition_yaml`.\n   - `pm_schedule_due_engine_v1` (cascading, P1_active).\n   - `calibration_expiry_alert_v1` (cascading, P1_active).\n   - `spare_parts_reorder_alert_v1` (gate, P1_active).\n   - `sanitation_allergen_gate_v1` (gate, P1_active).\n   - `loto_pre_execution_gate_v1` (gate, P1_active).\n   - `oee_maintenance_trigger_v1` (gate+workflow, status=P2_stub, owner_module='15-OEE', consumer_module='13-MAINTENANCE').\n2. Each rule row carries `org_id = NULL` (system-level rule) per Foundation rule registry convention; tenant enable/disable is via `tenant_rule_overrides` (out of scope).\n3. Migration must be idempotent: `ON CONFLICT (rule_id) DO NOTHING` (rules already registered by other modules' migrations).\n4. Vitest: query `rule_definitions` after migration; assert presence of all 7 rule_ids with correct status; assert `mwo_state_machine_v1.definition_yaml` parses as YAML and contains the 6 states + guards.\n\n## Files\n- packages/db/migrations/NNNN_maintenance_rules_seed.sql [create]\n- packages/db/__tests__/maintenance-rules-seed.test.ts [create]\n\n## Acceptance criteria\n1. Given migration runs, when SELECT FROM rule_definitions WHERE rule_id LIKE 'mwo_%' OR rule_id IN (…6 maintenance rules…), then 7 rows are present with correct rule_type/status/owner_module per §8.1.\n2. Given `mwo_state_machine_v1.definition_yaml` is read, when parsed as YAML, then it contains states `requested`, `approved`, `open`, `in_progress`, `completed`, `cancelled` with allowed_from/allowed_to/guards arrays matching §8.2.\n3. Given migration is re-applied to a populated DB, when executed, then `ON CONFLICT DO NOTHING` causes no error and no row changes.\n4. Given `oee_maintenance_trigger_v1` row, when inspected, then `status='P2_stub'` and `owner_module='15-OEE'` and `consumer_module='13-MAINTENANCE'`.\n\n## Test strategy\n- RED: maintenance-rules-seed.test.ts asserting four ACs before migration exists.\n- Run `pnpm --filter db migrate && pnpm --filter db test maintenance-rules-seed`.\n\n## Risk red lines\n- Do not invent new columns in `rule_definitions` — use the columns Foundation T-018/02-Settings §7 already defines.\n- Do not enable `oee_maintenance_trigger_v1` for P1 — it is feature-flagged (`maintenance_triggers_enabled` default false per D-MNT-11).\n- Do not paraphrase the §8.2 YAML — paste verbatim; the rule engine T-035 parses it.\n- Do not seed tenant-level overrides — that is a Settings task.",
+  "labels": [
+    "prd",
+    "data",
+    "rules-dsl",
+    "T5-seed"
+  ],
+  "priority": 50,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-007",
+    "source_prd": "docs/prd/13-MAINTENANCE-PRD.md",
+    "prd_refs": [
+      "§8.1",
+      "§8.2"
+    ],
+    "category": "data",
+    "subcategory": "rules-registry-seed",
+    "task_type": "T5-seed",
+    "parent_feature": "13-MAINTENANCE-a",
+    "context_budget": "35k",
+    "estimated_effort": "1-2h",
+    "description": "Seed 6 P1-active + 1 P2-stub maintenance DSL rules into rule_definitions registry per PRD §8.1.",
+    "details": "Idempotent ON CONFLICT seed. YAML of mwo_state_machine_v1 pasted verbatim from §8.2. Cross-module note: oee_maintenance_trigger_v1 owner=15-OEE, consumer=13-MAINTENANCE — actual rule engine evaluation lives in 15-OEE later. loto_pre_execution_gate_v1 and calibration_expiry_alert_v1 rules consume e-sign primitive T-124 at execution time — signEvent/dualSign with replay nonce + paired audit (retention='security').",
+    "scope_files": [
+      "packages/db/migrations/NNNN_maintenance_rules_seed.sql [create]",
+      "packages/db/__tests__/maintenance-rules-seed.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Rule engine evaluation code (Foundation T-035)",
+      "Tenant override seed (02-Settings)",
+      "PM cron job implementation (T-009)",
+      "Calibration alert cron (T-009 or T-012)"
+    ],
+    "cross_module_dependencies": [
+      "00-foundation/T-124"
+    ],
+    "dependencies": [
+      "T-002",
+      "T-003",
+      "T-004"
+    ],
+    "parallel_safe_with": [
+      "T-005",
+      "T-006"
+    ],
+    "acceptance_criteria": [
+      "Given migration runs, when SELECT FROM rule_definitions for maintenance rules, then 7 rows are present with correct rule_type/status/owner_module per §8.1",
+      "Given mwo_state_machine_v1.definition_yaml is parsed, when inspected, then it contains 6 states with allowed_from/allowed_to/guards matching §8.2",
+      "Given migration is re-applied, when executed, then ON CONFLICT DO NOTHING causes no error",
+      "Given oee_maintenance_trigger_v1 row, when inspected, then status='P2_stub' and owner_module='15-OEE' and consumer_module='13-MAINTENANCE'"
+    ],
+    "test_strategy": [
+      "RED: maintenance-rules-seed.test.ts asserting four ACs",
+      "Run `pnpm --filter db migrate && pnpm --filter db test maintenance-rules-seed`"
+    ],
+    "risk_red_lines": [
+      "Do not invent new columns in rule_definitions",
+      "Do not enable oee_maintenance_trigger_v1 for P1",
+      "Do not paraphrase §8.2 YAML — paste verbatim",
+      "Do not seed tenant overrides here"
+    ],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": false
+  }
+}

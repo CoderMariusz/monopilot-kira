@@ -1,0 +1,79 @@
+{
+  "title": "T-069 — verify organizations.industry_code CHECK accepts 'generic' (FT-009)",
+  "prompt": "# T-069 — verify organizations.industry_code CHECK accepts 'generic' (FT-009)\n\nPRD: `docs/prd/00-FOUNDATION-PRD.md` — sections: §4.3\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`\nOriginal carry-forward ID: **FT-009** (from `_meta/audits/2026-05-07-foundation-final-carry-forward-backlog.md`)\nSeverity: **P2** (XS effort)\n\n## Goal\nIdempotently ensure 'generic' is in the organizations.industry_code CHECK whitelist and add a regression test.\n\n## Implementation contract\n1. Migration 027 inspects pg_constraint; if 'generic' is missing, ALTER TABLE drops and recreates the check.\n2. Test inserts an organization row with industry_code='generic' and asserts success.\n\n## Files (scope)\n- packages/db/__tests__/industry-code-generic.test.ts [create]\n- packages/db/migrations/027-industry-code-generic-verify.sql [create]\n\n## Acceptance criteria\n1. Given migration 027 applied, when an org is inserted with industry_code='generic', then insert succeeds.\n2. Given migration 027 is re-run, when applied to a DB that already has 'generic' in the check, then it is a no-op (idempotent).\n\n## Test strategy\n- RED: write industry-code-generic.test.ts inserting industry_code='generic'; should fail before migration 027 if 'generic' was missing.\n- Run `pnpm --filter @monopilot/db migrate && pnpm --filter @monopilot/db test industry-code-generic`.\n\n## Risk red lines\n- Do not drop the check entirely.\n- Do not break existing industry_code values.\n\n## Closeout evidence\nProvide: changed_files, test_commands_and_results, acceptance_criteria_status (per AC), deviations_from_prd, git_status. Use the test-driven-development skill (RED-first) and requesting-code-review at GREEN.",
+  "labels": [
+    "prd",
+    "data",
+    "wave-d-carry-forward",
+    "wave-d-followup",
+    "constraints",
+    "T1-schema"
+  ],
+  "priority": 50,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-069",
+    "source_prd": "docs/prd/00-FOUNDATION-PRD.md",
+    "prd_refs": [
+      "§4.3"
+    ],
+    "original_carry_forward_id": "FT-009",
+    "category": "data",
+    "subcategory": "constraints",
+    "task_type": "T1-schema",
+    "parent_feature": "00-FOUNDATION-d",
+    "context_budget": "50k",
+    "estimated_effort": "≤1h",
+    "description": "Verify (and if missing, add) 'generic' to the organizations.industry_code CHECK whitelist.",
+    "details": "T-014 introduced industry_code with a CHECK constraint enumerating supported codes. The seed planner assumes `'generic'` is in the whitelist; this task verifies and, if absent, idempotently adds it via migration 027.",
+    "scope_files": [
+      "packages/db/__tests__/industry-code-generic.test.ts [create]",
+      "packages/db/migrations/027-industry-code-generic-verify.sql [create]"
+    ],
+    "out_of_scope": [
+      "Do not add other industry codes in this task."
+    ],
+    "dependencies": [],
+    "parallel_safe_with": [],
+    "acceptance_criteria": [
+      "Given migration 027 applied, when an org is inserted with industry_code='generic', then insert succeeds.",
+      "Given migration 027 is re-run, when applied to a DB that already has 'generic' in the check, then it is a no-op (idempotent)."
+    ],
+    "test_strategy": [
+      "RED: write industry-code-generic.test.ts inserting industry_code='generic'; should fail before migration 027 if 'generic' was missing.",
+      "Run `pnpm --filter @monopilot/db migrate && pnpm --filter @monopilot/db test industry-code-generic`."
+    ],
+    "risk_red_lines": [
+      "Do not drop the check entirely.",
+      "Do not break existing industry_code values."
+    ],
+    "skills": [
+      "test-driven-development",
+      "systematic-debugging",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

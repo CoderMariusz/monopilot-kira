@@ -1,0 +1,95 @@
+{
+  "title": "T-007 — oee_daily_summary materialized view + 15-min refresh (OEE §9.2, §9.5)",
+  "prompt": "# T-007 — oee_daily_summary materialized view\n\nPRD: docs/prd/15-OEE-PRD.md §9.2 (`oee_daily_summary` DDL verbatim), §9.5 (refresh cron), §11 V-OEE-AGG-5\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nCreate `oee_daily_summary` MATERIALIZED VIEW per PRD §9.2 verbatim (90-day rolling window, A/P/Q/OEE averages, best/worst shift correlated sub-selects against `oee_shift_metrics`). Register the every-15-min CONCURRENTLY refresh per §9.5 as a Wave1 worker job (T-111 outbox+worker primitive owns scheduling) — NOT `pg_cron`. This task only DEFINES the job; T-009 registers it.\n\n## Pre-flight schema check\nRead `packages/db/migrations/` for: latest migration number; `oee_snapshots` (08-PROD) and `oee_shift_metrics` (T-006) present.\n\n## Implementation contract\n1. Migration `packages/db/migrations/NNNN_oee_b_daily_summary_mv.sql`:\n   - `CREATE MATERIALIZED VIEW oee_daily_summary AS` (per §9.2 SELECT verbatim, 90-day WHERE filter, GROUP BY (org_id, site_id, line_id, date)).\n   - Correlated sub-selects for `best_shift_id` / `worst_shift_id` against `oee_shift_metrics`.\n   - `CREATE UNIQUE INDEX idx_oee_daily_pk ON oee_daily_summary(org_id, site_id, line_id, date)`.\n   - `CREATE INDEX idx_oee_daily_date ON oee_daily_summary(date DESC)`.\n2. Map PRD's `tenant_id` literal in §9.2 DDL to `org_id` per Wave0 v4.3.\n3. Drizzle schema `packages/db/src/schema/oee/daily-summary.ts` (read-only).\n4. Vitest: (a) MV exists with §9.2 column shape, (b) CONCURRENTLY refresh succeeds, (c) RLS isolation propagates from oee_snapshots, (d) best/worst sub-selects return shift_id that maximises/minimises oee_pct in oee_shift_metrics for the (org, line, date) triple.\n\n## Files\n- packages/db/migrations/NNNN_oee_b_daily_summary_mv.sql [create]\n- packages/db/src/schema/oee/daily-summary.ts [create]\n- packages/db/src/schema/index.ts [modify]\n- packages/db/__tests__/oee-b-daily-summary-mv.test.ts [create]\n\n## Acceptance criteria\n1. Given migration runs, when `\\d+ oee_daily_summary` is read, then it is a MATERIALIZED VIEW with §9.2 column shape (A/P/Q/OEE averages, best_oee_pct, worst_oee_pct, totals, snapshot_count, best_shift_id, worst_shift_id) and idx_oee_daily_pk UNIQUE + idx_oee_daily_date indexes exist.\n2. Given the UNIQUE index exists, when `REFRESH MATERIALIZED VIEW CONCURRENTLY oee_daily_summary` runs, then it succeeds without locking readers (V-OEE-AGG-5).\n3. Given two orgs and `app.set_org_context`, when SELECT FROM oee_daily_summary runs in each session, then RLS isolation holds (propagates from oee_snapshots).\n4. Given seeded shift_metrics rows with known best/worst oee_pct per (org, line, date), when oee_daily_summary is refreshed and queried, then best_shift_id and worst_shift_id match expectation.\n\n## Test strategy\n- RED: vitest oee-b-daily-summary-mv asserting four ACs.\n- Run `pnpm --filter db migrate && pnpm --filter db test oee-b-daily-summary-mv`.\n\n## Risk red lines\n- Do not register pg_cron in this task — §9.5 lists pg_cron as illustrative; production uses Wave1 T-111 worker. T-009 owns scheduling.\n- Do not refresh non-CONCURRENTLY in production (V-OEE-AGG-5).\n- Do not write to oee_snapshots from 15-OEE.\n- Do not name business column tenant_id; use org_id.\n- Do not skip the 90-day rolling WHERE filter — uncapped scan kills performance.",
+  "labels": [
+    "prd",
+    "data",
+    "mv",
+    "T1-schema"
+  ],
+  "priority": 60,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-007",
+    "source_prd": "docs/prd/15-OEE-PRD.md",
+    "prd_refs": [
+      "§9.2",
+      "§9.5",
+      "§11"
+    ],
+    "category": "data",
+    "subcategory": "mv-daily-summary",
+    "task_type": "T1-schema",
+    "parent_feature": "15-OEE-b",
+    "context_budget": "45k",
+    "estimated_effort": "2-3h",
+    "description": "Create oee_daily_summary MV per §9.2 verbatim with 90-day rolling window + best/worst shift correlated sub-selects + CONCURRENTLY refresh + RLS propagation tests.",
+    "details": "Consumes oee_snapshots + oee_shift_metrics. Drives OEE-003 daily summary dashboard (T-016) and OEE-001a/b/c factor drilldowns (T-017). Refresh cadence: 15 min per §9.5; T-009 registers the apps/worker job (NOT pg_cron — Wave1 R1 contract). Best/worst shift use correlated sub-selects per §9.2 verbatim.",
+    "scope_files": [
+      "packages/db/migrations/NNNN_oee_b_daily_summary_mv.sql [create]",
+      "packages/db/src/schema/oee/daily-summary.ts [create]",
+      "packages/db/src/schema/index.ts [modify]",
+      "packages/db/__tests__/oee-b-daily-summary-mv.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Cron / worker registration (T-009)",
+      "shift_aggregator_v1 (T-008)",
+      "API layer (T-010..T-013)",
+      "Anomaly state table oee_ewma_state (T-023 stub)"
+    ],
+    "dependencies": [
+      "T-002",
+      "T-006"
+    ],
+    "parallel_safe_with": [
+      "T-006",
+      "T-008"
+    ],
+    "acceptance_criteria": [
+      "Given migration runs, when \\d+ oee_daily_summary is read, then it is a MATERIALIZED VIEW with §9.2 column shape (A/P/Q/OEE averages, best_oee_pct, worst_oee_pct, totals, snapshot_count, best_shift_id, worst_shift_id) + the two listed indexes",
+      "Given UNIQUE index exists, when REFRESH MATERIALIZED VIEW CONCURRENTLY oee_daily_summary runs, then it succeeds without locking readers",
+      "Given two orgs and app.set_org_context, when SELECT runs in each session, then RLS isolation holds (propagates from oee_snapshots)",
+      "Given seeded shift_metrics with known best/worst oee_pct per (org, line, date), when refreshed and queried, then best_shift_id and worst_shift_id match expectation"
+    ],
+    "test_strategy": [
+      "RED: vitest oee-b-daily-summary-mv asserting four ACs",
+      "Run `pnpm --filter db migrate && pnpm --filter db test oee-b-daily-summary-mv`"
+    ],
+    "risk_red_lines": [
+      "Do not register pg_cron — Wave1 T-111 worker owns scheduling; T-009 wires it",
+      "Do not refresh non-CONCURRENTLY in production",
+      "Do not write to oee_snapshots from 15-OEE",
+      "Do not name business column tenant_id; use org_id",
+      "Do not skip the 90-day rolling WHERE filter"
+    ],
+    "skills": [
+      "test-driven-development",
+      "systematic-debugging",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": false
+  }
+}

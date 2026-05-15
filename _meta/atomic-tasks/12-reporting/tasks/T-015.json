@@ -1,0 +1,108 @@
+{
+  "title": "T-015 — UI: RPT-HOME Dashboard Catalog (/reporting) — search + filter + freshness + P2 gating (12-REPORTING §15.2)",
+  "prompt": "# T-015 — RPT-HOME Dashboard Catalog UI\n\nPRD: docs/prd/12-REPORTING-PRD.md §15.2 RPT-HOME, §9.3 dashboards_catalog, D-RPT-10 feature flag rollout, §13.1 dashboard layout standards\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\nPrototype: prototypes/design/Monopilot Design System/reporting/dashboard.jsx:3-112 (`rpt_home_dashboard_catalog`)\nUX: prototypes/design/12-REPORTING-UX.md:188-222\n\n## Goal\nServer Component page `/reporting` rendering the dashboard catalog from `dashboards_catalog` table (T-008) with search input, domain/phase facet filters, freshness badges driven by mv_refresh_log, and P2 gating via reporting.v2_dashboards feature flag. P2 cards trigger RPT-019 p2_toast_modal when flag OFF. Matches prototype 1:1 with shadcn primitives.\n\n## Prototype parity\n- Source of truth: `prototypes/design/Monopilot Design System/reporting/dashboard.jsx:3-112` (`rpt_home_dashboard_catalog`)\n- UX line: `prototypes/design/12-REPORTING-UX.md:188-222`\n- Translation: hardcoded RPT_CATALOG → Drizzle query against dashboards_catalog (T-008); client-side filter state → URL searchParams via nuqs; staleCount → server-computed from mv_refresh_log; WeekSelector → shadcn Calendar+Popover; rpt-cat-grid → Tailwind grid-cols-3 lg:grid-cols-4; rpt-cat-card → shadcn Card; P2 card click → server-side flag eval (if ON render real, if OFF render disabled-with-tooltip) per D-RPT-10.\n\n## Implementation contract\n1. `apps/web/app/(reporting)/page.tsx` (RSC) — calls `getDashboardsCatalog(orgId)` from T-008; passes data to client component.\n2. `apps/web/app/(reporting)/_components/catalog-client.tsx` ('use client') — search + domain + phase filters via nuqs URL state; renders shadcn Card grid; P2 cards Disabled when flag OFF (Tooltip explaining P2 timeline) — never open p2_toast_modal unless user explicitly clicks the disabled tile.\n3. `apps/web/app/(reporting)/_components/freshness-badge.tsx` — reads mv_refresh_log via server fetch; shows last_refresh + 'fresh' / 'stale' badge per V-RPT-REFRESH-4 (>15 min threshold).\n4. All visible strings via next-intl `reporting.home.*` keys (translation-notes red line).\n5. Empty / loading / error / permission states all implemented (UI parity policy).\n6. RTL test asserts parity vs prototype line range + facet filters + flag-gating + four states.\n\n## Files\n- apps/web/app/(reporting)/page.tsx [create]\n- apps/web/app/(reporting)/_components/catalog-client.tsx [create]\n- apps/web/app/(reporting)/_components/freshness-badge.tsx [create]\n- apps/web/app/(reporting)/_components/__tests__/catalog-client.test.tsx [create]\n- apps/web/messages/en/reporting-home.json [create]\n- apps/web/messages/pl/reporting-home.json [create]\n\n## Acceptance criteria\n1. Given the production page renders, when compared to `prototypes/design/Monopilot Design System/reporting/dashboard.jsx:3-112`, then it has the same Card grid + facet filter chips + search input + freshness badge + week selector — verified by RTL snapshot + parity checklist.\n2. Given dashboards_catalog has 10 P1 + 15 P2 rows and `reporting.v2_dashboards` flag is OFF for the org, when the page renders, then 10 P1 cards are interactive and 15 P2 cards are disabled with Tooltip; no p2_toast_modal opens until user clicks the disabled tile.\n3. Given URL searchParams `?q=yield&domain=production`, when the page renders, then only matching cards display; URL state survives reload.\n4. Given mv_refresh_log shows last_refresh > 15 min ago for `mv_yield_by_line_week`, when the freshness badge for the Yield by Line card renders, then it shows 'Data stale' indicator per V-RPT-REFRESH-4.\n5. Given a user without `rpt.dashboard.view` permission hits /reporting, when middleware (T-009) runs, then they receive 403 + audit row before the page renders.\n6. Given UI parity policy, when closeout is reviewed, then screenshot + Playwright trace attached; empty / loading / error / permission states covered in tests.\n7. Hardcoded labels are all routed through next-intl `reporting.home.*` keys; no English strings hard-baked in JSX.\n\n## Test strategy (RED first)\n- RED: RTL test asserting parity (cards + filters + freshness + flag-gating + 4 states) + URL state survival + permission-deny path.\n- Playwright spec for visual parity vs prototype HTML render (use prototype HTML from `prototypes/design/Monopilot Design System/reporting/reporting.html` as snapshot source if available).\n- Run `pnpm --filter @monopilot/web test catalog-client && pnpm --filter @monopilot/web playwright test reporting-home`.\n- GREEN: build RSC page + client component + freshness badge + next-intl messages.\n\n## Risk red lines\n- Do not query dashboards_catalog from client component — always Server Component query (avoids leaking flag eval to client).\n- Do not paste prototype JSX verbatim — translate to shadcn Card + Tailwind grid per translation-notes.\n- Do not skip next-intl wrapping — translation-notes red line for module.\n- Do not show P2 cards as enabled when flag is OFF — D-RPT-10 mandates flag-gated UI.\n- Do not let staleCount be client-computed — server reads mv_refresh_log.\n- Do not let URL state diverge from server-rendered initial state (nuqs SSR pattern required).\n- Do not skip the four states (empty / loading / error / permission) — UI parity policy mandate.",
+  "labels": [
+    "prd",
+    "ui",
+    "catalog",
+    "T3-ui"
+  ],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-015",
+    "source_prd": "docs/prd/12-REPORTING-PRD.md",
+    "prd_refs": [
+      "§15.2",
+      "§9.3",
+      "§6 D-RPT-10",
+      "§13.1"
+    ],
+    "category": "ui",
+    "subcategory": "catalog-page",
+    "task_type": "T3-ui",
+    "parent_feature": "12-REPORTING-e",
+    "context_budget": "55k",
+    "estimated_effort": "3-5h",
+    "description": "RPT-HOME catalog page (RSC + nuqs URL state) with search/filter/freshness/flag-gating, matching rpt_home_dashboard_catalog prototype 1:1.",
+    "details": "Server Component reads dashboards_catalog (T-008) + mv_refresh_log; client renders cards with shadcn primitives; flag-gated P2 cards disabled (no modal until clicked); next-intl keys; four states; Playwright parity.",
+    "scope_files": [
+      "apps/web/app/(reporting)/page.tsx [create]",
+      "apps/web/app/(reporting)/_components/catalog-client.tsx [create]",
+      "apps/web/app/(reporting)/_components/freshness-badge.tsx [create]",
+      "apps/web/app/(reporting)/_components/__tests__/catalog-client.test.tsx [create]",
+      "apps/web/messages/en/reporting-home.json [create]",
+      "apps/web/messages/pl/reporting-home.json [create]",
+      "prototypes/design/Monopilot Design System/reporting/dashboard.jsx [ref]"
+    ],
+    "out_of_scope": [
+      "Do not implement individual dashboard pages (T-016..T-023)",
+      "Do not implement p2_toast_modal here (T-028)",
+      "Do not implement export/save-preset CTAs (T-026/T-027)"
+    ],
+    "dependencies": [
+      "T-001",
+      "T-008",
+      "T-009"
+    ],
+    "parallel_safe_with": [
+      "T-016",
+      "T-017"
+    ],
+    "cross_module_dependencies": [
+      "02-SETTINGS feature flags eval (reporting.v2_dashboards)",
+      "02-SETTINGS i18n / next-intl primitive"
+    ],
+    "acceptance_criteria": [
+      "Given the production page renders, when compared to prototypes/design/Monopilot Design System/reporting/dashboard.jsx:3-112, then it has the same Card grid + facet filter chips + search input + freshness badge + week selector — verified by RTL snapshot + parity checklist",
+      "Given dashboards_catalog has 10 P1 + 15 P2 rows and reporting.v2_dashboards flag is OFF for the org, when the page renders, then 10 P1 cards are interactive and 15 P2 cards are disabled with Tooltip; no p2_toast_modal opens until the disabled tile is clicked",
+      "Given URL searchParams ?q=yield&domain=production, when the page renders, then only matching cards display; URL state survives reload",
+      "Given the page/modal is exercised end-to-end, when closeout criteria are verified, then access-control middleware T-009 gates unauthenticated/unauthorized requests with 403 + audit row; empty/loading/error/permission states are rendered per UI parity policy with Playwright trace + screenshot artifacts attached; all visible strings route through next-intl keys (no hardcoded labels)."
+    ],
+    "test_strategy": [
+      "RED: RTL test asserts parity (cards + filters + freshness + flag-gating + 4 states) + URL state survival + permission-deny path",
+      "Playwright spec for visual parity vs prototype",
+      "Run `pnpm --filter @monopilot/web test catalog-client && pnpm --filter @monopilot/web playwright test reporting-home`",
+      "For UI parity, capture screenshots/artifacts and Playwright trace where applicable; attach artifact paths in closeout"
+    ],
+    "risk_red_lines": [
+      "Do not query dashboards_catalog from client — Server Component query only",
+      "Do not paste prototype JSX verbatim — translate to shadcn Card + Tailwind grid",
+      "Do not skip next-intl wrapping (translation-notes red line)",
+      "Do not show P2 cards as enabled when flag is OFF (D-RPT-10)",
+      "Do not let staleCount be client-computed — server reads mv_refresh_log",
+      "Do not let URL state diverge from server-rendered initial state (nuqs SSR pattern)",
+      "Do not skip empty / loading / error / permission states (UI parity policy)"
+    ],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": true,
+    "prototype_index_entry": "rpt_home_dashboard_catalog",
+    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md"
+  }
+}

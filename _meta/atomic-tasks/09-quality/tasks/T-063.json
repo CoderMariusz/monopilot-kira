@@ -1,0 +1,96 @@
+{
+  "title": "T-063 — Cross-module event contract pin: warehouse.grn.* → quality.inspection auto-create (packages/events only)",
+  "prompt": "# T-063 — Cross-module event schema pin: GRN → Quality\n\nPRD: §12.1 inbound consumers table (grn.received entry), §7.1 09-c-05 (GRN outbox consumer scope)\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nPin the cross-module event contract between 05-WH and 09-QA for GRN-driven auto-inspection. Owner of the producer side is 05-WH; this task only declares the typed event contract in `packages/events` and asserts that 09-QA's grn_outbox_consumer (T-030 / T-041) consumes it via the canonical Zod validator. Out-of-scope: any 05-WH implementation.\n\n## Implementation contract\n1. packages/events/src/warehouse/grn.ts: WarehouseGrnReceivedEvent, WarehouseGrnFailedEvent (the latter consumed by T-041). Required fields: {tenant_id (org_id), grn_id, grn_number, supplier_id, po_id?, lines[]:{item_id, batch_lp_id, qty_kg, inspection_required:boolean}, received_at, received_by, occurred_at, idempotency_key}.\n2. Zod validators export from same file.\n3. packages/events/src/index.ts barrel export.\n4. Contract test in packages/events/__tests__/warehouse-grn-events.test.ts asserts both event shapes pass for canonical fixture and fail without required fields.\n5. apps/web/src/server/quality/grn/outboxConsumer.ts (T-041 file) modified to import + validate via the canonical Zod validator instead of any ad-hoc shape.\n\n## Files\n- packages/events/src/warehouse/grn.ts [create]\n- packages/events/src/index.ts [modify]\n- packages/events/__tests__/warehouse-grn-events.test.ts [create]\n- apps/web/src/server/quality/grn/outboxConsumer.ts [modify]\n\n## Acceptance criteria\n1. Given the events package built, when imported, then WarehouseGrnReceivedEvent + WarehouseGrnFailedEvent are exported with required {tenant_id, grn_id, grn_number, lines[], received_at, received_by, occurred_at, idempotency_key} and runtime Zod validators\n2. Given a fixture missing tenant_id, when the Zod validator runs, then it rejects with 'tenant_id required'\n3. Given the 09-QA grn_outbox_consumer (T-041), when an event is received, then it MUST validate via the canonical Zod validator before any DB write; the test asserts that calling the consumer with a payload missing required fields results in a logged rejection AND no quality_inspections / ncr_reports row is created\n4. Given the contract is owned by packages/events, when 05-WH module (out-of-scope for this task) implements the producer, then it MUST import from packages/events/warehouse/grn — this task asserts the import path and the Zod validator are the single source of truth (audit A §1 cross-module event contract pin)\n\n## Test strategy (RED first)\n- RED: warehouse-grn-events.test.ts asserting all 4 ACs before code\n- Run 'pnpm --filter events build && pnpm --filter events test && pnpm --filter web test grn/outboxConsumer'\n\n## Risk red lines\n- 05-WH implementation is OUT-OF-SCOPE — this task only ships the contract in packages/events\n- Do not duplicate the event shape in apps/web — single source of truth in packages/events (audit A §1)\n- All events MUST carry tenant_id for RLS resolution downstream (Wave0 v4.3)\n- Do not change canonical event names — warehouse.grn.received / warehouse.grn.failed",
+  "labels": [
+    "prd",
+    "integration",
+    "events",
+    "T4-wiring-test"
+  ],
+  "priority": 75,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-063",
+    "source_prd": "docs/prd/09-QUALITY-PRD.md",
+    "prd_refs": [
+      "§12.1",
+      "§7.1",
+      "§9.1"
+    ],
+    "category": "integration",
+    "subcategory": "cross-module-events-grn",
+    "task_type": "T4-wiring-test",
+    "parent_feature": "09-QUALITY-cross GRN→Quality",
+    "context_budget": "30k",
+    "estimated_effort": "1-2h",
+    "description": "Pin the canonical event contract for warehouse.grn.* in packages/events with Zod validators and require T-041 grn_outbox_consumer to validate via the contract before any DB write. 05-WH producer side is out-of-scope.",
+    "details": "Two typed events (WarehouseGrnReceivedEvent, WarehouseGrnFailedEvent) declared in packages/events/src/warehouse/grn.ts with Zod validators. Required fields: tenant_id (org_id for RLS), grn_id, grn_number, supplier_id, po_id?, lines[]:{item_id, batch_lp_id, qty_kg, inspection_required}, received_at, received_by, occurred_at, idempotency_key. apps/web/src/server/quality/grn/outboxConsumer.ts imports the validator; payload that fails Zod is logged-rejected and no DB write occurs. 05-WH producer implementation is out-of-scope — this task only pins the contract. Audit A §1 cross-module event contract pin is satisfied. PRD anchors verified: §12.1 inbound consumers table lists 'grn.received (05-WH)' → 'auto-create quality_inspections per items.inspection_required'; §7.1 09-c-05 'auto-create on GRN outbox consumer + sampling plan selector'; §9.1 RLS pattern (tenant_id flows to app.current_org_id()).",
+    "scope_files": [
+      "packages/events/src/warehouse/grn.ts [create]",
+      "packages/events/src/index.ts [modify]",
+      "packages/events/__tests__/warehouse-grn-events.test.ts [create]",
+      "apps/web/src/server/quality/grn/outboxConsumer.ts [modify]"
+    ],
+    "out_of_scope": [
+      "Do not implement 05-WH producer side (out-of-scope; owned by 05-WH)",
+      "Do not duplicate the event shape in apps/web (single source of truth in packages/events)",
+      "Do not implement new quality_inspections schema (T-025 owner)"
+    ],
+    "dependencies": [
+      "T-041",
+      "T-030"
+    ],
+    "parallel_safe_with": [
+      "T-064"
+    ],
+    "acceptance_criteria": [
+      "Given the events package built, when imported, then WarehouseGrnReceivedEvent + WarehouseGrnFailedEvent are exported with required {tenant_id, grn_id, grn_number, lines[], received_at, received_by, occurred_at, idempotency_key} and Zod validators",
+      "Given a payload missing tenant_id, when the Zod validator runs, then it rejects with 'tenant_id required'",
+      "Given the 09-QA grn_outbox_consumer, when an event is received, then it validates via the canonical Zod validator before any DB write; a malformed payload results in logged rejection AND zero quality_inspections / ncr_reports rows",
+      "Given the canonical contract lives in packages/events, when a grep test scans apps/web for ad-hoc grn event shapes, then no duplicate type exists outside packages/events (single source of truth assertion)"
+    ],
+    "test_strategy": [
+      "RED: warehouse-grn-events.test.ts + grep-style test in apps/web/__tests__/contracts/no-duplicate-grn-event.test.ts asserting all 4 ACs before code",
+      "Run 'pnpm --filter events build && pnpm --filter events test && pnpm --filter web test grn/outboxConsumer'"
+    ],
+    "risk_red_lines": [
+      "05-WH implementation is OUT-OF-SCOPE — this task only ships the contract in packages/events",
+      "Single source of truth in packages/events (audit A §1)",
+      "All events carry tenant_id for downstream RLS (Wave0 v4.3)",
+      "Canonical names: warehouse.grn.received / warehouse.grn.failed — do not change"
+    ],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "cross_module_dependencies": [
+      "00-foundation:T-112",
+      "05-warehouse:T-005",
+      "09-quality:T-030",
+      "09-quality:T-041"
+    ]
+  }
+}

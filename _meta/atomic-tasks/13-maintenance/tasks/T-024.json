@@ -1,0 +1,108 @@
+{
+  "title": "T-024 — UI: Calibration List + Detail + Reading Record + Cert Upload modals (MNT-024, MNT-025, MNT-M-05/M-06)",
+  "prompt": "# T-024 — Calibration pages + record/cert modals\n\nPRD: docs/prd/13-MAINTENANCE-PRD.md §10.3 MNT-024, MNT-025, §10.4 MNT-M-05, MNT-M-06, §14.1 (BRCGS 7y), §14.3 (Part 11 SHA-256)\nUX: prototypes/design/13-MAINTENANCE-UX.md:583-633\nPrototypes: other-screens.jsx:1-264 (calibration_list_page, calibration_detail_page); modals.jsx:500-593 (calibration_reading_modal, calibration_cert_upload_modal)\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nRoute `/maintenance/calibration` (instrument list, CCP-block indication, audit export) and `/maintenance/calibration/[id]` (per-instrument history + cert preview). Reading modal computes per-point inSpec auto + emits calibration.failed; Cert upload modal computes SHA-256 server-side and stores immutably (calls T-015 Server Actions).\n\n## Implementation contract\n1. `apps/web/app/maintenance/calibration/page.tsx` — RSC; CCP-block banner driven by `calibration_instruments.ccp_block`; status counts per V-MNT-13 staged alerts (Current/Due 30d/Overdue).\n2. `apps/web/app/maintenance/calibration/[id]/page.tsx` — Two-tab detail (History + Certificate). Latest result banner color-coded per result enum. Test Points read-only table.\n3. Reading modal: useFieldArray for test_points; per-point inSpec auto-compute (`Math.abs(measured-reference)/reference*100 <= tolerance`); FAIL → Alert + Server Action emits `calibration.failed` (T-015 V-MNT-10).\n4. Cert upload modal: PDF Input (10MB client-side check) + Authenticity Checkbox required; calls T-015 uploadCalibrationCertificate Server Action which computes SHA-256 server-side.\n5. \"Export for Audit\" CSV streaming Server Action: instrument code/calibrated_at/by/standard/test points/result/SHA-256/retention_until per §14.1.\n6. RBAC: Record requires `mnt.calib.record`; Upload Cert requires `mnt.calib.upload_cert`.\n7. Empty/loading/error/permission states + i18n.\n\n## Prototype parity\n- List 6-KPI strip + CCP-block alert + filter bar + ccp-block-row red styling + Audit Export — RTL snapshot other-screens.jsx:1-127.\n- Detail 6-stat header + Latest Result banner + Test Points table + 2-tab History+Certificate — snapshot other-screens.jsx:129-264.\n- Reading modal dynamic test_points + per-point inSpec auto-compute + FAIL alert — snapshot modals.jsx:500-568.\n- Cert upload modal PDF + Authenticity Checkbox + SHA-256 placeholder — snapshot modals.jsx:570-593.\n\n## Files\n- apps/web/app/maintenance/calibration/page.tsx [create]\n- apps/web/app/maintenance/calibration/[id]/page.tsx [create]\n- apps/web/app/maintenance/calibration/_components/calibration-reading-modal.tsx [create]\n- apps/web/app/maintenance/calibration/_components/calibration-cert-upload-modal.tsx [create]\n- apps/web/app/maintenance/calibration/_components/__tests__/calibration.test.tsx [create]\n\n## Acceptance criteria\n1. Given list renders, when compared to other-screens.jsx:1-127, then 6-KPI strip + CCP-block banner + filter bar + red-row CCP styling + Audit Export match by RTL parity checklist.\n2. Given detail renders, when compared to other-screens.jsx:129-264, then 6-stat header + Latest Result color-coded banner + Test Points + History+Certificate tabs match.\n3. Given reading modal submitted with one test_point measured outside range, when settled, then T-015 returns warnings array (V-MNT-14) and modal shows inline warning + record persists.\n4. Given reading modal submitted with result='FAIL', when settled, then T-015 emits calibration.failed outbox (V-MNT-10 cross-module to 09-quality) and modal shows red Alert.\n5. Given cert upload submitted, when SHA-256 visible in detail's Certificate tab, then it matches reference Node crypto sha256 hash of the PDF (T-015 server-side compute).\n6. Given closeout, when reviewers inspect, then Playwright trace + screenshots attached per UI-PROTOTYPE-PARITY-POLICY.md.\n\n## Test strategy\n- RED: RTL parity + Playwright e2e for reading + cert upload flows.\n- Run `pnpm --filter @monopilot/web vitest run apps/web/app/maintenance/calibration`.\n\n## Risk red lines\n- Do not compute SHA-256 client-side — server-side via T-015 only.\n- Do not allow re-upload on a record with existing certificate_sha256 (CAL_CERT_IMMUTABLE).\n- Do not skip CCP-block visual cue — production safety dependency.\n- Do not bypass RBAC server-side.\n- Do not paste prototype JSX verbatim.\n- Do not omit empty/loading/error/permission states.",
+  "labels": [
+    "prd",
+    "ui",
+    "calibration",
+    "compliance",
+    "T3-ui"
+  ],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-024",
+    "source_prd": "docs/prd/13-MAINTENANCE-PRD.md",
+    "prd_refs": [
+      "§10.3 MNT-024",
+      "§10.3 MNT-025",
+      "§10.4 MNT-M-05",
+      "§10.4 MNT-M-06",
+      "§14.1",
+      "§14.3"
+    ],
+    "category": "ui",
+    "subcategory": "calibration",
+    "task_type": "T3-ui",
+    "parent_feature": "13-MAINTENANCE-e",
+    "context_budget": "55k",
+    "estimated_effort": "4-5h",
+    "description": "Calibration list + detail + Reading modal + Cert upload modal; SHA-256 immutable, BRCGS 7y retention.",
+    "details": "Reading modal uses useFieldArray for test_points + per-point inSpec auto-compute. Cert upload uses T-015 server-side SHA-256. CCP-block cross-module from 09-quality (read-only display). UI closeout includes Playwright artifacts.",
+    "scope_files": [
+      "apps/web/app/maintenance/calibration/page.tsx [create]",
+      "apps/web/app/maintenance/calibration/[id]/page.tsx [create]",
+      "apps/web/app/maintenance/calibration/_components/calibration-reading-modal.tsx [create]",
+      "apps/web/app/maintenance/calibration/_components/calibration-cert-upload-modal.tsx [create]",
+      "apps/web/app/maintenance/calibration/_components/__tests__/calibration.test.tsx [create]"
+    ],
+    "out_of_scope": [
+      "External accreditation API (P2 stage Z)",
+      "21 CFR Part 11 full e-sign chain (P2)",
+      "09-quality CCP-block writer (09-quality task)"
+    ],
+    "dependencies": [
+      "T-001",
+      "T-006",
+      "T-015",
+      "T-013"
+    ],
+    "parallel_safe_with": [
+      "T-018",
+      "T-019",
+      "T-022",
+      "T-023"
+    ],
+    "acceptance_criteria": [
+      "Given list renders, when compared to prototypes/design/Monopilot Design System/maintenance/other-screens.jsx:1-127, then 6-KPI strip + CCP-block banner + filter bar + red-row CCP styling + Audit Export match by RTL parity checklist; given detail, then matches other-screens.jsx:129-264 (6-stat header + Latest Result color-coded banner + Test Points + History+Certificate tabs)",
+      "Given reading modal submitted with measured outside range, when settled, then T-015 returns warnings (V-MNT-14 warn-only) and modal shows inline warning; given result=FAIL, then T-015 emits calibration.failed outbox (V-MNT-10 cross-module to 09-quality) and modal shows red Alert",
+      "Given cert upload submitted, when SHA-256 visible in Certificate tab, then it matches reference Node crypto sha256 of the PDF (server-side compute per 21 CFR Part 11)",
+      "Given closeout, when reviewers inspect, then Playwright trace + screenshots attached per UI-PROTOTYPE-PARITY-POLICY.md"
+    ],
+    "test_strategy": [
+      "RED: RTL parity + Playwright e2e for reading + cert upload",
+      "Run `pnpm --filter @monopilot/web vitest run apps/web/app/maintenance/calibration`",
+      "Capture Playwright trace/video/screenshots in closeout"
+    ],
+    "risk_red_lines": [
+      "Do not compute SHA-256 client-side",
+      "Do not allow re-upload on record with existing certificate_sha256",
+      "Do not skip CCP-block visual cue (safety)",
+      "Do not bypass RBAC server-side",
+      "Do not paste prototype JSX verbatim",
+      "Do not omit empty/loading/error/permission states"
+    ],
+    "skills": [
+      "test-driven-development",
+      "frontend-design",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status",
+        "playwright_artifacts"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": true,
+    "prototype_index_entry": "calibration_list_page",
+    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md"
+  }
+}

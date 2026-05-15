@@ -1,0 +1,118 @@
+{
+  "title": "T-020 — UI: RPT-006 Inventory Aging + RPT-007 WO Status + RPT-008 Shipment OTD pages (12-REPORTING §15.1 RPT-006..008)",
+  "prompt": "# T-020 — Operational dashboards UI (Inventory Aging + WO Status + Shipment OTD)\n\nPRD: docs/prd/12-REPORTING-PRD.md §15.1 RPT-006/RPT-007/RPT-008, §4.1 #6/#7/#8\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\nPrototypes:\n- RPT-006: prototypes/design/Monopilot Design System/reporting/kpi-screens.jsx:313-466 (`rpt_inventory_aging`)\n- RPT-007: prototypes/design/Monopilot Design System/reporting/kpi-screens.jsx:470-585 (`rpt_wo_status`)\n- RPT-008: prototypes/design/Monopilot Design System/reporting/kpi-screens.jsx:588-706 (`rpt_shipment_otd`)\n\n## Goal\nThree Server Component pages reading from T-007 service helpers (inventory-aging, wo-status, shipment-otd). RPT-008 must handle T-007's graceful-degradation path for 11-SHIPPING-absent case.\n\n## Prototype parity\n- RPT-006: 4 sections (ChartStackedBarH by age bucket / Expiry Alerts table / Slow-moving SKUs / by-category breakdown) — Suspense per section; cross-module LP link → /warehouse/license-plates/<lp>.\n- RPT-007: WO funnel (status counts) + WO table w/ cross-module link → /production/work-orders/<wo> + WIP-by-line progress bar (shadcn Progress).\n- RPT-008: ChartLine OTD trend w/ 95% ReferenceLine + by-customer Spark + Late Shipments conditional table; rendered only when shipment data available.\n\n## Implementation contract\n1. Three RSC pages + client components reading from T-007 helpers. Each handles its own filter URL state (warehouse / category / line / customer / week).\n2. Cross-module link builders for LP / WO / shipment (UUID/code validation).\n3. RPT-008: when T-007 reports 11-SHIPPING absent, render full-card placeholder.\n4. WIP progress bar reuses shadcn Progress primitive.\n5. Empty / loading / error / permission states per page; RTL + Playwright parity for ALL three.\n6. next-intl `reporting.{inventory_aging,wo_status,shipment_otd}.*` keys.\n\n## Files\n- apps/web/app/(reporting)/inventory-aging/page.tsx [create]\n- apps/web/app/(reporting)/inventory-aging/_components/inventory-aging-client.tsx [create]\n- apps/web/app/(reporting)/inventory-aging/__tests__/inventory-aging.test.tsx [create]\n- apps/web/app/(reporting)/wo-status/page.tsx [create]\n- apps/web/app/(reporting)/wo-status/_components/wo-status-client.tsx [create]\n- apps/web/app/(reporting)/wo-status/__tests__/wo-status.test.tsx [create]\n- apps/web/app/(reporting)/shipment-otd/page.tsx [create]\n- apps/web/app/(reporting)/shipment-otd/_components/shipment-otd-client.tsx [create]\n- apps/web/app/(reporting)/shipment-otd/__tests__/shipment-otd.test.tsx [create]\n- apps/web/messages/{en,pl}/reporting-operational.json [create]\n\n## Acceptance criteria\n1. Given mv_inventory_aging seeded with LPs in 4 age buckets for org_A, when /reporting/inventory-aging renders, then stacked bar shows the 4 buckets + Expiry Alerts table appears + slow-moving SKUs section appears.\n2. Given mv_wo_status_summary seeded with WOs in 5 statuses, when /reporting/wo-status renders, then funnel renders with clickable segments (URL searchParam filter) + WO table cross-module-links to /production/work-orders/<wo>.\n3. Given 11-SHIPPING module is NOT deployed (T-007 returns available=false for shipment), when /reporting/shipment-otd renders, then full-card placeholder is shown with 'Shipping module not deployed' message; no errors.\n4. Given 11-SHIPPING IS deployed with seeded shipments, when /reporting/shipment-otd renders, then ChartLine shows OTD trend + 95% ReferenceLine, by-customer table w/ sparklines, Late Shipments conditional table (only when lateCount > 0).\n5. Given LP code = 'LP-000123', when 'View LP' is clicked, then router.push('/warehouse/license-plates/LP-000123'); invalid formats rejected.\n6. Given user without rpt.dashboard.view, when accessing any of the 3 pages, then middleware T-009 403s + audits each.\n7. UI parity for ALL THREE pages with Playwright traces; 4 states tested; next-intl wrapping verified.\n\n## Test strategy (RED first)\n- RED: RTL covers all 3 pages incl. degradation path, cross-module links, filter URL state.\n- Playwright parity per prototype for ALL THREE.\n- Run `pnpm --filter @monopilot/web test inventory-aging wo-status shipment-otd && pnpm --filter @monopilot/web playwright test reporting-operational`.\n- GREEN: build 3 RSC pages + clients.\n\n## Risk red lines\n- Do not crash shipment page when 11-SHIPPING absent — graceful placeholder via T-007.\n- Do not let cross-module links accept raw codes — server-side format validation.\n- Do not paste prototype JSX verbatim.\n- Do not skip next-intl wrapping.\n- Do not skip 4 states per page (UI parity policy).\n- Do not include real-time WO queries on hot path — read mv_wo_status_summary (D-RPT-1).",
+  "labels": [
+    "prd",
+    "ui",
+    "dashboard",
+    "T3-ui"
+  ],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-020",
+    "source_prd": "docs/prd/12-REPORTING-PRD.md",
+    "prd_refs": [
+      "§15.1 RPT-006",
+      "§15.1 RPT-007",
+      "§15.1 RPT-008",
+      "§4.1 #6",
+      "§4.1 #7",
+      "§4.1 #8"
+    ],
+    "category": "ui",
+    "subcategory": "dashboard-page",
+    "task_type": "T3-ui",
+    "parent_feature": "12-REPORTING-c",
+    "context_budget": "65k",
+    "estimated_effort": "5-7h",
+    "description": "Three operational dashboard pages (Inventory Aging + WO Status + Shipment OTD). Shipment page handles 11-SHIPPING-absent path gracefully.",
+    "details": "Three RSC pages reading T-007 service helpers. Cross-module links to /warehouse/license-plates/<lp>, /production/work-orders/<wo>, /shipping/shipments/<ship>. Each page has its own RTL + Playwright parity test.",
+    "scope_files": [
+      "apps/web/app/(reporting)/inventory-aging/page.tsx [create]",
+      "apps/web/app/(reporting)/inventory-aging/_components/inventory-aging-client.tsx [create]",
+      "apps/web/app/(reporting)/inventory-aging/__tests__/inventory-aging.test.tsx [create]",
+      "apps/web/app/(reporting)/wo-status/page.tsx [create]",
+      "apps/web/app/(reporting)/wo-status/_components/wo-status-client.tsx [create]",
+      "apps/web/app/(reporting)/wo-status/__tests__/wo-status.test.tsx [create]",
+      "apps/web/app/(reporting)/shipment-otd/page.tsx [create]",
+      "apps/web/app/(reporting)/shipment-otd/_components/shipment-otd-client.tsx [create]",
+      "apps/web/app/(reporting)/shipment-otd/__tests__/shipment-otd.test.tsx [create]",
+      "apps/web/messages/en/reporting-operational.json [create]",
+      "apps/web/messages/pl/reporting-operational.json [create]",
+      "prototypes/design/Monopilot Design System/reporting/kpi-screens.jsx [ref]"
+    ],
+    "out_of_scope": [
+      "Do not implement Lot Genealogy (P2)",
+      "Do not implement Customer Fulfillment (P2)"
+    ],
+    "dependencies": [
+      "T-007",
+      "T-009",
+      "T-016"
+    ],
+    "parallel_safe_with": [
+      "T-017",
+      "T-018",
+      "T-019",
+      "T-021",
+      "T-022"
+    ],
+    "cross_module_dependencies": [
+      "05-WAREHOUSE /warehouse/license-plates/<lp> route",
+      "08-PRODUCTION /production/work-orders/<wo> route",
+      "11-SHIPPING /shipping/shipments/<ship> route (may not exist)",
+      "02-SETTINGS i18n next-intl"
+    ],
+    "acceptance_criteria": [
+      "Given the production implementation is reviewed for parity, when compared to prototypes/design/Monopilot Design System/reporting/kpi-screens.jsx:313-466; prototypes/design/Monopilot Design System/reporting/kpi-screens.jsx:470-585; prototypes/design/Monopilot Design System/reporting/kpi-screens.jsx:588-706, then visual structure, shadcn primitives, interaction states, and Tailwind tokens match; Playwright trace + screenshot artifacts attached per _meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md (rpt_inventory_aging + rpt_wo_status + rpt_shipment_otd).",
+      "Given mv_inventory_aging seeded with LPs in 4 age buckets for org_A, when /reporting/inventory-aging renders, then stacked bar shows 4 buckets + Expiry Alerts + slow-moving SKUs sections",
+      "Given mv_wo_status_summary seeded with WOs in 5 statuses, when /reporting/wo-status renders, then funnel with clickable segments (URL searchParam) + WO table cross-module-links to /production/work-orders/<wo>",
+      "Given the page/modal is exercised end-to-end, when closeout criteria are verified, then access-control middleware T-009 gates unauthenticated/unauthorized requests with 403 + audit row; empty/loading/error/permission states are rendered per UI parity policy with Playwright trace + screenshot artifacts attached; all visible strings route through next-intl keys (no hardcoded labels)."
+    ],
+    "test_strategy": [
+      "RED: RTL covers all 3 pages incl. degradation path, cross-module links, filter URL state",
+      "Playwright parity per prototype for all three",
+      "Run `pnpm --filter @monopilot/web test inventory-aging wo-status shipment-otd && pnpm --filter @monopilot/web playwright test reporting-operational`",
+      "Attach Playwright traces + screenshots per page in closeout"
+    ],
+    "risk_red_lines": [
+      "Do not crash shipment page when 11-SHIPPING absent — graceful placeholder via T-007",
+      "Do not let cross-module links accept raw codes — server-side format validation",
+      "Do not paste prototype JSX verbatim",
+      "Do not skip next-intl wrapping",
+      "Do not skip 4 states per page",
+      "Do not include real-time WO queries on hot path — read mv_wo_status_summary (D-RPT-1)"
+    ],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": true,
+    "prototype_index_entry": "rpt_inventory_aging + rpt_wo_status + rpt_shipment_otd",
+    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md"
+  }
+}

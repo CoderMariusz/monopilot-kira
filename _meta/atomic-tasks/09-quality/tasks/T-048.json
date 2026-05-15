@@ -1,0 +1,87 @@
+{
+  "title": "T-048 — quality_incidents schema + RLS (09-e-01)",
+  "prompt": "# T-048 — quality_incidents schema + RLS\n\nPRD: §6.3 quality_incidents DDL, §9.1 RLS, §11.6 V-QA-INCIDENT-001\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nCreate quality_incidents standalone table (accident/near-miss/unsafe_condition/food_safety_incident) with sequence, retention 10y, RLS function-form, Drizzle schema.\n\n## Implementation contract\nMigration 0141 emits CREATE SEQUENCE quality_incident_seq + CREATE TABLE quality_incidents per §6.3 verbatim (incident_number GENERATED, incident_type CHECK 4 values, severity CHECK, linked_ncr_id FK, retention_until 10y GENERATED). RLS function-form. Drizzle schema export.\n\n## Files\n- packages/db/migrations/0141_quality_incidents.sql [create]\n- packages/db/src/schema/qualityIncidents.ts [create]\n- packages/db/src/schema/index.ts [modify]\n- packages/db/__tests__/quality-incidents-schema.test.ts [create]\n\n## Acceptance criteria\n1. Given migration 0141 applied, when \\d quality_incidents runs, then all §6.3 columns exist with incident_type CHECK in {accident,near_miss,unsafe_condition,food_safety_incident} and retention_until=incident_date+10y GENERATED, RLS function-form enabled\n2. Given two tenants with app.current_org_id() set, when each inserts and SELECTs, then each sees only its own row\n3. Given an insert with incident_type='accident', when V-QA-INCIDENT-001 enforcement runs (a notification job or Server Action layer T-054), then a corrective_action_due_at=incident_date+24h derived field is queryable (in this task: schema field exists or is computed via view; full enforcement in T-054)\n\n## Test strategy (RED first)\n- RED: quality-incidents-schema.test.ts before migration\n- Run 'pnpm --filter db migrate && pnpm --filter db test quality-incidents-schema'\n\n## Risk red lines\n- Use app.current_org_id() function (Wave0)\n- 10y retention GENERATED\n- No deviation from §6.3 column names",
+  "labels": [
+    "prd",
+    "data",
+    "schema-incident",
+    "T1-schema"
+  ],
+  "priority": 70,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-048",
+    "source_prd": "docs/prd/09-QUALITY-PRD.md",
+    "prd_refs": [
+      "§6.3",
+      "§9.1",
+      "§11.6"
+    ],
+    "category": "data",
+    "subcategory": "schema-incident",
+    "task_type": "T1-schema",
+    "parent_feature": "09-QUALITY-e Incidents",
+    "context_budget": "30k",
+    "estimated_effort": "1-2h",
+    "description": "quality_incidents standalone table (accident/near-miss/unsafe/food-safety) + RLS function-form + 10y retention.",
+    "details": "Migration 0141 + Drizzle schema per §6.3 verbatim. incident_number GENERATED via SEQUENCE quality_incident_seq. incident_type CHECK in 4 values. retention_until 10y GENERATED. RLS function-form. PRD anchors verified: §6.3 source DDL; §9.1 RLS pattern; §11.6 V-QA-INCIDENT-001 (corrective_action within 24h enforcement deferred to T-054 Server Action layer).",
+    "scope_files": [
+      "packages/db/migrations/0141_quality_incidents.sql [create]",
+      "packages/db/src/schema/qualityIncidents.ts [create]",
+      "packages/db/src/schema/index.ts [modify]",
+      "packages/db/__tests__/quality-incidents-schema.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not implement incident Server Actions (T-054)",
+      "Do not implement complaint stub (T-049)",
+      "Do not implement V-QA-INCIDENT-001 corrective-action enforcement here (T-054)"
+    ],
+    "dependencies": [],
+    "parallel_safe_with": [
+      "T-047",
+      "T-049",
+      "T-050"
+    ],
+    "acceptance_criteria": [
+      "Given migration 0141 applied, when \\d quality_incidents runs, then all §6.3 columns exist (incident_type CHECK 4 values, severity CHECK, retention_until 10y GENERATED) and RLS function-form is enabled",
+      "Given two tenants with app.current_org_id() each, when each inserts and SELECTs, then each sees only its own row",
+      "Given an insert with incident_type='accident', when SELECT runs, then incident_number is GENERATED in format 'INC-NNNNNNNN' and retention_until = incident_date + 10y"
+    ],
+    "test_strategy": [
+      "RED: quality-incidents-schema.test.ts before migration",
+      "Run 'pnpm --filter db migrate && pnpm --filter db test quality-incidents-schema'"
+    ],
+    "risk_red_lines": [
+      "Use app.current_org_id() function (Wave0 v4.3)",
+      "10y retention GENERATED column required",
+      "No deviation from §6.3 column names"
+    ],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

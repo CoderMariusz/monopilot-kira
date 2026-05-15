@@ -1,0 +1,101 @@
+{
+  "title": "T-041 — NCR auto-creation wiring: GRN-fail / inspection-fail / CCP-deviation → NCR draft",
+  "prompt": "# T-041 — NCR auto-creation wiring (3 paths)\n\nPRD: §12.1 inbound consumers, §11.2 V-QA-INSP-009 auto-NCR on fail, §10.2 ccp_deviation_escalation_v1, §7.1 Epic 8D\n\n## Goal\nWire 3 NCR auto-creation paths: (A) grn.failed outbox consumer, (B) inspection-fail-on-sign Server Action side-effect, (C) CCP deviation via DSL rule. All paths reuse the single createNcrDraft Server Action (T-038) for a unified audit + outbox surface.\n\n## Implementation contract\n1. apps/web/src/server/quality/ncr/autoCreate.ts — central entry point per (source_kind, source_event) → createNcrDraft invocation with severity resolver + idempotency.\n2. apps/web/src/server/quality/grn/outboxConsumer.ts — subscribes to grn.failed, calls autoCreate.\n3. apps/web/src/server/quality/inspections/actions.ts — modify finalizeInspection to invoke autoCreate on result='fail' (instead of direct DB INSERT today in T-028).\n4. apps/web/src/server/quality/ccp/deviationHandler.ts — rule action handler called by T-052 ccp_deviation_escalation_v1; resolves severity from rule severity_map.\n\n## Files\n- apps/web/src/server/quality/ncr/autoCreate.ts [create]\n- apps/web/src/server/quality/ncr/__tests__/autoCreate.test.ts [create]\n- apps/web/src/server/quality/grn/outboxConsumer.ts [create]\n- apps/web/src/server/quality/inspections/actions.ts [modify]\n- apps/web/src/server/quality/ccp/deviationHandler.ts [create]\n\n## Acceptance criteria (Given-When-Then)\n1. grn.failed consumer → 1 NCR row, outbox emits quality.ncr.created\n2. Replayed grn.failed event → no duplicate NCR (idempotency)\n3. Inspection fail sign → NCR via shared createNcrDraft (not direct INSERT)\n4. CCP deviation (biological) → severity='critical' NCR (rule severity_map respected)\n\n## Test strategy (RED first)\n- RED: autoCreate.test.ts asserting all 4 AC paths with mocked outbox/DB before code\n- Run 'pnpm --filter web test ncr/autoCreate'\n\n## Risk red lines\n- Always go through createNcrDraft (audit + outbox path enforcement)\n- Always set idempotency key (Foundation FT-024)\n- Severity is reference-table or rule driven, never hardcoded in consumer\n- RLS via app.current_org_id() before any DB write (Wave0 v4.3)",
+  "labels": [
+    "prd",
+    "integration",
+    "ncr",
+    "T4-wiring-test"
+  ],
+  "priority": 80,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-041",
+    "source_prd": "docs/prd/09-QUALITY-PRD.md",
+    "prd_refs": [
+      "§12.1",
+      "§11.2",
+      "§10.2",
+      "§7.1"
+    ],
+    "category": "integration",
+    "subcategory": "ncr-auto-create-wiring",
+    "task_type": "T4-wiring-test",
+    "parent_feature": "09-QUALITY-d NCR",
+    "context_budget": "40k",
+    "estimated_effort": "2-3h",
+    "description": "Wire three NCR auto-creation paths: GRN-fail outbox consumer, inspection-fail-on-sign Server Action side-effect, CCP-deviation auto-create via ccp_deviation_escalation_v1 rule.",
+    "details": "Three wiring paths, each with an E2E integration test: (A) grn.failed event consumer (publisher in 05-WH): when consumed, creates ncr_reports draft with type='supplier', severity computed from fail_reason_code, reference_type='grn', reference_id=grn_id. (B) Inspection sign with result='fail' (T-028 already auto-drafts; this task ensures the auto-draft is wired through createNcrDraft Server Action — not a direct DB INSERT — and emits quality.ncr.created event). (C) CCP deviation via ccp_deviation_escalation_v1 DSL rule (T-052) — the rule action 'auto_create_ncr' resolves to a createNcrDraft Server Action invocation with reference_type='ccp_deviation', reference_id=ccp_monitoring_record_id, severity per the rule's severity_map. All three paths share the same Server Action surface (T-038 createNcrDraft) so a single audit + outbox path is enforced. Idempotency: same source-event ID always resolves to same NCR (e.g., grn_id+timestamp → idempotency key). PRD anchors: §12.1 P1 inbound consumers table (grn.received first entry); §11.2 V-QA-INSP-009 (auto-NCR on fail); §10.2 ccp_deviation_escalation_v1 rule definition; §7.1 Epic 8D 09-d-02.",
+    "scope_files": [
+      "apps/web/src/server/quality/ncr/autoCreate.ts [create]",
+      "apps/web/src/server/quality/ncr/__tests__/autoCreate.test.ts [create]",
+      "apps/web/src/server/quality/grn/outboxConsumer.ts [create]",
+      "apps/web/src/server/quality/inspections/actions.ts [modify]",
+      "apps/web/src/server/quality/ccp/deviationHandler.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not implement CCP rule registration here (T-052)",
+      "Do not implement GRN producer side (owned by 05-WH)",
+      "Do not modify NCR core Server Actions (T-038 owns)"
+    ],
+    "dependencies": [
+      "T-038",
+      "T-040",
+      "T-028",
+      "T-030",
+      "T-052"
+    ],
+    "parallel_safe_with": [],
+    "acceptance_criteria": [
+      "Given a grn.failed outbox event with grn_id=G1, when the consumer processes it, then exactly 1 ncr_reports row exists with reference_type='grn', reference_id=G1, status='draft', and quality.ncr.created event is emitted with the GRN idempotency key",
+      "Given an existing draft NCR for grn_id=G1, when the same grn.failed event is replayed (idempotency test), then no second ncr_reports row is created and outbox shows 1 event total",
+      "Given an inspection sign with result='fail' (T-028 path), when the Server Action settles, then a draft NCR is created via the shared createNcrDraft (not direct DB INSERT) with reference_type='inspection', reference_id=inspection.id, fail_reason_code_id inherited",
+      "Given a CCP monitoring record insert where within_limits=false AND ccp.hazard_type='biological', when the ccp_deviation_escalation_v1 rule fires (T-052), then deviationHandler invokes createNcrDraft with severity='critical' (per rule severity_map) and reference_type='ccp_deviation'"
+    ],
+    "test_strategy": [
+      "RED: apps/web/src/server/quality/ncr/__tests__/autoCreate.test.ts asserting all 4 paths with mocked outbox + DB before code; integration-style test stubs the upstream events",
+      "Run 'pnpm --filter web test ncr/autoCreate'"
+    ],
+    "risk_red_lines": [
+      "Do not bypass createNcrDraft Server Action — direct DB INSERTs violate the audit/outbox path (translation-notes-quality §M-05 / §M-06)",
+      "Do not skip idempotency keys (replayed GRN event must not duplicate NCRs — Foundation FT-024)",
+      "Do not couple severity computation to the consumer — severity flows from rule severity_map (CCP) or fail_reason_code (GRN/inspection) which are themselves reference-table driven",
+      "Do not consume events outside tenant context — RLS via app.current_org_id() must be set before any DB write (Wave0 v4.3)"
+    ],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "cross_module_dependencies": [
+      "00-foundation:T-111",
+      "00-foundation:T-112",
+      "05-warehouse:T-005",
+      "08-production:T-003",
+      "09-quality:T-038",
+      "09-quality:T-063"
+    ]
+  }
+}

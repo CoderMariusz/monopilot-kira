@@ -1,0 +1,108 @@
+{
+  "title": "T-009 — report_access_gate_v1 DSL rule + middleware enforcement (12-REPORTING §7.1, §11 V-RPT-ACCESS-*)",
+  "prompt": "# T-009 — report_access_gate_v1 DSL rule + middleware\n\nPRD: docs/prd/12-REPORTING-PRD.md §7.1 (rule spec), §11 V-RPT-ACCESS-1..5\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nRegister `report_access_gate_v1` DSL rule in 02-SETTINGS §7 rule registry (P1 active). Implement Next.js `middleware.ts` segment for `/reporting/*` that evaluates the rule before any route renders: (1) session present, (2) user_role permitted for dashboard_id, (3) org_id from session matches request scope, (4) site_id ∈ user.accessible_sites, (5) feature_flag eval. Deny → audit `report_access_audits` row + 403 redirect to /403; allow → continue.\n\n## Implementation contract\n1. Migration `packages/db/migrations/0086_reporting_dsl_rule_seed.sql` — inserts `report_access_gate_v1` row into 02-SETTINGS rules registry table (`dsl_rules` or equivalent — verify current schema before SQL is written; do NOT assume).\n2. Rule evaluator `packages/reporting/src/rules/report-access-gate.ts` implements V-RPT-ACCESS-1..5; pure function `(ctx: {userId, role, dashboardId, orgId, siteId, requestOrgId, requestSiteId, accessibleSites}) => {allow: boolean, denyReason?: string}`.\n3. Middleware `apps/web/middleware.ts` (extend existing) — for `/reporting/*` paths: load session, call rule evaluator, on deny → write report_access_audits row (T-004) + redirect to /403; on allow → continue.\n4. Server Action wrapper `withReportingAccess(dashboardId, action)` for inline action checks (e.g., from RPT-020 access_denied_modal path); writes inline_denied audit on deny.\n5. Vitest contract test: (a) V-RPT-ACCESS-1 (no session → 401), (b) V-RPT-ACCESS-2 (wrong role → 403 + audit row), (c) V-RPT-ACCESS-3 (cross-org → 403 + audit), (d) V-RPT-ACCESS-4 (site not in accessible_sites → 403), (e) V-RPT-ACCESS-5 (flag-off dashboard → 404), (f) allow path writes allow row to report_access_audits.\n\n## Files\n- packages/db/migrations/0086_reporting_dsl_rule_seed.sql [create]\n- packages/reporting/src/rules/report-access-gate.ts [create]\n- packages/reporting/src/rules/__tests__/report-access-gate.test.ts [create]\n- apps/web/middleware.ts [modify]\n- apps/web/__tests__/middleware-reporting.test.ts [create]\n- packages/reporting/src/with-reporting-access.ts [create]\n\n## Acceptance criteria\n1. Given migration 0086 runs, when `dsl_rules` is queried for `report_access_gate_v1`, then exactly one P1-active row exists with input/output schema matching PRD §7.1.\n2. Given a request to /reporting/factory-overview without session, when middleware runs, then it returns 401 (V-RPT-ACCESS-1) and writes a report_access_audits row with result='deny' + deny_reason='unauthenticated'.\n3. Given a user with role reporting_viewer requests /reporting/integration-health (admin-only), when middleware runs, then it returns 403 + audit row with deny_reason='role_not_permitted' (V-RPT-ACCESS-2).\n4. Given user session org_id=A and request scope tries org_id=B, when middleware runs, then 403 + audit (V-RPT-ACCESS-3 cross-org).\n5. Given dashboard `factory-overview-p2` has feature_flag='reporting.v2_dashboards' OFF for the org, when request hits, then 404 (V-RPT-ACCESS-5, hide existence).\n6. Given an allow path completes, when audit table is checked, then a row with result='allow' is written + the page renders.\n\n## Test strategy (RED first)\n- RED: `packages/reporting/src/rules/__tests__/report-access-gate.test.ts` covers V-RPT-ACCESS-1..5 with pure-function inputs; `apps/web/__tests__/middleware-reporting.test.ts` covers end-to-end middleware behaviour with mocked sessions.\n- Run `pnpm --filter @monopilot/reporting test report-access-gate && pnpm --filter @monopilot/web test middleware-reporting`.\n- GREEN: write rule + middleware + Server Action wrapper.\n\n## Risk red lines\n- Do not gate at component level only — middleware path-level enforcement per RPT-009/RPT-010/RPT-020 translation-notes (admin-only routes); rely on session in Server Component for inline UI.\n- Do not log raw user_role to audit table — only allow/deny + deny_reason enum.\n- Do not skip ip_address/user_agent capture (forensics).\n- Do not let V-RPT-ACCESS-5 leak existence — return 404 not 403 when flag-off (hide).\n- Do not write the rule evaluator with side effects — pure function; audit write happens in middleware, not in evaluator.\n- Do not couple rule evaluation to specific Permission enum strings — read dashboards_catalog.required_role and compare against the user's role set per RBAC mapping (T-001 enum gives the strings, the rule checks the join).\n- Do not block deferred PRD §16 anchor lookup — verify the rule registry table name from migration history before writing INSERT (see kira_hq_red_prompt_verify_schema memory entry).",
+  "labels": [
+    "prd",
+    "auth",
+    "rules",
+    "middleware",
+    "T2-api"
+  ],
+  "priority": 70,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-009",
+    "source_prd": "docs/prd/12-REPORTING-PRD.md",
+    "prd_refs": [
+      "§7.1",
+      "§11 V-RPT-ACCESS-1",
+      "§11 V-RPT-ACCESS-2",
+      "§11 V-RPT-ACCESS-3",
+      "§11 V-RPT-ACCESS-4",
+      "§11 V-RPT-ACCESS-5"
+    ],
+    "category": "auth",
+    "subcategory": "dsl-rule",
+    "task_type": "T2-api",
+    "parent_feature": "12-REPORTING-a",
+    "context_budget": "40k",
+    "estimated_effort": "2-4h",
+    "description": "Register report_access_gate_v1 DSL rule + Next.js middleware enforcement for /reporting/* routes; deny path writes audit + redirects.",
+    "details": "Rule is pure function. Middleware writes report_access_audits per result. V-RPT-ACCESS-5 returns 404 not 403 (hide existence). dashboards_catalog.required_role drives the role check.",
+    "scope_files": [
+      "packages/db/migrations/0086_reporting_dsl_rule_seed.sql [create]",
+      "packages/reporting/src/rules/report-access-gate.ts [create]",
+      "packages/reporting/src/rules/__tests__/report-access-gate.test.ts [create]",
+      "apps/web/middleware.ts [modify]",
+      "apps/web/__tests__/middleware-reporting.test.ts [create]",
+      "packages/reporting/src/with-reporting-access.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not implement scheduled_report_distribution_v1 rule here (P2)",
+      "Do not implement RPT-020 access_denied_modal UI here (T-028)",
+      "Do not implement custom_dsl_builder rules (P2)"
+    ],
+    "dependencies": [
+      "T-001",
+      "T-004",
+      "T-008"
+    ],
+    "parallel_safe_with": [
+      "T-011",
+      "T-013"
+    ],
+    "cross_module_dependencies": [
+      "02-SETTINGS dsl_rules registry table (verify name before INSERT)",
+      "02-SETTINGS users.accessible_sites column (RLS source)",
+      "02-SETTINGS feature flags (reporting.v2_dashboards eval)",
+      "00-FOUNDATION T-125 app.current_org_id() (session source)"
+    ],
+    "acceptance_criteria": [
+      "Given migration 0086 runs, when dsl_rules is queried for report_access_gate_v1, then exactly one P1-active row exists with input/output schema matching PRD §7.1",
+      "Given a request to /reporting/factory-overview without session, when middleware runs, then it returns 401 + writes audit row deny_reason='unauthenticated' (V-RPT-ACCESS-1)",
+      "Given session org_id=A and request scope tries org_id=B, when middleware runs, then 403 + audit row (V-RPT-ACCESS-3)",
+      "Given infrastructure and compliance are checked, when verified, then 403 + audit row deny_reason='role_not_permitted' and 404."
+    ],
+    "test_strategy": [
+      "RED: packages/reporting/src/rules/__tests__/report-access-gate.test.ts covers V-RPT-ACCESS-1..5 with pure-function inputs; apps/web/__tests__/middleware-reporting.test.ts covers end-to-end middleware with mocked sessions",
+      "Run `pnpm --filter @monopilot/reporting test report-access-gate && pnpm --filter @monopilot/web test middleware-reporting`",
+      "GREEN: write rule + middleware + Server Action wrapper"
+    ],
+    "risk_red_lines": [
+      "Do not gate at component level only — middleware path-level enforcement required",
+      "Do not log raw user_role to audit — only allow/deny + deny_reason enum",
+      "Do not skip ip_address/user_agent capture (forensics)",
+      "Do not let V-RPT-ACCESS-5 leak existence — return 404 not 403 when flag-off",
+      "Do not introduce side effects in the rule evaluator — pure function; audit write happens in middleware only",
+      "Do not assume dsl_rules table name — verify schema from migrations/ before INSERT (per kira_hq_red_prompt_verify_schema memory)"
+    ],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": false
+  }
+}

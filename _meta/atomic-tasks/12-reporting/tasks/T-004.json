@@ -1,0 +1,99 @@
+{
+  "title": "T-004 — Reporting support tables: mv_refresh_log + report_exports + report_access_audits (12-REPORTING §9.2)",
+  "prompt": "# T-004 — Reporting support tables (refresh log, exports, access audits)\n\nPRD: docs/prd/12-REPORTING-PRD.md §9.2, §11 V-RPT-REFRESH-*, V-RPT-EXPORT-2/3, V-RPT-ACCESS-2/3, §14.1 (BRCGS 7-year retention)\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nCreate the three support tables that power refresh telemetry, export audit trail, and access-deny audit. These are transactional tables (not MVs), org-scoped, RLS-enforced via `app.current_org_id()` per Wave0. report_exports has GENERATED `retention_until = exported_at + 7 years` per §14.1 BRCGS audit trail.\n\n## Implementation contract\n1. Migration `packages/db/migrations/0081_reporting_support_tables.sql`:\n   - `mv_refresh_log (id BIGSERIAL PK, org_id UUID NOT NULL, view_name TEXT NOT NULL, started_at, completed_at, rows_affected BIGINT, duration_ms INTEGER GENERATED, status TEXT CHECK in ('started','completed','failed'), error_message TEXT)` + idx on (view_name, started_at DESC).\n   - `report_exports (id UUID PK DEFAULT gen_random_uuid(), org_id UUID NOT NULL, site_id UUID, user_id UUID NOT NULL REFERENCES users(id), dashboard_id TEXT NOT NULL, report_type TEXT NOT NULL, date_range JSONB NOT NULL, filters JSONB, format TEXT CHECK in ('pdf','csv','xlsx','json'), file_size_bytes BIGINT, sha256_hash TEXT NOT NULL, status TEXT CHECK in ('generating','completed','failed') DEFAULT 'generating', error_message TEXT, exported_at TIMESTAMPTZ DEFAULT now(), retention_until DATE NOT NULL GENERATED ALWAYS AS ((exported_at + interval '7 years')::date) STORED, archived_to_cold_storage BOOLEAN NOT NULL DEFAULT false)` + idx (user_id, exported_at DESC) + idx (retention_until WHERE archived_to_cold_storage=false).\n   - `report_access_audits (id BIGSERIAL PK, org_id UUID NOT NULL, user_id UUID NOT NULL, dashboard_id TEXT NOT NULL, result TEXT CHECK in ('allow','deny'), deny_reason TEXT, accessed_at TIMESTAMPTZ DEFAULT now(), ip_address INET, user_agent TEXT)` + indexes.\n2. ENABLE + FORCE ROW LEVEL SECURITY on all three; policies USING/WITH CHECK `org_id = app.current_org_id()`.\n3. PRD-mandated rename `tenant_id` → `org_id` per Wave0 v4.3 (decision #1) — DO NOT use `tenant_id` even though PRD §9.2 uses that label (Wave0 decision overrides).\n4. Drizzle schema entries in `packages/db/src/schema/reporting-support.ts`.\n5. Vitest contract test: (a) all 3 tables exist with RLS+FORCE enabled, (b) cross-org leak test, (c) report_exports.retention_until = exported_at + 7y (DATE), (d) CHECK constraint rejects unknown format/status, (e) duration_ms GENERATED column computes correctly.\n\n## Files\n- packages/db/migrations/0081_reporting_support_tables.sql [create]\n- packages/db/src/schema/reporting-support.ts [create]\n- packages/db/src/schema/index.ts [modify export]\n- packages/db/__tests__/reporting-support-tables.test.ts [create]\n\n## Acceptance criteria\n1. Given migration 0081 runs, when `\\d mv_refresh_log`, `\\d report_exports`, `\\d report_access_audits` are inspected, then all declared columns/checks/indexes exist; RLS+FORCE ROW LEVEL SECURITY enabled on all 3.\n2. Given two orgs insert rows under their respective app.set_org_context sessions, when each queries the tables, then each sees only its own rows (RLS isolation enforced).\n3. Given report_exports row is inserted with exported_at=2026-05-14, when retention_until is read, then it equals 2033-05-14 (7-year BRCGS retention per §14.1, GENERATED STORED column).\n4. Given a CHECK violation (format='exe'), when INSERT is attempted, then it rolls back with explicit constraint name.\n5. Given mv_refresh_log row with started_at and completed_at, when duration_ms is read, then it equals (completed_at - started_at) in ms via GENERATED column.\n6. Given pg_policies is inspected, when policies for the 3 tables are listed, then USING/WITH CHECK reference `app.current_org_id()` — never `current_setting('app.tenant_id')` GUC.\n\n## Test strategy (RED first)\n- RED: `packages/db/__tests__/reporting-support-tables.test.ts` connects as app_user, sets org context per org, asserts 6 ACs against testcontainers Postgres.\n- Run `pnpm --filter db test reporting-support-tables`.\n- GREEN: write migration + Drizzle entries.\n\n## Risk red lines\n- Do not name the scope column `tenant_id` even though PRD §9.2 uses that label — Wave0 v4.3 mandates `org_id` (NPD T-006 red-flag #7 in audit).\n- Do not skip RLS+FORCE ROW LEVEL SECURITY.\n- Do not omit GENERATED retention_until; BRCGS audit requires immutable 7-year retention enforcement at the DB layer not application layer.\n- Do not use `current_setting('app.tenant_id')` GUC; use `app.current_org_id()` foundation function.\n- Do not let report_exports.sha256_hash be NULL (V-RPT-EXPORT-2 mandates NOT NULL).",
+  "labels": [
+    "prd",
+    "data",
+    "schema",
+    "T1-schema"
+  ],
+  "priority": 80,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-004",
+    "source_prd": "docs/prd/12-REPORTING-PRD.md",
+    "prd_refs": [
+      "§9.2",
+      "§11 V-RPT-REFRESH-*",
+      "§11 V-RPT-EXPORT-2",
+      "§11 V-RPT-EXPORT-3",
+      "§14.1"
+    ],
+    "category": "data",
+    "subcategory": "support-tables",
+    "task_type": "T1-schema",
+    "parent_feature": "12-REPORTING-a",
+    "context_budget": "35k",
+    "estimated_effort": "2-3h",
+    "description": "Create mv_refresh_log + report_exports + report_access_audits with RLS-FORCE + Wave0 org_id naming + GENERATED 7-year retention + CHECK constraints on format/status.",
+    "details": "Three transactional support tables (not MVs). PRD §9.2 labels say `tenant_id` but Wave0 v4.3 mandates `org_id` — use org_id everywhere. retention_until is GENERATED STORED so BRCGS auditors cannot tamper post-insert. All policies reference foundation app.current_org_id() function.",
+    "scope_files": [
+      "packages/db/migrations/0081_reporting_support_tables.sql [create]",
+      "packages/db/src/schema/reporting-support.ts [create]",
+      "packages/db/src/schema/index.ts [modify]",
+      "packages/db/__tests__/reporting-support-tables.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not implement export edge function here (T-013)",
+      "Do not implement archive cron here (T-013 sibling)",
+      "Do not implement scheduled_reports P2 tables here (T-024)"
+    ],
+    "dependencies": [],
+    "parallel_safe_with": [
+      "T-003",
+      "T-006"
+    ],
+    "cross_module_dependencies": [
+      "00-FOUNDATION T-125 app.current_org_id() (RLS function)",
+      "00-FOUNDATION T-040 R13 audit cols (audit compatibility)",
+      "02-SETTINGS users table (FK target)"
+    ],
+    "acceptance_criteria": [
+      "Given migration 0081 runs, when the 3 tables are inspected, then all declared columns/checks/indexes exist; RLS+FORCE ROW LEVEL SECURITY enabled on all 3",
+      "Given report_exports row is inserted with exported_at=2026-05-14, when retention_until is read, then it equals 2033-05-14 (7-year BRCGS per §14.1, GENERATED STORED)",
+      "Given two orgs insert rows under their app.set_org_context sessions, when each queries the tables, then each sees only its own rows (RLS isolation)",
+      "Given infrastructure and compliance are checked, when verified, then it rolls back with the explicit check constraint name and it equals."
+    ],
+    "test_strategy": [
+      "RED: packages/db/__tests__/reporting-support-tables.test.ts connects as app_user, sets org context per org, asserts 6 ACs",
+      "Run `pnpm --filter db test reporting-support-tables`",
+      "GREEN: write migration + Drizzle entries"
+    ],
+    "risk_red_lines": [
+      "Do not name the scope column tenant_id even though PRD §9.2 uses that label — Wave0 v4.3 mandates org_id",
+      "Do not skip RLS+FORCE ROW LEVEL SECURITY on any of the 3 tables",
+      "Do not omit GENERATED retention_until — BRCGS requires immutable 7-year retention at DB layer",
+      "Do not use current_setting('app.tenant_id') GUC; use app.current_org_id() foundation function",
+      "Do not let report_exports.sha256_hash be NULL (V-RPT-EXPORT-2 mandates NOT NULL)",
+      "No raw PII in reports/exports — PII columns (email, phone, address, surname, dob, national_id) must be redacted, hashed, or omitted at the read-model boundary. Consult Foundation T-117 pino redact allowlist for the canonical PII column set."
+    ],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": false
+  }
+}

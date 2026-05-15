@@ -1,0 +1,97 @@
+{
+  "title": "T-002 — KPI glossary (yield/GA/efficiency/OEE-consumer formulas) version-controlled (12-REPORTING §6 D-RPT-3)",
+  "prompt": "# T-002 — KPI glossary (version-controlled formulas)\n\nPRD: docs/prd/12-REPORTING-PRD.md §6 D-RPT-3 (Zrodla KPI + weighted avg), §6 D-RPT-9 (OEE consumer), §9.1 (MV columns)\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nCreate the canonical KPI glossary file (`_foundation/contracts/reporting-kpi-glossary.md`) AND a machine-readable companion (`packages/reporting/src/kpi-glossary.ts`) listing every P1 KPI with its formula, source MV, unit, weighting rule, and PRD §-ref. This is the version-controlled SSOT — every dashboard task must cite this file by KPI key. Translation-notes red line: \"KPI definitions in version-controlled glossary\".\n\n## Implementation contract\n1. Create `_foundation/contracts/reporting-kpi-glossary.md` — markdown table with columns: KPI key | Definition | Formula | Source MV/table | Unit | Weighting | PRD ref.\n2. Create `packages/reporting/src/kpi-glossary.ts` — exports `KPI_GLOSSARY: Record<string, KpiDefinition>` (frozen object) with the same data; type `KpiDefinition` declared explicitly.\n3. Coverage: yield_pct, giveaway_pct, efficiency_pct, variance_gbp, otd_pct, fulfillment_rate, oee_pct (consumer), oee_availability_pct (consumer), oee_performance_pct (consumer), oee_quality_pct (consumer), wip_count, inventory_age_bucket, hold_count, hold_labour_hours, dlq_depth, rule_eval_count.\n4. Each entry MUST cite weighting rule per D-RPT-3: yield_pct and giveaway_pct are weighted by `kg_usage` not simple mean.\n5. Each entry MUST cite source MV exactly as declared in §9.1 (no inventing MV names).\n6. Vitest contract test ensures every KPI key in glossary matches `^[a-z][a-z0-9_]+$` and the TS export round-trips against the markdown table.\n\n## Files\n- _foundation/contracts/reporting-kpi-glossary.md [create]\n- packages/reporting/src/kpi-glossary.ts [create]\n- packages/reporting/src/index.ts [create or modify export]\n- packages/reporting/__tests__/kpi-glossary.test.ts [create]\n\n## Acceptance criteria\n1. Given the glossary markdown is read, when parsed, then it contains exactly 16 P1 KPI rows in the declared schema (key, definition, formula, source MV, unit, weighting, PRD ref).\n2. Given `KPI_GLOSSARY` is imported, when its keys are listed, then they equal the markdown table keys exactly (vitest cross-check).\n3. Given yield_pct or giveaway_pct entries are read, when the weighting column is inspected, then it says \"weighted by kg_usage\" per D-RPT-3 — not \"simple mean\".\n4. Given oee_* entries are read, when the source MV is inspected, then it cites `oee_daily_summary` (owned by 15-OEE) per D-RPT-9 — never `mv_oee_*` owned by reporting.\n5. Given any new dashboard task asserts a KPI, when scanned, then the KPI key MUST appear in `KPI_GLOSSARY` (enforced by downstream T-005..T-022 prompts citing this file).\n\n## Test strategy (RED first)\n- RED: write `packages/reporting/__tests__/kpi-glossary.test.ts` asserting the 16 keys + weighting rule + source-MV rule + markdown↔TS round-trip.\n- Run `pnpm --filter @monopilot/reporting vitest run kpi-glossary`.\n- GREEN: write glossary markdown + TS export; re-run.\n\n## Risk red lines\n- Do not invent KPI names not in PRD §9.1 / §10 / D-RPT-3.\n- Do not duplicate OEE formulas locally — OEE is consumer of 15-OEE (D-RPT-9); cite `oee_daily_summary` source only.\n- Do not use unweighted arithmetic mean for yield/GA (D-RPT-3 mandates weighted-by-kg).\n- Do not let glossary diverge from MV column names declared in T-003 / T-006 / T-011.\n- Do not put RBAC roles in glossary — roles live in permissions.enum (T-001).",
+  "labels": [
+    "prd",
+    "contract",
+    "kpi",
+    "T1-schema"
+  ],
+  "priority": 80,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-002",
+    "source_prd": "docs/prd/12-REPORTING-PRD.md",
+    "prd_refs": [
+      "§6 D-RPT-3",
+      "§6 D-RPT-9",
+      "§9.1",
+      "§10"
+    ],
+    "category": "contract",
+    "subcategory": "kpi-glossary",
+    "task_type": "T1-schema",
+    "parent_feature": "12-REPORTING-a",
+    "context_budget": "30k",
+    "estimated_effort": "1-3h",
+    "description": "Create the version-controlled KPI glossary markdown + TS export (KPI_GLOSSARY) so every reporting dashboard cites identical formulas. Single source of truth per translation-notes red line.",
+    "details": "Covers 16 P1 KPIs: yield_pct, giveaway_pct, efficiency_pct, variance_gbp, otd_pct, fulfillment_rate, oee_pct (consumer 15-OEE), oee_availability_pct (consumer), oee_performance_pct (consumer), oee_quality_pct (consumer), wip_count, inventory_age_bucket, hold_count, hold_labour_hours, dlq_depth, rule_eval_count. Weighted average rule per D-RPT-3 applies to yield_pct and giveaway_pct (kg_usage weight). OEE entries cite `oee_daily_summary` owned by 15-OEE (D-RPT-9). Each entry maps to one MV from PRD §9.1.",
+    "scope_files": [
+      "_foundation/contracts/reporting-kpi-glossary.md [create]",
+      "packages/reporting/src/kpi-glossary.ts [create]",
+      "packages/reporting/src/index.ts [modify]",
+      "packages/reporting/__tests__/kpi-glossary.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not implement MVs here (T-003 / T-006 / T-011)",
+      "Do not implement dashboards here",
+      "Do not add P2 KPIs (giveaway-by-supervisor, leader-scorecard grades, period 4-4-5 aggregates)"
+    ],
+    "dependencies": [],
+    "parallel_safe_with": [
+      "T-001"
+    ],
+    "cross_module_dependencies": [
+      "15-OEE oee_daily_summary (consumer)",
+      "08-PROD wo_outputs + wo_consumptions (source)",
+      "09-QUALITY quality_holds + hold_items (source)",
+      "05-WAREHOUSE license_plates (source)",
+      "11-SHIPPING shipments + sales_orders (source)"
+    ],
+    "acceptance_criteria": [
+      "Given the glossary markdown is read, when parsed, then it contains exactly 16 P1 KPI rows with the declared columns (key, definition, formula, source MV, unit, weighting, PRD ref)",
+      "Given KPI_GLOSSARY is imported, when its keys are listed, then they equal the markdown table keys exactly",
+      "Given yield_pct or giveaway_pct entries are read, when the weighting column is inspected, then it says 'weighted by kg_usage' per D-RPT-3",
+      "Given infrastructure and compliance are checked, when verified, then it cites oee_daily_summary owned by 15-OEE per D-RPT-9 and markdown table and TS export match key-for-key."
+    ],
+    "test_strategy": [
+      "RED: write packages/reporting/__tests__/kpi-glossary.test.ts asserting the 16 keys + weighting rule + source-MV rule + markdown↔TS round-trip; run vitest, expect failure",
+      "GREEN: write glossary markdown + TS export",
+      "Run `pnpm --filter @monopilot/reporting vitest run kpi-glossary`"
+    ],
+    "risk_red_lines": [
+      "Do not invent KPI names not in PRD §9.1 / §10 / D-RPT-3",
+      "Do not duplicate OEE formulas — consumer of 15-OEE oee_daily_summary only (D-RPT-9)",
+      "Do not use unweighted arithmetic mean for yield/GA — weighted by kg_usage (D-RPT-3)",
+      "Do not let glossary keys drift from MV column names in §9.1"
+    ],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": false
+  }
+}

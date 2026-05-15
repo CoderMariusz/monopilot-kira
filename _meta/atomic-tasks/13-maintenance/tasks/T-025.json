@@ -1,0 +1,108 @@
+{
+  "title": "T-025 — UI: LOTO Procedures List + Apply/Clear modals (MNT-030, MNT-M-10, MNT-M-11) — safety-critical",
+  "prompt": "# T-025 — LOTO List + Apply + Clear modals\n\nPRD: docs/prd/13-MAINTENANCE-PRD.md §10.3 MNT-030, §10.4 MNT-M-10, MNT-M-11, §11.2 V-MNT-07..09, §7.2 D-MNT-15\nUX: prototypes/design/13-MAINTENANCE-UX.md:730-802\nPrototypes: other-screens.jsx:488-598 (loto_list_page); modals.jsx:659-802 (loto_apply_modal, loto_clear_modal)\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nRoute `/maintenance/loto` (active filter default, real-time SSE/polling alert banner) + safety-critical Apply (dismissible=false, two-person policy enforced server-side) and Clear (dual e-sign) modals — calls T-014 Server Actions.\n\n## Implementation contract\n1. `apps/web/app/maintenance/loto/page.tsx` — RSC; URL `?activeOnly=true` default; active count banner uses 30s polling (SSE deferred — BL-MAINT-04). Conditional Tailwind bg-amber-50 for active rows.\n2. Apply modal: shadcn Dialog with `onInteractOutside={(e) => e.preventDefault()}` (dismissible=false). useFieldArray for energy_sources_isolated + tags_applied. Final step: zero-energy Checkbox + verifier PIN Input. Calls T-014 applyLoto Server Action (e-sign via Wave1 T-124).\n3. Clear modal: dismissible=false; pre-clear checklist; two-person sign-off strip (two separate request_signoff Server Action calls); allChecked && signed.t1 && signed.t2 computed server-side as prop; calls T-014 clearLoto with releaserPin.\n4. RBAC: Apply requires `mnt.loto.apply`; Clear requires `mnt.loto.clear`. Verifier role enforced server-side per V-MNT-08.\n5. V-MNT-09 advisory: if releaser === verifier and strict=false, modal shows warning Alert before submit.\n6. Empty/loading/error/permission states + i18n (`maintenance.loto.list.*`, `maintenance.loto.apply.*`, `maintenance.loto.clear.*`).\n\n## Prototype parity\n- List active count banner + active row styling + Clear/View action buttons + active detail expansion card — RTL snapshot other-screens.jsx:488-598.\n- Apply modal energy sources useFieldArray + tags/locks rows + zero-energy + PIN — snapshot modals.jsx:659-731.\n- Clear modal pre-clear checklist + two-person sign-off strip + canConfirm gate — snapshot modals.jsx:733-802.\n\n## Files\n- apps/web/app/maintenance/loto/page.tsx [create]\n- apps/web/app/maintenance/loto/_components/loto-list-client.tsx [create]\n- apps/web/app/maintenance/loto/_components/loto-apply-modal.tsx [create]\n- apps/web/app/maintenance/loto/_components/loto-clear-modal.tsx [create]\n- apps/web/app/maintenance/loto/_components/__tests__/loto.test.tsx [create]\n\n## Acceptance criteria\n1. Given list renders, when compared to other-screens.jsx:488-598, then active count banner + active row amber styling + active detail expansion card + Clear/View RBAC-gated match by RTL parity checklist.\n2. Given Apply modal opened, when user clicks outside, then modal does NOT close (dismissible=false enforced via onInteractOutside preventDefault).\n3. Given Apply submitted with verifier role NOT maintenance_technician AND NOT maintenance_manager, when settled, then T-014 returns LOTO_VERIFIER_ROLE_INVALID (V-MNT-08) and modal shows inline error.\n4. Given Clear submitted with releaserUserId === verifierUserId AND strict=true setting, when settled, then T-014 returns LOTO_TWO_PERSON_RULE (V-MNT-09 strict) and modal shows inline error; given strict=false the same submit succeeds with warning Alert showing the advisory text.\n5. Given Apply succeeds, when outbox is queried, then loto.applied event payload contains {mwo_id, verifier_user_id, energy_sources_isolated, tags_applied, verified_at}.\n6. Given closeout, when reviewers inspect, then Playwright trace + screenshots attached per UI-PROTOTYPE-PARITY-POLICY.md.\n\n## Test strategy\n- RED: RTL parity + Playwright e2e for Apply + Clear flows including dismissible=false interaction and inline error rendering.\n- Run `pnpm --filter @monopilot/web vitest run apps/web/app/maintenance/loto`.\n\n## Risk red lines\n- Do not allow modal close on outside click — safety-critical.\n- Do not store raw PIN client-side — pass to e-sign primitive only (T-124 via T-014).\n- Do not bypass V-MNT-08 verifier role check — safety-critical (do not assume client RBAC is sufficient).\n- Do not skip outbox emission — 12-reporting LOTO Compliance dashboard dependency.\n- Do not paste prototype JSX verbatim.\n- Do not omit empty/loading/error/permission states.",
+  "labels": [
+    "prd",
+    "ui",
+    "loto",
+    "safety",
+    "T3-ui"
+  ],
+  "priority": 110,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-025",
+    "source_prd": "docs/prd/13-MAINTENANCE-PRD.md",
+    "prd_refs": [
+      "§10.3 MNT-030",
+      "§10.4 MNT-M-10",
+      "§10.4 MNT-M-11",
+      "§11.2",
+      "§7.2 D-MNT-15"
+    ],
+    "category": "ui",
+    "subcategory": "loto",
+    "task_type": "T3-ui",
+    "parent_feature": "13-MAINTENANCE-c",
+    "context_budget": "55k",
+    "estimated_effort": "4-5h",
+    "description": "LOTO list + Apply + Clear safety-critical modals (dismissible=false, two-person policy) calling T-014 Server Actions.",
+    "details": "Safety-critical highest review burden. SSE for active LOTO real-time deferred (BL-MAINT-04). Remote two-person session-bridging deferred (BL-MAINT-04 P2). UI closeout includes Playwright artifacts.",
+    "scope_files": [
+      "apps/web/app/maintenance/loto/page.tsx [create]",
+      "apps/web/app/maintenance/loto/_components/loto-list-client.tsx [create]",
+      "apps/web/app/maintenance/loto/_components/loto-apply-modal.tsx [create]",
+      "apps/web/app/maintenance/loto/_components/loto-clear-modal.tsx [create]",
+      "apps/web/app/maintenance/loto/_components/__tests__/loto.test.tsx [create]"
+    ],
+    "out_of_scope": [
+      "Full LOTO permit system (P2)",
+      "Photo evidence required gate (BL-MAINT-02 P2)",
+      "Remote two-person SSE flow (BL-MAINT-04 P2)"
+    ],
+    "dependencies": [
+      "T-001",
+      "T-004",
+      "T-014",
+      "T-013"
+    ],
+    "parallel_safe_with": [
+      "T-018",
+      "T-019",
+      "T-022",
+      "T-023",
+      "T-024"
+    ],
+    "acceptance_criteria": [
+      "Given list renders, when compared to prototypes/design/Monopilot Design System/maintenance/other-screens.jsx:488-598, then active count banner + amber row styling + active detail expansion card + Clear/View RBAC-gated match by RTL parity checklist",
+      "Given Apply modal opened, when user clicks outside, then modal does NOT close (dismissible=false enforced); given Apply submitted with verifier role invalid, then T-014 returns LOTO_VERIFIER_ROLE_INVALID and modal shows inline error (V-MNT-08)",
+      "Given Clear submitted with releaser===verifier AND strict=true, when settled, then T-014 returns LOTO_TWO_PERSON_RULE and modal shows error (V-MNT-09); given strict=false, same submit succeeds with warning Alert",
+      "Given Apply succeeds, when outbox queried, then loto.applied payload contains {mwo_id, verifier_user_id, energy_sources_isolated, tags_applied, verified_at}; given closeout, then Playwright trace + screenshots attached per UI-PROTOTYPE-PARITY-POLICY.md"
+    ],
+    "test_strategy": [
+      "RED: RTL parity + Playwright e2e including dismissible=false interaction and inline error rendering",
+      "Run `pnpm --filter @monopilot/web vitest run apps/web/app/maintenance/loto`",
+      "Capture Playwright trace/video/screenshots in closeout"
+    ],
+    "risk_red_lines": [
+      "Do not allow modal close on outside click (safety-critical)",
+      "Do not store raw PIN client-side",
+      "Do not bypass V-MNT-08 verifier role check",
+      "Do not skip outbox emission (12-reporting dependency)",
+      "Do not paste prototype JSX verbatim",
+      "Do not omit empty/loading/error/permission states"
+    ],
+    "skills": [
+      "test-driven-development",
+      "frontend-design",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status",
+        "playwright_artifacts"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": true,
+    "prototype_index_entry": "loto_list_page",
+    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md"
+  }
+}

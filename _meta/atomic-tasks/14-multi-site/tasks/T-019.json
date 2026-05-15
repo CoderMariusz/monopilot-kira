@@ -1,0 +1,103 @@
+{
+  "title": "T-019 \u2014 Replication retry / Run Sync modal + bulk job enqueue (MS-106) \u00a710B, V-MS-22",
+  "prompt": "# T-019 \u2014 Replication retry / Run Sync modal + bulk job enqueue\n\nPRD: docs/prd/14-MULTI-SITE-PRD.md \u00a710B MS-106, \u00a711.6 V-MS-22\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\nPrototype: prototypes/design/Monopilot Design System/multi-site/modals.jsx:241-270 (replication_retry_modal)\nTranslation notes: _meta/prototype-labels/translation-notes-multi-site.md \u00a7M-04\n\n## Goal\nImplement the MS-106 modal so admins can trigger bulk replication retry / full sync from MS-MDS or MS-REP pages. Server Action enqueues jobs to replication_jobs (T-017).\n\n## Implementation contract\n1. apps/web/app/(multi-site)/_components/replication-retry-modal.tsx \u2014 shadcn Dialog + scope-driven label/description (failed / all / single) + priority RadioGroup (normal/high).\n2. Server Action retryReplicationJobs({scope, jobId?, priority, entityTypes?}):\n   - V-MS-22: assert role='admin' else throw UnauthorizedReplicationAction.\n   - V-MS-22: assert at least one entity selected (entityTypes.length >= 1 for scope='failed'/'all'); for scope='single', jobId required.\n   - Insert N rows into replication_jobs with status='pending', priority mapped to integer (normal=5, high=1), scheduled_at=now().\n   - Returns inserted job IDs for optimistic UI.\n3. Optimistic-UI: queue row pulses amber in replication queue table via mutation key 'replication-queue' (react-query).\n4. Tests: V-MS-22 admin check + zero-entity rejection + jobs enqueued with correct status/priority + scope=single requires jobId.\n\n## Files\n- apps/web/app/(multi-site)/_components/replication-retry-modal.tsx [create]\n- apps/web/app/(multi-site)/_actions/retry-replication-jobs.ts [create]\n- apps/web/app/(multi-site)/_components/__tests__/replication-retry-modal.test.tsx [create]\n- apps/web/app/(multi-site)/_actions/__tests__/retry-replication-jobs.test.ts [create]\n- prototypes/design/Monopilot Design System/multi-site/modals.jsx [ref]\n\n## Acceptance criteria\n<!-- AC count consolidated from 7\u21924 by Fixer F14a 2026-05-14 (no coverage lost) -->\n1. Given modal opens with scope='failed', when compared to modals.jsx:241-270 (replication_retry_modal), then label says 'Retry All Failed', priority RadioGroup present, target sites list visible \u2014 RTL parity.\n2. Given user role != admin, when Server Action runs, then UnauthorizedReplicationAction thrown (V-MS-22).\n3. Given scope='all' and entityTypes=[], when Server Action runs, then NoEntitiesSelected thrown (V-MS-22 at-least-one).\n4. Given scope='single' without jobId, when Server Action runs, then ScopeSingleRequiresJobId thrown.\n5. Given valid admin call scope='failed', priority='high', entityTypes=['items','boms'], when settled, then 2 rows inserted in replication_jobs with status='pending' priority=1 scheduled_at=now().\n6. Given the modal submits successfully, when the queue table re-renders, then the new jobs appear with amber-pulse styling via mutation invalidation.\n\n## Test strategy\n- RED: RTL parity + V-MS-22 admin check + zero-entity rejection + scope=single jobId requirement + correct DB inserts before component exists.\n- Run 'pnpm --filter @monopilot/web vitest run replication-retry-modal' + Playwright replication-retry.spec.ts.\n\n## Prototype parity\nReference prototype: prototypes/design/Monopilot Design System/multi-site/modals.jsx:241-270 (replication_retry_modal).\nImplement matching the canonical layout 1:1 per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`. Capture RTL parity snapshot + Playwright trace as closeout evidence.\n\n## Risk red lines\n- Do not allow non-admin to trigger retry (V-MS-22 must be enforced server-side; UI hide alone is insufficient).\n- Do not enqueue zero rows on empty entity list \u2014 explicit error.\n- Do not let scope='single' silently succeed without jobId \u2014 fail-closed.\n- Do not bypass replication_jobs RLS \u2014 every insert must include org_id from withOrgContext.\n- Do not log entityTypes payload at info if it contains commercially sensitive data \u2014 redact via T-117 if needed.",
+  "labels": [
+    "prd",
+    "ui",
+    "replication",
+    "T3-ui"
+  ],
+  "priority": 60,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-019",
+    "source_prd": "docs/prd/14-MULTI-SITE-PRD.md",
+    "prd_refs": [
+      "\u00a710B MS-106",
+      "\u00a711.6 V-MS-22"
+    ],
+    "category": "ui",
+    "subcategory": "replication-retry",
+    "task_type": "T3-ui",
+    "parent_feature": "14-MULTI-SITE-d master data sync",
+    "context_budget": "50k",
+    "estimated_effort": "2-3h",
+    "description": "Bulk-action modal triggered from MS-MDS 'Run Sync Now' or MS-REP 'Retry All Failed' \u2014 priority select (normal/high) + scope (all/failed/single) + V-MS-22 admin-role + at-least-one-entity gate + queue UI integration.",
+    "details": "Bulk-action modal triggered from MS-MDS 'Run Sync Now' or MS-REP 'Retry All Failed' \u2014 priority select (normal/high) + scope (all/failed/single) + V-MS-22 admin-role + at-least-one-entity gate + queue UI integration. Scope: Implement the MS-106 modal so admins can trigger bulk replication retry / full sync from MS-MDS or MS-REP pages. Touches: apps/web/app/(multi-site)/_components/replication-retry-modal.tsx, apps/web/app/(multi-site)/_actions/retry-replication-jobs.ts, apps/web/app/(multi-site)/_components/__tests__/replication-retry-modal.test.tsx, apps/web/app/(multi-site)/_actions/__tests__/retry-replication-jobs.test.ts. Constraints: 1. apps/web/app/(multi-site)/_components/replication-retry-modal.tsx \u2014 shadcn Dialog + scope-driven label/description (failed / all / single) + priority RadioGroup (normal/high). 2. Server Action retryReplicationJobs({scope, jobId?, priority, entityTypes?}): - V-MS-22: assert role='admin' else throw UnauthorizedReplicationAction. - V-MS-22: assert . Distinguished from sibling 14-multi-site tasks by its narrow replication-retry focus against PRD \u00a710B MS-106, \u00a711.6 V-MS-22. AC count consolidated from 7\u21924 by Fixer F14a 2026-05-14 (no coverage lost)",
+    "scope_files": [
+      "apps/web/app/(multi-site)/_components/replication-retry-modal.tsx [create]",
+      "apps/web/app/(multi-site)/_actions/retry-replication-jobs.ts [create]",
+      "apps/web/app/(multi-site)/_components/__tests__/replication-retry-modal.test.tsx [create]",
+      "apps/web/app/(multi-site)/_actions/__tests__/retry-replication-jobs.test.ts [create]",
+      "prototypes/design/Monopilot Design System/multi-site/modals.jsx [modify]"
+    ],
+    "out_of_scope": [
+      "Do not implement the queue listing page (MS-REP) \u2014 covered separately.",
+      "Do not implement the master data sync page (MS-MDS) \u2014 covered separately.",
+      "Do not implement worker that consumes replication_jobs (T-112 baseline)."
+    ],
+    "dependencies": [
+      "T-017"
+    ],
+    "cross_module_dependencies": [
+      {
+        "module": "00-foundation",
+        "task_id": "T-112",
+        "reason": "Worker consumes replication_jobs entries enqueued here."
+      }
+    ],
+    "parallel_safe_with": [
+      "T-018"
+    ],
+    "acceptance_criteria": [
+      "Given modal opens with scope='failed', when compared to prototypes/design/Monopilot Design System/multi-site/modals.jsx:241-270, then label 'Retry All Failed', priority RadioGroup, target sites list visible \u2014 RTL parity.",
+      "Given user role != admin, when Server Action runs, then UnauthorizedReplicationAction thrown (V-MS-22); AND given scope='all' and entityTypes=[] when Server Action runs then NoEntitiesSelected thrown (V-MS-22); AND given scope='single' without jobId when Server Action runs then ScopeSingleRequiresJobId thrown.",
+      "Given valid admin call scope='failed' priority='high' entityTypes=['items','boms'], when settled, then 2 rows inserted with status='pending' priority=1.",
+      "Given modal submits successfully, when queue re-renders, then new jobs appear with amber-pulse via mutation invalidation."
+    ],
+    "test_strategy": [
+      "RED: RTL parity + V-MS-22 admin + zero-entity + scope=single jobId + DB inserts before component exists.",
+      "Run 'pnpm --filter @monopilot/web vitest run replication-retry-modal' + Playwright replication-retry.spec.ts.",
+      "For UI parity, capture screenshots/artifacts and Playwright trace/video where applicable; attach artifact paths in closeout."
+    ],
+    "risk_red_lines": [
+      "Do not allow non-admin (V-MS-22 server-side; UI hide insufficient).",
+      "Do not enqueue zero rows \u2014 explicit error.",
+      "Do not let scope='single' silently succeed without jobId.",
+      "Do not bypass replication_jobs RLS \u2014 org_id from withOrgContext.",
+      "Do not log entityTypes payload with sensitive data \u2014 redact via T-117."
+    ],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review",
+      "frontend-design"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status",
+        "screenshot_and_playwright_trace_evidence"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": true,
+    "prototype_index_entry": "replication_retry_modal",
+    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md"
+  }
+}

@@ -1,0 +1,100 @@
+{
+  "title": "T-046 — ncr_close_modal (parity, conditional dual-sign for critical)",
+  "prompt": "# T-046 — ncr_close_modal (parity)\n\nPRD: §11.4 V-QA-NCR-005/006, §5.3 signature evidence, §13.2 e-signature, §8.5 traceability\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\nPrototype: prototypes/design/Monopilot Design System/quality/modals.jsx:385-466 (ncr_close_modal)\n\n## Goal\nNCR close modal with pre-close checklist + conditional dual-sign layout (when severity='critical' V-QA-NCR-006) using shared ESignBlock (T-039) and closeNcr Server Action (T-038). 1:1 parity vs prototype.\n\n## Implementation contract\n1. packages/ui/src/quality/NcrCloseModal.tsx (Client Component) wrapping shadcn Dialog.\n2. Pre-close checklist (checks[]) rendered as read-only shadcn Checkbox list — server-computed booleans (rootCause present, immediateAction present, linked holds status); fail = block Close button.\n3. rcCat (root_cause_category) Select bound to T-042 reference data.\n4. Conditional dual-sign grid (isCritical → 1fr 1fr CSS grid): renders TWO ESignBlock components (T-039), one labelled 'QA' one labelled 'Production Manager'; if severity != critical, single ESignBlock.\n5. closeNcr Server Action call (T-038) on Sign confirmation; on success, modal closes + page revalidates.\n6. Wired into ncr_detail (T-044) via ?modal=close URL state.\n\n## Prototype parity\nAnchor: `prototypes/design/Monopilot Design System/quality/modals.jsx:385-466` (ncr_close_modal).\nParity checklist (verify all):\n- Dialog (medium-wide)\n- Pre-close checklist (4-6 items) — server-computed, read-only Checkbox list\n- rootCauseCategory Select\n- Conditional dual-sign grid for critical (two ESignBlock cards side-by-side)\n- Single ESignBlock for non-critical\n- Destructive action footer styling (border-top + danger button class)\n- Sign button disabled until checklist all-true AND PIN verified (server-driven)\n\n## Files\n- packages/ui/src/quality/NcrCloseModal.tsx [create]\n- packages/ui/src/quality/__tests__/NcrCloseModal.test.tsx [create]\n- apps/web/src/app/quality/ncr/[id]/page.tsx [modify]\n\n## Acceptance criteria (Given-When-Then)\n1. Compared to prototypes/design/Monopilot Design System/quality/modals.jsx:385-466 — parity on structure (Dialog + checklist + rcCat Select + conditional dual-sign grid + destructive footer), visuals (shadcn Dialog/Form/Textarea/Select/Alert/Button only; Button variant='destructive' for Close action), interaction (Sign disabled until checklist + PIN; closeNcr Server Action on confirm) — RTL + checklist\n2. Given severity='critical', when modal renders, then 2 ESignBlock components are rendered side-by-side and the closeNcr action requires both PINs to belong to distinct users (V-QA-NCR-006 enforced server-side; client preview banner shows 'Two signatures required')\n3. Given severity!='critical', when modal renders, then exactly 1 ESignBlock is rendered\n4. UI closeout includes screenshot/artifact evidence and Playwright trace/artifacts where applicable per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`; if Playwright is unavailable, document the blocker and provide RTL/snapshot fallback evidence.\n\n## Test strategy (RED first)\n- RED: NcrCloseModal.test.tsx asserting parity + dual-sign grid for critical + single ESignBlock for non-critical + Sign disabled-until-server-verified before implementation\n- Run 'pnpm --filter ui test NcrCloseModal'\n- For UI parity, capture screenshots/artifacts and Playwright trace/video/artifacts where applicable; attach artifact paths in closeout.\n\n## Risk red lines\n- Do not use a different sign primitive — must use shared ESignBlock T-039 (translation-notes §E-Signature; audit B §3)\n- Do not compute signature_hash on client (server-only)\n- Do not bypass server-side V-QA-NCR-006 same-user reject (translation-notes §Dual-Sign Pattern)\n- Do not skip the checklist server-computed booleans (client-only checklist would be a security regression)",
+  "labels": [
+    "prd",
+    "ui",
+    "ncr",
+    "T3-ui"
+  ],
+  "priority": 85,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-046",
+    "source_prd": "docs/prd/09-QUALITY-PRD.md",
+    "prd_refs": [
+      "§11.4",
+      "§5.3",
+      "§13.2",
+      "§8.5"
+    ],
+    "category": "ui",
+    "subcategory": "ncr-close-modal",
+    "task_type": "T3-ui",
+    "parent_feature": "09-QUALITY-d NCR",
+    "context_budget": "55k",
+    "estimated_effort": "3-4h",
+    "description": "NCR close modal with server-computed pre-close checklist + conditional dual-sign layout for critical (V-QA-NCR-006) using shared ESignBlock. 1:1 parity vs prototype.",
+    "details": "Client Component wrapping shadcn Dialog. Pre-close checklist is read-only shadcn Checkbox list driven by server-computed booleans (rootCause present, immediateAction present, linked holds status). rcCat Select bound to T-042 ncr_root_cause_categories. isCritical → 1fr 1fr CSS grid renders TWO ESignBlock components (T-039) side-by-side (QA + Production Manager labels); else single ESignBlock. closeNcr Server Action (T-038) on sign confirmation. Modal close + page revalidate on success. Wired into ncr_detail via ?modal=close. Destructive-action footer style with shadcn Button variant='destructive'. Translation-notes red-lines: server-side V-QA-NCR-006 reject same-user; closure_signature_hash server-computed; record locks (immutability) after close via DB trigger (T-038).",
+    "scope_files": [
+      "packages/ui/src/quality/NcrCloseModal.tsx [create]",
+      "packages/ui/src/quality/__tests__/NcrCloseModal.test.tsx [create]",
+      "apps/web/src/app/quality/ncr/[id]/page.tsx [modify]"
+    ],
+    "out_of_scope": [
+      "Do not modify NCR Server Actions (T-038)",
+      "Do not modify ESignBlock primitive (T-039)",
+      "Do not implement CAPA workflow (P2 Epic 8G)"
+    ],
+    "dependencies": [
+      "T-038",
+      "T-039",
+      "T-042",
+      "T-044"
+    ],
+    "parallel_safe_with": [
+      "T-045"
+    ],
+    "acceptance_criteria": [
+      "Given the close modal renders, when compared to prototypes/design/Monopilot Design System/quality/modals.jsx:385-466 (ncr_close_modal), then it matches on structural parity (Dialog + server-computed checklist + rcCat Select + conditional dual-sign grid + destructive footer), visual parity (shadcn Dialog/Form/Textarea/Select/Alert/Button only, variant='destructive' for Close), and interaction parity (Sign disabled until checklist all-true AND PIN verified by server, closeNcr Server Action on confirm) — verified by RTL render plus parity checklist",
+      "Given severity='critical', when the modal renders, then 2 ESignBlock components are rendered in a side-by-side grid (QA + Production Manager) and the closeNcr action requires distinct second signer user_id (V-QA-NCR-006 server-side)",
+      "Given severity in {major, minor}, when the modal renders, then exactly 1 ESignBlock is rendered and only one PIN is required",
+      "UI closeout includes screenshot/artifact evidence and Playwright trace/artifacts where applicable per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`; if Playwright is unavailable, document the blocker and provide RTL/snapshot fallback evidence."
+    ],
+    "test_strategy": [
+      "RED: NcrCloseModal.test.tsx asserting parity + dual-sign grid for critical + single ESignBlock for non-critical + Sign-disabled-until-server-verified before implementation",
+      "Run 'pnpm --filter ui test NcrCloseModal'",
+      "For UI parity, capture screenshots/artifacts and Playwright trace/video/artifacts where applicable; attach artifact paths in closeout."
+    ],
+    "risk_red_lines": [
+      "Do not introduce a different sign primitive — must use shared ESignBlock T-039 (translation-notes §E-Signature; audit B §3)",
+      "Do not compute signature_hash on client",
+      "Do not bypass server-side V-QA-NCR-006 same-user reject (translation-notes §Dual-Sign Pattern)",
+      "Do not skip server-computed checklist booleans (client-only checklist is security regression)"
+    ],
+    "prototype_match": true,
+    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md",
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "cross_module_dependencies": [
+      "00-foundation:T-124",
+      "09-quality:T-038",
+      "09-quality:T-039"
+    ]
+  }
+}

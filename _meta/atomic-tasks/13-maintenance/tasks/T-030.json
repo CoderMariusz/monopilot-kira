@@ -1,0 +1,107 @@
+{
+  "title": "T-030 — E2E spine: WR → approve → start → consume spare → complete + cross-module outbox + Playwright trace",
+  "prompt": "# T-030 — End-to-end MWO spine + cross-module integration test\n\nPRD: docs/prd/13-MAINTENANCE-PRD.md §6.2 data flow, §8.2 mwo_state_machine_v1, §12.3 outbox\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nPlaywright E2E test asserting full MWO lifecycle works end-to-end: Submit Work Request → Manager Approve → Assign → Start (LOTO gate) → Consume spare part → Complete sign-off → outbox events to 12-reporting + 15-OEE + 09-quality consumer queues. Closes Auditor A CIG-3 (Production WO ⇄ Quality hold gate) on the maintenance side.\n\n## Pre-flight\nVerify T-018..T-027 UI tasks complete (or at least T-018, T-021, T-022, T-023, T-025 dashboard + WR + MWO Detail + Spares + LOTO landed). Verify Wave1 T-123 Playwright primitive (browser, fixtures). Verify Testcontainers Postgres infra. Verify T-012 outbox dispatcher writes consumer queue rows (queues can be in-memory mock if cross-module modules not yet bootstrapped).\n\n## Implementation contract\n1. `apps/web/e2e/maintenance-spine.spec.ts` Playwright test with these steps as a single trace:\n   - Seed: org, manager+technician users, equipment.requires_loto=true, calibration_instrument, spare_parts_stock qty=10.\n   - Login as technician → /maintenance/wr → \"Submit Work Request\" modal → fill (asset, severity, problem desc) → submit → assert WR appears in list state='requested'.\n   - Logout / login as manager → /maintenance/wr → Triage → Approve with priority+type+technician → assert MWO row state='approved'.\n   - Manager assigns technician → /maintenance/mwos → row action \"Assign & Open\" → state='open'.\n   - Login as assigned technician → /maintenance/mwos/[id] → click Start Work → assert LOTO blocker banner shown → open LOTO Apply modal → fill → submit → re-enter Start Work → state='in_progress'.\n   - Tasks tab → check off all steps; Parts tab → Consume spare (qty=2) → assert spare_parts_stock.qty_on_hand=8.\n   - Complete signoff modal → assert allOk=true → Confirm → state='completed'.\n   - Assert outbox table contains rows for: mwo.requested, mwo.approved, mwo.in_progress, mwo.completed, spare_parts.consumed, loto.applied, loto.cleared (released via T-014 separately).\n   - Assert consumer queue mock received 3 messages for mwo.completed (12-reporting, 15-OEE, 09-quality) per T-012 routing.\n2. Capture Playwright trace.zip + screenshots + video to `e2e-artifacts/maintenance-spine/` for closeout evidence per UI-PROTOTYPE-PARITY-POLICY.md.\n3. Vitest companion (Testcontainers DB) verifies outbox dispatcher routing if e2e cannot mock consumer queues.\n\n## Files\n- apps/web/e2e/maintenance-spine.spec.ts [create]\n- apps/web/e2e/_fixtures/maintenance-seed.ts [create]\n- apps/web/e2e/_fixtures/maintenance-mock-consumer-queue.ts [create]\n- apps/web/__tests__/maintenance-spine-routing.test.ts [create]\n\n## Acceptance criteria\n1. Given Playwright test runs end-to-end, when assertion list executes, then every step transition (requested→approved→open→in_progress→completed) and every modal interaction (WR Create, Triage, LOTO Apply, Complete signoff) completes successfully.\n2. Given the spare consume step, when DB inspected post-step, then spare_parts_stock.qty_on_hand=8 (10-2) and spare_parts_transactions row with txn_type='consume' and mwo_id NOT NULL is present.\n3. Given the outbox is queried at test end, when filtered to this MWO, then rows for `mwo.requested`, `mwo.approved`, `mwo.in_progress`, `mwo.completed`, `spare_parts.consumed`, `loto.applied`, `loto.cleared` are all present with `published_at NOT NULL`.\n4. Given the mock consumer queue is inspected, when checked, then mwo.completed produced 3 queue messages (12-reporting, 15-OEE, 09-quality) per T-012 routing.\n5. Given closeout, when reviewers inspect e2e-artifacts/maintenance-spine/, then trace.zip + screenshots + video are present per UI-PROTOTYPE-PARITY-POLICY.md.\n\n## Test strategy\n- RED: write the spec; expect failures until all dependencies ship (UI tasks T-018..T-025 + Server Actions T-010..T-017 + outbox T-012).\n- Run `pnpm --filter @monopilot/web exec playwright test maintenance-spine` and `pnpm --filter @monopilot/web vitest run maintenance-spine-routing`.\n\n## Risk red lines\n- Do not assert specific timestamps — use relative assertions (`.toBeAfter(startTime)`).\n- Do not skip the LOTO gate path — V-MNT-07 is a release-critical safety contract.\n- Do not mock Server Actions — call them through actual UI interactions (Playwright).\n- Do not require all consumer modules to be live — mock consumer queues are acceptable for routing verification.\n- Do not paste UI prototype JSX into the spec — interact via test-ids and visible text.\n- Do not omit Playwright artifacts in closeout — UI-PROTOTYPE-PARITY-POLICY.md mandates them.",
+  "labels": [
+    "prd",
+    "e2e",
+    "playwright",
+    "cross-module",
+    "T4-wiring-test"
+  ],
+  "priority": 95,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-030",
+    "source_prd": "docs/prd/13-MAINTENANCE-PRD.md",
+    "prd_refs": [
+      "§6.2",
+      "§8.2",
+      "§12.3"
+    ],
+    "category": "test",
+    "subcategory": "e2e-spine",
+    "task_type": "T4-wiring-test",
+    "parent_feature": "13-MAINTENANCE-c",
+    "context_budget": "55k",
+    "estimated_effort": "4-5h",
+    "description": "Playwright E2E covering WR→approve→start (LOTO gate)→consume spare→complete + outbox routing to 12-reporting/15-OEE/09-quality consumer queues.",
+    "details": "Uses Wave1 T-123 Playwright primitive. Mock consumer queues acceptable if cross-module modules not yet bootstrapped. Closes Auditor A CIG-3 on the maintenance side. UI closeout includes Playwright trace.zip + screenshots + video.",
+    "scope_files": [
+      "apps/web/e2e/maintenance-spine.spec.ts [create]",
+      "apps/web/e2e/_fixtures/maintenance-seed.ts [create]",
+      "apps/web/e2e/_fixtures/maintenance-mock-consumer-queue.ts [create]",
+      "apps/web/__tests__/maintenance-spine-routing.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Cross-module consumer-side implementations (12-reporting, 15-OEE, 09-quality tasks)",
+      "Calibration spine (would be a follow-up T-030.b if budget allows)",
+      "Sanitation allergen-change spine (follow-up)"
+    ],
+    "dependencies": [
+      "T-010",
+      "T-011",
+      "T-012",
+      "T-014",
+      "T-018",
+      "T-021",
+      "T-022",
+      "T-023",
+      "T-025"
+    ],
+    "parallel_safe_with": [
+      "T-028",
+      "T-029"
+    ],
+    "acceptance_criteria": [
+      "Given Playwright test runs end-to-end, when assertions execute, then every state transition (requested→approved→open→in_progress→completed) and every modal interaction (WR Create, Triage, LOTO Apply, Complete signoff) completes successfully",
+      "Given spare consume step, when DB inspected post-step, then spare_parts_stock.qty_on_hand=8 (10-2) and spare_parts_transactions row with txn_type=consume and mwo_id NOT NULL is present",
+      "Given outbox queried at test end, when filtered to this MWO, then mwo.requested, mwo.approved, mwo.in_progress, mwo.completed, spare_parts.consumed, loto.applied, loto.cleared rows all have published_at NOT NULL; given mock consumer queue inspected, then mwo.completed produced 3 queue messages (12-reporting, 15-OEE, 09-quality) per T-012 routing",
+      "Given closeout, when reviewers inspect e2e-artifacts/maintenance-spine/, then trace.zip + screenshots + video are present per UI-PROTOTYPE-PARITY-POLICY.md"
+    ],
+    "test_strategy": [
+      "RED: write the spec; expect failures until all deps ship (T-010..T-017 + T-018..T-025 + T-012)",
+      "Run `pnpm --filter @monopilot/web exec playwright test maintenance-spine`",
+      "Run `pnpm --filter @monopilot/web vitest run maintenance-spine-routing` for outbox routing companion",
+      "Capture Playwright trace/video/screenshots; attach paths in closeout"
+    ],
+    "risk_red_lines": [
+      "Do not assert specific timestamps — relative assertions only",
+      "Do not skip LOTO gate path (V-MNT-07 safety)",
+      "Do not mock Server Actions — interact via UI (Playwright)",
+      "Do not require live consumer modules — mock queues acceptable",
+      "Do not paste UI prototype JSX into spec",
+      "Do not omit Playwright artifacts in closeout"
+    ],
+    "skills": [
+      "test-driven-development",
+      "systematic-debugging",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status",
+        "playwright_artifacts"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": false,
+    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md"
+  }
+}

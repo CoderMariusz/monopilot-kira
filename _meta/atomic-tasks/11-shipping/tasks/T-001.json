@@ -1,0 +1,106 @@
+{
+  "title": "T-001 — customers + customer_contacts + customer_addresses + customer_allergen_restrictions schema (11-shipping-a)",
+  "prompt": "# T-001 — Customer-domain schema (P1 baseline)\n\nPRD: docs/prd/11-SHIPPING-PRD.md §9.1 (customers, customer_contacts, customer_addresses tables), §6 D-SHP-7 RLS Multi-tenant (ADR-003/013), §11 V-SHIP-SO-02 shipping address required, §15.4 SHIP-003 Shipping Addresses, §15.4 SHIP-004 Allergen Restrictions per Customer\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nIntroduce the 4 customer-domain tables (`customers`, `customer_contacts`, `customer_addresses`, `customer_allergen_restrictions`) with `org_id` as canonical business-scope column, RLS + FORCE RLS using foundation `app.current_org_id()` function (T-125 `withOrgContext` HOF), R13 audit columns, and Drizzle ORM schemas. Read migrations/ to confirm there are no prior `customers` columns to preserve.\n\n## Implementation contract\n1. Read `packages/db/migrations/` to verify no prior customers/* schema exists; if any, document gap and abort.\n2. New migration `packages/db/migrations/00XX_shipping_customers.sql` (next free 4-digit slot) creating:\n   - `customers` (org_id uuid not null, site_id uuid nullable, customer_code text UNIQUE per org, name, email, phone, tax_id, category text CHECK in ('retail','wholesale','distributor'), allergen_restrictions JSONB DEFAULT '[]'::jsonb, credit_limit numeric(14,2) nullable (P2-gated by feature flag), is_active bool default true, R13 audit cols)\n   - `customer_contacts` (org_id, customer_id FK ON DELETE CASCADE, name, title, email, phone, is_primary bool, R13)\n   - `customer_addresses` (org_id, customer_id FK ON DELETE CASCADE, address_type text CHECK ('billing','shipping'), is_default bool, address_line1, address_line2 nullable, city, state nullable, postal_code, country_iso2 char(2), dock_hours jsonb nullable, notes text, R13)\n   - `customer_allergen_restrictions` (org_id, customer_id FK ON DELETE CASCADE, allergen_id uuid references allergen_families (from 02-settings ref tables), restriction_type text CHECK ('refuses','requires_decl'), notes, R13)\n3. ENABLE + FORCE ROW LEVEL SECURITY on all 4 tables. Policies `<table>_org_context` USING `(org_id = app.current_org_id())` WITH CHECK same. No `current_setting('app.tenant_id'|'app.current_org_id')` GUC reads anywhere.\n4. Add indexes: `customers(org_id, customer_code) UNIQUE`, `customer_addresses(org_id, customer_id, address_type)`, `customer_allergen_restrictions(org_id, customer_id, allergen_id) UNIQUE`.\n5. Drizzle ORM schemas in `packages/db/src/schema/shipping/customers.ts` (export typed Insert/Select).\n6. Register erasure handler stub via @monopilot/gdpr `registerErasureHandler('shipping_customers', fn)` (T-113 registry) — covers `customers.email`, `customers.phone`, `customers.tax_id`, `customer_contacts.email`, `customer_contacts.phone`.\n\n## Files\n- packages/db/migrations/00XX_shipping_customers.sql [create]\n- packages/db/src/schema/shipping/customers.ts [create]\n- packages/db/src/schema/index.ts [modify — re-export shipping/customers]\n- packages/db/__tests__/shipping-customers-schema.test.ts [create]\n- packages/db/src/erasure/shipping-customers.ts [create] (registers handler with @monopilot/gdpr)\n\n## Acceptance criteria\n1. Given a fresh DB, when the migration runs, then `\\d customers` lists all columns (including `org_id NOT NULL`, R13 audit cols), and RLS + FORCE ROW LEVEL SECURITY are both enabled; same for the 3 sibling tables.\n2. Given two distinct orgs A and B each have `app.set_org_context(session_token, org)` called as `app_user`, when each inserts a customer with the same customer_code='C-001' and then SELECTs from customers, then each sees only its own row (no cross-org leak; UNIQUE per org_id holds).\n3. Given pg_policies is inspected, when policies for the 4 tables are listed, then qual/withcheck reference `app.current_org_id()` and contain no `current_setting('app.tenant_id'|'app.current_org_id')` GUC reads.\n4. Given the GDPR erasure handler is invoked for a `subject_id` matched to `customers.email` or `customer_contacts.email`, when the registered handler runs in a transaction, then the PII columns are nulled and an `audit_events` row with `retention_class='security'` is written (consumer of T-113 contract).\n\n## Test strategy\n- RED: `packages/db/__tests__/shipping-customers-schema.test.ts` asserts AC 1-4 before migration exists; uses testcontainers Postgres 16 with two parallel tx (T-125 pattern); grep-asserts policy text contains `app.current_org_id()` and contains no `current_setting('app.tenant_id'|'app.current_org_id')`.\n- `pnpm --filter db migrate && pnpm --filter db test shipping-customers-schema`\n\n## Risk red lines\n- Do not name the business-scope column `tenant_id`; Wave0 v4.3 + foundation T-125 mandate `org_id`.\n- Do not use `current_setting('app.tenant_id'|'app.current_org_id')` GUC reads; use `app.current_org_id()` function (foundation T-125).\n- Do not omit FORCE ROW LEVEL SECURITY.\n- Do not add cascade DELETE on the org_id FK (orgs are immutable in this migration).\n- Do not seed default allergen rows; that is owned by 02-SETTINGS §8 reference table.\n- Do not implement `credit_limit` enforcement logic here — column exists but Phase 2 per §4.2.",
+  "labels": [
+    "prd",
+    "data",
+    "schema",
+    "T1-schema"
+  ],
+  "priority": 50,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-001",
+    "source_prd": "docs/prd/11-SHIPPING-PRD.md",
+    "prd_refs": [
+      "§9.1",
+      "§6 D-SHP-7",
+      "§11 V-SHIP-SO-02",
+      "§15.4 SHIP-003",
+      "§15.4 SHIP-004"
+    ],
+    "category": "data",
+    "subcategory": "schema-customer",
+    "task_type": "T1-schema",
+    "parent_feature": "11-shipping-a",
+    "context_budget": "45k",
+    "estimated_effort": "2-3h",
+    "description": "4 customer-domain tables + RLS via app.current_org_id() + R13 audit + Drizzle schema + GDPR erasure handler registration.",
+    "details": "Pre-impl step: `git status --short` then read `packages/db/migrations/` directory to confirm next free 4-digit migration slot and that no prior customers/* schema exists. RLS strictly via foundation `app.current_org_id()` (T-125), never GUC reads. Wave0 v4.3 column name is `org_id`. R13 audit cols: created_at, created_by, updated_at, updated_by, deleted_at NULL. Erasure handler scope is PII columns only — never drops rows, only nulls.",
+    "scope_files": [
+      "packages/db/migrations/00XX_shipping_customers.sql [create]",
+      "packages/db/src/schema/shipping/customers.ts [create]",
+      "packages/db/src/schema/index.ts [modify]",
+      "packages/db/__tests__/shipping-customers-schema.test.ts [create]",
+      "packages/db/src/erasure/shipping-customers.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not implement Server Actions or APIs (T-002).",
+      "Do not build UI here (T-003/T-004/T-005).",
+      "Do not enforce credit_limit (Phase 2 per §4.2).",
+      "Do not seed allergen_families (02-SETTINGS owned)."
+    ],
+    "dependencies": [
+      "00-foundation/T-125 (withOrgContext + app.current_org_id())",
+      "00-foundation/T-113 (@monopilot/gdpr registry)",
+      "02-settings (allergen_families reference table)"
+    ],
+    "parallel_safe_with": [
+      "T-006",
+      "T-018",
+      "T-029"
+    ],
+    "cross_module_dependencies": [
+      "00-foundation/T-125",
+      "00-foundation/T-113",
+      "02-settings (allergen_families)",
+      "01-npd/T-001 (product FG SSOT — variance_tolerance_pct + allergen attributes; coverage hygiene per R3 audit 2026-05-14)"
+    ],
+    "acceptance_criteria": [
+      "Given a fresh DB, when the migration runs, then \\d customers/customer_contacts/customer_addresses/customer_allergen_restrictions show all columns including org_id NOT NULL + R13 audit cols, and RLS + FORCE ROW LEVEL SECURITY enabled on all 4 tables.",
+      "Given two orgs each call app.set_org_context per session as app_user, when each inserts customer with customer_code='C-001' and SELECTs, then each sees only its own row (no cross-org leak; UNIQUE per org_id holds).",
+      "Given pg_policies is inspected, when policies are listed, then qual/withcheck reference app.current_org_id() and contain no current_setting('app.tenant_id'|'app.current_org_id') GUC reads.",
+      "Given the GDPR erasure handler is invoked for a subject_id, when it runs in a tx, then PII columns (email/phone/tax_id) are nulled and an audit_events row with retention_class='security' is emitted per T-113 contract."
+    ],
+    "test_strategy": [
+      "RED: testcontainers Postgres 16 isolation test asserting AC 1-4 (RLS + cross-org isolation + pg_policies grep + erasure handler hook).",
+      "Run 'pnpm --filter db migrate && pnpm --filter db test shipping-customers-schema'."
+    ],
+    "risk_red_lines": [
+      "Do not name the business-scope column tenant_id.",
+      "Do not read current_setting('app.tenant_id'|'app.current_org_id') — use app.current_org_id().",
+      "Do not omit FORCE ROW LEVEL SECURITY.",
+      "Do not add cascade DELETE on the org_id FK.",
+      "Do not implement credit_limit enforcement (Phase 2)."
+    ],
+    "skills": [
+      "test-driven-development",
+      "systematic-debugging",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": false
+  }
+}

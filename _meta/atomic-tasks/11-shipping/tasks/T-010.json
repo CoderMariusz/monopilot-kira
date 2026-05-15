@@ -1,0 +1,114 @@
+{
+  "title": "T-010 — UI: so_detail_page tabs (lines/holds/allocations/picks/shipments/history) (SHIP-007) (11-shipping-b)",
+  "prompt": "# T-010 — SO Detail page UI\n\nPRD: docs/prd/11-SHIPPING-PRD.md §15.4 SHIP-007 (referenced via §15.1), §6 D-SHP-8 status machine, §8.1, §10\nUX: prototypes/design/11-SHIPPING-UX.md §3 SHIP-007 — Sales Order Detail\nPrototype: prototypes/design/Monopilot Design System/shipping/so-screens.jsx:141-366 (so_detail_page)\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nServer Component page `/(shipping)/orders/[id]` with 6-tab layout (Lines / Holds / Allocations / Picks / Shipments / History) and action toolbar (Confirm / Place Hold / Release Hold / Cancel / Partial-Fulfill / Release Allocation), matching prototype 1:1.\n\n## Implementation contract\n1. `apps/web/app/(shipping)/orders/[id]/page.tsx` (RSC) fetches SO + lines + holds + allocations + picks + shipments + history under `withOrgContext`.\n2. Action toolbar gated by current SO status (D-SHP-8) AND permissions: Confirm if status=draft + ship.so.confirm; Cancel if status NOT IN ('shipped','delivered') + ship.so.cancel; Place/Release Hold if ship.hold.*; etc.\n3. Tab routing via `?tab=lines|holds|allocations|picks|shipments|history`.\n4. Lines tab: editable table (status=draft only) with line CRUD via T-007 actions; otherwise read-only.\n5. Holds tab: list of holds (allergen/credit/QA/manual), Place Hold modal trigger (modals.jsx:342-378), Release Hold modal trigger (modals.jsx:380-410).\n6. Allocations tab: read-only view; \"Release Allocation\" button per LP (modal at modals.jsx:809-835); link to T-014 allocation_global_page.\n7. Picks tab: list of pick_lists for this SO (T-015/T-016).\n8. Shipments tab: list of shipments + status; deep-link to T-021 packing station / T-024 BOL preview.\n9. History tab: shipping_audit_log entries (paginated, latest 50).\n10. Partial-Fulfill modal (modals.jsx:412-453) triggered from header banner when partial-pick situation arises.\n11. Cancel SO modal (modals.jsx:504-536) calls cancelSO Server Action.\n12. Four states.\n13. i18n `shipping.so.detail.*`.\n\n## Prototype parity\nReference: `prototypes/design/Monopilot Design System/shipping/so-screens.jsx:141-366` (so_detail_page). Verify:\n- Breadcrumb + Order header (SO-YYYY-NNNNN + customer + status badge + holds chip count)\n- Action toolbar (right side, conditional buttons)\n- 6-tab nav\n- Lines tab table with editable/read-only state\n- Holds/Allocations/Picks/Shipments tabs as separate data tables\n- History tab as activity feed\n\n## Files\n- apps/web/app/(shipping)/orders/[id]/page.tsx [create]\n- apps/web/app/(shipping)/orders/[id]/_components/so-detail-tabs.tsx [create]\n- apps/web/app/(shipping)/orders/[id]/_components/action-toolbar.tsx [create]\n- apps/web/app/(shipping)/orders/[id]/_components/__tests__/so-detail-tabs.test.tsx [create]\n- apps/web/app/(shipping)/_modals/hold-place-modal.tsx [create]\n- apps/web/app/(shipping)/_modals/hold-release-modal.tsx [create]\n- apps/web/app/(shipping)/_modals/so-cancel-modal.tsx [create]\n- apps/web/app/(shipping)/_modals/partial-fulfillment-modal.tsx [create]\n- apps/web/app/(shipping)/_modals/release-allocation-modal.tsx [create]\n- prototypes/design/Monopilot Design System/shipping/so-screens.jsx [ref]\n- prototypes/design/Monopilot Design System/shipping/modals.jsx [ref]\n\n## Acceptance criteria\n1. Given the production page renders for a draft SO, when compared to prototypes/design/Monopilot Design System/shipping/so-screens.jsx:141-366, then it has the same 6-tab layout + action toolbar + Lines editable table — RTL snapshot + Playwright screenshot per tab.\n2. Given SO status='shipped', when page renders, then Cancel button is hidden (V-SHIP-SO-07) and Confirm button is hidden.\n3. Given user clicks Place Hold and submits, when modal succeeds, then page revalidates and Holds tab shows the new hold entry.\n4. Given session lacks ship.so.confirm, when toolbar renders for a draft SO, then Confirm button is hidden.\n5. UI closeout includes Playwright trace + per-tab screenshots per UI-PROTOTYPE-PARITY-POLICY; Playwright fallback documented if unavailable.\n\n## Test strategy\n- RED: RTL test asserting tab routing + toolbar conditional buttons + modal triggers + permission gate + four states.\n- Run `pnpm --filter @monopilot/web vitest run so-detail-tabs.test.tsx`.\n- Playwright `apps/web/e2e/shipping-so-detail.spec.ts` captures multi-tab evidence.\n\n## Risk red lines\n- Do not import @radix-ui/react-dialog outside packages/ui.\n- Do not paste prototype JSX verbatim.\n- Do not bypass status-machine gate when computing toolbar buttons (D-SHP-8).\n- Do not regress accessibility.\n- Do not load all 6 tab datasets eagerly — fetch lazily per active tab to avoid waterfall.\n\n## BRCGS audit trail\nAll BOL/POD uploads store SHA-256 hash of the document + retention_until = uploaded_at + 7 years (BRCGS Issue 9 §3.5). Do not truncate or prematurely delete these records.\n",
+  "labels": [
+    "prd",
+    "ui",
+    "ship-007",
+    "T3-ui"
+  ],
+  "priority": 70,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-010",
+    "source_prd": "docs/prd/11-SHIPPING-PRD.md",
+    "prd_refs": [
+      "§15.4 SHIP-007",
+      "§6 D-SHP-8",
+      "§8.1",
+      "§10"
+    ],
+    "category": "ui",
+    "subcategory": "so-detail",
+    "task_type": "T3-ui",
+    "parent_feature": "11-shipping-b",
+    "context_budget": "60k",
+    "estimated_effort": "5-6h",
+    "description": "SHIP-007 SO Detail page with 6 tabs + action toolbar + 5 modals (hold place/release, so-cancel, partial-fulfill, release-allocation).",
+    "details": "Tab routing via ?tab URL param. Action toolbar gates on status machine + permissions. Each modal calls its respective T-007 Server Action.",
+    "scope_files": [
+      "apps/web/app/(shipping)/orders/[id]/page.tsx [create]",
+      "apps/web/app/(shipping)/orders/[id]/_components/so-detail-tabs.tsx [create]",
+      "apps/web/app/(shipping)/orders/[id]/_components/action-toolbar.tsx [create]",
+      "apps/web/app/(shipping)/orders/[id]/_components/__tests__/so-detail-tabs.test.tsx [create]",
+      "apps/web/app/(shipping)/_modals/hold-place-modal.tsx [create]",
+      "apps/web/app/(shipping)/_modals/hold-release-modal.tsx [create]",
+      "apps/web/app/(shipping)/_modals/so-cancel-modal.tsx [create]",
+      "apps/web/app/(shipping)/_modals/partial-fulfillment-modal.tsx [create]",
+      "apps/web/app/(shipping)/_modals/release-allocation-modal.tsx [create]",
+      "prototypes/design/Monopilot Design System/shipping/so-screens.jsx [ref]",
+      "prototypes/design/Monopilot Design System/shipping/modals.jsx [ref]"
+    ],
+    "out_of_scope": [
+      "Do not implement Server Actions here (T-007/T-012).",
+      "Do not build allocation_global_page (T-014).",
+      "Do not build pick or pack/ship UI (T-017/T-021/T-022)."
+    ],
+    "dependencies": [
+      "T-007",
+      "T-012",
+      "T-031"
+    ],
+    "parallel_safe_with": [
+      "T-009"
+    ],
+    "cross_module_dependencies": [
+      "09-quality/T-010 (v_active_holds for Holds tab)",
+      "00-foundation/T-123 (Playwright)",
+      "00-foundation/T-125 (withOrgContext)",
+      "01-npd/T-001 (product FG SSOT — variance_tolerance_pct + allergen attributes; coverage hygiene per R3 audit 2026-05-14)",
+      "09-quality/T-064 (consume gate — holdsGuard must be checked before any LP consumption; Holds tab displays v_active_holds per 2026-05-14 audit)"
+    ],
+    "acceptance_criteria": [
+      "Given a draft SO, when compared to prototypes/design/Monopilot Design System/shipping/so-screens.jsx:141-366 (so_detail_page), then it has the same 6-tab layout + action toolbar + Lines editable table — RTL snapshot + Playwright per-tab screenshot.",
+      "Given status='shipped', when page renders, then Cancel + Confirm buttons hidden (V-SHIP-SO-07).",
+      "Given Place Hold modal submits, when action succeeds, then Holds tab shows new entry (hold checked via v_active_holds gate 09-quality T-064); AND given session lacks ship.so.confirm on a draft SO, when toolbar renders, then Confirm is hidden.",
+      "UI closeout includes Playwright trace + per-tab screenshots per UI-PROTOTYPE-PARITY-POLICY; Playwright fallback documented if unavailable."
+    ],
+    "test_strategy": [
+      "RED: RTL tab routing + toolbar conditional buttons + modal triggers + permission gate + four states.",
+      "Run `pnpm --filter @monopilot/web vitest run so-detail-tabs.test.tsx`.",
+      "Playwright apps/web/e2e/shipping-so-detail.spec.ts."
+    ],
+    "risk_red_lines": [
+      "Do not import @radix-ui/react-dialog outside packages/ui.",
+      "Do not paste prototype JSX verbatim.",
+      "Do not bypass status-machine gate.",
+      "Do not regress accessibility.",
+      "Do not load all 6 tabs eagerly — lazy fetch per active tab.",
+      "Do not bypass the 09-quality consume gate (T-064 v_active_holds) — every consume path must call holdsGuard(lpId, lotId) before mutating consumption tables.",
+      "POD audit trail (signed BOL / shipment confirmation) uses SHA-256 hash + 7-year retention (BRCGS Issue 9 §3.5) — do not allow truncation or premature deletion of bol_pdf_hash or pod_hash fields."
+    ],
+    "skills": [
+      "test-driven-development",
+      "frontend-design",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": true,
+    "prototype_index_entry": "so_detail_page,hold_place_modal,hold_release_modal,so_cancel_modal,partial_fulfillment_modal,release_allocation_modal",
+    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md"
+  }
+}

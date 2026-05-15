@@ -1,0 +1,86 @@
+{
+  "title": "T-065 — Supabase deploy runbook (JWT_EXP, MAILER_OTP_EXP, refresh rotation) + verifier (FT-005)",
+  "prompt": "# T-065 — Supabase deploy runbook (JWT_EXP, MAILER_OTP_EXP, refresh rotation) + verifier (FT-005)\n\nPRD: `docs/prd/00-FOUNDATION-PRD.md` — sections: §5.x, §13\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`\nOriginal carry-forward ID: **FT-005** (from `_meta/audits/2026-05-07-foundation-final-carry-forward-backlog.md`)\nSeverity: **P2** (M effort)\n\n## Goal\nAuthor docs/runbooks/supabase-deploy.md and ship scripts/verify-supabase-config.ts that asserts JWT_EXP, MAILER_OTP_EXP, REFRESH_TOKEN_ROTATION_ENABLED, and SECURITY_REFRESH_TOKEN_REUSE_INTERVAL via the Supabase Admin API.\n\n## Implementation contract\n1. Runbook lists the required env values, the gotrue config path, the Admin API endpoint, and the rollback procedure.\n2. Verifier reads SUPABASE_SERVICE_ROLE_KEY from env, fetches GoTrue config, and exits non-zero if any value drifts.\n3. `pnpm verify:supabase` script registered in root package.json.\n4. Unit test mocks the fetch and asserts pass/fail behavior for each drift case.\n\n## Files (scope)\n- docs/runbooks/supabase-deploy.md [create]\n- scripts/verify-supabase-config.ts [create]\n- scripts/__tests__/verify-supabase-config.test.ts [create]\n- package.json [modify]\n\n## Acceptance criteria\n1. Given docs/runbooks/supabase-deploy.md exists, when a reader follows it on a clean Supabase project, then all required values can be configured without ambiguity.\n2. Given the live project values match PRD §5.x, when `pnpm verify:supabase` runs, then exit code is 0 and stdout lists each verified setting.\n3. Given any one value drifts, when the verifier runs, then exit code is non-zero and stderr names the drifting key + expected vs actual.\n4. Given the unit test pack, when `pnpm test` runs, then drift detection cases all assert exit code != 0 and ok case asserts exit code = 0.\n\n## Test strategy\n- RED: write scripts/__tests__/verify-supabase-config.test.ts asserting drift detection for each PRD §5.x setting before the script exists.\n- Mock fetch via vi.fn() returning canned GoTrue config responses.\n- Run `pnpm test verify-supabase-config`.\n\n## Risk red lines\n- Do not commit a Supabase service-role key.\n- Do not skip the drift-case unit tests — they are the contract.\n- Do not block on Supabase API latency (5s timeout).\n\n## Closeout evidence\nProvide: changed_files, test_commands_and_results, acceptance_criteria_status (per AC), deviations_from_prd, git_status. Use the test-driven-development skill (RED-first) and requesting-code-review at GREEN.",
+  "labels": [
+    "prd",
+    "docs",
+    "wave-d-carry-forward",
+    "runbook",
+    "ops",
+    "T4-wiring-test"
+  ],
+  "priority": 50,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-065",
+    "source_prd": "docs/prd/00-FOUNDATION-PRD.md",
+    "prd_refs": [
+      "§5.x",
+      "§13"
+    ],
+    "original_carry_forward_id": "FT-005",
+    "category": "docs",
+    "subcategory": "ops-runbook",
+    "task_type": "T4-wiring-test",
+    "parent_feature": "00-FOUNDATION-i",
+    "context_budget": "50k",
+    "estimated_effort": "4-8h",
+    "description": "Write the Supabase production deploy runbook (JWT_EXP=900s, MAILER_OTP_EXP=420s, rotating refresh tokens enabled) and a verifier script asserting the live project matches.",
+    "details": "GoTrue / Supabase Auth defaults do not match PRD §5.x requirements (15-min access TTL, 7-day magic-link, rotating refresh). Codify the values in a runbook and ship a verifier script that calls the Supabase Admin API and asserts each setting; expose via `pnpm verify:supabase`.",
+    "scope_files": [
+      "docs/runbooks/supabase-deploy.md [create]",
+      "scripts/verify-supabase-config.ts [create]",
+      "scripts/__tests__/verify-supabase-config.test.ts [create]",
+      "package.json [modify]"
+    ],
+    "out_of_scope": [
+      "Do not migrate any user data.",
+      "Do not change Supabase JWT signing keys."
+    ],
+    "dependencies": [],
+    "parallel_safe_with": [],
+    "acceptance_criteria": [
+      "Given docs/runbooks/supabase-deploy.md exists, when a reader follows it on a clean Supabase project, then all required values can be configured without ambiguity.",
+      "Given the live project values match PRD §5.x, when `pnpm verify:supabase` runs, then exit code is 0 and stdout lists each verified setting.",
+      "Given any one value drifts, when the verifier runs, then exit code is non-zero and stderr names the drifting key + expected vs actual.",
+      "Given the unit test pack, when `pnpm test` runs, then drift detection cases all assert exit code != 0 and ok case asserts exit code = 0."
+    ],
+    "test_strategy": [
+      "RED: write scripts/__tests__/verify-supabase-config.test.ts asserting drift detection for each PRD §5.x setting before the script exists.",
+      "Mock fetch via vi.fn() returning canned GoTrue config responses.",
+      "Run `pnpm test verify-supabase-config`."
+    ],
+    "risk_red_lines": [
+      "Do not commit a Supabase service-role key.",
+      "Do not skip the drift-case unit tests — they are the contract.",
+      "Do not block on Supabase API latency (5s timeout)."
+    ],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

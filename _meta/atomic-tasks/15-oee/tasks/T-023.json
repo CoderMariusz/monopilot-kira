@@ -1,0 +1,111 @@
+{
+  "title": "T-023 — P2 stubs: anomaly + maintenance trigger DSL rules + tables + placeholder shells (OEE §7.2-7.3, §9.3, §15.6)",
+  "prompt": "# T-023 — P2 stubs scaffold\n\nPRD: docs/prd/15-OEE-PRD.md §7.2 (`oee_anomaly_detector_v1` P2 stub), §7.3 (`oee_maintenance_trigger_v1` P2 stub), §9.3 (P2 tables oee_anomalies + oee_ewma_state + oee_maintenance_triggers), §15.2 P2 screens, §15.6 placeholder shell\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\nPrototypes: prototypes/design/Monopilot Design System/oee/screens.jsx:902-948 (p2_placeholder_shell), :950-995 (oee_anomaly_detection_page), :997-1036 (oee_equipment_health_page), :379-469 (oee_downtime_pareto_page), :1038-1080 (oee_tv_dashboard_page)\n\n## Goal\nShip the P2 scaffold for OEE-c sub-module so 15-c can be fleshed out in a later wave without re-bootstrapping: (1) P2 tables per §9.3 — `oee_anomalies`, `oee_ewma_state`, `oee_maintenance_triggers`; (2) two rules registered in rule_definitions as `active=FALSE` P2 stubs; (3) generic `<P2Placeholder>` (ComingSoonPage) component + four P2 routes wired (anomalies, equipment-health, pareto, tv) gated by feature flags.\n\n## Implementation contract\n1. Migration `packages/db/migrations/NNNN_oee_c_p2_tables.sql` per §9.3 verbatim DDL: `oee_anomalies`, `oee_ewma_state`, `oee_maintenance_triggers` with org_id + R13 audit + RLS via app.current_org_id() (per Wave1 T-125). Map PRD's `tenant_id` to `org_id` per Wave0 v4.3.\n2. Migration step: INSERT into rule_definitions for `oee_anomaly_detector_v1` (phase='P2', active=FALSE) and `oee_maintenance_trigger_v1` (phase='P2', active=FALSE). Idempotent ON CONFLICT.\n3. Shared `apps/web/app/(oee)/_components/coming-soon-page.tsx` (per translation note p2_placeholder_shell): props {title, description, featureFlag, alternativeLink}.\n4. Four P2 routes:\n   - `/oee/anomalies/page.tsx` → renders `oee_anomaly_detection_page` shape (translation note matches lines 950-995) wrapped in feature-flag check `oee.anomaly_detection_enabled` (read from 02-SETTINGS feature_flags). When flag is false, renders <P2Placeholder> with cross-link to /oee/summary.\n   - `/oee/equipment-health/page.tsx` → feature-flag `oee.equipment_health_enabled` + 13-MAINTENANCE module check; placeholder when off.\n   - `/oee/pareto/page.tsx` → P2 page; P1 interim home is OEE-003.T2 (per §15.5) so this route renders <P2Placeholder> with cross-link `Go to Six Big Losses tab → /oee/summary?tab=losses`.\n   - `/oee/tv/[line_id]/page.tsx` → feature-flag `oee.tv_dashboard_enabled`; placeholder when off (BL-OEE-06 OS kiosk decision tracked).\n5. RTL test snapshot + parity check against placeholder shell prototype + flag-on/off branching.\n\n## Files\n- packages/db/migrations/NNNN_oee_c_p2_tables.sql [create]\n- packages/db/src/schema/oee/{anomalies,ewma-state,maintenance-triggers}.ts [create]\n- packages/db/src/schema/index.ts [modify]\n- apps/web/app/(oee)/_components/coming-soon-page.tsx [create]\n- apps/web/app/(oee)/anomalies/page.tsx [create]\n- apps/web/app/(oee)/equipment-health/page.tsx [create]\n- apps/web/app/(oee)/pareto/page.tsx [create]\n- apps/web/app/(oee)/tv/[line_id]/page.tsx [create]\n- apps/web/app/(oee)/_components/__tests__/coming-soon-page.test.tsx [create]\n- packages/db/__tests__/oee-c-p2-tables.test.ts [create]\n\n## Acceptance criteria\n1. Given migration runs, when `\\d oee_anomalies`, `\\d oee_ewma_state`, `\\d oee_maintenance_triggers` are read, then the §9.3 column shape + org_id NOT NULL + RLS+FORCE RLS via app.current_org_id() are present; and rule_definitions has both rules registered with active=FALSE phase=P2.\n2. Given /oee/anomalies is requested with `oee.anomaly_detection_enabled=false`, when page renders, then <P2Placeholder> is shown with cross-link; with the flag true, the production oee_anomaly_detection_page shape renders per prototypes/design/Monopilot Design System/oee/screens.jsx:950-995.\n3. Given /oee/pareto is requested, when page renders, then <P2Placeholder> is shown with cross-link `Go to Six Big Losses tab → /oee/summary?tab=losses` regardless of flag (P1 interim home).\n4. Given the task is closed out, when reviewers inspect evidence, then UI closeout includes screenshot/artifact + Playwright trace for one of the P2 placeholders per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`.\n\n## Test strategy\n- RED: vitest oee-c-p2-tables + RTL coming-soon-page + flag branching asserting four ACs.\n- Run `pnpm --filter db migrate && pnpm --filter db test oee-c-p2-tables && pnpm --filter @monopilot/web vitest run app/(oee)/_components/coming-soon-page`.\n\n## Risk red lines\n- Do not activate P2 rules — phase='P2', active=FALSE per PRD §7.2/7.3.\n- Do not paste prototype JSX verbatim.\n- Do not skip feature-flag gating on P2 routes — translation note + §15.6 placeholder pattern.\n- Do not name business column tenant_id; use org_id per Wave0 v4.3.\n- Do not import @radix-ui/* outside packages/ui.",
+  "labels": [
+    "prd",
+    "data",
+    "ui",
+    "p2-stub",
+    "T1-schema"
+  ],
+  "priority": 70,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-023",
+    "source_prd": "docs/prd/15-OEE-PRD.md",
+    "prd_refs": [
+      "§7.2",
+      "§7.3",
+      "§9.3",
+      "§15.2",
+      "§15.6"
+    ],
+    "category": "data",
+    "subcategory": "p2-stubs-scaffold",
+    "task_type": "T1-schema",
+    "parent_feature": "15-OEE-f",
+    "context_budget": "55k",
+    "estimated_effort": "3-5h",
+    "description": "P2 tables + rule stubs (active=FALSE) + shared ComingSoonPage placeholder + 4 P2 routes wired with feature-flag gating per §15.6.",
+    "details": "Closes Auditor A OEE-003 (rule registry stubs) + part of OEE-004/006 (P2 surfaces visible behind flags). Anomaly + maintenance triggers remain inert (active=FALSE) so 15-c P2 build can flip flags + activate without schema changes. P2 routes render prototype-shaped content when flag is on; otherwise <P2Placeholder>.\n\nAdditional acceptance detail: UI closeout includes screenshot/artifact + Playwright trace for one P2 placeholder per UI-PROTOTYPE-PARITY-POLICY.md.",
+    "scope_files": [
+      "packages/db/migrations/NNNN_oee_c_p2_tables.sql [create]",
+      "packages/db/src/schema/oee/anomalies.ts [create]",
+      "packages/db/src/schema/oee/ewma-state.ts [create]",
+      "packages/db/src/schema/oee/maintenance-triggers.ts [create]",
+      "packages/db/src/schema/index.ts [modify]",
+      "apps/web/app/(oee)/_components/coming-soon-page.tsx [create]",
+      "apps/web/app/(oee)/anomalies/page.tsx [create]",
+      "apps/web/app/(oee)/equipment-health/page.tsx [create]",
+      "apps/web/app/(oee)/pareto/page.tsx [create]",
+      "apps/web/app/(oee)/tv/[line_id]/page.tsx [create]",
+      "apps/web/app/(oee)/_components/__tests__/coming-soon-page.test.tsx [create]",
+      "packages/db/__tests__/oee-c-p2-tables.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Activating P2 rules (later wave)",
+      "EWMA detector implementation (P2)",
+      "Auto-MWO consumer in 13-MAINTENANCE (P2)",
+      "TV kiosk OS decision BL-OEE-06"
+    ],
+    "dependencies": [
+      "T-002",
+      "T-008"
+    ],
+    "parallel_safe_with": [
+      "T-020",
+      "T-021",
+      "T-022"
+    ],
+    "acceptance_criteria": [
+      "Given migration runs, when \\d oee_anomalies, \\d oee_ewma_state, \\d oee_maintenance_triggers are read, then §9.3 column shape + org_id NOT NULL + RLS+FORCE RLS via app.current_org_id() are present; rule_definitions has both rules active=FALSE phase=P2",
+      "Given /oee/anomalies with oee.anomaly_detection_enabled=false, when page renders, then <P2Placeholder> is shown; with flag true, the page renders per prototypes/design/Monopilot Design System/oee/screens.jsx:950-995 (oee_anomaly_detection_page)",
+      "Given /oee/pareto is requested, when page renders, then <P2Placeholder> is shown with cross-link 'Go to Six Big Losses tab → /oee/summary?tab=losses' regardless of flag",
+      "Given the task is closed out, when reviewers inspect evidence, then UI closeout includes screenshot/artifact + Playwright trace for one of the P2 placeholders per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`"
+    ],
+    "test_strategy": [
+      "RED: vitest oee-c-p2-tables + RTL coming-soon-page asserting four ACs",
+      "Run `pnpm --filter db migrate && pnpm --filter db test oee-c-p2-tables` and `pnpm --filter @monopilot/web vitest run app/(oee)/_components/coming-soon-page`",
+      "Capture screenshots and Playwright trace; attach artifact paths in closeout"
+    ],
+    "risk_red_lines": [
+      "Do not activate P2 rules — phase='P2', active=FALSE",
+      "Do not paste prototype JSX verbatim",
+      "Do not skip feature-flag gating on P2 routes",
+      "Do not name business column tenant_id; use org_id",
+      "Do not import @radix-ui/* outside packages/ui"
+    ],
+    "skills": [
+      "test-driven-development",
+      "systematic-debugging",
+      "frontend-design",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": true,
+    "prototype_index_entry": "p2_placeholder_shell",
+    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md"
+  }
+}

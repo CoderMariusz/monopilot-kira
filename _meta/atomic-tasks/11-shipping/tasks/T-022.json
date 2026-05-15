@@ -1,0 +1,106 @@
+{
+  "title": "T-022 — UI: sscc_labels_queue_page + sscc_label_preview + sscc_preview_reprint modal (SHIP-019) (11-shipping-e)",
+  "prompt": "# T-022 — SSCC Labels Queue UI\n\nPRD: docs/prd/11-SHIPPING-PRD.md §15.4 SHIP-019 SSCC Labels Queue, §13.1, §11 V-SHIP-PACK-04, V-SHIP-LBL-02\nUX: prototypes/design/11-SHIPPING-UX.md §3 SHIP-019\nPrototypes:\n- prototypes/design/Monopilot Design System/shipping/pack-screens.jsx:224-314 (sscc_labels_queue_page)\n- prototypes/design/Monopilot Design System/shipping/pack-screens.jsx:317-336 (sscc_label_preview_component)\n- prototypes/design/Monopilot Design System/shipping/modals.jsx:702-739 (sscc_preview_reprint_modal)\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nServer Component page `/(shipping)/labels/sscc` showing SSCC + ZPL print job queue with reprint modal.\n\n## GS1 prefix source\nAll SSCC labels use `organizations.gs1_company_prefix` from the organizations table (02-settings). Always read from organizations table; do not store in env config or code constants.\n\n## Implementation contract\n1. `/(shipping)/labels/sscc/page.tsx` renders sscc_labels_queue_page (224-314): table of recent ssccs (sscc, shipment, box, printer, status, generated_at, printed_at, last_error). Filter by status.\n2. `sscc_label_preview_component` (317-336) — small preview Card with mod-10 verification badge (consumer of T-019 verifySscc).\n3. `sscc-preview-reprint-modal.tsx` (modals.jsx:702-739) — confirms reprint reason + calls reprintSscc Server Action (T-020/T-019).\n4. Known bug fix BL-SHIP-07 (Bulk SSCC reprint single-label; spec mentions bulk ZPL job) — add bulk-select checkbox + Reprint Selected button (P1 stub allows up to 10 at once).\n5. Permission: `ship.pack.close` for reprint; `ship.dashboard.view` for read.\n6. Four states + i18n `shipping.labels.sscc.*`.\n\n## Prototype parity\nVerify against pack-screens.jsx:224-314 (queue), :317-336 (preview), modals.jsx:702-739 (reprint). Do not paste JSX wholesale.\n\n## Files\n- apps/web/app/(shipping)/labels/sscc/page.tsx [create]\n- apps/web/app/(shipping)/labels/sscc/_components/sscc-queue-table.tsx [create]\n- apps/web/app/(shipping)/_components/sscc-label-preview.tsx [create]\n- apps/web/app/(shipping)/_modals/sscc-preview-reprint-modal.tsx [create]\n- apps/web/app/(shipping)/labels/sscc/__tests__/sscc-queue-table.test.tsx [create]\n- apps/web/messages/en/shipping.json [modify]\n- apps/web/messages/pl/shipping.json [modify]\n- prototypes/design/Monopilot Design System/shipping/pack-screens.jsx [ref]\n- prototypes/design/Monopilot Design System/shipping/modals.jsx [ref]\n\n## Acceptance criteria\n1. Given sscc_labels_queue_page renders, when compared to pack-screens.jsx:224-314, then header + filter + 7-col table + bulk-select column match — RTL + Playwright screenshot.\n2. Given a row's sscc fails mod-10 verifySscc, when the preview component renders, then it shows a red badge with 'mod-10 mismatch' (V-SHIP-LBL-02).\n3. Given user selects 10 ssccs and clicks Reprint Selected, when modal submits, then 10 reprint jobs are enqueued (bulk-reprint per BL-SHIP-07 fix).\n4. Given user lacks ship.pack.close, when page renders, then Reprint button is hidden.\n5. UI closeout includes Playwright trace + screenshots per UI-PROTOTYPE-PARITY-POLICY; Playwright fallback documented if unavailable.\n\n## Test strategy\n- RED: RTL asserting parity + mod-10 badge + bulk reprint + permission gate + four states.\n- Run `pnpm --filter @monopilot/web vitest run sscc-queue-table.test.tsx`.\n- Playwright `apps/web/e2e/shipping-sscc-queue.spec.ts`.\n\n## Risk red lines\n- Do not import @radix-ui/react-dialog outside packages/ui.\n- Do not paste prototype JSX verbatim.\n- Do not perpetuate BL-SHIP-07.\n- Do not compute mod-10 client-side (call T-019 verifySscc Server function only).\n- Do not regress accessibility.",
+  "labels": [
+    "prd",
+    "ui",
+    "ship-019",
+    "T3-ui"
+  ],
+  "priority": 70,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-022",
+    "source_prd": "docs/prd/11-SHIPPING-PRD.md",
+    "prd_refs": [
+      "§15.4 SHIP-019",
+      "§13.1",
+      "§11 V-SHIP-PACK-04",
+      "§11 V-SHIP-LBL-02"
+    ],
+    "category": "ui",
+    "subcategory": "sscc-queue",
+    "task_type": "T3-ui",
+    "parent_feature": "11-shipping-e",
+    "context_budget": "50k",
+    "estimated_effort": "3-4h",
+    "description": "SHIP-019 SSCC Labels Queue page + preview component + reprint modal; BL-SHIP-07 bulk reprint fix.",
+    "details": "Bulk reprint allows up to 10 at once in P1. mod-10 verifySscc called server-side (T-019).",
+    "scope_files": [
+      "apps/web/app/(shipping)/labels/sscc/page.tsx [create]",
+      "apps/web/app/(shipping)/labels/sscc/_components/sscc-queue-table.tsx [create]",
+      "apps/web/app/(shipping)/_components/sscc-label-preview.tsx [create]",
+      "apps/web/app/(shipping)/_modals/sscc-preview-reprint-modal.tsx [create]",
+      "apps/web/app/(shipping)/labels/sscc/__tests__/sscc-queue-table.test.tsx [create]",
+      "apps/web/messages/en/shipping.json [modify]",
+      "apps/web/messages/pl/shipping.json [modify]",
+      "prototypes/design/Monopilot Design System/shipping/pack-screens.jsx [ref]",
+      "prototypes/design/Monopilot Design System/shipping/modals.jsx [ref]"
+    ],
+    "out_of_scope": [
+      "Do not implement Server Actions (T-019/T-020).",
+      "Do not implement printer health monitoring."
+    ],
+    "dependencies": [
+      "T-019",
+      "T-020",
+      "T-031"
+    ],
+    "parallel_safe_with": [
+      "T-021",
+      "T-024"
+    ],
+    "cross_module_dependencies": [
+      "00-foundation/T-123 (Playwright)"
+    ],
+    "acceptance_criteria": [
+      "Given sscc_labels_queue_page renders, when compared to prototypes/design/Monopilot Design System/shipping/pack-screens.jsx:224-314, then header + filter + 7-col table + bulk-action toolbar match prototype (structural parity checklist); GS1 prefix sourced from organizations.gs1_company_prefix (02-settings).",
+      "Given a row's sscc fails mod-10, when preview component renders, then it shows red badge 'mod-10 mismatch' (V-SHIP-LBL-01).",
+      "Given user selects 10 ssccs and clicks Reprint Selected, when modal submits, then 10 reprint jobs enqueued (BL-SHIP-07); AND given user lacks ship.pack.close, when page renders, then Reprint button hidden.",
+      "UI closeout includes Playwright trace + screenshots per UI-PROTOTYPE-PARITY-POLICY; Playwright fallback documented if unavailable."
+    ],
+    "test_strategy": [
+      "RED: RTL parity + mod-10 badge + bulk reprint + permission gate + four states.",
+      "Run `pnpm --filter @monopilot/web vitest run sscc-queue-table.test.tsx`.",
+      "Playwright apps/web/e2e/shipping-sscc-queue.spec.ts."
+    ],
+    "risk_red_lines": [
+      "Do not import @radix-ui/react-dialog outside packages/ui.",
+      "Do not paste prototype JSX verbatim.",
+      "Do not perpetuate BL-SHIP-07.",
+      "Do not compute mod-10 client-side.",
+      "Do not regress accessibility."
+    ],
+    "skills": [
+      "test-driven-development",
+      "frontend-design",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": true,
+    "prototype_index_entry": "sscc_labels_queue_page,sscc_label_preview_component,sscc_preview_reprint_modal",
+    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md"
+  }
+}

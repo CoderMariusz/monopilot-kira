@@ -1,0 +1,102 @@
+{
+  "title": "T-113 — packages/gdpr erasure registry + dispatcher (P0 blocker for §13 GDPR success criterion)",
+  "prompt": "# T-113 — packages/gdpr erasure registry + dispatcher\n\nPRD: docs/prd/00-FOUNDATION-PRD.md §13 Compliance (\"GDPR right-to-erasure function działa\"), §11 Audit log (retention_class), §10 (R13 event-sourced)\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nCreate `packages/gdpr` (workspace name `@monopilot/gdpr`) exporting a **per-domain erasure registry** + a central `runErasure(orgId, subjectId, opts)` dispatcher that calls every registered domain handler in a single tx-scoped run. PRD §13 lists \"GDPR right-to-erasure function działa\" as a hard MVP success criterion; today the only implementation is NPD T-089 scoped to NPD tables only. Both auditors (A Top-10 Gap #3, B Top-10 Gap #6) flag this as a Foundation gap.\n\nThis task delivers the **framework** (registry + dispatcher + contract + unit tests). The cron caller is T-114 (apps/worker). Wiring NPD's existing handler into the registry is T-115. Other module-domain registrations are downstream (Warehouse, Scanner, Quality, Production, Settings).\n\n## Implementation contract\n1. Create `packages/gdpr/` as workspace package (`@monopilot/gdpr`, private:true, type:module). Deps: `pg` (peer), `@monopilot/db` (peer for schema types), `zod`. Dev: vitest.\n2. `packages/gdpr/src/registry.ts` exports `registerErasureHandler(domain: string, fn: ErasureHandler): void` and `getRegisteredHandlers(): ReadonlyMap<string, ErasureHandler>`. Domains are dot-strings (e.g. `npd`, `warehouse`, `quality.holds`). Registry is a module-level singleton; re-registering the same domain throws unless `{force:true}` is passed.\n3. `ErasureHandler` signature: `(ctx: ErasureContext) => Promise<ErasureResult>` where `ErasureContext = { orgId: string; subjectId: string; reason: 'gdpr-rtbf'; tx: pg.PoolClient; dryRun: boolean }` and `ErasureResult = { domain: string; rowsAffected: number; tablesTouched: string[]; warnings: string[] }`.\n4. `packages/gdpr/src/dispatcher.ts` exports `runErasure(pool: pg.Pool, orgId: string, subjectId: string, opts?: { dryRun?: boolean; domains?: string[] }): Promise<ErasureRunReport>` which (a) BEGINs a transaction on a single client, (b) sets `app.set_org_context(...)` for the orgId, (c) calls each handler sequentially in registration order (or filtered to `opts.domains`), collecting results, (d) writes a single `gdpr_erasure_runs` audit row (action=`gdpr.erasure.completed`, retention_class=`security`) — the dispatcher writes through the existing `audit_events` API, (e) commits if no handler threw, otherwise rolls back and writes `gdpr.erasure.failed` + rethrows.\n5. `packages/gdpr/src/__tests__/dispatcher.test.ts` (testcontainers Postgres): register two fake handlers (`testA`, `testB`); call `runErasure(pool, orgId, subjectId)`; assert both invoked exactly once with the same `tx` client; assert `tablesTouched` aggregated correctly; assert one audit event row written with `actor_type='system'` and `action='gdpr.erasure.completed'`. A second test registers a throwing handler and asserts ROLLBACK semantics + failure audit row.\n6. Create `_foundation/contracts/gdpr.md` (new contract file) documenting: (a) per-domain handler protocol, (b) order = registration order, (c) all handlers share one tx → all-or-nothing per subject, (d) PII anonymisation policy (`actor_user_id` rows in audit retain via tombstone `gdpr_anonymised_user_id`), (e) the contract is normative for every module that holds user-FK PII (Warehouse `signed_by`, Scanner `operator_id`, Quality e-sign signers, Production WO actor cols), (f) sibling implementations: NPD T-089 + future per-module wire-ups.\n\n## Files in scope\n- packages/gdpr/package.json [create]\n- packages/gdpr/tsconfig.json [create]\n- packages/gdpr/eslint.config.mjs [create]\n- packages/gdpr/src/index.ts [create]\n- packages/gdpr/src/registry.ts [create]\n- packages/gdpr/src/dispatcher.ts [create]\n- packages/gdpr/src/types.ts [create]\n- packages/gdpr/src/__tests__/registry.test.ts [create]\n- packages/gdpr/src/__tests__/dispatcher.test.ts [create]\n- _foundation/contracts/gdpr.md [create]\n\n## Acceptance criteria\n1. Given two fake handlers testA and testB registered, when runErasure(pool, orgId, 'subject-x') awaited, then both invoked exactly once in registration order sharing same tx PoolClient and report.results length is 2.\n2. Given a registered handler throws, when runErasure runs, then transaction ROLLBACK, single gdpr.erasure.failed audit row written via separate connection, original error rethrown.\n3. Given opts.dryRun=true, when runErasure runs, then handlers receive ctx.dryRun=true, dispatcher COMMITs only the gdpr.erasure.dry_run audit row, no business mutations persist.\n4. Given same domain registered twice without {force:true}, when second registerErasureHandler called, then throws DuplicateDomainError with domain name; AND Given _foundation/contracts/gdpr.md is read, when content parsed, then contains handler protocol + tx-scoped contract + audit-event names + sibling implementations + normative scope.\n## Test strategy\n- RED: write `dispatcher.test.ts` + `registry.test.ts` asserting ACs 1-4 before any production code. RED command: `pnpm --filter @monopilot/gdpr test`.\n- GREEN: implement registry + dispatcher; testcontainers Postgres with `audit_events` migration pre-applied.\n- Run: `pnpm --filter @monopilot/gdpr test && pnpm --filter @monopilot/gdpr typecheck && pnpm --filter @monopilot/gdpr lint`.\n\n## Risk red lines\n- Do not call `app.set_org_context` from outside the dispatcher — handlers MUST receive the already-context-set `tx` client.\n- Do not run handlers in parallel — sequential, ordered, single tx (subject-erasure is atomic by GDPR design).\n- Do not delete `audit_events` rows in any handler — anonymise via tombstone columns, retain rows per retention_class (security=7y).\n- Do not include UI in this task — purely server-side; the operator UI lives in 02-Settings P3.\n- Do not call this from a Server Action without the apps/worker cron — the request-path caller is forbidden; T-114 wires the cron.\n- Do not hardcode domain list — registration is dynamic so module tasks can add handlers without modifying packages/gdpr.",
+  "labels": [
+    "prd",
+    "compliance",
+    "gdpr",
+    "T2-api",
+    "p0-blocker"
+  ],
+  "priority": 90,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-113",
+    "source_prd": "docs/prd/00-FOUNDATION-PRD.md",
+    "prd_refs": [
+      "§11",
+      "§13"
+    ],
+    "category": "compliance",
+    "subcategory": "gdpr-framework",
+    "task_type": "T2-api",
+    "parent_feature": "00-foundation-gdpr",
+    "context_budget": "40k",
+    "estimated_effort": "3-5h",
+    "description": "Create @monopilot/gdpr package — per-domain ErasureHandler registry + tx-scoped runErasure(orgId, subjectId) dispatcher + _foundation/contracts/gdpr.md normative contract. Foundation-level fulfilment of §13 GDPR success criterion. Cron wiring is T-114; NPD wire-up is T-115.",
+    "details": "Module-level singleton registry exposes registerErasureHandler(domain, fn). Dispatcher opens single tx, sets app.set_org_context, runs handlers sequentially in registration order sharing the same tx client; on success writes gdpr.erasure.completed audit row (retention_class=security); on failure ROLLBACK + gdpr.erasure.failed audit row (separate connection). dryRun mode runs handlers with ctx.dryRun=true and commits only the dry_run audit row. Contract file _foundation/contracts/gdpr.md is normative for every module holding user-FK PII.\n\nAC count consolidated from 5→4 by Fixer F7 2026-05-14 (no coverage lost).",
+    "scope_files": [
+      "packages/gdpr/package.json [create]",
+      "packages/gdpr/tsconfig.json [create]",
+      "packages/gdpr/eslint.config.mjs [create]",
+      "packages/gdpr/src/index.ts [create]",
+      "packages/gdpr/src/registry.ts [create]",
+      "packages/gdpr/src/dispatcher.ts [create]",
+      "packages/gdpr/src/types.ts [create]",
+      "packages/gdpr/src/__tests__/registry.test.ts [create]",
+      "packages/gdpr/src/__tests__/dispatcher.test.ts [create]",
+      "_foundation/contracts/gdpr.md [create]"
+    ],
+    "out_of_scope": [
+      "Cron wiring in apps/worker (T-114)",
+      "NPD T-089 registration (T-115)",
+      "Per-module handler implementations (Warehouse/Quality/Scanner/Production/Settings)",
+      "Operator UI in 02-Settings",
+      "Erasure request intake API (separate task)"
+    ],
+    "dependencies": [],
+    "parallel_safe_with": [
+      "T-111",
+      "T-112",
+      "T-116",
+      "T-121"
+    ],
+    "acceptance_criteria": [
+      "Given two fake handlers testA and testB registered, when runErasure(pool, orgId, 'subject-x') awaited, then both invoked exactly once in registration order sharing same tx PoolClient and report.results length is 2.",
+      "Given a registered handler throws, when runErasure runs, then transaction ROLLBACK, single gdpr.erasure.failed audit row written via separate connection, original error rethrown.",
+      "Given opts.dryRun=true, when runErasure runs, then handlers receive ctx.dryRun=true, dispatcher COMMITs only the gdpr.erasure.dry_run audit row, no business mutations persist.",
+      "Given same domain registered twice without {force:true}, when second registerErasureHandler called, then throws DuplicateDomainError with domain name; AND Given _foundation/contracts/gdpr.md is read, when content parsed, then contains handler protocol + tx-scoped contract + audit-event names + sibling implementations + normative scope."
+    ],
+    "test_strategy": [
+      "RED: write dispatcher.test.ts + registry.test.ts asserting ACs 1-4 before code; testcontainers Postgres with audit_events migration applied; RED command: pnpm --filter @monopilot/gdpr test.",
+      "GREEN: implement registry + dispatcher + contract markdown.",
+      "Run: pnpm --filter @monopilot/gdpr test && pnpm --filter @monopilot/gdpr typecheck && pnpm --filter @monopilot/gdpr lint."
+    ],
+    "risk_red_lines": [
+      "Do not call app.set_org_context from outside the dispatcher — handlers receive an already-context-set tx client.",
+      "Do not run handlers in parallel — sequential ordered single tx for atomicity.",
+      "Do not delete audit_events rows in any handler — anonymise via tombstone columns, retain per retention_class.",
+      "Do not include UI in this task — server-side framework only.",
+      "Do not call this from a Server Action — apps/worker cron only (T-114).",
+      "Do not hardcode domain list — dynamic registration so module tasks add handlers without modifying packages/gdpr."
+    ],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "cross_module_dependencies": []
+  }
+}

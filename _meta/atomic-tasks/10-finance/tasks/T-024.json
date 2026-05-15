@@ -1,0 +1,103 @@
+{
+  "title": "T-024 \u2014 Yield variance per WO computation + waste cost handler (\u00a79.5, \u00a711.5 V-FIN-WO-03/V-FIN-VAR-*, \u00a713.3)",
+  "prompt": "# T-024 \u2014 Yield variance + waste cost handler\n\nPRD: docs/prd/10-FINANCE-PRD.md \u00a79.5 waste cost allocation (Q4 decision); \u00a711.3 V-FIN-WO-03 yield \u00b110% warn; \u00a711.5 V-FIN-VAR-04 yield+material both negative info; \u00a713.1 waste.logged + wo_output.registered handlers; \u00a713.3 yield_loss monthly aggregation view.\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nTwo worker handlers + one SQL view:\n1. `handle_waste_logged(event)`: evaluate waste_cost_allocator_v1 (T-022) \u2192 compute waste_cost_line; UPDATE work_order_costs.waste_cost_actual += amount; insert cost_variances if threshold breached.\n2. `handle_wo_output(event)`: compute yield_variance_pct = (qty_actual - qty_standard) / qty_standard \u00d7 100; if abs > 10% emit V-FIN-WO-03 warn; if also material variance < 0 emit V-FIN-VAR-04 info flag for cross-check; INSERT cost_variances row category='yield'.\n3. SQL view `v_yield_loss_monthly` per \u00a713.3 SQL \u2014 joins ncr_reports (09-QA, type='yield_issue') with items + exchange_rates for GBP conversion.\n\n## Implementation contract\n1. `apps/worker/src/finance/waste-logged-handler.ts`:\n   - Read event {org_id, wo_id, item_id, category_id, qty_kg, idempotency_key}.\n   - Evaluate waste_cost_allocator_v1 (T-022) \u2192 returns {waste_cost, strategy} where strategy in (full_loss, partial_recovery=P2 stub, sell_scrap=P2 stub).\n   - UPDATE work_order_costs SET waste_cost_actual = waste_cost_actual + computed_amount WHERE wo_id=$1 (SELECT FOR UPDATE).\n   - If waste_cost > threshold (configurable per finance_settings.ext_jsonb 'waste_alert_threshold_gbp' default 100), insert cost_variances row category='waste'.\n2. `apps/worker/src/finance/wo-output-handler.ts`:\n   - Read event {org_id, wo_id, item_id, qty_kg, output_type, idempotency_key}.\n   - SELECT work_order_costs WHERE wo_id; compute yield_variance_pct (note: yield_variance_pct is GENERATED in the schema but we must update qty_produced_actual to feed it; do that here).\n   - UPDATE work_order_costs SET qty_produced_actual = qty_produced_actual + qty_kg WHERE wo_id=$1.\n   - INSERT cost_variances (category='yield', variance_amount = (qty_actual - qty_standard) \u00d7 unit_cost_standard, variance_pct = computed).\n   - V-FIN-WO-03 warn: if abs(yield_variance_pct) > 10, write audit_events 'yield_variance_high'.\n   - V-FIN-VAR-04 info: if yield_variance_pct < 0 AND material_variance < 0, write audit 'yield_material_substitution_suspect'.\n   - Call T-017 allocate_coproducts(wo_id) after registering output (per \u00a713.1 row 'wo_output.registered').\n3. Migration `packages/db/migrations/0060_yield_loss_view.sql`:\n   - `CREATE OR REPLACE VIEW v_yield_loss_monthly` with the \u00a713.3 query verbatim \u2014 joining ncr_reports (09-QA cross-module, type='yield_issue') + items + exchange_rates. Security: SECURITY INVOKER + uses RLS of underlying tables.\n4. Worker registration subscribes to `production.waste.logged` + `production.wo_output.registered`.\n\n## Files\n- apps/worker/src/finance/waste-logged-handler.ts [create]\n- apps/worker/src/finance/wo-output-handler.ts [create]\n- apps/worker/src/registry.ts [modify]\n- packages/db/migrations/0060_yield_loss_view.sql [create]\n- apps/worker/src/finance/__tests__/waste-logged-handler.test.ts [create]\n- apps/worker/src/finance/__tests__/wo-output-handler.test.ts [create]\n\n## Acceptance criteria (Given-When-Then)\n- Given waste.logged event qty_kg=5 + category full_loss + item cost_per_kg=4, when handler runs, then wo_costs.waste_cost_actual += 20 and cost_variances row category='waste' exists.\n- Given wo_output.registered qty_kg=80 with qty_produced_standard=100, when handler runs, then qty_produced_actual=80, yield_variance_pct=-20.0, cost_variances category='yield' row with variance_pct=-20. AND given yield_variance_pct=-20 (abs > 10), when handler runs, then audit 'yield_variance_high'. AND given yield_variance_pct < 0 AND material_variance < 0, when handler runs, then audit 'yield_material_substitution_suspect'.\n- Given handler calls allocate_coproducts, when commit, then output_attribution_item_id populated on cons_costs rows. AND given v_yield_loss_monthly queried for a period, when results returned, then groups by month+product, sums qty_kg + GBP-converted cost.\n- Given event consumed twice, when second invocation runs, then no UPDATE (idempotent).\n_(AC count consolidated from 7\u21924 by Fixer F13 2026-05-14 (no coverage lost))_\n\n## Test strategy (RED first)\n- RED: seed wo_outputs + waste_log + ncr_reports (cross-module mock); assert each AC.\n- Run `pnpm --filter @monopilot/worker vitest run finance/waste-logged-handler finance/wo-output-handler && pnpm --filter db migrate`.\n\n## Risk red lines\n- Do not skip SELECT FOR UPDATE on work_order_costs (concurrent consume + output + waste race).\n- Do not double-count waste when allocate_coproducts also writes attribution rows.\n- Do not include retention_until-expired rows in the yield_loss view (filter retention_until > current_date).\n- Do not query 09-QA ncr_reports without org_id filter (multi-tenant correctness).\n- Do not use FLOAT.\n- Do not bypass V-FIN-WO-03 warn audit.\n- Do not handle synchronously in Server Action.\n",
+  "labels": [
+    "prd",
+    "wiring",
+    "worker",
+    "T4-wiring-test"
+  ],
+  "priority": 70,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-024",
+    "source_prd": "docs/prd/10-FINANCE-PRD.md",
+    "prd_refs": [
+      "\u00a79.5",
+      "\u00a711.3",
+      "\u00a711.5",
+      "\u00a713.1",
+      "\u00a713.3"
+    ],
+    "category": "wiring",
+    "subcategory": "yield-waste-handlers",
+    "task_type": "T4-wiring-test",
+    "parent_feature": "10-FINANCE-d",
+    "context_budget": "55k",
+    "estimated_effort": "4-5h",
+    "description": "Waste cost handler (full_loss strategy P1) + WO output handler (yield variance compute) + monthly yield loss view joining 09-QA ncr_reports.",
+    "details": "Implements \u00a79.5 full_loss P1; recovery_value credit (partial_recovery / sell_scrap) deferred to P2 EPIC 10-K. wo_output handler chains into T-017 allocate_coproducts. View v_yield_loss_monthly is SECURITY INVOKER (respects underlying RLS). [AC count consolidated from 7\u21924 by Fixer F13 2026-05-14 (no coverage lost)]",
+    "scope_files": [
+      "apps/worker/src/finance/waste-logged-handler.ts [create]",
+      "apps/worker/src/finance/wo-output-handler.ts [create]",
+      "apps/worker/src/registry.ts [modify]",
+      "packages/db/migrations/0060_yield_loss_view.sql [create]",
+      "apps/worker/src/finance/__tests__/waste-logged-handler.test.ts [create]",
+      "apps/worker/src/finance/__tests__/wo-output-handler.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "P2 recovery_value credit (EPIC 10-K)",
+      "Variance drill-down UI (T-026)"
+    ],
+    "dependencies": [
+      "T-017",
+      "T-021",
+      "T-022"
+    ],
+    "cross_module_dependencies": [
+      "08-production:waste.logged + wo_output.registered events + waste_categories",
+      "09-quality:ncr_reports (read-only for view)"
+    ],
+    "parallel_safe_with": [
+      "T-023"
+    ],
+    "acceptance_criteria": [
+      "Given waste.logged event qty_kg=5 + category full_loss + item cost_per_kg=4, when handler runs, then wo_costs.waste_cost_actual += 20 and cost_variances row category='waste' exists.",
+      "Given wo_output.registered qty_kg=80 with qty_produced_standard=100, when handler runs, then qty_produced_actual=80, yield_variance_pct=-20.0, cost_variances category='yield' row with variance_pct=-20. AND given yield_variance_pct=-20 (abs > 10), when handler runs, then audit 'yield_variance_high'. AND given yield_variance_pct < 0 AND material_variance < 0, when handler runs, then audit 'yield_material_substitution_suspect'.",
+      "Given handler calls allocate_coproducts, when commit, then output_attribution_item_id populated on cons_costs rows. AND given v_yield_loss_monthly queried for a period, when results returned, then groups by month+product, sums qty_kg + GBP-converted cost.",
+      "Given event consumed twice, when second invocation runs, then no UPDATE (idempotent)."
+    ],
+    "test_strategy": [
+      "RED: seed wo_outputs + waste_log + ncr_reports; assert each AC.",
+      "Run pnpm --filter @monopilot/worker vitest run finance/waste-logged-handler finance/wo-output-handler && pnpm --filter db migrate."
+    ],
+    "risk_red_lines": [
+      "Do not skip SELECT FOR UPDATE.",
+      "Do not double-count waste alongside allocate_coproducts attribution.",
+      "Do not include retention-expired rows in yield_loss view.",
+      "Do not query 09-QA ncr_reports without org_id filter.",
+      "Do not use FLOAT.",
+      "Do not bypass V-FIN-WO-03 warn audit.",
+      "Do not handle synchronously in Server Action."
+    ],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review",
+      "systematic-debugging"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": false
+  }
+}

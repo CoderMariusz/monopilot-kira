@@ -53,3 +53,4 @@ dev-debug.log
 # Kira-HQ generated artifacts
 kanban_board.md
 pipeline.log.md
+.acp/

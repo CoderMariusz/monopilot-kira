@@ -1,0 +1,107 @@
+{
+  "title": "T-012 — Allocation Server Actions: allocateSO, releaseAllocation, allocationOverride (11-shipping-c)",
+  "prompt": "# T-012 — Allocation Server Actions\n\nPRD: docs/prd/11-SHIPPING-PRD.md §6 D-SHP-1, §6 D-SHP-2, §6 D-SHP-13, §8.2, §11 V-SHIP-ALLOC-01..05\nPrototype refs: prototypes/design/Monopilot Design System/shipping/modals.jsx:292-340 (allocation_override_modal), :809-835 (release_allocation_modal)\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nServer Actions wrapping `allocate_fefo()` Postgres function (T-011) with RBAC, override audit, outbox events, and quality_hold soft-gate handling.\n\n## Implementation contract\n1. `apps/web/lib/server-actions/shipping/allocations.ts` exports:\n   - `allocateSO(soId)` — for each `sales_order_lines` row, calls `allocate_fefo(line_id, qty_ordered - qty_allocated)`. Wrapped in single tx. On success, updates sales_orders.status='allocated' (if all lines fully allocated) or stays 'confirmed' (partial). Outbox `shipping.so.allocated` or `shipping.so.partially_allocated`. Permission `ship.so.confirm` (allocation runs as part of confirm flow).\n   - `releaseAllocation(allocationId, reason)` — UPDATE inventory_allocations SET released_at, release_reason; UPDATE license_plates.status back to 'available' (consumer of 05-WH); outbox `shipping.allocation.released`. Permission `ship.alloc.override`.\n   - `allocationOverride(soLineId, lpId, reason)` — explicit override of FEFO suggestion (V-SHIP-ALLOC-05 deviation); INSERT pick_overrides (override_type='fefo_deviation', audit_hash SHA-256); calls allocate_fefo with target LP forced; outbox `shipping.fefo.overridden`. Permission `ship.alloc.override`.\n2. Quality hold soft-gate (D-SHP-13): if selected LP has `quality_hold.severity` IN ('major','medium','minor'), require `reason_code` from `shipping_override_reasons` ref table and audit; emit `shipping.quality_hold.overridden` outbox event (consumer 09-QA T-011 audit).\n3. All actions under `withOrgContext` (T-125). Outbox via @monopilot/outbox (T-112). Rate-limit via @monopilot/rate-limit (T-121).\n4. No GUC reads.\n\n## Files\n- apps/web/lib/server-actions/shipping/allocations.ts [create]\n- apps/web/lib/server-actions/shipping/__tests__/allocations.test.ts [create]\n- packages/events/src/shipping.ts [modify — ShippingAllocated, ShippingPartiallyAllocated, ShippingAllocationReleased, ShippingFefoOverridden, ShippingQualityHoldOverridden]\n\n## Acceptance criteria\n1. Given a confirmed SO with 3 lines fully covered by FEFO LPs, when allocateSO runs, then inventory_allocations rows are created for each, status flips to 'allocated', and shipping.so.allocated event emitted in same tx.\n2. Given partial allocation (some lines short on stock), when allocateSO runs, then status remains 'confirmed' and shipping.so.partially_allocated event is emitted with line-level shortage detail.\n3. Given releaseAllocation is called for an existing allocation, when it runs, then license_plates.status returns to 'available', allocations.released_at is set, and shipping.allocation.released event emitted.\n4. Given allocationOverride is called by a `ship.alloc.override` holder with reason_code, when it runs, then pick_overrides row is INSERTed with audit_hash + override_type='fefo_deviation', and shipping.fefo.overridden event emitted.\n5. Given a soft-gate quality_hold (severity='major') on the selected LP and no reason_code provided, when allocationOverride runs, then it throws `MissingReasonCodeError` (D-SHP-13 soft gate) and no row is INSERTed.\n6. Given grep `current_setting\\('app\\.(tenant_id|current_org_id)'\\)` on allocations.ts, when run, then zero matches.\n\n## Test strategy\n- RED: vitest with testcontainers Postgres asserting AC 1-6 + permission gate.\n- Run `pnpm --filter @monopilot/web vitest run allocations.test.ts && pnpm typecheck`.\n\n## Risk red lines\n- Do not call mutations outside withOrgContext.\n- Do not bypass the audit_hash on pick_overrides (SHA-256 required, 7y BRCGS retention).\n- Do not emit outbox events outside the DB tx.\n- Do not query quality_holds directly — consume v_active_holds (09-QA).\n- Do not allow allocationOverride without ship.alloc.override permission.\n- Do not return `available` status to an LP that has a 'reserved' status elsewhere (consult 05-WH state machine).",
+  "labels": [
+    "prd",
+    "backend",
+    "server-actions",
+    "T2-api"
+  ],
+  "priority": 70,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-012",
+    "source_prd": "docs/prd/11-SHIPPING-PRD.md",
+    "prd_refs": [
+      "§6 D-SHP-1",
+      "§6 D-SHP-2",
+      "§6 D-SHP-13",
+      "§8.2",
+      "§11 V-SHIP-ALLOC-01",
+      "§11 V-SHIP-ALLOC-02",
+      "§11 V-SHIP-ALLOC-04",
+      "§11 V-SHIP-ALLOC-05"
+    ],
+    "category": "backend",
+    "subcategory": "server-actions-allocation",
+    "task_type": "T2-api",
+    "parent_feature": "11-shipping-c",
+    "context_budget": "50k",
+    "estimated_effort": "3-4h",
+    "description": "Allocation Server Actions wrapping allocate_fefo() Postgres function + quality-hold soft gate + override audit.",
+    "details": "Server Actions only. SHA-256 audit_hash for pick_overrides. Outbox events bound to DB tx (R14 idempotency). Quality hold soft-gate handling per D-SHP-13.",
+    "scope_files": [
+      "apps/web/lib/server-actions/shipping/allocations.ts [create]",
+      "apps/web/lib/server-actions/shipping/__tests__/allocations.test.ts [create]",
+      "packages/events/src/shipping.ts [modify]"
+    ],
+    "out_of_scope": [
+      "Do not implement quality_hold gate service (T-013).",
+      "Do not build allocation UI here (T-014)."
+    ],
+    "dependencies": [
+      "T-011",
+      "T-031",
+      "00-foundation/T-125",
+      "00-foundation/T-112"
+    ],
+    "parallel_safe_with": [
+      "T-007",
+      "T-013"
+    ],
+    "cross_module_dependencies": [
+      "05-warehouse/T-002 (license_plates state machine)",
+      "09-quality/T-010 (v_active_holds)",
+      "09-quality/T-011 (consumer of shipping.quality_hold.overridden)",
+      "09-quality/T-064 (consume gate — allocationOverride must verify holdsGuard before mutating allocation tables; per 2026-05-14 audit)"
+    ],
+    "acceptance_criteria": [
+      "Given a confirmed SO with 3 lines fully covered by FEFO LPs, when allocateSO runs, then allocations written + status='allocated' + outbox shipping.so.allocated; AND given partial allocation, when allocateSO runs, then status stays 'confirmed' and outbox shipping.so.partial_allocated emitted.",
+      "Given releaseAllocation called, when it runs, then license_plates.status returns to 'available', release audit logged, outbox shipping.so.allocation_released emitted.",
+      "Given allocationOverride by ship.alloc.override holder with reason_code, when it runs, then pick_overrides row inserted with audit_hash (SHA-256) and outbox emitted; AND given soft-gate critical hold with no reason_code, when allocationOverride runs, then it returns blocker_code (v_active_holds gate per 09-quality T-064).",
+      "Given grep current_setting('app.tenant_id'|'app.current_org_id') on allocations.ts, when run, then zero matches (org context only via withOrgContext)."
+    ],
+    "test_strategy": [
+      "RED: vitest with testcontainers Postgres + permission gate asserting AC 1-6.",
+      "Run `pnpm --filter @monopilot/web vitest run allocations.test.ts && pnpm typecheck`."
+    ],
+    "risk_red_lines": [
+      "Do not call mutations outside withOrgContext.",
+      "Do not bypass audit_hash on pick_overrides.",
+      "Do not emit outbox outside DB tx.",
+      "Do not query quality_holds directly — consume v_active_holds.",
+      "Do not allow allocationOverride without ship.alloc.override.",
+      "Do not return 'available' status to a 'reserved' LP unilaterally.",
+      "Do not bypass the 09-quality consume gate (T-064 v_active_holds) — allocationOverride must call holdsGuard(lpId, lotId) before mutating consumption tables."
+    ],
+    "skills": [
+      "test-driven-development",
+      "systematic-debugging",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": false
+  }
+}

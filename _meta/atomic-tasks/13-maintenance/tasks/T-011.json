@@ -1,0 +1,96 @@
+{
+  "title": "T-011 — Spare parts Server Actions (consume/adjust/reorder/receipt) per V-MNT-18..20",
+  "prompt": "# T-011 — Spare parts mutation Server Actions\n\nPRD: docs/prd/13-MAINTENANCE-PRD.md §11.5 (V-MNT-18..20), §9.10, §9.11\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nImplement 4 Server Actions: `consumeSparePart` (mwo-linked), `adjustSparePart` (cycle-count/damage with >10% approval gate), `reorderSparePart` (creates internal purchase request — D365 push P2), `receiveSparePart` (receipt txn). Enforces V-MNT-18 (consume requires mwo_id), V-MNT-19 (cannot exceed qty_on_hand, row-locked txn), V-MNT-20 (reorder alert on qty<=reorder_point).\n\n## Pre-flight\nVerify T-001 perms, T-005 spares tables, T-004 mwo table, Wave1 T-111 outbox primitive.\n\n## Implementation contract\n1. `apps/web/app/maintenance/_actions/spare-parts.ts` — 4 Server Actions; each uses `db.transaction()` with `SELECT … FOR UPDATE` on `spare_parts_stock` row.\n2. consumeSparePart: V-MNT-18 mwo_id NOT NULL guard → error `SPARE_CONSUME_REQUIRES_MWO`; V-MNT-19 qty<=qty_on_hand → error `SPARE_INSUFFICIENT_STOCK`; inserts spare_parts_transactions(txn_type='consume') + decrements stock + writes outbox `spare_parts.consumed`.\n3. adjustSparePart: if |new-old|/old > 0.10 → flag `requires_approval=true` (manager second-step required); RBAC mnt.spare.adjust; inserts spare_parts_transactions(txn_type='adjust', delta=new-old).\n4. reorderSparePart: inserts notification_events (warn) + outbox `spare_parts.reorder_requested` with `bl_maint_07_note='P2 D365 PO integration deferred'`.\n5. receiveSparePart: txn_type='receipt'; increments stock; outbox `spare_parts.received`.\n6. Zod input schemas. Vitest with Testcontainers: V-MNT-18 mwo_id required; V-MNT-19 over-consume rejected; concurrent consume serialised by FOR UPDATE; >10% adjust returns requires_approval=true.\n\n## Files\n- apps/web/app/maintenance/_actions/spare-parts.ts [create]\n- apps/web/app/maintenance/_actions/spare-parts.schema.ts [create]\n- apps/web/app/maintenance/_actions/__tests__/spare-parts.test.ts [create]\n\n## Acceptance criteria\n1. Given consumeSparePart with mwo_id=NULL, when called, then fails with code `SPARE_CONSUME_REQUIRES_MWO` (V-MNT-18).\n2. Given spare_parts_stock.qty_on_hand=5 and consumeSparePart(qty=10), when called, then fails with code `SPARE_INSUFFICIENT_STOCK` (V-MNT-19) and stock is unchanged.\n3. Given two concurrent consume(qty=3) on the same stock row qty_on_hand=5, when both are issued, then exactly one succeeds and one fails INSUFFICIENT_STOCK; final qty_on_hand=2.\n4. Given adjustSparePart with old=100, new=85 (15% delta), when called, then result.requires_approval=true and txn row is inserted with requires_approval flag; second-step approval Server Action call (mnt.spare.adjust manager) flips the flag.\n5. Given reorderSparePart called, when settled, then a notification_events row + outbox `spare_parts.reorder_requested` row exist (D365 push deferred per BL-MAINT-07).\n\n## Test strategy\n- RED: vitest asserting all five ACs with Testcontainers.\n- Run `pnpm --filter @monopilot/web vitest run apps/web/app/maintenance/_actions/__tests__/spare-parts.test.ts`.\n\n## Risk red lines\n- Do not skip `SELECT … FOR UPDATE` — V-MNT-19 concurrent consume race must be serialised.\n- Do not write to D365 — BL-MAINT-07 P2.\n- Do not allow consume without mwo_id (V-MNT-18 critical audit trail).\n- Do not allow consume causing qty_on_hand<0 (CHECK + V-MNT-19 cooperate).\n- Do not bypass RBAC mnt.spare.* perms.",
+  "labels": [
+    "prd",
+    "api",
+    "server-action",
+    "T2-api"
+  ],
+  "priority": 60,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-011",
+    "source_prd": "docs/prd/13-MAINTENANCE-PRD.md",
+    "prd_refs": [
+      "§11.5",
+      "§9.10",
+      "§9.11"
+    ],
+    "category": "api",
+    "subcategory": "spare-parts-actions",
+    "task_type": "T2-api",
+    "parent_feature": "13-MAINTENANCE-d",
+    "context_budget": "45k",
+    "estimated_effort": "3-4h",
+    "description": "4 Server Actions for spare parts mutations with V-MNT-18/19/20 guards + >10% adjust approval gate + outbox events.",
+    "details": "Concurrent consume serialised by FOR UPDATE. Adjust >10% requires manager second-step. Reorder is internal notification only in P1 (BL-MAINT-07).",
+    "scope_files": [
+      "apps/web/app/maintenance/_actions/spare-parts.ts [create]",
+      "apps/web/app/maintenance/_actions/spare-parts.schema.ts [create]",
+      "apps/web/app/maintenance/_actions/__tests__/spare-parts.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "D365 PO push (P2)",
+      "04-planning PO integration (P2)",
+      "UI (T-024, T-025)",
+      "Reorder cron alert (T-009 owns daily scan)"
+    ],
+    "dependencies": [
+      "T-001",
+      "T-004",
+      "T-005"
+    ],
+    "parallel_safe_with": [
+      "T-009",
+      "T-010",
+      "T-012"
+    ],
+    "acceptance_criteria": [
+      "Given consumeSparePart(mwo_id=NULL), when called, then fails SPARE_CONSUME_REQUIRES_MWO (V-MNT-18); given qty_on_hand=5 and consumeSparePart(qty=10), then fails SPARE_INSUFFICIENT_STOCK (V-MNT-19) and stock unchanged",
+      "Given two concurrent consume(qty=3) on qty_on_hand=5 with SELECT FOR UPDATE, when both issued, then exactly one succeeds and final qty=2 (race serialized)",
+      "Given adjustSparePart 100→85 (15%), when called, then requires_approval=true; manager second-step flips flag",
+      "Given reorderSparePart called, when settled, then notification_events row + outbox spare_parts.reorder_requested exist (no D365 push per BL-MAINT-07)"
+    ],
+    "test_strategy": [
+      "RED: vitest with Testcontainers asserting all five ACs",
+      "Run `pnpm --filter @monopilot/web vitest run apps/web/app/maintenance/_actions/__tests__/spare-parts.test.ts`"
+    ],
+    "risk_red_lines": [
+      "Do not skip SELECT FOR UPDATE — V-MNT-19 race condition",
+      "Do not push to D365 (BL-MAINT-07 P2)",
+      "Do not allow consume without mwo_id (V-MNT-18)",
+      "Do not allow qty_on_hand<0",
+      "Do not bypass mnt.spare.* RBAC"
+    ],
+    "skills": [
+      "test-driven-development",
+      "systematic-debugging",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": false
+  }
+}

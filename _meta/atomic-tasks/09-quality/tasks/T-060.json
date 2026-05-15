@@ -1,0 +1,104 @@
+{
+  "title": "T-060 — QA-015 ccp_deviations page (sign-off + corrective action, parity)",
+  "prompt": "# T-060 — QA-015 ccp_deviations page (parity)\n\nPRD: §8.5 traceability + §8.3 QUA-107; §11.5 V-QA-CCP-004; §7.1 09-e-05\nPrototype: prototypes/design/Monopilot Design System/quality/haccp-screens.jsx:229-299 (ccp_deviations)\n\n## Goal\nServer-rendered CCP deviations browse page with KPI strip + filter bar + table with sign-off + add-corrective-action inline actions + ccp_deviation_log_modal manual entry. 1:1 parity vs prototype.\n\n## Implementation contract\n1. apps/web/src/app/quality/ccp/deviations/page.tsx (RSC) loads deviations via Drizzle: SELECT FROM haccp_monitoring_records JOIN haccp_ccps JOIN ncr_reports WHERE within_limits=false ORDER BY recorded_at DESC.\n2. KPI strip: openCount / actionPending / resolvedToday — aggregated server-side.\n3. URL searchParams filter: ?hazard=, ?ccpId=, ?severity=, ?status= (signed/unsigned via signed_at IS NULL), ?dateFrom/dateTo.\n4. Table row actions: 'Sign off' (opens T-039 ESignBlock with meaning='witnessed') + 'Add corrective action' (inline Textarea + Server Action updating ccp_deviation_records.corrective_action) + 'Log deviation manually' button at top opens ccp_deviation_log_modal.\n5. Hazard badge: shadcn Badge with hazard_type→color map (biological=red, chemical=amber, physical=slate, allergen=red).\n6. row-major class for missing corrective_action: server-computed boolean.\n\n## Prototype parity\nAnchor: `prototypes/design/Monopilot Design System/quality/haccp-screens.jsx:229-299` (ccp_deviations).\nParity checklist:\n- KPI strip (3 cards)\n- Filter bar (hazard/ccp/severity/status/date)\n- Table with hazard badge + Sign-off + Add-action inline\n- row-major highlight for missing corrective action\n- 'Log deviation' top-right opens ccp_deviation_log_modal\n- ccp_deviation_log_modal: CCP Select + severity auto-derived + corrective action Textarea (min 10) + linked monitoring record Combobox + conditional ESignBlock\n\n## Files\n- apps/web/src/app/quality/ccp/deviations/page.tsx [create]\n- apps/web/src/components/quality/ccp/DeviationsTable.tsx [create]\n- packages/ui/src/quality/CcpDeviationLogModal.tsx [create]\n- apps/web/src/components/quality/ccp/__tests__/Deviations.test.tsx [create]\n- prototypes/design/Monopilot Design System/quality/haccp-screens.jsx [ref]\n\n## Acceptance criteria\n1. Compared to prototypes/design/Monopilot Design System/quality/haccp-screens.jsx:229-299 — parity on structure (KPI strip + filter bar + table + log-deviation modal), visuals (shadcn Table/Badge/Select/Button + hazard color map), interaction (URL searchParam filters + Sign-off opens ESignBlock + inline corrective action Server Action + log modal opens via URL state) — RTL + checklist\n2. Given a deviation with corrective_action IS NULL, when row renders, then row-major class (visual emphasis) is applied (server-computed boolean prop)\n3. Given user clicks Sign off, when T-039 ESignBlock confirms, then signed_at + signed_by are updated server-side and the row updates without page reload (revalidate or optimistic UI)\n4. UI closeout includes screenshot/artifact evidence and Playwright trace/artifacts where applicable per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`; if Playwright is unavailable, document the blocker and provide RTL/snapshot fallback evidence.\n\n## Test strategy (RED first)\n- RED: Deviations.test.tsx asserting parity + row-major highlight + Sign-off ESignBlock open + log modal open before implementation\n- Run 'pnpm --filter web test Deviations'\n- For UI parity, capture screenshots/artifacts and Playwright trace/video/artifacts where applicable; attach artifact paths in closeout.\n\n## Risk red lines\n- Hazard badge color map driven by DB hazard_type — never hardcode in UI map outside the badge primitive (translation-notes §QA-015)\n- Sign-off must use shared ESignBlock T-039\n- Do not skip V-QA-CCP-004 check (T-051 owner) — UI is the visible surface but server enforces\n- Do not paste prototype JSX verbatim",
+  "labels": [
+    "prd",
+    "ui",
+    "haccp",
+    "T3-ui"
+  ],
+  "priority": 75,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-060",
+    "source_prd": "docs/prd/09-QUALITY-PRD.md",
+    "prd_refs": [
+      "§8.5",
+      "§8.3 QUA-107",
+      "§11.5",
+      "§7.1"
+    ],
+    "category": "ui",
+    "subcategory": "qa-ccp-deviations",
+    "task_type": "T3-ui",
+    "parent_feature": "09-QUALITY-e HACCP",
+    "context_budget": "55k",
+    "estimated_effort": "4h",
+    "description": "CCP deviations page (KPI strip + filter bar + table with sign-off + add-corrective-action inline + ccp_deviation_log_modal). 1:1 parity vs prototype.",
+    "details": "Server Component loads deviations (haccp_monitoring_records WHERE within_limits=false JOIN haccp_ccps JOIN ncr_reports). KPI strip aggregates open/actionPending/resolvedToday. URL searchParams filter the WHERE clause. Table row inline actions: Sign off (T-039 ESignBlock meaning='witnessed') + Add corrective action (inline Textarea + Server Action). Hazard badge color map: biological=red, chemical=amber, physical=slate, allergen=red. row-major class applied server-computed for corrective_action IS NULL. ccp_deviation_log_modal for manual deviation entry. Anchor: prototypes/design/Monopilot Design System/quality/haccp-screens.jsx:229-299.",
+    "scope_files": [
+      "apps/web/src/app/quality/ccp/deviations/page.tsx [create]",
+      "apps/web/src/components/quality/ccp/DeviationsTable.tsx [create]",
+      "packages/ui/src/quality/CcpDeviationLogModal.tsx [create]",
+      "apps/web/src/components/quality/ccp/__tests__/Deviations.test.tsx [create]",
+      "prototypes/design/Monopilot Design System/quality/haccp-screens.jsx [ref]"
+    ],
+    "out_of_scope": [
+      "Do not modify HACCP Server Actions (T-051) or rule handler (T-052)",
+      "Do not implement haccp_deviations table workflows (P2 Epic 8I)"
+    ],
+    "dependencies": [
+      "T-047",
+      "T-051",
+      "T-052",
+      "T-039"
+    ],
+    "parallel_safe_with": [
+      "T-058",
+      "T-059",
+      "T-061"
+    ],
+    "acceptance_criteria": [
+      "Given the deviations page renders, when compared to prototypes/design/Monopilot Design System/quality/haccp-screens.jsx:229-299 (ccp_deviations), then it matches on structural parity (KPI strip + filter bar + table + log modal), visual parity (hazard color map from DB + shadcn Table/Badge/Select/Button), interaction parity (URL searchParams + Sign-off ESignBlock + inline corrective action Server Action + log modal via URL state) — RTL + checklist",
+      "Given a deviation with corrective_action IS NULL, when the row renders, then row-major class (visual emphasis) is applied based on server-computed boolean prop",
+      "Given user clicks Sign off, when T-039 ESignBlock confirms, then signed_at + signed_by are updated server-side and the row updates without full page reload",
+      "UI closeout includes screenshot/artifact evidence and Playwright trace/artifacts where applicable per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`; if Playwright is unavailable, document the blocker and provide RTL/snapshot fallback evidence."
+    ],
+    "test_strategy": [
+      "RED: Deviations.test.tsx asserting parity + row-major highlight + Sign-off ESignBlock + log modal open before implementation",
+      "Run 'pnpm --filter web test Deviations'",
+      "For UI parity, capture screenshots/artifacts and Playwright trace/video/artifacts where applicable; attach artifact paths in closeout."
+    ],
+    "risk_red_lines": [
+      "Hazard badge color map driven by DB hazard_type (translation-notes §QA-015)",
+      "Sign-off via shared ESignBlock T-039",
+      "V-QA-CCP-004 enforced server-side (T-051) — UI surfaces only",
+      "Do not paste prototype JSX verbatim"
+    ],
+    "prototype_match": true,
+    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md",
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "cross_module_dependencies": [
+      "00-foundation:T-125",
+      "09-quality:T-039",
+      "09-quality:T-051",
+      "09-quality:T-052"
+    ]
+  }
+}

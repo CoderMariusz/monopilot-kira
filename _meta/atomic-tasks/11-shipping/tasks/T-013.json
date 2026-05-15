@@ -1,0 +1,107 @@
+{
+  "title": "T-013 — Quality hold gate service (D-SHP-13 soft + hard gate) shared across pick/pack/ship (11-shipping-c)",
+  "prompt": "# T-013 — Quality hold gate service (D-SHP-13)\n\nPRD: docs/prd/11-SHIPPING-PRD.md §6 D-SHP-13 Quality Hold Soft Gate, §10 Quality Hold Integration, §11 V-SHIP-PICK-02, V-SHIP-PICK-03, V-SHIP-SHIP-03\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nShared TypeScript service `shipping-quality-hold-gate.ts` consumed by pick, pack and ship-confirm Server Actions (T-007, T-016, T-020) that determines whether a given LP can proceed and returns `{ ok, severity, hold_details, blocker_code }`. Single source of truth for D-SHP-13 logic.\n\n## Implementation contract\n1. `apps/web/lib/services/shipping-quality-hold-gate.ts` exports:\n   - `evaluateLpForShipping(lpId): Promise<HoldGateDecision>` — queries `v_active_holds` (09-QA T-010) for `reference_type='lp' AND reference_id=lpId AND status IN ('open','investigating')`; returns highest-severity decision.\n   - Decision shape: `{ ok: boolean, severity: 'critical'|'major'|'medium'|'minor'|null, hold_details: HoldRow[], blocker_code?: string, requires_override?: { permission, reason_required: boolean } }`.\n2. Severity mapping per §10.1:\n   - `critical` → `ok=false`, blocker_code='qa.critical_hold' (HARD BLOCK).\n   - `major` → `ok=true`, requires_override={ permission: 'ship.alloc.override', reason_required: true }, role hint 'shipping_qa'.\n   - `medium` → `ok=true`, requires_override={ permission: 'ship.alloc.override', reason_required: true }, role hint 'shipping_manager'.\n   - `minor` → `ok=true`, requires_override={ permission: 'ship.pick.execute', reason_required: true }, operator confirm only.\n3. Service consumed by:\n   - `confirmSO` (T-007) — runs `evaluateLpForShipping` for every allocated LP; if any critical → block.\n   - `pick.execute` (T-016) — V-SHIP-PICK-02 (soft warn) and V-SHIP-PICK-03 (hard block on critical).\n   - `ship.confirm` (T-020) — V-SHIP-SHIP-03 (no critical holds on shipment LPs).\n4. Service emits a `shipping.quality_hold.overridden` event (consumer 09-QA T-011) on every confirmed override decision, with `audit_hash`, severity, hold_id, user_id, reason_code, ts.\n5. P1 implementation does NOT activate `batch_release_gate_v1` DSL (Phase 2 per §10.2). Document the P2 evolution path in code comments.\n6. Cache TTL 30s using @monopilot/runtime-cache (Vercel runtime cache, T-118-adjacent) keyed by `lp_id` to reduce v_active_holds query pressure — invalidated on `quality.hold.created|released|severity_changed` event consume (T-118 OTLP/observability is the consumer base).\n\n## Files\n- apps/web/lib/services/shipping-quality-hold-gate.ts [create]\n- apps/web/lib/services/__tests__/shipping-quality-hold-gate.test.ts [create]\n- packages/events/src/shipping.ts [modify — ShippingQualityHoldOverridden]\n\n## Acceptance criteria\n1. Given an LP with active hold.severity='critical', when evaluateLpForShipping runs, then it returns { ok: false, severity: 'critical', blocker_code: 'qa.critical_hold' }.\n2. Given an LP with active hold.severity='major', when evaluateLpForShipping runs, then it returns { ok: true, severity: 'major', requires_override: { permission: 'ship.alloc.override', reason_required: true } }.\n3. Given an LP with no active hold, when evaluateLpForShipping runs, then it returns { ok: true, severity: null, requires_override: undefined }.\n4. Given a service call writes an override decision, when it succeeds, then a shipping.quality_hold.overridden outbox event is enqueued with audit_hash and severity field populated.\n5. Given a `quality.hold.severity_changed` event is consumed for an LP, when the cache is checked, then the cached decision for that lp_id is invalidated and re-queried.\n6. Given grep `current_setting\\('app\\.(tenant_id|current_org_id)'\\)` on the service file, when run, then zero matches (depends on calling Server Action's withOrgContext wrap).\n\n## Test strategy\n- RED: vitest with testcontainers Postgres seeding quality_holds + v_active_holds view; asserts AC 1-6 + cache invalidation behavior.\n- Run `pnpm --filter @monopilot/web vitest run shipping-quality-hold-gate.test.ts`.\n\n## Risk red lines\n- Do not query `quality_holds` directly — consume v_active_holds (09-QA T-010 contract).\n- Do not silently override critical holds (D-SHP-13 HARD BLOCK).\n- Do not skip emitting `shipping.quality_hold.overridden` event — 09-QA audit consumer (T-011) depends on it.\n- Do not implement `batch_release_gate_v1` DSL here (Phase 2).\n- Do not cache for more than 30s — staleness compromises HARD BLOCK semantic.\n- Do not read GUC settings directly.",
+  "labels": [
+    "prd",
+    "backend",
+    "service",
+    "T2-api"
+  ],
+  "priority": 70,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-013",
+    "source_prd": "docs/prd/11-SHIPPING-PRD.md",
+    "prd_refs": [
+      "§6 D-SHP-13",
+      "§10",
+      "§10.1",
+      "§10.2",
+      "§11 V-SHIP-PICK-02",
+      "§11 V-SHIP-PICK-03",
+      "§11 V-SHIP-SHIP-03"
+    ],
+    "category": "backend",
+    "subcategory": "service-quality-hold-gate",
+    "task_type": "T2-api",
+    "parent_feature": "11-shipping-c",
+    "context_budget": "45k",
+    "estimated_effort": "2-3h",
+    "description": "Shared quality-hold gate service (D-SHP-13 soft + hard gate) consumed by pick/pack/ship; emits shipping.quality_hold.overridden audit event.",
+    "details": "30s cache via runtime-cache, invalidated on 09-QA event consume. Severity mapping per §10.1 table. P1 does NOT activate batch_release_gate_v1 DSL (Phase 2 per §10.2).",
+    "scope_files": [
+      "apps/web/lib/services/shipping-quality-hold-gate.ts [create]",
+      "apps/web/lib/services/__tests__/shipping-quality-hold-gate.test.ts [create]",
+      "packages/events/src/shipping.ts [modify]"
+    ],
+    "out_of_scope": [
+      "Do not implement batch_release_gate_v1 DSL (Phase 2).",
+      "Do not build UI here.",
+      "Do not duplicate v_active_holds in shipping schema."
+    ],
+    "dependencies": [
+      "T-031",
+      "00-foundation/T-125"
+    ],
+    "parallel_safe_with": [
+      "T-012",
+      "T-014",
+      "T-016",
+      "T-020"
+    ],
+    "cross_module_dependencies": [
+      "09-quality/T-010 (v_active_holds)",
+      "09-quality/T-011 (consumer of shipping.quality_hold.overridden)",
+      "00-foundation/T-112 (outbox)",
+      "09-quality/T-064 (consume gate — evaluateLpForShipping is the holdsGuard implementation; shipping depends on this gate per 2026-05-14 audit)"
+    ],
+    "acceptance_criteria": [
+      "Given an LP with critical hold, when evaluateLpForShipping (09-quality T-064 gate) runs, then returns { ok: false, severity: 'critical', holdId }; AND given major hold, returns { ok: true, severity: 'major', holdId } (warn only); AND given no active hold, returns { ok: true, severity: null }.",
+      "Given a service call writes an override decision, when it succeeds, then shipping.quality_hold.overridden outbox event is emitted with override details; AND given quality.hold.severity_changed event consumed for a cached LP, then cache is invalidated within 30s.",
+      "Given grep current_setting('app.tenant_id'|'app.current_org_id') on the service file, when run, then zero matches.",
+      "Given two concurrent evaluateLpForShipping calls for the same LP, when run, then consistent result is returned and no race condition in cache invalidation (cache TTL ≤30s per BRCGS audit readiness)."
+    ],
+    "test_strategy": [
+      "RED: vitest with testcontainers Postgres + quality_holds + v_active_holds seeded fixtures asserting AC 1-6.",
+      "Run `pnpm --filter @monopilot/web vitest run shipping-quality-hold-gate.test.ts`."
+    ],
+    "risk_red_lines": [
+      "Do not query quality_holds directly — consume v_active_holds.",
+      "Do not silently override critical holds.",
+      "Do not skip emitting shipping.quality_hold.overridden.",
+      "Do not implement batch_release_gate_v1 DSL (Phase 2).",
+      "Do not cache for more than 30s.",
+      "Do not read GUC settings.",
+      "Do not bypass the 09-quality consume gate (T-064 v_active_holds) — every consume path must call holdsGuard(lpId, lotId) before mutating consumption tables."
+    ],
+    "skills": [
+      "test-driven-development",
+      "systematic-debugging",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": false
+  }
+}

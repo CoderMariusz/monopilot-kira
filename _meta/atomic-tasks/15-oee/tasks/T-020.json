@@ -1,0 +1,108 @@
+{
+  "title": "T-020 — UI: OEE-ADM-001 OEE Settings page (oee_settings_page prototype, 15-OEE-e)",
+  "prompt": "# T-020 — OEE-ADM-001 OEE Settings page UI\n\nPRD: docs/prd/15-OEE-PRD.md §15.3 OEE-ADM-001, §15.7 + UX prototypes/design/15-OEE-UX.md:719-803\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\nPrototype: prototypes/design/Monopilot Design System/oee/screens.jsx:698-833 (oee_settings_page)\n\n## Goal\nServer Component admin page `/oee/settings` rendering tenant default thresholds editor + per-line overrides table + Big Loss Mapping preview, gated by oee_admin role via middleware. Includes OEE-M-003 (line override create/edit) + OEE-M-004 (delete override type-to-confirm) + OEE-M-005 (Big Loss Mapping editor) modals. Matches prototype 1:1.\n\n## Implementation contract\n1. `apps/web/app/(oee)/settings/page.tsx` (RSC): middleware redirect to /oee if role !== oee_admin; reads oee_alert_thresholds tenant row + per-line overrides + big_loss_categories preview (first 8).\n2. `SettingsClient` ('use client'): inline-edit threshold form using RHF+Zod (each field z.number().min(0).max(100)); TanStack Table for overrides with [Edit]/[Delete] action column triggering OEE-M-003/M-004.\n3. Three modals:\n   - `line-override-modal.tsx` (OEE-M-003) per prototypes/design/Monopilot Design System/oee/modals.jsx:163-204 — RHF+Zod (line z.string() disabled on edit; 4 percentage fields min(0).max(100)); Server Action PUT oee_alert_thresholds.\n   - `delete-override-modal.tsx` (OEE-M-004) per modals.jsx:350-370 — type-to-confirm pattern superRefine z.literal(data.line); Server Action DELETE + revalidatePath('/oee/settings') + invalidate threshold cache.\n   - `big-loss-mapping-modal.tsx` (OEE-M-005) per modals.jsx:206-259 — Sheet (fullpage) + useFieldArray for dynamic mapping rows; Server Action PUT triggers MV refresh via T-010 outbox event `oee.daily.refreshed` (cache-bust via T-010 dispatcher).\n4. Permission strings (T-001 enum): oee.target.edit, oee.override.create, oee.override.delete, oee.big_loss.map_edit checked in each Server Action.\n5. P2 rows in the page (anomaly + maintenance trigger settings) render as disabled TableRow with Tooltip explaining P2 status (per translation note — do not hide).\n6. RTL test snapshot + parity checklist for page + each modal against prototype line ranges.\n\n## Files\n- apps/web/app/(oee)/settings/page.tsx [create]\n- apps/web/app/(oee)/settings/_components/settings-client.tsx [create]\n- apps/web/app/(oee)/settings/_components/line-override-modal.tsx [create]\n- apps/web/app/(oee)/settings/_components/delete-override-modal.tsx [create]\n- apps/web/app/(oee)/settings/_components/big-loss-mapping-modal.tsx [create]\n- apps/web/app/(oee)/settings/_actions/{put-thresholds.ts,put-line-override.ts,delete-line-override.ts,put-big-loss-mapping.ts} [create]\n- apps/web/app/(oee)/settings/_components/__tests__/settings-client.test.tsx [create]\n- prototypes/design/Monopilot Design System/oee/screens.jsx [ref]\n- prototypes/design/Monopilot Design System/oee/modals.jsx [ref]\n\n## Acceptance criteria\n1. Given the production page renders, when compared to prototypes/design/Monopilot Design System/oee/screens.jsx:698-833 (oee_settings_page), then it has the tenant threshold editor + per-line overrides table + Big Loss Mapping preview + P2-disabled rows pattern — verified by RTL snapshot + parity checklist.\n2. Given an unauthenticated request or a user without oee_admin role, when /oee/settings is requested, then the middleware redirects to /oee (V-OEE-ACCESS-2).\n3. Given the line override modal renders, when compared to prototypes/design/Monopilot Design System/oee/modals.jsx:163-204 (line_override_modal), then it has the 4-field threshold form with line Select (disabled on edit) and Save button gated by RHF isValid — verified by RTL parity checklist.\n4. Given the task is closed out, when reviewers inspect evidence, then UI closeout includes screenshot/artifact + Playwright trace for the page and all 3 modals per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`.\n\n## Test strategy\n- RED: RTL test asserting parity (page + 3 modals) + middleware redirect + Server Action permission checks.\n- Run `pnpm --filter @monopilot/web vitest run app/(oee)/settings`.\n\n## Risk red lines\n- Do not skip middleware role gate — admin-only page (V-OEE-ACCESS-2).\n- Do not paste prototype JSX verbatim.\n- Do not hide P2 rows — render disabled with Tooltip per translation note.\n- Do not skip MV refresh outbox after Big Loss Mapping save — re-classifies historical data per translation note.\n- Do not import @radix-ui/react-dialog or @radix-ui/react-* outside packages/ui (§0 ESLint rule).",
+  "labels": [
+    "prd",
+    "ui",
+    "oee-007",
+    "admin",
+    "T3-ui"
+  ],
+  "priority": 95,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-020",
+    "source_prd": "docs/prd/15-OEE-PRD.md",
+    "prd_refs": [
+      "§15.3 OEE-ADM-001",
+      "§15.4 OEE-M-003/004/005",
+      "§15.7"
+    ],
+    "category": "ui",
+    "subcategory": "settings-page-and-admin-modals",
+    "task_type": "T3-ui",
+    "parent_feature": "15-OEE-e",
+    "context_budget": "60k",
+    "estimated_effort": "4-6h",
+    "description": "OEE-ADM-001 page + 3 admin modals (line override, delete override, big-loss mapping) with Server Actions and oee_admin middleware gate; matches screens.jsx + modals.jsx prototypes.",
+    "details": "Closes part of Auditor A OEE-007. Per-line overrides table reads oee_alert_thresholds; threshold defaults stored on tenant row (NULL line_id). Big Loss Mapping editor uses useFieldArray; Save triggers oee.daily.refreshed outbox event + warning toast about MV refresh lag (~5 min) per translation note.\n\nAdditional acceptance detail: UI closeout includes screenshot/artifact + Playwright trace for the page and all 3 modals per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`.",
+    "scope_files": [
+      "apps/web/app/(oee)/settings/page.tsx [create]",
+      "apps/web/app/(oee)/settings/_components/settings-client.tsx [create]",
+      "apps/web/app/(oee)/settings/_components/line-override-modal.tsx [create]",
+      "apps/web/app/(oee)/settings/_components/delete-override-modal.tsx [create]",
+      "apps/web/app/(oee)/settings/_components/big-loss-mapping-modal.tsx [create]",
+      "apps/web/app/(oee)/settings/_actions/put-thresholds.ts [create]",
+      "apps/web/app/(oee)/settings/_actions/put-line-override.ts [create]",
+      "apps/web/app/(oee)/settings/_actions/delete-line-override.ts [create]",
+      "apps/web/app/(oee)/settings/_actions/put-big-loss-mapping.ts [create]",
+      "apps/web/app/(oee)/settings/_components/__tests__/settings-client.test.tsx [create]",
+      "prototypes/design/Monopilot Design System/oee/screens.jsx [ref]",
+      "prototypes/design/Monopilot Design System/oee/modals.jsx [ref]"
+    ],
+    "out_of_scope": [
+      "Shift configs viewer OEE-ADM-002 (T-021)",
+      "Shift patterns editor OEE-ADM-003 (T-022)",
+      "P2 rules-config (TODO OEE-PRD-AMEND-05)"
+    ],
+    "dependencies": [
+      "T-001",
+      "T-003",
+      "T-005",
+      "T-010"
+    ],
+    "parallel_safe_with": [
+      "T-021",
+      "T-022"
+    ],
+    "acceptance_criteria": [
+      "Given the production page renders, when compared to prototypes/design/Monopilot Design System/oee/screens.jsx:698-833 (oee_settings_page), then it has the tenant threshold editor + per-line overrides table + Big Loss Mapping preview + P2-disabled rows pattern — verified by RTL snapshot + parity checklist",
+      "Given an unauthenticated request or a user without oee_admin role, when /oee/settings is requested, then the middleware redirects to /oee (V-OEE-ACCESS-2)",
+      "Given the line override modal renders, when compared to prototypes/design/Monopilot Design System/oee/modals.jsx:163-204 (line_override_modal), then it has the 4-field threshold form with line Select (disabled on edit) and Save gated by RHF isValid — verified by RTL parity checklist",
+      "Given the task is closed out, when reviewers inspect evidence, then UI closeout includes screenshot/artifact + Playwright trace for the page and all 3 modals per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`"
+    ],
+    "test_strategy": [
+      "RED: RTL test asserting parity (page + 3 modals) + middleware redirect + Server Action permission checks",
+      "Run `pnpm --filter @monopilot/web vitest run app/(oee)/settings`",
+      "Capture screenshots and Playwright trace for UI parity; attach artifact paths in closeout"
+    ],
+    "risk_red_lines": [
+      "Do not skip middleware role gate",
+      "Do not paste prototype JSX verbatim",
+      "Do not hide P2 rows — render disabled with Tooltip",
+      "Do not skip MV refresh outbox after Big Loss Mapping save",
+      "Do not import @radix-ui/* outside packages/ui"
+    ],
+    "skills": [
+      "test-driven-development",
+      "frontend-design",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": true,
+    "prototype_index_entry": "oee_settings_page",
+    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md"
+  }
+}

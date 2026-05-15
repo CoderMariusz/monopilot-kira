@@ -1,0 +1,109 @@
+{
+  "title": "T-030 — UI: shipping_dashboard page (SHIP-022) (11-shipping-j)",
+  "prompt": "# T-030 — Shipping Dashboard page\n\nPRD: docs/prd/11-SHIPPING-PRD.md §15.4 SHIP-022 Shipping Dashboard (referenced via §15.1), §2 Metryki sukcesu (KPIs)\nUX: prototypes/design/11-SHIPPING-UX.md §3 SHIP-022 — Shipping Dashboard\nPrototype: prototypes/design/Monopilot Design System/shipping/dashboard.jsx:1-224 (shipping_dashboard)\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nServer Component dashboard with KPI tiles, alerts panel, activity feed, and integration health (D365 outbox queue + DLQ).\n\n## Implementation contract\n1. `/(shipping)/dashboard/page.tsx` (RSC under withOrgContext) calls 4 parallel KPI queries: `getShippingKpis`, `getShippingAlerts`, `getShippingActivity`, `getIntegrationHealth`.\n2. KPI tiles row 1 (per dashboard.jsx prototype): Open SOs, SOs Allocated, Picks In Progress, Shipments Today, OTD %, Allergen Conflicts Open.\n3. KPI tiles row 2: D365 outbox queue depth (consumer of T-029 shipping_outbox_events.status='pending'), DLQ count, last_d365_success_at, critical_qa_holds_blocking (T-013 consumer).\n4. Alerts panel: list of `shipping_alerts` view rows (computed from outbox/holds/cancellations).\n5. Activity feed: latest 50 shipping_audit_log entries (paginated).\n6. SWR refresh interval 30s; manual refresh button + last_synced_at.\n7. BL-SHIP-11 fix: global topbar search wired to actual SO/customer/shipment lookup (was static stub).\n8. Permission gate: `ship.dashboard.view`. DLQ section additionally gated by `ship.dlq.replay` for Replay actions.\n9. Four states + i18n `shipping.dashboard.*`.\n\n## Prototype parity\nReference: `prototypes/design/Monopilot Design System/shipping/dashboard.jsx:1-224` (shipping_dashboard). Verify:\n- KPI tile grid (2 rows of 6 tiles)\n- Alerts card on right\n- Activity feed under tiles\n- Integration health card (D365 queue + DLQ)\n- Search input in topbar (BL-SHIP-11 fix wires it)\n\nDo not paste prototype JSX wholesale.\n\n## Files\n- apps/web/app/(shipping)/dashboard/page.tsx [create]\n- apps/web/app/(shipping)/dashboard/_components/kpi-tiles.tsx [create]\n- apps/web/app/(shipping)/dashboard/_components/alerts-panel.tsx [create]\n- apps/web/app/(shipping)/dashboard/_components/activity-feed.tsx [create]\n- apps/web/app/(shipping)/dashboard/_components/integration-health.tsx [create]\n- apps/web/app/(shipping)/_components/global-search.tsx [create — BL-SHIP-11 fix shared]\n- apps/web/app/(shipping)/dashboard/__tests__/kpi-tiles.test.tsx [create]\n- apps/web/messages/en/shipping.json [modify]\n- apps/web/messages/pl/shipping.json [modify]\n- prototypes/design/Monopilot Design System/shipping/dashboard.jsx [ref]\n\n## Acceptance criteria\n1. Given the production page renders, when compared to prototypes/design/Monopilot Design System/shipping/dashboard.jsx:1-224, then it has the same 2-row KPI tile grid + alerts panel + activity feed + integration health card — RTL snapshot + Playwright screenshot.\n2. Given URL ?refresh=30, when page renders, then SWR refresh interval is 30s (verified via fake timers / network log).\n3. Given a DLQ entry exists, when the integration health card renders, then DLQ count > 0 is shown and Replay button visible only to ship.dlq.replay holders.\n4. Given session lacks ship.dashboard.view, when page accessed, then a 403 page renders (or redirect to default).\n5. Given the global search input is used to query 'SO-2026-00001', when the user submits, then router.push to /(shipping)/orders/<id> (BL-SHIP-11 fix wires the static stub to real lookup).\n6. UI closeout includes Playwright trace + 4-state screenshots per UI-PROTOTYPE-PARITY-POLICY; Playwright fallback documented if unavailable.\n\n## Test strategy\n- RED: RTL asserting parity + SWR interval + DLQ visibility gate + global search routing + permission gate + four states.\n- Run `pnpm --filter @monopilot/web vitest run kpi-tiles.test.tsx`.\n- Playwright `apps/web/e2e/shipping-dashboard.spec.ts`.\n\n## Risk red lines\n- Do not import @radix-ui/react-dialog outside packages/ui.\n- Do not paste prototype JSX verbatim.\n- Do not perpetuate BL-SHIP-11 static search stub.\n- Do not regress accessibility.\n- Do not implement HAZMAT/EUDR badges (Phase 2 per BL-SHIP-13).\n- Do not load all KPI queries serially — parallel fetch only.",
+  "labels": [
+    "prd",
+    "ui",
+    "ship-022",
+    "T3-ui"
+  ],
+  "priority": 70,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-030",
+    "source_prd": "docs/prd/11-SHIPPING-PRD.md",
+    "prd_refs": [
+      "§15.4 SHIP-022",
+      "§2"
+    ],
+    "category": "ui",
+    "subcategory": "dashboard",
+    "task_type": "T3-ui",
+    "parent_feature": "11-shipping-j",
+    "context_budget": "55k",
+    "estimated_effort": "3-4h",
+    "description": "SHIP-022 Shipping Dashboard with KPI tiles + alerts + activity + integration health + BL-SHIP-11 global search fix.",
+    "details": "4 parallel KPI queries via Drizzle. SWR refresh 30s. Replay DLQ gated by ship.dlq.replay (consumer of T-029).",
+    "scope_files": [
+      "apps/web/app/(shipping)/dashboard/page.tsx [create]",
+      "apps/web/app/(shipping)/dashboard/_components/kpi-tiles.tsx [create]",
+      "apps/web/app/(shipping)/dashboard/_components/alerts-panel.tsx [create]",
+      "apps/web/app/(shipping)/dashboard/_components/activity-feed.tsx [create]",
+      "apps/web/app/(shipping)/dashboard/_components/integration-health.tsx [create]",
+      "apps/web/app/(shipping)/_components/global-search.tsx [create]",
+      "apps/web/app/(shipping)/dashboard/__tests__/kpi-tiles.test.tsx [create]",
+      "apps/web/messages/en/shipping.json [modify]",
+      "apps/web/messages/pl/shipping.json [modify]",
+      "prototypes/design/Monopilot Design System/shipping/dashboard.jsx [ref]"
+    ],
+    "out_of_scope": [
+      "Do not implement Server Actions here.",
+      "Do not implement HAZMAT/EUDR badges (P2 BL-SHIP-13)."
+    ],
+    "dependencies": [
+      "T-013",
+      "T-029",
+      "T-031"
+    ],
+    "parallel_safe_with": [
+      "T-028"
+    ],
+    "cross_module_dependencies": [
+      "00-foundation/T-123 (Playwright)",
+      "00-foundation/T-125 (withOrgContext)",
+      "01-npd/T-001 (product FG SSOT — variance_tolerance_pct + allergen attributes; coverage hygiene per R3 audit 2026-05-14)",
+      "09-quality/T-064 (consume gate — dashboard DLQ replay and hold indicators consume holdsGuard; per 2026-05-14 audit)"
+    ],
+    "acceptance_criteria": [
+      "Given the production page renders, when compared to prototypes/design/Monopilot Design System/shipping/dashboard.jsx:1-224, then same 2-row KPI tile grid + alerts + activity feed + integration health card match prototype (structural parity checklist).",
+      "Given URL ?refresh=30, when page renders, then SWR refresh interval is 30s; AND given DLQ entry exists, when integration health card renders, then DLQ count > 0 and Replay button visible only to ship.dlq.replay holders (via 09-quality T-064 holdsGuard status reflected in KPI tiles).",
+      "Given session lacks ship.dashboard.view, when page accessed, then 403/redirect; AND given global search 'SO-2026-00001', when submit, then router.push to /(shipping)/orders/<id> (BL-SHIP-11).",
+      "UI closeout includes Playwright trace + 4-state screenshots per UI-PROTOTYPE-PARITY-POLICY; Playwright fallback documented if unavailable."
+    ],
+    "test_strategy": [
+      "RED: RTL parity + SWR interval + DLQ visibility gate + global search routing + permission gate + four states.",
+      "Run `pnpm --filter @monopilot/web vitest run kpi-tiles.test.tsx`.",
+      "Playwright apps/web/e2e/shipping-dashboard.spec.ts."
+    ],
+    "risk_red_lines": [
+      "Do not import @radix-ui/react-dialog outside packages/ui.",
+      "Do not paste prototype JSX verbatim.",
+      "Do not perpetuate BL-SHIP-11.",
+      "Do not regress accessibility.",
+      "Do not implement HAZMAT/EUDR badges (Phase 2).",
+      "Do not load KPI queries serially — parallel fetch only.",
+      "Do not bypass the 09-quality consume gate (T-064 v_active_holds) — dashboard hold status must reflect holdsGuard state in real time."
+    ],
+    "skills": [
+      "test-driven-development",
+      "frontend-design",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": true,
+    "prototype_index_entry": "shipping_dashboard",
+    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md"
+  }
+}

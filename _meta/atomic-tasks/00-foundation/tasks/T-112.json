@@ -1,0 +1,101 @@
+{
+  "title": "T-112 — Outbox worker consumer registered in apps/worker (P0 blocker for every domain event)",
+  "prompt": "# T-112 — Outbox worker consumer registered in apps/worker\n\nPRD: docs/prd/00-FOUNDATION-PRD.md §10 (Outbox pattern od MVP), §5 Backend (Outbox dispatcher), §13 Funkcjonalne (Outbox events emitowane dla każdej business mutacji)\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nRegister the existing `@monopilot/outbox` `runOnce()` worker (T-008 / `packages/outbox/src/worker.ts`) as a scheduled interval job inside the `apps/worker` registry (T-111). Today every cascade/schema-publish/cohort-advance/audit event written to `outbox_events` accumulates — confirmed by `_meta/audits/2026-05-14-architecture-and-cross-cutting-gaps.md` §4.3 (\"Production caller: MISSING\") and Auditor-A Top-10 Gap #5. This task supplies the production caller, exponential-backoff retry, processed-row marking, and a unit test proving the dispatch loop.\n\n## Implementation contract\n1. Create `apps/worker/src/jobs/outbox-consumer.ts` that exports `registerOutboxConsumer(registry, opts)` where `opts = { everyMs?: number, batchSize?: number, retry?: { maxAttempts: number; baseDelayMs: number } }`. Defaults: `everyMs=5_000`, `batchSize=100`, `maxAttempts=5`, `baseDelayMs=500`.\n2. The handler acquires a PoolClient from the worker's shared pool, calls `runOnce(client, queue, schema)` from `@monopilot/outbox`, then releases. Errors per row must NOT abort the batch — each row that throws is left with `consumed_at` NULL and an `attempts` counter incremented (add column if missing via a new migration `packages/db/migrations/0NNN-outbox-attempts.sql` — verify migration index first by listing `packages/db/migrations/`).\n3. Exponential-backoff: if `attempts ≥ maxAttempts`, the row is moved to `outbox_dead_letter` (create table in same migration: same columns as `outbox_events` + `failed_at`, `last_error_text`). Idempotent partial-failure semantics: a row is either consumed, retry-pending, or dead-lettered — never lost.\n4. The Queue implementation in production wiring is a stub `LoggingQueue` (logs JSON line) until a real bus lands; tests inject `InMemoryQueue` from `@monopilot/outbox`.\n5. Wire registration in `apps/worker/src/index.ts`: after JobRegistry is constructed, call `registerOutboxConsumer(registry, { everyMs: env.OUTBOX_INTERVAL_MS })`.\n6. Add `apps/worker/src/jobs/__tests__/outbox-consumer.test.ts`: spin up a real testcontainers Postgres (the repo already uses it per `packages/db/__tests__/*`). Seed one `outbox_events` row + one row that throws + one row exceeding maxAttempts; assert: (i) successful row marked consumed, (ii) throwing row stays pending with attempts=1, (iii) maxAttempts-exceeded row moves to `outbox_dead_letter`.\n\n## Files in scope\n- apps/worker/src/jobs/outbox-consumer.ts [create]\n- apps/worker/src/jobs/__tests__/outbox-consumer.test.ts [create]\n- apps/worker/src/index.ts [modify — register the job]\n- apps/worker/src/env.ts [modify — add OUTBOX_INTERVAL_MS]\n- packages/db/migrations/0NNN-outbox-attempts-and-dlq.sql [create — verify next free NNN]\n- packages/db/src/schema/outbox.ts [modify if Drizzle schema exists]\n\n## Acceptance criteria\n1. Given outbox_events row with payload, when worker tick runs, then row consumed_at is set and registered Queue receives one publish call with normalized event_type.\n2. Given handler throws for specific aggregate_id, when tick runs, then attempts incremented to 1, consumed_at remains NULL, next tick re-attempts.\n3. Given row attempts ≥ maxAttempts(=5), when tick processes, then row INSERTed into outbox_dead_letter with last_error_text, marked in outbox_events with dead_lettered_at, never re-attempted.\n4. Given apps/worker started, when shutdown is requested mid-tick, then in-flight tick drains and pool ends; AND Given new migration ran, when \\d outbox_events inspected, then attempts INT NOT NULL DEFAULT 0 exists; outbox_dead_letter has mirrored RLS using app.current_org_id().\n## Test strategy\n- RED: write `outbox-consumer.test.ts` asserting ACs 1/2/3/5 (AC4 via shutdown test using `runOnceForTest` from T-111 registry). RED command: `pnpm --filter @monopilot/worker test`.\n- GREEN: implement the job, migration, and registration; testcontainers Postgres applies the migration and runs the scenarios.\n- Run: `pnpm --filter @monopilot/db migrate && pnpm --filter @monopilot/worker test && pnpm --filter @monopilot/outbox test`.\n\n## Risk red lines\n- Do not call `runOnce()` from a Next.js Route Handler or Server Action — the production caller MUST be `apps/worker` per §10 (no request-path background work).\n- Do not skip the `attempts` migration — silently leaving rows pending without attempt-count is the root cause of the accumulation bug audited 2026-05-14.\n- Do not bypass RLS on `outbox_dead_letter` — same org_id scoping as parent.\n- Do not drop rows on failure — dead-letter, never delete.\n- Do not import the consumer from `apps/web` or any module package — it lives in `apps/worker` only.\n- Do not change `@monopilot/outbox` runOnce signature — the worker adapts around it.",
+  "labels": [
+    "prd",
+    "infra",
+    "worker",
+    "outbox",
+    "T2-api",
+    "p0-blocker"
+  ],
+  "priority": 90,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-112",
+    "source_prd": "docs/prd/00-FOUNDATION-PRD.md",
+    "prd_refs": [
+      "§5",
+      "§10",
+      "§13"
+    ],
+    "category": "infra",
+    "subcategory": "outbox-consumer",
+    "task_type": "T2-api",
+    "parent_feature": "00-foundation-worker-runtime",
+    "context_budget": "40k",
+    "estimated_effort": "3-5h",
+    "description": "Register @monopilot/outbox runOnce as scheduled interval job in apps/worker, add attempts column + outbox_dead_letter table, exponential backoff retry, partial-batch fault isolation, vitest with testcontainers Postgres.",
+    "details": "Worker tick (every 5s default) acquires a pool client, calls runOnce, releases. Per-row failure increments attempts; ≥maxAttempts moves row to outbox_dead_letter with last_error_text. RLS enforced on both tables via org_id = app.current_org_id() (foundation non-spoofable function). Production Queue = LoggingQueue stub until real bus; test injects InMemoryQueue. Single shared pg.Pool from JobRegistry.\n\nAC count consolidated from 5→4 by Fixer F7 2026-05-14 (no coverage lost).",
+    "scope_files": [
+      "apps/worker/src/jobs/outbox-consumer.ts [create]",
+      "apps/worker/src/jobs/__tests__/outbox-consumer.test.ts [create]",
+      "apps/worker/src/index.ts [modify]",
+      "apps/worker/src/env.ts [modify]",
+      "packages/db/migrations/0NNN-outbox-attempts-and-dlq.sql [create]",
+      "packages/db/src/schema/outbox.ts [modify if exists]"
+    ],
+    "out_of_scope": [
+      "Real Azure Service Bus / MQTT queue adapter (defer to integration tasks)",
+      "Operator DLQ UI (Settings P2 candidate)",
+      "Cron-format scheduling (this task = interval)",
+      "Multi-region failover"
+    ],
+    "dependencies": [
+      "T-111"
+    ],
+    "parallel_safe_with": [
+      "T-113",
+      "T-116",
+      "T-117",
+      "T-121"
+    ],
+    "acceptance_criteria": [
+      "Given outbox_events row with payload, when worker tick runs, then row consumed_at is set and registered Queue receives one publish call with normalized event_type.",
+      "Given handler throws for specific aggregate_id, when tick runs, then attempts incremented to 1, consumed_at remains NULL, next tick re-attempts.",
+      "Given row attempts ≥ maxAttempts(=5), when tick processes, then row INSERTed into outbox_dead_letter with last_error_text, marked in outbox_events with dead_lettered_at, never re-attempted.",
+      "Given apps/worker started, when shutdown is requested mid-tick, then in-flight tick drains and pool ends; AND Given new migration ran, when \\d outbox_events inspected, then attempts INT NOT NULL DEFAULT 0 exists; outbox_dead_letter has mirrored RLS using app.current_org_id()."
+    ],
+    "test_strategy": [
+      "RED: write outbox-consumer.test.ts asserting ACs 1/2/3/5 before code; use testcontainers Postgres and InMemoryQueue from @monopilot/outbox; RED command: pnpm --filter @monopilot/worker test.",
+      "GREEN: implement job + migration + registration.",
+      "Run: pnpm --filter @monopilot/db migrate && pnpm --filter @monopilot/worker test && pnpm --filter @monopilot/outbox test."
+    ],
+    "risk_red_lines": [
+      "Do not call runOnce from a Next.js Route Handler or Server Action — production caller MUST be apps/worker.",
+      "Do not skip the attempts migration — silent pending rows is the audited 2026-05-14 accumulation bug.",
+      "Do not bypass RLS on outbox_dead_letter — same org_id scoping using app.current_org_id() function.",
+      "Do not drop rows on failure — dead-letter, never delete.",
+      "Do not import the consumer from apps/web or any module package — apps/worker only.",
+      "Do not change @monopilot/outbox runOnce signature — worker adapts around it."
+    ],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "cross_module_dependencies": []
+  }
+}

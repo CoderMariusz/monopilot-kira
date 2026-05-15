@@ -1,0 +1,1297 @@
+[
+  [
+    "02-settings",
+    "T-003",
+    "risk",
+    "fewer than 2 risk_red_lines (count=1)",
+    "P1"
+  ],
+  [
+    "02-settings",
+    "T-003",
+    "test",
+    "test_strategy lacks concrete pnpm/vitest/playwright command",
+    "P2"
+  ],
+  [
+    "02-settings",
+    "T-005",
+    "risk",
+    "fewer than 2 risk_red_lines (count=1)",
+    "P1"
+  ],
+  [
+    "02-settings",
+    "T-005",
+    "test",
+    "test_strategy lacks concrete pnpm/vitest/playwright command",
+    "P2"
+  ],
+  [
+    "02-settings",
+    "T-006",
+    "risk",
+    "fewer than 2 risk_red_lines (count=1)",
+    "P1"
+  ],
+  [
+    "02-settings",
+    "T-006",
+    "test",
+    "test_strategy lacks concrete pnpm/vitest/playwright command",
+    "P2"
+  ],
+  [
+    "02-settings",
+    "T-007",
+    "risk",
+    "fewer than 2 risk_red_lines (count=1)",
+    "P1"
+  ],
+  [
+    "02-settings",
+    "T-007",
+    "test",
+    "test_strategy lacks concrete pnpm/vitest/playwright command",
+    "P2"
+  ],
+  [
+    "02-settings",
+    "T-008",
+    "risk",
+    "fewer than 2 risk_red_lines (count=1)",
+    "P1"
+  ],
+  [
+    "02-settings",
+    "T-008",
+    "test",
+    "test_strategy lacks concrete pnpm/vitest/playwright command",
+    "P2"
+  ],
+  [
+    "02-settings",
+    "T-009",
+    "risk",
+    "fewer than 2 risk_red_lines (count=1)",
+    "P1"
+  ],
+  [
+    "02-settings",
+    "T-009",
+    "test",
+    "test_strategy lacks concrete pnpm/vitest/playwright command",
+    "P2"
+  ],
+  [
+    "02-settings",
+    "T-010",
+    "risk",
+    "fewer than 2 risk_red_lines (count=1)",
+    "P1"
+  ],
+  [
+    "02-settings",
+    "T-010",
+    "test",
+    "test_strategy lacks concrete pnpm/vitest/playwright command",
+    "P2"
+  ],
+  [
+    "02-settings",
+    "T-011",
+    "risk",
+    "fewer than 2 risk_red_lines (count=1)",
+    "P1"
+  ],
+  [
+    "02-settings",
+    "T-011",
+    "test",
+    "test_strategy lacks concrete pnpm/vitest/playwright command",
+    "P2"
+  ],
+  [
+    "02-settings",
+    "T-012",
+    "test",
+    "test_strategy lacks concrete pnpm/vitest/playwright command",
+    "P2"
+  ],
+  [
+    "02-settings",
+    "T-013",
+    "risk",
+    "fewer than 2 risk_red_lines (count=1)",
+    "P1"
+  ],
+  [
+    "02-settings",
+    "T-013",
+    "test",
+    "test_strategy lacks concrete pnpm/vitest/playwright command",
+    "P2"
+  ],
+  [
+    "02-settings",
+    "T-014",
+    "risk",
+    "fewer than 2 risk_red_lines (count=1)",
+    "P1"
+  ],
+  [
+    "02-settings",
+    "T-014",
+    "test",
+    "test_strategy lacks concrete pnpm/vitest/playwright command",
+    "P2"
+  ],
+  [
+    "02-settings",
+    "T-015",
+    "test",
+    "test_strategy lacks concrete pnpm/vitest/playwright command",
+    "P2"
+  ],
+  [
+    "02-settings",
+    "T-016",
+    "risk",
+    "fewer than 2 risk_red_lines (count=1)",
+    "P1"
+  ],
+  [
+    "02-settings",
+    "T-018",
+    "risk",
+    "fewer than 2 risk_red_lines (count=1)",
+    "P1"
+  ],
+  [
+    "02-settings",
+    "T-019",
+    "risk",
+    "fewer than 2 risk_red_lines (count=1)",
+    "P1"
+  ],
+  [
+    "02-settings",
+    "T-019",
+    "test",
+    "test_strategy lacks concrete pnpm/vitest/playwright command",
+    "P2"
+  ],
+  [
+    "02-settings",
+    "T-021",
+    "risk",
+    "fewer than 2 risk_red_lines (count=1)",
+    "P1"
+  ],
+  [
+    "02-settings",
+    "T-021",
+    "test",
+    "test_strategy lacks concrete pnpm/vitest/playwright command",
+    "P2"
+  ],
+  [
+    "02-settings",
+    "T-022",
+    "risk",
+    "fewer than 2 risk_red_lines (count=1)",
+    "P1"
+  ],
+  [
+    "02-settings",
+    "T-022",
+    "test",
+    "test_strategy lacks concrete pnpm/vitest/playwright command",
+    "P2"
+  ],
+  [
+    "02-settings",
+    "T-023",
+    "risk",
+    "fewer than 2 risk_red_lines (count=1)",
+    "P1"
+  ],
+  [
+    "02-settings",
+    "T-023",
+    "test",
+    "test_strategy lacks concrete pnpm/vitest/playwright command",
+    "P2"
+  ],
+  [
+    "02-settings",
+    "T-024",
+    "risk",
+    "fewer than 2 risk_red_lines (count=1)",
+    "P1"
+  ],
+  [
+    "02-settings",
+    "T-024",
+    "test",
+    "test_strategy lacks concrete pnpm/vitest/playwright command",
+    "P2"
+  ],
+  [
+    "02-settings",
+    "T-025",
+    "risk",
+    "fewer than 2 risk_red_lines (count=1)",
+    "P1"
+  ],
+  [
+    "02-settings",
+    "T-025",
+    "test",
+    "test_strategy lacks concrete pnpm/vitest/playwright command",
+    "P2"
+  ],
+  [
+    "02-settings",
+    "T-026",
+    "test",
+    "test_strategy lacks concrete pnpm/vitest/playwright command",
+    "P2"
+  ],
+  [
+    "02-settings",
+    "T-027",
+    "risk",
+    "fewer than 2 risk_red_lines (count=1)",
+    "P1"
+  ],
+  [
+    "02-settings",
+    "T-027",
+    "test",
+    "test_strategy lacks concrete pnpm/vitest/playwright command",
+    "P2"
+  ],
+  [
+    "02-settings",
+    "T-028",
+    "risk",
+    "fewer than 2 risk_red_lines (count=1)",
+    "P1"
+  ],
+  [
+    "02-settings",
+    "T-028",
+    "test",
+    "test_strategy lacks concrete pnpm/vitest/playwright command",
+    "P2"
+  ],
+  [
+    "02-settings",
+    "T-029",
+    "risk",
+    "fewer than 2 risk_red_lines (count=1)",
+    "P1"
+  ],
+  [
+    "02-settings",
+    "T-029",
+    "test",
+    "test_strategy lacks concrete pnpm/vitest/playwright command",
+    "P2"
+  ],
+  [
+    "02-settings",
+    "T-030",
+    "risk",
+    "fewer than 2 risk_red_lines (count=1)",
+    "P1"
+  ],
+  [
+    "02-settings",
+    "T-030",
+    "test",
+    "test_strategy lacks concrete pnpm/vitest/playwright command",
+    "P2"
+  ],
+  [
+    "02-settings",
+    "T-031",
+    "risk",
+    "fewer than 2 risk_red_lines (count=1)",
+    "P1"
+  ],
+  [
+    "02-settings",
+    "T-031",
+    "test",
+    "test_strategy lacks concrete pnpm/vitest/playwright command",
+    "P2"
+  ],
+  [
+    "02-settings",
+    "T-032",
+    "risk",
+    "fewer than 2 risk_red_lines (count=1)",
+    "P1"
+  ],
+  [
+    "02-settings",
+    "T-032",
+    "test",
+    "test_strategy lacks concrete pnpm/vitest/playwright command",
+    "P2"
+  ],
+  [
+    "02-settings",
+    "T-033",
+    "risk",
+    "fewer than 2 risk_red_lines (count=1)",
+    "P1"
+  ],
+  [
+    "02-settings",
+    "T-033",
+    "test",
+    "test_strategy lacks concrete pnpm/vitest/playwright command",
+    "P2"
+  ],
+  [
+    "02-settings",
+    "T-034",
+    "risk",
+    "fewer than 2 risk_red_lines (count=1)",
+    "P1"
+  ],
+  [
+    "02-settings",
+    "T-034",
+    "test",
+    "test_strategy lacks concrete pnpm/vitest/playwright command",
+    "P2"
+  ],
+  [
+    "02-settings",
+    "T-035",
+    "risk",
+    "fewer than 2 risk_red_lines (count=1)",
+    "P1"
+  ],
+  [
+    "02-settings",
+    "T-035",
+    "test",
+    "test_strategy lacks concrete pnpm/vitest/playwright command",
+    "P2"
+  ],
+  [
+    "02-settings",
+    "T-036",
+    "risk",
+    "fewer than 2 risk_red_lines (count=1)",
+    "P1"
+  ],
+  [
+    "02-settings",
+    "T-036",
+    "test",
+    "test_strategy lacks concrete pnpm/vitest/playwright command",
+    "P2"
+  ],
+  [
+    "02-settings",
+    "T-037",
+    "risk",
+    "fewer than 2 risk_red_lines (count=1)",
+    "P1"
+  ],
+  [
+    "02-settings",
+    "T-037",
+    "test",
+    "test_strategy lacks concrete pnpm/vitest/playwright command",
+    "P2"
+  ],
+  [
+    "02-settings",
+    "T-038",
+    "risk",
+    "fewer than 2 risk_red_lines (count=1)",
+    "P1"
+  ],
+  [
+    "02-settings",
+    "T-038",
+    "test",
+    "test_strategy lacks concrete pnpm/vitest/playwright command",
+    "P2"
+  ],
+  [
+    "02-settings",
+    "T-039",
+    "risk",
+    "fewer than 2 risk_red_lines (count=1)",
+    "P1"
+  ],
+  [
+    "02-settings",
+    "T-039",
+    "test",
+    "test_strategy lacks concrete pnpm/vitest/playwright command",
+    "P2"
+  ],
+  [
+    "02-settings",
+    "T-040",
+    "risk",
+    "fewer than 2 risk_red_lines (count=1)",
+    "P1"
+  ],
+  [
+    "02-settings",
+    "T-040",
+    "test",
+    "test_strategy lacks concrete pnpm/vitest/playwright command",
+    "P2"
+  ],
+  [
+    "02-settings",
+    "T-077",
+    "ui",
+    "UI task missing prototype_match=true",
+    "P1"
+  ],
+  [
+    "02-settings",
+    "T-078",
+    "ui",
+    "UI task missing prototype_match=true",
+    "P1"
+  ],
+  [
+    "02-settings",
+    "T-080",
+    "risk",
+    "fewer than 2 risk_red_lines (count=1)",
+    "P1"
+  ],
+  [
+    "02-settings",
+    "T-080",
+    "test",
+    "test_strategy lacks concrete pnpm/vitest/playwright command",
+    "P2"
+  ],
+  [
+    "02-settings",
+    "T-081",
+    "risk",
+    "fewer than 2 risk_red_lines (count=1)",
+    "P1"
+  ],
+  [
+    "02-settings",
+    "T-081",
+    "test",
+    "test_strategy lacks concrete pnpm/vitest/playwright command",
+    "P2"
+  ],
+  [
+    "02-settings",
+    "T-082",
+    "risk",
+    "fewer than 2 risk_red_lines (count=1)",
+    "P1"
+  ],
+  [
+    "02-settings",
+    "T-082",
+    "test",
+    "test_strategy lacks concrete pnpm/vitest/playwright command",
+    "P2"
+  ],
+  [
+    "02-settings",
+    "T-083",
+    "risk",
+    "fewer than 2 risk_red_lines (count=1)",
+    "P1"
+  ],
+  [
+    "02-settings",
+    "T-083",
+    "test",
+    "test_strategy lacks concrete pnpm/vitest/playwright command",
+    "P2"
+  ],
+  [
+    "02-settings",
+    "T-084",
+    "risk",
+    "fewer than 2 risk_red_lines (count=1)",
+    "P1"
+  ],
+  [
+    "02-settings",
+    "T-084",
+    "test",
+    "test_strategy lacks concrete pnpm/vitest/playwright command",
+    "P2"
+  ],
+  [
+    "02-settings",
+    "T-085",
+    "risk",
+    "fewer than 2 risk_red_lines (count=1)",
+    "P1"
+  ],
+  [
+    "02-settings",
+    "T-085",
+    "test",
+    "test_strategy lacks concrete pnpm/vitest/playwright command",
+    "P2"
+  ],
+  [
+    "02-settings",
+    "T-086",
+    "risk",
+    "fewer than 2 risk_red_lines (count=1)",
+    "P1"
+  ],
+  [
+    "02-settings",
+    "T-086",
+    "test",
+    "test_strategy lacks concrete pnpm/vitest/playwright command",
+    "P2"
+  ],
+  [
+    "02-settings",
+    "T-087",
+    "risk",
+    "fewer than 2 risk_red_lines (count=1)",
+    "P1"
+  ],
+  [
+    "02-settings",
+    "T-087",
+    "test",
+    "test_strategy lacks concrete pnpm/vitest/playwright command",
+    "P2"
+  ],
+  [
+    "02-settings",
+    "T-088",
+    "risk",
+    "fewer than 2 risk_red_lines (count=1)",
+    "P1"
+  ],
+  [
+    "02-settings",
+    "T-088",
+    "test",
+    "test_strategy lacks concrete pnpm/vitest/playwright command",
+    "P2"
+  ],
+  [
+    "02-settings",
+    "T-089",
+    "risk",
+    "fewer than 2 risk_red_lines (count=1)",
+    "P1"
+  ],
+  [
+    "02-settings",
+    "T-089",
+    "test",
+    "test_strategy lacks concrete pnpm/vitest/playwright command",
+    "P2"
+  ],
+  [
+    "02-settings",
+    "T-090",
+    "risk",
+    "fewer than 2 risk_red_lines (count=1)",
+    "P1"
+  ],
+  [
+    "02-settings",
+    "T-090",
+    "test",
+    "test_strategy lacks concrete pnpm/vitest/playwright command",
+    "P2"
+  ],
+  [
+    "02-settings",
+    "T-091",
+    "risk",
+    "fewer than 2 risk_red_lines (count=1)",
+    "P1"
+  ],
+  [
+    "02-settings",
+    "T-091",
+    "test",
+    "test_strategy lacks concrete pnpm/vitest/playwright command",
+    "P2"
+  ],
+  [
+    "02-settings",
+    "T-092",
+    "risk",
+    "fewer than 2 risk_red_lines (count=1)",
+    "P1"
+  ],
+  [
+    "02-settings",
+    "T-092",
+    "test",
+    "test_strategy lacks concrete pnpm/vitest/playwright command",
+    "P2"
+  ],
+  [
+    "02-settings",
+    "T-093",
+    "risk",
+    "fewer than 2 risk_red_lines (count=1)",
+    "P1"
+  ],
+  [
+    "02-settings",
+    "T-093",
+    "test",
+    "test_strategy lacks concrete pnpm/vitest/playwright command",
+    "P2"
+  ],
+  [
+    "02-settings",
+    "T-094",
+    "risk",
+    "fewer than 2 risk_red_lines (count=1)",
+    "P1"
+  ],
+  [
+    "02-settings",
+    "T-094",
+    "test",
+    "test_strategy lacks concrete pnpm/vitest/playwright command",
+    "P2"
+  ],
+  [
+    "02-settings",
+    "T-095",
+    "risk",
+    "fewer than 2 risk_red_lines (count=1)",
+    "P1"
+  ],
+  [
+    "02-settings",
+    "T-095",
+    "test",
+    "test_strategy lacks concrete pnpm/vitest/playwright command",
+    "P2"
+  ],
+  [
+    "02-settings",
+    "T-096",
+    "ui",
+    "UI task missing prototype_match=true",
+    "P1"
+  ],
+  [
+    "02-settings",
+    "T-097",
+    "ui",
+    "UI task missing prototype_match=true",
+    "P1"
+  ],
+  [
+    "02-settings",
+    "T-098",
+    "ui",
+    "UI task missing prototype_match=true",
+    "P1"
+  ],
+  [
+    "02-settings",
+    "T-099",
+    "ui",
+    "UI task missing prototype_match=true",
+    "P1"
+  ],
+  [
+    "02-settings",
+    "T-100",
+    "ui",
+    "UI task missing prototype_match=true",
+    "P1"
+  ],
+  [
+    "02-settings",
+    "T-101",
+    "ui",
+    "UI task missing prototype_match=true",
+    "P1"
+  ],
+  [
+    "02-settings",
+    "T-102",
+    "ui",
+    "UI task missing prototype_match=true",
+    "P1"
+  ],
+  [
+    "02-settings",
+    "T-104",
+    "ui",
+    "UI task missing prototype_match=true",
+    "P1"
+  ],
+  [
+    "02-settings",
+    "T-104",
+    "ui",
+    "UI task prompt lacks prototype path:lines reference",
+    "P1"
+  ],
+  [
+    "02-settings",
+    "T-105",
+    "ui",
+    "UI task missing prototype_match=true",
+    "P1"
+  ],
+  [
+    "02-settings",
+    "T-105",
+    "ui",
+    "UI task prompt lacks prototype path:lines reference",
+    "P1"
+  ],
+  [
+    "02-settings",
+    "T-106",
+    "ui",
+    "UI task missing prototype_match=true",
+    "P1"
+  ],
+  [
+    "02-settings",
+    "T-106",
+    "ui",
+    "UI task prompt lacks prototype path:lines reference",
+    "P1"
+  ],
+  [
+    "02-settings",
+    "T-107",
+    "ui",
+    "UI task missing prototype_match=true",
+    "P1"
+  ],
+  [
+    "02-settings",
+    "T-107",
+    "ui",
+    "UI task prompt lacks prototype path:lines reference",
+    "P1"
+  ],
+  [
+    "02-settings",
+    "T-108",
+    "ui",
+    "UI task missing prototype_match=true",
+    "P1"
+  ],
+  [
+    "02-settings",
+    "T-108",
+    "ui",
+    "UI task prompt lacks prototype path:lines reference",
+    "P1"
+  ],
+  [
+    "02-settings",
+    "T-109",
+    "ui",
+    "UI task missing prototype_match=true",
+    "P1"
+  ],
+  [
+    "02-settings",
+    "T-109",
+    "ui",
+    "UI task prompt lacks prototype path:lines reference",
+    "P1"
+  ],
+  [
+    "02-settings",
+    "T-111",
+    "ui",
+    "UI task missing prototype_match=true",
+    "P1"
+  ],
+  [
+    "02-settings",
+    "T-111",
+    "ui",
+    "UI task prompt lacks prototype path:lines reference",
+    "P1"
+  ],
+  [
+    "02-settings",
+    "T-112",
+    "ui",
+    "UI task missing prototype_match=true",
+    "P1"
+  ],
+  [
+    "02-settings",
+    "T-112",
+    "ui",
+    "UI task prompt lacks prototype path:lines reference",
+    "P1"
+  ],
+  [
+    "02-settings",
+    "T-113",
+    "ui",
+    "UI task missing prototype_match=true",
+    "P1"
+  ],
+  [
+    "02-settings",
+    "T-113",
+    "ui",
+    "UI task prompt lacks prototype path:lines reference",
+    "P1"
+  ],
+  [
+    "02-settings",
+    "T-114",
+    "ui",
+    "UI task missing prototype_match=true",
+    "P1"
+  ],
+  [
+    "02-settings",
+    "T-114",
+    "ui",
+    "UI task prompt lacks prototype path:lines reference",
+    "P1"
+  ],
+  [
+    "02-settings",
+    "T-115",
+    "ui",
+    "UI task missing prototype_match=true",
+    "P1"
+  ],
+  [
+    "02-settings",
+    "T-115",
+    "ui",
+    "UI task prompt lacks prototype path:lines reference",
+    "P1"
+  ],
+  [
+    "02-settings",
+    "T-118",
+    "ui",
+    "UI task missing prototype_match=true",
+    "P1"
+  ],
+  [
+    "02-settings",
+    "T-118",
+    "ui",
+    "UI task prompt lacks prototype path:lines reference",
+    "P1"
+  ],
+  [
+    "02-settings",
+    "T-119",
+    "ui",
+    "UI task missing prototype_match=true",
+    "P1"
+  ],
+  [
+    "02-settings",
+    "T-120",
+    "ui",
+    "UI task missing prototype_match=true",
+    "P1"
+  ],
+  [
+    "02-settings",
+    "T-121",
+    "ui",
+    "UI task missing prototype_match=true",
+    "P1"
+  ],
+  [
+    "02-settings",
+    "T-123",
+    "test",
+    "test_strategy lacks concrete pnpm/vitest/playwright command",
+    "P2"
+  ],
+  [
+    "02-settings",
+    "T-124",
+    "shape",
+    "missing pipeline_inputs keys: ['out_of_scope', 'routing_hints']",
+    "P1"
+  ],
+  [
+    "02-settings",
+    "T-124",
+    "test",
+    "test_strategy lacks concrete pnpm/vitest/playwright command",
+    "P2"
+  ],
+  [
+    "02-settings",
+    "T-125",
+    "shape",
+    "missing pipeline_inputs keys: ['out_of_scope', 'routing_hints']",
+    "P1"
+  ],
+  [
+    "02-settings",
+    "T-125",
+    "test",
+    "test_strategy lacks concrete pnpm/vitest/playwright command",
+    "P2"
+  ],
+  [
+    "02-settings",
+    "T-126",
+    "shape",
+    "missing pipeline_inputs keys: ['out_of_scope', 'routing_hints']",
+    "P1"
+  ],
+  [
+    "02-settings",
+    "T-126",
+    "test",
+    "test_strategy lacks concrete pnpm/vitest/playwright command",
+    "P2"
+  ],
+  [
+    "02-settings",
+    "T-127",
+    "shape",
+    "missing pipeline_inputs keys: ['out_of_scope', 'routing_hints']",
+    "P1"
+  ],
+  [
+    "02-settings",
+    "T-127",
+    "ui",
+    "UI task missing prototype_match=true",
+    "P1"
+  ],
+  [
+    "02-settings",
+    "T-128",
+    "ui",
+    "UI task missing prototype_match=true",
+    "P1"
+  ],
+  [
+    "02-settings",
+    "T-129",
+    "test",
+    "test_strategy lacks concrete pnpm/vitest/playwright command",
+    "P2"
+  ],
+  [
+    "02-settings",
+    "T-129",
+    "ui",
+    "UI task missing prototype_match=true",
+    "P1"
+  ],
+  [
+    "02-settings",
+    "T-129",
+    "ui",
+    "UI task missing ui_evidence_policy field",
+    "P2"
+  ],
+  [
+    "10-finance",
+    "T-013",
+    "deps",
+    "parallel_safe_with overlaps dependencies: {'T-012'}",
+    "P1"
+  ],
+  [
+    "10-finance",
+    "T-020",
+    "deps",
+    "parallel_safe_with overlaps dependencies: {'T-019'}",
+    "P1"
+  ],
+  [
+    "10-finance",
+    "T-026",
+    "deps",
+    "parallel_safe_with overlaps dependencies: {'T-025'}",
+    "P1"
+  ],
+  [
+    "10-finance",
+    "T-029",
+    "deps",
+    "parallel_safe_with overlaps dependencies: {'T-028'}",
+    "P1"
+  ],
+  [
+    "14-multi-site",
+    "T-002",
+    "shape",
+    "missing pipeline_inputs keys: ['details']",
+    "P1"
+  ],
+  [
+    "14-multi-site",
+    "T-003",
+    "shape",
+    "missing pipeline_inputs keys: ['details']",
+    "P1"
+  ],
+  [
+    "14-multi-site",
+    "T-004",
+    "shape",
+    "missing pipeline_inputs keys: ['details']",
+    "P1"
+  ],
+  [
+    "14-multi-site",
+    "T-005",
+    "shape",
+    "missing pipeline_inputs keys: ['details']",
+    "P1"
+  ],
+  [
+    "14-multi-site",
+    "T-006",
+    "shape",
+    "missing pipeline_inputs keys: ['details']",
+    "P1"
+  ],
+  [
+    "14-multi-site",
+    "T-007",
+    "shape",
+    "missing pipeline_inputs keys: ['details']",
+    "P1"
+  ],
+  [
+    "14-multi-site",
+    "T-008",
+    "shape",
+    "missing pipeline_inputs keys: ['details']",
+    "P1"
+  ],
+  [
+    "14-multi-site",
+    "T-009",
+    "shape",
+    "missing pipeline_inputs keys: ['details']",
+    "P1"
+  ],
+  [
+    "14-multi-site",
+    "T-010",
+    "shape",
+    "missing pipeline_inputs keys: ['details']",
+    "P1"
+  ],
+  [
+    "14-multi-site",
+    "T-010",
+    "deps",
+    "parallel_safe_with overlaps dependencies: {'T-009'}",
+    "P1"
+  ],
+  [
+    "14-multi-site",
+    "T-011",
+    "shape",
+    "missing pipeline_inputs keys: ['details']",
+    "P1"
+  ],
+  [
+    "14-multi-site",
+    "T-012",
+    "shape",
+    "missing pipeline_inputs keys: ['details']",
+    "P1"
+  ],
+  [
+    "14-multi-site",
+    "T-013",
+    "shape",
+    "missing pipeline_inputs keys: ['details']",
+    "P1"
+  ],
+  [
+    "14-multi-site",
+    "T-014",
+    "shape",
+    "missing pipeline_inputs keys: ['details']",
+    "P1"
+  ],
+  [
+    "14-multi-site",
+    "T-014",
+    "deps",
+    "parallel_safe_with overlaps dependencies: {'T-013'}",
+    "P1"
+  ],
+  [
+    "14-multi-site",
+    "T-015",
+    "shape",
+    "missing pipeline_inputs keys: ['details']",
+    "P1"
+  ],
+  [
+    "14-multi-site",
+    "T-016",
+    "shape",
+    "missing pipeline_inputs keys: ['details']",
+    "P1"
+  ],
+  [
+    "14-multi-site",
+    "T-016",
+    "deps",
+    "parallel_safe_with overlaps dependencies: {'T-015'}",
+    "P1"
+  ],
+  [
+    "14-multi-site",
+    "T-017",
+    "shape",
+    "missing pipeline_inputs keys: ['details']",
+    "P1"
+  ],
+  [
+    "14-multi-site",
+    "T-018",
+    "shape",
+    "missing pipeline_inputs keys: ['details']",
+    "P1"
+  ],
+  [
+    "14-multi-site",
+    "T-018",
+    "deps",
+    "parallel_safe_with overlaps dependencies: {'T-017'}",
+    "P1"
+  ],
+  [
+    "14-multi-site",
+    "T-019",
+    "shape",
+    "missing pipeline_inputs keys: ['details']",
+    "P1"
+  ],
+  [
+    "14-multi-site",
+    "T-020",
+    "shape",
+    "missing pipeline_inputs keys: ['details']",
+    "P1"
+  ],
+  [
+    "14-multi-site",
+    "T-020",
+    "ui",
+    "UI task missing prototype_match=true",
+    "P1"
+  ],
+  [
+    "14-multi-site",
+    "T-021",
+    "shape",
+    "missing pipeline_inputs keys: ['details']",
+    "P1"
+  ],
+  [
+    "14-multi-site",
+    "T-022",
+    "shape",
+    "missing pipeline_inputs keys: ['details']",
+    "P1"
+  ],
+  [
+    "14-multi-site",
+    "T-023",
+    "shape",
+    "missing pipeline_inputs keys: ['details']",
+    "P1"
+  ],
+  [
+    "14-multi-site",
+    "T-024",
+    "shape",
+    "missing pipeline_inputs keys: ['details']",
+    "P1"
+  ],
+  [
+    "14-multi-site",
+    "T-025",
+    "shape",
+    "missing pipeline_inputs keys: ['details']",
+    "P1"
+  ],
+  [
+    "14-multi-site",
+    "T-026",
+    "shape",
+    "missing pipeline_inputs keys: ['details']",
+    "P1"
+  ],
+  [
+    "14-multi-site",
+    "T-027",
+    "shape",
+    "missing pipeline_inputs keys: ['details']",
+    "P1"
+  ],
+  [
+    "14-multi-site",
+    "T-028",
+    "shape",
+    "missing pipeline_inputs keys: ['details']",
+    "P1"
+  ],
+  [
+    "14-multi-site",
+    "T-029",
+    "shape",
+    "missing pipeline_inputs keys: ['details']",
+    "P1"
+  ],
+  [
+    "14-multi-site",
+    "T-030",
+    "shape",
+    "missing pipeline_inputs keys: ['details']",
+    "P1"
+  ],
+  [
+    "14-multi-site",
+    "T-031",
+    "shape",
+    "missing pipeline_inputs keys: ['details']",
+    "P1"
+  ]
+]

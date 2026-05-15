@@ -1,0 +1,147 @@
+{
+  "title": "T-030 \u2014 site_id activation migration: ALTER + backfill 21 operational tables (\u00a79.8, \u00a711.5 V-MS-19, D-MS-14)",
+  "prompt": "# T-030 \u2014 site_id activation migration\n\nPRD: docs/prd/14-MULTI-SITE-PRD.md \u00a79.8 (table list), \u00a79.9 (composite indexes mandatory pre-activation), \u00a711.5 V-MS-18/19, D-MS-13/14\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nIdempotent, online migration script that activates site_id scoping for the 20 \u00a79.8 operational tables. Each table receives: ALTER ADD COLUMN site_id UUID NULL, CREATE INDEX CONCURRENTLY (org_id, site_id), backfill to default_site_id, apply site_access_policy_v1 from T-006 generator. Final step transitions state machine 'dual_run' \u2192 'activated'.\n\nThis migration is triggered by `startActivation` Server Action (T-023) as a background job consumed by the worker (T-112 baseline) \u2014 large tenants may take minutes to hours.\n\n## Implementation contract\n1. Migration script `packages/db/migrations/0053_site_id_activation.sql` (idempotent):\n   - For each of 21 \u00a79.8 tables (warehouses, license_plates, grn_items, stock_movements, work_orders, wo_outputs, wo_consumptions, wo_dependencies, downtime_events, quality_holds, quality_inspections, ncr_reports, haccp_plans, shipments, sales_orders, inventory_cost_layers, wip_balances, oee_snapshots, maintenance_work_orders, spare_parts_stock, calibration_instruments):\n     - ALTER TABLE IF NOT EXISTS site_id IS NULL (idempotent ADD COLUMN IF NOT EXISTS).\n     - CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_{table}_org_site ON {table}(org_id, site_id) \u2014 D-MS-13 mandatory.\n     - Backfill: UPDATE {table} SET site_id = (SELECT id FROM sites WHERE is_default AND org_id={table}.org_id) WHERE site_id IS NULL \u2014 done in batched LIMIT 10000 loops to avoid lock storms.\n     - Apply policy via DSL: DROP POLICY IF EXISTS {table}_org_context ON {table}; CREATE POLICY {table}_site_scope ON {table} USING (buildSiteScopedPolicySql generator output from T-006). Generated policies call app.current_site_id() (never raw current_setting GUC) to read site context from the session established by T-001 middleware.\n2. Background job runner `apps/worker/src/jobs/site-id-activation.ts` \u2014 chunks by table, reports progress to activation_jobs table (T-017 schema reused).\n3. Final step: UPDATE org_settings SET multi_site_state='activated' WHERE multi_site_state='dual_run'. Write audit_events row 'multisite_activation_completed'.\n4. V-MS-19 post-migration validation query: assert every operational row has site_id = default_site_id (zero NULL site_id in \u00a79.8 tables post-activation).\n5. Tests: idempotent re-run (running twice produces no diff), V-MS-19 100% coverage check, parallel-query test (CONCURRENTLY does not block reads), policy uniformity (every \u00a79.8 table has site_access_policy_v1 variant policy after migration).\n\n## Files\n- packages/db/migrations/0053_site_id_activation.sql [create]\n- apps/worker/src/jobs/site-id-activation.ts [create]\n- apps/worker/src/jobs/__tests__/site-id-activation.test.ts [create]\n- packages/db/__tests__/site-id-activation-integration.test.ts [create]\n\n## Acceptance criteria\n<!-- AC count consolidated from 7\u21924 by Fixer F14a 2026-05-14 (no coverage lost) -->\n1. Given migration 0053 applied on a clean DB with the 21 \u00a79.8 tables, when re-run, then no diff (idempotent: column already exists, index already exists, policy already applied).\n2. Given a tenant with 1M rows pre-migration in work_orders (NULL site_id), when site-id-activation job runs, then post-job, COUNT(*) WHERE site_id IS NULL == 0 (V-MS-19 100% coverage).\n3. Given 21 \u00a79.8 tables, when post-migration pg_policies inspected, then all 20 have a policy whose USING text equals the output of buildSiteScopedPolicySql({table}) from T-006 (uniformity proven).\n4. Given CONCURRENT writes to license_plates during activation, when activation runs, then writes are not blocked (proven by parallel-write test; only the ALTER COLUMN takes brief AccessExclusiveLock; CONCURRENT index creation does not block).\n5. Given activation_jobs is queried during a run, when polled, then progress per-table is visible (table_name, rows_backfilled, total_rows).\n6. Given activation completes successfully, when org_settings is queried, then multi_site_state='activated' and audit_events has 1 row 'multisite_activation_completed'.\n7. Given activation fails mid-table (e.g. process killed), when re-run, then it resumes from where it left off (no double backfill; idempotent UPDATE).\n\n## Test strategy\n- RED: integration tests for all 7 ACs before migration applied. Use testcontainers Postgres 16; seed 20 tables with realistic row counts.\n- Run 'pnpm --filter @monopilot/db test:integration -- site-id-activation' + 'pnpm --filter @monopilot/web test site-id-activation-job'.\n\n## Risk red lines\n- Do not use ALTER TABLE without CONCURRENTLY on the index \u2014 would block production writes on large tables.\n- Do not backfill with single UPDATE \u2014 must batch LIMIT 10000 to avoid bloat + lock storms.\n- Do not skip V-MS-19 post-check \u2014 coverage 100% is mandatory before state transitions.\n- Do not transition multi_site_state='activated' if any backfill failed \u2014 fail-closed.\n- Do not drop the org-scoped policy before the site-scoped is created \u2014 atomic swap per table.\n- Do not skip CodeOwners review \u2014 touches 21 operational tables across 9 modules.",
+  "labels": [
+    "prd",
+    "migration",
+    "activation",
+    "T1-schema",
+    "p0-blocker"
+  ],
+  "priority": 90,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-030",
+    "source_prd": "docs/prd/14-MULTI-SITE-PRD.md",
+    "prd_refs": [
+      "\u00a79.8",
+      "\u00a711.5 V-MS-18",
+      "\u00a711.5 V-MS-19",
+      "\u00a77 D-MS-13",
+      "\u00a77 D-MS-14"
+    ],
+    "category": "migration",
+    "subcategory": "site-id-activation",
+    "task_type": "T1-schema",
+    "parent_feature": "14-MULTI-SITE-f cross-site dashboards",
+    "context_budget": "50k",
+    "estimated_effort": "2-3h",
+    "description": "Apply ALTER TABLE site_id UUID NULL + composite (org_id, site_id) index CONCURRENTLY to all 21 operational tables in \u00a79.8 + backfill site_id = default_site_id + apply site_access_policy_v1 generator (T-006) + transition org_settings.multi_site_state from 'dual_run' to 'activated'.",
+    "details": "Apply ALTER TABLE site_id UUID NULL + composite (org_id, site_id) index CONCURRENTLY to all 20 operational tables in \u00a79.8 + backfill site_id = default_site_id + apply site_access_policy_v1 generator (T-006) + transition org_settings.multi_site_state from 'dual_run' to 'activated'. Scope: Idempotent, online migration script that activates site_id scoping for the 20 \u00a79. Touches: packages/db/migrations/0053_site_id_activation.sql, apps/worker/src/jobs/site-id-activation.ts, apps/worker/src/jobs/__tests__/site-id-activation.test.ts, packages/db/__tests__/site-id-activation-integration.test.ts. Constraints: 1. Migration script `packages/db/migrations/0053_site_id_activation.sql` (idempotent): - For each of 20 \u00a79.8 tables (warehouses, license_plates, grn_items, stock_movements, work_orders, wo_outputs, wo_consumptions, wo_dependencies, downtime_events, quality_holds, quality_inspections, ncr_reports, haccp_plans, shipments, sales_orders, inventory_cost. Distinguished from sibling 14-multi-site tasks by its narrow site-id-activation focus against PRD \u00a79.8, \u00a711.5 V-MS-18, \u00a711.5 V-MS-19, \u00a77 D-MS-13. AC count consolidated from 7\u21924 by Fixer F14a 2026-05-14 (no coverage lost)",
+    "scope_files": [
+      "packages/db/migrations/0053_site_id_activation.sql [create]",
+      "apps/worker/src/jobs/site-id-activation.ts [create]",
+      "apps/worker/src/jobs/__tests__/site-id-activation.test.ts [create]",
+      "packages/db/__tests__/site-id-activation-integration.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not implement rollback (separate task \u2014 D-MS-14 rollback from 'dual_run' is supported; from 'activated' requires support contact per \u00a710B MS-108).",
+      "Do not modify production_shifts site-scoping here (D-MS-9 covered by 08-PROD / 15-OEE downstream wiring)."
+    ],
+    "dependencies": [
+      "T-006",
+      "T-023",
+      "T-017"
+    ],
+    "cross_module_dependencies": [
+      {
+        "module": "05-warehouse",
+        "task_id": "warehouses/license_plates/grn_items/stock_movements",
+        "reason": "5 of 20 \u00a79.8 tables owned by 05-WH; ALTER affects their RLS."
+      },
+      {
+        "module": "08-production",
+        "task_id": "work_orders/wo_outputs/wo_consumptions/wo_dependencies/downtime_events",
+        "reason": "5 of 20 \u00a79.8 tables owned by 08-PROD."
+      },
+      {
+        "module": "09-quality",
+        "task_id": "quality_holds/quality_inspections/ncr_reports/haccp_plans",
+        "reason": "4 of 20 \u00a79.8 tables owned by 09-QA."
+      },
+      {
+        "module": "10-finance",
+        "task_id": "inventory_cost_layers/wip_balances",
+        "reason": "2 of 20 \u00a79.8 tables owned by 10-FIN."
+      },
+      {
+        "module": "11-shipping",
+        "task_id": "shipments/sales_orders",
+        "reason": "2 of 20 \u00a79.8 tables owned by 11-SHIP."
+      },
+      {
+        "module": "13-maintenance",
+        "task_id": "maintenance_work_orders/spare_parts_stock/calibration_instruments",
+        "reason": "3 of 20 \u00a79.8 tables owned by 13-MAINT."
+      },
+      {
+        "module": "15-oee",
+        "task_id": "oee_snapshots",
+        "reason": "1 of 20 \u00a79.8 tables owned by 15-OEE (P2 activation)."
+      },
+      {
+        "module": "00-foundation",
+        "task_id": "T-112",
+        "reason": "Worker scaffold runs the activation as a background job."
+      },
+      {
+        "module": "00-foundation",
+        "task_id": "T-125",
+        "reason": "Cross-mod dep to 00-foundation T-125 declared (withOrgContext + app.current_org_id() per F11 rule). withSiteContext composes on top of T-125; site-scoped policies applied by this migration use app.current_site_id() (SECURITY DEFINER) as the RLS predicate."
+      },
+      {
+        "module": "12-reporting",
+        "task_id": "\u2014",
+        "reason": "12-REP consumes site-scoped operational tables (work_orders, oee_snapshots, shipments, inventory_cost_layers) via cross_site_summary materialized view per \u00a79.10; activation migration affects all 12-REP downstream queries."
+      }
+    ],
+    "parallel_safe_with": [],
+    "acceptance_criteria": [
+      "Given migration 0053 applied on clean DB with 21 \u00a79.8 tables, when re-run, then no diff (idempotent); AND given 1M rows pre-migration in work_orders (NULL site_id) when job runs then post-job COUNT WHERE site_id IS NULL = 0.",
+      "Given 21 \u00a79.8 tables, when post-migration pg_policies inspected, then all 20 have policy whose USING text equals buildSiteScopedPolicySql({table}) output from T-006.",
+      "Given CONCURRENT writes during activation, when activation runs, then writes not blocked (parallel-write test); AND given activation fails mid-table (process killed) when re-run then resumes from where left off (no double-backfill).",
+      "Given activation_jobs queried during run, when polled, then per-table progress visible (table_name, rows_backfilled, total_rows); AND given activation completes when org_settings queried then multi_site_state='activated' + audit_events 'multi_site_activation_completed'."
+    ],
+    "test_strategy": [
+      "RED: integration tests for all 7 ACs before migration applied. testcontainers Postgres 16; seed 20 tables with realistic row counts.",
+      "Run 'pnpm --filter @monopilot/db test:integration -- site-id-activation' + 'pnpm --filter @monopilot/web test site-id-activation-job'."
+    ],
+    "risk_red_lines": [
+      "Do not use ALTER TABLE without CONCURRENTLY on index \u2014 would block production writes.",
+      "Do not single-UPDATE backfill \u2014 batch LIMIT 10000.",
+      "Do not skip V-MS-19 100% check.",
+      "Do not transition to 'activated' if any backfill failed.",
+      "Do not drop org policy before site policy created \u2014 atomic swap per table.",
+      "Do not skip CodeOwners review \u2014 touches 20 tables across 9 modules."
+    ],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review",
+      "systematic-debugging"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": false
+  }
+}

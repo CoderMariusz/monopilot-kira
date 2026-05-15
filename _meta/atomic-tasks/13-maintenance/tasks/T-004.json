@@ -1,0 +1,103 @@
+{
+  "title": "T-004 — maintenance_work_orders + mwo_checklists + mwo_loto_checklists DDL + RLS (13-c, MNT §9.5-9.7)",
+  "prompt": "# T-004 — MWO core tables (state machine, checklists, LOTO)\n\nPRD: docs/prd/13-MAINTENANCE-PRD.md §9.5, §9.6, §9.7, §8.2 (mwo_state_machine_v1), §11.1, §14.2\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nCreate the 3 core MWO tables: `maintenance_work_orders` (6-state), `mwo_checklists` (per-step), `mwo_loto_checklists` (LOTO pre-execution). RLS via `app.current_org_id()`+`site_user_access`. State machine values match `mwo_state_machine_v1` per PRD §8.2; transition enforcement lives in T-010 Server Action, not DB triggers (workflow-as-data).\n\n## Pre-flight\nVerify (a) latest migration #, (b) `equipment` and `maintenance_schedules` exist (T-002/T-003), (c) `auth.users` and `app.current_org_id()` from Wave1 T-125, (d) `downtime_events` table in 08-production — if not yet present, `downtime_event_id` is plain UUID with no FK and a comment that 08-production T-035..T-040 add the FK constraint.\n\n## Implementation contract\n1. Migration `packages/db/migrations/NNNN_maintenance_c_mwo.sql` with CREATE TABLE for all three tables per PRD §9.5/9.6/9.7 DDL.\n2. `state CHECK IN ('requested','approved','open','in_progress','completed','cancelled')` (6-state per D-MNT-9).\n3. `source CHECK IN ('manual_request','auto_downtime','pm_schedule','oee_trigger','calibration_alert')`.\n4. `type CHECK IN ('reactive','preventive','calibration','sanitation','inspection')`.\n5. `priority CHECK IN ('low','medium','high','critical')`.\n6. `mwo_number TEXT NOT NULL` + `UNIQUE(org_id, mwo_number)`.\n7. R13 audit cols on all three tables.\n8. RLS+FORCE RLS via `app.current_org_id()` + site_user_access (read scope follows §14.2: technician sees own assigned + shared read; full scoping helpers live in T-008 Server Actions).\n9. Indexes: idx_mwo_state, idx_mwo_equipment, idx_mwo_assigned, idx_mwo_source, idx_mwo_org_site.\n10. Drizzle schema in `packages/db/src/schema/maintenance/work-orders.ts`.\n11. Vitest: CHECK constraint enforcement (insert with invalid state/source/type/priority fails); RLS isolation between orgs; FORCE RLS; unique mwo_number per org.\n\n## Files\n- packages/db/migrations/NNNN_maintenance_c_mwo.sql [create]\n- packages/db/src/schema/maintenance/work-orders.ts [create]\n- packages/db/src/schema/index.ts [modify]\n- packages/db/__tests__/maintenance-c-mwo.test.ts [create]\n\n## Acceptance criteria\n1. Given migration runs, when the three tables are inspected, then `state`/`source`/`type`/`priority` CHECK constraints, `UNIQUE(org_id, mwo_number)`, FK to equipment+schedules+technicians, R13 audit cols, RLS+FORCE RLS are present.\n2. Given an INSERT with state='unknown', when executed, then it fails with CHECK violation; same for invalid source/type/priority.\n3. Given two orgs via `app.set_org_context`, when SELECT runs in each session, then RLS isolation holds.\n4. Given two MWOs with same `mwo_number` in different orgs, when both insert, then both succeed (UNIQUE is per-org).\n\n## Test strategy\n- RED: maintenance-c-mwo.test.ts asserting four ACs.\n- Run `pnpm --filter db migrate && pnpm --filter db test maintenance-c-mwo`.\n\n## Risk red lines\n- Do not encode state transitions in DB triggers — they belong to DSL rule `mwo_state_machine_v1` enforced by T-010 Server Action (workflow-as-data per Foundation §7).\n- Do not name business column tenant_id; org_id only.\n- Do not read current_setting() GUC; use app.current_org_id().\n- Do not add CASCADE DELETE on equipment FK (preserve audit trail).\n- Do not add an FK to 08-production downtime_events if that table is absent; comment the future FK and revisit when 08-production T-035 lands.",
+  "labels": [
+    "prd",
+    "data",
+    "schema",
+    "rls",
+    "T1-schema"
+  ],
+  "priority": 50,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-004",
+    "source_prd": "docs/prd/13-MAINTENANCE-PRD.md",
+    "prd_refs": [
+      "§9.5",
+      "§9.6",
+      "§9.7",
+      "§8.2",
+      "§11.1",
+      "§14.2"
+    ],
+    "category": "data",
+    "subcategory": "schema-mwo-core",
+    "task_type": "T1-schema",
+    "parent_feature": "13-MAINTENANCE-c",
+    "context_budget": "45k",
+    "estimated_effort": "2-3h",
+    "description": "Create maintenance_work_orders + mwo_checklists + mwo_loto_checklists with 6-state CHECK, FK to equipment/schedules/technicians, R13, RLS via app.current_org_id().",
+    "details": "Core MWO + dependent step/LOTO tables. State transitions enforced in T-010 Server Action against mwo_state_machine_v1 DSL rule (workflow-as-data). downtime_event_id is UUID with no FK if 08-production has not yet emitted the table. LOTO sign-off uses @monopilot/e-sign foundation primitive (T-124) — signEvent/dualSign with replay nonce + paired audit (retention='security'). Outbox publication of mwo.*/downtime.* events uses foundation T-112 outbox primitive so 15-OEE MTBF/MTTR consumers receive them.",
+    "scope_files": [
+      "packages/db/migrations/NNNN_maintenance_c_mwo.sql [create]",
+      "packages/db/src/schema/maintenance/work-orders.ts [create]",
+      "packages/db/src/schema/index.ts [modify]",
+      "packages/db/__tests__/maintenance-c-mwo.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "State transition Server Actions (T-010)",
+      "Outbox publisher (T-012)",
+      "UI (T-020, T-021)",
+      "Calibration/sanitation tables (T-006)"
+    ],
+    "cross_module_dependencies": [
+      "00-foundation/T-124",
+      "00-foundation/T-112"
+    ],
+    "dependencies": [
+      "T-002",
+      "T-003"
+    ],
+    "parallel_safe_with": [
+      "T-005",
+      "T-006"
+    ],
+    "acceptance_criteria": [
+      "Given migration runs, when tables are inspected, then state/source/type/priority CHECK + UNIQUE(org_id, mwo_number) + FKs + R13 + RLS+FORCE RLS are present",
+      "Given INSERT with state='unknown', when executed, then it fails with CHECK violation; same for invalid source/type/priority",
+      "Given two orgs via app.set_org_context, when SELECT runs in each session, then RLS isolation holds",
+      "Given two MWOs with same mwo_number in different orgs, when both insert, then both succeed (UNIQUE is per-org)"
+    ],
+    "test_strategy": [
+      "RED: maintenance-c-mwo.test.ts asserting all four ACs",
+      "Run `pnpm --filter db migrate && pnpm --filter db test maintenance-c-mwo`"
+    ],
+    "risk_red_lines": [
+      "Do not encode state transitions in DB triggers — workflow-as-data via T-010",
+      "Do not name business column tenant_id",
+      "Do not read current_setting() GUC",
+      "Do not CASCADE DELETE on equipment FK (audit retention)",
+      "Do not add cross-module FK to 08-production downtime_events if absent — comment future FK"
+    ],
+    "skills": [
+      "test-driven-development",
+      "systematic-debugging",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": false
+  }
+}

@@ -1,0 +1,109 @@
+{
+  "title": "T-008 — UI: so_create_wizard_modal multi-step Dialog (SHIP-006) (11-shipping-b)",
+  "prompt": "# T-008 — SO Create Wizard modal UI\n\nPRD: docs/prd/11-SHIPPING-PRD.md §15.4 SHIP-006 (referenced via §15.1 desktop), §8.1, §11 V-SHIP-SO-01..06\nUX: prototypes/design/11-SHIPPING-UX.md §3 SHIP-006 — Sales Order Create Wizard, §4 SO Create Wizard\nPrototype: prototypes/design/Monopilot Design System/shipping/modals.jsx:115-271 (so_create_wizard_modal)\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\n4-step wizard Dialog (header → lines → allergen → review) calling `createDraftSO` Server Action at finish; allergen cascade check at step 3 runs server-side via Server Action; matching prototype 1:1.\n\n## Implementation contract\n1. `apps/web/app/(shipping)/orders/_modals/so-create-wizard.tsx` — full-viewport Dialog from packages/ui. Step machine via useReducer (steps: header / lines / allergen / review). Stepper component with aria-current.\n2. Step 1 (header): customer Combobox (Drizzle query active customers), shipping_address Select (depends on selected customer, V-SHIP-SO-02 blocks Next if empty), customer_po input, order_date date, promised_ship_date date with V-SHIP-SO-04 (>= order_date) Zod refinement, required_delivery_date date.\n3. Step 2 (lines): inline FieldArray (react-hook-form) with product Combobox (FG SSOT — NPD product table query joined with allergens), qty (V-SHIP-SO-06 > 0), unit_price (autofill from products.default_sell_price, V-SHIP-SO-06 > 0), requested_lot optional. \"Add Line\" / \"Remove Line\" buttons; V-SHIP-SO-05 blocks Next if 0 lines.\n4. Step 3 (allergen): on entering step, calls `checkAllergenConflicts(soDraftState)` Server Action returning ConflictRow[] (server-side `check_allergen_conflicts(so_id)` function); if conflicts → render `allergen_override_modal` inline path (per modals.jsx:837-871) requiring shipping_qa + reason + approver PIN (via @monopilot/e-sign T-124); user without ship.allergen.override sees \"escalate to QA\" CTA.\n5. Step 4 (review): summary card of all collected values; \"Save draft\" + \"Submit\" buttons; Submit calls `createDraftSO` then router.push(`/(shipping)/orders/${id}`).\n6. URL state persisted via `?wizardStep=1..4` to allow refresh; form state in sessionStorage.\n7. Permission gate: `ship.so.create`; allergen override step gates on `ship.allergen.override`.\n8. i18n keys `shipping.so.wizard.*` PL/EN.\n\n## Prototype parity\nReference: `prototypes/design/Monopilot Design System/shipping/modals.jsx:115-271` (so_create_wizard_modal). Verify:\n- Size=fullpage Dialog\n- 4-step stepper at top\n- Each step's field set matches prototype\n- Allergen step uses HoldChip badge for each conflict and inline override path\n- Review step Summary key-value pairs in `dl/dt/dd`\n- Footer: Back / Next / Save Draft / Submit\n\nKnown bug to address: BL-SHIP-02 (allergen override inline collapse when shipping_qa active) — fix in this task by always allowing inline override path when shipping_qa session active.\n\n## Files\n- apps/web/app/(shipping)/orders/_modals/so-create-wizard.tsx [create]\n- apps/web/app/(shipping)/orders/_modals/__tests__/so-create-wizard.test.tsx [create]\n- apps/web/messages/en/shipping.json [modify]\n- apps/web/messages/pl/shipping.json [modify]\n- prototypes/design/Monopilot Design System/shipping/modals.jsx [ref]\n\n## Acceptance criteria\n1. Given the wizard renders, when compared to prototypes/design/Monopilot Design System/shipping/modals.jsx:115-271, then it has the same 4-step structure + Stepper + footer button row — RTL snapshot + Playwright screenshot per step.\n2. Given Step 1 with promised_ship_date < order_date, when Next is clicked, then Zod returns V-SHIP-SO-04 error message and Next is disabled.\n3. Given Step 2 with 0 lines, when Next is clicked, then V-SHIP-SO-05 error renders and Next disabled.\n4. Given Step 3 with allergen conflicts and shipping_qa session, when override path is rendered, then it appears inline (BL-SHIP-02 fix) with reason + PIN fields; submit calls overrideAllergenConflict Server Action (T-007).\n5. Given Step 4 Submit clicked, when createDraftSO returns success, then router.push to /orders/{id} and toast confirms.\n6. UI closeout includes Playwright trace + 4 per-step screenshots per UI-PROTOTYPE-PARITY-POLICY; Playwright fallback documented if unavailable.\n\n## Test strategy\n- RED: RTL specs per step + Zod refinement tests + permission-gate test for allergen override path.\n- Run `pnpm --filter @monopilot/web vitest run so-create-wizard.test.tsx`.\n- Playwright `apps/web/e2e/shipping-so-create.spec.ts` captures full 4-step flow.\n\n## Risk red lines\n- Do not import @radix-ui/react-dialog outside packages/ui.\n- Do not run allergen cascade purely client-side (must call server check_allergen_conflicts).\n- Do not paste prototype JSX verbatim.\n- Do not bypass server-side createDraftSO Zod re-validation.\n- Do not regress accessibility (axe).\n- Do not perpetuate BL-SHIP-02 collapse bug — inline path required when shipping_qa active.",
+  "labels": [
+    "prd",
+    "ui",
+    "ship-006",
+    "T3-ui"
+  ],
+  "priority": 70,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-008",
+    "source_prd": "docs/prd/11-SHIPPING-PRD.md",
+    "prd_refs": [
+      "§15.4 SHIP-006",
+      "§8.1",
+      "§11 V-SHIP-SO-01",
+      "§11 V-SHIP-SO-02",
+      "§11 V-SHIP-SO-03",
+      "§11 V-SHIP-SO-04",
+      "§11 V-SHIP-SO-05",
+      "§11 V-SHIP-SO-06"
+    ],
+    "category": "ui",
+    "subcategory": "so-create-wizard",
+    "task_type": "T3-ui",
+    "parent_feature": "11-shipping-b",
+    "context_budget": "60k",
+    "estimated_effort": "5-6h",
+    "description": "SHIP-006 SO Create Wizard 4-step Dialog matching so_create_wizard_modal prototype (BL-SHIP-02 fix included).",
+    "details": "Use useReducer for step machine. FieldArray for lines. Server-side allergen cascade call at step 3. Allergen override inline path always available when shipping_qa session (BL-SHIP-02). e-sign PIN via @monopilot/e-sign (T-124).",
+    "scope_files": [
+      "apps/web/app/(shipping)/orders/_modals/so-create-wizard.tsx [create]",
+      "apps/web/app/(shipping)/orders/_modals/__tests__/so-create-wizard.test.tsx [create]",
+      "apps/web/messages/en/shipping.json [modify]",
+      "apps/web/messages/pl/shipping.json [modify]",
+      "prototypes/design/Monopilot Design System/shipping/modals.jsx [ref]"
+    ],
+    "out_of_scope": [
+      "Do not implement Server Actions (T-007).",
+      "Do not build SO list or detail pages (T-009/T-010)."
+    ],
+    "dependencies": [
+      "T-007",
+      "T-031",
+      "00-foundation/T-124"
+    ],
+    "parallel_safe_with": [
+      "T-009",
+      "T-010"
+    ],
+    "cross_module_dependencies": [
+      "01-npd/T-001 (product table for Combobox)",
+      "00-foundation/T-123 (Playwright)",
+      "00-foundation/T-124 (@monopilot/e-sign for PIN)"
+    ],
+    "acceptance_criteria": [
+      "Given the wizard renders, when compared to prototypes/design/Monopilot Design System/shipping/modals.jsx:115-271 (so_create_wizard_modal), then each of the 4 steps matches the prototype field set and layout — RTL snapshot + Playwright per-step screenshot (parity checklist per UI-PROTOTYPE-PARITY-POLICY).",
+      "Given Step 1 with promised_ship_date < order_date, when Next clicked, then V-SHIP-SO-04 error + Next disabled; AND given Step 2 with 0 lines, when Next clicked, then V-SHIP-SO-05 error + Next disabled.",
+      "Given Step 3 with allergen conflicts and shipping_qa session, when override path renders, then it appears inline per prototype + e-sign PIN field visible.",
+      "Given Step 4 Submit succeeds, when createDraftSO completes, then router.push to /orders/{id} and success toast shown; UI closeout includes Playwright trace + per-step screenshots per UI-PROTOTYPE-PARITY-POLICY; Playwright fallback documented if unavailable."
+    ],
+    "test_strategy": [
+      "RED: RTL specs per step + Zod refinement tests + permission-gate test for allergen override.",
+      "Run `pnpm --filter @monopilot/web vitest run so-create-wizard.test.tsx`.",
+      "Playwright apps/web/e2e/shipping-so-create.spec.ts captures full 4-step flow."
+    ],
+    "risk_red_lines": [
+      "Do not import @radix-ui/react-dialog outside packages/ui.",
+      "Do not run allergen cascade purely client-side.",
+      "Do not paste prototype JSX verbatim.",
+      "Do not bypass server-side createDraftSO Zod re-validation.",
+      "Do not regress accessibility.",
+      "Do not perpetuate BL-SHIP-02 collapse bug."
+    ],
+    "skills": [
+      "test-driven-development",
+      "frontend-design",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": true,
+    "prototype_index_entry": "so_create_wizard_modal,allergen_override_modal,so_line_add_modal",
+    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md"
+  }
+}

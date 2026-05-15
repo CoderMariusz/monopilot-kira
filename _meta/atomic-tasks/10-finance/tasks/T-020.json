@@ -1,0 +1,98 @@
+{
+  "title": "T-020 \u2014 UI: FIN-003 WO Cost Summary detail page (fin_wo_detail, \u00a78.1)",
+  "prompt": "# T-020 \u2014 FIN-003 WO Cost Summary detail UI\n\nPRD: docs/prd/10-FINANCE-PRD.md \u00a78.1 FIN-003; \u00a79 cascade table; \u00a711.5 V-FIN-VAR-01..04 color coding; \u00a713.1 events.\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\nPrototype: `prototypes/design/Monopilot Design System/finance/wo-screens.jsx:124-366` (`fin_wo_detail`)\n\n## Goal\nServer Component page `/finance/wos/[woId]/cost` rendering 2-column layout with WO info sidebar + main panel: Cost Summary card (border-color driven by variance %), Cost Breakdown bars + Waterfall chart, Variance Breakdown Accordion, Cascade table (when WO has children), Variance Notes list, D365 posting status badge.\n\n## Prototype parity\nReference: `prototypes/design/Monopilot Design System/finance/wo-screens.jsx:124-366`.\nshadcn primitives: Card, CardHeader, CardContent, Table, TableRow, TableCell, Accordion, AccordionItem, AccordionTrigger, AccordionContent, Badge, Button, Separator.\nDepends_on_prototypes: `variance_note_modal` (T-025 wires it in, but Add Note button must open it here).\nParity checklist:\n1. Two-column grid (grid-cols-[360px_1fr]): left sidebar with WO Info Card (planned vs produced qty mini-grid); main panel.\n2. Cost Summary card: dynamic `border-l-4` color class via cn({ 'border-red-500': variancePct >= 10, 'border-amber-500': pct >= 5 && pct < 10, 'border-green-500': pct < 5 }) per V-FIN-VAR-01..02.\n3. Cost Breakdown bars (reused CostBreakdownBars client component) + Waterfall chart (Recharts ComposedChart) \u2014 same components reused by FIN-001 dashboard (T-031).\n4. Variance Breakdown Accordion: 4 items (material/labor/overhead/waste). Phase 2 sub-components (MPV/MQV LRV/LEV) rendered as muted placeholder text with Badge 'Phase 2 \u2014 EPIC 10-I' per BL-FIN-01.\n5. Cascade table: ONLY rendered when wo has children in wo_dependencies. Columns: WO Ref (Link), Own Cost, Cascade Sum, Depth.\n6. Variance Notes list (chronological cards): author, category Badge, timestamp, text. 'Add Note' Button opens MODAL-07 variance_note_modal (composed from T-025 if landed, OR locally-defined inline if T-020 lands first).\n7. D365 Posting Status row: pending=amber, posted=green, not-yet-closed=gray. Maps `posted_to_d365_at` + `d365_journal_id`.\n8. Top toolbar: 'Recalculate' Button \u2192 calls T-016 Server Action `recalculateWoCost(woId)`. Visible only if `fin.wo_cost.recalculate` permission.\n\n## Implementation contract\n1. `app/finance/wos/[woId]/cost/page.tsx` \u2014 RSC fetches WO + cost + cascade + variance notes + D365 posting status in parallel.\n2. `app/finance/_components/cost-breakdown-bars.tsx` (shared with T-031).\n3. `app/finance/_components/waterfall-chart.tsx` (shared with T-031).\n4. `app/finance/wos/[woId]/cost/_components/wo-cost-detail.tsx` (main client component for variance notes + recalculate button interactivity).\n5. RBAC: visible to `fin.wo_cost.view` (own line for prod_manager via RLS).\n\n## Files\n- apps/web/app/finance/wos/[woId]/cost/page.tsx [create]\n- apps/web/app/finance/wos/[woId]/cost/_components/wo-cost-detail.tsx [create]\n- apps/web/app/finance/_components/cost-breakdown-bars.tsx [create]\n- apps/web/app/finance/_components/waterfall-chart.tsx [create]\n- apps/web/app/finance/wos/[woId]/cost/_components/__tests__/wo-cost-detail.test.tsx [create]\n\n## Acceptance criteria (Given-When-Then)\n- Given the page renders for a WO with cascade children, when compared to prototypes/design/Monopilot Design System/finance/wo-screens.jsx:124-366, then 2-col layout + all components match \u2014 RTL snapshot + parity checklist.\n- Given variance/standard >= 10%, when Cost Summary renders, then border-l-4 includes 'border-red-500'; for 5-10% 'border-amber-500'; below 5% 'border-green-500'.\n- Given the WO is leaf (no cascade), when page renders, then Cascade Table is not present. AND given user without fin.wo_cost.recalculate, when page renders, then 'Recalculate' button is hidden.\n- Given user clicks 'Add Note', when modal opens, then MODAL-07 renders pre-bound to woId; on save, notes list re-renders. AND given WO posted_to_d365_at non-null with d365_journal_id, when D365 row renders, then it shows 'Posted' badge + journal link.\nNote: UI closeout must include screenshot/artifact evidence per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md` (verified via test_strategy + checkpoint_policy.closeout_requires; previously a separate AC, hoisted to process layer by Fixer F13 2026-05-14).\n_(AC count consolidated from 7\u21924 by Fixer F13 2026-05-14 (no coverage lost))_\n\n## Test strategy (RED first)\n- RED: wo-cost-detail.test.tsx seeds WO + variance notes + cascade fixture; asserts parity + dynamic border color + cascade conditional + RBAC + Add Note flow + D365 status mapping.\n- Run `pnpm --filter @monopilot/web vitest run apps/web/app/finance/wos`.\n\n## Risk red lines\n- Do not paste prototype JSX verbatim.\n- Do not hardcode the variance threshold colors \u2014 derive from finance_settings.variance_thresholds (P1 = display-only display thresholds 5%/10%).\n- Do not use HTML `<details>` instead of shadcn Accordion.\n- Do not skip the Phase 2 placeholder badges in the Variance Accordion \u2014 visibility communicates roadmap (BL-FIN-01).\n- Do not regress accessibility.\n- Do not show 'Recalculate' button to users without permission.\n",
+  "labels": [
+    "prd",
+    "ui",
+    "fin-003",
+    "T3-ui"
+  ],
+  "priority": 50,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-020",
+    "source_prd": "docs/prd/10-FINANCE-PRD.md",
+    "prd_refs": [
+      "\u00a78.1",
+      "\u00a79",
+      "\u00a711.5",
+      "\u00a713.1"
+    ],
+    "category": "ui",
+    "subcategory": "fin-003-wo-detail",
+    "task_type": "T3-ui",
+    "parent_feature": "10-FINANCE-c",
+    "context_budget": "65k",
+    "estimated_effort": "4-5h",
+    "description": "FIN-003 WO Cost Summary detail page (2-col + breakdown bars + waterfall chart + variance accordion + cascade table + notes + D365 status).",
+    "details": "Reusable CostBreakdownBars + WaterfallChart extracted for FIN-001 dashboard (T-031). Variance Accordion shows P2 placeholders for MPV/MQV/LRV/LEV (BL-FIN-01). Cascade table conditionally rendered. Recalculate button gated on fin.wo_cost.recalculate. [AC count consolidated from 7\u21924 by Fixer F13 2026-05-14 (no coverage lost)]",
+    "scope_files": [
+      "apps/web/app/finance/wos/[woId]/cost/page.tsx [create]",
+      "apps/web/app/finance/wos/[woId]/cost/_components/wo-cost-detail.tsx [create]",
+      "apps/web/app/finance/_components/cost-breakdown-bars.tsx [create]",
+      "apps/web/app/finance/_components/waterfall-chart.tsx [create]",
+      "apps/web/app/finance/wos/[woId]/cost/_components/__tests__/wo-cost-detail.test.tsx [create]"
+    ],
+    "out_of_scope": [
+      "Variance drill-down deeper than this page (T-026)",
+      "Full Phase 2 MPV/MQV decomposition (P2 EPIC 10-I)"
+    ],
+    "dependencies": [
+      "T-001",
+      "T-015",
+      "T-016",
+      "T-019"
+    ],
+    "parallel_safe_with": [],
+    "acceptance_criteria": [
+      "Given the page renders for a WO with cascade children, when compared to prototypes/design/Monopilot Design System/finance/wo-screens.jsx:124-366, then 2-col layout + all components match \u2014 RTL snapshot + parity checklist.",
+      "Given variance/standard >= 10%, when Cost Summary renders, then border-l-4 includes 'border-red-500'; for 5-10% 'border-amber-500'; below 5% 'border-green-500'.",
+      "Given the WO is leaf (no cascade), when page renders, then Cascade Table is not present. AND given user without fin.wo_cost.recalculate, when page renders, then 'Recalculate' button is hidden.",
+      "Given user clicks 'Add Note', when modal opens, then MODAL-07 renders pre-bound to woId; on save, notes list re-renders. AND given WO posted_to_d365_at non-null with d365_journal_id, when D365 row renders, then it shows 'Posted' badge + journal link."
+    ],
+    "test_strategy": [
+      "RED: wo-cost-detail.test.tsx seeds WO + notes + cascade; asserts parity + dynamic border + cascade conditional + RBAC + Add Note flow + D365 status.",
+      "Run pnpm --filter @monopilot/web vitest run apps/web/app/finance/wos.",
+      "Closeout-evidence check (hoisted from former AC): UI closeout must include screenshot/artifact evidence per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md` (referenced by ui_evidence_policy + checkpoint_policy.closeout_requires)."
+    ],
+    "risk_red_lines": [
+      "Do not paste prototype JSX verbatim.",
+      "Do not hardcode variance threshold colors (derive from finance_settings).",
+      "Do not use HTML <details>.",
+      "Do not skip Phase 2 placeholder badges (BL-FIN-01).",
+      "Do not regress accessibility.",
+      "Do not show 'Recalculate' to users without permission."
+    ],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review",
+      "frontend-design"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": true,
+    "prototype_index_entry": "fin_wo_detail",
+    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md"
+  }
+}

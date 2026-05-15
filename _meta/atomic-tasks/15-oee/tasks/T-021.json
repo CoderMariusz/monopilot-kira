@@ -1,0 +1,97 @@
+{
+  "title": "T-021 — UI: OEE-ADM-002 Shift Configs read-only viewer (oee_shift_configs_page, 15-OEE-e)",
+  "prompt": "# T-021 — OEE-ADM-002 Shift Configs viewer UI\n\nPRD: docs/prd/15-OEE-PRD.md §15.3 OEE-ADM-002, §15.7 + UX prototypes/design/15-OEE-UX.md:805-834\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\nPrototype: prototypes/design/Monopilot Design System/oee/screens.jsx:836-900 (oee_shift_configs_page)\n\n## Goal\nServer Component admin page `/oee/shift-configs` rendering read-only shift_configs table + DSL rule status section (shift_aggregator_v1 from rule_definitions). Gated by oee_admin role via middleware. Read-only by design (writes happen via OEE-ADM-003 T-022 + 02-SETTINGS reference-tables UI). Matches prototype 1:1.\n\n## Implementation contract\n1. `apps/web/app/(oee)/shift-configs/page.tsx` (RSC): middleware redirect if role !== oee_admin (V-OEE-ACCESS-2); reads shift_configs (T-003) + rule_definitions row WHERE rule_id='shift_aggregator_v1' (T-008).\n2. Table shape per prototype: shift_id, shift_label, start_time, end_time, timezone, active_days, sort_order, is_active.\n3. DSL rule status section: shows rule_id + version + phase + active flag + last_fired_at (joined via worker job_runs or last outbox event).\n4. Two cross-link buttons: \"Edit in 02-SETTINGS\" → Next.js `<Link href=\"/settings/reference-tables/shift-configs\">`; \"Check Rule Status\" → `<Link href=\"/reporting/rules-usage\">`.\n5. RTL test snapshot + parity checklist against prototype line range.\n\n## Files\n- apps/web/app/(oee)/shift-configs/page.tsx [create]\n- apps/web/app/(oee)/shift-configs/_components/shift-configs-client.tsx [create]\n- apps/web/app/(oee)/shift-configs/_components/__tests__/shift-configs-client.test.tsx [create]\n- prototypes/design/Monopilot Design System/oee/screens.jsx [ref]\n\n## Acceptance criteria\n1. Given the production page renders, when compared to prototypes/design/Monopilot Design System/oee/screens.jsx:836-900 (oee_shift_configs_page), then it has the read-only shift_configs table + DSL rule status section + cross-link buttons — verified by RTL snapshot + parity checklist.\n2. Given a user without oee_admin role requests /oee/shift-configs, when middleware runs, then it redirects to /oee (V-OEE-ACCESS-2).\n3. Given shift_aggregator_v1 row exists in rule_definitions, when page renders, then the DSL rule status card shows rule_id, version, phase='P1', active=TRUE.\n4. Given the task is closed out, when reviewers inspect evidence, then UI closeout includes screenshot/artifact + Playwright trace per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`.\n\n## Test strategy\n- RED: RTL test asserting parity + middleware redirect + rule status rendering.\n- Run `pnpm --filter @monopilot/web vitest run app/(oee)/shift-configs`.\n\n## Risk red lines\n- Do not include any edit/write UI — read-only by design (writes happen via OEE-ADM-003 T-022 + 02-SETTINGS).\n- Do not paste prototype JSX verbatim.\n- Do not skip middleware role gate.\n- Do not use HTML <table> — shadcn Table with TanStack Table for sortability (matches other admin tables).\n- Do not skip cross-link buttons — translation note explicitly requires them.",
+  "labels": [
+    "prd",
+    "ui",
+    "oee-007",
+    "admin",
+    "T3-ui"
+  ],
+  "priority": 90,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-021",
+    "source_prd": "docs/prd/15-OEE-PRD.md",
+    "prd_refs": [
+      "§15.3 OEE-ADM-002",
+      "§15.7"
+    ],
+    "category": "ui",
+    "subcategory": "shift-configs-viewer",
+    "task_type": "T3-ui",
+    "parent_feature": "15-OEE-e",
+    "context_budget": "40k",
+    "estimated_effort": "2-3h",
+    "description": "OEE-ADM-002 read-only shift_configs viewer + DSL rule status section + cross-link to 02-SETTINGS reference tables, matches oee_shift_configs_page prototype.",
+    "details": "Closes part of Auditor A OEE-007. Read-only by design — writes via OEE-ADM-003 (T-022) and 02-SETTINGS reference-tables editor. Cross-link buttons drive ergonomics per translation note.\n\nAdditional acceptance detail: UI closeout includes screenshot/artifact + Playwright trace per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`.",
+    "scope_files": [
+      "apps/web/app/(oee)/shift-configs/page.tsx [create]",
+      "apps/web/app/(oee)/shift-configs/_components/shift-configs-client.tsx [create]",
+      "apps/web/app/(oee)/shift-configs/_components/__tests__/shift-configs-client.test.tsx [create]",
+      "prototypes/design/Monopilot Design System/oee/screens.jsx [ref]"
+    ],
+    "out_of_scope": [
+      "Write/edit UI (T-022 OEE-ADM-003)",
+      "02-SETTINGS reference-tables editor",
+      "P2 anomaly threshold UI"
+    ],
+    "dependencies": [
+      "T-003",
+      "T-008"
+    ],
+    "parallel_safe_with": [
+      "T-020",
+      "T-022"
+    ],
+    "acceptance_criteria": [
+      "Given the production page renders, when compared to prototypes/design/Monopilot Design System/oee/screens.jsx:836-900 (oee_shift_configs_page), then it has the read-only shift_configs table + DSL rule status section + cross-link buttons — verified by RTL snapshot + parity checklist",
+      "Given a user without oee_admin role requests /oee/shift-configs, when middleware runs, then it redirects to /oee (V-OEE-ACCESS-2)",
+      "Given shift_aggregator_v1 row exists in rule_definitions, when page renders, then the DSL rule status card shows rule_id, version, phase='P1', active=TRUE",
+      "Given the task is closed out, when reviewers inspect evidence, then UI closeout includes screenshot/artifact + Playwright trace per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`"
+    ],
+    "test_strategy": [
+      "RED: RTL test asserting parity + middleware redirect + rule status rendering",
+      "Run `pnpm --filter @monopilot/web vitest run app/(oee)/shift-configs`",
+      "Capture screenshots and Playwright trace; attach artifact paths in closeout"
+    ],
+    "risk_red_lines": [
+      "Do not include any edit/write UI — read-only by design",
+      "Do not paste prototype JSX verbatim",
+      "Do not skip middleware role gate",
+      "Do not use HTML <table> — shadcn Table",
+      "Do not skip cross-link buttons"
+    ],
+    "skills": [
+      "test-driven-development",
+      "frontend-design",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": true,
+    "prototype_index_entry": "oee_shift_configs_page",
+    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md"
+  }
+}

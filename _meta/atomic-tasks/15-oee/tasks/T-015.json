@@ -1,0 +1,99 @@
+{
+  "title": "T-015 — UI: OEE-002 Per-shift Heatmap page + cell_drill_modal (oee_shift_heatmap_page, 15-OEE-d)",
+  "prompt": "# T-015 — OEE-002 Per-shift Heatmap page UI\n\nPRD: docs/prd/15-OEE-PRD.md §10.2, §15.1, §15.4 OEE-M-007, §15.7 + UX prototypes/design/15-OEE-UX.md:395-525\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\nPrototype: prototypes/design/Monopilot Design System/oee/screens.jsx:211-377 (oee_shift_heatmap_page) + prototypes/design/Monopilot Design System/oee/modals.jsx:300-326 (cell_drill_modal)\n\n## Goal\nServer Component page `/oee/heatmap` rendering week selector + heatmap grid (up to 10 lines × 21 cells = 210) with industry-standard red/amber/green color scale (65/85 thresholds per §13.1) + 4 weekly KPI mini-cards + selected-cell detail panel + cell_drill_modal (OEE-M-007) on click, matching prototype 1:1.\n\n## Implementation contract\n1. `apps/web/app/(oee)/heatmap/page.tsx` (RSC) calls T-012 loader with URL search params (?week=2026-W16, ?line=all|line_id, ?selLine=, ?selDay=, ?selShift=).\n2. Client component `HeatmapClient`: renders role='grid' with gridcell + aria-label per cell (keep ARIA per translation note); heatColor() computed from OEE value vs 65/85 thresholds.\n3. Selected-cell panel + cell_drill_modal opened on cell click — calls T-012 cell-drill Server Action; shows full A/P/Q ArcGauge quartet + snapshot count + gap detection (\"432 / 480 · 1 gap\" pattern from translation note).\n4. Compare Weeks trigger button → opens OEE-M-010 modal (covered in T-020 modal-suite task — this task wires trigger button only).\n5. Heatmap color scale fixed P1 (65/85) per OQ-OEE-07 decision; settings note about P2 tenant-configurable (just a note in settings UI, not here).\n6. RTL test snapshot + parity checklist against prototype line range.\n\n## Files\n- apps/web/app/(oee)/heatmap/page.tsx [create]\n- apps/web/app/(oee)/heatmap/_components/heatmap-client.tsx [create]\n- apps/web/app/(oee)/heatmap/_components/cell-drill-modal.tsx [create]\n- apps/web/app/(oee)/heatmap/_components/__tests__/heatmap-client.test.tsx [create]\n- prototypes/design/Monopilot Design System/oee/screens.jsx [ref]\n- prototypes/design/Monopilot Design System/oee/modals.jsx [ref]\n\n## Acceptance criteria\n1. Given the production page renders, when compared to prototypes/design/Monopilot Design System/oee/screens.jsx:211-377 (oee_shift_heatmap_page), then it has the same week selector + 10×21 grid + 4 weekly KPI mini-cards + selected-cell detail panel layout — verified by RTL snapshot + parity checklist.\n2. Given a cell has OEE=72%, when rendered, then its CSS variable / Tailwind arbitrary value resolves to the amber band (65-85% per §13.1) and aria-label reads \"LINE-02 sat Night OEE 72 percent\".\n3. Given a user clicks a cell, when interaction settles, then cell_drill_modal (prototypes/design/Monopilot Design System/oee/modals.jsx:300-326) opens with A/P/Q ArcGauge quartet + snapshot count + gap detection populated by T-012 cell-drill Server Action — verified by RTL parity checklist.\n4. Given the task is closed out, when reviewers inspect evidence, then UI closeout includes screenshot/artifact evidence and Playwright trace/artifacts where applicable per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`; if Playwright unavailable, document blocker and provide RTL/snapshot fallback evidence.\n\n## Test strategy\n- RED: RTL test asserting parity + color band + cell-drill interaction.\n- Run `pnpm --filter @monopilot/web vitest run app/(oee)/heatmap`.\n\n## Risk red lines\n- Do not use HTML <table> for the grid — role='grid' with gridcell + aria-label per translation note (a11y).\n- Do not paste prototype JSX verbatim.\n- Do not bypass cell_drill_modal — fall-back to inline panel is a parity regression.\n- Do not make color scale tenant-configurable in P1 (OQ-OEE-07 decision: fixed 65/85).\n- Do not omit ARIA attributes — heatmap accessibility gate.",
+  "labels": [
+    "prd",
+    "ui",
+    "oee-002",
+    "T3-ui"
+  ],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-015",
+    "source_prd": "docs/prd/15-OEE-PRD.md",
+    "prd_refs": [
+      "§10.2",
+      "§15.1",
+      "§15.4 OEE-M-007"
+    ],
+    "category": "ui",
+    "subcategory": "heatmap-page",
+    "task_type": "T3-ui",
+    "parent_feature": "15-OEE-d",
+    "context_budget": "60k",
+    "estimated_effort": "3-5h",
+    "description": "OEE-002 heatmap page (RSC + client grid) with 10×21 cells + 4 weekly KPIs + selected-cell drill modal matching oee_shift_heatmap_page prototype.",
+    "details": "Parity checklist: (1) week selector ISO-week format, (2) role='grid' with aria-label per cell, (3) fixed 65/85 P1 thresholds per §13.1 + OQ-OEE-07, (4) 4 weekly KPI cards (factoryAvg/bestLine/worstLine/totalOutput) from T-012 loader, (5) cell-drill modal OEE-M-007 with ArcGauge quartet, (6) Compare Weeks trigger (modal in T-020 scope). Backlog items BL-OEE-02/03/04 (sort by shift / color-blind / arrow-key nav) deferred.\n\nAdditional acceptance detail:\n- Cell aria-label format `<line_id> <day> <shift> OEE <n> percent`.\n- UI closeout includes screenshot/artifact evidence + Playwright trace where applicable per UI-PROTOTYPE-PARITY-POLICY.md.",
+    "scope_files": [
+      "apps/web/app/(oee)/heatmap/page.tsx [create]",
+      "apps/web/app/(oee)/heatmap/_components/heatmap-client.tsx [create]",
+      "apps/web/app/(oee)/heatmap/_components/cell-drill-modal.tsx [create]",
+      "apps/web/app/(oee)/heatmap/_components/__tests__/heatmap-client.test.tsx [create]",
+      "prototypes/design/Monopilot Design System/oee/screens.jsx [ref]",
+      "prototypes/design/Monopilot Design System/oee/modals.jsx [ref]"
+    ],
+    "out_of_scope": [
+      "Server endpoint (T-012)",
+      "Compare Weeks modal OEE-M-010 (T-020 modal suite)",
+      "BL-OEE-02/03/04 backlog items",
+      "Color-blind mode (BL-OEE-03)"
+    ],
+    "dependencies": [
+      "T-012"
+    ],
+    "parallel_safe_with": [
+      "T-014",
+      "T-016"
+    ],
+    "acceptance_criteria": [
+      "Given the production page renders, when compared to prototypes/design/Monopilot Design System/oee/screens.jsx:211-377 (oee_shift_heatmap_page), then it has the same week selector + 10×21 grid + 4 weekly KPI cards + selected-cell detail panel — verified by RTL snapshot + parity checklist",
+      "Given a cell has OEE=72%, when rendered, then its color resolves to the amber band (65-85% per §13.1) and aria-label reads `<line_id> <day> <shift> OEE 72 percent`",
+      "Given a user clicks a cell, when interaction settles, then cell_drill_modal (prototypes/design/Monopilot Design System/oee/modals.jsx:300-326) opens with A/P/Q ArcGauge quartet + snapshot count + gap detection populated by T-012 cell-drill Server Action",
+      "Given the task is closed out, when reviewers inspect evidence, then UI closeout includes screenshot/artifact + Playwright trace/artifacts per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`"
+    ],
+    "test_strategy": [
+      "RED: RTL test asserting parity + color band + cell-drill interaction",
+      "Run `pnpm --filter @monopilot/web vitest run app/(oee)/heatmap`",
+      "For UI parity, capture screenshots and Playwright trace where applicable; attach artifact paths in closeout"
+    ],
+    "risk_red_lines": [
+      "Do not use HTML <table> for the grid — role='grid' (a11y)",
+      "Do not paste prototype JSX verbatim",
+      "Do not bypass cell_drill_modal",
+      "Do not make color scale tenant-configurable in P1 (OQ-OEE-07)",
+      "Do not omit ARIA attributes"
+    ],
+    "skills": [
+      "test-driven-development",
+      "frontend-design",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": true,
+    "prototype_index_entry": "oee_shift_heatmap_page",
+    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md"
+  }
+}

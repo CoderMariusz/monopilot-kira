@@ -1,0 +1,97 @@
+{
+  "title": "T-021 \u2014 Sites list page (ms_sites_list) \u2014 MS-114",
+  "prompt": "# T-021 \u2014 Sites list page (ms_sites_list)\n\nPRD: docs/prd/14-MULTI-SITE-PRD.md \u00a710C MS-114\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\nPrototype: prototypes/design/Monopilot Design System/multi-site/sites-screens.jsx:4-100 (ms_sites_list)\nTranslation notes: _meta/prototype-labels/translation-notes-multi-site.md \u00a7ms_sites_list\n\n## Goal\nServer Component page /(multi-site)/sites with search + filter table of all sites matching prototype 1:1.\n\n## Implementation contract\n1. apps/web/app/(multi-site)/sites/page.tsx (RSC): queries Drizzle sites filtered by URL search params (type, active, search via ILIKE).\n2. apps/web/app/(multi-site)/sites/_components/sites-list-table.tsx: shadcn DataTable with columns [Code, Name, Country, Timezone, Type Badge, Module Count, Last Sync, Status, Actions].\n3. Row click \u2192 router.push('/multi-site/sites/[siteId]') (T-022).\n4. Edit/Decommission buttons: Admin-only (Server Component permission gate; not client-side hidden).\n5. Export CSV Server Action returning StreamingResponse text/csv.\n\n## Files\n- apps/web/app/(multi-site)/sites/page.tsx [create]\n- apps/web/app/(multi-site)/sites/_components/sites-list-table.tsx [create]\n- apps/web/app/(multi-site)/sites/_actions/export-sites-csv.ts [create]\n- apps/web/app/(multi-site)/sites/_components/__tests__/sites-list-table.test.tsx [create]\n- prototypes/design/Monopilot Design System/multi-site/sites-screens.jsx [ref]\n\n## Acceptance criteria\n<!-- AC count consolidated from 7\u21924 by Fixer F14a 2026-05-14 (no coverage lost) -->\n1. Given the page renders, when compared to sites-screens.jsx:4-100 (ms_sites_list), then filter bar + table columns + row actions + Status badges match \u2014 RTL parity + Playwright trace.\n2. Given URL ?search=apex, when page renders, then table is filtered to sites where code ILIKE '%apex%' OR name ILIKE '%apex%'.\n3. Given user role != admin, when page renders, then Edit and Decommission buttons NOT rendered (Server Component permission gate).\n4. Given Export CSV is clicked, when action settles, then a CSV with header [Code, Name, Country, Timezone, Type, Module Count, Last Sync, Status] is streamed with content-type 'text/csv'.\n5. Given the sites list is empty for the active org, when page renders, then empty state (per UI-PROTOTYPE-PARITY-POLICY.md) with Create Site CTA visible to Admin only.\n6. Given row click on site_X, when navigation settles, then URL is /multi-site/sites/site_X.\n\n## Test strategy\n- RED: RTL parity + filter + Admin gate + CSV export + empty state + row navigation before page exists.\n- Run 'pnpm --filter @monopilot/web vitest run sites-list-table' + Playwright sites-list.spec.ts.\n\n## Prototype parity\nReference prototype: prototypes/design/Monopilot Design System/multi-site/sites-screens.jsx:4-100 (ms_sites_list).\nImplement matching the canonical layout 1:1 per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`. Capture RTL parity snapshot + Playwright trace as closeout evidence.\n\n## Risk red lines\n- Do not paste prototype JSX wholesale.\n- Do not client-side hide Edit/Decommission \u2014 Server Component gate.\n- Do not implement decommission inline \u2014 opens T-024 modal.\n- Do not bypass site RLS \u2014 sites is org-scoped (T-002 policy), no x-site-id needed for list view.\n- Do not export CSV synchronously for large tenants \u2014 stream rows.",
+  "labels": [
+    "prd",
+    "ui",
+    "sites-list",
+    "T3-ui"
+  ],
+  "priority": 70,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-021",
+    "source_prd": "docs/prd/14-MULTI-SITE-PRD.md",
+    "prd_refs": [
+      "\u00a710C MS-114"
+    ],
+    "category": "ui",
+    "subcategory": "sites-list",
+    "task_type": "T3-ui",
+    "parent_feature": "14-MULTI-SITE-e site mgmt UI",
+    "context_budget": "50k",
+    "estimated_effort": "2-3h",
+    "description": "Server Component sites list with filter (type/active/search) + module-count + last_sync display + Admin-only Edit/Decommission row actions + CSV export Server Action.",
+    "details": "Server Component sites list with filter (type/active/search) + module-count + last_sync display + Admin-only Edit/Decommission row actions + CSV export Server Action. Scope: Server Component page /(multi-site)/sites with search + filter table of all sites matching prototype 1:1. Touches: apps/web/app/(multi-site)/sites/page.tsx, apps/web/app/(multi-site)/sites/_components/sites-list-table.tsx, apps/web/app/(multi-site)/sites/_actions/export-sites-csv.ts, apps/web/app/(multi-site)/sites/_components/__tests__/sites-list-table.test.tsx. Constraints: 1. apps/web/app/(multi-site)/sites/page.tsx (RSC): queries Drizzle sites filtered by URL search params (type, active, search via ILIKE). 2. apps/web/app/(multi-site)/sites/_components/sites-list-table.tsx: shadcn DataTable with columns [Code, Name, Country, Timezone, Type Badge, Module Count, Last Sync, Status, Actions]. 3. Row click \u2192 router.push(. Distinguished from sibling 14-multi-site tasks by its narrow sites-list focus against PRD \u00a710C MS-114. AC count consolidated from 7\u21924 by Fixer F14a 2026-05-14 (no coverage lost)",
+    "scope_files": [
+      "apps/web/app/(multi-site)/sites/page.tsx [create]",
+      "apps/web/app/(multi-site)/sites/_components/sites-list-table.tsx [create]",
+      "apps/web/app/(multi-site)/sites/_actions/export-sites-csv.ts [create]",
+      "apps/web/app/(multi-site)/sites/_components/__tests__/sites-list-table.test.tsx [create]",
+      "prototypes/design/Monopilot Design System/multi-site/sites-screens.jsx [modify]"
+    ],
+    "out_of_scope": [
+      "Do not implement site detail (T-022).",
+      "Do not implement decommission flow (T-024).",
+      "Do not implement create wizard (T-023)."
+    ],
+    "dependencies": [
+      "T-002"
+    ],
+    "cross_module_dependencies": [],
+    "parallel_safe_with": [
+      "T-020",
+      "T-022"
+    ],
+    "acceptance_criteria": [
+      "Given page renders, when compared to prototypes/design/Monopilot Design System/multi-site/sites-screens.jsx:4-100, then filter bar + columns + actions + badges match \u2014 RTL parity + Playwright trace.",
+      "Given URL ?search=apex, when page renders, then table filtered to ILIKE '%apex%'; AND given empty list when page renders then empty state per UI-PROTOTYPE-PARITY-POLICY.md with Admin-only Create Site CTA.",
+      "Given user role != admin, when page renders, then Edit/Decommission NOT rendered (Server Component gate); AND given row click on site_X when navigation settles then URL is /multi-site/sites/site_X.",
+      "Given Export CSV clicked, when action settles, then CSV with 8-col header streamed with content-type 'text/csv'."
+    ],
+    "test_strategy": [
+      "RED: RTL parity + filter + Admin gate + CSV export + empty + row nav before page exists.",
+      "Run 'pnpm --filter @monopilot/web vitest run sites-list-table' + Playwright sites-list.spec.ts.",
+      "For UI parity, capture screenshots/artifacts and Playwright trace/video where applicable; attach artifact paths in closeout."
+    ],
+    "risk_red_lines": [
+      "Do not paste prototype JSX wholesale.",
+      "Do not client-side hide Edit/Decommission \u2014 Server Component gate.",
+      "Do not inline decommission \u2014 opens T-024 modal.",
+      "Do not bypass RLS \u2014 sites org-scoped.",
+      "Do not synchronously export CSV \u2014 stream rows."
+    ],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review",
+      "frontend-design"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status",
+        "screenshot_and_playwright_trace_evidence"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": true,
+    "prototype_index_entry": "ms_sites_list",
+    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md"
+  }
+}

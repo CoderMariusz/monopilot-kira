@@ -1,0 +1,115 @@
+{
+  "title": "T-018 \u2014 Master-data Conflict Resolve modal + V-MS-30 e-sig wiring (MS-103, BL-MS-02 fix)",
+  "prompt": "# T-018 \u2014 Master-data Conflict Resolve modal + V-MS-30 e-sig wiring\n\nPRD: docs/prd/14-MULTI-SITE-PRD.md \u00a710B MS-103, \u00a711.6 V-MS-30 (e-sig BRCGS gate), \u00a714.4\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\nPrototype: prototypes/design/Monopilot Design System/multi-site/modals.jsx:272-354 (conflict_resolve_modal)\nTranslation notes: _meta/prototype-labels/translation-notes-multi-site.md \u00a7M-05 (BL-MS-02)\n\n## Goal\nImplement the wide Dialog for resolving master-data replication conflicts between org-level master and site-level value. Per-field source/site radio choices + Choose All buttons + mandatory reason + e-signature gate (BL-MS-02 fix per V-MS-30 \u2014 wire to existing 02-SET re-auth modal not bespoke).\n\n## Implementation contract\n1. apps/web/app/(multi-site)/conflicts/_components/conflict-resolve-modal.tsx \u2014 shadcn Dialog wide (max-w-4xl), diff table with shadcn RadioGroup per row, Choose All buttons via form.setValue loop, shadcn Select for reason (zod .min(1) gate on Apply button), conditional e-sig input gated on `org_settings.esig_required` from 02-SET.\n2. Server Action resolveConflict({entityId, siteId, fieldChoices, reason, notes, esig?}):\n   - V-MS-30: if org.esig_required=true and !esig \u2192 throw EsigRequired; if esig provided \u2192 call 02-SET reauthenticate(password, user_id) which returns boolean; if false \u2192 throw EsigInvalid.\n   - Apply chosen field values to the site record.\n   - Write conflict_resolution audit_events row with full fieldChoices diff (before_values + after_values JSONB).\n   - Mark replication_conflicts.resolved_at = now(), resolved_by = actor.\n3. Wired to ConflictResolveModal via Server Action; previous prototype stub for password is replaced with real auth check.\n4. Tests: V-MS-30 e-sig present+valid path; V-MS-30 e-sig present+invalid path (auth check returns false); V-MS-30 e-sig missing when required path; audit row written with full diff; conflict marked resolved.\n\n## Files\n- apps/web/app/(multi-site)/conflicts/_components/conflict-resolve-modal.tsx [create]\n- apps/web/app/(multi-site)/conflicts/_actions/resolve-conflict.ts [create]\n- apps/web/app/(multi-site)/conflicts/_components/__tests__/conflict-resolve-modal.test.tsx [create]\n- apps/web/app/(multi-site)/conflicts/_actions/__tests__/resolve-conflict.test.ts [create]\n- prototypes/design/Monopilot Design System/multi-site/modals.jsx [ref]\n\n## Acceptance criteria\n<!-- AC count consolidated from 9\u21924 by Fixer F14a 2026-05-14 (no coverage lost) -->\n1. Given the modal opens, when compared to modals.jsx:272-354 (conflict_resolve_modal), then wide layout, diff table, per-field RadioGroup, Choose All buttons, reason select, Apply Resolution button match \u2014 RTL parity snapshot + Playwright trace.\n2. Given org.esig_required=true and Apply is clicked without esig, when Server Action runs, then EsigRequired is thrown and audit_events has no resolution row (V-MS-30).\n3. Given org.esig_required=true, esig='wrong-pw', when Server Action calls 02-SET reauthenticate, then it returns false and EsigInvalid is thrown.\n4. Given org.esig_required=false, when Apply is clicked, then resolution proceeds without prompting for esig (V-MS-30 conditional).\n5. Given Apply Resolution settles successfully, when audit_events is queried, then exactly one row exists with action='master_data_conflict_resolved', entity_id=conflictRow.entity_id, before_values+after_values JSONB diff present.\n6. Given resolution settles, when replication_conflicts is re-queried, then resolved_at IS NOT NULL and resolved_by = current user.\n7. Given user role != admin, when modal is opened from the conflicts list, then Apply Resolution button is disabled (Server Component permission gate from getServerSession).\n8. Given Choose All Source button clicked, when state updates, then every diff row's RadioGroup is set to 'source' (verified via form.getValues()).\n\n## Test strategy\n- RED: RTL parity + 3 V-MS-30 paths (required+missing, required+invalid, required+valid, not-required) + audit row + permission gate + Choose All before component exists.\n- Run 'pnpm --filter @monopilot/web vitest run conflict-resolve-modal' + Playwright conflict-resolve.spec.ts.\n\n## Prototype parity\nReference prototype: prototypes/design/Monopilot Design System/multi-site/modals.jsx:272-354 (conflict_resolve_modal).\nImplement matching the canonical layout 1:1 per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`. Capture RTL parity snapshot + Playwright trace as closeout evidence.\n\n## Risk red lines\n- Do not stub the password field like the prototype does \u2014 BL-MS-02 explicit fix; must call 02-SET reauthenticate.\n- Do not log esig password \u2014 T-117 redact MUST include 'esig' field.\n- Do not let Server Action proceed if V-MS-30 is required and esig missing/invalid \u2014 fail-closed.\n- Do not write resolution audit row before esig verification settles \u2014 audit must reflect actual resolution event.\n- Do not couple the modal to a hardcoded entity_type \u2014 must work for any master_data replication_conflict.",
+  "labels": [
+    "prd",
+    "ui",
+    "conflict-resolve",
+    "T3-ui",
+    "p1-bug-fix"
+  ],
+  "priority": 50,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-018",
+    "source_prd": "docs/prd/14-MULTI-SITE-PRD.md",
+    "prd_refs": [
+      "\u00a710B MS-103",
+      "\u00a711.6 V-MS-30",
+      "\u00a714.4"
+    ],
+    "category": "ui",
+    "subcategory": "conflict-resolve",
+    "task_type": "T3-ui",
+    "parent_feature": "14-MULTI-SITE-d master data sync",
+    "context_budget": "50k",
+    "estimated_effort": "2-3h",
+    "description": "Wide-modal side-by-side diff table with per-field source/site radio choices + audit reason + e-signature password gate WIRED to auth re-validation (closes BL-MS-02 + V-MS-30) + master_data_conflict.resolved audit log.",
+    "details": "Wide-modal side-by-side diff table with per-field source/site radio choices + audit reason + e-signature password gate WIRED to auth re-validation (closes BL-MS-02 + V-MS-30) + master_data_conflict.resolved audit log. Scope: Implement the wide Dialog for resolving master-data replication conflicts between org-level master and site-level value. Touches: apps/web/app/(multi-site)/conflicts/_components/conflict-resolve-modal.tsx, apps/web/app/(multi-site)/conflicts/_actions/resolve-conflict.ts, apps/web/app/(multi-site)/conflicts/_components/__tests__/conflict-resolve-modal.test.tsx, apps/web/app/(multi-site)/conflicts/_actions/__tests__/resolve-conflict.test.ts. Constraints: 1. apps/web/app/(multi-site)/conflicts/_components/conflict-resolve-modal.tsx \u2014 shadcn Dialog wide (max-w-4xl), diff table with shadcn RadioGroup per row, Choose All buttons via form.setValue loop, shadcn Select for reason (zod .min(1) gate on Apply button), conditional e-sig input gated on `org_settings.esig_required` from 02-SET. 2. Server Action. Distinguished from sibling 14-multi-site tasks by its narrow conflict-resolve focus against PRD \u00a710B MS-103, \u00a711.6 V-MS-30, \u00a714.4. AC count consolidated from 9\u21924 by Fixer F14a 2026-05-14 (no coverage lost)",
+    "scope_files": [
+      "apps/web/app/(multi-site)/conflicts/_components/conflict-resolve-modal.tsx [create]",
+      "apps/web/app/(multi-site)/conflicts/_actions/resolve-conflict.ts [create]",
+      "apps/web/app/(multi-site)/conflicts/_components/__tests__/conflict-resolve-modal.test.tsx [create]",
+      "apps/web/app/(multi-site)/conflicts/_actions/__tests__/resolve-conflict.test.ts [create]",
+      "prototypes/design/Monopilot Design System/multi-site/modals.jsx [modify]"
+    ],
+    "out_of_scope": [
+      "Do not implement master data sync orchestration here (T-019 retry/run-sync covers the trigger).",
+      "Do not modify 02-SET reauthenticate \u2014 consume the existing API.",
+      "Do not implement P2 conflict prevention (LWW policy)."
+    ],
+    "dependencies": [
+      "T-017"
+    ],
+    "cross_module_dependencies": [
+      {
+        "module": "02-settings",
+        "task_id": "reauthenticate",
+        "reason": "V-MS-30 e-sig calls 02-SET reauthenticate API (OQ-MS-11 resolves to reuse, not bespoke component)."
+      },
+      {
+        "module": "00-foundation",
+        "task_id": "T-117",
+        "reason": "Observability redact MUST include 'esig' field."
+      },
+      {
+        "module": "00-foundation",
+        "task_id": "T-124",
+        "reason": "e-signature platform primitive (per foundation list)."
+      }
+    ],
+    "parallel_safe_with": [
+      "T-019"
+    ],
+    "acceptance_criteria": [
+      "Given modal opens, when compared to prototypes/design/Monopilot Design System/multi-site/modals.jsx:272-354, then wide layout, diff table, RadioGroup per field, Choose All, reason select, Apply button match \u2014 RTL parity + Playwright trace.",
+      "Given org.esig_required=true and Apply without esig, when Server Action runs, then EsigRequired thrown; no audit row (V-MS-30); AND given org.esig_required=true esig='wrong-pw' when Server Action runs then authentication failure returned; AND given org.esig_required=false when Apply clicked then resolution proceeds without esig prompt.",
+      "Given Apply settles, when audit_events queried, then 1 row action='master_data_conflict_resolved', entity_id=conflictRow.entity_id, before_values+after_values present; AND given resolution settles when replication_conflicts queried then resolved_at IS NOT NULL and resolved_by populated.",
+      "Given user role != admin, when modal opens, then Apply Resolution button disabled (Server Component permission gate); AND given Choose All Source clicked when state updates then every diff row RadioGroup set to 'source'."
+    ],
+    "test_strategy": [
+      "RED: RTL parity + 4 V-MS-30 paths + audit row + permission gate + Choose All before component exists.",
+      "Run 'pnpm --filter @monopilot/web vitest run conflict-resolve-modal' + Playwright conflict-resolve.spec.ts.",
+      "For UI parity, capture screenshots/artifacts and Playwright trace/video where applicable; attach artifact paths in closeout."
+    ],
+    "risk_red_lines": [
+      "Do not stub password field \u2014 BL-MS-02 explicit fix; must call 02-SET reauthenticate.",
+      "Do not log esig password \u2014 T-117 redact MUST include 'esig'.",
+      "Do not let Server Action proceed if V-MS-30 esig missing/invalid \u2014 fail-closed.",
+      "Do not write resolution audit before esig settles.",
+      "Do not couple modal to hardcoded entity_type."
+    ],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review",
+      "frontend-design"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status",
+        "screenshot_and_playwright_trace_evidence"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": true,
+    "prototype_index_entry": "conflict_resolve_modal",
+    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md"
+  }
+}

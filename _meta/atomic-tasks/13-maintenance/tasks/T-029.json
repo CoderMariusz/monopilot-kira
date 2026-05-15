@@ -1,0 +1,90 @@
+{
+  "title": "T-029 — Register MNT-001..MNT-014 in 12-Reporting dashboards_catalog (MNT §10, cross-module)",
+  "prompt": "# T-029 — Register dashboards in 12-Reporting catalog\n\nPRD: docs/prd/13-MAINTENANCE-PRD.md §10.1, §10.2 (Dashboards rejestrowane w 12-REPORTING `dashboards_catalog`), §13.1\nCross-module: 12-REPORTING-PRD.md (dashboards_catalog metadata-driven registration)\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nSeed metadata rows in 12-Reporting `dashboards_catalog` for all 6 P1 (MNT-001..006) + 8 P2-evolving (MNT-007..014) dashboards. P1 rows active; P2 rows status='evolving' (rendered but disabled). Provides the entry-point map for dashboard discoverability in Reporting hub.\n\n## Pre-flight\nVerify 12-Reporting `dashboards_catalog` table exists. If 12-Reporting module has NOT been bootstrapped, this task is BLOCKED — escalate; otherwise idempotent seed.\n\n## Implementation contract\n1. Seed migration `packages/db/migrations/NNNN_maintenance_dashboards_catalog_seed.sql` inserting 14 rows into `dashboards_catalog` per PRD §10.1/§10.2:\n   - MNT-001 MWO Worklist (Technician view), MNT-002 PM Schedule Calendar, MNT-003 Calibration Health, MNT-004 Spare Parts Stock Status, MNT-005 Equipment Health (MTBF/MTTR), MNT-006 Maintenance Manager Overview — all status='P1_active'.\n   - MNT-007..014 (8 P2 dashboards) — all status='P2_evolving'.\n2. Each row carries: `dashboard_id` (e.g., 'mnt-001'), `module='maintenance'`, `title`, `description`, `route` (e.g., '/maintenance' for MNT-001..006 dashboard cluster + per-dashboard anchors), `required_permission`, `data_source` (table or MV name), `marker` ([UNIVERSAL]/[EVOLVING]).\n3. Migration is idempotent: `ON CONFLICT (dashboard_id) DO NOTHING`.\n4. Vitest covering: 14 rows after migration; required_permission column is non-empty for all rows; P2 rows have status='P2_evolving'; re-run is no-op.\n\n## Files\n- packages/db/migrations/NNNN_maintenance_dashboards_catalog_seed.sql [create]\n- packages/db/__tests__/maintenance-dashboards-catalog-seed.test.ts [create]\n\n## Acceptance criteria\n1. Given migration runs, when SELECT FROM dashboards_catalog WHERE module='maintenance' executes, then 14 rows are present.\n2. Given the 6 P1 rows, when inspected, then status='P1_active'; given 8 P2 rows, then status='P2_evolving'.\n3. Given each row, when required_permission column is read, then it is non-empty (matches `mnt.*` perms from T-001).\n4. Given migration re-runs, when checked, then ON CONFLICT DO NOTHING and no error.\n\n## Test strategy\n- RED: maintenance-dashboards-catalog-seed.test.ts asserting all four ACs.\n- Run `pnpm --filter db migrate && pnpm --filter db test maintenance-dashboards-catalog-seed`.\n\n## Risk red lines\n- Do not modify dashboards_catalog schema — 12-Reporting owns it.\n- Do not seed if 12-Reporting catalog table absent — BLOCK and escalate.\n- Do not write Reporting dashboards UI here — 12-Reporting task.\n- Do not register dashboards with missing required_permission (would break RBAC discoverability).",
+  "labels": [
+    "prd",
+    "data",
+    "cross-module",
+    "T5-seed"
+  ],
+  "priority": 50,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-029",
+    "source_prd": "docs/prd/13-MAINTENANCE-PRD.md",
+    "prd_refs": [
+      "§10.1",
+      "§10.2",
+      "§13.1"
+    ],
+    "category": "data",
+    "subcategory": "dashboards-catalog-seed",
+    "task_type": "T5-seed",
+    "parent_feature": "13-MAINTENANCE-c",
+    "context_budget": "30k",
+    "estimated_effort": "1-2h",
+    "description": "Seed 6 P1 + 8 P2 dashboard metadata rows into 12-Reporting dashboards_catalog per PRD §10.",
+    "details": "Cross-module dependency on 12-Reporting catalog table. BLOCKED if 12-Reporting absent. Idempotent ON CONFLICT.",
+    "scope_files": [
+      "packages/db/migrations/NNNN_maintenance_dashboards_catalog_seed.sql [create]",
+      "packages/db/__tests__/maintenance-dashboards-catalog-seed.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Dashboards_catalog schema (12-Reporting)",
+      "Reporting UI rendering dashboards (12-Reporting)",
+      "P2 evolving dashboards (deferred)"
+    ],
+    "dependencies": [
+      "T-001"
+    ],
+    "parallel_safe_with": [
+      "T-013",
+      "T-018",
+      "T-022"
+    ],
+    "acceptance_criteria": [
+      "Given migration runs, when SELECT FROM dashboards_catalog WHERE module='maintenance' executes, then 14 rows are present",
+      "Given the 6 P1 rows, when inspected, then status='P1_active'; given 8 P2 rows, then status='P2_evolving'",
+      "Given each row, when required_permission column read, then it is non-empty (mnt.*)",
+      "Given migration re-runs, when checked, then ON CONFLICT DO NOTHING and no error"
+    ],
+    "test_strategy": [
+      "RED: maintenance-dashboards-catalog-seed.test.ts asserting all four ACs",
+      "Run `pnpm --filter db migrate && pnpm --filter db test maintenance-dashboards-catalog-seed`"
+    ],
+    "risk_red_lines": [
+      "Do not modify dashboards_catalog schema (12-Reporting owns)",
+      "Do not seed if 12-Reporting absent — escalate",
+      "Do not write Reporting UI here",
+      "Do not register dashboards with missing required_permission"
+    ],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": false
+  }
+}

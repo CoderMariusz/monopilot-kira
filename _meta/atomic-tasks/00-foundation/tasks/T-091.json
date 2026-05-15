@@ -1,0 +1,85 @@
+{
+  "title": "T-091 — SCIM Group provisioning (POST/PATCH /Groups, members semantics) (FT-031)",
+  "prompt": "# T-091 — SCIM Group provisioning (POST/PATCH /Groups, members semantics) (FT-031)\n\nPRD: `docs/prd/00-FOUNDATION-PRD.md` — sections: §5.x, §8.x\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`\nOriginal carry-forward ID: **FT-031** (from `_meta/audits/2026-05-07-foundation-final-carry-forward-backlog.md`)\nSeverity: **P1** (L effort)\n\n## Goal\nSCIM Group CRUD with members add/remove semantics + role mapping per tenant policy.\n\n## Implementation contract\n1. apps/web/app/api/scim/Groups/route.ts: GET list + POST create.\n2. apps/web/app/api/scim/Groups/[id]/route.ts: GET single + PATCH (add/remove members) + DELETE.\n3. groups.ts maps SCIM group displayName → tenant role per `tenant_idp_config.scim_group_role_map` (JSONB).\n4. members add/remove triggers grantRole/revokeRole through the existing audited path.\n5. Tests cover: create group, add 2 members, remove 1 member, delete group, missing-id 404.\n\n## Files (scope)\n- apps/web/app/api/scim/Groups/route.ts [create]\n- apps/web/app/api/scim/Groups/[id]/route.ts [create]\n- packages/auth/src/scim/groups.ts [create]\n- packages/auth/src/scim/__tests__/groups.test.ts [create]\n\n## Acceptance criteria\n1. Given a valid SCIM bearer + tenant, when POST /Groups runs with displayName, then a row is created and an audit_events row is logged.\n2. Given a group exists, when PATCH /Groups/{id} adds two member refs, then grantRole is called twice with the mapped role.\n3. Given PATCH /Groups/{id} removes a member, then revokeRole is called once.\n4. Given DELETE /Groups/{id}, then the group is removed and all member roles are revoked via the audited path; AND Given an unknown id, when GET /Groups/{id} runs, then 404 returned.\n## Test strategy\n- RED: write groups.test.ts asserting all five ACs before implementation.\n- Mock Supabase admin via vi.fn().\n- Run `pnpm --filter @monopilot/auth test groups`.\n\n## Risk red lines\n- Do not bypass audit_events on member changes.\n- Do not allow PATCH to grant roles outside the tenant role map.\n- Do not log the SCIM bearer plaintext.\n\n## Closeout evidence\nProvide: changed_files, test_commands_and_results, acceptance_criteria_status (per AC), deviations_from_prd, git_status. Use the test-driven-development skill (RED-first) and requesting-code-review at GREEN.",
+  "labels": [
+    "prd",
+    "auth",
+    "wave-d-carry-forward",
+    "wave-d-followup",
+    "scim",
+    "T2-api"
+  ],
+  "priority": 50,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-091",
+    "source_prd": "docs/prd/00-FOUNDATION-PRD.md",
+    "prd_refs": [
+      "§5.x",
+      "§8.x"
+    ],
+    "original_carry_forward_id": "FT-031",
+    "category": "auth",
+    "subcategory": "scim",
+    "task_type": "T2-api",
+    "parent_feature": "00-FOUNDATION-i",
+    "context_budget": "50k",
+    "estimated_effort": "1-2d",
+    "description": "Implement SCIM 2.0 Group provisioning endpoints (POST /Groups, PATCH /Groups/{id}, GET /Groups) including members add/remove semantics mapped to system roles.",
+    "details": "T-013 shipped /Users but not /Groups. Entra ID + Okta sync groups too. Implement Group CRUD with members[] semantics per SCIM 2.0 RFC 7644 §3.5 (PATCH add/remove operations).\n\nAC count consolidated from 5→4 by Fixer F7 2026-05-14 (no coverage lost).",
+    "scope_files": [
+      "apps/web/app/api/scim/Groups/route.ts [create]",
+      "apps/web/app/api/scim/Groups/[id]/route.ts [create]",
+      "packages/auth/src/scim/groups.ts [create]",
+      "packages/auth/src/scim/__tests__/groups.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not change SCIM /Users endpoints."
+    ],
+    "dependencies": [],
+    "parallel_safe_with": [],
+    "acceptance_criteria": [
+      "Given a valid SCIM bearer + tenant, when POST /Groups runs with displayName, then a row is created and an audit_events row is logged.",
+      "Given a group exists, when PATCH /Groups/{id} adds two member refs, then grantRole is called twice with the mapped role.",
+      "Given PATCH /Groups/{id} removes a member, then revokeRole is called once.",
+      "Given DELETE /Groups/{id}, then the group is removed and all member roles are revoked via the audited path; AND Given an unknown id, when GET /Groups/{id} runs, then 404 returned."
+    ],
+    "test_strategy": [
+      "RED: write groups.test.ts asserting all five ACs before implementation.",
+      "Mock Supabase admin via vi.fn().",
+      "Run `pnpm --filter @monopilot/auth test groups`."
+    ],
+    "risk_red_lines": [
+      "Do not bypass audit_events on member changes.",
+      "Do not allow PATCH to grant roles outside the tenant role map.",
+      "Do not log the SCIM bearer plaintext."
+    ],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

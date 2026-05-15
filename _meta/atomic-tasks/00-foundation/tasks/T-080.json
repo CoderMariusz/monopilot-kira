@@ -1,0 +1,89 @@
+{
+  "title": "T-080 — bootstrap org.platform.admin Apex seed runbook + migration (FT-020)",
+  "prompt": "# T-080 — bootstrap org.platform.admin Apex seed runbook + migration (FT-020)\n\nPRD: `docs/prd/00-FOUNDATION-PRD.md` — sections: §3, §4.2, §8\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`\nOriginal carry-forward ID: **FT-020** (from `_meta/audits/2026-05-07-foundation-final-carry-forward-backlog.md`)\nSeverity: **P0** (S effort)\n\n## Goal\nSeed org.platform.admin into Apex tenant with a runbook and an idempotent assignment script.\n\n## Implementation contract\n1. Migration 030 INSERT ... ON CONFLICT DO NOTHING the role row into roles + binds default permissions.\n2. Runbook walks ops through `pnpm seed:platform-admin --email ops@apex.local` and verification.\n3. Script is idempotent: re-running with the same email is a no-op.\n4. Unit test mocks DB and asserts idempotent behavior + audit_events row creation.\n\n## Files (scope)\n- packages/db/migrations/030-bootstrap-platform-admin.sql [create]\n- docs/runbooks/platform-admin-bootstrap.md [create]\n- scripts/seed-platform-admin.ts [create]\n- scripts/__tests__/seed-platform-admin.test.ts [create]\n\n## Acceptance criteria\n1. Given migration 030 applied, when roles is inspected for the Apex org, then org.platform.admin row exists.\n2. Given the seed script is run twice with the same --email, when both runs complete, then roles row count is unchanged and an audit_events row is logged once per first grant only.\n3. Given the runbook is followed by ops on a clean Supabase, when complete, then `org.platform.admin` is granted to the named human and the canary-upgrade routes return 200 (not 403).\n\n## Test strategy\n- RED: write seed-platform-admin.test.ts asserting idempotency before script exists.\n- Mock DB pool via vi.fn().\n- Run `pnpm test seed-platform-admin`.\n\n## Risk red lines\n- P0 deploy blocker — do not merge without GREEN evidence on staging\n- Do not seed the role to a default email; require an --email argument.\n- Do not skip the idempotency assertion.\n- Do not log the granted user's email in plaintext beyond audit_events.\n\n## Closeout evidence\nProvide: changed_files, test_commands_and_results, acceptance_criteria_status (per AC), deviations_from_prd, git_status. Use the test-driven-development skill (RED-first) and requesting-code-review at GREEN.",
+  "labels": [
+    "prd",
+    "ops",
+    "wave-d-carry-forward",
+    "p0-blocker",
+    "wave-d-followup",
+    "bootstrap",
+    "T5-seed"
+  ],
+  "priority": 90,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-080",
+    "source_prd": "docs/prd/00-FOUNDATION-PRD.md",
+    "prd_refs": [
+      "§3",
+      "§4.2",
+      "§8"
+    ],
+    "original_carry_forward_id": "FT-020",
+    "category": "ops",
+    "subcategory": "bootstrap",
+    "task_type": "T5-seed",
+    "parent_feature": "00-FOUNDATION-h",
+    "context_budget": "50k",
+    "estimated_effort": "1-4h",
+    "description": "Bootstrap org.platform.admin for the Apex tenant via migration + runbook; without this seed, T-039's canary-upgrade Server Actions return 403 in production.",
+    "details": "T-039 ships canary-upgrade Server Actions gated on `org.platform.admin` but no user currently holds the role. Migration seeds the role into Apex; runbook documents how an ops engineer assigns the first human admin; idempotent script lets ops re-run safely.",
+    "scope_files": [
+      "packages/db/migrations/030-bootstrap-platform-admin.sql [create]",
+      "docs/runbooks/platform-admin-bootstrap.md [create]",
+      "scripts/seed-platform-admin.ts [create]",
+      "scripts/__tests__/seed-platform-admin.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not change role-permissions mapping (FT-018)."
+    ],
+    "dependencies": [],
+    "parallel_safe_with": [],
+    "acceptance_criteria": [
+      "Given migration 030 applied, when roles is inspected for the Apex org, then org.platform.admin row exists.",
+      "Given the seed script is run twice with the same --email, when both runs complete, then roles row count is unchanged and an audit_events row is logged once per first grant only.",
+      "Given the runbook is followed by ops on a clean Supabase, when complete, then `org.platform.admin` is granted to the named human and the canary-upgrade routes return 200 (not 403)."
+    ],
+    "test_strategy": [
+      "RED: write seed-platform-admin.test.ts asserting idempotency before script exists.",
+      "Mock DB pool via vi.fn().",
+      "Run `pnpm test seed-platform-admin`."
+    ],
+    "risk_red_lines": [
+      "P0 deploy blocker — do not merge without GREEN evidence on staging",
+      "Do not seed the role to a default email; require an --email argument.",
+      "Do not skip the idempotency assertion.",
+      "Do not log the granted user's email in plaintext beyond audit_events."
+    ],
+    "skills": [
+      "test-driven-development",
+      "verification-before-completion",
+      "systematic-debugging",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

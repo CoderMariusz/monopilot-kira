@@ -1,0 +1,82 @@
+{
+  "title": "T-082 — owner-pool memoization + request-scoped actor org binding for upgrade actions (FT-022)",
+  "prompt": "# T-082 — owner-pool memoization + request-scoped actor org binding for upgrade actions (FT-022)\n\nPRD: `docs/prd/00-FOUNDATION-PRD.md` — sections: §5, §8\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`\nOriginal carry-forward ID: **FT-022** (from `_meta/audits/2026-05-07-foundation-final-carry-forward-backlog.md`)\nSeverity: **P1** (M effort)\n\n## Goal\nMemoize owner-pool per request and explicitly bind actorOrgId in upgrade-action.\n\n## Implementation contract\n1. Introduce `getRequestOwnerPool()` that caches per-request via Node async-local-storage.\n2. `withActorOrgBinding(actorUserId)` wraps each Server Action: resolves the actor's org from `user_org_memberships`, sets `app.actor_org_id`, and asserts the URL-provided orgId matches.\n3. Mismatch raises 403 'actor_org_mismatch' before any DB write.\n4. Tests assert request-scoped reuse and mismatch rejection.\n\n## Files (scope)\n- packages/upgrades/src/upgrade-action.ts [modify]\n- packages/upgrades/src/__tests__/upgrade-action-binding.test.ts [create]\n\n## Acceptance criteria\n1. Given two upgrade-action calls in the same request, when both run, then the same owner-pool client reference is used.\n2. Given a forged URL orgId different from the actor's actual org, when the action runs, then it returns 403 'actor_org_mismatch'.\n3. Given a same-org call, when the action runs, then `app.actor_org_id` is set in session and the action succeeds.\n\n## Test strategy\n- RED: write upgrade-action-binding.test.ts asserting request-scoped reuse + mismatch rejection before implementation.\n- Run `pnpm --filter @monopilot/upgrades test upgrade-action-binding`.\n\n## Risk red lines\n- Do not leak the owner-pool client across requests.\n- Do not skip the actor-org assertion.\n- Do not log actor_org_id as PII.\n\n## Closeout evidence\nProvide: changed_files, test_commands_and_results, acceptance_criteria_status (per AC), deviations_from_prd, git_status. Use the test-driven-development skill (RED-first) and requesting-code-review at GREEN.",
+  "labels": [
+    "prd",
+    "auth",
+    "wave-d-carry-forward",
+    "wave-d-followup",
+    "upgrades",
+    "rls",
+    "T2-api"
+  ],
+  "priority": 50,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-082",
+    "source_prd": "docs/prd/00-FOUNDATION-PRD.md",
+    "prd_refs": [
+      "§5",
+      "§8"
+    ],
+    "original_carry_forward_id": "FT-022",
+    "category": "auth",
+    "subcategory": "upgrades",
+    "task_type": "T2-api",
+    "parent_feature": "00-FOUNDATION-h",
+    "context_budget": "50k",
+    "estimated_effort": "4-8h",
+    "description": "Memoize owner-pool clients per request and bind actor org explicitly on every upgrade Server Action.",
+    "details": "The canary-upgrade Server Action currently re-creates an owner-pool client per call and reads orgId from the URL. Memoize the client per request and explicitly bind actor org via a request-scoped helper.",
+    "scope_files": [
+      "packages/upgrades/src/upgrade-action.ts [modify]",
+      "packages/upgrades/src/__tests__/upgrade-action-binding.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not refactor the upgrade orchestrator (separate FT)."
+    ],
+    "dependencies": [],
+    "parallel_safe_with": [],
+    "acceptance_criteria": [
+      "Given two upgrade-action calls in the same request, when both run, then the same owner-pool client reference is used.",
+      "Given a forged URL orgId different from the actor's actual org, when the action runs, then it returns 403 'actor_org_mismatch'.",
+      "Given a same-org call, when the action runs, then `app.actor_org_id` is set in session and the action succeeds."
+    ],
+    "test_strategy": [
+      "RED: write upgrade-action-binding.test.ts asserting request-scoped reuse + mismatch rejection before implementation.",
+      "Run `pnpm --filter @monopilot/upgrades test upgrade-action-binding`."
+    ],
+    "risk_red_lines": [
+      "Do not leak the owner-pool client across requests.",
+      "Do not skip the actor-org assertion.",
+      "Do not log actor_org_id as PII."
+    ],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

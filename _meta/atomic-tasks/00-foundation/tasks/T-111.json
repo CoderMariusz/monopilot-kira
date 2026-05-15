@@ -1,0 +1,103 @@
+{
+  "title": "T-111 — apps/worker scaffold + empty job registry (P0 blocker for outbox/cron/GDPR)",
+  "prompt": "# T-111 — apps/worker scaffold + empty job registry\n\nPRD: docs/prd/00-FOUNDATION-PRD.md §5 Tech Stack — Backend (Outbox + worker), §10 (Outbox pattern od MVP), §13 Niefunkcjonalne (DR documented + tested quarterly, RLS coverage 100%)\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nCreate the `apps/worker` package — a long-running Node.js process that hosts every Foundation-owned background job (outbox consumer T-112, GDPR cron T-114, audit-retention worker, backup verification stub T-119). PRD §10 declares the outbox pattern is required from MVP, yet no atomic task creates the deployable runtime. Multiple module tasks (NPD T-090 D365 cache sync, Settings §9.4 canary worker, Warehouse §12.4 expiry cron, Production T-041 D365 dispatcher) assume `apps/worker` already exists — confirmed by `_meta/audits/2026-05-14-architecture-and-cross-cutting-gaps.md` §1.4 and `_meta/audits/2026-05-14-prd-vs-tasks-coverage-gaps.md` Top-10 Gap #5.\n\nThis task delivers ONLY the scaffold: package + entrypoint + job registry interface + env loader + graceful shutdown + empty-registry test. Specific jobs land in T-112 (outbox consumer), T-114 (GDPR cron), and downstream module tasks.\n\n## Implementation contract\n1. Create `apps/worker/` package (`@monopilot/worker`) as a private pnpm workspace member; add to `pnpm-workspace.yaml` if `apps/*` glob does not already cover it (verify before bumping).\n2. `apps/worker/package.json` declares `name`, `private:true`, `type:\"module\"`, `main:\"./src/index.ts\"`, scripts `dev`, `start`, `test` (vitest), `lint`. Dependencies: `pg`, `dotenv`, `@monopilot/db` (workspace), `@monopilot/outbox` (workspace), `@monopilot/server` (workspace). Dev deps: `vitest`, `typescript`, `@types/node`.\n3. `apps/worker/src/index.ts` — entrypoint that (a) loads env via `dotenv` if `WORKER_DOTENV=1`, (b) constructs a single shared `pg.Pool`, (c) instantiates the JobRegistry, (d) starts the scheduler loop, (e) installs SIGTERM/SIGINT handlers that call `registry.shutdown()` and wait for in-flight handlers to drain before pool.end().\n4. `apps/worker/src/registry.ts` — exports `JobRegistry` class with `register(name: string, schedule: JobSchedule, handler: JobHandler)`, `start()`, `runOnceForTest(name)`, `shutdown()`. `JobSchedule = { kind: 'interval'; everyMs: number } | { kind: 'cron'; expr: string }` — cron evaluation deferred (out of scope; interval-only this task). `JobHandler = (ctx: JobContext) => Promise<void>` where `JobContext = { pool, logger, signal: AbortSignal }`.\n5. `apps/worker/src/env.ts` — Zod schema validating `DATABASE_URL`, optional `WORKER_INTERVAL_MS_DEFAULT` (=30_000), `WORKER_LOG_LEVEL` (=info), `NODE_ENV`. Fail-closed in prod: missing `DATABASE_URL` throws on import.\n6. `apps/worker/src/logger.ts` — minimal `console.*` shim returning structured JSON lines `{ts, level, msg, job?, err?}`; will be replaced by `@monopilot/observability` pino (T-117) — leave a [follow-up] comment + import-stable shape.\n7. `apps/worker/src/__tests__/registry.test.ts` — vitest unit tests asserting (i) empty registry starts + stops cleanly, (ii) `runOnceForTest` invokes the registered handler exactly once with the right ctx shape, (iii) SIGTERM-emulating `shutdown()` rejects new handler runs and resolves once in-flight drains.\n8. CI: add `apps/worker` to the lint matrix; `pnpm --filter @monopilot/worker test` runs in the `test` job of `.github/workflows/ci.yml` (T-122 will integrate fully — this task only needs `pnpm -r test` to pick it up via the workspace glob).\n\n## Files in scope\n- apps/worker/package.json [create]\n- apps/worker/tsconfig.json [create]\n- apps/worker/eslint.config.mjs [create]\n- apps/worker/src/index.ts [create]\n- apps/worker/src/registry.ts [create]\n- apps/worker/src/env.ts [create]\n- apps/worker/src/logger.ts [create]\n- apps/worker/src/__tests__/registry.test.ts [create]\n- pnpm-workspace.yaml [modify if needed]\n\n## Acceptance criteria\n1. Given a fresh checkout, when `pnpm install` runs at root, then `apps/worker` resolves as a workspace package and `pnpm --filter @monopilot/worker test` exits 0 with the empty-registry assertions passing.\n2. Given the JobRegistry exposes `register(name, schedule, handler)`, when two handlers are registered and `runOnceForTest('jobA')` is awaited, then jobA's handler is invoked exactly once with `{pool, logger, signal}` and jobB's handler is not invoked.\n3. Given the worker is started and SIGTERM is sent, when an in-flight handler is mid-execution, then `shutdown()` waits for it to resolve (or reject) before resolving and the pg.Pool ends.\n4. Given `DATABASE_URL` is unset and `NODE_ENV=production`, when `src/env.ts` is imported, then it throws synchronously with a fail-closed message.\n\n## Test strategy\n- RED: write `apps/worker/src/__tests__/registry.test.ts` asserting all 4 ACs before any production code; the file imports `JobRegistry`, `loadEnv`, and the entrypoint. RED command: `pnpm --filter @monopilot/worker test`.\n- GREEN: implement registry, env loader, logger shim, entrypoint to make tests pass.\n- Re-run: `pnpm --filter @monopilot/worker test`, `pnpm --filter @monopilot/worker typecheck`, `pnpm --filter @monopilot/worker lint`.\n\n## Risk red lines\n- Do not invoke any specific job (outbox/GDPR/D365) in this task — registry must be EMPTY by default; populating it is T-112 / T-114 / module tasks.\n- Do not introduce cron expression parsing in this task — interval-only schedule.\n- Do not start an HTTP server inside the worker (no `next start`, no Express).\n- Do not import `@radix-ui/*` or any UI primitive — `apps/worker` is headless.\n- Do not bypass RLS — every handler that uses `pool` MUST go through `withOrgContext`-equivalent context setting once that HOF lands (FT-001); this scaffold provides only `pool` + signal, not context.\n- Do not duplicate `pg.Pool` creation across handlers — they share the registry's single pool.\n- Do not log secrets — logger redaction is wired in T-117.",
+  "labels": [
+    "prd",
+    "infra",
+    "worker",
+    "T2-api",
+    "p0-blocker"
+  ],
+  "priority": 90,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-111",
+    "source_prd": "docs/prd/00-FOUNDATION-PRD.md",
+    "prd_refs": [
+      "§5",
+      "§10",
+      "§13"
+    ],
+    "category": "infra",
+    "subcategory": "worker-scaffold",
+    "task_type": "T2-api",
+    "parent_feature": "00-foundation-worker-runtime",
+    "context_budget": "40k",
+    "estimated_effort": "2-4h",
+    "description": "Scaffold apps/worker (@monopilot/worker) package — entrypoint, env loader, JobRegistry interface, graceful SIGTERM shutdown, empty-registry vitest. Foundation primitive blocking outbox consumer (T-112), GDPR cron (T-114), and every module-level scheduled job.",
+    "details": "Long-running Node.js process hosting Foundation background jobs. Single pg.Pool shared across handlers. Registry exposes register/start/runOnceForTest/shutdown. Interval-only schedule in this task; cron abstraction lands later. SIGTERM/SIGINT drain in-flight handlers then close pool. Env loader is Zod-validated, fail-closed in production. Logger is a structured-JSON console shim until T-117 ships pino + redaction. Tests connect no DB; use in-memory pool mock. PRD anchor: §5 Backend (Outbox + worker), §10 (Outbox pattern od MVP), §13 (DR + RLS 100%).",
+    "scope_files": [
+      "apps/worker/package.json [create]",
+      "apps/worker/tsconfig.json [create]",
+      "apps/worker/eslint.config.mjs [create]",
+      "apps/worker/src/index.ts [create]",
+      "apps/worker/src/registry.ts [create]",
+      "apps/worker/src/env.ts [create]",
+      "apps/worker/src/logger.ts [create]",
+      "apps/worker/src/__tests__/registry.test.ts [create]",
+      "pnpm-workspace.yaml [modify if needed]"
+    ],
+    "out_of_scope": [
+      "Outbox consumer wiring (T-112)",
+      "GDPR erasure cron (T-114)",
+      "Cron expression parsing / scheduler abstraction (later task)",
+      "OTel/pino instrumentation (T-116/T-117)",
+      "Module-specific jobs (D365 cache sync NPD T-090, expiry cron Warehouse §12.4)"
+    ],
+    "dependencies": [],
+    "parallel_safe_with": [
+      "T-116",
+      "T-117",
+      "T-122",
+      "T-123"
+    ],
+    "acceptance_criteria": [
+      "Given a fresh checkout, when pnpm install runs at root, then apps/worker resolves as workspace package and pnpm --filter @monopilot/worker test exits 0 with empty-registry assertions passing.",
+      "Given JobRegistry has register/runOnceForTest, when two handlers are registered and runOnceForTest('jobA') is awaited, then jobA handler invoked exactly once with {pool, logger, signal} and jobB not invoked.",
+      "Given worker is started and SIGTERM sent, when in-flight handler is mid-execution, then shutdown() waits for it to resolve before resolving and pg.Pool ends.",
+      "Given DATABASE_URL is unset and NODE_ENV=production, when src/env.ts is imported, then it throws synchronously with fail-closed message."
+    ],
+    "test_strategy": [
+      "RED: write apps/worker/src/__tests__/registry.test.ts asserting all 4 ACs before any production code; the file imports JobRegistry, loadEnv. RED command: pnpm --filter @monopilot/worker test.",
+      "GREEN: implement registry, env loader, logger shim, entrypoint to make tests pass.",
+      "Re-run: pnpm --filter @monopilot/worker test, pnpm --filter @monopilot/worker typecheck, pnpm --filter @monopilot/worker lint."
+    ],
+    "risk_red_lines": [
+      "Do not invoke any specific job (outbox/GDPR/D365) in this task — registry must be EMPTY by default; populating it is T-112 / T-114 / module tasks.",
+      "Do not introduce cron expression parsing in this task — interval-only schedule.",
+      "Do not start an HTTP server inside the worker (no next start, no Express).",
+      "Do not import any UI primitive — apps/worker is headless.",
+      "Do not bypass RLS — every handler that uses pool MUST go through withOrgContext-equivalent context setting once FT-001 lands.",
+      "Do not duplicate pg.Pool creation across handlers — share the registry single pool.",
+      "Do not log secrets — logger redaction is wired in T-117."
+    ],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "cross_module_dependencies": []
+  }
+}

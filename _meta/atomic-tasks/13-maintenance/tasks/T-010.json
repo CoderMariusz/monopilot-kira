@@ -1,0 +1,103 @@
+{
+  "title": "T-010 — MWO state machine Server Actions (request/approve/assign/start/complete/cancel) per V-MNT-01..06",
+  "prompt": "# T-010 — MWO state transition Server Actions\n\nPRD: docs/prd/13-MAINTENANCE-PRD.md §8.2 (mwo_state_machine_v1), §11.1 (V-MNT-01..06), §11.2 (V-MNT-07..09 LOTO gate), §11.4 (V-MNT-15..17 sanitation gate), §11.6 (V-MNT-22 downtime FK)\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nImplement 6 Server Actions enforcing the 6-state MWO machine (`requestMwo`, `approveMwo`, `assignMwo`, `startMwo`, `completeMwo`, `cancelMwo`). Each action validates transition against `mwo_state_machine_v1` rule (loaded from rule_definitions) and §11 V-MNT guards. RBAC enforced via `mnt.mwo.*` perms from T-001.\n\n## Pre-flight\nVerify T-001 (perms), T-004 (MWO tables), T-007 (rule registered). Verify Wave1 T-124 e-sign primitive (used by completeMwo for sign-off) and Foundation rule-engine evaluator.\n\n## Implementation contract\n1. `apps/web/app/maintenance/_actions/mwo-state.ts` — 6 Server Actions, each:\n   - Authenticates via `auth()`; rejects if no session.\n   - Asserts caller has the required `mnt.mwo.*` permission for the transition.\n   - Loads current MWO row in a transaction; validates `allowed_from`/`allowed_to` against `mwo_state_machine_v1.definition_yaml`.\n   - Enforces V-MNT guards:\n     - approveMwo: V-MNT-02 (approver != requester) — block with code `MWO_APPROVER_SAME_AS_REQUESTER`.\n     - startMwo: V-MNT-03 (assigned_to NOT NULL, started_at NOT NULL); V-MNT-07 (LOTO required → loto.verified_at NOT NULL); V-MNT-15 (sanitation allergen → first_signed_by AND second_signed_by AND atp_test_result_rlu NOT NULL).\n     - completeMwo: V-MNT-04 (actual_duration_min > 0, completion_notes NOT NULL).\n     - cancelMwo: V-MNT-05 (cancellation_reason NOT NULL).\n   - Updates MWO row with new state + timestamps + actor_user_id.\n   - Emits outbox event `mwo.{new_state}` (publisher implemented in T-012; this action only writes the outbox row).\n   - Wraps everything in a single DB transaction with `SELECT … FOR UPDATE` on the MWO row.\n2. Zod input schemas for each action.\n3. Vitest with Testcontainers Postgres covering: each valid transition, each invalid transition is rejected with specific error code, each V-MNT guard fires with expected code, idempotency (re-issuing same transition is rejected with `MWO_INVALID_TRANSITION`), RBAC (caller without `mnt.mwo.approve` is rejected).\n\n## Files\n- apps/web/app/maintenance/_actions/mwo-state.ts [create]\n- apps/web/app/maintenance/_actions/mwo-state.schema.ts [create]\n- apps/web/app/maintenance/_actions/__tests__/mwo-state.test.ts [create]\n\n## Acceptance criteria\n1. Given a MWO in state='requested', when approveMwo runs with caller having `mnt.mwo.approve` AND approver != requester, then state becomes 'approved' and an outbox row `mwo.approved` is written in the same transaction.\n2. Given a MWO in state='approved' with caller being the original requester, when approveMwo runs, then it fails with code `MWO_APPROVER_SAME_AS_REQUESTER` and no state change occurs (V-MNT-02).\n3. Given a MWO on equipment.requires_loto=true and mwo_loto_checklists.verified_at IS NULL, when startMwo runs, then it fails with code `MWO_LOTO_NOT_VERIFIED` (V-MNT-07).\n4. Given a sanitation MWO with allergen_change_flag=true and missing dual sign-off OR atp_test_result_rlu, when startMwo runs, then it fails with code `MWO_SANITATION_DUAL_SIGNOFF_REQUIRED` (V-MNT-15).\n5. Given caller without `mnt.mwo.approve` perm, when approveMwo runs, then it fails with code `PERMISSION_DENIED` and HTTP 403.\n\n## Test strategy\n- RED: vitest mocking auth() + Testcontainers Postgres; assert all five ACs before code exists.\n- Run `pnpm --filter @monopilot/web vitest run apps/web/app/maintenance/_actions/__tests__/mwo-state.test.ts`.\n\n## Risk red lines\n- Do not bypass the rule_definitions YAML — actions MUST consult `mwo_state_machine_v1.definition_yaml` for allowed_from/allowed_to (workflow-as-data).\n- Do not perform transition without SELECT … FOR UPDATE (race condition).\n- Do not skip the outbox write — downstream consumers (15-OEE MTBF/MTTR, 09-quality, 12-reporting) depend on `mwo.*` events.\n- Do not call `app.current_org_id()` from Drizzle — it is invoked implicitly by RLS; callers must have set context via session middleware.\n- Do not include `mnt.loto.*` enforcement here — that is a separate Server Action in T-010 follow-up or a sub-action; this task only checks `verified_at IS NOT NULL` as a guard.",
+  "labels": [
+    "prd",
+    "api",
+    "server-action",
+    "rules-dsl",
+    "T2-api"
+  ],
+  "priority": 60,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-010",
+    "source_prd": "docs/prd/13-MAINTENANCE-PRD.md",
+    "prd_refs": [
+      "§8.2",
+      "§11.1",
+      "§11.2",
+      "§11.4",
+      "§11.6"
+    ],
+    "category": "api",
+    "subcategory": "mwo-state-actions",
+    "task_type": "T2-api",
+    "parent_feature": "13-MAINTENANCE-c",
+    "context_budget": "55k",
+    "estimated_effort": "4-5h",
+    "description": "Server Actions enforcing 6-state MWO machine + V-MNT-01..06/07/15 guards + RBAC + outbox emission.",
+    "details": "Workflow-as-data: actions consult rule_definitions.definition_yaml for allowed_from/allowed_to. SELECT FOR UPDATE prevents race. Outbox row written in same transaction.",
+    "scope_files": [
+      "apps/web/app/maintenance/_actions/mwo-state.ts [create]",
+      "apps/web/app/maintenance/_actions/mwo-state.schema.ts [create]",
+      "apps/web/app/maintenance/_actions/__tests__/mwo-state.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "LOTO apply/clear Server Actions (T-015)",
+      "Calibration record Server Action (T-016)",
+      "Spare consume Server Action (T-011)",
+      "Outbox publisher worker (T-012)",
+      "UI (T-021)"
+    ],
+    "cross_module_dependencies": [
+      "00-foundation/T-112"
+    ],
+    "dependencies": [
+      "T-001",
+      "T-004",
+      "T-007"
+    ],
+    "parallel_safe_with": [
+      "T-009",
+      "T-011",
+      "T-012"
+    ],
+    "acceptance_criteria": [
+      "Given MWO state='requested', when approveMwo runs with caller having mnt.mwo.approve AND approver != requester, then state='approved' and outbox row mwo.approved is written in same txn (foundation T-112 outbox); given caller=original requester, then fails MWO_APPROVER_SAME_AS_REQUESTER (V-MNT-02)",
+      "Given MWO on equipment.requires_loto=true and loto.verified_at IS NULL, when startMwo runs, then fails MWO_LOTO_NOT_VERIFIED (V-MNT-07); given sanitation MWO with allergen_change_flag=true and missing dual sign-off or atp_test_result_rlu, then fails MWO_SANITATION_DUAL_SIGNOFF_REQUIRED (V-MNT-15)",
+      "Given completeMwo runs, when actual_duration_min > 0 and notes present, then state='completed' and outbox row mwo.completed is written; given cancelMwo with cancellation_reason, then state='cancelled' (V-MNT-04/V-MNT-05)",
+      "Given caller without mnt.mwo.approve, when approveMwo runs, then fails PERMISSION_DENIED / 403"
+    ],
+    "test_strategy": [
+      "RED: vitest mocking auth() + Testcontainers Postgres asserting all five ACs",
+      "Run `pnpm --filter @monopilot/web vitest run apps/web/app/maintenance/_actions/__tests__/mwo-state.test.ts`"
+    ],
+    "risk_red_lines": [
+      "Do not bypass rule_definitions YAML — workflow-as-data",
+      "Do not transition without SELECT FOR UPDATE",
+      "Do not skip outbox write — downstream consumers depend on mwo.*",
+      "Do not implement LOTO apply/clear here (T-015)",
+      "Do not call app.current_org_id() from Drizzle — set via session middleware"
+    ],
+    "skills": [
+      "test-driven-development",
+      "systematic-debugging",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": false
+  }
+}

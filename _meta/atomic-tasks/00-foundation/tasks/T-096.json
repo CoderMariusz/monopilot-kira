@@ -1,0 +1,80 @@
+{
+  "title": "T-096 — swap custom jsxPreTransformPlugin → @vitejs/plugin-react-oxc (FT-036)",
+  "prompt": "# T-096 — swap custom jsxPreTransformPlugin → @vitejs/plugin-react-oxc (FT-036)\n\nPRD: `docs/prd/00-FOUNDATION-PRD.md` — sections: §5\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`\nOriginal carry-forward ID: **FT-036** (from `_meta/audits/2026-05-07-foundation-final-carry-forward-backlog.md`)\nSeverity: **P2** (S effort)\n\n## Goal\nvitest.ui.config.ts uses @vitejs/plugin-react-oxc; custom plugin removed.\n\n## Implementation contract\n1. Add `@vitejs/plugin-react-oxc` to apps/web devDependencies.\n2. vitest.ui.config.ts replaces the custom plugin with plugin-react-oxc().\n3. Remove the custom plugin file.\n4. Re-run packages/ui tests; assert no regressions.\n\n## Files (scope)\n- apps/web/vitest.ui.config.ts [modify]\n- apps/web/package.json [modify]\n\n## Acceptance criteria\n1. Given the apps/web vitest.ui.config.ts, when scanned, then it imports plugin-react-oxc and no longer references the custom plugin.\n2. Given `pnpm --filter @monopilot/web vitest run --config vitest.ui.config.ts`, when run, then all UI tests pass.\n\n## Test strategy\n- RED: existing UI test pack acts as the regression suite (no new failing test required).\n- Run `pnpm --filter @monopilot/web vitest run --config vitest.ui.config.ts`.\n\n## Risk red lines\n- Do not retain both plugins (conflicts).\n\n## Closeout evidence\nProvide: changed_files, test_commands_and_results, acceptance_criteria_status (per AC), deviations_from_prd, git_status. Use the test-driven-development skill (RED-first) and requesting-code-review at GREEN.",
+  "labels": [
+    "prd",
+    "ui",
+    "wave-d-carry-forward",
+    "wave-d-followup",
+    "tooling",
+    "T4-wiring-test"
+  ],
+  "priority": 50,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-096",
+    "source_prd": "docs/prd/00-FOUNDATION-PRD.md",
+    "prd_refs": [
+      "§5"
+    ],
+    "original_carry_forward_id": "FT-036",
+    "category": "ui",
+    "subcategory": "tooling",
+    "task_type": "T4-wiring-test",
+    "parent_feature": "00-FOUNDATION-j",
+    "context_budget": "50k",
+    "estimated_effort": "1-4h",
+    "description": "Replace the custom jsxPreTransformPlugin with @vitejs/plugin-react-oxc to align Vite/React 19 transforms across UI tests.",
+    "details": "T-037 introduced a stop-gap jsxPreTransformPlugin to coerce the React 18 JSX runtime. Once FT-033 aligns React 19, swap to the official @vitejs/plugin-react-oxc.",
+    "scope_files": [
+      "apps/web/vitest.ui.config.ts [modify]",
+      "apps/web/package.json [modify]"
+    ],
+    "out_of_scope": [
+      "Do not change apps/web/vitest.config.ts non-ui config."
+    ],
+    "dependencies": [
+      "T-093"
+    ],
+    "parallel_safe_with": [],
+    "acceptance_criteria": [
+      "Given the apps/web vitest.ui.config.ts, when scanned, then it imports plugin-react-oxc and no longer references the custom plugin.",
+      "Given `pnpm --filter @monopilot/web vitest run --config vitest.ui.config.ts`, when run, then all UI tests pass."
+    ],
+    "test_strategy": [
+      "RED: existing UI test pack acts as the regression suite (no new failing test required).",
+      "Run `pnpm --filter @monopilot/web vitest run --config vitest.ui.config.ts`."
+    ],
+    "risk_red_lines": [
+      "Do not retain both plugins (conflicts).",
+      "Do not skip the CI lint job after the plugin swap — the existing pipeline must continue to gate merges"
+    ],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

@@ -1,0 +1,101 @@
+{
+  "title": "T-017 — UI: OEE-001a/b/c A/P/Q Drilldown shared OeeFactorDrillPage (oee_availability/performance/quality_drilldown_page, 15-OEE-d)",
+  "prompt": "# T-017 — A/P/Q Drilldown pages (shared component)\n\nPRD: docs/prd/15-OEE-PRD.md §15.3 OEE-001a/b/c, §15.7 + UX prototypes/design/15-OEE-UX.md cross-links lines 1025, 1054\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\nPrototypes: prototypes/design/Monopilot Design System/oee/screens.jsx:471-543 (oee_availability_drilldown_page), :546-598 (oee_performance_drilldown_page), :600-655 (oee_quality_drilldown_page)\n\n## Goal\nThree RSC pages (`/oee/availability`, `/oee/performance`, `/oee/quality`) implemented via a single shared `<OeeFactorDrillPage>` layout component parameterised by `factor: 'A'|'P'|'Q'` per translation note. Each renders: factory factor% header card + per-line table with sparklines + factor-only loss categories table (filtered impact_dimension=A/P/Q from big_loss_categories T-005) + 7-day multi-line trend chart.\n\n## Implementation contract\n1. Shared `apps/web/app/(oee)/_components/oee-factor-drill-page.tsx`: props `{ factor: 'A'|'P'|'Q', date: string, data: FactorDrillData }`; renders the layout shared across A/P/Q.\n2. Three RSC pages: `apps/web/app/(oee)/availability/page.tsx`, `apps/web/app/(oee)/performance/page.tsx`, `apps/web/app/(oee)/quality/page.tsx` — each calls a small server-side loader (lightweight: reads oee_daily_summary + 7-day per-line sparkline data + big_loss_categories filtered by impact_dimension); passes `factor` prop and data to the shared component.\n3. Each page sources its target threshold from oee_alert_thresholds.{availability_min_pct, performance_min_pct, quality_min_pct} per line, fall back to tenant default.\n4. Quality page (T-017c) additionally renders an Alert with cross-link to 09-QUALITY holds when 09-QUALITY module is available (env flag `quality.module_enabled`); silent when off (per translation note).\n5. RTL test snapshot + parity checklist per page against its prototype line range.\n\n## Files\n- apps/web/app/(oee)/_components/oee-factor-drill-page.tsx [create]\n- apps/web/app/(oee)/availability/page.tsx [create]\n- apps/web/app/(oee)/performance/page.tsx [create]\n- apps/web/app/(oee)/quality/page.tsx [create]\n- apps/web/app/(oee)/_components/__tests__/oee-factor-drill-page.test.tsx [create]\n- prototypes/design/Monopilot Design System/oee/screens.jsx [ref]\n\n## Acceptance criteria\n1. Given the production /oee/availability page renders, when compared to prototypes/design/Monopilot Design System/oee/screens.jsx:471-543 (oee_availability_drilldown_page), then it has the factory A% header + per-line table with sparklines + A-only loss categories + 7-day trend chart — verified by RTL snapshot + parity checklist; given /oee/performance compared to lines 546-598 and /oee/quality compared to lines 600-655, parity holds with `factor` swapped.\n2. Given `<OeeFactorDrillPage>` is imported with prop `factor='P'`, when rendered, then the per-line table column reads 'Performance %' and the loss categories table filters big_loss_categories WHERE impact_dimension='P'.\n3. Given the Quality page is loaded with quality.module_enabled=true, when rendered, then an Alert cross-link `Open in 09-QUALITY holds` is present; when the flag is false, the Alert is absent.\n4. Given the task is closed out, when reviewers inspect evidence, then UI closeout includes screenshot/artifact + Playwright trace for all three pages per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`; shared component reuse is documented (single <OeeFactorDrillPage> imported by 3 pages, no duplicated layout JSX).\n\n## Test strategy\n- RED: RTL test asserting parity per page + shared component reuse + factor-conditional rendering.\n- Run `pnpm --filter @monopilot/web vitest run app/(oee)/_components/oee-factor-drill-page && pnpm --filter @monopilot/web vitest run app/(oee)/availability`.\n\n## Risk red lines\n- Do not duplicate layout JSX across A/P/Q pages — single shared <OeeFactorDrillPage> per translation note (BL-OEE-09).\n- Do not paste prototype JSX verbatim.\n- Do not hardcode loss category list — read from big_loss_categories (T-005) filtered by impact_dimension.\n- Do not couple to 13-MAINTENANCE Equipment Health page (P2 cross-module dependency; gated by feature flag).\n- Do not show 09-QUALITY cross-link when quality.module_enabled is false — silent fallback.",
+  "labels": [
+    "prd",
+    "ui",
+    "oee-drilldown",
+    "T3-ui"
+  ],
+  "priority": 95,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-017",
+    "source_prd": "docs/prd/15-OEE-PRD.md",
+    "prd_refs": [
+      "§15.3 OEE-001a/b/c",
+      "§15.7"
+    ],
+    "category": "ui",
+    "subcategory": "factor-drilldown",
+    "task_type": "T3-ui",
+    "parent_feature": "15-OEE-d",
+    "context_budget": "55k",
+    "estimated_effort": "3-4h",
+    "description": "Shared <OeeFactorDrillPage> component + 3 RSC pages /oee/{availability,performance,quality} parameterised by factor matching A/P/Q drill-down prototypes 1:1.",
+    "details": "Closes Auditor A OEE-006 slice. Single <OeeFactorDrillPage> reduces duplication per translation note. Each page reads oee_daily_summary + 7-day sparkline + big_loss_categories filtered by impact_dimension. Cross-module 09-QUALITY hold cross-link is gated by quality.module_enabled.\n\nAdditional acceptance detail: UI closeout includes screenshot/artifact + Playwright trace for all three pages per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`.",
+    "scope_files": [
+      "apps/web/app/(oee)/_components/oee-factor-drill-page.tsx [create]",
+      "apps/web/app/(oee)/availability/page.tsx [create]",
+      "apps/web/app/(oee)/performance/page.tsx [create]",
+      "apps/web/app/(oee)/quality/page.tsx [create]",
+      "apps/web/app/(oee)/_components/__tests__/oee-factor-drill-page.test.tsx [create]",
+      "prototypes/design/Monopilot Design System/oee/screens.jsx [ref]"
+    ],
+    "out_of_scope": [
+      "Six Big Losses + Pareto tab (T-018)",
+      "Equipment Health page OEE-P2-B (T-023 stub)",
+      "API endpoints (T-011..T-013 already cover daily/sparkline reads)"
+    ],
+    "dependencies": [
+      "T-005",
+      "T-007",
+      "T-013"
+    ],
+    "parallel_safe_with": [
+      "T-014",
+      "T-015",
+      "T-016",
+      "T-018"
+    ],
+    "acceptance_criteria": [
+      "Given the /oee/availability page renders, when compared to prototypes/design/Monopilot Design System/oee/screens.jsx:471-543, then it has the factory A% header + per-line table + A-only loss categories + 7-day trend; given /oee/performance compared to lines 546-598 and /oee/quality compared to lines 600-655, parity holds with factor swapped — verified by RTL snapshot + parity checklist",
+      "Given <OeeFactorDrillPage> is imported with prop factor='P', when rendered, then the per-line table column reads 'Performance %' and loss categories filter WHERE impact_dimension='P'",
+      "Given the Quality page is loaded with quality.module_enabled=true, when rendered, then an Alert cross-link `Open in 09-QUALITY holds` is present; when the flag is false, the Alert is absent",
+      "Given the task is closed out, when reviewers inspect evidence, then UI closeout includes screenshot/artifact + Playwright trace for all three pages per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`; single <OeeFactorDrillPage> reuse is documented"
+    ],
+    "test_strategy": [
+      "RED: RTL test asserting parity per page + shared component reuse + factor-conditional rendering",
+      "Run `pnpm --filter @monopilot/web vitest run app/(oee)/_components/oee-factor-drill-page` and `pnpm --filter @monopilot/web vitest run app/(oee)/availability`",
+      "Capture screenshots and Playwright trace for UI parity; attach artifact paths in closeout"
+    ],
+    "risk_red_lines": [
+      "Do not duplicate layout JSX across A/P/Q pages",
+      "Do not paste prototype JSX verbatim",
+      "Do not hardcode loss category list — read from big_loss_categories (T-005)",
+      "Do not couple to 13-MAINTENANCE Equipment Health (P2)",
+      "Do not show 09-QUALITY cross-link when flag is false"
+    ],
+    "skills": [
+      "test-driven-development",
+      "frontend-design",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": true,
+    "prototype_index_entry": "oee_availability_drilldown_page",
+    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md"
+  }
+}

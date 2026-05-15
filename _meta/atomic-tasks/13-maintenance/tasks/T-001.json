@@ -1,0 +1,92 @@
+{
+  "title": "T-001 — Lock maintenance permission enum (mnt.*.* RBAC baseline, MNT-§4)",
+  "prompt": "# T-001 — Lock maintenance permission enum\n\nPRD: docs/prd/13-MAINTENANCE-PRD.md §4 (Personas & RBAC), §14.2 (RLS write scopes)\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nAppend a delimited MAINTENANCE permission group to `packages/rbac/src/permissions.enum.ts` covering asset/mwo/pm/calibration/spare/sanitation/loto strings per PRD §4 RBAC matrix and Auditor A's P0 cross-cutting gap. Export `ALL_MAINTENANCE_PERMISSIONS`. Per Foundation §3 model is flat dot-namespaced strings (no derived matrix).\n\n## Implementation contract\n1. Append exactly these 17 strings (regex `^mnt\\.[a-z_]+\\.[a-z_]+$`) to `packages/rbac/src/permissions.enum.ts` under a `MAINTENANCE_PERMISSIONS` group with JSDoc citing PRD §4:\n   - `mnt.asset.read`, `mnt.asset.edit`, `mnt.asset.deactivate`\n   - `mnt.mwo.request`, `mnt.mwo.approve`, `mnt.mwo.assign`, `mnt.mwo.execute`, `mnt.mwo.sign`, `mnt.mwo.cancel`\n   - `mnt.pm.create`, `mnt.pm.skip`\n   - `mnt.calib.record`, `mnt.calib.upload_cert`\n   - `mnt.spare.consume`, `mnt.spare.adjust`, `mnt.spare.reorder`\n   - `mnt.loto.apply`, `mnt.loto.clear`\n2. Export `ALL_MAINTENANCE_PERMISSIONS` as a typed `Permission[]` array literal so vitest can iterate.\n3. Add vitest covering: (a) presence of all 17 strings, (b) regex `^mnt\\.[a-z_]+\\.[a-z_]+$` match, (c) no duplicates across the full enum, (d) CODEOWNERS still architect-locks the file.\n\n## Files\n- packages/rbac/src/permissions.enum.ts [modify]\n- packages/rbac/src/__tests__/permissions.test.ts [modify]\n- CODEOWNERS [modify]\n\n## Acceptance criteria\n1. Given the enum file is read, when imported, then it exposes exactly the 17 strings listed in §Implementation contract under a `MAINTENANCE_PERMISSIONS` group.\n2. Given a permission key matches `^mnt\\.[a-z_]+\\.[a-z_]+$`, when the enum is parsed, then no duplicates exist (vitest assertion across full Permission union).\n3. Given the file is changed, when CODEOWNERS is read, then `packages/rbac/src/permissions.enum.ts` remains architect-locked.\n4. Given `ALL_MAINTENANCE_PERMISSIONS` is imported, when iterated, then it returns exactly 17 entries typed `Permission[]`.\n\n## Test strategy (RED first)\n- RED: extend permissions.test.ts asserting the 17 strings + regex + uniqueness; run vitest, expect failure.\n- GREEN: append strings + export; re-run.\n- Typecheck + lint must pass.\n- Run `pnpm --filter @monopilot/rbac vitest run packages/rbac/src/__tests__/permissions.test.ts && pnpm typecheck`.\n\n## Risk red lines\n- Do not remove or rename any existing permission string (would break ESLint enum-lock guard from Foundation T-046).\n- Do not introduce a parallel matrix model (Foundation §3 [D2] flat model only).\n- Do not weaken CODEOWNERS coverage.\n- Do not add Settings/Quality/Production-namespaced perms in this task — out of scope.",
+  "labels": [
+    "prd",
+    "auth",
+    "permissions",
+    "T1-schema",
+    "p0-blocker"
+  ],
+  "priority": 90,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-001",
+    "source_prd": "docs/prd/13-MAINTENANCE-PRD.md",
+    "prd_refs": [
+      "§4",
+      "§14.2"
+    ],
+    "category": "auth",
+    "subcategory": "permissions-enum",
+    "task_type": "T1-schema",
+    "parent_feature": "13-MAINTENANCE-a",
+    "context_budget": "30k",
+    "estimated_effort": "1-2h",
+    "description": "Lock the 17 mnt.*.* permission strings into packages/rbac/src/permissions.enum.ts per PRD §4 RBAC matrix and Auditor A cross-cutting gap #4.",
+    "details": "Append MAINTENANCE_PERMISSIONS group with JSDoc citing PRD §4 line numbers. Export ALL_MAINTENANCE_PERMISSIONS typed array. Tests assert regex `^mnt\\.[a-z_]+\\.[a-z_]+$`, presence of all 17, no duplicates across full enum, and CODEOWNERS still gates the file. Cross-cuts: closes Auditor A gap #4 (per-module enum drift); enables future T-002..T-030 Server Actions to import strongly-typed strings instead of literals.",
+    "scope_files": [
+      "packages/rbac/src/permissions.enum.ts [modify]",
+      "packages/rbac/src/__tests__/permissions.test.ts [modify]",
+      "CODEOWNERS [modify]"
+    ],
+    "out_of_scope": [
+      "Do not add settings/quality/production-namespaced perms",
+      "Do not implement role→permission mapping in this task (later T-002 settings/role tasks)",
+      "Do not change foundation app.current_org_id() function"
+    ],
+    "cross_module_dependencies": [
+      "00-foundation/T-124"
+    ],
+    "dependencies": [],
+    "parallel_safe_with": [
+      "T-002",
+      "T-003"
+    ],
+    "acceptance_criteria": [
+      "Given the enum file is read, when imported, then it exposes exactly the 17 mnt.*.* strings listed in the prompt under a MAINTENANCE_PERMISSIONS group",
+      "Given a permission key matches `^mnt\\.[a-z_]+\\.[a-z_]+$`, when the enum is parsed, then no duplicates exist (vitest assertion across full Permission union)",
+      "Given the file is changed, when CODEOWNERS is read, then packages/rbac/src/permissions.enum.ts remains architect-locked",
+      "Given ALL_MAINTENANCE_PERMISSIONS is imported, when iterated, then it returns exactly 17 entries typed Permission[]"
+    ],
+    "test_strategy": [
+      "RED: extend permissions.test.ts asserting all 17 strings + regex + uniqueness; run vitest, expect failure",
+      "GREEN: append strings + ALL_MAINTENANCE_PERMISSIONS export, re-run",
+      "Run `pnpm --filter @monopilot/rbac vitest run` and `pnpm typecheck` and `pnpm lint`"
+    ],
+    "risk_red_lines": [
+      "Do not remove or rename any existing permission string",
+      "Do not introduce a parallel 4-level matrix model (Foundation §3 [D2])",
+      "Do not weaken CODEOWNERS coverage of permissions.enum.ts",
+      "Do not add settings/quality/production-namespaced perms here"
+    ],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": false
+  }
+}

@@ -1,0 +1,79 @@
+{
+  "title": "T-105 — document Vercel-only deploy assumption for x-vercel-cron OR require Bearer-AND-header in prod (FT-045)",
+  "prompt": "# T-105 — document Vercel-only deploy assumption for x-vercel-cron OR require Bearer-AND-header in prod (FT-045)\n\nPRD: `docs/prd/00-FOUNDATION-PRD.md` — sections: §5\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`\nOriginal carry-forward ID: **FT-045** (from `_meta/audits/2026-05-07-foundation-final-carry-forward-backlog.md`)\nSeverity: **P2** (XS effort)\n\n## Goal\nEither a runbook locks the Vercel-only assumption or the route enforces Bearer-AND-header in `NODE_ENV=production`.\n\n## Implementation contract\n1. Add `docs/runbooks/cron-auth.md` documenting the assumption + a one-liner config for non-Vercel deploys.\n2. Route enforces both Bearer AND x-vercel-cron in production.\n3. Dev mode: either-or.\n\n## Files (scope)\n- docs/runbooks/cron-auth.md [create]\n- apps/web/app/api/cron/[name]/route.ts [modify]\n\n## Acceptance criteria\n1. Given the cron route in production, when called with only x-vercel-cron and no Bearer, then 401.\n2. Given the runbook, when followed for a non-Vercel target, then ops know how to switch to Bearer-only.\n3. Given dev mode, when called with either auth mechanism, then 200.\n\n## Test strategy\n- RED: extend the existing cron-auth test pack with the production-strict branch before flipping NODE_ENV gates.\n- Run `pnpm test cron-auth`.\n\n## Risk red lines\n- Do not trust x-vercel-cron in production without the platform guarantee.\n- Do not skip the Bearer check in dev when set.\n\n## Closeout evidence\nProvide: changed_files, test_commands_and_results, acceptance_criteria_status (per AC), deviations_from_prd, git_status. Use the test-driven-development skill (RED-first) and requesting-code-review at GREEN.",
+  "labels": [
+    "prd",
+    "docs",
+    "wave-d-carry-forward",
+    "cron",
+    "runbook",
+    "T4-wiring-test"
+  ],
+  "priority": 50,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-105",
+    "source_prd": "docs/prd/00-FOUNDATION-PRD.md",
+    "prd_refs": [
+      "§5"
+    ],
+    "original_carry_forward_id": "FT-045",
+    "category": "docs",
+    "subcategory": "cron-auth",
+    "task_type": "T4-wiring-test",
+    "parent_feature": "00-FOUNDATION-i",
+    "context_budget": "50k",
+    "estimated_effort": "≤1h",
+    "description": "Document the Vercel-only deploy assumption that x-vercel-cron header can be trusted, OR enforce Bearer-AND-header in production.",
+    "details": "T-034 trusts `x-vercel-cron`. On Vercel the header is injected by the platform and cannot be spoofed; off-Vercel the assumption breaks. Either lock the deploy target to Vercel (documented) or require Bearer-AND-header in production.",
+    "scope_files": [
+      "docs/runbooks/cron-auth.md [create]",
+      "apps/web/app/api/cron/[name]/route.ts [modify]"
+    ],
+    "out_of_scope": [
+      "Do not change CRON_SECRET rotation policy."
+    ],
+    "dependencies": [],
+    "parallel_safe_with": [],
+    "acceptance_criteria": [
+      "Given the cron route in production, when called with only x-vercel-cron and no Bearer, then 401.",
+      "Given the runbook, when followed for a non-Vercel target, then ops know how to switch to Bearer-only.",
+      "Given dev mode, when called with either auth mechanism, then 200."
+    ],
+    "test_strategy": [
+      "RED: extend the existing cron-auth test pack with the production-strict branch before flipping NODE_ENV gates.",
+      "Run `pnpm test cron-auth`."
+    ],
+    "risk_red_lines": [
+      "Do not trust x-vercel-cron in production without the platform guarantee.",
+      "Do not skip the Bearer check in dev when set."
+    ],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

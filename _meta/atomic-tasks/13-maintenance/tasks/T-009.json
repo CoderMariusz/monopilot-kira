@@ -1,0 +1,110 @@
+{
+  "title": "T-009 — PM schedule due engine worker (pm_schedule_due_engine_v1, calibration_expiry_alert_v1, spare_parts_reorder_alert_v1) (MNT §8.1)",
+  "prompt": "# T-009 — PM/calibration/reorder cron worker\n\nPRD: docs/prd/13-MAINTENANCE-PRD.md §8.1 (3 cron rules), §9.4, §9.13, §9.9, §11.6 (V-MNT-22)\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nImplement the three daily cron jobs in `apps/worker` (Wave1 T-111 outbox+worker primitive) that drive PM due, calibration expiry, and spare reorder alerts.\n\n## Pre-flight\nVerify `apps/worker` scaffold from Wave1 T-111/T-112; verify it uses `app.set_org_context` per-tenant loop pattern. Verify `maintenance_outbox_events` table or unified `outbox_events` table location.\n\n## Implementation contract\n1. `apps/worker/src/maintenance/pm-schedule-due-engine.ts`:\n   - Daily run (cron registered in apps/worker/cron.ts). For each tenant, set org context, SELECT FROM maintenance_schedules WHERE active AND next_due_date <= today + warning_days; INSERT INTO maintenance_work_orders (state='open', source='pm_schedule', type from schedule_type, equipment_id, schedule_id, assigned_to_user_id from schedule.assigned_technician_id, priority='medium'); UPDATE maintenance_schedules SET last_completed_at=now() is NOT done here — that is on MWO completion (T-010).\n2. `apps/worker/src/maintenance/calibration-expiry-alert.ts`:\n   - Daily run. Scan latest calibration_records.next_due_date per instrument; emit notifications (insert into `notification_events` per Foundation pattern) staged 30d/7d/overdue per V-MNT-13.\n3. `apps/worker/src/maintenance/spare-reorder-alert.ts`:\n   - Daily run. SELECT FROM spare_parts_stock WHERE qty_on_hand<=reorder_point AND active; emit `notification_events` (warn severity) + write outbox event `spare_parts.reorder_alert` for downstream consumers; P2 D365 PO push deferred (BL-MAINT-07).\n4. Each worker job is idempotent: per-day per-(equipment|instrument|part) dedup via INSERT with `ON CONFLICT (idempotency_key) DO NOTHING` where `idempotency_key = format('mwo:pm:%s:%s', schedule_id, today)`.\n5. Vitest using a fake `now()` + Testcontainers Postgres asserting: PM schedule due in 5 days fires MWO when warning_days=7; calibration due in 7 days emits one notification with severity=warn; spare qty 10 with reorder_point=20 emits exactly one reorder alert per day.\n\n## Files\n- apps/worker/src/maintenance/pm-schedule-due-engine.ts [create]\n- apps/worker/src/maintenance/calibration-expiry-alert.ts [create]\n- apps/worker/src/maintenance/spare-reorder-alert.ts [create]\n- apps/worker/src/maintenance/__tests__/pm-engine.test.ts [create]\n- apps/worker/src/maintenance/__tests__/calibration-alert.test.ts [create]\n- apps/worker/src/maintenance/__tests__/spare-reorder.test.ts [create]\n- apps/worker/cron.ts [modify — register the 3 schedules]\n\n## Acceptance criteria\n1. Given a maintenance_schedules row with next_due_date=today+5, warning_days=7, when PM engine runs, then exactly one maintenance_work_orders row (state='open', source='pm_schedule') is created with the equipment_id and schedule_id.\n2. Given the engine runs twice on the same day, when checked, then only one MWO exists for that schedule per day (idempotency_key dedup).\n3. Given a calibration_records row with next_due_date=today+7, when calibration cron runs, then one notification_events row with severity=warn + maintenance.* template is created.\n4. Given a spare_parts_stock row qty_on_hand=10 reorder_point=20, when reorder cron runs, then one notification_events row (warn) + one outbox event `spare_parts.reorder_alert` are emitted.\n\n## Test strategy\n- RED: three vitest files asserting each engine's contract before code exists.\n- Run `pnpm --filter @monopilot/worker test maintenance/`.\n- Verify idempotency by running engine twice in test.\n\n## Risk red lines\n- Do not bypass `app.set_org_context` — per-tenant loop is mandatory (RLS would leak otherwise).\n- Do not duplicate PM MWOs per day — use idempotency_key dedup.\n- Do not push to D365 here — BL-MAINT-07 P2.\n- Do not couple to oee_maintenance_trigger_v1 — that is P2 stub registered in T-007 only.\n- Do not skip the `apps/worker` scaffold dependency — if Wave1 T-111 has not landed, mark this task BLOCKED and escalate.",
+  "labels": [
+    "prd",
+    "worker",
+    "cron",
+    "rules-dsl",
+    "T2-api"
+  ],
+  "priority": 60,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-009",
+    "source_prd": "docs/prd/13-MAINTENANCE-PRD.md",
+    "prd_refs": [
+      "§8.1",
+      "§9.4",
+      "§9.13",
+      "§9.9",
+      "§11.6"
+    ],
+    "category": "worker",
+    "subcategory": "cron-engines",
+    "task_type": "T2-api",
+    "parent_feature": "13-MAINTENANCE-b",
+    "context_budget": "55k",
+    "estimated_effort": "3-4h",
+    "description": "Implement 3 daily cron engines (PM due, calibration expiry, spare reorder) in apps/worker using foundation per-tenant loop + idempotency_key dedup.",
+    "details": "Each engine sets org context per tenant, scans relevant table, emits notification_events or MWO rows. Idempotency_key keyed on (rule, entity_id, day). Uses Wave1 T-111/T-112 apps/worker primitive. Calibration expiry alert engine calls @monopilot/e-sign foundation primitive (T-124) — signEvent with replay nonce + paired audit (retention='security') for sign-off attestation.",
+    "scope_files": [
+      "apps/worker/src/maintenance/pm-schedule-due-engine.ts [create]",
+      "apps/worker/src/maintenance/calibration-expiry-alert.ts [create]",
+      "apps/worker/src/maintenance/spare-reorder-alert.ts [create]",
+      "apps/worker/src/maintenance/__tests__/pm-engine.test.ts [create]",
+      "apps/worker/src/maintenance/__tests__/calibration-alert.test.ts [create]",
+      "apps/worker/src/maintenance/__tests__/spare-reorder.test.ts [create]",
+      "apps/worker/cron.ts [modify]"
+    ],
+    "out_of_scope": [
+      "MWO state machine Server Actions (T-010)",
+      "Outbox publisher for MWO state changes (T-012)",
+      "D365 PO push (P2)",
+      "OEE auto-trigger worker (15-OEE)"
+    ],
+    "cross_module_dependencies": [
+      "00-foundation/T-124"
+    ],
+    "dependencies": [
+      "T-002",
+      "T-003",
+      "T-004",
+      "T-005",
+      "T-006",
+      "T-007"
+    ],
+    "parallel_safe_with": [
+      "T-010",
+      "T-011",
+      "T-012"
+    ],
+    "acceptance_criteria": [
+      "Given maintenance_schedules row due in 5 days with warning_days=7, when PM engine runs, then exactly one MWO row (state='open', source='pm_schedule') is created",
+      "Given the engine runs twice in same day, when checked, then only one MWO exists per schedule per day",
+      "Given calibration_records.next_due_date=today+7, when calibration cron runs, then one notification_events row with severity=warn is created",
+      "Given spare_parts_stock qty_on_hand=10 reorder_point=20, when reorder cron runs, then one notification + one outbox event `spare_parts.reorder_alert` are emitted"
+    ],
+    "test_strategy": [
+      "RED: three vitest files (pm-engine, calibration-alert, spare-reorder) asserting each contract",
+      "Run `pnpm --filter @monopilot/worker test maintenance/`",
+      "Verify idempotency by running engine twice in test and asserting single row"
+    ],
+    "risk_red_lines": [
+      "Do not bypass app.set_org_context per-tenant loop",
+      "Do not duplicate PM MWOs per day — idempotency_key dedup mandatory",
+      "Do not push to D365 (P2)",
+      "Do not couple to oee_maintenance_trigger_v1 (P2 stub)",
+      "Block on apps/worker scaffold (Wave1 T-111) — escalate if absent"
+    ],
+    "skills": [
+      "test-driven-development",
+      "systematic-debugging",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": false
+  }
+}

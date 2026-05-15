@@ -1,0 +1,112 @@
+{
+  "title": "T-025 \u2014 UI: FIN-004 Inventory Valuation + FIN-005 Material/Labor Variance + MODAL-06 FIFO drill + MODAL-07 Variance Note (\u00a78.1, \u00a78.4)",
+  "prompt": "# T-025 \u2014 Inventory Valuation + Material/Labor Variance pages + 2 modals\n\nPRD: docs/prd/10-FINANCE-PRD.md \u00a78.1 FIN-004 + FIN-005 (PRD numbering: PRD FIN-004 Inventory Valuation = UX FIN-005 \u2014 see \u00a78.6 matrix); \u00a78.4 FIN-005 Inventory Valuation Report (UX canonical) [UNIVERSAL]; \u00a78.5 MODAL-06 + MODAL-07; \u00a711.4 V-FIN-INV-* + \u00a711.5 V-FIN-VAR-*.\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\nPrototypes:\n- `prototypes/design/Monopilot Design System/finance/variance-screens.jsx:1-117` (`fin_inventory_valuation`)\n- `prototypes/design/Monopilot Design System/finance/variance-screens.jsx:252-357` (`fin_material_variance`)\n- `prototypes/design/Monopilot Design System/finance/variance-screens.jsx:359-452` (`fin_labor_variance`)\n- `prototypes/design/Monopilot Design System/finance/modals.jsx:385-428` (`fifo_layers_modal`)\n- `prototypes/design/Monopilot Design System/finance/modals.jsx:430-463` (`variance_note_modal`)\n\n## Goal\nThree pages + two modals delivering PRD FIN-004 (PRD \u00a78.1 'Inventory Valuation') and PRD FIN-005 (PRD \u00a78.1 'Variance Dashboard'); UX renumbers FIN-004 to UX FIN-005, and PRD FIN-005 splits into UX FIN-007/008 material + labor variance pages.\n\n## Prototype parity\nReferences pinned above. shadcn primitives per index entries.\nParity checklist FIN-004 (UX FIN-005):\n1. Method Toggle (FIFO / WAC) + AsOf DatePicker + Apply Button bound to URL params via nuqs.\n2. Two-card summary: 'Total Inventory Value' (GBP, item count, method, as-of date) + 'Value Distribution' (4 horizontal mini-bars per item_type: RM / Packaging / WIP / FG).\n3. Filter bar: search, item type, location (cross-ref 05-WH locations), aging bucket Select (0-30 / 30-60 / 60-90 / 90+ days), value range.\n4. DataTable: Item Code, Name, Type, Qty on Hand (3dp), UOM, Avg Unit Cost (4dp mono), Total Value, FIFO Layers (integer link \u2192 MODAL-06), AgingBadge, Last Movement, Actions kebab.\n5. Page total + grand total footer.\n6. 'Recalculate' CTA \u2192 background job; toast 'Recalculation queued'.\n7. WAC inline view (kebab \u2192 View WAC): shows item_wac_state.avg_cost + total_qty_kg + total_value + last_updated_at.\nParity checklist FIN-005 (material variance UX FIN-007):\n1. 3 KPI tiles (Total / Price / Usage variance); Phase 2 MPV/MQV tiles muted + Badge 'Phase 2 \u2014 EPIC 10-I' per BL-FIN-01.\n2. Multi-filter bar: period preset, date range, item search, item type, cost center, variance type, significance threshold.\n3. VarBadge component (reused from T-019).\n4. 'View WOs' Link or Popover per item.\n5. 'Drill' Button \u2192 routes to T-026 drilldown.\n6. 'Note' Button \u2192 opens MODAL-07.\nParity checklist FIN-005 (labor variance UX FIN-008):\n1. 3 KPI tiles (Total Labor Var / LRV Phase 2 / LEV Phase 2 muted + Badge).\n2. Filter bar: period, date range, production_line, cost center, manufacturing_operation, variance type.\n3. Labor Table: WO, Operation, Line, Std/Actual Hrs/Rate/Cost, Variance, %.\n4. 'View WO' button \u2192 FIN-003 detail.\nParity checklist MODAL-06 (FIFO Layers):\n1. Dialog size 'wide'; read-only; Close button only.\n2. Table: Layer number / exhausted icon, Receipt Date, Source (Link to PO/TO), Qty In, Qty Remaining, Unit Cost (4dp mono), Layer Value (GBP), Exhausted badge.\n3. Summary: Total Qty, Total Value, Active Layers (count).\nParity checklist MODAL-07 (Variance Note):\n1. Dialog size 'default'.\n2. Category Select (6 categories from VARIANCE_NOTE_CATEGORIES const).\n3. Note Textarea Zod min 20 max 1000 with live char counter.\n4. Polymorphic context: shows WO or item summary.\n5. Save \u2192 INSERT variance_notes (T-021 schema) + optionally notify finance_manager via notification outbox.\n\n## Implementation contract\n1. `app/finance/inventory-valuation/page.tsx` (RSC) \u2014 fetch valuation via `getInventoryValuation(method, asOf, filters)` from new server action.\n2. `app/finance/inventory-valuation/_components/inventory-table.tsx`.\n3. `app/finance/inventory-valuation/_components/fifo-layers-modal.tsx` \u2014 MODAL-06.\n4. `app/finance/variance/material/page.tsx` + `_components/material-variance-table.tsx`.\n5. `app/finance/variance/labor/page.tsx` + `_components/labor-variance-table.tsx`.\n6. `app/finance/_components/variance-note-modal.tsx` \u2014 MODAL-07 (shared, used by T-020 and T-026 too).\n7. `app/finance/_components/aging-badge.tsx` shared primitive.\n8. Server actions for variance reads (filtered queries via Drizzle).\n\n## Files\n- apps/web/app/finance/inventory-valuation/page.tsx [create]\n- apps/web/app/finance/inventory-valuation/_components/inventory-table.tsx [create]\n- apps/web/app/finance/inventory-valuation/_components/fifo-layers-modal.tsx [create]\n- apps/web/app/finance/variance/material/page.tsx [create]\n- apps/web/app/finance/variance/material/_components/material-variance-table.tsx [create]\n- apps/web/app/finance/variance/labor/page.tsx [create]\n- apps/web/app/finance/variance/labor/_components/labor-variance-table.tsx [create]\n- apps/web/app/finance/_components/variance-note-modal.tsx [create]\n- apps/web/app/finance/_components/aging-badge.tsx [create]\n- apps/web/app/finance/_actions/inventory-valuation.ts [create]\n- apps/web/app/finance/_actions/variance.ts [create]\n- (one __tests__ test per component + actions test)\n\n## Acceptance criteria (Given-When-Then)\n- Given Inventory Valuation page renders with method=FIFO + asOf=today, when compared to prototypes/design/Monopilot Design System/finance/variance-screens.jsx:1-117, then 2-card summary + filter bar + DataTable + footer totals match \u2014 RTL snapshot + parity checklist. AND given user toggles to WAC and clicks Apply, when URL=?method=WAC, then DataTable values switch to WAC avg_cost and total_value.\n- Given FIFO Layers count cell clicked, when MODAL-06 opens, then rows from inventory_cost_layers ORDER BY receipt_date ASC with is_exhausted styling. AND given exhausted layer, when rendered in MODAL-06, then line-through opacity-50 + 'Exhausted' Badge.\n- Given Material Variance page renders, when compared to prototypes/design/Monopilot Design System/finance/variance-screens.jsx:252-357, then 3 KPI tiles + Phase 2 badge placeholders + filter bar + DataTable + VarBadge + Drill/Note buttons match. AND given Labor Variance page renders, when compared to prototype, then all 3 labor breakdown charts + drill-through links render correctly.\n- Given MODAL-07 with note_text length 15, when Submit, then Zod min(20) blocks with FormMessage. AND given MODAL-07 receives ctx.wo, when opened, then Summary shows WO link; saving inserts variance_notes with wo_id set.\nNote: UI closeout must include screenshot/artifact evidence per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md` (verified via test_strategy + checkpoint_policy.closeout_requires; previously a separate AC, hoisted to process layer by Fixer F13 2026-05-14).\n_(AC count consolidated from 9\u21924 by Fixer F13 2026-05-14 (no coverage lost))_\n\n## Test strategy (RED first)\n- RED: one test per page + per modal asserting parity, URL-driven method/asOf, FIFO drill opening with correct data, exhausted row styling, Phase 2 badge presence, Zod min-length on note, polymorphic note context.\n- Run `pnpm --filter @monopilot/web vitest run apps/web/app/finance/inventory-valuation apps/web/app/finance/variance`.\n\n## Risk red lines\n- Do not show negative inventory (filter out items with item_wac_state.total_qty_kg < 0 \u2014 guarded by V-FIN-INV-04 at write).\n- Do not paste prototype JSX verbatim.\n- Do not use HTML `<select>`.\n- Do not skip the Phase 2 placeholder badges (BL-FIN-01 visibility).\n- Do not allow saving variance_notes without wo_id OR item_id (T-021 CHECK).\n- Do not regress accessibility.\n",
+  "labels": [
+    "prd",
+    "ui",
+    "fin-004-005",
+    "T3-ui"
+  ],
+  "priority": 50,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-025",
+    "source_prd": "docs/prd/10-FINANCE-PRD.md",
+    "prd_refs": [
+      "\u00a78.1",
+      "\u00a78.4",
+      "\u00a78.5",
+      "\u00a711.4",
+      "\u00a711.5"
+    ],
+    "category": "ui",
+    "subcategory": "fin-004-005-variance",
+    "task_type": "T3-ui",
+    "parent_feature": "10-FINANCE-d",
+    "context_budget": "75k",
+    "estimated_effort": "6-7h",
+    "description": "3 pages (Inventory Valuation + Material Variance + Labor Variance) + 2 modals (FIFO Layers + Variance Note). Reusable AgingBadge + VarianceNoteModal extracted under app/finance/_components.",
+    "details": "Implements PRD FIN-004 (UX FIN-005) + PRD FIN-005 split into material/labor pages per \u00a78.6 renumbering matrix. MPV/MQV/LRV/LEV decomposition deferred (BL-FIN-01 P2 EPIC 10-I). Variance Note modal is polymorphic (WO context OR item context). [AC count consolidated from 9\u21924 by Fixer F13 2026-05-14 (no coverage lost)]",
+    "scope_files": [
+      "apps/web/app/finance/inventory-valuation/page.tsx [create]",
+      "apps/web/app/finance/inventory-valuation/_components/inventory-table.tsx [create]",
+      "apps/web/app/finance/inventory-valuation/_components/fifo-layers-modal.tsx [create]",
+      "apps/web/app/finance/variance/material/page.tsx [create]",
+      "apps/web/app/finance/variance/material/_components/material-variance-table.tsx [create]",
+      "apps/web/app/finance/variance/labor/page.tsx [create]",
+      "apps/web/app/finance/variance/labor/_components/labor-variance-table.tsx [create]",
+      "apps/web/app/finance/_components/variance-note-modal.tsx [create]",
+      "apps/web/app/finance/_components/aging-badge.tsx [create]",
+      "apps/web/app/finance/_actions/inventory-valuation.ts [create]",
+      "apps/web/app/finance/_actions/variance.ts [create]",
+      "apps/web/app/finance/inventory-valuation/_components/__tests__/inventory-table.test.tsx [create]",
+      "apps/web/app/finance/inventory-valuation/_components/__tests__/fifo-layers-modal.test.tsx [create]",
+      "apps/web/app/finance/variance/material/_components/__tests__/material-variance-table.test.tsx [create]",
+      "apps/web/app/finance/variance/labor/_components/__tests__/labor-variance-table.test.tsx [create]",
+      "apps/web/app/finance/_components/__tests__/variance-note-modal.test.tsx [create]"
+    ],
+    "out_of_scope": [
+      "Variance drill-down deeper UI (T-026)",
+      "MPV/MQV/LRV/LEV full decomposition (P2 EPIC 10-I)"
+    ],
+    "dependencies": [
+      "T-001",
+      "T-021",
+      "T-022",
+      "T-023"
+    ],
+    "parallel_safe_with": [
+      "T-026"
+    ],
+    "acceptance_criteria": [
+      "Given Inventory Valuation page renders with method=FIFO + asOf=today, when compared to prototypes/design/Monopilot Design System/finance/variance-screens.jsx:1-117, then 2-card summary + filter bar + DataTable + footer totals match \u2014 RTL snapshot + parity checklist. AND given user toggles to WAC and clicks Apply, when URL=?method=WAC, then DataTable values switch to WAC avg_cost and total_value.",
+      "Given FIFO Layers count cell clicked, when MODAL-06 opens, then rows from inventory_cost_layers ORDER BY receipt_date ASC with is_exhausted styling. AND given exhausted layer, when rendered in MODAL-06, then line-through opacity-50 + 'Exhausted' Badge.",
+      "Given Material Variance page renders, when compared to prototypes/design/Monopilot Design System/finance/variance-screens.jsx:252-357, then 3 KPI tiles + Phase 2 badge placeholders + filter bar + DataTable + VarBadge + Drill/Note buttons match. AND given Labor Variance page renders, when compared to prototype, then all 3 labor breakdown charts + drill-through links render correctly.",
+      "Given MODAL-07 with note_text length 15, when Submit, then Zod min(20) blocks with FormMessage. AND given MODAL-07 receives ctx.wo, when opened, then Summary shows WO link; saving inserts variance_notes with wo_id set."
+    ],
+    "test_strategy": [
+      "RED: one test per component asserting parity + URL params + FIFO drill + exhausted styling + Phase 2 badges + Zod min-length + polymorphic context.",
+      "Run pnpm --filter @monopilot/web vitest run apps/web/app/finance/inventory-valuation apps/web/app/finance/variance.",
+      "Closeout-evidence check (hoisted from former AC): UI closeout must include screenshot/artifact evidence per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md` (referenced by ui_evidence_policy + checkpoint_policy.closeout_requires)."
+    ],
+    "risk_red_lines": [
+      "Do not show negative inventory.",
+      "Do not paste prototype JSX verbatim.",
+      "Do not use HTML <select>.",
+      "Do not skip Phase 2 placeholder badges.",
+      "Do not allow saving variance_notes without wo_id OR item_id.",
+      "Do not regress accessibility."
+    ],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review",
+      "frontend-design"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": true,
+    "prototype_index_entry": "fin_inventory_valuation",
+    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md"
+  }
+}
